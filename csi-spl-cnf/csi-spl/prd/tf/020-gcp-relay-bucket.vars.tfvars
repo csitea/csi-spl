@@ -5,7 +5,7 @@ env         = "prd"
 gcp_project = "csi-spl-prd"
 gcp_region  = "europe-north1"
 
-relay_bucket_name = "csi-spl-883adab5-prd"
-object_max_age_days = 1
-uniform_bucket_level_access = true
+relay_bucket_name = "csi-spl-prd-rel"
+object_max_age_days = 0
+soft_delete_retention_seconds = 604800
 relay_sa_account_id = "csi-spl-rel-prd"

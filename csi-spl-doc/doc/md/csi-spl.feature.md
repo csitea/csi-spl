@@ -147,8 +147,8 @@ file for that SA must exist on the hub.
 
 | step | creates | state |
 |---|---|---|
-| `000-gcp-remote-bucket` | `csi-spl-<env>-tfstate`: uniform access, PAP enforced, versioning on, keeps 10 archived versions | local, in the run dir |
-| `001-enable-gcp-services` | `storage.googleapis.com`, `iam.googleapis.com` only; never disabled on destroy | gcs |
+| `000-gcp-remote-bucket` | `csi-spl-<env>-tfstate`: uniform access, PAP enforced, versioning on, keeps 10 archived versions | local for the first apply only, then gcs in its own bucket (6.2.4) |
+| `001-enable-gcp-services` | `storage.googleapis.com`, `iam.googleapis.com`, `orgpolicy.googleapis.com` (for the key-creation policy, 6.3) only; never disabled on destroy | gcs |
 | `020-gcp-relay-bucket` | `csi-spl-<env>-rel`, SA `csi-spl-rel-<env>`, one bucket IAM binding | gcs |
 
 ### 5.2 Decisions
@@ -249,35 +249,80 @@ ENV=dev STEP=020-gcp-relay-bucket ./run -a do_tf_plan
 ```
 
 The plan is saved to `bin/csi/spl/<env>/<step>/csi-spl-<env>.tfplan`
-(git-ignored). Do not plan a step while that same step is being applied from
-its run dir: `do_tf_plan` wipes and re-copies the run dir.
+(git-ignored). `do_tf_plan` wipes and re-copies the run dir, so it refuses
+while the dir holds a `terraform.tfstate*` or a lock file: a local state there
+may be the only copy. Plans take the state lock (no `-lock=false`).
 
 #### 6.2.3 Apply a reviewed plan (needs the owner's go)
 
-There is deliberately no apply action. Apply the saved plan, in order 000,
-001, 020, dev before prd, under the operator's credentials:
+There is deliberately no apply action: apply is a manual step, and it applies
+exactly the saved, reviewed plan. Order 000, 001, 020, dev before prd, under
+the operator's credentials:
 
 ```bash
 "$HOME/.local/share/csi-spl/bin/terraform-1.9.8" -chdir=bin/csi/spl/dev/020-gcp-relay-bucket apply csi-spl-dev.tfplan
 ```
 
-000's state is local: after applying it, keep `bin/csi/spl/<env>/000-gcp-remote-bucket/terraform.tfstate`
-safe outside git (it is the only record of the state bucket).
+#### 6.2.4 Bootstrap 000, then migrate its state into its own bucket
+
+The state bucket cannot hold its own state before it exists. The first plan
+of 000 therefore runs with a local backend, and its state is then migrated to
+`gs://csi-spl-<env>-tfstate/terraform/000-gcp-remote-bucket`. Until the
+migration the run dir holds the ONLY copy of that state.
+
+1. Plan the bootstrap, review, apply it (6.2.3):
+
+```bash
+ENV=dev STEP=000-gcp-remote-bucket TF_BACKEND=local ./run -a do_tf_plan
+```
+
+2. Back the local state up outside the repo:
+
+```bash
+mkdir -p "$HOME/.local/share/csi-spl/tfstate/dev/000-gcp-remote-bucket" && cp -p bin/csi/spl/dev/000-gcp-remote-bucket/terraform.tfstate "$HOME/.local/share/csi-spl/tfstate/dev/000-gcp-remote-bucket/terraform.tfstate.$(date -u +%Y%m%dT%H%M%SZ)"
+```
+
+3. Put the gcs backend block in the run dir (drop the local override):
+
+```bash
+rm -f bin/csi/spl/dev/000-gcp-remote-bucket/backend_override.tf && cp src/terraform/000-gcp-remote-bucket/01-providers.tf bin/csi/spl/dev/000-gcp-remote-bucket/
+```
+
+4. Migrate (answer yes to copying the existing state):
+
+```bash
+"$HOME/.local/share/csi-spl/bin/terraform-1.9.8" -chdir=bin/csi/spl/dev/000-gcp-remote-bucket init -migrate-state -backend-config="$PWD/../csi-spl-cnf/csi-spl/dev/tf/000-gcp-remote-bucket.backend-config.tfvars"
+```
+
+5. Prove the remote state holds the bucket:
+
+```bash
+"$HOME/.local/share/csi-spl/bin/terraform-1.9.8" -chdir=bin/csi/spl/dev/000-gcp-remote-bucket state list
+```
+
+6. Only then move the local `terraform.tfstate*` out of the run dir (step 2
+   kept a copy). From now on plan 000 with the default `TF_BACKEND=gcs`; the
+   next plan must show no changes.
+
+Repeat with `prd`.
 
 ### 6.3 The relay SA key: mint, store, rotate
 
 git-rel signs URLs with the SA's private key file, so a key must exist on the
-hub. An org policy `iam.disableServiceAccountKeyCreation` would block this;
-check before relying on it.
+hub. The csi organization enforces `iam.disableServiceAccountKeyCreation`
+(measured 2026-09-17), so key creation needs a project-level reset of that
+policy first, the same form the replaced relay's project uses. That is a
+security-relevant change and needs the owner's explicit go. It needs
+`orgpolicy.googleapis.com`, which step 001 enables.
 
 #### 6.3.1 Mint (needs the owner's go)
 
 ```bash
-gcloud iam service-accounts keys create "$HOME/.gcp/.csi/key-csi-spl-rel-prd.json" --iam-account=csi-spl-rel-prd@csi-spl-prd.iam.gserviceaccount.com --account="$GCP_ACCOUNT"
+gcloud iam service-accounts keys create "$HOME/.gcp/.csi/key-csi-spl-prd-rel.json" --iam-account=csi-spl-rel-prd@csi-spl-prd.iam.gserviceaccount.com --account="$GCP_ACCOUNT"
 ```
 
 ```bash
-chmod 600 "$HOME/.gcp/.csi/key-csi-spl-rel-prd.json"
+chmod 600 "$HOME/.gcp/.csi/key-csi-spl-prd-rel.json"
 ```
 
 Never print, copy into chat, or commit the file.
@@ -317,7 +362,7 @@ in flight).
 2. In `git-rel.lib.sh` `_gr_defaults`, replace the baked defaults of
    `RELAY_BUCKET` and `GCP_KEY_FILE` with fail-fast env vars (no default URL
    or bucket), with a way to pick dev or prd; prd is `gs://csi-spl-prd-rel`
-   with `$HOME/.gcp/.csi/key-csi-spl-rel-prd.json`. Update
+   with `$HOME/.gcp/.csi/key-csi-spl-prd-rel.json`. Update
    `git-rel.feature.md` in the same change.
 3. Prove it with nea-nfs-orc's `src/bash/tests/git-rel-roundtrip.tst.sh`
    against `csi-spl-prd-rel`: send, fetch, clean, and the cache-busted

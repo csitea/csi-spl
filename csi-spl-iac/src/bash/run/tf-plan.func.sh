@@ -7,9 +7,13 @@
 # @description rendered into csi-spl-cnf/csi-spl/<env>/tf/.
 # @description
 # @description TF_BACKEND=gcs (default) uses the state bucket from the rendered
-# @description backend-config. TF_BACKEND=local plans against an empty local
-# @description state instead: use it while the state bucket does not exist yet.
-# @description 000-gcp-remote-bucket always has local state.
+# @description backend-config, for every step including 000. TF_BACKEND=local
+# @description plans against a local state instead: use it while the state bucket
+# @description does not exist yet (the 000 bootstrap, doc section 6.2.4).
+# @description
+# @description The run dir is wiped and re-copied, so it REFUSES while the run
+# @description dir holds a terraform.tfstate* (a local state, possibly the only
+# @description copy) or a lock file. Move the state somewhere safe or migrate it.
 # @description
 # @description TF_OFFLINE_PLAN=1 gives the provider a dummy access token, so a
 # @description plan of resources that do not exist yet runs with no credential
@@ -35,7 +39,6 @@ do_tf_plan() {
   local backend_cfg="$cnf_dir/$STEP.backend-config.tfvars"
   local run_dir="$PROJ_PATH/bin/$ORG/$APP/$ENV/$STEP"
   local backend="${TF_BACKEND:-gcs}"
-  [[ "$STEP" == 000-* ]] && backend=local
 
   [[ -d "$src" ]]  || { do_log "FATAL no such step: $src"; return 1; }
   [[ -f "$vars" ]] || { do_log "FATAL not rendered: $vars (run ENV=$ENV ./run -a do_tpl_gen)"; return 1; }
@@ -56,15 +59,19 @@ do_tf_plan() {
   fi
   do_log "INFO terraform: $("$tf" version | head -1) ($tf) backend=$backend offline=${TF_OFFLINE_PLAN:-0}"
 
-  # The run dir is wiped and re-copied. Refuse while a local-state operation
-  # (an apply from this same dir) holds its lock.
-  if [[ -f "$run_dir/.terraform.tfstate.lock.info" ]]; then
-    do_log "FATAL $run_dir holds a terraform lock (an apply in flight?); refusing to wipe it"; return 1
+  # The run dir is wiped and re-copied. Refuse while it holds a local state
+  # (after a local-backend apply it is the ONLY copy: wiping it orphans every
+  # resource that apply made) or a lock (an apply in flight from this dir).
+  local held
+  held=$(find "$run_dir" -maxdepth 1 \( -name 'terraform.tfstate*' -o -name '.terraform.tfstate.lock.info' \) 2>/dev/null | head -n 1)
+  if [[ -n "$held" ]]; then
+    do_log "FATAL $held exists: refusing to wipe $run_dir (migrate the state, doc 6.2.4, or move it somewhere safe first)"
+    return 1
   fi
   rm -rf "$run_dir" && mkdir -p "$run_dir" && cp -r "$src/." "$run_dir/" || return 1
 
   local init_args=(-input=false)
-  if [[ "$backend" == local && "$STEP" != 000-* ]]; then
+  if [[ "$backend" == local ]]; then
     printf '%s\n' '# written by do_tf_plan: TF_BACKEND=local' 'terraform {' '  backend "local" {}' '}' \
       >"$run_dir/backend_override.tf"
   elif [[ "$backend" == gcs ]]; then
@@ -84,7 +91,7 @@ do_tf_plan() {
     fi
     "$tf" -chdir="$run_dir" init "${init_args[@]}" -no-color >/dev/null
     "$tf" -chdir="$run_dir" validate -no-color
-    "$tf" -chdir="$run_dir" plan -input=false -lock=false -no-color \
+    "$tf" -chdir="$run_dir" plan -input=false -no-color \
       -var-file="$vars" -out="$run_dir/$ORG-$APP-$ENV.tfplan"
   ) || { do_log "FATAL terraform plan failed for $ENV/$STEP"; return 1; }
 

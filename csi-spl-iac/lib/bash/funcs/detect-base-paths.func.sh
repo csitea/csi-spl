@@ -26,7 +26,7 @@ _do_probe_writable_root() {
   local primary="$1" fallback="$2" probe
   if [[ -d "$primary" ]]; then
     probe="$primary/.probe-$$-$RANDOM"
-    if : > "$probe" 2>/dev/null; then
+    if { : > "$probe"; } 2>/dev/null; then
       rm -f "$probe"
       echo "$primary"
       return 0

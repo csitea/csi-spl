@@ -1,6 +1,6 @@
 # csi-spl — "the spool"
 
-One git repository (`github.com/csitea/csi-spl`, trunk `main`) for the spool:
+One git repository (`github.com/csitea/csi-spl`, trunk `master`) for the spool:
 the GCP estate that carries **git-rel**, the gpg-encrypted signed-URL relay
 between the hub and the boxes. Nothing else lives here: no api, no wui, no rdb.
 

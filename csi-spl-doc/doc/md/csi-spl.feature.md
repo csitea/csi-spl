@@ -352,11 +352,23 @@ gcloud iam service-accounts keys delete "$OLD_KEY_ID" --iam-account=csi-spl-rel-
    makes that impossible, by design.
 5. Delete it with the SA; list the prefix: 0 objects.
 
-## 7. Switching git-rel to the new bucket — NOT DONE
+## 7. Switching git-rel to the new bucket — DONE 2026-09-17
 
-nea and osp use `bnc-cpt-all-relay` today. The switch changes nea-nfs-orc's
-code, not the spool, and is gated through the orchestrator (no transfer may be
-in flight).
+Landed in nea-nfs-orc as commit `47dc615` on its local `master` (that repo has
+no remote; it syncs by bundle). git-rel now reads the relay from ONE place,
+`nea-nfs-orc/cnf/bash/git-rel.cnf`: `GIT_REL_ENV` (prd default, or dev) gives
+`RELAY_BUCKET`, `RELAY_PROJECT`, `RELAY_REGION` and `GCP_KEY_FILE`
+(`~/.gcp/.csi/key-csi-spl-<env>-rel.json`). The scripts have no bucket of
+their own and stop when a value is empty; a key whose `project_id` is not
+`RELAY_PROJECT` is refused before any upload. `sign-url` is given
+`--region`, because the bucket-scoped relay SA cannot auto-detect it.
+
+Proof: offline 36/36; live round trip against `gs://csi-spl-prd-rel` 48
+passed, 1 failed, bucket left with 0 objects; the same test against a
+non-existent bucket 22 passed, 27 failed (the control). The one failure is
+the pre-existing F3 leak documented in nea-nfs-orc `git-rel.feature.md` 2.4.
+
+The steps it took, for the record:
 
 1. Apply dev and prd (6.2), mint the prd key (6.3), verify (6.4).
 2. In `git-rel.lib.sh` `_gr_defaults`, replace the baked defaults of
@@ -369,15 +381,23 @@ in flight).
    anonymous GET after clean.
 4. Only then land the switch.
 
-## 8. Retiring bnc-cpt-all-relay — NOT DONE
+## 8. bnc-cpt-all-relay — RETIRED 2026-09-17
 
-Owner order: remove it LAST, after the new relay is proven. Irreversible.
+`gs://bnc-cpt-all-relay` (project `bnc-cpt-all`, europe-north1) was deleted on
+**2026-09-17 ~19:20Z**, replaced by `gs://csi-spl-prd-rel` (and
+`gs://csi-spl-dev-rel` for trying git-rel itself).
 
-1. List its objects with its SA (not anonymously) and report them; it must be
-   empty or hold only leftovers nobody is waiting for.
-2. The orchestrator confirms no transfer is in flight.
-3. Delete it with its SA under a throwaway `CLOUDSDK_CONFIG`, then prove a
-   describe returns 404.
-4. Record the date and the replacing bucket here.
+Evidence, all with the bnc SA under a throwaway `CLOUDSDK_CONFIG`:
 
-<!-- keep this section as the retirement record -->
+- Before: 13 objects, 3321934 bytes, youngest `2026-09-16T16:33:11Z` — 26 h
+  old, so nothing was in flight (nea was offline and no peer had sent).
+- Settings and IAM saved first to `/var/tmp/CLE-1028/bnc-cpt-all-relay.describe.json`
+  and `.iam.json`.
+- Objects removed, then the bucket.
+- After: `gcloud storage buckets describe` -> `not found: 404`; a cache-busted
+  anonymous GET of the bucket root and of a former object -> 404 and 404.
+
+Left alone, as ordered: the service account `bnc-cpt-all@bnc-cpt-all.iam.gserviceaccount.com`
+and its key `~/.gcp/.bnc/key-bnc-cpt-all.json` — other bnc uses may exist. Both
+are candidates for the owner to retire separately. That key file is mode 0750,
+not 0600; worth tightening, not done here.

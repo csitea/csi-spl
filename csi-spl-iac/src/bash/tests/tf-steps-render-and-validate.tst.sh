@@ -25,7 +25,9 @@ if [[ -x "$TPG/.venv/bin/python" ]]; then
     tgt="$tmp"
     while (( $(tr -cd / <<<"$tgt" | wc -c) < $(tr -cd / <<<"$PROJ_ROOT" | wc -c) )); do tgt="$tgt/d"; done
     mkdir -p "$tgt/csi-spl"
-    cp "$APP_ROOT/csi-spl-cnf/csi-spl/$env.env.yaml" "$tgt/csi-spl/"
+    # shellcheck disable=SC1091
+    source "$PROJ_ROOT/lib/bash/funcs/spl-merged-cnf.func.sh"
+    do_spl_merged_cnf "$APP_ROOT/csi-spl-cnf/csi-spl" "$env" "$tgt/csi-spl/$env.env.yaml"
     ( cd "$TPG" && ORG=csi APP=spl ENV="$env" CNF_SRC="$tgt/csi-spl/$env.env.yaml" \
         TPL_SRC="$PROJ_ROOT/src/tpl/%org%-%app%/%env%/tf" TGT="$tgt" \
         .venv/bin/python tpl_gen/tpl_gen.py >/dev/null 2>&1 )
@@ -54,9 +56,14 @@ grep -qE 'predefined_acl|default_acl|allUsers|allAuthenticatedUsers' "$PROJ_ROOT
 TF=$(ls "$HOME"/.local/share/csi-spl/bin/terraform-* 2>/dev/null | sort -V | tail -1)
 if [[ -x "$TF" ]]; then
   "$TF" fmt -check -recursive "$PROJ_ROOT/src/terraform" >/dev/null && pass "terraform fmt clean" || fail "terraform fmt -check"
+  # A private plugin cache: the shared one is not safe for concurrent inits
+  # (measured 2026-09-17: validate failed once in 3 runs during another
+  # operator's apply, and passed alone).
+  tf_cache="$HOME/.terraform.d/plugin-cache/csi/spl/test"
+  mkdir -p "$tf_cache"
   for step in "$PROJ_ROOT"/src/terraform/*/; do
     tmp=$(mktemp -d); cp -r "$step." "$tmp/"
-    if TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache" "$TF" -chdir="$tmp" init -backend=false -input=false >/dev/null 2>&1 \
+    if TF_PLUGIN_CACHE_DIR="$tf_cache" "$TF" -chdir="$tmp" init -backend=false -input=false >/dev/null 2>&1 \
        && "$TF" -chdir="$tmp" validate -no-color >/dev/null 2>&1; then
       pass "validate $(basename "$step")"
     else

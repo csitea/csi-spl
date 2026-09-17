@@ -56,6 +56,11 @@ do_tf_plan() {
   fi
   do_log "INFO terraform: $("$tf" version | head -1) ($tf) backend=$backend offline=${TF_OFFLINE_PLAN:-0}"
 
+  # The run dir is wiped and re-copied. Refuse while a local-state operation
+  # (an apply from this same dir) holds its lock.
+  if [[ -f "$run_dir/.terraform.tfstate.lock.info" ]]; then
+    do_log "FATAL $run_dir holds a terraform lock (an apply in flight?); refusing to wipe it"; return 1
+  fi
   rm -rf "$run_dir" && mkdir -p "$run_dir" && cp -r "$src/." "$run_dir/" || return 1
 
   local init_args=(-input=false)
@@ -69,7 +74,9 @@ do_tf_plan() {
 
   (
     set -e
-    export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache"
+    # One cache per org/app/env/step: terraform's plugin cache is not safe for
+    # concurrent inits, and two operators planning different steps must not race.
+    export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache/$ORG/$APP/$ENV/$STEP"
     mkdir -p "$TF_PLUGIN_CACHE_DIR"
     if [[ "${TF_OFFLINE_PLAN:-0}" == 1 ]]; then
       export GOOGLE_OAUTH_ACCESS_TOKEN="offline-plan-not-a-real-token"

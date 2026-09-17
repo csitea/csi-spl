@@ -1,0 +1,36 @@
+# csi-spl ::: repo-root ignores
+
+# tpl-gen is a SIBLING CLONE of github.com/csitea/tpl-gen, pinned by
+# csi-spl-iac/cnf/tpl-gen.ref -- not vendored, not a submodule.
+/tpl-gen/
+
+# run.sh logs
+**/dat/log/
+
+# terraform run dirs, plugins, local state and plans
+**/bin/
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# credentials: never in this repo, whatever their shape
+**/key-*.json
+**/*sa*.json
+**/*.pem
+**/*.p12
+.env
+.env.*
+
+# python / editor noise
+.venv/
+__pycache__/
+*.pyc
+**/*.swp
+.vscode/
+.DS_Store
+
+# graft's local graph cache
+/graft/

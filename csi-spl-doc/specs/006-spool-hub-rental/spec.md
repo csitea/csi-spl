@@ -77,7 +77,7 @@ holds the 32-byte pubkey only; a second create with a different root → conflic
    it prints URL + root private key once. — *Planned on trunk* (in flight on
    unmerged `b6a2e80`).
 3. **Given** a cloud env (dev, then prd), **When** a tenant is created,
-   **Then** `https://<tenant>.<env fqdn>/healthz` answers 200. — *Planned*
+   **Then** `https://<tenant>.<env fqdn>/v1/health` answers 200 (003 FR-023). — *Planned*
    (blocked on 007, README §6 steps 3–10).
 
 ### User Story 2 — Renter pins boxes with the root key (Priority: P1, M1) · **Implemented**
@@ -195,4 +195,4 @@ queue, file upload token — 003 `contracts/http-v1.md` and trust-modes §4–§
 NATS, Kafka, git-rel, ysg-box, customer GCP accounts, card storage, custom
 domains, seats (M4), WUI (005).
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:05:25Z -->
+<!-- version: 1.0.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:12:21Z -->

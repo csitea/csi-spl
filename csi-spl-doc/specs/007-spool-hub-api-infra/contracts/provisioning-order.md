@@ -21,7 +21,7 @@ is not a gate.
 | 7 | hub image | `ENV=<env> ./run -a do_build_push_hub_image` | the tag is listed in the repository |
 | 8 | DB bootstrap | `ENV=<env> ./run -a do_spl_db_bootstrap` (dry run), then `DRY_RUN=0 GCP_ACCOUNT=…` | `gcloud secrets versions list csi-spl-hub-db-dsn` -> a version `enabled`; a re-run is a no-op migrate |
 | 9 | `030-cloud-run-hub` | plan + owner apply | service Ready; ingress `internal-and-cloud-load-balancing`; min = max = 1 |
-| 10 | `031-gcp-hub-ingress` | plan + owner apply; records go into the `025` zone (A) or via `do_gandi_*` (B) | `ENV=<env> ./run -a do_wait_for_cert` -> ACTIVE; `curl https://<tenant>.<fqdn>/healthz` -> 200 from an allowlisted IP, 403 otherwise |
+| 10 | `031-gcp-hub-ingress` | plan + owner apply; records go into the `025` zone (A) or via `do_gandi_*` (B) | `ENV=<env> ./run -a do_wait_for_cert` -> ACTIVE; `curl https://<tenant>.<fqdn>/v1/health` -> 200 from an allowlisted IP, 403 otherwise |
 
 ## Invariants
 
@@ -34,4 +34,4 @@ is not a gate.
   (feature doc §6.3).
 - **dev before prd.** prd starts only after dev's step 10 gate is green.
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:30:00Z -->
+<!-- version: 1.0.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:12:21Z -->

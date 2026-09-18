@@ -145,10 +145,10 @@ All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, no
 - 003 T019 ≈ 004 T010 (flush): decided (OQ-15) — box-side `internal/hubclient`.
 - 006 T008–T010 must be WebSocket, not `POST /v1/messages` / `POST /v1/recv` (OQ-02).
 - 005 WUI client still calls `/v1/messages` and `/v1/channels` (`contracts/view-v1.md` §7): 005 rebases its read path onto `/v1/view/*`.
-- 007: LB health check path (T032), `hub.view_cors_origins` / `hub.view_token_max_ttl` cnf keys (T033, T035), prd rollout (T023).
+- 007: external gates probe `/v1/health` (T032; serverless NEGs have no LB health check — seam closed by the integrator), `hub.view_cors_origins` / `hub.view_token_max_ttl` cnf keys (T033, T035), prd rollout (T023).
 
 ## Implementation strategy
 
 M1 of 003 = US1 + US2 + US3 + the WS tail of US4 — Implemented and green on Postgres + GCS; what remains for M1 is the cloud rollout (007) and the pipeline deploy (008). US7 is the next 003 code slice, due before 005 (M3) starts on real data.
 
-<!-- version: 0.4.1 · updated: 2026-09-18 · last-edit: 2026-09-18T20:30:00Z -->
+<!-- version: 0.4.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:12:21Z -->

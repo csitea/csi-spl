@@ -196,7 +196,7 @@ where the files live and how they reach each env.
 - **SC-002**: `run-all-tests.sh` green in `csi-spl-iac` and `csi-spl-orc`.
 - **SC-003**: `terraform state list` per step per env matches §1 with every
   row Implemented, on dev **and** prd.
-- **SC-004**: `GET /healthz` on `https://<tenant>.dev.spool-hub.ai` and
+- **SC-004**: `GET /v1/health` (003 FR-023) on `https://<tenant>.dev.spool-hub.ai` and
   `https://<tenant>.spool-hub.ai` returns 200 from an allowlisted IP and 403
   from any other.
 - **SC-005**: the `20_hub-build-deploy.yml` deploy jobs run (not skip) for
@@ -208,4 +208,4 @@ Shop steps (a storefront `019`, `021`, `032`, `060`–`063`, `130` / `131`),
 store SQL, M2 payment drivers, M3 WUI hosting (spec `005`), CI job design
 (spec `008`), wire and tenancy semantics (`003` / `004` / `006`).
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:30:00Z -->
+<!-- version: 1.0.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:12:21Z -->

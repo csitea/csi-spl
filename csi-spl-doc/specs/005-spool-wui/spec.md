@@ -93,7 +93,7 @@ data (`401 view_door`).
   pnpm, modelled on the pas-psf / csi-rel WUI (read-only reference, not imported).
   Check: `grep -c '"nuxt"' csi-spl-wui/package.json -> 1`.
 - **FR-002** — Partial: the WUI reads **only** through 003 `contracts/view-v1.md`
-  (`/v1/view/*`), `GET /v1/files/{file_id}` and `GET /healthz`. Story → section
+  (`/v1/view/*`), `GET /v1/files/{file_id}` and `GET /v1/health` (003 FR-023; `/healthz` is shadowed on Cloud Run). Story → section
   map: `./contracts/hub-read-needs.md`. Missing: view-v1 is not implemented (G5);
   the live client calls wrong routes (G6).
 - **FR-003** — Implemented: the browser stores no private key or signed URL,
@@ -150,4 +150,4 @@ before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-revers
 - **OQ-W2**: Is the view token (003 OQ-16) acceptable as the only door for **prd**
   Hosting, or must the social session (006) exist first?
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->
+<!-- version: 1.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:12:21Z -->

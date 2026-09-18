@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Aggregate test runner for csi-spl-api (spec 002): gofmt, go vet, go test, the
-# reference-hygiene gate, and the end-to-end smoke.
+# Aggregate test runner for csi-spl-api (specs 002 + 003): gofmt, go vet, go test,
+# the reference-hygiene gate, the end-to-end smoke, and the hub Postgres gate.
 # Usage: bash csi-spl-api/src/bash/tests/run-all-tests.sh
 set -euo pipefail
 
@@ -27,5 +27,8 @@ bash "$HERE/no-ysg-box-ref.tst.sh"
 
 echo "== end-to-end smoke =="
 bash "$HERE/spool-smoke.tst.sh"
+
+echo "== hub Postgres gate: migrate, store/hub suites on Postgres, binary e2e (skips without Postgres) =="
+bash "$HERE/hub-pg.tst.sh"
 
 echo "ALL csi-spl-api TESTS PASSED"

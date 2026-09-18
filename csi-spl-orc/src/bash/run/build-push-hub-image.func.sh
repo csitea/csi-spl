@@ -26,7 +26,7 @@ do_build_push_hub_image() {
   do_spl_cloud_cnf || return 1
   local dry=1 rc=0
   # not `if ! spl_dry_run; then rc=$?`: after `!` $? is the NEGATED status
-  if spl_dry_run; then :; else rc=$?; [[ $rc -eq 1 ]] || return 1; dry=0; fi
+  if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if (( ! dry )); then
     do_require_var GCP_ACCOUNT "${GCP_ACCOUNT:-}"
     command -v gcloud >/dev/null || { do_log "FATAL gcloud is not installed"; return 1; }

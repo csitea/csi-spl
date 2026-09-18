@@ -25,12 +25,18 @@ fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 # domain_violations <root> <all.env.yaml> -> prints offending files; rc 2 if no domain
 domain_violations() {
-  local root="$1" cnf="$2" domain label
+  local root="$1" cnf="$2" domain label label_re
   domain=$(yq -r '.env.dns.BASE_DOMAIN // ""' "$cnf" 2>/dev/null)
   [[ -n "$domain" && "$domain" != null && "$domain" == *.* ]] || return 2
   label="${domain%.*}"
-  grep -rIlF --exclude-dir=.git --exclude-dir=tpl-gen --exclude-dir=bin --exclude-dir=log \
-    -- "$label" "$root" 2>/dev/null |
+  # Match the label only at a real domain boundary: the label followed by a
+  # non-[A-Za-z0-9-] char (a dot, an escaped dot, a quote) or end-of-line. This
+  # still catches the BASE_DOMAIN literal and its escaped/split forms, but a
+  # legitimate identifier that merely STARTS with the label (e.g. a
+  # "<label>-api" module directory) is no longer a false positive. (-E, not -F.)
+  label_re=$(printf '%s' "$label" | sed 's/[.\\]/\\&/g')
+  grep -rIlE --exclude-dir=.git --exclude-dir=tpl-gen --exclude-dir=bin --exclude-dir=log \
+    -- "${label_re}([^A-Za-z0-9-]|$)" "$root" 2>/dev/null |
     sed "s#^$root/##" |
     grep -vE '^(csi-spl-cnf|csi-spl-doc)/' || true
 }

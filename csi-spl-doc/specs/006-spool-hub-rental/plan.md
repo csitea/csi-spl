@@ -19,7 +19,10 @@ Module: `csi-spl-api/src/go/spool-hub-api`. WS send/recv; REST files/pins.
 GCS `t/<tenant>/files/<sha256>`.
 
 **Wire**: `wss://…/v1/ws` send/recv; REST pins (root-signed) + files (box-key PUT).
-Tenant from `Host` / path (cnf). Queue for offline boxes is **Postgres**, not RAM.
+Tenant from **Host** (`<tenant>.spool-hub.ai`; `$SPOOL_HUB_URL` in code).
+Queue in **Postgres**, not RAM. One GCS bucket, prefix isolation.
+Cloud Run min-instances **1** default, cnf-overridable. Local mode needs no hub.
+WS last-hello-wins. Pin list: hello + periodic GET.
 
 **Payment**: stub `do_spl_tenant_create`; webhook later, provider from cnf.
 
@@ -39,4 +42,4 @@ quota → payment webhook.
 
 IAM-as-renter-door (003 US5) is **not** implemented for the public service.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:45:00Z -->

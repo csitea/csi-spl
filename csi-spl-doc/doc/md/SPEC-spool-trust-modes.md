@@ -80,7 +80,10 @@ pinned box. No per-kind ACL. Unpin the box to cut it off.
 `wss://<tenant-host>/v1/ws`
 
 1. **Hello:** `{ "box_id", "ts", "sig" }` signed with the box key. Hub
-   verifies against tenant pins. Unknown box → close.
+   verifies against tenant pins. Unknown box → close. **Last hello wins:**
+   a second connection for the same `box_id` closes the first.
+   After hello, the box **GET /v1/pins** and then on a **cnf interval**
+   (authorized_keys refresh).
 2. **Announce agents:** the box **scans `$SPOOL_ROOT/*/`** (directory names
    matching the agent-id regex). That roster is sent on hello and when the
    set changes. Duplicate id **on this box** → 409. Same id on another box
@@ -206,4 +209,4 @@ Renter chooses `$SPOOL_BOX_ID`. Duplicate `box_id` + **different** pubkey →
   the tenant is enough. No cross-tenant.
 
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:40:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:45:00Z -->

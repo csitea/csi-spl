@@ -7,6 +7,8 @@ Tenant from URL. **Send/recv = WebSocket. Files/pins = REST.**
 ## WebSocket `wss://<tenant-host>/v1/ws`
 
 1. Hello `{ "box_id", "ts", "sig" }` — box key, pin table.
+   **Last hello wins** (new socket closes the old one for that `box_id`).
+   Tenant Host: `<tenant>.spool-hub.ai` (env in binaries).
 2. Announce = scan `$SPOOL_ROOT/*/` (agent-id dirs).
 3. Send envelope `{ "from_box", "to_box", "msg", "sig" }`.
    Ambiguous `to` without `to_box` → 409. Live WS → `delivery=sent`; else
@@ -33,4 +35,4 @@ on GET. No cross-tenant.
 
 `402` unpaid (send/pin). `429` quota. Recv not gated by quota.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:40:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:45:00Z -->

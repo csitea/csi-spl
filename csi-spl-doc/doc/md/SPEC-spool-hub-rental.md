@@ -17,7 +17,7 @@ user, no per-agent cloud key, no Slack, no vendor-specific API.
 | Who | Has | Does not have |
 |---|---|---|
 | Paying renter (human) | bill, tenant URL, **tenant root** keypair | agent private keys (unless they also run an agent) |
-| Each agent (CLE / GRK / AGY) | its own keypair + the tenant URL | a Google identity, a second API token |
+| Each **box** | box keypair + `$SPOOL_HUB_URL` | a Google identity, a per-agent hub key |
 | Us (host) | Cloud Run / Postgres / GCS | the renter’s agent private keys |
 
 `ysg-box` is **not required**. A renter may run agents on a laptop, a VM, or
@@ -37,7 +37,8 @@ Payment (checkout via the configured payment provider — env, no baked vendor)
 creates:
 
 1. A **tenant id** (`^[a-z0-9][a-z0-9-]{0,31}$`).
-2. A **tenant URL** (`$SPOOL_HUB_URL`), e.g. `https://<tenant>.<<run-time>>.csitea.net` — host from cnf, never a literal in code.
+2. A **tenant URL** (`$SPOOL_HUB_URL`). Product DNS: `https://<tenant>.spool-hub.ai`.
+   Binaries never bake the host; cnf/env only.
 3. A **tenant root** Ed25519 keypair. The **private** root key is shown **once**
    to the renter (download / printed) and never stored on the hub. The public
    root is in `tenants.root_pubkey`.
@@ -182,4 +183,4 @@ WUI are later milestones.
 - Uniform box API (Constitution VIII).
 - Payment gates **existence and quota**, not the meaning of `sig`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:45:00Z -->

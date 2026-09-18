@@ -21,15 +21,15 @@ sqlite testhub with the same handlers.
 
 ## Phase 3: US2 sync
 
-- [ ] T007 [US2] sidecar `GET /v1/pins` writes `$SPOOL_ROOT/pins/box-<box_id>.pub`
-- [ ] T008 [US2] conflict local≠hub → 78, no clobber
-- [ ] T009 [P] [US2] recv on box B verifies after sync; 78 without pin
+- [x] T007 [US2] sidecar `GET /v1/pins` writes `$SPOOL_ROOT/pins/box-<box_id>.pub`
+- [x] T008 [US2] conflict local≠hub → 78, no clobber
+- [x] T009 [P] [US2] recv on box B verifies after sync; 78 without pin
 
 ## Phase 4: US3 flush
 
-- [ ] T010 [US3] implement `003/contracts/flush.md` in `internal/hubclient` (OQ-15: box-side, not `internal/flush`)
-- [ ] T011 [US3] hub-down same-box still recvs; flush idempotent on `msg_id`
-- [ ] T012 [US3] hub 400 stops retry with 78
+- [x] T010 [US3] implement `003/contracts/flush.md` in `internal/hubclient` (OQ-15: box-side, not `internal/flush`)
+- [x] T011 [US3] hub-down same-box still recvs; flush idempotent on `msg_id`
+- [x] T012 [US3] hub 400 stops retry with 78
 
 ## Phase 5: US4 revoke
 
@@ -40,4 +40,4 @@ sqlite testhub with the same handlers.
 
 - [ ] T015 Hygiene: no private key in pin JSON; no per-kind routes
 
-<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:59:40Z -->
+<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T17:52:03Z -->

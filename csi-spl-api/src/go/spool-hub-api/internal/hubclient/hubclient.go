@@ -8,6 +8,7 @@ package hubclient
 import (
 	"context"
 	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -505,7 +506,8 @@ func (s *Session) rest(ctx context.Context, method, path string, body io.Reader,
 }
 
 // SyncPins installs the tenant's box pubkeys as $SPOOL_ROOT/pins/box-<id>.pub
-// (authorized_keys refresh, trust-modes §4).
+// (authorized_keys refresh, trust-modes §4). A local pin that differs from the
+// hub is not overwritten: pin_conflict, exit 78 (004 T007/T008).
 func (s *Session) SyncPins(ctx context.Context) error {
 	var list wire.PinList
 	if err := s.rest(ctx, http.MethodGet, "/v1/pins", nil, &list); err != nil {
@@ -515,11 +517,28 @@ func (s *Session) SyncPins(ctx context.Context) error {
 		if !msg.ValidBoxID(p.BoxID) {
 			continue
 		}
-		if err := sign.Pin(s.c.Cfg.PinsDir, p.BoxID, p.PubKey, true); err != nil {
+		if err := s.installPin(p.BoxID, p.PubKey); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// installPin writes a missing pin. Same key is a no-op. Different key refuses
+// without clobbering the local file.
+func (s *Session) installPin(boxID, pubB64 string) error {
+	existing, err := sign.LoadPin(s.c.Cfg.PinsDir, boxID)
+	if err == nil {
+		if base64.StdEncoding.EncodeToString(existing) != pubB64 {
+			return &HubError{Token: "pin_conflict", Status: http.StatusConflict,
+				Detail: "local pin for " + boxID + " differs from hub; not clobbering"}
+		}
+		return nil
+	}
+	if !errors.Is(err, sign.ErrUnpinned) {
+		return err
+	}
+	return sign.Pin(s.c.Cfg.PinsDir, boxID, pubB64, false)
 }
 
 // UploadFile puts the local blob file_id to the hub (POST /v1/files).

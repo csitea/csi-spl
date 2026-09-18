@@ -5,4 +5,4 @@ env         = "dev"
 gcp_project = "csi-spl-dev"
 gcp_region  = "europe-north1"
 
-gcp_services = ["storage.googleapis.com", "iam.googleapis.com", "orgpolicy.googleapis.com", "run.googleapis.com", "sqladmin.googleapis.com", "secretmanager.googleapis.com", "artifactregistry.googleapis.com", "dns.googleapis.com", "compute.googleapis.com", "certificatemanager.googleapis.com"]
+gcp_services = ["storage.googleapis.com", "iam.googleapis.com", "orgpolicy.googleapis.com", "run.googleapis.com", "sqladmin.googleapis.com", "secretmanager.googleapis.com", "artifactregistry.googleapis.com", "dns.googleapis.com", "compute.googleapis.com", "certificatemanager.googleapis.com", "firebase.googleapis.com", "firebasehosting.googleapis.com"]

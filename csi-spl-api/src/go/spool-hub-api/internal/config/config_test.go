@@ -1,8 +1,11 @@
 package config
 
 import (
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
 )
 
 func TestLoadRequiresBoxIDWhenHubURLSet(t *testing.T) {
@@ -81,5 +84,54 @@ func TestLoadHubRequiresTenantHostPatternFromEnv(t *testing.T) {
 	}
 	if strings.Contains(h.TenantHostPattern, "spool-hub") {
 		t.Fatal("hub config baked a product hostname")
+	}
+}
+
+func setHubBase(t *testing.T) {
+	t.Helper()
+	t.Setenv("SPOOL_HUB_DB_DSN", "memory:")
+	t.Setenv("SPOOL_HUB_FILES_DIR", t.TempDir())
+	t.Setenv("SPOOL_HUB_FILES_BUCKET", "")
+	t.Setenv("SPOOL_HUB_TENANT_HOST_PATTERN", "{tenant}.hub.test")
+}
+
+func TestLoadHubCICDOffInPrdWithoutToken(t *testing.T) {
+	setHubBase(t)
+	t.Setenv("SPOOL_HUB_ENV", "prd")
+	t.Setenv("SPOOL_HUB_CICD_LOGS_ENABLED", "false")
+	h, err := LoadHub()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.CICDLogsEnabled {
+		t.Fatal("flag defaulted on")
+	}
+}
+
+func TestLoadHubCICDPrdFailClosed(t *testing.T) {
+	setHubBase(t)
+	t.Setenv("SPOOL_HUB_ENV", "prd")
+	t.Setenv("SPOOL_HUB_CICD_LOGS_ENABLED", "true")
+	t.Setenv("SPOOL_HUB_CICD_GITHUB_API", "https://api.example.test")
+	if _, err := LoadHub(); !errors.Is(err, cicdlogs.ErrFailClosed) {
+		t.Fatalf("got %v", err)
+	}
+	t.Setenv("SPOOL_HUB_CICD_GITHUB_TOKEN", "CHANGE_ME")
+	if _, err := LoadHub(); !errors.Is(err, cicdlogs.ErrFailClosed) {
+		t.Fatalf("placeholder: %v", err)
+	}
+	t.Setenv("SPOOL_HUB_CICD_GITHUB_TOKEN", "test-token-ok")
+	if _, err := LoadHub(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLoadHubCICDEnabledNeedsAPI(t *testing.T) {
+	setHubBase(t)
+	t.Setenv("SPOOL_HUB_ENV", "lde")
+	t.Setenv("SPOOL_HUB_CICD_LOGS_ENABLED", "true")
+	t.Setenv("SPOOL_HUB_CICD_GITHUB_TOKEN", "test-token-ok")
+	if _, err := LoadHub(); err == nil {
+		t.Fatal("enabled without API accepted")
 	}
 }

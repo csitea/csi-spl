@@ -13,6 +13,7 @@ import (
 
 	"github.com/caarlos0/env/v10"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 )
 
@@ -126,6 +127,15 @@ type Hub struct {
 	LogLevel              string        `env:"SPOOL_HUB_LOG_LEVEL" envDefault:"info"`
 	LogFormat             string        `env:"SPOOL_HUB_LOG_FORMAT" envDefault:"json"`
 	MigrationsDir         string        `env:"SPOOL_HUB_MIGRATIONS_DIR"`
+	// 008 CI/CD logs (M1 stub, flagged off). Token/key are secrets, never logged.
+	CICDLogsEnabled   bool   `env:"SPOOL_HUB_CICD_LOGS_ENABLED" envDefault:"false"`
+	CICDGitHubAPI     string `env:"SPOOL_HUB_CICD_GITHUB_API"`
+	CICDGitHubToken   string `env:"SPOOL_HUB_CICD_GITHUB_TOKEN"`
+	CICDTenantTokens  string `env:"SPOOL_HUB_CICD_TENANT_TOKENS"`
+	CICDRepoAllowlist string `env:"SPOOL_HUB_CICD_REPO_ALLOWLIST"`
+	CICDFromBox       string `env:"SPOOL_HUB_CICD_FROM_BOX" envDefault:"hub"`
+	CICDFromID        string `env:"SPOOL_HUB_CICD_FROM_ID" envDefault:"CI-0"`
+	CICDHubBoxKey     string `env:"SPOOL_HUB_CICD_HUB_BOX_KEY"`
 }
 
 // LoadHub parses the hub environment and fails fast on a missing or
@@ -153,6 +163,9 @@ func LoadHub() (*Hub, error) {
 	}
 	if h.QuotaMessagesPerMonth < 0 || h.QuotaPins < 0 || h.QuotaFileBytes < 0 {
 		return nil, fmt.Errorf("hub quotas must be zero (unlimited) or positive")
+	}
+	if err := cicdlogs.ValidateHubEnv(h.CICDLogsEnabled, h.Env, h.CICDGitHubToken, h.CICDTenantTokens, h.CICDRepoAllowlist, h.CICDGitHubAPI, h.CICDFromBox, h.CICDFromID); err != nil {
+		return nil, err
 	}
 	return &h, nil
 }

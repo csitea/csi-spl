@@ -5,8 +5,8 @@
 
 **Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo, area 008)
 
-**Status**: US2 pipeline — **Partial** (M1: gate green, deploy never run). US1 CI logs in chat — **Planned**
-(later, after M3; M1 carries a flagged-off stub).
+**Status**: US2 pipeline — **Partial** (M1: gate green, deploy never run). US1 CI logs in chat — **Partial**
+(M1 flagged-off stub implemented; the feature is later, after M3).
 
 **Contracts**: `contracts/pipeline.md` (US2), `contracts/fetch-deliver.md` (US1)
 
@@ -92,12 +92,7 @@ the four grants the pipeline needs. Tasks T103–T104.
   allows no repos (not an open proxy). Prefer a file attachment; cap one log
   at 32 MiB and say so in the body when truncated.
 
-**Status (trunk `bbc41e7`)**: FR-001 **Implemented** for M1 (`grep -c '\bgh\b'
-csi-spl-orc/src/docker/spool-hub-api/Dockerfile` → 0). FR-002..006 **Planned**
-on trunk (`ls csi-spl-api/src/go/spool-hub-api/internal` → no `cicdlogs`;
-`grep -c CICD csi-spl-cnf/csi-spl/all.env.yaml` → 0). The M1 stub is written
-on branch `GRK-3354-008-cicd-logs-stub` (`c9ed24e`), **not yet on master**;
-that lane ticks tasks T002–T010 when it lands.
+**Status**: FR-001 **Implemented** for M1 (`grep -c 'gh' csi-spl-orc/src/docker/spool-hub-api/Dockerfile` → 0). FR-002..006 **Implemented as the M1 flagged-off stub** (`internal/cicdlogs`, `POST /v1/cicd-logs` only when `SPOOL_HUB_CICD_LOGS_ENABLED=true`; code default `false`, and the cnf key waits for the next 030 re-render, task T002): landed from GRK-3354's `c9ed24e` onto trunk by the 008 lane, with the hub suite green. **Not live anywhere**: the flag is off in every env, and the Secret Manager slot (T012) and `gh` in the image (T011) stay later.
 
 ## Out of Scope
 
@@ -107,4 +102,4 @@ that lane ticks tasks T002–T010 when it lands.
 - **US1**: M1 image need not include `gh`. M2 checkout. Store logic. WUI. 031
   ingress. Baking tokens. Box-side `gh` / tokens on a box.
 
-<!-- version: 0.2.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:21:34Z -->
+<!-- version: 0.2.3 · updated: 2026-09-18 · last-edit: 2026-09-18T19:26:08Z -->

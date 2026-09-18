@@ -1,8 +1,8 @@
 // Package hub is the spool hub process (`spool serve`, spec 003): a stateless
 // HTTPS + WebSocket server. Boxes authenticate with a challenge-response hello
 // signed by their box key, send box-signed envelopes, and receive recv / tail
-// frames on the same socket; REST carries files and pins only (contracts/
-// http-v1.md). State lives in internal/store (Postgres) and internal/blob
+// frames on the same socket; REST carries files and pins (contracts/
+// http-v1.md) and, when 008 is enabled, POST /v1/cicd-logs. State lives in internal/store (Postgres) and internal/blob
 // (GCS); the live-socket map and upload tokens are per-process memory, which
 // M1 makes sound by running with max-instances=1 (OQ-05).
 package hub
@@ -25,6 +25,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -51,6 +52,7 @@ type Options struct {
 	QuotaMessagesPerMonth int
 	QuotaPins             int
 	QuotaFileBytes        int64
+	CICD                  *cicdlogs.Service // nil = 008 route not registered (M1 default)
 }
 
 // Server is one hub process.
@@ -63,6 +65,7 @@ type Server struct {
 	sessions map[*session]struct{}  // every live socket (both roles)
 	tokens   map[string]uploadToken
 	closing  bool
+	cicd     *cicdlogs.Service
 }
 
 type uploadToken struct {
@@ -84,11 +87,16 @@ func New(o Options) (*Server, error) {
 	if o.HelloTimeout == 0 {
 		o.HelloTimeout = 10 * time.Second
 	}
-	return &Server{
+	s := &Server{
 		o: o, suffix: strings.ToLower(strings.TrimPrefix(o.TenantHostPattern, "{tenant}")),
 		boxes: map[[2]string]*session{}, sessions: map[*session]struct{}{},
 		tokens: map[string]uploadToken{},
-	}, nil
+	}
+	if o.CICD != nil {
+		o.CICD.Bus = s
+		s.cicd = o.CICD
+	}
+	return s, nil
 }
 
 // Handler returns the HTTP surface (http-v1.md §1) behind the shared middleware.
@@ -110,6 +118,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/pins", s.handleListPins)
 	mux.HandleFunc("POST /v1/pins", s.handlePin)
 	mux.HandleFunc("DELETE /v1/pins/{box_id}", s.handleRevoke)
+	if s.cicd != nil {
+		mux.HandleFunc("POST /v1/cicd-logs", s.handleCICDLogs)
+	}
 	return s.middleware(mux)
 }
 

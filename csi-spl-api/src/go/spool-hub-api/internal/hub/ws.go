@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"sync"
@@ -406,28 +407,11 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 			}
 		}
 	}
-	ts, err := time.Parse(time.RFC3339, m.TS)
-	if err != nil {
+	if _, err := time.Parse(time.RFC3339, m.TS); err != nil {
 		x.fail(ctx, id, "bad_json", http.StatusBadRequest, "ts is not RFC3339")
 		return
 	}
-	canon, err := env.Marshal()
-	if err != nil {
-		x.fail(ctx, id, "bad_json", http.StatusBadRequest, "envelope does not re-encode")
-		return
-	}
-	filesJSON, _ := json.Marshal(m.Files)
-	if m.Files == nil {
-		filesJSON = []byte(`[]`)
-	}
-	now := s.o.Now()
-	row := store.Message{
-		TenantID: x.tenant, MsgID: id, TaskID: m.TaskID, TS: ts,
-		FromBox: env.FromBox, FromID: m.From, ToBox: env.ToBox, ToID: m.To, Kind: m.Kind, Body: m.Body,
-		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon,
-		ReceivedAt: now, ExpiresAt: now.Add(s.retention("")),
-	}
-	inserted, err := s.o.Store.InsertMessage(ctx, row)
+	delivery, err := s.commit(ctx, x.tenant, env, m)
 	if errors.Is(err, store.ErrConflict) {
 		x.fail(ctx, id, "conflict_msg", http.StatusConflict, "msg_id exists with a different envelope")
 		return
@@ -437,22 +421,84 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, "internal", http.StatusInternalServerError, "message not stored")
 		return
 	}
-	if err := s.o.Store.Enqueue(ctx, x.tenant, id, env.ToBox, now, now.Add(s.o.QueueTTL), s.o.QueueMaxPerBox); err != nil {
-		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("enqueue")
-		x.fail(ctx, id, "internal", http.StatusInternalServerError, "delivery not queued")
-		return
+	x.write(ctx, wire.Frame{Type: wire.TSent, MsgID: id, TaskID: m.TaskID, TS: m.TS, ToBox: env.ToBox, Delivery: delivery}) //nolint:errcheck
+}
+
+// commit stores the envelope and queues or pushes it. Caller has validated.
+func (s *Server) commit(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message) (string, error) {
+	ts, err := time.Parse(time.RFC3339, m.TS)
+	if err != nil {
+		return "", err
+	}
+	canon, err := env.Marshal()
+	if err != nil {
+		return "", err
+	}
+	filesJSON, _ := json.Marshal(m.Files)
+	if m.Files == nil {
+		filesJSON = []byte(`[]`)
+	}
+	now := s.o.Now()
+	row := store.Message{
+		TenantID: tenant, MsgID: m.MsgID, TaskID: m.TaskID, TS: ts,
+		FromBox: env.FromBox, FromID: m.From, ToBox: env.ToBox, ToID: m.To, Kind: m.Kind, Body: m.Body,
+		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon,
+		ReceivedAt: now, ExpiresAt: now.Add(s.retention("")),
+	}
+	inserted, err := s.o.Store.InsertMessage(ctx, row)
+	if err != nil {
+		return "", err
+	}
+	if err := s.o.Store.Enqueue(ctx, tenant, m.MsgID, env.ToBox, now, now.Add(s.o.QueueTTL), s.o.QueueMaxPerBox); err != nil {
+		return "", err
 	}
 	if inserted {
-		s.notifyTail(ctx, x.tenant, m.TaskID, canon)
+		s.notifyTail(ctx, tenant, m.TaskID, canon)
 	}
-
 	delivery := wire.DeliveryQueued
-	if target := s.boxSession(x.tenant, env.ToBox); target != nil && s.push(ctx, target, id, canon) {
+	if target := s.boxSession(tenant, env.ToBox); target != nil && s.push(ctx, target, m.MsgID, canon) {
 		delivery = wire.DeliverySent
-	} else if st, _ := s.o.Store.DeliveryState(ctx, x.tenant, id, env.ToBox); st == store.StateSent {
-		delivery = wire.DeliverySent // an idempotent replay of an already-delivered message
+	} else if st, _ := s.o.Store.DeliveryState(ctx, tenant, m.MsgID, env.ToBox); st == store.StateSent {
+		delivery = wire.DeliverySent
 	}
-	x.write(ctx, wire.Frame{Type: wire.TSent, MsgID: id, TaskID: m.TaskID, TS: m.TS, ToBox: env.ToBox, Delivery: delivery}) //nolint:errcheck
+	return delivery, nil
+}
+
+// Deliver verifies a hub-originated envelope and commits it (cicdlogs.Bus).
+func (s *Server) Deliver(ctx context.Context, tenant string, env *wire.Envelope) (string, error) {
+	m, err := env.Inner()
+	if err != nil {
+		return "", err
+	}
+	pub, err := s.o.Store.GetPin(ctx, tenant, env.FromBox)
+	if err != nil {
+		return "", err
+	}
+	if err := env.Verify(pub); err != nil {
+		return "", err
+	}
+	if env.ToBox == "" || !msg.ValidBoxID(env.ToBox) {
+		return "", fmt.Errorf("to_box")
+	}
+	if _, err := s.o.Store.GetPin(ctx, tenant, env.ToBox); err != nil {
+		return "", err
+	}
+	if !s.o.AllowTextOnly {
+		for _, a := range m.Files {
+			if a.Mode != "blob" {
+				continue
+			}
+			key, kerr := blob.Key(tenant, a.FileID)
+			ok := false
+			if kerr == nil {
+				ok, _ = s.o.Blob.Exists(ctx, key)
+			}
+			if !ok {
+				return "", fmt.Errorf("missing file")
+			}
+		}
+	}
+	return s.commit(ctx, tenant, env, m)
 }
 
 func (s *Server) onTail(ctx context.Context, x *session, f wire.Frame) {

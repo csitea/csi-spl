@@ -19,6 +19,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
@@ -59,13 +60,29 @@ func cmdServe() int {
 	}
 	defer bs.Close()
 
-	srv, err := hub.New(hub.Options{
+	opts := hub.Options{
 		Store: st, Blob: bs, Log: log, TenantHostPattern: hc.TenantHostPattern,
 		HelloSkew: hc.HelloSkew, UploadTokenTTL: hc.UploadTokenTTL, QueueTTL: hc.QueueTTL,
 		QueueMaxPerBox: hc.QueueMaxPerBox, RetentionAlerts: hc.RetentionAlerts,
 		RetentionChannels: hc.RetentionChannels, AllowTextOnly: hc.AllowTextOnly, Version: version,
 		QuotaMessagesPerMonth: hc.QuotaMessagesPerMonth, QuotaPins: hc.QuotaPins, QuotaFileBytes: hc.QuotaFileBytes,
-	})
+	}
+	if hc.CICDLogsEnabled {
+		stt, err := cicdlogs.ParseSettings(true, hc.Env, hc.CICDGitHubToken, hc.CICDTenantTokens, hc.CICDRepoAllowlist, hc.CICDGitHubAPI, hc.CICDFromBox, hc.CICDFromID)
+		if err != nil {
+			return fail(err)
+		}
+		svc := &cicdlogs.Service{Settings: stt, Fetch: cicdlogs.HTTPFetcher{}, Now: time.Now}
+		if k := strings.TrimSpace(hc.CICDHubBoxKey); k != "" {
+			raw, err := base64.StdEncoding.DecodeString(k)
+			if err != nil || len(raw) != ed25519.PrivateKeySize {
+				return fail(fmt.Errorf("SPOOL_HUB_CICD_HUB_BOX_KEY is not a base64 ed25519 private key"))
+			}
+			svc.Signer = ed25519.PrivateKey(raw)
+		}
+		opts.CICD = svc
+	}
+	srv, err := hub.New(opts)
 	if err != nil {
 		return fail(err)
 	}

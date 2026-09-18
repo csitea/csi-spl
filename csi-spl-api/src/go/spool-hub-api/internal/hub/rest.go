@@ -1,12 +1,14 @@
 package hub
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -227,4 +230,62 @@ func verify(pub ed25519.PublicKey, payload []byte, sig string) error {
 		return sign.ErrVerify
 	}
 	return sign.Verify(pub, payload, sig)
+}
+
+// PutFile stores data in the tenant blob prefix (cicdlogs.Bus).
+func (s *Server) PutFile(ctx context.Context, tenant, name string, data []byte) (msg.Attachment, error) {
+	if int64(len(data)) > msg.MaxFileBytes {
+		return msg.Attachment{}, fmt.Errorf("file exceeds the per-file limit")
+	}
+	sum := sha256.Sum256(data)
+	id := hex.EncodeToString(sum[:])
+	key, err := blob.Key(tenant, id)
+	if err != nil {
+		return msg.Attachment{}, err
+	}
+	if err := s.o.Blob.Put(ctx, key, data); err != nil {
+		return msg.Attachment{}, err
+	}
+	if name == "" {
+		name = id
+	}
+	return msg.Attachment{Mode: "blob", Kind: "file", FileID: id, SHA256: id, Name: name, Bytes: int64(len(data))}, nil
+}
+
+// POST /v1/cicd-logs: hub-side fetch+deliver (008). Registered only when enabled.
+func (s *Server) handleCICDLogs(w http.ResponseWriter, r *http.Request) {
+	t, err := s.tenantOf(r)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
+		return
+	}
+	box, ok := s.bearer(r, t.ID)
+	if !ok {
+		writeErr(w, http.StatusUnauthorized, "door", "a valid upload token from the WS hello is required")
+		return
+	}
+	var req cicdlogs.Request
+	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_json", "cicd-logs body does not parse")
+		return
+	}
+	if req.ToBox == "" {
+		req.ToBox = box
+	}
+	if req.ToBox != box {
+		writeErr(w, http.StatusForbidden, "cicd_forbidden", "to_box must be the authenticated box")
+		return
+	}
+	res, err := s.cicd.Run(r.Context(), t.ID, req)
+	switch {
+	case err == nil:
+		writeJSON(w, http.StatusOK, cicdlogs.HTTPResultFrom(res))
+	case errors.Is(err, cicdlogs.ErrForbidden):
+		writeErr(w, http.StatusForbidden, "cicd_forbidden", "repo is not allowlisted for this tenant")
+	case errors.Is(err, cicdlogs.ErrBadRequest):
+		writeErr(w, http.StatusBadRequest, "bad_json", "url or owner+repo+run_id, task_id, to and to_box are required")
+	default:
+		s.o.Log.Error().Err(err).Msg("cicd-logs")
+		writeErr(w, http.StatusServiceUnavailable, "internal", "cicd-logs failed")
+	}
 }

@@ -24,32 +24,32 @@ end; a checkbox is ticked only when that status is Implemented.
 
 ## Phase 2: Foundational
 
-- [ ] T003 `internal/cicdlogs`: parse allowlist + tokens, placeholder
+- [x] T003 `internal/cicdlogs`: parse allowlist + tokens, placeholder
       detect, prd fail-closed, URL/`owner`+`repo`+`run_id` parse.
       (`csi-spl-api/src/go/spool-hub-api/internal/cicdlogs`)
-- [ ] T004 [P] HTTP fetcher (configurable API base, strip `Authorization`
+- [x] T004 [P] HTTP fetcher (configurable API base, strip `Authorization`
       on redirect, scrub token from errors). No `gh`, no baked host.
-- [ ] T005 Fetch+deliver: blob put, `kind=note` + file, 32 MiB truncate +
+- [x] T005 Fetch+deliver: blob put, `kind=note` + file, 32 MiB truncate +
       body line, `CI not configured` when no tenant token, empty allowlist
       denies. Memory bus in unit tests.
 
 ## Phase 3: User Story 1 — hub bus (stub) 🎯
 
-- [ ] T006 [US1] `config.LoadHub` reads the 008 env names; fail-closed in
+- [x] T006 [US1] `config.LoadHub` reads the 008 env names; fail-closed in
       prd when enabled and the token is missing/placeholder.
       (`internal/config`)
-- [ ] T007 [US1] `POST /v1/cicd-logs` registered only when enabled; upload
+- [x] T007 [US1] `POST /v1/cicd-logs` registered only when enabled; upload
       token; `to_box` = token box; commit on the existing envelope path;
       404 when the flag is off. (`internal/hub`)
-- [ ] T008 [US1] Hub tests: flag off → 404; unconfigured note; allowlist
+- [x] T008 [US1] Hub tests: flag off → 404; unconfigured note; allowlist
       403; fake GitHub → note+file on the bus; cross-tenant isolation;
       token absent from body and error detail. (`internal/hub/hub_test.go`)
-- [ ] T009 [P] M1 Dockerfile still has no `gh`
+- [x] T009 [P] M1 Dockerfile still has no `gh`
       (`csi-spl-orc/src/docker/spool-hub-api/Dockerfile` — assert only).
 
 ## Phase 4: Polish
 
-- [ ] T010 `go test ./...` and `bash csi-spl-api/src/bash/tests/run-all-tests.sh`
+- [x] T010 `go test ./...` and `bash csi-spl-api/src/bash/tests/run-all-tests.sh`
       green. No wui, no 031, no token in git.
 
 ## Out of this stub (later)
@@ -123,7 +123,8 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | Task | Status | Evidence |
 |---|---|---|
 | T001 | Implemented | `ls contracts/fetch-deliver.md` → present |
-| T002–T010 | Planned on trunk | `grep -c CICD csi-spl-cnf/csi-spl/all.env.yaml` → 0; no `internal/cicdlogs`. Written on branch `GRK-3354-008-cicd-logs-stub` (`c9ed24e`), not on master; that lane ticks them when it lands. T009's assertion already holds (`grep -c '\bgh\b' …/Dockerfile` → 0). |
+| T002 | Partial | the code default is off (`envDefault:"false"` in `internal/config`), so unset = off everywhere. Writing the key into cnf is held back on purpose: hub env renders into the 030 tfvars (`grep -l SPOOL_HUB_ENABLE_FAKE_PAY csi-spl-cnf/csi-spl/*/tf/*` → both envs), so it would mean a re-render plus an owner-gated 030 apply mid-provisioning. It rides the next 030 re-render. |
+| T003–T010 | Implemented (M1 stub, flag off) | this commit: GRK-3354's `c9ed24e` re-applied on trunk (one test conflict resolved, one `PutPin` call updated to trunk's signature); `go vet ./...` → 0, `go test ./...` → all ok, `bash csi-spl-api/src/bash/tests/run-all-tests.sh` → ALL PASSED, no gate skipped; `grep -c 'gh' …/Dockerfile` → 0 |
 | T011–T015 | Planned (later) | — |
 | T101 | Implemented | `git log --format=%h -- .github/workflows` → `3596991` |
 | T102 | Implemented | this commit |
@@ -149,4 +150,4 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | FR-P09 deployed-state check | T110 |
 | FR-P10 names from cnf | T101 |
 
-<!-- version: 0.2.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:21:34Z -->
+<!-- version: 0.2.3 · updated: 2026-09-18 · last-edit: 2026-09-18T19:26:08Z -->

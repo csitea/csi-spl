@@ -111,7 +111,7 @@ its deploy check; terraform and applies stay 007's / the owner's.
 - [ ] T109 [US2] [owner go] prd, after prd provisioning steps 1–9
       (`specs/README.md` §6): apply 017 prd, export `…_PRD`, first prd deploy
       as in T106.
-- [ ] T110 [P] [US2] [008] FR-P09 deployed-state check: an orc action
+- [x] T110 [P] [US2] [008] FR-P09 deployed-state check `do_check_hub_deploy`: an orc action
       comparing cnf `hub.image.ref` with the live service image per env
       (`gcloud … --account=$GCP_ACCOUNT`), printing `current` / `lagging`
       and exiting non-zero when lagging. Read-only.
@@ -131,7 +131,8 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | T105, T109 | Planned | `gh variable list -R csitea/csi-spl` → empty; no WIF pool in either project |
 | T106 | Planned | deploy job `skipped` in 8 of 8 runs of `20 ci-cd` |
 | T107 | Implemented | `4839514`; run `35385087709` → `distribution-hygiene` success (first green gate since `3596991`) |
-| T108, T110, T111 | Planned | — |
+| T108, T111 | Planned | — |
+| T110 | Implemented | `csi-spl-orc/src/bash/run/check-hub-deploy.func.sh`; `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` → 8/8; live dev → `current`, rc 0 |
 
 ## Traceability — US2
 
@@ -148,4 +149,4 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | FR-P09 deployed-state check | T110 |
 | FR-P10 names from cnf | T101 |
 
-<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:00Z -->
+<!-- version: 0.2.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:21:34Z -->

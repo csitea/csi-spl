@@ -20,7 +20,7 @@ another lane's branch.
 | 3 | dev: apply 017, export the two `…_DEV` repo variables | owner go | T105 | 4 |
 | 4 | First dev deploy through a tag bump, then a 030 plan with no diff | 008 verifies, 007 fixes 030 if needed | T106, T108 | 5 |
 | 5 | prd: provisioning steps 1–9 (`specs/README.md` §6), then 017, variables and the first deploy | 007 / owner go | T109 | — |
-| 6 | Deployed-state check | orc lane | T110 | — (parallel) |
+| 6 | ~~Deployed-state check~~ — **done**: `do_check_hub_deploy` | 008 | T110 | — |
 
 Dev goes all the way through before prd, as README §6 says.
 
@@ -37,7 +37,7 @@ Dev goes all the way through before prd, as README §6 says.
   land before 017 without turning trunk red. The cost: a green `20 ci-cd` run
   says **nothing** about deployment until T105. Whether an env really
   deployed comes from the deploy job's conclusion (`success` vs `skipped`)
-  and, once T110 exists, from the deployed-state check — never from the
+  and from `do_check_hub_deploy` (T110) — never from the
   run's colour.
 - **Verification uses the control plane**, because 031's IP allowlist keeps
   runners away from `/healthz`.
@@ -59,4 +59,4 @@ Unchanged: `contracts/fetch-deliver.md`, tasks T001–T015. After M3 in the
 dependency order (`specs/README.md` §4). The M1 flagged-off stub is being
 built on branch `GRK-3354-008-cicd-logs-stub`.
 
-<!-- version: 1.0.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:00Z -->
+<!-- version: 1.0.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:21:34Z -->

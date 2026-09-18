@@ -144,14 +144,21 @@ func TestLoadHubViewDoorAndOrigins(t *testing.T) {
 	t.Setenv("SPOOL_HUB_FILES_BUCKET", "")
 	t.Setenv("SPOOL_HUB_TENANT_HOST_PATTERN", "{tenant}.hub.test")
 	t.Setenv("SPOOL_HUB_VIEW_CORS_ORIGINS", "")
-	t.Setenv("SPOOL_HUB_ENV", "dev")
+	t.Setenv("SPOOL_HUB_ENV", "prd")
 	t.Setenv("SPOOL_HUB_VIEW_DOOR", "")
 	if h, err := LoadHub(); err != nil || h.ViewDoor != "token" {
 		t.Fatalf("default door: %v %+v", err, h)
 	}
 	t.Setenv("SPOOL_HUB_VIEW_DOOR", "off")
-	if _, err := LoadHub(); err == nil {
-		t.Fatal("view door off accepted outside lde")
+	for _, env := range []string{"prd", "", "stg"} {
+		t.Setenv("SPOOL_HUB_ENV", env)
+		if _, err := LoadHub(); err == nil {
+			t.Fatalf("view door off accepted with SPOOL_HUB_ENV=%q", env)
+		}
+	}
+	t.Setenv("SPOOL_HUB_ENV", "dev")
+	if h, err := LoadHub(); err != nil || h.ViewDoor != "off" {
+		t.Fatalf("dev off: %v", err)
 	}
 	t.Setenv("SPOOL_HUB_ENV", "lde")
 	if h, err := LoadHub(); err != nil || h.ViewDoor != "off" {

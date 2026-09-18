@@ -53,8 +53,13 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// version is over/set at build time via -ldflags.
-var version = "0.1.0-dev"
+// version, commit and builtAt are set at build time via -ldflags
+// (csi-spl-api/src/bash/build.sh); GET /version serves all three.
+var (
+	version = "0.1.0-dev"
+	commit  = "unknown"
+	builtAt = "unknown"
+)
 
 func main() { os.Exit(run(os.Args[1:])) }
 

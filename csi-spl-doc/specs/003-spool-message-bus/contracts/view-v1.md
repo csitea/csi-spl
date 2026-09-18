@@ -46,8 +46,10 @@ Every other method on `/v1/view/*` → `405 method_not_allowed`. Tenant = reques
 ## 2. Door: the view token (FR-020)
 
 Door mode is cnf `SPOOL_HUB_VIEW_DOOR`: `token` (default) or `off`. The hub
-**refuses to start** with `off` unless `SPOOL_HUB_ENV=lde`, so dev/prd can
-never run without a door. With `off`, no `Authorization` is checked.
+**refuses to start** with `off` unless `SPOOL_HUB_ENV` is `lde` or `dev`
+(ORC decision 2026-09-18: dev reads are open so the WUI renders now); **prd
+never runs without a door**, and the prd token format (OQ-16) is a pre-M3
+owner decision. With `off`, no `Authorization` is checked.
 
 `Authorization: Bearer <view_token>` on every `/v1/view/*` request. Missing,
 malformed, expired, wrong scope or wrong tenant → `401 view_door`.
@@ -189,4 +191,4 @@ a `POST /v1/channels`). None of those routes exists on the hub
 (`grep -c 'v1/messages\|v1/channels' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`).
 The read calls map onto §4.2–§4.4; the two POSTs are 005 M3 write features.
 
-<!-- version: 0.3.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:40:21Z -->
+<!-- version: 0.3.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:42:57Z -->

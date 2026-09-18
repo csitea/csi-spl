@@ -176,7 +176,7 @@ A human opens the WUI (spec 005) and sees the tenant's boxes, who is online, the
 
 ### Functional Requirements
 
-- **FR-001**: The hub MUST expose the endpoints in `contracts/http-v1.md`: WS `/v1/ws`, `POST /v1/files`, `GET /v1/files/{file_id}`, `GET /healthz`, `GET /version`. It also hosts the pin endpoints owned by 004/006. *Status:* **Implemented** — `7905e35`; `grep -c 'HandleFunc' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 9` (8 + `/v1/health`, `6c863ee`). **Gap:** `/version` returns only `{version}`, not the contracted `{version, commit, built_at}` (T037).
+- **FR-001**: The hub MUST expose the endpoints in `contracts/http-v1.md`: WS `/v1/ws`, `POST /v1/files`, `GET /v1/files/{file_id}`, `GET /healthz`, `GET /version`. It also hosts the pin endpoints owned by 004/006. *Status:* **Implemented** — `7905e35`; `grep -c 'HandleFunc' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 9` (8 + `/v1/health`, `6c863ee`).  `/version` serves `{version, commit, built_at}` (T037).
 - **FR-002**: The box CLI/MCP from 002 MUST be the only agent-facing API; agents MUST NOT call hub HTTP/WS, NATS, Postgres, or GCS directly. *Status:* **Implemented** — `hub-e2e.tst.sh` drives only the `spool` binary (run-all-tests → `ALL HUB E2E CHECKS PASSED`).
 - **FR-003**: The hub MUST issue a single-use nonce on connect and verify the WS hello `sig` over `{box_id, ts, nonce}` against the tenant's pin for `box_id` before accepting any frame (`ts` within ±300 s); unknown box → close, nothing stored. **Last hello wins**: a new session connection for the same `box_id` closes the older one. *Status:* **Implemented** — `7905e35`; e2e `unpinned box refused at hello (exit 78)`; `TestHelloNonceAcceptAndReplayReject`, `TestLastHelloWinsOnlyForBoxRole`.
 - **FR-004**: The hub MUST verify every send envelope `sig` against the `from_box` pin, and MUST require `from_box` to equal the box authenticated at hello; failure → refuse, nothing stored (CLI exit `78`). *Status:* **Implemented** — `7905e35`; `TestTamperedAndAmbiguousAndMissingPin`.
@@ -287,4 +287,4 @@ All fifteen are closed. OQ-07/13/14 were resolved earlier by the owner; the othe
 - **DDL home**: `csi-spl-rdb/src/sql/postgres/spool-hub/*.sql`, applied by `spool migrate` (`data-model.md`).
 - **Follow-up (parked)**: `msg.ValidID` must reject the `BOX-` prefix (identity-routing).
 
-<!-- version: 0.6.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:31:54Z -->
+<!-- version: 0.6.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:42:57Z -->

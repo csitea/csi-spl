@@ -286,3 +286,29 @@ func TestAccessLogCarriesNoCredentials(t *testing.T) {
 type writerFunc func([]byte) (int, error)
 
 func (f writerFunc) Write(p []byte) (int, error) { return f(p) }
+
+// GET / is a public hello on any Host (ORC goal 2026-09-18); other unknown
+// paths still 404.
+func TestRootHello(t *testing.T) {
+	e := newEnv(t, func(o *hub.Options) { o.Env = "dev" })
+	for _, host := range []string{"nosuch", "t1"} {
+		code, hd, body := viewGet(t, e, host, "/")
+		if code != http.StatusOK || string(body) != "spool-hub dev ok\n" || !strings.HasPrefix(hd.Get("Content-Type"), "text/plain") {
+			t.Fatalf("GET / on %s: %d %q %v", host, code, body, hd)
+		}
+	}
+	if code, _, _ := viewGet(t, e, "t1", "/nope"); code != http.StatusNotFound {
+		t.Fatalf("GET /nope: %d", code)
+	}
+}
+
+// T037: GET /version is public JSON {version, commit, built_at} on any Host.
+func TestVersionBody(t *testing.T) {
+	e := newEnv(t, func(o *hub.Options) { o.Commit, o.BuiltAt = "abc123", "2026-09-18T19:45:00Z" })
+	code, _, body := viewGet(t, e, "nosuch", "/version")
+	var v map[string]string
+	if err := json.Unmarshal(body, &v); err != nil || code != 200 ||
+		v["version"] != "test" || v["commit"] != "abc123" || v["built_at"] != "2026-09-18T19:45:00Z" {
+		t.Fatalf("/version: %d %s", code, body)
+	}
+}

@@ -48,6 +48,9 @@ type Options struct {
 	RetentionChannels time.Duration
 	AllowTextOnly     bool // hub.allow_text_only_when_file_missing (OQ-11)
 	Version           string
+	Commit            string // -ldflags main.commit; "unknown" in dev builds
+	BuiltAt           string // -ldflags main.builtAt (RFC3339 UTC)
+	Env               string // lde | dev | prd; shown by GET / only
 	Now               func() time.Time
 	// Quota: 0 = unlimited. Enforced on send / pin / PUT file (006 T012).
 	QuotaMessagesPerMonth int
@@ -117,6 +120,12 @@ func New(o Options) (*Server, error) {
 // Handler returns the HTTP surface (http-v1.md §1) behind the shared middleware.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	// GET / is a public hello so the product hosts show something at the root.
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "%s ok\n", strings.TrimSpace("spool-hub "+s.o.Env))
+	})
 	health := func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
@@ -125,7 +134,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", health)
 	mux.HandleFunc("GET /v1/health", health)
 	mux.HandleFunc("GET /version", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"version": s.o.Version})
+		// Public, like /healthz: the deploy acceptance check (T037).
+		writeJSON(w, http.StatusOK, map[string]string{"version": s.o.Version, "commit": s.o.Commit, "built_at": s.o.BuiltAt})
 	})
 	mux.HandleFunc("GET /v1/ws", s.handleWS)
 	mux.HandleFunc("POST /v1/files", s.handlePutFile)

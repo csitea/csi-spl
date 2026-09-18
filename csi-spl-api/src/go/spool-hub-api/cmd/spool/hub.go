@@ -65,9 +65,9 @@ func cmdServe() int {
 		Store: st, Blob: bs, Log: log, TenantHostPattern: hc.TenantHostPattern,
 		HelloSkew: hc.HelloSkew, UploadTokenTTL: hc.UploadTokenTTL, QueueTTL: hc.QueueTTL,
 		QueueMaxPerBox: hc.QueueMaxPerBox, RetentionAlerts: hc.RetentionAlerts,
-		RetentionChannels: hc.RetentionChannels, AllowTextOnly: hc.AllowTextOnly, Version: version,
+		RetentionChannels: hc.RetentionChannels, AllowTextOnly: hc.AllowTextOnly, Version: version, Commit: commit, BuiltAt: builtAt,
 		QuotaMessagesPerMonth: hc.QuotaMessagesPerMonth, QuotaPins: hc.QuotaPins, QuotaFileBytes: hc.QuotaFileBytes,
-		ViewDoor: hc.ViewDoor, ViewCORSOrigins: hc.ViewCORSOrigins,
+		ViewDoor: hc.ViewDoor, ViewCORSOrigins: hc.ViewCORSOrigins, Env: hc.Env,
 	}
 	if hc.CICDLogsEnabled {
 		stt, err := cicdlogs.ParseSettings(true, hc.Env, hc.CICDGitHubToken, hc.CICDTenantTokens, hc.CICDRepoAllowlist, hc.CICDGitHubAPI, hc.CICDFromBox, hc.CICDFromID)

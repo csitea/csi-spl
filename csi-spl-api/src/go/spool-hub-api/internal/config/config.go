@@ -136,7 +136,7 @@ type Hub struct {
 	CICDFromBox       string `env:"SPOOL_HUB_CICD_FROM_BOX" envDefault:"hub"`
 	CICDFromID        string `env:"SPOOL_HUB_CICD_FROM_ID" envDefault:"CI-0"`
 	CICDHubBoxKey     string `env:"SPOOL_HUB_CICD_HUB_BOX_KEY"`
-	// Viewer API (specs/003 contracts/view-v1.md). ViewDoor "off" is lde-only.
+	// Viewer API (specs/003 contracts/view-v1.md). ViewDoor "off" is lde/dev only.
 	ViewDoor        string   `env:"SPOOL_HUB_VIEW_DOOR" envDefault:"token"`
 	ViewCORSOrigins []string `env:"SPOOL_HUB_VIEW_CORS_ORIGINS" envSeparator:","`
 }
@@ -173,8 +173,10 @@ func LoadHub() (*Hub, error) {
 	switch h.ViewDoor {
 	case "token":
 	case "off":
-		if h.Env != "lde" {
-			return nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR=off is allowed only with SPOOL_HUB_ENV=lde (got %q)", h.Env)
+		// Open reads in lde and dev (ORC decision 2026-09-18); prd, and any
+		// unnamed env, stay fail-closed.
+		if h.Env != "lde" && h.Env != "dev" {
+			return nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR=off is allowed only with SPOOL_HUB_ENV=lde or dev (got %q)", h.Env)
 		}
 	default:
 		return nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR %q must be token or off", h.ViewDoor)

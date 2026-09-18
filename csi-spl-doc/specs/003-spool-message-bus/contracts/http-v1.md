@@ -26,7 +26,8 @@ GET    /v1/pins               tenant box pubkeys (authorized_keys sync), upload 
 POST   /v1/pins               pin a box pubkey, tenant-root signed                               004 / 006
 DELETE /v1/pins/{box_id}      revoke a box pin, tenant-root signed                               004 / 006
 GET    /healthz               liveness                                                           FR-001
-GET    /version               { version, commit, built_at }                                      FR-001
+GET    /version               { version, commit, built_at } — public; deploy acceptance check      FR-001
+GET    /                      text/plain "spool-hub <env> ok" — public hello at the root          FR-001
 GET    /v1/health             liveness, Cloud Run / LB-safe path (same body as /healthz)         FR-023
 GET    /v1/view/*             read-only viewer API for the WUI (Planned) → ./view-v1.md          FR-018–022
 ```
@@ -235,4 +236,4 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 - The only browser-facing surface is `./view-v1.md` (read-only). It never
   reintroduces the removed REST send/recv rows of §1.
 
-<!-- version: 0.4.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:12Z -->
+<!-- version: 0.4.3 · updated: 2026-09-18 · last-edit: 2026-09-18T19:42:57Z -->

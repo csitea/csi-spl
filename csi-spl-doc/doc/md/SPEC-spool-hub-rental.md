@@ -3,7 +3,7 @@
 Status: binding product goal  
 Created: 2026-09-18  
 Git-spec: `csi-spl-doc/specs/006-spool-hub-rental/`  
-Related: `SPEC-spool-trust-modes.md`, `SPEC-spool-message-bus.md`, `SPEC-spool-box-api.md`, `SPEC-spool-identity-routing.md`
+Related: `SPEC-spool-milestones.md`, `SPEC-spool-trust-modes.md`, `SPEC-spool-message-bus.md`
 
 ---
 
@@ -155,21 +155,11 @@ No ysg-box, no NATS sidecar required for MVP (poll `spool-recv`).
 
 ---
 
-## 7. MVP cut (must ship)
+## 7. Milestone 1 (must ship first)
 
-1. 002 local **unsigned** send/recv.
-2. Hub: WS send/recv (box keys), REST files + root-signed **box** pins.
-3. Dual-write: same-box stays local **by default**; `$SPOOL_MIRROR_LOCAL=1`
-   also sends those to the hub. Cross-box always hub. `to_box` when the
-   name exists on two boxes.
-4. Tenant create (manual, later payment).
-5. Quota / unpaid / two-tenant isolation.
-
-**Not in rental MVP:** NATS, **entire WUI** (005 — Slack-like chat is the
-later product), ysg-box adapter, git-rel, Kafka, per-agent IAM, custom
-domains.
-
----
+See `SPEC-spool-milestones.md`. Non-WUI: cross-box mail + user command if the
+commandee box has the commander’s **public** key. Manual tenant. Payment and
+WUI are later milestones.
 
 ## 8. Payment
 
@@ -189,4 +179,4 @@ domains.
 - Uniform box API (Constitution VIII).
 - Payment gates **existence and quota**, not the meaning of `sig`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:00:00Z -->

@@ -9,7 +9,8 @@
 **Input**: Paid tenant; any peer commands any peer; hub crypto is **one key
 per box** (SSH-like); send/recv on WebSocket; files/pins REST; local unsigned.
 
-**Narrative**: `csi-spl-doc/doc/md/SPEC-spool-hub-rental.md`
+**Narrative**: `csi-spl-doc/doc/md/SPEC-spool-hub-rental.md`  
+**Milestones**: `csi-spl-doc/doc/md/SPEC-spool-milestones.md` — this spec is **M1+M2**; WUI is M3.
 
 **Depends on**: 002 (local `v:1` + keys), 003 HTTP shapes (this feature
 **replaces** “GCP IAM as the renter door” with tenant URL + Ed25519).
@@ -145,4 +146,4 @@ data expiry.
 NATS, Kafka, git-rel, ysg-box, customer GCP accounts, card storage, custom
 domains, token SSE.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:40:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:00:00Z -->

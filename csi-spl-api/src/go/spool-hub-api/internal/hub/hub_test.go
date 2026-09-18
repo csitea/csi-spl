@@ -1042,3 +1042,20 @@ func TestQuotaExceeded429(t *testing.T) {
 		}
 	})
 }
+
+// FR-023: liveness answers on /healthz and on the Cloud Run-safe /v1/health.
+func TestHealthPaths(t *testing.T) {
+	e := newEnv(t)
+	tid, _ := e.tenant()
+	for _, path := range []string{"/healthz", "/v1/health"} {
+		resp, err := e.client.Get(e.url(tid) + path)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"ok"`) {
+			t.Fatalf("%s: status %d body %s", path, resp.StatusCode, body)
+		}
+	}
+}

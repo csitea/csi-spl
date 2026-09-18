@@ -27,6 +27,7 @@ POST   /v1/pins               pin a box pubkey, tenant-root signed              
 DELETE /v1/pins/{box_id}      revoke a box pin, tenant-root signed                               004 / 006
 GET    /healthz               liveness                                                           FR-001
 GET    /version               { version, commit, built_at }                                      FR-001
+GET    /v1/health             liveness, Cloud Run / LB-safe path (same body as /healthz)         FR-023
 GET    /v1/view/*             read-only viewer API for the WUI (Planned) → ./view-v1.md          FR-018–022
 ```
 
@@ -34,8 +35,8 @@ GET    /v1/view/*             read-only viewer API for the WUI (Planned) → ./v
 on the deployed dev service the ingress is `internal-and-cloud-load-balancing`
 with no LB yet (007 step 10), so a direct `curl …/healthz` on the `run.app`
 URL returns a Google 404 page today (measured 2026-09-18, n=1). Whether
-`/healthz` survives behind the LB is unverified; tasks.md T032 adds a
-non-`z` alias.
+`/healthz` survives behind the LB is unverified, so `GET /v1/health` is the
+path for the LB health check (T032).
 
 **Removed** (OQ-02, OQ-04). They are listed so that nobody implements them from
 an old copy:
@@ -230,4 +231,4 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 - The only browser-facing surface is `./view-v1.md` (read-only). It never
   reintroduces the removed REST send/recv rows of §1.
 
-<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->
+<!-- version: 0.4.1 · updated: 2026-09-18 · last-edit: 2026-09-18T20:30:00Z -->

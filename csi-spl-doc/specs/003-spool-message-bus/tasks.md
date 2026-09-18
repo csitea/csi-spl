@@ -78,7 +78,7 @@
 All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, not this docs lane.
 
 - [ ] T031 [US7] `internal/store`: read-only queries `ListThreads(tenant, before, limit, channel, agent)`, `ThreadMessages(tenant, task_id, after, limit)` (envelope bytes + delivery states), `ListChannels(tenant)`; memory + Postgres drivers; contract-suite cases proving `deliveries` is unchanged by every read (FR-019). Add DDL `0004_view_indexes.sql` only if `EXPLAIN` on Postgres shows the thread list needs an index beyond `messages_task` (e.g. `(tenant_id, received_at)`). — **Planned**.
-- [ ] T032 [P] Health path reachable on Cloud Run (FR-023): add `GET /v1/health` (same body as `/healthz`), keep `/healthz`; ask 007 to point the LB health check at it. — **Planned**.
+- [x] T032 [P] Health path reachable on Cloud Run (FR-023): add `GET /v1/health` (same body as `/healthz`), keep `/healthz`; ask 007 to point the LB health check at it. — **Implemented**; `TestHealthPaths`. LB wiring is 007's.
 - [ ] T033 [US7] View-token door (FR-020, **blocked on OQ-16**): verify `jq -cS '{exp,scope,tenant}'` against `tenants.root_pubkey`, Host tenant match, `exp ≤ now + hub.view_token_max_ttl` (cnf, 12 h); `401 view_door`; redact `Authorization` in access logs. CLI verb `spool hub-view-token --ttl`. Golden vector in `internal/wire`. — **Planned**.
 - [ ] T034 [US7] Handlers `GET /v1/view/{roster,channels,threads,threads/{task_id}}` per `contracts/view-v1.md` §4 (opaque cursors, `bad_cursor`, limit clamp 200, `405` on non-GET, `online` from the live socket map). — **Planned**.
 - [ ] T035 [US7] CORS (FR-021): cnf `hub.view_cors_origins` (no default, never `*`), preflight `204`, only on `/v1/view/*` + `GET /v1/files/{id}`; the cnf key is published to 007 for `csi-spl-cnf`. — **Planned**.
@@ -117,7 +117,7 @@ All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, no
 | FR-020 view-token door | T033 | Planned (OQ-16) |
 | FR-021 CORS allow-list | T035 | Planned |
 | FR-022 viewer tenant-scoped, bytes-as-stored | T031, T034, T036 | Planned |
-| FR-023 Cloud Run-safe health path | T032 | Planned |
+| FR-023 Cloud Run-safe health path | T032 | Implemented (LB wiring: 007) |
 | NFR-001 region / cnf | T004, T023 | Implemented (dev) |
 | NFR-002 error mapping | T012, T020 | Implemented |
 | NFR-003 no schema fork | T003, T030 | Implemented |
@@ -132,7 +132,7 @@ All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, no
 | `GET /v1/files/{file_id}` | FR-001, FR-007 | Implemented |
 | `GET/POST/DELETE /v1/pins` | owned by 004 / 006 (hosted by FR-001) | Implemented (`de33409`) |
 | `GET /healthz`, `GET /version` | FR-001 | Implemented (see FR-023 for Cloud Run) |
-| `GET /v1/health` | FR-023 | Planned |
+| `GET /v1/health` | FR-023 | Implemented |
 | `GET /v1/view/*` (`contracts/view-v1.md`) | FR-018–FR-022 | Planned |
 
 ## Dependencies
@@ -151,4 +151,4 @@ All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, no
 
 M1 of 003 = US1 + US2 + US3 + the WS tail of US4 — Implemented and green on Postgres + GCS; what remains for M1 is the cloud rollout (007) and the pipeline deploy (008). US7 is the next 003 code slice, due before 005 (M3) starts on real data.
 
-<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:05:00Z -->
+<!-- version: 0.4.1 · updated: 2026-09-18 · last-edit: 2026-09-18T20:30:00Z -->

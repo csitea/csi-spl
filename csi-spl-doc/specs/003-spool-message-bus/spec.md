@@ -198,7 +198,7 @@ A human opens the WUI (spec 005) and sees the tenant's boxes, who is online, the
 - **FR-020**: Every `/v1/view/*` request MUST carry a view token bound to the Host tenant with `scope=view` and a bounded expiry; refusal → `401 view_door`. The token format is OQ-16 (proposed: tenant-root-signed, stateless). *Status:* **Planned**.
 - **FR-021**: CORS MUST be limited to origins listed in cnf `hub.view_cors_origins` (no default, never `*`) and to `/v1/view/*` + `GET /v1/files/{file_id}`. *Status:* **Planned**.
 - **FR-022**: Viewer responses MUST be tenant-scoped (foreign `task_id` → `404`) and MUST carry envelopes byte-for-byte as stored, file refs only, and no token or signed URL. *Status:* **Planned**.
-- **FR-023**: The hub MUST answer liveness on a path Cloud Run and the LB do not reserve (add `GET /v1/health`, keep `/healthz` for local use); 007 points the LB health check at it. *Status:* **Planned** — see Edge Cases.
+- **FR-023**: The hub MUST answer liveness on a path Cloud Run and the LB do not reserve (add `GET /v1/health`, keep `/healthz` for local use); 007 points the LB health check at it. *Status:* **Implemented** — `TestHealthPaths` (both paths 200). 007 still has to point the LB health check at `/v1/health`.
 
 ### Non-Functional Requirements
 
@@ -287,4 +287,4 @@ All fifteen are closed. OQ-07/13/14 were resolved earlier by the owner; the othe
 - **DDL home**: `csi-spl-rdb/src/sql/postgres/spool-hub/*.sql`, applied by `spool migrate` (`data-model.md`).
 - **Follow-up (parked)**: `msg.ValidID` must reject the `BOX-` prefix (identity-routing).
 
-<!-- version: 0.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:00:00Z -->
+<!-- version: 0.5.1 · updated: 2026-09-18 · last-edit: 2026-09-18T20:30:00Z -->

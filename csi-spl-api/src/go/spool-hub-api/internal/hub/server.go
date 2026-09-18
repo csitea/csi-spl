@@ -94,9 +94,13 @@ func New(o Options) (*Server, error) {
 // Handler returns the HTTP surface (http-v1.md §1) behind the shared middleware.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+	health := func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	})
+	}
+	// /healthz for local use; /v1/health because Cloud Run reserves some paths
+	// ending in "z" and the LB health check needs one it will pass (FR-023).
+	mux.HandleFunc("GET /healthz", health)
+	mux.HandleFunc("GET /v1/health", health)
 	mux.HandleFunc("GET /version", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"version": s.o.Version})
 	})

@@ -232,3 +232,54 @@ func TestFlushHTTP400StopsRetryWith78(t *testing.T) {
 		t.Fatalf("T012 stored a refused envelope: %q %v", st, err)
 	}
 }
+
+// T018a: $SPOOL_MIRROR_LOCAL=1 — a same-box send is delivered locally AND
+// hub-sent; the result stays delivery=local; draining the mirrored copy back
+// to the same box does not duplicate the inbox file; with the hub down the
+// mirror copy waits pending-flush and the local delivery still succeeds.
+func TestMirrorLocalSameBox(t *testing.T) {
+	e := newEnv(t)
+	tid, _ := e.tenant()
+	a := e.box(tid, "box-a", "GRK-03", "CLE-07")
+	a.cfg.MirrorLocal = "1"
+	e.pin(tid, a)
+	ctx := context.Background()
+	if _, err := a.c.Sync(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	out := send(t, a, "GRK-03", "CLE-07", "note", "mirrored", "box-a")
+	if out.Delivery != wire.DeliveryLocal {
+		t.Fatalf("mirror on: delivery %q, want local", out.Delivery)
+	}
+	if n := len(inbox(t, a, "CLE-07")); n != 1 {
+		t.Fatalf("local inbox %d, want 1", n)
+	}
+	if envs, _ := e.st.TaskEnvelopes(ctx, tid, out.TaskID); len(envs) != 1 {
+		t.Fatalf("hub rows %d, want 1 (mirrored)", len(envs))
+	}
+	if left, _ := a.c.Pending(); len(left) != 0 {
+		t.Fatalf("pending %d after a reachable mirror", len(left))
+	}
+	if _, err := a.c.Sync(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(inbox(t, a, "CLE-07")); n != 1 {
+		t.Fatalf("inbox %d after draining the mirror copy, want 1", n)
+	}
+
+	down := *a.cfg
+	down.HubURL = "http://" + tid + ".unreachable.invalid"
+	dc := hubclient.New(&down)
+	dc.ReadyTimeout = 2 * time.Second
+	loc, err := action.SendCtx(ctx, &down, action.SendArgs{From: "GRK-03", To: "CLE-07", Kind: "note", Body: "offline", ToBox: "box-a", Hub: dc})
+	if err != nil || loc.Delivery != wire.DeliveryLocal {
+		t.Fatalf("mirror on, hub down: %v %+v", err, loc)
+	}
+	if n := len(inbox(t, a, "CLE-07")); n != 2 {
+		t.Fatalf("inbox %d, want 2", n)
+	}
+	if left, _ := a.c.Pending(); len(left) != 1 {
+		t.Fatalf("pending %d, want the mirror copy kept for flush", len(left))
+	}
+}

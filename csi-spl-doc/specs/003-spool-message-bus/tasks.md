@@ -47,7 +47,7 @@
 
 - [x] T017 [US3] Hub queue: `deliveries` row, 7 d TTL, cap 1,000, `queued`, drain on `role=box` hello, expire; no ack (OQ-08). — **Implemented**; `TestOfflineQueueAndHubDownFlush`, e2e `offline receiver: delivery=queued, drained on hello`.
 - [x] T018 [US3] Dual-write per `contracts/flush.md`: same-box → `local` unless `$SPOOL_MIRROR_LOCAL`; illegal value fails fast. — **Implemented** for default + fail-fast (`internal/config` `Mirror()`, `internal/hubclient/flush.go`).
-- [ ] T018a [US3] Test the mirror-**on** path (`SPOOL_MIRROR_LOCAL=1`: same-box send is written locally **and** hub-sent; `delivery` reported as `local`). — **Planned**; `grep -ci mirror internal/hub/hub_test.go internal/hubclient/flush_test.go -> 0, 0`. (FR-009 stays Partial until this lands.)
+- [x] T018a [US3] Test the mirror-**on** path (`SPOOL_MIRROR_LOCAL=1`: same-box send is written locally **and** hub-sent; `delivery` reported as `local`; draining the mirrored copy does not duplicate; hub down → local + pending). — **Implemented**; `TestMirrorLocalSameBox`.
 - [x] T019 [US3] Box-side flush in `internal/hubclient` (OQ-15): `.hub/pending/`, idempotent, no re-sign, `ts` unchanged, `.hub/rejected/` + `78`, backoff; hub unreachable → `pending`, exit 0. — **Implemented** `e2c7d8d`; e2e `hub down: cross-box delivery=pending (exit 0)`, `hub back: flush sent the pending envelope`.
 - [x] T019a [US3] Reconnect (OQ-05): `spool hub-run` backoff 1 s → 30 s + jitter, re-hello, re-announce, re-sync pins, flush; stop on `4409`. `spool hub-sync` one-shot. — **Implemented**; e2e `hub-run reconnected and received it`.
 - [x] T020 [US3] Tests: offline → queued → recv; hub stopped → same-box works, cross-box pending → flush; TTL expiry. — **Implemented**; `TestOfflineQueueAndHubDownFlush` + e2e.
@@ -103,7 +103,7 @@ All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, no
 | FR-006 `sent` / `queued` | T010, T017, T020 | Implemented |
 | FR-007 files, upload token | T013–T016, T022 | Implemented |
 | FR-008 hub-down flush, `pending` | T019, T020 | Implemented |
-| FR-009 same-box local, mirror flag | T018, T018a, T020 | Partial |
+| FR-009 same-box local, mirror flag | T018, T018a, T020 | Implemented |
 | FR-010 idempotent ingest | T010, T019, T021 | Implemented |
 | FR-011 notify hygiene | T024, T025 | Implemented (M1 tail) |
 | FR-012 stateless | T005, T021, T022, T029 | Implemented |
@@ -151,4 +151,4 @@ All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, no
 
 M1 of 003 = US1 + US2 + US3 + the WS tail of US4 — Implemented and green on Postgres + GCS; what remains for M1 is the cloud rollout (007) and the pipeline deploy (008). US7 is the next 003 code slice, due before 005 (M3) starts on real data.
 
-<!-- version: 0.4.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:12:21Z -->
+<!-- version: 0.4.3 · updated: 2026-09-18 · last-edit: 2026-09-18T19:13:34Z -->

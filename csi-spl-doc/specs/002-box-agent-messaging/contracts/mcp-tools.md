@@ -44,7 +44,7 @@ Human lines by default; `json: true` → raw `v:1` NDJSON objects.
   `spool_send_grok` — one `spool_send` (Constitution VIII).
 - A tool's behaviour, arguments, and refusal semantics MUST equal the CLI verb it
   wraps (verify/refuse surfaces as a tool error mirroring exit `78`).
-- Research decision (fill in plan Phase 0): which Go MCP server library backs the
-  stdio transport.
+- **Library:** `github.com/modelcontextprotocol/go-sdk` (official, v1.7.0+),
+  stdio via `mcp.StdioTransport`. See `../research.md`. Not `mark3labs/mcp-go`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:00:00Z -->

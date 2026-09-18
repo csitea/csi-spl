@@ -17,7 +17,7 @@ existing file protocol (reference only, never modified).
 
 **Language/Version**: Go 1.22+.
 
-**Primary Dependencies**: standard library (`crypto/ed25519`, `crypto/sha256`, `encoding/json`, `os`); `github.com/rs/zerolog` for structured logging (modeled on `pas-psf`); an MCP server library for the stdio tool surface (`contracts/mcp-tools.md` pins the choice in research). No NATS/Postgres/GCS SDKs in 002.
+**Primary Dependencies**: standard library (`crypto/ed25519`, `crypto/sha256`, `encoding/json`, `os`); `github.com/rs/zerolog` for structured logging (modeled on `pas-psf`); MCP stdio: `github.com/modelcontextprotocol/go-sdk` v1.7.0+ (`research.md`). No NATS/Postgres/GCS SDKs in 002.
 
 **Logging & Config Pattern**: Adopts the `pas-psf` convention:
 - `internal/config`: fail-fast loading of env vars (`$SPOOL_ROOT`, `$SPOOL_KEYS_DIR`, log settings).
@@ -117,4 +117,4 @@ the permanent contract; 003 adds a backend behind them.
 binary for CLI + MCP rather than two — is required by VIII (identical behaviour)
 and reduces surface, so it is a simplification, not a violation.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T00:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:00:00Z -->

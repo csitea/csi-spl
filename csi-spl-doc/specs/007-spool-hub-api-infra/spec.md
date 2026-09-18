@@ -7,8 +7,8 @@ the dir keeps its name, `../README.md` §4)
 
 **Status**: **Partial** (re-measured 2026-09-18 ~19:45Z, §1.2) — dev runs
 through ingress (cert ACTIVE); prd holds 001, the imported zone, 040, 050,
-028 and is short of the image, DB bootstrap, 030 and 031; the NS handoff has
-happened but the apex record has not been carried over; `017` is on trunk and
+028 and is short of the image, DB bootstrap, 030 and 031; option A is decided
+and in effect (apex -> hub LB pending prd 030/031); `017` is on trunk and
 not applied; the secrets step, IAM users and domain verification are Planned.
 
 **Narrative**: `../../doc/md/SPEC-spool-hub-api-infra.md` (copy csi-rel +
@@ -104,11 +104,13 @@ zone by `031` across projects. That step and the matching `031` change sit
 ` M …/031-gcp-hub-ingress/06-dns.tf`); both envs' `025` state objects exist
 with 0 resources (init only). Until it lands on trunk it is not Implemented.
 
-**Update 19:45Z — the handoff has happened (option A in effect)**, made
-outside the repo: the TLD delegates to the zone (§1.2). Its other half, the
-apex parking record and `www`, was not carried over, so the apex no longer
-resolves. Owner confirmation asked; the fix is an apex + `www` record in the
-zone (T020a). The options as first written:
+**Decided 2026-09-18: option A.** The owner set the registrar NS to the
+zone (the TLD answers `ns-cloud-e1..e4`, §1.2) and chose to point the **apex
+at the hub load balancer**, not at Gandi parking; `api.<domain>` (prd) and
+`dev.api.<domain>` (dev) are served by the same LBs (T020c, T020d). Until
+prd `030` + `031` are applied the apex resolves to nothing. The refusal in
+`do_gandi_set_nameservers` is lifted (`1b78621`). The options as first
+written, kept for the record:
 
 **NS handoff — owner-gated question (README §6.1):**
 
@@ -194,8 +196,8 @@ where the files live and how they reach each env.
 | FR-001 | Provisioning follows §1 per env, dev then prd; no step applies before its predecessors hold state | Partial — dev 1–10 (10 partial); prd 1–6 except 3 partial |
 | FR-002 | `000` remote state per env, local-state copy kept | Implemented — state in both envs |
 | FR-003 | `001` enables storage, iam, orgpolicy, run, sqladmin, secretmanager, artifactregistry, dns, compute, certificatemanager, iamcredentials, sts (`2a7888c` adds the last two for `017`) | Partial — dev enabled; prd cnf lists them, prd services do not |
-| FR-004 | `025-gcp-dns-zone` **imports** the existing prd `spool-hub` zone, `prevent_destroy`, never creates; dev has no own zone | Partial — imported in prd state (apply lane, 19:14Z); the step's code is not yet on trunk |
-| FR-005 | NS handoff per owner decision, with the apex parking record carried into the zone; apex stays parking until owner go | **Partial** — TLD delegates to `ns-cloud-e1..e4` (19:45Z), made outside the repo; **no apex / www record in the zone**, so the parking page no longer resolves; owner confirmation asked |
+| FR-004 | `025-gcp-dns-zone` **imports** the existing prd `spool-hub` zone, `prevent_destroy`, never creates; dev has no own zone | Implemented — `9ed50ac`; prd state holds the zone (19:14Z), NS unchanged |
+| FR-005 | Option A: registrar NS -> the `025` zone; the apex, `api.` and `dev.api.` point at the hub LBs | Partial — NS delegated (19:45Z), refusal lifted (`1b78621`); apex / `api.` / `dev.api.` records Planned (T020c, T020d) |
 | FR-006 | `040` Cloud SQL (db-f1-micro both envs), DB `spool`, empty DSN secret slot; no user, password or secret version in tf | Implemented dev + prd (state) |
 | FR-007 | `050` files bucket `csi-spl-<env>-files`, prefix `t/<tenant>/files/`; never the `020` relay bucket | Implemented dev + prd (state) |
 | FR-008 | `028` Artifact Registry `csi-spl-<env>-hub` | Implemented dev + prd (state) |
@@ -205,10 +207,10 @@ where the files live and how they reach each env.
 | FR-012 | `031` global LB + serverless NEG + Cloud Armor IP allowlist (M1) + wildcard managed cert + records into the `025` zone | Partial — dev applied (cert ACTIVE, 403 non-allowlisted); prd Planned |
 | FR-013 | `017` WIF deploy identity per env: creates `csi-spl-deploy-<env>`, scoped grants, exports the repo variables `008` reads; no SA key | Partial — on trunk `2a7888c` (the orphaned draft bound WIF to a `<project>@<project>` SA that `gcloud iam service-accounts list` shows does not exist; corrected); `terraform validate` PASS; not applied |
 | FR-014 | `029` Secret Manager slots (no shop captcha / BIN; M2 payment slots empty or omitted) | Planned — no step dir on trunk |
-| FR-015 | `003-gcp-iam-users`, `005-gcp-domain-verification` | Planned — `005` on unmerged `GRK-3341-007-tf-005-domain`; `003` not started |
+| FR-015 | `003-gcp-iam-users`, `005-gcp-domain-verification` | Planned, not needed for M1 — certificates use Certificate Manager DNS authorization, not Search Console verification; `005` draft on unmerged `GRK-3341-007-tf-005-domain`; `003` not started |
 | FR-016 | lde: `do_setup_app_inf` / `do_teardown_app_inf`, compose api + rdb + infra, no GCP | Implemented |
 | FR-017 | DNS ops: `do_export_all_dns_settings`, `do_flush_dns`, `do_wait_for_cert`, `do_gandi_*` | Implemented (`f68affe`, `04f7dca`) |
-| FR-018 | Nothing mutates GCP without the owner; every gcloud call carries `--account`; no key in git, tf state or log | Partial — rule in repo `CLAUDE.md`; gate tests on unmerged `GRK-3355-007-hygiene-tests` |
+| FR-018 | Nothing mutates GCP without the owner; every gcloud call carries `--account`; no key in git, tf state or log | Implemented — rule in repo `CLAUDE.md`; gates `no-keys-in-tf`, `rdb-no-store-entities`, `no-baked-hostname` (`6646f41`) |
 | FR-019 | The domain lives only in `env.dns.BASE_DOMAIN`; no hostname literal in Go | Implemented (`domain-single-source.tst.sh`) |
 
 ## Success Criteria
@@ -229,4 +231,4 @@ Shop steps (a storefront `019`, `021`, `032`, `060`–`063`, `130` / `131`),
 store SQL, M2 payment drivers, M3 WUI hosting (spec `005`), CI job design
 (spec `008`), wire and tenancy semantics (`003` / `004` / `006`).
 
-<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:05:00Z -->

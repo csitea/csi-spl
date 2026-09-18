@@ -27,21 +27,29 @@ Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
 
 ## Phase 2: DNS zone — the gap (step 3, US3)
 
-- [~] T010 Land `025-gcp-dns-zone` on trunk: `import` of the prd
+- [x] T010 Land `025-gcp-dns-zone` on trunk: `import` of the prd
       `spool-hub` zone, `prevent_destroy`, cnf `steps.025-gcp-dns-zone.zone_name`,
-      tpl + render test — FR-004 (uncommitted in CLE-3335; state 0 resources)
-- [ ] T011 `031` writes records into the `025` zone, dev records into the
-      prd zone across projects; cnf `dns_managed_zone` no longer `""` — FR-004, FR-012
-- [~] T012 prd plan of `025` shows 1 import, 0 add, 0 destroy; owner applies;
+      tpl + render test — FR-004 (`9ed50ac`; `dns-zone-025.tst.sh` green)
+- [x] T011 `031` writes records into the `025` zone, dev records into the
+      prd zone across projects (`dns_zone_project`); cnf `dns_managed_zone:
+      spool-hub` — FR-004, FR-012 (`9ed50ac`)
+- [x] T012 prd plan of `025` shows 1 import, 0 add, 0 destroy; owner applies;
       `terraform state list` shows the zone; NS unchanged — FR-004 (applied
-      19:14Z by the apply lane: 1 in state, NS unchanged; code not yet on trunk)
-- [ ] T013 **Owner decision** A (hand off) or B (stay on Gandi), spec §2 —
-      FR-005
-- [~] T020a (A — in effect since ~19:45Z, NS delegated outside the repo) copy the apex parking record into the zone, lift the
-      `ns-cloud-*` refusal in `do_gandi_set_nameservers`, owner sets Gandi NS
-      -> `ns-cloud-e1..e4`; gate `dig +norec NS … @v0n1.nic.ai` — FR-005
-- [ ] T020b (if B) write the ACME CNAME and `*.` / `*.dev.` A records with
-      `do_gandi_set_dns_record` (`CONFIRM=yes`), apex untouched — FR-005
+      19:14Z by the apply lane: 1 in state, NS unchanged; code `9ed50ac`)
+- [x] T013 **Owner decision: option A** (hand off), confirmed 2026-09-18
+      ~19:46Z; the owner set the registrar NS. The **apex points at the hub
+      LB**, not Gandi parking — FR-005
+- [x] T020a NS -> `ns-cloud-e1..e4` (`dig +norec NS … @v0n1.nic.ai` ->
+      ns-cloud-e*, ~19:45Z); `do_gandi_set_nameservers` accepts ns-cloud-* and
+      applies with `CONFIRM=yes` (`1b78621`, `gandi-livedns.tst.sh`) — FR-005
+- [ ] T020c prd apex `A` -> prd LB (written by `031` in prd, `<fqdn>` = apex),
+      after prd `030`; until then the apex resolves to nothing (measured
+      ~19:45Z) — FR-005, FR-012
+- [ ] T020d named extra hosts: prd `api.<domain>`, dev `dev.api.<domain>`,
+      each its own DNS authorization + certificate + HOSTNAME cert-map entry
+      + ACME CNAME + A record, primary certificate untouched; authored and
+      applied by the apply lane (owner assignment 2026-09-18) — FR-012
+- ~~T020b (if B) Gandi-written records~~ — superseded by option A
 
 ## Phase 3: data + registry + image (steps 4–8, US4, US6)
 
@@ -84,8 +92,9 @@ Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
 - [x] T063 DNS ops `do_export_all_dns_settings`, `do_flush_dns`,
       `do_wait_for_cert`, `do_gandi_*` — FR-017 (`f68affe`, `04f7dca`;
       `dns-ops.tst.sh`, `gandi-livedns.tst.sh` green)
-- [~] T064 Hygiene gates: no keys in tf, no store entities in rdb (branch
-      `GRK-3355-007-hygiene-tests`, unmerged) — FR-018
+- [x] T064 Hygiene gates: no keys in tf, no store entities in rdb, no baked
+      hostname in Go, each with planted-hit controls (`6646f41`; iac + api
+      suites green) — FR-018
 - [x] T065 Domain single source (`domain-single-source.tst.sh` green) — FR-019
 
 ## Phase 7: hub sign-in hooks (from spec `010`, owner of the feature)
@@ -138,4 +147,4 @@ the WUI code owner to be confirmed before anyone edits it.
 
 M2 payment drivers, M3 WUI hosting (`005`), pipeline job design (`008`).
 
-<!-- version: 1.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->
+<!-- version: 1.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:05:00Z -->

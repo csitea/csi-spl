@@ -41,6 +41,25 @@ The only *simpler* “they pay Google” path later is **Cloud Marketplace
 Subscribe** (Google already has their billing). Still not for people with
 zero GCP. Optional; not M2.
 
+### Cloud Marketplace in one page
+
+You list **Spool** as a **SaaS** product in Producer Portal (partner
+onboarding, weeks). Customer in Google Cloud Console clicks **Subscribe**,
+picks a plan (monthly seats fit “subscription”). Google **charges their
+existing GCP billing account** and **pays you** (payout ~21st of month,
+minus Marketplace fee — currently on the order of a few percent of the
+software price). You get a **Procurement API** “account active” event and
+**provision the tenant** (same as M2 webhook). Usage-based seats: you
+**report metrics** to Service Control (user-count, bot-count).
+
+That is **software billed by Google**, not “they create a project and we
+terraform.” Infra for **hosted** M2 still sits on **your** Cloud Run (you
+still pay Run/SQL). Marketplace does **not** by itself put Cloud Run in
+*their* project — that remains the dedicated IAM-grant SKU.
+
+Buyer still must **already have GCP billing**. Non-technical users without
+a Cloud org still use **M2 card-on-you**.
+
 ## 1. Business case (why bother)
 
 | | **M2 hosted SaaS** (they pay you) | **This SKU: BYO GCP billing** |
@@ -153,4 +172,4 @@ sales call with a non-technical buyer.
 
 After M2 is selling hosted. Do not block public MVP on folder grants.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:15:00Z -->

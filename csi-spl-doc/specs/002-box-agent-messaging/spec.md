@@ -6,10 +6,12 @@
 
 **Status**: Draft
 
+**Trust (2026-09-18)**: Local 002 is **unsigned** POSIX files (`SPEC-spool-trust-modes.md`). Ed25519 box keys are **hub mode** (006). Earlier text that required local signatures is superseded.
+
 **Input**: "Before the cloud spool bus (003) can exist, implement the messaging
 between agents on a single box the way it already works on ysg-box today — the
-file-based `inbox/outbox/archive` protocol — but as a clean, uniform, signed,
-content-addressed spool with the box API from `SPEC-spool-box-api.md`. Use the
+file-based `inbox/outbox/archive` protocol — as a clean, uniform,
+content-addressed spool (unsigned on one box) with the box API from `SPEC-spool-box-api.md`. Use the
 ysg-box implementation as a REFERENCE ONLY; do not touch it."
 
 ## Context
@@ -31,40 +33,32 @@ modify, import, or depend on ysg-box code** (Constitution: "Reference
 implementation is read-only"). ysg-box is read to learn the contract; the spool
 owns its own copy.
 
-**What 002 adds over the ysg-box protocol** (so 002 → 003 needs no re-cut):
-signed messages (Ed25519 + pins), content-addressed file attachments
-(`file_id` = sha256), the canonical `v:1` JSON message object on disk, and a
-`spool-tail` view — all defined so the identical CLI/MCP/JSON work unchanged when
-a hub is later added.
+**What 002 adds over the ysg-box protocol**: content-addressed file attachments
+(`file_id` = sha256), canonical `v:1` JSON on disk (no `sig` locally), and
+`spool-tail`. Hub wrapping (box envelope + WS) is 006; inner JSON stays this
+object.
 
 ## User Scenarios & Testing
 
-### User Story 1 - Two agents exchange a signed message on one box (Priority: P1) 🎯 MVP
+### User Story 1 - Two agents exchange a message on one box (Priority: P1) 🎯 MVP
 
-Agent `GRK-03` sends a signed `task` message to `CLE-07`; `CLE-07` receives it,
-verifies the signature against `GRK-03`'s pin, acts, and acks.
+Agent `GRK-03` sends an **unsigned** `task` to `CLE-07` on the same
+`$SPOOL_ROOT`; `CLE-07` recvs and acks. No keygen. Trust is POSIX.
 
-**Why this priority**: This is the irreducible spool — signed message in, signed
-message out, on one box, no hub. Everything else builds on it.
+**Why this priority**: One-box MVP must work like today’s msgs dirs.
+Box keys wait for hub mode (`SPEC-spool-trust-modes.md`).
 
-**Independent Test**: In a temp `$SPOOL_ROOT`, `spool-keygen` + `spool-pin` two
-ids, `spool-send --from GRK-03 --to CLE-07 --kind task --body ...`, then
-`spool-recv --as CLE-07` returns the message with a verified signature; a
-tampered body fails verification with exit `78`.
+**Independent Test**: temp `$SPOOL_ROOT`, no keys, send/recv/ack round trip;
+message JSON has no `sig`.
 
 **Acceptance Scenarios**:
 
-1. **Given** `GRK-03` and `CLE-07` are pinned, **When** `GRK-03` sends a `task`,
-   **Then** a `v:1` JSON message lands in `CLE-07`'s inbox with a valid `sig` and
-   `spool-recv --as CLE-07` returns it.
-2. **Given** a received message, **When** its body is altered on disk, **Then**
-   `spool-recv` reports signature failure and exits `78`; the message is not
-   returned as valid.
-3. **Given** `from` is not pinned or its private key is missing, **When**
-   `spool-send` runs, **Then** it refuses (exit `78`) and writes nothing.
-4. **Given** `spool-recv --as CLE-07 --ack`, **When** it returns messages,
-   **Then** those files move aside (archive) and a second `--ack` run does not
-   re-return them.
+1. **Given** inbox dirs for GRK-03 and CLE-07, **When** GRK-03 sends a `task`,
+   **Then** `v:1` without `sig` lands in CLE-07 inbox and recv returns it.
+2. **Given** `$SPOOL_HUB_URL` unset, **When** send runs, **Then** it does not
+   require pins or keys (exit `0`).
+3. **Given** `spool-recv --as CLE-07 --ack`, **When** it returns messages,
+   **Then** those files archive and a second `--ack` does not re-return them.
 
 ### User Story 2 - Attach a file by content address (Priority: P2)
 
@@ -145,22 +139,20 @@ so MCP is additive and lower priority than a working CLI.
 - **FR-003**: Messages MUST be the canonical `v:1` JSON object
   (`contracts/message-schema.md`), stored one-per-file under the recipient's
   `inbox/`, named `<yyyymmddThhmmssZ>--<from>--<slug>.json`.
-- **FR-004**: `spool-send` MUST sign the canonical payload
-  (`jq -cS 'del(.sig)'`, Ed25519) with `from`'s private key and MUST refuse
-  (exit `78`) when `from` is unpinned or its key is missing.
-- **FR-005**: `spool-recv` MUST verify each message's `sig` against the pinned
-  pubkey of its `from`; a failed verification MUST NOT be returned as valid and
-  MUST exit `78`.
+- **FR-004**: When `$SPOOL_HUB_URL` is unset, `spool-send` MUST write `v:1`
+  **without** `sig` and MUST NOT require keys.
+- **FR-005**: When `$SPOOL_HUB_URL` is unset, `spool-recv` MUST NOT require
+  `sig`. (Hub-mode box-envelope verify is 006.)
 - **FR-006**: `spool-recv --ack` MUST move returned messages to `archive/`
   atomically (rename), so a message is delivered at most once per ack.
 - **FR-007**: `spool-put-file` MUST content-address bytes by sha256, returning
   `{file_id, sha256, bytes, name}`, storing bytes at `files/<file_id>`.
 - **FR-008**: `spool-get-file` MUST verify the written file's sha256 equals the
   requested `file_id` and MUST fail (not write a partial) when bytes are absent.
-- **FR-009**: `spool-keygen` MUST create an agent Ed25519 keypair with the
-  private key `chmod 600`, never inside `$SPOOL_ROOT` and never logged.
-- **FR-010**: `spool-pin` MUST record an agent id → pubkey mapping; an unpinned
-  author MUST be untrusted (Constitution VIII / trust model).
+- **FR-009**: `spool-keygen` (hub prep) MUST create a **box** Ed25519 keypair
+  (`box-<id>.key`, `chmod 600`) outside `$SPOOL_ROOT`. Unused while hub unset.
+- **FR-010**: `spool-pin` in hub mode records **box_id → pubkey** (tenant root
+  on the hub). Local mode does not consult pins for send/recv.
 - **FR-011**: `spool-tail --task <uuid>` MUST list a thread oldest-first;
   `--json` MUST emit raw `v:1` NDJSON.
 - **FR-012**: An MCP server MUST expose `spool_put_file`, `spool_send`,
@@ -195,8 +187,8 @@ so MCP is additive and lower priority than a working CLI.
 
 - **SC-001**: In a clean temp `$SPOOL_ROOT`, a full US1 round trip
   (keygen→pin→send→recv→ack) passes end-to-end via the CLI.
-- **SC-002**: A tampered message body is rejected with exit `78` and never
-  returned as valid.
+- **SC-002**: Local recv returns unsigned `v:1`; hub-mode tamper/sig tests
+  live in 006.
 - **SC-003**: A put→send→get-file round trip verifies sha256 and dedupes
   identical bytes to one `files/<id>` object.
 - **SC-004**: MCP `spool_*` calls produce results and files identical to the CLI
@@ -222,4 +214,4 @@ so MCP is additive and lower priority than a working CLI.
 - A live `SendMessage`/tmux notification integration with delivery semantics.
 - Any change to ysg-box.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T00:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->

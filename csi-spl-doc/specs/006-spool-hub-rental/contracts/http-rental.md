@@ -1,32 +1,23 @@
-# Contract: Hub HTTP for a rented tenant
+# Contract: Hub transport for a rented tenant
 
-Extends `003/contracts/http-v1.md`. Public rental deployment.
+Extends `003/contracts/http-v1.md`. Public rental. See `SPEC-spool-trust-modes.md`.
 
-Tenant is selected by the request URL (`Host` or `/t/<tenant>/` — one scheme
-in cnf). All rows are scoped to that tenant.
+Tenant from URL. **Send/recv = WebSocket. Files/pins = REST.**
 
-## Send
+## WebSocket `wss://<tenant-host>/v1/ws`
 
-`POST /v1/messages` — body is `v:1` including `sig`. Verify pin of `from` in
-**this tenant**. No IAM. Unpinned/bad sig → 400.
+1. Hello `{ "box_id", "ts", "sig" }` — box key, pin table.
+2. Announce `{ "agents": ["CLE-07", ...] }`.
+3. Send envelope `{ "box_id", "msg": <v:1 no sig>, "sig" }` — `sig` over `jq -cS .msg`.
+4. Recv/ack frames for announced agents on this connection.
 
-## Recv (replaces open GET-by-as on public hubs)
+No open `GET /v1/messages?as=`. No per-agent recv signature (the box hello is the proof).
 
-```
-POST /v1/recv
-{ "as": "CLE-07", "ack": false, "task_id": "<uuid or omit>", "ts": "<RFC3339 Z>", "sig": "<b64>" }
-```
-
-Sign canonical `del(.sig)` with `as`’s key. `|ts-now|>5m` → 400.
-`ack: true` records ack for `as` only.
-
-Private deployments MAY still offer `GET /v1/messages?as=` behind org IAM;
-the **product** CLI uses POST /v1/recv whenever `$SPOOL_HUB_URL` is set.
-
+## REST
 ## Pins
 
-`POST /v1/pins` `{ "id", "pubkey", "ts", "sig" }` — `sig` = **tenant root**.
-`DELETE /v1/pins/{id}` — body `{ "ts", "sig" }` root-signed.
+`POST /v1/pins` `{ "box_id", "pubkey", "ts", "sig" }` — `sig` = **tenant root**. Pins **boxes**.
+`DELETE /v1/pins/{box_id}` — body `{ "ts", "sig" }` root-signed.
 `GET /v1/pins` — list pubkeys (not secret). Optional but useful for sync.
 
 ## Files
@@ -39,4 +30,4 @@ the **product** CLI uses POST /v1/recv whenever `$SPOOL_HUB_URL` is set.
 
 `402` unpaid (send/pin). `429` quota. Recv not gated by quota.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->

@@ -3,11 +3,10 @@
 Status: binding addendum to the message-bus vision  
 Created: 2026-09-18  
 Git-spec: `csi-spl-doc/specs/004-spool-identity-routing/`  
-Related: `SPEC-spool-message-bus.md`, `SPEC-spool-hub-rental.md`, `SPEC-spool-box-api.md`, `specs/002-box-agent-messaging/`
+Related: `SPEC-spool-trust-modes.md`, `SPEC-spool-hub-rental.md`, `specs/002-box-agent-messaging/`
 
-The vision docs say `from` / `to` are ids like `CLE-07`. They do not say whether
-that id is unique across boxes, how box B obtains GRK-03’s pin, or how the hub
-knows which box to notify. This spec does.
+Hub crypto is **per box**, not per agent — `SPEC-spool-trust-modes.md`.
+`from`/`to` remain `CLE-07`. The box key signs. Local mode has **no** keys.
 
 ---
 
@@ -16,9 +15,10 @@ knows which box to notify. This spec does.
 | Identity | Answers | Example |
 |---|---|---|
 | **Tenant id** | which paid hub namespace | `$SPOOL_HUB_URL` / Host |
-| **Tenant root** | who may pin/revoke in that tenant | Ed25519; private key held by the renter |
-| **Agent id** | who authored / who should recv | `CLE-07`, `GRK-03`, `AGY-01` |
-| **Box id** | which machine (optional; local dual-write) | `$SPOOL_BOX_ID` |
+| **Tenant root** | who may pin/revoke **box** pubkeys | Ed25519; private key held by the renter |
+| **Box keypair** | SSH-like commander/commandee | one Ed25519 per `$SPOOL_BOX_ID` (hub mode only) |
+| **Agent id** | who authored / who should recv | `CLE-07` — a name, **not** a hub key |
+| **Box id** | which machine | `$SPOOL_BOX_ID` required in hub mode |
 | **Door (private deploy only)** | GCP principal for an org Cloud Run | not used for public rental |
 
 GCP IAM never appears in `from` / `to`. Agent keys never appear in IAM.
@@ -58,9 +58,10 @@ Allocator (ysg-box `next-agent-id.sh` or the renter’s own numbering) only
 
 | Object | Where | Mode |
 |---|---|---|
-| Private key | `$HOME/.spool/keys/<id>.key` or `$SPOOL_KEYS_DIR/<id>.key` | `0600` |
-| Local pin | `$SPOOL_ROOT/pins/<id>.pub` or `$SPOOL_PINS_DIR/<id>.pub` | `0644` |
-| Hub pin | Postgres `pins` (pubkey, box_id, updated_at) | — |
+| Box private key (hub) | `$HOME/.spool/keys/box-<box_id>.key` | `0600` |
+| Box pin file (hub) | `$SPOOL_ROOT/pins/box-<box_id>.pub` | `0644` |
+| Hub pin | Postgres `pins` (`box_id`, pubkey, tenant) | — |
+| Agent private keys | unused in hub mode; unused in local mode | — |
 
 Private keys never leave the box. Never in Postgres, GCS, NATS, logs, WUI.
 
@@ -164,4 +165,4 @@ success, not a duplicate row.
 - TOFU, key escrow, per-agent GCP keys, or renter GCP accounts.
 - Cross-tenant uniqueness of agent ids.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->

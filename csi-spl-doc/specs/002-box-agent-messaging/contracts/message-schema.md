@@ -16,7 +16,7 @@ to disk. Any change is a `v` bump, never an in-place edit.
 | `kind` | string | one of `task` `result` `note` `reject` |
 | `body` | string | UTF-8; MAY be empty |
 | `files` | array | 0..N file refs (below); MAY be empty |
-| `sig` | string | base64 Ed25519 over the canonical payload |
+| `sig` | string | **omitted in local mode**. Hub mode: not on this inner object — see box envelope in `SPEC-spool-trust-modes.md` |
 
 ### File ref
 
@@ -27,7 +27,15 @@ to disk. Any change is a `v` bump, never an in-place edit.
 | `bytes` | int | byte length |
 | `sha256` | string | equals `file_id` |
 
-## Signing
+## Modes
+
+- **Local** (`$SPOOL_HUB_URL` unset): this object is stored as-is **without**
+  `sig`. No key ceremony. POSIX trust.
+- **Hub:** the box wraps this object in an envelope signed with the **box**
+  key (`SPEC-spool-trust-modes.md`). Inner `sig` stays absent.
+
+## Signing (hub envelope only)
+
 
 1. Build the object with all fields EXCEPT `sig`.
 2. Canonicalise: `jq -cS 'del(.sig)'` (sorted keys, compact). The Go
@@ -50,4 +58,4 @@ to disk. Any change is a `v` bump, never an in-place edit.
 - `kind` / `task_id` meaning: `kind-lifecycle.md` and `doc/md/SPEC-spool-task-lifecycle.md`.
 - Canonical bytes: `canonical-json.md`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->

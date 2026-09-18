@@ -3,7 +3,7 @@
 Status: binding product goal  
 Created: 2026-09-18  
 Git-spec: `csi-spl-doc/specs/006-spool-hub-rental/`  
-Related: `SPEC-spool-message-bus.md`, `SPEC-spool-box-api.md`, `SPEC-spool-identity-routing.md`
+Related: `SPEC-spool-trust-modes.md`, `SPEC-spool-message-bus.md`, `SPEC-spool-box-api.md`, `SPEC-spool-identity-routing.md`
 
 ---
 
@@ -50,51 +50,29 @@ exists — same artefacts, `billing_status=manual`.
 
 ---
 
-## 3. Agent plane = keys only
+## 3. Agent plane (see SPEC-spool-trust-modes.md)
 
-Intercommunication (send, recv, ack, get-file of a message’s attachments)
-authenticates **only** with Ed25519:
+**Local (no hub):** no keys. Unsigned `v:1` files, POSIX trust.
 
-| Action | Proof |
+**Hub:** one Ed25519 **keypair per box**. `from`/`to` stay agent ids.
+Commander signs with the **box private key**; commandee has that **box
+public key** (SSH `authorized_keys`, synced from tenant pins). Tenant
+**root** is the only key that may publish a box pubkey.
+
+Send/recv travel on **HTTPS WebSocket** to the tenant host. Files and pins
+stay **REST**. Hub stores **plaintext** JSON (sign only).
+
+| Action | Proof (hub mode) |
 |---|---|
-| `spool-send` | `v:1.sig` by `from`’s key; `from` pinned **in this tenant** |
-| `spool-recv --as X` | signed recv request by X’s key (not an open GET) |
-| `spool-pin` / revoke | signed by the **tenant root** key |
-| `spool-put-file` | hashed bytes; upload is allowed if the following send will be accepted — implement as: put-file does not require a pin; unreferenced blobs GC by age (limits). Abuse: quota on PUT bytes per tenant. |
+| WS hello / send | box key `sig`; box pinned in this tenant |
+| Recv on WS | same box hello; hub routes inboxes for agents this box announced |
+| `spool-pin` / revoke | **tenant root** (pins **box** pubkeys) |
+| `spool-put-file` | REST; tenant quota |
 
-There is **no** renter API token, **no** GCP user, **no** OAuth for agents.
+There is **no** renter API token, **no** GCP user, **no** per-agent hub key.
 
-The tenant URL is **not a secret**. Knowing it only lets you hit the tenant.
-Unpinned signatures are `400`. Recv without proving `as` is `401`.
-
-### Signed recv (hub mode)
-
-`GET /v1/messages?as=` is **not** the product API (anyone could drain an
-inbox). Hub mode uses:
-
-```
-POST /v1/recv
-{ "as": "CLE-07", "ack": false, "ts": "<RFC3339 Z>", "sig": "<base64>" }
-```
-
-Canonical payload: `jq -cS 'del(.sig)'` of that object (no `as` key missing).
-Verify against pin of `as`. Clock: reject `|ts - now| > 5 minutes` (replay
-window). Optional `nonce` stored 10 minutes.
-
-CLI: `spool-recv --as CLE-07` does this when `$SPOOL_HUB_URL` is set.
-
-### Pin mutations
-
-```
-POST /v1/pins
-{ "id": "GRK-03", "pubkey": "<b64>", "ts": "...", "sig": "<b64>" }
-```
-
-`sig` is the **tenant root**, not GRK-03. An agent cannot pin itself onto a
-paid tenant. `--force` and revoke: same, root-signed.
-
-
----
+The tenant URL is not a secret. Unknown box hello is closed. Unpinned send
+is refused.
 
 ## 3.1 Peer mesh — any agent commands any agent
 
@@ -111,10 +89,11 @@ Inside one tenant, **every pinned id is a peer**:
 | `HUM-1` → any pinned agent, if HUM is pinned | Requiring a human on every thread |
 | `CLE-07` → `CLE-12` (same kind) | Interpreting the command on the hub |
 
-**Pin = permission to speak and to be spoken to.** No second ACL. If the renter
-does not want GRK-03 to command anyone, they do not pin GRK-03 (or they revoke).
+**Pin of a box = that box may speak and be spoken to.** No second ACL. Unpin
+the box to cut off every agent on it.
 
-A **command** is a signed `v:1` message with `kind=task` (body + optional files).
+A **command** is a `v:1` `kind=task` (body + optional files). Local: unsigned
+file. Hub: box-signed envelope on WebSocket.
 Spool delivers it. The **assignee agent** decides whether to run it (`result` /
 `reject` / `note`). Spool never starts Claude/Grok/agy for you.
 
@@ -179,7 +158,7 @@ No ysg-box, no NATS sidecar required for MVP (poll `spool-recv`).
 ## 7. MVP cut (must ship)
 
 1. 002 local signed send/recv (already specified).
-2. Hub HTTP: send (body sig), recv (signed POST), files, pin (root sig).
+2. Hub: WS send/recv (box keys), REST files + root-signed box pins.
 3. Tenant create (manual action + later payment webhook).
 4. Quota + unpaid behaviour.
 5. Isolation tests (two tenants).
@@ -210,4 +189,4 @@ pinned by root), still no GCP user required.
 - Uniform box API (Constitution VIII).
 - Payment gates **existence and quota**, not the meaning of `sig`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:25:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->

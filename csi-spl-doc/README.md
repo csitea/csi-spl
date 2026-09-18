@@ -8,7 +8,8 @@ contract, and how to create, apply and switch to it.
 | Path | What |
 |---|---|
 | `doc/md/csi-spl.feature.md` | git-rel GCS estate (operator how-to) |
-| `doc/md/SPEC-spool-hub-rental.md` | **product MVP: pay → tenant → key-only agent mail** |
+| `doc/md/SPEC-spool-hub-rental.md` | **product MVP: pay → tenant → box keys + WS** |
+| `doc/md/SPEC-spool-trust-modes.md` | local unsigned vs hub box keys (SSH-like) |
 | `doc/md/SPEC-spool-message-bus.md` | agent message bus architecture (binding) |
 | `doc/md/SPEC-spool-box-api.md` | uniform box API (CLI + MCP) |
 | `doc/md/SPEC-spool-identity-routing.md` | global ids, pins, box id, dual-write |
@@ -21,4 +22,4 @@ contract, and how to create, apply and switch to it.
 | `specs/005-spool-wui/` | git-spec for the WUI |
 | `specs/006-spool-hub-rental/` | git-spec for paid multi-tenant hub |
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->

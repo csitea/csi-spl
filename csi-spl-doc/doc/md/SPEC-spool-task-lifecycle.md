@@ -40,8 +40,9 @@ Antigravity; two Claude ids may command each other. The hub only checks:
 online). If `to` is not pinned, the message still stores (assignee may be
 pinned later); recv as an unpinned `as` still fails until that id is pinned.
 
-Spool **does not enforce** a state machine in 002 (a `result` without a prior
-`task` is still stored if it verifies). 003 MAY record `tasks.last_kind` for
+`result`/`reject` is an ordinary peer send to whoever should hear it (usually
+the original commander). The hub does not auto-reply. Spool **does not
+enforce** a state machine (a `result` without a prior `task` is still stored). 003 MAY record `tasks.last_kind` for
 the WUI. Agents SHOULD:
 
 - Open work with `kind=task`.
@@ -83,4 +84,4 @@ Humans view via `spool-tail` or the WUI. They are not required to have an
 agent id. If a human must **send**, pin a `HUM-*` id and use the same CLI.
 The WUI v1 is read-only (see `SPEC-spool-wui.md`).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:25:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:40:00Z -->

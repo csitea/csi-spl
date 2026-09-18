@@ -81,14 +81,18 @@ pinned box. No per-kind ACL. Unpin the box to cut it off.
 
 1. **Hello:** `{ "box_id", "ts", "sig" }` signed with the box key. Hub
    verifies against tenant pins. Unknown box → close.
-2. **Announce agents:** `{ "agents": ["CLE-07", "GRK-03"] }` unique **on this
-   box**. Duplicate announce of the same id **on this box** → 409. Same id on
-   another box is fine.
+2. **Announce agents:** the box **scans `$SPOOL_ROOT/*/`** (directory names
+   matching the agent-id regex). That roster is sent on hello and when the
+   set changes. Duplicate id **on this box** → 409. Same id on another box
+   is fine. No separate register command.
 3. **Send:** inner `v:1` (no inner sig) + envelope
    `{ "from_box", "to_box", "sig" }` over canonical inner JSON.
-   `from_box` is this box. `to_box` is required if `msg.to` exists on more
-   than one connected/pinned box; if omitted and unique, hub fills it; if
-   omitted and ambiguous → **409**. Forward to `to_box`’s WS or queue.
+   `from_box` is this box. `to_box` required if `msg.to` exists on more than
+   one box; omitted + unique → hub fills; omitted + ambiguous → **409**.
+   If `to_box` has a live WS: push and return `delivery=sent` (box got the
+   frame — not agent `--ack`). If not: **store on the hub** (TTL in cnf),
+   return `delivery=queued` and tell the commander **no ack from the
+   receiver**. Send is still success (exit 0) with that status.
 4. **Recv / ack:** frames on the same WS for agents announced on that box.
    Proving the box key at hello is enough to drain those agents’ inboxes
    (the box is the SSH server). No per-agent recv signature.
@@ -168,4 +172,38 @@ Local-only (`$SPOOL_HUB_URL` unset): steps 1–2 only. Flag is ignored.
 - Not a tenant-wide unique `CLE-07`. Names collide across boxes on purpose.
 - Not WUI in MVP (`SPEC-spool-wui.md` is post-MVP Slack-like chat).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->
+## 8. Offline commandee and send status
+
+Hub queue TTL is cnf (not infinite). After TTL the message expires; commander
+is not retroactively failed.
+
+CLI/MCP send result MUST include `delivery`:
+
+| value | meaning |
+|---|---|
+| `local` | same-box, hub skipped (default dual-write) |
+| `sent` | hub pushed to a live `to_box` WS |
+| `queued` | hub stored; **no receiver ack** (box offline or WS down) |
+
+`queued` is not a hard error. The commander is informed. Agent-level ack is
+still a later `spool-recv --ack` / `kind=result` send — not this field.
+
+## 9. Results are ordinary sends
+
+`kind=result` / `reject` is another peer `spool-send` to `GRK-03` (or whoever).
+The hub does **not** auto-route back to the original `from`.
+
+## 10. Box id
+
+Renter chooses `$SPOOL_BOX_ID`. Duplicate `box_id` + **different** pubkey →
+**409**. Same pubkey → 200. `--force` pin to replace a key (audit history).
+
+## 11. Files (REST)
+
+- `POST /v1/files` — **box key** (same proof as WS hello: signed headers or a
+  short-lived upload token from the WS). Anonymous PUT forbidden.
+- `GET /v1/files/{file_id}` — **capability**: knowing `file_id` (sha256) inside
+  the tenant is enough. No cross-tenant.
+
+
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:40:00Z -->

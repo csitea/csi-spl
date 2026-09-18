@@ -121,6 +121,10 @@ data expiry.
 - **FR-011**: WUI is out of this MVP (`specs/005-spool-wui`).
 - **FR-012**: Same-box send skips the hub by default; `$SPOOL_MIRROR_LOCAL=1`
   mirrors it to the hub. Cross-box always uses the hub.
+- **FR-013**: Offline `to_box`: hub queues (TTL cnf); send returns
+  `delivery=queued` and states no receiver ack. Live WS → `delivery=sent`.
+- **FR-014**: Announce roster = `$SPOOL_ROOT` agent dirs. File PUT needs box
+  key; GET is sha256 capability. `kind=result` is a normal peer send.
 
 ## Success Criteria
 
@@ -141,4 +145,4 @@ data expiry.
 NATS, Kafka, git-rel, ysg-box, customer GCP accounts, card storage, custom
 domains, token SSE.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:40:00Z -->

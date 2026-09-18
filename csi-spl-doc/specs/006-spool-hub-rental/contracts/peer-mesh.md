@@ -19,6 +19,7 @@ Spool delivers. The receiving agent process is what “runs the command.”
   **Implemented** — two-box `task`/`result` both ways in `hub-e2e.tst.sh`.
 - Self-send: **Implemented** — same-box, local by default (trust-modes;
   `hub-e2e.tst.sh` self-send `delivery=local`).
-- Three-peer ring A→B→C→A with GRK/CLE/AGY prefixes: **Planned** (T011b).
+- Three-peer ring A→B→C→A with GRK/CLE/AGY prefixes: **Implemented**
+  (`TestThreePeerMeshRing`, T011b).
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:05:25Z -->
+<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:55:00Z -->

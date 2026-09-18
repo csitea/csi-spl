@@ -1233,3 +1233,42 @@ func TestManualTenantMayWrite(t *testing.T) {
 		t.Fatalf("send on a manual tenant: delivery %q", out.Delivery)
 	}
 }
+
+// 006 T011b / FR-011: a ring of three pinned boxes (GRK, CLE, AGY). Every
+// box commands the next; the agent prefix never changes authorisation.
+func TestThreePeerMeshRing(t *testing.T) {
+	e := newEnv(t)
+	tid, _ := e.tenant()
+	a := e.box(tid, "box-a", "GRK-03")
+	b := e.box(tid, "box-b", "CLE-07")
+	c := e.box(tid, "box-c", "AGY-01")
+	for _, x := range []*box{a, b, c} {
+		e.pin(tid, x)
+	}
+	ctx := context.Background()
+	ring := []struct {
+		from       *box
+		fromID     string
+		to         *box
+		toID, toBx string
+	}{
+		{a, "GRK-03", b, "CLE-07", "box-b"},
+		{b, "CLE-07", c, "AGY-01", "box-c"},
+		{c, "AGY-01", a, "GRK-03", "box-a"},
+	}
+	for _, r := range ring {
+		out := send(t, r.from, r.fromID, r.toID, "task", r.fromID+" commands "+r.toID, r.toBx)
+		if out.Delivery != wire.DeliveryQueued {
+			t.Fatalf("%s -> %s: delivery %q, want queued", r.fromID, r.toID, out.Delivery)
+		}
+	}
+	for _, r := range ring {
+		if res, err := r.to.c.Sync(ctx); err != nil || res.Delivered != 1 {
+			t.Fatalf("%s drain: %+v %v", r.toBx, res, err)
+		}
+		got := inbox(t, r.to, r.toID)
+		if len(got) != 1 || got[0].Kind != "task" || got[0].From != r.fromID || got[0].Body != r.fromID+" commands "+r.toID {
+			t.Fatalf("%s inbox: %+v", r.toID, got)
+		}
+	}
+}

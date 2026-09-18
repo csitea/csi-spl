@@ -116,13 +116,13 @@ IAM) exchange `task` / `result`. Wire per 003.
 2. **Given** the same on the product domain with a real second machine
    (milestones §Demo), **Then** the same. — *Planned* (007 + M1 demo).
 
-### User Story 3b — Any peer commands any peer (Priority: P1, M1) · **Partial**
+### User Story 3b — Any peer commands any peer (Priority: P1, M1) · **Implemented**
 
 Three pinned boxes (GRK, CLE, AGY). Each may `task` each of the others; the
 hub neither parses `body` nor privileges a prefix. `contracts/peer-mesh.md`.
 
 1. **Given** boxes a, b, c pinned, **When** A→B, B→C, C→A tasks are sent,
-   **Then** all arrive. — *Planned* (no three-box test).
+   **Then** all arrive. — *Implemented* (`TestThreePeerMeshRing`, 20/20 local runs).
 2. **Given** `from == to` on one box, **Then** it is delivered (loopback,
    local by default per trust-modes). — *Implemented* (`hub-e2e.tst.sh` self-send `delivery=local`).
 
@@ -135,8 +135,10 @@ hub neither parses `body` nor privileges a prefix. `contracts/peer-mesh.md`.
    **Then** `402 unpaid`; hello, recv, GET file, GET pins still work. —
    *Implemented* (`TestUnpaidSendPin402RecvInGrace`).
 3. **Given** grace has lasted `SPOOL_HUB_BILLING_GRACE`, **Then** the tenant
-   moves to `unpaid` and its data becomes eligible for deletion. — *Planned*
-   (grace is not timed; nothing sets `billing_status` outside tests).
+   moves to `unpaid` and its data becomes eligible for deletion. — *Planned*,
+   gated on OQ-006-3 (today `grace` and `unpaid` behave identically, so a timer
+   alone changes nothing observable). The owner can already move a tenant
+   with `spool hub-tenant-billing` (FR-012).
 
 ### User Story 5 — Stranger buys a tenant on the site (Priority: P1 for M2) · **Partial**
 
@@ -172,8 +174,8 @@ page + one email carry the tenant URL and root private key, once.
 | **FR-008** | Quota: messages/month, pins, stored file bytes → `429 quota` (CLI exit 1). Values from the tenant's **plan** (cnf), 0 = unlimited. Recv is not quota-gated. | **Partial** — enforced, but one deploy-wide `SPOOL_HUB_QUOTA_*`, not per `plan_id` |
 | **FR-009** | `grace`/`unpaid` refuse send, pin, revoke, PUT file with `402 unpaid`; hello, recv, GET file, GET pins stay up. | **Implemented** (`billing.AllowsWrite`, `TestUnpaidSendPin402RecvInGrace`) |
 | **FR-010** | Grace is timed: `grace` older than `SPOOL_HUB_BILLING_GRACE` → `unpaid`; after cnf retention the tenant's data may be deleted. | **Planned** (not timed; no grace-start column) |
-| **FR-011** | Any pinned box may send `kind=task` to any agent on any pinned box of the same tenant; no prefix ACL; the hub never parses `body`. | **Partial** — 003 send path has no ACL; three-peer test missing |
-| **FR-012** | An operator verb sets billing status (`paid`/`unpaid`/`refund` → `billing.MapEvent`) until M2 webhooks exist. | **Planned** (`MapEvent`, `SetBillingStatus` have no non-test caller) |
+| **FR-011** | Any pinned box may send `kind=task` to any agent on any pinned box of the same tenant; no prefix ACL; the hub never parses `body`. | **Implemented** (003 send path has no ACL; `TestThreePeerMeshRing`: GRK→CLE→AGY→GRK across three boxes) |
+| **FR-012** | An operator verb sets billing status (`paid`/`unpaid`/`refund` → `billing.MapEvent`) until M2 webhooks exist. | **Implemented** (`spool hub-tenant-billing --tenant --event` → `billing.Apply`; `TestApply`; binary checked on a temp Postgres: `failed`→`grace`, `paid`→`active`, unknown event / tenant exit 1, n=1) |
 | **FR-013** | M2: copy csi-rel payment (interface, drivers, signed webhook + `webhook_events_seen`, fail-closed boot, fake-pay in lde). No card data, no vendor name in source, no root private key stored. | **Partial** — schema + cnf (`40371a7`); Go + checkout **Planned** |
 | **FR-014** | M2: success page + one email with tenant URL + root private key, once. | **Planned** |
 | **FR-015** | Hygiene: no payment-vendor name in source; no root/box private key in logs. | **Implemented** (`no-baked-host.tst.sh`: no product host / vendor in Go; `no-payment-vendor-wui.tst.sh`; `TestRootPrivateKeyNotLogged`) |
@@ -200,11 +202,16 @@ queue, file upload token — 003 `contracts/http-v1.md` and trust-modes §4–§
   duplicates it.
 - **OQ-006-2** `manual` next to the existing `internal`? Recommendation: keep
   both — `internal` = our own fleet, never billed; `manual` = hand-made renter
-  tenant, billed out of band.
+  tenant, billed out of band. *(Landed that way in `3690211`; reversible.)*
+- **OQ-006-3** After the grace window, does an `unpaid` tenant keep read access
+  (hello, recv, GET file) until retention deletes its data, or is it cut off
+  (`402` on hello)? The narrative promises reads only "during grace". The
+  answer decides what T013a builds; retention deletion is destructive and
+  waits for this answer either way.
 
 ## Out of Scope
 
 NATS, Kafka, git-rel, ysg-box, customer GCP accounts, card storage, custom
 domains, seats (M4), WUI (005).
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:40:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:55:00Z -->

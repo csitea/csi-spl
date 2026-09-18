@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
@@ -126,6 +127,34 @@ func cmdHubTenant(args []string) int {
 		return fail(err)
 	}
 	fmt.Println(action.JSON(map[string]string{"tenant": *tenant, "status": "ok"}))
+	return 0
+}
+
+// cmdHubTenantBilling is the owner's billing lever until M2 webhooks exist
+// (006 T013b): a payment event becomes tenants.billing_status through the
+// same billing.MapEvent table the webhooks will use.
+func cmdHubTenantBilling(args []string) int {
+	fs := flag.NewFlagSet("hub-tenant-billing", flag.ContinueOnError)
+	tenant := fs.String("tenant", "", "tenant id")
+	event := fs.String("event", "", "paid|unpaid|failed|refund|cancel")
+	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if !msg.ValidTenantID(*tenant) || *event == "" || *dsn == "" {
+		return fail(fmt.Errorf("--tenant (valid slug), --event and --db / $SPOOL_HUB_DB_DSN are required"))
+	}
+	ctx := context.Background()
+	st, err := store.OpenPostgres(ctx, *dsn)
+	if err != nil {
+		return fail(err)
+	}
+	defer st.Close()
+	status, err := billing.Apply(ctx, st, *tenant, *event)
+	if err != nil {
+		return fail(err)
+	}
+	fmt.Println(action.JSON(map[string]string{"tenant": *tenant, "event": *event, "billing_status": status}))
 	return 0
 }
 

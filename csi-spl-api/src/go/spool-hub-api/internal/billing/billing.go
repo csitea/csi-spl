@@ -6,6 +6,7 @@
 package billing
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -47,6 +48,25 @@ func MapEvent(event string) (string, error) {
 	default:
 		return "", fmt.Errorf("billing: unknown payment event %q", event)
 	}
+}
+
+// StatusSetter is the one store method Apply needs.
+type StatusSetter interface {
+	SetBillingStatus(ctx context.Context, tenantID, status string) error
+}
+
+// Apply maps a payment event onto the tenant's billing_status and writes it.
+// It is the operator path (spool hub-tenant-billing) until M2 webhooks call
+// it too (006 T013b / FR-012). Unknown events write nothing.
+func Apply(ctx context.Context, st StatusSetter, tenantID, event string) (string, error) {
+	status, err := MapEvent(event)
+	if err != nil {
+		return "", err
+	}
+	if err := st.SetBillingStatus(ctx, tenantID, status); err != nil {
+		return "", err
+	}
+	return status, nil
 }
 
 // ValidStatus reports a tenants.billing_status CHECK value.

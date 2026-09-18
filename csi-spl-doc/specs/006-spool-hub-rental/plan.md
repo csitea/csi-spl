@@ -50,8 +50,8 @@ only admits the load balancer).
 
 ## Build order
 
-1. **Now (M1, no cloud needed)**: T011b, T013a, T013b — code + tests on
-   lde/docker Postgres. (T001a, T003, T004, T015, T016 landed in `3690211`.)
+1. **Now (M1, no cloud needed)**: done — T001a, T003, T004, T015, T016
+   (`3690211`), T011b, T013b (v1.2.0). T013a waits on OQ-006-3.
 2. **After 007 README §6 steps 3–10 on dev**: T011c on dev (owner-made tenant,
    second machine), then prd. This closes the M1 demo for 006.
 3. **M2**: T012a (after OQ-006-1), T018 → T019 → T020 → T021.
@@ -60,4 +60,4 @@ only admits the load balancer).
 `3690211` without its per-tenant quota columns, which nothing enforced;
 per-plan quotas wait on OQ-006-1.
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:40:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:55:00Z -->

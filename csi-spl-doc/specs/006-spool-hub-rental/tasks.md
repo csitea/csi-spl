@@ -29,7 +29,7 @@ The WS send/recv tasks formerly T008–T010 are **003's** (003 T008–T010); the
 are not duplicated here.
 
 - [x] T011 [FR-005] Smoke: two `$SPOOL_ROOT`s, GRK→CLE `task` and `result` back, no GCP env — **Implemented** (`hub-e2e.tst.sh` → `ALL HUB E2E CHECKS PASSED`).
-- [ ] T011b [FR-011] Three pinned peers A→B, B→C, C→A `task` all delivered; prefix never changes auth — **Planned** (no three-box test).
+- [x] T011b [FR-011] Three pinned peers A→B, B→C, C→A `task` all delivered; prefix never changes auth — **Implemented** (`TestThreePeerMeshRing`).
 - [ ] T011c [FR-004] Cloud: owner-made tenant on `dev`, then `prd`; two real machines; M1 demo steps 2–4 — **Planned**; blocked on 007 README §6 steps 3–10 (dev hub exists but has no LB/DNS; prd APIs disabled).
 
 ## Phase 4: Quota / unpaid (US4)
@@ -37,8 +37,8 @@ are not duplicated here.
 - [x] T012 [FR-008] Enforce quota → `429 quota` on send/pin/PUT — **Implemented** (`TestQuotaExceeded429`).
 - [ ] T012a [FR-008] Quotas per `plan_id` (cnf plan table) instead of one deploy-wide `SPOOL_HUB_QUOTA_*` — **Planned**; gated on OQ-006-1.
 - [x] T013 [FR-009] `grace`/`unpaid`: send/pin/PUT `402`; hello/recv/GET stay up — **Implemented** (`TestUnpaidSendPin402RecvInGrace`).
-- [ ] T013a [FR-010] Time the grace: record grace start; after `SPOOL_HUB_BILLING_GRACE` → `unpaid`; retention job deletes data after cnf retention — **Planned** (`BillingGrace` is only validated: `config.go:124,151`).
-- [ ] T013b [FR-012] Operator verb (`spool hub-tenant-billing --event paid|unpaid|refund`) via `billing.MapEvent` + `SetBillingStatus` — **Planned** (no non-test caller).
+- [ ] T013a [FR-010] Time the grace: record grace start; after `SPOOL_HUB_BILLING_GRACE` → `unpaid`; retention job deletes data after cnf retention — **Planned**, gated on OQ-006-3 (`BillingGrace` is only validated: `config.go:124,151`).
+- [x] T013b [FR-012] Operator verb `spool hub-tenant-billing --tenant <id> --event paid|unpaid|failed|refund|cancel` via `billing.Apply` (= `MapEvent` + `SetBillingStatus`) — **Implemented** (`TestApply`; binary checked on temp Postgres, n=1).
 
 ## Phase 5: Payment (US5, M2 — after the M1 demo)
 
@@ -53,4 +53,4 @@ are not duplicated here.
 - [x] T014 [FR-006] Public deploy notes: allow unauthenticated in M2; rate-limit unsigned at the shield — **Implemented** as doc (`plan.md` "Public deploy notes"); the infra is 007's.
 - [x] T015 [FR-015] Hygiene tests: no payment-vendor name / product host in Go; no root private key in hub logs — **Implemented** (`no-baked-host.tst.sh`, `TestRootPrivateKeyNotLogged`, `3690211`).
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:40:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:55:00Z -->

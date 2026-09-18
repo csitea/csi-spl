@@ -1,6 +1,42 @@
 package billing
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"testing"
+)
+
+type fakeSetter struct {
+	got map[string]string
+	err error
+}
+
+func (f *fakeSetter) SetBillingStatus(_ context.Context, id, status string) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.got[id] = status
+	return nil
+}
+
+func TestApply(t *testing.T) {
+	ctx := context.Background()
+	f := &fakeSetter{got: map[string]string{}}
+	for event, want := range map[string]string{"paid": StatusActive, "failed": StatusGrace, "cancel": StatusUnpaid} {
+		got, err := Apply(ctx, f, "acme", event)
+		if err != nil || got != want || f.got["acme"] != want {
+			t.Fatalf("%s: got %q stored %q err %v, want %q", event, got, f.got["acme"], err, want)
+		}
+	}
+	f.got = map[string]string{}
+	if _, err := Apply(ctx, f, "acme", "chargeback?"); err == nil || len(f.got) != 0 {
+		t.Fatalf("unknown event must fail closed and write nothing: %v %v", err, f.got)
+	}
+	f.err = errors.New("not found")
+	if _, err := Apply(ctx, f, "nope", "paid"); err == nil {
+		t.Fatal("store error swallowed")
+	}
+}
 
 func TestMapEvent(t *testing.T) {
 	cases := []struct {

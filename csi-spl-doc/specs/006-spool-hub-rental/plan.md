@@ -32,10 +32,23 @@ WS last-hello-wins. Pin list: hello + periodic GET.
 
 ## Constitution Check
 
-- [ ] II — no baked hub host
-- [ ] V — no payment-vendor name in source
-- [ ] VII — no root private key in DB
-- [ ] VIII — same verbs
+- [ ] II — no baked hub host (T002: `$SPOOL_HUB_TENANT_HOST_PATTERN` from cnf)
+- [ ] V — no payment-vendor name in source (T015)
+- [ ] VII — no root private key in DB (T001/T003)
+- [ ] VIII — same verbs (002/003; not this lane)
+
+## Public deploy notes (T014)
+
+M2 public rental: Cloud Run **allow unauthenticated** HTTPS/WSS. The product
+door is the box pin and the tenant-root signature, not renter IAM (FR-006).
+
+Unsigned requests (no WS hello, no tenant-root sig) are already 400/401/404
+at the hub. The hosting shield **rate-limits** those unsigned calls so a
+leaked tenant URL is not a flood. That rate-limit is infra (Cloud Armor on
+031), not a credential we issue to renters.
+
+M1 stays IAP and/or IP allowlist (`hub.cloud_run.ingress` in cnf). This note
+does not change 031.
 
 ## Build order
 

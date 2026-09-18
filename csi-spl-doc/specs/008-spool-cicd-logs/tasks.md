@@ -1,9 +1,12 @@
-# Tasks: CI/CD logs in spool chat (M1 stub)
+# Tasks: CI/CD — pipeline (US2, M1) and CI logs in spool chat (US1, later)
 
-**Feature**: `specs/008-spool-cicd-logs`  |  **Spec**: ./spec.md  |  **Contract**: ./contracts/fetch-deliver.md
+**Feature**: `specs/008-spool-cicd-logs`  |  **Spec**: ./spec.md  |  **Plan**: ./plan.md  |  **Contracts**: ./contracts/pipeline.md (US2), ./contracts/fetch-deliver.md (US1)
 
-No plan.md beyond the contract: M1 is a flagged-off hub-side stub on the
-existing v:1 bus. `gh` in the image is after M3.
+Two blocks. **Phases 1–4 below are US1** (CI logs in chat, M1 flagged-off
+stub; its `[US1]` tags are unchanged). **Phase 5 is US2** (the GitHub Actions
+pipeline), after the US1 traceability. Every task's status (Implemented /
+Partial / Planned, `specs/README.md` §2.3) is in the **Status** section at the
+end; a checkbox is ticked only when that status is Implemented.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -65,4 +68,83 @@ slot + 029. T013 MCP/CLI. T014 WUI. T015 streaming tail.
 | FR-005 no token leak | T004, T008, T010 |
 | FR-006 flag off, prd fail-closed, 32 MiB | T002, T005, T006 |
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:53:00Z -->
+---
+
+## Phase 5: User Story 2 — the GitHub Actions pipeline (M1) 🎯
+
+Owner lane per task in brackets. **008 writes no code** in the redo; a task
+owned by another lane is handed to it (`specs/README.md` §2.4, §5).
+
+- [x] T101 [US2] Both workflows on trunk: `10_ci-quality.yml` (hub-suite,
+      no-ysg-box-ref, distribution-hygiene) and `20_hub-build-deploy.yml`
+      (test → prepare-deploy → dev/prd matrix, WIF, forward-only guard,
+      per-env concurrency, control-plane verify). (`.github/workflows/`)
+- [x] T102 [P] [US2] `contracts/pipeline.md`: triggers, allow-list, jobs,
+      the terraform-owns-the-image deploy rule, the repo variables consumed,
+      the deploy SA grants, the pipeline's place after provisioning step 9.
+- [ ] T103 [US2] [007] `017-github-wif-deploy`: the default impersonated SA
+      `<project>@<project>.iam.gserviceaccount.com` exists in neither project
+      — use a dedicated deploy SA (created by 017 or named in cnf) and land
+      017 on trunk. Plan only; apply needs the owner.
+- [ ] T104 [US2] [007] Grant the deploy SA the four roles in
+      `contracts/pipeline.md` §3 (`workloadIdentityUser` is already in 017;
+      add `artifactregistry.reader`+`writer` on the 028 repo, `run.developer`
+      on the 030 service, `iam.serviceAccountUser` on the hub runtime SA).
+- [ ] T105 [US2] [owner go] dev: apply 017, then export its outputs:
+      `gh variable set GCP_WIF_PROVIDER_DEV` / `GCP_DEPLOY_SA_EMAIL_DEV`
+      from `terraform output -raw wif_provider_name` / `deploy_sa_email`.
+- [ ] T106 [US2] First live dev deploy: bump dev `hub.image.tag`, push;
+      record the run id; require the deploy job `success` (not `skipped`),
+      image == cnf ref, Ready, latest revision ready. Closes FR-P05/P06/P08
+      for dev.
+- [ ] T107 [US2] [workflow author lane] Fix the hygiene sweep (FR-P07): a
+      clean `grep` must not abort the step under GitHub's `bash -e` — e.g.
+      `hits="$(grep … | cut … | sort -u || true)"`. Proof: the extracted
+      sweep script under `bash -e` prints five `ok -` lines and exits 0 on
+      trunk, and a planted hit exits 1. (`.github/workflows/10_ci-quality.yml`)
+- [ ] T108 [US2] [007] After T106: `030-cloud-run-hub` plan in dev shows **no
+      diff**. 030 has no `lifecycle.ignore_changes`
+      (`grep -c ignore_changes csi-spl-iac/src/terraform/030-cloud-run-hub/*.tf`
+      → 0 each), and `gcloud run services update` may stamp client
+      annotations; if the plan shows them, 030 ignores exactly those.
+- [ ] T109 [US2] [owner go] prd, after prd provisioning steps 1–9
+      (`specs/README.md` §6): apply 017 prd, export `…_PRD`, first prd deploy
+      as in T106.
+- [ ] T110 [P] [US2] [orc lane] FR-P09 deployed-state check: an orc action
+      comparing cnf `hub.image.ref` with the live service image per env
+      (`gcloud … --account=$GCP_ACCOUNT`), printing `current` / `lagging`
+      and exiting non-zero when lagging. Read-only.
+- [ ] T111 [P] [US2] (later) Pin third-party actions (`actions/*`,
+      `google-github-actions/*`) by commit sha instead of major tag.
+
+## Status (verified 2026-09-18, trunk `bbc41e7`)
+
+| Task | Status | Evidence |
+|---|---|---|
+| T001 | Implemented | `ls contracts/fetch-deliver.md` → present |
+| T002–T010 | Planned on trunk | `grep -c CICD csi-spl-cnf/csi-spl/all.env.yaml` → 0; no `internal/cicdlogs`. Written on branch `GRK-3354-008-cicd-logs-stub` (`c9ed24e`), not on master; that lane ticks them when it lands. T009's assertion already holds (`grep -c '\bgh\b' …/Dockerfile` → 0). |
+| T011–T015 | Planned (later) | — |
+| T101 | Implemented | `git log --format=%h -- .github/workflows` → `3596991` |
+| T102 | Implemented | this commit |
+| T103, T104 | Planned | 017 only on branch `GRK-3343-007-tf-017-wif` (`11db84d`); `gcloud iam service-accounts describe csi-spl-{dev,prd}@csi-spl-{dev,prd}.iam.gserviceaccount.com --account=$GCP_ACCOUNT` → NOT_FOUND ×2 |
+| T105, T109 | Planned | `gh variable list -R csitea/csi-spl` → empty; no WIF pool in either project |
+| T106 | Planned | deploy job `skipped` in 8 of 8 runs of `20 ci-cd` |
+| T107 | Planned — **trunk red** | `distribution-hygiene` failed in 9 of 9 completed gate runs; reproduced, see spec FR-P07 |
+| T108, T110, T111 | Planned | — |
+
+## Traceability — US2
+
+| FR | Tasks |
+|---|---|
+| FR-P01 two workflows, push + dispatch, no PR | T101 |
+| FR-P02 gate unfiltered, deploy allow-list | T101, T102 |
+| FR-P03 suite, skip = fail | T101 |
+| FR-P04 WIF only, repo variables | T103, T104, T105, T109 |
+| FR-P05 terraform owns the image | T101, T106, T108 |
+| FR-P06 dev + prd matrix, guard, concurrency | T101, T106, T109 |
+| FR-P07 hygiene sweep passes clean | T107 |
+| FR-P08 control-plane verify | T101, T106 |
+| FR-P09 deployed-state check | T110 |
+| FR-P10 names from cnf | T101 |
+
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:02:27Z -->

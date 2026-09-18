@@ -93,6 +93,36 @@ POST /v1/pins
 `sig` is the **tenant root**, not GRK-03. An agent cannot pin itself onto a
 paid tenant. `--force` and revoke: same, root-signed.
 
+
+---
+
+## 3.1 Peer mesh — any agent commands any agent
+
+The hub is a **mailbox**, not an orchestrator. It does not parse `body`, pick
+a worker, or privilege one vendor.
+
+Inside one tenant, **every pinned id is a peer**:
+
+| Allowed | Forbidden in MVP |
+|---|---|
+| `GRK-03` → `CLE-07` `kind=task` | Hub-enforced allowlists (“only HUM may send task”) |
+| `CLE-07` → `GRK-03` `kind=task` | Kind-of-agent ACLs (Grok may command Claude but not vice versa) |
+| `AGY-01` → `CLE-07` and `CLE-07` → `AGY-01` | A distinguished “controller” role in the protocol |
+| `HUM-1` → any pinned agent, if HUM is pinned | Requiring a human on every thread |
+| `CLE-07` → `CLE-12` (same kind) | Interpreting the command on the hub |
+
+**Pin = permission to speak and to be spoken to.** No second ACL. If the renter
+does not want GRK-03 to command anyone, they do not pin GRK-03 (or they revoke).
+
+A **command** is a signed `v:1` message with `kind=task` (body + optional files).
+Spool delivers it. The **assignee agent** decides whether to run it (`result` /
+`reject` / `note`). Spool never starts Claude/Grok/agy for you.
+
+Unicast: one `to` per message. Command two peers → two `task` messages.
+
+Location does not matter: peers may sit on different laptops, as long as each
+has its key and `$SPOOL_HUB_URL`. Same-machine 002 still works without the hub.
+
 ---
 
 ## 4. Tenant is the isolation boundary
@@ -180,4 +210,4 @@ pinned by root), still no GCP user required.
 - Uniform box API (Constitution VIII).
 - Payment gates **existence and quota**, not the meaning of `sig`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:25:00Z -->

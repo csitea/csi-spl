@@ -27,12 +27,18 @@ would be required to add reply-to.
 
 ## 2. `kind` semantics
 
-| kind | Means | Typical `from` |
+| kind | Means | Who may send |
 |---|---|---|
-| `task` | please do this | requester |
-| `result` | I did it (success) | the `to` of the original task |
-| `reject` | I will not / cannot | the `to` of the original task |
-| `note` | commentary; no completion claim | anyone on the thread |
+| `task` | command: please do this | **any pinned peer** in the tenant |
+| `result` | I did it (success) | typically the `to` of a prior task; not hub-enforced |
+| `reject` | I will not / cannot | typically the assignee; not hub-enforced |
+| `note` | commentary; no completion claim | any pinned peer |
+
+There is no controller role. Claude may command Grok; Grok may command
+Antigravity; two Claude ids may command each other. The hub only checks:
+`from` is pinned, `sig` verifies, `to` is a well-formed id (need not be
+online). If `to` is not pinned, the message still stores (assignee may be
+pinned later); recv as an unpinned `as` still fails until that id is pinned.
 
 Spool **does not enforce** a state machine in 002 (a `result` without a prior
 `task` is still stored if it verifies). 003 MAY record `tasks.last_kind` for
@@ -46,6 +52,12 @@ Multiple `result`s on one `task_id` are allowed (partial deliveries) but the
 WUI treats the **latest** `result`/`reject` as the thread status.
 
 ---
+
+## 2.1 Peer mesh
+
+Any pinned agent may send `task` to any other agent id in the tenant. The
+protocol does not know “human vs worker” except as id prefixes. Prefix does
+not grant extra rights.
 
 ## 3. Unicast only
 
@@ -71,4 +83,4 @@ Humans view via `spool-tail` or the WUI. They are not required to have an
 agent id. If a human must **send**, pin a `HUM-*` id and use the same CLI.
 The WUI v1 is read-only (see `SPEC-spool-wui.md`).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:25:00Z -->

@@ -70,6 +70,27 @@ signed by `as`. No GCP credentials in the environment.
 3. **Given** a file, **When** put-file + send + get-file, **Then** hash
    matches (002 contract).
 
+
+### User Story 3b - Any peer commands any other peer (Priority: P1)
+
+Three pinned agents (GRK, CLE, AGY), possibly on three machines. Each can
+`spool-send --kind task` to each of the others. The hub does not reject a
+Claude→Grok task. No human message is required on the thread.
+
+**Why this priority**: The product is a peer mailbox, not a human-to-bot
+ticket system.
+
+**Independent Test**: Fixture three keys; A→B, B→C, C→A tasks all recv.
+
+**Acceptance Scenarios**:
+
+1. **Given** GRK, CLE, AGY pinned, **When** CLE sends `task` to GRK, **Then**
+   GRK recv returns it (same as GRK→CLE).
+2. **Given** those pins, **When** a send `from=GRK` `to=GRK` (self), **Then**
+   it is stored (loopback allowed).
+3. **Given** no extra ACL config, **When** the hub receives a `task`, **Then**
+   it does not inspect `body` or vendor prefix beyond the id regex.
+
 ### User Story 4 - Quota and unpaid (Priority: P2)
 
 Over quota → 429. Unpaid after grace → send/pin refused, recv still until
@@ -95,6 +116,8 @@ data expiry.
 - **FR-007**: Uniform box API (same verbs for CLE/GRK/AGY).
 - **FR-008**: Quota and unpaid codes as specified.
 - **FR-009**: `v:1` schema unchanged.
+- **FR-010**: Any pinned peer MAY send `kind=task` to any agent id in the
+  tenant. The hub MUST NOT enforce a controller role or per-kind ACL.
 
 ## Success Criteria
 
@@ -115,4 +138,4 @@ data expiry.
 NATS, Kafka, git-rel, ysg-box, customer GCP accounts, card storage, custom
 domains, token SSE.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:25:00Z -->

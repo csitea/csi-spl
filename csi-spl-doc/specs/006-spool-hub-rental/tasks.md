@@ -24,6 +24,7 @@ Gate: 002 signed `v:1` + a testhub process (003 T005 or sqlite).
 - [ ] T009 `POST /v1/recv` signed by `as`; replay window on `ts`
 - [ ] T010 CLI hub mode: recv uses POST /v1/recv; send unchanged `v:1`
 - [ ] T011 [P] Smoke: two `$SPOOL_ROOT`s, GRK→CLE, no GCP env
+- [ ] T011b [P] [US3b] Three pinned peers; CLE→GRK and AGY→CLE `task` both recv
 
 ## Phase 4: Quota / unpaid (US4)
 
@@ -35,4 +36,4 @@ Gate: 002 signed `v:1` + a testhub process (003 T005 or sqlite).
 - [ ] T014 Public deploy notes: allow unauthenticated; rate-limit unsigned
 - [ ] T015 Hygiene: no vendor payment name; no private keys in logs
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:25:00Z -->

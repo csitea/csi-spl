@@ -4,7 +4,7 @@
 
 **Gate**: spec `002-box-agent-messaging` CLI + `v:1` schema exist (002 US1). Do not implement hub handlers against a forked JSON. Every Open Question is resolved (`spec.md` → **Resolved decisions**); no task is blocked on an OQ any more.
 
-**Status (2026-09-18)**: M1 hub implemented on trunk — docs fold `7d13be5`, `5386fc8`; DDL + migrator + wire/store/blob `81121a0`; hub + hubclient + CLI `7905e35`; Postgres gate + binary e2e `7cd0164`. Gate: `bash csi-spl-api/src/bash/tests/run-all-tests.sh` (runs the Postgres/e2e part when a Postgres is available). Open: T022 against real GCS, T028, T023 (infra lane).
+**Status (2026-09-18)**: M1 hub implemented on trunk — docs fold `7d13be5`, `5386fc8`; DDL + migrator + wire/store/blob `81121a0`; hub + hubclient + CLI `7905e35`; Postgres gate + binary e2e `7cd0164`; GCS blob vs fake-gcs `T022`. Gate: `bash csi-spl-api/src/bash/tests/run-all-tests.sh` (Postgres/e2e and GCS emulator skip when unavailable). Open: T028, T023 (infra lane).
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -53,7 +53,7 @@
 
 - [x] T021 Postgres implementation of `internal/store`, queries matching `csi-spl-rdb/src/sql/postgres/spool-hub/`; the store contract suite runs against memory and a temp Postgres (`SPOOL_TEST_PG_DSN`).
 - [x] T021a Retention sweep: queued TTL + per-box cap → `expired`; messages purged per tier (`alerts` 7 d, others 30 d).
-- [ ] T022 [P] GCS implementation of `internal/blob`, one bucket, tenant prefix; the bucket name comes from cnf. *(Code in `internal/blob` (`GCS`, honours `STORAGE_EMULATOR_HOST`); not yet exercised against GCS or fake-gcs — the tests use the `Dir` driver.)*
+- [x] T022 [P] GCS implementation of `internal/blob`, one bucket, tenant prefix; the bucket name comes from cnf. *(Code in `internal/blob` (`GCS`, JSON reads, honours `STORAGE_EMULATOR_HOST`); `hub-gcs.tst.sh` exercises Put/Get/Exists at `t/<tenant>/files/<sha256>` against fake-gcs.)*
 - [ ] T023 [P] **Infra lane** (not this lane): `csi-spl-iac` Cloud Run with **`max-instances=1`** and min instances 1 (both cnf), Cloud SQL, GCS; tpl-gen + `terraform validate/plan` only, no apply without the owner's go.
 
 ## Phase 7: User Story 4 — Live tail (P2)
@@ -128,4 +128,4 @@
 
 MVP of 003 = Milestone 1 = US1 + US2 + US3 + the stored/follow tail of US4, on an in-process hub with the memory store in unit tests, then Postgres + GCS (Phase 6). IAM is out of M1.
 
-<!-- version: 0.3.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:40:00Z -->
+<!-- version: 0.3.2 · updated: 2026-09-18 · last-edit: 2026-09-18T17:54:00Z -->

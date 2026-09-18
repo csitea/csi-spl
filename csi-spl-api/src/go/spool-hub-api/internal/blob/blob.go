@@ -90,8 +90,10 @@ type GCS struct {
 }
 
 // OpenGCS opens bucket with application-default credentials.
+// Object reads use the JSON API so the same client works against
+// STORAGE_EMULATOR_HOST (fake-gcs in lde does not serve XML downloads).
 func OpenGCS(ctx context.Context, bucket string) (*GCS, error) {
-	c, err := storage.NewClient(ctx)
+	c, err := storage.NewClient(ctx, storage.WithJSONReads())
 	if err != nil {
 		return nil, fmt.Errorf("open gcs: %w", err)
 	}

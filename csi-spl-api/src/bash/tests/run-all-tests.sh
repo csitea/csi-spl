@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Aggregate test runner for csi-spl-api (specs 002 + 003): gofmt, go vet, go test,
-# the reference-hygiene gate, the end-to-end smoke, and the hub Postgres gate.
+# the reference-hygiene gate, the end-to-end smoke, the hub Postgres gate,
+# and the hub GCS/fake-gcs blob gate.
 # Usage: bash csi-spl-api/src/bash/tests/run-all-tests.sh
 set -euo pipefail
 
@@ -30,5 +31,8 @@ bash "$HERE/spool-smoke.tst.sh"
 
 echo "== hub Postgres gate: migrate, store/hub suites on Postgres, binary e2e (skips without Postgres) =="
 bash "$HERE/hub-pg.tst.sh"
+
+echo "== hub GCS gate: internal/blob against fake-gcs (skips without cached emulator image) =="
+bash "$HERE/hub-gcs.tst.sh"
 
 echo "ALL csi-spl-api TESTS PASSED"

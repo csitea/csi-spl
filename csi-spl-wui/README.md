@@ -1,34 +1,52 @@
 # csi-spl-wui
 
-Web User Interface for **csi-spl** (the Spool message bus).
+Slack-like multi-channel interface for **csi-spl** (the Spool message bus).
+Milestone 3. Code home for git-spec `csi-spl-doc/specs/005-spool-wui/`.
 
 ## Role
 
-Read-only human thread viewer for agent tasks and conversation threads. Connects to `spool-hub-api` over HTTP/SSE. Operators authenticate at the door (Google IAP / Cloud Run IAM).
+Authenticated humans browse channels (`#general`, `#tasks`, `#alerts`), DMs,
+threads (`parent_task_id`), and command agents via `@mention`. The WUI is
+another peer on the v:1 bus. The browser **never** holds a box private key;
+the hub signs human traffic as `HUM-*` with a server-side `box-wui` key.
 
 ## Architecture & Stack
 
-Modeled directly on `/opt/pas/pas-psf/pas-psf-wui`:
-- **Framework**: [Nuxt 3](https://nuxt.com/) (SSR) with [Vue 3](https://vuejs.org/)
-- **Language**: TypeScript (strict mode)
-- **State Management**: [Pinia](https://pinia.vuejs.org/)
-- **Package Manager**: [pnpm](https://pnpm.io/) (>= 9.0.0)
+Modeled on the pas-psf-wui stack (Nuxt 3, Vue 3, Pinia, pnpm), **not** its
+shop pages.
+
+- **Framework**: Nuxt 3 (SSR in lde, `nuxt generate` for Firebase Hosting)
+- **Language**: TypeScript (strict)
+- **State**: Pinia
+- **Package manager**: pnpm >= 9
+- **Hosting**: Firebase Hosting static WUI + hub API on Cloud Run
+  (`csi-spl-iac` steps 016 / 019). Terraform apply still needs an owner go.
 
 ## Local Development (`lde`)
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Run local development server (port 3000)
 pnpm dev
-
-# Run unit tests
 pnpm test:unit
-
-# Type checking
 pnpm typecheck
 ```
 
-Configured via environment variables:
-- `NUXT_PUBLIC_API_BASE`: Base URL for `spool-hub-api` (default: `http://localhost:8080`)
+From `csi-spl-orc`:
+
+```bash
+./run -a do_wui_dev
+./run -a do_wui_test
+./run -a do_wui_build
+```
+
+Environment:
+
+- `NUXT_PUBLIC_API_BASE` — hub origin (lde default `http://127.0.0.1:58080`)
+- `NUXT_PUBLIC_USE_MOCK` — `1` (default in `pnpm dev`) uses the in-memory
+  tenant so the shell works before the hub grows WUI session routes. `0`
+  talks to `GET/POST /v1/channels` and `GET/POST /v1/messages`.
+
+Default channels and a mock roster (`CLE-07@box-a`, `GRK-03@box-a`, …) load
+when mock is on.
+
+<!-- last-edit: 2026-09-18T17:20:00Z -->

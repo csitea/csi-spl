@@ -7,7 +7,7 @@ between the hub and the boxes. Nothing else lives here: no api, no wui, no rdb.
 | dir | holds |
 |---|---|
 | `csi-spl-api` | Go module (`src/go/spool-hub-api`) for spool box CLI, MCP server, and Cloud Run hub API |
-| `csi-spl-wui` | Nuxt 3 SSR + TypeScript web application: read-only thread viewer (referencing `pas-psf-wui`) |
+| `csi-spl-wui` | Nuxt 3 + TypeScript Slack-like WUI (M3). lde is `pnpm dev`; ship is `nuxt generate` to Firebase Hosting (`016`/`019`). Hub API stays on Cloud Run. |
 | `csi-spl-iac` | `./run` actions (GCP project bootstrap, tpl-gen, terraform init/validate/plan) and the terraform steps |
 | `csi-spl-orc` | Local dev orchestration (`lde`), container runner (`con-spl-tf-runner`), test DB, test dispatch (referencing `pas-psf-orc`) |
 | `csi-spl-cnf` | `csi-spl/<env>.env.yaml`, the single source of truth; tpl-gen renders `csi-spl/<env>/tf/*.tfvars` from it |

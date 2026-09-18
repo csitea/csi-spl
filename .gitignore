@@ -34,3 +34,10 @@ __pycache__/
 
 # graft's local graph cache
 /graft/
+
+# WUI (Nuxt 3)
+**/node_modules/
+**/.nuxt/
+**/.output/
+**/.pnpm-store/
+*.log

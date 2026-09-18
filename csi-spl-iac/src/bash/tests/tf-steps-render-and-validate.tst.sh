@@ -63,6 +63,19 @@ grep -qE 'predefined_acl|default_acl|allUsers|allAuthenticatedUsers' "$TFD/050-g
 grep -lE 'resource "(random_password|google_secret_manager_secret_version|google_service_account_key)"|resource "google_sql_user"' "$TFD"/*/*.tf >/dev/null \
   && fail "a state-borne secret resource appears in src/terraform: $(grep -lE 'resource "(random_password|google_secret_manager_secret_version|google_service_account_key|google_sql_user)"' "$TFD"/*/*.tf | tr '\n' ' ')" \
   || pass "no password, secret version, SQL user or SA key resource in any step"
+# M3 WUI Hosting (016/019): copy pas-psf/csi-rel Hosting shape, not the shop.
+[[ -d "$TFD/016-firebase-deploy-iam" && -d "$TFD/019-firebase-static-site" ]] \
+  && pass "016 and 019 WUI firebase steps exist" || fail "016/019 WUI firebase steps missing"
+grep -qE 'credentials\s*=\s*file\(' "$TFD"/016-firebase-deploy-iam/*.tf "$TFD"/019-firebase-static-site/*.tf \
+  && fail "016/019 bake a credentials file() path" || pass "016/019 use ADC (no credentials file())"
+grep -qiE 'wordpress|recaptcha' "$TFD"/016-firebase-deploy-iam/*.tf "$TFD"/019-firebase-static-site/*.tf \
+  && fail "016/019 still carry shop entities" || pass "016/019 have no shop entities"
+for env in dev prd; do
+  v="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/016-firebase-deploy-iam.vars.tfvars"
+  grep -qx "deploy_sa_account_id = \"csi-spl-$env-fb-deploy\"" "$v" && pass "$env firebase deploy SA is csi-spl-$env-fb-deploy" || fail "$env firebase deploy SA id"
+  grep -qx "site_id = \"csi-spl-$env-site\"" "$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/019-firebase-static-site.vars.tfvars" \
+    && pass "$env firebase site_id is csi-spl-$env-site" || fail "$env firebase site_id"
+done
 for env in dev prd; do
   v="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/030-cloud-run-hub.vars.tfvars"
   grep -qx 'max_instances                = 1' "$v" && pass "$env hub max_instances = 1 (OQ-05)" || fail "$env hub max_instances is not 1"

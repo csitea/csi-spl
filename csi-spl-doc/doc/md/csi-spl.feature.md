@@ -20,7 +20,7 @@ were copied are listed one by one in section 2.2.
 | dir | holds |
 |---|---|
 | `csi-spl-api` | Go module (`src/go/spool-hub-api`) for spool box CLI, MCP server, and Cloud Run hub API |
-| `csi-spl-wui` | Nuxt 3 SSR + TypeScript web application: read-only thread viewer (referencing `pas-psf-wui`) |
+| `csi-spl-wui` | Nuxt 3 SSR + TypeScript web application: Slack-like multi-channel interface (M3, referencing `pas-psf-wui`) |
 | `csi-spl-iac` | `./run` actions, terraform steps, tpl-gen templates, tests |
 | `csi-spl-orc` | Local dev orchestration (`lde`), container runner (`con-spl-tf-runner`), test DB, test dispatch (referencing `pas-psf-orc`) |
 | `csi-spl-cnf` | `csi-spl/all.env.yaml`, `csi-spl/<env>.env.yaml` (sources); `csi-spl/<env>.env.json`, `csi-spl/<env>/tf/*.tfvars` (generated) |

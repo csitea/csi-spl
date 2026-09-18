@@ -156,6 +156,10 @@ func TestWUITwoSessionsLobbyLive(t *testing.T) {
 	}
 	// B unsubscribes: nothing more arrives for B.
 	b.send(map[string]string{"type": "unsubscribe", "task_id": lobby})
+	// Frames on one socket are handled in order: once B's next request is
+	// answered, the unsubscribe has been applied (no race with A's send).
+	b.send(map[string]string{"type": "subscribe", "task_id": "11111111-1111-4111-8111-111111111111"})
+	b.read("subscribed")
 	a.send(map[string]any{"type": "send", "task_id": "lobby", "body": "second"})
 	a.read("ack")
 	rctx, cancel := context.WithTimeout(ctx, 300*time.Millisecond)

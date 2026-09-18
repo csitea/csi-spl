@@ -52,6 +52,27 @@ grep -qE '^\s*uniform_bucket_level_access\s*=\s*true' "$b" && pass "uniform buck
 grep -qE '^\s*public_access_prevention\s*=\s*"enforced"' "$b" && pass "public access prevention enforced" || fail "public access prevention is not enforced"
 grep -qE 'predefined_acl|default_acl|allUsers|allAuthenticatedUsers' "$PROJ_ROOT/src/terraform/020-gcp-relay-bucket/"*.tf && fail "a public/ACL grant appears in 020" || pass "no ACL or allUsers grant in 020"
 
+# --- 2b. the hub steps (030/040/050) ------------------------------------------
+TFD="$PROJ_ROOT/src/terraform"
+f="$TFD/050-gcs-files/03-files-bucket.tf"
+grep -qE '^\s*uniform_bucket_level_access\s*=\s*true' "$f" && pass "files bucket: uniform bucket-level access on" || fail "files bucket: uniform access is not true"
+grep -qE '^\s*public_access_prevention\s*=\s*"enforced"' "$f" && pass "files bucket: public access prevention enforced" || fail "files bucket: PAP is not enforced"
+grep -qE 'predefined_acl|default_acl|allUsers|allAuthenticatedUsers' "$TFD/050-gcs-files/"*.tf && fail "a public/ACL grant appears in 050" || pass "no ACL or allUsers grant in 050"
+# No secret may reach tf state: no password, no generated secret, no secret
+# VERSION, no SA key anywhere in the terraform tree.
+grep -lE 'resource "(random_password|google_secret_manager_secret_version|google_service_account_key)"|resource "google_sql_user"' "$TFD"/*/*.tf >/dev/null \
+  && fail "a state-borne secret resource appears in src/terraform: $(grep -lE 'resource "(random_password|google_secret_manager_secret_version|google_service_account_key|google_sql_user)"' "$TFD"/*/*.tf | tr '\n' ' ')" \
+  || pass "no password, secret version, SQL user or SA key resource in any step"
+for env in dev prd; do
+  v="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/030-cloud-run-hub.vars.tfvars"
+  grep -qx 'max_instances                = 1' "$v" && pass "$env hub max_instances = 1 (OQ-05)" || fail "$env hub max_instances is not 1"
+  grep -qx 'min_instances                = 1' "$v" && pass "$env hub min_instances = 1 (M1)" || fail "$env hub min_instances is not 1"
+  grep -q "\"SPOOL_HUB_FILES_BUCKET\": \"csi-spl-$env-files\"" "$v" && pass "$env hub env names the 050 bucket" || fail "$env SPOOL_HUB_FILES_BUCKET is not csi-spl-$env-files"
+  grep -E '^environment_variables ' "$v" | grep -q 'SPOOL_HUB_DB_DSN' && fail "$env DSN is a plain env var" || pass "$env DSN is not a plain env var"
+  grep -E '^secret_environment_variables ' "$v" | grep -q '"SPOOL_HUB_DB_DSN": "csi-spl-hub-db-dsn"' && pass "$env DSN comes from Secret Manager" || fail "$env DSN is not a secret_environment_variable"
+  grep -q "^files_bucket_name = \"csi-spl-$env-files\"" "$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/050-gcs-files.vars.tfvars" && pass "$env files bucket is csi-spl-$env-files" || fail "$env files bucket name"
+done
+
 # --- 3. fmt + validate ----------------------------------------------------------
 TF=$(ls "$HOME"/.local/share/csi-spl/bin/terraform-* 2>/dev/null | sort -V | tail -1)
 if [[ -x "$TF" ]]; then

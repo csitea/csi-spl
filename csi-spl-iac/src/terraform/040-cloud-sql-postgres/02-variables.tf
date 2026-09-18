@@ -1,0 +1,96 @@
+variable "org" {
+  type        = string
+  description = "The 3-letter organisation code (csi)."
+}
+
+variable "app" {
+  type        = string
+  description = "The application code (spl)."
+}
+
+variable "env" {
+  type        = string
+  description = "The environment: dev or prd (lde is local docker only, never terraform)."
+
+  validation {
+    condition     = contains(["dev", "prd"], var.env)
+    error_message = "env must be dev or prd."
+  }
+}
+
+variable "gcp_project" {
+  type        = string
+  description = "The GCP project id, csi-spl-<env>."
+}
+
+variable "gcp_region" {
+  type        = string
+  description = "The GCP region every resource of the spool lives in."
+  default     = "europe-north1"
+}
+
+variable "instance_name" {
+  type        = string
+  description = "The Cloud SQL instance, csi-spl-<env>-pg."
+
+  validation {
+    condition     = can(regex("^csi-spl-(dev|prd)-pg$", var.instance_name))
+    error_message = "instance_name must be csi-spl-dev-pg or csi-spl-prd-pg."
+  }
+}
+
+variable "database_version" {
+  type        = string
+  description = "Postgres major version, e.g. POSTGRES_16 (the lde container runs the same major)."
+  default     = "POSTGRES_16"
+
+  validation {
+    condition     = can(regex("^POSTGRES_[0-9]+$", var.database_version))
+    error_message = "database_version must be POSTGRES_<major>."
+  }
+}
+
+variable "tier" {
+  type        = string
+  description = "Machine tier, e.g. db-f1-micro (dev) or db-g1-small (prd)."
+}
+
+variable "availability_type" {
+  type        = string
+  description = "ZONAL or REGIONAL (HA)."
+  default     = "ZONAL"
+
+  validation {
+    condition     = contains(["ZONAL", "REGIONAL"], var.availability_type)
+    error_message = "availability_type must be ZONAL or REGIONAL."
+  }
+}
+
+variable "disk_size_gb" {
+  type        = number
+  description = "Initial SSD size in GB; autoresize grows it."
+  default     = 10
+}
+
+variable "database_name" {
+  type        = string
+  description = "The hub's database inside the instance (spool schema only: spec 007 US4)."
+  default     = "spool"
+}
+
+variable "deletion_protection" {
+  type        = bool
+  description = "Terraform- and API-level deletion protection on the instance."
+  default     = true
+}
+
+variable "backup_enabled" {
+  type        = bool
+  description = "Daily automated backups (+ point-in-time recovery when true)."
+  default     = true
+}
+
+variable "dsn_secret_id" {
+  type        = string
+  description = "Secret Manager secret id holding the hub's DSN (= hub.secret_env.SPOOL_HUB_DB_DSN in cnf). Terraform makes the empty SLOT only; the version is added out of band."
+}

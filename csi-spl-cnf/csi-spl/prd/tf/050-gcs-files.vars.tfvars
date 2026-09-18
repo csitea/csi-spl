@@ -5,4 +5,6 @@ env         = "prd"
 gcp_project = "csi-spl-prd"
 gcp_region  = "europe-north1"
 
-gcp_services = ["storage.googleapis.com", "iam.googleapis.com", "orgpolicy.googleapis.com", "run.googleapis.com", "sqladmin.googleapis.com", "secretmanager.googleapis.com", "artifactregistry.googleapis.com", "dns.googleapis.com"]
+files_bucket_name = "csi-spl-prd-files"
+soft_delete_retention_seconds = 604800
+object_max_age_days = 0

@@ -146,29 +146,35 @@ Unifies all human operators and autonomous AI agents with **mandatory avatars** 
 
 The Middle Pane displays the **top-level message feed** (messages where `parent_task_id` is null or thread roots). It is governed by two revolutionary interaction designs: the **Top Omnibox** and the **Reverse Prepend Stream**.
 
-### 3.1 The Top Omnibox (Search + Input Dual-Purpose Box)
-Pinned at the very top of the Middle Pane, the **Omnibox** replaces the conventional bottom chat bar and separate top search bar with a unified command and composition strip:
+### 3.1 The Top Omnibox (Default Input Box + `/search` Command)
+Pinned at the very top of the Middle Pane, the **Top Omnibox** unifies composition and searching into a single prominent header strip:
 
 ```
 +===================================================================================+
-| 🔍 Search #general or type @agent / message...                                📎  |
+| Type a message or command (type /search to search, @ to mention)              📎  |
 +===================================================================================+
-  [Enter: Send/Command]  [Shift+Enter: Newline]  [@: Autocomplete]  [/: Search mode]
+  [Enter: Send message]  [Shift+Enter: Newline]  [@agent: Command]  [/search: Search]
 ```
 
-- **Dual Modes of the Omnibox**:
-  1. **Composer Mode (Default)**:
-     - **Ambient Chat**: Typing text and pressing `Enter` posts a `kind: note` to the active channel (`to: "@channel"`).
-     - **Agent Command (`@mention`)**: Typing `@CLE-07 <instruction>` autocompletes the agent with its robot avatar and dispatches a `kind: task` directly to that agent in the channel context.
-     - **Multiline Support**: `Shift+Enter` expands the input box vertically for multi-paragraph prompts.
-     - **File Attachment Button (`📎`)**: Drag-and-drop or file picker uploads files via `POST /v1/files`.
-  2. **Search & Filter Mode**:
-     - Typing `/` or `/search <query>` switches the Omnibox into instantaneous filter mode.
-     - As the user types, the message feed directly below dynamically highlights matches or filters rows in real time.
-     - Pressing `Esc` clears the search query and immediately restores the live unfiltered stream.
+- **Core Interaction Philosophy**:
+  - **People just type there and hit Enter**: By default, the Omnibox acts purely as the **main input box**. Ordinary typing never triggers disruptive live filtering or search flickering while composing. Users simply write their text and hit `Enter` to send.
+  - **Search is explicitly triggered via `/search`**: Search mode is invoked **only** when the user begins their input with `/search <query>` (or `/ <query>`). Everything else is treated as input.
+
+- **Modes & Syntax**:
+  1. **Main Input (Everything else — Default)**:
+     - **Ambient Discussion**: Typing plain text and pressing `Enter` posts a `kind: note` message to the active channel (`to: "@channel"`).
+     - **Agent Commands (`@mention`)**: Typing `@CLE-07 <prompt>` autocompletes the agent with its robot avatar and dispatches a `kind: task` command directly to that agent.
+     - **Multiline**: `Shift+Enter` inserts newlines for long-form messages and code blocks.
+     - **Attachments**: Drag-and-drop or clicking `📎` attaches files uploaded via `POST /v1/files`.
+  2. **Search Mode (`/search <query>`)**:
+     - Typing `/search <query>` and pressing `Enter` triggers a full-text search across the current channel/DM history.
+     - The message feed below filters to matching cards, highlighting matched terms with an active search pill:  
+       `🔍 Search results for "<query>" • [✕ Clear / Esc]`
+     - Pressing `Esc` or clicking `✕` instantly clears the search query and returns the Omnibox to standard input mode, restoring the live reverse prepend feed.
+
 - **Context-Aware Placeholder**:
-  - In `#general`: `Message #general or search channel... (type @ for agents, / for search)`
-  - In DM `@CLE-07@box-a`: `Command or message CLE-07@box-a...`
+  - In `#general`: `Message #general (type @ to command an agent, /search to search)...`
+  - In DM `@CLE-07@box-a`: `Message or command CLE-07@box-a (type /search to search)...`
 
 ### 3.2 The Reverse Prepend Message Stream
 - **Newest Messages at the Top**:

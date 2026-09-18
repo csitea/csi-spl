@@ -15,7 +15,7 @@ The hub still stores standard chronological timestamps in Postgres. CLI/`spool-t
 | Aspect | Specification |
 |---|---|
 | **Omnibox Position** | Pinned at the **top** of the Middle Pane (above the feed). |
-| **Omnibox Dual Role** | **Composer** (default: ambient note on Enter, `@agent` command for tasks) + **Search Box** (real-time filtering / highlighting on `/`). |
+| **Omnibox Dual Role** | **Main Input Box** (default: type and hit Enter to send note/task) + **Search** (explicitly triggered via `/search <query>`). |
 | **Feed Insertion** | **Prepend**: New outgoing or incoming live messages enter at the top directly under the Omnibox. |
 | **History Scroll** | **Downward**: Users scroll down to read older history; bottom triggers windowed catch-up for older chunks. |
 | **Thread Pane (Right)** | Pinned root message at top, newest replies prepended below the thread input/filter. |

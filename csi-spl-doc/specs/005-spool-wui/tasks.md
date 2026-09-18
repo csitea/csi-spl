@@ -27,6 +27,15 @@ named) · `[ ]` Planned. Live work is gated on D1.
 - [~] T010 Partial — view token: `ViewTokenForm.vue` on `401`, token kept in `sessionStorage` (`9eafd8c`). Social sign-in wired per spec 010 `contracts/auth-v1.md` §1–§4 (`1c4e1a6`: `/login` buttons from `GET /api/v1/auth/providers`, `auth_error` copy, session probe 401 vs unknown, sign out; Hosting rewrite `/api/v1/auth/**`; lde `NUXT_DEV_AUTH_PROXY`) — that is 010 T014–T016. lde browser round trip (010 T017) verified 2026-09-18 in Chrome, n=1 per provider: `auth-demo -addr 127.0.0.1:58181 -app-url/-public-url http://localhost:3044` + `NUXT_DEV_AUTH_PROXY` → `/login?redirect=/t/<id>` → Google / Facebook → fake IdP → lands on `/t/<id>`, `GET /api/v1/auth/session` 200 (`p` = google / facebook), cookie not readable from JS, sidebar shows the name; Sign out → 401 + `/login`; `?auth_error=invalid_state` shows its copy and is dropped from the URL with `redirect` kept. Missing: the hub view door (003 T033, after OQ-16) and how the session reaches `/v1/view/*` (010 OQ-A1). US5, FR-010.
 - [ ] T011 Planned — prd Hosting apply + deploy, after T010 and OQ-W2. FR-007, FR-010.
 
+## Phase 4 — Live chat MVP (owner goal 2026-09-18; 003 `contracts/wui-live-ws.md`)
+
+- [x] T021 Implemented (`580688e`, `5531927`) — browser WS client `utils/live-ws.mjs` to `ws(s)://<tenant>.<fqdn>/v1/wui/ws`: hello (`as` only when a v:1 agent id, else hub-assigned), welcome (`as`, `lobby_task_id`, upload token), subscribe, send (`kind` default `note`), ack/error, `token` refresh, capped reconnect + re-subscribe. 12 unit tests (fake WebSocket).
+- [x] T022 Implemented (`b0bf6ab`) — `/lobby` and `/t/[task_id]` live: history via view-v1 §4.4, then live `message` frames appended (dedupe by `msg_id`); composer on top, newest first (`SPEC-spool-wui-layout.md`); `?as=HUM-n` identity.
+- [x] T023 Implemented (`b0bf6ab`, `5531927`) — attach → `POST /v1/files` (Bearer upload token, refreshed when stale) → `files[]` refs in the send; Download fetches `GET /v1/files/{id}`, checks sha256, saves.
+- [x] T024 Implemented — acceptance proven, n=1 each, 2026-09-18:
+  - `pnpm test:live` (`tests/e2e/live-interop.test.mjs`, `6e07627`) against CLE-3340's lde hub at `c15cd64` (`/version` commit) → **12/12**: two sockets welcomed, lobby id from welcome, A→B and B→A live, `from`=HUM-801 `from_box`=box-wui, both persist via view-v1, upload content-addressed, B downloads identical bytes, and a **box agent post** (`spool send --from CLE-07 --to ALL-0 --to-box box-wui --task <lobby> --kind note`, `delivery: sent`) arrives live as `CLE-07@box-smoke`. Same suite 11/11 (no box step) against a trunk `spool serve` on the main lde database.
+  - Chrome, two tabs on the real pages (WUI `NUXT_PUBLIC_USE_MOCK=0`, trunk hub, lde): `/lobby?as=HUM-12` posts text + `two.txt` (`sha256sum` → `78d26359…`) → appears **live** in the `HUM-11` tab (card `sha256 78d26359fa23`), HUM-11 Download → "Downloaded ✓" (in-browser sha256 matched); HUM-11 replies → appears live in the HUM-12 tab; reload → both messages present exactly once, identity kept.
+
 ## Dependencies owned elsewhere
 
 - [x] D1 003 — view-v1 on trunk (`ec3d593`, per CLE-3340): `/v1/view/{roster,channels,threads,threads/{task_id}}`, cnf CORS allow-list, lde-only `SPOOL_HUB_VIEW_DOOR=off`. Verified live against a local trunk hub (T012). The token door is still pending OQ-16.
@@ -45,4 +54,4 @@ the spec §5 gap named.
 - [~] P5 Partial (mock) — verbosity toggle (`VerbositySelector.vue`). Blocked: metadata not in `v:1`.
 - [ ] P6 Planned — channel creation. Blocked: G3 (no route; `POST /v1/channels` does not exist).
 
-<!-- version: 1.3.2 · updated: 2026-09-18 · last-edit: 2026-09-18T22:15:00Z -->
+<!-- version: 1.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:55:00Z -->

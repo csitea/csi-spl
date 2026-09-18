@@ -2,28 +2,34 @@
 
 Status: **M3 WUI** (login to the Slack-like UI). Optional on the M2 thin
 checkout page. Not M1 (IAP/IP allowlist; no public login).  
-Copy from **pas-psf**, do not invent a second OIDC stack.
+**Forked from pas-psf and csi-rel.** Do not invent a second OIDC stack.
+Copy those trees into `csi-spl-wui` / `csi-spl-api`, then adapt (HUM-*
+session, tenant, no shop roles). Do **not** `go get` those modules.
 
 ---
 
-## 1. What to copy (read-only)
+## 1. Fork sources (read-only donors)
 
-pas-psf already ships Google + Facebook on the **web UI** (`SocialAuthButtons`
-on login, register, checkout) against API
-`GET /api/v1/auth/{google,facebook}/start` → callback → session cookie.
-
-| pas-psf path | Take |
+| Donor | What it already is |
 |---|---|
-| `pas-psf-wui/src/components/SocialAuthButtons.vue` | Buttons; cnf-driven provider list |
-| `pas-psf-wui/src/composables/useSocialProviders.ts` | Fetch enabled IdPs; start URLs |
-| `pas-psf-api/src/internal/auth/` (`google_idp.go`, `facebook_idp.go`, `oauth_handlers.go`) | Server-side code exchange; never put the client secret in the WUI |
-| `pas-psf-doc/specs/052-social-authentication-google-facebook/` | Contracts, scopes, deauthorize |
-| Secret Manager slots + cnf `env.auth.social.*` | Same fail-closed if keys missing in prd |
+| **csi-rel** spec `045-admin-login` + `052-social-authentication-google-facebook` | Google OIDC first (`google_idp.go`, `oauth_handlers.go`, `oauth_state.go`); Facebook on the same rails |
+| **pas-psf** spec `052-social-authentication-google-facebook` | Same API + **WUI** `SocialAuthButtons.vue` / `useSocialProviders.ts` on login, register, checkout |
 
-Morph/copy into `csi-spl-wui` + `csi-spl-api` (or hub HTTP). **Do not import**
-the pas-psf module.
+Wire: `GET /api/v1/auth/{google,facebook}/start` → IdP → `/callback` → session cookie.
 
-Yahoo stays out unless cnf enables it later (pas-psf default is google,facebook).
+| Donor path | Take |
+|---|---|
+| `csi-rel-api/src/internal/auth/google_idp.go` | Google OIDC |
+| `csi-rel-api/src/internal/auth/facebook_idp.go` | Facebook Login |
+| `csi-rel-api/src/internal/auth/oauth_handlers.go` | start/callback |
+| `csi-rel-wui` login Google button (045) | Admin/customer Google |
+| `pas-psf-wui/src/components/SocialAuthButtons.vue` | Both buttons; cnf list |
+| `pas-psf-wui/src/composables/useSocialProviders.ts` | start URLs |
+| `pas-psf-api/src/internal/auth/` | Same Go rails as csi-rel (morph) |
+| both `052` specs | scopes, deauthorize, fail-closed secrets |
+
+Yahoo stays out unless cnf enables it later.
+
 
 ---
 
@@ -58,7 +64,7 @@ email on that tenant’s checkout account / allowlist.
 
 ## 4. Secrets
 
-Client id/secret per env in Secret Manager (copy pas-psf `029` slots).
+Client id/secret per env in Secret Manager (fork pas-psf/csi-rel `029` slots).
 Redirect URIs: `https://<tenant>.spool-hub.ai/api/v1/auth/{google,facebook}/callback`
 (and `*.dev.spool-hub.ai` on dev). Wildcard DNS from M1 is what makes
 per-tenant callbacks work without a new Google/Facebook app per tenant
@@ -68,4 +74,4 @@ plus `state` carrying `tenant_id` so we do not register N redirect URIs.
 That choice is an implementation detail in 005 plan; do not bake hosts in
 Go.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:30:00Z -->

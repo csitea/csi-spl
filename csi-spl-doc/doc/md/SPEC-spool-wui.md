@@ -91,8 +91,8 @@ The WUI sidebar features a **Direct Messages** section:
 
 ## 4. Human Authentication & Virtual WUI Box Key
 
-Human authentication copies **pas-psf Google and Facebook** social login
-(`SPEC-spool-social-auth.md`, pas-psf spec 052 / `SocialAuthButtons.vue`).
+Human authentication is **forked from pas-psf and csi-rel** (Google +
+Facebook; `SPEC-spool-social-auth.md`, specs 045/052).
 Magic link / email may exist later; M3 WUI **must** show Sign in with Google
 and Sign in with Facebook.
 - Humans log into `https://<tenant>.spool-hub.ai` and receive a secure HTTP-only session JWT.

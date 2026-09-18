@@ -108,6 +108,15 @@ func TestViewReads(t *testing.T) {
 			if one, _ := s.ViewThread(ctx, tid, ThreadMsgQuery{TaskID: t1, Now: now, Limit: 1}); len(one) != 1 {
 				t.Fatalf("limit: %+v", one)
 			}
+			// Newest-first windows (chat-reverse): newest, then strictly older.
+			desc, _ := s.ViewThread(ctx, tid, ThreadMsgQuery{TaskID: t1, Now: now, Desc: true, Limit: 1})
+			if len(desc) != 1 || desc[0].MsgID != m2.MsgID {
+				t.Fatalf("desc newest: %+v", desc)
+			}
+			older, _ := s.ViewThread(ctx, tid, ThreadMsgQuery{TaskID: t1, Now: now, Desc: true, BeforeAt: desc[0].ReceivedAt, BeforeID: desc[0].MsgID})
+			if len(older) != 1 || older[0].MsgID != m1.MsgID || len(older[0].Deliveries) != 1 {
+				t.Fatalf("desc before cursor: %+v", older)
+			}
 			if none, _ := s.ViewThread(ctx, tid, ThreadMsgQuery{TaskID: t3, Now: now}); len(none) != 0 {
 				t.Fatalf("expired thread visible: %+v", none)
 			}

@@ -311,8 +311,23 @@ func (s *Server) handleViewThread(w http.ResponseWriter, r *http.Request, t stor
 		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
 		return
 	}
+	q := r.URL.Query()
 	sq := store.ThreadMsgQuery{TaskID: task, Limit: viewLimit(r) + 1, Now: s.o.Now()}
-	if c := r.URL.Query().Get("after"); c != "" {
+	switch q.Get("order") {
+	case "", "asc":
+	case "desc":
+		sq.Desc = true
+	default:
+		writeErr(w, http.StatusBadRequest, "bad_json", "order must be asc or desc")
+		return
+	}
+	// after= is the oldest-first catch-up cursor; before= pages newest-first
+	// windows backwards (view-v1 §4.4). Each belongs to one order only.
+	if c := q.Get("after"); c != "" {
+		if sq.Desc {
+			writeErr(w, http.StatusBadRequest, "bad_json", "after is for order=asc; use before with order=desc")
+			return
+		}
 		at, id, err := decCursor(c)
 		if err != nil {
 			writeErr(w, http.StatusBadRequest, "bad_cursor", "after is not a cursor from this API")
@@ -320,12 +335,24 @@ func (s *Server) handleViewThread(w http.ResponseWriter, r *http.Request, t stor
 		}
 		sq.AfterAt, sq.AfterID = at, id
 	}
+	if c := q.Get("before"); c != "" {
+		if !sq.Desc {
+			writeErr(w, http.StatusBadRequest, "bad_json", "before is for order=desc; use after with order=asc")
+			return
+		}
+		at, id, err := decCursor(c)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "bad_cursor", "before is not a cursor from this API")
+			return
+		}
+		sq.BeforeAt, sq.BeforeID = at, id
+	}
 	rows, err := s.o.Store.ViewThread(r.Context(), t.ID, sq)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "thread unavailable")
 		return
 	}
-	if len(rows) == 0 && sq.AfterAt.IsZero() && task != s.o.LobbyTaskID {
+	if len(rows) == 0 && sq.AfterAt.IsZero() && sq.BeforeAt.IsZero() && task != s.o.LobbyTaskID {
 		// the lobby exists before its first post (wui-live-ws.md §1)
 		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
 		return

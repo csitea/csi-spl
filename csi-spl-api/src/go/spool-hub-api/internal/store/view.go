@@ -45,13 +45,18 @@ type ThreadRow struct {
 }
 
 // ThreadMsgQuery pages GET /v1/view/threads/{task_id}: oldest first, strictly
-// after (AfterAt, AfterID) when AfterAt is set.
+// after (AfterAt, AfterID) when AfterAt is set; or, with Desc, newest first,
+// strictly before (BeforeAt, BeforeID) when BeforeAt is set (chat-reverse
+// windows, SPEC-spool-chat-reverse.md §3).
 type ThreadMsgQuery struct {
-	TaskID  string
-	AfterAt time.Time
-	AfterID string
-	Limit   int
-	Now     time.Time
+	TaskID   string
+	AfterAt  time.Time
+	AfterID  string
+	Desc     bool
+	BeforeAt time.Time
+	BeforeID string
+	Limit    int
+	Now      time.Time
 }
 
 // ViewMsg is one stored envelope with its hub-side delivery rows.
@@ -155,11 +160,20 @@ func (s *Memory) ViewThread(_ context.Context, tenant string, q ThreadMsgQuery) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []ViewMsg
-	for _, m := range s.liveLocked(tenant, q.Now) {
+	ms := s.liveLocked(tenant, q.Now) // oldest first
+	if q.Desc {
+		for i, j := 0, len(ms)-1; i < j; i, j = i+1, j-1 {
+			ms[i], ms[j] = ms[j], ms[i]
+		}
+	}
+	for _, m := range ms {
 		if m.TaskID != q.TaskID {
 			continue
 		}
 		if !q.AfterAt.IsZero() && !newer(m.ReceivedAt, m.MsgID, q.AfterAt, q.AfterID) {
+			continue
+		}
+		if !q.BeforeAt.IsZero() && !newer(q.BeforeAt, q.BeforeID, m.ReceivedAt, m.MsgID) {
 			continue
 		}
 		v := ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{}}

@@ -148,7 +148,7 @@ Ordered by `last_ts` descending; `before` pages to older threads.
 `channel=` filters on `messages.channel`; `agent=` matches `from_id` or
 `to_id`. Only messages still in retention (`./limits.md`) are counted.
 
-### 4.4 `GET /v1/view/threads/{task_id}?limit=&after=`
+### 4.4 `GET /v1/view/threads/{task_id}?limit=&after=` | `?order=desc&limit=&before=`
 
 ```json
 { "task_id": "…",
@@ -165,6 +165,13 @@ Ordered by `last_ts` descending; `before` pages to older threads.
 - `deliveries[].state` ∈ `queued | sent | expired` (the hub-side row,
   `../data-model.md` §2a) — shown, never changed.
 - Unknown or purged `task_id` → `404 not_found`.
+- **Newest-first windows** (chat-reverse, `SPEC-spool-chat-reverse.md` §3):
+  `order=desc` returns the newest `limit` messages **newest first**; `next` is
+  the cursor of the oldest one returned — pass it as `before=` for the next
+  older window, until `next` is `null`. `order` is `asc` (default) or `desc`,
+  else `400 bad_json`. `after=` is **asc only** (reconnect catch-up) and
+  `before=` is **desc only**; the wrong pairing is `400 bad_json`
+  (`TestViewThreadDescWindows`, `TestViewReads`).
 - **Live updates** (first cut): the viewer polls with `after=<last cursor>`
   no more often than every 2 s. A browser tail socket (`/v1/view/ws`, reusing
   the `tail_msg` frame shape) is **post-first-cut** and needs its own FR.
@@ -191,4 +198,4 @@ a `POST /v1/channels`). None of those routes exists on the hub
 (`grep -c 'v1/messages\|v1/channels' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`).
 The read calls map onto §4.2–§4.4; the two POSTs are 005 M3 write features.
 
-<!-- version: 0.3.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:42:57Z -->
+<!-- version: 0.4.0 · updated: 2026-09-19 · last-edit: 2026-09-18T22:45:14Z -->

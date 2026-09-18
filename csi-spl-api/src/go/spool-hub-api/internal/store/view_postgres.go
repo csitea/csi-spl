@@ -90,11 +90,16 @@ func (s *Postgres) ViewThreads(ctx context.Context, tenant string, q ThreadQuery
 }
 
 func (s *Postgres) ViewThread(ctx context.Context, tenant string, q ThreadMsgQuery) ([]ViewMsg, error) {
+	order := "ORDER BY received_at, msg_id::text"
+	if q.Desc {
+		order = "ORDER BY received_at DESC, msg_id::text DESC"
+	}
 	rows, err := s.pool.Query(ctx, `SELECT msg_id::text, received_at, env FROM messages
 		WHERE tenant_id = $1 AND task_id::text = $2 AND expires_at > $3
 			AND ($4::timestamptz IS NULL OR (received_at, msg_id::text) > ($4::timestamptz, $5::text))
-		ORDER BY received_at, msg_id::text
-		LIMIT $6`, tenant, q.TaskID, q.Now, optTime(q.AfterAt), q.AfterID, pgLimit(q.Limit))
+			AND ($7::timestamptz IS NULL OR (received_at, msg_id::text) < ($7::timestamptz, $8::text))
+		`+order+`
+		LIMIT $6`, tenant, q.TaskID, q.Now, optTime(q.AfterAt), q.AfterID, pgLimit(q.Limit), optTime(q.BeforeAt), q.BeforeID)
 	if err != nil {
 		return nil, err
 	}

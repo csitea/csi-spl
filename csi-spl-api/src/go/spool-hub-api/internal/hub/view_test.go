@@ -13,6 +13,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 	"github.com/rs/zerolog"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -329,5 +330,68 @@ func TestReservedHostIsAPIHostNotTenant(t *testing.T) {
 				t.Fatalf("%s%s: %d %s, want 404 unknown_tenant", host, p, code, body)
 			}
 		}
+	}
+}
+
+// Chat-reverse windows (view-v1 §4.4): order=desc returns the newest N first,
+// next pages strictly older; after/before are each tied to one order.
+func TestViewThreadDescWindows(t *testing.T) {
+	e := newEnv(t, func(o *hub.Options) { o.ViewDoor = hub.ViewDoorOff })
+	tid, _ := e.tenant()
+	a := e.box(tid, "box-a", "GRK-03")
+	b := e.box(tid, "box-b", "CLE-07")
+	e.pin(tid, a)
+	e.pin(tid, b)
+	ctx := context.Background()
+	b.c.Sync(ctx) //nolint:errcheck
+	a.c.Sync(ctx) //nolint:errcheck
+	first := send(t, a, "GRK-03", "CLE-07", "task", "m1", "")
+	for _, body := range []string{"m2", "m3", "m4", "m5"} {
+		out, err := action.SendCtx(ctx, a.cfg, action.SendArgs{From: "GRK-03", To: "CLE-07", Kind: "note", Body: body, TaskID: first.TaskID, Hub: a.c})
+		if err != nil || out.TaskID != first.TaskID {
+			t.Fatalf("send %s: %v %+v", body, err, out)
+		}
+	}
+	bodies := func(tr threadResp) []string {
+		var out []string
+		for _, m := range tr.Messages {
+			var env struct {
+				Msg struct {
+					Body string `json:"body"`
+				} `json:"msg"`
+			}
+			json.Unmarshal(m.Env, &env) //nolint:errcheck
+			out = append(out, env.Msg.Body)
+		}
+		return out
+	}
+	base := "/v1/view/threads/" + first.TaskID
+	var p1, p2, p3 threadResp
+	_, _, body := viewGet(t, e, tid, base+"?order=desc&limit=2")
+	json.Unmarshal(body, &p1) //nolint:errcheck
+	if got := strings.Join(bodies(p1), ","); got != "m5,m4" || p1.Next == nil {
+		t.Fatalf("window 1: %s %s", got, body)
+	}
+	_, _, body = viewGet(t, e, tid, base+"?order=desc&limit=2&before="+*p1.Next)
+	json.Unmarshal(body, &p2) //nolint:errcheck
+	if got := strings.Join(bodies(p2), ","); got != "m3,m2" || p2.Next == nil {
+		t.Fatalf("window 2: %s %s", got, body)
+	}
+	_, _, body = viewGet(t, e, tid, base+"?order=desc&limit=2&before="+*p2.Next)
+	json.Unmarshal(body, &p3) //nolint:errcheck
+	if got := strings.Join(bodies(p3), ","); got != "m1" || p3.Next != nil {
+		t.Fatalf("window 3: %s %s", got, body)
+	}
+	for _, bad := range []string{"?order=desc&after=" + *p1.Next, "?before=" + *p1.Next, "?order=sideways"} {
+		if code, _, b := viewGet(t, e, tid, base+bad); code != http.StatusBadRequest {
+			t.Fatalf("%s: %d %s", bad, code, b)
+		}
+	}
+	// asc + after unchanged
+	_, _, body = viewGet(t, e, tid, base+"?limit=10")
+	var asc threadResp
+	json.Unmarshal(body, &asc) //nolint:errcheck
+	if got := strings.Join(bodies(asc), ","); got != "m1,m2,m3,m4,m5" {
+		t.Fatalf("asc: %s", got)
 	}
 }

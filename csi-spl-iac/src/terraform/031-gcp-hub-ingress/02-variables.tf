@@ -66,3 +66,19 @@ variable "dns_zone_project" {
   description = "The project holding dns_managed_zone. Empty (default) = gcp_project. dev sets the prd project: its dev.<domain> records live in the one zone 025 adopts there."
   default     = ""
 }
+
+variable "base_domain" {
+  type        = string
+  description = "The spool domain (cnf env.dns.BASE_DOMAIN): extra_host_labels are prefixed to it."
+}
+
+variable "extra_host_labels" {
+  type        = list(string)
+  description = "Hosts the hub also answers on outside <fqdn> / *.<fqdn>, as <label>.<base_domain> (cnf steps.031-gcp-hub-ingress.extra_host_labels; e.g. api, dev.api). Each gets its own DNS authorization, certificate, host-matched cert-map entry and, with dns_managed_zone, its A + ACME records."
+  default     = []
+
+  validation {
+    condition     = alltrue([for l in var.extra_host_labels : can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?([.][a-z0-9]([a-z0-9-]*[a-z0-9])?)*$", l))])
+    error_message = "every extra_host_labels entry must be lower-case DNS labels, e.g. api or dev.api."
+  }
+}

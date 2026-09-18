@@ -28,3 +28,25 @@ resource "google_dns_record_set" "hub" {
   ttl          = 300
   rrdatas      = [google_compute_global_address.hub.address]
 }
+
+resource "google_dns_record_set" "extra_acme" {
+  for_each = local.manage_dns ? local.extra_hosts : {}
+
+  project      = local.dns_project
+  managed_zone = var.dns_managed_zone
+  name         = google_certificate_manager_dns_authorization.extra[each.key].dns_resource_record[0].name
+  type         = google_certificate_manager_dns_authorization.extra[each.key].dns_resource_record[0].type
+  ttl          = 300
+  rrdatas      = [google_certificate_manager_dns_authorization.extra[each.key].dns_resource_record[0].data]
+}
+
+resource "google_dns_record_set" "extra" {
+  for_each = local.manage_dns ? local.extra_hosts : {}
+
+  project      = local.dns_project
+  managed_zone = var.dns_managed_zone
+  name         = "${each.value}."
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [google_compute_global_address.hub.address]
+}

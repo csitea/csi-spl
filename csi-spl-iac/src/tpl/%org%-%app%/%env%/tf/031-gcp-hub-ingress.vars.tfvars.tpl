@@ -9,3 +9,4 @@ gcp_region  = "{{ gcp["gcp_region"] }}"
 {%- endfor %}
 service_name = {{ hub["service_name"] | tojson }}
 fqdn         = {{ dns["fqdn"] | tojson }}
+base_domain  = {{ dns["BASE_DOMAIN"] | tojson }}

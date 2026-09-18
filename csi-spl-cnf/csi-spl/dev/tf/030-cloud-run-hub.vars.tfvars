@@ -7,7 +7,7 @@ gcp_region  = "europe-north1"
 
 health_path = "/healthz"
 allow_unauthenticated = true
-image                        = "europe-north1-docker.pkg.dev/csi-spl-dev/csi-spl-dev-hub/spool-hub:0.1.0"
+image                        = "europe-north1-docker.pkg.dev/csi-spl-dev/csi-spl-dev-hub/spool-hub:0.1.1"
 service_name                 = "csi-spl-hub-dev"
 runtime_sa_account_id        = "csi-spl-hub-dev"
 container_port               = 8080
@@ -20,5 +20,5 @@ timeout_seconds              = 3600
 ingress                      = "internal-and-cloud-load-balancing"
 cloud_sql_instance_name      = "csi-spl-dev-pg"
 files_bucket_name            = "csi-spl-dev-files"
-environment_variables        = {"SPOOL_HUB_ALLOW_TEXT_ONLY_WHEN_FILE_MISSING": "false", "SPOOL_HUB_BILLING_GRACE": "168h", "SPOOL_HUB_ENABLE_FAKE_PAY": "false", "SPOOL_HUB_ENV": "dev", "SPOOL_HUB_FILES_BUCKET": "csi-spl-dev-files", "SPOOL_HUB_HELLO_SKEW": "300s", "SPOOL_HUB_LISTEN_ADDR": ":8080", "SPOOL_HUB_LOG_FORMAT": "json", "SPOOL_HUB_LOG_LEVEL": "info", "SPOOL_HUB_MIGRATIONS_DIR": "/opt/spool/sql/postgres/spool-hub", "SPOOL_HUB_PAYMENT_API_BASE": "", "SPOOL_HUB_PAYMENT_API_VERSION": "", "SPOOL_HUB_PAYMENT_CURRENCY": "eur", "SPOOL_HUB_PAYMENT_PLAN_CENTS": "0", "SPOOL_HUB_PAYMENT_PLAN_ID": "default", "SPOOL_HUB_PAYMENT_PROVIDER": "", "SPOOL_HUB_PAYMENT_PUBLIC_SCHEME": "https", "SPOOL_HUB_PAYMENT_WEBHOOK_SIG_HEADER": "X-Webhook-Signature", "SPOOL_HUB_QUEUE_MAX_PER_BOX": "1000", "SPOOL_HUB_QUEUE_TTL": "168h", "SPOOL_HUB_QUOTA_FILE_BYTES": "10737418240", "SPOOL_HUB_QUOTA_MESSAGES_PER_MONTH": "100000", "SPOOL_HUB_QUOTA_PINS": "256", "SPOOL_HUB_RETENTION_ALERTS": "168h", "SPOOL_HUB_RETENTION_CHANNELS": "720h", "SPOOL_HUB_TENANT_HOST_PATTERN": "{tenant}.dev.spool-hub.ai", "SPOOL_HUB_UPLOAD_TOKEN_TTL": "5m"}
+environment_variables        = {"SPOOL_HUB_ALLOW_TEXT_ONLY_WHEN_FILE_MISSING": "false", "SPOOL_HUB_BILLING_GRACE": "168h", "SPOOL_HUB_ENABLE_FAKE_PAY": "false", "SPOOL_HUB_ENV": "dev", "SPOOL_HUB_FILES_BUCKET": "csi-spl-dev-files", "SPOOL_HUB_HELLO_SKEW": "300s", "SPOOL_HUB_LISTEN_ADDR": ":8080", "SPOOL_HUB_LOG_FORMAT": "json", "SPOOL_HUB_LOG_LEVEL": "info", "SPOOL_HUB_MIGRATIONS_DIR": "/opt/spool/sql/postgres/spool-hub", "SPOOL_HUB_PAYMENT_API_BASE": "", "SPOOL_HUB_PAYMENT_API_VERSION": "", "SPOOL_HUB_PAYMENT_CURRENCY": "eur", "SPOOL_HUB_PAYMENT_PLAN_CENTS": "0", "SPOOL_HUB_PAYMENT_PLAN_ID": "default", "SPOOL_HUB_PAYMENT_PROVIDER": "", "SPOOL_HUB_PAYMENT_PUBLIC_SCHEME": "https", "SPOOL_HUB_PAYMENT_WEBHOOK_SIG_HEADER": "X-Webhook-Signature", "SPOOL_HUB_QUEUE_MAX_PER_BOX": "1000", "SPOOL_HUB_QUEUE_TTL": "168h", "SPOOL_HUB_QUOTA_FILE_BYTES": "10737418240", "SPOOL_HUB_QUOTA_MESSAGES_PER_MONTH": "100000", "SPOOL_HUB_QUOTA_PINS": "256", "SPOOL_HUB_RETENTION_ALERTS": "168h", "SPOOL_HUB_RETENTION_CHANNELS": "720h", "SPOOL_HUB_TENANT_HOST_PATTERN": "{tenant}.dev.spool-hub.ai", "SPOOL_HUB_UPLOAD_TOKEN_TTL": "5m", "SPOOL_HUB_VIEW_CORS_ORIGINS": "https://csi-spl-dev-site.web.app,https://csi-spl-dev-site.firebaseapp.com,https://dev.spool-hub.ai", "SPOOL_HUB_VIEW_DOOR": "off"}
 secret_environment_variables = {"SPOOL_HUB_DB_DSN": "csi-spl-hub-db-dsn"}

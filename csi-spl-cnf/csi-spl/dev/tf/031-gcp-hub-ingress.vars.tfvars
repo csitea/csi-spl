@@ -5,8 +5,10 @@ env         = "dev"
 gcp_project = "csi-spl-dev"
 gcp_region  = "europe-north1"
 
-allowed_ip_ranges = []
+allowed_ip_ranges = ["0.0.0.0/0"]
+extra_host_labels = ["dev.api"]
 dns_managed_zone = "spool-hub"
 dns_zone_project = "csi-spl-prd"
 service_name = "csi-spl-hub-dev"
 fqdn         = "dev.spool-hub.ai"
+base_domain  = "spool-hub.ai"

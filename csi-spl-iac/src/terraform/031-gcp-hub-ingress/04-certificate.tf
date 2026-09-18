@@ -49,3 +49,57 @@ resource "google_certificate_manager_certificate_map_entry" "hub" {
   certificates = [google_certificate_manager_certificate.hub.id]
   matcher      = "PRIMARY"
 }
+
+# EXTRA HOSTS (<label>.<base_domain>, e.g. api / dev.api): one DNS
+# authorization + certificate each, served by a HOSTNAME cert-map entry. Added
+# beside the primary, never folded into it: changing the primary's domains
+# would replace the certificate the tenants are served. The url map's default
+# service already routes every host to the hub.
+locals {
+  extra_hosts = { for l in var.extra_host_labels : replace(l, ".", "-") => "${l}.${var.base_domain}" }
+}
+
+resource "google_certificate_manager_dns_authorization" "extra" {
+  for_each = local.extra_hosts
+
+  name        = "${local.name_prefix}-${each.key}-dnsauth"
+  project     = var.gcp_project
+  description = "ACME DNS-01 authorization for ${each.value}"
+  domain      = each.value
+
+  labels = {
+    org = var.org
+    app = var.app
+    env = var.env
+  }
+}
+
+resource "google_certificate_manager_certificate" "extra" {
+  for_each = local.extra_hosts
+
+  name        = "${local.name_prefix}-${each.key}-cert"
+  project     = var.gcp_project
+  description = each.value
+  scope       = "DEFAULT"
+
+  managed {
+    domains            = [each.value]
+    dns_authorizations = [google_certificate_manager_dns_authorization.extra[each.key].id]
+  }
+
+  labels = {
+    org = var.org
+    app = var.app
+    env = var.env
+  }
+}
+
+resource "google_certificate_manager_certificate_map_entry" "extra" {
+  for_each = local.extra_hosts
+
+  name         = "${local.name_prefix}-certmap-${each.key}"
+  project      = var.gcp_project
+  map          = google_certificate_manager_certificate_map.hub.name
+  certificates = [google_certificate_manager_certificate.extra[each.key].id]
+  hostname     = each.value
+}

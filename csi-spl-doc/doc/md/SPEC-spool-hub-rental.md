@@ -29,6 +29,9 @@ protocol.
 Hub process: **stateless Cloud Run (HTTPS + WebSocket)**. State: **Postgres +
 GCS**. `tenant_id` on every row from M1 so more users do not require a rewrite.
 
+**M1 ingress:** IAP and/or IP allowlist (cnf). **M2 public MVP:** allow
+unauthenticated HTTPS/WSS; box pin is the gate. No renter GCP account in M2.
+
 ---
 
 ## 2. What “rent” means
@@ -186,4 +189,4 @@ that module). Contract: `specs/006-spool-hub-rental/contracts/payment.md`.
 - Uniform box API (Constitution VIII).
 - Payment gates **existence and quota**, not the meaning of `sig`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:30:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->

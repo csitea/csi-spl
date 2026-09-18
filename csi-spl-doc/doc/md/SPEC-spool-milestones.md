@@ -49,6 +49,21 @@ bucket. Cloud Run min instances **1** by default (cnf-overridable). Hub is
 **optional**: unset `$SPOOL_HUB_URL` = local only. WS **last hello wins**.
 Pins: hello + periodic `GET /v1/pins`.
 
+
+### M1 constraints (owner 2026-09-18)
+
+| Topic | M1 |
+|---|---|
+| DNS prd | `https://<tenant>.spool-hub.ai` |
+| DNS dev | `https://<tenant>.dev.spool-hub.ai` |
+| Ingress | **IAP and/or IP allowlist** until M2. Unknown internet cannot hold a WS. |
+| Tenant create | **Owner-only** `do_spl_tenant_create` (same bar as terraform apply). |
+| Second box | A **real second machine**: GCP VM **or** a grok-bot VM (try one of those). |
+| Demo invocations | **CLI and MCP**: recorded demo includes **Claude or agy `spool mcp`** on at least one box; the other may be Grok CLI. |
+| Public buy | M2. M1 has no checkout. |
+
+M2 **removes** the IAP/IP allowlist so paying strangers can connect with box keys only.
+
 ### Out of M1
 
 Buy-from-the-site (M2). Slack web UI (M3). NATS, ysg-box adapter, git-rel,
@@ -57,9 +72,11 @@ Kafka, per-agent hub keys.
 ### Demo (M1 acceptance) — then M2 may start
 
 1. **Local:** GRK-03 → CLE-07 on one `$SPOOL_ROOT`, no `$SPOOL_HUB_URL`.
-2. **Hub:** two machines, one manual tenant, two box keys, pins synced,
-   talking to **spool-hub.ai** (Cloud Run).
-3. GRK on box-a `task` to CLE on box-b; CLE `result` back.
+2. **Hub:** this box + a **second box** (GCP VM or grok-bot VM), one owner-created
+   tenant, two box keys, pins synced, talking to **spool-hub.ai** (prd) or
+   **dev.spool-hub.ai** (dev). Ingress IAP/IP allowlist.
+3. One side **`spool mcp`** (Claude or agy); the other may be Grok CLI.
+   `task` then `result` across boxes.
 4. HUM-1 on box-a commands CLE@box-b. Missing pubkey → refuse (`78`).
 5. **Infra from spec 007 is applied on both `dev` and `prd`.**
 6. No browser, no checkout.
@@ -100,4 +117,4 @@ Not started until M1 is done (dev+prd infra) and M2 can sell.
 **M2 public MVP** (thin checkout + one-time email of URL and root key) →
 **M3 rollout** (Slack WUI, csi-rel/pas-psf hosting).
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:20:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->

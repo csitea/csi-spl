@@ -47,6 +47,21 @@ type Registrar interface {
 // ErrNotAllowed from a Registrar refuses the sign-in with auth_error=not_allowed.
 var ErrNotAllowed = errors.New("auth: sign-in not allowed")
 
+// Membership answers whether a registered human may read a tenant (spec 010
+// T013, store-backed, owned by the hub). A session proves who signed in, never
+// which tenant they may read (SEC-001); SessionForTenant asks this.
+type Membership interface {
+	Member(ctx context.Context, humanID, tenant string) (bool, error)
+}
+
+// Errors from SessionForTenant. The view door maps all of them to its 401.
+var (
+	ErrNoSession    = errors.New("auth: no valid session")
+	ErrNoHuman      = errors.New("auth: session has no registered human")
+	ErrNotMember    = errors.New("auth: human is not a member of the tenant")
+	ErrNoMembership = errors.New("auth: no membership check configured")
+)
+
 // Handler serves the /api/v1/auth/* routes.
 type Handler struct {
 	cfg        *Config
@@ -55,21 +70,24 @@ type Handler struct {
 	sessionKey []byte
 	log        zerolog.Logger
 	reg        Registrar
+	members    Membership
 	now        func() time.Time
 }
 
 // Options are the optional collaborators.
 type Options struct {
 	Registrar Registrar
-	HTTP      *http.Client // outbound to the IdPs; nil = 15s timeout client
-	Now       func() time.Time
+	// Membership backs SessionForTenant; nil = every tenant check fails closed.
+	Membership Membership
+	HTTP       *http.Client // outbound to the IdPs; nil = 15s timeout client
+	Now        func() time.Time
 }
 
 // New builds the handler from a validated Config.
 func New(cfg *Config, log zerolog.Logger, o Options) *Handler {
 	h := &Handler{
 		cfg: cfg, idps: map[string]IdP{}, log: log.With().Str("component", "auth").Logger(),
-		reg: o.Registrar, now: o.Now,
+		reg: o.Registrar, members: o.Membership, now: o.Now,
 	}
 	if h.now == nil {
 		h.now = time.Now
@@ -235,6 +253,31 @@ func (h *Handler) SessionFromRequest(r *http.Request) (Session, bool) {
 		return Session{}, false
 	}
 	return s, true
+}
+
+// SessionForTenant is the door check for tenant-scoped reads (003 T033b): a
+// valid session, a registered HUM-* in it, and Membership saying yes for the
+// Host tenant. It fails closed: no Membership configured, no human, or a
+// lookup error all refuse. session.t is never consulted (SEC-001).
+func (h *Handler) SessionForTenant(r *http.Request, tenant string) (Session, error) {
+	s, ok := h.SessionFromRequest(r)
+	if !ok {
+		return Session{}, ErrNoSession
+	}
+	if s.HumanID == "" {
+		return Session{}, ErrNoHuman
+	}
+	if h.members == nil {
+		return Session{}, ErrNoMembership
+	}
+	ok, err := h.members.Member(r.Context(), s.HumanID, tenant)
+	if err != nil {
+		return Session{}, err
+	}
+	if !ok {
+		return Session{}, ErrNotMember
+	}
+	return s, nil
 }
 
 func (h *Handler) sessionCookie(v string, maxAge int) *http.Cookie {

@@ -38,6 +38,11 @@ var alice = fakeidp.Person{Subject: "sub-123", Email: "Alice@Example.com", Email
 
 func newRig(t *testing.T, reg auth.Registrar) *rig {
 	t.Helper()
+	return newRigWith(t, auth.Options{Registrar: reg})
+}
+
+func newRigWith(t *testing.T, opts auth.Options) *rig {
+	t.Helper()
 	var hubH http.Handler
 	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hubH.ServeHTTP(w, r) }))
 	t.Cleanup(hub.Close)
@@ -67,7 +72,7 @@ func newRig(t *testing.T, reg auth.Registrar) *rig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := auth.New(cfg, zerolog.Nop(), auth.Options{Registrar: reg})
+	h := auth.New(cfg, zerolog.Nop(), opts)
 	hubH = h
 	return &rig{hub: hub.URL, wui: wui.URL, fake: fake, h: h}
 }
@@ -340,5 +345,48 @@ func TestAuthOffServesEmptyList(t *testing.T) {
 	resp, _ = http.Get(srv.URL + "/api/v1/auth/session")
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("session with auth off = %d", resp.StatusCode)
+	}
+}
+
+type members map[string]bool // "hum|tenant" -> member
+
+func (m members) Member(_ context.Context, hum, tenant string) (bool, error) {
+	return m[hum+"|"+tenant], nil
+}
+
+// SessionForTenant: membership decides, never session.t, and it fails closed.
+func TestSessionForTenant(t *testing.T) {
+	signedIn := func(t *testing.T, reg auth.Registrar, m auth.Membership) (*rig, *http.Request) {
+		r := newRigWith(t, auth.Options{Registrar: reg, Membership: m})
+		c := browser(t)
+		signIn(t, c, r, "google", "?tenant=t1")
+		hubURL, _ := url.Parse(r.hub)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		for _, ck := range c.Jar.Cookies(hubURL) {
+			req.AddCookie(ck)
+		}
+		return r, req
+	}
+	hum := "HUM-google-sub-123@t1"
+
+	r, req := signedIn(t, registrar{}, members{hum + "|t2": true})
+	if s, err := r.h.SessionForTenant(req, "t2"); err != nil || s.HumanID != hum {
+		t.Fatalf("member of t2: %v %+v", err, s)
+	}
+	if _, err := r.h.SessionForTenant(req, "t1"); err != auth.ErrNotMember {
+		t.Fatalf("session.t=t1 must not grant t1: %v", err)
+	}
+	if _, err := r.h.SessionForTenant(httptest.NewRequest(http.MethodGet, "/", nil), "t2"); err != auth.ErrNoSession {
+		t.Fatalf("no cookie: %v", err)
+	}
+
+	r, req = signedIn(t, registrar{}, nil)
+	if _, err := r.h.SessionForTenant(req, "t1"); err != auth.ErrNoMembership {
+		t.Fatalf("no Membership configured: %v", err)
+	}
+
+	r, req = signedIn(t, nil, members{"|t1": true})
+	if _, err := r.h.SessionForTenant(req, "t1"); err != auth.ErrNoHuman {
+		t.Fatalf("session without HUM-*: %v", err)
 	}
 }

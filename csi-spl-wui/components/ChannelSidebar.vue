@@ -36,7 +36,13 @@
     </NuxtLink>
     <div style="margin-top:auto">
       <NotificationCenter />
-      <NuxtLink class="nav-item" to="/login"><span class="label">Sign in</span></NuxtLink>
+      <div v-if="session.state === 'in'" class="nav-item">
+        <span class="label">{{ session.label }}</span>
+        <button class="btn ghost" type="button" @click="session.logout()">Sign out</button>
+      </div>
+      <NuxtLink v-else class="nav-item" :to="'/login?redirect=' + encodeURIComponent(route.fullPath)">
+        <span class="label">Sign in</span>
+      </NuxtLink>
       <p id="app-version" class="version-stamp">{{ version }}</p>
     </div>
   </nav>
@@ -45,9 +51,13 @@
 <script setup lang="ts">
 import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
+import { useSessionStore } from '~/stores/session'
 
 const channel = useChannelStore()
 const roster = useRosterStore()
+const session = useSessionStore()
+const route = useRoute()
+onMounted(() => session.probe())
 const newChannel = ref('')
 const config = useRuntimeConfig()
 const version = computed(() => String(config.public.appVersion || 'v0.1.0-dev'))

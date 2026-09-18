@@ -54,6 +54,11 @@ export default defineNuxtConfig({
     },
   },
   nitro: {
+    // lde: same-origin /api/v1/auth/** like the Hosting rewrite (spec 010 auth-v1 §1).
+    // NUXT_DEV_AUTH_PROXY = the hub origin, e.g. the auth-demo hub. Unset = no proxy.
+    devProxy: process.env.NUXT_DEV_AUTH_PROXY
+      ? { "/api/v1/auth": { target: process.env.NUXT_DEV_AUTH_PROXY.replace(/\/+$/, "") + "/api/v1/auth", changeOrigin: true } }
+      : {},
     prerender: {
       crawlLinks: false,
       routes: ["/", "/login", "/channel/general", "/channel/tasks", "/channel/alerts"],

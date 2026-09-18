@@ -79,6 +79,19 @@ declare module '~/utils/mention-autocomplete.mjs' {
 }
 
 
+declare module '~/utils/auth-client.mjs' {
+  export const AUTH_PREFIX: string
+  export function authErrorMessage(code: string): string
+  export function providerLabel(p: string): string
+  export function safeRedirect(path: string): string
+  export function startHref(provider: string, redirect: string, tenant?: string): string
+  export function createAuthClient(opts?: { fetchFn?: typeof fetch, base?: string }): {
+    providers(): Promise<string[]>
+    session(): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
+    logout(): Promise<boolean>
+  }
+}
+
 declare module '~/utils/view-api.mjs' {
   export function subjectOf(body: string): string
   export function isDownloadable(file: { mode?: string, file_id?: string, sha256?: string }): boolean

@@ -58,6 +58,13 @@
     ],
     "rewrites": [
       {
+        "source": "/api/v1/auth/**",
+        "run": {
+          "serviceId": "csi-spl-hub-dev",
+          "region": "europe-north1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/200.html"
       }

@@ -141,6 +141,13 @@ describe('spool-client live (view-v1)', () => {
     assert.equal(calls[0].url, '/v1/health')
   })
 
+  it('a config error (no tenant / API host) fails before any request', async () => {
+    const { fn, calls } = stubFetch({})
+    const c = createSpoolClient({ fetchFn: fn, mock: false, configError: 'api_host' })
+    await assert.rejects(c.listThreads(), (e) => e.status === 0 && e.token === 'api_host')
+    assert.equal(calls.length, 0)
+  })
+
   it('mock mode serves threads without a hub', async () => {
     const c = createSpoolClient({ mock: true })
     const { threads } = await c.listThreads()

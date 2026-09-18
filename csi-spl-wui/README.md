@@ -55,7 +55,13 @@ From `csi-spl-orc`:
 
 Environment:
 
-- `NUXT_PUBLIC_API_BASE` — hub origin (lde default `http://127.0.0.1:58080`)
+- `NUXT_PUBLIC_API_BASE` — hub origin template: `{tenant}` becomes the tenant label
+  (lde default `http://{tenant}.localhost:58080`; deployed
+  `https://{tenant}.<fqdn>`). Tenant reads must go to the **tenant host** — the
+  API host (`api.<fqdn>`, `dev.api.<fqdn>`, any reserved first label) answers
+  `404 unknown_tenant` on every tenant route, and the WUI refuses it up front.
+- `NUXT_PUBLIC_TENANT` — default tenant (lde `t1`). `?tenant=<id>` overrides it
+  and is remembered for the tab.
 - `NUXT_PUBLIC_USE_MOCK` — `1` (default in `pnpm dev`) uses the in-memory
   tenant. `0` reads the hub's read-only viewer API only
   (`csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md`:
@@ -85,4 +91,4 @@ session cookie lands on the same origin). `NUXT_DEV_AUTH_PROXY` forwards
 Pages: `/` thread list, `/t/<task_id>` one thread oldest first. The mock
 channel / DM pages remain for the later M3 slices (spec 005 §1, Planned).
 
-<!-- last-edit: 2026-09-18T21:45:00Z -->
+<!-- last-edit: 2026-09-18T22:10:00Z -->

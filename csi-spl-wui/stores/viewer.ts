@@ -16,7 +16,10 @@ export const useViewerStore = defineStore('viewer', () => {
   function fail(e: unknown) {
     const err = e as { status?: number, token?: string, message?: string }
     needsToken.value = err.status === 401
-    if (err.status === 404 && err.token === 'unknown_tenant') error.value = 'Unknown tenant for this host.'
+    if (err.token === 'no_tenant') error.value = 'No tenant selected — open the viewer with ?tenant=<id>.'
+    else if (err.token === 'api_host') error.value = 'The hub URL is the API host; tenant reads need <tenant>.<domain> (NUXT_PUBLIC_API_BASE with {tenant}).'
+    else if (err.token === 'no_base' || err.token === 'bad_base') error.value = 'NUXT_PUBLIC_API_BASE is missing or invalid.'
+    else if (err.status === 404 && err.token === 'unknown_tenant') error.value = 'Unknown tenant for this host.'
     else if (err.status === 404) error.value = 'Not found.'
     else if (err.status === 401) error.value = 'A view token is required.'
     else error.value = err.message || 'load failed'

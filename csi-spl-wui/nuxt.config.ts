@@ -31,7 +31,10 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     public: {
-      apiBase: (process.env.NUXT_PUBLIC_API_BASE || "http://t1.localhost:58080").replace(/\/+$/, ""),
+      // Template: {tenant} is replaced at runtime. Tenant reads go to the tenant
+      // host, never api.<fqdn> (003 http-v1, reserved labels).
+      apiBase: (process.env.NUXT_PUBLIC_API_BASE || "http://{tenant}.localhost:58080").replace(/\/+$/, ""),
+      tenant: process.env.NUXT_PUBLIC_TENANT || (isDev ? "t1" : ""),
       useMock: process.env.NUXT_PUBLIC_USE_MOCK === undefined
         ? (isDev ? "1" : "0")
         : process.env.NUXT_PUBLIC_USE_MOCK,

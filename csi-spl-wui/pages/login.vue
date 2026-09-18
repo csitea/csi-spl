@@ -23,6 +23,7 @@
 <script setup lang="ts">
 import { authErrorMessage, createAuthClient, providerLabel, safeRedirect, startHref } from '~/utils/auth-client.mjs'
 import { useSessionStore } from '~/stores/session'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 
 definePageMeta({ layout: 'login' })
 
@@ -33,8 +34,8 @@ const providers = ref<string[]>([])
 const loaded = ref(false)
 const error = ref('')
 const redirect = computed(() => safeRedirect(String(route.query.redirect || '/')))
-/* The page knows a tenant only from a tenant host (<tenant>.<product-domain>); lde has none. */
-const tenant = computed(() => String(route.query.tenant || ''))
+/* auth-v1 §1: tenant is optional on start; send the one the viewer reads from */
+const tenant = computed(() => String(route.query.tenant || useSpoolApi().tenant || ''))
 
 onMounted(async () => {
   error.value = authErrorMessage(String(route.query.auth_error || ''))

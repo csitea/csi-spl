@@ -4,8 +4,12 @@ declare module '~/utils/spool-client.mjs' {
     fetchFn?: typeof fetch
     mock?: boolean
     token?: string
+    tenant?: string
+    configError?: string
   }): {
     mock: boolean
+    tenant: string
+    configError: string
     setToken(token: string): void
     hasToken(): boolean
     healthz(): Promise<unknown>
@@ -90,6 +94,13 @@ declare module '~/utils/auth-client.mjs' {
     session(): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
     logout(): Promise<boolean>
   }
+}
+
+declare module '~/utils/tenant.mjs' {
+  export const RESERVED_TENANTS: Set<string>
+  export function validTenant(s: string): boolean
+  export function pickTenant(opts?: { query?: string, stored?: string, fallback?: string }): string
+  export function apiBaseFor(template: string, tenant: string): { base: string, error: string }
 }
 
 declare module '~/utils/view-api.mjs' {

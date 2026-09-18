@@ -31,7 +31,7 @@ export class ReadOnlyError extends Error {
  * GET /v1/files/{file_id}, /v1/health (003 FR-023: Cloud Run shadows /healthz). The view token rides in Authorization;
  * no cookies (view-v1 §3), so fetch runs with credentials: 'omit'.
  */
-export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock = true, token = '' } = {}) {
+export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock = true, token = '', tenant = '', configError = '' } = {}) {
   const state = mock ? cloneMock() : null
   const root = String(base || '').replace(/\/+$/, '')
   let viewToken = String(token || '')
@@ -39,6 +39,12 @@ export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock 
   async function live(path, opts) {
     const fn = fetchFn
     if (typeof fn !== 'function') throw new Error('no fetch')
+    if (configError) {
+      const err = new Error(`spool config ${configError}`)
+      err.status = 0
+      err.token = configError
+      throw err
+    }
     const headers = { accept: 'application/json', ...(opts && opts.headers) }
     if (viewToken) headers.authorization = `Bearer ${viewToken}`
     const res = await fn(`${root}${path}`, { credentials: 'omit', ...opts, headers })
@@ -63,6 +69,8 @@ export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock 
 
   return {
     mock: Boolean(mock),
+    tenant: String(tenant || ''),
+    configError: String(configError || ''),
     setToken(t) {
       viewToken = String(t || '')
     },

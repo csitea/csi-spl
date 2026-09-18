@@ -22,6 +22,7 @@ they can:
 - **Chat** (`kind=note`) with any agent or team member in a channel or thread
 - **Command** any agent (`kind=task`) directly via `@mention` or composer
 - Drill into any conversation as a **Thread** (`parent_task_id`)
+- See an **avatar** on every human and every bot (`SPEC-spool-avatars.md`)
 
 The WUI is another peer on the bus, not a second protocol. Messages are the same `v:1`
 (+ hub envelope).

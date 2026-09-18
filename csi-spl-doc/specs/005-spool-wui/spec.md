@@ -48,6 +48,8 @@ In any task thread, the user can toggle the verbosity level (`minimal`, `normal`
 - **FR-002**: Messages carry standard `v:1` payload with `channel` tag and optional `parent_task_id`.
 - **FR-003**: Auth is operator product identity (OAuth2 / Magic Link / email session matching `pas-psf`); hub signs human messages as `HUM-<username>` with a server-side virtual `box-wui` key.
 - **FR-004**: Code lives in `csi-spl-wui`.
+- **FR-005**: Every human and bot shown in the UI has an avatar
+  (`SPEC-spool-avatars.md`); default identicon if none uploaded.
 - **FR-005**: Architecture & Stack: Built on Nuxt 3 SSR (Vue 3, TypeScript, Pinia, pnpm), referencing `/opt/pas/pas-psf/pas-psf-wui`.
 - **FR-006**: Local dev setup (`lde`): `pnpm dev --host 0.0.0.0 --port 3000` with `NUXT_PUBLIC_API_BASE` configurable via env.
 - **FR-007**: Container & Deployment: Multi-stage Dockerfile deployed to Cloud Run, orchestrated via `csi-spl-orc`.

@@ -68,23 +68,33 @@ Implemented task cites a sha or a `command → result`. Live checks are
 
 ## Phase 6: Redo 2026-09-18 — drift found, to close
 
-- [ ] T016 Correct `csi-spl.feature.md` §6.4 step 1: describe with an
+- [x] T016 Correct `csi-spl.feature.md` §6.4 step 1: describe with an
       **operator** identity; the relay SA is refused `storage.buckets.get` by
-      design (FR-003). **Planned**.
-- [ ] T017 Drop the stale "OPEN QUESTION" comment next to
+      design (FR-003). **Implemented**: `grep -c 'Describe it with an \*\*operator\*\*' csi-spl-doc/doc/md/csi-spl.feature.md` → 1.
+- [x] T017 Drop the stale "OPEN QUESTION" comment next to
       `object_max_age_days: 1` in `csi-spl-cnf/csi-spl/{dev,prd}.env.yaml`
-      (decided `8df4516`). **Planned**.
-- [ ] T018 `tf-steps-render-and-validate.tst.sh`: assert both envs render
-      `object_max_age_days = 1` and PAP `enforced` for `020`, so a cnf edit
-      cannot silently drop FR-002. **Planned**.
-- [ ] T019 `terraform plan` of `000` / `001` / `020` in dev and prd (read-only):
-      expect no changes for `020`. Record the result; propose any apply to the
-      007 apply owner. **Planned**.
+      (decided `8df4516`). **Implemented** (`bd9be9b`): `grep -c 'OPEN QUESTION' csi-spl-cnf/csi-spl/{dev,prd}.env.yaml` → 0, 0.
+- [x] T018 `tf-steps-render-and-validate.tst.sh`: assert both envs render
+      `object_max_age_days = 1`, soft delete `604800`, SA id
+      `csi-spl-rel-<env>`, exactly one bucket binding (`objectUser`) and no
+      project role in `020`. **Implemented** (`bd9be9b`): suite
+      `6/6 test files passed`; negative control (dev `object_max_age_days = 0`)
+      → `FAIL: 1 assertion(s)`.
+- [x] T019 `terraform plan` of `000` / `001` / `020` in dev and prd,
+      read-only (`-lock=false`, terraform 1.9.8, gcs backend, operator token,
+      2026-09-18 ~19:20Z). **Implemented**: `plan -detailed-exitcode` → rc 0
+      "No changes" for dev `000`/`001`/`020` and prd `000`/`020`; prd `001` →
+      rc 2, `Plan: 10 to add` (the hub-era services plus `orgpolicy`), which is
+      spec 007's pending prd `001` apply. Run by hand because `./run` cannot
+      plan from a `csi-spl-wt/<ID>` worktree (it derives ORG/APP from the path
+      → `csi-spl-wt-3339-cnf`), which was reported, not fixed here.
 - [ ] T020 prd `001` state lacks `orgpolicy.googleapis.com` although it is
-      enabled live: propose `terraform import` (not a re-enable) to the 007
-      apply owner. **Planned**; proposal only, this lane never applies.
+      enabled live. The prd `001` plan already includes it as an
+      (idempotent) create, so **no import is needed**: the prd `001` apply
+      that the hub needs anyway closes it. Proposed to the 007 apply owner.
+      **Planned**; this lane never applies.
 - [ ] T021 `nea-nfs-orc` `git-rel.lib.sh` header still says "hub → box:
       public-read object"; the sender uploads private and signs a GET. That is
       another repo, so it is reported to its owner, not edited here. **Planned**.
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:01:26Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:21:11Z -->

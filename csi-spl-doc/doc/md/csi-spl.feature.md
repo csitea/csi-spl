@@ -399,8 +399,13 @@ gcloud iam service-accounts keys delete "$OLD_KEY_ID" --iam-account=csi-spl-rel-
 
 ### 6.4 Verify a relay bucket after apply
 
-1. Describe it with the relay SA under a throwaway `CLOUDSDK_CONFIG` and
-   compare every row of the table in 5.2.
+1. Describe it with an **operator** identity (`--account="$GCP_ACCOUNT"`,
+   which holds `storage.buckets.get`) and compare every row of the table in
+   5.2, plus `buckets get-iam-policy`: the only non-legacy binding is the
+   relay SA's `roles/storage.objectUser`. The relay SA itself is REFUSED
+   `buckets describe` -- that refusal is the minimum-role design holding
+   (spec 001 FR-003), not a failed check. Steps 2-5 run as the relay SA
+   under a throwaway `CLOUDSDK_CONFIG`.
 2. Signed PUT of a test object to `dyr-<32 hex>/probe.gpg` (headers as in
    4.2), expect 200.
 3. Signed GET of it: same sha256.
@@ -474,3 +479,5 @@ UNSET (the owner's 2026-09-02 fleet decision), and a bare call says
 `You do not currently have an active account selected` instead. Pass
 `--account`, or use a throwaway `CLOUDSDK_CONFIG`, as everything in this repo
 already does.
+
+<!-- version: 1.0.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:21:11Z -->

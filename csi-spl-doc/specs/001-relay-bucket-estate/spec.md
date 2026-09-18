@@ -4,8 +4,9 @@
 
 **Status**: **Implemented** in both `dev` and `prd`. Every FR below was
 re-verified against the repo and live GCP on 2026-09-18 (redo lane CLE-3339).
-The FR table has the evidence, and the drifts found are open in `tasks.md`
-Phase 6.
+The FR table has the evidence. `terraform plan` of `020` → "No changes" in
+both envs (T019). The drifts found are in `tasks.md` Phase 6; T016–T019 are
+closed.
 
 **Authorities**: ground rules `../README.md` (status vocabulary, seams,
 provisioning order §6). The operator how-to is
@@ -120,7 +121,7 @@ evidence is at trunk `bbc41e7`.
 | FR-006 | The product domain (the FQDN in `all.env.yaml → env.dns.BASE_DOMAIN`) appears in no tracked file outside `csi-spl-cnf/` and `csi-spl-doc/`. | Implemented | `domain-single-source.tst.sh` PASS. It now matches label+TLD at a boundary (`bd58df5`, `dd68eea`), so the earlier over-match on `spool-hub-api` is fixed. |
 | FR-007 | `do_gcp_001_create_project` is a dry run unless `DRY_RUN=0`, and proves `GCP_ACCOUNT` can mint a token before any create. | Implemented | `gcp-001-dead-credential-no-create.tst.sh` PASS. |
 | FR-008 | Step `000` state bootstraps on a local backend, then migrates to `gs://csi-spl-<env>-tfstate/terraform/000-gcp-remote-bucket/`, proven by matching lineage and an advanced serial. | Implemented | `default.tfstate` vs `local-state-copy/terraform.tfstate`: dev lineage `378c0bc3…` serial 3 vs 2; prd lineage `a9a694dd…` serial 3 vs 2. `tf-plan-keeps-local-state.tst.sh` PASS. |
-| FR-009 | Step `001` enables the relay-era services `storage`, `iam` and `orgpolicy` (the latter for the key-creation reset, §6.3), and never disables them on destroy. | Partial | Live: all three enabled in both envs. `001` state: dev holds all three (serial 4); **prd state holds only `iam`, `storage`** (serial 3), so prd `orgpolicy` was enabled outside terraform → T020. The hub-era services missing in prd are spec 007's. |
+| FR-009 | Step `001` enables the relay-era services `storage`, `iam` and `orgpolicy` (the latter for the key-creation reset, §6.3), and never disables them on destroy. | Partial | Live: all three enabled in both envs. `001` state: dev holds all three (serial 4); **prd state holds only `iam`, `storage`** (serial 3), so prd `orgpolicy` was enabled outside terraform → T020. `terraform plan` prd `001` → `Plan: 10 to add` incl. `orgpolicy` (T019), so the pending prd `001` apply closes it; no import needed. The hub-era services missing in prd are spec 007's. |
 | FR-010 | git-rel reads the bucket, project, region and key path from **one** file and fails fast on an empty or mismatched value. | Implemented | `nea-nfs-orc` `47dc615`. `cnf/bash/git-rel.cnf` maps `GIT_REL_ENV` prd/dev → `gs://csi-spl-<env>-rel` / `csi-spl-<env>` / `europe-north1` / `$HOME/.gcp/.csi/key-csi-spl-<env>-rel.json`. `git-rel-send.func.sh` calls `sign-url … --region="$RELAY_REGION"` with no predefined ACL. |
 | FR-011 | The predecessor bucket `gs://bnc-cpt-all-relay` is retired, and its owner SA is left alone. | Implemented | Cache-busted anonymous GET → `404` (`NoSuchBucket`). |
 
@@ -151,4 +152,4 @@ evidence is at trunk `bbc41e7`.
 - `bnc-cpt`'s own owner identity is not a relay identity and was left alone
   deliberately. Retiring it is a `bnc-cpt` decision.
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:01:26Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:21:11Z -->

@@ -143,10 +143,10 @@ On each machine that runs an agent:
 
 ```
 export SPOOL_HUB_URL=https://<tenant>.<<run-time>>.csitea.net
-# keys as in 002
-spool-keygen --as GRK-03
-# once, on the operator machine, with the tenant root key:
-spool-pin --id GRK-03 --pubkey ...    # signs with $SPOOL_TENANT_ROOT_KEY
+export SPOOL_BOX_ID=box-a
+spool-keygen --box            # box keypair
+# renter, once, with tenant root:
+spool-pin --box-id box-a --pubkey ...
 ```
 
 Claude / agy: `spool mcp` as today. Grok: CLI. Same verbs.
@@ -157,17 +157,15 @@ No ysg-box, no NATS sidecar required for MVP (poll `spool-recv`).
 
 ## 7. MVP cut (must ship)
 
-1. 002 local signed send/recv (already specified).
-2. Hub: WS send/recv (box keys), REST files + root-signed box pins.
-3. Tenant create (manual action + later payment webhook).
-4. Quota + unpaid behaviour.
-5. Isolation tests (two tenants).
+1. 002 local **unsigned** send/recv.
+2. Hub: WS send/recv (box keys), REST files + root-signed **box** pins.
+3. Dual-write local+hub; `to_box` when `CLE-07` exists on two boxes.
+4. Tenant create (manual, later payment).
+5. Quota / unpaid / two-tenant isolation.
 
-**Not in rental MVP:** NATS, WUI send, ysg-box adapter, git-rel, Kafka,
-per-agent IAM, custom domains (later).
-
-WUI (005) for a renter: read-only, auth = prove tenant root (or a `HUM-*`
-pinned by root), still no GCP user required.
+**Not in rental MVP:** NATS, **entire WUI** (005 — Slack-like chat is the
+later product), ysg-box adapter, git-rel, Kafka, per-agent IAM, custom
+domains.
 
 ---
 
@@ -189,4 +187,4 @@ pinned by root), still no GCP user required.
 - Uniform box API (Constitution VIII).
 - Payment gates **existence and quota**, not the meaning of `sig`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:20:00Z -->

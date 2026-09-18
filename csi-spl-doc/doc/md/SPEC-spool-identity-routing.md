@@ -44,13 +44,16 @@ Reserved prefixes:
 
 A new vendor adds a prefix. Same API.
 
-**Scope:** an agent id is unique **inside one tenant**. Tenant `acme` and
-tenant `other` may both pin `CLE-07` to different keys. Inside one tenant,
-two pins of `CLE-07` to different keys → `409`. Same pubkey → idempotent `200`.
+**Scope of agent ids:** unique **on one box** (one directory
+`$SPOOL_ROOT/CLE-07`). Two boxes MAY both have `CLE-07`. Hub addressing is
+`(box_id, agent_id)` — see `SPEC-spool-trust-modes.md` envelope `from_box` /
+`to_box`.
 
-002 (no hub): uniqueness is “one directory under `$SPOOL_ROOT`”.
-Allocator (ysg-box `next-agent-id.sh` or the renter’s own numbering) only
-*picks* an id; the tenant pin table is the collision check.
+**Scope of box pins:** unique `(tenant, box_id)`. Second pin of that box_id
+with a **different** pubkey → **409**. Same pubkey → 200.
+
+002 (no hub): uniqueness is only the local directory. Allocator
+(`next-agent-id.sh` or the renter’s numbering) picks ids **per box**.
 
 ---
 
@@ -133,10 +136,8 @@ and still may show it on `spool-tail --task` via hub GET.
 
 ### Who hosts `to`?
 
-Hub `pins.box_id` is the last box that successfully pinned that id. Notify
-`agent.<to>.inbox` is global; the sidecar on a box only materialises inbox
-files for ids that have a local `$SPOOL_ROOT/<id>/` directory (i.e. agents
-that actually run here).
+Hub routes by **`to_box`**. Announce maps `(box_id, agent_id)` → WS.
+A sidecar only materialises inbox files for ids that exist **on this box**.
 
 A message to an id that is pinned but has **no** live inbox dir on any box
 still persists on the hub; `spool-recv --as <id>` fetches via signed
@@ -165,4 +166,4 @@ success, not a duplicate row.
 - TOFU, key escrow, per-agent GCP keys, or renter GCP accounts.
 - Cross-tenant uniqueness of agent ids.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:20:00Z -->

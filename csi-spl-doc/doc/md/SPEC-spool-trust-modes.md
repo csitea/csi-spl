@@ -15,7 +15,7 @@ over HTTPS WebSocket** through `spool-hub.ai` (host from cnf).
 |---|---|---|
 | Trust | POSIX on `$SPOOL_ROOT` (same box, same OS users) | Ed25519 **box** keypair; commandee has commander’s **box public key** |
 | `sig` on `v:1` | **omitted** | **required**, signed by the **sending box**, not by CLE/GRK/AGY |
-| `from` / `to` | agent ids (`CLE-07`) | same agent ids |
+| `from` / `to` | agent ids unique **on this box** | agent ids + **`from_box` / `to_box`** (two boxes may both have `CLE-07`) |
 | Transport | files on disk | **WebSocket** send/recv; **REST** files + pins |
 | Hub can read body | n/a | **yes** (plaintext JSON; sign only, no encrypt) |
 
@@ -51,9 +51,12 @@ addressable.
 | Tenant root key | renter | only key that may **pin/revoke box pubkeys** |
 | Agent id | process on a box | `from` / `to` only; **no agent keypair in hub mode** |
 
-Pin uniqueness is **per tenant, per `box_id`**. Two tenants may reuse box
-ids. Agent id `CLE-07` should be bound to at most one box in a tenant
-(announce on WS; collision → 409).
+Pin uniqueness is **per tenant, per `box_id`**. A second pin of the same
+`box_id` with a **different key** → HTTP **409**. Same key → 200.
+
+Agent ids (`CLE-07`) are unique **on one box only**. Two boxes in the same
+tenant MAY both announce `CLE-07`. They are different peers:
+`CLE-07@box-a` vs `CLE-07@box-b`. The hub MUST NOT 409 that.
 
 **Full mesh:** a box that is pinned may command any agent on any other
 pinned box. No per-kind ACL. Unpin the box to cut it off.
@@ -78,11 +81,14 @@ pinned box. No per-kind ACL. Unpin the box to cut it off.
 
 1. **Hello:** `{ "box_id", "ts", "sig" }` signed with the box key. Hub
    verifies against tenant pins. Unknown box → close.
-2. **Announce agents:** `{ "agents": ["CLE-07", "GRK-03"] }` so the hub can
-   route `to=CLE-07` to this connection.
-3. **Send:** inner `v:1` (no inner sig) + envelope `{ "box_id", "sig" }`
-   over canonical inner JSON. Hub checks box pin, stores plaintext, forwards
-   to the commandee box’s WS if connected, else queues.
+2. **Announce agents:** `{ "agents": ["CLE-07", "GRK-03"] }` unique **on this
+   box**. Duplicate announce of the same id **on this box** → 409. Same id on
+   another box is fine.
+3. **Send:** inner `v:1` (no inner sig) + envelope
+   `{ "from_box", "to_box", "sig" }` over canonical inner JSON.
+   `from_box` is this box. `to_box` is required if `msg.to` exists on more
+   than one connected/pinned box; if omitted and unique, hub fills it; if
+   omitted and ambiguous → **409**. Forward to `to_box`’s WS or queue.
 4. **Recv / ack:** frames on the same WS for agents announced on that box.
    Proving the box key at hello is enough to drain those agents’ inboxes
    (the box is the SSH server). No per-agent recv signature.
@@ -114,21 +120,38 @@ Hub envelope:
 
 ```json
 {
-  "box_id": "devbox-1",
-  "msg": { "...inner v:1..." },
-  "sig": "<base64 ed25519 of jq -cS .msg>"
+  "from_box": "box-a",
+  "to_box": "box-b",
+  "msg": { "from": "GRK-03", "to": "CLE-07", "...inner v:1..." },
+  "sig": "<base64 ed25519 of jq -cS '{from_box,to_box,msg}' without sig>"
 }
 ```
 
-`sig` is the **box** key. Inner object has no `sig`.
+`sig` is the **sending box** key. Inner `from`/`to` are agent names on those
+boxes. Dual-write: also write `$SPOOL_ROOT/<to>/inbox/` when `to_box` is this
+box (or unset in local mode).
 
 ---
 
-## 6. What this is not
+## 6. Dual-write (owner: yes)
+
+`spool-send` with hub URL set:
+
+1. Always write local outbox.
+2. If `to` exists **on this box**, write local inbox (same-box delivery, no WS
+   required for that hop).
+3. POST/WS the envelope to the hub (for other boxes and later WUI).
+4. If the hub is down, local 1–2 still succeed; envelope is pending-flush.
+
+Local-only (`$SPOOL_HUB_URL` unset): steps 1–2 only.
+
+## 7. What this is not
 
 - Not encrypt-to-recipient (hub **can** read bodies; WUI can show threads).
 - Not a keypair per `CLE-07` on the hub (that was the old 002-on-hub story).
 - Not REST for send/recv on the public product (REST remains files/pins).
 - Not TOFU: box pubkey must be root-pinned before hello succeeds.
+- Not a tenant-wide unique `CLE-07`. Names collide across boxes on purpose.
+- Not WUI in MVP (`SPEC-spool-wui.md` is post-MVP Slack-like chat).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:20:00Z -->

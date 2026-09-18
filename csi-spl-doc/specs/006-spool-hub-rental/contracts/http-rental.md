@@ -8,7 +8,9 @@ Tenant from URL. **Send/recv = WebSocket. Files/pins = REST.**
 
 1. Hello `{ "box_id", "ts", "sig" }` — box key, pin table.
 2. Announce `{ "agents": ["CLE-07", ...] }`.
-3. Send envelope `{ "box_id", "msg": <v:1 no sig>, "sig" }` — `sig` over `jq -cS .msg`.
+3. Send envelope `{ "from_box", "to_box", "msg": <v:1 no sig>, "sig" }`.
+   Two boxes may both have `msg.to=CLE-07`; `to_box` disambiguates; missing
+   `to_box` + ambiguous → 409. Second pin of same `box_id` different key → 409.
 4. Recv/ack frames for announced agents on this connection.
 
 No open `GET /v1/messages?as=`. No per-agent recv signature (the box hello is the proof).
@@ -30,4 +32,4 @@ No open `GET /v1/messages?as=`. No per-agent recv signature (the box hello is th
 
 `402` unpaid (send/pin). `429` quota. Recv not gated by quota.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:20:00Z -->

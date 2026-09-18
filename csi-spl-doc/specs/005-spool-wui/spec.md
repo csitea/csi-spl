@@ -4,10 +4,11 @@
 
 **Created**: 2026-09-18
 
-**Status**: Draft
+**Status**: Draft — **explicitly out of rental MVP** (owner 2026-09-18).
+Final product: Slack-like chat + command, not read-only.
 
-**Input**: Architecture diagram “tiny UI / spool-tail”. Specify a read-only
-human viewer of `v:1` threads. No send, no pins, no token SSE.
+**Input**: Post-MVP Slack-like WUI: authenticated human chats and commands
+any agent. Do not implement in 002/006.
 
 **Narrative**: `csi-spl-doc/doc/md/SPEC-spool-wui.md`
 
@@ -37,12 +38,16 @@ bridge on Cloud Run). Fallback poll.
 ## Requirements
 
 - **FR-001**: WUI uses hub HTTP only, never agent keys.
-- **FR-002**: v1 is read-only (no POST messages from the browser).
-- **FR-003**: Auth is operator door identity, not `CLE-*` pins.
+- **FR-002**: Final WUI **does** send (`note` / `task`) as a `HUM-*` peer.
+  That send path is out of the rental MVP.
+- **FR-003**: Auth is operator door identity (Google IAP / Cloud Run IAM), not `CLE-*` pins.
 - **FR-004**: Code lives in `csi-spl-wui`.
+- **FR-005**: Architecture & Stack: Built on Nuxt 3 SSR (Vue 3, TypeScript, Pinia, pnpm), referencing `/opt/pas/pas-psf/pas-psf-wui`.
+- **FR-006**: Local dev setup (`lde`): `pnpm dev --host 0.0.0.0 --port 3000` with `NUXT_PUBLIC_API_BASE` configurable via env, matching the `pas-psf` local development pattern.
+- **FR-007**: Container & Deployment: Multi-stage Dockerfile deployed to Cloud Run or Firebase Hosting, orchestrated via `csi-spl-orc`.
 
 ## Out of Scope
 
 Send/ack/pin, Slack, model tokens, per-kind UI.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:20:00Z -->

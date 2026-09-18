@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -139,6 +140,8 @@ type Hub struct {
 	// Viewer API (specs/003 contracts/view-v1.md). ViewDoor "off" is lde/dev only.
 	ViewDoor        string   `env:"SPOOL_HUB_VIEW_DOOR" envDefault:"token"`
 	ViewCORSOrigins []string `env:"SPOOL_HUB_VIEW_CORS_ORIGINS" envSeparator:","`
+	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
+	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
 }
 
 // LoadHub parses the hub environment and fails fast on a missing or
@@ -181,6 +184,9 @@ func LoadHub() (*Hub, error) {
 	default:
 		return nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR %q must be token or off", h.ViewDoor)
 	}
+	if h.LobbyTaskID != "" && !uuidRe.MatchString(h.LobbyTaskID) {
+		return nil, fmt.Errorf("SPOOL_HUB_LOBBY_TASK_ID %q must be a lowercase UUID", h.LobbyTaskID)
+	}
 	for _, o := range h.ViewCORSOrigins {
 		if err := checkOrigin(o); err != nil {
 			return nil, err
@@ -203,3 +209,5 @@ func checkOrigin(o string) error {
 	}
 	return nil
 }
+
+var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)

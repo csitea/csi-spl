@@ -362,7 +362,7 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, "bad_json", http.StatusBadRequest, "to_box is not a valid box id")
 		return
 	}
-	if _, err := s.o.Store.GetPin(ctx, x.tenant, env.ToBox); err != nil {
+	if !s.toBoxKnown(ctx, x.tenant, env.ToBox) {
 		x.fail(ctx, id, "unpinned_box", http.StatusNotFound, "to_box is not pinned in this tenant")
 		return
 	}
@@ -426,13 +426,33 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 
 // commit stores the envelope and queues or pushes it. Caller has validated.
 func (s *Server) commit(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message) (string, error) {
+	r, err := s.commitRow(ctx, tenant, env, m)
+	return r.delivery, err
+}
+
+// committed is what one commit did (the browser ack needs the stored time).
+type committed struct {
+	delivery   string
+	receivedAt time.Time
+	inserted   bool
+}
+
+// commitRow is the one store path for every message: box sends, hub-originated
+// envelopes and browser sends (wui.go). A to_box of box-wui is delivered by the
+// browser fan-out, so its deliveries row is marked sent at once.
+func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message) (committed, error) {
+	var c committed
 	ts, err := time.Parse(time.RFC3339, m.TS)
 	if err != nil {
-		return "", err
+		return c, err
 	}
 	canon, err := env.Marshal()
 	if err != nil {
-		return "", err
+		return c, err
+	}
+	channel := ""
+	if s.o.LobbyTaskID != "" && m.TaskID == s.o.LobbyTaskID {
+		channel = LobbyChannel
 	}
 	filesJSON, _ := json.Marshal(m.Files)
 	if m.Files == nil {
@@ -442,18 +462,27 @@ func (s *Server) commit(ctx context.Context, tenant string, env *wire.Envelope, 
 	row := store.Message{
 		TenantID: tenant, MsgID: m.MsgID, TaskID: m.TaskID, TS: ts,
 		FromBox: env.FromBox, FromID: m.From, ToBox: env.ToBox, ToID: m.To, Kind: m.Kind, Body: m.Body,
-		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon,
-		ReceivedAt: now, ExpiresAt: now.Add(s.retention("")),
+		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel,
+		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)),
 	}
 	inserted, err := s.o.Store.InsertMessage(ctx, row)
 	if err != nil {
-		return "", err
+		return c, err
 	}
+	c.inserted, c.receivedAt = inserted, now
 	if err := s.o.Store.Enqueue(ctx, tenant, m.MsgID, env.ToBox, now, now.Add(s.o.QueueTTL), s.o.QueueMaxPerBox); err != nil {
-		return "", err
+		return c, err
 	}
 	if inserted {
 		s.notifyTail(ctx, tenant, m.TaskID, canon)
+		s.fanoutWUI(ctx, tenant, m.TaskID, m.MsgID, now, canon)
+	}
+	if env.ToBox == WUIBox {
+		if _, err := s.o.Store.ClaimSent(ctx, tenant, m.MsgID, WUIBox, now); err != nil {
+			return c, err
+		}
+		c.delivery = wire.DeliverySent
+		return c, nil
 	}
 	delivery := wire.DeliveryQueued
 	if target := s.boxSession(tenant, env.ToBox); target != nil && s.push(ctx, target, m.MsgID, canon) {
@@ -461,7 +490,8 @@ func (s *Server) commit(ctx context.Context, tenant string, env *wire.Envelope, 
 	} else if st, _ := s.o.Store.DeliveryState(ctx, tenant, m.MsgID, env.ToBox); st == store.StateSent {
 		delivery = wire.DeliverySent
 	}
-	return delivery, nil
+	c.delivery = delivery
+	return c, nil
 }
 
 // Deliver verifies a hub-originated envelope and commits it (cicdlogs.Bus).
@@ -480,8 +510,8 @@ func (s *Server) Deliver(ctx context.Context, tenant string, env *wire.Envelope)
 	if env.ToBox == "" || !msg.ValidBoxID(env.ToBox) {
 		return "", fmt.Errorf("to_box")
 	}
-	if _, err := s.o.Store.GetPin(ctx, tenant, env.ToBox); err != nil {
-		return "", err
+	if !s.toBoxKnown(ctx, tenant, env.ToBox) {
+		return "", store.ErrNotFound
 	}
 	if !s.o.AllowTextOnly {
 		for _, a := range m.Files {

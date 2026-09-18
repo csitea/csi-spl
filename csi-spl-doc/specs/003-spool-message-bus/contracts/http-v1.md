@@ -40,6 +40,8 @@ GET    /healthz               liveness                                          
 GET    /version               { version, commit, built_at } — public; deploy acceptance check      FR-001
 GET    /                      text/plain "spool-hub <env> ok" — public hello at the root          FR-001
 GET    /v1/health             liveness, Cloud Run / LB-safe path (same body as /healthz)         FR-023
+WS     /v1/wui/ws             browser live chat (lobby, fan-out) → ./wui-live-ws.md             owner goal
+DELETE /v1/files/{file_id}    upload token; 204 / 404 (owner-requested) → ./wui-live-ws.md §5  owner goal
 GET    /v1/view/*             read-only viewer API for the WUI (Planned) → ./view-v1.md          FR-018–022
 ```
 
@@ -247,4 +249,4 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 - The only browser-facing surface is `./view-v1.md` (read-only). It never
   reintroduces the removed REST send/recv rows of §1.
 
-<!-- version: 0.4.5 · updated: 2026-09-18 · last-edit: 2026-09-18T19:56:23Z -->
+<!-- version: 0.4.6 · updated: 2026-09-18 · last-edit: 2026-09-18T20:46:02Z -->

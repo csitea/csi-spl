@@ -26,6 +26,7 @@ import (
 
 // POST /v1/files: raw bytes with the WS-issued upload token (OQ-10).
 func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
+	s.allowOrigin(w, r) // browser uploads from the WUI origin (wui-live-ws.md §5)
 	t, err := s.tenantOf(r)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
@@ -134,6 +135,10 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 	var req wire.PinRequest
 	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_json", "pin body does not parse")
+		return
+	}
+	if req.BoxID == WUIBox {
+		writeErr(w, http.StatusBadRequest, "bad_json", WUIBox+" is the reserved browser box and cannot be pinned")
 		return
 	}
 	pub, err := base64.StdEncoding.DecodeString(req.PubKey)

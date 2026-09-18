@@ -61,6 +61,8 @@ type Options struct {
 	// allow-list (empty = same-origin only).
 	ViewDoor        string
 	ViewCORSOrigins []string
+	// LobbyTaskID is cnf SPOOL_HUB_LOBBY_TASK_ID (wui-live-ws.md §1); "" = lobby off.
+	LobbyTaskID string
 	// Auth is the social sign-in surface (spec 010, /api/v1/auth/*); nil = not
 	// mounted. It is not tenant-scoped: the routes answer on any Host.
 	Auth *auth.Handler
@@ -75,6 +77,8 @@ type Server struct {
 	boxes    map[[2]string]*session // (tenant, box) → the role=box session
 	sessions map[*session]struct{}  // every live socket (both roles)
 	tokens   map[string]uploadToken
+	wui      map[*wuiConn]struct{} // browser live sockets (wui.go)
+	humans   humanIDs
 	closing  bool
 	cicd     *cicdlogs.Service
 }
@@ -108,7 +112,7 @@ func New(o Options) (*Server, error) {
 	s := &Server{
 		o: o, suffix: strings.ToLower(strings.TrimPrefix(o.TenantHostPattern, "{tenant}")),
 		boxes: map[[2]string]*session{}, sessions: map[*session]struct{}{},
-		tokens: map[string]uploadToken{},
+		tokens: map[string]uploadToken{}, wui: map[*wuiConn]struct{}{},
 	}
 	if o.CICD != nil {
 		o.CICD.Bus = s
@@ -147,6 +151,9 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("POST /v1/cicd-logs", s.handleCICDLogs)
 	}
 	s.routeView(mux)
+	mux.HandleFunc("GET /v1/wui/ws", s.handleWUIWS)
+	mux.HandleFunc("DELETE /v1/files/{file_id}", s.handleDeleteFile)
+	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {
 		s.o.Auth.Register(mux)
 	}
@@ -162,7 +169,14 @@ func (s *Server) Shutdown() {
 	for x := range s.sessions {
 		all = append(all, x)
 	}
+	var browsers []*wuiConn
+	for c := range s.wui {
+		browsers = append(browsers, c)
+	}
 	s.mu.Unlock()
+	for _, c := range browsers {
+		c.close(websocket.StatusGoingAway, "shutdown")
+	}
 	var wg sync.WaitGroup
 	for _, x := range all {
 		wg.Add(1)

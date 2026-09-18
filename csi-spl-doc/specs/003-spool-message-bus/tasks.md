@@ -86,6 +86,12 @@ Contract `contracts/view-v1.md`. Status per task below; only the token door (T03
 - [x] T035 [US7] CORS (FR-021): cnf `SPOOL_HUB_VIEW_CORS_ORIGINS` (no default, never `*`), preflight `204`, only on `/v1/view/*` + `GET /v1/files/{id}`; the cnf key is published to 007 for `csi-spl-cnf`. — **Implemented**; `TestViewAPI`, `TestLoadHubViewDoorAndOrigins`. Also `SPOOL_HUB_VIEW_DOOR` (`token` default, `off` lde-only).
 - [ ] T036 [US7] Tests: US7 acceptance 1–5; cross-tenant 404; queued message still drains after a read; no token/URL in logs; e2e step in `hub-e2e.tst.sh` reading a thread with a minted view token. — **Partial**: acceptance 1–5, cross-tenant, drain-after-read in `TestViewAPI`; e2e step waits on T033 (no token to mint yet).
 
+## Phase 10b: Owner goal — live-chat MVP, hub half (2026-09-18)
+
+- [x] T038 Browser live WebSocket `/v1/wui/ws` per `contracts/wui-live-ws.md`: hello/welcome (lobby id + upload token), subscribe/unsubscribe, send stored through the shared `commitRow` path (messages + deliveries `sent`), live fan-out of every stored message of a subscribed task (browser, box agent, hub). — **Implemented**; `TestWUITwoSessionsLobbyLive`, `TestWUIBoxAgentToLobby`.
+- [x] T039 `#general` lobby: `SPOOL_HUB_LOBBY_TASK_ID` defined once in cnf (`2016093`), stored with channel `general`, empty 200 before the first post; `box-wui` reserved (no pin, not pinnable). — **Implemented**; same tests + `TestWUIDoorAndReservedBox`.
+- [x] T040 Files for browsers: CORS on POST/GET/DELETE `/v1/files`, owner-requested `DELETE /v1/files/{file_id}` (upload token; 204/404), `blob.Store.Delete` (Dir + GCS). — **Implemented**; `TestWUIFilesUploadDownloadDelete`, blob contract test.
+
 ## Phase 11: Polish
 
 - [x] T037 [P] `/version` returns `{ version, commit, built_at }` as `contracts/http-v1.md` §1 says; today `server.go` writes only `{"version"}` (`grep -n '"version": s.o.Version' internal/hub/server.go -> 105`). Needs `-ldflags` for commit/build time in the hub image build (`do_build_push_hub_image`, 007 lane) plus the handler change here. — **Implemented**: `main.commit` / `main.builtAt` stamped by `csi-spl-api/src/bash/build.sh` (git HEAD + UTC time; `SPOOL_BUILD_COMMIT` / `SPOOL_BUILD_TIME` override), which `do_build_push_hub_image` already calls, so no orc change; `TestVersionBody`; a `build.sh` binary served `{"built_at":"2026-09-18T19:42:40Z","commit":"6a43acb8…","version":"0.1.0-dev"}` (n=1). Also `GET /` public hello (`TestRootHello`).
@@ -155,4 +161,4 @@ Contract `contracts/view-v1.md`. Status per task below; only the token door (T03
 
 M1 of 003 = US1 + US2 + US3 + the WS tail of US4 — Implemented and green on Postgres + GCS; what remains for M1 is the cloud rollout (007) and the pipeline deploy (008). US7 is the next 003 code slice, due before 005 (M3) starts on real data.
 
-<!-- version: 0.5.3 · updated: 2026-09-18 · last-edit: 2026-09-18T19:42:57Z -->
+<!-- version: 0.6.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:46:02Z -->

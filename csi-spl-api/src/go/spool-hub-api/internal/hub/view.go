@@ -50,7 +50,7 @@ func (s *Server) routeView(mux *http.ServeMux) {
 		w.Header().Set("Allow", "GET, OPTIONS")
 		writeErr(w, http.StatusMethodNotAllowed, "method_not_allowed", "the viewer API is read-only")
 	})
-	mux.HandleFunc("OPTIONS /v1/files/{file_id}", s.preflight)
+	mux.HandleFunc("OPTIONS /v1/files/{file_id}", s.filesPreflight)
 }
 
 // allowOrigin sets the CORS response headers when Origin is on the cnf
@@ -103,6 +103,18 @@ func (s *Server) viewHandler(next func(http.ResponseWriter, *http.Request, store
 // sessionMayRead is the M3 session door (view-v1 §2, OQ-A1): a signed-in human
 // who is a member of the Host tenant. Every auth error (no session, no HUM-*,
 // no membership check configured, not a member) refuses — fail closed.
+// sessionFor returns the HUM-* id of a member session of tenant, or "".
+func (s *Server) sessionFor(r *http.Request, tenant string) (string, error) {
+	if s.o.Auth == nil {
+		return "", nil
+	}
+	sess, err := s.o.Auth.SessionForTenant(r, tenant)
+	if err != nil {
+		return "", err
+	}
+	return sess.HumanID, nil
+}
+
 func (s *Server) sessionMayRead(r *http.Request, tenant string) bool {
 	if s.o.Auth == nil {
 		return false
@@ -313,7 +325,8 @@ func (s *Server) handleViewThread(w http.ResponseWriter, r *http.Request, t stor
 		writeErr(w, http.StatusInternalServerError, "internal", "thread unavailable")
 		return
 	}
-	if len(rows) == 0 && sq.AfterAt.IsZero() {
+	if len(rows) == 0 && sq.AfterAt.IsZero() && task != s.o.LobbyTaskID {
+		// the lobby exists before its first post (wui-live-ws.md §1)
 		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
 		return
 	}

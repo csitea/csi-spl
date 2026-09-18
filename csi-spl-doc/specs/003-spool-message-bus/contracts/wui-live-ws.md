@@ -9,8 +9,16 @@ Related: `./view-v1.md` (history / catch-up, same door, same CORS list),
 `./http-v1.md` §3 (files), `../../002-box-agent-messaging/contracts/message-schema.md`
 (the unchanged inner `v:1` object).
 
-**Status: Planned** (this version fixes the frames; the hub implementation
-follows in the next 003 commits and this line is updated with its sha).
+**Status: Implemented** — `internal/hub/wui.go`; tests `TestWUITwoSessionsLobbyLive`,
+`TestWUIBoxAgentToLobby`, `TestWUIFilesUploadDownloadDelete`,
+`TestWUIDoorAndReservedBox` (`internal/hub/wui_test.go`, also under `-race`).
+
+**Tolerant parsing (0.2.0)**, so the ORC-described shape and 0.1.0 both work:
+`hello.as` may be a display name (mapped to a stable `HUM-<n>` per tenant and
+name; `welcome.as` is the id, `welcome.name` echoes the name); `kind:"chat"`
+is stored as `note`; `"lobby"` is case-insensitive; a `files[]` item may omit
+`mode`/`kind` (`blob`/`file` assumed); the `message` frame carries both
+`envelope` (the v:1 object) and `env` (the stored envelope).
 
 ## 0. Trust in one paragraph
 
@@ -76,7 +84,7 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 | `welcome` | `as`, `lobby_task_id?`, `upload_token`, `upload_token_expires_at` | after `hello`. `as` is the id the hub will stamp as `from`. The upload token is for `POST /v1/files` (§5), bound to (tenant, `box-wui`), TTL 5 min |
 | `subscribed` | `task_id` | after `subscribe` (always the UUID, also for `"LOBBY"`) |
 | `token` | `upload_token`, `upload_token_expires_at` | reply to a browser `{type:"token"}` (fresh upload token) |
-| `message` | `task_id`, `cursor`, `received_at`, `env` | **live fan-out**: every message stored for a subscribed `task_id` in this tenant — from a browser, a box agent, or the hub — pushed to **every** subscribed socket (the sender's own included). `env` = the stored envelope `{from_box,to_box,msg,sig}` byte-for-byte, the same element shape as `view-v1` §4.4 (`msg` is the v:1 object) |
+| `message` | `task_id`, `cursor`, `received_at`, `envelope`, `env` | **live fan-out**: every message stored for a subscribed `task_id` in this tenant — from a browser, a box agent, or the hub — pushed to **every** subscribed socket (the sender's own included). `env` = the stored envelope `{from_box,to_box,msg,sig}` byte-for-byte, the same element shape as `view-v1` §4.4 (`msg` is the v:1 object); `envelope` = that v:1 object alone. For the sender, its own `message` echo arrives **before** its `ack` |
 | `ack` | `msg_id`, `task_id`, `cursor`, `received_at` | after a `send` is stored |
 | `error` | `error`, `status`, `detail`, `msg_id?` | stable token (`./error-envelope.md`); socket stays open |
 
@@ -143,4 +151,4 @@ reconnect the browser sends `hello` again and re-subscribes.
 `missing_file`, `conflict_msg`, `unpaid`, `quota`, `view_door`,
 `unknown_tenant`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:37:11Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:46:02Z -->

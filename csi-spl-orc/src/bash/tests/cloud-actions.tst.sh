@@ -60,6 +60,13 @@ export ENV=dev
 SNIPPET='spl_dry_run' in_orc DRY_RUN=yes >/dev/null 2>&1; rc=$?
 [[ $rc -eq 2 ]] && pass "DRY_RUN=yes is refused (rc 2)" || fail "DRY_RUN=yes gave rc $rc"
 
+# DRY_RUN=0 reaches the real-run branch: with no GCP_ACCOUNT it must stop on
+# exactly that (the regression: `if ! spl_dry_run; then rc=$?` read the
+# negated status and returned 1 silently, before any message)
+out=$(SNIPPET='do_build_push_hub_image' in_orc DRY_RUN=0 GCP_ACCOUNT= 2>&1); rc=$?
+[[ $rc -ne 0 ]] && grep -q 'GCP_ACCOUNT' <<<"$out" && pass "DRY_RUN=0 without GCP_ACCOUNT stops on GCP_ACCOUNT" \
+  || fail "DRY_RUN=0 without GCP_ACCOUNT: rc=$rc, $(tail -2 <<<"$out" | tr '\n' ' ')"
+
 # --- 3. dry runs touch no cloud ---------------------------------------------------
 : >"$T/calls.log"
 SNIPPET='gcloud auth print-access-token; curl -s https://example.com; docker push x' in_orc >/dev/null 2>&1

@@ -20,11 +20,11 @@ parameters, shapes or error tokens; on any doubt view-v1 wins.
 
 ## 2. Status (measured 2026-09-18)
 
-- view-v1: **Planned** (its own header; `grep -c '/v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0` on trunk `03657c6`).
+- view-v1: on trunk `ec3d593` (`grep -c 'HandleFunc("GET /v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/view.go -> 4`); the token door waits on 003 OQ-16. The WUI read it live locally with `SPOOL_HUB_VIEW_DOOR=off` (005 tasks T012).
 - A different, earlier read API exists **on a branch only**:
   `GRK-3349-hub-wui-read-api` (`2ecf59f`) adds `GET /v1/threads`,
   `GET /v1/messages?task_id=` and credentialed, Origin-reflecting CORS. It does
   not match view-v1 (paths, door, CORS mode). Which one lands is 003's call;
   005 codes against view-v1 as the contract of record.
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:10:00Z -->

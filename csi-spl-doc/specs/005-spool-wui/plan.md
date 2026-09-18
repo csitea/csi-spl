@@ -34,7 +34,7 @@ mock-only, until their gaps (spec §5) close.
 | Live follow | Partial — thread page polls while visible, no `after=` cursor yet | `pages/t/[task_id].vue` |
 | orc lde actions | Implemented | `csi-spl-orc/src/bash/run/wui-{dev,test,build}.func.sh` |
 | Hosting terraform `016` / `019` | Partial — written, not applied | `curl … https://csi-spl-dev-site.web.app -> 404` |
-| Hub viewer API (view-v1) | Planned | `grep -c '/v1/view' …/internal/hub/server.go -> 0`; a non-matching API is on branch `GRK-3349-hub-wui-read-api` `2ecf59f` |
+| Hub viewer API (view-v1) | Implemented (`ec3d593`), token door pending OQ-16 | `grep -c 'HandleFunc("GET /v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/view.go -> 4`; live read verified locally (tasks T012) |
 | Door (view token / session) | Planned | spec §5 G1 |
 | Live dev hub (for SC-001) | exists, no ingress | integrator measurement 2026-09-18 ~19:00Z: Cloud Run `csi-spl-hub-dev` Ready, no LB (031 not applied) |
 
@@ -65,4 +65,4 @@ mock-only, until their gaps (spec §5) close.
   Hosting custom domain is `env.dns.fqdn` (019). Both depend on the open DNS
   handoff question (README §6.1) — 007's, not 005's.
 
-<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:40:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:10:00Z -->

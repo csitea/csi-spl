@@ -19,7 +19,7 @@
       <span class="label">{{ c.name }}</span>
       <span v-if="channel.unread[c.channel_id]" class="badge-unread">{{ channel.unread[c.channel_id] }}</span>
     </NuxtLink>
-    <form class="create-row" @submit.prevent="onCreate">
+    <form v-if="api.mock" class="create-row" @submit.prevent="onCreate">
       <input v-model="newChannel" placeholder="new channel" aria-label="New channel">
       <button class="btn ghost" type="submit">+</button>
     </form>
@@ -52,10 +52,13 @@
 import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 
 const channel = useChannelStore()
 const roster = useRosterStore()
 const session = useSessionStore()
+/* channel creation is a later M3 write slice; the live hub API is read-only */
+const api = useSpoolApi()
 const route = useRoute()
 onMounted(() => session.probe())
 const newChannel = ref('')

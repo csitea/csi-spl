@@ -54,13 +54,21 @@ export const useViewerStore = defineStore('viewer', () => {
     await refreshThread()
   }
 
+  /** view-v1 §4.4: the first read is the whole thread; later polls pass the last cursor as after= and append. */
   async function refreshThread() {
     if (!taskId.value) return
+    const last = messages.value[messages.value.length - 1]
+    const after = last && last.cursor ? last.cursor : undefined
     loading.value = messages.value.length === 0
     error.value = null
     try {
-      const data = await api.getThread(taskId.value)
-      messages.value = data.messages
+      const data = await api.getThread(taskId.value, after ? { after } : undefined)
+      if (after) {
+        const seen = new Set(messages.value.map((m) => m.msg_id))
+        messages.value = [...messages.value, ...data.messages.filter((m) => !seen.has(m.msg_id))]
+      } else {
+        messages.value = data.messages
+      }
       needsToken.value = false
     } catch (e) {
       fail(e)

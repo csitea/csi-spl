@@ -18,19 +18,19 @@ named) · `[ ]` Planned. Live work is gated on D1.
 - [x] T005 Implemented (`9eafd8c`, mock) — `pages/index.vue` thread list via `stores/viewer.ts`: empty state, `unknown_tenant` message, `Older` paging on `next`. Rendered against the mock tenant (headless Chrome screenshot, 4 threads). Live render waits on D1. US1.
 - [x] T006 Implemented (`9eafd8c`, mock) — `pages/t/[task_id].vue` reuses `MessageCard.vue` / `KindBadge.vue` / `AgentBadge.vue`; `FileAttachment.vue` links only downloadable blobs (`isDownloadable`), `mode:"path"` shows the on-box path. Rendered against the mock tenant (4 messages oldest first, 1 attachment). US2, US3, FR-006.
 - [x] T008 Implemented (`9eafd8c`) — `tests/unit/view-api.test.mjs` (12 tests: normalisers, stub-`fetch` live client, 401 token surfacing, read-only refusals, XSS-as-text); `node --test tests/unit/*.test.mjs -> 29 pass, 0 fail`; `node tests/e2e/no-x-scroll.test.mjs -> 8/8` (adds `/` and `/t/<id>`); `nuxi typecheck -> exit 0`. SC-002, FR-006.
-- [ ] T012 Planned — SC-001 on dev: `spool send` box-a → box-b, thread visible in the viewer. Needs D1, D3.
+- [~] T012 Partial — SC-001 locally: the WUI in live mode (`NUXT_PUBLIC_USE_MOCK=0`) against a trunk `spool serve` (`ec3d593`+, `SPOOL_HUB_VIEW_DOOR=off`, lde Postgres holding tenant t1) lists the seeded thread `33330000-…-9001` (3 messages) and opens it oldest-first; CORS preflight from the WUI origin → `204` with the exact origin (headless Chrome screenshot + `curl`, n=1, 2026-09-18). Missing: the same on the dev cloud hub (D3).
 
 ## Phase 3 — Follow & ship (US4, US5)
 
-- [~] T007 Partial (`9eafd8c`) — `/t/[task_id]` polls the thread while visible, `NUXT_PUBLIC_POLL_MS` (default 4000, floor 2000). Missing: `after=` cursor (full refetch today); the legacy `useSpoolEvents.ts` channel poll remains for the mock channel pages. US4.
+- [x] T007 Implemented — `/t/[task_id]` polls while visible (`NUXT_PUBLIC_POLL_MS`, default 4000, floor 2000); after the first read it passes the last message `cursor` as `after=` and appends new messages, de-duplicated by `msg_id` (`stores/viewer.ts`); client test asserts `after=`; live hub returns `[]` for the last cursor (`curl`, n=1). The legacy `useSpoolEvents.ts` channel poll remains only for the mock channel pages. US4.
 - [~] T009 Partial — dev Hosting: apply 007 steps `016-firebase-deploy-iam` + `019-firebase-static-site` for dev (owner go) and deploy the generated site; hub origin derived per tenant. Missing: apply + deploy (`curl … https://csi-spl-dev-site.web.app -> 404`). FR-007, FR-004.
-- [~] T010 Partial (`9eafd8c`) — `ViewTokenForm.vue` appears on `401`, stores the token in `sessionStorage` (`spool.view_token`) and memory. Missing: the hub door itself (003 T033, after OQ-16) and the social session (CLE-3346 hands the login contract). US5, FR-010.
+- [~] T010 Partial — view token: `ViewTokenForm.vue` on `401`, token kept in `sessionStorage` (`9eafd8c`). Social sign-in wired per spec 010 `contracts/auth-v1.md` §1–§4 (`1c4e1a6`: `/login` buttons from `GET /api/v1/auth/providers`, `auth_error` copy, session probe 401 vs unknown, sign out; Hosting rewrite `/api/v1/auth/**`; lde `NUXT_DEV_AUTH_PROXY`) — that is 010 T014–T016. Missing: the hub view door (003 T033, after OQ-16) and how the session reaches `/v1/view/*` (010 OQ-A1). US5, FR-010.
 - [ ] T011 Planned — prd Hosting apply + deploy, after T010 and OQ-W2. FR-007, FR-010.
 
 ## Dependencies owned elsewhere
 
-- [ ] D1 003 — view-v1 implemented (door, CORS, §4.1–§4.4). Planned. CLE-3340 confirmed 2026-09-18T19:23Z: view-v1 is what lands, with an lde-only `hub.view_door=off` cnf flag; the GRK-3349 branch API (`/v1/threads`, `/v1/messages`) will not land.
-- [ ] D2 006 — human session (social IdP), view-v1's successor door.
+- [x] D1 003 — view-v1 on trunk (`ec3d593`, per CLE-3340): `/v1/view/{roster,channels,threads,threads/{task_id}}`, cnf CORS allow-list, lde-only `SPOOL_HUB_VIEW_DOOR=off`. Verified live against a local trunk hub (T012). The token door is still pending OQ-16.
+- [~] D2 010 (CLE-3346) — social sign-in routes + contract `auth-v1.md` on trunk (`d5e77eb`); WUI side wired (`1c4e1a6`). Open: 010 OQ-A1 (session → `/v1/view/*`).
 - [ ] D3 007 — DNS zone + ingress (031) before a Hosting custom domain and a reachable dev hub (README §6).
 
 ## Planned — M3 later slices (mock-only code exists, no hub route)
@@ -45,4 +45,4 @@ the spec §5 gap named.
 - [~] P5 Partial (mock) — verbosity toggle (`VerbositySelector.vue`). Blocked: metadata not in `v:1`.
 - [ ] P6 Planned — channel creation. Blocked: G3 (no route; `POST /v1/channels` does not exist).
 
-<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:40:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:10:00Z -->

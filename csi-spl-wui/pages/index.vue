@@ -17,7 +17,7 @@
         :to="'/t/' + t.task_id"
       >
         <div class="msg-meta">
-          <span class="msg-author">{{ t.participants.join(' → ') || t.task_id }}</span>
+          <span class="msg-author">{{ t.participants.join(', ') || t.task_id }}</span>
           <KindBadge v-for="k in Object.keys(t.kinds)" :key="k" :kind="k" />
           <span class="msg-time">{{ formatTs(t.last_ts) }}</span>
         </div>

@@ -94,8 +94,8 @@ data (`401 view_door`).
   Check: `grep -c '"nuxt"' csi-spl-wui/package.json -> 1`.
 - **FR-002** — Partial: the WUI reads **only** through 003 `contracts/view-v1.md`
   (`/v1/view/*`), `GET /v1/files/{file_id}` and `GET /v1/health` (003 FR-023; `/healthz` is shadowed on Cloud Run). Story → section
-  map: `./contracts/hub-read-needs.md`. WUI side done (`9eafd8c`). Missing: view-v1 is
-  not implemented in the hub (G5).
+  map: `./contracts/hub-read-needs.md`. WUI side done (`9eafd8c`); hub side on trunk (`ec3d593`); verified live
+  locally (tasks T012). Missing: the token door (003 OQ-16).
 - **FR-003** — Implemented: the browser stores no private key or signed URL,
   never puts a token in `localStorage` or a URL (view-v1 §2), and never opens `/v1/ws`. Check: `grep -rnE 'localStorage|sessionStorage|indexedDB|/v1/ws' csi-spl-wui/{components,composables,stores,utils,pages,plugins}`
   -> only `composables/useTheme.ts` (theme choice) and a comment in `useSpoolEvents.ts`.
@@ -137,11 +137,11 @@ before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-revers
 
 | # | Gap | Evidence | Owner |
 |---|---|---|---|
-| G1 | No door for humans on the hub yet: view token proposed (view-v1 §2, 003 OQ-16), social session not built | `grep -rniE 'cookie\|oauth\|view_door' csi-spl-api/src/go/spool-hub-api/internal/hub/*.go -> 0` | 003 (token) / 006 (session) |
+| G1 | No door for humans on the view API yet: view token proposed (view-v1 §2, 003 OQ-16); social sign-in exists (010, WUI wired `1c4e1a6`) but does not yet reach `/v1/view/*` (010 OQ-A1) | `grep -rniE 'cookie\|oauth\|view_door' csi-spl-api/src/go/spool-hub-api/internal/hub/*.go -> 0` | 003 (token) / 006 (session) |
 | G2 | No `box-wui` signer; the browser cannot send | `grep -rn box-wui csi-spl-api/src/go -> 0` | 003 / 004 |
 | G3 | `channel` / `parent_task_id` are not `v:1` fields; 002 frozen | `grep -cE 'channel\|parent_task' ../002-box-agent-messaging/contracts/message-schema.md -> 0`; `messages.channel` + `channels` table exist, unused in M1 (`csi-spl-rdb/src/sql/postgres/spool-hub/0002_channels.sql`) | owner (OQ-W1) |
 | G4 | No read-only roster for humans yet | specified as view-v1 §4.1, Planned | 003 |
-| G5 | view-v1 not implemented | `grep -c '/v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`; 003 (CLE-3340) confirmed view-v1 lands, the GRK-3349 branch API does not | 003 |
+| G5 | ~~view-v1 not implemented~~ **closed** `ec3d593` | `grep -c 'HandleFunc("GET /v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/view.go -> 4` | 003 |
 | G6 | ~~WUI live client calls routes that will not exist~~ **closed** `9eafd8c` | `grep -c '/v1/messages\|/v1/channels' csi-spl-wui/utils/spool-client.mjs -> 0` | 005 (T004) |
 
 ## 6. Open questions (to the owner via CLE-00)
@@ -151,4 +151,4 @@ before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-revers
 - **OQ-W2**: Is the view token (003 OQ-16) acceptable as the only door for **prd**
   Hosting, or must the social session (006) exist first?
 
-<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:40:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:10:00Z -->

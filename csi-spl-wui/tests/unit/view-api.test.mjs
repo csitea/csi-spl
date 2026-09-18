@@ -112,6 +112,13 @@ describe('spool-client live (view-v1)', () => {
     assert.equal('authorization' in calls[0].opts.headers, false)
   })
 
+  it('polls one thread with after=<cursor>', async () => {
+    const { fn, calls } = stubFetch({ [`/v1/view/threads/${T}`]: [200, { task_id: T, messages: [], next: null }] })
+    const c = createSpoolClient({ fetchFn: fn, mock: false })
+    await c.getThread(T, { after: 'c 9' })
+    assert.equal(new URL(calls[0].url, 'http://x').searchParams.get('after'), 'c 9')
+  })
+
   it('surfaces the error token and status', async () => {
     const { fn } = stubFetch({ '/v1/view/threads': [401, { error: 'view_door' }] })
     const c = createSpoolClient({ fetchFn: fn, mock: false })

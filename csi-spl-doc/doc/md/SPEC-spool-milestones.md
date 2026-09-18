@@ -126,9 +126,10 @@ Not started until M1 is done (dev+prd infra) and M2 can sell.
 
 - Monthly **per user** and **per bot** licenses (same payment rails, new lines).
 - If a dedicated GCP project is minted: id =
-  `{org}-{app}-{env}-{YYYYMMDDHHmm}` at the **UTC minute they hit buy**.
-  Example: `csi-spl-dev-202609171743`. `org`/`app` need not be unique;
-  **DNS tenant id** must.
+  `{org}-{app}-{env}-{YYYYMMDDHHmm}` at the **UTC minute they hit buy**
+  (e.g. `csi-spl-dev-202609171743`). `org`/`app` need not be unique.
+- **DNS slug is pretty and unique** (e.g. `acme` → `https://acme.spool-hub.ai`).
+  It is **not** the project id and **not** `{org}-{app}`.
 
 Dedicated **billing grant** (their GCP card) remains the later BYO SKU
 (`SPEC-spool-byo-gcp.md`); M4 only defines seats + the id stamp.

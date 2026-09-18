@@ -42,6 +42,8 @@ creates:
 1. A **tenant id** (`^[a-z0-9][a-z0-9-]{0,31}$`) — **unique DNS slug** on
    `*.spool-hub.ai` / `*.dev.spool-hub.ai` (first-come). Optional `org`/`app`
    codes (dedicated SKU) are **not** unique across customers.
+   The slug is **pretty** (e.g. `acme` → `https://acme.spool-hub.ai`), **not**
+   `csi-spl-dev-202609171743`.
 2. A **tenant URL** (`$SPOOL_HUB_URL`). Product DNS: `https://<tenant>.spool-hub.ai`, dynamically resolved via wildcard `*.spool-hub.ai` Cloud Run domain mapping and HTTP `Host` header inspection. Binaries never bake the host; cnf/env only.
 3. A **tenant root** Ed25519 keypair. The **private** root key is shown **once** to the renter upon post-checkout redirect (downloadable `.key` file and copyable text) and is never stored on the hub or in Postgres. The public root is written to `tenants.root_pubkey`. Tenant is auto-provisioned instantly upon receiving the verified payment webhook.
 4. A quota: messages / month, stored file bytes, pin count (cnf). Over quota

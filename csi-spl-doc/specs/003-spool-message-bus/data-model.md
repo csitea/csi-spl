@@ -33,11 +33,15 @@ named one; see OQ below).
 
 | column | type | notes |
 |---|---|---|
-| `tenant_id` | text PK | `^[a-z0-9][a-z0-9-]{0,31}$` (006) |
+| `tenant_id` | text PK | **pretty DNS slug** `^[a-z0-9][a-z0-9-]{0,31}$` e.g. `acme` → `https://acme.spool-hub.ai`. Unique. **Not** the GCP project id. |
 | `root_pubkey` | bytea | raw 32-byte Ed25519 tenant root key; the private root is never stored |
 | `billing_status` | text | `"active"`, `"grace"`, `"unpaid"`, `"internal"` |
 | `plan_id` | text | quota & retention tier |
 | `created_at` | timestamptz | |
+| `org` | text NULL | M4: 3-letter code; **not** unique |
+| `app` | text NULL | M4: 3-letter code; **not** unique |
+| `project_id` | text NULL | M4 dedicated: `csi-spl-dev-202609171743`; unique; **not** the slug |
+| `bought_at` | timestamptz NULL | M4: UTC minute of buy (stamp source) |
 
 ### `boxes` (004)
 
@@ -222,4 +226,4 @@ Per `contracts/limits.md` (owner `43b1050`):
 - Resolved: OQ-05 (roster persisted), OQ-06 (`iam_principal` reserved), OQ-08
   (`acks` dropped), OQ-13 (7-day queue TTL).
 
-<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:55:00Z -->
+<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-19T00:15:00Z

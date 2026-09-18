@@ -1,77 +1,99 @@
-# SPEC: Google and Facebook auth on the spool web UI
+# SPEC: Social auth on the spool web UI
 
 Status: **M3 WUI** (login to the Slack-like UI). Optional on the M2 thin
-checkout page. Not M1 (IAP/IP allowlist; no public login).  
-**Forked from pas-psf and csi-rel.** Do not invent a second OIDC stack.
-Copy those trees into `csi-spl-wui` / `csi-spl-api`, then adapt (HUM-*
-session, tenant, no shop roles). Do **not** `go get` those modules.
+checkout page. Not M1 (IAP/IP allowlist; no public login).
+
+**Google and Facebook are forked from pas-psf and csi-rel.** Microsoft
+(Azure / Entra ID), **LinkedIn**, and **xAI** use the **same federated
+rails** (new IdP adapters, not a second stack). Do **not** `go get` the
+shop modules.
 
 ---
 
-## 1. Fork sources (read-only donors)
+## 1. Providers
+
+| Slug | Kind | Source |
+|---|---|---|
+| `google` | OIDC | Fork csi-rel 045 + pas-psf/csi-rel 052 |
+| `facebook` | OAuth 2.0 | Fork 052 (`facebook_idp.go`, deauthorize) |
+| `microsoft` | OIDC (Azure AD / Entra ID) | Same `federatedSpec` / `oauth_handlers` as Google |
+| `linkedin` | OAuth 2.0 | Same rails as Facebook (authorization code) |
+| `xai` | OIDC (cnf issuer) | Same rails as Google; **issuer, authorize, token, jwks URLs from cnf** — never baked |
+
+Enabled set is **cnf** (`env.auth.social.providers`, default
+`google,facebook,microsoft,linkedin,xai`). A provider with a missing secret
+in prd is **omitted from the button list** and start returns 404; prd boot
+**fail-closes** only if a listed provider’s slot is a placeholder *and* the
+operator marked it required. lde may run a subset.
+
+Yahoo stays out unless cnf adds it.
+
+Wire (all of them):
+
+`GET /api/v1/auth/<slug>/start` → IdP → `/api/v1/auth/<slug>/callback` → session cookie.
+
+---
+
+## 2. Fork sources (Google / Facebook donors)
 
 | Donor | What it already is |
 |---|---|
-| **csi-rel** spec `045-admin-login` + `052-social-authentication-google-facebook` | Google OIDC first (`google_idp.go`, `oauth_handlers.go`, `oauth_state.go`); Facebook on the same rails |
-| **pas-psf** spec `052-social-authentication-google-facebook` | Same API + **WUI** `SocialAuthButtons.vue` / `useSocialProviders.ts` on login, register, checkout |
-
-Wire: `GET /api/v1/auth/{google,facebook}/start` → IdP → `/callback` → session cookie.
+| **csi-rel** `045-admin-login` + `052-social-authentication-google-facebook` | Google OIDC (`google_idp.go`, `oauth_handlers.go`, `oauth_state.go`); Facebook on the same rails |
+| **pas-psf** `052-social-authentication-google-facebook` | Same API + WUI `SocialAuthButtons.vue` / `useSocialProviders.ts` |
 
 | Donor path | Take |
 |---|---|
 | `csi-rel-api/src/internal/auth/google_idp.go` | Google OIDC |
 | `csi-rel-api/src/internal/auth/facebook_idp.go` | Facebook Login |
-| `csi-rel-api/src/internal/auth/oauth_handlers.go` | start/callback |
-| `csi-rel-wui` login Google button (045) | Admin/customer Google |
-| `pas-psf-wui/src/components/SocialAuthButtons.vue` | Both buttons; cnf list |
+| `csi-rel-api/src/internal/auth/oauth_handlers.go` | start/callback (extend `<slug>`) |
+| `pas-psf-wui/src/components/SocialAuthButtons.vue` | Buttons; cnf list — **add Microsoft, LinkedIn, xAI** |
 | `pas-psf-wui/src/composables/useSocialProviders.ts` | start URLs |
-| `pas-psf-api/src/internal/auth/` | Same Go rails as csi-rel (morph) |
 | both `052` specs | scopes, deauthorize, fail-closed secrets |
 
-Yahoo stays out unless cnf enables it later.
-
-
----
-
-## 2. Spool mapping
-
-After a successful Google/Facebook callback:
-
-1. Hub creates or finds a **human** peer `HUM-<stable>` (email hash or
-   provider `sub`, unique **per tenant**).
-2. Session is an **HTTP-only cookie/JWT** (pas-psf style). Browser never
-   holds the tenant root or a box private key (`SPEC-spool-wui.md` §4).
-3. Sends as `HUM-*` via virtual `box-wui` envelope.
-4. Avatar: default human identicon; may use the IdP picture **only after**
-   fetching server-side and storing as `file_id` (no hotlink). Robots stay
-   the agent default (`SPEC-spool-avatars.md`).
-
-Staff/admin gates from pas-psf (`staff_allowed` per provider) can map to
-“tenant operator” vs ordinary human if needed; M3 default: any verified
-email on that tenant’s checkout account / allowlist.
+New files in the fork: `microsoft_idp.go`, `linkedin_idp.go`, `xai_idp.go`
+(thin; share `federatedSpec`).
 
 ---
 
-## 3. Where the buttons appear
+## 3. Spool mapping
+
+After a successful callback (any slug):
+
+1. Hub creates or finds **human** `HUM-<stable>` (verified email or provider
+   `sub`, unique **per tenant**).
+2. HTTP-only session cookie/JWT. Browser never holds box keys.
+3. Sends as `HUM-*` via `box-wui`.
+4. Avatar: human default; IdP picture only after server-side fetch → `file_id`.
+
+---
+
+## 4. Where the buttons appear
 
 | Surface | When |
 |---|---|
-| M3 WUI login | Required: **Sign in with Google**, **Sign in with Facebook** |
-| M2 thin checkout | Same buttons if the buyer creates a human session (reuse component) |
+| M3 WUI login | **Sign in with** each **cnf-enabled** provider that has secrets: Google, Facebook, Microsoft, LinkedIn, xAI |
+| M2 thin checkout | Same component |
 | M1 | None (IAP / IP allowlist) |
 
 ---
 
-## 4. Secrets
+## 5. Secrets and URLs
 
-Client id/secret per env in Secret Manager (fork pas-psf/csi-rel `029` slots).
-Redirect URIs: `https://<tenant>.spool-hub.ai/api/v1/auth/{google,facebook}/callback`
-(and `*.dev.spool-hub.ai` on dev). Wildcard DNS from M1 is what makes
-per-tenant callbacks work without a new Google/Facebook app per tenant
-**if** the IdP allows a wildcard or a single hub callback that then sets
-tenant from state — prefer **one hub callback host** (`auth.spool-hub.ai`)
-plus `state` carrying `tenant_id` so we do not register N redirect URIs.
-That choice is an implementation detail in 005 plan; do not bake hosts in
-Go.
+Per provider, per env, Secret Manager (fork `029`): client id + secret.
+xAI also needs issuer/jwks in cnf (not a secret).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:30:00Z -->
+Redirects: prefer **one** hub callback host plus `state` = `tenant_id` so
+IdP consoles are not N-tenant. Do not bake hostnames in Go.
+
+Scopes (cnf, no vendor defaults in code comments as URLs):
+
+- google: openid email profile (as 052)
+- facebook: email, public_profile (as 052)
+- microsoft: openid email profile (Entra)
+- linkedin: OpenID or `openid profile email` as the LinkedIn app allows
+- xai: openid email profile if the IdP issues them; otherwise cnf
+
+Deauthorize/data-deletion callbacks: Facebook required (052); others as the
+IdP requires.
+
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:45:00Z -->

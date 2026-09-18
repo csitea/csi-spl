@@ -50,8 +50,9 @@ In any task thread, the user can toggle the verbosity level (`minimal`, `normal`
 - **FR-004**: Code lives in `csi-spl-wui`.
 - **FR-005**: Every human and bot shown in the UI has an avatar
   (`SPEC-spool-avatars.md`); default identicon if none uploaded.
-- **FR-006**: WUI login implements **Google and Facebook** OAuth as a
-  **fork of pas-psf and csi-rel** specs 045/052 (`SPEC-spool-social-auth.md`).
+- **FR-006**: WUI login implements **Google, Facebook, Microsoft (Azure/Entra),
+  LinkedIn, and xAI** as a **fork of pas-psf and csi-rel** 045/052 plus new
+  IdP adapters on the same rails (`SPEC-spool-social-auth.md`).
 - **FR-005**: Architecture & Stack: Built on Nuxt 3 SSR (Vue 3, TypeScript, Pinia, pnpm), referencing `/opt/pas/pas-psf/pas-psf-wui`.
 - **FR-006**: Local dev setup (`lde`): `pnpm dev --host 0.0.0.0 --port 3000` with `NUXT_PUBLIC_API_BASE` configurable via env.
 - **FR-007**: Container & Deployment: Multi-stage Dockerfile deployed to Cloud Run, orchestrated via `csi-spl-orc`.

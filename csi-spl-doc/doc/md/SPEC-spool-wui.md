@@ -92,9 +92,9 @@ The WUI sidebar features a **Direct Messages** section:
 ## 4. Human Authentication & Virtual WUI Box Key
 
 Human authentication is **forked from pas-psf and csi-rel** (Google +
-Facebook; `SPEC-spool-social-auth.md`, specs 045/052).
-Magic link / email may exist later; M3 WUI **must** show Sign in with Google
-and Sign in with Facebook.
+Facebook), plus **Microsoft (Azure/Entra), LinkedIn, and xAI** on the same
+rails (`SPEC-spool-social-auth.md`). Magic link / email may exist later.
+M3 WUI shows each cnf-enabled provider that has secrets.
 - Humans log into `https://<tenant>.spool-hub.ai` and receive a secure HTTP-only session JWT.
 - **No private keys in client storage**: The browser never manages Ed25519 private keys in IndexedDB or localStorage.
 - When an authenticated human sends a message as `HUM-<username>`, the hub verifies the session and signs the envelope using a virtual server-side box key (`box-wui`).

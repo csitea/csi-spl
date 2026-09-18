@@ -18,7 +18,7 @@ contract, and how to create, apply and switch to it.
 | `doc/md/SPEC-spool-task-lifecycle.md` | `task_id` / `kind` meaning |
 | `doc/md/SPEC-spool-wui.md` | Slack-like WUI (**M3 rollout**) |
 | `doc/md/SPEC-spool-avatars.md` | every human and bot has an avatar (M3) |
-| `doc/md/SPEC-spool-social-auth.md` | M3 WUI: Google+Facebook **forked from pas-psf and csi-rel** |
+| `doc/md/SPEC-spool-social-auth.md` | M3 WUI: Google, Facebook, Microsoft, LinkedIn, xAI |
 | `doc/md/SPEC-spool-cicd-logs.md` | **later:** `gh` fetches CI logs into chat |
 | `doc/md/SPEC-spool-chat-reverse.md` | **later:** type at top, prepend messages |
 | `specs/001-relay-bucket-estate/` | git-spec for the relay bucket |
@@ -31,4 +31,4 @@ contract, and how to create, apply and switch to it.
 | `specs/008-spool-cicd-logs/` | after M3: Actions logs in threads |
 | `specs/006-spool-hub-rental/contracts/payment.md` | M2 public MVP: buy on site, copy csi-rel payment |
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:30:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:45:00Z -->

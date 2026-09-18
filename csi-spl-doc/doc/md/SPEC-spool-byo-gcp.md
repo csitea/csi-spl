@@ -15,7 +15,7 @@ on *your* billing account (that is reseller-only).
 | | **M2 hosted SaaS** (they pay you) | **This SKU: BYO GCP billing** |
 |---|---|---|
 | Who Google charges | You | **Them** |
-| Your margin | **User+bot monthly seats** + infra spread | **Same seats**; infra is their GCP bill |
+| Your margin | M2 tenant fee (+ **M4 seats** when that ships) + infra | **M4 seats**; infra is their GCP bill |
 | Credit risk | You float GCP until they pay | Google floats it; they fight Google on spend |
 | Procurement | Card on *your* checkout | Card on **GCP**; legal likes “data in our cloud” |
 | Isolation | `tenant_id` on shared Cloud Run | **Dedicated project** (or folder) per customer |
@@ -96,8 +96,8 @@ inside it.
 - If they revoke the SA, mesh in that project dies; your hosted M2
   tenants are unaffected.
 - Quote **their** GCP SKUs (Run, SQL, GCS) as a separate estimate.
-  **Your fee is monthly licenses: per user (`HUM-*`) and per bot
-  (agent id)** — same SKUs as hosted M2 (`contracts/payment.md` seats).
+  **Your software fee (when M4 exists) is monthly licenses per user and
+  per bot** (`SPEC-spool-m4-seats.md`). Not an M2 change.
 
 ---
 
@@ -105,4 +105,4 @@ inside it.
 
 After M2 is selling hosted. Do not block public MVP on folder grants.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:30:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:45:00Z -->

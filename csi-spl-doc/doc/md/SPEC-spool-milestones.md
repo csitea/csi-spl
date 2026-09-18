@@ -91,7 +91,7 @@ Kafka, per-agent hub keys.
 - **The site** is a **thin checkout page only** (landing + pay). Not the M3
   Slack UI. Not a SKU inside csi-rel/pas-psf.
 - **Payment: copy csi-rel** — `specs/006-spool-hub-rental/contracts/payment.md`.
-  They pay **you monthly per user and per bot** (seats), not per message.
+  M2 is **buy a tenant**, not per-seat. Seats are **M4**.
 - After pay: **success page and one email** contain the tenant URL and the
   **tenant root private key**. Shown **once**. Hub never stores that private
   key. Lost mail → support / new tenant (no dashboard re-issue in M2).
@@ -118,6 +118,18 @@ Not started until M1 is done (dev+prd infra) and M2 can sell.
 
 ---
 
+
+## Milestone 4 — seat licenses
+
+**Does not change M2.** After the Slack UI (M3), they pay **you monthly per
+user and per bot**. Binding: `SPEC-spool-m4-seats.md`.
+
+Same payment rails as M2 (csi-rel copy), new line items: user-month +
+bot-month. Over cap blocks **new** HUM or bot, not recv.
+
+Dedicated GCP (`SPEC-spool-byo-gcp.md`) uses **these** seats when that SKU
+exists; it still does not replace M2 hosted checkout.
+
 ## Later — CI/CD logs in chat (after M3)
 
 `gh` on the Cloud Run image, token in Secret Manager, fetch GitHub Actions
@@ -134,7 +146,7 @@ provision (`SPEC-spool-byo-gcp.md`). Does **not** replace M2 hosted checkout.
 
 **M1 proto** (local + spool-hub.ai, infra on **dev and prd**) →
 **M2 public MVP** (thin checkout + one-time email of URL and root key) →
-**M3 rollout** (Slack WUI, csi-rel/pas-psf hosting) →
-**later** CI logs in chat (`gh` on Cloud Run) and reverse-chat UI option.
+**M3 rollout** (Slack WUI) → **M4 seats** (per user / per bot monthly) →
+**later** CI logs, reverse-chat, dedicated GCP.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:30:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:45:00Z -->

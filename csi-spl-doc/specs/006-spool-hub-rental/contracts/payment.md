@@ -19,8 +19,9 @@ module). Adapt the *paid event* to **tenant billing**, not a shop cart.
 
 ## Do not copy
 
-Cart, stock holds, marketplace Connect, BIN/sanctions, storefront
-`PaymentFrame`. Spool SKUs are **seats**, not products.
+Cart, stock holds, marketplace Connect, BIN/sanctions, invoices, storefront
+`PaymentFrame` (that is M3 WUI if ever). **M2 SKU is a tenant**, not seats.
+Per-user / per-bot monthly licenses are **M4** (`SPEC-spool-m4-seats.md`).
 
 ## Map onto spool
 
@@ -29,7 +30,7 @@ Cart, stock holds, marketplace Connect, BIN/sanctions, storefront
 | order paid webhook | `tenants.billing_status = active` (create tenant if first payment) |
 | unpaid / failed | `unpaid` / grace (cnf), send/pin `402`, recv still works in grace |
 | refund / cancel | tenant cancel after grace |
-| `PaymentProvider` | same interface; amount = **monthly seats** (cnf unit prices) |
+| `PaymentProvider` | same interface; amount = **M2 tenant plan** from cnf |
 | fake-pay (077) | lde only: `do_spl_tenant_create` / fake paid without a rail |
 
 Hub never stores card numbers **or the tenant root private key**.
@@ -39,36 +40,13 @@ before any row write. Duplicate delivery id → 200 no-op.
 The buy surface is a **thin checkout page**, not the M3 Slack UI.
 
 
-## Seats (what they pay you)
+## Seats
 
-**Monthly licenses, billed to you** (hosted M2 and dedicated SKU):
-
-| Seat | Counts as | Typical event |
-|---|---|---|
-| **User** | one `HUM-*` in the tenant | first social register / still active this period |
-| **Bot** | one agent id (`CLE-*` / `GRK-*` / `AGY-*`, later prefixes) | first pin/announce on a box in the tenant |
-
-Not billed: `box_id`, messages, files (beyond existing byte quota), WUI
-tabs. Two `CLE-07`s on two boxes are **two** bots if they are two peers
-(`CLE-07@box-a` and `CLE-07@box-b`).
-
-**How charged:** recurring monthly via the csi-rel payment copy. Checkout
-picks **N users + M bots** (or a pack). cnf: unit price per user-month and
-per bot-month. Webhook paid → `billing_status=active` and seat entitlements
-on the tenant.
-
-**Over seat cap:** refuse **new** HUM register or **new** agent announce/pin
-(`402` / `error: quota`). Existing send/recv for already-entitled peers
-still work during the period. Recv never blocked for unpaid grace (same as
-today).
-
-**Dedicated (BYO GCP):** they still pay **you** these seats monthly. GCP
-card pays Run/SQL/GCS only (`SPEC-spool-byo-gcp.md`).
+**Not M2.** See `doc/md/SPEC-spool-m4-seats.md` (Milestone 4).
 
 ## When
 
-**When:** Milestone 2 = **public MVP** — stranger buys the service on the
-site. M1 is technical proto (manual tenant, proof of local + hub mail).
-M3 is Slack web rollout.
+**When:** This file is **M2 public MVP** — stranger buys a **tenant** on the
+site. Seat packs are **M4**. M1 is proto. M3 is Slack web rollout.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:30:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:45:00Z -->

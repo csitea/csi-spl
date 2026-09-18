@@ -173,8 +173,9 @@ that module). Contract: `specs/006-spool-hub-rental/contracts/payment.md`.
 - Provider interface, drivers, signed webhooks, `webhook_events_seen`,
   fail-closed boot, Secret Manager: as in csi-rel.
 - Provider and prices live in cnf.
-- Paid webhook → tenant `billing_status=active`. Unpaid → grace then `402`
-  on send/pin; recv still works in grace.
+- Paid webhook → tenant `billing_status=active` and **seat counts**
+  (user-month + bot-month). Unpaid → grace then `402` on **new** seats;
+  recv still works in grace.
 - Hub never stores card numbers.
 - lde: fake-pay (csi-rel spec 077). Live rails: copy csi-rel drivers.
 
@@ -189,4 +190,4 @@ that module). Contract: `specs/006-spool-hub-rental/contracts/payment.md`.
 - Uniform box API (Constitution VIII).
 - Payment gates **existence and quota**, not the meaning of `sig`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:30:00Z -->

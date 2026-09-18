@@ -91,6 +91,7 @@ Kafka, per-agent hub keys.
 - **The site** is a **thin checkout page only** (landing + pay). Not the M3
   Slack UI. Not a SKU inside csi-rel/pas-psf.
 - **Payment: copy csi-rel** — `specs/006-spool-hub-rental/contracts/payment.md`.
+  They pay **you monthly per user and per bot** (seats), not per message.
 - After pay: **success page and one email** contain the tenant URL and the
   **tenant root private key**. Shown **once**. Hub never stores that private
   key. Lost mail → support / new tenant (no dashboard re-issue in M2).
@@ -136,4 +137,4 @@ provision (`SPEC-spool-byo-gcp.md`). Does **not** replace M2 hosted checkout.
 **M3 rollout** (Slack WUI, csi-rel/pas-psf hosting) →
 **later** CI logs in chat (`gh` on Cloud Run) and reverse-chat UI option.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:15:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:30:00Z -->

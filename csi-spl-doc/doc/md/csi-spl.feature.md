@@ -201,6 +201,19 @@ leave an encrypted blob in the bucket for good.
 `git-rel-clean` is still how a transfer ends; the rule is the backstop, not
 the mechanism.
 
+**What the rule costs, stated plainly.** An object uploaded and not fetched
+within a day is deleted, and nothing announces it: `git-rel-send` keeps no
+state record (only `request` does), so the hub never knows whether the box
+fetched, and the expiry itself is a bucket-side action with no log line on
+either side. The sender finds out from the receiver's `403`/`404`, which
+looks identical to an expired URL or a cleaned object. A transfer to a box
+that is offline over a weekend is gone by Monday; re-send rather than wait.
+`--expiry` extends the URL's life, never the object's.
+
+Applied 2026-09-18 to both buckets; read back from
+`gcloud storage buckets describe`:
+`{"lifecycle_config": {"rule": [{"action": {"type": "Delete"}, "condition": {"age": 1}}]}}`.
+
 ## 6. How to operate it
 
 All commands run from `csi-spl-iac` as the box user. Every gcloud call carries

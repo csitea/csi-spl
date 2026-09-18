@@ -14,6 +14,8 @@
 //	get-file <file_id> <dest>  get-dir <file_id> <dest>
 //	tail    [--task <uuid>] [--json]
 //	mcp                        stdio MCP server exposing the verbs as tools
+//	migrate [--db <dsn>] [--sql-dir <dir>]   apply the hub DDL (spec 003; defaults
+//	          $SPOOL_HUB_DB_DSN, $SPOOL_HUB_MIGRATIONS_DIR)
 //	version
 //
 // Local mode (no hub) is unsigned: send/recv need no key and no pin; keygen and
@@ -36,6 +38,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mcp"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // version is over/set at build time via -ldflags.
@@ -53,6 +56,9 @@ func run(args []string) int {
 	if cmd == "version" {
 		fmt.Println(version)
 		return 0
+	}
+	if cmd == "migrate" {
+		return cmdMigrate(rest)
 	}
 
 	cfg, err := config.Load()
@@ -237,4 +243,37 @@ func pick(b bool, yes, no string) string {
 func fail(err error) int {
 	fmt.Fprintln(os.Stderr, "spool: "+err.Error())
 	return action.ExitCode(err)
+}
+
+// cmdMigrate applies the hub DDL (csi-spl-rdb/src/sql/postgres/spool-hub) to
+// the database in filename order; a re-run is a no-op (spec 003 T001b).
+func cmdMigrate(args []string) int {
+	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
+	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
+	dir := fs.String("sql-dir", os.Getenv("SPOOL_HUB_MIGRATIONS_DIR"), "DDL dir (default $SPOOL_HUB_MIGRATIONS_DIR)")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if *dsn == "" || *dir == "" {
+		return fail(fmt.Errorf("--db / $SPOOL_HUB_DB_DSN and --sql-dir / $SPOOL_HUB_MIGRATIONS_DIR are required"))
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	pg, err := store.OpenPostgres(ctx, *dsn)
+	if err != nil {
+		return fail(err)
+	}
+	defer pg.Close()
+	res, err := store.Migrate(ctx, pg.Pool(), *dir)
+	for _, a := range res {
+		if a.Skipped {
+			fmt.Println("skipped " + a.File + " (already applied)")
+		} else {
+			fmt.Println("applied " + a.File)
+		}
+	}
+	if err != nil {
+		return fail(err)
+	}
+	return 0
 }

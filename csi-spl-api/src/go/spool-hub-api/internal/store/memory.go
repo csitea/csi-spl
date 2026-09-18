@@ -1,0 +1,308 @@
+package store
+
+import (
+	"bytes"
+	"context"
+	"crypto/ed25519"
+	"sort"
+	"sync"
+	"time"
+)
+
+// Memory is an in-process Store for unit tests (003 Assumptions: memory
+// allowed in tests; production is Postgres). Same semantics as Postgres.
+type Memory struct {
+	mu         sync.Mutex
+	tenants    map[string]Tenant
+	pins       map[[2]string]*memPin
+	boxes      map[[2]string]time.Time
+	roster     map[[2]string][]string
+	messages   map[[2]string]*Message
+	deliveries map[[3]string]*memDelivery
+	seq        int
+}
+
+type memPin struct {
+	pub     ed25519.PublicKey
+	revoked bool
+}
+
+type memDelivery struct {
+	state      string
+	receivedAt time.Time
+	expiresAt  time.Time
+	seq        int
+}
+
+// NewMemory returns an empty in-memory store.
+func NewMemory() *Memory {
+	return &Memory{
+		tenants: map[string]Tenant{}, pins: map[[2]string]*memPin{},
+		boxes: map[[2]string]time.Time{}, roster: map[[2]string][]string{},
+		messages: map[[2]string]*Message{}, deliveries: map[[3]string]*memDelivery{},
+	}
+}
+
+func (s *Memory) CreateTenant(_ context.Context, t Tenant) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if old, ok := s.tenants[t.ID]; ok {
+		if !bytes.Equal(old.RootPubKey, t.RootPubKey) {
+			return ErrConflict
+		}
+		return nil
+	}
+	if t.BillingStatus == "" {
+		t.BillingStatus = "internal"
+	}
+	if t.PlanID == "" {
+		t.PlanID = "default"
+	}
+	s.tenants[t.ID] = t
+	return nil
+}
+
+func (s *Memory) GetTenant(_ context.Context, id string) (Tenant, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	t, ok := s.tenants[id]
+	if !ok {
+		return Tenant{}, ErrNotFound
+	}
+	return t, nil
+}
+
+func (s *Memory) PutPin(_ context.Context, tenant, box string, pub ed25519.PublicKey, force bool, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.tenants[tenant]; !ok {
+		return ErrNotFound
+	}
+	k := [2]string{tenant, box}
+	if p, ok := s.pins[k]; ok && !bytes.Equal(p.pub, pub) && !force {
+		return ErrConflict
+	}
+	s.pins[k] = &memPin{pub: append(ed25519.PublicKey(nil), pub...)}
+	return nil
+}
+
+func (s *Memory) RevokePin(_ context.Context, tenant, box string, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.pins[[2]string{tenant, box}]
+	if !ok {
+		return ErrNotFound
+	}
+	p.revoked = true
+	return nil
+}
+
+func (s *Memory) GetPin(_ context.Context, tenant, box string) (ed25519.PublicKey, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.pins[[2]string{tenant, box}]
+	if !ok || p.revoked {
+		return nil, ErrNotFound
+	}
+	return p.pub, nil
+}
+
+func (s *Memory) ListPins(_ context.Context, tenant string) ([]Pin, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []Pin
+	for k, p := range s.pins {
+		if k[0] == tenant && !p.revoked {
+			out = append(out, Pin{BoxID: k[1], PubKey: p.pub})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].BoxID < out[j].BoxID })
+	return out, nil
+}
+
+func (s *Memory) TouchBox(_ context.Context, tenant, box string, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.boxes[[2]string{tenant, box}] = now
+	return nil
+}
+
+func (s *Memory) SetRoster(_ context.Context, tenant, box string, agents []string, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.boxes[[2]string{tenant, box}] = now
+	a := append([]string(nil), agents...)
+	sort.Strings(a)
+	s.roster[[2]string{tenant, box}] = a
+	return nil
+}
+
+func (s *Memory) Roster(_ context.Context, tenant string) (map[string][]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[string][]string{}
+	for k, a := range s.roster {
+		if k[0] == tenant && len(a) > 0 {
+			out[k[1]] = append([]string(nil), a...)
+		}
+	}
+	return out, nil
+}
+
+func (s *Memory) InsertMessage(_ context.Context, m Message) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := [2]string{m.TenantID, m.MsgID}
+	if old, ok := s.messages[k]; ok {
+		if bytes.Equal(old.Env, m.Env) {
+			return false, nil
+		}
+		return false, ErrConflict
+	}
+	c := m
+	s.messages[k] = &c
+	return true, nil
+}
+
+func (s *Memory) Enqueue(_ context.Context, tenant, msgID, toBox string, now, expires time.Time, maxPerBox int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := [3]string{tenant, msgID, toBox}
+	if _, ok := s.deliveries[k]; !ok {
+		s.seq++
+		s.deliveries[k] = &memDelivery{state: StateQueued, receivedAt: now, expiresAt: expires, seq: s.seq}
+	}
+	s.capLocked(tenant, toBox, maxPerBox)
+	return nil
+}
+
+// capLocked expires the oldest queued rows of (tenant, box) beyond max.
+func (s *Memory) capLocked(tenant, box string, max int) int {
+	if max <= 0 {
+		return 0
+	}
+	var q []*memDelivery
+	for k, d := range s.deliveries {
+		if k[0] == tenant && k[2] == box && d.state == StateQueued {
+			q = append(q, d)
+		}
+	}
+	if len(q) <= max {
+		return 0
+	}
+	sort.Slice(q, func(i, j int) bool { return older(q[i], q[j]) })
+	n := len(q) - max
+	for _, d := range q[:n] {
+		d.state = StateExpired
+	}
+	return n
+}
+
+func older(a, b *memDelivery) bool {
+	if !a.receivedAt.Equal(b.receivedAt) {
+		return a.receivedAt.Before(b.receivedAt)
+	}
+	return a.seq < b.seq
+}
+
+func (s *Memory) ClaimSent(_ context.Context, tenant, msgID, toBox string, now time.Time) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.deliveries[[3]string{tenant, msgID, toBox}]
+	if !ok || d.state != StateQueued || !now.Before(d.expiresAt) {
+		return false, nil
+	}
+	d.state = StateSent
+	return true, nil
+}
+
+func (s *Memory) Unclaim(_ context.Context, tenant, msgID, toBox string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if d, ok := s.deliveries[[3]string{tenant, msgID, toBox}]; ok && d.state == StateSent {
+		d.state = StateQueued
+	}
+	return nil
+}
+
+func (s *Memory) DeliveryState(_ context.Context, tenant, msgID, toBox string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.deliveries[[3]string{tenant, msgID, toBox}]
+	if !ok {
+		return "", ErrNotFound
+	}
+	return d.state, nil
+}
+
+func (s *Memory) QueuedFor(_ context.Context, tenant, toBox string, now time.Time) ([]Queued, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	type row struct {
+		d   *memDelivery
+		env []byte
+		id  string
+	}
+	var rows []row
+	for k, d := range s.deliveries {
+		if k[0] == tenant && k[2] == toBox && d.state == StateQueued && now.Before(d.expiresAt) {
+			if m, ok := s.messages[[2]string{tenant, k[1]}]; ok {
+				rows = append(rows, row{d, m.Env, k[1]})
+			}
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool { return older(rows[i].d, rows[j].d) })
+	out := make([]Queued, len(rows))
+	for i, r := range rows {
+		out[i] = Queued{MsgID: r.id, Env: r.env}
+	}
+	return out, nil
+}
+
+func (s *Memory) TaskEnvelopes(_ context.Context, tenant, taskID string) ([][]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var ms []*Message
+	for k, m := range s.messages {
+		if k[0] == tenant && m.TaskID == taskID {
+			ms = append(ms, m)
+		}
+	}
+	sort.Slice(ms, func(i, j int) bool {
+		if !ms[i].TS.Equal(ms[j].TS) {
+			return ms[i].TS.Before(ms[j].TS)
+		}
+		return ms[i].MsgID < ms[j].MsgID
+	})
+	out := make([][]byte, len(ms))
+	for i, m := range ms {
+		out[i] = m.Env
+	}
+	return out, nil
+}
+
+func (s *Memory) Sweep(_ context.Context, now time.Time) (SweepResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var r SweepResult
+	for _, d := range s.deliveries {
+		if d.state == StateQueued && !now.Before(d.expiresAt) {
+			d.state = StateExpired
+			r.Expired++
+		}
+	}
+	for k, m := range s.messages {
+		if !now.Before(m.ExpiresAt) {
+			delete(s.messages, k)
+			for dk := range s.deliveries {
+				if dk[0] == k[0] && dk[1] == k[1] {
+					delete(s.deliveries, dk)
+				}
+			}
+			r.Purged++
+		}
+	}
+	return r, nil
+}
+
+func (s *Memory) Close() {}

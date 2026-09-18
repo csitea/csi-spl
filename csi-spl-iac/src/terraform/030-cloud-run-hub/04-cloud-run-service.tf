@@ -126,12 +126,12 @@ resource "google_cloud_run_v2_service" "hub" {
   ]
 
   lifecycle {
-    # The deploy (028 image + CI) owns the running image; terraform owns the
-    # shape of the service.
+    # The image is terraform's (var.image = cnf hub.image.ref, an immutable
+    # 028 tag): a deploy is a new tag, re-render, plan + apply. Only the
+    # client stamps gcloud/console leave behind are ignored.
     ignore_changes = [
       client,
       client_version,
-      template[0].containers[0].image,
     ]
   }
 }

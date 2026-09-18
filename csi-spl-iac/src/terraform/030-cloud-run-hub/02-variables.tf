@@ -41,7 +41,7 @@ variable "runtime_sa_account_id" {
 
 variable "image" {
   type        = string
-  description = "The initial container image. The deploy owns the image afterwards (lifecycle ignore_changes)."
+  description = "The image the service runs: cnf hub.image.ref, <region>-docker.pkg.dev/<project>/<028 repository>/<name>:<tag>. Terraform owns it; a deploy is a new tag + apply."
 }
 
 variable "container_port" {

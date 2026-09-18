@@ -3,7 +3,8 @@
 # @description Write the effective config of one env to a file: all.env.yaml
 # @description deep-merged under <env>.env.yaml, plus the derived
 # @description env.dns.fqdn. Every consumer that needs the domain reads THIS,
-# @description never a literal.
+# @description never a literal. Cloud envs also get env.hub.image.ref (the
+# @description image 030 runs, from 028 + hub.image).
 # @param $1 - the cnf dir holding all.env.yaml and <env>.env.yaml
 # @param $2 - env: dev, prd or lde
 # @param $3 - output yaml path
@@ -18,7 +19,10 @@ do_spl_merged_cnf() {
     yq '(.env | select(.hub != null)) |= (
       .hub.env.SPOOL_HUB_ENV = (.hub.env.SPOOL_HUB_ENV // .ENV) |
       .hub.env.SPOOL_HUB_FILES_BUCKET = (.hub.env.SPOOL_HUB_FILES_BUCKET // .steps."050-gcs-files".files_bucket_name) |
-      .hub.env.SPOOL_HUB_TENANT_HOST_PATTERN = (.hub.env.SPOOL_HUB_TENANT_HOST_PATTERN // ("{tenant}." + .dns.fqdn)))' >"$out" || return 1
+      .hub.env.SPOOL_HUB_TENANT_HOST_PATTERN = (.hub.env.SPOOL_HUB_TENANT_HOST_PATTERN // ("{tenant}." + .dns.fqdn)))' |
+    yq '(.env | select(.hub.image.tag != null and .steps."028-gcp-artifact-registry" != null)) |= (
+      .hub.image.ref = (.gcp.gcp_region + "-docker.pkg.dev/" + .gcp.gcp_project + "/" +
+        .steps."028-gcp-artifact-registry".repository_id + "/" + .hub.image.name + ":" + (.hub.image.tag | tostring)))' >"$out" || return 1
   local base
   base=$(yq -r '.env.dns.BASE_DOMAIN // ""' "$out")
   [[ -n "$base" && "$base" != null ]] || { echo "do_spl_merged_cnf: env.dns.BASE_DOMAIN is empty" >&2; return 1; }

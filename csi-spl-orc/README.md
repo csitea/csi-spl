@@ -3,7 +3,8 @@
 Local dev orchestration (`lde`) for the spool **hub**: Postgres, a GCS
 emulator and `spool serve` in docker compose, wired from `csi-spl-cnf` and
 nothing else. Shaped like `pas-psf-orc` (compose split -infra / -rdb / -api,
-`gen-docker-env`). LOCAL ONLY: no action here calls gcloud or terraform.
+`gen-docker-env`). The lde actions are LOCAL ONLY: they call no gcloud and
+no terraform. The few CLOUD actions (below) are owner-gated dry runs by default.
 The WUI is not part of this stack (a separate lane owns it).
 
 | action | what |
@@ -12,6 +13,18 @@ The WUI is not part of this stack (a separate lane owns it).
 | `./run -a do_teardown_app_inf` | `compose down` for this tree (`LDE_PURGE=1` also drops the volumes) |
 | `./run -a do_gen_docker_env` | render `compose.env` + `hub.env` from cnf (called by the two above) |
 | `./run -a do_provision_spool_root` | make the box's `/var/spool-hub` (cnf `env.box`) with the shared perms model |
+
+## Cloud actions (dev / prd) -- owner-gated
+
+Every one is a **dry run unless `DRY_RUN=0`**, reads every name from the
+effective cnf (`do_spl_cloud_cnf`: the same merge tpl-gen renders from), and
+needs `GCP_ACCOUNT` (a fail-fast env var, never committed) only for a real
+run. Every gcloud call carries `--account`; nothing writes the shared gcloud
+or docker config. Nothing here runs terraform: that is `csi-spl-iac`.
+
+| action | what |
+|---|---|
+| `ENV=dev ./run -a do_build_push_hub_image` | build the hub image as cnf `hub.image.ref` (the image 030 runs); `DRY_RUN=0` pushes it to the 028 registry |
 
 ## Where things come from
 

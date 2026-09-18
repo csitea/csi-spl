@@ -5,9 +5,9 @@ env         = "dev"
 gcp_project = "csi-spl-dev"
 gcp_region  = "europe-north1"
 
-image = "us-docker.pkg.dev/cloudrun/container/hello"
 health_path = "/healthz"
 allow_unauthenticated = true
+image                        = "europe-north1-docker.pkg.dev/csi-spl-dev/csi-spl-dev-hub/spool-hub:0.1.0"
 service_name                 = "csi-spl-hub-dev"
 runtime_sa_account_id        = "csi-spl-hub-dev"
 container_port               = 8080

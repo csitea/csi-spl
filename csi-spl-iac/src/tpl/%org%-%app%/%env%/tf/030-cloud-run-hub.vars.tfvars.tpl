@@ -7,6 +7,7 @@ gcp_region  = "{{ gcp["gcp_region"] }}"
 {% for key, value in steps["030-cloud-run-hub"].items() %}
 {{ key }} = {{ value | tojson }}
 {%- endfor %}
+image                        = {{ hub["image"]["ref"] | tojson }}
 service_name                 = {{ hub["service_name"] | tojson }}
 runtime_sa_account_id        = {{ hub["runtime_sa_account_id"] | tojson }}
 container_port               = {{ hub["cloud_run"]["port"] | tojson }}

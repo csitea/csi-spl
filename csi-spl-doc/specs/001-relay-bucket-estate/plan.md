@@ -22,7 +22,14 @@ mismatched values.
 **Storage**: GCS (tfstate buckets; the relay bucket itself). No database.
 
 **Testing**: `csi-spl-iac/src/bash/tests/*.tst.sh` (dead-credential guard,
-domain-single-source) + git-rel's own roundtrip suite in `nea-nfs-orc`.
+domain-single-source, tf-plan-keeps-local-state, tf-steps-render-and-validate)
++ git-rel's own roundtrip suite in `nea-nfs-orc`.
+
+Re-audit 2026-09-18: `domain-single-source.tst.sh` currently fails on the
+product path `spool-hub-api` (spec 002, already on trunk) because it greps the
+label without TLD; the FQDN itself is still confined to cnf+doc. See
+`spec.md` Audit findings. `tf-steps-render-and-validate.tst.sh` does not
+assert `object_max_age_days = 1`.
 
 **Target Platform**: GCP `europe-north1`.
 
@@ -51,7 +58,8 @@ csi-spl-iac/
 │   └── 020-gcp-relay-bucket/      # csi-spl-<env>-rel + SA + one IAM binding
 ├── src/tpl/%app%/%env%/tf/        # tpl-gen templates → <env>/tf/*.tfvars
 ├── src/bash/run/                  # do_gcp_001_create_project, do_tpl_gen, do_tf_plan
-├── src/bash/tests/                # dead-credential, domain-single-source
+├── src/bash/tests/                # dead-credential, domain-single-source,
+│                                  # tf-plan-keeps-local-state, tf-steps-render-and-validate
 └── cnf/tpl-gen.ref                # pinned tpl-gen commit
 
 csi-spl-cnf/csi-spl/
@@ -68,8 +76,9 @@ steps with per-step run dirs; apply is a manual, reviewed step (no apply action)
 2. Apply `001` (enable storage/iam/orgpolicy; never disabled on destroy).
 3. Apply `020` (relay bucket + SA + `roles/storage.objectUser` binding).
 4. Mint the relay SA key out of band (`6.3`), `chmod 600`.
-5. Verify (`6.4`): describe, signed PUT/GET round-trip, unsigned/anonymous 403.
+5. Verify (`6.4`): operator describe (`storage.buckets.get`); signed PUT/GET
+   round-trip as the relay SA; unsigned/anonymous 403.
 6. Switch git-rel to the new bucket via one config file in `nea-nfs-orc`
    (landed `47dc615`); retire `gs://bnc-cpt-all-relay`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T00:00:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T14:36:48Z -->

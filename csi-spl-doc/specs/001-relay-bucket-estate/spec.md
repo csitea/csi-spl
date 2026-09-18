@@ -12,6 +12,11 @@ narrative remains the living how-to; this spec is the FR/SC record). Terraform
 steps `000/001/020` exist; the git-rel switch landed in nea-nfs-orc `47dc615`;
 `gs://bnc-cpt-all-relay` was retired 2026-09-17.
 
+**Re-audit (GRK-931, 2026-09-18T14:36:48Z)**: read-only check of FR/SC against
+the repo and live GCS. Findings at the end of this file. Spec text below was
+corrected where the as-built disagreed (describe is not a relay-SA call;
+"the domain" is the FQDN).
+
 **Input**: "Provide the GCS bucket, service account and GCP projects that
 git-rel needs to relay gpg-encrypted files between the hub and the boxes, with
 the same access model as the bucket it replaces and one deliberate improvement:
@@ -36,9 +41,13 @@ exposure controls git-rel depends on.
 **Why this priority**: Without the bucket + SA + key, git-rel cannot relay
 anything; this is the whole feature.
 
-**Independent Test**: Run the §6.4 verification (describe with the relay SA,
-signed PUT/GET round-trip, unsigned/anonymous = 403, delete = 0 objects) against
-a freshly applied env.
+**Independent Test**: Run the §6.4 verification against a freshly applied env.
+Describe the bucket with an operator identity that holds `storage.buckets.get`
+— the relay SA is `roles/storage.objectUser` only and is refused
+`buckets describe` (that refusal is FR-003 holding, not a failed describe).
+Then, as the relay SA under a throwaway `CLOUDSDK_CONFIG`: signed PUT/GET
+round-trip of `dyr-<32hex>/probe.gpg`, unsigned/anonymous = 403, delete = 0
+objects.
 
 **Acceptance Scenarios**:
 
@@ -96,9 +105,10 @@ after clean.
   answer 403; nothing may make an object public.
 - **FR-005**: The relay SA key MUST be minted out of band (never a Terraform
   resource), `chmod 600`, under `$HOME/.gcp/.csi/`.
-- **FR-006**: The domain MUST live in exactly one place
-  (`all.env.yaml → env.dns.BASE_DOMAIN`) and appear in no tracked file outside
-  `csi-spl-cnf/` and `csi-spl-doc/`.
+- **FR-006**: The DNS domain (the FQDN in `all.env.yaml → env.dns.BASE_DOMAIN`)
+  MUST live in exactly one place and appear in no tracked file outside
+  `csi-spl-cnf/` and `csi-spl-doc/`. The product path `spool-hub-api` is not
+  the domain.
 - **FR-007**: `do_gcp_001_create_project` MUST be a dry run unless `DRY_RUN=0`
   and MUST prove `GCP_ACCOUNT` can mint a token before any create.
 - **FR-008**: State for step `000` MUST bootstrap with a local backend then
@@ -116,14 +126,18 @@ after clean.
 ## Success Criteria
 
 - **SC-001**: The §6.4 verification passes on both `csi-spl-dev-rel` and
-  `csi-spl-prd-rel`.
+  `csi-spl-prd-rel`. Bucket describe is an operator call (`storage.buckets.get`);
+  the relay SA is used for the object round-trip only.
 - **SC-002**: A git-rel round trip against `gs://csi-spl-prd-rel` passes
   (measured 2026-09-17: 48 passed / 1 known F3 leak; control against a
   non-existent bucket 22/27).
-- **SC-003**: `gcloud storage buckets describe` shows the 1-day lifecycle rule
-  on both buckets.
-- **SC-004**: `domain-single-source.tst.sh` finds the domain nowhere outside
-  `csi-spl-cnf/` and `csi-spl-doc/`.
+- **SC-003**: `gcloud storage buckets describe` (operator identity) shows the
+  1-day lifecycle rule on both buckets.
+- **SC-004**: The FQDN from `env.dns.BASE_DOMAIN` appears in no tracked file
+  outside `csi-spl-cnf/` and `csi-spl-doc/`. The shipped
+  `domain-single-source.tst.sh` greps the label without TLD and therefore also
+  matches `spool-hub-api`; that over-match is recorded in Audit findings, not
+  a domain leak.
 
 ## Assumptions
 
@@ -133,4 +147,56 @@ after clean.
 - `bnc-cpt-all@...` is `bnc-cpt`'s own owner identity, NOT a relay identity —
   left alone deliberately; retiring it is a `bnc-cpt` decision.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T00:00:00Z -->
+## Audit findings (GRK-931, 2026-09-18)
+
+Read-only re-audit of this retrospective spec against the as-built repo and
+live GCS. Nothing mutated GCP. Operator token
+`gcloud auth print-access-token --account=<operator>` refused (org reauth,
+same as `csi-spl.feature.md` §6.1.3). Relay SA keys used only under a
+throwaway `CLOUDSDK_CONFIG`.
+
+Worktree at audit: branch `GRK-931-001-estate-audit`.
+`n=1` live pass of anonymous HTTP and SA object-list unless noted.
+
+### FR / SC
+
+| id | verdict | evidence |
+|---|---|---|
+| FR-001 | verified in repo; live project describe unverifiable | `csi-spl-cnf/csi-spl/{dev,prd}.env.yaml` `gcp_project` / `gcp_region` / `state_bucket`; terraform `000-gcp-remote-bucket`. Operator token dead. |
+| FR-002 | verified in repo; live settings unverifiable | yaml+tfvars `object_max_age_days = 1`, `soft_delete_retention_seconds = 604800`; `03-relay-bucket.tf` PAP `enforced`, uniform access, dynamic lifecycle. Buckets exist: anonymous GET is 403, not 404. |
+| FR-003 | verified | terraform `04-relay-sa.tf` one `roles/storage.objectUser` binding; no `google_service_account_key` resource. Live: relay SA denied `storage.buckets.get` and `storage.buckets.getIamPolicy`; `gcloud storage ls gs://csi-spl-<env>-rel/dyr-*` is allowed (empty). |
+| FR-004 | verified live | `curl` unsigned GET of a missing object and anonymous listing, both buckets, cache-busted: HTTP 403 `AccessDenied`. |
+| FR-005 | verified | keys `$HOME/.gcp/.csi/key-csi-spl-{dev,prd}-rel.json`, mode `600`, `project_id` matches env, `client_email` is `csi-spl-rel-<env>@csi-spl-<env>.iam.gserviceaccount.com`. `git grep google_service_account_key` → comments only. |
+| FR-006 | verified for the FQDN; test over-matches | `git grep spool-hub.ai -- :!csi-spl-cnf :!csi-spl-doc` → empty. `domain-single-source.tst.sh` fails because it greps the label `spool-hub`, which hits Go module `spool-hub-api` (spec 002, already on `origin/master`, 13 files). |
+| FR-007 | verified | `do_gcp_001_create_project`: `DRY_RUN` default 1; `gcp-001-dead-credential-no-create.tst.sh` all PASS. |
+| FR-008 | verified in repo; live lineage unverifiable | procedure in `csi-spl.feature.md` §6.2.4; `do_tf_plan` refuses to wipe a run dir holding state; `tf-plan-keeps-local-state.tst.sh` PASS. Operator cannot `storage cat` tfstate (reauth). |
+| NFR-001 | verified as built | pin is `env.versions.terraform_version: 1.9.8` in cnf, used by `do_tf_plan`. Terraform `required_version` is `>= 1.5.0` (a floor, not the pin). |
+| NFR-002 | verified | no private-key PEM in the tree; SA key is not a terraform resource. |
+| NFR-003 | verified | every `gcloud` in `gcp-001-create-project.func.sh` carries `--account`; git-rel uses a throwaway `CLOUDSDK_CONFIG`. Ambient `[core] account` unset. |
+| NFR-004 | verified | no apply action in `csi-spl-iac`; create-project is dry-run unless `DRY_RUN=0`. This audit issued no mutating gcloud. |
+| SC-001 | partial; procedure drifted | unsigned/anonymous 403 live on both buckets. §6.4 step 1 "describe with the relay SA" cannot succeed (FR-003). Signed PUT/GET not repeated (would mutate). |
+| SC-002 | unverifiable this audit | would mutate. Client still reads `nea-nfs-orc/cnf/bash/git-rel.cnf`; commit `47dc615` present; `sign-url --region="$RELAY_REGION"`. Prior measurement in the operator narrative. |
+| SC-003 | unverifiable live | needs operator `buckets describe`. Repo has the 1-day rule; previously read back 2026-09-18 in the operator narrative. |
+| SC-004 | drifted as a test | FQDN still confined (FR-006). Test fails on `spool-hub-api`. Follow-up (not this audit, iac): search for the FQDN, or allow the product path. 002 owns the module name. |
+
+### Out of this audit's pathspec (not edited)
+
+- `csi-spl-doc/doc/md/csi-spl.feature.md` §6.4 still says describe with the relay SA.
+- `csi-spl-cnf/csi-spl/{dev,prd}.env.yaml` comments still say "OPEN QUESTION" next to `object_max_age_days: 1` (decided 2026-09-18, `8df4516`).
+- `nea-nfs-orc` `git-rel.lib.sh` header still says "public-read object"; `git-rel-send.func.sh` uploads private (no predefined ACL).
+- Hygiene grep hits the box-harness name (spec 002/003 docs and the constitution) — not in spec 001 / iac / cnf / the operator narrative.
+- `tf-steps-render-and-validate.tst.sh` does not assert `object_max_age_days = 1`.
+
+### Tests (this worktree)
+
+`bash csi-spl-iac/src/bash/tests/run-all-tests.sh` → 3/4 files passed.
+`domain-single-source.tst.sh` FAIL (label match, above). The other three PASS.
+`tf-steps-render-and-validate.tst.sh` skipped tpl-gen in the worktree (no clone);
+render-sync re-run against the sibling `tpl-gen` clone HEAD `89468a10`
+(= `csi-spl-iac/cnf/tpl-gen.ref`): both envs in sync.
+
+Live extras: anonymous GET of retired `gs://bnc-cpt-all-relay` → HTTP 404
+`NoSuchBucket`. Relay SA object list of `dyr-*` on both current buckets →
+no objects.
+
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T14:36:48Z -->

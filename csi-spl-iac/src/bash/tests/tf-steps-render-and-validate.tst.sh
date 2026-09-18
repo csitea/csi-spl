@@ -99,6 +99,43 @@ for env in dev prd; do
   grep -q "^files_bucket_name = \"csi-spl-$env-files\"" "$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/050-gcs-files.vars.tfvars" && pass "$env files bucket is csi-spl-$env-files" || fail "$env files bucket name"
 done
 
+# --- 2c. 017 GitHub WIF (CI deploy identity; no SA JSON key) --------------------
+[[ -d "$TFD/017-github-wif-deploy" ]] \
+  && pass "017 github WIF step exists" || fail "017-github-wif-deploy missing"
+grep -qE 'credentials\s*=\s*file\(' "$TFD"/017-github-wif-deploy/*.tf \
+  && fail "017 bakes a credentials file() path" || pass "017 uses ADC (no credentials file())"
+grep -qE 'resource "google_service_account_key"' "$TFD"/017-github-wif-deploy/*.tf \
+  && fail "017 has an SA key resource" || pass "017 has no SA key resource"
+grep -qE 'resource "google_iam_workload_identity_pool"' "$TFD"/017-github-wif-deploy/*.tf \
+  && pass "017 creates a WIF pool" || fail "017 has no WIF pool"
+grep -qE 'attribute_condition' "$TFD"/017-github-wif-deploy/*.tf \
+  && pass "017 pins trust with attribute_condition" || fail "017 has no attribute_condition"
+# The deploy SA must be one 017 creates: binding WIF to an SA nobody made
+# fails at apply (the owner SA <project>@<project> does not exist here).
+grep -qE 'resource "google_service_account" "deploy"' "$TFD"/017-github-wif-deploy/*.tf \
+  && pass "017 creates its deploy SA" || fail "017 does not create the deploy SA"
+grep -q 'iam.gserviceaccount.com"' "$TFD"/017-github-wif-deploy/03-github-wif.tf \
+  && grep -q 'project}@${var.gcp_project}' "$TFD"/017-github-wif-deploy/*.tf \
+  && fail "017 still binds the non-existent <project>@<project> SA" || pass "017 binds no <project>@<project> SA"
+for role in roles/artifactregistry.writer roles/run.developer roles/iam.serviceAccountUser roles/iam.workloadIdentityUser; do
+  grep -q "\"$role\"" "$TFD"/017-github-wif-deploy/*.tf && pass "017 grants $role" || fail "017 lacks $role"
+done
+grep -qE 'role += "roles/(owner|editor)"' "$TFD"/017-github-wif-deploy/*.tf \
+  && fail "017 grants a primitive role" || pass "017 grants no primitive role"
+for env in dev prd; do
+  v="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/017-github-wif-deploy.vars.tfvars"
+  grep -qx 'github_repository = "csitea/csi-spl"' "$v" \
+    && pass "$env WIF github_repository is csitea/csi-spl" || fail "$env WIF github_repository"
+  grep -qx "deploy_sa_account_id = \"csi-spl-deploy-$env\"" "$v" \
+    && pass "$env deploy SA is csi-spl-deploy-$env" || fail "$env deploy_sa_account_id"
+  grep -qx "hub_service_name          = \"csi-spl-hub-$env\"" "$v" \
+    && pass "$env 017 targets csi-spl-hub-$env" || fail "$env 017 hub_service_name"
+  for api in iamcredentials.googleapis.com sts.googleapis.com; do
+    grep -q "\"$api\"" "$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/001-enable-gcp-services.vars.tfvars" \
+      && pass "$env 001 enables $api (017 WIF)" || fail "$env 001 lacks $api"
+  done
+done
+
 # --- 3. fmt + validate ----------------------------------------------------------
 TF=$(ls "$HOME"/.local/share/csi-spl/bin/terraform-* 2>/dev/null | sort -V | tail -1)
 if [[ -x "$TF" ]]; then
@@ -106,7 +143,7 @@ if [[ -x "$TF" ]]; then
   # A private plugin cache: the shared one is not safe for concurrent inits
   # (measured 2026-09-17: validate failed once in 3 runs during another
   # operator's apply, and passed alone).
-  tf_cache="$HOME/.terraform.d/plugin-cache/csi/spl/test"
+  tf_cache="$HOME/.terraform.d/plugin-cache/csi/spl/test-$$"
   mkdir -p "$tf_cache"
   for step in "$PROJ_ROOT"/src/terraform/*/; do
     tmp=$(mktemp -d); cp -r "$step." "$tmp/"

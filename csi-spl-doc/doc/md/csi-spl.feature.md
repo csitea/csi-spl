@@ -443,7 +443,23 @@ Evidence, all with the bnc SA under a throwaway `CLOUDSDK_CONFIG`:
 - After: `gcloud storage buckets describe` -> `not found: 404`; a cache-busted
   anonymous GET of the bucket root and of a former object -> 404 and 404.
 
-Left alone, as ordered: the service account `bnc-cpt-all@bnc-cpt-all.iam.gserviceaccount.com`
-and its key `~/.gcp/.bnc/key-bnc-cpt-all.json` — other bnc uses may exist. Both
-are candidates for the owner to retire separately. That key file is mode 0750,
-not 0600; worth tightening, not done here.
+Left alone, and it should stay that way: the service account
+`bnc-cpt-all@bnc-cpt-all.iam.gserviceaccount.com` is **not** a relay identity.
+It is the `bnc-cpt` project's own owner — `roles/owner`, `roles/storage.admin`,
+`roles/secretmanager.admin`, `roles/iam.serviceAccountAdmin`,
+`roles/compute.securityAdmin` — which the old relay borrowed, and which
+`bnc-cpt` still uses (its `bnc-cpt-cnf/bnc-cpt/all.env.json` names it, and
+`bnc-cpt-iac`'s gsheet-secrets tool reads its key file). Measured 2026-09-18.
+Retiring it is a `bnc-cpt` decision; doing it from the relay side would take a
+project's owner identity offline. Its key file was tightened from 0750 to
+**0600** on 2026-09-18; nothing else about it was touched.
+
+**The trap it left behind, and the fix.** Until 2026-09-18 the shared
+`~/.config/gcloud` had `[core] account` pointing at that SA, so any gcloud call
+without `--account` authenticated as it and answered
+`403 ... (or it may not exist)` — wording GCS emits for *any* identity lacking
+the permission, so it reads like a missing object. The ambient account is now
+UNSET (the owner's 2026-09-02 fleet decision), and a bare call says
+`You do not currently have an active account selected` instead. Pass
+`--account`, or use a throwaway `CLOUDSDK_CONFIG`, as everything in this repo
+already does.

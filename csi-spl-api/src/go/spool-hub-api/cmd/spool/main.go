@@ -1,5 +1,6 @@
 // Command spool is the on-box agent-messaging binary: one binary behind every
-// CLI verb (and, later, the stdio MCP server and the Cloud Run hub). Spec 002.
+// CLI verb, the stdio MCP server (`spool mcp`) and, later, the Cloud Run hub.
+// Verbs and MCP tools both call internal/action. Spec 002.
 //
 // Verbs (invoked as `spool <verb>`; the hyphenated `spool-<verb>` names in the
 // contract are shims over these):
@@ -12,23 +13,25 @@
 //	put-file <path>            put-dir <path>
 //	get-file <file_id> <dest>  get-dir <file_id> <dest>
 //	tail    [--task <uuid>] [--json]
+//	mcp                        stdio MCP server exposing the verbs as tools
 //	version
 //
 // Exit codes: 0 ok, 78 verify/refuse (unpinned, bad sig, hash mismatch), 1 other.
 package main
 
 import (
-	"encoding/json"
-	"errors"
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
-	"github.com/csitea/csi-spl/spool-hub-api/internal/files"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/mcp"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
-	"github.com/csitea/csi-spl/spool-hub-api/internal/spool"
 )
 
 // version is over/set at build time via -ldflags.
@@ -38,7 +41,7 @@ func main() { os.Exit(run(os.Args[1:])) }
 
 func run(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: spool <keygen|pin|send|recv|put-file|put-dir|get-file|get-dir|tail|version> ...")
+		fmt.Fprintln(os.Stderr, "usage: spool <keygen|pin|send|recv|put-file|put-dir|get-file|get-dir|tail|mcp|version> ...")
 		return 1
 	}
 	cmd, rest := args[0], args[1:]
@@ -73,8 +76,7 @@ func run(args []string) int {
 	case "tail":
 		return cmdTail(cfg, rest)
 	case "mcp":
-		fmt.Fprintln(os.Stderr, "spool mcp: stdio MCP server not yet implemented (spec 002 US4)")
-		return 1
+		return cmdMCP(cfg)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1
@@ -140,45 +142,15 @@ func cmdSend(cfg *config.Config, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	var atts []msg.Attachment
-	for _, id := range fileIDs {
-		atts = append(atts, msg.Attachment{Mode: "blob", Kind: "file", FileID: id, SHA256: id, Name: id})
-	}
-	if *putFile != "" {
-		a, err := files.PutFile(cfg.FilesDir(), *putFile)
-		if err != nil {
-			return fail(err)
-		}
-		atts = append(atts, a)
-	}
-	for _, p := range dirBlobs {
-		a, err := files.PutDir(cfg.FilesDir(), p)
-		if err != nil {
-			return fail(err)
-		}
-		atts = append(atts, a)
-	}
-	for _, p := range fileRefs {
-		a, err := files.RefFile(p)
-		if err != nil {
-			return fail(err)
-		}
-		atts = append(atts, a)
-	}
-	for _, p := range dirRefs {
-		a, err := files.RefDir(p)
-		if err != nil {
-			return fail(err)
-		}
-		atts = append(atts, a)
-	}
-	st := spool.New(cfg)
-	m, err := st.Send(*from, *to, *task, *kind, *body, atts)
+	out, err := action.Send(cfg, action.SendArgs{
+		From: *from, To: *to, TaskID: *task, Kind: *kind, Body: *body,
+		FileIDs: fileIDs, FileRefs: fileRefs, DirBlobs: dirBlobs, DirRefs: dirRefs,
+		PutFile: *putFile,
+	})
 	if err != nil {
 		return fail(err)
 	}
-	out, _ := json.Marshal(map[string]string{"msg_id": m.MsgID, "task_id": m.TaskID, "ts": m.TS})
-	fmt.Println(string(out))
+	fmt.Println(action.JSON(out))
 	return 0
 }
 
@@ -189,16 +161,10 @@ func cmdRecv(cfg *config.Config, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	st := spool.New(cfg)
-	res, err := st.Recv(*as, *ack)
+	msgs, err := action.Recv(cfg, *as, *ack)
 	// Print the valid messages regardless (they were verified); [] when empty.
-	if res != nil {
-		msgs := res.Messages
-		if msgs == nil {
-			msgs = []*msg.Message{}
-		}
-		out, _ := json.Marshal(msgs)
-		fmt.Println(string(out))
+	if msgs != nil {
+		fmt.Println(action.JSON(msgs))
 	}
 	if err != nil {
 		return fail(err)
@@ -210,20 +176,11 @@ func cmdPut(cfg *config.Config, args []string, dir bool) int {
 	if len(args) != 1 {
 		return fail(fmt.Errorf("usage: put-%s <path>", pick(dir, "dir", "file")))
 	}
-	var a msg.Attachment
-	var err error
-	if dir {
-		a, err = files.PutDir(cfg.FilesDir(), args[0])
-	} else {
-		a, err = files.PutFile(cfg.FilesDir(), args[0])
-	}
+	out, err := action.Put(cfg, args[0], dir)
 	if err != nil {
 		return fail(err)
 	}
-	out, _ := json.Marshal(map[string]interface{}{
-		"file_id": a.FileID, "sha256": a.SHA256, "bytes": a.Bytes, "name": a.Name, "kind": a.Kind,
-	})
-	fmt.Println(string(out))
+	fmt.Println(action.JSON(out))
 	return 0
 }
 
@@ -231,17 +188,11 @@ func cmdGet(cfg *config.Config, args []string, dir bool) int {
 	if len(args) != 2 {
 		return fail(fmt.Errorf("usage: get-%s <file_id> <dest>", pick(dir, "dir", "file")))
 	}
-	var err error
-	if dir {
-		err = files.GetDir(cfg.FilesDir(), args[0], args[1])
-	} else {
-		err = files.GetFile(cfg.FilesDir(), args[0], args[1])
-	}
+	out, err := action.Get(cfg, args[0], args[1], dir)
 	if err != nil {
 		return fail(err)
 	}
-	out, _ := json.Marshal(map[string]string{"path": args[1], "file_id": args[0]})
-	fmt.Println(string(out))
+	fmt.Println(action.JSON(out))
 	return 0
 }
 
@@ -252,21 +203,21 @@ func cmdTail(cfg *config.Config, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if *task == "" {
-		return fail(fmt.Errorf("--task is required"))
-	}
-	st := spool.New(cfg)
-	msgs, err := st.Tail(*task)
+	out, err := action.Tail(cfg, *task, *asJSON)
 	if err != nil {
 		return fail(err)
 	}
-	for _, m := range msgs {
-		if *asJSON {
-			b, _ := msg.Marshal(m)
-			fmt.Println(string(b))
-		} else {
-			fmt.Printf("%s  %s -> %s  [%s]  %s\n", m.TS, m.From, m.To, m.Kind, m.Body)
-		}
+	fmt.Print(out)
+	return 0
+}
+
+// cmdMCP serves the verbs as MCP tools over stdio until stdin closes or the
+// process is signalled. One server per agent session, never per tmux window.
+func cmdMCP(cfg *config.Config) int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := mcp.Run(ctx, cfg, version); err != nil && ctx.Err() == nil {
+		return fail(err)
 	}
 	return 0
 }
@@ -281,8 +232,5 @@ func pick(b bool, yes, no string) string {
 // fail prints err and returns the mapped exit code (78 for verify/refuse).
 func fail(err error) int {
 	fmt.Fprintln(os.Stderr, "spool: "+err.Error())
-	if errors.Is(err, files.ErrHashMismatch) {
-		return 78
-	}
-	return spool.ExitCode(err)
+	return action.ExitCode(err)
 }

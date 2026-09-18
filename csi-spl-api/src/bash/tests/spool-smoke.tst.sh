@@ -90,4 +90,23 @@ LEG_FROM="$("$B" recv --as CLE-07 --ack | python3 -c 'import json,sys;msgs=json.
 [ "$LEG_FROM" = "CLE-387" ] && pass "legacy .md transparently bridged and archived" || fail "legacy bridge failed"
 [ -f "$SPOOL_ROOT/CLE-07/archive/20260903T084612Z--CLE-387--done.md" ] && pass "legacy .md moved to archive on ack" || fail "legacy .md not in archive"
 
+# 8. spool mcp speaks MCP over real stdio: initialize, the five canonical tools,
+#    and an unpinned send surfaces as a tool error mirroring exit 78. stdin is
+#    held open briefly so the replies are written before EOF ends the server.
+{ printf '%s\n' \
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' \
+    '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+    '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+    '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"spool_send","arguments":{"from":"AGY-09","to":"CLE-07","kind":"note","body":"hi"}}}'
+  sleep 1; } | timeout 20 "$B" mcp > "$WORK/mcp.out"
+MCP="$(python3 - "$WORK/mcp.out" <<'PY'
+import json,sys
+r={d.get("id"):d.get("result",{}) for d in map(json.loads,open(sys.argv[1]))}
+tools=",".join(sorted(t["name"] for t in r[2]["tools"]))
+print(r[1]["serverInfo"]["name"], tools, r[3]["isError"], r[3]["content"][0]["text"])
+PY
+)"
+[ "$MCP" = "spool spool_get_file,spool_put_file,spool_recv,spool_send,spool_tail True spool: AGY-09: agent id is not pinned (exit 78)" ] \
+  && pass "spool mcp over stdio: 5 canonical tools, unpinned send is a tool error (exit 78)" || fail "spool mcp stdio: $MCP"
+
 echo "ALL SMOKE CHECKS PASSED"

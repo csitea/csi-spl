@@ -9,7 +9,7 @@ rejected in the constitution). Each tool calls the same internal action as the C
 ```json
 { "path": "/abs/or/rel/file" }
 ```
-→ `{ "file_id": "<sha256>", "sha256": "<same>", "bytes": 12044, "name": "patch.zip" }`
+→ `{ "bytes": 12044, "file_id": "<sha256>", "kind": "file", "name": "patch.zip", "sha256": "<same>" }`
 
 ## `spool_send`
 ```json
@@ -30,7 +30,8 @@ rejected in the constitution). Each tool calls the same internal action as the C
 ```json
 { "file_id": "<sha256>", "dest": "/tmp/patch.zip" }
 ```
-→ `{ "path": "...", "bytes": 12044, "sha256": "<same>" }`. Verifies the hash.
+→ `{ "file_id": "<sha256>", "path": "..." }` (what `spool get-file` prints).
+Verifies the hash.
 
 ## `spool_tail`
 ```json
@@ -44,7 +45,13 @@ Human lines by default; `json: true` → raw `v:1` NDJSON objects.
   `spool_send_grok` — one `spool_send` (Constitution VIII).
 - A tool's behaviour, arguments, and refusal semantics MUST equal the CLI verb it
   wraps (verify/refuse surfaces as a tool error mirroring exit `78`).
+- A tool's text content is byte-for-byte the CLI verb's stdout (without the
+  trailing newline); object results are also returned as structured content.
+  A refusal is `IsError` with text `spool: <reason> (exit 78)`, the CLI's
+  stderr line plus its exit code. `spool_recv` with a verify failure returns
+  the verified array and that error text, flagged `IsError`, as the CLI prints
+  the array and exits `78`.
 - **Library:** `github.com/modelcontextprotocol/go-sdk` (official, v1.7.0+),
   stdio via `mcp.StdioTransport`. See `../research.md`. Not `mark3labs/mcp-go`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->

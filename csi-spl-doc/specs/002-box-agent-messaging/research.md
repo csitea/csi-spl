@@ -46,6 +46,10 @@ github.com/modelcontextprotocol/go-sdk  v1.7.0 or newer (same major)
 Import `github.com/modelcontextprotocol/go-sdk/mcp`. Floor **v1.7.0** so the
 2026-07-28 spec is in range. Do not import `mark3labs/mcp-go`.
 
+Resolved on 2026-09-18: **v1.8.0**, fetched once into the offline module
+cache (owner-approved). It requires `go 1.25.0`, so the module's `go`
+directive moved from 1.22 to 1.25.0; the box toolchain is go1.25.1.
+
 ## Shape in this repo
 
 ```go
@@ -64,4 +68,4 @@ errors map CLI exit `78` to `IsError` + message (`contracts/mcp-tools.md`).
 - mcp-go “because examples.”
 - HTTP/SSE MCP (hub is WebSocket for mail, not MCP).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->

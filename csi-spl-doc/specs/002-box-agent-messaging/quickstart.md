@@ -133,8 +133,11 @@ not the agent, runs `spool keygen` and `spool pin` for each new agent id
 
 ### 6.4 MCP registration
 
-Pending US4 (T022–T024): once `spool mcp` ships, each agent session registers
-the same binary as a stdio MCP server, one process per session, sharing
-`$SPOOL_ROOT` and the pins with the CLI (`contracts/mcp-tools.md`).
+Each agent session registers the same binary as a stdio MCP server: command
+`spool`, argument `mcp`, one process per session (spawned by the harness, not
+one per tmux window). It shares `$SPOOL_ROOT` and the pins with the CLI, and
+exposes `spool_put_file`, `spool_send`, `spool_recv`, `spool_get_file` and
+`spool_tail` (`contracts/mcp-tools.md`). stdout carries only the protocol; the
+server exits 0 when the client closes stdin.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:30:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->

@@ -27,7 +27,7 @@ sqlite testhub with the same handlers.
 
 ## Phase 4: US3 flush
 
-- [ ] T010 [US3] implement `003/contracts/flush.md` in `internal/flush`
+- [ ] T010 [US3] implement `003/contracts/flush.md` in `internal/hubclient` (OQ-15: box-side, not `internal/flush`)
 - [ ] T011 [US3] hub-down same-box still recvs; flush idempotent on `msg_id`
 - [ ] T012 [US3] hub 400 stops retry with 78
 
@@ -40,4 +40,4 @@ sqlite testhub with the same handlers.
 
 - [ ] T015 Hygiene: no private key in pin JSON; no per-kind routes
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:55:00Z -->
+<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:59:40Z -->

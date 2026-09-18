@@ -39,7 +39,9 @@ unauthenticated HTTPS/WSS; box pin is the gate. No renter GCP account in M2.
 Payment (checkout via the configured payment provider — env, no baked vendor)
 creates:
 
-1. A **tenant id** (`^[a-z0-9][a-z0-9-]{0,31}$`).
+1. A **tenant id** (`^[a-z0-9][a-z0-9-]{0,31}$`) — **unique DNS slug** on
+   `*.spool-hub.ai` / `*.dev.spool-hub.ai` (first-come). Optional `org`/`app`
+   codes (dedicated SKU) are **not** unique across customers.
 2. A **tenant URL** (`$SPOOL_HUB_URL`). Product DNS: `https://<tenant>.spool-hub.ai`, dynamically resolved via wildcard `*.spool-hub.ai` Cloud Run domain mapping and HTTP `Host` header inspection. Binaries never bake the host; cnf/env only.
 3. A **tenant root** Ed25519 keypair. The **private** root key is shown **once** to the renter upon post-checkout redirect (downloadable `.key` file and copyable text) and is never stored on the hub or in Postgres. The public root is written to `tenants.root_pubkey`. Tenant is auto-provisioned instantly upon receiving the verified payment webhook.
 4. A quota: messages / month, stored file bytes, pin count (cnf). Over quota
@@ -190,4 +192,4 @@ that module). Contract: `specs/006-spool-hub-rental/contracts/payment.md`.
 - Uniform box API (Constitution VIII).
 - Payment gates **existence and quota**, not the meaning of `sig`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:45:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:50:00Z -->

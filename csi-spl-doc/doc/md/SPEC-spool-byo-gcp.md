@@ -136,13 +136,22 @@ hour**, two creates: retry next hour or append a 2-char nonce.
 
 Stamp is **hour** (`YYYYMMDDHH`), not minute, matching the example.
 
-**Human names stay pretty.** Tenant host remains `https://<slug>.spool-hub.ai`
-(their choice or derived). The ugly id is **only** the GCP project.
-Store `project_id` in cnf/tenant row; never assume it equals `{org}-{app}-{env}`.
+**Two customers may pick the same `org` and `app`.** Allowed.
+`acme`+`bot` at 12:00 UTC and another at 13:00 →
+`acme-bot-prd-2026100112` vs `acme-bot-prd-2026100113`. Same hour → retry.
 
-Letter-only org×app space is still \(26^6 \approx 3.09 \times 10^8\) pairs;
-the stamp does not enlarge that marketing namespace, it only makes the
-**Google id** unique.
+**The unique public name is the DNS tenant id**, not org/app:
+
+| Token | Unique across customers? |
+|---|---|
+| `org` (3 letters) | **No** |
+| `app` (3 letters) | **No** |
+| GCP `project_id` | Yes (hour stamp; Google-global) |
+| **DNS tenant id** | **Yes** — Host on `*.spool-hub.ai` / `*.dev.spool-hub.ai`. First-come; taken slug → 409. |
+
+Pretty host is **not** derived from org+app (that would collide). Customer
+picks or we mint a distinct slug. Store `tenant_id` (DNS slug), `org`, `app`,
+and `project_id` as **separate** fields.
 
 This does **not** change M2 hosted (no GCP project per customer).
 
@@ -201,4 +210,4 @@ sales call with a non-technical buyer.
 
 After M2 is selling hosted. Do not block public MVP on folder grants.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:40:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:50:00Z -->

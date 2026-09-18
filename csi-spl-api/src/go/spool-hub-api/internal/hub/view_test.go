@@ -312,3 +312,22 @@ func TestVersionBody(t *testing.T) {
 		t.Fatalf("/version: %d %s", code, body)
 	}
 }
+
+// Reserved labels (api, www, dev; msg.ValidTenantID) are never a tenant: the
+// API host serves the non-tenant routes, and every tenant-scoped route there
+// is 404 unknown_tenant — even if a row with that id existed.
+func TestReservedHostIsAPIHostNotTenant(t *testing.T) {
+	e := newEnv(t, func(o *hub.Options) { o.Env = "dev" })
+	for _, host := range []string{"api", "www", "dev", "dev.api", "api.dev"} {
+		for _, p := range []string{"/", "/version", "/v1/health", "/healthz"} {
+			if code, _, _ := viewGet(t, e, host, p); code != http.StatusOK {
+				t.Fatalf("%s%s: %d, want 200", host, p, code)
+			}
+		}
+		for _, p := range []string{"/v1/pins", "/v1/view/threads", "/v1/files/" + strings.Repeat("0", 64)} {
+			if code, _, body := viewGet(t, e, host, p); code != http.StatusNotFound || errToken(body) != "unknown_tenant" {
+				t.Fatalf("%s%s: %d %s, want 404 unknown_tenant", host, p, code, body)
+			}
+		}
+	}
+}

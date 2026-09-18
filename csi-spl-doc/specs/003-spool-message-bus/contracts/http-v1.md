@@ -13,6 +13,14 @@ The inner message is the frozen 002 object
 Tenant = request **Host** (`<tenant>.<product-domain>`, domain from cnf). No
 path prefix, and no `tenant_id` field in `v:1`.
 
+**Reserved labels are the API host, never a tenant.** `api`, `www`, `dev` (and
+the rest of `msg.ValidTenantID`'s reserved list, owned by 004/006) never
+resolve to a tenant, nor does any host with an extra label (`dev.api.<fqdn>`).
+On such a host the non-tenant routes answer (`/`, `/version`, `/healthz`,
+`/v1/health`, `/api/v1/auth/*`); every tenant-scoped route (`/v1/ws`,
+`/v1/files`, `/v1/pins`, `/v1/view/*`) is `404 unknown_tenant`
+(`TestReservedHostIsAPIHostNotTenant`).
+
 **Send and recv are WebSocket only** (OQ-02). REST carries **files and pins
 only**. There is no REST send/recv dialect, public or private.
 
@@ -236,4 +244,4 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 - The only browser-facing surface is `./view-v1.md` (read-only). It never
   reintroduces the removed REST send/recv rows of §1.
 
-<!-- version: 0.4.3 · updated: 2026-09-18 · last-edit: 2026-09-18T19:42:57Z -->
+<!-- version: 0.4.4 · updated: 2026-09-18 · last-edit: 2026-09-18T19:54:18Z -->

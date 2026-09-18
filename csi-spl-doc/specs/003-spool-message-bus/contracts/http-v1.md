@@ -194,9 +194,13 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
   `$SPOOL_ROOT/pins/box-<id>.pub`.
 - `POST /v1/pins` body `{ "box_id", "pubkey", "ts", "force", "sig" }`, `sig` =
   tenant **root** key over `jq -cS '{box_id,force,pubkey,ts}'`, `ts` ± 300 s.
-  Same key → 200; different key without `force` → `409 pin_conflict`.
+  Same key → 200; different key without `force` → `409 pin_conflict` (also
+  any key onto a **revoked** pin without `force`). A signed `ts` not later
+  than the pin's last op → `409 stale_pin_op` (replay). Semantics of record:
+  `../../004-spool-identity-routing/contracts/pin-semantics.md` §2, §5.
 - `DELETE /v1/pins/{box_id}` body `{ "box_id", "ts", "sig" }`, `sig` over
   `jq -cS '{box_id,op:"revoke",ts}'`. A revoked box's hello is refused.
+  Revoking an already revoked pin → 200 no-op; a stale `ts` → `409 stale_pin_op`.
 
 ## 5. Trust & ingress
 
@@ -231,4 +235,4 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 - The only browser-facing surface is `./view-v1.md` (read-only). It never
   reintroduces the removed REST send/recv rows of §1.
 
-<!-- version: 0.4.1 · updated: 2026-09-18 · last-edit: 2026-09-18T20:30:00Z -->
+<!-- version: 0.4.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:12Z -->

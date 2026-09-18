@@ -1,68 +1,90 @@
 # Tasks: Relay Bucket & GCP Estate (001-relay-bucket-estate)
 
-**Input**: Design documents from `/specs/001-relay-bucket-estate/`
+**Input**: `./spec.md`, `./plan.md`, `./contracts/relay-bucket.md`
 
-**Status**: Implemented — all boxes `[x]` reflect the as-built estate recorded
-in `csi-spl-doc/doc/md/csi-spl.feature.md` (git log `020167a`..`b381f7b`).
-
-**Re-audit (GRK-931, 2026-09-18)**: read-only. See `spec.md` Audit findings
-for FR/SC verdicts. Task SHAs below still resolve in this repo except
-`47dc615` (nea-nfs-orc, confirmed there).
+**Status vocabulary** (README): Implemented / Partial / Planned. Each
+Implemented task cites a sha or a `command → result`. Live checks are
+2026-09-18, about 19:00Z, n=1 per env, read-only, `--account=$GCP_ACCOUNT`.
 
 ## Phase 1: Setup
 
 - [x] T001 [P] Copy `run.sh` + run-bsh helpers from `pas-psf-utl` (v3.8.2),
-      banner-only changes (`csi-spl.feature.md` §2.2)
+      banner-only changes (`csi-spl.feature.md` §2.2). **Implemented**:
+      `./run` actions load and the iac suite runs them (T004).
 - [x] T002 [P] Pin `tpl-gen` as a git-ignored sibling clone via
-      `csi-spl-iac/cnf/tpl-gen.ref`; `do_tpl_gen` refuses any other HEAD
-- [x] T003 The domain is ONE key `env.dns.BASE_DOMAIN` in `all.env.yaml`;
-      `domain-single-source.tst.sh` guards it (`82ffc2a`)
-      — re-audit: FQDN still confined to cnf+doc; the test greps the label
-      and now fails on `spool-hub-api` (spec 002, already on trunk)
+      `csi-spl-iac/cnf/tpl-gen.ref`; `do_tpl_gen` refuses any other HEAD.
+      **Implemented**: `tf-steps-render-and-validate.tst.sh` PASS.
+- [x] T003 One domain key, `env.dns.BASE_DOMAIN` in `all.env.yaml`, guarded
+      by `domain-single-source.tst.sh` (`82ffc2a`; boundary match `dd68eea`,
+      `bd58df5`). **Implemented** (FR-006): test PASS.
 
 ## Phase 2: Foundational (projects + state)
 
-- [x] T004 Implement `do_gcp_001_create_project` — token pre-flight, three-way
-      exists check, dry run unless `DRY_RUN=0` (`020167a`)
-- [x] T005 Implement `000-gcp-remote-bucket` (versioned tfstate bucket)
-- [x] T006 Bootstrap `000` local→gcs migrate, proven by lineage + advanced
-      serial; `do_tf_plan` never wipes a run dir holding state (`d1d5fd9`, `4cbb92c`)
-      — re-audit: wipe-guard test PASS; live lineage unverifiable (operator reauth)
-- [x] T007 Implement `001-enable-gcp-services` — storage, iam, orgpolicy
-      (`439eb70`); never disabled on destroy
+- [x] T004 `do_gcp_001_create_project`: token pre-flight, three-way exists
+      check, dry run unless `DRY_RUN=0` (`020167a`). **Implemented**
+      (FR-007): `gcp-001-dead-credential-no-create.tst.sh` PASS.
+- [x] T005 `000-gcp-remote-bucket`, a versioned tfstate bucket.
+      **Implemented** (FR-001): `versioning_enabled: true` ×2.
+- [x] T006 Bootstrap `000` local→gcs, proven by lineage + advanced serial;
+      `do_tf_plan` never wipes a run dir holding state (`d1d5fd9`,
+      `4cbb92c`). **Implemented** (FR-008): lineage matches, serial 3 > 2
+      ×2; `tf-plan-keeps-local-state.tst.sh` PASS.
+- [~] T007 `001-enable-gcp-services`: storage, iam, orgpolicy (`439eb70`),
+      never disabled on destroy. **Partial** (FR-009): live enabled ×2, but
+      prd state lacks `orgpolicy` → T020.
 
 ## Phase 3: Relay bucket + SA (US1)
 
-- [x] T008 [US1] Implement `020-gcp-relay-bucket`: `csi-spl-<env>-rel`, uniform
-      access, PAP enforced, SA `csi-spl-rel-<env>`, one `roles/storage.objectUser`
-      binding
-- [x] T009 [US1] Add the 1-day lifecycle rule (`object_max_age_days: 1`) in
-      `<env>.env.yaml`; applied to both buckets (`8df4516`, `94d8d37`)
-      — re-audit: yaml+tfvars still 1; live `buckets describe` unverifiable
-- [x] T010 [US1] Document the SA-key out-of-band mint / rotate procedure
-      (`csi-spl.feature.md` §6.3); key never a Terraform resource
-- [x] T011 [US1] Verify per §6.4 on dev and prd (signed PUT/GET, unsigned +
-      anonymous 403, delete = 0 objects)
-      — re-audit: unsigned/anonymous 403 live both buckets; relay SA
-      `buckets describe` denied (FR-003); signed PUT/GET not repeated
-      (would mutate). Operator narrative §6.4 still says describe with the
-      relay SA (out of this audit's pathspec).
+- [x] T008 [US1] `020-gcp-relay-bucket`: `csi-spl-<env>-rel`, uniform
+      access, PAP enforced, SA `csi-spl-rel-<env>`, one
+      `roles/storage.objectUser` binding. **Implemented** (FR-002, FR-003):
+      live describe + bucket/project IAM ×2.
+- [x] T009 [US1] 1-day lifecycle rule (`object_max_age_days: 1`) in
+      `<env>.env.yaml`, applied to both buckets (`8df4516`, `94d8d37`).
+      **Implemented** (SC-003): live `lifecycle_config` `{Delete, age: 1}` ×2.
+- [x] T010 [US1] SA key minted and rotated out of band (§6.3), never a
+      terraform resource. **Implemented** (FR-005): `020` state holds no
+      `private_key`; 1 user-managed key per SA = the key file's id; mode 600.
+- [~] T011 [US1] Verify per §6.4 on dev and prd. **Partial** (SC-001):
+      settings, IAM and 403 halves re-measured; signed PUT/GET not repeated
+      (it mutates); §6.4 step 1 text is wrong → T016.
 
 ## Phase 4: git-rel switch + retire old bucket (US2)
 
-- [x] T012 [US2] Switch git-rel to read the relay from ONE config
-      (`nea-nfs-orc/cnf/bash/git-rel.cnf`); fail fast on empty / mismatched key
-      (landed `47dc615`)
-- [x] T013 [US2] Prove with `git-rel-roundtrip.tst.sh` against `csi-spl-prd-rel`
-      (48/1 known F3 leak; control 22/27)
-      — re-audit: not re-run (live round-trip mutates); config + commit present
-- [x] T014 [US2] Retire `gs://bnc-cpt-all-relay`; leave the `bnc-cpt` owner SA
-      untouched, key file tightened to 0600 (`523eb2c`, `88a8df1`)
-      — re-audit: anonymous GET of the retired bucket → HTTP 404 `NoSuchBucket`
+- [x] T012 [US2] git-rel reads the relay from ONE config
+      (`nea-nfs-orc/cnf/bash/git-rel.cnf`) and fails fast on an empty or
+      mismatched key (nea-nfs-orc `47dc615`). **Implemented** (FR-010).
+- [x] T013 [US2] `git-rel-roundtrip.tst.sh` against `csi-spl-prd-rel`: 48
+      passed / 1 known F3 leak; control 22/27. **Implemented** 2026-09-17
+      (SC-002); not re-run (it mutates).
+- [x] T014 [US2] Retire `gs://bnc-cpt-all-relay`; leave the `bnc-cpt` owner
+      SA alone, key file tightened to 0600 (`523eb2c`, `88a8df1`).
+      **Implemented** (FR-011): anonymous GET → 404 `NoSuchBucket`.
 
 ## Phase 5: Doc truthing
 
-- [x] T015 Record that an empty relay prefix no longer proves a clean happened —
-      only that the object is absent now (`b381f7b`)
+- [x] T015 Record that an empty relay prefix no longer proves a clean
+      happened (`b381f7b`). **Implemented**: spec Edge cases.
 
-<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T14:36:48Z -->
+## Phase 6: Redo 2026-09-18 — drift found, to close
+
+- [ ] T016 Correct `csi-spl.feature.md` §6.4 step 1: describe with an
+      **operator** identity; the relay SA is refused `storage.buckets.get` by
+      design (FR-003). **Planned**.
+- [ ] T017 Drop the stale "OPEN QUESTION" comment next to
+      `object_max_age_days: 1` in `csi-spl-cnf/csi-spl/{dev,prd}.env.yaml`
+      (decided `8df4516`). **Planned**.
+- [ ] T018 `tf-steps-render-and-validate.tst.sh`: assert both envs render
+      `object_max_age_days = 1` and PAP `enforced` for `020`, so a cnf edit
+      cannot silently drop FR-002. **Planned**.
+- [ ] T019 `terraform plan` of `000` / `001` / `020` in dev and prd (read-only):
+      expect no changes for `020`. Record the result; propose any apply to the
+      007 apply owner. **Planned**.
+- [ ] T020 prd `001` state lacks `orgpolicy.googleapis.com` although it is
+      enabled live: propose `terraform import` (not a re-enable) to the 007
+      apply owner. **Planned**; proposal only, this lane never applies.
+- [ ] T021 `nea-nfs-orc` `git-rel.lib.sh` header still says "hub → box:
+      public-read object"; the sender uploads private and signs a GET. That is
+      another repo, so it is reported to its owner, not edited here. **Planned**.
+
+<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:01:26Z -->

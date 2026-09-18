@@ -107,7 +107,8 @@ threads, command any agent, same `v:1` bus. `SPEC-spool-wui.md` /
 
 **Hosting: the same setup as csi-rel and pas-psf** — static WUI (Firebase
 Hosting path) + Cloud Run API. Copy that WUI infra, not the shop pages.
-Authenticated renter (payment account / tenant), not GCP IAM per agent.
+Authenticated renter: **Google and Facebook** login copied from pas-psf
+(`SPEC-spool-social-auth.md`). Not GCP IAM per agent.
 Not started until M1 is done (dev+prd infra) and M2 can sell.
 
 ---
@@ -128,4 +129,4 @@ Also later: WUI **option** to reverse chats (composer at top, prepend)
 **M3 rollout** (Slack WUI, csi-rel/pas-psf hosting) →
 **later** CI logs in chat (`gh` on Cloud Run) and reverse-chat UI option.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:40:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:20:00Z -->

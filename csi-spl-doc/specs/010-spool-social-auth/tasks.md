@@ -20,7 +20,7 @@ here (§2.4); the owner is named.
 ## Phase 2 — Hub mount + registration (003 CLE-3340, ids 004)
 
 - [x] T010 Implemented (`bc6a6a1`, 003 T033a, CLE-3340) — `spool serve` runs `auth.Load(hc.Env)` and mounts `auth.New` via `hub.Options.Auth` before the middleware; routes answer on any Host. Check: `git grep -n 'auth.Load(hc.Env)' origin/master -- csi-spl-api/src/go/spool-hub-api/cmd/spool/hub.go` → 1 hit; `TestAuthMountedWithoutTenant` (unknown tenant host → `200 {"providers":[]}`). Registrar nil until T012.
-- [ ] T011 Planned (003 T033b) — session as the M3 view door on `/v1/view/*`. OQ-A1 **decided (a)** by 003 (`bc6a6a1`, view-v1 0.3.0 §2): cookie Domain = env fqdn + `Access-Control-Allow-Credentials: true` for exact allow-listed origins only. Gated: the door and credentialed CORS switch on together, only after T013. The door calls `ah.SessionForTenant(r, hostTenant)`.
+- [~] T011 Partial (`6a43acb`, 003 T033b, CLE-3340) — the `/v1/view/*` door is the view token OR `ah.SessionForTenant(r, hostTenant)`, every error → `401 view_door`; admits nobody without a Membership (`TestViewSessionDoorFailsClosedWithoutMembership`). The access log carries no Cookie, Authorization or query string (`TestAccessLogCarriesNoCredentials`). OQ-A1 decided (a). Missing: credentialed CORS, which 003 switches on together with a wired Membership + Registrar (T012/T013).
 - [ ] T012 Planned (003 + 004 + rdb) — store-backed `Registrar`: first callback creates `HUM-*` (narrative §0, §3.1), returns it into the session; needs a humans table (csi-spl-rdb) and 004's id rule (OQ-A3).
 - [~] T013 Partial — seam Implemented (`5e8ecb1`): `auth.Options.Membership` (`Member(ctx, humanID, tenant) (bool, error)`) and `Handler.SessionForTenant`, fail-closed (no Membership, no `HUM-*`, lookup error, not a member all refuse; `session.t` never read). Check: `go test -run TestSessionForTenant ./internal/auth/` → ok. Missing: the store-backed `Membership` (003/006 + rdb), after T012. SEC-001.
 
@@ -28,7 +28,7 @@ here (§2.4); the owner is named.
 
 - [x] T014 Implemented (`1c4e1a6`, 005 CLE-3342) — `/login` renders one plain-link button per `GET /api/v1/auth/providers`, no SDK; empty list → "Sign-in is not available yet". Check (005's, n=1): `node --test tests/unit/*.test.mjs` → 39 pass (9 auth) on `44841b3`.
 - [x] T015 Implemented (`1c4e1a6`, 005) — `auth_error` copy per contract §2, code dropped from the URL, `redirect` kept; session probe 200 in / 401 out / else unknown (prior state kept); sign out = `POST logout` → `/login`. Not yet verified with a real browser against the WUI (see T017).
-- [~] T016 Partial (`1c4e1a6`, 005) — checked-in `csi-spl-wui/firebase.json` rewrites `/api/v1/auth/**` → Cloud Run before `**` (`git grep -n 'api/v1/auth' origin/master -- csi-spl-wui/firebase.json` → 1 hit; order asserted by a 005 unit test). Missing: the deploy-time render `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` overwrites that file and has no such rule (`git grep -c api/v1/auth origin/master -- <that script>` → no match); 005 asked 007 (orc lane) to add it. FR-010.
+- [x] T016 Implemented (`1c4e1a6` 005, `1dbc29a` 007) — checked-in `csi-spl-wui/firebase.json` and the deploy-time render `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` both send `/api/v1/auth/**` to the hub before the SPA `**` rule (`git grep -c api/v1/auth origin/master -- csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` → 2; `wui-actions.tst.sh` asserts it). FR-010.
 - [ ] T017 Planned (005 + 010) — lde browser round trip: `auth-demo -addr … -app-url <wui> -public-url <wui>` (`c01b4ea`) behind the WUI's `NUXT_DEV_AUTH_PROXY` (`quickstart.md` §2.3). Checked by 010 through a same-origin reverse proxy standing in for nuxt devProxy (both providers land on `<wui>/c/general`, `<wui>/api/v1/auth/session` → 200; n=1); not yet with the Nuxt dev server in a browser.
 
 ## Phase 4 — Infra (007 iac; apply is the owner-gated apply lane)
@@ -53,4 +53,4 @@ Recorded by 007 (CLE-3344) as its T066–T068 = these T020–T022, behind 007's 
 - [ ] T043 Planned — Facebook deauthorize + data-deletion callback (required for a live Meta app; csi-rel `facebook_callbacks.go` is the donor).
 - [ ] T044 Planned — avatar: server-side fetch → `file_id` (narrative §3.4).
 
-<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:58:00Z -->
+<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:44:55Z -->

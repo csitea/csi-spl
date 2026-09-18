@@ -99,9 +99,15 @@ data (`401 view_door`).
 - **FR-003** — Implemented: the browser stores no private key or signed URL,
   never puts a token in `localStorage` or a URL (view-v1 §2), and never opens `/v1/ws`. Check: `grep -rnE 'localStorage|sessionStorage|indexedDB|/v1/ws' csi-spl-wui/{components,composables,stores,utils,pages,plugins}`
   -> only `composables/useTheme.ts` (theme choice) and a comment in `useSpoolEvents.ts`.
-- **FR-004** — Partial: tenant = request Host (006); the WUI sends no tenant id.
-  Missing: hub origin per tenant is one env var (`NUXT_PUBLIC_API_BASE`); Host-derived
-  base is Planned with Hosting (T009).
+- **FR-004** — Implemented (`67f6ff6`): tenant = request Host (006); the WUI sends no
+  tenant id. Tenant reads go to the **tenant host** `<tenant>.<fqdn>` (lde
+  `<tenant>.localhost`), never the API host (`api.<fqdn>`, `dev.api.<fqdn>`: reserved
+  labels, `404 unknown_tenant` on every tenant route — 003 http-v1, `cfe5a9b`).
+  `NUXT_PUBLIC_API_BASE` is a `{tenant}` template; tenant from `?tenant=` (remembered
+  for the tab) then `NUXT_PUBLIC_TENANT`; a reserved first label is refused before
+  any request (`utils/tenant.mjs`, `tests/unit/tenant.test.mjs`). Verified live
+  locally, n=1: default `t1` lists the seeded thread; `?tenant=nosuch` shows
+  "Unknown tenant".
 - **FR-005** — Planned: threads keyed by `task_id` only. The live viewer MUST NOT
   send or rely on `parent_task_id` or `channel` (not in frozen `v:1`). Today the
   mock data still carries both; the live client no longer sends either (`9eafd8c`).
@@ -155,4 +161,4 @@ before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-revers
   prd fail-closed. Still open for **prd**: view token (003 OQ-16) or social session
   (010 OQ-A1) as the door.
 
-<!-- version: 1.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:55:00Z -->
+<!-- version: 1.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:15:00Z -->

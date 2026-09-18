@@ -2,7 +2,7 @@
 
 Backed by a local `$SPOOL_ROOT` in `002`. The SAME verbs and flags work
 unchanged when `003` adds a hub behind them. `$SPOOL_ROOT` default
-`/var/tmp/claude/msgs`, overridable by env.
+`/var/spool-hub`, overridable by env.
 
 ```
 spool-keygen  [--box <box_id>] [--force]       # optional: box ed25519 keypair (hub prep)
@@ -60,4 +60,4 @@ The box session harness (`next-agent-id.sh` / tmux agent spawn launcher):
 5. Launches the AI session. The AI agent never manages keys.
 6. Subagents spawned during a session (e.g. Antigravity or Claude subagents) follow the exact same flow, allocated their own distinct top-level IDs (e.g. `AGY-02`) as first-class peers.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->

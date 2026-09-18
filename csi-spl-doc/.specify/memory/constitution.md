@@ -149,7 +149,7 @@ behaviour, same exit codes (verify/refuse = exit `78`).
   messages/pins/acks; **GCS** for file bytes (`file_id` = sha256); **NATS
   JetStream** for live tail + replay. Region `europe-north1`.
 - **Local fallback:** a plain folder `$SPOOL_ROOT` (default
-  `/var/tmp/claude/msgs`) so agents can queue when the hub is down — and, for
+  `/var/spool-hub`) so agents can queue when the hub is down — and, for
   the near-term MVP (spec 002), the ONLY backing store.
 - **Docs (`-doc`):** Markdown under `doc/md/` and specs under `specs/`.
 - **Local Dev Setup (`lde`):** Local development environment for Terraform (`-iac`), backend Go API (`-api`), and frontend (`-wui`) MUST reference and follow the patterns in `/opt/pas/pas-psf` (`pas-psf-orc`, `pas-psf-iac`, `pas-psf-api`, `pas-psf-wui`), including containerized tf-runner, local test database setup, and frontend dev server tooling.
@@ -214,4 +214,4 @@ acknowledged in the spec's Clarifications section.
 
 **Version**: 0.2.0 | **Ratified**: 2026-09-18 | **Last Amended**: 2026-09-18 (added csi-spl-api)
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:01:00Z -->
+<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->

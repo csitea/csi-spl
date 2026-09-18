@@ -157,7 +157,7 @@ so MCP is additive and lower priority than a working CLI.
 - **FR-001**: The spool MUST expose the CLI verbs `spool-keygen`, `spool-pin`,
   `spool-send`, `spool-recv`, `spool-put-file`, `spool-get-file`, `spool-tail`
   with the arguments in `contracts/cli.md`, backed by a local `$SPOOL_ROOT`.
-- **FR-002**: `$SPOOL_ROOT` MUST default to `/var/tmp/claude/msgs` and be
+- **FR-002**: `$SPOOL_ROOT` MUST default to `/var/spool-hub` and be
   overridable by env var (Constitution II/VI). No other path is baked in.
 - **FR-003**: Messages MUST be the canonical `v:1` JSON object
   (`contracts/message-schema.md`), stored one-per-file under the recipient's
@@ -240,4 +240,4 @@ so MCP is additive and lower priority than a working CLI.
 - A live `SendMessage`/tmux notification integration with delivery semantics.
 - Any change to ysg-box.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->

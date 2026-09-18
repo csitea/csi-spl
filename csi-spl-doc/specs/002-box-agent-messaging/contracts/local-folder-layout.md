@@ -1,6 +1,6 @@
 # Contract: Local folder layout (and how it maps to the ysg-box reference)
 
-`$SPOOL_ROOT` default `/var/tmp/claude/msgs`, overridable by env.
+`$SPOOL_ROOT` default `/var/spool-hub`, overridable by env.
 
 ```text
 $SPOOL_ROOT/
@@ -47,4 +47,4 @@ addressing and a `v:1` JSON object that `003` can put on a wire unchanged — so
 the spool owns a clean Go implementation and treats ysg-box strictly as the
 reference contract (Constitution: "Reference implementation is read-only").
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->

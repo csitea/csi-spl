@@ -130,7 +130,7 @@ On every machine that may run an agent, install as part of the box image:
 - CLI: `spool-put-file`, `spool-send`, `spool-recv`, `spool-get-file`, `spool-tail`, `spool-keygen`, `spool-pin`
 - MCP binary on the box; Claude/agy spawn `spool mcp` **stdio per agent session** (one process tree per session, shared `$SPOOL_ROOT`/pins). Not a separately configured daemon per tmux window.
 - **One** hub client per box (WS, box key) when `$SPOOL_HUB_URL` is set; a notify sidecar only after M1
-- Local folder `$SPOOL_ROOT` (default `/var/tmp/claude/msgs`) as fallback queue
+- Local folder `$SPOOL_ROOT` (default `/var/spool-hub`) as fallback queue
 
 Grok-only box: CLI is enough; no MCP process required. Cloud hub: HTTP; no MCP required there. If the fleet is “any agent anywhere,” install the spool binary (CLI+MCP) on the box image.
 
@@ -266,4 +266,4 @@ Kafka, Pinbox, per-kind endpoints, per-agent cloud keys, MCP server per tmux win
 - Agents never hold bucket keys or hub keys; the box key is the only hub credential.
 - Every hub row and object key is tenant-scoped.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:24:00+03:00 -->
+<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->

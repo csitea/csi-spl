@@ -24,7 +24,7 @@ existing file protocol (reference only, never modified).
 - `internal/logging`: `zerolog.Logger` with RFC3339 timestamps, service tag, log levels, console formatting for CLI, JSON formatting when deployed.
 
 **Storage**: local filesystem under `$SPOOL_ROOT` (default
-`/var/tmp/claude/msgs`). The optional box key under `$HOME` (outside the spool root).
+`/var/spool-hub`). The optional box key under `$HOME` (outside the spool root).
 
 **Testing & Harness**:
 - `go test ./...`: unit tests + table-driven round-trip harness using `internal/testkit` (assertions, fixture loaders, isolated temp spool roots), modeled on `/opt/pas/pas-psf/pas-psf-api/src/internal/testkit/`.
@@ -118,4 +118,4 @@ the permanent contract; 003 adds a backend behind them.
 binary for CLI + MCP rather than two — is required by VIII (identical behaviour)
 and reduces surface, so it is a simplification, not a violation.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->

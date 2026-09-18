@@ -14,8 +14,9 @@ import (
 // Config is the resolved on-box spool configuration. Every value is an env var
 // with a documented default (Constitution II/VI); nothing else is baked in.
 type Config struct {
-	// SpoolRoot is the on-box message tree. Default mirrors the ysg-box reference.
-	SpoolRoot string `env:"SPOOL_ROOT" envDefault:"/var/tmp/claude/msgs"`
+	// SpoolRoot is the on-box message tree: a pre-created system dir, separate
+	// from any other tool's message tree (owner decision 2026-09-18).
+	SpoolRoot string `env:"SPOOL_ROOT" envDefault:"/var/spool-hub"`
 	// KeysDir holds the box PRIVATE key, strictly outside SpoolRoot. Empty here
 	// means "$HOME/.spool/keys", resolved in Load.
 	KeysDir string `env:"SPOOL_KEYS_DIR"`

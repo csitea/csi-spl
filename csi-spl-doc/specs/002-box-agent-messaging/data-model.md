@@ -61,7 +61,7 @@ message, or a log.
 ## 6. Spool root layout
 
 ```text
-$SPOOL_ROOT/                     # default /var/tmp/claude/msgs
+$SPOOL_ROOT/                     # default /var/spool-hub
 ├── <AGENT-ID>/
 │   ├── inbox/    <ts>--<from>--<slug>.json   # delivered, unread
 │   ├── outbox/   <ts>--<self>--<slug>.json   # sent record
@@ -92,4 +92,4 @@ locally only a content-hash mismatch on get-file/get-dir; hub mode adds a missin
 or failing box signature. The same `78` ysg-box's `directive-verify` uses, so
 tooling reads one convention.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->

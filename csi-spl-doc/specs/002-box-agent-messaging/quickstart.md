@@ -2,7 +2,7 @@
 
 A walkthrough an operator can paste, top to bottom, into one shell. Everything
 runs under a throwaway temp root, so it touches neither the live
-`/var/tmp/claude/msgs` tree nor `$HOME/.spool/keys`. The steps mirror
+`/var/spool-hub` tree nor `$HOME/.spool/keys`. The steps mirror
 `csi-spl-api/src/bash/tests/spool-smoke.tst.sh`, which is the executable
 version of this page.
 
@@ -134,7 +134,7 @@ spool version
 
 ### 6.3 Live defaults
 
-With no env overrides the binary uses `SPOOL_ROOT=/var/tmp/claude/msgs`, keys
+With no env overrides the binary uses `SPOOL_ROOT=/var/spool-hub`, keys
 in `$HOME/.spool/keys` and pins in `$SPOOL_ROOT/pins`; local mail needs
 neither. A box key is created once per box, only for hub mode, by the harness
 or the renter, never by an agent (`contracts/cli.md`, "Session Lifecycle &
@@ -149,4 +149,4 @@ exposes `spool_put_file`, `spool_send`, `spool_recv`, `spool_get_file` and
 `spool_tail` (`contracts/mcp-tools.md`). stdout carries only the protocol; the
 server exits 0 when the client closes stdin.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->

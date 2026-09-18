@@ -32,11 +32,13 @@ done
 grep -qiE 'wordpress|recaptcha|brevo|improvmx|stripe' "$PROJ_ROOT"/src/bash/run/gandi-*.func.sh "$LIB" \
   && fail "gandi actions still carry shop entities" || pass "gandi actions have no shop entities"
 
-for banned in 'spool-hub.ai' 'lukamotor.es' 'ns-cloud-e1.googledomains.com'; do
+dom=$(yq -r '.env.dns.BASE_DOMAIN // ""' "$CNF_ALL")
+[[ -n "$dom" && "$dom" != null && "$dom" == *.* ]] || { echo "FAIL: missing env.dns.BASE_DOMAIN in $CNF_ALL"; exit 1; }
+for banned in "$dom" 'ns-cloud-e1.googledomains.com'; do
   if grep -nF "$banned" "$LIB" "$PROJ_ROOT"/src/bash/run/gandi-*.func.sh; then
     fail "banned token in gandi sources: $banned"
   else
-    pass "no '$banned' in gandi sources"
+    pass "no cnf-domain/GCP-NS literal in gandi sources ($banned sourced, not hardcoded as product domain)"
   fi
 done
 if grep -A2 '@example' "$SET_NS" | grep -qiE 'ns-cloud-|googledomains'; then

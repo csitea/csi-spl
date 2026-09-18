@@ -27,11 +27,14 @@ for f in wait-for-cert export-all-dns-settings flush-dns; do
   bash -n "$p" && pass "bash -n $f.func.sh" || fail "bash -n $f.func.sh"
 done
 
-for banned in 'gcloud config set' 'activate-service-account' 'key-file' 'spool-hub.ai'; do
+CNF_ALL="$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"
+dom=$(yq -r '.env.dns.BASE_DOMAIN // ""' "$CNF_ALL")
+[[ -n "$dom" && "$dom" != null && "$dom" == *.* ]] || { echo "FAIL: missing env.dns.BASE_DOMAIN in $CNF_ALL"; exit 1; }
+for banned in 'gcloud config set' 'activate-service-account' 'key-file' "$dom"; do
   if grep -nF "$banned" "$RUN/wait-for-cert.func.sh" "$RUN/export-all-dns-settings.func.sh" "$RUN/flush-dns.func.sh"; then
     fail "banned token in DNS ops funcs: $banned"
   else
-    pass "no '$banned' in DNS ops funcs"
+    pass "no banned token in DNS ops funcs (product domain from cnf)"
   fi
 done
 

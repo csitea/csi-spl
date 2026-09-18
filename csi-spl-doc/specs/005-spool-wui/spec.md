@@ -1,71 +1,150 @@
-# Feature Specification: Spool WUI (Slack-like Multi-Channel Interface)
+# Feature Specification: Spool WUI — read-only thread viewer first
 
-**Feature ID**: `005-spool-wui`
+**Feature ID**: `005-spool-wui` · **Milestone**: M3 · **Status**: Partial
+**Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo, verified on trunk `bbc41e7`)
 
-**Created**: 2026-09-18 · **Status**: Draft — **Milestone 3 Rollout**
+**Ground rules, index, seams**: `../README.md` (status vocabulary §2.3, seams §5).
+**Narrative (end-state vision)**: `../../doc/md/SPEC-spool-wui.md` (Slack-like).
+**Binding**: `../002-box-agent-messaging/contracts/trust-modes.md`,
+`../002-box-agent-messaging/contracts/message-schema.md` (frozen `v:1`),
+`../../doc/md/SPEC-spool-milestones.md`, OQ-01..15 in `../003-spool-message-bus/spec.md`.
+**Depends on**: 003 (hub; owns the WUI read API — README §5), 004 (ids,
+`CLE-07@box-a`), 006 (tenant = Host, human auth), 007 (Hosting steps `016` / `019`,
+DNS, ingress). Dependency order: 005 comes after the M1 demo and M2 (README §4).
 
-**Narrative**: `csi-spl-doc/doc/md/SPEC-spool-wui.md`
+## 0. Scope (the redo decision)
 
-**Depends on**: 003 (Cloud Run hub), 006 (tenant auth).
+005 ships **one slice first**: a **read-only thread viewer** in `csi-spl-wui`
+(Nuxt 3) over the **read-only hub API that 003 owns**. A human opens the tenant,
+sees its threads (one per `task_id`), opens one, reads its messages oldest-first
+and downloads attached blobs. **No send, no signing, no key in the browser.**
 
-## User Scenarios & Testing
+The Slack-like end state (`SPEC-spool-wui.md`: channels, DMs, `@mention`
+commands, notifications, verbosity) is **not** this slice. It needs parts that do
+not exist and that other areas own — a human session (006), a hub-side `box-wui`
+signer (003/004) and a `channel` field the frozen `v:1` does not carry (002). Those
+stories stay below as **Planned (M3 later)** with the blocking gap named (§5).
 
-### User Story 1 - Channel Navigation & Main Feed (Priority: P1) 🎯 MVP
+Why this cut: a thread **is** a `task_id` already (`SPEC-spool-task-lifecycle.md`;
+every message of a thread shares it); the hub already stores every envelope per
+`(tenant, task_id)` (`grep -n TaskEnvelopes csi-spl-api/src/go/spool-hub-api/internal/store/store.go -> 2`);
+OQ-02 keeps send/recv WebSocket-only for boxes. A viewer is buildable without
+reopening 002 or the trust model.
 
-Operator navigates between channels (`#general`, `#tasks`, `#alerts`, + custom channels). Main view renders chronological messages tagged with that channel, showing author badge, timestamp, kind (`note`, `task`, `result`), markdown body, and reply count.
+## 1. User scenarios
 
-### User Story 2 - Threading with `parent_task_id` (Priority: P1)
+### US1 — Thread list (P1) 🎯 MVP — Partial
 
-Every message carries its own `task_id` (UUIDv4). When an operator or agent replies to a message, the reply includes `parent_task_id: <root_task_id>`. Clicking any message opens a Slack-like side Thread Pane showing all replies with that `parent_task_id` oldest-first.
+A human opens `https://<tenant>.<product-domain>` (tenant from Host, 006) and
+sees the tenant's threads, newest activity first: first message's `from`, `to`,
+`kind`, a body preview, message count and last-activity time.
 
-### User Story 3 - Direct Messages (Priority: P1)
+**Acceptance**: with `NUXT_PUBLIC_USE_MOCK=0` against a hub holding 3 threads,
+the list shows 3 rows by last activity; an empty tenant shows an empty state; an
+unknown Host shows "unknown tenant" (hub 404, error token per 003).
 
-Operator selects an agent (`CLE-07@box-a`, `GRK-03@box-b`) or human from the DM sidebar. Opens a private 1:1 message stream (`channel: null`) showing live status (online via WebSocket or offline queued).
+### US2 — Thread view (P1) 🎯 MVP — Partial
 
-### User Story 4 - Command Agent via `@mention` (Priority: P1)
+Selecting a thread shows every stored message of that `task_id` oldest-first:
+author as `<id>@<box>` (004 addressing; `from_box` / `to_box` are hub-envelope
+fields the viewer shows and never sets), `kind` badge (`task | result | note | reject`),
+`ts`, body as text / sanitised markdown.
 
-Operator types `@CLE-07 review patch.zip` in `#dev`. The WUI sends this as `kind=task` directed to `CLE-07` in `channel: "dev"`. The agent replies in the thread with `kind=result` or `kind=note`.
+**Acceptance**: task → note → result renders 3 cards in `ts` order; a body
+containing `<script>` renders as text.
 
-### User Story 5 - Dynamic Channel Creation (Priority: P2)
+### US3 — Attachment download (P1) — Partial
 
-Any authenticated human or autonomous agent can create a new channel (e.g. `CLE-07` creates `#feature-auth` to coordinate subagents). Channel is immediately registered in tenant channels list. All channels within a tenant are public to all tenant members.
+Each `files[]` entry with `mode: "blob"` renders name, bytes and sha256 with a
+Download link to `GET /v1/files/{file_id}` (003, tenant-scoped capability).
+`mode: "path"` renders as an on-box path with **no link** (the bytes never left
+the box; `internal/msg/msg.go` `Attachment`).
 
-### User Story 6 - File Attachments & Download Links (Priority: P1)
+### US4 — Live follow (P2) — Planned
 
-Operator or agent posts a message with attached files (`files: [{ path, sha256, size }]`). The WUI renders an attachment card with the filename, byte size, verified sha256, and a direct download link fetching from GCS via `GET /v1/files/{sha256}`. Viewing and diffing happen externally.
+An open thread picks up new messages without a reload. Viewer: poll the 003
+thread read while the tab is visible (interval from runtime config, default 4 s).
+`/v1/ws` is Ed25519-hello only and is **not** a browser transport (OQ-04,
+trust-modes); a browser push channel is a later 003 decision.
 
-### User Story 7 - In-Browser Escalations & Notifications (Priority: P2)
+### US5 — Human sign-in gate (P1 before prd) — Planned
 
-When an agent encounters a blocker, mentions `@HUM-*`, receives a DM, or posts to `#alerts`, the WUI triggers an HTML5 browser push notification and audio chime, accompanied by an unread count badge in the sidebar.
+The viewer and the read routes are reachable only with a human session (social
+IdP, `SPEC-spool-social-auth.md`, owned by 006). Until then the viewer is dev-only
+(§5 G1, OQ-W2).
 
-### User Story 8 - Configurable Thread Verbosity (Priority: P2)
+### Planned — M3 later slices
 
-In any task thread, the user can toggle the verbosity level (`minimal`, `normal`, `verbose`). `minimal` shows only start, blocker questions, and final result; `normal` shows major milestone notes; `verbose` reveals detailed tool invocations and diagnostic logs.
+| Story (from `SPEC-spool-wui.md`) | Blocked by |
+|---|---|
+| Send / reply as `HUM-*` from the browser | G1, G2 |
+| `@mention` command (`kind=task`) | G2 |
+| Channels (`#general`, `#tasks`, `#alerts`, custom) + channel creation | G3 |
+| DMs sidebar with online status | G2, G4 |
+| Notifications, unread badges | G3 |
+| Thread verbosity (`minimal / normal / verbose`) | message metadata not in `v:1` (G3) |
+| Per-channel retention (`#alerts` 7 d) | G3; retention today is 003's single sweep |
 
-## Requirements
+## 2. Functional requirements
 
-- **FR-001**: WUI uses hub HTTP/WebSocket only, never holds box private keys in client storage.
-- **FR-002**: Messages carry standard `v:1` payload with `channel` tag and optional `parent_task_id`.
-- **FR-003**: Auth is operator product identity (OAuth2 / Magic Link / email session matching `pas-psf`); hub signs human messages as `HUM-<username>` with a server-side virtual `box-wui` key.
-- **FR-004**: Code lives in `csi-spl-wui`.
-- **FR-005**: Every human and bot shown in the UI has an avatar
-  (`SPEC-spool-avatars.md`); default identicon if none uploaded.
-- **FR-006**: **Preferred register/login is social IdP** (Google, Facebook,
-  Microsoft, LinkedIn, xAI). First callback creates `HUM-*`. Fork of
-  pas-psf/csi-rel 045/052 plus new adapters (`SPEC-spool-social-auth.md` §0).
-  Email+password is not the default path.
-- **FR-007**: Architecture & Stack: Built on Nuxt 3 (Vue 3, TypeScript, Pinia, pnpm), referencing `/opt/pas/pas-psf/pas-psf-wui`.
-- **FR-008**: Local dev setup (`lde`): `pnpm dev --host 0.0.0.0 --port 3000` with `NUXT_PUBLIC_API_BASE` configurable via env.
-- **FR-009**: Static Site & Hosting Deployment: Built via `nuxt generate` (SSG) and deployed to Firebase Hosting via Terraform steps `016-firebase-deploy-iam` and `019-firebase-static-site`, orchestrated via `csi-spl-orc` (identical architecture to `pas-psf-wui`).
-- **FR-010**: Default channels `#general`, `#tasks`, `#alerts` initialized for every tenant (public scope).
-- **FR-011**: Channel subscriptions & Mention-Driven Routing: box sidecars subscribe agents to channels; agents only receive messages when explicitly `@mentioned` or broadcast via `@channel`.
-- **FR-012**: Direct Messages sidebar section for private 1:1 chats with agents and humans (`channel: null`).
-- **FR-013**: Channel creation allowed for authenticated humans and autonomous agents.
-- **FR-014**: File attachment cards with metadata verification and download buttons via `GET /v1/files/{sha256}`.
-- **FR-015**: Configurable thread verbosity (`minimal`, `normal`, `verbose`) for progressive disclosure of agent execution details.
-- **FR-016**: In-browser notification engine with HTML5 browser push, audio chimes, and sidebar unread badges.
-- **FR-017**: Channel catch-up: WUI feed and connecting agents receive windowed catch-up for the last 50 messages (or messages since last-acked timestamp) via `GET /v1/messages?channel=<slug>&limit=50&since=<timestamp>`.
-- **FR-018**: Strict tenant isolation: WUI is strictly scoped to the tenant in the URL host; no cross-tenant browsing or messaging is permitted.
-- **FR-019**: Tiered channel retention: `#alerts` channel messages purged after 7 days; task threads and standard channels retained for 30 days (configurable per plan tier).
+- **FR-001** — Implemented: code in `csi-spl-wui`, Nuxt 3 + TS strict + Pinia +
+  pnpm, modelled on the pas-psf / csi-rel WUI (read-only reference, not imported).
+  Check: `grep -c '"nuxt"' csi-spl-wui/package.json -> 1`.
+- **FR-002** — Partial: the WUI reads **only** through the 003 WUI read API
+  (thread list, one thread's messages), `GET /v1/files/{file_id}` and `GET /healthz`.
+  What 005 needs from it: `./contracts/hub-read-needs.md`; the wire is 003's.
+  Missing: the read routes are not on trunk (G5); the live client calls wrong routes (G6).
+- **FR-003** — Implemented: the browser stores no private key, token or signed URL,
+  and never opens `/v1/ws`. Check: `grep -rnE 'localStorage|sessionStorage|indexedDB|/v1/ws' csi-spl-wui/{components,composables,stores,utils,pages,plugins}`
+  -> only `composables/useTheme.ts` (theme choice) and a comment in `useSpoolEvents.ts`.
+- **FR-004** — Partial: tenant = request Host (006); the WUI sends no tenant id.
+  Missing: hub origin per tenant is one env var (`NUXT_PUBLIC_API_BASE`); Host-derived
+  base is Planned with Hosting (T009).
+- **FR-005** — Planned: threads keyed by `task_id` only. The live viewer MUST NOT
+  send or rely on `parent_task_id` or `channel` (not in frozen `v:1`). Today the
+  mock data and client use both (G6).
+- **FR-006** — Partial: bodies render as text / sanitised markdown; no `v-html` of
+  unsanitised input. Missing: an explicit test (T008).
+- **FR-007** — Partial: `nuxt generate` → Firebase Hosting via 007 steps
+  `016-firebase-deploy-iam` + `019-firebase-static-site`; hub stays on Cloud Run.
+  Terraform written, not applied: `curl -s -o /dev/null -w '%{http_code}' https://csi-spl-dev-site.web.app -> 404` (same for `-prd-site`).
+- **FR-008** — Implemented: lde `pnpm dev` (port 3000), `NUXT_PUBLIC_API_BASE`,
+  `NUXT_PUBLIC_USE_MOCK`; orc `do_wui_dev` / `do_wui_test` / `do_wui_build`
+  (`ls csi-spl-orc/src/bash/run/wui-*.func.sh -> 3 files`).
+- **FR-009** — Implemented: no horizontal page scroll at 390×844 and 1280×800
+  (`csi-spl-wui/tests/e2e/no-x-scroll.test.mjs`, `tests/unit/no-x-scroll.test.mjs`;
+  `pnpm test:unit -> 17 pass, 0 fail` on `bbc41e7`; e2e not re-run in this redo).
+- **FR-010** — Planned: prd exposure requires US5 (human session).
 
-<!-- version: 0.6.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:38:00Z -->
+## 3. Success criteria
+
+- **SC-001**: on dev, a thread sent box-a → box-b with `spool send` appears in the
+  viewer list and opens with all its messages oldest-first.
+- **SC-002**: `pnpm test:unit` and `pnpm test:e2e` green, with unit tests on the live
+  (non-mock) client paths.
+- **SC-003**: FR-003's grep stays clean.
+
+## 4. Out of scope
+
+Send, sign, channels, DMs, notifications (Planned, §1); anything in M1/M2 (no WUI
+before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-reverse.md`, later).
+
+## 5. Gaps (measured 2026-09-18) and owners
+
+| # | Gap | Evidence | Owner |
+|---|---|---|---|
+| G1 | No human session on the hub; read routes would be open to anyone who knows the tenant Host | `grep -rniE 'cookie\|oauth' csi-spl-api/src/go/spool-hub-api/internal/hub/*.go -> 0` | 006 (+003 gate) |
+| G2 | No `box-wui` signer; the browser cannot send | `grep -rn box-wui csi-spl-api/src/go -> 0` | 003 / 004 |
+| G3 | `channel` / `parent_task_id` are not `v:1` fields; 002 frozen | `grep -cE 'channel\|parent_task' ../002-box-agent-messaging/contracts/message-schema.md -> 0`; `messages.channel` + `channels` table exist, unused in M1 (`csi-spl-rdb/src/sql/postgres/spool-hub/0002_channels.sql`) | owner (OQ-W1) |
+| G4 | No read-only roster for humans (`GET /v1/pins` needs the box upload token) | 003 `contracts/http-v1.md` §4 | 003 |
+| G5 | WUI read routes not on trunk | `grep -c 'v1/threads' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`; implemented on branch `GRK-3349-hub-wui-read-api` (`2ecf59f`) | 003 |
+| G6 | WUI live client calls routes that will not exist | `grep -nE "v1/(channels\|messages)" csi-spl-wui/utils/spool-client.mjs` -> `/v1/channels`, `/v1/messages?channel=`, `POST /v1/messages` (OQ-02 removed) | 005 (T004) |
+
+## 6. Open questions (to the owner via CLE-00)
+
+- **OQ-W1**: Channels need a `channel` field. Hub envelope field (like `to_box`),
+  a 002 amendment, or drop channels from M3?
+- **OQ-W2**: May the viewer go to **dev** Hosting without a human session (Host
+  scoping only), or must G1 close first everywhere?
+
+<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:00Z -->

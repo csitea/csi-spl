@@ -1,94 +1,66 @@
-# Implementation Plan: Spool WUI (read-only thread viewer)
+# Implementation Plan: Spool WUI — read-only thread viewer first
 
-**Feature ID**: `005-spool-wui` · **Status**: Draft · **Date**: 2026-09-18
+**Feature ID**: `005-spool-wui` · **Status**: Partial · **Date**: 2026-09-18 (redo)
 
-**Spec**: `./spec.md` · **Narrative**: `../../doc/md/SPEC-spool-wui.md`  
-**Prerequisite**: `../003-spool-message-bus/` (hub `/v1/ws` and `GET /v1/files/{file_id}`)
+**Spec**: `./spec.md` · **Needs from 003**: `./contracts/hub-read-needs.md`
+**Narrative**: `../../doc/md/SPEC-spool-wui.md` · **Rules / seams**: `../README.md`
 
 ## Summary
 
-Build the Slack-like multi-channel interface in `csi-spl-wui` as a **Nuxt 3 + TypeScript** web application directly modeled after `/opt/pas/pas-psf/pas-psf-wui`. It builds as a static site (`nuxt generate`) deployed to **Firebase Hosting** (Terraform steps `016-firebase-deploy-iam` and `019-firebase-static-site`), connects to the hub API via HTTP/WebSocket, renders `v:1` messages chronologically per channel or task thread (`parent_task_id`), allows safe file downloads, and streams live updates over WebSocket.
+Point the existing `csi-spl-wui` Nuxt shell at the 003 WUI read API, cut its
+live surface to thread list + thread view + download, then ship it as a static
+site on Firebase Hosting: dev first, prd only behind a human session. The
+Slack-like components already written against mock data stay in the tree,
+mock-only, until their gaps (spec §5) close.
 
-## Technical Context
+## Technical context
 
-**Language/Framework**: Nuxt 3 (Vue 3, TypeScript, Pinia, pnpm >= 9; SSG static export for Firebase Hosting). Modeled directly on `/opt/pas/pas-psf/pas-psf-wui`.
+- **Stack**: Nuxt 3 (`^3.16`), Vue 3, TypeScript strict, Pinia, pnpm 9 — the
+  pas-psf / csi-rel WUI shape (read-only reference).
+- **Build / host**: `nuxt generate` → Firebase Hosting site `csi-spl-<env>-site`
+  (007 step `019`, `site_id` validated in its `variables.tf`), deploy SA from step
+  `016`; hub on Cloud Run (007 step `030`). Terraform and DNS belong to 007.
+- **Runtime config**: `NUXT_PUBLIC_API_BASE`, `NUXT_PUBLIC_USE_MOCK` (`1` in
+  `pnpm dev`, `0` in production builds — `nuxt.config.ts`).
+- **Tests**: `node --test tests/unit/*.test.mjs`; `tests/e2e/no-x-scroll.test.mjs`.
 
-**Code Home**: `csi-spl-wui/`
+## Verified state (2026-09-18, trunk `bbc41e7`)
 
-**Primary Dependencies**:
-- `nuxt`: ^3.16
-- `vue`: ^3.5
-- `pinia`: ^3.0
-- `@pinia/nuxt`: ^0.11
-- `pnpm`: ^9.15
+| Item | Status | Evidence |
+|---|---|---|
+| Nuxt shell, stores, components, pages | Implemented (mock data only) | `csi-spl-wui/`; `pnpm test:unit -> 17 pass, 0 fail` |
+| Live client | Partial — wrong routes | `utils/spool-client.mjs` calls `/v1/channels`, `/v1/messages?channel=`, `POST /v1/messages` |
+| Live follow | Partial — polls channel + roster every 4 s | `composables/useSpoolEvents.ts` |
+| orc lde actions | Implemented | `csi-spl-orc/src/bash/run/wui-{dev,test,build}.func.sh` |
+| Hosting terraform `016` / `019` | Partial — written, not applied | `curl … https://csi-spl-dev-site.web.app -> 404` |
+| Hub WUI read API | Partial — branch only | `GRK-3349-hub-wui-read-api` `2ecf59f`; not on trunk |
+| Human auth | Planned | spec §5 G1 |
+| Live dev hub (for SC-001) | exists, no ingress | integrator measurement 2026-09-18 ~19:00Z: Cloud Run `csi-spl-hub-dev` Ready, no LB (031 not applied) |
 
-**Door & Session Authentication**:
-- Human authentication via OAuth2 / Magic Link / session cookie (matching `pas-psf-wui`).
-- The WUI never holds box private keys in client storage. The hub signs human messages as `HUM-<name>` using a virtual `box-wui` key.
+## Constitution check
 
-**Local Dev Setup (`lde`) Reference**:
-Directly modeled on `/opt/pas/pas-psf/pas-psf-wui`:
-- `pnpm dev --host 0.0.0.0 --port 3000`
-- `NUXT_PUBLIC_API_BASE` pointing to local hub (`http://localhost:8080`) or Cloud Run staging
-- Fast hot module replacement (HMR) via Vite
-- Tests: `pnpm test:unit` and e2e smoke matching `pas-psf-wui` conventions
+- Paths / env: no `/opt/...` in app source; hub origin from env. ✔
+- No key in git / state / log / browser: only the theme choice is stored. ✔
+- Uniform API, no invented fields: ✘ today (mock + client use `channel` /
+  `parent_task_id`) → T004–T006.
+- Reference read-only (pas-psf / csi-rel copied, not imported). ✔
 
-## Constitution Check
+## Order of work
 
-- [ ] **I. Paths** — project under `csi-spl-wui`; no hard-coded `/opt/...` in app source.
-- [ ] **II. Env** — API base URL, auth domain, and port configurable via env vars (`NUXT_PUBLIC_API_BASE`).
-- [ ] **VII. No key in git/state/log** — WUI holds zero agent private keys; signed GCS URLs never logged.
-- [ ] **VIII. Uniform API** — consumes standard `v:1` JSON messages; no per-kind UI dialects.
-- [ ] **Reference read-only** — references `pas-psf-wui` architecture without importing or coupling.
+1. 003 lands the WUI read API on trunk (dependency D1, not this spec).
+2. T004 client: thread list + thread messages + `fileUrl`; drop live channel/send paths (mock kept).
+3. T005 / T006 viewer pages `/` and `/t/[task_id]`; `path`-mode attachments without a link.
+4. T007 poll the open thread while visible.
+5. T008 unit tests for the live client (stub `fetch`) + e2e no-x-scroll on the new pages.
+6. T009 dev Hosting apply (owner go; after 007's DNS + ingress) and deploy.
+7. T010 human session gate (with 006) → T011 prd Hosting.
 
-## Project Structure
+## Risks
 
-```text
-csi-spl-wui/
-├── package.json               # pnpm, Nuxt 3, Vue 3, Pinia (matching pas-psf-wui)
-├── nuxt.config.ts             # SSR config, runtimeConfig, proxy/CORS
-├── tsconfig.json              # strict TypeScript
-├── app.vue                    # root Slack-like shell: ChannelSidebar + main feed + ThreadPane
-├── pages/
-│   ├── index.vue              # redirects to #general or recent channel
-│   ├── channel/
-│   │   └── [name].vue         # channel feed view for #name
-│   └── dm/
-│       └── [peer].vue         # direct message view with agent/human peer
-├── components/
-│   ├── ChannelSidebar.vue     # channels list (#general, #tasks, #alerts), DMs list, online indicators
-│   ├── MessageFeed.vue        # main message stream for active channel or DM
-│   ├── MessageCard.vue        # message item: author badge, kind, markdown body, thread reply counter
-│   ├── ThreadPane.vue         # collapsible right panel showing thread messages (parent_task_id)
-│   ├── MessageComposer.vue    # input bar with markdown support, @mention picker, and file attachment
-│   ├── FileAttachment.vue     # download link with hash verify & size display
-│   ├── VerbositySelector.vue  # toggle for minimal / normal / verbose thread notes
-│   ├── NotificationCenter.vue # HTML5 push permission, audio chime toggle, alert badges
-│   ├── KindBadge.vue          # visual badge for task | result | note | reject
-│   └── AgentBadge.vue         # visual badge for CLE-* | GRK-* | AGY-* | HUM-*
-├── stores/
-│   ├── channel.ts             # Pinia store for channels, active channel messages, and unread counts
-│   ├── thread.ts              # Pinia store for active thread pane (parent_task_id) and verbosity level
-│   ├── roster.ts              # Pinia store for online/offline agent and box roster
-│   └── notification.ts        # Pinia store for audio alerts and browser push subscriptions
-├── composables/
-│   ├── useSpoolApi.ts         # typed fetch client for hub HTTP endpoints
-│   └── useSpoolEvents.ts      # WebSocket / SSE real-time event listener
-└── tests/
-    └── unit/                  # component and store unit tests
-```
+- **Open read**: until G1 closes, anyone with the tenant Host can read its
+  threads. Mitigation: dev only (OQ-W2), prd blocked on T010.
+- **Custom domain vs hub host**: the hub answers `<tenant>.<fqdn>` (031); the
+  Hosting custom domain is `env.dns.fqdn` (019). Both depend on the open DNS
+  handoff question (README §6.1) — 007's, not 005's.
 
-## Build Order
-
-1. Project scaffolding (`package.json`, `nuxt.config.ts`, `tsconfig.json`) matching `pas-psf-wui`.
-2. Composable `useSpoolApi` and Pinia stores (`channel.ts`, `thread.ts`, `roster.ts`, `notification.ts`).
-3. Layout shell and `ChannelSidebar.vue` (Channels list + DM list).
-4. `MessageFeed.vue`, `MessageCard.vue`, and `MessageComposer.vue` with `@mention` support.
-5. `ThreadPane.vue` linking replies via `parent_task_id` with `VerbositySelector.vue`.
-6. `FileAttachment.vue` downloading files directly via `GET /v1/files/{sha256}`.
-7. Real-time updates integration (`useSpoolEvents.ts`) via SSE or WebSocket.
-8. `NotificationCenter.vue` with HTML5 Web Push and audio chimes.
-9. Local dev runner integration in `csi-spl-orc` (`do_wui_dev`, `do_wui_test`, `do_wui_build`).
-10. Firebase Hosting deployment via Terraform steps `016-firebase-deploy-iam` and `019-firebase-static-site`.
-
-<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:40:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:00Z -->

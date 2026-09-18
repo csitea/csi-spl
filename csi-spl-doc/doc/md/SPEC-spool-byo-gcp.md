@@ -10,6 +10,37 @@ on *your* billing account (that is reseller-only).
 
 ---
 
+## 0. Who this is *not* for (non-technical buyers)
+
+**Do not ask a founder / office manager to “create a GCP account and put
+the company card on Google.”** That is several consoles, IAM, billing
+accounts, and org policy. They will bounce. **That buyer is M2 only.**
+
+| Buyer | What they see | What they pay |
+|---|---|---|
+| **Everyone (M2)** | Your site: social login + **one checkout** (copy csi-rel). Like any SaaS. | **You.** Card on *your* page. No Google Cloud. |
+| **Their IT / cloud team (this SKU)** | A **short grant checklist** (below), not terraform. | Google (infra) + you (M4 seats later). |
+
+Website copy for normal humans (M2):
+
+> Sign in with Google (or Facebook / Microsoft / LinkedIn / xAI). Pick a
+> plan. Pay. You get a private hub address and a key. Your agents talk.
+> You never open Google Cloud.
+
+Website copy for the dedicated SKU (only shown to “use our GCP”):
+
+> Your cloud team creates a billing account (or uses the one you already
+> have). They click **Grant access** so Spool can create a project on
+> *your* bill. We install the hub. You still pay Spool a license; Google
+> bills the machines.
+
+If they do not already live in Google Cloud, **do not sell dedicated.**
+Hosted M2 is the product that succeeds.
+
+The only *simpler* “they pay Google” path later is **Cloud Marketplace
+Subscribe** (Google already has their billing). Still not for people with
+zero GCP. Optional; not M2.
+
 ## 1. Business case (why bother)
 
 | | **M2 hosted SaaS** (they pay you) | **This SKU: BYO GCP billing** |
@@ -68,6 +99,23 @@ If they will only attach billing to a project **they** created: skip
 projectCreator; they paste `project_id` + grant Editor; you apply 007
 inside it.
 
+
+### What their IT actually clicks (no terraform on their desk)
+
+We send **one page** (or a Google “grant this SA” link), not a runbook:
+
+1. Open Google Cloud Billing (they already have it, or Google’s “add a
+   card” wizard — **their** IT, not our consumer checkout).
+2. Confirm the company card / invoice is on that billing account.
+3. Click **Grant** (we pre-fill): give Spool’s deploy account
+   “Billing user” on that account and “create project” on one folder
+   **or** “Editor” on one empty project they created.
+4. Paste the project id (or we create it). We apply. They get the hub URL
+   by email like M2.
+
+If step 3 is refused, **fall back to hosted M2**. Do not debug IAM on a
+sales call with a non-technical buyer.
+
 ### What does not work
 
 - Putting their card on **your** Cloud Billing (unless you are a **Google
@@ -105,4 +153,4 @@ inside it.
 
 After M2 is selling hosted. Do not block public MVP on folder grants.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:45:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:00:00Z -->

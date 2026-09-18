@@ -80,6 +80,18 @@ func testStore(t *testing.T, s Store) {
 	if ok, _ := s.Exists(ctx, other); ok {
 		t.Fatal("object visible under another tenant prefix")
 	}
+	if err := s.Delete(ctx, other); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("delete under another tenant prefix: %v", err)
+	}
+	if err := s.Delete(ctx, key); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := s.Get(ctx, key); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("get after delete: %v", err)
+	}
+	if err := s.Delete(ctx, key); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("second delete: %v", err)
+	}
 }
 
 // openTestGCS opens the GCS driver against $STORAGE_EMULATOR_HOST (fake-gcs

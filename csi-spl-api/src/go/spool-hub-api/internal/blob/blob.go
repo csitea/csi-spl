@@ -36,6 +36,9 @@ type Store interface {
 	Put(ctx context.Context, key string, data []byte) error
 	Get(ctx context.Context, key string) (io.ReadCloser, error)
 	Exists(ctx context.Context, key string) (bool, error)
+	// Delete removes the object; ErrNotFound when it is absent (owner-requested
+	// DELETE /v1/files/{file_id}, specs/003 contracts/http-v1.md §3).
+	Delete(ctx context.Context, key string) error
 	// PrefixBytes sums object sizes under prefix (tenant file quota, 006).
 	PrefixBytes(ctx context.Context, prefix string) (int64, error)
 	Close() error
@@ -81,6 +84,14 @@ func (d Dir) Exists(_ context.Context, key string) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func (d Dir) Delete(_ context.Context, key string) error {
+	err := os.Remove(d.path(key))
+	if os.IsNotExist(err) {
+		return ErrNotFound
+	}
+	return err
 }
 
 func (d Dir) PrefixBytes(_ context.Context, prefix string) (int64, error) {
@@ -157,6 +168,14 @@ func (g *GCS) Exists(ctx context.Context, key string) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func (g *GCS) Delete(ctx context.Context, key string) error {
+	err := g.bucket.Object(key).Delete(ctx)
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		return ErrNotFound
+	}
+	return err
 }
 
 func (g *GCS) PrefixBytes(ctx context.Context, prefix string) (int64, error) {

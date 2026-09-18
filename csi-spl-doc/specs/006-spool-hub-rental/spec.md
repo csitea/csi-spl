@@ -4,8 +4,8 @@
 
 **Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo, `../README.md`)
 
-**Status**: M1 tenancy **Partial** (hub-side code + tests on trunk; no cloud
-tenant yet) · M2 payment **Partial** (schema + cnf names only)
+**Status**: M1 tenancy **Partial** (hub-side code + tests + owner create
+action on trunk; no cloud tenant yet) · M2 payment **Partial** (schema + cnf names only)
 
 **Narrative (binding)**: `../../doc/md/SPEC-spool-hub-rental.md`  
 **Milestones (binding)**: `../../doc/md/SPEC-spool-milestones.md` — M1 manual
@@ -52,10 +52,21 @@ Run 2026-09-18 on trunk `bbc41e7` (= `9f8f492` + README only), n=1 each:
 | `git grep -c box-c -- csi-spl-api/src/bash/tests` | no match (exit 1) |
 | `gcloud run services list --project csi-spl-dev --account=$GCP_ACCOUNT` | `csi-spl-hub-dev` exists; `curl …run.app/version` → GFE `404` (ingress internal-and-cloud-load-balancing, no LB yet) |
 | `gcloud run services list --project csi-spl-prd --account=$GCP_ACCOUNT` | `SERVICE_DISABLED` |
-| `git log origin/master..GRK-3338-006-tenants-host --oneline` | `b6a2e80 feat(006): tenants, Host resolve, create-once, isolation` — **not on trunk** |
+| `git log origin/master..GRK-3338-006-tenants-host --oneline` | `b6a2e80 feat(006): tenants, Host resolve, create-once, isolation` — **not on trunk** (at the time) |
 
-The pre-redo `tasks.md` ticked T001–T004 and T015 from that unmerged branch;
-the statuses below are what trunk actually carries.
+The pre-redo `tasks.md` ticked T001–T004 and T015 from that unmerged branch.
+`b6a2e80` was then verified, corrected and landed as **`3690211`** (v1.1.0 of
+this spec). Re-measured on `3690211`, n=1 each:
+
+| Command | Result |
+|---|---|
+| `go test ./...` + `run-all-tests.sh` | all `ok`; `spool migrate applies 4 file(s)`; `ALL csi-spl-api TESTS PASSED` |
+| `bash csi-spl-orc/src/bash/tests/tenant-create.tst.sh` | `PASS: all tenant-create.tst.sh assertions` (DRY_RUN paths) |
+| `DRY_RUN=0 ENV=dev TENANT_ID=acme do_spl_tenant_create` against a temp Postgres | key printed once; row `acme`, `manual`, 32-byte pubkey; re-create and `TENANT_ID=dev` refused, no key printed |
+
+Correction made while landing it: `billing.AllowsWrite` did not know `manual`,
+so every owner-made tenant would have got `402` on its first send
+(`TestManualTenantMayWrite`).
 
 ## User Scenarios & Testing
 
@@ -73,9 +84,10 @@ holds the 32-byte pubkey only; a second create with a different root → conflic
 1. **Given** `spool root-keygen` then `spool hub-tenant --tenant t --root-pubkey …`,
    **When** it succeeds, **Then** `tenants.root_pubkey` is set and no private
    key is in the DB. — *Implemented* (`hub-e2e.tst.sh` → `ok - owner created tenant t-e2e`; `TestTenantsAndPins`).
-2. **Given** `./run -a do_spl_tenant_create`, **When** it succeeds, **Then**
-   it prints URL + root private key once. — *Planned on trunk* (in flight on
-   unmerged `b6a2e80`).
+2. **Given** `TENANT_ID=acme DRY_RUN=0 ./run -a do_spl_tenant_create`, **When**
+   it succeeds, **Then** it prints URL + root private key once and the row is
+   `billing_status=manual`. — *Implemented* (`3690211`; DRY_RUN paths in
+   `tenant-create.tst.sh`, DRY_RUN=0 checked by hand, n=1).
 3. **Given** a cloud env (dev, then prd), **When** a tenant is created,
    **Then** `https://<tenant>.<env fqdn>/v1/health` answers 200 (003 FR-023). — *Planned*
    (blocked on 007, README §6 steps 3–10).
@@ -141,7 +153,7 @@ page + one email carry the tenant URL and root private key, once.
 - Tenant URL leaked: unpinned boxes fail hello; `GET /v1/pins` needs the
   WS-issued token (003). The URL is not a secret.
 - **Reserved slugs**: a tenant id equal to an env label or infra host (e.g.
-  `dev`, `www`, `api`) would shadow `*.dev.<domain>` or a service host. — *Planned* (FR-016).
+  `dev`, `www`, `api`) would shadow `*.dev.<domain>` or a service host. — *Implemented* (FR-016).
 - Root key lost: no escrow. Lost root = new tenant (M2: support; no dashboard re-issue).
 - Unknown Host, or Host outside the pattern → `404 unknown_tenant`.
 
@@ -150,13 +162,13 @@ page + one email carry the tenant URL and root private key, once.
 | FR | Requirement | Status (evidence) |
 |---|---|---|
 | **FR-001** | `tenants` row: `tenant_id` (`^[a-z0-9][a-z0-9-]{0,31}$`), 32-byte `root_pubkey`, `billing_status`, `plan_id`, `created_at`. | **Implemented** (`csi-spl-rdb/src/sql/postgres/spool-hub/0001_hub_core.sql`) |
-| **FR-001a** | Operator-created renter tenants carry `billing_status=manual` (narrative §2). | **Planned** — trunk CHECK is `active\|grace\|unpaid\|internal` (default `internal`); `manual` is in unmerged `0004` (`b6a2e80`) |
+| **FR-001a** | Operator-created renter tenants carry `billing_status=manual` (narrative §2). | **Implemented** (`0004_tenant_manual.sql`; `billing.StatusManual` writes like `active`; `TestManualTenantMayWrite`, `TestTenantManualAndPubkeyOnly`) |
 | **FR-002** | Tenant from the request **Host** against `$SPOOL_HUB_TENANT_HOST_PATTERN` (`{tenant}.<fqdn>`, cnf; no baked host). Host is the one routing choice; a `/t/<tenant>/` path prefix is not offered. | **Implemented** (`internal/hub/server.go` `tenantOf`; pattern must start `{tenant}.`) |
 | **FR-003** | Pin/revoke box pubkeys only with a tenant-root signature; semantics per 004. | **Implemented** (`TestPinRESTRootSigned`, `TestPinRevokeAndForce`) |
-| **FR-004** | Pins, messages, files, quotas isolated **per tenant**; the same `box_id`/agent id in two tenants are unrelated. | **Partial** — files cross-tenant `404` (`TestFilesRoundTripAndTenantIsolation`), per-tenant pin keys (`TestTenantsAndPins`); no test sends as the same `box-a`/`GRK-03` in two tenants with different keys and asserts no cross-delivery |
+| **FR-004** | Pins, messages, files, quotas isolated **per tenant**; the same `box_id`/agent id in two tenants are unrelated. | **Implemented** (`TestTwoTenantsSameAgentIDIsolated`: same `box-a`/`GRK-03` in two tenants, no cross-delivery, A's key refused as B's `box-a`; `TestFilesRoundTripAndTenantIsolation`) |
 | **FR-005** | No renter GCP IAM, no per-agent token. Box key + tenant root only. | **Implemented** (hub-e2e runs with no `CLOUDSDK_*`) |
 | **FR-006** | M1 ingress IP allowlist / IAP (cnf); M2 allow-unauthenticated and rate-limit unsigned calls at the hosting shield (007). | **Planned** (007 step 10) |
-| **FR-007** | Owner tenant-create action prints URL + root private key once; DB holds the pubkey only. | **Partial** — `spool root-keygen` + `spool hub-tenant` exist; `do_spl_tenant_create` not on trunk |
+| **FR-007** | Owner tenant-create action prints URL + root private key once; DB holds the pubkey only. | **Implemented** (`csi-spl-orc/src/bash/run/spl-tenant-create.func.sh`, `3690211`) |
 | **FR-008** | Quota: messages/month, pins, stored file bytes → `429 quota` (CLI exit 1). Values from the tenant's **plan** (cnf), 0 = unlimited. Recv is not quota-gated. | **Partial** — enforced, but one deploy-wide `SPOOL_HUB_QUOTA_*`, not per `plan_id` |
 | **FR-009** | `grace`/`unpaid` refuse send, pin, revoke, PUT file with `402 unpaid`; hello, recv, GET file, GET pins stay up. | **Implemented** (`billing.AllowsWrite`, `TestUnpaidSendPin402RecvInGrace`) |
 | **FR-010** | Grace is timed: `grace` older than `SPOOL_HUB_BILLING_GRACE` → `unpaid`; after cnf retention the tenant's data may be deleted. | **Planned** (not timed; no grace-start column) |
@@ -164,8 +176,8 @@ page + one email carry the tenant URL and root private key, once.
 | **FR-012** | An operator verb sets billing status (`paid`/`unpaid`/`refund` → `billing.MapEvent`) until M2 webhooks exist. | **Planned** (`MapEvent`, `SetBillingStatus` have no non-test caller) |
 | **FR-013** | M2: copy csi-rel payment (interface, drivers, signed webhook + `webhook_events_seen`, fail-closed boot, fake-pay in lde). No card data, no vendor name in source, no root private key stored. | **Partial** — schema + cnf (`40371a7`); Go + checkout **Planned** |
 | **FR-014** | M2: success page + one email with tenant URL + root private key, once. | **Planned** |
-| **FR-015** | Hygiene: no payment-vendor name in source; no root/box private key in logs. | **Partial** — WUI vendor grep (`no-payment-vendor-wui.tst.sh`); no Go vendor grep, no log-leak test on trunk |
-| **FR-016** | Reserved tenant slugs (env labels such as `dev`, and infra hosts) refused at create. | **Planned** |
+| **FR-015** | Hygiene: no payment-vendor name in source; no root/box private key in logs. | **Implemented** (`no-baked-host.tst.sh`: no product host / vendor in Go; `no-payment-vendor-wui.tst.sh`; `TestRootPrivateKeyNotLogged`) |
+| **FR-016** | Reserved tenant slugs (env labels such as `dev`, and infra hosts) refused at create and never resolved. | **Implemented** (`msg.ValidTenantID` reserved list, `TestValidTenantID`) |
 | **FR-017** | `v:1` schema unchanged; no `tenant_id` on `v:1` (the URL is the namespace). | **Implemented** (`grep -c tenant csi-spl-api/src/go/spool-hub-api/internal/msg/msg.go` → 0) |
 
 Removed from the pre-redo spec because 003 owns them (cited, not restated):
@@ -174,7 +186,7 @@ queue, file upload token — 003 `contracts/http-v1.md` and trust-modes §4–§
 
 ## Success Criteria
 
-- **SC-001**: Two tenants, identical box and agent ids, no cross-talk (FR-004). — Partial.
+- **SC-001**: Two tenants, identical box and agent ids, no cross-talk (FR-004). — Implemented.
 - **SC-002**: Two `$SPOOL_ROOT`s, keys + hub URL only, `task`→`result`. — Implemented locally (hub-e2e); cloud Planned.
 - **SC-003**: Unpaid tenant: send `402`, recv works; after grace, `unpaid`. — Partial (no grace timer).
 - **SC-004**: M1 demo step 2 on `dev` then `prd` with an owner-made tenant. — Planned.
@@ -183,7 +195,7 @@ queue, file upload token — 003 `contracts/http-v1.md` and trust-modes §4–§
 ## Open questions (owner)
 
 - **OQ-006-1** Per-tenant quotas: columns on `tenants` (the `b6a2e80`
-  approach) or a cnf plan table keyed by `plan_id`? Recommendation: cnf plan
+  approach, not landed) or a cnf plan table keyed by `plan_id`? Recommendation: cnf plan
   table — prices and quotas both live in cnf (payment.md); a column per tenant
   duplicates it.
 - **OQ-006-2** `manual` next to the existing `internal`? Recommendation: keep
@@ -195,4 +207,4 @@ queue, file upload token — 003 `contracts/http-v1.md` and trust-modes §4–§
 NATS, Kafka, git-rel, ysg-box, customer GCP accounts, card storage, custom
 domains, seats (M4), WUI (005).
 
-<!-- version: 1.0.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:12:21Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:40:00Z -->

@@ -11,11 +11,11 @@ Gate: 002 local (frozen) + 003 hub + 004 pins. Cloud tasks gate on 007 (README �
 ## Phase 1: Tenant (M1)
 
 - [x] T001 [FR-001] `tenants` table: id, root_pubkey, billing_status, plan_id — **Implemented** (`0001_hub_core.sql`).
-- [ ] T001a [FR-001a] Add `billing_status=manual` (forward-only migration) — **Planned**; in flight on `GRK-3338-006-tenants-host` (`b6a2e80`, 0004), not on trunk.
+- [x] T001a [FR-001a] Add `billing_status=manual` (forward-only migration) — **Implemented** (`3690211`: `0004_tenant_manual.sql`; `manual` writes like `active`, `TestManualTenantMayWrite`).
 - [x] T002 [FR-002] Tenant from Host via `$SPOOL_HUB_TENANT_HOST_PATTERN`; unknown → `404 unknown_tenant` — **Implemented** (`internal/hub/server.go` `tenantOf`; 003 T006 is the same code).
-- [ ] T003 [FR-007] `./run -a do_spl_tenant_create`: mint root keypair, insert row, print URL + root private key **once** — **Partial**: `spool root-keygen` + `spool hub-tenant` exist (`hub-e2e.tst.sh` → `owner created tenant t-e2e`); the orc action is only on unmerged `b6a2e80`.
-- [ ] T004 [FR-004] Isolation test: two tenants, same `box-a` + `GRK-03`, different keys; a send in tenant A is never delivered in tenant B; B's root cannot pin in A — **Partial**: file 404 cross-tenant (`TestFilesRoundTripAndTenantIsolation`) and per-tenant pins (`TestTenantsAndPins`) exist; the message cross-talk assertion does not.
-- [ ] T016 [FR-016] Refuse reserved slugs at create (env labels e.g. `dev`, infra hosts e.g. `www`, `api`; list in cnf) — **Planned**.
+- [x] T003 [FR-007] `TENANT_ID=<slug> ./run -a do_spl_tenant_create`: mint root keypair, insert row (`manual`), print URL + root private key **once** — **Implemented** (`3690211`; `tenant-create.tst.sh`; DRY_RUN=0 checked by hand on a temp Postgres, n=1).
+- [x] T004 [FR-004] Isolation test: two tenants, same `box-a` + `GRK-03`, different keys; no cross-delivery — **Implemented** (`TestTwoTenantsSameAgentIDIsolated`, `3690211`).
+- [x] T016 [FR-016] Refuse reserved slugs (env labels e.g. `dev`, infra hosts e.g. `www`, `api`) — **Implemented** (`msg.ValidTenantID`; the list is in code — labels, not hostnames; `3690211`).
 
 ## Phase 2: Root-signed pins (US2, M1)
 
@@ -51,6 +51,6 @@ are not duplicated here.
 ## Phase 6: Polish
 
 - [x] T014 [FR-006] Public deploy notes: allow unauthenticated in M2; rate-limit unsigned at the shield — **Implemented** as doc (`plan.md` "Public deploy notes"); the infra is 007's.
-- [ ] T015 [FR-015] Hygiene tests: no payment-vendor name in Go; no root/box private key in hub logs — **Partial**: WUI-only gate `no-payment-vendor-wui.tst.sh`; the Go/log gates are only on unmerged `b6a2e80`.
+- [x] T015 [FR-015] Hygiene tests: no payment-vendor name / product host in Go; no root private key in hub logs — **Implemented** (`no-baked-host.tst.sh`, `TestRootPrivateKeyNotLogged`, `3690211`).
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:05:25Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:40:00Z -->

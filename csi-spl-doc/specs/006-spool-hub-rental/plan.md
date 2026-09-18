@@ -34,7 +34,7 @@ prefix `t/<tenant>/files/<sha256>` from day one (003 data model).
 ## Constitution Check
 
 - [x] II — no baked hub host: pattern from cnf (`server.go` rejects a pattern not starting `{tenant}.`).
-- [ ] V — no payment-vendor name in source: WUI gated only (T015).
+- [x] V — no payment-vendor name in source: Go (`no-baked-host.tst.sh`) + WUI gates (T015).
 - [x] VII — no root private key in DB: `tenants.root_pubkey` is a 32-byte CHECK; `0003` stores the public half only.
 - [x] VIII — same verbs: 002/003, not this lane.
 
@@ -50,14 +50,14 @@ only admits the load balancer).
 
 ## Build order
 
-1. **Now (M1, no cloud needed)**: T001a, T003, T004, T011b, T013a, T013b,
-   T015, T016 — code + tests on lde/docker Postgres.
+1. **Now (M1, no cloud needed)**: T011b, T013a, T013b — code + tests on
+   lde/docker Postgres. (T001a, T003, T004, T015, T016 landed in `3690211`.)
 2. **After 007 README §6 steps 3–10 on dev**: T011c on dev (owner-made tenant,
    second machine), then prd. This closes the M1 demo for 006.
 3. **M2**: T012a (after OQ-006-1), T018 → T019 → T020 → T021.
 
-`b6a2e80` (branch `GRK-3338-006-tenants-host`) already carries T001a, T003,
-T015 and a quota-columns take on T012a; landing it is the cheapest route for
-step 1, after OQ-006-1 decides columns vs cnf plan table.
+`b6a2e80` (branch `GRK-3338-006-tenants-host`, never pushed) was landed as
+`3690211` without its per-tenant quota columns, which nothing enforced;
+per-plan quotas wait on OQ-006-1.
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:05:25Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:40:00Z -->

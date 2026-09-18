@@ -45,7 +45,7 @@ step are in `contracts/provisioning-order.md`.
 | 7 | build + push the hub image | `do_build_push_hub_image` | Implemented (`spool-hub:0.1.0`) | Planned |
 | 8 | DB user + DSN secret version + `spool migrate` | `do_spl_db_bootstrap` | Implemented (secret v1 enabled) | Planned |
 | 9 | Cloud Run hub | `030-cloud-run-hub` | Implemented | Planned |
-| 10 | ingress: LB + Cloud Armor + wildcard cert + records | `031-gcp-hub-ingress` | **Partial** — 15 instances in state, cert `csi-spl-dev-hub-cert` ACTIVE for `dev.` + `*.dev.`, records in the prd zone; 403 from a non-allowlisted IP, the allowlisted 200 not yet measured | Planned |
+| 10 | ingress: LB + Cloud Armor + wildcard cert + records | `031-gcp-hub-ingress` | **Partial** — 15 instances in state, cert `csi-spl-dev-hub-cert` ACTIVE for `dev.` + `*.dev.`, records in the prd zone; allowlist `0.0.0.0/0` since `37e2e58` (documented M1 exception, FR-012): `/v1/health` 200 from any IP | Planned |
 
 Outside the chain: `020-gcp-relay-bucket` (git-rel, spec `001`, Implemented
 in both envs); `016` / `019` Firebase (M3 WUI, spec `005`);
@@ -78,7 +78,7 @@ gcloud call ran read-only with `--account=$GCP_ACCOUNT`.
 | prd state | managed instances per `default.tfstate` -> 001:12 025:1 040:3 028:1 050:1 030:0 |
 | prd APIs | `gcloud services list --enabled --project=csi-spl-prd` -> 7 of run, sqladmin, compute, secretmanager, artifactregistry, certificatemanager, dns present |
 | dev ingress | 031 state 15 instances; `gcloud certificate-manager certificates list --project=csi-spl-dev` -> `csi-spl-dev-hub-cert` ACTIVE `dev.spool-hub.ai`, `*.dev.spool-hub.ai` |
-| dev probe | `curl -so /dev/null -w '%{http_code}' https://t1.dev.spool-hub.ai/v1/health` from a non-allowlisted box -> `403` |
+| dev probe | `curl -so /dev/null -w '%{http_code}' https://t1.dev.spool-hub.ai/v1/health` from a box never allowlisted -> `403` at ~19:45Z; `200` at ~20:20Z after `37e2e58` (documented M1 exception, FR-012) |
 | Delegation | `dig +norec NS spool-hub.ai @v0n1.nic.ai` -> `ns-cloud-e1..e4.googledomains.com` (was Gandi at 19:00Z) |
 | Zone records | `gcloud dns record-sets list --zone=spool-hub --project=csi-spl-prd` -> NS, SOA, `dev.` A, `*.dev.` A, `_acme-challenge.dev.` CNAME; **no apex, no www** |
 | Apex | `dig +short @ns-cloud-e1.googledomains.com A spool-hub.ai` -> empty |
@@ -167,7 +167,7 @@ new Host name and **no new DNS record** (wildcard from M1).
 `030` runs the hub (WS + REST, `min = max = 1` per OQ-05, Cloud SQL socket,
 DSN from Secret Manager, files-bucket IAM) with ingress
 `internal-and-cloud-load-balancing`, so only the `031` load balancer
-(Cloud Armor IP allowlist in M1, removed in M2) reaches it.
+(Cloud Armor allowlist; `0.0.0.0/0` under the documented M1 exception, FR-012) reaches it.
 
 ## User Story 5 — CI deploys without keys (P1) — Partial (code on trunk, not applied)
 
@@ -204,7 +204,7 @@ where the files live and how they reach each env.
 | FR-009 | `do_build_push_hub_image` builds and pushes the hub image with bundled DDL | Implemented dev (`43b9296`) |
 | FR-010 | `do_spl_db_bootstrap`: DB user, DSN secret version, `spool migrate`; secrets never in argv, log or state; dry-run by default | Implemented dev (`9f8f492`) |
 | FR-011 | `030` Cloud Run hub, runtime SA, min = max = 1, ingress LB-only | Implemented dev; Planned prd |
-| FR-012 | `031` global LB + serverless NEG + Cloud Armor IP allowlist (M1) + wildcard managed cert + records into the `025` zone | Partial — dev applied (cert ACTIVE, 403 non-allowlisted); prd Planned |
+| FR-012 | `031` global LB + serverless NEG + Cloud Armor allowlist + wildcard managed cert + records into the `025` zone. **M1:** the allowlist is `0.0.0.0/0`, a documented exception (`../../doc/md/SPEC-spool-milestones.md` M1 Ingress); the **data plane stays gated**: a WS needs a hello signed by a root-pinned box key, `GET /v1/files/{id}` is a capability by sha256, `/v1/view/*` needs a view token **in prd**. **Exception: dev runs `SPOOL_HUB_VIEW_DOOR=off`** (`csi-spl-cnf/csi-spl/dev.env.yaml`; the hub refuses `off` outside lde/dev), so dev thread reads are open to anyone who knows a dev tenant host. 403-for-a-non-allowlisted-IP is an **M2** expectation | Partial — dev and prd applied; `curl …/version` 200 on `spool-hub.ai`, `www.`, `api.`, `dev.`, `dev.api.` (~20:20Z, n=1); narrowing the allowlist is M2 |
 | FR-013 | `017` WIF deploy identity per env: creates `csi-spl-deploy-<env>`, scoped grants, exports the repo variables `008` reads; no SA key | Partial — on trunk `2a7888c` (the orphaned draft bound WIF to a `<project>@<project>` SA that `gcloud iam service-accounts list` shows does not exist; corrected); `terraform validate` PASS; not applied |
 | FR-014 | `029` Secret Manager slots (no shop captcha / BIN; M2 payment slots empty or omitted) | Planned — no step dir on trunk |
 | FR-015 | `003-gcp-iam-users`, `005-gcp-domain-verification` | Planned, not needed for M1 — certificates use Certificate Manager DNS authorization, not Search Console verification; `005` draft on unmerged `GRK-3341-007-tf-005-domain`; `003` not started |
@@ -220,8 +220,8 @@ where the files live and how they reach each env.
 - **SC-003**: `terraform state list` per step per env matches §1 with every
   row Implemented, on dev **and** prd.
 - **SC-004**: `GET /v1/health` (003 FR-023) on `https://<tenant>.dev.spool-hub.ai` and
-  `https://<tenant>.spool-hub.ai` returns 200 from an allowlisted IP and 403
-  from any other.
+  `https://<tenant>.spool-hub.ai` returns 200. **M1:** from any IP (documented `0.0.0.0/0` exception, FR-012).
+  **From M2:** 200 from an allowlisted IP and 403 from any other.
 - **SC-005**: the `20_hub-build-deploy.yml` deploy jobs run (not skip) for
   dev and prd.
 
@@ -231,4 +231,4 @@ Shop steps (a storefront `019`, `021`, `032`, `060`–`063`, `130` / `131`),
 store SQL, M2 payment drivers, M3 WUI hosting (spec `005`), CI job design
 (spec `008`), wire and tenancy semantics (`003` / `004` / `006`).
 
-<!-- version: 1.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:05:00Z -->
+<!-- version: 1.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:24:15Z -->

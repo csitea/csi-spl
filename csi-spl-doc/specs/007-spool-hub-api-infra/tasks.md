@@ -69,9 +69,9 @@ Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
 
 - [x] T040 `030-cloud-run-hub` dev (6 resources; min = max = 1, cloudsql
       socket) — FR-011
-- [~] T041 `031-gcp-hub-ingress` dev apply (applied: 15 in state, cert ACTIVE, 403 non-allowlisted; allowlisted 200 unmeasured) after T011 + T013; cnf
+- [~] T041 `031-gcp-hub-ingress` dev apply (applied: 15 in state, cert ACTIVE; `0.0.0.0/0` since `37e2e58`, the documented M1 exception, so `/v1/health` 200 from any IP) after T011 + T013; cnf
       `allowed_ip_ranges` set by the owner; `do_wait_for_cert` ACTIVE;
-      `/v1/health` 200 allowlisted / 403 otherwise (003 FR-023; a serverless NEG takes no LB health check) — FR-012, SC-004
+      `/v1/health` 200 (M1: any IP; from M2: 403 for a non-allowlisted IP) (003 FR-023; a serverless NEG takes no LB health check) — FR-012, SC-004
 - [ ] T042 prd `030` + `031` (no apex A record without owner go) — FR-011,
       FR-012
 
@@ -147,4 +147,4 @@ the WUI code owner to be confirmed before anyone edits it.
 
 M2 payment drivers, M3 WUI hosting (`005`), pipeline job design (`008`).
 
-<!-- version: 1.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:05:00Z -->
+<!-- version: 1.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:24:15Z -->

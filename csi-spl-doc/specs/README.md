@@ -244,7 +244,7 @@ steps are each a task.
 
 | Item | Owner |
 |---|---|
-| **Ingress is open to the internet**: `allowed_ip_ranges: ["0.0.0.0/0"]` in dev and prd (`37e2e58`, "TEMPORARY for M1 verification (owner)"); `curl https://t1.dev.spool-hub.ai/v1/health` -> 200 from a box that was never allowlisted. The binding `../doc/md/SPEC-spool-milestones.md` M1 row still says "Unknown internet cannot hold a WS", and 007 FR-012 / SC-004 still expect 403. The box key on the WS hello is the only gate meanwhile. **Owner:** confirm the exception in the milestones doc, or tighten before the M1 demo | **owner** → 007 |
+| **Ingress: documented M1 exception** (decided 2026-09-18). The Cloud Armor allowlist is `0.0.0.0/0` in dev and prd (`37e2e58`), recorded in `../doc/md/SPEC-spool-milestones.md` (M1 Ingress) and 007 FR-012 / SC-004. It widens only L7: the **data plane stays gated**: a WS needs a hello signed by a root-pinned box key, `GET /v1/files/{id}` is a capability by sha256, `/v1/view/*` needs a view token **in prd**. **Exception: dev runs `SPOOL_HUB_VIEW_DOOR=off`** (`csi-spl-cnf/csi-spl/dev.env.yaml`; the hub refuses `off` outside lde/dev), so dev thread reads are open to anyone who knows a dev tenant host, so `/v1/health` 200 from any IP is expected. **End condition: M2 sign-off**; 403-for-non-allowlisted is an M2 expectation | 008 T115 + the M2 ingress follow-up |
 | `017-github-wif-deploy` on trunk (`2a7888c`) but **not applied**; repo vars `GCP_WIF_PROVIDER_<ENV>` / `GCP_DEPLOY_SA_EMAIL_<ENV>` unset, so the `20 ci-cd` deploy job skips both envs. Both hubs were deployed outside the pipeline. Deployed-state check: `./run -a do_check_hub_deploy` (`7bfe152`); post-deploy smoke: `22_deploy-verify.yml` (`81ab284`) | 007 T050 (apply, owner go) → 008 T105–T109 |
 | Several lanes stamped `last-edit` in local time with a `Z` suffix | cosmetic; fix on next edit |
 
@@ -258,4 +258,4 @@ Resolved since the first record (kept for audit):
 `grep -c '/v1/messages\|/v1/channels' csi-spl-wui/utils/spool-client.mjs` -> 0) ·
 ~~`GRK-3342-007-tf-007-dns` stale branch~~ (superseded by `025`).
 
-<!-- version: 1.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:20:46Z -->
+<!-- version: 1.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:24:15Z -->

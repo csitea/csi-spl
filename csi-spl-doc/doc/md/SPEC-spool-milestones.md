@@ -56,7 +56,7 @@ Pins: hello + periodic `GET /v1/pins`.
 |---|---|
 | DNS prd | **Wildcard from M1:** `*.spool-hub.ai` → hub. Hosts like `https://<tenant>.spool-hub.ai`. |
 | DNS dev | **Wildcard from M1:** `*.dev.spool-hub.ai`. |
-| Ingress | **IAP and/or IP allowlist** until M2. Unknown internet cannot hold a WS. |
+| Ingress | **IAP and/or IP allowlist** until M2. Unknown internet cannot hold a WS. **Documented M1 exception** (owner, `37e2e58`; decided 2026-09-18): the Cloud Armor allowlist is `0.0.0.0/0` in dev and prd. It widens only the L7 allowlist; the **data plane stays gated**: a WS needs a hello signed by a root-pinned box key, `GET /v1/files/{id}` is a capability by sha256, `/v1/view/*` needs a view token **in prd**. **Exception: dev runs `SPOOL_HUB_VIEW_DOOR=off`** (`csi-spl-cnf/csi-spl/dev.env.yaml`; the hub refuses `off` outside lde/dev), so dev thread reads are open to anyone who knows a dev tenant host. So an unknown client still cannot hold a WS, and `/v1/health` 200 from any IP is expected, not a failure. **End condition: M2 sign-off** — the M2 ingress is settled before it (008 T115 keeps `GET /` and `/version` public when the allowlist narrows). |
 | Tenant create | **Owner-only** `do_spl_tenant_create`. **Several** manual tenants allowed
   (not a single internal one). Isolation is still `tenant_id`. |
 | Second box | A **real second machine**: GCP VM **or** a grok-bot VM (try one of those). |
@@ -75,7 +75,7 @@ Kafka, per-agent hub keys.
 1. **Local:** GRK-03 → CLE-07 on one `$SPOOL_ROOT`, no `$SPOOL_HUB_URL`.
 2. **Hub:** this box + a **second box** (GCP VM or grok-bot VM), **one of several**
    owner-created tenants, two box keys, pins synced, talking to **spool-hub.ai**
-   (prd) or **dev.spool-hub.ai** (dev). Ingress IAP/IP allowlist.
+   (prd) or **dev.spool-hub.ai** (dev). Ingress: Cloud Armor allowlist, under the documented M1 `0.0.0.0/0` exception (Ingress row above).
 3. One side **`spool mcp`** (Claude or agy); the other may be Grok CLI.
    `task` then `result` across boxes.
 4. HUM-1 on box-a commands CLE@box-b. Missing pubkey → refuse (`78`).
@@ -154,4 +154,4 @@ provision (`SPEC-spool-byo-gcp.md`). Does **not** replace M2 hosted checkout.
 **M3 rollout** (Slack WUI) → **M4** (seats + buy-minute project id) →
 **later** CI logs, reverse-chat, BYO GCP billing.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:55:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:24:15Z -->

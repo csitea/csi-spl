@@ -72,8 +72,9 @@ slot + 029. T013 MCP/CLI. T014 WUI. T015 streaming tail.
 
 ## Phase 5: User Story 2 — the GitHub Actions pipeline (M1) 🎯
 
-Owner lane per task in brackets. **008 writes no code** in the redo; a task
-owned by another lane is handed to it (`specs/README.md` §2.4, §5).
+Owner lane per task in brackets. The owner widened the redo to code
+(2026-09-18T19:08Z): **008 owns the pipeline code** (`.github/workflows/`) and
+its deploy check; terraform and applies stay 007's / the owner's.
 
 - [x] T101 [US2] Both workflows on trunk: `10_ci-quality.yml` (hub-suite,
       no-ysg-box-ref, distribution-hygiene) and `20_hub-build-deploy.yml`
@@ -97,7 +98,7 @@ owned by another lane is handed to it (`specs/README.md` §2.4, §5).
       record the run id; require the deploy job `success` (not `skipped`),
       image == cnf ref, Ready, latest revision ready. Closes FR-P05/P06/P08
       for dev.
-- [ ] T107 [US2] [workflow author lane] Fix the hygiene sweep (FR-P07): a
+- [x] T107 [US2] [008] Fix the hygiene sweep (FR-P07): a
       clean `grep` must not abort the step under GitHub's `bash -e` — e.g.
       `hits="$(grep … | cut … | sort -u || true)"`. Proof: the extracted
       sweep script under `bash -e` prints five `ok -` lines and exits 0 on
@@ -110,7 +111,7 @@ owned by another lane is handed to it (`specs/README.md` §2.4, §5).
 - [ ] T109 [US2] [owner go] prd, after prd provisioning steps 1–9
       (`specs/README.md` §6): apply 017 prd, export `…_PRD`, first prd deploy
       as in T106.
-- [ ] T110 [P] [US2] [orc lane] FR-P09 deployed-state check: an orc action
+- [ ] T110 [P] [US2] [008] FR-P09 deployed-state check: an orc action
       comparing cnf `hub.image.ref` with the live service image per env
       (`gcloud … --account=$GCP_ACCOUNT`), printing `current` / `lagging`
       and exiting non-zero when lagging. Read-only.
@@ -129,7 +130,7 @@ owned by another lane is handed to it (`specs/README.md` §2.4, §5).
 | T103, T104 | Planned | 017 only on branch `GRK-3343-007-tf-017-wif` (`11db84d`); `gcloud iam service-accounts describe csi-spl-{dev,prd}@csi-spl-{dev,prd}.iam.gserviceaccount.com --account=$GCP_ACCOUNT` → NOT_FOUND ×2 |
 | T105, T109 | Planned | `gh variable list -R csitea/csi-spl` → empty; no WIF pool in either project |
 | T106 | Planned | deploy job `skipped` in 8 of 8 runs of `20 ci-cd` |
-| T107 | Planned — **trunk red** | `distribution-hygiene` failed in 9 of 9 completed gate runs; reproduced, see spec FR-P07 |
+| T107 | Implemented | `4839514`; run `35385087709` → `distribution-hygiene` success (first green gate since `3596991`) |
 | T108, T110, T111 | Planned | — |
 
 ## Traceability — US2
@@ -147,4 +148,4 @@ owned by another lane is handed to it (`specs/README.md` §2.4, §5).
 | FR-P09 deployed-state check | T110 |
 | FR-P10 names from cnf | T101 |
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:02:27Z -->
+<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:00Z -->

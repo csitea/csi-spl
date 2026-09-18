@@ -15,7 +15,7 @@ another lane's branch.
 
 | # | Step | Owner | Tasks | Blocks |
 |---|---|---|---|---|
-| 1 | Make the gate green: the hygiene sweep must pass a clean tree | workflow author lane | T107 | nothing — do it first |
+| 1 | ~~Make the gate green~~ — **done** `4839514`, run `35385087709` | 008 | T107 | — |
 | 2 | 017 lands on trunk with a deploy SA that exists, plus the grants in `contracts/pipeline.md` §3 | 007 | T103, T104 | 3 |
 | 3 | dev: apply 017, export the two `…_DEV` repo variables | owner go | T105 | 4 |
 | 4 | First dev deploy through a tag bump, then a 030 plan with no diff | 008 verifies, 007 fixes 030 if needed | T106, T108 | 5 |
@@ -51,7 +51,7 @@ Dev goes all the way through before prd, as README §6 says.
 | `gcloud run services update` leaves fields that 030 then plans to revert | T108: plan after the first roll; `ignore_changes` only on the exact fields shown |
 | prd push runs fail once the `…_PRD` variables exist but prd 028/030 do not | Set the prd variables only after prd step 9 (T109) |
 | Actions pinned by major tag | T111 (later): pin by sha |
-| A broken gate trains readers to ignore red | T107 first; the gate has been red on every run since it landed |
+| A broken gate trains readers to ignore red | Fixed (T107); a sweep grep error now fails the gate instead of passing it |
 
 ## 5. US1 — CI logs in chat
 
@@ -59,4 +59,4 @@ Unchanged: `contracts/fetch-deliver.md`, tasks T001–T015. After M3 in the
 dependency order (`specs/README.md` §4). The M1 flagged-off stub is being
 built on branch `GRK-3354-008-cicd-logs-stub`.
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:02:27Z -->
+<!-- version: 1.0.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:00Z -->

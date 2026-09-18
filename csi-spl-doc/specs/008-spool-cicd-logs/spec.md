@@ -5,7 +5,7 @@
 
 **Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo, area 008)
 
-**Status**: US2 pipeline — **Partial** (M1). US1 CI logs in chat — **Planned**
+**Status**: US2 pipeline — **Partial** (M1: gate green, deploy never run). US1 CI logs in chat — **Planned**
 (later, after M3; M1 carries a flagged-off stub).
 
 **Contracts**: `contracts/pipeline.md` (US2), `contracts/fetch-deliver.md` (US1)
@@ -51,7 +51,7 @@ tenant cannot read another tenant’s repos.
 
 ## Requirements — US2 pipeline (M1)
 
-| FR | Requirement | Status (verified 2026-09-18, trunk `bbc41e7`) |
+| FR | Requirement | Status (verified 2026-09-18, trunk `bbc41e7`; FR-P07 at `4839514`) |
 |---|---|---|
 | **FR-P01** | Two workflows: `10_ci-quality.yml` (hermetic gate) and `20_hub-build-deploy.yml` (test → prepare-deploy → matrix deploy). Push to `master` + `workflow_dispatch`; **no `pull_request`** (trunk-based). | **Implemented** — `3596991`; `gh run list -L 100` → 11 gate runs, 8 deploy runs since, all `push`. |
 | **FR-P02** | The quality gate has **no `paths:` filter**; the deploy workflow has an **allow-list** of every build input (`contracts/pipeline.md` §1.1). | **Implemented** — `grep -cE '^\s+paths:' .github/workflows/10_ci-quality.yml` → 0; same on `20_hub-build-deploy.yml` → 1. |
@@ -59,7 +59,7 @@ tenant cannot read another tenant’s repos.
 | **FR-P04** | Deploy auth is **Workload Identity Federation only**, from repo variables `GCP_WIF_PROVIDER_<ENV>` / `GCP_DEPLOY_SA_EMAIL_<ENV>` exported by 007's `017`. No JSON key anywhere. | **Partial** — workflow side implemented (`grep -c 'credentials_json' .github/workflows/*.yml` → 0). Inputs absent: `gh variable list -R csitea/csi-spl` → empty; `017-github-wif-deploy` not on trunk (`ls csi-spl-iac/src/terraform` → no 017; exists only on branch `GRK-3343-007-tf-017-wif`, `11db84d`); `gcloud iam workload-identity-pools list --location=global --project=csi-spl-{dev,prd} --account=$GCP_ACCOUNT` → none. |
 | **FR-P05** | **Terraform owns the image.** A deploy is a cnf `hub.image.tag` bump; the pipeline pushes exactly cnf `hub.image.ref` when absent (via `do_build_push_hub_image`), rolls the existing 030 service to it, never pushes a per-sha tag, never creates or re-permissions anything. | **Partial** — logic implemented in `3596991`; **never executed**: the deploy job is `skipped` in 8 of 8 runs (`gh run view <id> --json jobs`), because FR-P04's inputs are absent. |
 | **FR-P06** | Deploy matrix **dev + prd on one push**, `fail-fast: false`, per-env `concurrency` with `cancel-in-progress: false`, **forward-only guard** on push runs; a dispatch naming one env is unguarded (rollback path). No required reviewers on the GitHub environments. | **Partial** — in the workflow (`3596991`); untested live (same cause). `gh api repos/csitea/csi-spl/environments` → no environments yet (GitHub creates them on first use). |
-| **FR-P07** | The hygiene sweep passes on a clean tree and fails only on a hit, printing `file:line`, never the value. | **Partial — RED ON TRUNK.** `distribution-hygiene` failed in 9 of 9 completed gate runs since `3596991`. Cause, reproduced on `9f8f492` (n=1 each): the sweep script under `bash -e` (GitHub's default `run` shell) → exit 1 with no output; the same script without `-e` → five `ok -` lines, exit 0. A clean `grep` returns 1, `pipefail` carries it into `hits="$(…)"`, and `-e` aborts. The **tree is clean**; the **gate is broken**. Fix: task T107. |
+| **FR-P07** | The hygiene sweep passes on a clean tree and fails only on a hit, printing `file:line`, never the value. | **Implemented** — fixed in `4839514`; run `35385087709` → all three gate jobs success. Before the fix it failed in 9 of 9 runs on a clean tree: a clean `grep` returns 1, `pipefail` carries it into `hits="$(…)"`, and the step's `bash -e` aborted the script. Now rc 1 = clean and rc > 1 (bad pattern) fails the gate. |
 | **FR-P08** | Deploy verification through the control plane (image == cnf ref, Ready, latest revision ready), since 031's allowlist keeps runners off `/healthz`. | **Partial** — in the workflow; never executed. |
 | **FR-P09** | A deployed-state check an operator (or agent) can run: cnf `hub.image.ref` vs the live service image, per env, reporting `current` or `lagging`. | **Planned** — `ls csi-spl-orc/src/bash/run \| grep -c deploy-lag` → 0 (the name occurs only in the agent spawn prompt text, not as an action). Task T110. |
 | **FR-P10** | Names (project, region, image ref, service) come from cnf through `do_spl_cloud_cnf`, never from the workflow file. | **Implemented** — `grep -cE 'csi-spl-(dev\|prd)\b' .github/workflows/20_hub-build-deploy.yml` → 0. |
@@ -107,4 +107,4 @@ that lane ticks tasks T002–T010 when it lands.
 - **US1**: M1 image need not include `gh`. M2 checkout. Store logic. WUI. 031
   ingress. Baking tokens. Box-side `gh` / tokens on a box.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:02:27Z -->
+<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:00Z -->

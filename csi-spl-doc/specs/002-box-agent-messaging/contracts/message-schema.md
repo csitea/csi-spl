@@ -55,7 +55,22 @@ to disk. Any change is a `v` bump, never an in-place edit.
 - Any `files[i].sha256 != files[i].file_id` → reject.
 - `from`/`to` not matching the id regex → reject.
 - Limits (`body` 64 KiB, 16 files, 32 MiB/file): `../../../003-spool-message-bus/contracts/limits.md`.
-- `kind` / `task_id` meaning: `kind-lifecycle.md` and `doc/md/SPEC-spool-task-lifecycle.md`.
-- Canonical bytes: `canonical-json.md`.
+## Legacy `.md` Bridge (Option B: Transparent Coexistence)
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->
+When `spool recv` scans `$SPOOL_ROOT/<id>/inbox/` and encounters legacy `.md` files (from `ysg-box` `inbox-send.sh`):
+1. Detects `.md` file format.
+2. Ingests without error, wrapping into a synthetic `v:1` envelope:
+   - `v`: 1
+   - `msg_id`: deterministic UUID (derived from filename and content hash).
+   - `task_id`: extracted from header/frontmatter if present, else fallback deterministic thread UUID.
+   - `ts`: parsed from `<YYYYMMDD-HHMMSS>` in filename or file mtime (RFC3339 UTC).
+   - `from`: parsed from `<from>` in filename `<ts>--<from>--<subject>.md`.
+   - `to`: recipient whose inbox contains the file.
+   - `kind`: `"note"`
+   - `body`: raw file contents.
+   - `files`: `[]`
+   - `sig`: `"legacy-unsigned"`
+3. On `--ack`, the `.md` file is moved to `archive/` identically to `.json` files.
+4. Result: AI agents only need `spool recv` to receive all incoming mail regardless of sender version.
+
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:36:00Z -->

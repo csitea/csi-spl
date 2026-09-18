@@ -12,8 +12,9 @@ valid for a **private** org hub; `GET /v1/messages?as=` is not the public API.
 ```
 POST /v1/files                 # upload bytes → { file_id, sha256, bytes }
 GET  /v1/files/{file_id}       # download bytes (or short-lived signed URL); caller re-hashes == file_id
-POST /v1/messages              # submit a v1 message (verify pin+sig → PG, notify NATS)
+POST /v1/messages              # submit a v1 message (verify pin+sig → PG, notify SSE / NATS)
 GET  /v1/messages?as=&task_id= # list messages for an agent / thread
+GET  /v1/events?task_id=&as=   # live SSE stream (Server-Sent Events) for real-time thread/inbox updates
 GET  /healthz                  # liveness / health probe (returns 200 OK)
 GET  /version                  # build / version metadata (version, commit, built_at)
 ```
@@ -33,6 +34,13 @@ GET  /version                  # build / version metadata (version, commit, buil
 - GET streams bytes or hands back a short-lived signed URL; the URL is never
   logged or persisted (Constitution VII). The box CLI re-hashes and refuses a
   mismatch (never writes a partial) — same guarantee as `002` `spool-get-file`.
+
+## GET /v1/events (SSE)
+
+- Server-Sent Events stream: `Content-Type: text/event-stream`.
+- Query parameters: `task_id=<uuid>` (stream thread updates) or `as=<agent_id>` (stream agent inbox notifications).
+- Payload: `event: message\ndata: <v:1 JSON>\n\n`.
+- Architecture Phase: Cloud Run handles SSE natively via Postgres LISTEN/NOTIFY or internal broadcast channel for WUI and sidecar clients; NATS JetStream is added when inter-cluster multi-box throughput requires it.
 
 ## Trust & ingress
 

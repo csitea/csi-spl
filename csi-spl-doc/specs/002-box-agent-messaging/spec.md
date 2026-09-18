@@ -162,6 +162,7 @@ so MCP is additive and lower priority than a working CLI.
   (`CLE-*`/`GRK-*`/`AGY-*`); there MUST be no per-kind field, verb, or tool.
 - **FR-014**: The implementation MUST be self-contained under `csi-spl`; it MUST
   NOT read, write, import, or shell out to ysg-box code.
+- **FR-015**: Legacy `.md` Bridge (Option B): `spool-recv` MUST transparently ingest legacy `.md` messages found in `$SPOOL_ROOT/<id>/inbox/`, wrapping them in synthetic `v:1` envelopes (`kind: "note"`, `sig: "legacy-unsigned"`, parsed `ts` and `from`), and archive them atomically on `--ack` alongside `.json` messages.
 
 ### Non-Functional Requirements
 

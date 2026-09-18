@@ -11,78 +11,94 @@ key). GCS keys are `t/<tenant>/files/<sha256>`. Add a `tenants` table
 
 | Key | Value |
 |---|---|
-| `files/<sha256 hex>` | raw bytes, no metadata object |
+| `t/<tenant_id>/files/<sha256 hex>` | raw bytes, no metadata object (partitioned per tenant) |
 
-No other prefixes. Lifecycle: see `contracts/limits.md` (mail files live
-longer than git-rel’s 1-day probe objects; do not reuse the 001 bucket).
+Lifecycle: see `contracts/limits.md` (30-day retention).
 
-## 2. Postgres
+## 2. Postgres (Tenant-Native from Day 1)
+
+Every table includes `tenant_id` (default internal fleet tenant: `"csitea-internal"`). This ensures zero breaking migrations when public rental (006) activates.
+
+### `tenants`
+
+| column | type | notes |
+|---|---|---|
+| `tenant_id` | text PK | e.g. `"csitea-internal"`, or rental slug |
+| `root_pubkey` | bytea | raw 32-byte Ed25519 tenant root key |
+| `billing_status` | text | `"active"`, `"grace"`, `"unpaid"`, `"internal"` |
+| `plan_id` | text | quota & retention tier |
+| `created_at` | timestamptz | |
 
 ### `boxes`
 
 | column | type | notes |
 |---|---|---|
-| `box_id` | text PK | `$SPOOL_BOX_ID` |
-| `iam_principal` | text UNIQUE | Cloud Run door |
+| `tenant_id` | text | FK `tenants(tenant_id)` |
+| `box_id` | text | `$SPOOL_BOX_ID` |
+| `iam_principal` | text UNIQUE | Cloud Run door identity |
 | `last_seen_at` | timestamptz | last authenticated call |
+
+PK `(tenant_id, box_id)`.
 
 ### `pins`
 
 | column | type | notes |
 |---|---|---|
-| `agent_id` | text PK | `CLE-07` |
+| `tenant_id` | text | FK `tenants(tenant_id)` |
+| `agent_id` | text | `CLE-07`, `GRK-03`, `AGY-01` |
 | `pubkey` | bytea | raw 32-byte Ed25519 |
 | `box_id` | text | last pin publisher |
 | `updated_at` | timestamptz | |
 | `revoked_at` | timestamptz NULL | set on revoke; verify ignores revoked |
 
+PK `(tenant_id, agent_id)`. Agent IDs are unique within a tenant.
+
 ### `pins_history`
 
-Append-only: `agent_id`, `pubkey`, `box_id`, `at`, `reason`
-(`pin`\|`force`\|`revoke`).
+Append-only: `tenant_id`, `agent_id`, `pubkey`, `box_id`, `at`, `reason` (`pin`|`force`|`revoke`).
 
 ### `messages`
 
 | column | type | notes |
 |---|---|---|
-| `msg_id` | uuid PK | idempotency key |
-| `task_id` | uuid | index |
-| `ts` | timestamptz | from the JSON, not server now |
-| `from_id` | text | |
-| `to_id` | text | unicast |
-| `kind` | text | check constraint enum |
+| `tenant_id` | text | FK `tenants(tenant_id)` |
+| `msg_id` | uuid PK | global idempotency key |
+| `task_id` | uuid | thread index |
+| `ts` | timestamptz | from message JSON |
+| `from_id` | text | author agent id |
+| `to_id` | text | recipient agent id |
+| `kind` | text | check constraint: task, result, note, reject |
 | `body` | text | |
 | `files` | jsonb | `v:1` `files[]` |
 | `sig` | text | base64 |
-| `canonical` | jsonb | full `v:1` object as stored |
-| `received_at` | timestamptz | server clock |
+| `canonical` | jsonb | full `v:1` object |
+| `received_at` | timestamptz | server ingest clock |
 
-Unique `(msg_id)`. Insert of identical `canonical` is `ON CONFLICT DO NOTHING`
-and returns 200. Insert of same `msg_id` with **different** canonical → 409.
+Unique `(tenant_id, msg_id)`. Insert of identical `canonical` is `ON CONFLICT DO NOTHING` and returns 200.
 
 ### `acks`
 
 | column | type | notes |
 |---|---|---|
-| `agent_id` | text | the `as` of recv |
+| `tenant_id` | text | |
+| `agent_id` | text | recipient `as` |
 | `msg_id` | uuid | |
 | `acked_at` | timestamptz | |
 
-PK `(agent_id, msg_id)`. Mirrors 002 archive: a row means that agent already
-acked. `GET /v1/messages?as=&ack=true` inserts here.
+PK `(tenant_id, agent_id, msg_id)`.
 
 ## 3. What is not a table
 
 - File bytes (GCS)
-- Private keys
+- Agent private keys
 - Model tokens
-- NATS payloads (ephemeral or JetStream copy of `canonical` minus nothing
-  except still no file bytes)
+- Ephemeral SSE / NATS payloads
 
 ## 4. Indexes (minimum)
 
-- `messages (to_id, ts)`
-- `messages (task_id, ts)`
+- `messages (tenant_id, to_id, ts)`
+- `messages (tenant_id, task_id, ts)`
+- `messages (tenant_id, from_id, ts)`
 - `messages (from_id, ts)`
 
 <!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->

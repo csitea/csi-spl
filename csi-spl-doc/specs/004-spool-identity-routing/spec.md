@@ -94,6 +94,8 @@ pubkey.
 - **FR-006**: Dual-write + flush per `003/contracts/flush.md`.
 - **FR-007**: Unicast `to` only.
 - **FR-008**: `--force` and revoke write `pins_history`.
+- **FR-009**: The box session harness MUST perform key generation (`spool-keygen --as <id>`) and pin registration (`spool-pin --id <id>`) prior to launching agent sessions; on 409 collision, the allocator MUST retry with the next ID before session start.
+- **FR-010**: Subagents MUST NOT inherit parent IDs or use dotted sub-IDs; each subagent MUST be allocated an independent top-level ID (`^[A-Z]{2,4}-\d+$`) as a first-class peer.
 
 ## Success Criteria
 

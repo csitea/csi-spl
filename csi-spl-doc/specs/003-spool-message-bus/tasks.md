@@ -11,7 +11,7 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm 002 module path `csi-spl-api/src/go/spool-hub-api/` and add `internal/httpapp`, `internal/testkit`, `internal/hub`, `internal/store`, `internal/objects` packages with tests that compile empty.
+- [ ] T001 Confirm 002 module path `csi-spl-api/src/go/spool-hub-api/` and add `internal/httpapp`, `internal/testkit`, `internal/hub`, `internal/store` (tenant-native Postgres migrations from Day 1 with default `"csitea-internal"`, sqlite driver for tests), and `internal/objects` packages with tests that compile empty.
 - [ ] T002 [P] Add `contracts/http-v1.md` and `contracts/nats-subjects.md` to the test fixture loader (golden request/response files under `internal/hub/testdata/`).
 
 ## Phase 2: Foundational
@@ -40,11 +40,11 @@
 - [ ] T014 [US3] Flush command/sidecar posts queued messages **without re-signing** (`internal/hub/flush.go`).
 - [ ] T015 [US3] Test: stop hub, send, same-box recv; start hub, flush, peer recv.
 
-## Phase 6: User Story 4 — Live tail (P2)
+## Phase 6: User Story 4 — Live tail & events stream (P2)
 
-- [ ] T016 [US4] Publish small JSON to `task.<task_id>` and `agent.<id>.inbox` after persist (`internal/notify`).
-- [ ] T017 [US4] `spool-tail` can subscribe (hub up) or read store (hub/NATS down) (`cmd/spool`).
-- [ ] T018 [US4] Test: subscriber sees send; down subscriber still reads Postgres/sqlite; no token payloads.
+- [ ] T016 [US4] Implement `GET /v1/events` SSE stream (`text/event-stream`) in `internal/hub` publishing small JSON on `task.<task_id>` and `agent.<id>.inbox`.
+- [ ] T017 [US4] `spool tail` can subscribe to SSE stream (hub up) or read store (hub down) (`cmd/spool`).
+- [ ] T018 [US4] Integration test: SSE subscriber sees new messages live; fallback poll still reads store; NATS JetStream scaling bridge documented for multi-cluster.
 
 ## Phase 7: User Story 5 — IAM door (P3)
 

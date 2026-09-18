@@ -93,7 +93,7 @@ csi-spl-iac/                        # Cloud Run, Cloud SQL, GCS, NATS — apply 
 | 2 | HTTP API on a process (memory/sqlite) | US1 |
 | 3 | Postgres + GCS | US2 |
 | 4 | Local queue flush when hub down | US3 |
-| 5 | NATS JetStream notify | US4 |
+| 5 | Live SSE notify on Cloud Run (`GET /v1/events`); NATS JetStream scaling | US4 |
 | 6 | IAM/OIDC on Cloud Run | US5 |
 | 7 | ysg-box adapter (other repo) | US6 |
 
@@ -101,6 +101,6 @@ Do not start NATS or Kafka before step 2 works on a dummy folder/process.
 
 ## Complexity Tracking
 
-*No constitutional violations.* NATS is deferred to US4 so the HTTP contract is proven first (architecture: “don’t debug NATS before spool-send works”).
+*No constitutional violations.* Cloud Run handles live streaming via SSE first; NATS JetStream is introduced as Phase 2 when multi-box throughput requires it (architecture: “don’t debug NATS before spool-send works”).
 
 <!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->

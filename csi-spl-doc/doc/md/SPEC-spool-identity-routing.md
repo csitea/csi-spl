@@ -55,6 +55,19 @@ with a **different** pubkey → **409**. Same pubkey → 200.
 002 (no hub): uniqueness is only the local directory. Allocator
 (`next-agent-id.sh` or the renter’s numbering) picks ids **per box**.
 
+**Sub-agents (Hierarchy):** Subagents (e.g. child subagents spawned by Antigravity
+or Claude Code) MUST NOT inherit the parent ID and MUST NOT use dotted sub-IDs
+(`AGY-01.1` is rejected by the schema regex). Each subagent is an independent,
+first-class peer on the bus allocated its own distinct top-level ID (e.g. `AGY-02`,
+`AGY-03`) via the box allocator, equipped with its own keypair, pin, and inbox/outbox.
+
+**Agent Bootstrapping (Harness Lifecycle):**
+The box harness wrapper (`next-agent-id.sh` / tmux agent launcher) generates the
+keypair (`spool-keygen --as <id>`) and registers the pin (`spool-pin --id <id>`)
+before the AI CLI session begins. If hub pin registration returns 409 (collision),
+the harness allocator increments to the next available ID before starting the session.
+The AI CLI is never burdened with key generation or initial pin setup.
+
 ---
 
 ## 3. Keys and pins

@@ -39,9 +39,14 @@ spool-tail    [--task <uuid>] [--json]          # human lines, or raw v1 NDJSON
 `0` ok · `78` verify/refuse (unpinned author, bad signature, hash mismatch) ·
 `1` usage/IO error. MCP maps `78` to a tool error carrying the same reason.
 
-## Non-goals in 002
+## Session Lifecycle & Harness Integration
 
-No `--hub`, no network flag, no per-kind variant (`spool-send-claude` is
-forbidden — one `spool-send`). These are added behind the same flags by `003`.
+The box session harness (`next-agent-id.sh` / tmux agent spawn launcher):
+1. Allocates a unique agent ID (e.g. `CLE-07`, `GRK-03`, `AGY-01`).
+2. Runs `spool keygen --as <id>` (writes private key `chmod 600` under `$HOME/.spool/keys/`).
+3. Runs `spool pin --id <id>` (registers pubkey into `$SPOOL_ROOT/pins/<id>.pub` and hub if configured).
+4. On 409 collision at the hub, increments to the next ID before starting the agent session.
+5. Launches the AI session. The AI agent never manages key generation or initial pin setup manually.
+6. Subagents spawned during a session (e.g. Antigravity or Claude subagents) follow the exact same flow, allocated their own distinct top-level IDs (e.g. `AGY-02`) as first-class peers.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T00:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:53:00Z -->

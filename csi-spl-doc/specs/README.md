@@ -239,7 +239,7 @@ steps are each a task.
 |---|---|
 | NS handoff A vs B (§6.1); blocks 007 step 3a and the prd apex record | **owner** |
 | ~~`10 ci: quality gate` red on trunk~~ — **resolved**: `4839514` fixed the sweep under `bash -e`; gate green on `33560da` (run 35385128819); 008 T107 / FR-P07 Implemented (`cb1f254`) | 008 |
-| `017-github-wif-deploy` unmerged (`GRK-3343-007-tf-017-wif`); CI deploys skip both envs | 007 T050 |
+| `017-github-wif-deploy` is on trunk (`2a7888c`) but **not applied**; repo vars `GCP_WIF_PROVIDER_<ENV>` / `GCP_DEPLOY_SA_EMAIL_<ENV>` unset, so every `20 ci-cd` deploy job skips both envs. A green `20 ci-cd` run proves nothing about deploys: the deployed-state check is `./run -a do_check_hub_deploy` (`7bfe152`; 0 current / 3 lagging / 4 unhealthy / 1 cannot tell) | 007 T050 (apply, owner go) → 008 T105–T109 |
 | prd: 001 services not enabled; nothing past step 2 | 007 |
 | dev: 025 and 031 have no state; hub not reachable from outside | 007 |
 | `gs://csi-spl-{dev,prd}-tfstate/terraform/025-gcp-dns-zone/default.tfstate` exist with **0 resources** (init ran 18:56–18:57Z) while trunk has no `025-*` dir: `git ls-tree --name-only origin/master csi-spl-iac/src/terraform/ \| grep -c 025` -> 0 (trunk 39d56a5). Land the dir or drop the empty state | 007 |
@@ -247,4 +247,4 @@ steps are each a task.
 | view-v1 not built; WUI client calls dropped routes | 003 US7 → 005 G5 |
 | Several lanes stamped `last-edit` in local time with a `Z` suffix | cosmetic; fix on next edit |
 
-<!-- version: 1.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:23:45Z -->
+<!-- version: 1.2.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:36:03Z -->

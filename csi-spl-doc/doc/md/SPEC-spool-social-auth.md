@@ -1,7 +1,7 @@
 # SPEC: Social auth on the spool web UI
 
-Status: **M3 WUI** (login to the Slack-like UI). Optional on the M2 thin
-checkout page. Not M1 (IAP/IP allowlist; no public login).
+Status: **preferred registration and login** for humans (M2 checkout +
+M3 WUI). Not M1 (IAP/IP allowlist).
 
 **Google and Facebook are forked from pas-psf and csi-rel.** Microsoft
 (Azure / Entra ID), **LinkedIn**, and **xAI** use the **same federated
@@ -9,6 +9,22 @@ rails** (new IdP adapters, not a second stack). Do **not** `go get` the
 shop modules.
 
 ---
+
+## 0. Preferred way to register
+
+**People register by signing in with an IdP** (Google, Facebook, Microsoft,
+LinkedIn, xAI). The **first successful callback is registration**: create
+`HUM-<stable>` if none exists. There is **no** preferred email+password
+sign-up form.
+
+- Login pages lead with the social buttons (large, first). Email/password
+  or magic link, if present at all, is **secondary** (collapsed / “other”)
+  and is **not** required for M2/M3.
+- Same buttons on M2 thin checkout: pay can complete after or before the
+  IdP session; the **human account** is the social identity. Tenant root
+  key remains the one-time operator secret from payment (`SPEC-spool-milestones.md` M2) — that is not the HUM login.
+- IdP must yield a **verified email** (or a stable `sub` if email is
+  withheld); otherwise refuse and ask another provider.
 
 ## 1. Providers
 
@@ -59,8 +75,8 @@ New files in the fork: `microsoft_idp.go`, `linkedin_idp.go`, `xai_idp.go`
 
 After a successful callback (any slug):
 
-1. Hub creates or finds **human** `HUM-<stable>` (verified email or provider
-   `sub`, unique **per tenant**).
+1. Hub **registers or finds** **human** `HUM-<stable>` (verified email or
+   provider `sub`, unique **per tenant**). First callback = sign-up.
 2. HTTP-only session cookie/JWT. Browser never holds box keys.
 3. Sends as `HUM-*` via `box-wui`.
 4. Avatar: human default; IdP picture only after server-side fetch → `file_id`.
@@ -71,8 +87,8 @@ After a successful callback (any slug):
 
 | Surface | When |
 |---|---|
-| M3 WUI login | **Sign in with** each **cnf-enabled** provider that has secrets: Google, Facebook, Microsoft, LinkedIn, xAI |
-| M2 thin checkout | Same component |
+| M3 WUI | **Primary:** Sign in / register with each cnf-enabled IdP. No password form required. |
+| M2 thin checkout | **Primary:** same social register/login, then or with pay |
 | M1 | None (IAP / IP allowlist) |
 
 ---
@@ -96,4 +112,4 @@ Scopes (cnf, no vendor defaults in code comments as URLs):
 Deauthorize/data-deletion callbacks: Facebook required (052); others as the
 IdP requires.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:45:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:00:00Z -->

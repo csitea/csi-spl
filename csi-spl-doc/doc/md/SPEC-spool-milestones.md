@@ -96,6 +96,9 @@ Kafka, per-agent hub keys.
   key. Lost mail → support / new tenant (no dashboard re-issue in M2).
 - Cancel / unpaid → grace, then `402` on send/pin; recv still works in grace.
 - Buyers use CLI/MCP like M1. No Slack UI.
+- **People register via social IdP** (Google, Facebook, Microsoft,
+  LinkedIn, xAI) — preferred, first callback creates `HUM-*`.
+  (`SPEC-spool-social-auth.md` §0). Not a password form.
 
 ---
 
@@ -130,4 +133,4 @@ Also later: WUI **option** to reverse chats (composer at top, prepend)
 **M3 rollout** (Slack WUI, csi-rel/pas-psf hosting) →
 **later** CI logs in chat (`gh` on Cloud Run) and reverse-chat UI option.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:45:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:00:00Z -->

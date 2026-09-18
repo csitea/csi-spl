@@ -201,6 +201,11 @@ leave an encrypted blob in the bucket for good.
 `git-rel-clean` is still how a transfer ends; the rule is the backstop, not
 the mechanism.
 
+**And the inverse reading.** An empty prefix used to prove that a
+`git-rel-clean` had run. Since the rule went live it proves only that the
+object is not there now — cleaned, or aged out. Nobody should read a
+completed handover out of an empty listing.
+
 **What the rule costs, stated plainly.** An object uploaded and not fetched
 within a day is deleted, and nothing announces it: `git-rel-send` keeps no
 state record (only `request` does), so the hub never knows whether the box

@@ -233,11 +233,11 @@ steps are each a task.
 | Item | Owner |
 |---|---|
 | NS handoff A vs B (§6.1); blocks 007 step 3a and the prd apex record | **owner** |
-| `10 ci: quality gate` red on trunk: sweep dies under `bash -e` + `pipefail` on a clean tree | workflow author lane — 008 T107 |
+| ~~`10 ci: quality gate` red on trunk~~ — **resolved**: `4839514` fixed the sweep under `bash -e`; gate green on `33560da` (run 35385128819); 008 T107 / FR-P07 Implemented (`cb1f254`) | 008 |
 | `017-github-wif-deploy` unmerged (`GRK-3343-007-tf-017-wif`); CI deploys skip both envs | 007 T050 |
 | prd: 001 services not enabled; nothing past step 2 | 007 |
 | dev: 025 and 031 have no state; hub not reachable from outside | 007 |
 | view-v1 not built; WUI client calls dropped routes | 003 US7 → 005 G5 |
 | Several lanes stamped `last-edit` in local time with a `Z` suffix | cosmetic; fix on next edit |
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:17:23Z -->
+<!-- version: 1.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:19:16Z -->

@@ -5,6 +5,9 @@ contract, and how to create, apply and switch to it.
 
 ## Specs
 
+**Git-spec index, redo ground rules, provisioning order and the cross-spec
+consistency record: `specs/README.md`.**
+
 | Path | What |
 |---|---|
 | `doc/md/csi-spl.feature.md` | git-rel GCS estate (operator how-to) |
@@ -21,7 +24,7 @@ contract, and how to create, apply and switch to it.
 | `doc/md/SPEC-spool-social-auth.md` | M3 WUI: Google, Facebook, Microsoft, LinkedIn, xAI |
 | `doc/md/SPEC-spool-byo-gcp.md` | later: they pay GCP, you provision |
 | `doc/md/SPEC-spool-m4-seats.md` | **M4:** seats + buy-minute GCP project id |
-| `specs/009-spool-m4/` | git-spec for M4 |
+| `specs/009-spool-m4/` | git-spec for M4 (spec + tasks, all Planned) |
 | `doc/md/SPEC-spool-cicd-logs.md` | **later:** `gh` fetches CI logs into chat |
 | `doc/md/SPEC-spool-chat-reverse.md` | **later:** type at top, prepend messages |
 | `specs/001-relay-bucket-estate/` | git-spec for the relay bucket |
@@ -30,8 +33,8 @@ contract, and how to create, apply and switch to it.
 | `specs/004-spool-identity-routing/` | git-spec for pins + routing |
 | `specs/005-spool-wui/` | git-spec for the WUI |
 | `specs/006-spool-hub-rental/` | git-spec for paid multi-tenant hub |
-| `specs/007-spool-hub-api-infra/` | git-spec: lde, terraform, docker, DNS |
-| `specs/008-spool-cicd-logs/` | after M3: Actions logs in threads |
+| `specs/007-spool-hub-api-infra/` | git-spec: provisioning order (DNS zone step 3), terraform, lde, docker, DNS |
+| `specs/008-spool-cicd-logs/` | CI/CD: M1 GitHub Actions gate + dev/prd deploy; after M3: Actions logs in threads |
 | `specs/006-spool-hub-rental/contracts/payment.md` | M2 public MVP: buy on site, copy csi-rel payment |
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:55:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:17:23Z -->

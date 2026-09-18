@@ -135,7 +135,7 @@ needs a name, and ingress comes **last**:
 |---|---|---|
 | 1 | remote state | `000-gcp-remote-bucket` |
 | 2 | enable services | `001-enable-gcp-services` |
-| 3 | **DNS managed zone** for the product domain + nameserver handoff | **new step — the gap** (007) |
+| 3 | **DNS managed zone** for the product domain (import, never recreate) + owner-gated nameserver handoff | `025-gcp-dns-zone` (new, prd only; dev records live in the prd zone) — 007 |
 | 4 | Cloud SQL Postgres | `040-cloud-sql-postgres` |
 | 5 | GCS files bucket | `050-gcs-files` |
 | 6 | Artifact Registry | `028-gcp-artifact-registry` |
@@ -144,8 +144,9 @@ needs a name, and ingress comes **last**:
 | 9 | Cloud Run hub | `030-cloud-run-hub` |
 | 10 | ingress: LB + wildcard managed cert + apex / `*.` records | `031-gcp-hub-ingress` |
 
-The **step number** of the new DNS-zone terraform dir is 007's call (the
-csi-rel/pas-psf convention is `007-dns`); its **position** in the order is not.
+007 numbered the new DNS-zone dir `025-gcp-dns-zone` (csi-rel/pas-psf call it
+`007-dns`); the full gate-per-step table is
+`007-spool-hub-api-infra/contracts/provisioning-order.md`.
 
 ### 6.1 Measured DNS state (2026-09-18T19:05Z) — read before writing the DNS step
 
@@ -190,6 +191,53 @@ A `speckit-analyze`-style pass, recorded in section 8:
 
 ## 8. Consistency record
 
-Filled in by the integrator after the area lanes land.
+Pass run by the integrator on trunk `a27078c`, after every area lane landed
+(001 `cacc7a8`, 003 `a4a5918`+`01eed0a`, 004 `6f1e759`, 005 `4942381`+`3e2f1f5`,
+006 `523c953`, 007 `16fbda7`, 008 `a27078c`).
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:10:00Z -->
+### 8.1 Checks
+
+| Check | Result |
+|---|---|
+| Every FR defined in a `spec.md` is cited in that dir's `tasks.md` | yes, except the invariants in 8.3 (008's `FR-P01..P10` each cited ≥ 1) |
+| Every task cites an FR its spec defines | yes — 0 dangling |
+| Implemented / Partial / Planned on every FR and task | yes in 001, 003–009; 002 frozen |
+| REST `/v1/messages`, `/v1/recv` presented as live | none — every remaining mention is "dropped by OQ-02" or "005 client calls the wrong route" (005 G5, 003 view-v1 §7) |
+| NATS / SSE presented as M1 | none outside frozen 002 |
+| `delivery` enum lacks `pending` | none |
+| DNS-zone step exists and precedes Cloud SQL and ingress | yes — 007 step 3 `025-gcp-dns-zone`, import-only, NS handoff owner-gated |
+| Status codes (402 / 409 / 429 / 78) agree 003 ↔ 004 ↔ 006 | yes — 003 `error-envelope.md` is the table, 004/006 cite it |
+| Dead relative links in `specs/` | none |
+
+### 8.2 Seams fixed by the integrator
+
+- `331badd` — external liveness gates (005, 006, 007 step 10, SC-004) probe
+  `/v1/health` (003 FR-023, landed `6c863ee`); `/healthz` is shadowed on
+  Cloud Run. 003 no longer asks 007 for an LB health-check path: a serverless
+  NEG backend takes none.
+- `614f6c6` — 009 gets `tasks.md` (all Planned); binding docs in `../doc/md`
+  follow the redo: WUI catch-up reads view-v1, bus notify is WS frames (NATS
+  post-M1), the rental door is the box key on hello + envelope, the DNS-zone
+  step is `025-gcp-dns-zone`.
+
+### 8.3 FRs accepted without a task
+
+Invariants already verified in their spec with a cited check; no work remains:
+001 FR-004 (anonymous GET/list → 403), 004 FR-011 (sub-agents get top-level
+ids), 005 FR-003 (no key or signed URL in the browser), 006 FR-017 (no
+`tenant_id` on `v:1`). 007 FR-001 is the ordering rule itself; its open
+steps are each a task.
+
+### 8.4 Open after the redo (not seams — owners named)
+
+| Item | Owner |
+|---|---|
+| NS handoff A vs B (§6.1); blocks 007 step 3a and the prd apex record | **owner** |
+| `10 ci: quality gate` red on trunk: sweep dies under `bash -e` + `pipefail` on a clean tree | workflow author lane — 008 T107 |
+| `017-github-wif-deploy` unmerged (`GRK-3343-007-tf-017-wif`); CI deploys skip both envs | 007 T050 |
+| prd: 001 services not enabled; nothing past step 2 | 007 |
+| dev: 025 and 031 have no state; hub not reachable from outside | 007 |
+| view-v1 not built; WUI client calls dropped routes | 003 US7 → 005 G5 |
+| Several lanes stamped `last-edit` in local time with a `Z` suffix | cosmetic; fix on next edit |
+
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:17:23Z -->

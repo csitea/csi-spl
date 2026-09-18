@@ -50,6 +50,16 @@ sleep 0.3
 bash "$SS" --from CLE-90 --to CLE-93 --kind note --body x >/dev/null; eq "unsent typed text: refused, exit 6" 6 "$?"
 check "…but the refused message was still delivered" test -n "$(ls "$SPOOL_ROOT/CLE-93/inbox/"*.json 2>/dev/null)"
 bash "$SS" --from CLE-90 --to CLE-91 --kind note --body x --no-poke >/dev/null; eq "--no-poke: exit 0" 0 "$?"
+# A live agent behind the run-as hop: its pane tty shows only "bash sudo"
+# (sudo runs the CLI on its own pty). That is alive, not exited.
+ln -s "$(command -v sleep)" "$T_TMP/sudo"
+t_window CLE-94 "bash -c '$T_TMP/sudo 600; :'" >/dev/null
+sleep 0.3
+bash "$SS" --from CLE-90 --to CLE-94 --kind note --body x >/dev/null; eq "pane showing bash+sudo is alive: poked, exit 0" 0 "$?"
+# The TUI's dim ghost suggestion after the prompt glyph is not typed text.
+t_window CLE-97 "sh -c 'printf \"❯ \\033[2mfix the thing\\033[0m\\n\"; sleep 600'" >/dev/null
+sleep 0.3
+bash "$SS" --from CLE-90 --to CLE-97 --kind note --body x >/dev/null; eq "dim ghost suggestion is not typed text: exit 0" 0 "$?"
 
 # ---- usage -----------------------------------------------------------------
 bash "$SS" --from CLE-90 --to CLE-91 --kind chat --body x >/dev/null 2>&1; eq "bad kind: exit 2" 2 "$?"

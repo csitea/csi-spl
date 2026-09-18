@@ -99,11 +99,15 @@ fi
 spool_tmux_argv
 
 # A pane whose tty runs nothing but shells has lost its agent: the poke would
-# land in a bare shell (harmless, it is inert) and reach nobody.
+# land in a bare shell (harmless, it is inert) and reach nobody. `sudo` and
+# `su` are NOT shells here: the launcher hops to the agent user through them,
+# and sudo runs the CLI on its OWN pty, so a live agent's pane tty shows just
+# "bash sudo" (measured in the 4444 dogfood: every poke to a live agent was
+# skipped while sudo was on this list).
 PANE_TTY="$("${SPOOL_TM[@]}" display-message -p -t "$PANE" '#{pane_tty}' 2>/dev/null || true)"
 if [ -n "$PANE_TTY" ]; then
   TTY_CMDS="$(ps -t "${PANE_TTY#/dev/}" -o comm= 2>/dev/null | sort -u | tr '\n' ' ')"
-  if [ -n "$TTY_CMDS" ] && ! printf '%s\n' $TTY_CMDS | grep -qvxE 'bash|sh|zsh|dash|sudo|su|login'; then
+  if [ -n "$TTY_CMDS" ] && ! printf '%s\n' $TTY_CMDS | grep -qvxE 'bash|sh|zsh|dash|login'; then
     echo "poke: skipped - ${TO} pane ${PANE} runs only shells (${TTY_CMDS% }); the agent has exited"
     exit 7
   fi
@@ -111,7 +115,11 @@ fi
 
 # Never type over a human's (or the agent's) unsent input: send-keys appends to
 # the input line and submits it, so the poke would carry that text with it.
-LAST="$("${SPOOL_TM[@]}" capture-pane -p -t "$PANE" 2>/dev/null | grep -E '❯|^> ' | tail -1 || true)"
+# The TUI's own greyed-out suggestion is drawn DIM (ESC[2m) and is not input:
+# capture WITH escapes, drop dim runs, then strip the remaining escapes.
+ESC=$'\033'
+LAST="$("${SPOOL_TM[@]}" capture-pane -p -e -t "$PANE" 2>/dev/null | grep -E '❯|^> ' | tail -1 || true)"
+LAST="$(printf '%s' "$LAST" | sed -E "s/${ESC}\[2m[^${ESC}]*//g; s/${ESC}\[[0-9;]*[A-Za-z]//g")"
 TYPED="$(printf '%s' "$LAST" | sed -E 's/^.*(❯|^>) ?//; s/[[:space:]]+$//')"
 if [ -n "$LAST" ] && [ -n "$TYPED" ] && [ "${TYPED#: \'SPOOL }" = "$TYPED" ]; then
   echo "poke: REFUSED - ${TO} pane ${PANE} holds unsent text; the message waits in its inbox"

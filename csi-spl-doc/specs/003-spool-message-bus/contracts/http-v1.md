@@ -5,6 +5,10 @@ endpoints directly (Constitution VIII). Message and file shapes are the frozen
 `002` contracts (`../../002-box-agent-messaging/contracts/`). Live-notify
 subjects are in `./nats-subjects.md`.
 
+Public rental: see `../../006-spool-hub-rental/contracts/http-rental.md`
+(signed `POST /v1/recv`, tenant-root pins, no renter IAM). This file remains
+valid for a **private** org hub; `GET /v1/messages?as=` is not the public API.
+
 ```
 POST /v1/files                 # upload bytes → { file_id, sha256, bytes }
 GET  /v1/files/{file_id}       # download bytes (or short-lived signed URL); caller re-hashes == file_id
@@ -52,4 +56,4 @@ GET  /version                  # build / version metadata (version, commit, buil
 - Cloud Run is stateless: no file bytes on container disk.
 - Kind of agent is not a field — only the `from`/`to` id prefix.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T12:55:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->

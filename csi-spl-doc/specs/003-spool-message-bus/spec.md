@@ -11,6 +11,7 @@
 **Narrative**: `csi-spl-doc/doc/md/SPEC-spool-message-bus.md`  
 **Box API**: `csi-spl-doc/doc/md/SPEC-spool-box-api.md`  
 **Identity**: `csi-spl-doc/doc/md/SPEC-spool-identity-routing.md` + `specs/004-spool-identity-routing/`  
+**Product**: `csi-spl-doc/doc/md/SPEC-spool-hub-rental.md` + `specs/006-spool-hub-rental/`  
 **Lifecycle**: `csi-spl-doc/doc/md/SPEC-spool-task-lifecycle.md`  
 **Hub extras**: `data-model.md`, `contracts/flush.md`, `contracts/limits.md`, `contracts/error-envelope.md`  
 **Prerequisite**: `specs/002-box-agent-messaging/` (local folder + pin + CLI/MCP). 003 does not replace 002; it puts the **same** `v:1` object behind HTTP + notify.
@@ -78,18 +79,25 @@ Subscribers see “a new message landed on task X” (one JSON blob per send). M
 2. **Given** no subscriber, **When** the send completes, **Then** the message is still in Postgres / local NDJSON for later `spool-tail`.
 3. **Given** a model generating tokens, **When** spool is used, **Then** those tokens are not published on NATS.
 
-### User Story 5 - IAM is the door, pin is the author (Priority: P3)
+### User Story 5 - Pin is the author; IAM is not the renter door (Priority: P3)
 
-Cloud Run ingress uses IAM/OIDC for the **adapter** identity (the box CLI / sidecar), not per-agent Google accounts. IAM/OIDC authentication applies strictly between boxes and Cloud Run across the network; local on-box agent communication does not use IAM. After the request is in, the hub verifies Ed25519 `sig` against the pin.
+Public rental (spec 006): HTTP is reachable without a renter GCP account.
+Ed25519 is authorisation (send = `from` sig, recv = signed `POST /v1/recv`).
+IAM/OIDC MAY front a **private** org deploy; it MUST NOT be required of paying
+renters. After any optional infra shield, the hub still verifies `sig` against
+the **tenant** pin table.
 
-**Why this priority**: Door without author is “this laptop may POST.” Author without a door is still the 002 model and already works. Hub exposure needs both; pin already exists.
+**Why this priority**: “Any user against payment” forbids issuing GCP principals
+to renters. Unsigned POST is cheaply 400’d; recv must not be an open GET.
 
-**Independent Test**: Unauthenticated POST is rejected by the door; authenticated POST with a bad signature is rejected by the pin check; authenticated + pinned + signed is stored.
+**Independent Test**: testhub without IAM; pinned send works; unpinned send
+400; recv without `as` sig cannot drain an inbox.
 
 **Acceptance Scenarios**:
 
-1. **Given** no IAM/OIDC credential, **When** a client hits Cloud Run, **Then** the request never reaches signature verification.
-2. **Given** a valid door credential and an unpinned `from`, **When** POST `/v1/messages`, **Then** the hub still refuses (author check).
+1. **Given** no GCP credentials, **When** a pinned agent POSTs `/v1/messages`, **Then** the hub accepts.
+2. **Given** an unpinned `from`, **When** POST `/v1/messages`, **Then** 400, nothing stored.
+3. **Given** (private deploy only) IAM enabled, **When** no door credential, **Then** 401/403 before signature verify.
 
 ### User Story 6 - ysg-box calls spool, it does not grow a second bus (Priority: P3)
 
@@ -165,4 +173,4 @@ After 002+003 HTTP work, ysg-box gains **one** adapter feature that shells the s
 - Per-agent IAM identities and per-agent object-store keys.
 - A full UI beyond `spool-tail` / a tiny subscriber.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->

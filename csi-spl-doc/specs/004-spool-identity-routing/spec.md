@@ -7,9 +7,9 @@
 **Status**: Draft
 
 **Input**: The bus vision uses `CLE-07` as if it were unique and trusted
-everywhere. Specify global id uniqueness, pin publish/sync/revoke, box id vs
-agent id vs IAM door, unicast routing, and dual-write/flush so 003 can route
-without TOFU or per-agent cloud keys.
+everywhere. Specify **per-tenant** id uniqueness, tenant-root pin publish/sync/revoke,
+unicast routing, and dual-write/flush so a rented hub can route without TOFU
+or per-agent cloud keys (see 006).
 
 **Narrative**: `csi-spl-doc/doc/md/SPEC-spool-identity-routing.md`
 
@@ -113,4 +113,4 @@ pubkey.
 - Per-agent IAM.
 - Multi-recipient messages.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->

@@ -3,6 +3,10 @@
 Local filesystem shapes stay exactly `002`. This file is **Postgres + GCS**
 when the hub is up. Wire JSON is still `v:1`.
 
+Rental (006): every mail table includes `tenant_id` (PK prefix or compound
+key). GCS keys are `t/<tenant>/files/<sha256>`. Add a `tenants` table
+(id, root_pubkey, billing_status, quotas) — specified in 006.
+
 ## 1. GCS
 
 | Key | Value |
@@ -81,4 +85,4 @@ acked. `GET /v1/messages?as=&ack=true` inserts here.
 - `messages (task_id, ts)`
 - `messages (from_id, ts)`
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->

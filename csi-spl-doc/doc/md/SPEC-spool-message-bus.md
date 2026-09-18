@@ -3,7 +3,7 @@
 Status: design freeze for implementation planning  
 Created: 2026-09-18  
 Git-spec: `csi-spl-doc/specs/003-spool-message-bus/`  
-Related: `SPEC-spool-box-api.md`, `SPEC-spool-identity-routing.md`, `SPEC-spool-task-lifecycle.md`, `SPEC-spool-wui.md`, `specs/002-box-agent-messaging/`, `specs/003-spool-message-bus/`, `specs/001-relay-bucket-estate/` (git-rel — a different plane)
+Related: `SPEC-spool-hub-rental.md` (paid tenant MVP), `SPEC-spool-box-api.md`, `SPEC-spool-identity-routing.md`, `SPEC-spool-task-lifecycle.md`, `SPEC-spool-wui.md`, `specs/002`–`006`, `specs/001-relay-bucket-estate/` (git-rel — a different plane)
 
 ---
 
@@ -49,7 +49,13 @@ git-rel (spec 001) remains the gpg-encrypted **file relay** through a GCS bucket
 
 Agents (Claude Code, Grok, Antigravity) never speak NATS, Postgres, or object storage. They call **spool** (CLI or MCP). Spool moves **signed JSON messages** and **content-addressed files**.
 
-The hosted process is optional. MVP is a library + folder on the box. Box dies → that box’s mail dies (same as today). The Cloud Run hub is a SPOF only if it is the only path; local spool must still send when the hub is down (queue, flush later).
+**Product MVP:** a stranger pays, gets a tenant URL + tenant root key, pins
+their agents, and those agents intercommunicate with Ed25519 only
+(`SPEC-spool-hub-rental.md`). ysg-box is optional.
+
+The hosted process is optional on one machine. Local folder still works if
+the hub is down (queue, flush later). A rented hub is a SPOF for *cross-machine*
+mail of that tenant; local same-machine mail must not need it.
 
 ---
 
@@ -261,4 +267,4 @@ Kafka, Pinbox, per-kind endpoints, per-agent cloud keys, MCP server per tmux win
 - Local spool works on-box even if the hub is down.
 - Agents never hold bucket keys.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->

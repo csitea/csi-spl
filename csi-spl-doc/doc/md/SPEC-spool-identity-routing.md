@@ -3,7 +3,7 @@
 Status: binding addendum to the message-bus vision  
 Created: 2026-09-18  
 Git-spec: `csi-spl-doc/specs/004-spool-identity-routing/`  
-Related: `SPEC-spool-message-bus.md`, `SPEC-spool-box-api.md`, `specs/002-box-agent-messaging/`
+Related: `SPEC-spool-message-bus.md`, `SPEC-spool-hub-rental.md`, `SPEC-spool-box-api.md`, `specs/002-box-agent-messaging/`
 
 The vision docs say `from` / `to` are ids like `CLE-07`. They do not say whether
 that id is unique across boxes, how box B obtains GRK-03’s pin, or how the hub
@@ -15,11 +15,14 @@ knows which box to notify. This spec does.
 
 | Identity | Answers | Example |
 |---|---|---|
+| **Tenant id** | which paid hub namespace | `$SPOOL_HUB_URL` / Host |
+| **Tenant root** | who may pin/revoke in that tenant | Ed25519; private key held by the renter |
 | **Agent id** | who authored / who should recv | `CLE-07`, `GRK-03`, `AGY-01` |
-| **Box id** | which machine | `$SPOOL_BOX_ID` (env, fail-fast when hub mode) |
-| **Door identity** | which GCP principal may call Cloud Run | the box adapter’s IAM/OIDC SA |
+| **Box id** | which machine (optional; local dual-write) | `$SPOOL_BOX_ID` |
+| **Door (private deploy only)** | GCP principal for an org Cloud Run | not used for public rental |
 
-IAM never appears in `from` / `to`. Agent keys never appear in IAM.
+GCP IAM never appears in `from` / `to`. Agent keys never appear in IAM.
+Public rental: no renter IAM at all — see `SPEC-spool-hub-rental.md`.
 
 Display names, tmux titles, and OS users are **not** identities.
 
@@ -41,14 +44,13 @@ Reserved prefixes:
 
 A new vendor adds a prefix. Same API.
 
-**Scope:** an agent id is **globally unique in the hub pin table**. Two boxes
-MUST NOT pin `CLE-07` to two different keys. The box-local allocator
-(ysg-box `next-agent-id.sh` or equivalent) remains how a box *picks* an id;
-the hub pin is how the fleet *rejects* a collision.
+**Scope:** an agent id is unique **inside one tenant**. Tenant `acme` and
+tenant `other` may both pin `CLE-07` to different keys. Inside one tenant,
+two pins of `CLE-07` to different keys → `409`. Same pubkey → idempotent `200`.
 
-002 (single box, no hub): uniqueness is “one directory under `$SPOOL_ROOT`”.
-003+: `POST /v1/pins` with an id already pinned to a **different** pubkey is
-`409`. Same pubkey is idempotent `200`.
+002 (no hub): uniqueness is “one directory under `$SPOOL_ROOT`”.
+Allocator (ysg-box `next-agent-id.sh` or the renter’s own numbering) only
+*picks* an id; the tenant pin table is the collision check.
 
 ---
 
@@ -68,9 +70,9 @@ a pin.
 **`spool-pin`** is the only way to trust an id:
 
 1. Writes the local pin file.
-2. If `$SPOOL_HUB_URL` is set, `POST /v1/pins` `{ "id", "pubkey" }` (door IAM
-   authenticates the **box**; the body is not agent-signed in v1 — the operator
-   on that box is pinning). Hub records `box_id` from the door mapping.
+2. If `$SPOOL_HUB_URL` is set, `POST /v1/pins` is **signed by the tenant root**
+   (`SPEC-spool-hub-rental.md`). An agent cannot pin itself. Optional `box_id`
+   is recorded if `$SPOOL_BOX_ID` is set (hint for notify, not a credential).
 
 **Pin sync down:** box sidecar `GET /v1/pins` (or a delta) and writes/updates
 local pin files so `spool-recv` can verify without calling the hub. Conflict
@@ -81,22 +83,22 @@ local; operator uses `spool-pin --force` after checking.
 pubkey in `pins_history` (audit), current row is the only one used to verify.
 
 **Revoke:** `spool-pin --id X --revoke` removes local pin and `DELETE /v1/pins/X`
-(door IAM). In-flight messages from X fail verify after that. No tombstone in
-`v:1` itself.
+(tenant-root signature). In-flight messages from X fail verify after that.
 
 ---
 
-## 4. Box id and the door
+## 4. Box id (optional) vs tenant door
 
-`$SPOOL_BOX_ID` is a short token (same character class as `BOX_TAG`:
-`^[a-z0-9][a-z0-9-]{0,31}$`). It is **not** a hostname and not an agent id.
+`$SPOOL_BOX_ID` is optional metadata (`^[a-z0-9][a-z0-9-]{0,31}$`). It is not
+a hostname, not an agent id, and **not** a credential.
 
-Hub table `boxes`: `box_id`, `iam_principal`, `last_seen_at`.
+**Public rental door:** tenant URL + Ed25519 (message `sig` or signed recv /
+root-signed pin). See `006/contracts/http-rental.md`.
 
-Door check: Cloud Run IAM/OIDC → map principal → `box_id`. Unknown principal
-→ `401`/`403` before signature verify.
+**Private org deploy (optional):** Cloud Run IAM in front of the same API.
+Not the product for paying renters.
 
-On-box traffic (same `$SPOOL_ROOT`) does **not** use IAM.
+On-box traffic (same `$SPOOL_ROOT`) does not use IAM or the hub.
 
 ---
 
@@ -136,8 +138,8 @@ files for ids that have a local `$SPOOL_ROOT/<id>/` directory (i.e. agents
 that actually run here).
 
 A message to an id that is pinned but has **no** live inbox dir on any box
-still persists on the hub; `spool-recv --as <id>` from a later session on the
-hosting box (after the dir exists) fetches via `GET /v1/messages?as=`.
+still persists on the hub; `spool-recv --as <id>` fetches via signed
+`POST /v1/recv`.
 
 ---
 
@@ -159,6 +161,7 @@ success, not a duplicate row.
 
 - Replace ysg-box `next-agent-id.sh` (box still allocates ids).
 - Put humans in the critical path (`HUM-*` reserved).
-- TOFU, key escrow, or per-agent GCP keys.
+- TOFU, key escrow, per-agent GCP keys, or renter GCP accounts.
+- Cross-tenant uniqueness of agent ids.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->

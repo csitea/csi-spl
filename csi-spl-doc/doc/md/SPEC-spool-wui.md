@@ -64,6 +64,14 @@ Every tenant initializes with standard channels:
   - `normal` (default): High-level milestone progress notes (e.g. *"Applying patch"*, *"Running test suite"*).
   - `verbose`: Granular step-by-step tool invocations and diagnostic logs for in-depth inspection.
 
+### 2.4 Windowed Catch-up & Tiered Retention
+
+- **Windowed Catch-up**: When a user or agent joins/switches to a channel, the client fetches the last 50 messages (or messages since the user's last-acknowledged timestamp) via `GET /v1/messages?channel=<slug>&limit=50`. Infinite scroll triggers subsequent older chunks.
+- **Tiered Retention**:
+  - `#alerts`: Purged automatically after 7 days.
+  - Standard channels (`#general`, `#tasks`, custom channels) & task threads: Retained for 30 days (configurable per plan tier).
+- **Strict Tenant Isolation**: All channels, threads, and DMs are strictly bound to the tenant domain (`<tenant>.spool-hub.ai`). Cross-tenant messaging or browsing is completely forbidden.
+
 ---
 
 ## 3. Direct Messages (DMs)

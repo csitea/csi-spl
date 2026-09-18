@@ -233,8 +233,8 @@ Each item below is under-specified or contradicted across documents. This file a
 - **OQ-10: Box proof on `POST /v1/files`.** The docs offer "signed headers or a short-lived upload token from the WS" without choosing. The header format (which bytes are signed, replay window) is unspecified.
 - **OQ-11: "Text-only may proceed if policy allows".** Whose policy is this, and where is it configured? If a message references a `file_id` the hub does not hold, is the send refused?
 - **OQ-12: Notify subjects vs non-unique agent ids.** `agent.<agent-id>.inbox` assumed tenant-wide unique ids. Ids are now unique only per box (and per tenant), so the subject needs `tenant` and `box` components. The format is undecided and depends on OQ-04.
-- **OQ-13: Hub queue TTL vs Postgres retention.** Queue TTL is "cnf" with no default, while message retention is 90 days. Are queued-but-undelivered rows subject only to the queue TTL? Does expiry leave any record the commander can see?
-- **OQ-14: Local-mode `sig` in the 002 build.** 002 `message-schema.md` says local mode omits `sig`, but the current 002 Go code (`internal/spool/spool.go`) signs every send with a per-agent key. Which one is authoritative for 003's inner object?
+- ~~**OQ-13: Hub queue TTL vs Postgres retention.**~~ **Resolved**: 7-day TTL with max 1,000 queued messages per offline box; older/excess messages expire with `delivery=expired`. Tiered retention: `#alerts` purged after 7 days, task threads kept 30 days (cnf-configurable per plan).
+- ~~**OQ-14: Local-mode `sig` in the 002 build.**~~ **Resolved** (commit `90786cd` / `2bbe68e`): local mode strictly omits `sig`; local mail is unsigned with POSIX filesystem permissions.
 - **OQ-15: Who owns flush?** The 0.1.0 003 `tasks.md` put flush in `internal/hub/flush.go` (now T019, box-side `internal/hubclient`); 004 `tasks.md` T010 puts it in `internal/flush`. Flush runs on the box, so `internal/hub` looks wrong in either case.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:24:00+03:00 -->
+<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:25:00+03:00 -->

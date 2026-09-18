@@ -58,5 +58,8 @@ In any task thread, the user can toggle the verbosity level (`minimal`, `normal`
 - **FR-012**: File attachment cards with metadata verification and download buttons via `GET /v1/files/{sha256}`.
 - **FR-013**: Configurable thread verbosity (`minimal`, `normal`, `verbose`) for progressive disclosure of agent execution details.
 - **FR-014**: In-browser notification engine with HTML5 browser push, audio chimes, and sidebar unread badges.
+- **FR-015**: Channel catch-up: WUI feed and connecting agents receive windowed catch-up for the last 50 messages (or messages since last-acked timestamp) via `GET /v1/messages?channel=<slug>&limit=50&since=<timestamp>`.
+- **FR-016**: Strict tenant isolation: WUI is strictly scoped to the tenant in the URL host; no cross-tenant browsing or messaging is permitted.
+- **FR-017**: Tiered channel retention: `#alerts` channel messages purged after 7 days; task threads and standard channels retained for 30 days (configurable per plan tier).
 
-<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:55:00Z -->
+<!-- version: 0.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:26:00Z -->

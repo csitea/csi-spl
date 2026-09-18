@@ -141,8 +141,8 @@ One row per message per recipient box. Holds a message for an offline `to_box` (
 | `tenant_id` | text | |
 | `msg_id` | uuid | FK `messages` |
 | `to_box` | text | |
-| `state` | text | `queued` \| `sent` (\| `acked`, OQ-08) |
-| `expires_at` | timestamptz | `received_at` + queue TTL from cnf (OQ-13) |
+| `state` | text | `queued` \| `sent` \| `expired` (\| `acked`, OQ-08) |
+| `expires_at` | timestamptz | `received_at` + 7 days (max 1,000 queued messages per box; excess marked expired) |
 | `sent_at` | timestamptz NULL | frame pushed to the box socket |
 
 PK `(tenant_id, msg_id, to_box)`.

@@ -36,6 +36,9 @@ No browser. No payment. Tenant is created by hand (`do_spl_tenant_create`).
 
 ### Hub (M1 hosting)
 
+Infra/DNS/docker/lde: **copy csi-rel + pas-psf**, not the shop —
+`SPEC-spool-hub-api-infra.md` / `specs/007-spool-hub-api-infra/`.
+
 Stateless **Cloud Run** (HTTPS + WebSocket) + **Postgres** + **GCS**. Nothing
 durable on the container. `tenant_id` on every row and GCS prefix
 `t/<tenant>/files/<sha256>` from day one. Product DNS
@@ -86,4 +89,4 @@ per agent. Not started until M1 is proven and M2 can sell.
 **M1 proto** (local + hub proof) → **M2 public MVP** (buy on the site) →
 **M3 rollout** (Slack web UI).
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:30:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:00:00Z -->

@@ -9,6 +9,7 @@ contract, and how to create, apply and switch to it.
 |---|---|
 | `doc/md/csi-spl.feature.md` | git-rel GCS estate (operator how-to) |
 | `doc/md/SPEC-spool-milestones.md` | **M1 technical proto → M2 public MVP (buy) → M3 rollout Slack UI** |
+| `doc/md/SPEC-spool-hub-api-infra.md` | copy csi-rel/pas-psf infra+DNS, not the shop |
 | `doc/md/SPEC-spool-hub-rental.md` | paid tenant product |
 | `doc/md/SPEC-spool-trust-modes.md` | local unsigned vs hub box keys (SSH-like) |
 | `doc/md/SPEC-spool-message-bus.md` | agent message bus architecture (binding) |
@@ -22,6 +23,7 @@ contract, and how to create, apply and switch to it.
 | `specs/004-spool-identity-routing/` | git-spec for pins + routing |
 | `specs/005-spool-wui/` | git-spec for the WUI |
 | `specs/006-spool-hub-rental/` | git-spec for paid multi-tenant hub |
+| `specs/007-spool-hub-api-infra/` | git-spec: lde, terraform, docker, DNS |
 | `specs/006-spool-hub-rental/contracts/payment.md` | M2 public MVP: buy on site, copy csi-rel payment |
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:30:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:00:00Z -->

@@ -2,7 +2,8 @@
 
 **Feature ID**: `006-spool-hub-rental` · **Status**: Draft · **Date**: 2026-09-18
 
-**Spec**: `./spec.md` · **Narrative**: `../../doc/md/SPEC-spool-hub-rental.md`
+**Spec**: `./spec.md` · **Narrative**: `../../doc/md/SPEC-spool-hub-rental.md`  
+**Hosting copy**: `../007-spool-hub-api-infra/` (csi-rel + pas-psf infra/DNS).
 
 ## Summary
 
@@ -43,4 +44,4 @@ quota → payment webhook.
 
 IAM-as-renter-door (003 US5) is **not** implemented for the public service.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:30:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:00:00Z -->

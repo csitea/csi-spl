@@ -1,13 +1,19 @@
-# Contract: Live notify subjects (after M1, draft)
+# Contract: Live notify subjects — DEFERRED (post-M1)
 
 Feature: `003-spool-message-bus`, User Story 4.
-Status: **not in Milestone 1** (`SPEC-spool-milestones.md`: NATS out of M1).
-Whether NATS is the transport at all is OQ-04 in `../spec.md`; the subject
-format is OQ-12. The rules below hold for **any** notify transport.
+Status: **deferred / post-M1. Nothing in this file is implemented in M1.**
+
+- OQ-04 (resolved): the M1 live tail is **frames on the existing WebSocket**
+  (`tail` / `tail_msg` / `tail_end` in `./http-v1.md` §2.1). No SSE, no NATS.
+- OQ-12 (resolved, N/A in M1): no pub/sub subjects exist in M1. If NATS is
+  revived after M1, the inbox subject is `tenant.<tenant>.box.<box_id>.inbox`.
+
+The rules below still bind **any** notify transport, including the M1 WS tail
+frames.
 
 NATS is the radio. Spool JSON is the meaning.
 
-## Subject shape (undecided)
+## Subject shape (post-M1 only)
 
 The 0.1.0 draft used `task.<task_id>` and `agent.<agent-id>.inbox`. Both
 predate two decisions:
@@ -17,7 +23,8 @@ predate two decisions:
 - the hub is multi-tenant from M1, so every subject needs the tenant or the
   tenants must be isolated by account/connection.
 
-Whatever format is chosen MUST satisfy the rules below.
+The post-M1 shape, if NATS is chosen, is `tenant.<tenant>.box.<box_id>.inbox`
+(OQ-12). Whatever format is chosen MUST satisfy the rules below.
 
 ## Rules (binding for any transport)
 
@@ -45,4 +52,4 @@ Whatever format is chosen MUST satisfy the rules below.
 At most one notify client per **box** (sidecar) and one publisher in the hub.
 Never inside an agent window. Agents call `spool-tail` / MCP `spool_tail`.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:24:00+03:00 -->
+<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:55:00Z -->

@@ -7,13 +7,13 @@
 
 ## Summary
 
-Put a **stateless Cloud Run** process (HTTPS + WebSocket) behind the 002 box API. Boxes hold one Ed25519 key each, pinned by the tenant root. A box authenticates with a signed WS hello and sends box-signed envelopes around the unchanged inner `v:1` object. Persist messages, the hub queue, pins and acks in **Postgres**, and file bytes in **GCS** (`t/<tenant>/files/<sha256>`, one bucket). Keep `$SPOOL_ROOT` as the local mail store and hub-down queue. Inter-instance live dispatch coordinates via **Postgres `LISTEN/NOTIFY`** across Cloud Run instances. Agents still only call spool CLI/MCP.
+Put a **stateless Cloud Run** process (HTTPS + WebSocket) behind the 002 box API. Boxes hold one Ed25519 key each, pinned by the tenant root. A box authenticates with a signed WS hello and sends box-signed envelopes around the unchanged inner `v:1` object. Persist messages, the hub queue, pins and the roster in **Postgres** (no `acks`, OQ-08), and file bytes in **GCS** (`t/<tenant>/files/<sha256>`, one bucket). Keep `$SPOOL_ROOT` as the local mail store and hub-down queue. M1 runs **`max-instances=1`** (OQ-05), so live dispatch is an in-process socket map; cross-instance dispatch via Postgres `LISTEN/NOTIFY` is **post-M1**. Agents still only call spool CLI/MCP.
 
 ## Technical Context
 
 **Language/Version**: Go 1.22+ (same module as 002: `csi-spl-api/src/go/spool-hub-api`).
 
-**Primary Dependencies**: 002 internal packages (`msg` for the inner object and canonical JSON, `sign` for Ed25519); HTTP server harness (`github.com/gofiber/fiber/v2`, pas-psf pattern); a WebSocket library compatible with that harness (**choice open**); structured logging (`github.com/rs/zerolog`); Postgres (`pgx/v5`); GCS client. No notify client in M1.
+**Primary Dependencies**: 002 internal packages (`msg` for the inner object and canonical JSON, `sign` for Ed25519); HTTP server harness on `net/http` (pas-psf lifecycle pattern; Fiber dropped because the WebSocket library `github.com/coder/websocket` is `net/http`-native); structured logging (`github.com/rs/zerolog`); Postgres (`pgx/v5`); GCS client. No notify client in M1.
 
 **Server Harness & Logging**: Derived from the `pas-psf` Go architecture (read-only reference):
 - `config.Load()`: typed, fail-fast configuration from environment variables.
@@ -21,11 +21,11 @@ Put a **stateless Cloud Run** process (HTTPS + WebSocket) behind the 002 box API
 - Server lifecycle: `runUntilShutdown` catching `SIGINT`/`SIGTERM`, graceful drain within `API_GRACEFUL_SHUTDOWN_SECONDS` (which must also close WS sockets cleanly), clean shutdown or fatal exit.
 - HTTP surface: shared middleware (recover, request ID, structured access logging) and ops probes (`/version`, `/healthz`).
 
-**Storage**: Postgres only (tenants, boxes, pins, roster, messages, deliveries, acks; `data-model.md`); GCS one bucket `t/<tenant>/files/<sha256>`; local `$SPOOL_ROOT` on the box; **nothing** on container disk.
+**Storage**: Postgres only (tenants, boxes, pins, roster, messages, deliveries; `data-model.md`; DDL in `csi-spl-rdb/src/sql/postgres/spool-hub/`, applied by `spool migrate`); GCS one bucket `t/<tenant>/files/<sha256>`; local `$SPOOL_ROOT` on the box; **nothing** on container disk.
 
 **Testing & Test Harness**:
 - `go test ./...` with `internal/testkit` (pas-psf pattern: `testkit.NewApp(t)` builds an in-memory app, `testkit.AssertEnvelopeError`). 002 already created `internal/testkit`; 003 extends it and does not fork it.
-- Contract tests against `contracts/http-v1.md` with golden frames under `internal/hub/testdata/`. The envelope-signature golden vector is added once OQ-03 is decided.
+- Contract tests against `contracts/http-v1.md` with golden frames under `internal/hub/testdata/`. Golden vectors for the envelope and hello signing payloads (OQ-03).
 - Two-box tests: two temp `$SPOOL_ROOT`s, two box keys, tested against local Postgres test DB (docker compose).
 - Shell tests under `csi-spl-api/src/bash/tests/` (run by `run-all-tests.sh`).
 
@@ -48,7 +48,7 @@ Put a **stateless Cloud Run** process (HTTPS + WebSocket) behind the 002 box API
 - [ ] **II. Env**: `$SPOOL_HUB_URL`, `$SPOOL_BOX_ID`, `$SPOOL_ROOT`, `$SPOOL_MIRROR_LOCAL`, store DSN, bucket, queue TTL, pin refresh interval all fail fast from env / cnf.
 - [ ] **VI. Cnf-only**: Cloud Run service URL, product domain, bucket, min instances from `csi-spl-cnf`.
 - [ ] **VII. No key in git/state/log**: box and tenant-root private keys never reach the hub; signed URLs not logged; the WS hello `sig` is not a secret but no private material is logged.
-- [ ] **VIII. Uniform API**: no per-kind routes, frames or fields. **At risk:** OQ-01 (`--to-box`, `delivery`) touches the frozen box API; resolve it before T007.
+- [ ] **VIII. Uniform API**: no per-kind routes, frames or fields. OQ-01 resolved: `--to-box` / `delivery` are an additive, allowed change.
 - [ ] **V. Hygiene**: placeholders in examples (`<DEV_BOX>`, `FirstName LastName`, `box-a`).
 - [ ] **Reference read-only**: no ysg-box imports; pas-psf patterns are copied, never imported.
 
@@ -73,17 +73,19 @@ csi-spl-api/src/go/spool-hub-api/   # same module as 002
 ├── internal/config/                # exists (002); hub keys added, fail-fast
 ├── internal/logging/               # exists (002)
 ├── internal/testkit/               # exists (002); hub helpers added
-├── internal/httpapp/               # NEW: server harness, middleware, /healthz, /version
-├── internal/hub/                   # NEW: WS hello/roster/send/recv, REST files; no disk
-├── internal/store/                 # NEW: Postgres (+ sqlite/memory for tests)
-├── internal/objects/               # NEW: GCS (+ local dir for tests)
-└── internal/hubclient/             # NEW (box side): WS client, envelope sign, flush (OQ-15 vs 004 `internal/flush`)
+├── internal/wire/                  # NEW: frames + envelope/hello signing payloads (both sides)
+├── internal/hub/                   # NEW: server harness, WS hello/roster/send/recv/tail, REST files + pins; no disk
+├── internal/store/                 # NEW: memory (tests) + Postgres; migrator for csi-spl-rdb DDL
+├── internal/blob/                  # NEW: GCS (+ local dir for tests)
+└── internal/hubclient/             # NEW (box side): WS client, envelope sign, pin sync, flush (OQ-15)
+
+csi-spl-rdb/src/sql/postgres/spool-hub/   # NEW: ordered forward-only DDL (`spool migrate`)
 
 csi-spl-api/src/bash/              # shell tests and utils (pas-psf pattern)
 csi-spl-iac/                        # Cloud Run, Cloud SQL, GCS: apply only with the owner's go
 ```
 
-**Structure Decision**: one Go module. The hub is either a subcommand (`spool hub`) or a separate `cmd/hub`, sharing the pas-psf server harness; **owner's choice**. Agents never link hub packages. The envelope signing and flush code lives on the **box** side, not in `internal/hub`.
+**Structure Decision**: one Go module, one binary. The hub is the `spool serve` subcommand; `spool migrate` applies the DDL. Agents never link hub packages. The envelope signing and flush code lives on the **box** side, not in `internal/hub`.
 
 ## Build Order (maps to milestones)
 
@@ -95,14 +97,14 @@ csi-spl-iac/                        # Cloud Run, Cloud SQL, GCS: apply only with
 | 4 | REST files with box proof, GCS in prod / local dir in tests | US2 | M1 |
 | 5 | Hub queue for offline `to_box` (`delivery=queued`) + box-side flush when the hub is down | US3 | M1 |
 | 6 | Postgres + GCS replace memory/sqlite; Cloud Run IaC (plan only) | US1–US3 | M1 |
-| 7 | Live tail transport (OQ-04) | US4 | after M1 |
-| 8 | IAM front for private deploys only (OQ-06) | US5 | after M1 |
+| 7 | Tail frames on the existing WS (OQ-04) | US4 | M1 |
+| 8 | IAM front for private deploys (OQ-06: not in M1) | US5 | after M1 |
 | 9 | ysg-box adapter (other repo) | US6 | after M1 |
 
 Pins (004/006) are a hard dependency of step 3: a hello cannot verify without a pinned box.
 
 ## Complexity Tracking
 
-*No constitutional violations are intended.* Two items need a decision rather than a waiver. OQ-01 may change the frozen box API (Principle VIII's contract-diff gate). OQ-05 (Cloud Run fan-out between instances) decides whether M1 must pin `max-instances=1` or needs a cross-instance channel.
+*No constitutional violations are intended.* OQ-01 allows the additive `to_box` / `delivery` change to the box API. OQ-05 pins M1 to `max-instances=1`; a cross-instance channel is post-M1.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:24:00+03:00 -->
+<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:55:00Z -->

@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-18
 
-**Status**: Draft — reconciled 2026-09-18 against the binding trust model; read **Open Questions** before implementing
+**Status**: Draft — every Open Question is **resolved** (ORC decision record 2026-09-18, folded below); implementation of the M1 hub may proceed
 
 **Input**: Architecture freeze from the owner: split names (ysg-box = machine, spool = bus); start clean in this repo then force the box to use it; local CRUD first (002); Cloud Run is a stateless process; state in Postgres + object store; NATS for live notify not for files or tokens; one uniform box API for every agent kind.
 
@@ -26,7 +26,7 @@
 
 | Concern | Owner |
 |---|---|
-| Hub process, WS send/recv/ack framing, REST files, hub queue, flush, probes, notify | **003** (this spec) |
+| Hub process, WS hello/send/recv/tail framing, REST files, hub queue, box-side flush, probes | **003** (this spec) |
 | Box id, pin publish / sync / revoke, `GET/POST/DELETE /v1/pins` | 004 (+ 006 root-signing) |
 | Tenant create, tenant resolution from URL, quotas, `402`/`429` | 006 |
 
@@ -39,8 +39,8 @@ git-rel (001) is a different plane (gpg-encrypted file relay). `directive` and s
 | Trust | POSIX on `$SPOOL_ROOT` | Ed25519 **box** key, pinned by the tenant root |
 | Inner `v:1` `sig` | omitted | omitted (the **envelope** carries `sig`) |
 | Addressing | agent id on this box | agent id + `from_box` / `to_box` |
-| Transport | files | WS `wss://<tenant-host>/v1/ws` for send/recv/ack; REST for files and pins |
-| Door | n/a | the box-signed WS hello. The public product does not use IAM/OIDC (private deploys: OQ-06) |
+| Transport | files | WS `wss://<tenant-host>/v1/ws` for send/recv/tail; REST for files and pins only (OQ-02) |
+| Door | n/a | the box-signed WS hello over a hub-issued nonce (OQ-03). No IAM/OIDC in M1 (OQ-06) |
 
 The box key proves **which box** sent a frame. `from` (`GRK-03`) is an agent name that box asserts; the hub does not prove it separately.
 
@@ -59,7 +59,7 @@ An agent calls `spool-send` / `spool-recv` as in 002. When `$SPOOL_HUB_URL` is s
 1. **Given** box-a and box-b pinned in one tenant and both connected, **When** `GRK-03` on box-a sends to `CLE-07` with `--to-box box-b`, **Then** box-b receives the frame, `CLE-07` `spool-recv` returns the inner `v:1` object unchanged, and the send result carries `delivery=sent`.
 2. **Given** an unpinned box, **When** it sends the WS hello, **Then** the hub closes the connection and stores nothing.
 3. **Given** a tampered envelope (`sig` does not verify against the `from_box` pin), **When** it is sent, **Then** the hub refuses it, stores nothing, and the CLI exits `78`.
-4. **Given** `CLE-07` is announced on two boxes and `--to-box` is omitted, **When** GRK-03 sends to `CLE-07`, **Then** the hub refuses with `409` (`ambiguous_to_box`).
+4. **Given** `CLE-07` is announced on two boxes and `--to-box` is omitted, **When** GRK-03 sends to `CLE-07`, **Then** the CLI refuses before signing (`ambiguous_to_box`), and a hand-built envelope without `to_box` is refused by the hub with `409` (`ambiguous_to_box`). The hub never fills `to_box` (OQ-03).
 5. **Given** the receiving box has **not** synced the sender box's pubkey, **When** the frame arrives, **Then** the receiving box refuses it locally (`78`) even though the hub stored it.
 
 ### User Story 2 - Files go to the object store, not the socket or the broker (Priority: P1)
@@ -73,17 +73,17 @@ An agent calls `spool-send` / `spool-recv` as in 002. When `$SPOOL_HUB_URL` is s
 **Acceptance Scenarios**:
 
 1. **Given** a put file, **When** the hub stores it, **Then** the object key is `t/<tenant_id>/files/<sha256>` and no message or frame contains file bytes.
-2. **Given** a `POST /v1/files` without a valid box proof, **When** it arrives, **Then** it is refused (anonymous PUT is forbidden).
+2. **Given** a `POST /v1/files` without a valid WS-issued upload token, **When** it arrives, **Then** it is refused `401` (anonymous PUT is forbidden; OQ-10).
 3. **Given** a `file_id` of tenant A, **When** it is requested under tenant B's URL, **Then** `404`.
-4. **Given** GCS down, **When** put-file runs, **Then** it fails clearly (exit `1`); a text-only send may still proceed (OQ-11).
+4. **Given** GCS down, **When** put-file runs, **Then** it fails clearly (exit `1`). A send referencing a `file_id` the hub does not hold is refused `400 missing_file` unless the cnf flag `hub.allow_text_only_when_file_missing` is true (default false; OQ-11).
 5. **Given** a short-lived signed GET URL, **When** anything logs it, **Then** that is a defect (Constitution VII).
 
 ### User Story 3 - Offline receiver and hub-down sender (Priority: P1)
 
 Two independent failures, two queues:
 
-- **Receiving box offline**: the **hub** stores the message (Postgres, TTL from cnf) and the send returns `delivery=queued` (no receiver ack). The box drains it on its next hello.
-- **Hub unreachable**: the **sending box** keeps the message in its `$SPOOL_ROOT` outbox as pending-flush. A later flush sends it without re-signing (`contracts/flush.md`).
+- **Receiving box offline**: the **hub** stores the message (Postgres, 7-day TTL, max 1,000 per box) and the send returns `delivery=queued` (no receiver ack). The box drains it on its next hello.
+- **Hub unreachable**: the **sending box** keeps the signed envelope as pending-flush and the send returns `delivery=pending` (OQ-09). A later flush sends it without re-signing (`contracts/flush.md`).
 
 Same-box mail never needs the hub (`delivery=local`), unless `$SPOOL_MIRROR_LOCAL` is true.
 
@@ -94,7 +94,7 @@ Same-box mail never needs the hub (`delivery=local`), unless `$SPOOL_MIRROR_LOCA
 **Acceptance Scenarios**:
 
 1. **Given** hub down, **When** GRK-03 sends to CLE-07 on the **same** box, **Then** the local inbox receives the file as in 002 and the result is `delivery=local`.
-2. **Given** hub down and a cross-box target, **When** GRK-03 sends, **Then** the local outbox holds it pending-flush and the command still exits `0` (OQ-09: which `delivery` it reports).
+2. **Given** hub down and a cross-box target, **When** GRK-03 sends, **Then** the local outbox holds it pending-flush, the result is `delivery=pending`, and the command still exits `0` (OQ-09).
 3. **Given** pending-flush messages, **When** the hub returns, **Then** flush sends them idempotently by `msg_id` without changing `ts` or re-signing.
 4. **Given** box-b offline, **When** box-a sends to box-b, **Then** the hub stores it, returns `delivery=queued`, and box-b receives it on reconnect within the queue TTL.
 5. **Given** the queue TTL expires, **When** box-b reconnects later, **Then** the message is not delivered and the commander is not retroactively failed.
@@ -103,7 +103,7 @@ Same-box mail never needs the hub (`delivery=local`), unless `$SPOOL_MIRROR_LOCA
 
 Subscribers see "a new message landed on task X" (one small JSON per send). Model token streams stay on the coding adapter. Postgres remains the archive; a subscriber that was down reads the archive.
 
-**Why this priority**: Humans and peer boxes need liveness, and mixing tokens with mail would drown the bus. Not in Milestone 1 (M1 recv is WS frames / poll).
+**Why this priority**: Humans and peer boxes need liveness, and mixing tokens with mail would drown the bus. The stored part of a task tail ships in M1 as WS frames; richer live fan-out comes after M1.
 
 **Independent Test**: Two subscribers on one `task_id`; a send appears on both; a subscriber that was down catches up from the store.
 
@@ -113,11 +113,11 @@ Subscribers see "a new message landed on task X" (one small JSON per send). Mode
 2. **Given** no subscriber, **When** the send completes, **Then** the message is still in Postgres for later `spool-tail`.
 3. **Given** a model generating tokens, **When** spool is used, **Then** those tokens are not published anywhere on the spool.
 
-This story's transport (SSE on Cloud Run, NATS Core/JetStream, or frames on the existing WS) is **OQ-04**.
+Transport (OQ-04, resolved): **frames on the existing WebSocket** (`tail` → `tail_msg`… `tail_end`, then live `tail_msg` with `follow`). No SSE and no NATS in M1.
 
-### User Story 5 - The box key is the door and the author; IAM is optional (Priority: P3)
+### User Story 5 - The box key is the door and the author; no IAM in M1 (Priority: P3)
 
-Public rental (spec 006): the hub is reachable without a renter GCP account. The only proof is the box key: WS hello, send envelope, and `POST /v1/files`. IAM/OIDC MAY front a **private** org deploy but MUST NOT be required of renters. When present, IAM runs **before** box-key verification and never replaces it.
+Public rental (spec 006): the hub is reachable without a renter GCP account. The only proof is the box key: WS hello (challenge-response), send envelope, and — through the WS-issued upload token — `POST /v1/files`. IAM/OIDC is **not in M1** (OQ-06). If a private deploy ever adds it, IAM runs **before** box-key verification and never replaces it.
 
 **Why this priority**: "Any user against payment" forbids issuing GCP principals to renters.
 
@@ -127,7 +127,7 @@ Public rental (spec 006): the hub is reachable without a renter GCP account. The
 
 1. **Given** no GCP credentials, **When** a pinned box connects and sends, **Then** the hub accepts.
 2. **Given** an unpinned box, **When** it sends the hello, **Then** the connection is closed, nothing stored.
-3. **Given** (private deploy only) IAM enabled, **When** no door credential, **Then** 401/403 before box-key verify.
+3. *(post-M1, private deploy only)* **Given** IAM enabled, **When** no door credential, **Then** 401/403 before box-key verify.
 
 ### User Story 6 - ysg-box calls spool, it does not grow a second bus (Priority: P3)
 
@@ -143,8 +143,8 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 
 ### Edge Cases
 
-- Cloud Run instance killed mid-request or mid-WS: the box reconnects and resends idempotently by `msg_id`. Storage is Postgres + GCS, never container disk; WS session state is not durable.
-- Two Cloud Run instances: box-a's WS is on instance 1 and box-b's on instance 2. Instance 1 must still reach box-b (**OQ-05**).
+- Cloud Run instance killed mid-request or mid-WS: the box reconnects (exponential backoff, cap ~30 s) and resends idempotently by `msg_id`. Storage is Postgres + GCS, never container disk; WS session state is not durable.
+- Two Cloud Run instances: excluded in M1 by `max-instances=1` (cnf-overridable; OQ-05). Cross-instance fan-out (`LISTEN/NOTIFY` or Pub/Sub) is post-M1.
 - Notify transport down (after M1): writes still land in Postgres; tail is stale until catch-up.
 - Two boxes, same agent id: `CLE-07@box-a` and `CLE-07@box-b` are different peers; message identity is `msg_id`.
 - Direct agent → bucket upload: forbidden. No per-agent cloud keys.
@@ -156,12 +156,12 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 
 - **FR-001**: The hub MUST expose the endpoints in `contracts/http-v1.md`: WS `/v1/ws`, `POST /v1/files`, `GET /v1/files/{file_id}`, `GET /healthz`, `GET /version`. It also hosts the pin endpoints owned by 004/006.
 - **FR-002**: The box CLI/MCP from 002 MUST be the only agent-facing API; agents MUST NOT call hub HTTP/WS, NATS, Postgres, or GCS directly.
-- **FR-003**: The hub MUST verify the WS hello `sig` against the tenant's pin for `box_id` before accepting any frame; unknown box → close, nothing stored. **Last hello wins**: a new connection for the same `box_id` closes the older one.
+- **FR-003**: The hub MUST issue a single-use nonce on connect and verify the WS hello `sig` over `{box_id, ts, nonce}` against the tenant's pin for `box_id` before accepting any frame (`ts` within ±300 s); unknown box → close, nothing stored. **Last hello wins**: a new session connection for the same `box_id` closes the older one.
 - **FR-004**: The hub MUST verify every send envelope `sig` against the `from_box` pin, and MUST require `from_box` to equal the box authenticated at hello; failure → refuse, nothing stored (CLI exit `78`).
-- **FR-005**: The hub MUST resolve `to_box`: required when `to` is announced on more than one box; filled by the hub when unique; `409` when ambiguous.
-- **FR-006**: When `to_box` has a live WS the hub MUST push the frame and report `delivery=sent`. Otherwise it MUST persist the message with a TTL from cnf, report `delivery=queued`, and deliver it on the box's next hello.
-- **FR-007**: File bytes MUST be stored as `t/<tenant_id>/files/<sha256>`; messages and frames MUST carry file refs only. `POST /v1/files` MUST require box proof; `GET /v1/files/{file_id}` MUST be tenant-scoped.
-- **FR-008**: When the hub is unreachable, the CLI MUST keep cross-box sends pending-flush in `$SPOOL_ROOT` (002 layout) and MUST flush without re-signing and without changing `ts` (`contracts/flush.md`).
+- **FR-005**: The **sender** MUST resolve `to_box` (explicit, or unique in the synced roster) and sign it; the hub MUST NOT fill or mutate any signed field. An envelope without `to_box` is refused (`409 ambiguous_to_box` when `to` is on more than one box, else `400 missing_to_box`).
+- **FR-006**: When `to_box` has a live WS the hub MUST push the frame and report `delivery=sent`. Otherwise it MUST persist the message with a 7-day TTL (max 1,000 queued per box), report `delivery=queued`, and deliver it on the box's next hello. The hub's responsibility ends there (no ack; OQ-08).
+- **FR-007**: File bytes MUST be stored as `t/<tenant_id>/files/<sha256>`; messages and frames MUST carry file refs only. `POST /v1/files` MUST require a WS-issued upload token (TTL ~5 min, bound to `box_id` + tenant); `GET /v1/files/{file_id}` MUST be tenant-scoped.
+- **FR-008**: When the hub is unreachable, the CLI MUST keep cross-box sends pending-flush in `$SPOOL_ROOT`, report `delivery=pending` with exit `0`, and MUST flush without re-signing and without changing `ts` (`contracts/flush.md`; flush lives in box-side `internal/hubclient`).
 - **FR-009**: Same-box sends MUST NOT depend on the hub (`delivery=local`) unless `$SPOOL_MIRROR_LOCAL` is true; illegal values fail fast.
 - **FR-010**: Hub ingest MUST be idempotent on `(tenant_id, msg_id)`: identical canonical → success, different canonical → `409 conflict_msg`.
 - **FR-011**: Live notify (after M1) MUST NOT carry file bytes, model tokens, private keys or signed URLs, and MUST NOT leak across tenants.
@@ -169,7 +169,8 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 - **FR-013**: Agent kind MUST appear only as id prefixes (Constitution VIII).
 - **FR-014**: Private keys (box, tenant root) MUST never enter the hub, Postgres, GCS, Secret Manager, or logs (Constitution VII).
 - **FR-015**: Every hub row and object key MUST carry `tenant_id`. The tenant comes from the request **Host** (`<tenant>.<product-domain>`, domain from cnf), never from the `v:1` body. One GCS bucket for all tenants, prefixed `t/<tenant_id>/`.
-- **FR-016**: IAM/OIDC, when enabled on a private deploy, MUST run before box-key verification and MUST NOT substitute for it.
+- **FR-016**: IAM/OIDC is not in M1. If a private deploy enables it later, it MUST run before box-key verification and MUST NOT substitute for it.
+- **FR-017**: M1 MUST run the hub with `max-instances=1` (cnf-overridable). The box MUST reconnect on close with exponential backoff (cap ~30 s) and re-hello.
 
 ### Non-Functional Requirements
 
@@ -188,7 +189,7 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 - **Box pin**: `(tenant_id, box_id)` → pubkey, published with the tenant root (004/006).
 - **Roster**: agent ids a box announced at hello (dir scan of `$SPOOL_ROOT/*/`).
 - **Task**: `task_id` (UUIDv4) grouping messages.
-- **Delivery / ack**: per recipient `(box, agent)`: `queued` → `sent` → agent `--ack` (see OQ-08).
+- **Delivery**: send result `local | sent | queued | pending` (trust-modes §8 + OQ-09). The hub's part ends at `sent`/`queued`; agent `--ack` is local only (OQ-08).
 
 ## Success Criteria
 
@@ -206,7 +207,7 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 - 003 MVP runs on sqlite/memory in tests; production M1 is Cloud Run + Postgres + GCS.
 - ysg-box adapter is a follow-on in that repo, not a task in this one.
 - Product DNS is `<tenant>.spool-hub.ai` (owner decision); binaries read it from `$SPOOL_HUB_URL` / cnf and never bake it.
-- Cloud Run min instances = 1 by default (warm WS), cnf-overridable. Boxes refresh pins on hello and on a cnf interval.
+- Cloud Run min instances = 1 and **max instances = 1** in M1 (warm WS, single instance), both cnf-overridable. Boxes refresh pins on hello and on a cnf interval.
 
 ## Out of Scope
 
@@ -217,24 +218,30 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 - Encrypt-to-recipient (the hub can read bodies).
 - WUI (Milestone 3, spec 005); payment (Milestone 2, spec 006).
 
-## Open Questions
+## Resolved decisions (formerly Open Questions)
 
-Each item below is under-specified or contradicted across documents. This file answers none of them. Each needs an owner decision before the task that depends on it starts.
+All fifteen are closed. OQ-07/13/14 were resolved earlier by the owner; the other twelve by the ORC decision record of 2026-09-18, grounded in `../002-box-agent-messaging/contracts/trust-modes.md`, `SPEC-spool-milestones.md` and `SPEC-spool-identity-routing.md`.
 
-- **OQ-01: Is the box API still frozen?** Hub mode needs `--to-box` on `spool-send` / `to_box` on `spool_send`, plus a `delivery` field in the send result (`../002-box-agent-messaging/contracts/trust-modes.md` §4, §8). None of these appears in 002 `contracts/cli.md`, `contracts/mcp-tools.md`, or `SPEC-spool-box-api.md`. Is this an additive, allowed change to the 002 contract, and does 002 or 003 own it? Blocks `tasks.md` T007.
-- **OQ-02: Does the REST message dialect survive at all?** Earlier 003 text had `POST /v1/messages` + `GET /v1/messages?as=` for a "private org hub", verified per agent. The binding model has no per-agent keys and moves send/recv to WS. Should the REST dialect be deleted, or kept as a private-deploy variant with box-key auth? (006 `tasks.md` T008–T010 still build `POST /v1/messages` / `POST /v1/recv`.)
-- **OQ-03: Envelope canonicalisation and replay.** `sig` covers `jq -cS '{from_box,to_box,msg}'`. If `to_box` is omitted and the hub fills it, is the signature over the envelope *without* `to_box`? Does the delivered frame carry the hub-filled value outside the signed bytes? The receiving box must be able to re-verify. Separately: does the hello `sig` cover a hub-issued nonce, or only `{box_id, ts}`? And what is the `ts` window?
-- **OQ-04: Live tail transport (US4).** Candidates are SSE `GET /v1/events` (earlier plan), NATS Core/JetStream (`contracts/nats-subjects.md`), or frames on the existing WS. The milestone puts NATS out of M1 but names no replacement.
-- **OQ-05: Multi-instance fan-out and reconnects.** The milestone sets **min** instances = 1 (cnf-overridable, including 0) but no maximum. With more than one Cloud Run instance, how does the instance holding box-a's socket reach box-b's socket? Candidates are Postgres `LISTEN/NOTIFY`, NATS, Pub/Sub, or `max-instances=1` for M1. Cloud Run's request timeout (max 60 min) forces WS reconnects, and no reconnect/resume contract exists yet.
-- **OQ-06: Private-deploy IAM.** Is an IAM-fronted private deploy still a supported shape? If so, how do boxes present an OIDC token on a WS upgrade? The `boxes.iam_principal` column in `data-model.md` exists only for this case.
+- **OQ-01: Box API frozen?** — **Additive change, allowed; split ownership.** `delivery` already shipped in 002 (always `local`). `--to-box` / `to_box` are hub-only and belong to **003**, added with the envelope (trust-modes §2.1.5, §4–5). Unblocks T007.
+- **OQ-02: REST message dialect?** — **Dropped.** Public hub send/recv is WebSocket only; REST is files + pins only. `POST/GET /v1/messages` and `POST /v1/recv` are deleted from 003, and 006 T008–T010 must be rewritten to WS (trust-modes §1, §4, §7).
+- **OQ-03: Envelope canonicalisation and replay.** — (a) The **sender resolves `to_box` locally** (from the synced pins/roster) and includes it **before** signing; the hub never mutates signed bytes. `sig = ed25519(jq -cS '{from_box,to_box,msg}')` with `to_box` present. An omitted `--to-box` is a CLI convenience only when the local roster makes it unambiguous — the CLI still fills it pre-sign; the hub 409s on ambiguity and fills nothing. The receiver re-verifies over the exact `{from_box,to_box,msg}`. (b) Hello is **challenge-response**: the hub issues a single-use nonce on connect; the box signs `{box_id, ts, nonce}`; `ts` skew window **±300 s**.
+- **OQ-04: Live-tail transport (US4).** — **Frames on the existing WebSocket.** No SSE, no NATS in M1.
+- **OQ-05: Multi-instance fan-out and reconnects.** — **`max-instances=1` for M1** (cnf-overridable), so every box socket terminates on one instance. The box reconnects on close/timeout with exponential backoff (cap ~30 s) and re-hellos; **last hello wins** evicts the stale socket. Cross-instance fan-out (`LISTEN/NOTIFY` or Pub/Sub) is post-M1.
+- **OQ-06: Private-deploy IAM.** — **Not in M1.** Box auth is the Ed25519 box key on the WS hello, not OIDC. `boxes.iam_principal` is reserved, nullable and unused in M1.
 - ~~**OQ-07: Tenant routing.**~~ **Resolved** by the owner (trunk `cdea288`, `SPEC-spool-milestones.md`): tenant from the **Host** header, `https://<tenant>.spool-hub.ai`, with the host from cnf/env only. Recorded in FR-015.
-- **OQ-08: Ack model.** Does the hub's responsibility end at `delivery=sent` (box got the frame)? Or does the box send an ack frame that moves the row to `acks`? In hub mode, does `spool-recv --ack` only archive locally, or also notify the hub?
-- **OQ-09: `delivery` value when the hub is down.** Trust-modes §8 defines `local | sent | queued`. A cross-box send while the hub is unreachable fits none of them, because the hub never saw it. Should it get a new value (e.g. `pending`), or exit non-zero?
-- **OQ-10: Box proof on `POST /v1/files`.** The docs offer "signed headers or a short-lived upload token from the WS" without choosing. The header format (which bytes are signed, replay window) is unspecified.
-- **OQ-11: "Text-only may proceed if policy allows".** Whose policy is this, and where is it configured? If a message references a `file_id` the hub does not hold, is the send refused?
-- **OQ-12: Notify subjects vs non-unique agent ids.** `agent.<agent-id>.inbox` assumed tenant-wide unique ids. Ids are now unique only per box (and per tenant), so the subject needs `tenant` and `box` components. The format is undecided and depends on OQ-04.
+- **OQ-08: Ack model.** — **The hub's responsibility ends at frame delivery** (`sent`/`queued`). No hub ack frame and no `acks` table in M1. `spool-recv --ack` archives **locally only**. A `result`/`reject` is an ordinary peer send (trust-modes §9).
+- **OQ-09: `delivery` when the hub is down.** — **Add `pending`.** A cross-box send while the hub is unreachable → `delivery=pending` (held locally for flush; the hub never saw it), distinct from `queued` (hub stored, receiver offline). Send still exits `0`. `delivery` is now `local | sent | queued | pending`.
+- **OQ-10: Box proof on `POST /v1/files`.** — **Short-lived WS-issued upload token.** The box proved its key at hello; the hub mints a capability token (TTL ~5 min, bound to `box_id` + tenant) for `POST /v1/files`. Anonymous PUT forbidden. Chosen over signed headers: no header replay window to specify.
+- **OQ-11: "Text-only if policy allows".** — **A hub cnf flag**, `hub.allow_text_only_when_file_missing`, **default false**. By default a send referencing a `file_id` the hub does not hold is refused (`400 missing_file`); a tenant/deploy opts in via cnf.
+- **OQ-12: Notify subjects.** — **N/A in M1** (WS frames only; no pub/sub). Deferred with NATS; if revived, subject = `tenant.<tenant>.box.<box_id>.inbox`.
 - ~~**OQ-13: Hub queue TTL vs Postgres retention.**~~ **Resolved**: 7-day TTL with max 1,000 queued messages per offline box; older/excess messages expire with `delivery=expired`. Tiered retention: `#alerts` purged after 7 days, task threads kept 30 days (cnf-configurable per plan).
 - ~~**OQ-14: Local-mode `sig` in the 002 build.**~~ **Resolved** (commit `90786cd` / `2bbe68e`): local mode strictly omits `sig`; local mail is unsigned with POSIX filesystem permissions.
-- **OQ-15: Who owns flush?** The 0.1.0 003 `tasks.md` put flush in `internal/hub/flush.go` (now T019, box-side `internal/hubclient`); 004 `tasks.md` T010 puts it in `internal/flush`. Flush runs on the box, so `internal/hub` looks wrong in either case.
+- **OQ-15: Who owns flush?** — **Box-side `internal/hubclient`**, not the server-side `internal/hub`. 004 T010 (`internal/flush`) aligns to `internal/hubclient`; 003 T019 is correct.
 
-<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:25:00+03:00 -->
+### Clarifications (implementation, 2026-09-18)
+
+- **Hello `role`**: `box` (the session socket: receives `recv` frames, announces the roster, subject to last-hello-wins) or `cli` (a one-shot sender; never receives, never evicts). Without it every CLI send would evict the box daemon. `contracts/http-v1.md` §2.2.
+- **DDL home**: `csi-spl-rdb/src/sql/postgres/spool-hub/*.sql`, applied by `spool migrate` (`data-model.md`).
+- **Follow-up (parked)**: `msg.ValidID` must reject the `BOX-` prefix (identity-routing).
+
+<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:55:00Z -->

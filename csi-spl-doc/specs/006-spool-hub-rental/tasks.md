@@ -20,6 +20,13 @@ Gate: 002 signed `v:1` + a testhub process (003 T005 or sqlite).
 
 ## Phase 3: Key-only send/recv (US3)
 
+> **⚠ T008–T010 are superseded (003 OQ-02, 2026-09-18).** Hub send/recv is
+> **WebSocket only**; `POST/GET /v1/messages` and `POST /v1/recv` no longer
+> exist. Rewrite these three tasks against `../003-spool-message-bus/contracts/http-v1.md`
+> §2 (hello with nonce, box-signed envelope, `recv` frames) before implementing
+> them. The 003 hub already implements that transport; 006 adds tenant/billing
+> on top. Not implemented by 003.
+
 - [ ] T008 `POST /v1/messages` verifies `from` pin **in this tenant** (no IAM)
 - [ ] T009 `POST /v1/recv` signed by `as`; replay window on `ts`
 - [ ] T010 CLI hub mode: recv uses POST /v1/recv; send unchanged `v:1`
@@ -36,4 +43,4 @@ Gate: 002 signed `v:1` + a testhub process (003 T005 or sqlite).
 - [ ] T014 Public deploy notes: allow unauthenticated; rate-limit unsigned
 - [ ] T015 Hygiene: no vendor payment name; no private keys in logs
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:25:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T15:55:00Z -->

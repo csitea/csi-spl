@@ -4,92 +4,218 @@ Stateless Cloud Run, **HTTPS + WebSocket**. The box CLI/MCP is the only client;
 agents never call these endpoints directly (Constitution VIII).
 
 Normative sources, in order: `../../002-box-agent-messaging/contracts/trust-modes.md` §4–§5
-(binding owner decision), then this file, then
+(binding owner decision), then the OQ decisions recorded in `../spec.md`
+(**Resolved decisions**), then this file, then
 `../../006-spool-hub-rental/contracts/http-rental.md` (tenant, pins, billing).
 The inner message is the frozen 002 object
 (`../../002-box-agent-messaging/contracts/message-schema.md`), unchanged.
 
-Tenant = request **Host** (`<tenant>.<product-domain>`, from cnf). No path
-prefix, and no `tenant_id` field in `v:1`.
+Tenant = request **Host** (`<tenant>.<product-domain>`, domain from cnf). No
+path prefix, and no `tenant_id` field in `v:1`.
 
-## Endpoint inventory (every row maps to an FR in `../spec.md`)
+**Send and recv are WebSocket only** (OQ-02). REST carries **files and pins
+only**. There is no REST send/recv dialect, public or private.
+
+## 1. Endpoint inventory (every row maps to an FR in `../spec.md`)
 
 ```
-WS   /v1/ws                     # hello, roster, send envelope, recv frames      FR-001, 003–006
-POST /v1/files                  # upload bytes, box proof → { file_id, sha256, bytes }   FR-007
-GET  /v1/files/{file_id}        # tenant-scoped capability: bytes or short-lived signed URL   FR-007
-GET  /v1/pins                   # owned by 004/006 (authorized_keys sync)
-POST /v1/pins                   # owned by 004/006 (tenant-root signed)
-DELETE /v1/pins/{box_id}        # owned by 004/006 (tenant-root signed)
-GET  /healthz                   # liveness                                        FR-001
-GET  /version                   # { version, commit, built_at }                   FR-001
+WS     /v1/ws                 challenge, hello, roster, send envelope, recv + tail frames   FR-001, 003–006
+POST   /v1/files              upload bytes, WS-issued upload token → { file_id, sha256, bytes }   FR-007
+GET    /v1/files/{file_id}    tenant-scoped capability: the bytes                                FR-007
+GET    /v1/pins               tenant box pubkeys (authorized_keys sync), upload token            004
+POST   /v1/pins               pin a box pubkey, tenant-root signed                               004 / 006
+DELETE /v1/pins/{box_id}      revoke a box pin, tenant-root signed                               004 / 006
+GET    /healthz               liveness                                                           FR-001
+GET    /version               { version, commit, built_at }                                      FR-001
 ```
 
-**Removed from v1 pending OQ-02 / OQ-04** (were in the 0.1.0 draft of this
-file; they are listed here so that nobody implements them from an old copy):
+**Removed** (OQ-02, OQ-04). They are listed so that nobody implements them from
+an old copy:
 
 | Endpoint | Why removed |
 |---|---|
-| `POST /v1/messages` | send moved to the WS envelope; per-agent `sig` no longer exists in hub mode |
-| `GET /v1/messages?as=&task_id=` | open, unsigned read of an inbox; recv is WS frames after box hello |
-| `GET /v1/events` (SSE) | live-tail transport undecided (OQ-04) |
+| `POST /v1/messages` | send is the WS envelope (OQ-02); no per-agent `sig` exists in hub mode |
+| `GET /v1/messages?as=&task_id=` | recv is WS frames after the box hello (OQ-02) |
+| `POST /v1/recv` | same; 006 T008–T010 are rewritten to WS |
+| `GET /v1/events` (SSE) | live tail is frames on the existing WS (OQ-04) |
 
-## WS `/v1/ws`
+## 2. WS `/v1/ws`
 
-Frame catalogue. The **field sets** come from trust-modes §4–§5. The frame
-`type` discriminator, ack frames, and close codes are **not yet specified**
-(OQ-03, OQ-05, OQ-08).
+Every frame is one JSON text message with a `type` discriminator. Unknown
+`type` → error frame `bad_frame`; the socket stays open.
 
-| # | Direction | Content | Hub rule |
-|---|---|---|---|
-| 1 | box → hub | hello `{ box_id, ts, sig }`, box key | pin lookup `(tenant, box_id)`; unknown → close. Last hello wins: an older socket for the same `box_id` is closed |
-| 2 | box → hub | roster: agent ids from the dir scan `$SPOOL_ROOT/*/` | duplicate id **on this box** → 409; same id on another box is fine. Re-sent when the set changes |
-| 3 | box → hub | send `{ from_box, to_box?, msg, sig }` | `from_box` == hello box; verify `sig`; resolve `to_box` (FR-005); idempotent on `msg_id` (FR-010); reply `delivery` |
-| 4 | hub → box | send result `{ msg_id, task_id, ts, delivery }` | `delivery` ∈ `sent`, `queued` |
-| 5 | hub → box | recv frame: envelope for an agent announced on this box | the box re-verifies `sig` against its **locally synced** pin; missing → local refuse `78` |
+### 2.1 Frame catalogue
 
-Signing payload: `jq -cS '{from_box,to_box,msg}'` over the envelope without
-`sig`; the inner `msg` has no `sig`. The canonical-JSON rules are 002
-`contracts/canonical-json.md`.
+| # | Direction | `type` | Fields | Hub rule |
+|---|---|---|---|---|
+| 1 | hub → box | `challenge` | `nonce` | sent once, immediately after the upgrade. `nonce` = 32 random bytes, base64. Single use, bound to this socket |
+| 2 | box → hub | `hello` | `box_id`, `ts`, `nonce`, `sig`, `role`, `roster` | first frame, within 10 s, else close `4408`. See §2.2 |
+| 3 | hub → box | `welcome` | `box_id`, `upload_token`, `upload_token_expires_at`, `roster` | hello accepted. `roster` = tenant roster (§2.3) |
+| 4 | box → hub | `roster` | `agents` | `role=box` only. Replaces this box's announced set. Duplicate id in the list → error `roster_duplicate` (409) |
+| 5 | hub → box | `roster` | `roster` | pushed to every `role=box` socket of the tenant when any box's set changes |
+| 6 | box → hub | `send` | `env` | §2.4. Reply is frame 7 or an `error` frame carrying the same `msg_id` |
+| 7 | hub → box | `sent` | `msg_id`, `task_id`, `ts`, `to_box`, `delivery` | `delivery` ∈ `sent`, `queued` |
+| 8 | hub → box | `recv` | `env` | the stored envelope, byte-for-byte as the sender signed it. Only to `role=box` sockets |
+| 9 | box → hub | `tail` | `task_id`, `follow` | tenant-scoped read of one task |
+| 10 | hub → box | `tail_msg` | `env` | one per stored message of the task, oldest first |
+| 11 | hub → box | `tail_end` | `task_id`, `count` | end of the stored part; with `follow=true` live `tail_msg` frames continue |
+| 12 | box → hub | `token` | — | asks for a fresh upload token |
+| 13 | hub → box | `token` | `upload_token`, `upload_token_expires_at` | |
+| 14 | hub → box | `error` | `error`, `status`, `detail`, `msg_id?` | stable token per `./error-envelope.md` |
 
-## POST /v1/files / GET /v1/files/{file_id}
+Liveness uses WebSocket ping/pong control frames, not JSON frames.
 
-- POST requires box proof (the mechanism is OQ-10). Anonymous PUT → refused.
-- Bytes stored at `t/<tenant_id>/files/<sha256>` in **one** bucket. No metadata
-  object. The hub computes `file_id` = sha256 of the received bytes.
+### 2.2 Hello: challenge-response (OQ-03b)
+
+```json
+{ "type": "hello", "box_id": "box-a", "ts": "2026-09-18T12:00:00Z",
+  "nonce": "<the challenge nonce>", "role": "box",
+  "roster": ["CLE-07", "GRK-03"], "sig": "<base64 ed25519>" }
+```
+
+- `sig` = Ed25519 by the **box** key over `jq -cS '{box_id,nonce,ts}'`
+  (002 `contracts/canonical-json.md`).
+- `nonce` must equal the one this socket was challenged with, so a captured
+  hello cannot be replayed on another socket (`4401 bad_nonce`).
+- `|hub clock − ts| ≤ 300 s`, else close `4401 stale_hello`.
+- The pin `(tenant, box_id)` must exist and not be revoked, else close
+  `4401 unpinned_box`. A bad `sig` closes `4401 bad_sig`. Nothing is stored
+  for a refused hello.
+- `role`:
+  - `box` — the box's **session** socket, held by the box daemon
+    (`spool hub-run`) or a one-shot `spool hub-sync`. It receives `recv`
+    frames, announces the `roster`, and drains the hub queue. **Last hello
+    wins**: a newer `role=box` hello for the same `box_id` closes the older
+    socket with `4409 superseded`.
+  - `cli` — a one-shot sender (a `spool send` process). It may `send`, `tail`
+    and ask for a `token`. It never receives `recv` frames, never announces a
+    roster, and never evicts the session socket. *(Clarification 2026-09-18:
+    without this, every CLI send would evict the box daemon under
+    last-hello-wins.)*
+- On accept the hub updates `boxes.last_hello_at`, replies `welcome`, then
+  (for `role=box`) pushes every queued `recv` frame for this box, oldest first.
+
+### 2.3 Roster
+
+The tenant roster is `{ "<box_id>": ["<agent_id>", ...], ... }`, from each
+box's last announcement (persisted, so it survives the box going offline). The
+box caches it (`$SPOOL_ROOT/.hub/roster.json`) so it can resolve `to_box`
+while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
+`CLE-07@box-b`).
+
+### 2.4 Send envelope (OQ-03a)
+
+```json
+{ "type": "send",
+  "env": { "from_box": "box-a", "to_box": "box-b",
+           "msg": { "v": 1, "msg_id": "…", "from": "GRK-03", "to": "CLE-07", "…": "…" },
+           "sig": "<base64 ed25519 of jq -cS '{from_box,to_box,msg}'>" } }
+```
+
+- The **sender resolves `to_box` locally** (explicit `--to-box`, else the
+  cached roster) and includes it **before signing**. The hub **never** fills
+  or rewrites a signed field.
+- Hub checks, in order: `from_box` == hello box (`bad_sig`, 400); `msg`
+  validates as `v:1` (`bad_json`, 400); `sig` verifies against the `from_box`
+  pin (`bad_sig`, 400); `to_box` present (`missing_to_box`, 400) — when it is
+  absent and `msg.to` is announced on more than one box the error is
+  `ambiguous_to_box` (409); `to_box` pinned in the tenant (`unpinned_box`,
+  404); every `blob` `file_id` is held by the hub unless
+  `hub.allow_text_only_when_file_missing` is true (`missing_file`, 400; OQ-11);
+  idempotent insert on `(tenant_id, msg_id)` (`conflict_msg`, 409 when the
+  canonical envelope differs; same canonical → the original result again).
+- Then: `to_box` has a live `role=box` socket → push `recv`, reply
+  `delivery=sent`. Otherwise store a `deliveries` row (7-day TTL) and reply
+  `delivery=queued`. Either way the send is a success.
+- The hub's responsibility **ends at frame delivery** (OQ-08). There is no ack
+  frame; `spool-recv --ack` archives on the box only.
+- The receiving box re-verifies `sig` over the exact `{from_box,to_box,msg}`
+  against its **locally synced** pin (`$SPOOL_ROOT/pins/box-<id>.pub`).
+  Missing pin or bad `sig` → it refuses the frame (`78`) and writes nothing,
+  even though the hub stored it.
+
+### 2.5 Close codes
+
+| code | token | when |
+|---|---|---|
+| `1000` | — | normal close |
+| `1001` | — | hub shutdown (graceful drain) |
+| `4400` | `bad_frame` | first frame not a well-formed `hello` |
+| `4401` | `unpinned_box` / `bad_sig` / `stale_hello` / `bad_nonce` | hello refused |
+| `4404` | `unknown_tenant` | Host does not resolve to a tenant (refused before the upgrade as HTTP 404) |
+| `4408` | `hello_timeout` | no hello within 10 s |
+| `4409` | `superseded` | a newer `role=box` hello for the same `box_id` (last hello wins) |
+
+### 2.6 Reconnect contract (OQ-05)
+
+- M1 runs Cloud Run with **`max-instances=1`** (cnf, overridable), so every
+  box socket terminates on one instance and no cross-instance fan-out exists.
+- Cloud Run caps a WS at its request timeout (≤ 60 min). The box reconnects on
+  any close or read error with exponential backoff (1 s doubling, cap
+  **30 s**, jitter), then re-hellos with a fresh nonce, re-announces its
+  roster, re-syncs pins, and **flushes** its pending outbox (`./flush.md`).
+  The backoff resets after an accepted hello. A socket closed `4409
+  superseded` does not reconnect: a newer session owns the box.
+- Cross-instance fan-out (Postgres `LISTEN/NOTIFY` or Pub/Sub) is **post-M1**.
+
+## 3. POST /v1/files / GET /v1/files/{file_id}
+
+- POST requires `Authorization: Bearer <upload_token>` (OQ-10). The token is
+  minted by the hub on `welcome` / `token`, bound to `(tenant, box_id)`, TTL
+  **5 minutes**, reusable until expiry, never logged. It is held in hub memory
+  (valid under `max-instances=1`; a restart simply makes the box ask again).
+  No or bad token → `401 door`. Anonymous PUT is forbidden.
+- Body = raw bytes (`application/octet-stream`), ≤ the per-file limit
+  (`./limits.md`), else `413 limit_file`.
+- Bytes stored at `t/<tenant_id>/files/<sha256>` in **one** bucket. No
+  metadata object. The hub computes `file_id` = sha256 of the received bytes
+  and replies `201 { "file_id", "sha256", "bytes" }`.
 - GET is a tenant-scoped **capability**: knowing the sha256 inside the tenant
   is enough, and no box key is required. Another tenant's `file_id` → 404.
-- GET streams bytes or hands back a short-lived signed URL (TTL in
-  `./limits.md`). The URL is never logged or persisted (Constitution VII). The
-  box CLI re-hashes and refuses a mismatch without writing a partial file.
+- M1 GET streams the bytes. A short-lived signed URL (TTL in `./limits.md`)
+  is allowed later; it is never logged or persisted (Constitution VII). The box
+  CLI re-hashes and refuses a mismatch (`78`) without writing a partial file.
 
-## Trust & ingress
+## 4. Pins (owned by 004 / 006, hosted here)
 
-- **Box key** is both the door and the author of a frame (hello, envelope,
-  file PUT). The hub does not verify agent identity; `from` is asserted by the box.
-- **Tenant root key** only pins/revokes box pubkeys (004/006).
-- **IAM/OIDC** is not part of the public product. On a private deploy it MAY
-  sit in front and MUST run before box-key verification (OQ-06).
+- `GET /v1/pins` with the upload token → `{ "pins": [ { "box_id", "pubkey" } ] }`
+  (base64 raw 32-byte keys, revoked pins omitted). The box writes each to
+  `$SPOOL_ROOT/pins/box-<id>.pub`.
+- `POST /v1/pins` body `{ "box_id", "pubkey", "ts", "force", "sig" }`, `sig` =
+  tenant **root** key over `jq -cS '{box_id,force,pubkey,ts}'`, `ts` ± 300 s.
+  Same key → 200; different key without `force` → `409 pin_conflict`.
+- `DELETE /v1/pins/{box_id}` body `{ "box_id", "ts", "sig" }`, `sig` over
+  `jq -cS '{box_id,op:"revoke",ts}'`. A revoked box's hello is refused.
+
+## 5. Trust & ingress
+
+- **Box key** is both the door and the author: hello (challenge-response),
+  envelope, and — through the WS-issued token — the file PUT. The hub does not
+  verify agent identity; `from` is asserted by the box.
+- **Tenant root key** only pins/revokes box pubkeys.
+- **IAM/OIDC** is not in M1 (OQ-06). `boxes.iam_principal` is reserved.
 - Same-box mail does not touch the hub (`delivery=local`) unless
   `$SPOOL_MIRROR_LOCAL` is true (`./flush.md`).
 
-## Failure semantics
+## 6. Failure semantics
 
 | Failure | Response |
 |---|---|
-| unpinned box at hello | close; nothing stored |
-| bad envelope `sig`, or `from_box` ≠ hello box | refuse (`bad_sig`), nothing stored; CLI exit `78` |
-| ambiguous `to` without `to_box` | 409 `ambiguous_to_box` |
-| `to_box` has no live socket | persist with TTL, `delivery=queued` (not an error) |
-| notify transport down (after M1) | row still lands in PG; tail stale until catch-up |
-| GCS down | refuse file PUT (exit `1`); text-only send: OQ-11 |
-| hub unreachable | box keeps cross-box sends pending-flush; flush later (`./flush.md`) |
+| unpinned or revoked box at hello | close `4401 unpinned_box`; nothing stored |
+| bad envelope `sig`, or `from_box` ≠ hello box | error `bad_sig`, nothing stored; CLI exit `78` |
+| `to_box` absent and `to` ambiguous | error `ambiguous_to_box` (409), nothing stored |
+| `to_box` has no live socket | persist with 7-day TTL, `delivery=queued` (not an error) |
+| `file_id` not held by the hub | error `missing_file` (400) unless the cnf flag allows text-only |
+| GCS down | refuse file PUT (exit `1`) |
+| hub unreachable | box keeps cross-box sends pending-flush, `delivery=pending`, exit `0` (`./flush.md`) |
 
-## Invariants
+## 7. Invariants
 
 - Same inner `v:1` JSON on the wire as `002` writes to disk (no migration).
-- Cloud Run is stateless: no mail, queue, file bytes or WS session state on container disk.
-- Kind of agent is not a field, only the `from`/`to` id prefix.
-- No per-kind routes.
+- The hub stores and forwards the envelope it verified; it never mutates a
+  signed field.
+- Cloud Run is stateless: no mail, queue or file bytes on container disk. The
+  live-socket map and upload tokens are per-process memory, rebuilt on reconnect.
+- Kind of agent is not a field, only the `from`/`to` id prefix. No per-kind routes.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:24:00+03:00 -->
+<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:55:00Z -->

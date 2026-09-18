@@ -51,7 +51,7 @@ tenant cannot read another tenant’s repos.
 
 ## Requirements — US2 pipeline (M1)
 
-| FR | Requirement | Status (verified 2026-09-18, trunk `bbc41e7`; FR-P07, FR-P09 re-verified after) |
+| FR | Requirement | Status (verified 2026-09-18, trunk `bbc41e7`; FR-P07, FR-P09, FR-P12 re-verified after) |
 |---|---|---|
 | **FR-P01** | Two workflows: `10_ci-quality.yml` (hermetic gate) and `20_hub-build-deploy.yml` (test → prepare-deploy → matrix deploy). Push to `master` + `workflow_dispatch`; **no `pull_request`** (trunk-based). | **Implemented** — `3596991`; `gh run list -L 100` → 11 gate runs, 8 deploy runs since, all `push`. |
 | **FR-P02** | The quality gate has **no `paths:` filter**; the deploy workflow has an **allow-list** of every build input (`contracts/pipeline.md` §1.1). | **Implemented** — `grep -cE '^\s+paths:' .github/workflows/10_ci-quality.yml` → 0; same on `20_hub-build-deploy.yml` → 1. |
@@ -64,9 +64,9 @@ tenant cannot read another tenant’s repos.
 | **FR-P09** | A deployed-state check an operator (or agent) can run: cnf `hub.image.ref` vs the live service image, per env, reporting `current` or `lagging`. | **Implemented** — `ENV=<env> GCP_ACCOUNT=$GCP_ACCOUNT ./csi-spl-orc/run -a do_check_hub_deploy`, read-only (describe only), exit 0 current / 3 lagging / 4 unhealthy / 1 cannot tell; tests `csi-spl-orc/src/bash/tests/check-hub-deploy.tst.sh` (9 assertions). Live 2026-09-18T19:21Z (n=1): dev → `dev current … spool-hub:0.1.0`, rc 0; prd → rc 1 (no service yet). |
 | **FR-P10** | Names (project, region, image ref, service) come from cnf through `do_spl_cloud_cnf`, never from the workflow file. | **Implemented** — `grep -cE 'csi-spl-(dev\|prd)\b' .github/workflows/20_hub-build-deploy.yml` → 0. |
 | **FR-P11** | The gate also proves the WUI: `csi-spl-wui` unit tests and `nuxt typecheck`, with a frozen pnpm lockfile. The browser e2e check stays local. | **Implemented** — `18a19dc`; run `35386487700` → `wui: unit tests + typecheck` success, log `# tests 30 / # pass 30 / # fail 0`. |
-| **FR-P12** | Post-deploy smoke (`22_deploy-verify.yml`): per env, `GET https://<fqdn>/` → 200 and `GET https://[<sub>.]api.<BASE_DOMAIN>/version` → 200 + `{version, commit, built_at}`. Not reachable yet = warning; wrong answer = red (`contracts/pipeline.md` §2.6). | **Partial** — job + script implemented (`0d2155d`; `verify-hub-endpoints.tst.sh` 22 assertions); dispatched run `35388469240` → both envs green with warnings, **no probe reached 200 yet**. The runner saw dev `/` → 403 (allowlist) and dev api → no DNS; prd apex and prd api → no DNS. It reaches 200 once 031 serves the four hosts (the `dev.api` SAN, A records) and the M1 open allowlist is applied (CLE-3335). |
+| **FR-P12** | Post-deploy smoke (`22_deploy-verify.yml`): per env, `GET https://<fqdn>/` → 200 and `GET https://[<sub>.]api.<BASE_DOMAIN>/version` → 200 + `{version, commit, built_at}`. Not reachable yet = warning; wrong answer = red (`contracts/pipeline.md` §2.6). | **Implemented** — `0d2155d` (script + job), called from 20 since `6d1643e`. Run `35390460157` (sha `869e6d9`), from a GitHub runner, attempt 1, all **200**: `https://spool-hub.ai/`, `https://api.spool-hub.ai/version` → `{"version":"0.1.0-dev","commit":"c972f24…","built_at":"2026-09-18T20:00:01Z"}`, `https://dev.spool-hub.ai/`, `https://dev.api.spool-hub.ai/version` (same shape). |
 
-### Live estate the pipeline lands on (measured 2026-09-18 ~19:00Z, n=1)
+### Live estate the pipeline lands on (measured 2026-09-18 ~19:00Z, n=1; superseded by 20:10Z — both envs now serve the hub through 031, see FR-P12)
 
 Cited from 007 / README §6; measured here for the pipeline's preconditions.
 
@@ -106,4 +106,4 @@ owner-gated apply (007 T050), then T105–T109.
 - **US1**: M1 image need not include `gh`. M2 checkout. Store logic. WUI. 031
   ingress. Baking tokens. Box-side `gh` / tokens on a box.
 
-<!-- version: 0.2.6 · updated: 2026-09-18 · last-edit: 2026-09-18T19:56:25Z -->
+<!-- version: 0.2.7 · updated: 2026-09-18 · last-edit: 2026-09-18T20:17:52Z -->

@@ -15,7 +15,8 @@ Artifacts: `.github/workflows/10_ci-quality.yml`,
 |---|---|---|---|
 | `10 ci: quality gate` | `master`, **no `paths:` filter** | yes, no inputs | **none** (trunk-based) |
 | `20 ci-cd: spool hub build + deploy` | `master`, `paths:` allow-list (1.1) | `environment` = `dev` \| `prd` \| `all` (default `dev`) | **none** |
-| `22 ci-cd: spool hub deploy verify` | none — `workflow_run` on every **completed** `20` run on `master` (runs only when it concluded `success`) | `environment` = `all` \| `dev` \| `prd` (default `all`) | **none** |
+| `22 ci-cd: spool hub deploy verify` | none — **called** by 20's `verify` job (`workflow_call`) | `environment` = `all` \| `dev` \| `prd` (default `all`) | **none** |
+| `00 ops: spool hub deploy lag watch` | none — `schedule` hourly (`17 * * * *`) | `reconcile` = `auto` \| `never` | **none** |
 
 ### 1.1 The deploy allow-list
 
@@ -46,6 +47,7 @@ image pull (`fsouza/fake-gcs-server:1.52.2`).
 
 ```
 test ──► prepare-deploy ──► deploy (matrix: envs from prepare-deploy, fail-fast: false)
+                                   └──► verify (uses 22; runs whatever deploy did, not after red tests)
 ```
 
 | Job | Contract |
@@ -90,12 +92,32 @@ file carries no project id, region, image path or host.
 
 The hub sits behind 031's IP-allowlisted load balancer (ingress
 `internal-and-cloud-load-balancing`), so a runner cannot probe `/healthz`.
-The job instead requires, from `gcloud run services describe`:
-template image == the cnf ref, `Ready == True`, and
-`latestCreatedRevisionName == latestReadyRevisionName`.
+The job instead runs `./csi-spl-orc/run -a do_check_hub_deploy` (FR-P09), the
+same action operators and the lag watch use. It requires template image ==
+the cnf ref, the **Ready condition (by type)** True, and
+`latestCreatedRevisionName == latestReadyRevisionName`. "Unhealthy" (rc 4) is
+asked again up to 6 times, 10 s apart, while a rollout settles. Before
+`9a34a0a` this step was inline and read `status.conditions[0]` by position.
+
+### 2.5.1 `00 ops: spool hub deploy lag watch` — hourly (csi-rel model)
+
+Per env that has the WIF repo variables (others are skipped with a notice, as
+in 20): authenticate over WIF and run `do_check_hub_deploy` at trunk head. The
+run goes **red** on lagging (3), unhealthy (4) or cannot tell (1); a red
+scheduled run is the notification. Only for **lagging** does it dispatch 20
+with `environment=all`. "all" is forward-guarded, so a reconcile cannot roll
+an env back. It does not dispatch when a 20 run for trunk head is already in
+flight, or when 20's last verdict was a failure (the deploy is broken, not
+starved). The unit is the cnf image **tag**, not the commit, because
+terraform owns the image.
 
 ### 2.6 `22 ci-cd: spool hub deploy verify` — post-deploy HTTPS smoke
 
+Called by 20's `verify` job (`workflow_call`), and dispatchable by hand. It
+was first wired as `workflow_run` on 20's completion, but that did not fire
+for two completed 20 runs, so the call is explicit now. It has no
+concurrency group: with `cancel-in-progress`, the next push's verify cancelled
+this one and marked the calling 20 run `cancelled` (run `35389176239`).
 Modelled on csi-rel's `verify-api-health.sh`: the work is in
 `csi-spl-orc/src/bash/scripts/verify-hub-endpoints.sh` (also run by hand:
 `ENV_NAME=<env> bash csi-spl-orc/src/bash/scripts/verify-hub-endpoints.sh`), and the
@@ -158,4 +180,4 @@ provisions.
 WUI deploy (Firebase, tf `016`/`019`, M3 — 005's), `terraform apply` of any
 step (owner-gated, never from CI), per-sha tags, pull-request builds.
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:56:25Z -->
+<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:17:52Z -->

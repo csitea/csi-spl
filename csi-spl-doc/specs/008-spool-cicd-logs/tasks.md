@@ -118,8 +118,11 @@ its deploy check; terraform and applies stay 007's / the owner's.
 - [x] T112 [P] [US2] [008] WUI job in the gate: frozen-lockfile install,
       unit tests, typecheck (FR-P11). (`.github/workflows/10_ci-quality.yml`)
 - [x] T113 [US2] [008] `22_deploy-verify.yml` + `csi-spl-orc/src/bash/scripts/verify-hub-endpoints.sh`
-      (FR-P12): matrix dev/prd after every successful `20` run, plus dispatch.
-- [ ] T114 [US2] [007 / 031] Serve the four smoke hosts: A records, and a
+      (FR-P12): matrix dev/prd, called by 20's `verify` job, plus dispatch.
+- [x] T116 [US2] [008] `00_deploy-lag-watch.yml` (csi-rel model): hourly
+      `do_check_hub_deploy` per WIF-ready env; red on lag; forward-guarded
+      reconcile dispatch of 20. 20's own verify step now calls the same action.
+- [x] T114 [US2] [007 / 031] Serve the four smoke hosts: A records, and a
       SAN for `dev.api.<BASE_DOMAIN>` (not covered by `*.dev.<BASE_DOMAIN>`;
       031 `extra_host_labels`). Then FR-P12 reads 200 in both envs.
 - [ ] T115 [US2] [007 / 031] (follow-up, owner 2026-09-18) When the M1
@@ -145,8 +148,10 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | T107 | Implemented | `4839514`; run `35385087709` → `distribution-hygiene` success (first green gate since `3596991`) |
 | T108, T111 | Planned | — |
 | T112 | Implemented | `18a19dc`; run `35386487700` → wui job success, 30/30 |
-| T113 | Implemented | `0d2155d`; orc suite 9/9; dispatched run `35388469240` → dev + prd success with warnings (all four probes pending) |
-| T114, T115 | Planned | owner decisions relayed by ORC 2026-09-18T19:53Z; 031 is CLE-3335's |
+| T113 | Implemented | `0d2155d` + `6d1643e` (called by 20) + `dce1a5b` (no cancel group) + `869e6d9` (paths); run `35390460157` → both envs, 4/4 probes 200 |
+| T116 | Implemented | `9a34a0a`; dispatched run `35388871662` → success (both envs skipped: no WIF variables yet) |
+| T114 | Implemented (by 031 / CLE-3335) | run `35390460157`: all four hosts answer 200 over HTTPS from a runner |
+| T115 | Planned | owner follow-up for post-M1, when the `0.0.0.0/0` allowlist is tightened |
 | T110 | Implemented | `csi-spl-orc/src/bash/run/check-hub-deploy.func.sh`; `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` → 8/8; live dev → `current`, rc 0 |
 
 ## Traceability — US2
@@ -165,5 +170,6 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | FR-P10 names from cnf | T101 |
 | FR-P11 WUI tests in the gate | T112 |
 | FR-P12 post-deploy HTTPS smoke | T113, T114, T115 |
+| FR-P09 deployed-state check (hourly) | T110, T116 |
 
-<!-- version: 0.2.6 · updated: 2026-09-18 · last-edit: 2026-09-18T19:56:25Z -->
+<!-- version: 0.2.7 · updated: 2026-09-18 · last-edit: 2026-09-18T20:17:52Z -->

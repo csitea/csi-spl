@@ -1,0 +1,127 @@
+name: "10 ci: quality gate"
+
+# ONE hermetic quality gate for csi-spl, modelled on csi-rel's
+# 10_ci-quality.yml: every job is cheap, needs no GCP identity and no network
+# beyond the Go module proxy and one emulator image pull.
+#
+# NO `paths:` FILTER, deliberately (csi-rel's reasoning holds here): an
+# allow-list that is wrong fails SILENTLY -- no run, green checks, and a
+# regression nobody is told about. These suites are cheap, so they run on
+# every master push.
+#
+# NO `pull_request:` trigger: trunk-based repo, no pull requests.
+#
+# The WUI lane may add its own job here as a separate block.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  # ===========================================================================
+  # The hub suite: csi-spl-api/src/bash/tests/run-all-tests.sh -- gofmt,
+  # go vet, go test, the no-ysg-box-ref gate, the spool smoke, the hub
+  # Postgres gate and the hub GCS (fake-gcs) gate.
+  # ===========================================================================
+  hub-suite:
+    name: "hub: gofmt, go vet, go test, smoke, Postgres + GCS gates"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go (version from go.mod)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: true
+          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
+
+      # run-all-tests.sh and build.sh are offline by design (GOPROXY=off), so
+      # the module cache has to be filled before they run.
+      - name: Download Go modules
+        working-directory: csi-spl-api/src/go/spool-hub-api
+        run: go mod download
+
+      # The GCS gate SKIPS (exit 0) without a cached emulator image, and the
+      # Postgres gate SKIPS without server binaries or a cached image. The
+      # runner has PostgreSQL server binaries; the emulator image is pulled
+      # here, and the skip check below turns a skip into a failure.
+      - name: Cache the fake-gcs emulator image
+        run: docker pull -q fsouza/fake-gcs-server:1.52.2
+
+      - name: run-all-tests.sh
+        run: |
+          set -euo pipefail
+          bash csi-spl-api/src/bash/tests/run-all-tests.sh 2>&1 | tee "$RUNNER_TEMP/hub-suite.log"
+
+      - name: The Postgres and GCS gates really ran (a skip is a failure in CI)
+        run: |
+          set -euo pipefail
+          if grep -E '^skip - no (Postgres server binaries|cached )' "$RUNNER_TEMP/hub-suite.log"; then
+            echo "::error::a hub gate skipped in CI -- it proved nothing. Fix the runner setup above."
+            exit 1
+          fi
+          echo "ok - no hub gate skipped"
+
+  # ===========================================================================
+  # Reference-hygiene gate (spec 002 T003): the spool Go source never
+  # references ysg-box. Also part of run-all-tests.sh; its own job so a
+  # failure is named on the run page.
+  # ===========================================================================
+  no-ysg-box-ref:
+    name: "spool source carries no ysg-box reference"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash csi-spl-api/src/bash/tests/no-ysg-box-ref.tst.sh
+
+  # ===========================================================================
+  # Distribution-hygiene sweep: org-neutral, no personal names, no literal OS
+  # users / box names / AD identities / personal home dirs, no owner mail
+  # address. Values are withheld from the log on purpose -- a CI log is a
+  # distribution channel too -- so only file:line is printed.
+  #
+  # "ysg-box" is the name of the behavioural reference product and is allowed;
+  # a bare "ysg" (the OS user) is not. Images are a zip-time exclusion, not a
+  # source-tree one, so they are not swept here.
+  #
+  # Excluded: the AI-tool instruction files (never distributed), this file and
+  # the spawn-agents hygiene test (both hold the patterns themselves).
+  # ===========================================================================
+  distribution-hygiene:
+    name: "distribution-hygiene sweep over the tree"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sweep
+        run: |
+          set -uo pipefail
+          excl=(--exclude=CLAUDE.md --exclude=GEMINI.md --exclude=AGENTS.md
+                --exclude=10_ci-quality.yml --exclude=test-hygiene.sh
+                --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=tpl-gen)
+          fail=0
+          sweep() {
+            local label="$1" pattern="$2" hits
+            hits="$(grep -rnIoP "${excl[@]}" "$pattern" . | cut -d: -f1,2 | sort -u)"
+            if [[ -n "$hits" ]]; then
+              echo "::error::hygiene: ${label} -- $(wc -l <<<"$hits") line(s)"
+              sed 's/^/  /' <<<"$hits"
+              fail=1
+            else
+              echo "ok - ${label}"
+            fi
+          }
+          sweep "non-Csitea org or bank reference" '(?i)nordea|\.op\.fi|op-pohjola'
+          sweep "personal name"                    '(?i)yordan|georgiev|sandholm|\bpetri\b'
+          sweep "literal OS user / box / AD id"    '(?i)\bysg\b(?!-box)|\bclaude-user\b|\bai-usr\b|\bz013503\b|wmpf5jz555|\btnk\b'
+          sweep "personal home directory"          '/home/(?!runner\b)[a-z][a-z0-9_-]*/'
+          sweep "owner mail address or domain"     '(?i)@gmail\.com|flok\.fi'
+          exit "$fail"

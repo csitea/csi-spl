@@ -1,0 +1,337 @@
+# ci-cd: spool hub build + deploy
+#
+# Modelled on csi-rel's 20_api-build-deploy.yml (test -> prepare -> matrix
+# deploy, WIF auth, deploy-job-level concurrency), adapted to the ONE deploy
+# contract csi-spl already has:
+#
+#   TERRAFORM OWNS THE IMAGE. 030-cloud-run-hub runs var.image = cnf
+#   env.hub.image.ref = <region>-docker.pkg.dev/<project>/<028 repo>/
+#   <hub.image.name>:<hub.image.tag>, and 028's tags are IMMUTABLE. A deploy
+#   is a new hub.image.tag in <env>.env.yaml.
+#
+# So this workflow deploys EXACTLY the reference cnf names at this commit and
+# nothing else: it builds + pushes that tag when the registry does not hold it
+# yet (via csi-spl-orc do_build_push_hub_image, the same action an operator
+# runs), then rolls the existing 030 service to it. Because the image it sets
+# is the one terraform already wants, a later 030 plan shows no drift. It
+# never pushes a per-sha tag and never creates, resizes or re-permissions
+# anything: a missing registry or service FAILS the run ("apply 028 / 030
+# first"), it does not provision one.
+#
+# A commit that changes the hub code without bumping hub.image.tag still runs
+# the tests, then deploys nothing new (the tag exists) and says so.
+#
+# GCP auth is Workload Identity Federation only (017-github-wif-deploy): the
+# repo VARIABLES GCP_WIF_PROVIDER_<ENV> and GCP_DEPLOY_SA_EMAIL_<ENV>. No key.
+# An env whose two variables are not set yet is SKIPPED with a notice, so this
+# workflow can land before 017 is applied without reddening trunk.
+
+name: "20 ci-cd: spool hub build + deploy"
+
+on:
+  push:
+    branches: [master]
+    # Deploy only when a BUILD INPUT of the hub changed. An ALLOW-LIST: one
+    # entry per tree this workflow or its test suite actually reads.
+    # NEVER add `paths-ignore` beside `paths` (GitHub rejects the file).
+    paths:
+      - 'csi-spl-api/**'          # the Go module + its test suite
+      - 'csi-spl-rdb/**'          # hub DDL: migrated by the tests, bundled in the image
+      - 'csi-spl-cnf/**'          # hub.image.tag, service name, region, project
+      - 'csi-spl-iac/**'          # spl-merged-cnf / live-account libs the resolve step sources
+      - 'csi-spl-orc/**'          # Dockerfile, do_build_push_hub_image, spl-cloud-cnf
+      - '.github/workflows/20_hub-build-deploy.yml'
+      - '.version'                # baked into the binary by build.sh
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment ("all" = dev + prd, guarded like a push)'
+        type: choice
+        required: true
+        default: 'dev'
+        options:
+          - dev
+          - prd
+          - all
+
+# No workflow-level concurrency (csi-rel spec 098): only the mutation is
+# serialised, on the deploy job, per env.
+
+permissions:
+  contents: read
+  id-token: write   # google-github-actions/auth via WIF
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # test: the hub suite. A deploy never ships a red tree.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Hub suite (run-all-tests.sh)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go (version from go.mod)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: true
+          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
+
+      - name: Download Go modules (the suite runs with GOPROXY=off)
+        working-directory: csi-spl-api/src/go/spool-hub-api
+        run: go mod download
+
+      - name: Cache the fake-gcs emulator image
+        run: docker pull -q fsouza/fake-gcs-server:1.52.2
+
+      - name: run-all-tests.sh
+        run: bash csi-spl-api/src/bash/tests/run-all-tests.sh
+
+  # ---------------------------------------------------------------------------
+  # prepare-deploy: which envs, and which of them can authenticate yet
+  # ---------------------------------------------------------------------------
+  prepare-deploy:
+    name: Determine deploy targets
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      envs: ${{ steps.targets.outputs.envs }}
+      any: ${{ steps.targets.outputs.any }}
+      guard_event: ${{ steps.targets.outputs.guard_event }}
+    steps:
+      - id: targets
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_ENV: ${{ github.event.inputs.environment }}
+          WIF_DEV: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          SA_DEV: ${{ vars.GCP_DEPLOY_SA_EMAIL_DEV }}
+          WIF_PRD: ${{ vars.GCP_WIF_PROVIDER_PRD }}
+          SA_PRD: ${{ vars.GCP_DEPLOY_SA_EMAIL_PRD }}
+        run: |
+          set -euo pipefail
+          # A dispatch that NAMES one env is an explicit operator action and
+          # skips the forward guard; a push or "all" is guarded.
+          if [[ "$EVENT" == workflow_dispatch && -n "$INPUT_ENV" && "$INPUT_ENV" != all ]]; then
+            wanted=("$INPUT_ENV"); guard_event=workflow_dispatch
+          else
+            wanted=(dev prd); guard_event=push
+          fi
+          ready=()
+          for e in "${wanted[@]}"; do
+            wif_var="WIF_${e^^}"; sa_var="SA_${e^^}"
+            if [[ -n "${!wif_var:-}" && -n "${!sa_var:-}" ]]; then
+              ready+=("$e")
+            else
+              echo "::notice::$e skipped: repo variables GCP_WIF_PROVIDER_${e^^} / GCP_DEPLOY_SA_EMAIL_${e^^} are not set (017-github-wif-deploy not applied/exported yet)"
+            fi
+          done
+          if (( ${#ready[@]} )); then
+            envs="$(printf '"%s",' "${ready[@]}")"; envs="[${envs%,}]"; any=true
+          else
+            envs='[]'; any=false
+          fi
+          echo "deploy targets: $envs"
+          {
+            echo "envs=$envs"
+            echo "any=$any"
+            echo "guard_event=$guard_event"
+          } >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # deploy: push the cnf-named image if absent, roll 030 to it, verify
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy hub to ${{ matrix.environment }}
+    needs: prepare-deploy
+    if: needs.prepare-deploy.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # THE serialisation point: one mutation per env's service at a time; an
+    # in-flight deploy is never killed mid-rollout.
+    concurrency:
+      group: deploy-hub-${{ matrix.environment }}-${{ github.ref }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJson(needs.prepare-deploy.outputs.envs) }}
+    environment:
+      name: ${{ matrix.environment }}
+    env:
+      ENV: ${{ matrix.environment }}
+      DEPLOY_SA: ${{ vars[format('GCP_DEPLOY_SA_EMAIL_{0}', matrix.environment)] }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the forward guard reads origin/master
+
+      # Every name comes from cnf through csi-spl-orc's do_spl_cloud_cnf (the
+      # one place the cloud actions read names from), never from this file.
+      - name: Resolve per-env config from cnf
+        id: cfg
+        run: |
+          set -euo pipefail
+          resolve() {  # <app-path> -> key=value lines on stdout
+            APP_PATH="$1" PROJ_PATH="$1/csi-spl-orc" SPL_STATE_DIR="$(mktemp -d)" bash -c '
+              set -euo pipefail
+              do_log() { echo "$*" >&2; }
+              source "$APP_PATH/csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh"
+              do_spl_cloud_cnf
+              echo "image_ref=$SPL_IMAGE_REF"
+              echo "gcp_project=$SPL_PROJECT"
+              echo "gcp_region=$SPL_REGION"
+              echo "service_name=$(yq -r ".env.hub.service_name // \"\"" "$SPL_CNF")"'
+          }
+          resolve "$GITHUB_WORKSPACE" | tee "$RUNNER_TEMP/cfg.env" >> "$GITHUB_OUTPUT"
+          grep -q '^service_name=.\+' "$RUNNER_TEMP/cfg.env" \
+            || { echo "::error::cnf env.hub.service_name is empty for $ENV"; exit 1; }
+
+      # Forward-only guard. A push run (or "all") deploys only what trunk head
+      # would deploy: if master has moved on AND names a different hub image,
+      # this older run stands down -- the newer run carries the newer tag, and
+      # rolling back to ours would undo it. A dispatch naming one env is an
+      # operator action (including a deliberate rollback) and is not guarded.
+      - name: Forward-only guard
+        id: guard
+        env:
+          GUARD_EVENT: ${{ needs.prepare-deploy.outputs.guard_event }}
+          OURS: ${{ steps.cfg.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          ok=true
+          if [[ "$GUARD_EVENT" == push ]]; then
+            git fetch -q origin master
+            tip="$(git rev-parse origin/master)"
+            if [[ "$tip" != "$GITHUB_SHA" ]]; then
+              t="$(mktemp -d)"
+              git archive "$tip" csi-spl-cnf csi-spl-iac/lib csi-spl-orc/lib | tar -x -C "$t"
+              theirs="$(APP_PATH="$t" PROJ_PATH="$t/csi-spl-orc" SPL_STATE_DIR="$(mktemp -d)" bash -c '
+                set -euo pipefail; do_log() { echo "$*" >&2; }
+                source "$APP_PATH/csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh"
+                do_spl_cloud_cnf; echo "$SPL_IMAGE_REF"')"
+              if [[ "$theirs" != "$OURS" ]]; then
+                ok=false
+                echo "::warning::trunk head ${tip:0:8} names $theirs, this run ($GITHUB_SHA) names $OURS -- standing down; the newer run deploys."
+              fi
+            fi
+          fi
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud (WIF)
+        if: steps.guard.outputs.ok == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment)] }}
+          service_account: ${{ env.DEPLOY_SA }}
+
+      - name: Set up Cloud SDK
+        if: steps.guard.outputs.ok == 'true'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Is the image already in the registry?
+        id: img
+        if: steps.guard.outputs.ok == 'true'
+        env:
+          IMAGE_REF: ${{ steps.cfg.outputs.image_ref }}
+          GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
+        run: |
+          set -uo pipefail
+          if out="$(gcloud artifacts docker images describe "$IMAGE_REF" --project "$GCP_PROJECT" --format='value(image_summary.digest)' 2>&1)"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$IMAGE_REF is already in the registry ($out); tags are immutable, so nothing is built. To ship new hub code, bump hub.image.tag in csi-spl-cnf/csi-spl/$ENV.env.yaml."
+          elif grep -qiE 'not.?found|NOT_FOUND' <<<"$out"; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::cannot read $IMAGE_REF from the registry (is 028 applied, does $DEPLOY_SA hold artifactregistry.reader?):"
+            echo "$out" | tail -5
+            exit 1
+          fi
+
+      - name: Set up Go (only to build a new image)
+        if: steps.guard.outputs.ok == 'true' && steps.img.outputs.exists == 'false'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: true
+          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
+
+      - name: Build + push the hub image (do_build_push_hub_image)
+        if: steps.guard.outputs.ok == 'true' && steps.img.outputs.exists == 'false'
+        run: |
+          set -euo pipefail
+          ( cd csi-spl-api/src/go/spool-hub-api && go mod download )
+          DRY_RUN=0 GCP_ACCOUNT="$DEPLOY_SA" ./csi-spl-orc/run -a do_build_push_hub_image
+
+      - name: Roll the 030 service to the cnf image
+        id: deploy
+        if: steps.guard.outputs.ok == 'true'
+        env:
+          IMAGE_REF: ${{ steps.cfg.outputs.image_ref }}
+          GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
+          GCP_REGION: ${{ steps.cfg.outputs.gcp_region }}
+          SERVICE_NAME: ${{ steps.cfg.outputs.service_name }}
+        run: |
+          set -euo pipefail
+          gsvc=(--project "$GCP_PROJECT" --region "$GCP_REGION")
+          # The service is terraform's (030). Refuse to create one here.
+          if ! live="$(gcloud run services describe "$SERVICE_NAME" "${gsvc[@]}" \
+                         --format='value(spec.template.spec.containers[0].image)')"; then
+            echo "::error::Cloud Run service $SERVICE_NAME does not exist in $GCP_PROJECT/$GCP_REGION -- apply 030-cloud-run-hub first; this workflow never creates it."
+            exit 1
+          fi
+          if [[ "$live" == "$IMAGE_REF" ]]; then
+            echo "::notice::$SERVICE_NAME already runs $IMAGE_REF -- nothing to roll."
+            echo "rolled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "rolling $SERVICE_NAME: $live -> $IMAGE_REF"
+            gcloud run services update "$SERVICE_NAME" "${gsvc[@]}" --image "$IMAGE_REF" --quiet
+            echo "rolled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The hub sits behind the 031 load balancer's IP allowlist (ingress
+      # internal-and-cloud-load-balancing), so a runner cannot probe /healthz.
+      # Verify through the control plane instead: the template runs the cnf
+      # image and the latest revision is the ready one serving traffic.
+      - name: Verify the service runs the cnf image and is Ready
+        if: steps.guard.outputs.ok == 'true'
+        env:
+          IMAGE_REF: ${{ steps.cfg.outputs.image_ref }}
+          GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
+          GCP_REGION: ${{ steps.cfg.outputs.gcp_region }}
+          SERVICE_NAME: ${{ steps.cfg.outputs.service_name }}
+        run: |
+          set -euo pipefail
+          read -r image ready created latest < <(gcloud run services describe "$SERVICE_NAME" \
+            --project "$GCP_PROJECT" --region "$GCP_REGION" \
+            --format='value(spec.template.spec.containers[0].image,status.conditions[0].status,status.latestCreatedRevisionName,status.latestReadyRevisionName)' \
+            | tr '\t' ' ')
+          echo "image=$image ready=$ready created=$created latest_ready=$latest"
+          [[ "$image" == "$IMAGE_REF" ]] || { echo "::error::service template runs $image, expected $IMAGE_REF"; exit 1; }
+          [[ "$ready" == True ]]        || { echo "::error::service is not Ready ($ready)"; exit 1; }
+          [[ "$created" == "$latest" ]] || { echo "::error::latest revision $created is not the ready one ($latest)"; exit 1; }
+
+      - name: Deployment summary
+        if: always() && steps.cfg.outcome == 'success'
+        env:
+          OK: ${{ steps.guard.outputs.ok }}
+          EXISTS: ${{ steps.img.outputs.exists }}
+          ROLLED: ${{ steps.deploy.outputs.rolled }}
+          IMAGE_REF: ${{ steps.cfg.outputs.image_ref }}
+          SERVICE_NAME: ${{ steps.cfg.outputs.service_name }}
+          GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
+        run: |
+          {
+            echo "## Deploy: spool hub -> $ENV"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **GCP project** | \`$GCP_PROJECT\` |"
+            echo "| **Service** | \`$SERVICE_NAME\` |"
+            echo "| **Image (cnf hub.image.ref)** | \`$IMAGE_REF\` |"
+            echo "| **Forward guard** | ${OK:-n/a} |"
+            echo "| **Image already existed** | ${EXISTS:-n/a} |"
+            echo "| **Service rolled** | ${ROLLED:-n/a} |"
+            echo "| **Git SHA** | \`$GITHUB_SHA\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

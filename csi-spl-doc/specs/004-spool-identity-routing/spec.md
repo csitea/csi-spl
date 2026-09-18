@@ -18,83 +18,67 @@ and `/v1/files` (004 adds `/v1/pins` and box mapping).
 
 ## User Scenarios & Testing
 
-### User Story 1 - A box pins an id without colliding the fleet (Priority: P1) 🎯 MVP
+### User Story 1 - A box pins its public key with the tenant root (Priority: P1) 🎯 MVP
 
-Operator on box A `spool-keygen --as GRK-03` and `spool-pin`. Hub records
-GRK-03 → pubkey, box A. Box B trying to pin GRK-03 to a different key is
-refused.
+Renter uses the tenant root key to pin a box pubkey (`box_id`, `pubkey`) via `POST /v1/pins`. Second pin of the same `box_id` with a different key is refused (409). Same key is idempotent (200).
 
-**Why this priority**: Without this, two `CLE-07`s exist and signatures lie.
+**Why this priority**: Without box pins, the hub cannot verify WS hello connections or incoming message envelopes.
 
-**Independent Test**: Two fake boxes, two hubs-in-one-process tenants or two
-`box_id`s; second pin of same id different key → 409; same key → 200.
+**Independent Test**: Two boxes; pin box A; second pin with different key returns 409; same key returns 200.
 
 **Acceptance Scenarios**:
 
-1. **Given** GRK-03 unpinned on the hub, **When** box A pins pubkey P, **Then**
-   `GET /v1/pins` lists GRK-03 with P and box A.
-2. **Given** GRK-03 pinned to P, **When** box B pins Q ≠ P, **Then** 409 and
-   the stored pin remains P.
-3. **Given** GRK-03 pinned to P, **When** box A re-pins P, **Then** 200
-   idempotent.
+1. **Given** box A unpinned on the hub, **When** renter pins pubkey P signed by tenant root, **Then** `GET /v1/pins` lists box A with P.
+2. **Given** box A pinned to P, **When** someone attempts to pin Q ≠ P for box A without `--force`, **Then** 409 and stored pin remains P.
+3. **Given** box A pinned to P, **When** renter re-pins P, **Then** 200 idempotent.
 
-### User Story 2 - Recv on another box verifies with a synced pin (Priority: P1)
+### User Story 2 - Box sidecar syncs pins to verify peer commanders (Priority: P1)
 
-Box B’s sidecar pulls pins. A message from GRK-03 (box A) verifies on box B
-against the local copy. No pin → 78, no TOFU.
+Box B’s sidecar pulls tenant pins via `GET /v1/pins` and stores them in `$SPOOL_ROOT/pins/box-<id>.pub` (SSH `authorized_keys` model). When box B receives a message from box A, it verifies the envelope signature against the local pin copy. No pin → 78, no TOFU.
 
 **Acceptance Scenarios**:
 
-1. **Given** pin synced, **When** box B recv’s GRK-03’s message, **Then** sig
-   verifies locally.
-2. **Given** pin not synced, **When** recv runs, **Then** exit 78, message not
-   returned as valid.
-3. **Given** local pin ≠ hub pin, **When** sync runs, **Then** neither is
-   silently overwritten; 78 / pin_conflict.
+1. **Given** box A pin synced to box B, **When** box B receives box A’s envelope, **Then** signature verifies locally.
+2. **Given** box A pin not synced, **When** verification runs, **Then** exit 78, envelope refused.
+3. **Given** local pin ≠ hub pin, **When** sync runs, **Then** neither is silently overwritten; 78 / pin_conflict.
 
 ### User Story 3 - Dual-write: same-box works when hub is down (Priority: P1)
 
-GRK-03 and CLE-07 on box A. Hub down. Send still lands in CLE-07 inbox.
-When hub returns, flush POSTs the same `msg_id` without re-signing.
+GRK-03 and CLE-07 on box A. Hub down. Send still lands in CLE-07 local inbox directly under `$SPOOL_ROOT`. When hub returns, flush POSTs the same `msg_id` without re-signing.
 
 **Acceptance Scenarios**:
 
-1. **Given** hub down, **When** same-box send, **Then** recv works from
-   `$SPOOL_ROOT`.
-2. **Given** pending-flush, **When** hub returns, **Then** one hub row, no
-   duplicate `msg_id`.
+1. **Given** hub down, **When** same-box send, **Then** recv works directly from `$SPOOL_ROOT`.
+2. **Given** pending-flush, **When** hub returns, **Then** one hub row, no duplicate `msg_id`.
 3. **Given** hub 400 bad sig, **When** flush retries, **Then** it stops, 78.
 
-### User Story 4 - Revoke (Priority: P2)
+### User Story 4 - Box Revoke (Priority: P2)
 
-Operator revokes GRK-03. Further messages fail verify. History keeps the old
-pubkey.
+Tenant root revokes box A via `DELETE /v1/pins/{box_id}`. Further messages from box A fail verify. History keeps the old pubkey in `pins_history`.
 
 **Acceptance Scenarios**:
 
-1. **Given** revoke, **When** a new send from GRK-03 reaches the hub, **Then**
-   400 unpinned/revoked.
-2. **Given** revoke, **When** `--force` pins a new key, **Then** only the new
-   key verifies.
+1. **Given** box A revoked, **When** a new send from box A reaches the hub, **Then** 400 unpinned/revoked.
+2. **Given** revoke, **When** `--force` pins a new key, **Then** only the new key verifies.
 
 ### Edge Cases
 
 - Box id missing in hub mode → fail-fast env, no send to hub.
-- `HUM-*` / `BOX-*` as `from`: `BOX-*` rejected; `HUM-*` allowed if pinned.
-- Two inboxes for the same id on one box: forbidden (one dir per id).
+- `BOX-*` as `from`: forbidden; agent IDs must be assigned names (`CLE-07`, `GRK-03`).
+- Two inboxes for the same id on one box: forbidden (one directory per id).
+- Same agent ID across two different boxes: allowed (e.g. `CLE-07@box-a` vs `CLE-07@box-b`).
 
 ## Requirements
 
-- **FR-001**: Agent ids globally unique in hub `pins` (`SPEC-spool-identity-routing.md`).
+- **FR-001**: Box IDs uniquely pinned per tenant in `pins (tenant_id, box_id, pubkey)`; agent IDs are unique **per box**.
 - **FR-002**: `$SPOOL_BOX_ID` required when `$SPOOL_HUB_URL` is set.
-- **FR-003**: `POST/GET/DELETE /v1/pins` as in 004 plan contract; door IAM maps
-  to `box_id`.
-- **FR-004**: Local pins under `$SPOOL_ROOT/pins/`; private keys under `$HOME`.
-- **FR-005**: No TOFU. Recv verifies against local pins only.
+- **FR-003**: `POST/GET/DELETE /v1/pins` signed with tenant root key.
+- **FR-004**: Local authorized keys under `$SPOOL_ROOT/pins/box-<id>.pub`; box private key under `$HOME/.spool/keys/` (`0600`).
+- **FR-005**: No TOFU. Envelopes verify against local box pins only.
 - **FR-006**: Dual-write + flush per `003/contracts/flush.md`.
-- **FR-007**: Unicast `to` only.
+- **FR-007**: Addressing: unicast `to` specifies `(box_id, agent_id)` when agent ID exists on multiple boxes.
 - **FR-008**: `--force` and revoke write `pins_history`.
-- **FR-009**: The box session harness MUST perform key generation (`spool-keygen --as <id>`) and pin registration (`spool-pin --id <id>`) prior to launching agent sessions; on 409 collision, the allocator MUST retry with the next ID before session start.
+- **FR-009**: The box harness manages the box keypair and scans `$SPOOL_ROOT/*/` to announce local agent roster at WS hello.
 - **FR-010**: Subagents MUST NOT inherit parent IDs or use dotted sub-IDs; each subagent MUST be allocated an independent top-level ID (`^[A-Z]{2,4}-\d+$`) as a first-class peer.
 
 ## Success Criteria

@@ -132,6 +132,22 @@ Box/agent subscriptions for channel routing:
 
 PK `(tenant_id, channel_id, agent_id, box_id)`.
 
+### `webhooks` (M3 Escalations & Notifications)
+
+Tenant outgoing webhooks (Slack, Discord, PagerDuty):
+
+| column | type | notes |
+|---|---|---|
+| `tenant_id` | text | FK `tenants(tenant_id)` |
+| `webhook_id` | uuid | |
+| `name` | text | descriptive label (e.g. `Slack #dev-alerts`) |
+| `url` | text | target webhook URL |
+| `event_filter` | text | `alerts` \| `escalations` \| `all` |
+| `is_active` | boolean | default true |
+| `created_at` | timestamptz | |
+
+PK `(tenant_id, webhook_id)`.
+
 ### `deliveries` (hub queue)
 
 One row per message per recipient box. Holds a message for an offline `to_box` (FR-006).

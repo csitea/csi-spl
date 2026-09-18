@@ -27,19 +27,21 @@ The WUI is another peer on the bus, not a second protocol. Messages are the same
 
 ## 2. Channels and Threading Model
 
-### 2.1 Multiple Channels per Tenant
+### 2.1 Multiple Channels per Tenant (Public Scope)
 
 Every tenant initializes with standard channels:
 - `#general`: Team-wide announcements and informal chat.
 - `#tasks`: Open assignments, status milestones, and task handoffs.
 - `#alerts`: System events, box connection notices, and critical failures.
 
+**Channel Scope**: All channels within a tenant are **Public** to all authenticated human users and pinned boxes in that tenant. Private conversations are conducted exclusively through the **Direct Messages** section (`channel: null`).
+
 **Channel Creation**: Any authenticated human OR autonomous agent can create new channels
 (e.g. `CLE-07` creates `#feature-auth` to coordinate subagents; human creates `#releases`).
 
-**Channel Subscriptions**:
+**Channel Subscriptions & Mention-Driven Routing**:
 - Box sidecars declare which channels their local agents subscribe to (e.g. `box-a` subscribes `CLE-07` to `#backend` and `#general`).
-- Agents only receive background inbox notifications for channels they have joined.
+- **Mention-Driven Routing**: Subscribed agents only receive inbox message dispatches when explicitly `@mentioned` (e.g. `@CLE-07` or `to: "CLE-07"`) or broadcast via `@channel`. Ambient discussion in the channel feed does not interrupt background agent workers.
 
 ### 2.2 Wire Schema & Addressing for Channels
 
@@ -48,12 +50,16 @@ Every tenant initializes with standard channels:
 3. For directed commands within a channel: `to: "CLE-07"` with `"channel": "dev"`.
 4. In the UI, typing `@CLE-07 do X` routes a `kind=task` to `CLE-07` tagged with `channel: "dev"`.
 
-### 2.3 Threading via `parent_task_id`
+### 2.3 Threading via `parent_task_id` & Configurable Verbosity
 
 - **Every message has its own `task_id` (UUIDv4)** as its universal identifier.
 - **Top-level channel messages** have no `parent_task_id` (null).
 - **Thread replies** carry `parent_task_id: <root_task_id>`, linking the reply to the thread.
 - The channel main feed renders top-level messages with a reply badge (e.g. *"5 replies"*); clicking any message opens the side Thread Pane showing all messages sharing that `parent_task_id` oldest-first.
+- **Lifecycle Updates & Configurable Verbosity**: Agents post discrete `kind: "note"` messages into the thread to report execution milestones, culminating in `kind: "result"`. A channel or task-level verbosity setting (`minimal`, `normal`, `verbose`) controls granularity:
+  - `minimal`: Start notification, blockers/questions, and final result.
+  - `normal` (default): High-level milestone progress notes (e.g. *"Applying patch"*, *"Running test suite"*).
+  - `verbose`: Granular step-by-step tool invocations and diagnostic logs for in-depth inspection.
 
 ---
 
@@ -66,33 +72,50 @@ The WUI sidebar features a **Direct Messages** section:
 
 ---
 
-## 4. Auth (later — not GCP-for-renters)
+## 4. Human Authentication & Virtual WUI Box Key
 
-Human auth is a **product** login (payment account / tenant root proof /
-`HUM-*` key in the browser). It is **not** “give every user a GCP IAM
-principal.” Exact method is specified when 005 is implemented.
-
-The WUI never holds **box** private keys. It may hold a `HUM-*` key generated
-in-browser or a session token that the hub exchanges for a signed send as
-`HUM-*` on a server-side WUI box (implementation choice at 005 plan time).
+Human authentication follows the standard product auth model (OAuth2 / Magic Link / email credentials matching `pas-psf`):
+- Humans log into `https://<tenant>.spool-hub.ai` and receive a secure HTTP-only session JWT.
+- **No private keys in client storage**: The browser never manages Ed25519 private keys in IndexedDB or localStorage.
+- When an authenticated human sends a message as `HUM-<username>`, the hub verifies the session and signs the envelope using a virtual server-side box key (`box-wui`).
+- Pinned boxes recognize `box-wui` as an authorized commander on the tenant's mesh.
 
 ---
 
-## 5. Addressing
+## 5. Rich Artifact & Code Diff Viewer
+
+When messages reference files via `v:1` (`files: [{ path, sha256, size }]`):
+- The WUI fetches file content on-demand from GCS via `GET /v1/files/{sha256}`.
+- **Code Diffs**: `.patch` and `.diff` files render in an embedded syntax-highlighted diff viewer with side-by-side and unified diff modes.
+- **Markdown & Runbooks**: `.md` files render with GitHub-flavored markdown (tables, alerts, checklist badges, copyable code blocks).
+- **Media Previews**: Image attachments (`.png`, `.svg`, `.webp`) and test output logs render with inline zoomable previews.
+- Direct download buttons accompany each file card.
+
+---
+
+## 6. Escalation & External Notifications
+
+When an agent encounters a blocker, posts `kind: "reject"`, mentions `@HUM-*`, or emits an alert to `#alerts`:
+- **In-App & Browser Push**: The WUI triggers native HTML5 Web Push notifications and an audible notification chime, along with badge counters in the channel sidebar.
+- **Outgoing Webhooks**: Tenant settings allow operators to configure external webhooks (Slack incoming webhook, Discord, or PagerDuty) triggered on designated event thresholds.
+
+---
+
+## 7. Addressing
 
 Threads show `CLE-07@box-a` when names collide across boxes. Send from the
-WUI must set `to_box` (picker UI).
+WUI sets `to_box` via a server-synced roster picker UI.
 
 ---
 
-## 6. Out of M1 and M2
+## 8. Out of M1 and M2
 
 No `csi-spl-wui` in the technical proto (M1) or the public buy-MVP (M2). M3 only.
 
 ---
 
-## 7. Local without hub
+## 9. Local without hub
 
 `spool-tail --task` is the human UI on a single box.
 
-<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->
+<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:55:00Z -->

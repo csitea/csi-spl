@@ -34,9 +34,17 @@ Gate: 003 hub HTTP/WebSocket API and 006 tenant auth.
 - [ ] T011 [US5] Implement dynamic channel creation modal in WUI and API endpoint `POST /v1/channels`.
 - [ ] T012 [P] Implement `composables/useSpoolEvents.ts` for live updates in active channel and thread pane.
 
-## Phase 5: Dev Harness & Deployment
+## Phase 5: User Stories 6, 7 & 8 — Artifact Viewer, Notifications & Verbosity
 
-- [ ] T013 [P] Configure tenant product auth (tenant login / session bearer).
-- [ ] T014 [P] Wire `./run` actions in `csi-spl-orc` (`do_wui_dev`, `do_wui_build`, `do_wui_test`) referencing `pas-psf-orc`.
+**Goal**: In-browser diffs/markdown preview, browser/webhook alerts, and progressive disclosure of thread notes.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->
+- [ ] T015 [US6] Implement `components/ArtifactViewer.vue` and `components/DiffViewer.vue`: syntax-highlighted side-by-side/unified diffs for patches, GitHub markdown for `.md`, and inline media preview.
+- [ ] T016 [US7] Implement `components/NotificationCenter.vue` (HTML5 browser push, audio chimes) and `pages/settings/webhooks.vue` for outgoing tenant webhooks (Slack/Discord/PagerDuty).
+- [ ] T017 [US8] Implement `components/VerbositySelector.vue` in `components/ThreadPane.vue` allowing switching between `minimal`, `normal`, and `verbose` execution progress notes.
+
+## Phase 6: Dev Harness & Deployment
+
+- [ ] T018 [P] Configure tenant product auth (OAuth2 / Magic Link session issuing HTTP-only cookie; hub signs messages as `HUM-<username>` with virtual `box-wui` key).
+- [ ] T019 [P] Wire `./run` actions in `csi-spl-orc` (`do_wui_dev`, `do_wui_build`, `do_wui_test`) referencing `pas-psf-orc`.
+
+<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:55:00Z -->

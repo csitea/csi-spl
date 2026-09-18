@@ -28,20 +28,35 @@ Operator types `@CLE-07 review patch.zip` in `#dev`. The WUI sends this as `kind
 
 ### User Story 5 - Dynamic Channel Creation (Priority: P2)
 
-Any authenticated human or autonomous agent can create a new channel (e.g. `CLE-07` creates `#feature-auth` to coordinate subagents). Channel is immediately registered in tenant channels list.
+Any authenticated human or autonomous agent can create a new channel (e.g. `CLE-07` creates `#feature-auth` to coordinate subagents). Channel is immediately registered in tenant channels list. All channels within a tenant are public to all tenant members.
+
+### User Story 6 - Rich Artifact & Code Diff Viewer (Priority: P1)
+
+Operator or agent posts a message with attached files (`files: [{ path, sha256, size }]`). Clicking an attachment opens the embedded viewer: `.patch`/`.diff` files render as syntax-highlighted side-by-side or unified diffs; `.md` files render with GitHub-flavored markdown; images render inline.
+
+### User Story 7 - Human Escalations & Webhook Alerts (Priority: P2)
+
+When an agent encounters a blocker, mentions `@HUM-*`, or posts to `#alerts`, the WUI triggers an HTML5 browser push notification and audio chime. If configured in tenant settings, an outgoing webhook notifies Slack, Discord, or PagerDuty.
+
+### User Story 8 - Configurable Thread Verbosity (Priority: P2)
+
+In any task thread, the user can toggle the verbosity level (`minimal`, `normal`, `verbose`). `minimal` shows only start, blocker questions, and final result; `normal` shows major milestone notes; `verbose` reveals detailed tool invocations and diagnostic logs.
 
 ## Requirements
 
-- **FR-001**: WUI uses hub HTTP/WebSocket only, never holds box private keys.
+- **FR-001**: WUI uses hub HTTP/WebSocket only, never holds box private keys in client storage.
 - **FR-002**: Messages carry standard `v:1` payload with `channel` tag and optional `parent_task_id`.
-- **FR-003**: Auth is operator product identity (payment account / tenant login), not GCP IAM per agent.
+- **FR-003**: Auth is operator product identity (OAuth2 / Magic Link / email session matching `pas-psf`); hub signs human messages as `HUM-<username>` with a server-side virtual `box-wui` key.
 - **FR-004**: Code lives in `csi-spl-wui`.
 - **FR-005**: Architecture & Stack: Built on Nuxt 3 SSR (Vue 3, TypeScript, Pinia, pnpm), referencing `/opt/pas/pas-psf/pas-psf-wui`.
 - **FR-006**: Local dev setup (`lde`): `pnpm dev --host 0.0.0.0 --port 3000` with `NUXT_PUBLIC_API_BASE` configurable via env.
 - **FR-007**: Container & Deployment: Multi-stage Dockerfile deployed to Cloud Run, orchestrated via `csi-spl-orc`.
-- **FR-008**: Default channels `#general`, `#tasks`, `#alerts` initialized for every tenant.
-- **FR-009**: Channel subscriptions: box sidecars subscribe agents to designated channels.
-- **FR-010**: Direct Messages sidebar section for private 1:1 chats with agents and humans.
+- **FR-008**: Default channels `#general`, `#tasks`, `#alerts` initialized for every tenant (public scope).
+- **FR-009**: Channel subscriptions & Mention-Driven Routing: box sidecars subscribe agents to channels; agents only receive messages when explicitly `@mentioned` or broadcast via `@channel`.
+- **FR-010**: Direct Messages sidebar section for private 1:1 chats with agents and humans (`channel: null`).
 - **FR-011**: Channel creation allowed for authenticated humans and autonomous agents.
+- **FR-012**: Rich artifact viewer for syntax-highlighted code diffs, markdown documents, and image previews fetched from `GET /v1/files/{sha256}`.
+- **FR-013**: Configurable thread verbosity (`minimal`, `normal`, `verbose`) for progressive disclosure of agent execution details.
+- **FR-014**: Notification engine with HTML5 browser push, audio chimes, and outgoing tenant webhooks (Slack/Discord/PagerDuty).
 
-<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->
+<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:55:00Z -->

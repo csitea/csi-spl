@@ -14,14 +14,14 @@ sqlite testhub with the same handlers.
 
 ## Phase 2: US1 pins
 
-- [ ] T003 [US1] `POST /v1/pins` `{id, pubkey}` records `box_id` from door map
-- [ ] T004 [US1] Same id same key → 200; same id different key → 409
-- [ ] T005 [US1] `GET /v1/pins` list; CLI `spool-pin` publishes when hub set
+- [ ] T003 [US1] `POST /v1/pins` `{box_id, pubkey}` signed with tenant root key
+- [ ] T004 [US1] Same box_id same key → 200; same box_id different key → 409
+- [ ] T005 [US1] `GET /v1/pins` list box pubkeys; CLI `spool-pin` publishes when root key provided
 - [ ] T006 [P] [US1] tests: two box_ids, collision, idempotent
 
 ## Phase 3: US2 sync
 
-- [ ] T007 [US2] sidecar `GET /v1/pins` writes `$SPOOL_ROOT/pins/<id>.pub`
+- [ ] T007 [US2] sidecar `GET /v1/pins` writes `$SPOOL_ROOT/pins/box-<box_id>.pub`
 - [ ] T008 [US2] conflict local≠hub → 78, no clobber
 - [ ] T009 [P] [US2] recv on box B verifies after sync; 78 without pin
 
@@ -33,11 +33,11 @@ sqlite testhub with the same handlers.
 
 ## Phase 5: US4 revoke
 
-- [ ] T013 [US4] `DELETE /v1/pins/{id}` + `spool-pin --revoke`
+- [ ] T013 [US4] `DELETE /v1/pins/{box_id}` signed with tenant root key
 - [ ] T014 [US4] history row; subsequent verify fails; `--force` new key
 
 ## Phase 6: Polish
 
 - [ ] T015 Hygiene: no private key in pin JSON; no per-kind routes
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:55:00Z -->

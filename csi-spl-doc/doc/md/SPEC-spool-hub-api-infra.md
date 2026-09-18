@@ -37,12 +37,12 @@ Keep the **same step numbers** so operators are not re-trained.
 | `001-enable-gcp-services` | APIs | already; add run, sql, dns, secretmanager, artifactregistry |
 | `003-gcp-iam-users` | operators | copy |
 | `005-gcp-domain-verification` | Google domain verify | copy for spool-hub.ai |
-| `007-dns` | Cloud DNS zone + records | **product zone** `spool-hub.ai`; records for hub + `*.` as cnf allows |
+| `007-dns` | Cloud DNS zone + records | **product zone** `spool-hub.ai`; **wildcard `*.spool-hub.ai` from M1** (not one host then migrate) |
 | `017-github-wif-deploy` | CI deploy identity | copy |
 | `028-gcp-artifact-registry` | API images | copy (pas-psf) |
 | `029-create-gcp-secrets` | Secret Manager slots | copy; **no** store captcha/BIN; payment slots in **M2** |
 | `030-gcp-cloud-run` | **spool-hub-api** service | HTTPS + WebSocket; min instances cnf (default 1) |
-| `031-gcp-cloud-run-domain-mapping` | map host → Cloud Run | `<tenant>.spool-hub.ai` / apex as cnf; then `do_wait_for_cert` |
+| `031-gcp-cloud-run-domain-mapping` | map host → Cloud Run | **wildcard TLS** `*.spool-hub.ai` (and `*.dev.spool-hub.ai`) from M1. If Cloud Run mapping is per-host, use LB + wildcard cert — still M1, not later. |
 | `040-gcp-cloud-sql` | Postgres | spool schema only (`tenants`, `pins`, `messages`, …) |
 | files bucket | object store | one bucket, prefix `t/<tenant>/files/`; copy bucket TF from `015` / `020`, not public-site ACLs |
 
@@ -88,8 +88,9 @@ proof).
 | `gcp-sm-secrets-to-env-file` | pas-psf-orc (placeholders in logs) |
 
 DNS: zone and records live in terraform `007-dns` + cnf tfvars. No hostname
-literals in Go. Wildcard or per-tenant mapping is cnf; product shape stays
-`https://<tenant>.spool-hub.ai`.
+literals in Go. Product shape stays `https://<tenant>.spool-hub.ai`. **Wildcard DNS+TLS from M1**
+(`*.spool-hub.ai`, `*.dev.spool-hub.ai`). Several manual tenants must resolve
+without a new terraform host each time.
 
 ---
 
@@ -119,4 +120,4 @@ csi-spl-rdb/src/sql/                # spool schema only
 Apply still needs an **owner go** (csi-spl CLAUDE.md). `tf-plan` never
 apply-by-default.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:10:00Z -->

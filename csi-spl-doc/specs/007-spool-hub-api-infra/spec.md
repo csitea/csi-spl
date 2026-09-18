@@ -15,10 +15,10 @@ WIF. Exclude online-store business logic and store tables.
 **Depends on**: M1 protocol (`002`/`006` wire). This feature is **how the
 hub process is hosted**, not the mail schema.
 M1 is not done until this infra is **applied on both `dev` and `prd`**.
-prd DNS: `https://<tenant>.spool-hub.ai`. dev:
-`https://<tenant>.dev.spool-hub.ai`. M1 Cloud Run ingress is **IAP and/or
+prd DNS: **wildcard `*.spool-hub.ai` from M1** (`https://<tenant>.spool-hub.ai`).
+dev: **wildcard `*.dev.spool-hub.ai`**. M1 Cloud Run ingress is **IAP and/or
 IP allowlist**; remove for M2. Tenant create is owner-only; **several**
-manual tenants (not one). DNS must resolve `<tenant>.spool-hub.ai` for each.
+manual tenants (not one). New tenant = new Host name, **no new DNS record**.
 
 ## User Story 1 - lde matches pas-psf/csi-rel (Priority: P1) 🎯
 
@@ -74,4 +74,4 @@ Shop, Firebase hosting for a storefront, recaptcha, BIN, stock janitor,
 WordPress VMs, M2 payment slots (empty or omitted until M2), M3 WUI hosting
 (Firebase/Cloud Run for `csi-spl-wui` later).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:10:00Z -->

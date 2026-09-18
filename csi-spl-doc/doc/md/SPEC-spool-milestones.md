@@ -54,8 +54,8 @@ Pins: hello + periodic `GET /v1/pins`.
 
 | Topic | M1 |
 |---|---|
-| DNS prd | `https://<tenant>.spool-hub.ai` |
-| DNS dev | `https://<tenant>.dev.spool-hub.ai` |
+| DNS prd | **Wildcard from M1:** `*.spool-hub.ai` → hub. Hosts like `https://<tenant>.spool-hub.ai`. |
+| DNS dev | **Wildcard from M1:** `*.dev.spool-hub.ai`. |
 | Ingress | **IAP and/or IP allowlist** until M2. Unknown internet cannot hold a WS. |
 | Tenant create | **Owner-only** `do_spl_tenant_create`. **Several** manual tenants allowed
   (not a single internal one). Isolation is still `tenant_id`. |
@@ -118,4 +118,4 @@ Not started until M1 is done (dev+prd infra) and M2 can sell.
 **M2 public MVP** (thin checkout + one-time email of URL and root key) →
 **M3 rollout** (Slack WUI, csi-rel/pas-psf hosting).
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:00:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:10:00Z -->

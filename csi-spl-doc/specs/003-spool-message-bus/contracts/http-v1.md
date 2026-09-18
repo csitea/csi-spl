@@ -27,7 +27,15 @@ POST   /v1/pins               pin a box pubkey, tenant-root signed              
 DELETE /v1/pins/{box_id}      revoke a box pin, tenant-root signed                               004 / 006
 GET    /healthz               liveness                                                           FR-001
 GET    /version               { version, commit, built_at }                                      FR-001
+GET    /v1/view/*             read-only viewer API for the WUI (Planned) → ./view-v1.md          FR-018–022
 ```
+
+`/healthz` on Cloud Run: Cloud Run reserves some URL paths ending in `z`, and
+on the deployed dev service the ingress is `internal-and-cloud-load-balancing`
+with no LB yet (007 step 10), so a direct `curl …/healthz` on the `run.app`
+URL returns a Google 404 page today (measured 2026-09-18, n=1). Whether
+`/healthz` survives behind the LB is unverified; tasks.md T032 adds a
+non-`z` alias.
 
 **Removed** (OQ-02, OQ-04). They are listed so that nobody implements them from
 an old copy:
@@ -219,5 +227,7 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 - Cloud Run is stateless: no mail, queue or file bytes on container disk. The
   live-socket map and upload tokens are per-process memory, rebuilt on reconnect.
 - Kind of agent is not a field, only the `from`/`to` id prefix. No per-kind routes.
+- The only browser-facing surface is `./view-v1.md` (read-only). It never
+  reintroduces the removed REST send/recv rows of §1.
 
-<!-- version: 0.3.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:00:00Z -->
+<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->

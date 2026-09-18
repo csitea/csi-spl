@@ -14,7 +14,10 @@ number is a spec edit.
 | agent id length | match regex, prefix ≤ 4 | schema |
 | `name` on a file ref | 255 UTF-8 bytes, no path separators | schema |
 | signed GET URL TTL | 15 minutes | hub |
-| hub queue TTL (offline `to_box`) | 7 days (max 1,000 queued messages per box; excess/older expire with `delivery=expired`) | hub |
+| hub queue TTL (offline `to_box`) | 7 days (max 1,000 queued messages per box; excess/older → `deliveries.state = expired`; `expired` is a hub row state, not a send-result `delivery` value) | hub |
+| viewer page size (`/v1/view/*`) | default 50, max 200 (clamped) | hub |
+| viewer poll interval | ≥ 2 s | WUI |
+| view token lifetime | ≤ `hub.view_token_max_ttl` (cnf, default 12 h) | hub |
 | channel catch-up window | last 50 messages default (or since last-acked `ts`) | hub |
 | unacked inbox files on box | no hard fail on send | recv may batch |
 
@@ -35,4 +38,4 @@ partial file.
 
 Model-token SSE (not spool). git-rel object size (001).
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:24:00+03:00 -->
+<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->

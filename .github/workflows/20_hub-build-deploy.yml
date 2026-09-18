@@ -41,6 +41,7 @@ on:
       - 'csi-spl-iac/**'          # spl-merged-cnf / live-account libs the resolve step sources
       - 'csi-spl-orc/**'          # Dockerfile, do_build_push_hub_image, spl-cloud-cnf
       - '.github/workflows/20_hub-build-deploy.yml'
+      - '.github/workflows/22_deploy-verify.yml'  # called by the verify job
       - '.version'                # baked into the binary by build.sh
   workflow_dispatch:
     inputs:

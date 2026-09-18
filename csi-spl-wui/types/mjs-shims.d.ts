@@ -51,3 +51,18 @@ declare module '~/utils/mock-data.mjs' {
   export const MOCK_MESSAGES: Record<string, unknown>[]
   export function cloneMock(): unknown
 }
+
+declare module '~/utils/mention-autocomplete.mjs' {
+  export function isAgentId(id: string): boolean
+  export function activeMentionQuery(text: string, cursor?: number): string | null
+  export function filterRosterMentions(
+    peers: { id: string, box?: string, label?: string, online?: boolean }[],
+    query: string,
+  ): { id: string, box?: string, label?: string, online?: boolean }[]
+  export function insertMention(
+    text: string,
+    cursor: number,
+    id: string,
+  ): { text: string, cursor: number }
+}
+

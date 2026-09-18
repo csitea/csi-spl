@@ -36,6 +36,7 @@ the reference does it:
 | `scripts/spawn-window.sh` | creates the detached window and starts the launcher in it. Prints `<ID> <PANE>` |
 | `scripts/spawn-{claude,grok,agy}.sh` | the per-CLI adapters |
 | `scripts/spawn-core.inc.sh` | the shared launcher core |
+| `scripts/spool-harness.sh` | the standard box launcher (`specs/012-spool-box-api`): prepares an agent's spool dirs, checks the box identity, starts the hub sidecar in hub mode, injects `SPOOL_*`, then exec-s the agent CLI |
 | `scripts/spool-send.sh` | runs `spool send` and then rings the recipient's tmux window. It replaces `inbox-send.sh` |
 | `scripts/riname.sh` | renames an agent's window by id (`--agent <ID>`) |
 | `scripts/trust-workdir.sh` | pre-accepts each CLI's "trust this folder?" dialog |
@@ -107,7 +108,17 @@ SPOOL_ROOT=/var/spool-hub csi-spl-api/src/go/spool-hub-api/bin/spool tail --task
 tmux -S "$SPOOL_TMUX_SOCKET" list-windows -a -F '#{window_name}'
 ```
 
-### 3.8 Run the tests
+### 3.8 Launch an agent CLI through the harness
+
+Local mode needs no box key. In hub mode set `SPOOL_HUB_URL` and pass the box
+with `--to-box`; the harness then needs `box-<box_id>.key` (0600) and starts
+one `spool hub-run` per spool root. Exit codes: `specs/012-spool-box-api/contracts/spool-harness.md`.
+
+```bash
+bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-harness.sh --as CLE-4441 -- claude
+```
+
+### 3.9 Run the tests
 
 ```bash
 bash csi-spl-orc/src/bash/features/spawn-agents/tests/run-all-tests.sh

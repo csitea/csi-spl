@@ -135,7 +135,7 @@ documented in `nea-nfs-orc/doc/md/git-rel.feature.md`.
 | clean deletes one `dyr-*` prefix, verifies 0 objects with the SA and a cache-busted anonymous GET answering 403 or 404 | `git-rel-clean.func.sh` |
 | destroy empties the bucket, then deletes it | `git-rel-destroy.func.sh` |
 | URLs are signed **locally** with the SA's private key file (`--private-key-file`), every gcloud call runs under a throwaway `CLOUDSDK_CONFIG` | `git-rel.lib.sh` `_gr_sa_begin`, send/request |
-| region `europe-north1`; the doc promises objects expire after 1 day | `git-rel.feature.md` |
+| region `europe-north1`; objects expire after 1 day — promised by git-rel's doc and now enforced by the bucket (5.3) | `git-rel.feature.md` |
 
 Consequences for the bucket: nothing may make an object public; the sender
 needs object get/list/create/delete on this bucket and nothing else; a key
@@ -165,7 +165,7 @@ file for that SA must exist on the hub.
 | public access prevention | enforced | enforced |
 | versioning | off | off |
 | soft delete | 604800 s | 604800 s |
-| lifecycle | none | none (`object_max_age_days: 0`) |
+| lifecycle | none | **delete at 1 day** (`object_max_age_days: 1`) — the one deliberate difference in settings, decided 2026-09-18 |
 | labels, CORS, retention, logging, website | none | none (the provider's implicit attribution label is switched off) |
 | bucket IAM | GCS default legacy bindings only | the same defaults, plus `roles/storage.objectUser` for the relay SA |
 | unsigned object GET / anonymous XML listing | 403 / 403 | expected the same |
@@ -184,13 +184,22 @@ uploading public-read objects at nea-nfs-orc commit `aba9fbb`.
   would store the private key in the state bucket in clear. It is minted out
   of band (section 6.3).
 
-### 5.3 Open question
+### 5.3 The one deliberate difference: a 1-day lifecycle
 
-git-rel's doc promises "objects expire after 1 day", but the measured bucket
-has no lifecycle rule (13 objects dated the previous day were still in it).
-The terraform copies the measurement. To keep git-rel's promise instead, set
-`object_max_age_days: 1` in both `csi-spl-cnf/csi-spl/<env>.env.yaml` and
-re-render. The owner's call.
+git-rel's own doc promises "objects expire after 1 day". The bucket these
+replaced did NOT keep that promise — it had no lifecycle rule at all, and 13
+objects from the previous day were still sitting in it when measured on
+2026-09-17.
+
+Decided 2026-09-18: the spool keeps the promise. `object_max_age_days: 1` in
+both `csi-spl-cnf/csi-spl/<env>.env.yaml` renders a `lifecycle_rule` that
+deletes any object older than a day. A doc that promises a guarantee the
+infrastructure does not make is worse than no promise, and a missed
+`git-rel-clean` — a box that goes offline mid-transfer, say — would otherwise
+leave an encrypted blob in the bucket for good.
+
+`git-rel-clean` is still how a transfer ends; the rule is the backstop, not
+the mechanism.
 
 ## 6. How to operate it
 

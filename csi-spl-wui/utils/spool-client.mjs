@@ -19,6 +19,11 @@ function uuid() {
 }
 
 /** Thrown for live calls the read-only viewer does not have (spec 005 §0). */
+export async function sha256Hex(buf) {
+  const d = await globalThis.crypto.subtle.digest('SHA-256', buf)
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 export class ReadOnlyError extends Error {
   constructor(what) {
     super(`${what} is not available: the hub WUI API is read-only (spec 005 §0)`)
@@ -33,6 +38,7 @@ export class ReadOnlyError extends Error {
  */
 export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock = true, token = '', tenant = '', configError = '' } = {}) {
   const state = mock ? cloneMock() : null
+  const mockBlobs = new Map()
   const root = String(base || '').replace(/\/+$/, '')
   let viewToken = String(token || '')
 
@@ -70,6 +76,10 @@ export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock 
   return {
     mock: Boolean(mock),
     tenant: String(tenant || ''),
+    base: root,
+    get token() {
+      return viewToken
+    },
     configError: String(configError || ''),
     setToken(t) {
       viewToken = String(t || '')
@@ -152,6 +162,42 @@ export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock 
       const row = { channel_id: slug, name: name || slug, created_by: state.me.id }
       if (!state.channels.some((c) => c.channel_id === slug)) state.channels.push(row)
       return row
+    },
+    /**
+     * Upload one browser File / Blob (003 http-v1 §3: raw bytes, Bearer upload
+     * token) → { file_id, sha256, bytes }. Mock keeps the bytes in memory.
+     */
+    async uploadFile(file, uploadToken = '') {
+      const buf = await file.arrayBuffer()
+      if (mock) {
+        const hex = await sha256Hex(buf)
+        mockBlobs.set(hex, new Blob([buf]))
+        return { file_id: hex, sha256: hex, bytes: buf.byteLength }
+      }
+      if (configError) {
+        throw Object.assign(new Error(`spool config ${configError}`), { status: 0, token: configError })
+      }
+      const headers = { accept: 'application/json', 'content-type': 'application/octet-stream' }
+      if (uploadToken) headers.authorization = `Bearer ${uploadToken}`
+      const res = await fetchFn(`${root}/v1/files`, { method: 'POST', credentials: 'omit', headers, body: buf })
+      if (!res.ok) {
+        let tok = ''
+        try { tok = (await res.json()).error || '' } catch { /* not json */ }
+        throw Object.assign(new Error(`spool ${res.status} ${tok || '/v1/files'}`), { status: res.status, token: tok })
+      }
+      return res.json()
+    },
+    /** Download bytes for a blob file_id (mock: the in-memory copy). */
+    async downloadFile(fileId) {
+      const id = String(fileId || '')
+      if (mock) {
+        const b = mockBlobs.get(id)
+        if (!b) throw Object.assign(new Error('not in mock store'), { status: 404 })
+        return b.arrayBuffer()
+      }
+      const res = await fetchFn(`${root}/v1/files/${encodeURIComponent(id)}`, { credentials: 'omit' })
+      if (!res.ok) throw Object.assign(new Error(`spool ${res.status} /v1/files`), { status: res.status })
+      return res.arrayBuffer()
     },
     fileUrl(fileId) {
       return `${root}/v1/files/${encodeURIComponent(String(fileId || ''))}`

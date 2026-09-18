@@ -1,4 +1,5 @@
 declare module '~/utils/spool-client.mjs' {
+  export function sha256Hex(buf: ArrayBuffer): Promise<string>
   export function createSpoolClient(opts?: {
     base?: string
     fetchFn?: typeof fetch
@@ -10,6 +11,10 @@ declare module '~/utils/spool-client.mjs' {
     mock: boolean
     tenant: string
     configError: string
+    base: string
+    readonly token: string
+    uploadFile(file: Blob, uploadToken?: string): Promise<{ file_id: string, sha256: string, bytes: number }>
+    downloadFile(fileId: string): Promise<ArrayBuffer>
     setToken(token: string): void
     hasToken(): boolean
     healthz(): Promise<unknown>
@@ -46,6 +51,32 @@ declare module '~/utils/spool-client.mjs' {
   }
 }
 
+declare module '~/utils/live-ws.mjs' {
+  export const FRAMES: Record<string, string>
+  export const WS_PATH: string
+  export function wsUrl(base: string, path?: string): string
+  export function backoffMs(attempt: number, opts?: { base?: number, cap?: number }): number
+  export function messageFromFrame(f: unknown): Record<string, unknown>
+  export function createLiveClient(opts: {
+    url: string
+    token?: string
+    as?: string
+    WebSocketImpl?: unknown
+    onMessage?: (m: Record<string, unknown>, raw: unknown) => void
+    onState?: (s: string) => void
+    onWelcome?: (w: Record<string, unknown>) => void
+    ackTimeoutMs?: number
+  }): {
+    readonly state: string
+    readonly welcome: Record<string, unknown> | null
+    connect(): void
+    close(): void
+    subscribe(taskId: string): void
+    unsubscribe(taskId: string): void
+    send(opts: { task_id: string, kind?: string, body?: string, files?: unknown[], to?: string }): Promise<Record<string, unknown>>
+  }
+}
+
 declare module '~/utils/channel-feed.mjs' {
   export function topLevel<T extends { parent_task_id?: string | null, ts?: string }>(messages: T[]): T[]
   export function threadOf<T extends { task_id?: string, parent_task_id?: string | null, ts?: string }>(
@@ -65,6 +96,7 @@ declare module '~/utils/channel-feed.mjs' {
 
 declare module '~/utils/mock-data.mjs' {
   export const MOCK_MESSAGES: Record<string, unknown>[]
+  export const MOCK_LOBBY_TASK_ID: string
   export function cloneMock(): unknown
 }
 

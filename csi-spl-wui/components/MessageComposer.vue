@@ -32,12 +32,18 @@
         @click="syncMention"
         @keyup="syncMention"
       />
+      <ul v-if="picked.length" class="file-chips">
+        <li v-for="(f, i) in picked" :key="f.name + i">
+          📎 {{ f.name }} <small>{{ f.size }} B</small>
+          <button type="button" class="btn ghost" :aria-label="'Remove ' + f.name" @click="picked.splice(i, 1)">×</button>
+        </li>
+      </ul>
       <div class="composer-row">
-        <label class="muted">
-          <input type="file" multiple hidden @change="onFiles">
-          attach
+        <label class="muted attach">
+          <input type="file" multiple hidden data-testid="attach" @change="onFiles">
+          📎 attach
         </label>
-        <button type="submit" :disabled="!text.trim()">Send</button>
+        <button type="submit" :disabled="busy || (!text.trim() && !picked.length)">{{ busy ? 'Sending…' : 'Send' }}</button>
       </div>
     </div>
   </form>
@@ -54,8 +60,10 @@ import {
 const props = defineProps<{
   placeholder?: string
   parentTaskId?: string
+  busy?: boolean
 }>()
-const emit = defineEmits<{ send: [text: string, parentTaskId?: string] }>()
+const emit = defineEmits<{ send: [text: string, parentTaskId?: string, files?: File[]] }>()
+const picked = ref<File[]>([])
 const roster = useRosterStore()
 const text = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)
@@ -126,23 +134,42 @@ function onKeydown(ev: KeyboardEvent) {
 
 function onSend() {
   const body = text.value.trim()
-  if (!body) return
-  emit('send', body, props.parentTaskId)
+  if ((!body && !picked.value.length) || props.busy) return
+  emit('send', body, props.parentTaskId, picked.value.slice())
   text.value = ''
+  picked.value = []
   mentionQuery.value = null
 }
 
 function onFiles(ev: Event) {
   const input = ev.target as HTMLInputElement
   if (!input.files || input.files.length === 0) return
-  // Upload hits POST /v1/files once the WUI session token exists. Names only for now.
-  const names = [...input.files].map((f) => f.name).join(', ')
-  text.value = text.value ? `${text.value}\n${names}` : names
+  // uploaded on send (POST /v1/files), then referenced by file_id in files[]
+  picked.value = [...picked.value, ...input.files]
   input.value = ''
 }
 </script>
 
 <style scoped>
+.file-chips {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+.file-chips li {
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 2px 6px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.attach { cursor: pointer; }
 .mention-list {
   list-style: none;
   margin: 0 0 8px;

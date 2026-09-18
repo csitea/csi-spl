@@ -2,6 +2,9 @@
 
 const T0 = '2026-09-18T10:00:00Z'
 
+/** lde mock #lobby: the welcome thread below. The real id comes from the hub / cnf. */
+export const MOCK_LOBBY_TASK_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+
 export const MOCK_ME = { id: 'HUM-1', box: 'box-wui', display: 'HUM-1@box-wui' }
 
 export const MOCK_CHANNELS = [

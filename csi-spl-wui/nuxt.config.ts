@@ -35,6 +35,9 @@ export default defineNuxtConfig({
       // host, never api.<fqdn> (003 http-v1, reserved labels).
       apiBase: (process.env.NUXT_PUBLIC_API_BASE || "http://{tenant}.localhost:58080").replace(/\/+$/, ""),
       tenant: process.env.NUXT_PUBLIC_TENANT || (isDev ? "t1" : ""),
+      // #lobby is a well-known task_id (003 wui-live-ws.md / cnf LOBBY_TASK_ID);
+      // the hub welcome frame overrides this when it names one.
+      lobbyTaskId: process.env.NUXT_PUBLIC_LOBBY_TASK_ID || "",
       useMock: process.env.NUXT_PUBLIC_USE_MOCK === undefined
         ? (isDev ? "1" : "0")
         : process.env.NUXT_PUBLIC_USE_MOCK,
@@ -71,5 +74,6 @@ export default defineNuxtConfig({
     "/channel/**": { prerender: false },
     "/dm/**": { prerender: false },
     "/t/**": { prerender: false },
+    "/lobby": { prerender: false },
   },
 })

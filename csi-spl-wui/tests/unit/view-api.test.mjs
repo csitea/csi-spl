@@ -9,7 +9,7 @@ import {
   threadMessages,
   threadsFromMessages,
 } from '../../utils/view-api.mjs'
-import { createSpoolClient } from '../../utils/spool-client.mjs'
+import { createSpoolClient, sha256Hex } from '../../utils/spool-client.mjs'
 import { renderBody } from '../../utils/channel-feed.mjs'
 import { MOCK_MESSAGES } from '../../utils/mock-data.mjs'
 
@@ -146,6 +146,34 @@ describe('spool-client live (view-v1)', () => {
     const c = createSpoolClient({ fetchFn: fn, mock: false, configError: 'api_host' })
     await assert.rejects(c.listThreads(), (e) => e.status === 0 && e.token === 'api_host')
     assert.equal(calls.length, 0)
+  })
+
+  it('uploads raw bytes with the Bearer upload token and downloads them back', async () => {
+    const calls = []
+    const fn = async (url, opts) => {
+      calls.push({ url, opts })
+      if (opts.method === 'POST') return { ok: true, status: 201, json: async () => ({ file_id: 'f1', sha256: 'f1', bytes: 3 }) }
+      return { ok: true, status: 200, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer }
+    }
+    const c = createSpoolClient({ base: 'http://t1.localhost:58080', fetchFn: fn, mock: false })
+    const up = await c.uploadFile(new Blob([new Uint8Array([1, 2, 3])]), 'up-tok')
+    assert.equal(up.file_id, 'f1')
+    assert.equal(calls[0].url, 'http://t1.localhost:58080/v1/files')
+    assert.equal(calls[0].opts.headers.authorization, 'Bearer up-tok')
+    assert.equal(calls[0].opts.headers['content-type'], 'application/octet-stream')
+    assert.equal(calls[0].opts.body.byteLength, 3)
+    const buf = await c.downloadFile('f1')
+    assert.deepEqual([...new Uint8Array(buf)], [1, 2, 3])
+    assert.equal(calls[1].url, 'http://t1.localhost:58080/v1/files/f1')
+  })
+
+  it('mock upload is content-addressed and downloads identical bytes', async () => {
+    const c = createSpoolClient({ mock: true })
+    const bytes = new TextEncoder().encode('hello spool')
+    const up = await c.uploadFile(new Blob([bytes]))
+    assert.equal(up.file_id, await sha256Hex(bytes.buffer))
+    assert.equal(up.bytes, bytes.byteLength)
+    assert.deepEqual(new Uint8Array(await c.downloadFile(up.file_id)), bytes)
   })
 
   it('mock mode serves threads without a hub', async () => {

@@ -58,7 +58,16 @@ Example: **`csi-spl-dev-202609171743`**.
 | `project_id` | Yes — stamp is **buy minute**; clash → retry |
 
 Store `tenant_id`, `org`, `app`, `project_id`, `bought_at` separately.
-Pretty DNS is **not** `{org}-{app}`.
+
+**The slug is pretty and different** from the project id. Customer picks
+(or we suggest) a short unique Host, e.g. `acme` → `https://acme.spool-hub.ai`.
+It is **not** `csi-spl-dev-202609171743` and **not** `{org}-{app}`.
+
+| Field | Example |
+|---|---|
+| DNS slug / `tenant_id` | `acme` (pretty, unique) |
+| `org` / `app` | `csi` / `spl` (may match someone else) |
+| `project_id` | `csi-spl-dev-202609171743` (ugly, unique) |
 
 M2 hosted still does **not** create a GCP project per customer.
 
@@ -67,4 +76,4 @@ M2 hosted still does **not** create a GCP project per customer.
 Changing M2 to “seats only” (forbidden). Per-message billing. Shop SKUs.
 
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:55:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-19T00:05:00Z -->

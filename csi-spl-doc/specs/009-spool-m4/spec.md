@@ -37,11 +37,12 @@ Stamp is the **minute they bought**, not hour.
 - **FR-003**: Dedicated `project_id` = `{org}-{app}-{env}-{YYYYMMDDHHmm}` at
   buy (UTC). Length 24; GCP max 30.
 - **FR-004**: Persist `tenant_id`, `org`, `app`, `project_id`, `bought_at`
-  separately. Host slug is not derived from org+app.
+  separately. **Slug is pretty and unique** (`acme` → `https://acme.spool-hub.ai`).
+  It is **not** the project id and **not** `{org}-{app}`.
 - **FR-005**: Duplicate DNS slug → 409. Duplicate project id → retry stamp.
 
 ## Out of Scope
 
 M2 hosted (no per-customer project). Changing M3. Shop tables.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:55:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-19T00:05:00Z -->

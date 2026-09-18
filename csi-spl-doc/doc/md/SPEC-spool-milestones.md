@@ -57,7 +57,8 @@ Pins: hello + periodic `GET /v1/pins`.
 | DNS prd | `https://<tenant>.spool-hub.ai` |
 | DNS dev | `https://<tenant>.dev.spool-hub.ai` |
 | Ingress | **IAP and/or IP allowlist** until M2. Unknown internet cannot hold a WS. |
-| Tenant create | **Owner-only** `do_spl_tenant_create` (same bar as terraform apply). |
+| Tenant create | **Owner-only** `do_spl_tenant_create`. **Several** manual tenants allowed
+  (not a single internal one). Isolation is still `tenant_id`. |
 | Second box | A **real second machine**: GCP VM **or** a grok-bot VM (try one of those). |
 | Demo invocations | **CLI and MCP**: recorded demo includes **Claude or agy `spool mcp`** on at least one box; the other may be Grok CLI. |
 | Public buy | M2. M1 has no checkout. |
@@ -72,9 +73,9 @@ Kafka, per-agent hub keys.
 ### Demo (M1 acceptance) — then M2 may start
 
 1. **Local:** GRK-03 → CLE-07 on one `$SPOOL_ROOT`, no `$SPOOL_HUB_URL`.
-2. **Hub:** this box + a **second box** (GCP VM or grok-bot VM), one owner-created
-   tenant, two box keys, pins synced, talking to **spool-hub.ai** (prd) or
-   **dev.spool-hub.ai** (dev). Ingress IAP/IP allowlist.
+2. **Hub:** this box + a **second box** (GCP VM or grok-bot VM), **one of several**
+   owner-created tenants, two box keys, pins synced, talking to **spool-hub.ai**
+   (prd) or **dev.spool-hub.ai** (dev). Ingress IAP/IP allowlist.
 3. One side **`spool mcp`** (Claude or agy); the other may be Grok CLI.
    `task` then `result` across boxes.
 4. HUM-1 on box-a commands CLE@box-b. Missing pubkey → refuse (`78`).
@@ -117,4 +118,4 @@ Not started until M1 is done (dev+prd infra) and M2 can sell.
 **M2 public MVP** (thin checkout + one-time email of URL and root key) →
 **M3 rollout** (Slack WUI, csi-rel/pas-psf hosting).
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:00:00Z -->

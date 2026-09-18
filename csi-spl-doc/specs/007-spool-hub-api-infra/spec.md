@@ -17,7 +17,8 @@ hub process is hosted**, not the mail schema.
 M1 is not done until this infra is **applied on both `dev` and `prd`**.
 prd DNS: `https://<tenant>.spool-hub.ai`. dev:
 `https://<tenant>.dev.spool-hub.ai`. M1 Cloud Run ingress is **IAP and/or
-IP allowlist**; remove for M2. Tenant create is owner-only.
+IP allowlist**; remove for M2. Tenant create is owner-only; **several**
+manual tenants (not one). DNS must resolve `<tenant>.spool-hub.ai` for each.
 
 ## User Story 1 - lde matches pas-psf/csi-rel (Priority: P1) 🎯
 
@@ -73,4 +74,4 @@ Shop, Firebase hosting for a storefront, recaptcha, BIN, stock janitor,
 WordPress VMs, M2 payment slots (empty or omitted until M2), M3 WUI hosting
 (Firebase/Cloud Run for `csi-spl-wui` later).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:00:00Z -->

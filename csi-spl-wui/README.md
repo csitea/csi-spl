@@ -68,7 +68,21 @@ Environment:
 View token: on a `401` the viewer asks for one and keeps it in
 `sessionStorage` (`spool.view_token`), never `localStorage` or a URL.
 
+Sign-in in lde (spec 010 `contracts/auth-v1.md`, fake Google + Facebook):
+
+```bash
+cd ../csi-spl-api/src/go/spool-hub-api && go run ./internal/auth/cmd/auth-demo -addr 127.0.0.1:58181 -app-url http://localhost:3000 -public-url http://localhost:3000
+```
+
+```bash
+NUXT_DEV_AUTH_PROXY=http://127.0.0.1:58181 pnpm dev
+```
+
+Open `http://localhost:3000/login` (use `localhost`, matching `-app-url`, so the
+session cookie lands on the same origin). `NUXT_DEV_AUTH_PROXY` forwards
+`/api/v1/auth/**` same-origin, as the Hosting rewrite does in dev/prd.
+
 Pages: `/` thread list, `/t/<task_id>` one thread oldest first. The mock
 channel / DM pages remain for the later M3 slices (spec 005 §1, Planned).
 
-<!-- last-edit: 2026-09-18T20:45:00Z -->
+<!-- last-edit: 2026-09-18T21:45:00Z -->

@@ -91,9 +91,10 @@ filtered to pin/roster/flush/id tests -> 21 PASS, 0 FAIL, in-memory store.
       sync / cross-box send / ambiguous `to_box` / revoke through
       `https://<tenant>.<product-domain>`. Blocked on 007 steps 3 and 10
       (`../README.md` §6). FR-014, SC-004.
-- [ ] T023 Harness bootstrap (allocate id, create dirs, ensure box key, start
-      `spool hub-run`) lives outside this repo today; decide whether a
-      `spool-harness` verb is in scope for M1 or stays the box harness's. FR-010.
-      Owner question → CLE-00.
+- [x] T023 Harness bootstrap (allocate id, create dirs, ensure box key, start
+      `spool hub-run`). **Resolved by spec 012**: `spool-harness.sh` (orc
+      launcher, `c619d5d`) prepares dirs, checks the key and runs the sidecar;
+      `next-agent-id.sh` (`8c5bf43`) allocates. Not a `spool` subcommand. FR-010.
+      **Implemented**.
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:23:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-19 · last-edit: 2026-09-18T22:55:25Z -->

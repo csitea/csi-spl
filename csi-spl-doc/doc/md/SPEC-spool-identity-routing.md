@@ -64,14 +64,18 @@ first-class peer on the bus allocated its own distinct top-level ID (e.g. `AGY-0
 shared by all agents on that box.
 
 **Agent Bootstrapping (Harness Lifecycle):**
-The box harness wrapper (`next-agent-id.sh`, outside this repo) allocates
-the agent ID and prepares the agent directories before the AI CLI session begins.
-In hub mode, the harness verifies the box keypair (`$HOME/.spool/keys/box-<box_id>.key`)
-and ensures the box sidecar (`spool hub-run`) connects and announces the active agent
-roster. The AI CLI is never burdened with key generation or initial pin setup.
-There is **no `spool-harness` verb** in this repo (`grep -c harness cmd/spool/main.go`
--> 0); whether one enters M1 is an open owner question (`specs/004-spool-identity-routing/`
-T023).
+Two in-repo scripts, both in `csi-spl-orc/src/bash/features/spawn-agents/scripts/`:
+
+- **`next-agent-id.sh`** (the spawner) **allocates** the agent id, per box.
+- **`spool-harness.sh`** (the standard box launcher, `specs/012-spool-box-api/`,
+  `c619d5d`) takes that id with `--as`, **validates it but never allocates**,
+  prepares `$SPOOL_ROOT/<id>/{inbox,outbox,archive}`, checks the box key
+  (`$HOME/.spool/keys/box-<box_id>.key`; required in hub mode, else exit 78),
+  starts or waits for one `spool hub-run` sidecar and its roster entry, then
+  `exec`s the AI CLI. Contract: `specs/012-spool-box-api/contracts/spool-harness.md`.
+
+The harness is a launcher script, not a `spool` subcommand. The AI CLI is never
+burdened with key generation or initial pin setup.
 
 ---
 
@@ -191,4 +195,4 @@ Same-box skip vs mirror: `specs/002-box-agent-messaging/contracts/trust-modes.md
 - TOFU, key escrow, per-agent GCP keys, or renter GCP accounts.
 - Cross-tenant uniqueness of agent ids.
 
-<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:26:15Z -->
+<!-- version: 0.4.0 · updated: 2026-09-19 · last-edit: 2026-09-18T22:55:25Z -->

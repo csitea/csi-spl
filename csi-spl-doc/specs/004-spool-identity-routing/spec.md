@@ -172,8 +172,10 @@ Status per `../README.md` §2.3. Code citations are at trunk `bbc41e7`.
 - **FR-010** — Agent-id **allocation** is the harness's (the box harness's
   `next-agent-id.sh` or the renter's own), not spool's; the harness prepares
   the directories and ensures the box key exists before the AI CLI starts.
-  **Planned** (in this repo) — no `spool-harness` exists:
-  `grep -rl spool-harness csi-spl-api` -> none. Out of repo today.
+  **Implemented** — allocation: `csi-spl-orc/src/bash/features/spawn-agents/scripts/next-agent-id.sh` (`8c5bf43`);
+  preparation: `csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-harness.sh` (spec 012, `c619d5d`), which takes the id
+  with `--as` and never allocates. Contract:
+  `../012-spool-box-api/contracts/spool-harness.md`.
 - **FR-011** — Sub-agents get independent top-level ids. **Implemented** by the
   regex (FR-001); allocation is FR-010.
 - **FR-012** — `BOX-` rejected at every validation point
@@ -227,4 +229,4 @@ Test runs (tree: this lane's worktree at `4f611d6`; n=1 each):
 - Per-agent keys or IAM; the private-deploy IAM door (003 OQ-06, not M1).
 - Multi-recipient / box-wide fanout; cross-tenant uniqueness.
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:23:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-19 · last-edit: 2026-09-18T22:55:25Z -->

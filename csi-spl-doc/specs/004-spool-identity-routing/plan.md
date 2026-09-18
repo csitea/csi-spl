@@ -16,7 +16,7 @@ boxes sync pins down as authorized_keys, and messages route to
 
 It is built and tested (spec "Verified status"); the three hardenings found
 in the redo (T019, T020, T022) landed in `4f611d6`. What remains is the live
-proof (T021), which waits on 007, and an owner decision on the harness (T023).
+proof (T021), which waits on 007. The harness (T023) is resolved by spec 012.
 
 ## Technical Context
 
@@ -52,7 +52,7 @@ T019, T020, T022 landed in `4f611d6`. Left:
    exist (`../README.md` §6) and a dev tenant is seeded. The dev DB must first
    be migrated to `0005_pin_identity.sql` (`spool migrate` via
    `do_spl_db_bootstrap`, 007).
-2. T023 — owner decision on the harness verb.
+2. ~~T023 — owner decision on the harness verb~~ — resolved by spec 012 (`spool-harness.sh`, `c619d5d`).
 
 ## Risks
 
@@ -63,4 +63,4 @@ T019, T020, T022 landed in `4f611d6`. Left:
   holds on its branch (`0004_tenant_quotas.sql`); the runner orders by filename
   and records each file, so either landing order applies cleanly.
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:23:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-19 · last-edit: 2026-09-18T22:55:44Z -->

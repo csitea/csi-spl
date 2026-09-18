@@ -100,6 +100,8 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `009-spool-m4/` | seats + buy-minute project id | M4 | integrator (seam fixes only) |
 | `010-spool-social-auth/` | social IdP login for humans (`../doc/md/SPEC-spool-social-auth.md`): hub `/auth/*`, signed session cookie (`internal/auth`); Google + Facebook first, Microsoft / LinkedIn / xAI on the same rails | M2 (register) / M3 (WUI login) | social-auth lane |
 | `011-spool-project-refactor/` | whole-project refactoring: Go backend clean architecture, WUI 3-pane reverse layout & client adapter, config schema validation, orc namespacing, spec reconciliation | M1–M3 consolidation | core architecture |
+| `012-spool-box-api/` | uniform box API (CLI verbs, five MCP tools, exit 78) re-verified, plus the standard box launcher `spool-harness.sh` (orc) | M1 | box-api lane |
+| `013-spool-chat-reverse/` | WUI chat reverse: top omnibox, prepend feed, 3-pane, avatars (`../doc/md/SPEC-spool-chat-reverse.md`) | M3 | chat-reverse lane |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -261,4 +263,4 @@ Resolved since the first record (kept for audit):
 `grep -c '/v1/messages\|/v1/channels' csi-spl-wui/utils/spool-client.mjs` -> 0) ·
 ~~`GRK-3342-007-tf-007-dns` stale branch~~ (superseded by `025`).
 
-<!-- version: 1.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:24:15Z -->
+<!-- version: 1.6.0 · updated: 2026-09-19 · last-edit: 2026-09-18T22:55:25Z -->

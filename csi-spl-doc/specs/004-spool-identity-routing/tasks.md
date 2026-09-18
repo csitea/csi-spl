@@ -7,17 +7,17 @@ sqlite testhub with the same handlers.
 
 ## Phase 1: Setup
 
-- [ ] T001 [P] SQL migrations for `boxes`, `pins`, `pins_history` in
+- [x] T001 [P] SQL migrations for `boxes`, `pins`, `pins_history` in
       `csi-spl-api/src/go/spool-hub-api/internal/store/`
-- [ ] T002 [P] Env `$SPOOL_BOX_ID` required when `$SPOOL_HUB_URL` set
+- [x] T002 [P] Env `$SPOOL_BOX_ID` required when `$SPOOL_HUB_URL` set
       (`internal/config`)
 
 ## Phase 2: US1 pins
 
-- [ ] T003 [US1] `POST /v1/pins` `{box_id, pubkey}` signed with tenant root key
-- [ ] T004 [US1] Same box_id same key → 200; same box_id different key → 409
-- [ ] T005 [US1] `GET /v1/pins` list box pubkeys; CLI `spool-pin` publishes when root key provided
-- [ ] T006 [P] [US1] tests: two box_ids, collision, idempotent
+- [x] T003 [US1] `POST /v1/pins` `{box_id, pubkey}` signed with tenant root key
+- [x] T004 [US1] Same box_id same key → 200; same box_id different key → 409
+- [x] T005 [US1] `GET /v1/pins` list box pubkeys; CLI `spool-pin` publishes when root key provided
+- [x] T006 [P] [US1] tests: two box_ids, collision, idempotent
 
 ## Phase 3: US2 sync
 
@@ -33,11 +33,11 @@ sqlite testhub with the same handlers.
 
 ## Phase 5: US4 revoke
 
-- [ ] T013 [US4] `DELETE /v1/pins/{box_id}` signed with tenant root key
-- [ ] T014 [US4] history row; subsequent verify fails; `--force` new key
+- [x] T013 [US4] `DELETE /v1/pins/{box_id}` signed with tenant root key
+- [x] T014 [US4] history row; subsequent verify fails; `--force` new key
 
 ## Phase 6: Polish
 
-- [ ] T015 Hygiene: no private key in pin JSON; no per-kind routes
+- [x] T015 Hygiene: no private key in pin JSON; no per-kind routes
 
-<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T17:52:03Z -->
+<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T18:10:01Z -->

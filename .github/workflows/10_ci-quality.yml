@@ -109,8 +109,17 @@ jobs:
                 --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=tpl-gen)
           fail=0
           sweep() {
-            local label="$1" pattern="$2" hits
-            hits="$(grep -rnIoP "${excl[@]}" "$pattern" . | cut -d: -f1,2 | sort -u)"
+            local label="$1" pattern="$2" hits rc=0
+            # grep exits 1 on NO match -- the clean case. The step shell is
+            # `bash -e` and pipefail carries grep's status out of the
+            # pipeline, so an unguarded clean sweep would abort the script
+            # silently. Accept 1; anything above it (bad pattern, unreadable
+            # tree) is a gate failure, never a pass.
+            hits="$(grep -rnIoP "${excl[@]}" "$pattern" . | cut -d: -f1,2 | sort -u)" || rc=$?
+            if (( rc > 1 )); then
+              echo "::error::hygiene: ${label} -- grep failed (rc=$rc), the sweep proved nothing"
+              fail=1; return 0
+            fi
             if [[ -n "$hits" ]]; then
               echo "::error::hygiene: ${label} -- $(wc -l <<<"$hits") line(s)"
               sed 's/^/  /' <<<"$hits"

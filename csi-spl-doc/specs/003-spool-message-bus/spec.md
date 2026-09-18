@@ -156,7 +156,7 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 
 - **FR-001**: The hub MUST expose the endpoints in `contracts/http-v1.md`: WS `/v1/ws`, `POST /v1/files`, `GET /v1/files/{file_id}`, `GET /healthz`, `GET /version`. It also hosts the pin endpoints owned by 004/006.
 - **FR-002**: The box CLI/MCP from 002 MUST be the only agent-facing API; agents MUST NOT call hub HTTP/WS, NATS, Postgres, or GCS directly.
-- **FR-003**: The hub MUST verify the WS hello `sig` against the tenant's pin for `box_id` before accepting any frame; unknown box → close, nothing stored.
+- **FR-003**: The hub MUST verify the WS hello `sig` against the tenant's pin for `box_id` before accepting any frame; unknown box → close, nothing stored. **Last hello wins**: a new connection for the same `box_id` closes the older one.
 - **FR-004**: The hub MUST verify every send envelope `sig` against the `from_box` pin, and MUST require `from_box` to equal the box authenticated at hello; failure → refuse, nothing stored (CLI exit `78`).
 - **FR-005**: The hub MUST resolve `to_box`: required when `to` is announced on more than one box; filled by the hub when unique; `409` when ambiguous.
 - **FR-006**: When `to_box` has a live WS the hub MUST push the frame and report `delivery=sent`. Otherwise it MUST persist the message with a TTL from cnf, report `delivery=queued`, and deliver it on the box's next hello.
@@ -168,7 +168,7 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 - **FR-012**: Cloud Run MUST be stateless: no message log, queue, or file bytes on container disk.
 - **FR-013**: Agent kind MUST appear only as id prefixes (Constitution VIII).
 - **FR-014**: Private keys (box, tenant root) MUST never enter the hub, Postgres, GCS, Secret Manager, or logs (Constitution VII).
-- **FR-015**: Every hub row and object key MUST carry `tenant_id`. The tenant comes from the request URL (006), never from the `v:1` body.
+- **FR-015**: Every hub row and object key MUST carry `tenant_id`. The tenant comes from the request **Host** (`<tenant>.<product-domain>`, domain from cnf), never from the `v:1` body. One GCS bucket for all tenants, prefixed `t/<tenant_id>/`.
 - **FR-016**: IAM/OIDC, when enabled on a private deploy, MUST run before box-key verification and MUST NOT substitute for it.
 
 ### Non-Functional Requirements
@@ -205,7 +205,8 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 - 002 CLI/MCP and `v:1` schema are implemented first (or in parallel only for docs).
 - 003 MVP runs on sqlite/memory in tests; production M1 is Cloud Run + Postgres + GCS.
 - ysg-box adapter is a follow-on in that repo, not a task in this one.
-- Public DNS is chosen at deploy time (`spool-hub.ai` placeholder); tenant host from cnf.
+- Product DNS is `<tenant>.spool-hub.ai` (owner decision); binaries read it from `$SPOOL_HUB_URL` / cnf and never bake it.
+- Cloud Run min instances = 1 by default (warm WS), cnf-overridable. Boxes refresh pins on hello and on a cnf interval.
 
 ## Out of Scope
 
@@ -224,9 +225,9 @@ Each item below is under-specified or contradicted across documents. This file a
 - **OQ-02: Does the REST message dialect survive at all?** Earlier 003 text had `POST /v1/messages` + `GET /v1/messages?as=` for a "private org hub", verified per agent. The binding model has no per-agent keys and moves send/recv to WS. Should the REST dialect be deleted, or kept as a private-deploy variant with box-key auth? (006 `tasks.md` T008–T010 still build `POST /v1/messages` / `POST /v1/recv`.)
 - **OQ-03: Envelope canonicalisation and replay.** `sig` covers `jq -cS '{from_box,to_box,msg}'`. If `to_box` is omitted and the hub fills it, is the signature over the envelope *without* `to_box`? Does the delivered frame carry the hub-filled value outside the signed bytes? The receiving box must be able to re-verify. Separately: does the hello `sig` cover a hub-issued nonce, or only `{box_id, ts}`? And what is the `ts` window?
 - **OQ-04: Live tail transport (US4).** Candidates are SSE `GET /v1/events` (earlier plan), NATS Core/JetStream (`contracts/nats-subjects.md`), or frames on the existing WS. The milestone puts NATS out of M1 but names no replacement.
-- **OQ-05: Multi-instance fan-out and reconnects.** With more than one Cloud Run instance, how does the instance holding box-a's socket reach box-b's socket? Candidates are Postgres `LISTEN/NOTIFY`, NATS, Pub/Sub, or `max-instances=1` for M1. Cloud Run's request timeout (max 60 min) forces WS reconnects, and no reconnect/resume contract exists yet.
+- **OQ-05: Multi-instance fan-out and reconnects.** The milestone sets **min** instances = 1 (cnf-overridable, including 0) but no maximum. With more than one Cloud Run instance, how does the instance holding box-a's socket reach box-b's socket? Candidates are Postgres `LISTEN/NOTIFY`, NATS, Pub/Sub, or `max-instances=1` for M1. Cloud Run's request timeout (max 60 min) forces WS reconnects, and no reconnect/resume contract exists yet.
 - **OQ-06: Private-deploy IAM.** Is an IAM-fronted private deploy still a supported shape? If so, how do boxes present an OIDC token on a WS upgrade? The `boxes.iam_principal` column in `data-model.md` exists only for this case.
-- **OQ-07: Tenant routing.** 006 offers a Host header or a `/t/<tenant>/` path prefix ("one choice, cnf") but does not pick one. The choice affects the WS URL, the file URLs, and the scope of the `GET /v1/files` capability.
+- ~~**OQ-07: Tenant routing.**~~ **Resolved** by the owner (trunk `cdea288`, `SPEC-spool-milestones.md`): tenant from the **Host** header, `https://<tenant>.spool-hub.ai`, with the host from cnf/env only. Recorded in FR-015.
 - **OQ-08: Ack model.** Does the hub's responsibility end at `delivery=sent` (box got the frame)? Or does the box send an ack frame that moves the row to `acks`? In hub mode, does `spool-recv --ack` only archive locally, or also notify the hub?
 - **OQ-09: `delivery` value when the hub is down.** Trust-modes §8 defines `local | sent | queued`. A cross-box send while the hub is unreachable fits none of them, because the hub never saw it. Should it get a new value (e.g. `pending`), or exit non-zero?
 - **OQ-10: Box proof on `POST /v1/files`.** The docs offer "signed headers or a short-lived upload token from the WS" without choosing. The header format (which bytes are signed, replay window) is unspecified.
@@ -236,4 +237,4 @@ Each item below is under-specified or contradicted across documents. This file a
 - **OQ-14: Local-mode `sig` in the 002 build.** 002 `message-schema.md` says local mode omits `sig`, but the current 002 Go code (`internal/spool/spool.go`) signs every send with a per-agent key. Which one is authoritative for 003's inner object?
 - **OQ-15: Who owns flush?** 003 `tasks.md` put flush in `internal/hub/flush.go`; 004 `tasks.md` T010 puts it in `internal/flush`. Flush runs on the box, so `internal/hub` looks wrong in either case.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:40:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:24:00+03:00 -->

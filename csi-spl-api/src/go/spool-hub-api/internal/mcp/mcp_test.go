@@ -26,8 +26,8 @@ type side struct {
 	root string // the per-side temp dir, normalised to <ROOT> before comparing
 }
 
-// harness holds a CLI side and an MCP side that share the same keys and pins,
-// so the same inputs must yield the same files and return values.
+// harness holds a CLI side and an MCP side over twin empty roots, so the same
+// inputs must yield the same files and return values.
 type harness struct {
 	t        *testing.T
 	bin      string
@@ -43,12 +43,9 @@ func newHarness(t *testing.T) *harness {
 		t.Fatalf("build spool: %v\n%s", err, out)
 	}
 
+	// Local mode: no keys, no pins on either side.
 	cliCfg := testkit.NewConfig(t)
-	testkit.KeygenPin(t, cliCfg, "GRK-03")
-	testkit.KeygenPin(t, cliCfg, "CLE-07")
 	mcpCfg := testkit.NewConfig(t)
-	copyDir(t, cliCfg.KeysDir, mcpCfg.KeysDir)
-	copyDir(t, cliCfg.PinsDir, mcpCfg.PinsDir)
 
 	ctx := context.Background()
 	ct, st := sdk.NewInMemoryTransports()
@@ -164,8 +161,9 @@ func (h *harness) sameTree(dir string) {
 }
 
 // TestSC004MCPEqualsCLI is spec 002 SC-004: every MCP tool and its CLI verb give
-// identical files and return values for the same inputs, and a refusal is a
-// tool error carrying the CLI's reason and exit 78.
+// identical files and return values for the same inputs, an unsigned send from
+// an agent with no key works on both, and a refusal (hash mismatch) is a tool
+// error carrying the CLI's reason and exit 78.
 func TestSC004MCPEqualsCLI(t *testing.T) {
 	h := newHarness(t)
 
@@ -238,41 +236,55 @@ func TestSC004MCPEqualsCLI(t *testing.T) {
 		t.Errorf("get-file bytes: cli %q mcp %q", cb, mb)
 	}
 
-	// unpinned from: CLI exit 78 == tool error with the same reason
-	_, cliErr, rc := h.run("send", "--from", "AGY-09", "--to", "CLE-07", "--kind", "note", "--body", "hi")
-	mcpErr, isErr := h.call("spool_send", map[string]any{"from": "AGY-09", "to": "CLE-07", "kind": "note", "body": "hi"})
-	if rc != 78 {
-		t.Fatalf("unpinned CLI exit = %d, want 78 (%s)", rc, cliErr)
+	// unsigned: an agent with no key and no pin sends on both sides
+	cliU, _, rc := h.run("send", "--from", "AGY-09", "--to", "CLE-07", "--task", task, "--kind", "note", "--body", "hi")
+	mcpU, isErr := h.call("spool_send", map[string]any{"from": "AGY-09", "to": "CLE-07", "task_id": task, "kind": "note", "body": "hi"})
+	if rc != 0 || isErr {
+		t.Fatalf("unsigned send: rc=%d isErr=%v content=%v", rc, isErr, mcpU)
 	}
-	if !isErr || len(mcpErr) != 1 || mcpErr[0] != cliErr+" (exit 78)" {
-		t.Errorf("unpinned tool result: isErr=%v content=%q, want %q", isErr, mcpErr, cliErr+" (exit 78)")
+	h.same("unsigned send return", cliU, mcpU[0])
+	if !strings.Contains(cliU, `"delivery":"local"`) {
+		t.Errorf("send result must carry delivery=local: %s", cliU)
 	}
 	h.sameTree("CLE-07")
+
+	// refusal: a corrupted blob fails get-file with exit 78 == tool error
+	for _, sd := range []side{h.cli, h.mcp} {
+		if err := os.WriteFile(filepath.Join(sd.cfg.FilesDir(), put.FileID), []byte("rotted\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, cliErr, rc := h.run("get-file", put.FileID, filepath.Join(h.cli.root, "bad.txt"))
+	mcpErr, isErr := h.call("spool_get_file", map[string]any{"file_id": put.FileID, "dest": filepath.Join(h.mcp.root, "bad.txt")})
+	if rc != 78 {
+		t.Fatalf("hash mismatch CLI exit = %d, want 78 (%s)", rc, cliErr)
+	}
+	if !isErr || len(mcpErr) != 1 || h.norm(mcpErr[0], h.mcp) != h.norm(cliErr+" (exit 78)", h.cli) {
+		t.Errorf("hash mismatch tool result: isErr=%v content=%q, want %q", isErr, mcpErr, cliErr+" (exit 78)")
+	}
 }
 
-// TestRecvVerifyFailureIsToolError: a tampered inbox file makes the CLI print
-// the verified messages and exit 78; the tool returns the same array plus the
-// same reason, flagged as an error.
-func TestRecvVerifyFailureIsToolError(t *testing.T) {
+// TestRecvMalformedIsToolError: a malformed inbox file makes the CLI print the
+// good messages and exit 1 (not a refusal); the tool returns the same array
+// plus the same reason, flagged as an error.
+func TestRecvMalformedIsToolError(t *testing.T) {
 	h := newHarness(t)
 	for _, sd := range []side{h.cli, h.mcp} {
 		dir := filepath.Join(sd.cfg.SpoolRoot, "CLE-07", "inbox")
 		if err := os.MkdirAll(dir, 0o775); err != nil {
 			t.Fatal(err)
 		}
-		bad := `{"v":1,"msg_id":"m","task_id":"` + task + `","ts":"2026-09-18T00:00:00Z","from":"GRK-03","to":"CLE-07","kind":"note","body":"x","files":[],"sig":"AAAA"}`
-		if err := os.WriteFile(filepath.Join(dir, "bad.json"), []byte(bad), 0o664); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "bad.json"), []byte(`{"v":1,"not":"a message"}`), 0o664); err != nil {
 			t.Fatal(err)
 		}
 	}
 	cliOut, cliErr, rc := h.run("recv", "--as", "CLE-07")
 	mcpOut, isErr := h.call("spool_recv", map[string]any{"as": "CLE-07"})
-	if rc != 78 {
-		t.Fatalf("tampered CLI exit = %d, want 78", rc)
+	if rc != 1 {
+		t.Fatalf("malformed CLI exit = %d, want 1", rc)
 	}
-	want := []string{cliOut, cliErr + " (exit 78)"}
-	if !isErr || strings.Join(mcpOut, "\n") != strings.Join(want, "\n") {
-		t.Errorf("tampered tool result: isErr=%v content=%q, want %q", isErr, mcpOut, want)
+	if !isErr || len(mcpOut) != 2 || mcpOut[0] != cliOut || h.norm(mcpOut[1], h.mcp) != h.norm(cliErr+" (exit 1)", h.cli) {
+		t.Errorf("malformed tool result: isErr=%v content=%q, want [%q %q]", isErr, mcpOut, cliOut, cliErr+" (exit 1)")
 	}
 }
 
@@ -302,25 +314,4 @@ func keys(m map[string]string) []string {
 	}
 	sort.Strings(k)
 	return k
-}
-
-func copyDir(t *testing.T, src, dst string) {
-	t.Helper()
-	if err := os.MkdirAll(dst, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, e := range entries {
-		info, _ := e.Info()
-		b, err := os.ReadFile(filepath.Join(src, e.Name()))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dst, e.Name()), b, info.Mode().Perm()); err != nil {
-			t.Fatal(err)
-		}
-	}
 }

@@ -31,6 +31,9 @@ var validKinds = map[string]bool{"task": true, "result": true, "note": true, "re
 // idRe matches an agent id: a 2-4 letter kind prefix and a number, e.g. CLE-07.
 var idRe = regexp.MustCompile(`^[A-Z]{2,4}-\d+$`)
 
+// boxRe matches a box id ($SPOOL_BOX_ID), e.g. box-a.
+var boxRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
+
 // Attachment is one file or directory carried by a message. Two modes:
 //
 //   - mode "blob": bytes were copied into $SPOOL_ROOT/files/<file_id>
@@ -174,6 +177,9 @@ func (a Attachment) validate() error {
 
 // ValidID reports whether s is a well-formed agent id.
 func ValidID(s string) bool { return idRe.MatchString(s) }
+
+// ValidBoxID reports whether s is a well-formed box id.
+func ValidBoxID(s string) bool { return boxRe.MatchString(s) }
 
 // Now returns an RFC3339 UTC timestamp with second precision.
 func Now(t time.Time) string { return t.UTC().Format(time.RFC3339) }

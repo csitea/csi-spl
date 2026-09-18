@@ -1,8 +1,8 @@
 // Package mcp is the spool's stdio MCP server (`spool mcp`, spec 002 US4). It
 // exposes five canonical, kind-agnostic tools, each a thin wrapper over the same
 // internal/action verb the CLI calls, so a tool and its verb return the same
-// text (contracts/mcp-tools.md). A verb's CLI exit 78 (verify/refuse) surfaces
-// as a tool error carrying the same reason.
+// text (contracts/mcp-tools.md). A verb's CLI failure surfaces as a tool error
+// carrying the same reason and exit code (78 = verify/refuse).
 package mcp
 
 import (
@@ -22,7 +22,7 @@ type PutFileIn struct {
 
 // SendIn is the input of spool_send.
 type SendIn struct {
-	From    string   `json:"from" jsonschema:"sender agent id, e.g. GRK-03; must be pinned and hold a key"`
+	From    string   `json:"from" jsonschema:"sender agent id, e.g. GRK-03"`
 	To      string   `json:"to" jsonschema:"recipient agent id, e.g. CLE-07"`
 	TaskID  string   `json:"task_id,omitempty" jsonschema:"thread uuid; a new one is minted when empty"`
 	Kind    string   `json:"kind" jsonschema:"one of task, result, note, reject"`
@@ -65,7 +65,7 @@ func NewServer(cfg *config.Config, version string) *sdk.Server {
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "spool_send",
-		Description: "Sign and send a v:1 message to another agent (== spool send). Refused if from is unpinned.",
+		Description: "Send a v:1 message to another agent on this box (== spool send).",
 	}, func(_ context.Context, _ *sdk.CallToolRequest, in SendIn) (*sdk.CallToolResult, action.SendResult, error) {
 		out, err := action.Send(cfg, action.SendArgs{
 			From: in.From, To: in.To, TaskID: in.TaskID, Kind: in.Kind, Body: in.Body, FileIDs: in.FileIDs,
@@ -78,7 +78,7 @@ func NewServer(cfg *config.Config, version string) *sdk.Server {
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "spool_recv",
-		Description: "Return the verified v:1 messages in an agent's inbox as a JSON array (== spool recv).",
+		Description: "Return the v:1 messages in an agent's inbox as a JSON array (== spool recv).",
 	}, func(_ context.Context, _ *sdk.CallToolRequest, in RecvIn) (*sdk.CallToolResult, any, error) {
 		msgs, err := action.Recv(cfg, in.As, in.Ack)
 		if err == nil {
@@ -87,7 +87,7 @@ func NewServer(cfg *config.Config, version string) *sdk.Server {
 		if msgs == nil {
 			return nil, nil, toolErr(err)
 		}
-		// Like the CLI (stdout + exit 78): the verified, possibly already acked,
+		// Like the CLI (stdout + non-zero exit): the good, possibly already acked,
 		// messages are still returned alongside the error.
 		res := text(action.JSON(msgs))
 		res.Content = append(res.Content, &sdk.TextContent{Text: toolErr(err).Error()})

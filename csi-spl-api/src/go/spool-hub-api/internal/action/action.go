@@ -35,11 +35,13 @@ type SendArgs struct {
 	PutFile                      string
 }
 
-// SendResult is what send returns.
+// SendResult is what send returns. Delivery is always "local" in 002; hub
+// mode adds "sent" and "queued" (contracts/trust-modes.md section 8).
 type SendResult struct {
-	MsgID  string `json:"msg_id"`
-	TaskID string `json:"task_id"`
-	TS     string `json:"ts"`
+	Delivery string `json:"delivery"`
+	MsgID    string `json:"msg_id"`
+	TaskID   string `json:"task_id"`
+	TS       string `json:"ts"`
 }
 
 // GetResult is what get-file / get-dir return.
@@ -101,12 +103,13 @@ func Send(cfg *config.Config, in SendArgs) (SendResult, error) {
 	if err != nil {
 		return SendResult{}, err
 	}
-	return SendResult{MsgID: m.MsgID, TaskID: m.TaskID, TS: m.TS}, nil
+	return SendResult{Delivery: "local", MsgID: m.MsgID, TaskID: m.TaskID, TS: m.TS}, nil
 }
 
-// Recv returns the verified messages of as's inbox. The slice is non-nil
-// whenever the inbox was read, even alongside a verify error (the good messages
-// are still returned, and acked when ack is set); it is nil when nothing was read.
+// Recv returns the well-formed messages of as's inbox. The slice is non-nil
+// whenever the inbox was read, even alongside an error for malformed files (the
+// good messages are still returned, and acked when ack is set); it is nil when
+// nothing was read.
 func Recv(cfg *config.Config, as string, ack bool) ([]*msg.Message, error) {
 	res, err := spool.New(cfg).Recv(as, ack)
 	if res == nil {

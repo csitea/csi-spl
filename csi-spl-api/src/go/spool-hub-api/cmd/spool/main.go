@@ -5,8 +5,8 @@
 // Verbs (invoked as `spool <verb>`; the hyphenated `spool-<verb>` names in the
 // contract are shims over these):
 //
-//	keygen  --as <id> [--force]
-//	pin     --id <id> --pubkey <b64> [--force]
+//	keygen  [--box <box_id>] [--force]      box keypair; --box defaults to $SPOOL_BOX_ID
+//	pin     --box <box_id> --pubkey <b64> [--force]
 //	send    --from <id> --to <id> [--task <uuid>] --kind <k> --body <text>
 //	          [--file-id <id>]... [--file-ref <path>]... [--dir-blob <path>]... [--dir-ref <path>]...
 //	recv    --as <id> [--ack]
@@ -16,7 +16,11 @@
 //	mcp                        stdio MCP server exposing the verbs as tools
 //	version
 //
-// Exit codes: 0 ok, 78 verify/refuse (unpinned, bad sig, hash mismatch), 1 other.
+// Local mode (no hub) is unsigned: send/recv need no key and no pin; keygen and
+// pin only prepare the one per-box key for hub mode (contracts/trust-modes.md).
+//
+// Exit codes: 0 ok, 78 verify/refuse (hash mismatch; in hub mode also a bad or
+// unpinned box signature), 1 other.
 package main
 
 import (
@@ -85,15 +89,15 @@ func run(args []string) int {
 
 func cmdKeygen(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("keygen", flag.ContinueOnError)
-	as := fs.String("as", "", "agent id (e.g. CLE-07)")
+	box := fs.String("box", cfg.BoxID, "box id (default $SPOOL_BOX_ID)")
 	force := fs.Bool("force", false, "overwrite an existing key")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if !msg.ValidID(*as) {
-		return fail(fmt.Errorf("--as must be a valid agent id"))
+	if !msg.ValidBoxID(*box) {
+		return fail(fmt.Errorf("--box or $SPOOL_BOX_ID must be a valid box id (e.g. box-a)"))
 	}
-	pub, err := sign.GenerateKey(cfg.KeysDir, *as, *force)
+	pub, err := sign.GenerateKey(cfg.KeysDir, *box, *force)
 	if err != nil {
 		return fail(err)
 	}
@@ -103,16 +107,16 @@ func cmdKeygen(cfg *config.Config, args []string) int {
 
 func cmdPin(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("pin", flag.ContinueOnError)
-	id := fs.String("id", "", "agent id to pin")
-	pub := fs.String("pubkey", "", "base64 public key")
+	box := fs.String("box", "", "box id to pin")
+	pub := fs.String("pubkey", "", "base64 box public key")
 	force := fs.Bool("force", false, "replace an existing different pin")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if !msg.ValidID(*id) || *pub == "" {
-		return fail(fmt.Errorf("--id (valid) and --pubkey are required"))
+	if !msg.ValidBoxID(*box) || *pub == "" {
+		return fail(fmt.Errorf("--box (valid box id) and --pubkey are required"))
 	}
-	if err := sign.Pin(cfg.PinsDir, *id, *pub, *force); err != nil {
+	if err := sign.Pin(cfg.PinsDir, *box, *pub, *force); err != nil {
 		return fail(err)
 	}
 	return 0

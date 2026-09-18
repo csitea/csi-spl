@@ -1,9 +1,11 @@
-// Package sign handles Ed25519 keypairs, the shared pin store, and the
-// sign/verify of a message's canonical payload.
+// Package sign handles the per-BOX Ed25519 keypair, the shared box pin store,
+// and sign/verify of a canonical payload (contracts/trust-modes.md).
 //
-// Private keys live strictly under the keys dir ($HOME/.spool/keys by default),
-// mode 0600, and never enter $SPOOL_ROOT, a message, or a log. Public pins live
-// shared under $SPOOL_ROOT/pins, mode 0644, so every agent can verify peers.
+// There is one keypair per box ($SPOOL_BOX_ID), shared by every agent on it; no
+// agent has a key. Local mode (002) never signs: keys exist only for hub mode.
+// The private key lives strictly under the keys dir ($HOME/.spool/keys by
+// default) as box-<id>.key, mode 0600, and never enters $SPOOL_ROOT, a message,
+// or a log. Public pins live shared as $SPOOL_ROOT/pins/box-<id>.pub, mode 0644.
 package sign
 
 import (
@@ -15,16 +17,16 @@ import (
 	"path/filepath"
 )
 
-// ErrUnpinned is returned when an id has no pin. Callers map it to exit 78.
-var ErrUnpinned = errors.New("agent id is not pinned")
+// ErrUnpinned is returned when a box has no pin or no key. Maps to exit 78.
+var ErrUnpinned = errors.New("box is not pinned")
 
 // ErrVerify is returned when a signature fails to verify. Maps to exit 78.
 var ErrVerify = errors.New("signature verification failed")
 
-func keyPath(keysDir, id string) string { return filepath.Join(keysDir, id+".key") }
-func pinPath(pinsDir, id string) string { return filepath.Join(pinsDir, id+".pub") }
+func keyPath(keysDir, box string) string { return filepath.Join(keysDir, "box-"+box+".key") }
+func pinPath(pinsDir, box string) string { return filepath.Join(pinsDir, "box-"+box+".pub") }
 
-// GenerateKey creates a keypair for id, writing the private key 0600 under
+// GenerateKey creates the keypair of box id, writing the private key 0600 under
 // keysDir. It refuses to clobber an existing key unless force is set. It
 // returns the base64 public key (for pinning).
 func GenerateKey(keysDir, id string, force bool) (pubB64 string, err error) {
@@ -46,7 +48,7 @@ func GenerateKey(keysDir, id string, force bool) (pubB64 string, err error) {
 	return base64.StdEncoding.EncodeToString(pub), nil
 }
 
-// LoadPrivate reads id's private key from keysDir.
+// LoadPrivate reads box id's private key from keysDir.
 func LoadPrivate(keysDir, id string) (ed25519.PrivateKey, error) {
 	raw, err := os.ReadFile(keyPath(keysDir, id))
 	if err != nil {
@@ -65,7 +67,7 @@ func LoadPrivate(keysDir, id string) (ed25519.PrivateKey, error) {
 	return ed25519.PrivateKey(dec), nil
 }
 
-// Pin records id's public key in the shared pin store. It refuses to change an
+// Pin records box id's public key in the shared pin store. It refuses to change an
 // existing pin to a different key unless force is set (no silent key swap).
 func Pin(pinsDir, id, pubB64 string, force bool) error {
 	if err := os.MkdirAll(pinsDir, 0o755); err != nil {
@@ -83,7 +85,7 @@ func Pin(pinsDir, id, pubB64 string, force bool) error {
 	return os.WriteFile(pp, []byte(pubB64+"\n"), 0o644)
 }
 
-// LoadPin reads id's pinned public key. Returns ErrUnpinned if absent.
+// LoadPin reads box id's pinned public key. Returns ErrUnpinned if absent.
 func LoadPin(pinsDir, id string) (ed25519.PublicKey, error) {
 	raw, err := os.ReadFile(pinPath(pinsDir, id))
 	if err != nil {

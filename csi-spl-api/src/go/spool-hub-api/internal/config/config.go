@@ -16,11 +16,14 @@ import (
 type Config struct {
 	// SpoolRoot is the on-box message tree. Default mirrors the ysg-box reference.
 	SpoolRoot string `env:"SPOOL_ROOT" envDefault:"/var/tmp/claude/msgs"`
-	// KeysDir holds agent PRIVATE keys, strictly outside SpoolRoot. Empty here
+	// KeysDir holds the box PRIVATE key, strictly outside SpoolRoot. Empty here
 	// means "$HOME/.spool/keys", resolved in Load.
 	KeysDir string `env:"SPOOL_KEYS_DIR"`
-	// PinsDir holds shared PUBLIC pins. Empty here means "<SpoolRoot>/pins".
+	// PinsDir holds shared PUBLIC box pins. Empty here means "<SpoolRoot>/pins".
 	PinsDir string `env:"SPOOL_PINS_DIR"`
+	// BoxID names this box for its keypair and hub routing. No default: local
+	// mode never needs it, and keygen/pin fail fast when it is unset.
+	BoxID string `env:"SPOOL_BOX_ID"`
 	// LogLevel is a zerolog level name (trace|debug|info|warn|error).
 	LogLevel string `env:"SPOOL_LOG_LEVEL" envDefault:"info"`
 	// LogFormat is "console" (CLI) or "json" (deployed).

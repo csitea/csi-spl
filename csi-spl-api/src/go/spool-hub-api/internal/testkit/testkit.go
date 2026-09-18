@@ -1,5 +1,5 @@
 // Package testkit provides shared fixtures for the spool's tests: a throwaway
-// $SPOOL_ROOT/keys/pins triple and a keygen+pin helper. Modeled on the
+// $SPOOL_ROOT/keys/pins triple and a box keygen+pin helper. Modeled on the
 // pas-psf-api internal/testkit convention. It imports only config and sign, so
 // it never creates an import cycle with the packages under test.
 package testkit
@@ -26,8 +26,8 @@ func NewConfig(t *testing.T) *config.Config {
 	}
 }
 
-// KeygenPin creates a keypair for id and pins its public key, so id can both
-// sign (send) and be verified (recv).
+// KeygenPin creates the keypair of box id and pins its public key. Local mode
+// never uses it; it exists for the optional key ceremony and hub mode.
 func KeygenPin(t *testing.T, cfg *config.Config, id string) {
 	t.Helper()
 	pub, err := sign.GenerateKey(cfg.KeysDir, id, false)

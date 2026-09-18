@@ -14,15 +14,11 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/testkit"
 )
 
-// newCfg / keygenPin delegate to the shared testkit fixtures (T004c).
+// newCfg delegates to the shared testkit fixture (T004c).
 func newCfg(t *testing.T) *config.Config { return testkit.NewConfig(t) }
-
-func keygenPin(t *testing.T, cfg *config.Config, id string) { testkit.KeygenPin(t, cfg, id) }
 
 func TestUS1_RoundTrip(t *testing.T) {
 	cfg := newCfg(t)
-	keygenPin(t, cfg, "GRK-03")
-	keygenPin(t, cfg, "CLE-07")
 	st := New(cfg)
 
 	sent, err := st.Send("GRK-03", "CLE-07", "", "task", "review this", nil)
@@ -45,61 +41,103 @@ func TestUS1_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestUS1_TamperedBodyFails78(t *testing.T) {
+func TestUS1_UnsignedNoKeyNoPin(t *testing.T) {
 	cfg := newCfg(t)
-	keygenPin(t, cfg, "GRK-03")
-	keygenPin(t, cfg, "CLE-07")
 	st := New(cfg)
-	if _, err := st.Send("GRK-03", "CLE-07", "", "task", "original", nil); err != nil {
-		t.Fatal(err)
+	// No keygen, no pin: local mode must still deliver (trust-modes section 2).
+	if _, err := st.Send("AGY-09", "CLE-07", "", "note", "hi", nil); err != nil {
+		t.Fatalf("unsigned send: %v", err)
 	}
-	// Tamper: rewrite the stored inbox file with an altered body.
-	inbox := st.dir("CLE-07", "inbox")
-	entries, _ := os.ReadDir(inbox)
+	entries, _ := os.ReadDir(st.dir("CLE-07", "inbox"))
 	if len(entries) != 1 {
-		t.Fatalf("expected 1 inbox file, got %d", len(entries))
+		t.Fatalf("want 1 inbox file, got %d", len(entries))
 	}
-	p := filepath.Join(inbox, entries[0].Name())
-	raw, _ := os.ReadFile(p)
-	m, _ := msg.Parse(raw)
-	m.Body = "tampered"
-	bad, _ := msg.Marshal(m) // note: NOT re-signed
-	os.WriteFile(p, bad, 0o664)
-
-	res, err := st.Recv("CLE-07", false)
-	if err == nil || !errors.Is(err, sign.ErrVerify) {
-		t.Fatalf("want ErrVerify, got %v", err)
+	raw, _ := os.ReadFile(filepath.Join(st.dir("CLE-07", "inbox"), entries[0].Name()))
+	if strings.Contains(string(raw), `"sig"`) {
+		t.Fatalf("local v:1 must omit sig: %s", raw)
 	}
-	if res.Failed != 1 || len(res.Messages) != 0 {
-		t.Fatalf("want 0 valid / 1 failed, got %d/%d", len(res.Messages), res.Failed)
+	if _, err := os.Stat(cfg.KeysDir); !os.IsNotExist(err) {
+		t.Fatalf("local send must not touch the keys dir (stat err %v)", err)
 	}
-	if ExitCode(err) != 78 {
-		t.Fatalf("want exit 78, got %d", ExitCode(err))
+	res, err := st.Recv("CLE-07", true)
+	if err != nil || len(res.Messages) != 1 || res.Messages[0].From != "AGY-09" {
+		t.Fatalf("unsigned recv: %v %+v", err, res)
 	}
 }
 
-func TestUS1_UnpinnedSenderRefused78(t *testing.T) {
+func TestUS1_BoxKeyDoesNotSignLocally(t *testing.T) {
 	cfg := newCfg(t)
-	keygenPin(t, cfg, "CLE-07")
-	// AGY-09 has neither key nor pin.
+	testkit.KeygenPin(t, cfg, "box-a") // keys may exist for later hub use
 	st := New(cfg)
-	_, err := st.Send("AGY-09", "CLE-07", "", "note", "hi", nil)
-	if err == nil || !errors.Is(err, sign.ErrUnpinned) {
-		t.Fatalf("want ErrUnpinned, got %v", err)
+	if _, err := st.Send("GRK-03", "CLE-07", "", "task", "x", nil); err != nil {
+		t.Fatal(err)
 	}
-	if ExitCode(err) != 78 {
-		t.Fatalf("want exit 78, got %d", ExitCode(err))
+	entries, _ := os.ReadDir(st.dir("CLE-07", "inbox"))
+	raw, _ := os.ReadFile(filepath.Join(st.dir("CLE-07", "inbox"), entries[0].Name()))
+	if strings.Contains(string(raw), `"sig"`) {
+		t.Fatalf("a box key must not sign local mail: %s", raw)
 	}
-	// Nothing was written to CLE-07's inbox.
-	if entries, _ := os.ReadDir(st.dir("CLE-07", "inbox")); len(entries) != 0 {
-		t.Fatalf("refused send must write nothing, found %d", len(entries))
+}
+
+func TestUS1_PresentSigIsTolerated(t *testing.T) {
+	cfg := newCfg(t)
+	st := New(cfg)
+	if _, err := st.Send("GRK-03", "CLE-07", "", "task", "old", nil); err != nil {
+		t.Fatal(err)
+	}
+	// A file written by the earlier signed model: recv trusts the filesystem
+	// and does not check a sig it has no key model for.
+	inbox := st.dir("CLE-07", "inbox")
+	entries, _ := os.ReadDir(inbox)
+	p := filepath.Join(inbox, entries[0].Name())
+	raw, _ := os.ReadFile(p)
+	m, _ := msg.Parse(raw)
+	m.Sig = "bm90LWEtcmVhbC1zaWc="
+	signed, _ := msg.Marshal(m)
+	os.WriteFile(p, signed, 0o664)
+	res, err := st.Recv("CLE-07", false)
+	if err != nil || len(res.Messages) != 1 {
+		t.Fatalf("recv of a sig-bearing local file: %v len=%d", err, len(res.Messages))
+	}
+}
+
+func TestUS1_MalformedFileSurfacesExit1(t *testing.T) {
+	cfg := newCfg(t)
+	st := New(cfg)
+	if _, err := st.Send("GRK-03", "CLE-07", "", "task", "good", nil); err != nil {
+		t.Fatal(err)
+	}
+	bad := filepath.Join(st.dir("CLE-07", "inbox"), "zz-bad.json")
+	os.WriteFile(bad, []byte(`{"v":1,"not":"a message"}`), 0o664)
+
+	res, err := st.Recv("CLE-07", true)
+	if err == nil {
+		t.Fatal("want an error for the malformed file")
+	}
+	if res.Failed != 1 || len(res.Messages) != 1 {
+		t.Fatalf("want 1 good / 1 failed, got %d/%d", len(res.Messages), res.Failed)
+	}
+	if ExitCode(err) != 1 {
+		t.Fatalf("malformed is not a refusal: want exit 1, got %d", ExitCode(err))
+	}
+	if _, err := os.Stat(bad); err != nil {
+		t.Fatalf("malformed file must stay in the inbox: %v", err)
+	}
+}
+
+func TestExitCode78OnlyForSignErrors(t *testing.T) {
+	for _, err := range []error{sign.ErrVerify, sign.ErrUnpinned} {
+		if ExitCode(err) != 78 {
+			t.Errorf("%v: want 78, got %d", err, ExitCode(err))
+		}
+	}
+	if ExitCode(errors.New("io")) != 1 {
+		t.Error("other errors must map to 1")
 	}
 }
 
 func TestUS1_DoubleAckDeliversOnce(t *testing.T) {
 	cfg := newCfg(t)
-	keygenPin(t, cfg, "GRK-03")
-	keygenPin(t, cfg, "CLE-07")
 	st := New(cfg)
 	if _, err := st.Send("GRK-03", "CLE-07", "", "task", "once", nil); err != nil {
 		t.Fatal(err)
@@ -181,10 +219,8 @@ func TestUS2_BlobDirDeterministicRoundTrip(t *testing.T) {
 	}
 }
 
-func TestUS2_PathRefFileResolvesAndSendVerifies(t *testing.T) {
+func TestUS2_PathRefFileResolves(t *testing.T) {
 	cfg := newCfg(t)
-	keygenPin(t, cfg, "GRK-03")
-	keygenPin(t, cfg, "CLE-07")
 	st := New(cfg)
 
 	src := filepath.Join(t.TempDir(), "report.txt")
@@ -196,7 +232,7 @@ func TestUS2_PathRefFileResolvesAndSendVerifies(t *testing.T) {
 	if a.Mode != "path" || a.Kind != "file" || a.Path == "" || a.SHA256 == "" {
 		t.Fatalf("bad path attachment: %+v", a)
 	}
-	// Send carrying the path ref; signature must still verify (files in canonical).
+	// Send carrying the path ref.
 	if _, err := st.Send("GRK-03", "CLE-07", "", "result", "see attached path", []msg.Attachment{a}); err != nil {
 		t.Fatalf("send with path ref: %v", err)
 	}
@@ -236,8 +272,6 @@ func TestUS2_PathRefDir(t *testing.T) {
 
 func TestUS3_TailOrdered(t *testing.T) {
 	cfg := newCfg(t)
-	keygenPin(t, cfg, "GRK-03")
-	keygenPin(t, cfg, "CLE-07")
 	st := New(cfg)
 	m1, _ := st.Send("GRK-03", "CLE-07", "", "task", "first", nil)
 	task := m1.TaskID
@@ -299,8 +333,8 @@ Verification completed cleanly.
 	if m.Kind != "note" {
 		t.Errorf("want kind=note, got %s", m.Kind)
 	}
-	if m.Sig != "legacy-unsigned" {
-		t.Errorf("want sig=legacy-unsigned, got %s", m.Sig)
+	if m.Sig != "" {
+		t.Errorf("legacy bridge must be unsigned, got sig=%s", m.Sig)
 	}
 	if m.TaskID != "11111111-2222-3333-4444-555555555555" {
 		t.Errorf("want task_id from frontmatter, got %s", m.TaskID)

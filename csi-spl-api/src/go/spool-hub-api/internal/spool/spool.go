@@ -1,7 +1,7 @@
 // Package spool implements the on-box message store: the $SPOOL_ROOT layout,
-// signed send, verified recv with an at-most-once ack, and a task tail. It is
-// the local, no-hub realisation of the box API (spec 002); 003 puts the same
-// v:1 object behind an HTTP hub without changing any of this.
+// unsigned send, recv with an at-most-once ack, and a task tail. It is the
+// local, no-hub realisation of the box API (spec 002); in hub mode 003 carries
+// the same inner v:1 object inside a box-signed envelope.
 package spool
 
 import (
@@ -39,20 +39,12 @@ func (s *Store) ensureAgent(id string) error {
 
 func (s *Store) dir(id, box string) string { return filepath.Join(s.cfg.SpoolRoot, id, box) }
 
-// Send builds a v:1 message, signs it with from's private key, and writes it to
-// the recipient's inbox and the sender's outbox. It refuses (sign.ErrUnpinned)
-// when from is unpinned or its key is missing.
+// Send builds an unsigned v:1 message and writes it to the recipient's inbox
+// and the sender's outbox. Local mode trusts POSIX permissions on SpoolRoot: no
+// key, no pin, no sig (contracts/trust-modes.md section 2).
 func (s *Store) Send(from, to, taskID, kind, body string, atts []msg.Attachment) (*msg.Message, error) {
 	if !msg.ValidID(from) || !msg.ValidID(to) {
 		return nil, fmt.Errorf("from/to must be valid agent ids")
-	}
-	// from must be pinned (its author identity is publishable) AND hold a key.
-	if _, err := sign.LoadPin(s.cfg.PinsDir, from); err != nil {
-		return nil, err
-	}
-	priv, err := sign.LoadPrivate(s.cfg.KeysDir, from)
-	if err != nil {
-		return nil, err
 	}
 	if taskID == "" {
 		taskID = newUUID()
@@ -68,11 +60,6 @@ func (s *Store) Send(from, to, taskID, kind, body string, atts []msg.Attachment)
 	if err := m.Validate(); err != nil {
 		return nil, err
 	}
-	payload, err := msg.Canonical(m)
-	if err != nil {
-		return nil, err
-	}
-	m.Sig = sign.Sign(priv, payload)
 
 	blob, err := msg.Marshal(m)
 	if err != nil {
@@ -94,17 +81,16 @@ func (s *Store) Send(from, to, taskID, kind, body string, atts []msg.Attachment)
 	return m, nil
 }
 
-// RecvResult is the outcome of a Recv: the verified messages plus how many
-// files failed verification (so the caller can exit 78 while still returning
-// the good ones).
+// RecvResult is the outcome of a Recv: the valid messages plus how many files
+// were malformed (so the caller can fail while still returning the good ones).
 type RecvResult struct {
 	Messages []*msg.Message
 	Failed   int
 }
 
-// Recv reads as's inbox, verifies each message against the sender's pin, and
-// returns the valid ones. With ack, verified messages are atomically moved to
-// archive/. A verification failure increments Failed and leaves that file in
+// Recv reads as's inbox and returns the well-formed messages. Local mode trusts
+// the filesystem, so no signature is checked. With ack, returned messages are
+// atomically moved to archive/. A malformed file increments Failed and stays in
 // place (surfaced, not silently dropped).
 func (s *Store) Recv(as string, ack bool) (*RecvResult, error) {
 	if !msg.ValidID(as) {
@@ -139,7 +125,7 @@ func (s *Store) Recv(as string, ack bool) (*RecvResult, error) {
 		if filepath.Ext(name) == ".md" {
 			m, verr = s.readLegacyMD(p, as)
 		} else {
-			m, verr = s.readVerify(p)
+			m, verr = readMessage(p)
 		}
 		if verr != nil {
 			res.Failed++
@@ -153,13 +139,13 @@ func (s *Store) Recv(as string, ack bool) (*RecvResult, error) {
 		}
 	}
 	if res.Failed > 0 {
-		return res, fmt.Errorf("%d message(s) failed verification: %w", res.Failed, sign.ErrVerify)
+		return res, fmt.Errorf("%d malformed message file(s) left in %s", res.Failed, inbox)
 	}
 	return res, nil
 }
 
-// readVerify loads and verifies one stored message file.
-func (s *Store) readVerify(path string) (*msg.Message, error) {
+// readMessage loads and validates one stored message file.
+func readMessage(path string) (*msg.Message, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -169,17 +155,6 @@ func (s *Store) readVerify(path string) (*msg.Message, error) {
 		return nil, err
 	}
 	if err := m.Validate(); err != nil {
-		return nil, err
-	}
-	pub, err := sign.LoadPin(s.cfg.PinsDir, m.From)
-	if err != nil {
-		return nil, err
-	}
-	payload, err := msg.Canonical(m)
-	if err != nil {
-		return nil, err
-	}
-	if err := sign.Verify(pub, payload, m.Sig); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -297,6 +272,7 @@ func newUUID() string {
 }
 
 // ExitCode maps an error to the CLI convention: 0 ok, 78 verify/refuse, 1 other.
+// Local mode raises neither sign error; they are kept for hub mode (003).
 func ExitCode(err error) int {
 	switch {
 	case err == nil:
@@ -309,7 +285,7 @@ func ExitCode(err error) int {
 }
 
 // readLegacyMD ingests a legacy .md message file (e.g. from ysg-box inbox-send.sh)
-// wrapping it into a synthetic v:1 message with kind="note" and sig="legacy-unsigned".
+// wrapping it into a synthetic unsigned v:1 message with kind="note".
 func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -418,7 +394,6 @@ func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 		Kind:   "note",
 		Body:   body,
 		Files:  []msg.Attachment{},
-		Sig:    "legacy-unsigned",
 	}, nil
 }
 

@@ -42,6 +42,16 @@ variable "github_repository" {
   }
 }
 
+variable "github_ref" {
+  type        = string
+  description = "The ONE git ref whose workflow runs may impersonate the deploy SA (cnf steps.017-github-wif-deploy.github_ref): the trunk, refs/heads/master. A run from any other branch, tag or PR is refused at the provider and by the IAM binding."
+
+  validation {
+    condition     = can(regex("^refs/heads/[A-Za-z0-9_./-]+$", var.github_ref))
+    error_message = "github_ref must be a branch ref, e.g. refs/heads/master."
+  }
+}
+
 variable "pool_id" {
   type        = string
   default     = "github-actions"

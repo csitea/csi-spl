@@ -10,9 +10,12 @@
 #   GCP_WIF_PROVIDER_<ENV>    = output.wif_provider_name
 #   GCP_DEPLOY_SA_EMAIL_<ENV> = output.deploy_sa_email
 #
-# Trust is pinned to ONE repository (attribute_condition) — a token minted for
-# any other repo, fork or org is refused at the provider, before IAM is even
-# consulted.
+# Trust is pinned to ONE repository AND ONE ref, the trunk (attribute_condition):
+# a token minted for any other repo, fork, org, branch, tag or pull request is
+# refused at the provider, before IAM is even consulted. The deploy SA binding
+# repeats the ref pin, so a second provider added to the pool later cannot
+# widen it. Every workflow that authenticates runs from the trunk (push to it,
+# its schedule, or a workflow_dispatch of it).
 #
 # The deploy SA is CREATED here. (An earlier draft bound WIF to the
 # "<project>@<project>.iam.gserviceaccount.com" owner SA; measured 2026-09-18,
@@ -81,21 +84,19 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "attribute.workflow"         = "assertion.workflow"
   }
 
-  # Only tokens issued for this exact repository may exchange at all.
-  attribute_condition = "assertion.repository == \"${var.github_repository}\""
+  # Only tokens issued for this exact repository, on the trunk, may exchange.
+  attribute_condition = "assertion.repository == \"${var.github_repository}\" && assertion.ref == \"${var.github_ref}\""
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
   }
 }
 
-# Any job of the pinned repository may impersonate the deploy SA. Narrow to a
-# branch later by switching the member to
-#   .../attribute.ref/refs/heads/master
-# once every deploy workflow runs from master only (workflow_dispatch from a
-# branch would then be refused).
+# Only trunk runs may impersonate the deploy SA: the member is the principal
+# set of the pinned ref (the pool's provider already admits only the pinned
+# repository). A workflow_dispatch from a feature branch is refused.
 resource "google_service_account_iam_member" "github_wif_user" {
   service_account_id = google_service_account.deploy.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.ref/${var.github_ref}"
 }

@@ -8,6 +8,11 @@ output "deploy_sa_email" {
   description = "Impersonated deploy SA — value of the GitHub repo variable GCP_DEPLOY_SA_EMAIL_<ENV> (auth@v2 service_account)."
 }
 
+output "github_ref" {
+  value       = var.github_ref
+  description = "The only ref whose runs may impersonate the deploy SA."
+}
+
 output "github_repository" {
   value       = var.github_repository
   description = "Repository the trust is pinned to (attribute_condition)."

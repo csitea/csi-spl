@@ -6,6 +6,7 @@ gcp_project = "csi-spl-prd"
 gcp_region  = "europe-north1"
 
 github_repository = "csitea/csi-spl"
+github_ref = "refs/heads/master"
 pool_id = "github-actions"
 provider_id = "github"
 deploy_sa_account_id = "csi-spl-deploy-prd"

@@ -162,8 +162,23 @@ independent branch after step 2.
 | `gcloud dns managed-zones list --project=csi-spl-dev` | none |
 | `dig +short A spool-hub.ai` | Gandi parking address |
 
-So: the Cloud DNS zone **exists but is not delegated**. The registrar still
-points at Gandi, and the handoff to `ns-cloud-e1..e4` **has not happened**.
+So at 19:05Z the Cloud DNS zone **existed but was not delegated**.
+
+**Update, measured 2026-09-18T19:44Z (n=1 each, read-only): the handoff has
+happened, outside the repo.**
+
+| Check | Result |
+|---|---|
+| `dig +norec NS spool-hub.ai @v0n1.nic.ai` | `ns-cloud-e1..e4.googledomains.com` (TTL 3600) |
+| `dig +short @ns-cloud-e1.googledomains.com A spool-hub.ai` | empty: **the apex no longer resolves** |
+| same for `www.spool-hub.ai` | empty: the Gandi `www` redirect is gone |
+| same for `t1.dev.spool-hub.ai` | `136.68.5.155` (the dev `*.dev` A record is in the zone) |
+
+Option A is therefore in effect **de facto, but only half of it**: the zone
+is authoritative, yet its "copy the apex parking record" half was never done,
+so `http://spool-hub.ai/` stops resolving as resolver caches expire. The
+owner has **not confirmed** A in the repo: `300a998` still says stay on Gandi,
+and `do_gandi_set_nameservers` still refuses `ns-cloud-*` (`04f7dca`).
 
 This collides with an earlier owner decision on trunk (`git show 300a998`,
 `cb25346`, `04f7dca`): *public DNS stays on Gandi LiveDNS, never re-delegate
@@ -237,7 +252,7 @@ steps are each a task.
 
 | Item | Owner |
 |---|---|
-| NS handoff A vs B (§6.1); blocks 007 step 3a and the prd apex record | **owner** |
+| **Confirm option A** (NS handoff done de facto, §6.1 update 19:44Z). If confirmed: the apply lane adds the apex (Gandi parking A, or the hub) and `www` to the zone; 007 records A as decided and lifts the `ns-cloud-*` refusal. Until then the apex and `www` do not resolve | **owner** → apply lane, 007 |
 | ~~`10 ci: quality gate` red on trunk~~ — **resolved**: `4839514` fixed the sweep under `bash -e`; gate green on `33560da` (run 35385128819); 008 T107 / FR-P07 Implemented (`cb1f254`) | 008 |
 | `017-github-wif-deploy` is on trunk (`2a7888c`) but **not applied**; repo vars `GCP_WIF_PROVIDER_<ENV>` / `GCP_DEPLOY_SA_EMAIL_<ENV>` unset, so every `20 ci-cd` deploy job skips both envs. A green `20 ci-cd` run proves nothing about deploys: the deployed-state check is `./run -a do_check_hub_deploy` (`7bfe152`; 0 current / 3 lagging / 4 unhealthy / 1 cannot tell) | 007 T050 (apply, owner go) → 008 T105–T109 |
 | prd: 001 services not enabled; nothing past step 2 | 007 |
@@ -247,4 +262,4 @@ steps are each a task.
 | view-v1 not built; WUI client calls dropped routes | 003 US7 → 005 G5 |
 | Several lanes stamped `last-edit` in local time with a `Z` suffix | cosmetic; fix on next edit |
 
-<!-- version: 1.2.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:36:03Z -->
+<!-- version: 1.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:15Z -->

@@ -30,13 +30,13 @@ Operator types `@CLE-07 review patch.zip` in `#dev`. The WUI sends this as `kind
 
 Any authenticated human or autonomous agent can create a new channel (e.g. `CLE-07` creates `#feature-auth` to coordinate subagents). Channel is immediately registered in tenant channels list. All channels within a tenant are public to all tenant members.
 
-### User Story 6 - Rich Artifact & Code Diff Viewer (Priority: P1)
+### User Story 6 - File Attachments & Download Links (Priority: P1)
 
-Operator or agent posts a message with attached files (`files: [{ path, sha256, size }]`). Clicking an attachment opens the embedded viewer: `.patch`/`.diff` files render as syntax-highlighted side-by-side or unified diffs; `.md` files render with GitHub-flavored markdown; images render inline.
+Operator or agent posts a message with attached files (`files: [{ path, sha256, size }]`). The WUI renders an attachment card with the filename, byte size, verified sha256, and a direct download link fetching from GCS via `GET /v1/files/{sha256}`. Viewing and diffing happen externally.
 
-### User Story 7 - Human Escalations & Webhook Alerts (Priority: P2)
+### User Story 7 - In-Browser Escalations & Notifications (Priority: P2)
 
-When an agent encounters a blocker, mentions `@HUM-*`, or posts to `#alerts`, the WUI triggers an HTML5 browser push notification and audio chime. If configured in tenant settings, an outgoing webhook notifies Slack, Discord, or PagerDuty.
+When an agent encounters a blocker, mentions `@HUM-*`, receives a DM, or posts to `#alerts`, the WUI triggers an HTML5 browser push notification and audio chime, accompanied by an unread count badge in the sidebar.
 
 ### User Story 8 - Configurable Thread Verbosity (Priority: P2)
 
@@ -55,8 +55,8 @@ In any task thread, the user can toggle the verbosity level (`minimal`, `normal`
 - **FR-009**: Channel subscriptions & Mention-Driven Routing: box sidecars subscribe agents to channels; agents only receive messages when explicitly `@mentioned` or broadcast via `@channel`.
 - **FR-010**: Direct Messages sidebar section for private 1:1 chats with agents and humans (`channel: null`).
 - **FR-011**: Channel creation allowed for authenticated humans and autonomous agents.
-- **FR-012**: Rich artifact viewer for syntax-highlighted code diffs, markdown documents, and image previews fetched from `GET /v1/files/{sha256}`.
+- **FR-012**: File attachment cards with metadata verification and download buttons via `GET /v1/files/{sha256}`.
 - **FR-013**: Configurable thread verbosity (`minimal`, `normal`, `verbose`) for progressive disclosure of agent execution details.
-- **FR-014**: Notification engine with HTML5 browser push, audio chimes, and outgoing tenant webhooks (Slack/Discord/PagerDuty).
+- **FR-014**: In-browser notification engine with HTML5 browser push, audio chimes, and sidebar unread badges.
 
 <!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:55:00Z -->

@@ -82,22 +82,21 @@ Human authentication follows the standard product auth model (OAuth2 / Magic Lin
 
 ---
 
-## 5. Rich Artifact & Code Diff Viewer
+## 5. File Attachments (Download Links Only)
 
 When messages reference files via `v:1` (`files: [{ path, sha256, size }]`):
-- The WUI fetches file content on-demand from GCS via `GET /v1/files/{sha256}`.
-- **Code Diffs**: `.patch` and `.diff` files render in an embedded syntax-highlighted diff viewer with side-by-side and unified diff modes.
-- **Markdown & Runbooks**: `.md` files render with GitHub-flavored markdown (tables, alerts, checklist badges, copyable code blocks).
-- **Media Previews**: Image attachments (`.png`, `.svg`, `.webp`) and test output logs render with inline zoomable previews.
-- Direct download buttons accompany each file card.
+- The WUI renders clean attachment cards displaying the filename, formatted byte size, and verified sha256 hash.
+- A **Download** button retrieves the raw file bytes directly from GCS via `GET /v1/files/{sha256}`.
+- Viewing, editing, and diffing happen externally in the user's local tools or IDE; the WUI does not embed a heavyweight code diff or preview engine.
 
 ---
 
-## 6. Escalation & External Notifications
+## 6. Escalation & In-Browser Notifications
 
-When an agent encounters a blocker, posts `kind: "reject"`, mentions `@HUM-*`, or emits an alert to `#alerts`:
-- **In-App & Browser Push**: The WUI triggers native HTML5 Web Push notifications and an audible notification chime, along with badge counters in the channel sidebar.
-- **Outgoing Webhooks**: Tenant settings allow operators to configure external webhooks (Slack incoming webhook, Discord, or PagerDuty) triggered on designated event thresholds.
+When an agent encounters a blocker, posts `kind: "reject"`, mentions `@HUM-*`, receives a DM, or emits an alert to `#alerts`:
+- **HTML5 Browser Push Notifications**: Triggers native desktop/browser notifications if granted permission, linking directly to the thread or channel.
+- **Audio Chime & Unread Badges**: Emits an audible notification chime and increments the visual unread badge counters in the sidebar.
+- No external outgoing webhooks (Slack/Discord/PagerDuty) are required in the M3 MVP.
 
 ---
 

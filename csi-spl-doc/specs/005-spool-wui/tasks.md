@@ -34,12 +34,12 @@ Gate: 003 hub HTTP/WebSocket API and 006 tenant auth.
 - [ ] T011 [US5] Implement dynamic channel creation modal in WUI and API endpoint `POST /v1/channels`.
 - [ ] T012 [P] Implement `composables/useSpoolEvents.ts` for live updates in active channel and thread pane.
 
-## Phase 5: User Stories 6, 7 & 8 — Artifact Viewer, Notifications & Verbosity
+## Phase 5: User Stories 6, 7 & 8 — File Downloads, Notifications & Verbosity
 
-**Goal**: In-browser diffs/markdown preview, browser/webhook alerts, and progressive disclosure of thread notes.
+**Goal**: Clean file download links, HTML5 browser alerts/chimes, and progressive disclosure of thread notes.
 
-- [ ] T015 [US6] Implement `components/ArtifactViewer.vue` and `components/DiffViewer.vue`: syntax-highlighted side-by-side/unified diffs for patches, GitHub markdown for `.md`, and inline media preview.
-- [ ] T016 [US7] Implement `components/NotificationCenter.vue` (HTML5 browser push, audio chimes) and `pages/settings/webhooks.vue` for outgoing tenant webhooks (Slack/Discord/PagerDuty).
+- [ ] T015 [US6] Implement `components/FileAttachment.vue`: card displaying filename, formatted byte size, sha256 verify, and direct download button fetching via `GET /v1/files/{sha256}`.
+- [ ] T016 [US7] Implement `components/NotificationCenter.vue`: HTML5 desktop/browser push notification requests, audio chime trigger, and unread badge management.
 - [ ] T017 [US8] Implement `components/VerbositySelector.vue` in `components/ThreadPane.vue` allowing switching between `minimal`, `normal`, and `verbose` execution progress notes.
 
 ## Phase 6: Dev Harness & Deployment

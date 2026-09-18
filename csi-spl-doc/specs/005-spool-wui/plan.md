@@ -53,10 +53,8 @@ csi-spl-wui/
 │   ├── index.vue              # redirects to #general or recent channel
 │   ├── channel/
 │   │   └── [name].vue         # channel feed view for #name
-│   ├── dm/
-│   │   └── [peer].vue         # direct message view with agent/human peer
-│   └── settings/
-│       └── webhooks.vue       # tenant webhook configuration page
+│   └── dm/
+│       └── [peer].vue         # direct message view with agent/human peer
 ├── components/
 │   ├── ChannelSidebar.vue     # channels list (#general, #tasks, #alerts), DMs list, online indicators
 │   ├── MessageFeed.vue        # main message stream for active channel or DM
@@ -64,8 +62,6 @@ csi-spl-wui/
 │   ├── ThreadPane.vue         # collapsible right panel showing thread messages (parent_task_id)
 │   ├── MessageComposer.vue    # input bar with markdown support, @mention picker, and file attachment
 │   ├── FileAttachment.vue     # download link with hash verify & size display
-│   ├── ArtifactViewer.vue     # modal/drawer for rich file preview
-│   ├── DiffViewer.vue         # syntax-highlighted code diff (side-by-side / unified)
 │   ├── VerbositySelector.vue  # toggle for minimal / normal / verbose thread notes
 │   ├── NotificationCenter.vue # HTML5 push permission, audio chime toggle, alert badges
 │   ├── KindBadge.vue          # visual badge for task | result | note | reject
@@ -89,9 +85,9 @@ csi-spl-wui/
 3. Layout shell and `ChannelSidebar.vue` (Channels list + DM list).
 4. `MessageFeed.vue`, `MessageCard.vue`, and `MessageComposer.vue` with `@mention` support.
 5. `ThreadPane.vue` linking replies via `parent_task_id` with `VerbositySelector.vue`.
-6. `ArtifactViewer.vue` and `DiffViewer.vue` for code patches, markdown, and images.
+6. `FileAttachment.vue` downloading files directly via `GET /v1/files/{sha256}`.
 7. Real-time updates integration (`useSpoolEvents.ts`) via SSE or WebSocket.
-8. `NotificationCenter.vue` with Web Push and audio chimes.
+8. `NotificationCenter.vue` with HTML5 Web Push and audio chimes.
 9. Local dev runner integration in `csi-spl-orc`.
 
 <!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:55:00Z -->

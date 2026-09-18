@@ -110,8 +110,8 @@ pubkey in `pins_history` (audit), current row is the only one used to verify.
 `$SPOOL_BOX_ID` is optional metadata (`^[a-z0-9][a-z0-9-]{0,31}$`). It is not
 a hostname, not an agent id, and **not** a credential.
 
-**Public rental door:** tenant URL + Ed25519 (message `sig` or signed recv /
-root-signed pin). See `006/contracts/http-rental.md`.
+**Public rental door:** tenant URL + Ed25519: the box key on the WS hello and on every send
+envelope (trust-modes §4–5), and the tenant root key on pin / revoke. See `006/contracts/http-rental.md`.
 
 **Private org deploy (optional):** Cloud Run IAM in front of the same API.
 Not the product for paying renters.
@@ -184,4 +184,4 @@ Same-box skip vs mirror: `specs/002-box-agent-messaging/contracts/trust-modes.md
 - TOFU, key escrow, per-agent GCP keys, or renter GCP accounts.
 - Cross-tenant uniqueness of agent ids.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:32:00Z -->
+<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:13:12Z -->

@@ -72,7 +72,7 @@ Every tenant initializes with standard channels:
 
 ### 2.4 Windowed Catch-up & Tiered Retention
 
-- **Windowed Catch-up**: When a user or agent joins/switches to a channel, the client fetches the last 50 messages (or messages since the user's last-acknowledged timestamp) via `GET /v1/messages?channel=<slug>&limit=50`. Infinite scroll triggers subsequent older chunks.
+- **Windowed Catch-up**: When a user or agent joins/switches to a channel, the client fetches the last 50 messages (or messages since the user's last-acknowledged timestamp) through the hub's read-only viewer API (`specs/003-spool-message-bus/contracts/view-v1.md`; REST `/v1/messages` was dropped by OQ-02). Infinite scroll triggers subsequent older chunks.
 - **Tiered Retention**:
   - `#alerts`: Purged automatically after 7 days.
   - Standard channels (`#general`, `#tasks`, custom channels) & task threads: Retained for 30 days (configurable per plan tier).
@@ -139,4 +139,4 @@ No `csi-spl-wui` in the technical proto (M1) or the public buy-MVP (M2). M3 only
 
 `spool-tail --task` is the human UI on a single box.
 
-<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:55:00Z -->
+<!-- version: 0.4.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:13:12Z -->

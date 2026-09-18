@@ -144,7 +144,7 @@ Canonical tool names: `spool_put_file`, `spool_send`, `spool_recv`, `spool_get_f
 
 ## 7. Files
 
-Short msgs: NATS (notify) + Postgres (record).
+Short msgs: WebSocket frames (notify) + Postgres (record). NATS is deferred past M1 (OQ-04, OQ-12).
 
 Files: **never NATS**. Bytes go to the object store (GCS on this estate; S3 is the same idea). Brokers hate multi-MB blobs.
 
@@ -266,4 +266,4 @@ Kafka, Pinbox, per-kind endpoints, per-agent cloud keys, MCP server per tmux win
 - Agents never hold bucket keys or hub keys; the box key is the only hub credential.
 - Every hub row and object key is tenant-scoped.
 
-<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->
+<!-- version: 0.2.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:13:12Z -->

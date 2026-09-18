@@ -37,7 +37,7 @@ Keep the **same step numbers** so operators are not re-trained.
 | `001-enable-gcp-services` | APIs | already; add run, sql, dns, secretmanager, artifactregistry |
 | `003-gcp-iam-users` | operators | copy |
 | `005-gcp-domain-verification` | Google domain verify | copy for spool-hub.ai |
-| `007-dns` | Cloud DNS zone + records | **product zone** `spool-hub.ai`; **wildcard `*.spool-hub.ai` from M1** (not one host then migrate) |
+| `025-gcp-dns-zone` (csi-rel/pas-psf call it `007-dns`) | Cloud DNS zone (imported, never recreated) + records | **product zone** `spool-hub.ai`; **wildcard `*.spool-hub.ai` from M1** (not one host then migrate) |
 | `017-github-wif-deploy` | CI deploy identity | copy |
 | `028-gcp-artifact-registry` | API images | copy (pas-psf) |
 | `029-create-gcp-secrets` | Secret Manager slots | copy; **no** store captcha/BIN; payment slots in **M2** |
@@ -99,8 +99,10 @@ Tenant hosts (`*.<BASE_DOMAIN>`, `*.dev.<BASE_DOMAIN>`) are extra LiveDNS
 records; they must not steal the apex. Publish those with dob-luk-iac
 `do_gandi_*` (token `$GANDI_PAT` or `~/.gandi/.<org>/token`, domain from cnf
 `env.dns.BASE_DOMAIN`, dry-run unless `CONFIRM=yes`). **Do not** re-delegate
-registrar NS to GCP `ns-cloud-*`. Terraform `007-dns` if present is not the
-public authority. No hostname literals in Go. **Wildcard DNS+TLS from M1**
+registrar NS to GCP `ns-cloud-*`. Terraform `025-gcp-dns-zone` imports the hand-made zone but is not the
+public authority while this decision stands; whether to hand the registrar
+over to it is an **open owner question** (`specs/README.md` §6.1,
+`specs/007-spool-hub-api-infra/`). No hostname literals in Go. **Wildcard DNS+TLS from M1**
 for tenants only. Several manual tenants must resolve without a new
 terraform host each time.
 
@@ -132,4 +134,4 @@ csi-spl-rdb/src/sql/                # spool schema only
 Apply still needs an **owner go** (csi-spl CLAUDE.md). `tf-plan` never
 apply-by-default.
 
-<!-- version: 0.1.2 · updated: 2026-09-18 · last-edit: 2026-09-18T17:52:00Z -->
+<!-- version: 0.1.3 · updated: 2026-09-18 · last-edit: 2026-09-18T19:13:12Z -->

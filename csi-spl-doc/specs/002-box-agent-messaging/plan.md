@@ -17,33 +17,39 @@ existing file protocol (reference only, never modified).
 
 **Language/Version**: Go 1.22+.
 
-**Primary Dependencies**: standard library only where possible —
-`crypto/ed25519`, `crypto/sha256`, `encoding/json`, `os`; an MCP server library
-for the stdio tool surface (`contracts/mcp-tools.md` pins the choice in
-research). No NATS/Postgres/GCS SDKs in 002.
+**Primary Dependencies**: standard library (`crypto/ed25519`, `crypto/sha256`, `encoding/json`, `os`); `github.com/rs/zerolog` for structured logging (modeled on `pas-psf`); an MCP server library for the stdio tool surface (`contracts/mcp-tools.md` pins the choice in research). No NATS/Postgres/GCS SDKs in 002.
+
+**Logging & Config Pattern**: Adopts the `pas-psf` convention:
+- `internal/config`: fail-fast loading of env vars (`$SPOOL_ROOT`, `$SPOOL_KEYS_DIR`, log settings).
+- `internal/logging`: `zerolog.Logger` with RFC3339 timestamps, service tag, log levels, console formatting for CLI, JSON formatting when deployed.
 
 **Storage**: local filesystem under `$SPOOL_ROOT` (default
 `/var/tmp/claude/msgs`). Keys/pins under `$HOME` (outside the spool root).
 
-**Testing**: `go test ./...` (unit + a table-driven round-trip harness against a
-temp `$SPOOL_ROOT`); a bash smoke test under
-`csi-spl-<kind>/src/bash/tests/` mirroring the ysg-box `agent-msg` flow.
+**Testing & Harness**:
+- `go test ./...`: unit tests + table-driven round-trip harness using `internal/testkit` (assertions, fixture loaders, isolated temp spool roots), modeled on `/opt/pas/pas-psf/pas-psf-api/src/internal/testkit/`.
+- Shell function utilities and tests: under `csi-spl-api/src/bash/` following the `run-bsh` conventions and test scripts (`*.tst.sh`) from `/opt/pas/pas-psf/pas-psf-api/src/bash/`.
+
+**Local Dev Setup (`lde`) Reference**:
+Follows the local development conventions from `/opt/pas/pas-psf`:
+- Host and containerized Go development (`go run`, `go test ./...`, `go mod tidy`) matching `/opt/pas/pas-psf/pas-psf-api`.
+- Shell function utilities and test runners executed via `./run` actions matching `pas-psf-utl` / `pas-psf-iac`.
 
 **Target Platform**: Linux box (any box that runs agents). Single filesystem.
 
-**Project Type**: single Go module (CLI + MCP), one binary, subcommands.
+**Project Type**: single Go module (`csi-spl-api/src/go/spool-hub-api`), one binary, subcommands.
 
 **Performance Goals**: interactive latency (a send/recv is a few file ops);
 no throughput target in 002.
 
-**Constraints**: no key in `$SPOOL_ROOT`/git/log (VII); atomic-rename acks
+**Constraints**: rely on OS filesystem permissions for local security (no custom auth wheel); no key in `$SPOOL_ROOT`/git/log (VII); atomic-rename acks
 (NFR-004); on-disk `v:1` == wire `v:1` for 003 (NFR-003); no ysg-box coupling.
 
 **Scale/Scope**: one box, a handful of agent ids, human-scale message volume.
 
 ## Constitution Check
 
-- [ ] **I. Paths** — binary + sources under a csi-spl sub-project; `$SPOOL_ROOT`
+- [ ] **I. Paths** — binary + sources under `csi-spl-api/src/go/spool-hub-api`; `$SPOOL_ROOT`
       and `$HOME` derived, never hard-coded.
 - [ ] **II. Env** — `$SPOOL_ROOT` and key/pin locations are env vars with the
       documented default; nothing else baked in.
@@ -77,8 +83,11 @@ specs/002-box-agent-messaging/
 ### Source Code
 
 ```text
-csi-spl-utl/src/go/spool/          # the Go module (proposed home; confirm in setup)
+csi-spl-api/src/go/spool-hub-api/  # the Go module home
 ├── cmd/spool/main.go              # subcommand dispatch: send|recv|put-file|get-file|tail|keygen|pin|mcp
+├── internal/config/               # fail-fast typed config (pas-psf pattern)
+├── internal/logging/              # zerolog structured logger (pas-psf pattern)
+├── internal/testkit/              # test harness, assertions, temp-root fixtures (pas-psf pattern)
 ├── internal/msg/                  # v1 message object: build, canonicalise, (de)serialise
 ├── internal/sign/                 # ed25519 keygen, sign, verify; pin store
 ├── internal/files/                # content-addressed store (sha256), put/get
@@ -86,13 +95,14 @@ csi-spl-utl/src/go/spool/          # the Go module (proposed home; confirm in se
 ├── internal/mcp/                  # stdio MCP server wrapping the CLI actions
 └── internal/spool/spool_test.go   # temp-root round-trip harness
 
-csi-spl-utl/src/bash/tests/spool-smoke.tst.sh   # end-to-end smoke mirroring agent-msg
+csi-spl-api/src/bash/              # shell scripts and function utils (pas-psf pattern)
+├── scripts/                       # helper scripts
+└── tests/spool-smoke.tst.sh       # end-to-end smoke mirroring agent-msg
 ```
 
 **Structure Decision**: one Go module, subcommand-per-verb, thin `internal/mcp`
 over the same internal actions the CLI calls — so CLI and MCP cannot drift
-(Constitution VIII). Home under `csi-spl-utl/src/go/` proposed; the exact
-sub-project (`-utl` vs a new `-bin`) is a T001 decision.
+(Constitution VIII). Home is `csi-spl-api/src/go/spool-hub-api`. Invocation is Option A (stdio process per agent session via `spool mcp`).
 
 ## Build Order (this feature = step 1 of the 003 architecture)
 

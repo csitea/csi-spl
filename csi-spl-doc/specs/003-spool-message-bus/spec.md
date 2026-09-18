@@ -10,6 +10,9 @@
 
 **Narrative**: `csi-spl-doc/doc/md/SPEC-spool-message-bus.md`  
 **Box API**: `csi-spl-doc/doc/md/SPEC-spool-box-api.md`  
+**Identity**: `csi-spl-doc/doc/md/SPEC-spool-identity-routing.md` + `specs/004-spool-identity-routing/`  
+**Lifecycle**: `csi-spl-doc/doc/md/SPEC-spool-task-lifecycle.md`  
+**Hub extras**: `data-model.md`, `contracts/flush.md`, `contracts/limits.md`, `contracts/error-envelope.md`  
 **Prerequisite**: `specs/002-box-agent-messaging/` (local folder + pin + CLI/MCP). 003 does not replace 002; it puts the **same** `v:1` object behind HTTP + notify.
 
 ## Context
@@ -77,7 +80,7 @@ Subscribers see “a new message landed on task X” (one JSON blob per send). M
 
 ### User Story 5 - IAM is the door, pin is the author (Priority: P3)
 
-Cloud Run ingress uses IAM/OIDC for the **adapter** identity (the box CLI / sidecar), not per-agent Google accounts. After the request is in, the hub verifies Ed25519 `sig` against the pin.
+Cloud Run ingress uses IAM/OIDC for the **adapter** identity (the box CLI / sidecar), not per-agent Google accounts. IAM/OIDC authentication applies strictly between boxes and Cloud Run across the network; local on-box agent communication does not use IAM. After the request is in, the hub verifies Ed25519 `sig` against the pin.
 
 **Why this priority**: Door without author is “this laptop may POST.” Author without a door is still the 002 model and already works. Hub exposure needs both; pin already exists.
 
@@ -129,6 +132,7 @@ After 002+003 HTTP work, ysg-box gains **one** adapter feature that shells the s
 - **NFR-002**: Verify/refuse maps to HTTP 400 and CLI exit `78`.
 - **NFR-003**: On-wire JSON is 002’s on-disk `v:1` (no schema fork).
 - **NFR-004**: No Kafka; NATS is optional until US4.
+- **NFR-005**: Server harness, startup/shutdown lifecycle, structured logging, configuration, test harness (`internal/testkit`), ops probes, and shell function utilities (`src/bash/`) MUST refer to and follow the patterns in `/opt/pas/pas-psf/pas-psf-api` (`src/cmd/api/main.go`, `src/cmd/api/wire.go` `runUntilShutdown`, `src/internal/config/config.go`, `src/internal/logging/logging.go`, `src/internal/httpapp/httpapp.go`, `src/internal/testkit/`, and `src/bash/`).
 
 ### Key Entities
 
@@ -161,4 +165,4 @@ After 002+003 HTTP work, ysg-box gains **one** adapter feature that shells the s
 - Per-agent IAM identities and per-agent object-store keys.
 - A full UI beyond `spool-tail` / a tiny subscriber.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T12:50:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->

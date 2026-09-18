@@ -13,15 +13,30 @@ Put the 002 box API in front of a **stateless Cloud Run** process. Persist messa
 
 **Language/Version**: Go 1.22+ (same binary family as 002).
 
-**Primary Dependencies**: 002 internal packages (`msg`, `sign`, `files`); Cloud Run HTTP; Postgres; GCS client; NATS client **only in the box sidecar and the hub publisher**, never in agent code.
+**Primary Dependencies**: 002 internal packages (`msg`, `sign`, `files`); Cloud Run HTTP server harness (`github.com/gofiber/fiber/v2`); structured logging (`github.com/rs/zerolog`); Postgres (`pgx/v5`); GCS client; NATS client **only in the box sidecar and the hub publisher**, never in agent code.
+
+**Server Harness & Logging**: Derived from `pas-psf` Go architecture:
+- `config.Load()`: Typed, fail-fast configuration from environment variables.
+- `logging.New(cfg)`: Root `zerolog.Logger` with RFC3339 timestamps, standard fields (`service: spool-hub-api`, `env`, `version`), JSON in cloud and console in dev/CLI.
+- Server lifecycle: `runUntilShutdown` pattern catching `SIGINT`/`SIGTERM`, graceful drain within `API_GRACEFUL_SHUTDOWN_SECONDS`, clean shutdown or fatal exit.
+- HTTP surface: Shared middleware (recover, request ID, structured access logging) and ops probes (`/version`, `/healthz`).
 
 **Storage**: Postgres (tasks, messages, pins, acks); GCS `files/<sha256>`; local `$SPOOL_ROOT` fallback; **not** container disk.
 
-**Testing**: `go test ./...` with a fake hub (httptest + sqlite/memory) before real Cloud Run; contract tests against `contracts/http-v1.md`.
+**Testing & Test Harness**:
+- `go test ./...`: tests use `internal/testkit` (modeled directly on `/opt/pas/pas-psf/pas-psf-api/src/internal/testkit/`) with `testkit.NewApp(t)` building in-memory Fiber test instances and `testkit.AssertEnvelopeError`.
+- Contract tests against `contracts/http-v1.md` and golden fixtures under `internal/hub/testdata/`.
+- Shell function utilities and tests under `csi-spl-api/src/bash/` following `pas-psf` conventions.
+
+**Local Dev Setup (`lde`) Reference**:
+Directly modeled on the local development environment from `/opt/pas/pas-psf`:
+- **Terraform (`csi-spl-iac`)**: Containerized runner or host `./run` actions (`tfswitch`, `do_tf_init`, `do_tf_plan`, `do_tf_validate`) rendering variables via `tpl-gen` from `csi-spl-cnf`, following `/opt/pas/pas-psf/pas-psf-orc` (`con-*-tf-runner`) and `pas-psf-iac`.
+- **Backend (`csi-spl-api`)**: Local Postgres test database (Docker container or local instance modeled on `/opt/pas/pas-psf/pas-psf-api/src/bash/scripts/start-api-test-db.sh`), fail-fast local `.env` loading, and `go run ./cmd/hub` (or `make do-setup-api`).
+- **Frontend (`csi-spl-wui`)**: Lightweight thread/task viewer modeled on `/opt/pas/pas-psf/pas-psf-wui` (pnpm, Nuxt/Vite dev server with HMR on localhost, containerized via orc or run directly on host).
 
 **Target Platform**: Linux boxes + Cloud Run `europe-north1`.
 
-**Project Type**: extend the 002 Go module with `internal/hub` (HTTP) and optional `internal/nats`; IaC under `csi-spl-iac` for Cloud Run / SQL / GCS / NATS when the owner says apply.
+**Project Type**: extend the Go module `csi-spl-api/src/go/spool-hub-api` with `internal/httpapp`, `internal/hub` (HTTP), `internal/config`, `internal/logging`, and optional `internal/notify`; IaC under `csi-spl-iac` for Cloud Run / SQL / GCS / NATS when the owner says apply.
 
 **Constraints**: Constitution I–VIII. No Kafka. No per-agent GCP keys. Sign on day one (already 002). No default hostnames.
 
@@ -29,7 +44,7 @@ Put the 002 box API in front of a **stateless Cloud Run** process. Persist messa
 
 ## Constitution Check
 
-- [ ] **I. Paths** — hub + CLI under csi-spl sub-projects; no hard-coded `/opt/...`.
+- [ ] **I. Paths** — hub + CLI under csi-spl sub-projects (`csi-spl-api/src/go/spool-hub-api`); no hard-coded `/opt/...`.
 - [ ] **II. Env** — hub URL, `$SPOOL_ROOT`, buckets, NATS URL fail-fast env / cnf.
 - [ ] **VI. Cnf-only** — Cloud Run service URL and bucket from `csi-spl-cnf`.
 - [ ] **VII. No key in git/state/log** — agent private keys never on the hub; signed URLs not logged.
@@ -46,18 +61,29 @@ specs/003-spool-message-bus/
 ├── tasks.md
 └── contracts/
     ├── http-v1.md
-    └── nats-subjects.md
+    ├── nats-subjects.md
+    ├── flush.md
+    ├── limits.md
+    └── error-envelope.md
+├── data-model.md
 
-csi-spl-utl/src/go/spool/   # same module as 002
-├── internal/hub/           # HTTP handlers; verify sig; no disk log
-├── internal/store/         # Postgres (and sqlite for tests)
-├── internal/objects/       # GCS (and local files/ for tests + fallback)
-└── internal/notify/        # NATS publish/subscribe (optional build tag until US4)
+csi-spl-api/src/go/spool-hub-api/   # same module as 002
+├── cmd/spool/                      # CLI + MCP entrypoint
+├── cmd/hub/ (or spool hub)         # Cloud Run entrypoint: boot order (config, logging, pool, wire, runUntilShutdown)
+├── internal/config/                # fail-fast typed config (pas-psf pattern)
+├── internal/logging/               # zerolog structured logger (pas-psf pattern)
+├── internal/testkit/               # testkit app builder, assertions, fixtures (pas-psf pattern)
+├── internal/httpapp/               # server harness, middleware stack, ops probes (/healthz, /version)
+├── internal/hub/                   # HTTP handlers (/v1/messages, /v1/files); verify sig; no disk log
+├── internal/store/                 # Postgres (and sqlite for tests)
+├── internal/objects/               # GCS (and local files/ for tests + fallback)
+└── internal/notify/                # NATS publish/subscribe (optional build tag until US4)
 
-csi-spl-iac/                # Cloud Run, Cloud SQL, GCS, NATS — apply only with owner go
+csi-spl-api/src/bash/              # shell scripts and function utils (pas-psf pattern)
+csi-spl-iac/                        # Cloud Run, Cloud SQL, GCS, NATS — apply only with owner go
 ```
 
-**Structure Decision**: one Go module continues. Hub is a subcommand (`spool hub`) or the same binary with `SPOOL_MODE=hub`. Sidecar is `spool sidecar` (NATS + flush). Agents never link those packages.
+**Structure Decision**: one Go module continues. Hub is a subcommand (`spool hub`) or dedicated binary (`cmd/hub/main.go`) sharing the pas-psf server harness. Sidecar is `spool sidecar` (NATS + flush). Agents never link those packages.
 
 ## Build Order (maps to architecture §10)
 
@@ -77,4 +103,4 @@ Do not start NATS or Kafka before step 2 works on a dummy folder/process.
 
 *No constitutional violations.* NATS is deferred to US4 so the HTTP contract is proven first (architecture: “don’t debug NATS before spool-send works”).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T12:50:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->

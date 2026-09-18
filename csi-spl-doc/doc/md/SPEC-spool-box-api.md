@@ -1,7 +1,7 @@
 # SPEC: Uniform box API to spool
 
 Status: binding for all agent kinds  
-Related: `SPEC-agent-spool-mvp.md`, `SPEC-spool-architecture.md`
+Related: `SPEC-spool-message-bus.md`, `SPEC-spool-identity-routing.md`, `SPEC-spool-task-lifecycle.md`
 
 ---
 
@@ -27,7 +27,7 @@ No per-kind HTTP dialect. No per-kind JSON.
 On each box that may run an agent:
 
 - CLI: `spool-put-file`, `spool-send`, `spool-recv`, `spool-get-file`, `spool-tail`, `spool-keygen`, `spool-pin`
-- **One** MCP server per box exposing the tools below
+- MCP: one **binary** on the box; Claude/agy spawn `spool mcp` as a **stdio child per agent session** (not a daemon per tmux window, not a second schema)
 - Same binary/code behind both
 
 Agents do not import NATS, Postgres, GCS, or Cloud Run SDKs.
@@ -169,7 +169,8 @@ Box CLI hides these. Agents never call them directly.
 
 ## 9. Out of this spec
 
-Kafka, per-kind endpoints, per-agent cloud keys, MCP server per tmux window,
-token SSE (that stays on the coding adapter, not spool).
+Kafka, per-kind endpoints, per-agent cloud keys, a long-lived MCP **daemon**
+per tmux window (stdio child per session is the invocation), token SSE
+(that stays on the coding adapter, not spool).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T12:50:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->

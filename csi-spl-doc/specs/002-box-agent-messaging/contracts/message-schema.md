@@ -46,5 +46,8 @@ to disk. Any change is a `v` bump, never an in-place edit.
 - `kind` outside the enum → reject.
 - Any `files[i].sha256 != files[i].file_id` → reject.
 - `from`/`to` not matching the id regex → reject.
+- Limits (`body` 64 KiB, 16 files, 32 MiB/file): `../../../003-spool-message-bus/contracts/limits.md`.
+- `kind` / `task_id` meaning: `kind-lifecycle.md` and `doc/md/SPEC-spool-task-lifecycle.md`.
+- Canonical bytes: `canonical-json.md`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T00:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->

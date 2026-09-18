@@ -11,20 +11,21 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm 002 module path `csi-spl-utl/src/go/spool/` (or the path 002 T001 chose) and add `internal/hub`, `internal/store`, `internal/objects` packages with tests that compile empty.
+- [ ] T001 Confirm 002 module path `csi-spl-api/src/go/spool-hub-api/` and add `internal/httpapp`, `internal/testkit`, `internal/hub`, `internal/store`, `internal/objects` packages with tests that compile empty.
 - [ ] T002 [P] Add `contracts/http-v1.md` and `contracts/nats-subjects.md` to the test fixture loader (golden request/response files under `internal/hub/testdata/`).
 
 ## Phase 2: Foundational
 
 - [ ] T003 Implement canonical `v:1` verify-on-decode in `internal/hub` using 002 `internal/sign` (no new schema). (depends on T001, 002 US1)
-- [ ] T004 [P] Fail-fast env for hub listen address, `$SPOOL_ROOT`, store DSN, object bucket — no hostname literals (`internal/hub/config.go`).
+- [ ] T004 [P] Fail-fast env for hub listen address, `$SPOOL_ROOT`, store DSN, object bucket — no hostname literals (`internal/config`, pas-psf pattern).
+- [ ] T004b [P] Server harness in `internal/httpapp` and `cmd/hub`: Fiber app, recovery/request ID middleware, ops probes (`/healthz`, `/version`), and `runUntilShutdown` graceful drain within timeout (`wire.go` pas-psf pattern).
 
 ## Phase 3: User Story 1 — HTTP send/recv (P1) 🎯 MVP
 
 - [ ] T005 [US1] `POST /v1/messages` accepts signed `v:1`, refuses unpinned/bad sig with HTTP 400 in `internal/hub/messages.go`.
 - [ ] T006 [US1] `GET /v1/messages?as=&task_id=` lists messages for `as` in `internal/hub/messages.go` (memory/sqlite store).
 - [ ] T007 [US1] CLI `spool-send` / `spool-recv` gain a hub base-URL mode without changing flags (`cmd/spool`). (depends on T005, T006)
-- [ ] T008 [US1] Table tests: pinned send round-trip; unsigned; tampered body — `internal/hub/messages_test.go`.
+- [ ] T008 [US1] Table tests using `internal/testkit` (pas-psf pattern): pinned send round-trip; unsigned; tampered body — `internal/hub/messages_test.go`.
 
 ## Phase 4: User Story 2 — Files to object store (P1)
 

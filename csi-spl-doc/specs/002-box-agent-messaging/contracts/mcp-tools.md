@@ -1,7 +1,9 @@
 # Contract: MCP tools (canonical names, thin wrapper over the CLI)
 
-One MCP server per box (stdio), NOT one per agent/tmux window. Same binary as the
-CLI; each tool calls the same internal action, so CLI and MCP cannot drift.
+Stdio process per agent session (`spool mcp`), spawned as a child by Claude Code
+or Antigravity. Same **binary** as the CLI, shared `$SPOOL_ROOT` and pins. This is
+the session’s MCP transport, not a long-lived daemon per tmux window (that shape is
+rejected in the constitution). Each tool calls the same internal action as the CLI.
 
 ## `spool_put_file`
 ```json
@@ -45,4 +47,4 @@ Human lines by default; `json: true` → raw `v:1` NDJSON objects.
 - Research decision (fill in plan Phase 0): which Go MCP server library backs the
   stdio transport.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T00:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->

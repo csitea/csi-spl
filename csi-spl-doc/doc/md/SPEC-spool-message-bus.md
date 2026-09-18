@@ -3,7 +3,7 @@
 Status: design freeze for implementation planning  
 Created: 2026-09-18  
 Git-spec: `csi-spl-doc/specs/003-spool-message-bus/`  
-Related: `SPEC-spool-box-api.md` (uniform box API), `specs/002-box-agent-messaging/` (local folder MVP), `specs/001-relay-bucket-estate/` (git-rel GCS estate — a different plane)
+Related: `SPEC-spool-box-api.md`, `SPEC-spool-identity-routing.md`, `SPEC-spool-task-lifecycle.md`, `SPEC-spool-wui.md`, `specs/002-box-agent-messaging/`, `specs/003-spool-message-bus/`, `specs/001-relay-bucket-estate/` (git-rel — a different plane)
 
 ---
 
@@ -124,11 +124,11 @@ NATS **does** have its own wire protocol (NATS-over-TCP). That is how clients ta
 On every machine that may run an agent, install as part of the box image:
 
 - CLI: `spool-put-file`, `spool-send`, `spool-recv`, `spool-get-file`, `spool-tail`, `spool-keygen`, `spool-pin`
-- **One** MCP server (stdio) if Claude or agy may run here — one per **box**, not per tmux window, not per `CLE-07`
+- MCP binary on the box; Claude/agy spawn `spool mcp` **stdio per agent session** (one process tree per session, shared `$SPOOL_ROOT`/pins). Not a separately configured daemon per tmux window.
 - **One** NATS sidecar (optional until two boxes must see the same task live)
 - Local folder `$SPOOL_ROOT` (default `/var/tmp/claude/msgs`) as fallback queue
 
-Grok-only box: CLI is enough; no MCP server required. Cloud hub: HTTP; no MCP required there. If the fleet is “any agent anywhere,” treat MCP as part of the box image, next to `spool-send`.
+Grok-only box: CLI is enough; no MCP process required. Cloud hub: HTTP; no MCP required there. If the fleet is “any agent anywhere,” install the spool binary (CLI+MCP) on the box image.
 
 Agents do not import NATS, Postgres, GCS, or Cloud Run SDKs. They only call spool.
 
@@ -261,4 +261,4 @@ Kafka, Pinbox, per-kind endpoints, per-agent cloud keys, MCP server per tmux win
 - Local spool works on-box even if the hub is down.
 - Agents never hold bucket keys.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T12:50:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->

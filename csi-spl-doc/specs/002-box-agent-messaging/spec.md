@@ -180,6 +180,7 @@ so MCP is additive and lower priority than a working CLI.
   put on the wire, so no migration is needed when the hub arrives.
 - **NFR-004**: All file moves that convey delivery (ack) MUST be atomic renames
   within one filesystem.
+- **NFR-005**: Go configuration, structured logging, test harness (`internal/testkit`), and shell function utilities (`run-bsh` conventions, `src/bash/`) MUST refer to and follow the patterns in `/opt/pas/pas-psf/pas-psf-api` (`src/internal/config/config.go`, `src/internal/logging/logging.go`, `src/internal/testkit/`, and `src/bash/`).
 
 ### Key Entities
 
@@ -208,10 +209,11 @@ so MCP is additive and lower priority than a working CLI.
 ## Assumptions
 
 - One box, one filesystem: atomic rename is available for ack moves.
+- **Rely on the OS for local security and permissions**: The local model relies on standard POSIX filesystem permissions (`0664`/`0775`), OS user boundaries, and file ownership rather than re-inventing security or access control mechanisms locally. Private keys are protected by standard OS permissions (`chmod 600` under `$HOME/.spool/keys/`).
 - The notification/doorbell leg (live poke to a running peer) is delivered by the
   existing box harness; 002 guarantees only the durable file leg. Wiring the
   spool to a live notifier is a later, additive step.
-- Keys and pins live outside `$SPOOL_ROOT` under `$HOME` (per-user state).
+- Private keys live outside `$SPOOL_ROOT` under `$HOME` (`chmod 600`); shared public pins live under `$SPOOL_ROOT/pins/` (`mode 0644`).
 
 ## Out of Scope (belongs to 003 or later)
 

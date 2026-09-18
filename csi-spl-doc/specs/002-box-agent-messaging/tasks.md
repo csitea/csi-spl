@@ -16,8 +16,8 @@ of the `003` architecture build order; nothing here is throwaway.
 
 ## Phase 1: Setup
 
-- [ ] T001 Decide + create the Go module home (`csi-spl-utl/src/go/spool/`
-      proposed) and `go.mod` (Go 1.22+); wire a `do_build_spool` run-bsh action
+- [ ] T001 Create the Go module home (`csi-spl-api/src/go/spool-hub-api/`)
+      and `go.mod` (Go 1.22+); wire a `do_build_spool` run-bsh action
 - [ ] T002 [P] Add `go test`/`go vet`/`gofmt` to
       `csi-spl-iac/src/bash/tests/run-all-tests.sh` (or the owning sub-project)
 - [ ] T003 [P] Add a reference-hygiene test: grep the shipped source for any
@@ -25,16 +25,13 @@ of the `003` architecture build order; nothing here is throwaway.
 
 ## Phase 2: Foundational (blocking — shared by every story)
 
-- [ ] T004 [P] `internal/spool`: resolve `$SPOOL_ROOT` (default
-      `/var/tmp/claude/msgs`), create `<id>/{inbox,outbox,archive}` + `files/`,
-      mode 0664; atomic-rename helper
-- [ ] T005 [P] `internal/msg`: `v:1` struct, strict JSON (reject unknown keys),
-      canonicaliser byte-identical to `jq -cS 'del(.sig)'`, filename builder
-      `<ts>--<from>--<slug>.json` with same-second tie-break
-- [ ] T006 [P] `internal/sign`: ed25519 keygen (priv `chmod 600` under `$HOME`),
-      sign, verify; pin store (id→pubkey) with `--force` guard on re-pin
-- [ ] T007 `cmd/spool/main.go`: subcommand dispatch + exit-code convention
-      (`0`/`78`/`1`) shared by all verbs
+- [ ] T004a [P] `internal/config`: fail-fast configuration loader for `$SPOOL_ROOT` (default `/var/tmp/claude/msgs`), key paths, log level (`pas-psf` pattern)
+- [ ] T004b [P] `internal/logging`: `zerolog` structured logger with console formatting for CLI / JSON for production, service tag, RFC3339 timestamps (`pas-psf` pattern)
+- [ ] T004c [P] `internal/testkit`: test harness foundation (temp spool root fixtures, test assertions modeled on `/opt/pas/pas-psf/pas-psf-api/src/internal/testkit/`)
+- [ ] T004 [P] `internal/spool`: resolve `$SPOOL_ROOT`, create `<id>/{inbox,outbox,archive}` + `files/`, mode 0664; atomic-rename helper
+- [ ] T005 [P] `internal/msg`: `v:1` struct, strict JSON (reject unknown keys), canonicaliser byte-identical to `jq -cS 'del(.sig)'`, filename builder `<ts>--<from>--<slug>.json` with same-second tie-break
+- [ ] T006 [P] `internal/sign`: ed25519 keygen (priv `chmod 600` under `$HOME`), sign, verify; pin store (id→pubkey) with `--force` guard on re-pin
+- [ ] T007 `cmd/spool/main.go`: subcommand dispatch + exit-code convention (`0`/`78`/`1`) shared by all verbs
 
 ## Phase 3: User Story 1 — signed message round trip (P1) 🎯 MVP
 
@@ -47,10 +44,10 @@ of the `003` architecture build order; nothing here is throwaway.
       inbox+outbox; refuse (78) unpinned/missing key
 - [ ] T011 [US1] `spool-recv --as [--ack]`: verify vs pin, return valid array,
       atomic ack move; report+`78` on bad sig
-- [ ] T012 [P] [US1] `go test` round trip: keygen→pin→send→recv→ack; tampered
+- [ ] T012 [P] [US1] `go test` round trip using `internal/testkit`: keygen→pin→send→recv→ack; tampered
       body → 78; unpinned from → 78; double-ack returns once
-- [ ] T013 [P] [US1] `spool-smoke.tst.sh` bash end-to-end mirroring the agent-msg
-      flow (two ids, send, recv, ack)
+- [ ] T013 [P] [US1] `spool-smoke.tst.sh` bash end-to-end (mirroring agent-msg
+      flow, using shell function utils from `/opt/pas/pas-psf/pas-psf-api/src/bash/`)
 
 **Checkpoint**: US1 shippable — the MVP spool.
 

@@ -8,8 +8,11 @@ $SPOOL_ROOT/
 │   ├── inbox/    <yyyymmddThhmmssZ>--<from>--<slug>.json
 │   ├── outbox/   <yyyymmddThhmmssZ>--<self>--<slug>.json
 │   └── archive/  <yyyymmddThhmmssZ>--<from>--<slug>.json
-└── files/        <file_id>                       # content-addressed, shared
+├── files/        <file_id>                       # content-addressed, shared
+└── pins/         <id>.pub                        # shared trusted pubkeys for on-box verification (mode 0644)
 ```
+
+Private keys live strictly under `$HOME/.spool/keys/<id>.key` (`chmod 0600`), outside `$SPOOL_ROOT`.
 
 ## Mapping to the ysg-box reference (READ-ONLY — do not modify ysg-box)
 
@@ -29,10 +32,11 @@ $SPOOL_ROOT/
 
 - The file leg is the source of truth; a lost notification never loses a message.
 - Address by **id**, never by display name (ysg-box collision lesson).
+- **Rely on the OS for security**: Use standard POSIX file permissions (`0664` for message files, `0775` for directories, `0644` for shared pins, `0600` for private keys) and standard Unix user/group boundaries. Do not re-invent auth/access control machinery locally.
 - `files/` is shared across agents on the box; identical bytes = one object.
 - Mode `0664` on message files so the box user and the agent user can both read
   (matches the ysg-box convention).
-- Nothing in this tree is a private key; keys/pins live under `$HOME`.
+- Nothing in this tree is a private key; private keys live under `$HOME/.spool/keys/<id>.key` (`chmod 600`). Shared public pins live under `$SPOOL_ROOT/pins/<id>.pub` (`chmod 644`).
 
 ## Why re-implement instead of reuse ysg-box
 

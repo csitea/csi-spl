@@ -19,7 +19,7 @@ spool-tail    [--task <uuid>] [--json]          # human lines, or raw v1 NDJSON
 
 - **`spool-keygen`** writes the private key `chmod 600` under `$HOME` (not
   `$SPOOL_ROOT`), prints the pubkey. Never prints the private key.
-- **`spool-pin`** records id→pubkey in the pin store. Re-pinning a different key
+- **`spool-pin`** records id→pubkey in the shared pin store (`$SPOOL_ROOT/pins/<id>.pub`, mode `0644`). Re-pinning a different key
   for an existing id requires `--force` (prevents silent key swap).
 - **`spool-put-file`** hashes bytes, writes `files/<file_id>` idempotently.
 - **`spool-send`** builds a `v:1` object, signs with `from`'s key, writes the

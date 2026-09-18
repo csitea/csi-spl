@@ -48,14 +48,14 @@ on read and refuses a mismatch or an absent object (no partial write).
 
 Maps agent id → Ed25519 public key. An id with no pin is **untrusted**:
 `spool-send` refuses to sign as an unpinned `from`; `spool-recv` refuses to
-accept a message whose `from` is unpinned or whose `sig` fails. Location is under
-`$HOME` (per-user state), never inside `$SPOOL_ROOT`, never in git.
+accept a message whose `from` is unpinned or whose `sig` fails. Location on-box
+is `$SPOOL_ROOT/pins/<id>.pub` (or `$SPOOL_PINS_DIR`, mode `0644`) so all agents
+can verify peers.
 
 ## 5. Keypair
 
-Ed25519. Private key `chmod 600` under `$HOME` (e.g. `$HOME/.spool/keys/<id>.key`
-— exact path is an env var with a documented default, T-level decision). The
-private key never enters `$SPOOL_ROOT`, a message, or a log.
+Ed25519. Private key `chmod 600` strictly under `$HOME` (`$HOME/.spool/keys/<id>.key`
+or `$SPOOL_KEYS_DIR`). The private key never enters `$SPOOL_ROOT`, a message, or a log.
 
 ## 6. Spool root layout
 
@@ -65,12 +65,13 @@ $SPOOL_ROOT/                     # default /var/tmp/claude/msgs
 │   ├── inbox/    <ts>--<from>--<slug>.json   # delivered, unread
 │   ├── outbox/   <ts>--<self>--<slug>.json   # sent record
 │   └── archive/  <ts>--<from>--<slug>.json   # acked / processed
-└── files/        <file_id>                   # content-addressed bytes (shared)
+├── files/        <file_id>                   # content-addressed bytes (shared)
+└── pins/         <id>.pub                    # shared trusted pubkeys (mode 0644)
 ```
 
 Mirrors ysg-box's `<id>/{inbox,outbox,archive}/` (reference only). Differences:
 `.json` `v:1` objects (ysg-box uses `.md` with frontmatter), a shared
-content-addressed `files/` store, and mandatory signatures.
+content-addressed `files/` store, and mandatory signatures against shared `pins/`.
 
 ## 7. State transitions
 

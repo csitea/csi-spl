@@ -19,6 +19,7 @@ were copied are listed one by one in section 2.2.
 
 | dir | holds |
 |---|---|
+| `csi-spl-api` | Go module (`src/go/spool-hub-api`) for spool box CLI, MCP server, and Cloud Run hub API |
 | `csi-spl-iac` | `./run` actions, terraform steps, tpl-gen templates, tests |
 | `csi-spl-cnf` | `csi-spl/all.env.yaml`, `csi-spl/<env>.env.yaml` (sources); `csi-spl/<env>.env.json`, `csi-spl/<env>/tf/*.tfvars` (generated) |
 | `csi-spl-doc` | this document |

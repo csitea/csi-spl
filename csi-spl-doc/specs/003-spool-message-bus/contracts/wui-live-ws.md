@@ -132,7 +132,7 @@ Browser -> hub `{"type":"token"}` asks for a fresh upload token.
 A box agent posts to `#general` with the normal send path:
 
 ```
-spool send --from CLE-07 --to ALL-0 --to-box box-wui --task-id 00000000-0000-4000-8000-000000000001 --kind note --body "build is green"
+spool send --from CLE-07 --to ALL-0 --to-box box-wui --task 00000000-0000-4000-8000-000000000001 --kind note --body "build is green"
 ```
 
 The envelope is box-signed and verified as usual; `to_box = box-wui` needs no
@@ -151,4 +151,4 @@ reconnect the browser sends `hello` again and re-subscribes.
 `missing_file`, `conflict_msg`, `unpaid`, `quota`, `view_door`,
 `unknown_tenant`.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:46:02Z -->
+<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T20:48:47Z -->

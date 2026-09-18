@@ -31,6 +31,23 @@ polls (read-only) until the cert is ACTIVE.
 | `ENV=dev ./run -a do_export_all_dns_settings` | snapshot Cloud DNS zones + record-sets to JSON under the env's cloud state dir; `DRY_RUN=1` default |
 | `TEST_DOMAIN=example.test ./run -a do_flush_dns` | flush the operator host resolver cache; `DRY_RUN=1` default (the real run sudo-mutates the host) |
 
+## Gandi LiveDNS (public DNS)
+
+Public NS stay on Gandi LiveDNS. These actions talk to Gandi's v5 API
+(`GANDI_API_BASE`, default their public host), never to Cloud DNS. Domain
+is `$DOMAIN` or cnf `env.dns.BASE_DOMAIN`. Token: `GANDI_PAT` or
+`$HOME/.gandi/.<org>/token` (mode 600). Record writes are dry-run unless
+`CONFIRM=yes`. `do_gandi_set_nameservers` is dry-run **only** and refuses
+`ns-cloud-*`. Apex `@` A/AAAA/CNAME is refused (Gandi parking).
+
+| action | what |
+|---|---|
+| `./run -a do_gandi_check_creds` | prove the token lists domains |
+| `./run -a do_gandi_get_nameservers` | read registrar NS |
+| `./run -a do_gandi_list_dns_records` | list LiveDNS records |
+| `RRSET_NAME=* RRSET_TYPE=A RRSET_VALUES=<ip> ./run -a do_gandi_set_dns_record` | upsert one record (`CONFIRM=yes` to apply) |
+| `NAMESERVERS=ns-101-a.gandi.net,... ./run -a do_gandi_set_nameservers` | dry-run only; never re-delegates |
+
 ## Where things come from
 
 | thing | source |

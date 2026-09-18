@@ -36,7 +36,7 @@ Unknown codes → a generic "Sign-in failed". After showing one, the page drops
 
 ## 3. Session
 
-Cookie `spool_session` (cnf `SPOOL_HUB_AUTH_COOKIE_NAME`): HttpOnly, Secure
+Cookie `spool_session` (cnf `SPOOL_HUB_AUTH_COOKIE_NAME`; dev: `spool_session_dev`, spec OQ-A4): HttpOnly, Secure
 (dev/prd), SameSite=Lax, Path `/`, Domain = cnf `SPOOL_HUB_AUTH_COOKIE_DOMAIN`
 (empty = host-only). The WUI never reads it; it asks `GET /api/v1/auth/session`:
 
@@ -62,17 +62,23 @@ sign-in **started** from; it is not an authorisation (spec SEC-001).
   csi-rel 052 runbook incident is exactly this case).
 - Sign out: `POST /api/v1/auth/logout`, then route to `/login`.
 
-## 5. Hub mount (for 003)
+## 5. Hub mount (003) — Implemented `bc6a6a1`
+
+`spool serve` runs `auth.Load(hc.Env)` (fail fast) and passes
+`auth.New(ac, log, auth.Options{})` as `hub.Options.Auth`; `Server.Handler`
+registers it before the middleware, so `/api/v1/auth/*` answers on any Host
+(`TestAuthMountedWithoutTenant`).
+
+## 6. Tenant-scoped door (003 T033b) — seam Implemented `5e8ecb1`
 
 ```go
-ac, err := auth.Load(hc.Env)            // fails fast on a bad SPOOL_HUB_AUTH_*
-if err != nil { return fail(err) }
-ah := auth.New(ac, log, auth.Options{Registrar: <store-backed, T012>})
-ah.Register(mux)                          // inside Server.Handler, before s.middleware(mux)
+s, err := ah.SessionForTenant(r, hostTenant)   // nil error = may read hostTenant
 ```
 
-`/api/v1/auth/*` is not tenant-scoped: it must answer on the callback host
-(the WUI origin via rewrite) whatever the Host tenant resolution says.
-`ah.SessionFromRequest(r)` is the check for the M3 view door (OQ-A1).
+Requires a valid session, a `HUM-*` in it (Registrar, T012) and
+`Options.Membership.Member(ctx, hum, hostTenant) == true` (T013). Errors:
+`ErrNoSession`, `ErrNoHuman`, `ErrNoMembership` (none configured — the
+default, so today every call refuses), `ErrNotMember`, or the lookup error;
+the view door maps all of them to `401 view_door`. `session.t` is never read.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:34:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:48:00Z -->

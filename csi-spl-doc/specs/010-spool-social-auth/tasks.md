@@ -19,10 +19,10 @@ here (§2.4); the owner is named.
 
 ## Phase 2 — Hub mount + registration (003 CLE-3340, ids 004)
 
-- [ ] T010 Planned (003) — mount per `contracts/auth-v1.md` §5 in `cmd/spool/hub.go` + `internal/hub/server.go`; `/api/v1/auth/*` answers regardless of Host tenant resolution.
-- [ ] T011 Planned (003) — session as the M3 view door on `/v1/view/*` (view-v1 §2 "M3 successor"); decide OQ-A1 (cookie domain + credentialed CORS recommended).
+- [x] T010 Implemented (`bc6a6a1`, 003 T033a, CLE-3340) — `spool serve` runs `auth.Load(hc.Env)` and mounts `auth.New` via `hub.Options.Auth` before the middleware; routes answer on any Host. Check: `git grep -n 'auth.Load(hc.Env)' origin/master -- csi-spl-api/src/go/spool-hub-api/cmd/spool/hub.go` → 1 hit; `TestAuthMountedWithoutTenant` (unknown tenant host → `200 {"providers":[]}`). Registrar nil until T012.
+- [ ] T011 Planned (003 T033b) — session as the M3 view door on `/v1/view/*`. OQ-A1 **decided (a)** by 003 (`bc6a6a1`, view-v1 0.3.0 §2): cookie Domain = env fqdn + `Access-Control-Allow-Credentials: true` for exact allow-listed origins only. Gated: the door and credentialed CORS switch on together, only after T013. The door calls `ah.SessionForTenant(r, hostTenant)`.
 - [ ] T012 Planned (003 + 004 + rdb) — store-backed `Registrar`: first callback creates `HUM-*` (narrative §0, §3.1), returns it into the session; needs a humans table (csi-spl-rdb) and 004's id rule (OQ-A3).
-- [ ] T013 Planned (003/006) — tenant membership: which `HUM-*` may read which tenant; never from `session.t` (SEC-001).
+- [~] T013 Partial — seam Implemented (`5e8ecb1`): `auth.Options.Membership` (`Member(ctx, humanID, tenant) (bool, error)`) and `Handler.SessionForTenant`, fail-closed (no Membership, no `HUM-*`, lookup error, not a member all refuse; `session.t` never read). Check: `go test -run TestSessionForTenant ./internal/auth/` → ok. Missing: the store-backed `Membership` (003/006 + rdb), after T012. SEC-001.
 
 ## Phase 3 — WUI login (005 CLE-3342)
 
@@ -32,9 +32,11 @@ here (§2.4); the owner is named.
 
 ## Phase 4 — Infra (007 iac; apply is the owner-gated apply lane)
 
+Recorded by 007 (CLE-3344) as its T066–T068 = these T020–T022, behind 007's M1 gaps; T067 folds into its 029 secrets step.
+
 - [ ] T020 Planned (007) — render `env.auth.social.env` into 030 `environment_variables` (merge with `hub.env`) and `env.auth.social.secret_env` into `secret_environment_variables`; extend `tf-steps-render-and-validate.tst.sh` like its DSN assertion.
 - [ ] T021 Planned (007) — three empty Secret Manager slots (`csi-spl-hub-auth-session-key`, `csi-spl-hub-auth-google-client-secret`, `csi-spl-hub-auth-facebook-client-secret`) + `roles/secretmanager.secretAccessor` for the hub runtime SA, per env; no version resource (like 040's DSN slot).
-- [ ] T022 Planned (007) — derive `SPOOL_HUB_AUTH_APP_URL` and the two redirect URIs from `env.dns.fqdn` in `do_spl_merged_cnf` so the domain stays single-source; drop the literal values from dev/prd.env.yaml.
+- [ ] T022 Planned (007) — derive `SPOOL_HUB_AUTH_APP_URL`, `SPOOL_HUB_AUTH_COOKIE_DOMAIN` and the two redirect URIs from `env.dns.fqdn` in `do_spl_merged_cnf` so the domain stays single-source; drop the literal values from dev/prd.env.yaml.
 
 ## Phase 5 — Registration day (owner; runbook `quickstart.md` §3)
 
@@ -50,4 +52,4 @@ here (§2.4); the owner is named.
 - [ ] T043 Planned — Facebook deauthorize + data-deletion callback (required for a live Meta app; csi-rel `facebook_callbacks.go` is the donor).
 - [ ] T044 Planned — avatar: server-side fetch → `file_id` (narrative §3.4).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:36:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:48:00Z -->

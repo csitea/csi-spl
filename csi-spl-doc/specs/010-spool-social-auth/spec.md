@@ -12,9 +12,10 @@ Status words follow `../README.md` §2.3: **Implemented** (cited), **Partial**
 ## 0. What is built today (read first)
 
 The hub has a self-contained sign-in package, `internal/auth`, on trunk at
-`9be4b71`, and its configuration block in cnf at `b5d0a9d`. **It is not
-mounted on the running hub yet** and **no provider app is registered**: both
-are listed tasks (`tasks.md` T010, T030–T034). What exists and is verified:
+`9be4b71`, and its configuration block in cnf at `b5d0a9d`. The hub mounts
+it since `bc6a6a1` (003, `tasks.md` T010) with auth **off** in every env:
+**no provider app is registered** yet (`tasks.md` T030–T034). What exists and
+is verified:
 
 | Piece | Where | Check |
 |---|---|---|
@@ -102,7 +103,9 @@ Narrative §1. *(Planned: T040–T042; listing one today fails the boot with
   the start `tenant`, returns `HUM-*` or `ErrNotAllowed`. Missing: the hub's
   implementation (T012).
 - **FR-009** — Planned: the session is accepted as the M3 door for
-  `/v1/view/*` (003 `contracts/view-v1.md` §2 "M3 successor"). Open: OQ-A1.
+  `/v1/view/*` (003 `contracts/view-v1.md` §2 "M3 successor"), through
+  `Handler.SessionForTenant` (Implemented `5e8ecb1`, fail-closed) once a
+  store-backed `Membership` exists (T013). OQ-A1 decided (a).
 - **FR-010** — Planned: the WUI reaches `/api/v1/auth/**` same-origin through
   a Hosting rewrite to the hub (as csi-rel), so the callback host is the WUI
   origin and one redirect URI per provider per env is registered (narrative §5).
@@ -122,16 +125,18 @@ Narrative §1. *(Planned: T040–T042; listing one today fails the boot with
 
 ## 4. Open questions
 
-- **OQ-A1 (003, CLE-3340)** — How does the session reach `/v1/view/*` on
-  `<tenant>.<fqdn>` from the WUI origin? The cookie is HttpOnly, so the WUI
-  cannot turn it into a header, and the hub cannot mint a view-v1 token (those
-  are signed by the tenant ROOT key, which the hub never holds). Options:
-  (a) `SPOOL_HUB_AUTH_COOKIE_DOMAIN=<env.dns.fqdn>` so every tenant host
-  receives the cookie (same-site, SameSite=Lax holds), plus view-v1 CORS with
-  `Access-Control-Allow-Credentials: true` for the allowlisted origins only and
-  `credentials: 'include'` in the WUI; (b) serve the viewer same-origin on each
-  tenant host. Recommended: (a) — one cnf value and one CORS header; view-v1
-  §3's "no credentials mode" then changes, which is 003's text to change.
+- **OQ-A1 — DECIDED (a)** by 003 (`bc6a6a1`, view-v1 0.3.0 §2): cookie
+  Domain = the env fqdn (`SPOOL_HUB_AUTH_COOKIE_DOMAIN`) plus
+  `Access-Control-Allow-Credentials: true` for the exact allow-listed origins
+  only (never reflected, never `*`). Switched on together with the session
+  door, only after T013.
+- **OQ-A4 (owner / 007)** — prd serves the apex, so a prd cookie with
+  `Domain=<BASE_DOMAIN>` is also sent to every `dev.<BASE_DOMAIN>` host. The
+  dev hub cannot verify it (different session key: `401`), but the prd token
+  reaches dev infrastructure. cnf gives dev its own cookie name
+  (`spool_session_dev`) so the two never shadow each other on dev hosts; a
+  hard fix is prd tenants under their own subdomain or a separate dev domain.
+  Hub logs must never record `Cookie` headers.
 - **OQ-A2 (owner)** — Which host is the registered callback host per env:
   the WUI origin with a rewrite (FR-010, cnf default today) or a dedicated
   hub host.
@@ -146,4 +151,4 @@ Narrative §1. *(Planned: T040–T042; listing one today fails the boot with
   (`TestStateCSRF`).
 - **SC-003** — Planned: the same on dev against the registered apps (T034).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:31:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:48:00Z -->

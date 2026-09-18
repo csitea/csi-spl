@@ -15,6 +15,7 @@ Artifacts: `.github/workflows/10_ci-quality.yml`,
 |---|---|---|---|
 | `10 ci: quality gate` | `master`, **no `paths:` filter** | yes, no inputs | **none** (trunk-based) |
 | `20 ci-cd: spool hub build + deploy` | `master`, `paths:` allow-list (1.1) | `environment` = `dev` \| `prd` \| `all` (default `dev`) | **none** |
+| `22 ci-cd: spool hub deploy verify` | none — `workflow_run` on every **completed** `20` run on `master` (runs only when it concluded `success`) | `environment` = `all` \| `dev` \| `prd` (default `all`) | **none** |
 
 ### 1.1 The deploy allow-list
 
@@ -93,6 +94,33 @@ The job instead requires, from `gcloud run services describe`:
 template image == the cnf ref, `Ready == True`, and
 `latestCreatedRevisionName == latestReadyRevisionName`.
 
+### 2.6 `22 ci-cd: spool hub deploy verify` — post-deploy HTTPS smoke
+
+Modelled on csi-rel's `verify-api-health.sh`: the work is in
+`csi-spl-orc/src/bash/scripts/verify-hub-endpoints.sh` (also run by hand:
+`ENV_NAME=<env> bash csi-spl-orc/src/bash/scripts/verify-hub-endpoints.sh`), and the
+workflow is a matrix (`dev`, `prd`, `fail-fast: false`) that calls it. No GCP
+identity: every probe is anonymous HTTPS.
+
+| Probe | URL (derived from cnf) | Pass |
+|---|---|---|
+| site | `https://<env.dns.fqdn>/` | 200, non-empty body |
+| api | `https://[<env_subdomain>.]api.<BASE_DOMAIN>/version` | 200 + JSON `{version, commit, built_at}`, each a non-empty string |
+
+The hosts come from cnf `env.dns.BASE_DOMAIN` + `env_subdomain`. That gives
+`dev.spool-hub.ai`, `dev.api.spool-hub.ai`, `spool-hub.ai` and
+`api.spool-hub.ai`, the owner's literal goal hosts: keep `dev.api.…`, never
+switch it to `api.dev.…` (owner, 2026-09-18). Each probe gets 6 attempts,
+10 s apart, and the last attempt decides:
+
+| Verdict | When | Script exit | Job |
+|---|---|---|---|
+| ok | as the table above | 0 | green |
+| pending (UNKNOWN) | not reachable **yet**: no DNS (curl 6), nothing on 443 (curl 7), TLS / managed cert not ACTIVE (curl 35, 51, 58, 60), LB allowlist 403 | 2 | green + `::warning::` |
+| fail | reachable but wrong: 5xx, 404, a bad `/version` body, an empty `/`, a timeout | 1 | **red** |
+
+A failure outranks a pending. The job summary lists every probe's verdict.
+
 ## 3. Inputs the pipeline consumes (owned by 007)
 
 | Repo variable | Value (from 017 output) | Used by |
@@ -130,4 +158,4 @@ provisions.
 WUI deploy (Firebase, tf `016`/`019`, M3 — 005's), `terraform apply` of any
 step (owner-gated, never from CI), per-sha tags, pull-request builds.
 
-<!-- version: 1.0.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:33:50Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:56:25Z -->

@@ -64,6 +64,7 @@ tenant cannot read another tenant’s repos.
 | **FR-P09** | A deployed-state check an operator (or agent) can run: cnf `hub.image.ref` vs the live service image, per env, reporting `current` or `lagging`. | **Implemented** — `ENV=<env> GCP_ACCOUNT=$GCP_ACCOUNT ./csi-spl-orc/run -a do_check_hub_deploy`, read-only (describe only), exit 0 current / 3 lagging / 4 unhealthy / 1 cannot tell; tests `csi-spl-orc/src/bash/tests/check-hub-deploy.tst.sh` (9 assertions). Live 2026-09-18T19:21Z (n=1): dev → `dev current … spool-hub:0.1.0`, rc 0; prd → rc 1 (no service yet). |
 | **FR-P10** | Names (project, region, image ref, service) come from cnf through `do_spl_cloud_cnf`, never from the workflow file. | **Implemented** — `grep -cE 'csi-spl-(dev\|prd)\b' .github/workflows/20_hub-build-deploy.yml` → 0. |
 | **FR-P11** | The gate also proves the WUI: `csi-spl-wui` unit tests and `nuxt typecheck`, with a frozen pnpm lockfile. The browser e2e check stays local. | **Implemented** — `18a19dc`; run `35386487700` → `wui: unit tests + typecheck` success, log `# tests 30 / # pass 30 / # fail 0`. |
+| **FR-P12** | Post-deploy smoke (`22_deploy-verify.yml`): per env, `GET https://<fqdn>/` → 200 and `GET https://[<sub>.]api.<BASE_DOMAIN>/version` → 200 + `{version, commit, built_at}`. Not reachable yet = warning; wrong answer = red (`contracts/pipeline.md` §2.6). | **Partial** — job + script implemented (`0d2155d`; `verify-hub-endpoints.tst.sh` 22 assertions); dispatched run `35388469240` → both envs green with warnings, **no probe reached 200 yet**. The runner saw dev `/` → 403 (allowlist) and dev api → no DNS; prd apex and prd api → no DNS. It reaches 200 once 031 serves the four hosts (the `dev.api` SAN, A records) and the M1 open allowlist is applied (CLE-3335). |
 
 ### Live estate the pipeline lands on (measured 2026-09-18 ~19:00Z, n=1)
 
@@ -105,4 +106,4 @@ owner-gated apply (007 T050), then T105–T109.
 - **US1**: M1 image need not include `gh`. M2 checkout. Store logic. WUI. 031
   ingress. Baking tokens. Box-side `gh` / tokens on a box.
 
-<!-- version: 0.2.5 · updated: 2026-09-18 · last-edit: 2026-09-18T19:37:01Z -->
+<!-- version: 0.2.6 · updated: 2026-09-18 · last-edit: 2026-09-18T19:56:25Z -->

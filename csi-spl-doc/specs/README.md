@@ -174,27 +174,19 @@ happened, outside the repo.**
 | same for `www.spool-hub.ai` | empty: the Gandi `www` redirect is gone |
 | same for `t1.dev.spool-hub.ai` | `136.68.5.155` (the dev `*.dev` A record is in the zone) |
 
-Option A is therefore in effect **de facto, but only half of it**: the zone
-is authoritative, yet its "copy the apex parking record" half was never done,
-so `http://spool-hub.ai/` stops resolving as resolver caches expire. The
-owner has **not confirmed** A in the repo: `300a998` still says stay on Gandi,
-and `do_gandi_set_nameservers` still refuses `ns-cloud-*` (`04f7dca`).
+Option A was then **decided and completed** (`57c82ba`, 007): `025-gcp-dns-zone`
+adopts the zone (`9ed50ac`), the `ns-cloud-*` refusal is lifted (`1b78621`),
+and the apex and `www` point at the prd hub load balancer instead of Gandi
+parking. Measured 2026-09-18 ~20:20Z (n=1 each):
 
-This collides with an earlier owner decision on trunk (`git show 300a998`,
-`cb25346`, `04f7dca`): *public DNS stays on Gandi LiveDNS, never re-delegate
-the registrar to `ns-cloud-*`, the apex stays Gandi parking*; and
-`do_gandi_set_nameservers` refuses `ns-cloud-*`. The redo brief asks for the
-handoff. **Open owner question (raised 2026-09-18):**
+| Host | A (from `ns-cloud-e1`) | `curl …/version` |
+|---|---|---|
+| `spool-hub.ai`, `www.`, `api.` | `34.54.10.95` (prd LB) | 200 |
+| `dev.spool-hub.ai`, `dev.api.` | `136.68.5.155` (dev LB) | 200 |
 
-- **A — hand off:** Gandi NS → `ns-cloud-e1..e4`; terraform imports the zone
-  and owns every record, including a copy of the apex parking record.
-- **B — stay on Gandi:** the zone is imported into terraform but not delegated;
-  ACME CNAME and `*.` records are written with `do_gandi_*`.
-
-Until answered, 007 writes the DNS-zone step as **import the existing zone
-(never recreate)** with the handoff as an **owner-gated deliverable**, and
-records both options. A prd `fqdn` of the apex also means 031 would write an
-apex A record — that is gated on the same answer.
+The earlier "stay on Gandi" text (`300a998`, `cb25346`) is superseded for
+DNS authority. `api`, `www` and `dev` are reserved tenant labels
+(`msg.ValidTenantID`, 006 FR-016), so these hosts can never be a tenant.
 
 ---
 
@@ -252,14 +244,18 @@ steps are each a task.
 
 | Item | Owner |
 |---|---|
-| **Confirm option A** (NS handoff done de facto, §6.1 update 19:44Z). If confirmed: the apply lane adds the apex (Gandi parking A, or the hub) and `www` to the zone; 007 records A as decided and lifts the `ns-cloud-*` refusal. Until then the apex and `www` do not resolve | **owner** → apply lane, 007 |
-| ~~`10 ci: quality gate` red on trunk~~ — **resolved**: `4839514` fixed the sweep under `bash -e`; gate green on `33560da` (run 35385128819); 008 T107 / FR-P07 Implemented (`cb1f254`) | 008 |
-| `017-github-wif-deploy` is on trunk (`2a7888c`) but **not applied**; repo vars `GCP_WIF_PROVIDER_<ENV>` / `GCP_DEPLOY_SA_EMAIL_<ENV>` unset, so every `20 ci-cd` deploy job skips both envs. A green `20 ci-cd` run proves nothing about deploys: the deployed-state check is `./run -a do_check_hub_deploy` (`7bfe152`; 0 current / 3 lagging / 4 unhealthy / 1 cannot tell) | 007 T050 (apply, owner go) → 008 T105–T109 |
-| prd: 001 services not enabled; nothing past step 2 | 007 |
-| dev: 025 and 031 have no state; hub not reachable from outside | 007 |
-| `gs://csi-spl-{dev,prd}-tfstate/terraform/025-gcp-dns-zone/default.tfstate` exist with **0 resources** (init ran 18:56–18:57Z) while trunk has no `025-*` dir: `git ls-tree --name-only origin/master csi-spl-iac/src/terraform/ \| grep -c 025` -> 0 (trunk 39d56a5). Land the dir or drop the empty state | 007 |
-| Branch `GRK-3342-007-tf-007-dns` (`f08754d`, unmerged) copies the Gandi actions into `csi-spl-iac`; trunk already carries them in `csi-spl-orc` (`04f7dca`). Not a terraform DNS step, so no collision with `025`; likely stale | 007 |
-| view-v1 not built; WUI client calls dropped routes | 003 US7 → 005 G5 |
+| **Ingress is open to the internet**: `allowed_ip_ranges: ["0.0.0.0/0"]` in dev and prd (`37e2e58`, "TEMPORARY for M1 verification (owner)"); `curl https://t1.dev.spool-hub.ai/v1/health` -> 200 from a box that was never allowlisted. The binding `../doc/md/SPEC-spool-milestones.md` M1 row still says "Unknown internet cannot hold a WS", and 007 FR-012 / SC-004 still expect 403. The box key on the WS hello is the only gate meanwhile. **Owner:** confirm the exception in the milestones doc, or tighten before the M1 demo | **owner** → 007 |
+| `017-github-wif-deploy` on trunk (`2a7888c`) but **not applied**; repo vars `GCP_WIF_PROVIDER_<ENV>` / `GCP_DEPLOY_SA_EMAIL_<ENV>` unset, so the `20 ci-cd` deploy job skips both envs. Both hubs were deployed outside the pipeline. Deployed-state check: `./run -a do_check_hub_deploy` (`7bfe152`); post-deploy smoke: `22_deploy-verify.yml` (`81ab284`) | 007 T050 (apply, owner go) → 008 T105–T109 |
 | Several lanes stamped `last-edit` in local time with a `Z` suffix | cosmetic; fix on next edit |
 
-<!-- version: 1.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:15Z -->
+Resolved since the first record (kept for audit):
+~~quality gate false red~~ (`4839514`, `cb1f254`) ·
+~~DNS option A vs B~~ (decided and live, §6.1) ·
+~~empty `025` state, no `025` dir~~ (`9ed50ac`) ·
+~~prd nothing past step 2~~ (`csi-spl-hub-prd` running; run, sqladmin, compute enabled) ·
+~~dev hub not reachable~~ (031 applied; 200 above) ·
+~~view-v1 not built / WUI on dropped routes~~ (`internal/hub/view.go` serves `/v1/view/*`;
+`grep -c '/v1/messages\|/v1/channels' csi-spl-wui/utils/spool-client.mjs` -> 0) ·
+~~`GRK-3342-007-tf-007-dns` stale branch~~ (superseded by `025`).
+
+<!-- version: 1.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:20:46Z -->

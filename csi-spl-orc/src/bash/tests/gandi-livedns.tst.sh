@@ -4,7 +4,8 @@
 #   1. bash -n on the gandi lib + actions
 #   2. no product domain literal, no shop leftovers, no GCP NS in @example
 #   3. _gandi_domain: DOMAIN env, else cnf env.dns.BASE_DOMAIN; empty fails
-#   4. set-nameservers refuses ns-cloud-* and never PUTs (even CONFIRM=yes)
+#   4. set-nameservers (option A, 2026-09-18): dry-run without CONFIRM; with
+#      CONFIRM=yes PUTs ns-cloud-* targets; refuses fewer than two NS
 #   5. set-dns-record refuses apex @ A; dry-runs * A; CONFIRM=yes PUTs * A
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -41,14 +42,9 @@ for banned in "$dom" 'ns-cloud-e1.googledomains.com'; do
     pass "no cnf-domain/GCP-NS literal in gandi sources ($banned sourced, not hardcoded as product domain)"
   fi
 done
-if grep -A2 '@example' "$SET_NS" | grep -qiE 'ns-cloud-|googledomains'; then
-  fail "gandi-set-nameservers @example still targets GCP NS"
-else
-  pass "gandi-set-nameservers @example does not target GCP NS"
-fi
-grep -q 'ns-cloud-' "$SET_NS" && grep -q 'googledomains.com' "$SET_NS" \
-  && pass "gandi-set-nameservers refuses GCP NS by name" \
-  || fail "gandi-set-nameservers is missing the GCP NS refuse"
+grep -q 'refusing GCP Cloud DNS' "$SET_NS" \
+  && fail "gandi-set-nameservers still refuses the Cloud DNS NS (option A lifted it)" \
+  || pass "gandi-set-nameservers no longer refuses ns-cloud-* (option A)"
 
 want=$(yq -r '.env.dns.BASE_DOMAIN // ""' "$CNF_ALL")
 [[ -n "$want" && "$want" == *.* ]] || { fail "could not read env.dns.BASE_DOMAIN from cnf"; want=""; }
@@ -106,21 +102,29 @@ run_gandi() {
 }
 
 api=$(mktemp)
-out=$(run_gandi "$api" do_gandi_set_nameservers CONFIRM=yes \
+out=$(run_gandi "$api" do_gandi_set_nameservers \
       NAMESERVERS=ns-cloud-x1.googledomains.com,ns-cloud-x2.googledomains.com 2>&1) || true
-if echo "$out" | grep -q 'refusing GCP Cloud DNS' && [[ ! -s "$api" ]]; then
-  pass "set-nameservers refuses ns-cloud-* and does not call the API"
+if echo "$out" | grep -q 'dry-run' && [[ ! -s "$api" ]]; then
+  pass "set-nameservers dry-runs without CONFIRM and does not call the API"
 else
-  fail "set-nameservers did not refuse GCP NS (out=$out api=$(cat "$api"))"
+  fail "set-nameservers without CONFIRM called the API or did not dry-run (out=$out api=$(cat "$api"))"
 fi
 
 api=$(mktemp)
 out=$(run_gandi "$api" do_gandi_set_nameservers CONFIRM=yes \
-      NAMESERVERS=ns-101-a.gandi.net,ns-102-b.gandi.net 2>&1) || true
-if echo "$out" | grep -q 'dry-run only' && [[ ! -s "$api" ]]; then
-  pass "set-nameservers never PUTs even with CONFIRM=yes"
+      NAMESERVERS='ns-cloud-x1.googledomains.com, ns-cloud-x2.googledomains.com' 2>&1) || true
+if grep -q 'PUT /domain/domains/.*/nameservers {"nameservers":\["ns-cloud-x1.googledomains.com","ns-cloud-x2.googledomains.com"\]}' "$api"; then
+  pass "set-nameservers CONFIRM=yes PUTs the trimmed ns-cloud-* list (option A)"
 else
-  fail "set-nameservers applied or did not dry-run (out=$out api=$(cat "$api"))"
+  fail "set-nameservers CONFIRM=yes did not PUT the expected payload (out=$out api=$(cat "$api"))"
+fi
+
+api=$(mktemp)
+out=$(run_gandi "$api" do_gandi_set_nameservers CONFIRM=yes NAMESERVERS=ns-cloud-x1.googledomains.com 2>&1); rc=$?
+if [[ $rc -ne 0 && ! -s "$api" ]] && echo "$out" | grep -q 'at least two'; then
+  pass "control: a single name server is refused before any API call"
+else
+  fail "control: single NS rc=$rc out=$out api=$(cat "$api")"
 fi
 
 api=$(mktemp)

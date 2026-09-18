@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 # @description Show registrar-level name servers for the product domain
 #              ($DOMAIN or cnf env.dns.BASE_DOMAIN). Read-only. Public NS
-#              must stay on Gandi LiveDNS.
+#              are the Cloud DNS zone 025 adopts (option A, 2026-09-18).
 # @example ./run -a do_gandi_get_nameservers
 # @arg --domain DOMAIN
 #------------------------------------------------------------------------------

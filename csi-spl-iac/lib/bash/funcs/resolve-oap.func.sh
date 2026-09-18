@@ -2,12 +2,19 @@
 # Resolves ORG, APP, PROJ from the environment or the directory structure.
 # If already set (e.g. from GitHub Actions vars via Terraform step 120), use as-is
 # UNLESS the value mismatches the current directory (stale from another project).
-# Otherwise derive from the directory convention:
+# Otherwise derive from the project dir's OWN name, <ORG>-<APP>-<PROJ_TYPE>
+# (basename of PROJ_PATH). That name is the same in the canonical layout
 #   <base>/<ORG>/<ORG>-<APP>/<ORG>-<APP>-<PROJ_TYPE>
+# and in an agent worktree
+#   <base>/<ORG>/<ORG>-<APP>-wt/<ID>/<ORG>-<APP>-<PROJ_TYPE>
+# where the parent dirs are not <ORG>/<ORG>-<APP> (deriving from them gave
+# ORG=csi-spl-wt APP=3344 there; spec 007 T069).
+_oap_field() { basename "$PROJ_PATH" | cut -d'-' -f"$1"; }
+
 do_resolve_oap() {
   case "$1" in
     ORG)
-      local derived_org="$(basename "$(dirname "$APP_PATH")")"
+      local derived_org="$(_oap_field 1)"
       if [[ -n "${ORG:-}" ]] && [[ "$ORG" == "$derived_org" ]]; then
         return 0
       fi
@@ -15,8 +22,7 @@ do_resolve_oap() {
       return 0
       ;;
     APP)
-      local app_basename="$(basename "$APP_PATH")"
-      local derived_app="${app_basename#*-}"
+      local derived_app="$(_oap_field 2)"
       if [[ -n "${APP:-}" ]] && [[ "$APP" == "$derived_app" ]]; then
         return 0
       fi
@@ -24,7 +30,7 @@ do_resolve_oap() {
       return 0
       ;;
     PROJ)
-      local derived_proj="$(basename "$PROJ_PATH" | cut -d'-' -f3)"
+      local derived_proj="$(_oap_field 3)"
       if [[ -n "${PROJ:-}" ]] && [[ "$PROJ" == "$derived_proj" ]]; then
         return 0
       fi

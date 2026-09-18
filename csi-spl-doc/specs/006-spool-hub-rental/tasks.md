@@ -35,8 +35,8 @@ Gate: 002 signed `v:1` + a testhub process (003 T005 or sqlite).
 
 ## Phase 4: Quota / unpaid (US4)
 
-- [ ] T012 Enforce quota → 429
-- [ ] T013 Unpaid: send/pin 402, recv ok during grace
+- [x] T012 Enforce quota → 429
+- [x] T013 Unpaid: send/pin 402, recv ok during grace
 
 ## Phase 5: Polish
 

@@ -15,6 +15,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -341,6 +342,31 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 	if _, err := s.o.Store.GetPin(ctx, x.tenant, env.ToBox); err != nil {
 		x.fail(ctx, id, "unpinned_box", http.StatusNotFound, "to_box is not pinned in this tenant")
 		return
+	}
+	trow, err := s.o.Store.GetTenant(ctx, x.tenant)
+	if err != nil {
+		x.fail(ctx, id, "internal", http.StatusInternalServerError, "tenant unavailable")
+		return
+	}
+	if !billing.AllowsWrite(trow.BillingStatus) {
+		x.fail(ctx, id, billing.TokenUnpaid, billing.HTTPUnpaid, "tenant billing is unpaid")
+		return
+	}
+	has, err := s.o.Store.HasMessage(ctx, x.tenant, id)
+	if err != nil {
+		x.fail(ctx, id, "internal", http.StatusInternalServerError, "message lookup failed")
+		return
+	}
+	if !has {
+		n, err := s.o.Store.CountMessagesSince(ctx, x.tenant, billing.PeriodStart(s.o.Now()))
+		if err != nil {
+			x.fail(ctx, id, "internal", http.StatusInternalServerError, "quota lookup failed")
+			return
+		}
+		if s.quota().Over(billing.Usage{MessagesThisPeriod: n}, 1, 0, 0) != "" {
+			x.fail(ctx, id, billing.TokenQuota, billing.HTTPQuota, "message quota for this period is exceeded")
+			return
+		}
 	}
 	if !s.o.AllowTextOnly {
 		for _, a := range m.Files {

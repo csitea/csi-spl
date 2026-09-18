@@ -117,10 +117,15 @@ type Hub struct {
 	RetentionChannels time.Duration `env:"SPOOL_HUB_RETENTION_CHANNELS" envDefault:"720h"`
 	HelloSkew         time.Duration `env:"SPOOL_HUB_HELLO_SKEW" envDefault:"300s"`
 	UploadTokenTTL    time.Duration `env:"SPOOL_HUB_UPLOAD_TOKEN_TTL" envDefault:"5m"`
-	GracefulShutdown  time.Duration `env:"SPOOL_HUB_GRACEFUL_SHUTDOWN" envDefault:"10s"`
-	LogLevel          string        `env:"SPOOL_HUB_LOG_LEVEL" envDefault:"info"`
-	LogFormat         string        `env:"SPOOL_HUB_LOG_FORMAT" envDefault:"json"`
-	MigrationsDir     string        `env:"SPOOL_HUB_MIGRATIONS_DIR"`
+	// Quota fields: 0 = unlimited (tests / internal). Production values live in cnf.
+	QuotaMessagesPerMonth int           `env:"SPOOL_HUB_QUOTA_MESSAGES_PER_MONTH" envDefault:"0"`
+	QuotaPins             int           `env:"SPOOL_HUB_QUOTA_PINS" envDefault:"0"`
+	QuotaFileBytes        int64         `env:"SPOOL_HUB_QUOTA_FILE_BYTES" envDefault:"0"`
+	BillingGrace          time.Duration `env:"SPOOL_HUB_BILLING_GRACE" envDefault:"168h"`
+	GracefulShutdown      time.Duration `env:"SPOOL_HUB_GRACEFUL_SHUTDOWN" envDefault:"10s"`
+	LogLevel              string        `env:"SPOOL_HUB_LOG_LEVEL" envDefault:"info"`
+	LogFormat             string        `env:"SPOOL_HUB_LOG_FORMAT" envDefault:"json"`
+	MigrationsDir         string        `env:"SPOOL_HUB_MIGRATIONS_DIR"`
 }
 
 // LoadHub parses the hub environment and fails fast on a missing or
@@ -143,8 +148,11 @@ func LoadHub() (*Hub, error) {
 		return nil, fmt.Errorf("SPOOL_HUB_TENANT_HOST_PATTERN %q must look like {tenant}.<fqdn> (no default)", h.TenantHostPattern)
 	}
 	if h.QueueTTL <= 0 || h.HelloSkew <= 0 || h.UploadTokenTTL <= 0 || h.QueueMaxPerBox <= 0 ||
-		h.RetentionAlerts <= 0 || h.RetentionChannels <= 0 {
+		h.RetentionAlerts <= 0 || h.RetentionChannels <= 0 || h.BillingGrace <= 0 {
 		return nil, fmt.Errorf("hub durations and SPOOL_HUB_QUEUE_MAX_PER_BOX must be positive")
+	}
+	if h.QuotaMessagesPerMonth < 0 || h.QuotaPins < 0 || h.QuotaFileBytes < 0 {
+		return nil, fmt.Errorf("hub quotas must be zero (unlimited) or positive")
 	}
 	return &h, nil
 }

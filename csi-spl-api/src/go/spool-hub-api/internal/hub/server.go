@@ -23,6 +23,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/rs/zerolog"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -46,6 +47,10 @@ type Options struct {
 	AllowTextOnly     bool // hub.allow_text_only_when_file_missing (OQ-11)
 	Version           string
 	Now               func() time.Time
+	// Quota: 0 = unlimited. Enforced on send / pin / PUT file (006 T012).
+	QuotaMessagesPerMonth int
+	QuotaPins             int
+	QuotaFileBytes        int64
 }
 
 // Server is one hub process.
@@ -221,6 +226,22 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeErr(w http.ResponseWriter, status int, token, detail string) {
 	writeJSON(w, status, wire.ErrorBody{Error: token, Detail: detail})
+}
+
+func writeUnpaid(w http.ResponseWriter) {
+	writeErr(w, billing.HTTPUnpaid, billing.TokenUnpaid, "tenant billing is unpaid")
+}
+
+func writeQuota(w http.ResponseWriter, detail string) {
+	writeErr(w, billing.HTTPQuota, billing.TokenQuota, detail)
+}
+
+func (s *Server) quota() billing.Quota {
+	return billing.Quota{
+		MessagesPerMonth: s.o.QuotaMessagesPerMonth,
+		Pins:             s.o.QuotaPins,
+		FileBytes:        s.o.QuotaFileBytes,
+	}
 }
 
 // ---- middleware: recover, request id, access log (pas-psf pattern) ----------

@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
@@ -30,6 +31,10 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "door", "a valid upload token from the WS hello is required")
 		return
 	}
+	if !billing.AllowsWrite(t.BillingStatus) {
+		writeUnpaid(w)
+		return
+	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, msg.MaxFileBytes))
 	if err != nil {
 		var mbe *http.MaxBytesError
@@ -43,6 +48,19 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 	sum := sha256.Sum256(body)
 	id := hex.EncodeToString(sum[:])
 	key, _ := blob.Key(t.ID, id)
+	exists, _ := s.o.Blob.Exists(r.Context(), key)
+	if !exists {
+		used, err := s.o.Blob.PrefixBytes(r.Context(), "t/"+t.ID+"/files/")
+		if err != nil {
+			s.o.Log.Error().Err(err).Msg("blob prefix bytes")
+			writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
+			return
+		}
+		if s.quota().Over(billing.Usage{FileBytes: used}, 0, 0, int64(len(body))) != "" {
+			writeQuota(w, "stored file bytes exceed the tenant quota")
+			return
+		}
+	}
 	if err := s.o.Blob.Put(r.Context(), key, body); err != nil {
 		s.o.Log.Error().Err(err).Msg("blob put")
 		writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
@@ -123,6 +141,22 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_sig", "tenant root signature does not verify")
 		return
 	}
+	if !billing.AllowsWrite(t.BillingStatus) {
+		writeUnpaid(w)
+		return
+	}
+	_, pinErr := s.o.Store.GetPin(r.Context(), t.ID, req.BoxID)
+	if errors.Is(pinErr, store.ErrNotFound) {
+		pins, err := s.o.Store.ListPins(r.Context(), t.ID)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal", "pins unavailable")
+			return
+		}
+		if s.quota().Over(billing.Usage{Pins: len(pins)}, 0, 1, 0) != "" {
+			writeQuota(w, "pin count exceeds the tenant quota")
+			return
+		}
+	}
 	err = s.o.Store.PutPin(r.Context(), t.ID, req.BoxID, ed25519.PublicKey(pub), req.Force, s.o.Now())
 	if errors.Is(err, store.ErrConflict) {
 		writeErr(w, http.StatusConflict, "pin_conflict", "box_id is pinned to a different key (use force)")
@@ -151,6 +185,10 @@ func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	payload, _ := wire.RevokePayload(req.BoxID, req.TS)
 	if !s.skewOK(req.TS) || verify(t.RootPubKey, payload, req.Sig) != nil {
 		writeErr(w, http.StatusBadRequest, "bad_sig", "tenant root signature does not verify")
+		return
+	}
+	if !billing.AllowsWrite(t.BillingStatus) {
+		writeUnpaid(w)
 		return
 	}
 	if err := s.o.Store.RevokePin(r.Context(), t.ID, req.BoxID, s.o.Now()); errors.Is(err, store.ErrNotFound) {

@@ -113,3 +113,26 @@ func openTestGCS(t *testing.T) *GCS {
 	t.Cleanup(func() { _ = g.Close() })
 	return g
 }
+
+func TestDirPrefixBytes(t *testing.T) {
+	ctx := context.Background()
+	d := Dir{Root: t.TempDir()}
+	n, err := d.PrefixBytes(ctx, "t/a/files/")
+	if err != nil || n != 0 {
+		t.Fatalf("empty prefix: %d %v", n, err)
+	}
+	if err := d.Put(ctx, "t/a/files/x", []byte("hello")); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Put(ctx, "t/b/files/x", []byte("xxxxxxxx")); err != nil {
+		t.Fatal(err)
+	}
+	n, err = d.PrefixBytes(ctx, "t/a/files/")
+	if err != nil || n != 5 {
+		t.Fatalf("tenant a: %d %v", n, err)
+	}
+	n, err = d.PrefixBytes(ctx, "t/b/files/")
+	if err != nil || n != 8 {
+		t.Fatalf("tenant b: %d %v", n, err)
+	}
+}

@@ -1,0 +1,101 @@
+// Package billing maps payment.md events onto tenants.billing_status and
+// decides which hub verbs an unpaid or over-quota tenant may still run.
+//
+// This is the 006 T012–T013 gate, not a payment-provider copy: no checkout,
+// no webhook HTTP, no card data, no vendor name in this package.
+package billing
+
+import (
+	"fmt"
+	"time"
+)
+
+// tenants.billing_status CHECK values (003 data-model.md / 0001_hub_core.sql).
+const (
+	StatusActive   = "active"
+	StatusGrace    = "grace"
+	StatusUnpaid   = "unpaid"
+	StatusInternal = "internal"
+)
+
+// Hub error tokens (003 contracts/error-envelope.md).
+const (
+	TokenUnpaid = "unpaid"
+	TokenQuota  = "quota"
+)
+
+// HTTP statuses (006 contracts/http-rental.md).
+const (
+	HTTPUnpaid = 402
+	HTTPQuota  = 429
+)
+
+// MapEvent is the payment.md table: a paid/unpaid/refund event becomes a
+// tenant billing_status. Unknown events fail closed.
+func MapEvent(event string) (string, error) {
+	switch event {
+	case "paid":
+		return StatusActive, nil
+	case "unpaid", "failed":
+		// Recv stays up for the cnf grace window; send/pin are already 402.
+		return StatusGrace, nil
+	case "refund", "cancel":
+		return StatusUnpaid, nil
+	default:
+		return "", fmt.Errorf("billing: unknown payment event %q", event)
+	}
+}
+
+// ValidStatus reports a tenants.billing_status CHECK value.
+func ValidStatus(s string) bool {
+	switch s {
+	case StatusActive, StatusGrace, StatusUnpaid, StatusInternal:
+		return true
+	}
+	return false
+}
+
+// AllowsWrite is send, pin, revoke, and PUT /v1/files. Recv, GET file, GET
+// pins, and WS hello stay up in grace (T013).
+func AllowsWrite(status string) bool {
+	switch status {
+	case StatusActive, StatusInternal, "":
+		return true
+	default:
+		return false
+	}
+}
+
+// PeriodStart is the UTC month-start used for messages-per-month quota.
+func PeriodStart(now time.Time) time.Time {
+	u := now.UTC()
+	return time.Date(u.Year(), u.Month(), 1, 0, 0, 0, 0, time.UTC)
+}
+
+// Quota is one plan tier (cnf). Zero on a field means unlimited.
+type Quota struct {
+	MessagesPerMonth int
+	Pins             int
+	FileBytes        int64
+}
+
+// Usage is the tenant's current consumption against Quota.
+type Usage struct {
+	MessagesThisPeriod int
+	Pins               int
+	FileBytes          int64
+}
+
+// Over reports whether adding extra would exceed a set quota. Empty = ok.
+func (q Quota) Over(u Usage, extraMessages, extraPins int, extraBytes int64) string {
+	if q.MessagesPerMonth > 0 && u.MessagesThisPeriod+extraMessages > q.MessagesPerMonth {
+		return TokenQuota
+	}
+	if q.Pins > 0 && u.Pins+extraPins > q.Pins {
+		return TokenQuota
+	}
+	if q.FileBytes > 0 && u.FileBytes+extraBytes > q.FileBytes {
+		return TokenQuota
+	}
+	return ""
+}

@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 )
 
 // Memory is an in-process Store for unit tests (003 Assumptions: memory
@@ -77,6 +80,21 @@ func (s *Memory) GetTenant(_ context.Context, id string) (Tenant, error) {
 		return Tenant{}, ErrNotFound
 	}
 	return t, nil
+}
+
+func (s *Memory) SetBillingStatus(_ context.Context, id, status string) error {
+	if !billing.ValidStatus(status) {
+		return fmt.Errorf("invalid billing_status %q", status)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	t, ok := s.tenants[id]
+	if !ok {
+		return ErrNotFound
+	}
+	t.BillingStatus = status
+	s.tenants[id] = t
+	return nil
 }
 
 func (s *Memory) PutPin(_ context.Context, tenant, box string, pub ed25519.PublicKey, force bool, now time.Time) error {
@@ -320,6 +338,25 @@ func (s *Memory) Sweep(_ context.Context, now time.Time) (SweepResult, error) {
 		}
 	}
 	return r, nil
+}
+
+func (s *Memory) CountMessagesSince(_ context.Context, tenant string, since time.Time) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for k, m := range s.messages {
+		if k[0] == tenant && !m.ReceivedAt.Before(since) {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (s *Memory) HasMessage(_ context.Context, tenant, msgID string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.messages[[2]string{tenant, msgID}]
+	return ok, nil
 }
 
 func (s *Memory) Close() {}

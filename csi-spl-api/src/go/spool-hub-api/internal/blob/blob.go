@@ -15,6 +15,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/iterator"
 )
 
 // ErrNotFound is returned for an absent object.
@@ -35,6 +36,8 @@ type Store interface {
 	Put(ctx context.Context, key string, data []byte) error
 	Get(ctx context.Context, key string) (io.ReadCloser, error)
 	Exists(ctx context.Context, key string) (bool, error)
+	// PrefixBytes sums object sizes under prefix (tenant file quota, 006).
+	PrefixBytes(ctx context.Context, prefix string) (int64, error)
 	Close() error
 }
 
@@ -78,6 +81,31 @@ func (d Dir) Exists(_ context.Context, key string) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func (d Dir) PrefixBytes(_ context.Context, prefix string) (int64, error) {
+	root := d.path(prefix)
+	fi, err := os.Stat(root)
+	if os.IsNotExist(err) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	if !fi.IsDir() {
+		return fi.Size(), nil
+	}
+	var n int64
+	err = filepath.Walk(root, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			n += info.Size()
+		}
+		return nil
+	})
+	return n, err
 }
 
 func (d Dir) Close() error { return nil }
@@ -129,6 +157,21 @@ func (g *GCS) Exists(ctx context.Context, key string) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func (g *GCS) PrefixBytes(ctx context.Context, prefix string) (int64, error) {
+	it := g.bucket.Objects(ctx, &storage.Query{Prefix: prefix})
+	var n int64
+	for {
+		attrs, err := it.Next()
+		if err == iterator.Done {
+			return n, nil
+		}
+		if err != nil {
+			return 0, err
+		}
+		n += attrs.Size
+	}
 }
 
 func (g *GCS) Close() error { return g.client.Close() }

@@ -33,6 +33,12 @@ Per-user / per-bot monthly licenses are **M4** (`SPEC-spool-m4-seats.md`).
 | `PaymentProvider` | same interface; amount = **M2 tenant plan** from cnf |
 | fake-pay (077) | lde only: `do_spl_tenant_create` / fake paid without a rail |
 
+Hub gate (T012–T013; **no** provider copy): `paid` → `active`; `unpaid`/`failed`
+→ `grace`; `refund`/`cancel` → `unpaid`. `grace`/`unpaid` refuse send/pin/PUT
+file (`402` / `unpaid`); recv, GET file, GET pins, and WS hello stay up in
+grace. Over quota (messages/month, pins, stored file bytes; cnf) → `429` /
+`quota`. Recv is not gated by quota.
+
 Hub never stores card numbers **or the tenant root private key**.
 After pay: **success page + one email** with tenant URL and root private
 key (once). Provider and prices in **cnf**. Webhook signature verify
@@ -49,4 +55,4 @@ The buy surface is a **thin checkout page**, not the M3 Slack UI.
 **When:** This file is **M2 public MVP** — stranger buys a **tenant** on the
 site. Seat packs are **M4**. M1 is proto. M3 is Slack web rollout.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:45:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T18:00:00Z -->

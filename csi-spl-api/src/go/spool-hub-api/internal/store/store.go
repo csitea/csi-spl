@@ -81,6 +81,8 @@ type Store interface {
 	// is ErrConflict.
 	CreateTenant(ctx context.Context, t Tenant) error
 	GetTenant(ctx context.Context, tenantID string) (Tenant, error)
+	// SetBillingStatus writes tenants.billing_status (payment.md mapping).
+	SetBillingStatus(ctx context.Context, tenantID, status string) error
 
 	// PutPin pins box's key. Same key → no change; different key → ErrConflict
 	// unless force (a history row records it). A revoked pin is re-activated.
@@ -117,6 +119,11 @@ type Store interface {
 
 	// Sweep expires queued deliveries past TTL and deletes messages past retention.
 	Sweep(ctx context.Context, now time.Time) (SweepResult, error)
+
+	// CountMessagesSince is messages received at or after since (month quota).
+	CountMessagesSince(ctx context.Context, tenantID string, since time.Time) (int, error)
+	// HasMessage reports whether (tenant, msg_id) is already stored (idempotent send).
+	HasMessage(ctx context.Context, tenantID, msgID string) (bool, error)
 
 	Close()
 }

@@ -11,6 +11,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 )
 
 // Postgres is the production Store. Its queries match the DDL in
@@ -72,6 +74,20 @@ func (s *Postgres) GetTenant(ctx context.Context, id string) (Tenant, error) {
 	}
 	t.RootPubKey = ed25519.PublicKey(root)
 	return t, err
+}
+
+func (s *Postgres) SetBillingStatus(ctx context.Context, id, status string) error {
+	if !billing.ValidStatus(status) {
+		return fmt.Errorf("invalid billing_status %q", status)
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE tenants SET billing_status = $2 WHERE tenant_id = $1`, id, status)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Postgres) PutPin(ctx context.Context, tenant, box string, pub ed25519.PublicKey, force bool, now time.Time) error {
@@ -320,6 +336,20 @@ func (s *Postgres) Sweep(ctx context.Context, now time.Time) (SweepResult, error
 	}
 	r.Purged = int(tag.RowsAffected())
 	return r, nil
+}
+
+func (s *Postgres) CountMessagesSince(ctx context.Context, tenant string, since time.Time) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM messages WHERE tenant_id = $1 AND received_at >= $2`,
+		tenant, since).Scan(&n)
+	return n, err
+}
+
+func (s *Postgres) HasMessage(ctx context.Context, tenant, msgID string) (bool, error) {
+	var ok bool
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM messages WHERE tenant_id = $1 AND msg_id = $2)`,
+		tenant, msgID).Scan(&ok)
+	return ok, err
 }
 
 // mapFK turns a foreign-key violation (unknown tenant) into ErrNotFound.

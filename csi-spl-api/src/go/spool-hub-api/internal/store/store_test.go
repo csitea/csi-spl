@@ -367,3 +367,58 @@ func TestPinSQLLivesInRDB(t *testing.T) {
 		}
 	}
 }
+
+func TestBillingAndQuotaCounts(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx, now := context.Background(), time.Now().UTC()
+			tid := newTenant(t, s)
+			got, err := s.GetTenant(ctx, tid)
+			if err != nil || got.BillingStatus != "internal" {
+				t.Fatalf("default status: %+v %v", got, err)
+			}
+			if err := s.SetBillingStatus(ctx, tid, "grace"); err != nil {
+				t.Fatal(err)
+			}
+			got, _ = s.GetTenant(ctx, tid)
+			if got.BillingStatus != "grace" {
+				t.Fatalf("after set: %q", got.BillingStatus)
+			}
+			if err := s.SetBillingStatus(ctx, tid, "not-a-status"); err == nil {
+				t.Fatal("invalid status accepted")
+			}
+			if err := s.SetBillingStatus(ctx, uid("nope-"), "unpaid"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown tenant: %v", err)
+			}
+
+			n, err := s.CountMessagesSince(ctx, tid, now.Add(-time.Hour))
+			if err != nil || n != 0 {
+				t.Fatalf("empty count: %d %v", n, err)
+			}
+			has, err := s.HasMessage(ctx, tid, uuid4())
+			if err != nil || has {
+				t.Fatalf("missing message: %v %v", has, err)
+			}
+			m := msgFor(tid, uuid4(), "box-b", now, now, `{"q":1}`)
+			if _, err := s.InsertMessage(ctx, m); err != nil {
+				t.Fatal(err)
+			}
+			n, _ = s.CountMessagesSince(ctx, tid, now.Add(-time.Hour))
+			if n != 1 {
+				t.Fatalf("count after insert: %d", n)
+			}
+			n, _ = s.CountMessagesSince(ctx, tid, now.Add(time.Hour))
+			if n != 0 {
+				t.Fatalf("count after window: %d", n)
+			}
+			has, _ = s.HasMessage(ctx, tid, m.MsgID)
+			if !has {
+				t.Fatal("HasMessage missed the inserted row")
+			}
+			other := newTenant(t, s)
+			if n, _ := s.CountMessagesSince(ctx, other, now.Add(-time.Hour)); n != 0 {
+				t.Fatalf("count leaked across tenants: %d", n)
+			}
+		})
+	}
+}

@@ -32,11 +32,12 @@ Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
       tpl + render test — FR-004 (uncommitted in CLE-3335; state 0 resources)
 - [ ] T011 `031` writes records into the `025` zone, dev records into the
       prd zone across projects; cnf `dns_managed_zone` no longer `""` — FR-004, FR-012
-- [ ] T012 prd plan of `025` shows 1 import, 0 add, 0 destroy; owner applies;
-      `terraform state list` shows the zone; NS unchanged — FR-004
+- [~] T012 prd plan of `025` shows 1 import, 0 add, 0 destroy; owner applies;
+      `terraform state list` shows the zone; NS unchanged — FR-004 (applied
+      19:14Z by the apply lane: 1 in state, NS unchanged; code not yet on trunk)
 - [ ] T013 **Owner decision** A (hand off) or B (stay on Gandi), spec §2 —
       FR-005
-- [ ] T020a (if A) copy the apex parking record into the zone, lift the
+- [~] T020a (A — in effect since ~19:45Z, NS delegated outside the repo) copy the apex parking record into the zone, lift the
       `ns-cloud-*` refusal in `do_gandi_set_nameservers`, owner sets Gandi NS
       -> `ns-cloud-e1..e4`; gate `dig +norec NS … @v0n1.nic.ai` — FR-005
 - [ ] T020b (if B) write the ACME CNAME and `*.` / `*.dev.` A records with
@@ -53,14 +54,14 @@ Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
 - [x] T034 `do_spl_db_bootstrap` dev (DSN secret v1 enabled; `9f8f492`) — FR-010
 - [x] T035 rdb pointer: `csi-spl-rdb/src/sql/postgres/spool-hub/000{1,2,3}_*.sql`
       bundled into the image and applied by `spool migrate` — US6
-- [ ] T036 prd: 040, 050, 028, image, DB bootstrap, after T005 and T012 —
+- [~] T036 prd: 040, 050, 028 applied (state 19:43Z); image, DB bootstrap, after T005 and T012 —
       FR-006..FR-010
 
 ## Phase 4: Cloud Run + ingress (steps 9–10, US3, US4)
 
 - [x] T040 `030-cloud-run-hub` dev (6 resources; min = max = 1, cloudsql
       socket) — FR-011
-- [ ] T041 `031-gcp-hub-ingress` dev apply after T011 + T013; cnf
+- [~] T041 `031-gcp-hub-ingress` dev apply (applied: 15 in state, cert ACTIVE, 403 non-allowlisted; allowlisted 200 unmeasured) after T011 + T013; cnf
       `allowed_ip_ranges` set by the owner; `do_wait_for_cert` ACTIVE;
       `/v1/health` 200 allowlisted / 403 otherwise (003 FR-023; a serverless NEG takes no LB health check) — FR-012, SC-004
 - [ ] T042 prd `030` + `031` (no apex A record without owner go) — FR-011,
@@ -137,4 +138,4 @@ the WUI code owner to be confirmed before anyone edits it.
 
 M2 payment drivers, M3 WUI hosting (`005`), pipeline job design (`008`).
 
-<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->

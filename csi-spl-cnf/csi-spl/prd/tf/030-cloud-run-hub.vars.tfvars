@@ -19,5 +19,5 @@ concurrency                  = 1000
 timeout_seconds              = 3600
 cloud_sql_instance_name      = "csi-spl-prd-pg"
 files_bucket_name            = "csi-spl-prd-files"
-environment_variables        = {"SPOOL_HUB_ALLOW_TEXT_ONLY_WHEN_FILE_MISSING": "false", "SPOOL_HUB_ENV": "prd", "SPOOL_HUB_FILES_BUCKET": "csi-spl-prd-files", "SPOOL_HUB_HELLO_SKEW": "300s", "SPOOL_HUB_LISTEN_ADDR": ":8080", "SPOOL_HUB_LOG_FORMAT": "json", "SPOOL_HUB_LOG_LEVEL": "info", "SPOOL_HUB_QUEUE_MAX_PER_BOX": "1000", "SPOOL_HUB_QUEUE_TTL": "168h", "SPOOL_HUB_RETENTION_ALERTS": "168h", "SPOOL_HUB_RETENTION_CHANNELS": "720h", "SPOOL_HUB_TENANT_HOST_PATTERN": "{tenant}.spool-hub.ai", "SPOOL_HUB_UPLOAD_TOKEN_TTL": "5m"}
+environment_variables        = {"SPOOL_HUB_ALLOW_TEXT_ONLY_WHEN_FILE_MISSING": "false", "SPOOL_HUB_ENV": "prd", "SPOOL_HUB_FILES_BUCKET": "csi-spl-prd-files", "SPOOL_HUB_HELLO_SKEW": "300s", "SPOOL_HUB_LISTEN_ADDR": ":8080", "SPOOL_HUB_LOG_FORMAT": "json", "SPOOL_HUB_LOG_LEVEL": "info", "SPOOL_HUB_MIGRATIONS_DIR": "/opt/spool/sql/postgres/spool-hub", "SPOOL_HUB_QUEUE_MAX_PER_BOX": "1000", "SPOOL_HUB_QUEUE_TTL": "168h", "SPOOL_HUB_RETENTION_ALERTS": "168h", "SPOOL_HUB_RETENTION_CHANNELS": "720h", "SPOOL_HUB_TENANT_HOST_PATTERN": "{tenant}.spool-hub.ai", "SPOOL_HUB_UPLOAD_TOKEN_TTL": "5m"}
 secret_environment_variables = {"SPOOL_HUB_DB_DSN": "csi-spl-hub-db-dsn"}

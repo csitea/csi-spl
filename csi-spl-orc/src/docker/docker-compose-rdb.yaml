@@ -1,0 +1,27 @@
+# csi-spl lde ::: the hub's Postgres. Same major as Cloud SQL (iac step 040,
+# POSTGRES_16). Data in a NAMED volume (per compose project = per git tree;
+# survives `down`, only `down -v` / do_teardown_app_inf LDE_PURGE=1 drops it).
+# No schema here: `spool migrate` (the hub's Go migrator) applies csi-spl-rdb.
+volumes:
+  pg-data: {}
+
+services:
+  pg:
+    image: "${LDE_PG_IMAGE:?unset - run ./run -a do_gen_docker_env in csi-spl-orc}"
+    pull_policy: if_not_present
+    environment:
+      POSTGRES_USER: "${LDE_PG_USER:?unset}"
+      POSTGRES_PASSWORD: "${LDE_PG_PASSWORD:?unset}"
+      POSTGRES_DB: "${LDE_PG_DB:?unset}"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - "pg-data:/var/lib/postgresql/data"
+    ports:
+      - "127.0.0.1:${LDE_PG_PORT:?unset}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [lde]
+    restart: unless-stopped

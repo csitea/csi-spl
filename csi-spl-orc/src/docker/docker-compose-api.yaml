@@ -1,0 +1,21 @@
+# csi-spl lde ::: the spool hub (`spool serve`). The image is built locally by
+# do_setup_app_inf (src/docker/spool-hub-api/Dockerfile), never pulled. Its
+# runtime env is the hub.env do_gen_docker_env renders from cnf env.hub.env
+# (the published SPOOL_HUB_* names, lde values): Postgres at pg:5432, the GCS
+# emulator at gcs:4443, tenants at {tenant}.localhost.
+services:
+  hub:
+    image: "${LDE_HUB_IMAGE:?unset - run ./run -a do_gen_docker_env in csi-spl-orc}"
+    pull_policy: never
+    command: ["serve"]
+    env_file:
+      - "${LDE_HUB_ENV_FILE:?unset}"
+    ports:
+      - "127.0.0.1:${LDE_HUB_PORT:?unset}:${LDE_HUB_CONTAINER_PORT:?unset}"
+    depends_on:
+      pg:
+        condition: service_healthy
+      gcs:
+        condition: service_started
+    networks: [lde]
+    restart: unless-stopped

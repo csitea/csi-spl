@@ -1,0 +1,35 @@
+# csi-spl lde ::: shared network + the GCS emulator (spec 007 T001; the
+# pas-psf-orc compose split: -infra / -rdb / -api). Every ${LDE_*} comes from
+# the compose.env do_gen_docker_env renders from csi-spl-cnf lde.env.yaml; the
+# project name (-p) is per git tree, so volumes and containers are too.
+#
+# The hub talks to the emulator through the standard STORAGE_EMULATOR_HOST
+# (cnf lde hub.env), i.e. gcs:4443 on the lde network. Host access, for the
+# smoke and for a developer, is 127.0.0.1:${LDE_GCS_PORT} only.
+networks:
+  lde: {}
+
+volumes:
+  gcs-data: {}
+
+services:
+  gcs:
+    image: "${LDE_GCS_IMAGE:?unset - run ./run -a do_gen_docker_env in csi-spl-orc}"
+    pull_policy: if_not_present
+    command:
+      - "-scheme"
+      - "http"
+      - "-port"
+      - "4443"
+      - "-external-url"
+      - "http://gcs:4443"
+      - "-backend"
+      - "filesystem"
+      - "-filesystem-root"
+      - "/storage"
+    volumes:
+      - "gcs-data:/storage"
+    ports:
+      - "127.0.0.1:${LDE_GCS_PORT:?unset}:4443"
+    networks: [lde]
+    restart: unless-stopped

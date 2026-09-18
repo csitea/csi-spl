@@ -32,8 +32,11 @@ Cart, stock holds, marketplace Connect, BIN/sanctions, invoices, storefront
 | `PaymentProvider` | same interface; amount = plan price from cnf |
 | fake-pay (077) | lde only: `do_spl_tenant_create` / fake paid without a rail |
 
-Hub never stores card numbers. Provider and prices in **cnf**. Webhook
-signature verify before any row write. Duplicate delivery id → 200 no-op.
+Hub never stores card numbers **or the tenant root private key**.
+After pay: **success page + one email** with tenant URL and root private
+key (once). Provider and prices in **cnf**. Webhook signature verify
+before any row write. Duplicate delivery id → 200 no-op.
+The buy surface is a **thin checkout page**, not the M3 Slack UI.
 
 ## When
 
@@ -41,4 +44,4 @@ signature verify before any row write. Duplicate delivery id → 200 no-op.
 site. M1 is technical proto (manual tenant, proof of local + hub mail).
 M3 is Slack web rollout.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:30:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:20:00Z -->

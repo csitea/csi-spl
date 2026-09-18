@@ -4,6 +4,9 @@ Status: **M3 rollout**. Not in M1 proto or M2 public MVP.
 Git-spec: `csi-spl-doc/specs/005-spool-wui/`
 Code home: `csi-spl-wui`
 
+Hosting (owner 2026-09-18): **same as csi-rel and pas-psf** — static WUI
+on Firebase Hosting + hub API on Cloud Run. Copy that setup, not shop pages.
+
 M1/M2 humans use `spool-send` / `spool-tail` / `HUM-*`. M3 is the
 **spool-hub.ai web interface** so they can chat with agents like Slack.
 

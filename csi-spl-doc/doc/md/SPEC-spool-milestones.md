@@ -19,6 +19,8 @@ A holder of a box **private** key can command any agent on a box that holds
 that **public** key.
 
 No browser. No payment. Tenant is created by hand (`do_spl_tenant_create`).
+The hub **is** production-shaped: Cloud Run on **spool-hub.ai** (not a
+private alias). There is **no buy button** yet.
 
 ### In
 
@@ -52,13 +54,15 @@ Pins: hello + periodic `GET /v1/pins`.
 Buy-from-the-site (M2). Slack web UI (M3). NATS, ysg-box adapter, git-rel,
 Kafka, per-agent hub keys.
 
-### Demo (M1 acceptance)
+### Demo (M1 acceptance) — then M2 may start
 
 1. **Local:** GRK-03 → CLE-07 on one `$SPOOL_ROOT`, no `$SPOOL_HUB_URL`.
-2. **Hub:** two machines, one manual tenant, two box keys, pins synced.
+2. **Hub:** two machines, one manual tenant, two box keys, pins synced,
+   talking to **spool-hub.ai** (Cloud Run).
 3. GRK on box-a `task` to CLE on box-b; CLE `result` back.
 4. HUM-1 on box-a commands CLE@box-b. Missing pubkey → refuse (`78`).
-5. No browser, no checkout.
+5. **Infra from spec 007 is applied on both `dev` and `prd`.**
+6. No browser, no checkout.
 
 ---
 
@@ -66,12 +70,14 @@ Kafka, per-agent hub keys.
 
 **Same mesh as M1**, plus a stranger can **buy the service on the site**.
 
-- Checkout on the public site (not the agent CLI).
-- Paid → tenant URL `https://<tenant>.spool-hub.ai` + tenant root key.
-- Cancel / unpaid → grace, then `402` on send/pin; recv still works in grace.
+- **The site** is a **thin checkout page only** (landing + pay). Not the M3
+  Slack UI. Not a SKU inside csi-rel/pas-psf.
 - **Payment: copy csi-rel** — `specs/006-spool-hub-rental/contracts/payment.md`.
-  Do not invent a second stack. Map “order paid” → `billing_status=active`.
-- Still **no Slack UI** (that is M3). Buyers use CLI/MCP like M1.
+- After pay: **success page and one email** contain the tenant URL and the
+  **tenant root private key**. Shown **once**. Hub never stores that private
+  key. Lost mail → support / new tenant (no dashboard re-issue in M2).
+- Cancel / unpaid → grace, then `402` on send/pin; recv still works in grace.
+- Buyers use CLI/MCP like M1. No Slack UI.
 
 ---
 
@@ -79,14 +85,19 @@ Kafka, per-agent hub keys.
 
 Humans and agents chat on the **spool-hub.ai web interface**, Slack-like:
 threads, command any agent, same `v:1` bus. `SPEC-spool-wui.md` /
-`csi-spl-wui`. Authenticated renter (payment account / tenant), not GCP IAM
-per agent. Not started until M1 is proven and M2 can sell.
+`csi-spl-wui`.
+
+**Hosting: the same setup as csi-rel and pas-psf** — static WUI (Firebase
+Hosting path) + Cloud Run API. Copy that WUI infra, not the shop pages.
+Authenticated renter (payment account / tenant), not GCP IAM per agent.
+Not started until M1 is done (dev+prd infra) and M2 can sell.
 
 ---
 
 ## Order
 
-**M1 proto** (local + hub proof) → **M2 public MVP** (buy on the site) →
-**M3 rollout** (Slack web UI).
+**M1 proto** (local + spool-hub.ai, infra on **dev and prd**) →
+**M2 public MVP** (thin checkout + one-time email of URL and root key) →
+**M3 rollout** (Slack WUI, csi-rel/pas-psf hosting).
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:00:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:20:00Z -->

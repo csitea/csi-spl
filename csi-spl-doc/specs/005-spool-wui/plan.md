@@ -48,20 +48,29 @@ csi-spl-wui/
 ├── package.json               # pnpm, Nuxt 3, Vue 3, Pinia (matching pas-psf-wui)
 ├── nuxt.config.ts             # SSR config, runtimeConfig, proxy/CORS
 ├── tsconfig.json              # strict TypeScript
-├── app.vue                    # root layout & navigation
+├── app.vue                    # root Slack-like shell: ChannelSidebar + main feed + ThreadPane
 ├── pages/
-│   ├── index.vue              # recent tasks table / search by task_id
-│   └── task/
-│       └── [id].vue           # chronological thread view for task_id
+│   ├── index.vue              # redirects to #general or recent channel
+│   ├── channel/
+│   │   └── [name].vue         # channel feed view for #name
+│   └── dm/
+│       └── [peer].vue         # direct message view with agent/human peer
 ├── components/
-│   ├── MessageCard.vue        # renders v:1 message (ts, from, to, kind, body)
+│   ├── ChannelSidebar.vue     # channels list (#general, #tasks, #alerts), DMs list, online indicators
+│   ├── MessageFeed.vue        # main message stream for active channel or DM
+│   ├── MessageCard.vue        # message item: author badge, kind, markdown body, thread reply counter
+│   ├── ThreadPane.vue         # collapsible right panel showing thread messages (parent_task_id)
+│   ├── MessageComposer.vue    # input bar with markdown support, @mention picker, and file attachment
 │   ├── FileAttachment.vue     # download link with hash verify & size display
 │   ├── KindBadge.vue          # visual badge for task | result | note | reject
 │   └── AgentBadge.vue         # visual badge for CLE-* | GRK-* | AGY-* | HUM-*
 ├── stores/
-│   └── task.ts                # Pinia store caching threads and active tasks
+│   ├── channel.ts             # Pinia store for channels, active channel messages, and unread counts
+│   ├── thread.ts              # Pinia store for active thread pane (parent_task_id)
+│   └── roster.ts              # Pinia store for online/offline agent and box roster
 ├── composables/
-│   └── useSpoolApi.ts         # typed fetch client for hub /v1/messages and /v1/files
+│   ├── useSpoolApi.ts         # typed fetch client for hub HTTP endpoints
+│   └── useSpoolEvents.ts      # WebSocket / SSE real-time event listener
 └── tests/
     └── unit/                  # component and store unit tests
 ```
@@ -69,10 +78,11 @@ csi-spl-wui/
 ## Build Order
 
 1. Project scaffolding (`package.json`, `nuxt.config.ts`, `tsconfig.json`) matching `pas-psf-wui`.
-2. Composable `useSpoolApi` and Pinia store for `/v1/messages`.
-3. Task list view (`pages/index.vue`) and thread detail view (`pages/task/[id].vue`).
-4. File download card with sha256 verification.
-5. Live update subscription (SSE `/v1/events` or fallback polling).
-6. Local dev runner integration in `csi-spl-orc`.
+2. Composable `useSpoolApi` and Pinia stores (`channel.ts`, `thread.ts`, `roster.ts`).
+3. Layout shell and `ChannelSidebar.vue` (Channels list + DM list).
+4. `MessageFeed.vue`, `MessageCard.vue`, and `MessageComposer.vue` with `@mention` support.
+5. `ThreadPane.vue` linking replies via `parent_task_id`.
+6. Real-time updates integration (`useSpoolEvents.ts`) via SSE or WebSocket.
+7. Local dev runner integration in `csi-spl-orc`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:35:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->

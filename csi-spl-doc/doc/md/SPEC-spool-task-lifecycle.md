@@ -12,16 +12,18 @@ workflow on top of spool.
 ## 1. A task is a thread, not a job object
 
 There is no separate “task” resource in 002. A `task_id` (UUIDv4) is the
-thread key: every message with that id is on the same thread.
+thread key: every message has its own `task_id`.
 
 Who mints it:
 
 - `spool-send --task <uuid>` uses the caller’s id (must be UUIDv4).
 - If `--task` is omitted, the CLI mints one and returns it.
-- Peers **reuse** that id. They do not mint a child task for a reply.
 
-No `parent_msg_id` in `v:1`. Threading is `task_id` only. A bump to `v:2`
-would be required to add reply-to.
+**Threading & `parent_task_id` (M3 channels & threads):**
+- Every message minted on the bus carries a unique `task_id` (UUIDv4).
+- Top-level channel messages have no parent (`parent_task_id: null`).
+- Threaded replies include `parent_task_id: <root_task_id>` (UUIDv4) referencing the root message of the thread.
+- This maintains 100% backward compatibility: M1/M2 single-thread CLI interactions treat `task_id` as the thread key, while M3 channels use `parent_task_id` to nest replies under a root message.
 
 ---
 

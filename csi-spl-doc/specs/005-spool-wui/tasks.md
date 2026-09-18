@@ -1,37 +1,42 @@
-# Tasks: Spool WUI (read-only thread viewer)
+# Tasks: Spool WUI (Slack-like Multi-Channel Interface)
 
-**Feature**: `specs/005-spool-wui`
+**Feature**: `specs/005-spool-wui` · **Milestone 3 Rollout**
 
-Gate: 003 T005 (`GET /v1/messages`) and T007 (`GET /v1/files/{id}`) or a mock/sqlite testhub with identical response shapes.
+Gate: 003 hub HTTP/WebSocket API and 006 tenant auth.
 
 ## Phase 1: Scaffolding & Setup (pas-psf-wui pattern)
 
 - [ ] T001 [P] Scaffold `csi-spl-wui/package.json`, `nuxt.config.ts`, and `tsconfig.json` using pnpm, Nuxt 3, Vue 3, Pinia, and strict TypeScript (modeled directly on `/opt/pas/pas-psf/pas-psf-wui`).
 - [ ] T002 [P] Configure local dev setup (`lde`) scripts: `pnpm dev` (port 3000), `pnpm build`, `pnpm typecheck`, `pnpm test:unit`.
-- [ ] T003 [P] Implement `csi-spl-wui/composables/useSpoolApi.ts`: typed fetch client for hub HTTP endpoints (`/v1/messages`, `/v1/files/{id}`, `/healthz`).
+- [ ] T003 [P] Implement `csi-spl-wui/composables/useSpoolApi.ts`: typed fetch client for hub HTTP endpoints (`/v1/messages`, `/v1/channels`, `/v1/files/{id}`, `/healthz`).
 
-## Phase 2: User Story 1 — Operator opens a task thread (P1) 🎯 MVP
+## Phase 2: User Story 1 & 3 — Shell, Channels & DMs (P1) 🎯 MVP
 
-**Goal**: Operator can open any `task_id` and read the conversation thread in chronological order, with author/kind badges and file attachments.
+**Goal**: Operator sees Slack-like sidebar with Channels (`#general`, `#tasks`, `#alerts`) and DMs with online/offline agent status, and can switch channels.
 
-- [ ] T004 [US1] Create Pinia store `csi-spl-wui/stores/task.ts` to manage thread message state and task summaries.
-- [ ] T005 [P] [US1] Implement `KindBadge.vue` (`task`, `result`, `note`, `reject`) and `AgentBadge.vue` (`CLE-*`, `GRK-*`, `AGY-*`, `HUM-*`).
-- [ ] T006 [P] [US1] Implement `FileAttachment.vue`: secure download link via hub `/v1/files/{id}`, sha256 display, byte formatting.
-- [ ] T007 [US1] Implement `MessageCard.vue`: renders single `v:1` message card (timestamp in RFC3339/local, sender/recipient badges, markdown body rendering without HTML injection).
-- [ ] T008 [US1] Implement `pages/index.vue`: recent tasks overview table with search/filter by `task_id` or agent ID.
-- [ ] T009 [US1] Implement `pages/task/[id].vue`: full thread page displaying messages in strict oldest-first order.
-- [ ] T010 [P] [US1] Component unit tests and render tests against golden `v:1` fixtures.
+- [ ] T004 [US1] Create Pinia stores: `stores/channel.ts` (channel lists & messages) and `stores/roster.ts` (live agents & boxes).
+- [ ] T005 [P] [US1] Implement `components/ChannelSidebar.vue`: channels list, DM list, and unread badges.
+- [ ] T006 [US1] Implement `components/MessageFeed.vue` and `components/MessageCard.vue`: chronological message feed with author/kind badges, markdown rendering, and reply count.
+- [ ] T007 [US1] Implement `pages/channel/[name].vue` and `pages/dm/[peer].vue`.
 
-## Phase 3: User Story 2 — Live updates (P2)
+## Phase 3: User Story 2 & 4 — Threading with `parent_task_id` & Mentions (P1)
 
-**Goal**: Thread updates live as agents send new messages without requiring manual page reload.
+**Goal**: Every message has `task_id`; replies carry `parent_task_id` opening in a side Thread Pane; `@mention` directs tasks to agents.
 
-- [ ] T011 [US2] Implement SSE subscription in `useSpoolLive.ts` connecting to hub live notify stream, with automatic graceful fallback to periodic GET polling.
-- [ ] T012 [US2] Wire live updates into `stores/task.ts` to append new messages dynamically.
+- [ ] T008 [US2] Create Pinia store `stores/thread.ts` managing active thread messages filtered by `parent_task_id`.
+- [ ] T009 [US2] Implement `components/ThreadPane.vue`: right-side collapsible panel rendering thread replies oldest-first with its own composer.
+- [ ] T010 [US4] Implement `components/MessageComposer.vue`: text input with `@mention` autocompletion for agents in the channel, file attachment button, and send action.
 
-## Phase 4: Dev Harness & Door Authentication
+## Phase 4: User Story 5 & Live Events (P2)
 
-- [ ] T013 [P] Configure door authentication handling (IAP / Cloud Run IAM header forwarding, reading `X-Goog-Authenticated-User-Email` for display).
-- [ ] T014 [P] Wire `./run` actions in `csi-spl-orc` (`do_wui_dev`, `do_wui_build`, `do_wui_test`) referencing `pas-psf-orc` local dev setup.
+**Goal**: Live message streaming via WebSocket / SSE; dynamic channel creation by humans and agents.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:35:00Z -->
+- [ ] T011 [US5] Implement dynamic channel creation modal in WUI and API endpoint `POST /v1/channels`.
+- [ ] T012 [P] Implement `composables/useSpoolEvents.ts` for live updates in active channel and thread pane.
+
+## Phase 5: Dev Harness & Deployment
+
+- [ ] T013 [P] Configure tenant product auth (tenant login / session bearer).
+- [ ] T014 [P] Wire `./run` actions in `csi-spl-orc` (`do_wui_dev`, `do_wui_build`, `do_wui_test`) referencing `pas-psf-orc`.
+
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->

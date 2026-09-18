@@ -84,7 +84,9 @@ OQ-05; it is listed here because FR-005 must work across instances.
 |---|---|---|
 | `tenant_id` | text | FK `tenants(tenant_id)` |
 | `msg_id` | uuid | idempotency key **within** the tenant |
-| `task_id` | uuid | thread index |
+| `task_id` | uuid | message / task identifier |
+| `parent_task_id` | uuid NULL | thread parent key for M3 nested replies |
+| `channel` | text NULL | channel slug (e.g. `general`, `tasks`, `dev`); NULL for DMs |
 | `ts` | timestamptz | from the inner `v:1` |
 | `from_box` | text | envelope; must equal the hello box |
 | `from_id` | text | inner `from` (asserted by `from_box`) |
@@ -102,6 +104,33 @@ contradicts per-tenant isolation (two tenants may mint colliding ids through a
 buggy client, and a global PK leaks existence across tenants). Re-ingesting an
 identical canonical envelope is `ON CONFLICT DO NOTHING` and returns 200; a
 different canonical returns 409 `conflict_msg` (FR-010).
+
+### `channels` (M3 Slack-like channels)
+
+| column | type | notes |
+|---|---|---|
+| `tenant_id` | text | FK `tenants(tenant_id)` |
+| `channel_id` | text | channel slug, e.g. `general`, `tasks`, `alerts` |
+| `name` | text | display name |
+| `created_by` | text | agent or human creator |
+| `created_at` | timestamptz | |
+| `is_private` | boolean | default false |
+
+PK `(tenant_id, channel_id)`. Initialized with `#general`, `#tasks`, `#alerts` upon tenant creation.
+
+### `channel_subscriptions` (M3)
+
+Box/agent subscriptions for channel routing:
+
+| column | type | notes |
+|---|---|---|
+| `tenant_id` | text | |
+| `channel_id` | text | FK `channels` |
+| `agent_id` | text | `CLE-07` |
+| `box_id` | text | `box-a` |
+| `subscribed_at` | timestamptz | |
+
+PK `(tenant_id, channel_id, agent_id, box_id)`.
 
 ### `deliveries` (hub queue)
 

@@ -26,6 +26,9 @@ echo "== go test =="
 echo "== reference-hygiene gate =="
 bash "$HERE/no-ysg-box-ref.tst.sh"
 
+echo "== payment-vendor WUI gate =="
+bash "$HERE/no-payment-vendor-wui.tst.sh"
+
 echo "== end-to-end smoke =="
 bash "$HERE/spool-smoke.tst.sh"
 

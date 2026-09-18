@@ -6,6 +6,14 @@
 //
 //	go run ./internal/auth/cmd/auth-demo            # walk the flow, exit 0/1
 //	go run ./internal/auth/cmd/auth-demo -serve     # then keep serving for curl
+//
+// With a real WUI (lde): the WUI proxies /api/v1/auth/** to this hub
+// (NUXT_DEV_AUTH_PROXY), so the callback and the session cookie live on the
+// WUI origin. -app-url is where the browser lands, -public-url the origin the
+// IdP redirects back to; both are the WUI. Setting -app-url skips the stub
+// walk-through and just serves:
+//
+//	go run ./internal/auth/cmd/auth-demo -addr 127.0.0.1:58181 -app-url http://localhost:3000 -public-url http://localhost:3000
 package main
 
 import (
@@ -20,6 +28,8 @@ import (
 	"net/http/cookiejar"
 	"os"
 	"os/signal"
+	"strings"
+	"syscall"
 
 	"github.com/rs/zerolog"
 
@@ -29,36 +39,47 @@ import (
 
 func main() {
 	serve := flag.Bool("serve", false, "keep the servers up after the walk-through")
+	addr := flag.String("addr", "127.0.0.1:0", "hub listen address (fixed port for a WUI proxy)")
+	appURL := flag.String("app-url", "", "WUI origin to land on; empty = the built-in stub WUI and the walk-through")
+	publicURL := flag.String("public-url", "", "origin the IdP redirects back to (redirect URIs); empty = the hub itself")
 	flag.Parse()
-	if err := run(*serve); err != nil {
+	if err := run(*serve, *addr, *appURL, *publicURL); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL:", err)
 		os.Exit(1)
 	}
 }
 
-func listen() (net.Listener, string, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+func listen(addr string) (net.Listener, string, error) {
+	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, "", err
 	}
 	return l, "http://" + l.Addr().String(), nil
 }
 
-func run(serve bool) error {
-	hubL, hubURL, err := listen()
+func run(serve bool, addr, appURL, publicURL string) error {
+	hubL, hubURL, err := listen(addr)
 	if err != nil {
 		return err
 	}
-	idpL, idpURL, err := listen()
+	idpL, idpURL, err := listen("127.0.0.1:0")
 	if err != nil {
 		return err
 	}
-	wuiL, wuiURL, err := listen()
+	wuiL, wuiURL, err := listen("127.0.0.1:0")
 	if err != nil {
 		return err
 	}
-	g := fakeidp.Client{ID: "demo-google-client", Secret: "demo-google-secret", RedirectURI: hubURL + "/api/v1/auth/google/callback"}
-	f := fakeidp.Client{ID: "demo-facebook-app", Secret: "demo-facebook-secret", RedirectURI: hubURL + "/api/v1/auth/facebook/callback"}
+	external := appURL != ""
+	if !external {
+		appURL = wuiURL
+	}
+	if publicURL == "" {
+		publicURL = hubURL
+	}
+	publicURL = strings.TrimRight(publicURL, "/")
+	g := fakeidp.Client{ID: "demo-google-client", Secret: "demo-google-secret", RedirectURI: publicURL + "/api/v1/auth/google/callback"}
+	f := fakeidp.Client{ID: "demo-facebook-app", Secret: "demo-facebook-secret", RedirectURI: publicURL + "/api/v1/auth/facebook/callback"}
 	fake := fakeidp.New(g, f, fakeidp.Person{Subject: "demo-sub-1", Email: "demo@example.com", EmailVerified: true, Name: "FirstName LastName"})
 
 	key := make([]byte, 32)
@@ -69,7 +90,7 @@ func run(serve bool) error {
 	cfg, err := auth.LoadFrom("lde", map[string]string{
 		"SPOOL_HUB_AUTH_PROVIDERS":              "google,facebook",
 		"SPOOL_HUB_AUTH_SESSION_KEY":            hex.EncodeToString(key),
-		"SPOOL_HUB_AUTH_APP_URL":                wuiURL,
+		"SPOOL_HUB_AUTH_APP_URL":                appURL,
 		"SPOOL_HUB_AUTH_COOKIE_SECURE":          "false",
 		"SPOOL_HUB_AUTH_IDP_BASE_URL":           idpURL,
 		"SPOOL_HUB_AUTH_GOOGLE_CLIENT_ID":       g.ID,
@@ -88,7 +109,11 @@ func run(serve bool) error {
 	go http.Serve(wuiL, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "stub WUI page %s\n", r.URL.RequestURI())
 	})) //nolint:errcheck
-	fmt.Printf("hub %s\nfake IdP %s\nstub WUI %s\n\n", hubURL, idpURL, wuiURL)
+	fmt.Printf("hub %s\nfake IdP %s\nWUI %s\ncallbacks %s/api/v1/auth/<p>/callback\n\n", hubURL, idpURL, appURL, publicURL)
+	if external {
+		fmt.Printf("serving for the WUI at %s (set NUXT_DEV_AUTH_PROXY=%s); Ctrl-C to stop\n", appURL, hubURL)
+		return wait()
+	}
 
 	for _, p := range cfg.Enabled() {
 		jar, _ := cookiejar.New(nil)
@@ -122,7 +147,11 @@ func run(serve bool) error {
 		return nil
 	}
 	fmt.Printf("\nserving; try: curl -si '%s/api/v1/auth/google/start'   (Ctrl-C to stop)\n", hubURL)
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	return wait()
+}
+
+func wait() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	<-ctx.Done()
 	return nil

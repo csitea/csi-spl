@@ -42,7 +42,27 @@ curl -s -c /tmp/spool-auth.jar -b /tmp/spool-auth.jar -L -o /dev/null -w '%{url_
 curl -s -b /tmp/spool-auth.jar "$HUB/api/v1/auth/session"
 ```
 
-### 2.3 Fail-fast check
+### 2.3 With the real WUI (lde)
+
+The WUI's dev server proxies `/api/v1/auth/**` to the hub
+(`NUXT_DEV_AUTH_PROXY`, `csi-spl-wui/nuxt.config.ts`), so the callback and the
+cookie live on the WUI origin. Start the demo hub on a fixed port, pointing the
+landing and the IdP callbacks at the WUI:
+
+```bash
+cd csi-spl-api/src/go/spool-hub-api && go run ./internal/auth/cmd/auth-demo -addr 127.0.0.1:58181 -app-url http://localhost:3000 -public-url http://localhost:3000
+```
+
+Then, in `csi-spl-wui`:
+
+```bash
+NUXT_DEV_AUTH_PROXY=http://127.0.0.1:58181 pnpm dev
+```
+
+Open `http://localhost:3000/login`: both buttons sign in against the fake IdP
+and land back on the WUI, signed in.
+
+### 2.4 Fail-fast check
 
 Listing a provider while its values are still the cnf placeholders must stop
 the process with the variable's name:
@@ -144,4 +164,4 @@ If the hub does not start after the flip, its log names the first
 
 Repeat §3.3–§3.5 for prd (`csi-spl-prd`, apex host).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:38:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:58:00Z -->

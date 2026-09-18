@@ -26,9 +26,10 @@ here (§2.4); the owner is named.
 
 ## Phase 3 — WUI login (005 CLE-3342)
 
-- [ ] T014 Planned (005) — `/login` buttons from `GET /api/v1/auth/providers` (`contracts/auth-v1.md` §4); no provider SDK.
-- [ ] T015 Planned (005) — `auth_error` copy (§2), signed-in probe distinguishing 401 from "unknown", sign out.
-- [ ] T016 Planned (005) — Hosting rewrite `/api/v1/auth/**` → the hub Cloud Run service in `csi-spl-wui/firebase.json`, before the `** → /200.html` rewrite (`grep -c api/v1/auth csi-spl-wui/firebase.json` → 0 today; the SPA rule `** → /200.html` must stay last). FR-010.
+- [x] T014 Implemented (`1c4e1a6`, 005 CLE-3342) — `/login` renders one plain-link button per `GET /api/v1/auth/providers`, no SDK; empty list → "Sign-in is not available yet". Check (005's, n=1): `node --test tests/unit/*.test.mjs` → 39 pass (9 auth) on `44841b3`.
+- [x] T015 Implemented (`1c4e1a6`, 005) — `auth_error` copy per contract §2, code dropped from the URL, `redirect` kept; session probe 200 in / 401 out / else unknown (prior state kept); sign out = `POST logout` → `/login`. Not yet verified with a real browser against the WUI (see T017).
+- [~] T016 Partial (`1c4e1a6`, 005) — checked-in `csi-spl-wui/firebase.json` rewrites `/api/v1/auth/**` → Cloud Run before `**` (`git grep -n 'api/v1/auth' origin/master -- csi-spl-wui/firebase.json` → 1 hit; order asserted by a 005 unit test). Missing: the deploy-time render `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` overwrites that file and has no such rule (`git grep -c api/v1/auth origin/master -- <that script>` → no match); 005 asked 007 (orc lane) to add it. FR-010.
+- [ ] T017 Planned (005 + 010) — lde browser round trip: `auth-demo -addr … -app-url <wui> -public-url <wui>` (`c01b4ea`) behind the WUI's `NUXT_DEV_AUTH_PROXY` (`quickstart.md` §2.3). Checked by 010 through a same-origin reverse proxy standing in for nuxt devProxy (both providers land on `<wui>/c/general`, `<wui>/api/v1/auth/session` → 200; n=1); not yet with the Nuxt dev server in a browser.
 
 ## Phase 4 — Infra (007 iac; apply is the owner-gated apply lane)
 
@@ -52,4 +53,4 @@ Recorded by 007 (CLE-3344) as its T066–T068 = these T020–T022, behind 007's 
 - [ ] T043 Planned — Facebook deauthorize + data-deletion callback (required for a live Meta app; csi-rel `facebook_callbacks.go` is the donor).
 - [ ] T044 Planned — avatar: server-side fetch → `file_id` (narrative §3.4).
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:48:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:58:00Z -->

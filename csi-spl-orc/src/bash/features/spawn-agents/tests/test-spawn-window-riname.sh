@@ -37,6 +37,10 @@ out="$(SPOOL_BOX_TAG=tg bash "$SW" grok auto "$WD")"; read -r ID PANE <<<"$out"
 eq "auto allocates GRK-01" GRK-01 "$ID"
 has "SPOOL_BOX_TAG decorates the window name" "tg: GRK-01" "$("${TM[@]}" list-windows -t t -F '#{window_name}')"
 
+SPOOL_TMUX_SOCKET="$T_TMP/none.sock" bash "$SW" claude CLE-4450 "$WD" >/dev/null 2>&1
+eq "no tmux session: exit 5" 5 "$?"
+check "…and the id was NOT claimed" test ! -e "$SPOOL_ROOT/CLE-4450"
+
 # ---- riname --------------------------------------------------------------
 P="$(t_window CLE-95 'sleep 600')"
 printf 'CLE-95\tclaude\t%s\t/x\t20260101T000000Z\n' "$P" >> "$SPOOL_ROOT/registry.tsv"

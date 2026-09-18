@@ -34,6 +34,16 @@ LAUNCHER="$HERE/spawn-$KIND.sh"
 [ -r "$LAUNCHER" ] || { echo "spawn-window: no launcher $LAUNCHER" >&2; exit 2; }
 PREFIX="$(spool_prefix_of_kind "$KIND")"
 
+# The session first: an id is claimed only once there is a window to put it
+# in, so a spawn that cannot start leaves no orphan claim behind.
+spool_tmux_argv
+sess="${SPOOL_SESSION:-}"
+if [ -z "$sess" ]; then
+  sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_attached} #{session_id}' 2>/dev/null | awk '$1 > 0 {print $2; exit}')"
+  [ -n "$sess" ] || sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_id}' 2>/dev/null | head -1)"
+fi
+[ -n "$sess" ] || { echo "spawn-window: no tmux session on ${SPOOL_TMUX_SOCKET}" >&2; exit 5; }
+
 if [ "$TITLE" = auto ]; then
   TITLE="$(bash "$HERE/next-agent-id.sh" --kind "$KIND")" || exit $?
 else
@@ -44,14 +54,6 @@ else
   fi
 fi
 shift 2
-
-spool_tmux_argv
-sess="${SPOOL_SESSION:-}"
-if [ -z "$sess" ]; then
-  sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_attached} #{session_id}' 2>/dev/null | awk '$1 > 0 {print $2; exit}')"
-  [ -n "$sess" ] || sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_id}' 2>/dev/null | head -1)"
-fi
-[ -n "$sess" ] || { echo "spawn-window: no tmux session on ${SPOOL_TMUX_SOCKET}" >&2; exit 5; }
 
 # Size the session first: a detached window otherwise gets 80x24 for good.
 "${SPOOL_TM[@]}" set-option -t "$sess" default-size "$(spool_tmux_default_size)" 2>/dev/null || true

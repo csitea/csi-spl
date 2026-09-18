@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v10"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 )
 
 // Config is the resolved on-box spool configuration. Every value is an env var
@@ -35,6 +37,9 @@ type Config struct {
 	// HubURL switches the box into hub mode (spec 003): https://<tenant>.<domain>.
 	// Unset = the unchanged local 002 path.
 	HubURL string `env:"SPOOL_HUB_URL"`
+	// TenantRootKey is the path to the tenant root PRIVATE key used by spool-pin
+	// to POST/DELETE /v1/pins. Empty = local pin file only (002).
+	TenantRootKey string `env:"SPOOL_TENANT_ROOT_KEY"`
 	// MirrorLocal also hub-sends same-box mail: unset/0/false (default) or 1/true.
 	MirrorLocal string `env:"SPOOL_MIRROR_LOCAL"`
 }
@@ -68,6 +73,10 @@ func Load() (*Config, error) {
 		u, err := url.Parse(c.HubURL)
 		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 			return nil, fmt.Errorf("SPOOL_HUB_URL %q must be an http(s) URL", c.HubURL)
+		}
+		// FR-002 / 004 T002: hub mode is a box identity; no silent empty box_id.
+		if !msg.ValidBoxID(c.BoxID) {
+			return nil, fmt.Errorf("SPOOL_BOX_ID must be a valid box id when SPOOL_HUB_URL is set")
 		}
 	}
 	return &c, nil

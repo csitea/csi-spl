@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -130,6 +131,10 @@ func TestTenantsAndPins(t *testing.T) {
 			pins, _ := s.ListPins(ctx, tid)
 			if len(pins) != 0 {
 				t.Fatalf("revoked pin listed: %v", pins)
+			}
+			reasons := pinHistoryReasons(t, s, tid, "box-a")
+			if fmt.Sprint(reasons) != "[pin pin force revoke]" {
+				t.Fatalf("pins_history reasons = %v, want [pin pin force revoke]", reasons)
 			}
 		})
 	}
@@ -296,5 +301,69 @@ func TestMigrateIsIdempotent(t *testing.T) {
 	}
 	if _, err := Migrate(ctx, pg.Pool(), dir); err == nil {
 		t.Fatal("edited applied migration was accepted")
+	}
+}
+
+func pinHistoryReasons(t *testing.T, s Store, tenant, box string) []string {
+	t.Helper()
+	switch x := s.(type) {
+	case *Memory:
+		var out []string
+		for _, h := range x.history {
+			if h.tenant == tenant && h.box == box {
+				out = append(out, h.reason)
+			}
+		}
+		return out
+	case *Postgres:
+		rows, err := x.Pool().Query(context.Background(),
+			`SELECT reason FROM pins_history WHERE tenant_id = $1 AND box_id = $2 ORDER BY at, ctid`, tenant, box)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []string
+		for rows.Next() {
+			var r string
+			if err := rows.Scan(&r); err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, r)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	default:
+		t.Fatalf("unknown store %T", s)
+		return nil
+	}
+}
+
+// T001: boxes/pins/pins_history live in csi-spl-rdb SQL, not as Go store entities.
+func TestPinSQLLivesInRDB(t *testing.T) {
+	dir := sqlDir(t)
+	files, err := filepath.Glob(filepath.Join(dir, "*.sql"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("sql dir %s: %v %v", dir, files, err)
+	}
+	var all string
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := string(raw)
+		if strings.Contains(body, "package store") || strings.Contains(body, "type Message") ||
+			strings.Contains(body, "type Pin struct") {
+			t.Fatalf("%s contains a Go store entity", f)
+		}
+		all += body + "\n"
+	}
+	for _, tbl := range []string{"boxes", "pins", "pins_history"} {
+		if !strings.Contains(all, "CREATE TABLE "+tbl+" ") && !strings.Contains(all, "CREATE TABLE "+tbl+"\n") &&
+			!strings.Contains(all, "CREATE TABLE "+tbl+" (") {
+			t.Fatalf("rdb SQL is missing CREATE TABLE %s", tbl)
+		}
 	}
 }

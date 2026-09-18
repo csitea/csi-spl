@@ -85,6 +85,15 @@ func Pin(pinsDir, id, pubB64 string, force bool) error {
 	return os.WriteFile(pp, []byte(pubB64+"\n"), 0o644)
 }
 
+// Unpin removes box id's pin file. Missing is a no-op (revoke is idempotent locally).
+func Unpin(pinsDir, id string) error {
+	err := os.Remove(pinPath(pinsDir, id))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 // LoadPin reads box id's pinned public key. Returns ErrUnpinned if absent.
 func LoadPin(pinsDir, id string) (ed25519.PublicKey, error) {
 	raw, err := os.ReadFile(pinPath(pinsDir, id))

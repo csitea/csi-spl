@@ -91,3 +91,20 @@ func TestParseEnvelopeRejectsUnknown(t *testing.T) {
 		t.Fatal("unknown key accepted")
 	}
 }
+
+func TestPinPayloads(t *testing.T) {
+	p, err := PinPayload("box-a", "pubkey", "2026-09-18T12:00:00Z", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"box_id":"box-a","force":false,"pubkey":"pubkey","ts":"2026-09-18T12:00:00Z"}`; string(p) != want {
+		t.Fatalf("pin payload\n got %s\nwant %s", p, want)
+	}
+	r, err := RevokePayload("box-a", "2026-09-18T12:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"box_id":"box-a","op":"revoke","ts":"2026-09-18T12:00:00Z"}`; string(r) != want {
+		t.Fatalf("revoke payload\n got %s\nwant %s", r, want)
+	}
+}

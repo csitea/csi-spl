@@ -50,10 +50,10 @@ ok "owner created tenant $TENANT"
 start_hub
 ok "spool serve up; /healthz 200"
 
-# 2. two boxes, root-pinned at the hub
+# 2. two boxes, root-pinned at the hub via spool-pin --root-key (004 T005)
 for b in box-a box-b; do
   pub="$(on "$b" keygen)"
-  on "$b" hub-pin --box "$b" --pubkey "$pub" --root-key "$WORK/root.key" >/dev/null
+  on "$b" pin --box "$b" --pubkey "$pub" --root-key "$WORK/root.key" >/dev/null
 done
 mkdir -p "$WORK/box-a/spool/GRK-03" "$WORK/box-b/spool/CLE-07"
 on box-b hub-sync >/dev/null

@@ -6,7 +6,7 @@
 // contract are shims over these):
 //
 //	keygen  [--box <box_id>] [--force]      box keypair; --box defaults to $SPOOL_BOX_ID
-//	pin     --box <box_id> --pubkey <b64> [--force]
+//	pin     --box <box_id> --pubkey <b64> [--force] [--revoke] [--root-key <path>]
 //	send    --from <id> --to <id> [--task <uuid>] --kind <k> --body <text>
 //	          [--file-id <id>]... [--file-ref <path>]... [--dir-blob <path>]... [--dir-ref <path>]...
 //	          [--to-box <box_id>]   (hub mode only, spec 003)
@@ -142,13 +142,12 @@ func cmdPin(cfg *config.Config, args []string) int {
 	box := fs.String("box", "", "box id to pin")
 	pub := fs.String("pubkey", "", "base64 box public key")
 	force := fs.Bool("force", false, "replace an existing different pin")
+	revoke := fs.Bool("revoke", false, "remove the local pin and DELETE /v1/pins when a root key is set")
+	rootKey := fs.String("root-key", cfg.TenantRootKey, "tenant root private key (POST/DELETE /v1/pins); default $SPOOL_TENANT_ROOT_KEY")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if !msg.ValidBoxID(*box) || *pub == "" {
-		return fail(fmt.Errorf("--box (valid box id) and --pubkey are required"))
-	}
-	if err := sign.Pin(cfg.PinsDir, *box, *pub, *force); err != nil {
+	if err := action.Pin(cfg, action.PinArgs{Box: *box, PubKey: *pub, RootKey: *rootKey, Force: *force, Revoke: *revoke}); err != nil {
 		return fail(err)
 	}
 	return 0

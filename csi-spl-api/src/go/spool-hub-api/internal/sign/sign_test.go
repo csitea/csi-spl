@@ -50,3 +50,19 @@ func TestBoxKeyPinSignVerify(t *testing.T) {
 		t.Fatalf("want ErrVerify on tamper, got %v", err)
 	}
 }
+
+func TestUnpin(t *testing.T) {
+	pins := t.TempDir()
+	if err := Unpin(pins, "box-a"); err != nil {
+		t.Fatalf("missing pin: %v", err)
+	}
+	if err := Pin(pins, "box-a", "dGVzdA==", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := Unpin(pins, "box-a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadPin(pins, "box-a"); !errors.Is(err, ErrUnpinned) {
+		t.Fatalf("want ErrUnpinned after unpin, got %v", err)
+	}
+}

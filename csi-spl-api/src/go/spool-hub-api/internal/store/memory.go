@@ -15,6 +15,7 @@ type Memory struct {
 	mu         sync.Mutex
 	tenants    map[string]Tenant
 	pins       map[[2]string]*memPin
+	history    []memHist
 	boxes      map[[2]string]time.Time
 	roster     map[[2]string][]string
 	messages   map[[2]string]*Message
@@ -25,6 +26,12 @@ type Memory struct {
 type memPin struct {
 	pub     ed25519.PublicKey
 	revoked bool
+}
+
+type memHist struct {
+	tenant, box, reason string
+	pub                 ed25519.PublicKey
+	at                  time.Time
 }
 
 type memDelivery struct {
@@ -72,21 +79,27 @@ func (s *Memory) GetTenant(_ context.Context, id string) (Tenant, error) {
 	return t, nil
 }
 
-func (s *Memory) PutPin(_ context.Context, tenant, box string, pub ed25519.PublicKey, force bool, _ time.Time) error {
+func (s *Memory) PutPin(_ context.Context, tenant, box string, pub ed25519.PublicKey, force bool, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.tenants[tenant]; !ok {
 		return ErrNotFound
 	}
 	k := [2]string{tenant, box}
-	if p, ok := s.pins[k]; ok && !bytes.Equal(p.pub, pub) && !force {
-		return ErrConflict
+	reason := "pin"
+	if p, ok := s.pins[k]; ok && !bytes.Equal(p.pub, pub) {
+		if !force {
+			return ErrConflict
+		}
+		reason = "force"
 	}
-	s.pins[k] = &memPin{pub: append(ed25519.PublicKey(nil), pub...)}
+	cp := append(ed25519.PublicKey(nil), pub...)
+	s.pins[k] = &memPin{pub: cp}
+	s.history = append(s.history, memHist{tenant: tenant, box: box, reason: reason, pub: cp, at: now})
 	return nil
 }
 
-func (s *Memory) RevokePin(_ context.Context, tenant, box string, _ time.Time) error {
+func (s *Memory) RevokePin(_ context.Context, tenant, box string, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.pins[[2]string{tenant, box}]
@@ -94,6 +107,10 @@ func (s *Memory) RevokePin(_ context.Context, tenant, box string, _ time.Time) e
 		return ErrNotFound
 	}
 	p.revoked = true
+	s.history = append(s.history, memHist{
+		tenant: tenant, box: box, reason: "revoke",
+		pub: append(ed25519.PublicKey(nil), p.pub...), at: now,
+	})
 	return nil
 }
 

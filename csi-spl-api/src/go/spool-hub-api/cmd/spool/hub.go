@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -161,51 +158,15 @@ func cmdHubPin(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("hub-pin", flag.ContinueOnError)
 	box := fs.String("box", "", "box id")
 	pubkey := fs.String("pubkey", "", "base64 box public key (not with --revoke)")
-	rootKey := fs.String("root-key", "", "path to the tenant root private key")
+	rootKey := fs.String("root-key", cfg.TenantRootKey, "path to the tenant root private key (default $SPOOL_TENANT_ROOT_KEY)")
 	force := fs.Bool("force", false, "replace a different existing key")
 	revoke := fs.Bool("revoke", false, "revoke the box's pin")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if cfg.HubURL == "" || !msg.ValidBoxID(*box) || *rootKey == "" || (*pubkey == "") != *revoke {
-		return fail(fmt.Errorf("$SPOOL_HUB_URL, --box, --root-key and exactly one of --pubkey / --revoke are required"))
-	}
-	raw, err := os.ReadFile(*rootKey)
+	out, err := action.PublishPin(cfg, action.PinArgs{Box: *box, PubKey: *pubkey, RootKey: *rootKey, Force: *force, Revoke: *revoke})
 	if err != nil {
 		return fail(err)
-	}
-	priv, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(raw)))
-	if err != nil || len(priv) != ed25519.PrivateKeySize {
-		return fail(fmt.Errorf("%s is not a base64 ed25519 private key", *rootKey))
-	}
-	ts := time.Now().UTC().Format(time.RFC3339)
-	var method, path string
-	var body any
-	if *revoke {
-		p, _ := wire.RevokePayload(*box, ts)
-		method, path = http.MethodDelete, "/v1/pins/"+*box
-		body = wire.RevokeRequest{BoxID: *box, TS: ts, Sig: sign.Sign(priv, p)}
-	} else {
-		p, _ := wire.PinPayload(*box, *pubkey, ts, *force)
-		method, path = http.MethodPost, "/v1/pins"
-		body = wire.PinRequest{BoxID: *box, PubKey: *pubkey, TS: ts, Force: *force, Sig: sign.Sign(priv, p)}
-	}
-	b, _ := json.Marshal(body)
-	req, err := http.NewRequest(method, strings.TrimSuffix(cfg.HubURL, "/")+path, bytes.NewReader(b))
-	if err != nil {
-		return fail(err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := hubclient.New(cfg).HTTPClient().Do(req)
-	if err != nil {
-		return fail(fmt.Errorf("%w: %v", hubclient.ErrUnreachable, err))
-	}
-	defer resp.Body.Close()
-	out, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
-	if resp.StatusCode >= 300 {
-		var eb wire.ErrorBody
-		json.Unmarshal(out, &eb) //nolint:errcheck
-		return fail(&hubclient.HubError{Token: eb.Error, Status: resp.StatusCode, Detail: eb.Detail})
 	}
 	fmt.Println(strings.TrimSpace(string(out)))
 	return 0

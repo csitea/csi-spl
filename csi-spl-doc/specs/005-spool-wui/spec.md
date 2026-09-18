@@ -117,8 +117,11 @@ data (`401 view_door`).
 - **FR-009** — Implemented: no horizontal page scroll at 390×844 and 1280×800
   (`csi-spl-wui/tests/e2e/no-x-scroll.test.mjs`, `tests/unit/no-x-scroll.test.mjs`;
   `pnpm test:unit -> 17 pass, 0 fail` on `bbc41e7`; e2e not re-run in this redo).
-- **FR-010** — Planned: every read carries the view-v1 door (US5); prd additionally
-  waits on the owner answer to 003 OQ-16 (OQ-W2).
+- **FR-010** — Partial: door per environment (ORC decision, relayed by 003 CLE-3340,
+  hub `cd38303`): lde and dev run `SPOOL_HUB_VIEW_DOOR=off` (open reads); prd stays
+  fail-closed (`401 view_door`) until the token format (003 OQ-16) or the social
+  session (010 OQ-A1) is decided. The WUI sends the bearer header whenever it has a
+  token, so no WUI change is needed when prd closes the door.
 
 ## 3. Success criteria
 
@@ -148,7 +151,8 @@ before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-revers
 
 - **OQ-W1**: Channels need a `channel` field. Hub envelope field (like `to_box`),
   a 002 amendment, or drop channels from M3?
-- **OQ-W2**: Is the view token (003 OQ-16) acceptable as the only door for **prd**
-  Hosting, or must the social session (006) exist first?
+- **OQ-W2** — *answered for lde/dev* (ORC, 2026-09-18): open reads on lde + dev,
+  prd fail-closed. Still open for **prd**: view token (003 OQ-16) or social session
+  (010 OQ-A1) as the door.
 
-<!-- version: 1.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:10:00Z -->
+<!-- version: 1.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:55:00Z -->

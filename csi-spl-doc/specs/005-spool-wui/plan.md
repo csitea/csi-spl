@@ -7,9 +7,10 @@
 
 ## Summary
 
-Point the existing `csi-spl-wui` Nuxt shell at the 003 WUI read API, cut its
+Point the existing `csi-spl-wui` Nuxt shell at 003's viewer API
+(`../003-spool-message-bus/contracts/view-v1.md`), cut its
 live surface to thread list + thread view + download, then ship it as a static
-site on Firebase Hosting: dev first, prd only behind a human session. The
+site on Firebase Hosting: dev first, then prd; every read carries the view-v1 door. The
 Slack-like components already written against mock data stay in the tree,
 mock-only, until their gaps (spec §5) close.
 
@@ -33,8 +34,8 @@ mock-only, until their gaps (spec §5) close.
 | Live follow | Partial — polls channel + roster every 4 s | `composables/useSpoolEvents.ts` |
 | orc lde actions | Implemented | `csi-spl-orc/src/bash/run/wui-{dev,test,build}.func.sh` |
 | Hosting terraform `016` / `019` | Partial — written, not applied | `curl … https://csi-spl-dev-site.web.app -> 404` |
-| Hub WUI read API | Partial — branch only | `GRK-3349-hub-wui-read-api` `2ecf59f`; not on trunk |
-| Human auth | Planned | spec §5 G1 |
+| Hub viewer API (view-v1) | Planned | `grep -c '/v1/view' …/internal/hub/server.go -> 0`; a non-matching API is on branch `GRK-3349-hub-wui-read-api` `2ecf59f` |
+| Door (view token / session) | Planned | spec §5 G1 |
 | Live dev hub (for SC-001) | exists, no ingress | integrator measurement 2026-09-18 ~19:00Z: Cloud Run `csi-spl-hub-dev` Ready, no LB (031 not applied) |
 
 ## Constitution check
@@ -47,20 +48,21 @@ mock-only, until their gaps (spec §5) close.
 
 ## Order of work
 
-1. 003 lands the WUI read API on trunk (dependency D1, not this spec).
-2. T004 client: thread list + thread messages + `fileUrl`; drop live channel/send paths (mock kept).
+1. 003 implements view-v1 on trunk (dependency D1, not this spec).
+2. T004 client: view-v1 §4.3 / §4.4 + `fileUrl` + bearer door; drop live channel/send paths (mock kept).
 3. T005 / T006 viewer pages `/` and `/t/[task_id]`; `path`-mode attachments without a link.
 4. T007 poll the open thread while visible.
 5. T008 unit tests for the live client (stub `fetch`) + e2e no-x-scroll on the new pages.
 6. T009 dev Hosting apply (owner go; after 007's DNS + ingress) and deploy.
-7. T010 human session gate (with 006) → T011 prd Hosting.
+7. T010 view-token entry (in-memory / `sessionStorage`) → T011 prd Hosting (after OQ-W2).
 
 ## Risks
 
-- **Open read**: until G1 closes, anyone with the tenant Host can read its
-  threads. Mitigation: dev only (OQ-W2), prd blocked on T010.
+- **Two read APIs**: view-v1 (contract of record) vs the GRK-3349 branch
+  (`/v1/threads`, open, credentialed CORS). If the branch lands as-is the viewer
+  would ship with no door. Reported to 003; 005 codes against view-v1 only.
 - **Custom domain vs hub host**: the hub answers `<tenant>.<fqdn>` (031); the
   Hosting custom domain is `env.dns.fqdn` (019). Both depend on the open DNS
   handoff question (README §6.1) — 007's, not 005's.
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->

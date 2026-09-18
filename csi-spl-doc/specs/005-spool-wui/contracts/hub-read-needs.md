@@ -1,41 +1,30 @@
-# What 005 needs from the 003 WUI read API (consumer view)
+# What 005 consumes from the 003 viewer API (citation map, not a contract)
 
-**The wire is 003's** (`../../README.md` §5: "WUI read API — owner 003
-`contracts/`; 005 cites and depends"). This file does not define paths or
-response shapes; it lists what the viewer needs so 003 can check its contract
-covers it. On conflict, 003 wins and this file is corrected.
+**The wire is 003's**: `../../003-spool-message-bus/contracts/view-v1.md`
+(seam: `../../README.md` §5). This file only maps each 005 story to the
+view-v1 section it uses, so either side can see a break. It restates no path
+parameters, shapes or error tokens; on any doubt view-v1 wins.
 
-**State (measured 2026-09-18)**: not on trunk
-(`grep -c 'v1/threads' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`).
-Implemented on branch `GRK-3349-hub-wui-read-api` (`2ecf59f`: `GET /v1/threads`,
-`GET /v1/messages?task_id=`, CORS in the middleware, a `http-v1.md` §2.7 draft).
-When it lands, 003's contract section is the citation for every row below.
+## 1. Story → view-v1
 
-## 1. Needs
-
-| # | Need | For |
+| 005 | view-v1 | Note |
 |---|---|---|
-| N1 | List the tenant's threads (one row per `task_id`): first message's `from`/`from_box`/`to`/`to_box`/`kind`/body, message count, first and last activity time; newest activity first; bounded `limit` | US1 |
-| N2 | One thread's messages, oldest first: the inner `v:1` object plus envelope `from_box` / `to_box`, without the envelope `sig` | US2, US4 |
-| N3 | Tenant = request Host; no tenant id anywhere in the request; another tenant's rows invisible | FR-004 |
-| N4 | Empty tenant / unknown task → empty list, not an error; unknown Host → 404 with the 003 error token | US1 |
-| N5 | CORS for a browser on another origin with `credentials: include` (lde `:3000` → hub; Firebase Hosting → Cloud Run), incl. `OPTIONS` | FR-007 |
-| N6 | Blob download: `GET /v1/files/{file_id}` as already in 003 §3 | US3 |
-| N7 | Read-only, and **not** a send/recv dialect: OQ-02 still holds for boxes | FR-002 |
+| US1 thread list | §4.3 `GET /v1/view/threads` | `before` paging; `channel` / `parent_task_id` are null in M1 and the viewer does not rely on them (FR-005) |
+| US2 thread view | §4.4 `GET /v1/view/threads/{task_id}` | render `env.msg`; show `env.from_box` / `env.to_box`; `deliveries[]` shown read-only |
+| US3 download | §1 `GET /v1/files/{file_id}` (http-v1 §3) | `mode:"blob"` only |
+| US4 live follow | §4.4 poll with `after=`, ≥ 2 s | no browser WS in the first cut |
+| US5 door | §2 view token (PROPOSED, 003 OQ-16); social session as the M3 successor door | token held in memory / `sessionStorage`, never `localStorage`, never in a URL |
+| roster / DMs (later) | §4.1 `GET /v1/view/roster` | closes spec §5 G4 when implemented |
+| channels (later) | §4.2 `GET /v1/view/channels` | empty in M1 (no `channel` in `v:1`, spec §5 G3) |
+| cross-origin | §3 CORS from cnf `hub.view_cors_origins`, no credentials mode | the WUI calls with a bearer header, not cookies |
 
-## 2. Wanted later (not blocking the viewer MVP)
+## 2. Status (measured 2026-09-18)
 
-- Human-session gate on N1/N2 (spec §5 G1, with 006) — required before prd.
-- Pagination for N1 (`before=`) and long threads.
-- A browser live-follow channel to replace polling (US4).
-- A read-only roster for humans (spec §5 G4).
+- view-v1: **Planned** (its own header; `grep -c '/v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0` on trunk `03657c6`).
+- A different, earlier read API exists **on a branch only**:
+  `GRK-3349-hub-wui-read-api` (`2ecf59f`) adds `GET /v1/threads`,
+  `GET /v1/messages?task_id=` and credentialed, Origin-reflecting CORS. It does
+  not match view-v1 (paths, door, CORS mode). Which one lands is 003's call;
+  005 codes against view-v1 as the contract of record.
 
-## 3. Naming note for 003 and the integrator
-
-The branch names N2 `GET /v1/messages?task_id=`. The 003 contract lists
-`GET /v1/messages?as=&task_id=` as **removed** (OQ-02), and README §7 checks
-that no FR cites a removed endpoint. Whether the viewer read keeps that path or
-takes a distinct one (e.g. under `/v1/threads/{task_id}`) is 003's call; 005
-consumes whichever lands.
-
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->

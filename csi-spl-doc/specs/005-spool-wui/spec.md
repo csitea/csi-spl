@@ -15,7 +15,8 @@ DNS, ingress). Dependency order: 005 comes after the M1 demo and M2 (README §4)
 ## 0. Scope (the redo decision)
 
 005 ships **one slice first**: a **read-only thread viewer** in `csi-spl-wui`
-(Nuxt 3) over the **read-only hub API that 003 owns**. A human opens the tenant,
+(Nuxt 3) over the **read-only hub viewer API that 003 owns**
+(`../003-spool-message-bus/contracts/view-v1.md`, Planned). A human opens the tenant,
 sees its threads (one per `task_id`), opens one, reads its messages oldest-first
 and downloads attached blobs. **No send, no signing, no key in the browser.**
 
@@ -62,16 +63,17 @@ the box; `internal/msg/msg.go` `Attachment`).
 
 ### US4 — Live follow (P2) — Planned
 
-An open thread picks up new messages without a reload. Viewer: poll the 003
-thread read while the tab is visible (interval from runtime config, default 4 s).
+An open thread picks up new messages without a reload. Viewer: poll view-v1 §4.4
+with `after=` while the tab is visible (runtime config, default 4 s, never under 2 s).
 `/v1/ws` is Ed25519-hello only and is **not** a browser transport (OQ-04,
 trust-modes); a browser push channel is a later 003 decision.
 
 ### US5 — Human sign-in gate (P1 before prd) — Planned
 
-The viewer and the read routes are reachable only with a human session (social
-IdP, `SPEC-spool-social-auth.md`, owned by 006). Until then the viewer is dev-only
-(§5 G1, OQ-W2).
+The viewer sends a door credential on every read: first the view token
+(view-v1 §2, PROPOSED, 003 OQ-16) pasted by the tenant owner, later the social
+session (`SPEC-spool-social-auth.md`, 006) as view-v1's successor door. No door, no
+data (`401 view_door`).
 
 ### Planned — M3 later slices
 
@@ -90,12 +92,12 @@ IdP, `SPEC-spool-social-auth.md`, owned by 006). Until then the viewer is dev-on
 - **FR-001** — Implemented: code in `csi-spl-wui`, Nuxt 3 + TS strict + Pinia +
   pnpm, modelled on the pas-psf / csi-rel WUI (read-only reference, not imported).
   Check: `grep -c '"nuxt"' csi-spl-wui/package.json -> 1`.
-- **FR-002** — Partial: the WUI reads **only** through the 003 WUI read API
-  (thread list, one thread's messages), `GET /v1/files/{file_id}` and `GET /healthz`.
-  What 005 needs from it: `./contracts/hub-read-needs.md`; the wire is 003's.
-  Missing: the read routes are not on trunk (G5); the live client calls wrong routes (G6).
-- **FR-003** — Implemented: the browser stores no private key, token or signed URL,
-  and never opens `/v1/ws`. Check: `grep -rnE 'localStorage|sessionStorage|indexedDB|/v1/ws' csi-spl-wui/{components,composables,stores,utils,pages,plugins}`
+- **FR-002** — Partial: the WUI reads **only** through 003 `contracts/view-v1.md`
+  (`/v1/view/*`), `GET /v1/files/{file_id}` and `GET /healthz`. Story → section
+  map: `./contracts/hub-read-needs.md`. Missing: view-v1 is not implemented (G5);
+  the live client calls wrong routes (G6).
+- **FR-003** — Implemented: the browser stores no private key or signed URL,
+  never puts a token in `localStorage` or a URL (view-v1 §2), and never opens `/v1/ws`. Check: `grep -rnE 'localStorage|sessionStorage|indexedDB|/v1/ws' csi-spl-wui/{components,composables,stores,utils,pages,plugins}`
   -> only `composables/useTheme.ts` (theme choice) and a comment in `useSpoolEvents.ts`.
 - **FR-004** — Partial: tenant = request Host (006); the WUI sends no tenant id.
   Missing: hub origin per tenant is one env var (`NUXT_PUBLIC_API_BASE`); Host-derived
@@ -114,7 +116,8 @@ IdP, `SPEC-spool-social-auth.md`, owned by 006). Until then the viewer is dev-on
 - **FR-009** — Implemented: no horizontal page scroll at 390×844 and 1280×800
   (`csi-spl-wui/tests/e2e/no-x-scroll.test.mjs`, `tests/unit/no-x-scroll.test.mjs`;
   `pnpm test:unit -> 17 pass, 0 fail` on `bbc41e7`; e2e not re-run in this redo).
-- **FR-010** — Planned: prd exposure requires US5 (human session).
+- **FR-010** — Planned: every read carries the view-v1 door (US5); prd additionally
+  waits on the owner answer to 003 OQ-16 (OQ-W2).
 
 ## 3. Success criteria
 
@@ -133,18 +136,18 @@ before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-revers
 
 | # | Gap | Evidence | Owner |
 |---|---|---|---|
-| G1 | No human session on the hub; read routes would be open to anyone who knows the tenant Host | `grep -rniE 'cookie\|oauth' csi-spl-api/src/go/spool-hub-api/internal/hub/*.go -> 0` | 006 (+003 gate) |
+| G1 | No door for humans on the hub yet: view token proposed (view-v1 §2, 003 OQ-16), social session not built | `grep -rniE 'cookie\|oauth\|view_door' csi-spl-api/src/go/spool-hub-api/internal/hub/*.go -> 0` | 003 (token) / 006 (session) |
 | G2 | No `box-wui` signer; the browser cannot send | `grep -rn box-wui csi-spl-api/src/go -> 0` | 003 / 004 |
 | G3 | `channel` / `parent_task_id` are not `v:1` fields; 002 frozen | `grep -cE 'channel\|parent_task' ../002-box-agent-messaging/contracts/message-schema.md -> 0`; `messages.channel` + `channels` table exist, unused in M1 (`csi-spl-rdb/src/sql/postgres/spool-hub/0002_channels.sql`) | owner (OQ-W1) |
-| G4 | No read-only roster for humans (`GET /v1/pins` needs the box upload token) | 003 `contracts/http-v1.md` §4 | 003 |
-| G5 | WUI read routes not on trunk | `grep -c 'v1/threads' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`; implemented on branch `GRK-3349-hub-wui-read-api` (`2ecf59f`) | 003 |
+| G4 | No read-only roster for humans yet | specified as view-v1 §4.1, Planned | 003 |
+| G5 | view-v1 not implemented | `grep -c '/v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`; a non-matching read API (`/v1/threads`, `/v1/messages?task_id=`) sits on branch `GRK-3349-hub-wui-read-api` (`2ecf59f`) | 003 |
 | G6 | WUI live client calls routes that will not exist | `grep -nE "v1/(channels\|messages)" csi-spl-wui/utils/spool-client.mjs` -> `/v1/channels`, `/v1/messages?channel=`, `POST /v1/messages` (OQ-02 removed) | 005 (T004) |
 
 ## 6. Open questions (to the owner via CLE-00)
 
 - **OQ-W1**: Channels need a `channel` field. Hub envelope field (like `to_box`),
   a 002 amendment, or drop channels from M3?
-- **OQ-W2**: May the viewer go to **dev** Hosting without a human session (Host
-  scoping only), or must G1 close first everywhere?
+- **OQ-W2**: Is the view token (003 OQ-16) acceptable as the only door for **prd**
+  Hosting, or must the social session (006) exist first?
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->

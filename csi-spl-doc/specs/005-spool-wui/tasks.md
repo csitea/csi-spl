@@ -14,7 +14,7 @@ named) · `[ ]` Planned. Live work is gated on D1.
 
 ## Phase 2 — Viewer MVP (US1–US3, P1) 🎯
 
-- [~] T004 Partial — `utils/spool-client.mjs` live mode: add thread list + one thread's messages per the 003 WUI read API; remove live `/v1/channels`, `/v1/messages?channel=`, `POST /v1/messages`; mock mode keeps working. Missing: all of the live change (spec §5 G6). FR-002, FR-005.
+- [~] T004 Partial — `utils/spool-client.mjs` live mode: add view-v1 §4.3 thread list and §4.4 thread read with `Authorization: Bearer <view_token>`; remove live `/v1/channels`, `/v1/messages?channel=`, `POST /v1/messages`; mock mode keeps working. Missing: all of the live change (spec §5 G6). FR-002, FR-005.
 - [ ] T005 Planned — page `/` = thread list (`stores/thread.ts`), empty state, unknown-tenant state. US1.
 - [ ] T006 Planned — page `/t/[task_id]` = thread view reusing `MessageCard.vue`, `KindBadge.vue`, `AgentBadge.vue` (`<id>@<box>`); `FileAttachment.vue` links `mode:"blob"` to `GET /v1/files/{file_id}`, shows `mode:"path"` as text; body as text / sanitised markdown. US2, US3, FR-006.
 - [ ] T008 Planned — unit tests for T004 with a stub `fetch` (URLs, empty lists, 404/400) and an XSS-as-text test; e2e no-x-scroll on `/` and `/t/<id>` (mock). SC-002, FR-006.
@@ -24,13 +24,13 @@ named) · `[ ]` Planned. Live work is gated on D1.
 
 - [~] T007 Partial — poll the open thread while `document.visibilityState === 'visible'`. Missing: today `composables/useSpoolEvents.ts` polls channel + roster every 4 s. US4.
 - [~] T009 Partial — dev Hosting: apply 007 steps `016-firebase-deploy-iam` + `019-firebase-static-site` for dev (owner go) and deploy the generated site; hub origin derived per tenant. Missing: apply + deploy (`curl … https://csi-spl-dev-site.web.app -> 404`). FR-007, FR-004.
-- [ ] T010 Planned — human session gate on the viewer and the hub read routes (with 006 social auth; spec §5 G1). US5, FR-010.
-- [ ] T011 Planned — prd Hosting apply + deploy, after T010. FR-007, FR-010.
+- [ ] T010 Planned — door UI: view-token entry kept in memory / `sessionStorage` (view-v1 §2), `401 view_door` → re-prompt; social session later (006). US5, FR-010.
+- [ ] T011 Planned — prd Hosting apply + deploy, after T010 and OQ-W2. FR-007, FR-010.
 
 ## Dependencies owned elsewhere
 
-- [~] D1 003 — WUI read API + CORS on trunk. Partial: branch `GRK-3349-hub-wui-read-api` (`2ecf59f`), `grep -c 'v1/threads' …/internal/hub/server.go -> 0` on trunk.
-- [ ] D2 006 — human session (social IdP) the WUI can use.
+- [ ] D1 003 — view-v1 implemented (door, CORS, §4.1–§4.4). Planned: `grep -c '/v1/view' …/internal/hub/server.go -> 0`; branch `GRK-3349-hub-wui-read-api` (`2ecf59f`) implements a different API.
+- [ ] D2 006 — human session (social IdP), view-v1's successor door.
 - [ ] D3 007 — DNS zone + ingress (031) before a Hosting custom domain and a reachable dev hub (README §6).
 
 ## Planned — M3 later slices (mock-only code exists, no hub route)
@@ -45,4 +45,4 @@ the spec §5 gap named.
 - [~] P5 Partial (mock) — verbosity toggle (`VerbositySelector.vue`). Blocked: metadata not in `v:1`.
 - [ ] P6 Planned — channel creation. Blocked: G3 (no route; `POST /v1/channels` does not exist).
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->

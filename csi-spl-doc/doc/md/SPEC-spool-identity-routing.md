@@ -59,14 +59,16 @@ with a **different** pubkey → **409**. Same pubkey → 200.
 or Claude Code) MUST NOT inherit the parent ID and MUST NOT use dotted sub-IDs
 (`AGY-01.1` is rejected by the schema regex). Each subagent is an independent,
 first-class peer on the bus allocated its own distinct top-level ID (e.g. `AGY-02`,
-`AGY-03`) via the box allocator, equipped with its own keypair, pin, and inbox/outbox.
+`AGY-03`) via the box allocator, equipped with its own inbox/outbox directory
+(`$SPOOL_ROOT/<id>/{inbox,outbox,archive}`). Keypairs and pins are per-box,
+shared by all agents on that box.
 
 **Agent Bootstrapping (Harness Lifecycle):**
-The box harness wrapper (`next-agent-id.sh` / tmux agent launcher) generates the
-keypair (`spool-keygen --as <id>`) and registers the pin (`spool-pin --id <id>`)
-before the AI CLI session begins. If hub pin registration returns 409 (collision),
-the harness allocator increments to the next available ID before starting the session.
-The AI CLI is never burdened with key generation or initial pin setup.
+The box harness wrapper (`next-agent-id.sh` / `spool-harness` agent launcher) allocates
+the agent ID and prepares the agent directories before the AI CLI session begins.
+In hub mode, the harness verifies the box keypair (`$HOME/.spool/keys/box-<box_id>.key`)
+and ensures the box sidecar (`spool hub-run`) connects and announces the active agent
+roster. The AI CLI is never burdened with key generation or initial pin setup.
 
 ---
 
@@ -84,23 +86,22 @@ Private keys never leave the box. Never in Postgres, GCS, NATS, logs, WUI.
 **No TOFU.** An unknown `from` is untrusted. A first message does not install
 a pin.
 
-**`spool-pin`** is the only way to trust an id:
+**`spool-pin`** is the only way to trust a box:
 
-1. Writes the local pin file.
+1. Writes the local pin file (`$SPOOL_ROOT/pins/box-<box_id>.pub`).
 2. If `$SPOOL_HUB_URL` is set, `POST /v1/pins` is **signed by the tenant root**
-   (`SPEC-spool-hub-rental.md`). An agent cannot pin itself. Optional `box_id`
-   is recorded if `$SPOOL_BOX_ID` is set (hint for notify, not a credential).
+   (`SPEC-spool-hub-rental.md`). Body carries `{box_id, pubkey}`. An agent cannot pin itself.
 
-**Pin sync down:** box sidecar `GET /v1/pins` (or a delta) and writes/updates
-local pin files so `spool-recv` can verify without calling the hub. Conflict
-(local pin ≠ hub pin for same id): **refuse both**, exit `78`, do not clobber
+**Pin sync down:** box sidecar `GET /v1/pins` and writes/updates
+local pin files so receiving boxes can verify without calling the hub per message. Conflict
+(local pin ≠ hub pin for same `box_id`): **refuse both**, exit `78`, do not clobber
 local; operator uses `spool-pin --force` after checking.
 
 **`--force`:** required to replace a pin (local and hub). Hub stores previous
 pubkey in `pins_history` (audit), current row is the only one used to verify.
 
-**Revoke:** `spool-pin --id X --revoke` removes local pin and `DELETE /v1/pins/X`
-(tenant-root signature). In-flight messages from X fail verify after that.
+**Revoke:** `spool-pin --box <box_id> --revoke` removes local pin and calls
+`DELETE /v1/pins/{box_id}` (tenant-root signature). In-flight messages from that box fail verify after that.
 
 ---
 
@@ -136,25 +137,25 @@ This is 002. It stays true when the hub is configured.
 
 After the local write, the CLI also:
 
-1. `POST /v1/files` for any not-yet-uploaded `file_id`s
-2. `POST /v1/messages` with the already-signed `v:1` object (**do not re-sign**)
+1. `POST /v1/files` for any not-yet-uploaded `file_id`s (using WS-issued upload token)
+2. Sends the message envelope over WebSocket `/v1/ws` (`send` frame) signed by the sending box key.
 
-If POST fails: local files remain; outbox entry is `pending-flush` (see flush
-contract). Recv on the **same** box still works from `inbox/`.
+If send fails (hub down): local files remain; outbox entry is `pending-flush` (see flush
+contract in `internal/hubclient/flush.go`). Recv on the **same** box still works from `inbox/`.
 
-If POST succeeds: hub persists; NATS notify `task.<task_id>` and
-`agent.<to>.inbox`. Other boxes’ sidecars write the message into **their**
-`$SPOOL_ROOT/<to>/inbox/` if they host that id, else ignore the agent subject
-and still may show it on `spool-tail --task` via hub GET.
+If send succeeds: hub persists into Postgres; delivers `recv` frame over WebSocket to the
+destination box's live session socket (`role=box`). The destination box sidecar dual-writes the
+message into its local `$SPOOL_ROOT/<to>/inbox/`. Live task activity streams over WebSocket via
+`tail` frames.
 
 ### Who hosts `to`?
 
-Hub routes by **`to_box`**. Announce maps `(box_id, agent_id)` → WS.
+Hub routes by **`to_box`**. Box hello/announce frames map `(box_id, agent_id)` → active WebSocket.
 A sidecar only materialises inbox files for ids that exist **on this box**.
 
-A message to an id that is pinned but has **no** live inbox dir on any box
-still persists on the hub; `spool-recv --as <id>` fetches via signed
-`POST /v1/recv`.
+If `to_box` is offline when a message arrives, the hub queues the envelope in Postgres (up to
+`queue_max_per_box`, TTL 7 days). When `to_box` reconnects with `role=box` hello, all queued `recv`
+frames are delivered automatically followed by a `queue_end` frame.
 
 ---
 
@@ -183,4 +184,4 @@ Same-box skip vs mirror: `specs/002-box-agent-messaging/contracts/trust-modes.md
 - TOFU, key escrow, per-agent GCP keys, or renter GCP accounts.
 - Cross-tenant uniqueness of agent ids.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:32:00Z -->

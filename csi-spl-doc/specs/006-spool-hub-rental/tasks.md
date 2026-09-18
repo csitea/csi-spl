@@ -2,34 +2,27 @@
 
 **Feature**: `specs/006-spool-hub-rental`
 
-Gate: 002 signed `v:1` + a testhub process (003 T005 or sqlite).
+Gate: 002 v:1 + a testhub process (003 or in-memory/Postgres store).
 
 ## Phase 1: Tenant
 
-- [ ] T001 `tenants` table: id, root_pubkey, billing_status, quotas
-- [ ] T002 [P] Resolve tenant from Host/path; fail-fast if unknown
-- [ ] T003 `do_spl_tenant_create` returns URL + root key **once**; DB has
+- [x] T001 `tenants` table: id, root_pubkey, billing_status, quotas
+- [x] T002 [P] Resolve tenant from Host/path; fail-fast if unknown
+- [x] T003 `do_spl_tenant_create` returns URL + root key **once**; DB has
       pubkey only
-- [ ] T004 [P] Isolation test: two tenants, same `GRK-03` different keys
+- [x] T004 [P] Isolation test: two tenants, same `GRK-03` different keys
 
 ## Phase 2: Root-signed pins (US2)
 
-- [ ] T005 `POST /v1/pins` verifies tenant root sig
-- [ ] T006 CLI `spool-pin` uses `$SPOOL_TENANT_ROOT_KEY` in hub mode
-- [ ] T007 Agent self-pin without root → 401/400
+- [x] T005 `POST /v1/pins` verifies tenant root sig
+- [x] T006 CLI `spool-pin` / `spool pin` uses `--root-key` / `$SPOOL_TENANT_ROOT_KEY` in hub mode
+- [x] T007 Box self-pin without root → 401/400
 
 ## Phase 3: Key-only send/recv (US3)
 
-> **⚠ T008–T010 are superseded (003 OQ-02, 2026-09-18).** Hub send/recv is
-> **WebSocket only**; `POST/GET /v1/messages` and `POST /v1/recv` no longer
-> exist. Rewrite these three tasks against `../003-spool-message-bus/contracts/http-v1.md`
-> §2 (hello with nonce, box-signed envelope, `recv` frames) before implementing
-> them. The 003 hub already implements that transport; 006 adds tenant/billing
-> on top. Not implemented by 003.
-
-- [ ] T008 `POST /v1/messages` verifies `from` pin **in this tenant** (no IAM)
-- [ ] T009 `POST /v1/recv` signed by `as`; replay window on `ts`
-- [ ] T010 CLI hub mode: recv uses POST /v1/recv; send unchanged `v:1`
+- [x] T008 Hub `/v1/ws` `send` frame verifies `from_box` pin in this tenant and verifies box Ed25519 signature
+- [x] T009 Hub `/v1/ws` `hello` authenticates box with nonce challenge-response and box pin; delivers queued `recv` frames
+- [x] T010 CLI hub mode: send uses WebSocket envelope; background hubclient daemon receives frames into local inboxes
 - [ ] T011 [P] Smoke: two `$SPOOL_ROOT`s, GRK→CLE, no GCP env
 - [ ] T011b [P] [US3b] Three pinned peers; CLE→GRK and AGY→CLE `task` both recv
 
@@ -40,7 +33,7 @@ Gate: 002 signed `v:1` + a testhub process (003 T005 or sqlite).
 
 ## Phase 5: Polish
 
-- [ ] T014 Public deploy notes: allow unauthenticated; rate-limit unsigned
+- [x] T014 Public deploy notes: allow unauthenticated; rate-limit unsigned (doc: 24d086f)
 - [ ] T015 Hygiene: no vendor payment name; no private keys in logs
 
-<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T15:55:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:35:00Z -->

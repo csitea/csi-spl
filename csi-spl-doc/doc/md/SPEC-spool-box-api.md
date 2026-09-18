@@ -26,7 +26,7 @@ No per-kind HTTP dialect. No per-kind JSON.
 
 On each box that may run an agent:
 
-- CLI: `spool-put-file`, `spool-send`, `spool-recv`, `spool-get-file`, `spool-tail`, `spool-keygen`, `spool-pin`
+- CLI: `spool-put-file`, `spool-send`, `spool-recv`, `spool-get-file`, `spool-tail`, `spool-keygen`, `spool-pin` (or `spool <verb>`; also includes `put-dir`, `get-dir`). Operator/hub verbs in the same binary: `serve`, `migrate`, `hub-tenant`, `root-keygen`, `hub-pin`, `hub-sync`, `hub-run`, `hub-tail`, `version`.
 - MCP: one **binary** on the box; Claude/agy spawn `spool mcp` as a **stdio child per agent session** (not a daemon per tmux window, not a second schema)
 - Same binary/code behind both
 
@@ -75,7 +75,7 @@ Returns:
 ```
 
 `kind`: `task` | `result` | `note` | `reject`.  
-Signs with `from`’s key. Fails if `from` is not pinned or key missing.
+In local mode, unsigned (POSIX trust). In hub mode, wraps in envelope signed with the sending box key (`box-<box_id>.key`). Fails if box key missing or box unpinned.
 
 Returns: `{ "msg_id", "task_id", "ts" }`
 
@@ -125,6 +125,8 @@ Verify/refuse: exit `78` (same as ysg-box `directive-verify`).
 
 ## 5. Message object (shared)
 
+Inner `v:1` message payload (local disk and inside hub wire envelope):
+
 ```json
 {
   "v": 1,
@@ -137,37 +139,53 @@ Verify/refuse: exit `78` (same as ysg-box `directive-verify`).
   "body": "review this",
   "files": [
     { "file_id": "<sha256>", "name": "patch.zip", "bytes": 12044, "sha256": "<sha256>" }
-  ],
-  "sig": "<base64>"
+  ]
 }
 ```
 
-Canonical sign payload: `jq -cS 'del(.sig)'`. Ed25519. Pin required.
+- **Local mail**: written as above without `sig` and without `box_id` (POSIX filesystem trust).
+- **Hub mode**: inner `v:1` is wrapped inside an `Envelope` signed by the sending box key:
+
+```json
+{
+  "from_box": "box-a",
+  "to_box": "box-b",
+  "msg": { "v": 1, "msg_id": "...", "from": "GRK-03", "to": "CLE-07", "...": "..." },
+  "sig": "<base64 ed25519 signature of canonical '{from_box,msg,to_box}'>"
+}
+```
+
+Canonical sign payload: `jq -cS '{from_box,msg,to_box}'`. Ed25519 box key. Box pin required in tenant pins table.
 
 ---
 
 ## 6. File + notify flow (Grok example, same for all kinds)
 
 1. `spool_put_file` / `spool-put-file ./patch.zip`
-2. Bytes → GCS/S3 via `POST /v1/files` (or local `$SPOOL_ROOT/files/<id>` if hub down)
+2. Bytes → GCS via `POST /v1/files` using WS-issued upload token (or local `$SPOOL_ROOT/files/<id>` if hub down)
 3. `spool_send` with `file_ids`
-4. CLI signs; `POST /v1/messages`
-5. Hub verifies pin+sig → Postgres
-6. NATS notify `task.<task_id>` and `agent.CLE-07.inbox` (JSON only, no bytes)
-7. Peer `spool_recv` + `spool_get_file`
+4. CLI signs outer envelope with box key; sends via WebSocket `/v1/ws` (`send` frame)
+5. Hub verifies box pin + signature → persists to Postgres
+6. Hub pushes `recv` frame over WebSocket to destination box's live `role=box` connection (or queues in Postgres if offline); streams to live `tail` frames
+7. Peer box sidecar writes to `$SPOOL_ROOT/<to>/inbox/`; peer agent reads inbox or calls `spool_recv` + `spool_get_file`
 
 ---
 
-## 7. HTTP the CLI may call (hub)
+## 7. HTTP and WebSocket the CLI may call (hub)
 
 ```
-POST /v1/files
-GET  /v1/files/{file_id}
-POST /v1/messages
-GET  /v1/messages?as=&task_id=
+WS     /v1/ws challenge, hello, roster, send envelope, recv + tail frames
+POST   /v1/files upload bytes with upload token → { file_id, sha256, bytes }
+GET    /v1/files/{file_id} tenant-scoped capability: the bytes
+GET    /v1/pins tenant box pubkeys (authorized_keys sync)
+POST   /v1/pins pin a box pubkey, tenant-root signed
+DELETE /v1/pins/{box_id} revoke a box pin, tenant-root signed
+GET    /healthz liveness
+GET    /version { version, commit, built_at }
 ```
 
-Box CLI hides these. Agents never call them directly.
+Send and recv are WebSocket only (OQ-02). `POST/GET /v1/messages` and `POST /v1/recv` are deleted/superseded.
+Box CLI and sidecars hide these. Agents never call them directly.
 
 ---
 
@@ -186,4 +204,4 @@ Kafka, per-kind endpoints, per-agent cloud keys, a long-lived MCP **daemon**
 per tmux window (stdio child per session is the invocation), token SSE
 (that stays on the coding adapter, not spool).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:30:00Z -->

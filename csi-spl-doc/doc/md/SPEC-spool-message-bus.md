@@ -160,7 +160,7 @@ POST /v1/files              → body = bytes, box proof → { file_id, sha256, b
 GET  /v1/files/{file_id}    → bytes or a short-lived signed URL
 ```
 
-`POST /v1/messages` and `GET /v1/messages?as=` from the first draft are **(superseded)**: send/recv moved to the WS envelope. Whether a REST variant survives is an open question.
+`POST /v1/messages` and `GET /v1/messages?as=` from the first draft are **dropped/superseded** (OQ-02): public hub send/recv is WebSocket only; REST carries files and pins only.
 
 Box CLI hides these. Agents never call them directly. Local CLI does the same against the folder when the hub is off.
 
@@ -196,7 +196,7 @@ Grok never talks to NATS, Postgres, or the bucket.
 Do **not** start with GCP IAM: "this laptop may POST" still cannot tell a pinned box from a lying script.
 
 1. Local folder, unsigned. No key ceremony.
-2. Box keypair + tenant-root pin + WS hub (memory / sqlite allowed in tests).
+2. Box keypair + tenant-root pin + WS hub (in-memory store allowed in unit tests).
 3. Postgres + GCS hold hub state.
 4. Optional IAM on a private deploy (after M1).
 

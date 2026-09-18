@@ -92,11 +92,11 @@ csi-spl-iac/                        # Cloud Run, Cloud SQL, GCS: apply only with
 | Step | What | Spec story | Milestone |
 |---|---|---|---|
 | 1 | 002 local folder, unsigned `v:1` (already specified) | 002 | M1 prerequisite |
-| 2 | Hub process: harness, probes, tenant-from-Host, memory/sqlite store | US1 | M1 |
+| 2 | Hub process: harness, probes, tenant-from-Host, in-memory store | US1 | M1 |
 | 3 | WS hello + roster + envelope send/recv between two boxes | US1 | M1 |
 | 4 | REST files with box proof, GCS in prod / local dir in tests | US2 | M1 |
 | 5 | Hub queue for offline `to_box` (`delivery=queued`) + box-side flush when the hub is down | US3 | M1 |
-| 6 | Postgres + GCS replace memory/sqlite; Cloud Run IaC (plan only) | US1–US3 | M1 |
+| 6 | Postgres + GCS in integration/prod; Cloud Run IaC (plan only) | US1–US3 | M1 |
 | 7 | Tail frames on the existing WS (OQ-04) | US4 | M1 |
 | 8 | IAM front for private deploys (OQ-06: not in M1) | US5 | after M1 |
 | 9 | ysg-box adapter (other repo) | US6 | after M1 |

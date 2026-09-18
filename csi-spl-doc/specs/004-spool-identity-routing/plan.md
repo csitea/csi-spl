@@ -15,7 +15,7 @@ and dual-write/flush. No new message schema.
 
 **Depends**: 002 pin files; 003 `internal/hub` + `internal/store`.
 
-**New endpoints**: `POST /v1/pins`, `GET /v1/pins`, `DELETE /v1/pins/{id}`.
+**New endpoints**: `POST /v1/pins`, `GET /v1/pins`, `DELETE /v1/pins/{box_id}`.
 
 **Tables**: `boxes`, `pins`, `pins_history` (003 `data-model.md`).
 
@@ -32,13 +32,13 @@ and dual-write/flush. No new message schema.
 ```text
 internal/store/pins.go
 internal/hub/pins.go
-internal/flush/flush.go
+internal/hubclient/flush.go
 cmd/spool  # pin --force/--revoke; sidecar
 ```
 
 ## Build order
 
-After 003 US1 HTTP messages exist (or in parallel on sqlite testhub). Flush
+After 003 US1 WebSocket messages exist (or in parallel on in-memory testhub). Flush
 after local outbox exists (002 US1).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:42:00Z -->

@@ -3,15 +3,15 @@
 **Feature ID**: `005-spool-wui` · **Status**: Draft · **Date**: 2026-09-18
 
 **Spec**: `./spec.md` · **Narrative**: `../../doc/md/SPEC-spool-wui.md`  
-**Prerequisite**: `../003-spool-message-bus/` (hub `GET /v1/messages` and `GET /v1/files/{id}`)
+**Prerequisite**: `../003-spool-message-bus/` (hub `/v1/ws` and `GET /v1/files/{file_id}`)
 
 ## Summary
 
-Build the human thread viewer in `csi-spl-wui` as a **Nuxt 3 SSR + TypeScript** web application directly modeled after `/opt/pas/pas-psf/pas-psf-wui`. It connects to the hub HTTP API via the door (operator IAP / Cloud Run IAM), renders `v:1` messages chronologically per `task_id`, allows safe file downloads, and streams live updates (SSE or polling).
+Build the Slack-like multi-channel interface in `csi-spl-wui` as a **Nuxt 3 + TypeScript** web application directly modeled after `/opt/pas/pas-psf/pas-psf-wui`. It builds as a static site (`nuxt generate`) deployed to **Firebase Hosting** (Terraform steps `016-firebase-deploy-iam` and `019-firebase-static-site`), connects to the hub API via HTTP/WebSocket, renders `v:1` messages chronologically per channel or task thread (`parent_task_id`), allows safe file downloads, and streams live updates over WebSocket.
 
 ## Technical Context
 
-**Language/Framework**: Nuxt 3 (SSR), Vue 3, TypeScript, Pinia, pnpm >= 9. Modeled directly on `/opt/pas/pas-psf/pas-psf-wui`.
+**Language/Framework**: Nuxt 3 (Vue 3, TypeScript, Pinia, pnpm >= 9; SSG static export for Firebase Hosting). Modeled directly on `/opt/pas/pas-psf/pas-psf-wui`.
 
 **Code Home**: `csi-spl-wui/`
 
@@ -88,6 +88,7 @@ csi-spl-wui/
 6. `FileAttachment.vue` downloading files directly via `GET /v1/files/{sha256}`.
 7. Real-time updates integration (`useSpoolEvents.ts`) via SSE or WebSocket.
 8. `NotificationCenter.vue` with HTML5 Web Push and audio chimes.
-9. Local dev runner integration in `csi-spl-orc`.
+9. Local dev runner integration in `csi-spl-orc` (`do_wui_dev`, `do_wui_test`, `do_wui_build`).
+10. Firebase Hosting deployment via Terraform steps `016-firebase-deploy-iam` and `019-firebase-static-site`.
 
-<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:55:00Z -->
+<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:40:00Z -->

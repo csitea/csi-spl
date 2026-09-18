@@ -52,7 +52,7 @@ An agent calls `spool-send` / `spool-recv` as in 002. When `$SPOOL_HUB_URL` is s
 
 **Why this priority**: This is the Milestone 1 demo. Without it there is no hub.
 
-**Independent Test**: One hub process (sqlite / memory allowed), two `$SPOOL_ROOT`s with two box ids and two pinned box keys. `GRK-03@box-a` sends `task` to `CLE-07@box-b`; `CLE-07` recvs it and replies `kind=result`.
+**Independent Test**: One hub process (in-memory or Postgres allowed), two `$SPOOL_ROOT`s with two box ids and two pinned box keys. `GRK-03@box-a` sends `task` to `CLE-07@box-b`; `CLE-07` recvs it and replies `kind=result`.
 
 **Acceptance Scenarios**:
 
@@ -204,7 +204,7 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 ## Assumptions
 
 - 002 CLI/MCP and `v:1` schema are implemented first (or in parallel only for docs).
-- 003 MVP runs on sqlite/memory in tests; production M1 is Cloud Run + Postgres + GCS.
+- 003 runs on in-memory store in unit tests and Postgres in integration/production; production M1 is Cloud Run + Cloud SQL Postgres + GCS.
 - ysg-box adapter is a follow-on in that repo, not a task in this one.
 - Product DNS is `<tenant>.spool-hub.ai` (owner decision); binaries read it from `$SPOOL_HUB_URL` / cnf and never bake it.
 - Cloud Run min instances = 1 and **max instances = 1** in M1 (warm WS, single instance), both cnf-overridable. Boxes refresh pins on hello and on a cnf interval.

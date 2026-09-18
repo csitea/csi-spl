@@ -50,24 +50,25 @@ themselves. Same id different key in **this** tenant → 409. Same id in
 
 **Acceptance Scenarios**:
 
-1. **Given** root-signed pin of GRK-03, **When** GRK-03 sends, **Then** hub
+1. **Given** root-signed pin of `box-a`, **When** an agent on `box-a` sends, **Then** hub
    accepts.
-2. **Given** GRK-03 not pinned, **When** it sends, **Then** 400 unpinned.
-3. **Given** tenant B, **When** it pins GRK-03 to another key, **Then** tenant
+2. **Given** `box-a` not pinned, **When** it attempts to connect/send, **Then** 4401/401 unpinned.
+3. **Given** tenant B, **When** it pins `box-a` to another key, **Then** tenant
    A is unchanged.
 
 ### User Story 3 - Two kinds of agent talk via the hub, keys only (Priority: P1)
 
 On two machines (or two `$SPOOL_ROOT`s), Grok and Claude use the same CLI/MCP
-and `$SPOOL_HUB_URL`. Send is `v:1` signed by `from`. Recv is `POST /v1/recv`
-signed by `as`. No GCP credentials in the environment.
+and `$SPOOL_HUB_URL`. Send is inner `v:1` wrapped in an envelope signed by the
+sending box key over WebSocket `/v1/ws`. Recv is WebSocket `recv` frames delivered
+to the destination box daemon and written to the local inbox. No GCP credentials
+in the environment.
 
 **Acceptance Scenarios**:
 
-1. **Given** both pinned, **When** GRK-03 sends a `task` to CLE-07, **Then**
-   CLE-07 `spool-recv --as CLE-07` returns it; a recv signed by GRK-03 as
-   `as=CLE-07` is 401.
-2. **Given** no `CLOUDSDK_*` / IAM, **When** the CLI talks to a public testhub,
+1. **Given** both boxes pinned with tenant root, **When** `GRK-03@box-a` sends a `task` to `CLE-07@box-b`, **Then**
+   `CLE-07` receives it in its local inbox; an unpinned box connection cannot receive or send.
+2. **Given** no `CLOUDSDK_*` / IAM, **When** the CLI talks to a public testhub via WebSocket,
    **Then** send/recv still succeed.
 3. **Given** a file, **When** put-file + send + get-file, **Then** hash
    matches (002 contract).
@@ -75,18 +76,18 @@ signed by `as`. No GCP credentials in the environment.
 
 ### User Story 3b - Any peer commands any other peer (Priority: P1)
 
-Three pinned agents (GRK, CLE, AGY), possibly on three machines. Each can
+Three pinned boxes hosting agents (GRK, CLE, AGY), possibly on three machines. Each can
 `spool-send --kind task` to each of the others. The hub does not reject a
 Claude→Grok task. No human message is required on the thread.
 
 **Why this priority**: The product is a peer mailbox, not a human-to-bot
 ticket system.
 
-**Independent Test**: Fixture three keys; A→B, B→C, C→A tasks all recv.
+**Independent Test**: Fixture three box keys; A→B, B→C, C→A tasks all recv.
 
 **Acceptance Scenarios**:
 
-1. **Given** GRK, CLE, AGY pinned, **When** CLE sends `task` to GRK, **Then**
+1. **Given** boxes pinned, **When** CLE sends `task` to GRK, **Then**
    GRK recv returns it (same as GRK→CLE).
 2. **Given** those pins, **When** a send `from=GRK` `to=GRK` (self), **Then**
    it is stored (loopback allowed).
@@ -100,8 +101,8 @@ data expiry.
 
 ### Edge Cases
 
-- Replay of `POST /v1/recv` with old `ts` → reject.
-- Tenant URL leaked: unpinned POSTs are 400; recv still needs the agent key.
+- Replay of WebSocket hello with old `ts` or expired/reused nonce → reject (close 4408 / 4401).
+- Tenant URL leaked: unpinned boxes fail hello (4401); cannot send, recv, or list pins.
 - Root key lost: operator rotation procedure (out of MVP: support re-root
   with a break-glass we hold? **No** — we do not escrow. Lost root = new
   tenant or a documented re-root signed by payment-account proof, later spec).

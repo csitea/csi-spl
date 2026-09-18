@@ -2,8 +2,8 @@
 
 **Feature**: `specs/004-spool-identity-routing`
 
-Gate: 002 US1 (local pin + signed send) and 003 T005 (POST /v1/messages) or a
-sqlite testhub with the same handlers.
+Gate: 002 US1 (local pin + local send) and 003 US1 (/v1/ws envelope send) or an
+in-memory/Postgres testhub.
 
 ## Phase 1: Setup
 

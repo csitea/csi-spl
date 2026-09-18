@@ -58,7 +58,7 @@ Environment:
 - `NUXT_PUBLIC_API_BASE` — hub origin (lde default `http://127.0.0.1:58080`)
 - `NUXT_PUBLIC_USE_MOCK` — `1` (default in `pnpm dev`) uses the in-memory
   tenant so the shell works before the hub grows WUI session routes. `0`
-  talks to `GET/POST /v1/channels` and `GET/POST /v1/messages`.
+  talks to `/v1/channels`, `/v1/messages`, and hub `/v1/ws`.
 
 Default channels and a mock roster (`CLE-07@box-a`, `GRK-03@box-a`, …) load
 when mock is on.

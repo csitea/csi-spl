@@ -16,7 +16,7 @@ Module: `csi-spl-api/src/go/spool-hub-api`. WS send/recv; REST files/pins.
 
 **Language**: Go 1.22+.
 
-**Storage**: Postgres (or sqlite in tests) with `tenant_id` on mail tables;
+**Storage**: Postgres (or in-memory in unit tests) with `tenant_id` on mail tables;
 GCS `t/<tenant>/files/<sha256>`.
 
 **Wire**: `wss://…/v1/ws` send/recv; REST pins (root-signed) + files (box-key PUT).

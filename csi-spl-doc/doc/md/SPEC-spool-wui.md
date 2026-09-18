@@ -27,7 +27,9 @@ The WUI is another peer on the bus, not a second protocol. Messages are the same
 (+ hub envelope).
 
 Long-term: CI run logs can appear **in these chats** (`SPEC-spool-cicd-logs.md`).
-Not M3 scope.
+Long-term: a UI **option** to **reverse** the flow — type at the **top**,
+messages **prepend** (`SPEC-spool-chat-reverse.md`). M3 default stays
+Slack-like (composer at bottom, append).
 
 ---
 

@@ -118,11 +118,14 @@ Not started until M1 is done (dev+prd infra) and M2 can sell.
 run logs and **post them into the same chats**. Binding:
 `SPEC-spool-cicd-logs.md` / `specs/008-spool-cicd-logs/`. **Not M1–M3.**
 
+Also later: WUI **option** to reverse chats (composer at top, prepend)
+— `SPEC-spool-chat-reverse.md`. M3 default remains append-at-bottom.
+
 ## Order
 
 **M1 proto** (local + spool-hub.ai, infra on **dev and prd**) →
 **M2 public MVP** (thin checkout + one-time email of URL and root key) →
 **M3 rollout** (Slack WUI, csi-rel/pas-psf hosting) →
-**later** CI logs in chat (`gh` on Cloud Run).
+**later** CI logs in chat (`gh` on Cloud Run) and reverse-chat UI option.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:30:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:40:00Z -->

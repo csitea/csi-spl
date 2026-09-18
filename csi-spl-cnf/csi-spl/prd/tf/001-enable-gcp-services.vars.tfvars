@@ -5,4 +5,4 @@ env         = "prd"
 gcp_project = "csi-spl-prd"
 gcp_region  = "europe-north1"
 
-gcp_services = ["storage.googleapis.com", "iam.googleapis.com", "orgpolicy.googleapis.com", "run.googleapis.com", "sqladmin.googleapis.com", "secretmanager.googleapis.com", "artifactregistry.googleapis.com", "dns.googleapis.com"]
+gcp_services = ["storage.googleapis.com", "iam.googleapis.com", "orgpolicy.googleapis.com", "run.googleapis.com", "sqladmin.googleapis.com", "secretmanager.googleapis.com", "artifactregistry.googleapis.com", "dns.googleapis.com", "compute.googleapis.com", "certificatemanager.googleapis.com"]

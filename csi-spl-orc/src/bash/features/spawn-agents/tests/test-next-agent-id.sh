@@ -38,4 +38,8 @@ bash "$NAI" --kind hum >/dev/null 2>&1;       eq "unknown kind refused (exit 2)"
 wait
 eq "racing claims: one 0 and one 3" "0 3" "$(sort -n "$T_TMP/r1" "$T_TMP/r2" | tr '\n' ' ' | sed 's/ $//')"
 
+# The box user defaults to the owner of the spool root, not $SUDO_USER.
+got="$(env -u SPOOL_BOX_USER SUDO_USER=nobody bash -c '. "$1/lib/spool-env.inc.sh"; spool_env_resolve; printf %s "$SPOOL_BOX_USER"' _ "$T_FEAT")"
+eq "SPOOL_BOX_USER defaults to the spool root's owner" "$(stat -c %U "$SPOOL_ROOT")" "$got"
+
 t_done

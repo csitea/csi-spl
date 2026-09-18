@@ -9,7 +9,8 @@
 #   SPOOL_ROOT          message root (spec 002, local-folder-layout.md)
 #                                                   default /var/spool-hub
 #   SPOOL_BOX_USER      OS user that owns the tmux server the windows go into
-#                                                   default $SUDO_USER, else $USER
+#                       default: the owner of $SPOOL_ROOT (the box user owns
+#                       the spool root), else the current user
 #   SPOOL_AGENT_USER    OS user the agent CLIs run as
 #                                                   default $SPOOL_BOX_USER (no hop)
 #   SPOOL_RUN_AS_AGENT  su-dash | sudo-i            how to hop to the agent user
@@ -62,7 +63,12 @@ _spool_feature_dir() {
 
 spool_env_resolve() {
   SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
-  SPOOL_BOX_USER="${SPOOL_BOX_USER:-${SUDO_USER:-${USER:-$(id -un)}}}"
+  # Not $SUDO_USER: under `sudo -u <box user>` that names the CALLER, and an
+  # agent calling spool-send.sh as itself would ring its own (empty) tmux.
+  if [ -z "${SPOOL_BOX_USER:-}" ]; then
+    SPOOL_BOX_USER="$(stat -c %U "$SPOOL_ROOT" 2>/dev/null || true)"
+    case "$SPOOL_BOX_USER" in ''|root|UNKNOWN) SPOOL_BOX_USER="$(id -un)" ;; esac
+  fi
   SPOOL_AGENT_USER="${SPOOL_AGENT_USER:-$SPOOL_BOX_USER}"
   SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
   if [ -z "${SPOOL_TMUX_SOCKET:-}" ]; then

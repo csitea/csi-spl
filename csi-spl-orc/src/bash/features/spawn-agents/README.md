@@ -49,7 +49,7 @@ box.
 | var | default |
 |---|---|
 | `SPOOL_ROOT` | `/var/spool-hub` |
-| `SPOOL_BOX_USER` | `$SUDO_USER`, else `$USER`. This user owns the tmux server |
+| `SPOOL_BOX_USER` | the owner of `$SPOOL_ROOT`, else the current user. This user owns the tmux server |
 | `SPOOL_AGENT_USER` | `$SPOOL_BOX_USER`. The agent CLIs run as this user |
 | `SPOOL_RUN_AS_AGENT` | `su-dash` (`sudo su - <agent>`), or `sudo-i` |
 | `SPOOL_TMUX_SOCKET` | `/tmp/tmux-<uid of box user>/default` |

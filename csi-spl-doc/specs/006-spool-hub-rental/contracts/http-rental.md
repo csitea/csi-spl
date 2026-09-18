@@ -1,6 +1,6 @@
 # Contract: Hub transport for a rented tenant
 
-Extends `003/contracts/http-v1.md`. Public rental. See `SPEC-spool-trust-modes.md`.
+Extends `003/contracts/http-v1.md`. Public rental. See `../../002-box-agent-messaging/contracts/trust-modes.md`.
 
 Tenant from URL. **Send/recv = WebSocket. Files/pins = REST.**
 

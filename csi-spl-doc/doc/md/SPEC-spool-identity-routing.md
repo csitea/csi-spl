@@ -3,9 +3,9 @@
 Status: binding addendum to the message-bus vision  
 Created: 2026-09-18  
 Git-spec: `csi-spl-doc/specs/004-spool-identity-routing/`  
-Related: `SPEC-spool-trust-modes.md`, `SPEC-spool-hub-rental.md`, `specs/002-box-agent-messaging/`
+Related: `specs/002-box-agent-messaging/contracts/trust-modes.md`, `SPEC-spool-hub-rental.md`, `specs/002-box-agent-messaging/`
 
-Hub crypto is **per box**, not per agent — `SPEC-spool-trust-modes.md`.
+Hub crypto is **per box**, not per agent — `specs/002-box-agent-messaging/contracts/trust-modes.md`.
 `from`/`to` remain `CLE-07`. The box key signs. Local mode has **no** keys.
 
 ---
@@ -46,7 +46,7 @@ A new vendor adds a prefix. Same API.
 
 **Scope of agent ids:** unique **on one box** (one directory
 `$SPOOL_ROOT/CLE-07`). Two boxes MAY both have `CLE-07`. Hub addressing is
-`(box_id, agent_id)` — see `SPEC-spool-trust-modes.md` envelope `from_box` /
+`(box_id, agent_id)` — see `specs/002-box-agent-messaging/contracts/trust-modes.md` envelope `from_box` /
 `to_box`.
 
 **Scope of box pins:** unique `(tenant, box_id)`. Second pin of that box_id
@@ -172,7 +172,7 @@ still persists on the hub; `spool-recv --as <id>` fetches via signed
 `msg_id` is the idempotency key. A repeated hub send of the same payload is
 success, not a duplicate row.
 
-Same-box skip vs mirror: `SPEC-spool-trust-modes.md` §6.
+Same-box skip vs mirror: `specs/002-box-agent-messaging/contracts/trust-modes.md` §6.
 
 ---
 

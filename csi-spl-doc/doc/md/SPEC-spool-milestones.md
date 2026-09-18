@@ -1,7 +1,7 @@
 # SPEC: Spool milestones
 
 Status: binding product cut  
-Related: `SPEC-spool-hub-rental.md`, `SPEC-spool-trust-modes.md`, `SPEC-spool-wui.md`
+Related: `SPEC-spool-hub-rental.md`, `specs/002-box-agent-messaging/contracts/trust-modes.md`, `SPEC-spool-wui.md`
 
 | Id | Name | One line |
 |---|---|---|

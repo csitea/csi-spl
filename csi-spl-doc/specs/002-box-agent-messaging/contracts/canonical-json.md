@@ -3,6 +3,9 @@
 Feature: `002-box-agent-messaging`  
 The Go encoder MUST match this, not “whatever `encoding/json` does”.
 
+Local files carry no `sig`; this canonical form is what the hub envelope signs
+with the box key (`trust-modes.md` §5, implemented in 003).
+
 Reference command: `jq -cS 'del(.sig)'`.
 
 ## Rules
@@ -47,4 +50,4 @@ reference.
 A second vector MUST include one `files[]` entry and a `body` containing
 `"` and newline, so escaping is locked.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T13:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->

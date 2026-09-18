@@ -11,12 +11,12 @@ to disk. Any change is a `v` bump, never an in-place edit.
 | `msg_id` | string | UUIDv4, unique per message |
 | `task_id` | string | UUIDv4, groups a thread |
 | `ts` | string | RFC3339 with `Z` (UTC) |
-| `from` | string | agent id (`^[A-Z]{2,4}-\d+$`), MUST be pinned |
+| `from` | string | agent id (`^[A-Z]{2,4}-\d+$`), unique on its box |
 | `to` | string | agent id |
 | `kind` | string | one of `task` `result` `note` `reject` |
 | `body` | string | UTF-8; MAY be empty |
 | `files` | array | 0..N file refs (below); MAY be empty |
-| `sig` | string | **omitted in local mode**. Hub mode: not on this inner object — see box envelope in `SPEC-spool-trust-modes.md` |
+| `sig` | string | **omitted in local mode**. Hub mode: not on this inner object — see box envelope in `trust-modes.md` |
 
 ### File ref
 
@@ -32,21 +32,22 @@ to disk. Any change is a `v` bump, never an in-place edit.
 - **Local** (`$SPOOL_HUB_URL` unset): this object is stored as-is **without**
   `sig`. No key ceremony. POSIX trust.
 - **Hub:** the box wraps this object in an envelope signed with the **box**
-  key (`SPEC-spool-trust-modes.md`). Inner `sig` stays absent.
+  key (`trust-modes.md`). Inner `sig` stays absent.
 
-## Signing (hub envelope only)
+## Signing (hub envelope only, 003)
 
+Local mode never signs. In hub mode the **sending box** signs the envelope
+`{from_box, to_box, msg}` (`msg` = this object, no inner `sig`):
 
-1. Build the object with all fields EXCEPT `sig`.
-2. Canonicalise: `jq -cS 'del(.sig)'` (sorted keys, compact). The Go
-   implementation MUST produce byte-identical output (sorted keys, no spaces).
-3. `sig = base64( ed25519.Sign(privkey(from), canonical_bytes) )`.
+1. Canonicalise with `canonical-json.md` rules: `jq -cS '{from_box,to_box,msg}'`.
+2. `sig = base64( ed25519.Sign(privkey(box), canonical_bytes) )`.
 
 ## Verifying
 
-1. Look up `from`'s pinned pubkey; absent → refuse (exit `78`).
-2. Recompute the canonical payload (`del(.sig)`, sorted, compact).
-3. `ed25519.Verify(pub, payload, base64decode(sig))`; false → refuse (exit `78`).
+- **Local:** nothing to verify; the filesystem is the trust boundary. A `sig`
+  found on a local file is tolerated and not checked.
+- **Hub (003):** verify the envelope `sig` against the pinned pubkey of
+  `from_box`; absent pin or a false verify → refuse (exit `78`).
 
 ## Validation rules
 
@@ -69,8 +70,8 @@ When `spool recv` scans `$SPOOL_ROOT/<id>/inbox/` and encounters legacy `.md` fi
    - `kind`: `"note"`
    - `body`: raw file contents.
    - `files`: `[]`
-   - `sig`: `"legacy-unsigned"`
+   - `sig`: omitted (local mail is unsigned)
 3. On `--ack`, the `.md` file is moved to `archive/` identically to `.json` files.
 4. Result: AI agents only need `spool recv` to receive all incoming mail regardless of sender version.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:36:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->

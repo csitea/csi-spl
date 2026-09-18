@@ -2,7 +2,7 @@
 
 **Feature ID**: `003-spool-message-bus` · **Status**: Draft · **Date**: 2026-09-18
 
-**Spec**: `./spec.md` · **Architecture**: `../../doc/md/SPEC-spool-message-bus.md` · **Binding trust/transport**: `../../doc/md/SPEC-spool-trust-modes.md` · **Milestones**: `../../doc/md/SPEC-spool-milestones.md` · **Box API**: `../../doc/md/SPEC-spool-box-api.md`  
+**Spec**: `./spec.md` · **Architecture**: `../../doc/md/SPEC-spool-message-bus.md` · **Binding trust/transport**: `../002-box-agent-messaging/contracts/trust-modes.md` · **Milestones**: `../../doc/md/SPEC-spool-milestones.md` · **Box API**: `../../doc/md/SPEC-spool-box-api.md`  
 **Prerequisite**: `../002-box-agent-messaging/` (local folder + CLI/MCP)
 
 ## Summary

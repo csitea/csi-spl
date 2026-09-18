@@ -22,7 +22,9 @@ of the `003` architecture build order; nothing here is throwaway.
 passing. Phase 6 (US4): `spool mcp` on go-sdk v1.8.0; CLI verbs and MCP tools
 both call `internal/action`, and `internal/mcp` tests prove SC-004. Phase 7
 docs: `quickstart.md` (T025), hygiene sweep + gofmt (T026), box install path
-(T027). **Remaining**: T028.
+(T027). Trust reconciled to `contracts/trust-modes.md` (T029): local mail is
+unsigned, keys are optional and per box. T028 done by a manual cross-artifact
+check. **Remaining**: none for 002.
 
 ## Phase 1: Setup
 
@@ -49,14 +51,17 @@ docs: `quickstart.md` (T025), hygiene sweep + gofmt (T026), box install path
 **Goal**: keygen → pin → send → recv → ack works on one box, no hub.
 **Independent Test**: SC-001, SC-002 in a temp `$SPOOL_ROOT`.
 
-- [x] T008 [US1] `spool keygen --as <id> [--force]`
-- [x] T009 [US1] `spool pin --id --pubkey [--force]`
+- [x] T008 [US1] `spool keygen --as <id> [--force]` (superseded by T029:
+      `keygen [--box <box_id>]`, optional)
+- [x] T009 [US1] `spool pin --id --pubkey [--force]` (superseded by T029:
+      `pin --box <box_id>`, optional)
 - [x] T010 [US1] `spool send --from --to [--task] --kind --body`: build+sign+write
-      inbox+outbox; refuse (78) unpinned/missing key
+      inbox+outbox; refuse (78) unpinned/missing key (superseded by T029: unsigned)
 - [x] T011 [US1] `spool recv --as [--ack]`: verify vs pin, return valid array,
-      atomic ack move; report+`78` on bad sig
+      atomic ack move; report+`78` on bad sig (superseded by T029: no local verify)
 - [x] T012 [P] [US1] `go test` round trip via `internal/testkit`: keygen→pin→send→recv→ack;
       tampered body → 78; unpinned from → 78; double-ack returns once
+      (T029: now unsigned round trip, malformed → 1, hash mismatch → 78)
 - [x] T013 [P] [US1] `spool-smoke.tst.sh` bash end-to-end (10 checks) mirroring agent-msg
 - [x] T013a [US1] Legacy `.md` bridge (Option B): `spool recv` transparently ingests legacy markdown messages from `$SPOOL_ROOT/<id>/inbox/`, wrapping into synthetic `kind="note"` `v:1` envelopes and archiving on `--ack`
 
@@ -93,6 +98,7 @@ docs: `quickstart.md` (T025), hygiene sweep + gofmt (T026), box install path
 - [x] T023 [US4] `spool mcp` subcommand starts the stdio server (one per box)
 - [x] T024 [P] [US4] `go test`: an MCP call and its CLI verb produce identical
       files + return values for the same inputs; unpinned from → tool error
+      (T029: now unsigned send works; hash mismatch → tool error)
 
 ## Phase 7: Polish & release gate
 
@@ -101,7 +107,12 @@ docs: `quickstart.md` (T025), hygiene sweep + gofmt (T026), box install path
       (clean; the only hits are `ysg-box`, the named behavioural reference)
 - [x] T027 Wire the spool binary onto the box image install path (docs only in
       002; no ysg-box edit) and record how a box gets it (`quickstart.md` section 6)
-- [ ] T028 `/speckit-analyze` clean; tick the plan Constitution Check boxes
+- [x] T028 `/speckit-analyze` clean; tick the plan Constitution Check boxes
+      (the command is not installed here: checked by hand with greps for
+      stale signed-model terms across spec, plan, data-model and contracts)
+- [x] T029 Reconcile to `contracts/trust-modes.md` (moved in from `doc/md/`):
+      unsigned local mail, optional per-box key, `delivery` in the send result,
+      exit `78` locally only for a hash mismatch
 
 ## Dependencies
 
@@ -115,4 +126,4 @@ docs: `quickstart.md` (T025), hygiene sweep + gofmt (T026), box install path
 - The `v:1` object, CLI verbs, and MCP tools are the permanent contract `003`
   reuses — resist adding a hub flag here.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->

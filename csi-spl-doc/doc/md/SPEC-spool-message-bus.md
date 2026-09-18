@@ -3,7 +3,7 @@
 Status: design freeze for implementation planning  
 Created: 2026-09-18  
 Git-spec: `csi-spl-doc/specs/003-spool-message-bus/`  
-Binding over this narrative: `SPEC-spool-trust-modes.md` (local unsigned; hub = one Ed25519 key per **box**, envelope over WebSocket) and `SPEC-spool-milestones.md` (M1 = non-WUI cross-box mesh; no NATS, no IAM). Sections below that predate those decisions are marked **(superseded)**; the git-spec's Open Questions list what is still undecided.  
+Binding over this narrative: `specs/002-box-agent-messaging/contracts/trust-modes.md` (local unsigned; hub = one Ed25519 key per **box**, envelope over WebSocket) and `SPEC-spool-milestones.md` (M1 = non-WUI cross-box mesh; no NATS, no IAM). Sections below that predate those decisions are marked **(superseded)**; the git-spec's Open Questions list what is still undecided.  
 Related: `SPEC-spool-hub-rental.md` (paid tenant MVP), `SPEC-spool-box-api.md`, `SPEC-spool-identity-routing.md`, `SPEC-spool-task-lifecycle.md`, `SPEC-spool-wui.md`, `specs/002`–`006`, `specs/001-relay-bucket-estate/` (git-rel — a different plane)
 
 ---
@@ -190,7 +190,7 @@ Grok never talks to NATS, Postgres, or the bucket.
 
 ## 9. Trust — box key first, IAM optional
 
-**(superseded in part)** The first draft said "sign on day one" with one keypair **per agent**. `SPEC-spool-trust-modes.md` replaced that:
+**(superseded in part)** The first draft said "sign on day one" with one keypair **per agent**. `specs/002-box-agent-messaging/contracts/trust-modes.md` replaced that:
 
 | Mechanism | Answers |
 |---|---|

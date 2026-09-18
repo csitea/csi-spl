@@ -7,24 +7,24 @@
 ## Summary
 
 Deliver the spool box API (`SPEC-spool-box-api.md`) as one Go binary backed by a
-local `$SPOOL_ROOT` folder — no hub. It signs (Ed25519) and verifies messages
-against pins, content-addresses file attachments (sha256), stores the canonical
+local `$SPOOL_ROOT` folder — no hub. It writes unsigned messages (local trust is
+POSIX, `contracts/trust-modes.md`), content-addresses file attachments (sha256), stores the canonical
 `v:1` JSON on disk, and offers a `spool-tail` view. The same binary exposes a
 stdio MCP server that thinly wraps the CLI. Behaviour is modelled on ysg-box's
 existing file protocol (reference only, never modified).
 
 ## Technical Context
 
-**Language/Version**: Go 1.22+.
+**Language/Version**: Go 1.25+ (go-sdk v1.8.0 floor).
 
-**Primary Dependencies**: standard library (`crypto/ed25519`, `crypto/sha256`, `encoding/json`, `os`); `github.com/rs/zerolog` for structured logging (modeled on `pas-psf`); MCP stdio: `github.com/modelcontextprotocol/go-sdk` v1.7.0+ (`research.md`). No NATS/Postgres/GCS SDKs in 002.
+**Primary Dependencies**: standard library (`crypto/ed25519`, `crypto/sha256`, `encoding/json`, `os`); `github.com/rs/zerolog` for structured logging (modeled on `pas-psf`); MCP stdio: `github.com/modelcontextprotocol/go-sdk` v1.8.0 (`research.md`). No NATS/Postgres/GCS SDKs in 002.
 
 **Logging & Config Pattern**: Adopts the `pas-psf` convention:
-- `internal/config`: fail-fast loading of env vars (`$SPOOL_ROOT`, `$SPOOL_KEYS_DIR`, log settings).
+- `internal/config`: fail-fast loading of env vars (`$SPOOL_ROOT`, `$SPOOL_KEYS_DIR`, `$SPOOL_BOX_ID`, log settings).
 - `internal/logging`: `zerolog.Logger` with RFC3339 timestamps, service tag, log levels, console formatting for CLI, JSON formatting when deployed.
 
 **Storage**: local filesystem under `$SPOOL_ROOT` (default
-`/var/tmp/claude/msgs`). Keys/pins under `$HOME` (outside the spool root).
+`/var/tmp/claude/msgs`). The optional box key under `$HOME` (outside the spool root).
 
 **Testing & Harness**:
 - `go test ./...`: unit tests + table-driven round-trip harness using `internal/testkit` (assertions, fixture loaders, isolated temp spool roots), modeled on `/opt/pas/pas-psf/pas-psf-api/src/internal/testkit/`.
@@ -49,17 +49,17 @@ no throughput target in 002.
 
 ## Constitution Check
 
-- [ ] **I. Paths** — binary + sources under `csi-spl-api/src/go/spool-hub-api`; `$SPOOL_ROOT`
+- [x] **I. Paths** — binary + sources under `csi-spl-api/src/go/spool-hub-api`; `$SPOOL_ROOT`
       and `$HOME` derived, never hard-coded.
-- [ ] **II. Env** — `$SPOOL_ROOT` and key/pin locations are env vars with the
+- [x] **II. Env** — `$SPOOL_ROOT` and key/pin locations are env vars with the
       documented default; nothing else baked in.
-- [ ] **VI. Cnf-only** — no runtime host/path invented in source.
-- [ ] **VII. No key in git/state/log** — private keys `chmod 600`, outside the
+- [x] **VI. Cnf-only** — no runtime host/path invented in source.
+- [x] **VII. No key in git/state/log** — private keys `chmod 600`, outside the
       spool root, never logged.
-- [ ] **VIII. Uniform API** — one verb/tool/schema set for all kinds; kind is an
+- [x] **VIII. Uniform API** — one verb/tool/schema set for all kinds; kind is an
       id prefix only.
-- [ ] **V. Hygiene** — org-neutral; example ids/names use placeholders.
-- [ ] **Reference read-only** — grep gate proves no ysg-box path in the source.
+- [x] **V. Hygiene** — org-neutral; example ids/names use placeholders.
+- [x] **Reference read-only** — grep gate proves no ysg-box path in the source.
 
 *(Boxes are unchecked until `/speckit-analyze` runs against the built code.)*
 
@@ -89,7 +89,8 @@ csi-spl-api/src/go/spool-hub-api/  # the Go module home
 ├── internal/logging/              # zerolog structured logger (pas-psf pattern)
 ├── internal/testkit/              # test harness, assertions, temp-root fixtures (pas-psf pattern)
 ├── internal/msg/                  # v1 message object: build, canonicalise, (de)serialise
-├── internal/sign/                 # ed25519 keygen, sign, verify; pin store
+├── internal/sign/                 # per-box ed25519 keygen, sign, verify; box pin store (hub mode)
+├── internal/action/               # the one verb layer the CLI and MCP both call
 ├── internal/files/                # content-addressed store (sha256), put/get
 ├── internal/spool/                # $SPOOL_ROOT layout, inbox/outbox/archive, atomic ack
 ├── internal/mcp/                  # stdio MCP server wrapping the CLI actions
@@ -117,4 +118,4 @@ the permanent contract; 003 adds a backend behind them.
 binary for CLI + MCP rather than two — is required by VIII (identical behaviour)
 and reduces surface, so it is a simplification, not a violation.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->

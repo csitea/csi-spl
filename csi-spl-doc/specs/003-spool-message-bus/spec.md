@@ -8,7 +8,7 @@
 
 **Input**: Architecture freeze from the owner: split names (ysg-box = machine, spool = bus); start clean in this repo then force the box to use it; local CRUD first (002); Cloud Run is a stateless process; state in Postgres + object store; NATS for live notify not for files or tokens; one uniform box API for every agent kind.
 
-**Binding (wins over this file on conflict)**: `csi-spl-doc/doc/md/SPEC-spool-trust-modes.md` (local unsigned; hub = one Ed25519 key **per box**, box-signed envelope over **WebSocket**; files/pins over REST) and `csi-spl-doc/doc/md/SPEC-spool-milestones.md` (M1 = non-WUI cross-box mesh on Cloud Run + Postgres + GCS, tenant-scoped; no NATS and no IAM in M1).
+**Binding (wins over this file on conflict)**: `csi-spl-doc/specs/002-box-agent-messaging/contracts/trust-modes.md` (local unsigned; hub = one Ed25519 key **per box**, box-signed envelope over **WebSocket**; files/pins over REST) and `csi-spl-doc/doc/md/SPEC-spool-milestones.md` (M1 = non-WUI cross-box mesh on Cloud Run + Postgres + GCS, tenant-scoped; no NATS and no IAM in M1).
 
 **Narrative**: `csi-spl-doc/doc/md/SPEC-spool-message-bus.md`  
 **Box API**: `csi-spl-doc/doc/md/SPEC-spool-box-api.md`  
@@ -183,7 +183,7 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 ### Key Entities
 
 - **Message (`v:1`)**: as 002 `contracts/message-schema.md`; inner `sig` absent in both modes.
-- **Envelope**: `{ from_box, to_box, msg, sig }`, where `sig` is made by the sending box key over the canonical envelope (`SPEC-spool-trust-modes.md` §5).
+- **Envelope**: `{ from_box, to_box, msg, sig }`, where `sig` is made by the sending box key over the canonical envelope (`../002-box-agent-messaging/contracts/trust-modes.md` §5).
 - **File object**: `file_id` = sha256 of bytes, stored per tenant.
 - **Box pin**: `(tenant_id, box_id)` → pubkey, published with the tenant root (004/006).
 - **Roster**: agent ids a box announced at hello (dir scan of `$SPOOL_ROOT/*/`).
@@ -221,7 +221,7 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 
 Each item below is under-specified or contradicted across documents. This file answers none of them. Each needs an owner decision before the task that depends on it starts.
 
-- **OQ-01: Is the box API still frozen?** Hub mode needs `--to-box` on `spool-send` / `to_box` on `spool_send`, plus a `delivery` field in the send result (`SPEC-spool-trust-modes.md` §4, §8). None of these appears in 002 `contracts/cli.md`, `contracts/mcp-tools.md`, or `SPEC-spool-box-api.md`. Is this an additive, allowed change to the 002 contract, and does 002 or 003 own it? Blocks `tasks.md` T007.
+- **OQ-01: Is the box API still frozen?** Hub mode needs `--to-box` on `spool-send` / `to_box` on `spool_send`, plus a `delivery` field in the send result (`../002-box-agent-messaging/contracts/trust-modes.md` §4, §8). None of these appears in 002 `contracts/cli.md`, `contracts/mcp-tools.md`, or `SPEC-spool-box-api.md`. Is this an additive, allowed change to the 002 contract, and does 002 or 003 own it? Blocks `tasks.md` T007.
 - **OQ-02: Does the REST message dialect survive at all?** Earlier 003 text had `POST /v1/messages` + `GET /v1/messages?as=` for a "private org hub", verified per agent. The binding model has no per-agent keys and moves send/recv to WS. Should the REST dialect be deleted, or kept as a private-deploy variant with box-key auth? (006 `tasks.md` T008–T010 still build `POST /v1/messages` / `POST /v1/recv`.)
 - **OQ-03: Envelope canonicalisation and replay.** `sig` covers `jq -cS '{from_box,to_box,msg}'`. If `to_box` is omitted and the hub fills it, is the signature over the envelope *without* `to_box`? Does the delivered frame carry the hub-filled value outside the signed bytes? The receiving box must be able to re-verify. Separately: does the hello `sig` cover a hub-issued nonce, or only `{box_id, ts}`? And what is the `ts` window?
 - **OQ-04: Live tail transport (US4).** Candidates are SSE `GET /v1/events` (earlier plan), NATS Core/JetStream (`contracts/nats-subjects.md`), or frames on the existing WS. The milestone puts NATS out of M1 but names no replacement.

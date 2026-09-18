@@ -1,7 +1,7 @@
 # Contract: Dual-write and flush
 
 Feature: `003` / `006`  
-Binding: `SPEC-spool-trust-modes.md` §6
+Binding: `../../002-box-agent-messaging/contracts/trust-modes.md` §6
 
 ## 1. `spool-send` when hub URL is set
 

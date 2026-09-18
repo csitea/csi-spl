@@ -9,10 +9,11 @@ $SPOOL_ROOT/
 │   ├── outbox/   <yyyymmddThhmmssZ>--<self>--<slug>.json
 │   └── archive/  <yyyymmddThhmmssZ>--<from>--<slug>.json
 ├── files/        <file_id>                       # content-addressed, shared
-└── pins/         <id>.pub                        # shared trusted pubkeys for on-box verification (mode 0644)
+└── pins/         box-<box_id>.pub                # box pubkeys for hub mode (mode 0644); unused locally
 ```
 
-Private keys live strictly under `$HOME/.spool/keys/<id>.key` (`chmod 0600`), outside `$SPOOL_ROOT`.
+The one per-box private key (hub mode only) lives strictly under
+`$HOME/.spool/keys/box-<box_id>.key` (`chmod 0600`), outside `$SPOOL_ROOT`.
 
 ## Mapping to the ysg-box reference (READ-ONLY — do not modify ysg-box)
 
@@ -23,7 +24,7 @@ Private keys live strictly under `$HOME/.spool/keys/<id>.key` (`chmod 0600`), ou
 | body is free markdown | `body` is a `v:1` string field |
 | file leg = source of truth | unchanged — the file is the record |
 | notification = doorbell (`SendMessage`/tmux/`inbox-send.sh`) | out of scope for 002 delivery; drained by reading `inbox/` |
-| no signatures | Ed25519 `sig` + pins REQUIRED |
+| no signatures | no signatures locally (POSIX trust); one box key only for hub mode |
 | files carried inline / ad hoc | content-addressed `files/<sha256>`, referenced by `file_id` |
 | liveness via `ListAgents` | N/A in 002 (single box, id-addressed dirs) |
 | ack = `mv` inbox → archive | ack = atomic rename inbox → archive |
@@ -36,14 +37,14 @@ Private keys live strictly under `$HOME/.spool/keys/<id>.key` (`chmod 0600`), ou
 - `files/` is shared across agents on the box; identical bytes = one object.
 - Mode `0664` on message files so the box user and the agent user can both read
   (matches the ysg-box convention).
-- Nothing in this tree is a private key; private keys live under `$HOME/.spool/keys/<id>.key` (`chmod 600`). Shared public pins live under `$SPOOL_ROOT/pins/<id>.pub` (`chmod 644`).
+- Nothing in this tree is a private key; the box private key lives under `$HOME/.spool/keys/box-<box_id>.key` (`chmod 600`). Box public pins live under `$SPOOL_ROOT/pins/box-<box_id>.pub` (`chmod 644`).
 
 ## Why re-implement instead of reuse ysg-box
 
 ysg-box's protocol is battle-tested and is the behavioural spec, but it is bash
-+ `.md` frontmatter wired into the box harness. 002 needs signatures, content
-addressing, and a `v:1` JSON object that `003` can put on a wire unchanged — so
++ `.md` frontmatter wired into the box harness. 002 needs content
+addressing and a `v:1` JSON object that `003` can put on a wire unchanged — so
 the spool owns a clean Go implementation and treats ysg-box strictly as the
 reference contract (Constitution: "Reference implementation is read-only").
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T00:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->

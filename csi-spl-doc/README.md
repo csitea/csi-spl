@@ -11,7 +11,7 @@ contract, and how to create, apply and switch to it.
 | `doc/md/SPEC-spool-milestones.md` | **M1 technical proto → M2 public MVP (buy) → M3 rollout Slack UI** |
 | `doc/md/SPEC-spool-hub-api-infra.md` | copy csi-rel/pas-psf infra+DNS, not the shop |
 | `doc/md/SPEC-spool-hub-rental.md` | paid tenant product |
-| `doc/md/SPEC-spool-trust-modes.md` | local unsigned vs hub box keys (SSH-like) |
+| `specs/002-box-agent-messaging/contracts/trust-modes.md` | local unsigned vs hub box keys (SSH-like) |
 | `doc/md/SPEC-spool-message-bus.md` | agent message bus architecture (binding) |
 | `doc/md/SPEC-spool-box-api.md` | uniform box API (CLI + MCP) |
 | `doc/md/SPEC-spool-identity-routing.md` | global ids, pins, box id, dual-write |

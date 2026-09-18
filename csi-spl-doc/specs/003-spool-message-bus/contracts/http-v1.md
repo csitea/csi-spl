@@ -3,7 +3,7 @@
 Stateless Cloud Run, **HTTPS + WebSocket**. The box CLI/MCP is the only client;
 agents never call these endpoints directly (Constitution VIII).
 
-Normative sources, in order: `../../../doc/md/SPEC-spool-trust-modes.md` §4–§5
+Normative sources, in order: `../../002-box-agent-messaging/contracts/trust-modes.md` §4–§5
 (binding owner decision), then this file, then
 `../../006-spool-hub-rental/contracts/http-rental.md` (tenant, pins, billing).
 The inner message is the frozen 002 object

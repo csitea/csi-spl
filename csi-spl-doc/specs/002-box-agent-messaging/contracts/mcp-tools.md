@@ -16,9 +16,9 @@ rejected in the constitution). Each tool calls the same internal action as the C
 { "from": "GRK-03", "to": "CLE-07", "task_id": "<uuid>", "kind": "task",
   "body": "review this", "file_ids": ["<sha256>"] }
 ```
-`kind ∈ task|result|note|reject`. Signs with `from`'s key. Fails (tool error,
-== CLI exit 78) if `from` is not pinned or its key is missing.
-→ `{ "msg_id": "...", "task_id": "...", "ts": "..." }`
+`kind ∈ task|result|note|reject`. Unsigned in local mode: no key or pin
+needed (`trust-modes.md` §2).
+→ `{ "delivery": "local", "msg_id": "...", "task_id": "...", "ts": "..." }`
 
 ## `spool_recv`
 ```json
@@ -47,11 +47,12 @@ Human lines by default; `json: true` → raw `v:1` NDJSON objects.
   wraps (verify/refuse surfaces as a tool error mirroring exit `78`).
 - A tool's text content is byte-for-byte the CLI verb's stdout (without the
   trailing newline); object results are also returned as structured content.
-  A refusal is `IsError` with text `spool: <reason> (exit 78)`, the CLI's
-  stderr line plus its exit code. `spool_recv` with a verify failure returns
-  the verified array and that error text, flagged `IsError`, as the CLI prints
-  the array and exits `78`.
+  A failure is `IsError` with text `spool: <reason> (exit <code>)`, the CLI's
+  stderr line plus its exit code; locally `78` is only a hash mismatch in
+  `spool_get_file`. `spool_recv` with a malformed inbox file returns the good
+  array and that error text (`exit 1`), flagged `IsError`, as the CLI prints
+  the array and exits `1`.
 - **Library:** `github.com/modelcontextprotocol/go-sdk` (official, v1.7.0+),
   stdio via `mcp.StdioTransport`. See `../research.md`. Not `mark3labs/mcp-go`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->

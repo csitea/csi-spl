@@ -2,7 +2,7 @@
 
 Local filesystem shapes stay exactly `002`. This file is **Postgres + GCS**
 when the hub is up. The inner wire object is still `v:1`. The hub also stores
-the box-signed **envelope** (`SPEC-spool-trust-modes.md` §5).
+the box-signed **envelope** (`../002-box-agent-messaging/contracts/trust-modes.md` §5).
 
 Tenant-native from M1 (`SPEC-spool-milestones.md`): every table carries
 `tenant_id`. The tenant is resolved from the request Host. One GCS bucket,

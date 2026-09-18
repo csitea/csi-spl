@@ -1,7 +1,14 @@
-# SPEC: Trust modes (local unsigned vs hub box keys)
+# Contract: Trust modes (local unsigned vs hub box keys)
 
-Status: binding — owner decisions 2026-09-18  
-Related: `SPEC-spool-hub-rental.md`, `SPEC-spool-identity-routing.md`, `specs/002`, `specs/006`
+Status: **binding** — owner decisions 2026-09-18. Moved here from
+`doc/md/SPEC-spool-trust-modes.md` (owner, 2026-09-18) so the git-spec is the
+one home; section numbers are unchanged, so `trust-modes §N` citations hold.  
+Implemented by: **002** (§2 local mode, and the box keypair files of §3).
+Hub mode (§3–§11) is implemented by `../../003-spool-message-bus/` and
+`../../006-spool-hub-rental/`, which cite this file.  
+Related: `../../../doc/md/SPEC-spool-hub-rental.md`,
+`../../../doc/md/SPEC-spool-identity-routing.md`,
+`../../../doc/md/SPEC-spool-milestones.md`
 
 This replaces “sign on day one everywhere.” Crypto exists **only when a hub
 is configured**. Local mail matches today’s msgs dirs. Hub mail is **SSH-like
@@ -35,6 +42,27 @@ peer’s **public** key (`authorized_keys`). The hub is the jump host
 
 This is deliberate: a single laptop must work like ysg-box msgs, with no
 key ceremony.
+
+### 2.1 Local-mode decisions (002 clarifications, 2026-09-18)
+
+Where this contract is silent, 002 takes the smallest non-breaking option:
+
+1. **A box key never signs local mail.** `spool keygen` may create
+   `box-<id>.key` ahead of hub use; while `$SPOOL_HUB_URL` is unset it is not
+   read by send or recv.
+2. **A `sig` already on a local file is tolerated, not checked.** Files written
+   by the earlier signed model still parse and are returned; local recv has no
+   key model to check them against (POSIX trust, above).
+3. **Exit `78` in local mode is only a content-hash mismatch** on
+   `get-file`/`get-dir`. A malformed inbox file is surfaced as exit `1` (the
+   well-formed messages are still returned), not as a refusal. In hub mode `78`
+   also covers a missing or failing box signature (§4).
+4. **`$SPOOL_BOX_ID` has no default.** Local mode never reads it; `spool keygen`
+   takes `--box` or `$SPOOL_BOX_ID` and fails fast when neither is set, so no
+   hostname or placeholder is baked in. Format `^[a-z0-9][a-z0-9-]{0,31}$`
+   (identity-routing §4).
+5. **Send returns `delivery`** (§8). 002 has no hub, so it is always `local`.
+   `--to-box` / `to_box` are hub-only and belong to 003 with the envelope (§5).
 
 ---
 

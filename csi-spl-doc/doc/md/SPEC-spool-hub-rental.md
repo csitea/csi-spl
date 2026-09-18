@@ -3,7 +3,7 @@
 Status: binding product goal  
 Created: 2026-09-18  
 Git-spec: `csi-spl-doc/specs/006-spool-hub-rental/`  
-Related: `SPEC-spool-milestones.md`, `SPEC-spool-trust-modes.md`, `SPEC-spool-message-bus.md`
+Related: `SPEC-spool-milestones.md`, `specs/002-box-agent-messaging/contracts/trust-modes.md`, `SPEC-spool-message-bus.md`
 
 ---
 
@@ -54,7 +54,7 @@ exists — same artefacts, `billing_status=manual`.
 
 ---
 
-## 3. Agent plane (see SPEC-spool-trust-modes.md)
+## 3. Agent plane (see specs/002-box-agent-messaging/contracts/trust-modes.md)
 
 **Local (no hub):** no keys. Unsigned `v:1` files, POSIX trust.
 

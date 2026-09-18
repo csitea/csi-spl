@@ -6,13 +6,36 @@
 
 **Status**: Draft
 
-**Trust (2026-09-18)**: Local 002 is **unsigned** POSIX files (`SPEC-spool-trust-modes.md`). Ed25519 box keys are **hub mode** (006). Earlier text that required local signatures is superseded.
+**Trust (2026-09-18)**: Local 002 is **unsigned** POSIX files (`contracts/trust-modes.md`, binding). Ed25519 box keys are **hub mode** (003/006). Earlier text that required local signatures is superseded.
 
 **Input**: "Before the cloud spool bus (003) can exist, implement the messaging
 between agents on a single box the way it already works on ysg-box today — the
 file-based `inbox/outbox/archive` protocol — as a clean, uniform,
 content-addressed spool (unsigned on one box) with the box API from `SPEC-spool-box-api.md`. Use the
 ysg-box implementation as a REFERENCE ONLY; do not touch it."
+
+## Clarifications
+
+### Session 2026-09-18 (owner: follow the trust-modes contract)
+
+- The binding trust-modes document now lives in this git-spec as
+  `contracts/trust-modes.md` (moved from `doc/md/`, section numbers kept) and
+  wins over any older text here.
+- Local mail is unsigned: `spool send`/`recv`/`ack`/`put-*`/`get-*`/`tail`
+  need no key and no pin; the stored `v:1` has no `sig`.
+- Keys are **per box**, not per agent: `spool keygen [--box <id>]` writes
+  `box-<id>.key` (`0600`) and `spool pin --box <id>` writes
+  `pins/box-<id>.pub`. Both are optional and unused while `$SPOOL_HUB_URL` is
+  unset; a box key never signs local mail.
+- A `sig` already on a local file is tolerated, not checked.
+- Local exit `78` (and the MCP tool error that mirrors it) is only a content-hash
+  mismatch on `get-file`/`get-dir`. A malformed inbox file surfaces as exit `1`.
+- `$SPOOL_BOX_ID` has no default; only keygen/pin need it
+  (`contracts/trust-modes.md` §2.1).
+- The send result gains `delivery` (`local` in 002; `sent`/`queued` in hub
+  mode). **003 must consume this**, plus the box key files above;
+  `from_box`/`to_box` stay in the hub envelope (trust-modes §5), not in the
+  inner `v:1` object. This answers the 002 side of 003 OQ-01.
 
 ## Context
 
@@ -46,7 +69,7 @@ Agent `GRK-03` sends an **unsigned** `task` to `CLE-07` on the same
 `$SPOOL_ROOT`; `CLE-07` recvs and acks. No keygen. Trust is POSIX.
 
 **Why this priority**: One-box MVP must work like today’s msgs dirs.
-Box keys wait for hub mode (`SPEC-spool-trust-modes.md`).
+Box keys wait for hub mode (`contracts/trust-modes.md`).
 
 **Independent Test**: temp `$SPOOL_ROOT`, no keys, send/recv/ack round trip;
 message JSON has no `sig`.
@@ -108,9 +131,9 @@ so MCP is additive and lower priority than a working CLI.
 **Acceptance Scenarios**:
 
 1. **Given** the MCP server, **When** `spool_send` is called with the schema
-   args, **Then** it produces the same file + return `{msg_id, task_id, ts}` as
-   the CLI, and refuses identically (exit `78` ↔ tool error) on an unpinned
-   `from`.
+   args, **Then** it produces the same file + return
+   `{delivery, msg_id, task_id, ts}` as the CLI, and `spool_get_file` refuses
+   identically (exit `78` ↔ tool error) on a content-hash mismatch.
 
 ### Edge Cases
 
@@ -142,11 +165,12 @@ so MCP is additive and lower priority than a working CLI.
 - **FR-004**: When `$SPOOL_HUB_URL` is unset, `spool-send` MUST write `v:1`
   **without** `sig` and MUST NOT require keys.
 - **FR-005**: When `$SPOOL_HUB_URL` is unset, `spool-recv` MUST NOT require
-  `sig`. (Hub-mode box-envelope verify is 006.)
+  `sig`; a `sig` present on a local file is tolerated, not checked. (Hub-mode
+  box-envelope verify is 003/006.)
 - **FR-006**: `spool-recv --ack` MUST move returned messages to `archive/`
   atomically (rename), so a message is delivered at most once per ack.
 - **FR-007**: `spool-put-file` MUST content-address bytes by sha256, returning
-  `{file_id, sha256, bytes, name}`, storing bytes at `files/<file_id>`.
+  `{bytes, file_id, kind, name, sha256}`, storing bytes at `files/<file_id>`.
 - **FR-008**: `spool-get-file` MUST verify the written file's sha256 equals the
   requested `file_id` and MUST fail (not write a partial) when bytes are absent.
 - **FR-009**: `spool-keygen` (hub prep) MUST create a **box** Ed25519 keypair
@@ -162,11 +186,12 @@ so MCP is additive and lower priority than a working CLI.
   (`CLE-*`/`GRK-*`/`AGY-*`); there MUST be no per-kind field, verb, or tool.
 - **FR-014**: The implementation MUST be self-contained under `csi-spl`; it MUST
   NOT read, write, import, or shell out to ysg-box code.
-- **FR-015**: Legacy `.md` Bridge (Option B): `spool-recv` MUST transparently ingest legacy `.md` messages found in `$SPOOL_ROOT/<id>/inbox/`, wrapping them in synthetic `v:1` envelopes (`kind: "note"`, `sig: "legacy-unsigned"`, parsed `ts` and `from`), and archive them atomically on `--ack` alongside `.json` messages.
+- **FR-015**: Legacy `.md` Bridge (Option B): `spool-recv` MUST transparently ingest legacy `.md` messages found in `$SPOOL_ROOT/<id>/inbox/`, wrapping them in synthetic `v:1` envelopes (`kind: "note"`, no `sig`, parsed `ts` and `from`), and archive them atomically on `--ack` alongside `.json` messages.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: Language Go 1.22+; Ed25519 and sha256 from the standard library.
+- **NFR-001**: Language Go 1.25+ (the go-sdk v1.8.0 floor); Ed25519 and sha256
+  from the standard library.
 - **NFR-002**: No private key in `$SPOOL_ROOT`, in git, or in any log
   (Constitution VII).
 - **NFR-003**: On-disk `v:1` JSON MUST be byte-for-byte the schema `003` will
@@ -179,15 +204,15 @@ so MCP is additive and lower priority than a working CLI.
 
 - **Agent id**: `CLE-07` / `GRK-03` / `AGY-01` — prefix = kind, the routing key.
 - **Message (`v:1`)**: `msg_id`, `task_id`, `ts`, `from`, `to`, `kind`
-  (`task`|`result`|`note`|`reject`), `body`, `files[]`, `sig`.
+  (`task`|`result`|`note`|`reject`), `body`, `files[]`; no `sig` locally.
 - **File object**: `file_id`(=sha256), `name`, `bytes`, `sha256`.
-- **Pin**: agent id → Ed25519 pubkey (trusted authors).
+- **Box pin**: box id → Ed25519 pubkey (hub mode only; unused locally).
 - **Spool root**: `$SPOOL_ROOT/<id>/{inbox,outbox,archive}/` + `files/` + pins.
 
 ## Success Criteria
 
 - **SC-001**: In a clean temp `$SPOOL_ROOT`, a full US1 round trip
-  (keygen→pin→send→recv→ack) passes end-to-end via the CLI.
+  (send→recv→ack, no keygen, no pin) passes end-to-end via the CLI.
 - **SC-002**: Local recv returns unsigned `v:1`; hub-mode tamper/sig tests
   live in 006.
 - **SC-003**: A put→send→get-file round trip verifies sha256 and dedupes
@@ -215,4 +240,4 @@ so MCP is additive and lower priority than a working CLI.
 - A live `SendMessage`/tmux notification integration with delivery semantics.
 - Any change to ysg-box.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->

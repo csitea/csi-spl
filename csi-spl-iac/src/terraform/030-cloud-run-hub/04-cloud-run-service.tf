@@ -12,6 +12,11 @@
 #   - session affinity keeps a reconnecting box on the same instance once
 #     max_instances is raised post-M1
 locals {
+  ingress_map = {
+    "all"                               = "INGRESS_TRAFFIC_ALL"
+    "internal"                          = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+    "internal-and-cloud-load-balancing" = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  }
   cloud_sql_connection_name = "${var.gcp_project}:${var.gcp_region}:${var.cloud_sql_instance_name}"
 }
 
@@ -19,7 +24,10 @@ resource "google_cloud_run_v2_service" "hub" {
   name     = var.service_name
   project  = var.gcp_project
   location = var.gcp_region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  # M1: not the open internet (owner 2026-09-18, spec 007 "M1 constraints").
+  # With internal-and-cloud-load-balancing the run.app URL refuses outside
+  # traffic; the IP allowlist / IAP sits on the load balancer in front.
+  ingress = local.ingress_map[var.ingress]
 
   labels = {
     org  = var.org

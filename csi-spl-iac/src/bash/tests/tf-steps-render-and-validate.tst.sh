@@ -66,6 +66,7 @@ grep -lE 'resource "(random_password|google_secret_manager_secret_version|google
 for env in dev prd; do
   v="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/030-cloud-run-hub.vars.tfvars"
   grep -qx 'max_instances                = 1' "$v" && pass "$env hub max_instances = 1 (OQ-05)" || fail "$env hub max_instances is not 1"
+  grep -qx 'ingress                      = "internal-and-cloud-load-balancing"' "$v" && pass "$env hub ingress is LB-only (M1: IAP/IP allowlist, not the open internet)" || fail "$env hub ingress is not internal-and-cloud-load-balancing"
   grep -qx 'min_instances                = 1' "$v" && pass "$env hub min_instances = 1 (M1)" || fail "$env hub min_instances is not 1"
   grep -q "\"SPOOL_HUB_FILES_BUCKET\": \"csi-spl-$env-files\"" "$v" && pass "$env hub env names the 050 bucket" || fail "$env SPOOL_HUB_FILES_BUCKET is not csi-spl-$env-files"
   grep -E '^environment_variables ' "$v" | grep -q 'SPOOL_HUB_DB_DSN' && fail "$env DSN is a plain env var" || pass "$env DSN is not a plain env var"

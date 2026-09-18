@@ -102,6 +102,16 @@ variable "health_path" {
   default     = "/healthz"
 }
 
+variable "ingress" {
+  type        = string
+  description = "Who may reach the service at all (cnf hub.cloud_run.ingress). M1 (owner 2026-09-18): IAP and/or IP allowlist, so internal-and-cloud-load-balancing -- only through the load balancer that carries the allowlist; M2 may open it to all."
+
+  validation {
+    condition     = contains(["all", "internal", "internal-and-cloud-load-balancing"], var.ingress)
+    error_message = "ingress must be all, internal or internal-and-cloud-load-balancing."
+  }
+}
+
 variable "allow_unauthenticated" {
   type        = bool
   description = "Grant allUsers run.invoker. Boxes authenticate with their Ed25519 key on WS hello, not GCP IAM (OQ-06)."

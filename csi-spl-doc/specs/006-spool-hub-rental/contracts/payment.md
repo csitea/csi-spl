@@ -1,4 +1,4 @@
-# Contract: Payment (Milestone 2) — copy from csi-rel
+# Contract: Payment (Milestone 2 — **public MVP**) — copy from csi-rel
 
 **Do not invent a second payment stack.** Copy the csi-rel implementation
 (reference only: **do not import** `github.com/csitea/csi-rel/...` as a
@@ -37,6 +37,7 @@ signature verify before any row write. Duplicate delivery id → 200 no-op.
 
 ## When
 
-Milestone 2 (`SPEC-spool-milestones.md`). M1 stays manual `do_spl_tenant_create`.
+**When:** Milestone 2 = **public MVP** (`SPEC-spool-milestones.md`).
+M1 is the non-public mesh (manual tenant). M2 is when strangers can pay.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:15:00Z -->

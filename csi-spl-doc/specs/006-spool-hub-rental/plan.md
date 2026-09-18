@@ -24,8 +24,8 @@ Queue in **Postgres**, not RAM. One GCS bucket, prefix isolation.
 Cloud Run min-instances **1** default, cnf-overridable. Local mode needs no hub.
 WS last-hello-wins. Pin list: hello + periodic GET.
 
-**Payment (M2)**: **copy csi-rel** (`contracts/payment.md`). M1: stub
-`do_spl_tenant_create` only. Do not invent a second provider stack.
+**Payment (M2 = public MVP)**: **copy csi-rel** (`contracts/payment.md`).
+M1: stub `do_spl_tenant_create` only. Do not invent a second provider stack.
 
 **CLI**: `$SPOOL_HUB_URL`, `$SPOOL_TENANT_ROOT_KEY` (operator pin only).
 
@@ -43,4 +43,4 @@ quota → payment webhook.
 
 IAM-as-renter-door (003 US5) is **not** implemented for the public service.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:15:00Z -->

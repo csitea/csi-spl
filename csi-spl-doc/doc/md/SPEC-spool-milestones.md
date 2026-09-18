@@ -5,7 +5,7 @@ Related: `SPEC-spool-hub-rental.md`, `SPEC-spool-trust-modes.md`, `SPEC-spool-wu
 
 ---
 
-## Milestone 1 — non-WUI mesh (first ship)
+## Milestone 1 — non-WUI mesh (first ship, **not** public)
 
 **Goal:** Agents on **different boxes** message each other through the hub.
 A **user** who holds a box **private** key can **command any agent** on any
@@ -78,17 +78,23 @@ unpinned box). That is the whole authorisation model.
 
 ---
 
-## Milestone 2 — rent
+## Milestone 2 — public MVP
+
+**This is the public product.** Strangers pay, get `https://<tenant>.spool-hub.ai`,
+run the same M1 protocol (CLI/MCP, box keys, no WUI).
 
 Checkout via the configured payment provider. Tenant create/resume/cancel
-from the webhook. Quota / `402` unpaid. Same protocol as M1.
+from the webhook. Quota / `402` unpaid.
 
-**Implementation: copy csi-rel**, do not write a new payment stack. Binding
-contract: `specs/006-spool-hub-rental/contracts/payment.md`. Source of truth
-for drivers, fail-closed boot, signed webhooks, and Secret Manager is
-`csi-rel` (`payment_provider.go`, `internal/payments/`, `internal/webhooks/`,
-`046` / `068` / `077` / `000-secret-management`). Map “order paid” → tenant
-`billing_status=active`. Fake-pay (077) is lde only.
+**Payment implementation: copy csi-rel** — binding
+`specs/006-spool-hub-rental/contracts/payment.md`. Drivers, fail-closed boot,
+signed webhooks, Secret Manager from csi-rel (`payment_provider.go`,
+`internal/payments/`, `internal/webhooks/`, specs `046` / `068` / `077` /
+`000-secret-management`). Map “order paid” → tenant `billing_status=active`.
+Fake-pay (077) is lde only.
+
+Public DNS and Cloud Run are in front of paying tenants. Still **no WUI**
+(that is M3).
 
 ---
 
@@ -101,6 +107,6 @@ bus. `SPEC-spool-wui.md`. Not started until M1 is demoable.
 
 ## Order
 
-`002 local` → hub WS + pins (M1) → pay (M2) → WUI (M3).
+`002 local` → hub WS + pins (M1, not public) → **public MVP (M2, pay + csi-rel payment)** → WUI (M3).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:15:00Z -->

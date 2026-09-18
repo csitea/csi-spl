@@ -165,7 +165,7 @@ See `SPEC-spool-milestones.md`. Non-WUI: cross-box mail + user command if the
 commandee box has the commander’s **public** key. Manual tenant. Payment and
 WUI are later milestones.
 
-## 8. Payment (Milestone 2)
+## 8. Payment (Milestone 2 — public MVP)
 
 Copy the **csi-rel** payment implementation (reference only — do not import
 that module). Contract: `specs/006-spool-hub-rental/contracts/payment.md`.
@@ -189,4 +189,4 @@ that module). Contract: `specs/006-spool-hub-rental/contracts/payment.md`.
 - Uniform box API (Constitution VIII).
 - Payment gates **existence and quota**, not the meaning of `sig`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:15:00Z -->

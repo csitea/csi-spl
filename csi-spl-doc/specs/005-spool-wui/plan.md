@@ -30,8 +30,8 @@ mock-only, until their gaps (spec §5) close.
 | Item | Status | Evidence |
 |---|---|---|
 | Nuxt shell, stores, components, pages | Implemented (mock data only) | `csi-spl-wui/`; `pnpm test:unit -> 17 pass, 0 fail` |
-| Live client | Partial — wrong routes | `utils/spool-client.mjs` calls `/v1/channels`, `/v1/messages?channel=`, `POST /v1/messages` |
-| Live follow | Partial — polls channel + roster every 4 s | `composables/useSpoolEvents.ts` |
+| Live client + viewer pages | Implemented (`9eafd8c`), live render waits on view-v1 | `/v1/view/*` only; `/`, `/t/[task_id]`; 29 unit pass, e2e 8/8, typecheck exit 0 |
+| Live follow | Partial — thread page polls while visible, no `after=` cursor yet | `pages/t/[task_id].vue` |
 | orc lde actions | Implemented | `csi-spl-orc/src/bash/run/wui-{dev,test,build}.func.sh` |
 | Hosting terraform `016` / `019` | Partial — written, not applied | `curl … https://csi-spl-dev-site.web.app -> 404` |
 | Hub viewer API (view-v1) | Planned | `grep -c '/v1/view' …/internal/hub/server.go -> 0`; a non-matching API is on branch `GRK-3349-hub-wui-read-api` `2ecf59f` |
@@ -58,11 +58,11 @@ mock-only, until their gaps (spec §5) close.
 
 ## Risks
 
-- **Two read APIs**: view-v1 (contract of record) vs the GRK-3349 branch
-  (`/v1/threads`, open, credentialed CORS). If the branch lands as-is the viewer
-  would ship with no door. Reported to 003; 005 codes against view-v1 only.
+- **Two read APIs — resolved**: 003 (CLE-3340) confirmed view-v1 lands and the
+  GRK-3349 branch API (`/v1/threads`, no door) does not. lde gets
+  `hub.view_door=off`, refused outside lde.
 - **Custom domain vs hub host**: the hub answers `<tenant>.<fqdn>` (031); the
   Hosting custom domain is `env.dns.fqdn` (019). Both depend on the open DNS
   handoff question (README §6.1) — 007's, not 005's.
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:40:00Z -->

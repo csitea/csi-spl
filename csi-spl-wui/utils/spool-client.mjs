@@ -28,7 +28,7 @@ export class ReadOnlyError extends Error {
 
 /**
  * Live mode reads only the 003 viewer API (contracts/view-v1.md): /v1/view/*,
- * GET /v1/files/{file_id}, /healthz. The view token rides in Authorization;
+ * GET /v1/files/{file_id}, /v1/health (003 FR-023: Cloud Run shadows /healthz). The view token rides in Authorization;
  * no cookies (view-v1 §3), so fetch runs with credentials: 'omit'.
  */
 export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock = true, token = '' } = {}) {
@@ -71,7 +71,7 @@ export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock 
     },
     async healthz() {
       if (mock) return { ok: true, mock: true }
-      return live('/healthz')
+      return live('/v1/health')
     },
     async listThreads({ limit = 50, before } = {}) {
       if (mock) return { threads: threadsFromMessages(state.messages).slice(0, limit), next: null }

@@ -5,10 +5,10 @@ Milestone 3. Code home for git-spec `csi-spl-doc/specs/005-spool-wui/`.
 
 ## Role
 
-Authenticated humans browse channels (`#general`, `#tasks`, `#alerts`), DMs,
-threads (`parent_task_id`), and command agents via `@mention`. The WUI is
-another peer on the v:1 bus. The browser **never** holds a box private key;
-the hub signs human traffic as `HUM-*` with a server-side `box-wui` key.
+First slice: a read-only thread viewer (one thread per `task_id`). Channels,
+DMs and `@mention` commands are later M3 slices, mock-only today. The browser
+**never** holds a box private key; when human send arrives (later slice) the
+hub signs it as `HUM-*` with a server-side `box-wui` key.
 
 ## Fronts this WUI copies (implementation, not shop pages)
 
@@ -57,10 +57,18 @@ Environment:
 
 - `NUXT_PUBLIC_API_BASE` — hub origin (lde default `http://127.0.0.1:58080`)
 - `NUXT_PUBLIC_USE_MOCK` — `1` (default in `pnpm dev`) uses the in-memory
-  tenant so the shell works before the hub grows WUI session routes. `0`
-  talks to `/v1/channels`, `/v1/messages`, and hub `/v1/ws`.
+  tenant. `0` reads the hub's read-only viewer API only
+  (`csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md`:
+  `/v1/view/threads`, `/v1/view/threads/{task_id}`, `/v1/view/roster`,
+  `/v1/view/channels`, plus `GET /v1/files/{file_id}` and `/v1/health`). The
+  browser never opens `/v1/ws`. Live send, channel creation and channel feeds
+  refuse: the M3 viewer is read-only (spec 005 §0).
+- `NUXT_PUBLIC_POLL_MS` — thread poll interval (default 4000, floor 2000).
 
-Default channels and a mock roster (`CLE-07@box-a`, `GRK-03@box-a`, …) load
-when mock is on.
+View token: on a `401` the viewer asks for one and keeps it in
+`sessionStorage` (`spool.view_token`), never `localStorage` or a URL.
 
-<!-- last-edit: 2026-09-18T17:40:00Z -->
+Pages: `/` thread list, `/t/<task_id>` one thread oldest first. The mock
+channel / DM pages remain for the later M3 slices (spec 005 §1, Planned).
+
+<!-- last-edit: 2026-09-18T20:45:00Z -->

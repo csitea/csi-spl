@@ -127,6 +127,13 @@ describe('spool-client live (view-v1)', () => {
     assert.equal(calls.length, 0)
   })
 
+  it('probes /v1/health, not the Cloud Run-shadowed /healthz', async () => {
+    const { fn, calls } = stubFetch({ '/v1/health': [200, { status: 'ok' }] })
+    const c = createSpoolClient({ fetchFn: fn, mock: false })
+    assert.deepEqual(await c.healthz(), { status: 'ok' })
+    assert.equal(calls[0].url, '/v1/health')
+  })
+
   it('mock mode serves threads without a hub', async () => {
     const c = createSpoolClient({ mock: true })
     const { threads } = await c.listThreads()

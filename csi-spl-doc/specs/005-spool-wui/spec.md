@@ -1,7 +1,7 @@
 # Feature Specification: Spool WUI — read-only thread viewer first
 
 **Feature ID**: `005-spool-wui` · **Milestone**: M3 · **Status**: Partial
-**Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo, verified on trunk `bbc41e7`)
+**Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo, verified on trunk `bbc41e7`; viewer code `9eafd8c`)
 
 **Ground rules, index, seams**: `../README.md` (status vocabulary §2.3, seams §5).
 **Narrative (end-state vision)**: `../../doc/md/SPEC-spool-wui.md` (Slack-like).
@@ -94,8 +94,8 @@ data (`401 view_door`).
   Check: `grep -c '"nuxt"' csi-spl-wui/package.json -> 1`.
 - **FR-002** — Partial: the WUI reads **only** through 003 `contracts/view-v1.md`
   (`/v1/view/*`), `GET /v1/files/{file_id}` and `GET /v1/health` (003 FR-023; `/healthz` is shadowed on Cloud Run). Story → section
-  map: `./contracts/hub-read-needs.md`. Missing: view-v1 is not implemented (G5);
-  the live client calls wrong routes (G6).
+  map: `./contracts/hub-read-needs.md`. WUI side done (`9eafd8c`). Missing: view-v1 is
+  not implemented in the hub (G5).
 - **FR-003** — Implemented: the browser stores no private key or signed URL,
   never puts a token in `localStorage` or a URL (view-v1 §2), and never opens `/v1/ws`. Check: `grep -rnE 'localStorage|sessionStorage|indexedDB|/v1/ws' csi-spl-wui/{components,composables,stores,utils,pages,plugins}`
   -> only `composables/useTheme.ts` (theme choice) and a comment in `useSpoolEvents.ts`.
@@ -104,9 +104,10 @@ data (`401 view_door`).
   base is Planned with Hosting (T009).
 - **FR-005** — Planned: threads keyed by `task_id` only. The live viewer MUST NOT
   send or rely on `parent_task_id` or `channel` (not in frozen `v:1`). Today the
-  mock data and client use both (G6).
-- **FR-006** — Partial: bodies render as text / sanitised markdown; no `v-html` of
-  unsanitised input. Missing: an explicit test (T008).
+  mock data still carries both; the live client no longer sends either (`9eafd8c`).
+- **FR-006** — Implemented: bodies go through `renderBody` (escape first, then a
+  small markdown subset) before `v-html`; `tests/unit/view-api.test.mjs` asserts
+  `<script>` / `<img onerror>` render as text (`9eafd8c`).
 - **FR-007** — Partial: `nuxt generate` → Firebase Hosting via 007 steps
   `016-firebase-deploy-iam` + `019-firebase-static-site`; hub stays on Cloud Run.
   Terraform written, not applied: `curl -s -o /dev/null -w '%{http_code}' https://csi-spl-dev-site.web.app -> 404` (same for `-prd-site`).
@@ -140,8 +141,8 @@ before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-revers
 | G2 | No `box-wui` signer; the browser cannot send | `grep -rn box-wui csi-spl-api/src/go -> 0` | 003 / 004 |
 | G3 | `channel` / `parent_task_id` are not `v:1` fields; 002 frozen | `grep -cE 'channel\|parent_task' ../002-box-agent-messaging/contracts/message-schema.md -> 0`; `messages.channel` + `channels` table exist, unused in M1 (`csi-spl-rdb/src/sql/postgres/spool-hub/0002_channels.sql`) | owner (OQ-W1) |
 | G4 | No read-only roster for humans yet | specified as view-v1 §4.1, Planned | 003 |
-| G5 | view-v1 not implemented | `grep -c '/v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`; a non-matching read API (`/v1/threads`, `/v1/messages?task_id=`) sits on branch `GRK-3349-hub-wui-read-api` (`2ecf59f`) | 003 |
-| G6 | WUI live client calls routes that will not exist | `grep -nE "v1/(channels\|messages)" csi-spl-wui/utils/spool-client.mjs` -> `/v1/channels`, `/v1/messages?channel=`, `POST /v1/messages` (OQ-02 removed) | 005 (T004) |
+| G5 | view-v1 not implemented | `grep -c '/v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`; 003 (CLE-3340) confirmed view-v1 lands, the GRK-3349 branch API does not | 003 |
+| G6 | ~~WUI live client calls routes that will not exist~~ **closed** `9eafd8c` | `grep -c '/v1/messages\|/v1/channels' csi-spl-wui/utils/spool-client.mjs -> 0` | 005 (T004) |
 
 ## 6. Open questions (to the owner via CLE-00)
 
@@ -150,4 +151,4 @@ before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-revers
 - **OQ-W2**: Is the view token (003 OQ-16) acceptable as the only door for **prd**
   Hosting, or must the social session (006) exist first?
 
-<!-- version: 1.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:12:21Z -->
+<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:40:00Z -->

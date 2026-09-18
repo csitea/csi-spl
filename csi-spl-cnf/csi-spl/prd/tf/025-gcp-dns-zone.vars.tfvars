@@ -5,8 +5,6 @@ env         = "prd"
 gcp_project = "csi-spl-prd"
 gcp_region  = "europe-north1"
 
-allowed_ip_ranges = []
-dns_managed_zone = "spool-hub"
-dns_zone_project = ""
-service_name = "csi-spl-hub-prd"
-fqdn         = "spool-hub.ai"
+zone_name = "spool-hub"
+zone_description = "spool hub public zone: adopted by 025-gcp-dns-zone, never recreate (registrar NS)"
+fqdn = "spool-hub.ai"

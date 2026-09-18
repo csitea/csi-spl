@@ -57,6 +57,12 @@ variable "allowed_ip_ranges" {
 
 variable "dns_managed_zone" {
   type        = string
-  description = "A Cloud DNS managed zone in THIS project that serves fqdn. Empty (default) = the zone lives elsewhere: terraform creates no record, and the dns_records_to_create output names the records to add by hand."
+  description = "A Cloud DNS managed zone that serves fqdn (in dns_zone_project). Empty (default) = the zone is not Cloud DNS: terraform creates no record, and the dns_records_to_create output names the records to add by hand."
+  default     = ""
+}
+
+variable "dns_zone_project" {
+  type        = string
+  description = "The project holding dns_managed_zone. Empty (default) = gcp_project. dev sets the prd project: its dev.<domain> records live in the one zone 025 adopts there."
   default     = ""
 }

@@ -6,8 +6,8 @@ tenant URL + root key).
 M4 adds **seat metering**: they pay **you** a **monthly license per human
 user and per bot**.
 
-Related: `specs/006-spool-hub-rental/contracts/payment.md` (rails, not M2 SKU),
-`SPEC-spool-byo-gcp.md` (dedicated infra still pays **these** seats).
+Related: `specs/009-spool-m4/spec.md`, `contracts/payment.md` (rails only),
+`SPEC-spool-byo-gcp.md`.
 
 ---
 
@@ -41,8 +41,30 @@ M4 seats.
 
 ---
 
-## 3. Out of M4
+## 3. GCP project id at buy (dedicated)
+
+Git-spec: `specs/009-spool-m4/spec.md`.
+
+When they **hit buy** (payment webhook, **UTC minute**), mint:
+
+`{org}-{app}-{env}-{YYYYMMDDHHmm}`
+
+Example: **`csi-spl-dev-202609171743`**.
+
+| Token | Unique? |
+|---|---|
+| `org`, `app` | **No** — many customers may share `csi`+`spl` |
+| DNS **tenant id** | **Yes** — `<tenant>.spool-hub.ai` |
+| `project_id` | Yes — stamp is **buy minute**; clash → retry |
+
+Store `tenant_id`, `org`, `app`, `project_id`, `bought_at` separately.
+Pretty DNS is **not** `{org}-{app}`.
+
+M2 hosted still does **not** create a GCP project per customer.
+
+## 4. Out of M4
 
 Changing M2 to “seats only” (forbidden). Per-message billing. Shop SKUs.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:45:00Z -->
+
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:55:00Z -->

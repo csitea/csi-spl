@@ -122,19 +122,18 @@ inside it.
 
 Mint GCP project ids as:
 
-`{org}-{app}-{env}-{YYYYMMDDHH}`
+`{org}-{app}-{env}-{YYYYMMDDHHmm}`  (**M4**, stamp = **UTC minute of buy**)
 
-Canonical example: **`csi-spl-dev-2026091717`**
-(`csi` + `spl` + `dev` + UTC **hour** `2026-09-17 17:00`).
+Canonical example: **`csi-spl-dev-202609171743`**
+(`csi` + `spl` + `dev` + `2026-09-17 17:43` UTC).
 
-Length 22 (`aaa-bbb-ccc-` + 10 digits). GCP max 30. Same pattern for `prd`
-(`csi-spl-prd-2026091717`).
+Length 24. GCP max 30. `prd`: `csi-spl-prd-202609171743`.
 
 **Collision with a reserved/short global id is negligible.** `csi-spl-dev`
-alone may be taken; the hour stamp is not. Same org+app+env **same UTC
-hour**, two creates: retry next hour or append a 2-char nonce.
+alone may be taken; the hour stamp is not. Same org+app+env **same UTC minute**, two creates: retry next minute or a 2-char nonce.
 
-Stamp is **hour** (`YYYYMMDDHH`), not minute, matching the example.
+Stamp is **minute of buy** (`YYYYMMDDHHmm`), M4. Same org+app+env **same
+UTC minute** → retry.
 
 **Two customers may pick the same `org` and `app`.** Allowed.
 `acme`+`bot` at 12:00 UTC and another at 13:00 →
@@ -210,4 +209,4 @@ sales call with a non-technical buyer.
 
 After M2 is selling hosted. Do not block public MVP on folder grants.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:50:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:55:00Z -->

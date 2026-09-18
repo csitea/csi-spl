@@ -20,7 +20,8 @@ contract, and how to create, apply and switch to it.
 | `doc/md/SPEC-spool-avatars.md` | every human and bot has an avatar (M3) |
 | `doc/md/SPEC-spool-social-auth.md` | M3 WUI: Google, Facebook, Microsoft, LinkedIn, xAI |
 | `doc/md/SPEC-spool-byo-gcp.md` | later: they pay GCP, you provision |
-| `doc/md/SPEC-spool-m4-seats.md` | **M4:** monthly license per user and per bot |
+| `doc/md/SPEC-spool-m4-seats.md` | **M4:** seats + buy-minute GCP project id |
+| `specs/009-spool-m4/` | git-spec for M4 |
 | `doc/md/SPEC-spool-cicd-logs.md` | **later:** `gh` fetches CI logs into chat |
 | `doc/md/SPEC-spool-chat-reverse.md` | **later:** type at top, prepend messages |
 | `specs/001-relay-bucket-estate/` | git-spec for the relay bucket |
@@ -33,4 +34,4 @@ contract, and how to create, apply and switch to it.
 | `specs/008-spool-cicd-logs/` | after M3: Actions logs in threads |
 | `specs/006-spool-hub-rental/contracts/payment.md` | M2 public MVP: buy on site, copy csi-rel payment |
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:45:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:55:00Z -->

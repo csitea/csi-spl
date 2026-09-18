@@ -119,16 +119,20 @@ Not started until M1 is done (dev+prd infra) and M2 can sell.
 ---
 
 
-## Milestone 4 — seat licenses
+## Milestone 4 — seats + buy-time project id
 
-**Does not change M2.** After the Slack UI (M3), they pay **you monthly per
-user and per bot**. Binding: `SPEC-spool-m4-seats.md`.
+**Does not change M2.** Binding: `SPEC-spool-m4-seats.md` /
+`specs/009-spool-m4/spec.md`.
 
-Same payment rails as M2 (csi-rel copy), new line items: user-month +
-bot-month. Over cap blocks **new** HUM or bot, not recv.
+- Monthly **per user** and **per bot** licenses (same payment rails, new lines).
+- If a dedicated GCP project is minted: id =
+  `{org}-{app}-{env}-{YYYYMMDDHHmm}` at the **UTC minute they hit buy**.
+  Example: `csi-spl-dev-202609171743`. `org`/`app` need not be unique;
+  **DNS tenant id** must.
 
-Dedicated GCP (`SPEC-spool-byo-gcp.md`) uses **these** seats when that SKU
-exists; it still does not replace M2 hosted checkout.
+Dedicated **billing grant** (their GCP card) remains the later BYO SKU
+(`SPEC-spool-byo-gcp.md`); M4 only defines seats + the id stamp.
+
 
 ## Later — CI/CD logs in chat (after M3)
 
@@ -146,7 +150,7 @@ provision (`SPEC-spool-byo-gcp.md`). Does **not** replace M2 hosted checkout.
 
 **M1 proto** (local + spool-hub.ai, infra on **dev and prd**) →
 **M2 public MVP** (thin checkout + one-time email of URL and root key) →
-**M3 rollout** (Slack WUI) → **M4 seats** (per user / per bot monthly) →
-**later** CI logs, reverse-chat, dedicated GCP.
+**M3 rollout** (Slack WUI) → **M4** (seats + buy-minute project id) →
+**later** CI logs, reverse-chat, BYO GCP billing.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:45:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:55:00Z -->

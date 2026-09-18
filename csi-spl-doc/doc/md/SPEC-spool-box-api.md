@@ -30,7 +30,20 @@ On each box that may run an agent:
 - MCP: one **binary** on the box; Claude/agy spawn `spool mcp` as a **stdio child per agent session** (not a daemon per tmux window, not a second schema)
 - Same binary/code behind both
 
-Agents do not import NATS, Postgres, GCS, or Cloud Run SDKs.
+### 2.1 Standard Box Launcher (`spool-harness`)
+
+To prevent manual environment configuration and ensure clean lifecycle bootstrapping, the box image provides `spool-harness`:
+
+```bash
+spool-harness --as <agent_id> [--to-box <box_id>] [--] <agent-cli-command...>
+```
+
+`spool-harness` executes the following initialization sequence before exec'ing the agent process:
+1. **Directory Preparation**: Ensures `$SPOOL_ROOT/<agent_id>/{inbox,outbox,archive}` and shared `$SPOOL_ROOT/{files,pins}` exist with correct permissions (`0775`/`0664`).
+2. **Identity Verification**: Verifies `$SPOOL_BOX_ID` and checks the box keypair (`$HOME/.spool/keys/box-<box_id>.key`, `0600`). In local mode, keys are optional.
+3. **Sidecar Lifecycle**: If `$SPOOL_HUB_URL` is set, ensures the background WebSocket client is running, connected, and has announced the local agent roster (`<agent_id>`).
+4. **Environment Injection**: Sets `SPOOL_ROOT`, `SPOOL_BOX_ID`, and `SPOOL_AGENT_ID`.
+5. **Session Exec**: Replaces itself via `exec` with the target command (e.g. `claude`, `grok`, or `antigravity`).
 
 ---
 

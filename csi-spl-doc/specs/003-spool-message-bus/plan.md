@@ -7,7 +7,7 @@
 
 ## Summary
 
-Put a **stateless Cloud Run** process (HTTPS + WebSocket) behind the 002 box API. Boxes hold one Ed25519 key each, pinned by the tenant root. A box authenticates with a signed WS hello and sends box-signed envelopes around the unchanged inner `v:1` object. Persist messages, the hub queue, pins and acks in **Postgres**, and file bytes in **GCS** (`t/<tenant>/files/<sha256>`, one bucket). Keep `$SPOOL_ROOT` as the local mail store and hub-down queue. Live notify (NATS or other) and IAM are after Milestone 1. Agents still only call spool CLI/MCP.
+Put a **stateless Cloud Run** process (HTTPS + WebSocket) behind the 002 box API. Boxes hold one Ed25519 key each, pinned by the tenant root. A box authenticates with a signed WS hello and sends box-signed envelopes around the unchanged inner `v:1` object. Persist messages, the hub queue, pins and acks in **Postgres**, and file bytes in **GCS** (`t/<tenant>/files/<sha256>`, one bucket). Keep `$SPOOL_ROOT` as the local mail store and hub-down queue. Inter-instance live dispatch coordinates via **Postgres `LISTEN/NOTIFY`** across Cloud Run instances. Agents still only call spool CLI/MCP.
 
 ## Technical Context
 
@@ -21,12 +21,12 @@ Put a **stateless Cloud Run** process (HTTPS + WebSocket) behind the 002 box API
 - Server lifecycle: `runUntilShutdown` catching `SIGINT`/`SIGTERM`, graceful drain within `API_GRACEFUL_SHUTDOWN_SECONDS` (which must also close WS sockets cleanly), clean shutdown or fatal exit.
 - HTTP surface: shared middleware (recover, request ID, structured access logging) and ops probes (`/version`, `/healthz`).
 
-**Storage**: Postgres (tenants, boxes, pins, roster, messages, deliveries, acks; `data-model.md`); GCS one bucket `t/<tenant>/files/<sha256>`; local `$SPOOL_ROOT` on the box; **nothing** on container disk.
+**Storage**: Postgres only (tenants, boxes, pins, roster, messages, deliveries, acks; `data-model.md`); GCS one bucket `t/<tenant>/files/<sha256>`; local `$SPOOL_ROOT` on the box; **nothing** on container disk.
 
 **Testing & Test Harness**:
 - `go test ./...` with `internal/testkit` (pas-psf pattern: `testkit.NewApp(t)` builds an in-memory app, `testkit.AssertEnvelopeError`). 002 already created `internal/testkit`; 003 extends it and does not fork it.
 - Contract tests against `contracts/http-v1.md` with golden frames under `internal/hub/testdata/`. The envelope-signature golden vector is added once OQ-03 is decided.
-- Two-box tests: two temp `$SPOOL_ROOT`s, two box keys, one in-process hub (memory/sqlite store).
+- Two-box tests: two temp `$SPOOL_ROOT`s, two box keys, tested against local Postgres test DB (docker compose).
 - Shell tests under `csi-spl-api/src/bash/tests/` (run by `run-all-tests.sh`).
 
 **Local Dev Setup (`lde`) Reference** (modelled on `pas-psf`):

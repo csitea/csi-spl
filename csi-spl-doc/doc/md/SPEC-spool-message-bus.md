@@ -99,8 +99,8 @@ mail of that tenant; local same-machine mail must not need it.
 | Spool CLI / MCP | build / sign / verify JSON | vendor SDKs inside the hub |
 | Box hub client | one WS per box, sign envelopes, flush queue | interpret body |
 | Cloud Run | WS send/recv + REST files/pins; verify box sig | store anything on container disk |
-| Live notify (after M1; NATS or other, open) | live tail per task | file bytes, model tokens |
-| Postgres | messages, box pins, roster, hub queue, acks (tenant-scoped) | blobs |
+| Live notify (Postgres LISTEN/NOTIFY) | live WS push across Cloud Run instances & tail | external broker (no NATS/Kafka required) |
+| Postgres (Production & LDE) | messages, box pins, roster, hub queue, acks (tenant-scoped) | blobs |
 | GCS | file bytes (`file_id` = sha256) | message metadata |
 | Box key (Ed25519, pinned by tenant root) | which **box** may connect and which box sent a frame | which agent process typed it |
 | IAM / OIDC (private deploys only, optional) | who may reach Cloud Run | who sent the msg |
@@ -113,18 +113,13 @@ mail of that tenant; local same-machine mail must not need it.
 
 Short-lived, one viewer. The coding adapter (MCP, CLI, a page) opens **SSE or a websocket** to that one run and paints words. When the run ends, the stream dies. Do **not** put every token on NATS/Kafka. Nobody wants last week’s “um”.
 
-### Spool live tail (the mail thread) — after Milestone 1; transport open
+### Spool live tail & inter-instance dispatch (Postgres LISTEN/NOTIFY)
 
-The subject names below are the original sketch. Agent ids are now unique per box only and the hub is multi-tenant, so a real subject needs tenant and box parts (git-spec 003 `contracts/nats-subjects.md`).
-
-`spool-tail` is “a new message landed on task X.” One JSON blob per **send**, not per token.
-
-- **Core NATS**: subject `task.<task_id>`. Subscribers get the blob now. No disk, no replay. Missed it → read Postgres / NDJSON.
-- **JetStream**: same subject, kept, so a late subscriber can replay.
-
-NATS is a small broker: publish a payload to a **subject** (a name), subscribers get it immediately. It is the **radio**, not the archive. JetStream is the optional tape recorder.
-
-NATS **does** have its own wire protocol (NATS-over-TCP). That is how clients talk to the broker. It is **not** the agent protocol. NATS does not define `from`, `to`, `task_id`, `sig`, `files`. That is spool JSON. NATS = how bytes move. Spool JSON = what the bytes mean.
+Stateless Cloud Run instances coordinate live socket pushes and live tails using **Postgres `LISTEN/NOTIFY`**:
+- When an envelope is stored on Cloud Run instance A, a Postgres notification (`NOTIFY spool_box, '<tenant_id>:<to_box>:<msg_id>'`) is emitted.
+- All Cloud Run instances listen; the instance holding the active WebSocket connection to `to_box` receives the event and pushes the message frame immediately.
+- WUI clients subscribed to a channel/thread receive live message notifications over SSE/WebSocket via the same mechanism.
+- No separate NATS or Redis broker is needed. Missed frames are caught up from the `deliveries` / `messages` tables upon reconnect.
 
 ---
 
@@ -210,15 +205,14 @@ Box and tenant-root private keys never enter spool, Postgres, GCS, or a log. An 
 ---
 
 ## 10. Build order
-
+ 
 Matches `SPEC-spool-milestones.md`:
 
 1. Local folder CRUD + files + tail, unsigned (**spec 002**). No NATS, no GCP.
-2. **M1**: hub on Cloud Run: WS + box pins + REST files + hub queue, tenant-scoped (sqlite / memory in tests, Postgres + GCS in production).
-3. **M2**: payment (spec 006).
-4. **M3**: WUI (spec 005).
-5. After M1, open: live tail transport (NATS JetStream or other), optional IAM for private deploys.
-6. ysg-box adapter feature that **only** calls spool.
+2. **M1**: hub on Cloud Run: WS + box pins + REST files + hub queue, tenant-scoped. Store is **Postgres-only** in both production (Cloud SQL) and local dev (`docker compose` in `csi-spl-orc` matching `pas-psf-orc`). Box orchestration uses the standard **`spool-harness`** launcher. Inter-instance WS frame dispatch uses Postgres `LISTEN/NOTIFY`.
+3. **M2**: self-service checkout & rental (spec 006) with wildcard DNS `*.spool-hub.ai`.
+4. **M3**: Slack-like multi-channel WUI (spec 005).
+5. ysg-box adapter feature that **only** calls spool.
 
 Do not start Kafka, Slack-as-bus, per-agent GCP keys, or NATS before `spool-send` works on a dummy folder.
 

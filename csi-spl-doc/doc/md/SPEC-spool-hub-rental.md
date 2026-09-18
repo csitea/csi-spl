@@ -37,11 +37,8 @@ Payment (checkout via the configured payment provider — env, no baked vendor)
 creates:
 
 1. A **tenant id** (`^[a-z0-9][a-z0-9-]{0,31}$`).
-2. A **tenant URL** (`$SPOOL_HUB_URL`). Product DNS: `https://<tenant>.spool-hub.ai`.
-   Binaries never bake the host; cnf/env only.
-3. A **tenant root** Ed25519 keypair. The **private** root key is shown **once**
-   to the renter (download / printed) and never stored on the hub. The public
-   root is in `tenants.root_pubkey`.
+2. A **tenant URL** (`$SPOOL_HUB_URL`). Product DNS: `https://<tenant>.spool-hub.ai`, dynamically resolved via wildcard `*.spool-hub.ai` Cloud Run domain mapping and HTTP `Host` header inspection. Binaries never bake the host; cnf/env only.
+3. A **tenant root** Ed25519 keypair. The **private** root key is shown **once** to the renter upon post-checkout redirect (downloadable `.key` file and copyable text) and is never stored on the hub or in Postgres. The public root is written to `tenants.root_pubkey`. Tenant is auto-provisioned instantly upon receiving the verified payment webhook.
 4. A quota: messages / month, stored file bytes, pin count (cnf). Over quota
    → HTTP 429 / CLI exit `1` (`error: quota`), not `78`.
 

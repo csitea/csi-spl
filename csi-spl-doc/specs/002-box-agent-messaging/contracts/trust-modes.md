@@ -112,6 +112,16 @@ pinned box. No per-kind ACL. Unpin the box to cut it off.
    a second connection for the same `box_id` closes the first.
    After hello, the box **GET /v1/pins** and then on a **cnf interval**
    (authorized_keys refresh).
+
+   > **ORC clarification (2026-09-18):** the hello is challenge-response over a
+   > hub-issued single-use nonce (`{box_id, ts, nonce}`, `ts` ±300 s; 003
+   > OQ-03), and it carries **`role`**: `box` = the persistent **session**
+   > socket (receives `recv` frames, announces the roster); **last hello wins
+   > evicts only a prior `role=box` socket of the same `box_id`**. `cli` = a
+   > transient one-shot sender: it authenticates with the same box key but never
+   > becomes the session and never evicts a `role=box` socket. Without this,
+   > every CLI send would evict the box daemon. Wire detail:
+   > `../../003-spool-message-bus/contracts/http-v1.md` §2.2.
 2. **Announce agents:** the box **scans `$SPOOL_ROOT/*/`** (directory names
    matching the agent-id regex). That roster is sent on hello and when the
    set changes. Duplicate id **on this box** → 409. Same id on another box
@@ -237,4 +247,4 @@ Renter chooses `$SPOOL_BOX_ID`. Duplicate `box_id` + **different** pubkey →
   the tenant is enough. No cross-tenant.
 
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:45:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:00:00Z -->

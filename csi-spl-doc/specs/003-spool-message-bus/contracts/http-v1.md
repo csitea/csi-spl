@@ -49,13 +49,14 @@ Every frame is one JSON text message with a `type` discriminator. Unknown
 | # | Direction | `type` | Fields | Hub rule |
 |---|---|---|---|---|
 | 1 | hub → box | `challenge` | `nonce` | sent once, immediately after the upgrade. `nonce` = 32 random bytes, base64. Single use, bound to this socket |
-| 2 | box → hub | `hello` | `box_id`, `ts`, `nonce`, `sig`, `role`, `roster` | first frame, within 10 s, else close `4408`. See §2.2 |
+| 2 | box → hub | `hello` | `box_id`, `ts`, `nonce`, `sig`, `role`, `agents` | first frame, within 10 s, else close `4408`. See §2.2 |
 | 3 | hub → box | `welcome` | `box_id`, `upload_token`, `upload_token_expires_at`, `roster` | hello accepted. `roster` = tenant roster (§2.3) |
-| 4 | box → hub | `roster` | `agents` | `role=box` only. Replaces this box's announced set. Duplicate id in the list → error `roster_duplicate` (409) |
+| 4 | box → hub | `announce` | `agents` | `role=box` only. Replaces this box's announced set. Duplicate id in the list → error `roster_duplicate` (409) |
 | 5 | hub → box | `roster` | `roster` | pushed to every `role=box` socket of the tenant when any box's set changes |
 | 6 | box → hub | `send` | `env` | §2.4. Reply is frame 7 or an `error` frame carrying the same `msg_id` |
 | 7 | hub → box | `sent` | `msg_id`, `task_id`, `ts`, `to_box`, `delivery` | `delivery` ∈ `sent`, `queued` |
 | 8 | hub → box | `recv` | `env` | the stored envelope, byte-for-byte as the sender signed it. Only to `role=box` sockets |
+| 8a | hub → box | `queue_end` | `count` | after the queued `recv` frames that follow a `role=box` welcome; lets a one-shot `hub-sync` stop |
 | 9 | box → hub | `tail` | `task_id`, `follow` | tenant-scoped read of one task |
 | 10 | hub → box | `tail_msg` | `env` | one per stored message of the task, oldest first |
 | 11 | hub → box | `tail_end` | `task_id`, `count` | end of the stored part; with `follow=true` live `tail_msg` frames continue |
@@ -70,7 +71,7 @@ Liveness uses WebSocket ping/pong control frames, not JSON frames.
 ```json
 { "type": "hello", "box_id": "box-a", "ts": "2026-09-18T12:00:00Z",
   "nonce": "<the challenge nonce>", "role": "box",
-  "roster": ["CLE-07", "GRK-03"], "sig": "<base64 ed25519>" }
+  "agents": ["CLE-07", "GRK-03"], "sig": "<base64 ed25519>" }
 ```
 
 - `sig` = Ed25519 by the **box** key over `jq -cS '{box_id,nonce,ts}'`
@@ -89,11 +90,12 @@ Liveness uses WebSocket ping/pong control frames, not JSON frames.
     socket with `4409 superseded`.
   - `cli` — a one-shot sender (a `spool send` process). It may `send`, `tail`
     and ask for a `token`. It never receives `recv` frames, never announces a
-    roster, and never evicts the session socket. *(Clarification 2026-09-18:
-    without this, every CLI send would evict the box daemon under
-    last-hello-wins.)*
+    roster, and never evicts the session socket. *(ORC clarification
+    2026-09-18, also noted in trust-modes §4: without this, every CLI send
+    would evict the box daemon under last-hello-wins.)*
 - On accept the hub updates `boxes.last_hello_at`, replies `welcome`, then
-  (for `role=box`) pushes every queued `recv` frame for this box, oldest first.
+  (for `role=box`) pushes every queued `recv` frame for this box, oldest
+  first, followed by `queue_end`.
 
 ### 2.3 Roster
 
@@ -218,4 +220,4 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
   live-socket map and upload tokens are per-process memory, rebuilt on reconnect.
 - Kind of agent is not a field, only the `from`/`to` id prefix. No per-kind routes.
 
-<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:55:00Z -->
+<!-- version: 0.3.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:00:00Z -->

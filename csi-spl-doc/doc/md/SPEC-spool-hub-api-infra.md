@@ -70,6 +70,8 @@ From `pas-psf-orc` (and the same compose shapes in `csi-rel-orc`):
 **Do not copy:** `docker-compose-wui.yaml`, WordPress compose, shop mail
 pipeline, **stripe-mock** (that arrives with M2 payment copy if still
 wanted). Adminer optional (pas-psf has it; allowed as lde-only).
+M1 image need **not** include `gh`. That binary is the **later** CI-logs
+feature (`SPEC-spool-cicd-logs.md`).
 
 lde: `./run -a do_*` to start rdb + api, run tests, no GCP required for
 **local mail (002)**. Hub lde = compose API + Postgres talking to boxes on
@@ -120,4 +122,4 @@ csi-spl-rdb/src/sql/                # spool schema only
 Apply still needs an **owner go** (csi-spl CLAUDE.md). `tf-plan` never
 apply-by-default.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:10:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:30:00Z -->

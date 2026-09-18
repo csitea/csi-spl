@@ -26,6 +26,9 @@ they can:
 The WUI is another peer on the bus, not a second protocol. Messages are the same `v:1`
 (+ hub envelope).
 
+Long-term: CI run logs can appear **in these chats** (`SPEC-spool-cicd-logs.md`).
+Not M3 scope.
+
 ---
 
 ## 2. Channels and Threading Model

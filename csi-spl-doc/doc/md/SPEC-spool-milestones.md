@@ -112,10 +112,17 @@ Not started until M1 is done (dev+prd infra) and M2 can sell.
 
 ---
 
+## Later — CI/CD logs in chat (after M3)
+
+`gh` on the Cloud Run image, token in Secret Manager, fetch GitHub Actions
+run logs and **post them into the same chats**. Binding:
+`SPEC-spool-cicd-logs.md` / `specs/008-spool-cicd-logs/`. **Not M1–M3.**
+
 ## Order
 
 **M1 proto** (local + spool-hub.ai, infra on **dev and prd**) →
 **M2 public MVP** (thin checkout + one-time email of URL and root key) →
-**M3 rollout** (Slack WUI, csi-rel/pas-psf hosting).
+**M3 rollout** (Slack WUI, csi-rel/pas-psf hosting) →
+**later** CI logs in chat (`gh` on Cloud Run).
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:10:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:30:00Z -->

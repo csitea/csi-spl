@@ -22,7 +22,8 @@ Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
       1 resource each)
 - [~] T005 `001-enable-gcp-services`: dev enabled; **prd re-apply** with the
       current cnf list (run, sqladmin, compute, secretmanager,
-      artifactregistry, certificatemanager missing) — FR-003
+      artifactregistry, certificatemanager missing; iamcredentials + sts
+      added by `2a7888c`, re-apply dev too) — FR-003
 
 ## Phase 2: DNS zone — the gap (step 3, US3)
 
@@ -67,8 +68,9 @@ Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
 
 ## Phase 5: CI identity (US5)
 
-- [ ] T050 Land `017-github-wif-deploy` (branch `GRK-3343-007-tf-017-wif`,
-      unmerged); apply per env; export `GCP_WIF_PROVIDER_<ENV>` /
+- [x] T049 Land `017-github-wif-deploy` with a deploy SA it creates and scoped
+      grants (`2a7888c`; iac suite 6/6, `validate 017-github-wif-deploy` PASS) — FR-013
+- [ ] T050 Apply `017` per env after `028` + `030` (owner go, apply lane); export `GCP_WIF_PROVIDER_<ENV>` /
       `GCP_DEPLOY_SA_EMAIL_<ENV>` as repo variables for `008` — FR-013, SC-005
 
 ## Phase 6: remaining copies + hygiene
@@ -85,8 +87,33 @@ Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
       `GRK-3355-007-hygiene-tests`, unmerged) — FR-018
 - [x] T065 Domain single source (`domain-single-source.tst.sh` green) — FR-019
 
+## Phase 7: hub sign-in hooks (from spec `010`, owner of the feature)
+
+Auth stays off until registration (`SPOOL_HUB_AUTH_PROVIDERS` is `""`), so
+none of these blocks M1. The feature text is `../010-spool-social-auth/`.
+
+- [ ] T066 (010 T020) render cnf `env.auth.social.env` into `030`
+      `environment_variables` and `.secret_env` into
+      `secret_environment_variables`
+- [ ] T067 (010 T021) empty Secret Manager slots for the auth session key and
+      the two client secrets + secretAccessor for the hub runtime SA, per env;
+      no version resource (fold into `029`, T060)
+- [ ] T068 (010 T022) derive `SPOOL_HUB_AUTH_APP_URL` and the redirect URIs
+      from `env.dns.fqdn` in `do_spl_merged_cnf`
+
+## Phase 8: tooling defects found in the audit
+
+- [ ] T069 `do_resolve_oap` derives ORG/APP from the directory layout, so
+      `do_tpl_gen` and `do_tf_plan` cannot run from a `csi-spl-wt/<ID>`
+      worktree even with ORG/APP exported (measured 2026-09-18: `missing
+      …/csi-spl-wt-3344-cnf/…/all.env.yaml`); workaround: render in a copy
+      laid out as `csi/csi-spl/`
+- [ ] T070 `tf-steps-render-and-validate.tst.sh` SKIPs render drift and
+      validate unless tpl-gen and terraform sit under the runner's own
+      `$HOME`; the suite reads green without having validated anything
+
 ## Out of this task list
 
 M2 payment drivers, M3 WUI hosting (`005`), pipeline job design (`008`).
 
-<!-- version: 1.0.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:12:21Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:40:00Z -->

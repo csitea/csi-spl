@@ -146,7 +146,7 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 
 1. **Given** this spec, **When** an adapter is written, **Then** it uses only the box API in `SPEC-spool-box-api.md` (no NATS/PG/GCS/WS from the agent).
 
-### User Story 7 - Read-only thread viewer API for the WUI (Priority: P2, M3 dependency) — Planned
+### User Story 7 - Read-only thread viewer API for the WUI (Priority: P2, M3 dependency) — Implemented except the token door (OQ-16)
 
 A human opens the WUI (spec 005) and sees the tenant's boxes, who is online, the list of task threads and each thread's messages with their attachments. The WUI reads through a small **read-only** REST surface, `contracts/view-v1.md`, with a view token. It never sends, never drains a queue, and never touches the box door (`/v1/ws`).
 
@@ -160,7 +160,7 @@ A human opens the WUI (spec 005) and sees the tenant's boxes, who is online, the
 2. **Given** a view token for tenant A, **When** it is used under tenant B's Host, **Then** `401 view_door`.
 3. **Given** a `task_id` of tenant A, **When** it is read under tenant B, **Then** `404 not_found`.
 4. **Given** a `POST` to any `/v1/view/*` path, **When** it arrives, **Then** `405 method_not_allowed`.
-5. **Given** `hub.view_cors_origins` is empty, **When** a cross-origin preflight arrives, **Then** no CORS headers are returned.
+5. **Given** `SPOOL_HUB_VIEW_CORS_ORIGINS` is empty, **When** a cross-origin preflight arrives, **Then** no CORS headers are returned.
 
 ### Edge Cases
 
@@ -193,11 +193,11 @@ A human opens the WUI (spec 005) and sees the tenant's boxes, who is online, the
 - **FR-015**: Every hub row and object key MUST carry `tenant_id`. The tenant comes from the request **Host** (`<tenant>.<product-domain>`, domain from cnf), never from the `v:1` body. One GCS bucket for all tenants, prefixed `t/<tenant_id>/`. *Status:* **Implemented** — `TestFilesRoundTripAndTenantIsolation`; tenant resolution semantics owned by 006.
 - **FR-016**: IAM/OIDC is not in M1. If a private deploy enables it later, it MUST run before box-key verification and MUST NOT substitute for it. *Status:* **Implemented** — no IAM code path exists; T026.
 - **FR-017**: M1 MUST run the hub with `max-instances=1` (cnf-overridable). The box MUST reconnect on close with exponential backoff (cap ~30 s) and re-hello. *Status:* **Partial** — reconnect implemented (e2e `hub-run reconnected and received it`); `max_instances 1` in cnf and tf `030` and live on dev (`gcloud run services describe csi-spl-hub-dev … --account=$GCP_ACCOUNT` → template maxScale `1`, 2026-09-18, n=1); prd not deployed (Cloud Run API disabled in `csi-spl-prd`, 007).
-- **FR-018**: The hub MUST expose the read-only viewer API in `contracts/view-v1.md` (`GET /v1/view/roster`, `/channels`, `/threads`, `/threads/{task_id}`), reusing `GET /v1/files/{file_id}` for bytes. *Status:* **Planned** — `grep -c '/v1/view' …/internal/hub/server.go -> 0`.
-- **FR-019**: A viewer read MUST NOT mutate hub state: no delivery claim or drain, no `sent` marking, no roster, pin or `last_hello_at` change. It MUST NOT reintroduce a REST send/recv (OQ-02). *Status:* **Planned**.
-- **FR-020**: Every `/v1/view/*` request MUST carry a view token bound to the Host tenant with `scope=view` and a bounded expiry; refusal → `401 view_door`. The token format is OQ-16 (proposed: tenant-root-signed, stateless). *Status:* **Planned**.
-- **FR-021**: CORS MUST be limited to origins listed in cnf `hub.view_cors_origins` (no default, never `*`) and to `/v1/view/*` + `GET /v1/files/{file_id}`. *Status:* **Planned**.
-- **FR-022**: Viewer responses MUST be tenant-scoped (foreign `task_id` → `404`) and MUST carry envelopes byte-for-byte as stored, file refs only, and no token or signed URL. *Status:* **Planned**.
+- **FR-018**: The hub MUST expose the read-only viewer API in `contracts/view-v1.md` (`GET /v1/view/roster`, `/channels`, `/threads`, `/threads/{task_id}`), reusing `GET /v1/files/{file_id}` for bytes. *Status:* **Implemented** — `internal/hub/view.go`, `TestViewAPI`.
+- **FR-019**: A viewer read MUST NOT mutate hub state: no delivery claim or drain, no `sent` marking, no roster, pin or `last_hello_at` change. It MUST NOT reintroduce a REST send/recv (OQ-02). *Status:* **Implemented** — `TestViewReads` (queue + states + `last_hello_at` unchanged, memory + Postgres) and `TestViewAPI` (box-b still drains after reads).
+- **FR-020**: Every `/v1/view/*` request MUST carry a view token bound to the Host tenant with `scope=view` and a bounded expiry; refusal → `401 view_door`. The token format is OQ-16 (proposed: tenant-root-signed, stateless). *Status:* **Partial** — the door fails closed (`TestViewDoorTokenFailsClosed`) and `SPOOL_HUB_VIEW_DOOR=off` is lde-only (`TestLoadHubViewDoorAndOrigins`); token verification waits on OQ-16 (T033).
+- **FR-021**: CORS MUST be limited to origins listed in cnf `SPOOL_HUB_VIEW_CORS_ORIGINS` (no default, never `*`) and to `/v1/view/*` + `GET /v1/files/{file_id}`. *Status:* **Implemented** — `TestViewAPI` (listed/unlisted origin, `/v1/pins` gets none, preflight).
+- **FR-022**: Viewer responses MUST be tenant-scoped (foreign `task_id` → `404`) and MUST carry envelopes byte-for-byte as stored, file refs only, and no token or signed URL. *Status:* **Implemented** — `TestViewAPI` (env == stored bytes, cross-tenant 404).
 - **FR-023**: The hub MUST answer liveness on a path Cloud Run and the LB do not reserve (add `GET /v1/health`, keep `/healthz` for local use); 007's external gates (provisioning-order step 10, SC-004) probe it; a serverless NEG backend takes no LB health check, so there is no LB health-check path to set. *Status:* **Implemented** — `TestHealthPaths` (both paths 200). 007 still has to point the LB health check at `/v1/health`.
 
 ### Non-Functional Requirements
@@ -287,4 +287,4 @@ All fifteen are closed. OQ-07/13/14 were resolved earlier by the owner; the othe
 - **DDL home**: `csi-spl-rdb/src/sql/postgres/spool-hub/*.sql`, applied by `spool migrate` (`data-model.md`).
 - **Follow-up (parked)**: `msg.ValidID` must reject the `BOX-` prefix (identity-routing).
 
-<!-- version: 0.5.4 · updated: 2026-09-18 · last-edit: 2026-09-18T19:16:05Z -->
+<!-- version: 0.6.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:31:54Z -->

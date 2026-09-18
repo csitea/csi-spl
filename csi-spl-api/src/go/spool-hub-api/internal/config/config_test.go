@@ -135,3 +135,41 @@ func TestLoadHubCICDEnabledNeedsAPI(t *testing.T) {
 		t.Fatal("enabled without API accepted")
 	}
 }
+
+// Viewer door: token by default; off only under SPOOL_HUB_ENV=lde; the CORS
+// allow-list takes bare origins only (specs/003 contracts/view-v1.md §2-§3).
+func TestLoadHubViewDoorAndOrigins(t *testing.T) {
+	t.Setenv("SPOOL_HUB_DB_DSN", "postgres://spool@/spool?sslmode=disable")
+	t.Setenv("SPOOL_HUB_FILES_DIR", t.TempDir())
+	t.Setenv("SPOOL_HUB_FILES_BUCKET", "")
+	t.Setenv("SPOOL_HUB_TENANT_HOST_PATTERN", "{tenant}.hub.test")
+	t.Setenv("SPOOL_HUB_VIEW_CORS_ORIGINS", "")
+	t.Setenv("SPOOL_HUB_ENV", "dev")
+	t.Setenv("SPOOL_HUB_VIEW_DOOR", "")
+	if h, err := LoadHub(); err != nil || h.ViewDoor != "token" {
+		t.Fatalf("default door: %v %+v", err, h)
+	}
+	t.Setenv("SPOOL_HUB_VIEW_DOOR", "off")
+	if _, err := LoadHub(); err == nil {
+		t.Fatal("view door off accepted outside lde")
+	}
+	t.Setenv("SPOOL_HUB_ENV", "lde")
+	if h, err := LoadHub(); err != nil || h.ViewDoor != "off" {
+		t.Fatalf("lde off: %v", err)
+	}
+	t.Setenv("SPOOL_HUB_VIEW_DOOR", "open")
+	if _, err := LoadHub(); err == nil {
+		t.Fatal("unknown door accepted")
+	}
+	t.Setenv("SPOOL_HUB_VIEW_DOOR", "token")
+	t.Setenv("SPOOL_HUB_VIEW_CORS_ORIGINS", "http://localhost:3000,https://wui.example.test")
+	if h, err := LoadHub(); err != nil || len(h.ViewCORSOrigins) != 2 {
+		t.Fatalf("origins: %v %+v", err, h)
+	}
+	for _, bad := range []string{"*", "https://*.example.test", "https://wui.example.test/app", "wui.example.test", "https://wui.example.test/"} {
+		t.Setenv("SPOOL_HUB_VIEW_CORS_ORIGINS", bad)
+		if _, err := LoadHub(); err == nil {
+			t.Fatalf("origin %q accepted", bad)
+		}
+	}
+}

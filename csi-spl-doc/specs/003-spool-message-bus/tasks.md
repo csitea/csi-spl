@@ -75,14 +75,14 @@
 
 ## Phase 10: User Story 7 — Read-only viewer API for the WUI (P2, M3 dependency)
 
-All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, not this docs lane.
+Contract `contracts/view-v1.md`. Status per task below; only the token door (T033) waits on OQ-16.
 
-- [ ] T031 [US7] `internal/store`: read-only queries `ListThreads(tenant, before, limit, channel, agent)`, `ThreadMessages(tenant, task_id, after, limit)` (envelope bytes + delivery states), `ListChannels(tenant)`; memory + Postgres drivers; contract-suite cases proving `deliveries` is unchanged by every read (FR-019). Add DDL `0004_view_indexes.sql` only if `EXPLAIN` on Postgres shows the thread list needs an index beyond `messages_task` (e.g. `(tenant_id, received_at)`). — **Planned**.
+- [x] T031 [US7] `internal/store`: read-only queries `ListThreads(tenant, before, limit, channel, agent)`, `ThreadMessages(tenant, task_id, after, limit)` (envelope bytes + delivery states), `ListChannels(tenant)`; memory + Postgres drivers; contract-suite cases proving `deliveries` is unchanged by every read (FR-019). Add DDL `0004_view_indexes.sql` only if `EXPLAIN` on Postgres shows the thread list needs an index beyond `messages_task` (e.g. `(tenant_id, received_at)`). — **Implemented** `a54abf2` as `ViewBoxes`/`ViewThreads`/`ViewThread`/`ViewChannels`; `TestViewReads` on memory + Postgres. No new DDL (index need unmeasured at human scale).
 - [x] T032 [P] Health path reachable on Cloud Run (FR-023): add `GET /v1/health` (same body as `/healthz`), keep `/healthz`; ask 007 to point the LB health check at it. — **Implemented**; `TestHealthPaths`. LB wiring is 007's.
 - [ ] T033 [US7] View-token door (FR-020, **blocked on OQ-16**): verify `jq -cS '{exp,scope,tenant}'` against `tenants.root_pubkey`, Host tenant match, `exp ≤ now + hub.view_token_max_ttl` (cnf, 12 h); `401 view_door`; redact `Authorization` in access logs. CLI verb `spool hub-view-token --ttl`. Golden vector in `internal/wire`. — **Planned**.
-- [ ] T034 [US7] Handlers `GET /v1/view/{roster,channels,threads,threads/{task_id}}` per `contracts/view-v1.md` §4 (opaque cursors, `bad_cursor`, limit clamp 200, `405` on non-GET, `online` from the live socket map). — **Planned**.
-- [ ] T035 [US7] CORS (FR-021): cnf `hub.view_cors_origins` (no default, never `*`), preflight `204`, only on `/v1/view/*` + `GET /v1/files/{id}`; the cnf key is published to 007 for `csi-spl-cnf`. — **Planned**.
-- [ ] T036 [US7] Tests: US7 acceptance 1–5; cross-tenant 404; queued message still drains after a read; no token/URL in logs; e2e step in `hub-e2e.tst.sh` reading a thread with a minted view token. — **Planned**.
+- [x] T034 [US7] Handlers `GET /v1/view/{roster,channels,threads,threads/{task_id}}` per `contracts/view-v1.md` §4 (opaque cursors, `bad_cursor`, limit clamp 200, `405` on non-GET, `online` from the live socket map). — **Implemented**; `internal/hub/view.go`, `TestViewAPI`.
+- [x] T035 [US7] CORS (FR-021): cnf `SPOOL_HUB_VIEW_CORS_ORIGINS` (no default, never `*`), preflight `204`, only on `/v1/view/*` + `GET /v1/files/{id}`; the cnf key is published to 007 for `csi-spl-cnf`. — **Implemented**; `TestViewAPI`, `TestLoadHubViewDoorAndOrigins`. Also `SPOOL_HUB_VIEW_DOOR` (`token` default, `off` lde-only).
+- [ ] T036 [US7] Tests: US7 acceptance 1–5; cross-tenant 404; queued message still drains after a read; no token/URL in logs; e2e step in `hub-e2e.tst.sh` reading a thread with a minted view token. — **Partial**: acceptance 1–5, cross-tenant, drain-after-read in `TestViewAPI`; e2e step waits on T033 (no token to mint yet).
 
 ## Phase 11: Polish
 
@@ -114,18 +114,18 @@ All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, no
 | FR-015 tenant everywhere | T006, T021, T022 | Implemented |
 | FR-016 no IAM in M1 | T026 | Implemented |
 | FR-017 max-instances=1, reconnect | T019a, T023 | Partial (prd) |
-| FR-018 viewer API | T031, T034 | Planned |
-| FR-019 reads never mutate | T031, T036 | Planned |
-| FR-020 view-token door | T033 | Planned (OQ-16) |
-| FR-021 CORS allow-list | T035 | Planned |
-| FR-022 viewer tenant-scoped, bytes-as-stored | T031, T034, T036 | Planned |
+| FR-018 viewer API | T031, T034 | Implemented |
+| FR-019 reads never mutate | T031, T036 | Implemented |
+| FR-020 view-token door | T033 | Partial (fails closed; token = OQ-16) |
+| FR-021 CORS allow-list | T035 | Implemented |
+| FR-022 viewer tenant-scoped, bytes-as-stored | T031, T034, T036 | Implemented |
 | FR-023 Cloud Run-safe health path | T032 | Implemented (LB wiring: 007) |
 | NFR-001 region / cnf | T004, T023 | Implemented (dev) |
 | NFR-002 error mapping | T012, T020 | Implemented |
 | NFR-003 no schema fork | T003, T030 | Implemented |
 | NFR-004 no Kafka / no NATS in M1 | T024 | Implemented |
 | NFR-005 pas-psf harness | T004, T005 | Implemented |
-| NFR-006 limits | T013, T016, T021a, T034 | Implemented (viewer limits Planned) |
+| NFR-006 limits | T013, T016, T021a, T034 | Implemented |
 
 | Contract endpoint | FR | Status |
 |---|---|---|
@@ -135,7 +135,7 @@ All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, no
 | `GET/POST/DELETE /v1/pins` | owned by 004 / 006 (hosted by FR-001) | Implemented (`de33409`) |
 | `GET /healthz`, `GET /version` | FR-001 | Implemented (see FR-023 for Cloud Run) |
 | `GET /v1/health` | FR-023 | Implemented |
-| `GET /v1/view/*` (`contracts/view-v1.md`) | FR-018–FR-022 | Planned |
+| `GET /v1/view/*` (`contracts/view-v1.md`) | FR-018–FR-022 | Implemented (token door: OQ-16) |
 
 ## Dependencies
 
@@ -147,10 +147,10 @@ All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, no
 - 003 T019 ≈ 004 T010 (flush): decided (OQ-15) — box-side `internal/hubclient`.
 - 006 T008–T010 must be WebSocket, not `POST /v1/messages` / `POST /v1/recv` (OQ-02).
 - 005 WUI client still calls `/v1/messages` and `/v1/channels` (`contracts/view-v1.md` §7): 005 rebases its read path onto `/v1/view/*`.
-- 007: external gates probe `/v1/health` (T032; serverless NEGs have no LB health check — seam closed by the integrator), `hub.view_cors_origins` / `hub.view_token_max_ttl` cnf keys (T033, T035), prd rollout (T023).
+- 007: external gates probe `/v1/health` (T032; serverless NEGs have no LB health check — seam closed by the integrator), `SPOOL_HUB_VIEW_CORS_ORIGINS` / `SPOOL_HUB_VIEW_DOOR` env keys (T035) and `hub.view_token_max_ttl` (T033), prd rollout (T023).
 
 ## Implementation strategy
 
 M1 of 003 = US1 + US2 + US3 + the WS tail of US4 — Implemented and green on Postgres + GCS; what remains for M1 is the cloud rollout (007) and the pipeline deploy (008). US7 is the next 003 code slice, due before 005 (M3) starts on real data.
 
-<!-- version: 0.4.4 · updated: 2026-09-18 · last-edit: 2026-09-18T19:16:05Z -->
+<!-- version: 0.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:31:54Z -->

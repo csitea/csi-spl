@@ -53,6 +53,10 @@ type Options struct {
 	QuotaPins             int
 	QuotaFileBytes        int64
 	CICD                  *cicdlogs.Service // nil = 008 route not registered (M1 default)
+	// Viewer API (contracts/view-v1.md): door mode ("" = token) and the CORS
+	// allow-list (empty = same-origin only).
+	ViewDoor        string
+	ViewCORSOrigins []string
 }
 
 // Server is one hub process.
@@ -83,6 +87,13 @@ func New(o Options) (*Server, error) {
 	}
 	if o.Now == nil {
 		o.Now = time.Now
+	}
+	switch o.ViewDoor {
+	case "":
+		o.ViewDoor = ViewDoorToken
+	case ViewDoorToken, ViewDoorOff:
+	default:
+		return nil, fmt.Errorf("hub: view door %q must be token or off", o.ViewDoor)
 	}
 	if o.HelloTimeout == 0 {
 		o.HelloTimeout = 10 * time.Second
@@ -121,6 +132,7 @@ func (s *Server) Handler() http.Handler {
 	if s.cicd != nil {
 		mux.HandleFunc("POST /v1/cicd-logs", s.handleCICDLogs)
 	}
+	s.routeView(mux)
 	return s.middleware(mux)
 }
 

@@ -136,6 +136,9 @@ type Hub struct {
 	CICDFromBox       string `env:"SPOOL_HUB_CICD_FROM_BOX" envDefault:"hub"`
 	CICDFromID        string `env:"SPOOL_HUB_CICD_FROM_ID" envDefault:"CI-0"`
 	CICDHubBoxKey     string `env:"SPOOL_HUB_CICD_HUB_BOX_KEY"`
+	// Viewer API (specs/003 contracts/view-v1.md). ViewDoor "off" is lde-only.
+	ViewDoor        string   `env:"SPOOL_HUB_VIEW_DOOR" envDefault:"token"`
+	ViewCORSOrigins []string `env:"SPOOL_HUB_VIEW_CORS_ORIGINS" envSeparator:","`
 }
 
 // LoadHub parses the hub environment and fails fast on a missing or
@@ -167,8 +170,34 @@ func LoadHub() (*Hub, error) {
 	if err := cicdlogs.ValidateHubEnv(h.CICDLogsEnabled, h.Env, h.CICDGitHubToken, h.CICDTenantTokens, h.CICDRepoAllowlist, h.CICDGitHubAPI, h.CICDFromBox, h.CICDFromID); err != nil {
 		return nil, err
 	}
+	switch h.ViewDoor {
+	case "token":
+	case "off":
+		if h.Env != "lde" {
+			return nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR=off is allowed only with SPOOL_HUB_ENV=lde (got %q)", h.Env)
+		}
+	default:
+		return nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR %q must be token or off", h.ViewDoor)
+	}
+	for _, o := range h.ViewCORSOrigins {
+		if err := checkOrigin(o); err != nil {
+			return nil, err
+		}
+	}
 	return &h, nil
 }
 
 // FilesDir is the shared content-addressed blob store.
 func (c *Config) FilesDir() string { return filepath.Join(c.SpoolRoot, "files") }
+
+// checkOrigin accepts a bare browser origin: http(s)://host[:port], no path,
+// no wildcard (FR-021).
+func checkOrigin(o string) error {
+	u, err := url.Parse(o)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" ||
+		strings.Contains(o, "*") || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.User != nil ||
+		strings.HasSuffix(o, "/") {
+		return fmt.Errorf("SPOOL_HUB_VIEW_CORS_ORIGINS entry %q must be http(s)://host[:port] (no path, no wildcard)", o)
+	}
+	return nil
+}

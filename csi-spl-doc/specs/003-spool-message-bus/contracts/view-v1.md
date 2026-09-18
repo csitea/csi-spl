@@ -3,8 +3,12 @@
 Feature: `003-spool-message-bus`, User Story 7. Consumer: `../../005-spool-wui/`
 (it cites this file and does not restate it; seam in `../../README.md` §5).
 
-**Status: Planned.** Nothing here is implemented. Measured 2026-09-18 on trunk
-`bbc41e7`: `grep -c '/v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`.
+**Status: Implemented except the view token (§2, OQ-16).** Routes in
+`csi-spl-api/src/go/spool-hub-api/internal/hub/view.go`, store queries in
+`internal/store/view.go` / `view_postgres.go`; tests `TestViewAPI`,
+`TestViewDoorTokenFailsClosed`, `TestViewReads` (memory + Postgres).
+Until OQ-16 is decided the `token` door **fails closed** (every request
+`401 view_door`); lde runs with the door `off`.
 
 Normative order: `../../002-box-agent-messaging/contracts/trust-modes.md`, then
 `../spec.md` (FR-018 – FR-022), then this file, then `./http-v1.md` (shared
@@ -41,6 +45,10 @@ Every other method on `/v1/view/*` → `405 method_not_allowed`. Tenant = reques
 
 ## 2. Door: the view token (FR-020)
 
+Door mode is cnf `SPOOL_HUB_VIEW_DOOR`: `token` (default) or `off`. The hub
+**refuses to start** with `off` unless `SPOOL_HUB_ENV=lde`, so dev/prd can
+never run without a door. With `off`, no `Authorization` is checked.
+
 `Authorization: Bearer <view_token>` on every `/v1/view/*` request. Missing,
 malformed, expired, wrong scope or wrong tenant → `401 view_door`.
 
@@ -70,7 +78,8 @@ sig        = ed25519 by the tenant ROOT key over jq -cS '{exp,scope,tenant}'
 
 The WUI is served from Firebase Hosting, a different origin from the hub.
 
-- Allowed origins come from cnf `hub.view_cors_origins` (list, **no default**;
+- Allowed origins come from cnf `SPOOL_HUB_VIEW_CORS_ORIGINS` (comma list of
+  bare `http(s)://host[:port]`, validated at start; **no default**;
   empty → no CORS headers, same-origin only). Never `*`.
 - Applies to `/v1/view/*` and `GET /v1/files/{file_id}` only. `/v1/ws`,
   `POST /v1/files` and `/v1/pins` never answer CORS.
@@ -80,7 +89,8 @@ The WUI is served from Firebase Hosting, a different origin from the hub.
 
 ## 4. Shapes
 
-Times are RFC3339 UTC. Cursors are **opaque** strings (the hub encodes
+Times are RFC3339 UTC; `first_ts` / `last_ts` / `received_at` are **hub receive
+times** (the message's own `ts` is inside `env.msg`). Cursors are **opaque** strings (the hub encodes
 `(received_at, msg_id)`); a cursor the hub cannot decode → `400 bad_cursor`.
 `limit` default 50, max 200 (`./limits.md`); above max → clamped, not an error.
 
@@ -167,4 +177,4 @@ a `POST /v1/channels`). None of those routes exists on the hub
 (`grep -c 'v1/messages\|v1/channels' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`).
 The read calls map onto §4.2–§4.4; the two POSTs are 005 M3 write features.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:40:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:31:54Z -->

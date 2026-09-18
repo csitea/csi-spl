@@ -75,6 +75,7 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 
 // GET /v1/files/{file_id}: tenant-scoped capability; another tenant's id is 404.
 func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
+	s.allowOrigin(w, r) // the viewer downloads attachments cross-origin (FR-021)
 	t, err := s.tenantOf(r)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")

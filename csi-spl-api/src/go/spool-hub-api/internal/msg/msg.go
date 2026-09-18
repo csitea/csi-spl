@@ -127,10 +127,10 @@ func (m *Message) Validate() error {
 	if m.MsgID == "" || m.TaskID == "" || m.TS == "" {
 		return fmt.Errorf("msg_id, task_id and ts are required")
 	}
-	if !idRe.MatchString(m.From) {
+	if !ValidID(m.From) {
 		return fmt.Errorf("from %q is not a valid agent id", m.From)
 	}
-	if !idRe.MatchString(m.To) {
+	if !ValidID(m.To) {
 		return fmt.Errorf("to %q is not a valid agent id", m.To)
 	}
 	if !validKinds[m.Kind] {
@@ -176,7 +176,10 @@ func (a Attachment) validate() error {
 }
 
 // ValidID reports whether s is a well-formed agent id.
-func ValidID(s string) bool { return idRe.MatchString(s) }
+// BOX is forbidden as a prefix: the box id lives in env, not in from/to.
+func ValidID(s string) bool {
+	return idRe.MatchString(s) && !strings.HasPrefix(s, "BOX-")
+}
 
 // ValidBoxID reports whether s is a well-formed box id.
 func ValidBoxID(s string) bool { return boxRe.MatchString(s) }

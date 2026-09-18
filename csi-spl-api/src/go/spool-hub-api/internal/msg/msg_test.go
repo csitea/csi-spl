@@ -62,6 +62,30 @@ func TestValidate(t *testing.T) {
 	if err := bad.Validate(); err == nil {
 		t.Fatal("bad from id accepted")
 	}
+	bad = sample()
+	bad.From = "BOX-1"
+	if err := bad.Validate(); err == nil {
+		t.Fatal("from BOX-1 accepted")
+	}
+	bad = sample()
+	bad.To = "BOX-07"
+	if err := bad.Validate(); err == nil {
+		t.Fatal("to BOX-07 accepted")
+	}
+}
+
+func TestValidID(t *testing.T) {
+	ok := []string{"CLE-07", "GRK-3", "AGY-01", "CLE-3333"}
+	for _, s := range ok {
+		if !ValidID(s) {
+			t.Errorf("ValidID(%q) = false, want true", s)
+		}
+	}
+	for _, s := range []string{"BOX-1", "BOX-07"} {
+		if ValidID(s) {
+			t.Errorf("ValidID(%q) = true, want false", s)
+		}
+	}
 }
 
 func TestValidateLimits(t *testing.T) {

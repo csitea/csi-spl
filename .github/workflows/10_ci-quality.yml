@@ -11,7 +11,7 @@ name: "10 ci: quality gate"
 #
 # NO `pull_request:` trigger: trunk-based repo, no pull requests.
 #
-# The WUI lane may add its own job here as a separate block.
+# The WUI (csi-spl-wui) has its own job below: unit tests + typecheck.
 
 on:
   workflow_dispatch: {}
@@ -67,6 +67,43 @@ jobs:
             exit 1
           fi
           echo "ok - no hub gate skipped"
+
+  # ===========================================================================
+  # The WUI suite: csi-spl-wui unit tests (node --test) and nuxt typecheck.
+  # pnpm comes from package.json packageManager; the lockfile is frozen so a
+  # drifted lockfile fails here instead of resolving silently. The e2e
+  # no-x-scroll check needs a browser and is not run here.
+  # ===========================================================================
+  wui-suite:
+    name: "wui: unit tests + typecheck"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: csi-spl-wui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: csi-spl-wui/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: csi-spl-wui/pnpm-lock.yaml
+
+      - name: pnpm install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit tests
+        run: pnpm run test:unit
+
+      - name: Typecheck
+        run: pnpm run typecheck
 
   # ===========================================================================
   # Reference-hygiene gate (spec 002 T003): the spool Go source never

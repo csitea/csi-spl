@@ -99,6 +99,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `008-spool-cicd-logs/` | CI/CD: GitHub Actions build + deploy (dev, prd; WIF) + ci-quality gate (**M1**), and CI logs posted into chat (**later**) | M1 + later | area lane 008 |
 | `009-spool-m4/` | seats + buy-minute project id | M4 | integrator (seam fixes only) |
 | `010-spool-social-auth/` | social IdP login for humans (`../doc/md/SPEC-spool-social-auth.md`): hub `/auth/*`, signed session cookie (`internal/auth`); Google + Facebook first, Microsoft / LinkedIn / xAI on the same rails | M2 (register) / M3 (WUI login) | social-auth lane |
+| `011-spool-project-refactor/` | whole-project refactoring: Go backend clean architecture, WUI 3-pane reverse layout & client adapter, config schema validation, orc namespacing, spec reconciliation | M1–M3 consolidation | core architecture |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -108,7 +109,8 @@ user story in the same spec. Renaming the dir would break citations in
 
 Dependency order between specs:
 `002 → 004 → 003 → 007 (+008 pipeline) → 006 (M1 tenancy) → M1 demo →
-006 (M2 payment) → 005 (M3) → 009 (M4) → 008 (CI logs in chat)`.
+006 (M2 payment) → 005 (M3) → 010 (social auth) → 011 (refactor consolidation) →
+009 (M4) → 008 (CI logs in chat)`.
 
 ---
 
@@ -124,6 +126,7 @@ Dependency order between specs:
 | Terraform steps, DNS, secrets, WIF, lde | 007 | 003/006 name cnf keys, never tf |
 | WIF deploy identity (tf step `017`) | 007 | 008 consumes the repo variables it exports |
 | Pipeline jobs, gates, deploy matrix | 008 | 007 references the deploy action |
+| Whole-project refactoring boundaries, adapters & contracts | 011 | 003, 005, 006, 007, 008, 010 cite for clean architecture & adapter rules |
 
 ---
 

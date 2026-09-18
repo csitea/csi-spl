@@ -36,5 +36,7 @@ consistency record: `specs/README.md`.**
 | `specs/007-spool-hub-api-infra/` | git-spec: provisioning order (DNS zone step 3), terraform, lde, docker, DNS |
 | `specs/008-spool-cicd-logs/` | CI/CD: M1 GitHub Actions gate + dev/prd deploy; after M3: Actions logs in threads |
 | `specs/006-spool-hub-rental/contracts/payment.md` | M2 public MVP: buy on site, copy csi-rel payment |
+| `doc/md/SPEC-spool-project-refactor.md` | whole-project refactoring architecture (binding) |
+| `specs/011-spool-project-refactor/` | git-spec for whole-project refactoring (API, WUI, IaC, Orc, Doc) |
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:17:23Z -->
+<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:35:00Z -->

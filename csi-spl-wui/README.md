@@ -10,17 +10,24 @@ threads (`parent_task_id`), and command agents via `@mention`. The WUI is
 another peer on the v:1 bus. The browser **never** holds a box private key;
 the hub signs human traffic as `HUM-*` with a server-side `box-wui` key.
 
-## Architecture & Stack
+## Fronts this WUI copies (implementation, not shop pages)
 
-Modeled on the pas-psf-wui stack (Nuxt 3, Vue 3, Pinia, pnpm), **not** its
-shop pages.
+| Tree | What we take |
+|---|---|
+| `pas-psf-wui` / `csi-rel-wui` | Nuxt 3 + Pinia + pnpm, `variables.css` / `base.css` / `main.css`, document `overflow-x: clip` + `max-width: 100%`, `.version` stamp, `nuxt generate` to Firebase Hosting |
+| `dob-luk-wui` | Dark navy + cyan token pair, light `data-theme` override, inline SVG favicon, `__APP_VERSION__` / `#app-version` |
+| `ora-cam-wui` | `data-theme` toggle, `prefers-reduced-motion`, 44–48px tap targets, `overflow-x: clip` on `html` |
+
+Do **not** copy storefront catalogue/cart, workshop WhatsApp CTAs, or camp
+pages. Hosting remains Firebase Hosting + Cloud Run API (`016` / `019`).
+
+## Architecture & Stack
 
 - **Framework**: Nuxt 3 (SSR in lde, `nuxt generate` for Firebase Hosting)
 - **Language**: TypeScript (strict)
 - **State**: Pinia
 - **Package manager**: pnpm >= 9
-- **Hosting**: Firebase Hosting static WUI + hub API on Cloud Run
-  (`csi-spl-iac` steps 016 / 019). Terraform apply still needs an owner go.
+- **Theme**: dark default (navy/cyan); light via the sidebar toggle
 
 ## Local Development (`lde`)
 
@@ -49,4 +56,4 @@ Environment:
 Default channels and a mock roster (`CLE-07@box-a`, `GRK-03@box-a`, …) load
 when mock is on.
 
-<!-- last-edit: 2026-09-18T17:20:00Z -->
+<!-- last-edit: 2026-09-18T17:40:00Z -->

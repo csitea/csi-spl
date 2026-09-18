@@ -1,6 +1,9 @@
 <template>
   <nav class="sidebar">
-    <h1>Spool</h1>
+    <div class="sidebar-brand">
+      <h1>Spool</h1>
+      <ThemeToggle />
+    </div>
     <h2>Channels</h2>
     <NuxtLink
       v-for="c in channel.channels"
@@ -31,6 +34,7 @@
     <div style="margin-top:auto">
       <NotificationCenter />
       <NuxtLink class="nav-item" to="/login"><span class="label">Sign in</span></NuxtLink>
+      <p id="app-version" class="version-stamp">{{ version }}</p>
     </div>
   </nav>
 </template>
@@ -42,6 +46,8 @@ import { useRosterStore } from '~/stores/roster'
 const channel = useChannelStore()
 const roster = useRosterStore()
 const newChannel = ref('')
+const config = useRuntimeConfig()
+const version = computed(() => String(config.public.appVersion || 'v0.1.0-dev'))
 
 async function onCreate() {
   const name = newChannel.value.trim()

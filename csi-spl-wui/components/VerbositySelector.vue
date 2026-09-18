@@ -14,9 +14,9 @@ const thread = useThreadStore()
 
 <style scoped>
 select {
-  background: var(--sp-composer);
-  color: var(--sp-text);
-  border: 1px solid var(--sp-border);
+  background: var(--color-composer);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 4px 6px;
 }

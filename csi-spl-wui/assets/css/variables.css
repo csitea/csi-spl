@@ -1,0 +1,86 @@
+/*
+ * Token sheet — same job as pas-psf-wui / csi-rel-wui `variables.css`.
+ * Dark default is the dob-luk-wui night workshop (navy + cyan), not the
+ * storefront flag palette and not the ora-cam campfire orange. Light is the
+ * dob-luk-wui / ora-cam-wui `data-theme` toggle pair.
+ */
+:root {
+  color-scheme: dark;
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 2rem;
+
+  --color-bg: #060912;
+  --color-bg-2: #0a1424;
+  --color-bg-3: #0e1c33;
+  --color-sidebar: #070b14;
+  --color-surface: #0e1c33;
+  --color-surface-hover: #152544;
+  --color-fg: #eaf2ff;
+  --color-heading: #f4f8ff;
+  --color-muted: #93a6c4;
+  --color-border: rgba(130, 200, 255, 0.16);
+  --color-border-strong: rgba(130, 200, 255, 0.32);
+  --color-accent: #34d5f0;
+  --color-accent-2: #a06bff;
+  --color-ok: #3ecf8e;
+  --color-danger: #e85d5d;
+  --color-warn: #e3b341;
+  --color-on-accent: #060912;
+  --color-composer: #0a1424;
+  --color-glow: rgba(52, 213, 240, 0.35);
+
+  --radius: 8px;
+  --sidebar-w: 260px;
+  --thread-w: 360px;
+  --tap: 44px;
+  --font-stack: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #eaf1fb;
+  --color-bg-2: #dce7f6;
+  --color-bg-3: #cddcf1;
+  --color-sidebar: #dce7f6;
+  --color-surface: #f4f8ff;
+  --color-surface-hover: #d4e3f6;
+  --color-fg: #0c1626;
+  --color-heading: #0c1626;
+  --color-muted: #47597a;
+  --color-border: rgba(12, 60, 110, 0.16);
+  --color-border-strong: rgba(12, 60, 110, 0.32);
+  --color-accent: #0a97c4;
+  --color-accent-2: #7b3ff2;
+  --color-ok: #1a8f5c;
+  --color-danger: #c0392b;
+  --color-warn: #b8860b;
+  --color-on-accent: #f4f8ff;
+  --color-composer: #f4f8ff;
+  --color-glow: rgba(10, 151, 196, 0.28);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #060912;
+  --color-bg-2: #0a1424;
+  --color-bg-3: #0e1c33;
+  --color-sidebar: #070b14;
+  --color-surface: #0e1c33;
+  --color-surface-hover: #152544;
+  --color-fg: #eaf2ff;
+  --color-heading: #f4f8ff;
+  --color-muted: #93a6c4;
+  --color-border: rgba(130, 200, 255, 0.16);
+  --color-border-strong: rgba(130, 200, 255, 0.32);
+  --color-accent: #34d5f0;
+  --color-accent-2: #a06bff;
+  --color-ok: #3ecf8e;
+  --color-danger: #e85d5d;
+  --color-warn: #e3b341;
+  --color-on-accent: #060912;
+  --color-composer: #0a1424;
+  --color-glow: rgba(52, 213, 240, 0.35);
+}

@@ -1,6 +1,6 @@
 <template>
   <ClientOnly>
-    <div class="spool-shell">
+    <div class="spool-shell" style="max-width:100%;min-width:0">
       <ChannelSidebar />
       <main class="spool-main">
         <slot />

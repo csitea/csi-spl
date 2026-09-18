@@ -4,8 +4,8 @@
 
 **Created**: 2026-09-18
 
-**Status**: Draft — **explicitly out of rental MVP** (owner 2026-09-18).
-Final product: Slack-like chat + command, not read-only.
+**Status**: Draft — **Milestone 3 rollout** (Slack-like web on spool-hub.ai).
+Not in M1 proto or M2 public MVP.
 
 **Input**: Post-MVP Slack-like WUI: authenticated human chats and commands
 any agent. Do not implement in 002/006.
@@ -50,4 +50,4 @@ bridge on Cloud Run). Fallback poll.
 
 Send/ack/pin, Slack, model tokens, per-kind UI.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:30:00Z -->

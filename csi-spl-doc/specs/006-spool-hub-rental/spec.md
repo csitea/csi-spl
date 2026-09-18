@@ -10,8 +10,8 @@
 per box** (SSH-like); send/recv on WebSocket; files/pins REST; local unsigned.
 
 **Narrative**: `csi-spl-doc/doc/md/SPEC-spool-hub-rental.md`  
-**Milestones**: `csi-spl-doc/doc/md/SPEC-spool-milestones.md` — M1 mesh (not public);
-**M2 is the public MVP** (pay, copy csi-rel); WUI is M3.
+**Milestones**: `SPEC-spool-milestones.md` — **M1 technical proto**, **M2 public MVP**
+(buy on the site, copy csi-rel), **M3 rollout** (Slack web UI).
 
 **Depends on**: 002 (local `v:1` + keys), 003 HTTP shapes (this feature
 **replaces** “GCP IAM as the renter door” with tenant URL + Ed25519).
@@ -147,4 +147,4 @@ data expiry.
 NATS, Kafka, git-rel, ysg-box, customer GCP accounts, card storage, custom
 domains, token SSE.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:15:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:30:00Z -->

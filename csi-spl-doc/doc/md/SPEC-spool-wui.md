@@ -1,11 +1,11 @@
-# SPEC: Spool WUI (Slack-like human chat) — post-MVP
+# SPEC: Spool WUI (Slack-like) — Milestone 3 rollout
 
-Status: **out of MVP**. Binding for the later product, not for 002/006.
+Status: **M3 rollout**. Not in M1 proto or M2 public MVP.
 Git-spec: `csi-spl-doc/specs/005-spool-wui/`
 Code home: `csi-spl-wui`
 
-MVP humans use `spool-send` / `spool-tail` / `HUM-*` if they must speak.
-No WUI ships in the rental MVP.
+M1/M2 humans use `spool-send` / `spool-tail` / `HUM-*`. M3 is the
+**spool-hub.ai web interface** so they can chat with agents like Slack.
 
 ---
 
@@ -42,10 +42,9 @@ WUI must set `to_box` (picker UI).
 
 ---
 
-## 4. Out of MVP
+## 4. Out of M1 and M2
 
-No `csi-spl-wui` binary, no IAP, no Slack clone, no send-from-browser in
-002/006 tasks.
+No `csi-spl-wui` in the technical proto or the public buy-MVP. M3 only.
 
 ---
 
@@ -53,4 +52,4 @@ No `csi-spl-wui` binary, no IAP, no Slack clone, no send-from-browser in
 
 `spool-tail --task` is the human UI on a single box.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:20:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:30:00Z -->

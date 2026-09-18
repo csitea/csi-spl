@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
@@ -252,5 +253,92 @@ func TestUS3_TailOrdered(t *testing.T) {
 	}
 	if msgs[0].TS > msgs[1].TS {
 		t.Fatalf("tail not oldest-first")
+	}
+}
+
+func TestLegacyMDBridge(t *testing.T) {
+	cfg := newCfg(t)
+	st := New(cfg)
+	if err := st.ensureAgent("CLE-07"); err != nil {
+		t.Fatal(err)
+	}
+	inbox := st.dir("CLE-07", "inbox")
+
+	// Drop a legacy .md file with frontmatter and filename
+	legacyContent := `---
+from: CLE-387
+to: CLE-07
+sent: 20260903T084612Z
+subject: done
+task_id: 11111111-2222-3333-4444-555555555555
+---
+
+# Done report
+Verification completed cleanly.
+`
+	legacyPath := filepath.Join(inbox, "20260903T084612Z--CLE-387--done.md")
+	if err := os.WriteFile(legacyPath, []byte(legacyContent), 0o664); err != nil {
+		t.Fatal(err)
+	}
+
+	// Recv without ack
+	res, err := st.Recv("CLE-07", false)
+	if err != nil {
+		t.Fatalf("recv: %v", err)
+	}
+	if len(res.Messages) != 1 || res.Failed != 0 {
+		t.Fatalf("want 1 msg 0 failed, got %d/%d", len(res.Messages), res.Failed)
+	}
+	m := res.Messages[0]
+	if m.From != "CLE-387" {
+		t.Errorf("want from=CLE-387, got %s", m.From)
+	}
+	if m.To != "CLE-07" {
+		t.Errorf("want to=CLE-07, got %s", m.To)
+	}
+	if m.Kind != "note" {
+		t.Errorf("want kind=note, got %s", m.Kind)
+	}
+	if m.Sig != "legacy-unsigned" {
+		t.Errorf("want sig=legacy-unsigned, got %s", m.Sig)
+	}
+	if m.TaskID != "11111111-2222-3333-4444-555555555555" {
+		t.Errorf("want task_id from frontmatter, got %s", m.TaskID)
+	}
+	if !strings.Contains(m.Body, "Verification completed cleanly.") {
+		t.Errorf("expected body to contain report text, got %q", m.Body)
+	}
+
+	// Recv with ack moves to archive
+	resAck, err := st.Recv("CLE-07", true)
+	if err != nil {
+		t.Fatalf("recv ack: %v", err)
+	}
+	if len(resAck.Messages) != 1 {
+		t.Fatalf("expected 1 msg on ack, got %d", len(resAck.Messages))
+	}
+
+	// Subsequent recv is empty
+	resEmpty, err := st.Recv("CLE-07", false)
+	if err != nil {
+		t.Fatalf("recv empty: %v", err)
+	}
+	if len(resEmpty.Messages) != 0 {
+		t.Fatalf("expected 0 msgs after ack, got %d", len(resEmpty.Messages))
+	}
+
+	// File is in archive
+	archived := filepath.Join(st.dir("CLE-07", "archive"), "20260903T084612Z--CLE-387--done.md")
+	if _, err := os.Stat(archived); err != nil {
+		t.Fatalf("expected file in archive, got: %v", err)
+	}
+
+	// Tail finds it
+	tailMsgs, err := st.Tail("11111111-2222-3333-4444-555555555555")
+	if err != nil {
+		t.Fatalf("tail: %v", err)
+	}
+	if len(tailMsgs) != 1 {
+		t.Fatalf("expected 1 msg in tail, got %d", len(tailMsgs))
 	}
 }

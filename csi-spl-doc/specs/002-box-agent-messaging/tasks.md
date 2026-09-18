@@ -14,40 +14,49 @@ of the `003` architecture build order; nothing here is throwaway.
 - **[P]** = parallelisable (different files, no dep). Paths are proposals from
   plan.md; T001 confirms the module home.
 
+## Progress (2026-09-18)
+
+**Phases 1–5 implemented and green** (US1 MVP + US2 files/dirs + US3 tail) in
+`csi-spl-api/src/go/spool-hub-api/`. `bash csi-spl-api/src/bash/tests/run-all-tests.sh`
+= gofmt + vet + `go test ./...` + hygiene gate + a 10-check end-to-end smoke, all
+passing. **Remaining**: Phase 6 (MCP wrapper, US4) and Phase 7 (quickstart, full
+distribution sweep, box-image install, `/speckit-analyze`).
+
 ## Phase 1: Setup
 
-- [ ] T001 Create the Go module home (`csi-spl-api/src/go/spool-hub-api/`)
-      and `go.mod` (Go 1.22+); wire a `do_build_spool` run-bsh action
-- [ ] T002 [P] Add `go test`/`go vet`/`gofmt` to
-      `csi-spl-iac/src/bash/tests/run-all-tests.sh` (or the owning sub-project)
-- [ ] T003 [P] Add a reference-hygiene test: grep the shipped source for any
-      ysg-box path and fail if found (enforces Constitution "read-only reference")
+- [x] T001 Go module home `csi-spl-api/src/go/spool-hub-api/` + `go.mod` (Go
+      1.22, offline via module cache). Build via `csi-spl-api/src/bash/build.sh`
+      (a `do_build_spool` run-bsh action in `-iac` remains a follow-up)
+- [x] T002 [P] `csi-spl-api/src/bash/tests/run-all-tests.sh` runs gofmt / go vet
+      / go test / hygiene gate / smoke
+- [x] T003 [P] `csi-spl-api/src/bash/tests/no-ysg-box-ref.tst.sh` fails on any
+      `/ysg-box`, `ysg-box/`, or `MSGS_ROOT` in the Go source
 
 ## Phase 2: Foundational (blocking — shared by every story)
 
-- [ ] T004a [P] `internal/config`: fail-fast configuration loader for `$SPOOL_ROOT` (default `/var/tmp/claude/msgs`), key paths, log level (`pas-psf` pattern)
-- [ ] T004b [P] `internal/logging`: `zerolog` structured logger with console formatting for CLI / JSON for production, service tag, RFC3339 timestamps (`pas-psf` pattern)
-- [ ] T004c [P] `internal/testkit`: test harness foundation (temp spool root fixtures, test assertions modeled on `/opt/pas/pas-psf/pas-psf-api/src/internal/testkit/`)
-- [ ] T004 [P] `internal/spool`: resolve `$SPOOL_ROOT`, create `<id>/{inbox,outbox,archive}` + `files/`, mode 0664; atomic-rename helper
-- [ ] T005 [P] `internal/msg`: `v:1` struct, strict JSON (reject unknown keys), canonicaliser byte-identical to `jq -cS 'del(.sig)'`, filename builder `<ts>--<from>--<slug>.json` with same-second tie-break
-- [ ] T006 [P] `internal/sign`: ed25519 keygen (priv `chmod 600` under `$HOME`), sign, verify; pin store (id→pubkey) with `--force` guard on re-pin
-- [ ] T007 `cmd/spool/main.go`: subcommand dispatch + exit-code convention (`0`/`78`/`1`) shared by all verbs
+- [x] T004a [P] `internal/config`: fail-fast loader (`caarlos0/env`) for `$SPOOL_ROOT`, `$SPOOL_KEYS_DIR`, `$SPOOL_PINS_DIR`, log level (`pas-psf` pattern)
+- [x] T004b [P] `internal/logging`: `zerolog` structured logger, console/JSON, service tag, RFC3339 (`pas-psf` pattern)
+- [x] T004c [P] `internal/testkit`: temp spool root fixtures + keygen/pin helper (no import cycle)
+- [x] T004 [P] `internal/spool`: `$SPOOL_ROOT` layout `<id>/{inbox,outbox,archive}` + shared `files/`/`pins/`, mode 0664; atomic-rename helper
+- [x] T005 [P] `internal/msg`: `v:1` struct, strict JSON, canonicaliser == `jq -cS 'del(.sig)'`, filename builder with same-second tie-break, schema limits
+- [x] T006 [P] `internal/sign`: ed25519 keygen (priv `chmod 600` under `$HOME`), sign, verify; shared pin store (`--force` guard)
+- [x] T007 `cmd/spool/main.go`: subcommand dispatch + exit-code convention (`0`/`78`/`1`)
 
 ## Phase 3: User Story 1 — signed message round trip (P1) 🎯 MVP
 
 **Goal**: keygen → pin → send → recv → ack works on one box, no hub.
 **Independent Test**: SC-001, SC-002 in a temp `$SPOOL_ROOT`.
 
-- [ ] T008 [US1] `spool-keygen --as <id>` (contracts/cli.md)
-- [ ] T009 [US1] `spool-pin --id --pubkey [--force]`
-- [ ] T010 [US1] `spool-send --from --to --task --kind --body`: build+sign+write
+- [x] T008 [US1] `spool keygen --as <id> [--force]`
+- [x] T009 [US1] `spool pin --id --pubkey [--force]`
+- [x] T010 [US1] `spool send --from --to [--task] --kind --body`: build+sign+write
       inbox+outbox; refuse (78) unpinned/missing key
-- [ ] T011 [US1] `spool-recv --as [--ack]`: verify vs pin, return valid array,
+- [x] T011 [US1] `spool recv --as [--ack]`: verify vs pin, return valid array,
       atomic ack move; report+`78` on bad sig
-- [ ] T012 [P] [US1] `go test` round trip using `internal/testkit`: keygen→pin→send→recv→ack; tampered
-      body → 78; unpinned from → 78; double-ack returns once
-- [ ] T013 [P] [US1] `spool-smoke.tst.sh` bash end-to-end (mirroring agent-msg
-      flow, using shell function utils from `/opt/pas/pas-psf/pas-psf-api/src/bash/`)
+- [x] T012 [P] [US1] `go test` round trip via `internal/testkit`: keygen→pin→send→recv→ack;
+      tampered body → 78; unpinned from → 78; double-ack returns once
+- [x] T013 [P] [US1] `spool-smoke.tst.sh` bash end-to-end (10 checks) mirroring agent-msg
+- [x] T013a [US1] Legacy `.md` bridge (Option B): `spool recv` transparently ingests legacy markdown messages from `$SPOOL_ROOT/<id>/inbox/`, wrapping into synthetic `kind="note"` `v:1` envelopes and archiving on `--ack`
 
 **Checkpoint**: US1 shippable — the MVP spool.
 
@@ -55,20 +64,21 @@ of the `003` architecture build order; nothing here is throwaway.
 
 **Goal**: attach and fetch files by sha256. **Independent Test**: SC-003.
 
-- [ ] T014 [P] [US2] `internal/files`: put (sha256 → `files/<id>`, idempotent),
-      get (re-hash, no partial write, fail on absent)
-- [ ] T015 [US2] `spool-put-file <path>` → `{file_id, sha256, bytes, name}`
-- [ ] T016 [US2] `spool-get-file <file_id> <dest>` with hash verify
-- [ ] T017 [US2] `spool-send --file-id ...` embeds file refs into the `v:1` object
-- [ ] T018 [P] [US2] `go test`: put→send→get round trip verifies sha256; identical
-      bytes dedupe to one object; absent id fails cleanly
+- [x] T014 [P] [US2] `internal/files`: blob put/get (sha256, dedupe, no partial
+      write) **plus dir blobs** (deterministic tar) and **path-mode refs** (file & dir)
+- [x] T015 [US2] `spool put-file` / `spool put-dir` → `{file_id, sha256, bytes, name, kind}`
+- [x] T016 [US2] `spool get-file` / `spool get-dir <file_id> <dest>` with hash verify
+- [x] T017 [US2] `spool send` attachments: `--file-id`, `--put-file`, `--file-ref`,
+      `--dir-blob`, `--dir-ref` (blob & path modes × file & dir)
+- [x] T018 [P] [US2] `go test`: blob file/dir round trips + dedupe + determinism;
+      path-ref resolves & signed message still verifies; absent id fails
 
 ## Phase 5: User Story 3 — tail a thread (P3)
 
 **Goal**: observe a task thread. **Independent Test**: two msgs one `task_id`.
 
-- [ ] T019 [US3] `spool-tail --task <uuid>` oldest-first; `--json` raw `v:1` NDJSON
-- [ ] T020 [P] [US3] `go test`: ordering + `--json` round-trips through `jq`
+- [x] T019 [US3] `spool tail --task <uuid>` oldest-first; `--json` raw `v:1` NDJSON
+- [x] T020 [P] [US3] `go test`: thread ordering (oldest-first, dedupe across boxes)
 
 ## Phase 6: User Story 4 — MCP wrapper (P3)
 

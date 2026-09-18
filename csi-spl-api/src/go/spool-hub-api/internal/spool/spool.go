@@ -6,12 +6,14 @@ package spool
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
@@ -118,7 +120,11 @@ func (s *Store) Recv(as string, ack bool) (*RecvResult, error) {
 	}
 	names := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+		if e.IsDir() {
+			continue
+		}
+		ext := filepath.Ext(e.Name())
+		if ext != ".json" && ext != ".md" {
 			continue
 		}
 		names = append(names, e.Name())
@@ -128,7 +134,13 @@ func (s *Store) Recv(as string, ack bool) (*RecvResult, error) {
 	res := &RecvResult{}
 	for _, name := range names {
 		p := filepath.Join(inbox, name)
-		m, verr := s.readVerify(p)
+		var m *msg.Message
+		var verr error
+		if filepath.Ext(name) == ".md" {
+			m, verr = s.readLegacyMD(p, as)
+		} else {
+			m, verr = s.readVerify(p)
+		}
 		if verr != nil {
 			res.Failed++
 			continue
@@ -191,14 +203,24 @@ func (s *Store) Tail(taskID string) ([]*msg.Message, error) {
 				continue
 			}
 			for _, e := range entries {
-				if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+				if e.IsDir() {
 					continue
 				}
-				raw, err := os.ReadFile(filepath.Join(d, e.Name()))
-				if err != nil {
+				ext := filepath.Ext(e.Name())
+				if ext != ".json" && ext != ".md" {
 					continue
 				}
-				m, err := msg.Parse(raw)
+				var m *msg.Message
+				var err error
+				if ext == ".md" {
+					m, err = s.readLegacyMD(filepath.Join(d, e.Name()), a.Name())
+				} else {
+					var raw []byte
+					raw, err = os.ReadFile(filepath.Join(d, e.Name()))
+					if err == nil {
+						m, err = msg.Parse(raw)
+					}
+				}
 				if err != nil || m.TaskID != taskID {
 					continue
 				}
@@ -284,4 +306,126 @@ func ExitCode(err error) int {
 	default:
 		return 1
 	}
+}
+
+// readLegacyMD ingests a legacy .md message file (e.g. from ysg-box inbox-send.sh)
+// wrapping it into a synthetic v:1 message with kind="note" and sig="legacy-unsigned".
+func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	base := filepath.Base(path)
+	from := ""
+	to := as
+	ts := ""
+	taskID := ""
+	subject := ""
+	body := string(raw)
+
+	// Filename parse: <timestamp>--<from>--<subject>.md
+	parts := strings.Split(strings.TrimSuffix(base, ".md"), "--")
+	if len(parts) >= 2 {
+		if t, err := time.Parse("20060102T150405Z", parts[0]); err == nil {
+			ts = t.UTC().Format(time.RFC3339)
+		} else if t, err := time.Parse("20060102-150405", parts[0]); err == nil {
+			ts = t.UTC().Format(time.RFC3339)
+		}
+		if msg.ValidID(parts[1]) {
+			from = parts[1]
+		}
+		if len(parts) >= 3 {
+			subject = parts[2]
+		}
+	}
+
+	// Frontmatter parse:
+	content := string(raw)
+	if strings.HasPrefix(content, "---\n") || strings.HasPrefix(content, "---\r\n") {
+		delim := "\n---\n"
+		idx := strings.Index(content[4:], delim)
+		if idx == -1 {
+			delim = "\r\n---\r\n"
+			idx = strings.Index(content[4:], delim)
+		}
+		if idx != -1 {
+			fm := content[4 : 4+idx]
+			body = strings.TrimPrefix(content[4+idx+len(delim):], "\n")
+			body = strings.TrimPrefix(body, "\r\n")
+			for _, line := range strings.Split(fm, "\n") {
+				line = strings.TrimSpace(line)
+				colon := strings.Index(line, ":")
+				if colon == -1 {
+					continue
+				}
+				key := strings.ToLower(strings.TrimSpace(line[:colon]))
+				val := strings.TrimSpace(line[colon+1:])
+				val = strings.Trim(val, "\"'")
+				switch key {
+				case "from":
+					if msg.ValidID(val) {
+						from = val
+					}
+				case "to":
+					if val != "" {
+						to = val
+					}
+				case "sent":
+					if t, err := time.Parse("20060102T150405Z", val); err == nil {
+						ts = t.UTC().Format(time.RFC3339)
+					} else if t, err := time.Parse(time.RFC3339, val); err == nil {
+						ts = t.UTC().Format(time.RFC3339)
+					}
+				case "task_id", "task":
+					if val != "" {
+						taskID = val
+					}
+				case "subject":
+					if val != "" {
+						subject = val
+					}
+				}
+			}
+		}
+	}
+
+	if from == "" {
+		from = "LEGACY"
+	}
+	if ts == "" {
+		if fi, err := os.Stat(path); err == nil {
+			ts = fi.ModTime().UTC().Format(time.RFC3339)
+		} else {
+			ts = time.Now().UTC().Format(time.RFC3339)
+		}
+	}
+	msgID := deterministicUUID("msg:" + base + ":" + string(raw))
+	if taskID == "" {
+		if subject != "" {
+			taskID = deterministicUUID("task:" + subject)
+		} else {
+			taskID = deterministicUUID("task:" + base)
+		}
+	}
+
+	return &msg.Message{
+		V:      msg.Version,
+		MsgID:  msgID,
+		TaskID: taskID,
+		TS:     ts,
+		From:   from,
+		To:     to,
+		Kind:   "note",
+		Body:   body,
+		Files:  []msg.Attachment{},
+		Sig:    "legacy-unsigned",
+	}, nil
+}
+
+func deterministicUUID(data string) string {
+	sum := sha256.Sum256([]byte(data))
+	sum[6] = (sum[6] & 0x0f) | 0x40 // version 4
+	sum[8] = (sum[8] & 0x3f) | 0x80 // variant 10
+	h := hex.EncodeToString(sum[:16])
+	return fmt.Sprintf("%s-%s-%s-%s-%s", h[0:8], h[8:12], h[12:16], h[16:20], h[20:32])
 }

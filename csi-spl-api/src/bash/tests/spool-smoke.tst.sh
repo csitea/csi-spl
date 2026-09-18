@@ -73,5 +73,21 @@ set +e
 rc=$?
 set -e
 [ "$rc" = "78" ] && pass "tampered message refused (exit 78)" || fail "tamper exit was $rc"
+rm -f "$F"
+
+# 7. legacy .md message bridge: drop a legacy .md file, recv absorbs and archives it
+mkdir -p "$SPOOL_ROOT/CLE-07/inbox"
+cat > "$SPOOL_ROOT/CLE-07/inbox/20260903T084612Z--CLE-387--done.md" <<'MD'
+---
+from: CLE-387
+to: CLE-07
+sent: 20260903T084612Z
+subject: done
+---
+legacy-markdown-body
+MD
+LEG_FROM="$("$B" recv --as CLE-07 --ack | python3 -c 'import json,sys;msgs=json.load(sys.stdin);print(msgs[0]["from"] if msgs else "")')"
+[ "$LEG_FROM" = "CLE-387" ] && pass "legacy .md transparently bridged and archived" || fail "legacy bridge failed"
+[ -f "$SPOOL_ROOT/CLE-07/archive/20260903T084612Z--CLE-387--done.md" ] && pass "legacy .md moved to archive on ack" || fail "legacy .md not in archive"
 
 echo "ALL SMOKE CHECKS PASSED"

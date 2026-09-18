@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Aggregate test runner for csi-spl-api (specs 002 + 003): gofmt, go vet, go test,
-# the reference-hygiene gate, the end-to-end smoke, the hub Postgres gate,
-# and the hub GCS/fake-gcs blob gate.
+# the reference-hygiene gate, the no-baked-hostname gate, the end-to-end smoke,
+# the hub Postgres gate, and the hub GCS/fake-gcs blob gate.
 # Usage: bash csi-spl-api/src/bash/tests/run-all-tests.sh
 set -euo pipefail
 
@@ -29,6 +29,9 @@ bash "$HERE/no-baked-host.tst.sh"
 
 echo "== payment-vendor WUI gate =="
 bash "$HERE/no-payment-vendor-wui.tst.sh"
+
+echo "== no-baked-hostname gate (spec 007 T017) =="
+bash "$HERE/no-baked-hostname.tst.sh"
 
 echo "== end-to-end smoke =="
 bash "$HERE/spool-smoke.tst.sh"

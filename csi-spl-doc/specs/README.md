@@ -98,6 +98,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `007-spool-hub-api-infra/` | the cloud estate in provisioning order (section 6), lde, orc, rdb pointer | M1 | area lane 007 |
 | `008-spool-cicd-logs/` | CI/CD: GitHub Actions build + deploy (dev, prd; WIF) + ci-quality gate (**M1**), and CI logs posted into chat (**later**) | M1 + later | area lane 008 |
 | `009-spool-m4/` | seats + buy-minute project id | M4 | integrator (seam fixes only) |
+| `010-spool-social-auth/` | social IdP login for humans (`../doc/md/SPEC-spool-social-auth.md`): hub `/auth/*`, signed session cookie (`internal/auth`); Google + Facebook first, Microsoft / LinkedIn / xAI on the same rails | M2 (register) / M3 (WUI login) | social-auth lane |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -240,4 +241,4 @@ steps are each a task.
 | view-v1 not built; WUI client calls dropped routes | 003 US7 → 005 G5 |
 | Several lanes stamped `last-edit` in local time with a `Z` suffix | cosmetic; fix on next edit |
 
-<!-- version: 1.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:19:16Z -->
+<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:21:11Z -->

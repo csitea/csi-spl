@@ -20,6 +20,13 @@ grep -q 'pnpm generate' "$PROJ_ROOT/src/bash/run/wui-build.func.sh" && pass "wui
 grep -q 'pnpm test:unit' "$PROJ_ROOT/src/bash/run/wui-test.func.sh" && pass "wui-test runs unit tests" || fail "wui-test unit"
 [[ -x "$PROJ_ROOT/src/bash/scripts/render-wui-firebase-json.sh" || -f "$PROJ_ROOT/src/bash/scripts/render-wui-firebase-json.sh" ]] \
   && pass "render-wui-firebase-json.sh exists" || fail "missing render script"
+# spec 010 T016: the deployed Hosting config sends /api/v1/auth/** to the hub
+# before the SPA fallback, which stays last
+R="$PROJ_ROOT/src/bash/scripts/render-wui-firebase-json.sh"
+auth_ln=$(grep -n '"/api/v1/auth/\*\*"' "$R" | head -1 | cut -d: -f1)
+spa_ln=$(grep -n '"source": "\*\*", "destination"' "$R" | head -1 | cut -d: -f1)
+[[ -n "$auth_ln" && -n "$spa_ln" && "$auth_ln" -lt "$spa_ln" ]] \
+  && pass "render: /api/v1/auth/** rewrite precedes the SPA fallback" || fail "render: auth rewrite missing or after '**'"
 [[ -f "$APP_ROOT/csi-spl-wui/package.json" ]] && pass "csi-spl-wui/package.json exists" || fail "missing WUI package.json"
 grep -q '"@pinia/nuxt"' "$APP_ROOT/csi-spl-wui/package.json" && pass "WUI depends on Pinia" || fail "Pinia missing"
 grep -q 'nuxt generate' "$APP_ROOT/csi-spl-wui/package.json" && pass "WUI has generate script" || fail "generate script"

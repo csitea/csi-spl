@@ -57,6 +57,8 @@ doc = {
       {"source": "/healthz", "run": {"serviceId": service, "region": region}},
       {"source": "/version", "run": {"serviceId": service, "region": region}},
       {"source": "/v1/**", "run": {"serviceId": service, "region": region}},
+      # spec 010 auth-v1 §1: social sign-in is same-origin under /api/v1/auth/
+      {"source": "/api/v1/auth/**", "run": {"serviceId": service, "region": region}},
       {"source": "**", "destination": "/200.html"},
     ],
   }

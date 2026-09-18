@@ -1,102 +1,226 @@
 # Feature Specification: Identity, pins, and routing
 
-**Feature ID**: `004-spool-identity-routing`
+**Feature ID**: `004-spool-identity-routing` · **Milestone**: M1
 
-**Created**: 2026-09-18
+**Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo; verified on trunk `bbc41e7`, code unchanged since `9f8f492`)
 
-**Status**: Draft
+**Status**: **Partial** — implemented in code and tests against the in-memory
+testhub; not yet exercised against a live hub (dev hub has no ingress; prd has
+no Cloud Run). See "Verified status".
 
-**Input**: The bus vision uses `CLE-07` as if it were unique and trusted
-everywhere. Specify **per-tenant** id uniqueness, tenant-root pin publish/sync/revoke,
-unicast routing, and dual-write/flush so a rented hub can route without TOFU
-or per-agent cloud keys (see 006).
+**Input**: The bus uses `CLE-07` as if it were unique and trusted everywhere. It
+is not. Specify the identifiers (tenant, tenant root, box, box key, agent),
+their format and scope, the pin lifecycle (pin / force / revoke / sync), and how
+a message is routed to `(to_box, to)` — reconciled with the binding trust model.
 
-**Narrative**: `csi-spl-doc/doc/md/SPEC-spool-identity-routing.md`
+**Authorities**: redo rules and seams `../README.md` (§2, §5);
+trust model `../002-box-agent-messaging/contracts/trust-modes.md` (wins on any
+difference); narrative `../../doc/md/SPEC-spool-identity-routing.md`.
 
-**Depends on**: 002 (local pin files + signed `v:1`), 003 HTTP `/v1/messages`
-and `/v1/files` (004 adds `/v1/pins` and box mapping).
+**Contracts (this dir)**: `contracts/identifiers.md` (every id, format, scope,
+key) and `contracts/pin-semantics.md` (409, force, history, revoke, sync).
+The REST **shape** of `/v1/pins` and the WS hello / roster / envelope frames are
+003's: `../003-spool-message-bus/contracts/http-v1.md` §2, §4 — cited, not restated.
+
+**Seams** (`../README.md` §5): 004 owns pin semantics and identifiers. 003 owns
+the wire. 006 owns tenant host resolution, tenant root key issuance, quota
+(429) and unpaid (402). 007 owns the estate that makes a hub reachable.
+
+**Depends on**: 002 (local folders, unsigned local mode, `spool keygen`, pin
+files). **Used by**: 003 (hello / envelope verify), 005 (shows `from@from_box`),
+006 (tenant root).
+
+## Canon (restated from trust-modes, not redefined)
+
+- **Local mode** (`$SPOOL_HUB_URL` unset): unsigned, no keys, no box id, no
+  pins read. Identity = the agent directory under `$SPOOL_ROOT` (trust-modes §2).
+- **Hub mode**: one Ed25519 keypair **per box**, shared by its agents; no agent
+  keypairs; `from_box` / `to_box` only in the hub envelope (trust-modes §3, §5).
+- **Tenant root key** is the only key that may pin or revoke a box pubkey.
+- **No TOFU**: a first message never installs a pin (trust-modes §7).
+- `delivery = local | sent | queued | pending`.
+- **`BOX-` is forbidden as an agent-id prefix.**
 
 ## User Scenarios & Testing
 
-### User Story 1 - A box pins its public key with the tenant root (Priority: P1) 🎯 MVP
+### User Story 1 - Tenant root pins a box pubkey (Priority: P1) 🎯 MVP
 
-Renter uses the tenant root key to pin a box pubkey (`box_id`, `pubkey`) via `POST /v1/pins`. Second pin of the same `box_id` with a different key is refused (409). Same key is idempotent (200).
+The renter signs a pin for `(box_id, pubkey)` with the tenant root key. First
+pin → 200. Same key again → 200. A different key without `force` → 409
+`pin_conflict`, stored pin unchanged. A box key cannot pin itself.
 
-**Why this priority**: Without box pins, the hub cannot verify WS hello connections or incoming message envelopes.
+**Why**: without a pin the hub refuses the box's hello and no receiver can
+verify its envelopes.
 
-**Independent Test**: Two boxes; pin box A; second pin with different key returns 409; same key returns 200.
+**Independent test**: `TestPinRESTRootSigned`, `TestTenantsAndPins`.
 
-**Acceptance Scenarios**:
+1. **Given** box A unpinned, **When** a root-signed pin for P arrives, **Then**
+   200 and the pin list carries `{box_id: A, pubkey: P}`.
+2. **Given** A pinned to P, **When** Q≠P is pinned without `force`, **Then** 409
+   `pin_conflict`, pin stays P.
+3. **Given** A pinned to P, **When** P is pinned again, **Then** 200, no change (store today appends a history row → T022).
+4. **Given** a sig by any key other than the tenant root, **Then** 400 `bad_sig`.
 
-1. **Given** box A unpinned on the hub, **When** renter pins pubkey P signed by tenant root, **Then** `GET /v1/pins` lists box A with P.
-2. **Given** box A pinned to P, **When** someone attempts to pin Q ≠ P for box A without `--force`, **Then** 409 and stored pin remains P.
-3. **Given** box A pinned to P, **When** renter re-pins P, **Then** 200 idempotent.
+### User Story 2 - Receiving box syncs pins and verifies locally (Priority: P1)
 
-### User Story 2 - Box sidecar syncs pins to verify peer commanders (Priority: P1)
+After hello the box pulls the tenant's pins and installs
+`$SPOOL_ROOT/pins/box-<box_id>.pub`. Received envelopes verify against the
+**local** copy; no per-message hub call (SSH `authorized_keys` model).
 
-Box B’s sidecar pulls tenant pins via `GET /v1/pins` and stores them in `$SPOOL_ROOT/pins/box-<id>.pub` (SSH `authorized_keys` model). When box B receives a message from box A, it verifies the envelope signature against the local pin copy. No pin → 78, no TOFU.
+**Independent test**: `TestPinSyncWritesAndConflictNoClobber`, `TestRecvVerifiesAfterPinSync`.
 
-**Acceptance Scenarios**:
+1. **Given** A's pin synced to B, **When** B receives A's envelope, **Then** it verifies.
+2. **Given** no local pin for A, **When** B receives A's envelope, **Then** refuse, exit 78.
+3. **Given** local pin ≠ hub pin, **When** sync runs, **Then** the local file is
+   untouched, `pin_conflict`, exit 78; the operator resolves with `spool pin --force`.
 
-1. **Given** box A pin synced to box B, **When** box B receives box A’s envelope, **Then** signature verifies locally.
-2. **Given** box A pin not synced, **When** verification runs, **Then** exit 78, envelope refused.
-3. **Given** local pin ≠ hub pin, **When** sync runs, **Then** neither is silently overwritten; 78 / pin_conflict.
+### User Story 3 - Unicast routing to `(to_box, to)` (Priority: P1)
 
-### User Story 3 - Dual-write: same-box works when hub is down (Priority: P1)
+Agent ids are unique per box, so two boxes may both announce `CLE-07`. The box
+daemon announces its roster (`$SPOOL_ROOT/*/` names matching the agent-id
+regex) on `role=box` hello and on change. The **sender** resolves `to_box` from
+its local roster copy and signs it into the envelope; the hub never mutates
+signed bytes (003 OQ-03).
 
-GRK-03 and CLE-07 on box A. Hub down. Send still lands in CLE-07 local inbox directly under `$SPOOL_ROOT`. When hub returns, flush POSTs the same `msg_id` without re-signing.
+**Independent test**: `TestCrossBoxSendRecvAndResult`, `TestTamperedAndAmbiguousAndMissingPin`,
+`TestRosterIsPerBox`, `TestLastHelloWinsOnlyForBoxRole`.
 
-**Acceptance Scenarios**:
+1. **Given** `CLE-07` on box A and box B, **When** a send leaves `to_box`
+   unresolved, **Then** 409 `ambiguous_to_box`.
+2. **Given** a roster listing an id twice, or an invalid id (incl. `BOX-1`),
+   **Then** 409 `roster_duplicate`.
+3. **Given** `CLE-07` on two boxes, **Then** the hub does NOT 409 — they are
+   `CLE-07@box-a` and `CLE-07@box-b`.
 
-1. **Given** hub down, **When** same-box send, **Then** recv works directly from `$SPOOL_ROOT`.
-2. **Given** pending-flush, **When** hub returns, **Then** one hub row, no duplicate `msg_id`.
-3. **Given** hub 400 bad sig, **When** flush retries, **Then** it stops, 78.
+### User Story 4 - Dual-write keeps same-box mail off the hub (Priority: P1)
 
-### User Story 4 - Box Revoke (Priority: P2)
+Same-box sends land in the local inbox first; the hub is skipped unless
+`$SPOOL_MIRROR_LOCAL=1` (trust-modes §6). A required hub send that fails is
+`pending` and flushed later with the same `msg_id` and signature — flush is
+box-side (`internal/hubclient`, OQ-15); its contract is
+`../003-spool-message-bus/contracts/flush.md`. 004 owns only the identity rule
+that the flushed envelope is not re-signed.
 
-Tenant root revokes box A via `DELETE /v1/pins/{box_id}`. Further messages from box A fail verify. History keeps the old pubkey in `pins_history`.
+**Independent test**: `TestHubDownSameBoxRecvAndFlushIdempotent`, `TestFlushHTTP400StopsRetryWith78`.
 
-**Acceptance Scenarios**:
+1. **Given** hub down, **When** same-box send, **Then** recv works from `$SPOOL_ROOT`.
+2. **Given** a pending flush, **When** the hub returns, **Then** one hub row per `msg_id`.
+3. **Given** the hub rejects the signature, **Then** flush stops, exit 78.
 
-1. **Given** box A revoked, **When** a new send from box A reaches the hub, **Then** 400 unpinned/revoked.
-2. **Given** revoke, **When** `--force` pins a new key, **Then** only the new key verifies.
+### User Story 5 - Revoke and force-replace (Priority: P2)
+
+A root-signed revoke marks the pin revoked, appends history, and closes the
+box's live session. `force` re-pins a new key; only the new key verifies.
+
+**Independent test**: `TestPinRevokeAndForce`, `TestPinCLIPublishesAndHygiene`.
+
+1. **Given** A revoked, **When** A sends, **Then** refused `unpinned_box`; hello closes.
+2. **Given** A revoked, **When** `force` pins Q, **Then** only Q verifies.
+3. **Given** no pin for A, **When** revoke, **Then** 404 `not_found`.
 
 ### Edge Cases
 
-- Box id missing in hub mode → fail-fast env, no send to hub.
-- `BOX-*` as `from`: forbidden; agent IDs must be assigned names (`CLE-07`, `GRK-03`).
-- Two inboxes for the same id on one box: forbidden (one directory per id).
-- Same agent ID across two different boxes: allowed (e.g. `CLE-07@box-a` vs `CLE-07@box-b`).
+- `$SPOOL_HUB_URL` set and `$SPOOL_BOX_ID` missing or invalid → fail fast at
+  config load; nothing sent.
+- A tenant root key (`--root-key` / `$SPOOL_TENANT_ROOT_KEY`) without
+  `$SPOOL_HUB_URL` → fail fast (a root key only publishes to a hub).
+- Sub-agents never inherit a parent id and never use dotted ids (`AGY-01.1`
+  fails the regex); each gets its own top-level id and directory.
+- Pin writes on an unpaid tenant (402) or over quota (429) → 006.
+- Tenant resolved from the request Host; unknown host → `unknown_tenant` (006).
 
 ## Requirements
 
-- **FR-001**: Box IDs uniquely pinned per tenant in `pins (tenant_id, box_id, pubkey)`; agent IDs are unique **per box**.
-- **FR-002**: `$SPOOL_BOX_ID` required when `$SPOOL_HUB_URL` is set.
-- **FR-003**: `POST/GET/DELETE /v1/pins` signed with tenant root key.
-- **FR-004**: Local authorized keys under `$SPOOL_ROOT/pins/box-<id>.pub`; box private key under `$HOME/.spool/keys/` (`0600`).
-- **FR-005**: No TOFU. Envelopes verify against local box pins only.
-- **FR-006**: Dual-write + flush per `003/contracts/flush.md`.
-- **FR-007**: Addressing: unicast `to` specifies `(box_id, agent_id)` when agent ID exists on multiple boxes.
-- **FR-008**: `--force` and revoke write `pins_history`.
-- **FR-009**: The box harness manages the box keypair and scans `$SPOOL_ROOT/*/` to announce local agent roster at WS hello.
-- **FR-010**: Subagents MUST NOT inherit parent IDs or use dotted sub-IDs; each subagent MUST be allocated an independent top-level ID (`^[A-Z]{2,4}-\d+$`) as a first-class peer.
+Status per `../README.md` §2.3. Code citations are at trunk `bbc41e7`.
+
+- **FR-001** — Identifiers, formats and scopes are exactly
+  `contracts/identifiers.md`: agent id `^[A-Z]{2,4}-[0-9]+$` minus `BOX-`,
+  unique per box; box id `^[a-z0-9][a-z0-9-]{0,31}$`, unique per tenant.
+  **Implemented** — `grep -n 'idRe\|boxRe =' internal/msg/msg.go` -> lines 32, 35.
+- **FR-002** — `$SPOOL_BOX_ID` required and validated when `$SPOOL_HUB_URL` is
+  set; local mode never reads it; no default. **Implemented** —
+  `internal/config/config.go:79`.
+- **FR-003** — Pin and revoke carry a **tenant-root** signature over the
+  canonical payloads in `contracts/pin-semantics.md` §1; the pin list is
+  box-authenticated (WS-issued token), not root-signed. **Implemented** —
+  `internal/hub/rest.go:99-205`; `TestPinRESTRootSigned` PASS.
+- **FR-004** — Box private key `$HOME/.spool/keys/box-<box_id>.key` `0600`;
+  local pins `$SPOOL_ROOT/pins/box-<box_id>.pub` `0644`; private keys never
+  leave the box. **Implemented** — `internal/sign/sign.go:26-27`;
+  `TestPinCLIPublishesAndHygiene` PASS.
+- **FR-005** — No TOFU: the hub verifies hello and envelopes against its pin
+  row; the receiver re-verifies against its local pin; missing → 78.
+  **Implemented** — `TestTamperedAndAmbiguousAndMissingPin`, `TestRecvVerifiesAfterPinSync` PASS.
+- **FR-006** — Pin sync installs missing pins, is a no-op on the same key, and
+  never clobbers a differing local pin (78). **Implemented** —
+  `internal/hubclient/hubclient.go:508-540`; `TestPinSyncWritesAndConflictNoClobber` PASS.
+- **FR-007** — Unicast; the sender signs `to_box`; unresolved and ambiguous →
+  409 `ambiguous_to_box`; the hub fills no signed field. **Implemented** —
+  `internal/hub/ws.go:332`.
+- **FR-008** — pin / force / revoke each append a `pins_history` row
+  (`reason ∈ {pin, force, revoke}`); only the current non-revoked key verifies.
+  A same-key re-pin writes nothing; re-activating a revoked box needs `force`.
+  **Partial** — history + verify-only-active implemented
+  (`internal/store/postgres.go:116,133`; `TestPinRevokeAndForce` PASS); but a
+  same-key re-pin appends history and a same-key pin un-revokes without `force`
+  (`contracts/pin-semantics.md` §2.1) → T022.
+- **FR-009** — The box daemon (`spool hub-run` / `hub-sync`) scans
+  `$SPOOL_ROOT/*/` and announces the roster on `role=box` hello and on change;
+  duplicate or invalid id → 409 `roster_duplicate`. **Implemented** —
+  `internal/hubclient/flush.go:228`, `internal/hub/ws.go:268,478`.
+- **FR-010** — Agent-id **allocation** is the harness's (the box harness's
+  `next-agent-id.sh` or the renter's own), not spool's; the harness prepares
+  the directories and ensures the box key exists before the AI CLI starts.
+  **Planned** (in this repo) — no `spool-harness` exists:
+  `grep -rl spool-harness csi-spl-api` -> none. Out of repo today.
+- **FR-011** — Sub-agents get independent top-level ids. **Implemented** by the
+  regex (FR-001); allocation is FR-010.
+- **FR-012** — `BOX-` rejected at every validation point
+  (`contracts/identifiers.md` §2). **Partial** — Go rejects it
+  (`msg.go:180`, `TestValidID` PASS); the `roster.agent_id` SQL CHECK in
+  `csi-spl-rdb/src/sql/postgres/spool-hub/0001_hub_core.sql:50` does not → T019.
+- **FR-013** — Pin and revoke signatures are not replayable.
+  **Planned** — signatures carry `ts` (±300 s) only, no nonce → T020.
+- **FR-014** — The M1 proof exercises pins and cross-box routing against the
+  live dev hub on the product domain. **Planned** — blocked on 007 ingress → T021.
+
+## Verified status (2026-09-18)
+
+| Area | Status | Evidence |
+|---|---|---|
+| Id regex + `BOX-` rejection (Go) | Implemented | `msg.go:180`; `TestValidID` PASS |
+| `BOX-` rejection (SQL CHECK) | Partial | `0001_hub_core.sql:50` regex only |
+| Schema `tenants / boxes / pins / pins_history / roster` | Implemented | `0001_hub_core.sql`; `TestPinSQLLivesInRDB` PASS |
+| Pin / revoke / list | Implemented | `rest.go`; pin tests PASS |
+| Pin sync, no-clobber | Implemented | `hubclient.go:508` |
+| Roster, ambiguous `to_box`, last-hello-wins | Implemented | `ws.go:158,268,332` |
+| Pin replay protection | Planned | ts only |
+| Same-key re-pin / un-revoke semantics | Partial | `postgres.go:93-120` (pin-semantics §2.1) |
+| Live dev hub | Partial | Cloud Run `csi-spl-hub-dev` Ready, `spool-hub:0.1.0`, ingress `internal-and-cloud-load-balancing`, no LB → `curl …a.run.app/version` -> 404 from the Google front end; no live pin exercised |
+| Live prd hub | Planned | `gcloud run services list --project=csi-spl-prd --account=$GCP_ACCOUNT` -> `SERVICE_DISABLED` |
+
+Test run (version: spool-hub-api at `9f8f492`, code identical at `bbc41e7`;
+tree: this worktree; n=1 run): `go test -count=1 -run
+'Pin|Revoke|ValidID|Ambiguous|LastHello|Flush|Sync|CrossBox|Roster|SQL' ./internal/...`
+-> 21 tests PASS, 0 FAIL (in-memory store; no Postgres, no live hub).
 
 ## Success Criteria
 
-- **SC-001**: Collision pin → 409 in a two-box test.
-- **SC-002**: Cross-box recv verifies after pin sync; fails without it.
-- **SC-003**: Hub-down same-box round trip + flush idempotent on `msg_id`.
+- **SC-001**: Different-key pin → 409 in a two-box test. **Implemented** (testhub).
+- **SC-002**: Cross-box recv verifies after pin sync; 78 without it. **Implemented** (testhub).
+- **SC-003**: Hub-down same-box round trip; flush idempotent on `msg_id`. **Implemented** (testhub).
+- **SC-004**: SC-001..003 pass against the live dev hub on the product domain. **Planned** (T021).
 
 ## Assumptions
 
-- 002 local send/recv exists.
-- ysg-box still allocates ids; spool only rejects collisions at pin time.
-- WUI is not a pin UI in v1 (`spool-pin` CLI).
+- The harness allocates agent ids per box; spool only validates.
+- M1 tenants are owner-made (`spool hub-tenant`); self-service is 006 / M2.
+- No pin UI in M1; pins are CLI (`spool pin`, `spool hub-pin`).
 
 ## Out of Scope
 
-- Changing ysg-box allocators.
-- Per-agent IAM.
-- Multi-recipient messages.
+- Changing box-harness allocators or the 002 local model.
+- Per-agent keys or IAM; the private-deploy IAM door (003 OQ-06, not M1).
+- Multi-recipient / box-wide fanout; cross-tenant uniqueness.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->

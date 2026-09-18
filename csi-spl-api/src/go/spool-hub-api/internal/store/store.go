@@ -145,6 +145,12 @@ type Store interface {
 	// TaskEnvelopes returns the stored envelopes of a task, oldest first.
 	TaskEnvelopes(ctx context.Context, tenantID, taskID string) ([][]byte, error)
 
+	// Read-only viewer queries (view.go, contracts/view-v1.md). They never write.
+	ViewBoxes(ctx context.Context, tenantID string) ([]ViewBox, error)
+	ViewThreads(ctx context.Context, tenantID string, q ThreadQuery) ([]ThreadRow, error)
+	ViewThread(ctx context.Context, tenantID string, q ThreadMsgQuery) ([]ViewMsg, error)
+	ViewChannels(ctx context.Context, tenantID string, now time.Time) ([]ChannelRow, error)
+
 	// Sweep expires queued deliveries past TTL and deletes messages past retention.
 	Sweep(ctx context.Context, now time.Time) (SweepResult, error)
 

@@ -1,5 +1,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { MOCK_ROSTER } from '../../utils/mock-data.mjs'
 import { displayName, parseMention } from '../../utils/channel-feed.mjs'
 import {
@@ -58,6 +61,17 @@ describe('mention autocomplete', () => {
     assert.equal(activeMentionQuery('hello', 5), null)
     assert.equal(activeMentionQuery('hi @CLE-07 review', 3), null)
     assert.equal(activeMentionQuery('a@CLE', 5), null)
+  })
+
+
+  it('MessageComposer reads the roster store and mention helpers', () => {
+    const wui = join(dirname(fileURLToPath(import.meta.url)), '../..')
+    const src = readFileSync(join(wui, 'components/MessageComposer.vue'), 'utf8')
+    assert.equal(src.includes('useRosterStore'), true)
+    assert.equal(src.includes('filterRosterMentions'), true)
+    assert.equal(src.includes('activeMentionQuery'), true)
+    assert.equal(src.includes('insertMention'), true)
+    assert.equal(src.includes('parseMention'), false)
   })
 
   it('insertMention keeps parseMention task routing', () => {

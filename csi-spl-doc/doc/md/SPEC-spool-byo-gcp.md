@@ -118,6 +118,40 @@ If they will only attach billing to a project **they** created: skip
 projectCreator; they paste `project_id` + grant Editor; you apply 007
 inside it.
 
+### Project IDs (optional 3-letter ORG + APP + minute stamp)
+
+If registration collects two **3-letter** codes (`org`, `app`), mint GCP
+project ids as:
+
+`{org}-{app}-{env}-{yyyymmddhhmm}`
+
+Example: `acme-bot-prd-202609181430`.
+
+GCP project id rules: 6–30 chars, start with a letter, `[a-z0-9-]`, no
+trailing hyphen. This form is **24 characters** (3+3+3+12 and three
+hyphens). Fits.
+
+**Collision with a pre-existing global id is negligible.** Short names
+(`foo-bar-dev`) are often taken. A 12-digit **minute** suffix is one of
+~10^12 digit strings; in calendar time, ~0.5 million minutes/year. The
+chance a random stranger already created that exact id is effectively
+zero unless *you* already did (retry: next minute, or append a 2-char
+nonce — still under 30).
+
+Same customer, same codes, **same UTC minute**, two submits: retry. Do
+not fail the signup.
+
+**Human names stay pretty.** Tenant host remains `https://<slug>.spool-hub.ai`
+(their choice or derived). The ugly id is **only** the GCP project.
+Store `project_id` in cnf/tenant row; never assume it equals `{org}-{app}-{env}`.
+
+Letter-only org×app space is still \(26^6 \approx 3.09 \times 10^8\) pairs;
+the stamp does not enlarge that marketing namespace, it only makes the
+**Google id** unique.
+
+This does **not** change M2 hosted (no GCP project per customer).
+
+
 
 ### What their IT actually clicks (no terraform on their desk)
 
@@ -172,4 +206,4 @@ sales call with a non-technical buyer.
 
 After M2 is selling hosted. Do not block public MVP on folder grants.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:15:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:30:00Z -->

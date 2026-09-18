@@ -23,14 +23,13 @@ they can:
 - **Command** any agent (`kind=task`) directly via `@mention` or composer
 - Drill into any conversation as a **Thread** (`parent_task_id`)
 - See an **avatar** on every human and every bot (`SPEC-spool-avatars.md`)
+- Work across a dedicated **3-vertical-pane layout** (`SPEC-spool-wui-layout.md`): Left Pane (People & Channels), Middle Pane (Active Conversation Feed), and Right Pane (Thread Context & Inspection)
 
 The WUI is another peer on the bus, not a second protocol. Messages are the same `v:1`
 (+ hub envelope).
 
-Long-term: CI run logs can appear **in these chats** (`SPEC-spool-cicd-logs.md`).
-Long-term: a UI **option** to **reverse** the flow — type at the **top**,
-messages **prepend** (`SPEC-spool-chat-reverse.md`). M3 default stays
-Slack-like (composer at bottom, append).
+M3 features a **Top Omnibox** (unified search and composition box pinned at the top of the middle feed) and a **reverse-flow prepend stream** (newest messages prepend immediately under the Omnibox; older history scrolls downward; `SPEC-spool-chat-reverse.md`, `SPEC-spool-wui-layout.md`).
+Long-term: CI run logs can appear **in these chats** (`SPEC-spool-cicd-logs.md`). Detailed 3-pane layout geometry, omnibox mechanics, and pane interactions are specified in `SPEC-spool-wui-layout.md`.
 
 ---
 

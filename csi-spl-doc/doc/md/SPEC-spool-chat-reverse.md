@@ -1,47 +1,42 @@
-# SPEC: Reverse chat flow (long-term WUI option)
+# SPEC: Reverse chat flow & Top Omnibox
 
-Status: **after M3**. Not the M3 default.  
-Related: `SPEC-spool-wui.md`
+Status: **Binding M3 Architecture** — adopted as default M3 UX (owner direction 2026-09-18).  
+Related: `SPEC-spool-wui.md`, `SPEC-spool-wui-layout.md`, `SPEC-spool-avatars.md`
 
-Chats gain a **UI option** to **reverse** the transcript: the user **types at
-the top**; new messages **prepend** (newest first, immediately under the
-composer). Older messages sit **below**; scroll down for history.
+Chats use a **reverse-flow prepend paradigm**: the user **types at the top** into a unified **Top Omnibox** (combining searching and composing); new messages **prepend** (newest first, immediately under the Omnibox). Older messages sit **below**; scrolling down fetches history.
 
-This is **display only**. `v:1` `ts` / `msg_id` / `task_id` do not change.
-The hub still stores chronological time. CLI/`spool-tail` stay oldest-first
-unless a later `--reverse` flag is added.
+This is **display only**. `v:1` `ts` / `msg_id` / `task_id` schema fields do not change.
+The hub still stores standard chronological timestamps in Postgres. CLI/`spool-tail` stay oldest-first.
 
 ---
 
-## 1. Two modes
+## 1. Top Omnibox & Prepend Architecture
 
-| Mode | Composer | Insert | History |
-|---|---|---|---|
-| **Classic** (M3 default) | Bottom | **Append** (Slack-like) | Oldest at top; scroll down for new |
-| **Reverse** (this feature) | **Top** | **Prepend** | Newest under the composer; scroll down for older |
-
-The option is per **human user** (and may follow a tenant default). Persist
-in the WUI account/prefs, not in the message schema.
-
----
-
-## 2. Behaviour in reverse mode
-
-- Composer is pinned at the **top** of the channel / DM / thread.
-- Sending or receiving a message **inserts it under the composer**, shifting
-  older rows down.
-- Live WS frames prepend the same way.
-- Load-more / infinite scroll loads **older** messages **below**.
-- Threads inherit the parent view’s mode unless overridden.
-
-Screen readers and keyboard order must match visual order (composer, then
-newest, then older) so “prepend” is not a CSS-only trap.
+| Aspect | Specification |
+|---|---|
+| **Omnibox Position** | Pinned at the **top** of the Middle Pane (above the feed). |
+| **Omnibox Dual Role** | **Composer** (default: ambient note on Enter, `@agent` command for tasks) + **Search Box** (real-time filtering / highlighting on `/`). |
+| **Feed Insertion** | **Prepend**: New outgoing or incoming live messages enter at the top directly under the Omnibox. |
+| **History Scroll** | **Downward**: Users scroll down to read older history; bottom triggers windowed catch-up for older chunks. |
+| **Thread Pane (Right)** | Pinned root message at top, newest replies prepended below the thread input/filter. |
+| **Avatars** | Every human (`HUM-*`) has an avatar; every agent (`CLE-*`, `GRK-*`, `AGY-*`) has a wild funny robot avatar. |
 
 ---
 
-## 3. Out of this feature
+## 2. Behaviour in Reverse Prepend Mode
 
-Changing M3 to reverse-only. Protocol sort on the hub. Mobile-only
-exceptions (same two modes).
+- The **Top Omnibox** is permanently docked at the top of the middle feed.
+- Sending or receiving a message **inserts it under the Omnibox**, shifting older rows down with an entrance transition.
+- Live WebSocket event dispatches prepend to the top immediately.
+- Infinite scroll triggers when scrolling down towards older messages.
+- Accessibility: Focus order and screen reader semantics match visual order (Omnibox, then newest message, then older messages).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:40:00Z -->
+---
+
+## 3. Scope & Protocol Invariants
+
+- Hub message storage remains unchanged (`ts`, `msg_id`, `task_id` in Postgres).
+- View API (`contracts/view-v1.md`) returns windowed slices; client renders newest-first.
+- CLI and MCP tooling retain standard chronological tail streams.
+
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:32:00Z -->

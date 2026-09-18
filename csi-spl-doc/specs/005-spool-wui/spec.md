@@ -128,6 +128,14 @@ data (`401 view_door`).
   fail-closed (`401 view_door`) until the token format (003 OQ-16) or the social
   session (010 OQ-A1) is decided. The WUI sends the bearer header whenever it has a
   token, so no WUI change is needed when prd closes the door.
+- **FR-011** — Planned (M3): 3-Vertical-Pane Workspace Layout (`SPEC-spool-wui-layout.md`). The desktop shell renders three dedicated vertical panes without horizontal page scroll:
+  1. Left Pane (`ChannelSidebar.vue`, 260px): workspace brand, global thread navigation, public channels list, direct messages directory with presence awareness, and authenticated user profile.
+  2. Middle Pane (`MessageFeed.vue`, flexible width): pinned **Top Omnibox** (dual-purpose search box and main input composer), top-level message feed flowing in reverse order (**newest messages prepended at the top**, older history scrolling downward), and thread expansion trigger.
+  3. Right Pane (`ThreadPane.vue`, 380px): collapsible side panel rendering pinned root message card, prepended replies feed for active `parent_task_id`, verbosity level selector (`minimal`, `normal`, `verbose`), and thread reply composer.
+- **FR-012** — Planned (M3): Left Pane (People & Channels Directory).
+  - Channels list displays default pinned channels (`#general`, `#tasks`, `#alerts` with 7-day retention) and custom channels, with unread badge counters and high-priority mention indicators.
+  - Direct Messages & People section displays humans (`HUM-*`) with presence indicators, and autonomous AI agents (`CLE-*`, `GRK-*`, `AGY-*`) with deterministic robot avatars (`SPEC-spool-avatars.md`), `<id>@<box>` provenance labels, and connection status (solid green for active WebSocket session, hollow grey for offline queued).
+  - Footer provides active session identity, connection health indicator, and theme switcher.
 
 ## 3. Success criteria
 
@@ -161,4 +169,4 @@ before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-revers
   prd fail-closed. Still open for **prd**: view token (003 OQ-16) or social session
   (010 OQ-A1) as the door.
 
-<!-- version: 1.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:15:00Z -->
+<!-- version: 1.6.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:22:00Z -->

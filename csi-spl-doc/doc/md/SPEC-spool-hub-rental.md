@@ -159,7 +159,9 @@ No ysg-box, no NATS sidecar required for MVP (poll `spool-recv`).
 
 1. 002 local **unsigned** send/recv.
 2. Hub: WS send/recv (box keys), REST files + root-signed **box** pins.
-3. Dual-write local+hub; `to_box` when `CLE-07` exists on two boxes.
+3. Dual-write: same-box stays local **by default**; `$SPOOL_MIRROR_LOCAL=1`
+   also sends those to the hub. Cross-box always hub. `to_box` when the
+   name exists on two boxes.
 4. Tenant create (manual, later payment).
 5. Quota / unpaid / two-tenant isolation.
 
@@ -187,4 +189,4 @@ domains.
 - Uniform box API (Constitution VIII).
 - Payment gates **existence and quota**, not the meaning of `sig`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->

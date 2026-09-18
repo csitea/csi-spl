@@ -133,17 +133,31 @@ box (or unset in local mode).
 
 ---
 
-## 6. Dual-write (owner: yes)
+## 6. Dual-write
 
-`spool-send` with hub URL set:
+Same-box = `to` has an inbox on **this** box and `to_box` is this box or omitted
+(unambiguous local target).
+
+`spool-send` with `$SPOOL_HUB_URL` set:
 
 1. Always write local outbox.
-2. If `to` exists **on this box**, write local inbox (same-box delivery, no WS
-   required for that hop).
-3. POST/WS the envelope to the hub (for other boxes and later WUI).
-4. If the hub is down, local 1–2 still succeed; envelope is pending-flush.
+2. If same-box: write local inbox. Delivery does **not** wait on the hub.
+3. Hub envelope (WS send):
+   - **Cross-box:** always.
+   - **Same-box (default):** **skip** the hub. Local files are enough.
+   - **Same-box + mirror:** also send to the hub so other boxes / a later WUI
+     see the thread.
 
-Local-only (`$SPOOL_HUB_URL` unset): steps 1–2 only.
+`$SPOOL_MIRROR_LOCAL` (optional, default unset = false):
+- unset / `0` / `false` — skip hub for same-box (default).
+- `1` / `true` — also hub-send same-box messages.
+- any other value — fail-fast.
+
+If a hub send is required (cross-box, or same-box with mirror) and the hub is
+down: local 1–2 still succeed; envelope is pending-flush. Mirror-off same-box
+never queues a flush.
+
+Local-only (`$SPOOL_HUB_URL` unset): steps 1–2 only. Flag is ignored.
 
 ## 7. What this is not
 
@@ -154,4 +168,4 @@ Local-only (`$SPOOL_HUB_URL` unset): steps 1–2 only.
 - Not a tenant-wide unique `CLE-07`. Names collide across boxes on purpose.
 - Not WUI in MVP (`SPEC-spool-wui.md` is post-MVP Slack-like chat).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->

@@ -150,12 +150,16 @@ still persists on the hub; `spool-recv --as <id>` fetches via signed
 | Situation | Source of truth |
 |---|---|
 | Hub never configured (002) | local files |
-| Hub up, POST ok | hub row; local inbox is a cache / same-box fast path |
-| Hub down, queued | local outbox `pending-flush`; same-box inbox already written |
-| After flush | hub row; local pending flag cleared |
+| Same-box, default (no mirror) | local files only; hub never sees it |
+| Same-box + `$SPOOL_MIRROR_LOCAL=1` | local + hub (WUI / other boxes) |
+| Cross-box, hub up | hub row; commandee box inbox via WS |
+| Hub down, hub send required | local outbox `pending-flush`; same-box inbox already written if local |
+| After flush | hub row; pending cleared |
 
-`msg_id` is the idempotency key. POST of the same canonical payload twice is
+`msg_id` is the idempotency key. A repeated hub send of the same payload is
 success, not a duplicate row.
+
+Same-box skip vs mirror: `SPEC-spool-trust-modes.md` §6.
 
 ---
 
@@ -166,4 +170,4 @@ success, not a duplicate row.
 - TOFU, key escrow, per-agent GCP keys, or renter GCP accounts.
 - Cross-tenant uniqueness of agent ids.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:20:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->

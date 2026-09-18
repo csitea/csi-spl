@@ -19,8 +19,10 @@ of the `003` architecture build order; nothing here is throwaway.
 **Phases 1–5 implemented and green** (US1 MVP + US2 files/dirs + US3 tail) in
 `csi-spl-api/src/go/spool-hub-api/`. `bash csi-spl-api/src/bash/tests/run-all-tests.sh`
 = gofmt + vet + `go test ./...` + hygiene gate + a 10-check end-to-end smoke, all
-passing. **Remaining**: Phase 6 (MCP wrapper, US4) and Phase 7 (quickstart, full
-distribution sweep, box-image install, `/speckit-analyze`).
+passing. Phase 7 docs landed: `quickstart.md` (T025), hygiene sweep + gofmt
+(T026), box install path (T027). **Remaining**: Phase 6 (MCP wrapper, US4) is
+blocked until `github.com/modelcontextprotocol/go-sdk` is in the offline module
+cache (the pin is recorded in `research.md`, T021); then T028.
 
 ## Phase 1: Setup
 
@@ -84,7 +86,7 @@ distribution sweep, box-image install, `/speckit-analyze`).
 
 **Goal**: identical behaviour via MCP. **Independent Test**: SC-004.
 
-- [ ] T021 [US4] Phase-0 research decision: Go stdio MCP server library
+- [x] T021 [US4] Phase-0 research decision: Go stdio MCP server library
       (record in a short `research.md`)
 - [ ] T022 [US4] `internal/mcp`: expose `spool_put_file`/`spool_send`/`spool_recv`/
       `spool_get_file`/`spool_tail` calling the SAME internal actions as the CLI
@@ -94,10 +96,11 @@ distribution sweep, box-image install, `/speckit-analyze`).
 
 ## Phase 7: Polish & release gate
 
-- [ ] T025 [P] `quickstart.md`: the temp-root walkthrough an operator can paste
-- [ ] T026 Distribution-hygiene sweep (no org/name/host/key leaks) + `gofmt`
-- [ ] T027 Wire the spool binary onto the box image install path (docs only in
-      002; no ysg-box edit) and record how a box gets it
+- [x] T025 [P] `quickstart.md`: the temp-root walkthrough an operator can paste
+- [x] T026 Distribution-hygiene sweep (no org/name/host/key leaks) + `gofmt`
+      (clean; the only hits are `ysg-box`, the named behavioural reference)
+- [x] T027 Wire the spool binary onto the box image install path (docs only in
+      002; no ysg-box edit) and record how a box gets it (`quickstart.md` section 6)
 - [ ] T028 `/speckit-analyze` clean; tick the plan Constitution Check boxes
 
 ## Dependencies
@@ -112,4 +115,4 @@ distribution sweep, box-image install, `/speckit-analyze`).
 - The `v:1` object, CLI verbs, and MCP tools are the permanent contract `003`
   reuses — resist adding a hub flag here.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T00:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:30:00Z -->

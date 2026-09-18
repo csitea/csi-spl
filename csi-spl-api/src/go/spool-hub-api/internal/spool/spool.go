@@ -43,6 +43,22 @@ func (s *Store) dir(id, box string) string { return filepath.Join(s.cfg.SpoolRoo
 // and the sender's outbox. Local mode trusts POSIX permissions on SpoolRoot: no
 // key, no pin, no sig (contracts/trust-modes.md section 2).
 func (s *Store) Send(from, to, taskID, kind, body string, atts []msg.Attachment) (*msg.Message, error) {
+	m, err := s.Compose(from, to, taskID, kind, body, atts)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.writeBox(m, m.To, "inbox"); err != nil {
+		return nil, err
+	}
+	if err := s.WriteOutbox(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// Compose builds and validates an unsigned v:1 message without writing it.
+// Hub mode (003) composes first, then decides where the message goes.
+func (s *Store) Compose(from, to, taskID, kind, body string, atts []msg.Attachment) (*msg.Message, error) {
 	if !msg.ValidID(from) || !msg.ValidID(to) {
 		return nil, fmt.Errorf("from/to must be valid agent ids")
 	}
@@ -60,25 +76,44 @@ func (s *Store) Send(from, to, taskID, kind, body string, atts []msg.Attachment)
 	if err := m.Validate(); err != nil {
 		return nil, err
 	}
+	return m, nil
+}
 
-	blob, err := msg.Marshal(m)
-	if err != nil {
-		return nil, err
+// WriteOutbox records m in the sender's outbox.
+func (s *Store) WriteOutbox(m *msg.Message) error {
+	_, err := s.writeBox(m, m.From, "outbox")
+	return err
+}
+
+// Deliver writes a message that arrived from the hub into the recipient's
+// inbox, unless the same file is already in that inbox or its archive (a hub
+// redelivery is shown once). It reports whether it wrote.
+func (s *Store) Deliver(m *msg.Message) (bool, error) {
+	if !msg.ValidID(m.To) {
+		return false, fmt.Errorf("to must be a valid agent id")
 	}
 	name := msg.Filename(m)
-	if err := s.ensureAgent(to); err != nil {
-		return nil, err
+	for _, box := range []string{"inbox", "archive"} {
+		if _, err := os.Stat(filepath.Join(s.dir(m.To, box), name)); err == nil {
+			return false, nil
+		}
 	}
-	if err := s.ensureAgent(from); err != nil {
-		return nil, err
+	return s.writeBox(m, m.To, "inbox")
+}
+
+// writeBox writes m as <id>/<box>/<filename>.
+func (s *Store) writeBox(m *msg.Message, id, box string) (bool, error) {
+	blob, err := msg.Marshal(m)
+	if err != nil {
+		return false, err
 	}
-	if err := writeFileAtomic(filepath.Join(s.dir(to, "inbox"), name), blob, 0o664); err != nil {
-		return nil, err
+	if err := s.ensureAgent(id); err != nil {
+		return false, err
 	}
-	if err := writeFileAtomic(filepath.Join(s.dir(from, "outbox"), name), blob, 0o664); err != nil {
-		return nil, err
+	if err := writeFileAtomic(filepath.Join(s.dir(id, box), msg.Filename(m)), blob, 0o664); err != nil {
+		return false, err
 	}
-	return m, nil
+	return true, nil
 }
 
 // RecvResult is the outcome of a Recv: the valid messages plus how many files

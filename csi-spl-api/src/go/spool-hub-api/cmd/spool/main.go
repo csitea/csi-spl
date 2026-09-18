@@ -9,13 +9,24 @@
 //	pin     --box <box_id> --pubkey <b64> [--force]
 //	send    --from <id> --to <id> [--task <uuid>] --kind <k> --body <text>
 //	          [--file-id <id>]... [--file-ref <path>]... [--dir-blob <path>]... [--dir-ref <path>]...
+//	          [--to-box <box_id>]   (hub mode only, spec 003)
 //	recv    --as <id> [--ack]
 //	put-file <path>            put-dir <path>
 //	get-file <file_id> <dest>  get-dir <file_id> <dest>
 //	tail    [--task <uuid>] [--json]
 //	mcp                        stdio MCP server exposing the verbs as tools
-//	migrate [--db <dsn>] [--sql-dir <dir>]   apply the hub DDL (spec 003; defaults
+//
+// Hub (spec 003; operator / box-daemon verbs, never called by agents):
+//
+//	serve                      run the hub (env: SPOOL_HUB_*; see config.Hub)
+//	migrate [--db <dsn>] [--sql-dir <dir>]   apply the hub DDL (defaults
 //	          $SPOOL_HUB_DB_DSN, $SPOOL_HUB_MIGRATIONS_DIR)
+//	hub-tenant --tenant <id> --root-pubkey <b64>   seed a tenant row (via $SPOOL_HUB_DB_DSN)
+//	root-keygen --out <path> [--force]   tenant root keypair; prints the public key
+//	hub-pin --box <id> --pubkey <b64> --root-key <path> [--force] [--revoke]
+//	hub-sync                   one role=box session: hello, pins, drain queue, flush
+//	hub-run                    box daemon: hold the session, reconnect with backoff
+//	hub-tail --task <uuid> [--follow] [--json]
 //	version
 //
 // Local mode (no hub) is unsigned: send/recv need no key and no pin; keygen and
@@ -57,8 +68,15 @@ func run(args []string) int {
 		fmt.Println(version)
 		return 0
 	}
-	if cmd == "migrate" {
+	switch cmd {
+	case "migrate":
 		return cmdMigrate(rest)
+	case "serve":
+		return cmdServe()
+	case "hub-tenant":
+		return cmdHubTenant(rest)
+	case "root-keygen":
+		return cmdRootKeygen(rest)
 	}
 
 	cfg, err := config.Load()
@@ -87,6 +105,14 @@ func run(args []string) int {
 		return cmdTail(cfg, rest)
 	case "mcp":
 		return cmdMCP(cfg)
+	case "hub-pin":
+		return cmdHubPin(cfg, rest)
+	case "hub-sync":
+		return cmdHubSync(cfg)
+	case "hub-run":
+		return cmdHubRun(cfg)
+	case "hub-tail":
+		return cmdHubTail(cfg, rest)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1
@@ -149,13 +175,16 @@ func cmdSend(cfg *config.Config, args []string) int {
 	fs.Var(&dirBlobs, "dir-blob", "pack a dir into a blob and attach it (repeatable)")
 	fs.Var(&dirRefs, "dir-ref", "attach a dir by on-box path reference (repeatable)")
 	putFile := fs.String("put-file", "", "convenience: blob this file then attach it")
+	toBox := fs.String("to-box", "", "hub mode: recipient box id (needed when --to exists on several boxes)")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	out, err := action.Send(cfg, action.SendArgs{
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	out, err := action.SendCtx(ctx, cfg, action.SendArgs{
 		From: *from, To: *to, TaskID: *task, Kind: *kind, Body: *body,
 		FileIDs: fileIDs, FileRefs: fileRefs, DirBlobs: dirBlobs, DirRefs: dirRefs,
-		PutFile: *putFile,
+		PutFile: *putFile, ToBox: *toBox,
 	})
 	if err != nil {
 		return fail(err)

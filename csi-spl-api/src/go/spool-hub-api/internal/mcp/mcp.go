@@ -28,6 +28,7 @@ type SendIn struct {
 	Kind    string   `json:"kind" jsonschema:"one of task, result, note, reject"`
 	Body    string   `json:"body" jsonschema:"message text"`
 	FileIDs []string `json:"file_ids,omitempty" jsonschema:"file_ids from spool_put_file to attach"`
+	ToBox   string   `json:"to_box,omitempty" jsonschema:"hub mode only: the recipient's box id when the agent id exists on several boxes"`
 }
 
 // RecvIn is the input of spool_recv.
@@ -65,10 +66,11 @@ func NewServer(cfg *config.Config, version string) *sdk.Server {
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "spool_send",
-		Description: "Send a v:1 message to another agent on this box (== spool send).",
-	}, func(_ context.Context, _ *sdk.CallToolRequest, in SendIn) (*sdk.CallToolResult, action.SendResult, error) {
-		out, err := action.Send(cfg, action.SendArgs{
+		Description: "Send a v:1 message to another agent, on this box or (hub mode) another box (== spool send).",
+	}, func(ctx context.Context, _ *sdk.CallToolRequest, in SendIn) (*sdk.CallToolResult, action.SendResult, error) {
+		out, err := action.SendCtx(ctx, cfg, action.SendArgs{
 			From: in.From, To: in.To, TaskID: in.TaskID, Kind: in.Kind, Body: in.Body, FileIDs: in.FileIDs,
+			ToBox: in.ToBox,
 		})
 		if err != nil {
 			return nil, out, toolErr(err)

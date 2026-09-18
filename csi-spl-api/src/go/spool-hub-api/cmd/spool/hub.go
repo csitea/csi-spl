@@ -1,0 +1,294 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"crypto/ed25519"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/rs/zerolog"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/logging"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
+)
+
+// cmdServe runs the hub until SIGINT/SIGTERM, then drains: sockets get 1001,
+// in-flight HTTP finishes within SPOOL_HUB_GRACEFUL_SHUTDOWN (pas-psf
+// runUntilShutdown pattern).
+func cmdServe() int {
+	hc, err := config.LoadHub()
+	if err != nil {
+		return fail(err)
+	}
+	log := logging.New(&config.Config{LogLevel: hc.LogLevel, LogFormat: hc.LogFormat}).
+		With().Str("component", "hub").Str("env", hc.Env).Str("version", version).Logger()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	st, err := openStore(ctx, hc.DBDSN)
+	if err != nil {
+		return fail(err)
+	}
+	defer st.Close()
+	var bs blob.Store
+	if hc.FilesBucket != "" {
+		g, err := blob.OpenGCS(ctx, hc.FilesBucket)
+		if err != nil {
+			return fail(err)
+		}
+		bs = g
+	} else {
+		bs = blob.Dir{Root: hc.FilesDir}
+	}
+	defer bs.Close()
+
+	srv, err := hub.New(hub.Options{
+		Store: st, Blob: bs, Log: log, TenantHostPattern: hc.TenantHostPattern,
+		HelloSkew: hc.HelloSkew, UploadTokenTTL: hc.UploadTokenTTL, QueueTTL: hc.QueueTTL,
+		QueueMaxPerBox: hc.QueueMaxPerBox, RetentionAlerts: hc.RetentionAlerts,
+		RetentionChannels: hc.RetentionChannels, AllowTextOnly: hc.AllowTextOnly, Version: version,
+	})
+	if err != nil {
+		return fail(err)
+	}
+	go srv.RunSweeper(ctx, 10*time.Minute)
+	hs := &http.Server{Addr: hc.ListenAddr, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	errc := make(chan error, 1)
+	go func() { errc <- hs.ListenAndServe() }()
+	log.Info().Str("addr", hc.ListenAddr).Msg("hub listening")
+	select {
+	case err := <-errc:
+		return fail(err)
+	case <-ctx.Done():
+	}
+	log.Info().Msg("hub draining")
+	sctx, cancel := context.WithTimeout(context.Background(), hc.GracefulShutdown)
+	defer cancel()
+	srv.Shutdown()
+	if err := hs.Shutdown(sctx); err != nil {
+		log.Error().Err(err).Msg("http shutdown")
+	}
+	return 0
+}
+
+// openStore opens Postgres; the literal DSN "memory:" is an in-process store
+// for tests and throwaway lde runs only (state dies with the process).
+func openStore(ctx context.Context, dsn string) (store.Store, error) {
+	if dsn == "memory:" {
+		return store.NewMemory(), nil
+	}
+	return store.OpenPostgres(ctx, dsn)
+}
+
+// cmdHubTenant seeds a tenant row (006 owns tenant creation; this is the
+// operator bootstrap for M1). Idempotent for the same root key.
+func cmdHubTenant(args []string) int {
+	fs := flag.NewFlagSet("hub-tenant", flag.ContinueOnError)
+	tenant := fs.String("tenant", "", "tenant id")
+	root := fs.String("root-pubkey", "", "base64 tenant root public key")
+	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	pub, err := base64.StdEncoding.DecodeString(*root)
+	if !msg.ValidBoxID(*tenant) || err != nil || len(pub) != ed25519.PublicKeySize || *dsn == "" {
+		return fail(fmt.Errorf("--tenant (valid id), --root-pubkey (base64 32-byte key) and --db / $SPOOL_HUB_DB_DSN are required"))
+	}
+	ctx := context.Background()
+	st, err := store.OpenPostgres(ctx, *dsn)
+	if err != nil {
+		return fail(err)
+	}
+	defer st.Close()
+	if err := st.CreateTenant(ctx, store.Tenant{ID: *tenant, RootPubKey: pub}); err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			return fail(fmt.Errorf("tenant %s exists with a different root key: %w", *tenant, sign.ErrVerify))
+		}
+		return fail(err)
+	}
+	fmt.Println(action.JSON(map[string]string{"tenant": *tenant, "status": "ok"}))
+	return 0
+}
+
+// cmdRootKeygen creates a tenant ROOT keypair (the renter's key; it pins and
+// revokes box keys). The private key is written 0600 and never printed.
+func cmdRootKeygen(args []string) int {
+	fs := flag.NewFlagSet("root-keygen", flag.ContinueOnError)
+	out := fs.String("out", "", "path for the private key (0600)")
+	force := fs.Bool("force", false, "overwrite an existing key")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if *out == "" {
+		return fail(fmt.Errorf("--out is required"))
+	}
+	if _, err := os.Stat(*out); err == nil && !*force {
+		return fail(fmt.Errorf("%s exists (use --force to overwrite)", *out))
+	}
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		return fail(err)
+	}
+	if err := os.WriteFile(*out, []byte(base64.StdEncoding.EncodeToString(priv)+"\n"), 0o600); err != nil {
+		return fail(err)
+	}
+	fmt.Println(base64.StdEncoding.EncodeToString(pub))
+	return 0
+}
+
+// cmdHubPin pins (or with --revoke unpins) a box key at the hub, signed by the
+// tenant root key (POST / DELETE /v1/pins).
+func cmdHubPin(cfg *config.Config, args []string) int {
+	fs := flag.NewFlagSet("hub-pin", flag.ContinueOnError)
+	box := fs.String("box", "", "box id")
+	pubkey := fs.String("pubkey", "", "base64 box public key (not with --revoke)")
+	rootKey := fs.String("root-key", "", "path to the tenant root private key")
+	force := fs.Bool("force", false, "replace a different existing key")
+	revoke := fs.Bool("revoke", false, "revoke the box's pin")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if cfg.HubURL == "" || !msg.ValidBoxID(*box) || *rootKey == "" || (*pubkey == "") != *revoke {
+		return fail(fmt.Errorf("$SPOOL_HUB_URL, --box, --root-key and exactly one of --pubkey / --revoke are required"))
+	}
+	raw, err := os.ReadFile(*rootKey)
+	if err != nil {
+		return fail(err)
+	}
+	priv, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(raw)))
+	if err != nil || len(priv) != ed25519.PrivateKeySize {
+		return fail(fmt.Errorf("%s is not a base64 ed25519 private key", *rootKey))
+	}
+	ts := time.Now().UTC().Format(time.RFC3339)
+	var method, path string
+	var body any
+	if *revoke {
+		p, _ := wire.RevokePayload(*box, ts)
+		method, path = http.MethodDelete, "/v1/pins/"+*box
+		body = wire.RevokeRequest{BoxID: *box, TS: ts, Sig: sign.Sign(priv, p)}
+	} else {
+		p, _ := wire.PinPayload(*box, *pubkey, ts, *force)
+		method, path = http.MethodPost, "/v1/pins"
+		body = wire.PinRequest{BoxID: *box, PubKey: *pubkey, TS: ts, Force: *force, Sig: sign.Sign(priv, p)}
+	}
+	b, _ := json.Marshal(body)
+	req, err := http.NewRequest(method, strings.TrimSuffix(cfg.HubURL, "/")+path, bytes.NewReader(b))
+	if err != nil {
+		return fail(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := hubclient.New(cfg).HTTPClient().Do(req)
+	if err != nil {
+		return fail(fmt.Errorf("%w: %v", hubclient.ErrUnreachable, err))
+	}
+	defer resp.Body.Close()
+	out, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
+	if resp.StatusCode >= 300 {
+		var eb wire.ErrorBody
+		json.Unmarshal(out, &eb) //nolint:errcheck
+		return fail(&hubclient.HubError{Token: eb.Error, Status: resp.StatusCode, Detail: eb.Detail})
+	}
+	fmt.Println(strings.TrimSpace(string(out)))
+	return 0
+}
+
+func boxClient(cfg *config.Config) (*hubclient.Client, error) {
+	if cfg.HubURL == "" {
+		return nil, fmt.Errorf("$SPOOL_HUB_URL is not set (hub verbs need hub mode)")
+	}
+	c := hubclient.New(cfg)
+	c.Log = logging.New(cfg).With().Str("component", "hubclient").Str("box", cfg.BoxID).Logger()
+	return c, nil
+}
+
+// cmdHubSync runs one role=box session and prints what it did.
+func cmdHubSync(cfg *config.Config) int {
+	c, err := boxClient(cfg)
+	if err != nil {
+		return fail(err)
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	r, err := c.Sync(ctx)
+	fmt.Println(action.JSON(r))
+	if err != nil {
+		return fail(err)
+	}
+	return 0
+}
+
+// cmdHubRun holds the box session until signalled.
+func cmdHubRun(cfg *config.Config) int {
+	c, err := boxClient(cfg)
+	if err != nil {
+		return fail(err)
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := c.Run(ctx); err != nil {
+		return fail(err)
+	}
+	return 0
+}
+
+// cmdHubTail prints a task's hub thread (human lines, or --json NDJSON of the
+// inner v:1); --follow keeps printing new messages until signalled.
+func cmdHubTail(cfg *config.Config, args []string) int {
+	fs := flag.NewFlagSet("hub-tail", flag.ContinueOnError)
+	task := fs.String("task", "", "task id")
+	follow := fs.Bool("follow", false, "keep streaming new messages")
+	asJSON := fs.Bool("json", false, "emit the inner v:1 objects as NDJSON")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if *task == "" {
+		return fail(fmt.Errorf("--task is required"))
+	}
+	c, err := boxClient(cfg)
+	if err != nil {
+		return fail(err)
+	}
+	c.Log = zerolog.Nop()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	sess, err := c.Dial(ctx, wire.RoleCLI)
+	if err != nil {
+		return fail(err)
+	}
+	defer sess.Close()
+	_, err = sess.Tail(ctx, *task, *follow, func(e *wire.Envelope) {
+		m, err := e.Inner()
+		if err != nil {
+			return
+		}
+		if *asJSON {
+			raw, _ := msg.Marshal(m)
+			fmt.Println(string(raw))
+			return
+		}
+		fmt.Printf("%s  %s@%s -> %s@%s  [%s]  %s\n", m.TS, m.From, e.FromBox, m.To, e.ToBox, m.Kind, m.Body)
+	})
+	if err != nil {
+		return fail(err)
+	}
+	return 0
+}

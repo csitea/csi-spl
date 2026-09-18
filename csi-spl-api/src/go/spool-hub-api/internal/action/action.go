@@ -5,6 +5,7 @@
 package action
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/files"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/spool"
 )
@@ -27,16 +29,20 @@ type PutResult struct {
 }
 
 // SendArgs are the inputs of send. Attachments are added in the CLI's order:
-// file ids, put-file, dir blobs, file refs, dir refs.
+// file ids, put-file, dir blobs, file refs, dir refs. ToBox is hub-only
+// (spec 003, OQ-01: an additive change to the box API).
 type SendArgs struct {
 	From, To, TaskID, Kind, Body string
+	ToBox                        string
 	FileIDs, FileRefs            []string
 	DirBlobs, DirRefs            []string
 	PutFile                      string
+	// Hub overrides the hub client (tests inject one with their transport).
+	Hub *hubclient.Client
 }
 
 // SendResult is what send returns. Delivery is always "local" in 002; hub
-// mode adds "sent" and "queued" (contracts/trust-modes.md section 8).
+// mode adds "sent", "queued" and "pending" (trust-modes §8 + 003 OQ-09).
 type SendResult struct {
 	Delivery string `json:"delivery"`
 	MsgID    string `json:"msg_id"`
@@ -65,8 +71,17 @@ func Put(cfg *config.Config, path string, dir bool) (PutResult, error) {
 	return PutResult{Bytes: a.Bytes, FileID: a.FileID, Kind: a.Kind, Name: a.Name, SHA256: a.SHA256}, nil
 }
 
-// Send builds the attachments, then signs and writes the message.
+// Send builds the attachments and writes the message: locally (no hub), or in
+// hub mode ($SPOOL_HUB_URL set) through the box-signed envelope.
 func Send(cfg *config.Config, in SendArgs) (SendResult, error) {
+	return SendCtx(context.Background(), cfg, in)
+}
+
+// SendCtx is Send with a context for the hub round trip.
+func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, error) {
+	if in.ToBox != "" && cfg.HubURL == "" {
+		return SendResult{}, fmt.Errorf("--to-box / to_box needs hub mode ($SPOOL_HUB_URL)")
+	}
 	var atts []msg.Attachment
 	for _, id := range in.FileIDs {
 		atts = append(atts, msg.Attachment{Mode: "blob", Kind: "file", FileID: id, SHA256: id, Name: id})
@@ -99,11 +114,26 @@ func Send(cfg *config.Config, in SendArgs) (SendResult, error) {
 		}
 		atts = append(atts, a)
 	}
-	m, err := spool.New(cfg).Send(in.From, in.To, in.TaskID, in.Kind, in.Body, atts)
+	if cfg.HubURL == "" {
+		m, err := spool.New(cfg).Send(in.From, in.To, in.TaskID, in.Kind, in.Body, atts)
+		if err != nil {
+			return SendResult{}, err
+		}
+		return SendResult{Delivery: "local", MsgID: m.MsgID, TaskID: m.TaskID, TS: m.TS}, nil
+	}
+	m, err := spool.New(cfg).Compose(in.From, in.To, in.TaskID, in.Kind, in.Body, atts)
 	if err != nil {
 		return SendResult{}, err
 	}
-	return SendResult{Delivery: "local", MsgID: m.MsgID, TaskID: m.TaskID, TS: m.TS}, nil
+	hc := in.Hub
+	if hc == nil {
+		hc = hubclient.New(cfg)
+	}
+	d, err := hc.SendMessage(ctx, m, in.ToBox)
+	if err != nil {
+		return SendResult{}, err
+	}
+	return SendResult{Delivery: d, MsgID: m.MsgID, TaskID: m.TaskID, TS: m.TS}, nil
 }
 
 // Recv returns the well-formed messages of as's inbox. The slice is non-nil

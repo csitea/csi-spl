@@ -145,6 +145,10 @@ needs a name, and ingress comes **last**:
 | 9 | Cloud Run hub | `030-cloud-run-hub` |
 | 10 | ingress: LB + wildcard managed cert + apex / `*.` records | `031-gcp-hub-ingress` |
 
+`020-gcp-relay-bucket` (the git-rel relay, spec 001) is **not in this chain**: it
+depends only on step 2 and nothing in the hub chain depends on it, so it is an
+independent branch after step 2.
+
 007 numbered the new DNS-zone dir `025-gcp-dns-zone` (csi-rel/pas-psf call it
 `007-dns`); the full gate-per-step table is
 `007-spool-hub-api-infra/contracts/provisioning-order.md`.
@@ -238,7 +242,9 @@ steps are each a task.
 | `017-github-wif-deploy` unmerged (`GRK-3343-007-tf-017-wif`); CI deploys skip both envs | 007 T050 |
 | prd: 001 services not enabled; nothing past step 2 | 007 |
 | dev: 025 and 031 have no state; hub not reachable from outside | 007 |
+| `gs://csi-spl-{dev,prd}-tfstate/terraform/025-gcp-dns-zone/default.tfstate` exist with **0 resources** (init ran 18:56–18:57Z) while trunk has no `025-*` dir: `git ls-tree --name-only origin/master csi-spl-iac/src/terraform/ \| grep -c 025` -> 0 (trunk 39d56a5). Land the dir or drop the empty state | 007 |
+| Branch `GRK-3342-007-tf-007-dns` (`f08754d`, unmerged) copies the Gandi actions into `csi-spl-iac`; trunk already carries them in `csi-spl-orc` (`04f7dca`). Not a terraform DNS step, so no collision with `025`; likely stale | 007 |
 | view-v1 not built; WUI client calls dropped routes | 003 US7 → 005 G5 |
 | Several lanes stamped `last-edit` in local time with a `Z` suffix | cosmetic; fix on next edit |
 
-<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:21:11Z -->
+<!-- version: 1.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:23:45Z -->

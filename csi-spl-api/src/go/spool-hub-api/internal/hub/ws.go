@@ -39,9 +39,28 @@ type session struct {
 	wmu     sync.Mutex
 	follows map[string]bool // task ids tailed with follow=true; guarded by srv.mu
 	once    sync.Once
+
+	// welcomed is closed once the welcome frame has been written (or failed).
+	// The session is registered before its welcome, so another goroutine (a
+	// roster broadcast, a live recv push) can target it early; every frame but
+	// the welcome waits here, so the box always reads welcome first.
+	welcomed    chan struct{}
+	welcomeOnce sync.Once
 }
 
+func (x *session) markWelcomed() { x.welcomeOnce.Do(func() { close(x.welcomed) }) }
+
 func (x *session) write(ctx context.Context, f wire.Frame) error {
+	if f.Type != wire.TWelcome {
+		wctx, cancel := context.WithTimeout(ctx, writeTimeout)
+		select {
+		case <-x.welcomed:
+			cancel()
+		case <-wctx.Done():
+			cancel()
+			return wctx.Err()
+		}
+	}
 	x.wmu.Lock()
 	defer x.wmu.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, writeTimeout)
@@ -164,7 +183,8 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 		conn.CloseNow() //nolint:errcheck
 		return nil, false
 	}
-	x := &session{srv: s, conn: conn, tenant: t.ID, box: f.BoxID, role: f.Role, follows: map[string]bool{}}
+	x := &session{srv: s, conn: conn, tenant: t.ID, box: f.BoxID, role: f.Role, follows: map[string]bool{},
+		welcomed: make(chan struct{})}
 	if f.Role == wire.RoleBox {
 		if err := s.o.Store.SetRoster(ctx, t.ID, f.BoxID, f.Agents, now); err != nil {
 			conn.CloseNow() //nolint:errcheck
@@ -178,8 +198,10 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 
 	roster, _ := s.o.Store.Roster(ctx, t.ID)
 	tok, exp := s.mintToken(t.ID, f.BoxID)
-	if err := x.write(ctx, wire.Frame{Type: wire.TWelcome, BoxID: f.BoxID, Roster: roster,
-		UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)}); err != nil {
+	err = x.write(ctx, wire.Frame{Type: wire.TWelcome, BoxID: f.BoxID, Roster: roster,
+		UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)})
+	x.markWelcomed()
+	if err != nil {
 		s.drop(x)
 		return nil, false
 	}

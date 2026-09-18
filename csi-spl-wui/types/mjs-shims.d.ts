@@ -3,9 +3,21 @@ declare module '~/utils/spool-client.mjs' {
     base?: string
     fetchFn?: typeof fetch
     mock?: boolean
+    token?: string
   }): {
     mock: boolean
+    setToken(token: string): void
+    hasToken(): boolean
     healthz(): Promise<unknown>
+    listThreads(opts?: { limit?: number, before?: string }): Promise<{
+      threads: import('./spool').ThreadRow[]
+      next: string | null
+    }>
+    getThread(taskId: string, opts?: { limit?: number, after?: string }): Promise<{
+      task_id: string
+      messages: import('./spool').SpoolMessage[]
+      next: string | null
+    }>
     listChannels(): Promise<{ channel_id: string, name: string, created_by?: string }[]>
     listMessages(opts?: {
       channel?: string
@@ -42,7 +54,7 @@ declare module '~/utils/channel-feed.mjs' {
   export function displayName(id: string, box?: string): string
   export function initials(id: string): string
   export function hueFor(id: string): number
-  export function formatBytes(n: number): string
+  export function formatBytes(n: number | undefined): string
   export function formatTs(ts: string): string
   export function renderBody(src: string): string
 }
@@ -66,3 +78,8 @@ declare module '~/utils/mention-autocomplete.mjs' {
   ): { text: string, cursor: number }
 }
 
+
+declare module '~/utils/view-api.mjs' {
+  export function subjectOf(body: string): string
+  export function isDownloadable(file: { mode?: string, file_id?: string, sha256?: string }): boolean
+}

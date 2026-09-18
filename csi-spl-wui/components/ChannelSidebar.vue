@@ -4,6 +4,9 @@
       <h1>Spool</h1>
       <ThemeToggle />
     </div>
+    <NuxtLink class="nav-item" to="/" exact-active-class="active">
+      <span class="label">Threads</span>
+    </NuxtLink>
     <h2>Channels</h2>
     <NuxtLink
       v-for="c in channel.channels"

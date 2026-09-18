@@ -36,6 +36,7 @@ export default defineNuxtConfig({
         ? (isDev ? "1" : "0")
         : process.env.NUXT_PUBLIC_USE_MOCK,
       appVersion: wuiAppVersion(),
+      pollMs: process.env.NUXT_PUBLIC_POLL_MS || "4000",
     },
   },
   app: {
@@ -61,5 +62,6 @@ export default defineNuxtConfig({
   routeRules: {
     "/channel/**": { prerender: false },
     "/dm/**": { prerender: false },
+    "/t/**": { prerender: false },
   },
 })

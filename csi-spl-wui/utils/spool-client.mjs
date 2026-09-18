@@ -1,5 +1,13 @@
 import { cloneMock } from './mock-data.mjs'
 import { parseMention } from './channel-feed.mjs'
+import {
+  channelsFromView,
+  normalizeThreadRow,
+  normalizeViewMessage,
+  rosterFromView,
+  threadMessages,
+  threadsFromMessages,
+} from './view-api.mjs'
 
 function uuid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -10,21 +18,41 @@ function uuid() {
   })
 }
 
-export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock = true } = {}) {
+/** Thrown for live calls the read-only viewer does not have (spec 005 §0). */
+export class ReadOnlyError extends Error {
+  constructor(what) {
+    super(`${what} is not available: the hub WUI API is read-only (spec 005 §0)`)
+    this.status = 501
+  }
+}
+
+/**
+ * Live mode reads only the 003 viewer API (contracts/view-v1.md): /v1/view/*,
+ * GET /v1/files/{file_id}, /healthz. The view token rides in Authorization;
+ * no cookies (view-v1 §3), so fetch runs with credentials: 'omit'.
+ */
+export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock = true, token = '' } = {}) {
   const state = mock ? cloneMock() : null
   const root = String(base || '').replace(/\/+$/, '')
+  let viewToken = String(token || '')
 
   async function live(path, opts) {
     const fn = fetchFn
     if (typeof fn !== 'function') throw new Error('no fetch')
-    const res = await fn(`${root}${path}`, {
-      credentials: 'include',
-      ...opts,
-      headers: { accept: 'application/json', ...(opts && opts.headers) },
-    })
+    const headers = { accept: 'application/json', ...(opts && opts.headers) }
+    if (viewToken) headers.authorization = `Bearer ${viewToken}`
+    const res = await fn(`${root}${path}`, { credentials: 'omit', ...opts, headers })
     if (!res.ok) {
-      const err = new Error(`spool ${res.status} ${path}`)
+      let token = ''
+      try {
+        const body = await res.json()
+        token = (body && body.error) || ''
+      } catch {
+        /* not json */
+      }
+      const err = new Error(`spool ${res.status} ${token || path}`)
       err.status = res.status
+      err.token = token
       throw err
     }
     if (res.status === 204) return null
@@ -35,49 +63,65 @@ export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock 
 
   return {
     mock: Boolean(mock),
+    setToken(t) {
+      viewToken = String(t || '')
+    },
+    hasToken() {
+      return Boolean(viewToken)
+    },
     async healthz() {
       if (mock) return { ok: true, mock: true }
       return live('/healthz')
     },
+    async listThreads({ limit = 50, before } = {}) {
+      if (mock) return { threads: threadsFromMessages(state.messages).slice(0, limit), next: null }
+      const q = new URLSearchParams()
+      if (limit) q.set('limit', String(limit))
+      if (before) q.set('before', before)
+      const data = await live(`/v1/view/threads?${q}`)
+      const rows = (data && data.threads) || []
+      return { threads: rows.map(normalizeThreadRow), next: (data && data.next) || null }
+    },
+    async getThread(taskId, { limit = 200, after } = {}) {
+      const id = String(taskId || '')
+      if (!id) throw new Error('task_id required')
+      if (mock) return { task_id: id, messages: threadMessages(state.messages, id), next: null }
+      const q = new URLSearchParams()
+      if (limit) q.set('limit', String(limit))
+      if (after) q.set('after', after)
+      const data = await live(`/v1/view/threads/${encodeURIComponent(id)}?${q}`)
+      const rows = (data && data.messages) || []
+      return { task_id: id, messages: rows.map(normalizeViewMessage), next: (data && data.next) || null }
+    },
     async listChannels() {
       if (mock) return state.channels.slice()
-      const data = await live('/v1/channels')
-      return Array.isArray(data) ? data : (data && data.channels) || []
+      return channelsFromView(await live('/v1/view/channels'))
     },
     async listMessages({ channel, peer, limit = 50, since } = {}) {
-      if (mock) {
-        let rows = state.messages.slice()
-        if (channel) rows = rows.filter((m) => m.channel === channel)
-        else if (peer) {
-          const [id] = String(peer).split('@')
-          rows = rows.filter((m) => !m.channel && (m.from === id || m.to === id))
-        }
-        if (since) rows = rows.filter((m) => m.ts > since)
-        return rows.slice(-limit)
+      if (!mock) throw new ReadOnlyError('a channel / DM feed')
+      let rows = state.messages.slice()
+      if (channel) rows = rows.filter((m) => m.channel === channel)
+      else if (peer) {
+        const [id] = String(peer).split('@')
+        rows = rows.filter((m) => !m.channel && (m.from === id || m.to === id))
       }
-      const q = new URLSearchParams()
-      if (channel) q.set('channel', channel)
-      if (peer) q.set('peer', peer)
-      if (limit) q.set('limit', String(limit))
-      if (since) q.set('since', since)
-      const data = await live(`/v1/messages?${q}`)
-      return Array.isArray(data) ? data : (data && data.messages) || []
+      if (since) rows = rows.filter((m) => m.ts > since)
+      return rows.slice(-limit)
     },
     async listRoster() {
       if (mock) return { roster: state.roster, online: state.online, me: state.me }
-      return live('/v1/pins')
+      return rosterFromView(await live('/v1/view/roster'))
     },
     async sendMessage({ channel, peer, text, parent_task_id, files }) {
+      if (!mock) throw new ReadOnlyError('send')
       const parsed = parseMention(text)
-      const now = new Date().toISOString()
-      const task_id = uuid()
       const body = {
         v: 1,
         msg_id: uuid(),
-        task_id,
-        ts: now,
-        from: mock ? state.me.id : 'HUM-1',
-        from_box: mock ? state.me.box : 'box-wui',
+        task_id: uuid(),
+        ts: new Date().toISOString(),
+        from: state.me.id,
+        from_box: state.me.box,
         to: peer ? String(peer).split('@')[0] : parsed.to,
         to_box: peer && String(peer).includes('@') ? String(peer).split('@')[1] : undefined,
         kind: peer ? 'note' : parsed.kind,
@@ -86,37 +130,23 @@ export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock 
         channel: channel || null,
         parent_task_id: parent_task_id || null,
       }
-      if (mock) {
-        state.messages.push(body)
-        return body
-      }
-      return live('/v1/messages', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      })
+      state.messages.push(body)
+      return body
     },
     async createChannel({ channel_id, name }) {
+      if (!mock) throw new ReadOnlyError('channel creation')
       const slug = String(channel_id || name || '')
         .toLowerCase()
         .replace(/[^a-z0-9-]+/g, '-')
         .replace(/^-+|-+$/g, '')
         .slice(0, 64)
       if (!slug) throw new Error('channel id required')
-      const row = { channel_id: slug, name: name || slug, created_by: mock ? state.me.id : 'HUM-1' }
-      if (mock) {
-        if (state.channels.some((c) => c.channel_id === slug)) return row
-        state.channels.push(row)
-        return row
-      }
-      return live('/v1/channels', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(row),
-      })
+      const row = { channel_id: slug, name: name || slug, created_by: state.me.id }
+      if (!state.channels.some((c) => c.channel_id === slug)) state.channels.push(row)
+      return row
     },
     fileUrl(fileId) {
-      return `${root}/v1/files/${fileId}`
+      return `${root}/v1/files/${encodeURIComponent(String(fileId || ''))}`
     },
   }
 }

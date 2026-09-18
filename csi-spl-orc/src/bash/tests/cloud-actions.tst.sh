@@ -78,6 +78,8 @@ if [[ -x "$real_docker" ]] && docker info >/dev/null 2>&1; then
 else
   echo "SKIP: no docker: do_build_push_hub_image"
 fi
+check_dry "do_export_all_dns_settings" 'do_export_all_dns_settings' ENV=dev
+check_dry "do_flush_dns" 'do_flush_dns' TEST_DOMAIN=example.test
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

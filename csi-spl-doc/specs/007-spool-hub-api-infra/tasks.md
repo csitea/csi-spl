@@ -37,7 +37,7 @@ Reference trees: csi-rel-iac/orc, pas-psf-iac/orc. Morph then strip shop.
 
 ## Phase 3: DNS ops + rdb (US3–4)
 
-- [ ] T014 Copy `export-all-dns-settings`, `flush-dns`, `wait-for-cert` into
+- [x] T014 Copy `export-all-dns-settings`, `flush-dns`, `wait-for-cert` into
       csi-spl-orc. Public record writes go through Gandi LiveDNS (`do_gandi_*`),
       not a GCP-only flush that assumes Cloud DNS is authoritative.
 - [ ] T015 `csi-spl-rdb` numbered SQL for spool tables only

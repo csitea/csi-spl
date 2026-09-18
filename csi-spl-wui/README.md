@@ -88,6 +88,16 @@ Open `http://localhost:3000/login` (use `localhost`, matching `-app-url`, so the
 session cookie lands on the same origin). `NUXT_DEV_AUTH_PROXY` forwards
 `/api/v1/auth/**` same-origin, as the Hosting rewrite does in dev/prd.
 
+Live chat against a real hub (two WUI sockets, lobby exchange, persistence,
+file round trip; skipped without `HUB_URL`):
+
+```bash
+HUB_URL=http://t1.localhost:58080 pnpm test:live
+```
+
+Two browser sessions: open `/lobby?as=HUM-1` and `/lobby?as=HUM-2` in two
+windows (`as` must be a v:1 agent id; omit it and the hub assigns one).
+
 Pages: `/` thread list, `/t/<task_id>` one thread oldest first. The mock
 channel / DM pages remain for the later M3 slices (spec 005 §1, Planned).
 

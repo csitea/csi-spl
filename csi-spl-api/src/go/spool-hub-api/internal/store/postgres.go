@@ -87,27 +87,32 @@ func (s *Postgres) SetBillingStatus(ctx context.Context, id, status string) erro
 	return nil
 }
 
-func (s *Postgres) PutPin(ctx context.Context, tenant, box string, pub ed25519.PublicKey, force bool, now time.Time) error {
+func (s *Postgres) PutPin(ctx context.Context, tenant, box string, pub ed25519.PublicKey, force bool, opTS, now time.Time) error {
+	opTS = opTS.Truncate(time.Microsecond) // timestamptz precision: compare like Postgres stores
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var old []byte
-		err := tx.QueryRow(ctx, `SELECT pubkey FROM pins WHERE tenant_id = $1 AND box_id = $2 FOR UPDATE`,
-			tenant, box).Scan(&old)
+		var revokedAt, lastOp *time.Time
+		err := tx.QueryRow(ctx, `SELECT pubkey, revoked_at, last_op_ts FROM pins
+			WHERE tenant_id = $1 AND box_id = $2 FOR UPDATE`, tenant, box).Scan(&old, &revokedAt, &lastOp)
 		reason := "pin"
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 		case err != nil:
 			return err
-		case !bytes.Equal(old, pub):
-			if !force {
-				return ErrConflict
-			}
+		case bytes.Equal(old, pub) && revokedAt == nil:
+			return nil
+		case !force:
+			return ErrConflict
+		case lastOp != nil && !opTS.After(*lastOp):
+			return ErrStale
+		default:
 			reason = "force"
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO pins (tenant_id, box_id, pubkey, updated_at, revoked_at)
-			VALUES ($1, $2, $3, $4, NULL)
+		if _, err := tx.Exec(ctx, `INSERT INTO pins (tenant_id, box_id, pubkey, updated_at, revoked_at, last_op_ts)
+			VALUES ($1, $2, $3, $4, NULL, $5)
 			ON CONFLICT (tenant_id, box_id) DO UPDATE SET pubkey = EXCLUDED.pubkey,
-				updated_at = EXCLUDED.updated_at, revoked_at = NULL`,
-			tenant, box, []byte(pub), now); err != nil {
+				updated_at = EXCLUDED.updated_at, revoked_at = NULL, last_op_ts = EXCLUDED.last_op_ts`,
+			tenant, box, []byte(pub), now, opTS); err != nil {
 			return mapFK(err)
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO pins_history (tenant_id, box_id, pubkey, at, reason)
@@ -116,15 +121,25 @@ func (s *Postgres) PutPin(ctx context.Context, tenant, box string, pub ed25519.P
 	})
 }
 
-func (s *Postgres) RevokePin(ctx context.Context, tenant, box string, now time.Time) error {
+func (s *Postgres) RevokePin(ctx context.Context, tenant, box string, opTS, now time.Time) error {
+	opTS = opTS.Truncate(time.Microsecond) // timestamptz precision: compare like Postgres stores
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var pub []byte
-		err := tx.QueryRow(ctx, `UPDATE pins SET revoked_at = $3 WHERE tenant_id = $1 AND box_id = $2
-			RETURNING pubkey`, tenant, box, now).Scan(&pub)
-		if errors.Is(err, pgx.ErrNoRows) {
+		var revokedAt, lastOp *time.Time
+		err := tx.QueryRow(ctx, `SELECT pubkey, revoked_at, last_op_ts FROM pins
+			WHERE tenant_id = $1 AND box_id = $2 FOR UPDATE`, tenant, box).Scan(&pub, &revokedAt, &lastOp)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
 			return ErrNotFound
+		case err != nil:
+			return err
+		case revokedAt != nil:
+			return nil
+		case lastOp != nil && !opTS.After(*lastOp):
+			return ErrStale
 		}
-		if err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE pins SET revoked_at = $3, last_op_ts = $4
+			WHERE tenant_id = $1 AND box_id = $2`, tenant, box, now, opTS); err != nil {
 			return err
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO pins_history (tenant_id, box_id, pubkey, at, reason)

@@ -242,5 +242,5 @@ type ErrorBody struct {
 // VerifyTokens are the hub error tokens the CLI maps to exit 78.
 var VerifyTokens = map[string]bool{
 	"bad_sig": true, "unpinned_box": true, "bad_nonce": true,
-	"stale_hello": true, "pin_conflict": true,
+	"stale_hello": true, "pin_conflict": true, "stale_pin_op": true,
 }

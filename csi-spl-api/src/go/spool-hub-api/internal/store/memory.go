@@ -29,6 +29,7 @@ type Memory struct {
 type memPin struct {
 	pub     ed25519.PublicKey
 	revoked bool
+	lastOp  time.Time
 }
 
 type memHist struct {
@@ -94,7 +95,8 @@ func (s *Memory) SetBillingStatus(_ context.Context, id, status string) error {
 	return nil
 }
 
-func (s *Memory) PutPin(_ context.Context, tenant, box string, pub ed25519.PublicKey, force bool, now time.Time) error {
+func (s *Memory) PutPin(_ context.Context, tenant, box string, pub ed25519.PublicKey, force bool, opTS, now time.Time) error {
+	opTS = opTS.Truncate(time.Microsecond) // timestamptz precision: compare like Postgres stores
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.tenants[tenant]; !ok {
@@ -102,26 +104,39 @@ func (s *Memory) PutPin(_ context.Context, tenant, box string, pub ed25519.Publi
 	}
 	k := [2]string{tenant, box}
 	reason := "pin"
-	if p, ok := s.pins[k]; ok && !bytes.Equal(p.pub, pub) {
+	if p, ok := s.pins[k]; ok {
+		if bytes.Equal(p.pub, pub) && !p.revoked {
+			return nil
+		}
 		if !force {
 			return ErrConflict
+		}
+		if !p.lastOp.IsZero() && !opTS.After(p.lastOp) {
+			return ErrStale
 		}
 		reason = "force"
 	}
 	cp := append(ed25519.PublicKey(nil), pub...)
-	s.pins[k] = &memPin{pub: cp}
+	s.pins[k] = &memPin{pub: cp, lastOp: opTS}
 	s.history = append(s.history, memHist{tenant: tenant, box: box, reason: reason, pub: cp, at: now})
 	return nil
 }
 
-func (s *Memory) RevokePin(_ context.Context, tenant, box string, now time.Time) error {
+func (s *Memory) RevokePin(_ context.Context, tenant, box string, opTS, now time.Time) error {
+	opTS = opTS.Truncate(time.Microsecond) // timestamptz precision: compare like Postgres stores
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.pins[[2]string{tenant, box}]
 	if !ok {
 		return ErrNotFound
 	}
-	p.revoked = true
+	if p.revoked {
+		return nil
+	}
+	if !p.lastOp.IsZero() && !opTS.After(p.lastOp) {
+		return ErrStale
+	}
+	p.revoked, p.lastOp = true, opTS
 	s.history = append(s.history, memHist{
 		tenant: tenant, box: box, reason: "revoke",
 		pub: append(ed25519.PublicKey(nil), p.pub...), at: now,

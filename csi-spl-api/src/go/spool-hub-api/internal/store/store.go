@@ -23,6 +23,10 @@ var ErrNotFound = errors.New("not found")
 // different canonical envelope (FR-010).
 var ErrConflict = errors.New("conflict")
 
+// ErrStale is returned for a tenant-root-signed pin op whose ts is not later
+// than the last op that changed the pin: a replay (004 pin-semantics §5).
+var ErrStale = errors.New("stale pin op")
+
 // Delivery states the hub persists (deliveries.state). The send-result values
 // "local" and "pending" never reach the hub (data-model.md §2a).
 const (
@@ -104,10 +108,14 @@ type Store interface {
 	// SetBillingStatus writes tenants.billing_status (payment.md mapping).
 	SetBillingStatus(ctx context.Context, tenantID, status string) error
 
-	// PutPin pins box's key. Same key → no change; different key → ErrConflict
-	// unless force (a history row records it). A revoked pin is re-activated.
-	PutPin(ctx context.Context, tenantID, boxID string, pub ed25519.PublicKey, force bool, now time.Time) error
-	RevokePin(ctx context.Context, tenantID, boxID string, now time.Time) error
+	// PutPin pins box's key (004 contracts/pin-semantics.md §2). The same key on
+	// an active pin is a no-op with no write. A different key, or any key on a
+	// revoked pin, is ErrConflict unless force. A state change needs opTS (the
+	// signed client ts) later than the pin's last op, else ErrStale.
+	PutPin(ctx context.Context, tenantID, boxID string, pub ed25519.PublicKey, force bool, opTS, now time.Time) error
+	// RevokePin revokes an active pin (ErrStale as for PutPin). Revoking an
+	// already revoked pin is a no-op; an absent pin is ErrNotFound.
+	RevokePin(ctx context.Context, tenantID, boxID string, opTS, now time.Time) error
 	// GetPin returns an active pin, or ErrNotFound when absent or revoked.
 	GetPin(ctx context.Context, tenantID, boxID string) (ed25519.PublicKey, error)
 	ListPins(ctx context.Context, tenantID string) ([]Pin, error)

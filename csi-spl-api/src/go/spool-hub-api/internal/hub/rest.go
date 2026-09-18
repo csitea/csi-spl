@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/coder/websocket"
 
@@ -157,9 +158,14 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	err = s.o.Store.PutPin(r.Context(), t.ID, req.BoxID, ed25519.PublicKey(pub), req.Force, s.o.Now())
+	opTS, _ := time.Parse(time.RFC3339, req.TS) // skewOK parsed it already
+	err = s.o.Store.PutPin(r.Context(), t.ID, req.BoxID, ed25519.PublicKey(pub), req.Force, opTS, s.o.Now())
 	if errors.Is(err, store.ErrConflict) {
-		writeErr(w, http.StatusConflict, "pin_conflict", "box_id is pinned to a different key (use force)")
+		writeErr(w, http.StatusConflict, "pin_conflict", "box_id is pinned to a different key or revoked (use force)")
+		return
+	}
+	if errors.Is(err, store.ErrStale) {
+		writeErr(w, http.StatusConflict, "stale_pin_op", "ts is not later than the last op on this pin (replay?)")
 		return
 	}
 	if err != nil {
@@ -191,8 +197,12 @@ func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
 		writeUnpaid(w)
 		return
 	}
-	if err := s.o.Store.RevokePin(r.Context(), t.ID, req.BoxID, s.o.Now()); errors.Is(err, store.ErrNotFound) {
+	opTS, _ := time.Parse(time.RFC3339, req.TS) // skewOK parsed it already
+	if err := s.o.Store.RevokePin(r.Context(), t.ID, req.BoxID, opTS, s.o.Now()); errors.Is(err, store.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "not_found", "no such pin")
+		return
+	} else if errors.Is(err, store.ErrStale) {
+		writeErr(w, http.StatusConflict, "stale_pin_op", "ts is not later than the last op on this pin (replay?)")
 		return
 	} else if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "revoke not stored")

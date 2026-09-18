@@ -146,7 +146,7 @@ func (e *env) box(tenant, id string, agents ...string) *box {
 func (e *env) pin(tenant string, b *box) {
 	e.t.Helper()
 	raw, _ := base64.StdEncoding.DecodeString(b.pub)
-	if err := e.st.PutPin(context.Background(), tenant, b.id, ed25519.PublicKey(raw), false, time.Now()); err != nil {
+	if err := e.st.PutPin(context.Background(), tenant, b.id, ed25519.PublicKey(raw), false, time.Now(), time.Now()); err != nil {
 		e.t.Fatal(err)
 	}
 }
@@ -735,9 +735,12 @@ func TestPinRevokeAndForce(t *testing.T) {
 	e := newEnv(t)
 	tid, root := e.tenant()
 	a := e.box(tid, "box-a", "GRK-03")
+	// Each pin op signs a later ts (004 pin-semantics §5); hello uses ts.
 	ts := time.Now().UTC().Format(time.RFC3339)
-	p, _ := wire.PinPayload("box-a", a.pub, ts, false)
-	body, _ := jsonBody(wire.PinRequest{BoxID: "box-a", PubKey: a.pub, TS: ts, Sig: sign.Sign(root, p)})
+	tsAt := func(d time.Duration) string { return time.Now().Add(d).UTC().Format(time.RFC3339Nano) }
+	tsPin, tsRevoke, tsForce := tsAt(-30*time.Second), tsAt(-20*time.Second), tsAt(-10*time.Second)
+	p, _ := wire.PinPayload("box-a", a.pub, tsPin, false)
+	body, _ := jsonBody(wire.PinRequest{BoxID: "box-a", PubKey: a.pub, TS: tsPin, Sig: sign.Sign(root, p)})
 	resp, _ := e.client.Post(e.url(tid)+"/v1/pins", "application/json", body)
 	if resp.StatusCode != 200 {
 		t.Fatalf("pin: %d", resp.StatusCode)
@@ -750,8 +753,8 @@ func TestPinRevokeAndForce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rp, _ := wire.RevokePayload("box-a", ts)
-	rbody, _ := jsonBody(wire.RevokeRequest{BoxID: "box-a", TS: ts, Sig: sign.Sign(root, rp)})
+	rp, _ := wire.RevokePayload("box-a", tsRevoke)
+	rbody, _ := jsonBody(wire.RevokeRequest{BoxID: "box-a", TS: tsRevoke, Sig: sign.Sign(root, rp)})
 	req, _ := http.NewRequest(http.MethodDelete, e.url(tid)+"/v1/pins/box-a", rbody)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err = e.client.Do(req)
@@ -779,20 +782,47 @@ func TestPinRevokeAndForce(t *testing.T) {
 
 	k2, priv2, _ := ed25519.GenerateKey(nil)
 	k2s := base64.StdEncoding.EncodeToString(k2)
-	p2, _ := wire.PinPayload("box-a", k2s, ts, false)
-	body, _ = jsonBody(wire.PinRequest{BoxID: "box-a", PubKey: k2s, TS: ts, Sig: sign.Sign(root, p2)})
+	p2, _ := wire.PinPayload("box-a", k2s, tsForce, false)
+	body, _ = jsonBody(wire.PinRequest{BoxID: "box-a", PubKey: k2s, TS: tsForce, Sig: sign.Sign(root, p2)})
 	resp, _ = e.client.Post(e.url(tid)+"/v1/pins", "application/json", body)
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("new key without force after revoke: %d", resp.StatusCode)
 	}
 	resp.Body.Close()
-	p3, _ := wire.PinPayload("box-a", k2s, ts, true)
-	body, _ = jsonBody(wire.PinRequest{BoxID: "box-a", PubKey: k2s, TS: ts, Force: true, Sig: sign.Sign(root, p3)})
+	// The old key on the revoked pin, even signed fresh, needs force.
+	pOld, _ := wire.PinPayload("box-a", a.pub, tsForce, false)
+	body, _ = jsonBody(wire.PinRequest{BoxID: "box-a", PubKey: a.pub, TS: tsForce, Sig: sign.Sign(root, pOld)})
+	resp, _ = e.client.Post(e.url(tid)+"/v1/pins", "application/json", body)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("same key on a revoked pin without force: %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+	p3, _ := wire.PinPayload("box-a", k2s, tsForce, true)
+	body, _ = jsonBody(wire.PinRequest{BoxID: "box-a", PubKey: k2s, TS: tsForce, Force: true, Sig: sign.Sign(root, p3)})
 	resp, _ = e.client.Post(e.url(tid)+"/v1/pins", "application/json", body)
 	if resp.StatusCode != 200 {
 		t.Fatalf("force new key: %d", resp.StatusCode)
 	}
 	resp.Body.Close()
+
+	// A captured revoke replayed after the force re-pin is refused, and the
+	// new key stays active.
+	rbody, _ = jsonBody(wire.RevokeRequest{BoxID: "box-a", TS: tsRevoke, Sig: sign.Sign(root, rp)})
+	req, _ = http.NewRequest(http.MethodDelete, e.url(tid)+"/v1/pins/box-a", rbody)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = e.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var eb wire.ErrorBody
+	json.NewDecoder(resp.Body).Decode(&eb) //nolint:errcheck
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict || eb.Error != "stale_pin_op" {
+		t.Fatalf("replayed revoke: %d %q", resp.StatusCode, eb.Error)
+	}
+	if got, err := e.st.GetPin(ctx, tid, "box-a"); err != nil || base64.StdEncoding.EncodeToString(got) != k2s {
+		t.Fatalf("replayed revoke changed the pin: %v", err)
+	}
 
 	// Operator --force: new private key AND local pin. Sidecar will not clobber
 	// a local pin that still holds the revoked key (004 T008).

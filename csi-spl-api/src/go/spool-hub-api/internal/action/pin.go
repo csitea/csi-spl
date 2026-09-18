@@ -68,7 +68,9 @@ func PublishPin(cfg *config.Config, in PinArgs) ([]byte, error) {
 	if err != nil || len(priv) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("%s is not a base64 ed25519 private key", in.RootKey)
 	}
-	ts := time.Now().UTC().Format(time.RFC3339)
+	// Sub-second ts: the hub requires each pin op to be later than the last one
+	// (004 pin-semantics §5), so two ops in one second must still order.
+	ts := time.Now().UTC().Format(time.RFC3339Nano)
 	var method, path string
 	var body any
 	if in.Revoke {

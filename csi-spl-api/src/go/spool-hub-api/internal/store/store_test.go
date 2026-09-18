@@ -103,28 +103,44 @@ func TestTenantsAndPins(t *testing.T) {
 				t.Fatalf("unknown tenant: %v", err)
 			}
 
+			// 004 contracts/pin-semantics.md §2: each state change carries a
+			// later signed ts (t0 < t1 < ...); replays are ErrStale.
 			k1, k2 := pubkey(), pubkey()
-			if err := s.PutPin(ctx, tid, "box-a", k1, false, now); err != nil {
+			t0 := now.Add(-time.Minute)
+			tn := func(i int) time.Time { return t0.Add(time.Duration(i) * time.Second) }
+			if err := s.PutPin(ctx, tid, "box-a", k1, false, tn(0), now); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.PutPin(ctx, tid, "box-a", k1, false, now); err != nil {
-				t.Fatalf("same key re-pin: %v", err)
+			if err := s.PutPin(ctx, tid, "box-a", k1, false, tn(0), now); err != nil {
+				t.Fatalf("same key re-pin (even a replay) must be a no-op: %v", err)
 			}
-			if err := s.PutPin(ctx, tid, "box-a", k2, false, now); !errors.Is(err, ErrConflict) {
+			if err := s.PutPin(ctx, tid, "box-a", k2, false, tn(1), now); !errors.Is(err, ErrConflict) {
 				t.Fatalf("different key without force: %v", err)
 			}
-			if err := s.PutPin(ctx, tid, "box-a", k2, true, now); err != nil {
+			if err := s.PutPin(ctx, tid, "box-a", k2, true, tn(0), now); !errors.Is(err, ErrStale) {
+				t.Fatalf("force with a ts not after the last op: want stale, got %v", err)
+			}
+			if err := s.PutPin(ctx, tid, "box-a", k2, true, tn(2), now); err != nil {
 				t.Fatalf("force: %v", err)
 			}
 			got, err := s.GetPin(ctx, tid, "box-a")
 			if err != nil || !got.Equal(k2) {
 				t.Fatalf("GetPin after force: %v", err)
 			}
-			if err := s.PutPin(ctx, uid("nope-"), "box-a", k1, false, now); !errors.Is(err, ErrNotFound) {
+			if err := s.PutPin(ctx, uid("nope-"), "box-a", k1, false, tn(3), now); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("pin in unknown tenant: %v", err)
 			}
-			if err := s.RevokePin(ctx, tid, "box-a", now); err != nil {
+			if err := s.RevokePin(ctx, tid, "box-a", tn(1), now); !errors.Is(err, ErrStale) {
+				t.Fatalf("revoke replayed from before the force: want stale, got %v", err)
+			}
+			if err := s.RevokePin(ctx, tid, "box-a", tn(3), now); err != nil {
 				t.Fatal(err)
+			}
+			if err := s.RevokePin(ctx, tid, "box-a", tn(3), now); err != nil {
+				t.Fatalf("revoking a revoked pin must be a no-op: %v", err)
+			}
+			if err := s.RevokePin(ctx, tid, "box-zz", tn(4), now); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("revoke absent pin: %v", err)
 			}
 			if _, err := s.GetPin(ctx, tid, "box-a"); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("revoked pin still active: %v", err)
@@ -133,9 +149,21 @@ func TestTenantsAndPins(t *testing.T) {
 			if len(pins) != 0 {
 				t.Fatalf("revoked pin listed: %v", pins)
 			}
+			if err := s.PutPin(ctx, tid, "box-a", k2, false, tn(4), now); !errors.Is(err, ErrConflict) {
+				t.Fatalf("same key on a revoked pin without force: want conflict, got %v", err)
+			}
+			if err := s.PutPin(ctx, tid, "box-a", k2, true, tn(3), now); !errors.Is(err, ErrStale) {
+				t.Fatalf("force replayed from before the revoke: want stale, got %v", err)
+			}
+			if err := s.PutPin(ctx, tid, "box-a", k2, true, tn(5), now); err != nil {
+				t.Fatalf("force re-activate: %v", err)
+			}
+			if got, err := s.GetPin(ctx, tid, "box-a"); err != nil || !got.Equal(k2) {
+				t.Fatalf("GetPin after re-activate: %v", err)
+			}
 			reasons := pinHistoryReasons(t, s, tid, "box-a")
-			if fmt.Sprint(reasons) != "[pin pin force revoke]" {
-				t.Fatalf("pins_history reasons = %v, want [pin pin force revoke]", reasons)
+			if fmt.Sprint(reasons) != "[pin force revoke force]" {
+				t.Fatalf("pins_history reasons = %v, want [pin force revoke force]", reasons)
 			}
 		})
 	}
@@ -184,6 +212,12 @@ func TestRosterIsPerBox(t *testing.T) {
 			}
 			if err := s.SetRoster(ctx, tid, "box-a", []string{"GRK-03"}, now); err != nil {
 				t.Fatal(err)
+			}
+			if name == "postgres" { // the hub rejects it first; the schema is the backstop (004 T019)
+				err := s.SetRoster(ctx, tid, "box-c", []string{"BOX-1"}, now)
+				if err == nil || !strings.Contains(err.Error(), "roster_agent_id_check") {
+					t.Fatalf("roster BOX- agent id: want roster_agent_id_check violation, got %v", err)
+				}
 			}
 			r, _ := s.Roster(ctx, tid)
 			if fmt.Sprint(r) != "map[box-a:[GRK-03] box-b:[CLE-07]]" {

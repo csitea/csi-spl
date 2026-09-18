@@ -29,7 +29,7 @@ here (§2.4); the owner is named.
 - [x] T014 Implemented (`1c4e1a6`, 005 CLE-3342) — `/login` renders one plain-link button per `GET /api/v1/auth/providers`, no SDK; empty list → "Sign-in is not available yet". Check (005's, n=1): `node --test tests/unit/*.test.mjs` → 39 pass (9 auth) on `44841b3`.
 - [x] T015 Implemented (`1c4e1a6`, 005) — `auth_error` copy per contract §2, code dropped from the URL, `redirect` kept; session probe 200 in / 401 out / else unknown (prior state kept); sign out = `POST logout` → `/login`. Not yet verified with a real browser against the WUI (see T017).
 - [x] T016 Implemented (`1c4e1a6` 005, `1dbc29a` 007) — checked-in `csi-spl-wui/firebase.json` and the deploy-time render `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` both send `/api/v1/auth/**` to the hub before the SPA `**` rule (`git grep -c api/v1/auth origin/master -- csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` → 2; `wui-actions.tst.sh` asserts it). FR-010.
-- [ ] T017 Planned (005 + 010) — lde browser round trip: `auth-demo -addr … -app-url <wui> -public-url <wui>` (`c01b4ea`) behind the WUI's `NUXT_DEV_AUTH_PROXY` (`quickstart.md` §2.3). Checked by 010 through a same-origin reverse proxy standing in for nuxt devProxy (both providers land on `<wui>/c/general`, `<wui>/api/v1/auth/session` → 200; n=1); not yet with the Nuxt dev server in a browser.
+- [x] T017 Implemented (005 CLE-3342, 2026-09-18 ~19:43Z, n=1 per provider) — lde browser round trip in Chrome: `auth-demo -addr 127.0.0.1:58181 -app-url http://localhost:3044 -public-url http://localhost:3044` (tree `193afcc`) + `nuxi dev` with `NUXT_DEV_AUTH_PROXY`. Google and Facebook both land on `/t/<id>` with `/api/v1/auth/session` 200; `spool_session` is absent from `document.cookie` (HttpOnly); sign out → session 401; `?auth_error=invalid_state` shows its copy, and the code is dropped while `redirect` is kept. How-to: `csi-spl-wui/README.md` (`eb6d3f6`), `quickstart.md` §2.3.
 
 ## Phase 4 — Infra (007 iac; apply is the owner-gated apply lane)
 
@@ -53,4 +53,4 @@ Recorded by 007 (CLE-3344) as its T066–T068 = these T020–T022, behind 007's 
 - [ ] T043 Planned — Facebook deauthorize + data-deletion callback (required for a live Meta app; csi-rel `facebook_callbacks.go` is the donor).
 - [ ] T044 Planned — avatar: server-side fetch → `file_id` (narrative §3.4).
 
-<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:44:55Z -->
+<!-- version: 0.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:47:09Z -->

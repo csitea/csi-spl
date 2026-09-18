@@ -126,6 +126,9 @@ run logs and **post them into the same chats**. Binding:
 Also later: WUI **option** to reverse chats (composer at top, prepend)
 — `SPEC-spool-chat-reverse.md`. M3 default remains append-at-bottom.
 
+Also later: **dedicated GCP SKU** — they pay Google with their card; you
+provision (`SPEC-spool-byo-gcp.md`). Does **not** replace M2 hosted checkout.
+
 ## Order
 
 **M1 proto** (local + spool-hub.ai, infra on **dev and prd**) →
@@ -133,4 +136,4 @@ Also later: WUI **option** to reverse chats (composer at top, prepend)
 **M3 rollout** (Slack WUI, csi-rel/pas-psf hosting) →
 **later** CI logs in chat (`gh` on Cloud Run) and reverse-chat UI option.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:00:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T22:15:00Z -->

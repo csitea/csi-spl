@@ -25,18 +25,18 @@ fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 # domain_violations <root> <all.env.yaml> -> prints offending files; rc 2 if no domain
 domain_violations() {
-  local root="$1" cnf="$2" domain label label_re
+  local root="$1" cnf="$2" domain label label_re tld tld_re
   domain=$(yq -r '.env.dns.BASE_DOMAIN // ""' "$cnf" 2>/dev/null)
   [[ -n "$domain" && "$domain" != null && "$domain" == *.* ]] || return 2
-  label="${domain%.*}"
-  # Match the label only at a real domain boundary: the label followed by a
-  # non-[A-Za-z0-9-] char (a dot, an escaped dot, a quote) or end-of-line. This
-  # still catches the BASE_DOMAIN literal and its escaped/split forms, but a
-  # legitimate identifier that merely STARTS with the label (e.g. a
-  # "<label>-api" module directory) is no longer a false positive. (-E, not -F.)
+  label="${domain%.*}" tld="${domain##*.}"
+  # Match the label only where the TLD follows it: the literal (label.tld), an
+  # escaped regex form (label\.tld) or a split string ("label" + ".tld"). A
+  # path segment or identifier that merely IS the label (a "<label>/" SQL dir,
+  # a "<label>-api" module) is not the domain and is not a hit. (-E, not -F.)
   label_re=$(printf '%s' "$label" | sed 's/[.\\]/\\&/g')
+  tld_re=$(printf '%s' "$tld" | sed 's/[.\\]/\\&/g')
   grep -rIlE --exclude-dir=.git --exclude-dir=tpl-gen --exclude-dir=bin --exclude-dir=log \
-    -- "${label_re}([^A-Za-z0-9-]|$)" "$root" 2>/dev/null |
+    -- "${label_re}[\"' +\\]*\.${tld_re}([^A-Za-z0-9-]|$)" "$root" 2>/dev/null |
     sed "s#^$root/##" |
     grep -vE '^(csi-spl-cnf|csi-spl-doc)/' || true
 }
@@ -58,9 +58,11 @@ d=$(yq -r '.env.dns.BASE_DOMAIN' "$CNF")
 printf 'allowed %s\n' "$d" >"$tmp/csi-spl-doc/ok.md"
 printf 'ignored %s\n' "$d" >"$tmp/tpl-gen/ignored.txt"
 printf 'host="%s"\n' "${d//./\\.}" >"$tmp/csi-spl-iac/src/planted.sh"
+printf 'sql=csi-spl-rdb/src/sql/postgres/%s/\npath=filepath.Join("x", "%s")\n' "${d%.*}" "${d%.*}" >"$tmp/csi-spl-iac/src/path-segment.go"
+printf 'host := "%s" + ".%s"\n' "${d%.*}" "${d##*.}" >"$tmp/csi-spl-iac/src/split.go"
 hits=$(domain_violations "$tmp" "$tmp/csi-spl-cnf/csi-spl/all.env.yaml")
-[[ "$hits" == "csi-spl-iac/src/planted.sh" ]] && pass "control: a planted (escaped) literal in csi-spl-iac is caught, allowed dirs are not" \
-  || fail "control: expected exactly csi-spl-iac/src/planted.sh, got: ${hits:-<nothing>}"
+[[ "$(sort <<<"$hits" | tr '\n' ' ')" == "csi-spl-iac/src/planted.sh csi-spl-iac/src/split.go " ]] && pass "control: planted escaped + split literals in csi-spl-iac are caught; a <label>/ path segment and allowed dirs are not" \
+  || fail "control: expected exactly planted.sh + split.go, got: ${hits:-<nothing>}"
 
 # --- control 2: an empty domain fails instead of matching nothing -------------
 printf 'env:\n  dns:\n    BASE_DOMAIN: ""\n' >"$tmp/csi-spl-cnf/csi-spl/all.env.yaml"

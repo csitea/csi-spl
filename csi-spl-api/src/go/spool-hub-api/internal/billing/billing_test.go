@@ -24,7 +24,7 @@ func TestMapEvent(t *testing.T) {
 }
 
 func TestAllowsWrite(t *testing.T) {
-	if !AllowsWrite(StatusActive) || !AllowsWrite(StatusInternal) || !AllowsWrite("") {
+	if !AllowsWrite(StatusActive) || !AllowsWrite(StatusInternal) || !AllowsWrite(StatusManual) || !AllowsWrite("") {
 		t.Fatal("active/internal must allow send/pin")
 	}
 	if AllowsWrite(StatusGrace) || AllowsWrite(StatusUnpaid) {

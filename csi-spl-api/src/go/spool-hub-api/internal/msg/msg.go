@@ -184,6 +184,21 @@ func ValidID(s string) bool {
 // ValidBoxID reports whether s is a well-formed box id.
 func ValidBoxID(s string) bool { return boxRe.MatchString(s) }
 
+// reservedTenants are labels a tenant may not take (006 FR-016): env labels
+// that own a sub-zone of the product domain (*.dev.<domain>) and hosts the
+// estate may serve itself. Not hostnames — the domain is cnf-only.
+var reservedTenants = map[string]bool{
+	"dev": true, "prd": true, "lde": true, "stg": true, "tst": true,
+	"www": true, "api": true, "app": true, "hub": true, "wui": true,
+	"admin": true, "auth": true, "login": true, "mail": true,
+	"status": true, "docs": true, "help": true, "support": true,
+}
+
+// ValidTenantID reports whether s is a usable tenant DNS slug: the box-id
+// alphabet (^[a-z0-9][a-z0-9-]{0,31}$) and not a reserved label. The tenant
+// is the Host label, not an agent id.
+func ValidTenantID(s string) bool { return boxRe.MatchString(s) && !reservedTenants[s] }
+
 // Now returns an RFC3339 UTC timestamp with second precision.
 func Now(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 

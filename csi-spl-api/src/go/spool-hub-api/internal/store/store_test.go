@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -135,6 +136,36 @@ func TestTenantsAndPins(t *testing.T) {
 			reasons := pinHistoryReasons(t, s, tid, "box-a")
 			if fmt.Sprint(reasons) != "[pin pin force revoke]" {
 				t.Fatalf("pins_history reasons = %v, want [pin pin force revoke]", reasons)
+			}
+		})
+	}
+}
+
+func TestTenantManualAndPubkeyOnly(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			pub, priv, _ := ed25519.GenerateKey(nil)
+			tid := uid("t-")
+			if err := s.CreateTenant(ctx, Tenant{ID: tid, RootPubKey: pub, BillingStatus: "manual"}); err != nil {
+				t.Fatal(err)
+			}
+			got, err := s.GetTenant(ctx, tid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.BillingStatus != "manual" || got.PlanID != "default" {
+				t.Fatalf("status/plan: %+v", got)
+			}
+			if len(got.RootPubKey) != 32 || bytes.Contains(priv, got.RootPubKey) == false {
+				t.Fatalf("stored root key is %d bytes, want the 32-byte public half", len(got.RootPubKey))
+			}
+			// A 64-byte private key must not be accepted as root_pubkey.
+			if err := s.CreateTenant(ctx, Tenant{ID: uid("t-"), RootPubKey: ed25519.PublicKey(priv)}); err == nil {
+				t.Fatal("64-byte private key accepted as root_pubkey")
+			}
+			if err := s.CreateTenant(ctx, Tenant{ID: uid("t-"), RootPubKey: pub, BillingStatus: "mystery"}); err == nil {
+				t.Fatal("unknown billing_status accepted")
 			}
 		})
 	}

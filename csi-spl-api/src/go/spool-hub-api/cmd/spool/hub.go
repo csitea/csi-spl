@@ -103,13 +103,14 @@ func cmdHubTenant(args []string) int {
 	fs := flag.NewFlagSet("hub-tenant", flag.ContinueOnError)
 	tenant := fs.String("tenant", "", "tenant id")
 	root := fs.String("root-pubkey", "", "base64 tenant root public key")
+	billing := fs.String("billing-status", "", "active|grace|unpaid|internal|manual (default internal)")
 	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	pub, err := base64.StdEncoding.DecodeString(*root)
-	if !msg.ValidBoxID(*tenant) || err != nil || len(pub) != ed25519.PublicKeySize || *dsn == "" {
-		return fail(fmt.Errorf("--tenant (valid id), --root-pubkey (base64 32-byte key) and --db / $SPOOL_HUB_DB_DSN are required"))
+	if !msg.ValidTenantID(*tenant) || err != nil || len(pub) != ed25519.PublicKeySize || *dsn == "" {
+		return fail(fmt.Errorf("--tenant (valid, non-reserved slug), --root-pubkey (base64 32-byte key) and --db / $SPOOL_HUB_DB_DSN are required"))
 	}
 	ctx := context.Background()
 	st, err := store.OpenPostgres(ctx, *dsn)
@@ -117,7 +118,8 @@ func cmdHubTenant(args []string) int {
 		return fail(err)
 	}
 	defer st.Close()
-	if err := st.CreateTenant(ctx, store.Tenant{ID: *tenant, RootPubKey: pub}); err != nil {
+	row := store.Tenant{ID: *tenant, RootPubKey: pub, BillingStatus: *billing}
+	if err := st.CreateTenant(ctx, row); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return fail(fmt.Errorf("tenant %s exists with a different root key: %w", *tenant, sign.ErrVerify))
 		}

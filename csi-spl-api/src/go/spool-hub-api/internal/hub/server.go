@@ -165,7 +165,7 @@ func (s *Server) tenantOf(r *http.Request) (store.Tenant, error) {
 		return store.Tenant{}, store.ErrNotFound
 	}
 	id := strings.TrimSuffix(host, s.suffix)
-	if !msg.ValidBoxID(id) { // the tenant id shares the box-id alphabet (006)
+	if !msg.ValidTenantID(id) {
 		return store.Tenant{}, store.ErrNotFound
 	}
 	return s.o.Store.GetTenant(r.Context(), id)

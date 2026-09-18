@@ -88,6 +88,19 @@ func TestValidID(t *testing.T) {
 	}
 }
 
+func TestValidTenantID(t *testing.T) {
+	for _, s := range []string{"acme", "t1", "box-a", "a", "dev-001"} {
+		if !ValidTenantID(s) {
+			t.Errorf("ValidTenantID(%q) = false, want true", s)
+		}
+	}
+	for _, s := range []string{"", "Acme", "t_1", "has.dot", "-lead", "this-id-is-way-too-long-for-the-slug", "dev", "prd", "www", "api"} {
+		if ValidTenantID(s) {
+			t.Errorf("ValidTenantID(%q) = true, want false", s)
+		}
+	}
+}
+
 func TestValidateLimits(t *testing.T) {
 	big := sample()
 	big.Body = strings.Repeat("x", MaxBodyBytes+1)

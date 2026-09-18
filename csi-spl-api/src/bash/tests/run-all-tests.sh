@@ -25,6 +25,7 @@ echo "== go test =="
 
 echo "== reference-hygiene gate =="
 bash "$HERE/no-ysg-box-ref.tst.sh"
+bash "$HERE/no-baked-host.tst.sh"
 
 echo "== payment-vendor WUI gate =="
 bash "$HERE/no-payment-vendor-wui.tst.sh"

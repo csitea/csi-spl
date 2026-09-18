@@ -56,3 +56,30 @@ func TestLoadTenantRootKey(t *testing.T) {
 		t.Fatalf("TenantRootKey = %q", c.TenantRootKey)
 	}
 }
+
+func TestLoadHubRequiresTenantHostPatternFromEnv(t *testing.T) {
+	t.Setenv("SPOOL_HUB_DB_DSN", "postgres://spool@/spool?sslmode=disable")
+	t.Setenv("SPOOL_HUB_FILES_DIR", t.TempDir())
+	t.Setenv("SPOOL_HUB_FILES_BUCKET", "")
+	t.Setenv("SPOOL_HUB_TENANT_HOST_PATTERN", "")
+	if _, err := LoadHub(); err == nil {
+		t.Fatal("empty SPOOL_HUB_TENANT_HOST_PATTERN was accepted")
+	}
+
+	t.Setenv("SPOOL_HUB_TENANT_HOST_PATTERN", "not-a-pattern.example")
+	if _, err := LoadHub(); err == nil {
+		t.Fatal("pattern without {tenant}. prefix was accepted")
+	}
+
+	t.Setenv("SPOOL_HUB_TENANT_HOST_PATTERN", "{tenant}.hub.test")
+	h, err := LoadHub()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.TenantHostPattern != "{tenant}.hub.test" {
+		t.Fatalf("pattern = %q", h.TenantHostPattern)
+	}
+	if strings.Contains(h.TenantHostPattern, "spool-hub") {
+		t.Fatal("hub config baked a product hostname")
+	}
+}

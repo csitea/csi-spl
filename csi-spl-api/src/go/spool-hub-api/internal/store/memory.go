@@ -54,6 +54,9 @@ func NewMemory() *Memory {
 }
 
 func (s *Memory) CreateTenant(_ context.Context, t Tenant) error {
+	if err := normalizeTenant(&t); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if old, ok := s.tenants[t.ID]; ok {
@@ -61,12 +64,6 @@ func (s *Memory) CreateTenant(_ context.Context, t Tenant) error {
 			return ErrConflict
 		}
 		return nil
-	}
-	if t.BillingStatus == "" {
-		t.BillingStatus = "internal"
-	}
-	if t.PlanID == "" {
-		t.PlanID = "default"
 	}
 	s.tenants[t.ID] = t
 	return nil

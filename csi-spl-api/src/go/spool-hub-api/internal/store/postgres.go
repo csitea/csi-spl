@@ -39,11 +39,8 @@ func (s *Postgres) Pool() *pgxpool.Pool { return s.pool }
 func (s *Postgres) Close() { s.pool.Close() }
 
 func (s *Postgres) CreateTenant(ctx context.Context, t Tenant) error {
-	if t.BillingStatus == "" {
-		t.BillingStatus = "internal"
-	}
-	if t.PlanID == "" {
-		t.PlanID = "default"
+	if err := normalizeTenant(&t); err != nil {
+		return err
 	}
 	tag, err := s.pool.Exec(ctx, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id)
 		VALUES ($1, $2, $3, $4) ON CONFLICT (tenant_id) DO NOTHING`,

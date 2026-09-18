@@ -10,12 +10,15 @@ import (
 	"time"
 )
 
-// tenants.billing_status CHECK values (003 data-model.md / 0001_hub_core.sql).
+// tenants.billing_status CHECK values (0001_hub_core.sql + 0004_tenant_manual.sql).
+// internal = our own fleet, never billed; manual = an owner-made renter
+// tenant (do_spl_tenant_create), billed out of band until M2 checkout.
 const (
 	StatusActive   = "active"
 	StatusGrace    = "grace"
 	StatusUnpaid   = "unpaid"
 	StatusInternal = "internal"
+	StatusManual   = "manual"
 )
 
 // Hub error tokens (003 contracts/error-envelope.md).
@@ -49,7 +52,7 @@ func MapEvent(event string) (string, error) {
 // ValidStatus reports a tenants.billing_status CHECK value.
 func ValidStatus(s string) bool {
 	switch s {
-	case StatusActive, StatusGrace, StatusUnpaid, StatusInternal:
+	case StatusActive, StatusGrace, StatusUnpaid, StatusInternal, StatusManual:
 		return true
 	}
 	return false
@@ -59,7 +62,7 @@ func ValidStatus(s string) bool {
 // pins, and WS hello stay up in grace (T013).
 func AllowsWrite(status string) bool {
 	switch status {
-	case StatusActive, StatusInternal, "":
+	case StatusActive, StatusInternal, StatusManual, "":
 		return true
 	default:
 		return false

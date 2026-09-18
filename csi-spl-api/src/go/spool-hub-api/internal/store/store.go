@@ -9,7 +9,10 @@ import (
 	"context"
 	"crypto/ed25519"
 	"errors"
+	"fmt"
 	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 )
 
 // ErrNotFound is returned for an absent tenant, pin or message.
@@ -28,12 +31,29 @@ const (
 	StateExpired = "expired"
 )
 
-// Tenant is one renter (006). Only the root PUBLIC key is kept.
+// Tenant is one renter (006). Only the root PUBLIC key is kept. Quotas are
+// the plan's (cnf), not per-row columns (006 FR-008, OQ-006-1).
 type Tenant struct {
 	ID            string
 	RootPubKey    ed25519.PublicKey
 	BillingStatus string
 	PlanID        string
+}
+
+func normalizeTenant(t *Tenant) error {
+	if len(t.RootPubKey) != ed25519.PublicKeySize {
+		return fmt.Errorf("root pubkey must be %d bytes (private key is never stored)", ed25519.PublicKeySize)
+	}
+	if t.BillingStatus == "" {
+		t.BillingStatus = billing.StatusInternal
+	}
+	if !billing.ValidStatus(t.BillingStatus) {
+		return fmt.Errorf("billing_status %q is not a tenants.billing_status value", t.BillingStatus)
+	}
+	if t.PlanID == "" {
+		t.PlanID = "default"
+	}
+	return nil
 }
 
 // Pin is one pinned box public key.

@@ -118,28 +118,23 @@ If they will only attach billing to a project **they** created: skip
 projectCreator; they paste `project_id` + grant Editor; you apply 007
 inside it.
 
-### Project IDs (optional 3-letter ORG + APP + minute stamp)
+### Project IDs (`{org}-{app}-{env}-{YYYYMMDDHH}`)
 
-If registration collects two **3-letter** codes (`org`, `app`), mint GCP
-project ids as:
+Mint GCP project ids as:
 
-`{org}-{app}-{env}-{yyyymmddhhmm}`
+`{org}-{app}-{env}-{YYYYMMDDHH}`
 
-Example: `acme-bot-prd-202609181430`.
+Canonical example: **`csi-spl-dev-2026091717`**
+(`csi` + `spl` + `dev` + UTC **hour** `2026-09-17 17:00`).
 
-GCP project id rules: 6–30 chars, start with a letter, `[a-z0-9-]`, no
-trailing hyphen. This form is **24 characters** (3+3+3+12 and three
-hyphens). Fits.
+Length 22 (`aaa-bbb-ccc-` + 10 digits). GCP max 30. Same pattern for `prd`
+(`csi-spl-prd-2026091717`).
 
-**Collision with a pre-existing global id is negligible.** Short names
-(`foo-bar-dev`) are often taken. A 12-digit **minute** suffix is one of
-~10^12 digit strings; in calendar time, ~0.5 million minutes/year. The
-chance a random stranger already created that exact id is effectively
-zero unless *you* already did (retry: next minute, or append a 2-char
-nonce — still under 30).
+**Collision with a reserved/short global id is negligible.** `csi-spl-dev`
+alone may be taken; the hour stamp is not. Same org+app+env **same UTC
+hour**, two creates: retry next hour or append a 2-char nonce.
 
-Same customer, same codes, **same UTC minute**, two submits: retry. Do
-not fail the signup.
+Stamp is **hour** (`YYYYMMDDHH`), not minute, matching the example.
 
 **Human names stay pretty.** Tenant host remains `https://<slug>.spool-hub.ai`
 (their choice or derived). The ugly id is **only** the GCP project.
@@ -206,4 +201,4 @@ sales call with a non-technical buyer.
 
 After M2 is selling hosted. Do not block public MVP on folder grants.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:30:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:40:00Z -->

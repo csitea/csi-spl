@@ -56,7 +56,7 @@ tenant cannot read another tenant’s repos.
 | **FR-P01** | Two workflows: `10_ci-quality.yml` (hermetic gate) and `20_hub-build-deploy.yml` (test → prepare-deploy → matrix deploy). Push to `master` + `workflow_dispatch`; **no `pull_request`** (trunk-based). | **Implemented** — `3596991`; `gh run list -L 100` → 11 gate runs, 8 deploy runs since, all `push`. |
 | **FR-P02** | The quality gate has **no `paths:` filter**; the deploy workflow has an **allow-list** of every build input (`contracts/pipeline.md` §1.1). | **Implemented** — `grep -cE '^\s+paths:' .github/workflows/10_ci-quality.yml` → 0; same on `20_hub-build-deploy.yml` → 1. |
 | **FR-P03** | The gate runs `run-all-tests.sh` and **fails on a skipped** Postgres / GCS gate; `no-ysg-box-ref` is its own job. | **Implemented** — run `35382695327` (sha `9f8f492`): `hub-suite` success, `no-ysg-box-ref` success. |
-| **FR-P04** | Deploy auth is **Workload Identity Federation only**, from repo variables `GCP_WIF_PROVIDER_<ENV>` / `GCP_DEPLOY_SA_EMAIL_<ENV>` exported by 007's `017`. No JSON key anywhere. | **Partial** — workflow side implemented (`grep -c 'credentials_json' .github/workflows/*.yml` → 0). Inputs absent: `gh variable list -R csitea/csi-spl` → empty; `017-github-wif-deploy` not on trunk (`ls csi-spl-iac/src/terraform` → no 017; exists only on branch `GRK-3343-007-tf-017-wif`, `11db84d`); `gcloud iam workload-identity-pools list --location=global --project=csi-spl-{dev,prd} --account=$GCP_ACCOUNT` → none. |
+| **FR-P04** | Deploy auth is **Workload Identity Federation only**, from repo variables `GCP_WIF_PROVIDER_<ENV>` / `GCP_DEPLOY_SA_EMAIL_<ENV>` exported by 007's `017`. No JSON key anywhere. | **Partial** — workflow side implemented (`grep -c 'credentials_json' .github/workflows/*.yml` → 0). Inputs absent: `gh variable list -R csitea/csi-spl` → empty; `017-github-wif-deploy` is on trunk (`2a7888c`) but **not applied**; `gcloud iam workload-identity-pools list --location=global --project=csi-spl-{dev,prd} --account=$GCP_ACCOUNT` → none. |
 | **FR-P05** | **Terraform owns the image.** A deploy is a cnf `hub.image.tag` bump; the pipeline pushes exactly cnf `hub.image.ref` when absent (via `do_build_push_hub_image`), rolls the existing 030 service to it, never pushes a per-sha tag, never creates or re-permissions anything. | **Partial** — logic implemented in `3596991`; **never executed**: the deploy job is `skipped` in 8 of 8 runs (`gh run view <id> --json jobs`), because FR-P04's inputs are absent. |
 | **FR-P06** | Deploy matrix **dev + prd on one push**, `fail-fast: false`, per-env `concurrency` with `cancel-in-progress: false`, **forward-only guard** on push runs; a dispatch naming one env is unguarded (rollback path). No required reviewers on the GitHub environments. | **Partial** — in the workflow (`3596991`); untested live (same cause). `gh api repos/csitea/csi-spl/environments` → no environments yet (GitHub creates them on first use). |
 | **FR-P07** | The hygiene sweep passes on a clean tree and fails only on a hit, printing `file:line`, never the value. | **Implemented** — fixed in `4839514`; run `35385087709` → all three gate jobs success. Before the fix it failed in 9 of 9 runs on a clean tree: a clean `grep` returns 1, `pipefail` carries it into `hits="$(…)"`, and the step's `bash -e` aborted the script. Now rc 1 = clean and rc > 1 (bad pattern) fails the gate. |
@@ -69,15 +69,17 @@ tenant cannot read another tenant’s repos.
 
 Cited from 007 / README §6; measured here for the pipeline's preconditions.
 
-| Env | Registry (028) | Cloud Run hub (030) | WIF pool (017) | 017 default deploy SA `<project>@<project>.iam…` | Pipeline outcome today |
+| Env | Registry (028) | Cloud Run hub (030) | WIF pool (017) | deploy SA `csi-spl-deploy-<env>` (017) | Pipeline outcome today |
 |---|---|---|---|---|---|
-| dev | `csi-spl-dev-hub` | `csi-spl-hub-dev` Ready, `spool-hub:0.1.0` | none | **NOT_FOUND** | skipped (no vars) |
-| prd | API `SERVICE_DISABLED` | API `SERVICE_DISABLED` | none | **NOT_FOUND** | skipped; with vars would fail fast "apply 028 / 030 first" — correct |
+| dev | `csi-spl-dev-hub` | `csi-spl-hub-dev` Ready, `spool-hub:0.1.0` | none | not created (017 not applied) | skipped (no vars) |
+| prd | API `SERVICE_DISABLED` | API `SERVICE_DISABLED` | none | not created (017 not applied) | skipped; with vars would fail fast "apply 028 / 030 first" — correct |
 
-The last two columns are a blocker for 007, not for this spec: 017 on its
-branch defaults the impersonated SA to an account that exists in **neither**
-project, and grants the SA no project roles — `contracts/pipeline.md` §3 lists
-the four grants the pipeline needs. Tasks T103–T104.
+The earlier gap (017's first draft defaulted to an SA that exists in neither
+project and granted no roles) is closed on trunk: `2a7888c` creates
+`csi-spl-deploy-<env>` with `artifactregistry.writer` on the 028 repo,
+`run.developer` on the 030 service, `iam.serviceAccountUser` on the hub runtime
+SA and the WIF `workloadIdentityUser` binding (T103, T104). What is left is the
+owner-gated apply (007 T050), then T105–T109.
 
 ## Requirements — US1 CI logs in chat (later)
 
@@ -103,4 +105,4 @@ the four grants the pipeline needs. Tasks T103–T104.
 - **US1**: M1 image need not include `gh`. M2 checkout. Store logic. WUI. 031
   ingress. Baking tokens. Box-side `gh` / tokens on a box.
 
-<!-- version: 0.2.4 · updated: 2026-09-18 · last-edit: 2026-09-18T19:33:50Z -->
+<!-- version: 0.2.5 · updated: 2026-09-18 · last-edit: 2026-09-18T19:37:01Z -->

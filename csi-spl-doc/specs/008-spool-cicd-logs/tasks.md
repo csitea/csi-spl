@@ -83,11 +83,11 @@ its deploy check; terraform and applies stay 007's / the owner's.
 - [x] T102 [P] [US2] `contracts/pipeline.md`: triggers, allow-list, jobs,
       the terraform-owns-the-image deploy rule, the repo variables consumed,
       the deploy SA grants, the pipeline's place after provisioning step 9.
-- [ ] T103 [US2] [007] `017-github-wif-deploy`: the default impersonated SA
+- [x] T103 [US2] [007] `017-github-wif-deploy`: the default impersonated SA
       `<project>@<project>.iam.gserviceaccount.com` exists in neither project
       — use a dedicated deploy SA (created by 017 or named in cnf) and land
       017 on trunk. Plan only; apply needs the owner.
-- [ ] T104 [US2] [007] Grant the deploy SA the four roles in
+- [x] T104 [US2] [007] Grant the deploy SA the four roles in
       `contracts/pipeline.md` §3 (`workloadIdentityUser` is already in 017;
       add `artifactregistry.reader`+`writer` on the 028 repo, `run.developer`
       on the 030 service, `iam.serviceAccountUser` on the hub runtime SA).
@@ -130,8 +130,8 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | T011–T015 | Planned (later) | — |
 | T101 | Implemented | `git log --format=%h -- .github/workflows` → `3596991` |
 | T102 | Implemented | this commit |
-| T103, T104 | Planned | 017 only on branch `GRK-3343-007-tf-017-wif` (`11db84d`); `gcloud iam service-accounts describe csi-spl-{dev,prd}@csi-spl-{dev,prd}.iam.gserviceaccount.com --account=$GCP_ACCOUNT` → NOT_FOUND ×2 |
-| T105, T109 | Planned | `gh variable list -R csitea/csi-spl` → empty; no WIF pool in either project |
+| T103, T104 | Implemented (code; not applied) | `2a7888c`: `git grep -c 'google_service_account" "deploy"\|deploy_writer\|deploy_developer\|deploy_acts_as_hub' origin/master -- csi-spl-iac/src/terraform/017-github-wif-deploy` → `03-github-wif.tf:4` (the SA + three grants). `artifactregistry.writer` includes read. Applying is 007 T050 (owner go). |
+| T105, T109 | Planned | 2026-09-18T19:40Z: `gh variable list -R csitea/csi-spl` → empty; `gcloud iam workload-identity-pools list --location=global --project=csi-spl-{dev,prd} --account=$GCP_ACCOUNT` → 0 in both; blocked on 007 T050 |
 | T106 | Planned | deploy job `skipped` in 8 of 8 runs of `20 ci-cd` |
 | T107 | Implemented | `4839514`; run `35385087709` → `distribution-hygiene` success (first green gate since `3596991`) |
 | T108, T111 | Planned | — |
@@ -154,4 +154,4 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | FR-P10 names from cnf | T101 |
 | FR-P11 WUI tests in the gate | T112 |
 
-<!-- version: 0.2.4 · updated: 2026-09-18 · last-edit: 2026-09-18T19:33:50Z -->
+<!-- version: 0.2.5 · updated: 2026-09-18 · last-edit: 2026-09-18T19:37:01Z -->

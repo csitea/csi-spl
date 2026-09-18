@@ -16,7 +16,7 @@ another lane's branch.
 | # | Step | Owner | Tasks | Blocks |
 |---|---|---|---|---|
 | 1 | ~~Make the gate green~~ — **done** `4839514`, run `35385087709` | 008 | T107 | — |
-| 2 | 017 lands on trunk with a deploy SA that exists, plus the grants in `contracts/pipeline.md` §3 | 007 | T103, T104 | 3 |
+| 2 | ~~017 lands on trunk with a deploy SA and the grants~~ — **done** `2a7888c`; apply is 007 T050 | 007 | T103, T104 | 3 |
 | 3 | dev: apply 017, export the two `…_DEV` repo variables | owner go | T105 | 4 |
 | 4 | First dev deploy through a tag bump, then a 030 plan with no diff | 008 verifies, 007 fixes 030 if needed | T106, T108 | 5 |
 | 5 | prd: provisioning steps 1–9 (`specs/README.md` §6), then 017, variables and the first deploy | 007 / owner go | T109 | — |
@@ -59,4 +59,4 @@ Unchanged: `contracts/fetch-deliver.md`, tasks T001–T015. After M3 in the
 dependency order (`specs/README.md` §4). The M1 flagged-off stub is being
 built on branch `GRK-3354-008-cicd-logs-stub`.
 
-<!-- version: 1.0.2 · updated: 2026-09-18 · last-edit: 2026-09-18T19:21:34Z -->
+<!-- version: 1.0.3 · updated: 2026-09-18 · last-edit: 2026-09-18T19:37:01Z -->

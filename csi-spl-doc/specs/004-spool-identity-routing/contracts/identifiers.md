@@ -36,7 +36,7 @@ Validation points — each MUST reject `BOX-`:
 | message `from` / `to` | `internal/msg/msg.go:130,133` | Implemented |
 | send / recv `--as`, dir scan | `internal/spool/spool.go:62,131,206` | Implemented |
 | hub roster | `internal/hub/ws.go:478` → `roster_duplicate` | Implemented |
-| SQL `roster.agent_id` CHECK | `csi-spl-rdb/…/0001_hub_core.sql:50` | **Partial** (T019) |
+| SQL `roster.agent_id` CHECK | `csi-spl-rdb/…/0005_pin_identity.sql` | Implemented (`4f611d6`, `TestRosterIsPerBox/postgres`) |
 
 ## 3. Keys
 
@@ -57,4 +57,4 @@ the WUI, a pin body or a message.
 - Same `box_id`, different pubkey, no `force` → 409 `pin_conflict`.
 - Same `box_id`, same pubkey → 200, no change.
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:23:00Z -->

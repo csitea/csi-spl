@@ -4,8 +4,8 @@
 
 **Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo; verified on trunk `bbc41e7`, code unchanged since `9f8f492`)
 
-**Status**: **Partial** — implemented in code and tests against the in-memory
-testhub; not yet exercised against a live hub (dev hub has no ingress; prd has
+**Status**: **Partial** — implemented in code and tests (in-memory testhub and
+a temp Postgres); not yet exercised against a live hub (dev hub has no ingress; prd has
 no Cloud Run). See "Verified status".
 
 **Input**: The bus uses `CLE-07` as if it were unique and trusted everywhere. It
@@ -58,7 +58,7 @@ verify its envelopes.
    200 and the pin list carries `{box_id: A, pubkey: P}`.
 2. **Given** A pinned to P, **When** Q≠P is pinned without `force`, **Then** 409
    `pin_conflict`, pin stays P.
-3. **Given** A pinned to P, **When** P is pinned again, **Then** 200, no change (store today appends a history row → T022).
+3. **Given** A pinned to P, **When** P is pinned again, **Then** 200, no write.
 4. **Given** a sig by any key other than the tenant root, **Then** 400 `bad_sig`.
 
 ### User Story 2 - Receiving box syncs pins and verifies locally (Priority: P1)
@@ -117,6 +117,9 @@ box's live session. `force` re-pins a new key; only the new key verifies.
 1. **Given** A revoked, **When** A sends, **Then** refused `unpinned_box`; hello closes.
 2. **Given** A revoked, **When** `force` pins Q, **Then** only Q verifies.
 3. **Given** no pin for A, **When** revoke, **Then** 404 `not_found`.
+4. **Given** A revoked, **When** P or Q is pinned without `force`, **Then** 409.
+5. **Given** a force re-pin after a revoke, **When** the captured revoke is
+   replayed, **Then** 409 `stale_pin_op` and the new key stays active.
 
 ### Edge Cases
 
@@ -158,12 +161,10 @@ Status per `../README.md` §2.3. Code citations are at trunk `bbc41e7`.
   409 `ambiguous_to_box`; the hub fills no signed field. **Implemented** —
   `internal/hub/ws.go:332`.
 - **FR-008** — pin / force / revoke each append a `pins_history` row
-  (`reason ∈ {pin, force, revoke}`); only the current non-revoked key verifies.
-  A same-key re-pin writes nothing; re-activating a revoked box needs `force`.
-  **Partial** — history + verify-only-active implemented
-  (`internal/store/postgres.go:116,133`; `TestPinRevokeAndForce` PASS); but a
-  same-key re-pin appends history and a same-key pin un-revokes without `force`
-  (`contracts/pin-semantics.md` §2.1) → T022.
+  (`reason ∈ {pin, force, revoke}`); only the active key verifies; a same-key
+  re-pin writes nothing; re-activating a revoked box needs `force`
+  (`contracts/pin-semantics.md` §2). **Implemented** — `4f611d6`;
+  `TestTenantsAndPins` (memory + postgres), `TestPinRevokeAndForce` PASS.
 - **FR-009** — The box daemon (`spool hub-run` / `hub-sync`) scans
   `$SPOOL_ROOT/*/` and announces the roster on `role=box` hello and on change;
   duplicate or invalid id → 409 `roster_duplicate`. **Implemented** —
@@ -176,11 +177,13 @@ Status per `../README.md` §2.3. Code citations are at trunk `bbc41e7`.
 - **FR-011** — Sub-agents get independent top-level ids. **Implemented** by the
   regex (FR-001); allocation is FR-010.
 - **FR-012** — `BOX-` rejected at every validation point
-  (`contracts/identifiers.md` §2). **Partial** — Go rejects it
-  (`msg.go:180`, `TestValidID` PASS); the `roster.agent_id` SQL CHECK in
-  `csi-spl-rdb/src/sql/postgres/spool-hub/0001_hub_core.sql:50` does not → T019.
-- **FR-013** — Pin and revoke signatures are not replayable.
-  **Planned** — signatures carry `ts` (±300 s) only, no nonce → T020.
+  (`contracts/identifiers.md` §2). **Implemented** — Go `msg.go:180`
+  (`TestValidID` PASS); SQL `roster` CHECK in `0005_pin_identity.sql`
+  (`4f611d6`, `TestRosterIsPerBox/postgres` PASS).
+- **FR-013** — A replayed pin / revoke cannot change a pin: each state change
+  needs a signed `ts` later than the last one (`pins.last_op_ts`), else 409
+  `stale_pin_op`. **Implemented** — `4f611d6`; `TestPinRevokeAndForce`
+  (replayed revoke after force → 409) PASS.
 - **FR-014** — The M1 proof exercises pins and cross-box routing against the
   live dev hub on the product domain. **Planned** — blocked on 007 ingress → T021.
 
@@ -189,20 +192,21 @@ Status per `../README.md` §2.3. Code citations are at trunk `bbc41e7`.
 | Area | Status | Evidence |
 |---|---|---|
 | Id regex + `BOX-` rejection (Go) | Implemented | `msg.go:180`; `TestValidID` PASS |
-| `BOX-` rejection (SQL CHECK) | Partial | `0001_hub_core.sql:50` regex only |
-| Schema `tenants / boxes / pins / pins_history / roster` | Implemented | `0001_hub_core.sql`; `TestPinSQLLivesInRDB` PASS |
+| `BOX-` rejection (SQL CHECK) | Implemented | `0005_pin_identity.sql` (`4f611d6`) |
+| Schema `tenants / boxes / pins / pins_history / roster` | Implemented | `0001_hub_core.sql`, `0005_pin_identity.sql`; `TestPinSQLLivesInRDB` PASS |
 | Pin / revoke / list | Implemented | `rest.go`; pin tests PASS |
 | Pin sync, no-clobber | Implemented | `hubclient.go:508` |
 | Roster, ambiguous `to_box`, last-hello-wins | Implemented | `ws.go:158,268,332` |
-| Pin replay protection | Planned | ts only |
-| Same-key re-pin / un-revoke semantics | Partial | `postgres.go:93-120` (pin-semantics §2.1) |
+| Pin replay guard, same-key no-op, revoke needs force to undo | Implemented | `4f611d6` (pin-semantics §2, §5) |
 | Live dev hub | Partial | Cloud Run `csi-spl-hub-dev` Ready, `spool-hub:0.1.0`, ingress `internal-and-cloud-load-balancing`, no LB → `curl …a.run.app/version` -> 404 from the Google front end; no live pin exercised |
 | Live prd hub | Planned | `gcloud run services list --project=csi-spl-prd --account=$GCP_ACCOUNT` -> `SERVICE_DISABLED` |
 
-Test run (version: spool-hub-api at `9f8f492`, code identical at `bbc41e7`;
-tree: this worktree; n=1 run): `go test -count=1 -run
-'Pin|Revoke|ValidID|Ambiguous|LastHello|Flush|Sync|CrossBox|Roster|SQL' ./internal/...`
--> 21 tests PASS, 0 FAIL (in-memory store; no Postgres, no live hub).
+Test runs (tree: this lane's worktree at `4f611d6`; n=1 each):
+- `go test -count=1 ./...` in `csi-spl-api/src/go/spool-hub-api` -> all packages ok (in-memory store).
+- `bash csi-spl-api/src/bash/tests/hub-pg.tst.sh` (temp `postgres:16-alpine`,
+  migrations 0001..0005) -> store + hub suites ok, `ALL HUB E2E CHECKS PASSED`.
+- `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` -> 6/6 (one earlier run read
+  5/6, rerun 6/6 unchanged — flaky, not this change).
 
 ## Success Criteria
 
@@ -223,4 +227,4 @@ tree: this worktree; n=1 run): `go test -count=1 -run
 - Per-agent keys or IAM; the private-deploy IAM door (003 OQ-06, not M1).
 - Multi-recipient / box-wide fanout; cross-tenant uniqueness.
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:45:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:23:00Z -->

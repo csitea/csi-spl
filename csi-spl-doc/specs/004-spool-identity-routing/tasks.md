@@ -72,27 +72,28 @@ filtered to pin/roster/flush/id tests -> 21 PASS, 0 FAIL, in-memory store.
 - [x] T018 Tenant row seeded by operator for M1 (`spool hub-tenant`); tenancy
       itself is 006. FR-003.
 
-## Phase 8: Remaining (code tasks — not done by this docs lane)
+## Phase 8: Hardening (code, landed by this lane in `4f611d6`)
 
-- [ ] T019 [P] Add `AND agent_id !~ '^BOX-'` to the `roster.agent_id` CHECK
-      (new rdb migration, not an edit of `0001`), plus a store test. FR-012.
-      Owner: rdb/api lane.
-- [ ] T020 Make root-signed pin / revoke non-replayable: add a nonce (hub-issued,
-      single use) or a monotonic per-box `seq` to both signed payloads; reject
-      reuse. Wire change → coordinate with 003 (`http-v1.md` §4) and 006
-      (root-key tooling). FR-013. Before M2.
+- [x] T019 [P] `roster.agent_id` CHECK rejects `^BOX-` — new migration
+      `csi-spl-rdb/src/sql/postgres/spool-hub/0005_pin_identity.sql` (0001 is
+      forward-only). FR-012 — `TestRosterIsPerBox/postgres` PASS.
+- [x] T020 Replay guard: `pins.last_op_ts`; every pin state change needs a
+      signed `ts` later than it, else 409 `stale_pin_op` (exit 78); CLI signs
+      `RFC3339Nano`. No wire-shape change (003 `http-v1.md` §4 bodies unchanged;
+      one new error token). FR-013 — `TestTenantsAndPins`, `TestPinRevokeAndForce` PASS.
+- [x] T022 Store semantics (memory + postgres): same key on an active pin = no
+      write; any key on a revoked pin needs `force`; revoke of a revoked pin = no-op.
+      FR-008 — `TestTenantsAndPins` (memory + postgres) PASS.
+
+## Phase 9: Remaining
+
 - [ ] T021 Live proof on dev: two boxes, owner-seeded tenant, pin / 409 /
       sync / cross-box send / ambiguous `to_box` / revoke through
       `https://<tenant>.<product-domain>`. Blocked on 007 steps 3 and 10
       (`../README.md` §6). FR-014, SC-004.
-- [~] T022 Pin store semantics (`internal/store/postgres.go:93-120`, and the
-      memory store to match): same-key re-pin must not write
-      (no `updated_at` bump, no history row); a same-key pin on a **revoked** box
-      must require `force`. Tests in `internal/store` + `internal/hub`. FR-008.
-      (`contracts/pin-semantics.md` §2.1.)
 - [ ] T023 Harness bootstrap (allocate id, create dirs, ensure box key, start
       `spool hub-run`) lives outside this repo today; decide whether a
       `spool-harness` verb is in scope for M1 or stays the box harness's. FR-010.
       Owner question → CLE-00.
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:23:00Z -->

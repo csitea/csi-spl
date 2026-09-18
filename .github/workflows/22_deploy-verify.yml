@@ -48,10 +48,9 @@ jobs:
     name: Verify hub endpoints in ${{ matrix.environment }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # a superseded verify of the same env has nothing left to say
-    concurrency:
-      group: deploy-verify-${{ matrix.environment }}
-      cancel-in-progress: true
+    # NO concurrency group: verify is read-only and cheap, and a
+    # cancel-in-progress group let the next push's verify cancel this one,
+    # which marked the CALLING 20 run "cancelled" (run 35389176239).
     strategy:
       fail-fast: false
       matrix:

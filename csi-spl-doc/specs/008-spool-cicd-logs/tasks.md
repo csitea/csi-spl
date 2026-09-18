@@ -115,6 +115,8 @@ its deploy check; terraform and applies stay 007's / the owner's.
       comparing cnf `hub.image.ref` with the live service image per env
       (`gcloud … --account=$GCP_ACCOUNT`), printing `current` / `lagging`
       and exiting non-zero when lagging. Read-only.
+- [x] T112 [P] [US2] [008] WUI job in the gate: frozen-lockfile install,
+      unit tests, typecheck (FR-P11). (`.github/workflows/10_ci-quality.yml`)
 - [ ] T111 [P] [US2] (later) Pin third-party actions (`actions/*`,
       `google-github-actions/*`) by commit sha instead of major tag.
 
@@ -133,6 +135,7 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | T106 | Planned | deploy job `skipped` in 8 of 8 runs of `20 ci-cd` |
 | T107 | Implemented | `4839514`; run `35385087709` → `distribution-hygiene` success (first green gate since `3596991`) |
 | T108, T111 | Planned | — |
+| T112 | Implemented | `18a19dc`; run `35386487700` → wui job success, 30/30 |
 | T110 | Implemented | `csi-spl-orc/src/bash/run/check-hub-deploy.func.sh`; `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` → 8/8; live dev → `current`, rc 0 |
 
 ## Traceability — US2
@@ -149,5 +152,6 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | FR-P08 control-plane verify | T101, T106 |
 | FR-P09 deployed-state check | T110 |
 | FR-P10 names from cnf | T101 |
+| FR-P11 WUI tests in the gate | T112 |
 
-<!-- version: 0.2.3 · updated: 2026-09-18 · last-edit: 2026-09-18T19:26:08Z -->
+<!-- version: 0.2.4 · updated: 2026-09-18 · last-edit: 2026-09-18T19:33:50Z -->

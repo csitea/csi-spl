@@ -29,11 +29,12 @@ silently (no run, green checks), and the suites are cheap.
 
 ## 2. Jobs
 
-### 2.1 `10 ci: quality gate` — hermetic, no GCP identity
+### 2.1 `10 ci: quality gate` — hermetic, no GCP identity (network: Go proxy, npm registry, one emulator image)
 
 | Job | Runs | Pass condition |
 |---|---|---|
 | `hub-suite` | `bash csi-spl-api/src/bash/tests/run-all-tests.sh` (gofmt, vet, test, smoke, Postgres gate, fake-gcs gate) | exit 0 **and** no `^skip - no (Postgres server binaries\|cached )` line in the log — a skipped gate is a failure in CI |
+| `wui-suite` | in `csi-spl-wui`: `pnpm install --frozen-lockfile`, `pnpm run test:unit`, `pnpm run typecheck` (pnpm version from `packageManager`) | all three exit 0; the browser e2e (`test:e2e`) is not run in CI |
 | `no-ysg-box-ref` | `csi-spl-api/src/bash/tests/no-ysg-box-ref.tst.sh` | exit 0 |
 | `distribution-hygiene` | 5 grep sweeps (org/bank, personal name, OS user/box/AD id, `/home/<user>/`, owner mail domain) | no hit; prints `file:line` only, never the matched value (a CI log is a distribution channel). A sweep that finds **nothing** is a pass, never an abort (see spec FR-P07). |
 
@@ -129,4 +130,4 @@ provisions.
 WUI deploy (Firebase, tf `016`/`019`, M3 — 005's), `terraform apply` of any
 step (owner-gated, never from CI), per-sha tags, pull-request builds.
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:02:27Z -->
+<!-- version: 1.0.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:33:50Z -->

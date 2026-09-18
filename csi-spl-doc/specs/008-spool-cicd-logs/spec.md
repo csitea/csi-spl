@@ -63,6 +63,7 @@ tenant cannot read another tenant’s repos.
 | **FR-P08** | Deploy verification through the control plane (image == cnf ref, Ready, latest revision ready), since 031's allowlist keeps runners off `/healthz`. | **Partial** — in the workflow; never executed. |
 | **FR-P09** | A deployed-state check an operator (or agent) can run: cnf `hub.image.ref` vs the live service image, per env, reporting `current` or `lagging`. | **Implemented** — `ENV=<env> GCP_ACCOUNT=$GCP_ACCOUNT ./csi-spl-orc/run -a do_check_hub_deploy`, read-only (describe only), exit 0 current / 3 lagging / 4 unhealthy / 1 cannot tell; tests `csi-spl-orc/src/bash/tests/check-hub-deploy.tst.sh` (9 assertions). Live 2026-09-18T19:21Z (n=1): dev → `dev current … spool-hub:0.1.0`, rc 0; prd → rc 1 (no service yet). |
 | **FR-P10** | Names (project, region, image ref, service) come from cnf through `do_spl_cloud_cnf`, never from the workflow file. | **Implemented** — `grep -cE 'csi-spl-(dev\|prd)\b' .github/workflows/20_hub-build-deploy.yml` → 0. |
+| **FR-P11** | The gate also proves the WUI: `csi-spl-wui` unit tests and `nuxt typecheck`, with a frozen pnpm lockfile. The browser e2e check stays local. | **Implemented** — `18a19dc`; run `35386487700` → `wui: unit tests + typecheck` success, log `# tests 30 / # pass 30 / # fail 0`. |
 
 ### Live estate the pipeline lands on (measured 2026-09-18 ~19:00Z, n=1)
 
@@ -102,4 +103,4 @@ the four grants the pipeline needs. Tasks T103–T104.
 - **US1**: M1 image need not include `gh`. M2 checkout. Store logic. WUI. 031
   ingress. Baking tokens. Box-side `gh` / tokens on a box.
 
-<!-- version: 0.2.3 · updated: 2026-09-18 · last-edit: 2026-09-18T19:26:08Z -->
+<!-- version: 0.2.4 · updated: 2026-09-18 · last-edit: 2026-09-18T19:33:50Z -->

@@ -89,10 +89,15 @@ proof).
 | Cloud Run deploy (CI WIF + owner laptop escape) | `022` |
 | `gcp-sm-secrets-to-env-file` | pas-psf-orc (placeholders in logs) |
 
-DNS: zone and records live in terraform `007-dns` + cnf tfvars. No hostname
-literals in Go. Product shape stays `https://<tenant>.spool-hub.ai`. **Wildcard DNS+TLS from M1**
-(`*.spool-hub.ai`, `*.dev.spool-hub.ai`). Several manual tenants must resolve
-without a new terraform host each time.
+DNS: the product domain is registered at **Gandi** and must stay on **Gandi
+nameservers** (`*.gandi.net` / LiveDNS). Public records (apex, `dev`, wildcard
+`*`) are published with the Gandi LiveDNS API (dob-luk-iac `do_gandi_*`
+shape: token from `$GANDI_PAT` or `~/.gandi/.<org>/token`, domain from cnf
+`env.dns.BASE_DOMAIN`, dry-run unless `CONFIRM=yes`). **Do not** re-delegate
+registrar NS to GCP `ns-cloud-*`. Terraform `007-dns` if present is not the
+public authority. No hostname literals in Go. Product shape stays
+`https://<tenant>.<BASE_DOMAIN>`. **Wildcard DNS+TLS from M1**. Several
+manual tenants must resolve without a new terraform host each time.
 
 ---
 
@@ -122,4 +127,4 @@ csi-spl-rdb/src/sql/                # spool schema only
 Apply still needs an **owner go** (csi-spl CLAUDE.md). `tf-plan` never
 apply-by-default.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:30:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T17:50:00Z -->

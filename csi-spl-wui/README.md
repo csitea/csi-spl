@@ -35,8 +35,15 @@ pages. Hosting remains Firebase Hosting + Cloud Run API (`016` / `019`).
 pnpm install
 pnpm dev
 pnpm test:unit
+pnpm test:e2e
 pnpm typecheck
 ```
+
+`pnpm test:e2e` loads `/login` and `/channel/general` at 390x844 and 1280x800
+and asserts `document.scrollingElement.scrollWidth <= innerWidth`. When
+`BASE_URL` is unset it starts `nuxi dev` with the mock tenant. Uses
+puppeteer-core when resolvable (`PUPPETEER_CORE` or `node_modules`); otherwise
+Chrome DevTools Protocol against `CHROME_PATH` (default `/usr/bin/google-chrome`).
 
 From `csi-spl-orc`:
 

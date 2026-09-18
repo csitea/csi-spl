@@ -13,6 +13,7 @@
     "typecheck": "nuxt typecheck",
     "postinstall": "nuxt prepare",
     "test:unit": "node --test tests/unit/*.test.mjs",
+    "test:e2e": "node tests/e2e/no-x-scroll.test.mjs",
     "test": "node --test tests/unit/*.test.mjs"
   },
   "dependencies": {

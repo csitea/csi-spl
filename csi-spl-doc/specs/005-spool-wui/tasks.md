@@ -46,6 +46,7 @@ Gate: 003 hub HTTP/WebSocket API and 006 tenant auth.
 
 - [ ] T018 [P] Configure tenant product auth (OAuth2 / Magic Link session issuing HTTP-only cookie; hub signs messages as `HUM-<username>` with virtual `box-wui` key).
 - [x] T019 [P] Wire `./run` actions in `csi-spl-orc` (`do_wui_dev`, `do_wui_build`, `do_wui_test`) referencing `pas-psf-orc`.
+- [x] T020 [P] Add `csi-spl-wui/tests/e2e` no-x-scroll: `/login` and `/channel/general` at 390x844 and 1280x800 (`pnpm test:e2e`).
 
 Hosting (landed with T019): `csi-spl-iac` steps `016-firebase-deploy-iam` and `019-firebase-static-site` copy the pas-psf/csi-rel Hosting shape (site + custom domain + deploy SA) without shop pages and without minting an SA key. Apply still needs an owner go.
 

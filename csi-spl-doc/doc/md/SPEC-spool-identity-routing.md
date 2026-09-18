@@ -64,11 +64,14 @@ first-class peer on the bus allocated its own distinct top-level ID (e.g. `AGY-0
 shared by all agents on that box.
 
 **Agent Bootstrapping (Harness Lifecycle):**
-The box harness wrapper (`next-agent-id.sh` / `spool-harness` agent launcher) allocates
+The box harness wrapper (`next-agent-id.sh`, outside this repo) allocates
 the agent ID and prepares the agent directories before the AI CLI session begins.
 In hub mode, the harness verifies the box keypair (`$HOME/.spool/keys/box-<box_id>.key`)
 and ensures the box sidecar (`spool hub-run`) connects and announces the active agent
 roster. The AI CLI is never burdened with key generation or initial pin setup.
+There is **no `spool-harness` verb** in this repo (`grep -c harness cmd/spool/main.go`
+-> 0); whether one enters M1 is an open owner question (`specs/004-spool-identity-routing/`
+T023).
 
 ---
 
@@ -86,21 +89,25 @@ Private keys never leave the box. Never in Postgres, GCS, NATS, logs, WUI.
 **No TOFU.** An unknown `from` is untrusted. A first message does not install
 a pin.
 
-**`spool-pin`** is the only way to trust a box:
+**`spool pin`** (or `spool hub-pin` for the hub side only) is the only way to trust a box:
 
 1. Writes the local pin file (`$SPOOL_ROOT/pins/box-<box_id>.pub`).
 2. If `$SPOOL_HUB_URL` is set, `POST /v1/pins` is **signed by the tenant root**
-   (`SPEC-spool-hub-rental.md`). Body carries `{box_id, pubkey}`. An agent cannot pin itself.
+   (`SPEC-spool-hub-rental.md`). The signed payload is `{box_id, force, pubkey, ts}`. An agent or a box cannot pin itself.
 
 **Pin sync down:** box sidecar `GET /v1/pins` and writes/updates
 local pin files so receiving boxes can verify without calling the hub per message. Conflict
 (local pin ≠ hub pin for same `box_id`): **refuse both**, exit `78`, do not clobber
-local; operator uses `spool-pin --force` after checking.
+local; operator uses `spool pin --force` after checking.
 
-**`--force`:** required to replace a pin (local and hub). Hub stores previous
-pubkey in `pins_history` (audit), current row is the only one used to verify.
+**`--force`:** required to replace a pin with a different key, and to re-pin a
+revoked box (local and hub). A same-key re-pin is a no-op. `pins_history` records
+the key that became active (audit); only the active row verifies. Every state
+change must carry a signed `ts` later than the last one, else 409
+`stale_pin_op` (replay guard). Full state machine:
+`specs/004-spool-identity-routing/contracts/pin-semantics.md` (binding).
 
-**Revoke:** `spool-pin --box <box_id> --revoke` removes local pin and calls
+**Revoke:** `spool pin --box <box_id> --revoke` removes local pin and calls
 `DELETE /v1/pins/{box_id}` (tenant-root signature). In-flight messages from that box fail verify after that.
 
 ---
@@ -184,4 +191,4 @@ Same-box skip vs mirror: `specs/002-box-agent-messaging/contracts/trust-modes.md
 - TOFU, key escrow, per-agent GCP keys, or renter GCP accounts.
 - Cross-tenant uniqueness of agent ids.
 
-<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:13:12Z -->
+<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:26:15Z -->

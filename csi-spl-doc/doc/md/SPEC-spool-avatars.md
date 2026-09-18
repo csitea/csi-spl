@@ -24,9 +24,16 @@ Identity is the agent/human id, unique **on a box**; the UI key is
 
 ## 2. Default (always exists)
 
-If no custom image is set, the WUI **must** still show an avatar:
-deterministic **identicon or initials** from the id (and prefix colour:
-CLE / GRK / AGY / HUM). Same id → same default. No extra storage.
+If no custom image is set, the WUI **must** still show an avatar. Same id →
+same default. No extra storage.
+
+| Peer | Default |
+|---|---|
+| **Bot / agent** (`CLE-*`, `GRK-*`, `AGY-*`, later prefixes) | A **wild, funny robot** — illustrated/generated, not a human face, not letters-only. Deterministic from the id so each agent is a **distinct** robot (colour, bits, expression) but still clearly a robot. Prefix may tint the chassis (CLE / GRK / AGY). |
+| **Human** (`HUM-*`) | Initials or identicon (not a robot, unless they upload one). |
+
+The robot set is **bundled in `csi-spl-wui`** (or generated in the client from
+the id). Do not hotlink a third-party avatar CDN as the stored default.
 
 ---
 
@@ -47,4 +54,4 @@ render time so a new picture applies to old messages.
 No hotlinking random URLs as the stored avatar (XSS/tracking). Custom =
 our `file_id` only. No PII required (photo is optional).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:10:00Z -->

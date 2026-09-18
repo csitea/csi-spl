@@ -9,10 +9,13 @@
 # Every name comes from cnf (csi-spl-orc/src/bash/scripts/verify-hub-endpoints.sh
 # resolves them); this file carries no host.
 #
-# A separate workflow, not a step of 20, on purpose: it runs after EVERY
-# completed deploy run (including the ones whose deploy job was skipped or
-# stood down), and can be dispatched by hand at any time, because the endpoints
-# can break -- or start working -- with no deploy at all (DNS, cert, LB).
+# A reusable workflow: 20 calls it as its last job (after deploy, whether the
+# deploy ran, was skipped or stood down), and it can be dispatched by hand at
+# any time, because the endpoints can break -- or start working -- with no
+# deploy at all (DNS, cert, LB). Called from 20, it verifies the envs 20 was
+# asked for: a push or "all" -> dev + prd, a dispatch naming one env -> that env.
+# (It was first wired as `workflow_run` on 20's completion; that trigger did
+# not fire for two completed 20 runs, so the call is now explicit.)
 #
 # SOFT vs HARD, as csi-rel's UNKNOWN verdict: a probe that cannot reach the hub
 # YET -- the name does not resolve, nothing listens there, the managed cert is
@@ -24,10 +27,7 @@
 name: "22 ci-cd: spool hub deploy verify"
 
 on:
-  workflow_run:
-    workflows: ["20 ci-cd: spool hub build + deploy"]
-    types: [completed]
-    branches: [master]
+  workflow_call: {}
   workflow_dispatch:
     inputs:
       environment:
@@ -46,8 +46,6 @@ permissions:
 jobs:
   verify:
     name: Verify hub endpoints in ${{ matrix.environment }}
-    # a cancelled or failed deploy run proved nothing new to verify
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # a superseded verify of the same env has nothing left to say
@@ -60,9 +58,6 @@ jobs:
         environment: ${{ fromJson((github.event_name == 'workflow_dispatch' && github.event.inputs.environment != 'all') && format('["{0}"]', github.event.inputs.environment) || '["dev","prd"]') }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          # verify against the cnf of the commit that was deployed
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Probe the acceptance endpoints (verify-hub-endpoints.sh)
         env:

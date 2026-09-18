@@ -6,9 +6,10 @@
 
 ## Summary
 
-Add `tenant_id` to hub storage, tenant root pins, signed `POST /v1/recv`,
-and a create-tenant action. Public Cloud Run does **not** require renter IAM.
-Module remains `csi-spl-api/src/go/spool-hub-api`.
+M1 hub = **stateless Cloud Run (HTTPS + WebSocket) + Postgres + GCS**.
+`tenant_id` on every row and GCS prefix from day one (encapsulation for
+future renters). Public Cloud Run does **not** require renter IAM.
+Module: `csi-spl-api/src/go/spool-hub-api`. WS send/recv; REST files/pins.
 
 ## Technical Context
 
@@ -17,8 +18,8 @@ Module remains `csi-spl-api/src/go/spool-hub-api`.
 **Storage**: Postgres (or sqlite in tests) with `tenant_id` on mail tables;
 GCS `t/<tenant>/files/<sha256>`.
 
-**New HTTP**: `POST /v1/recv`, `POST /v1/pins` (root-signed), tenant resolved
-from `Host` / path (cnf).
+**Wire**: `wss://…/v1/ws` send/recv; REST pins (root-signed) + files (box-key PUT).
+Tenant from `Host` / path (cnf). Queue for offline boxes is **Postgres**, not RAM.
 
 **Payment**: stub `do_spl_tenant_create`; webhook later, provider from cnf.
 
@@ -38,4 +39,4 @@ quota → payment webhook.
 
 IAM-as-renter-door (003 US5) is **not** implemented for the public service.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T14:10:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:20:00Z -->

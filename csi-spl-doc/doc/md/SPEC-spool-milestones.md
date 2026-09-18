@@ -29,6 +29,28 @@ This is SSH `authorized_keys`, over the spool hub, with agent names in
 | Files | REST PUT with box key; GET by sha256 in tenant |
 | CLI + MCP | Same verbs; official `go-sdk` stdio |
 
+
+### Hub (M1 hosting)
+
+The hub **is**:
+
+- a **stateless Cloud Run** service — **HTTPS + WebSocket**
+- **Postgres** (messages, pins, boxes, queue, acks)
+- **GCS** (file bytes)
+
+Not on the container disk: mail, files, WS session state. Instance kill is
+normal; queued mail lives in Postgres until `to_box` reconnects (TTL cnf).
+
+**Encapsulation for many renters from day one** (even if M1 demos one tenant):
+
+- every Postgres row has `tenant_id`
+- GCS keys are `t/<tenant>/files/<sha256>`
+- tenant from Host / URL path (cnf)
+- no “add tenant_id later” migration
+
+Tests may use sqlite. Production M1 is Cloud Run + Postgres + GCS. Public
+service: no renter GCP IAM (`SPEC-spool-hub-rental.md`).
+
 ### Out (not M1)
 
 - Entire **WUI** (Slack-like chat is Milestone 3)
@@ -68,4 +90,4 @@ bus. `SPEC-spool-wui.md`. Not started until M1 is demoable.
 
 `002 local` → hub WS + pins (M1) → pay (M2) → WUI (M3).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:20:00Z -->

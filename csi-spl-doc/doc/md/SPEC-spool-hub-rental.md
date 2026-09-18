@@ -26,6 +26,9 @@ a box image. The box API is still `spool-send` / `spool-recv` / MCP.
 Internal csitea fleet is **one tenant** of the same product, not a different
 protocol.
 
+Hub process: **stateless Cloud Run (HTTPS + WebSocket)**. State: **Postgres +
+GCS**. `tenant_id` on every row from M1 so more users do not require a rewrite.
+
 ---
 
 ## 2. What “rent” means
@@ -179,4 +182,4 @@ WUI are later milestones.
 - Uniform box API (Constitution VIII).
 - Payment gates **existence and quota**, not the meaning of `sig`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:00:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:20:00Z -->

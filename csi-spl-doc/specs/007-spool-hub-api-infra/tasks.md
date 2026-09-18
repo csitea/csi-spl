@@ -103,17 +103,38 @@ none of these blocks M1. The feature text is `../010-spool-social-auth/`.
 
 ## Phase 8: tooling defects found in the audit
 
-- [ ] T069 `do_resolve_oap` derives ORG/APP from the directory layout, so
+- [x] T069 `do_resolve_oap` derives ORG/APP from the directory layout, so
       `do_tpl_gen` and `do_tf_plan` cannot run from a `csi-spl-wt/<ID>`
       worktree even with ORG/APP exported (measured 2026-09-18: `missing
       …/csi-spl-wt-3344-cnf/…/all.env.yaml`); workaround: render in a copy
-      laid out as `csi/csi-spl/`
+      laid out as `csi/csi-spl/` — fixed `8dded98`: derives from the project dir's
+      own name; `resolve-oap-worktree.tst.sh` asserts both layouts
 - [ ] T070 `tf-steps-render-and-validate.tst.sh` SKIPs render drift and
       validate unless tpl-gen and terraform sit under the runner's own
       `$HOME`; the suite reads green without having validated anything
+
+## Phase 9: WUI Hosting seam (from spec `005`, M3)
+
+Routed here by the 005 lane; the script is WUI-hosting code, so it waits for
+the WUI code owner to be confirmed before anyone edits it.
+
+- [ ] T071 `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` lacks the
+      spec 010 T016 rewrite `/api/v1/auth/**` -> the hub service, before the
+      `**` fallback (`grep -c api/v1/auth` on the script -> 0; the checked-in
+      lde `csi-spl-wui/firebase.json` has it, `1c4e1a6`)
+- [ ] T072 **Decision (007 with 003 / 006), before 005 T009 dev Hosting**: the
+      WUI -> hub read path. Same-origin `/v1/**` rewrites through Firebase
+      Hosting meet two unverified obstacles: the hub resolves the tenant from
+      `Host` (006), and a Hosting rewrite is believed (unchecked) not to
+      deliver the tenant host; and the hub's Cloud Run ingress is
+      `internal-and-cloud-load-balancing` (FR-011), which is believed
+      (unchecked) to refuse Hosting-rewrite traffic. The alternative,
+      cross-origin reads from `<tenant>.<fqdn>` via the `031` LB, needs the
+      rendered CSP `connect-src` widened and CORS on the hub. Measure both
+      before choosing.
 
 ## Out of this task list
 
 M2 payment drivers, M3 WUI hosting (`005`), pipeline job design (`008`).
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:40:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:50:00Z -->

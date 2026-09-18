@@ -294,23 +294,27 @@ jobs:
       # internal-and-cloud-load-balancing), so a runner cannot probe /healthz.
       # Verify through the control plane instead: the template runs the cnf
       # image and the latest revision is the ready one serving traffic.
-      - name: Verify the service runs the cnf image and is Ready
+      - name: Verify the service runs the cnf image and is Ready (do_check_hub_deploy)
         if: steps.guard.outputs.ok == 'true'
-        env:
-          IMAGE_REF: ${{ steps.cfg.outputs.image_ref }}
-          GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
-          GCP_REGION: ${{ steps.cfg.outputs.gcp_region }}
-          SERVICE_NAME: ${{ steps.cfg.outputs.service_name }}
+        # The same read-only action an operator and 00_deploy-lag-watch run:
+        # template image == cnf hub.image.ref, the Ready condition (by type)
+        # True, latest created revision == latest ready. Exit 0 current,
+        # 3 lagging, 4 unhealthy, 1 cannot tell. A just-rolled revision may
+        # still be settling, so "unhealthy" is re-asked a few times.
         run: |
-          set -euo pipefail
-          read -r image ready created latest < <(gcloud run services describe "$SERVICE_NAME" \
-            --project "$GCP_PROJECT" --region "$GCP_REGION" \
-            --format='value(spec.template.spec.containers[0].image,status.conditions[0].status,status.latestCreatedRevisionName,status.latestReadyRevisionName)' \
-            | tr '\t' ' ')
-          echo "image=$image ready=$ready created=$created latest_ready=$latest"
-          [[ "$image" == "$IMAGE_REF" ]] || { echo "::error::service template runs $image, expected $IMAGE_REF"; exit 1; }
-          [[ "$ready" == True ]]        || { echo "::error::service is not Ready ($ready)"; exit 1; }
-          [[ "$created" == "$latest" ]] || { echo "::error::latest revision $created is not the ready one ($latest)"; exit 1; }
+          set -uo pipefail
+          for i in 1 2 3 4 5 6; do
+            rc=0
+            ENV="$ENV" GCP_ACCOUNT="$DEPLOY_SA" ./csi-spl-orc/run -a do_check_hub_deploy || rc=$?
+            [[ $rc -eq 4 && $i -lt 6 ]] || break
+            echo "not Ready yet (attempt $i/6) -- waiting"; sleep 10
+          done
+          case "$rc" in
+            0) ;;
+            3) echo "::error::$ENV runs a different image than cnf hub.image.ref"; exit 1 ;;
+            4) echo "::error::$ENV service or its latest revision is not Ready"; exit 1 ;;
+            *) echo "::error::cannot read the $ENV service state (rc $rc)"; exit 1 ;;
+          esac
 
       - name: Deployment summary
         if: always() && steps.cfg.outcome == 'success'

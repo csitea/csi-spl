@@ -1,0 +1,140 @@
+# ops: spool hub deploy lag watch
+#
+# Modelled on csi-rel's 00_deploy-lag-watch.yml. The gap it closes: a green
+# `20 ci-cd` run says nothing about what an env RUNS -- its deploy job may
+# have been skipped (no WIF variables), stood down (forward-only guard) or
+# been cancelled, and the hub can drift with no deploy at all. So, hourly:
+#
+#   1. per env, ask the live service whether it runs exactly the image cnf
+#      names at trunk head (csi-spl-orc do_check_hub_deploy: 0 current,
+#      3 lagging, 4 unhealthy, 1 cannot tell) and publish the verdict;
+#   2. FAIL the run when an env is lagging or unhealthy -- a red scheduled
+#      workflow is the notification, which is the point;
+#   3. only then, and only for "lagging", dispatch 20 at trunk head with
+#      environment=all. 20 treats "all" like a push (forward-only guard), so a
+#      reconcile can never roll an env back. Skipped when a 20 run for trunk
+#      head is already queued/running, or when 20's last verdict was a failure
+#      (the deploy is broken, not starved -- re-dispatching burns runners).
+#
+# The hub's deploy unit is the cnf image TAG (terraform owns the image), not
+# the commit, so "lag" here is image-vs-cnf, not commit-vs-trunk as in csi-rel.
+#
+# An env whose WIF repo variables (GCP_WIF_PROVIDER_<ENV>,
+# GCP_DEPLOY_SA_EMAIL_<ENV>, exported from 007's 017) are not set is SKIPPED
+# with a notice, exactly as 20 skips it.
+#
+# Local equivalent: ENV=<env> GCP_ACCOUNT=<you> ./csi-spl-orc/run -a do_check_hub_deploy
+
+name: "00 ops: spool hub deploy lag watch"
+
+on:
+  schedule:
+    # Hourly; GitHub's scheduler is best-effort (csi-rel measured ~100 min
+    # real gaps on a declared 10). Detection latency is up to ~2 hours.
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      reconcile:
+        description: 'Dispatch a deploy when an env is lagging'
+        type: choice
+        required: false
+        default: 'auto'
+        options:
+          - auto
+          - never
+
+# a superseded watcher has nothing to say
+concurrency:
+  group: deploy-lag-watch
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write   # WIF, read-only describe
+  actions: write    # gh workflow run -> 20
+
+jobs:
+  targets:
+    name: Which envs can be asked
+    runs-on: ubuntu-latest
+    outputs:
+      envs: ${{ steps.t.outputs.envs }}
+      any: ${{ steps.t.outputs.any }}
+    steps:
+      - id: t
+        env:
+          WIF_DEV: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          SA_DEV: ${{ vars.GCP_DEPLOY_SA_EMAIL_DEV }}
+          WIF_PRD: ${{ vars.GCP_WIF_PROVIDER_PRD }}
+          SA_PRD: ${{ vars.GCP_DEPLOY_SA_EMAIL_PRD }}
+        run: |
+          set -euo pipefail
+          ready=()
+          for e in dev prd; do
+            w="WIF_${e^^}"; s="SA_${e^^}"
+            if [[ -n "${!w:-}" && -n "${!s:-}" ]]; then ready+=("$e")
+            else echo "::notice::$e skipped: GCP_WIF_PROVIDER_${e^^} / GCP_DEPLOY_SA_EMAIL_${e^^} not set (017 not applied/exported yet)"; fi
+          done
+          if (( ${#ready[@]} )); then envs="$(printf '"%s",' "${ready[@]}")"; echo "envs=[${envs%,}]" >> "$GITHUB_OUTPUT"; echo "any=true" >> "$GITHUB_OUTPUT"
+          else echo "envs=[]" >> "$GITHUB_OUTPUT"; echo "any=false" >> "$GITHUB_OUTPUT"; fi
+
+  watch:
+    name: Is ${{ matrix.environment }} running the cnf image?
+    needs: targets
+    if: needs.targets.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJson(needs.targets.outputs.envs) }}
+    env:
+      ENV: ${{ matrix.environment }}
+      DEPLOY_SA: ${{ vars[format('GCP_DEPLOY_SA_EMAIL_{0}', matrix.environment)] }}
+    steps:
+      - uses: actions/checkout@v4   # trunk head: the cnf a deploy would roll to
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment)] }}
+          service_account: ${{ env.DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: do_check_hub_deploy
+        id: lag
+        run: |
+          set -uo pipefail
+          rc=0
+          out="$(GCP_ACCOUNT="$DEPLOY_SA" ./csi-spl-orc/run -a do_check_hub_deploy 2>&1)" || rc=$?
+          verdict="$(grep -E "^$ENV (current|lagging|unhealthy) " <<<"$out" | tail -1)"
+          echo "${verdict:-$ENV: no verdict (rc $rc)}"
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          { echo "## Deploy lag: spool hub -> $ENV"; echo; echo "\`${verdict:-no verdict, rc $rc}\`"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Reconcile -- dispatch 20 at trunk head (lagging only)
+        if: steps.lag.outputs.rc == '3' && inputs.reconcile != 'never'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          wf=20_hub-build-deploy.yml
+          tip="$(git rev-parse HEAD)"
+          inflight="$(gh run list --workflow="$wf" --branch master --limit 15 --json headSha,status \
+            --jq "[.[] | select(.headSha == \"$tip\") | select(.status != \"completed\")] | length")"
+          verdict="$(gh run list --workflow="$wf" --branch master --limit 25 --json conclusion \
+            --jq '[.[] | select(.conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out")] | .[0].conclusion // "none"')"
+          if [[ "${inflight:-0}" -gt 0 ]]; then
+            echo "::notice::a $wf run for trunk head ${tip:0:8} is already in flight -- not dispatching"
+          elif [[ "$verdict" != success && "$verdict" != none ]]; then
+            echo "::warning::$wf last concluded $verdict -- the deploy is broken, not starved; not dispatching"
+          else
+            echo "::warning::$ENV is lagging -- dispatching $wf (environment=all, forward-guarded)"
+            gh workflow run "$wf" --ref master -f environment=all
+          fi
+
+      - name: Fail the run so the lag is visible
+        if: steps.lag.outputs.rc != '0'
+        run: |
+          echo "::error::$ENV is not running the cnf image at trunk head (do_check_hub_deploy rc ${{ steps.lag.outputs.rc }}: 3 lagging, 4 unhealthy, 1 cannot tell) -- see the job summary"
+          exit 1

@@ -1,54 +1,92 @@
-# Tasks: spool-hub-api infra
+# Tasks: spool hub cloud estate (iac)
 
-**Feature**: `specs/007-spool-hub-api-infra`
+**Feature**: `specs/007-spool-hub-api-infra` · **Spec**: `./spec.md` ·
+**Order**: `./contracts/provisioning-order.md`
 
-Reference trees: csi-rel-iac/orc, pas-psf-iac/orc. Morph then strip shop.
+Status per task: `[x]` Implemented (verified, citation given) · `[~]`
+Partial · `[ ]` Planned. Every apply below needs an explicit owner go.
+Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
 
-## Phase 1: lde / docker (US1)
+## Phase 0: lde (US1)
 
-- [ ] T001 Copy `docker-compose-{api,rdb,infra}.yaml` + Dockerfiles from
-      pas-psf-orc / csi-rel-orc into `csi-spl-orc/src/docker/`; rename
-      service to spool-hub-api; drop wui/wordpress/stripe-mock
-- [ ] T002 Copy `gen-docker-env.func.sh` and docker check-install actions
-      into `csi-spl-orc/src/bash/run/`
-- [ ] T003 [P] lde smoke: compose rdb+api up; `go test` against local DSN
+- [x] T001 Compose `docker-compose-{api,infra,rdb}.yaml` + hub Dockerfile in
+      `csi-spl-orc/src/docker/` — FR-016 (`ls csi-spl-orc/src/docker`)
+- [x] T002 `do_gen_docker_env`, `do_setup_app_inf`, `do_teardown_app_inf` —
+      FR-016 (`lde-stack.tst.sh` green, orc suite 6/6)
+- [x] T003 lde smoke: pg, gcs, migrate, serve, hello PASS — FR-016 (action
+      header: measured n=3, exit 0)
 
-## Phase 2: terraform steps (US2)
+## Phase 1: state + services (steps 1–2)
 
-- [ ] T004 Extend `001-enable-gcp-services` APIs (run, sqladmin, dns,
-      secretmanager, artifactregistry)
-- [ ] T005 [P] Morph `003-gcp-iam-users`, `005-gcp-domain-verification`
-- [ ] T006 Morph `007-dns` **and** Gandi LiveDNS: public NS stay `*.gandi.net`
-      (feature.md §3.3). Copy dob-luk-iac `gandi-api` + get/set nameservers +
-      list/set LiveDNS records. Domain from cnf `env.dns.BASE_DOMAIN` only.
-      Do **not** `do_gandi_set_nameservers` to GCP Cloud DNS. Dry-run unless
-      `CONFIRM=yes`. Leave apex `@` on Gandi parking (HTTP
-      `http://<BASE_DOMAIN>/` is the Gandi parked page). Wildcard `*` +
-      `dev` records only — they must not steal the apex. No apply without
-      owner go.
-- [ ] T007 Morph `017-github-wif-deploy`
-- [x] T007b Morph `028-gcp-artifact-registry` for hub images (no apply)
-- [ ] T007c Morph `029-create-gcp-secrets` (no shop captcha/BIN)
-- [ ] T008 Morph `030-gcp-cloud-run` for spool-hub-api (WS, min instances cnf)
-- [ ] T009 Morph `031-gcp-cloud-run-domain-mapping` + wire `do_wait_for_cert`
-- [ ] T010 Morph `040-gcp-cloud-sql`
-- [ ] T011 Files bucket step (prefix isolation); **not** git-rel `020`
-- [ ] T012 [P] cnf tfvars templates under `csi-spl-cnf` for each new step
-- [ ] T013 `terraform validate` each step (`tf-plan`); no apply in CI
+- [x] T004 `000-gcp-remote-bucket` applied dev + prd — FR-002 (tfstate:
+      1 resource each)
+- [~] T005 `001-enable-gcp-services`: dev enabled; **prd re-apply** with the
+      current cnf list (run, sqladmin, compute, secretmanager,
+      artifactregistry, certificatemanager missing) — FR-003
 
-## Phase 3: DNS ops + rdb (US3–4)
+## Phase 2: DNS zone — the gap (step 3, US3)
 
-- [x] T014 Copy `export-all-dns-settings`, `flush-dns`, `wait-for-cert` into
-      csi-spl-orc. Public record writes go through Gandi LiveDNS (`do_gandi_*`),
-      not a GCP-only flush that assumes Cloud DNS is authoritative.
-- [ ] T015 `csi-spl-rdb` numbered SQL for spool tables only
-- [ ] T016 Test: grep rdb SQL for store entities (product, cart, sku, wp_)
-      is empty
-- [ ] T017 Hygiene: no baked hostname in Go; no keys in tf
+- [~] T010 Land `025-gcp-dns-zone` on trunk: `import` of the prd
+      `spool-hub` zone, `prevent_destroy`, cnf `steps.025-gcp-dns-zone.zone_name`,
+      tpl + render test — FR-004 (uncommitted in CLE-3335; state 0 resources)
+- [ ] T011 `031` writes records into the `025` zone, dev records into the
+      prd zone across projects; cnf `dns_managed_zone` no longer `""` — FR-004, FR-012
+- [ ] T012 prd plan of `025` shows 1 import, 0 add, 0 destroy; owner applies;
+      `terraform state list` shows the zone; NS unchanged — FR-004
+- [ ] T013 **Owner decision** A (hand off) or B (stay on Gandi), spec §2 —
+      FR-005
+- [ ] T020a (if A) copy the apex parking record into the zone, lift the
+      `ns-cloud-*` refusal in `do_gandi_set_nameservers`, owner sets Gandi NS
+      -> `ns-cloud-e1..e4`; gate `dig +norec NS … @v0n1.nic.ai` — FR-005
+- [ ] T020b (if B) write the ACME CNAME and `*.` / `*.dev.` A records with
+      `do_gandi_set_dns_record` (`CONFIRM=yes`), apex untouched — FR-005
+
+## Phase 3: data + registry + image (steps 4–8, US4, US6)
+
+- [x] T030 `040-cloud-sql-postgres` dev (3 resources in state;
+      `csi-spl-dev-pg` RUNNABLE db-f1-micro) — FR-006
+- [x] T031 `050-gcs-files` dev (bucket `csi-spl-dev-files`) — FR-007
+- [x] T032 `028-gcp-artifact-registry` dev (`csi-spl-dev-hub`) — FR-008
+- [x] T033 `do_build_push_hub_image` dev (`spool-hub:0.1.0` running;
+      `43b9296`) — FR-009
+- [x] T034 `do_spl_db_bootstrap` dev (DSN secret v1 enabled; `9f8f492`) — FR-010
+- [x] T035 rdb pointer: `csi-spl-rdb/src/sql/postgres/spool-hub/000{1,2,3}_*.sql`
+      bundled into the image and applied by `spool migrate` — US6
+- [ ] T036 prd: 040, 050, 028, image, DB bootstrap, after T005 and T012 —
+      FR-006..FR-010
+
+## Phase 4: Cloud Run + ingress (steps 9–10, US3, US4)
+
+- [x] T040 `030-cloud-run-hub` dev (6 resources; min = max = 1, cloudsql
+      socket) — FR-011
+- [ ] T041 `031-gcp-hub-ingress` dev apply after T011 + T013; cnf
+      `allowed_ip_ranges` set by the owner; `do_wait_for_cert` ACTIVE;
+      healthz 200 allowlisted / 403 otherwise — FR-012, SC-004
+- [ ] T042 prd `030` + `031` (no apex A record without owner go) — FR-011,
+      FR-012
+
+## Phase 5: CI identity (US5)
+
+- [ ] T050 Land `017-github-wif-deploy` (branch `GRK-3343-007-tf-017-wif`,
+      unmerged); apply per env; export `GCP_WIF_PROVIDER_<ENV>` /
+      `GCP_DEPLOY_SA_EMAIL_<ENV>` as repo variables for `008` — FR-013, SC-005
+
+## Phase 6: remaining copies + hygiene
+
+- [ ] T060 `029-create-gcp-secrets` (no captcha/BIN; M2 payment slots
+      empty or omitted) — FR-014
+- [ ] T061 `005-gcp-domain-verification` (branch
+      `GRK-3341-007-tf-005-domain`, unmerged) — FR-015
+- [ ] T062 `003-gcp-iam-users` (not started) — FR-015
+- [x] T063 DNS ops `do_export_all_dns_settings`, `do_flush_dns`,
+      `do_wait_for_cert`, `do_gandi_*` — FR-017 (`f68affe`, `04f7dca`;
+      `dns-ops.tst.sh`, `gandi-livedns.tst.sh` green)
+- [~] T064 Hygiene gates: no keys in tf, no store entities in rdb (branch
+      `GRK-3355-007-hygiene-tests`, unmerged) — FR-018
+- [x] T065 Domain single source (`domain-single-source.tst.sh` green) — FR-019
 
 ## Out of this task list
 
-M2 payment secrets/drivers. M3 WUI firebase. Store TF steps listed in the
-narrative “do not copy”.
+M2 payment drivers, M3 WUI hosting (`005`), pipeline job design (`008`).
 
-<!-- version: 0.1.3 · updated: 2026-09-18 · last-edit: 2026-09-18T21:16:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:30:00Z -->

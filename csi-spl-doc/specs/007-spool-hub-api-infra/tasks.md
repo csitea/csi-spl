@@ -22,7 +22,10 @@ Reference trees: csi-rel-iac/orc, pas-psf-iac/orc. Morph then strip shop.
       (feature.md §3.3). Copy dob-luk-iac `gandi-api` + get/set nameservers +
       list/set LiveDNS records. Domain from cnf `env.dns.BASE_DOMAIN` only.
       Do **not** `do_gandi_set_nameservers` to GCP Cloud DNS. Dry-run unless
-      `CONFIRM=yes`. Wildcard `*` + env fqdn records. No apply without owner go.
+      `CONFIRM=yes`. Leave apex `@` on Gandi parking (HTTP
+      `http://<BASE_DOMAIN>/` is the Gandi parked page). Wildcard `*` +
+      `dev` records only — they must not steal the apex. No apply without
+      owner go.
 - [ ] T007 [P] Morph `017-github-wif-deploy`, `028-gcp-artifact-registry`,
       `029-create-gcp-secrets` (no shop captcha/BIN)
 - [ ] T008 Morph `030-gcp-cloud-run` for spool-hub-api (WS, min instances cnf)
@@ -47,4 +50,4 @@ Reference trees: csi-rel-iac/orc, pas-psf-iac/orc. Morph then strip shop.
 M2 payment secrets/drivers. M3 WUI firebase. Store TF steps listed in the
 narrative “do not copy”.
 
-<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T17:50:00Z -->
+<!-- version: 0.1.2 · updated: 2026-09-18 · last-edit: 2026-09-18T17:52:00Z -->

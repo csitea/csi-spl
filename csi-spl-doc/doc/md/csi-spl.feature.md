@@ -114,9 +114,12 @@ The spool's domain is `spool-hub.ai`. It is stored once:
 `csi-spl-iac/src/bash/tests/domain-single-source.tst.sh` fails if the domain
 appears in any tracked file outside `csi-spl-cnf/` and `csi-spl-doc/`.
 
-Nothing DNS-related exists: no domain verification, no records, no mappings.
-Those are future steps and need the owner's go. As read on 2026-09-17 the
-domain is registered at Gandi (created that day) with Gandi nameservers.
+Nothing GCP DNS-related exists: no domain verification in GCP, no Cloud DNS
+zone we own, no Cloud Run mapping. Those are future steps and need the
+owner's go. As read on 2026-09-17 the domain is registered at Gandi
+(created that day) with Gandi nameservers. Measured 2026-09-18:
+`http://spool-hub.ai/` is Gandi parking (apex A on Gandi webredir). Keep
+that apex on Gandi until the owner attaches the hub or WUI.
 
 ## 4. The relay bucket contract (derived from git-rel)
 

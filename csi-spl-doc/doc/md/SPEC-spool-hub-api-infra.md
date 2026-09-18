@@ -90,14 +90,19 @@ proof).
 | `gcp-sm-secrets-to-env-file` | pas-psf-orc (placeholders in logs) |
 
 DNS: the product domain is registered at **Gandi** and must stay on **Gandi
-nameservers** (`*.gandi.net` / LiveDNS). Public records (apex, `dev`, wildcard
-`*`) are published with the Gandi LiveDNS API (dob-luk-iac `do_gandi_*`
-shape: token from `$GANDI_PAT` or `~/.gandi/.<org>/token`, domain from cnf
+nameservers** (`*.gandi.net` / LiveDNS). **Apex HTTP stays Gandi parking**
+(`http://<BASE_DOMAIN>/` → Gandi webredir/parking page). Measured 2026-09-18:
+NS `ns-*-a/b/c.gandi.net`, apex A is Gandi parking, `www` CNAME
+`webredir.vip.gandi.net`. **Do not** move the apex `@` A/CNAME off Gandi
+parking onto Cloud Run, Firebase, or a GCP LB until the owner says so.
+Tenant hosts (`*.<BASE_DOMAIN>`, `*.dev.<BASE_DOMAIN>`) are extra LiveDNS
+records; they must not steal the apex. Publish those with dob-luk-iac
+`do_gandi_*` (token `$GANDI_PAT` or `~/.gandi/.<org>/token`, domain from cnf
 `env.dns.BASE_DOMAIN`, dry-run unless `CONFIRM=yes`). **Do not** re-delegate
 registrar NS to GCP `ns-cloud-*`. Terraform `007-dns` if present is not the
-public authority. No hostname literals in Go. Product shape stays
-`https://<tenant>.<BASE_DOMAIN>`. **Wildcard DNS+TLS from M1**. Several
-manual tenants must resolve without a new terraform host each time.
+public authority. No hostname literals in Go. **Wildcard DNS+TLS from M1**
+for tenants only. Several manual tenants must resolve without a new
+terraform host each time.
 
 ---
 
@@ -127,4 +132,4 @@ csi-spl-rdb/src/sql/                # spool schema only
 Apply still needs an **owner go** (csi-spl CLAUDE.md). `tf-plan` never
 apply-by-default.
 
-<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T17:50:00Z -->
+<!-- version: 0.1.2 · updated: 2026-09-18 · last-edit: 2026-09-18T17:52:00Z -->

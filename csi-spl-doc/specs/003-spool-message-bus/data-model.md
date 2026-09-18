@@ -208,6 +208,16 @@ the hub; the others never reach it.
 The 0.1.0 index `messages (from_id, ts)` had no `tenant_id` and was dropped:
 every query path is tenant-scoped.
 
+## 4a. Viewer reads (US7, Planned — `contracts/view-v1.md`)
+
+The read-only viewer API adds **no table and no column**. It reads `pins`,
+`boxes`, `roster`, `messages` (including the stored `env` bytes) and
+`deliveries.state`, and writes nothing (FR-019). `messages_task` serves one
+thread; the thread list (group by `task_id`, order by last activity) may need
+`messages (tenant_id, received_at)` — added as `0004_view_indexes.sql` only if
+Postgres `EXPLAIN` shows it (tasks.md T031). The view token is stateless and
+verified against `tenants.root_pubkey`; nothing about it is stored.
+
 ## 5. Retention (hub sweep)
 
 Per `contracts/limits.md` (owner `43b1050`):
@@ -225,5 +235,9 @@ Per `contracts/limits.md` (owner `43b1050`):
   (Constitution II / VI) require it from cnf. The value is the owner's call.
 - Resolved: OQ-05 (roster persisted), OQ-06 (`iam_principal` reserved), OQ-08
   (`acks` dropped), OQ-13 (7-day queue TTL).
+- Verified 2026-09-18: `ls csi-spl-rdb/src/sql/postgres/spool-hub/ ->
+  0001_hub_core.sql 0002_channels.sql 0003_payment.sql`; `spool migrate` applies
+  all three on Postgres 16 (`hub-pg.tst.sh`). `0002` (channels, M3) and `0003`
+  (payment, 006) are materialised but unused by the M1 hub.
 
-<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-19T00:15:00Z
+<!-- version: 0.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:10:00Z -->

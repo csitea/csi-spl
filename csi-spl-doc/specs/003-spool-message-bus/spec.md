@@ -4,7 +4,9 @@
 
 **Created**: 2026-09-18
 
-**Status**: Draft — every Open Question is **resolved** (ORC decision record 2026-09-18, folded below); implementation of the M1 hub may proceed
+**Status**: M1 hub **Implemented** and verified (section **Verification**, 2026-09-18); read-only viewer API (US7) **Planned**; prd deploy and the ingress are **Partial/Planned** in the infra lane (007). OQ-01..15 resolved; OQ-16 (viewer door) open with the owner.
+
+**Redo ground rules**: `../README.md` (status vocabulary, seams §5, provisioning order §6). Status tags below follow it.
 
 **Input**: Architecture freeze from the owner: split names (ysg-box = machine, spool = bus); start clean in this repo then force the box to use it; local CRUD first (002); Cloud Run is a stateless process; state in Postgres + object store; NATS for live notify not for files or tokens; one uniform box API for every agent kind.
 
@@ -26,9 +28,12 @@
 
 | Concern | Owner |
 |---|---|
-| Hub process, WS hello/send/recv/tail framing, REST files, hub queue, box-side flush, probes | **003** (this spec) |
+| Hub process, WS hello/send/recv/tail framing, REST files, hub queue, box-side flush, probes, `spool migrate` | **003** (this spec) |
+| **WUI read API** (`/v1/view/*`, `contracts/view-v1.md`) | **003** (this spec); 005 cites and depends |
 | Box id, pin publish / sync / revoke, `GET/POST/DELETE /v1/pins` | 004 (+ 006 root-signing) |
-| Tenant create, tenant resolution from URL, quotas, `402`/`429` | 006 |
+| Tenant create, tenant resolution from URL, root key, quotas, `402`/`429` | 006 |
+| Terraform, DNS, Cloud Run/SQL/GCS, secrets, WIF, lde | 007 (003 names cnf keys only) |
+| GitHub Actions build + deploy | 008 |
 
 git-rel (001) is a different plane (gpg-encrypted file relay). `directive` and slack-as-pager stay on ysg-box. This spec does not migrate `$MSGS_ROOT` piecemeal.
 
@@ -141,6 +146,22 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 
 1. **Given** this spec, **When** an adapter is written, **Then** it uses only the box API in `SPEC-spool-box-api.md` (no NATS/PG/GCS/WS from the agent).
 
+### User Story 7 - Read-only thread viewer API for the WUI (Priority: P2, M3 dependency) — Planned
+
+A human opens the WUI (spec 005) and sees the tenant's boxes, who is online, the list of task threads and each thread's messages with their attachments. The WUI reads through a small **read-only** REST surface, `contracts/view-v1.md`, with a view token. It never sends, never drains a queue, and never touches the box door (`/v1/ws`).
+
+**Why this priority**: The WUI is M3, but its only hub dependency is this contract; freezing it now lets 005 build against a real shape instead of the deleted `/v1/messages` dialect (see `contracts/view-v1.md` §7 for the measured drift).
+
+**Independent Test**: hub with two boxes and one stored thread; with a valid view token, `GET /v1/view/threads` lists the thread and `GET /v1/view/threads/{task_id}` returns the envelopes oldest first; the `deliveries` rows are byte-identical before and after; without a token → `401 view_door`; from a non-listed origin → no CORS headers.
+
+**Acceptance Scenarios**:
+
+1. **Given** a queued message for offline box-b, **When** the viewer reads its thread, **Then** it sees `deliveries[].state = queued`, and box-b still drains it on its next hello (the read changed nothing).
+2. **Given** a view token for tenant A, **When** it is used under tenant B's Host, **Then** `401 view_door`.
+3. **Given** a `task_id` of tenant A, **When** it is read under tenant B, **Then** `404 not_found`.
+4. **Given** a `POST` to any `/v1/view/*` path, **When** it arrives, **Then** `405 method_not_allowed`.
+5. **Given** `hub.view_cors_origins` is empty, **When** a cross-origin preflight arrives, **Then** no CORS headers are returned.
+
 ### Edge Cases
 
 - Cloud Run instance killed mid-request or mid-WS: the box reconnects (exponential backoff, cap ~30 s) and resends idempotently by `msg_id`. Storage is Postgres + GCS, never container disk; WS session state is not durable.
@@ -149,28 +170,35 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 - Two boxes, same agent id: `CLE-07@box-a` and `CLE-07@box-b` are different peers; message identity is `msg_id`.
 - Direct agent → bucket upload: forbidden. No per-agent cloud keys.
 - Kafka / per-kind HTTP / MCP-per-window: rejected (Constitution additional constraints).
+- `/healthz` on Cloud Run: Cloud Run reserves some paths ending in `z`; the deployed dev service answers a Google 404 on its `run.app` URL (ingress is LB-only and no LB exists yet). FR-023 adds a non-`z` alias.
 
 ## Requirements
 
 ### Functional Requirements
 
-- **FR-001**: The hub MUST expose the endpoints in `contracts/http-v1.md`: WS `/v1/ws`, `POST /v1/files`, `GET /v1/files/{file_id}`, `GET /healthz`, `GET /version`. It also hosts the pin endpoints owned by 004/006.
-- **FR-002**: The box CLI/MCP from 002 MUST be the only agent-facing API; agents MUST NOT call hub HTTP/WS, NATS, Postgres, or GCS directly.
-- **FR-003**: The hub MUST issue a single-use nonce on connect and verify the WS hello `sig` over `{box_id, ts, nonce}` against the tenant's pin for `box_id` before accepting any frame (`ts` within ±300 s); unknown box → close, nothing stored. **Last hello wins**: a new session connection for the same `box_id` closes the older one.
-- **FR-004**: The hub MUST verify every send envelope `sig` against the `from_box` pin, and MUST require `from_box` to equal the box authenticated at hello; failure → refuse, nothing stored (CLI exit `78`).
-- **FR-005**: The **sender** MUST resolve `to_box` (explicit, or unique in the synced roster) and sign it; the hub MUST NOT fill or mutate any signed field. An envelope without `to_box` is refused (`409 ambiguous_to_box` when `to` is on more than one box, else `400 missing_to_box`).
-- **FR-006**: When `to_box` has a live WS the hub MUST push the frame and report `delivery=sent`. Otherwise it MUST persist the message with a 7-day TTL (max 1,000 queued per box), report `delivery=queued`, and deliver it on the box's next hello. The hub's responsibility ends there (no ack; OQ-08).
-- **FR-007**: File bytes MUST be stored as `t/<tenant_id>/files/<sha256>`; messages and frames MUST carry file refs only. `POST /v1/files` MUST require a WS-issued upload token (TTL ~5 min, bound to `box_id` + tenant); `GET /v1/files/{file_id}` MUST be tenant-scoped.
-- **FR-008**: When the hub is unreachable, the CLI MUST keep cross-box sends pending-flush in `$SPOOL_ROOT`, report `delivery=pending` with exit `0`, and MUST flush without re-signing and without changing `ts` (`contracts/flush.md`; flush lives in box-side `internal/hubclient`).
-- **FR-009**: Same-box sends MUST NOT depend on the hub (`delivery=local`) unless `$SPOOL_MIRROR_LOCAL` is true; illegal values fail fast.
-- **FR-010**: Hub ingest MUST be idempotent on `(tenant_id, msg_id)`: identical canonical → success, different canonical → `409 conflict_msg`.
-- **FR-011**: Live notify (after M1) MUST NOT carry file bytes, model tokens, private keys or signed URLs, and MUST NOT leak across tenants.
-- **FR-012**: Cloud Run MUST be stateless: no message log, queue, or file bytes on container disk.
-- **FR-013**: Agent kind MUST appear only as id prefixes (Constitution VIII).
-- **FR-014**: Private keys (box, tenant root) MUST never enter the hub, Postgres, GCS, Secret Manager, or logs (Constitution VII).
-- **FR-015**: Every hub row and object key MUST carry `tenant_id`. The tenant comes from the request **Host** (`<tenant>.<product-domain>`, domain from cnf), never from the `v:1` body. One GCS bucket for all tenants, prefixed `t/<tenant_id>/`.
-- **FR-016**: IAM/OIDC is not in M1. If a private deploy enables it later, it MUST run before box-key verification and MUST NOT substitute for it.
-- **FR-017**: M1 MUST run the hub with `max-instances=1` (cnf-overridable). The box MUST reconnect on close with exponential backoff (cap ~30 s) and re-hello.
+- **FR-001**: The hub MUST expose the endpoints in `contracts/http-v1.md`: WS `/v1/ws`, `POST /v1/files`, `GET /v1/files/{file_id}`, `GET /healthz`, `GET /version`. It also hosts the pin endpoints owned by 004/006. *Status:* **Implemented** — `7905e35`; `grep -c 'HandleFunc' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 8`.
+- **FR-002**: The box CLI/MCP from 002 MUST be the only agent-facing API; agents MUST NOT call hub HTTP/WS, NATS, Postgres, or GCS directly. *Status:* **Implemented** — `hub-e2e.tst.sh` drives only the `spool` binary (run-all-tests → `ALL HUB E2E CHECKS PASSED`).
+- **FR-003**: The hub MUST issue a single-use nonce on connect and verify the WS hello `sig` over `{box_id, ts, nonce}` against the tenant's pin for `box_id` before accepting any frame (`ts` within ±300 s); unknown box → close, nothing stored. **Last hello wins**: a new session connection for the same `box_id` closes the older one. *Status:* **Implemented** — `7905e35`; e2e `unpinned box refused at hello (exit 78)`; `TestHelloNonceAcceptAndReplayReject`, `TestLastHelloWinsOnlyForBoxRole`.
+- **FR-004**: The hub MUST verify every send envelope `sig` against the `from_box` pin, and MUST require `from_box` to equal the box authenticated at hello; failure → refuse, nothing stored (CLI exit `78`). *Status:* **Implemented** — `7905e35`; `TestTamperedAndAmbiguousAndMissingPin`.
+- **FR-005**: The **sender** MUST resolve `to_box` (explicit, or unique in the synced roster) and sign it; the hub MUST NOT fill or mutate any signed field. An envelope without `to_box` is refused (`409 ambiguous_to_box` when `to` is on more than one box, else `400 missing_to_box`). *Status:* **Implemented** — `7905e35`; `TestTamperedAndAmbiguousAndMissingPin`.
+- **FR-006**: When `to_box` has a live WS the hub MUST push the frame and report `delivery=sent`. Otherwise it MUST persist the message with a 7-day TTL (max 1,000 queued per box), report `delivery=queued`, and deliver it on the box's next hello. The hub's responsibility ends there (no ack; OQ-08). *Status:* **Implemented** — e2e `offline receiver: delivery=queued, drained on hello` and `live receiver (hub-run): delivery=sent`.
+- **FR-007**: File bytes MUST be stored as `t/<tenant_id>/files/<sha256>`; messages and frames MUST carry file refs only. `POST /v1/files` MUST require a WS-issued upload token (TTL ~5 min, bound to `box_id` + tenant); `GET /v1/files/{file_id}` MUST be tenant-scoped. *Status:* **Implemented** — `7905e35` + GCS driver `81121a0`; `hub-gcs.tst.sh` → `ALL HUB GCS CHECKS PASSED`.
+- **FR-008**: When the hub is unreachable, the CLI MUST keep cross-box sends pending-flush in `$SPOOL_ROOT`, report `delivery=pending` with exit `0`, and MUST flush without re-signing and without changing `ts` (`contracts/flush.md`; flush lives in box-side `internal/hubclient`). *Status:* **Implemented** — `e2c7d8d`; e2e `hub down: cross-box delivery=pending (exit 0)` and `hub back: flush sent the pending envelope`.
+- **FR-009**: Same-box sends MUST NOT depend on the hub (`delivery=local`) unless `$SPOOL_MIRROR_LOCAL` is true; illegal values fail fast. *Status:* **Partial** — local default and fail-fast parse implemented (`internal/config` `Mirror()`); the mirror-**on** path has no dedicated test (T018a).
+- **FR-010**: Hub ingest MUST be idempotent on `(tenant_id, msg_id)`: identical canonical → success, different canonical → `409 conflict_msg`. *Status:* **Implemented** — store contract suite on memory + Postgres (`hub-pg.tst.sh`).
+- **FR-011**: Live notify (after M1) MUST NOT carry file bytes, model tokens, private keys or signed URLs, and MUST NOT leak across tenants. *Status:* **Implemented** for the M1 WS tail (`TestTailStoredAndFollow`); post-M1 notify transports are not built.
+- **FR-012**: Cloud Run MUST be stateless: no message log, queue, or file bytes on container disk. *Status:* **Implemented** — store = Postgres, blob = GCS; no disk driver in `serve` (T029 sweep).
+- **FR-013**: Agent kind MUST appear only as id prefixes (Constitution VIII). *Status:* **Implemented** — T029 hygiene grep.
+- **FR-014**: Private keys (box, tenant root) MUST never enter the hub, Postgres, GCS, Secret Manager, or logs (Constitution VII). *Status:* **Implemented** — T029 hygiene grep; keys never leave the box / owner.
+- **FR-015**: Every hub row and object key MUST carry `tenant_id`. The tenant comes from the request **Host** (`<tenant>.<product-domain>`, domain from cnf), never from the `v:1` body. One GCS bucket for all tenants, prefixed `t/<tenant_id>/`. *Status:* **Implemented** — `TestFilesRoundTripAndTenantIsolation`; tenant resolution semantics owned by 006.
+- **FR-016**: IAM/OIDC is not in M1. If a private deploy enables it later, it MUST run before box-key verification and MUST NOT substitute for it. *Status:* **Implemented** — no IAM code path exists; T026.
+- **FR-017**: M1 MUST run the hub with `max-instances=1` (cnf-overridable). The box MUST reconnect on close with exponential backoff (cap ~30 s) and re-hello. *Status:* **Partial** — reconnect implemented (e2e `hub-run reconnected and received it`); `max_instances 1` in cnf and tf `030` and live on dev (`gcloud run services describe csi-spl-hub-dev … --account=$GCP_ACCOUNT` → template maxScale `1`, 2026-09-18, n=1); prd not deployed (Cloud Run API disabled in `csi-spl-prd`, 007).
+- **FR-018**: The hub MUST expose the read-only viewer API in `contracts/view-v1.md` (`GET /v1/view/roster`, `/channels`, `/threads`, `/threads/{task_id}`), reusing `GET /v1/files/{file_id}` for bytes. *Status:* **Planned** — `grep -c '/v1/view' …/internal/hub/server.go -> 0`.
+- **FR-019**: A viewer read MUST NOT mutate hub state: no delivery claim or drain, no `sent` marking, no roster, pin or `last_hello_at` change. It MUST NOT reintroduce a REST send/recv (OQ-02). *Status:* **Planned**.
+- **FR-020**: Every `/v1/view/*` request MUST carry a view token bound to the Host tenant with `scope=view` and a bounded expiry; refusal → `401 view_door`. The token format is OQ-16 (proposed: tenant-root-signed, stateless). *Status:* **Planned**.
+- **FR-021**: CORS MUST be limited to origins listed in cnf `hub.view_cors_origins` (no default, never `*`) and to `/v1/view/*` + `GET /v1/files/{file_id}`. *Status:* **Planned**.
+- **FR-022**: Viewer responses MUST be tenant-scoped (foreign `task_id` → `404`) and MUST carry envelopes byte-for-byte as stored, file refs only, and no token or signed URL. *Status:* **Planned**.
+- **FR-023**: The hub MUST answer liveness on a path Cloud Run and the LB do not reserve (add `GET /v1/health`, keep `/healthz` for local use); 007 points the LB health check at it. *Status:* **Planned** — see Edge Cases.
 
 ### Non-Functional Requirements
 
@@ -189,7 +217,19 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 - **Box pin**: `(tenant_id, box_id)` → pubkey, published with the tenant root (004/006).
 - **Roster**: agent ids a box announced at hello (dir scan of `$SPOOL_ROOT/*/`).
 - **Task**: `task_id` (UUIDv4) grouping messages.
-- **Delivery**: send result `local | sent | queued | pending` (trust-modes §8 + OQ-09). The hub's part ends at `sent`/`queued`; agent `--ack` is local only (OQ-08).
+- **Delivery**: send result `local | sent | queued | pending` (trust-modes §8 + OQ-09). The hub's part ends at `sent`/`queued`; agent `--ack` is local only (OQ-08). `expired` is a hub-side `deliveries.state`, never a send result.
+- **View token**: short-lived, tenant-bound, read-only door for `/v1/view/*` (FR-020, OQ-16).
+
+## Verification (2026-09-18, n=1 each)
+
+| Check | Result |
+|---|---|
+| `bash csi-spl-api/src/bash/tests/run-all-tests.sh` on trunk `9f8f492` (Postgres 16 + fake-gcs via docker) | `ALL csi-spl-api TESTS PASSED` (smoke, hub Postgres gate, binary e2e, GCS gate — none skipped) |
+| `ls csi-spl-rdb/src/sql/postgres/spool-hub/` | `0001_hub_core.sql 0002_channels.sql 0003_payment.sql`; e2e: `spool migrate applies 3 file(s); re-run is a no-op` |
+| `grep -n 'HandleFunc' …/internal/hub/server.go` | `/healthz`, `/version`, `/v1/ws`, `POST/GET /v1/files`, `GET/POST/DELETE /v1/pins` — no REST send/recv, no `/v1/view` |
+| `gcloud run services list --project=csi-spl-dev --account=$GCP_ACCOUNT` | `csi-spl-hub-dev`, image `spool-hub:0.1.0`, min/max scale 1/1, ingress `internal-and-cloud-load-balancing` |
+| same for `csi-spl-prd` | `SERVICE_DISABLED` (Cloud Run API not enabled; 007 step 2) |
+| `curl https://<dev run.app URL>/healthz` and `/version` | Google 404 (LB-only ingress, no LB yet: 007 step 10) |
 
 ## Success Criteria
 
@@ -200,6 +240,7 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 - **SC-005**: A send to an offline box returns `delivery=queued` and is received after reconnect within TTL.
 - **SC-006**: A grep of hub + CLI source shows no per-kind route, no hostname literal, and no private key or signed URL written to logs.
 - **SC-007**: Two tenants with the same `box_id` and agent ids cannot read each other's messages or files.
+- **SC-008** (M3 gate): the WUI renders a live thread using only `contracts/view-v1.md` + `GET /v1/files/{file_id}`, and a before/after dump of `deliveries` is identical.
 
 ## Assumptions
 
@@ -216,7 +257,7 @@ After 002+003 work, ysg-box gains **one** adapter feature that shells the spool 
 - Kafka, Pinbox, Slack-as-bus, token SSE on spool, MCP server per tmux window.
 - Per-agent keys on the hub, per-agent IAM identities, per-agent object-store keys.
 - Encrypt-to-recipient (the hub can read bodies).
-- WUI (Milestone 3, spec 005); payment (Milestone 2, spec 006).
+- The WUI itself and human send/channel writes (Milestone 3, spec 005); payment (Milestone 2, spec 006). The **read** API the WUI needs is in scope (US7).
 
 ## Resolved decisions (formerly Open Questions)
 
@@ -234,9 +275,11 @@ All fifteen are closed. OQ-07/13/14 were resolved earlier by the owner; the othe
 - **OQ-10: Box proof on `POST /v1/files`.** — **Short-lived WS-issued upload token.** The box proved its key at hello; the hub mints a capability token (TTL ~5 min, bound to `box_id` + tenant) for `POST /v1/files`. Anonymous PUT forbidden. Chosen over signed headers: no header replay window to specify.
 - **OQ-11: "Text-only if policy allows".** — **A hub cnf flag**, `hub.allow_text_only_when_file_missing`, **default false**. By default a send referencing a `file_id` the hub does not hold is refused (`400 missing_file`); a tenant/deploy opts in via cnf.
 - **OQ-12: Notify subjects.** — **N/A in M1** (WS frames only; no pub/sub). Deferred with NATS; if revived, subject = `tenant.<tenant>.box.<box_id>.inbox`.
-- ~~**OQ-13: Hub queue TTL vs Postgres retention.**~~ **Resolved**: 7-day TTL with max 1,000 queued messages per offline box; older/excess messages expire with `delivery=expired`. Tiered retention: `#alerts` purged after 7 days, task threads kept 30 days (cnf-configurable per plan).
+- ~~**OQ-13: Hub queue TTL vs Postgres retention.**~~ **Resolved**: 7-day TTL with max 1,000 queued messages per offline box; older/excess queued rows become `deliveries.state = expired` (a hub row state, not a send-result `delivery`). Tiered retention: `#alerts` purged after 7 days, task threads kept 30 days (cnf-configurable per plan).
 - ~~**OQ-14: Local-mode `sig` in the 002 build.**~~ **Resolved** (commit `90786cd` / `2bbe68e`): local mode strictly omits `sig`; local mail is unsigned with POSIX filesystem permissions.
 - **OQ-15: Who owns flush?** — **Box-side `internal/hubclient`**, not the server-side `internal/hub`. 004 T010 (`internal/flush`) aligns to `internal/hubclient`; 003 T019 is correct.
+
+- **OQ-16: Viewer door (US7).** — **OPEN, owner to confirm.** Proposed: a stateless view token signed by the tenant **root** key over `jq -cS '{exp,scope,tenant}'`, minted offline (`spool hub-view-token`), verified against `tenants.root_pubkey`, TTL ≤ cnf `hub.view_token_max_ttl` (12 h). M3 social-auth sessions become a second door for the same endpoints. Alternative: wait for social auth and ship no interim door (the viewer then cannot run before M3). Blocks T033 only.
 
 ### Clarifications (implementation, 2026-09-18)
 
@@ -244,4 +287,4 @@ All fifteen are closed. OQ-07/13/14 were resolved earlier by the owner; the othe
 - **DDL home**: `csi-spl-rdb/src/sql/postgres/spool-hub/*.sql`, applied by `spool migrate` (`data-model.md`).
 - **Follow-up (parked)**: `msg.ValidID` must reject the `BOX-` prefix (identity-routing).
 
-<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T15:55:00Z -->
+<!-- version: 0.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:00:00Z -->

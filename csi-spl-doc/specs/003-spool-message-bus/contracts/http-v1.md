@@ -20,6 +20,9 @@ On such a host the non-tenant routes answer (`/`, `/version`, `/healthz`,
 `/v1/health`, `/api/v1/auth/*`); every tenant-scoped route (`/v1/ws`,
 `/v1/files`, `/v1/pins`, `/v1/view/*`) is `404 unknown_tenant`
 (`TestReservedHostIsAPIHostNotTenant`).
+The API host is **API-only in M1** (ORC decision 2026-09-18): tenant data is
+read on `<tenant>.<fqdn>` only. A path or header tenant carrier on the API
+host is a post-M1 item, if ever.
 
 **Send and recv are WebSocket only** (OQ-02). REST carries **files and pins
 only**. There is no REST send/recv dialect, public or private.
@@ -244,4 +247,4 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 - The only browser-facing surface is `./view-v1.md` (read-only). It never
   reintroduces the removed REST send/recv rows of §1.
 
-<!-- version: 0.4.4 · updated: 2026-09-18 · last-edit: 2026-09-18T19:54:18Z -->
+<!-- version: 0.4.5 · updated: 2026-09-18 · last-edit: 2026-09-18T19:56:23Z -->

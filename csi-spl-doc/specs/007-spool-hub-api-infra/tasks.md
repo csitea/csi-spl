@@ -26,8 +26,9 @@ Reference trees: csi-rel-iac/orc, pas-psf-iac/orc. Morph then strip shop.
       `http://<BASE_DOMAIN>/` is the Gandi parked page). Wildcard `*` +
       `dev` records only — they must not steal the apex. No apply without
       owner go.
-- [ ] T007 [P] Morph `017-github-wif-deploy`, `028-gcp-artifact-registry`,
-      `029-create-gcp-secrets` (no shop captcha/BIN)
+- [ ] T007 Morph `017-github-wif-deploy`
+- [x] T007b Morph `028-gcp-artifact-registry` for hub images (no apply)
+- [ ] T007c Morph `029-create-gcp-secrets` (no shop captcha/BIN)
 - [ ] T008 Morph `030-gcp-cloud-run` for spool-hub-api (WS, min instances cnf)
 - [ ] T009 Morph `031-gcp-cloud-run-domain-mapping` + wire `do_wait_for_cert`
 - [ ] T010 Morph `040-gcp-cloud-sql`
@@ -50,4 +51,4 @@ Reference trees: csi-rel-iac/orc, pas-psf-iac/orc. Morph then strip shop.
 M2 payment secrets/drivers. M3 WUI firebase. Store TF steps listed in the
 narrative “do not copy”.
 
-<!-- version: 0.1.2 · updated: 2026-09-18 · last-edit: 2026-09-18T17:52:00Z -->
+<!-- version: 0.1.3 · updated: 2026-09-18 · last-edit: 2026-09-18T21:16:00Z -->

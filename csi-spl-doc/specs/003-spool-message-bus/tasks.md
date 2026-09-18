@@ -86,6 +86,8 @@ All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, no
 
 ## Phase 11: Polish
 
+- [ ] T037 [P] `/version` returns `{ version, commit, built_at }` as `contracts/http-v1.md` §1 says; today `server.go` writes only `{"version"}` (`grep -n '"version": s.o.Version' internal/hub/server.go -> 105`). Needs `-ldflags` for commit/build time in the hub image build (`do_build_push_hub_image`, 007 lane) plus the handler change here. — **Planned**.
+
 - [x] T029 Hygiene grep: no per-kind routes/frames, no private keys, tokens or signed URLs in logs, no baked hosts or tenant ids. — **Implemented**; `TestPinCLIPublishesAndHygiene` + the CI `distribution-hygiene` sweep.
 - [x] T030 `go test ./...` and `run-all-tests.sh` green; box-API diff clean except additive `to_box` / `delivery` (OQ-01). — **Implemented**; verification run above.
 
@@ -95,7 +97,7 @@ All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, no
 
 | Requirement | Tasks | Status |
 |---|---|---|
-| FR-001 endpoints | T005, T008–T010, T013, T014 | Implemented |
+| FR-001 endpoints | T005, T008–T010, T013, T014, T037 | Implemented (`/version` body: T037 Planned) |
 | FR-002 CLI/MCP only door | T007, T015, T028 | Implemented (T028 doc Planned) |
 | FR-003 hello nonce, last hello wins | T008, T012 | Implemented |
 | FR-004 envelope verify, `from_box` binding | T003, T010, T012 | Implemented |
@@ -151,4 +153,4 @@ All **Planned**; contract `contracts/view-v1.md`. Code tasks for a code lane, no
 
 M1 of 003 = US1 + US2 + US3 + the WS tail of US4 — Implemented and green on Postgres + GCS; what remains for M1 is the cloud rollout (007) and the pipeline deploy (008). US7 is the next 003 code slice, due before 005 (M3) starts on real data.
 
-<!-- version: 0.4.3 · updated: 2026-09-18 · last-edit: 2026-09-18T19:13:34Z -->
+<!-- version: 0.4.4 · updated: 2026-09-18 · last-edit: 2026-09-18T19:16:05Z -->

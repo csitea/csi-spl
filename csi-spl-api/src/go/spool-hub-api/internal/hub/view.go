@@ -90,14 +90,25 @@ func (s *Server) viewHandler(next func(http.ResponseWriter, *http.Request, store
 			writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
 			return
 		}
-		if s.o.ViewDoor != ViewDoorOff {
-			// The view token format is owner question OQ-16; until it is decided
-			// the token door admits nobody (fail closed).
-			writeErr(w, http.StatusUnauthorized, "view_door", "a view token is required")
+		if s.o.ViewDoor == ViewDoorOff || s.sessionMayRead(r, t.ID) {
+			next(w, r, t)
 			return
 		}
-		next(w, r, t)
+		// The view token format is owner question OQ-16; until it is decided
+		// the token door admits nobody (fail closed).
+		writeErr(w, http.StatusUnauthorized, "view_door", "a view token or a member session is required")
 	}
+}
+
+// sessionMayRead is the M3 session door (view-v1 §2, OQ-A1): a signed-in human
+// who is a member of the Host tenant. Every auth error (no session, no HUM-*,
+// no membership check configured, not a member) refuses — fail closed.
+func (s *Server) sessionMayRead(r *http.Request, tenant string) bool {
+	if s.o.Auth == nil {
+		return false
+	}
+	_, err := s.o.Auth.SessionForTenant(r, tenant)
+	return err == nil
 }
 
 // ---- cursors ------------------------------------------------------------------

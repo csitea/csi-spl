@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -243,3 +244,45 @@ func TestAuthMountedWithoutTenant(t *testing.T) {
 		t.Fatalf("providers on an unknown tenant host: %d %s", code, body)
 	}
 }
+
+// With auth mounted but no membership check (today's default) a session door
+// still refuses: every view read is 401 view_door (010 SEC-001, OQ-A1 gate).
+func TestViewSessionDoorFailsClosedWithoutMembership(t *testing.T) {
+	ac, err := auth.LoadFrom("lde", map[string]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := newEnv(t, func(o *hub.Options) { o.Auth = auth.New(ac, zerolog.Nop(), auth.Options{}) })
+	tid, _ := e.tenant()
+	code, _, body := viewGet(t, e, tid, "/v1/view/threads", "Cookie", "spool_session=forged")
+	if code != http.StatusUnauthorized || errToken(body) != "view_door" {
+		t.Fatalf("session door without membership: %d %s", code, body)
+	}
+}
+
+// The access log never carries Cookie, Authorization or query strings (010
+// OQ-A4: a prd session cookie can reach dev hosts; it must not reach a log).
+func TestAccessLogCarriesNoCredentials(t *testing.T) {
+	var buf strings.Builder
+	var mu = new(sync.Mutex)
+	w := zerolog.SyncWriter(writerFunc(func(p []byte) (int, error) { mu.Lock(); defer mu.Unlock(); return buf.WriteString(string(p)) }))
+	e := newEnv(t, func(o *hub.Options) { o.Log = zerolog.New(w) })
+	tid, _ := e.tenant()
+	viewGet(t, e, tid, "/v1/view/threads?before=SECRET-QUERY", "Cookie", "spool_session=SECRET-COOKIE", "Authorization", "Bearer SECRET-TOKEN")
+	viewGet(t, e, tid, "/v1/pins", "Cookie", "spool_session_dev=SECRET-COOKIE", "Authorization", "Bearer SECRET-TOKEN")
+	mu.Lock()
+	logged := buf.String()
+	mu.Unlock()
+	if !strings.Contains(logged, `"path":"/v1/view/threads"`) {
+		t.Fatalf("access log line missing: %s", logged)
+	}
+	for _, secret := range []string{"SECRET-COOKIE", "SECRET-TOKEN", "SECRET-QUERY"} {
+		if strings.Contains(logged, secret) {
+			t.Fatalf("%s reached the log: %s", secret, logged)
+		}
+	}
+}
+
+type writerFunc func([]byte) (int, error)
+
+func (f writerFunc) Write(p []byte) (int, error) { return f(p) }

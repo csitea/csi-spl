@@ -83,6 +83,8 @@ sig        = ed25519 by the tenant ROOT key over jq -cS '{exp,scope,tenant}'
   until spec 010 T013 exists — a session proves *who* signed in, not *which
   tenant* they may read; `session.t` is caller-supplied and is never an
   authorisation (010 SEC-001). Until then a session admits nothing here.
+  The door check is wired (`auth.SessionForTenant`, fail-closed on every
+  error); it opens only when a membership check is configured.
 
 ## 3. CORS (FR-021)
 
@@ -187,4 +189,4 @@ a `POST /v1/channels`). None of those routes exists on the hub
 (`grep -c 'v1/messages\|v1/channels' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`).
 The read calls map onto §4.2–§4.4; the two POSTs are 005 M3 write features.
 
-<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:35:34Z -->
+<!-- version: 0.3.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:40:21Z -->

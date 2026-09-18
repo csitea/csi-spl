@@ -83,6 +83,13 @@ unpinned box). That is the whole authorisation model.
 Checkout via the configured payment provider. Tenant create/resume/cancel
 from the webhook. Quota / `402` unpaid. Same protocol as M1.
 
+**Implementation: copy csi-rel**, do not write a new payment stack. Binding
+contract: `specs/006-spool-hub-rental/contracts/payment.md`. Source of truth
+for drivers, fail-closed boot, signed webhooks, and Secret Manager is
+`csi-rel` (`payment_provider.go`, `internal/payments/`, `internal/webhooks/`,
+`046` / `068` / `077` / `000-secret-management`). Map “order paid” → tenant
+`billing_status=active`. Fake-pay (077) is lde only.
+
 ---
 
 ## Milestone 3 — WUI (Slack-like)
@@ -96,4 +103,4 @@ bus. `SPEC-spool-wui.md`. Not started until M1 is demoable.
 
 `002 local` → hub WS + pins (M1) → pay (M2) → WUI (M3).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:45:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:00:00Z -->

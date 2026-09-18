@@ -10,6 +10,7 @@
 #      to record calls, makes NO gcloud call, NO curl call and NO push/login.
 #      CONTROL: the same stub records a call when one is made, so an empty
 #      log means "not called", not "not recorded".
+#   4. spl_proxy_dsn maps the /cloudsql socket DSN onto the local proxy
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -87,6 +88,15 @@ else
 fi
 check_dry "do_export_all_dns_settings" 'do_export_all_dns_settings' ENV=dev
 check_dry "do_flush_dns" 'do_flush_dns' TEST_DOMAIN=example.test
+for ENV in dev prd; do check_dry "$ENV do_spl_db_bootstrap" 'do_spl_db_bootstrap' ENV=$ENV; done
+export ENV=dev
+
+# --- 4. the cloud DSN (040 comment, 030 socket) maps onto the local proxy -------
+out=$(SNIPPET='spl_proxy_dsn "postgres://u:p0@/spool?host=/cloudsql/p:r:i" 55499' in_orc 2>&1)
+[[ "$out" == "postgres://u:p0@127.0.0.1:55499/spool?sslmode=disable" ]] && pass "spl_proxy_dsn rewrites the socket DSN to 127.0.0.1" \
+  || fail "spl_proxy_dsn gave '$out'"
+SNIPPET='spl_proxy_dsn "postgres://u:p0@db.example.com/spool" 55499' in_orc >/dev/null 2>&1 \
+  && fail "spl_proxy_dsn accepted a non-socket DSN" || pass "spl_proxy_dsn refuses a DSN that is not the /cloudsql socket form"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

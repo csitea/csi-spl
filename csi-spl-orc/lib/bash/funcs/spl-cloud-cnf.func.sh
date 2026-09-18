@@ -44,18 +44,20 @@ do_spl_cloud_cnf() {
   SPL_DB_NAME="$(_spl_get '.env.steps."040-cloud-sql-postgres".database_name')"
   SPL_DB_USER="$(_spl_get .env.hub.db_user)"
   SPL_DSN_SECRET="$(_spl_get .env.hub.secret_env.SPOOL_HUB_DB_DSN)"
+  SPL_SQL_PROXY_IMAGE="$(_spl_get .env.hub.cloud_sql_proxy_image)"
   unset -f _spl_get
   SPL_SQL_CONN="$SPL_PROJECT:$SPL_REGION:$SPL_SQL_INSTANCE"
   SPL_REGISTRY_HOST="${SPL_IMAGE_REF%%/*}"
 
   local v
   for v in SPL_PROJECT SPL_REGION SPL_FQDN SPL_IMAGE_REF SPL_MIGRATIONS_DIR SPL_SQL_INSTANCE SPL_DB_NAME \
-           SPL_DB_USER SPL_DSN_SECRET; do
+           SPL_DB_USER SPL_DSN_SECRET SPL_SQL_PROXY_IMAGE; do
     [[ -n "${!v}" && "${!v}" != null ]] || { do_log "FATAL $v is empty: check $ENV.env.yaml / all.env.yaml"; return 1; }
   done
   [[ "$SPL_PROJECT" == "$SPL_ORG_APP-$ENV" ]] || { do_log "FATAL cnf gcp_project=$SPL_PROJECT, the convention says $SPL_ORG_APP-$ENV; refusing"; return 1; }
   export SPL_ORG_APP SPL_STATE_DIR SPL_CNF SPL_PROJECT SPL_REGION SPL_FQDN SPL_IMAGE_REF SPL_IMAGE_SQL_SRC \
-    SPL_MIGRATIONS_DIR SPL_SQL_INSTANCE SPL_DB_NAME SPL_DB_USER SPL_DSN_SECRET SPL_SQL_CONN SPL_REGISTRY_HOST
+    SPL_MIGRATIONS_DIR SPL_SQL_INSTANCE SPL_DB_NAME SPL_DB_USER SPL_DSN_SECRET SPL_SQL_CONN SPL_REGISTRY_HOST \
+    SPL_SQL_PROXY_IMAGE
 }
 
 # spl_dry_run -> 0 when DRY_RUN is 1 (the default), 1 when 0; fails otherwise
@@ -63,4 +65,69 @@ spl_dry_run() {
   local d="${DRY_RUN:-1}"
   [[ "$d" == 0 || "$d" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: $d"; return 2; }
   [[ "$d" == 1 ]]
+}
+
+# spl_host_spool -> builds the host `spool` CLI into the state dir (local only)
+# and sets SPL_SPOOL to it
+spl_host_spool() {
+  local build="$APP_PATH/$SPL_ORG_APP-api/src/bash/build.sh"
+  SPL_SPOOL="$SPL_STATE_DIR/bin/spool"
+  mkdir -p "$SPL_STATE_DIR/bin" && bash "$build" "$SPL_SPOOL" >/dev/null ||
+    { do_log "FATAL spool build failed ($build)"; return 1; }
+}
+
+# spl_read_dsn -> prints the latest version of the DSN secret. The value is
+# never logged; the caller keeps it in a local.
+spl_read_dsn() {
+  gcloud secrets versions access latest --secret="$SPL_DSN_SECRET" --project="$SPL_PROJECT" \
+    --account="$GCP_ACCOUNT" 2>/dev/null
+}
+
+# spl_proxy_dsn <cloud dsn> <port> -> the same login through the local proxy.
+# The cloud DSN is the one 040 documents and 030 runs:
+#   postgres://<user>:<pw>@/<db>?host=/cloudsql/<connection_name>
+spl_proxy_dsn() {
+  local re='^postgres(ql)?://([^@/]+)@/([^?]+)[?]host=/cloudsql/[^&]+$'
+  [[ "$1" =~ $re ]] || return 1
+  printf 'postgres://%s@127.0.0.1:%s/%s?sslmode=disable' "${BASH_REMATCH[2]}" "$2" "${BASH_REMATCH[3]}"
+}
+
+# spl_sql_proxy_start -> the Cloud SQL Auth Proxy on 127.0.0.1:$SPL_PROXY_PORT
+# (default 55499) for $SPL_SQL_CONN, as $GCP_ACCOUNT. The access token goes
+# through the environment (CSQL_PROXY_TOKEN), never argv. A cloud-sql-proxy
+# binary on PATH wins; otherwise the cnf image runs in docker on the host net.
+# Stop it with spl_sql_proxy_stop.
+spl_sql_proxy_start() {
+  SPL_PROXY_PORT="${SPL_PROXY_PORT:-55499}"
+  _SPL_PROXY_PID="" _SPL_PROXY_CON=""
+  if (exec 3<>"/dev/tcp/127.0.0.1/$SPL_PROXY_PORT") 2>/dev/null; then
+    do_log "FATAL 127.0.0.1:$SPL_PROXY_PORT is already in use (set SPL_PROXY_PORT)"; return 1
+  fi
+  CSQL_PROXY_TOKEN="$(gcloud auth print-access-token --account="$GCP_ACCOUNT" 2>/dev/null)"
+  [[ -n "$CSQL_PROXY_TOKEN" ]] || { do_log "FATAL no access token for $GCP_ACCOUNT"; return 1; }
+  export CSQL_PROXY_TOKEN
+  if command -v cloud-sql-proxy >/dev/null; then
+    cloud-sql-proxy --address 127.0.0.1 --port "$SPL_PROXY_PORT" "$SPL_SQL_CONN" >"$SPL_STATE_DIR/sql-proxy.log" 2>&1 &
+    _SPL_PROXY_PID=$!
+  else
+    _SPL_PROXY_CON="$SPL_ORG_APP-$ENV-sql-proxy-$$"
+    docker run -d --rm --name "$_SPL_PROXY_CON" --network host -e CSQL_PROXY_TOKEN "$SPL_SQL_PROXY_IMAGE" \
+      --address 127.0.0.1 --port "$SPL_PROXY_PORT" "$SPL_SQL_CONN" >/dev/null ||
+      { unset CSQL_PROXY_TOKEN; do_log "FATAL could not start $SPL_SQL_PROXY_IMAGE"; return 1; }
+  fi
+  unset CSQL_PROXY_TOKEN
+  local i
+  for i in $(seq 1 60); do
+    (exec 3<>"/dev/tcp/127.0.0.1/$SPL_PROXY_PORT") 2>/dev/null && { do_log "INFO Cloud SQL proxy up: 127.0.0.1:$SPL_PROXY_PORT -> $SPL_SQL_CONN"; return 0; }
+    sleep 0.5
+  done
+  do_log "FATAL the Cloud SQL proxy did not listen on 127.0.0.1:$SPL_PROXY_PORT"
+  spl_sql_proxy_stop; return 1
+}
+
+spl_sql_proxy_stop() {
+  [[ -n "${_SPL_PROXY_PID:-}" ]] && { kill "$_SPL_PROXY_PID" 2>/dev/null || true; }
+  [[ -n "${_SPL_PROXY_CON:-}" ]] && { docker stop "$_SPL_PROXY_CON" >/dev/null 2>&1 || true; }
+  _SPL_PROXY_PID="" _SPL_PROXY_CON=""
+  return 0
 }

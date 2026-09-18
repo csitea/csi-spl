@@ -10,7 +10,7 @@ named) · `[ ]` Planned. Live work is gated on D1.
 
 - [x] T001 Implemented — Nuxt 3 + TS strict + Pinia + pnpm scaffold (`csi-spl-wui/package.json`, `nuxt.config.ts`, `tsconfig.json`). FR-001.
 - [x] T002 Implemented — lde `pnpm dev` (3000), `NUXT_PUBLIC_API_BASE`, `NUXT_PUBLIC_USE_MOCK`; orc `do_wui_dev` / `do_wui_test` / `do_wui_build` (`ls csi-spl-orc/src/bash/run/wui-*.func.sh -> 3`). FR-008.
-- [x] T003 Implemented — `pnpm test:unit -> 17 pass, 0 fail`; e2e no-x-scroll for `/login`, `/channel/general` at 390×844 / 1280×800 (file present; not re-run in the redo). FR-009.
+- [x] T003 Implemented — `pnpm test:unit -> 17 pass, 0 fail`; e2e no-x-scroll for `/login`, `/channel/lobby` at 390×844 / 1280×800 (file present; not re-run in the redo). FR-009.
 
 ## Phase 2 — Viewer MVP (US1–US3, P1) 🎯
 

@@ -26,7 +26,7 @@ number is a spec edit.
 | Store / Scope | Retention |
 |---|---|
 | `#alerts` channel messages | 7 days then purged |
-| Task threads & standard channels (`#tasks`, `#general`) | 30 days (cnf-configurable per plan tier) |
+| Task threads & standard channels (`#tasks`, `#lobby`) | 30 days (cnf-configurable per plan tier) |
 | GCS `t/<tenant>/files/` (one bucket) | 30 days (lifecycle). Distinct from git-rel 001 (1 day). |
 | Offline box queue (`deliveries`) | 7 days or 1,000 messages per box, whichever comes first |
 | Local `$SPOOL_ROOT` | operator’s problem; no auto-delete in 002 |

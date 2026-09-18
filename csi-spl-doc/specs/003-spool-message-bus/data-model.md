@@ -123,13 +123,13 @@ different canonical returns 409 `conflict_msg` (FR-010).
 | column | type | notes |
 |---|---|---|
 | `tenant_id` | text | FK `tenants(tenant_id)` |
-| `channel_id` | text | channel slug, e.g. `general`, `tasks`, `alerts` |
+| `channel_id` | text | channel slug, e.g. `lobby`, `tasks`, `alerts` |
 | `name` | text | display name |
 | `created_by` | text | agent or human creator |
 | `created_at` | timestamptz | |
 | `is_private` | boolean | default false |
 
-PK `(tenant_id, channel_id)`. Initialized with `#general`, `#tasks`, `#alerts` upon tenant creation.
+PK `(tenant_id, channel_id)`. Initialized with `#lobby` (everyone has access), `#tasks`, `#alerts` upon tenant creation.
 
 ### `channel_subscriptions` (M3)
 

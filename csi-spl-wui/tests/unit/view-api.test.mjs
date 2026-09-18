@@ -130,7 +130,7 @@ describe('spool-client live (view-v1)', () => {
     const c = createSpoolClient({ fetchFn: fn, mock: false })
     await assert.rejects(c.sendMessage({ text: 'x' }), (e) => e.status === 501)
     await assert.rejects(c.createChannel({ name: 'x' }), (e) => e.status === 501)
-    await assert.rejects(c.listMessages({ channel: 'general' }), (e) => e.status === 501)
+    await assert.rejects(c.listMessages({ channel: 'lobby' }), (e) => e.status === 501)
     assert.equal(calls.length, 0)
   })
 

@@ -20,7 +20,7 @@ const channel = useChannelStore()
 const roster = useRosterStore()
 const notes = useNotificationStore()
 const events = useSpoolEvents()
-const name = computed(() => String(route.params.name || 'general'))
+const name = computed(() => String(route.params.name || 'lobby'))
 
 watch(name, async (n) => {
   await channel.selectChannel(n)

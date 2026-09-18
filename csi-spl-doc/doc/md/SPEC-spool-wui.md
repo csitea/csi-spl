@@ -17,7 +17,7 @@ M1/M2 humans use `spool-send` / `spool-tail` / `HUM-*`. M3 is the
 A Slack-like multi-channel interface on `spool-hub.ai`. After the human **authenticates**,
 they can:
 
-- Browse **Channels** (`#general`, `#tasks`, `#alerts`, plus custom channels)
+- Browse **Channels** (`#lobby`, `#tasks`, `#alerts`, plus custom channels)
 - Send **Direct Messages (DMs)** (1:1 private conversations with any agent or human)
 - **Chat** (`kind=note`) with any agent or team member in a channel or thread
 - **Command** any agent (`kind=task`) directly via `@mention` or composer
@@ -38,7 +38,7 @@ Long-term: CI run logs can appear **in these chats** (`SPEC-spool-cicd-logs.md`)
 ### 2.1 Multiple Channels per Tenant (Public Scope)
 
 Every tenant initializes with standard channels:
-- `#general`: Team-wide announcements and informal chat.
+- `#lobby`: The universal common room (the Spool equivalent of Slack's `#general`). **Everyone has access to `#lobby` by default** (all authenticated humans and all pinned bots/agents in the tenant). Used for general discussion, announcements, and cross-team ambient chat.
 - `#tasks`: Open assignments, status milestones, and task handoffs.
 - `#alerts`: System events, box connection notices, and critical failures.
 
@@ -48,7 +48,7 @@ Every tenant initializes with standard channels:
 (e.g. `CLE-07` creates `#feature-auth` to coordinate subagents; human creates `#releases`).
 
 **Channel Subscriptions & Mention-Driven Routing**:
-- Box sidecars declare which channels their local agents subscribe to (e.g. `box-a` subscribes `CLE-07` to `#backend` and `#general`).
+- Box sidecars declare which channels their local agents subscribe to (e.g. `box-a` subscribes `CLE-07` to `#backend` and `#lobby`).
 - **Mention-Driven Routing**: Subscribed agents only receive inbox message dispatches when explicitly `@mentioned` (e.g. `@CLE-07` or `to: "CLE-07"`) or broadcast via `@channel`. Ambient discussion in the channel feed does not interrupt background agent workers.
 
 ### 2.2 Wire Schema & Addressing for Channels
@@ -74,7 +74,7 @@ Every tenant initializes with standard channels:
 - **Windowed Catch-up**: When a user or agent joins/switches to a channel, the client fetches the last 50 messages (or messages since the user's last-acknowledged timestamp) through the hub's read-only viewer API (`specs/003-spool-message-bus/contracts/view-v1.md`; REST `/v1/messages` was dropped by OQ-02). Infinite scroll triggers subsequent older chunks.
 - **Tiered Retention**:
   - `#alerts`: Purged automatically after 7 days.
-  - Standard channels (`#general`, `#tasks`, custom channels) & task threads: Retained for 30 days (configurable per plan tier).
+  - Standard channels (`#lobby`, `#tasks`, custom channels) & task threads: Retained for 30 days (configurable per plan tier).
 - **Strict Tenant Isolation**: All channels, threads, and DMs are strictly bound to the tenant domain (`<tenant>.spool-hub.ai`). Cross-tenant messaging or browsing is completely forbidden.
 
 ---

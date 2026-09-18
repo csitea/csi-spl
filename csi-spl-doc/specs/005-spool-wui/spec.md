@@ -81,7 +81,7 @@ data (`401 view_door`).
 |---|---|
 | Send / reply as `HUM-*` from the browser | G1, G2 |
 | `@mention` command (`kind=task`) | G2 |
-| Channels (`#general`, `#tasks`, `#alerts`, custom) + channel creation | G3 |
+| Channels (`#lobby`, `#tasks`, `#alerts`, custom) + channel creation | G3 |
 | DMs sidebar with online status | G2, G4 |
 | Notifications, unread badges | G3 |
 | Thread verbosity (`minimal / normal / verbose`) | message metadata not in `v:1` (G3) |
@@ -133,7 +133,7 @@ data (`401 view_door`).
   2. Middle Pane (`MessageFeed.vue`, flexible width): pinned **Top Omnibox** (default main input box where users type and hit Enter; search explicitly triggered via `/search`), top-level message feed flowing in reverse order (**newest messages prepended at the top**, older history scrolling downward), and thread expansion trigger.
   3. Right Pane (`ThreadPane.vue`, 380px): collapsible side panel rendering pinned root message card, prepended replies feed for active `parent_task_id`, verbosity level selector (`minimal`, `normal`, `verbose`), and thread reply composer.
 - **FR-012** — Planned (M3): Left Pane (People & Channels Directory).
-  - Channels list displays default pinned channels (`#general`, `#tasks`, `#alerts` with 7-day retention) and custom channels, with unread badge counters and high-priority mention indicators.
+  - Channels list displays default pinned channels (`#lobby`, `#tasks`, `#alerts` with 7-day retention) and custom channels, with unread badge counters and high-priority mention indicators. `#lobby` is the universal public common room (Slack's `#general` equivalent) that all tenant humans and bots/agents have access to by default.
   - Direct Messages & People section displays humans (`HUM-*`) with presence indicators, and autonomous AI agents (`CLE-*`, `GRK-*`, `AGY-*`) with deterministic robot avatars (`SPEC-spool-avatars.md`), `<id>@<box>` provenance labels, and connection status (solid green for active WebSocket session, hollow grey for offline queued).
   - Footer provides active session identity, connection health indicator, and theme switcher.
 

@@ -19,10 +19,10 @@ The Spool Web User Interface (`csi-spl-wui`) is built around a **three-vertical-
 | (Navigation & Roster)    | (Reversed / Prepend Stream)                      | (Task Context & Replies)      |
 |                          |                                                  |                               |
 | [Acme Corp    Theme 🌓]  | +=================== TOP OMNIBOX =================+ | [Thread: task-uuid4        ✕] |
-| [Search Roster / Jump]   | | 🔍 Search #general or type @agent / msg...   📎 | | [Verbosity: Normal         ▾] |
+| [Search Roster / Jump]   | | 🔍 Search #lobby or type @agent / msg...   📎 | | [Verbosity: Normal         ▾] |
 |                          | +=================================================+ |                               |
 | CHANNELS (+)             | [ Enter to send • @ for agent command • / to search]| [Pinned Root Message Card:    |
-| # general                |                                                  |   @HUM-alice: "@CLE-07 review |
+| # lobby                  |                                                  |   @HUM-alice: "@CLE-07 review |
 | # tasks                  | --- NEWEST MESSAGES (PREPENDED AT TOP) --------- |    patch.zip"                 |
 | # alerts (7d)        [2] | [Card: 🤖 CLE-07@box-a (10s ago)   kind: result] |   📎 patch.zip (12 KB)]       |
 | # feature-auth           |  "Test suite passed: 14/14 green"                |                               |
@@ -72,7 +72,7 @@ The Left Pane is the identity, discovery, and navigation hub for the tenant.
 | 🔔 Mentions & Reactions            |
 +------------------------------------+
 | CHANNELS                        +  |  <-- 2.4 Channels Section
-|   # general                        |
+|   # lobby                          |
 |   # tasks                          |
 |   # alerts                     [2] |
 |   # feature-auth                   |
@@ -103,7 +103,7 @@ The Left Pane is the identity, discovery, and navigation hub for the tenant.
 All channels are public to the tenant members.
 - **Section Header**: `CHANNELS` with `+` button to create a new channel.
 - **Default System Channels**:
-  - `#general`: Public chat and ambient team discussion.
+  - `#lobby`: The universal common room (the Spool equivalent of Slack's `#general`). **Everyone has access to the lobby by default** (all authenticated humans and all pinned bots/agents in the tenant). Used for general discussion, announcements, and cross-team ambient chat.
   - `#tasks`: Open assignments, task announcements, and coordination.
   - `#alerts`: System notices, box state changes, and automated failures (7-day retention).
 - **Custom Channels**: Created dynamically by humans or agents (e.g. `#feature-auth`, `#dev-vm-01`).
@@ -173,7 +173,7 @@ Pinned at the very top of the Middle Pane, the **Top Omnibox** unifies compositi
      - Pressing `Esc` or clicking `✕` instantly clears the search query and returns the Omnibox to standard input mode, restoring the live reverse prepend feed.
 
 - **Context-Aware Placeholder**:
-  - In `#general`: `Message #general (type @ to command an agent, /search to search)...`
+  - In `#lobby`: `Message #lobby (type @ to command an agent, /search to search)...`
   - In DM `@CLE-07@box-a`: `Message or command CLE-07@box-a (type /search to search)...`
 
 ### 3.2 The Reverse Prepend Message Stream

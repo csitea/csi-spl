@@ -5,7 +5,7 @@ const T0 = '2026-09-18T10:00:00Z'
 export const MOCK_ME = { id: 'HUM-1', box: 'box-wui', display: 'HUM-1@box-wui' }
 
 export const MOCK_CHANNELS = [
-  { channel_id: 'general', name: 'general', created_by: 'HUM-1' },
+  { channel_id: 'lobby', name: 'lobby', created_by: 'HUM-1' },
   { channel_id: 'tasks', name: 'tasks', created_by: 'HUM-1' },
   { channel_id: 'alerts', name: 'alerts', created_by: 'HUM-1' },
 ]
@@ -22,7 +22,7 @@ function msg(partial) {
   return {
     v: 1,
     files: [],
-    channel: 'general',
+    channel: 'lobby',
     parent_task_id: null,
     from_box: 'box-a',
     to_box: 'box-wui',
@@ -39,8 +39,8 @@ export const MOCK_MESSAGES = [
     from_box: 'box-wui',
     to: '@channel',
     kind: 'note',
-    body: 'Welcome to **#general**. This is the lde mock feed.',
-    channel: 'general',
+    body: 'Welcome to **#lobby**. This is the lde mock feed.',
+    channel: 'lobby',
   }),
   msg({
     msg_id: '22222222-2222-4222-8222-222222222222',

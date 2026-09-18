@@ -1,5 +1,18 @@
 # Contract: Payment — Milestone 2 **public MVP** (buy on the site)
 
+## Status (measured on trunk `bbc41e7`, 2026-09-18)
+
+| Part | Status | Evidence / task |
+|---|---|---|
+| Schema `payment_checkouts`, `webhook_events_seen` | **Implemented** | `40371a7`, `csi-spl-rdb/src/sql/postgres/spool-hub/0003_payment.sql`; `spool migrate applies 3 file(s)` in `hub-pg.tst.sh` |
+| cnf names `SPOOL_HUB_PAYMENT_*`, `SPOOL_HUB_ENABLE_FAKE_PAY` (no secret values) | **Implemented** | `40371a7`, `csi-spl-cnf/csi-spl/all.env.yaml` |
+| Event → status map (`billing.MapEvent`) and the 402/429 hub gate | **Implemented** | `internal/billing`; `contracts/http-rental.md` §3–§4 |
+| `PaymentProvider` + drivers + fail-closed boot | **Planned** | T018 (`git grep -l PaymentProvider -- '*.go'` → none) |
+| Signed webhook handler + dedup | **Planned** | T019 |
+| lde fake-pay | **Planned** | T020 (flag exists, no code reads it) |
+| Checkout page, success page, one-time email | **Planned** | T021 |
+| Vendor-name gate | **Partial** | WUI only (`no-payment-vendor-wui.tst.sh`); Go gate T015 |
+
 **Do not invent a second payment stack.** Copy the csi-rel implementation
 (reference only: **do not import** `github.com/csitea/csi-rel/...` as a
 module). Adapt the *paid event* to **tenant billing**, not a shop cart.
@@ -34,7 +47,7 @@ Per-user / per-bot monthly licenses are **M4** (`SPEC-spool-m4-seats.md`).
 | fake-pay (077) | lde only: `do_spl_tenant_create` / fake paid without a rail |
 
 Hub gate (T012–T013; **no** provider copy): `paid` → `active`; `unpaid`/`failed`
-→ `grace`; `refund`/`cancel` → `unpaid`. `grace`/`unpaid` refuse send/pin/PUT
+→ `grace`; `refund`/`cancel` → `unpaid` (`billing.MapEvent`; unknown event fails closed). `grace`/`unpaid` refuse send/pin/PUT
 file (`402` / `unpaid`); recv, GET file, GET pins, and WS hello stay up in
 grace. Over quota (messages/month, pins, stored file bytes; cnf) → `429` /
 `quota`. Recv is not gated by quota.
@@ -55,4 +68,4 @@ The buy surface is a **thin checkout page**, not the M3 Slack UI.
 **When:** This file is **M2 public MVP** — stranger buys a **tenant** on the
 site. Seat packs are **M4**. M1 is proto. M3 is Slack web rollout.
 
-<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T18:00:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:05:25Z -->

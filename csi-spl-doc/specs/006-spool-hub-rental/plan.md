@@ -1,60 +1,63 @@
 # Implementation Plan: Rented spool-hub
 
-**Feature ID**: `006-spool-hub-rental` · **Status**: Draft · **Date**: 2026-09-18
+**Feature ID**: `006-spool-hub-rental` · **Status**: M1 Partial, M2 Partial · **Date**: 2026-09-18 (redo)
 
 **Spec**: `./spec.md` · **Narrative**: `../../doc/md/SPEC-spool-hub-rental.md`  
-**Hosting copy**: `../007-spool-hub-api-infra/` (csi-rel + pas-psf infra/DNS).
+**Index / seams / provisioning order**: `../README.md` §4–§6  
+**Hosting**: `../007-spool-hub-api-infra/`
 
 ## Summary
 
-M1 hub = **stateless Cloud Run (HTTPS + WebSocket) + Postgres + GCS**.
-`tenant_id` on every row and GCS prefix from day one (encapsulation for
-future renters). Public Cloud Run does **not** require renter IAM.
-Module: `csi-spl-api/src/go/spool-hub-api`. WS send/recv; REST files/pins.
+The hub is one stateless Cloud Run service (HTTPS + WebSocket) over Postgres +
+GCS; 006 adds the **tenant** on top of 003's wire: Host → tenant, root-signed
+pins, quota `429`, unpaid `402` + grace, and in M2 a copied csi-rel payment
+path that creates/activates tenants. `tenant_id` is on every row and GCS
+prefix `t/<tenant>/files/<sha256>` from day one (003 data model).
 
 ## Technical Context
 
-**Language**: Go 1.22+.
-
-**Storage**: Postgres (or in-memory in unit tests) with `tenant_id` on mail tables;
-GCS `t/<tenant>/files/<sha256>`.
-
-**Wire**: `wss://…/v1/ws` send/recv; REST pins (root-signed) + files (box-key PUT).
-Tenant from **Host** (`<tenant>.spool-hub.ai`; `$SPOOL_HUB_URL` in code).
-Queue in **Postgres**, not RAM. One GCS bucket, prefix isolation.
-Cloud Run min-instances **1** default, cnf-overridable. Local mode needs no hub.
-WS last-hello-wins. Pin list: hello + periodic GET.
-
-**Payment (M2 = public MVP, buy on the site)**: **copy csi-rel**
-(`contracts/payment.md`). M1 proto: stub `do_spl_tenant_create` only.
-
-**CLI**: `$SPOOL_HUB_URL`, `$SPOOL_TENANT_ROOT_KEY` (operator pin only).
+- **Code**: `csi-spl-api/src/go/spool-hub-api` — `internal/billing` (event →
+  status, write gate, quota), `internal/hub` (`tenantOf`, pin REST, gates in
+  send/pin/PUT), `internal/store` (`tenants`, `SetBillingStatus`),
+  `cmd/spool` (`root-keygen`, `hub-tenant`, `pin --root-key`).
+- **Schema**: `csi-spl-rdb/src/sql/postgres/spool-hub/0001_hub_core.sql`
+  (`tenants`), `0003_payment.sql` (checkouts, webhook dedup).
+- **cnf**: `csi-spl-cnf/csi-spl/all.env.yaml` hub env — `SPOOL_HUB_TENANT_HOST_PATTERN`
+  (from `env.dns.fqdn`), `SPOOL_HUB_QUOTA_*`, `SPOOL_HUB_BILLING_GRACE`,
+  `SPOOL_HUB_PAYMENT_*`. Binaries bake no host and no vendor.
+- **Routing**: Host only (`{tenant}.<fqdn>`); prd `*.spool-hub.ai`, dev
+  `*.dev.spool-hub.ai`, lde `{tenant}.localhost`. The wildcard records, cert
+  and LB are 007 step 10.
+- **Tests**: `go test ./...`; `csi-spl-api/src/bash/tests/run-all-tests.sh`
+  (hub-e2e on docker Postgres). Both green on `bbc41e7`.
 
 ## Constitution Check
 
-- [ ] II — no baked hub host (T002: `$SPOOL_HUB_TENANT_HOST_PATTERN` from cnf)
-- [ ] V — no payment-vendor name in source (T015)
-- [ ] VII — no root private key in DB (T001/T003)
-- [ ] VIII — same verbs (002/003; not this lane)
+- [x] II — no baked hub host: pattern from cnf (`server.go` rejects a pattern not starting `{tenant}.`).
+- [ ] V — no payment-vendor name in source: WUI gated only (T015).
+- [x] VII — no root private key in DB: `tenants.root_pubkey` is a 32-byte CHECK; `0003` stores the public half only.
+- [x] VIII — same verbs: 002/003, not this lane.
 
 ## Public deploy notes (T014)
 
 M2 public rental: Cloud Run **allow unauthenticated** HTTPS/WSS. The product
-door is the box pin and the tenant-root signature, not renter IAM (FR-006).
-
-Unsigned requests (no WS hello, no tenant-root sig) are already 400/401/404
-at the hub. The hosting shield **rate-limits** those unsigned calls so a
-leaked tenant URL is not a flood. That rate-limit is infra (Cloud Armor on
-031), not a credential we issue to renters.
-
-M1 stays IAP and/or IP allowlist (`hub.cloud_run.ingress` in cnf). This note
-does not change 031.
+door is the box pin and the tenant-root signature, not renter IAM (FR-005).
+Unsigned requests are already 400/401/404 at the hub; the hosting shield
+rate-limits them so a leaked tenant URL is not a flood. That shield is 007
+infra (ingress, step 10), not a credential issued to renters. M1 stays IP
+allowlist (cnf `031-gcp-hub-ingress.allowed_ip_ranges`; Cloud Run ingress
+only admits the load balancer).
 
 ## Build order
 
-002 US1 → testhub with one tenant → two tenants isolation → signed recv →
-quota → payment webhook.
+1. **Now (M1, no cloud needed)**: T001a, T003, T004, T011b, T013a, T013b,
+   T015, T016 — code + tests on lde/docker Postgres.
+2. **After 007 README §6 steps 3–10 on dev**: T011c on dev (owner-made tenant,
+   second machine), then prd. This closes the M1 demo for 006.
+3. **M2**: T012a (after OQ-006-1), T018 → T019 → T020 → T021.
 
-IAM-as-renter-door (003 US5) is **not** implemented for the public service.
+`b6a2e80` (branch `GRK-3338-006-tenants-host`) already carries T001a, T003,
+T015 and a quota-columns take on T012a; landing it is the cheapest route for
+step 1, after OQ-006-1 decides columns vs cnf plan table.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:00:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:05:25Z -->

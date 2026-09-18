@@ -1,39 +1,56 @@
 # Tasks: Rented spool-hub
 
-**Feature**: `specs/006-spool-hub-rental`
+**Feature**: `specs/006-spool-hub-rental` · **Spec**: `./spec.md`
 
-Gate: 002 v:1 + a testhub process (003 or in-memory/Postgres store).
+Status per `../README.md` §2.3: **Implemented** (cited) · **Partial** (what is
+missing) · **Planned**. Measured on trunk `bbc41e7`, 2026-09-18 (spec.md
+"Verification basis"). Code/cnf/iac changes are tasks here; this spec makes none.
 
-## Phase 1: Tenant
+Gate: 002 local (frozen) + 003 hub + 004 pins. Cloud tasks gate on 007 (README §6).
 
-- [x] T001 `tenants` table: id, root_pubkey, billing_status, quotas
-- [x] T002 [P] Resolve tenant from Host/path; fail-fast if unknown
-- [x] T003 `do_spl_tenant_create` returns URL + root key **once**; DB has
-      pubkey only
-- [x] T004 [P] Isolation test: two tenants, same `GRK-03` different keys
+## Phase 1: Tenant (M1)
 
-## Phase 2: Root-signed pins (US2)
+- [x] T001 [FR-001] `tenants` table: id, root_pubkey, billing_status, plan_id — **Implemented** (`0001_hub_core.sql`).
+- [ ] T001a [FR-001a] Add `billing_status=manual` (forward-only migration) — **Planned**; in flight on `GRK-3338-006-tenants-host` (`b6a2e80`, 0004), not on trunk.
+- [x] T002 [FR-002] Tenant from Host via `$SPOOL_HUB_TENANT_HOST_PATTERN`; unknown → `404 unknown_tenant` — **Implemented** (`internal/hub/server.go` `tenantOf`; 003 T006 is the same code).
+- [ ] T003 [FR-007] `./run -a do_spl_tenant_create`: mint root keypair, insert row, print URL + root private key **once** — **Partial**: `spool root-keygen` + `spool hub-tenant` exist (`hub-e2e.tst.sh` → `owner created tenant t-e2e`); the orc action is only on unmerged `b6a2e80`.
+- [ ] T004 [FR-004] Isolation test: two tenants, same `box-a` + `GRK-03`, different keys; a send in tenant A is never delivered in tenant B; B's root cannot pin in A — **Partial**: file 404 cross-tenant (`TestFilesRoundTripAndTenantIsolation`) and per-tenant pins (`TestTenantsAndPins`) exist; the message cross-talk assertion does not.
+- [ ] T016 [FR-016] Refuse reserved slugs at create (env labels e.g. `dev`, infra hosts e.g. `www`, `api`; list in cnf) — **Planned**.
 
-- [x] T005 `POST /v1/pins` verifies tenant root sig
-- [x] T006 CLI `spool-pin` / `spool pin` uses `--root-key` / `$SPOOL_TENANT_ROOT_KEY` in hub mode
-- [x] T007 Box self-pin without root → 401/400
+## Phase 2: Root-signed pins (US2, M1)
 
-## Phase 3: Key-only send/recv (US3)
+- [x] T005 [FR-003] `POST /v1/pins` verifies tenant root sig — **Implemented** (`TestPinRESTRootSigned`).
+- [x] T006 [FR-003] CLI `spool pin --root-key` / `$SPOOL_TENANT_ROOT_KEY` publishes in hub mode — **Implemented** (`TestPinCLIPublishesAndHygiene`; hub-e2e pins box-a/box-b).
+- [x] T007 [FR-003] Pin signed by a non-root (box) key → `400 bad_sig` — **Implemented** (`TestPinRESTRootSigned`).
 
-- [x] T008 Hub `/v1/ws` `send` frame verifies `from_box` pin in this tenant and verifies box Ed25519 signature
-- [x] T009 Hub `/v1/ws` `hello` authenticates box with nonce challenge-response and box pin; delivers queued `recv` frames
-- [x] T010 CLI hub mode: send uses WebSocket envelope; background hubclient daemon receives frames into local inboxes
-- [ ] T011 [P] Smoke: two `$SPOOL_ROOT`s, GRK→CLE, no GCP env
-- [ ] T011b [P] [US3b] Three pinned peers; CLE→GRK and AGY→CLE `task` both recv
+## Phase 3: Key-only mail (US3/US3b, M1)
+
+The WS send/recv tasks formerly T008–T010 are **003's** (003 T008–T010); they
+are not duplicated here.
+
+- [x] T011 [FR-005] Smoke: two `$SPOOL_ROOT`s, GRK→CLE `task` and `result` back, no GCP env — **Implemented** (`hub-e2e.tst.sh` → `ALL HUB E2E CHECKS PASSED`).
+- [ ] T011b [FR-011] Three pinned peers A→B, B→C, C→A `task` all delivered; prefix never changes auth — **Planned** (no three-box test).
+- [ ] T011c [FR-004] Cloud: owner-made tenant on `dev`, then `prd`; two real machines; M1 demo steps 2–4 — **Planned**; blocked on 007 README §6 steps 3–10 (dev hub exists but has no LB/DNS; prd APIs disabled).
 
 ## Phase 4: Quota / unpaid (US4)
 
-- [x] T012 Enforce quota → 429
-- [x] T013 Unpaid: send/pin 402, recv ok during grace
+- [x] T012 [FR-008] Enforce quota → `429 quota` on send/pin/PUT — **Implemented** (`TestQuotaExceeded429`).
+- [ ] T012a [FR-008] Quotas per `plan_id` (cnf plan table) instead of one deploy-wide `SPOOL_HUB_QUOTA_*` — **Planned**; gated on OQ-006-1.
+- [x] T013 [FR-009] `grace`/`unpaid`: send/pin/PUT `402`; hello/recv/GET stay up — **Implemented** (`TestUnpaidSendPin402RecvInGrace`).
+- [ ] T013a [FR-010] Time the grace: record grace start; after `SPOOL_HUB_BILLING_GRACE` → `unpaid`; retention job deletes data after cnf retention — **Planned** (`BillingGrace` is only validated: `config.go:124,151`).
+- [ ] T013b [FR-012] Operator verb (`spool hub-tenant-billing --event paid|unpaid|refund`) via `billing.MapEvent` + `SetBillingStatus` — **Planned** (no non-test caller).
 
-## Phase 5: Polish
+## Phase 5: Payment (US5, M2 — after the M1 demo)
 
-- [x] T014 Public deploy notes: allow unauthenticated; rate-limit unsigned (doc: 24d086f)
-- [ ] T015 Hygiene: no vendor payment name; no private keys in logs
+- [x] T017 [FR-013] Schema `payment_checkouts` + `webhook_events_seen`; cnf `SPOOL_HUB_PAYMENT_*` names, no secret values — **Implemented** (`40371a7`).
+- [ ] T018 [FR-013] Copy csi-rel `PaymentProvider` + stub, cnf-selected drivers, fail-closed boot — **Planned**.
+- [ ] T019 [FR-013] Signed webhook handler; verify before any write; duplicate id → 200 no-op; `paid` → create/activate tenant — **Planned**.
+- [ ] T020 [FR-013] lde fake-pay (csi-rel 077) behind `SPOOL_HUB_ENABLE_FAKE_PAY` — **Planned** (cnf flag exists, no code).
+- [ ] T021 [FR-014] Thin checkout page + success page + one email: tenant URL + root private key once — **Planned**.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T18:35:00Z -->
+## Phase 6: Polish
+
+- [x] T014 [FR-006] Public deploy notes: allow unauthenticated in M2; rate-limit unsigned at the shield — **Implemented** as doc (`plan.md` "Public deploy notes"); the infra is 007's.
+- [ ] T015 [FR-015] Hygiene tests: no payment-vendor name in Go; no root/box private key in hub logs — **Partial**: WUI-only gate `no-payment-vendor-wui.tst.sh`; the Go/log gates are only on unmerged `b6a2e80`.
+
+<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:05:25Z -->

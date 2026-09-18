@@ -1,38 +1,50 @@
-# Contract: Hub transport for a rented tenant
+# Contract: Tenant layer over the hub wire
 
-Extends `003/contracts/http-v1.md`. Public rental. See `../../002-box-agent-messaging/contracts/trust-modes.md`.
+What 006 adds on top of 003's wire. The wire itself — WS `/v1/ws` hello
+(nonce, `role=box|cli`), send envelope, recv/tail frames, REST files and pins
+shapes, error envelope — is **003's** and is not restated here:
+`../../003-spool-message-bus/contracts/http-v1.md`,
+`../../003-spool-message-bus/contracts/error-envelope.md`. Pin semantics
+(409, `--force`, revoke, sync) are **004's**. Trust:
+`../../002-box-agent-messaging/contracts/trust-modes.md`.
 
-Tenant from URL. **Send/recv = WebSocket. Files/pins = REST.**
+## 1. Tenant resolution — **Implemented** (`internal/hub/server.go` `tenantOf`)
 
-## WebSocket `wss://<tenant-host>/v1/ws`
+- Every request (REST and the WS upgrade) resolves its tenant from the
+  **Host** header against `$SPOOL_HUB_TENANT_HOST_PATTERN` = `{tenant}.<fqdn>`
+  (cnf, from `env.dns.fqdn`; lde `{tenant}.localhost`). The port is ignored.
+- The label before the suffix must match `^[a-z0-9][a-z0-9-]{0,31}$`; a host
+  outside the suffix, a dotted label, or an unknown id → `404 unknown_tenant`.
+- There is **no** path-prefix (`/t/<tenant>/`) routing and **no** `tenant_id`
+  in `v:1` or in the envelope: the URL is the namespace.
+- Reserved labels (env names such as `dev`, infra hosts) are refused at tenant
+  create — **Planned** (T016).
 
-1. Hello `{ "box_id", "ts", "sig" }` — box key, pin table.
-   **Last hello wins** (new socket closes the old one for that `box_id`).
-   Tenant Host: `<tenant>.spool-hub.ai` (env in binaries).
-2. Announce = scan `$SPOOL_ROOT/*/` (agent-id dirs).
-3. Send envelope `{ "from_box", "to_box", "msg", "sig" }`.
-   Ambiguous `to` without `to_box` → 409. Live WS → `delivery=sent`; else
-   hub queue (TTL cnf) and `delivery=queued` (no receiver ack).
-4. Recv/ack frames for announced agents on this connection.
-   Renter-chosen `box_id`; same id different key → 409.
+## 2. Root-signed pin authority — **Implemented** (`TestPinRESTRootSigned`)
 
-No open `GET /v1/messages?as=`. No per-agent recv signature (the box hello is the proof).
+`POST /v1/pins` and `DELETE /v1/pins/{box_id}` (shapes: 003 `http-v1.md` §4)
+verify `sig` against **this tenant's** `tenants.root_pubkey`, with the 003 `ts`
+skew window. Any other key → `400 bad_sig`. A box can never pin itself.
 
-## REST
-## Pins
+## 3. Billing gate — **Implemented** (`internal/billing`, `TestUnpaidSendPin402RecvInGrace`)
 
-`POST /v1/pins` `{ "box_id", "pubkey", "ts", "sig" }` — `sig` = **tenant root**. Pins **boxes**.
-`DELETE /v1/pins/{box_id}` — body `{ "ts", "sig" }` root-signed.
-`GET /v1/pins` — list pubkeys (not secret). Optional but useful for sync.
+| `billing_status` | send (WS) · pin · revoke · PUT file | hello · recv · tail · GET file · GET pins |
+|---|---|---|
+| `active`, `internal` (and `manual`, Planned T001a) | allowed | allowed |
+| `grace`, `unpaid` | `402 unpaid` (CLI exit 1) | allowed |
 
-## Files
+After `SPOOL_HUB_BILLING_GRACE` a `grace` tenant becomes `unpaid`, and after
+cnf retention its data may be deleted — **Planned** (T013a).
 
-`POST /v1/files` — **box key required**; counts against tenant PUT quota.
-`GET /v1/files/{id}` — tenant-scoped **capability** (sha256). No box key
-on GET. No cross-tenant.
+## 4. Quota — **Implemented, deploy-wide** (`TestQuotaExceeded429`)
 
-## Billing codes
+| Limit (cnf, 0 = unlimited) | Checked on | Response |
+|---|---|---|
+| `SPOOL_HUB_QUOTA_MESSAGES_PER_MONTH` (UTC calendar month) | WS send | `429 quota` |
+| `SPOOL_HUB_QUOTA_PINS` | `POST /v1/pins` | `429 quota` |
+| `SPOOL_HUB_QUOTA_FILE_BYTES` (stored bytes) | `POST /v1/files` | `429 quota` |
 
-`402` unpaid (send/pin). `429` quota. Recv not gated by quota.
+Recv is never quota-gated. Per-plan values (keyed by `tenants.plan_id`) are
+**Planned** (T012a, OQ-006-1).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T17:45:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:05:25Z -->

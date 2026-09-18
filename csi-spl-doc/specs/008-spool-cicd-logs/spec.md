@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-18
 
-**Status**: Draft — **long-term, after M3**
+**Status**: Draft — **long-term, after M3**; M1 ships a **flagged-off stub**
 
 **Narrative**: `csi-spl-doc/doc/md/SPEC-spool-cicd-logs.md`
 
@@ -24,14 +24,21 @@ tenant cannot read another tenant’s repos.
 
 ## Requirements
 
-- **FR-001**: Cloud Run image contains `gh`.
+- **FR-001**: Cloud Run image contains `gh` **after M3**. M1 image MUST NOT
+  include `gh` (distroless static binary only).
 - **FR-002**: Token from Secret Manager, per tenant, optional.
 - **FR-003**: Repo allowlist per tenant (cnf).
 - **FR-004**: Delivery is `v:1` `note` + file on the existing bus.
 - **FR-005**: No token in git, image layers, chat, or application logs.
+- **FR-006**: M1 stub is hub-side fetch+deliver (`internal/cicdlogs`),
+  **flagged off by default**. Fail-closed in `prd` if the feature is enabled
+  and the GitHub token secret is missing or a placeholder. Empty allowlist
+  allows no repos (not an open proxy). Prefer a file attachment; cap one log
+  at 32 MiB and say so in the body when truncated.
 
 ## Out of Scope
 
-M1 image need not include `gh`. M2 checkout. Store logic.
+M1 image need not include `gh`. M2 checkout. Store logic. WUI. 031 ingress.
+Baking tokens. Box-side `gh` / tokens on a box.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:30:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T17:53:00Z -->

@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
@@ -83,6 +84,11 @@ func cmdServe() int {
 		}
 		opts.CICD = svc
 	}
+	ac, err := auth.Load(hc.Env) // fails fast on a bad SPOOL_HUB_AUTH_*; no providers = auth off
+	if err != nil {
+		return fail(err)
+	}
+	opts.Auth = auth.New(ac, log, auth.Options{}) // Registrar: spec 010 T012
 	srv, err := hub.New(opts)
 	if err != nil {
 		return fail(err)

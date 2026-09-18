@@ -23,6 +23,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/rs/zerolog"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
@@ -57,6 +58,9 @@ type Options struct {
 	// allow-list (empty = same-origin only).
 	ViewDoor        string
 	ViewCORSOrigins []string
+	// Auth is the social sign-in surface (spec 010, /api/v1/auth/*); nil = not
+	// mounted. It is not tenant-scoped: the routes answer on any Host.
+	Auth *auth.Handler
 }
 
 // Server is one hub process.
@@ -133,6 +137,9 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("POST /v1/cicd-logs", s.handleCICDLogs)
 	}
 	s.routeView(mux)
+	if s.o.Auth != nil {
+		s.o.Auth.Register(mux)
+	}
 	return s.middleware(mux)
 }
 

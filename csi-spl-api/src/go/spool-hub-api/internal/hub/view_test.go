@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/coder/websocket/wsjson"
+	"github.com/rs/zerolog"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -225,5 +227,19 @@ func TestViewDoorTokenFailsClosed(t *testing.T) {
 		if code != http.StatusUnauthorized || errToken(body) != "view_door" {
 			t.Fatalf("%s: %d %s", p, code, body)
 		}
+	}
+}
+
+// Spec 010 T010: the auth routes are mounted and answer on any Host, with no
+// tenant resolution (the callback host is the WUI origin via a rewrite).
+func TestAuthMountedWithoutTenant(t *testing.T) {
+	ac, err := auth.LoadFrom("lde", map[string]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := newEnv(t, func(o *hub.Options) { o.Auth = auth.New(ac, zerolog.Nop(), auth.Options{}) })
+	code, _, body := viewGet(t, e, "nosuch", "/api/v1/auth/providers")
+	if code != http.StatusOK || !strings.Contains(string(body), `"providers":[]`) {
+		t.Fatalf("providers on an unknown tenant host: %d %s", code, body)
 	}
 }

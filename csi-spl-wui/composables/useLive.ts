@@ -1,8 +1,11 @@
-import { createLiveClient, wsUrl } from '~/utils/live-ws.mjs'
+import { cleanAs, createLiveClient, tokenStale, wsUrl } from '~/utils/live-ws.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-data.mjs'
 
-/** Display name for 2-session interop: ?as=<name>, remembered for the tab. */
+/**
+ * Identity for 2-session interop: ?as=HUM-2 (a v:1 agent id, wui-live-ws §2),
+ * remembered for the tab. Absent/invalid → the hub assigns HUM-<n>; welcome.as wins.
+ */
 export const AS_KEY = 'spool.as'
 
 function readAs(): string {
@@ -15,11 +18,9 @@ function readAs(): string {
   } catch {
     /* memory only */
   }
-  const clean = (s: string) => s.trim().replace(/[^A-Za-z0-9._-]/g, '').slice(0, 32)
-  let name = clean(q) || clean(stored)
-  if (!name) name = `guest-${Math.random().toString(16).slice(2, 6)}`
+  const name = cleanAs(q) || cleanAs(stored)
   try {
-    sessionStorage.setItem(AS_KEY, name)
+    if (name) sessionStorage.setItem(AS_KEY, name)
   } catch {
     /* memory only */
   }
@@ -33,6 +34,7 @@ const listeners = new Set<Listener>()
 const state = ref('idle')
 const identity = ref('')
 const uploadToken = ref('')
+const uploadTokenExpiresAt = ref('')
 const lobbyFromHub = ref('')
 
 /**
@@ -49,6 +51,7 @@ export function useLive() {
     if (!import.meta.client) return null
     if (!identity.value) identity.value = readAs()
     if (api.mock) {
+      if (!identity.value) identity.value = 'HUM-1'
       state.value = 'mock'
       return null
     }
@@ -62,8 +65,17 @@ export function useLive() {
       token: api.token || '',
       as: identity.value,
       onState: (s: string) => { state.value = s },
+      onToken: (f: Record<string, unknown>) => {
+        if (typeof f.upload_token === 'string') uploadToken.value = f.upload_token
+        if (typeof f.upload_token_expires_at === 'string') uploadTokenExpiresAt.value = f.upload_token_expires_at
+      },
       onWelcome: (w: Record<string, unknown>) => {
+        if (typeof w.as === 'string' && w.as) {
+          identity.value = w.as
+          try { sessionStorage.setItem(AS_KEY, w.as) } catch { /* memory only */ }
+        }
         if (typeof w.upload_token === 'string') uploadToken.value = w.upload_token
+        if (typeof w.upload_token_expires_at === 'string') uploadTokenExpiresAt.value = w.upload_token_expires_at
         if (typeof w.lobby_task_id === 'string') lobbyFromHub.value = w.lobby_task_id
         if (typeof w.as === 'string' && w.as) identity.value = w.as
       },
@@ -75,10 +87,19 @@ export function useLive() {
     return live
   }
 
+  /** Upload token for POST /v1/files, refreshed via {type:"token"} when stale (5 min TTL). */
+  async function freshUploadToken(): Promise<string> {
+    const client = ensure()
+    if (!client) return ''
+    if (uploadToken.value && !tokenStale(uploadTokenExpiresAt.value)) return uploadToken.value
+    const f = await client.requestToken() as Record<string, unknown>
+    return typeof f.upload_token === 'string' ? f.upload_token : uploadToken.value
+  }
+
   function onMessage(fn: Listener) {
     listeners.add(fn)
     return () => listeners.delete(fn)
   }
 
-  return { ensure, onMessage, state, identity, uploadToken, lobbyTaskId }
+  return { ensure, onMessage, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
 }

@@ -57,6 +57,9 @@ declare module '~/utils/live-ws.mjs' {
   export function wsUrl(base: string, path?: string): string
   export function backoffMs(attempt: number, opts?: { base?: number, cap?: number }): number
   export function messageFromFrame(f: unknown): Record<string, unknown>
+  export const AGENT_ID_RE: RegExp
+  export function cleanAs(s: string): string
+  export function tokenStale(expiresAt: string, now?: number, skewMs?: number): boolean
   export function createLiveClient(opts: {
     url: string
     token?: string
@@ -65,6 +68,7 @@ declare module '~/utils/live-ws.mjs' {
     onMessage?: (m: Record<string, unknown>, raw: unknown) => void
     onState?: (s: string) => void
     onWelcome?: (w: Record<string, unknown>) => void
+    onToken?: (f: Record<string, unknown>) => void
     ackTimeoutMs?: number
   }): {
     readonly state: string
@@ -73,6 +77,7 @@ declare module '~/utils/live-ws.mjs' {
     close(): void
     subscribe(taskId: string): void
     unsubscribe(taskId: string): void
+    requestToken(): Promise<Record<string, unknown>>
     send(opts: { task_id: string, kind?: string, body?: string, files?: unknown[], to?: string }): Promise<Record<string, unknown>>
   }
 }

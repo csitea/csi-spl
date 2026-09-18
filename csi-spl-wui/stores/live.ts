@@ -56,17 +56,17 @@ export const useLiveStore = defineStore('live', () => {
     try {
       const refs: FileRef[] = []
       for (const f of files) {
-        const up = await api.uploadFile(f, live.uploadToken.value) as { file_id: string, sha256: string, bytes: number }
+        const up = await api.uploadFile(f, await live.freshUploadToken()) as { file_id: string, sha256: string, bytes: number }
         refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: f.name })
       }
       const client = live.ensure()
       if (client) {
-        await client.send({ task_id: taskId.value, kind: 'chat', body, files: refs })
+        await client.send({ task_id: taskId.value, kind: 'note', body, files: refs })
       } else {
         // mock tenant: local echo
         merge([{
           v: 1, msg_id: crypto.randomUUID(), task_id: taskId.value, ts: new Date().toISOString(),
-          from: live.identity.value, to: '@channel', kind: 'chat', body, files: refs, from_box: 'box-wui',
+          from: live.identity.value, to: 'ALL-0', kind: 'note', body, files: refs, from_box: 'box-wui',
         } as SpoolMessage])
       }
     } catch (e) {

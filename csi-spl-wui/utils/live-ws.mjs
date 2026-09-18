@@ -1,8 +1,6 @@
 /**
- * Browser live client for the hub WUI socket (specs/003 contracts/wui-live-ws.md).
+ * Browser live client for the hub WUI socket (specs/003 contracts/wui-live-ws.md 0.1.0).
  *
- * SCAFFOLD: frame names and fields live in FRAMES / the builders below, so the
- * client can follow the 003 contract as it lands without touching callers.
  * The box socket /v1/ws (Ed25519 hello) is never used from the browser.
  *
  * Lifecycle: connect → hello (token / display name) → welcome → subscribe(task_id)*
@@ -19,6 +17,22 @@ export const FRAMES = {
   message: 'message',
   ack: 'ack',
   error: 'error',
+  subscribed: 'subscribed',
+  token: 'token',
+}
+
+/** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2); anything else is omitted and the hub assigns HUM-<n>. */
+export const AGENT_ID_RE = /^[A-Z]{2,4}-[0-9]+$/
+
+export function cleanAs(s) {
+  const v = String(s || '').trim().toUpperCase()
+  return AGENT_ID_RE.test(v) ? v : ''
+}
+
+/** true when the upload token is missing or expires within `skewMs`. */
+export function tokenStale(expiresAt, now = Date.now(), skewMs = 15000) {
+  const t = Date.parse(String(expiresAt || ''))
+  return !Number.isFinite(t) || t - now <= skewMs
 }
 
 export const WS_PATH = '/v1/wui/ws'
@@ -68,6 +82,7 @@ export function createLiveClient({
   onMessage = () => {},
   onState = () => {},
   onWelcome = () => {},
+  onToken = () => {},
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = (t) => clearTimeout(t),
   ackTimeoutMs = 10000,
@@ -81,6 +96,7 @@ export function createLiveClient({
   const subs = new Set()
   const queue = []
   const pending = new Map()
+  const tokenWaiters = []
 
   function setState(s) {
     state = s
@@ -103,7 +119,8 @@ export function createLiveClient({
     ws.onopen = () => {
       const hello = { type: FRAMES.hello }
       if (token) hello.token = token
-      if (as) hello.as = as
+      const id = cleanAs(as)
+      if (id) hello.as = id
       raw(hello)
     }
     ws.onmessage = (ev) => {
@@ -143,6 +160,10 @@ export function createLiveClient({
         for (const id of subs) raw({ type: FRAMES.subscribe, task_id: id })
         flush()
         onWelcome(f)
+        return
+      case FRAMES.token:
+        onToken(f)
+        while (tokenWaiters.length) tokenWaiters.shift()(f)
         return
       case FRAMES.message:
         onMessage(messageFromFrame(f), f)
@@ -195,8 +216,16 @@ export function createLiveClient({
       if (!subs.delete(id)) return
       if (state === 'open') raw({ type: FRAMES.unsubscribe, task_id: id })
     },
-    /** Resolves with the ack frame; rejects on error frame, timeout or close. */
-    send({ task_id, kind = 'chat', body = '', files = [], to } = {}) {
+    /** wui-live-ws: {type:"token"} → next token frame (fresh upload token). */
+    requestToken() {
+      return new Promise((resolve) => {
+        tokenWaiters.push(resolve)
+        if (state === 'open') raw({ type: FRAMES.token })
+        else queue.push({ type: FRAMES.token })
+      })
+    },
+    /** Resolves with the ack frame; rejects on error frame, timeout or close. kind is a v:1 kind (default note); to defaults to ALL-0 hub-side. */
+    send({ task_id, kind = 'note', body = '', files = [], to } = {}) {
       const msg_id = newId()
       const frame = { type: FRAMES.send, msg_id, task_id: String(task_id || ''), kind, body: String(body), files }
       if (to) frame.to = to

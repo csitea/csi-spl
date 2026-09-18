@@ -292,39 +292,63 @@ of 000 therefore runs with a local backend, and its state is then migrated to
 `gs://csi-spl-<env>-tfstate/terraform/000-gcp-remote-bucket`. Until the
 migration the run dir holds the ONLY copy of that state.
 
+Every command below takes absolute paths, so the procedure works from any
+directory. `$APP` is the checkout root:
+
+```bash
+APP=/opt/csi/csi-spl; ENV=dev; TF="$HOME/.local/share/csi-spl/bin/terraform-1.9.8"; R="$APP/csi-spl-iac/bin/csi/spl/$ENV/000-gcp-remote-bucket"
+```
+
 1. Plan the bootstrap, review, apply it (6.2.3):
 
 ```bash
-ENV=dev STEP=000-gcp-remote-bucket TF_BACKEND=local ./run -a do_tf_plan
+cd "$APP/csi-spl-iac" && ENV="$ENV" STEP=000-gcp-remote-bucket TF_BACKEND=local ./run -a do_tf_plan
 ```
 
-2. Back the local state up outside the repo:
+2. Back the local state up outside the repo, and record its checksum — step
+   6 compares the migrated state against this copy:
 
 ```bash
-mkdir -p "$HOME/.local/share/csi-spl/tfstate/dev/000-gcp-remote-bucket" && cp -p bin/csi/spl/dev/000-gcp-remote-bucket/terraform.tfstate "$HOME/.local/share/csi-spl/tfstate/dev/000-gcp-remote-bucket/terraform.tfstate.$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$HOME/.local/share/csi-spl/tfstate/$ENV/000-gcp-remote-bucket" && cp -p "$R/terraform.tfstate" "$HOME/.local/share/csi-spl/tfstate/$ENV/000-gcp-remote-bucket/terraform.tfstate.$(date -u +%Y%m%dT%H%M%SZ)" && sha256sum "$R/terraform.tfstate" && jq -r '[.lineage,.serial]|@tsv' "$R/terraform.tfstate"
 ```
 
 3. Put the gcs backend block in the run dir (drop the local override):
 
 ```bash
-rm -f bin/csi/spl/dev/000-gcp-remote-bucket/backend_override.tf && cp src/terraform/000-gcp-remote-bucket/01-providers.tf bin/csi/spl/dev/000-gcp-remote-bucket/
+rm -f "$R/backend_override.tf" && cp "$APP/csi-spl-iac/src/terraform/000-gcp-remote-bucket/01-providers.tf" "$R/"
 ```
 
-4. Migrate (answer yes to copying the existing state):
+4. Migrate. `-force-copy` answers the "copy existing state to the new
+   backend?" prompt with yes: without it the migration blocks on a prompt no
+   agent and no CI run can answer, and the credential is passed explicitly
+   because the box's gcloud config is shared (section 6 preamble):
 
 ```bash
-"$HOME/.local/share/csi-spl/bin/terraform-1.9.8" -chdir=bin/csi/spl/dev/000-gcp-remote-bucket init -migrate-state -backend-config="$PWD/../csi-spl-cnf/csi-spl/dev/tf/000-gcp-remote-bucket.backend-config.tfvars"
+GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token --account="$GCP_ACCOUNT")" "$TF" -chdir="$R" init -migrate-state -force-copy -input=false -backend-config="$APP/csi-spl-cnf/csi-spl/$ENV/tf/000-gcp-remote-bucket.backend-config.tfvars"
 ```
 
 5. Prove the remote state holds the bucket:
 
 ```bash
-"$HOME/.local/share/csi-spl/bin/terraform-1.9.8" -chdir=bin/csi/spl/dev/000-gcp-remote-bucket state list
+"$TF" -chdir="$R" state list
 ```
 
-6. Only then move the local `terraform.tfstate*` out of the run dir (step 2
-   kept a copy). From now on plan 000 with the default `TF_BACKEND=gcs`; the
-   next plan must show no changes.
+6. Prove it MIGRATED rather than started empty — the lineage in the bucket
+   must equal the lineage of the backup from step 2, and the serial must have
+   advanced. A fresh state carries a NEW lineage, and its plan proposes
+   CREATING a bucket that already exists:
+
+```bash
+gcloud storage cat "gs://csi-spl-$ENV-tfstate/terraform/000-gcp-remote-bucket/default.tfstate" --account="$GCP_ACCOUNT" | jq -r '[.lineage,.serial]|@tsv'
+```
+
+7. Only then move the local `terraform.tfstate*` out of the run dir — move,
+   never delete, and step 2 kept a copy besides. From now on plan 000 with
+   the default `TF_BACKEND=gcs`; the next plan must show no changes:
+
+```bash
+cd "$APP/csi-spl-iac" && ENV="$ENV" STEP=000-gcp-remote-bucket ./run -a do_tf_plan
+```
 
 Repeat with `prd`.
 

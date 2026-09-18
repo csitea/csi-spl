@@ -1,0 +1,53 @@
+# Tasks: Spool social sign-in (010)
+
+**Feature**: `specs/010-spool-social-auth` · **Milestone**: M2 registration / M3 WUI login · **Created**: 2026-09-18
+
+`[x]` Implemented (cited) · `[~]` Partial (missing part named) · `[ ]` Planned
+(`../README.md` §2.3). Tasks owned by another lane are written here, not done
+here (§2.4); the owner is named.
+
+## Phase 1 — Hub sign-in package + cnf (010, CLE-3346)
+
+- [x] T001 Implemented (`9be4b71`) — `internal/auth/config.go`: `SPOOL_HUB_AUTH_*` via `caarlos0/env`, auth off when `SPOOL_HUB_AUTH_PROVIDERS=""`, fail-fast on an unset or `PLACEHOLDER-*` value of a listed provider, ≥32-byte session key, https in dev/prd, fake-IdP override refused in prd, planned providers refused. Check: `go test -run 'TestConfig' ./internal/auth/` → ok. FR-003, FR-007.
+- [x] T002 Implemented (`9be4b71`) — signed state + browser-bound nonce cookie, single use, cross-provider replay refused (`token.go`, `handler.go`). Check: `go test -run TestStateCSRF ./internal/auth/` → ok (forged, other browser, cross-provider, replay, bad code). FR-002.
+- [x] T003 Implemented (`9be4b71`) — Google code → token → userinfo, `email_verified` required (`idp.go`). FR-001, FR-004.
+- [x] T004 Implemented (`9be4b71`) — Facebook Graph v25.0 code → token → `/me` with `appsecret_proof` (`idp.go`). FR-001, FR-004.
+- [x] T005 Implemented (`9be4b71`) — `spool_session` signed cookie, `/session`, `/logout`, `SessionFromRequest`, `Registrar` hook, open-redirect guard. Check: `go test -run 'TestSignInEachProvider|TestTamperedSessionCookie|TestStartRedirectsToProvider' ./internal/auth/` → ok. FR-005, FR-006, FR-008 (hook only).
+- [x] T006 Implemented (`9be4b71`) — `fakeidp` (Google + Facebook stand-in checking client id/secret, redirect URI, single-use code, bearer, appsecret_proof) and `cmd/auth-demo`. Check: `go run ./internal/auth/cmd/auth-demo` → `OK - both providers signed in against the fake IdP`. SC-001.
+- [x] T007 Implemented (`9be4b71`) — tests green with the race detector: `go test -race -count=1 ./internal/auth/...` → ok; `bash csi-spl-api/src/bash/tests/run-all-tests.sh` → `ALL csi-spl-api TESTS PASSED`.
+- [x] T008 Implemented (`b5d0a9d`) — cnf `env.auth.social`: 13 env names (`yq '.env.auth.social.env | keys | length' csi-spl-cnf/csi-spl/all.env.yaml` → 13), `PLACEHOLDER-*` client ids, 3 Secret Manager slot ids under `secret_env`, dev/prd intended callback URIs, lde http values; `dev/prd.env.json` re-rendered. Not rendered into 030 (T020).
+
+## Phase 2 — Hub mount + registration (003 CLE-3340, ids 004)
+
+- [ ] T010 Planned (003) — mount per `contracts/auth-v1.md` §5 in `cmd/spool/hub.go` + `internal/hub/server.go`; `/api/v1/auth/*` answers regardless of Host tenant resolution.
+- [ ] T011 Planned (003) — session as the M3 view door on `/v1/view/*` (view-v1 §2 "M3 successor"); decide OQ-A1 (cookie domain + credentialed CORS recommended).
+- [ ] T012 Planned (003 + 004 + rdb) — store-backed `Registrar`: first callback creates `HUM-*` (narrative §0, §3.1), returns it into the session; needs a humans table (csi-spl-rdb) and 004's id rule (OQ-A3).
+- [ ] T013 Planned (003/006) — tenant membership: which `HUM-*` may read which tenant; never from `session.t` (SEC-001).
+
+## Phase 3 — WUI login (005 CLE-3342)
+
+- [ ] T014 Planned (005) — `/login` buttons from `GET /api/v1/auth/providers` (`contracts/auth-v1.md` §4); no provider SDK.
+- [ ] T015 Planned (005) — `auth_error` copy (§2), signed-in probe distinguishing 401 from "unknown", sign out.
+- [ ] T016 Planned (005) — Hosting rewrite `/api/v1/auth/**` → the hub Cloud Run service in `csi-spl-wui/firebase.json`, before the `** → /200.html` rewrite (`grep -c api/v1/auth csi-spl-wui/firebase.json` → 0 today; the SPA rule `** → /200.html` must stay last). FR-010.
+
+## Phase 4 — Infra (007 iac; apply is the owner-gated apply lane)
+
+- [ ] T020 Planned (007) — render `env.auth.social.env` into 030 `environment_variables` (merge with `hub.env`) and `env.auth.social.secret_env` into `secret_environment_variables`; extend `tf-steps-render-and-validate.tst.sh` like its DSN assertion.
+- [ ] T021 Planned (007) — three empty Secret Manager slots (`csi-spl-hub-auth-session-key`, `csi-spl-hub-auth-google-client-secret`, `csi-spl-hub-auth-facebook-client-secret`) + `roles/secretmanager.secretAccessor` for the hub runtime SA, per env; no version resource (like 040's DSN slot).
+- [ ] T022 Planned (007) — derive `SPOOL_HUB_AUTH_APP_URL` and the two redirect URIs from `env.dns.fqdn` in `do_spl_merged_cnf` so the domain stays single-source; drop the literal values from dev/prd.env.yaml.
+
+## Phase 5 — Registration day (owner; runbook `quickstart.md` §3)
+
+- [ ] T030 Planned — Google Cloud console: OAuth consent screen + Web client per env; authorised redirect URI = cnf `SPOOL_HUB_AUTH_GOOGLE_REDIRECT_URI`.
+- [ ] T031 Planned — Meta developers: one Consumer app (Facebook Login), valid OAuth redirect URIs = cnf `SPOOL_HUB_AUTH_FACEBOOK_REDIRECT_URI` (dev + prd), privacy + data-deletion URLs, App Review for `email`, `public_profile`, then Publish.
+- [ ] T032 Planned — add secret VERSIONS (session key, both client secrets) per env, out of band.
+- [ ] T033 Planned — cnf: real client ids, `SPOOL_HUB_AUTH_PROVIDERS: google,facebook`; re-render json; push.
+- [ ] T034 Planned — deploy and verify on dev, then prd (`quickstart.md` §3.5). SC-003.
+
+## Phase 6 — Later, same rails
+
+- [ ] T040 Planned — `microsoft` (Entra OIDC). T041 `linkedin`. T042 `xai` (issuer/authorize/token/jwks from cnf). Each: one `IdP` implementation, a `SPOOL_HUB_AUTH_<P>_*` block, a `fakeidp` path set, the same tests.
+- [ ] T043 Planned — Facebook deauthorize + data-deletion callback (required for a live Meta app; csi-rel `facebook_callbacks.go` is the donor).
+- [ ] T044 Planned — avatar: server-side fetch → `file_id` (narrative §3.4).
+
+<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:36:00Z -->

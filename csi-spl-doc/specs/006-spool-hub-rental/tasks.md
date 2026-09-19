@@ -48,10 +48,13 @@ are not duplicated here.
 ## Phase 5: Payment (US5, M2 — after the M1 demo)
 
 - [x] T017 [FR-013] Schema `payment_checkouts` + `webhook_events_seen`; cnf `SPOOL_HUB_PAYMENT_*` names, no secret values — **Implemented** (`40371a7`).
-- [ ] T018 [FR-013] Copy csi-rel `PaymentProvider` + stub, cnf-selected drivers, fail-closed boot — **Planned**.
-- [ ] T019 [FR-013] Signed webhook handler; verify before any write; duplicate id → 200 no-op; `paid` → create/activate tenant — **Planned**.
-- [ ] T020 [FR-013] lde fake-pay (csi-rel 077) behind `SPOOL_HUB_ENABLE_FAKE_PAY` — **Planned** (cnf flag exists, no code).
-- [ ] T021 [FR-014] Thin checkout page + success page + one email: tenant URL + root private key once — **Planned**.
+- [ ] T018 [FR-013] Copy csi-rel `PaymentProvider` + cnf-selected drivers (`""`/`fake`/`hosted-hmac`; protocol names, no vendor), fail-closed boot: unknown provider, a named rail with a missing/placeholder secret or URL, or fake-pay outside lde/dev → refuse start — **Planned** (CLE-3371).
+- [ ] T018a [FR-013] Migration `0011_payment_hold.sql`: checkouts hold a slug without a `tenants` row (drop the FK; one `pending` hold per slug), sealed key + claim hash + email columns — **Planned** (CLE-3371).
+- [ ] T019 [FR-013] Signed webhook `POST|GET /api/v1/webhooks/payment`; verify before any write (forged → 400, nothing written); dedup + apply in ONE transaction (duplicate id → 200 no-op); `paid` → create the tenant `active` / re-activate; refund → `billing.MapEvent` — **Planned** (CLE-3371).
+- [ ] T020 [FR-013] lde/dev fake-pay (csi-rel 077) `POST /api/v1/checkout/fake-pay` behind `SPOOL_HUB_ENABLE_FAKE_PAY`; route absent when off; boot refused with it on prd — **Planned** (CLE-3371).
+- [ ] T021 [FR-014] Backend half: `POST /api/v1/checkout`, status, `POST /api/v1/checkout/claim` (key shown once) + one email (tenant URL + root private key), contract `contracts/checkout-v1.md` — **Planned** (CLE-3371).
+- [ ] T021w [FR-014] Thin checkout page + success page (WUI) against `checkout-v1.md` — **Planned** (UI lane).
+- [ ] T022 [FR-013] Payment secret slot `csi-spl-hub-payment-secret-key` (cnf `payment.secret_env` → 030 slot; injected only while provider is `hosted-hmac`) — **Planned** (CLE-3371; apply by the deploy lane).
 
 ## Phase 6: Polish
 

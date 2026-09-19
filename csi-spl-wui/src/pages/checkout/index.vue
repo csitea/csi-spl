@@ -8,30 +8,32 @@
                      form, so no checkout holds a slug it cannot pay for. -->
 <template>
   <div class="login-card" data-test="checkout" :data-checkout-state="state" :data-rail="rail">
-    <h1>Get a spool</h1>
-    <p v-if="state === 'loading'" class="muted">Loading the plan…</p>
+    <h1>{{ t('checkout.title') }}</h1>
+    <p v-if="state === 'loading'" class="muted">{{ t('checkout.loading') }}</p>
     <p v-else-if="state === 'unavailable'" class="login-error" role="alert" data-test="checkout-unavailable">{{ error }}</p>
-    <p v-else-if="mode === 'none'" role="status" data-test="checkout-not-on-sale">Spools are not on sale right now.</p>
-    <p v-else-if="mode === 'unsupported'" role="status" data-test="checkout-unsupported">Checkout is not open on this page yet — try again later.</p>
+    <p v-else-if="mode === 'none'" role="status" data-test="checkout-not-on-sale">{{ t('checkout.not_on_sale') }}</p>
+    <p v-else-if="mode === 'unsupported'" role="status" data-test="checkout-unsupported">{{ t('checkout.unsupported') }}</p>
     <template v-else>
-      <p data-test="checkout-price">One tenant: <strong>{{ price }}</strong></p>
+      <i18n-t keypath="checkout.price" tag="p" scope="global" data-test="checkout-price">
+        <template #price><strong>{{ price }}</strong></template>
+      </i18n-t>
       <form v-if="state === 'form'" class="checkout__form" novalidate @submit.prevent="submit">
         <label class="checkout__field">
-          <span>Tenant name</span>
+          <span>{{ t('checkout.tenant_name') }}</span>
           <input v-model.trim="tenant" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" required data-test="checkout-tenant">
           <small v-if="tenantPreview" class="muted">{{ tenantPreview }}</small>
         </label>
         <label class="checkout__field">
-          <span>Email — the key is sent here once</span>
+          <span>{{ t('checkout.email') }}</span>
           <input v-model.trim="email" type="email" autocomplete="email" required data-test="checkout-email">
         </label>
         <p v-if="error" class="login-error" role="alert" data-test="checkout-error">{{ error }}</p>
-        <button class="btn" type="submit" :disabled="busy" data-test="checkout-submit">Continue to payment</button>
+        <button class="btn" type="submit" :disabled="busy" data-test="checkout-submit">{{ t('checkout.submit') }}</button>
       </form>
       <div v-else-if="state === 'fake'" class="checkout__form">
-        <p class="muted">Test environment: no money moves.</p>
+        <p class="muted">{{ t('checkout.fake_note') }}</p>
         <p v-if="error" class="login-error" role="alert" data-test="checkout-error">{{ error }}</p>
-        <button class="btn" type="button" :disabled="busy" data-test="checkout-fake-pay" @click="fakePay">Pay (dev fake)</button>
+        <button class="btn" type="button" :disabled="busy" data-test="checkout-fake-pay" @click="fakePay">{{ t('checkout.fake_pay') }}</button>
       </div>
     </template>
   </div>
@@ -40,7 +42,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  checkoutErrorMessage,
+  checkoutErrorKey,
   createCheckoutClient,
   forgetCheckout,
   checkoutMode,
@@ -52,15 +54,24 @@ import { validTenant } from '~/utils/tenant.mjs'
 definePageMeta({ layout: 'login' })
 
 const router = useRouter()
+const { t, locale } = useI18n({ useScope: 'global' })
+const localePath = useLocalePath()
 const client = createCheckoutClient()
 const state = ref<'loading' | 'unavailable' | 'form' | 'fake'>('loading')
 const rail = ref('')
 const mode = ref<'fake' | 'none' | 'unsupported'>('none')
-const price = ref('')
+/* the plan's raw amount: formatted in the ACTIVE locale, so a language switch re-renders it */
+const plan = ref<{ cents: unknown, currency: unknown } | null>(null)
+const price = computed(() => (plan.value ? formatPrice(plan.value.cents, plan.value.currency, locale.value) : ''))
 const pattern = ref('')
 const tenant = ref('')
 const email = ref('')
-const error = ref('')
+/* a checkout error code, rendered through the catalogue (spec 021) */
+const errorCode = ref('')
+const error = computed(() => {
+  const k = checkoutErrorKey(errorCode.value)
+  return k ? t(k.key, k.params) : ''
+})
 const busy = ref(false)
 const checkoutId = ref('')
 
@@ -71,21 +82,21 @@ onMounted(async () => {
   const out = await client.plan()
   if (!out.ok || !out.data) {
     state.value = 'unavailable'
-    error.value = checkoutErrorMessage(out.error === 'network' ? 'network' : 'payment_unavailable')
+    errorCode.value = out.error === 'network' ? 'network' : 'payment_unavailable'
     return
   }
   rail.value = String(out.data.rail || 'none')
   mode.value = checkoutMode(out.data)
-  price.value = formatPrice(out.data.amount_cents, out.data.currency)
+  plan.value = { cents: out.data.amount_cents, currency: out.data.currency }
   pattern.value = String(out.data.tenant_url_pattern || '')
   state.value = 'form'
 })
 
 async function submit() {
   if (busy.value || mode.value !== 'fake') return
-  error.value = ''
+  errorCode.value = ''
   if (!validTenant(tenant.value)) {
-    error.value = checkoutErrorMessage('bad_tenant_id')
+    errorCode.value = 'bad_tenant_id'
     return
   }
   busy.value = true
@@ -93,12 +104,12 @@ async function submit() {
     forgetCheckout()
     const out = await client.start({ tenant_id: tenant.value, email: email.value })
     if (!out.ok || !out.data) {
-      error.value = checkoutErrorMessage(out.error)
+      errorCode.value = out.error
       return
     }
     // §1.2: keep id + token BEFORE leaving the page; without them the key is lost
     if (!saveCheckout(out.data)) {
-      error.value = 'This browser blocks session storage — allow it for this site and try again.'
+      errorCode.value = 'storage_blocked'
       return
     }
     checkoutId.value = String(out.data.checkout_id || '')
@@ -106,7 +117,7 @@ async function submit() {
       state.value = 'fake'
       return
     }
-    error.value = checkoutErrorMessage('payment_unavailable')
+    errorCode.value = 'payment_unavailable'
   } finally {
     busy.value = false
   }
@@ -115,14 +126,14 @@ async function submit() {
 async function fakePay() {
   if (busy.value) return
   busy.value = true
-  error.value = ''
+  errorCode.value = ''
   try {
     const out = await client.fakePay(checkoutId.value)
     if (!out.ok) {
-      error.value = checkoutErrorMessage(out.error)
+      errorCode.value = out.error
       return
     }
-    await router.push('/checkout/success')
+    await router.push(localePath('/checkout/success'))
   } finally {
     busy.value = false
   }

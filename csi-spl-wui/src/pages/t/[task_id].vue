@@ -1,8 +1,8 @@
 <template>
   <div class="feed-col">
     <header class="feed-header">
-      <h2><NuxtLink to="/">Threads</NuxtLink> / <code>{{ shortId }}</code></h2>
-      <span class="muted">{{ store.messages.length }} · newest first · {{ live.state.value }}</span>
+      <h2><NuxtLink :to="localePath('/')">{{ t('nav.threads') }}</NuxtLink> / <code>{{ shortId }}</code></h2>
+      <span class="muted">{{ t('pages.task.status', { n: store.messages.length, state: stateLabel(live.state.value) }) }}</span>
       <VerbositySelector />
     </header>
     <div class="pinned-root">
@@ -10,7 +10,7 @@
     </div>
     <MessageComposer
       omnibox
-      placeholder="Reply — Enter to send · /search to filter"
+      :placeholder="t('thread.reply_placeholder')"
       :busy="store.sending"
       @send="onSend"
       @search="store.setSearch"
@@ -19,7 +19,7 @@
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="reopen" />
       <ErrorNotice v-if="store.error" :message="store.error" source="thread" test-id="thread-error" />
       <LiveFeed
-        label="Replies, newest first"
+        :label="t('thread.replies_label')"
         :rows="replies"
         :has-older="false"
         :loading="store.loading"
@@ -41,6 +41,10 @@ import { applyVerbosity } from '~/utils/verbosity.mjs'
 const route = useRoute()
 const store = useLiveFeed('main')
 const live = useLive()
+const { t, te } = useI18n({ useScope: 'global' })
+const localePath = useLocalePath()
+/** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
+const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
 const taskId = computed(() => String(route.params.task_id || ''))
 const shortId = computed(() => taskId.value.slice(0, 8))
 const thread = useThreadStore()

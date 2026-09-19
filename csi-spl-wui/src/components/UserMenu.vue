@@ -18,7 +18,7 @@
         :aria-expanded="open ? 'true' : 'false'"
         :aria-controls="menuId"
         :aria-label="buttonLabel"
-        :title="me.primary || 'Account'"
+        :title="me.primary || t('user_menu.account')"
         @click="toggle"
         @keydown="onTriggerKey"
       >
@@ -41,7 +41,7 @@
             <UiIcon v-else name="user" :size="24" />
           </span>
           <span class="user-menu__names">
-            <strong class="user-menu__primary" data-test="user-menu-primary">{{ me.primary || 'Signed in' }}</strong>
+            <strong class="user-menu__primary" data-test="user-menu-primary">{{ me.primary || t('user_menu.signed_in') }}</strong>
             <span v-if="me.secondary" class="user-menu__secondary" data-test="user-menu-secondary">{{ me.secondary }}</span>
           </span>
         </div>
@@ -57,7 +57,7 @@
               @click="close(false)"
             >
               <UiIcon name="settings" :size="18" />
-              <span>Settings</span>
+              <span>{{ t('user_menu.settings') }}</span>
             </NuxtLink>
           </li>
           <li role="none">
@@ -71,7 +71,7 @@
               @click="signOut"
             >
               <UiIcon name="log-out" :size="18" />
-              <span>Sign out</span>
+              <span>{{ t('user_menu.sign_out') }}</span>
             </button>
           </li>
         </ul>
@@ -82,31 +82,35 @@
       class="user-menu__signin"
       data-test="user-menu-signin"
       :to="{ path: localePath('/login'), query: { redirect: signInRedirect(route.fullPath) } }"
-      title="Sign in"
-      aria-label="Sign in"
+      :title="t('nav.login')"
+      :aria-label="t('nav.login')"
     >
       <span class="user-menu__avatar user-menu__avatar--silhouette" aria-hidden="true">
         <UiIcon name="log-in" :size="18" />
       </span>
-      <span class="user-menu__signin-label">Sign in</span>
+      <span class="user-menu__signin-label">{{ t('nav.login') }}</span>
     </NuxtLink>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
-import { avatarMode, menuButtonLabel, nextMenuIndex, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
+import { avatarMode, menuButtonLabelKey, nextMenuIndex, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
 
 const session = useSessionStore()
 const route = useRoute()
 const localePath = useLocalePath()
+const { t } = useI18n({ useScope: 'global' })
 const menuId = 'user-menu-panel'
 
 const signedIn = computed(() => session.state === 'in' && !!session.claims)
 const me = computed(() => userIdentity(session.claims))
 const mode = computed(() => avatarMode(session.claims))
 const initials = computed(() => userInitials(session.claims))
-const buttonLabel = computed(() => menuButtonLabel(session.claims))
+const buttonLabel = computed(() => {
+  const k = menuButtonLabelKey(session.claims)
+  return t(k.key, k.params)
+})
 
 const open = ref(false)
 const focused = ref(-1)

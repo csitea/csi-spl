@@ -12,6 +12,8 @@ import {
   initials,
   channelSlug,
   retentionLabel,
+  retentionDays,
+  formatTs,
   feedRow,
   belongsTo,
   mergeLive,
@@ -60,6 +62,19 @@ describe('channel-feed', () => {
   it('formats bytes and initials', () => {
     assert.equal(formatBytes(2048), '2.0 KiB')
     assert.equal(initials('CLE-07'), 'CL')
+  })
+
+  it('formats times and sizes in the active UI locale when given one (spec 021)', () => {
+    const ts = '2026-09-19T14:05:00Z'
+    assert.equal(formatTs(ts), '14:05')
+    assert.equal(formatTs(ts, 'fi'), '14.05')
+    assert.equal(formatTs(ts, 'en'), new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(ts)))
+    assert.equal(formatTs('not a date', 'fi'), 'not a date')
+    assert.equal(formatBytes(2048, 'fi'), '2,0 KiB')
+    assert.equal(formatBytes(2048, 'en'), '2.0 KiB')
+    assert.equal(retentionDays({ channel_id: 'alerts' }), 7)
+    assert.equal(retentionDays({ channel_id: 'alerts', retention_days: 3 }), 3)
+    assert.equal(retentionDays({ channel_id: 'lobby', retention_days: 30 }), 0)
   })
 })
 

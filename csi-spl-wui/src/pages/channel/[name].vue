@@ -2,15 +2,15 @@
   <div class="feed-col">
     <header class="feed-header">
       <h2>#{{ name }}</h2>
-      <span class="muted">last 50 · tenant-scoped<template v-if="retention"> · {{ retention }} retention</template></span>
+      <span class="muted">{{ retention ? t('pages.channel.subtitle_retention', { retention }) : t('pages.channel.subtitle') }}</span>
     </header>
     <MessageComposer
       omnibox
-      :placeholder="'Message #' + name + ' — Enter to send · /search to filter'"
+      :placeholder="t('pages.message_placeholder', { target: '#' + name })"
       @send="onSend"
       @search="channel.setSearch"
     />
-    <MessageFeed :label="'#' + name + ', newest first'" />
+    <MessageFeed :label="t('pages.feed_label', { target: '#' + name })" />
   </div>
 </template>
 
@@ -20,7 +20,7 @@ import { useRosterStore } from '~/stores/roster'
 import { useSpoolEvents } from '~/composables/useSpoolEvents'
 import { useNotificationStore } from '~/stores/notification'
 import { normalizeChannel } from '~/utils/notify.mjs'
-import { retentionLabel } from '~/utils/channel-feed.mjs'
+import { retentionDays } from '~/utils/channel-feed.mjs'
 
 const route = useRoute()
 const channel = useChannelStore()
@@ -28,7 +28,11 @@ const roster = useRosterStore()
 const notes = useNotificationStore()
 const events = useSpoolEvents()
 const name = computed(() => String(route.params.name || 'lobby'))
-const retention = computed(() => retentionLabel(channel.channels.find((c) => c.channel_id === name.value) || { channel_id: name.value }))
+const { t } = useI18n({ useScope: 'global' })
+const retention = computed(() => {
+  const n = retentionDays(channel.channels.find((c) => c.channel_id === name.value) || { channel_id: name.value })
+  return n ? t('sidebar.retention_days', { n }) : ''
+})
 
 /* a live row carries the hub cursor, so the next read= counts from here */
 function markRead(n: string) {

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  avatarMode, menuButtonLabel, methodLabel, nextMenuIndex, signInRedirect, userIdentity, userInitials,
+  avatarMode, menuButtonLabel, menuButtonLabelKey, methodLabel, methodLabelKey, nextMenuIndex, signInRedirect, userIdentity, userInitials,
 } from '../../src/utils/user-menu.mjs'
 
 describe('user menu identity (CLE-3402: top-right avatar from auth-v1 §4 session claims)', () => {
@@ -53,6 +53,23 @@ describe('user menu identity (CLE-3402: top-right avatar from auth-v1 §4 sessio
     assert.equal(methodLabel('github'), 'Github')
     assert.equal(methodLabel(''), 'Unknown')
   })
+
+  it('spec 021: the catalogue keys render the same English', () => {
+    const EN = {
+      'user_menu.method_unknown': 'Unknown',
+      'user_menu.method_password': 'Email and password',
+      'user_menu.method_named': '{name}',
+      'user_menu.account_menu': 'Account menu',
+      'user_menu.account_menu_for': 'Account menu for {who}',
+    }
+    const render = ({ key, params }) => EN[key].replace(/\{(\w+)\}/g, (_, p) => String(params[p]))
+    for (const p of ['password', 'Google', 'github', '', 'facebook', ' PASSWORD ']) {
+      assert.equal(render(methodLabelKey(p)), methodLabel(p), JSON.stringify(p))
+    }
+    for (const c of [{ email: 'a@example.com' }, {}, null, { name: 'FirstName LastName' }]) {
+      assert.equal(render(menuButtonLabelKey(c)), menuButtonLabel(c), JSON.stringify(c))
+    }
+  })
 })
 
 describe('user menu keyboard (WAI-ARIA menu button)', () => {
@@ -79,5 +96,10 @@ describe('sign-in entry redirect', () => {
     assert.equal(signInRedirect('https://evil.example.com'), '/')
     assert.equal(signInRedirect(''), '/')
     assert.equal(signInRedirect('/loginx'), '/loginx')
+    // spec 021: the locale-prefixed sign-in page is /login too
+    assert.equal(signInRedirect('/fi/login'), '/')
+    assert.equal(signInRedirect('/he/login?redirect=/x'), '/')
+    assert.equal(signInRedirect('/fi/loginx'), '/fi/loginx')
+    assert.equal(signInRedirect('/fi/settings'), '/fi/settings')
   })
 })

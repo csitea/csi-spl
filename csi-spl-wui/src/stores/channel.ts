@@ -38,6 +38,8 @@ function newId() {
 
 export const useChannelStore = defineStore('channel', () => {
   const api = useSpoolApi()
+  /* the global i18n instance for the fallback error lines (a hub error keeps its own message) */
+  const i18n = useNuxtApp().$i18n
   const channels = ref<ChannelInfo[]>([])
   const active = ref<string | null>(null)
   const peer = ref<string | null>(null)
@@ -122,7 +124,7 @@ export const useChannelStore = defineStore('channel', () => {
       visible.value += WINDOW
       follow()
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'load older failed'
+      error.value = e instanceof Error ? e.message : i18n.t('feed.error.load_older_failed')
       olderCursor.value = null
     } finally {
       loadingOlder = false
@@ -163,7 +165,7 @@ export const useChannelStore = defineStore('channel', () => {
       olderCursor.value = page.next || null
       follow()
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'load failed'
+      error.value = e instanceof Error ? e.message : i18n.t('feed.error.load_failed')
     } finally {
       loading.value = false
     }
@@ -218,7 +220,7 @@ export const useChannelStore = defineStore('channel', () => {
 
   async function createChannel(name: string) {
     const slug = channelSlug(name)
-    if (!slug) throw new Error('channel name required')
+    if (!slug) throw new Error(i18n.t('sidebar.channel_name_required'))
     const row = await api.createChannel({ channel_id: slug, name })
     const id = String(row.channel_id || slug)
     await loadChannels()

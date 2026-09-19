@@ -26,19 +26,19 @@
           :aria-selected="mode === m.id"
           :data-test="`native-auth-tab-${m.id}`"
           @click="setMode(m.id)"
-        >{{ m.label }}</button>
+        >{{ t(m.label) }}</button>
       </div>
 
       <label v-if="mode === 'register'" class="native-auth__field">
-        <span>Name (optional)</span>
+        <span>{{ t('auth.native.name_optional') }}</span>
         <input v-model="name" type="text" autocomplete="name" data-test="native-auth-name">
       </label>
       <label class="native-auth__field">
-        <span>Email</span>
+        <span>{{ t('auth.native.email') }}</span>
         <input v-model="email" type="email" autocomplete="email" required data-test="native-auth-email">
       </label>
       <label v-if="mode !== 'forgot'" class="native-auth__field">
-        <span>Password</span>
+        <span>{{ t('auth.native.password') }}</span>
         <input
           v-model="password"
           type="password"
@@ -49,13 +49,13 @@
       </label>
 
       <p v-if="error" class="login-error" role="alert" data-test="native-auth-error">{{ error }}</p>
-      <p v-if="notice" class="native-auth__notice" role="status" data-test="native-auth-notice">{{ notice }}</p>
+      <p v-if="notice" class="native-auth__notice" role="status" data-test="native-auth-notice">{{ notice ? t(notice) : '' }}</p>
       <p v-if="debugHref" class="native-auth__debug" data-test="native-auth-debug">
-        dev: <NuxtLink :to="debugHref">{{ debugLabel }}</NuxtLink>
+        {{ t('auth.native.dev') }} <NuxtLink :to="debugHref">{{ debugLabel ? t(debugLabel) : '' }}</NuxtLink>
       </p>
 
       <button class="btn native-auth__submit" type="submit" :disabled="busy" data-test="native-auth-submit">
-        {{ SUBMIT[mode] }}
+        {{ t(SUBMIT[mode]) }}
       </button>
       <button
         v-if="canResend"
@@ -64,16 +64,17 @@
         :disabled="busy"
         data-test="native-auth-resend"
         @click="resend"
-      >Send the link again</button>
+      >{{ t('auth.native.resend') }}</button>
     </form>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { nativeErrorMessage, safeRedirect, type NativeResult } from '~/utils/auth-client.mjs'
+import { safeRedirect, type NativeResult } from '~/utils/auth-client.mjs'
 import { useSessionStore, type SessionClaims } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
+import { useAuthCopy } from '~/composables/useAuthCopy'
 
 const props = withDefaults(defineProps<{
   redirect?: string
@@ -81,12 +82,21 @@ const props = withDefaults(defineProps<{
 }>(), { redirect: '/', tenant: '' })
 
 type Mode = 'login' | 'register' | 'forgot'
+/* labels are catalogue keys (spec 021), rendered through t() */
 const MODES: { id: Mode, label: string }[] = [
-  { id: 'login', label: 'Sign in' },
-  { id: 'register', label: 'Create account' },
-  { id: 'forgot', label: 'Forgot password' },
+  { id: 'login', label: 'auth.native.tab_login' },
+  { id: 'register', label: 'auth.native.tab_register' },
+  { id: 'forgot', label: 'auth.native.tab_forgot' },
 ]
-const SUBMIT: Record<Mode, string> = { login: 'Sign in', register: 'Create account', forgot: 'Send reset link' }
+const SUBMIT: Record<Mode, string> = {
+  login: 'auth.native.submit_login',
+  register: 'auth.native.submit_register',
+  forgot: 'auth.native.submit_forgot',
+}
+
+const { t } = useI18n({ useScope: 'global' })
+const copy = useAuthCopy()
+const localePath = useLocalePath()
 
 const auth = useAuthClient()
 const session = useSessionStore()
@@ -96,7 +106,9 @@ const email = ref('')
 const password = ref('')
 const name = ref('')
 const busy = ref(false)
-const error = ref('')
+/* the failed call, rendered in the active locale; notice / debugLabel hold catalogue keys */
+const errorOut = ref<NativeResult | null>(null)
+const error = computed(() => copy.nativeError(errorOut.value))
 const notice = ref('')
 const lastError = ref('')
 const debugHref = ref('')
@@ -113,7 +125,7 @@ onMounted(async () => {
 
 function setMode(m: Mode) {
   mode.value = m
-  error.value = ''
+  errorOut.value = null
   notice.value = ''
   lastError.value = ''
   debugHref.value = ''
@@ -121,12 +133,12 @@ function setMode(m: Mode) {
 
 function fail(out: NativeResult) {
   lastError.value = out.error
-  error.value = nativeErrorMessage(out)
+  errorOut.value = out
 }
 
 function showDebug(out: NativeResult, path: string, label: string) {
   const tok = out.data && typeof out.data.debug_token === 'string' ? out.data.debug_token : ''
-  debugHref.value = tok ? `${path}?token=${encodeURIComponent(tok)}` : ''
+  debugHref.value = tok ? `${localePath(path)}?token=${encodeURIComponent(tok)}` : ''
   debugLabel.value = label
 }
 
@@ -134,15 +146,15 @@ async function register() {
   const out = await auth.register({ email: email.value, password: password.value, name: name.value || undefined })
   if (!out.ok) return fail(out)
   notice.value = out.data && out.data.status === 'registered'
-    ? 'Account created — sign in.'
-    : 'Check your inbox: we sent a link to confirm your email.'
-  showDebug(out, '/verify-email', 'open the verify link')
+    ? 'auth.native.registered'
+    : 'auth.native.check_inbox'
+  showDebug(out, '/verify-email', 'auth.native.debug_verify')
 }
 
 async function submit() {
   if (busy.value) return
   busy.value = true
-  error.value = ''
+  errorOut.value = null
   notice.value = ''
   lastError.value = ''
   debugHref.value = ''
@@ -159,8 +171,8 @@ async function submit() {
     } else {
       const out = await auth.forgotPassword(email.value)
       if (!out.ok) return fail(out)
-      notice.value = 'If that address has an account, a reset link is on its way.'
-      showDebug(out, '/reset-password', 'open the reset link')
+      notice.value = 'auth.native.reset_sent'
+      showDebug(out, '/reset-password', 'auth.native.debug_reset')
     }
   } finally {
     busy.value = false
@@ -170,7 +182,7 @@ async function submit() {
 async function resend() {
   if (busy.value) return
   busy.value = true
-  error.value = ''
+  errorOut.value = null
   try {
     await register()
   } finally {

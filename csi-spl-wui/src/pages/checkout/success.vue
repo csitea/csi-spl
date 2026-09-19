@@ -8,34 +8,34 @@
      "window closed" (1.2: the key is minted at claim and never emailed). -->
 <template>
   <div class="login-card" data-test="checkout-success" :data-claim-state="state">
-    <h1>Your spool</h1>
-    <p v-if="state === 'waiting'" class="muted" role="status" data-test="checkout-waiting">Waiting for the payment to be confirmed…</p>
+    <h1>{{ t('checkout.your_spool') }}</h1>
+    <p v-if="state === 'waiting'" class="muted" role="status" data-test="checkout-waiting">{{ t('checkout.success.waiting') }}</p>
     <CheckoutKeyReveal v-else-if="state === 'ok'" :key-text="keyText" :tenant-url="tenantUrl" :tenant-id="tenantId" />
     <p v-else-if="state === 'claimed'" role="status" data-test="checkout-claimed">
-      This key was already collected — on this page or from the emailed link. The hub does not keep it.
+      {{ t('checkout.success.claimed') }}
     </p>
     <p v-else-if="state === 'expired'" class="login-error" role="alert" data-test="checkout-expired">
-      The claim window has closed — contact support to re-key the tenant.
+      {{ t('checkout.success.expired') }}
     </p>
     <p v-else-if="state === 'none'" class="login-error" role="alert" data-test="checkout-none">
-      This browser tab holds no checkout. Use the claim link from the email we sent.
+      {{ t('checkout.success.none') }}
     </p>
     <p v-else-if="state === 'failed' || state === 'cancelled'" class="login-error" role="alert" data-test="checkout-failed">
-      The payment was {{ state === 'failed' ? 'not completed' : 'cancelled' }}. No spool was created.
+      {{ state === 'failed' ? t('checkout.success.failed') : t('checkout.success.cancelled') }}
     </p>
     <template v-else-if="state === 'error'">
       <p class="login-error" role="alert" data-test="checkout-claim-error">{{ error }}</p>
-      <button v-if="retryable" class="btn" type="button" data-test="checkout-claim-retry" @click="retry">Try again</button>
+      <button v-if="retryable" class="btn" type="button" data-test="checkout-claim-retry" @click="retry">{{ t('checkout.try_again') }}</button>
     </template>
-    <p><NuxtLink to="/checkout">Back to checkout</NuxtLink></p>
+    <p><NuxtLink :to="localePath('/checkout')">{{ t('checkout.success.back') }}</NuxtLink></p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import CheckoutKeyReveal from '~/components/CheckoutKeyReveal.vue'
 import {
-  checkoutErrorMessage,
+  checkoutErrorKey,
   createCheckoutClient,
   loadCheckout,
   pollAndClaim,
@@ -45,8 +45,15 @@ import {
 definePageMeta({ layout: 'login' })
 
 const client = createCheckoutClient()
+const { t } = useI18n({ useScope: 'global' })
+const localePath = useLocalePath()
 const state = ref<'waiting' | 'ok' | 'claimed' | 'expired' | 'none' | 'failed' | 'cancelled' | 'error'>('waiting')
-const error = ref('')
+/* a checkout error code, rendered through the catalogue (spec 021) */
+const errorCode = ref('')
+const error = computed(() => {
+  const k = checkoutErrorKey(errorCode.value)
+  return k ? t(k.key, k.params) : ''
+})
 const retryable = ref(false)
 const keyText = shallowRef('')
 const tenantId = ref('')
@@ -77,7 +84,7 @@ async function run() {
     return
   }
   const code = out.state === 'error' ? out.error : 'unavailable'
-  error.value = checkoutErrorMessage(code)
+  errorCode.value = code
   // A lost connection or a 5xx may be retried by a click; a wrong / missing token may not.
   retryable.value = !['not_found', 'no_token', 'conflict'].includes(code)
   state.value = 'error'

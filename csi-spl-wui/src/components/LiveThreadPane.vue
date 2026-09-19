@@ -1,20 +1,20 @@
 <template>
-  <aside v-if="pane.taskId" class="thread live-pane" aria-label="Thread">
+  <aside v-if="pane.taskId" class="thread live-pane" :aria-label="t('thread.title')">
     <header>
-      <strong>Thread <code>{{ pane.taskId.slice(0, 8) }}</code></strong>
+      <strong>{{ t('thread.title') }} <code>{{ pane.taskId.slice(0, 8) }}</code></strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
         <VerbositySelector />
-        <NuxtLink class="btn ghost" :to="'/t/' + pane.taskId">Open</NuxtLink>
-        <button class="btn ghost" type="button" @click="pane.close()">Close</button>
+        <NuxtLink class="btn ghost" :to="localePath('/t/' + pane.taskId)">{{ t('thread.open') }}</NuxtLink>
+        <button class="btn ghost" type="button" @click="pane.close()">{{ t('common.close') }}</button>
       </div>
     </header>
     <div class="pinned-root">
       <MessageCard v-if="pane.thread.root" :msg="pane.thread.root" />
-      <p v-else-if="!pane.loading" class="muted">Empty thread.</p>
+      <p v-else-if="!pane.loading" class="muted">{{ t('thread.empty') }}</p>
     </div>
     <MessageComposer
       omnibox
-      placeholder="Reply — Enter to send · /search to filter"
+      :placeholder="t('thread.reply_placeholder')"
       :busy="pane.sending"
       @send="onSend"
       @search="pane.setSearch"
@@ -23,7 +23,7 @@
       <ViewTokenForm v-if="pane.door" :detail="pane.door.detail" @saved="pane.taskId && pane.open(pane.taskId)" />
       <ErrorNotice v-if="pane.error" :message="pane.error" source="live-pane" test-id="live-pane-error" />
       <LiveFeed
-        label="Replies, newest first"
+        :label="t('thread.replies_label')"
         :rows="replies"
         :has-older="false"
         :loading="pane.loading"
@@ -43,6 +43,8 @@ import { applyVerbosity } from '~/utils/verbosity.mjs'
 
 /* 013 US3: pinned root (oldest of the task_id), reply Omnibox, newest-first replies, live. */
 const pane = useLiveFeed('pane')
+const { t } = useI18n({ useScope: 'global' })
+const localePath = useLocalePath()
 const thread = useThreadStore()
 const replies = computed(() => applyVerbosity(pane.thread.replies, thread.verbosity))
 

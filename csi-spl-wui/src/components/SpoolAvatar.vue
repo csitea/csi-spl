@@ -12,7 +12,7 @@
 </template>
 
 <script setup lang="ts">
-import { avatarAlt, avatarDataUri, avatarImageUrl, isHuman, loadAvatarBlobUrl, loadAvatarFiles } from '~/utils/avatar.mjs'
+import { avatarAltKey, avatarDataUri, avatarImageUrl, isHuman, loadAvatarBlobUrl, loadAvatarFiles } from '~/utils/avatar.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 
 /*
@@ -32,7 +32,11 @@ const shown = ref('')
 const fallback = computed(() => avatarDataUri(props.id, props.box))
 const picture = computed(() => (api.mock ? '' : avatarImageUrl(api.base, props.id, props.box, files.value)))
 const src = computed(() => shown.value || fallback.value)
-const alt = computed(() => avatarAlt(props.id, props.box))
+const { t } = useI18n({ useScope: 'global' })
+const alt = computed(() => {
+  const a = avatarAltKey(props.id, props.box)
+  return t(a.key, a.params)
+})
 
 watch(picture, async (url) => {
   shown.value = ''

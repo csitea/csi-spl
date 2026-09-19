@@ -3,15 +3,15 @@
     <header class="feed-header">
       <span class="dot" :class="{ on: online }" />
       <h2>{{ peer }}</h2>
-      <span class="muted">{{ online ? 'online' : 'offline · queued' }}</span>
+      <span class="muted">{{ online ? t('pages.dm.online') : t('pages.dm.offline_queued') }}</span>
     </header>
     <MessageComposer
       omnibox
-      :placeholder="'Message ' + peer + ' — Enter to send · /search to filter'"
+      :placeholder="t('pages.message_placeholder', { target: peer })"
       @send="onSend"
       @search="channel.setSearch"
     />
-    <MessageFeed :label="peer + ', newest first'" />
+    <MessageFeed :label="t('pages.feed_label', { target: peer })" />
   </div>
 </template>
 
@@ -24,6 +24,7 @@ const route = useRoute()
 const channel = useChannelStore()
 const roster = useRosterStore()
 const events = useSpoolEvents()
+const { t } = useI18n({ useScope: 'global' })
 const peer = computed(() => decodeURIComponent(String(route.params.peer || '')))
 const online = computed(() => {
   const [id, box] = peer.value.split('@')

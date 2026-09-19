@@ -2,21 +2,21 @@
   <div class="feed-col">
     <header class="feed-header">
       <h2># lobby</h2>
-      <span class="muted">live · {{ live.state.value }} · you are {{ live.identity.value || '…' }}</span>
+      <span class="muted">{{ t('pages.lobby.status', { state: stateLabel(live.state.value), who: live.identity.value || '…' }) }}</span>
     </header>
     <MessageComposer
       omnibox
-      placeholder="Message #lobby — Enter to send · /search to filter"
+      :placeholder="t('pages.message_placeholder', { target: '#lobby' })"
       :busy="store.sending"
       @send="onSend"
       @search="store.setSearch"
     />
     <div class="feed-body">
-      <p v-if="!lobbyId" class="muted">No lobby configured (NUXT_PUBLIC_LOBBY_TASK_ID, or the hub welcome).</p>
+      <p v-if="!lobbyId" class="muted">{{ t('pages.lobby.no_lobby', { env: 'NUXT_PUBLIC_LOBBY_TASK_ID' }) }}</p>
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="lobbyId && store.open(lobbyId)" />
       <ErrorNotice v-if="store.error" :message="store.error" source="lobby" test-id="lobby-error" />
       <LiveFeed
-        label="#lobby, newest first"
+        :label="t('pages.feed_label', { target: '#lobby' })"
         :rows="store.newestFirst"
         :has-older="store.hasOlder"
         :loading="store.loading"
@@ -41,6 +41,9 @@ const store = useLiveFeed('main')
 const pane = useLiveFeed('pane')
 const live = useLive()
 const notes = useNotificationStore()
+const { t, te } = useI18n({ useScope: 'global' })
+/** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
+const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
 const lobbyId = computed(() => live.lobbyTaskId.value)
 
 onMounted(() => {

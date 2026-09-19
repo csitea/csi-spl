@@ -1,10 +1,10 @@
 <template>
   <div class="notify-box">
     <button class="btn ghost" type="button" @click="notes.requestPush()">
-      {{ notes.permission === 'granted' ? 'alerts on' : 'enable alerts' }}
+      {{ notes.permission === 'granted' ? t('notify.alerts_on') : t('notify.enable_alerts') }}
     </button>
     <label class="muted">
-      <input v-model="notes.chime" type="checkbox"> chime
+      <input v-model="notes.chime" type="checkbox"> {{ t('notify.chime') }}
     </label>
   </div>
 </template>
@@ -13,6 +13,7 @@
 import { useNotificationStore } from '~/stores/notification'
 
 const notes = useNotificationStore()
+const { t } = useI18n({ useScope: 'global' })
 </script>
 
 <style scoped>

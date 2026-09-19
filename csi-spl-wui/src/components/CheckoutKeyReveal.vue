@@ -5,14 +5,18 @@
 <template>
   <div data-test="checkout-key-reveal">
     <p class="login-error" role="alert" data-test="checkout-key-warning">
-      This is the only time this key is shown. It is not emailed and the hub does not keep it.
-      Save it as a file readable only by you (mode 0600) and point <code>SPOOL_TENANT_ROOT_KEY</code> at it.
+      {{ t('checkout.key.warning_once') }}
+      <i18n-t keypath="checkout.key.warning_save" tag="span" scope="global">
+        <template #var><code>SPOOL_TENANT_ROOT_KEY</code></template>
+      </i18n-t>
     </p>
-    <p>Tenant: <a :href="tenantUrl" rel="noopener" data-test="checkout-tenant-url">{{ tenantUrl }}</a></p>
+    <i18n-t keypath="checkout.key.tenant" tag="p" scope="global">
+      <template #url><a :href="tenantUrl" rel="noopener" data-test="checkout-tenant-url">{{ tenantUrl }}</a></template>
+    </i18n-t>
     <pre class="checkout-key__text" data-test="checkout-key">{{ keyText }}</pre>
     <div class="checkout-key__actions">
-      <button class="btn" type="button" data-test="checkout-key-copy" @click="copyKey">{{ copied ? 'Copied' : 'Copy key' }}</button>
-      <button class="btn ghost" type="button" data-test="checkout-key-download" @click="downloadKey">Download key</button>
+      <button class="btn" type="button" data-test="checkout-key-copy" @click="copyKey">{{ copied ? t('common.copied') : t('checkout.key.copy') }}</button>
+      <button class="btn ghost" type="button" data-test="checkout-key-download" @click="downloadKey">{{ t('checkout.key.download') }}</button>
     </div>
   </div>
 </template>
@@ -22,6 +26,7 @@ import { ref } from 'vue'
 import { keyFileName } from '~/utils/checkout-client.mjs'
 
 const props = defineProps<{ keyText: string, tenantUrl: string, tenantId: string }>()
+const { t } = useI18n({ useScope: 'global' })
 const copied = ref(false)
 
 async function copyKey() {

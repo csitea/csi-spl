@@ -5,7 +5,7 @@
         v-if="pickerOpen"
         class="mention-list"
         role="listbox"
-        aria-label="Mention suggestions"
+        :aria-label="t('composer.mention_suggestions')"
       >
         <li v-for="(p, i) in candidates" :key="p.label">
           <button
@@ -24,7 +24,7 @@
       </ul>
       <textarea
         ref="inputEl"
-        :aria-label="omnibox ? 'Omnibox: message, or /search to filter' : 'Message'"
+        :aria-label="omnibox ? t('composer.omnibox_label') : t('composer.message_label')"
         v-model="text"
         rows="2"
         :placeholder="placeholder"
@@ -36,16 +36,16 @@
       />
       <ul v-if="picked.length" class="file-chips">
         <li v-for="(f, i) in picked" :key="f.name + i">
-          📎 {{ f.name }} <small>{{ f.size }} B</small>
-          <button type="button" class="btn ghost" :aria-label="'Remove ' + f.name" @click="picked.splice(i, 1)">×</button>
+          📎 {{ f.name }} <small>{{ t('composer.file_bytes', { n: f.size }) }}</small>
+          <button type="button" class="btn ghost" :aria-label="t('composer.remove_file', { name: f.name })" @click="picked.splice(i, 1)">×</button>
         </li>
       </ul>
       <div class="composer-row">
         <label class="muted attach">
           <input type="file" multiple hidden data-testid="attach" @change="onFiles">
-          📎 attach
+          📎 {{ t('composer.attach') }}
         </label>
-        <button type="submit" :disabled="busy || (!text.trim() && !picked.length)">{{ busy ? 'Sending…' : 'Send' }}</button>
+        <button type="submit" :disabled="busy || (!text.trim() && !picked.length)">{{ busy ? t('composer.sending') : t('composer.send') }}</button>
       </div>
     </div>
   </form>
@@ -75,7 +75,8 @@ const inputEl = ref<HTMLTextAreaElement | null>(null)
 const mentionQuery = ref<string | null>(null)
 const activeIdx = ref(0)
 
-const placeholder = computed(() => props.placeholder || 'Message — @CLE-07 to task an agent')
+const { t } = useI18n({ useScope: 'global' })
+const placeholder = computed(() => props.placeholder || t('composer.placeholder_default', { mention: '@CLE-07' }))
 
 function caret(): number {
   return inputEl.value?.selectionStart ?? text.value.length

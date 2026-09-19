@@ -29,12 +29,12 @@
         <h2 class="err__suggest-title">{{ t('error.suggestions_title') }}</h2>
         <ul class="err__suggest-list">
           <li v-for="s in suggestions" :key="s.path">
-            <a :href="s.path" class="err__link">{{ t(s.label) }}</a>
+            <a :href="localePath(s.path)" class="err__link">{{ t(s.label) }}</a>
           </li>
         </ul>
       </nav>
 
-      <a href="/" class="err__home" data-test="error-home-link">
+      <a :href="localePath('/')" class="err__home" data-test="error-home-link">
         {{ t('error.back_home') }}
       </a>
     </section>
@@ -47,7 +47,8 @@ import ErrorNotice from '@/components/common/ErrorNotice.vue'
 
 const props = defineProps<{ error: NuxtError }>()
 
-const { t } = useI18n({ useScope: 'global' })
+const { t, locales } = useI18n({ useScope: 'global' })
+const localePath = useLocalePath()
 
 const statusCode = computed(() => Number(props.error?.statusCode) || 404)
 const is404 = computed(() => statusCode.value === 404)
@@ -93,9 +94,13 @@ function levenshtein(a: string, b: string): number {
   return prev[n]!
 }
 
-// "/Lobyy/" → "lobyy" (slashes and case stripped).
+// "/Lobyy/" → "lobyy" (slashes and case stripped); a leading locale prefix
+// ("/fi/lobyy", spec 021) is dropped so it does not count as a typo.
+const LOCALE_CODES = computed(() => new Set<string>(locales.value.map((l) => (typeof l === 'string' ? l : l.code))))
 function normalize(path: string): string {
-  return path.toLowerCase().replace(/\/+$/, '').replace(/^\/+/, '')
+  const p = path.toLowerCase().replace(/\/+$/, '').replace(/^\/+/, '')
+  const head = p.split('/')[0] || ''
+  return LOCALE_CODES.value.has(head) ? p.slice(head.length).replace(/^\/+/, '') : p
 }
 
 // Naive similarity: prefix/substring match wins, else relative edit distance.

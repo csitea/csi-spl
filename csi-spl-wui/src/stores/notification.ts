@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import {
   escalateReason,
   channelKey,
-  notifyCopy,
+  notifyCopyKey,
   loadChime,
   saveChime,
   previewUnread,
@@ -43,6 +43,14 @@ export const useNotificationStore = defineStore('notification', () => {
   /** Unread HUM-* mentions per key (spec 005 FR-012 "high-priority mention indicators"). */
   const mentions = ref<Record<string, number>>({})
   const seen = new Set<string>()
+  /* the global i18n instance, captured while the Nuxt app is in context (stores have no component) */
+  const i18n = useNuxtApp().$i18n
+
+  /** Browser-notification title + body for one escalated message, in the active UI locale. */
+  function copyFor(m: Msg, reason: string) {
+    const c = notifyCopyKey(m, reason)
+    return { title: i18n.t(c.titleKey, c.params), body: c.body }
+  }
 
   if (import.meta.client) {
     permission.value = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
@@ -138,7 +146,7 @@ export const useNotificationStore = defineStore('notification', () => {
         if (import.meta.client && typeof document !== 'undefined' && document.hidden) {
           const reason = escalateReason(m, ctx)
           if (reason) {
-            const copy = notifyCopy(m, reason)
+            const copy = copyFor(m, reason)
             ping(copy.title, copy.body)
           }
         }
@@ -147,7 +155,7 @@ export const useNotificationStore = defineStore('notification', () => {
       const reason = escalateReason(m, ctx)
       bump(key, reason)
       if (reason) {
-        const copy = notifyCopy(m, reason)
+        const copy = copyFor(m, reason)
         ping(copy.title, copy.body)
       }
     }

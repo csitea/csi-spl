@@ -2,10 +2,10 @@
   <button
     class="theme-toggle"
     type="button"
-    :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+    :aria-label="theme === 'dark' ? t('theme.to_light') : t('theme.to_dark')"
     @click="toggle"
   >
-    {{ theme === 'dark' ? 'Light' : 'Dark' }}
+    {{ theme === 'dark' ? t('theme.light') : t('theme.dark') }}
   </button>
 </template>
 
@@ -13,4 +13,5 @@
 import { useTheme } from '~/composables/useTheme'
 
 const { theme, toggle } = useTheme()
+const { t } = useI18n({ useScope: 'global' })
 </script>

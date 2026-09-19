@@ -73,6 +73,20 @@ export function notifyCopy(msg, reason) {
   return { title: from, body }
 }
 
+/**
+ * i18n sibling of notifyCopy: the same title as a catalogue key + params
+ * (`notify.title_*`), the body untouched (it is message data). Components and
+ * stores translate the key; notifyCopy stays the English reference.
+ */
+export function notifyCopyKey(msg, reason) {
+  const from = String((msg && msg.from) || 'spool')
+  const body = String((msg && msg.body) || '').slice(0, 140)
+  if (reason === 'alerts') return { titleKey: 'notify.title_alerts', params: { from }, body }
+  if (reason === 'dm') return { titleKey: 'notify.title_dm', params: { from }, body }
+  if (reason === 'mention') return { titleKey: 'notify.title_mention', params: { from }, body }
+  return { titleKey: 'notify.title_other', params: { from }, body }
+}
+
 export function loadChime(store) {
   return storageGet(CHIME_KEY, '0', store) === '1'
 }

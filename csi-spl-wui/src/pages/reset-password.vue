@@ -5,34 +5,38 @@
      marks the email verified but opens no session: the person signs in. -->
 <template>
   <div class="login-card" data-test="reset-password" :data-reset-state="state">
-    <h1>New password</h1>
-    <p v-if="state === 'ok'" role="status" data-test="reset-password-ok">Your password is set — sign in with it.</p>
-    <p v-else-if="token.missing.value && !held" class="login-error" role="alert">This link carries no token — ask for a new reset link.</p>
+    <h1>{{ t('auth.reset.title') }}</h1>
+    <p v-if="state === 'ok'" role="status" data-test="reset-password-ok">{{ t('auth.reset.ok') }}</p>
+    <p v-else-if="token.missing.value && !held" class="login-error" role="alert">{{ t('auth.reset.missing') }}</p>
     <form v-else class="reset-password__form" novalidate @submit.prevent="submit">
       <label class="reset-password__field">
-        <span>New password</span>
+        <span>{{ t('auth.reset.new') }}</span>
         <input v-model="password" type="password" autocomplete="new-password" required data-test="reset-password-new">
       </label>
       <label class="reset-password__field">
-        <span>Repeat it</span>
+        <span>{{ t('auth.reset.repeat') }}</span>
         <input v-model="repeat" type="password" autocomplete="new-password" required data-test="reset-password-repeat">
       </label>
       <p v-if="error" class="login-error" role="alert" data-test="reset-password-error">{{ error }}</p>
-      <button class="btn" type="submit" :disabled="busy || !held" data-test="reset-password-submit">Set password</button>
+      <button class="btn" type="submit" :disabled="busy || !held" data-test="reset-password-submit">{{ t('auth.reset.submit') }}</button>
     </form>
-    <p><NuxtLink to="/login">Go to sign in</NuxtLink></p>
+    <p><NuxtLink :to="localePath('/login')">{{ t('auth.go_to_sign_in') }}</NuxtLink></p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { nativeErrorMessage } from '~/utils/auth-client.mjs'
+import { computed, ref, watch } from 'vue'
+import type { NativeResult } from '~/utils/auth-client.mjs'
 import { useSettledQuery } from '~/composables/useSettledQuery'
 import { useAuthClient } from '~/composables/useAuthClient'
+import { useAuthCopy } from '~/composables/useAuthCopy'
 
 definePageMeta({ layout: 'login' })
 
 const auth = useAuthClient()
+const { t } = useI18n({ useScope: 'global' })
+const localePath = useLocalePath()
+const copy = useAuthCopy()
 
 const route = useRoute()
 const router = useRouter()
@@ -41,16 +45,20 @@ const held = ref('')
 const password = ref('')
 const repeat = ref('')
 const busy = ref(false)
-const error = ref('')
+/* a catalogue key (local check) or the failed call, rendered in the active locale (spec 021) */
+const errorKey = ref('')
+const errorOut = ref<NativeResult | null>(null)
+const error = computed(() => (errorKey.value ? t(errorKey.value) : copy.nativeError(errorOut.value)))
 const state = ref<'form' | 'ok'>('form')
 
 watch(token.value, (tok) => { if (tok && !held.value) held.value = tok }, { immediate: true })
 
 async function submit() {
   if (busy.value || !held.value) return
-  error.value = ''
+  errorKey.value = ''
+  errorOut.value = null
   if (password.value !== repeat.value) {
-    error.value = 'The two passwords differ.'
+    errorKey.value = 'auth.reset.mismatch'
     return
   }
   busy.value = true
@@ -68,7 +76,7 @@ async function submit() {
       repeat.value = ''
       return
     }
-    error.value = nativeErrorMessage(out)
+    errorOut.value = out
   } finally {
     busy.value = false
   }

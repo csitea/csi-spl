@@ -2,10 +2,10 @@
   <div class="file-card">
     <div>
       <div>{{ file.name }}</div>
-      <small>{{ size }} · sha256 {{ shortHash }}</small>
+      <small>{{ t('feed.file_meta', { size, hash: shortHash }) }}</small>
     </div>
     <a v-if="linkable" class="btn ghost" :href="href" :download="file.name" @click.prevent="onDownload">{{ label }}</a>
-    <small v-else :title="file.path">on-box path · {{ file.path }}</small>
+    <small v-else :title="file.path">{{ t('feed.on_box_path', { path: file.path }) }}</small>
   </div>
 </template>
 
@@ -19,25 +19,28 @@ import type { FileRef } from '~/types/spool'
 const props = defineProps<{ file: FileRef }>()
 
 const api = useSpoolApi()
-const size = computed(() => formatBytes(props.file.bytes))
+const { t, locale } = useI18n({ useScope: 'global' })
+const size = computed(() => formatBytes(props.file.bytes, locale.value))
 const shortHash = computed(() => String(props.file.sha256 || props.file.file_id || '').slice(0, 12))
 /* spec 005 US3: only mode "blob" has bytes on the hub; mode "path" never left the box */
 const linkable = computed(() => isDownloadable(props.file))
 const href = computed(() => api.fileUrl(props.file.file_id || props.file.sha256 || ''))
-const label = ref('Download')
+/** Download button state; the label is its translation (feed.download.*). */
+const status = ref<'idle' | 'busy' | 'mismatch' | 'done' | 'failed'>('idle')
+const label = computed(() => t('feed.download.' + status.value))
 
 /**
  * Cross-origin <a download> is ignored by browsers, so fetch the bytes, check
  * sha256 against the message (the box CLI refuses a mismatch too), then save.
  */
 async function onDownload() {
-  label.value = 'Downloading…'
+  status.value = 'busy'
   try {
     const buf = await api.downloadFile(props.file.file_id || props.file.sha256 || '')
     const got = await sha256Hex(buf)
     const want = String(props.file.sha256 || props.file.file_id || '')
     if (want && got !== want) {
-      label.value = 'sha256 mismatch'
+      status.value = 'mismatch'
       return
     }
     const url = URL.createObjectURL(new Blob([buf]))
@@ -48,9 +51,9 @@ async function onDownload() {
     a.click()
     a.remove()
     setTimeout(() => URL.revokeObjectURL(url), 10000)
-    label.value = 'Downloaded ✓'
+    status.value = 'done'
   } catch {
-    label.value = 'Download failed'
+    status.value = 'failed'
   }
 }
 </script>

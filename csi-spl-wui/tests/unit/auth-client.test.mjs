@@ -49,9 +49,13 @@ describe('auth-v1 helpers (spec 010)', () => {
 
   it('keeps redirects same-site', () => {
     assert.equal(safeRedirect('/t/abc?x=1'), '/t/abc?x=1')
-    for (const bad of ['https://evil.example', '//evil.example', '/\\evil', 'javascript:alert(1)', '', '/login?x']) {
+    for (const bad of ['https://evil.example', '//evil.example', '/\\evil', 'javascript:alert(1)', '', '/login?x',
+      '/fi/login', '/he/login?x', '/sv/login/', '/FI/login#a']) {
       assert.equal(safeRedirect(bad), '/', bad)
     }
+    // a locale-prefixed page that merely starts with "login" is a real page
+    assert.equal(safeRedirect('/fi/loginx'), '/fi/loginx')
+    assert.equal(safeRedirect('/fi/t/abc'), '/fi/t/abc')
   })
 
   it('builds a plain start link with redirect and an optional DNS-label tenant', () => {
@@ -306,7 +310,7 @@ describe('native sign-in pages (spec 015 A4, native-auth-v1 §2–§4)', () => {
     assert.ok(form.includes("status.value = out.native ? 'on' : 'off'"), 'gated on providers.native')
     assert.ok(form.includes('v-if="status === \'on\'"'))
     assert.ok(form.includes(':data-native-auth="status"'))
-    for (const fn of ['auth.login(', 'auth.register(', 'auth.forgotPassword(', 'nativeErrorMessage(']) assert.ok(form.includes(fn), fn)
+    for (const fn of ['auth.login(', 'auth.register(', 'auth.forgotPassword(', 'nativeError(']) assert.ok(form.includes(fn), fn)
     const change = read('src/components/ChangePasswordForm.vue')
     assert.ok(change.includes('auth.changePassword('))
     assert.ok(change.includes('session.signedOut()'), '204 clears the cookie')

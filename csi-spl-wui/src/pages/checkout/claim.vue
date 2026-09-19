@@ -6,30 +6,30 @@
      key is rendered exactly like the success page and lives only in memory. -->
 <template>
   <div class="login-card" data-test="checkout-claim" :data-claim-state="state">
-    <h1>Your spool</h1>
-    <p v-if="state === 'claiming'" class="muted" role="status" data-test="checkout-claiming">Collecting your key…</p>
+    <h1>{{ t('checkout.your_spool') }}</h1>
+    <p v-if="state === 'claiming'" class="muted" role="status" data-test="checkout-claiming">{{ t('checkout.claim.claiming') }}</p>
     <CheckoutKeyReveal v-else-if="state === 'ok'" :key-text="keyText" :tenant-url="tenantUrl" :tenant-id="tenantId" />
     <p v-else-if="state === 'claimed'" role="status" data-test="checkout-claimed">
-      This key was already collected — on the success page or from this link. The hub does not keep it.
+      {{ t('checkout.claim.claimed') }}
     </p>
     <p v-else-if="state === 'expired'" class="login-error" role="alert" data-test="checkout-expired">
-      This link has expired — contact support to re-key the tenant.
+      {{ t('checkout.claim.expired') }}
     </p>
     <p v-else-if="state === 'bad_link'" class="login-error" role="alert" data-test="checkout-bad-link">
-      This link is incomplete — open the link from the email again.
+      {{ t('checkout.error.bad_link') }}
     </p>
     <template v-else-if="state === 'error'">
       <p class="login-error" role="alert" data-test="checkout-claim-error">{{ error }}</p>
-      <button v-if="retryable" class="btn" type="button" data-test="checkout-claim-retry" @click="retry">Try again</button>
+      <button v-if="retryable" class="btn" type="button" data-test="checkout-claim-retry" @click="retry">{{ t('checkout.try_again') }}</button>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import CheckoutKeyReveal from '~/components/CheckoutKeyReveal.vue'
 import {
-  checkoutErrorMessage,
+  checkoutErrorKey,
   claimOnce,
   createCheckoutClient,
   readClaimFragment,
@@ -42,8 +42,14 @@ import {
 definePageMeta({ layout: 'login', scrollToTop: false })
 
 const client = createCheckoutClient()
+const { t } = useI18n({ useScope: 'global' })
 const state = ref<'claiming' | 'ok' | 'claimed' | 'expired' | 'bad_link' | 'error'>('claiming')
-const error = ref('')
+/* a checkout error code, rendered through the catalogue (spec 021) */
+const errorCode = ref('')
+const error = computed(() => {
+  const k = checkoutErrorKey(errorCode.value)
+  return k ? t(k.key, k.params) : ''
+})
 const retryable = ref(false)
 const keyText = shallowRef('')
 const tenantId = ref('')
@@ -83,7 +89,7 @@ async function claim() {
     return
   }
   const code = out.state === 'error' ? out.error : 'unavailable'
-  error.value = checkoutErrorMessage(code === 'not_found' ? 'bad_link' : code)
+  errorCode.value = code === 'not_found' ? 'bad_link' : code
   // a lost connection or a 5xx may be retried by a click; a wrong link, a
   // conflict or an unpaid checkout may not
   retryable.value = !['not_found', 'conflict', 'not_paid'].includes(code)

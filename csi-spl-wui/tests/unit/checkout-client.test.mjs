@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url'
 import {
   CHECKOUT_STORE_CLAIM,
   CHECKOUT_STORE_ID,
+  checkoutErrorCopy,
+  checkoutErrorKey,
   checkoutErrorMessage,
   checkoutMode,
   claimOnce,
@@ -106,9 +108,25 @@ describe('checkout-v1 client', () => {
     assert.equal(checkoutErrorMessage(''), '')
   })
 
+  it('spec 021: every error code has a catalogue key whose English is the copy', () => {
+    const copy = checkoutErrorCopy()
+    for (const code of [...Object.keys(copy).filter((c) => c !== 'generic'), 'weird', TOKEN]) {
+      const k = checkoutErrorKey(code)
+      const leaf = k.key.replace(/^checkout\.error\./, '')
+      assert.equal(copy[leaf], checkoutErrorMessage(code), code)
+      assert.ok(!k.key.includes(TOKEN), 'a code never becomes a key')
+    }
+    assert.equal(checkoutErrorKey(''), null)
+    assert.equal(checkoutErrorKey('toString').key, 'checkout.error.generic')
+  })
+
   it('formats price and file name', () => {
     assert.equal(formatPrice(2000, 'eur'), '20.00 EUR')
     assert.equal(formatPrice('x', 'eur'), '')
+    // spec 021: the active locale's separators; no locale = unchanged
+    assert.equal(formatPrice(2000, 'eur', 'en'), '20.00 EUR')
+    assert.equal(formatPrice(2000, 'eur', 'fi'), '20,00 EUR')
+    assert.equal(formatPrice(2000, 'eur', 'not a locale!'), '20.00 EUR')
     assert.equal(keyFileName('acme'), 'acme.root.key')
     assert.equal(keyFileName('../etc'), 'tenant.root.key')
   })
@@ -298,7 +316,15 @@ describe('source + build output: where secrets may never go', () => {
       const src = code(read(f))
       assert.ok(!/emailed to you|was also emailed|\bemailed\b\s*\?/i.test(src), `${f}: says the key was emailed`)
     }
-    assert.match(read('src/components/CheckoutKeyReveal.vue'), /It is not emailed and the hub does not keep it/)
+    // spec 021: the warning lives in the catalogue; the component must render
+    // that key, and the English copy must say it
+    assert.match(read('src/components/CheckoutKeyReveal.vue'), /t\('checkout\.key\.warning_once'\)/)
+    const en = JSON.parse(read('i18n/locales/en.json'))
+    const once = en.checkout && en.checkout.key && en.checkout.key.warning_once
+    assert.match(String(once), /It is not emailed and the hub does not keep it/)
+    for (const v of Object.values((en.checkout && en.checkout.key) || {})) {
+      assert.ok(!/emailed to you|was also emailed/i.test(String(v)), 'en copy says the key was emailed')
+    }
   })
 
   it('the success page keeps the key in memory and clears it on leave', () => {

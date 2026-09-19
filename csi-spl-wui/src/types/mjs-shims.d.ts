@@ -115,11 +115,12 @@ declare module '~/utils/channel-feed.mjs' {
   export function displayName(id: string, box?: string): string
   export function initials(id: string): string
   export function hueFor(id: string): number
-  export function formatBytes(n: number | undefined): string
-  export function formatTs(ts: string): string
+  export function formatBytes(n: number | undefined, locale?: string): string
+  export function formatTs(ts: string, locale?: string): string
   export function renderBody(src: string): string
   export function channelSlug(name: string): string
   export function retentionLabel(row: { channel_id?: string, channel?: string, retention_days?: number }): string
+  export function retentionDays(row: { channel_id?: string, channel?: string, retention_days?: number }): number
   export function connectionHealth(state: string): 'ok' | 'warn' | 'down'
   export function feedRow<T>(row: T): T
   export function belongsTo(msg: unknown, where: { channel?: string | null, peer?: string | null }): boolean
@@ -224,6 +225,7 @@ declare module '~/utils/avatar.mjs' {
   export function avatarFilesFromView(data: unknown): Record<string, string>
   export function avatarImageUrl(base: string, id: string, box: string | undefined, files: Record<string, string>): string
   export function avatarAlt(id: string, box?: string): string
+  export function avatarAltKey(id: string, box?: string): { key: string, params: Record<string, string> }
   export const AVATAR_FILES_TTL_MS: number
   export function loadAvatarFiles(o?: {
     base?: string
@@ -264,7 +266,9 @@ declare module '~/utils/checkout-client.mjs' {
     fakePay(id: string): Promise<CheckoutResult>
   }
   export function checkoutErrorMessage(code: string): string
-  export function formatPrice(cents: unknown, currency: unknown): string
+  export function checkoutErrorKey(code: string): { key: string, params: Record<string, unknown> } | null
+  export function checkoutErrorCopy(): Record<string, string>
+  export function formatPrice(cents: unknown, currency: unknown, locale?: string): string
   export function checkoutMode(plan: Record<string, unknown> | null | undefined): 'fake' | 'none' | 'unsupported'
   export function keyFileName(tenant: string): string
   export function readClaimFragment(hash: string): { id: string, token: string }
@@ -300,6 +304,8 @@ declare module '~/utils/user-menu.mjs' {
   export function avatarMode(claims: unknown): 'member' | 'initials' | 'silhouette'
   export function methodLabel(p: unknown): string
   export function menuButtonLabel(claims: unknown): string
+  export function methodLabelKey(p: unknown): { key: string, params: Record<string, unknown> }
+  export function menuButtonLabelKey(claims: unknown): { key: string, params: Record<string, unknown> }
   export function nextMenuIndex(current: number, key: string, count: number): number
   export function signInRedirect(fullPath: string): string
 }

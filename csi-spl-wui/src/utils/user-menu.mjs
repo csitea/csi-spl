@@ -62,6 +62,26 @@ export function menuButtonLabel(claims) {
   return primary ? `Account menu for ${primary}` : 'Account menu'
 }
 
+// ── spec 021: catalogue keys for the copy above ────────────────────────────
+// The components render these through t(); the English functions above stay
+// the en source and tests/unit/user-menu.test.mjs pins the pairing.
+
+/** { key, params } for methodLabel(p): brand / provider names ride as {name}. */
+export function methodLabelKey(p) {
+  const k = String(p || '').trim().toLowerCase()
+  if (!k) return { key: 'user_menu.method_unknown', params: {} }
+  if (k === 'password') return { key: 'user_menu.method_password', params: {} }
+  return { key: 'user_menu.method_named', params: { name: methodLabel(p) } }
+}
+
+/** { key, params } for menuButtonLabel(claims). */
+export function menuButtonLabelKey(claims) {
+  const { primary } = userIdentity(claims)
+  return primary
+    ? { key: 'user_menu.account_menu_for', params: { who: primary } }
+    : { key: 'user_menu.account_menu', params: {} }
+}
+
 /**
  * WAI-ARIA menu-button keys: the next focused item index, or -1 to close.
  * Arrow keys wrap; Home/End jump; Escape and Tab close.
@@ -80,8 +100,11 @@ export function nextMenuIndex(current, key, count) {
   }
 }
 
-/** The path to come back to after sign-in: same-origin, never /login itself. */
+/**
+ * The path to come back to after sign-in: same-origin, never /login itself,
+ * nor its locale-prefixed form (/fi/login, spec 021).
+ */
 export function signInRedirect(fullPath) {
   const p = String(fullPath || '/')
-  return p.startsWith('/') && !p.startsWith('//') && !/^\/login(?:[/?#]|$)/.test(p) ? p : '/'
+  return p.startsWith('/') && !p.startsWith('//') && !/^(?:\/[a-z]{2})?\/login(?:[/?#]|$)/i.test(p) ? p : '/'
 }

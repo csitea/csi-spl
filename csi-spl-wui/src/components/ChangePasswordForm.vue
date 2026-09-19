@@ -3,25 +3,26 @@
      again with the new password. -->
 <template>
   <form class="native-auth__form change-password" data-test="change-password" novalidate @submit.prevent="submit">
-    <h2 class="change-password__title">Change password</h2>
+    <h2 class="change-password__title">{{ t('auth.change_password.title') }}</h2>
     <label class="native-auth__field">
-      <span>Current password</span>
+      <span>{{ t('auth.change_password.current') }}</span>
       <input v-model="current" type="password" autocomplete="current-password" required data-test="change-password-current">
     </label>
     <label class="native-auth__field">
-      <span>New password</span>
+      <span>{{ t('auth.change_password.new') }}</span>
       <input v-model="next" type="password" autocomplete="new-password" required data-test="change-password-new">
     </label>
     <p v-if="error" class="login-error" role="alert" data-test="change-password-error">{{ error }}</p>
-    <button class="btn" type="submit" :disabled="busy" data-test="change-password-submit">Change password</button>
+    <button class="btn" type="submit" :disabled="busy" data-test="change-password-submit">{{ t('auth.change_password.submit') }}</button>
   </form>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { nativeErrorMessage } from '~/utils/auth-client.mjs'
+import { computed, ref } from 'vue'
+import type { NativeResult } from '~/utils/auth-client.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
+import { useAuthCopy } from '~/composables/useAuthCopy'
 
 const emit = defineEmits<{ changed: [] }>()
 const auth = useAuthClient()
@@ -29,16 +30,20 @@ const session = useSessionStore()
 const current = ref('')
 const next = ref('')
 const busy = ref(false)
-const error = ref('')
+const { t } = useI18n({ useScope: 'global' })
+const copy = useAuthCopy()
+/* the failed call, rendered in the active locale (spec 021) */
+const errorOut = ref<NativeResult | null>(null)
+const error = computed(() => copy.nativeError(errorOut.value))
 
 async function submit() {
   if (busy.value) return
   busy.value = true
-  error.value = ''
+  errorOut.value = null
   try {
     const out = await auth.changePassword({ current: current.value, next: next.value })
     if (!out.ok) {
-      error.value = nativeErrorMessage(out)
+      errorOut.value = out
       if (out.error === 'unauthenticated') session.signedOut()
       return
     }

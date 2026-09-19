@@ -46,16 +46,41 @@ export function hueFor(id) {
   return h % 360
 }
 
-export function formatBytes(n) {
+/**
+ * Byte size for a file card. `locale` (optional, the active UI locale) formats
+ * the number with that locale's separators; without it the output is unchanged
+ * ("2.0 KiB"). The unit symbols are technical and never translated.
+ */
+export function formatBytes(n, locale) {
   const v = Number(n) || 0
-  if (v < 1024) return `${v} B`
-  if (v < 1024 * 1024) return `${(v / 1024).toFixed(1)} KiB`
-  return `${(v / (1024 * 1024)).toFixed(1)} MiB`
+  const fmt = (x, digits) => {
+    if (!locale) return digits ? x.toFixed(digits) : String(x)
+    try {
+      return new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(x)
+    } catch {
+      return digits ? x.toFixed(digits) : String(x)
+    }
+  }
+  if (v < 1024) return `${fmt(v, 0)} B`
+  if (v < 1024 * 1024) return `${fmt(v / 1024, 1)} KiB`
+  return `${fmt(v / (1024 * 1024), 1)} MiB`
 }
 
-export function formatTs(ts) {
+/**
+ * HH:MM (UTC) of a message timestamp. `locale` (optional, the active UI
+ * locale) formats it the way that locale writes a time of day; without it the
+ * output is unchanged (ISO "14:05").
+ */
+export function formatTs(ts, locale) {
   const d = new Date(ts)
   if (Number.isNaN(d.getTime())) return String(ts || '')
+  if (locale) {
+    try {
+      return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(d)
+    } catch {
+      /* unknown locale tag: fall through to the ISO form */
+    }
+  }
   return d.toISOString().slice(11, 16)
 }
 
@@ -83,10 +108,16 @@ export function channelSlug(name) {
 
 /** Sidebar retention label: only #alerts is short-lived (spec 005 FR-012, "7 d"). */
 export function retentionLabel(row) {
+  const d = retentionDays(row)
+  return d ? `${d} d` : ''
+}
+
+/** The number behind retentionLabel (0 = no label), for a translated "{n} d". */
+export function retentionDays(row) {
   const id = String((row && (row.channel_id || row.channel)) || '')
-  if (id !== 'alerts') return ''
+  if (id !== 'alerts') return 0
   const d = Number(row && row.retention_days)
-  return `${Number.isFinite(d) && d > 0 ? d : 7} d`
+  return Number.isFinite(d) && d > 0 ? d : 7
 }
 
 /**

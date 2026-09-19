@@ -1,27 +1,27 @@
 <template>
-  <aside v-if="thread.open" class="thread live-pane" aria-label="Thread">
+  <aside v-if="thread.open" class="thread live-pane" :aria-label="t('thread.title')">
     <header>
-      <strong>Thread</strong>
+      <strong>{{ t('thread.title') }}</strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
         <VerbositySelector />
-        <button class="btn ghost" type="button" @click="thread.close()">Close</button>
+        <button class="btn ghost" type="button" @click="thread.close()">{{ t('common.close') }}</button>
       </div>
     </header>
     <div class="pinned-root">
       <MessageCard v-if="split.root" :msg="split.root" />
-      <p v-else-if="!loading && !loadError" class="muted">Empty thread.</p>
+      <p v-else-if="!loading && !loadError" class="muted">{{ t('thread.empty') }}</p>
     </div>
     <MessageComposer
       omnibox
       :parent-task-id="thread.parentTaskId || undefined"
-      placeholder="Reply — Enter to send · /search to filter"
+      :placeholder="t('thread.reply_placeholder')"
       @send="onSend"
       @search="(q: string) => { search = q }"
     />
     <div class="feed-body">
       <ErrorNotice v-if="loadError" :message="loadError" source="thread" test-id="thread-error" />
       <LiveFeed
-        label="Replies, newest first"
+        :label="t('thread.replies_label')"
         :rows="replies"
         :has-older="false"
         :loading="loading"
@@ -46,6 +46,7 @@ import type { SpoolMessage } from '~/types/spool'
 const thread = useThreadStore()
 const channel = useChannelStore()
 const api = useSpoolApi()
+const { t } = useI18n({ useScope: 'global' })
 
 /*
  * Live: a channel / DM feed row is a thread root only (view-v1 §4.3), so the
@@ -74,7 +75,7 @@ watch(() => [thread.open, thread.parentTaskId] as const, async ([open, id]) => {
     const data = await api.getThread(id) as { messages?: SpoolMessage[] }
     if (thread.parentTaskId === id) liveRows.value = data.messages || []
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : 'thread load failed'
+    loadError.value = e instanceof Error ? e.message : t('thread.load_failed')
   } finally {
     loading.value = false
   }

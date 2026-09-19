@@ -70,19 +70,18 @@
       v-if="status === 'ok' && !providers.length && !native"
       class="muted social-auth__none"
       data-test="social-auth-none"
-    >Sign-in is not available yet.</p>
+    >{{ t('social_auth.not_available') }}</p>
     <p
       v-else-if="status === 'unavailable'"
       class="muted social-auth__none"
       data-test="social-auth-unavailable"
-    >{{ authErrorMessage('unavailable') }}</p>
+    >{{ t('auth.error.unavailable') }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import {
-  authErrorMessage,
   providerName,
   startHref,
 } from '@/utils/auth-client.mjs'

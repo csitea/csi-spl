@@ -37,6 +37,16 @@ const PATHS = [
   { path: '/dm/CLE-07%40box-a', wait: '.spool-shell' },
 ]
 
+// spec 021 FR-007: the same guard in every shipped locale (long strings,
+// he = rtl) at the narrowest viewport, on the sign-in frame and the shell.
+// The default locale is unprefixed and already covered above.
+const LOCALES = (process.env.LOCALES || 'bg,fi,ru,en,sv,he,tr,mk,el,lt,et,lv,sr,ro,uk,sk,pl,es,nl').split(',')
+const DEFAULT_LOCALE = process.env.DEFAULT_LOCALE || 'bg'
+const LOCALE_PATHS = [
+  { path: '/login', wait: '.login-card' },
+  { path: '/lobby', wait: '.spool-shell' },
+]
+
 const results = []
 const ok = (name) => {
   results.push({ name, ok: true })
@@ -434,6 +444,21 @@ function assertNoX(name, dims) {
           const dims = puppeteer
             ? await measurePuppeteer(browser, vp, route, url)
             : await measureCdp(chrome, vp, route, url)
+          assertNoX(label, dims)
+        } catch (e) {
+          fail(label, e.message)
+        }
+      }
+    }
+    const narrow = VIEWPORTS[0]
+    for (const code of LOCALES.filter((c) => c !== DEFAULT_LOCALE)) {
+      for (const r of LOCALE_PATHS) {
+        const route = { ...r, path: `/${code}${r.path}` }
+        const label = `${narrow.name} ${route.path}`
+        try {
+          const dims = puppeteer
+            ? await measurePuppeteer(browser, narrow, route, `${server.base}${route.path}`)
+            : await measureCdp(chrome, narrow, route, `${server.base}${route.path}`)
           assertNoX(label, dims)
         } catch (e) {
           fail(label, e.message)

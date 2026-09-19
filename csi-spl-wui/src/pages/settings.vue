@@ -7,13 +7,13 @@
 <template>
   <div class="feed-col">
     <header class="feed-header">
-      <h2 id="settings-h">Settings</h2>
+      <h2 id="settings-h">{{ t('settings.title') }}</h2>
     </header>
     <div class="feed-body settings" data-test="settings">
-      <p v-if="session.state === 'loading'" class="muted">Loading…</p>
+      <p v-if="session.state === 'loading'" class="muted">{{ t('common.loading') }}</p>
       <template v-else-if="signedIn">
         <section class="settings__card" data-test="settings-profile" aria-labelledby="settings-profile-h">
-          <h3 id="settings-profile-h">Profile</h3>
+          <h3 id="settings-profile-h">{{ t('settings.profile') }}</h3>
           <div class="settings__profile">
             <span class="settings__avatar" :class="'settings__avatar--' + mode" aria-hidden="true">
               <SpoolAvatar v-if="mode === 'member'" :id="me.hum" :size="64" />
@@ -22,63 +22,66 @@
             </span>
             <dl class="settings__facts">
               <template v-if="me.name">
-                <dt>Name</dt>
+                <dt>{{ t('settings.name') }}</dt>
                 <dd data-test="settings-name">{{ me.name }}</dd>
               </template>
               <template v-if="me.email">
-                <dt>Email</dt>
+                <dt>{{ t('settings.email') }}</dt>
                 <dd data-test="settings-email">{{ me.email }}</dd>
               </template>
               <template v-if="me.hum">
-                <dt>Member id</dt>
+                <dt>{{ t('settings.member_id') }}</dt>
                 <dd data-test="settings-hum"><code>{{ me.hum }}</code></dd>
               </template>
               <template v-if="me.tenant">
-                <dt>Workspace</dt>
+                <dt>{{ t('settings.workspace') }}</dt>
                 <dd data-test="settings-tenant"><code>{{ me.tenant }}</code></dd>
               </template>
             </dl>
           </div>
           <p class="muted settings__hint">
-            Your picture is the one your sign-in provider shares; without one the spool draws your identicon.
+            {{ t('settings.picture_hint') }}
           </p>
         </section>
 
         <section id="settings-language" class="settings__card" data-test="settings-language" aria-labelledby="settings-language-h">
-          <h3 id="settings-language-h">Language</h3>
+          <h3 id="settings-language-h">{{ t('settings.language_title') }}</h3>
           <LanguageSetting />
         </section>
 
         <section class="settings__card" data-test="settings-appearance" aria-labelledby="settings-appearance-h">
-          <h3 id="settings-appearance-h">Appearance</h3>
+          <h3 id="settings-appearance-h">{{ t('settings.appearance') }}</h3>
           <div class="settings__row">
-            <span>Theme</span>
+            <span>{{ t('settings.theme') }}</span>
             <ThemeToggle />
           </div>
         </section>
 
         <section class="settings__card" data-test="settings-signin" aria-labelledby="settings-signin-h">
-          <h3 id="settings-signin-h">Sign-in and security</h3>
+          <h3 id="settings-signin-h">{{ t('settings.signin_security') }}</h3>
           <div class="settings__row">
-            <span>Signed in with</span>
-            <strong data-test="settings-method">{{ methodLabel(me.method) }}</strong>
+            <span>{{ t('settings.signed_in_with') }}</span>
+            <strong data-test="settings-method">{{ method }}</strong>
           </div>
           <ChangePasswordForm v-if="me.method === 'password'" @changed="changed = true" />
-          <p v-else class="muted settings__hint">Your password is managed by {{ methodLabel(me.method) }}.</p>
+          <p v-else class="muted settings__hint">{{ t('settings.password_managed_by', { method }) }}</p>
           <div class="settings__actions">
             <button class="btn ghost" type="button" data-test="settings-signout" @click="session.logout()">
-              Sign out
+              {{ t('user_menu.sign_out') }}
             </button>
           </div>
         </section>
       </template>
       <template v-else>
         <p v-if="changed" class="muted" role="status" data-test="settings-password-changed">
-          Password changed — sign in with the new one.
+          {{ t('auth.login.password_changed') }}
         </p>
         <p class="muted" data-test="settings-signed-out">
-          <NuxtLink :to="{ path: localePath('/login'), query: { redirect: '/settings' } }">Sign in</NuxtLink>
-          to see your settings.
+          <i18n-t keypath="settings.signed_out" scope="global">
+            <template #link>
+              <NuxtLink :to="{ path: localePath('/login'), query: { redirect: localePath('/settings') } }">{{ t('nav.login') }}</NuxtLink>
+            </template>
+          </i18n-t>
         </p>
       </template>
     </div>
@@ -88,14 +91,20 @@
 <script setup lang="ts">
 import ChangePasswordForm from '~/components/ChangePasswordForm.vue'
 import { useSessionStore } from '~/stores/session'
-import { avatarMode, methodLabel, userIdentity, userInitials } from '~/utils/user-menu.mjs'
+import { avatarMode, methodLabelKey, userIdentity, userInitials } from '~/utils/user-menu.mjs'
 
 const session = useSessionStore()
 const localePath = useLocalePath()
+const { t } = useI18n({ useScope: 'global' })
 const signedIn = computed(() => session.state === 'in' && !!session.claims)
 const me = computed(() => userIdentity(session.claims))
 const mode = computed(() => avatarMode(session.claims))
 const initials = computed(() => userInitials(session.claims))
+/* the sign-in method in words, in the active locale (spec 021) */
+const method = computed(() => {
+  const k = methodLabelKey(me.value.method)
+  return t(k.key, k.params)
+})
 /* 015 §2 password/change 204 clears the cookie: say why the page went away */
 const changed = ref(false)
 </script>

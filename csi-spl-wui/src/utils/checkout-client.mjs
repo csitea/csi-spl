@@ -34,20 +34,49 @@ const ERRORS = {
   no_token: 'This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.',
   timeout: 'The payment is still not confirmed — reload this page in a minute.',
   network: 'The hub did not answer — try again.',
+  storage_blocked: 'This browser blocks session storage — allow it for this site and try again.',
 }
+
+const GENERIC_ERROR = 'Something went wrong — try again.'
 
 /** Copy for an error token. Never echoes hub `detail` (it could carry input). */
 export function checkoutErrorMessage(code) {
   const c = String(code || '')
   if (!c) return ''
-  return ERRORS[c] || 'Something went wrong — try again.'
+  return ERRORS[c] || GENERIC_ERROR
 }
 
-/** "20.00 EUR"; unknown / bad amounts → ''. */
-export function formatPrice(cents, currency) {
+/**
+ * spec 021: the catalogue key for checkoutErrorMessage(code) — the pages
+ * render it through t(); the English above stays the en source. null for an
+ * empty code, `checkout.error.generic` for an unknown one.
+ */
+export function checkoutErrorKey(code) {
+  const c = String(code || '')
+  if (!c) return null
+  return { key: Object.hasOwn(ERRORS, c) ? `checkout.error.${c}` : 'checkout.error.generic', params: {} }
+}
+
+/** Every checkout error code with its English copy (en catalogue source + tests). */
+export function checkoutErrorCopy() {
+  return { ...ERRORS, generic: GENERIC_ERROR }
+}
+
+/**
+ * "20.00 EUR"; unknown / bad amounts → ''. With a `locale` (spec 021: the
+ * active UI locale) the amount uses that locale's digits and separators,
+ * e.g. 'fi' → "20,00 EUR"; without one the output is unchanged.
+ */
+export function formatPrice(cents, currency, locale) {
   const n = Number(cents)
   if (!Number.isFinite(n) || n < 0) return ''
-  return `${(n / 100).toFixed(2)} ${String(currency || '').toUpperCase()}`.trim()
+  let amount = (n / 100).toFixed(2)
+  if (locale) {
+    try {
+      amount = new Intl.NumberFormat(String(locale), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n / 100)
+    } catch { /* unknown locale → the plain form */ }
+  }
+  return `${amount} ${String(currency || '').toUpperCase()}`.trim()
 }
 
 /**

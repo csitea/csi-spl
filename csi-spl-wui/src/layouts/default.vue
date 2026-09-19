@@ -44,7 +44,7 @@
         <UserMenu />
       </div>
       <template #fallback>
-        <div class="login"><p class="muted">Loading Spool…</p></div>
+        <div class="login"><p class="muted">{{ $t('app.loading') }}</p></div>
       </template>
     </ClientOnly>
     <!-- Renders only for an identity the operator granted (session claim

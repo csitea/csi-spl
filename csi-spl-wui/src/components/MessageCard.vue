@@ -4,7 +4,7 @@
     tabindex="0"
     :aria-posinset="posinset || undefined"
     :aria-setsize="setsize || undefined"
-    :aria-label="(msg.from || 'unknown') + (msg.from_box ? '@' + msg.from_box : '') + ', ' + (msg.kind || 'note')"
+    :aria-label="t('feed.card_aria', { who: (msg.from || t('feed.unknown_author')) + (msg.from_box ? '@' + msg.from_box : ''), kind: kindLabel(String(msg.kind || 'note')) })"
   >
     <SpoolAvatar class="avatar" :id="String(msg.from || '')" :box="msg.from_box ? String(msg.from_box) : ''" />
     <div>
@@ -25,7 +25,7 @@
         type="button"
         @click="$emit('open-thread', String(msg.task_id))"
       >
-        Open thread
+        {{ t('feed.open_thread') }}
       </button>
       <button
         v-if="count > 0 || alwaysThread"
@@ -33,7 +33,7 @@
         type="button"
         @click="$emit('open-thread', String(msg.task_id))"
       >
-        {{ count }} {{ count === 1 ? 'reply' : 'replies' }}
+        {{ t('feed.replies', { n: count }, count) }}
       </button>
     </div>
   </article>
@@ -54,7 +54,10 @@ const props = defineProps<{
 }>()
 defineEmits<{ 'open-thread': [taskId: string] }>()
 
-const time = computed(() => formatTs(String(props.msg.ts || '')))
+const { t, te, locale } = useI18n({ useScope: 'global' })
+/** v:1 kind in words (feed.kind.*); an unknown kind shows as sent. */
+const kindLabel = (k: string) => (te('feed.kind.' + k) ? t('feed.kind.' + k) : k)
+const time = computed(() => formatTs(String(props.msg.ts || ''), locale.value))
 const html = computed(() => renderBody(String(props.msg.body || '')))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])
 const count = computed(() => props.count || 0)

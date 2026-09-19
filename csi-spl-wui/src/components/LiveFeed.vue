@@ -6,8 +6,8 @@
     :aria-label="label"
   >
     <p v-if="search" class="search-chip">
-      Filter: <strong>{{ search }}</strong> · {{ rows.length }}{{ hasOlder ? '+' : '' }} match(es)
-      <button class="btn ghost" type="button" @click="$emit('clear-search')">Clear</button>
+      {{ t('feed.filter_label') }} <strong>{{ search }}</strong> · {{ t('feed.matches', { count: rows.length + (hasOlder ? '+' : '') }) }}
+      <button class="btn ghost" type="button" @click="$emit('clear-search')">{{ t('feed.clear') }}</button>
     </p>
     <TransitionGroup name="prepend" tag="div" class="live-rows">
       <MessageCard
@@ -22,9 +22,9 @@
         @open-thread="(id: string) => $emit('open-thread', id)"
       />
     </TransitionGroup>
-    <p v-if="!loading && !rows.length" class="muted empty">{{ search ? 'No messages match.' : 'No messages yet.' }}</p>
+    <p v-if="!loading && !rows.length" class="muted empty">{{ search ? t('feed.no_matches') : t('feed.empty') }}</p>
     <div ref="sentinel" class="older-sentinel" aria-hidden="true">
-      <span v-if="hasOlder" class="muted">Loading older…</span>
+      <span v-if="hasOlder" class="muted">{{ t('feed.loading_older') }}</span>
     </div>
     <p class="sr-only" aria-live="polite">{{ announce }}</p>
   </section>
@@ -48,6 +48,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ older: [], 'clear-search': [], 'open-thread': [id: string] }>()
 
+const { t } = useI18n({ useScope: 'global' })
 const sentinel = ref<HTMLElement | null>(null)
 let io: IntersectionObserver | null = null
 onMounted(() => {
@@ -61,7 +62,7 @@ onUnmounted(() => io?.disconnect())
 
 const announce = computed(() => {
   const m = props.lastLive
-  return m ? `New message from ${m.from}${m.from_box ? '@' + m.from_box : ''}` : ''
+  return m ? t('feed.announce_new', { who: `${m.from}${m.from_box ? '@' + m.from_box : ''}` }) : ''
 })
 
 function openable(m: SpoolMessage) {

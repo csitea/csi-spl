@@ -11,7 +11,18 @@ export const useViewerStore = defineStore('viewer', () => {
   const taskId = ref<string | null>(null)
   const messages = ref<SpoolMessage[]>([])
   const loading = ref(false)
-  const error = ref<string | null>(null)
+  /*
+   * spec 021: the failure as a catalogue key (or the client's raw technical
+   * message); `error` renders it in the ACTIVE locale, so a language switch
+   * re-renders it. The global composer's t() is reactive on the locale.
+   */
+  const nuxtApp = useNuxtApp()
+  const failure = ref<{ key: string, params?: Record<string, string>, raw?: string } | null>(null)
+  const error = computed<string | null>(() => {
+    const f = failure.value
+    if (!f) return null
+    return f.raw || nuxtApp.$i18n.t(f.key, f.params || {})
+  })
   const needsToken = ref(false)
   /** The hub's 401 detail: it names the ways in (view-v1 §2), ViewTokenForm reads it. */
   const doorDetail = ref('')
@@ -21,20 +32,21 @@ export const useViewerStore = defineStore('viewer', () => {
     needsToken.value = isDoor(err)
     doorDetail.value = String(err.detail || '')
     if (needsToken.value) {
-      error.value = null
+      failure.value = null
       return
     }
-    if (err.token === 'no_tenant') error.value = 'No tenant selected — open the viewer with ?tenant=<id>.'
-    else if (err.token === 'api_host') error.value = 'The hub URL is the API host; tenant reads need <tenant>.<domain> (NUXT_PUBLIC_API_BASE with {tenant}).'
-    else if (err.token === 'no_base' || err.token === 'bad_base') error.value = 'NUXT_PUBLIC_API_BASE is missing or invalid.'
-    else if (err.status === 404 && err.token === 'unknown_tenant') error.value = 'Unknown tenant for this host.'
-    else if (err.status === 404) error.value = 'Not found.'
-    else error.value = err.message || 'load failed'
+    if (err.token === 'no_tenant') failure.value = { key: 'viewer.error.no_tenant', params: { query: '?tenant=<id>' } }
+    else if (err.token === 'api_host') failure.value = { key: 'viewer.error.api_host', params: { host: '<tenant>.<domain>', env_var: 'NUXT_PUBLIC_API_BASE', tenant: '{tenant}' } }
+    else if (err.token === 'no_base' || err.token === 'bad_base') failure.value = { key: 'viewer.error.no_base' }
+    else if (err.status === 404 && err.token === 'unknown_tenant') failure.value = { key: 'viewer.error.unknown_tenant' }
+    else if (err.status === 404) failure.value = { key: 'viewer.error.not_found' }
+    /* the client's own message is technical text (like the diagnostics panel's), kept as is */
+    else failure.value = err.message ? { key: '', raw: err.message } : { key: 'viewer.error.load_failed' }
   }
 
   async function loadThreads() {
     loading.value = true
-    error.value = null
+    failure.value = null
     try {
       /* 010 FR-009: a member-session door rides the sign-in cookie */
       const data = await withSessionRetry(api, () => api.listThreads({ limit: 50 }))
@@ -71,7 +83,7 @@ export const useViewerStore = defineStore('viewer', () => {
     const last = messages.value[messages.value.length - 1]
     const after = last && last.cursor ? last.cursor : undefined
     loading.value = messages.value.length === 0
-    error.value = null
+    failure.value = null
     try {
       const data = await api.getThread(taskId.value, after ? { after } : undefined)
       if (after) {

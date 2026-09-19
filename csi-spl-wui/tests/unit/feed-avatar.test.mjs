@@ -2,7 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { matchesSearch, newestFirst, parseOmnibox, rootAndReplies, windowed } from '../../src/utils/feed.mjs'
 import {
-  avatarAlt, avatarDataUri, avatarFilesFromView, avatarImageUrl, avatarSvg, hashSeed, identiconSvg, isHuman, isMember,
+  avatarAlt, avatarAltKey, avatarDataUri, avatarFilesFromView, avatarImageUrl, avatarSvg, hashSeed, identiconSvg, isHuman, isMember,
   avatarImageMime, loadAvatarBlobUrl, loadAvatarFiles, resetAvatarFiles, robotSvg,
 } from '../../src/utils/avatar.mjs'
 
@@ -111,6 +111,9 @@ describe('stored IdP avatars (gap A5, view-v1 §4.1 humans)', () => {
     assert.equal(avatarAlt('HUM-3', 'box-wui'), 'avatar of HUM-3')
     assert.equal(avatarAlt('CLE-07', 'box-a'), 'avatar of CLE-07@box-a')
     assert.equal(avatarAlt(''), 'avatar')
+    assert.deepEqual(avatarAltKey('HUM-3', 'box-wui'), { key: 'feed.avatar_of', params: { who: 'HUM-3' } })
+    assert.deepEqual(avatarAltKey('CLE-07', 'box-a'), { key: 'feed.avatar_of', params: { who: 'CLE-07@box-a' } })
+    assert.deepEqual(avatarAltKey(''), { key: 'feed.avatar', params: {} })
   })
 
   it('reads the roster once per TTL for every avatar on the page, with the door credentials', async () => {

@@ -9,8 +9,8 @@
     :aria-valuenow="Math.round(value)"
     :aria-valuemin="Math.round(min)"
     :aria-valuemax="Math.round(max)"
-    :aria-label="pane === 'sidebar' ? 'Resize channel sidebar' : 'Resize thread pane'"
-    title="Drag to resize. Double-click to reset."
+    :aria-label="pane === 'sidebar' ? t('pane.resize_sidebar') : t('pane.resize_thread')"
+    :title="t('pane.resize_hint')"
     tabindex="0"
     @pointerdown="onDown"
     @pointermove="onMove"
@@ -35,6 +35,8 @@ const emit = defineEmits<{
   input: [n: number]
   reset: []
 }>()
+
+const { t } = useI18n({ useScope: 'global' })
 
 const dragging = ref(false)
 const moved = ref(false)

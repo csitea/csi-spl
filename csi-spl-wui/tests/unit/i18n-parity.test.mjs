@@ -90,6 +90,30 @@ if (codes.length) {
   }
 }
 
+// spec 021: values the vue-i18n compiler would reject or misread. HTML-like
+// text ("<id>") fails `nuxt generate` outright; a bare "@" is linked-message
+// syntax; a plural key must keep en's number of "|" forms in every locale.
+// CONTROL: the three detectors are exercised on planted values below.
+const HTML_RE = /<[A-Za-z\/!]/
+const LINK_RE = /@(?:[.:a-z]|$)/
+const forms = (v) => String(v).split('|').length
+const enFlat = sets['en.json'] ? flatten(JSON.parse(readFileSync(join(LOCALES_DIR, 'en.json'), 'utf8'))) : {}
+for (const f of Object.keys(sets)) {
+  const flat = flatten(JSON.parse(readFileSync(join(LOCALES_DIR, f), 'utf8')))
+  const html = [], link = [], plural = []
+  for (const [k, v] of Object.entries(flat)) {
+    if (HTML_RE.test(String(v))) html.push(k)
+    if (LINK_RE.test(String(v))) link.push(k)
+    if (k in enFlat && forms(v) !== forms(enFlat[k])) plural.push(k)
+  }
+  html.length === 0 ? pass(`${f} no HTML-like values`) : fail(`${f} no HTML-like values`, html.slice(0, 8).join(', '))
+  link.length === 0 ? pass(`${f} no bare @ link syntax`) : fail(`${f} no bare @ link syntax`, link.slice(0, 8).join(', '))
+  plural.length === 0 ? pass(`${f} plural forms match en`) : fail(`${f} plural forms match en`, plural.slice(0, 8).join(', '))
+}
+;(HTML_RE.test('open with ?tenant=<id>') && LINK_RE.test('ask @CLE-07') === false && LINK_RE.test('see @:nav.home') && forms('a | b') === 2)
+  ? pass('CONTROL: detectors fire on planted values')
+  : fail('CONTROL: detectors fire on planted values', 'a detector is blind')
+
 const tools = [
   'export_locale.py',
   'splice_locales.py',

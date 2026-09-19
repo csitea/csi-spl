@@ -134,6 +134,8 @@ export function safeRedirect(path) {
   const p = String(path || '')
   if (!p.startsWith('/') || p.startsWith('//') || p.startsWith('/\\')) return '/'
   if (p.startsWith('/login')) return '/'
+  // spec 021: the locale-prefixed sign-in page (/fi/login, /he/login?x) is /login too
+  if (/^\/[a-z]{2}\/login(?:[/?#]|$)/i.test(p)) return '/'
   return p
 }
 

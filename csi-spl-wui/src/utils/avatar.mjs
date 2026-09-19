@@ -161,6 +161,12 @@ export function avatarAlt(id, box) {
   return who ? `avatar of ${who}` : 'avatar'
 }
 
+/** i18n sibling of avatarAlt: `feed.avatar_of` {who} or `feed.avatar`. */
+export function avatarAltKey(id, box) {
+  const who = String(id || '') + (box && box !== 'box-wui' ? `@${box}` : '')
+  return who ? { key: 'feed.avatar_of', params: { who } } : { key: 'feed.avatar', params: {} }
+}
+
 export const AVATAR_FILES_TTL_MS = 60_000
 const avatarLoads = new Map()
 

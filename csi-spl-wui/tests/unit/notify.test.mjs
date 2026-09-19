@@ -10,6 +10,7 @@ import {
   channelKey,
   normalizeChannel,
   notifyCopy,
+  notifyCopyKey,
   loadChime,
   saveChime,
   previewUnread,
@@ -73,6 +74,16 @@ describe('notify escalation', () => {
     assert.deepEqual(mentionedIds('email me@example.com'), [])
     const copy = notifyCopy(msg({ from: 'GRK-03', body: 'up' }), 'alerts')
     assert.equal(copy.title.startsWith('#alerts'), true)
+  })
+
+  it('notifyCopyKey names the same title as a catalogue key (spec 021)', () => {
+    const m = msg({ from: 'GRK-03', body: 'up' })
+    for (const [reason, key] of [['alerts', 'notify.title_alerts'], ['dm', 'notify.title_dm'], ['mention', 'notify.title_mention'], [null, 'notify.title_other']]) {
+      const k = notifyCopyKey(m, reason)
+      assert.equal(k.titleKey, key)
+      assert.deepEqual(k.params, { from: 'GRK-03' })
+      assert.equal(k.body, notifyCopy(m, reason).body)
+    }
   })
 
   it('normalizes general to lobby and builds ch:/dm: keys', () => {

@@ -17,6 +17,8 @@ const MAX_PAGES = 40
 function setup(key: 'main' | 'pane') {
   const api = useSpoolApi()
   const live = useLive()
+  /* the global i18n instance for the fallback error lines (a hub error keeps its own message) */
+  const i18n = useNuxtApp().$i18n
   const taskId = ref<string | null>(null)
   const messages = ref<SpoolMessage[]>([])
   const error = ref<string | null>(null)
@@ -69,7 +71,7 @@ function setup(key: 'main' | 'pane') {
       if (r) merge(r.rows)
       else await open(id)
     } catch (e) {
-      fail(e, 'catch-up failed')
+      fail(e, i18n.t('feed.error.catch_up_failed'))
     }
   }
 
@@ -105,7 +107,7 @@ function setup(key: 'main' | 'pane') {
       olderCursor.value = data.next
       if (opts.all || key === 'pane') await loadAll()
     } catch (e) {
-      fail(e, 'load failed')
+      fail(e, i18n.t('feed.error.load_failed'))
     } finally {
       loading.value = false
     }
@@ -135,7 +137,7 @@ function setup(key: 'main' | 'pane') {
       olderCursor.value = data.next
       visible.value += WINDOW
     } catch (e) {
-      fail(e, 'load older failed')
+      fail(e, i18n.t('feed.error.load_older_failed'))
       olderCursor.value = null
     } finally {
       loadingOlder.value = false
@@ -176,7 +178,7 @@ function setup(key: 'main' | 'pane') {
         } as SpoolMessage], true)
       }
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'send failed'
+      error.value = e instanceof Error ? e.message : i18n.t('feed.error.send_failed')
     } finally {
       sending.value = false
     }

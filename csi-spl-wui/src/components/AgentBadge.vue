@@ -6,5 +6,6 @@
 import { displayName } from '~/utils/channel-feed.mjs'
 
 const props = defineProps<{ id: string, box?: string }>()
-const label = computed(() => displayName(props.id, props.box))
+const { t } = useI18n({ useScope: 'global' })
+const label = computed(() => (props.id ? displayName(props.id, props.box) : t('feed.unknown_author')))
 </script>

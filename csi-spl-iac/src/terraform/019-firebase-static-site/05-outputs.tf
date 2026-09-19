@@ -19,7 +19,7 @@ output "custom_domain_https_url" {
 }
 
 output "lb_origin_host" {
-  description = "The host the 031 load balancer's WUI internet NEG targets (cnf steps.031-gcp-hub-ingress.wui_origin_host)."
+  description = "The site's default host <site_id>.web.app (the M1 031 LB targeted it; that LB is gone since 2026-09-19)."
   value       = "${google_firebase_hosting_site.default.site_id}.web.app"
 }
 

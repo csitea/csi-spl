@@ -168,7 +168,8 @@ jobs:
           import json, sys
           e = json.load(open(sys.argv[1]))["env"]
           s19 = e["steps"]["019-firebase-static-site"]
-          s31 = e["steps"]["031-gcp-hub-ingress"]
+          # 031 (the M1 LB) is gone (owner 2026-09-19, no LB): lb_route is false
+          s31 = e["steps"].get("031-gcp-hub-ingress", {})
           print("project=" + e["gcp"]["gcp_project"])
           print("site=" + s19["site_id"])
           print("fqdn=" + e["dns"]["fqdn"])

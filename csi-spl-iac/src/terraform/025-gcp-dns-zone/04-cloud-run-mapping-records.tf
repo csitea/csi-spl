@@ -11,9 +11,9 @@
 #   dev subzone (dev.<BASE_DOMAIN>):
 #     <tenant>.dev.<BASE_DOMAIN> CNAME ghs.googlehosted.com.
 #
-# Names are relative to fqdn; the domain itself comes from cnf only. A tenant
-# record overrides 031's *.<fqdn> wildcard for that one host (DNS exact match
-# wins), so records can be added while 031 still exists.
+# Names are relative to fqdn; the domain itself comes from cnf only. There is
+# no *.<fqdn> wildcard (the M1 031 LB that held it is gone): every tenant host
+# is listed in env.dns.mapped_tenants and gets its own record + 032 mapping.
 locals {
   mapping_records = {
     for r in var.cloud_run_mapping_records : "${r.name}/${r.type}" => r

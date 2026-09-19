@@ -14,7 +14,7 @@
 #   2026-09-19, which replaced dev records living in the prd zone). A recreate
 #   of the subzone is safe: the delegation record follows its name servers.
 #
-# 031 writes the hub's records (ACME CNAME, <fqdn>, *.<fqdn>) into this zone.
+# 04 writes the hub's Cloud Run domain-mapping records (032) into this zone.
 locals {
   subzone = var.parent_zone_name != ""
   zones   = var.zone_name == "" || local.subzone ? {} : { (var.zone_name) = "${var.fqdn}." }

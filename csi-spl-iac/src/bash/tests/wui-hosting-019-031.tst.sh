@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: spec 007 §3/§4 (T072-T076). The WUI is served THROUGH the 031 load
-#          balancer: <fqdn> and *.<fqdn> send every path except the hub paths
-#          to the 019 Firebase site (internet NEG, Host rewritten), so 019
-#          binds no custom domain by default; the hub Cloud Armor policy can
-#          add L7 host + path deny rules. dev has both on, prd both off until
-#          the owner says so (OQ-H1, OQ-H2).
-#          The Host regex is evaluated by terraform itself (console) and
-#          checked against names that must pass and names that must be
-#          refused; a missing terraform is a FAIL unless SPL_TF_ALLOW_SKIP=1.
+# Purpose: the WUI hosting, exactly as csi-rel (owner 2026-09-19): env.dns.fqdn
+#          is the 019 Firebase site's custom domain, its DNS comes from
+#          csi-rel's script (pinned by hash), and the WUI deploy workflow.
+#          There is NO load balancer: the M1 031 hub LB (WUI route, Cloud
+#          Armor, Host regex) was deprovisioned in both envs and its step
+#          removed; this test fails if the step or its cnf block comes back.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -24,12 +21,10 @@ fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 grep -qE '^\s*count\s*=\s*var[.]bind_custom_domain \? 1 : 0' "$TFD/019-firebase-static-site/03-firebase-site.tf" \
   && pass "019 custom domain is gated by bind_custom_domain" || fail "019 custom domain is not gated"
 # owner 2026-09-19, exactly as csi-rel: env.dns.fqdn IS the site's custom domain,
-# 031 holds no A record for it, and the DNS comes from csi-rel's script (unchanged)
+# and the DNS comes from csi-rel's script (unchanged)
 for env in dev prd; do
   grep -qx 'bind_custom_domain = true' "$CNF/$env/tf/019-firebase-static-site.vars.tfvars" \
     && pass "$env 019 binds env.dns.fqdn as a Firebase custom domain (csi-rel)" || fail "$env 019 bind_custom_domain is not true"
-  grep -qx 'fqdn_a_record = false' "$CNF/$env/tf/031-gcp-hub-ingress.vars.tfvars" \
-    && pass "$env 031 writes no A record for env.dns.fqdn (it belongs to Firebase)" || fail "$env 031 fqdn_a_record is not false"
 done
 # csi-rel's file at csi-rel f50f6b4c, pinned by hash so the check runs without a csi-rel checkout (CI)
 want_sha=73ffb71f8e606173a37609a588e103cbf7103e841532fd4edeef2aa1549f13f8
@@ -48,27 +43,14 @@ grep -q 'do_provision_firebase_dns || rc' "$PROJ_ROOT/src/bash/run/provision-fir
 awk '/resource "google_firebase_hosting_site" "default"/,/^}/' "$TFD/019-firebase-static-site/03-firebase-site.tf" | grep -q 'prevent_destroy = true' \
   && pass "019 site carries prevent_destroy (a deleted site id is gone forever)" || fail "019 site lacks prevent_destroy"
 
-# --- 031: the WUI route --------------------------------------------------------
-lb="$TFD/031-gcp-hub-ingress/05-load-balancer.tf"
-grep -q 'host_rewrite = var.wui_origin_host' "$lb" && pass "031 rewrites Host to the Firebase site" || fail "031 has no host_rewrite"
-grep -q 'hosts        = \[var.fqdn, "\*.${var.fqdn}"\]' "$lb" \
-  && pass "031 WUI route covers <fqdn> and *.<fqdn> only (extra hosts stay hub-only)" || fail "031 WUI host_rule"
-grep -q 'network_endpoint_type = "INTERNET_FQDN_PORT"' "$TFD/031-gcp-hub-ingress/08-wui-origin.tf" \
-  && pass "031 WUI origin is an internet FQDN NEG" || fail "031 WUI NEG type"
-grep -q 'security_policy' "$TFD/031-gcp-hub-ingress/08-wui-origin.tf" \
-  && fail "031 WUI backend carries a security policy (static files are public)" || pass "031 WUI backend has no security policy"
-# WebSockets must stay on the hub: both live under /v1/*.
-grep -A4 'variable "hub_paths"' "$TFD/031-gcp-hub-ingress/02-variables.tf" | grep -q '"/v1/\*", "/api/\*", "/healthz", "/version"' \
-  && pass "031 hub_paths default keeps /v1/* (ws + wui ws), /api/*, /healthz, /version on the hub" || fail "031 hub_paths default"
-
-site_dev=$(sed -n 's/^site_id = "\(.*\)"$/\1/p' "$CNF/dev/tf/019-firebase-static-site.vars.tfvars")
-# superseded by the owner (csi-rel has no LB route and no Cloud Armor): off in both envs
+# --- no load balancer (owner 2026-09-19, "exactly csi-rel") -------------------
+[[ ! -e "$TFD/031-gcp-hub-ingress" ]] && pass "no 031 load-balancer step in src/terraform" || fail "031-gcp-hub-ingress is back"
 for env in dev prd; do
-  grep -qx 'wui_origin_host = ""' "$CNF/$env/tf/031-gcp-hub-ingress.vars.tfvars" \
-    && pass "$env 031 serves no WUI route" || fail "$env 031 wui_origin_host is set"
-  grep -qx 'l7_narrowing = false' "$CNF/$env/tf/031-gcp-hub-ingress.vars.tfvars" \
-    && pass "$env 031 L7 narrowing off" || fail "$env 031 l7_narrowing is on"
+  python3 -c 'import json,sys; sys.exit(0 if "031-gcp-hub-ingress" not in json.load(open(sys.argv[1]))["env"]["steps"] else 1)' "$CNF/$env.env.json" \
+    && pass "$env cnf has no 031 block" || fail "$env cnf still has steps.031-gcp-hub-ingress"
 done
+grep -rlE 'google_compute_(global_forwarding_rule|url_map|backend_service|security_policy|target_https_proxy)' "$TFD" >/dev/null 2>&1 \
+  && fail "a terraform step declares a load-balancer resource" || pass "no step declares a forwarding rule, url map, backend service, proxy or Cloud Armor policy"
 
 # --- 016: WIF for the WUI deploy SA only on request ---------------------------
 grep -qE '^\s*count = var[.]bind_github_wif \? 1 : 0' "$TFD/016-firebase-deploy-iam/03-firebase-deploy-sa.tf" \
@@ -103,41 +85,6 @@ if [[ -f "$W" ]]; then
   done
 else
   fail "missing .github/workflows/30_wui-build-deploy.yml"
-fi
-
-# --- the Host regex, as terraform computes it ---------------------------------
-TF="${TF_BIN:-}"
-[[ -x "$TF" ]] || TF=$(ls "$HOME"/.local/share/csi-spl/bin/terraform-* 2>/dev/null | sort -V | tail -1)
-[[ -x "$TF" ]] || TF=$(command -v terraform 2>/dev/null || true)
-if [[ -n "$TF" && -x "$TF" ]]; then
-  tmp=$(mktemp -d); cp -r "$TFD/031-gcp-hub-ingress/." "$tmp/"
-  printf '%s\n' 'terraform {' '  backend "local" {}' '}' >"$tmp/backend_override.tf"
-  tf_cache="$HOME/.terraform.d/plugin-cache/csi/spl/test-$$"; mkdir -p "$tf_cache"
-  re=""
-  if TF_PLUGIN_CACHE_DIR="$tf_cache" "$TF" -chdir="$tmp" init -input=false >/dev/null 2>&1; then
-    re=$(echo 'local.host_regex' | "$TF" -chdir="$tmp" console -var-file="$CNF/dev/tf/031-gcp-hub-ingress.vars.tfvars" 2>/dev/null | tr -d '"')
-  fi
-  rm -rf "$tmp" "$tf_cache"
-  if [[ -z "$re" ]]; then
-    fail "terraform console could not evaluate local.host_regex for dev"
-  else
-    fqdn=$(sed -n 's/^fqdn *= "\(.*\)"$/\1/p' "$CNF/dev/tf/031-gcp-hub-ingress.vars.tfvars")
-    base=$(sed -n 's/^base_domain *= "\(.*\)"$/\1/p' "$CNF/dev/tf/031-gcp-hub-ingress.vars.tfvars")
-    ok=1
-    extras=$(sed -n 's/^extra_host_labels = \[\(.*\)\]$/\1/p' "$CNF/dev/tf/031-gcp-hub-ingress.vars.tfvars" | tr -d '" ' | tr ',' ' ')
-    for h in "$fqdn" "t1.$fqdn" "t1.$fqdn:443" $(for l in $extras; do echo "$l.$base"; done); do
-      python3 -c 'import re,sys; sys.exit(0 if re.search(sys.argv[1], sys.argv[2]) else 1)' "$re" "$h" || { ok=0; echo "  should pass: $h"; }
-    done
-    for h in "evil.example" "$fqdn.evil.example" "a.b.$fqdn" "x$fqdn" "$base" "api.$base" "34.1.2.3"; do
-      python3 -c 'import re,sys; sys.exit(0 if re.search(sys.argv[1], sys.argv[2]) else 1)' "$re" "$h" && { ok=0; echo "  should be refused: $h"; }
-    done
-    (( ok )) && pass "dev Host regex admits <fqdn>, <tenant>.<fqdn>, the cnf extra hosts and refuses 7 planted foreign names" \
-             || fail "dev Host regex $re"
-  fi
-elif [[ "${SPL_TF_ALLOW_SKIP:-0}" == 1 ]]; then
-  echo "SKIP: no terraform; Host regex not evaluated"
-else
-  fail "no terraform (TF_BIN, \$HOME/.local/share/csi-spl/bin/terraform-*, PATH); SPL_TF_ALLOW_SKIP=1 to accept"
 fi
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }

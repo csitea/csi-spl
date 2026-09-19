@@ -41,7 +41,7 @@ variable "fqdn" {
 
 variable "zone_name" {
   type        = string
-  description = "The EXISTING public Cloud DNS zone in this project that serves fqdn (cnf steps.025-gcp-dns-zone.zone_name). Empty = this env has no zone of its own (dev: its records live in the prd zone, see 031 dns_zone_project)."
+  description = "The EXISTING public Cloud DNS zone in this project that serves fqdn (cnf steps.025-gcp-dns-zone.zone_name). Empty = this env has no zone of its own (no env uses that today: dev has its own subzone)."
   default     = ""
 }
 

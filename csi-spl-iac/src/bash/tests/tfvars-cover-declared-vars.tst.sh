@@ -6,7 +6,7 @@
 #          the tfvars through the step's *.tfvars.tpl and tpl-gen.
 #          Keys are the top-level (column 0) assignments of
 #          csi-spl-cnf/csi-spl/<env>/tf/<step>.vars.tfvars.
-#          Control: a copy of 031's dev tfvars with one key dropped MUST fail;
+#          Control: a copy of 032's dev tfvars with one key dropped MUST fail;
 #          a check that passes it proves nothing.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -39,12 +39,12 @@ done
 
 # --- control: drop one key -> the check must see it ---------------------------
 tmp=$(mktemp -d)
-src="$CNF_DIR/dev/tf/031-gcp-hub-ingress.vars.tfvars"
-grep -v '^hub_path_regex[[:space:]]*=' "$src" >"$tmp/031.vars.tfvars"
-if [[ "$(missing "$TF_DIR/031-gcp-hub-ingress/" "$tmp/031.vars.tfvars")" == hub_path_regex ]]; then
-  pass "CONTROL: 031 dev tfvars without hub_path_regex is caught"
+src="$CNF_DIR/dev/tf/032-gcp-cloud-run-domain-mapping.vars.tfvars"
+grep -v '^cloud_run_service_name[[:space:]]*=' "$src" >"$tmp/032.vars.tfvars"
+if [[ "$(missing "$TF_DIR/032-gcp-cloud-run-domain-mapping/" "$tmp/032.vars.tfvars")" == cloud_run_service_name ]]; then
+  pass "CONTROL: 032 dev tfvars without cloud_run_service_name is caught"
 else
-  fail "CONTROL: a dropped hub_path_regex was not caught"
+  fail "CONTROL: a dropped cloud_run_service_name was not caught"
 fi
 rm -rf "$tmp"
 

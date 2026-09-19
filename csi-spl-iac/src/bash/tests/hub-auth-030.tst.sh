@@ -45,6 +45,9 @@ want = {"SPOOL_HUB_DB_DSN"} | {f"SPOOL_HUB_AUTH_{p}_CLIENT_SECRET" for p in list
 if listed or env.get("SPOOL_HUB_AUTH_NATIVE_ENABLED") == "true": want.add("SPOOL_HUB_AUTH_SESSION_KEY")
 if env.get("SPOOL_HUB_MAIL_TRANSPORT") == "smtp": want.add("SPOOL_HUB_MAIL_SMTP_PASSWORD")
 if sys.argv[3] == "true": want.add("SPOOL_HUB_WUI_KEY")
+# 006 T022 (payment.secret_env): the stripe pair only while PROVIDER is stripe, PayPal only while enabled
+if env.get("SPOOL_HUB_PAYMENT_PROVIDER") == "stripe": want |= {"SPOOL_HUB_STRIPE_SECRET_KEY", "SPOOL_HUB_STRIPE_WEBHOOK_SECRET"}
+if env.get("SPOOL_HUB_ENABLE_PAYPAL") == "true": want.add("SPOOL_HUB_PAYPAL_CLIENT_SECRET")
 print("ok" if sec == want else f"injected {sorted(sec)} != expected {sorted(want)}")
 PY
 )
@@ -72,9 +75,10 @@ cnf = yaml.safe_load(open(os.environ["CNF"]))["env"]
 tpl = jinja2.Environment(undefined=jinja2.StrictUndefined).from_string(open(os.environ["TPL"]).read())
 print(tpl.render(**{**cnf, "ORG": "csi", "APP": "spl", "ENV": "dev"}))' 2>&1); }
   injected() { grep -E '^secret_environment_variables ' <<<"$1" | grep -oE '"SPOOL_HUB_[A-Z_]+"' | sort | tr '\n' ' '; }
-  # the controls count injected secrets exactly: start from no box-wui key,
-  # whatever the env's own hub.wui_key.inject is (its own control is below)
-  yq -i '.env.hub.wui_key.inject = "false"' "$tmp/dev.env.yaml"
+  # the controls count injected secrets exactly: start from no box-wui key and
+  # no card rail, whatever the env's own hub.wui_key.inject / payment provider
+  # are (their own controls: below, and hub-payment-030.tst.sh)
+  yq -i '.env.hub.wui_key.inject = "false" | .env.hub.env.SPOOL_HUB_PAYMENT_PROVIDER = "" | .env.hub.env.SPOOL_HUB_ENABLE_PAYPAL = "false"' "$tmp/dev.env.yaml"
   cp "$tmp/dev.env.yaml" "$tmp/base.yaml"
   yq -i '.env.auth.social.env.SPOOL_HUB_AUTH_PROVIDERS = "google, xai"' "$tmp/dev.env.yaml"
   out=$(render); sec=$(injected "$out")

@@ -49,13 +49,7 @@
         <span class="label muted">{{ health === 'ok' ? 'connected' : health === 'warn' ? 'reconnecting…' : 'offline' }}</span>
       </div>
       <NotificationCenter />
-      <div v-if="session.state === 'in'" class="nav-item">
-        <span class="label">{{ session.label }}</span>
-        <button class="btn ghost" type="button" @click="session.logout()">Sign out</button>
-      </div>
-      <NuxtLink v-else class="nav-item" :to="'/login?redirect=' + encodeURIComponent(route.fullPath)">
-        <span class="label">Sign in</span>
-      </NuxtLink>
+      <!-- identity, Sign in / Sign out: the top-right UserMenu (CLE-3402) -->
       <p id="app-version" class="version-stamp">{{ version }}</p>
     </div>
   </nav>
@@ -75,7 +69,6 @@ const session = useSessionStore()
 const notes = useNotificationStore()
 const live = useLive()
 const health = computed(() => connectionHealth(live.state.value))
-const route = useRoute()
 onMounted(() => session.probe())
 const newChannel = ref('')
 const creating = ref(false)

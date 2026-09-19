@@ -357,7 +357,9 @@
       "load_older_failed": "încărcarea mesajelor vechi a eșuat",
       "catch_up_failed": "sincronizarea a eșuat",
       "send_failed": "trimiterea a eșuat"
-    }
+    },
+    "new_pill": "Noi: {n}",
+    "new_pill_label": "Salt la cele mai noi mesaje"
   },
   "thread": {
     "title": "Fir",

@@ -28,6 +28,8 @@ export interface SpoolMessage {
   cursor?: string
   received_at?: string
   deliveries?: { to_box: string, state: string }[]
+  /** 013 US7 FR-013: our own send, shown before the hub echo / ack confirms it. */
+  pending?: boolean
 }
 
 /** One thread list row (003 view-v1 §4.3, normalised by utils/view-api.mjs). */

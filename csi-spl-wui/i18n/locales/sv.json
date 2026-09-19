@@ -357,7 +357,9 @@
       "load_older_failed": "kunde inte läsa in äldre",
       "catch_up_failed": "kunde inte hämta ikapp",
       "send_failed": "sändningen misslyckades"
-    }
+    },
+    "new_pill": "Nya: {n}",
+    "new_pill_label": "Gå till de senaste meddelandena"
   },
   "thread": {
     "title": "Tråd",

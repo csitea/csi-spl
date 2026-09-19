@@ -110,6 +110,8 @@ export function createLiveClient({
   const cursors = new Map()
   const subs = new Set()
   const chanSubs = new Set()
+  const peerSubs = new Set()
+  let allSub = false
   const queue = []
   const pending = new Map()
   const tokenWaiters = []
@@ -176,6 +178,8 @@ export function createLiveClient({
         setState('open')
         for (const id of subs) raw({ type: FRAMES.subscribe, task_id: id })
         for (const ch of chanSubs) raw({ type: FRAMES.subscribe, channel: ch })
+        for (const p of peerSubs) raw({ type: FRAMES.subscribe, peer: p })
+        if (allSub) raw({ type: FRAMES.subscribe, all: true })
         flush()
         onWelcome(f)
         if (dropped) {
@@ -260,6 +264,29 @@ export function createLiveClient({
       const ch = String(channel || '').replace(/^#/, '').toLowerCase()
       if (!chanSubs.delete(ch)) return
       if (state === 'open') raw({ type: FRAMES.unsubscribe, channel: ch })
+    },
+    /** wui-live-ws v0.5: every DM with `peer` (<id> or <id>@<box>), new roots included. */
+    subscribePeer(peer) {
+      const p = String(peer || '')
+      if (!p || peerSubs.has(p)) return
+      peerSubs.add(p)
+      if (state === 'open') raw({ type: FRAMES.subscribe, peer: p })
+    },
+    unsubscribePeer(peer) {
+      const p = String(peer || '')
+      if (!peerSubs.delete(p)) return
+      if (state === 'open') raw({ type: FRAMES.unsubscribe, peer: p })
+    },
+    /** wui-live-ws v0.5: the whole tenant, for the thread list (DMs only when party). */
+    subscribeAll() {
+      if (allSub) return
+      allSub = true
+      if (state === 'open') raw({ type: FRAMES.subscribe, all: true })
+    },
+    unsubscribeAll() {
+      if (!allSub) return
+      allSub = false
+      if (state === 'open') raw({ type: FRAMES.unsubscribe, all: true })
     },
     /** wui-live-ws: {type:"token"} → next token frame (fresh upload token). */
     requestToken() {

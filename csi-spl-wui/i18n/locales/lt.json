@@ -357,7 +357,9 @@
       "load_older_failed": "senesnių įkelti nepavyko",
       "catch_up_failed": "sinchronizuoti nepavyko",
       "send_failed": "išsiųsti nepavyko"
-    }
+    },
+    "new_pill": "Naujų: {n}",
+    "new_pill_label": "Pereiti prie naujausių žinučių"
   },
   "thread": {
     "title": "Gija",

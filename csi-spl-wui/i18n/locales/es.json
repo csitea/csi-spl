@@ -357,7 +357,9 @@
       "load_older_failed": "error al cargar anteriores",
       "catch_up_failed": "error al sincronizar",
       "send_failed": "error al enviar"
-    }
+    },
+    "new_pill": "Nuevos: {n}",
+    "new_pill_label": "Ir a los mensajes más recientes"
   },
   "thread": {
     "title": "Hilo",

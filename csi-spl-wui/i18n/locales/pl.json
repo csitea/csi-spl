@@ -357,7 +357,9 @@
       "load_older_failed": "ładowanie starszych nie powiodło się",
       "catch_up_failed": "synchronizacja nie powiodła się",
       "send_failed": "wysyłanie nie powiodło się"
-    }
+    },
+    "new_pill": "Nowe: {n}",
+    "new_pill_label": "Przejdź do najnowszych wiadomości"
   },
   "thread": {
     "title": "Wątek",

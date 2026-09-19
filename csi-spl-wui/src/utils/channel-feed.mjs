@@ -206,13 +206,21 @@ export function belongsTo(msg, { channel, peer } = {}) {
 
 /**
  * Merge one live WS message into the feed (no poll in live mode). Same
- * msg_id → no-op. A reply to a thread row bumps its count; anything else
+ * msg_id → no-op, except that a confirmed row replaces a `pending` one. A reply to a thread row bumps its count; anything else
  * is appended as a new row. Returns a new array.
  */
 export function mergeLive(rows, msg) {
   const m = msg || {}
   const list = rows || []
-  if (!m.msg_id || list.some((r) => r.msg_id === m.msg_id)) return list
+  if (!m.msg_id) return list
+  const same = list.findIndex((r) => r.msg_id === m.msg_id)
+  if (same >= 0) {
+    /* 013 US7 FR-013: the pushed echo (or ack row) replaces our pending card */
+    if (!list[same].pending || m.pending) return list
+    const next = list.slice()
+    next[same] = m
+    return next
+  }
   const root = m.parent_task_id || m.task_id
   const i = list.findIndex((r) => r.thread_row && r.task_id === root)
   if (i >= 0) {
@@ -277,4 +285,36 @@ export function rowFromAck(ack, frame, { from = '', channel = null } = {}) {
 export function channelView(messages, { search = '', visible = 50 } = {}) {
   const roots = rootsByTask(topLevel(messages || []))
   return windowed(newestFirst(roots.filter((m) => matchesSearch(m, search))), visible)
+}
+
+/**
+ * The DM-level WS subscription for the open view (wui-live-ws v0.5 `peer`):
+ * the open DM peer, none for a channel. Same shape as channelFollow.
+ */
+export function dmFollow(current, { peer } = {}) {
+  const have = String(current || '')
+  const want = String(peer || '')
+  if (want === have) return { sub: '', unsub: '', next: have }
+  return { sub: want, unsub: have, next: want }
+}
+
+/**
+ * Reconnect catch-up (FR-015): a fresh first page merged by msg_id — a thread
+ * row is replaced (its count moved on), a new one added; older pages already
+ * loaded and pending sends stay.
+ */
+export function mergePage(rows, incoming) {
+  const list = (rows || []).slice()
+  const at = new Map(list.map((m, i) => [m.msg_id, i]))
+  for (const m of incoming || []) {
+    if (!m || !m.msg_id) continue
+    const i = at.get(m.msg_id)
+    if (i === undefined) {
+      at.set(m.msg_id, list.length)
+      list.push(m)
+    } else if (list[i].thread_row || list[i].pending) {
+      list[i] = m
+    }
+  }
+  return list
 }

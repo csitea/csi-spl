@@ -5,6 +5,8 @@ import {
   belongsTo,
   channelFollow,
   channelView,
+  dmFollow,
+  mergePage,
   channelSlug,
   feedRow,
   followPlan,
@@ -16,6 +18,7 @@ import {
   topLevel,
 } from '~/utils/channel-feed.mjs'
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
+import { pendingRow, withoutMsg } from '~/utils/feed.mjs'
 import type { ChannelRow, SendFrame, SpoolMessage } from '~/types/spool'
 
 export type { ChannelRow }
@@ -61,6 +64,7 @@ export const useChannelStore = defineStore('channel', () => {
   const hasOlder = computed(() => view.value.hasOlder || Boolean(olderCursor.value))
   const followed = new Set<string>()
   let followedChannel = ''
+  let followedPeer = ''
 
   /** Live: subscribe the socket to every thread on screen, drop the ones that left. */
   function follow() {
@@ -77,6 +81,11 @@ export const useChannelStore = defineStore('channel', () => {
     if (c.unsub) client.unsubscribeChannel(c.unsub)
     if (c.sub) client.subscribeChannel(c.sub)
     followedChannel = c.next
+    /* the open DM, so a new DM root either side starts arrives live (013 US7, wui-live-ws v0.5) */
+    const d = dmFollow(followedPeer, { peer: peer.value })
+    if (d.unsub) client.unsubscribePeer(d.unsub)
+    if (d.sub) client.subscribePeer(d.sub)
+    followedPeer = d.next
   }
 
   function key() {
@@ -171,6 +180,23 @@ export const useChannelStore = defineStore('channel', () => {
     }
   }
 
+  /**
+   * After a socket reconnect (013 US7 FR-015): re-read the first page and
+   * merge it by msg_id, so older pages already loaded and pending sends stay.
+   */
+  async function catchUp() {
+    if (api.mock) return refresh()
+    const where = { channel: active.value, peer: peer.value }
+    try {
+      const page = await api.listMessages({ channel: where.channel || undefined, peer: where.peer || undefined, limit: 50 })
+      if (where.channel !== active.value || where.peer !== peer.value) return
+      messages.value = mergePage(messages.value, (page.messages || []).map(feedRow) as unknown as FeedMessage[])
+      follow()
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : i18n.t('feed.error.catch_up_failed')
+    }
+  }
+
   /** One live WS message (useSpoolEvents): no poll in live mode. */
   function ingestLive(m: Record<string, unknown>) {
     if (!belongsTo(m, { channel: active.value, peer: peer.value })) return
@@ -209,8 +235,24 @@ export const useChannelStore = defineStore('channel', () => {
       to: peer.value ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),
     }
     if (active.value) frame.channel = active.value
-    const ack = await client.send(frame)
-    const row = rowFromAck(ack, frame, { from: live.identity.value, channel: active.value })
+    /* 013 US7 FR-013: our card shows at once under the msg_id we send; echo / ack replace it */
+    frame.msg_id = newId() || undefined
+    const channelNow = active.value
+    if (frame.msg_id) {
+      const own = pendingRow({
+        msg_id: frame.msg_id, task_id: frame.task_id, from: live.identity.value, to: frame.to || '@channel',
+        kind: frame.kind, body: frame.body, files: frame.files, channel: channelNow,
+      })
+      messages.value = mergeLive(messages.value, own) as FeedMessage[]
+    }
+    let ack
+    try {
+      ack = await client.send(frame)
+    } catch (e) {
+      if (frame.msg_id) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
+      throw e
+    }
+    const row = rowFromAck(ack, frame, { from: live.identity.value, channel: channelNow })
     if (row.msg_id) {
       messages.value = mergeLive(messages.value, row) as FeedMessage[]
       follow()
@@ -253,6 +295,7 @@ export const useChannelStore = defineStore('channel', () => {
     selectDm,
     refresh,
     ingestLive,
+    catchUp,
     send,
     createChannel,
     repliesFor,

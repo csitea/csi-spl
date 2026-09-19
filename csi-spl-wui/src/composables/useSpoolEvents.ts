@@ -6,7 +6,7 @@ import { useLive } from '~/composables/useLive'
 /**
  * Channel / DM tail. Live mode rides the hub WUI socket (003 wui-live-ws):
  * each message frame is merged into the open feed, and a reconnect re-reads
- * the feed once to catch up. Only the mock tenant (no socket) polls.
+ * the first page once and merges it by msg_id (013 US7 FR-015). Only the mock tenant (no socket) polls.
  */
 export function useSpoolEvents() {
   const channel = useChannelStore()
@@ -41,7 +41,7 @@ export function useSpoolEvents() {
     live.ensure()
     off = live.onMessage((m) => channel.ingestLive(m))
     offReconnect = live.onReconnected(() => {
-      void channel.refresh()
+      void channel.catchUp()
       void channel.loadChannels()
       void roster.refresh()
     })

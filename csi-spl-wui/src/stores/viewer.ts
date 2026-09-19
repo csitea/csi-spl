@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
+import { bumpThread, mergeThreadPage } from '~/utils/thread-list.mjs'
+import { useLive } from '~/composables/useLive'
 import type { SpoolMessage, ThreadRow } from '~/types/spool'
 
 /** Read-only thread viewer (spec 005 US1, US2, US4) over 003 view-v1 §4.3 / §4.4. */
@@ -71,6 +73,39 @@ export const useViewerStore = defineStore('viewer', () => {
     }
   }
 
+  /*
+   * 013 US7 FR-011: the thread list is live — the socket follows the whole
+   * tenant (wui-live-ws v0.5 `all`), a pushed message moves its row to the
+   * top; a reconnect re-reads the first page and merges it by task_id.
+   */
+  let offMessage: (() => unknown) | null = null
+  let offReconnect: (() => unknown) | null = null
+  function follow() {
+    if (api.mock || !import.meta.client || offMessage) return
+    const live = useLive()
+    const client = live.ensure()
+    if (!client) return
+    client.subscribeAll()
+    offMessage = live.onMessage((m) => { threads.value = bumpThread(threads.value, m) as ThreadRow[] })
+    offReconnect = live.onReconnected(() => { void catchUp() })
+  }
+  function unfollow() {
+    if (offMessage) offMessage()
+    if (offReconnect) offReconnect()
+    offMessage = offReconnect = null
+    if (api.mock || !import.meta.client) return
+    const client = useLive().ensure()
+    if (client) client.unsubscribeAll()
+  }
+  async function catchUp() {
+    try {
+      const data = await api.listThreads({ limit: 50 })
+      threads.value = mergeThreadPage(threads.value, data.threads) as ThreadRow[]
+    } catch (e) {
+      fail(e)
+    }
+  }
+
   async function openThread(id: string) {
     if (taskId.value !== id) messages.value = []
     taskId.value = id
@@ -100,5 +135,5 @@ export const useViewerStore = defineStore('viewer', () => {
     }
   }
 
-  return { threads, next, taskId, messages, loading, error, needsToken, doorDetail, loadThreads, loadMore, openThread, refreshThread }
+  return { threads, next, taskId, messages, loading, error, needsToken, doorDetail, loadThreads, loadMore, openThread, refreshThread, follow, unfollow, catchUp }
 })

@@ -39,7 +39,7 @@ import { useThreadStore } from '~/stores/thread'
 import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { matchesSearch, rootAndReplies } from '~/utils/feed.mjs'
+import { matchesSearch, mergeById, rootAndReplies } from '~/utils/feed.mjs'
 import { applyVerbosity } from '~/utils/verbosity.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -58,11 +58,25 @@ const loadError = ref('')
 const loading = ref(false)
 const search = ref('')
 const lastLive = ref<SpoolMessage | null>(null)
-const split = computed(() => rootAndReplies((api.mock ? thread.messages : liveRows.value) as SpoolMessage[]))
+/* 013 US7 FR-013: our own reply shows at once (the channel store holds it pending until the echo) */
+const pendingHere = computed(() => channel.messages.filter((m) => m.pending && m.task_id === thread.parentTaskId) as SpoolMessage[])
+const split = computed(() => rootAndReplies((api.mock ? thread.messages : mergeById(liveRows.value, pendingHere.value).rows) as SpoolMessage[]))
 const replies = computed(() => {
   const rows = split.value.replies.filter((m: SpoolMessage) => matchesSearch(m, search.value))
   return (api.mock ? rows : applyVerbosity(rows, thread.verbosity)) as SpoolMessage[]
 })
+
+/** 013 US7 FR-015: after a reconnect, re-read the thread and merge it by msg_id. */
+async function catchUp() {
+  const id = thread.parentTaskId
+  if (api.mock || !thread.open || !id) return
+  try {
+    const data = await api.getThread(id) as { messages?: SpoolMessage[] }
+    if (thread.parentTaskId === id) liveRows.value = mergeById(liveRows.value, data.messages || []).rows as SpoolMessage[]
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : t('thread.load_failed')
+  }
+}
 
 watch(() => [thread.open, thread.parentTaskId] as const, async ([open, id]) => {
   liveRows.value = []
@@ -82,7 +96,8 @@ watch(() => [thread.open, thread.parentTaskId] as const, async ([open, id]) => {
 }, { immediate: true })
 
 if (import.meta.client && !api.mock) {
-  const off = useLive().onMessage((m) => {
+  const live = useLive()
+  const off = live.onMessage((m) => {
     const row = m as unknown as SpoolMessage
     const id = thread.parentTaskId
     if (!id || (row.task_id !== id && row.parent_task_id !== id)) return
@@ -90,7 +105,8 @@ if (import.meta.client && !api.mock) {
     liveRows.value = [...liveRows.value, row]
     lastLive.value = row
   })
-  onUnmounted(() => { off() })
+  const offReconnect = live.onReconnected(() => { void catchUp() })
+  onUnmounted(() => { off(); offReconnect() })
 }
 
 async function onSend(text: string, parent?: string) {

@@ -1,5 +1,6 @@
 <template>
   <section
+    ref="root"
     class="live-feed"
     role="feed"
     :aria-busy="loading ? 'true' : 'false'"
@@ -9,6 +10,9 @@
       {{ t('feed.filter_label') }} <strong>{{ search }}</strong> · {{ t('feed.matches', { count: rows.length + (hasOlder ? '+' : '') }) }}
       <button class="btn ghost" type="button" @click="$emit('clear-search')">{{ t('feed.clear') }}</button>
     </p>
+    <button v-if="pill" class="btn new-pill" type="button" :aria-label="t('feed.new_pill_label')" data-testid="new-pill" @click="jump">
+      ↑ {{ t('feed.new_pill', { n: pill }) }}
+    </button>
     <TransitionGroup name="prepend" tag="div" class="live-rows">
       <MessageCard
         v-for="(m, i) in rows"
@@ -19,6 +23,8 @@
         :thread-link="openable(m)"
         :count="countFor ? countFor(String(m.task_id || '')) : 0"
         :always-thread="alwaysThread"
+        :class="{ pending: m.pending }"
+        :data-pending="m.pending ? 'true' : undefined"
         @open-thread="(id: string) => $emit('open-thread', id)"
       />
     </TransitionGroup>
@@ -32,8 +38,10 @@
 
 <script setup lang="ts">
 import type { SpoolMessage } from '~/types/spool'
+import { useScrollAnchor } from '~/composables/useScrollAnchor'
 
-/* 013: newest first under the Omnibox; entering rows animate; the bottom sentinel loads older windows. */
+/* 013: newest first under the Omnibox; entering rows animate; the bottom sentinel loads older windows.
+   US7: a reader scrolled down keeps their place when rows arrive on top, and gets a "new" pill. */
 const props = defineProps<{
   rows: SpoolMessage[]
   hasOlder: boolean
@@ -50,6 +58,12 @@ const emit = defineEmits<{ older: [], 'clear-search': [], 'open-thread': [id: st
 
 const { t } = useI18n({ useScope: 'global' })
 const sentinel = ref<HTMLElement | null>(null)
+const root = ref<HTMLElement | null>(null)
+const { pill, jump } = useScrollAnchor(
+  root,
+  () => props.rows.map((m) => String(m.msg_id)),
+  (id) => Boolean(props.rows.find((m) => m.msg_id === id)?.pending),
+)
 let io: IntersectionObserver | null = null
 onMounted(() => {
   if (typeof IntersectionObserver === 'undefined' || !sentinel.value) return

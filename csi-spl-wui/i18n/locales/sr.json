@@ -357,7 +357,9 @@
       "load_older_failed": "učitavanje starijih nije uspelo",
       "catch_up_failed": "sustizanje nije uspelo",
       "send_failed": "slanje nije uspelo"
-    }
+    },
+    "new_pill": "Нове: {n}",
+    "new_pill_label": "Иди на најновије поруке"
   },
   "thread": {
     "title": "Nit",

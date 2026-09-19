@@ -357,7 +357,9 @@
       "load_older_failed": "načítanie starších zlyhalo",
       "catch_up_failed": "synchronizácia zlyhala",
       "send_failed": "odoslanie zlyhalo"
-    }
+    },
+    "new_pill": "Nové: {n}",
+    "new_pill_label": "Prejsť na najnovšie správy"
   },
   "thread": {
     "title": "Vlákno",

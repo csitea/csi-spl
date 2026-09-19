@@ -357,7 +357,9 @@
       "load_older_failed": "eskiler yüklenemedi",
       "catch_up_failed": "güncelleme başarısız",
       "send_failed": "gönderme başarısız"
-    }
+    },
+    "new_pill": "Yeni: {n}",
+    "new_pill_label": "En yeni mesajlara git"
   },
   "thread": {
     "title": "Konu",

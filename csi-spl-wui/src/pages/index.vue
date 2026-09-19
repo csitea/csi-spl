@@ -5,6 +5,10 @@
       <span class="muted">{{ tr('pages.index.subtitle') }}</span>
     </header>
     <div class="feed-body">
+      <div ref="listTop" />
+      <button v-if="pill" class="btn new-pill" type="button" :aria-label="tr('feed.new_pill_label')" data-testid="new-pill" @click="jump">
+        ↑ {{ tr('feed.new_pill', { n: pill }) }}
+      </button>
       <ErrorNotice v-if="viewer.error" :message="viewer.error" source="viewer" test-id="viewer-error" />
       <ViewTokenForm v-if="viewer.needsToken" :detail="viewer.doorDetail" @saved="viewer.loadThreads()" />
       <p v-else-if="!viewer.loading && !viewer.error && viewer.threads.length === 0" class="muted">
@@ -36,6 +40,7 @@ import { useLiveFeed } from '~/stores/live'
 import { formatTs } from '~/utils/channel-feed.mjs'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSettledQuery } from '~/composables/useSettledQuery'
+import { useScrollAnchor } from '~/composables/useScrollAnchor'
 
 const viewer = useViewerStore()
 /* `tr`, not `t`: the thread rows below are iterated as `t` */
@@ -51,5 +56,12 @@ onMounted(() => {
     if (/^[0-9a-f-]{36}$/i.test(id)) void pane.open(id)
   }, { immediate: true })
 })
-onMounted(() => viewer.loadThreads())
+/* 013 US7: newest activity on top, live over the socket; a reader scrolled down keeps their place */
+const listTop = ref<HTMLElement | null>(null)
+const { pill, jump } = useScrollAnchor(listTop, () => viewer.threads.map((r) => r.task_id))
+onMounted(async () => {
+  await viewer.loadThreads()
+  viewer.follow()
+})
+onUnmounted(() => viewer.unfollow())
 </script>

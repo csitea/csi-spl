@@ -357,7 +357,9 @@
       "load_older_failed": "טעינת הודעות ישנות נכשלה",
       "catch_up_failed": "ההשלמה נכשלה",
       "send_failed": "השליחה נכשלה"
-    }
+    },
+    "new_pill": "חדשות: {n}",
+    "new_pill_label": "מעבר להודעות החדשות ביותר"
   },
   "thread": {
     "title": "שרשור",

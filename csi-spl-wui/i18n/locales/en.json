@@ -357,7 +357,9 @@
       "load_older_failed": "load older failed",
       "catch_up_failed": "catch-up failed",
       "send_failed": "send failed"
-    }
+    },
+    "new_pill": "New: {n}",
+    "new_pill_label": "Jump to the newest messages"
   },
   "thread": {
     "title": "Thread",

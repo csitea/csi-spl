@@ -48,3 +48,42 @@ export function rootAndReplies(messages) {
   const root = byAge[0] || null
   return { root, replies: newestFirst(byAge.slice(1)) }
 }
+
+/**
+ * 013 US7 FR-013: merge rows by msg_id. A new msg_id is added; a row already
+ * held as `pending` (our optimistic send) is replaced by the confirmed one;
+ * any other duplicate is dropped. Returns the new list, what was added and
+ * how many pending rows were confirmed.
+ */
+export function mergeById(rows, incoming) {
+  const list = (rows || []).slice()
+  const at = new Map(list.map((m, i) => [m.msg_id, i]))
+  const added = []
+  let confirmed = 0
+  for (const m of incoming || []) {
+    if (!m || !m.msg_id) continue
+    const i = at.get(m.msg_id)
+    if (i === undefined) {
+      at.set(m.msg_id, list.length)
+      list.push(m)
+      added.push(m)
+    } else if (list[i].pending && !m.pending) {
+      list[i] = m
+      confirmed++
+    }
+  }
+  return { rows: list, added, confirmed }
+}
+
+/** The optimistic card for our own send (FR-013): shown at once, replaced by the pushed echo. */
+export function pendingRow({ msg_id, task_id, from = '', to = '', kind = 'note', body = '', files = [], channel = null, parent_task_id = null, now = new Date() }) {
+  return {
+    v: 1, msg_id, task_id, ts: now.toISOString(), received_at: now.toISOString(),
+    from, from_box: 'box-wui', to: to || 'ALL-0', kind, body, files, channel, parent_task_id, pending: true,
+  }
+}
+
+/** Drop one msg_id (a failed optimistic send). */
+export function withoutMsg(rows, msgId) {
+  return (rows || []).filter((m) => m.msg_id !== msgId)
+}

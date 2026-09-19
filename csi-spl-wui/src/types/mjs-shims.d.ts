@@ -100,6 +100,10 @@ declare module '~/utils/live-ws.mjs' {
     unsubscribe(taskId: string): void
     subscribeChannel(channel: string): void
     unsubscribeChannel(channel: string): void
+    subscribePeer(peer: string): void
+    unsubscribePeer(peer: string): void
+    subscribeAll(): void
+    unsubscribeAll(): void
     requestToken(): Promise<Record<string, unknown>>
     send(opts: import('./spool').SendFrame): Promise<import('./spool').AckFrame>
   }
@@ -129,6 +133,8 @@ declare module '~/utils/channel-feed.mjs' {
   export function mergeLive<T>(rows: T[], msg: unknown): T[]
   export function followPlan(current: Iterable<string>, want: string[], keep?: string): { add: string[], drop: string[] }
   export function channelFollow(current: string, view?: { channel?: string | null, peer?: string | null }): { sub: string, unsub: string, next: string }
+  export function dmFollow(current: string, view?: { peer?: string | null }): { sub: string, unsub: string, next: string }
+  export function mergePage<T>(rows: T[], incoming: T[]): T[]
   export function rowFromAck(ack: unknown, frame: unknown, who?: { from?: string, channel?: string | null }): Record<string, unknown>
   export function rootsByTask<T extends { task_id?: string }>(messages: T[]): T[]
   export function threadReplies(messages: { task_id?: string, parent_task_id?: string | null }[], taskId: string): number
@@ -213,6 +219,38 @@ declare module '~/utils/feed.mjs' {
   export function parseOmnibox(text: string): { search?: string, send?: string }
   export function matchesSearch(m: unknown, q: string): boolean
   export function rootAndReplies<T>(messages: T[]): { root: T | null, replies: T[] }
+  export function mergeById<T>(rows: T[], incoming: T[]): { rows: T[], added: T[], confirmed: number }
+  export function pendingRow(o: {
+    msg_id: string
+    task_id: string
+    from?: string
+    to?: string
+    kind?: string
+    body?: string
+    files?: unknown[]
+    channel?: string | null
+    parent_task_id?: string | null
+    now?: Date
+  }): import('./spool').SpoolMessage
+  export function withoutMsg<T>(rows: T[], msgId: string): T[]
+}
+
+declare module '~/utils/scroll-anchor.mjs' {
+  export const NEAR_TOP_PX: number
+  export function prependedCount(prevKeys: string[], nextKeys: string[]): number
+  export function anchorAfterPrepend(o: {
+    top?: number
+    prevHeight?: number
+    nextHeight?: number
+    added?: number
+    pill?: number
+    nearTop?: number
+  }): { top: number, pill: number, moved: boolean }
+}
+
+declare module '~/utils/thread-list.mjs' {
+  export function bumpThread<T>(threads: T[], m: Record<string, unknown>): T[]
+  export function mergeThreadPage<T>(threads: T[], page: T[]): T[]
 }
 
 declare module '~/utils/avatar.mjs' {

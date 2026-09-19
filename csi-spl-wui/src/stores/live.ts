@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { matchesSearch, newestFirst, rootAndReplies, windowed } from '~/utils/feed.mjs'
+import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, windowed, withoutMsg } from '~/utils/feed.mjs'
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
@@ -40,12 +40,13 @@ function setup(key: 'main' | 'pane') {
   const hasOlder = computed(() => view.value.hasOlder || Boolean(olderCursor.value))
   const thread = computed(() => rootAndReplies(messages.value.filter((m) => matchesSearch(m, search.value))))
 
+  /** By msg_id: new rows are added, a confirmed row replaces our pending one (013 US7). */
   function merge(rows: SpoolMessage[], fromLive = false) {
-    const seen = new Set(messages.value.map((m) => m.msg_id))
-    const add = rows.filter((m) => m && m.msg_id && !seen.has(m.msg_id))
-    if (!add.length) return
-    messages.value = [...messages.value, ...add]
-    if (fromLive) {
+    const r = mergeById(messages.value, rows)
+    const add = r.added as SpoolMessage[]
+    if (!add.length && !r.confirmed) return
+    messages.value = r.rows as SpoolMessage[]
+    if (fromLive && add.length) {
       liveCount.value += add.length
       lastLive.value = add[add.length - 1]
     }
@@ -156,6 +157,7 @@ function setup(key: 'main' | 'pane') {
 
   async function send(body: string, files: File[] = []) {
     if (!taskId.value) return
+    let msgId = ''
     sending.value = true
     error.value = null
     try {
@@ -169,15 +171,22 @@ function setup(key: 'main' | 'pane') {
       const to = m ? m[1] : undefined
       const text = m ? m[2] : body
       const client = live.ensure()
+      /* 013 US7 FR-013: shown at once under the msg_id we send; the pushed echo replaces it */
+      msgId = crypto.randomUUID()
+      const task = taskId.value
+      merge([pendingRow({ msg_id: msgId, task_id: task, from: live.identity.value, to, kind, body: text, files: refs }) as SpoolMessage])
       if (client) {
-        await client.send({ task_id: taskId.value, kind, body: text, files: refs, to })
+        const ack = await client.send({ task_id: task, kind, body: text, files: refs, to, msg_id: msgId }) as { cursor?: string, received_at?: string }
+        const own = messages.value.find((m) => m.msg_id === msgId)
+        if (own && own.pending && taskId.value === task) {
+          merge([{ ...own, pending: false, cursor: ack.cursor, received_at: ack.received_at || own.received_at }])
+        }
       } else {
-        merge([{
-          v: 1, msg_id: crypto.randomUUID(), task_id: taskId.value, ts: new Date().toISOString(),
-          from: live.identity.value, to: to || 'ALL-0', kind, body: text, files: refs, from_box: 'box-wui',
-        } as SpoolMessage], true)
+        const own = messages.value.find((m) => m.msg_id === msgId)
+        if (own) merge([{ ...own, pending: false }])
       }
     } catch (e) {
+      if (msgId) messages.value = withoutMsg(messages.value, msgId) as SpoolMessage[]
       error.value = e instanceof Error ? e.message : i18n.t('feed.error.send_failed')
     } finally {
       sending.value = false

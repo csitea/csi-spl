@@ -357,7 +357,9 @@
       "load_older_failed": "vanhempien lataus epäonnistui",
       "catch_up_failed": "päivitys epäonnistui",
       "send_failed": "lähetys epäonnistui"
-    }
+    },
+    "new_pill": "Uusia: {n}",
+    "new_pill_label": "Siirry uusimpiin viesteihin"
   },
   "thread": {
     "title": "Ketju",

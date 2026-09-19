@@ -357,7 +357,9 @@
       "load_older_failed": "oudere laden mislukt",
       "catch_up_failed": "bijwerken mislukt",
       "send_failed": "versturen mislukt"
-    }
+    },
+    "new_pill": "Nieuw: {n}",
+    "new_pill_label": "Naar de nieuwste berichten"
   },
   "thread": {
     "title": "Thread",

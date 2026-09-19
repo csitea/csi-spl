@@ -357,7 +357,9 @@
       "load_older_failed": "vanemate laadimine ebaõnnestus",
       "catch_up_failed": "järelelaadimine ebaõnnestus",
       "send_failed": "saatmine ebaõnnestus"
-    }
+    },
+    "new_pill": "Uusi: {n}",
+    "new_pill_label": "Mine uusimate sõnumite juurde"
   },
   "thread": {
     "title": "Lõim",

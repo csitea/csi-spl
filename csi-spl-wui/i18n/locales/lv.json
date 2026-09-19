@@ -357,7 +357,9 @@
       "load_older_failed": "vecāko ielāde neizdevās",
       "catch_up_failed": "sinhronizācija neizdevās",
       "send_failed": "sūtīšana neizdevās"
-    }
+    },
+    "new_pill": "Jaunas: {n}",
+    "new_pill_label": "Pāriet uz jaunākajām ziņām"
   },
   "thread": {
     "title": "Pavediens",

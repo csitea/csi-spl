@@ -43,15 +43,26 @@ spl_stripe_env_get() {
 }
 
 # spl_stripe_load_secret_key <envf> <out-file> <env> -> writes the checked
-# STRIPE_SECRET_KEY of <envf> to <out-file> (0600) and sets SPL_STRIPE_MODE.
+# secret key to <out-file> (0600) and sets SPL_STRIPE_MODE. csi-rel's layout:
+# the dedicated key file .<env>-stripe-secret-key next to <envf> wins; the
+# STRIPE_SECRET_KEY of <envf> is the fallback (csi-rel keeps that one EMPTY on
+# prd, so no accidental run pushes the live key).
 # dev takes test keys only, prd live keys only (csi-rel's rule). Shared-account
 # guard: the same key in another app's dir ($HOME/.stripe/.<org>/.*/) is
 # refused unless STRIPE_SHARED_ACCOUNT_OK=1 (the owner's explicit go).
 spl_stripe_load_secret_key() {
   local envf="$1" out="$2" env_name="$3" want=test
   [[ "$env_name" == prd ]] && want=live
-  spl_stripe_owner_file "$envf" || return 1
-  (umask 077 && spl_stripe_env_get "$envf" STRIPE_SECRET_KEY >"$out") || return 1
+  local kf
+  kf="$(dirname "$envf")/.$env_name-stripe-secret-key"
+  if [[ -s "$kf" ]]; then
+    spl_stripe_owner_file "$kf" || return 1
+    (umask 077 && tr -d '\r\n' <"$kf" >"$out") || return 1
+    envf="$kf"
+  else
+    spl_stripe_owner_file "$envf" || return 1
+    (umask 077 && spl_stripe_env_get "$envf" STRIPE_SECRET_KEY >"$out") || return 1
+  fi
   SPL_STRIPE_MODE=""
   case "$(head -c 8 "$out")" in
     sk_test_|rk_test_) SPL_STRIPE_MODE=test ;;

@@ -123,10 +123,17 @@ out=$(CNF_OVERRIDE="$PPON" run_act DRY_RUN=0); rc=$?
 stripe_env prd "$SK_LIVE" "$WH"; printf '%s\n' "$PK_LIVE" >"$SD/stripe-publishable-key-prd.txt"
 out=$(ENV_=prd run_act); rc=$?
 [[ $rc -eq 0 ]] && pass "prd accepts live keys (dry run)" || fail "prd live: rc=$rc $out"
+# csi-rel layout: the dedicated .prd-stripe-secret-key wins over an EMPTY env-file key
+stripe_env prd "" "$WH"; SK_LIVE2="${p_sk}_live_$(rnd)"
+printf '%s\n' "$SK_LIVE2" >"$SD/.prd-stripe-secret-key"; chmod 600 "$SD/.prd-stripe-secret-key"
+out=$(ENV_=prd run_act DRY_RUN=0); rc=$?
+[[ $rc -eq 0 && "$(cat "$T/store/$SKS")" == "$SK_LIVE2" ]] && pass "the dedicated .prd-stripe-secret-key file is the key (env-file key empty)" || fail "dedicated key file: rc=$rc $out"
+chmod 644 "$SD/.prd-stripe-secret-key"
+ENV_=prd refused "a group/other-readable dedicated key file"
 
 all_out="$(cat "$T/argv" "$T/allout")"
 leak=0
-for v in "$SK_TEST" "$SK_LIVE" "$WH" "$PP" "$REL_WH"; do grep -qF "$v" <<<"$all_out" && leak=1; done
+for v in "$SK_TEST" "$SK_LIVE" "$SK_LIVE2" "$WH" "$PP" "$REL_WH"; do grep -qF "$v" <<<"$all_out" && leak=1; done
 (( leak == 0 )) && pass "no secret value in any output or gcloud argv" || fail "a secret value leaked into output or argv"
 [[ $(grep -vc -- '--account=stub-sa@example.com' "$T/argv") -eq 0 ]] && pass "every gcloud call carries --account" || fail "unpinned gcloud call: $(grep -v -- '--account=' "$T/argv" | head -2)"
 

@@ -8,21 +8,21 @@ here; each names its owner.
 
 ## Phase 0 — Spec
 
-- [ ] T001 spec.md, plan.md, tasks.md, azure-registration-runbook.md.
+- [x] T001 Implemented (`c29e78c`) — spec.md, plan.md, tasks.md, azure-registration-runbook.md. Check: `ls csi-spl-doc/specs/018-spool-auth-microsoft/` → 4 files.
 
 ## Phase 1 — Hub code (CLE-3386)
 
-- [ ] T010 `config.go` Microsoft block: tenant `common` default, syntax (keyword or GUID), scopes ⊇ `openid email`, TRUST_EMAIL refused in prd. FR-001, FR-005, FR-007.
-- [ ] T011 `microsoft.go` AuthCodeURL: PKCE S256 from the HMAC-derived verifier, `prompt=select_account`, `response_mode=query`; `handler.go` `nonceExchanger`. FR-002.
-- [ ] T012 `idtoken.go` + `microsoft.go` exchange: RS256 + JWKS cache, `aud`/`iss`/`tid`/`nonce`/`exp`/`nbf`, tenant rule, `xms_edov` rule, subject `<tid>/<oid>`. FR-001, FR-003, FR-004, FR-005.
-- [ ] T013 `fakeidp`: Microsoft-shaped endpoints, RS256, JWKS, PKCE, per-person tenant / `xms_edov`, token tampering knobs; auth-demo still signs in all providers. FR-008.
-- [ ] T014 `microsoft_test.go`: SC-001 + SC-002, every negative case beside its positive control. Suite green with `-race`.
-- [ ] T015 cnf `all.env.yaml`: `SPOOL_HUB_AUTH_MICROSOFT_TENANT: common`, dev/prd json re-rendered.
+- [x] T010 Implemented (`4dc854e`) — `config.go` Microsoft block: tenant `common` default, syntax (keyword or GUID), scopes ⊇ `openid email`, TRUST_EMAIL refused in prd. FR-001, FR-005, FR-007.
+- [x] T011 Implemented (`4dc854e`) — `microsoft.go` AuthCodeURL: PKCE S256 from the HMAC-derived verifier, `prompt=select_account`, `response_mode=query`; `handler.go` `nonceExchanger`. FR-002.
+- [x] T012 Implemented (`4dc854e`) — `idtoken.go` + `microsoft.go` exchange: RS256 + JWKS cache, `aud`/`iss`/`tid`/`nonce`/`exp`/`nbf`, tenant rule, `xms_edov` rule, subject `<tid>/<oid>`. FR-001, FR-003, FR-004, FR-005.
+- [x] T013 Implemented (`4dc854e`) — `fakeidp`: Microsoft-shaped endpoints, RS256, JWKS, PKCE, per-person tenant / `xms_edov`, token tampering knobs; auth-demo still signs in all providers. FR-008.
+- [x] T014 Implemented (`4dc854e`) — `microsoft_test.go`: SC-001 + SC-002, every negative case beside its positive control. Check (tree 4dc854e, n=1 each): `go test -race -count=1 ./internal/auth/...` → ok; `go test -count=1 -run Microsoft ./internal/auth/` → ok (TestMicrosoftSignIn, …WorkEmailNeedsVerifiedDomain, …TenantMode 9 cases, …IDTokenForgeriesRefused 17 forgeries, …PKCE, …JWKSCache, TestConfigMicrosoftTenant); `go run ./internal/auth/cmd/auth-demo` → `OK - all 5 providers signed in against the fake IdP`; `bash csi-spl-api/src/bash/tests/run-all-tests.sh` → `ALL csi-spl-api TESTS PASSED`.
+- [x] T015 Implemented (`f004b8b`) — cnf `all.env.yaml`: `SPOOL_HUB_AUTH_MICROSOFT_TENANT: common`, dev/prd json + 030 tfvars re-rendered by `ENV=<env> ./run -a do_tpl_gen`. Check: `yq -r '.env.auth.social.env.SPOOL_HUB_AUTH_MICROSOFT_TENANT' csi-spl-cnf/csi-spl/prd.env.json` → `common`; `SPOOL_HUB_AUTH_PROVIDERS` unchanged (microsoft is listed nowhere).
 
 ## Phase 2 — Secret path and WUI (other lanes)
 
-- [ ] T020 (CLE-3387, spec 019) `do_spl_auth_idp_secret_seed` with `IDP=microsoft` and a bare-GUID Secret-ID refusal. FR-010. Record the sha here once it lands.
-- [ ] T025 (CLE-55, WUI) Microsoft button in `SocialAuthButtons.vue`: four-square mark, `social_auth.continue_microsoft` = "Sign in with Microsoft", Microsoft light-theme colours. FR-011.
+- [x] T020 Implemented by CLE-3387 (`3c388d9`, spec 019) — `do_spl_auth_idp_secret_seed` with `IDP=microsoft` and a bare-GUID Secret-ID refusal. FR-010. Check (re-run by CLE-3386 on 4dc854e, n=1): `bash csi-spl-orc/src/bash/tests/auth-idp-secret-seed.tst.sh` → `auth-idp-secret-seed: ALL PASS` (21 PASS lines, including the microsoft Secret-ID refusal and its CONTROL).
+- [~] T025 Partial (CLE-55, WUI) — the generic button already renders "Continue with Microsoft" when the hub lists it; the branded change was sent to CLE-55 on 2026-09-19 (inbox `20260919T134241Z--CLE-3386--…`). Change: Microsoft button in `SocialAuthButtons.vue`: four-square mark, `social_auth.continue_microsoft` = "Sign in with Microsoft", Microsoft light-theme colours. FR-011.
 
 ## Phase 3 — Deferred
 
@@ -38,4 +38,4 @@ here; each names its owner.
 - [ ] T044 prd: as T042.
 - [ ] T045 prd verify: as T043.
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:40:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:45:00Z -->

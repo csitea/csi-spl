@@ -63,6 +63,36 @@ DOM and focus order equal visual order: Omnibox, newest message, older
 messages. The feed is `role="feed"` with `article`s, the Omnibox has a label,
 new live messages are announced politely.
 
+### US6 — Slack-style code blocks (P1, owner 2026-09-19)
+> "enable the same feature as in slack to create code blocks by typing \"```\""
+
+In every composer (the Top Omnibox, the thread-pane reply Omnibox, `/channel`
+and `/dm`), typing ```` ``` ```` opens a code block in place: the input turns
+monospace and a polite live hint says so; Enter adds a line inside the block,
+typing ```` ``` ```` again or Esc closes it, Ctrl/Cmd+Enter or the Send button
+sends (a block left open is closed on send). No `@`-autocomplete inside a
+block. Pasted multi-line code keeps its whitespace. Single backticks are
+inline `code`.
+
+The wire is unchanged: the body is plain text with Markdown fences, so boxes
+and agents read ```` ``` ```` fences, and agent messages that already carry
+fences render the same way. Feed, thread pane and DMs render a fenced block
+as a monospace block with whitespace preserved, horizontal scroll **inside
+the block only**, an optional language label (```` ```js ````), and a copy
+button (`code.copy` / `code.copied`, 19 locales).
+
+Parser rules (`utils/code-blocks.mjs`): a run of 3+ backticks opens anywhere
+on a line and the next run of at least as many closes it; one newline after
+the opener and before the closer is dropped; an unclosed fence at a line
+start runs to the end (truncated agent output), mid-line it stays literal;
+1–2 backticks are inline code on one line, and a ```` ``` ```` inside inline
+code is content; CRLF/CR read as LF.
+
+Security: the body is parsed into plain strings and rendered with Vue text
+interpolation (`MessageBody.vue`); `MessageCard.vue` no longer uses `v-html`,
+and no Markdown-to-HTML library is used. SEC-06 CSP (no `unsafe-inline`)
+stays clean.
+
 ## 2. Functional requirements
 
 - **FR-001** (Implemented, `ec3b91e`; tasks.md): Omnibox component (reuse `MessageComposer.vue`), send on Enter, `/search` filter, Esc clears.
@@ -74,6 +104,7 @@ new live messages are announced politely.
 - **FR-007** (Implemented, `ec3b91e`; tasks.md): a11y order and semantics as US5.
 - **FR-008** (Implemented, `ec3b91e`; tasks.md): no `v:1` change; the live WS client and view reads are reused unchanged (005 T021–T023).
 - **FR-009** (Implemented, `76f66b5`; tasks.md T014): the two vertical seams of the 3-pane shell are draggable, keyboard-accessible separators; widths persist in `localStorage` `spool.pane-widths`; the main feed never collapses; no divider when a pane is hidden or overlaying. See `SPEC-spool-wui-layout.md` §1.2.
+- **FR-010** (Implemented, `4c204d0`; tasks.md T016–T017): Slack-style ``` code blocks as US6 — composer state, fenced + inline rendering without `v-html`, copy button, language label, no wire change.
 
 ## 3. Success criteria
 
@@ -81,6 +112,7 @@ new live messages are announced politely.
 - **SC-002**: `/search` filters without sending; plain text + Enter sends.
 - **SC-003**: avatars render for `HUM-*`, `CLE-*`, `GRK-*`, `AGY-*`; same id → same avatar.
 - **SC-004**: unit, e2e (no-x-scroll incl. the 3-pane pages) and typecheck green.
+- **SC-005**: on dev, typing ```` ``` ```` + code + ```` ``` ```` + Enter shows one code block with the exact text; copy puts exactly that text on the clipboard; an injected `<script>` / `onerror` payload inside and outside the block never executes, 0 CSP violations.
 
 ## 4. Dependencies and gaps
 
@@ -89,4 +121,4 @@ new live messages are announced politely.
 | D1 | ~~no newest-first window on view-v1 §4.4~~ **closed**: `order=desc&before=` (`1dca945`), used by the WUI (tasks T008) | 003 (CLE-3340) |
 | D2 | Custom avatars (`file_id` profile map) | later (avatars §3) |
 
-<!-- version: 0.4.2 · updated: 2026-09-19 · last-edit: 2026-09-19T15:30:00Z -->
+<!-- version: 0.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T16:40:00Z -->

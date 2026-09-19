@@ -18,6 +18,7 @@ set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 FUNC="$PROJ_ROOT/src/bash/run/wait-for-cert.func.sh"
+PIN="$PROJ_ROOT/lib/bash/funcs/gcp-account-pin.func.sh"
 
 fails=0
 check() {
@@ -55,7 +56,7 @@ run_case() {
   env "${COMMON[@]}" CERT_FIXTURE="$1" STUB_LOG="$STUB_LOG" PATH="$PATH" bash -c '
     do_log() { :; }
     do_require_bin() { command -v "$1" >/dev/null 2>&1; }
-    source "'"$FUNC"'"
+    source "'"$PIN"'"; source "'"$FUNC"'"
     do_wait_for_cert
   ' >/dev/null 2>&1
   echo $?
@@ -66,15 +67,15 @@ check "$(run_case pending)" 1 "a PROVISIONING certificate does not read as ACTIV
 check "$(run_case failed)" 1 "a FAILED certificate does not read as ACTIVE"
 check "$(run_case absent)" 1 "an absent certificate does not read as ACTIVE"
 
-check "$(env GCP_PROJECT=p GCP_ACCOUNT=a PATH="$PATH" bash -c 'do_log(){ :; }; do_require_bin(){ return 0; }; source "'"$FUNC"'"; do_wait_for_cert' >/dev/null 2>&1; echo $?)" 1 "missing DOMAIN is refused"
-check "$(env DOMAIN=d GCP_ACCOUNT=a PATH="$PATH" bash -c 'do_log(){ :; }; do_require_bin(){ return 0; }; source "'"$FUNC"'"; do_wait_for_cert' >/dev/null 2>&1; echo $?)" 1 "missing GCP_PROJECT is refused"
-check "$(env DOMAIN=d GCP_PROJECT=p PATH="$PATH" bash -c 'do_log(){ :; }; do_require_bin(){ return 0; }; source "'"$FUNC"'"; do_wait_for_cert' >/dev/null 2>&1; echo $?)" 1 "missing GCP_ACCOUNT is refused"
+check "$(env GCP_PROJECT=p GCP_ACCOUNT=a PATH="$PATH" bash -c 'do_log(){ :; }; do_require_bin(){ return 0; }; source "'"$PIN"'"; source "'"$FUNC"'"; do_wait_for_cert' >/dev/null 2>&1; echo $?)" 1 "missing DOMAIN is refused"
+check "$(env DOMAIN=d GCP_ACCOUNT=a PATH="$PATH" bash -c 'do_log(){ :; }; do_require_bin(){ return 0; }; source "'"$PIN"'"; source "'"$FUNC"'"; do_wait_for_cert' >/dev/null 2>&1; echo $?)" 1 "missing GCP_PROJECT is refused"
+check "$(env DOMAIN=d GCP_PROJECT=p PATH="$PATH" bash -c 'do_log(){ :; }; do_require_bin(){ return 0; }; source "'"$PIN"'"; source "'"$FUNC"'"; do_wait_for_cert' >/dev/null 2>&1; echo $?)" 1 "missing GCP_ACCOUNT (no ENV, so no cnf account) is refused"
 
 : >"$STUB_LOG"
 env "${COMMON[@]}" CERT_FIXTURE=provisioned STUB_LOG="$STUB_LOG" PATH="$PATH" bash -c '
   do_log() { :; }
   do_require_bin() { command -v "$1" >/dev/null 2>&1; }
-  source "'"$FUNC"'"
+  source "'"$PIN"'"; source "'"$FUNC"'"
   do_wait_for_cert
 ' >/dev/null 2>&1
 if grep -q -- '--account=op@example.com' "$STUB_LOG" && grep -q -- '--project=proj-test' "$STUB_LOG"; then

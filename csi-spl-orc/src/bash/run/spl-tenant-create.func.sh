@@ -14,12 +14,12 @@
 # @param SPOOL_HUB_DB_DSN (optional) - lde: derived. dev/prd: when unset, the
 # @param   DSN secret is read as GCP_ACCOUNT and reached through the Cloud SQL
 # @param   proxy (spl_sql_proxy_start), the same path do_spl_db_bootstrap uses
-# @param GCP_ACCOUNT - dev/prd with DRY_RUN=0 and no SPOOL_HUB_DB_DSN: the
+# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account). dev/prd with DRY_RUN=0 and no SPOOL_HUB_DB_DSN: the
 # @param   operator (secretmanager.secretAccessor + cloudsql.client)
 # @param SPOOL_BIN (optional) - spool CLI; otherwise built from csi-spl-api
 # @example TENANT_ID=acme ./run -a do_spl_tenant_create --json
 # @example ENV=lde DRY_RUN=0 TENANT_ID=acme ./run -a do_spl_tenant_create --json
-# @example ENV=dev DRY_RUN=0 GCP_ACCOUNT=<OPERATOR>@example.com TENANT_ID=t1 ./run -a do_spl_tenant_create
+# @example ENV=dev DRY_RUN=0 TENANT_ID=t1 ./run -a do_spl_tenant_create
 #------------------------------------------------------------------------------
 do_spl_tenant_create() {
   do_require_bin yq || return 1
@@ -88,7 +88,7 @@ do_spl_tenant_create() {
   # the local proxy. Every failure here happens before a key is generated.
   local proxied=0
   if [[ -z "$dsn" && "$env" != lde ]]; then
-    do_require_var GCP_ACCOUNT "${GCP_ACCOUNT:-}" || return 1
+    do_gcp_pin_account "${SPL_CNF:-}" || return 1
     do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
     local cloud_dsn
     cloud_dsn="$(spl_read_dsn)"
@@ -103,7 +103,7 @@ do_spl_tenant_create() {
   fi
 
   [[ -n "$dsn" ]] || {
-    do_log "FATAL SPOOL_HUB_DB_DSN is required when DRY_RUN=0 (lde: derived; dev/prd: or set GCP_ACCOUNT)"
+    do_log "FATAL SPOOL_HUB_DB_DSN is required when DRY_RUN=0 (lde: derived; dev/prd: read from the DSN secret)"
     return 1
   }
 

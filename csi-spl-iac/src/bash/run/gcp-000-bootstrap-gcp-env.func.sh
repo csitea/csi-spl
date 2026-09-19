@@ -9,14 +9,18 @@
 # @description login and `gcloud config set account`: the caller proves the
 # @description identity (gcloud auth login GCP_ACCOUNT, as the box user) first.
 # @param ENV - required: dev or prd
-# @param GCP_ACCOUNT - required: an org-level human identity
-# @param GCP_ORG_ID - required (gcp-002 sets the org policy there; gcp-001 parent)
+# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email: an org-level human identity
+# @param GCP_ORG_ID (optional) - overrides cnf env.gcp.gcp_org_id (gcp-002 sets the org policy there; gcp-001 parent)
 # @param GCP_BILLING_ACCOUNT_ID - required by gcp-001
 # @param DRY_RUN (optional) - 1 (default) for every step. 0: mutate.
-# @example ENV=dev GCP_ACCOUNT=admin@example.com GCP_ORG_ID=123456789012 GCP_BILLING_ACCOUNT_ID=XXXXXX-XXXXXX-XXXXXX ./run -a do_gcp_000_bootstrap_gcp_env
+# @example ENV=dev GCP_BILLING_ACCOUNT_ID=XXXXXX-XXXXXX-XXXXXX ./run -a do_gcp_000_bootstrap_gcp_env
 #------------------------------------------------------------------------------
 do_gcp_000_bootstrap_gcp_env() {
+  do_resolve_oap ORG
+  do_resolve_oap APP
+  GCP_ORG_ID=$(do_gcp_org_id)
   do_require_var GCP_ORG_ID "${GCP_ORG_ID:-}"
+  export GCP_ORG_ID
 
   do_log "INFO ============================================"
   do_log "INFO Bootstrap GCP env ${ENV:-<unset>} DRY_RUN=${DRY_RUN:-1}"

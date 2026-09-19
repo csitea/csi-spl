@@ -16,12 +16,13 @@ APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
 RUN="$PROJ_ROOT/src/bash/run"
 LIB="$PROJ_ROOT/lib/bash/funcs"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+mkdir -p "$T/nocnf"
 
 fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
-for f in "$RUN"/gcp-00{0,2,3,4}-*.func.sh "$LIB/gcp-spl-proj-id.func.sh"; do
+for f in "$RUN"/gcp-00{0,2,3,4}-*.func.sh "$LIB/gcp-spl-proj-id.func.sh" "$LIB/gcp-account-pin.func.sh"; do
   bash -n "$f" && pass "bash -n $(basename "$f")" || fail "bash -n $(basename "$f")"
 done
 
@@ -76,7 +77,7 @@ run_fn() {
         *) return 0 ;;
       esac
     }
-    for f in "$LIB"/gcp-require-live-account.func.sh "$LIB"/gcp-spl-proj-id.func.sh "$RUN"/gcp-00*.func.sh; do source "$f"; done
+    for f in "$LIB"/gcp-require-live-account.func.sh "$LIB"/gcp-spl-proj-id.func.sh "$LIB"/gcp-account-pin.func.sh "$RUN"/gcp-00*.func.sh; do source "$f"; done
     "$FN" >"$GCLOUD_LOG.out" 2>&1
 INNER
 }
@@ -132,8 +133,10 @@ rm -f "$KEY"
 run_fn $F2 "$log" POLICY=unreadable DRY_RUN=0; rc=$?
 [[ $rc -ne 0 ]] && ! grep -qE "$MUTATE" "$log" && pass "002 an unreadable policy aborts before any mutation" || fail "002 unreadable policy: $(cat "$log")"
 
+# APP_PATH without a cnf: an empty GCP_ORG_ID / GCP_ACCOUNT is a refusal only
+# when env.gcp does not supply one (gcloud-account-pinned.tst.sh: the other side)
 for c in "GCP_ORG_ID=" "GCP_ACCOUNT=" "ENV=tst" "DRY_RUN=yes"; do
-  run_fn $F2 "$log" DRY_RUN=0 $c; rc=$?
+  run_fn $F2 "$log" DRY_RUN=0 APP_PATH="$T/nocnf" $c; rc=$?
   [[ $rc -ne 0 && ! -s "$log" ]] && pass "002 fails fast before any gcloud call: $c" || fail "002 did not fail fast (rc=$rc): $c"
 done
 
@@ -171,18 +174,18 @@ grep -qE '^config set|^auth login|^auth activate|application-default' "$all" \
   && fail "an action wrote the shared gcloud config / ADC" || pass "no config set / auth login / activate / ADC write in any mode ($(wc -l <"$all") calls)"
 
 # --- gcp-000 orchestrates 001 -> 004 in order and stops on the first failure ----
-out=$(env RUN="$RUN" GCP_ORG_ID=1 ENV=dev bash -c '
-  do_log(){ :; }; do_require_var(){ [[ -n "${2:-}" ]] || exit 1; }
-  source "$RUN/gcp-000-bootstrap-gcp-env.func.sh"
+out=$(env RUN="$RUN" LIB="$LIB" GCP_ORG_ID=1 ENV=dev bash -c '
+  do_log(){ :; }; do_require_var(){ [[ -n "${2:-}" ]] || exit 1; }; do_resolve_oap(){ :; }
+  source "$LIB/gcp-account-pin.func.sh"; source "$RUN/gcp-000-bootstrap-gcp-env.func.sh"
   do_gcp_001_create_project(){ echo 001; }
   do_gcp_002_create_project_service_account(){ echo 002; }
   do_gcp_003_configure_proj_sa_permissions(){ echo 003; }
   do_gcp_004_project_apis_enable(){ echo 004; }
   do_gcp_000_bootstrap_gcp_env' | tr '\n' ' ')
 [[ "$out" == "001 002 003 004 " ]] && pass "000 runs 001, 002, 003, 004 in order" || fail "000 order: $out"
-out=$(env RUN="$RUN" GCP_ORG_ID=1 ENV=dev bash -c '
-  do_log(){ :; }; do_require_var(){ [[ -n "${2:-}" ]] || exit 1; }
-  source "$RUN/gcp-000-bootstrap-gcp-env.func.sh"
+out=$(env RUN="$RUN" LIB="$LIB" GCP_ORG_ID=1 ENV=dev bash -c '
+  do_log(){ :; }; do_require_var(){ [[ -n "${2:-}" ]] || exit 1; }; do_resolve_oap(){ :; }
+  source "$LIB/gcp-account-pin.func.sh"; source "$RUN/gcp-000-bootstrap-gcp-env.func.sh"
   do_gcp_001_create_project(){ echo 001; }
   do_gcp_002_create_project_service_account(){ echo 002; exit 1; }
   do_gcp_003_configure_proj_sa_permissions(){ echo 003; }

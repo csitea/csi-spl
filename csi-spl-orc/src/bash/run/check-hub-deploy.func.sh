@@ -14,13 +14,13 @@
 # @description job is green too); this is. It only DESCRIBES: no update, no
 # @description create, no IAM. Spec 008 FR-P09.
 # @param ENV - required: dev or prd
-# @param GCP_ACCOUNT - required: the identity that reads (run.viewer is enough)
-# @example ENV=dev GCP_ACCOUNT=<OPERATOR>@example.com ./run -a do_check_hub_deploy
+# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account): the identity that reads (run.viewer is enough)
+# @example ENV=dev ./run -a do_check_hub_deploy
 #------------------------------------------------------------------------------
 do_check_hub_deploy() {
   do_require_bin yq || return 1
   do_spl_cloud_cnf || return 1
-  do_require_var GCP_ACCOUNT "${GCP_ACCOUNT:-}" || return 1
+  do_gcp_pin_account "$SPL_CNF" || return 1
   command -v gcloud >/dev/null || { do_log "FATAL gcloud is not installed"; return 1; }
   if declare -f do_gcp_require_live_account >/dev/null; then
     do_gcp_require_live_account "$GCP_ACCOUNT" || return 1

@@ -18,15 +18,16 @@
 # @description      caller's CLOUDSDK_CONFIG). Unlike pas-psf, nothing is written
 # @description      to the shared gcloud config: no `config set account`, no
 # @description      `config set project`, no interactive login.
-# @description Where the project goes and who pays come from the environment
-# @description and fail fast; nothing is baked in. The project id is read from
+# @description Who runs it and where the project goes come from cnf env.gcp
+# @description (gcp_account_owner_email, gcp_org_id; the env overrides); who
+# @description pays comes from the environment and fails fast. The project id is read from
 # @description csi-spl-cnf and must equal csi-spl-<env>.
 # @param ENV - required: dev or prd
-# @param GCP_ACCOUNT - required: the identity that creates the project and links billing
-# @param GCP_ORG_ID or GCP_FOLDER_ID - required, exactly one: the parent of the project
+# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account): the identity that creates the project and links billing
+# @param GCP_ORG_ID or GCP_FOLDER_ID - the parent of the project, exactly one; GCP_ORG_ID defaults to cnf env.gcp.gcp_org_id when GCP_FOLDER_ID is unset
 # @param GCP_BILLING_ACCOUNT_ID - required: XXXXXX-XXXXXX-XXXXXX
 # @param DRY_RUN (optional) - 1 (default): print the mutating commands, run none of them. 0: mutate.
-# @example ENV=dev GCP_ACCOUNT=admin@example.com GCP_ORG_ID=123456789012 GCP_BILLING_ACCOUNT_ID=XXXXXX-XXXXXX-XXXXXX ./run -a do_gcp_001_create_project
+# @example ENV=dev GCP_BILLING_ACCOUNT_ID=XXXXXX-XXXXXX-XXXXXX ./run -a do_gcp_001_create_project
 #------------------------------------------------------------------------------
 do_gcp_001_create_project() {
 
@@ -35,10 +36,13 @@ do_gcp_001_create_project() {
   do_resolve_oap ORG
   do_resolve_oap APP
   do_require_var ENV "${ENV:-}"
-  do_require_var GCP_ACCOUNT "${GCP_ACCOUNT:-}"
+  do_gcp_pin_account || exit 1
   do_require_var GCP_BILLING_ACCOUNT_ID "${GCP_BILLING_ACCOUNT_ID:-}"
 
   [[ "${ENV}" == dev || "${ENV}" == prd ]] || { do_log "FATAL ENV must be dev or prd, got: ${ENV}"; exit 1; }
+
+  # the org comes from cnf env.gcp.gcp_org_id unless the env names a parent
+  [[ -n "${GCP_FOLDER_ID:-}" ]] || GCP_ORG_ID=$(do_gcp_org_id)
 
   local parent_flag
   if [[ -n "${GCP_ORG_ID:-}" && -n "${GCP_FOLDER_ID:-}" ]]; then

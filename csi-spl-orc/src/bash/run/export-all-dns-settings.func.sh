@@ -15,11 +15,11 @@
 # @description <project>_<zone>_dns_records.json under the env's cloud state
 # @description dir (or DNS_EXPORT_DIR).
 # @param ENV (optional) - dev or prd; unset = both
-# @param GCP_ACCOUNT - required when DRY_RUN=0
+# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account)
 # @param DRY_RUN (optional) - 1 (default): print only. 0: list and write JSON
 # @param DNS_EXPORT_DIR (optional) - override the output directory
 # @example ENV=dev ./run -a do_export_all_dns_settings
-# @example ENV=dev DRY_RUN=0 GCP_ACCOUNT=<OPERATOR>@example.com ./run -a do_export_all_dns_settings
+# @example ENV=dev DRY_RUN=0 ./run -a do_export_all_dns_settings
 # @arg --env ENV
 # @arg --gcp-account GCP_ACCOUNT
 # @arg --dns-export-dir DNS_EXPORT_DIR
@@ -66,11 +66,8 @@ do_export_all_dns_settings() {
 
     if (( ! live_checked )); then
       do_require_bin gcloud yq || { ENV="$saved_env"; return $?; }
-      if [[ -z "${GCP_ACCOUNT:-}" ]]; then
-        do_log "FATAL GCP_ACCOUNT is required when DRY_RUN=0 (every gcloud call carries --account)"
-        ENV="$saved_env"
-        return 1
-      fi
+      # resolved ONCE for every env of this run; every gcloud call carries --account
+      do_gcp_pin_account "$SPL_CNF" || { ENV="$saved_env"; return 1; }
       if declare -f do_gcp_require_live_account >/dev/null; then
         do_gcp_require_live_account "$GCP_ACCOUNT" || { ENV="$saved_env"; return 1; }
       fi
@@ -99,7 +96,7 @@ do_export_all_dns_settings() {
   ENV="$saved_env"
 
   if (( dry )); then
-    do_log "OK DRY_RUN DNS export complete: nothing was listed. Re-run with DRY_RUN=0 GCP_ACCOUNT=... to write JSON."
+    do_log "OK DRY_RUN DNS export complete: nothing was listed. Re-run with DRY_RUN=0 to write JSON."
   else
     do_log "OK DNS settings export completed"
   fi

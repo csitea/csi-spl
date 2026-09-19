@@ -9,7 +9,7 @@
 # @description write to the shared gcloud config or ADC (csi-rel's
 # @description `auth application-default set-quota-project` is dropped).
 # @param ENV - required: dev or prd
-# @param GCP_ACCOUNT - required: the identity that enables the services
+# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account): the identity that enables the services
 # @param DRY_RUN (optional) - 1 (default): read and report. 0: enable.
 # @example ENV=dev GCP_ACCOUNT=admin@example.com DRY_RUN=0 ./run -a do_gcp_004_project_apis_enable
 #------------------------------------------------------------------------------
@@ -18,7 +18,7 @@ do_gcp_004_project_apis_enable() {
   command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; exit 1; }
 
   do_gcp_spl_proj_id || exit 1
-  do_require_var GCP_ACCOUNT "${GCP_ACCOUNT:-}"
+  do_gcp_pin_account || exit 1
 
   local dry_run="${DRY_RUN:-1}"
   [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; exit 1; }

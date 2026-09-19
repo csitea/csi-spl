@@ -7,7 +7,7 @@
 #   3. unhealthy (Ready False / latest revision not the ready one) -> rc 4,
 #      Ready read by condition TYPE, not by position
 #   4. describe fails (no service / no access)                     -> rc 1
-#   5. no GCP_ACCOUNT                                              -> refused
+#   5. no GCP_ACCOUNT and no cnf gcp_account_owner_email          -> refused
 #   6. every gcloud call carries --account, and none mutates
 #      (no update / deploy / create / delete / set-iam / add-iam)
 #      CONTROL: the stub records a call when one is made.
@@ -20,6 +20,17 @@ fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+
+# nokey_app <dir> -> an APP_PATH whose cnf has NO env.gcp.gcp_account_owner_email
+# (every other dir symlinked to the real tree): the CONTROL for "no account
+# resolves -> refused"; with the real cnf an empty GCP_ACCOUNT resolves from yaml
+nokey_app() {
+  local d="$1" e; mkdir -p "$d"
+  for e in "$APP_ROOT"/*; do [[ "$e" == *-cnf ]] || ln -s "$e" "$d/"; done
+  cp -r "$APP_ROOT"/*-cnf "$d/"
+  for e in "$d"/*-cnf/*/*.env.yaml; do yq -i 'del(.env.gcp.gcp_account_owner_email)' "$e"; done
+}
+nokey_app "$T/nokey"
 
 # gcloud stub: records every call; mints a fake token; `run services describe`
 # prints $FIXTURE, or fails when FIXTURE is empty.
@@ -78,8 +89,8 @@ check "unhealthy: Ready=False (read by type, not index)"  4 unhealthy FIXTURE="$
 check "unhealthy: latest created revision is not ready"   4 unhealthy FIXTURE="$T/rollout.json"
 check "describe fails -> cannot tell"                     1 "" FIXTURE=
 
-out=$(in_orc GCP_ACCOUNT= FIXTURE="$T/current.json" 2>&1); rc=$?
-[[ $rc -ne 0 ]] && grep -q GCP_ACCOUNT <<<"$out" && pass "no GCP_ACCOUNT is refused" || fail "no GCP_ACCOUNT: rc=$rc"
+out=$(in_orc GCP_ACCOUNT= APP_PATH="$T/nokey" FIXTURE="$T/current.json" 2>&1); rc=$?
+[[ $rc -ne 0 ]] && grep -q gcp_account_owner_email <<<"$out" && pass "no GCP_ACCOUNT and no cnf account is refused, naming the yaml key" || fail "no account: rc=$rc $out"
 
 n=$(grep -c '^gcloud ' "$T/calls.log")
 [[ $n -ge 10 ]] && pass "control: the stub recorded $n gcloud calls" || fail "control: stub recorded only $n calls"

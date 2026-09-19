@@ -26,13 +26,13 @@
 # @param ENV (optional) - dev or prd: fills DOMAIN / GCP_PROJECT / CERT_NAME from cnf
 # @param DOMAIN (optional) - FQDN the cert covers; default: cnf env.dns.fqdn
 # @param GCP_PROJECT (optional) - project owning the cert; default: cnf env.gcp.gcp_project
-# @param GCP_ACCOUNT (required) - identity passed as --account on every gcloud call
+# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account); passed as --account on every gcloud call
 # @param CERT_NAME (optional) - default: <GCP_PROJECT>-hub-cert (031 name_prefix-cert)
 # @param CERT_LOCATION (optional) - Certificate Manager location (default: global)
 # @param TIMEOUT_SECONDS (optional) - max wait (default: 3600)
 # @param POLL_SECONDS (optional) - poll interval (default: 30)
 # @prereq gcloud, and a credential for GCP_ACCOUNT already on this box
-# @example ENV=dev GCP_ACCOUNT=<OPERATOR>@example.com ./run -a do_wait_for_cert
+# @example ENV=dev ./run -a do_wait_for_cert
 # @example DOMAIN=dev.example.test GCP_PROJECT=csi-spl-dev GCP_ACCOUNT=<OPERATOR>@example.com ./run -a do_wait_for_cert
 # @arg --env ENV
 # @arg --domain DOMAIN
@@ -48,7 +48,7 @@ do_wait_for_cert() {
 
   local domain="${DOMAIN:-}"
   local project="${GCP_PROJECT:-}"
-  local account="${GCP_ACCOUNT:-}"
+  local account=""
   local cert="${CERT_NAME:-}"
   local location="${CERT_LOCATION:-global}"
   local timeout="${TIMEOUT_SECONDS:-3600}"
@@ -72,10 +72,8 @@ do_wait_for_cert() {
     do_log "FATAL GCP_PROJECT is required (or set ENV=dev|prd to read env.gcp.gcp_project from cnf)"
     return 1
   fi
-  if [[ -z "$account" ]]; then
-    do_log "FATAL GCP_ACCOUNT is required (every gcloud call carries --account; nothing writes the shared gcloud config)"
-    return 1
-  fi
+  # every gcloud call carries --account; nothing writes the shared gcloud config
+  account=$(do_gcp_account "${SPL_CNF:-}") || return 1
   if [[ -z "$cert" ]]; then
     do_log "FATAL CERT_NAME is required (default is <GCP_PROJECT>-hub-cert)"
     return 1

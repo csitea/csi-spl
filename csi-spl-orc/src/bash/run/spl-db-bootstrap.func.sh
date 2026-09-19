@@ -17,11 +17,11 @@
 # @description
 # @description DRY_RUN=1 (default): print the IDs it would touch, call no cloud.
 # @param ENV - required: dev or prd
-# @param GCP_ACCOUNT - required when DRY_RUN=0 (cloudsql.admin + secretmanager.admin + cloudsql.client)
+# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account) (cloudsql.admin + secretmanager.admin + cloudsql.client)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
 # @example ENV=dev ./run -a do_spl_db_bootstrap
-# @example ENV=dev DRY_RUN=0 GCP_ACCOUNT=<OPERATOR>@example.com ./run -a do_spl_db_bootstrap
+# @example ENV=dev DRY_RUN=0 ./run -a do_spl_db_bootstrap
 #------------------------------------------------------------------------------
 do_spl_db_bootstrap() {
   do_require_bin yq openssl || return 1
@@ -33,11 +33,11 @@ do_spl_db_bootstrap() {
     do_log "INFO DRY_RUN would: ensure Postgres user $SPL_DB_USER on $SPL_SQL_CONN (Admin API)"
     do_log "INFO DRY_RUN would: add a version to secret $SPL_DSN_SECRET in $SPL_PROJECT when it has none"
     do_log "INFO DRY_RUN would: spool migrate $SPL_IMAGE_SQL_SRC -> $SPL_DB_NAME via the Cloud SQL proxy"
-    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 GCP_ACCOUNT=... to apply."
+    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to apply."
     return 0
   fi
 
-  do_require_var GCP_ACCOUNT "${GCP_ACCOUNT:-}"
+  do_gcp_pin_account "$SPL_CNF" || return 1
   do_require_bin gcloud curl || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   [[ -d "$SPL_IMAGE_SQL_SRC" ]] || { do_log "FATAL no DDL dir $SPL_IMAGE_SQL_SRC (cnf hub.image.sql_src)"; return 1; }

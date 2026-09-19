@@ -16,10 +16,10 @@
 # @description re-pushing an existing tag fails, so a new build means a new
 # @description hub.image.tag in <env>.env.yaml (re-render, then 030 plan + apply).
 # @param ENV - required: dev or prd
-# @param GCP_ACCOUNT - required when DRY_RUN=0: the identity that pushes (artifactregistry.writer)
+# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account): the identity that pushes (artifactregistry.writer)
 # @param DRY_RUN (optional) - 1 (default): build only. 0: build + push.
 # @example ENV=dev ./run -a do_build_push_hub_image
-# @example ENV=dev DRY_RUN=0 GCP_ACCOUNT=<OPERATOR>@example.com ./run -a do_build_push_hub_image
+# @example ENV=dev DRY_RUN=0 ./run -a do_build_push_hub_image
 #------------------------------------------------------------------------------
 do_build_push_hub_image() {
   do_require_bin docker yq git || return 1
@@ -28,7 +28,7 @@ do_build_push_hub_image() {
   # not `if ! spl_dry_run; then rc=$?`: after `!` $? is the NEGATED status
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if (( ! dry )); then
-    do_require_var GCP_ACCOUNT "${GCP_ACCOUNT:-}"
+    do_gcp_pin_account "$SPL_CNF" || return 1
     command -v gcloud >/dev/null || { do_log "FATAL gcloud is not installed"; return 1; }
   fi
 
@@ -57,7 +57,7 @@ do_build_push_hub_image() {
 
   if (( dry )); then
     do_log "INFO DRY_RUN would run: docker push $SPL_IMAGE_REF   (login: oauth2accesstoken @ $SPL_REGISTRY_HOST as \$GCP_ACCOUNT, throwaway DOCKER_CONFIG)"
-    do_log "OK DRY_RUN build of $SPL_IMAGE_REF complete: nothing was pushed. Re-run with DRY_RUN=0 GCP_ACCOUNT=... to push."
+    do_log "OK DRY_RUN build of $SPL_IMAGE_REF complete: nothing was pushed. Re-run with DRY_RUN=0 to push."
     return 0
   fi
 

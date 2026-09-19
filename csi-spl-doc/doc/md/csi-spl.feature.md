@@ -95,9 +95,17 @@ prd is the env nea and osp would use; dev is for proving changes first.
 
 ### 3.2 What is NOT in config
 
-The project's parent, the billing account and the operator identity are
-environment variables that fail fast, never committed:
-`GCP_ORG_ID` or `GCP_FOLDER_ID`, `GCP_BILLING_ACCOUNT_ID`, `GCP_ACCOUNT`.
+The billing account is an environment variable that fails fast, never
+committed: `GCP_BILLING_ACCOUNT_ID`.
+
+The operator identity and the org ARE config (owner rule 2026-09-19, a
+deliberate deviation from the csi-rel copy): `env.gcp.gcp_account_owner_email`
+and `env.gcp.gcp_org_id` in `all.env.yaml`, overridable per env. Every shell
+wrapper that calls gcloud resolves the account once with `do_gcp_account`
+(`ACCOUNT` > `GCP_ACCOUNT` > the yaml key; csi-rel's "active gcloud account"
+fallback is removed, so no value is a refusal naming the key) and passes
+`--account` on every call. CI sets `GCP_ACCOUNT` to the project SA, which
+wins. `GCP_ORG_ID` or `GCP_FOLDER_ID` in the environment override the org.
 
 ### 3.3 The domain: change it in ONE place
 
@@ -242,16 +250,17 @@ run.
 #### 6.1.1 Dry run
 
 ```bash
-ENV=dev GCP_ACCOUNT="$GCP_ACCOUNT" GCP_ORG_ID="$GCP_ORG_ID" GCP_BILLING_ACCOUNT_ID="$GCP_BILLING_ACCOUNT_ID" ./run -a do_gcp_001_create_project
+ENV=dev GCP_BILLING_ACCOUNT_ID="$GCP_BILLING_ACCOUNT_ID" ./run -a do_gcp_001_create_project
 ```
 
 #### 6.1.2 Create and link (needs the owner's go)
 
 ```bash
-ENV=dev GCP_ACCOUNT="$GCP_ACCOUNT" GCP_ORG_ID="$GCP_ORG_ID" GCP_BILLING_ACCOUNT_ID="$GCP_BILLING_ACCOUNT_ID" DRY_RUN=0 ./run -a do_gcp_001_create_project
+ENV=dev GCP_BILLING_ACCOUNT_ID="$GCP_BILLING_ACCOUNT_ID" DRY_RUN=0 ./run -a do_gcp_001_create_project
 ```
 
-Use `GCP_FOLDER_ID` instead of `GCP_ORG_ID` for a folder parent.
+The account and org come from `env.gcp`; set `GCP_ACCOUNT` / `GCP_ORG_ID` to
+override them, or `GCP_FOLDER_ID` for a folder parent.
 
 #### 6.1.3 Identity notes (measured 2026-09-17)
 

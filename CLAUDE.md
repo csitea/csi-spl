@@ -18,9 +18,15 @@ between the hub and the boxes. Nothing else lives here: no api, no wui, no rdb.
 ## Environments
 
 `dev` and `prd` only. GCP projects `csi-spl-dev` / `csi-spl-prd`, region
-`europe-north1`. The org/folder, the billing account and the operator identity
-are **environment variables that fail fast** (`GCP_ORG_ID` or `GCP_FOLDER_ID`,
-`GCP_BILLING_ACCOUNT_ID`, `GCP_ACCOUNT`) — never commit them.
+`europe-north1`. The operator identity and the org (owner rule 2026-09-19) are
+cnf: `env.gcp.gcp_account_owner_email` / `env.gcp.gcp_org_id` in
+`csi-spl-cnf/csi-spl/all.env.yaml` (an env file may override), and the ONLY
+place those literals live. Every shell wrapper resolves the account once via
+`do_gcp_account` (`ACCOUNT` > `GCP_ACCOUNT` > the yaml; never the active gcloud
+account) and passes `--account` on every gcloud call; `GCP_ORG_ID` /
+`GCP_FOLDER_ID` still override the org. The billing account stays an
+**environment variable that fails fast** (`GCP_BILLING_ACCOUNT_ID`) — never
+commit it. Gate: `csi-spl-iac/src/bash/tests/gcloud-account-pinned.tst.sh`.
 
 ## Rules specific to this repo
 

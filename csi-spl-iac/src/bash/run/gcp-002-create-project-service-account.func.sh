@@ -23,17 +23,18 @@
 # @description      refuse rather than keep it or overwrite it.
 # @description The key is never printed; only its path is logged.
 # @param ENV - required: dev or prd
-# @param GCP_ACCOUNT - required: an org-level human identity (orgpolicy.policyAdmin, iam admin)
-# @param GCP_ORG_ID - required: the org the key-creation policy is set on (no default)
+# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account): an org-level human identity (orgpolicy.policyAdmin, iam admin)
+# @param GCP_ORG_ID (optional) - overrides cnf env.gcp.gcp_org_id: the org the key-creation policy is set on
 # @param DRY_RUN (optional) - 1 (default): read and report, mutate nothing. 0: mutate.
-# @example ENV=dev GCP_ACCOUNT=admin@example.com GCP_ORG_ID=123456789012 ./run -a do_gcp_002_create_project_service_account
+# @example ENV=dev ./run -a do_gcp_002_create_project_service_account
 #------------------------------------------------------------------------------
 do_gcp_002_create_project_service_account() {
 
   command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; exit 1; }
 
   do_gcp_spl_proj_id || exit 1
-  do_require_var GCP_ACCOUNT "${GCP_ACCOUNT:-}"
+  do_gcp_pin_account || exit 1
+  GCP_ORG_ID=$(do_gcp_org_id)
   do_require_var GCP_ORG_ID "${GCP_ORG_ID:-}"
 
   local dry_run="${DRY_RUN:-1}"

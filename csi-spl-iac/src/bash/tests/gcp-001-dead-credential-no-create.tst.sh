@@ -19,11 +19,14 @@ PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
 FUNC_FILE="$PROJ_ROOT/src/bash/run/gcp-001-create-project.func.sh"
 LIB_FILE="$PROJ_ROOT/lib/bash/funcs/gcp-require-live-account.func.sh"
+PIN_FILE="$PROJ_ROOT/lib/bash/funcs/gcp-account-pin.func.sh"
+# an APP_PATH with no cnf: the account / org then come from the env or nowhere
+NOCNF=$(mktemp -d); trap 'rm -rf "$NOCNF"' EXIT
 FUNC_NAME="do_gcp_001_create_project"
 
 fails=0
 
-for f in "$FUNC_FILE" "$LIB_FILE"; do
+for f in "$FUNC_FILE" "$LIB_FILE" "$PIN_FILE"; do
   [[ -f "$f" ]] || { echo "FAIL: not found: $f"; exit 1; }
   bash -n "$f" || { echo "FAIL: bash -n $f"; exit 1; }
   echo "PASS: bash -n $(basename "$f")"
@@ -38,7 +41,7 @@ done
 run_action() {
   local mode="$1" log="$2"; shift 2
 
-  env MODE="$mode" GCLOUD_LOG="$log" FUNC_FILE="$FUNC_FILE" LIB_FILE="$LIB_FILE" \
+  env MODE="$mode" GCLOUD_LOG="$log" FUNC_FILE="$FUNC_FILE" LIB_FILE="$LIB_FILE" PIN_FILE="$PIN_FILE" \
       FUNC_NAME="$FUNC_NAME" APP_PATH="$APP_ROOT" \
       ENV=dev GCP_ACCOUNT=stub-admin@example.com GCP_ORG_ID=123456789012 \
       GCP_BILLING_ACCOUNT_ID=XXXXXX-XXXXXX-XXXXXX \
@@ -85,6 +88,8 @@ run_action() {
 
     # shellcheck disable=SC1090
     source "$LIB_FILE"
+    # shellcheck disable=SC1090
+    source "$PIN_FILE"
     # shellcheck disable=SC1090
     source "$FUNC_FILE"
     "$FUNC_NAME" >/dev/null 2>&1
@@ -144,9 +149,12 @@ grep -qE '^config set|^auth login|^auth activate' "$log" && fail "the action wro
 rm -f "$log"
 
 # --- 9. fail fast: no parent, both parents, bad env, bad DRY_RUN --------------
+# APP_PATH has no cnf here: an empty GCP_ACCOUNT / GCP_ORG_ID is only a refusal
+# when the yaml does not supply one (with the real cnf it resolves from
+# env.gcp; gcloud-account-pinned.tst.sh covers that side)
 for case in "GCP_ORG_ID=" "GCP_FOLDER_ID=1" "ENV=tst" "DRY_RUN=yes" "GCP_BILLING_ACCOUNT_ID=" "GCP_ACCOUNT="; do
   log=$(mktemp); : >"$log"
-  run_action live_absent "$log" DRY_RUN=0 $case; rc=$?
+  run_action live_absent "$log" DRY_RUN=0 APP_PATH="$NOCNF" $case; rc=$?
   if [[ $rc -ne 0 && ! -s "$log" ]]; then pass "fails fast before any gcloud call: $case"
   else fail "did not fail fast (rc=$rc, $(wc -l <"$log") gcloud calls): $case"; fi
   rm -f "$log"

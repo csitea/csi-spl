@@ -95,6 +95,30 @@ func PutDir(filesDir, path string) (msg.Attachment, error) {
 	}, nil
 }
 
+// RefBlob makes the blob attachment for a file_id already in the store
+// (`send --file-id`). The name is the file_id, as the store keeps no display
+// name. Bytes is the stored length, so the ref carries message-schema.md's
+// four fields (SC-006). An id not in the store is kept as before, without
+// bytes, and is not refused.
+func RefBlob(filesDir, fileID string) msg.Attachment {
+	a := msg.Attachment{Mode: "blob", Kind: "file", FileID: fileID, SHA256: fileID, Name: fileID}
+	if !isSHA256Hex(fileID) {
+		return a // never stat a path built from a non-hash id
+	}
+	if info, err := os.Stat(filepath.Join(filesDir, fileID)); err == nil && info.Mode().IsRegular() {
+		a.Bytes = info.Size()
+	}
+	return a
+}
+
+func isSHA256Hex(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(s)
+	return err == nil
+}
+
 // RefFile makes a path-mode attachment referencing an on-box file. It captures
 // the size and content hash at send time so a receiver can detect drift.
 func RefFile(path string) (msg.Attachment, error) {

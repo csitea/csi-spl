@@ -84,7 +84,7 @@ func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, 
 	}
 	var atts []msg.Attachment
 	for _, id := range in.FileIDs {
-		atts = append(atts, msg.Attachment{Mode: "blob", Kind: "file", FileID: id, SHA256: id, Name: id})
+		atts = append(atts, files.RefBlob(cfg.FilesDir(), id))
 	}
 	if in.PutFile != "" {
 		a, err := files.PutFile(cfg.FilesDir(), in.PutFile)

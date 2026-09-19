@@ -45,6 +45,18 @@ ysg-box implementation as a REFERENCE ONLY; do not touch it."
   and a failing one is surfaced as malformed (exit `1`, left in `inbox/`).
   Measured before the change on one box (n=12793 legacy `.md`, 2241 from
   `ORC`, 0 inbox mail over 64 KiB), so no delivered mail becomes malformed.
+- SC-006, partly fixed: a `send --file-id` attach of a blob that is in the
+  local store now carries `bytes`. **OPEN (owner decides):** since 002 shipped,
+  `files[]` also carries `mode` (`blob`|`path`), `kind` (`file`|`dir`) and
+  `path`. Boxes, the hub and the WUI (`003 wui-live-ws.md`) read these, so
+  removing them breaks the wire. The options are:
+  (A) amend `message-schema.md` in place to document the ref as it ships.
+  This is a doc-only change, but it breaks "any change is a `v` bump".
+  (B) bump to `v:2` for the extended ref. Today's readers reject `v != 1`.
+  (C) strip to the four fields. This drops path refs and dir blobs.
+  Recommended: (A). Residual shape notes: `bytes` is `omitempty`, so an empty
+  file and a path-dir ref have no `bytes`, a dangling `--file-id` has no
+  `bytes`, and a `--file-id` ref's `name` is its `file_id`.
 
 ## Context
 

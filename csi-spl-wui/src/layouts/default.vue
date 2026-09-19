@@ -3,15 +3,37 @@
      diagnostics panel LAST so the most recent technical error is literally the
      bottom-most content of the page. The spool shell (sidebar, feed, thread
      panes) stays client-only: it reads sessionStorage/localStorage and opens
-     the live socket. -->
+     the live socket. Vertical pane dividers are pointer+keyboard resizers. -->
 <template>
   <div class="layout">
     <ClientOnly>
-      <div class="spool-shell" style="max-width:100%;min-width:0">
+      <div
+        class="spool-shell"
+        style="max-width:100%;min-width:0"
+        :style="shellStyle"
+      >
         <ChannelSidebar />
+        <PaneDivider
+          v-if="showSidebarDivider"
+          pane="sidebar"
+          :value="displayed.sidebar"
+          :min="sidebarBounds.min"
+          :max="sidebarBounds.max"
+          @input="setSidebar"
+          @reset="resetSidebar"
+        />
         <main class="spool-main">
           <slot />
         </main>
+        <PaneDivider
+          v-if="threadPaneOpen && showThreadDivider"
+          pane="thread"
+          :value="displayed.thread"
+          :min="threadBounds.min"
+          :max="threadBounds.max"
+          @input="setThread"
+          @reset="resetThread"
+        />
         <ThreadPane />
         <LiveThreadPane />
       </div>
@@ -34,6 +56,25 @@
 
 <script setup lang="ts">
 import DebugPanel from '@/components/common/DebugPanel.vue'
+import { useThreadStore } from '~/stores/thread'
+import { useLiveFeed } from '~/stores/live'
+import { usePaneWidths } from '~/composables/usePaneWidths'
+
+const thread = useThreadStore()
+const livePane = useLiveFeed('pane')
+const threadPaneOpen = computed(() => thread.open || Boolean(livePane.taskId))
+const {
+  displayed,
+  sidebarBounds,
+  threadBounds,
+  showSidebarDivider,
+  showThreadDivider,
+  shellStyle,
+  setSidebar,
+  setThread,
+  resetSidebar,
+  resetThread,
+} = usePaneWidths({ threadOpen: threadPaneOpen })
 </script>
 
 <style scoped>

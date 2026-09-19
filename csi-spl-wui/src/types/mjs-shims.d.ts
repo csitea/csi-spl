@@ -298,3 +298,53 @@ declare module '~/utils/user-menu.mjs' {
   export function nextMenuIndex(current: number, key: string, count: number): number
   export function signInRedirect(fullPath: string): string
 }
+
+declare module '~/utils/pane-widths.mjs' {
+  export const SIDEBAR_DEFAULT: number
+  export const THREAD_DEFAULT: number
+  export const SIDEBAR_MIN: number
+  export const SIDEBAR_MAX: number
+  export const THREAD_MIN: number
+  export const THREAD_MAX: number
+  export const MAIN_MIN: number
+  export const DIVIDER_W: number
+  export const STEP: number
+  export const PANE_WIDTHS_KEY: string
+  export const SIDEBAR_NARROW_MAX: number
+  export const THREAD_NARROW_MAX: number
+  export function num(v: unknown, fallback: number): number
+  export function clamp(n: number, min: number, max: number): number
+  export function sidebarShown(viewportW: number): boolean
+  export function threadShown(viewportW: number, threadOpen: boolean): boolean
+  export function clampSidebar(width: unknown, ctx?: {
+    viewportW?: number, threadOpen?: boolean, threadW?: number, sidebarW?: number
+  }): number
+  export function clampThread(width: unknown, ctx?: {
+    viewportW?: number, threadOpen?: boolean, threadW?: number, sidebarW?: number
+  }): number
+  export function clampPair(sidebar: unknown, thread: unknown, ctx?: {
+    viewportW?: number, threadOpen?: boolean
+  }): { sidebar: number, thread: number }
+  export function sidebarRange(ctx?: {
+    viewportW?: number, threadOpen?: boolean, threadW?: number, sidebarW?: number
+  }): { min: number, max: number }
+  export function threadRange(ctx?: {
+    viewportW?: number, threadOpen?: boolean, threadW?: number, sidebarW?: number
+  }): { min: number, max: number }
+  export function applySeparatorKey(
+    pane: 'sidebar' | 'thread',
+    key: string,
+    current: number,
+    min: number,
+    max: number,
+  ): number
+  export function pointerDelta(
+    pane: 'sidebar' | 'thread',
+    startWidth: number,
+    startX: number,
+    clientX: number,
+  ): number
+  export function loadPaneWidths(store?: unknown): { sidebar: number, thread: number }
+  export function savePaneWidths(widths: { sidebar: number, thread: number }, store?: unknown): boolean
+  export function resetPane(pane: 'sidebar' | 'thread'): number
+}

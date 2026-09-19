@@ -12,6 +12,48 @@ button, textarea, input { font-family: inherit; }
   min-width: 0;
   background: var(--color-bg);
 }
+.pane-divider {
+  flex: 0 0 6px;
+  width: 6px;
+  align-self: stretch;
+  position: relative;
+  z-index: 3;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+  flex-shrink: 0;
+}
+.pane-divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+}
+.pane-divider::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: transparent;
+}
+.pane-divider:hover::after,
+.pane-divider:focus-visible::after,
+.pane-divider[data-dragging="1"]::after {
+  background: var(--color-accent);
+}
+.pane-divider:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+html.pane-dragging,
+html.pane-dragging * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
 .spool-main {
   flex: 1;
   min-width: 0;
@@ -359,6 +401,7 @@ button, textarea, input { font-family: inherit; }
 @media (max-width: 800px) {
   .sidebar { width: 72px; }
   .sidebar h1, .sidebar h2, .nav-item span.label, .create-row, .version-stamp { display: none; }
+  .pane-divider[data-pane="sidebar"] { display: none; }
   .thread {
     position: absolute;
     right: 0;
@@ -421,6 +464,7 @@ button, textarea, input { font-family: inherit; }
     z-index: 20;
     box-shadow: -8px 0 24px rgb(0 0 0 / .35);
   }
+  .pane-divider[data-pane="thread"] { display: none; }
 }
 
 /* CLE-3402 top-right user control: one fixed corner cluster (UserMenu, and

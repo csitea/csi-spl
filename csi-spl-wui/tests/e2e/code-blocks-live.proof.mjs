@@ -123,11 +123,13 @@ try {
   await p.screenshot({ path: `${OUT}/feed-code-block-desktop.png` })
 
   const copyBtn = await el.$('[data-testid=code-copy]')
+  const before = await copyBtn.evaluate((b) => b.textContent.trim())
   await copyBtn.click()
   await sleep(300)
   const clip = await p.evaluate(() => navigator.clipboard.readText())
   const label = await copyBtn.evaluate((b) => b.textContent.trim())
-  step('copy button puts exactly the code on the clipboard', clip === expectedCode && label === 'Copied', { exact: clip === expectedCode, label })
+  // the label is translated (the member's locale), so assert that it flipped
+  step('copy button puts exactly the code on the clipboard', clip === expectedCode && label !== before && label.length > 0, { exact: clip === expectedCode, before, label })
   await p.screenshot({ path: `${OUT}/feed-copied.png` })
 
   await p.setViewport({ width: 390, height: 844 })

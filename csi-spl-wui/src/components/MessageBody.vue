@@ -130,6 +130,7 @@ onUnmounted(() => clearTimeout(timer))
   font-size: 12px;
   line-height: 1.5;
   white-space: pre;
+  tab-size: 4;
   overflow-wrap: normal;
   overflow-x: auto;
   max-width: 100%;

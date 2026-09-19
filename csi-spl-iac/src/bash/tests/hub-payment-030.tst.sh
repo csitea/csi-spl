@@ -63,6 +63,8 @@ if [[ -n "$TPG" ]]; then
   # shellcheck disable=SC1091
   source "$PROJ_ROOT/lib/bash/funcs/spl-merged-cnf.func.sh"
   do_spl_merged_cnf "$CNF" prd "$tmp/prd.env.yaml"
+  # the controls start from NO payment rail, whatever prd's own provider is
+  yq -i '.env.hub.env.SPOOL_HUB_PAYMENT_PROVIDER = "" | .env.hub.env.SPOOL_HUB_ENABLE_PAYPAL = "false"' "$tmp/prd.env.yaml"
   render() { (cd "$TPG" && TPL="$PROJ_ROOT/src/tpl/%org%-%app%/%env%/tf/030-cloud-run-hub.vars.tfvars.tpl" CNF="$tmp/prd.env.yaml" \
     .venv/bin/python -c '
 import os, yaml, jinja2

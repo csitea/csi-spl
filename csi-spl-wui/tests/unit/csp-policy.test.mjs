@@ -194,12 +194,23 @@ describe('CSP: the render refuses what a hash cannot allow (CONTROLS)', () => {
     }
   })
 
-  it('CONTROL: without card origins in cnf, script/frame/connect carry no vendor origin (prd today)', () => {
-    const p = hostingPolicy('prd', bundle(PAGE))
-    const c = card('prd')
-    assert.deepEqual(c, { script: [], frame: [], connect: [] })
+  it('CONTROL: without card origins in cnf, script/frame/connect carry no vendor origin', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'csp-nocard-'))
+    const e = JSON.parse(readFileSync(join(REPO, 'csi-spl-cnf/csi-spl/prd.env.json'), 'utf8'))
+    e.env.payment = { ...(e.env.payment || {}), wui_csp: { script: [], frame: [], connect: [] } }
+    const repo = join(dir, 'r')
+    mkdirSync(join(repo, 'csi-spl-cnf/csi-spl'), { recursive: true })
+    mkdirSync(join(repo, 'csi-spl-orc/src/bash/scripts'), { recursive: true })
+    writeFileSync(join(repo, 'csi-spl-cnf/csi-spl/prd.env.json'), JSON.stringify(e))
+    writeFileSync(join(repo, 'csi-spl-orc/src/bash/scripts/render.sh'), readFileSync(RENDER, 'utf8'))
+    const out = join(dir, 'firebase.json')
+    const r = spawnSync('bash', [join(repo, 'csi-spl-orc/src/bash/scripts/render.sh')], { env: { ...process.env, ENV: 'prd', OUT: out, PUBLIC_DIR: bundle(PAGE) }, encoding: 'utf8' })
+    assert.equal(r.status, 0, r.stderr)
+    const h = JSON.parse(readFileSync(out, 'utf8')).hosting.headers.find((b) => b.source === '**').headers.find((x) => x.key === 'Content-Security-Policy')
+    const p = parse(h.value)
     assert.equal(p.get('frame-src'), "'self'")
     assert.equal(p.get('script-src'), `'self' ${sha(INLINE_JS)}`)
+    for (const o of card('prd').connect) assert.equal(p.get('connect-src').includes(o), false, o)
   })
 
   it('a changed inline script changes the hash (it is taken from the build, not written down)', () => {

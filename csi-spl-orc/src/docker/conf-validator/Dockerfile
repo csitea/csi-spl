@@ -87,6 +87,13 @@ ENV PATH="${PATH}:${DOCKER_HOME}/.local/bin/"
 
 
 
+# csi-spl: the conf-validator .venv is a named volume (docker-compose-tf-infra.yaml).
+# A new named volume copies owner and mode from the image dir it is mounted
+# on; without this dir it is created root:root and the appusr init cannot
+# write it (measured 2026-09-19 by CLE-3359: "destination . is not write-able").
+RUN mkdir -p "${CNF_PROJ_PATH}/src/python/conf-validator/.venv" \
+  && chown "$APPUSR":"$APPGRP" "${CNF_PROJ_PATH}/src/python/conf-validator/.venv"
+
 WORKDIR $HOME_UTL_PROJ_PATH
 USER ${APPUSR}
 

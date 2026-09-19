@@ -90,6 +90,13 @@ RUN echo "export PS1=\"$PS1\"" >> $DOCKER_HOME/.bashrc && \
   chown -R $APPUSR:$APPGRP $DOCKER_HOME && \
   chmod -R 0775 $DOCKER_HOME
 
+# csi-spl: the tpl-gen .venv is a named volume (docker-compose-tf-infra.yaml).
+# A new named volume copies owner and mode from the image dir it is mounted
+# on; without this dir it is created root:root and the appusr init cannot
+# write it (measured 2026-09-19 by CLE-3359: "destination . is not write-able").
+RUN mkdir -p "${TPG_PROJ_PATH}/src/python/tpl-gen/.venv" \
+  && chown "$APPUSR":"$APPGRP" "${TPG_PROJ_PATH}/src/python/tpl-gen/.venv"
+
 
 USER $APPUSR
 

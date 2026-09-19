@@ -56,17 +56,18 @@ do_spl_checkout_stripe_test_buy() {
   [[ "$SPL_STRIPE_MODE" == test ]] || { do_log "FATAL not a test-mode key"; return 1; }
 
   local _code _body
-  _req() { # <method> <url> [json] [host-header]
+  _req() { # <method> <url> [json] [extra-header-line]
     local args=(-sS -o "$h/body" -w '%{http_code}' -X "$1" "$2")
     [[ -n "${3:-}" ]] && args+=(-H 'Content-Type: application/json' --data "$3")
-    [[ -n "${4:-}" ]] && args+=(-H "Host: $4")
+    [[ -n "${4:-}" ]] && args+=(-H "$4")
     _code="$(curl "${args[@]}")" || return 1
     _body="$(cat "$h/body")"
   }
-  # tenant probe: the hub API host with Host <tenant>.<fqdn> (tenant_url is the
-  # WUI sign-in page since checkout-v1 1.4, never a host)
-  local turl thost="$tenant.${TENANT_HOST_SUFFIX:-$SPL_FQDN}" hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
-  _tenant() { _req GET "$hub/v1/view/threads" "" "$thost"; }
+  # tenant probe (specs/026): the hub API host's box door with the tenant named
+  # in X-Spool-Tenant: unknown -> 404 unknown_tenant, known -> 426 (a plain GET
+  # is no websocket). tenant_url is the WUI sign-in page, never a host.
+  local turl hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
+  _tenant() { _req GET "$hub/v1/ws" "" "X-Spool-Tenant: $tenant"; }
 
   local id tok pi
   _req POST "$api" "$(jq -nc --arg t "$tenant" --arg e "$email" '{tenant_id:$t, email:$e}')" || return 1
@@ -76,7 +77,7 @@ do_spl_checkout_stripe_test_buy() {
   pi="$(jq -r .client_secret <<<"$_body")"; pi="${pi%%_secret_*}"
   [[ "$pi" == pi_* ]] || { do_log "FATAL the checkout answer carries no PaymentIntent client secret"; return 1; }
   _tenant || return 1
-  [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" == unknown_tenant ]] || { do_log "FATAL before payment $thost must be unknown_tenant, got HTTP $_code"; return 1; }
+  [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" == unknown_tenant ]] || { do_log "FATAL before payment tenant $tenant must be unknown_tenant, got HTTP $_code"; return 1; }
   local before="$_code"
 
   # the browser's confirmPayment, server-side: test card, return_url = the success page
@@ -111,7 +112,7 @@ do_spl_checkout_stripe_test_buy() {
   tok=""
   [[ "$again" == 410 ]] || { do_log "FATAL a second claim answered HTTP $again, want 410"; return 1; }
   _tenant || return 1
-  [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" != unknown_tenant ]] || { do_log "FATAL after payment $thost is still unknown_tenant"; return 1; }
+  [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" != unknown_tenant ]] || { do_log "FATAL after payment $tenant is still unknown_tenant"; return 1; }
 
   jq -nc --arg t "$tenant" --arg c "$id" --arg p "$pi" --arg u "$turl" --arg f "$kout" --arg b "$before" \
     --arg a "$_code" --arg r "$again" --arg l "$keylen" --arg w "$waited" --argjson s "$status_json" \

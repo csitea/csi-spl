@@ -80,7 +80,7 @@ in_orc ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com BASE_URL="http://127
 
 in_orc ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com BASE_URL="http://127.0.0.1:$P1" >"$T/dry.out" 2>/dev/null \
   && jq -e '.dry_run == true and .rail == "fake"' "$T/dry.out" >/dev/null && pass "DRY_RUN reads the plan only" || fail "dry: $(cat "$T/dry.out")"
-curl -s -H 'Host: acme.lde.localhost' "127.0.0.1:$P1/v1/view/threads" | grep -q unknown_tenant \
+curl -s -H 'X-Spool-Tenant: acme' "127.0.0.1:$P1/v1/ws" | grep -q unknown_tenant \
   && pass "DRY_RUN bought nothing (acme still unknown)" || fail "DRY_RUN created acme"
 
 KEY="$T/keys/acme.json"

@@ -17,7 +17,7 @@
 # @param DRY_RUN (optional) - 1 (default): plan only. 0: buy.
 # @param BASE_URL (optional) - hub base; default lde http://127.0.0.1:<lde hub
 # @param   port>, dev https://<env.dns.fqdn> (cnf, no baked host)
-# @param TENANT_HOST_SUFFIX (optional) - the hub's tenant host suffix the probe sends as Host: <tenant>.<suffix>; default lde "localhost" (cnf lde hub pattern), dev <env.dns.fqdn>. tenant_url is the WUI sign-in page since checkout-v1 1.4, never a host
+# @param TENANT_HOST_SUFFIX (ignored since specs/026) - the probe names the tenant in X-Spool-Tenant on BASE_URL; no tenant host is involved. tenant_url is the WUI sign-in page since checkout-v1 1.4, never a host
 # @param KEY_OUT (optional) - claim JSON file; default <state dir>/tenants/
 # @param   <tenant>.<utc>.json, mode 0600
 # @example ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com ./run -a do_spl_checkout_fake_buy
@@ -65,33 +65,31 @@ do_spl_checkout_fake_buy() {
 
   # one curl helper: body in $_body, HTTP code in $_code (never logs a body)
   local _code _body
-  _req() { # <method> <url> [json] [host-header]
+  _req() { # <method> <url> [json] [extra-header-line]
     local out
     out="$(mktemp)" || return 1
     local args=(-sS -o "$out" -w '%{http_code}' -X "$1" "$2")
     [[ -n "${3:-}" ]] && args+=(-H 'Content-Type: application/json' --data "$3")
-    [[ -n "${4:-}" ]] && args+=(-H "Host: $4")
+    [[ -n "${4:-}" ]] && args+=(-H "$4")
     _code="$(curl "${args[@]}")" || { rm -f "$out"; return 1; }
     _body="$(cat "$out")"
     rm -f "$out"
   }
 
-  local id tok turl thost suffix
+  local id tok turl
   _req POST "$api" "$(jq -nc --arg t "$tenant" --arg e "$email" '{tenant_id:$t, email:$e}')" || return 1
   [[ "$_code" == 201 ]] || { do_log "FATAL checkout $tenant: HTTP $_code $(jq -c 'del(.claim_token)' <<<"$_body" 2>/dev/null)"; return 1; }
   id="$(jq -r .checkout_id <<<"$_body")"
   tok="$(jq -r .claim_token <<<"$_body")"
   turl="$(jq -r .tenant_url <<<"$_body")"  # the WUI sign-in page (checkout-v1 1.4)
-  # tenant probe: ask the hub itself with Host <tenant>.<suffix> (the hub
-  # still resolves a Host-named tenant for an anonymous probe: unknown ->
-  # 404 unknown_tenant, known -> 401 view_door)
-  if [[ "$env" == lde ]]; then suffix="${TENANT_HOST_SUFFIX:-localhost}"; else suffix="${TENANT_HOST_SUFFIX:-$SPL_FQDN}"; fi
-  thost="$tenant.$suffix"
-  _tenant() { _req GET "$base/v1/view/threads" "" "$thost"; }
+  # tenant probe (specs/026): the box door names a tenant in X-Spool-Tenant
+  # and resolves it before any upgrade: unknown -> 404 unknown_tenant, known
+  # -> the websocket refusal of a plain GET (426). No tenant host involved.
+  _tenant() { _req GET "$base/v1/ws" "" "X-Spool-Tenant: $tenant"; }
 
   _tenant || return 1
   [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" == unknown_tenant ]] || {
-    do_log "FATAL before payment the tenant host $thost must be unknown_tenant, got HTTP $_code"
+    do_log "FATAL before payment tenant $tenant must be unknown_tenant, got HTTP $_code"
     return 1
   }
   local before="$_code"
@@ -118,7 +116,7 @@ do_spl_checkout_fake_buy() {
   [[ "$again" == 410 ]] || { do_log "FATAL a second claim answered HTTP $again, want 410"; return 1; }
 
   _tenant || return 1
-  [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" != unknown_tenant ]] || { do_log "FATAL after payment $thost is still unknown_tenant"; return 1; }
+  [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" != unknown_tenant ]] || { do_log "FATAL after payment $tenant is still unknown_tenant"; return 1; }
   local after="$_code"
 
   jq -nc --arg t "$tenant" --arg c "$id" --arg u "$turl" --arg f "$out" --arg b "$before" --arg a "$after" \

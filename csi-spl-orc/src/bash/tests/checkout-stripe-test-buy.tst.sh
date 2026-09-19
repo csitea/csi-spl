@@ -46,7 +46,7 @@ case "$m $url" in
     if [[ -f "$ST/confirmed" && "${NEVER_PAID:-0}" != 1 ]]; then reply 200 '{"status":"paid","claimed":false}'; else reply 200 '{"status":"pending"}'; fi ;;
   "POST "*/api/v1/checkout/claim)
     if [[ -f "$ST/claimed" ]]; then reply 410 '{"error":"claimed"}'; else touch "$ST/claimed"; reply 200 '{"tenant_id":"t1","root_private_key":"AAAA"}'; fi ;;
-  "GET "*/v1/view/threads) if [[ -f "$ST/claimed" ]]; then reply 401 '{"error":"view_door"}'; else reply 404 '{"error":"unknown_tenant"}'; fi ;;
+  "GET "*/v1/ws) if [[ -f "$ST/claimed" ]]; then reply 426 'Upgrade Required'; else reply 404 '{"error":"unknown_tenant"}'; fi ;;
   *) reply 404 '{"error":"stub"}' ;;
 esac
 SH
@@ -83,7 +83,7 @@ out=$(run_act DRY_RUN=0 NEVER_PAID=1); rc=$?
 
 out=$(run_act DRY_RUN=0 KEY_OUT="$T/k/t1.json"); rc=$?
 sum="$(grep '^{' <<<"$out" | tail -1)"
-[[ $rc -eq 0 && "$(jq -r '"\(.tenant_before) \(.confirm) \(.status.status) \(.claim) \(.claim_again) \(.tenant_after)"' <<<"$sum")" == "404 succeeded paid 200 410 401" ]] &&
+[[ $rc -eq 0 && "$(jq -r '"\(.tenant_before) \(.confirm) \(.status.status) \(.claim) \(.claim_again) \(.tenant_after)"' <<<"$sum")" == "404 succeeded paid 200 410 426" ]] &&
   pass "buy: unknown -> confirmed -> paid by webhook -> claim once -> 410 -> tenant resolves" || fail "buy: rc=$rc $out"
 [[ "$(stat -c %a "$T/k/t1.json" 2>/dev/null)" == 600 ]] && pass "the claim lands in a 0600 file" || fail "key file mode"
 grep -q AAAA <<<"$out" && fail "the root key reached stdout" || pass "no root key on stdout"

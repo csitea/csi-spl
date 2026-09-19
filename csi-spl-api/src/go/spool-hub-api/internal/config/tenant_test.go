@@ -6,15 +6,15 @@ import "testing"
 // the api host (a reserved label), an IP or a bare host names none.
 func TestTenantID(t *testing.T) {
 	for _, c := range []struct{ url, tenant, want string }{
-		{"https://api.spool-hub.ai", "csitea", "csitea"},
-		{"https://api.spool-hub.ai", "", ""},
-		{"https://dev.api.spool-hub.ai", "", ""},
-		{"https://t1.spool-hub.ai", "", "t1"},
-		{"https://t1.spool-hub.ai", "e2e", "e2e"},
+		{"https://api.example.test", "csitea", "csitea"},
+		{"https://api.example.test", "", ""},
+		{"https://dev.api.example.test", "", ""},
+		{"https://t1.example.test", "", "t1"},
+		{"https://t1.example.test", "e2e", "e2e"},
 		{"http://t1.localhost:58080", "", "t1"},
 		{"http://localhost:58080", "", ""},
 		{"http://127.0.0.1:58080", "", ""},
-		{"https://www.spool-hub.ai", "", ""},
+		{"https://www.example.test", "", ""},
 	} {
 		cfg := &Config{HubURL: c.url, Tenant: c.tenant}
 		if got := cfg.TenantID(); got != c.want {

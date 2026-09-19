@@ -89,16 +89,23 @@ func (s *Store) WriteOutbox(m *msg.Message) error {
 // inbox, unless the same file is already in that inbox or its archive (a hub
 // redelivery is shown once). It reports whether it wrote.
 func (s *Store) Deliver(m *msg.Message) (bool, error) {
-	if !msg.ValidID(m.To) {
+	return s.DeliverTo(m, m.To)
+}
+
+// DeliverTo is Deliver into agent id's inbox: a mention-routed channel
+// message (specs/003 channels-v1 §4) lands with its v:1 object unchanged in
+// every addressed local agent's inbox, whatever its `to` says.
+func (s *Store) DeliverTo(m *msg.Message, id string) (bool, error) {
+	if !msg.ValidID(id) {
 		return false, fmt.Errorf("to must be a valid agent id")
 	}
 	name := msg.Filename(m)
 	for _, box := range []string{"inbox", "archive"} {
-		if _, err := os.Stat(filepath.Join(s.dir(m.To, box), name)); err == nil {
+		if _, err := os.Stat(filepath.Join(s.dir(id, box), name)); err == nil {
 			return false, nil
 		}
 	}
-	return s.writeBox(m, m.To, "inbox")
+	return s.writeBox(m, id, "inbox")
 }
 
 // writeBox writes m as <id>/<box>/<filename>.

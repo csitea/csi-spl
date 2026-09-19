@@ -428,3 +428,48 @@ func TestWUIPresence(t *testing.T) {
 		}
 	}
 }
+
+// The real box client: SPOOL_CHANNELS reaches the hub in hello, a mention in
+// #tasks lands in the addressed agent's inbox only, v:1 unchanged.
+func TestHubclientChannelRecv(t *testing.T) {
+	e := newEnv(t)
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	a := e.box(tid, "box-a", "GRK-03")
+	b := e.box(tid, "box-b", "CLE-07", "CLE-08")
+	b.cfg.Channels = " Tasks , releases,"
+	e.pin(tid, a)
+	e.pin(tid, b)
+	sb, err := b.c.Dial(ctx, wire.RoleBox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sb.Close()
+	if m, _ := e.st.ChannelMembers(ctx, tid, "tasks"); len(m["box-b"]) != 2 {
+		t.Fatalf("SPOOL_CHANNELS not announced: %+v", m)
+	}
+	cli, err := a.c.Dial(ctx, wire.RoleCLI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	ambient := chanMsg(uuidV4(), "ALL-0", "note", "nothing for anyone")
+	if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "tasks", "", ambient)); err != nil {
+		t.Fatal(err)
+	}
+	m := chanMsg(uuidV4(), "ALL-0", "task", "@CLE-07 run the suite")
+	if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "tasks", "", m)); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "CLE-07 inbox", func() bool { return len(inbox(t, b, "CLE-07")) == 1 })
+	got := inbox(t, b, "CLE-07")[0]
+	if got.MsgID != m.MsgID || got.To != "ALL-0" || got.Body != m.Body {
+		t.Fatalf("inbox copy: %+v", got)
+	}
+	if n := len(inbox(t, b, "CLE-08")); n != 0 {
+		t.Fatalf("CLE-08 got %d messages", n)
+	}
+	if errs := sb.RecvErrors(); len(errs) != 0 {
+		t.Fatalf("recv errors: %v", errs)
+	}
+}

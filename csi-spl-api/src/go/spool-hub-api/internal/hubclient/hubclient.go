@@ -200,6 +200,7 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 			return fail(err)
 		}
 		hello.Agents = agents
+		hello.Channels = c.Cfg.ChannelList()
 	}
 	if err := wsjson.Write(dctx, conn, hello); err != nil {
 		return fail(fmt.Errorf("%w: %v", ErrUnreachable, err))
@@ -243,7 +244,7 @@ func (s *Session) readLoop() {
 		}
 		switch f.Type {
 		case wire.TRecv:
-			if err := s.receive(context.Background(), f.Env); err != nil {
+			if err := s.receive(context.Background(), f.Env, f.Agents); err != nil {
 				s.c.Log.Warn().Err(err).Msg("recv frame refused")
 				s.mu.Lock()
 				s.recvErrs = append(s.recvErrs, err)
@@ -397,7 +398,7 @@ func (s *Session) Announce(ctx context.Context) error {
 	}
 	wctx, cancel := context.WithTimeout(ctx, s.c.timeout())
 	defer cancel()
-	return wsjson.Write(wctx, s.conn, wire.Frame{Type: wire.TAnnounce, Agents: agents})
+	return wsjson.Write(wctx, s.conn, wire.Frame{Type: wire.TAnnounce, Agents: agents, Channels: s.c.Cfg.ChannelList()})
 }
 
 // uploadToken returns a live upload token, asking the hub for a fresh one
@@ -429,13 +430,35 @@ const wuiBox = "box-wui"
 // receive verifies one recv frame against the LOCALLY synced pin of from_box
 // and writes the inner v:1 into the recipient's inbox. A missing pin or bad
 // sig refuses the frame (exit 78 class) and writes nothing.
-func (s *Session) receive(ctx context.Context, raw []byte) error {
+//
+// A frame whose to_box is another box is accepted only as a mention-routed
+// channel delivery (specs/003 channels-v1 §4.5): the envelope carries a signed
+// channel and the hub lists the addressed agents; one inbox copy is written
+// per listed agent this box hosts.
+func (s *Session) receive(ctx context.Context, raw []byte, agents []string) error {
 	e, err := wire.ParseEnvelope(raw)
 	if err != nil {
 		return err
 	}
+	var targets []string
 	if e.ToBox != s.box {
-		return fmt.Errorf("frame for to_box %q arrived at box %q", e.ToBox, s.box)
+		if e.Channel == "" || len(agents) == 0 {
+			return fmt.Errorf("frame for to_box %q arrived at box %q", e.ToBox, s.box)
+		}
+		local, err := s.c.scanAgents()
+		if err != nil {
+			return err
+		}
+		for _, a := range agents {
+			for _, l := range local {
+				if a == l {
+					targets = append(targets, a)
+				}
+			}
+		}
+		if len(targets) == 0 {
+			return fmt.Errorf("channel frame for agents %v hosts none of them at box %q", agents, s.box)
+		}
 	}
 	pub, err := sign.LoadPin(s.c.Cfg.PinsDir, e.FromBox)
 	if err != nil {
@@ -458,14 +481,19 @@ func (s *Session) receive(ctx context.Context, raw []byte) error {
 			}
 		}
 	}
-	wrote, err := spool.New(s.c.Cfg).Deliver(m)
-	if err != nil {
-		return err
+	if targets == nil {
+		targets = []string{m.To}
 	}
-	if wrote {
-		s.mu.Lock()
-		s.delivered++
-		s.mu.Unlock()
+	for _, id := range targets {
+		wrote, err := spool.New(s.c.Cfg).DeliverTo(m, id)
+		if err != nil {
+			return err
+		}
+		if wrote {
+			s.mu.Lock()
+			s.delivered++
+			s.mu.Unlock()
+		}
 	}
 	return nil
 }

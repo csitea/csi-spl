@@ -46,6 +46,9 @@ type Config struct {
 	TenantRootKey string `env:"SPOOL_TENANT_ROOT_KEY"`
 	// MirrorLocal also hub-sends same-box mail: unset/0/false (default) or 1/true.
 	MirrorLocal string `env:"SPOOL_MIRROR_LOCAL"`
+	// Channels is the box's channel subscriptions (comma list of slugs) sent in
+	// hub hello/announce (specs/003 channels-v1 §3). Unset = #lobby only.
+	Channels string `env:"SPOOL_CHANNELS"`
 }
 
 // Load parses the environment and resolves defaults that depend on $HOME or
@@ -84,6 +87,18 @@ func Load() (*Config, error) {
 		}
 	}
 	return &c, nil
+}
+
+// ChannelList is $SPOOL_CHANNELS split on commas, trimmed, lower-cased,
+// empties dropped. The hub ignores slugs it does not know.
+func (c *Config) ChannelList() []string {
+	var out []string
+	for _, s := range strings.Split(c.Channels, ",") {
+		if s = strings.ToLower(strings.TrimSpace(s)); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // Mirror reports $SPOOL_MIRROR_LOCAL; any value but unset/0/false/1/true fails

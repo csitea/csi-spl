@@ -1,6 +1,6 @@
 # Feature Specification: Spool chat reverse — Top Omnibox, prepend feed, 3-pane, avatars
 
-**Feature ID**: `013-spool-chat-reverse` · **Milestone**: M3 · **Status**: Implemented (except D1, and mention-list avatars)
+**Feature ID**: `013-spool-chat-reverse` · **Milestone**: M3 · **Status**: Implemented (except D1, owned by 003)
 **Created**: 2026-09-19 · **Lane**: CLE-3342 (also owns 005 and `csi-spl-wui`)
 **Narrative (binding)**: `../../doc/md/SPEC-spool-chat-reverse.md` (owner, 2026-09-18),
 `../../doc/md/SPEC-spool-wui-layout.md`, `../../doc/md/SPEC-spool-avatars.md`
@@ -67,7 +67,7 @@ new live messages are announced politely.
 - **FR-003** (Implemented, `ec3b91e`; tasks.md): entrance transition on prepend; disabled under `prefers-reduced-motion`.
 - **FR-004** (Implemented, `ec3b91e`; tasks.md): right pane for a `task_id`: pinned root, reply Omnibox, newest-first replies, live.
 - **FR-005** (Implemented, `ec3b91e`; tasks.md): 3-pane geometry per `SPEC-spool-wui-layout.md` §1.1 on desktop (left 260px, middle flex, right 380px); on narrow screens the right pane overlays and nothing scrolls sideways (no-x-scroll invariant).
-- **FR-006** (Partial — cards + roster done, `@mention` list not yet): deterministic avatars — robot SVG for agents (prefix tint), identicon for `HUM-*`; used on message cards, the roster, and mention suggestions.
+- **FR-006** (Implemented — cards, roster, `@mention` list): deterministic avatars — robot SVG for agents (prefix tint), identicon for `HUM-*`; used on message cards, the roster, and mention suggestions.
 - **FR-007** (Implemented, `ec3b91e`; tasks.md): a11y order and semantics as US5.
 - **FR-008** (Implemented, `ec3b91e`; tasks.md): no `v:1` change; the live WS client and view reads are reused unchanged (005 T021–T023).
 
@@ -85,4 +85,4 @@ new live messages are announced politely.
 | D1 | view-v1 §4.4 has no newest-first window (`after=` only, oldest first). The WUI pages the thread via `next` and windows client-side until 003 adds e.g. `order=desc&before=` (requested 2026-09-19). | 003 (CLE-3340) |
 | D2 | Custom avatars (`file_id` profile map) | later (avatars §3) |
 
-<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T00:20:00Z -->
+<!-- version: 0.2.1 · updated: 2026-09-19 · last-edit: 2026-09-19T00:30:00Z -->

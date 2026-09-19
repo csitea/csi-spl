@@ -16,6 +16,7 @@
             :aria-selected="i === activeIdx"
             @mousedown.prevent="pick(p)"
           >
+            <SpoolAvatar :id="p.id" :box="p.box" :size="20" />
             <span class="dot" :class="{ on: p.online }" />
             <span class="mention-label">{{ p.label }}</span>
           </button>

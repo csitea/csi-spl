@@ -3,7 +3,7 @@
 Status by verification (`../README.md` §2.3): `[x]` Implemented (cited) · `[~]` Partial · `[ ]` Planned.
 
 - [x] T001 Implemented (`c4b3cca`) — `utils/feed.mjs`: newest-first (stable), `windowed`, `parseOmnibox`, `matchesSearch` (body, author, `id@box`, file names), `rootAndReplies`; 6 unit tests. FR-002, FR-001.
-- [~] T002 Partial (`c4b3cca`, `ec3b91e`) — `utils/avatar.mjs` robots (CLE teal / GRK orange / AGY purple chassis; varied head, eyes, mouth, antenna, extras) and HUM identicons, inline-SVG data URIs, deterministic per `id@box`; 4 unit tests; `SpoolAvatar.vue` on message cards and the roster. Missing: avatars in the `@mention` suggestion list.
+- [x] T002 Implemented (`c4b3cca`, `ec3b91e`, mention list: this commit) — `utils/avatar.mjs` robots (CLE teal / GRK orange / AGY purple chassis; varied head, eyes, mouth, antenna, extras) and HUM identicons, inline-SVG data URIs, deterministic per `id@box`; 4 unit tests; `SpoolAvatar.vue` on message cards, the roster and the `@mention` suggestions.
 - [x] T003 Implemented (`ec3b91e`) — `MessageComposer.vue` `omnibox` mode: Enter sends (a leading `@CLE-07` sends `kind=task` `to=CLE-07`), `/search <q>` emits `search` and sends nothing, Esc clears; labelled textarea. FR-001.
 - [x] T004 Implemented (`ec3b91e`) — `LiveFeed.vue`: `TransitionGroup` prepend (none under `prefers-reduced-motion`), 50-row windows, `IntersectionObserver` bottom sentinel reveals older, `role="feed"`, `aria-posinset`/`setsize`, polite announcer for live arrivals. Windows are client-side over the paged thread (spec D1). FR-002, FR-003, FR-007.
 - [x] T005 Implemented (`ec3b91e`) — `useLiveFeed('main'|'pane')` on the one WS socket; `LiveThreadPane.vue`: pinned root, reply Omnibox, newest-first replies, live; opened from a thread row (plain click; Ctrl/middle-click still opens `/t/<id>`), from `/?thread=<id>`, or "Open thread" on a card of another task. FR-004.
@@ -15,4 +15,4 @@ Status by verification (`../README.md` §2.3): `[x]` Implemented (cited) · `[~]
   - Thread list → click the demo thread → URL stays `/`, pane shows root `GRK-03@box-smoke, task` pinned + 2 newest-first replies; avatars on those cards are robots; lobby cards for `HUM-22`/`HUM-30` are identicons (SC-003).
 - [ ] T008 Planned (003) — newest-first window on view-v1 §4.4 (spec D1), then switch the client to it.
 
-<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T00:20:00Z -->
+<!-- version: 0.2.1 · updated: 2026-09-19 · last-edit: 2026-09-19T00:30:00Z -->

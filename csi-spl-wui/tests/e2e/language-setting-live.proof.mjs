@@ -14,7 +14,7 @@
 // Screenshots + results.json to OUT.
 //
 //   BASE=https://dev.<domain> API=https://dev.api.<domain> OUT=<dir> \
-//     [UI=en] [WANT=fi] [DEFAULT_LOCALE=bg] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
+//     [UI=en] [WANT=fi] [DEFAULT_LOCALE=en] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/language-setting-live.proof.mjs
 //
 // The password is random per run and never printed. Exit 0 = every step PASS.
@@ -41,7 +41,7 @@ const OUT = need('OUT')
 if (process.env.TENANT) { console.error('FATAL this proof signs in with NO tenant on purpose; unset TENANT'); process.exit(2) }
 const UI = process.env.UI || 'en'
 const WANT = process.env.WANT || 'fi'
-const DEF = process.env.DEFAULT_LOCALE || 'bg'
+const DEF = process.env.DEFAULT_LOCALE || 'en'
 const pfx = (c) => (c === DEF ? '' : '/' + c)
 const email = `wui-i18n-proof+${Date.now()}@example.com`
 const pw = randomBytes(18).toString('base64url')

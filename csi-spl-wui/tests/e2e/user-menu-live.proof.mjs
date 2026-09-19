@@ -5,7 +5,7 @@
 // + mobile), and Sign out from the dropdown. Screenshots + results.json to OUT.
 //
 //   BASE=https://dev.<domain> EMAIL=<invited member> PW_FILE=<0600 file> \
-//     OUT=<dir> [TENANT=t1] [LOCALE=en] [DEFAULT_LOCALE=bg] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
+//     OUT=<dir> [TENANT=t1] [LOCALE=en] [DEFAULT_LOCALE=en] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/user-menu-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -34,7 +34,7 @@ const TENANT = process.env.TENANT || 't1'
 // LOCALE via its URL prefix and compares labels with THAT locale's catalogue,
 // so it holds whatever the unprefixed default locale is.
 const LOCALE = process.env.LOCALE || 'en'
-const P = LOCALE === (process.env.DEFAULT_LOCALE || 'bg') ? '' : '/' + LOCALE
+const P = LOCALE === (process.env.DEFAULT_LOCALE || 'en') ? '' : '/' + LOCALE
 const CAT = JSON.parse(readFileSync(new URL(`../../i18n/locales/${LOCALE}.json`, import.meta.url), 'utf8'))
 const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 /** The catalogue template of `key` as a regex, each {param} = any text. */

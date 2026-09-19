@@ -45,7 +45,7 @@ const PATHS = [
 // he = rtl) at the narrowest viewport, on the sign-in frame and the shell.
 // The default locale is unprefixed and already covered above.
 const LOCALES = (process.env.LOCALES || 'bg,fi,ru,en,sv,he,tr,mk,el,lt,et,lv,sr,ro,uk,sk,pl,es,nl').split(',')
-const DEFAULT_LOCALE = process.env.DEFAULT_LOCALE || 'bg'
+const DEFAULT_LOCALE = process.env.DEFAULT_LOCALE || 'en'
 const LOCALE_PATHS = [
   { path: '/login', wait: '.login-card' },
   { path: '/lobby', wait: '.spool-shell' },

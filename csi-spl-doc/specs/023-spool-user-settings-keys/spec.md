@@ -54,7 +54,7 @@ Consequence: "download later" of the **private** key is not possible after the
 page is left. The page says so next to the download, and offers
 **Generate a new key pair** (the old one is revoked, history kept) for a
 human who lost it. The **public** key stays downloadable any time. Server
-custody is left as OQ-1.
+custody is refused (OQ-1 answered by the owner 2026-09-19: (a) browser only).
 
 A browser without WebCrypto Ed25519 (Chrome < 137, Firefox < 129, Safari < 17)
 gets no default pair: the page says so and shows the CLI route
@@ -138,13 +138,13 @@ renders once, in the parent, for every section.
 
 ## 5. Open questions (owner)
 
-- **OQ-1 private key "download later".** The order says the user "will be
-  able to download the private key". Built: **(a)** browser-generated, the
-  private key downloadable while the generating page is open, never on the
-  hub. Alternative **(b)**: the hub stores the private key encrypted
-  (KMS-wrapped) and serves it to a signed-in session any time — every session
-  theft becomes a key theft and it contradicts SEC-03. Not built; needs an
-  explicit owner go (ORC is asked before building (b)).
+- **OQ-1 private key "download later".** Answered by the owner 2026-09-19:
+  **(a) browser only** — the server never holds private keys. Built: the
+  default Ed25519 pair is generated in the browser; the private key is
+  downloadable while the generating page is open, never on the hub.
+  Alternative **(b)** (hub stores the private key encrypted and serves it to
+  a signed-in session) is refused: every session theft would become a key
+  theft and it contradicts SEC-03. Nothing further to build.
 - **OQ-2 consumer.** No hub feature verifies a human key yet. Candidates: a
   HUM-* signing CLI messages, or pinning a personal box from the WUI. Pick one
   before the key becomes load-bearing.

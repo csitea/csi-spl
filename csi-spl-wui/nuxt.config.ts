@@ -139,8 +139,8 @@ function vendorChunk(id: string): string | undefined {
 // ── i18n locale set ───────────────────────────────────────────────────────
 // Shared by the i18n module config and the root redirect script (app.head)
 // so the two can never disagree on what ships. Default from cnf
-// (env.wui.i18n.default_locale -> NUXT_PUBLIC_DEFAULT_LOCALE); the donor's
-// founding default is bg, kept until the owner decides (spec 021 OQ-1).
+// (env.i18n.default_locale -> NUXT_PUBLIC_DEFAULT_LOCALE). Owner 2026-09-19
+// (spec 021 OQ-1): English; the fallback matches when the env is unset.
 type SpoolLocaleCode =
   | "bg" | "fi" | "ru" | "en" | "sv" | "he" | "tr" | "mk" | "el"
   | "lt" | "et" | "lv" | "sr" | "ro" | "uk" | "sk" | "pl" | "es" | "nl"
@@ -165,7 +165,7 @@ const I18N_LOCALES = [
   { code: "es", language: "es-ES", name: "Español", file: "es.json" },
   { code: "nl", language: "nl-NL", name: "Nederlands", file: "nl.json" },
 ]
-const _envDefaultLocale = (process.env.NUXT_PUBLIC_DEFAULT_LOCALE || "bg").trim()
+const _envDefaultLocale = (process.env.NUXT_PUBLIC_DEFAULT_LOCALE || "en").trim()
 if (!I18N_LOCALES.some((l) => l.code === _envDefaultLocale)) {
   throw new Error(`NUXT_PUBLIC_DEFAULT_LOCALE=${_envDefaultLocale} is not one of the shipped locales`)
 }

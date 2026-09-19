@@ -385,7 +385,7 @@ func inviteMailFlags(fs *flag.FlagSet) inviteMailOpts {
 	return inviteMailOpts{
 		appURL:    fs.String("app-url", os.Getenv("SPOOL_HUB_AUTH_APP_URL"), "the env's WUI origin https://<fqdn> (default $SPOOL_HUB_AUTH_APP_URL)"),
 		locale:    fs.String("locale", "", "mail locale (default: --default-locale; the invitee has none stored)"),
-		defLocale: fs.String("default-locale", envOr("SPOOL_HUB_DEFAULT_LOCALE", "bg"), "the WUI's unprefixed locale (default $SPOOL_HUB_DEFAULT_LOCALE)"),
+		defLocale: fs.String("default-locale", envOr("SPOOL_HUB_DEFAULT_LOCALE", "en"), "the WUI's unprefixed locale (default $SPOOL_HUB_DEFAULT_LOCALE)"),
 		minGap:    fs.Duration("min-gap", invitemail.DefaultMinGap, "least time between two sends of one invite"),
 		maxSends:  fs.Int("max-sends", invitemail.DefaultMaxSends, "most sends per invite since it was (re)created"),
 	}

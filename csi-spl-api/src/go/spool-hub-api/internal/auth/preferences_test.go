@@ -240,18 +240,18 @@ func TestPreferencesWithoutHumanIs409(t *testing.T) {
 
 // The verify link carries the request locale as a prefix, except the default.
 func TestRegisterMailFollowsRequestLocale(t *testing.T) {
-	r, _ := newPRig(t, "", true) // default bg
+	r, _ := newPRig(t, "", true) // default en (cnf / i18n.DefaultLocale)
 	cases := []struct {
 		email  string
 		hdr    []string
 		locale string
 		prefix string
 	}{
-		{"a@example.com", nil, "bg", ""},
+		{"a@example.com", nil, "en", ""},
 		{"b@example.com", []string{"X-Locale", "fi"}, "fi", "/fi"},
 		{"c@example.com", []string{"Accept-Language", "sv-SE,sv;q=0.9"}, "sv", "/sv"},
 		{"d@example.com", []string{"X-Locale", "he", "Accept-Language", "sv-SE"}, "he", "/he"},
-		{"e@example.com", []string{"Accept-Language", "de-DE"}, "bg", ""},
+		{"e@example.com", []string{"Accept-Language", "de-DE"}, "en", ""},
 	}
 	for _, c := range cases {
 		got := r.call(t, nil, http.MethodPost, "register", jsonBody(map[string]string{"email": c.email, "password": pwA}), c.hdr...)

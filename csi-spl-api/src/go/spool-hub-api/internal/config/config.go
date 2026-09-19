@@ -247,7 +247,7 @@ type Hub struct {
 	// (X-Locale > Accept-Language > this), the mail locale of last resort, and
 	// the one locale WUI links carry no /<loc> prefix for. cnf env.i18n, the
 	// same value the WUI builds with; one of the 19 i18n.Supported codes.
-	DefaultLocale string `env:"SPOOL_HUB_DEFAULT_LOCALE" envDefault:"bg"`
+	DefaultLocale string `env:"SPOOL_HUB_DEFAULT_LOCALE" envDefault:"en"`
 }
 
 // WUIPrivateKey returns the box-wui signing key: decoded from SPOOL_HUB_WUI_KEY,

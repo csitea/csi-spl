@@ -10,7 +10,7 @@
 //      no document x-scroll, and <html lang> matches.
 // Screenshots (default, fi, he, en; desktop + mobile) + results.json to OUT.
 //
-//   BASE=https://dev.<domain> OUT=<dir> [DEFAULT_LOCALE=bg] [CHROME_PATH=...] \
+//   BASE=https://dev.<domain> OUT=<dir> [DEFAULT_LOCALE=en] [CHROME_PATH=...] \
 //     [PUPPETEER_CORE=<path>] node tests/e2e/locale-switch.proof.mjs
 //
 // Exit 0 = every step PASS.
@@ -32,7 +32,7 @@ async function loadPuppeteer() {
 const need = (k) => { if (!process.env[k]) { console.error(`FATAL ${k} must be set`); process.exit(2) } return process.env[k] }
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
-const DEF = process.env.DEFAULT_LOCALE || 'bg'
+const DEF = process.env.DEFAULT_LOCALE || 'en'
 const TAGS = {
   bg: 'bg-BG', fi: 'fi-FI', ru: 'ru-RU', en: 'en-GB', sv: 'sv-SE', he: 'he-IL', tr: 'tr-TR', mk: 'mk-MK', el: 'el-GR',
   lt: 'lt-LT', et: 'et-EE', lv: 'lv-LV', sr: 'sr-RS', ro: 'ro-RO', uk: 'uk-UA', sk: 'sk-SK', pl: 'pl-PL', es: 'es-ES', nl: 'nl-NL',

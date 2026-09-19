@@ -5,7 +5,7 @@
 // reports active_tenant = TENANT. Results + a screenshot to OUT.
 //
 //   BASE=https://dev.<domain> API=https://dev.api.<domain> EMAIL=<member> PW_FILE=<0600 file> \
-//     OUT=<dir> [TENANT=t1] [LOCALE=en] [DEFAULT_LOCALE=bg] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
+//     OUT=<dir> [TENANT=t1] [LOCALE=en] [DEFAULT_LOCALE=en] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/tenant-from-identity-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -32,7 +32,7 @@ const email = need('EMAIL')
 const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 't1'
 const LOCALE = process.env.LOCALE || 'en'
-const P = LOCALE === (process.env.DEFAULT_LOCALE || 'bg') ? '' : '/' + LOCALE
+const P = LOCALE === (process.env.DEFAULT_LOCALE || 'en') ? '' : '/' + LOCALE
 const TENANT_HOST = TENANT + '.' + new URL(BASE).host
 mkdirSync(OUT, { recursive: true })
 const puppeteer = await loadPuppeteer()

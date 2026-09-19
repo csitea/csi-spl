@@ -16,7 +16,7 @@
 |---|---|---|
 | library | `@nuxtjs/i18n` v9 + `@headlessui/vue` Combobox (`csi-rel-wui/package.json`) | same |
 | locales | 19: `bg fi ru en sv he tr mk el lt et lv sr ro uk sk pl es nl` (`csi-rel-wui/nuxt.config.ts:197-217`) | same list, same endonyms + BCP47 tags |
-| default | `bg`, cnf `env.i18n.default_locale` → `NUXT_PUBLIC_DEFAULT_LOCALE` (`nuxt.config.ts:192`, `csi-rel-cnf/csi-rel/all.env.yaml:145`) | same mechanism, `bg` (OQ-1) |
+| default | `bg`, cnf `env.i18n.default_locale` → `NUXT_PUBLIC_DEFAULT_LOCALE` (`nuxt.config.ts:192`, `csi-rel-cnf/csi-rel/all.env.yaml:145`) | same mechanism, `en` (OQ-1 answered by the owner 2026-09-19) |
 | URL scheme | `prefix_except_default` (`nuxt.config.ts:360`): default unprefixed, others `/<code>/…` | same |
 | detection | module detection OFF (`nuxt.config.ts:392`); a blocking `<head>` script on `/` only: cookie → `navigator.languages` → default, crawlers exempt (`src/utils/rootLocaleRedirect.mjs`) | copied verbatim |
 | persistence | cookie `i18n_redirected` (1 y, `SameSite=Lax`) written on every switch (`src/plugins/locale-cookie.client.ts`); localStorage mirror `csi-rel-lang` (`src/components/LanguageSwitcher.vue`) | same; mirror key `csi-spl-lang` |
@@ -45,12 +45,14 @@
 - FR-008 The default locale is one cnf value (`env.i18n.default_locale`)
   shared by the WUI build and the hub.
 
-## 4. Open question for the owner
+## 4. Open questions (owner)
 
-- **OQ-1 default locale.** The donor's default is `bg` (a Bulgarian shop).
-  spool-hub.ai is an English-facing product. **Recommendation: `en`.** It is
-  one cnf value (`csi-spl-cnf/csi-spl/all.env.yaml` `env.i18n.default_locale`),
-  so the donor's `bg` ships until the owner says otherwise. Effect of `bg`:
-  every unprefixed URL (`/login`, `/channel/general`, mailed links for a person
-  with no preference) renders Bulgarian; browsers asking for another shipped
-  language are redirected from `/` only.
+- **OQ-1 default locale.** Answered by the owner 2026-09-19: **`en`**.
+  The donor's default is `bg` (a Bulgarian shop). spool-hub.ai is an
+  English-facing product. One cnf value (`csi-spl-cnf/csi-spl/all.env.yaml`
+  `env.i18n.default_locale`) drives the WUI unprefixed locale
+  (`NUXT_PUBLIC_DEFAULT_LOCALE`) and the hub mail fallback
+  (`SPOOL_HUB_DEFAULT_LOCALE`). Bulgarian stays available under `/bg/`.
+  Effect of `en`: every unprefixed URL (`/login`, `/channel/general`, mailed
+  links for a person with no preference) renders English; browsers asking
+  for another shipped language are redirected from `/` only.

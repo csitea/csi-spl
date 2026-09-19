@@ -3,7 +3,7 @@
 // and X-Locale over Accept-Language (a browser fetch may not override
 // Accept-Language, so the cross-origin WUI sends its active locale in
 // X-Locale). The default locale is cnf (SPOOL_HUB_DEFAULT_LOCALE, config.Hub),
-// "bg" as in csi-rel; the WUI reads the same cnf value.
+// "en" (owner 2026-09-19, spec 021 OQ-1); the WUI reads the same cnf value.
 package i18n
 
 import (
@@ -20,8 +20,8 @@ import (
 var Supported = []string{"bg", "fi", "ru", "en", "sv", "he", "tr", "mk", "el", "lt", "et", "lv",
 	"sr", "ro", "uk", "sk", "pl", "es", "nl"}
 
-// DefaultLocale is csi-rel's default and SPOOL_HUB_DEFAULT_LOCALE's envDefault.
-const DefaultLocale = "bg"
+// DefaultLocale is SPOOL_HUB_DEFAULT_LOCALE's envDefault (cnf env.i18n.default_locale).
+const DefaultLocale = "en"
 
 // HeaderLocale is the WUI's explicit locale header; it wins over Accept-Language.
 const HeaderLocale = "X-Locale"

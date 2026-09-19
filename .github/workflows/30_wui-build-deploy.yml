@@ -182,7 +182,7 @@ jobs:
           print("auth_base=" + s19.get("wui_auth_base", ""))
           print("lb_route=" + ("true" if s31.get("wui_origin_host") else "false"))
           # spec 021: the unprefixed WUI locale (cnf env.i18n.default_locale)
-          print("default_locale=" + e.get("i18n", {}).get("default_locale", "bg"))
+          print("default_locale=" + e.get("i18n", {}).get("default_locale", "en"))
           PY
           cat "$GITHUB_OUTPUT"
 

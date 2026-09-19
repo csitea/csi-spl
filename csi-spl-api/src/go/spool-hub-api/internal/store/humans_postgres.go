@@ -175,6 +175,24 @@ func (s *Postgres) Avatar(ctx context.Context, humanID string) (string, error) {
 	return *id, nil
 }
 
+func (s *Postgres) TenantAvatars(ctx context.Context, tenant string) (map[string]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT h.human_id, coalesce(h.avatar_file_id, '') FROM tenant_memberships m
+		JOIN humans h ON h.human_id = m.human_id WHERE m.tenant_id = $1 AND h.disabled_at IS NULL`, tenant)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var id, fid string
+		if err := rows.Scan(&id, &fid); err != nil {
+			return nil, err
+		}
+		out[id] = fid
+	}
+	return out, rows.Err()
+}
+
 // disableHuman is a test hook (humans.disabled_at); no production caller yet.
 func (s *Postgres) disableHuman(humanID string) {
 	s.pool.Exec(context.Background(), `UPDATE humans SET disabled_at = now() WHERE human_id = $1`, humanID) //nolint:errcheck

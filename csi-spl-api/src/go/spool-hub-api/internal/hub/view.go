@@ -197,7 +197,43 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 		}
 		out = append(out, v)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"boxes": out})
+	humans, err := s.viewHumans(r, t.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "roster unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"boxes": out, "humans": humans})
+}
+
+type viewHuman struct {
+	HumanID      string  `json:"human_id"`
+	AvatarFileID *string `json:"avatar_file_id"`
+}
+
+// viewHumans lists the tenant's member HUM-* with the stored IdP picture
+// (view-v1 §4.1; 010 T044): a file_id the WUI loads with GET /v1/files/{id}
+// on this same tenant host, null = draw the deterministic default. Members
+// of this tenant only; a store without the 010 tables lists none.
+func (s *Server) viewHumans(r *http.Request, tenant string) ([]viewHuman, error) {
+	out := []viewHuman{}
+	h, ok := s.o.Store.(store.Humans)
+	if !ok {
+		return out, nil
+	}
+	avatars, err := h.TenantAvatars(r.Context(), tenant)
+	if err != nil {
+		return nil, err
+	}
+	for id, fid := range avatars {
+		v := viewHuman{HumanID: id}
+		if fid != "" {
+			f := fid
+			v.AvatarFileID = &f
+		}
+		out = append(out, v)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].HumanID < out[j].HumanID })
+	return out, nil
 }
 
 // handleViewChannels is view-v1 §4.2 / channels-v1 §5.2: every default,

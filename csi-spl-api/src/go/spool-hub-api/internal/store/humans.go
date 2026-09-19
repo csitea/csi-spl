@@ -76,6 +76,9 @@ type Humans interface {
 	SetAvatar(ctx context.Context, humanID, fileID string) error
 	// Avatar returns the human's avatar file_id, "" when none, or ErrNotFound.
 	Avatar(ctx context.Context, humanID string) (string, error)
+	// TenantAvatars maps every member HUM-* of tenant (disabled humans
+	// excluded) to its avatar file_id, "" when none (view-v1 §4.1 humans).
+	TenantAvatars(ctx context.Context, tenant string) (map[string]string, error)
 }
 
 var fileIDRe = regexp.MustCompile(`^[0-9a-f]{64}$`)

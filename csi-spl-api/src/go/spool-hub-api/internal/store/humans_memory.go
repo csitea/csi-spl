@@ -163,6 +163,19 @@ func (s *Memory) Avatar(_ context.Context, humanID string) (string, error) {
 	return hm.avatar, nil
 }
 
+func (s *Memory) TenantAvatars(_ context.Context, tenant string) (map[string]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	out := map[string]string{}
+	for k := range s.hum.members {
+		if hm, ok := s.hum.humans[k[1]]; k[0] == tenant && ok && !hm.disabled {
+			out[k[1]] = hm.avatar
+		}
+	}
+	return out, nil
+}
+
 // disableHuman is a test hook (humans.disabled_at); no production caller yet.
 func (s *Memory) disableHuman(humanID string) {
 	s.mu.Lock()

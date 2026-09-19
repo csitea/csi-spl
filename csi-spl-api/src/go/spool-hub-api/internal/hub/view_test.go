@@ -2,6 +2,8 @@ package hub_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -15,6 +17,8 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth/fakeidp"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -394,4 +398,84 @@ func TestViewThreadDescWindows(t *testing.T) {
 	if got := strings.Join(bodies(asc), ","); got != "m1,m2,m3,m4,m5" {
 		t.Fatalf("asc: %s", got)
 	}
+}
+
+// A5 (view-v1 §4.1, 010 T044): the roster lists the tenant's member HUM-*
+// with the IdP picture the sign-in stored, and the WUI loads it with GET
+// /v1/files/{id} on the same tenant host under the view CORS allow-list.
+// CONTROLS: a human with no picture is null; tenant B's human never appears
+// in A's roster, and B's avatar file_id is 404 through A's host; a signed-in
+// A member is refused B's roster (the only place B's file_id is listed).
+func TestViewRosterHumanAvatar(t *testing.T) {
+	r := newDoorRig(t)
+	mine, _ := r.e.tenant()
+	theirs, _ := r.e.tenant()
+	ctx := context.Background()
+	h := r.e.st.(store.Humans)
+
+	// B's owner: a picture stored under B only.
+	bob, err := h.Admit(ctx, store.Identity{Provider: "google", Subject: "bob-sub"}, theirs, store.AdmitPolicy{BootstrapOwner: true}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	bobPic := fakeidp.Avatar("bob-sub")
+	bobFID := sha256Hex(bobPic)
+	if err := (blob.Dir{Root: r.e.blobs}).Put(ctx, "t/"+theirs+"/files/"+bobFID, bobPic); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.SetAvatar(ctx, bob, bobFID); err != nil {
+		t.Fatal(err)
+	}
+	// A: alice signs in through the fake IdP (bootstrap owner, picture fetched).
+	if landed := r.signIn(t, mine); strings.Contains(landed, "auth_error") {
+		t.Fatalf("sign-in landed on %s", landed)
+	}
+	// A second member of A without a picture.
+	if err := h.PutInvite(ctx, store.Invite{TenantID: mine, Email: "carol@example.com", Role: store.RoleMember,
+		InvitedBy: store.AdmittedOperator, ExpiresAt: time.Now().Add(time.Hour)}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	carol, err := h.Admit(ctx, store.Identity{Provider: "google", Subject: "carol-sub", Email: "carol@example.com"}, mine, store.AdmitPolicy{}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	code, hdr, body := r.get(t, mine, "/v1/view/roster")
+	var roster struct {
+		Humans []struct {
+			HumanID      string  `json:"human_id"`
+			AvatarFileID *string `json:"avatar_file_id"`
+		} `json:"humans"`
+	}
+	if err := json.Unmarshal([]byte(body), &roster); err != nil || code != http.StatusOK || hdr.Get("Access-Control-Allow-Origin") != wuiOrigin {
+		t.Fatalf("roster %d %v %s", code, hdr, body)
+	}
+	byID := map[string]*string{}
+	for _, x := range roster.Humans {
+		byID[x.HumanID] = x.AvatarFileID
+	}
+	alice := r.session(t).HumanID
+	if len(byID) != 2 || byID[alice] == nil || byID[carol] != nil {
+		t.Fatalf("roster humans %s (alice %s, carol %s)", body, alice, carol)
+	}
+	if _, listed := byID[bob]; listed {
+		t.Fatalf("tenant B's human in A's roster: %s", body)
+	}
+	fid := *byID[alice]
+	code, hdr, pic := r.get(t, mine, "/v1/files/"+fid)
+	if code != http.StatusOK || pic != string(fakeidp.Avatar("alice-sub")) || hdr.Get("Access-Control-Allow-Origin") != wuiOrigin {
+		t.Fatalf("avatar GET %d %v (%d bytes)", code, hdr, len(pic))
+	}
+	// CONTROL: B's avatar through A's host is 404; B's roster refuses alice.
+	if code, _, body := r.get(t, mine, "/v1/files/"+bobFID); code != http.StatusNotFound {
+		t.Fatalf("tenant B's avatar via tenant A: %d %s", code, body)
+	}
+	if code, _, body := r.get(t, theirs, "/v1/view/roster"); code != http.StatusUnauthorized || errToken([]byte(body)) != "view_door" {
+		t.Fatalf("B's roster to an A member: %d %s", code, body)
+	}
+}
+
+func sha256Hex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }

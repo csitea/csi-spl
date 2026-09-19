@@ -177,6 +177,33 @@ func TestHumansAvatar(t *testing.T) {
 			if _, err := h.Avatar(ctx, "HUM-999999999"); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("unknown human avatar: %v", err)
 			}
+
+			// TenantAvatars (view-v1 §4.1): members of that tenant only, "" =
+			// no picture; a non-member (hum) and another tenant's member never
+			// appear, and a disabled human drops out.
+			tid, other := newTenant(t, s), newTenant(t, s)
+			boot := AdmitPolicy{BootstrapOwner: true}
+			m1, err := h.Admit(ctx, Identity{Provider: "google", Subject: uid("pic-")}, tid, boot, time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			m2, err := h.Admit(ctx, Identity{Provider: "google", Subject: uid("pic-")}, other, boot, time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.SetAvatar(ctx, m1, fid); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := h.TenantAvatars(ctx, tid); err != nil || len(got) != 1 || got[m1] != fid {
+				t.Fatalf("tenant avatars %v %v", got, err)
+			}
+			if got, err := h.TenantAvatars(ctx, other); err != nil || len(got) != 1 || got[m2] != "" {
+				t.Fatalf("other tenant avatars %v %v", got, err)
+			}
+			s.(interface{ disableHuman(string) }).disableHuman(m1)
+			if got, err := h.TenantAvatars(ctx, tid); err != nil || len(got) != 0 {
+				t.Fatalf("disabled human listed: %v %v", got, err)
+			}
 		})
 	}
 }

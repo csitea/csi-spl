@@ -32,7 +32,7 @@ tenant, error and file rules).
 ## 1. Endpoint inventory
 
 ```
-GET  /v1/view/roster                      boxes, pins (pubkeys), announced agents, online    FR-019
+GET  /v1/view/roster                      boxes, pins, agents, online; member humans + avatar FR-019
 GET  /v1/view/channels                    defaults + created + seen channels, unread, members FR-019, FR-025
 GET  /v1/view/threads                     root threads (or DMs), newest activity first, paged FR-019, FR-026
 GET  /v1/view/threads/{task_id}           one thread's envelopes, oldest first, paged        FR-019
@@ -122,13 +122,26 @@ times** (the message's own `ts` is inside `env.msg`). Cursors are **opaque** str
 { "boxes": [
   { "box_id": "box-a", "pubkey": "<base64 32 bytes>", "revoked": false,
     "last_hello_at": "2026-09-18T12:00:00Z", "online": true,
-    "agents": ["CLE-07", "GRK-03"] } ] }
+    "agents": ["CLE-07", "GRK-03"] } ],
+  "humans": [
+  { "human_id": "HUM-3", "avatar_file_id": "<sha256 hex, 64 chars>" },
+  { "human_id": "HUM-4", "avatar_file_id": null } ] }
 ```
 
 `online` = a live `role=box` socket for that box on this instance (valid under
 `max-instances=1`, FR-017). Revoked pins are listed with `revoked: true` and
 `online: false`. `pubkey` lets the viewer re-verify envelope `sig`s
 client-side (optional; the hub already verified them at ingest).
+
+`humans` (010 T044, gap A5) lists the member `HUM-*` of **this tenant only**
+(disabled humans excluded), sorted by `human_id`; `[]` when the hub has no
+010 tables or no members. `avatar_file_id` is the sign-in IdP picture the hub
+fetched and stored as a tenant blob, or `null` (no picture: the viewer draws
+the deterministic default, SPEC-spool-avatars §2). The viewer loads it with
+`GET /v1/files/{avatar_file_id}` on the same tenant host, like any
+attachment: a tenant capability, so another tenant's `file_id` is `404`
+there, and the only listing of it is that tenant's own door-guarded roster.
+A viewer falls back to the default on `404` or any load error.
 
 ### 4.2 `GET /v1/view/channels?read=<channel>~<cursor>`
 

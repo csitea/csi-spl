@@ -80,7 +80,7 @@ func newDoorRig(t *testing.T) *doorRig {
 		t.Fatal(err)
 	}
 	e := newEnv(t, func(o *hub.Options) {
-		hooks := store.AuthHooks{H: o.Store.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: true}}
+		hooks := store.AuthHooks{H: o.Store.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: true}, Blob: o.Blob}
 		o.Auth = auth.New(cfg, zerolog.Nop(), auth.Options{Registrar: hooks, Membership: hooks,
 			HTTP: &http.Client{Transport: tr, Timeout: 5 * time.Second}})
 		o.ViewDoor = hub.ViewDoorSession

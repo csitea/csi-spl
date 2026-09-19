@@ -102,6 +102,10 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `011-spool-project-refactor/` | whole-project refactoring: Go backend clean architecture, WUI 3-pane reverse layout & client adapter, config schema validation, orc namespacing, spec reconciliation | M1–M3 consolidation | core architecture |
 | `012-spool-box-api/` | uniform box API (CLI verbs, five MCP tools, exit 78) re-verified, plus the standard box launcher `spool-harness.sh` (orc) | M1 | box-api lane |
 | `013-spool-chat-reverse/` | WUI chat reverse: top omnibox, prepend feed, 3-pane, avatars (`../doc/md/SPEC-spool-chat-reverse.md`) | M3 | chat-reverse lane |
+| `014-spool-wui-dispatch/` | WUI dispatch: box-wui key signing, browser-to-box task dispatch, pin controls | M3 | dispatch lane |
+| `015-spool-native-auth/` | native email + password sign-in, argon2id hashing, email verification, password reset | M3 | native-auth lane |
+| `016-spool-testability/` | test inventory, skip-as-failure CI policy, dual-driver proofs | cross-cutting | integrator |
+| `017-spool-security-hardening/` | security analysis, threat mitigation, host spool DAC, blob auth, root-key isolation, CSP & Cloud Armor hardening | M3/M4 | security lane |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -111,8 +115,9 @@ user story in the same spec. Renaming the dir would break citations in
 
 Dependency order between specs:
 `002 → 004 → 003 → 007 (+008 pipeline) → 006 (M1 tenancy) → M1 demo →
-006 (M2 payment) → 005 (M3) → 010 (social auth) → 011 (refactor consolidation) →
-009 (M4) → 008 (CI logs in chat)`.
+006 (M2 payment) → 005 (M3) → 010 (social auth) → 014 (wui dispatch) →
+015 (native auth) → 016 (testability) → 017 (security hardening) →
+011 (refactor consolidation) → 009 (M4) → 008 (CI logs in chat)`.
 
 ---
 
@@ -129,6 +134,8 @@ Dependency order between specs:
 | WIF deploy identity (tf step `017`) | 007 | 008 consumes the repo variables it exports |
 | Pipeline jobs, gates, deploy matrix | 008 | 007 references the deploy action |
 | Whole-project refactoring boundaries, adapters & contracts | 011 | 003, 005, 006, 007, 008, 010 cite for clean architecture & adapter rules |
+| Test layers, skip-pass policy, what CI must run | 016 `contracts/test-layers.md` | 008 owns the YAML; 016 inventories and files tasks 008/api/wui execute |
+| Security baseline, threat mitigation, host DAC & cipher standards | 017 `contracts/security-baseline.md` | everyone cites for cryptographic and access control invariants |
 
 ---
 
@@ -252,6 +259,7 @@ steps are each a task.
 | **Ingress: documented M1 exception** (decided 2026-09-18). The Cloud Armor allowlist is `0.0.0.0/0` in dev and prd (`37e2e58`), recorded in `../doc/md/SPEC-spool-milestones.md` (M1 Ingress) and 007 FR-012 / SC-004. It widens only L7: the **data plane stays gated**: a WS needs a hello signed by a root-pinned box key, `GET /v1/files/{id}` is a capability by sha256, `/v1/view/*` needs a view token **in prd**. **Exception: dev runs `SPOOL_HUB_VIEW_DOOR=off`** (`csi-spl-cnf/csi-spl/dev.env.yaml`; the hub refuses `off` outside lde/dev), so dev thread reads are open to anyone who knows a dev tenant host, so `/v1/health` 200 from any IP is expected. **End condition: M2 sign-off**; 403-for-non-allowlisted is an M2 expectation | 008 T115 + the M2 ingress follow-up |
 | `017-github-wif-deploy` on trunk (`2a7888c`) but **not applied**; repo vars `GCP_WIF_PROVIDER_<ENV>` / `GCP_DEPLOY_SA_EMAIL_<ENV>` unset, so the `20 ci-cd` deploy job skips both envs. Both hubs were deployed outside the pipeline. Deployed-state check: `./run -a do_check_hub_deploy` (`7bfe152`); post-deploy smoke: `22_deploy-verify.yml` (`81ab284`) | 007 T050 (apply, owner go) → 008 T105–T109 |
 | Several lanes stamped `last-edit` in local time with a `Z` suffix | cosmetic; fix on next edit |
+| IAC (25), ORC (14) and CNF validator tests exist but are not jobs in `10_ci-quality.yml`; `go test` in the hub suite is not `-race`; WUI live-interop exits 0 without `HUB_URL` | 016 T002–T006 (008 owns the YAML) |
 
 Resolved since the first record (kept for audit):
 ~~quality gate false red~~ (`4839514`, `cb1f254`) ·
@@ -263,4 +271,4 @@ Resolved since the first record (kept for audit):
 `grep -c '/v1/messages\|/v1/channels' csi-spl-wui/utils/spool-client.mjs` -> 0) ·
 ~~`GRK-3342-007-tf-007-dns` stale branch~~ (superseded by `025`).
 
-<!-- version: 1.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:45:00Z -->
+<!-- version: 1.8.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:00:00Z -->

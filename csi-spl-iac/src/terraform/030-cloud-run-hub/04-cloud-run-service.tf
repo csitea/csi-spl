@@ -27,9 +27,10 @@ resource "google_cloud_run_v2_service" "hub" {
   # the provider refuses to destroy the service while this is true; a destroy
   # run flips it through cnf (hub.cloud_run.deletion_protection), then back
   deletion_protection = var.deletion_protection
-  # M1: not the open internet (owner 2026-09-18, spec 007 "M1 constraints").
-  # With internal-and-cloud-load-balancing the run.app URL refuses outside
-  # traffic; the IP allowlist / IAP sits on the load balancer in front.
+  # cnf hub.cloud_run.ingress: "all" since owner 2026-09-19 ("exactly
+  # csi-rel: no load balancer"): 032 domain mappings + the WUI's Firebase
+  # rewrite reach the service directly. internal-and-cloud-load-balancing
+  # was M1's LB-only shape (031).
   ingress = local.ingress_map[var.ingress]
 
   labels = {

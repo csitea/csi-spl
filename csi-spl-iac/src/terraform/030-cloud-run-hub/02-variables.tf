@@ -104,7 +104,7 @@ variable "health_path" {
 
 variable "ingress" {
   type        = string
-  description = "Who may reach the service at all (cnf hub.cloud_run.ingress). M1 (owner 2026-09-18): IAP and/or IP allowlist, so internal-and-cloud-load-balancing -- only through the load balancer that carries the allowlist; M2 may open it to all."
+  description = "Who may reach the service at all (cnf hub.cloud_run.ingress). all since owner 2026-09-19 (csi-rel: Cloud Run domain mappings, no load balancer); internal-and-cloud-load-balancing was the M1 LB-only shape."
 
   validation {
     condition     = contains(["all", "internal", "internal-and-cloud-load-balancing"], var.ingress)

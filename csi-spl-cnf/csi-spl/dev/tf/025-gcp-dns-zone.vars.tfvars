@@ -9,4 +9,5 @@ zone_name = "spool-hub-dev"
 zone_description = "spool hub dev subzone: created by 025-gcp-dns-zone, delegated from the prd apex zone"
 parent_zone_name = "spool-hub"
 parent_zone_project = "csi-spl-prd"
+cloud_run_mapping_records = []
 fqdn = "dev.spool-hub.ai"

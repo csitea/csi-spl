@@ -4,7 +4,12 @@ app         = "{{ APP }}"
 env         = "{{ ENV }}"
 gcp_project = "{{ gcp["gcp_project"] }}"
 gcp_region  = "{{ gcp["gcp_region"] }}"
-{% for key, value in steps["025-gcp-dns-zone"].items() %}
+{% for key, value in steps["025-gcp-dns-zone"].items() if key not in ["cloud_run_mapping_records", "mapped_tenant_records"] %}
 {{ key }} = {{ value | tojson }}
 {%- endfor %}
+{%- set ns = namespace(recs=(steps["025-gcp-dns-zone"].get("cloud_run_mapping_records") or [])) %}
+{%- for t in ((dns.get("mapped_tenants") or []) if steps["025-gcp-dns-zone"].get("mapped_tenant_records") else []) %}
+{%- set ns.recs = ns.recs + [{"name": t, "type": "CNAME", "rrdatas": ["ghs.googlehosted.com."]}] %}
+{%- endfor %}
+cloud_run_mapping_records = {{ ns.recs | tojson }}
 fqdn = {{ dns["fqdn"] | tojson }}

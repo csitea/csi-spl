@@ -192,3 +192,37 @@ export function mergeLive(rows, msg) {
   }
   return [...list, m]
 }
+
+/**
+ * WS subscriptions for the open feed: the hub fans a stored message out only
+ * to sockets subscribed to its task_id (wui-live-ws, hub fanoutWUI). `keep`
+ * (the lobby task another pane follows on the same socket) is never dropped.
+ */
+export function followPlan(current, want, keep = '') {
+  const have = new Set(current || [])
+  const next = new Set((want || []).filter(Boolean))
+  return {
+    add: [...next].filter((t) => !have.has(t)),
+    drop: [...have].filter((t) => !next.has(t) && t !== keep),
+  }
+}
+
+/** The card for our own live send, built from the hub ack before the echo frame. */
+export function rowFromAck(ack, frame, { from = '', channel = null } = {}) {
+  const a = ack || {}
+  const f = frame || {}
+  return {
+    msg_id: String(a.msg_id || ''),
+    task_id: String(a.task_id || f.task_id || ''),
+    ts: a.received_at || new Date().toISOString(),
+    received_at: a.received_at,
+    cursor: a.cursor,
+    from,
+    to: f.to || '@channel',
+    kind: f.kind || 'note',
+    body: String(f.body || ''),
+    files: f.files || [],
+    channel,
+    parent_task_id: null,
+  }
+}

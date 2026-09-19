@@ -121,6 +121,8 @@ declare module '~/utils/channel-feed.mjs' {
   export function feedRow<T>(row: T): T
   export function belongsTo(msg: unknown, where: { channel?: string | null, peer?: string | null }): boolean
   export function mergeLive<T>(rows: T[], msg: unknown): T[]
+  export function followPlan(current: Iterable<string>, want: string[], keep?: string): { add: string[], drop: string[] }
+  export function rowFromAck(ack: unknown, frame: unknown, who?: { from?: string, channel?: string | null }): Record<string, unknown>
   export function rootsByTask<T extends { task_id?: string }>(messages: T[]): T[]
   export function threadReplies(messages: { task_id?: string, parent_task_id?: string | null }[], taskId: string): number
 }

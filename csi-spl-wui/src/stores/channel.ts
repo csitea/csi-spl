@@ -5,7 +5,9 @@ import {
   belongsTo,
   channelSlug,
   feedRow,
+  followPlan,
   mergeLive,
+  rowFromAck,
   parseMention,
   rootsByTask,
   threadReplies,
@@ -41,6 +43,19 @@ export const useChannelStore = defineStore('channel', () => {
   const error = ref<string | null>(null)
 
   const feed = computed(() => rootsByTask(topLevel(messages.value)))
+  const followed = new Set<string>()
+
+  /** Live: subscribe the socket to every thread on screen, drop the ones that left. */
+  function follow() {
+    if (api.mock || !import.meta.client) return
+    const live = useLive()
+    const client = live.ensure()
+    if (!client) return
+    const want = feed.value.map((m) => String(m.task_id || ''))
+    const plan = followPlan(followed, want, live.lobbyTaskId.value)
+    for (const t of plan.add) { client.subscribe(t); followed.add(t) }
+    for (const t of plan.drop) { client.unsubscribe(t); followed.delete(t) }
+  }
 
   function key() {
     return peer.value ? `dm:${peer.value}` : `ch:${active.value || ''}`
@@ -76,6 +91,7 @@ export const useChannelStore = defineStore('channel', () => {
         limit: 50,
       }) as unknown as Record<string, unknown>[]
       messages.value = (rows || []).map(feedRow) as unknown as FeedMessage[]
+      follow()
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'load failed'
     } finally {
@@ -87,6 +103,7 @@ export const useChannelStore = defineStore('channel', () => {
   function ingestLive(m: Record<string, unknown>) {
     if (!belongsTo(m, { channel: active.value, peer: peer.value })) return
     messages.value = mergeLive(messages.value, m) as FeedMessage[]
+    follow()
   }
 
   async function send(text: string, parentTaskId?: string, files?: unknown[]) {
@@ -105,7 +122,8 @@ export const useChannelStore = defineStore('channel', () => {
 
   /** Live send over the hub WUI socket (wui-live-ws §4); the echo frame lands via ingestLive. */
   async function sendLive(text: string, parentTaskId?: string, files?: unknown[]) {
-    const client = useLive().ensure()
+    const live = useLive()
+    const client = live.ensure()
     if (!client) throw new Error(`live socket unavailable (${api.configError || 'no base'})`)
     const [peerId] = String(peer.value || '').split('@')
     const parsed = parseMention(text)
@@ -117,7 +135,13 @@ export const useChannelStore = defineStore('channel', () => {
       to: peer.value ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),
     }
     if (active.value) frame.channel = active.value
-    return client.send(frame)
+    const ack = await client.send(frame)
+    const row = rowFromAck(ack, frame, { from: live.identity.value, channel: active.value })
+    if (row.msg_id) {
+      messages.value = mergeLive(messages.value, row) as FeedMessage[]
+      follow()
+    }
+    return ack
   }
 
   async function createChannel(name: string) {

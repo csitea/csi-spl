@@ -18,6 +18,8 @@ import {
   connectionHealth,
   rootsByTask,
   threadReplies,
+  followPlan,
+  rowFromAck,
 } from '../../src/utils/channel-feed.mjs'
 import { applyVerbosity } from '../../src/utils/verbosity.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
@@ -174,5 +176,21 @@ describe('live flat feed (A1 listMessages shape, gap A2)', () => {
   it('matches mock replyCount for mock threads', () => {
     const task = MOCK_MESSAGES.find((m) => m.kind === 'task')
     assert.equal(threadReplies(MOCK_MESSAGES, task.task_id), replyCount(MOCK_MESSAGES, task.task_id))
+  })
+})
+
+describe('live subscriptions + own send (hub fans out per subscribed task, gap A2)', () => {
+  it('adds new threads, drops gone ones, never drops the lobby task', () => {
+    assert.deepEqual(followPlan(['t1', 't2', 'LOBBY'], ['t2', 't3'], 'LOBBY'), { add: ['t3'], drop: ['t1'] })
+    assert.deepEqual(followPlan([], ['t1', '', 't1']), { add: ['t1'], drop: [] })
+  })
+  it('builds our card from the ack so the echo frame dedupes on msg_id', () => {
+    const ack = { type: 'ack', msg_id: 'm1', task_id: 't1', cursor: 'C', received_at: '2026-09-19T09:00:00Z' }
+    const row = rowFromAck(ack, { task_id: 't1', kind: 'note', body: 'hi' }, { from: 'HUM-2', channel: 'a2' })
+    assert.equal(row.msg_id, 'm1')
+    assert.equal(row.cursor, 'C')
+    assert.equal(row.channel, 'a2')
+    assert.equal(row.from, 'HUM-2')
+    assert.equal(mergeLive([row], { ...row }).length, 1)
   })
 })

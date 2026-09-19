@@ -113,6 +113,12 @@ services:
       - "~/.config:${DOCKER_HOME}/.config"
       - "~/.aws:${DOCKER_HOME}/.aws"
       - "~/.gcp:${DOCKER_HOME}/.gcp"
+      # csi-spl: the container's poetry venv lives in a named volume. Its init
+      # (csi-rel, unchanged) does `rm -r` + `poetry install` on the in-project
+      # .venv of the MOUNTED tpl-gen clone, which is also the host venv
+      # do_tpl_gen and the iac tests run: without this it left a venv whose
+      # python only exists inside the container.
+      - "tpl-gen-venv:${TPG_PROJ_PATH}/src/python/tpl-gen/.venv"
     command:
       ["bash", "${HOME_ORC_PROJ_PATH}/src/bash/scripts/docker-init-tpl-gen.sh"]
     networks:
@@ -178,6 +184,8 @@ services:
       ]
     networks:
       - all_lcl_docker
+volumes:
+  tpl-gen-venv: {}
 # Use the shared external network (created by: make do-create-network)
 networks:
   all_lcl_docker:

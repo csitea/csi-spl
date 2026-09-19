@@ -11,8 +11,10 @@
 #          3. the compose project and image names are csi-spl's own, so
 #             `make do-setup-app-inf` (down --rmi all) cannot reach another
 #             app's stack or its img-tf-runner tag.
-#          CONTROL: a compose config with the csi-rel image name planted is
-#          refused by the same check.
+#          4. tpl-gen keeps its poetry venv in a named volume, not in the
+#             host tpl-gen clone it mounts.
+#          CONTROLS: a compose config with the csi-rel image name planted, and
+#          one without the venv volume, are refused by the same check.
 #          Needs make + docker compose v2 (config only); FAILS without them.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -45,6 +47,9 @@ check_cfg() {  # <compose config> -> problems, one per line
     [[ "$img" == img-csi-spl-* ]] || echo "image $img is not csi-spl's own"
   done
   [[ $(grep -c '^    image:' <<<"$c") -eq 3 ]] || echo "expected 3 images (tf-runner, tpl-gen, conf-validator)"
+  # the tpl-gen init rm -r's + poetry-installs its in-project .venv; on the
+  # bind mount that is the HOST venv of do_tpl_gen and the iac tests
+  grep -q 'source: tpl-gen-venv' <<<"$c" || echo "tpl-gen .venv is not a named volume (the container would clobber the host venv)"
 }
 if [[ -z "$cfg" || "$cfg" != *services:* ]]; then
   fail "docker compose config did not render (make + docker compose v2 needed): $(head -2 <<<"$cfg")"
@@ -52,6 +57,9 @@ else
   probs=$(check_cfg "$cfg")
   [[ -z "$probs" ]] && pass "compose: $want, project con-csi-csi-spl-tf-infra, images img-csi-spl-*" \
     || fail "compose: $(tr '\n' ';' <<<"$probs")"
+  novol=$(sed 's/source: tpl-gen-venv/source: gone/' <<<"$cfg")
+  [[ "$(check_cfg "$novol")" == *"not a named volume"* ]] && pass "control: a tpl-gen without its venv volume is refused" \
+    || fail "control: a tpl-gen writing the host venv passed"
   bad=$(sed 's/image: img-csi-spl-tf-runner/image: img-tf-runner/' <<<"$cfg")
   [[ "$(check_cfg "$bad")" == *"img-tf-runner is not"* ]] && pass "control: a shared img-tf-runner tag is refused" \
     || fail "control: a planted img-tf-runner passed"

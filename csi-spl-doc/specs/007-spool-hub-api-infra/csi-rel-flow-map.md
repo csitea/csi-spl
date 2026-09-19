@@ -84,6 +84,7 @@ What changed in behaviour:
 | `src/docker/docker-compose-infra.yaml` | `src/docker/docker-compose-tf-infra.yaml` | renamed because `docker-compose-infra.yaml` is already csi-spl's lde stack; `env_file: tf-infra.env`; image names `img-${ORG_APP}-<svc>` (csi-rel: `img-<svc>`, the same tag every app on the box builds) |
 | `src/docker/tf-runner/Dockerfile` | same | setup: adds the `gh` CLI for step 120's local-exec |
 | `src/docker/tpl-gen/Dockerfile` | same | setup: base `python:3.10-slim-bookworm` instead of `python:3.10.11-slim-bullseye`. A fresh build of the bullseye base now 404s on bullseye-security, because Debian 11 LTS ended 2026-08-31 |
+| `src/docker/docker-compose-infra.yaml` (tpl-gen service volumes) | `docker-compose-tf-infra.yaml` | setup: tpl-gen's `.venv` is a named volume (`tpl-gen-venv`). The csi-rel init runs `rm -r` + `poetry install` on the in-project `.venv` of the MOUNTED tpl-gen clone. In csi-spl that clone is also the host venv that `do_tpl_gen` and the iac tests run, so the first bring-up (from /opt/csi/csi-spl, 2026-09-19) left it pointing at a container-only python. CLE-3359 measured that, n=1. The host venv was rebuilt |
 | `src/docker/conf-validator/Dockerfile`, `.dockerignore` ×3 | same | 0 |
 | `src/bash/scripts/docker-init-{tf-runner,tpl-gen,conf-validator}.sh` | same | 0 |
 | `src/bash/run/check-container-dns.func.sh` | same | 0 |
@@ -94,6 +95,17 @@ The tf-runner container mounts the tree at `$APP_PATH` and `~/.gcp`, `~/.ssh`,
 `~/.config` and `~/.aws` of the user who runs make. `GITHUB_TOKEN` is in its
 environment (`demand_var-GITHUB_TOKEN`). One stack per box: the containers
 mount the tree that last ran `make do-setup-app-inf`.
+
+### 2.1 Owner-approved deviations (2026-09-19)
+
+- `tf-init` stays exactly as in csi-rel: no explicit fail-fast on a missing
+  key (the owner's answer). The refusal comes from terraform itself (§2).
+- `gcp-002` / `gcp-003` / `gcp-004` and step `120-github-general-secrets`
+  stay in their csi-spl versions (c422cc7, 8bba4e2, fe19c96). They differ
+  from csi-rel because the repo rules require it: no `gcloud config set`,
+  `--account` on every call, and no key in terraform state (120 publishes
+  the key with `gh secret set` from a local-exec, not as a resource
+  attribute).
 
 ## 4. The gcp-* actions and the other terraform callers
 

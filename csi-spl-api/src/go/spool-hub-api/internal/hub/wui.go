@@ -20,6 +20,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
@@ -462,6 +463,16 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		return
 	}
 	channel := store.NormalizeChannel(f.Channel)
+	// specs/025: a note needs notes.send, commanding an agent agents.command
+	// (checked per send, so a demotion bites on the open socket too).
+	perm := rbac.NotesSend
+	if agent != "" {
+		perm = rbac.AgentsCommand
+	}
+	if c.member != "" && !s.allowed(ctx, c.member, c.tenant, perm) {
+		fail("forbidden", http.StatusForbidden, "your role in this tenant does not grant "+perm)
+		return
+	}
 	var box string
 	var pin ed25519.PublicKey
 	if agent != "" {

@@ -229,3 +229,23 @@ func (z *Authorizer) Can(ctx context.Context, humanID, tenant, perm string) bool
 	a, err := z.Access(ctx, humanID, tenant)
 	return err == nil && a.Can(perm)
 }
+
+// Fixed grants every caller the Defaults role it names. It is a seam for
+// tests and lde rigs whose humans come from a session stub, never a store.
+type Fixed string
+
+// Access answers the fixed role's Defaults grants.
+func (f Fixed) Access(_ context.Context, humanID, _ string) (Access, error) {
+	r, ok := DefaultRoles()[string(f)]
+	if !ok {
+		return Access{}, ErrNotMember
+	}
+	a := Access{HumanID: humanID, Role: r.ID, TenantOwner: r.TenantOwner, Perms: map[string]bool{}}
+	for _, p := range r.Perms {
+		a.Perms[p] = true
+	}
+	return a, nil
+}
+
+// Roles answers Defaults.
+func (Fixed) Roles(context.Context, string) (map[string]Role, error) { return DefaultRoles(), nil }

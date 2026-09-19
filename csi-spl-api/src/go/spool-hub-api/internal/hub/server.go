@@ -87,6 +87,9 @@ type Options struct {
 	// MsgVersion is the v of the messages the hub composes itself (WUI posts,
 	// dispatch), cnf SPOOL_HUB_MSG_VERSION (specs/020); 0 = msg.Version.
 	MsgVersion int
+	// Authorizer answers a human's permissions in a tenant (specs/025); nil =
+	// the store-backed rbac.Authorizer. Set by code only (a test seam).
+	Authorizer Authorizer
 	// SessionID returns the member-session human id of a browser request; nil
 	// = Auth.SessionForTenant. Set by code only (a test seam), never by env.
 	SessionID func(r *http.Request, tenant string) (string, error)
@@ -135,6 +138,9 @@ func New(o Options) (*Server, error) {
 	}
 	if o.Now == nil {
 		o.Now = time.Now
+	}
+	if o.Authorizer == nil {
+		o.Authorizer = defaultAuthorizer(o.Store)
 	}
 	switch o.ViewDoor {
 	case "":
@@ -210,6 +216,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/files/{file_id}", s.handleDeleteFile)
 	mux.HandleFunc("POST /v1/channels", s.handleCreateChannel)
 	mux.HandleFunc("OPTIONS /v1/channels", s.channelsPreflight)
+	s.routeMembers(mux)
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {
 		s.o.Auth.Register(mux)

@@ -20,6 +20,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
@@ -426,6 +427,7 @@ func followEnv(t *testing.T) *env {
 		o.ViewDoor = hub.ViewDoorOff
 		o.LobbyTaskID = lobby
 		o.ViewCORSOrigins = []string{wuiOrigin}
+		o.Authorizer = rbac.Fixed(rbac.Developer) // 025: seam humans hold the developer role
 		o.SessionID = func(r *http.Request, _ string) (string, error) {
 			if v := r.Header.Get(memberHeader); v != "" {
 				return v, nil

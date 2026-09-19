@@ -8,6 +8,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -57,6 +58,9 @@ func (s *Server) humanTenant(w http.ResponseWriter, r *http.Request) (store.Tena
 			return t, "", false
 		}
 		hum, _ := s.memberID(r, t.ID)
+		if !s.permit(w, r, t.ID, hum, rbac.ThreadsRead) { // specs/025
+			return store.Tenant{}, "", false
+		}
 		return t, hum, true
 	}
 	if s.o.Auth == nil {
@@ -82,6 +86,9 @@ func (s *Server) humanTenant(w http.ResponseWriter, r *http.Request) (store.Tena
 	hum := sess.HumanID
 	if s.o.SessionID != nil { // test seam: the attributed human
 		hum, _ = s.o.SessionID(r, t.ID)
+	}
+	if !s.permit(w, r, t.ID, hum, rbac.ThreadsRead) { // specs/025: every browser door reads
+		return store.Tenant{}, "", false
 	}
 	return t, hum, true
 }

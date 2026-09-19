@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -63,6 +64,7 @@ func TestSearchAPI(t *testing.T) {
 	e := newEnv(t, func(o *hub.Options) {
 		o.ViewDoor = hub.ViewDoorOff
 		o.SearchRatePerMin = 1000
+		o.Authorizer = rbac.Fixed(rbac.Developer) // 025: seam humans hold the developer role
 		o.SessionID = func(r *http.Request, _ string) (string, error) { return r.Header.Get("X-Test-Human"), nil }
 	})
 	ctx := context.Background()
@@ -217,6 +219,7 @@ func TestSearchDoorAndRate(t *testing.T) {
 		o.ViewDoor = hub.ViewDoorOff
 		o.ViewCORSOrigins = []string{wuiOrigin}
 		o.SearchRatePerMin = 2
+		o.Authorizer = rbac.Fixed(rbac.Developer) // 025: seam humans hold the developer role
 		o.SessionID = func(r *http.Request, _ string) (string, error) { return r.Header.Get("X-Test-Human"), nil }
 	})
 	tid, _ = e.tenant()

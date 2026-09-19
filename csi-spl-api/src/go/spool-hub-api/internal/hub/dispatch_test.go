@@ -16,6 +16,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -31,6 +32,7 @@ func dispatchEnv(t *testing.T, on bool, key ed25519.PrivateKey) *env {
 		o.LobbyTaskID = lobby
 		o.ViewCORSOrigins = []string{wuiOrigin}
 		o.WUIKey, o.WUIDispatch = key, on
+		o.Authorizer = rbac.Fixed(rbac.Developer) // 025: seam humans hold the developer role
 		o.SessionID = func(r *http.Request, _ string) (string, error) {
 			if v := r.Header.Get(memberHeader); v != "" {
 				return v, nil

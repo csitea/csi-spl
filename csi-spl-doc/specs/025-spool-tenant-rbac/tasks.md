@@ -6,19 +6,19 @@
 
 ## Phase 1: model
 
-- [ ] T001 rdb `0021_tenant_rbac.sql` (FR-001, SEC-RBAC-4).
-- [ ] T002 `internal/rbac`: `Defaults`, `Authorizer` (FR-004), grant rules (§3.4).
-- [ ] T003 store: role ids, legacy mapping, bootstrap = tenant-owner role, `RolePermissions`, `SetMemberRole`, `RemoveMember` with the last-owner guard (FR-002, FR-003), memory + Postgres; `TestRBACSeedMatchesDefaults`.
+- [x] T001 rdb `0021_tenant_rbac.sql` (FR-001, SEC-RBAC-4) + a legacy-name trigger (old images / scripts writing owner|member). 714f3cb. Check: `TestRBACSeedMatchesDefaults`, `TestRBACRLSSystemRolesReadOnly`, `TestRBACLegacyRoleTrigger`, CLE-3416's `TestRLSPoliciesFailClosed` (pg 16, non-superuser). Note: shares the 0021 prefix with `0021_rls_fail_closed.sql` (CLE-3416, pushed concurrently); mine was already applied live, so it keeps its filename; both apply orders verified.
+- [x] T002 `internal/rbac`: `Defaults`, `Authorizer` (FR-004), `Covers` (§3.4), `Fixed` (rig seam). 714f3cb. Check: `TestDefaultsMatrix`, `TestAuthorizerCacheAndFailClosed`, `TestCoversNoEscalation`.
+- [x] T003 store: role ids, legacy mapping, bootstrap = biz_owner, `TenantRoles`, `SetMemberRole`, `RemoveMember` with the last-owner guard under the tenant lock (FR-002, FR-003), memory + Postgres. 714f3cb. Check: `TestTenantRolesAndLastOwner` (both drivers).
 
 ## Phase 2: hub enforcement
 
-- [ ] T010 view door + WUI socket `threads.read`; WUI note `notes.send`; dispatch `agents.command`; channel create `channels.manage` (FR-005).
-- [ ] T011 `GET /v1/view/me` (FR-006).
-- [ ] T012 members API: invite, role change, remove (FR-007) with CONTROL tests per role.
+- [x] T010 every browser door (`humanTenant`: view, files, search, WUI socket, channels) `threads.read`; WUI note `notes.send`; dispatch `agents.command` (per send, so a demotion bites on an open socket); channel create `channels.manage` (FR-005). Check: `TestRBACPerRoleEntryPoints` (CONTROL mutation: `allowed` forced true turns it red).
+- [x] T011 `GET /v1/view/me` (FR-006). Check: `TestRBACPerRoleEntryPoints`.
+- [x] T012 members API: invite, role change, remove (FR-007) + CORS preflight. Check: `TestRBACMembersAPI` (20 cases incl. escalation, stronger target, last owner, cross-tenant owner). Invitation email from the hub route: not wired (operator `hub-invite-mail` resends), phase 2.
 
 ## Phase 3: tooling + WUI
 
-- [ ] T020 `spool hub-invite --role`, `do_spl_hub_invite`, `do_spl_tenant_member_role` take the new ids (FR-009).
+- [x] T020 `spool hub-invite --role` (714f3cb), `do_spl_hub_invite`, `do_spl_tenant_member_role` take the new ids (FR-009). 0c7a4a7. Check: `adhoc-harvest-actions.tst.sh`, `hub-invite-email-send.tst.sh`.
 - [ ] T021 WUI: role in the user menu; channel "+" and composer hidden without the permission (FR-008).
 
 ## Phase 4: M4 seam
@@ -27,7 +27,7 @@
 
 ## Phase 5: deploy + t1
 
-- [ ] T040 0021 applied dev then prd (`do_spl_db_bootstrap`, env SA), then hub roll (tag + 030) and WUI.
-- [~] T041 t1 seating (§8): tenant-owner invite sent dev + prd with `do_spl_hub_invite INVITE_ROLE=owner` (env SAs, 2026-09-19T16:38Z); personal account -> developer after T040 (`do_spl_tenant_member_role`).
+- [~] T040 0021 applied dev 16:51Z then prd 16:52Z (`do_spl_db_bootstrap`, env SAs; `spool_schema_migrations` lists it). Hub roll (tag + 030, CLE-3355) and WUI: open.
+- [~] T041 t1 seating (§8): tenant-owner invite sent dev + prd with `do_spl_hub_invite INVITE_ROLE=owner` (env SAs, 16:38Z; now `biz_owner` via 0021); personal account set to developer dev + prd with `do_spl_tenant_member_role MEMBER_ROLE=developer FROM_ROLE=biz_owner` (16:57Z). Open: the tenant owner accepts by signing in (until then t1 has no biz_owner member).
 
-<!-- version: 1.0.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:10:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:05:00Z -->

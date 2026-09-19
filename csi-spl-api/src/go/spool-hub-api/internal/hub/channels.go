@@ -12,6 +12,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
@@ -232,8 +233,8 @@ func diffAgents(a, b []string) []string {
 
 func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
-	t, _, ok := s.humanTenant(w, r) // specs/026: the session's active tenant
-	if !ok {
+	t, hum, ok := s.humanTenant(w, r)                           // specs/026: the session's active tenant
+	if !ok || !s.permit(w, r, t.ID, hum, rbac.ChannelsManage) { // specs/025
 		return
 	}
 	if !billing.AllowsWrite(t.BillingStatus) {

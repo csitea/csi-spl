@@ -26,7 +26,7 @@ consistency record: `specs/README.md`.**
 | `doc/md/SPEC-spool-m4-seats.md` | **M4:** seats + buy-minute GCP project id |
 | `specs/009-spool-m4/` | git-spec for M4 (spec + tasks, all Planned) |
 | `doc/md/SPEC-spool-cicd-logs.md` | **later:** `gh` fetches CI logs into chat |
-| `doc/md/SPEC-spool-chat-reverse.md` | **later:** type at top, prepend messages |
+| `doc/md/SPEC-spool-chat-reverse.md` | **M3 default:** type at top, prepend messages (013 shipped) |
 | `specs/001-relay-bucket-estate/` | git-spec for the relay bucket |
 | `specs/002-box-agent-messaging/` | git-spec for local folder spool (MVP) |
 | `specs/003-spool-message-bus/` | git-spec for the hosted hub |

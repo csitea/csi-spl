@@ -312,7 +312,7 @@ where the files live and how they reach each env.
 | FR-021 | `019` site per env; custom domains only with `bind_custom_domain` (default false, §3) | Partial — code on trunk; not applied |
 | FR-022 | `031` WUI route (§3): internet NEG to `<site_id>.web.app`, path matcher keeps `/v1/*` `/api/*` `/healthz` `/version` on the hub; cnf `wui_origin_host` (dev on, prd off, OQ-H1) | Partial — code + cnf on trunk; dev not applied |
 | FR-023 | Cloud Armor stage 1 (§4) behind `l7_narrowing` (dev on, prd off, OQ-H2) | Partial — code + cnf on trunk; dev not applied |
-| FR-024 | `30_wui-build-deploy.yml`: test, nuxt generate per env, render firebase.json from cnf, `firebase deploy --only hosting` via WIF, probe the deployed commit on `web.app` and the product host | Implemented (workflow); deploy jobs skip until the repo variables exist |
+| FR-024 | `30_wui-build-deploy.yml`: test, nuxt generate per env, render firebase.json from cnf, `firebase deploy --only hosting`, probe the deployed commit on `web.app` and the product host. Auth (owner direction 2026-09-19): the per-project SA key secret `GCP_KEY_CSI_SPL_<ENV>` published by iac step `120-github-general-secrets` (DEPLOY lane) is primary; WIF (017 pool + the 016 Hosting SA) is the alternative when the key secret is absent. No Firebase-specific key or token: the project SA's `roles/owner` covers Hosting | Implemented (workflow); deploy jobs skip until the key secret or the WIF variables exist |
 
 ## Success Criteria
 

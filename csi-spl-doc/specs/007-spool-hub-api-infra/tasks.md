@@ -193,9 +193,16 @@ Every apply here waits on an owner GCP re-auth (2026-09-19: `gcloud …
       `/version` -> `200` (hub), a WS upgrade to `/v1/ws` -> `101`, and the §4
       controls -> `403`
 - [ ] T077 prd stage 1 (OQ-H2, owner): ready-to-apply steps in spec §4
-- [ ] T078 After `017` is applied per env: `bind_github_wif: true`, re-apply
+- [ ] T078 (WIF alternative only; the key path of T080 does not need it) After `017` is applied per env: `bind_github_wif: true`, re-apply
       `016`, set repo variables `GCP_FIREBASE_DEPLOY_SA_EMAIL_<ENV>` (016 output
       `firebase_deploy_sa_email`) beside 017's `GCP_WIF_PROVIDER_<ENV>`
+- [x] T080 Owner direction 2026-09-19: `30_wui-build-deploy.yml` authenticates
+      with `credentials_json` from secret `GCP_KEY_CSI_SPL_<ENV>` (iac `120`,
+      never `gh secret set` by hand), WIF kept as the alternative; `plan` reads
+      only a boolean of the secret; no other secret is read — FR-024. Check:
+      `bash csi-spl-iac/src/bash/tests/wui-hosting-019-031.tst.sh` -> `PASS:
+      workflow reads no secret but GCP_KEY_CSI_SPL_<ENV>`; control: a planted
+      `${{ secrets.FOO }}` in a copy -> reported as `secrets.FOO`
 - [ ] T079 prd WUI route (OQ-H1, owner): `wui_origin_host:
       csi-spl-prd-site.web.app`, render, plan (`031`: NEG + backend + url map),
       apply

@@ -15,13 +15,16 @@
 # Build cannot be shared: nuxt generate bakes NUXT_PUBLIC_* into the bundle,
 # so dev and prd each build their own .output/public.
 #
-# GCP auth is Workload Identity Federation only: the pool/provider from
-# 017-github-wif-deploy (GCP_WIF_PROVIDER_<ENV>) impersonating the narrow
-# Hosting deploy SA from 016-firebase-deploy-iam
-# (GCP_FIREBASE_DEPLOY_SA_EMAIL_<ENV>; 016 bind_github_wif grants the trunk
-# principal set). No key, no FIREBASE_TOKEN. An env whose two variables are
-# not set yet is SKIPPED with a notice, so this lands before 016/017 are
-# applied without reddening trunk.
+# GCP auth, owner direction 2026-09-19 (spec 007 T080), csi-rel style:
+#   key  -- PRIMARY. The per-project SA key secret GCP_KEY_CSI_SPL_<ENV>
+#           (key-csi-spl-<env>.json, published by iac step
+#           120-github-general-secrets; never set by hand). The project SA
+#           holds roles/owner, so it covers firebase deploy.
+#   WIF  -- ALTERNATIVE, used only when the key secret is absent: the 017
+#           pool (GCP_WIF_PROVIDER_<ENV>) impersonating the narrow 016
+#           Hosting deploy SA (GCP_FIREBASE_DEPLOY_SA_EMAIL_<ENV>).
+# No FIREBASE_TOKEN. An env with neither is SKIPPED with a notice, so this
+# lands before the key or 017 exist without reddening trunk.
 
 name: "30 ci-cd: spool WUI build + deploy"
 
@@ -90,6 +93,9 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           INPUT_ENV: ${{ github.event.inputs.environment }}
+          # booleans only: the secret value never reaches this step
+          KEY_DEV: ${{ secrets.GCP_KEY_CSI_SPL_DEV != '' }}
+          KEY_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD != '' }}
           WIF_DEV: ${{ vars.GCP_WIF_PROVIDER_DEV }}
           SA_DEV: ${{ vars.GCP_FIREBASE_DEPLOY_SA_EMAIL_DEV }}
           WIF_PRD: ${{ vars.GCP_WIF_PROVIDER_PRD }}
@@ -103,11 +109,13 @@ jobs:
           fi
           ready=()
           for e in "${wanted[@]}"; do
-            wif_var="WIF_${e^^}"; sa_var="SA_${e^^}"
-            if [[ -n "${!wif_var:-}" && -n "${!sa_var:-}" ]]; then
-              ready+=("$e")
+            key_var="KEY_${e^^}"; wif_var="WIF_${e^^}"; sa_var="SA_${e^^}"
+            if [[ "${!key_var:-false}" == true ]]; then
+              ready+=("$e"); echo "$e: auth = key (GCP_KEY_CSI_SPL_${e^^})"
+            elif [[ -n "${!wif_var:-}" && -n "${!sa_var:-}" ]]; then
+              ready+=("$e"); echo "$e: auth = WIF (no GCP_KEY_CSI_SPL_${e^^})"
             else
-              echo "::notice::$e skipped: repo variables GCP_WIF_PROVIDER_${e^^} / GCP_FIREBASE_DEPLOY_SA_EMAIL_${e^^} are not set (016 bind_github_wif + 017 not applied/exported yet)"
+              echo "::notice::$e skipped: neither secret GCP_KEY_CSI_SPL_${e^^} (iac 120) nor repo variables GCP_WIF_PROVIDER_${e^^} + GCP_FIREBASE_DEPLOY_SA_EMAIL_${e^^} (016/017) are set"
             fi
           done
           if (( ${#ready[@]} )); then
@@ -135,6 +143,10 @@ jobs:
       fail-fast: false
       matrix:
         environment: ${{ fromJson(needs.plan.outputs.envs) }}
+    env:
+      # a boolean: is this env's project key secret set (a step cannot read
+      # its own env: in its `if`, so it lives at job level)
+      HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -191,7 +203,15 @@ jobs:
           ENV: ${{ matrix.environment }}
         run: bash csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh
 
-      - name: Authenticate to Google Cloud (WIF)
+      - name: Authenticate to Google Cloud (project key)
+        id: auth_key
+        if: env.HAS_KEY == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+
+      - name: Authenticate to Google Cloud (WIF alternative)
+        if: steps.auth_key.outcome != 'success'
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}

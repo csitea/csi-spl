@@ -65,7 +65,16 @@ if [[ -f "$W" ]]; then
   grep -q 'pnpm run generate' "$W" && pass "workflow runs nuxt generate" || fail "workflow does not generate"
   grep -q 'render-wui-firebase-json.sh' "$W" && pass "workflow renders firebase.json from cnf" || fail "workflow does not render firebase.json"
   grep -q 'deploy --only hosting' "$W" && pass "workflow deploys hosting only" || fail "workflow deploy command"
-  grep -vE '^\s*#' "$W" | grep -qE 'credentials_json|GOOGLE_CREDENTIALS|FIREBASE_TOKEN|secrets[.]' && fail "workflow uses a key or token" || pass "workflow uses WIF only (no key, no token)"
+  # T080 (owner 2026-09-19): the project key GCP_KEY_CSI_SPL_<ENV> from iac 120
+  # is primary, WIF the alternative. Any OTHER secret or a Firebase token is a leak path.
+  code=$(grep -vE '^\s*#' "$W")
+  grep -q "credentials_json: \${{ secrets\[format('GCP_KEY_CSI_SPL_{0}'" <<<"$code" \
+    && pass "workflow authenticates with the project key GCP_KEY_CSI_SPL_<ENV>" || fail "workflow does not use GCP_KEY_CSI_SPL_<ENV>"
+  grep -q 'workload_identity_provider:' <<<"$code" && pass "workflow keeps WIF as the alternative" || fail "workflow lost the WIF alternative"
+  grep -qE 'FIREBASE_TOKEN|GOOGLE_CREDENTIALS' <<<"$code" && fail "workflow uses a Firebase token or raw credentials env" || pass "workflow uses no Firebase token"
+  others=$(grep -oE "secrets(\.[A-Za-z0-9_]+|\[format\('[A-Za-z0-9_{}]+')" <<<"$code" | grep -vE "GCP_KEY_CSI_SPL_(DEV|PRD|\{0\})" | sort -u)
+  [[ -z "$others" ]] && pass "workflow reads no secret but GCP_KEY_CSI_SPL_<ENV>" || fail "workflow reads other secrets: $others"
+  grep -qE 'echo .*secrets|cat .*credentials' <<<"$code" && fail "workflow may print a secret" || pass "workflow prints no secret"
 else
   fail "missing .github/workflows/30_wui-build-deploy.yml"
 fi

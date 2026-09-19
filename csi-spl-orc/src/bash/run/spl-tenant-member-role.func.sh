@@ -1,7 +1,7 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description Set one tenant member's role in a cloud env's hub DB (owner or
-# @description member), through the Cloud SQL proxy as the env's project
+# @description Set one tenant member's role in a cloud env's hub DB (a specs/025
+# @description role id), through the Cloud SQL proxy as the env's project
 # @description service account. Harvested from the 2026-09-19 hand UPDATE that
 # @description demoted a test account the bootstrap had made owner of dev t1
 # @description (t1-owner.sh, adhoc-harvest.md). Values travel as psql variables
@@ -11,19 +11,25 @@
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant slug
 # @param HUMAN_ID - required: e.g. HUM-4
-# @param MEMBER_ROLE - required: owner or member
+# @param MEMBER_ROLE - required: a role id (biz_owner|product_owner|admin|
+# @param   developer|tester|pure_agent; legacy owner|member map); an unknown id
+# @param   fails on the rbac_roles FK and nothing changes
 # @param FROM_ROLE (optional) - only change the row while it holds this role
+# @description This is the OPERATOR path: it is outside the hub's RBAC checks
+# @description and its last-owner guard (025 §3.4 rule 4).
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example ENV=dev TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE=member FROM_ROLE=owner DRY_RUN=0 ./run -a do_spl_tenant_member_role
+# @example ENV=dev TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE=developer FROM_ROLE=biz_owner DRY_RUN=0 ./run -a do_spl_tenant_member_role
 #------------------------------------------------------------------------------
 do_spl_tenant_member_role() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
-  local tenant="${TENANT_ID:-}" human="${HUMAN_ID:-}" role="${MEMBER_ROLE:-}" from="${FROM_ROLE:-}" dry=1
+  local tenant="${TENANT_ID:-}" human="${HUMAN_ID:-}" role from="" dry=1
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
   [[ "$human" =~ ^[A-Z]+-[0-9]+$ ]] || { do_log "FATAL HUMAN_ID must look like HUM-4, got: '$human'"; return 1; }
-  [[ "$role" == owner || "$role" == member ]] || { do_log "FATAL MEMBER_ROLE must be owner or member, got: '$role'"; return 1; }
-  [[ -z "$from" || "$from" == owner || "$from" == member ]] || { do_log "FATAL FROM_ROLE must be owner or member, got: '$from'"; return 1; }
+  role="$(spl_role_id "${MEMBER_ROLE:-}")" || { do_log "FATAL MEMBER_ROLE must be a role id (biz_owner|product_owner|admin|developer|tester|pure_agent), got: '${MEMBER_ROLE:-}'"; return 1; }
+  if [[ -n "${FROM_ROLE:-}" ]]; then
+    from="$(spl_role_id "$FROM_ROLE")" || { do_log "FATAL FROM_ROLE must be a role id, got: '$FROM_ROLE'"; return 1; }
+  fi
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if (( dry )); then
     do_log "OK DRY_RUN would set $human in $tenant to $role${from:+ (only while $from)} on $SPL_SQL_CONN. Re-run with DRY_RUN=0."

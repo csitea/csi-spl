@@ -97,17 +97,27 @@ in_orc 'do_spl_db_query' SQL='select 1' GCP_SA_KEY_FILE="$T/nokey.json" HOME="$T
 # --- 2. invite / member role ---------------------------------------------------------
 INV=(TENANT_ID=t1 INVITE_EMAIL=owner@example.com INVITE_ROLE=owner)
 in_orc 'do_spl_hub_invite' "${INV[@]}"; rc=$?
-[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would invite owner@example.com to t1 as owner' "$T/out" \
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would invite owner@example.com to t1 as biz_owner' "$T/out" \
   && pass "2. hub-invite DRY_RUN: no cloud call" || fail "2. invite dry: rc=$rc $(cat "$T/calls.log")"
-for bad in INVITE_ROLE=admin INVITE_EMAIL=nope TENANT_ID=T_1; do
+for bad in 'INVITE_ROLE=Admin!' "INVITE_ROLE=x' or '1" INVITE_EMAIL=nope TENANT_ID=T_1; do
   in_orc 'do_spl_hub_invite' "${INV[@]}" "$bad" DRY_RUN=0; rc=$?
   [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. hub-invite $bad refused before any call" || fail "2. hub-invite $bad: rc=$rc"
 done
 in_orc 'do_spl_hub_invite' "${INV[@]}" DRY_RUN=0; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'spool hub-invite --tenant t1 --email owner@example.com --role owner dsn=set' "$T/calls.log" \
+[[ $rc -eq 0 ]] && grep -qx 'spool hub-invite --tenant t1 --email owner@example.com --role biz_owner dsn=set' "$T/calls.log" \
   && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" && pass "2. hub-invite DRY_RUN=0: spool hub-invite through the proxy as $DEV_SA" \
   || fail "2. invite real: rc=$rc $(cat "$T/calls.log" "$T/out")"
 grep -qF "$DSN_PW" "$T/out" "$T/calls.log" && fail "2. the DSN password leaked into output / argv" || pass "2. the DSN password is in neither output nor argv"
+
+# 025: every role id passes to the hub DB (which owns the list); default developer.
+for r in product_owner admin tester pure_agent; do
+  in_orc 'do_spl_hub_invite' TENANT_ID=t1 INVITE_EMAIL=r@example.com INVITE_ROLE=$r DRY_RUN=0; rc=$?
+  [[ $rc -eq 0 ]] && grep -qx "spool hub-invite --tenant t1 --email r@example.com --role $r dsn=set" "$T/calls.log" \
+    && pass "2. hub-invite INVITE_ROLE=$r reaches spool as --role $r" || fail "2. hub-invite role $r: rc=$rc $(cat "$T/calls.log")"
+done
+in_orc 'do_spl_hub_invite' TENANT_ID=t1 INVITE_EMAIL=d@example.com DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "spool hub-invite --tenant t1 --email d@example.com --role developer dsn=set" "$T/calls.log" \
+  && pass "2. hub-invite without INVITE_ROLE invites a developer" || fail "2. hub-invite default role: rc=$rc $(cat "$T/calls.log")"
 
 REV=(TENANT_ID=t1 INVITE_EMAIL=old@example.com)
 in_orc 'do_spl_hub_invite_revoke' "${REV[@]}"; rc=$?
@@ -141,6 +151,12 @@ in_orc 'do_spl_tenant_member_role' "${ROLE[@]}" DRY_RUN=0; rc=$?
 grep -qF "$DSN_PW" "$T/out" && fail "2. the DSN password was printed" || pass "2. member-role prints no DSN"
 grep -qx "SET LOCAL app.tenant_id = :'tenant';" "$T/stdin" && pass "2. member-role runs in the tenant's RLS scope (rdb 0014), not the operator's" \
   || fail "2. member-role: no tenant RLS scope, the UPDATE matches 0 rows under 0014"
+grep -q '\[role=developer\]' "$T/calls.log" && grep -q '\[from=biz_owner\]' "$T/calls.log" \
+  && pass "2. member-role maps legacy member/owner to developer/biz_owner (025)" || fail "2. member-role legacy map: $(cat "$T/calls.log")"
+for bad in 'MEMBER_ROLE=Dev!' 'FROM_ROLE=a b'; do
+  in_orc 'do_spl_tenant_member_role' "${ROLE[@]}" "$bad" DRY_RUN=0; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. member-role $bad refused before any call" || fail "2. member-role $bad: rc=$rc"
+done
 
 # --- 3. read-only query ----------------------------------------------------------------
 for q in "select 1; delete from tenants" "\\! id" ""; do

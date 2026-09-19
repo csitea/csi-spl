@@ -15,18 +15,21 @@
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant slug
 # @param INVITE_EMAIL - required: the human's email
-# @param INVITE_ROLE (optional) - owner or member (default member)
+# @param INVITE_ROLE (optional) - a role id (specs/025): biz_owner (the tenant
+# @param   owner), product_owner, admin, developer (default), tester,
+# @param   pure_agent; legacy owner|member map to biz_owner|developer. The hub
+# @param   DB decides (rbac_roles FK): an unknown id fails the invite.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
-# @example ENV=prd TENANT_ID=t1 INVITE_EMAIL=<owner-email> INVITE_ROLE=owner DRY_RUN=0 ./run -a do_spl_hub_invite
+# @example ENV=prd TENANT_ID=t1 INVITE_EMAIL=<owner-email> INVITE_ROLE=biz_owner DRY_RUN=0 ./run -a do_spl_hub_invite
 #------------------------------------------------------------------------------
 do_spl_hub_invite() {
   do_require_bin yq || return 1
   do_spl_cloud_cnf || return 1
-  local tenant="${TENANT_ID:-}" email="${INVITE_EMAIL:-}" role="${INVITE_ROLE:-member}" dry=1
+  local tenant="${TENANT_ID:-}" email="${INVITE_EMAIL:-}" role dry=1
+  role="$(spl_role_id "${INVITE_ROLE:-developer}")" || { do_log "FATAL INVITE_ROLE must be a role id (biz_owner|product_owner|admin|developer|tester|pure_agent), got: '${INVITE_ROLE:-}'"; return 1; }
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
   [[ "$email" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || { do_log "FATAL INVITE_EMAIL is not an email: '$email'"; return 1; }
-  [[ "$role" == owner || "$role" == member ]] || { do_log "FATAL INVITE_ROLE must be owner or member, got: '$role'"; return 1; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if (( dry )); then
     do_log "OK DRY_RUN would invite $email to $tenant as $role on $SPL_SQL_CONN, as the $SPL_PROJECT service account, and mail the invitation (cnf mail transport: $(yq -r '.env.mail.env.SPOOL_HUB_MAIL_TRANSPORT // "none"' "$SPL_CNF")). Re-run with DRY_RUN=0."
@@ -45,3 +48,4 @@ _spl_hub_invite_run() {
   (( rc == 0 )) || { do_log "FATAL hub-invite $2 to $1 as $3: $out"; return 1; }
   do_log "OK invited $2 to $1 as $3 ($GCP_ACCOUNT): $out"
 }
+

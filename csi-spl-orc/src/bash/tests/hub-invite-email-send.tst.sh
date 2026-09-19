@@ -113,8 +113,8 @@ done
 
 # --- 5. do_spl_hub_invite carries the same env; the owner account is never used --
 in_orc 'do_spl_hub_invite' TENANT_ID=t1 INVITE_EMAIL=invitee@example.com INVITE_ROLE=member DRY_RUN=0; rc=$?
-[[ $rc -eq 0 ]] && grep -qF "spool hub-invite --tenant t1 --email invitee@example.com --role member dsn=set pw=set transport=smtp app=https://$FQDN" "$T/calls.log" \
-  && pass "5. do_spl_hub_invite passes the relay env (argv unchanged)" || fail "5. invite env: rc=$rc $(cat "$T/calls.log" "$T/out")"
+[[ $rc -eq 0 ]] && grep -qF "spool hub-invite --tenant t1 --email invitee@example.com --role developer dsn=set pw=set transport=smtp app=https://$FQDN" "$T/calls.log" \
+  && pass "5. do_spl_hub_invite passes the relay env (argv unchanged but the 025 role id: member -> developer)" || fail "5. invite env: rc=$rc $(cat "$T/calls.log" "$T/out")"
 grep -qF "$MAIL_PW" "$T/out" "$T/calls.log" && fail "5. invite: the relay password leaked" || pass "5. invite: no password in output / argv"
 owner="$(yq -r '.env.gcp.gcp_account_owner_email // "no-owner-in-cnf"' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml")"
 grep -qF "$owner" "$T/calls.log" && fail "5. the owner account was used" || pass "5. the owner account appears in no call"

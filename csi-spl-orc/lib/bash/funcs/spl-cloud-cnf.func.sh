@@ -164,3 +164,12 @@ spl_via_proxy() {
   spl_sql_proxy_stop
   return $rc
 }
+
+# spl_role_id <role>: prints the 025 role id (legacy owner|member mapped),
+# or fails on a malformed id. Existence is the hub DB's call (rbac_roles FK).
+spl_role_id() {
+  local r="$1"
+  case "$r" in owner) r=biz_owner ;; member) r=developer ;; esac
+  [[ "$r" =~ ^[a-z][a-z0-9_]{0,31}$ ]] || return 1
+  printf '%s' "$r"
+}

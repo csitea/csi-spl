@@ -6,13 +6,15 @@ import { fileURLToPath } from 'node:url'
 import {
   authErrorMessage,
   createAuthClient,
+  nativeErrorMessage,
   providerLabel,
   providerName,
+  retryAfterMessage,
   safeRedirect,
   startHref,
 } from '../../src/utils/auth-client.mjs'
 
-function stub(status, body, { throws = false, badJson = false } = {}) {
+function stub(status, body, { throws = false, badJson = false, headers = {} } = {}) {
   const calls = []
   const fn = async (url, opts) => {
     calls.push({ url, opts })
@@ -20,6 +22,7 @@ function stub(status, body, { throws = false, badJson = false } = {}) {
     return {
       ok: status >= 200 && status < 300,
       status,
+      headers: { get: (k) => headers[String(k).toLowerCase()] ?? null },
       json: async () => {
         if (badJson) throw new Error('bad json')
         return body
@@ -59,11 +62,11 @@ describe('auth-v1 helpers (spec 010)', () => {
 describe('auth client', () => {
   it('loadProviders tells auth-off apart from an unreachable registry', async () => {
     const load = (st, body, o) => createAuthClient({ fetchFn: stub(st, body, o).fn }).loadProviders()
-    assert.deepEqual(await load(200, { providers: ['google'] }), { status: 'ok', reason: '', providers: ['google'] })
-    assert.deepEqual(await load(200, { providers: [] }), { status: 'ok', reason: '', providers: [] })
-    assert.deepEqual(await load(503, {}), { status: 'unavailable', reason: '503', providers: [] })
-    assert.deepEqual(await load(0, {}, { throws: true }), { status: 'unavailable', reason: 'network', providers: [] })
-    assert.deepEqual(await load(200, {}, { badJson: true }), { status: 'unavailable', reason: 'bad_json', providers: [] })
+    assert.deepEqual(await load(200, { providers: ['google'] }), { status: 'ok', reason: '', providers: ['google'], native: false })
+    assert.deepEqual(await load(200, { providers: [] }), { status: 'ok', reason: '', providers: [], native: false })
+    assert.deepEqual(await load(503, {}), { status: 'unavailable', reason: '503', providers: [], native: false })
+    assert.deepEqual(await load(0, {}, { throws: true }), { status: 'unavailable', reason: 'network', providers: [], native: false })
+    assert.deepEqual(await load(200, {}, { badJson: true }), { status: 'unavailable', reason: 'bad_json', providers: [], native: false })
     assert.equal(providerName('xai'), 'xAI')
     assert.equal(providerName('github'), 'Github')
   })
@@ -92,6 +95,93 @@ describe('auth client', () => {
     assert.equal(await createAuthClient({ fetchFn: s.fn }).logout(), true)
     assert.equal(s.calls[0].opts.method, 'POST')
     assert.equal(s.calls[0].url, '/api/v1/auth/logout')
+  })
+})
+
+describe('native-auth-v1 client (spec 015)', () => {
+  const client = (st, body, o) => {
+    const s = stub(st, body, o)
+    return { c: createAuthClient({ fetchFn: s.fn }), calls: s.calls }
+  }
+
+  it('loadProviders keeps the native flag, only for a literal true', async () => {
+    assert.equal((await client(200, { providers: [], native: true }).c.loadProviders()).native, true)
+    assert.deepEqual(await client(200, { providers: ['google'], native: true }).c.loadProviders(),
+      { status: 'ok', reason: '', providers: ['google'], native: true })
+    assert.equal((await client(200, { providers: [], native: 'true' }).c.loadProviders()).native, false)
+    assert.equal((await client(200, { providers: [] }).c.loadProviders()).native, false)
+  })
+
+  it('every route POSTs JSON to its §2 path', async () => {
+    const cases = [
+      [(c) => c.register({ email: 'a@b.c', password: 'pw', name: 'N' }), '/register', { email: 'a@b.c', password: 'pw', name: 'N' }],
+      [(c) => c.register({ email: 'a@b.c', password: 'pw' }), '/register', { email: 'a@b.c', password: 'pw' }],
+      [(c) => c.verifyEmail('ab12'), '/email/verify', { token: 'ab12' }],
+      [(c) => c.login({ email: 'a@b.c', password: 'pw', tenant: 't1', redirect: '/t/x' }), '/login', { email: 'a@b.c', password: 'pw', redirect: '/t/x', tenant: 't1' }],
+      [(c) => c.login({ email: 'a@b.c', password: 'pw', tenant: 'Bad_T', redirect: 'https://evil' }), '/login', { email: 'a@b.c', password: 'pw', redirect: '/' }],
+      [(c) => c.forgotPassword('a@b.c'), '/password/forgot', { email: 'a@b.c' }],
+      [(c) => c.resetPassword({ token: 'ab12', password: 'pw2' }), '/password/reset', { token: 'ab12', password: 'pw2' }],
+      [(c) => c.changePassword({ current: 'pw', next: 'pw2' }), '/password/change', { current_password: 'pw', new_password: 'pw2' }],
+    ]
+    for (const [fn, path, body] of cases) {
+      const { c, calls } = client(204, null)
+      const out = await fn(c)
+      assert.equal(out.ok, true, path)
+      assert.equal(calls[0].url, `/api/v1/auth${path}`)
+      assert.equal(calls[0].opts.method, 'POST')
+      assert.equal(calls[0].opts.credentials, 'same-origin')
+      assert.equal(calls[0].opts.headers['content-type'], 'application/json')
+      assert.deepEqual(JSON.parse(calls[0].opts.body), body, path)
+    }
+  })
+
+  it('success carries the body (202 register, 200 login claims)', async () => {
+    const reg = await client(202, { status: 'verification_required', debug_token: 'tok' }).c.register({ email: 'a@b.c', password: 'pw' })
+    assert.deepEqual(reg, { ok: true, status: 202, data: { status: 'verification_required', debug_token: 'tok' }, error: '', detail: '', retryAfter: 0 })
+    const li = await client(200, { p: 'password', sub: 'a@b.c', redirect: '/' }).c.login({ email: 'a@b.c', password: 'pw' })
+    assert.equal(li.ok, true)
+    assert.equal(li.data.p, 'password')
+  })
+
+  it('failures surface the envelope token, detail and Retry-After; never throw', async () => {
+    const bad = await client(401, { error: 'invalid_credentials', detail: '' }).c.login({ email: 'a', password: 'b' })
+    assert.equal(bad.ok, false)
+    assert.equal(bad.error, 'invalid_credentials')
+    const short = await client(400, { error: 'bad_request', detail: 'password_too_short: min 12' }).c.register({ email: 'a', password: 'b' })
+    assert.equal(short.detail, 'password_too_short: min 12')
+    const rl = await client(429, { error: 'rate_limited' }, { headers: { 'retry-after': '120' } }).c.login({ email: 'a', password: 'b' })
+    assert.equal(rl.error, 'rate_limited')
+    assert.equal(rl.retryAfter, 120)
+    const rlBare = await client(429, null, { badJson: true }).c.forgotPassword('a')
+    assert.equal(rlBare.error, 'rate_limited')
+    assert.equal(rlBare.retryAfter, 0)
+    assert.equal((await client(502, null, { badJson: true }).c.verifyEmail('t')).error, 'unavailable')
+    assert.equal((await client(0, null, { throws: true }).c.resetPassword({ token: 't', password: 'p' })).error, 'network')
+  })
+
+  it('§4 copy for every token, and 429 with Retry-After in minutes', () => {
+    const copy = {
+      invalid_credentials: 'Email or password is wrong.',
+      email_unverified: 'Confirm your email first — we can send the link again.',
+      not_allowed: 'This account has no access here yet — ask the owner for an invite.',
+      verification_token_invalid: 'That link is not valid any more.',
+      verification_token_expired: 'That link expired — we can send a new one.',
+      reset_token_invalid: 'That reset link is not valid any more — ask for a new one.',
+      email_delivery_unavailable: 'We cannot send email right now — try again later.',
+    }
+    for (const [k, v] of Object.entries(copy)) assert.equal(nativeErrorMessage({ error: k }), v, k)
+    assert.equal(nativeErrorMessage({ error: 'rate_limited' }), 'Too many attempts — try again later.')
+    assert.equal(nativeErrorMessage({ error: 'rate_limited', retryAfter: 300 }), 'Too many attempts — try again in 5 minutes.')
+    assert.equal(retryAfterMessage(61), 'Too many attempts — try again in 2 minutes.')
+    assert.equal(retryAfterMessage(30), 'Too many attempts — try again in a minute.')
+    assert.equal(retryAfterMessage('x'), 'Too many attempts — try again later.')
+    assert.equal(nativeErrorMessage({ error: 'bad_request', detail: 'password_too_short: min 12' }),
+      'That password is too short — use at least 12 characters.')
+    assert.equal(nativeErrorMessage({ error: 'bad_request', detail: 'password_too_short' }), 'That password is too short.')
+    assert.equal(nativeErrorMessage({ error: 'bad_request', detail: 'email' }), 'Enter a valid email address.')
+    assert.equal(nativeErrorMessage({ error: 'weird' }), 'Something went wrong — try again.')
+    assert.equal(nativeErrorMessage({ error: '' }), '')
+    assert.equal(nativeErrorMessage(null), '')
   })
 })
 

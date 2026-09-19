@@ -1,5 +1,6 @@
 /**
- * Social sign-in client (specs/010-spool-social-auth/contracts/auth-v1.md §1–§4).
+ * Social sign-in client (specs/010-spool-social-auth/contracts/auth-v1.md §1–§4)
+ * and native email + password sign-in (specs/015-spool-native-auth/contracts/native-auth-v1.md).
  * Same-origin: Hosting rewrites /api/v1/auth/** to the hub (lde: nitro devProxy).
  * The WUI never reads the spool_session cookie; it asks GET /api/v1/auth/session.
  */
@@ -15,6 +16,23 @@ const ERRORS = {
   unavailable: 'Sign-in is unavailable right now.',
 }
 
+/** native-auth-v1 §4 copy, plus the §2 400 details and 5xx fallbacks the forms can meet. */
+const NATIVE_ERRORS = {
+  invalid_credentials: 'Email or password is wrong.',
+  email_unverified: 'Confirm your email first — we can send the link again.',
+  not_allowed: 'This account has no access here yet — ask the owner for an invite.',
+  verification_token_invalid: 'That link is not valid any more.',
+  verification_token_expired: 'That link expired — we can send a new one.',
+  reset_token_invalid: 'That reset link is not valid any more — ask for a new one.',
+  email_delivery_unavailable: 'We cannot send email right now — try again later.',
+  rate_limited: 'Too many attempts — try again later.',
+  unauthenticated: 'Your session ended — sign in again.',
+  password_too_short: 'That password is too short.',
+  email: 'Enter a valid email address.',
+  unavailable: 'Sign-in is unavailable right now.',
+  network: 'The hub did not answer — try again.',
+}
+
 const NAMES = { google: 'Google', facebook: 'Facebook', microsoft: 'Microsoft', linkedin: 'LinkedIn', xai: 'xAI' }
 
 /** §2 copy; unknown codes get a generic line. Empty code → ''. */
@@ -22,6 +40,39 @@ export function authErrorMessage(code) {
   const c = String(code || '')
   if (!c) return ''
   return ERRORS[c] || 'Sign-in failed.'
+}
+
+/**
+ * native-auth-v1 §1: "Too many attempts — try again in N minutes." for a
+ * Retry-After in seconds; unknown / unparsable → the §4 generic line.
+ */
+export function retryAfterMessage(seconds) {
+  const n = Number(seconds)
+  if (!Number.isFinite(n) || n <= 0) return NATIVE_ERRORS.rate_limited
+  if (n <= 60) return 'Too many attempts — try again in a minute.'
+  const m = Math.ceil(n / 60)
+  return `Too many attempts — try again in ${m} minutes.`
+}
+
+/**
+ * Copy for a native call's failure ({ error, detail, retryAfter }). A 400
+ * `bad_request` names the field in `detail` (`email`, `password_too_short` + min).
+ */
+export function nativeErrorMessage(out) {
+  const o = out || {}
+  const code = String(o.error || '')
+  if (!code) return ''
+  if (code === 'rate_limited') return retryAfterMessage(o.retryAfter)
+  if (code === 'bad_request') {
+    const d = String(o.detail || '')
+    if (d.startsWith('password_too_short')) {
+      const m = /(\d+)/.exec(d)
+      return m ? `That password is too short — use at least ${m[1]} characters.` : NATIVE_ERRORS.password_too_short
+    }
+    if (d.startsWith('email')) return NATIVE_ERRORS.email
+    return 'Check the form and try again.'
+  }
+  return NATIVE_ERRORS[code] || 'Something went wrong — try again.'
 }
 
 /** Display name of a provider id: known brands spelled right, else capitalised. */
@@ -69,15 +120,49 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '' } = {})
     try {
       res = await call('/providers')
     } catch {
-      return { status: 'unavailable', reason: 'network', providers: [] }
+      return { status: 'unavailable', reason: 'network', providers: [], native: false }
     }
-    if (!res.ok) return { status: 'unavailable', reason: String(res.status), providers: [] }
+    if (!res.ok) return { status: 'unavailable', reason: String(res.status), providers: [], native: false }
     try {
       const data = await res.json()
       const list = Array.isArray(data && data.providers) ? data.providers.map(String) : []
-      return { status: 'ok', reason: '', providers: list }
+      // native-auth-v1: "native": true sits next to the social list only when on
+      return { status: 'ok', reason: '', providers: list, native: Boolean(data && data.native === true) }
     } catch {
-      return { status: 'unavailable', reason: 'bad_json', providers: [] }
+      return { status: 'unavailable', reason: 'bad_json', providers: [], native: false }
+    }
+  }
+
+  /**
+   * native-auth-v1 §2: POST a JSON body. Resolves (never throws) to
+   * { ok, status, data, error, detail, retryAfter }: `error` is the envelope
+   * token, 'network' when the hub was not reached, 'unavailable' for a non-JSON
+   * failure; `retryAfter` is the 429 Retry-After in seconds (0 when absent).
+   */
+  async function post(path, body) {
+    let res
+    try {
+      res = await call(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      })
+    } catch {
+      return { ok: false, status: 0, data: null, error: 'network', detail: '', retryAfter: 0 }
+    }
+    let data = null
+    if (res.status !== 204) {
+      try { data = await res.json() } catch { data = null }
+    }
+    if (res.ok) return { ok: true, status: res.status, data, error: '', detail: '', retryAfter: 0 }
+    const ra = res.headers && typeof res.headers.get === 'function' ? Number(res.headers.get('retry-after')) : 0
+    return {
+      ok: false,
+      status: res.status,
+      data,
+      error: String((data && data.error) || (res.status === 429 ? 'rate_limited' : 'unavailable')),
+      detail: String((data && data.detail) || ''),
+      retryAfter: Number.isFinite(ra) && ra > 0 ? ra : 0,
     }
   }
 
@@ -105,6 +190,32 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '' } = {})
       } catch {
         return { state: 'unknown', claims: null }
       }
+    },
+    /** §2 register; also "resend": the same email + password mails a fresh link. */
+    register({ email, password, name } = {}) {
+      const b = { email: String(email || ''), password: String(password || '') }
+      if (name) b.name = String(name)
+      return post('/register', b)
+    },
+    verifyEmail(token) {
+      return post('/email/verify', { token: String(token || '') })
+    },
+    /** 200 → `data` is the session claims plus the guarded `redirect`. */
+    login({ email, password, tenant, redirect } = {}) {
+      const b = { email: String(email || ''), password: String(password || ''), redirect: safeRedirect(redirect) }
+      const t = String(tenant || '')
+      if (/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(t)) b.tenant = t
+      return post('/login', b)
+    },
+    forgotPassword(email) {
+      return post('/password/forgot', { email: String(email || '') })
+    },
+    resetPassword({ token, password } = {}) {
+      return post('/password/reset', { token: String(token || ''), password: String(password || '') })
+    },
+    /** 204 clears the cookie: the caller signs in again with the new password. */
+    changePassword({ current, next } = {}) {
+      return post('/password/change', { current_password: String(current || ''), new_password: String(next || '') })
     },
     async logout() {
       const res = await call('/logout', { method: 'POST' })

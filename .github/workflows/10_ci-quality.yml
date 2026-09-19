@@ -152,7 +152,11 @@ jobs:
             # pipeline, so an unguarded clean sweep would abort the script
             # silently. Accept 1; anything above it (bad pattern, unreadable
             # tree) is a gate failure, never a pass.
-            hits="$(grep -rnIoP "${excl[@]}" "$pattern" . | cut -d: -f1,2 | sort -u)" || rc=$?
+            # One owner-ordered allowance (2026-09-19): the line carrying the
+            # cnf key gcp_account_owner_email (yaml + rendered json) may hold
+            # the owner account. The key is matched by name, so the same
+            # name/mail on any other line still fails.
+            hits="$(grep -rnIP "${excl[@]}" "$pattern" . | grep -vP '^[^:]+:[0-9]+:\s*"?gcp_account_owner_email"?\s*:' | cut -d: -f1,2 | sort -u)" || rc=$?
             if (( rc > 1 )); then
               echo "::error::hygiene: ${label} -- grep failed (rc=$rc), the sweep proved nothing"
               fail=1; return 0

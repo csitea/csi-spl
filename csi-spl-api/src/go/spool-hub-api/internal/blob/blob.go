@@ -219,8 +219,8 @@ func (g *GCS) Put(ctx context.Context, key string, data []byte) error {
 	return err
 }
 
-func (g *GCS) PutReader(ctx context.Context, key string, r io.Reader) (int64, error) {
-	ctx, cancel := context.WithCancel(ctx)
+func (g *GCS) PutReader(parent context.Context, key string, r io.Reader) (int64, error) {
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	w := g.bucket.Object(key).NewWriter(ctx)
 	w.ContentType = "application/octet-stream"
@@ -230,8 +230,15 @@ func (g *GCS) PutReader(ctx context.Context, key string, r io.Reader) (int64, er
 	w.ChunkSize = 0
 	n, err := io.Copy(w, r)
 	if err != nil {
-		cancel() // aborts the upload: the object is never finalized
+		// Cancel aborts the upload, but Close can still race it and finalize
+		// the bytes sent so far (seen on a slow CI runner). Close waits for
+		// the upload to end, so a delete after it removes any such object.
+		cancel()
 		w.Close()
+		if derr := g.bucket.Object(key).Delete(context.WithoutCancel(parent)); derr != nil &&
+			!errors.Is(derr, storage.ErrObjectNotExist) {
+			return n, errors.Join(err, derr)
+		}
 		return n, err
 	}
 	return n, w.Close()

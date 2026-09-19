@@ -53,6 +53,12 @@ services:
       - "~/.config:${DOCKER_HOME}/.config"
       - "~/.aws:${DOCKER_HOME}/.aws"
       - "~/.gcp:${DOCKER_HOME}/.gcp"
+      # csi-spl: as tpl-gen-venv. The init (csi-rel, unchanged) poetry-installs
+      # into the in-project .venv of the MOUNTED csi-spl-cnf when it has none,
+      # and reuses one that exists: without this the container and the host
+      # (csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh) would
+      # share one venv whose python exists on only one side.
+      - "conf-validator-venv:${CNF_PROJ_PATH}/src/python/conf-validator/.venv"
     command:
       [
         "bash",
@@ -186,6 +192,7 @@ services:
       - all_lcl_docker
 volumes:
   tpl-gen-venv: {}
+  conf-validator-venv: {}
 # Use the shared external network (created by: make do-create-network)
 networks:
   all_lcl_docker:

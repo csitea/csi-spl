@@ -37,21 +37,28 @@ const emit = defineEmits<{
 }>()
 
 const dragging = ref(false)
+const moved = ref(false)
 const startX = ref(0)
 const startW = ref(0)
 
 function onDown(e: PointerEvent) {
   if (e.button !== 0) return
-  e.preventDefault()
+  // Do not preventDefault here: a prevented pointerdown swallows dblclick,
+  // which is the reset gesture. touch-action: none already stops scroll.
   dragging.value = true
+  moved.value = false
   startX.value = e.clientX
   startW.value = props.value
   ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  document.documentElement.classList.add('pane-dragging')
 }
 
 function onMove(e: PointerEvent) {
   if (!dragging.value) return
+  if (!moved.value && Math.abs(e.clientX - startX.value) < 3) return
+  if (!moved.value) {
+    moved.value = true
+    document.documentElement.classList.add('pane-dragging')
+  }
   emit('input', pointerDelta(props.pane, startW.value, startX.value, e.clientX))
 }
 

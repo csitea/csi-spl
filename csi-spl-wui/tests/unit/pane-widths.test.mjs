@@ -194,6 +194,9 @@ describe('pane-widths wiring', () => {
     assert.equal(src.includes('@dblclick'), true)
     assert.equal(src.includes('applySeparatorKey'), true)
     assert.equal(src.includes('pointerDelta'), true)
+    const down = src.slice(src.indexOf('function onDown'), src.indexOf('function onMove'))
+    assert.equal(down.includes('e.preventDefault'), false, 'pointerdown must not preventDefault (dblclick reset)')
+    assert.equal(src.includes('Math.abs(e.clientX - startX.value) < 3'), true)
   })
 
   it('CSS hides dividers when the matching pane is collapsed or overlaying', () => {

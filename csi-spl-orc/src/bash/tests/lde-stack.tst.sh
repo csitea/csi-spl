@@ -12,7 +12,9 @@
 #   3. the wui service mounts the WHOLE csi-spl-wui dir (survives a srcDir
 #      move), runs with the mock off against http://{tenant}.localhost:<hub
 #      port>, and the hub's CORS list carries the WUI origin -- also when the
-#      WUI port is overridden (LDE_WUI_PORT)
+#      WUI port is overridden (LDE_WUI_PORT), for a sibling tree's WUI port and
+#      for LDE_WUI_EXTRA_ORIGINS (a wildcard is refused). The service starts
+#      offline (the tree's own nuxt, no package manager), as the tree owner.
 #   4. _sai_has_verb: a spool that says `unknown command` is NOT a verb, under
 #      pipefail (the regression that reported a missing `serve` as present);
 #      control: a known verb is one
@@ -85,6 +87,21 @@ if docker compose version >/dev/null 2>&1 && [[ -f "$T/state/compose.env" ]]; th
     [[ "$base" =~ ^http://\{tenant\}\.localhost:[0-9]+$ ]] && pass "wui API base $base" || fail "wui API base: '$base'"
     proxy=$(yq -p json -r '.services.wui.environment.NUXT_DEV_AUTH_PROXY' "$T/cfg.json")
     [[ "$proxy" =~ ^http://hub:[0-9]+$ ]] && pass "wui proxies /api/v1/auth to $proxy (spec 010 FR-010)" || fail "wui auth proxy: '$proxy'"
+    # offline at runtime: the tree's own nuxt, no corepack / pnpm / registry;
+    # never root; no volume shadows node_modules (it IS the tree's)
+    cmd=$(yq -p json -o json -I0 '.services.wui.command' "$T/cfg.json")
+    [[ "$cmd" == *'node_modules/nuxt/bin/nuxt.mjs'* && "$cmd" != *pnpm* && "$cmd" != *corepack* && "$cmd" != *npm* ]] \
+      && pass "wui starts the tree's nuxt offline: $cmd" || fail "wui command reaches for a package manager: $cmd"
+    [[ "$(yq -p json -r '.services.wui.entrypoint // "none"' "$T/cfg.json")" == none ]] && pass "wui has no shell entrypoint" || fail "wui entrypoint set"
+    user=$(yq -p json -r '.services.wui.user' "$T/cfg.json")
+    [[ "$user" =~ ^[0-9]+:[0-9]+$ && "${user%%:*}" != 0 && "$user" == "$(stat -c %u:%g "$APP_ROOT/csi-spl-wui")" ]] \
+      && pass "wui runs as the WUI tree owner $user" || fail "wui user '$user' (tree $(stat -c %u:%g "$APP_ROOT/csi-spl-wui"))"
+    n=$(yq -p json -r '[.services.wui.volumes[]] | length' "$T/cfg.json")
+    [[ "$n" == 1 ]] && pass "wui mounts only the tree (no node_modules/.nuxt shadow volume)" || fail "wui has $n volumes"
+    # compose drops a profiled service from the default model: absent = gated
+    [[ "$(yq -p json -r '.services | has("wui-install")' "$T/cfg.json")" == false ]] \
+      && grep -A1 '^  wui-install:' "$PROJ_ROOT/src/docker/docker-compose-wui.yaml" | grep -q 'profiles: \[install\]' \
+      && pass "the registry-bound install is a profile-gated one-shot (not in the default model)" || fail "wui-install is not profile-gated"
   else
     fail "compose config: $(head -3 "$T/cfg.err")"
   fi
@@ -101,6 +118,17 @@ cors2=$(sed -n 's/^SPOOL_HUB_VIEW_CORS_ORIGINS=//p' "$H" 2>/dev/null)
 [[ ",$cors2," == *",http://localhost:3999,"* && ",$cors2," == *",http://localhost:$wport,"* ]] \
   && pass "LDE_WUI_PORT=3999 adds http://localhost:3999 and keeps the cnf origin" || fail "override CORS: '$cors2'"
 [[ $(grep -c '^SPOOL_HUB_VIEW_CORS_ORIGINS=' "$H") == 1 ]] && pass "CORS name rendered once" || fail "CORS rendered $(grep -c '^SPOOL_HUB_VIEW_CORS_ORIGINS=' "$H") times"
+# a sibling tree's WUI port (its rendered compose.env) and LDE_WUI_EXTRA_ORIGINS
+# reach this tree's hub too: a worktree WUI reads the main hub with no proxy
+mkdir -p "$T/sib-tree" && printf 'LDE_WUI_PORT=3067\n' >"$T/sib-tree/compose.env"
+SNIPPET='do_gen_docker_env' in_orc LDE_WUI_EXTRA_ORIGINS='http://127.0.0.1:4001' >"$T/gen3.out" 2>&1 || fail "gen with sibling: $(tail -2 "$T/gen3.out")"
+cors3=$(sed -n 's/^SPOOL_HUB_VIEW_CORS_ORIGINS=//p' "$H" 2>/dev/null)
+[[ ",$cors3," == *",http://localhost:3067,"* ]] && pass "a sibling tree's WUI port 3067 is allowed" || fail "sibling CORS: '$cors3'"
+[[ ",$cors3," == *",http://127.0.0.1:4001,"* ]] && pass "LDE_WUI_EXTRA_ORIGINS is allowed" || fail "extra CORS: '$cors3'"
+[[ $(tr ',' '\n' <<<"$cors3" | sort | uniq -d | wc -l) == 0 ]] && pass "no origin listed twice" || fail "duplicate origins: $cors3"
+SNIPPET='do_gen_docker_env' in_orc LDE_WUI_EXTRA_ORIGINS='*' >"$T/gen4.out" 2>&1 \
+  && fail "control: LDE_WUI_EXTRA_ORIGINS='*' was accepted" || pass "control: a wildcard extra origin is refused"
+rm -rf "$T/sib-tree"
 
 # --- 4. verb detection under pipefail ------------------------------------------------
 printf '#!/bin/sh\n[ "$1" = migrate ] && { echo "Usage of migrate:"; exit 0; }\necho "unknown command \\"$1\\""; exit 1\n' >"$T/spool"

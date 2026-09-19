@@ -51,7 +51,10 @@ The whole stack runs from `csi-spl-orc` with docker compose: Postgres, the GCS
 emulator, the hub (`spool serve`) and this WUI (the `wui` service in
 `csi-spl-orc/src/docker/docker-compose-wui.yaml`: the Nuxt dev server with
 `NUXT_PUBLIC_USE_MOCK=0` and `NUXT_PUBLIC_API_BASE=http://{tenant}.localhost:<hub port>`).
-The service mounts this whole directory, so it follows any source layout.
+The service mounts this whole directory, so it follows any source layout. It
+needs no network at runtime: it starts this tree's own `node_modules/nuxt`
+(no corepack, no pnpm, no registry) as the owner of this directory, so its
+`.nuxt` stays yours and a host typecheck keeps working.
 
 Stand up and smoke the hub stack (pg, gcs, migrate, serve, box hello; exit 0 =
 all PASS). It also seeds tenant `t1` and pins the box `box-smoke` under it.
@@ -62,18 +65,29 @@ dev/prd (Cloud SQL) counterpart and is not used locally:
 cd csi-spl-orc && ./run -a do_setup_app_inf
 ```
 
-Start the WUI container (waits for `GET http://localhost:<wui port>/` -> 200;
-the first run installs `node_modules` inside the container):
+Start the WUI container (waits for `GET http://localhost:<wui port>/` -> 200).
+This directory must already have `node_modules` (a hydrated worktree, or
+`pnpm install` here):
 
 ```bash
 cd csi-spl-orc && ./run -a do_wui_up
 ```
 
+Without `node_modules`, let a one-shot container install it first. This is the
+only lde step that needs the npm registry:
+
+```bash
+cd csi-spl-orc && LDE_WUI_INSTALL=1 ./run -a do_wui_up
+```
+
 Open `http://localhost:3000/` (cnf `env.lde.wui.host_port`). It lists the
 threads of tenant `t1` from the hub at `http://t1.localhost:58080`.
 
-A second tree next to a running one overrides every host port; the WUI origin
-is added to the hub's `SPOOL_HUB_VIEW_CORS_ORIGINS` by `do_gen_docker_env`:
+A second tree next to a running one overrides every host port. The hub's
+`SPOOL_HUB_VIEW_CORS_ORIGINS` follows the WUI ports in use: `do_gen_docker_env`
+adds this tree's `LDE_WUI_PORT`, every sibling tree's `LDE_WUI_PORT` (from its
+rendered `compose.env`), and `LDE_WUI_EXTRA_ORIGINS`. The hub picks the list up
+when `do_wui_up` or `do_setup_app_inf` re-applies it:
 
 ```bash
 cd csi-spl-orc && LDE_PG_PORT=55433 LDE_GCS_PORT=54444 LDE_HUB_PORT=58081 ./run -a do_setup_app_inf
@@ -81,6 +95,20 @@ cd csi-spl-orc && LDE_PG_PORT=55433 LDE_GCS_PORT=54444 LDE_HUB_PORT=58081 ./run 
 
 ```bash
 cd csi-spl-orc && LDE_PG_PORT=55433 LDE_GCS_PORT=54444 LDE_HUB_PORT=58081 LDE_WUI_PORT=3008 ./run -a do_wui_up
+```
+
+A WUI served outside compose (e.g. a host `nuxi dev --port 3067`) against the
+main checkout's hub: from the main checkout, re-apply the hub with that origin:
+
+```bash
+cd csi-spl-orc && LDE_WUI_EXTRA_ORIGINS=http://localhost:3067 ./run -a do_wui_up
+```
+
+Check a browser origin is allowed (expected: `204` and
+`Access-Control-Allow-Origin` echoing exactly that origin):
+
+```bash
+curl -s -o /dev/null -D - -X OPTIONS -H 'Origin: http://localhost:3008' -H 'Access-Control-Request-Method: GET' http://t1.localhost:58081/v1/view/threads
 ```
 
 To put threads on the hub, route messages between two boxes (a message

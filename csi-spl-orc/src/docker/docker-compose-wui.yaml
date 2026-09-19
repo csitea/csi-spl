@@ -1,40 +1,37 @@
 # csi-spl lde ::: the WUI (Nuxt 3 dev server) against THIS tree's lde hub.
-# Started by `./run -a do_wui_up` (not by do_setup_app_inf: the first run
-# installs node_modules inside the container, which takes a minute).
+# Started by `./run -a do_wui_up` (not by do_setup_app_inf).
+#
+# NO NETWORK AT RUNTIME: the service starts the host tree's own nuxt from the
+# mounted node_modules (`node node_modules/nuxt/bin/nuxt.mjs dev`). No
+# corepack, no pnpm, no registry fetch -- a container without DNS/egress still
+# comes up (an EAI_AGAIN on registry.npmjs.org crash-looped the old service).
+# pnpm's node_modules is self-contained: the .pnpm virtual store holds
+# hardlinked files and the top-level entries are RELATIVE symlinks into it, so
+# it resolves inside the bind mount. The host tree must be installed first
+# (worktree hydration, `pnpm install`, or LDE_WUI_INSTALL=1 ./run -a do_wui_up
+# for a one-shot install container -- the only step that needs the registry).
 #
 # The WHOLE csi-spl-wui directory is mounted at /app, never a subpath, so the
 # service survives a move of the source layout (e.g. a Nuxt `srcDir: 'src/'`).
-# node_modules and .nuxt are shadowed by named volumes: the host's pnpm tree
-# is hardlinked into a host store the container cannot see, and the container
-# must not write root-owned build output into the checkout. Do not shadow a
-# dir the host tree may lack (e.g. .output): docker creates the mount point
-# on the host as root, and a later host `pnpm generate` cannot write it.
+# It runs as the tree's owner (LDE_WUI_UID:LDE_WUI_GID, the owner of the
+# csi-spl-wui dir), so .nuxt and caches it writes stay the owner's files and a
+# host `nuxi typecheck` / `pnpm generate` keeps working. The image's Node major
+# matches the host's (node_modules was installed for it).
 #
 # The browser, not the container, calls the hub: NUXT_PUBLIC_API_BASE is the
 # host-side tenant URL http://{tenant}.localhost:<hub port>, and the hub allows
 # the WUI origin http://localhost:<wui port> (do_gen_docker_env adds it to
 # SPOOL_HUB_VIEW_CORS_ORIGINS). SSR-side hub calls fail soft (spool-bootstrap).
-volumes:
-  wui-node-modules: {}
-  wui-nuxt: {}
-  wui-pnpm-store: {}
-
 services:
   wui:
     image: "${LDE_WUI_IMAGE:?unset - run ./run -a do_gen_docker_env in csi-spl-orc}"
     pull_policy: if_not_present
+    user: "${LDE_WUI_UID:?unset}:${LDE_WUI_GID:?unset}"
     working_dir: /app
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - >-
-        corepack enable &&
-        pnpm config set store-dir /pnpm-store &&
-        pnpm install --frozen-lockfile &&
-        exec pnpm exec nuxt dev --host 0.0.0.0 --port 3000
+    command: ["node", "node_modules/nuxt/bin/nuxt.mjs", "dev", "--host", "0.0.0.0", "--port", "3000"]
     environment:
-      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
-      # node 22 writes its module compile cache under the cwd otherwise, i.e.
-      # a root-owned node-compile-cache/ inside the mounted checkout
+      HOME: /tmp
+      # node 22+ writes its module compile cache under the cwd otherwise
       NODE_COMPILE_CACHE: /tmp/node-compile-cache
       NUXT_TELEMETRY_DISABLED: "1"
       NUXT_PUBLIC_USE_MOCK: "0"
@@ -45,10 +42,27 @@ services:
       NUXT_DEV_AUTH_PROXY: "http://hub:${LDE_HUB_CONTAINER_PORT:?unset}"
     volumes:
       - "${LDE_WUI_SRC:?unset}:/app"
-      - "wui-node-modules:/app/node_modules"
-      - "wui-nuxt:/app/.nuxt"
-      - "wui-pnpm-store:/pnpm-store"
     ports:
       - "127.0.0.1:${LDE_WUI_PORT:?unset}:3000"
     networks: [lde]
     restart: unless-stopped
+
+  # one-shot, profile-gated: `LDE_WUI_INSTALL=1 ./run -a do_wui_up` runs it
+  # when the tree has no node_modules. The ONLY lde step that needs a registry.
+  wui-install:
+    profiles: [install]
+    image: "${LDE_WUI_IMAGE:?unset}"
+    pull_policy: if_not_present
+    user: "${LDE_WUI_UID:?unset}:${LDE_WUI_GID:?unset}"
+    working_dir: /app
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        npx --yes pnpm@$$(node -p "require('./package.json').packageManager.split('@')[1]")
+        install --frozen-lockfile --store-dir /tmp/pnpm-store
+    environment:
+      HOME: /tmp
+      NODE_COMPILE_CACHE: /tmp/node-compile-cache
+      NUXT_TELEMETRY_DISABLED: "1"
+    volumes:
+      - "${LDE_WUI_SRC:?unset}:/app"

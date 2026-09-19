@@ -42,15 +42,17 @@ do_gen_docker_env() {
     do_log "FATAL hub.env holds a name outside SPOOL_HUB_* / STORAGE_EMULATOR_HOST: $(grep -vE '^SPOOL_HUB_[A-Z_]+=|^STORAGE_EMULATOR_HOST=' "$tmp" | cut -d= -f1 | tr '\n' ' ')"
     rm -f "$tmp"; return 1
   fi
-  # The WUI dev server is the one cross-origin caller the lde hub allows. When
-  # this tree runs it off the cnf port (LDE_WUI_PORT), allow that origin too,
-  # or the browser's view reads fail CORS. A value change, never a new name.
-  local wui_origin="http://localhost:$LDE_WUI_PORT" cors
-  cors="$(sed -n 's/^SPOOL_HUB_VIEW_CORS_ORIGINS=//p' "$tmp")"
-  if [[ ",$cors," != *",$wui_origin,"* ]]; then
-    { grep -v '^SPOOL_HUB_VIEW_CORS_ORIGINS=' "$tmp"
-      echo "SPOOL_HUB_VIEW_CORS_ORIGINS=${cors:+$cors,}$wui_origin"; } >"$tmp.cors" && mv -f "$tmp.cors" "$tmp" || { rm -f "$tmp" "$tmp.cors"; return 1; }
-  fi
+  # The WUI dev server is the one cross-origin caller the lde hub allows. The
+  # allow-list follows the WUI ports actually in use on this box, so a WUI on
+  # an overridden port never needs a CORS proxy:
+  #   - this tree's LDE_WUI_PORT
+  #   - every sibling tree's LDE_WUI_PORT (from its rendered compose.env next
+  #     to ours), so a worktree WUI can read the main checkout's hub
+  #   - LDE_WUI_EXTRA_ORIGINS, comma-separated http(s)://host:port (e.g. a
+  #     host `nuxi dev --port 3067`)
+  # A value change, never a new name; the hub re-reads it when do_wui_up (or
+  # do_setup_app_inf) re-applies the hub service.
+  _gde_cors "$tmp" || { rm -f "$tmp" "$tmp".*; return 1; }
   chmod 600 "$tmp" && mv -f "$tmp" "$LDE_HUB_ENV_FILE"
 
   umask 077
@@ -71,9 +73,35 @@ LDE_SMOKE_TENANT=$LDE_SMOKE_TENANT
 LDE_WUI_IMAGE=$LDE_WUI_IMAGE
 LDE_WUI_PORT=$LDE_WUI_PORT
 LDE_WUI_SRC=$LDE_WUI_SRC
+LDE_WUI_UID=$LDE_WUI_UID
+LDE_WUI_GID=$LDE_WUI_GID
 ENV
   do_log "INFO rendered $LDE_COMPOSE_ENV and $LDE_HUB_ENV_FILE ($(wc -l <"$LDE_HUB_ENV_FILE") hub vars) for tree $LDE_TREE_SLUG"
   do_log "INFO lde switches: auth_native=$LDE_AUTH_NATIVE auth_providers=${LDE_AUTH_PROVIDERS:-none} wui_dispatch=$LDE_WUI_DISPATCH"
+}
+
+# _gde_cors <hub.env> -- SPOOL_HUB_VIEW_CORS_ORIGINS = cnf origins + the WUI
+# origins in use (see do_gen_docker_env). Order kept, duplicates dropped.
+_gde_cors() {
+  local f="$1" cors o p sib extra=()
+  cors="$(sed -n 's/^SPOOL_HUB_VIEW_CORS_ORIGINS=//p' "$f")"
+  extra+=("http://localhost:$LDE_WUI_PORT")
+  for sib in "$(dirname "$LDE_STATE_DIR")"/*/compose.env; do
+    [[ -r "$sib" && "$sib" != "$LDE_COMPOSE_ENV" ]] || continue
+    p="$(sed -n 's/^LDE_WUI_PORT=\([0-9]\{1,5\}\)$/\1/p' "$sib")"
+    [[ -n "$p" ]] && extra+=("http://localhost:$p")
+  done
+  IFS=',' read -r -a o <<<"${LDE_WUI_EXTRA_ORIGINS:-}"
+  for p in "${o[@]}"; do
+    p="${p// /}"; [[ -z "$p" ]] && continue
+    [[ "$p" =~ ^https?://[a-z0-9.-]+(:[0-9]{1,5})?$ ]] ||
+      { do_log "FATAL LDE_WUI_EXTRA_ORIGINS entry '$p' must be http(s)://host[:port]"; return 1; }
+    extra+=("$p")
+  done
+  for o in "${extra[@]}"; do
+    [[ ",$cors," == *",$o,"* ]] || cors="${cors:+$cors,}$o"
+  done
+  _gde_set "$f" SPOOL_HUB_VIEW_CORS_ORIGINS "$cors"
 }
 
 # _gde_set <file> <KEY> <value> -- replace KEY's line, or append it.

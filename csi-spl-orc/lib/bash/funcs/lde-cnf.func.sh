@@ -61,7 +61,12 @@ do_lde_cnf() {
   LDE_WUI_PORT="${LDE_WUI_PORT:-$(_lde_get .env.lde.wui.host_port)}"
   # cnf lde.wui.image when cnf carries one; else the Node LTS the WUI engines allow
   LDE_WUI_IMAGE="${LDE_WUI_IMAGE:-$(_lde_get .env.lde.wui.image)}"
-  LDE_WUI_IMAGE="${LDE_WUI_IMAGE:-node:22-bookworm-slim}"
+  # else the host's Node major: the service runs the host tree's node_modules
+  if [[ -z "$LDE_WUI_IMAGE" ]]; then
+    local node_major
+    node_major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null)"
+    LDE_WUI_IMAGE="node:${node_major:-20}-bookworm-slim"
+  fi
   LDE_HUB_CONTAINER_PORT="$(_lde_get .env.hub.cloud_run.port)"
   LDE_SMOKE_TENANT="$(_lde_get .env.lde.smoke_tenant)"
   LDE_FILES_BUCKET="$(_lde_get .env.hub.env.SPOOL_HUB_FILES_BUCKET)"
@@ -72,6 +77,9 @@ do_lde_cnf() {
   LDE_HUB_ENV_FILE="$LDE_STATE_DIR/hub.env"
   LDE_DOCKER_DIR="$PROJ_PATH/src/docker"
   LDE_WUI_SRC="$APP_PATH/$LDE_ORG_APP-wui"
+  # the wui container runs as the owner of the WUI tree (never root)
+  LDE_WUI_UID="${LDE_WUI_UID:-$(stat -c %u "$LDE_WUI_SRC" 2>/dev/null)}"
+  LDE_WUI_GID="${LDE_WUI_GID:-$(stat -c %g "$LDE_WUI_SRC" 2>/dev/null)}"
   # opt-in switches (cnf env.lde.switches); the caller's env wins
   LDE_AUTH_NATIVE="$(_lde_bool LDE_AUTH_NATIVE "${LDE_AUTH_NATIVE:-$(_lde_get .env.lde.switches.auth_native)}")" || return 1
   LDE_WUI_DISPATCH="$(_lde_bool LDE_WUI_DISPATCH "${LDE_WUI_DISPATCH:-$(_lde_get .env.lde.switches.wui_dispatch)}")" || return 1
@@ -89,7 +97,7 @@ do_lde_cnf() {
   export LDE_ORG LDE_APP LDE_ORG_APP LDE_CNF_DIR LDE_TREE_SLUG LDE_STATE_DIR LDE_CNF LDE_COMPOSE_PROJECT \
     LDE_PG_IMAGE LDE_PG_PORT LDE_PG_DB LDE_PG_USER LDE_PG_PASSWORD LDE_GCS_IMAGE LDE_GCS_PORT LDE_HUB_PORT LDE_WUI_PORT \
     LDE_HUB_CONTAINER_PORT LDE_SMOKE_TENANT LDE_FILES_BUCKET LDE_MIGRATIONS_DIR LDE_SQL_SRC LDE_HUB_IMAGE LDE_COMPOSE_ENV \
-    LDE_HUB_ENV_FILE LDE_DOCKER_DIR LDE_WUI_IMAGE LDE_WUI_SRC LDE_AUTH_NATIVE LDE_WUI_DISPATCH LDE_AUTH_PROVIDERS
+    LDE_HUB_ENV_FILE LDE_DOCKER_DIR LDE_WUI_IMAGE LDE_WUI_SRC LDE_WUI_UID LDE_WUI_GID LDE_AUTH_NATIVE LDE_WUI_DISPATCH LDE_AUTH_PROVIDERS
 }
 
 # _lde_bool <name> <value> -- prints 1 or 0 for 1/0, true/false, yes/no, on/off

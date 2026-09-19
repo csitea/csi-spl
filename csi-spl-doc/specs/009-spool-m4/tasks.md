@@ -2,8 +2,8 @@
 
 **Spec**: `./spec.md` · **Ground rules**: `../README.md` (status vocabulary, seams §5)
 
-**Status**: T001, T003, T006, T007 **Implemented**; T002, T005 **Partial**;
-T004 **Planned** (2026-09-19). M4 starts only after M3 (`005`) ships and
+**Status**: T001-T007 **Implemented** in code (T002/T004/T005 by CLE-3405,
+2026-09-19; live once rdb 0016 is applied and the hub image carrying them rolls). M4 starts only after M3 (`005`) ships and
 M2 (`006` payment) sells; the schema and gate are in place with caps at
 `0` (= M4 off) until then:
 `grep -c 'seats_users\|project_id' csi-spl-rdb/src/sql/postgres/spool-hub/0012_m4_seats_buy_stamp.sql -> 8`.
@@ -23,17 +23,16 @@ M2 (`006` payment) sells; the schema and gate are in place with caps at
       (the card intent carries only amount/currency/metadata/automatic methods;
       the paid tenant has 0 seats, no project id, no bought_at). CONTROL:
       planting `line_items[0][quantity]` in the intent turns it red.
-- [ ] T002 Schema: seats per tenant (`HUM-*` and bot peers), monthly period,
-      cap from the plan (cnf) — FR-002. **Partial**: caps + occupancy counts
-      done (rdb 0012 `cc65587`, store `7f2442c`; applied dev + prd 2026-09-19,
-      `do_spl_db_bootstrap` → `applied 0012_m4_seats_buy_stamp.sql`). Missing:
-      the cnf per-plan cap the webhook writes (006 lane) and a per-seat period
-      table (D-4: period = 006 UTC month).
-      Check: `go test ./internal/store -run Seats` (+ `hub-pg.tst.sh` for Postgres).
-      Lane M4-SEATS-STORE scope: rdb `0012_m4_seats_buy_stamp.sql` adds
-      `tenants.seats_users` / `seats_bots` (`0` = M4 off, spec D-2); store
-      `CountMembers`, `CountBots`, `SetSeatCaps` on Memory + Postgres (D-1).
-      The cnf per-plan cap stays with the webhook (006 lane).
+- [x] T002 Schema: seats per tenant (`HUM-*` and bot peers), monthly period,
+      cap from the plan (cnf) — FR-002. **Implemented**: caps + occupancy
+      (rdb 0012 `cc65587`, store `7f2442c`, applied dev + prd); the plan's
+      seat prices in cnf `hub.env` (`SPOOL_HUB_PAYMENT_SEAT_USER_CENTS` /
+      `_SEAT_BOT_CENTS` / `_SEATS_MAX`, "0" = not sold); the monthly period
+      is rdb `0016_m4_seat_line_items.sql` `tenant_seat_periods` (one row per
+      tenant per UTC month, RLS as 0014), written by the paid transition in
+      the SAME transaction as the caps. Check:
+      `go test ./internal/store -run 'Seats|CheckoutPaidAppliesSeatLineItems|LineItemShape'`
+      (+ `hub-pg.tst.sh` for Postgres; `TestRLSCoversEveryTenantTable` lists the table).
 - [x] T003 Hub gate: a **new** seat over cap → `402`; existing seats keep
       working (reuse 006 `billing`) — FR-002. **Implemented** `7f2442c`.
       Check: `go test ./internal/store ./internal/hub -run 'Seat'` (controls:
@@ -42,14 +41,27 @@ M2 (`006` payment) sells; the schema and gate are in place with caps at
       Scope: `store.ErrSeatQuota` from `Admit` (new membership only) and
       `SetRoster` (replace math, D-3); hub `announce` → `error` `quota`/402,
       hello keeps old ∩ new (D-5); registrar → `not_allowed` (D-6).
-- [ ] T004 Seat line items on the copied csi-rel payment rails (006
-      `contracts/payment.md`) — FR-002. **Planned**.
-- [ ] T005 `project_id` stamp `{org}-{app}-{env}-{YYYYMMDDHHmm}` from the paid
-      webhook's UTC time, length check ≤ 30 — FR-003. **Partial**: mint +
-      `StampBuy` done `7f2442c`; the paid-webhook call is the 006 payment lane's.
-      Check: `go test ./internal/store -run SeatsBuyStamp`.
-      Scope: exported `store.MintProjectID` + `store.StampBuy` (D-8); the
-      paid webhook that calls them is the 006 payment lane's.
+- [x] T004 Seat line items on the copied csi-rel payment rails (006
+      `contracts/payment.md`) — FR-002. **Implemented**: `POST /api/v1/checkout`
+      takes `seats_users` / `seats_bots` (a priced kind 1..SEATS_MAX, an
+      unpriced kind 0 = unlimited; the M2 plan refuses seats `seats_not_sold`);
+      total = plan + seats; the card rail records the items as PaymentIntent
+      `metadata[<item>_qty|_unit_cents]` + description
+      (`payments.LineItemProvider`); the checkout row keeps them (0016); only
+      the verified paid webhook applies them. PayPal (off) charges the same
+      total without item detail. Check: `go test ./internal/payments -run 'M4|M2Sku'`
+      (CONTROLS: forged webhook → 400, no tenant, no period; replay →
+      `duplicate`, one period; a 4th bot on 3 paid seats → `ErrSeatQuota`;
+      mutation: dropping the cap write turns it red; T001 still green).
+- [x] T005 `project_id` stamp `{org}-{app}-{env}-{YYYYMMDDHHmm}` from the paid
+      webhook's UTC time, length check ≤ 30 — FR-003. **Implemented**: mint +
+      `StampBuy` `7f2442c`; the paid transition stamps a dedicated SKU
+      (`SPOOL_HUB_PAYMENT_DEDICATED`, checkout `org` / `app`) inside its
+      transaction (each candidate under a savepoint; `stampWith` = StampBuy's
+      order). Check: `go test ./internal/payments -run M4Dedicated` +
+      `./internal/store -run 'SeatsBuyStamp|CheckoutPaidAppliesSeatLineItems'`
+      (CONTROL: the minute held by another tenant → the next minute;
+      mutation: skipping the held check turns it red).
 - [x] T006 Persist `tenant_id`, `org`, `app`, `project_id`, `bought_at` as
       separate columns; slug ≠ project id ≠ `{org}-{app}` — FR-004.
       **Implemented** `cc65587` + `7f2442c`; data-model matches (`4585699`).
@@ -65,10 +77,10 @@ M2 (`006` payment) sells; the schema and gate are in place with caps at
 
 | FR | Tasks | Status |
 |---|---|---|
-| FR-001 | T001 | Planned |
-| FR-002 | T002, T003, T004 | Partial |
-| FR-003 | T005 | Partial |
+| FR-001 | T001 | Implemented |
+| FR-002 | T002, T003, T004 | Implemented |
+| FR-003 | T005 | Implemented |
 | FR-004 | T006 | Implemented |
 | FR-005 | T007 | Implemented |
 
-<!-- version: 0.3.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:10:00Z -->
+<!-- version: 0.4.0 · updated: 2026-09-19 · last-edit: 2026-09-19T16:25:00Z -->

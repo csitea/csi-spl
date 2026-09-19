@@ -188,6 +188,12 @@ func (h *Handler) plan(w http.ResponseWriter, _ *http.Request) {
 	if h.cfg.EnablePayPal {
 		out["paypal_client_id"] = strings.TrimSpace(h.cfg.PayPalClientID)
 	}
+	if h.cfg.SeatsSold() { // M4 only: the M2 plan names no seat (009 T001)
+		out["seat_user_cents"], out["seat_bot_cents"], out["seats_max"] = h.cfg.SeatUserCents, h.cfg.SeatBotCents, h.cfg.SeatsMax
+	}
+	if h.cfg.Dedicated {
+		out["dedicated"] = true
+	}
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -203,6 +209,48 @@ type checkoutReq struct {
 	TenantID string `json:"tenant_id"`
 	Email    string `json:"email"`
 	Method   string `json:"method"` // "" = card
+	// M4 (009 T004): seats bought per month, and a dedicated SKU's org/app.
+	SeatsUsers int    `json:"seats_users"`
+	SeatsBots  int    `json:"seats_bots"`
+	Org        string `json:"org"`
+	App        string `json:"app"`
+}
+
+// lineItems checks the M4 part of a checkout request against the plan and
+// returns its line items and total. The M2 SKU (no seat priced) accepts no
+// seats and yields no items (009 T001). A priced kind is bought 1..SeatsMax;
+// an unpriced kind must stay 0 (0 = unlimited, 009 D-2). "" = ok, else the
+// 400 error token.
+func (h *Handler) lineItems(req *checkoutReq) (items []LineItem, total int, bad string) {
+	total = h.cfg.PlanCents
+	if !h.cfg.SeatsSold() {
+		if req.SeatsUsers != 0 || req.SeatsBots != 0 {
+			return nil, 0, "seats_not_sold"
+		}
+	} else {
+		for _, k := range []struct {
+			name      string
+			qty, unit int
+		}{{"user_seat", req.SeatsUsers, h.cfg.SeatUserCents}, {"bot_seat", req.SeatsBots, h.cfg.SeatBotCents}} {
+			switch {
+			case k.unit == 0 && k.qty != 0, k.unit > 0 && (k.qty < 1 || k.qty > h.cfg.SeatsMax):
+				return nil, 0, "bad_seats"
+			case k.unit > 0:
+				items = append(items, LineItem{Name: k.name, Quantity: k.qty, UnitCents: k.unit})
+				total += k.qty * k.unit
+			}
+		}
+		items = append([]LineItem{{Name: "tenant", Quantity: 1, UnitCents: h.cfg.PlanCents}}, items...)
+	}
+	req.Org, req.App = strings.ToLower(strings.TrimSpace(req.Org)), strings.ToLower(strings.TrimSpace(req.App))
+	if h.cfg.Dedicated {
+		if _, err := store.MintProjectID(req.Org, req.App, h.cfg.Env, h.d.Now()); err != nil {
+			return nil, 0, "bad_org_app"
+		}
+	} else if req.Org != "" || req.App != "" {
+		return nil, 0, "bad_org_app"
+	}
+	return items, total, ""
 }
 
 func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
@@ -236,6 +284,11 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", "email is not an address")
 		return
 	}
+	items, total, bad := h.lineItems(&req)
+	if bad != "" {
+		writeErr(w, http.StatusBadRequest, bad, "seats / org / app do not fit this plan (GET "+RoutePrefix+"/plan)")
+		return
+	}
 	ctx := r.Context()
 	if _, err := h.d.Store.GetTenant(ctx, tid); err == nil {
 		writeErr(w, http.StatusConflict, "tenant_taken", "that tenant exists")
@@ -256,17 +309,26 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 	// Provider first: a failed provider call must not hold the slug. The
 	// checkout id is the provider's order reference / idempotency key.
 	out := map[string]any{"checkout_id": id, "claim_token": token, "method": method,
-		"amount_cents": h.cfg.PlanCents, "currency": h.cfg.Currency, "tenant_id": tid, "tenant_url": h.tenantURL(tid)}
+		"amount_cents": total, "currency": h.cfg.Currency, "tenant_id": tid, "tenant_url": h.tenantURL(tid)}
+	if len(items) > 0 {
+		out["line_items"] = items
+	}
 	var provider, ref string
 	var cancel func(context.Context, string) error
 	if method == MethodPayPal {
 		provider, cancel = ProviderPayPal, h.d.PayPal.CancelIntent
-		orderID, approve, perr := h.d.PayPal.CreateProviderOrder(ctx, id, h.cfg.PlanCents, h.cfg.Currency)
+		orderID, approve, perr := h.d.PayPal.CreateProviderOrder(ctx, id, total, h.cfg.Currency)
 		err, ref = perr, orderID
 		out["rail"], out["provider_order_id"], out["approve_url"] = MethodPayPal, orderID, approve
 	} else {
 		provider, cancel = h.cardProvider(), h.d.Card.CancelIntent
-		intentID, clientSecret, cerr := h.d.Card.CreateIntent(ctx, id, h.cfg.PlanCents, h.cfg.Currency)
+		var intentID, clientSecret string
+		var cerr error
+		if li, ok := h.d.Card.(LineItemProvider); ok && len(items) > 0 {
+			intentID, clientSecret, cerr = li.CreateIntentWithItems(ctx, id, total, h.cfg.Currency, items)
+		} else {
+			intentID, clientSecret, cerr = h.d.Card.CreateIntent(ctx, id, total, h.cfg.Currency)
+		}
 		err, ref = cerr, intentID
 		out["rail"] = h.cfg.Rail()
 		if h.cfg.Rail() == RailCard {
@@ -279,8 +341,8 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := store.Checkout{ID: id, TenantID: tid, PlanID: h.cfg.PlanID, Provider: provider, ProviderRef: ref,
-		AmountCents: h.cfg.PlanCents, Currency: h.cfg.Currency, Email: email, RootPubKey: pub,
-		ClaimHash: ClaimHash(token)}
+		AmountCents: total, Currency: h.cfg.Currency, Email: email, RootPubKey: pub,
+		ClaimHash: ClaimHash(token), SeatsUsers: req.SeatsUsers, SeatsBots: req.SeatsBots, Org: req.Org, App: req.App}
 	if err := h.d.Store.HoldCheckout(ctx, c, h.d.Now().UTC(), h.cfg.Hold); err != nil {
 		_ = cancel(context.WithoutCancel(ctx), ref)
 		if errors.Is(err, store.ErrConflict) {
@@ -423,7 +485,7 @@ func (h *Handler) fakePay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out, err := h.d.Store.ApplyPayment(ctx, store.PaymentEvent{Provider: ProviderFake, EventID: "fake-pay:" + c.ID,
-		CheckoutID: c.ID, Kind: store.PayEventPaid}, h.d.Now().UTC())
+		CheckoutID: c.ID, Kind: store.PayEventPaid, Env: h.cfg.Env}, h.d.Now().UTC())
 	if err != nil {
 		h.d.Log.Error().Err(err).Str("checkout_id", c.ID).Msg("fake-pay: apply")
 		writeErr(w, http.StatusInternalServerError, "internal", "paid not applied")
@@ -591,7 +653,7 @@ func (h *Handler) apply(w http.ResponseWriter, r *http.Request, provider, eventI
 		return
 	}
 	out, err := h.d.Store.ApplyPayment(ctx, store.PaymentEvent{Provider: provider, EventID: eventID,
-		CheckoutID: checkoutID, Kind: kind}, h.d.Now().UTC())
+		CheckoutID: checkoutID, Kind: kind, Env: h.cfg.Env}, h.d.Now().UTC())
 	if err != nil {
 		// Nothing committed: the provider's retry will be applied, not swallowed.
 		h.d.Log.Error().Err(err).Str("checkout_id", checkoutID).Msg("payment webhook: apply failed")

@@ -138,6 +138,13 @@ var nonce2 = func() (string, error) {
 	return string(b), nil
 }
 
+// PeriodStart is the first instant of t's UTC calendar month: the seat
+// period (009 D-4, the 006 billing month).
+func PeriodStart(t time.Time) time.Time {
+	u := t.UTC()
+	return time.Date(u.Year(), u.Month(), 1, 0, 0, 0, 0, time.UTC)
+}
+
 // StampBuy is what the paid webhook calls for a dedicated SKU (009 T005 +
 // T007, D-8): it mints the project id from boughtAt's UTC minute and writes
 // org, app, project_id and bought_at. A clash on project_id retries the next
@@ -145,13 +152,21 @@ var nonce2 = func() (string, error) {
 // suffix (-xx, still <= 30). bought_at stays the real buy time. A duplicate
 // DNS slug is the tenant create's 409 (ErrConflict), not this.
 func StampBuy(ctx context.Context, st Seats, tenantID, org, app, env string, boughtAt time.Time) (string, error) {
+	return stampWith(func(id string) error { return st.SetBuyStamp(ctx, tenantID, org, app, id, boughtAt) },
+		org, app, env, boughtAt)
+}
+
+// stampWith is StampBuy's candidate order over any setter that answers
+// ErrConflict on a held project_id (the store's paid transition uses it
+// inside its own transaction).
+func stampWith(set func(projectID string) error, org, app, env string, boughtAt time.Time) (string, error) {
 	var last error
 	for i := 0; i <= StampRetryMinutes; i++ {
 		id, err := MintProjectID(org, app, env, boughtAt.Add(time.Duration(i)*time.Minute))
 		if err != nil {
 			return "", err
 		}
-		last = st.SetBuyStamp(ctx, tenantID, org, app, id, boughtAt)
+		last = set(id)
 		if last == nil {
 			return id, nil
 		}
@@ -166,7 +181,7 @@ func StampBuy(ctx context.Context, st Seats, tenantID, org, app, env string, bou
 			return "", err
 		}
 		id := base + "-" + n
-		last = st.SetBuyStamp(ctx, tenantID, org, app, id, boughtAt)
+		last = set(id)
 		if last == nil {
 			return id, nil
 		}

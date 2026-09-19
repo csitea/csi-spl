@@ -72,6 +72,26 @@ type Checkout struct {
 	CreatedAt     time.Time
 	PaidAt        time.Time // zero = NULL
 	ClaimedAt     time.Time // zero = NULL
+	// M4 line items (009 T004, rdb 0016): seats bought (0 = none; the M2 SKU
+	// always carries 0) and, for a dedicated SKU, the buyer's org / app codes
+	// ("" = hosted: no project_id is minted). The paid transition writes the
+	// seat caps, the monthly period and the project stamp from these.
+	SeatsUsers int
+	SeatsBots  int
+	Org        string
+	App        string
+}
+
+// SeatPeriod is one tenant_seat_periods row: the seats paid for one UTC
+// calendar month (009 T002, D-4).
+type SeatPeriod struct {
+	TenantID    string
+	PeriodStart time.Time // first day of the UTC month, 00:00 UTC
+	SeatsUsers  int
+	SeatsBots   int
+	CheckoutID  string
+	AmountCents int
+	PaidAt      time.Time
 }
 
 // PaymentEvent is one verified provider (or fake-pay) event.
@@ -80,6 +100,9 @@ type PaymentEvent struct {
 	EventID    string // dedup key within Provider
 	CheckoutID string
 	Kind       string // PayEvent*
+	// Env is the hub env (lde | dev | prd): the {env} of a dedicated SKU's
+	// project_id, minted at this event's UTC minute (009 T005).
+	Env string
 }
 
 // Payments is the checkout persistence contract.
@@ -96,6 +119,9 @@ type Payments interface {
 	// ApplyPayment records (Provider, EventID) and applies the event in ONE
 	// transaction: a duplicate changes nothing, and a failed apply leaves no
 	// dedup row, so the provider's retry is not swallowed.
+	// A paid event also applies the checkout's M4 line items in that same
+	// transaction (applySeats): the seat caps, the month's seat period and,
+	// for a dedicated SKU, the project_id stamp at now's UTC minute.
 	ApplyPayment(ctx context.Context, ev PaymentEvent, now time.Time) (outcome string, err error)
 	// SetClaimLink stores the emailed claim token's hash and the claim expiry
 	// (set once, when the checkout is paid). ErrNotFound for an unknown id.
@@ -107,6 +133,8 @@ type Payments interface {
 	// pending, ErrClaimed after the first claim, ErrClaimExpired past the TTL,
 	// ErrConflict when the tenant no longer carries the placeholder.
 	ClaimCheckout(ctx context.Context, id string, claimHash []byte, now time.Time, newPub ed25519.PublicKey) (Checkout, error)
+	// SeatPeriods lists the tenant's paid seat months, oldest first.
+	SeatPeriods(ctx context.Context, tenantID string) ([]SeatPeriod, error)
 }
 
 func errUnknownPayEvent(kind string) error {
@@ -129,5 +157,11 @@ func normalizeCheckout(c *Checkout) error {
 	if c.PlanID == "" {
 		c.PlanID = "default"
 	}
-	return nil
+	if err := checkSeatCaps(c.SeatsUsers, c.SeatsBots); err != nil {
+		return err
+	}
+	if (c.Org == "") != (c.App == "") {
+		return errors.New("checkout org and app come together (dedicated SKU) or not at all")
+	}
+	return checkBuyStamp(c.Org, c.App, "")
 }

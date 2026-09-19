@@ -42,10 +42,12 @@ func (s *Postgres) HoldCheckout(ctx context.Context, c Checkout, now time.Time, 
 			return err
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO payment_checkouts (intent_id, tenant_id, plan_id, provider, provider_ref,
-				amount_cents, currency, status, email, root_pubkey, claim_hash, created_at)
-			VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, 'pending', $8, $9, $10, $11)`,
+				amount_cents, currency, status, email, root_pubkey, claim_hash, created_at,
+				seats_users, seats_bots, org, app)
+			VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, 'pending', $8, $9, $10, $11,
+				$12, $13, NULLIF($14, ''), NULLIF($15, ''))`,
 			c.ID, c.TenantID, c.PlanID, c.Provider, c.ProviderRef, c.AmountCents, c.Currency, c.Email,
-			[]byte(c.RootPubKey), c.ClaimHash, now)
+			[]byte(c.RootPubKey), c.ClaimHash, now, c.SeatsUsers, c.SeatsBots, c.Org, c.App)
 		if isUniqueViolation(err) {
 			return ErrConflict
 		}
@@ -54,14 +56,16 @@ func (s *Postgres) HoldCheckout(ctx context.Context, c Checkout, now time.Time, 
 }
 
 const pgCheckoutCols = `intent_id, tenant_id, plan_id, provider, COALESCE(provider_ref, ''), amount_cents, currency,
-	status, COALESCE(email, ''), root_pubkey, claim_hash, mail_claim_hash, claim_expires_at, created_at, paid_at, claimed_at`
+	status, COALESCE(email, ''), root_pubkey, claim_hash, mail_claim_hash, claim_expires_at, created_at, paid_at, claimed_at,
+	seats_users, seats_bots, COALESCE(org, ''), COALESCE(app, '')`
 
 func scanCheckout(row pgx.Row) (Checkout, error) {
 	var c Checkout
 	var root []byte
 	var paid, claimed, expires *time.Time
 	err := row.Scan(&c.ID, &c.TenantID, &c.PlanID, &c.Provider, &c.ProviderRef, &c.AmountCents, &c.Currency,
-		&c.Status, &c.Email, &root, &c.ClaimHash, &c.MailClaimHash, &expires, &c.CreatedAt, &paid, &claimed)
+		&c.Status, &c.Email, &root, &c.ClaimHash, &c.MailClaimHash, &expires, &c.CreatedAt, &paid, &claimed,
+		&c.SeatsUsers, &c.SeatsBots, &c.Org, &c.App)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Checkout{}, ErrNotFound
 	}
@@ -160,6 +164,9 @@ func (s *Postgres) ApplyPayment(ctx context.Context, ev PaymentEvent, now time.T
 				WHERE intent_id = $1`, c.ID, now); err != nil {
 				return err
 			}
+			if err := applySeatsTx(ctx, tx, c, ev.Env, now); err != nil {
+				return err
+			}
 			outcome = PayOutcomePaid
 		case PayEventFailed:
 			if _, err := tx.Exec(ctx, `UPDATE payment_checkouts SET status = 'failed'
@@ -242,6 +249,69 @@ func (s *Postgres) ClaimCheckout(ctx context.Context, id string, claimHash []byt
 		c.RootPubKey, c.ClaimedAt, c.ClaimHash, c.MailClaimHash = newPub, now, nil, nil
 		out = c
 		return nil
+	})
+	return out, err
+}
+
+// applySeatsTx is the Postgres side of the paid transition's M4 line items
+// (009 T002/T004/T005), inside ApplyPayment's operator transaction: the
+// project_id stamp for a dedicated SKU whose tenant has none (each candidate
+// under a savepoint, so a unique clash rolls back only that attempt), then
+// the caps and the month's seat period when the checkout bought seats.
+func applySeatsTx(ctx context.Context, tx pgx.Tx, c Checkout, env string, now time.Time) error {
+	if c.Org != "" {
+		if _, err := stampWith(func(id string) error {
+			sp, err := tx.Begin(ctx)
+			if err != nil {
+				return err
+			}
+			_, err = sp.Exec(ctx, `UPDATE tenants SET org = $2, app = $3, project_id = $4, bought_at = $5
+				WHERE tenant_id = $1 AND project_id IS NULL`, c.TenantID, c.Org, c.App, id, now.UTC())
+			if err != nil {
+				_ = sp.Rollback(ctx)
+				if isUniqueViolation(err) {
+					return ErrConflict
+				}
+				return err
+			}
+			return sp.Commit(ctx)
+		}, c.Org, c.App, env, now); err != nil {
+			return err
+		}
+	}
+	if c.SeatsUsers == 0 && c.SeatsBots == 0 {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `UPDATE tenants SET seats_users = $2, seats_bots = $3 WHERE tenant_id = $1`,
+		c.TenantID, c.SeatsUsers, c.SeatsBots); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO tenant_seat_periods (tenant_id, period_start, seats_users, seats_bots,
+			checkout_id, amount_cents, paid_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT (tenant_id, period_start) DO UPDATE SET
+			seats_users = GREATEST(tenant_seat_periods.seats_users, EXCLUDED.seats_users),
+			seats_bots = GREATEST(tenant_seat_periods.seats_bots, EXCLUDED.seats_bots),
+			checkout_id = EXCLUDED.checkout_id, amount_cents = EXCLUDED.amount_cents, paid_at = EXCLUDED.paid_at`,
+		c.TenantID, PeriodStart(now), c.SeatsUsers, c.SeatsBots, c.ID, c.AmountCents, now.UTC())
+	return err
+}
+
+func (s *Postgres) SeatPeriods(ctx context.Context, tenant string) ([]SeatPeriod, error) {
+	var out []SeatPeriod
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `SELECT tenant_id, period_start, seats_users, seats_bots, checkout_id,
+			amount_cents, paid_at FROM tenant_seat_periods WHERE tenant_id = $1 ORDER BY period_start`, tenant)
+		if err != nil {
+			return err
+		}
+		out, err = pgx.CollectRows(rows, func(r pgx.CollectableRow) (SeatPeriod, error) {
+			var p SeatPeriod
+			err := r.Scan(&p.TenantID, &p.PeriodStart, &p.SeatsUsers, &p.SeatsBots, &p.CheckoutID, &p.AmountCents, &p.PaidAt)
+			p.PeriodStart = p.PeriodStart.UTC()
+			return p, err
+		})
+		return err
 	})
 	return out, err
 }

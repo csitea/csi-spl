@@ -178,6 +178,26 @@ The token rides in the URL **fragment**, so it never reaches a server or proxy
 log. The WUI claim page reads the fragment, clears it from the address bar
 (`history.replaceState`), and calls §1.4 once.
 
+### 1.9 M4 seats and the dedicated SKU (009 T002/T004/T005; additive, 1.3)
+
+Only when cnf prices a seat kind (`SPOOL_HUB_PAYMENT_SEAT_USER_CENTS` /
+`_SEAT_BOT_CENTS` > 0); the M2 plan is unchanged and names no seat (009 T001).
+
+- `GET /plan` adds `seat_user_cents`, `seat_bot_cents`, `seats_max`, and
+  `dedicated: true` when `SPOOL_HUB_PAYMENT_DEDICATED`.
+- `POST /checkout` takes `seats_users`, `seats_bots` (per month): a priced
+  kind 1..`seats_max`, an unpriced kind 0 (= unlimited). A dedicated plan
+  also takes `org` + `app` (3-letter codes). Errors (400): `seats_not_sold`
+  (seats on a plan that sells none), `bad_seats`, `bad_org_app`.
+- The answer's `amount_cents` = plan + seats; `line_items`
+  `[{name: tenant|user_seat|bot_seat, quantity, unit_cents}]` appears only
+  with seats. The card rail carries the items as PaymentIntent metadata +
+  description.
+- The verified paid webhook applies them in the tenant's transaction: caps
+  `tenants.seats_users/_bots`, the UTC month's `tenant_seat_periods` row
+  (rdb 0016) and, dedicated, `project_id` = `{org}-{app}-{env}-{YYYYMMDDHHmm}`
+  at the paid minute (a clash → the next minute, then a nonce).
+
 ## 2. Success page flow (WUI)
 
 1. Plan page: `GET …/plan` → price; slug + email form → `POST …/checkout`.
@@ -212,4 +232,4 @@ log. The WUI claim page reads the fragment, clears it from the address bar
 | `SPOOL_HUB_PAYPAL_CLIENT_ID` / `_MODE` / `_API_BASE` / `_WEBHOOK_ID` | PayPal (sandbox) |
 | `SPOOL_HUB_PAYPAL_CLIENT_SECRET` | **secret** (slot `csi-spl-hub-paypal-client-secret`) |
 
-<!-- version: 1.2.0 · updated: 2026-09-19 (017 T008 / SEC-03: key minted at claim, never emailed; claim link §1.8) -->
+<!-- version: 1.3.0 · updated: 2026-09-19 (§1.9 M4 seats + dedicated SKU, additive) -->

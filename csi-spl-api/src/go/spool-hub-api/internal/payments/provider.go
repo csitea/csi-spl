@@ -25,6 +25,21 @@ type ProviderOrderProvider interface {
 	CaptureProviderOrder(ctx context.Context, providerOrderID, requestID string) (captureID, payerID string, err error)
 }
 
+// LineItem is one priced line of a checkout (009 T004): the rails charge one
+// total, and the items travel alongside it as the provider's order detail.
+type LineItem struct {
+	Name      string `json:"name"` // "tenant", "user_seat", "bot_seat"
+	Quantity  int    `json:"quantity"`
+	UnitCents int    `json:"unit_cents"`
+}
+
+// LineItemProvider is a rail that records the line items on the payment
+// (the card rail: PaymentIntent metadata + description). A rail without it
+// charges the same total without the detail.
+type LineItemProvider interface {
+	CreateIntentWithItems(ctx context.Context, orderID string, totalCents int, currency string, items []LineItem) (intentID, clientSecret string, err error)
+}
+
 // ErrSigBad covers every webhook-verification failure; the handler answers
 // 400 with no detail so nobody can iterate on the reason (csi-rel webhooks).
 var ErrSigBad = errors.New("webhook: signature verification failed")

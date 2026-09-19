@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v10"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // SPOOL_HUB_PAYMENT_PROVIDER values: the primary (card) rail.
@@ -58,6 +60,17 @@ type Config struct {
 	// (017 T008): <ClaimURL>#checkout=<id>&token=<t>. Required with a rail.
 	ClaimURL string        `env:"SPOOL_HUB_PAYMENT_CLAIM_URL"`
 	ClaimTTL time.Duration `env:"SPOOL_HUB_PAYMENT_CLAIM_TTL" envDefault:"24h"`
+
+	// M4 seats (specs/009 T004): the monthly price of one user (HUM-*) seat
+	// and one bot seat, on top of PlanCents. Both 0 = seats are not sold (the
+	// M2 SKU, 009 FR-001). A priced kind is bought 1..SeatsMax per checkout;
+	// an unpriced kind stays 0 (= unlimited, 009 D-2).
+	SeatUserCents int `env:"SPOOL_HUB_PAYMENT_SEAT_USER_CENTS" envDefault:"0"`
+	SeatBotCents  int `env:"SPOOL_HUB_PAYMENT_SEAT_BOT_CENTS" envDefault:"0"`
+	SeatsMax      int `env:"SPOOL_HUB_PAYMENT_SEATS_MAX" envDefault:"1000"`
+	// Dedicated: this SKU mints a GCP project id at the paid event (009
+	// T005): checkout then takes the buyer's org / app codes.
+	Dedicated bool `env:"SPOOL_HUB_PAYMENT_DEDICATED" envDefault:"false"`
 
 	// Stripe (csi-rel STRIPE_*). SecretKey + WebhookSecret are secrets.
 	StripeSecretKey      string `env:"SPOOL_HUB_STRIPE_SECRET_KEY"`
@@ -146,6 +159,14 @@ func (c *Config) validate() error {
 	if c.PlanCents == 0 && (c.Provider == ProviderStripe || c.EnablePayPal) {
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_PLAN_CENTS must be > 0 for a real payment rail")
 	}
+	if c.SeatUserCents < 0 || c.SeatBotCents < 0 || c.SeatsMax < 1 {
+		return fmt.Errorf("SPOOL_HUB_PAYMENT_SEAT_*_CENTS must be >= 0 and SPOOL_HUB_PAYMENT_SEATS_MAX >= 1")
+	}
+	if c.Dedicated {
+		if _, err := store.MintProjectID("abc", "abc", c.Env, time.Time{}); err != nil {
+			return fmt.Errorf("SPOOL_HUB_PAYMENT_DEDICATED=true needs a hub env usable in a project id: %w", err)
+		}
+	}
 	if len(c.Currency) != 3 {
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_CURRENCY %q must be a 3-letter code", c.Currency)
 	}
@@ -231,6 +252,9 @@ func (c *Config) Methods() []string {
 	}
 	return m
 }
+
+// SeatsSold reports whether checkout sells M4 seats (a seat kind is priced).
+func (c *Config) SeatsSold() bool { return c.SeatUserCents > 0 || c.SeatBotCents > 0 }
 
 // FakePayMounted reports whether POST /api/v1/checkout/fake-pay exists.
 func (c *Config) FakePayMounted() bool { return c.Rail() == RailFake && fakeEnv(c.Env) }

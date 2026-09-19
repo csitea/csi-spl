@@ -78,10 +78,32 @@ func (s *StripePayments) CreateIntent(ctx context.Context, orderID string, total
 // Stripe payment_method_types (csi-rel 050). Empty methodTypes keeps
 // automatic_payment_methods (cards + the Apple Pay / Google Pay wallets).
 func (s *StripePayments) CreateIntentWithMethods(ctx context.Context, orderID string, totalCents int, currency string, methodTypes []string) (intentID, clientSecret string, err error) {
+	return s.createIntent(ctx, orderID, totalCents, currency, methodTypes, nil)
+}
+
+// CreateIntentWithItems is CreateIntent carrying the M4 line items (009
+// T004): a PaymentIntent has no line items of its own, so each item goes into
+// metadata[<name>_qty] / metadata[<name>_unit_cents] and one readable
+// description, which the dashboard and the receipt show. No items = exactly
+// CreateIntent (the M2 SKU, 009 T001).
+func (s *StripePayments) CreateIntentWithItems(ctx context.Context, orderID string, totalCents int, currency string, items []LineItem) (intentID, clientSecret string, err error) {
+	return s.createIntent(ctx, orderID, totalCents, currency, nil, items)
+}
+
+func (s *StripePayments) createIntent(ctx context.Context, orderID string, totalCents int, currency string, methodTypes []string, items []LineItem) (intentID, clientSecret string, err error) {
 	form := url.Values{}
 	form.Set("amount", fmt.Sprintf("%d", totalCents))
 	form.Set("currency", strings.ToLower(strings.TrimSpace(currency)))
 	form.Set("metadata[order_id]", orderID)
+	if len(items) > 0 {
+		desc := make([]string, 0, len(items))
+		for _, it := range items {
+			form.Set("metadata["+it.Name+"_qty]", fmt.Sprintf("%d", it.Quantity))
+			form.Set("metadata["+it.Name+"_unit_cents]", fmt.Sprintf("%d", it.UnitCents))
+			desc = append(desc, fmt.Sprintf("%d x %s", it.Quantity, it.Name))
+		}
+		form.Set("description", "spool hub: "+strings.Join(desc, ", ")+" (monthly)")
+	}
 	if len(methodTypes) == 0 {
 		// automatic_payment_methods lets Elements / Payment Element confirm later.
 		form.Set("automatic_payment_methods[enabled]", "true")

@@ -194,5 +194,8 @@ type Store interface {
 	// M4 seat caps, occupancy counts and the buy stamp (seats.go, 009).
 	Seats
 
+	// Per-tenant host provisioning status (tenant_hosts.go, rdb 0015).
+	TenantHosts
+
 	Close()
 }

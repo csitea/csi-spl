@@ -68,6 +68,7 @@ func rlsTenant(t *testing.T, pg *Postgres) (tenant, msgID string) {
 var rlsTables = []string{
 	"tenants", "boxes", "pins", "pins_history", "roster", "messages", "deliveries",
 	"channels", "channel_subscriptions", "tenant_memberships", "tenant_invites", "payment_checkouts",
+	"tenant_hosts",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must

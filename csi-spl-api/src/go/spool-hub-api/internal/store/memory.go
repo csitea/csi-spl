@@ -24,9 +24,10 @@ type Memory struct {
 	messages   map[[2]string]*Message
 	deliveries map[[3]string]*memDelivery
 	seq        int
-	hum        memHumans   // humans_memory.go, guarded by mu
-	ch         memChannels // channels_memory.go, guarded by mu
-	pay        memPayments // payments_memory.go, guarded by mu
+	hum        memHumans             // humans_memory.go, guarded by mu
+	ch         memChannels           // channels_memory.go, guarded by mu
+	pay        memPayments           // payments_memory.go, guarded by mu
+	hosts      map[string]TenantHost // tenant_hosts.go, guarded by mu
 }
 
 type memPin struct {

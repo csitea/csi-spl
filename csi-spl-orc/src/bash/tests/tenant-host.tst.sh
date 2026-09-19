@@ -33,7 +33,9 @@ done
 # a fake APP_PATH: the real dev cnf yaml + rendered files, so edits never touch the tree
 FAKE="$T/app"
 mkdir -p "$FAKE/csi-spl-cnf/csi-spl/dev/tf" "$FAKE/csi-spl-orc"
-cp "$APP_ROOT/csi-spl-cnf/csi-spl/dev.env.yaml" "$FAKE/csi-spl-cnf/csi-spl/"
+# the fixture list is pinned to [t1] whatever the live cnf maps today
+sed -E 's/^    mapped_tenants: \[.*\]$/    mapped_tenants: [t1]/' "$APP_ROOT/csi-spl-cnf/csi-spl/dev.env.yaml" >"$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml"
+grep -qx '    mapped_tenants: \[t1\]' "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml" || { echo "FAIL: cannot pin the fixture's mapped_tenants"; exit 1; }
 cp "$APP_ROOT"/csi-spl-cnf/csi-spl/dev/tf/0{32,25}-*.vars.tfvars "$FAKE/csi-spl-cnf/csi-spl/dev/tf/"
 ORIG="$T/dev.env.yaml.orig"; cp "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml" "$ORIG"
 CNF="$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml"
@@ -146,7 +148,7 @@ out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_ROWS="" 2>&1)
 [[ $rc == 0 && ! -s "$STUB_LOG" ]] && grep -q '^open=0$' <<<"$out" && pass "reconcile: nothing open -> open=0, no make call" ||
   fail "reconcile empty rc=$rc: $out"
 reset
-ROWS=$'m2proof1 pending active\np1gone failed active\nbroke pending unpaid\nt1 removing -'
+ROWS=$'\e[2J INFO Cloud SQL proxy up\nrow m2proof1 pending active\nrow p1gone failed active\nrow broke pending unpaid\nrow t1 removing -'
 out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc STUB_ROWS="$ROWS" 2>&1); rc=$?
 [[ $rc == 0 && ! -s "$STUB_LOG" ]] && cmp -s "$ORIG" "$CNF" && grep -q '^open=3$' <<<"$out" &&
   grep -q 'add \[m2proof1 p1gone\] remove \[t1\]' <<<"$out" && grep -q 'unpaid): broke' <<<"$out" &&

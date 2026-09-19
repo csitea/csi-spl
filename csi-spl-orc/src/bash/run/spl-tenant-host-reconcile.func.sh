@@ -36,9 +36,11 @@ do_spl_tenant_host_reconcile() {
   local rows
   rows="$(spl_via_proxy _spl_th_open_rows)" || { do_log "FATAL cannot read tenant_hosts in $ENV"; return 1; }
   local -a add=() del=() held=()
-  local t st bill
-  while read -r t st bill; do
-    [[ -z "$t" ]] && continue
+  local tag t st bill
+  # only `row <tenant> <status> <billing>` lines: the proxy start logs to
+  # stdout too, and a log line must never read as a tenant
+  while read -r tag t st bill; do
+    [[ "$tag" == row && -n "$t" ]] || continue
     spl_th_valid_slug "$t" 2>/dev/null || { do_log "WARN skipping invalid tenant id '$t'"; continue; }
     if [[ "$st" == removing ]]; then del+=("$t")
     elif [[ "$bill" == unpaid ]]; then held+=("$t")
@@ -84,7 +86,7 @@ _spl_th_open_rows() {
     psql -X -q -At -F ' ' -v ON_ERROR_STOP=1 <<'SQL'
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL app.rls_scope = 'operator';
-SELECT h.tenant_id, h.status, coalesce(t.billing_status, '-')
+SELECT 'row', h.tenant_id, h.status, coalesce(t.billing_status, '-')
   FROM tenant_hosts h LEFT JOIN tenants t USING (tenant_id)
  WHERE h.status IN ('pending', 'failed', 'removing')
  ORDER BY h.requested_at, h.tenant_id;

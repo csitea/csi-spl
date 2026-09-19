@@ -1,6 +1,6 @@
 # Feature Specification: Spool WUI dispatch — the box-wui key and cross-box commands from a browser
 
-**Feature ID**: `014-spool-wui-dispatch` · **Milestone**: M3 · **Status**: Partial (see `./tasks.md`)
+**Feature ID**: `014-spool-wui-dispatch` · **Milestone**: M3 · **Status**: Partial — code Implemented (`9f4f0b9`), deploy + cnf handoffs open (see `./tasks.md`)
 **Created**: 2026-09-19 · **Lane**: DISPATCH (CLE-3349)
 **Narrative**: `../../doc/md/SPEC-spool-wui.md` lines 101-102 (the hub signs a
 signed-in human's send with a server-side `box-wui` key; pinned boxes
@@ -124,8 +124,9 @@ the operator re-pins `box-wui` with `force` (contract §2.3).
   maps from the session's human id per process (010 ids such as
   `HUM-google-sub-1@t1` are not v:1 agent ids). (a) **Recommended**: once
   HUMANS lands a durable v:1 human id (rdb 0006, 010 T012) use it and drop
-  the per-process map; (b) keep the map. Until then a `HUM-<n>` is stable only
-  for the life of one hub process.
+  the per-process map; (b) keep the map. HUMANS landed the store-backed
+  Registrar (`a74640b`): its `HUM-<n>` ids are v:1 ids and are used as-is; the
+  per-process map now only covers a session id that is not a v:1 id.
 - **OQ-014-4** Who may command whom: (a) **recommended, implemented**: any
   member of the tenant may task any agent of that tenant (tenant scope only,
   never cross-tenant); (b) a per-agent allow-list.
@@ -141,4 +142,4 @@ the operator re-pins `box-wui` with `force` (contract §2.3).
 - rdb migration 0007 (reserved for this lane): not needed — the restricted
   role keys off the reserved box id, and no new table is written.
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:10:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:05:00Z -->

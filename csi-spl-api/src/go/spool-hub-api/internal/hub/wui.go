@@ -336,7 +336,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	var env *wire.Envelope
 	if agent != "" {
 		var err error
-		if env, err = s.dispatchEnvelope(box, pin, m); err != nil {
+		if env, err = s.dispatchEnvelope(box, "", "", pin, m); err != nil {
 			s.o.Log.Error().Err(err).Str("msg_id", id).Msg("wui dispatch sign")
 			fail("wui_unpinned", http.StatusConflict, "the box-wui signature does not verify against this tenant's pin")
 			return

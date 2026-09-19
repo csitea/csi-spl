@@ -115,10 +115,11 @@ func (s *Server) dispatchCheck(ctx context.Context, c *wuiConn, m *msg.Message) 
 	return box, pin, "", 0, ""
 }
 
-// dispatchEnvelope signs m for box and verifies the result against the
-// tenant's box-wui pin with the exact check a receiving box runs.
-func (s *Server) dispatchEnvelope(box string, pin ed25519.PublicKey, m *msg.Message) (*wire.Envelope, error) {
-	env, err := wire.NewEnvelope(s.o.WUIKey, WUIBox, box, m)
+// dispatchEnvelope signs m for box (with the send's channel / parent tags,
+// "" = none) and verifies the result against the tenant's box-wui pin with
+// the exact check a receiving box runs.
+func (s *Server) dispatchEnvelope(box, channel, parentTaskID string, pin ed25519.PublicKey, m *msg.Message) (*wire.Envelope, error) {
+	env, err := wire.NewEnvelopeIn(s.o.WUIKey, WUIBox, box, channel, parentTaskID, m)
 	if err != nil {
 		return nil, err
 	}

@@ -50,7 +50,7 @@ for s in 020-gcp-relay-bucket 040-cloud-sql-postgres; do
       020-*) sa="$(get relay_sa_account_id)@$project.iam.gserviceaccount.com"; b=$(get relay_bucket_name)
              want=$'google_storage_bucket.relay\t'"$project/$b"$'\ngoogle_service_account.relay\tprojects/'"$project/serviceAccounts/$sa"$'\ngoogle_storage_bucket_iam_member.relay_object_user\tb/'"$b roles/storage.objectUser serviceAccount:$sa" ;;
       040-*) i=$(get instance_name)
-             want=$'google_sql_database_instance.hub\tprojects/'"$project/instances/$i"$'\ngoogle_sql_database.spool\tprojects/'"$project/instances/$i/databases/$(get database_name)"$'\ngoogle_secret_manager_secret.hub_db_dsn\tprojects/'"$project/secrets/$(get dsn_secret_id)" ;;
+             want=$'google_sql_database_instance.hub\tprojects/'"$project/instances/$i"$'\ngoogle_sql_database.spool\tprojects/'"$project/instances/$i/databases/$(get database_name)"$'\ngoogle_secret_manager_secret.hub_db_dsn\tprojects/'"$project/secrets/$(get dsn_secret_id)"$'\ngoogle_secret_manager_secret.hub_db_owner_dsn\tprojects/'"$project/secrets/$(get owner_dsn_secret_id)" ;;
     esac
     [[ "$tbl" == "$want" ]] && pass "$s $e: ids from tfvars" || fail "$s $e: ids: $tbl"
   done
@@ -115,8 +115,9 @@ out=$(run_action ENV=dev STEP=040-cloud-sql-postgres RUNNING=other-con); rc=$?
 for s in 020-gcp-relay-bucket 040-cloud-sql-postgres; do
   for e in dev prd; do
     out=$(run_action ENV=$e STEP=$s); rc=$?
-    [[ $rc -eq 0 && "$out" == *"imported=3 skipped=0 failed=0"* ]] && pass "$s $e: 3 imported" || fail "$s $e: rc=$rc $(tail -3 <<<"$out")"
-    [[ $(command grep -c . "$T/docker.log") -eq 4 ]] && pass "$s $e: 1 state list + 3 imports" || fail "$s $e: calls: $(cat "$T/docker.log")"
+    n=3; [[ $s == 040-* ]] && n=4 # 040: + the 017 T029 owner DSN slot
+    [[ $rc -eq 0 && "$out" == *"imported=$n skipped=0 failed=0"* ]] && pass "$s $e: $n imported" || fail "$s $e: rc=$rc $(tail -3 <<<"$out")"
+    [[ $(command grep -c . "$T/docker.log") -eq $((n + 1)) ]] && pass "$s $e: 1 state list + $n imports" || fail "$s $e: calls: $(cat "$T/docker.log")"
     command grep -v "^EXEC $CON ./run -a do_tf_\(state_list\|import\) | ORG=csi APP=spl ENV=$e STEP=$s " "$T/docker.log" | command grep -q . \
       && fail "$s $e: an exec outside the contract: $(cat "$T/docker.log")" || pass "$s $e: every exec = tf-runner, state_list|import, ORG/APP/ENV/STEP"
     command grep -qE 'apply|destroy|taint|state_(rm|push|remove)' "$T/docker.log" && fail "$s $e: mutating action" || pass "$s $e: no apply/destroy"
@@ -128,7 +129,7 @@ command grep -qF "TARGET=google_sql_database.spool ID=projects/csi-spl-prd/insta
 # 7.
 printf '%s\n' google_sql_database_instance.hub google_sql_database.spool >"$T/state.txt"
 out=$(run_action ENV=dev STEP=040-cloud-sql-postgres STATE_FIXTURE="$T/state.txt")
-[[ "$out" == *"imported=1 skipped=2 failed=0"* ]] && pass "in-state addresses skipped" || fail "skip: $(tail -3 <<<"$out")"
+[[ "$out" == *"imported=2 skipped=2 failed=0"* ]] && pass "in-state addresses skipped" || fail "skip: $(tail -3 <<<"$out")"
 command grep -q 'TARGET=google_sql_database_instance.hub' "$T/docker.log" && fail "in-state instance re-imported" || pass "in-state instance not re-imported"
 
 # 8.
@@ -138,7 +139,7 @@ out=$(run_action ENV=dev STEP=020-gcp-relay-bucket FAIL_ADDRS="google_storage_bu
 
 # 9.
 out=$(run_action ENV=prd STEP=040-cloud-sql-postgres DRY_RUN=1 STATE_FIXTURE="$T/state.txt"); rc=$?
-[[ $rc -eq 0 && "$out" == *"planned=1"* && $(command grep -c do_tf_import "$T/docker.log") -eq 0 ]] \
+[[ $rc -eq 0 && "$out" == *"planned=2"* && $(command grep -c do_tf_import "$T/docker.log") -eq 0 ]] \
   && pass "DRY_RUN=1 imports nothing" || fail "dry run: $(cat "$T/docker.log")"
 
 # 10.

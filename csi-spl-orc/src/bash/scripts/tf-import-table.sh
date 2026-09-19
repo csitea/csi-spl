@@ -56,12 +56,13 @@ case "$STEP" in
       "b/${bucket} roles/storage.objectUser serviceAccount:${sa}"
     ;;
   040-cloud-sql-postgres)
-    need instance_name database_name dsn_secret_id
+    need instance_name database_name dsn_secret_id owner_dsn_secret_id
     instance=$(tf_get instance_name)
     row "google_sql_database_instance.hub" "projects/${project}/instances/${instance}"
     row "google_sql_database.spool" \
       "projects/${project}/instances/${instance}/databases/$(tf_get database_name)"
     row "google_secret_manager_secret.hub_db_dsn" "projects/${project}/secrets/$(tf_get dsn_secret_id)"
+    row "google_secret_manager_secret.hub_db_owner_dsn" "projects/${project}/secrets/$(tf_get owner_dsn_secret_id)"
     ;;
   *)
     echo "FATAL: no import table for step '$STEP' (have: 020-gcp-relay-bucket 040-cloud-sql-postgres; 030 has do_tf_030_import_existing_cloud_run)" >&2

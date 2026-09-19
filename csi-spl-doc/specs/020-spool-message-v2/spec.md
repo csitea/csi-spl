@@ -61,7 +61,7 @@ through one hub.
   tests. **Implemented**: `internal/wire/v2_test.go` `TestGoldenV1V2Envelopes` (+ `internal/msg/v2_test.go` `TestV2RoundTrip`).
 - **FR-004** Boxes advertise `msg_versions` in `hello`. The hub never pushes a
   `recv` frame whose inner `v` the session did not advertise; the row stays
-  `queued` (`migration.md` §3). **Implemented** in code (`internal/hub/ws.go` `session.accepts` + `push`; `internal/hubclient/hubclient.go` hello; `wire.Frame.MsgVersions`, `wire.InnerVersion`); `TestV2HeldForV1OnlySession` with CONTROL; mutation (guard off) → `delivery "sent", want queued`. Live only after the hub roll (T011).
+  `queued` (`migration.md` §3). **Implemented** in code (`internal/hub/ws.go` `session.accepts` + `push`; `internal/hubclient/hubclient.go` hello; `wire.Frame.MsgVersions`, `wire.InnerVersion`); `TestV2HeldForV1OnlySession` with CONTROL; mutation (guard off) → `delivery "sent", want queued`. Live on dev + prd since hub 0.1.9 (`71a87eb`, T011).
 - **FR-005** The legacy `.md` bridge keeps synthesising `v:1`. **Implemented**: `internal/spool/spool.go` legacy bridge `V: msg.V1`; `TestLegacyMDBridge` green.
 - **FR-006** The WUI type admits `v: 1 | 2`. The WUI gates on no `v`
   (`grep -rn "\.v ==\|\.v !=" csi-spl-wui/src` → 0). **Planned**: CLE-55 (UI lane).

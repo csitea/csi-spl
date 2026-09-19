@@ -18,7 +18,8 @@
 
 - [ ] T003 Planned (ORC lane) — Update `csi-spl-orc/.../provision-spool-root.func.sh`: transition `/var/spool-hub` permissions from `2777` to `2770`, remove world-writable ACLs (`o::rwx` -> `o::---`), and enforce execution under dedicated group `spool-agents`. FR-SEC-001.
 - [ ] T004 Planned (CNF lane) — Update `csi-spl-cnf/csi-spl/all.env.yaml`: set default `env.box.spool_root_other: "---"` and document operator migration procedure for existing agent boxes. FR-SEC-001.
-- [ ] T005 Planned (ORC / TESTS) — Add automated test `csi-spl-orc/src/bash/tests/spool-permissions.tst.sh` asserting `/var/spool-hub` disallows unauthorized non-group user access and enforces sticky or group isolation. FR-SEC-001.
+- [ ] T005 Planned (ORC / TESTS) — Add automated test `csi-spl-orc/src/bash/tests/spool-permissions.tst.sh` asserting `/var/spool-hub` disallows unauthorized non-group user access and enforces sticky or group isolation. FR-SEC-001. Amended 2026-09-19: group isolation, not sticky (spec FR-SEC-001 clarification); the test carries a CONTROL: an outsider's read and inject SUCCEED under the old `2777`/`o::rwx` model and FAIL under the new one.
+- [ ] T019 Planned (ORC lane) — Named migration action `csi-spl-orc/src/bash/run/repair-spool-root.func.sh` (`./run -a do_repair_spool_root`), `DRY_RUN=1` default: create the group, add `SPOOL_ROOT_MEMBERS`, re-group the tree, setgid every dir, apply the ACL model, verify. Never run on a live box outside a quiet window. FR-SEC-001.
 
 ---
 

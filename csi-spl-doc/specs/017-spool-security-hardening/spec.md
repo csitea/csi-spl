@@ -80,6 +80,22 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 - **FR-SEC-001 (Host Spool DAC):** Host spool provisioning (`do_provision_spool_root`) MUST restrict `/var/spool-hub`
   to authorized agent group members with `chmod 2770` and default ACLs excluding world (`o::---`).
   *Status:* Planned.
+  - **Clarified 2026-09-19 (lane SEC-01):** the group is cnf `env.box.spool_root_group`, default `spool-agents`;
+    `other` is cnf `env.box.spool_root_other`, default `---`; the root mode is `27<g><o>` derived from it
+    (`2770` for `---`). The root stays **not sticky**: the frozen 002 contract (`local-folder-layout.md`) makes an ack
+    an atomic rename inbox -> archive of a message ANOTHER user wrote, which a sticky dir forbids to a non-owner.
+    Isolation is therefore the group boundary, which is what 002 asks for ("standard Unix user/group boundaries");
+    002 fixes `0775` dirs and `0664` files beneath the root and neither changes: an outsider cannot traverse a `2770`
+    root, so those modes are no longer world-reachable.
+  - Every OS user that runs an agent, or reads or writes the spool (the box owner too), MUST be a member of the
+    group. A running process keeps the groups it started with, so members restart their agents / re-login after
+    joining.
+  - `do_provision_spool_root` never creates the group or changes membership. When the group is missing it leaves an
+    EXISTING root untouched (WARN, exit 0: a live box is not broken by a `do_setup_app_inf`) and refuses to make a
+    new one.
+  - Existing boxes migrate with the named repair action `do_repair_spool_root` (csi-spl-orc): `DRY_RUN=1` by default
+    prints the plan; `DRY_RUN=0 SPOOL_ROOT_MEMBERS="<user> ..."` creates the group, adds the members, re-groups the
+    tree, sets setgid on every dir, applies the ACL model and verifies it. Run it in a quiet window (no agent mid-send).
 
 - **FR-SEC-002 (File Download Authentication):** `GET /v1/files/{file_id}` MUST require either a valid member session
   or box bearer capability token when `SPOOL_HUB_VIEW_DOOR != off`.

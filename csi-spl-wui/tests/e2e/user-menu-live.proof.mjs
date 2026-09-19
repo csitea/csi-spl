@@ -5,7 +5,7 @@
 // + mobile), and Sign out from the dropdown. Screenshots + results.json to OUT.
 //
 //   BASE=https://dev.<domain> EMAIL=<invited member> PW_FILE=<0600 file> \
-//     OUT=<dir> [TENANT=t1] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
+//     OUT=<dir> [TENANT=t1] [LOCALE=en] [DEFAULT_LOCALE=bg] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/user-menu-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -30,6 +30,16 @@ const OUT = need('OUT')
 const email = need('EMAIL')
 const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 't1'
+// spec 021: the WUI is localised (prefix_except_default). The proof runs in
+// LOCALE via its URL prefix and compares labels with THAT locale's catalogue,
+// so it holds whatever the unprefixed default locale is.
+const LOCALE = process.env.LOCALE || 'en'
+const P = LOCALE === (process.env.DEFAULT_LOCALE || 'bg') ? '' : '/' + LOCALE
+const CAT = JSON.parse(readFileSync(new URL(`../../i18n/locales/${LOCALE}.json`, import.meta.url), 'utf8'))
+const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** The catalogue template of `key` as a regex, each {param} = any text. */
+const trRe = (key) => new RegExp('^' + esc(key.split('.').reduce((o, k) => o?.[k], CAT)).replace(/\\\{\w+\\\}/g, '.+') + '$')
+const tr = (key, params = {}) => key.split('.').reduce((o, k) => o?.[k], CAT).replace(/\{(\w+)\}/g, (_, k) => params[k] ?? `{${k}}`)
 mkdirSync(OUT, { recursive: true })
 const puppeteer = await loadPuppeteer()
 const res = { base: BASE, at: new Date().toISOString(), steps: [] }
@@ -44,7 +54,7 @@ try {
   const p = await ctx.newPage()
   for (const [w, h, tag] of [[1280, 800, 'desktop'], [390, 844, 'mobile']]) {
     await p.setViewport({ width: w, height: h })
-    await p.goto(BASE + '/lobby', { waitUntil: 'networkidle2' })
+    await p.goto(BASE + P + '/lobby', { waitUntil: 'networkidle2' })
     const el = await p.waitForSelector('[data-test=user-menu-signin]', { timeout: 20000 }).catch(() => null)
     const href = el ? await el.evaluate((a) => a.getAttribute('href')) : ''
     const name = el ? await el.evaluate((a) => a.getAttribute('aria-label')) : ''
@@ -57,7 +67,7 @@ try {
   }
   // 2. native sign-in through the WUI form
   await p.setViewport({ width: 1280, height: 800 })
-  await p.goto(BASE + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=%2Flobby', { waitUntil: 'networkidle2' })
+  await p.goto(BASE + P + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=' + encodeURIComponent(P + '/lobby'), { waitUntil: 'networkidle2' })
   await p.waitForSelector('[data-test=native-auth-email]')
   await p.type('[data-test=native-auth-email]', email)
   await p.type('[data-test=native-auth-password]', pw)
@@ -69,8 +79,8 @@ try {
     const label = await trig.evaluate((b) => b.getAttribute('aria-label'))
     const hasImg = await trig.evaluate((b) => !!b.querySelector('img.spool-avatar'))
     const box = await trig.boundingBox()
-    step('avatar button: named, member avatar, top-right', /^Account menu for /.test(label) && hasImg && box.x + box.width > 1200 && box.y < 60,
-      { label: label.replace(/for .*/, 'for <user>'), hasImg, box })
+    step('avatar button: named, member avatar, top-right', trRe('user_menu.account_menu_for').test(label) && hasImg && box.x + box.width > 1200 && box.y < 60,
+      { label: tr('user_menu.account_menu_for', { who: '<user>' }), matched: trRe('user_menu.account_menu_for').test(label), hasImg, box })
     await p.screenshot({ path: `${OUT}/signed-in-desktop.png` })
     // keyboard: focus + Enter opens on Settings, ArrowDown -> Sign out, Escape closes back to the button
     await trig.focus()
@@ -87,7 +97,7 @@ try {
     step('keyboard menu button', a1 === 'user-menu-settings' && exp === 'true' && a2 === 'user-menu-signout' && a3 === 'user-menu-trigger' && exp2 === 'false',
       { enter: a1, expanded: exp, arrowDown: a2, escape: a3, expandedAfter: exp2 })
     const roles = await p.evaluate(() => [...document.querySelectorAll('[role=menu] [role=menuitem]')].map((e) => e.textContent.trim()))
-    step('dropdown items', JSON.stringify(roles) === '["Settings","Sign out"]', { roles })
+    step('dropdown items', JSON.stringify(roles) === JSON.stringify([tr('user_menu.settings'), tr('user_menu.sign_out')]), { roles })
     // Settings
     await trig.click()
     await p.click('[data-test=user-menu-settings]')
@@ -108,7 +118,7 @@ try {
     await new Promise((r) => setTimeout(r, 500))
     step('settings mobile no x-scroll', (await xscroll(p)) <= 0, { xscroll: await xscroll(p) })
     await p.screenshot({ path: `${OUT}/settings-mobile.png`, fullPage: true })
-    await p.goto(BASE + '/lobby', { waitUntil: 'networkidle2' })
+    await p.goto(BASE + P + '/lobby', { waitUntil: 'networkidle2' })
     await p.waitForSelector('[data-test=user-menu-trigger]', { timeout: 20000 })
     await p.click('[data-test=user-menu-trigger]')
     await new Promise((r) => setTimeout(r, 400))
@@ -116,8 +126,8 @@ try {
     await p.screenshot({ path: `${OUT}/signed-in-mobile-dropdown.png` })
     // Sign out from the dropdown -> /login, and the corner is the sign-in entry again
     await p.click('[data-test=user-menu-signout]')
-    await p.waitForFunction(() => location.pathname.startsWith('/login'), { timeout: 15000 })
-    await p.goto(BASE + '/lobby', { waitUntil: 'networkidle2' })
+    await p.waitForFunction(() => location.pathname.replace(/^\/[a-z]{2}(?=\/)/, '').startsWith('/login'), { timeout: 15000 })
+    await p.goto(BASE + P + '/lobby', { waitUntil: 'networkidle2' })
     const back = await p.waitForSelector('[data-test=user-menu-signin]', { timeout: 20000 }).catch(() => null)
     step('sign out from the dropdown', !!back, { url: p.url() })
   }

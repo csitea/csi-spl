@@ -1,15 +1,18 @@
-<!-- /checkout — buy a tenant (spec 006 T021w, contracts/checkout-v1.md §2.1–§2.2).
-     GET plan → price + rail; the form POSTs {tenant_id, email}. The reply's
-     checkout_id + claim_token go to sessionStorage (never a URL), then:
-       rail=hosted → the provider's hosted page (https only),
-       rail=fake   → a "Pay (dev fake)" button (lde/dev), then /checkout/success,
-       rail=none   → "not on sale". -->
+<!-- /checkout — buy a tenant (spec 006 T021w, contracts/checkout-v1.md 1.1 §2.1–§2.2).
+     GET plan → price + rail (checkoutMode):
+       fake        → the form POSTs {tenant_id, email}; checkout_id + claim_token
+                     go to sessionStorage (never a URL); "Pay (dev fake)", then
+                     /checkout/success,
+       none        → "not on sale" (rail=none or available=false),
+       unsupported → the card rail has no payment step in this page yet: no
+                     form, so no checkout holds a slug it cannot pay for. -->
 <template>
   <div class="login-card" data-test="checkout" :data-checkout-state="state" :data-rail="rail">
     <h1>Get a spool</h1>
     <p v-if="state === 'loading'" class="muted">Loading the plan…</p>
     <p v-else-if="state === 'unavailable'" class="login-error" role="alert" data-test="checkout-unavailable">{{ error }}</p>
-    <p v-else-if="rail === 'none'" role="status" data-test="checkout-not-on-sale">Spools are not on sale right now.</p>
+    <p v-else-if="mode === 'none'" role="status" data-test="checkout-not-on-sale">Spools are not on sale right now.</p>
+    <p v-else-if="mode === 'unsupported'" role="status" data-test="checkout-unsupported">Checkout is not open on this page yet — try again later.</p>
     <template v-else>
       <p data-test="checkout-price">One tenant: <strong>{{ price }}</strong></p>
       <form v-if="state === 'form'" class="checkout__form" novalidate @submit.prevent="submit">
@@ -30,7 +33,6 @@
         <p v-if="error" class="login-error" role="alert" data-test="checkout-error">{{ error }}</p>
         <button class="btn" type="button" :disabled="busy" data-test="checkout-fake-pay" @click="fakePay">Pay (dev fake)</button>
       </div>
-      <p v-else-if="state === 'redirect'" class="muted" role="status">Taking you to the payment page…</p>
     </template>
   </div>
 </template>
@@ -41,8 +43,8 @@ import {
   checkoutErrorMessage,
   createCheckoutClient,
   forgetCheckout,
+  checkoutMode,
   formatPrice,
-  safeHostedUrl,
   saveCheckout,
 } from '~/utils/checkout-client.mjs'
 import { validTenant } from '~/utils/tenant.mjs'
@@ -51,8 +53,9 @@ definePageMeta({ layout: 'login' })
 
 const router = useRouter()
 const client = createCheckoutClient()
-const state = ref<'loading' | 'unavailable' | 'form' | 'fake' | 'redirect'>('loading')
+const state = ref<'loading' | 'unavailable' | 'form' | 'fake'>('loading')
 const rail = ref('')
+const mode = ref<'fake' | 'none' | 'unsupported'>('none')
 const price = ref('')
 const pattern = ref('')
 const tenant = ref('')
@@ -72,13 +75,14 @@ onMounted(async () => {
     return
   }
   rail.value = String(out.data.rail || 'none')
+  mode.value = checkoutMode(out.data)
   price.value = formatPrice(out.data.amount_cents, out.data.currency)
   pattern.value = String(out.data.tenant_url_pattern || '')
   state.value = 'form'
 })
 
 async function submit() {
-  if (busy.value) return
+  if (busy.value || mode.value !== 'fake') return
   error.value = ''
   if (!validTenant(tenant.value)) {
     error.value = checkoutErrorMessage('bad_tenant_id')
@@ -98,18 +102,7 @@ async function submit() {
       return
     }
     checkoutId.value = String(out.data.checkout_id || '')
-    const r = String(out.data.rail || rail.value)
-    if (r === 'hosted') {
-      const to = safeHostedUrl(out.data.redirect_url)
-      if (!to) {
-        error.value = checkoutErrorMessage('payment_unavailable')
-        return
-      }
-      state.value = 'redirect'
-      window.location.assign(to)
-      return
-    }
-    if (r === 'fake') {
+    if (String(out.data.rail || rail.value) === 'fake') {
       state.value = 'fake'
       return
     }

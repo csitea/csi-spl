@@ -12,6 +12,7 @@ import {
   CHECKOUT_STORE_CLAIM,
   CHECKOUT_STORE_ID,
   checkoutErrorMessage,
+  checkoutMode,
   claimOnce,
   createCheckoutClient,
   dropClaimToken,
@@ -21,7 +22,6 @@ import {
   loadCheckout,
   pollAndClaim,
   resetClaim,
-  safeHostedUrl,
   saveCheckout,
 } from '../../src/utils/checkout-client.mjs'
 
@@ -105,15 +105,22 @@ describe('checkout-v1 client', () => {
     assert.equal(checkoutErrorMessage(''), '')
   })
 
-  it('formats price, file name and follows https redirects only', () => {
+  it('formats price and file name', () => {
     assert.equal(formatPrice(2000, 'eur'), '20.00 EUR')
     assert.equal(formatPrice('x', 'eur'), '')
     assert.equal(keyFileName('acme'), 'acme.root.key')
     assert.equal(keyFileName('../etc'), 'tenant.root.key')
-    assert.equal(safeHostedUrl('https://pay.example.com/x?a=1'), 'https://pay.example.com/x?a=1')
-    for (const bad of ['javascript:alert(1)', 'http://pay.example.com', 'data:text/html,x', '/local', '']) {
-      assert.equal(safeHostedUrl(bad), '', bad)
-    }
+  })
+
+  it('checkoutMode (1.1 §1.1): only the fake rail opens the form', () => {
+    assert.equal(checkoutMode({ rail: 'fake', available: true, methods: ['card'] }), 'fake')
+    assert.equal(checkoutMode({ rail: 'fake' }), 'fake')
+    assert.equal(checkoutMode({ rail: 'none' }), 'none')
+    assert.equal(checkoutMode({ rail: 'fake', available: false }), 'none')
+    assert.equal(checkoutMode({ rail: 'card', available: false }), 'none')
+    assert.equal(checkoutMode({ rail: 'card', available: true }), 'unsupported')
+    assert.equal(checkoutMode({ rail: 'hosted' }), 'unsupported')
+    assert.equal(checkoutMode(null), 'none')
   })
 })
 

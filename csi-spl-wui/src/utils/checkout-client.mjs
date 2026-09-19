@@ -45,14 +45,20 @@ export function formatPrice(cents, currency) {
   return `${(n / 100).toFixed(2)} ${String(currency || '').toUpperCase()}`.trim()
 }
 
-/** Only an https redirect_url is followed (never javascript:, data:, http:). */
-export function safeHostedUrl(u) {
-  try {
-    const url = new URL(String(u || ''))
-    return url.protocol === 'https:' ? url.href : ''
-  } catch {
-    return ''
-  }
+/**
+ * What the plan page can offer (checkout-v1 1.1 §1.1):
+ *   'fake'        — rail=fake (lde/dev): the form, then "Pay (dev fake)"
+ *   'none'        — rail=none, or available=false: not on sale
+ *   'unsupported' — a rail this page has no payment step for (the card rail,
+ *                   or anything unknown): no form, so no checkout holds a slug
+ *                   that the page cannot take payment for
+ */
+export function checkoutMode(plan) {
+  const p = plan || {}
+  const rail = String(p.rail || 'none')
+  if (rail === 'none' || p.available === false) return 'none'
+  if (rail === 'fake') return 'fake'
+  return 'unsupported'
 }
 
 /** A file name for the key download: `<tenant>.root.key`. */
@@ -140,7 +146,7 @@ export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' } =
     plan() {
       return call('/plan')
     },
-    /** §1.2 → data { checkout_id, claim_token, rail, tenant_url, redirect_url? }. */
+    /** §1.2 → data { checkout_id, claim_token, method, rail, tenant_url }. `method` omitted = the default. */
     start({ tenant_id, email } = {}) {
       return call('', { method: 'POST', body: { tenant_id: String(tenant_id || ''), email: String(email || '') } })
     },

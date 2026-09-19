@@ -257,7 +257,7 @@ declare module '~/utils/checkout-client.mjs' {
   }
   export function checkoutErrorMessage(code: string): string
   export function formatPrice(cents: unknown, currency: unknown): string
-  export function safeHostedUrl(u: unknown): string
+  export function checkoutMode(plan: Record<string, unknown> | null | undefined): 'fake' | 'none' | 'unsupported'
   export function keyFileName(tenant: string): string
   export function saveCheckout(b: { checkout_id?: unknown, claim_token?: unknown }, storage?: Storage): boolean
   export function loadCheckout(storage?: Storage): { id: string, token: string }

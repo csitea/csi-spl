@@ -115,6 +115,14 @@ declare module '~/utils/channel-feed.mjs' {
   export function formatBytes(n: number | undefined): string
   export function formatTs(ts: string): string
   export function renderBody(src: string): string
+  export function channelSlug(name: string): string
+  export function retentionLabel(row: { channel_id?: string, channel?: string, retention_days?: number }): string
+  export function connectionHealth(state: string): 'ok' | 'warn' | 'down'
+  export function feedRow<T>(row: T): T
+  export function belongsTo(msg: unknown, where: { channel?: string | null, peer?: string | null }): boolean
+  export function mergeLive<T>(rows: T[], msg: unknown): T[]
+  export function rootsByTask<T extends { task_id?: string }>(messages: T[]): T[]
+  export function threadReplies(messages: { task_id?: string, parent_task_id?: string | null }[], taskId: string): number
 }
 
 declare module '~/utils/mock-data.mjs' {

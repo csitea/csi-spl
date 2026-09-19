@@ -85,3 +85,12 @@ export function unreadFromChannels(rows) {
   }
   return out
 }
+
+/** The same cursors as spool-client listChannels({ read }) wants them: { <channel>: <hub cursor> }. */
+export function readMap(cursors) {
+  const out = {}
+  for (const [k, c] of Object.entries(cursors || {})) {
+    if (k.startsWith('ch:') && c && c.hub) out[k.slice(3)] = String(c.hub)
+  }
+  return out
+}

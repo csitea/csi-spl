@@ -7,7 +7,14 @@ import {
   saveChime,
   previewUnread,
 } from '~/utils/notify.mjs'
-import { loadCursors, saveCursors, markReadAt } from '~/utils/read-cursor.mjs'
+import {
+  cursorFromChannel,
+  isUnread,
+  loadCursors,
+  markReadAt,
+  saveCursors,
+  unreadFromChannels,
+} from '~/utils/read-cursor.mjs'
 
 type Ctx = {
   selfId?: string
@@ -33,6 +40,8 @@ export const useNotificationStore = defineStore('notification', () => {
   const permission = ref('unsupported')
   const chime = ref(false)
   const unread = ref<Record<string, number>>({})
+  /** Unread HUM-* mentions per key (spec 005 FR-012 "high-priority mention indicators"). */
+  const mentions = ref<Record<string, number>>({})
   const seen = new Set<string>()
 
   if (import.meta.client) {
@@ -84,17 +93,46 @@ export const useNotificationStore = defineStore('notification', () => {
     if (!key) return
     saveCursors(markReadAt(loadCursors(), key, msg || undefined))
     unread.value = { ...unread.value, [key]: 0 }
+    mentions.value = { ...mentions.value, [key]: 0 }
+  }
+
+  /** Read a live channel up to its hub row, keeping the hub cursor for the next read=. */
+  function markChannelRead(key: string, row?: { last_ts?: string | null, last_cursor?: string | null } | null) {
+    const c = cursorFromChannel(row)
+    if (!key || !c) return markRead(key)
+    saveCursors({ ...loadCursors(), [key]: c })
+    unread.value = { ...unread.value, [key]: 0 }
+    mentions.value = { ...mentions.value, [key]: 0 }
+  }
+
+  /** Hub unread (computed against our read= cursors) wins for channel keys, except the open one. */
+  function applyChannels(rows: unknown, activeKey = '') {
+    const hub = unreadFromChannels(rows) as Record<string, number>
+    if (activeKey) delete hub[activeKey]
+    unread.value = { ...unread.value, ...hub }
+  }
+
+  function bump(key: string, reason: string | null) {
+    unread.value = { ...unread.value, [key]: (unread.value[key] || 0) + 1 }
+    if (reason === 'mention') mentions.value = { ...mentions.value, [key]: (mentions.value[key] || 0) + 1 }
   }
 
   function ingest(messages: unknown, ctx: Ctx = {}, opts: { hydrate?: boolean } = {}) {
     const rows = (Array.isArray(messages) ? messages : [messages]) as Msg[]
     const unseen = rows.filter((m) => m && m.msg_id && !seen.has(m.msg_id))
     const hydrate = opts.hydrate === true || (unseen.length > 1 && opts.hydrate !== false)
+    const cursors = hydrate ? loadCursors() : {}
     for (const m of unseen) {
       if (!m.msg_id) continue
       seen.add(m.msg_id)
       const key = channelKey(m, ctx)
-      if (hydrate) continue
+      if (hydrate) {
+        /* a (re)load: count what the stored cursor has not seen, never ping */
+        if (key !== ctx.activeKey && isUnread(m, cursors[key])) {
+          bump(key, escalateReason(m, ctx) === 'mention' ? 'mention' : null)
+        }
+        continue
+      }
       if (ctx.activeKey && ctx.activeKey === key) {
         markRead(key, m)
         if (import.meta.client && typeof document !== 'undefined' && document.hidden) {
@@ -106,8 +144,8 @@ export const useNotificationStore = defineStore('notification', () => {
         }
         continue
       }
-      unread.value = { ...unread.value, [key]: (unread.value[key] || 0) + 1 }
       const reason = escalateReason(m, ctx)
+      bump(key, reason)
       if (reason) {
         const copy = notifyCopy(m, reason)
         ping(copy.title, copy.body)
@@ -119,10 +157,13 @@ export const useNotificationStore = defineStore('notification', () => {
     permission,
     chime,
     unread,
+    mentions,
     requestPush,
     ping,
     ingest,
     markRead,
+    markChannelRead,
+    applyChannels,
     hydrate,
     previewUnread,
   }

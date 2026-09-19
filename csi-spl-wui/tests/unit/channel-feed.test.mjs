@@ -1,5 +1,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   topLevel,
   threadOf,
@@ -12,6 +15,9 @@ import {
   feedRow,
   belongsTo,
   mergeLive,
+  connectionHealth,
+  rootsByTask,
+  threadReplies,
 } from '../../src/utils/channel-feed.mjs'
 import { applyVerbosity } from '../../src/utils/verbosity.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
@@ -108,5 +114,65 @@ describe('channel-feed live rows (gap A2)', () => {
     assert.equal(retentionLabel({ channel: 'alerts' }), '7 d')
     assert.equal(retentionLabel({ channel_id: 'alerts', retention_days: 3 }), '3 d')
     assert.equal(retentionLabel({ channel_id: 'lobby', retention_days: 30 }), '')
+  })
+})
+
+describe('sidebar connection health (gap A2)', () => {
+  it('maps the live socket state onto ok / warn / down', () => {
+    assert.equal(connectionHealth('open'), 'ok')
+    assert.equal(connectionHealth('mock'), 'ok')
+    assert.equal(connectionHealth('connecting'), 'warn')
+    assert.equal(connectionHealth('reconnecting'), 'warn')
+    assert.equal(connectionHealth('closed'), 'down')
+    assert.equal(connectionHealth('no_base'), 'down')
+    assert.equal(connectionHealth(''), 'down')
+  })
+})
+
+describe('live channel / DM wiring (gap A2)', () => {
+  const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+  const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
+
+  it('polls only the mock tenant; live mode merges WS frames and catches up on reconnect', () => {
+    const ev = src('src/composables/useSpoolEvents.ts')
+    assert.match(ev, /if \(api\.mock\) \{\s+timer = setInterval/)
+    assert.equal(ev.includes('channel.ingestLive(m)'), true)
+    assert.equal(ev.includes('live.onReconnected('), true)
+  })
+
+  it('offers channel creation in live mode and names the hub errors', () => {
+    const sb = src('src/components/ChannelSidebar.vue')
+    assert.equal(sb.includes('v-if="api.mock"'), false)
+    assert.equal(sb.includes('channel_exists'), true)
+    assert.equal(sb.includes('bad_channel'), true)
+    assert.equal(sb.includes('retentionLabel(c)'), true)
+    assert.equal(sb.includes('connection-health'), true)
+    assert.equal(sb.includes("notes.mentions['ch:' + c.channel_id]"), true)
+  })
+
+  it('the store maps hub rows to feed rows and sends read= cursors', () => {
+    const st = src('src/stores/channel.ts')
+    assert.equal(st.includes('.map(feedRow)'), true)
+    assert.equal(st.includes('readMap(loadCursors())'), true)
+  })
+})
+
+describe('live flat feed (A1 listMessages shape, gap A2)', () => {
+  const flat = [
+    { msg_id: 'a', task_id: 't1', ts: '1' },
+    { msg_id: 'b', task_id: 't2', ts: '2' },
+    { msg_id: 'c', task_id: 't1', ts: '3' },
+    { msg_id: 'd', task_id: 't1', ts: '4' },
+    { msg_id: 'e', task_id: 't9', parent_task_id: 't2', ts: '5' },
+  ]
+  it('shows one card per thread and counts its replies', () => {
+    assert.deepEqual(rootsByTask(topLevel(flat)).map((m) => m.msg_id), ['a', 'b'])
+    assert.equal(threadReplies(flat, 't1'), 2)
+    assert.equal(threadReplies(flat, 't2'), 1)
+    assert.equal(threadReplies([feedRow({ task_id: 't5', count: 4 })], 't5'), 3)
+  })
+  it('matches mock replyCount for mock threads', () => {
+    const task = MOCK_MESSAGES.find((m) => m.kind === 'task')
+    assert.equal(threadReplies(MOCK_MESSAGES, task.task_id), replyCount(MOCK_MESSAGES, task.task_id))
   })
 })

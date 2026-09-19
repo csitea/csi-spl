@@ -1,28 +1,55 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { replyCount, topLevel } from '~/utils/channel-feed.mjs'
-import type { ChannelRow, SpoolMessage } from '~/types/spool'
+import { useLive } from '~/composables/useLive'
+import {
+  belongsTo,
+  channelSlug,
+  feedRow,
+  mergeLive,
+  parseMention,
+  rootsByTask,
+  threadReplies,
+  topLevel,
+} from '~/utils/channel-feed.mjs'
+import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
+import type { ChannelRow, SendFrame, SpoolMessage } from '~/types/spool'
 
 export type { ChannelRow }
 
+/** view-v1 §4.2 extras the sidebar reads (hub rows; mock rows lack them). */
+export type ChannelInfo = ChannelRow & {
+  retention_days?: number
+  unread?: number
+  last_ts?: string | null
+  last_cursor?: string | null
+}
+
+type FeedMessage = SpoolMessage & { count?: number, thread_row?: boolean }
+
+function newId() {
+  return globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : ''
+}
+
 export const useChannelStore = defineStore('channel', () => {
   const api = useSpoolApi()
-  const channels = ref<ChannelRow[]>([])
+  const channels = ref<ChannelInfo[]>([])
   const active = ref<string | null>(null)
   const peer = ref<string | null>(null)
-  const messages = ref<SpoolMessage[]>([])
+  const messages = ref<FeedMessage[]>([])
   const unread = ref<Record<string, number>>({})
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  const feed = computed(() => topLevel(messages.value))
+  const feed = computed(() => rootsByTask(topLevel(messages.value)))
 
   function key() {
     return peer.value ? `dm:${peer.value}` : `ch:${active.value || ''}`
   }
 
+  /** Live: send read=<ch>~<cursor> so the hub counts unread per reader (channels-v1 §5.2). */
   async function loadChannels() {
-    channels.value = await api.listChannels()
+    const read: Record<string, string> = api.mock ? {} : readMap(loadCursors()) as Record<string, string>
+    channels.value = await api.listChannels({ read }) as ChannelInfo[]
   }
 
   async function selectChannel(name: string) {
@@ -43,11 +70,12 @@ export const useChannelStore = defineStore('channel', () => {
     loading.value = true
     error.value = null
     try {
-      messages.value = await api.listMessages({
+      const rows = await api.listMessages({
         channel: active.value || undefined,
         peer: peer.value || undefined,
         limit: 50,
-      }) as unknown as SpoolMessage[]
+      }) as unknown as Record<string, unknown>[]
+      messages.value = (rows || []).map(feedRow) as unknown as FeedMessage[]
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'load failed'
     } finally {
@@ -55,7 +83,14 @@ export const useChannelStore = defineStore('channel', () => {
     }
   }
 
+  /** One live WS message (useSpoolEvents): no poll in live mode. */
+  function ingestLive(m: Record<string, unknown>) {
+    if (!belongsTo(m, { channel: active.value, peer: peer.value })) return
+    messages.value = mergeLive(messages.value, m) as FeedMessage[]
+  }
+
   async function send(text: string, parentTaskId?: string, files?: unknown[]) {
+    if (!api.mock) return sendLive(text, parentTaskId, files)
     const body = await api.sendMessage({
       channel: active.value,
       peer: peer.value || undefined,
@@ -63,20 +98,40 @@ export const useChannelStore = defineStore('channel', () => {
       parent_task_id: parentTaskId,
       files,
     })
-    const row = body as unknown as SpoolMessage
+    const row = body as unknown as FeedMessage
     messages.value = [...messages.value, row]
     return row
   }
 
+  /** Live send over the hub WUI socket (wui-live-ws §4); the echo frame lands via ingestLive. */
+  async function sendLive(text: string, parentTaskId?: string, files?: unknown[]) {
+    const client = useLive().ensure()
+    if (!client) throw new Error(`live socket unavailable (${api.configError || 'no base'})`)
+    const [peerId] = String(peer.value || '').split('@')
+    const parsed = parseMention(text)
+    const frame: SendFrame = {
+      task_id: parentTaskId || newId(),
+      kind: peer.value ? 'note' : parsed.kind,
+      body: peer.value ? text : parsed.body,
+      files: files || [],
+      to: peer.value ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),
+    }
+    if (active.value) frame.channel = active.value
+    return client.send(frame)
+  }
+
   async function createChannel(name: string) {
-    const row = await api.createChannel({ name })
+    const slug = channelSlug(name)
+    if (!slug) throw new Error('channel name required')
+    const row = await api.createChannel({ channel_id: slug, name })
+    const id = String(row.channel_id || slug)
     await loadChannels()
-    await selectChannel(row.channel_id)
-    return row
+    await selectChannel(id)
+    return { ...row, channel_id: id }
   }
 
   function repliesFor(taskId: string) {
-    return replyCount(messages.value, taskId)
+    return threadReplies(messages.value, taskId)
   }
 
   return {
@@ -93,6 +148,7 @@ export const useChannelStore = defineStore('channel', () => {
     selectChannel,
     selectDm,
     refresh,
+    ingestLive,
     send,
     createChannel,
     repliesFor,

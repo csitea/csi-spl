@@ -14,13 +14,11 @@
 import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useSpoolEvents } from '~/composables/useSpoolEvents'
-import { useNotificationStore } from '~/stores/notification'
 
 const route = useRoute()
 const channel = useChannelStore()
 const roster = useRosterStore()
 const events = useSpoolEvents()
-const notes = useNotificationStore()
 const peer = computed(() => decodeURIComponent(String(route.params.peer || '')))
 const online = computed(() => {
   const [id, box] = peer.value.split('@')
@@ -30,14 +28,14 @@ const online = computed(() => {
 watch(peer, async (p) => {
   if (p) {
     await channel.selectDm(p)
-    notes.markRead('dm:' + p)
   }
 }, { immediate: true })
 
+/* read cursors follow channel.peer in plugins/notify.client.ts */
 onMounted(async () => {
+  events.start()
   await channel.loadChannels()
   await roster.refresh()
-  events.start()
 })
 
 async function onSend(text: string) {

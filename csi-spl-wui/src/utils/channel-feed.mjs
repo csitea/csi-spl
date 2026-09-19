@@ -87,6 +87,18 @@ export function retentionLabel(row) {
   return `${Number.isFinite(d) && d > 0 ? d : 7} d`
 }
 
+/**
+ * Footer connection-health dot (spec 005 FR-012) from the live socket state:
+ * ok = open (or the mock tenant, which has no socket), warn = (re)connecting,
+ * down = anything else (closed, idle, a config error token).
+ */
+export function connectionHealth(state) {
+  const s = String(state || '')
+  if (s === 'open' || s === 'mock') return 'ok'
+  if (s === 'connecting' || s === 'reconnecting') return 'warn'
+  return 'down'
+}
+
 function splitLabel(p) {
   const [id, box] = String(p || '').split('@')
   return { id, box }
@@ -118,6 +130,31 @@ export function feedRow(row) {
     count: Math.max(0, (Number(r.count) || 1) - 1),
     thread_row: true,
   }
+}
+
+/**
+ * One card per v:1 thread (task_id): live listMessages returns flat messages
+ * where replies share the root's task_id. Earliest message wins; mock roots
+ * already have unique task_ids, so this is a no-op there.
+ */
+export function rootsByTask(messages) {
+  const seen = new Set()
+  const out = []
+  for (const m of messages || []) {
+    const id = m && m.task_id
+    if (id && seen.has(id)) continue
+    if (id) seen.add(id)
+    out.push(m)
+  }
+  return out
+}
+
+/** Replies of one thread: child tasks (parent_task_id) plus in-thread messages (same task_id). */
+export function threadReplies(messages, taskId) {
+  if (!taskId) return 0
+  const same = (messages || []).filter((m) => m.task_id === taskId && !m.thread_row).length
+  const row = (messages || []).find((m) => m.thread_row && m.task_id === taskId)
+  return replyCount(messages || [], taskId) + (row ? Number(row.count) || 0 : Math.max(0, same - 1))
 }
 
 /** Does a live message belong to the open channel or DM? */

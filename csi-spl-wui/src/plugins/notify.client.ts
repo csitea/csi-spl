@@ -42,16 +42,33 @@ export default defineNuxtPlugin(() => {
     },
   )
 
+  /** The open channel's hub row: reading it keeps the hub cursor for the next read=. */
+  function markActive() {
+    const c = ctx()
+    if (!c.activeKey) return
+    const id = c.activeKey.startsWith('ch:') ? c.activeKey.slice(3) : ''
+    const row = id ? channel.channels.find((r) => r.channel_id === id) : undefined
+    if (row && row.last_cursor) notes.markChannelRead(c.activeKey, row)
+    else notes.markRead(c.activeKey)
+  }
+
+  watch(() => [channel.active, channel.peer, route.path] as const, markActive, { immediate: true })
+
+  /* hub unread per channel (channels-v1 §5.2), counted against our read= cursors */
   watch(
-    () => [channel.active, channel.peer, route.path] as const,
-    () => {
-      const c = ctx()
-      if (c.activeKey) notes.markRead(c.activeKey)
+    () => channel.channels,
+    (rows) => {
+      notes.applyChannels(rows, ctx().activeKey)
+      markActive()
     },
-    { immediate: true },
   )
 
+  /*
+   * A live frame is keyed by ITS OWN channel, not the open page: a #alerts
+   * message escalates as alerts even while a DM is open (FR-014).
+   */
   live.onMessage((m) => {
-    notes.ingest([m], ctx(), { hydrate: false })
+    const page = ctx()
+    notes.ingest([m], { selfId: page.selfId, activeKey: page.activeKey }, { hydrate: false })
   })
 })

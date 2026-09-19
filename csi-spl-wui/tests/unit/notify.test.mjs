@@ -105,3 +105,29 @@ describe('notify escalation', () => {
     assert.equal(center.includes('requestPush'), true)
   })
 })
+
+describe('live #alerts / DM escalation wiring (gap A2)', () => {
+  const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
+
+  it('a live #alerts frame keys and escalates as alerts even while a DM is open', () => {
+    const frame = { msg_id: 'x', from: 'CLE-2', from_box: 'b1', channel: 'alerts', body: 'disk full' }
+    const page = { selfId: 'HUM-1', activeKey: 'dm:CLE-3@b2' }
+    assert.equal(channelKey(frame, page), 'ch:alerts')
+    assert.equal(escalateReason(frame, page), 'alerts')
+    const dm = { msg_id: 'y', from: 'CLE-3', from_box: 'b2', channel: null, body: 'hi' }
+    assert.equal(channelKey(dm, page), 'dm:CLE-3@b2')
+    assert.equal(escalateReason(dm, page), 'dm')
+  })
+
+  it('the plugin ingests live frames with the page identity only, not its peer', () => {
+    const plugin = src('src/plugins/notify.client.ts')
+    assert.match(plugin, /notes\.ingest\(\[m\], \{ selfId: page\.selfId, activeKey: page\.activeKey \}/)
+    assert.equal(plugin.includes('applyChannels'), true)
+  })
+
+  it('the store derives unread from stored cursors and counts mentions', () => {
+    const store = src('src/stores/notification.ts')
+    assert.equal(store.includes('isUnread(m, cursors[key])'), true)
+    assert.equal(store.includes('mentions'), true)
+  })
+})

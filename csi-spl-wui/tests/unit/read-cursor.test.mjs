@@ -11,6 +11,7 @@ import {
   unreadFromCursors,
   readParams,
   unreadFromChannels,
+  readMap,
 } from '../../src/utils/read-cursor.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
@@ -78,5 +79,13 @@ describe('unread from stored cursors (gap A2, channels-v1 §5.2)', () => {
     assert.deepEqual(unreadFromChannels([
       { channel: 'lobby', unread: 2 }, { channel_id: 'alerts', unread: 0 }, { channel: 'tasks' },
     ]), { 'ch:lobby': 2, 'ch:alerts': 0 })
+  })
+})
+
+describe('read map for spool-client listChannels({ read })', () => {
+  it('keeps only channel keys with a hub cursor', () => {
+    assert.deepEqual(readMap({
+      'ch:lobby': { ts: 'a', id: '', hub: 'C1' }, 'ch:tasks': { ts: 'b', id: '' }, 'dm:X': { ts: 'c', id: '', hub: 'C2' },
+    }), { lobby: 'C1' })
   })
 })

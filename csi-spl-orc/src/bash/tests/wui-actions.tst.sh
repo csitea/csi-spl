@@ -11,11 +11,13 @@ fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
-for a in wui-dev wui-build wui-test; do
+for a in wui-dev wui-build wui-test wui-up wui-down; do
   f="$PROJ_ROOT/src/bash/run/${a}.func.sh"
   [[ -f "$f" ]] && pass "$a action exists" || fail "missing $f"
 done
 grep -q 'csi-spl-wui' "$PROJ_ROOT/src/bash/run/wui-dev.func.sh" && pass "wui-dev uses csi-spl-wui" || fail "wui-dev path"
+grep -q 'lde_compose up -d hub wui' "$PROJ_ROOT/src/bash/run/wui-up.func.sh" && pass "wui-up starts the wui compose service" || fail "wui-up compose"
+grep -q 'docker-compose-wui.yaml' "$PROJ_ROOT/lib/bash/funcs/lde-cnf.func.sh" && pass "lde_compose includes docker-compose-wui.yaml (teardown covers it)" || fail "lde_compose misses the wui file"
 grep -q 'pnpm generate' "$PROJ_ROOT/src/bash/run/wui-build.func.sh" && pass "wui-build generates static" || fail "wui-build generate"
 grep -q 'pnpm test:unit' "$PROJ_ROOT/src/bash/run/wui-test.func.sh" && pass "wui-test runs unit tests" || fail "wui-test unit"
 [[ -x "$PROJ_ROOT/src/bash/scripts/render-wui-firebase-json.sh" || -f "$PROJ_ROOT/src/bash/scripts/render-wui-firebase-json.sh" ]] \

@@ -1,0 +1,51 @@
+# csi-spl lde ::: the WUI (Nuxt 3 dev server) against THIS tree's lde hub.
+# Started by `./run -a do_wui_up` (not by do_setup_app_inf: the first run
+# installs node_modules inside the container, which takes a minute).
+#
+# The WHOLE csi-spl-wui directory is mounted at /app, never a subpath, so the
+# service survives a move of the source layout (e.g. a Nuxt `srcDir: 'src/'`).
+# node_modules and .nuxt are shadowed by named volumes: the host's pnpm tree
+# is hardlinked into a host store the container cannot see, and the container
+# must not write root-owned build output into the checkout. Do not shadow a
+# dir the host tree may lack (e.g. .output): docker creates the mount point
+# on the host as root, and a later host `pnpm generate` cannot write it.
+#
+# The browser, not the container, calls the hub: NUXT_PUBLIC_API_BASE is the
+# host-side tenant URL http://{tenant}.localhost:<hub port>, and the hub allows
+# the WUI origin http://localhost:<wui port> (do_gen_docker_env adds it to
+# SPOOL_HUB_VIEW_CORS_ORIGINS). SSR-side hub calls fail soft (spool-bootstrap).
+volumes:
+  wui-node-modules: {}
+  wui-nuxt: {}
+  wui-pnpm-store: {}
+
+services:
+  wui:
+    image: "${LDE_WUI_IMAGE:?unset - run ./run -a do_gen_docker_env in csi-spl-orc}"
+    pull_policy: if_not_present
+    working_dir: /app
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        corepack enable &&
+        pnpm config set store-dir /pnpm-store &&
+        pnpm install --frozen-lockfile &&
+        exec pnpm exec nuxt dev --host 0.0.0.0 --port 3000
+    environment:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+      # node 22 writes its module compile cache under the cwd otherwise, i.e.
+      # a root-owned node-compile-cache/ inside the mounted checkout
+      NODE_COMPILE_CACHE: /tmp/node-compile-cache
+      NUXT_TELEMETRY_DISABLED: "1"
+      NUXT_PUBLIC_USE_MOCK: "0"
+      NUXT_PUBLIC_API_BASE: "http://{tenant}.localhost:${LDE_HUB_PORT:?unset}"
+      NUXT_PUBLIC_TENANT: "${LDE_SMOKE_TENANT:?unset}"
+    volumes:
+      - "${LDE_WUI_SRC:?unset}:/app"
+      - "wui-node-modules:/app/node_modules"
+      - "wui-nuxt:/app/.nuxt"
+      - "wui-pnpm-store:/pnpm-store"
+    ports:
+      - "127.0.0.1:${LDE_WUI_PORT:?unset}:3000"
+    networks: [lde]
+    restart: unless-stopped

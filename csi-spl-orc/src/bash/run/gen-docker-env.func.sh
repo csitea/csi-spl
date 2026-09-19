@@ -4,7 +4,8 @@
 # @description repo (they are per tree and per developer, never committed):
 # @description   compose.env  compose interpolation: images, 127.0.0.1 host
 # @description                ports, the Postgres container's credentials,
-# @description                the hub image + env file for this tree
+# @description                the hub image + env file for this tree, the
+# @description                WUI image, port and source dir
 # @description   hub.env      the hub's runtime env = cnf env.hub.env for
 # @description                ENV=lde, one KEY=value per line. The keys are the
 # @description                env-var names published in all.env.yaml; this
@@ -22,6 +23,15 @@ do_gen_docker_env() {
     do_log "FATAL hub.env holds a name outside SPOOL_HUB_* / STORAGE_EMULATOR_HOST: $(grep -vE '^SPOOL_HUB_[A-Z_]+=|^STORAGE_EMULATOR_HOST=' "$tmp" | cut -d= -f1 | tr '\n' ' ')"
     rm -f "$tmp"; return 1
   fi
+  # The WUI dev server is the one cross-origin caller the lde hub allows. When
+  # this tree runs it off the cnf port (LDE_WUI_PORT), allow that origin too,
+  # or the browser's view reads fail CORS. A value change, never a new name.
+  local wui_origin="http://localhost:$LDE_WUI_PORT" cors
+  cors="$(sed -n 's/^SPOOL_HUB_VIEW_CORS_ORIGINS=//p' "$tmp")"
+  if [[ ",$cors," != *",$wui_origin,"* ]]; then
+    { grep -v '^SPOOL_HUB_VIEW_CORS_ORIGINS=' "$tmp"
+      echo "SPOOL_HUB_VIEW_CORS_ORIGINS=${cors:+$cors,}$wui_origin"; } >"$tmp.cors" && mv -f "$tmp.cors" "$tmp" || { rm -f "$tmp" "$tmp.cors"; return 1; }
+  fi
   chmod 600 "$tmp" && mv -f "$tmp" "$LDE_HUB_ENV_FILE"
 
   umask 077
@@ -38,6 +48,10 @@ LDE_HUB_IMAGE=$LDE_HUB_IMAGE
 LDE_HUB_PORT=$LDE_HUB_PORT
 LDE_HUB_CONTAINER_PORT=$LDE_HUB_CONTAINER_PORT
 LDE_HUB_ENV_FILE=$LDE_HUB_ENV_FILE
+LDE_SMOKE_TENANT=$LDE_SMOKE_TENANT
+LDE_WUI_IMAGE=$LDE_WUI_IMAGE
+LDE_WUI_PORT=$LDE_WUI_PORT
+LDE_WUI_SRC=$LDE_WUI_SRC
 ENV
   do_log "INFO rendered $LDE_COMPOSE_ENV and $LDE_HUB_ENV_FILE ($(wc -l <"$LDE_HUB_ENV_FILE") hub vars) for tree $LDE_TREE_SLUG"
 }

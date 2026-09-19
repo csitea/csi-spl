@@ -6,8 +6,13 @@
 #      names published in all.env.yaml env.hub.env (+ the lde-only ones) --
 #      it renames and invents nothing -- with lde values (pg/gcs services,
 #      {tenant}.localhost)
-#   2. docker compose accepts the three files with the rendered env, and
-#      every published port binds 127.0.0.1 only (SKIP without docker)
+#   2. docker compose accepts the four files (infra, rdb, api, wui) with the
+#      rendered env, and every published port binds 127.0.0.1 only (SKIP
+#      without docker)
+#   3. the wui service mounts the WHOLE csi-spl-wui dir (survives a srcDir
+#      move), runs with the mock off against http://{tenant}.localhost:<hub
+#      port>, and the hub's CORS list carries the WUI origin -- also when the
+#      WUI port is overridden (LDE_WUI_PORT)
 #   4. _sai_has_verb: a spool that says `unknown command` is NOT a verb, under
 #      pipefail (the regression that reported a missing `serve` as present);
 #      control: a known verb is one
@@ -54,16 +59,33 @@ fi
 if docker compose version >/dev/null 2>&1 && [[ -f "$T/state/compose.env" ]]; then
   if docker compose -p lde-test --env-file "$T/state/compose.env" -f "$PROJ_ROOT/src/docker/docker-compose-infra.yaml" \
       -f "$PROJ_ROOT/src/docker/docker-compose-rdb.yaml" -f "$PROJ_ROOT/src/docker/docker-compose-api.yaml" \
+      -f "$PROJ_ROOT/src/docker/docker-compose-wui.yaml" \
       config --format json >"$T/cfg.json" 2>"$T/cfg.err"; then
-    pass "docker compose config accepts the 3 files"
+    pass "docker compose config accepts the 4 files"
     ips=$(yq -p json -r '.services[].ports[]?.host_ip' "$T/cfg.json" | sort | uniq -c | xargs)
-    [[ "$ips" == "3 127.0.0.1" ]] && pass "all 3 published ports bind 127.0.0.1" || fail "published host_ip: $ips"
+    [[ "$ips" == "4 127.0.0.1" ]] && pass "all 4 published ports bind 127.0.0.1" || fail "published host_ip: $ips"
+    src=$(yq -p json -r '.services.wui.volumes[] | select(.target == "/app") | .source' "$T/cfg.json")
+    [[ "$src" == "$APP_ROOT/csi-spl-wui" ]] && pass "wui mounts the whole csi-spl-wui dir at /app" || fail "wui /app source: '$src'"
+    [[ "$(yq -p json -r '.services.wui.environment.NUXT_PUBLIC_USE_MOCK' "$T/cfg.json")" == 0 ]] \
+      && pass "wui runs with the mock off" || fail "wui NUXT_PUBLIC_USE_MOCK is not 0"
+    base=$(yq -p json -r '.services.wui.environment.NUXT_PUBLIC_API_BASE' "$T/cfg.json")
+    [[ "$base" =~ ^http://\{tenant\}\.localhost:[0-9]+$ ]] && pass "wui API base $base" || fail "wui API base: '$base'"
   else
     fail "compose config: $(head -3 "$T/cfg.err")"
   fi
 else
   skip "no docker compose"
 fi
+
+# the WUI origin is allowed by the hub, at the cnf port and at an override
+cors=$(sed -n 's/^SPOOL_HUB_VIEW_CORS_ORIGINS=//p' "$H" 2>/dev/null)
+wport=$(yq -r '.env.lde.wui.host_port' "$APP_ROOT/csi-spl-cnf/csi-spl/lde.env.yaml")
+[[ ",$cors," == *",http://localhost:$wport,"* ]] && pass "hub CORS allows the WUI origin (cnf port $wport)" || fail "hub CORS '$cors' lacks localhost:$wport"
+SNIPPET='do_gen_docker_env' in_orc LDE_WUI_PORT=3999 >"$T/gen2.out" 2>&1 || fail "do_gen_docker_env LDE_WUI_PORT=3999: $(tail -3 "$T/gen2.out")"
+cors2=$(sed -n 's/^SPOOL_HUB_VIEW_CORS_ORIGINS=//p' "$H" 2>/dev/null)
+[[ ",$cors2," == *",http://localhost:3999,"* && ",$cors2," == *",http://localhost:$wport,"* ]] \
+  && pass "LDE_WUI_PORT=3999 adds http://localhost:3999 and keeps the cnf origin" || fail "override CORS: '$cors2'"
+[[ $(grep -c '^SPOOL_HUB_VIEW_CORS_ORIGINS=' "$H") == 1 ]] && pass "CORS name rendered once" || fail "CORS rendered $(grep -c '^SPOOL_HUB_VIEW_CORS_ORIGINS=' "$H") times"
 
 # --- 4. verb detection under pipefail ------------------------------------------------
 printf '#!/bin/sh\n[ "$1" = migrate ] && { echo "Usage of migrate:"; exit 0; }\necho "unknown command \\"$1\\""; exit 1\n' >"$T/spool"

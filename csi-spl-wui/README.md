@@ -45,6 +45,104 @@ to `src/`.
 
 ## Local Development (`lde`)
 
+### In docker compose, against the live lde hub
+
+The whole stack runs from `csi-spl-orc` with docker compose: Postgres, the GCS
+emulator, the hub (`spool serve`) and this WUI (the `wui` service in
+`csi-spl-orc/src/docker/docker-compose-wui.yaml`: the Nuxt dev server with
+`NUXT_PUBLIC_USE_MOCK=0` and `NUXT_PUBLIC_API_BASE=http://{tenant}.localhost:<hub port>`).
+The service mounts this whole directory, so it follows any source layout.
+
+Stand up and smoke the hub stack (pg, gcs, migrate, serve, box hello; exit 0 =
+all PASS). It also seeds tenant `t1` and pins the box `box-smoke` under it.
+Tenants and schema in lde come from here; `do_spl_db_bootstrap` is the
+dev/prd (Cloud SQL) counterpart and is not used locally:
+
+```bash
+cd csi-spl-orc && ./run -a do_setup_app_inf
+```
+
+Start the WUI container (waits for `GET http://localhost:<wui port>/` -> 200;
+the first run installs `node_modules` inside the container):
+
+```bash
+cd csi-spl-orc && ./run -a do_wui_up
+```
+
+Open `http://localhost:3000/` (cnf `env.lde.wui.host_port`). It lists the
+threads of tenant `t1` from the hub at `http://t1.localhost:58080`.
+
+A second tree next to a running one overrides every host port; the WUI origin
+is added to the hub's `SPOOL_HUB_VIEW_CORS_ORIGINS` by `do_gen_docker_env`:
+
+```bash
+cd csi-spl-orc && LDE_PG_PORT=55433 LDE_GCS_PORT=54444 LDE_HUB_PORT=58081 ./run -a do_setup_app_inf
+```
+
+```bash
+cd csi-spl-orc && LDE_PG_PORT=55433 LDE_GCS_PORT=54444 LDE_HUB_PORT=58081 LDE_WUI_PORT=3008 ./run -a do_wui_up
+```
+
+To put threads on the hub, route messages between two boxes (a message
+between two agents of one box is delivered locally and never reaches the
+hub). The state dir is `$HOME/.local/share/csi-spl/lde/<tree-slug>`
+(`main` for the main checkout, the lowercased worktree name otherwise):
+
+```bash
+export LDE_S=$HOME/.local/share/csi-spl/lde/main H=$HOME/.local/share/csi-spl/lde/main/hello U=http://t1.localhost:58080
+```
+
+Make and pin a second box `box-peer` with the tenant root key:
+
+```bash
+SPOOL_BOX_ID=box-peer SPOOL_ROOT=$H/spool-box-peer SPOOL_KEYS_DIR=$H/keys $LDE_S/bin/spool keygen > $H/box-peer.pub
+```
+
+```bash
+SPOOL_HUB_URL=$U SPOOL_BOX_ID=box-smoke SPOOL_ROOT=$H/spool-box-smoke SPOOL_KEYS_DIR=$H/keys $LDE_S/bin/spool hub-pin --box box-peer --pubkey "$(tail -1 $H/box-peer.pub)" --root-key $H/root.key --force
+```
+
+A box announces the agents that have a dir under its `SPOOL_ROOT`:
+
+```bash
+mkdir -p $H/spool-box-smoke/CLE-910 $H/spool-box-peer/CLE-911
+```
+
+```bash
+SPOOL_HUB_URL=$U SPOOL_BOX_ID=box-peer SPOOL_ROOT=$H/spool-box-peer SPOOL_KEYS_DIR=$H/keys $LDE_S/bin/spool hub-sync
+```
+
+```bash
+SPOOL_HUB_URL=$U SPOOL_BOX_ID=box-smoke SPOOL_ROOT=$H/spool-box-smoke SPOOL_KEYS_DIR=$H/keys $LDE_S/bin/spool hub-sync
+```
+
+```bash
+SPOOL_HUB_URL=$U SPOOL_BOX_ID=box-smoke SPOOL_ROOT=$H/spool-box-smoke SPOOL_KEYS_DIR=$H/keys $LDE_S/bin/spool send --from CLE-910 --to CLE-911 --kind task --body "hello over the lde hub"
+```
+
+```bash
+SPOOL_HUB_URL=$U SPOOL_BOX_ID=box-smoke SPOOL_ROOT=$H/spool-box-smoke SPOOL_KEYS_DIR=$H/keys $LDE_S/bin/spool hub-sync
+```
+
+Check the hub, then reload the WUI (expected: the thread with subject
+`hello over the lde hub`, participants `CLE-910@box-smoke, CLE-911@box-peer`):
+
+```bash
+curl -s http://t1.localhost:58080/v1/view/threads
+```
+
+Stop the WUI only, or the whole stack (`LDE_PURGE=1` also drops the volumes):
+
+```bash
+cd csi-spl-orc && ./run -a do_wui_down
+```
+
+```bash
+cd csi-spl-orc && ./run -a do_teardown_app_inf
+```
+
+### On the host, with pnpm
+
 ```bash
 pnpm install
 pnpm dev

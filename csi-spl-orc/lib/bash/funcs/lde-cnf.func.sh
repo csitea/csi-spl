@@ -13,7 +13,8 @@
 # @description Per tree: the compose project and the state dir carry a tree
 # @description slug, so two checkouts never share containers or volumes. Host
 # @description ports come from cnf and can be overridden per tree with
-# @description LDE_PG_PORT / LDE_GCS_PORT / LDE_HUB_PORT when two trees run at once.
+# @description LDE_PG_PORT / LDE_GCS_PORT / LDE_HUB_PORT / LDE_WUI_PORT when two
+# @description trees run at once.
 # @param PROJ_PATH - set by run.sh: the csi-spl-orc dir
 # @param APP_PATH - set by run.sh: the checkout root
 # @param LDE_STATE_DIR (optional) - default: $HOME/.local/share/<org>-<app>/lde/<tree-slug>
@@ -54,6 +55,9 @@ do_lde_cnf() {
   LDE_GCS_PORT="${LDE_GCS_PORT:-$(_lde_get .env.lde.gcs.host_port)}"
   LDE_HUB_PORT="${LDE_HUB_PORT:-$(_lde_get .env.lde.hub.host_port)}"
   LDE_WUI_PORT="${LDE_WUI_PORT:-$(_lde_get .env.lde.wui.host_port)}"
+  # cnf lde.wui.image when cnf carries one; else the Node LTS the WUI engines allow
+  LDE_WUI_IMAGE="${LDE_WUI_IMAGE:-$(_lde_get .env.lde.wui.image)}"
+  LDE_WUI_IMAGE="${LDE_WUI_IMAGE:-node:22-bookworm-slim}"
   LDE_HUB_CONTAINER_PORT="$(_lde_get .env.hub.cloud_run.port)"
   LDE_SMOKE_TENANT="$(_lde_get .env.lde.smoke_tenant)"
   LDE_FILES_BUCKET="$(_lde_get .env.hub.env.SPOOL_HUB_FILES_BUCKET)"
@@ -63,6 +67,7 @@ do_lde_cnf() {
   LDE_COMPOSE_ENV="$LDE_STATE_DIR/compose.env"
   LDE_HUB_ENV_FILE="$LDE_STATE_DIR/hub.env"
   LDE_DOCKER_DIR="$PROJ_PATH/src/docker"
+  LDE_WUI_SRC="$APP_PATH/$LDE_ORG_APP-wui"
   unset -f _lde_get
 
   local v
@@ -73,14 +78,15 @@ do_lde_cnf() {
   export LDE_ORG LDE_APP LDE_ORG_APP LDE_CNF_DIR LDE_TREE_SLUG LDE_STATE_DIR LDE_CNF LDE_COMPOSE_PROJECT \
     LDE_PG_IMAGE LDE_PG_PORT LDE_PG_DB LDE_PG_USER LDE_PG_PASSWORD LDE_GCS_IMAGE LDE_GCS_PORT LDE_HUB_PORT LDE_WUI_PORT \
     LDE_HUB_CONTAINER_PORT LDE_SMOKE_TENANT LDE_FILES_BUCKET LDE_MIGRATIONS_DIR LDE_SQL_SRC LDE_HUB_IMAGE LDE_COMPOSE_ENV \
-    LDE_HUB_ENV_FILE LDE_DOCKER_DIR
+    LDE_HUB_ENV_FILE LDE_DOCKER_DIR LDE_WUI_IMAGE LDE_WUI_SRC
 }
 
-# lde_compose <args...> -- docker compose over the three lde files, this tree's
-# project name and the generated interpolation env.
+# lde_compose <args...> -- docker compose over the four lde files (infra, rdb,
+# api, wui), this tree's project name and the generated interpolation env.
 lde_compose() {
   docker compose -p "$LDE_COMPOSE_PROJECT" --env-file "$LDE_COMPOSE_ENV" \
     -f "$LDE_DOCKER_DIR/docker-compose-infra.yaml" \
     -f "$LDE_DOCKER_DIR/docker-compose-rdb.yaml" \
-    -f "$LDE_DOCKER_DIR/docker-compose-api.yaml" "$@"
+    -f "$LDE_DOCKER_DIR/docker-compose-api.yaml" \
+    -f "$LDE_DOCKER_DIR/docker-compose-wui.yaml" "$@"
 }

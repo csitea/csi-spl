@@ -36,6 +36,8 @@ None of the audit's items is already fixed on trunk.
 
 **Correction to the audit's #1 remedy** (reported by CLE-3417 at 17:02Z, read live as the per-env SA, n=1 per env; relayed, not re-read by ORC-PERF): Cloud SQL `max_connections` = **25** on both dev and prd (`superuser_reserved_connections` 3, `cloudsqladmin` 2). The audit's `MaxConns = 30` does not fit. T010 sizes the pool to 8 and leaves the rest for operator sessions and the proxy.
 
+**Correction to the audit's §1 matrix**: the Cloud SQL tier is `db-f1-micro` (shared vCPU, ~0.6 GB), not `db-custom-1-3840`. Check: `git grep -n 'tier' origin/master -- csi-spl-cnf/csi-spl/*/tf/040-cloud-sql-postgres.vars.tfvars` -> `tier = "db-f1-micro"` for dev and prd. The lane benchmarks run pg16 on a 16-core box over loopback, so they give RATIOS between variants, not production ceilings.
+
 ## 4. Requirements
 
 - **FR-001** Every perf claim states the version/config, the tree/sha and n, with a before and an after number from the same harness. No "faster" without numbers.
@@ -49,6 +51,7 @@ None of the audit's items is already fixed on trunk.
 - **D3 (found by T040, not a perf item)**: the month quota is `COUNT(*)` of messages that still exist (`store/postgres.go:368`, `received_at >= period start`). Retention deletes #alerts after 7 days (cnf `SPOOL_HUB_RETENTION_ALERTS: "168h"`), so a tenant's usage for the month DROPS as its messages expire. T040 keeps that behaviour byte-identical (the counter decrements on delete, FR-002). Question for the owner: should the quota count messages *sent* in the period (monotonic)? Recommendation: yes, as a separate billing lane after T040. The counter then simply stops decrementing.
 - **D4 (T020 follow-up)**: a hub crash between the tmp upload's finalize and its promote leaves an object under `tmp/<tenant>/`. Proposed: a bucket lifecycle rule (`matchesPrefix tmp/`, age 1 day) in the 050 terraform step via make/tf-runner. It needs the owner's go (terraform apply). Recommendation: yes.
 - **Accepted T020 trade-offs** (measured, FR-001): GCS upload latency rises 169 -> 246 ms/upload (the server-side copy) in exchange for peak heap 605 -> 8 MiB over 8 concurrent 32 MiB uploads. A re-upload of bytes the tenant already holds, sent WITH `Content-Length` while the tenant is at quota, is now 429 from the pre-check (it was 201); without `Content-Length` it is unchanged.
+- **D5 (the DB tier)**: every lane's absolute numbers come from a local pg16. Production runs on `db-f1-micro`, so the real ceiling is unknown and probably set by the tier, not by the code. Options: (a) keep f1-micro and first measure a real ceiling on dev with a named load-probe action against the dev hub after the T010-T040 rolls; (b) raise the tier (for example `db-custom-1-3840`, a monthly cost increase; `max_connections` and the pool rise with it). Recommendation: (a) now, and decide (b) on that number.
 - **D2 (P3b)**: multi-instance fanout. Recommendation: not now. Revisit only once a measured single-instance ceiling is reached.
 
-<!-- last-edit: 2026-09-19T17:12:58Z -->
+<!-- last-edit: 2026-09-19T17:19:39Z -->

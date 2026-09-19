@@ -31,6 +31,7 @@ are not duplicated here.
 - [x] T011 [FR-005] Smoke: two `$SPOOL_ROOT`s, GRK→CLE `task` and `result` back, no GCP env — **Implemented** (`hub-e2e.tst.sh` → `ALL HUB E2E CHECKS PASSED`).
 - [x] T011b [FR-011] Three pinned peers A→B, B→C, C→A `task` all delivered; prefix never changes auth — **Implemented** (`TestThreePeerMeshRing`).
 - [ ] T011c [FR-004] Cloud: owner-made tenant on `dev`, then `prd`; two real machines; M1 demo steps 2–4 — **Planned**; blocked on 007 README §6 steps 3–10 (dev hub exists but has no LB/DNS; prd APIs disabled).
+- [ ] T011d [FR-007] Dev owner tenant `t1` (the WUI's dev default, `nuxt.config.ts` `tenant`) so the dev WUI has data: `ENV=dev DRY_RUN=0 GCP_ACCOUNT=<OPERATOR> TENANT_ID=t1 ./run -a do_spl_tenant_create` from `csi-spl-orc` (with no `SPOOL_HUB_DB_DSN` the action now reads the DSN secret as `GCP_ACCOUNT` and goes through the Cloud SQL proxy, like `do_spl_db_bootstrap`; the root private key is printed once on stdout, keep it out of logs). Check: `curl -s -o /dev/null -w '%{http_code}' https://t1.dev.spool-hub.ai/v1/view/threads` -> not `404` (was `404 unknown_tenant`, 2026-09-19). — **Planned**; code path in `tenant-create.tst.sh` §5; blocked 2026-09-19T05:45Z on the operator's gcloud re-login (reauth required, n=1).
 
 ## Phase 4: Quota / unpaid (US4)
 
@@ -53,4 +54,4 @@ are not duplicated here.
 - [x] T014 [FR-006] Public deploy notes: allow unauthenticated in M2; rate-limit unsigned at the shield — **Implemented** as doc (`plan.md` "Public deploy notes"); the infra is 007's.
 - [x] T015 [FR-015] Hygiene tests: no payment-vendor name / product host in Go; no root private key in hub logs — **Implemented** (`no-baked-host.tst.sh`, `TestRootPrivateKeyNotLogged`, `3690211`).
 
-<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:55:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-19 -->

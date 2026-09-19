@@ -143,7 +143,7 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | T101 | Implemented | `git log --format=%h -- .github/workflows` → `3596991` |
 | T102 | Implemented | this commit |
 | T103, T104 | Implemented (code; not applied) | `2a7888c`: `git grep -c 'google_service_account" "deploy"\|deploy_writer\|deploy_developer\|deploy_acts_as_hub' origin/master -- csi-spl-iac/src/terraform/017-github-wif-deploy` → `03-github-wif.tf:4` (the SA + three grants). `artifactregistry.writer` includes read. Applying is 007 T050 (owner go). |
-| T105, T109 | Planned | 2026-09-18T19:40Z: `gh variable list -R csitea/csi-spl` → empty; `gcloud iam workload-identity-pools list --location=global --project=csi-spl-{dev,prd} --account=$GCP_ACCOUNT` → 0 in both; blocked on 007 T050 |
+| T105, T109 | Planned (blocked: operator re-login) | 2026-09-19T05:45Z (trunk `de3d67c`, n=1): `gh variable list -R csitea/csi-spl` → empty; `gcloud … --account=$GCP_ACCOUNT` → `Reauthentication failed. cannot prompt during non-interactive execution` (ADC the same), so 017 cannot be planned or applied from the box until the owner re-logs in. `curl -s https://{dev.,}spool-hub.ai/version` → `c972f24` both, 36 commits behind trunk (4 in `csi-spl-api`). Earlier: 2026-09-18T19:40Z: `gh variable list -R csitea/csi-spl` → empty; `gcloud iam workload-identity-pools list --location=global --project=csi-spl-{dev,prd} --account=$GCP_ACCOUNT` → 0 in both; blocked on 007 T050 |
 | T106 | Planned | deploy job `skipped` in 8 of 8 runs of `20 ci-cd` |
 | T107 | Implemented | `4839514`; run `35385087709` → `distribution-hygiene` success (first green gate since `3596991`) |
 | T108, T111 | Planned | — |

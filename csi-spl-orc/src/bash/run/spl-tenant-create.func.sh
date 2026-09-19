@@ -11,10 +11,15 @@
 # @param TENANT_ID   (dev, prd, www, api, ...: the hub refuses those at create)
 # @param ENV (optional) - lde (default), dev or prd
 # @param DRY_RUN (optional) - 1 (default): no key, no INSERT. 0: create.
-# @param SPOOL_HUB_DB_DSN - required when DRY_RUN=0 (cloud: the Secret Manager DSN; lde: derived)
+# @param SPOOL_HUB_DB_DSN (optional) - lde: derived. dev/prd: when unset, the
+# @param   DSN secret is read as GCP_ACCOUNT and reached through the Cloud SQL
+# @param   proxy (spl_sql_proxy_start), the same path do_spl_db_bootstrap uses
+# @param GCP_ACCOUNT - dev/prd with DRY_RUN=0 and no SPOOL_HUB_DB_DSN: the
+# @param   operator (secretmanager.secretAccessor + cloudsql.client)
 # @param SPOOL_BIN (optional) - spool CLI; otherwise built from csi-spl-api
 # @example TENANT_ID=acme ./run -a do_spl_tenant_create --json
 # @example ENV=lde DRY_RUN=0 TENANT_ID=acme ./run -a do_spl_tenant_create --json
+# @example ENV=dev DRY_RUN=0 GCP_ACCOUNT=<OPERATOR>@example.com TENANT_ID=t1 ./run -a do_spl_tenant_create
 #------------------------------------------------------------------------------
 do_spl_tenant_create() {
   do_require_bin yq || return 1
@@ -68,11 +73,6 @@ do_spl_tenant_create() {
     return 0
   fi
 
-  [[ -n "$dsn" ]] || {
-    do_log "FATAL SPOOL_HUB_DB_DSN is required when DRY_RUN=0 (cloud: the Secret Manager DSN; lde: derived)"
-    return 1
-  }
-
   local cli="${SPOOL_BIN:-}"
   if [[ -z "$cli" || ! -x "$cli" ]]; then
     local out="${LDE_STATE_DIR:-${SPL_STATE_DIR:-/tmp}}/bin/spool"
@@ -84,11 +84,38 @@ do_spl_tenant_create() {
     cli="$out"
   fi
 
+  # dev/prd with no DSN given: read the DSN secret and reach Cloud SQL through
+  # the local proxy. Every failure here happens before a key is generated.
+  local proxied=0
+  if [[ -z "$dsn" && "$env" != lde ]]; then
+    do_require_var GCP_ACCOUNT "${GCP_ACCOUNT:-}" || return 1
+    do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+    local cloud_dsn
+    cloud_dsn="$(spl_read_dsn)"
+    [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as $GCP_ACCOUNT"; return 1; }
+    spl_sql_proxy_start || return 1
+    proxied=1
+    dsn="$(spl_proxy_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" || {
+      spl_sql_proxy_stop
+      do_log "FATAL the DSN in $SPL_DSN_SECRET is not postgres://<user>:<pw>@/<db>?host=/cloudsql/<conn>"
+      return 1
+    }
+  fi
+
+  [[ -n "$dsn" ]] || {
+    do_log "FATAL SPOOL_HUB_DB_DSN is required when DRY_RUN=0 (lde: derived; dev/prd: or set GCP_ACCOUNT)"
+    return 1
+  }
+
   local tmp pub priv
-  tmp="$(mktemp -d)" || return 1
-  chmod 700 "$tmp" || return 1
+  tmp="$(mktemp -d)" || { [[ $proxied == 1 ]] && spl_sql_proxy_stop; return 1; }
+  chmod 700 "$tmp" || { [[ $proxied == 1 ]] && spl_sql_proxy_stop; return 1; }
   # shellcheck disable=SC2064
-  trap "rm -rf '$tmp'" RETURN
+  if [[ $proxied == 1 ]]; then
+    trap "rm -rf '$tmp'; spl_sql_proxy_stop; trap - RETURN" RETURN
+  else
+    trap "rm -rf '$tmp'; trap - RETURN" RETURN
+  fi
 
   pub="$("$cli" root-keygen --out "$tmp/root.key")" || {
     do_log "FATAL root-keygen failed"

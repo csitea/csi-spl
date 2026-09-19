@@ -71,5 +71,15 @@ else
   fail "DRY_RUN dev JSON: $out $(cat "$T/dev.py.err") $(cat "$T/dev.err")"
 fi
 
+# --- 5. DRY_RUN=0 cloud, no DSN, no GCP_ACCOUNT: refused before any key -----
+# SPOOL_BIN is a stub so no build runs; the refusal must come before keygen.
+out=$(SNIPPET='do_spl_tenant_create' in_orc ENV=dev TENANT_ID=acme DRY_RUN=0 GCP_ACCOUNT= SPOOL_HUB_DB_DSN= \
+  SPOOL_BIN=/bin/true SPL_STATE_DIR="$T/cloud0" 2>&1); rc=$?
+if [[ $rc -ne 0 ]] && grep -q GCP_ACCOUNT <<<"$out" && ! grep -qiE 'root_private_key|sql proxy up' <<<"$out"; then
+  pass "DRY_RUN=0 dev without DSN or GCP_ACCOUNT refused before keygen/proxy (rc=$rc)"
+else
+  fail "DRY_RUN=0 dev without DSN or GCP_ACCOUNT: rc=$rc $out"
+fi
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

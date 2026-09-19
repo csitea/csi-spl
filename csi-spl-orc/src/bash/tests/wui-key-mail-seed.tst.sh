@@ -97,8 +97,9 @@ printf '%s\n' "$PW" >"$PWF"; chmod 644 "$PWF"
 out=$(run_act do_spl_mail_secret_seed DRY_RUN=0); rc=$?
 [[ $rc -ne 0 && $(adds) -eq $n ]] && pass "mail: a non-0600 owner file is refused" || fail "mail 0644: rc=$rc $out"
 chmod 600 "$PWF"
-out=$(ENV_=dev run_act do_spl_mail_secret_seed DRY_RUN=0); rc=$?
-[[ $rc -ne 0 && $(adds) -eq $n ]] && pass "mail: a placeholder relay cnf (dev) is refused" || fail "mail dev placeholder: rc=$rc $out"
+# dev relays for real since CLE-3411 (010 FR-016), so the placeholder is set here
+out=$(CNF_OVERRIDE='.env.mail.env.SPOOL_HUB_MAIL_SMTP_HOST = "PLACEHOLDER-smtp-host"' ENV_=dev run_act do_spl_mail_secret_seed DRY_RUN=0); rc=$?
+[[ $rc -ne 0 && $(adds) -eq $n ]] && pass "mail: a placeholder relay cnf is refused" || fail "mail placeholder: rc=$rc $out"
 out=$(CNF_OVERRIDE='.env.mail.env.SPOOL_HUB_MAIL_SMTP_TLS = "none"' run_act do_spl_mail_secret_seed DRY_RUN=0); rc=$?
 [[ $rc -ne 0 && $(adds) -eq $n ]] && pass "mail: a relay cnf without starttls is refused" || fail "mail tls none: rc=$rc $out"
 out=$(run_act do_spl_mail_secret_seed DRY_RUN=0 SMTP_TEST_RCPT=ops@example.com PROBE_FAIL=1); rc=$?

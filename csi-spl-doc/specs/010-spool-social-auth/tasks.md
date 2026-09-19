@@ -75,12 +75,12 @@ Cause (measured 2026-09-19 13:18Z, headless Chrome, n=1 per env, tree `0260220`)
 
 ## Phase 8 — Invitation email (FR-016, CLE-3411, owner 2026-09-19)
 
-- [ ] T060 Planned — rdb `0019_invite_mail.sql`: `tenant_invites.mailed_at timestamptz NULL`, `mail_count int NOT NULL DEFAULT 0`; applied dev + prd with `do_spl_db_bootstrap` BEFORE the code that reads it.
-- [ ] T061 Planned — `internal/mail` template `tenant_invite` (19 locales) + `mail.TenantInvite`; the body carries no token (CONTROL test).
-- [ ] T062 Planned — store `ClaimInviteMail` (Memory + Postgres, tenant-scoped): one atomic open / gap / cap check; `internal/invitemail.Send` (claim → render → relay; digest-only logs).
-- [ ] T063 Planned — `spool hub-invite` mails on create (`--no-mail` skips); `spool hub-invite-mail` resends. Tests incl. CONTROLS: accepted / expired → no mail; rate limit; body without secrets.
-- [ ] T064 Planned — `do_spl_hub_invite_email_send` (csi-spl-orc); `do_spl_hub_invite` passes the relay env; test with stubbed gcloud / spool.
-- [ ] T065 Planned — dev relay: cnf `dev.env.yaml` mail = the prd Gmail relay; the dev slot seeded with `do_gcp_copy_secret` from csi-rel as the dev SA.
-- [ ] T066 Planned — send for real: prd, then dev; record the relay answer, time, env.
+- [x] T060 Implemented (`572e3fc`) — rdb `0019_invite_mail.sql`: `tenant_invites.mailed_at`, `mail_count`; applied dev + prd with `do_spl_db_bootstrap` as the env SAs (2026-09-19T16:34Z) before any code read it.
+- [x] T061 Implemented (`1d642b2`) — template `tenant_invite`, 19 locales, `mail.TenantInvite`, optional `Message-ID`. Check: `go test -count=1 ./internal/mail/` → ok (`TestTenantInviteEveryLocale`; CONTROL `TestTenantInviteCarriesNoSecret`: no token-shaped run, no URL but the sign-in URL).
+- [x] T062 Implemented (`7eb6a55` store, `a325517` `internal/invitemail`) — `ClaimInviteMail` / `ReleaseInviteMail` (Memory + Postgres, tenant scope, row lock). Check: `go test ./internal/store/ ./internal/invitemail/` → ok, Postgres via `hub-pg.tst.sh`; CONTROLS accepted / expired / gap / cap / relay failure releases.
+- [x] T063 Implemented (`725ee70`) — `spool hub-invite` mails on create (`--no-mail`), `spool hub-invite-mail` resends (exit 3 = not sent). Check: `bash csi-spl-api/src/bash/tests/hub-pg.tst.sh` → `ok - 010 FR-016 …`.
+- [x] T064 Implemented (`1b1fcbb`) — `do_spl_hub_invite_email_send`; `do_spl_hub_invite` passes the relay env. Check: `bash csi-spl-orc/src/bash/tests/hub-invite-email-send.tst.sh` → 17 PASS (password never in argv/output; not-sent exit 3).
+- [x] T065 Implemented (`88e3b0a`, test fix `63778cd`) — dev cnf mail = the Gmail relay; dev slot seeded with `do_gcp_copy_secret` from csi-rel-prd as the dev SA (sha256-verified 16:49Z). The dev HUB picks it up on its next 030 apply (deploy lane).
+- [x] T066 Done 2026-09-19 — prd: relay accepted at 16:53:53Z, Message-ID `<03f8bfb92a62a6894e326600.tenant_invite@spool-hub.ai>`, locale bg (hub default), `mail_count` 1. dev: NOT sent: `skipped_accepted`. The dev invite was accepted at 16:39:41Z (HUM-11) before the send, which is the accepted → no-mail control on live data.
 
 <!-- version: 0.9.0 · updated: 2026-09-19 -->

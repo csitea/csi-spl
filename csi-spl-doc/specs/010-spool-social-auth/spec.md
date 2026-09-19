@@ -180,7 +180,7 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   **overrides** the browser-asserted `hello.as` / `?as=` (gap F8), so a
   signed-in human cannot post as someone else. With the door `off`
   (lde/dev only) the asserted id is used as before.
-- **FR-016** — Planned (CLE-3411, owner 2026-09-19 "send him an email
+- **FR-016** — Implemented (CLE-3411, tasks T060–T066; owner 2026-09-19 "send him an email
   invite", "to both the environments"): **the invitation email.** Creating an
   invite (`spool hub-invite`, operator; and any later in-app owner invite,
   which calls the same `invitemail.Send`) sends ONE mail through the existing

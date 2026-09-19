@@ -17,7 +17,9 @@ type memMember struct{ role, admittedBy string }
 
 type memInvite struct {
 	Invite
-	accepted bool
+	accepted  bool
+	mailedAt  *time.Time // rdb 0019 (FR-016)
+	mailCount int
 }
 
 // memHumans is Memory's copy of the 0006 tables; zero value is empty.
@@ -130,7 +132,12 @@ func (s *Memory) PutInvite(_ context.Context, in Invite, _ time.Time) error {
 	if _, ok := s.tenants[in.TenantID]; !ok {
 		return ErrNotFound
 	}
-	s.hum.invites[[2]string{in.TenantID, in.Email}] = &memInvite{Invite: in}
+	// A re-invite resets the mail count, never mailed_at (rdb 0019).
+	ni := &memInvite{Invite: in}
+	if old, ok := s.hum.invites[[2]string{in.TenantID, in.Email}]; ok {
+		ni.mailedAt = old.mailedAt
+	}
+	s.hum.invites[[2]string{in.TenantID, in.Email}] = ni
 	return nil
 }
 

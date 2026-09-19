@@ -154,7 +154,8 @@ func (s *Postgres) PutInvite(ctx context.Context, in Invite, now time.Time) erro
 	tag, err := s.execTenant(ctx, in.TenantID, `INSERT INTO tenant_invites (tenant_id, email, role, invited_by, created_at, expires_at)
 		SELECT $1, $2, $3, $4, $5, $6 WHERE EXISTS (SELECT 1 FROM tenants WHERE tenant_id = $1)
 		ON CONFLICT (tenant_id, email) DO UPDATE SET role = EXCLUDED.role, invited_by = EXCLUDED.invited_by,
-			created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at, accepted_at = NULL, accepted_by = NULL`,
+			created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at, accepted_at = NULL, accepted_by = NULL,
+			mail_count = 0`,
 		in.TenantID, in.Email, in.Role, in.InvitedBy, now, in.ExpiresAt)
 	if err != nil {
 		return err

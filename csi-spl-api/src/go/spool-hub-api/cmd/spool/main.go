@@ -23,6 +23,7 @@
 //	          $SPOOL_HUB_DB_DSN, $SPOOL_HUB_MIGRATIONS_DIR)
 //	hub-tenant --tenant <id> --root-pubkey <b64>   seed a tenant row (via $SPOOL_HUB_DB_DSN)
 //	hub-tenant-billing --tenant <id> --event paid|unpaid|failed|refund|cancel   set billing_status (via $SPOOL_HUB_DB_DSN)
+//	hub-invite --tenant <id> --email <addr> [--role owner|member] [--ttl 168h]   operator invite (via $SPOOL_HUB_DB_DSN)
 //	root-keygen --out <path> [--force]   tenant root keypair; prints the public key
 //	hub-pin --box <id> --pubkey <b64> --root-key <path> [--force] [--revoke]
 //	hub-sync                   one role=box session: hello, pins, drain queue, flush
@@ -83,6 +84,8 @@ func run(args []string) int {
 		return cmdHubTenant(rest)
 	case "hub-tenant-billing":
 		return cmdHubTenantBilling(rest)
+	case "hub-invite":
+		return cmdHubInvite(rest)
 	case "root-keygen":
 		return cmdRootKeygen(rest)
 	}

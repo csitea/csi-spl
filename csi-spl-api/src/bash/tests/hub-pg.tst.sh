@@ -66,5 +66,15 @@ echo "ok   - spool migrate applies $(echo "$out1" | grep -c '^applied') file(s);
 ( cd "$MOD" && SPOOL_TEST_PG_DSN="$DSN" SPOOL_TEST_SQL_DIR="$SQL_DIR" go test -count=1 ./internal/store/ ./internal/hub/ )
 echo "ok   - internal/store + internal/hub suites green against Postgres"
 
+# 010 FR-014: the operator invite seats a first owner where bootstrap is off.
+INV_PUB="$("$BIN" root-keygen --out "$WORK/inv-root.key")"
+SPOOL_HUB_DB_DSN="$DSN" "$BIN" hub-tenant --tenant t-invite --root-pubkey "$INV_PUB" >/dev/null
+inv="$(SPOOL_HUB_DB_DSN="$DSN" "$BIN" hub-invite --tenant t-invite --email Owner@Example.com)"
+echo "$inv" | grep -q '"status":"invited"' || { echo "FAIL - hub-invite: $inv"; exit 1; }
+if SPOOL_HUB_DB_DSN="$DSN" "$BIN" hub-invite --tenant t-nosuch --email x@example.com >/dev/null 2>&1; then
+  echo "FAIL - hub-invite accepted an unknown tenant"; exit 1
+fi
+echo "ok   - spool hub-invite: invite for an existing tenant, unknown tenant refused"
+
 bash "$HERE/hub-e2e.tst.sh" "$BIN" "$DSN"
 echo "ALL HUB POSTGRES CHECKS PASSED"

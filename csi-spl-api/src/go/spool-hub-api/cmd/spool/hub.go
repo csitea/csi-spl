@@ -187,6 +187,40 @@ func cmdHubTenantBilling(args []string) int {
 	return 0
 }
 
+// cmdHubInvite is the operator's way to seat a tenant's first owner where
+// bootstrap is off (prd, 010 FR-014 / OQ-A5): the first sign-in whose
+// VERIFIED email matches is admitted with --role, once, before --ttl ends.
+func cmdHubInvite(args []string) int {
+	fs := flag.NewFlagSet("hub-invite", flag.ContinueOnError)
+	tenant := fs.String("tenant", "", "tenant id")
+	email := fs.String("email", "", "the invitee's verified sign-in email")
+	role := fs.String("role", store.RoleOwner, "owner|member")
+	ttl := fs.Duration("ttl", 7*24*time.Hour, "how long the invite stays open")
+	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if !msg.ValidTenantID(*tenant) || *email == "" || *ttl <= 0 || *dsn == "" {
+		return fail(fmt.Errorf("--tenant (valid slug), --email, a positive --ttl and --db / $SPOOL_HUB_DB_DSN are required"))
+	}
+	ctx := context.Background()
+	st, err := store.OpenPostgres(ctx, *dsn)
+	if err != nil {
+		return fail(err)
+	}
+	defer st.Close()
+	now := time.Now().UTC()
+	in := store.Invite{TenantID: *tenant, Email: *email, Role: *role, InvitedBy: store.AdmittedOperator, ExpiresAt: now.Add(*ttl)}
+	if err := st.PutInvite(ctx, in, now); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return fail(fmt.Errorf("tenant %s does not exist", *tenant))
+		}
+		return fail(err)
+	}
+	fmt.Println(action.JSON(map[string]string{"tenant": *tenant, "role": *role, "expires_at": in.ExpiresAt.Format(time.RFC3339), "status": "invited"}))
+	return 0
+}
+
 // cmdRootKeygen creates a tenant ROOT keypair (the renter's key; it pins and
 // revokes box keys). The private key is written 0600 and never printed.
 func cmdRootKeygen(args []string) int {

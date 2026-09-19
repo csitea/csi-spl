@@ -147,8 +147,22 @@ func TestCrossTenantMemberNamesBsIds(t *testing.T) {
 	if ok, err := r.e.st.ChannelKnown(ctx, b.tenant, b.channel); err != nil || !ok {
 		t.Errorf("B's channel after A created the same name: %v %v", ok, err)
 	}
-	if envs, _ := r.e.st.TaskEnvelopes(ctx, b.tenant, b.taskID); len(envs) != 1 {
-		t.Errorf("B's thread holds %d message(s) after A's calls, want 1", len(envs))
+	// Nothing of A's reached B's thread. Not "exactly 1": the one DELETE on
+	// messages is the global retention Sweep, which no hub test calls, so a
+	// vanished seed means another process swept the same database (the store
+	// suite's Sweep(now+31d)) - retention, not a cross-tenant write. hub-pg
+	// gives each package its own database. Seen by CLE-3418, 1 of 3 runs.
+	envs, err := r.e.st.TaskEnvelopes(ctx, b.tenant, b.taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(envs) > 1 {
+		t.Errorf("B's thread holds %d message(s) after A's calls, want at most B's own 1", len(envs))
+	}
+	for _, env := range envs {
+		if !strings.Contains(string(env), b.marker) {
+			t.Errorf("B's thread holds a message that is not B's: %s", env)
+		}
 	}
 }
 

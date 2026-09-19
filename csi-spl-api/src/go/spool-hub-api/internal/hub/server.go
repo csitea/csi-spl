@@ -91,6 +91,9 @@ type Options struct {
 	// SessionID returns the member-session human id of a browser request; nil
 	// = Auth.SessionForTenant. Set by code only (a test seam), never by env.
 	SessionID func(r *http.Request, tenant string) (string, error)
+	// KeysWriteLimit is the per-human hourly ceiling on key writes (specs/023
+	// FR-008); 0 = keysWritesPerHour.
+	KeysWriteLimit int
 }
 
 // Server is one hub process.
@@ -108,6 +111,7 @@ type Server struct {
 	closing  bool
 	cicd     *cicdlogs.Service
 	edge     *edge.Guard
+	keysLim  *edge.Window // keys.go, per-human writes
 }
 
 type uploadToken struct {
@@ -197,6 +201,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {
 		s.o.Auth.Register(mux)
+		s.registerKeys(mux)
 	}
 	if s.o.Payments != nil {
 		s.o.Payments.Register(mux)

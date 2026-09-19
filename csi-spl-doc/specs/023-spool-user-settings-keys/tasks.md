@@ -10,9 +10,9 @@
 
 ## Phase 2 — Hub
 
-- [ ] T010 rdb migration `human_keys` (next free number at push time): hub-wide like `humans` (no tenant_id, outside RLS), one active key per human (partial unique index), `public_key` globally unique, history kept.
-- [ ] T011 `store.HumanKeys` (Memory + Postgres): add (replaces the active key in one transaction), list, get, revoke.
-- [ ] T012 `internal/hub/keys.go`: keys-v1 routes, Ed25519 validation (pin base64 + `ssh-ed25519`), private-key refusal, per-human write window, audit lines. Check: `go test ./internal/hub -run Keys` with CONTROLS (another human's key 404 on get and revoke; malformed, private-key and `private_key`-field uploads refused; duplicate across humans 409; anonymous 401).
+- [x] T010 rdb `0018_human_keys.sql` (0017 is held by CLE-3403's `human_preferred_locale`): hub-wide like `humans` (no tenant_id, outside RLS), one active key per human (partial unique index), `public_key` globally unique, history kept.
+- [x] T011 `store.HumanKeys` (Memory + Postgres): add (replaces the active key in one transaction), list, get, revoke.
+- [x] T012 `internal/hub/keys.go` + `internal/sign/pubkey.go` (fingerprint pinned to `ssh-keygen -lf` output): keys-v1 routes, Ed25519 validation (pin base64 + `ssh-ed25519`), private-key refusal, per-human write window, audit lines. Check: `go test ./internal/hub -run Keys` with CONTROLS (another human's key 404 on get and revoke; malformed, private-key and `private_key`-field uploads refused; duplicate across humans 409; anonymous 401); mutation-checked: dropping the human filter on get and dropping DisallowUnknownFields each fail a test. `bash csi-spl-api/src/bash/tests/hub-pg.tst.sh` → ALL HUB POSTGRES CHECKS PASSED (store/hub/auth under a non-superuser Postgres, 0018 applied).
 - [ ] T013 Hub deploy via CLE-3355 (tag bump + 030 via make), migration applied first (`do_spl_db_bootstrap`).
 
 ## Phase 3 — WUI

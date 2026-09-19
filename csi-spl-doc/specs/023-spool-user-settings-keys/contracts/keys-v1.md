@@ -1,6 +1,6 @@
 # Contract: human public keys — keys-v1 (023)
 
-Mounted by the hub under the auth prefix, so the credentialed CORS of
+Implemented: `internal/hub/keys.go`. Mounted by the hub under the auth prefix, so the credentialed CORS of
 `/api/v1/auth/*` (allow-list `SPOOL_HUB_VIEW_CORS_ORIGINS`, methods
 `GET, POST`, header `Content-Type`) covers it with no CORS change.
 
@@ -33,7 +33,7 @@ No route accepts or returns private key material.
 | method + path | body | answer |
 |---|---|---|
 | `GET /api/v1/auth/keys` | — | `200 {"active": Key or null, "keys": [Key…]}` newest first, history included |
-| `GET /api/v1/auth/keys/{id}` | — | `200 Key`; not yours / unknown → `404 not_found` |
+| `GET /api/v1/auth/keys/{id}/public` | — | `200 Key`; not yours / unknown → `404 not_found`. (`/{id}/public`, not `/{id}`: the auth mux's `GET /api/v1/auth/{provider}/start` would overlap.) |
 | `POST /api/v1/auth/keys` | `{"public_key": "<b64 or ssh-ed25519 line>", "source": "generated" or "uploaded", "label": "<≤80 chars>"}` | `201 Key` (now active; the previous active key → `revoked_reason: replaced`) |
 | `POST /api/v1/auth/keys/{id}/revoke` | `{}` | `200 Key`; already revoked → `200` unchanged; not yours → `404` |
 

@@ -160,6 +160,9 @@ type Store interface {
 	CountMessagesSince(ctx context.Context, tenantID string, since time.Time) (int, error)
 	// HasMessage reports whether (tenant, msg_id) is already stored (idempotent send).
 	HasMessage(ctx context.Context, tenantID, msgID string) (bool, error)
+	// MessageTimes returns a stored message's ts and received_at (ErrNotFound
+	// if none): a hub-built resend reuses them so it re-acks, not conflicts.
+	MessageTimes(ctx context.Context, tenantID, msgID string) (ts, receivedAt time.Time, err error)
 
 	// Channels, subscriptions and channel stats (channels.go, channels-v1).
 	Channels

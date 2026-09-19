@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -284,5 +285,46 @@ func TestWUIDoorAndReservedBox(t *testing.T) {
 	}
 	if code, eb := e.postPin(tid, root, hub.WUIBox, e.box(tid, "box-z").pub); code != http.StatusBadRequest {
 		t.Fatalf("pin box-wui: %d %+v", code, eb)
+	}
+}
+
+// H1 (003 wui-live-ws §3.2 + §4): a browser resending the same msg_id in a
+// LATER second is re-acked with the stored row's cursor, not 409 conflict_msg,
+// and stores nothing new. The injected clock moves 2 s between the sends.
+func TestWUIResendAcrossSecond(t *testing.T) {
+	var mu sync.Mutex
+	now := time.Date(2026, 9, 19, 9, 0, 0, 0, time.UTC)
+	e := newEnv(t, func(o *hub.Options) {
+		o.ViewDoor = hub.ViewDoorOff
+		o.LobbyTaskID = lobby
+		o.ViewCORSOrigins = []string{wuiOrigin}
+		o.Now = func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+	})
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	a := dialWUI(t, e, tid, "HUM-1")
+	id := "7a1c2e3f-4b5d-4e6f-8a9b-0c1d2e3f4a5b"
+	send := map[string]any{"type": "send", "msg_id": id, "task_id": "lobby", "body": "resend me"}
+
+	a.send(send)
+	first := a.read("ack")
+	if first.MsgID != id || first.Cursor == "" {
+		t.Fatalf("first ack %+v", first)
+	}
+	mu.Lock()
+	now = now.Add(2 * time.Second)
+	mu.Unlock()
+	a.send(send)
+	second := a.read("ack")
+	if second.MsgID != id || second.Cursor != first.Cursor {
+		t.Fatalf("resend across a second: first %+v second %+v", first, second)
+	}
+	if envs, _ := e.st.TaskEnvelopes(ctx, tid, lobby); len(envs) != 1 {
+		t.Fatalf("resend stored %d lobby messages", len(envs))
+	}
+	// A different body under the same msg_id is still a conflict.
+	a.send(map[string]any{"type": "send", "msg_id": id, "task_id": "lobby", "body": "changed"})
+	if f := a.read("error"); f.Error != "conflict_msg" {
+		t.Fatalf("changed body: %+v", f)
 	}
 }

@@ -312,7 +312,16 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	if to == "" {
 		to = BroadcastID
 	}
-	m := &msg.Message{V: msg.Version, MsgID: id, TaskID: task, TS: s.o.Now().UTC().Format(time.RFC3339),
+	// A resend of a stored msg_id reuses its ts, so the rebuilt envelope is
+	// byte-identical and re-acks instead of conflicting (003 wui-live-ws §4).
+	ts := s.o.Now()
+	if prev, _, err := s.o.Store.MessageTimes(ctx, c.tenant, id); err == nil {
+		ts = prev
+	} else if !errors.Is(err, store.ErrNotFound) {
+		fail("internal", http.StatusInternalServerError, "message lookup failed")
+		return
+	}
+	m := &msg.Message{V: msg.Version, MsgID: id, TaskID: task, TS: ts.UTC().Format(time.RFC3339),
 		From: c.from, To: to, Kind: kind, Body: f.Body, Files: []msg.Attachment{}}
 	for _, a := range f.Files {
 		mode, k := a.Mode, a.Kind
@@ -380,11 +389,16 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		fail("internal", http.StatusInternalServerError, "message not stored")
 		return
 	}
-	ack := map[string]any{"type": "ack", "msg_id": id, "task_id": task}
-	if r.inserted {
-		ack["cursor"] = encCursor(r.receivedAt, id)
-		ack["received_at"] = rfc(r.receivedAt)
+	receivedAt := r.receivedAt
+	if !r.inserted { // a duplicate acks with the stored row's cursor
+		if _, receivedAt, err = s.o.Store.MessageTimes(ctx, c.tenant, id); err != nil {
+			s.o.Log.Error().Err(err).Str("msg_id", id).Msg("wui duplicate lookup")
+			fail("internal", http.StatusInternalServerError, "message lookup failed")
+			return
+		}
 	}
+	ack := map[string]any{"type": "ack", "msg_id": id, "task_id": task,
+		"cursor": encCursor(receivedAt, id), "received_at": rfc(receivedAt)}
 	if agent != "" {
 		ack["to_box"], ack["delivery"] = box, r.delivery
 		s.o.Log.Info().Str("tenant", c.tenant).Str("msg_id", id).Str("from", m.From).

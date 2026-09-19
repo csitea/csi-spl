@@ -367,6 +367,15 @@ func (s *Postgres) HasMessage(ctx context.Context, tenant, msgID string) (bool, 
 	return ok, err
 }
 
+func (s *Postgres) MessageTimes(ctx context.Context, tenant, msgID string) (ts, receivedAt time.Time, err error) {
+	err = s.pool.QueryRow(ctx, `SELECT ts, received_at FROM messages WHERE tenant_id = $1 AND msg_id = $2`,
+		tenant, msgID).Scan(&ts, &receivedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = ErrNotFound
+	}
+	return ts, receivedAt, err
+}
+
 // mapFK turns a foreign-key violation (unknown tenant) into ErrNotFound.
 func mapFK(err error) error {
 	if err == nil {

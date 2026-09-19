@@ -374,4 +374,14 @@ func (s *Memory) HasMessage(_ context.Context, tenant, msgID string) (bool, erro
 	return ok, nil
 }
 
+func (s *Memory) MessageTimes(_ context.Context, tenant, msgID string) (time.Time, time.Time, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, ok := s.messages[[2]string{tenant, msgID}]
+	if !ok {
+		return time.Time{}, time.Time{}, ErrNotFound
+	}
+	return m.TS, m.ReceivedAt, nil
+}
+
 func (s *Memory) Close() {}

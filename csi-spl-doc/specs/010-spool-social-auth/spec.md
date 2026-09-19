@@ -180,6 +180,39 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   **overrides** the browser-asserted `hello.as` / `?as=` (gap F8), so a
   signed-in human cannot post as someone else. With the door `off`
   (lde/dev only) the asserted id is used as before.
+- **FR-016** — Planned (CLE-3411, owner 2026-09-19 "send him an email
+  invite", "to both the environments"): **the invitation email.** Creating an
+  invite (`spool hub-invite`, operator; and any later in-app owner invite,
+  which calls the same `invitemail.Send`) sends ONE mail through the existing
+  relay (`internal/mail`, cnf `env.mail`; prd and dev = the csi-rel Gmail
+  relay, From name `SPOOL-HUB.AI NO-REPLY`). No in-app owner-invite endpoint
+  exists in the hub today (measured: `grep -rln PutInvite --include=*.go`
+  outside tests names only `cmd/spool/hub.go` and the auth demo), so the
+  operator path is the only caller until one is built.
+  - **Content** (template `tenant_invite`, all 19 locales): the tenant that
+    invites (its id is the tenant name today), the role, the address to sign
+    in with, the sign-in URL `https://<env fqdn>/login?tenant=<tenant>`, how
+    to accept (Google, or native sign-up + verify with THAT address;
+    admission is FR-014's verified-email match), and the expiry (UTC).
+  - **No bearer secret.** The invite is matched on the provider-verified
+    email (FR-014), so the link carries only the tenant id: forwarding the
+    mail grants nothing. No token is minted, stored or mailed.
+  - **Locale.** The invitee has no stored locale and tenants have none, so
+    the mail renders in the hub default `env.i18n.default_locale`
+    (`SPOOL_HUB_DEFAULT_LOCALE`; `bg` today) unless the operator passes
+    `--locale`; `en` is the fallback for a missing variant (`mail.Render`).
+  - **Only an open invite is mailed.** Accepted or expired → no mail
+    (`skipped_accepted` / `skipped_expired`); unknown → `not_found`.
+  - **Resend rate limit** (rdb `0019`: `tenant_invites.mailed_at`,
+    `mail_count`): a send is claimed atomically in the DB before the relay is
+    called, and refused (`rate_limited`) while the last send is younger than
+    `--min-gap` (default 10m) or the invite was already mailed `--max-sends`
+    times (default 5). Re-inviting (`PutInvite`) resets the count, not
+    `mailed_at`, so the gap still holds.
+  - **Logs** carry `mail.Digest(email)` only, never the address or the body.
+  - Resend: `ENV= TENANT_ID= EMAIL= ./run -a do_spl_hub_invite_email_send`
+    (csi-spl-orc; DRY_RUN=1 default) as the per-env SA; the relay password
+    is read from `env.mail.secret_env` into the child's environment only.
 
 ## 3. Security requirements
 
@@ -266,4 +299,4 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   (`TestStateCSRF`).
 - **SC-003** — Planned: the same on dev against the registered apps (T034).
 
-<!-- version: 0.3.1 · updated: 2026-09-19 · last-edit: 2026-09-19T09:15:00Z -->
+<!-- version: 0.4.0 · updated: 2026-09-19 · last-edit: 2026-09-19T16:55:00Z -->

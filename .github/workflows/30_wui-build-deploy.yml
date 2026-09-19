@@ -241,7 +241,18 @@ jobs:
         run: |
           set -uo pipefail
           urls=("https://${SITE}.web.app")
-          [[ "$LB_ROUTE" == true ]] && urls+=("https://${FQDN}")
+          # cnf can lead the 031 apply: probe the product host only when the LB
+          # route really serves the WUI. The hub answers GET / with a plain
+          # "spool-hub <env> ok" hello, the WUI with HTML.
+          if [[ "$LB_ROUTE" == true ]]; then
+            body=$(curl -fsS --max-time 15 "https://${FQDN}/" 2>/dev/null || true)
+            if grep -qi '<html' <<<"$body"; then
+              urls+=("https://${FQDN}")
+            else
+              echo "::warning::https://${FQDN}/ is not the WUI yet: 031 wui_origin_host is set in cnf but not applied; probing ${SITE}.web.app only"
+              LB_ROUTE=false
+            fi
+          fi
           rc=0
           for u in "${urls[@]}"; do
             ok=0

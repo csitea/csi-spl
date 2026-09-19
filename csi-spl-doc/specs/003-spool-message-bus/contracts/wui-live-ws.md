@@ -28,9 +28,10 @@ box and holds no key: its messages are stored with `from_box = "box-wui"`,
 **asserted** by the browser (`hello.as`) and not proven; once a sign-in
 session door is active (spec 010) the hub overrides it with the session's
 `HUM-*` id. Box envelopes are unchanged (Ed25519, verified by the hub).
-Browser messages are **not delivered to boxes** in this MVP (a box would
-refuse an unsigned envelope, exit 78); they are stored and fanned out to
-browser subscribers only.
+Delivery of browser messages to boxes is specified by
+`../../014-spool-wui-dispatch/` (hub-signed `box-wui` envelopes, behind
+`SPOOL_HUB_WUI_DISPATCH`); with that flag off they are stored and fanned out
+to browser subscribers only.
 
 ## 1. Constants
 

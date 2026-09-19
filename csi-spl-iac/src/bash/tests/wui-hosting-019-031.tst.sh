@@ -31,12 +31,14 @@ for env in dev prd; do
   grep -qx 'fqdn_a_record = false' "$CNF/$env/tf/031-gcp-hub-ingress.vars.tfvars" \
     && pass "$env 031 writes no A record for env.dns.fqdn (it belongs to Firebase)" || fail "$env 031 fqdn_a_record is not false"
 done
+# csi-rel's file at csi-rel f50f6b4c, pinned by hash so the check runs without a csi-rel checkout (CI)
+want_sha=73ffb71f8e606173a37609a588e103cbf7103e841532fd4edeef2aa1549f13f8
+got_sha=$(sha256sum "$PROJ_ROOT/src/bash/run/provision-firebase-dns.func.sh" | cut -d' ' -f1)
+[[ "$got_sha" == "$want_sha" ]] \
+  && pass "provision-firebase-dns.func.sh is byte-identical to csi-rel's (f50f6b4c)" || fail "provision-firebase-dns.func.sh differs from csi-rel's f50f6b4c (sha256 $got_sha)"
 R=/opt/csi/csi-rel/csi-rel-iac/src/bash/run/provision-firebase-dns.func.sh
-if [[ -f "$R" ]]; then
-  cmp -s "$R" "$PROJ_ROOT/src/bash/run/provision-firebase-dns.func.sh" \
-    && pass "provision-firebase-dns.func.sh is byte-identical to csi-rel's" || fail "provision-firebase-dns.func.sh differs from csi-rel's"
-else
-  echo "SKIP: no csi-rel checkout to compare provision-firebase-dns.func.sh"
+if [[ -f "$R" && "$(sha256sum "$R" | cut -d' ' -f1)" != "$want_sha" ]]; then
+  echo "NOTE: csi-rel's provision-firebase-dns.func.sh moved on since f50f6b4c; re-port it and update want_sha"
 fi
 grep -q 'do_provision_firebase_dns || rc' "$PROJ_ROOT/src/bash/run/provision-firebase-dns-env.func.sh" \
   && grep -q 'activate-service-account --key-file' "$PROJ_ROOT/src/bash/run/provision-firebase-dns-env.func.sh" \

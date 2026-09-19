@@ -82,8 +82,11 @@ do_spl_checkout_fake_buy() {
   tok="$(jq -r .claim_token <<<"$_body")"
   turl="$(jq -r .tenant_url <<<"$_body")"
   thost="${turl#*://}"
+  # tenant probe: https tenants resolve (cloud), so hit them directly; an lde
+  # tenant host does not resolve, so ask the hub with that Host header
+  _tenant() { if [[ "$turl" == https://* ]]; then _req GET "$turl/v1/view/threads"; else _req GET "$base/v1/view/threads" "" "$thost"; fi; }
 
-  _req GET "$base/v1/view/threads" "" "$thost" || return 1
+  _tenant || return 1
   [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" == unknown_tenant ]] || {
     do_log "FATAL before payment the tenant host $thost must be unknown_tenant, got HTTP $_code"
     return 1
@@ -111,7 +114,7 @@ do_spl_checkout_fake_buy() {
   tok=""
   [[ "$again" == 410 ]] || { do_log "FATAL a second claim answered HTTP $again, want 410"; return 1; }
 
-  _req GET "$base/v1/view/threads" "" "$thost" || return 1
+  _tenant || return 1
   [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" != unknown_tenant ]] || { do_log "FATAL after payment $thost is still unknown_tenant"; return 1; }
   local after="$_code"
 

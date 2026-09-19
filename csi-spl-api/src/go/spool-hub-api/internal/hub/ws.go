@@ -461,21 +461,9 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, billing.TokenUnpaid, billing.HTTPUnpaid, "tenant billing is unpaid")
 		return
 	}
-	has, err := s.o.Store.HasMessage(ctx, x.tenant, id)
-	if err != nil {
-		x.fail(ctx, id, "internal", http.StatusInternalServerError, "message lookup failed")
+	if tok, status, detail := s.messageQuota(ctx, x.tenant, id); tok != "" {
+		x.fail(ctx, id, tok, status, detail)
 		return
-	}
-	if !has {
-		n, err := s.o.Store.CountMessagesSince(ctx, x.tenant, billing.PeriodStart(s.o.Now()))
-		if err != nil {
-			x.fail(ctx, id, "internal", http.StatusInternalServerError, "quota lookup failed")
-			return
-		}
-		if s.quota().Over(billing.Usage{MessagesThisPeriod: n}, 1, 0, 0) != "" {
-			x.fail(ctx, id, billing.TokenQuota, billing.HTTPQuota, "message quota for this period is exceeded")
-			return
-		}
 	}
 	if !s.o.AllowTextOnly {
 		for _, a := range m.Files {
@@ -512,6 +500,32 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		return
 	}
 	x.write(ctx, wire.Frame{Type: wire.TSent, MsgID: id, TaskID: m.TaskID, TS: m.TS, ToBox: env.ToBox, Delivery: delivery}) //nolint:errcheck
+}
+
+// messageQuota is the 006 month quota for one new message (onSend, admit).
+// A resend of a stored msg_id is never refused by it: it adds nothing. The
+// stored-id lookup runs only when the send would be over, so an under-quota
+// send pays one read (027 T040), and an unlimited quota pays none.
+func (s *Server) messageQuota(ctx context.Context, tenant, msgID string) (string, int, string) {
+	q := s.quota()
+	if q.MessagesPerMonth <= 0 {
+		return "", 0, ""
+	}
+	n, err := s.o.Store.CountMessagesSince(ctx, tenant, billing.PeriodStart(s.o.Now()))
+	if err != nil {
+		return "internal", http.StatusInternalServerError, "quota lookup failed"
+	}
+	if q.Over(billing.Usage{MessagesThisPeriod: n}, 1, 0, 0) == "" {
+		return "", 0, ""
+	}
+	has, err := s.o.Store.HasMessage(ctx, tenant, msgID)
+	if err != nil {
+		return "internal", http.StatusInternalServerError, "message lookup failed"
+	}
+	if has {
+		return "", 0, ""
+	}
+	return billing.TokenQuota, billing.HTTPQuota, "message quota for this period is exceeded"
 }
 
 // commit stores the envelope and queues or pushes it. Caller has validated.

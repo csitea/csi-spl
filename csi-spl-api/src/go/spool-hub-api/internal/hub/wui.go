@@ -543,18 +543,8 @@ func (s *Server) admit(ctx context.Context, tenant string, m *msg.Message) (stri
 	if !billing.AllowsWrite(trow.BillingStatus) {
 		return billing.TokenUnpaid, billing.HTTPUnpaid, "tenant billing is unpaid"
 	}
-	has, err := s.o.Store.HasMessage(ctx, tenant, m.MsgID)
-	if err != nil {
-		return "internal", http.StatusInternalServerError, "message lookup failed"
-	}
-	if !has {
-		n, err := s.o.Store.CountMessagesSince(ctx, tenant, billing.PeriodStart(s.o.Now()))
-		if err != nil {
-			return "internal", http.StatusInternalServerError, "quota lookup failed"
-		}
-		if s.quota().Over(billing.Usage{MessagesThisPeriod: n}, 1, 0, 0) != "" {
-			return billing.TokenQuota, billing.HTTPQuota, "message quota for this period is exceeded"
-		}
+	if tok, status, detail := s.messageQuota(ctx, tenant, m.MsgID); tok != "" {
+		return tok, status, detail
 	}
 	if !s.o.AllowTextOnly {
 		for _, a := range m.Files {

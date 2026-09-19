@@ -34,6 +34,8 @@ for before and after, measured the same way (FR-001).
 
 None of the audit's items is already fixed on trunk.
 
+**Correction to the audit's #1 remedy** (reported by CLE-3417 at 17:02Z, read live as the per-env SA, n=1 per env; relayed, not re-read by ORC-PERF): Cloud SQL `max_connections` = **25** on both dev and prd (`superuser_reserved_connections` 3, `cloudsqladmin` 2). The audit's `MaxConns = 30` does not fit. T010 sizes the pool to 8 and leaves the rest for operator sessions and the proxy.
+
 ## 4. Requirements
 
 - **FR-001** Every perf claim states the version/config, the tree/sha and n, with a before and an after number from the same harness. No "faster" without numbers.
@@ -46,4 +48,4 @@ None of the audit's items is already fixed on trunk.
 - **D1 (item 5)**: argon2id CPU on 1 vCPU. Options: (a) `cpu: "2"` in cnf (about 2x the Cloud Run vCPU cost); (b) keep 1 vCPU and cap concurrent hashes in process with a semaphore (zero cost; logins queue instead of starving the WS loop); (c) lower the params (refused: the code enforces the OWASP floor). Recommendation: (b), measured first.
 - **D2 (P3b)**: multi-instance fanout. Recommendation: not now. Revisit only once a measured single-instance ceiling is reached.
 
-<!-- last-edit: 2026-09-19T16:58:00Z -->
+<!-- last-edit: 2026-09-19T17:03:30Z -->

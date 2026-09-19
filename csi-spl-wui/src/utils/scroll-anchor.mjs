@@ -24,3 +24,16 @@ export function anchorAfterPrepend({ top = 0, prevHeight = 0, nextHeight = 0, ad
   if (top <= nearTop) return { top, pill: 0, moved: false }
   return { top: top + Math.max(0, nextHeight - prevHeight), pill: pill + added, moved: true }
 }
+
+/**
+ * The element that actually scrolls a feed: the nearest ancestor with
+ * overflow-y auto/scroll and content taller than itself, else the document
+ * (a short window lets the page scroll instead of `.feed-body`).
+ */
+export function scrollerOf(el, doc = globalThis.document) {
+  for (let n = el ? el.parentElement : null; n; n = n.parentElement) {
+    const oy = doc.defaultView.getComputedStyle(n).overflowY
+    if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1) return n
+  }
+  return doc.scrollingElement || doc.documentElement
+}

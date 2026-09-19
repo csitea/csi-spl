@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mergeById, newestFirst, pendingRow, withoutMsg } from '../../src/utils/feed.mjs'
 import { channelView, dmFollow, feedRow, mergeLive, mergePage, rowFromAck } from '../../src/utils/channel-feed.mjs'
-import { anchorAfterPrepend, NEAR_TOP_PX, prependedCount } from '../../src/utils/scroll-anchor.mjs'
+import { anchorAfterPrepend, NEAR_TOP_PX, prependedCount, scrollerOf } from '../../src/utils/scroll-anchor.mjs'
 import { bumpThread, mergeThreadPage } from '../../src/utils/thread-list.mjs'
 import { createLiveClient } from '../../src/utils/live-ws.mjs'
 
@@ -99,6 +99,17 @@ describe('scroll anchoring (FR-012)', () => {
 
   it('scrolled down: the offset grows by the inserted height and the pill counts', () => {
     assert.deepEqual(anchorAfterPrepend({ top: 600, prevHeight: 3000, nextHeight: 3240, added: 2, pill: 1 }), { top: 840, pill: 3, moved: true })
+  })
+
+  it('the scroller is the overflowing auto ancestor, else the page', () => {
+    const node = (oy, sh, ch, parent = null) => ({ oy, scrollHeight: sh, clientHeight: ch, parentElement: parent })
+    const html = { tag: 'html' }
+    const doc = { scrollingElement: html, defaultView: { getComputedStyle: (n) => ({ overflowY: n.oy }) } }
+    const body = node('auto', 3000, 600)
+    const feed = node('visible', 3000, 3000, body)
+    assert.equal(scrollerOf({ parentElement: feed }, doc), body)
+    const short = node('auto', 500, 600)
+    assert.equal(scrollerOf({ parentElement: node('visible', 500, 500, short) }, doc), html, 'a feed body that does not overflow: the page scrolls')
   })
 
   it('nothing prepended: nothing moves', () => {

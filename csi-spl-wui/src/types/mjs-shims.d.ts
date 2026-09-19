@@ -246,6 +246,7 @@ declare module '~/utils/scroll-anchor.mjs' {
     pill?: number
     nearTop?: number
   }): { top: number, pill: number, moved: boolean }
+  export function scrollerOf(el: Element | null, doc?: Document): Element
 }
 
 declare module '~/utils/thread-list.mjs' {

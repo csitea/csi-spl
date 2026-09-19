@@ -1,29 +1,36 @@
 import type { Ref } from 'vue'
-import { anchorAfterPrepend, NEAR_TOP_PX, prependedCount } from '~/utils/scroll-anchor.mjs'
+import { anchorAfterPrepend, NEAR_TOP_PX, prependedCount, scrollerOf } from '~/utils/scroll-anchor.mjs'
 
 /**
  * 013 US7 FR-012: a newest-first feed keeps the reader's place when rows are
  * prepended while they are scrolled down, and counts them in a "new" pill.
- * `root` sits inside the scrolling `.feed-body`; `keys` are the rendered row
- * keys, newest first; `isOwn(key)` marks our own send, which jumps to the top.
+ * `root` sits inside the feed; the scroller is found each time (`.feed-body`,
+ * or the page when the window is short). `keys` are the rendered row keys,
+ * newest first; `isOwn(key)` marks our own send, which jumps to the top.
  */
 export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => string[], isOwn: (key: string) => boolean = () => false) {
   const pill = ref(0)
-  let scroller: HTMLElement | null = null
-  let before: { top: number, height: number } | null = null
+  let before: { el: HTMLElement, top: number, height: number } | null = null
+  let listening = false
 
   function el(): HTMLElement | null {
-    if (scroller && scroller.isConnected) return scroller
     const r = root.value
-    scroller = r ? (r.closest('.feed-body') as HTMLElement | null) || r.parentElement : null
+    if (!r || typeof document === 'undefined') return null
+    const s = scrollerOf(r) as HTMLElement
     /* the browser's own scroll anchoring would move it a second time */
-    if (scroller) scroller.style.overflowAnchor = 'none'
-    if (scroller) scroller.addEventListener('scroll', onScroll, { passive: true })
-    return scroller
+    s.style.overflowAnchor = 'none'
+    if (!listening) {
+      /* scroll does not bubble; a capturing listener sees the feed and the page */
+      document.addEventListener('scroll', onScroll, { capture: true, passive: true })
+      listening = true
+    }
+    return s
   }
 
   function onScroll() {
-    if (scroller && scroller.scrollTop <= NEAR_TOP_PX) pill.value = 0
+    if (!pill.value) return
+    const s = el()
+    if (s && s.scrollTop <= NEAR_TOP_PX) pill.value = 0
   }
 
   function reduced() {
@@ -39,15 +46,15 @@ export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => strin
   /* before the DOM patch: where the reader is */
   watch(keys, () => {
     const s = el()
-    before = s ? { top: s.scrollTop, height: s.scrollHeight } : null
+    before = s ? { el: s, top: s.scrollTop, height: s.scrollHeight } : null
   }, { flush: 'pre' })
 
   /* after it: hold the visible rows in place, or jump for our own send */
   watch(keys, (next, prev) => {
-    const s = el()
     const b = before
     before = null
-    if (!s || !b) return
+    if (!b) return
+    const s = b.el
     const added = prependedCount(prev || [], next || [])
     if (!added) return
     if ((next || []).slice(0, added).some(isOwn)) {
@@ -60,7 +67,7 @@ export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => strin
   }, { flush: 'post' })
 
   onUnmounted(() => {
-    if (scroller) scroller.removeEventListener('scroll', onScroll)
+    if (listening) document.removeEventListener('scroll', onScroll, { capture: true })
   })
 
   return { pill, jump }

@@ -232,3 +232,45 @@ declare module '~/utils/avatar.mjs' {
   }): Promise<string>
   export function resetAvatarFiles(): void
 }
+
+declare module '~/utils/checkout-client.mjs' {
+  export const CHECKOUT_PREFIX: string
+  export const CHECKOUT_STORE_ID: string
+  export const CHECKOUT_STORE_CLAIM: string
+  export interface CheckoutResult {
+    ok: boolean
+    status: number
+    data: Record<string, any> | null
+    error: string
+  }
+  export type ClaimOutcome =
+    | { state: 'ok', result: { tenant_id: string, tenant_url: string, root_private_key: string, emailed: boolean } }
+    | { state: 'claimed' | 'failed' | 'cancelled' | 'stopped' }
+    | { state: 'error', error: string }
+  export interface CheckoutClient {
+    plan(): Promise<CheckoutResult>
+    start(b: { tenant_id: string, email: string }): Promise<CheckoutResult>
+    status(id: string): Promise<CheckoutResult>
+    claim(b: { checkout_id: string, claim_token: string }): Promise<CheckoutResult>
+    fakePay(id: string): Promise<CheckoutResult>
+  }
+  export function checkoutErrorMessage(code: string): string
+  export function formatPrice(cents: unknown, currency: unknown): string
+  export function safeHostedUrl(u: unknown): string
+  export function keyFileName(tenant: string): string
+  export function saveCheckout(b: { checkout_id?: unknown, claim_token?: unknown }, storage?: Storage): boolean
+  export function loadCheckout(storage?: Storage): { id: string, token: string }
+  export function dropClaimToken(storage?: Storage): void
+  export function forgetCheckout(storage?: Storage): void
+  export function createCheckoutClient(opts?: { fetchFn?: typeof fetch, base?: string }): CheckoutClient
+  export function claimOnce(client: CheckoutClient, c: { id: string, token: string }, storage?: Storage): Promise<ClaimOutcome>
+  export function resetClaim(id: string): Promise<void>
+  export function pollAndClaim(client: CheckoutClient, c: { id: string, token: string }, opts?: {
+    storage?: Storage
+    intervalMs?: number
+    maxPolls?: number
+    sleep?: (ms: number) => Promise<void>
+    isStopped?: () => boolean
+    onStatus?: (s: string) => void
+  }): Promise<ClaimOutcome>
+}

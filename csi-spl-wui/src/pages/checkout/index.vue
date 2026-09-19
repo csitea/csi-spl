@@ -1,0 +1,154 @@
+<!-- /checkout — buy a tenant (spec 006 T021w, contracts/checkout-v1.md §2.1–§2.2).
+     GET plan → price + rail; the form POSTs {tenant_id, email}. The reply's
+     checkout_id + claim_token go to sessionStorage (never a URL), then:
+       rail=hosted → the provider's hosted page (https only),
+       rail=fake   → a "Pay (dev fake)" button (lde/dev), then /checkout/success,
+       rail=none   → "not on sale". -->
+<template>
+  <div class="login-card" data-test="checkout" :data-checkout-state="state" :data-rail="rail">
+    <h1>Get a spool</h1>
+    <p v-if="state === 'loading'" class="muted">Loading the plan…</p>
+    <p v-else-if="state === 'unavailable'" class="login-error" role="alert" data-test="checkout-unavailable">{{ error }}</p>
+    <p v-else-if="rail === 'none'" role="status" data-test="checkout-not-on-sale">Spools are not on sale right now.</p>
+    <template v-else>
+      <p data-test="checkout-price">One tenant: <strong>{{ price }}</strong></p>
+      <form v-if="state === 'form'" class="checkout__form" novalidate @submit.prevent="submit">
+        <label class="checkout__field">
+          <span>Tenant name</span>
+          <input v-model.trim="tenant" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" required data-test="checkout-tenant">
+          <small v-if="tenantPreview" class="muted">{{ tenantPreview }}</small>
+        </label>
+        <label class="checkout__field">
+          <span>Email — the key is sent here once</span>
+          <input v-model.trim="email" type="email" autocomplete="email" required data-test="checkout-email">
+        </label>
+        <p v-if="error" class="login-error" role="alert" data-test="checkout-error">{{ error }}</p>
+        <button class="btn" type="submit" :disabled="busy" data-test="checkout-submit">Continue to payment</button>
+      </form>
+      <div v-else-if="state === 'fake'" class="checkout__form">
+        <p class="muted">Test environment: no money moves.</p>
+        <p v-if="error" class="login-error" role="alert" data-test="checkout-error">{{ error }}</p>
+        <button class="btn" type="button" :disabled="busy" data-test="checkout-fake-pay" @click="fakePay">Pay (dev fake)</button>
+      </div>
+      <p v-else-if="state === 'redirect'" class="muted" role="status">Taking you to the payment page…</p>
+    </template>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import {
+  checkoutErrorMessage,
+  createCheckoutClient,
+  forgetCheckout,
+  formatPrice,
+  safeHostedUrl,
+  saveCheckout,
+} from '~/utils/checkout-client.mjs'
+import { validTenant } from '~/utils/tenant.mjs'
+
+definePageMeta({ layout: 'login' })
+
+const router = useRouter()
+const client = createCheckoutClient()
+const state = ref<'loading' | 'unavailable' | 'form' | 'fake' | 'redirect'>('loading')
+const rail = ref('')
+const price = ref('')
+const pattern = ref('')
+const tenant = ref('')
+const email = ref('')
+const error = ref('')
+const busy = ref(false)
+const checkoutId = ref('')
+
+const tenantPreview = computed(() =>
+  tenant.value && pattern.value && validTenant(tenant.value) ? pattern.value.replace('{tenant}', tenant.value) : '')
+
+onMounted(async () => {
+  const out = await client.plan()
+  if (!out.ok || !out.data) {
+    state.value = 'unavailable'
+    error.value = checkoutErrorMessage(out.error === 'network' ? 'network' : 'payment_unavailable')
+    return
+  }
+  rail.value = String(out.data.rail || 'none')
+  price.value = formatPrice(out.data.amount_cents, out.data.currency)
+  pattern.value = String(out.data.tenant_url_pattern || '')
+  state.value = 'form'
+})
+
+async function submit() {
+  if (busy.value) return
+  error.value = ''
+  if (!validTenant(tenant.value)) {
+    error.value = checkoutErrorMessage('bad_tenant_id')
+    return
+  }
+  busy.value = true
+  try {
+    forgetCheckout()
+    const out = await client.start({ tenant_id: tenant.value, email: email.value })
+    if (!out.ok || !out.data) {
+      error.value = checkoutErrorMessage(out.error)
+      return
+    }
+    // §1.2: keep id + token BEFORE leaving the page; without them the key is lost
+    if (!saveCheckout(out.data)) {
+      error.value = 'This browser blocks session storage — allow it for this site and try again.'
+      return
+    }
+    checkoutId.value = String(out.data.checkout_id || '')
+    const r = String(out.data.rail || rail.value)
+    if (r === 'hosted') {
+      const to = safeHostedUrl(out.data.redirect_url)
+      if (!to) {
+        error.value = checkoutErrorMessage('payment_unavailable')
+        return
+      }
+      state.value = 'redirect'
+      window.location.assign(to)
+      return
+    }
+    if (r === 'fake') {
+      state.value = 'fake'
+      return
+    }
+    error.value = checkoutErrorMessage('payment_unavailable')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function fakePay() {
+  if (busy.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    const out = await client.fakePay(checkoutId.value)
+    if (!out.ok) {
+      error.value = checkoutErrorMessage(out.error)
+      return
+    }
+    await router.push('/checkout/success')
+  } finally {
+    busy.value = false
+  }
+}
+</script>
+
+<style scoped>
+.checkout__form { display: grid; gap: 10px; margin-top: 12px; min-width: 0; }
+.checkout__field { display: grid; gap: 4px; font-size: 13px; color: var(--color-muted); min-width: 0; }
+.checkout__field input {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: var(--color-composer);
+  border: 1px solid var(--color-border);
+  color: var(--color-fg);
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-height: var(--tap);
+}
+.checkout__field small { overflow-wrap: anywhere; }
+</style>

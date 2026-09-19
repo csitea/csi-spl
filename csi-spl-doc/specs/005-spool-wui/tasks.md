@@ -22,7 +22,7 @@ named) · `[ ]` Planned. Live work is gated on D1.
 
 ## Phase 3 — Follow & ship (US4, US5)
 
-- [x] T007 Implemented — `/t/[task_id]` polls while visible (`NUXT_PUBLIC_POLL_MS`, default 4000, floor 2000); after the first read it passes the last message `cursor` as `after=` and appends new messages, de-duplicated by `msg_id` (`stores/viewer.ts`); client test asserts `after=`; live hub returns `[]` for the last cursor (`curl`, n=1). The legacy `useSpoolEvents.ts` channel poll remains only for the mock channel pages. US4.
+- [~] T007 Partial — `/t/[task_id]` polls while visible (`NUXT_PUBLIC_POLL_MS`, default 4000, floor 2000); after the first read it passes the last message `cursor` as `after=` and appends new messages, de-duplicated by `msg_id` (`stores/viewer.ts`); client test asserts `after=`; live hub returns `[]` for the last cursor (`curl`, n=1). The legacy `useSpoolEvents.ts` channel poll remains only for the mock channel pages. US4. — **Audit CLE-3358 2026-09-19 (tree c777a2f): not as written.** `command grep -rn pollMs csi-spl-wui/src` → 0; `/t/[task_id]` follows over the WS (`useLiveFeed('main')`), `viewer.refreshThread` has no caller, and there is no `after=` catch-up after a WS reconnect (gap list: G-A).
 - [~] T009 Partial — dev Hosting: apply 007 steps `016-firebase-deploy-iam` + `019-firebase-static-site` for dev (owner go) and deploy the generated site with `NUXT_PUBLIC_API_BASE=https://{tenant}.<fqdn>` (tenant host, `67f6ff6`; read path still open, 007 T072). Missing: apply + deploy (`curl … https://csi-spl-dev-site.web.app -> 404`). FR-007, FR-004.
 - [~] T010 Partial — view token: `ViewTokenForm.vue` on `401`, token kept in `sessionStorage` (`9eafd8c`). Social sign-in wired per spec 010 `contracts/auth-v1.md` §1–§4 (`1c4e1a6`: `/login` buttons from `GET /api/v1/auth/providers`, `auth_error` copy, session probe 401 vs unknown, sign out; Hosting rewrite `/api/v1/auth/**`; lde `NUXT_DEV_AUTH_PROXY`) — that is 010 T014–T016. lde browser round trip (010 T017) verified 2026-09-18 in Chrome, n=1 per provider: `auth-demo -addr 127.0.0.1:58181 -app-url/-public-url http://localhost:3044` + `NUXT_DEV_AUTH_PROXY` → `/login?redirect=/t/<id>` → Google / Facebook → fake IdP → lands on `/t/<id>`, `GET /api/v1/auth/session` 200 (`p` = google / facebook), cookie not readable from JS, sidebar shows the name; Sign out → 401 + `/login`; `?auth_error=invalid_state` shows its copy and is dropped from the URL with `redirect` kept. Missing: the hub view door (003 T033, after OQ-16) and how the session reaches `/v1/view/*` (010 OQ-A1). US5, FR-010.
 - [ ] T011 Planned — prd Hosting apply + deploy, after T010 and OQ-W2. FR-007, FR-010.
@@ -39,7 +39,7 @@ named) · `[ ]` Planned. Live work is gated on D1.
 ## Dependencies owned elsewhere
 
 - [x] D1 003 — view-v1 on trunk (`ec3d593`, per CLE-3340): `/v1/view/{roster,channels,threads,threads/{task_id}}`, cnf CORS allow-list, lde-only `SPOOL_HUB_VIEW_DOOR=off`. Verified live against a local trunk hub (T012). The token door is still pending OQ-16.
-- [~] D2 010 (CLE-3346) — social sign-in routes + contract `auth-v1.md` on trunk (`d5e77eb`); WUI side wired (`1c4e1a6`). Open: 010 OQ-A1 (session → `/v1/view/*`).
+- [~] D2 010 (CLE-3346) — social sign-in routes + contract `auth-v1.md` on trunk (`d5e77eb`); WUI side wired (`1c4e1a6`). 010 OQ-A1 is DECIDED (a) and the hub implements the session door; open: the WUI half (`credentials:'omit'` in `src/utils/spool-client.mjs`). (Audit CLE-3358 2026-09-19 (tree c777a2f))
 - [ ] D3 007 — DNS zone + ingress (031) before a Hosting custom domain and a reachable dev hub (README §6).
 
 ## Planned — M3 later slices (mock-only code exists, no hub route)
@@ -47,12 +47,12 @@ named) · `[ ]` Planned. Live work is gated on D1.
 Built against `utils/mock-data.mjs`; kept, not deleted; not live. Each waits on
 the spec §5 gap named.
 
-- [~] P1 Partial (mock) — channels sidebar + `/channel/[name]` (`ChannelSidebar.vue`, `stores/channel.ts`). Blocked: G3.
-- [~] P2 Partial (mock) — DMs `/dm/[peer]` (`stores/roster.ts`). Blocked: G2, G4.
-- [~] P3 Partial (mock) — composer + `@mention` (`MessageComposer.vue`, `utils/mention-autocomplete.mjs`). Blocked: G1, G2.
-- [x] P4 Implemented (`6618f03`) — notifications (`NotificationCenter.vue`, `stores/notification.ts`, `plugins/notify.client.ts`). Local cursors + mention/DM/#alerts escalation. Channel/DM live wiring stays phase-3. Check: `node --test tests/unit/notify.test.mjs tests/unit/read-cursor.test.mjs tests/unit/verbosity-notify-wire.test.mjs` → pass.
+- [~] P1 Partial (mock) — channels sidebar + `/channel/[name]` (`ChannelSidebar.vue`, `stores/channel.ts`). Hub side unblocked (G3 closed; `GET /v1/view/threads?channel=`); the WUI live feed still throws `ReadOnlyError('a channel / DM feed')`. (Audit CLE-3358 2026-09-19 (tree c777a2f))
+- [~] P2 Partial (mock) — DMs `/dm/[peer]` (`stores/roster.ts`). Hub side unblocked (box-wui signer in `internal/hub/wui.go`, `/v1/view/roster` 200, `dm=true&peer=`); WUI live DMs + `presence` frames missing. (Audit CLE-3358 2026-09-19 (tree c777a2f))
+- [~] P3 Partial (mock) — composer + `@mention` (`MessageComposer.vue`, `utils/mention-autocomplete.mjs`). Hub side unblocked; the live composer already sends `@X-n …` as `kind=task` `to=X-n` over `/v1/wui/ws` (`stores/live.ts`); channel-scoped send (`channel` on the WS frame) missing. (Audit CLE-3358 2026-09-19 (tree c777a2f))
+- [~] P4 Partial (`6618f03`) — notifications (`NotificationCenter.vue`, `stores/notification.ts`, `plugins/notify.client.ts`). Local cursors + mention/DM/#alerts escalation. Channel/DM live wiring stays phase-3. Check: `node --test tests/unit/notify.test.mjs tests/unit/read-cursor.test.mjs tests/unit/verbosity-notify-wire.test.mjs` → pass. — **Audit CLE-3358 2026-09-19 (tree c777a2f):** unread is never derived from the stored cursors (`command grep -rn "isUnread\|advanceCursor" csi-spl-wui/src | grep -v read-cursor.mjs` → 0; `stores/notification.ts` starts `unread` at `{}` each load), and live frames drop `env.channel`, so a live `#alerts` message does not escalate as alerts.
 - [x] P5 Implemented (`7e3f9af`, `6618f03`) — verbosity toggle (`VerbositySelector.vue`) inferred from `kind`. Check: `node --test tests/unit/verbosity.test.mjs` → pass.
-- [ ] P6 Planned — channel creation. Blocked: G3 (no route; `POST /v1/channels` does not exist).
+- [ ] P6 Planned — channel creation. Hub route exists (`internal/hub/server.go` `POST /v1/channels`, channels-v1 §5.1); the WUI `createChannel` still throws `ReadOnlyError` in live mode and the form is `v-if="api.mock"`. (Audit CLE-3358 2026-09-19 (tree c777a2f); the old "no route" blocker was stale.)
 
 ## Phase 5 — Verbosity + in-browser notifications (WUI-UX, Gaps 6–7)
 

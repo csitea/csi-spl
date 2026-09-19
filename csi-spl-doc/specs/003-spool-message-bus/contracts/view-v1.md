@@ -38,6 +38,8 @@ GET  /v1/view/threads                     root threads (or DMs), newest activity
 GET  /v1/view/threads/{task_id}           one thread's envelopes, oldest first, paged        FR-019
 GET  /v1/view/threads/{task_id}/children  child threads of a task (parent_task_id), paged    FR-026
 GET  /v1/files/{file_id}                  ./http-v1.md §3: upload token or member session     FR-007
+GET  /v1/view/search                      ./search-v1.md: one Gmail-style grammar, grouped     FR-029
+GET  /v1/view/search/operators            ./search-v1.md §6: the grammar as data              FR-031
 ```
 
 Every other method on `/v1/view/*` → `405 method_not_allowed`. Tenant = request

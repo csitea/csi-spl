@@ -176,6 +176,20 @@ Humans and agents talk in named channels (`#lobby`, `#tasks`, `#alerts`, custom)
 4. **Given** `POST /v1/channels {"channel":"releases"}` through the view door, **Then** `201`, and `GET /v1/view/channels` lists it with `unread`/`members`; `general`, `lobby` or an existing slug → `409 channel_exists`.
 5. **Given** a browser connected to `/v1/wui/ws`, **When** box-a says hello / closes, **Then** the browser receives `presence` `online` / `offline` for each of box-a's agents.
 
+### User Story 9 - One Gmail-style search over messages, threads, files, robots, users, channels and boxes (Priority: P1 for M3) — In progress (CLE-3409)
+
+A signed-in member types `/search <query>` in the WUI top-bar omnibox and gets grouped results from the Host tenant only. One grammar (free text, `"phrases"`, `-negation`, `OR`, parentheses, `from:` `to:` `in:` `is:` `has:` `before:` `after:` `on:` `thread:` `box:` `type:` `title:` `name:` `filename:` `ext:` `larger:` `smaller:`) is parsed by the hub; the WUI never parses it. Contract: `contracts/search-v1.md`.
+
+**Independent Test**: seed two tenants; under tenant A, `GET /v1/view/search?q=deploy from:CLE-07` returns only A's matching messages / threads / files with highlight offsets; the same text stored in tenant B never appears; `q='; DROP TABLE messages; --` is text (200, no error, table intact); `q=(a` → `400 bad_query` with `pos`.
+
+**Acceptance Scenarios**:
+
+1. **Given** a query without `type:`, **When** it is searched, **Then** the answer has one group per type every operator applies to, each `{results, next}`.
+2. **Given** another tenant's messages, users, robots and files with the same text, **When** tenant A searches, **Then** none of them appears (RLS + `WHERE tenant_id`).
+3. **Given** a DM thread the signed-in reader is not party to, **When** they search its text, **Then** it does not appear.
+4. **Given** a malformed query, **Then** `400 bad_query` with `pos` / `token`; an unknown operator is text plus a warning.
+5. **Given** more than 30 searches a minute from one reader, **Then** `429 rate_limited` with `Retry-After`.
+
 ### Edge Cases
 
 - Cloud Run instance killed mid-request or mid-WS: the box reconnects (exponential backoff, cap ~30 s) and resends idempotently by `msg_id`. Storage is Postgres + GCS, never container disk; WS session state is not durable.
@@ -219,6 +233,10 @@ Humans and agents talk in named channels (`#lobby`, `#tasks`, `#alerts`, custom)
 - **FR-026**: `GET /v1/view/threads` MUST list root threads (`parent_task_id` NULL) by default, `GET /v1/view/threads/{task_id}/children` the child threads, and `dm=true&peer=<id>` the DM threads (`channel` NULL) of a peer, restricted to threads the reader is party to when the reader holds a member session. *Status:* **Implemented** — `TestChannelEnvelopeStored` (internal/hub/channels_test.go), `TestStoreChannels`, `TestViewReads`.
 - **FR-027**: A channel message MUST be delivered to a box other than its `to_box` only when an agent of that box subscribed to the channel is addressed (`msg.to`, `@<agent>`, or `@channel`); boxes declare subscriptions in `hello` / `announce` `channels`; ambient chat MUST NOT create a delivery. Unsigned (browser) envelopes are not box-routed until the hub-held signer exists (spec 014). *Status:* **Implemented** — `TestChannelMentionRouting`, `TestHubclientChannelRecv`.
 - **FR-028**: The browser WS MUST push `presence` frames (`contracts/wui-live-ws.md` §3.2) on box connect / disconnect / announce change and on a human's first / last browser socket, tenant-scoped, with a snapshot after `welcome`. *Status:* **Implemented** — `TestWUIPresence`.
+- **FR-029**: The hub MUST expose `GET /v1/view/search` (`contracts/search-v1.md`) behind the view door, tenant-scoped under RLS per statement, read-only, answering grouped sections for `message`, `thread`, `file`, `robot`, `user`, `channel`, `box` with plain-text snippets and UTF-16 highlight offsets, keyset / offset cursors bound to `q` + `sort`. *Status:* **In progress** (CLE-3409).
+- **FR-030**: The query grammar (search-v1 §2 – §3) MUST be parsed server-side by one parser; every user string MUST reach SQL as a bind parameter; malformed → `400 bad_query` with `pos`; unknown operators → text + warning. *Status:* **In progress** (CLE-3409).
+- **FR-031**: `GET /v1/view/search/operators` MUST publish the grammar as data from the parser's own table. *Status:* **In progress** (CLE-3409).
+- **FR-032**: Search MUST be rate-limited per (tenant, reader) and budgeted per statement (search-v1 §5.1, §7); message text MUST use a GIN-indexed `tsvector` (rdb 0017); users are searched by `HUM-*` and display name only, never email. *Status:* **In progress** (CLE-3409).
 
 ### Non-Functional Requirements
 

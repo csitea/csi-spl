@@ -104,6 +104,17 @@ Contract `contracts/channels-v1.md` (+ `view-v1.md` v0.5, `wui-live-ws.md` v0.3,
 - [x] T046 [US8] Presence frames on `/v1/wui/ws` (box connect/close/announce diff, human first/last socket, snapshot after welcome). — **Implemented** (`2343c8e`). Check: `cd csi-spl-api/src/go/spool-hub-api && go test -run TestWUIPresence ./internal/hub` -> ok; `command grep -c '"presence"' csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` -> 1.
 - [x] T047 [US8] Box client: `SPOOL_CHANNELS` → hello/announce `channels`; accept a channel `recv` for another `to_box` only with signed `channel` + `agents`, inbox copy per hosted agent. — **Implemented** (`a4c31ce`). Check: `cd csi-spl-api/src/go/spool-hub-api && go test -run TestHubclientChannelRecv ./internal/hub` -> ok.
 
+## Phase 10d: User Story 9 — Search (CLE-3409, 2026-09-19)
+
+Contract `contracts/search-v1.md` v1.0. WUI omnibox is lane CLE-3410 (reads the contract, does not restate it).
+
+- [x] T048 [US9] Contract `contracts/search-v1.md`: grammar, operator table, entity types, response, errors, operators endpoint. Check: `command grep -c '^| `' csi-spl-doc/specs/003-spool-message-bus/contracts/search-v1.md` -> non-zero.
+- [ ] T049 [US9] `internal/search`: tokenizer + parser (Gmail precedence), operator table, applicability, validation with `pos`, highlight offsets (UTF-16); table-driven tests per operator.
+- [ ] T050 [US9] rdb `0017_message_search.sql`: `messages.search_tsv` generated `to_tsvector('simple', body)` + GIN index.
+- [ ] T051 [US9] `internal/store`: `SearchMessages` / `SearchThreads` / `SearchFiles` on memory + Postgres (SQL compiled from the AST, bind parameters only, RLS scope, statement budget), human display names; contract suite incl. CONTROLS (other tenant, DM privacy, SQL-shaped text).
+- [ ] T052 [US9] `internal/hub/search.go`: `GET /v1/view/search` + `/operators`, view door, rate limit, grouped sections, cursors; tests incl. CONTROLS.
+- [ ] T053 [US9] p95 latency on `hub-pg.tst.sh` with a seeded corpus, recorded in spec.md with n and tree.
+
 ## Phase 11: Polish
 
 - [x] T037 [P] `/version` returns `{ version, commit, built_at }` as `contracts/http-v1.md` §1 says; today `server.go` writes only `{"version"}` (`grep -n '"version": s.o.Version' internal/hub/server.go -> 105`). Needs `-ldflags` for commit/build time in the hub image build (`do_build_push_hub_image`, 007 lane) plus the handler change here. — **Implemented**: `main.commit` / `main.builtAt` stamped by `csi-spl-api/src/bash/build.sh` (git HEAD + UTC time; `SPOOL_BUILD_COMMIT` / `SPOOL_BUILD_TIME` override), which `do_build_push_hub_image` already calls, so no orc change; `TestVersionBody`; a `build.sh` binary served `{"built_at":"2026-09-18T19:42:40Z","commit":"6a43acb8…","version":"0.1.0-dev"}` (n=1). Also `GET /` public hello (`TestRootHello`).

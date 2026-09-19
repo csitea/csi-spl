@@ -119,6 +119,33 @@ describe('spool-client live (view-v1)', () => {
     assert.equal(new URL(calls[0].url, 'http://x').searchParams.get('after'), 'c 9')
   })
 
+  it('asks view-v1 §4.4 for newest-first windows with order=desc and before=', async () => {
+    const { fn, calls } = stubFetch({ [`/v1/view/threads/${T}`]: [200, { task_id: T, messages: [], next: 'c-old' }] })
+    const c = createSpoolClient({ fetchFn: fn, mock: false })
+    const out = await c.getThread(T, { order: 'desc', limit: 50, before: 'c9' })
+    const q = new URL(calls[0].url, 'http://x').searchParams
+    assert.equal(q.get('order'), 'desc')
+    assert.equal(q.get('limit'), '50')
+    assert.equal(q.get('before'), 'c9')
+    assert.equal(q.get('after'), null)
+    assert.equal(out.next, 'c-old')
+  })
+
+  it('mock desc windows page newest to oldest until next is null', async () => {
+    const c = createSpoolClient({ mock: true })
+    const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    const seen = []
+    let before
+    for (let i = 0; i < 10; i++) {
+      const page = await c.getThread(id, { order: 'desc', limit: 2, before })
+      seen.push(...page.messages.map((m) => m.ts))
+      if (!page.next) break
+      before = page.next
+    }
+    assert.equal(seen.length, 4)
+    assert.deepEqual(seen, seen.slice().sort().reverse())
+  })
+
   it('surfaces the error token and status', async () => {
     const { fn } = stubFetch({ '/v1/view/threads': [401, { error: 'view_door' }] })
     const c = createSpoolClient({ fetchFn: fn, mock: false })

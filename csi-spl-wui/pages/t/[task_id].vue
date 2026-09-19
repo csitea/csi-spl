@@ -41,7 +41,7 @@ const shortId = computed(() => taskId.value.slice(0, 8))
 const replies = computed(() => store.thread.replies)
 
 onMounted(() => {
-  watch(taskId, (id) => { if (id) void store.open(id) }, { immediate: true })
+  watch(taskId, (id) => { if (id) void store.open(id, { all: true }) }, { immediate: true })
 })
 
 async function onSend(text: string, _parent?: string, files?: File[]) {

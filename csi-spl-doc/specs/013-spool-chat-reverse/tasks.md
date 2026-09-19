@@ -13,6 +13,6 @@ Status by verification (`../README.md` §2.3): `[x]` Implemented (cited) · `[~]
   - Tab `?as=HUM-22` sends "prepend check from HUM-22" → top of its own feed at once; top of the `?as=HUM-21` tab live, announced "New message from HUM-22@box-wui" (SC-001).
   - `/search history #5` in HUM-21 → exactly 11 rows (`#59..#50`, `#5`), Omnibox cleared, nothing sent; Esc → filter gone, top row unchanged (SC-002).
   - Thread list → click the demo thread → URL stays `/`, pane shows root `GRK-03@box-smoke, task` pinned + 2 newest-first replies; avatars on those cards are robots; lobby cards for `HUM-22`/`HUM-30` are identicons (SC-003).
-- [ ] T008 Planned (003) — newest-first window on view-v1 §4.4 (spec D1), then switch the client to it.
+- [x] T008 Implemented — 003 shipped `order=desc&limit=&before=` on view-v1 §4.4 (`1dca945`, contract 0.4.0); the WUI opens a feed with the newest 50 (`order=desc`) and the bottom sentinel fetches the next older window with `before=<next>` (this commit; `getThread({order,before})`, 2 unit tests incl. mock paging). The pinned-root views (right pane, `/t/<id>`) page to the oldest row. Live, n=1: lobby of 69 → 50 on load, 69 after scrolling, oldest at the bottom; hub log shows the second windowed read.
 
-<!-- version: 0.2.1 · updated: 2026-09-19 · last-edit: 2026-09-19T00:30:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-19 · last-edit: 2026-09-19T00:40:00Z -->

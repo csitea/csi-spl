@@ -100,13 +100,28 @@ export function createSpoolClient({ base = '', fetchFn = globalThis.fetch, mock 
       const rows = (data && data.threads) || []
       return { threads: rows.map(normalizeThreadRow), next: (data && data.next) || null }
     },
-    async getThread(taskId, { limit = 200, after } = {}) {
+    /**
+     * view-v1 §4.4. Default: oldest first, `after=` for catch-up. With
+     * `order: 'desc'`: the newest `limit` newest-first; `next` → pass as `before`
+     * for the next older window (013 reverse prepend; hub 1dca945).
+     */
+    async getThread(taskId, { limit = 200, after, order, before } = {}) {
       const id = String(taskId || '')
       if (!id) throw new Error('task_id required')
-      if (mock) return { task_id: id, messages: threadMessages(state.messages, id), next: null }
+      if (mock) {
+        const all = threadMessages(state.messages, id)
+        if (order !== 'desc') return { task_id: id, messages: all, next: null }
+        const desc = all.slice().reverse()
+        const start = before ? desc.findIndex((m) => m.msg_id === before) + 1 : 0
+        const page = desc.slice(start, start + limit)
+        const more = start + limit < desc.length
+        return { task_id: id, messages: page, next: more && page.length ? page[page.length - 1].msg_id : null }
+      }
       const q = new URLSearchParams()
+      if (order === 'desc') q.set('order', 'desc')
       if (limit) q.set('limit', String(limit))
       if (after) q.set('after', after)
+      if (before) q.set('before', before)
       const data = await live(`/v1/view/threads/${encodeURIComponent(id)}?${q}`)
       const rows = (data && data.messages) || []
       return { task_id: id, messages: rows.map(normalizeViewMessage), next: (data && data.next) || null }

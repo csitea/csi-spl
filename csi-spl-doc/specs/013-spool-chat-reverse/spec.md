@@ -1,6 +1,6 @@
 # Feature Specification: Spool chat reverse — Top Omnibox, prepend feed, 3-pane, avatars
 
-**Feature ID**: `013-spool-chat-reverse` · **Milestone**: M3 · **Status**: Implemented (except D1, owned by 003)
+**Feature ID**: `013-spool-chat-reverse` · **Milestone**: M3 · **Status**: Implemented
 **Created**: 2026-09-19 · **Lane**: CLE-3342 (also owns 005 and `csi-spl-wui`)
 **Narrative (binding)**: `../../doc/md/SPEC-spool-chat-reverse.md` (owner, 2026-09-18),
 `../../doc/md/SPEC-spool-wui-layout.md`, `../../doc/md/SPEC-spool-avatars.md`
@@ -82,7 +82,7 @@ new live messages are announced politely.
 
 | # | Gap | Owner |
 |---|---|---|
-| D1 | view-v1 §4.4 has no newest-first window (`after=` only, oldest first). The WUI pages the thread via `next` and windows client-side until 003 adds e.g. `order=desc&before=` (requested 2026-09-19). | 003 (CLE-3340) |
+| D1 | ~~no newest-first window on view-v1 §4.4~~ **closed**: `order=desc&before=` (`1dca945`), used by the WUI (tasks T008) | 003 (CLE-3340) |
 | D2 | Custom avatars (`file_id` profile map) | later (avatars §3) |
 
-<!-- version: 0.2.1 · updated: 2026-09-19 · last-edit: 2026-09-19T00:30:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-19 · last-edit: 2026-09-19T00:40:00Z -->

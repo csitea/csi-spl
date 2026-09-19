@@ -22,7 +22,7 @@ declare module '~/utils/spool-client.mjs' {
       threads: import('./spool').ThreadRow[]
       next: string | null
     }>
-    getThread(taskId: string, opts?: { limit?: number, after?: string }): Promise<{
+    getThread(taskId: string, opts?: { limit?: number, after?: string, order?: 'desc', before?: string }): Promise<{
       task_id: string
       messages: import('./spool').SpoolMessage[]
       next: string | null

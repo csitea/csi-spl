@@ -13,7 +13,7 @@ const MAX_PAGES = 40
  * WS frames merged in. Rendered newest-first in windows; /search filters.
  * One store per pane: useLiveFeed('main') and useLiveFeed('pane').
  */
-function setup() {
+function setup(key: 'main' | 'pane') {
   const api = useSpoolApi()
   const live = useLive()
   const taskId = ref<string | null>(null)
@@ -24,12 +24,15 @@ function setup() {
   const search = ref('')
   const visible = ref(WINDOW)
   const liveCount = ref(0)
+  /** view-v1 §4.4 desc cursor for the next older server window; null = none left. */
+  const olderCursor = ref<string | null>(null)
+  const loadingOlder = ref(false)
   const lastLive = ref<SpoolMessage | null>(null)
 
   const filtered = computed(() => newestFirst(messages.value.filter((m) => matchesSearch(m, search.value))))
   const view = computed(() => windowed(filtered.value, visible.value))
   const newestFirstRows = computed(() => view.value.rows as SpoolMessage[])
-  const hasOlder = computed(() => view.value.hasOlder)
+  const hasOlder = computed(() => view.value.hasOlder || Boolean(olderCursor.value))
   const thread = computed(() => rootAndReplies(messages.value.filter((m) => matchesSearch(m, search.value))))
 
   function merge(rows: SpoolMessage[], fromLive = false) {
@@ -44,7 +47,8 @@ function setup() {
   }
 
   let off: (() => void) | null = null
-  async function open(id: string) {
+  /** `all`: also page to the oldest row (a pinned root needs it); the pane always does. */
+  async function open(id: string, opts: { all?: boolean } = {}) {
     if (!id) return
     const client = live.ensure()
     if (taskId.value && taskId.value !== id && client) client.unsubscribe(taskId.value)
@@ -52,6 +56,7 @@ function setup() {
       messages.value = []
       visible.value = WINDOW
       search.value = ''
+      olderCursor.value = null
     }
     taskId.value = id
     error.value = null
@@ -64,13 +69,11 @@ function setup() {
     if (client) client.subscribe(id)
     loading.value = true
     try {
-      let after: string | undefined
-      for (let page = 0; page < MAX_PAGES; page++) {
-        const data = await api.getThread(id, after ? { after } : undefined)
-        merge(data.messages)
-        if (!data.next) break
-        after = data.next
-      }
+      // 013: newest window first; older windows on scroll (loadOlder)
+      const data = await api.getThread(id, { order: 'desc', limit: WINDOW })
+      merge(data.messages)
+      olderCursor.value = data.next
+      if (opts.all || key === 'pane') await loadAll()
     } catch (e) {
       const err = e as { status?: number, message?: string }
       if (err.status !== 404) error.value = err.message || 'load failed'
@@ -86,9 +89,33 @@ function setup() {
     messages.value = []
   }
 
-  /** Scrolling down reached the bottom: reveal the next older window. */
-  function loadOlder() {
-    if (hasOlder.value) visible.value += WINDOW
+  /**
+   * Scrolling down reached the bottom: reveal the next older window. Rows
+   * already held are shown first; then the next server window (before=).
+   */
+  async function loadOlder() {
+    if (view.value.hasOlder) {
+      visible.value += WINDOW
+      return
+    }
+    if (!olderCursor.value || !taskId.value || loadingOlder.value) return
+    loadingOlder.value = true
+    try {
+      const data = await api.getThread(taskId.value, { order: 'desc', limit: WINDOW, before: olderCursor.value })
+      merge(data.messages)
+      olderCursor.value = data.next
+      visible.value += WINDOW
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'load older failed'
+      olderCursor.value = null
+    } finally {
+      loadingOlder.value = false
+    }
+  }
+
+  /** The pinned root of a long thread needs the oldest row: page to the end. */
+  async function loadAll() {
+    for (let i = 0; i < MAX_PAGES && olderCursor.value; i++) await loadOlder()
   }
 
   function setSearch(q: string) {
@@ -128,12 +155,12 @@ function setup() {
 
   return {
     taskId, messages, newestFirst: newestFirstRows, hasOlder, thread, error, sending, loading,
-    search, liveCount, lastLive, open, close, send, loadOlder, setSearch,
+    search, liveCount, lastLive, open, close, send, loadOlder, loadAll, setSearch,
   }
 }
 
 export function useLiveFeed(key: 'main' | 'pane' = 'main') {
-  return defineStore(`live-${key}`, setup)()
+  return defineStore(`live-${key}`, () => setup(key))()
 }
 
 /** 005 name kept for callers of the main feed. */

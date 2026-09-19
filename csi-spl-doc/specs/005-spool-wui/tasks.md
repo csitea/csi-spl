@@ -50,8 +50,8 @@ the spec §5 gap named.
 - [~] P1 Partial (mock) — channels sidebar + `/channel/[name]` (`ChannelSidebar.vue`, `stores/channel.ts`). Blocked: G3.
 - [~] P2 Partial (mock) — DMs `/dm/[peer]` (`stores/roster.ts`). Blocked: G2, G4.
 - [~] P3 Partial (mock) — composer + `@mention` (`MessageComposer.vue`, `utils/mention-autocomplete.mjs`). Blocked: G1, G2.
-- [~] P4 Partial (mock) — notifications (`NotificationCenter.vue`, `stores/notification.ts`). Unblocked: OQ-W4 (a) / OQ-W5 (a); implementation T027–T028. Channel/DM live wiring stays phase-3.
-- [~] P5 Partial (mock) — verbosity toggle (`VerbositySelector.vue`). Unblocked: OQ-W3 (a), infer from `kind`; implementation T026, T028.
+- [x] P4 Implemented (`6618f03`) — notifications (`NotificationCenter.vue`, `stores/notification.ts`, `plugins/notify.client.ts`). Local cursors + mention/DM/#alerts escalation. Channel/DM live wiring stays phase-3. Check: `node --test tests/unit/notify.test.mjs tests/unit/read-cursor.test.mjs tests/unit/verbosity-notify-wire.test.mjs` → pass.
+- [x] P5 Implemented (`7e3f9af`, `6618f03`) — verbosity toggle (`VerbositySelector.vue`) inferred from `kind`. Check: `node --test tests/unit/verbosity.test.mjs` → pass.
 - [ ] P6 Planned — channel creation. Blocked: G3 (no route; `POST /v1/channels` does not exist).
 
 ## Phase 5 — Verbosity + in-browser notifications (WUI-UX, Gaps 6–7)
@@ -59,19 +59,19 @@ the spec §5 gap named.
 Contract: `contracts/verbosity-notify-v1.md`. Does not touch hub, rdb, iac,
 channel/DM/roster stores, `wui-live-ws.md`, or `view-v1.md`.
 
-- [ ] T025 Planned — spec amendment: US6 / US7, FR-013..015, OQ-W3/W4/W5 (a)
+- [x] T025 Implemented (`e70a9f6`) — spec amendment: US6 / US7, FR-013..015, OQ-W3/W4/W5 (a)
   chosen, P4/P5 unblocked. Check: `command grep -c OQ-W3 csi-spl-doc/specs/005-spool-wui/spec.md` → 5.
-- [ ] T026 Planned — `csi-spl-wui/utils/verbosity.mjs`: `verbosityOf` / `applyVerbosity`
+- [x] T026 Implemented (`7e3f9af`) — `csi-spl-wui/utils/verbosity.mjs`: `verbosityOf` / `applyVerbosity`
   from `kind` only; persist selector in `localStorage` `spool.verbosity` (try/catch).
   Table-driven unit test covers every v:1 kind from `internal/msg/msg.go` `validKinds`.
-  `channel-feed.mjs` `applyVerbosity` delegates here. FR-013, US6, P5.
-- [ ] T027 Planned — `csi-spl-wui/utils/notify.mjs` + `utils/read-cursor.mjs`:
+  `channel-feed.mjs` `applyVerbosity` delegates here. Check: `cd csi-spl-wui && node --test tests/unit/verbosity.test.mjs` → pass. FR-013, US6, P5.
+- [x] T027 Implemented (`7e3f9af`) — `csi-spl-wui/utils/notify.mjs` + `utils/read-cursor.mjs`:
   escalate only on mention of signed-in `HUM-*` / DM / `#alerts`; unread per
   `ch:<slug>` / `dm:<peer>` from local cursors; chime opt-in default off.
-  Unit tests for positives, negatives, own-message skip, cursor persist. FR-014, FR-015, US7, P4.
-- [ ] T028 Planned — wire `VerbositySelector.vue`, `ThreadPane.vue` /
+  Check: `cd csi-spl-wui && node --test tests/unit/notify.test.mjs tests/unit/read-cursor.test.mjs` → pass. FR-014, FR-015, US7, P4.
+- [x] T028 Implemented (`6618f03`) — wire `VerbositySelector.vue`, `ThreadPane.vue` /
   `LiveThreadPane.vue`, `NotificationCenter.vue`, `stores/notification.ts`,
   `stores/thread.ts`, sidebar unread badges; drop mock `[verbose]` body filter
-  and the "task sent" ping. No mock-data import in those files. FR-013..015.
+  and the "task sent" ping. No mock-data import in those files. Check: `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → 94 pass, 0 fail; `node tests/e2e/no-x-scroll.test.mjs` → 12/12. FR-013..015.
 
-<!-- version: 1.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:50:57Z -->
+<!-- version: 1.6.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:10:00Z -->

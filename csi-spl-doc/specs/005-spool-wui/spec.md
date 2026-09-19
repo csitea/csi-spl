@@ -81,7 +81,7 @@ The viewer sends a door credential on every read: first the view token
 session (`SPEC-spool-social-auth.md`, 006) as view-v1's successor door. No door, no
 data (`401 view_door`).
 
-### US6 — Thread verbosity (P5) — Planned (WUI-UX)
+### US6 — Thread verbosity (P5) — Implemented (`7e3f9af`, `6618f03`)
 
 An open thread pane exposes a `minimal | normal | verbose` selector. Visibility
 is inferred from `kind` only (`./contracts/verbosity-notify-v1.md` §1, OQ-W3 (a)):
@@ -93,7 +93,7 @@ persists in `localStorage` (`spool.verbosity`, try/catch). No envelope field.
 (task, result) and 3 at `normal` / `verbose`; an unknown kind is hidden until
 `verbose`; a `[verbose]` body prefix does not hide a `note` at `normal`.
 
-### US7 — In-browser notifications (P4) — Planned (WUI-UX)
+### US7 — In-browser notifications (P4) — Implemented (`7e3f9af`, `6618f03`)
 
 New messages escalate only on: a mention of the signed-in `HUM-*`, a DM
 received, or any message in `#alerts` (`./contracts/verbosity-notify-v1.md` §2,
@@ -177,14 +177,14 @@ opening it.
   - Channels list displays default pinned channels (`#lobby`, `#tasks`, `#alerts` with 7-day retention) and custom channels, with unread badge counters and high-priority mention indicators. `#lobby` is the universal public common room (Slack's `#general` equivalent) that all tenant humans and bots/agents have access to by default.
   - Direct Messages & People section displays humans (`HUM-*`) with presence indicators, and autonomous AI agents (`CLE-*`, `GRK-*`, `AGY-*`) with deterministic robot avatars (`SPEC-spool-avatars.md`), `<id>@<box>` provenance labels, and connection status (solid green for active WebSocket session, hollow grey for offline queued).
   - Footer provides active session identity, connection health indicator, and theme switcher.
-- **FR-013** — Planned (WUI-UX): thread verbosity selector filters by `kind` per
+- **FR-013** — Implemented (`7e3f9af`, `6618f03`): thread verbosity selector filters by `kind` per
   `./contracts/verbosity-notify-v1.md` §1. Check: table-driven unit test covers
   every kind in `internal/msg/msg.go` `validKinds`. US6, OQ-W3 (a).
-- **FR-014** — Planned (WUI-UX): in-browser notifications escalate only on a
+- **FR-014** — Implemented (`7e3f9af`, `6618f03`): in-browser notifications escalate only on a
   mention of the signed-in `HUM-*`, a DM received, or any `#alerts` message;
   Web Notification after permission; chime opt-in default off; unread badges
   per channel. Check: `tests/unit/notify.test.mjs`. US7, OQ-W4 (a).
-- **FR-015** — Planned (WUI-UX): read cursors are local per client in
+- **FR-015** — Implemented (`7e3f9af`, `6618f03`): read cursors are local per client in
   `localStorage` (`spool.read-cursors`). Hub-synced cursors are OQ-W5 (b) /
   003 OQ-CH2 (b), later. US7, OQ-W5 (a).
 
@@ -196,7 +196,7 @@ opening it.
   (non-mock) client paths.
 - **SC-003**: FR-003 stays clean (no token in `localStorage`).
 - **SC-004**: `node --test tests/unit/*.test.mjs` stays green and the count is
-  above the 71-test baseline at `de3d67c`; verbosity covers every v:1 kind;
+  above the 71-test baseline at `de3d67c` (94 pass, 0 fail at `6618f03`); verbosity covers every v:1 kind;
   notify tests cover mention / DM / `#alerts` / negatives; the no-x-scroll
   unit guard stays green.
 
@@ -241,4 +241,4 @@ rejected for M3); anything in M1/M2; CI logs in chat (008).
   `localStorage` (aligns with 003 OQ-CH2 (a) client-held); **(b)** hub-synced
   per-human cursors (needs HUMANS 0006; later).
 
-<!-- version: 1.8.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:50:57Z -->
+<!-- version: 1.8.1 · updated: 2026-09-19 · last-edit: 2026-09-19T06:10:00Z -->

@@ -11,8 +11,9 @@ export function useAuthBase(): string {
 
 /** The auth client bound to the auth base. Call it in setup, not later. */
 export function useAuthClient() {
-  // spec 021: the active UI locale for X-Locale. Not sent (sendLocale off)
-  // until the hub's CORS allow-list admits the header in every env.
+  // spec 021: the active UI locale rides every auth call as X-Locale. The
+  // hub admits the header in its CORS preflight from 0.1.10 (e586002); the
+  // registration mail follows it.
   const i18n = useNuxtApp().$i18n as { locale?: unknown } | undefined
-  return createAuthClient({ base: useAuthBase(), locale: () => String(unref(i18n?.locale) || '') })
+  return createAuthClient({ base: useAuthBase(), locale: () => String(unref(i18n?.locale) || ''), sendLocale: true })
 }

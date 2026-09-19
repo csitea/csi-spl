@@ -422,6 +422,10 @@ func (s *Session) uploadToken(ctx context.Context) (string, error) {
 
 // ---- recv --------------------------------------------------------------------
 
+// wuiBox is the hub-held browser signer (specs/014): its tenant-root-signed
+// pin verifies like any box, but its role is restricted to kind task|note.
+const wuiBox = "box-wui"
+
 // receive verifies one recv frame against the LOCALLY synced pin of from_box
 // and writes the inner v:1 into the recipient's inbox. A missing pin or bad
 // sig refuses the frame (exit 78 class) and writes nothing.
@@ -443,6 +447,9 @@ func (s *Session) receive(ctx context.Context, raw []byte) error {
 	m, err := e.Inner()
 	if err != nil {
 		return err
+	}
+	if e.FromBox == wuiBox && m.Kind != "task" && m.Kind != "note" {
+		return fmt.Errorf("envelope from %s with kind %q: %w", wuiBox, m.Kind, sign.ErrVerify)
 	}
 	for _, a := range m.Files {
 		if a.Mode == "blob" {

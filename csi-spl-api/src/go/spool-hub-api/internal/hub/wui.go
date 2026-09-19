@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -25,12 +26,15 @@ import (
 
 // Browser live WebSocket (specs/003 contracts/wui-live-ws.md): hello/welcome,
 // subscribe, send, and live fan-out of every stored message of a subscribed
-// task_id. Browsers hold no key: their envelopes are box-wui -> box-wui with
-// an empty sig (lde/dev unsigned) and are never delivered to boxes.
+// task_id. Browsers hold no key: a browser-only send is box-wui -> box-wui
+// with an empty sig. A signed-in member's send that names an agent is signed
+// by the hub-held box-wui key and delivered to its box (specs/014, dispatch.go,
+// behind SPOOL_HUB_WUI_DISPATCH).
 
 const (
-	// WUIBox is the reserved virtual box of the browser audience: never
-	// pinnable, no pin needed as a to_box, delivered by the fan-out.
+	// WUIBox is the reserved virtual box of the browser audience: no pin
+	// needed as a to_box, delivered by the fan-out. Pinnable only with the
+	// hub's own box-wui key (specs/014); never a box session.
 	WUIBox = "box-wui"
 	// BroadcastID is the v:1 `to` of a lobby post with no single recipient.
 	BroadcastID = "ALL-0"
@@ -52,6 +56,7 @@ type wuiConn struct {
 	tenant string
 	as     string          // display name the browser gave (or the id)
 	from   string          // v:1 agent id stamped as `from`
+	member string          // member-session human id ("" = none); dispatch needs it
 	subs   map[string]bool // guarded by srv.mu
 	wmu    sync.Mutex
 	once   sync.Once
@@ -99,21 +104,28 @@ type wuiErr struct {
 }
 
 // humanIDs maps a display name to a stable HUM-<n> per (tenant, name) for the
-// life of the process, so two tabs using one name share an id.
+// life of the process, so two tabs using one name share an id. Session human
+// ids live in their own namespace, so no display name can take one's HUM-<n>.
 type humanIDs struct {
 	mu   sync.Mutex
 	next int
-	ids  map[[2]string]string
+	ids  map[[3]string]string
 }
 
-func (h *humanIDs) id(tenant, name string) string {
+func (h *humanIDs) id(tenant, name string) string { return h.get("name", tenant, name) }
+
+// session maps a member-session human id that is not a v:1 id (010 ids such
+// as HUM-google-sub-1@t1) to a HUM-<n> (specs/014 OQ-014-3).
+func (h *humanIDs) session(tenant, humanID string) string { return h.get("session", tenant, humanID) }
+
+func (h *humanIDs) get(ns, tenant, name string) string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.ids == nil {
-		h.ids = map[[2]string]string{}
+		h.ids = map[[3]string]string{}
 		h.next = 1
 	}
-	k := [2]string{tenant, name}
+	k := [3]string{ns, tenant, name}
 	if v, ok := h.ids[k]; ok {
 		return v
 	}
@@ -180,8 +192,12 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 	default:
 		c.from = s.humans.id(t.ID, strings.TrimSpace(h.As))
 	}
-	if sess, err := s.sessionFor(r, t.ID); err == nil && sess != "" {
-		c.from = sess // a member sign-in session is authoritative (spec 010)
+	if sess, err := s.wuiSession(r, t.ID); err == nil && sess != "" {
+		// A member sign-in session is authoritative (spec 010); hello.as never is.
+		c.member, c.from = sess, sess
+		if !msg.ValidID(sess) {
+			c.from = s.humans.session(t.ID, sess)
+		}
 	}
 	s.mu.Lock()
 	if s.closing {
@@ -273,6 +289,12 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		kind = "note"
 	}
 	to := f.To
+	agent := ""
+	if s.o.WUIDispatch {
+		if agent = dispatchAgent(to, f.Body); agent != "" {
+			to = agent
+		}
+	}
 	if to == "" {
 		to = BroadcastID
 	}
@@ -296,16 +318,37 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		fail("bad_json", http.StatusBadRequest, err.Error())
 		return
 	}
+	var box string
+	var pin ed25519.PublicKey
+	if agent != "" {
+		var tok string
+		var status int
+		var detail string
+		if box, pin, tok, status, detail = s.dispatchCheck(ctx, c, m); tok != "" {
+			fail(tok, status, detail)
+			return
+		}
+	}
 	if tok, status, detail := s.admit(ctx, c.tenant, m); tok != "" {
 		fail(tok, status, detail)
 		return
 	}
-	inner, err := msg.Canonical(m)
-	if err != nil {
-		fail("bad_json", http.StatusBadRequest, "message does not encode")
-		return
+	var env *wire.Envelope
+	if agent != "" {
+		var err error
+		if env, err = s.dispatchEnvelope(box, pin, m); err != nil {
+			s.o.Log.Error().Err(err).Str("msg_id", id).Msg("wui dispatch sign")
+			fail("wui_unpinned", http.StatusConflict, "the box-wui signature does not verify against this tenant's pin")
+			return
+		}
+	} else {
+		inner, err := msg.Canonical(m)
+		if err != nil {
+			fail("bad_json", http.StatusBadRequest, "message does not encode")
+			return
+		}
+		env = &wire.Envelope{FromBox: WUIBox, ToBox: WUIBox, Msg: inner, Sig: ""}
 	}
-	env := &wire.Envelope{FromBox: WUIBox, ToBox: WUIBox, Msg: inner, Sig: ""}
 	r, err := s.commitRow(ctx, c.tenant, env, m)
 	if errors.Is(err, store.ErrConflict) {
 		fail("conflict_msg", http.StatusConflict, "msg_id exists with a different message")
@@ -320,6 +363,11 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	if r.inserted {
 		ack["cursor"] = encCursor(r.receivedAt, id)
 		ack["received_at"] = rfc(r.receivedAt)
+	}
+	if agent != "" {
+		ack["to_box"], ack["delivery"] = box, r.delivery
+		s.o.Log.Info().Str("tenant", c.tenant).Str("msg_id", id).Str("from", m.From).
+			Str("to", m.To).Str("to_box", box).Str("delivery", r.delivery).Msg("wui dispatch")
 	}
 	c.write(ctx, ack) //nolint:errcheck
 }

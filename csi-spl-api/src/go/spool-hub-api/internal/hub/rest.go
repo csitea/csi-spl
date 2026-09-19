@@ -138,8 +138,15 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.BoxID == WUIBox {
-		writeErr(w, http.StatusBadRequest, "bad_json", WUIBox+" is the reserved browser box and cannot be pinned")
-		return
+		// Pinnable only with this hub's own key (specs/014 §2.2); the tenant
+		// root signature below is still what makes the pin.
+		if pub := s.wuiPub(); pub == nil {
+			writeErr(w, http.StatusBadRequest, "bad_json", WUIBox+" is the reserved browser box and this hub has no box-wui key")
+			return
+		} else if req.PubKey != base64.StdEncoding.EncodeToString(pub) {
+			writeErr(w, http.StatusBadRequest, "wui_key_mismatch", WUIBox+" may only be pinned to this hub's key (GET /v1/wui/pubkey)")
+			return
+		}
 	}
 	pub, err := base64.StdEncoding.DecodeString(req.PubKey)
 	if err != nil || len(pub) != ed25519.PublicKeySize || !msg.ValidBoxID(req.BoxID) {

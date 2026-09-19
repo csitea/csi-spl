@@ -63,7 +63,8 @@ agent recipient:
 
 - `to` is a v:1 agent id that is not `ALL-0` and not `HUM-*`; or
 - `to` is empty / `ALL-0` and the body starts with `@<AGENT-ID>` (optional
-  leading spaces; the id ends at whitespace or end of body). The message's
+  leading spaces; the id ends at whitespace or end of body, and a trailing
+  `,` `:` `;` is dropped). The message's
   `to` becomes that agent.
 
 Otherwise the send is the unchanged browser-only path (`box-wui -> box-wui`).

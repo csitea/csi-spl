@@ -4,6 +4,8 @@
 package config
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"os"
@@ -147,6 +149,28 @@ type Hub struct {
 	// members becomes its owner (010 FR-014, OQ-A5). A trust change: dev only
 	// until the owner decides; prd admits by operator invite.
 	AuthBootstrapOwner bool `env:"SPOOL_HUB_AUTH_BOOTSTRAP_OWNER" envDefault:"false"`
+	// 014 WUI dispatch (specs/014 contracts/wui-dispatch.md §1). WUIKey is the
+	// base64 box-wui Ed25519 PRIVATE key (Secret Manager): never logged.
+	WUIDispatch     bool   `env:"SPOOL_HUB_WUI_DISPATCH" envDefault:"false"`
+	WUIKey          string `env:"SPOOL_HUB_WUI_KEY"`
+	WUIKeyEphemeral bool   `env:"SPOOL_HUB_WUI_KEY_EPHEMERAL" envDefault:"false"`
+}
+
+// WUIPrivateKey returns the box-wui signing key: decoded from SPOOL_HUB_WUI_KEY,
+// freshly generated when SPOOL_HUB_WUI_KEY_EPHEMERAL (lde/dev), else nil.
+func (h *Hub) WUIPrivateKey() (ed25519.PrivateKey, error) {
+	if k := strings.TrimSpace(h.WUIKey); k != "" {
+		raw, err := base64.StdEncoding.DecodeString(k)
+		if err != nil || len(raw) != ed25519.PrivateKeySize {
+			return nil, fmt.Errorf("SPOOL_HUB_WUI_KEY is not a base64 ed25519 private key")
+		}
+		return ed25519.PrivateKey(raw), nil
+	}
+	if h.WUIKeyEphemeral {
+		_, priv, err := ed25519.GenerateKey(nil)
+		return priv, err
+	}
+	return nil, nil
 }
 
 // LoadHub parses the hub environment and fails fast on a missing or
@@ -196,6 +220,17 @@ func LoadHub() (*Hub, error) {
 		if err := checkOrigin(o); err != nil {
 			return nil, err
 		}
+	}
+	if h.WUIKeyEphemeral && h.Env != "lde" && h.Env != "dev" {
+		return nil, fmt.Errorf("SPOOL_HUB_WUI_KEY_EPHEMERAL=true is allowed only with SPOOL_HUB_ENV=lde or dev (got %q)", h.Env)
+	}
+	if strings.TrimSpace(h.WUIKey) != "" {
+		if _, err := h.WUIPrivateKey(); err != nil {
+			return nil, err
+		}
+	}
+	if h.WUIDispatch && strings.TrimSpace(h.WUIKey) == "" && !h.WUIKeyEphemeral {
+		return nil, fmt.Errorf("SPOOL_HUB_WUI_DISPATCH=true needs SPOOL_HUB_WUI_KEY (or SPOOL_HUB_WUI_KEY_EPHEMERAL=true in lde/dev)")
 	}
 	return &h, nil
 }

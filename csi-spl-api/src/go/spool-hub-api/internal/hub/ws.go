@@ -157,6 +157,8 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 		return nil, false
 	case f.Type != wire.THello || (f.Role != wire.RoleBox && f.Role != wire.RoleCLI) || !msg.ValidBoxID(f.BoxID):
 		return refuse(wire.CloseBadFrame, "bad_frame")
+	case f.BoxID == WUIBox: // the hub holds box-wui's key; it is never a box session (specs/014)
+		return refuse(wire.CloseUnauthorized, "unauthorized")
 	case f.Nonce != nonce:
 		return refuse(wire.CloseUnauthorized, "bad_nonce")
 	case !s.skewOK(f.TS):

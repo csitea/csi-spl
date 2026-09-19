@@ -69,6 +69,15 @@ func cmdServe() int {
 		QuotaMessagesPerMonth: hc.QuotaMessagesPerMonth, QuotaPins: hc.QuotaPins, QuotaFileBytes: hc.QuotaFileBytes,
 		ViewDoor: hc.ViewDoor, ViewCORSOrigins: hc.ViewCORSOrigins, Env: hc.Env, LobbyTaskID: hc.LobbyTaskID,
 	}
+	wuiKey, err := hc.WUIPrivateKey() // specs/014; the private key is never logged
+	if err != nil {
+		return fail(err)
+	}
+	opts.WUIKey, opts.WUIDispatch = wuiKey, hc.WUIDispatch
+	if wuiKey != nil {
+		log.Info().Str("box_wui_pubkey", base64.StdEncoding.EncodeToString(wuiKey.Public().(ed25519.PublicKey))).
+			Bool("dispatch", hc.WUIDispatch).Bool("ephemeral", strings.TrimSpace(hc.WUIKey) == "").Msg("box-wui key loaded")
+	}
 	if hc.CICDLogsEnabled {
 		stt, err := cicdlogs.ParseSettings(true, hc.Env, hc.CICDGitHubToken, hc.CICDTenantTokens, hc.CICDRepoAllowlist, hc.CICDGitHubAPI, hc.CICDFromBox, hc.CICDFromID)
 		if err != nil {

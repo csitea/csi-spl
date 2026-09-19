@@ -9,6 +9,7 @@ package hub
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -66,6 +67,14 @@ type Options struct {
 	// Auth is the social sign-in surface (spec 010, /api/v1/auth/*); nil = not
 	// mounted. It is not tenant-scoped: the routes answer on any Host.
 	Auth *auth.Handler
+	// WUIKey is the box-wui signing key (specs/014); nil = no key: box-wui
+	// cannot be pinned and nothing is dispatched. WUIDispatch signs and
+	// delivers a browser send that names an agent (SPOOL_HUB_WUI_DISPATCH).
+	WUIKey      ed25519.PrivateKey
+	WUIDispatch bool
+	// SessionID returns the member-session human id of a browser request; nil
+	// = Auth.SessionForTenant. Set by code only (a test seam), never by env.
+	SessionID func(r *http.Request, tenant string) (string, error)
 }
 
 // Server is one hub process.
@@ -109,6 +118,9 @@ func New(o Options) (*Server, error) {
 		}
 	default:
 		return nil, fmt.Errorf("hub: view door %q must be token, session or off", o.ViewDoor)
+	}
+	if o.WUIDispatch && len(o.WUIKey) != ed25519.PrivateKeySize {
+		return nil, errors.New("hub: WUI dispatch needs a box-wui ed25519 private key")
 	}
 	if o.HelloTimeout == 0 {
 		o.HelloTimeout = 10 * time.Second
@@ -156,6 +168,7 @@ func (s *Server) Handler() http.Handler {
 	}
 	s.routeView(mux)
 	mux.HandleFunc("GET /v1/wui/ws", s.handleWUIWS)
+	mux.HandleFunc("GET /v1/wui/pubkey", s.handleWUIPubkey)
 	mux.HandleFunc("DELETE /v1/files/{file_id}", s.handleDeleteFile)
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {

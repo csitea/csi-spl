@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
 	"errors"
 	"strings"
 	"testing"
@@ -178,5 +180,52 @@ func TestLoadHubViewDoorAndOrigins(t *testing.T) {
 		if _, err := LoadHub(); err == nil {
 			t.Fatalf("origin %q accepted", bad)
 		}
+	}
+}
+
+// 014 T010: box-wui key env — off by default, fail fast on every bad combination.
+func TestLoadHubWUIDispatch(t *testing.T) {
+	setHubBase(t)
+	t.Setenv("SPOOL_HUB_ENV", "prd")
+	t.Setenv("SPOOL_HUB_WUI_KEY", "")
+	t.Setenv("SPOOL_HUB_WUI_KEY_EPHEMERAL", "")
+	t.Setenv("SPOOL_HUB_WUI_DISPATCH", "")
+	h, err := LoadHub()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if k, err := h.WUIPrivateKey(); h.WUIDispatch || k != nil || err != nil {
+		t.Fatalf("defaults: dispatch=%v key=%v err=%v", h.WUIDispatch, k != nil, err)
+	}
+	t.Setenv("SPOOL_HUB_WUI_DISPATCH", "true")
+	if _, err := LoadHub(); err == nil {
+		t.Fatal("dispatch on without a key was accepted")
+	}
+	t.Setenv("SPOOL_HUB_WUI_KEY_EPHEMERAL", "true")
+	if _, err := LoadHub(); err == nil {
+		t.Fatal("ephemeral key accepted in prd")
+	}
+	t.Setenv("SPOOL_HUB_ENV", "dev")
+	h, err = LoadHub()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if k, err := h.WUIPrivateKey(); err != nil || len(k) != ed25519.PrivateKeySize {
+		t.Fatalf("ephemeral key: %v %d", err, len(k))
+	}
+	t.Setenv("SPOOL_HUB_ENV", "prd")
+	t.Setenv("SPOOL_HUB_WUI_KEY_EPHEMERAL", "")
+	t.Setenv("SPOOL_HUB_WUI_KEY", "bm90LWEta2V5")
+	if _, err := LoadHub(); err == nil || strings.Contains(err.Error(), "bm90LWEta2V5") {
+		t.Fatalf("bad key accepted or echoed: %v", err)
+	}
+	_, priv, _ := ed25519.GenerateKey(nil)
+	t.Setenv("SPOOL_HUB_WUI_KEY", base64.StdEncoding.EncodeToString(priv))
+	h, err = LoadHub()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if k, _ := h.WUIPrivateKey(); !k.Equal(priv) {
+		t.Fatal("SPOOL_HUB_WUI_KEY did not round-trip")
 	}
 }

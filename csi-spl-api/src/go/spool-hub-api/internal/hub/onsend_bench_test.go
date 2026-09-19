@@ -106,6 +106,7 @@ func (s slowBlob) Exists(ctx context.Context, key string) (bool, error) {
 
 type benchHub struct {
 	proxy *pgProxy
+	pg    *store.Postgres
 	dial  func(ctx context.Context, network, addr string) (net.Conn, error)
 	priv  ed25519.PrivateKey
 	files []msg.Attachment
@@ -116,6 +117,8 @@ var (
 	benchEnv  *benchHub
 	benchErr  error
 )
+
+const benchQueueCap = 1000
 
 var benchTenants = map[int]string{10_000: "tbench10k", 200_000: "tbench200k"}
 
@@ -232,7 +235,7 @@ func buildBench(b *testing.B, dsn string) (*benchHub, error) {
 	srv, err := hub.New(hub.Options{
 		Store: pg, Blob: blobs, Log: zerolog.Nop(),
 		TenantHostPattern: "{tenant}" + domain, HelloSkew: 300 * time.Second, HelloTimeout: 5 * time.Second,
-		UploadTokenTTL: 5 * time.Minute, QueueTTL: 7 * 24 * time.Hour, QueueMaxPerBox: 1000,
+		UploadTokenTTL: 5 * time.Minute, QueueTTL: 7 * 24 * time.Hour, QueueMaxPerBox: benchQueueCap,
 		RetentionAlerts: 7 * 24 * time.Hour, RetentionChannels: 30 * 24 * time.Hour, Version: "bench",
 		QuotaMessagesPerMonth: 100_000_000,
 	})
@@ -241,7 +244,7 @@ func buildBench(b *testing.B, dsn string) (*benchHub, error) {
 	}
 	ts := httptest.NewServer(srv.Handler())
 	addr := ts.Listener.Addr().String()
-	return &benchHub{proxy: proxy, priv: priv, files: files,
+	return &benchHub{proxy: proxy, pg: pg, priv: priv, files: files,
 		dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
 			return (&net.Dialer{}).DialContext(ctx, network, addr)
 		}}, nil
@@ -366,4 +369,12 @@ func benchOnSend(b *testing.B, tenant string, nfiles, conc int) {
 	b.ReportMetric(pct(0.95), "p95_ms")
 	b.ReportMetric(float64(h.proxy.packets.Load()-p0)/float64(b.N), "rt/send")
 	b.ReportMetric(float64(errs.Load()), "errors")
+	// box-b is never online: its queue sits at the cap. Rows over it are the
+	// cap's overshoot right after the burst (Enqueue skips the trim when
+	// another send of the same box holds the cap lock).
+	q, err := h.pg.QueuedFor(context.Background(), tenant, "box-b", time.Now())
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ReportMetric(float64(len(q)-benchQueueCap), "queued_over_cap")
 }

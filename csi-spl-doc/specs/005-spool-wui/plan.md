@@ -55,6 +55,9 @@ mock-only, until their gaps (spec §5) close.
 5. T008 unit tests for the live client (stub `fetch`) + e2e no-x-scroll on the new pages.
 6. T009 dev Hosting apply (owner go; after 007's DNS + ingress) and deploy.
 7. T010 view-token entry (in-memory / `sessionStorage`) → T011 prd Hosting (after OQ-W2).
+8. T025–T028 (WUI-UX): verbosity from `kind` + in-browser notifications with
+   local read cursors (`./contracts/verbosity-notify-v1.md`). Independent of
+   phase-3 channel/DM live wiring.
 
 ## Risks
 
@@ -65,4 +68,4 @@ mock-only, until their gaps (spec §5) close.
   Hosting custom domain is `env.dns.fqdn` (019). Both depend on the open DNS
   handoff question (README §6.1) — 007's, not 005's.
 
-<!-- version: 1.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:10:00Z -->
+<!-- version: 1.4.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:50:57Z -->

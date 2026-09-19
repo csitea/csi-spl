@@ -50,8 +50,28 @@ the spec §5 gap named.
 - [~] P1 Partial (mock) — channels sidebar + `/channel/[name]` (`ChannelSidebar.vue`, `stores/channel.ts`). Blocked: G3.
 - [~] P2 Partial (mock) — DMs `/dm/[peer]` (`stores/roster.ts`). Blocked: G2, G4.
 - [~] P3 Partial (mock) — composer + `@mention` (`MessageComposer.vue`, `utils/mention-autocomplete.mjs`). Blocked: G1, G2.
-- [~] P4 Partial (mock) — notifications (`NotificationCenter.vue`, `stores/notification.ts`). Blocked: G3.
-- [~] P5 Partial (mock) — verbosity toggle (`VerbositySelector.vue`). Blocked: metadata not in `v:1`.
+- [~] P4 Partial (mock) — notifications (`NotificationCenter.vue`, `stores/notification.ts`). Unblocked: OQ-W4 (a) / OQ-W5 (a); implementation T027–T028. Channel/DM live wiring stays phase-3.
+- [~] P5 Partial (mock) — verbosity toggle (`VerbositySelector.vue`). Unblocked: OQ-W3 (a), infer from `kind`; implementation T026, T028.
 - [ ] P6 Planned — channel creation. Blocked: G3 (no route; `POST /v1/channels` does not exist).
 
-<!-- version: 1.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:55:00Z -->
+## Phase 5 — Verbosity + in-browser notifications (WUI-UX, Gaps 6–7)
+
+Contract: `contracts/verbosity-notify-v1.md`. Does not touch hub, rdb, iac,
+channel/DM/roster stores, `wui-live-ws.md`, or `view-v1.md`.
+
+- [ ] T025 Planned — spec amendment: US6 / US7, FR-013..015, OQ-W3/W4/W5 (a)
+  chosen, P4/P5 unblocked. Check: `command grep -c OQ-W3 csi-spl-doc/specs/005-spool-wui/spec.md` → 5.
+- [ ] T026 Planned — `csi-spl-wui/utils/verbosity.mjs`: `verbosityOf` / `applyVerbosity`
+  from `kind` only; persist selector in `localStorage` `spool.verbosity` (try/catch).
+  Table-driven unit test covers every v:1 kind from `internal/msg/msg.go` `validKinds`.
+  `channel-feed.mjs` `applyVerbosity` delegates here. FR-013, US6, P5.
+- [ ] T027 Planned — `csi-spl-wui/utils/notify.mjs` + `utils/read-cursor.mjs`:
+  escalate only on mention of signed-in `HUM-*` / DM / `#alerts`; unread per
+  `ch:<slug>` / `dm:<peer>` from local cursors; chime opt-in default off.
+  Unit tests for positives, negatives, own-message skip, cursor persist. FR-014, FR-015, US7, P4.
+- [ ] T028 Planned — wire `VerbositySelector.vue`, `ThreadPane.vue` /
+  `LiveThreadPane.vue`, `NotificationCenter.vue`, `stores/notification.ts`,
+  `stores/thread.ts`, sidebar unread badges; drop mock `[verbose]` body filter
+  and the "task sent" ping. No mock-data import in those files. FR-013..015.
+
+<!-- version: 1.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:50:57Z -->

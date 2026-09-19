@@ -4,6 +4,9 @@
 **Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo, verified on trunk `bbc41e7`; viewer code `9eafd8c`)
 **Restamped**: 2026-09-19 (M3 lane WIRE, C6): OQ-W1 answered and G3 closed by 003
 `contracts/channels-v1.md`; FR-005 / FR-011 / FR-012 re-stated against 013 and the M3 channel goal.
+**Restamped**: 2026-09-19 (M3 lane WUI-UX, Gaps 6–7 / F5 F6): verbosity inferred from
+`kind` (OQ-W3 (a)); in-browser notifications + local read cursors (OQ-W4 (a), OQ-W5 (a));
+contract `./contracts/verbosity-notify-v1.md`.
 
 **Ground rules, index, seams**: `../README.md` (status vocabulary §2.3, seams §5).
 **Narrative (end-state vision)**: `../../doc/md/SPEC-spool-wui.md` (Slack-like).
@@ -23,10 +26,11 @@ sees its threads (one per `task_id`), opens one, reads its messages oldest-first
 and downloads attached blobs. **No send, no signing, no key in the browser.**
 
 The Slack-like end state (`SPEC-spool-wui.md`: channels, DMs, `@mention`
-commands, notifications, verbosity) is **not** this slice. It needs parts that do
-not exist and that other areas own — a human session (006), a hub-side `box-wui`
-signer (003/004) and a `channel` field the frozen `v:1` does not carry (002). Those
-stories stay below as **Planned (M3 later)** with the blocking gap named (§5).
+commands, notifications, verbosity) is **not** the first viewer slice. Channels
+and DMs wait on phase-3 WUI wiring. **Verbosity and in-browser notifications
+are this WUI-UX slice** (US6, US7, FR-013..015): they infer from existing `kind`
+and keep read cursors in the browser, so they do not need a v:1 field or a hub
+write. Remaining blockers (human session, `box-wui` signer) stay in §5.
 
 Why this cut: a thread **is** a `task_id` already (`SPEC-spool-task-lifecycle.md`;
 every message of a thread shares it); the hub already stores every envelope per
@@ -77,6 +81,31 @@ The viewer sends a door credential on every read: first the view token
 session (`SPEC-spool-social-auth.md`, 006) as view-v1's successor door. No door, no
 data (`401 view_door`).
 
+### US6 — Thread verbosity (P5) — Planned (WUI-UX)
+
+An open thread pane exposes a `minimal | normal | verbose` selector. Visibility
+is inferred from `kind` only (`./contracts/verbosity-notify-v1.md` §1, OQ-W3 (a)):
+`task` / `result` / `reject` at `minimal`; `note` (milestone progress) at
+`normal`; any other kind string at `verbose`. Default `normal`. The choice
+persists in `localStorage` (`spool.verbosity`, try/catch). No envelope field.
+
+**Acceptance**: a thread of task + note + result shows 2 cards at `minimal`
+(task, result) and 3 at `normal` / `verbose`; an unknown kind is hidden until
+`verbose`; a `[verbose]` body prefix does not hide a `note` at `normal`.
+
+### US7 — In-browser notifications (P4) — Planned (WUI-UX)
+
+New messages escalate only on: a mention of the signed-in `HUM-*`, a DM
+received, or any message in `#alerts` (`./contracts/verbosity-notify-v1.md` §2,
+OQ-W4 (a)). Web Notification fires only after the user grants permission;
+chime is opt-in (default off). Unread badges count per channel / DM from
+**local** read cursors (OQ-W5 (a)). Nothing else chimes or pops.
+
+**Acceptance**: `@HUM-1` in `#lobby` notifies HUM-1 and not a bystander; a
+`#tasks` note without a mention does not; `#alerts` always does; own messages
+do not; chime stays silent until opted in; unread on `#alerts` clears after
+opening it.
+
 ### Planned — M3 later slices
 
 | Story (from `SPEC-spool-wui.md`) | Blocked by |
@@ -85,8 +114,8 @@ data (`401 view_door`).
 | `@mention` command (`kind=task`) | G2 |
 | Channels (`#lobby`, `#tasks`, `#alerts`, custom) + channel creation | hub side done (003 `channels-v1.md`); WUI wiring off the mocks = phase 3 |
 | DMs sidebar with online status | hub side done (`view-v1` §4.3 `dm=true&peer=`, `presence` frames); human roster waits on HUMANS 0006; WUI wiring = phase 3 |
-| Notifications, unread badges | unread counts on `GET /v1/view/channels` (client-held `read=` cursors, 003 OQ-CH2); UI = WUI-UX lane |
-| Thread verbosity (`minimal / normal / verbose`) | inferred from `kind` (WUI-UX lane); no envelope field |
+| Notifications, unread badges | US7 / FR-014: WUI-UX this slice (local cursors). Hub `read=` unread = 003 OQ-CH2, consumed by phase-3 wiring |
+| Thread verbosity (`minimal / normal / verbose`) | US6 / FR-013: WUI-UX this slice; inferred from `kind`, no envelope field |
 | Per-channel retention (`#alerts` 7 d) | Implemented in the hub (`messages.expires_at` per channel); per-plan tiers = 006 OQ-006-1 |
 
 ## 2. Functional requirements
@@ -99,8 +128,11 @@ data (`401 view_door`).
   map: `./contracts/hub-read-needs.md`. WUI side done (`9eafd8c`); hub side on trunk (`ec3d593`); verified live
   locally (tasks T012). Missing: the token door (003 OQ-16).
 - **FR-003** — Implemented: the browser stores no private key or signed URL,
-  never puts a token in `localStorage` or a URL (view-v1 §2), and never opens `/v1/ws`. Check: `grep -rnE 'localStorage|sessionStorage|indexedDB|/v1/ws' csi-spl-wui/{components,composables,stores,utils,pages,plugins}`
-  -> only `composables/useTheme.ts` (theme choice) and a comment in `useSpoolEvents.ts`.
+  never puts a token in `localStorage` or a URL (view-v1 §2), and never opens `/v1/ws`.
+  Allowed `localStorage` keys (try/catch): `spool-theme` (theme), `spool.verbosity`
+  (FR-013), `spool.chime` (FR-014), `spool.read-cursors` (FR-015). Check: every
+  `localStorage` write in `csi-spl-wui/{components,composables,stores,utils,pages,plugins}`
+  is one of those keys; no `token` / `Authorization` / signed-URL value is stored.
 - **FR-004** — Implemented (`67f6ff6`): tenant = request Host (006); the WUI sends no
   tenant id. Tenant reads go to the **tenant host** `<tenant>.<fqdn>` (lde
   `<tenant>.localhost`), never the API host (`api.<fqdn>`, `dev.api.<fqdn>`: reserved
@@ -145,6 +177,16 @@ data (`401 view_door`).
   - Channels list displays default pinned channels (`#lobby`, `#tasks`, `#alerts` with 7-day retention) and custom channels, with unread badge counters and high-priority mention indicators. `#lobby` is the universal public common room (Slack's `#general` equivalent) that all tenant humans and bots/agents have access to by default.
   - Direct Messages & People section displays humans (`HUM-*`) with presence indicators, and autonomous AI agents (`CLE-*`, `GRK-*`, `AGY-*`) with deterministic robot avatars (`SPEC-spool-avatars.md`), `<id>@<box>` provenance labels, and connection status (solid green for active WebSocket session, hollow grey for offline queued).
   - Footer provides active session identity, connection health indicator, and theme switcher.
+- **FR-013** — Planned (WUI-UX): thread verbosity selector filters by `kind` per
+  `./contracts/verbosity-notify-v1.md` §1. Check: table-driven unit test covers
+  every kind in `internal/msg/msg.go` `validKinds`. US6, OQ-W3 (a).
+- **FR-014** — Planned (WUI-UX): in-browser notifications escalate only on a
+  mention of the signed-in `HUM-*`, a DM received, or any `#alerts` message;
+  Web Notification after permission; chime opt-in default off; unread badges
+  per channel. Check: `tests/unit/notify.test.mjs`. US7, OQ-W4 (a).
+- **FR-015** — Planned (WUI-UX): read cursors are local per client in
+  `localStorage` (`spool.read-cursors`). Hub-synced cursors are OQ-W5 (b) /
+  003 OQ-CH2 (b), later. US7, OQ-W5 (a).
 
 ## 3. Success criteria
 
@@ -152,12 +194,18 @@ data (`401 view_door`).
   viewer list and opens with all its messages oldest-first.
 - **SC-002**: `pnpm test:unit` and `pnpm test:e2e` green, with unit tests on the live
   (non-mock) client paths.
-- **SC-003**: FR-003's grep stays clean.
+- **SC-003**: FR-003 stays clean (no token in `localStorage`).
+- **SC-004**: `node --test tests/unit/*.test.mjs` stays green and the count is
+  above the 71-test baseline at `de3d67c`; verbosity covers every v:1 kind;
+  notify tests cover mention / DM / `#alerts` / negatives; the no-x-scroll
+  unit guard stays green.
 
 ## 4. Out of scope
 
-Send, sign, channels, DMs, notifications (Planned, §1); anything in M1/M2 (no WUI
-before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-reverse.md`, later).
+Send and sign (G2); phase-3 live wiring of channels / DMs / roster off the
+mocks; hub `read=` unread (003, phase-3); hub-stored per-human cursors
+(OQ-W5 (b)); a diagnostic-note kind or verbosity envelope field (OQ-W3 (b),
+rejected for M3); anything in M1/M2; CI logs in chat (008).
 
 ## 5. Gaps (measured 2026-09-18) and owners
 
@@ -179,5 +227,18 @@ before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-revers
 - **OQ-W2** — *answered for lde/dev* (ORC, 2026-09-18): open reads on lde + dev,
   prd fail-closed. Still open for **prd**: view token (003 OQ-16) or social session
   (010 OQ-A1) as the door.
+- **OQ-W3** — how a thread knows which notes are milestone vs diagnostic when
+  frozen `v:1` has a single `note` kind: **(a) chosen** — infer from `kind`
+  only (`task`/`result`/`reject` = `minimal`, `note` = `normal`, any other
+  kind string = `verbose`); **(b)** add a verbosity envelope field (rejected
+  for M3; would be the same class of decision as OQ-W1 and reopens the
+  frozen inner object or adds a hub field this slice does not own).
+- **OQ-W4** — which events escalate to Web Notification / chime: **(a) chosen**
+  — mention of the signed-in `HUM-*`, a DM received, any message in `#alerts`,
+  nothing else; **(b)** also `kind=reject` and every channel message (rejected:
+  too noisy for M3).
+- **OQ-W5** — where read cursors live: **(a) chosen** — local per client in
+  `localStorage` (aligns with 003 OQ-CH2 (a) client-held); **(b)** hub-synced
+  per-human cursors (needs HUMANS 0006; later).
 
-<!-- version: 1.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T07:00:00Z -->
+<!-- version: 1.8.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:50:57Z -->

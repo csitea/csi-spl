@@ -116,6 +116,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 	}
 	if ok, retry := s.searchRate.Allow(key, s.o.SearchRatePerMin); !ok {
 		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retry.Seconds()))))
+		w.Header().Set("Access-Control-Expose-Headers", "Retry-After") // the WUI backs off by it
 		writeErr(w, http.StatusTooManyRequests, "rate_limited", "too many searches; retry later")
 		return
 	}

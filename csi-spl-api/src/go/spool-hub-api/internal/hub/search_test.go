@@ -215,6 +215,7 @@ func TestSearchDoorAndRate(t *testing.T) {
 	}
 	e = newEnv(t, func(o *hub.Options) {
 		o.ViewDoor = hub.ViewDoorOff
+		o.ViewCORSOrigins = []string{wuiOrigin}
 		o.SearchRatePerMin = 2
 		o.SessionID = func(r *http.Request, _ string) (string, error) { return r.Header.Get("X-Test-Human"), nil }
 	})
@@ -224,11 +225,17 @@ func TestSearchDoorAndRate(t *testing.T) {
 			t.Fatalf("search %d: %d", i, code)
 		}
 	}
-	code, h, _, raw := searchGet(t, e, tid, "deploy", "", "X-Test-Human", "HUM-1")
-	if code != http.StatusTooManyRequests || raw["error"] != "rate_limited" || h.Get("Retry-After") == "" {
+	code, h, _, raw := searchGet(t, e, tid, "deploy", "", "X-Test-Human", "HUM-1", "Origin", wuiOrigin)
+	if code != http.StatusTooManyRequests || raw["error"] != "rate_limited" || h.Get("Retry-After") == "" ||
+		h.Get("Access-Control-Allow-Origin") != wuiOrigin || h.Get("Access-Control-Expose-Headers") != "Retry-After" {
 		t.Fatalf("rate: %d %v %+v", code, h, raw)
 	}
 	if code, _, _, _ := searchGet(t, e, tid, "deploy", "", "X-Test-Human", "HUM-2"); code != http.StatusOK {
 		t.Fatalf("another reader has its own budget: %d", code)
+	}
+	// error answers carry the view CORS headers, so the browser can read pos / token
+	code, h, _, raw = searchGet(t, e, tid, "(x", "", "X-Test-Human", "HUM-3", "Origin", wuiOrigin)
+	if code != http.StatusBadRequest || raw["pos"] != float64(0) || h.Get("Access-Control-Allow-Origin") != wuiOrigin {
+		t.Fatalf("400 CORS: %d %v %+v", code, h, raw)
 	}
 }

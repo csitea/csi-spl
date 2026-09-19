@@ -304,6 +304,9 @@ it would be an oracle for addresses the roster does not show.
 | 429 | `rate_limited` | more than **30** searches per minute per (tenant, reader); the reader is the member `HUM-*`, else the client IP (017 FR-SEC-006). `Retry-After` in seconds |
 | 503 | `search_budget` | the query exceeded its time budget (**2 s**, Postgres `statement_timeout` set per transaction); narrow the query |
 
+Every answer, errors included, carries the view CORS headers (view-v1 §3)
+for an allow-listed `Origin`; the `429` adds
+`Access-Control-Expose-Headers: Retry-After` so the browser can read it.
 `pos` / `token` are present on `bad_query` only (`pos` is a UTF-16 offset into
 `q`, `token` the offending text). Other bodies are `./error-envelope.md`.
 

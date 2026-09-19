@@ -63,7 +63,29 @@ echo "$out1" | grep -q 'applied 0001_hub_core.sql' || { echo "FAIL - first migra
 if echo "$out2" | grep -q '^applied'; then echo "FAIL - second migrate re-applied: $out2"; exit 1; fi
 echo "ok   - spool migrate applies $(echo "$out1" | grep -c '^applied') file(s); re-run is a no-op"
 
-( cd "$MOD" && SPOOL_TEST_PG_DSN="$DSN" SPOOL_TEST_SQL_DIR="$SQL_DIR" go test -count=1 ./internal/store/ ./internal/hub/ ./internal/auth/ )
+# One database per package: `go test` runs packages in parallel, and the
+# store suite's retention test calls Sweep(now+31d), which is global by
+# design (the hub sweeper). Against a shared database it purged the hub
+# suite's queued messages mid-test: TestChannelMentionRouting timed out
+# waiting for the drained recv (CI 35436333578; reproduced with the sweep
+# SQL in a loop, 4 fails in 40 s against 16/16 clean before; H6).
+pids=()
+for pkg in store hub auth; do
+  db="spool_hub_$pkg"
+  if [ -n "$PG_CTR" ]; then
+    docker exec "$PG_CTR" createdb -U spool "$db"
+  else
+    "$PG_BIN/createdb" -h "$WORK" -p "$PGPORT" -U spool "$db"
+  fi
+  pdsn="${DSN/\/spool_hub\?//$db?}"
+  "$BIN" migrate --db "$pdsn" --sql-dir "$SQL_DIR" >/dev/null # auth's suite expects a migrated db
+  ( cd "$MOD" && SPOOL_TEST_PG_DSN="$pdsn" SPOOL_TEST_SQL_DIR="$SQL_DIR" \
+      go test -count=1 "./internal/$pkg/" ) &
+  pids+=("$!")
+done
+rc=0
+for p in "${pids[@]}"; do wait "$p" || rc=1; done
+[ "$rc" -eq 0 ] || { echo "FAIL - Postgres package suites"; exit 1; }
 echo "ok   - internal/store + internal/hub + internal/auth (015 CredStore) suites green against Postgres"
 
 # 010 FR-014: the operator invite seats a first owner where bootstrap is off.

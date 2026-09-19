@@ -21,16 +21,17 @@ describe('channel-feed', () => {
     assert.equal(replyCount(MOCK_MESSAGES, task.task_id), thread.length - 1)
   })
 
-  it('verbosity hides verbose notes in normal and all notes in minimal', () => {
+  it('verbosity shows task/result/reject at minimal and notes at normal', () => {
     const taskId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
     const thread = threadOf(MOCK_MESSAGES, taskId)
     const min = applyVerbosity(thread, 'minimal')
     const norm = applyVerbosity(thread, 'normal')
     const verb = applyVerbosity(thread, 'verbose')
     assert.equal(min.some((m) => m.kind === 'result'), true)
-    assert.equal(min.some((m) => String(m.body).startsWith('[verbose]')), false)
+    assert.equal(min.some((m) => m.kind === 'task'), true)
+    assert.equal(min.some((m) => m.kind === 'note'), false)
     assert.equal(norm.some((m) => m.body === 'Applying patch'), true)
-    assert.equal(norm.some((m) => String(m.body).startsWith('[verbose]')), false)
+    assert.equal(norm.some((m) => String(m.body).startsWith('[verbose]')), true)
     assert.equal(verb.length, thread.length)
   })
 

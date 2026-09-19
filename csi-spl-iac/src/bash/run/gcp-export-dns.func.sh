@@ -19,8 +19,9 @@ do_gcp_export_dns() {
   # identity is auditable afterwards rather than inferable from a config file
   # that will have moved by the time anyone looks.
   local account
-  account=$(do_gcp_account) || quit_on "no gcloud identity could be resolved — set ACCOUNT or GCP_ACCOUNT"
-  do_gcp_log_identity "${PROJECT_ID:-<unset>}" "${account}" "do_gcp_export_dns"
+  # This action walks several envs: each env's identity is that env's project
+  # SA, activated from its key and re-pinned inside the loop (owner rule
+  # 2026-09-19: the per-env service accounts only, never the owner account).
 
 
   do_resolve_oap ORG
@@ -38,6 +39,11 @@ for env in "${!env_keys[@]}"; do
 
   do_log "INFO Exporting DNS configuration for $env environment"
   PROJECT_ID=$(jq -r '.project_id' $GOOGLE_APPLICATION_CREDENTIALS)
+  if ! gcloud auth activate-service-account --key-file="${expanded_key_path}" --quiet &>/dev/null; then
+    do_log "WARN no usable project SA key for $env (${expanded_key_path}); skipping it"
+    continue
+  fi
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
 
   gcloud config set project ${PROJECT_ID:-}
   quit_on "Setting project"

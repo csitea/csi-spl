@@ -21,16 +21,11 @@ pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
-# nokey_app <dir> -> an APP_PATH whose cnf has NO env.gcp.gcp_account_owner_email
-# (every other dir symlinked to the real tree): the CONTROL for "no account
-# resolves -> refused"; with the real cnf an empty GCP_ACCOUNT resolves from yaml
-nokey_app() {
-  local d="$1" e; mkdir -p "$d"
-  for e in "$APP_ROOT"/*; do [[ "$e" == *-cnf ]] || ln -s "$e" "$d/"; done
-  cp -r "$APP_ROOT"/*-cnf "$d/"
-  for e in "$d"/*-cnf/*/*.env.yaml; do yq -i 'del(.env.gcp.gcp_account_owner_email)' "$e"; done
-}
-nokey_app "$T/nokey"
+# nosa_home: a HOME with no ~/.gcp: no per-env SA key, while the REAL cnf
+# still carries env.gcp.gcp_account_owner_email -- the CONTROL that a missing
+# key is refused and the owner account is NEVER the fallback (owner rule
+# 2026-09-19: the per-env service accounts only)
+mkdir -p "$T/nosa_home"
 
 # Stubs: gcloud, curl and cloud-sql-proxy record and fail; docker records,
 # refuses login/push, and passes the rest (build, inspect) to the real one.
@@ -72,11 +67,11 @@ export ENV=dev
 SNIPPET='spl_dry_run' in_orc DRY_RUN=yes >/dev/null 2>&1; rc=$?
 [[ $rc -eq 2 ]] && pass "DRY_RUN=yes is refused (rc 2)" || fail "DRY_RUN=yes gave rc $rc"
 
-# DRY_RUN=0 reaches the real-run branch: with no GCP_ACCOUNT (and no cnf
-# gcp_account_owner_email) it must stop on exactly that (the regression: `if ! spl_dry_run; then rc=$?` read the
+# DRY_RUN=0 reaches the real-run branch: with no GCP_ACCOUNT (and no per-env
+# SA key) it must stop on exactly that (the regression: `if ! spl_dry_run; then rc=$?` read the
 # negated status and returned 1 silently, before any message)
-out=$(SNIPPET='do_build_push_hub_image' in_orc DRY_RUN=0 GCP_ACCOUNT= APP_PATH="$T/nokey" 2>&1); rc=$?
-[[ $rc -ne 0 ]] && grep -q 'gcp_account_owner_email' <<<"$out" && ! grep -q 'INFO built' <<<"$out" && pass "DRY_RUN=0 without GCP_ACCOUNT stops on GCP_ACCOUNT" \
+out=$(SNIPPET='do_build_push_hub_image' in_orc DRY_RUN=0 GCP_ACCOUNT= HOME="$T/nosa_home" 2>&1); rc=$?
+[[ $rc -ne 0 ]] && grep -q 'no project SA key' <<<"$out" && ! grep -q 'INFO built' <<<"$out" && pass "DRY_RUN=0 without GCP_ACCOUNT stops on GCP_ACCOUNT" \
   || fail "DRY_RUN=0 without GCP_ACCOUNT: rc=$rc, $(tail -2 <<<"$out" | tr '\n' ' ')"
 
 # --- 3. dry runs touch no cloud ---------------------------------------------------

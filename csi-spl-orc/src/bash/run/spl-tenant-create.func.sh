@@ -14,7 +14,7 @@
 # @param SPOOL_HUB_DB_DSN (optional) - lde: derived. dev/prd: when unset, the
 # @param   DSN secret is read as GCP_ACCOUNT and reached through the Cloud SQL
 # @param   proxy (spl_sql_proxy_start), the same path do_spl_db_bootstrap uses
-# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account). dev/prd with DRY_RUN=0 and no SPOOL_HUB_DB_DSN: the
+# @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account). dev/prd with DRY_RUN=0 and no SPOOL_HUB_DB_DSN: the
 # @param   operator (secretmanager.secretAccessor + cloudsql.client)
 # @param SPOOL_BIN (optional) - spool CLI; otherwise built from csi-spl-api
 # @example TENANT_ID=acme ./run -a do_spl_tenant_create --json

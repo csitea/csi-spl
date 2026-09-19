@@ -14,7 +14,7 @@
 # @description job is green too); this is. It only DESCRIBES: no update, no
 # @description create, no IAM. Spec 008 FR-P09.
 # @param ENV - required: dev or prd
-# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account): the identity that reads (run.viewer is enough)
+# @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account): the identity that reads (run.viewer is enough)
 # @example ENV=dev ./run -a do_check_hub_deploy
 #------------------------------------------------------------------------------
 do_check_hub_deploy() {

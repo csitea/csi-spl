@@ -26,7 +26,7 @@
 # @param ENV (optional) - dev or prd: fills DOMAIN / GCP_PROJECT / CERT_NAME from cnf
 # @param DOMAIN (optional) - FQDN the cert covers; default: cnf env.dns.fqdn
 # @param GCP_PROJECT (optional) - project owning the cert; default: cnf env.gcp.gcp_project
-# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account); passed as --account on every gcloud call
+# @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account); passed as --account on every gcloud call
 # @param CERT_NAME (optional) - default: <GCP_PROJECT>-hub-cert (031 name_prefix-cert)
 # @param CERT_LOCATION (optional) - Certificate Manager location (default: global)
 # @param TIMEOUT_SECONDS (optional) - max wait (default: 3600)
@@ -73,7 +73,8 @@ do_wait_for_cert() {
     return 1
   fi
   # every gcloud call carries --account; nothing writes the shared gcloud config
-  account=$(do_gcp_account "${SPL_CNF:-}") || return 1
+  do_gcp_pin_account "${SPL_CNF:-}" || return 1
+  account="$GCP_ACCOUNT"
   if [[ -z "$cert" ]]; then
     do_log "FATAL CERT_NAME is required (default is <GCP_PROJECT>-hub-cert)"
     return 1

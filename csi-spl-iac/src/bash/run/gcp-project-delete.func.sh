@@ -26,16 +26,13 @@ do_gcp_project_delete() {
 
   do_log "INFO GCP_PROJECT: ${GCP_PROJECT}"
 
-  # --- authenticate ---
-  if [[ -f "${KEY_FILE}" ]]; then
-    do_log "INFO activating service account from ${KEY_FILE}"
-    ${GCLOUD} auth activate-service-account --key-file="${KEY_FILE}" 2>&1
-    if [[ $? -ne 0 ]]; then
-      do_log "WARN service account activation failed, falling back to current auth"
-    fi
-  else
-    do_log "WARN key file not found: ${KEY_FILE} — using current gcloud auth"
-  fi
+  # --- authenticate: the project SA from its key, in this private config ---
+  # (owner rule 2026-09-19: the per-env service accounts only; no key is a
+  # refusal, never a fall back to whatever auth happens to be around)
+  local account
+  account=$(PATH="$(dirname "${GCLOUD}"):${PATH}" GCP_SA_KEY_FILE="${GCP_SA_KEY_FILE:-${KEY_FILE}}" do_gcp_account) \
+    || { do_log "FATAL no identity for ${GCP_PROJECT}: need ${KEY_FILE} or ACCOUNT / GCP_ACCOUNT"; return 1; }
+  do_gcp_log_identity "${GCP_PROJECT}" "${account}" "do_gcp_project_delete"
 
   ${GCLOUD} config set project "${GCP_PROJECT}" 2>/dev/null
 
@@ -45,7 +42,7 @@ do_gcp_project_delete() {
   do_log "INFO ============================================="
 
   local PROJECT_INFO
-  PROJECT_INFO=$(${GCLOUD} projects describe "${GCP_PROJECT}" \
+  PROJECT_INFO=$(${GCLOUD} projects describe "${GCP_PROJECT}" --account="${account}" \
     --format="table(projectId, name, lifecycleState, createTime)" 2>&1)
   if [[ $? -ne 0 ]]; then
     do_log "FATAL failed to describe project: ${PROJECT_INFO}"
@@ -55,7 +52,7 @@ do_gcp_project_delete() {
 
   # --- check lifecycle state ---
   local STATE
-  STATE=$(${GCLOUD} projects describe "${GCP_PROJECT}" \
+  STATE=$(${GCLOUD} projects describe "${GCP_PROJECT}" --account="${account}" \
     --format="value(lifecycleState)" 2>/dev/null)
   if [[ "${STATE}" == "DELETE_REQUESTED" ]]; then
     do_log "WARN project ${GCP_PROJECT} is already in DELETE_REQUESTED state"
@@ -111,7 +108,7 @@ do_gcp_project_delete() {
 
   # --- delete project ---
   do_log "INFO deleting project ${GCP_PROJECT} ..."
-  ${GCLOUD} projects delete "${GCP_PROJECT}" --quiet 2>&1
+  ${GCLOUD} projects delete "${GCP_PROJECT}" --account="${account}" --quiet 2>&1
   if [[ $? -ne 0 ]]; then
     do_log "FATAL failed to delete project ${GCP_PROJECT}"
     return 1
@@ -119,7 +116,7 @@ do_gcp_project_delete() {
 
   # --- verify ---
   local NEW_STATE
-  NEW_STATE=$(${GCLOUD} projects describe "${GCP_PROJECT}" \
+  NEW_STATE=$(${GCLOUD} projects describe "${GCP_PROJECT}" --account="${account}" \
     --format="value(lifecycleState)" 2>/dev/null)
   if [[ "${NEW_STATE}" == "DELETE_REQUESTED" ]]; then
     do_log "INFO project ${GCP_PROJECT} is now in DELETE_REQUESTED state"

@@ -11,7 +11,7 @@
 # @description every call, no write to the shared gcloud config, and no grant
 # @description when the binding is already there.
 # @param ENV - required: dev or prd
-# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account): an identity allowed to set the project IAM policy
+# @param GCP_ACCOUNT (optional) - overrides the resolved identity (do_gcp_bootstrap_account: the project SA key once it exists, else cnf env.gcp.gcp_account_owner_email): an identity allowed to set the project IAM policy
 # @param DRY_RUN (optional) - 1 (default): read and report. 0: grant.
 # @example ENV=dev GCP_ACCOUNT=admin@example.com DRY_RUN=0 ./run -a do_gcp_003_configure_proj_sa_permissions
 #------------------------------------------------------------------------------
@@ -20,7 +20,7 @@ do_gcp_003_configure_proj_sa_permissions() {
   command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; exit 1; }
 
   do_gcp_spl_proj_id || exit 1
-  do_gcp_pin_account || exit 1
+  do_gcp_pin_bootstrap_account || exit 1
 
   local dry_run="${DRY_RUN:-1}"
   [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; exit 1; }

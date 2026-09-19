@@ -23,7 +23,7 @@
 # @description pays comes from the environment and fails fast. The project id is read from
 # @description csi-spl-cnf and must equal csi-spl-<env>.
 # @param ENV - required: dev or prd
-# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account): the identity that creates the project and links billing
+# @param GCP_ACCOUNT (optional) - overrides the resolved identity (do_gcp_bootstrap_account: the project SA key once it exists, else cnf env.gcp.gcp_account_owner_email): the identity that creates the project and links billing
 # @param GCP_ORG_ID or GCP_FOLDER_ID - the parent of the project, exactly one; GCP_ORG_ID defaults to cnf env.gcp.gcp_org_id when GCP_FOLDER_ID is unset
 # @param GCP_BILLING_ACCOUNT_ID - required: XXXXXX-XXXXXX-XXXXXX
 # @param DRY_RUN (optional) - 1 (default): print the mutating commands, run none of them. 0: mutate.
@@ -36,7 +36,7 @@ do_gcp_001_create_project() {
   do_resolve_oap ORG
   do_resolve_oap APP
   do_require_var ENV "${ENV:-}"
-  do_gcp_pin_account || exit 1
+  do_gcp_pin_bootstrap_account || exit 1
   do_require_var GCP_BILLING_ACCOUNT_ID "${GCP_BILLING_ACCOUNT_ID:-}"
 
   [[ "${ENV}" == dev || "${ENV}" == prd ]] || { do_log "FATAL ENV must be dev or prd, got: ${ENV}"; exit 1; }

@@ -15,7 +15,7 @@
 # @description <project>_<zone>_dns_records.json under the env's cloud state
 # @description dir (or DNS_EXPORT_DIR).
 # @param ENV (optional) - dev or prd; unset = both
-# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account)
+# @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account)
 # @param DRY_RUN (optional) - 1 (default): print only. 0: list and write JSON
 # @param DNS_EXPORT_DIR (optional) - override the output directory
 # @example ENV=dev ./run -a do_export_all_dns_settings
@@ -43,7 +43,8 @@ do_export_all_dns_settings() {
     envs=(dev prd)
   fi
 
-  local env project outdir zones_file zone rec_file managed_zones live_checked=0
+  local env project outdir zones_file zone rec_file managed_zones
+  local caller_account="${GCP_ACCOUNT:-}"
   local saved_env="${ENV:-}"
   for env in "${envs[@]}"; do
     ENV="$env"
@@ -64,14 +65,13 @@ do_export_all_dns_settings() {
       continue
     fi
 
-    if (( ! live_checked )); then
-      do_require_bin gcloud yq || { ENV="$saved_env"; return $?; }
-      # resolved ONCE for every env of this run; every gcloud call carries --account
-      do_gcp_pin_account "$SPL_CNF" || { ENV="$saved_env"; return 1; }
-      if declare -f do_gcp_require_live_account >/dev/null; then
-        do_gcp_require_live_account "$GCP_ACCOUNT" || { ENV="$saved_env"; return 1; }
-      fi
-      live_checked=1
+    do_require_bin gcloud yq || { ENV="$saved_env"; return $?; }
+    # resolved PER ENV: each env is its own project SA (owner rule 2026-09-19),
+    # unless the caller pinned one identity; every gcloud call carries --account
+    GCP_ACCOUNT="$caller_account"
+    do_gcp_pin_account "$SPL_CNF" || { ENV="$saved_env"; return 1; }
+    if declare -f do_gcp_require_live_account >/dev/null; then
+      do_gcp_require_live_account "$GCP_ACCOUNT" || { ENV="$saved_env"; return 1; }
     fi
 
     do_log "INFO exporting DNS settings for project $project (account=$GCP_ACCOUNT) -> $zones_file"

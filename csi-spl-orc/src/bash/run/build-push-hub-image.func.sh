@@ -16,7 +16,7 @@
 # @description re-pushing an existing tag fails, so a new build means a new
 # @description hub.image.tag in <env>.env.yaml (re-render, then 030 plan + apply).
 # @param ENV - required: dev or prd
-# @param GCP_ACCOUNT (optional) - overrides cnf env.gcp.gcp_account_owner_email (do_gcp_account): the identity that pushes (artifactregistry.writer)
+# @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account): the identity that pushes (artifactregistry.writer)
 # @param DRY_RUN (optional) - 1 (default): build only. 0: build + push.
 # @example ENV=dev ./run -a do_build_push_hub_image
 # @example ENV=dev DRY_RUN=0 ./run -a do_build_push_hub_image

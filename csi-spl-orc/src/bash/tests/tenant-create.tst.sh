@@ -13,16 +13,11 @@ pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
-# nokey_app <dir> -> an APP_PATH whose cnf has NO env.gcp.gcp_account_owner_email
-# (every other dir symlinked to the real tree): the CONTROL for "no account
-# resolves -> refused"; with the real cnf an empty GCP_ACCOUNT resolves from yaml
-nokey_app() {
-  local d="$1" e; mkdir -p "$d"
-  for e in "$APP_ROOT"/*; do [[ "$e" == *-cnf ]] || ln -s "$e" "$d/"; done
-  cp -r "$APP_ROOT"/*-cnf "$d/"
-  for e in "$d"/*-cnf/*/*.env.yaml; do yq -i 'del(.env.gcp.gcp_account_owner_email)' "$e"; done
-}
-nokey_app "$T/nokey"
+# nosa_home: a HOME with no ~/.gcp: no per-env SA key, while the REAL cnf
+# still carries env.gcp.gcp_account_owner_email -- the CONTROL that a missing
+# key is refused and the owner account is NEVER the fallback (owner rule
+# 2026-09-19: the per-env service accounts only)
+mkdir -p "$T/nosa_home"
 
 in_orc() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" LDE_STATE_DIR="$T/state" "$@" bash -c '
@@ -82,11 +77,11 @@ else
   fail "DRY_RUN dev JSON: $out $(cat "$T/dev.py.err") $(cat "$T/dev.err")"
 fi
 
-# --- 5. DRY_RUN=0 cloud, no DSN, no account (env or cnf): refused before any key
+# --- 5. DRY_RUN=0 cloud, no DSN, no account (env or SA key): refused before any key
 # SPOOL_BIN is a stub so no build runs; the refusal must come before keygen.
-out=$(SNIPPET='do_spl_tenant_create' in_orc ENV=dev TENANT_ID=acme DRY_RUN=0 GCP_ACCOUNT= APP_PATH="$T/nokey" SPOOL_HUB_DB_DSN= \
+out=$(SNIPPET='do_spl_tenant_create' in_orc ENV=dev TENANT_ID=acme DRY_RUN=0 GCP_ACCOUNT= HOME="$T/nosa_home" SPOOL_HUB_DB_DSN= \
   SPOOL_BIN=/bin/true SPL_STATE_DIR="$T/cloud0" 2>&1); rc=$?
-if [[ $rc -ne 0 ]] && grep -q gcp_account_owner_email <<<"$out" && ! grep -qiE 'root_private_key|sql proxy up' <<<"$out"; then
+if [[ $rc -ne 0 ]] && grep -q 'no project SA key' <<<"$out" && ! grep -qiE 'root_private_key|sql proxy up' <<<"$out"; then
   pass "DRY_RUN=0 dev without DSN or GCP_ACCOUNT refused before keygen/proxy (rc=$rc)"
 else
   fail "DRY_RUN=0 dev without DSN or GCP_ACCOUNT: rc=$rc $out"

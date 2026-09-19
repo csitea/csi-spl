@@ -19,8 +19,9 @@ do_gcp_list_static_dns_addresses() {
   # identity is auditable afterwards rather than inferable from a config file
   # that will have moved by the time anyone looks.
   local account
-  account=$(do_gcp_account) || quit_on "no gcloud identity could be resolved — set ACCOUNT or GCP_ACCOUNT"
-  do_gcp_log_identity "${PROJECT_ID:-<unset>}" "${account}" "do_gcp_list_static_dns_addresses"
+  # This action walks several envs: each env's identity is that env's project
+  # SA, activated from its key and re-pinned inside the loop (owner rule
+  # 2026-09-19: the per-env service accounts only, never the owner account).
 
 
   # Required variables for organization, application, and environments

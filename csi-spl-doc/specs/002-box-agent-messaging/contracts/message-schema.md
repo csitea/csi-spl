@@ -84,4 +84,4 @@ When `spool recv` scans `$SPOOL_ROOT/<id>/inbox/` and encounters legacy `.md` fi
 3. On `--ack`, the `.md` file is moved to `archive/` identically to `.json` files.
 4. Result: AI agents only need `spool recv` to receive all incoming mail regardless of sender version.
 
-<!-- version: 0.1.2 · updated: 2026-09-19 · last-edit: 2026-09-19T15:10:00Z -->
+<!-- version: 0.1.2 · updated: 2026-09-19 · last-edit: 2026-09-19T14:28:00Z -->

@@ -262,4 +262,4 @@ so MCP is additive and lower priority than a working CLI.
 - A live `SendMessage`/tmux notification integration with delivery semantics.
 - Any change to ysg-box.
 
-<!-- version: 0.1.3 · updated: 2026-09-19 · last-edit: 2026-09-19T15:10:00Z -->
+<!-- version: 0.1.3 · updated: 2026-09-19 · last-edit: 2026-09-19T14:28:00Z -->

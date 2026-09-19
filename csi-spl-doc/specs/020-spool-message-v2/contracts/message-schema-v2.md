@@ -95,4 +95,4 @@ A later `v:3` may tighten these; each would need its own migration.
 Unchanged. The canonical bytes and the envelope signature are version-blind
 (`canonical-json-v2.md`): `v` is one more integer key in the sorted object.
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T15:10:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:28:00Z -->

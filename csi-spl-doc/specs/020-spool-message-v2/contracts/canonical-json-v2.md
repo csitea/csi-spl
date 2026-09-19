@@ -65,4 +65,4 @@ byte strings above, that each sig verifies with the fixture key, that the `v:1`
 sig does **not** verify over the `v:2` payload (no cross-version replay), and
 that parse → marshal returns the same bytes.
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T15:10:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:28:00Z -->

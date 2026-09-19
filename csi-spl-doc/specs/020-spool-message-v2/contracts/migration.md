@@ -85,4 +85,4 @@ Both fail fast on any other value. The legacy `.md` bridge always synthesises
   roll back past P1 while no `v:2` row exists
   (`do_spl_db_message_show` / `msg->>'v'`).
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T15:10:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:28:00Z -->

@@ -24,13 +24,13 @@ there; the owner is named.
 - [x] T007 Writers read the knob: `spool.Compose`, `hub/wui.go`, `cicdlogs`; the legacy bridge stays `msg.V1`. FR-002, FR-005. Check: `grep -rn 'msg.Version,' --include=*.go csi-spl-api \| grep -v _test` → 0.
 - [x] T008 `wire.Frame.MsgVersions`; hubclient hello sends `[1,2]`; hub `push` guard. FR-004. Check: `TestV2HeldForV1OnlySession`, `TestHelloMsgVersionsOptional`.
 - [x] T009 Tests (plan §2), including the guard CONTROL and a mutation run (guard off → the test fails `delivery "sent", want queued`).
-- [~] T010 `run-all-tests.sh` → `ALL csi-spl-api TESTS PASSED` (local, before push). Missing: CI `10` + `20` on the pushed sha.
+- [x] T010 `run-all-tests.sh` → `ALL csi-spl-api TESTS PASSED` (local, before push). CI on `fb55fcf`: `10` run 35449271609 success, `20` run 35449271715 success (it rolled nothing: `spool-hub:0.1.8 is already in the registry`, dev and prd).
 
 ## Phase 3 — Deploy readers (P1-deploy)
 
-- [ ] T011 Hub dev, then prd, at a tag that contains T005–T008 (deploy lane **CLE-3355**). Check: `GET /` `commit` on both hubs.
+- [ ] T011 Hub dev, then prd, at a tag that contains T005–T008 (`fb55fcf`) (deploy lane **CLE-3355**, asked 2026-09-19T14:42Z). Check: `GET /` `commit` on both hubs.
 - [ ] T012 Rebuild the box binaries in `contracts/migration.md` §4 (box owners / ORC).
-- [ ] T013 WUI: `types/spool.ts` `v: 1 | 2`; local mock rows may stay `v: 1` (UI lane **CLE-55**). FR-006.
+- [ ] T013 WUI: `types/spool.ts` `v: 1 | 2`; local mock rows may stay `v: 1` (UI lane **CLE-55**, asked 2026-09-19T14:42Z). FR-006.
 
 ## Phase 4 — Writers (P2, owner go per step)
 
@@ -38,4 +38,4 @@ there; the owner is named.
 - [ ] T015 After 24 h clean on dev: prd hub + all boxes. SC-005.
 - [ ] T016 P3: code defaults to `2` after 7 days (the queue TTL).
 
-<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T15:40:00Z -->
+<!-- version: 0.2.1 · updated: 2026-09-19 · last-edit: 2026-09-19T14:43:00Z -->

@@ -38,4 +38,4 @@ Module suite: `bash csi-spl-api/src/bash/tests/run-all-tests.sh`.
 (CLE-3355: `hub.image.tag` bump, step 030 via make). The WUI type change goes
 through CLE-55.
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T15:10:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:28:00Z -->

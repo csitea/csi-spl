@@ -79,4 +79,4 @@ through one hub.
   `recv` frame; after reconnecting with `[1,2]` it is delivered.
 - **SC-005** After P2, 0 rows stuck `queued` by the guard for 24 h on dev.
 
-<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T15:40:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:34:00Z -->

@@ -1,5 +1,8 @@
 # Contract: Message Schema (`v: 1`)
 
+> **`v:2`** (owner decision 2026-09-19): `../../020-spool-message-v2/contracts/message-schema-v2.md`.
+> This file stays frozen and describes `v:1`.
+
 Canonical, permanent. `003` puts this exact object on the wire; `002` writes it
 to disk. Any change is a `v` bump, never an in-place edit.
 
@@ -81,4 +84,4 @@ When `spool recv` scans `$SPOOL_ROOT/<id>/inbox/` and encounters legacy `.md` fi
 3. On `--ack`, the `.md` file is moved to `archive/` identically to `.json` files.
 4. Result: AI agents only need `spool recv` to receive all incoming mail regardless of sender version.
 
-<!-- version: 0.1.1 · updated: 2026-09-19 · last-edit: 2026-09-19T14:30:00Z -->
+<!-- version: 0.1.2 · updated: 2026-09-19 · last-edit: 2026-09-19T15:10:00Z -->

@@ -54,7 +54,8 @@ ysg-box implementation as a REFERENCE ONLY; do not touch it."
   This is a doc-only change, but it breaks "any change is a `v` bump".
   (B) bump to `v:2` for the extended ref. Today's readers reject `v != 1`.
   (C) strip to the four fields. This drops path refs and dir blobs.
-  Recommended: (A). Residual shape notes: `bytes` is `omitempty`, so an empty
+  Recommended: (A). **Owner chose (B), 2026-09-19: see
+  `../020-spool-message-v2/spec.md`.** Residual shape notes: `bytes` is `omitempty`, so an empty
   file and a path-dir ref have no `bytes`, a dangling `--file-id` has no
   `bytes`, and a `--file-id` ref's `name` is its `file_id`.
 
@@ -261,4 +262,4 @@ so MCP is additive and lower priority than a working CLI.
 - A live `SendMessage`/tmux notification integration with delivery semantics.
 - Any change to ysg-box.
 
-<!-- version: 0.1.2 · updated: 2026-09-19 · last-edit: 2026-09-19T14:30:00Z -->
+<!-- version: 0.1.3 · updated: 2026-09-19 · last-edit: 2026-09-19T15:10:00Z -->

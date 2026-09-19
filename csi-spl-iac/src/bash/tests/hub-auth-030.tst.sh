@@ -27,13 +27,26 @@ for env in dev prd; do
   v="$CNF/$env/tf/030-cloud-run-hub.vars.tfvars"
   envline=$(grep -E '^environment_variables ' "$v")
   secline=$(grep -E '^secret_environment_variables ' "$v")
-  grep -q '"SPOOL_HUB_AUTH_PROVIDERS": ""' <<<"$envline" && pass "$env hub env carries SPOOL_HUB_AUTH_PROVIDERS (auth off)" || fail "$env hub env lacks SPOOL_HUB_AUTH_PROVIDERS"
+  grep -q '"SPOOL_HUB_AUTH_PROVIDERS": ' <<<"$envline" && pass "$env hub env carries SPOOL_HUB_AUTH_PROVIDERS" || fail "$env hub env lacks SPOOL_HUB_AUTH_PROVIDERS"
   for p in GOOGLE FACEBOOK MICROSOFT LINKEDIN XAI; do
     grep -q "\"SPOOL_HUB_AUTH_${p}_REDIRECT_URI\": \"https://" <<<"$envline" \
       && pass "$env hub env carries the $p https redirect URI" || fail "$env hub env lacks the $p redirect URI"
   done
   grep -qE 'SESSION_KEY|CLIENT_SECRET' <<<"$envline" && fail "$env an auth secret is a plain env var" || pass "$env no auth secret is a plain env var"
-  grep -q 'SPOOL_HUB_AUTH' <<<"$secline" && fail "$env injects an auth secret while no provider is listed" || pass "$env injects no auth secret while no provider is listed"
+  # the injected set follows from the rendered env itself, whatever the cnf
+  # state: DSN + session key (a listed provider OR native on) + each listed
+  # provider's client secret + the SMTP password (transport smtp) -- no more
+  inv=$(python3 - "$envline" "$secline" <<'PY'
+import json, sys
+env = json.loads(sys.argv[1].split("=", 1)[1]); sec = set(json.loads(sys.argv[2].split("=", 1)[1]))
+listed = [p.strip().upper() for p in env.get("SPOOL_HUB_AUTH_PROVIDERS", "").split(",") if p.strip()]
+want = {"SPOOL_HUB_DB_DSN"} | {f"SPOOL_HUB_AUTH_{p}_CLIENT_SECRET" for p in listed}
+if listed or env.get("SPOOL_HUB_AUTH_NATIVE_ENABLED") == "true": want.add("SPOOL_HUB_AUTH_SESSION_KEY")
+if env.get("SPOOL_HUB_MAIL_TRANSPORT") == "smtp": want.add("SPOOL_HUB_MAIL_SMTP_PASSWORD")
+print("ok" if sec == want else f"injected {sorted(sec)} != expected {sorted(want)}")
+PY
+)
+  [[ "$inv" == ok ]] && pass "$env injects exactly the secrets its providers/native/mail settings need" || fail "$env $inv"
   got=$(grep -E '^auth_secret_ids ' "$v" | grep -oE 'csi-spl-hub-(auth|mail)-[a-z-]+' | sort | tr '\n' ' ')
   [[ "$got" == "$slots" ]] && pass "$env 030 creates all 7 slots" || fail "$env auth_secret_ids: $got"
 done
@@ -65,7 +78,7 @@ print(tpl.render(**{**cnf, "ORG": "csi", "APP": "spl", "ENV": "dev"}))' 2>&1); }
   # spec 015: native sign-in on with no IdP listed still needs the session key;
   # SMTP transport injects the relay password, and both plain blocks reach env
   cp "$tmp/base.yaml" "$tmp/dev.env.yaml"
-  yq -i '.env.auth.native.env.SPOOL_HUB_AUTH_NATIVE_ENABLED = "true" | .env.mail.env.SPOOL_HUB_MAIL_TRANSPORT = "smtp"' "$tmp/dev.env.yaml"
+  yq -i '.env.auth.social.env.SPOOL_HUB_AUTH_PROVIDERS = "" | .env.auth.native.env.SPOOL_HUB_AUTH_NATIVE_ENABLED = "true" | .env.mail.env.SPOOL_HUB_MAIL_TRANSPORT = "smtp"' "$tmp/dev.env.yaml"
   out=$(render); sec=$(injected "$out")
   want='"SPOOL_HUB_AUTH_SESSION_KEY" "SPOOL_HUB_DB_DSN" "SPOOL_HUB_MAIL_SMTP_PASSWORD" '
   [[ "$sec" == "$want" ]] && grep -E '^environment_variables ' <<<"$out" | grep -q '"SPOOL_HUB_MAIL_TRANSPORT": "smtp"' \

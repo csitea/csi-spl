@@ -229,10 +229,14 @@ export default defineNuxtConfig({
   },
 
   nitro: {
-    // lde: same-origin /api/v1/auth/** like the Hosting rewrite (spec 010 auth-v1 §1).
+    // lde: same-origin /api/v1/auth/** like the Hosting rewrite (spec 010 auth-v1 §1),
+    // and /api/v1/checkout/** (spec 006 checkout-v1 §1, served from the apex).
     // NUXT_DEV_AUTH_PROXY = the hub origin, e.g. the auth-demo hub. Unset = no proxy.
     devProxy: process.env.NUXT_DEV_AUTH_PROXY
-      ? { "/api/v1/auth": { target: process.env.NUXT_DEV_AUTH_PROXY.replace(/\/+$/, "") + "/api/v1/auth", changeOrigin: true } }
+      ? {
+          "/api/v1/auth": { target: process.env.NUXT_DEV_AUTH_PROXY.replace(/\/+$/, "") + "/api/v1/auth", changeOrigin: true },
+          "/api/v1/checkout": { target: process.env.NUXT_DEV_AUTH_PROXY.replace(/\/+$/, "") + "/api/v1/checkout", changeOrigin: true },
+        }
       : {},
     prerender: {
       crawlLinks: false,

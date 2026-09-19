@@ -12,7 +12,12 @@ Stdlib only. Secrets (root key, passwords, session cookies) live in 0600 files
 under the state dir and never reach stdout, argv or results.json.
 
 Usage: m3-e2e.py auth-check | run
-Env:   M3_HUB_URL      https://<tenant>.<fqdn>   (box + tenant API)
+Env:   M3_HUB_URL      https://<api host>        (box + tenant API; specs/026: one
+                       host, the tenant comes from the session / the box pin)
+       M3_TENANT       the tenant (default: the first label of M3_HUB_URL, the
+                       legacy <tenant>.<fqdn> form)
+       M3_OTHER_TENANT (optional) a tenant the humans and boxes are NOT in, for
+                       the 026 controls (default t1, or e2e when M3_TENANT is t1)
        M3_AUTH_URL     https://<fqdn>            (/api/v1/auth/*, cookie domain)
        M3_STATE        run state dir (0700)
        M3_SPOOL        spool CLI
@@ -56,6 +61,8 @@ AGENT_A, AGENT_B = "EZA-1", "EZB-1"
 WUI = "box-wui"
 
 HUB = os.environ.get("M3_HUB_URL", "").rstrip("/")
+TENANT = os.environ.get("M3_TENANT", "") or (urllib.parse.urlparse(HUB).hostname or "").split(".")[0]
+OTHER = os.environ.get("M3_OTHER_TENANT", "") or ("e2e" if TENANT == "t1" else "t1")
 AUTH = os.environ.get("M3_AUTH_URL", "").rstrip("/")
 STATE = os.environ.get("M3_STATE", "")
 SPOOL = os.environ.get("M3_SPOOL", "")
@@ -374,19 +381,21 @@ def ws_url(path):
 
 # ---- boxes -------------------------------------------------------------------------
 
-def box_env(box, hub=None, box_id=None):
+def box_env(box, hub=None, box_id=None, tenant=None):
     """Env of one box: its own spool root + keys under STATE/<box>. box_id
-    overrides the id (a replay clone runs as the box it copies)."""
+    overrides the id (a replay clone runs as the box it copies); tenant is the
+    SPOOL_TENANT it names (specs/026 X-Spool-Tenant, default TENANT)."""
     d = os.path.join(STATE, box)
     e = dict(os.environ)
     e.update({"SPOOL_ROOT": d + "/spool", "SPOOL_KEYS_DIR": d + "/keys", "SPOOL_BOX_ID": box_id or box,
-              "SPOOL_HUB_URL": hub or HUB})
+              "SPOOL_HUB_URL": hub or HUB, "SPOOL_TENANT": tenant or TENANT})
     return e
 
 
-def on(box, *args, hub=None, timeout=60, box_id=None):
+def on(box, *args, hub=None, timeout=60, box_id=None, tenant=None):
     """Run the spool CLI as a box: (exit code, stdout, stderr)."""
-    p = subprocess.run([SPOOL] + list(args), env=box_env(box, hub, box_id), capture_output=True, text=True, timeout=timeout)
+    p = subprocess.run([SPOOL] + list(args), env=box_env(box, hub, box_id, tenant), capture_output=True, text=True,
+                       timeout=timeout)
     return p.returncode, p.stdout.strip(), p.stderr.strip()
 
 
@@ -546,7 +555,7 @@ def auth_check():
     `invited` or M3_INVITED=1): on a zero-member tenant with bootstrap on,
     that first sign-in would make this test account the tenant's OWNER."""
     need("M3_HUB_URL", "M3_AUTH_URL", "M3_STATE", "M3_HUMAN_EMAIL")
-    tenant = urllib.parse.urlparse(HUB).hostname.split(".")[0]
+    tenant = TENANT
     if os.environ.get("M3_INVITED") == "1":
         write_secret("invited", HUMAN)
     if read_secret("invited") != HUMAN:
@@ -566,7 +575,7 @@ def auth_check():
 
 def run():
     need("M3_HUB_URL", "M3_AUTH_URL", "M3_STATE", "M3_SPOOL", "M3_ROOT_KEY", "M3_HUMAN_EMAIL", "M3_OUTSIDER_EMAIL")
-    tenant = urllib.parse.urlparse(HUB).hostname.split(".")[0]
+    tenant = TENANT
     st, _, ver = http("GET", HUB + "/version")
     log("hub %s version %s" % (HUB, json.dumps(ver)))
     RESULTS.append({"step": "hosts", "result": "INFO", "evidence": {"hub": HUB, "auth": AUTH, "version": ver}})
@@ -773,6 +782,25 @@ def run():
         RESULTS.append({"step": "e3-view-door", "result": "OBSERVED",
                         "evidence": {"door": "off", "anonymous_view_threads": st_anon}})
         log("OBS  e3-view-door door off: anonymous read -> %s (the 401 control needs a token or session door)" % st_anon)
+
+    # -- i. CONTROLS (specs/026): the tenant comes from the identity, never from a
+    # request parameter or a header; a box pinned here cannot act as another tenant
+    if "active_tenant" in (sess or {}):
+        base = view("/v1/view/roster")
+        ids = sorted(b["box_id"] for b in base["boxes"])
+        st_p, _, ro = http("GET", HUB + "/v1/view/roster?tenant=" + OTHER,
+                           headers={"Cookie": cookie, "X-Spool-Tenant": OTHER})
+        ids_p = sorted(b["box_id"] for b in (ro or {}).get("boxes", [])) if st_p == 200 else None
+        rc_o, _, err_o = on(BOX_A, "hub-sync", tenant=OTHER, timeout=60)
+        rc_s, _, _ = on(BOX_A, "hub-sync")  # the same box as itself (positive control)
+        record("i-tenant-from-identity",
+               sess.get("active_tenant") == tenant and ids_p == ids and rc_s == 0 and rc_o != 0,
+               {"active_tenant": sess.get("active_tenant"), "tenants": sess.get("tenants"), "other": OTHER,
+                "roster_naming_other": [st_p, ids_p == ids], "box_as_itself": rc_s,
+                "box_naming_other": [rc_o, err_o[-160:]]})
+    else:
+        RESULTS.append({"step": "i-tenant-from-identity", "result": "OBSERVED",
+                        "evidence": {"hub": "predates specs/026 (no active_tenant in the session)"}})
 
     # -- the viewer thread of SC-001 for the WUI screenshot ----------------------------------------------------
     RESULTS.append({"step": "info", "result": "INFO", "evidence": {"sc001_task_id": t_sc001, "task_thread": t_task,

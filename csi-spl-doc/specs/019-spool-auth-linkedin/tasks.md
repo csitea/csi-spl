@@ -16,7 +16,7 @@
 
 ## Phase 3 — Named action
 
-- [ ] T020 FR-L4: `do_spl_auth_idp_secret_seed` (`csi-spl-orc/src/bash/run/spl-auth-idp-secret-seed.func.sh`) + `csi-spl-orc/src/bash/tests/auth-idp-secret-seed.tst.sh`.
+- [x] T020 Implemented (see `git log -1 -- csi-spl-orc/src/bash/run/spl-auth-idp-secret-seed.func.sh`) — FR-L4: `IDP=<facebook|microsoft|linkedin|xai> ENV=<env> [DRY_RUN=0] ./run -a do_spl_auth_idp_secret_seed`: owner file `$HOME/.gcp/.csi/.spl/<idp>-client-<env>.json` (0600, client_id == cnf), project SA in a throwaway `CLOUDSDK_CONFIG`, `--account` on every secrets call, version only when sha256 differs, verified after the add; a bare-GUID Microsoft secret (Azure "Secret ID") refused (018's request). Check: `bash csi-spl-orc/src/bash/tests/auth-idp-secret-seed.tst.sh` → `ALL PASS` (20 assertions); `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` → `17/17 test files passed`. CONTROL (mutation, n=1): client_id compare + dry-run gate removed → 2 FAIL.
 
 ## Phase 4 — Other lanes
 

@@ -1,6 +1,6 @@
 # Feature Specification: Sign in with LinkedIn (OpenID Connect)
 
-**Feature ID**: `019-spool-auth-linkedin` · **Status**: Partial (010 T041 client Implemented; 019 guards, seed action and rollout Planned; live only after the owner registers the apps)
+**Feature ID**: `019-spool-auth-linkedin` · **Status**: Partial (010 T041 client Implemented; 019 guards + seed action Implemented; rollout Planned; live only after the owner registers the apps)
 **Created**: 2026-09-19 · **Lane**: AUTH-LINKEDIN CLE-3387 · **Parent**: `../010-spool-social-auth/` (FR-012, T041)
 **Sibling**: `../018-spool-auth-microsoft/` (CLE-3386, same rails) · **Donor**: csi-rel `csi-rel-api/src/internal/auth/social_providers.go` (LinkedIn descriptor), `oidc_idp.go`, `csi-rel-orc/src/bash/run/provision-social-provider-secrets.func.sh`
 
@@ -84,7 +84,7 @@ Consequences:
 - **FR-L3** — Implemented (T011): a LinkedIn-shaped userinfo is accepted only with
   `email_verified: true` (bool or `"true"`); `false`, missing, or an empty email is
   `email_unverified`; the name is `name`; `picture` is fetched through `fetchAvatar`.
-- **FR-L4** — Planned (T020): the client secret reaches Secret Manager only through
+- **FR-L4** — Implemented (T020): the client secret reaches Secret Manager only through
   `IDP=linkedin ENV=<env> ./run -a do_spl_auth_idp_secret_seed` (csi-spl-orc), from the
   owner file `$HOME/.gcp/.csi/.spl/linkedin-client-<env>.json` (§4). Same action serves
   `microsoft` (018), `facebook`, `xai`.

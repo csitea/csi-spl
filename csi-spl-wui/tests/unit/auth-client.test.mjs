@@ -7,6 +7,7 @@ import {
   authErrorMessage,
   createAuthClient,
   providerLabel,
+  providerName,
   safeRedirect,
   startHref,
 } from '../../src/utils/auth-client.mjs'
@@ -56,6 +57,17 @@ describe('auth-v1 helpers (spec 010)', () => {
 })
 
 describe('auth client', () => {
+  it('loadProviders tells auth-off apart from an unreachable registry', async () => {
+    const load = (st, body, o) => createAuthClient({ fetchFn: stub(st, body, o).fn }).loadProviders()
+    assert.deepEqual(await load(200, { providers: ['google'] }), { status: 'ok', reason: '', providers: ['google'] })
+    assert.deepEqual(await load(200, { providers: [] }), { status: 'ok', reason: '', providers: [] })
+    assert.deepEqual(await load(503, {}), { status: 'unavailable', reason: '503', providers: [] })
+    assert.deepEqual(await load(0, {}, { throws: true }), { status: 'unavailable', reason: 'network', providers: [] })
+    assert.deepEqual(await load(200, {}, { badJson: true }), { status: 'unavailable', reason: 'bad_json', providers: [] })
+    assert.equal(providerName('xai'), 'xAI')
+    assert.equal(providerName('github'), 'Github')
+  })
+
   it('providers: list in order, [] on off / error / network', async () => {
     const ok = stub(200, { providers: ['google', 'facebook'] })
     assert.deepEqual(await createAuthClient({ fetchFn: ok.fn }).providers(), ['google', 'facebook'])
@@ -93,5 +105,26 @@ describe('Hosting rewrite (spec 010 T016)', () => {
     assert.ok(rw[i].run && rw[i].run.serviceId, 'rewrite targets Cloud Run')
     assert.equal(rw[rw.length - 1].source, '**')
     assert.ok(i < rw.length - 1)
+  })
+})
+
+describe('SocialAuthButtons (auth-v1 §4, donor component)', () => {
+  const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+  const src = readFileSync(join(WUI, 'src/components/SocialAuthButtons.vue'), 'utf8')
+
+  it('is registry-driven plain links, no IdP SDK', () => {
+    assert.ok(src.includes('loadProviders()'))
+    assert.ok(src.includes(':href="startHref(p, redirect, tenant)"'))
+    assert.equal(/<script[^>]+src=|accounts\.google\.com|connect\.facebook\.net/.test(src), false)
+  })
+
+  it('always publishes the registry state for monitors', () => {
+    assert.ok(src.includes(':data-social-auth-status="status"'))
+    assert.ok(src.includes(':data-social-auth-count="providers.length"'))
+  })
+
+  it('/login renders it, with the settled redirect and tenant', () => {
+    const login = readFileSync(join(WUI, 'src/pages/login.vue'), 'utf8')
+    assert.ok(login.includes('<SocialAuthButtons class="idp" :redirect="redirect" :tenant="tenant" />'))
   })
 })

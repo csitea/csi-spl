@@ -2,15 +2,7 @@
   <div class="login-card">
     <h1>Spool</h1>
     <p v-if="error" class="login-error" role="alert">{{ error }}</p>
-    <div v-if="providers.length" class="idp">
-      <a
-        v-for="p in providers"
-        :key="p"
-        class="btn idp-btn"
-        :href="startHref(p, redirect, tenant)"
-      >{{ providerLabel(p) }}</a>
-    </div>
-    <p v-else-if="loaded" class="muted">Sign-in is not available yet.</p>
+    <SocialAuthButtons class="idp" :redirect="redirect" :tenant="tenant" />
     <p v-if="session.state === 'unknown'" class="muted">Session unavailable — the hub did not answer.</p>
     <p v-if="session.state === 'in'" class="muted">
       Signed in as {{ session.label }} ·
@@ -21,7 +13,8 @@
 </template>
 
 <script setup lang="ts">
-import { authErrorMessage, createAuthClient, providerLabel, safeRedirect, startHref } from '~/utils/auth-client.mjs'
+import { authErrorMessage, safeRedirect } from '~/utils/auth-client.mjs'
+import SocialAuthButtons from '~/components/SocialAuthButtons.vue'
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSettledQuery } from '~/composables/useSettledQuery'
@@ -31,8 +24,6 @@ definePageMeta({ layout: 'login' })
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
-const providers = ref<string[]>([])
-const loaded = ref(false)
 const error = ref('')
 /* /login is prerendered: its query only exists once hydration settles. */
 const redirectQ = useSettledQuery('redirect')
@@ -50,9 +41,5 @@ watch(authError.value, (code) => {
   void router.replace({ query: rest })
 }, { immediate: true })
 
-onMounted(async () => {
-  const [list] = await Promise.all([createAuthClient().providers(), session.probe()])
-  providers.value = list
-  loaded.value = true
-})
+onMounted(() => { void session.probe() })
 </script>

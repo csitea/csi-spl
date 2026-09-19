@@ -24,9 +24,14 @@ export function authErrorMessage(code) {
   return ERRORS[c] || 'Sign-in failed.'
 }
 
-export function providerLabel(p) {
+/** Display name of a provider id: known brands spelled right, else capitalised. */
+export function providerName(p) {
   const id = String(p || '')
-  return `Continue with ${NAMES[id] || (id.charAt(0).toUpperCase() + id.slice(1))}`
+  return NAMES[id] || (id.charAt(0).toUpperCase() + id.slice(1))
+}
+
+export function providerLabel(p) {
+  return `Continue with ${providerName(p)}`
 }
 
 /** A same-site path to land on after sign-in; anything else → '/' (the hub enforces the same). */
@@ -53,17 +58,34 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '' } = {})
     headers: { accept: 'application/json', ...(opts && opts.headers) },
   })
 
+  /**
+   * The registry read WITH its outcome, so "auth is off in this env" (status
+   * 'ok', empty list) is told apart from "the hub could not be asked" (status
+   * 'unavailable': non-2xx, network, bad JSON). `reason` is the HTTP status or
+   * 'network' / 'bad_json'; '' when ok.
+   */
+  async function loadProviders() {
+    let res
+    try {
+      res = await call('/providers')
+    } catch {
+      return { status: 'unavailable', reason: 'network', providers: [] }
+    }
+    if (!res.ok) return { status: 'unavailable', reason: String(res.status), providers: [] }
+    try {
+      const data = await res.json()
+      const list = Array.isArray(data && data.providers) ? data.providers.map(String) : []
+      return { status: 'ok', reason: '', providers: list }
+    } catch {
+      return { status: 'unavailable', reason: 'bad_json', providers: [] }
+    }
+  }
+
   return {
+    loadProviders,
     /** Enabled providers in cnf order; [] = auth off (or unreachable → also []). */
     async providers() {
-      try {
-        const res = await call('/providers')
-        if (!res.ok) return []
-        const data = await res.json()
-        return Array.isArray(data && data.providers) ? data.providers.map(String) : []
-      } catch {
-        return []
-      }
+      return (await loadProviders()).providers
     },
     /**
      * §4 signed-in probe: 200 → 'in', 401 → 'out', anything else (5xx, network,

@@ -27,7 +27,8 @@
 
 ## Phase 5: deploy + t1
 
-- [~] T040 0021 applied dev 16:51Z then prd 16:52Z (`do_spl_db_bootstrap`, env SAs; `spool_schema_migrations` lists it). Hub roll (tag + 030, CLE-3355) and WUI: open.
+- [x] T040 0021 applied dev 16:51Z then prd 16:52Z (`do_spl_db_bootstrap`, env SAs). Hub 0.1.12 (253d5d0, contains 3ab2dd6) rolled dev + prd by CLE-3355 (`/version` both, n=1). WUI 977a080 deployed dev + prd (30 run 35457072338).
+- [x] T042 `do_spl_rbac_probe` (aaff4db): dev t1 live, 17:17Z, n=1: HUM-4 role developer, channels.manage gate passes (400 bad_channel on an invalid name), members.roles gate 403 forbidden - agrees with `/v1/view/me`. prd: anonymous only (t1 is a real tenant): `/v1/view/me` and `PUT /v1/members/HUM-0/role` 401 on both api hosts.
 - [~] T041 t1 seating (§8): tenant-owner invite sent dev + prd with `do_spl_hub_invite INVITE_ROLE=owner` (env SAs, 16:38Z; now `biz_owner` via 0021); personal account set to developer dev + prd with `do_spl_tenant_member_role MEMBER_ROLE=developer FROM_ROLE=biz_owner` (16:57Z). Open: the tenant owner accepts by signing in (until then t1 has no biz_owner member).
 
-<!-- version: 1.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:05:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:20:00Z -->

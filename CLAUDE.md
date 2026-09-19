@@ -18,15 +18,48 @@ between the hub and the boxes. Nothing else lives here: no api, no wui, no rdb.
 ## Environments
 
 `dev` and `prd` only. GCP projects `csi-spl-dev` / `csi-spl-prd`, region
-`europe-north1`. The operator identity and the org (owner rule 2026-09-19) are
-cnf: `env.gcp.gcp_account_owner_email` / `env.gcp.gcp_org_id` in
+`europe-north1`. The org (`env.gcp.gcp_org_id`) and the owner account
+(`env.gcp.gcp_account_owner_email`) are cnf in
 `csi-spl-cnf/csi-spl/all.env.yaml` (an env file may override), and the ONLY
-place those literals live. Every shell wrapper resolves the account once via
-`do_gcp_account` (`ACCOUNT` > `GCP_ACCOUNT` > the yaml; never the active gcloud
-account) and passes `--account` on every gcloud call; `GCP_ORG_ID` /
-`GCP_FOLDER_ID` still override the org. The billing account stays an
-**environment variable that fails fast** (`GCP_BILLING_ACCOUNT_ID`) — never
-commit it. Gate: `csi-spl-iac/src/bash/tests/gcloud-account-pinned.tst.sh`.
+place those literals live; `GCP_ORG_ID` / `GCP_FOLDER_ID` still override the
+org. The billing account stays an **environment variable that fails fast**
+(`GCP_BILLING_ACCOUNT_ID`) — never commit it.
+
+### Service accounts only, per environment (owner rule 2026-09-19)
+
+> "once the service account keys are provisioned, then you should be using
+> only the service accounts per environment for everything. You should not be
+> using the owner account." — "You should be using the service account keys."
+
+- Every shell wrapper resolves the identity once via `do_gcp_account` /
+  `do_gcp_pin_account`: `ACCOUNT` > `GCP_ACCOUNT` > the per-env project SA
+  from its key `~/.gcp/.csi/key-csi-spl-<env>.json` (its `client_email`,
+  activated in a throwaway `CLOUDSDK_CONFIG`) > **refuse**. No fallback to
+  the owner account, and never to the active gcloud account.
+- `gcp_account_owner_email` is read ONLY by the human bootstrap gcp-000..004
+  (`do_gcp_pin_bootstrap_account`), which mints those keys, and only while no
+  key exists yet.
+- Nothing writes the shared `~/.config/gcloud`; `--account` on every call.
+- A key that lacks a permission is reported, never worked around with the
+  owner account.
+- Gate: `csi-spl-iac/src/bash/tests/gcloud-account-pinned.tst.sh`.
+
+### Nothing ad hoc: every infra step is a named action (owner rule 2026-09-19)
+
+> "Nothing in the infrastructure should be run ad hoc. Whenever it is
+> executable via Terraform or via some Bash script, we create a Bash script
+> and we execute it via Terraform. Nothing should be ad hoc. For anything you
+> provision ad hoc, there should be a shell action wrapper for that with a
+> proper naming convention and the thing should stay in the source code so
+> that next time, when we are using it, we will reuse it."
+
+How to apply:
+- csi-rel naming: `<verb>-<noun>.func.sh` exposing `do_<verb>_<noun>`,
+  invoked as `./run -a do_<verb>_<noun>`. Infra actions live in `csi-spl-iac`
+  (`src/bash/run/`); local orchestration in `csi-spl-orc`.
+- Terraform only via the make / tf-runner path (below), never on the host.
+- A one-off need (a gcloud command you would type once) becomes a named action
+  plus its test in the same commit, then runs through that action.
 
 ## Rules specific to this repo
 

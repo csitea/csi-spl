@@ -1,6 +1,6 @@
 # Infra provisioning requirements (owner, 2026-09-19)
 
-**Spec**: `./spec.md` §5, FR-025–FR-032 · **Authority**: owner direction
+**Spec**: `./spec.md` §5, FR-025–FR-033 · **Authority**: owner direction
 2026-09-19, to be known for this estate and for the next app fork.
 
 Source lines are the owner's words, quoted verbatim. A CHECK is a
@@ -124,25 +124,40 @@ key instead. Owner choice: everything except 020 + SQL.
 **CHECK**: `ls -1d csi-spl-iac/src/terraform/[0-9]* | sort` is the step order; for each step except DNS, apply `ENV=dev` then `ENV=prd` (destroy `prd` then `dev`); `025-gcp-dns-zone` is applied on prd (apex) before any dev DNS apply, and destroyed on dev before prd; a rebuild destroy/apply skips `020-gcp-relay-bucket` and `040-cloud-sql-postgres` (`ls -1d csi-spl-iac/src/terraform/020-gcp-relay-bucket csi-spl-iac/src/terraform/040-cloud-sql-postgres` -> both exist) and `terraform import`s them under the new state key instead; backups exist before the first destroy.
 
 
-## R8 Owner-realm only; account and org from yaml
+## R8 Owner realm; per-env service accounts only, never the owner account
 
 All GCP objects are created in the owner's designated realm only: the
 `csi-spl-<env>` projects (`csi-spl-dev`, `csi-spl-prd`) under the
-designated organization and billing account, via the designated owner
-account (`--account` on every gcloud call); the bootstrap never creates
+designated organization and billing account; the bootstrap never creates
 a project in another org, and a rebuild destroys objects inside the
 projects, never the projects.
 
-The owner account and org id are config, not literals:
-`env.gcp.gcp_account_owner_email` and `env.gcp.gcp_org_id` in
-`<env>.env.yaml`. Every shell wrapper that calls gcloud or terraform
-resolves the account from them (explicit `GCP_ACCOUNT` override for
-CI's project SA) and passes `--account` on every gcloud call; no
-fallback to the active gcloud account. Write `<owner-account>` in
-docs, never a mail address.
+Once the service-account keys are provisioned, every action runs as the
+per-env project service account and nothing else. Every shell wrapper
+that calls gcloud or terraform resolves its identity ONCE:
+`ACCOUNT` / `GCP_ACCOUNT` (explicit, e.g. CI's deploy SA) > the per-env
+project SA from its key `~/.gcp/.<org>/key-<org>-<app>-<env>.json`
+(`client_email`, activated in a throwaway `CLOUDSDK_CONFIG`) > refuse.
+It passes `--account` on every gcloud call, never writes the shared
+`~/.config/gcloud`, and never falls back to the owner account or to the
+active gcloud account. The owner account (`env.gcp.gcp_account_owner_email`
+in `<env>.env.yaml`, `<owner-account>` in docs, never a mail address) is
+read ONLY by the human bootstrap gcp-000..004, which mints those keys,
+and only while no key exists yet. A key that lacks a permission is
+reported, never worked around with the owner account.
 
-**Source**: "make sure all of the objects are created under the <owner-account> gcp realm - aka the csi-spl-dev and csi-spl-prd projects", "add this to the shell wrappers calling gcloud and terraform - to all of them - not hardcoded but from a gcp_account_owner_email variable from the yaml confs"
+**Source**: "once the service account keys are provisioned, then you should be using only the service accounts per environment for everything. You should not be using the owner account." "You should be using the service account keys." (owner, 2026-09-19; supersedes the earlier "... from a gcp_account_owner_email variable from the yaml confs"). Earlier, still in force: "make sure all of the objects are created under the <owner-account> gcp realm - aka the csi-spl-dev and csi-spl-prd projects".
 
-**CHECK**: `command grep -n gcp_account_owner_email csi-spl-cnf/csi-spl/{dev,prd,all}.env.yaml` names `env.gcp.gcp_account_owner_email`; `command grep -n gcp_org_id csi-spl-cnf/csi-spl/{dev,prd,all}.env.yaml` names `env.gcp.gcp_org_id`; `command grep -rnE 'gcloud( |$)' --include='*.func.sh' csi-spl-iac/src/bash/run csi-spl-orc/src/bash/run | command grep -vE '--account|description|example|INFO|FATAL|#'` of live gcloud invocations -> each remaining line carries `--account`; `command grep -rn 'gcloud config set account' csi-spl-iac csi-spl-orc` -> 0; `command grep -rn 'projects delete' csi-spl-iac/src/bash/run` -> 0 (rebuild destroys objects inside the projects, never the projects).
+**CHECK**: `bash csi-spl-iac/src/bash/tests/gcloud-account-pinned.tst.sh` -> PASS, including its controls: key present -> the SA email; key absent in a non-bootstrap action -> refused, the owner never printed; bootstrap with no key -> the owner; STATIC: only gcp-000..004 reach the owner resolver, and every gcloud-calling file resolves its identity (the count it prints must not be 0). `command grep -rn 'gcloud config set account' csi-spl-iac csi-spl-orc` -> 0.
 
-<!-- version: 1.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T09:01:30Z -->
+## R9 Nothing ad hoc: every infra step is a named, reusable action
+
+"Nothing in the infrastructure should be run ad hoc. Whenever it is executable via Terraform or via some Bash script, we create a Bash script and we execute it via Terraform. Nothing should be ad hoc. For anything you provision ad hoc, there should be a shell action wrapper for that with a proper naming convention and the thing should stay in the source code so that next time, when we are using it, we will reuse it."
+
+How to apply: csi-rel naming, `<verb>-<noun>.func.sh` exposing `do_<verb>_<noun>`, invoked via `./run -a do_<verb>_<noun>`; infra actions live in `csi-spl-iac/src/bash/run`; terraform only via the make / tf-runner path; a one-off need becomes a named action plus its test in the same commit, and runs through that action.
+
+**Source**: owner, 2026-09-19 (verbatim above).
+
+**CHECK**: every provisioning step named in this document maps to a `csi-spl-iac/src/bash/run/*.func.sh` action or a terraform step; `command ls csi-spl-iac/src/bash/run/*.func.sh | command wc -l` -> non-zero, and a change that provisions something lands the action and its test in the same commit.
+
+<!-- version: 1.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:30:00Z -->

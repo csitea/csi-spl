@@ -98,14 +98,22 @@ prd is the env nea and osp would use; dev is for proving changes first.
 The billing account is an environment variable that fails fast, never
 committed: `GCP_BILLING_ACCOUNT_ID`.
 
-The operator identity and the org ARE config (owner rule 2026-09-19, a
-deliberate deviation from the csi-rel copy): `env.gcp.gcp_account_owner_email`
-and `env.gcp.gcp_org_id` in `all.env.yaml`, overridable per env. Every shell
-wrapper that calls gcloud resolves the account once with `do_gcp_account`
-(`ACCOUNT` > `GCP_ACCOUNT` > the yaml key; csi-rel's "active gcloud account"
-fallback is removed, so no value is a refusal naming the key) and passes
-`--account` on every call. CI sets `GCP_ACCOUNT` to the project SA, which
-wins. `GCP_ORG_ID` or `GCP_FOLDER_ID` in the environment override the org.
+The org and the owner account ARE config (a deliberate deviation from the
+csi-rel copy): `env.gcp.gcp_org_id` and `env.gcp.gcp_account_owner_email` in
+`all.env.yaml`, overridable per env. `GCP_ORG_ID` or `GCP_FOLDER_ID` in the
+environment override the org.
+
+Who a call runs as (owner rule 2026-09-19: "once the service account keys are
+provisioned, then you should be using only the service accounts per
+environment for everything. You should not be using the owner account."):
+every shell wrapper that calls gcloud resolves the identity once with
+`do_gcp_account` / `do_gcp_pin_account` — `ACCOUNT` > `GCP_ACCOUNT` > the
+per-env project SA from its key `~/.gcp/.<org>/key-<org>-<app>-<env>.json`,
+activated in a throwaway `CLOUDSDK_CONFIG` > refuse — and passes `--account`
+on every call. The owner account is read only by the human bootstrap
+gcp-000..004 (`do_gcp_pin_bootstrap_account`) while no key exists yet; the
+active gcloud account never. CI sets `GCP_ACCOUNT` to its deploy SA, which
+wins.
 
 ### 3.3 The domain: change it in ONE place
 

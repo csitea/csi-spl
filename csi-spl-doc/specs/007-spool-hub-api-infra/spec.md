@@ -289,10 +289,10 @@ where the files live and how they reach each env.
 
 ## 5. Infra provisioning requirements (owner, 2026-09-19)
 
-Owner direction 2026-09-19. Every apply of this estate follows R1–R8.
+Owner direction 2026-09-19. Every apply of this estate follows R1–R9.
 The source lines, one-line CHECKs, and the 2026-09-19 ADC / native-tf-plan
 context are in [`infra-provisioning-requirements.md`](./infra-provisioning-requirements.md).
-FR-025–FR-032 bind them.
+FR-025–FR-033 bind them.
 
 Context: in csi-spl (2026-09-19) agents had applied raw terraform on the
 owner's user ADC and written a native tf-plan; the owner ordered a full
@@ -333,7 +333,8 @@ destroy + re-apply of dev and prd under R1-R7 because IAM was likely broken.
 | FR-029 | R5: every terraform variable of every step is set in the rendered `<env>/tf/<step>.vars.tfvars` (+ backend-config.tfvars) from `*.tfvars.tpl` via tpl-gen; no hand-edited tfvars; a fresh render equals the committed files. See `infra-provisioning-requirements.md` | Partial — tpl-gen + `tf-steps-render-and-validate.tst.sh` exist |
 | FR-030 | R6: deploy order is local first (dev, then prd), then the GitHub pipeline; CI/CD must pass with the deploy job actually running (a skipped deploy is not green). See `infra-provisioning-requirements.md` | Planned |
 | FR-031 | R7: all steps run in numeric order 000 -> last; each step is applied across both envs, dev first then prd; the ONE exception is the DNS zone step (applied prd/apex before dev/sub-zone, destroyed dev before prd); a full rebuild destroys last -> 000 then re-applies 000 -> last, with backups taken first. See `infra-provisioning-requirements.md` | Planned |
-| FR-032 | R8: all GCP objects are created in the owner's designated realm only (`csi-spl-<env>` under the designated org and billing account, via `<owner-account>`); account and org id come from `env.gcp.gcp_account_owner_email` / `env.gcp.gcp_org_id`; every gcloud/terraform wrapper resolves `--account` from them (CI may override with `GCP_ACCOUNT`); bootstrap never creates a project in another org; a rebuild destroys objects inside the projects, never the projects. See `infra-provisioning-requirements.md` | Planned |
+| FR-032 | R8: all GCP objects are created in the owner's designated realm only (`csi-spl-<env>` under the designated org and billing account); once the SA keys are provisioned every wrapper runs as the per-env project SA from its key (`ACCOUNT`/`GCP_ACCOUNT` > the key > refuse, `--account` on every call, throwaway `CLOUDSDK_CONFIG`); the owner account (`env.gcp.gcp_account_owner_email`) only in the gcp-000..004 bootstrap while no key exists; bootstrap never creates a project in another org; a rebuild destroys objects inside the projects, never the projects. See `infra-provisioning-requirements.md` | Planned |
+| FR-033 | R9: nothing in the infrastructure is run ad hoc: every provisioning step is a named `<verb>-<noun>.func.sh` action (`./run -a do_<verb>_<noun>`) or a terraform step, landed with its test. See `infra-provisioning-requirements.md` | Planned |
 
 ## Success Criteria
 

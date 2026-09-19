@@ -1,0 +1,13 @@
+Your spool hub tenant is paid and ready.
+
+Tenant URL:
+{{.TenantURL}}
+
+Collect your tenant ROOT key by opening this link once:
+{{.Link}}
+
+The link works once and expires in {{duration .TTL}}. The key is created
+when you open it and shown only in your browser: it is never emailed and
+the hub does not keep it. Save it to a file readable only by you (mode
+0600) and point $SPOOL_TENANT_ROOT_KEY at it. If you already collected it
+on the payment success page, this link no longer works.

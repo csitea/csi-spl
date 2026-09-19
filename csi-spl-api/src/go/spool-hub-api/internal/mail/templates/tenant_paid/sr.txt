@@ -1,0 +1,12 @@
+Vaš spool hub zakupac je plaćen i spreman.
+
+URL zakupca:
+{{.TenantURL}}
+
+Preuzmite ROOT ključ zakupca tako što ćete jednom otvoriti ovaj link:
+{{.Link}}
+
+Link radi jednom, a rok važenja je {{duration .TTL}}.
+Ključ se pravi kada otvorite link i prikazuje se samo u vašem pregledaču: nikada se ne šalje e-poštom i hub ga ne čuva.
+Sačuvajte ga u datoteku koju samo vi možete da čitate (režim 0600) i usmerite $SPOOL_TENANT_ROOT_KEY na nju.
+Ako ste ga već preuzeli na stranici o uspešnom plaćanju, ovaj link više ne radi.

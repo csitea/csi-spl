@@ -1,0 +1,7 @@
+Keegi palus selle aadressi spooli parooli lähtestada.
+
+Vali uus parool siin:
+{{.Link}}
+
+Link töötab ühe korra ja kehtib {{duration .TTL}}.
+Kui see polnud sina, jäta see kiri tähelepanuta: sinu parool jääb samaks.

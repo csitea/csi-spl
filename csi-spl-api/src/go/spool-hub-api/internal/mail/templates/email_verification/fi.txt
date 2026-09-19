@@ -1,0 +1,7 @@
+Joku (toivottavasti sinä) loi tällä osoitteella spool-kirjautumisen.
+
+Vahvista se avaamalla tämä linkki:
+{{.Link}}
+
+Linkki toimii kerran. Voimassaoloaika: {{duration .TTL}}.
+Jos tämä et ollut sinä, jätä tämä viesti huomiotta: mitään ei tapahdu ilman linkkiä.

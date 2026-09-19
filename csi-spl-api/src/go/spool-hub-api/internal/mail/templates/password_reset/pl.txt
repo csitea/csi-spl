@@ -1,0 +1,7 @@
+Ktoś poprosił o zresetowanie hasła do spool dla tego adresu.
+
+Wybierz nowe hasło tutaj:
+{{.Link}}
+
+Link działa jeden raz, czas ważności: {{duration .TTL}}.
+Jeśli to nie Ty, zignoruj tę wiadomość: Twoje hasło pozostaje bez zmian.

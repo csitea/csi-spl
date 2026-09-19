@@ -1,0 +1,7 @@
+Someone asked to reset the spool password for this address.
+
+Choose a new password here:
+{{.Link}}
+
+The link works once and expires in {{duration .TTL}}.
+If this was not you, ignore this mail: your password is unchanged.

@@ -1,0 +1,7 @@
+Någon (förhoppningsvis du) skapade en spool-inloggning med den här adressen.
+
+Bekräfta den genom att öppna den här länken:
+{{.Link}}
+
+Länken fungerar en gång och upphör att gälla om {{duration .TTL}}.
+Om det inte var du kan du ignorera det här meddelandet: ingenting händer utan länken.

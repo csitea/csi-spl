@@ -1,0 +1,12 @@
+Váš nájomník v spool hub je zaplatený a pripravený.
+
+URL nájomníka:
+{{.TenantURL}}
+
+Vyzdvihnite si ROOT kľúč nájomníka jednorazovým otvorením tohto odkazu:
+{{.Link}}
+
+Odkaz funguje raz, platnosť: {{duration .TTL}}.
+Kľúč sa vytvorí, keď odkaz otvoríte, a zobrazí sa len vo vašom prehliadači: nikdy sa neposiela e-mailom a hub si ho neuchováva.
+Uložte ho do súboru, ktorý môžete čítať iba vy (režim 0600), a nastavte naň $SPOOL_TENANT_ROOT_KEY.
+Ak ste si ho už vyzdvihli na stránke úspešnej platby, tento odkaz už nefunguje.

@@ -1,0 +1,7 @@
+Cineva (sperăm că dumneavoastră) a creat o autentificare spool cu această adresă.
+
+Confirmați-o deschizând acest link:
+{{.Link}}
+
+Linkul funcționează o singură dată și expiră în {{duration .TTL}}.
+Dacă nu ați fost dumneavoastră, ignorați acest mesaj: fără link nu se întâmplă nimic.

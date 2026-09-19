@@ -196,6 +196,40 @@ func (s *Postgres) Avatar(ctx context.Context, humanID string) (string, error) {
 	return *id, nil
 }
 
+// humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.
+func (s *Postgres) SetPreferredLocale(ctx context.Context, humanID, locale string) error {
+	if err := checkLocale(locale); err != nil {
+		return err
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE humans SET preferred_locale = NULLIF($2, '') WHERE human_id = $1`, humanID, locale)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) PreferredLocale(ctx context.Context, humanID string) (string, error) {
+	var loc string
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(preferred_locale, '') FROM humans WHERE human_id = $1`, humanID).Scan(&loc)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return loc, err
+}
+
+func (s *Postgres) IdentityLocale(ctx context.Context, provider, subject string) (string, error) {
+	var loc string
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(h.preferred_locale, '') FROM human_identities i
+		JOIN humans h ON h.human_id = i.human_id WHERE i.provider = $1 AND i.subject = $2`, provider, subject).Scan(&loc)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return loc, err
+}
+
 func (s *Postgres) TenantAvatars(ctx context.Context, tenant string) (map[string]string, error) {
 	out := map[string]string{}
 	err := s.queryTenant(ctx, tenant, `SELECT h.human_id, coalesce(h.avatar_file_id, '') FROM tenant_memberships m

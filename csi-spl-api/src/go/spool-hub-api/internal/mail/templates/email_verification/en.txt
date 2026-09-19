@@ -1,0 +1,7 @@
+Someone (hopefully you) created a spool sign-in with this address.
+
+Confirm it by opening this link:
+{{.Link}}
+
+The link works once and expires in {{duration .TTL}}.
+If this was not you, ignore this mail: nothing happens without the link.

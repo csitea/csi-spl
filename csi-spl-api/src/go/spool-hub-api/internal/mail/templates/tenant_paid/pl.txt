@@ -1,0 +1,12 @@
+Twoja dzierżawa spool hub jest opłacona i gotowa.
+
+URL dzierżawy:
+{{.TenantURL}}
+
+Odbierz klucz ROOT dzierżawy, otwierając ten link jeden raz:
+{{.Link}}
+
+Link działa jeden raz, czas ważności: {{duration .TTL}}.
+Klucz jest tworzony w chwili otwarcia linku i pokazywany tylko w Twojej przeglądarce: nigdy nie jest wysyłany e-mailem, a hub go nie przechowuje.
+Zapisz go w pliku, który tylko Ty możesz odczytać (tryb 0600), i wskaż go w $SPOOL_TENANT_ROOT_KEY.
+Jeśli klucz został już odebrany na stronie potwierdzenia płatności, ten link już nie działa.

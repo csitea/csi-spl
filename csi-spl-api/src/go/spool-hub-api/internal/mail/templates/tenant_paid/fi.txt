@@ -1,0 +1,12 @@
+Vuokraajasi spool hubissa on maksettu ja valmis.
+
+Vuokraajan URL:
+{{.TenantURL}}
+
+Nouda vuokraajasi ROOT-avain avaamalla tämä linkki kerran:
+{{.Link}}
+
+Linkki toimii kerran. Voimassaoloaika: {{duration .TTL}}.
+Avain luodaan, kun avaat linkin, ja se näytetään vain selaimessasi: sitä ei koskaan lähetetä sähköpostilla eikä hub säilytä sitä.
+Tallenna se tiedostoon, jonka vain sinä voit lukea (tila 0600), ja osoita $SPOOL_TENANT_ROOT_KEY siihen.
+Jos noudit sen jo maksun onnistumissivulla, tämä linkki ei enää toimi.

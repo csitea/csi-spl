@@ -1,0 +1,7 @@
+Kāds (cerams, jūs) izveidoja spool pieteikšanos ar šo adresi.
+
+Apstipriniet to, atverot šo saiti:
+{{.Link}}
+
+Saite darbojas vienu reizi, derīguma termiņš: {{duration .TTL}}.
+Ja tas nebijāt jūs, ignorējiet šo vēstuli: bez saites nekas nenotiek.

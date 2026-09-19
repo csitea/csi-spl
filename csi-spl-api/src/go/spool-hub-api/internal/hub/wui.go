@@ -558,7 +558,7 @@ func (s *Server) filesPreflight(w http.ResponseWriter, r *http.Request) {
 	if s.allowOrigin(w, r) {
 		h := w.Header()
 		h.Set("Access-Control-Allow-Methods", "GET, POST, DELETE")
-		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
 		h.Set("Access-Control-Max-Age", "600")
 	}
 	w.WriteHeader(http.StatusNoContent)

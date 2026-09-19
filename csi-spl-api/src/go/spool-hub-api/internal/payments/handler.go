@@ -15,6 +15,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -30,7 +31,7 @@ const (
 
 // TemplateTenantPaid is the one email (mail.Message.Template, logs): tenant
 // URL + single-use claim link, NEVER key material (017 T008 / SEC-03).
-const TemplateTenantPaid = "tenant_paid"
+const TemplateTenantPaid = mail.TemplateTenantPaid
 
 // Store is what the handler needs from the hub store.
 type Store interface {
@@ -56,6 +57,10 @@ type Deps struct {
 	PayPal            PayPalRail      // nil unless SPOOL_HUB_ENABLE_PAYPAL
 	PayPalVerifier    *PayPalVerifier // nil unless SPOOL_HUB_ENABLE_PAYPAL
 	Now               func() time.Time
+	// DefaultLocale is SPOOL_HUB_DEFAULT_LOCALE: the claim mail's language
+	// (the checkout keeps no buyer locale yet) and the claim link's
+	// prefix_except_default reference. "" = i18n.DefaultLocale.
+	DefaultLocale string
 }
 
 // Handler is the checkout-v1 surface.
@@ -110,6 +115,9 @@ func New(cfg *Config, d Deps) (*Handler, error) {
 	}
 	if d.Now == nil {
 		d.Now = time.Now
+	}
+	if !i18n.IsSupported(d.DefaultLocale) {
+		d.DefaultLocale = i18n.DefaultLocale
 	}
 	return &Handler{cfg: cfg, d: d}, nil
 }
@@ -441,13 +449,22 @@ func (h *Handler) afterPaid(ctx context.Context, checkoutID string) {
 		h.d.Log.Error().Err(err).Str("checkout_id", c.ID).Msg("paid: claim link not stored; no mail sent")
 		return
 	}
-	link := strings.TrimSpace(h.cfg.ClaimURL) + "#checkout=" + c.ID + "&token=" + tok
-	if err := h.d.Mail.Send(ctx, TenantPaid(c.Email, c.TenantID, h.tenantURL(c.TenantID), link, h.cfg.ClaimTTL)); err != nil {
+	// The checkout row keeps no buyer locale, so the mail is in the default
+	// locale (CLE-3403 gap); LocalizeURL then adds no prefix, but keeps the
+	// link right the day a buyer locale is passed here.
+	loc := h.d.DefaultLocale
+	link := i18n.LocalizeURL(strings.TrimSpace(h.cfg.ClaimURL), loc, h.d.DefaultLocale) + "#checkout=" + c.ID + "&token=" + tok
+	m, err := TenantPaid(c.Email, loc, c.TenantID, h.tenantURL(c.TenantID), link, h.cfg.ClaimTTL)
+	if err != nil {
+		h.d.Log.Error().Err(err).Str("checkout_id", c.ID).Msg("paid: claim-link mail not rendered (the browser can still claim)")
+		return
+	}
+	if err := h.d.Mail.Send(ctx, m); err != nil {
 		h.d.Log.Warn().Err(err).Str("checkout_id", c.ID).Msg("paid: claim-link mail not sent (the browser can still claim)")
 		return
 	}
 	h.d.Log.Info().Str("checkout_id", c.ID).Str("to", mail.Digest(c.Email)).Bool("delivered", h.d.MailDelivers).
-		Msg("paid: claim-link mail sent")
+		Str("locale", m.Locale).Msg("paid: claim-link mail sent")
 }
 
 type fakePayReq struct {
@@ -676,25 +693,10 @@ func (h *Handler) apply(w http.ResponseWriter, r *http.Request, provider, eventI
 }
 
 // TenantPaid is the one email (FR-014 as amended by 017 T008): tenant URL +
-// a single-use claim link. It carries NO key material.
-func TenantPaid(to, tenantID, tenantURL, claimLink string, ttl time.Duration) mail.Message {
-	return mail.Message{To: to, Template: TemplateTenantPaid,
-		Subject: "Your spool hub tenant " + tenantID + " is paid",
-		TextBody: strings.Join([]string{
-			"Your spool hub tenant is paid and ready.",
-			"",
-			"Tenant URL:",
-			tenantURL,
-			"",
-			"Collect your tenant ROOT key by opening this link once:",
-			claimLink,
-			"",
-			"The link works once and expires in " + ttl.String() + ". The key is created",
-			"when you open it and shown only in your browser: it is never emailed and",
-			"the hub does not keep it. Save it to a file readable only by you (mode",
-			"0600) and point $SPOOL_TENANT_ROOT_KEY at it. If you already collected it",
-			"on the payment success page, this link no longer works.",
-		}, "\n")}
+// a single-use claim link, in locale. It carries NO key material. The
+// wording lives in mail/templates/tenant_paid/<locale>.{subject,txt}.
+func TenantPaid(to, locale, tenantID, tenantURL, claimLink string, ttl time.Duration) (mail.Message, error) {
+	return mail.TenantPaid(to, locale, tenantID, tenantURL, claimLink, ttl)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

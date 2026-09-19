@@ -31,6 +31,8 @@ type Message struct {
 	TextBody string
 	// Template names the message kind for logs (never the body).
 	Template string
+	// Locale is the locale the body was rendered in (Render's usedLocale).
+	Locale string
 }
 
 // Sender delivers a rendered Message.
@@ -229,7 +231,7 @@ func (None) Send(context.Context, Message) error { return nil }
 type Log struct{ Logger zerolog.Logger }
 
 func (l Log) Send(_ context.Context, msg Message) error {
-	l.Logger.Info().Str("template", msg.Template).Str("to", Digest(msg.To)).Msg("mail.log_sink")
+	l.Logger.Info().Str("template", msg.Template).Str("locale", msg.Locale).Str("to", Digest(msg.To)).Msg("mail.log_sink")
 	return nil
 }
 

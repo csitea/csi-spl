@@ -34,6 +34,10 @@ type Credential struct {
 	DisplayName     string
 	EmailVerifiedAt *time.Time
 	CreatedAt       time.Time
+	// Locale is the locale the account was registered in (rdb 0017
+	// password_credentials.preferred_locale), "" when unknown. Set by
+	// CreateCredential only; a repeat register leaves it.
+	Locale string
 }
 
 // Verified reports whether the address has been proven.

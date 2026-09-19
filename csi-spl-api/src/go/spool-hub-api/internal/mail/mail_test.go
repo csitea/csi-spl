@@ -127,7 +127,7 @@ func selfSigned(t *testing.T) (*tls.Config, *x509.CertPool) {
 	return &tls.Config{Certificates: []tls.Certificate{{Certificate: [][]byte{der}, PrivateKey: key}}}, pool
 }
 
-var msg = EmailVerification("person@example.com", "https://app.example.com/verify-email?token=abc", 24)
+var msg, _ = EmailVerification("person@example.com", "en", "https://app.example.com/verify-email?token=abc", 24*time.Hour)
 
 // The relay upgrades with STARTTLS before AUTH, and the message arrives.
 func TestSMTPStartTLSBeforeAuth(t *testing.T) {
@@ -214,10 +214,10 @@ func TestLogSinkNeverLogsTheLink(t *testing.T) {
 }
 
 func TestTemplatesTTLWording(t *testing.T) {
-	if m := PasswordReset("a@example.com", "https://x/reset-password?token=t", 60); !strings.Contains(m.TextBody, "1 hour") {
+	if m, _ := PasswordReset("a@example.com", "en", "https://x/reset-password?token=t", 60*time.Minute); !strings.Contains(m.TextBody, "1 hour") {
 		t.Fatal(m.TextBody)
 	}
-	if m := PasswordReset("a@example.com", "l", 90); !strings.Contains(m.TextBody, strconv.Itoa(90)+" minutes") {
+	if m, _ := PasswordReset("a@example.com", "en", "l", 90*time.Minute); !strings.Contains(m.TextBody, strconv.Itoa(90)+" minutes") {
 		t.Fatal(m.TextBody)
 	}
 }

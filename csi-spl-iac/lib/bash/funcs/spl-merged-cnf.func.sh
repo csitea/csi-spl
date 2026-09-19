@@ -17,6 +17,9 @@
 # @description steps.019-firebase-static-site.wui_auth_base (the WUI's
 # @description NUXT_PUBLIC_AUTH_BASE, spec 010 T053) expands "{api_fqdn}", so the
 # @description cnf says "https://{api_fqdn}" and never the host; "" = same-origin.
+# @description env.hub.env.SPOOL_HUB_DEFAULT_LOCALE defaults to env.i18n.default_locale
+# @description (spec 021): the hub's mail fallback and the WUI's unprefixed locale
+# @description are one cnf value; a literal wins.
 # @param $1 - the cnf dir holding all.env.yaml and <env>.env.yaml
 # @param $2 - env: dev, prd or lde
 # @param $3 - output yaml path
@@ -36,6 +39,8 @@ do_spl_merged_cnf() {
       .hub.env.SPOOL_HUB_ENV = (.hub.env.SPOOL_HUB_ENV // .ENV) |
       .hub.env.SPOOL_HUB_FILES_BUCKET = (.hub.env.SPOOL_HUB_FILES_BUCKET // .steps."050-gcs-files".files_bucket_name) |
       .hub.env.SPOOL_HUB_TENANT_HOST_PATTERN = (.hub.env.SPOOL_HUB_TENANT_HOST_PATTERN // ("{tenant}." + .dns.fqdn)))' |
+    yq '(.env | select(.hub != null and .i18n.default_locale != null)) |= (
+      .hub.env.SPOOL_HUB_DEFAULT_LOCALE = (.hub.env.SPOOL_HUB_DEFAULT_LOCALE // .i18n.default_locale))' |
     yq '(.env | select(.hub.image.tag != null and .steps."028-gcp-artifact-registry" != null)) |= (
       .hub.image.ref = (.gcp.gcp_region + "-docker.pkg.dev/" + .gcp.gcp_project + "/" +
         .steps."028-gcp-artifact-registry".repository_id + "/" + .hub.image.name + ":" + (.hub.image.tag | tostring)))' |

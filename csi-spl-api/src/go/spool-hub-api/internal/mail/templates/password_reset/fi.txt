@@ -1,0 +1,7 @@
+Joku pyysi tämän osoitteen spool-salasanan vaihtamista.
+
+Valitse uusi salasana täällä:
+{{.Link}}
+
+Linkki toimii kerran. Voimassaoloaika: {{duration .TTL}}.
+Jos tämä et ollut sinä, jätä tämä viesti huomiotta: salasanasi ei muutu.

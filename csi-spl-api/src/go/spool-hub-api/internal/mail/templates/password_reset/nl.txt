@@ -1,0 +1,7 @@
+Iemand heeft gevraagd het spool-wachtwoord voor dit adres opnieuw in te stellen.
+
+Kies hier een nieuw wachtwoord:
+{{.Link}}
+
+De link werkt één keer en verloopt over {{duration .TTL}}.
+Was jij dit niet, negeer dan deze e-mail: je wachtwoord is ongewijzigd.

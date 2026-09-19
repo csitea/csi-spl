@@ -14,6 +14,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
@@ -65,6 +66,20 @@ type AvatarSource interface {
 // ErrNoAvatar from an AvatarSource: the human has no stored picture (404).
 var ErrNoAvatar = errors.New("auth: no stored picture")
 
+// Preferences is the hub's store of a person's settings (CLE-3403: the
+// language). Store-backed like Membership; nil = the session answers
+// preferred_locale null and PUT preferences is 503.
+type Preferences interface {
+	// PreferredLocale is the human's picked locale, "" when never picked.
+	// An unknown human is ErrNoHuman.
+	PreferredLocale(ctx context.Context, humanID string) (string, error)
+	// SetPreferredLocale stores locale ("" clears it). Unknown human = ErrNoHuman.
+	SetPreferredLocale(ctx context.Context, humanID, locale string) error
+	// IdentityLocale is the picked locale of the human a (provider, subject)
+	// sign-in belongs to; "" when there is no such human or nothing is picked.
+	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
+}
+
 // Errors from SessionForTenant. The view door maps all of them to its 401.
 var (
 	ErrNoSession    = errors.New("auth: no valid session")
@@ -84,6 +99,8 @@ type Handler struct {
 	members    Membership
 	unlink     IdentityUnlinker
 	avatars    AvatarSource
+	prefs      Preferences
+	defLocale  string  // SPOOL_HUB_DEFAULT_LOCALE (i18n)
 	native     *native // spec 015; nil = native sign-in off
 	now        func() time.Time
 }
@@ -98,18 +115,28 @@ type Options struct {
 	Unlinker IdentityUnlinker
 	// Avatars serves GET /api/v1/auth/avatar; nil = that route answers 404.
 	Avatars AvatarSource
-	HTTP    *http.Client // outbound to the IdPs; nil = 15s timeout client
-	Now     func() time.Time
+	// Preferences backs preferred_locale (session + PUT preferences); nil = off.
+	Preferences Preferences
+	// DefaultLocale is SPOOL_HUB_DEFAULT_LOCALE: the mail locale when the
+	// request names none, and the locale WUI links carry no prefix for
+	// (prefix_except_default). "" = i18n.DefaultLocale.
+	DefaultLocale string
+	HTTP          *http.Client // outbound to the IdPs; nil = 15s timeout client
+	Now           func() time.Time
 }
 
 // New builds the handler from a validated Config.
 func New(cfg *Config, log zerolog.Logger, o Options) *Handler {
 	h := &Handler{
 		cfg: cfg, idps: map[string]IdP{}, log: log.With().Str("component", "auth").Logger(),
-		reg: o.Registrar, members: o.Membership, unlink: o.Unlinker, avatars: o.Avatars, now: o.Now,
+		reg: o.Registrar, members: o.Membership, unlink: o.Unlinker, avatars: o.Avatars, prefs: o.Preferences, now: o.Now,
+		defLocale: o.DefaultLocale,
 	}
 	if h.now == nil {
 		h.now = time.Now
+	}
+	if !i18n.IsSupported(h.defLocale) {
+		h.defLocale = i18n.DefaultLocale
 	}
 	if len(cfg.enabled) > 0 {
 		h.stateKey = subkey(cfg.SessionKey, labelState)
@@ -127,6 +154,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+RoutePrefix+"session", h.session)
 	mux.HandleFunc("GET "+RoutePrefix+"avatar", h.avatar)
 	mux.HandleFunc("POST "+RoutePrefix+"logout", h.logout)
+	mux.HandleFunc("PUT "+RoutePrefix+"preferences", h.putPreferences)
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/start", h.start)
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/callback", h.callback)
 	h.registerFacebookCallbacks(mux)
@@ -255,6 +283,14 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, h.appURL(st.Redirect, nil), http.StatusFound)
 }
 
+// sessionResp is the session claims plus the signed-in human's settings,
+// read from the store on every call (the cookie is stateless and would go
+// stale). preferred_locale is null when unset, or with no registered human.
+type sessionResp struct {
+	Session
+	PreferredLocale *string `json:"preferred_locale"`
+}
+
 // session answers who the cookie belongs to: 200 + claims, or 401.
 func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 	s, ok := h.SessionFromRequest(r)
@@ -262,8 +298,17 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "unauthenticated", "no valid session")
 		return
 	}
+	out := sessionResp{Session: s}
+	if s.HumanID != "" && h.prefs != nil {
+		// A settings lookup never fails the session: the WUI then follows the browser.
+		if loc, err := h.prefs.PreferredLocale(r.Context(), s.HumanID); err != nil {
+			h.log.Warn().Err(err).Msg("auth.session preferred_locale lookup")
+		} else if i18n.IsSupported(loc) {
+			out.PreferredLocale = &loc
+		}
+	}
 	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusOK, s)
+	writeJSON(w, http.StatusOK, out)
 }
 
 // avatar answers the signed-in human's own stored IdP picture (CLE-3406):
@@ -308,6 +353,70 @@ func (h *Handler) avatar(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write(pic) //nolint:errcheck
 }
+
+// preferencesReq is PUT preferences' body. preferred_locale is required: one
+// of the 19 i18n.Supported codes exactly, or null to clear it.
+type preferencesReq struct {
+	PreferredLocale json.RawMessage `json:"preferred_locale"`
+}
+
+// putPreferences stores the signed-in human's settings (CLE-3403). Same
+// door as the session read (the signed session cookie) and the same CSRF
+// posture as the native POSTs: application/json only, so a browser always
+// preflights it and authCORS's origin allow-list gates it.
+func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
+	s, ok := h.SessionFromRequest(r)
+	if !ok {
+		writeErr(w, http.StatusUnauthorized, "unauthenticated", "no valid session")
+		return
+	}
+	var req preferencesReq
+	if !readNativeJSON(w, r, &req) {
+		return
+	}
+	loc := ""
+	switch raw := strings.TrimSpace(string(req.PreferredLocale)); {
+	case raw == "":
+		writeErr(w, http.StatusBadRequest, "bad_request", "preferred_locale is required (a locale code or null)")
+		return
+	case raw == "null":
+	default:
+		if json.Unmarshal(req.PreferredLocale, &loc) != nil || !i18n.IsSupported(loc) {
+			writeErr(w, http.StatusBadRequest, "unsupported_locale",
+				"preferred_locale must be one of "+strings.Join(i18n.Supported, ","))
+			return
+		}
+	}
+	if s.HumanID == "" {
+		writeErr(w, http.StatusConflict, "no_human", "this session has no registered human to keep settings on")
+		return
+	}
+	if h.prefs == nil {
+		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "preferences are not configured")
+		return
+	}
+	switch err := h.prefs.SetPreferredLocale(r.Context(), s.HumanID, loc); {
+	case errors.Is(err, ErrNoHuman):
+		writeErr(w, http.StatusConflict, "no_human", "the session's human no longer exists")
+		return
+	case err != nil:
+		h.log.Error().Err(err).Msg("auth.preferences store")
+		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "store")
+		return
+	}
+	h.log.Info().Str("human_id", s.HumanID).Str("preferred_locale", loc).Msg("auth.preferences_set")
+	out := map[string]any{"preferred_locale": nil}
+	if loc != "" {
+		out["preferred_locale"] = loc
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// RequestLocale is the locale of r: X-Locale > Accept-Language > the default.
+func (h *Handler) RequestLocale(r *http.Request) string { return i18n.FromRequest(r, h.defLocale) }
+
+// DefaultLocale is SPOOL_HUB_DEFAULT_LOCALE as this handler resolved it.
+func (h *Handler) DefaultLocale() string { return h.defLocale }
 
 func (h *Handler) logout(w http.ResponseWriter, _ *http.Request) {
 	http.SetCookie(w, h.sessionCookie("", -1))

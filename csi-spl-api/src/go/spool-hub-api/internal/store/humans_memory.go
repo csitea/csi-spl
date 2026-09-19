@@ -9,6 +9,7 @@ import (
 type memHuman struct {
 	name, email string
 	avatar      string // file_id
+	locale      string // preferred_locale (rdb 0017)
 	disabled    bool
 }
 
@@ -165,6 +166,42 @@ func (s *Memory) Avatar(_ context.Context, humanID string) (string, error) {
 		return "", ErrNotFound
 	}
 	return hm.avatar, nil
+}
+
+func (s *Memory) SetPreferredLocale(_ context.Context, humanID, locale string) error {
+	if err := checkLocale(locale); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return ErrNotFound
+	}
+	hm.locale = locale
+	return nil
+}
+
+func (s *Memory) PreferredLocale(_ context.Context, humanID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return "", ErrNotFound
+	}
+	return hm.locale, nil
+}
+
+func (s *Memory) IdentityLocale(_ context.Context, provider, subject string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	if hm, ok := s.hum.humans[s.hum.identities[[2]string{provider, subject}]]; ok {
+		return hm.locale, nil
+	}
+	return "", nil
 }
 
 func (s *Memory) TenantAvatars(_ context.Context, tenant string) (map[string]string, error) {

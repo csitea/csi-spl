@@ -83,7 +83,7 @@ func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
 	if s.allowOrigin(w, r) {
 		h := w.Header()
 		h.Set("Access-Control-Allow-Methods", "GET")
-		h.Set("Access-Control-Allow-Headers", "Authorization")
+		h.Set("Access-Control-Allow-Headers", "Authorization, X-Locale")
 		h.Set("Access-Control-Max-Age", "600")
 	}
 	w.WriteHeader(http.StatusNoContent)

@@ -22,6 +22,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
 )
 
@@ -176,8 +177,30 @@ func tokenHash(plain string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func (n *native) link(page, tok string) string {
-	return strings.TrimRight(n.h.cfg.AppURL, "/") + page + "?" + url.Values{"token": {tok}}.Encode()
+// link is the WUI page the mail opens, in loc under prefix_except_default
+// routing: no prefix for SPOOL_HUB_DEFAULT_LOCALE, "/<loc>" otherwise
+// (csi-rel mail.VerifyEmailURL).
+func (n *native) link(page, tok, loc string) string {
+	return strings.TrimRight(n.h.cfg.AppURL, "/") + i18n.URLPrefix(loc, n.h.defLocale) + page + "?" +
+		url.Values{"token": {tok}}.Encode()
+}
+
+// mailLocale picks a native mail's language: the human's picked locale when
+// the credential already has one (csi-rel COALESCE(u.preferred_locale)),
+// else the locale the credential was registered in, else this request's.
+func (n *native) mailLocale(ctx context.Context, email, credLocale, reqLocale string) string {
+	if p := n.h.prefs; p != nil {
+		loc, err := p.IdentityLocale(ctx, ProviderPassword, email)
+		if err != nil {
+			n.log.Warn().Err(err).Msg("auth.native_mail_locale lookup (non-fatal)")
+		} else if i18n.IsSupported(loc) {
+			return loc
+		}
+	}
+	if i18n.IsSupported(credLocale) {
+		return credLocale
+	}
+	return reqLocale
 }
 
 func (n *native) ctx(r *http.Request) (context.Context, context.CancelFunc) {
@@ -249,7 +272,8 @@ func (n *native) handleRegister(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	now := n.h.now()
 	status := "verification_required"
-	cred := Credential{Subject: email, PasswordHash: hash, DisplayName: name}
+	reqLocale := n.h.RequestLocale(r)
+	cred := Credential{Subject: email, PasswordHash: hash, DisplayName: name, Locale: reqLocale}
 	if !n.cfg.VerifyRequired {
 		// lde only: the credential may sign in, but stays unverified, so it
 		// never reaches the Registrar (FR-004).
@@ -270,7 +294,7 @@ func (n *native) handleRegister(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err == nil && !existing.Verified() {
-			tok = n.issue(ctx, TokenVerify, email, hash, now)
+			tok = n.issue(ctx, TokenVerify, email, hash, now, n.mailLocale(ctx, email, existing.Locale, reqLocale))
 		}
 	}
 	n.log.Info().Str("email", digest(email)).Bool("created", created).Msg("auth.native_register")
@@ -279,7 +303,7 @@ func (n *native) handleRegister(w http.ResponseWriter, r *http.Request) {
 
 // issue mints, stores and mails one token under the account floor. It
 // returns the plaintext only for the debug body; "" = nothing issued.
-func (n *native) issue(ctx context.Context, kind, email, pwHash string, now time.Time) string {
+func (n *native) issue(ctx context.Context, kind, email, pwHash string, now time.Time, loc string) string {
 	plain, th, err := newToken()
 	if err != nil {
 		return ""
@@ -298,11 +322,17 @@ func (n *native) issue(ctx context.Context, kind, email, pwHash string, now time
 		n.log.Warn().Str("kind", kind).Str("email", digest(email)).Msg("auth.native_mail_floor")
 		return ""
 	}
-	link := n.link(page, plain)
-	msg := mail.EmailVerification(email, link, int(ttl.Hours()))
+	link := n.link(page, plain, loc)
+	render := mail.EmailVerification
 	if kind == TokenReset {
-		msg = mail.PasswordReset(email, link, int(ttl.Minutes()))
+		render = mail.PasswordReset
 	}
+	msg, err := render(email, loc, link, ttl)
+	if err != nil {
+		n.log.Error().Err(err).Str("kind", kind).Msg("auth.native_mail_render (non-fatal)")
+		return plain
+	}
+	n.log.Info().Str("kind", kind).Str("locale", msg.Locale).Msg("auth.native_mail_locale")
 	if err := n.sender.Send(ctx, msg); err != nil {
 		// Best effort: the answer stays enumeration-safe; the person can retry.
 		n.log.Error().Err(err).Str("kind", kind).Msg("auth.native_mail_send (non-fatal)")
@@ -450,9 +480,10 @@ func (n *native) handleForgot(w http.ResponseWriter, r *http.Request) {
 	if email != "" {
 		ctx, cancel := n.ctx(r)
 		defer cancel()
-		switch _, err := n.store.GetCredential(ctx, email); {
+		switch cred, err := n.store.GetCredential(ctx, email); {
 		case err == nil:
-			tok = n.issue(ctx, TokenReset, email, "", n.h.now())
+			tok = n.issue(ctx, TokenReset, email, "", n.h.now(),
+				n.mailLocale(ctx, email, cred.Locale, n.h.RequestLocale(r)))
 		case !errors.Is(err, ErrCredNotFound):
 			n.log.Error().Err(err).Msg("auth.native_forgot store")
 		}

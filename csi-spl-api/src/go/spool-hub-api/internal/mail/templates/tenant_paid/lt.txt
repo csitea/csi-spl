@@ -1,0 +1,12 @@
+Jūsų spool hub nuomininkas apmokėtas ir paruoštas.
+
+Nuomininko URL:
+{{.TenantURL}}
+
+Atsiimkite nuomininko ROOT raktą vieną kartą atidarę šią nuorodą:
+{{.Link}}
+
+Nuoroda veikia vieną kartą, galiojimo laikas: {{duration .TTL}}.
+Raktas sukuriamas, kai atidarote nuorodą, ir rodomas tik jūsų naršyklėje: jis niekada nesiunčiamas el. paštu, o hub jo nesaugo.
+Išsaugokite jį faile, kurį galite skaityti tik jūs (režimas 0600), ir nukreipkite $SPOOL_TENANT_ROOT_KEY į jį.
+Jei jau atsiėmėte jį sėkmingo mokėjimo puslapyje, ši nuoroda nebeveikia.

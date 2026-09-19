@@ -1,0 +1,7 @@
+Keegi (loodetavasti sina) lõi selle aadressiga spooli sisselogimise.
+
+Kinnita see, avades selle lingi:
+{{.Link}}
+
+Link töötab ühe korra ja kehtib {{duration .TTL}}.
+Kui see polnud sina, jäta see kiri tähelepanuta: ilma lingita ei juhtu midagi.

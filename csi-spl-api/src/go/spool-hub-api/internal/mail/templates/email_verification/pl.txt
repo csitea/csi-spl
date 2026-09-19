@@ -1,0 +1,7 @@
+Ktoś (mamy nadzieję, że Ty) utworzył logowanie do spool z tym adresem.
+
+Potwierdź go, otwierając ten link:
+{{.Link}}
+
+Link działa jeden raz, czas ważności: {{duration .TTL}}.
+Jeśli to nie Ty, zignoruj tę wiadomość: bez linku nic się nie stanie.

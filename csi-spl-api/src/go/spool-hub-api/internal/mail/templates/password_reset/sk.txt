@@ -1,0 +1,7 @@
+Niekto požiadal o obnovenie hesla do spool pre túto adresu.
+
+Nové heslo si zvoľte tu:
+{{.Link}}
+
+Odkaz funguje raz, platnosť: {{duration .TTL}}.
+Ak ste to neboli vy, ignorujte tento e-mail: vaše heslo zostáva nezmenené.

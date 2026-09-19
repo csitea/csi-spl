@@ -1,0 +1,7 @@
+Birisi (umarız siz) bu adresle bir spool girişi oluşturdu.
+
+Onaylamak için bu bağlantıyı açın:
+{{.Link}}
+
+Bağlantı yalnızca bir kez çalışır ve {{duration .TTL}} sonra geçerliliğini yitirir.
+Bu siz değilseniz bu e-postayı yok sayın: bağlantı olmadan hiçbir şey olmaz.

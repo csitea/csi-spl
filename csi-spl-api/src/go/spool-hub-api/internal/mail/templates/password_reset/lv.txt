@@ -1,0 +1,7 @@
+Kāds pieprasīja atiestatīt šīs adreses spool paroli.
+
+Izvēlieties jaunu paroli šeit:
+{{.Link}}
+
+Saite darbojas vienu reizi, derīguma termiņš: {{duration .TTL}}.
+Ja tas nebijāt jūs, ignorējiet šo vēstuli: jūsu parole nav mainīta.

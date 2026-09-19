@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
 )
 
 // Humans, their sign-in identities and tenant membership (specs/010 T012/T013,
@@ -79,6 +81,23 @@ type Humans interface {
 	// TenantAvatars maps every member HUM-* of tenant (disabled humans
 	// excluded) to its avatar file_id, "" when none (view-v1 §4.1 humans).
 	TenantAvatars(ctx context.Context, tenant string) (map[string]string, error)
+	// SetPreferredLocale records the human's picked locale (rdb 0017, CLE-3403),
+	// one of i18n.Supported, or "" to clear it. Unknown human = ErrNotFound.
+	SetPreferredLocale(ctx context.Context, humanID, locale string) error
+	// PreferredLocale returns the human's picked locale, "" when none, or
+	// ErrNotFound.
+	PreferredLocale(ctx context.Context, humanID string) (string, error)
+	// IdentityLocale returns the picked locale of the human the (provider,
+	// subject) sign-in belongs to; "" (nil error) when there is no such
+	// identity or nothing is picked.
+	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
+}
+
+func checkLocale(loc string) error {
+	if loc != "" && !i18n.IsSupported(loc) {
+		return errors.New("preferred_locale must be one of the supported locales")
+	}
+	return nil
 }
 
 var fileIDRe = regexp.MustCompile(`^[0-9a-f]{64}$`)

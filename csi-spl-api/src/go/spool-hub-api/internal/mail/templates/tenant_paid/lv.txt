@@ -1,0 +1,12 @@
+Jūsu spool hub īrnieks ir apmaksāts un gatavs.
+
+Īrnieka URL:
+{{.TenantURL}}
+
+Saņemiet īrnieka ROOT atslēgu, vienreiz atverot šo saiti:
+{{.Link}}
+
+Saite darbojas vienu reizi, derīguma termiņš: {{duration .TTL}}.
+Atslēga tiek izveidota, kad atverat saiti, un tiek parādīta tikai jūsu pārlūkprogrammā: tā nekad netiek sūtīta pa e-pastu, un hub to neglabā.
+Saglabājiet to failā, ko varat lasīt tikai jūs (režīms 0600), un norādiet uz to ar $SPOOL_TENANT_ROOT_KEY.
+Ja jūs to jau saņēmāt maksājuma apstiprinājuma lapā, šī saite vairs nedarbojas.

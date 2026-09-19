@@ -1,0 +1,7 @@
+Cineva a cerut resetarea parolei spool pentru această adresă.
+
+Alegeți o parolă nouă aici:
+{{.Link}}
+
+Linkul funcționează o singură dată și expiră în {{duration .TTL}}.
+Dacă nu ați fost dumneavoastră, ignorați acest mesaj: parola dumneavoastră rămâne neschimbată.

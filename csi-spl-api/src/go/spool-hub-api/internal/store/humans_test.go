@@ -207,3 +207,52 @@ func TestHumansAvatar(t *testing.T) {
 		})
 	}
 }
+
+// CLE-3403 (rdb 0017): a human's picked locale, and the lookup the native
+// mails use to reach it from a (provider, subject) sign-in.
+func TestHumansPreferredLocale(t *testing.T) {
+	ctx := context.Background()
+	for name, s := range drivers(t) {
+		h := s.(Humans)
+		t.Run(name, func(t *testing.T) {
+			sub := uid("loc-")
+			hum, err := h.Admit(ctx, Identity{Provider: "password", Subject: sub}, "", AdmitPolicy{}, time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, err := h.PreferredLocale(ctx, hum); err != nil || got != "" {
+				t.Fatalf("new human has locale %q %v", got, err)
+			}
+			for _, bad := range []string{"de", "FI", "fi-FI", " fi"} {
+				if err := h.SetPreferredLocale(ctx, hum, bad); err == nil {
+					t.Fatalf("SetPreferredLocale accepted %q", bad)
+				}
+			}
+			if err := h.SetPreferredLocale(ctx, hum, "fi"); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := h.PreferredLocale(ctx, hum); err != nil || got != "fi" {
+				t.Fatalf("locale %q %v", got, err)
+			}
+			if got, err := h.IdentityLocale(ctx, "password", sub); err != nil || got != "fi" {
+				t.Fatalf("identity locale %q %v", got, err)
+			}
+			// CONTROL: another identity is not this human's.
+			if got, err := h.IdentityLocale(ctx, "password", uid("nobody-")); err != nil || got != "" {
+				t.Fatalf("unknown identity locale %q %v", got, err)
+			}
+			if err := h.SetPreferredLocale(ctx, hum, ""); err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := h.PreferredLocale(ctx, hum); got != "" {
+				t.Fatalf("cleared locale %q", got)
+			}
+			if err := h.SetPreferredLocale(ctx, "HUM-999999999", "fi"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human: %v", err)
+			}
+			if _, err := h.PreferredLocale(ctx, "HUM-999999999"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human locale: %v", err)
+			}
+		})
+	}
+}

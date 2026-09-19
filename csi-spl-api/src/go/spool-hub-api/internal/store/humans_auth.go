@@ -33,6 +33,7 @@ var (
 	_ auth.Membership       = AuthHooks{}
 	_ auth.IdentityUnlinker = AuthHooks{}
 	_ auth.AvatarSource     = AuthHooks{}
+	_ auth.Preferences      = AuthHooks{}
 )
 
 // Register maps ErrNotAdmitted and ErrSeatQuota to auth.ErrNotAllowed
@@ -147,4 +148,28 @@ func (a AuthHooks) Member(ctx context.Context, humanID, tenant string) (bool, er
 // Unlink removes one identity (Meta deauthorize / data deletion, 010 FR-013).
 func (a AuthHooks) Unlink(ctx context.Context, provider, subject string) error {
 	return a.H.UnlinkIdentity(ctx, provider, subject)
+}
+
+// PreferredLocale is the human's picked locale (CLE-3403); an unknown human
+// is auth.ErrNoHuman.
+func (a AuthHooks) PreferredLocale(ctx context.Context, humanID string) (string, error) {
+	loc, err := a.H.PreferredLocale(ctx, humanID)
+	if errors.Is(err, ErrNotFound) {
+		return "", auth.ErrNoHuman
+	}
+	return loc, err
+}
+
+// SetPreferredLocale stores it ("" clears); an unknown human is auth.ErrNoHuman.
+func (a AuthHooks) SetPreferredLocale(ctx context.Context, humanID, locale string) error {
+	err := a.H.SetPreferredLocale(ctx, humanID, locale)
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrNoHuman
+	}
+	return err
+}
+
+// IdentityLocale is the picked locale of the human behind one sign-in.
+func (a AuthHooks) IdentityLocale(ctx context.Context, provider, subject string) (string, error) {
+	return a.H.IdentityLocale(ctx, provider, subject)
 }

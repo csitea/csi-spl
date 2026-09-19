@@ -1,0 +1,12 @@
+Tu inquilino de spool hub está pagado y listo.
+
+URL del inquilino:
+{{.TenantURL}}
+
+Recoge la clave ROOT de tu inquilino abriendo este enlace una vez:
+{{.Link}}
+
+El enlace funciona una sola vez y caduca en {{duration .TTL}}.
+La clave se crea cuando abres el enlace y solo se muestra en tu navegador: nunca se envía por correo y el hub no la guarda.
+Guárdala en un archivo que solo tú puedas leer (modo 0600) y apunta $SPOOL_TENANT_ROOT_KEY a él.
+Si ya la recogiste en la página de pago completado, este enlace ya no funciona.

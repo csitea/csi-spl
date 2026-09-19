@@ -210,6 +210,11 @@ func TestFakeBuyEndToEnd(t *testing.T) {
 		!strings.Contains(msgs[0].TextBody, "https://acme.dev.example.test") || !strings.Contains(msgs[0].TextBody, claimURL+"#checkout="+id+"&token=") {
 		t.Fatalf("want exactly one tenant_paid mail with the URL + claim link, got %+v", msgs)
 	}
+	// CLE-3403: no buyer locale is kept, so the claim mail is in the default
+	// locale (bg) and its link carries no locale prefix.
+	if msgs[0].Locale != "bg" || !strings.Contains(msgs[0].TextBody, "\n"+claimURL+"#checkout=") {
+		t.Fatalf("claim mail locale %q / link:\n%s", msgs[0].Locale, msgs[0].TextBody)
+	}
 	link := msgs[0].TextBody[strings.Index(msgs[0].TextBody, "&token=")+len("&token="):]
 	link = strings.TrimSpace(strings.SplitN(link, "\n", 2)[0])
 	ten, _ = r.st.GetTenant(t.Context(), "acme")

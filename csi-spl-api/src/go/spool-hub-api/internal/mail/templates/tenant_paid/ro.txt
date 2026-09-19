@@ -1,0 +1,12 @@
+Chiriașul dumneavoastră spool hub este plătit și gata de utilizare.
+
+URL-ul chiriașului:
+{{.TenantURL}}
+
+Ridicați cheia ROOT a chiriașului deschizând o singură dată acest link:
+{{.Link}}
+
+Linkul funcționează o singură dată și expiră în {{duration .TTL}}.
+Cheia este creată când deschideți linkul și este afișată doar în browserul dumneavoastră: nu este trimisă niciodată prin e-mail, iar hub-ul nu o păstrează.
+Salvați-o într-un fișier pe care doar dumneavoastră îl puteți citi (mod 0600) și îndreptați $SPOOL_TENANT_ROOT_KEY către el.
+Dacă ați ridicat-o deja pe pagina de plată reușită, acest link nu mai funcționează.

@@ -1,0 +1,7 @@
+Niekto (dúfame, že vy) vytvoril prihlásenie do spool s touto adresou.
+
+Potvrďte ho otvorením tohto odkazu:
+{{.Link}}
+
+Odkaz funguje raz, platnosť: {{duration .TTL}}.
+Ak ste to neboli vy, ignorujte tento e-mail: bez odkazu sa nič nestane.

@@ -1,0 +1,12 @@
+Sinu spool hubi rentnik on makstud ja valmis.
+
+Rentniku URL:
+{{.TenantURL}}
+
+Võta oma rentniku ROOT-võti, avades selle lingi üks kord:
+{{.Link}}
+
+Link töötab ühe korra ja kehtib {{duration .TTL}}.
+Võti luuakse lingi avamisel ja seda näidatakse ainult sinu brauseris: seda ei saadeta kunagi e-postiga ja hub seda ei säilita.
+Salvesta see faili, mida saad lugeda ainult sina (režiim 0600), ja suuna $SPOOL_TENANT_ROOT_KEY sellele.
+Kui võtsid selle juba makse õnnestumise lehel, see link enam ei tööta.

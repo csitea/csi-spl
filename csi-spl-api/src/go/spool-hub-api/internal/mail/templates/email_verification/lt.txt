@@ -1,0 +1,7 @@
+Kažkas (tikimės, jūs) sukūrė spool prisijungimą su šiuo adresu.
+
+Patvirtinkite jį atidarę šią nuorodą:
+{{.Link}}
+
+Nuoroda veikia vieną kartą, galiojimo laikas: {{duration .TTL}}.
+Jei tai buvote ne jūs, nekreipkite dėmesio į šį laišką: be nuorodos niekas neįvyks.

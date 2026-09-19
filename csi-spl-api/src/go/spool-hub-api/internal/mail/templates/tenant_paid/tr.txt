@@ -1,0 +1,12 @@
+spool hub kiracınız ödendi ve hazır.
+
+Kiracı URL'si:
+{{.TenantURL}}
+
+Kiracınızın ROOT anahtarını almak için bu bağlantıyı bir kez açın:
+{{.Link}}
+
+Bağlantı yalnızca bir kez çalışır ve {{duration .TTL}} sonra geçerliliğini yitirir.
+Anahtar, bağlantıyı açtığınızda oluşturulur ve yalnızca tarayıcınızda gösterilir: asla e-postayla gönderilmez ve hub onu saklamaz.
+Onu yalnızca sizin okuyabileceğiniz bir dosyaya kaydedin (mod 0600) ve $SPOOL_TENANT_ROOT_KEY değişkenini o dosyaya yönlendirin.
+Anahtarı ödeme başarılı sayfasında zaten aldıysanız bu bağlantı artık çalışmaz.

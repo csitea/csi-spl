@@ -55,11 +55,12 @@ SNIPPET='do_gen_docker_env' in_orc >"$T/gen.out" 2>&1 || { fail "do_gen_docker_e
 H="$T/state/hub.env"
 if [[ -f "$H" ]]; then
   # hub.env + auth.social + auth.native + mail env keys whose MERGED value is
-  # not a PLACEHOLDER, + the four switch names
+  # not a PLACEHOLDER, + the four switch names, + SPOOL_HUB_DEFAULT_LOCALE
+  # (derived from env.i18n.default_locale by do_spl_merged_cnf, spec 021)
   want=$( (yq ea -r '. as $i ireduce ({}; . * $i) | [.env.hub.env, .env.auth.social.env, .env.auth.native.env, .env.mail.env]
              | .[] | to_entries | .[] | select((.value | tostring | test("PLACEHOLDER")) | not) | .key' \
              "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" "$APP_ROOT/csi-spl-cnf/csi-spl/lde.env.yaml"
-           printf '%s\n' SPOOL_HUB_AUTH_NATIVE_ENABLED SPOOL_HUB_AUTH_PROVIDERS SPOOL_HUB_WUI_DISPATCH SPOOL_HUB_WUI_KEY_EPHEMERAL) | sort -u)
+           printf '%s\n' SPOOL_HUB_AUTH_NATIVE_ENABLED SPOOL_HUB_AUTH_PROVIDERS SPOOL_HUB_WUI_DISPATCH SPOOL_HUB_WUI_KEY_EPHEMERAL SPOOL_HUB_DEFAULT_LOCALE) | sort -u)
   got=$(cut -d= -f1 "$H" | sort -u)
   [[ "$want" == "$got" ]] && pass "hub.env keys = cnf hub/auth/mail env keys (no PLACEHOLDER) + 4 switches ($(wc -l <<<"$got"))" \
     || fail "hub.env keys differ from cnf: $(diff <(echo "$want") <(echo "$got") | grep '^[<>]' | tr '\n' ' ')"

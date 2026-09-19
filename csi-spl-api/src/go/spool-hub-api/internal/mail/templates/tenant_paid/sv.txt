@@ -1,0 +1,12 @@
+Din spool hub-tenant är betald och klar.
+
+Tenant-URL:
+{{.TenantURL}}
+
+Hämta din tenants ROOT-nyckel genom att öppna den här länken en gång:
+{{.Link}}
+
+Länken fungerar en gång och upphör att gälla om {{duration .TTL}}.
+Nyckeln skapas när du öppnar den och visas bara i din webbläsare: den skickas aldrig via e-post och hubben sparar den inte.
+Spara den i en fil som bara du kan läsa (läge 0600) och peka $SPOOL_TENANT_ROOT_KEY på den.
+Om du redan hämtade den på sidan för genomförd betalning fungerar den här länken inte längre.

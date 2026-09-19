@@ -219,7 +219,7 @@ func TestViewAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if resp.StatusCode != http.StatusNoContent || resp.Header.Get("Access-Control-Allow-Headers") != "Authorization" {
+	if resp.StatusCode != http.StatusNoContent || resp.Header.Get("Access-Control-Allow-Headers") != "Authorization, X-Locale" {
 		t.Fatalf("preflight: %d %v", resp.StatusCode, resp.Header)
 	}
 }

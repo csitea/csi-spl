@@ -7,20 +7,31 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
 )
 
 // PgCredStore is the CredStore on rdb 0009 (password_credentials,
 // email_verification_tokens, password_reset_tokens).
 type PgCredStore struct{ Pool *pgxpool.Pool }
 
+// localeOrEmpty keeps rdb 0017's CHECK from ever refusing a register: an
+// unsupported value is stored as NULL.
+func localeOrEmpty(loc string) string {
+	if i18n.IsSupported(loc) {
+		return loc
+	}
+	return ""
+}
+
 var tokenTable = map[string]string{TokenVerify: "email_verification_tokens", TokenReset: "password_reset_tokens"}
 
 func (p PgCredStore) CreateCredential(ctx context.Context, c Credential, now time.Time) (bool, error) {
 	tag, err := p.Pool.Exec(ctx, `
-		INSERT INTO password_credentials (provider, subject, password_hash, display_name, email_verified_at, created_at, updated_at)
-		VALUES ('password', $1, $2, NULLIF($3, ''), $4, $5, $5)
+		INSERT INTO password_credentials (provider, subject, password_hash, display_name, email_verified_at, created_at, updated_at, preferred_locale)
+		VALUES ('password', $1, $2, NULLIF($3, ''), $4, $5, $5, NULLIF($6, ''))
 		ON CONFLICT (provider, subject) DO NOTHING`,
-		c.Subject, c.PasswordHash, c.DisplayName, c.EmailVerifiedAt, now)
+		c.Subject, c.PasswordHash, c.DisplayName, c.EmailVerifiedAt, now, localeOrEmpty(c.Locale))
 	if err != nil {
 		return false, err
 	}
@@ -30,9 +41,9 @@ func (p PgCredStore) CreateCredential(ctx context.Context, c Credential, now tim
 func (p PgCredStore) GetCredential(ctx context.Context, subject string) (Credential, error) {
 	var c Credential
 	err := p.Pool.QueryRow(ctx, `
-		SELECT subject, password_hash, COALESCE(display_name, ''), email_verified_at, created_at
+		SELECT subject, password_hash, COALESCE(display_name, ''), email_verified_at, created_at, COALESCE(preferred_locale, '')
 		  FROM password_credentials WHERE provider = 'password' AND subject = $1`, subject).
-		Scan(&c.Subject, &c.PasswordHash, &c.DisplayName, &c.EmailVerifiedAt, &c.CreatedAt)
+		Scan(&c.Subject, &c.PasswordHash, &c.DisplayName, &c.EmailVerifiedAt, &c.CreatedAt, &c.Locale)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Credential{}, ErrCredNotFound
 	}

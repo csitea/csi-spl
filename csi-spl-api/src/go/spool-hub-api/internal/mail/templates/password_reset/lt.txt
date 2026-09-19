@@ -1,0 +1,7 @@
+Kažkas paprašė atkurti šio adreso spool slaptažodį.
+
+Naują slaptažodį pasirinkite čia:
+{{.Link}}
+
+Nuoroda veikia vieną kartą, galiojimo laikas: {{duration .TTL}}.
+Jei tai buvote ne jūs, nekreipkite dėmesio į šį laišką: jūsų slaptažodis nepakeistas.

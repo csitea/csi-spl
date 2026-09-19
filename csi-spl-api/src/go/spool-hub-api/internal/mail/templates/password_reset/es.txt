@@ -1,0 +1,7 @@
+Alguien pidió restablecer la contraseña de spool de esta dirección.
+
+Elige una contraseña nueva aquí:
+{{.Link}}
+
+El enlace funciona una sola vez y caduca en {{duration .TTL}}.
+Si no fuiste tú, ignora este correo: tu contraseña no ha cambiado.

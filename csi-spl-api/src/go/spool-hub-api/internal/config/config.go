@@ -17,6 +17,7 @@ import (
 	"github.com/caarlos0/env/v10"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 )
 
@@ -209,6 +210,11 @@ type Hub struct {
 	// composes itself (WUI posts, dispatch, CI-logs notes), specs/020
 	// contracts/migration.md §5: 1 until every reader is deployed.
 	MsgVersion int `env:"SPOOL_HUB_MSG_VERSION" envDefault:"1"`
+	// DefaultLocale (CLE-3403) is the locale a request that names none gets
+	// (X-Locale > Accept-Language > this), the mail locale of last resort, and
+	// the one locale WUI links carry no /<loc> prefix for. cnf env.i18n, the
+	// same value the WUI builds with; one of the 19 i18n.Supported codes.
+	DefaultLocale string `env:"SPOOL_HUB_DEFAULT_LOCALE" envDefault:"bg"`
 }
 
 // WUIPrivateKey returns the box-wui signing key: decoded from SPOOL_HUB_WUI_KEY,
@@ -260,6 +266,9 @@ func LoadHub() (*Hub, error) {
 	}
 	if !msg.IsSupported(h.MsgVersion) {
 		return nil, fmt.Errorf("SPOOL_HUB_MSG_VERSION %d must be 1 or 2", h.MsgVersion)
+	}
+	if err := i18n.Validate("SPOOL_HUB_DEFAULT_LOCALE", h.DefaultLocale); err != nil {
+		return nil, err
 	}
 	if h.QuotaMessagesPerMonth < 0 || h.QuotaPins < 0 || h.QuotaFileBytes < 0 {
 		return nil, fmt.Errorf("hub quotas must be zero (unlimited) or positive")

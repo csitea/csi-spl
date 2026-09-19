@@ -1,0 +1,7 @@
+Iemand (hopelijk jij) heeft met dit adres een spool-aanmelding aangemaakt.
+
+Bevestig het door deze link te openen:
+{{.Link}}
+
+De link werkt één keer en verloopt over {{duration .TTL}}.
+Was jij dit niet, negeer dan deze e-mail: zonder de link gebeurt er niets.

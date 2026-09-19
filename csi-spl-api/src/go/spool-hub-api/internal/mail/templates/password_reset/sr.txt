@@ -1,0 +1,7 @@
+Neko je zatražio resetovanje spool lozinke za ovu adresu.
+
+Izaberite novu lozinku ovde:
+{{.Link}}
+
+Link radi jednom, a rok važenja je {{duration .TTL}}.
+Ako to niste bili vi, zanemarite ovu poruku: vaša lozinka je nepromenjena.

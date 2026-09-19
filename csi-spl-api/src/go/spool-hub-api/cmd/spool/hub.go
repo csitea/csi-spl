@@ -136,7 +136,11 @@ func cmdServe() int {
 		Blob: bs, AvatarErr: func(hum string, err error) {
 			log.Warn().Err(err).Str("human_id", hum).Msg("auth.avatar_not_stored")
 		}}
-	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks, Avatars: hooks})
+	// CLE-3403: preferred_locale lives on the human (rdb 0017); the default
+	// locale is cnf, validated by LoadHub.
+	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks, Avatars: hooks,
+		Preferences: hooks, DefaultLocale: hc.DefaultLocale})
+	log.Info().Str("default_locale", hc.DefaultLocale).Msg("i18n")
 	if nc.Enabled {
 		mc, err := mail.Load() // SPOOL_HUB_MAIL_*: no default relay host
 		if err != nil {
@@ -168,7 +172,8 @@ func cmdServe() int {
 			Msg("card rail keys unusable: checkout fail-closes with 503 until they are provisioned")
 	}
 	ph, err := payments.NewWired(pc, payments.Deps{Store: st, Log: plog,
-		Mail: pmc.Sender(log), MailDelivers: pmc.Delivers(), TenantHostPattern: hc.TenantHostPattern})
+		Mail: pmc.Sender(log), MailDelivers: pmc.Delivers(), TenantHostPattern: hc.TenantHostPattern,
+		DefaultLocale: hc.DefaultLocale})
 	if err != nil {
 		return fail(err)
 	}

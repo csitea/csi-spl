@@ -1,0 +1,7 @@
+Birisi bu adresin spool parolasının sıfırlanmasını istedi.
+
+Yeni bir parolayı buradan seçin:
+{{.Link}}
+
+Bağlantı yalnızca bir kez çalışır ve {{duration .TTL}} sonra geçerliliğini yitirir.
+Bu siz değilseniz bu e-postayı yok sayın: parolanız değişmedi.

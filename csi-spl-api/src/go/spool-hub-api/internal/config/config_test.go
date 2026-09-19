@@ -299,3 +299,24 @@ func TestMsgVersionKnob(t *testing.T) {
 		t.Fatalf("SPOOL_HUB_MSG_VERSION=3: %v", err)
 	}
 }
+
+// CLE-3403: SPOOL_HUB_DEFAULT_LOCALE defaults to csi-rel's bg, takes any of
+// the 19 locales, and refuses anything else at startup.
+func TestLoadHubDefaultLocale(t *testing.T) {
+	setHubBase(t)
+	t.Setenv("SPOOL_HUB_DEFAULT_LOCALE", "") // unset/empty = envDefault
+	h, err := LoadHub()
+	if err != nil || h.DefaultLocale != "bg" {
+		t.Fatalf("default: %+v %v", h, err)
+	}
+	t.Setenv("SPOOL_HUB_DEFAULT_LOCALE", "fi")
+	if h, err := LoadHub(); err != nil || h.DefaultLocale != "fi" {
+		t.Fatalf("fi: %v", err)
+	}
+	for _, bad := range []string{"de", "FI", "en-US", " "} {
+		t.Setenv("SPOOL_HUB_DEFAULT_LOCALE", bad)
+		if _, err := LoadHub(); err == nil || !strings.Contains(err.Error(), "SPOOL_HUB_DEFAULT_LOCALE") {
+			t.Fatalf("%q accepted: %v", bad, err)
+		}
+	}
+}

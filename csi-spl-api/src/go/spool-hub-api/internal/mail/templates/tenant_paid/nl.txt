@@ -1,0 +1,12 @@
+Je spool hub-tenant is betaald en klaar.
+
+Tenant-URL:
+{{.TenantURL}}
+
+Haal de ROOT-sleutel van je tenant op door deze link één keer te openen:
+{{.Link}}
+
+De link werkt één keer en verloopt over {{duration .TTL}}.
+De sleutel wordt aangemaakt wanneer je de link opent en alleen in je browser getoond: hij wordt nooit gemaild en de hub bewaart hem niet.
+Sla hem op in een bestand dat alleen jij kunt lezen (modus 0600) en laat $SPOOL_TENANT_ROOT_KEY ernaar verwijzen.
+Als je hem al op de pagina voor geslaagde betaling hebt opgehaald, werkt deze link niet meer.

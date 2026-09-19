@@ -49,14 +49,15 @@ func TestCredStoreContract(t *testing.T) {
 			if _, err := st.GetCredential(ctx, subj); !errors.Is(err, auth.ErrCredNotFound) {
 				t.Fatalf("absent: %v", err)
 			}
-			if ok, err := st.CreateCredential(ctx, auth.Credential{Subject: subj, PasswordHash: h1}, now); !ok || err != nil {
+			if ok, err := st.CreateCredential(ctx, auth.Credential{Subject: subj, PasswordHash: h1, Locale: "fi"}, now); !ok || err != nil {
 				t.Fatalf("create: %v %v", ok, err)
 			}
-			if ok, err := st.CreateCredential(ctx, auth.Credential{Subject: subj, PasswordHash: h2}, now); ok || err != nil {
+			if ok, err := st.CreateCredential(ctx, auth.Credential{Subject: subj, PasswordHash: h2, Locale: "sv"}, now); ok || err != nil {
 				t.Fatalf("re-create: %v %v", ok, err)
 			}
 			c, err := st.GetCredential(ctx, subj)
-			if err != nil || c.PasswordHash != h1 || c.Verified() {
+			// the registration locale (rdb 0017) is kept; a repeat register leaves it
+			if err != nil || c.PasswordHash != h1 || c.Verified() || c.Locale != "fi" {
 				t.Fatalf("get: %+v %v", c, err)
 			}
 			base := int(now.UnixNano()%1e6) * 100

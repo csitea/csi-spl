@@ -7,7 +7,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// specs/022 FR-004: a paid checkout reports its tenant host and whether the
+// specs/024 FR-004: a paid checkout reports its tenant host and whether the
 // reconcile has provisioned it yet; the WUI shows "being prepared" on pending.
 func TestCheckoutHostStatus(t *testing.T) {
 	cfg := mustLoad(t, "dev", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true"})

@@ -1,6 +1,6 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description Take ONE deleted tenant's host <tenant>.<fqdn> down (specs/022),
+# @description Take ONE deleted tenant's host <tenant>.<fqdn> down (specs/024),
 # @description the twin of do_spl_tenant_host_provision: remove the tenant from
 # @description env.dns.mapped_tenants, render 032 + 025, plan with a GATE that
 # @description admits ONLY the destroy of this tenant's mapping

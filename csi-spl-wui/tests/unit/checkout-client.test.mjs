@@ -351,9 +351,9 @@ describe('source + build output: where secrets may never go', () => {
   })
 })
 
-// specs/022: the tenant host is provisioned after the payment; the page says
+// specs/024: the tenant host is provisioned after the payment; the page says
 // so until §1.3 reports it ready.
-describe('pollHostReady (specs/022)', async () => {
+describe('pollHostReady (specs/024)', async () => {
   const { pollHostReady } = await import('../../src/utils/checkout-client.mjs')
   const noSleep = async () => {}
   const seqClient = (answers) => {

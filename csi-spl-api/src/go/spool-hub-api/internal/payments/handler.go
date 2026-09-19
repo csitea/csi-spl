@@ -162,7 +162,7 @@ func (h *Handler) tenantHost(id string) string {
 	return strings.Replace(h.d.TenantHostPattern, "{tenant}", id, 1)
 }
 
-// hostStatus is the tenant host's provisioning status (rdb 0015, specs/022):
+// hostStatus is the tenant host's provisioning status (rdb 0015, specs/024):
 // "pending" until the reconcile has mapped, certified and probed
 // <tenant>.<fqdn>, then "ready". "unknown" when the hub cannot tell (no row,
 // or the read failed): the page then shows no "being prepared" notice.

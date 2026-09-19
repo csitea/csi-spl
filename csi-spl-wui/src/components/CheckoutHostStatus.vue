@@ -1,4 +1,4 @@
-<!-- The tenant's own address after a purchase (specs/022). With no wildcard,
+<!-- The tenant's own address after a purchase (specs/024). With no wildcard,
      <tenant>.<fqdn> is provisioned by a scheduled reconcile after the payment
      (Cloud Run domain mapping, DNS record, certificate; typically 15-30 min).
      While the hub reports host_status 'pending' this says the address is being

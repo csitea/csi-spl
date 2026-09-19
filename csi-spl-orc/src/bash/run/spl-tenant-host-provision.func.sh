@@ -1,6 +1,6 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description Give ONE tenant its public host <tenant>.<fqdn> (specs/022,
+# @description Give ONE tenant its public host <tenant>.<fqdn> (specs/024,
 # @description owner 2026-09-19 "automate per tenant"). There is no wildcard:
 # @description the host is one Cloud Run domain mapping (032) + one ghs CNAME
 # @description (025), both rendered from cnf env.dns.mapped_tenants. So:

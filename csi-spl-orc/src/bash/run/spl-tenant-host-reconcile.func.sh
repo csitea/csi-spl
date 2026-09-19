@@ -1,7 +1,7 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description Provision / deprovision the tenant hosts the hub DB asks for
-# @description (specs/022; run by .github/workflows/40_tenant-host-reconcile.yml
+# @description (specs/024; run by .github/workflows/40_tenant-host-reconcile.yml
 # @description on a schedule, the owner's standing go of 2026-09-19). Reads
 # @description tenant_hosts (rdb 0015: a trigger queues every new tenant,
 # @description a delete marks it removing) as the env SA, then in ONE pass:
@@ -67,7 +67,7 @@ do_spl_tenant_host_reconcile() {
   for t in "${del[@]}"; do spl_th_cnf_set "$cnf" del "$t" || return 1; done
   spl_th_render || return 1
   if [[ "${CNF_PUSH:-0}" == 1 ]]; then
-    spl_th_cnf_push "cnf(022): $ENV tenant hosts${add[*]:+ +${add[*]}}${del[*]:+ -${del[*]}} (do_spl_tenant_host_reconcile)" || return 1
+    spl_th_cnf_push "cnf(024): $ENV tenant hosts${add[*]:+ +${add[*]}}${del[*]:+ -${del[*]}} (do_spl_tenant_host_reconcile)" || return 1
   fi
 
   if ! spl_th_apply "$(spl_th_destroy_allow "${del[@]}")"; then

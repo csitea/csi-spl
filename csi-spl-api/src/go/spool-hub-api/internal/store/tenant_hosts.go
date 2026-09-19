@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Tenant host statuses (rdb 0015, specs/022). The hub never provisions a
+// Tenant host statuses (rdb 0015, specs/024). The hub never provisions a
 // host: a trigger on tenants queues one, csi-spl-orc do_spl_tenant_host_reconcile
 // applies it through terraform and marks it ready.
 const (

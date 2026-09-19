@@ -295,7 +295,7 @@ export async function pollAndClaim(client, { id, token } = {}, {
   return { state: 'error', error: 'timeout' }
 }
 
-// ── the tenant host (specs/022) ───────────────────────────────────────────
+// ── the tenant host (specs/024) ───────────────────────────────────────────
 
 /**
  * There is no wildcard host: the tenant's own address <tenant>.<fqdn> is

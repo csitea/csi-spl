@@ -1,4 +1,4 @@
-# 40 cd: tenant host reconcile (specs/022).
+# 40 cd: tenant host reconcile (specs/024).
 #
 # Owner decision 2026-09-19: with no load balancer there is no wildcard, so
 # every tenant host <tenant>.<fqdn> is one Cloud Run domain mapping (iac 032)

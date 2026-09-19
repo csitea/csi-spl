@@ -58,7 +58,7 @@ const retryable = ref(false)
 const keyText = shallowRef('')
 const tenantId = ref('')
 const tenantUrl = ref('')
-/* specs/022: the tenant host and whether it is provisioned yet */
+/* specs/024: the tenant host and whether it is provisioned yet */
 const tenantHost = ref('')
 const hostStatus = ref('')
 const hostCheckoutId = ref('')

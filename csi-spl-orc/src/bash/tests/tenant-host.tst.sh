@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: specs/022 tenant host actions, hermetic (make, the DB, the cert
+# Purpose: specs/024 tenant host actions, hermetic (make, the DB, the cert
 #          wait and the probe are stubbed; no GCP, no terraform):
 #   1. slug rules = the hub's (reserved labels read from csi-spl-api msg.go)
 #   2. cnf edit touches ONLY the mapped_tenants line, keeps every other byte,
@@ -172,11 +172,11 @@ echo untouched >"$G/wc/other.txt"
 git -C "$G/wc" add -A && git -C "$G/wc" -c user.name="FirstName LastName" -c user.email=owner@example.test commit -qm seed && git -C "$G/wc" push -q origin master
 echo dirty >>"$G/wc/other.txt"
 sed 's/mapped_tenants: \[t1\]/mapped_tenants: [t1, newt]/' "$ORIG" >"$G/wc/csi-spl-cnf/csi-spl/dev.env.yaml"
-out=$(SNIPPET='do_spl_cloud_cnf; spl_th_cnf_push "cnf(022): dev tenant hosts +newt"' in_orc APP_PATH="$G/wc" 2>&1); rc=$?
+out=$(SNIPPET='do_spl_cloud_cnf; spl_th_cnf_push "cnf(024): dev tenant hosts +newt"' in_orc APP_PATH="$G/wc" 2>&1); rc=$?
 [[ $rc != 0 && $(git -C "$G/origin.git" rev-list --count master) == 1 ]] && pass "cnf push refuses a tree with another change (nothing committed)" ||
   fail "cnf push with a dirty other file rc=$rc :: $out"
 git -C "$G/wc" checkout -q -- other.txt
-out=$(SNIPPET='do_spl_cloud_cnf; spl_th_cnf_push "cnf(022): dev tenant hosts +newt"' in_orc APP_PATH="$G/wc" 2>&1); rc=$?
+out=$(SNIPPET='do_spl_cloud_cnf; spl_th_cnf_push "cnf(024): dev tenant hosts +newt"' in_orc APP_PATH="$G/wc" 2>&1); rc=$?
 head_ae=$(git -C "$G/origin.git" log -1 --no-mailmap --format='%an|%ae|%ce')
 files=$(git -C "$G/origin.git" show --name-only --format= master)
 body=$(git -C "$G/origin.git" log -1 --format=%B master)

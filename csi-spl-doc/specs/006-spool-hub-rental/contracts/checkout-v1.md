@@ -97,7 +97,7 @@ URL (it would reach the provider and access logs).
 Polling for the success page. `200`:
 `{"checkout_id":"co_…","tenant_id":"acme","status":"pending|paid|failed|cancelled","claimed":false,
 "tenant_host":"acme.dev.<domain>","host_status":"pending|ready|unknown"}`.
-`host_status` (specs/022, only once `paid`): `pending` while the tenant's own
+`host_status` (specs/024, only once `paid`): `pending` while the tenant's own
 host (Cloud Run domain mapping + DNS record + certificate) is being provisioned
 by the reconcile, `ready` once it answers, `unknown` when the hub cannot tell.
 `404 not_found` for an unknown id. Carries no secret.
@@ -209,7 +209,7 @@ Only when cnf prices a seat kind (`SPOOL_HUB_PAYMENT_SEAT_USER_CENTS` /
 4. Show tenant URL + root private key with copy/download and a clear "this is
    the only time it is shown; it is not emailed and the hub does not keep it"
    warning, then drop the `claim_token` from storage. While `host_status` is
-   `pending`, say "your address <tenant_host> is being prepared" (specs/022:
+   `pending`, say "your address <tenant_host> is being prepared" (specs/024:
    typically 15-30 min) and keep polling §1.3 until it reads `ready`.
 5. Claim page (`/checkout/claim`, §1.8): same render as step 4 from the link;
    `410 claimed` → "already collected (on the success page or from this link)".

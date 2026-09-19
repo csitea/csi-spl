@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: specs/022 -- the scheduled tenant host reconcile (40) stays inside
+# Purpose: specs/024 -- the scheduled tenant host reconcile (40) stays inside
 #          the owner's rules: a schedule + dispatch; one run per env
 #          (concurrency group per env, never cancelled mid-apply); dev before
 #          prd (max-parallel 1, matrix order); only the existing per-env key

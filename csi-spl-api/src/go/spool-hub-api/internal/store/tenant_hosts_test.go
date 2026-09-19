@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// TestTenantHostQueue (specs/022 FR-002): every created tenant reads a
+// TestTenantHostQueue (specs/024 FR-002): every created tenant reads a
 // pending host until the reconcile marks it; an unknown tenant has none.
 func TestTenantHostQueue(t *testing.T) {
 	ctx := context.Background()

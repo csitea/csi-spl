@@ -105,7 +105,6 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `014-spool-wui-dispatch/` | WUI dispatch: box-wui key signing, browser-to-box task dispatch, pin controls | M3 | dispatch lane |
 | `015-spool-native-auth/` | native email + password sign-in, argon2id hashing, email verification, password reset | M3 | native-auth lane |
 | `016-spool-testability/` | test inventory, skip-as-failure CI policy, dual-driver proofs | cross-cutting | integrator |
-| `017-spool-security-hardening/` | security analysis, threat mitigation, host spool DAC, blob auth, root-key isolation, CSP & Cloud Armor hardening | M3/M4 | security lane |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -116,8 +115,8 @@ user story in the same spec. Renaming the dir would break citations in
 Dependency order between specs:
 `002 → 004 → 003 → 007 (+008 pipeline) → 006 (M1 tenancy) → M1 demo →
 006 (M2 payment) → 005 (M3) → 010 (social auth) → 014 (wui dispatch) →
-015 (native auth) → 016 (testability) → 017 (security hardening) →
-011 (refactor consolidation) → 009 (M4) → 008 (CI logs in chat)`.
+015 (native auth) → 016 (testability) → 011 (refactor consolidation) →
+009 (M4) → 008 (CI logs in chat)`.
 
 ---
 
@@ -135,7 +134,6 @@ Dependency order between specs:
 | Pipeline jobs, gates, deploy matrix | 008 | 007 references the deploy action |
 | Whole-project refactoring boundaries, adapters & contracts | 011 | 003, 005, 006, 007, 008, 010 cite for clean architecture & adapter rules |
 | Test layers, skip-pass policy, what CI must run | 016 `contracts/test-layers.md` | 008 owns the YAML; 016 inventories and files tasks 008/api/wui execute |
-| Security baseline, threat mitigation, host DAC & cipher standards | 017 `contracts/security-baseline.md` | everyone cites for cryptographic and access control invariants |
 
 ---
 

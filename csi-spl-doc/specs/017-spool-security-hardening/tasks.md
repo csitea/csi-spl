@@ -42,8 +42,8 @@
 
 ## Phase 5 — Frontend Content Security Policy & Client Hardening (WUI)
 
-- [ ] T013 Planned (WUI lane) — Hardening of `csi-spl-wui/firebase.json`: remove `'unsafe-inline'` from CSP `script-src` and `style-src`; replace with build-time hashes or nonces. FR-SEC-005.
-- [ ] T014 Planned (WUI lane) — Parameterize `connect-src` in `firebase.json` and Nuxt configuration to explicitly allow production tenant API and WebSocket origins while blocking untrusted external domains. FR-SEC-005.
+- [ ] T013 Planned (SEC lane CLE-3394, CSP policy + its test) — Hosting CSP (`csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh`, which writes `csi-spl-wui/firebase.json`): remove `'unsafe-inline'` from `script-src` and `style-src`; the render hashes every inline `<script>`/`<style>` of the generated `.output/public` (no nonce: static hosting has no server). Tests: `csi-spl-wui/tests/unit/csp-policy.test.mjs` (render against a fixture bundle) and `csi-spl-wui/tests/e2e/csp-violations.test.mjs` (headless Chrome, zero violations per route; CONTROL: injected inline script blocked, and runs under the old policy). FR-SEC-005.
+- [ ] T014 Planned (SEC lane CLE-3394) — `connect-src` from cnf only: `'self'` plus the hub api host(s) (`<label>.<BASE_DOMAIN>`, e.g. `api.` / `dev.api.`) and the tenant hosts (`<tenant>.<fqdn>`, a `*.<fqdn>` wildcard while tenants are not enumerated in cnf), each as `https://` and `wss://`; never a bare scheme. FR-SEC-005.
 
 ---
 

@@ -59,8 +59,10 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   connection initiations (`SRC_IPS_V1` rate-based bans) and implement hub-level per-IP WebSocket connection quotas.
 
 ### 1.5 Frontend Content Security Policy (CSP) Hardening
-- **Condition:** In `firebase.json`, CSP includes `'unsafe-inline'` in `script-src` and `style-src`, while
-  `connect-src` only allows `127.0.0.1` and `localhost`.
+- **Condition:** The Hosting CSP (rendered by `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh`;
+  `curl -sI https://csi-spl-dev-site.web.app/login`, 2026-09-19, n=1) carries `'unsafe-inline'` in `script-src`
+  and `style-src`; `connect-src` is `'self' https://*.<fqdn> wss://*.<fqdn>` (the `127.0.0.1` / `localhost`
+  sources are lde-only, `nuxt.config.ts` CSP_DEV).
 - **Threat:** `'unsafe-inline'` diminishes resistance against DOM-based XSS attacks.
 - **Remediation Requirement:** (FR-SEC-005) Transition to nonce-based or hash-based CSP, eliminate `'unsafe-inline'`,
   and parameterize `connect-src` with production API host patterns during build and deployment.
@@ -118,9 +120,20 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   rules on `/v1/ws`, `/v1/wui/ws`, and `/api/v1/auth/*` before traffic reaches Cloud Run.
   *Status:* Planned.
 
-- **FR-SEC-005 (CSP Nonce & Production Connect-Src):** Firebase Hosting configuration MUST replace `'unsafe-inline'`
+- **FR-SEC-005 (CSP Hashes & Production Connect-Src):** Firebase Hosting configuration MUST replace `'unsafe-inline'`
   with build-time hashes or nonces and include the production domain and tenant subdomains in `connect-src`.
-  *Status:* Planned.
+  Amended 2026-09-19 (CLE-3394) after measuring `nuxt generate`: the WUI is static files on Firebase Hosting,
+  so no server can mint a nonce. The render step therefore hashes (sha256) every inline executable `<script>`
+  and every `<style>` block in the generated `.output/public/**/*.html` and emits exactly those hashes:
+  `script-src` and `style-src` are `'self'` plus those hashes, with no `'unsafe-inline'` and no `'unsafe-eval'`.
+  The render refuses to run without a generated bundle instead of falling back to `'unsafe-inline'`.
+  `connect-src` is `'self'` plus the hub's api host(s) and tenant host(s) from cnf, each over `https:` and
+  `wss:`, never a bare scheme. `frame-ancestors 'none'`, `base-uri 'self'`, `object-src 'none'` and
+  `form-action 'self'` stay. Acceptance: a headless Chrome pass over the WUI routes on dev logs zero CSP
+  violations, and a CONTROL (an injected inline `<script>`) runs under the old policy and is blocked under the
+  new one. `nuxt preview` (Nitro, lde only) keeps `'unsafe-inline'`: it has no render step to hash, and it
+  never serves a deployed env.
+  *Status:* Amended; tracked by tasks T013/T014.
 
 - **FR-SEC-006 (Proxy Hops Configuration):** `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` MUST be configured in
   `dev.env.yaml` and `prd.env.yaml` to match Cloud Load Balancing + Cloud Run ingress topology.

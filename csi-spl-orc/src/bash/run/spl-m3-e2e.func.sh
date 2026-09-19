@@ -99,7 +99,13 @@ do_spl_m3_e2e() {
     role="${M3_HUMAN_ROLE:-owner}"
     spl_m3_prd_humans "$st" || return 1
   fi
-  export M3_HUB_URL="https://$tenant.$SPL_FQDN" M3_AUTH_URL="https://$SPL_FQDN" M3_STATE="$st" \
+  # auth on the API host (env.dns.api_fqdn, a 032 Cloud Run domain mapping):
+  # <fqdn> is the Firebase WUI since 2026-09-19 (no LB), and the session
+  # cookie Domain=<BASE_DOMAIN> still reaches <tenant>.<fqdn>
+  local api_fqdn
+  api_fqdn="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
+  [[ -n "$api_fqdn" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
+  export M3_HUB_URL="https://$tenant.$SPL_FQDN" M3_AUTH_URL="https://$api_fqdn" M3_STATE="$st" \
     M3_SPOOL="$SPL_SPOOL" M3_ROOT_KEY="$key" \
     M3_HUMAN_EMAIL="${M3_HUMAN_EMAIL:-m3-e2e-human@example.com}" \
     M3_OUTSIDER_EMAIL="${M3_OUTSIDER_EMAIL:-m3-e2e-outsider@example.com}"

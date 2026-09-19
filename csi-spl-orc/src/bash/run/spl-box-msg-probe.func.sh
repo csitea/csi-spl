@@ -29,6 +29,9 @@
 # @param PROBE_BOX (optional) - default box-orc-probe
 # @param PROBE_AGENT (optional) - default ORC-1
 # @param PROBE_LABEL (optional) - free text in the body, default "message-to-db"
+# @param PROBE_TASK (optional) - post into this existing thread (a task UUID, e.g.
+#   the tenant lobby) instead of a fresh one, so a browser following that
+#   thread sees the box send pushed live (013 US7, CLE-3412)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 ROOT_KEY_JSON=/var/csi/csi-spl/tenants/prd/t1.<ts>.json DRY_RUN=0 ./run -a do_spl_box_msg_probe
 #------------------------------------------------------------------------------
@@ -38,18 +41,19 @@ do_spl_box_msg_probe() {
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${PROBE_BOX:-box-orc-probe}" agent="${PROBE_AGENT:-ORC-1}"
-  local label="${PROBE_LABEL:-message-to-db}" rkj="${ROOT_KEY_JSON:-}"
+  local label="${PROBE_LABEL:-message-to-db}" rkj="${ROOT_KEY_JSON:-}" ptask="${PROBE_TASK:-}"
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL PROBE_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
   [[ "$agent" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. ORC-1)"; return 1; }
   [[ "$label" =~ ^[A-Za-z0-9._\ -]{1,64}$ ]] || { do_log "FATAL PROBE_LABEL must be 1..64 of [A-Za-z0-9._ -]"; return 1; }
+  [[ -z "$ptask" || "$ptask" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { do_log "FATAL PROBE_TASK must be a lowercase task UUID, got: '$ptask'"; return 1; }
   [[ -s "$rkj" ]] || { do_log "FATAL ROOT_KEY_JSON must name the tenant's saved create JSON (got '$rkj')"; return 1; }
   [[ "$(stat -c %a "$rkj")" == 600 ]] || { do_log "FATAL $rkj must be mode 0600"; return 1; }
 
   local hub="https://$tenant.$SPL_FQDN" d="$SPL_STATE_DIR/probe/$tenant/$box"
   if (( dry )); then
     do_log "INFO DRY_RUN would: keygen + hub-pin $box under $tenant at $hub (first run only; state $d)"
-    do_log "INFO DRY_RUN would: send one note $agent@$box -> $agent@$box body '[orc-probe] $label <utc>', hub-sync, hub-tail"
+    do_log "INFO DRY_RUN would: send one note $agent@$box -> $agent@$box${ptask:+ into task $ptask} body '[orc-probe] $label <utc>', hub-sync, hub-tail"
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to send."
     return 0
   fi
@@ -76,7 +80,9 @@ do_spl_box_msg_probe() {
   sync1="$(_probe hub-sync 2>&1)" || { do_log "FATAL first hub-sync of $box: $sync1"; return 1; }
   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
   body="[orc-probe] $label $stamp"
-  sent="$(_probe send --from "$agent" --to "$agent" --to-box "$box" --kind note --body "$body" 2>&1)" ||
+  local task_arg=()
+  [[ -n "$ptask" ]] && task_arg=(--task "$ptask")
+  sent="$(_probe send --from "$agent" --to "$agent" --to-box "$box" "${task_arg[@]}" --kind note --body "$body" 2>&1)" ||
     { do_log "FATAL send from $agent@$box: $sent"; return 1; }
   sync2="$(_probe hub-sync 2>&1)" || { do_log "FATAL second hub-sync of $box: $sync2"; return 1; }
   local task msg

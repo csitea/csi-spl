@@ -3,10 +3,10 @@
 | id | task | status |
 |---|---|---|
 | T001 | spec 026 + amendment notes in 003 FR-015 / OQ-07, 010 SEC-001, 024 header | done |
-| T010 | store: `Humans.Memberships(ctx, humanID)` (memory + Postgres, operator scope) | |
-| T011 | auth: active tenant (bind `t` at sign-in, `ActiveTenant`), session response `active_tenant` + `tenants` | |
-| T012 | hub: resolution per §2 on every door (view, WUI ws, channels, files, dispatch, pins, ws, cicd); Host = equality check | |
-| T013 | hub tests: CONTROLS §9 | |
+| T010 | store: `Humans.Memberships(ctx, humanID)` (memory + Postgres, operator scope) | done |
+| T011 | auth: active tenant (bind `t` at sign-in, `ActiveTenant`), session response `active_tenant` + `tenants` | done |
+| T012 | hub: resolution per §2 on every door (view, WUI ws, channels, files, dispatch, pins, ws, cicd); Host = equality check | done |
+| T013 | hub tests: CONTROLS §9 | done |
 | T020 | box client + CLI: `X-Spool-Tenant`, api-host URL, legacy URL accepted | |
 | T030 | WUI: api base without `{tenant}`, tenant from the session | |
 | T040 | deploy dev then prd (deploy lane), `do_spl_m3_e2e` on the api host dev + prd | |

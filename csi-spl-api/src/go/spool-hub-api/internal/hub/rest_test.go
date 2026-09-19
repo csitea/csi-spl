@@ -70,7 +70,7 @@ func TestGetFileNeedsCredential(t *testing.T) {
 				t.Fatalf("garbage token: %d", code)
 			}
 			tokO := e.uploadToken(other, o)
-			if code, _ := e.getFile(tid, fid, tokO); code != http.StatusUnauthorized {
+			if code, _ := e.getFile(tid, fid, tokO); code != http.StatusForbidden { // specs/026: tenant_mismatch
 				t.Fatalf("other tenant's box token on this host: %d", code)
 			}
 			// That box on its own host: authenticated, but the id is not its tenant's.
@@ -119,7 +119,7 @@ func TestGetFileMemberSession(t *testing.T) {
 	if code, _, body := r.get(t, mine, "/v1/files/"+theirFID); code != http.StatusNotFound {
 		t.Fatalf("their id via my host: %d %s", code, body)
 	}
-	if code, _, body := r.get(t, theirs, "/v1/files/"+theirFID); code != http.StatusUnauthorized || errToken([]byte(body)) != "view_door" {
+	if code, _, body := r.get(t, theirs, "/v1/files/"+theirFID); code != http.StatusForbidden || errToken([]byte(body)) != "tenant_mismatch" {
 		t.Fatalf("non-member on their host: %d %s", code, body)
 	}
 }

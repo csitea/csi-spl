@@ -1302,7 +1302,8 @@ func TestTenantFromHostUnknownFailsFast(t *testing.T) {
 
 	assertUnknown := func(host string) {
 		t.Helper()
-		resp, err := e.client.Get("http://" + host + "/v1/pins")
+		// /v1/ws resolves the box's tenant before the upgrade (specs/026 §4).
+		resp, err := e.client.Get("http://" + host + "/v1/ws")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1313,8 +1314,16 @@ func TestTenantFromHostUnknownFailsFast(t *testing.T) {
 		}
 	}
 	assertUnknown("nope" + domain)
-	assertUnknown("not-a-match.example")
 	assertUnknown("unknown-tenant" + domain)
+	// A Host outside the pattern names no tenant: the box must name one.
+	resp, err = e.client.Get("http://not-a-match.example/v1/ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("no tenant named: %d, want 400 tenant_required", resp.StatusCode)
+	}
 
 	// Pattern is required and must start with {tenant}.
 	if _, err := hub.New(hub.Options{Store: e.st, Blob: blob.Dir{Root: e.blobs}, TenantHostPattern: "hub.test"}); err == nil {

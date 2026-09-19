@@ -150,14 +150,15 @@ func TestSessionDoorMemberReadsNonMemberRefused(t *testing.T) {
 		t.Fatalf("credentialed CORS missing: %v", hd)
 	}
 
-	// CONTROL: the same valid session on a tenant she is not a member of.
-	if code, hd, body := r.get(t, theirs, "/v1/view/threads"); code != http.StatusUnauthorized || errToken([]byte(body)) != "view_door" {
+	// CONTROL: the same valid session on a tenant she is not a member of: the
+	// legacy Host names another tenant than the session (specs/026 §5).
+	if code, hd, body := r.get(t, theirs, "/v1/view/threads"); code != http.StatusForbidden || errToken([]byte(body)) != "tenant_mismatch" {
 		t.Fatalf("non-member read: %d %s", code, body)
 	} else if hd.Get("Access-Control-Allow-Origin") != wuiOrigin {
-		t.Fatalf("a 401 still carries CORS so the WUI can read it: %v", hd)
+		t.Fatalf("a 403 still carries CORS so the WUI can read it: %v", hd)
 	}
 	if _, resp, err := websocket.Dial(context.Background(), "ws://"+theirs+domain+"/v1/wui/ws",
-		&websocket.DialOptions{HTTPClient: r.browser}); err == nil || resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		&websocket.DialOptions{HTTPClient: r.browser}); err == nil || resp == nil || resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("non-member websocket: %v %v", err, resp)
 	}
 

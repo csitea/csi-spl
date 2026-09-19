@@ -271,6 +271,7 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		sess.HumanID = hum
+		h.bindTenant(r.Context(), &sess)
 	}
 	tok, err := signToken(h.sessionKey, sess)
 	if err != nil {
@@ -289,6 +290,10 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 type sessionResp struct {
 	Session
 	PreferredLocale *string `json:"preferred_locale"`
+	// specs/026 §3: the tenant this session works in (null when none
+	// resolves) and every membership (the phase 2 switcher's list).
+	ActiveTenant *string      `json:"active_tenant"`
+	Tenants      []TenantRole `json:"tenants"`
 }
 
 // session answers who the cookie belongs to: 200 + claims, or 401.
@@ -299,6 +304,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := sessionResp{Session: s}
+	h.sessionTenants(r, &out)
 	if s.HumanID != "" && h.prefs != nil {
 		// A settings lookup never fails the session: the WUI then follows the browser.
 		if loc, err := h.prefs.PreferredLocale(r.Context(), s.HumanID); err != nil {

@@ -94,24 +94,15 @@ func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
 func (s *Server) viewHandler(next func(http.ResponseWriter, *http.Request, store.Tenant)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.allowOrigin(w, r)
-		t, err := s.tenantOf(r)
-		if err != nil {
-			writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
-			return
-		}
-		if s.o.ViewDoor == ViewDoorOff || s.sessionMayRead(r, t.ID) {
+		// specs/026: the session's active tenant (the view token format is
+		// owner question OQ-16; until it is decided the token door admits
+		// nobody, fail closed).
+		if t, _, ok := s.humanTenant(w, r); ok {
 			next(w, r, t)
-			return
 		}
-		// The view token format is owner question OQ-16; until it is decided
-		// the token door admits nobody (fail closed).
-		writeErr(w, http.StatusUnauthorized, "view_door", "a view token or a member session is required")
 	}
 }
 
-// sessionMayRead is the M3 session door (view-v1 §2, OQ-A1): a signed-in human
-// who is a member of the Host tenant. Every auth error (no session, no HUM-*,
-// no membership check configured, not a member) refuses — fail closed.
 // sessionFor returns the HUM-* id of a member session of tenant, or "".
 func (s *Server) sessionFor(r *http.Request, tenant string) (string, error) {
 	if s.o.Auth == nil {
@@ -122,14 +113,6 @@ func (s *Server) sessionFor(r *http.Request, tenant string) (string, error) {
 		return "", err
 	}
 	return sess.HumanID, nil
-}
-
-func (s *Server) sessionMayRead(r *http.Request, tenant string) bool {
-	if s.o.Auth == nil {
-		return false
-	}
-	_, err := s.o.Auth.SessionForTenant(r, tenant)
-	return err == nil
 }
 
 // ---- cursors ------------------------------------------------------------------

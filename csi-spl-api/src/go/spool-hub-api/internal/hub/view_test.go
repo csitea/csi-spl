@@ -319,8 +319,8 @@ func TestVersionBody(t *testing.T) {
 }
 
 // Reserved labels (api, www, dev; msg.ValidTenantID) are never a tenant: the
-// API host serves the non-tenant routes, and every tenant-scoped route there
-// is 404 unknown_tenant — even if a row with that id existed.
+// API host serves the non-tenant routes, and a tenant-scoped route there
+// needs a credential that names the tenant (specs/026: 401 without one).
 func TestReservedHostIsAPIHostNotTenant(t *testing.T) {
 	e := newEnv(t, func(o *hub.Options) { o.Env = "dev" })
 	for _, host := range []string{"api", "www", "dev", "dev.api", "api.dev"} {
@@ -330,8 +330,8 @@ func TestReservedHostIsAPIHostNotTenant(t *testing.T) {
 			}
 		}
 		for _, p := range []string{"/v1/pins", "/v1/view/threads", "/v1/files/" + strings.Repeat("0", 64)} {
-			if code, _, body := viewGet(t, e, host, p); code != http.StatusNotFound || errToken(body) != "unknown_tenant" {
-				t.Fatalf("%s%s: %d %s, want 404 unknown_tenant", host, p, code, body)
+			if code, _, body := viewGet(t, e, host, p); code != http.StatusUnauthorized {
+				t.Fatalf("%s%s: %d %s, want 401", host, p, code, body)
 			}
 		}
 	}
@@ -470,7 +470,7 @@ func TestViewRosterHumanAvatar(t *testing.T) {
 	if code, _, body := r.get(t, mine, "/v1/files/"+bobFID); code != http.StatusNotFound {
 		t.Fatalf("tenant B's avatar via tenant A: %d %s", code, body)
 	}
-	if code, _, body := r.get(t, theirs, "/v1/view/roster"); code != http.StatusUnauthorized || errToken([]byte(body)) != "view_door" {
+	if code, _, body := r.get(t, theirs, "/v1/view/roster"); code != http.StatusForbidden || errToken([]byte(body)) != "tenant_mismatch" {
 		t.Fatalf("B's roster to an A member: %d %s", code, body)
 	}
 }

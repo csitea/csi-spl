@@ -25,12 +25,9 @@ func (s *Server) wuiPub() ed25519.PublicKey {
 	return s.o.WUIKey.Public().(ed25519.PublicKey)
 }
 
-// GET /v1/wui/pubkey: the key a tenant operator pins as box-wui (§2.2).
+// GET /v1/wui/pubkey: the key a tenant operator pins as box-wui (§2.2). The
+// key is hub-wide, so it answers on any host (specs/026: the api host).
 func (s *Server) handleWUIPubkey(w http.ResponseWriter, r *http.Request) {
-	if _, err := s.tenantOf(r); err != nil {
-		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
-		return
-	}
 	pub := s.wuiPub()
 	if pub == nil {
 		writeErr(w, http.StatusNotFound, "not_found", "this hub has no box-wui key")

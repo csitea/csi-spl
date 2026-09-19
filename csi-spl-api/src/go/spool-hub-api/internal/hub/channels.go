@@ -232,13 +232,8 @@ func diffAgents(a, b []string) []string {
 
 func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
-	t, err := s.tenantOf(r)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
-		return
-	}
-	if s.o.ViewDoor != ViewDoorOff && !s.sessionMayRead(r, t.ID) {
-		writeErr(w, http.StatusUnauthorized, "view_door", "a view token or a member session is required")
+	t, _, ok := s.humanTenant(w, r) // specs/026: the session's active tenant
+	if !ok {
 		return
 	}
 	if !billing.AllowsWrite(t.BillingStatus) {

@@ -448,6 +448,7 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		sess.HumanID = hum
+		n.h.bindTenant(ctx, &sess)
 	}
 	tok, err := signToken(n.h.sessionKey, sess)
 	if err != nil {

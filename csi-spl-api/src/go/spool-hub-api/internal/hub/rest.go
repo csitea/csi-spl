@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/coder/websocket"
@@ -26,14 +27,9 @@ import (
 
 // POST /v1/files: raw bytes with the WS-issued upload token (OQ-10).
 func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
-	s.allowOrigin(w, r) // browser uploads from the WUI origin (wui-live-ws.md §5)
-	t, err := s.tenantOf(r)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
-		return
-	}
-	if _, ok := s.bearer(r, t.ID); !ok {
-		writeErr(w, http.StatusUnauthorized, "door", "a valid upload token from the WS hello is required")
+	s.allowOrigin(w, r)             // browser uploads from the WUI origin (wui-live-ws.md §5)
+	t, _, ok := s.tokenTenant(w, r) // specs/026: the token's tenant
+	if !ok {
 		return
 	}
 	if !billing.AllowsWrite(t.BillingStatus) {
@@ -80,13 +76,8 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 // caller learns nothing about which ids exist; another tenant's id is 404.
 func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r) // the viewer downloads attachments cross-origin (FR-021)
-	t, err := s.tenantOf(r)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
-		return
-	}
-	if !s.mayReadFiles(r, t.ID) {
-		writeErr(w, http.StatusUnauthorized, "view_door", "an upload token or a member session is required")
+	t, ok := s.fileReader(w, r)
+	if !ok {
 		return
 	}
 	key, err := blob.Key(t.ID, r.PathValue("file_id"))
@@ -109,27 +100,22 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 	io.Copy(w, rc) //nolint:errcheck
 }
 
-// mayReadFiles: the view door is off (lde only), or the caller holds a live
-// upload token of tenant (a pinned box or box-wui), or a member session of it.
-func (s *Server) mayReadFiles(r *http.Request, tenant string) bool {
-	if s.o.ViewDoor == ViewDoorOff {
-		return true
+// fileReader resolves a file read (specs/026 §2): an upload token reads its
+// own tenant (a pinned box or box-wui), anything else is a browser read of
+// the session's active tenant (or, view door off in lde, the Host's).
+func (s *Server) fileReader(w http.ResponseWriter, r *http.Request) (store.Tenant, bool) {
+	if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+		t, _, ok := s.tokenTenant(w, r)
+		return t, ok
 	}
-	if _, ok := s.bearer(r, tenant); ok {
-		return true
-	}
-	return s.sessionMayRead(r, tenant)
+	t, _, ok := s.humanTenant(w, r)
+	return t, ok
 }
 
 // GET /v1/pins: the tenant's active box pubkeys (authorized_keys sync).
 func (s *Server) handleListPins(w http.ResponseWriter, r *http.Request) {
-	t, err := s.tenantOf(r)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
-		return
-	}
-	if _, ok := s.bearer(r, t.ID); !ok {
-		writeErr(w, http.StatusUnauthorized, "door", "a valid upload token from the WS hello is required")
+	t, _, ok := s.tokenTenant(w, r) // specs/026: the token's tenant
+	if !ok {
 		return
 	}
 	pins, err := s.o.Store.ListPins(r.Context(), t.ID)
@@ -146,9 +132,8 @@ func (s *Server) handleListPins(w http.ResponseWriter, r *http.Request) {
 
 // POST /v1/pins: pin a box pubkey, signed by the tenant root key.
 func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
-	t, err := s.tenantOf(r)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
+	t, ok := s.boxTenant(w, r) // named, proven by the root signature below
+	if !ok {
 		return
 	}
 	var req wire.PinRequest
@@ -213,9 +198,8 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 // DELETE /v1/pins/{box_id}: revoke, signed by the tenant root key. A live
 // session of the revoked box is closed.
 func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
-	t, err := s.tenantOf(r)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
+	t, ok := s.boxTenant(w, r) // named, proven by the root signature below
+	if !ok {
 		return
 	}
 	var req wire.RevokeRequest
@@ -286,14 +270,8 @@ func (s *Server) PutFile(ctx context.Context, tenant, name string, data []byte) 
 
 // POST /v1/cicd-logs: hub-side fetch+deliver (008). Registered only when enabled.
 func (s *Server) handleCICDLogs(w http.ResponseWriter, r *http.Request) {
-	t, err := s.tenantOf(r)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
-		return
-	}
-	box, ok := s.bearer(r, t.ID)
+	t, box, ok := s.tokenTenant(w, r)
 	if !ok {
-		writeErr(w, http.StatusUnauthorized, "door", "a valid upload token from the WS hello is required")
 		return
 	}
 	var req cicdlogs.Request

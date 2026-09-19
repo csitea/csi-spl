@@ -34,6 +34,7 @@ var (
 	_ auth.IdentityUnlinker = AuthHooks{}
 	_ auth.AvatarSource     = AuthHooks{}
 	_ auth.Preferences      = AuthHooks{}
+	_ auth.TenantLister     = AuthHooks{}
 )
 
 // Register maps ErrNotAdmitted and ErrSeatQuota to auth.ErrNotAllowed
@@ -143,6 +144,23 @@ func (a AuthHooks) Member(ctx context.Context, humanID, tenant string) (bool, er
 		return false, nil
 	}
 	return err == nil, err
+}
+
+// Tenants lists the human's memberships (specs/026 §3) when the store can.
+func (a AuthHooks) Tenants(ctx context.Context, humanID string) ([]auth.TenantRole, error) {
+	ml, ok := a.H.(MembershipLister)
+	if !ok {
+		return nil, errors.New("store: memberships cannot be listed")
+	}
+	ms, err := ml.Memberships(ctx, humanID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]auth.TenantRole, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, auth.TenantRole{TenantID: m.TenantID, Role: m.Role})
+	}
+	return out, nil
 }
 
 // Unlink removes one identity (Meta deauthorize / data deletion, 010 FR-013).

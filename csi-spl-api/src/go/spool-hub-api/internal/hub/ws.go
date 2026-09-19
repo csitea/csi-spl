@@ -98,9 +98,8 @@ func (x *session) fail(ctx context.Context, msgID, token string, status int, det
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
-	t, err := s.tenantOf(r)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
+	t, ok := s.boxTenant(w, r) // specs/026: named by the box, proven by the hello below
+	if !ok {
 		return
 	}
 	conn, err := websocket.Accept(w, r, nil)

@@ -175,13 +175,8 @@ func (s *Server) lobbyAlias(task string) (string, bool) {
 }
 
 func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
-	t, err := s.tenantOf(r)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
-		return
-	}
-	if s.o.ViewDoor != ViewDoorOff && !s.sessionMayRead(r, t.ID) {
-		writeErr(w, http.StatusUnauthorized, "view_door", "a view token or a member session is required")
+	t, _, ok := s.humanTenant(w, r) // specs/026: the session's active tenant
+	if !ok {
 		return
 	}
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: s.wuiOrigins()})
@@ -603,13 +598,8 @@ func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID s
 // the tenant (box or box-wui). 204, or 404 when absent / another tenant's.
 func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
-	t, err := s.tenantOf(r)
-	if err != nil {
-		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
-		return
-	}
-	if _, ok := s.bearer(r, t.ID); !ok {
-		writeErr(w, http.StatusUnauthorized, "door", "a valid upload token is required")
+	t, _, ok := s.tokenTenant(w, r) // specs/026: the token's tenant
+	if !ok {
 		return
 	}
 	key, err := blob.Key(t.ID, r.PathValue("file_id"))

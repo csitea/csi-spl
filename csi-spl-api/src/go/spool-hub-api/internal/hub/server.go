@@ -15,7 +15,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -312,22 +311,6 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 	}
 }
 
-// tenantOf resolves the tenant from the request Host (FR-015).
-func (s *Server) tenantOf(r *http.Request) (store.Tenant, error) {
-	host := strings.ToLower(r.Host)
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
-	}
-	if !strings.HasSuffix(host, s.suffix) {
-		return store.Tenant{}, store.ErrNotFound
-	}
-	id := strings.TrimSuffix(host, s.suffix)
-	if !msg.ValidTenantID(id) {
-		return store.Tenant{}, store.ErrNotFound
-	}
-	return s.o.Store.GetTenant(r.Context(), id)
-}
-
 func (s *Server) mintToken(tenant, box string) (string, time.Time) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -345,22 +328,6 @@ func (s *Server) mintToken(tenant, box string) (string, time.Time) {
 	}
 	s.tokens[tok] = uploadToken{tenant: tenant, box: box, expires: exp}
 	return tok, exp
-}
-
-// bearer checks the WS-issued upload token (OQ-10) and returns its box.
-func (s *Server) bearer(r *http.Request, tenant string) (string, bool) {
-	h := r.Header.Get("Authorization")
-	tok, ok := strings.CutPrefix(h, "Bearer ")
-	if !ok || tok == "" {
-		return "", false
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	t, ok := s.tokens[tok]
-	if !ok || t.tenant != tenant || s.o.Now().After(t.expires) {
-		return "", false
-	}
-	return t.box, true
 }
 
 func (s *Server) retention(channel string) time.Duration {

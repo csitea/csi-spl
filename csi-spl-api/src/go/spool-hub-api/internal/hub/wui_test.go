@@ -266,7 +266,7 @@ func TestWUIFilesUploadDownloadDelete(t *testing.T) {
 	if c := del(tid, ""); c != http.StatusUnauthorized {
 		t.Fatalf("delete without token: %d", c)
 	}
-	if c := del(other, a.w.UploadToken); c != http.StatusUnauthorized {
+	if c := del(other, a.w.UploadToken); c != http.StatusForbidden { // specs/026: tenant_mismatch
 		t.Fatalf("delete under another tenant: %d", c)
 	}
 	if c := del(tid, a.w.UploadToken); c != http.StatusNoContent {

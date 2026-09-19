@@ -149,6 +149,32 @@ func (s *Postgres) UnlinkIdentity(ctx context.Context, provider, subject string)
 	return err
 }
 
+func (s *Postgres) SetAvatar(ctx context.Context, humanID, fileID string) error {
+	if err := checkFileID(fileID); err != nil {
+		return err
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE humans SET avatar_file_id = $2 WHERE human_id = $1`, humanID, fileID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) Avatar(ctx context.Context, humanID string) (string, error) {
+	var id *string
+	err := s.pool.QueryRow(ctx, `SELECT avatar_file_id FROM humans WHERE human_id = $1`, humanID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil || id == nil {
+		return "", err
+	}
+	return *id, nil
+}
+
 // disableHuman is a test hook (humans.disabled_at); no production caller yet.
 func (s *Postgres) disableHuman(humanID string) {
 	s.pool.Exec(context.Background(), `UPDATE humans SET disabled_at = now() WHERE human_id = $1`, humanID) //nolint:errcheck

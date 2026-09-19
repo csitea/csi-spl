@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
@@ -139,6 +140,42 @@ func TestHumansBootstrapIsSingleOwner(t *testing.T) {
 			}
 			if ok != 1 {
 				t.Fatalf("owners admitted by bootstrap = %d, want 1", ok)
+			}
+		})
+	}
+}
+
+// 010 T044, rdb 0010: a human carries at most one avatar file_id (a sha256
+// hex digest); anything else is refused, an unknown human is ErrNotFound.
+func TestHumansAvatar(t *testing.T) {
+	ctx := context.Background()
+	fid := strings.Repeat("ab", 32)
+	for name, s := range drivers(t) {
+		h := s.(Humans)
+		t.Run(name, func(t *testing.T) {
+			hum, err := h.Admit(ctx, Identity{Provider: "google", Subject: uid("pic-")}, "", AdmitPolicy{}, time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, err := h.Avatar(ctx, hum); err != nil || got != "" {
+				t.Fatalf("new human has avatar %q %v", got, err)
+			}
+			for _, bad := range []string{"", "https://idp.example.com/p.png", strings.Repeat("AB", 32), fid + "0"} {
+				if err := h.SetAvatar(ctx, hum, bad); err == nil {
+					t.Fatalf("SetAvatar accepted %q", bad)
+				}
+			}
+			if err := h.SetAvatar(ctx, hum, fid); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := h.Avatar(ctx, hum); err != nil || got != fid {
+				t.Fatalf("avatar %q %v", got, err)
+			}
+			if err := h.SetAvatar(ctx, "HUM-999999999", fid); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human: %v", err)
+			}
+			if _, err := h.Avatar(ctx, "HUM-999999999"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human avatar: %v", err)
 			}
 		})
 	}

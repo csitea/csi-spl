@@ -8,6 +8,7 @@ import (
 
 type memHuman struct {
 	name, email string
+	avatar      string // file_id
 	disabled    bool
 }
 
@@ -134,6 +135,32 @@ func (s *Memory) UnlinkIdentity(_ context.Context, provider, subject string) err
 	s.hum.init()
 	delete(s.hum.identities, [2]string{provider, subject})
 	return nil
+}
+
+func (s *Memory) SetAvatar(_ context.Context, humanID, fileID string) error {
+	if err := checkFileID(fileID); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return ErrNotFound
+	}
+	hm.avatar = fileID
+	return nil
+}
+
+func (s *Memory) Avatar(_ context.Context, humanID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return "", ErrNotFound
+	}
+	return hm.avatar, nil
 }
 
 // disableHuman is a test hook (humans.disabled_at); no production caller yet.

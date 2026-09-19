@@ -5,18 +5,27 @@
 // what the real providers check: client id + secret, the registered redirect
 // URI, a single-use code, the bearer token, Facebook's appsecret_proof.
 //
+// Every person has a picture (010 T044): userinfo / Graph me name
+// <this origin>/avatar/<subject>.png, a small generated PNG, so the hub's
+// server-side avatar fetch runs in lde and tests. Person.NoPicture drops it.
+//
 // The consent screen is skipped: the authorize endpoint redirects straight back
 // with a code (or with error=access_denied after Set(p, true)).
 package fakeidp
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
@@ -36,6 +45,34 @@ type Person struct {
 	Email         string
 	EmailVerified bool
 	Name          string
+	NoPicture     bool // userinfo / Graph me carry no picture
+}
+
+// AvatarPath is where the fake serves a person's picture.
+const AvatarPath = "/avatar/"
+
+// Avatar is the PNG the fake serves for subject: 32x32, one colour from the
+// subject's sha256, so each person's file_id differs and is stable.
+func Avatar(subject string) []byte {
+	sum := sha256.Sum256([]byte(subject))
+	img := image.NewRGBA(image.Rect(0, 0, 32, 32))
+	c := color.RGBA{sum[0], sum[1], sum[2], 0xff}
+	for y := 0; y < 32; y++ {
+		for x := 0; x < 32; x++ {
+			img.Set(x, y, c)
+		}
+	}
+	var b bytes.Buffer
+	png.Encode(&b, img) //nolint:errcheck
+	return b.Bytes()
+}
+
+// pictureURL is the picture on the origin the caller reached the fake at.
+func pictureURL(r *http.Request, p Person) string {
+	if p.NoPicture {
+		return ""
+	}
+	return "http://" + r.Host + AvatarPath + url.PathEscape(p.Subject) + ".png"
 }
 
 // IdP is the fake. Google/Facebook are fixed at New; change who signs in, or
@@ -80,6 +117,15 @@ func (f *IdP) current() (Person, bool) {
 
 func (f *IdP) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET "+AvatarPath+"{file}", func(w http.ResponseWriter, r *http.Request) {
+		sub, ok := strings.CutSuffix(r.PathValue("file"), ".png")
+		if !ok || sub == "" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(Avatar(sub)) //nolint:errcheck
+	})
 	mux.HandleFunc("GET "+auth.GoogleAuthPath, func(w http.ResponseWriter, r *http.Request) {
 		f.authorize(w, r, auth.ProviderGoogle, f.Google)
 	})
@@ -103,8 +149,12 @@ func (f *IdP) Handler() http.Handler {
 			return
 		}
 		p, _ := f.current()
-		writeJSON(w, http.StatusOK, map[string]any{"sub": p.Subject, "email": p.Email,
-			"email_verified": p.EmailVerified, "name": p.Name})
+		body := map[string]any{"sub": p.Subject, "email": p.Email,
+			"email_verified": p.EmailVerified, "name": p.Name}
+		if u := pictureURL(r, p); u != "" {
+			body["picture"] = u
+		}
+		writeJSON(w, http.StatusOK, body)
 	})
 	mux.HandleFunc("GET "+auth.FacebookMePath, func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -119,6 +169,9 @@ func (f *IdP) Handler() http.Handler {
 		body := map[string]any{"id": p.Subject, "name": p.Name}
 		if p.EmailVerified && p.Email != "" { // Graph omits unconfirmed email
 			body["email"] = p.Email
+		}
+		if u := pictureURL(r, p); u != "" && strings.Contains(q.Get("fields"), "picture") {
+			body["picture"] = map[string]any{"data": map[string]any{"url": u, "is_silhouette": false}}
 		}
 		writeJSON(w, http.StatusOK, body)
 	})
@@ -142,6 +195,9 @@ func (f *IdP) Handler() http.Handler {
 			}
 			p, _ := f.current()
 			body := map[string]any{"sub": p.Subject, "email": p.Email, "name": p.Name}
+			if u := pictureURL(r, p); u != "" {
+				body["picture"] = u
+			}
 			if !c.NoEmailVerifiedClaim {
 				body["email_verified"] = p.EmailVerified
 			}

@@ -26,6 +26,8 @@ type OIDC struct {
 	// email_verified claim is required.
 	EmailTrusted bool
 	HTTP         *http.Client
+	// AvatarHTTPBase: see Google.AvatarHTTPBase.
+	AvatarHTTPBase string
 }
 
 func (o *OIDC) Name() string { return o.Provider }
@@ -85,6 +87,7 @@ func (o *OIDC) Exchange(ctx context.Context, code string) (Identity, error) {
 		Email         string          `json:"email"`
 		EmailVerified json.RawMessage `json:"email_verified"`
 		Name          string          `json:"name"`
+		Picture       string          `json:"picture"`
 	}
 	if err := readJSON(uresp, &info); err != nil || uresp.StatusCode != http.StatusOK || info.Sub == "" {
 		return Identity{}, fmt.Errorf("%w: userinfo status %d", errExchange, uresp.StatusCode)
@@ -93,7 +96,9 @@ func (o *OIDC) Exchange(ctx context.Context, code string) (Identity, error) {
 	if email == "" || (!o.EmailTrusted && !jsonTruthy(info.EmailVerified)) {
 		return Identity{}, errEmailUnverified
 	}
-	return Identity{Provider: o.Provider, Subject: info.Sub, Email: email, Name: strings.TrimSpace(info.Name)}, nil
+	id := Identity{Provider: o.Provider, Subject: info.Sub, Email: email, Name: strings.TrimSpace(info.Name)}
+	id.Avatar, id.AvatarType, _ = fetchAvatar(ctx, o.HTTP, info.Picture, o.AvatarHTTPBase)
+	return id, nil
 }
 
 // jsonTruthy reads an email_verified claim that may be a JSON bool or a
@@ -145,6 +150,7 @@ func newOIDC(c *Config, p, base string, hc *http.Client) *OIDC {
 	}
 	if base != "" {
 		o.AuthURL, o.TokenURL, o.UserinfoURL = base+OIDCAuthPath(p), base+OIDCTokenPath(p), base+OIDCUserinfoPath(p)
+		o.AvatarHTTPBase = base
 	}
 	return o
 }

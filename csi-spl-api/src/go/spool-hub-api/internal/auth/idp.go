@@ -22,6 +22,11 @@ type Identity struct {
 	Subject  string // the IdP's stable subject (sub / Graph id)
 	Email    string // lower-cased, provider-verified
 	Name     string
+	// Avatar is the IdP picture, fetched server-side at sign-in (010 T044,
+	// SPEC-spool-avatars §3-4) and already checked by fetchAvatar; nil when
+	// the IdP has none or the fetch failed (never blocks the sign-in).
+	Avatar     []byte
+	AvatarType string // image/png | image/jpeg | image/gif | image/webp
 }
 
 // IdP is one provider's authorization-code client: Google, Facebook, or the
@@ -84,6 +89,9 @@ type Google struct {
 	ClientID, ClientSecret, RedirectURI, Scopes string
 	AuthURL, TokenURL, UserinfoURL              string
 	HTTP                                        *http.Client
+	// AvatarHTTPBase: the one origin whose picture may be fetched over http
+	// (the fake IdP base, lde/tests; "" in dev/prd = https only).
+	AvatarHTTPBase string
 }
 
 func (g *Google) Name() string { return ProviderGoogle }
@@ -139,6 +147,7 @@ func (g *Google) Exchange(ctx context.Context, code string) (Identity, error) {
 		Email         string `json:"email"`
 		EmailVerified bool   `json:"email_verified"`
 		Name          string `json:"name"`
+		Picture       string `json:"picture"`
 	}
 	if err := readJSON(uresp, &info); err != nil || uresp.StatusCode != http.StatusOK || info.Sub == "" {
 		return Identity{}, fmt.Errorf("%w: userinfo status %d", errExchange, uresp.StatusCode)
@@ -147,7 +156,9 @@ func (g *Google) Exchange(ctx context.Context, code string) (Identity, error) {
 	if email == "" || !info.EmailVerified {
 		return Identity{}, errEmailUnverified
 	}
-	return Identity{Provider: ProviderGoogle, Subject: info.Sub, Email: email, Name: strings.TrimSpace(info.Name)}, nil
+	id := Identity{Provider: ProviderGoogle, Subject: info.Sub, Email: email, Name: strings.TrimSpace(info.Name)}
+	id.Avatar, id.AvatarType, _ = fetchAvatar(ctx, g.HTTP, info.Picture, g.AvatarHTTPBase)
+	return id, nil
 }
 
 // Facebook is the Facebook Login client (OAuth 2.0; no id_token). The identity
@@ -157,6 +168,7 @@ type Facebook struct {
 	ClientID, ClientSecret, RedirectURI, Scopes string
 	DialogBase, GraphBase                       string
 	HTTP                                        *http.Client
+	AvatarHTTPBase                              string // see Google.AvatarHTTPBase
 }
 
 func (f *Facebook) Name() string { return ProviderFacebook }
@@ -202,7 +214,7 @@ func (f *Facebook) Exchange(ctx context.Context, code string) (Identity, error) 
 	}
 
 	mq := url.Values{}
-	mq.Set("fields", "id,email,name")
+	mq.Set("fields", "id,email,name,picture.width(256).height(256)")
 	mq.Set("access_token", tok.AccessToken)
 	mq.Set("appsecret_proof", f.appSecretProof(tok.AccessToken))
 	me, err := http.NewRequestWithContext(ctx, http.MethodGet, f.GraphBase+FacebookMePath+"?"+mq.Encode(), nil)
@@ -217,6 +229,14 @@ func (f *Facebook) Exchange(ctx context.Context, code string) (Identity, error) 
 		ID    string `json:"id"`
 		Email string `json:"email"`
 		Name  string `json:"name"`
+		// Graph's picture edge; a silhouette is Facebook's own default, not
+		// the person's picture, so it is not stored.
+		Picture struct {
+			Data struct {
+				URL          string `json:"url"`
+				IsSilhouette bool   `json:"is_silhouette"`
+			} `json:"data"`
+		} `json:"picture"`
 	}
 	if err := readJSON(mresp, &who); err != nil || mresp.StatusCode != http.StatusOK || who.ID == "" {
 		return Identity{}, fmt.Errorf("%w: me status %d", errExchange, mresp.StatusCode)
@@ -227,7 +247,11 @@ func (f *Facebook) Exchange(ctx context.Context, code string) (Identity, error) 
 	if email == "" {
 		return Identity{}, errEmailUnverified
 	}
-	return Identity{Provider: ProviderFacebook, Subject: who.ID, Email: email, Name: strings.TrimSpace(who.Name)}, nil
+	id := Identity{Provider: ProviderFacebook, Subject: who.ID, Email: email, Name: strings.TrimSpace(who.Name)}
+	if !who.Picture.Data.IsSilhouette {
+		id.Avatar, id.AvatarType, _ = fetchAvatar(ctx, f.HTTP, who.Picture.Data.URL, f.AvatarHTTPBase)
+	}
+	return id, nil
 }
 
 // newIdP builds the client for an enabled provider from the validated config.
@@ -240,6 +264,7 @@ func newIdP(c *Config, p string, hc *http.Client) IdP {
 			AuthURL: googleAuthURL, TokenURL: googleTokenURL, UserinfoURL: googleUserinfoURL}
 		if base != "" {
 			g.AuthURL, g.TokenURL, g.UserinfoURL = base+GoogleAuthPath, base+GoogleTokenPath, base+GoogleUserinfoPath
+			g.AvatarHTTPBase = base
 		}
 		return g
 	case ProviderFacebook:
@@ -247,11 +272,99 @@ func newIdP(c *Config, p string, hc *http.Client) IdP {
 			RedirectURI: c.FacebookRedirectURI, Scopes: c.FacebookScopes, HTTP: hc,
 			DialogBase: facebookDialog, GraphBase: facebookGraph}
 		if base != "" {
-			f.DialogBase, f.GraphBase = base, base
+			f.DialogBase, f.GraphBase, f.AvatarHTTPBase = base, base, base
 		}
 		return f
 	case ProviderMicrosoft, ProviderLinkedIn, ProviderXAI:
 		return newOIDC(c, p, base, hc)
 	}
 	return nil
+}
+
+// Avatar fetch limits (010 T044): a small square raster, not an attachment.
+const (
+	AvatarMaxBytes     = 256 << 10
+	avatarMaxRedirects = 3
+)
+
+var avatarTimeout = 5 * time.Second // a var so tests can shorten it
+
+var errAvatar = errors.New("auth: avatar not fetched")
+
+// avatarTypes are the stored picture types: the declared Content-Type AND the
+// sniffed bytes must both be one of these, and agree (no SVG: it is script).
+var avatarTypes = map[string]bool{"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true}
+
+// fetchAvatar GETs the IdP picture server-side so the WUI never hotlinks a
+// third-party URL (SPEC-spool-avatars §4). The URL must be https, except on
+// httpBase's own origin (the fake IdP in lde/tests; config refuses that base
+// in prd); every redirect must be https, at most avatarMaxRedirects of them.
+// The body is capped at AvatarMaxBytes and the whole fetch at avatarTimeout.
+// Any failure wraps errAvatar and returns no bytes: the caller signs the
+// person in without a picture.
+func fetchAvatar(ctx context.Context, hc *http.Client, raw, httpBase string) ([]byte, string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, "", fmt.Errorf("%w: none", errAvatar)
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || u.User != nil {
+		return nil, "", fmt.Errorf("%w: bad url", errAvatar)
+	}
+	if u.Scheme != "https" && !(u.Scheme == "http" && sameOrigin(u, httpBase)) {
+		return nil, "", fmt.Errorf("%w: %q is not https", errAvatar, u.Scheme)
+	}
+	c := &http.Client{Transport: httpClient(hc).Transport, Timeout: avatarTimeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) > avatarMaxRedirects {
+				return fmt.Errorf("%w: too many redirects", errAvatar)
+			}
+			if req.URL.Scheme != "https" {
+				return fmt.Errorf("%w: redirect to %q is not https", errAvatar, req.URL.Scheme)
+			}
+			return nil
+		}}
+	ctx, cancel := context.WithTimeout(ctx, avatarTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: %v", errAvatar, err)
+	}
+	req.Header.Set("Accept", "image/png, image/jpeg, image/gif, image/webp")
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: %v", errAvatar, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("%w: status %d", errAvatar, resp.StatusCode)
+	}
+	if resp.ContentLength > AvatarMaxBytes {
+		return nil, "", fmt.Errorf("%w: %d bytes over the cap", errAvatar, resp.ContentLength)
+	}
+	ct, _, _ := strings.Cut(resp.Header.Get("Content-Type"), ";")
+	ct = strings.ToLower(strings.TrimSpace(ct))
+	if !avatarTypes[ct] {
+		return nil, "", fmt.Errorf("%w: content-type %q", errAvatar, ct)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, AvatarMaxBytes+1))
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: %v", errAvatar, err)
+	}
+	if len(body) > AvatarMaxBytes {
+		return nil, "", fmt.Errorf("%w: body over the cap", errAvatar)
+	}
+	if sniffed := http.DetectContentType(body); sniffed != ct {
+		return nil, "", fmt.Errorf("%w: declared %s, bytes are %s", errAvatar, ct, sniffed)
+	}
+	return body, ct, nil
+}
+
+// sameOrigin: u is on base's scheme://host[:port]; base "" never matches.
+func sameOrigin(u *url.URL, base string) bool {
+	if base == "" {
+		return false
+	}
+	b, err := url.Parse(base)
+	return err == nil && b.Host != "" && strings.EqualFold(u.Scheme, b.Scheme) && strings.EqualFold(u.Host, b.Host)
 }

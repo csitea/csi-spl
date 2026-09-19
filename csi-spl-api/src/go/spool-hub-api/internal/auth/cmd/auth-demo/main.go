@@ -3,7 +3,10 @@
 // (fakeidp), the auth routes
 // exactly as the hub mounts them, and a stub WUI. It walks one browser
 // through start -> IdP -> callback -> WUI -> /api/v1/auth/session for each
-// provider and prints every hop.
+// provider and prints every hop. Registration is the hub's store hooks on a
+// memory store with a temp blob dir, so each sign-in also shows the IdP
+// picture fetched server-side and stored as the human's avatar file_id
+// (010 T044).
 //
 //	go run ./internal/auth/cmd/auth-demo            # walk the flow, exit 0/1
 //	go run ./internal/auth/cmd/auth-demo -serve     # then keep serving for curl
@@ -19,8 +22,10 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -31,11 +36,14 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth/fakeidp"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 func main() {
@@ -121,8 +129,17 @@ func run(serve bool, addr, appURL, publicURL string) error {
 		return err
 	}
 	log := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger()
-	go http.Serve(hubL, auth.New(cfg, log, auth.Options{})) //nolint:errcheck
-	go http.Serve(idpL, fake.Handler())                     //nolint:errcheck
+	// The hub's store hooks on a memory store; pictures go to a temp blob dir.
+	st := store.NewMemory()
+	blobDir, err := os.MkdirTemp("", "auth-demo-blob-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(blobDir)
+	reg := openDoor{st: st, hooks: store.AuthHooks{H: st, Blob: blob.Dir{Root: blobDir},
+		AvatarErr: func(hum string, err error) { log.Warn().Err(err).Str("human_id", hum).Msg("auth.avatar_not_stored") }}}
+	go http.Serve(hubL, auth.New(cfg, log, auth.Options{Registrar: reg})) //nolint:errcheck
+	go http.Serve(idpL, fake.Handler())                                   //nolint:errcheck
 	go http.Serve(wuiL, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "stub WUI page %s\n", r.URL.RequestURI())
 	})) //nolint:errcheck
@@ -158,6 +175,20 @@ func run(serve bool, addr, appURL, publicURL string) error {
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("%s: no session", p)
 		}
+		var sess struct {
+			HumanID string `json:"hum"`
+		}
+		json.Unmarshal(body, &sess) //nolint:errcheck
+		fid, err := st.Avatar(context.Background(), sess.HumanID)
+		if err != nil || fid == "" {
+			return fmt.Errorf("%s: no avatar stored for %q: %v", p, sess.HumanID, err)
+		}
+		key, _ := blob.Key("t1", fid)
+		fi, err := os.Stat(blobDir + "/" + key)
+		if err != nil {
+			return fmt.Errorf("%s: avatar blob missing: %v", p, err)
+		}
+		fmt.Printf("  avatar: %s avatar_file_id=%s (%d bytes at %s)\n", sess.HumanID, fid, fi.Size(), key)
 	}
 	fmt.Printf("OK - all %d providers signed in against the fake IdP\n", len(cfg.Enabled()))
 	if !serve {
@@ -165,6 +196,28 @@ func run(serve bool, addr, appURL, publicURL string) error {
 	}
 	fmt.Printf("\nserving; try: curl -si '%s/api/v1/auth/google/start'   (Ctrl-C to stop)\n", hubURL)
 	return wait()
+}
+
+// openDoor is the demo's admission: it creates any tenant it is asked for
+// and invites the verified email just before the real store hooks run, so
+// every provider (and every lde WUI sign-in) is admitted while registration,
+// membership and the avatar go through the hub's own code path.
+type openDoor struct {
+	st    *store.Memory
+	hooks store.AuthHooks
+}
+
+func (d openDoor) Register(ctx context.Context, id auth.Identity, tenant string) (string, error) {
+	if tenant != "" {
+		pub, _, _ := ed25519.GenerateKey(nil)
+		d.st.CreateTenant(ctx, store.Tenant{ID: tenant, RootPubKey: pub}) //nolint:errcheck // exists = fine
+		now := time.Now().UTC()
+		if err := d.st.PutInvite(ctx, store.Invite{TenantID: tenant, Email: id.Email, InvitedBy: store.AdmittedOperator,
+			ExpiresAt: now.Add(time.Minute)}, now); err != nil {
+			return "", err
+		}
+	}
+	return d.hooks.Register(ctx, id, tenant)
 }
 
 func wait() error {

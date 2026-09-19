@@ -21,10 +21,15 @@ function wuiAppVersion(): string {
 }
 
 export default defineNuxtConfig({
+  srcDir: "src/",
   compatibilityDate: "2026-09-18",
+  devtools: { enabled: isDev },
   ssr: true,
   modules: ["@pinia/nuxt"],
-  css: ["~/assets/css/main.css"],
+  alias: {
+    "@": fileURLToPath(new URL("./src", import.meta.url)),
+  },
+  css: ["@/assets/css/main.css"],
   typescript: {
     strict: true,
     typeCheck: false,

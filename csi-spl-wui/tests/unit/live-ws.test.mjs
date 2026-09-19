@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { backoffMs, cleanAs, createLiveClient, messageFromFrame, tokenStale, wsUrl } from '../../utils/live-ws.mjs'
+import { backoffMs, cleanAs, createLiveClient, messageFromFrame, tokenStale, wsUrl } from '../../src/utils/live-ws.mjs'
 
 function fakeWs() {
   const sockets = []

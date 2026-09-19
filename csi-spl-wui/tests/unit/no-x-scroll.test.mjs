@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 describe('no document x-scroll', () => {
-  const basePath = join(WUI, 'assets/css/base.css')
+  const basePath = join(WUI, 'src/assets/css/base.css')
   it('base.css exists with the pas-psf/csi-rel/ora-cam clip guard', () => {
     assert.equal(existsSync(basePath), true)
     const css = readFileSync(basePath, 'utf8')
@@ -27,12 +27,12 @@ describe('no document x-scroll', () => {
   })
 
   it('shell layout and feed cannot widen the document', () => {
-    const main = readFileSync(join(WUI, 'assets/css/main.css'), 'utf8')
+    const main = readFileSync(join(WUI, 'src/assets/css/main.css'), 'utf8')
     for (const marker of ['max-width: 100%', 'min-width: 0', 'overflow-wrap: anywhere']) {
       assert.equal(main.includes(marker), true, marker)
     }
     assert.equal(/\b100vw\b/.test(main), false, 'main.css has no 100vw')
-    const layout = readFileSync(join(WUI, 'layouts/default.vue'), 'utf8')
+    const layout = readFileSync(join(WUI, 'src/layouts/default.vue'), 'utf8')
     assert.equal(layout.includes('max-width:100%'), true)
     assert.equal(layout.includes('min-width:0'), true)
   })

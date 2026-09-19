@@ -13,8 +13,8 @@ import {
   parseLevel,
   STORAGE_KEY,
   DEFAULT_LEVEL,
-} from '../../utils/verbosity.mjs'
-import { memoryStore } from '../../utils/prefs.mjs'
+} from '../../src/utils/verbosity.mjs'
+import { memoryStore } from '../../src/utils/prefs.mjs'
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 

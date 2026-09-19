@@ -7,9 +7,9 @@ import {
   parseMention,
   formatBytes,
   initials,
-} from '../../utils/channel-feed.mjs'
-import { applyVerbosity } from '../../utils/verbosity.mjs'
-import { MOCK_MESSAGES } from '../../utils/mock-data.mjs'
+} from '../../src/utils/channel-feed.mjs'
+import { applyVerbosity } from '../../src/utils/verbosity.mjs'
+import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
 
 describe('channel-feed', () => {
   it('splits top-level from thread replies', () => {

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { createSpoolClient } from '../../utils/spool-client.mjs'
+import { createSpoolClient } from '../../src/utils/spool-client.mjs'
 
 describe('spool-client mock', () => {
   it('lists default channels and catch-up of 50', async () => {

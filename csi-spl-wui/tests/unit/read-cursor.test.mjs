@@ -7,8 +7,8 @@ import {
   advanceCursor,
   markReadAt,
   CURSOR_KEY,
-} from '../../utils/read-cursor.mjs'
-import { memoryStore } from '../../utils/prefs.mjs'
+} from '../../src/utils/read-cursor.mjs'
+import { memoryStore } from '../../src/utils/prefs.mjs'
 
 describe('local read cursors', () => {
   it('round-trips JSON through storage try/catch', () => {

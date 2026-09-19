@@ -8,8 +8,8 @@
 // (send it with: spool send --to ALL-0 --to-box box-wui --task-id <lobby> --kind note --body <text>).
 // Without HUB_URL the test is skipped (exit 0).
 
-import { createLiveClient, wsUrl } from '../../utils/live-ws.mjs'
-import { createSpoolClient, sha256Hex } from '../../utils/spool-client.mjs'
+import { createLiveClient, wsUrl } from '../../src/utils/live-ws.mjs'
+import { createSpoolClient, sha256Hex } from '../../src/utils/spool-client.mjs'
 
 const HUB = (process.env.HUB_URL || '').replace(/\/+$/, '')
 if (!HUB) {

@@ -29,6 +29,20 @@ pages. Hosting remains Firebase Hosting + Cloud Run API (`016` / `019`).
 - **Package manager**: pnpm >= 9
 - **Theme**: dark default (navy/cyan); light via the sidebar toggle
 
+## Layout
+
+Same shape as the `pas-psf-wui` donor: `nuxt.config.ts` sets `srcDir: 'src/'`,
+so every Nuxt source lives under `src/` (`app.vue`, `error.vue`, `assets/css`,
+`components/`, `composables/`, `layouts/`, `pages/`, `plugins/`, `public/`,
+`stores/`, `types/`, `utils/`, `node/test`). The package root keeps
+`package.json`, `nuxt.config.ts`, `firebase.json`, `.version`, `tests/` and the
+build output `.output/public`, so `pnpm dev` / `pnpm generate` and the Hosting
+contract run from `csi-spl-wui/` exactly as before. `@/` and `~/` both resolve
+to `src/`.
+
+`pnpm test:unit` runs `src/node/test/run-unit-tests.mjs`, which discovers every
+`tests/unit/*.test.mjs` (exit 1 on any failure or when none is found).
+
 ## Local Development (`lde`)
 
 ```bash

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { matchesSearch, newestFirst, parseOmnibox, rootAndReplies, windowed } from '../../utils/feed.mjs'
-import { avatarDataUri, avatarSvg, hashSeed, identiconSvg, isHuman, robotSvg } from '../../utils/avatar.mjs'
+import { matchesSearch, newestFirst, parseOmnibox, rootAndReplies, windowed } from '../../src/utils/feed.mjs'
+import { avatarDataUri, avatarSvg, hashSeed, identiconSvg, isHuman, robotSvg } from '../../src/utils/avatar.mjs'
 
 const M = (id, ts, extra = {}) => ({ msg_id: id, ts, body: `b-${id}`, from: 'HUM-1', ...extra })
 

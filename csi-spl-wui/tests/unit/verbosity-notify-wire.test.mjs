@@ -21,10 +21,10 @@ function walk(dir, acc = []) {
 describe('verbosity + notify wiring', () => {
   it('VerbositySelector and NotificationCenter do not import mock-data', () => {
     for (const rel of [
-      'components/VerbositySelector.vue',
-      'components/NotificationCenter.vue',
-      'stores/notification.ts',
-      'stores/thread.ts',
+      'src/components/VerbositySelector.vue',
+      'src/components/NotificationCenter.vue',
+      'src/stores/notification.ts',
+      'src/stores/thread.ts',
     ]) {
       const src = readFileSync(join(WUI, rel), 'utf8')
       assert.equal(src.includes('mock-data'), false, rel)
@@ -32,20 +32,20 @@ describe('verbosity + notify wiring', () => {
   })
 
   it('sidebar unread badges read the notification store', () => {
-    const src = readFileSync(join(WUI, 'components/ChannelSidebar.vue'), 'utf8')
+    const src = readFileSync(join(WUI, 'src/components/ChannelSidebar.vue'), 'utf8')
     assert.equal(src.includes('useNotificationStore'), true)
     assert.equal(src.includes("notes.unread['ch:'"), true)
     assert.equal(src.includes('channel.unread['), false)
   })
 
   it('live thread pane hosts the verbosity selector', () => {
-    const src = readFileSync(join(WUI, 'components/LiveThreadPane.vue'), 'utf8')
+    const src = readFileSync(join(WUI, 'src/components/LiveThreadPane.vue'), 'utf8')
     assert.equal(src.includes('VerbositySelector'), true)
     assert.equal(src.includes('applyVerbosity'), true)
   })
 
   it('channel page no longer pings on send', () => {
-    const src = readFileSync(join(WUI, 'pages/channel/[name].vue'), 'utf8')
+    const src = readFileSync(join(WUI, 'src/pages/channel/[name].vue'), 'utf8')
     assert.equal(src.includes("notes.ping('task sent'"), false)
     assert.equal(src.includes('markRead'), true)
   })
@@ -56,12 +56,12 @@ describe('verbosity + notify wiring', () => {
   })
 
   it('localStorage keys stay on the FR-003 allow-list and never store a token', () => {
-    const files = walk(join(WUI, 'components'))
-      .concat(walk(join(WUI, 'composables')))
-      .concat(walk(join(WUI, 'stores')))
-      .concat(walk(join(WUI, 'utils')))
-      .concat(walk(join(WUI, 'pages')))
-      .concat(walk(join(WUI, 'plugins')))
+    const files = walk(join(WUI, 'src/components'))
+      .concat(walk(join(WUI, 'src/composables')))
+      .concat(walk(join(WUI, 'src/stores')))
+      .concat(walk(join(WUI, 'src/utils')))
+      .concat(walk(join(WUI, 'src/pages')))
+      .concat(walk(join(WUI, 'src/plugins')))
     const keys = new Set()
     const keyRe = /['"](spool(?:-theme|\.verbosity|\.chime|\.read-cursors))['"]/g
     for (const f of files) {

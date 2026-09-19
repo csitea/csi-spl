@@ -8,10 +8,10 @@ import {
   rosterFromView,
   threadMessages,
   threadsFromMessages,
-} from '../../utils/view-api.mjs'
-import { createSpoolClient, sha256Hex } from '../../utils/spool-client.mjs'
-import { renderBody } from '../../utils/channel-feed.mjs'
-import { MOCK_MESSAGES } from '../../utils/mock-data.mjs'
+} from '../../src/utils/view-api.mjs'
+import { createSpoolClient, sha256Hex } from '../../src/utils/spool-client.mjs'
+import { renderBody } from '../../src/utils/channel-feed.mjs'
+import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
 
 const T = '33330000-0000-4000-8000-000000009001'
 

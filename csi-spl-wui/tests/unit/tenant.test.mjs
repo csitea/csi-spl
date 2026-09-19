@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { apiBaseFor, pickTenant, validTenant } from '../../utils/tenant.mjs'
+import { apiBaseFor, pickTenant, validTenant } from '../../src/utils/tenant.mjs'
 
 describe('tenant host (003 http-v1: tenant = Host; reserved = API host)', () => {
   it('validates tenant labels like msg.ValidTenantID', () => {

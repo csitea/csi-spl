@@ -3,14 +3,14 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { MOCK_ROSTER } from '../../utils/mock-data.mjs'
-import { displayName, parseMention } from '../../utils/channel-feed.mjs'
+import { MOCK_ROSTER } from '../../src/utils/mock-data.mjs'
+import { displayName, parseMention } from '../../src/utils/channel-feed.mjs'
 import {
   activeMentionQuery,
   filterRosterMentions,
   insertMention,
   isAgentId,
-} from '../../utils/mention-autocomplete.mjs'
+} from '../../src/utils/mention-autocomplete.mjs'
 
 function peersFrom(roster) {
   const rows = []
@@ -66,7 +66,7 @@ describe('mention autocomplete', () => {
 
   it('MessageComposer reads the roster store and mention helpers', () => {
     const wui = join(dirname(fileURLToPath(import.meta.url)), '../..')
-    const src = readFileSync(join(wui, 'components/MessageComposer.vue'), 'utf8')
+    const src = readFileSync(join(wui, 'src/components/MessageComposer.vue'), 'utf8')
     assert.equal(src.includes('useRosterStore'), true)
     assert.equal(src.includes('filterRosterMentions'), true)
     assert.equal(src.includes('activeMentionQuery'), true)

@@ -9,7 +9,7 @@ import {
   providerLabel,
   safeRedirect,
   startHref,
-} from '../../utils/auth-client.mjs'
+} from '../../src/utils/auth-client.mjs'
 
 function stub(status, body, { throws = false, badJson = false } = {}) {
   const calls = []

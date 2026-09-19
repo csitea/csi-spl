@@ -14,8 +14,8 @@ import {
   saveChime,
   previewUnread,
   CHIME_KEY,
-} from '../../utils/notify.mjs'
-import { memoryStore } from '../../utils/prefs.mjs'
+} from '../../src/utils/notify.mjs'
+import { memoryStore } from '../../src/utils/prefs.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -96,8 +96,8 @@ describe('notify escalation', () => {
   })
 
   it('NotificationCenter and the notification store do not import mock-data', () => {
-    const center = readFileSync(join(WUI, 'components/NotificationCenter.vue'), 'utf8')
-    const store = readFileSync(join(WUI, 'stores/notification.ts'), 'utf8')
+    const center = readFileSync(join(WUI, 'src/components/NotificationCenter.vue'), 'utf8')
+    const store = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
     assert.equal(center.includes('mock-data'), false)
     assert.equal(store.includes('mock-data'), false)
     assert.equal(center.includes('useNotificationStore'), true)

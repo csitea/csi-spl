@@ -4,23 +4,41 @@
       <h2><NuxtLink to="/">Threads</NuxtLink> / <code>{{ shortId }}</code></h2>
       <span class="muted">{{ store.messages.length }} · newest first · {{ live.state.value }}</span>
     </header>
-    <MessageComposer placeholder="Reply — Enter to send" :busy="store.sending" @send="onSend" />
+    <div class="pinned-root">
+      <MessageCard v-if="store.thread.root" :msg="store.thread.root" />
+    </div>
+    <MessageComposer
+      omnibox
+      placeholder="Reply — Enter to send · /search to filter"
+      :busy="store.sending"
+      @send="onSend"
+      @search="store.setSearch"
+    />
     <div class="feed-body">
       <p v-if="store.error" class="muted">{{ store.error }}</p>
-      <MessageCard v-for="m in store.newestFirst" :key="m.msg_id" :msg="m" />
+      <LiveFeed
+        label="Replies, newest first"
+        :rows="replies"
+        :has-older="false"
+        :loading="store.loading"
+        :search="store.search"
+        :last-live="store.lastLive"
+        @clear-search="store.setSearch('')"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useLiveStore } from '~/stores/live'
+import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
 
 const route = useRoute()
-const store = useLiveStore()
+const store = useLiveFeed('main')
 const live = useLive()
 const taskId = computed(() => String(route.params.task_id || ''))
 const shortId = computed(() => taskId.value.slice(0, 8))
+const replies = computed(() => store.thread.replies)
 
 onMounted(() => {
   watch(taskId, (id) => { if (id) void store.open(id) }, { immediate: true })

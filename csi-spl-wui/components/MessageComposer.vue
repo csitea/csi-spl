@@ -1,5 +1,5 @@
 <template>
-  <form class="composer" @submit.prevent="onSend">
+  <form class="composer" :class="{ omnibox }" @submit.prevent="onSend">
     <div class="composer-box">
       <ul
         v-if="pickerOpen"
@@ -23,6 +23,7 @@
       </ul>
       <textarea
         ref="inputEl"
+        :aria-label="omnibox ? 'Omnibox: message, or /search to filter' : 'Message'"
         v-model="text"
         rows="2"
         :placeholder="placeholder"
@@ -51,6 +52,7 @@
 
 <script setup lang="ts">
 import { useRosterStore } from '~/stores/roster'
+import { parseOmnibox } from '~/utils/feed.mjs'
 import {
   activeMentionQuery,
   filterRosterMentions,
@@ -61,8 +63,10 @@ const props = defineProps<{
   placeholder?: string
   parentTaskId?: string
   busy?: boolean
+  /** 013 Top Omnibox: Enter sends; `/search <q>` filters instead; Esc clears the filter. */
+  omnibox?: boolean
 }>()
-const emit = defineEmits<{ send: [text: string, parentTaskId?: string, files?: File[]] }>()
+const emit = defineEmits<{ send: [text: string, parentTaskId?: string, files?: File[]], search: [q: string] }>()
 const picked = ref<File[]>([])
 const roster = useRosterStore()
 const text = ref('')
@@ -102,6 +106,10 @@ function pick(peer: { id: string }) {
 }
 
 function onKeydown(ev: KeyboardEvent) {
+  if (props.omnibox && ev.key === 'Escape' && !pickerOpen.value) {
+    emit('search', '')
+    return
+  }
   if (pickerOpen.value) {
     const n = candidates.value.length
     if (ev.key === 'ArrowDown') {
@@ -133,6 +141,14 @@ function onKeydown(ev: KeyboardEvent) {
 }
 
 function onSend() {
+  if (props.omnibox) {
+    const parsed = parseOmnibox(text.value)
+    if ('search' in parsed) {
+      emit('search', parsed.search || '')
+      text.value = ''
+      return
+    }
+  }
   const body = text.value.trim()
   if ((!body && !picked.value.length) || props.busy) return
   emit('send', body, props.parentTaskId, picked.value.slice())

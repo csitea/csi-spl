@@ -32,6 +32,7 @@ const PATHS = [
   { path: '/login', wait: '.login-card' },
   { path: '/', wait: '.spool-shell' },
   { path: '/lobby', wait: '.spool-shell' },
+  { path: '/?thread=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', wait: '.live-pane' },
   { path: '/t/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', wait: '.spool-shell' },
   { path: '/channel/lobby', wait: '.spool-shell' },
 ]

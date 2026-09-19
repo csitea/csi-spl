@@ -1,6 +1,12 @@
 <template>
-  <article class="msg">
-    <div class="avatar" :style="{ background: color }">{{ letters }}</div>
+  <article
+    class="msg"
+    tabindex="0"
+    :aria-posinset="posinset || undefined"
+    :aria-setsize="setsize || undefined"
+    :aria-label="(msg.from || 'unknown') + (msg.from_box ? '@' + msg.from_box : '') + ', ' + (msg.kind || 'note')"
+  >
+    <SpoolAvatar class="avatar" :id="String(msg.from || '')" :box="msg.from_box ? String(msg.from_box) : ''" />
     <div>
       <div class="msg-meta">
         <AgentBadge :id="String(msg.from)" :box="msg.from_box ? String(msg.from_box) : undefined" />
@@ -14,6 +20,14 @@
         :file="f"
       />
       <button
+        v-if="threadLink"
+        class="replies"
+        type="button"
+        @click="$emit('open-thread', String(msg.task_id))"
+      >
+        Open thread
+      </button>
+      <button
         v-if="count > 0 || alwaysThread"
         class="replies"
         type="button"
@@ -26,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatTs, initials, hueFor, renderBody } from '~/utils/channel-feed.mjs'
+import { formatTs, renderBody } from '~/utils/channel-feed.mjs'
 
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
@@ -34,11 +48,12 @@ const props = defineProps<{
   msg: SpoolMessage
   count?: number
   alwaysThread?: boolean
+  posinset?: number
+  setsize?: number
+  threadLink?: boolean
 }>()
 defineEmits<{ 'open-thread': [taskId: string] }>()
 
-const letters = computed(() => initials(String(props.msg.from)))
-const color = computed(() => `hsl(${hueFor(String(props.msg.from))} 50% 62%)`)
 const time = computed(() => formatTs(String(props.msg.ts || '')))
 const html = computed(() => renderBody(String(props.msg.body || '')))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])

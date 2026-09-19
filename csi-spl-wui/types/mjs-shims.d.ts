@@ -144,3 +144,21 @@ declare module '~/utils/view-api.mjs' {
   export function subjectOf(body: string): string
   export function isDownloadable(file: { mode?: string, file_id?: string, sha256?: string }): boolean
 }
+
+declare module '~/utils/feed.mjs' {
+  export function newestFirst<T>(messages: T[]): T[]
+  export function windowed<T>(rows: T[], count: number): { rows: T[], hasOlder: boolean }
+  export function parseOmnibox(text: string): { search?: string, send?: string }
+  export function matchesSearch(m: unknown, q: string): boolean
+  export function rootAndReplies<T>(messages: T[]): { root: T | null, replies: T[] }
+}
+
+declare module '~/utils/avatar.mjs' {
+  export function hashSeed(s: string): number
+  export function isHuman(id: string): boolean
+  export function prefixOf(id: string): string
+  export function robotSvg(key: string): string
+  export function identiconSvg(key: string): string
+  export function avatarSvg(id: string, box?: string): string
+  export function avatarDataUri(id: string, box?: string): string
+}

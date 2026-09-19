@@ -34,6 +34,7 @@
       :class="{ active: channel.peer === p.label }"
       :to="'/dm/' + encodeURIComponent(p.label)"
     >
+      <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
       <span class="dot" :class="{ on: p.online }" />
       <span class="label">{{ p.label }}</span>
     </NuxtLink>

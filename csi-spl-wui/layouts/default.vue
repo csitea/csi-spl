@@ -6,6 +6,7 @@
         <slot />
       </main>
       <ThreadPane />
+      <LiveThreadPane />
     </div>
     <template #fallback>
       <div class="login"><p class="muted">Loading Spool…</p></div>

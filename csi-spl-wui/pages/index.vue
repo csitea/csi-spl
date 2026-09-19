@@ -10,11 +10,12 @@
       <p v-else-if="!viewer.loading && !viewer.error && viewer.threads.length === 0" class="muted">
         No threads yet.
       </p>
-      <NuxtLink
+      <a
         v-for="t in viewer.threads"
         :key="t.task_id"
         class="thread-row"
-        :to="'/t/' + t.task_id"
+        :href="'/t/' + t.task_id"
+        @click.exact.prevent="pane.open(t.task_id)"
       >
         <div class="msg-meta">
           <span class="msg-author">{{ t.participants.join(', ') || t.task_id }}</span>
@@ -23,7 +24,7 @@
         </div>
         <div class="thread-subject">{{ t.subject }}</div>
         <small class="muted">{{ t.count }} {{ t.count === 1 ? 'message' : 'messages' }}</small>
-      </NuxtLink>
+      </a>
       <button v-if="viewer.next" class="btn ghost" type="button" @click="viewer.loadMore()">Older</button>
     </div>
   </div>
@@ -31,8 +32,17 @@
 
 <script setup lang="ts">
 import { useViewerStore } from '~/stores/viewer'
+import { useLiveFeed } from '~/stores/live'
 import { formatTs } from '~/utils/channel-feed.mjs'
 
 const viewer = useViewerStore()
+/* 013 US3: a click opens the thread in the right pane; the link still works for new tabs */
+const pane = useLiveFeed('pane')
+const route = useRoute()
+/* deep link: /?thread=<task_id> opens the right pane */
+onMounted(() => {
+  const id = String(route.query.thread || '')
+  if (/^[0-9a-f-]{36}$/i.test(id)) void pane.open(id)
+})
 onMounted(() => viewer.loadThreads())
 </script>

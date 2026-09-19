@@ -251,7 +251,7 @@ do-tf-state-push: demand_var-ENV demand_var-STEP demand_var-TFSTATE_FILE
 		./run -a do_tf_state_push \
 	'
 
-.PHONY: do-tf-state-remove ## @-> 03.17 remove target resource from state
+.PHONY: do-tf-state-remove ## @-> 03.17 remove target resource from state (state backup first; dry run unless DRY_RUN=0; FORCE=1 skips the lock)
 do-tf-state-remove: demand_var-ENV demand_var-STEP demand_var-TARGET
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
@@ -263,6 +263,8 @@ do-tf-state-remove: demand_var-ENV demand_var-STEP demand_var-TARGET
 		-e APP=$${APP#*-} \
 		-e STEP=$(STEP) \
 		-e TARGET="$(TARGET)" \
+		-e DRY_RUN="$(DRY_RUN)" \
+		-e FORCE="$(FORCE)" \
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_tf_state_remove \
 	'

@@ -217,8 +217,21 @@ Every apply here waits on an owner GCP re-auth (2026-09-19: `gcloud …
       csi-spl-prd-site.web.app`, render, plan (`031`: NEG + backend + url map),
       apply
 
+- [x] T081 (CLE-3400, owner 2026-09-19) `do_gcp_list_secrets` really lists:
+      each env as its own project SA (key via
+      `CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE` in a throwaway `CLOUDSDK_CONFIG`,
+      `--account` + `--project`), names and metadata only. Same file in csi-rel
+      (adc94650). Check: `bash csi-spl-iac/src/bash/tests/gcp-list-secrets.tst.sh`
+      -> `PASS: all`; control: no key -> refused, gcloud never called
+- [x] T082 (CLE-3400) `do_tf_state_remove`: `state pull` to a timestamped 0600
+      backup under `TF_STATE_BACKUP_DIR` (default `csi-spl-iac/dat/tf-state-backup`)
+      first, lock kept unless `FORCE=1`, dry run unless `DRY_RUN=0` (both pass
+      through `make do-tf-state-remove`). Check:
+      `bash csi-spl-iac/src/bash/tests/tf-state-remove-backup.tst.sh` -> `PASS: all`;
+      control: a failing or empty pull aborts before any `state rm`
+
 ## Out of this task list
 
 M2 payment drivers, the WUI app (`005`; its hosting is Phase 10), hub pipeline job design (`008`).
 
-<!-- version: 1.6.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:30:00Z -->
+<!-- version: 1.6.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:45:00Z -->

@@ -118,13 +118,16 @@ Status values:
 These were proposed but never run: the dev 019 site delete + `state rm`
 (cancelled by the owner), and a zone-scoped `dns.admin` grant.
 
-### 2.1 Found while harvesting, reported and not fixed here
+### 2.1 Found while harvesting, fixed later (CLE-3400, T081/T082)
 
-- `do_gcp_list_secrets` only echoes its commands and runs none. It is a
-  verbatim csi-rel port, per `csi-rel-gcp-actions.md`.
-  `do_gcp_audit_iam` / `do_gcp_backup_env` are the working listings.
-- `do_tf_state_remove` still runs `state rm -lock=false`, and it takes no
-  state backup first. Before any `state rm`, take `do_gcp_backup_env`.
+- `do_gcp_list_secrets` only echoed its commands and ran none (a verbatim
+  csi-rel port). Fixed in both repos (csi-rel adc94650, the files are
+  byte-identical): it lists each env as that env's own project SA, names and
+  metadata only, never `versions access`.
+- `do_tf_state_remove` ran `state rm -lock=false` with no state backup.
+  Fixed in both repos: `state pull` to a timestamped 0600 backup first (a
+  failed or empty pull aborts), the lock is kept unless `FORCE=1`, and it is a
+  dry run unless `DRY_RUN=0`.
 
 ## 3. The scratch files, which were left in place
 

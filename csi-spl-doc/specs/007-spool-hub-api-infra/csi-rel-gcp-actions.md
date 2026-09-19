@@ -87,7 +87,7 @@ code.
 | 23 | gcp-list-cloudsql | **ported** | **no** (isolated) | generic Cloud SQL list. diff → **5** |
 | 24 | gcp-list-firewall-rules | **ported** | **no** (isolated) | generic firewall list. diff → **5** |
 | 25 | gcp-list-scheduler-jobs | **ported** | **no** (isolated) | generic scheduler list. diff → **5** |
-| 26 | gcp-list-secrets | **ported** | **no** (echo only) | generic Secret Manager list. diff → **0**. Does not invoke gcloud; only `echo`s commands |
+| 26 | gcp-list-secrets | **ported** | **yes** (CLE-3400) | generic Secret Manager list, names and metadata only, as the per-env SA. diff → **0** (csi-rel adc94650). Was echo only before CLE-3400 |
 | 27 | gcp-list-service-accounts | **ported** | **no** (isolated) | generic SA list. diff → **5** |
 | 28 | gcp-list-static-dns-addresses | **ported** | **no** (isolated) | generic static address list. diff → **5** |
 | 29 | gcp-list-vpcs | **ported** | **no** (isolated) | generic VPC list. diff → **5** |

@@ -76,9 +76,10 @@ tpl = jinja2.Environment(undefined=jinja2.StrictUndefined).from_string(open(os.e
 print(tpl.render(**{**cnf, "ORG": "csi", "APP": "spl", "ENV": "dev"}))' 2>&1); }
   injected() { grep -E '^secret_environment_variables ' <<<"$1" | grep -oE '"SPOOL_HUB_[A-Z_]+"' | sort | tr '\n' ' '; }
   # the controls count injected secrets exactly: start from no box-wui key and
-  # no card rail, whatever the env's own hub.wui_key.inject / payment provider
-  # are (their own controls: below, and hub-payment-030.tst.sh)
-  yq -i '.env.hub.wui_key.inject = "false" | .env.hub.env.SPOOL_HUB_PAYMENT_PROVIDER = "" | .env.hub.env.SPOOL_HUB_ENABLE_PAYPAL = "false"' "$tmp/dev.env.yaml"
+  # no card rail and no smtp relay, whatever the env's own hub.wui_key.inject /
+  # payment provider / mail transport are (their own controls: below, and
+  # hub-payment-030.tst.sh; dev relays over smtp since CLE-3411)
+  yq -i '.env.hub.wui_key.inject = "false" | .env.hub.env.SPOOL_HUB_PAYMENT_PROVIDER = "" | .env.hub.env.SPOOL_HUB_ENABLE_PAYPAL = "false" | .env.mail.env.SPOOL_HUB_MAIL_TRANSPORT = "log"' "$tmp/dev.env.yaml"
   cp "$tmp/dev.env.yaml" "$tmp/base.yaml"
   yq -i '.env.auth.social.env.SPOOL_HUB_AUTH_PROVIDERS = "google, xai"' "$tmp/dev.env.yaml"
   out=$(render); sec=$(injected "$out")

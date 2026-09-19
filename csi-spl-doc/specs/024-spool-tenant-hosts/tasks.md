@@ -2,7 +2,9 @@
 
 **Feature**: `specs/024-spool-tenant-hosts` · **Created**: 2026-09-19 · **Lane**: CLE-3404
 
-`[x]` Implemented (sha + check) · `[~]` Partial (missing part named) · `[ ]` Planned
+`[x]` Implemented (sha + check) · `[~]` Partial (missing part named) · `[ ]` Planned · `[-]` Superseded
+
+**PAUSED 2026-09-19 16:43Z (owner): superseded by "tenant from identity" (spec §0).**
 
 ## Phase 1: queue (hub side, no GCP)
 
@@ -17,8 +19,8 @@
 
 ## Phase 3: trigger (owner option 2)
 
-- [x] T020 `40_tenant-host-reconcile.yml`: every 10 min + dispatch, dev → prd, a concurrency group per env, key secrets only. 7ed9d2e. Check: `tenant-host-workflow-40.tst.sh` (CONTROL); dispatch dry run 35454954283: dev open=8, prd open=2 as the env SAs (key, gcloud, SQL proxy, psql on the runner).
-- [ ] T021 First real scheduled / dispatched apply green in both envs (tf infra stack on the runner, cnf push, WUI dispatch).
+- [x] T020 (paused: disabled, schedule removed) `40_tenant-host-reconcile.yml`: every 10 min + dispatch, dev → prd, a concurrency group per env, key secrets only. 7ed9d2e. Check: `tenant-host-workflow-40.tst.sh` (CONTROL); dispatch dry run 35454954283: dev open=8, prd open=2 as the env SAs (key, gcloud, SQL proxy, psql on the runner).
+- [-] T021 First real scheduled apply: superseded. The one scheduled run (35455589938) was cancelled while still building the stack; the workflow is disabled and its schedule removed (gate test enforces it).
 
 ## Phase 4: WUI
 
@@ -27,10 +29,10 @@
 ## Phase 5: backfill + proof
 
 - [x] T040 dev cnf: the 7 dark payment-test tenants (all `active`) → `mapped_tenants`. 4c5b914.
-- [~] T041 dev apply from the main checkout (`do_spl_tenant_host_reconcile DRY_RUN=0`): 032 +7, 025 +7, 0 destroyed. Cert wait + probe + ready: in progress.
-- [ ] T042 prd: t1 + e2e adopted (no-op plan, probe → ready).
-- [ ] T043 End-to-end proof, dev: a NEW tenant bought via `do_spl_checkout_fake_buy` → pending → the workflow maps it → probe PASS → `host_status` ready.
-- [ ] T044 End-to-end proof, prd: a new tenant → the workflow → ready.
+- [~] T041 dev apply from the main checkout (`do_spl_tenant_host_reconcile DRY_RUN=0`): 032 +7, 025 +7, 0 destroyed (16:22Z). ready: m2proof1, m2proof2, p1gone164717, p1proof164647 (probe PASS: SAN cert, /version, /v1/health 200, /v1/ws 101). The run was stopped at the pause; p1proof164658, p1proof171204, p1site174600 are mapped but unprobed.
+- [-] T042 prd adoption: superseded; prd untouched.
+- [-] T043 (superseded) End-to-end proof, dev: a NEW tenant bought via `do_spl_checkout_fake_buy` → pending → the workflow maps it → probe PASS → `host_status` ready.
+- [-] T044 (superseded) End-to-end proof, prd: a new tenant → the workflow → ready.
 
 ## Spec
 

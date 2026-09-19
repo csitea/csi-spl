@@ -1,5 +1,11 @@
 # 40 cd: tenant host reconcile (specs/024).
 #
+# PAUSED - owner direction change 2026-09-19 16:43Z: csi-spl moves to "tenant
+# from identity" (one API host; the tenant comes from the signed-in session or
+# the box's pinned key; no DNS per tenant). The schedule is REMOVED and the
+# workflow is disabled in GitHub; it runs only if someone re-enables it AND
+# dispatches it. Superseded by the tenant-from-identity lane (spec 024 §0).
+#
 # Owner decision 2026-09-19: with no load balancer there is no wildcard, so
 # every tenant host <tenant>.<fqdn> is one Cloud Run domain mapping (iac 032)
 # plus one ghs CNAME (025). The hub never runs terraform: a trigger on tenants
@@ -29,8 +35,6 @@
 name: "40 cd: tenant host reconcile"
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch:
     inputs:
       environment:

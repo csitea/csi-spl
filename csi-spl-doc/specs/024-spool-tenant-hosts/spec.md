@@ -2,6 +2,29 @@
 
 **Feature**: `specs/024-spool-tenant-hosts` · **Created**: 2026-09-19 · **Lane**: CLE-3404
 
+## 0. STATUS: PAUSED, superseded by "tenant from identity" (owner, 2026-09-19 16:43Z)
+
+> "csi-spl moves to 'tenant from identity' (one API host; the tenant comes
+> from the signed-in session or the box's pinned key; no DNS per tenant; a
+> Slack-like workspace switcher later). PAUSE the per-tenant DNS automation
+> now: do NOT install/enable the scheduled GitHub Actions reconcile and do NOT
+> map more tenants. Keep the existing t1/e2e (prd) and t1 (dev) mappings
+> untouched." (relayed by ORC)
+
+Live state at the pause (measured 16:45Z, `do_spl_db_query`, n=1 per env):
+
+| what | state |
+|---|---|
+| workflow 40 | **disabled** in GitHub (`gh workflow disable`), schedule REMOVED from the file (dispatch only; the gate test fails if a schedule returns). The one scheduled run (35455589938) was cancelled while it was still building the tf stack: no cnf push, no apply. |
+| dev 032 / 025 | t1 + the 7 backfill tenants mapped (16:22Z, 7 + 7 added, 0 destroyed, cnf 4c5b914). Not removed: the pause says map no MORE; retiring them belongs to the tenant-from-identity lane. |
+| dev `tenant_hosts` | ready: m2proof1, m2proof2, p1gone164717, p1proof164647 (cert + probe PASS). pending: p1proof164658, p1proof171204, p1site174600, t1 (mapped, but the local run was stopped before their probe) |
+| prd | untouched: t1 + e2e mapped as before (CLE-3382), rows pending, no reconcile ever applied there |
+| rdb 0015 + triggers | live in dev + prd (harmless: one row per tenant; the new lane may drop it in a later migration) |
+| hub `host_status` (da13814) | ships in hub 0.1.10; reads `pending` for a tenant whose row was never reconciled. Under tenant-from-identity the claim page should stop showing "being prepared". Handed to the new lane (§5). |
+
+Everything below is the design as built. It is kept as the record, and it is
+not the plan any more.
+
 > Numbering note: the commits of this lane before this spec landed, and the
 > header of `csi-spl-rdb/.../0015_tenant_hosts.sql`, say "specs/022". Two other
 > lanes took 022 (WUI top bar search) and 023 (user settings keys) at the same
@@ -137,6 +160,12 @@ being up; (3) a human go per tenant, where latency is a human.
   CONTROL: stays pending until maxPolls).
 
 ## 5. Out of scope / open
+
+- SUPERSEDED (§0): the new tenant-from-identity lane decides: drop or keep
+  `host_status` / the WUI notice, drop rdb `tenant_hosts` (forward-only), delete
+  workflow 40 + the three actions, and retire the dev backfill mappings and the
+  prd t1/e2e mappings with `do_spl_tenant_host_deprovision` (the gate admits
+  only that tenant's mapping + CNAME), or edit cnf and apply 032/025 with make.
 
 - A "delete tenant" action does not exist yet. The DELETE trigger and the
   deprovision twin are ready for it.

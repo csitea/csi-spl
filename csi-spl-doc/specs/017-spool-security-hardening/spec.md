@@ -85,7 +85,9 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   (csi-rel measured exactly that bypass on its leftmost-entry key, `httpmw/ratelimit.go`, 2026-08-31).
 - **Remediation Requirement:** (FR-SEC-006) One knob, `SPOOL_HUB_TRUSTED_PROXY_HOPS`, set per env in cnf
   to the MEASURED chain of the path in service (probe `do_spl_probe_client_ip`), and a test that a spoofed
-  `X-Forwarded-For` cannot move the limit key. Counters stay in process: with `max_instances=1` one
+  `X-Forwarded-For` cannot move the limit key. Two paths reach the hub -- the API domain mapping and the
+  WUI host's Firebase rewrite of `/api/v1/auth/**` -- and one hops value must be right for both, so both
+  are measured before any per-IP limit is turned on. Counters stay in process: with `max_instances=1` one
   process sees every request, and the cross-instance mail floor is already in Postgres (015 FR-006a).
 
 ### 1.7 Tenant Isolation Rests on One Go `WHERE` Clause (SEC-08)
@@ -141,7 +143,7 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   request to `/api/v1/auth/*` beyond a per-IP rate (`429` + `Retry-After`); both sockets MUST enforce a hello
   timeout and a ping liveness timeout. All limits are cnf (`hub.env.SPOOL_HUB_EDGE_*`); Cloud Run limits
   stay cnf (`hub.cloud_run.*`).
-  *Status:* see tasks T010.
+  *Status:* Partial (tasks T010: code + cnf landed; 030 apply and per-IP values pending).
 
 - **FR-SEC-005 (CSP Hashes & Production Connect-Src):** Firebase Hosting configuration MUST replace `'unsafe-inline'`
   with build-time hashes or nonces and include the production domain and tenant subdomains in `connect-src`.
@@ -161,7 +163,7 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 - **FR-SEC-006 (Proxy Hops Configuration):** `SPOOL_HUB_TRUSTED_PROXY_HOPS` MUST be set in
   `dev.env.yaml` and `prd.env.yaml` to the measured `X-Forwarded-For` chain of the path in service (Cloud Run
   domain mapping, no LB), and one value MUST drive both the edge limits and native auth.
-  *Status:* see tasks T012.
+  *Status:* Partial (tasks T012: knob + probe landed; the measurement is pending, n=0).
 
 - **FR-SEC-007 (Cryptographic Nonce Validation):** Hello handshake challenge nonces MUST be generated with 256 bits
   of cryptographically secure randomness and validated with constant-time equality comparisons.

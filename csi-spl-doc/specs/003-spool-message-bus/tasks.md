@@ -112,8 +112,8 @@ Contract `contracts/search-v1.md` v1.0. WUI omnibox is lane CLE-3410 (reads the 
 - [x] T049 [US9] `internal/search`: tokenizer + parser (Gmail precedence), operator table, applicability, validation with `pos`, highlight offsets (UTF-16); table-driven tests per operator. Check: `cd csi-spl-api/src/go/spool-hub-api && go test -run 'TestOperators|TestParseErrors|TestWarnings|TestHighlights' ./internal/search` -> ok.
 - [x] T050 [US9] rdb `0020_message_search.sql`: `messages.search_tsv` generated `to_tsvector('simple', body)` + GIN index `messages_search`. Check: `ls csi-spl-rdb/src/sql/postgres/spool-hub/0020_message_search.sql` -> present; applied by `TestSearch` (postgres).
 - [x] T051 [US9] `internal/store`: `SearchMessages` / `SearchThreads` / `SearchFiles` on memory + Postgres (SQL compiled from the AST, bind parameters only, RLS scope, statement budget), human display names; contract suite incl. CONTROLS (other tenant, DM privacy, SQL-shaped text). Check: `cd csi-spl-api/src/go/spool-hub-api && SPOOL_TEST_PG_DSN=… go test -run TestSearch ./internal/store` -> ok on memory + postgres (or `bash csi-spl-api/src/bash/tests/hub-pg.tst.sh`).
-- [ ] T052 [US9] `internal/hub/search.go`: `GET /v1/view/search` + `/operators`, view door, rate limit, grouped sections, cursors; tests incl. CONTROLS.
-- [ ] T053 [US9] p95 latency on `hub-pg.tst.sh` with a seeded corpus, recorded in spec.md with n and tree.
+- [x] T052 [US9] `internal/hub/search.go`: `GET /v1/view/search` + `/operators`, view door, rate limit, grouped sections, cursors; tests incl. CONTROLS. Check: `cd csi-spl-api/src/go/spool-hub-api && go test -run TestSearch ./internal/hub` -> ok.
+- [x] T053 [US9] p95 latency with a seeded corpus: `TestSearchP95` (runs in `hub-pg.tst.sh`), recorded in `contracts/search-v1.md` §7 with n, config and date.
 
 ## Phase 11: Polish
 

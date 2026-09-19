@@ -270,11 +270,15 @@ func TestSearchP95(t *testing.T) {
 			}
 		}
 	}
+	// a real table has statistics; a freshly bulk-loaded one does not yet
+	if _, err := pg.pool.Exec(ctx, `ANALYZE messages`); err != nil {
+		t.Fatal(err)
+	}
 	queries := []string{"deploy", `"deploy hub"`, "deploy -rollback from:CLE-07", "in:#tasks is:note migration",
 		"type:file ext:pdf", "has:file after:7d", "title:release", "(latency OR budget) -in:dm", "box:box-3 certificate", "zzz-no-hit"}
 	var lat []time.Duration
 	byType := map[search.Type][]time.Duration{}
-	for round := 0; round < 5; round++ {
+	for round := -1; round < 5; round++ { // round -1 warms the cache, not measured
 		for _, qs := range queries {
 			p, err := search.Parse(qs, now)
 			if err != nil {
@@ -296,8 +300,10 @@ func TestSearchP95(t *testing.T) {
 				if err != nil {
 					t.Fatalf("%q %s: %v", qs, ty, err)
 				}
-				lat = append(lat, time.Since(start))
-				byType[ty] = append(byType[ty], time.Since(start))
+				if round >= 0 {
+					lat = append(lat, time.Since(start))
+					byType[ty] = append(byType[ty], time.Since(start))
+				}
 			}
 		}
 	}

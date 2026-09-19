@@ -91,6 +91,11 @@ type Options struct {
 	// SessionID returns the member-session human id of a browser request; nil
 	// = Auth.SessionForTenant. Set by code only (a test seam), never by env.
 	SessionID func(r *http.Request, tenant string) (string, error)
+	// SearchRatePerMin caps GET /v1/view/search per (tenant, reader) per
+	// minute (search-v1 §5.1); 0 = 30. SearchBudget is the per-statement time
+	// budget; 0 = 2 s.
+	SearchRatePerMin int
+	SearchBudget     time.Duration
 	// KeysWriteLimit is the per-human hourly ceiling on key writes (specs/023
 	// FR-008); 0 = keysWritesPerHour.
 	KeysWriteLimit int
@@ -112,6 +117,8 @@ type Server struct {
 	cicd     *cicdlogs.Service
 	edge     *edge.Guard
 	keysLim  *edge.Window // keys.go, per-human writes
+
+	searchRate *edge.Window // search.go, per (tenant, reader)
 }
 
 type uploadToken struct {
@@ -144,6 +151,12 @@ func New(o Options) (*Server, error) {
 	if o.WUIDispatch && len(o.WUIKey) != ed25519.PrivateKeySize {
 		return nil, errors.New("hub: WUI dispatch needs a box-wui ed25519 private key")
 	}
+	if o.SearchRatePerMin <= 0 {
+		o.SearchRatePerMin = searchRateDefault
+	}
+	if o.SearchBudget <= 0 {
+		o.SearchBudget = searchBudgetDefault
+	}
 	if o.HelloTimeout == 0 {
 		o.HelloTimeout = 10 * time.Second
 	}
@@ -154,7 +167,7 @@ func New(o Options) (*Server, error) {
 		o: o, suffix: strings.ToLower(strings.TrimPrefix(o.TenantHostPattern, "{tenant}")),
 		boxes: map[[2]string]*session{}, sessions: map[*session]struct{}{},
 		tokens: map[string]uploadToken{}, wui: map[*wuiConn]struct{}{}, online: map[[2]string]int{},
-		edge: edge.NewGuard(o.Edge, o.Log, o.Now),
+		edge: edge.NewGuard(o.Edge, o.Log, o.Now), searchRate: edge.NewWindow(time.Minute, o.Now),
 	}
 	if o.CICD != nil {
 		o.CICD.Bus = s

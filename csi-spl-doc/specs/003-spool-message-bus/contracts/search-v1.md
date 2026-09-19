@@ -11,8 +11,10 @@ search by attachment etc. you could use the same syntax"*.
 Normative order: `./view-v1.md` (door, tenant, CORS, cursors, retention),
 then this file, then `./error-envelope.md`.
 
-**Status: v1.0 — contract first; implementation in the same lane (tasks
-T048 – T053).** Code: grammar + parser `internal/search`, route
+**Status: v1.0 — Implemented (tasks T048 – T053).** Tests:
+`TestOperators`, `TestParseErrors`, `TestWarnings`, `TestHighlights`
+(`internal/search`), `TestSearch`, `TestSearchP95` (`internal/store`, memory +
+Postgres), `TestSearchAPI`, `TestSearchDoorAndRate` (`internal/hub`). Code: grammar + parser `internal/search`, route
 `internal/hub/search.go`, store `internal/store/search*.go`, rdb
 `0020_message_search.sql`.
 
@@ -126,7 +128,7 @@ attachment without `bytes`, or a directory) matches neither.
 `channel` [`channels`], `box` [`boxes`].
 
 - At most one `type:` term, at the **top level** of the AND (not inside `OR`,
-  not negated, not in parentheses) → else `400 bad_query`.
+  not negated) → else `400 bad_query`.
 - Without `type:` the candidate types are all seven.
 - **Applicability**: a section is searched only when **every** operator in
   the query applies to its type (§3.2). `from:CLE-07 report` searches
@@ -339,8 +341,16 @@ rate-limited beyond the edge limits.
   read the same tenant's rows through the existing `(tenant_id, …)` indexes.
 - Budget: 2 s per search statement (`SET LOCAL statement_timeout`), plus the
   request context. Rate: §5.1.
-- Measured p95 on the `hub-pg.tst.sh` suite with a seeded corpus is recorded
-  in `../spec.md` (US9 verification), with its n and the tree it ran on.
+- Measured (`TestSearchP95`, Postgres 16 in docker, 20,000 messages per
+  tenant x 2 tenants, 12 words each, `ANALYZE`d, member viewer, limit 21,
+  10 queries x 5 rounds after one warm-up round = n 110 statements, under
+  `go test -race` with the hub / store / auth suites running in parallel,
+  2026-09-19): **p95 197 – 201 ms** over two runs (messages p95 ≈ 51 ms,
+  files ≈ 46 ms, threads ≈ 227 ms: the thread section aggregates every live
+  task of the tenant, the slowest part and the first to optimise). Before
+  `ANALYZE` on a freshly bulk-loaded table one message query ran past the
+  2 s budget and answered `search_budget` (n 1): the budget works, and a
+  fresh bulk load needs statistics.
 
 ## 8. Not in v1
 

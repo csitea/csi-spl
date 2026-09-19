@@ -42,6 +42,7 @@ func (s *Server) routeView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/threads", s.viewHandler(s.handleViewThreads))
 	mux.HandleFunc("GET /v1/view/threads/{task_id}", s.viewHandler(s.handleViewThread))
 	mux.HandleFunc("GET /v1/view/threads/{task_id}/children", s.viewHandler(s.handleViewChildren))
+	s.routeSearch(mux) // search-v1.md
 	mux.HandleFunc("/v1/view/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			s.preflight(w, r)

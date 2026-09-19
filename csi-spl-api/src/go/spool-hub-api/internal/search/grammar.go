@@ -58,6 +58,17 @@ var typeAliases = map[string]Type{
 	"box": TypeBox, "boxes": TypeBox,
 }
 
+// Aliases are the type: spellings of t other than its own name, sorted.
+func Aliases(t Type) []string {
+	out := []string{}
+	for _, a := range sortedKeys(typeAliases) {
+		if typeAliases[a] == t && a != string(t) {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 // Op names (the canonical name of each operator; "" is free text).
 const (
 	OpText     = ""

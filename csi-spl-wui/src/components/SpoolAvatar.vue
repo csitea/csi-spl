@@ -36,7 +36,7 @@ const alt = computed(() => avatarAlt(props.id, props.box))
 
 watch(picture, async (url) => {
   shown.value = ''
-  const got = await loadAvatarBlobUrl(url)
+  const got = await loadAvatarBlobUrl(url, { credentials: api.credentials })
   if (url === picture.value) shown.value = got
 }, { immediate: true })
 

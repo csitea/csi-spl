@@ -349,7 +349,11 @@ export function createSpoolClient({
       }
       return res.json()
     },
-    /** Download bytes for a blob file_id (mock: the in-memory copy). */
+    /**
+     * Download bytes for a blob file_id (mock: the in-memory copy). The hub
+     * wants a caller credential (017 FR-SEC-002): the member session cookie,
+     * so the view door's credentials ('include' in the `session` door).
+     */
     async downloadFile(fileId) {
       const id = String(fileId || '')
       if (mock) {
@@ -357,7 +361,7 @@ export function createSpoolClient({
         if (!b) throw Object.assign(new Error('not in mock store'), { status: 404 })
         return b.arrayBuffer()
       }
-      const res = await fetchFn(`${root}/v1/files/${encodeURIComponent(id)}`, { credentials: 'omit' })
+      const res = await fetchFn(`${root}/v1/files/${encodeURIComponent(id)}`, { credentials: credentialsFor(viewDoor) })
       if (!res.ok) throw Object.assign(new Error(`spool ${res.status} /v1/files`), { status: res.status })
       return res.arrayBuffer()
     },

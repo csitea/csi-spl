@@ -230,6 +230,7 @@ declare module '~/utils/avatar.mjs' {
   }): Promise<Record<string, string>>
   export function avatarImageMime(bytes: ArrayBuffer | Uint8Array): string
   export function loadAvatarBlobUrl(url: string, o?: {
+    credentials?: RequestCredentials
     fetchFn?: typeof fetch
     createObjectURL?: (b: Blob) => string
   }): Promise<string>

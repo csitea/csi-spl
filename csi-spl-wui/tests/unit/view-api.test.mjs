@@ -183,6 +183,21 @@ describe('spool-client live (view-v1)', () => {
     const buf = await c.downloadFile('f1')
     assert.deepEqual([...new Uint8Array(buf)], [1, 2, 3])
     assert.equal(calls[1].url, 'http://t1.localhost:58080/v1/files/f1')
+    assert.equal(calls[1].opts.credentials, 'omit')
+  })
+
+  it('downloads with the member session cookie in the session door (017 FR-SEC-002)', async () => {
+    const calls = []
+    const fn = async (url, opts) => {
+      calls.push({ url, opts })
+      return { ok: true, status: 200, arrayBuffer: async () => new Uint8Array([7]).buffer }
+    }
+    const c = createSpoolClient({ base: 'http://t1.localhost:58080', fetchFn: fn, mock: false, door: 'session' })
+    await c.downloadFile('f1')
+    assert.equal(calls[0].opts.credentials, 'include')
+    c.setDoor('token')
+    await c.downloadFile('f1')
+    assert.equal(calls[1].opts.credentials, 'omit')
   })
 
   it('mock upload is content-addressed and downloads identical bytes', async () => {

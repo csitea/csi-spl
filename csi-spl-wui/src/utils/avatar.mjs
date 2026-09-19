@@ -204,15 +204,16 @@ const avatarBlobs = new Map()
 /**
  * The picture as a blob: URL, or '' (draw the default). The WUI CSP allows
  * img-src 'self' data: blob: and connect-src the hub, so the bytes are
- * fetched (no cookies: /v1/files is a tenant capability) and only an image
- * by its magic bytes is shown. One fetch per URL for the page's lifetime.
+ * fetched with the view door's credentials (017 FR-SEC-002: /v1/files needs
+ * the member session, 'include' in the session door) and only an image by its
+ * magic bytes is shown. One fetch per URL for the page's lifetime.
  */
-export function loadAvatarBlobUrl(url, { fetchFn = globalThis.fetch, createObjectURL = (b) => URL.createObjectURL(b) } = {}) {
+export function loadAvatarBlobUrl(url, { credentials = 'omit', fetchFn = globalThis.fetch, createObjectURL = (b) => URL.createObjectURL(b) } = {}) {
   if (!url) return Promise.resolve('')
   if (avatarBlobs.has(url)) return avatarBlobs.get(url)
   const promise = (async () => {
     try {
-      const res = await fetchFn(url, { credentials: 'omit' })
+      const res = await fetchFn(url, { credentials })
       if (!res || !res.ok) return ''
       const bytes = new Uint8Array(await res.arrayBuffer())
       const type = avatarImageMime(bytes)

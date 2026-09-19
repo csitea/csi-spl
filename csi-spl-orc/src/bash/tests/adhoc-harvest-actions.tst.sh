@@ -117,6 +117,8 @@ in_orc 'do_spl_tenant_member_role' "${ROLE[@]}" DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] && grep -q '\[human=HUM-4\]' "$T/calls.log" && grep -q "role = :'role'" "$T/stdin" && ! grep -q 'HUM-4' "$T/stdin" \
   && pass "2. member-role DRY_RUN=0: values reach psql as -v variables, the SQL holds only :'var' references" || fail "2. role real: rc=$rc $(cat "$T/out")"
 grep -qF "$DSN_PW" "$T/out" && fail "2. the DSN password was printed" || pass "2. member-role prints no DSN"
+grep -qx "SET LOCAL app.tenant_id = :'tenant';" "$T/stdin" && pass "2. member-role runs in the tenant's RLS scope (rdb 0014), not the operator's" \
+  || fail "2. member-role: no tenant RLS scope, the UPDATE matches 0 rows under 0014"
 
 # --- 3. read-only query ----------------------------------------------------------------
 for q in "select 1; delete from tenants" "\\! id" ""; do
@@ -124,8 +126,8 @@ for q in "select 1; delete from tenants" "\\! id" ""; do
   [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "3. SQL='$q' refused before any call" || fail "3. SQL='$q': rc=$rc"
 done
 in_orc 'do_spl_db_query' SQL="select tenant_id from tenants;"; rc=$?
-[[ $rc -eq 0 ]] && grep -qF '[BEGIN TRANSACTION READ ONLY] [-c] [select tenant_id from tenants] [-c] [ROLLBACK]' "$T/calls.log" \
-  && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" && pass "3. one statement inside BEGIN READ ONLY .. ROLLBACK, as $DEV_SA" || fail "3. query: rc=$rc $(grep psql "$T/calls.log")"
+[[ $rc -eq 0 ]] && grep -qF "[BEGIN TRANSACTION READ ONLY] [-c] [SET LOCAL app.rls_scope = 'operator'] [-c] [select tenant_id from tenants] [-c] [ROLLBACK]" "$T/calls.log" \
+  && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" && pass "3. one statement inside BEGIN READ ONLY .. ROLLBACK, operator RLS scope (rdb 0014), as $DEV_SA" || fail "3. query: rc=$rc $(grep psql "$T/calls.log")"
 in_orc 'do_spl_db_query' SQL='\d tenants'; rc=$?
 [[ $rc -eq 0 ]] && pass "3. a \\d describe is allowed" || fail "3. \\d refused: $(cat "$T/out")"
 

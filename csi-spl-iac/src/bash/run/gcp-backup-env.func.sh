@@ -129,12 +129,16 @@ _gcp_backup_sql() {
   local PGHOST=127.0.0.1 PGPORT="$port" PGDATABASE="$db" PGSSLMODE=disable PGUSER PGPASSWORD
   PGUSER="$(python3 -c 'import sys,urllib.parse as u;print(u.unquote(sys.argv[1]))' "${login%%:*}")"
   PGPASSWORD="$(python3 -c 'import sys,urllib.parse as u;print(u.unquote(sys.argv[1]))' "${login#*:}")"
-  export PGHOST PGPORT PGDATABASE PGSSLMODE PGUSER PGPASSWORD
+  # rdb 0014 FORCE RLS binds the hub login: the operator scope (session-wide,
+  # this connection only) sees every tenant, and pg_dump must be told to run
+  # under row security or it refuses the forced tables.
+  local PGOPTIONS='-c app.rls_scope=operator'
+  export PGHOST PGPORT PGDATABASE PGSSLMODE PGUSER PGPASSWORD PGOPTIONS
   _gcp_backup_counts() { psql -XAtc "SELECT format('%I.%I', table_schema, table_name) FROM information_schema.tables
       WHERE table_type='BASE TABLE' AND table_schema NOT IN ('pg_catalog','information_schema') ORDER BY 1" |
     while read -r t; do echo "$t $(psql -XAtc "SELECT count(*) FROM $t")"; done; }
   _gcp_backup_counts >"$out/sql/rowcounts-source.txt" 2>>"$out/backup.log"
-  pg_dump --no-owner --no-privileges >"$out/sql/$db.sql" 2>>"$out/backup.log" || rc=1
+  pg_dump --no-owner --no-privileges --enable-row-security >"$out/sql/$db.sql" 2>>"$out/backup.log" || rc=1
   docker stop "$con" >/dev/null 2>&1
   (( rc == 0 )) || { do_log "ERROR pg_dump $db"; return 1; }
   echo "INFO sql: $db dump $(stat -c %s "$out/sql/$db.sql") bytes, $(wc -l <"$out/sql/rowcounts-source.txt") table(s)" >>"$out/backup.log"

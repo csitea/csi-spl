@@ -135,6 +135,13 @@ n=$(grep -vE '\|auth (activate-service-account|list)' "$T/calls.log" | wc -l); n
 [[ $n -ge 5 && $n -eq $na ]] && pass "4. all $n backup calls pinned --account=$DEV_SA" || fail "4. $na of $n calls as $DEV_SA"
 grep -q "gs://$(yq -r .env.gcp.state_bucket "$APP_ROOT/csi-spl-cnf/csi-spl/dev.env.yaml")/" "$T/calls.log" \
   && pass "4. the state bucket name comes from the cnf" || fail "4. no copy of the cnf state bucket"
+# rdb 0014 (017 FR-SEC-013): FORCE RLS binds the hub login; a plain pg_dump
+# fails ("query would be affected by row-level security policy", measured on
+# pg16 2026-09-19) and plain counts read 0. The SQL leg is not reached offline.
+bs="$(declare -f _gcp_backup_sql 2>/dev/null || sed -n '/^_gcp_backup_sql()/,/^}/p' "$PROJ_ROOT/src/bash/run/gcp-backup-env.func.sh")"
+grep -q "PGOPTIONS='-c app.rls_scope=operator'" <<<"$bs" && grep -q 'export .*PGOPTIONS' <<<"$bs" \
+  && grep -q 'pg_dump .*--enable-row-security' <<<"$bs" && pass "4. backup SQL: operator RLS scope + pg_dump --enable-row-security" \
+  || fail "4. backup SQL leg would fail under rdb 0014 RLS"
 
 # --- 5. analyzer ---------------------------------------------------------------------
 cat >"$T/cnf.json" <<'EOF'

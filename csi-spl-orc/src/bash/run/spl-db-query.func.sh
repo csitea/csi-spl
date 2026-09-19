@@ -9,6 +9,9 @@
 # @description ONE statement only: a ';' before the end is refused (so is one
 # @description inside a string literal), so the statement cannot COMMIT out of
 # @description the read-only transaction. The DSN is never printed.
+# @description The transaction takes the operator row-level-security scope
+# @description (rdb 0014, 017 FR-SEC-013): without it every tenant table
+# @description reads empty to the hub login.
 # @param ENV - required: dev or prd
 # @param SQL - required: a single SELECT / \d statement
 # @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
@@ -32,5 +35,6 @@ do_spl_db_query() {
 
 _spl_db_query_run() {
   PGOPTIONS='-c default_transaction_read_only=on' spl_pg_env "$SPL_PROXY_DSN" \
-    psql -X -q -v ON_ERROR_STOP=1 -P pager=off -c 'BEGIN TRANSACTION READ ONLY' -c "$1" -c 'ROLLBACK'
+    psql -X -q -v ON_ERROR_STOP=1 -P pager=off -c 'BEGIN TRANSACTION READ ONLY' \
+      -c "SET LOCAL app.rls_scope = 'operator'" -c "$1" -c 'ROLLBACK'
 }

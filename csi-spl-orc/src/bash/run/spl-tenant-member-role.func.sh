@@ -38,6 +38,7 @@ _spl_tenant_member_role_run() {
   local out n
   out="$(spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 -v tenant="$1" -v human="$2" -v role="$3" -v from="$4" <<'SQL'
 BEGIN;
+SET LOCAL app.tenant_id = :'tenant';
 UPDATE tenant_memberships SET role = :'role'
  WHERE tenant_id = :'tenant' AND human_id = :'human' AND (:'from' = '' OR role = :'from')
 RETURNING format('%s | %s | %s | %s', tenant_id, human_id, role, admitted_by);

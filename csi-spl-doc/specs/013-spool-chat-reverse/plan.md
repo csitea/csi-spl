@@ -1,21 +1,21 @@
 # Implementation Plan: 013 Spool chat reverse
 
-**Spec**: `./spec.md` · **Code home**: `csi-spl-wui`
+**Spec**: `./spec.md` · **Code home**: `csi-spl-wui` (paths below are under `csi-spl-wui/src/`)
 
 ## Approach
 
-Evolve the 005 live-chat MVP (`utils/live-ws.mjs`, `composables/useLive.ts`,
-`stores/live.ts`, `MessageComposer.vue`, `MessageCard.vue`), do not rewrite it.
+Evolve the 005 live-chat MVP (`src/utils/live-ws.mjs`, `src/composables/useLive.ts`,
+`src/stores/live.ts`, `MessageComposer.vue`, `MessageCard.vue`), do not rewrite it.
 
 | Piece | Where |
 |---|---|
-| Feed helpers (newest-first, window, search match) | `utils/feed.mjs` (pure, unit-tested) |
-| Avatars (robot / identicon SVG, deterministic) | `utils/avatar.mjs` (pure) + `components/SpoolAvatar.vue` |
+| Feed helpers (newest-first, window, search match) | `src/utils/feed.mjs` (pure, unit-tested) |
+| Avatars (robot / identicon SVG, deterministic) | `src/utils/avatar.mjs` (pure) + `src/components/SpoolAvatar.vue` |
 | Omnibox | `MessageComposer.vue` gains `omnibox` mode: `/search` emits `search`, Esc clears |
-| Per-pane live feeds | `stores/live.ts` → `useLiveFeed(key)` (`main`, `pane`), same socket |
-| Prepend + windowed reveal + bottom sentinel | `components/LiveFeed.vue` (`TransitionGroup`, `IntersectionObserver`) |
-| Right pane | `components/LiveThreadPane.vue` live mode (pinned root, reply Omnibox, newest-first; `ls csi-spl-wui/src/components/LiveThreadPane.vue`) |
-| 3-pane geometry | `assets/css/main.css` per layout spec §1.1 |
+| Per-pane live feeds | `src/stores/live.ts` → `useLiveFeed(key)` (`main`, `pane`), same socket |
+| Prepend + windowed reveal + bottom sentinel | `src/components/LiveFeed.vue` (`TransitionGroup`, `IntersectionObserver`) |
+| Right pane | `src/components/LiveThreadPane.vue` live mode (pinned root, reply Omnibox, newest-first; `ls csi-spl-wui/src/components/LiveThreadPane.vue`) |
+| 3-pane geometry | `src/assets/css/main.css` per layout spec §1.1 |
 
 ## Decisions (logged to the orchestrator outbox)
 

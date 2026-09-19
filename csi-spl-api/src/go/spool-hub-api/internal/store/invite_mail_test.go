@@ -42,7 +42,7 @@ func TestInviteMailClaim(t *testing.T) {
 
 			put("Open@Example.com", now.Add(7*24*time.Hour))
 			c := claim("open@example.com", now)
-			if c.Outcome != InviteMailClaimed || c.Invite.Role != RoleMember || c.PrevMailedAt != nil || c.PrevMailCount != 0 {
+			if c.Outcome != InviteMailClaimed || c.Invite.Role != RoleDefault || c.PrevMailedAt != nil || c.PrevMailCount != 0 {
 				t.Fatalf("first claim: %+v", c)
 			}
 			// CONTROL: the gap holds.

@@ -431,7 +431,7 @@ func TestViewRosterHumanAvatar(t *testing.T) {
 		t.Fatalf("sign-in landed on %s", landed)
 	}
 	// A second member of A without a picture.
-	if err := h.PutInvite(ctx, store.Invite{TenantID: mine, Email: "carol@example.com", Role: store.RoleMember,
+	if err := h.PutInvite(ctx, store.Invite{TenantID: mine, Email: "carol@example.com", Role: store.RoleDefault,
 		InvitedBy: store.AdmittedOperator, ExpiresAt: time.Now().Add(time.Hour)}, time.Now()); err != nil {
 		t.Fatal(err)
 	}

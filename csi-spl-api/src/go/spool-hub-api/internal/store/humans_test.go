@@ -40,7 +40,7 @@ func TestHumansAdmitAndMembership(t *testing.T) {
 			if got, err := h.Admit(ctx, alice, tid, boot, now); err != nil || got != a {
 				t.Fatalf("bootstrap: %q %v", got, err)
 			}
-			if r, err := h.MemberRole(ctx, a, tid); err != nil || r != RoleOwner {
+			if r, err := h.MemberRole(ctx, a, tid); err != nil || r != RoleTenantOwner {
 				t.Fatalf("bootstrap role: %q %v", r, err)
 			}
 
@@ -67,7 +67,7 @@ func TestHumansAdmitAndMembership(t *testing.T) {
 			if err != nil || b == a {
 				t.Fatalf("invited bob: %q %v", b, err)
 			}
-			if r, _ := h.MemberRole(ctx, b, tid); r != RoleMember {
+			if r, _ := h.MemberRole(ctx, b, tid); r != RoleDefault {
 				t.Fatalf("invite role: %q", r)
 			}
 			// The invite is single use: a third identity with bob's email is refused.

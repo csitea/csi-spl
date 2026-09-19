@@ -23,6 +23,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -138,7 +139,7 @@ func Send(ctx context.Context, d Deps, tenant, email string) (Result, error) {
 		log.Info().Str("outcome", c.Outcome).Msg("invite.mail_skipped")
 		return res, nil
 	}
-	msg, err := mail.TenantInvite(email, loc, mail.InviteData{TenantID: tenant, Role: c.Invite.Role,
+	msg, err := mail.TenantInvite(email, loc, mail.InviteData{TenantID: tenant, Role: mailRole(c.Invite.Role),
 		Email: email, SignInURL: signIn, ExpiresAt: c.Invite.ExpiresAt})
 	if err != nil {
 		_ = d.Store.ReleaseInviteMail(ctx, c)
@@ -158,4 +159,14 @@ func Send(ctx context.Context, d Deps, tenant, email string) (Result, error) {
 	log.Info().Str("outcome", Sent).Bool("delivered", d.Delivers).Str("locale", msg.Locale).
 		Str("message_id", msg.MessageID).Int("mail_count", res.MailCount).Msg("invite.mail_sent")
 	return res, nil
+}
+
+// mailRole maps a 025 role id onto the two classes the tenant_invite
+// templates word ("owner" | "member"): the tenant owner (biz_owner, legacy
+// owner) reads "an owner", every other role "a member".
+func mailRole(role string) string {
+	if rbac.Legacy(role) == rbac.BizOwner {
+		return "owner"
+	}
+	return "member"
 }

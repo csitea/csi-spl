@@ -123,8 +123,8 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 	}
 	if p.BootstrapOwner {
 		tag, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
-			SELECT $1, $2, 'owner', $3, 'bootstrap'
-			WHERE NOT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = $1)`, tenant, hum, now)
+			SELECT $1, $2, $4, $3, 'bootstrap'
+			WHERE NOT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = $1)`, tenant, hum, now, RoleTenantOwner)
 		if err != nil {
 			return err
 		}
@@ -157,6 +157,9 @@ func (s *Postgres) PutInvite(ctx context.Context, in Invite, now time.Time) erro
 			created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at, accepted_at = NULL, accepted_by = NULL,
 			mail_count = 0`,
 		in.TenantID, in.Email, in.Role, in.InvitedBy, now, in.ExpiresAt)
+	if isFKViolation(err, "tenant_invites_role_fk") {
+		return ErrUnknownRole
+	}
 	if err != nil {
 		return err
 	}

@@ -40,7 +40,7 @@ func newRig(t *testing.T) *rig {
 
 func (r *rig) invite(t *testing.T, email string, ttl time.Duration) {
 	t.Helper()
-	if err := r.st.PutInvite(context.Background(), store.Invite{TenantID: "t1", Email: email, Role: store.RoleMember,
+	if err := r.st.PutInvite(context.Background(), store.Invite{TenantID: "t1", Email: email, Role: store.RoleDefault,
 		InvitedBy: store.AdmittedOperator, ExpiresAt: r.now.Add(ttl)}, r.now); err != nil {
 		t.Fatal(err)
 	}

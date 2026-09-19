@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
 // Humans, their sign-in identities and tenant membership (specs/010 T012/T013,
@@ -17,11 +18,40 @@ import (
 // invite, and no bootstrap (FR-012). Nothing was written.
 var ErrNotAdmitted = errors.New("not admitted to tenant")
 
-// Membership roles (tenant_memberships.role).
+// Membership roles (tenant_memberships.role) are rows since rdb 0021
+// (specs/025): any role_id visible to the tenant. These two are the ones the
+// store itself assigns.
 const (
-	RoleOwner  = "owner"
-	RoleMember = "member"
+	// RoleTenantOwner is what bootstrap seats ("tenant owner = biz-owner").
+	RoleTenantOwner = rbac.BizOwner
+	// RoleDefault is an invite's role when it names none (025 OQ-8).
+	RoleDefault = rbac.Developer
 )
+
+// Role refusals (025 FR-002, §3.4).
+var (
+	// ErrUnknownRole: the role is not visible to the tenant.
+	ErrUnknownRole = errors.New("unknown role")
+	// ErrLastOwner: the change would leave the tenant with no member holding
+	// a tenant-owner role. Nothing was written.
+	ErrLastOwner = errors.New("the tenant's last owner cannot be removed or demoted")
+	// ErrRoleChanged: the member no longer holds the expected from-role.
+	ErrRoleChanged = errors.New("the member's role changed")
+)
+
+var roleRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
+
+// normalizeRole maps a legacy 010 name and checks the id shape; "" = def.
+func normalizeRole(role, def string) (string, error) {
+	role = rbac.Legacy(strings.TrimSpace(role))
+	if role == "" {
+		role = def
+	}
+	if !roleRe.MatchString(role) {
+		return "", ErrUnknownRole
+	}
+	return role, nil
+}
 
 // Admitted-by markers for rows no owner HUM-* admitted.
 const (
@@ -91,6 +121,15 @@ type Humans interface {
 	// subject) sign-in belongs to; "" (nil error) when there is no such
 	// identity or nothing is picked.
 	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
+	// TenantRoles is every role visible to tenant (system + its own) with
+	// its grants (rdb 0021; memory: rbac.Defaults).
+	TenantRoles(ctx context.Context, tenant string) (map[string]rbac.Role, error)
+	// SetMemberRole sets one member's role. from != "": only while the
+	// member holds it (else ErrRoleChanged). ErrNotFound: not a member;
+	// ErrUnknownRole; ErrLastOwner (025 §3.4 rule 3).
+	SetMemberRole(ctx context.Context, tenant, humanID, role, from string) error
+	// RemoveMember deletes one membership. ErrNotFound; ErrLastOwner.
+	RemoveMember(ctx context.Context, tenant, humanID string) error
 }
 
 func checkLocale(loc string) error {
@@ -126,12 +165,11 @@ func normalizeIdentity(id *Identity) error {
 
 func normalizeInvite(in *Invite) error {
 	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
-	if in.Role == "" {
-		in.Role = RoleMember
+	role, err := normalizeRole(in.Role, RoleDefault)
+	if err != nil {
+		return err
 	}
-	if in.Role != RoleOwner && in.Role != RoleMember {
-		return errors.New("invite role must be owner or member")
-	}
+	in.Role = role
 	if len(in.Email) < 3 || len(in.Email) > 320 || !strings.Contains(in.Email, "@") {
 		return errors.New("invite email must be an address")
 	}

@@ -31,6 +31,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/payments"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -297,7 +298,7 @@ func cmdHubInvite(args []string) int {
 	fs := flag.NewFlagSet("hub-invite", flag.ContinueOnError)
 	tenant := fs.String("tenant", "", "tenant id")
 	email := fs.String("email", "", "the invitee's verified sign-in email")
-	role := fs.String("role", store.RoleOwner, "owner|member")
+	role := fs.String("role", store.RoleTenantOwner, "a role id (specs/025): biz_owner|product_owner|admin|developer|tester|pure_agent; legacy owner|member map to biz_owner|developer")
 	ttl := fs.Duration("ttl", 7*24*time.Hour, "how long the invite stays open")
 	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
 	noMail := fs.Bool("no-mail", false, "write the invite only, send no invitation email")
@@ -320,9 +321,12 @@ func cmdHubInvite(args []string) int {
 		if errors.Is(err, store.ErrNotFound) {
 			return fail(fmt.Errorf("tenant %s does not exist", *tenant))
 		}
+		if errors.Is(err, store.ErrUnknownRole) {
+			return fail(fmt.Errorf("role %q is not a role of tenant %s", *role, *tenant))
+		}
 		return fail(err)
 	}
-	out := map[string]any{"tenant": *tenant, "role": *role, "expires_at": in.ExpiresAt.Format(time.RFC3339), "status": "invited"}
+	out := map[string]any{"tenant": *tenant, "role": rbac.Legacy(*role), "expires_at": in.ExpiresAt.Format(time.RFC3339), "status": "invited"}
 	if *noMail {
 		out["mail"] = map[string]any{"outcome": "skipped_no_mail_flag"}
 		fmt.Println(action.JSON(out))

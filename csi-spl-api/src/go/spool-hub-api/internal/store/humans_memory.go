@@ -77,7 +77,7 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 				inv = i
 				grant = &memMember{role: i.Role, admittedBy: i.InvitedBy}
 			} else if p.BootstrapOwner && h.memberCount(tenant) == 0 {
-				grant = &memMember{role: RoleOwner, admittedBy: AdmittedBootstrap}
+				grant = &memMember{role: RoleTenantOwner, admittedBy: AdmittedBootstrap}
 			} else {
 				return "", ErrNotAdmitted
 			}
@@ -125,6 +125,9 @@ func (s *Memory) MemberRole(_ context.Context, humanID, tenant string) (string, 
 func (s *Memory) PutInvite(_ context.Context, in Invite, _ time.Time) error {
 	if err := normalizeInvite(&in); err != nil {
 		return err
+	}
+	if _, ok := memRoles()[in.Role]; !ok {
+		return ErrUnknownRole
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

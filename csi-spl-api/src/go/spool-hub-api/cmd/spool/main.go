@@ -25,7 +25,7 @@
 //	          $SPOOL_HUB_DB_DSN, $SPOOL_HUB_MIGRATIONS_DIR)
 //	hub-tenant --tenant <id> --root-pubkey <b64>   seed a tenant row (via $SPOOL_HUB_DB_DSN)
 //	hub-tenant-billing --tenant <id> --event paid|unpaid|failed|refund|cancel   set billing_status (via $SPOOL_HUB_DB_DSN)
-//	hub-invite --tenant <id> --email <addr> [--role owner|member] [--ttl 168h] [--no-mail]   operator invite
+//	hub-invite --tenant <id> --email <addr> [--role <role-id>] [--ttl 168h] [--no-mail]   operator invite
 //	          (via $SPOOL_HUB_DB_DSN) + the invitation email via $SPOOL_HUB_MAIL_* (010 FR-016)
 //	hub-invite-mail --tenant <id> --email <addr> [--locale xx] [--min-gap 10m] [--max-sends 5]
 //	          resend the invitation email of an open invite (exit 3 = not sent)

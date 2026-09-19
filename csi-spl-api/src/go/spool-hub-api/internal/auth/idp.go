@@ -18,14 +18,14 @@ import (
 // Identity is the portable result of a successful exchange. Privilege is never
 // read from it: the hub's Registrar decides what the person becomes.
 type Identity struct {
-	Provider string // google | facebook
+	Provider string // google | facebook | microsoft | linkedin | xai
 	Subject  string // the IdP's stable subject (sub / Graph id)
 	Email    string // lower-cased, provider-verified
 	Name     string
 }
 
-// IdP is one provider's authorization-code client. Adding Microsoft, LinkedIn
-// or xAI (spec 010, Planned) means one more implementation of this.
+// IdP is one provider's authorization-code client: Google, Facebook, or the
+// generic OIDC client (oidc.go) for Microsoft, LinkedIn and xAI.
 type IdP interface {
 	Name() string
 	AuthCodeURL(state, nonce string) string
@@ -250,6 +250,8 @@ func newIdP(c *Config, p string, hc *http.Client) IdP {
 			f.DialogBase, f.GraphBase = base, base
 		}
 		return f
+	case ProviderMicrosoft, ProviderLinkedIn, ProviderXAI:
+		return newOIDC(c, p, base, hc)
 	}
 	return nil
 }

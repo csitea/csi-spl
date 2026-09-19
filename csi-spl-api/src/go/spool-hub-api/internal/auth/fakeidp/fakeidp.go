@@ -1,5 +1,6 @@
-// Package fakeidp is a local stand-in for BOTH Google and Facebook, serving the
-// exact paths internal/auth calls (auth.Google*Path, auth.Facebook*Path). Point
+// Package fakeidp is a local stand-in for Google, Facebook and the generic OIDC
+// providers (Microsoft, LinkedIn, xAI), serving the exact paths internal/auth
+// calls (auth.Google*Path, auth.Facebook*Path, auth.OIDC*Path(p)). Point
 // the hub at it with SPOOL_HUB_AUTH_IDP_BASE_URL (refused in prd). It checks
 // what the real providers check: client id + secret, the registered redirect
 // URI, a single-use code, the bearer token, Facebook's appsecret_proof.
@@ -24,6 +25,9 @@ import (
 // Client is one registered app at the fake provider.
 type Client struct {
 	ID, Secret, RedirectURI string
+	// NoEmailVerifiedClaim mimics a provider whose userinfo has no
+	// email_verified claim at all (Microsoft).
+	NoEmailVerifiedClaim bool
 }
 
 // Person is who "signs in".
@@ -38,6 +42,7 @@ type Person struct {
 // whether they deny consent, with Set between flows.
 type IdP struct {
 	Google, Facebook Client
+	oidc             map[string]Client // generic OIDC provider slug -> app
 
 	mu     sync.Mutex
 	person Person
@@ -49,8 +54,15 @@ type IdP struct {
 
 // New returns a fake that knows the two client registrations.
 func New(google, facebook Client, p Person) *IdP {
-	return &IdP{Google: google, Facebook: facebook, person: p,
+	return &IdP{Google: google, Facebook: facebook, person: p, oidc: map[string]Client{},
 		codes: map[string]string{}, tokens: map[string]string{}}
+}
+
+// AddOIDC registers an app for a generic OIDC provider (microsoft, linkedin,
+// xai) before Handler is called.
+func (f *IdP) AddOIDC(provider string, c Client) *IdP {
+	f.oidc[provider] = c
+	return f
 }
 
 // Set changes the signing-in person and the consent answer for later flows.
@@ -110,6 +122,32 @@ func (f *IdP) Handler() http.Handler {
 		}
 		writeJSON(w, http.StatusOK, body)
 	})
+	for prov, c := range f.oidc {
+		prov, c := prov, c
+		mux.HandleFunc("GET "+auth.OIDCAuthPath(prov), func(w http.ResponseWriter, r *http.Request) {
+			f.authorize(w, r, prov, c)
+		})
+		mux.HandleFunc("POST "+auth.OIDCTokenPath(prov), func(w http.ResponseWriter, r *http.Request) {
+			r.ParseForm() //nolint:errcheck
+			f.token(w, prov, c, r.PostForm)
+		})
+		mux.HandleFunc("GET "+auth.OIDCUserinfoPath(prov), func(w http.ResponseWriter, r *http.Request) {
+			tok := ""
+			if h := r.Header.Get("Authorization"); len(h) > 7 && h[:7] == "Bearer " {
+				tok = h[7:]
+			}
+			if !f.validToken(tok, prov) {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
+				return
+			}
+			p, _ := f.current()
+			body := map[string]any{"sub": p.Subject, "email": p.Email, "name": p.Name}
+			if !c.NoEmailVerifiedClaim {
+				body["email_verified"] = p.EmailVerified
+			}
+			writeJSON(w, http.StatusOK, body)
+		})
+	}
 	return mux
 }
 

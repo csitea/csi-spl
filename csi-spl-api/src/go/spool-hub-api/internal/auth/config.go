@@ -1,6 +1,6 @@
 // Package auth is the hub's browser sign-in (spec 010-spool-social-auth):
-// Google (OIDC) and Facebook (OAuth 2.0 + Graph) authorization-code login for
-// the WUI, a signed CSRF `state` bound to a browser cookie, a server-side code
+// Google (OIDC), Facebook (OAuth 2.0 + Graph) and the generic OIDC providers
+// Microsoft, LinkedIn and xAI (FR-012) — authorization-code login for the WUI, a signed CSRF `state` bound to a browser cookie, a server-side code
 // exchange with the provider's client secret, and a stateless HMAC-signed
 // session cookie.
 //
@@ -27,14 +27,25 @@ import (
 // Provider slugs: the {provider} path segment, the session's `p` claim and the
 // SPOOL_HUB_AUTH_<SLUG>_* env prefix.
 const (
-	ProviderGoogle   = "google"
-	ProviderFacebook = "facebook"
+	ProviderGoogle    = "google"
+	ProviderFacebook  = "facebook"
+	ProviderMicrosoft = "microsoft"
+	ProviderLinkedIn  = "linkedin"
+	ProviderXAI       = "xai"
 )
+
+// knownProviders are the slugs this package implements.
+var knownProviders = map[string]bool{ProviderGoogle: true, ProviderFacebook: true,
+	ProviderMicrosoft: true, ProviderLinkedIn: true, ProviderXAI: true}
 
 // plannedProviders are named by SPEC-spool-social-auth.md §1 on the same
 // rails but not built yet: listing one fails fast instead of silently
-// advertising a button that 404s.
-var plannedProviders = map[string]bool{"microsoft": true, "linkedin": true, "xai": true}
+// advertising a button that 404s. Empty since T040-T042.
+var plannedProviders = map[string]bool{}
+
+// microsoftConsumers is the Entra authority for personal Microsoft accounts
+// only, the one tenant whose email Microsoft itself verifies (OQ-I1).
+const microsoftConsumers = "consumers"
 
 // Config is the resolved auth configuration. The env names are published in
 // csi-spl-cnf all.env.yaml env.auth.social; the code reads those names only.
@@ -53,7 +64,7 @@ type Config struct {
 	CookieName   string        `env:"SPOOL_HUB_AUTH_COOKIE_NAME" envDefault:"spool_session"`
 	CookieDomain string        `env:"SPOOL_HUB_AUTH_COOKIE_DOMAIN"`
 	CookieSecure bool          `env:"SPOOL_HUB_AUTH_COOKIE_SECURE" envDefault:"true"`
-	// IdPBaseURL points BOTH providers at one fake IdP (fakeidp: lde, tests,
+	// IdPBaseURL points EVERY provider at one fake IdP (fakeidp: lde, tests,
 	// the auth-demo). Refused in prd, where it would hand client secrets to
 	// that host.
 	IdPBaseURL string `env:"SPOOL_HUB_AUTH_IDP_BASE_URL"`
@@ -67,6 +78,32 @@ type Config struct {
 	FacebookClientSecret string `env:"SPOOL_HUB_AUTH_FACEBOOK_CLIENT_SECRET"`
 	FacebookRedirectURI  string `env:"SPOOL_HUB_AUTH_FACEBOOK_REDIRECT_URI"`
 	FacebookScopes       string `env:"SPOOL_HUB_AUTH_FACEBOOK_SCOPES" envDefault:"email,public_profile"`
+
+	MicrosoftClientID     string `env:"SPOOL_HUB_AUTH_MICROSOFT_CLIENT_ID"`
+	MicrosoftClientSecret string `env:"SPOOL_HUB_AUTH_MICROSOFT_CLIENT_SECRET"`
+	MicrosoftRedirectURI  string `env:"SPOOL_HUB_AUTH_MICROSOFT_REDIRECT_URI"`
+	MicrosoftScopes       string `env:"SPOOL_HUB_AUTH_MICROSOFT_SCOPES" envDefault:"openid email profile"`
+	// MicrosoftTenant is the Entra authority segment. OQ-I1 (a): "consumers"
+	// (personal accounts, verified email). Anything else needs
+	// MicrosoftTrustEmail, because a work tenant's email claim is set by that
+	// tenant's admin and never verified.
+	MicrosoftTenant     string `env:"SPOOL_HUB_AUTH_MICROSOFT_TENANT" envDefault:"consumers"`
+	MicrosoftTrustEmail bool   `env:"SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL" envDefault:"false"`
+
+	LinkedInClientID     string `env:"SPOOL_HUB_AUTH_LINKEDIN_CLIENT_ID"`
+	LinkedInClientSecret string `env:"SPOOL_HUB_AUTH_LINKEDIN_CLIENT_SECRET"`
+	LinkedInRedirectURI  string `env:"SPOOL_HUB_AUTH_LINKEDIN_REDIRECT_URI"`
+	LinkedInScopes       string `env:"SPOOL_HUB_AUTH_LINKEDIN_SCOPES" envDefault:"openid profile email"`
+
+	// xAI's endpoints are cnf only (narrative §1: never baked in Go); they
+	// are required while xai is listed.
+	XAIClientID     string `env:"SPOOL_HUB_AUTH_XAI_CLIENT_ID"`
+	XAIClientSecret string `env:"SPOOL_HUB_AUTH_XAI_CLIENT_SECRET"`
+	XAIRedirectURI  string `env:"SPOOL_HUB_AUTH_XAI_REDIRECT_URI"`
+	XAIScopes       string `env:"SPOOL_HUB_AUTH_XAI_SCOPES" envDefault:"openid profile email"`
+	XAIAuthURL      string `env:"SPOOL_HUB_AUTH_XAI_AUTH_URL"`
+	XAITokenURL     string `env:"SPOOL_HUB_AUTH_XAI_TOKEN_URL"`
+	XAIUserinfoURL  string `env:"SPOOL_HUB_AUTH_XAI_USERINFO_URL"`
 
 	// Env is SPOOL_HUB_ENV (lde|dev|prd), passed in by the caller.
 	Env string `env:"-"`
@@ -109,7 +146,7 @@ func (c *Config) validate() error {
 			continue
 		case plannedProviders[p]:
 			return fmt.Errorf("SPOOL_HUB_AUTH_PROVIDERS: %q is planned (spec 010) but not implemented", p)
-		case p != ProviderGoogle && p != ProviderFacebook:
+		case !knownProviders[p]:
 			return fmt.Errorf("SPOOL_HUB_AUTH_PROVIDERS: unknown provider %q", p)
 		}
 		seen[p] = true
@@ -154,6 +191,34 @@ func (c *Config) validate() error {
 		if want := RoutePrefix + p + "/callback"; u.Path != want {
 			return fmt.Errorf("%sREDIRECT_URI %q must have the path %s", pre, redirect, want)
 		}
+		if err := c.validateProvider(p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateProvider holds the per-provider rules beyond id/secret/redirect.
+func (c *Config) validateProvider(p string) error {
+	switch p {
+	case ProviderMicrosoft:
+		t := strings.TrimSpace(c.MicrosoftTenant)
+		if t == "" || isPlaceholder(t) || strings.ContainsAny(t, "/?#") {
+			return fmt.Errorf("SPOOL_HUB_AUTH_MICROSOFT_TENANT %q must be an Entra tenant segment", t)
+		}
+		if t != microsoftConsumers && !c.MicrosoftTrustEmail {
+			return fmt.Errorf("SPOOL_HUB_AUTH_MICROSOFT_TENANT=%q accepts work accounts whose email is unverified; "+
+				"use %q or set SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL=true (spec 010 OQ-I1)", t, microsoftConsumers)
+		}
+	case ProviderXAI:
+		for name, v := range map[string]string{"SPOOL_HUB_AUTH_XAI_AUTH_URL": c.XAIAuthURL,
+			"SPOOL_HUB_AUTH_XAI_TOKEN_URL": c.XAITokenURL, "SPOOL_HUB_AUTH_XAI_USERINFO_URL": c.XAIUserinfoURL} {
+			// endpoints are always TLS, even in lde (the fake IdP override
+			// replaces them wholesale)
+			if err := checkURL(name, v, true); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -167,6 +232,12 @@ func (c *Config) creds(p string) (id, secret, redirect string) {
 		return c.GoogleClientID, c.GoogleClientSecret, c.GoogleRedirectURI
 	case ProviderFacebook:
 		return c.FacebookClientID, c.FacebookClientSecret, c.FacebookRedirectURI
+	case ProviderMicrosoft:
+		return c.MicrosoftClientID, c.MicrosoftClientSecret, c.MicrosoftRedirectURI
+	case ProviderLinkedIn:
+		return c.LinkedInClientID, c.LinkedInClientSecret, c.LinkedInRedirectURI
+	case ProviderXAI:
+		return c.XAIClientID, c.XAIClientSecret, c.XAIRedirectURI
 	}
 	return "", "", ""
 }

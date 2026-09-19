@@ -1,5 +1,6 @@
 // Command auth-demo runs the spec 010 sign-in end to end on loopback with no
-// provider credentials: a fake Google + Facebook (fakeidp), the auth routes
+// provider credentials: a fake Google, Facebook, Microsoft, LinkedIn and xAI
+// (fakeidp), the auth routes
 // exactly as the hub mounts them, and a stub WUI. It walks one browser
 // through start -> IdP -> callback -> WUI -> /api/v1/auth/session for each
 // provider and prints every hop.
@@ -81,14 +82,26 @@ func run(serve bool, addr, appURL, publicURL string) error {
 	g := fakeidp.Client{ID: "demo-google-client", Secret: "demo-google-secret", RedirectURI: publicURL + "/api/v1/auth/google/callback"}
 	f := fakeidp.Client{ID: "demo-facebook-app", Secret: "demo-facebook-secret", RedirectURI: publicURL + "/api/v1/auth/facebook/callback"}
 	fake := fakeidp.New(g, f, fakeidp.Person{Subject: "demo-sub-1", Email: "demo@example.com", EmailVerified: true, Name: "FirstName LastName"})
+	oidcVars := map[string]string{}
+	for _, p := range []string{auth.ProviderMicrosoft, auth.ProviderLinkedIn, auth.ProviderXAI} {
+		c := fakeidp.Client{ID: "demo-" + p + "-client", Secret: "demo-" + p + "-secret",
+			RedirectURI: publicURL + "/api/v1/auth/" + p + "/callback", NoEmailVerifiedClaim: p == auth.ProviderMicrosoft}
+		fake.AddOIDC(p, c)
+		pre := "SPOOL_HUB_AUTH_" + strings.ToUpper(p) + "_"
+		oidcVars[pre+"CLIENT_ID"], oidcVars[pre+"CLIENT_SECRET"], oidcVars[pre+"REDIRECT_URI"] = c.ID, c.Secret, c.RedirectURI
+	}
+	// xAI's real endpoints are cnf-only; the fake IdP override replaces them
+	for k, v := range map[string]string{"AUTH_URL": "/oauth2/authorize", "TOKEN_URL": "/oauth2/token", "USERINFO_URL": "/oauth2/userinfo"} {
+		oidcVars["SPOOL_HUB_AUTH_XAI_"+k] = "https://idp.example.com" + v
+	}
 
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
 		return err
 	}
 	// The same variables a deployed hub reads (cnf env.auth.social); lde values.
-	cfg, err := auth.LoadFrom("lde", map[string]string{
-		"SPOOL_HUB_AUTH_PROVIDERS":              "google,facebook",
+	vars := map[string]string{
+		"SPOOL_HUB_AUTH_PROVIDERS":              "google,facebook,microsoft,linkedin,xai",
 		"SPOOL_HUB_AUTH_SESSION_KEY":            hex.EncodeToString(key),
 		"SPOOL_HUB_AUTH_APP_URL":                appURL,
 		"SPOOL_HUB_AUTH_COOKIE_SECURE":          "false",
@@ -99,7 +112,11 @@ func run(serve bool, addr, appURL, publicURL string) error {
 		"SPOOL_HUB_AUTH_FACEBOOK_CLIENT_ID":     f.ID,
 		"SPOOL_HUB_AUTH_FACEBOOK_CLIENT_SECRET": f.Secret,
 		"SPOOL_HUB_AUTH_FACEBOOK_REDIRECT_URI":  f.RedirectURI,
-	})
+	}
+	for k, v := range oidcVars {
+		vars[k] = v
+	}
+	cfg, err := auth.LoadFrom("lde", vars)
 	if err != nil {
 		return err
 	}
@@ -142,7 +159,7 @@ func run(serve bool, addr, appURL, publicURL string) error {
 			return fmt.Errorf("%s: no session", p)
 		}
 	}
-	fmt.Println("OK - both providers signed in against the fake IdP")
+	fmt.Printf("OK - all %d providers signed in against the fake IdP\n", len(cfg.Enabled()))
 	if !serve {
 		return nil
 	}

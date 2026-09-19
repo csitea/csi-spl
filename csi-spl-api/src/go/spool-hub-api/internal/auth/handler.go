@@ -71,6 +71,7 @@ type Handler struct {
 	log        zerolog.Logger
 	reg        Registrar
 	members    Membership
+	unlink     IdentityUnlinker
 	now        func() time.Time
 }
 
@@ -79,15 +80,18 @@ type Options struct {
 	Registrar Registrar
 	// Membership backs SessionForTenant; nil = every tenant check fails closed.
 	Membership Membership
-	HTTP       *http.Client // outbound to the IdPs; nil = 15s timeout client
-	Now        func() time.Time
+	// Unlinker severs a stored identity link when Meta's deauthorize /
+	// data-deletion callback arrives (FR-013); nil = nothing is stored.
+	Unlinker IdentityUnlinker
+	HTTP     *http.Client // outbound to the IdPs; nil = 15s timeout client
+	Now      func() time.Time
 }
 
 // New builds the handler from a validated Config.
 func New(cfg *Config, log zerolog.Logger, o Options) *Handler {
 	h := &Handler{
 		cfg: cfg, idps: map[string]IdP{}, log: log.With().Str("component", "auth").Logger(),
-		reg: o.Registrar, members: o.Membership, now: o.Now,
+		reg: o.Registrar, members: o.Membership, unlink: o.Unlinker, now: o.Now,
 	}
 	if h.now == nil {
 		h.now = time.Now
@@ -109,6 +113,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+RoutePrefix+"logout", h.logout)
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/start", h.start)
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/callback", h.callback)
+	h.registerFacebookCallbacks(mux)
 }
 
 // ServeHTTP makes the Handler usable on its own (tests, the auth-demo).

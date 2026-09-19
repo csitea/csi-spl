@@ -86,6 +86,39 @@ export function doorModes(detail) {
 }
 
 /**
+ * view-v1 §2 / 010 FR-009: a door that takes a member session needs the
+ * sign-in cookie (credentials 'include'). On a 401 whose detail offers a
+ * session, switch the client to door 'session' once and retry. The 401 detail
+ * is the same for a token door, whose CORS refuses credentials: a retry that
+ * fails without an HTTP status (network / CORS) restores the door and rethrows
+ * the ORIGINAL 401, so the caller still shows the door prompt.
+ * @template T
+ * @param {{ door: string, setDoor: (d: string) => void }} api
+ * @param {() => Promise<T>} read
+ * @returns {Promise<T>}
+ */
+export async function withSessionRetry(api, read) {
+  try {
+    return await read()
+  } catch (e) {
+    const err = /** @type {{ status?: number, detail?: string }} */ (e || {})
+    if (!isDoor(err) || api.door === 'session' || !doorModes(err.detail).session) throw e
+    const prev = api.door
+    api.setDoor('session')
+    try {
+      return await read()
+    } catch (e2) {
+      const st = /** @type {{ status?: number }} */ (e2 || {}).status
+      if (!st) {
+        api.setDoor(prev)
+        throw e
+      }
+      throw e2
+    }
+  }
+}
+
+/**
  * The sign-in link a door prompt shows: /login?redirect=<here>&tenant=<t>.
  * redirect stays a same-site path; tenant only when it is a DNS label.
  * @param {string} path

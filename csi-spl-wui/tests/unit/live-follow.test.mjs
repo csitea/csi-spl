@@ -12,6 +12,7 @@ import {
   newRows,
   signInHref,
   splitPeer,
+  withSessionRetry,
 } from '../../src/utils/live-follow.mjs'
 import { createLiveClient } from '../../src/utils/live-ws.mjs'
 
@@ -109,8 +110,40 @@ describe('reconnect catch-up (wui-live-ws §7, view-v1 §4.4)', () => {
 })
 
 describe('door UX (view-v1 §2: a 401 view_door is a prompt)', () => {
-  it('a member-session door switches the client to credentials include once', () => {
-    for (const f of ['src/stores/live.ts', 'src/stores/viewer.ts']) assert.match(src(f), /setDoor\('session'\)/, f)
+  const door401 = () => Object.assign(new Error('spool 401 view_door'), { status: 401, token: 'view_door', detail: 'a view token or a member session is required' })
+  const fakeApi = () => ({ door: '', setDoor(d) { this.door = d } })
+
+  it('session door: one retry with credentials include succeeds', async () => {
+    const api = fakeApi()
+    let n = 0
+    const out = await withSessionRetry(api, async () => { n++; if (api.door !== 'session') throw door401(); return 'rows' })
+    assert.equal(out, 'rows')
+    assert.equal(n, 2)
+    assert.equal(api.door, 'session')
+  })
+
+  it('token door: a CORS-refused retry restores the door and rethrows the 401', async () => {
+    const api = fakeApi()
+    let n = 0
+    await assert.rejects(
+      withSessionRetry(api, async () => { n++; if (api.door === 'session') throw new TypeError('Failed to fetch'); throw door401() }),
+      (e) => e.status === 401 && e.token === 'view_door',
+    )
+    assert.equal(n, 2)
+    assert.equal(api.door, '')
+  })
+
+  it('no retry for a non-door error or when already in session mode', async () => {
+    const api = fakeApi()
+    let n = 0
+    await assert.rejects(withSessionRetry(api, async () => { n++; throw Object.assign(new Error('x'), { status: 500 }) }))
+    api.door = 'session'
+    await assert.rejects(withSessionRetry(api, async () => { n++; throw door401() }))
+    assert.equal(n, 2)
+  })
+
+  it('the live and viewer stores read through withSessionRetry', () => {
+    for (const f of ['src/stores/live.ts', 'src/stores/viewer.ts']) assert.match(src(f), /withSessionRetry\(api,/, f)
   })
 
   it('recognises the door and nothing else', () => {

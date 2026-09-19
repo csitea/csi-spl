@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { doorModes, isDoor } from '~/utils/live-follow.mjs'
+import { isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import type { SpoolMessage, ThreadRow } from '~/types/spool'
 
 /** Read-only thread viewer (spec 005 US1, US2, US4) over 003 view-v1 §4.3 / §4.4. */
@@ -36,14 +36,8 @@ export const useViewerStore = defineStore('viewer', () => {
     loading.value = true
     error.value = null
     try {
-      const first = () => api.listThreads({ limit: 50 })
-      const data = await first().catch((e) => {
-        /* 010 FR-009: a member-session door rides the sign-in cookie; switch once */
-        const err = e as { status?: number, token?: string, detail?: string }
-        if (!isDoor(err) || api.door === 'session' || !doorModes(err.detail).session) throw e
-        api.setDoor('session')
-        return first()
-      })
+      /* 010 FR-009: a member-session door rides the sign-in cookie */
+      const data = await withSessionRetry(api, () => api.listThreads({ limit: 50 }))
       threads.value = data.threads
       next.value = data.next
       needsToken.value = false

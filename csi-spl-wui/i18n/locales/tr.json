@@ -204,8 +204,8 @@
       "generic": "Bir şeyler ters gitti — tekrar deneyin."
     },
     "host": {
-      "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
-      "ready": "Your address {host} is ready."
+      "preparing": "{host} adresiniz hazırlanıyor (genellikle 15–30 dakika). Yanıt verdiğinde bu sayfa güncellenir; bu arada anahtarınızı güvende tutun.",
+      "ready": "{host} adresiniz hazır."
     }
   },
   "user_menu": {

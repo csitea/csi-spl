@@ -204,8 +204,8 @@
       "generic": "Ceva nu a mers bine — încercați din nou."
     },
     "host": {
-      "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
-      "ready": "Your address {host} is ready."
+      "preparing": "Adresa dvs. {host} este în pregătire (de obicei 15–30 de minute). Pagina se actualizează când răspunde; între timp păstrați cheia în siguranță.",
+      "ready": "Adresa dvs. {host} este gata."
     }
   },
   "user_menu": {

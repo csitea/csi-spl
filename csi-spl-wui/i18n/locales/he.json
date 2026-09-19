@@ -204,8 +204,8 @@
       "generic": "משהו השתבש — נסו שוב."
     },
     "host": {
-      "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
-      "ready": "Your address {host} is ready."
+      "preparing": "הכתובת שלכם {host} בהכנה (בדרך כלל 15–30 דקות). הדף יתעדכן כשהיא תגיב; בינתיים שמרו על המפתח במקום בטוח.",
+      "ready": "הכתובת שלכם {host} מוכנה."
     }
   },
   "user_menu": {

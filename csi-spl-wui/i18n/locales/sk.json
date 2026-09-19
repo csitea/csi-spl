@@ -204,8 +204,8 @@
       "generic": "Niečo sa pokazilo — skúste to znova."
     },
     "host": {
-      "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
-      "ready": "Your address {host} is ready."
+      "preparing": "Vaša adresa {host} sa pripravuje (zvyčajne 15–30 minút). Stránka sa aktualizuje, keď odpovie; medzitým si kľúč bezpečne uschovajte.",
+      "ready": "Vaša adresa {host} je pripravená."
     }
   },
   "user_menu": {

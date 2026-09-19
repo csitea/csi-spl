@@ -18,14 +18,14 @@
 ## Phase 2 — Every string, every locale
 
 - [x] T010 (`c1130ef`) Externalise every WUI string (pages, components, utils copy), locale-aware links/dates/prices. Check: unit 28/28, `i18n-parity` (HTML / `@` / plural-form guards + CONTROL), generate 78 routes.
-- [ ] T011 Translate all keys into 18 locales (translator batches). Check: `i18n-parity.test.mjs`.
+- [x] T011 (`24d3ce6`) Translate the 245 new keys into 18 locales: donor practice, LLM translator batches of 4-5 languages with `TRANSLATOR-BRIEF.template.txt` — machine drafts pending native review. CLE-3404's 2 `checkout.host.*` keys follow in the next commit. Check: `i18n-parity.test.mjs` all pass; per locale 7-21 values stay equal to en (brand, `#general`, `{name}`-only values).
 
 ## Phase 3 — Hub
 
-- [x] T020 Migration `0017_human_preferred_locale.sql` (`humans` + `password_credentials`). Check: `hub-pg.tst.sh` applies every file incl. 0017 (renumbered from 0015 at push: trunk took 0015/0016).
-- [x] T021 `internal/i18n`, `X-Locale` in the CORS allow-lists, `PUT /api/v1/auth/preferences`, session `preferred_locale`, `SPOOL_HUB_DEFAULT_LOCALE` (cnf `env.i18n.default_locale`). Check: `go test ./...` ok.
-- [~] T022 Mails (verify, reset, M2 claim) per locale, 19 locales, link prefix; English wording pinned. Gap: the M2 claim mail goes out in the default locale (the buyer's locale is not stored on the checkout; needs a column).
-- [ ] T023 Hub deploy via CLE-3355 (tag bump + 030) after the migration is applied.
+- [x] T020 (`e586002`) Migration `0017_human_preferred_locale.sql` (`humans` + `password_credentials`). Check: `hub-pg.tst.sh` applies every file incl. 0017 (renumbered from 0015 at push: trunk took 0015/0016).
+- [x] T021 (`e586002`) `internal/i18n`, `X-Locale` in the CORS allow-lists, `PUT /api/v1/auth/preferences`, session `preferred_locale`, `SPOOL_HUB_DEFAULT_LOCALE` (cnf `env.i18n.default_locale`). Check: `go test ./...` ok.
+- [~] T022 (`e586002`) Mails (verify, reset, M2 claim) per locale, 19 locales, link prefix; English wording pinned. Gap: the M2 claim mail goes out in the default locale (the buyer's locale is not stored on the checkout; needs a column).
+- [ ] T023 Hub deploy via CLE-3355: `do_spl_db_bootstrap` (0017) on dev then prd, THEN a `hub.image.tag` bump containing `e586002` (asked 2026-09-19, CLE-3355 inbox). Then re-enable WUI `sendLocale`.
 
 ## Phase 4 — Proof
 

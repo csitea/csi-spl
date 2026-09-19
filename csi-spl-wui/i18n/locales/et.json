@@ -204,8 +204,8 @@
       "generic": "Midagi läks valesti — proovi uuesti."
     },
     "host": {
-      "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
-      "ready": "Your address {host} is ready."
+      "preparing": "Sinu aadressi {host} valmistatakse ette (tavaliselt 15–30 minutit). See leht uueneb, kui aadress vastab; hoia seni oma võti turvaliselt alles.",
+      "ready": "Sinu aadress {host} on valmis."
     }
   },
   "user_menu": {

@@ -204,8 +204,8 @@
       "generic": "Nešto je pošlo naopako — pokušajte ponovo."
     },
     "host": {
-      "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
-      "ready": "Your address {host} is ready."
+      "preparing": "Vaša adresa {host} se priprema (obično 15–30 minuta). Stranica će se osvežiti kada odgovori; u međuvremenu čuvajte ključ na sigurnom.",
+      "ready": "Vaša adresa {host} je spremna."
     }
   },
   "user_menu": {

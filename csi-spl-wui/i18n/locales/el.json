@@ -204,8 +204,8 @@
       "generic": "Κάτι πήγε στραβά — δοκιμάστε ξανά."
     },
     "host": {
-      "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
-      "ready": "Your address {host} is ready."
+      "preparing": "Η διεύθυνσή σας {host} προετοιμάζεται (συνήθως 15–30 λεπτά). Η σελίδα θα ενημερωθεί όταν απαντήσει· στο μεταξύ φυλάξτε το κλειδί σας με ασφάλεια.",
+      "ready": "Η διεύθυνσή σας {host} είναι έτοιμη."
     }
   },
   "user_menu": {

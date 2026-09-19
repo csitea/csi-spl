@@ -204,8 +204,8 @@
       "generic": "Нещо се обърка — опитайте отново."
     },
     "host": {
-      "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
-      "ready": "Your address {host} is ready."
+      "preparing": "Вашият адрес {host} се подготвя (обикновено 15–30 минути). Тази страница ще се обнови, когато отговори; междувременно пазете ключа си на сигурно място.",
+      "ready": "Вашият адрес {host} е готов."
     }
   },
   "user_menu": {

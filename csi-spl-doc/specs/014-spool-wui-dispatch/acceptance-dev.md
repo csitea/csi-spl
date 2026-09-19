@@ -1,9 +1,9 @@
 # Acceptance record — M3 end to end on dev (014, 005 SC-001, 006 T011c dev part)
 
 **Lane**: M3-E2E-DEV (CLE-3372) · **Runs**: 2026-09-19 12:13Z, 12:15Z (door off) 12:43Z (door
-`session`, after dev 030 `ec94b9b`) and 12:53Z (persistent Secret Manager `box-wui` key, dev 030
-`56439ab`) · **n**: 4 full runs (run 1: 2 FAILs, both in the assertions, fixed before run 2;
-runs 2, 3 and 4: every step PASS)
+`session`, after dev 030 `ec94b9b`) 12:53Z (persistent Secret Manager `box-wui` key, dev 030
+`56439ab`) and 13:48Z (hub `0.1.6` = `4dc854e`, the image dev AND prd run now) · **n**: 5 full
+runs (run 1: 2 FAILs, both in the assertions, fixed before run 2; runs 2-5: every step PASS)
 **Hub under test**: dev `0.1.4` = `b067cfd` (`curl -s https://dev.<domain>/version`)
 **Harness**: `do_spl_m3_e2e` (`csi-spl-orc/src/bash/run/spl-m3-e2e.func.sh` +
 `src/bash/scripts/m3-e2e.py`), trunk `260aec3`. Tenant `t1` (006 T011d).
@@ -93,4 +93,9 @@ Secret Manager key (`csi-spl-hub-wui-key`, pubkey `6ElVCSaK…`, stable across
 restarts). Every step PASSed; box-b's local `box-wui` pin matched it, and the
 dispatched task verified on it. This is the key the per-tenant pin keeps from now on.
 
-<!-- last-edit: 2026-09-19T12:56:00Z -->
+Run 5 (13:48Z) is the regression on hub `0.1.6` = `4dc854e` (payment code, 002
+canonical bytes `d7b08da`, M4 seats, A6 paging). That image is also the one live on
+prd (`/version` on both envs → `4dc854e`, n=1 each). Every step PASSed, door `session`,
+persistent key. The prd command gate therefore rests on the image prd already runs.
+
+<!-- last-edit: 2026-09-19T13:52:00Z -->

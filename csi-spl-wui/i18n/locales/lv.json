@@ -30,7 +30,7 @@
     "continue_google": "Turpināt ar Google",
     "continue_facebook": "Turpināt ar Facebook",
     "continue_generic": "Turpināt ar {provider}",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "Pieteikšanās vēl nav pieejama."
   },
   "debug_panel": {
     "title": "Diagnostika",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "Vēlamā valoda",
+      "save": "Saglabāt",
+      "hint": "Spool sūta jums e-pastus šajā valodā un pēc pieteikšanās atveras tajā. Valodas izvēlne augšā maina tikai atvērto lapu.",
+      "saved": "Saglabāts.",
+      "failed": "Neizdevās saglabāt — mēģiniet vēlreiz."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
-    "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "title": "Iestatījumi",
+    "profile": "Profils",
+    "name": "Vārds",
+    "email": "E-pasts",
+    "member_id": "Dalībnieka ID",
+    "workspace": "Darbvieta",
+    "picture_hint": "Jūsu attēls ir tas, ko kopīgo jūsu pieteikšanās pakalpojums; ja tāda nav, spool uzzīmē jūsu identikonu.",
+    "language_title": "Valoda",
+    "appearance": "Izskats",
+    "theme": "Motīvs",
+    "signin_security": "Pieteikšanās un drošība",
+    "signed_in_with": "Pieteicies ar",
+    "password_managed_by": "Jūsu paroli pārvalda {method}.",
+    "signed_out": "{link}, lai redzētu savus iestatījumus."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "Pieteikšanās tika atcelta.",
+      "invalid_state": "Šīs pieteikšanās saites derīgums beidzies — mēģiniet vēlreiz.",
+      "exchange_failed": "Pakalpojums nevarēja jūs apstiprināt — mēģiniet vēlreiz.",
+      "email_unverified": "Jūsu kontam šajā pakalpojumā nav apstiprināta e-pasta — izmēģiniet citu.",
+      "not_allowed": "Ar šo kontu šeit pieteikties nevar.",
+      "unavailable": "Pieteikšanās pašlaik nav pieejama.",
+      "failed": "Pieteikšanās neizdevās."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "Nepareizs e-pasts vai parole.",
+      "email_unverified": "Vispirms apstipriniet savu e-pastu — varam nosūtīt saiti vēlreiz.",
+      "not_allowed": "Šim kontam šeit vēl nav piekļuves — palūdziet īpašniekam uzaicinājumu.",
+      "verification_token_invalid": "Šī saite vairs nav derīga.",
+      "verification_token_expired": "Šīs saites derīgums beidzies — varam nosūtīt jaunu.",
+      "reset_token_invalid": "Šī atiestatīšanas saite vairs nav derīga — pieprasiet jaunu.",
+      "email_delivery_unavailable": "Pašlaik nevaram nosūtīt e-pastu — mēģiniet vēlāk.",
+      "rate_limited": "Pārāk daudz mēģinājumu — mēģiniet vēlāk.",
+      "unauthenticated": "Jūsu sesija beigusies — piesakieties vēlreiz.",
+      "password_too_short": "Parole ir pārāk īsa.",
+      "email": "Ievadiet derīgu e-pasta adresi.",
+      "unavailable": "Pieteikšanās pašlaik nav pieejama.",
+      "network": "Centrs neatbildēja — mēģiniet vēlreiz.",
+      "retry_minute": "Pārāk daudz mēģinājumu — mēģiniet vēlreiz pēc minūtes.",
+      "retry_minutes": "Pārāk daudz mēģinājumu — mēģiniet vēlreiz pēc {m} minūtēm.",
+      "password_too_short_min": "Parole ir pārāk īsa — izmantojiet vismaz {min} rakstzīmes.",
+      "check_form": "Pārbaudiet veidlapu un mēģiniet vēlreiz.",
+      "generic": "Kaut kas nogāja greizi — mēģiniet vēlreiz."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "Uz pieteikšanos",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "Parole nomainīta — piesakieties ar jauno.",
+      "session_unavailable": "Sesija nav pieejama — centrs neatbildēja.",
+      "signed_in_as": "Pieteicies kā {who}",
+      "sign_out": "Izrakstīties",
+      "continue": "Turpināt uz pavedieniem"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
-      "email": "Email",
-      "password": "Password",
+      "tab_login": "Pieteikties",
+      "tab_register": "Izveidot kontu",
+      "tab_forgot": "Aizmirsu paroli",
+      "submit_login": "Pieteikties",
+      "submit_register": "Izveidot kontu",
+      "submit_forgot": "Sūtīt atiestatīšanas saiti",
+      "name_optional": "Vārds (nav obligāts)",
+      "email": "E-pasts",
+      "password": "Parole",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "Sūtīt saiti vēlreiz",
+      "registered": "Konts izveidots — piesakieties.",
+      "check_inbox": "Pārbaudiet iesūtni: nosūtījām saiti e-pasta apstiprināšanai.",
+      "reset_sent": "Ja šai adresei ir konts, atiestatīšanas saite jau ir ceļā.",
+      "debug_verify": "atvērt apstiprināšanas saiti",
+      "debug_reset": "atvērt atiestatīšanas saiti"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "Mainīt paroli",
+      "current": "Pašreizējā parole",
+      "new": "Jaunā parole",
+      "submit": "Mainīt paroli"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "Apstiprināt e-pastu",
+      "pending": "Apstiprina…",
+      "ok": "Jūsu e-pasts ir apstiprināts — piesakieties.",
+      "missing": "Šajā saitē nav marķiera — vēlreiz atveriet saiti no e-pasta.",
+      "expired_hint": "Piesakieties vēlreiz ar savu e-pastu un paroli, lai saņemtu jaunu saiti."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "Jauna parole",
+      "ok": "Parole iestatīta — piesakieties ar to.",
+      "missing": "Šajā saitē nav marķiera — pieprasiet jaunu atiestatīšanas saiti.",
+      "new": "Jaunā parole",
+      "repeat": "Atkārtojiet to",
+      "submit": "Iestatīt paroli",
+      "mismatch": "Paroles nesakrīt."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "Iegūt spool",
+    "loading": "Ielādē plānu…",
+    "not_on_sale": "Spool pašlaik netiek pārdoti.",
+    "unsupported": "Norēķini šajā lapā vēl nav atvērti — mēģiniet vēlāk.",
+    "price": "Viens nomnieks: {price}",
+    "tenant_name": "Nomnieka nosaukums",
+    "email": "E-pasts — atslēga tiek nosūtīta šeit vienreiz",
+    "submit": "Turpināt uz maksājumu",
+    "fake_note": "Testa vide: nauda netiek pārskaitīta.",
+    "fake_pay": "Maksāt (dev imitācija)",
+    "your_spool": "Jūsu spool",
+    "try_again": "Mēģināt vēlreiz",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "Gaida maksājuma apstiprinājumu…",
+      "claimed": "Šī atslēga jau ir saņemta — šajā lapā vai no e-pastā nosūtītās saites. Centrs to neglabā.",
+      "expired": "Saņemšanas laiks ir beidzies — sazinieties ar atbalstu, lai nomniekam izsniegtu jaunu atslēgu.",
+      "none": "Šajā pārlūka cilnē nav norēķina. Izmantojiet saņemšanas saiti no mūsu nosūtītā e-pasta.",
+      "failed": "Maksājums netika pabeigts. Spool netika izveidots.",
+      "cancelled": "Maksājums tika atcelts. Spool netika izveidots.",
+      "back": "Atpakaļ uz norēķinu"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "Saņem jūsu atslēgu…",
+      "claimed": "Šī atslēga jau ir saņemta — veiksmes lapā vai no šīs saites. Centrs to neglabā.",
+      "expired": "Šīs saites derīgums beidzies — sazinieties ar atbalstu, lai nomniekam izsniegtu jaunu atslēgu."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "warning_once": "Šī atslēga tiek parādīta tikai šoreiz. Tā netiek nosūtīta pa e-pastu, un centrs to neglabā.",
+      "warning_save": "Saglabājiet to failā, ko varat lasīt tikai jūs (režīms 0600), un norādiet uz to {var}.",
+      "tenant": "Nomnieks: {url}",
+      "copy": "Kopēt atslēgu",
+      "download": "Lejupielādēt atslēgu"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "Pārbaudiet e-pasta adresi un mēģiniet vēlreiz.",
+      "bad_tenant_id": "Šāds nosaukums nav atļauts — izmantojiet mazos burtus, ciparus un domuzīmes.",
+      "tenant_taken": "Šis nosaukums jau ir aizņemts — izvēlieties citu.",
+      "payment_unavailable": "Norēķini pašlaik nav pieejami — mēģiniet vēlāk.",
+      "not_found": "Šo norēķinu nevaram atrast.",
+      "not_paid": "Maksājums vēl nav apstiprināts.",
+      "claimed": "Šī atslēga jau ir saņemta — veiksmes lapā vai no e-pastā nosūtītās saites.",
+      "claim_expired": "Saņemšanas laiks ir beidzies — sazinieties ar atbalstu, lai nomniekam izsniegtu jaunu atslēgu.",
+      "conflict": "Šim nomniekam pa to laiku izsniegta jauna atslēga — sazinieties ar atbalstu.",
+      "bad_link": "Šī saite ir nepilnīga — vēlreiz atveriet saiti no e-pasta.",
+      "not_fake_checkout": "Šis norēķins nav testa norēķins.",
+      "not_pending": "Šis norēķins ir slēgts.",
+      "no_token": "Šajā pārlūka cilnē nav šī norēķina saņemšanas datu — atveriet veiksmes lapu cilnē, kurā maksājāt.",
+      "timeout": "Maksājums joprojām nav apstiprināts — pārlādējiet lapu pēc minūtes.",
+      "network": "Centrs neatbildēja — mēģiniet vēlreiz.",
+      "storage_blocked": "Šis pārlūks bloķē sesijas krātuvi — atļaujiet to šai vietnei un mēģiniet vēlreiz.",
+      "generic": "Kaut kas nogāja greizi — mēģiniet vēlreiz."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -209,173 +209,173 @@
     }
   },
   "user_menu": {
-    "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "account": "Konts",
+    "signed_in": "Pieteicies",
+    "settings": "Iestatījumi",
+    "sign_out": "Izrakstīties",
+    "account_menu": "Konta izvēlne",
+    "account_menu_for": "Konta izvēlne: {who}",
+    "method_password": "E-pasts un parole",
+    "method_unknown": "Nezināms",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "Nav izvēlēts nomnieks — atveriet skatītāju ar {query}.",
+      "api_host": "Centra URL ir API resursdators; nomnieka lasīšanai vajag {host} ({env_var} ar {tenant}).",
+      "no_base": "NUXT_PUBLIC_API_BASE trūkst vai nav derīgs.",
+      "unknown_tenant": "Šim resursdatoram nezināms nomnieks.",
+      "not_found": "Nav atrasts.",
+      "load_failed": "ielāde neizdevās"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "Ielādē Spool…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
-    "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "channels": "Kanāli",
+    "direct_messages": "Tiešās ziņas",
+    "new_channel_placeholder": "jauns kanāls",
+    "new_channel_label": "Jauns kanāls",
+    "retention_days": "{n} d.",
+    "retention_title": "ziņas tiek glabātas {retention}",
+    "health_title": "savienojums ar centru: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
-      "down": "offline"
+      "ok": "savienots",
+      "warn": "atjauno savienojumu…",
+      "down": "bezsaistē"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "Šāds kanāls jau pastāv (vai nosaukums ir rezervēts).",
+      "bad_channel": "Izmantojiet mazos burtus, ciparus un domuzīmes (līdz 64).",
+      "view_door": "Piesakieties, lai izveidotu kanālu.",
+      "fallback": "kanāls netika izveidots"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "nepieciešams kanāla nosaukums"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
+    "mention_suggestions": "Pieminēšanas ieteikumi",
+    "omnibox_label": "Omnibox: ziņa vai /search filtrēšanai",
+    "message_label": "Ziņa",
+    "placeholder_default": "Ziņa — {mention}, lai uzdotu uzdevumu aģentam",
     "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "remove_file": "Noņemt {name}",
+    "attach": "pievienot",
+    "send": "Sūtīt",
+    "sending": "Sūta…",
     "code_hint": "Koda bloks: Enter pievieno rindu, lai aizvērtu, ierakstiet ``` vai nospiediet Esc, Ctrl+Enter nosūta"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "nezināms",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
-    "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "open_thread": "Atvērt pavedienu",
+    "replies": "{n} atbilde | {n} atbildes",
+    "filter_label": "Filtrs:",
+    "matches": "Atbilstības: {count}",
+    "clear": "Notīrīt",
+    "no_matches": "Nav atbilstošu ziņu.",
+    "empty": "Ziņu vēl nav.",
+    "loading_older": "Ielādē vecākas…",
+    "announce_new": "Jauna ziņa no {who}",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "ceļš kastē · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "Lejupielādēt",
+      "busy": "Lejupielādē…",
+      "mismatch": "sha256 neatbilst",
+      "done": "Lejupielādēts ✓",
+      "failed": "Lejupielāde neizdevās"
     },
-    "avatar_of": "avatar of {who}",
-    "avatar": "avatar",
+    "avatar_of": "{who} avatārs",
+    "avatar": "avatārs",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "uzdevums",
+      "result": "rezultāts",
+      "note": "piezīme",
+      "reject": "noraidījums"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
-      "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
-      "mock": "mock",
-      "no_base": "no_base"
+      "idle": "dīkstāvē",
+      "connecting": "savienojas",
+      "open": "atvērts",
+      "reconnecting": "atjauno savienojumu",
+      "closed": "slēgts",
+      "mock": "imitācija",
+      "no_base": "nav bāzes"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "ielāde neizdevās",
+      "load_older_failed": "vecāko ielāde neizdevās",
+      "catch_up_failed": "sinhronizācija neizdevās",
+      "send_failed": "sūtīšana neizdevās"
     }
   },
   "thread": {
-    "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "title": "Pavediens",
+    "open": "Atvērt",
+    "empty": "Tukšs pavediens.",
+    "reply_placeholder": "Atbilde — Enter, lai sūtītu · /search filtrēšanai",
+    "replies_label": "Atbildes, jaunākās vispirms",
+    "load_failed": "pavediena ielāde neizdevās"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "paziņojumi ieslēgti",
+    "enable_alerts": "ieslēgt paziņojumus",
+    "chime": "skaņa",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "Tiešā ziņa no {from}",
+    "title_mention": "{from} jūs pieminēja",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Pavediena detalizācija",
     "level": {
-      "minimal": "minimal",
-      "normal": "normal",
-      "verbose": "verbose"
+      "minimal": "minimāla",
+      "normal": "parasta",
+      "verbose": "detalizēta"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "Pārslēgt uz gaišo motīvu",
+    "to_dark": "Pārslēgt uz tumšo motīvu",
+    "light": "Gaišs",
+    "dark": "Tumšs"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "Šī nomnieka pavedieniem nepieciešama dalībnieka pieteikšanās.",
+    "need_member_or_token": "Šī nomnieka pavedieniem nepieciešama dalībnieka pieteikšanās vai skatīšanas marķieris.",
+    "placeholder": "skatīšanas marķieris",
+    "label": "Skatīšanas marķieris",
+    "use": "Lietot"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "Mainīt kanālu sānjoslas izmēru",
+    "resize_thread": "Mainīt pavediena paneļa izmēru",
+    "resize_hint": "Velciet, lai mainītu izmēru. Veiciet dubultklikšķi, lai atiestatītu."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "Ziņa {target} — Enter, lai sūtītu · /search filtrēšanai",
+    "feed_label": "{target}, jaunākās vispirms",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "tikai lasīšanai · nomnieka tvērumā",
+      "empty": "Pavedienu vēl nav.",
+      "messages": "{n} ziņa | {n} ziņas",
+      "older": "Vecākas"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "tiešsaistē · {state} · jūs esat {who}",
+      "no_lobby": "Vestibils nav konfigurēts ({env} vai centra sveiciens)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "pēdējās 50 · nomnieka tvērumā",
+      "subtitle_retention": "pēdējās 50 · nomnieka tvērumā · glabāšana {retention}"
     },
     "dm": {
-      "online": "online",
-      "offline_queued": "offline · queued"
+      "online": "tiešsaistē",
+      "offline_queued": "bezsaistē · rindā"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · jaunākās vispirms · {state}"
     }
   },
   "code": {

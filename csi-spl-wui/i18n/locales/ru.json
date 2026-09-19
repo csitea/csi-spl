@@ -30,7 +30,7 @@
     "continue_google": "Продолжить с Google",
     "continue_facebook": "Продолжить с Facebook",
     "continue_generic": "Продолжить с {provider}",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "Вход пока недоступен."
   },
   "debug_panel": {
     "title": "Диагностика",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "Предпочитаемый язык",
+      "save": "Сохранить",
+      "hint": "Spool присылает вам письма на этом языке и открывается на нём после входа. Меню языка вверху меняет только текущую страницу.",
+      "saved": "Сохранено.",
+      "failed": "Не удалось сохранить — попробуйте ещё раз."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
-    "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "title": "Настройки",
+    "profile": "Профиль",
+    "name": "Имя",
+    "email": "Эл. почта",
+    "member_id": "ID участника",
+    "workspace": "Рабочее пространство",
+    "picture_hint": "Ваше фото — то, которым делится ваш провайдер входа; если его нет, Spool рисует для вас идентикон.",
+    "language_title": "Язык",
+    "appearance": "Оформление",
+    "theme": "Тема",
+    "signin_security": "Вход и безопасность",
+    "signed_in_with": "Способ входа",
+    "password_managed_by": "Вашим паролем управляет {method}.",
+    "signed_out": "{link}, чтобы увидеть настройки."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "Вход отменён.",
+      "invalid_state": "Срок действия ссылки для входа истёк — попробуйте ещё раз.",
+      "exchange_failed": "Провайдер не смог вас подтвердить — попробуйте ещё раз.",
+      "email_unverified": "У вашего аккаунта у этого провайдера нет подтверждённой почты — попробуйте другой.",
+      "not_allowed": "С этим аккаунтом здесь нельзя войти.",
+      "unavailable": "Вход сейчас недоступен.",
+      "failed": "Не удалось войти."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "Неверная почта или пароль.",
+      "email_unverified": "Сначала подтвердите почту — мы можем отправить ссылку ещё раз.",
+      "not_allowed": "У этого аккаунта пока нет доступа — попросите приглашение у владельца.",
+      "verification_token_invalid": "Эта ссылка больше не действительна.",
+      "verification_token_expired": "Срок действия ссылки истёк — мы можем отправить новую.",
+      "reset_token_invalid": "Ссылка для сброса больше не действительна — запросите новую.",
+      "email_delivery_unavailable": "Сейчас мы не можем отправлять письма — попробуйте позже.",
+      "rate_limited": "Слишком много попыток — попробуйте позже.",
+      "unauthenticated": "Сеанс завершён — войдите снова.",
+      "password_too_short": "Пароль слишком короткий.",
+      "email": "Введите действительный адрес эл. почты.",
+      "unavailable": "Вход сейчас недоступен.",
+      "network": "Хаб не ответил — попробуйте ещё раз.",
+      "retry_minute": "Слишком много попыток — попробуйте через минуту.",
+      "retry_minutes": "Слишком много попыток — попробуйте через {m} мин.",
+      "password_too_short_min": "Пароль слишком короткий — используйте не менее {min} символов.",
+      "check_form": "Проверьте форму и попробуйте ещё раз.",
+      "generic": "Что-то пошло не так — попробуйте ещё раз."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "Перейти ко входу",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "Пароль изменён — войдите с новым паролем.",
+      "session_unavailable": "Сеанс недоступен — хаб не ответил.",
+      "signed_in_as": "Вы вошли как {who}",
+      "sign_out": "Выйти",
+      "continue": "Перейти к тредам"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
-      "email": "Email",
-      "password": "Password",
+      "tab_login": "Вход",
+      "tab_register": "Регистрация",
+      "tab_forgot": "Забыли пароль",
+      "submit_login": "Войти",
+      "submit_register": "Создать аккаунт",
+      "submit_forgot": "Отправить ссылку для сброса",
+      "name_optional": "Имя (необязательно)",
+      "email": "Эл. почта",
+      "password": "Пароль",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "Отправить ссылку ещё раз",
+      "registered": "Аккаунт создан — войдите.",
+      "check_inbox": "Проверьте почту: мы отправили ссылку для подтверждения адреса.",
+      "reset_sent": "Если для этого адреса есть аккаунт, ссылка для сброса уже в пути.",
+      "debug_verify": "открыть ссылку подтверждения",
+      "debug_reset": "открыть ссылку сброса"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "Смена пароля",
+      "current": "Текущий пароль",
+      "new": "Новый пароль",
+      "submit": "Сменить пароль"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "Подтверждение почты",
+      "pending": "Подтверждение…",
+      "ok": "Ваша почта подтверждена — войдите.",
+      "missing": "В ссылке нет токена — откройте ссылку из письма ещё раз.",
+      "expired_hint": "Войдите снова с почтой и паролем, чтобы получить новую ссылку."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "Новый пароль",
+      "ok": "Пароль установлен — войдите с ним.",
+      "missing": "В ссылке нет токена — запросите новую ссылку для сброса.",
+      "new": "Новый пароль",
+      "repeat": "Повторите пароль",
+      "submit": "Установить пароль",
+      "mismatch": "Пароли не совпадают."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "Получить spool",
+    "loading": "Загрузка тарифа…",
+    "not_on_sale": "Сейчас spool недоступны для покупки.",
+    "unsupported": "Оформление заказа на этой странице пока не открыто — попробуйте позже.",
+    "price": "Один тенант: {price}",
+    "tenant_name": "Имя тенанта",
+    "email": "Эл. почта — ключ будет отправлен сюда один раз",
+    "submit": "Перейти к оплате",
+    "fake_note": "Тестовая среда: деньги не списываются.",
+    "fake_pay": "Оплатить (тест для dev)",
+    "your_spool": "Ваш spool",
+    "try_again": "Попробовать ещё раз",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "Ожидание подтверждения оплаты…",
+      "claimed": "Этот ключ уже получен — на этой странице или по ссылке из письма. Хаб его не хранит.",
+      "expired": "Срок получения истёк — обратитесь в поддержку, чтобы перевыпустить ключ тенанта.",
+      "none": "В этой вкладке браузера нет заказа. Воспользуйтесь ссылкой для получения из нашего письма.",
+      "failed": "Оплата не завершена. Spool не создан.",
+      "cancelled": "Оплата отменена. Spool не создан.",
+      "back": "Вернуться к оформлению"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "Получаем ваш ключ…",
+      "claimed": "Этот ключ уже получен — на странице успешной оплаты или по этой ссылке. Хаб его не хранит.",
+      "expired": "Срок действия ссылки истёк — обратитесь в поддержку, чтобы перевыпустить ключ тенанта."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "warning_once": "Ключ показывается только один раз. Он не отправляется по почте, и хаб его не хранит.",
+      "warning_save": "Сохраните его в файл, доступный для чтения только вам (режим 0600), и укажите на него в {var}.",
+      "tenant": "Тенант: {url}",
+      "copy": "Копировать ключ",
+      "download": "Скачать ключ"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "Проверьте адрес эл. почты и попробуйте ещё раз.",
+      "bad_tenant_id": "Такое имя недопустимо — используйте строчные буквы, цифры и дефисы.",
+      "tenant_taken": "Это имя занято — выберите другое.",
+      "payment_unavailable": "Оформление заказа сейчас недоступно — попробуйте позже.",
+      "not_found": "Не удалось найти этот заказ.",
+      "not_paid": "Оплата ещё не подтверждена.",
+      "claimed": "Этот ключ уже получен — на странице успешной оплаты или по ссылке из письма.",
+      "claim_expired": "Срок получения истёк — обратитесь в поддержку, чтобы перевыпустить ключ тенанта.",
+      "conflict": "Ключ этого тенанта тем временем перевыпущен — обратитесь в поддержку.",
+      "bad_link": "Ссылка неполная — откройте ссылку из письма ещё раз.",
+      "not_fake_checkout": "Этот заказ не тестовый.",
+      "not_pending": "Этот заказ закрыт.",
+      "no_token": "В этой вкладке браузера нет права на получение по этому заказу — откройте страницу успешной оплаты во вкладке, из которой вы платили.",
+      "timeout": "Оплата всё ещё не подтверждена — обновите страницу через минуту.",
+      "network": "Хаб не ответил — попробуйте ещё раз.",
+      "storage_blocked": "Браузер блокирует хранилище сеанса — разрешите его для этого сайта и попробуйте ещё раз.",
+      "generic": "Что-то пошло не так — попробуйте ещё раз."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -209,173 +209,173 @@
     }
   },
   "user_menu": {
-    "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "account": "Аккаунт",
+    "signed_in": "Вход выполнен",
+    "settings": "Настройки",
+    "sign_out": "Выйти",
+    "account_menu": "Меню аккаунта",
+    "account_menu_for": "Меню аккаунта {who}",
+    "method_password": "Эл. почта и пароль",
+    "method_unknown": "Неизвестно",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "Тенант не выбран — откройте просмотр с {query}.",
+      "api_host": "URL хаба — это хост API; для чтения тенанта нужен {host} ({env_var} с {tenant}).",
+      "no_base": "NUXT_PUBLIC_API_BASE отсутствует или недействителен.",
+      "unknown_tenant": "Неизвестный тенант для этого хоста.",
+      "not_found": "Не найдено.",
+      "load_failed": "ошибка загрузки"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "Загрузка Spool…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
-    "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "channels": "Каналы",
+    "direct_messages": "Личные сообщения",
+    "new_channel_placeholder": "новый канал",
+    "new_channel_label": "Новый канал",
+    "retention_days": "{n} дн.",
+    "retention_title": "сообщения хранятся {retention}",
+    "health_title": "соединение с хабом: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
-      "down": "offline"
+      "ok": "подключено",
+      "warn": "переподключение…",
+      "down": "не в сети"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "Такой канал уже существует (или имя зарезервировано).",
+      "bad_channel": "Используйте строчные буквы, цифры и дефисы (не более 64).",
+      "view_door": "Войдите, чтобы создать канал.",
+      "fallback": "канал не создан"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "укажите имя канала"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
-    "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "mention_suggestions": "Варианты упоминаний",
+    "omnibox_label": "Omnibox: сообщение или /search для фильтра",
+    "message_label": "Сообщение",
+    "placeholder_default": "Сообщение — {mention}, чтобы дать задачу агенту",
+    "file_bytes": "{n} Б",
+    "remove_file": "Удалить {name}",
+    "attach": "прикрепить",
+    "send": "Отправить",
+    "sending": "Отправка…",
     "code_hint": "Блок кода: Enter добавляет строку, введите ``` или нажмите Esc, чтобы закрыть, Ctrl+Enter отправляет"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "неизвестно",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
-    "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "open_thread": "Открыть тред",
+    "replies": "{n} ответ | Ответов: {n}",
+    "filter_label": "Фильтр:",
+    "matches": "Совпадений: {count}",
+    "clear": "Очистить",
+    "no_matches": "Нет подходящих сообщений.",
+    "empty": "Сообщений пока нет.",
+    "loading_older": "Загрузка более ранних…",
+    "announce_new": "Новое сообщение от {who}",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "путь на боксе · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "Скачать",
+      "busy": "Скачивание…",
+      "mismatch": "sha256 не совпадает",
+      "done": "Скачано ✓",
+      "failed": "Не удалось скачать"
     },
-    "avatar_of": "avatar of {who}",
-    "avatar": "avatar",
+    "avatar_of": "аватар {who}",
+    "avatar": "аватар",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "задача",
+      "result": "результат",
+      "note": "заметка",
+      "reject": "отказ"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
-      "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
-      "mock": "mock",
+      "idle": "ожидание",
+      "connecting": "подключение",
+      "open": "открыто",
+      "reconnecting": "переподключение",
+      "closed": "закрыто",
+      "mock": "имитация",
       "no_base": "no_base"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "ошибка загрузки",
+      "load_older_failed": "не удалось загрузить более ранние",
+      "catch_up_failed": "не удалось догрузить новые",
+      "send_failed": "ошибка отправки"
     }
   },
   "thread": {
-    "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "title": "Тред",
+    "open": "Открыть",
+    "empty": "Пустой тред.",
+    "reply_placeholder": "Ответ — Enter для отправки · /search для фильтра",
+    "replies_label": "Ответы, сначала новые",
+    "load_failed": "не удалось загрузить тред"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "уведомления включены",
+    "enable_alerts": "включить уведомления",
+    "chime": "звук",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "Личное сообщение от {from}",
+    "title_mention": "{from} упомянул(а) вас",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Подробность треда",
     "level": {
-      "minimal": "minimal",
-      "normal": "normal",
-      "verbose": "verbose"
+      "minimal": "минимальная",
+      "normal": "обычная",
+      "verbose": "подробная"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "Переключить на светлую тему",
+    "to_dark": "Переключить на тёмную тему",
+    "light": "Светлая",
+    "dark": "Тёмная"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "Для тредов этого тенанта нужен вход участника.",
+    "need_member_or_token": "Для тредов этого тенанта нужен вход участника или токен просмотра.",
+    "placeholder": "токен просмотра",
+    "label": "Токен просмотра",
+    "use": "Применить"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "Изменить ширину боковой панели каналов",
+    "resize_thread": "Изменить ширину панели треда",
+    "resize_hint": "Перетащите, чтобы изменить размер. Двойной щелчок — сброс."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "Сообщение в {target} — Enter для отправки · /search для фильтра",
+    "feed_label": "{target}, сначала новые",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "только чтение · в пределах тенанта",
+      "empty": "Тредов пока нет.",
+      "messages": "{n} сообщение | Сообщений: {n}",
+      "older": "Более ранние"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "в эфире · {state} · вы — {who}",
+      "no_lobby": "Лобби не настроено ({env} или приветствие хаба)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "последние 50 · в пределах тенанта",
+      "subtitle_retention": "последние 50 · в пределах тенанта · хранение {retention}"
     },
     "dm": {
-      "online": "online",
-      "offline_queued": "offline · queued"
+      "online": "в сети",
+      "offline_queued": "не в сети · в очереди"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · сначала новые · {state}"
     }
   },
   "code": {

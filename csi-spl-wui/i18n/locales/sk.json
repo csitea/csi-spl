@@ -30,7 +30,7 @@
     "continue_google": "Pokračovať cez Google",
     "continue_facebook": "Pokračovať cez Facebook",
     "continue_generic": "Pokračovať cez {provider}",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "Prihlásenie zatiaľ nie je k dispozícii."
   },
   "debug_panel": {
     "title": "Diagnostika",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "Preferovaný jazyk",
+      "save": "Uložiť",
+      "hint": "Spool vám v tomto jazyku posiela e-maily a po prihlásení sa v ňom otvorí. Jazyková ponuka hore mení len stránku, na ktorej práve ste.",
+      "saved": "Uložené.",
+      "failed": "Nepodarilo sa uložiť — skúste to znova."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
-    "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "title": "Nastavenia",
+    "profile": "Profil",
+    "name": "Meno",
+    "email": "E-mail",
+    "member_id": "ID člena",
+    "workspace": "Pracovný priestor",
+    "picture_hint": "Váš obrázok je ten, ktorý zdieľa váš poskytovateľ prihlásenia; ak žiadny nie je, spool vám vykreslí identikon.",
+    "language_title": "Jazyk",
+    "appearance": "Vzhľad",
+    "theme": "Motív",
+    "signin_security": "Prihlásenie a zabezpečenie",
+    "signed_in_with": "Prihlásený cez",
+    "password_managed_by": "Vaše heslo spravuje {method}.",
+    "signed_out": "{link}, aby ste videli svoje nastavenia."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "Prihlásenie bolo zrušené.",
+      "invalid_state": "Platnosť odkazu na prihlásenie vypršala — skúste to znova.",
+      "exchange_failed": "Poskytovateľ vás nedokázal overiť — skúste to znova.",
+      "email_unverified": "Váš účet u tohto poskytovateľa nemá overený e-mail — skúste iného.",
+      "not_allowed": "Tento účet sa tu nemôže prihlásiť.",
+      "unavailable": "Prihlásenie momentálne nie je k dispozícii.",
+      "failed": "Prihlásenie zlyhalo."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "E-mail alebo heslo je nesprávne.",
+      "email_unverified": "Najprv potvrďte svoj e-mail — odkaz vám môžeme poslať znova.",
+      "not_allowed": "Tento účet tu zatiaľ nemá prístup — požiadajte vlastníka o pozvánku.",
+      "verification_token_invalid": "Tento odkaz už nie je platný.",
+      "verification_token_expired": "Platnosť odkazu vypršala — môžeme vám poslať nový.",
+      "reset_token_invalid": "Odkaz na obnovenie už nie je platný — požiadajte o nový.",
+      "email_delivery_unavailable": "E-maily momentálne nemôžeme odosielať — skúste to neskôr.",
+      "rate_limited": "Príliš veľa pokusov — skúste to neskôr.",
+      "unauthenticated": "Vaša relácia skončila — prihláste sa znova.",
+      "password_too_short": "Heslo je príliš krátke.",
+      "email": "Zadajte platnú e-mailovú adresu.",
+      "unavailable": "Prihlásenie momentálne nie je k dispozícii.",
+      "network": "Hub neodpovedal — skúste to znova.",
+      "retry_minute": "Príliš veľa pokusov — skúste to znova o minútu.",
+      "retry_minutes": "Príliš veľa pokusov — skúste to znova o {m} min.",
+      "password_too_short_min": "Heslo je príliš krátke — použite aspoň {min} znakov.",
+      "check_form": "Skontrolujte formulár a skúste to znova.",
+      "generic": "Niečo sa pokazilo — skúste to znova."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "Prejsť na prihlásenie",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "Heslo bolo zmenené — prihláste sa novým heslom.",
+      "session_unavailable": "Relácia nie je k dispozícii — hub neodpovedal.",
+      "signed_in_as": "Prihlásený ako {who}",
+      "sign_out": "Odhlásiť sa",
+      "continue": "Pokračovať na vlákna"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
-      "email": "Email",
-      "password": "Password",
+      "tab_login": "Prihlásiť sa",
+      "tab_register": "Vytvoriť účet",
+      "tab_forgot": "Zabudnuté heslo",
+      "submit_login": "Prihlásiť sa",
+      "submit_register": "Vytvoriť účet",
+      "submit_forgot": "Poslať odkaz na obnovenie",
+      "name_optional": "Meno (nepovinné)",
+      "email": "E-mail",
+      "password": "Heslo",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "Poslať odkaz znova",
+      "registered": "Účet bol vytvorený — prihláste sa.",
+      "check_inbox": "Skontrolujte si doručenú poštu: poslali sme vám odkaz na potvrdenie e-mailu.",
+      "reset_sent": "Ak k tejto adrese existuje účet, odkaz na obnovenie je na ceste.",
+      "debug_verify": "otvoriť overovací odkaz",
+      "debug_reset": "otvoriť odkaz na obnovenie"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "Zmeniť heslo",
+      "current": "Aktuálne heslo",
+      "new": "Nové heslo",
+      "submit": "Zmeniť heslo"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "Potvrdenie e-mailu",
+      "pending": "Potvrdzuje sa…",
+      "ok": "Váš e-mail je potvrdený — prihláste sa.",
+      "missing": "Tento odkaz neobsahuje token — otvorte znova odkaz z e-mailu.",
+      "expired_hint": "Prihláste sa znova e-mailom a heslom a dostanete nový odkaz."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "Nové heslo",
+      "ok": "Heslo je nastavené — prihláste sa ním.",
+      "missing": "Tento odkaz neobsahuje token — požiadajte o nový odkaz na obnovenie.",
+      "new": "Nové heslo",
+      "repeat": "Zopakujte heslo",
+      "submit": "Nastaviť heslo",
+      "mismatch": "Heslá sa nezhodujú."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "Získať spool",
+    "loading": "Načítava sa plán…",
+    "not_on_sale": "Spooly sa momentálne nepredávajú.",
+    "unsupported": "Pokladňa na tejto stránke zatiaľ nie je otvorená — skúste to neskôr.",
+    "price": "Jeden nájomník: {price}",
+    "tenant_name": "Názov nájomníka",
+    "email": "E-mail — kľúč sa sem pošle raz",
+    "submit": "Pokračovať na platbu",
+    "fake_note": "Testovacie prostredie: neprevádzajú sa žiadne peniaze.",
+    "fake_pay": "Zaplatiť (dev fake)",
+    "your_spool": "Váš spool",
+    "try_again": "Skúsiť znova",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "Čaká sa na potvrdenie platby…",
+      "claimed": "Tento kľúč už bol vyzdvihnutý — na tejto stránke alebo cez odkaz z e-mailu. Hub ho neuchováva.",
+      "expired": "Lehota na vyzdvihnutie uplynula — kontaktujte podporu kvôli novému kľúču pre nájomníka.",
+      "none": "Táto karta prehliadača neobsahuje žiadnu objednávku. Použite odkaz na vyzdvihnutie z e-mailu, ktorý sme vám poslali.",
+      "failed": "Platba nebola dokončená. Nevytvoril sa žiadny spool.",
+      "cancelled": "Platba bola zrušená. Nevytvoril sa žiadny spool.",
+      "back": "Späť do pokladne"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "Vyzdvihuje sa váš kľúč…",
+      "claimed": "Tento kľúč už bol vyzdvihnutý — na stránke potvrdenia platby alebo cez tento odkaz. Hub ho neuchováva.",
+      "expired": "Platnosť tohto odkazu vypršala — kontaktujte podporu kvôli novému kľúču pre nájomníka."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "warning_once": "Tento kľúč sa zobrazuje iba teraz. Neposiela sa e-mailom a hub ho neuchováva.",
+      "warning_save": "Uložte ho do súboru, ktorý môžete čítať iba vy (mode 0600), a nastavte naň {var}.",
+      "tenant": "Nájomník: {url}",
+      "copy": "Kopírovať kľúč",
+      "download": "Stiahnuť kľúč"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "Skontrolujte e-mailovú adresu a skúste to znova.",
+      "bad_tenant_id": "Tento názov nie je povolený — použite malé písmená, číslice a pomlčky.",
+      "tenant_taken": "Tento názov je obsadený — vyberte iný.",
+      "payment_unavailable": "Pokladňa momentálne nie je k dispozícii — skúste to neskôr.",
+      "not_found": "Túto objednávku nevieme nájsť.",
+      "not_paid": "Platba ešte nie je potvrdená.",
+      "claimed": "Tento kľúč už bol vyzdvihnutý — na stránke potvrdenia platby alebo cez odkaz z e-mailu.",
+      "claim_expired": "Lehota na vyzdvihnutie uplynula — kontaktujte podporu kvôli novému kľúču pre nájomníka.",
+      "conflict": "Nájomník medzitým dostal nový kľúč — kontaktujte podporu.",
+      "bad_link": "Tento odkaz je neúplný — otvorte znova odkaz z e-mailu.",
+      "not_fake_checkout": "Táto objednávka nie je testovacia.",
+      "not_pending": "Táto objednávka je uzavretá.",
+      "no_token": "Táto karta prehliadača nemá nárok na vyzdvihnutie tejto objednávky — otvorte stránku potvrdenia platby v karte, z ktorej ste platili.",
+      "timeout": "Platba stále nie je potvrdená — o minútu túto stránku znova načítajte.",
+      "network": "Hub neodpovedal — skúste to znova.",
+      "storage_blocked": "Tento prehliadač blokuje úložisko relácie — povoľte ho pre túto stránku a skúste to znova.",
+      "generic": "Niečo sa pokazilo — skúste to znova."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -209,173 +209,173 @@
     }
   },
   "user_menu": {
-    "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "account": "Účet",
+    "signed_in": "Prihlásený",
+    "settings": "Nastavenia",
+    "sign_out": "Odhlásiť sa",
+    "account_menu": "Ponuka účtu",
+    "account_menu_for": "Ponuka účtu pre {who}",
+    "method_password": "E-mail a heslo",
+    "method_unknown": "Neznáme",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "Nie je vybraný žiadny nájomník — otvorte prehliadač s {query}.",
+      "api_host": "URL hubu je hostiteľ API; čítanie nájomníka vyžaduje {host} ({env_var} s {tenant}).",
+      "no_base": "NUXT_PUBLIC_API_BASE chýba alebo je neplatné.",
+      "unknown_tenant": "Neznámy nájomník pre tohto hostiteľa.",
+      "not_found": "Nenašlo sa.",
+      "load_failed": "načítanie zlyhalo"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "Načítava sa Spool…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
+    "channels": "Kanály",
+    "direct_messages": "Priame správy",
+    "new_channel_placeholder": "nový kanál",
+    "new_channel_label": "Nový kanál",
     "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "retention_title": "správy sa uchovávajú {retention}",
+    "health_title": "spojenie s hubom: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
+      "ok": "pripojené",
+      "warn": "opätovné pripájanie…",
       "down": "offline"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "Tento kanál už existuje (alebo je názov rezervovaný).",
+      "bad_channel": "Použite malé písmená, číslice a pomlčky (max. 64).",
+      "view_door": "Ak chcete vytvoriť kanál, prihláste sa.",
+      "fallback": "kanál nebol vytvorený"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "názov kanála je povinný"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
+    "mention_suggestions": "Návrhy zmienok",
+    "omnibox_label": "Omnibox: správa alebo /search na filtrovanie",
+    "message_label": "Správa",
+    "placeholder_default": "Správa — {mention} zadá úlohu agentovi",
     "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "remove_file": "Odstrániť {name}",
+    "attach": "priložiť",
+    "send": "Odoslať",
+    "sending": "Odosiela sa…",
     "code_hint": "Blok kódu: Enter pridá riadok, zatvorte napísaním ``` alebo klávesom Esc, Ctrl+Enter odošle"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "neznámy",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
+    "open_thread": "Otvoriť vlákno",
+    "replies": "{n} odpoveď | Počet odpovedí: {n}",
     "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "matches": "Zhody: {count}",
+    "clear": "Vymazať",
+    "no_matches": "Žiadne zodpovedajúce správy.",
+    "empty": "Zatiaľ žiadne správy.",
+    "loading_older": "Načítavajú sa staršie…",
+    "announce_new": "Nová správa od {who}",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "cesta na boxe · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "Stiahnuť",
+      "busy": "Sťahuje sa…",
+      "mismatch": "nezhoda sha256",
+      "done": "Stiahnuté ✓",
+      "failed": "Sťahovanie zlyhalo"
     },
-    "avatar_of": "avatar of {who}",
+    "avatar_of": "avatar: {who}",
     "avatar": "avatar",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "úloha",
+      "result": "výsledok",
+      "note": "poznámka",
+      "reject": "odmietnutie"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
-      "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
+      "idle": "nečinné",
+      "connecting": "pripája sa",
+      "open": "otvorené",
+      "reconnecting": "opätovné pripájanie",
+      "closed": "zatvorené",
       "mock": "mock",
       "no_base": "no_base"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "načítanie zlyhalo",
+      "load_older_failed": "načítanie starších zlyhalo",
+      "catch_up_failed": "synchronizácia zlyhala",
+      "send_failed": "odoslanie zlyhalo"
     }
   },
   "thread": {
-    "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "title": "Vlákno",
+    "open": "Otvoriť",
+    "empty": "Prázdne vlákno.",
+    "reply_placeholder": "Odpoveď — Enter odošle · /search na filtrovanie",
+    "replies_label": "Odpovede, najnovšie prvé",
+    "load_failed": "načítanie vlákna zlyhalo"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "upozornenia zapnuté",
+    "enable_alerts": "zapnúť upozornenia",
+    "chime": "zvuk",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "Priama správa od {from}",
+    "title_mention": "{from} vás spomenul(a)",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Podrobnosť vlákna",
     "level": {
-      "minimal": "minimal",
-      "normal": "normal",
-      "verbose": "verbose"
+      "minimal": "minimálna",
+      "normal": "normálna",
+      "verbose": "podrobná"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "Prepnúť na svetlý motív",
+    "to_dark": "Prepnúť na tmavý motív",
+    "light": "Svetlý",
+    "dark": "Tmavý"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "Vlákna tohto nájomníka vyžadujú prihlásenie člena.",
+    "need_member_or_token": "Vlákna tohto nájomníka vyžadujú prihlásenie člena alebo token na zobrazenie.",
+    "placeholder": "token na zobrazenie",
+    "label": "Token na zobrazenie",
+    "use": "Použiť"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "Zmeniť šírku bočného panela kanálov",
+    "resize_thread": "Zmeniť šírku panela vlákna",
+    "resize_hint": "Potiahnutím zmeníte veľkosť. Dvojklikom obnovíte pôvodnú."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "Správa pre {target} — Enter odošle · /search na filtrovanie",
+    "feed_label": "{target}, najnovšie prvé",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "len na čítanie · v rámci nájomníka",
+      "empty": "Zatiaľ žiadne vlákna.",
+      "messages": "{n} správa | Počet správ: {n}",
+      "older": "Staršie"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "naživo · {state} · ste {who}",
+      "no_lobby": "Nie je nastavené žiadne lobby ({env} alebo uvítanie hubu)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "posledných 50 · v rámci nájomníka",
+      "subtitle_retention": "posledných 50 · v rámci nájomníka · uchovávanie {retention}"
     },
     "dm": {
       "online": "online",
-      "offline_queued": "offline · queued"
+      "offline_queued": "offline · vo fronte"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · najnovšie prvé · {state}"
     }
   },
   "code": {

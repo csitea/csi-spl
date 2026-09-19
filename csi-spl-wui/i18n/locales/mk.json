@@ -30,7 +30,7 @@
     "continue_google": "Продолжи со Google",
     "continue_facebook": "Продолжи со Facebook",
     "continue_generic": "Продолжи со {provider}",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "Најавата сè уште не е достапна."
   },
   "debug_panel": {
     "title": "Дијагностика",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "Претпочитан јазик",
+      "save": "Зачувај",
+      "hint": "Spool ви праќа е-пошта на овој јазик и се отвора на него откако ќе се најавите. Менито за јазик горе ја менува само страницата на која сте.",
+      "saved": "Зачувано.",
+      "failed": "Не може да се зачува — обидете се повторно."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
-    "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "title": "Поставки",
+    "profile": "Профил",
+    "name": "Име",
+    "email": "Е-пошта",
+    "member_id": "ID на член",
+    "workspace": "Работен простор",
+    "picture_hint": "Вашата слика е онаа што ја споделува вашиот провајдер за најава; без неа, spool ви црта identicon.",
+    "language_title": "Јазик",
+    "appearance": "Изглед",
+    "theme": "Тема",
+    "signin_security": "Најава и безбедност",
+    "signed_in_with": "Најавени со",
+    "password_managed_by": "Вашата лозинка ја управува {method}.",
+    "signed_out": "{link} за да ги видите поставките."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "Најавата е откажана.",
+      "invalid_state": "Таа врска за најава истече — обидете се повторно.",
+      "exchange_failed": "Провајдерот не можеше да ве потврди — обидете се повторно.",
+      "email_unverified": "Вашата сметка кај овој провајдер нема потврдена е-пошта — пробајте друг.",
+      "not_allowed": "Оваа сметка не може да се најави тука.",
+      "unavailable": "Најавата моментално не е достапна.",
+      "failed": "Најавата не успеа."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "Е-поштата или лозинката се погрешни.",
+      "email_unverified": "Прво потврдете ја е-поштата — можеме повторно да ја испратиме врската.",
+      "not_allowed": "Оваа сметка сè уште нема пристап тука — побарајте покана од сопственикот.",
+      "verification_token_invalid": "Таа врска веќе не е важечка.",
+      "verification_token_expired": "Таа врска истече — можеме да испратиме нова.",
+      "reset_token_invalid": "Таа врска за ресетирање веќе не е важечка — побарајте нова.",
+      "email_delivery_unavailable": "Моментално не можеме да праќаме е-пошта — обидете се подоцна.",
+      "rate_limited": "Премногу обиди — обидете се подоцна.",
+      "unauthenticated": "Сесијата ви заврши — најавете се повторно.",
+      "password_too_short": "Таа лозинка е прекратка.",
+      "email": "Внесете важечка адреса на е-пошта.",
+      "unavailable": "Најавата моментално не е достапна.",
+      "network": "Хабот не одговори — обидете се повторно.",
+      "retry_minute": "Премногу обиди — обидете се повторно за една минута.",
+      "retry_minutes": "Премногу обиди — обидете се повторно за {m} минути.",
+      "password_too_short_min": "Таа лозинка е прекратка — користете најмалку {min} знаци.",
+      "check_form": "Проверете го формуларот и обидете се повторно.",
+      "generic": "Нешто тргна наопаку — обидете се повторно."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "Оди на најава",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "Лозинката е сменета — најавете се со новата.",
+      "session_unavailable": "Сесијата не е достапна — хабот не одговори.",
+      "signed_in_as": "Најавени како {who}",
+      "sign_out": "Одјава",
+      "continue": "Продолжи кон нишките"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
-      "email": "Email",
-      "password": "Password",
+      "tab_login": "Најава",
+      "tab_register": "Создај сметка",
+      "tab_forgot": "Заборавена лозинка",
+      "submit_login": "Најави се",
+      "submit_register": "Создај сметка",
+      "submit_forgot": "Испрати врска за ресетирање",
+      "name_optional": "Име (незадолжително)",
+      "email": "Е-пошта",
+      "password": "Лозинка",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "Испрати ја врската повторно",
+      "registered": "Сметката е создадена — најавете се.",
+      "check_inbox": "Проверете го сандачето: испративме врска за потврда на е-поштата.",
+      "reset_sent": "Ако постои сметка со таа адреса, врската за ресетирање е на пат.",
+      "debug_verify": "отвори ја врската за потврда",
+      "debug_reset": "отвори ја врската за ресетирање"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "Смени лозинка",
+      "current": "Тековна лозинка",
+      "new": "Нова лозинка",
+      "submit": "Смени лозинка"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "Потврди е-пошта",
+      "pending": "Се потврдува…",
+      "ok": "Вашата е-пошта е потврдена — најавете се.",
+      "missing": "Оваа врска нема токен — отворете ја врската од е-поштата повторно.",
+      "expired_hint": "Најавете се повторно со е-пошта и лозинка за да добиете нова врска."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "Нова лозинка",
+      "ok": "Лозинката е поставена — најавете се со неа.",
+      "missing": "Оваа врска нема токен — побарајте нова врска за ресетирање.",
+      "new": "Нова лозинка",
+      "repeat": "Повторете ја",
+      "submit": "Постави лозинка",
+      "mismatch": "Двете лозинки се разликуваат."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "Набавете spool",
+    "loading": "Се вчитува планот…",
+    "not_on_sale": "Spool моментално не се продава.",
+    "unsupported": "Плаќањето сè уште не е отворено на оваа страница — обидете се подоцна.",
+    "price": "Еден закупец: {price}",
+    "tenant_name": "Име на закупецот",
+    "email": "Е-пошта — клучот се праќа тука еднаш",
+    "submit": "Продолжи кон плаќање",
+    "fake_note": "Тест-околина: не се движат пари.",
+    "fake_pay": "Плати (dev лажно)",
+    "your_spool": "Вашиот spool",
+    "try_again": "Обиди се повторно",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "Се чека потврда на плаќањето…",
+      "claimed": "Овој клуч е веќе преземен — на оваа страница или преку врската од е-поштата. Хабот не го чува.",
+      "expired": "Рокот за преземање истече — контактирајте поддршка за нов клуч на закупецот.",
+      "none": "Ова јазиче во прелистувачот не содржи плаќање. Користете ја врската за преземање од е-поштата што ја испративме.",
+      "failed": "Плаќањето не е завршено. Не е создаден spool.",
+      "cancelled": "Плаќањето е откажано. Не е создаден spool.",
+      "back": "Назад кон плаќањето"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "Се презема вашиот клуч…",
+      "claimed": "Овој клуч е веќе преземен — на страницата за успех или преку оваа врска. Хабот не го чува.",
+      "expired": "Оваа врска истече — контактирајте поддршка за нов клуч на закупецот."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "warning_once": "Ова е единствениот пат кога клучот се прикажува. Не се праќа по е-пошта и хабот не го чува.",
+      "warning_save": "Зачувајте го како датотека што само вие можете да ја читате (режим 0600) и насочете го {var} кон неа.",
+      "tenant": "Закупец: {url}",
+      "copy": "Копирај клуч",
+      "download": "Преземи клуч"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "Проверете ја адресата на е-пошта и обидете се повторно.",
+      "bad_tenant_id": "Тоа име не е дозволено — користете мали букви, бројки и цртички.",
+      "tenant_taken": "Тоа име е зафатено — изберете друго.",
+      "payment_unavailable": "Плаќањето моментално не е достапно — обидете се подоцна.",
+      "not_found": "Не можеме да го најдеме ова плаќање.",
+      "not_paid": "Плаќањето сè уште не е потврдено.",
+      "claimed": "Овој клуч е веќе преземен — на страницата за успех или преку врската од е-поштата.",
+      "claim_expired": "Рокот за преземање истече — контактирајте поддршка за нов клуч на закупецот.",
+      "conflict": "Во меѓувреме, на овој закупец му е даден нов клуч — контактирајте поддршка.",
+      "bad_link": "Оваа врска е нецелосна — отворете ја врската од е-поштата повторно.",
+      "not_fake_checkout": "Ова плаќање не е тест-плаќање.",
+      "not_pending": "Ова плаќање е затворено.",
+      "no_token": "Ова јазиче не го содржи преземањето за ова плаќање — отворете ја страницата за успех во јазичето од кое платиле.",
+      "timeout": "Плаќањето сè уште не е потврдено — освежете ја страницата за една минута.",
+      "network": "Хабот не одговори — обидете се повторно.",
+      "storage_blocked": "Овој прелистувач го блокира складирањето на сесијата — дозволете го за оваа страница и обидете се повторно.",
+      "generic": "Нешто тргна наопаку — обидете се повторно."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -209,173 +209,173 @@
     }
   },
   "user_menu": {
-    "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "account": "Сметка",
+    "signed_in": "Најавени",
+    "settings": "Поставки",
+    "sign_out": "Одјава",
+    "account_menu": "Мени на сметката",
+    "account_menu_for": "Мени на сметката за {who}",
+    "method_password": "Е-пошта и лозинка",
+    "method_unknown": "Непознато",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "Не е избран закупец — отворете го прегледувачот со {query}.",
+      "api_host": "URL-то на хабот е API-хостот; читањата на закупецот бараат {host} ({env_var} со {tenant}).",
+      "no_base": "NUXT_PUBLIC_API_BASE недостасува или е неважечки.",
+      "unknown_tenant": "Непознат закупец за овој хост.",
+      "not_found": "Не е пронајдено.",
+      "load_failed": "вчитувањето не успеа"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "Се вчитува Spool…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
-    "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "channels": "Канали",
+    "direct_messages": "Директни пораки",
+    "new_channel_placeholder": "нов канал",
+    "new_channel_label": "Нов канал",
+    "retention_days": "{n} д",
+    "retention_title": "пораките се чуваат {retention}",
+    "health_title": "врска со хабот: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
-      "down": "offline"
+      "ok": "поврзано",
+      "warn": "повторно поврзување…",
+      "down": "офлајн"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "Тој канал веќе постои (или името е резервирано).",
+      "bad_channel": "Користете мали букви, бројки и цртички (најмногу 64).",
+      "view_door": "Најавете се за да создадете канал.",
+      "fallback": "каналот не е создаден"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "потребно е име на каналот"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
+    "mention_suggestions": "Предлози за спомнување",
+    "omnibox_label": "Omnibox: порака или /search за филтрирање",
+    "message_label": "Порака",
+    "placeholder_default": "Порака — {mention} за да дадете задача на агент",
     "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "remove_file": "Отстрани {name}",
+    "attach": "прикачи",
+    "send": "Испрати",
+    "sending": "Се испраќа…",
     "code_hint": "Блок со код: Enter додава ред, напишете ``` или притиснете Esc за затворање, Ctrl+Enter испраќа"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "непознат",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
-    "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "open_thread": "Отвори нишка",
+    "replies": "{n} одговор | {n} одговори",
+    "filter_label": "Филтер:",
+    "matches": "{count} совпаѓања",
+    "clear": "Исчисти",
+    "no_matches": "Нема пораки што се совпаѓаат.",
+    "empty": "Сè уште нема пораки.",
+    "loading_older": "Се вчитуваат постарите…",
+    "announce_new": "Нова порака од {who}",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "патека на кутијата · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "Преземи",
+      "busy": "Се презема…",
+      "mismatch": "sha256 не се совпаѓа",
+      "done": "Преземено ✓",
+      "failed": "Преземањето не успеа"
     },
-    "avatar_of": "avatar of {who}",
-    "avatar": "avatar",
+    "avatar_of": "аватар на {who}",
+    "avatar": "аватар",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "задача",
+      "result": "резултат",
+      "note": "белешка",
+      "reject": "одбиено"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
-      "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
-      "mock": "mock",
+      "idle": "неактивно",
+      "connecting": "се поврзува",
+      "open": "отворено",
+      "reconnecting": "повторно поврзување",
+      "closed": "затворено",
+      "mock": "симулација",
       "no_base": "no_base"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "вчитувањето не успеа",
+      "load_older_failed": "вчитувањето постари не успеа",
+      "catch_up_failed": "синхронизацијата не успеа",
+      "send_failed": "испраќањето не успеа"
     }
   },
   "thread": {
-    "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "title": "Нишка",
+    "open": "Отвори",
+    "empty": "Празна нишка.",
+    "reply_placeholder": "Одговор — Enter за испраќање · /search за филтрирање",
+    "replies_label": "Одговори, најновите први",
+    "load_failed": "вчитувањето на нишката не успеа"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "известувањата вклучени",
+    "enable_alerts": "вклучи известувања",
+    "chime": "звук",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "DM од {from}",
+    "title_mention": "{from} ве спомна",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Детализација на нишката",
     "level": {
-      "minimal": "minimal",
-      "normal": "normal",
-      "verbose": "verbose"
+      "minimal": "минимално",
+      "normal": "нормално",
+      "verbose": "детално"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "Префрли на светла тема",
+    "to_dark": "Префрли на темна тема",
+    "light": "Светла",
+    "dark": "Темна"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "Нишките на овој закупец бараат најава на член.",
+    "need_member_or_token": "Нишките на овој закупец бараат најава на член или токен за преглед.",
+    "placeholder": "токен за преглед",
+    "label": "Токен за преглед",
+    "use": "Користи"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "Промени ја големината на страничната лента со канали",
+    "resize_thread": "Промени ја големината на панелот со нишката",
+    "resize_hint": "Повлечете за да ја промените големината. Двоен клик за ресетирање."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "Порака до {target} — Enter за испраќање · /search за филтрирање",
+    "feed_label": "{target}, најновите први",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "само за читање · во рамки на закупецот",
+      "empty": "Сè уште нема нишки.",
+      "messages": "{n} порака | {n} пораки",
+      "older": "Постари"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "во живо · {state} · вие сте {who}",
+      "no_lobby": "Не е конфигурирано лоби ({env} или добредојдето од хабот)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "последни 50 · во рамки на закупецот",
+      "subtitle_retention": "последни 50 · во рамки на закупецот · чување {retention}"
     },
     "dm": {
-      "online": "online",
-      "offline_queued": "offline · queued"
+      "online": "онлајн",
+      "offline_queued": "офлајн · во редица"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · најновите први · {state}"
     }
   },
   "code": {

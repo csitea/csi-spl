@@ -30,7 +30,7 @@
     "continue_google": "Настави са Google",
     "continue_facebook": "Настави са Facebook",
     "continue_generic": "Настави са {provider}",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "Prijava još nije dostupna."
   },
   "debug_panel": {
     "title": "Dijagnostika",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "Željeni jezik",
+      "save": "Sačuvaj",
+      "hint": "Spool vam šalje imejlove na ovom jeziku i otvara se na njemu posle prijave. Meni za jezik na vrhu menja samo stranicu na kojoj se nalazite.",
+      "saved": "Sačuvano.",
+      "failed": "Čuvanje nije uspelo — pokušajte ponovo."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
-    "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "title": "Podešavanja",
+    "profile": "Profil",
+    "name": "Ime",
+    "email": "Imejl",
+    "member_id": "ID člana",
+    "workspace": "Radni prostor",
+    "picture_hint": "Vaša slika je ona koju deli vaš dobavljač prijave; bez nje spool crta vaš identikon.",
+    "language_title": "Jezik",
+    "appearance": "Izgled",
+    "theme": "Tema",
+    "signin_security": "Prijava i bezbednost",
+    "signed_in_with": "Prijavljeni preko",
+    "password_managed_by": "Vašom lozinkom upravlja {method}.",
+    "signed_out": "{link} da biste videli svoja podešavanja."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "Prijava je otkazana.",
+      "invalid_state": "Taj link za prijavu je istekao — pokušajte ponovo.",
+      "exchange_failed": "Dobavljač nije mogao da vas potvrdi — pokušajte ponovo.",
+      "email_unverified": "Vaš nalog kod ovog dobavljača nema potvrđen imejl — probajte drugi.",
+      "not_allowed": "Ovim nalogom ne možete da se prijavite ovde.",
+      "unavailable": "Prijava trenutno nije dostupna.",
+      "failed": "Prijava nije uspela."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "Imejl ili lozinka nisu ispravni.",
+      "email_unverified": "Prvo potvrdite imejl — možemo ponovo da pošaljemo link.",
+      "not_allowed": "Ovaj nalog još nema pristup ovde — zatražite pozivnicu od vlasnika.",
+      "verification_token_invalid": "Taj link više ne važi.",
+      "verification_token_expired": "Taj link je istekao — možemo da pošaljemo novi.",
+      "reset_token_invalid": "Taj link za resetovanje više ne važi — zatražite novi.",
+      "email_delivery_unavailable": "Trenutno ne možemo da šaljemo imejlove — pokušajte kasnije.",
+      "rate_limited": "Previše pokušaja — pokušajte kasnije.",
+      "unauthenticated": "Vaša sesija je istekla — prijavite se ponovo.",
+      "password_too_short": "Ta lozinka je prekratka.",
+      "email": "Unesite ispravnu imejl adresu.",
+      "unavailable": "Prijava trenutno nije dostupna.",
+      "network": "Hab nije odgovorio — pokušajte ponovo.",
+      "retry_minute": "Previše pokušaja — pokušajte ponovo za minut.",
+      "retry_minutes": "Previše pokušaja — pokušajte ponovo za {m} min.",
+      "password_too_short_min": "Ta lozinka je prekratka — koristite najmanje {min} znakova.",
+      "check_form": "Proverite formular i pokušajte ponovo.",
+      "generic": "Nešto je pošlo naopako — pokušajte ponovo."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "Idi na prijavu",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "Lozinka je promenjena — prijavite se novom.",
+      "session_unavailable": "Sesija nije dostupna — hab nije odgovorio.",
+      "signed_in_as": "Prijavljeni ste kao {who}",
+      "sign_out": "Odjavi se",
+      "continue": "Nastavi na niti"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
-      "email": "Email",
-      "password": "Password",
+      "tab_login": "Prijava",
+      "tab_register": "Napravi nalog",
+      "tab_forgot": "Zaboravljena lozinka",
+      "submit_login": "Prijavi se",
+      "submit_register": "Napravi nalog",
+      "submit_forgot": "Pošalji link za resetovanje",
+      "name_optional": "Ime (opciono)",
+      "email": "Imejl",
+      "password": "Lozinka",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "Pošalji link ponovo",
+      "registered": "Nalog je napravljen — prijavite se.",
+      "check_inbox": "Proverite prijemno sanduče: poslali smo link za potvrdu imejla.",
+      "reset_sent": "Ako za tu adresu postoji nalog, link za resetovanje je na putu.",
+      "debug_verify": "otvori link za potvrdu",
+      "debug_reset": "otvori link za resetovanje"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "Promena lozinke",
+      "current": "Trenutna lozinka",
+      "new": "Nova lozinka",
+      "submit": "Promeni lozinku"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "Potvrda imejla",
+      "pending": "Potvrđivanje…",
+      "ok": "Vaš imejl je potvrđen — prijavite se.",
+      "missing": "Ovaj link nema token — ponovo otvorite link iz imejla.",
+      "expired_hint": "Prijavite se ponovo imejlom i lozinkom da biste dobili novi link."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "Nova lozinka",
+      "ok": "Lozinka je postavljena — prijavite se njome.",
+      "missing": "Ovaj link nema token — zatražite novi link za resetovanje.",
+      "new": "Nova lozinka",
+      "repeat": "Ponovite je",
+      "submit": "Postavi lozinku",
+      "mismatch": "Lozinke se ne podudaraju."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "Nabavite spool",
+    "loading": "Učitavanje plana…",
+    "not_on_sale": "Spool trenutno nije u prodaji.",
+    "unsupported": "Plaćanje još nije otvoreno na ovoj stranici — pokušajte kasnije.",
+    "price": "Jedan zakupac: {price}",
+    "tenant_name": "Naziv zakupca",
+    "email": "Imejl — ključ se ovde šalje jednom",
+    "submit": "Nastavi na plaćanje",
+    "fake_note": "Testno okruženje: novac se ne prenosi.",
+    "fake_pay": "Plati (dev simulacija)",
+    "your_spool": "Vaš spool",
+    "try_again": "Pokušaj ponovo",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "Čeka se potvrda plaćanja…",
+      "claimed": "Ovaj ključ je već preuzet — na ovoj stranici ili preko linka iz imejla. Hab ga ne čuva.",
+      "expired": "Rok za preuzimanje je istekao — obratite se podršci da zakupcu izda novi ključ.",
+      "none": "Ova kartica pregledača nema plaćanje. Koristite link za preuzimanje iz imejla koji smo poslali.",
+      "failed": "Plaćanje nije završeno. Spool nije napravljen.",
+      "cancelled": "Plaćanje je otkazano. Spool nije napravljen.",
+      "back": "Nazad na plaćanje"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "Preuzimanje vašeg ključa…",
+      "claimed": "Ovaj ključ je već preuzet — na stranici uspeha ili preko ovog linka. Hab ga ne čuva.",
+      "expired": "Ovaj link je istekao — obratite se podršci da zakupcu izda novi ključ."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "warning_once": "Ovaj ključ se prikazuje samo sada. Ne šalje se imejlom i hab ga ne čuva.",
+      "warning_save": "Sačuvajte ga kao fajl koji samo vi možete da čitate (režim 0600) i usmerite {var} na njega.",
+      "tenant": "Zakupac: {url}",
+      "copy": "Kopiraj ključ",
+      "download": "Preuzmi ključ"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "Proverite imejl adresu i pokušajte ponovo.",
+      "bad_tenant_id": "Taj naziv nije dozvoljen — koristite mala slova, cifre i crtice.",
+      "tenant_taken": "Taj naziv je zauzet — izaberite drugi.",
+      "payment_unavailable": "Plaćanje trenutno nije dostupno — pokušajte kasnije.",
+      "not_found": "Ne možemo da pronađemo ovo plaćanje.",
+      "not_paid": "Plaćanje još nije potvrđeno.",
+      "claimed": "Ovaj ključ je već preuzet — na stranici uspeha ili preko linka iz imejla.",
+      "claim_expired": "Rok za preuzimanje je istekao — obratite se podršci da zakupcu izda novi ključ.",
+      "conflict": "Ovom zakupcu je u međuvremenu izdat novi ključ — obratite se podršci.",
+      "bad_link": "Ovaj link je nepotpun — ponovo otvorite link iz imejla.",
+      "not_fake_checkout": "Ovo plaćanje nije testno.",
+      "not_pending": "Ovo plaćanje je zatvoreno.",
+      "no_token": "Ova kartica pregledača nema podatke za preuzimanje za ovo plaćanje — otvorite stranicu uspeha u kartici iz koje ste platili.",
+      "timeout": "Plaćanje još uvek nije potvrđeno — ponovo učitajte ovu stranicu za minut.",
+      "network": "Hab nije odgovorio — pokušajte ponovo.",
+      "storage_blocked": "Ovaj pregledač blokira skladište sesije — dozvolite ga za ovaj sajt i pokušajte ponovo.",
+      "generic": "Nešto je pošlo naopako — pokušajte ponovo."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -209,173 +209,173 @@
     }
   },
   "user_menu": {
-    "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "account": "Nalog",
+    "signed_in": "Prijavljeni",
+    "settings": "Podešavanja",
+    "sign_out": "Odjavi se",
+    "account_menu": "Meni naloga",
+    "account_menu_for": "Meni naloga za {who}",
+    "method_password": "Imejl i lozinka",
+    "method_unknown": "Nepoznato",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "Nije izabran zakupac — otvorite pregledač sa {query}.",
+      "api_host": "URL haba je API host; za čitanje zakupca potreban je {host} ({env_var} sa {tenant}).",
+      "no_base": "NUXT_PUBLIC_API_BASE nedostaje ili nije ispravan.",
+      "unknown_tenant": "Nepoznat zakupac za ovaj host.",
+      "not_found": "Nije pronađeno.",
+      "load_failed": "učitavanje nije uspelo"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "Učitavanje Spool…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
+    "channels": "Kanali",
+    "direct_messages": "Direktne poruke",
+    "new_channel_placeholder": "novi kanal",
+    "new_channel_label": "Novi kanal",
     "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "retention_title": "poruke se čuvaju {retention}",
+    "health_title": "veza sa habom: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
-      "down": "offline"
+      "ok": "povezano",
+      "warn": "ponovno povezivanje…",
+      "down": "van mreže"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "Taj kanal već postoji (ili je naziv rezervisan).",
+      "bad_channel": "Koristite mala slova, cifre i crtice (najviše 64).",
+      "view_door": "Prijavite se da biste napravili kanal.",
+      "fallback": "kanal nije napravljen"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "naziv kanala je obavezan"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
+    "mention_suggestions": "Predlozi za pominjanje",
+    "omnibox_label": "Omnibox: poruka ili /search za filtriranje",
+    "message_label": "Poruka",
+    "placeholder_default": "Poruka — {mention} da zadate zadatak agentu",
     "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "remove_file": "Ukloni {name}",
+    "attach": "priloži",
+    "send": "Pošalji",
+    "sending": "Slanje…",
     "code_hint": "Блок кода: Enter додаје ред, откуцајте ``` или притисните Esc за затварање, Ctrl+Enter шаље"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "nepoznato",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
+    "open_thread": "Otvori nit",
+    "replies": "{n} odgovor | {n} odgovora",
     "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "matches": "Podudaranja: {count}",
+    "clear": "Obriši",
+    "no_matches": "Nijedna poruka se ne podudara.",
+    "empty": "Još nema poruka.",
+    "loading_older": "Učitavanje starijih…",
+    "announce_new": "Nova poruka od {who}",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "putanja na boksu · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "Preuzmi",
+      "busy": "Preuzimanje…",
+      "mismatch": "sha256 se ne podudara",
+      "done": "Preuzeto ✓",
+      "failed": "Preuzimanje nije uspelo"
     },
-    "avatar_of": "avatar of {who}",
+    "avatar_of": "avatar korisnika {who}",
     "avatar": "avatar",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "zadatak",
+      "result": "rezultat",
+      "note": "beleška",
+      "reject": "odbijeno"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
-      "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
-      "mock": "mock",
-      "no_base": "no_base"
+      "idle": "neaktivno",
+      "connecting": "povezivanje",
+      "open": "otvoreno",
+      "reconnecting": "ponovno povezivanje",
+      "closed": "zatvoreno",
+      "mock": "simulacija",
+      "no_base": "nema baze"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "učitavanje nije uspelo",
+      "load_older_failed": "učitavanje starijih nije uspelo",
+      "catch_up_failed": "sustizanje nije uspelo",
+      "send_failed": "slanje nije uspelo"
     }
   },
   "thread": {
-    "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "title": "Nit",
+    "open": "Otvori",
+    "empty": "Prazna nit.",
+    "reply_placeholder": "Odgovor — Enter za slanje · /search za filtriranje",
+    "replies_label": "Odgovori, najnoviji prvi",
+    "load_failed": "učitavanje niti nije uspelo"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "obaveštenja uključena",
+    "enable_alerts": "uključi obaveštenja",
+    "chime": "zvuk",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "Direktna poruka od {from}",
+    "title_mention": "{from} vas je pomenuo/la",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Detaljnost niti",
     "level": {
-      "minimal": "minimal",
-      "normal": "normal",
-      "verbose": "verbose"
+      "minimal": "minimalna",
+      "normal": "uobičajena",
+      "verbose": "detaljna"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "Pređi na svetlu temu",
+    "to_dark": "Pređi na tamnu temu",
+    "light": "Svetla",
+    "dark": "Tamna"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "Za niti ovog zakupca potrebna je prijava člana.",
+    "need_member_or_token": "Za niti ovog zakupca potrebna je prijava člana ili token za pregled.",
+    "placeholder": "token za pregled",
+    "label": "Token za pregled",
+    "use": "Koristi"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "Promeni veličinu bočne trake kanala",
+    "resize_thread": "Promeni veličinu okna niti",
+    "resize_hint": "Prevucite za promenu veličine. Dvaput kliknite za vraćanje."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "Poruka za {target} — Enter za slanje · /search za filtriranje",
+    "feed_label": "{target}, najnovije prvo",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "samo za čitanje · u okviru zakupca",
+      "empty": "Još nema niti.",
+      "messages": "{n} poruka | {n} poruka",
+      "older": "Starije"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "uživo · {state} · vi ste {who}",
+      "no_lobby": "Lobi nije podešen ({env} ili dobrodošlica haba)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "poslednjih 50 · u okviru zakupca",
+      "subtitle_retention": "poslednjih 50 · u okviru zakupca · čuvanje {retention}"
     },
     "dm": {
-      "online": "online",
-      "offline_queued": "offline · queued"
+      "online": "na mreži",
+      "offline_queued": "van mreže · u redu čekanja"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · najnovije prvo · {state}"
     }
   },
   "code": {

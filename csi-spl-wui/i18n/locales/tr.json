@@ -30,7 +30,7 @@
     "continue_google": "Google ile devam et",
     "continue_facebook": "Facebook ile devam et",
     "continue_generic": "{provider} ile devam et",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "Giriş henüz kullanılamıyor."
   },
   "debug_panel": {
     "title": "Tanılama",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "Tercih edilen dil",
+      "save": "Kaydet",
+      "hint": "Spool size bu dilde e-posta gönderir ve giriş yaptıktan sonra bu dilde açılır. Üstteki dil menüsü yalnızca bulunduğunuz sayfayı değiştirir.",
+      "saved": "Kaydedildi.",
+      "failed": "Kaydedilemedi — tekrar deneyin."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
-    "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "title": "Ayarlar",
+    "profile": "Profil",
+    "name": "Ad",
+    "email": "E-posta",
+    "member_id": "Üye kimliği",
+    "workspace": "Çalışma alanı",
+    "picture_hint": "Resminiz, giriş sağlayıcınızın paylaştığı resimdir; yoksa spool sizin için bir identicon çizer.",
+    "language_title": "Dil",
+    "appearance": "Görünüm",
+    "theme": "Tema",
+    "signin_security": "Giriş ve güvenlik",
+    "signed_in_with": "Giriş yöntemi",
+    "password_managed_by": "Parolanız {method} tarafından yönetiliyor.",
+    "signed_out": "Ayarlarınızı görmek için {link}."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "Giriş iptal edildi.",
+      "invalid_state": "Bu giriş bağlantısının süresi doldu — tekrar deneyin.",
+      "exchange_failed": "Sağlayıcı kimliğinizi doğrulayamadı — tekrar deneyin.",
+      "email_unverified": "Bu sağlayıcıdaki hesabınızın doğrulanmış bir e-postası yok — başka birini deneyin.",
+      "not_allowed": "Bu hesap burada giriş yapamaz.",
+      "unavailable": "Giriş şu anda kullanılamıyor.",
+      "failed": "Giriş başarısız."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "E-posta veya parola hatalı.",
+      "email_unverified": "Önce e-postanızı onaylayın — bağlantıyı yeniden gönderebiliriz.",
+      "not_allowed": "Bu hesabın henüz burada erişimi yok — sahibinden davet isteyin.",
+      "verification_token_invalid": "Bu bağlantı artık geçerli değil.",
+      "verification_token_expired": "Bu bağlantının süresi doldu — yenisini gönderebiliriz.",
+      "reset_token_invalid": "Bu sıfırlama bağlantısı artık geçerli değil — yenisini isteyin.",
+      "email_delivery_unavailable": "Şu anda e-posta gönderemiyoruz — daha sonra tekrar deneyin.",
+      "rate_limited": "Çok fazla deneme — daha sonra tekrar deneyin.",
+      "unauthenticated": "Oturumunuz sona erdi — yeniden giriş yapın.",
+      "password_too_short": "Bu parola çok kısa.",
+      "email": "Geçerli bir e-posta adresi girin.",
+      "unavailable": "Giriş şu anda kullanılamıyor.",
+      "network": "Hub yanıt vermedi — tekrar deneyin.",
+      "retry_minute": "Çok fazla deneme — bir dakika sonra tekrar deneyin.",
+      "retry_minutes": "Çok fazla deneme — {m} dakika sonra tekrar deneyin.",
+      "password_too_short_min": "Bu parola çok kısa — en az {min} karakter kullanın.",
+      "check_form": "Formu kontrol edip tekrar deneyin.",
+      "generic": "Bir şeyler ters gitti — tekrar deneyin."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "Girişe git",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "Parola değiştirildi — yenisiyle giriş yapın.",
+      "session_unavailable": "Oturum kullanılamıyor — hub yanıt vermedi.",
+      "signed_in_as": "{who} olarak giriş yapıldı",
+      "sign_out": "Çıkış yap",
+      "continue": "Konulara devam et"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
-      "email": "Email",
-      "password": "Password",
+      "tab_login": "Giriş yap",
+      "tab_register": "Hesap oluştur",
+      "tab_forgot": "Parolamı unuttum",
+      "submit_login": "Giriş yap",
+      "submit_register": "Hesap oluştur",
+      "submit_forgot": "Sıfırlama bağlantısı gönder",
+      "name_optional": "Ad (isteğe bağlı)",
+      "email": "E-posta",
+      "password": "Parola",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "Bağlantıyı yeniden gönder",
+      "registered": "Hesap oluşturuldu — giriş yapın.",
+      "check_inbox": "Gelen kutunuzu kontrol edin: e-postanızı onaylamak için bir bağlantı gönderdik.",
+      "reset_sent": "Bu adrese ait bir hesap varsa sıfırlama bağlantısı yolda.",
+      "debug_verify": "doğrulama bağlantısını aç",
+      "debug_reset": "sıfırlama bağlantısını aç"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "Parolayı değiştir",
+      "current": "Mevcut parola",
+      "new": "Yeni parola",
+      "submit": "Parolayı değiştir"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "E-postayı onayla",
+      "pending": "Onaylanıyor…",
+      "ok": "E-postanız onaylandı — giriş yapın.",
+      "missing": "Bu bağlantıda belirteç yok — e-postadaki bağlantıyı yeniden açın.",
+      "expired_hint": "Yeni bir bağlantı almak için e-posta ve parolanızla yeniden giriş yapın."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "Yeni parola",
+      "ok": "Parolanız ayarlandı — bununla giriş yapın.",
+      "missing": "Bu bağlantıda belirteç yok — yeni bir sıfırlama bağlantısı isteyin.",
+      "new": "Yeni parola",
+      "repeat": "Tekrar girin",
+      "submit": "Parolayı ayarla",
+      "mismatch": "İki parola birbirinden farklı."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "Bir spool edinin",
+    "loading": "Plan yükleniyor…",
+    "not_on_sale": "Spool'lar şu anda satışta değil.",
+    "unsupported": "Ödeme bu sayfada henüz açık değil — daha sonra tekrar deneyin.",
+    "price": "Bir kiracı: {price}",
+    "tenant_name": "Kiracı adı",
+    "email": "E-posta — anahtar buraya bir kez gönderilir",
+    "submit": "Ödemeye devam et",
+    "fake_note": "Test ortamı: para hareketi olmaz.",
+    "fake_pay": "Öde (dev sahte)",
+    "your_spool": "Spool'unuz",
+    "try_again": "Tekrar dene",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "Ödemenin onaylanması bekleniyor…",
+      "claimed": "Bu anahtar zaten alındı — bu sayfada ya da e-postadaki bağlantıdan. Hub onu saklamaz.",
+      "expired": "Talep süresi doldu — kiracının anahtarını yenilemek için destekle iletişime geçin.",
+      "none": "Bu tarayıcı sekmesinde bir ödeme yok. Gönderdiğimiz e-postadaki talep bağlantısını kullanın.",
+      "failed": "Ödeme tamamlanmadı. Hiçbir spool oluşturulmadı.",
+      "cancelled": "Ödeme iptal edildi. Hiçbir spool oluşturulmadı.",
+      "back": "Ödemeye dön"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "Anahtarınız alınıyor…",
+      "claimed": "Bu anahtar zaten alındı — başarı sayfasında ya da bu bağlantıdan. Hub onu saklamaz.",
+      "expired": "Bu bağlantının süresi doldu — kiracının anahtarını yenilemek için destekle iletişime geçin."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "warning_once": "Bu anahtar yalnızca bu kez gösterilir. E-postayla gönderilmez ve hub onu saklamaz.",
+      "warning_save": "Yalnızca sizin okuyabileceğiniz bir dosyaya kaydedin (mod 0600) ve {var} değişkenini ona yönlendirin.",
+      "tenant": "Kiracı: {url}",
+      "copy": "Anahtarı kopyala",
+      "download": "Anahtarı indir"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "E-posta adresini kontrol edip tekrar deneyin.",
+      "bad_tenant_id": "Bu ada izin verilmiyor — küçük harf, rakam ve tire kullanın.",
+      "tenant_taken": "Bu ad alınmış — başka bir ad seçin.",
+      "payment_unavailable": "Ödeme şu anda kullanılamıyor — daha sonra tekrar deneyin.",
+      "not_found": "Bu ödeme bulunamadı.",
+      "not_paid": "Ödeme henüz onaylanmadı.",
+      "claimed": "Bu anahtar zaten alındı — başarı sayfasında ya da e-postadaki bağlantıdan.",
+      "claim_expired": "Talep süresi doldu — kiracının anahtarını yenilemek için destekle iletişime geçin.",
+      "conflict": "Bu kiracının anahtarı bu arada yenilendi — destekle iletişime geçin.",
+      "bad_link": "Bu bağlantı eksik — e-postadaki bağlantıyı yeniden açın.",
+      "not_fake_checkout": "Bu ödeme bir test ödemesi değil.",
+      "not_pending": "Bu ödeme kapatıldı.",
+      "no_token": "Bu tarayıcı sekmesi bu ödemenin talebini içermiyor — başarı sayfasını ödeme yaptığınız sekmede açın.",
+      "timeout": "Ödeme hâlâ onaylanmadı — bir dakika sonra bu sayfayı yeniden yükleyin.",
+      "network": "Hub yanıt vermedi — tekrar deneyin.",
+      "storage_blocked": "Bu tarayıcı oturum depolamasını engelliyor — bu site için izin verip tekrar deneyin.",
+      "generic": "Bir şeyler ters gitti — tekrar deneyin."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -209,173 +209,173 @@
     }
   },
   "user_menu": {
-    "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "account": "Hesap",
+    "signed_in": "Giriş yapıldı",
+    "settings": "Ayarlar",
+    "sign_out": "Çıkış yap",
+    "account_menu": "Hesap menüsü",
+    "account_menu_for": "{who} için hesap menüsü",
+    "method_password": "E-posta ve parola",
+    "method_unknown": "Bilinmiyor",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "Kiracı seçilmedi — görüntüleyiciyi {query} ile açın.",
+      "api_host": "Hub URL'si API sunucusudur; kiracı okumaları {host} gerektirir ({tenant} ile {env_var}).",
+      "no_base": "NUXT_PUBLIC_API_BASE eksik veya geçersiz.",
+      "unknown_tenant": "Bu sunucu için bilinmeyen kiracı.",
+      "not_found": "Bulunamadı.",
+      "load_failed": "yükleme başarısız"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "Spool yükleniyor…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
-    "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "channels": "Kanallar",
+    "direct_messages": "Doğrudan mesajlar",
+    "new_channel_placeholder": "yeni kanal",
+    "new_channel_label": "Yeni kanal",
+    "retention_days": "{n} g",
+    "retention_title": "mesajlar {retention} saklanır",
+    "health_title": "hub bağlantısı: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
-      "down": "offline"
+      "ok": "bağlı",
+      "warn": "yeniden bağlanıyor…",
+      "down": "çevrimdışı"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "Bu kanal zaten var (veya ad ayrılmış).",
+      "bad_channel": "Küçük harf, rakam ve tire kullanın (en fazla 64).",
+      "view_door": "Kanal oluşturmak için giriş yapın.",
+      "fallback": "kanal oluşturulmadı"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "kanal adı gerekli"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
+    "mention_suggestions": "Bahsetme önerileri",
+    "omnibox_label": "Omnibox: mesaj yazın veya filtrelemek için /search",
+    "message_label": "Mesaj",
+    "placeholder_default": "Mesaj — bir ajana görev vermek için {mention}",
     "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "remove_file": "{name} öğesini kaldır",
+    "attach": "ekle",
+    "send": "Gönder",
+    "sending": "Gönderiliyor…",
     "code_hint": "Kod bloğu: Enter satır ekler, kapatmak için ``` yazın veya Esc'e basın, Ctrl+Enter gönderir"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "bilinmiyor",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
-    "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "open_thread": "Konuyu aç",
+    "replies": "{n} yanıt | {n} yanıt",
+    "filter_label": "Filtre:",
+    "matches": "{count} eşleşme",
+    "clear": "Temizle",
+    "no_matches": "Eşleşen mesaj yok.",
+    "empty": "Henüz mesaj yok.",
+    "loading_older": "Eskiler yükleniyor…",
+    "announce_new": "{who} kişisinden yeni mesaj",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "kutudaki yol · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "İndir",
+      "busy": "İndiriliyor…",
+      "mismatch": "sha256 uyuşmazlığı",
+      "done": "İndirildi ✓",
+      "failed": "İndirme başarısız"
     },
-    "avatar_of": "avatar of {who}",
+    "avatar_of": "{who} avatarı",
     "avatar": "avatar",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "görev",
+      "result": "sonuç",
+      "note": "not",
+      "reject": "ret"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
-      "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
-      "mock": "mock",
+      "idle": "boşta",
+      "connecting": "bağlanıyor",
+      "open": "açık",
+      "reconnecting": "yeniden bağlanıyor",
+      "closed": "kapalı",
+      "mock": "sahte",
       "no_base": "no_base"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "yükleme başarısız",
+      "load_older_failed": "eskiler yüklenemedi",
+      "catch_up_failed": "güncelleme başarısız",
+      "send_failed": "gönderme başarısız"
     }
   },
   "thread": {
-    "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "title": "Konu",
+    "open": "Aç",
+    "empty": "Boş konu.",
+    "reply_placeholder": "Yanıt — göndermek için Enter · filtrelemek için /search",
+    "replies_label": "Yanıtlar, en yeniler önce",
+    "load_failed": "konu yüklenemedi"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "uyarılar açık",
+    "enable_alerts": "uyarıları aç",
+    "chime": "zil sesi",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "{from} kişisinden DM",
+    "title_mention": "{from} sizden bahsetti",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Konu ayrıntı düzeyi",
     "level": {
-      "minimal": "minimal",
+      "minimal": "minimum",
       "normal": "normal",
-      "verbose": "verbose"
+      "verbose": "ayrıntılı"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "Açık temaya geç",
+    "to_dark": "Koyu temaya geç",
+    "light": "Açık",
+    "dark": "Koyu"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "Bu kiracının konuları için üye girişi gerekir.",
+    "need_member_or_token": "Bu kiracının konuları için üye girişi veya görüntüleme belirteci gerekir.",
+    "placeholder": "görüntüleme belirteci",
+    "label": "Görüntüleme belirteci",
+    "use": "Kullan"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "Kanal kenar çubuğunu yeniden boyutlandır",
+    "resize_thread": "Konu panelini yeniden boyutlandır",
+    "resize_hint": "Boyutlandırmak için sürükleyin. Sıfırlamak için çift tıklayın."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "{target} için mesaj — göndermek için Enter · filtrelemek için /search",
+    "feed_label": "{target}, en yeniler önce",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "salt okunur · kiracıya özel",
+      "empty": "Henüz konu yok.",
+      "messages": "{n} mesaj | {n} mesaj",
+      "older": "Daha eski"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "canlı · {state} · siz {who}",
+      "no_lobby": "Lobi yapılandırılmamış ({env} veya hub karşılaması)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "son 50 · kiracıya özel",
+      "subtitle_retention": "son 50 · kiracıya özel · {retention} saklama"
     },
     "dm": {
-      "online": "online",
-      "offline_queued": "offline · queued"
+      "online": "çevrimiçi",
+      "offline_queued": "çevrimdışı · kuyrukta"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · en yeniler önce · {state}"
     }
   },
   "code": {

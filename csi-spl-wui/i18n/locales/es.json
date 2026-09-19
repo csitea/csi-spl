@@ -30,7 +30,7 @@
     "continue_google": "Continuar con Google",
     "continue_facebook": "Continuar con Facebook",
     "continue_generic": "Continuar con {provider}",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "El inicio de sesión aún no está disponible."
   },
   "debug_panel": {
     "title": "Diagnóstico",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "Idioma preferido",
+      "save": "Guardar",
+      "hint": "Spool te envía los correos en este idioma y se abre en él al iniciar sesión. El menú de idioma de arriba solo cambia la página en la que estás.",
+      "saved": "Guardado.",
+      "failed": "No se pudo guardar — inténtalo de nuevo."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
-    "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "title": "Ajustes",
+    "profile": "Perfil",
+    "name": "Nombre",
+    "email": "Correo electrónico",
+    "member_id": "ID de miembro",
+    "workspace": "Espacio de trabajo",
+    "picture_hint": "Tu imagen es la que comparte tu proveedor de inicio de sesión; si no hay ninguna, spool dibuja tu identicon.",
+    "language_title": "Idioma",
+    "appearance": "Apariencia",
+    "theme": "Tema",
+    "signin_security": "Inicio de sesión y seguridad",
+    "signed_in_with": "Sesión iniciada con",
+    "password_managed_by": "Tu contraseña la gestiona {method}.",
+    "signed_out": "{link} para ver tus ajustes."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "Se canceló el inicio de sesión.",
+      "invalid_state": "Ese enlace de inicio de sesión ha caducado — inténtalo de nuevo.",
+      "exchange_failed": "El proveedor no pudo confirmar tu identidad — inténtalo de nuevo.",
+      "email_unverified": "Tu cuenta no tiene un correo verificado con este proveedor — prueba con otro.",
+      "not_allowed": "Esta cuenta no puede iniciar sesión aquí.",
+      "unavailable": "El inicio de sesión no está disponible ahora mismo.",
+      "failed": "No se pudo iniciar sesión."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "El correo o la contraseña no son correctos.",
+      "email_unverified": "Primero confirma tu correo — podemos enviarte el enlace de nuevo.",
+      "not_allowed": "Esta cuenta aún no tiene acceso aquí — pide una invitación al propietario.",
+      "verification_token_invalid": "Ese enlace ya no es válido.",
+      "verification_token_expired": "Ese enlace ha caducado — podemos enviarte uno nuevo.",
+      "reset_token_invalid": "Ese enlace de restablecimiento ya no es válido — pide uno nuevo.",
+      "email_delivery_unavailable": "Ahora mismo no podemos enviar correos — inténtalo más tarde.",
+      "rate_limited": "Demasiados intentos — inténtalo más tarde.",
+      "unauthenticated": "Tu sesión ha terminado — vuelve a iniciar sesión.",
+      "password_too_short": "Esa contraseña es demasiado corta.",
+      "email": "Introduce un correo electrónico válido.",
+      "unavailable": "El inicio de sesión no está disponible ahora mismo.",
+      "network": "El hub no respondió — inténtalo de nuevo.",
+      "retry_minute": "Demasiados intentos — inténtalo de nuevo en un minuto.",
+      "retry_minutes": "Demasiados intentos — inténtalo de nuevo en {m} minutos.",
+      "password_too_short_min": "Esa contraseña es demasiado corta — usa al menos {min} caracteres.",
+      "check_form": "Revisa el formulario e inténtalo de nuevo.",
+      "generic": "Algo salió mal — inténtalo de nuevo."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "Ir a iniciar sesión",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "Contraseña cambiada — inicia sesión con la nueva.",
+      "session_unavailable": "Sesión no disponible — el hub no respondió.",
+      "signed_in_as": "Sesión iniciada como {who}",
+      "sign_out": "Cerrar sesión",
+      "continue": "Continuar a los hilos"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
-      "email": "Email",
-      "password": "Password",
+      "tab_login": "Iniciar sesión",
+      "tab_register": "Crear cuenta",
+      "tab_forgot": "Olvidé mi contraseña",
+      "submit_login": "Iniciar sesión",
+      "submit_register": "Crear cuenta",
+      "submit_forgot": "Enviar enlace de restablecimiento",
+      "name_optional": "Nombre (opcional)",
+      "email": "Correo electrónico",
+      "password": "Contraseña",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "Enviar el enlace de nuevo",
+      "registered": "Cuenta creada — inicia sesión.",
+      "check_inbox": "Revisa tu bandeja de entrada: te enviamos un enlace para confirmar tu correo.",
+      "reset_sent": "Si esa dirección tiene una cuenta, el enlace de restablecimiento ya va de camino.",
+      "debug_verify": "abrir el enlace de verificación",
+      "debug_reset": "abrir el enlace de restablecimiento"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "Cambiar contraseña",
+      "current": "Contraseña actual",
+      "new": "Nueva contraseña",
+      "submit": "Cambiar contraseña"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "Confirmar correo",
+      "pending": "Confirmando…",
+      "ok": "Tu correo está confirmado — inicia sesión.",
+      "missing": "Este enlace no incluye ningún token — vuelve a abrir el enlace del correo.",
+      "expired_hint": "Vuelve a iniciar sesión con tu correo y contraseña para recibir un enlace nuevo."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "Nueva contraseña",
+      "ok": "Tu contraseña está establecida — inicia sesión con ella.",
+      "missing": "Este enlace no incluye ningún token — pide un nuevo enlace de restablecimiento.",
+      "new": "Nueva contraseña",
+      "repeat": "Repítela",
+      "submit": "Establecer contraseña",
+      "mismatch": "Las dos contraseñas no coinciden."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "Consigue un spool",
+    "loading": "Cargando el plan…",
+    "not_on_sale": "Los spools no están a la venta ahora mismo.",
+    "unsupported": "El pago aún no está abierto en esta página — inténtalo más tarde.",
+    "price": "Un inquilino: {price}",
+    "tenant_name": "Nombre del inquilino",
+    "email": "Correo — la clave se envía aquí una sola vez",
+    "submit": "Continuar al pago",
+    "fake_note": "Entorno de pruebas: no se mueve dinero.",
+    "fake_pay": "Pagar (dev fake)",
+    "your_spool": "Tu spool",
+    "try_again": "Reintentar",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "Esperando la confirmación del pago…",
+      "claimed": "Esta clave ya se recogió — en esta página o desde el enlace del correo. El hub no la guarda.",
+      "expired": "El plazo para recogerla ha terminado — contacta con soporte para regenerar la clave del inquilino.",
+      "none": "Esta pestaña del navegador no contiene ningún pago. Usa el enlace de recogida del correo que te enviamos.",
+      "failed": "El pago no se completó. No se creó ningún spool.",
+      "cancelled": "El pago se canceló. No se creó ningún spool.",
+      "back": "Volver al pago"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "Recogiendo tu clave…",
+      "claimed": "Esta clave ya se recogió — en la página de confirmación o desde este enlace. El hub no la guarda.",
+      "expired": "Este enlace ha caducado — contacta con soporte para regenerar la clave del inquilino."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "warning_once": "Esta es la única vez que se muestra esta clave. No se envía por correo y el hub no la guarda.",
+      "warning_save": "Guárdala en un archivo que solo tú puedas leer (modo 0600) y apunta {var} a él.",
+      "tenant": "Inquilino: {url}",
+      "copy": "Copiar clave",
+      "download": "Descargar clave"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "Revisa el correo electrónico e inténtalo de nuevo.",
+      "bad_tenant_id": "Ese nombre no está permitido — usa minúsculas, dígitos y guiones.",
+      "tenant_taken": "Ese nombre ya está ocupado — elige otro.",
+      "payment_unavailable": "El pago no está disponible ahora mismo — inténtalo más tarde.",
+      "not_found": "No encontramos este pago.",
+      "not_paid": "El pago aún no está confirmado.",
+      "claimed": "Esta clave ya se recogió — en la página de confirmación o desde el enlace del correo.",
+      "claim_expired": "El plazo para recogerla ha terminado — contacta con soporte para regenerar la clave del inquilino.",
+      "conflict": "La clave de este inquilino se regeneró mientras tanto — contacta con soporte.",
+      "bad_link": "Este enlace está incompleto — vuelve a abrir el enlace del correo.",
+      "not_fake_checkout": "Este pago no es un pago de prueba.",
+      "not_pending": "Este pago está cerrado.",
+      "no_token": "Esta pestaña del navegador no tiene el derecho de recogida de este pago — abre la página de confirmación en la pestaña desde la que pagaste.",
+      "timeout": "El pago sigue sin confirmarse — recarga esta página en un minuto.",
+      "network": "El hub no respondió — inténtalo de nuevo.",
+      "storage_blocked": "Este navegador bloquea el almacenamiento de sesión — permítelo para este sitio e inténtalo de nuevo.",
+      "generic": "Algo salió mal — inténtalo de nuevo."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -209,173 +209,173 @@
     }
   },
   "user_menu": {
-    "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "account": "Cuenta",
+    "signed_in": "Sesión iniciada",
+    "settings": "Ajustes",
+    "sign_out": "Cerrar sesión",
+    "account_menu": "Menú de la cuenta",
+    "account_menu_for": "Menú de la cuenta de {who}",
+    "method_password": "Correo y contraseña",
+    "method_unknown": "Desconocido",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "No hay ningún inquilino seleccionado — abre el visor con {query}.",
+      "api_host": "La URL del hub es el host de la API; las lecturas del inquilino necesitan {host} ({env_var} con {tenant}).",
+      "no_base": "NUXT_PUBLIC_API_BASE falta o no es válida.",
+      "unknown_tenant": "Inquilino desconocido para este host.",
+      "not_found": "No encontrado.",
+      "load_failed": "error de carga"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "Cargando Spool…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
+    "channels": "Canales",
+    "direct_messages": "Mensajes directos",
+    "new_channel_placeholder": "nuevo canal",
+    "new_channel_label": "Nuevo canal",
     "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "retention_title": "mensajes conservados {retention}",
+    "health_title": "conexión con el hub: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
-      "down": "offline"
+      "ok": "conectado",
+      "warn": "reconectando…",
+      "down": "sin conexión"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "Ese canal ya existe (o el nombre está reservado).",
+      "bad_channel": "Usa minúsculas, dígitos y guiones (máx. 64).",
+      "view_door": "Inicia sesión para crear un canal.",
+      "fallback": "no se creó el canal"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "el nombre del canal es obligatorio"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
+    "mention_suggestions": "Sugerencias de menciones",
+    "omnibox_label": "Omnibox: mensaje, o /search para filtrar",
+    "message_label": "Mensaje",
+    "placeholder_default": "Mensaje — {mention} para asignar una tarea a un agente",
     "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "remove_file": "Quitar {name}",
+    "attach": "adjuntar",
+    "send": "Enviar",
+    "sending": "Enviando…",
     "code_hint": "Bloque de código: Enter añade una línea, escribe ``` o pulsa Esc para cerrar, Ctrl+Enter envía"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "desconocido",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
-    "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "open_thread": "Abrir hilo",
+    "replies": "{n} respuesta | {n} respuestas",
+    "filter_label": "Filtro:",
+    "matches": "{count} coincidencia(s)",
+    "clear": "Borrar",
+    "no_matches": "Ningún mensaje coincide.",
+    "empty": "Aún no hay mensajes.",
+    "loading_older": "Cargando anteriores…",
+    "announce_new": "Nuevo mensaje de {who}",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "ruta en el box · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "Descargar",
+      "busy": "Descargando…",
+      "mismatch": "sha256 no coincide",
+      "done": "Descargado ✓",
+      "failed": "Error en la descarga"
     },
-    "avatar_of": "avatar of {who}",
+    "avatar_of": "avatar de {who}",
     "avatar": "avatar",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "tarea",
+      "result": "resultado",
+      "note": "nota",
+      "reject": "rechazo"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
-      "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
+      "idle": "inactivo",
+      "connecting": "conectando",
+      "open": "abierto",
+      "reconnecting": "reconectando",
+      "closed": "cerrado",
       "mock": "mock",
       "no_base": "no_base"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "error de carga",
+      "load_older_failed": "error al cargar anteriores",
+      "catch_up_failed": "error al sincronizar",
+      "send_failed": "error al enviar"
     }
   },
   "thread": {
-    "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "title": "Hilo",
+    "open": "Abrir",
+    "empty": "Hilo vacío.",
+    "reply_placeholder": "Responder — Enter para enviar · /search para filtrar",
+    "replies_label": "Respuestas, las más recientes primero",
+    "load_failed": "error al cargar el hilo"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "alertas activadas",
+    "enable_alerts": "activar alertas",
+    "chime": "sonido",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "Mensaje directo de {from}",
+    "title_mention": "{from} te ha mencionado",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Nivel de detalle del hilo",
     "level": {
-      "minimal": "minimal",
+      "minimal": "mínimo",
       "normal": "normal",
-      "verbose": "verbose"
+      "verbose": "detallado"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "Cambiar al tema claro",
+    "to_dark": "Cambiar al tema oscuro",
+    "light": "Claro",
+    "dark": "Oscuro"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "Los hilos de este inquilino requieren que un miembro inicie sesión.",
+    "need_member_or_token": "Los hilos de este inquilino requieren que un miembro inicie sesión o un token de lectura.",
+    "placeholder": "token de lectura",
+    "label": "Token de lectura",
+    "use": "Usar"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "Redimensionar la barra de canales",
+    "resize_thread": "Redimensionar el panel del hilo",
+    "resize_hint": "Arrastra para redimensionar. Doble clic para restablecer."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "Mensaje a {target} — Enter para enviar · /search para filtrar",
+    "feed_label": "{target}, los más recientes primero",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "solo lectura · limitado al inquilino",
+      "empty": "Aún no hay hilos.",
+      "messages": "{n} mensaje | {n} mensajes",
+      "older": "Anteriores"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "en directo · {state} · eres {who}",
+      "no_lobby": "No hay vestíbulo configurado ({env}, o la bienvenida del hub)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "últimos 50 · limitado al inquilino",
+      "subtitle_retention": "últimos 50 · limitado al inquilino · retención de {retention}"
     },
     "dm": {
-      "online": "online",
-      "offline_queued": "offline · queued"
+      "online": "en línea",
+      "offline_queued": "sin conexión · en cola"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · los más recientes primero · {state}"
     }
   },
   "code": {

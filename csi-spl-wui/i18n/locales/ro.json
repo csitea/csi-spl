@@ -30,7 +30,7 @@
     "continue_google": "Continuă cu Google",
     "continue_facebook": "Continuă cu Facebook",
     "continue_generic": "Continuă cu {provider}",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "Autentificarea nu este încă disponibilă."
   },
   "debug_panel": {
     "title": "Diagnosticare",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "Limba preferată",
+      "save": "Salvează",
+      "hint": "Spool vă trimite e-mailuri în această limbă și se deschide în ea după autentificare. Meniul de limbă din partea de sus schimbă doar pagina pe care vă aflați.",
+      "saved": "Salvat.",
+      "failed": "Salvarea a eșuat — încercați din nou."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
-    "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "title": "Setări",
+    "profile": "Profil",
+    "name": "Nume",
+    "email": "E-mail",
+    "member_id": "ID membru",
+    "workspace": "Spațiu de lucru",
+    "picture_hint": "Imaginea dvs. este cea partajată de furnizorul de autentificare; în lipsa ei, spool vă desenează identiconul.",
+    "language_title": "Limbă",
+    "appearance": "Aspect",
+    "theme": "Temă",
+    "signin_security": "Autentificare și securitate",
+    "signed_in_with": "Autentificat cu",
+    "password_managed_by": "Parola dvs. este gestionată de {method}.",
+    "signed_out": "{link} pentru a vedea setările."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "Autentificarea a fost anulată.",
+      "invalid_state": "Linkul de autentificare a expirat — încercați din nou.",
+      "exchange_failed": "Furnizorul nu v-a putut confirma — încercați din nou.",
+      "email_unverified": "Contul dvs. nu are un e-mail verificat la acest furnizor — încercați altul.",
+      "not_allowed": "Acest cont nu se poate autentifica aici.",
+      "unavailable": "Autentificarea nu este disponibilă momentan.",
+      "failed": "Autentificarea a eșuat."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "E-mailul sau parola sunt greșite.",
+      "email_unverified": "Confirmați mai întâi e-mailul — putem retrimite linkul.",
+      "not_allowed": "Acest cont nu are încă acces aici — cereți o invitație proprietarului.",
+      "verification_token_invalid": "Linkul nu mai este valid.",
+      "verification_token_expired": "Linkul a expirat — vă putem trimite unul nou.",
+      "reset_token_invalid": "Linkul de resetare nu mai este valid — cereți unul nou.",
+      "email_delivery_unavailable": "Nu putem trimite e-mailuri acum — încercați mai târziu.",
+      "rate_limited": "Prea multe încercări — încercați mai târziu.",
+      "unauthenticated": "Sesiunea s-a încheiat — autentificați-vă din nou.",
+      "password_too_short": "Parola este prea scurtă.",
+      "email": "Introduceți o adresă de e-mail validă.",
+      "unavailable": "Autentificarea nu este disponibilă momentan.",
+      "network": "Hubul nu a răspuns — încercați din nou.",
+      "retry_minute": "Prea multe încercări — încercați din nou peste un minut.",
+      "retry_minutes": "Prea multe încercări — încercați din nou peste {m} minute.",
+      "password_too_short_min": "Parola este prea scurtă — folosiți cel puțin {min} caractere.",
+      "check_form": "Verificați formularul și încercați din nou.",
+      "generic": "Ceva nu a mers bine — încercați din nou."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "Mergi la autentificare",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "Parola a fost schimbată — autentificați-vă cu cea nouă.",
+      "session_unavailable": "Sesiune indisponibilă — hubul nu a răspuns.",
+      "signed_in_as": "Autentificat ca {who}",
+      "sign_out": "Deconectare",
+      "continue": "Continuă la fire"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
-      "email": "Email",
-      "password": "Password",
+      "tab_login": "Autentificare",
+      "tab_register": "Creează cont",
+      "tab_forgot": "Am uitat parola",
+      "submit_login": "Autentificare",
+      "submit_register": "Creează cont",
+      "submit_forgot": "Trimite linkul de resetare",
+      "name_optional": "Nume (opțional)",
+      "email": "E-mail",
+      "password": "Parolă",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "Retrimite linkul",
+      "registered": "Cont creat — autentificați-vă.",
+      "check_inbox": "Verificați căsuța de e-mail: v-am trimis un link pentru confirmarea adresei.",
+      "reset_sent": "Dacă adresa are un cont, linkul de resetare este pe drum.",
+      "debug_verify": "deschide linkul de verificare",
+      "debug_reset": "deschide linkul de resetare"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "Schimbă parola",
+      "current": "Parola actuală",
+      "new": "Parola nouă",
+      "submit": "Schimbă parola"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "Confirmă e-mailul",
+      "pending": "Se confirmă…",
+      "ok": "E-mailul dvs. este confirmat — autentificați-vă.",
+      "missing": "Acest link nu conține niciun token — deschideți din nou linkul din e-mail.",
+      "expired_hint": "Autentificați-vă din nou cu e-mailul și parola pentru a primi un link nou."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "Parolă nouă",
+      "ok": "Parola a fost setată — autentificați-vă cu ea.",
+      "missing": "Acest link nu conține niciun token — cereți un nou link de resetare.",
+      "new": "Parola nouă",
+      "repeat": "Repetați parola",
+      "submit": "Setează parola",
+      "mismatch": "Cele două parole diferă."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "Obțineți un spool",
+    "loading": "Se încarcă planul…",
+    "not_on_sale": "Spool-urile nu sunt de vânzare momentan.",
+    "unsupported": "Plata nu este încă deschisă pe această pagină — încercați mai târziu.",
+    "price": "Un chiriaș: {price}",
+    "tenant_name": "Numele chiriașului",
+    "email": "E-mail — cheia este trimisă aici o singură dată",
+    "submit": "Continuă la plată",
+    "fake_note": "Mediu de test: nu se transferă bani.",
+    "fake_pay": "Plătește (simulare dev)",
+    "your_spool": "Spool-ul dvs.",
+    "try_again": "Încearcă din nou",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "Se așteaptă confirmarea plății…",
+      "claimed": "Această cheie a fost deja preluată — pe această pagină sau din linkul trimis prin e-mail. Hubul nu o păstrează.",
+      "expired": "Perioada de preluare s-a încheiat — contactați asistența pentru a genera o nouă cheie chiriașului.",
+      "none": "Această filă a browserului nu conține nicio plată. Folosiți linkul de preluare din e-mailul trimis.",
+      "failed": "Plata nu a fost finalizată. Nu s-a creat niciun spool.",
+      "cancelled": "Plata a fost anulată. Nu s-a creat niciun spool.",
+      "back": "Înapoi la plată"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "Se preia cheia…",
+      "claimed": "Această cheie a fost deja preluată — pe pagina de confirmare sau din acest link. Hubul nu o păstrează.",
+      "expired": "Acest link a expirat — contactați asistența pentru a genera o nouă cheie chiriașului."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "warning_once": "Aceasta este singura dată când cheia este afișată. Nu este trimisă prin e-mail, iar hubul nu o păstrează.",
+      "warning_save": "Salvați-o într-un fișier pe care doar dvs. îl puteți citi (mod 0600) și setați {var} să indice spre el.",
+      "tenant": "Chiriaș: {url}",
+      "copy": "Copiază cheia",
+      "download": "Descarcă cheia"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "Verificați adresa de e-mail și încercați din nou.",
+      "bad_tenant_id": "Numele nu este permis — folosiți litere mici, cifre și cratime.",
+      "tenant_taken": "Numele este deja folosit — alegeți altul.",
+      "payment_unavailable": "Plata nu este disponibilă momentan — încercați mai târziu.",
+      "not_found": "Nu găsim această plată.",
+      "not_paid": "Plata nu este încă confirmată.",
+      "claimed": "Această cheie a fost deja preluată — pe pagina de confirmare sau din linkul trimis prin e-mail.",
+      "claim_expired": "Perioada de preluare s-a încheiat — contactați asistența pentru a genera o nouă cheie chiriașului.",
+      "conflict": "Între timp, acestui chiriaș i s-a generat o nouă cheie — contactați asistența.",
+      "bad_link": "Acest link este incomplet — deschideți din nou linkul din e-mail.",
+      "not_fake_checkout": "Această plată nu este o plată de test.",
+      "not_pending": "Această plată este închisă.",
+      "no_token": "Această filă a browserului nu conține datele de preluare pentru această plată — deschideți pagina de confirmare în fila din care ați plătit.",
+      "timeout": "Plata tot nu este confirmată — reîncărcați pagina peste un minut.",
+      "network": "Hubul nu a răspuns — încercați din nou.",
+      "storage_blocked": "Acest browser blochează stocarea sesiunii — permiteți-o pentru acest site și încercați din nou.",
+      "generic": "Ceva nu a mers bine — încercați din nou."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -209,173 +209,173 @@
     }
   },
   "user_menu": {
-    "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "account": "Cont",
+    "signed_in": "Autentificat",
+    "settings": "Setări",
+    "sign_out": "Deconectare",
+    "account_menu": "Meniul contului",
+    "account_menu_for": "Meniul contului pentru {who}",
+    "method_password": "E-mail și parolă",
+    "method_unknown": "Necunoscut",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "Niciun chiriaș selectat — deschideți vizualizatorul cu {query}.",
+      "api_host": "URL-ul hubului este gazda API; citirile chiriașului necesită {host} ({env_var} cu {tenant}).",
+      "no_base": "NUXT_PUBLIC_API_BASE lipsește sau este invalid.",
+      "unknown_tenant": "Chiriaș necunoscut pentru această gazdă.",
+      "not_found": "Nu a fost găsit.",
+      "load_failed": "încărcarea a eșuat"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "Se încarcă Spool…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
-    "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "channels": "Canale",
+    "direct_messages": "Mesaje directe",
+    "new_channel_placeholder": "canal nou",
+    "new_channel_label": "Canal nou",
+    "retention_days": "{n} z",
+    "retention_title": "mesaje păstrate {retention}",
+    "health_title": "conexiune la hub: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
+      "ok": "conectat",
+      "warn": "se reconectează…",
       "down": "offline"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "Acest canal există deja (sau numele este rezervat).",
+      "bad_channel": "Folosiți litere mici, cifre și cratime (maximum 64).",
+      "view_door": "Autentificați-vă pentru a crea un canal.",
+      "fallback": "canalul nu a fost creat"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "numele canalului este obligatoriu"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
+    "mention_suggestions": "Sugestii de mențiuni",
+    "omnibox_label": "Omnibox: mesaj sau /search pentru filtrare",
+    "message_label": "Mesaj",
+    "placeholder_default": "Mesaj — {mention} pentru a da o sarcină unui agent",
     "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "remove_file": "Elimină {name}",
+    "attach": "atașează",
+    "send": "Trimite",
+    "sending": "Se trimite…",
     "code_hint": "Bloc de cod: Enter adaugă un rând, tastați ``` sau apăsați Esc pentru a închide, Ctrl+Enter trimite"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "necunoscut",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
-    "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "open_thread": "Deschide firul",
+    "replies": "{n} răspuns | {n} răspunsuri",
+    "filter_label": "Filtru:",
+    "matches": "Potriviri: {count}",
+    "clear": "Golește",
+    "no_matches": "Niciun mesaj nu se potrivește.",
+    "empty": "Încă nu există mesaje.",
+    "loading_older": "Se încarcă mesajele mai vechi…",
+    "announce_new": "Mesaj nou de la {who}",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "cale pe box · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "Descarcă",
+      "busy": "Se descarcă…",
+      "mismatch": "sha256 nu corespunde",
+      "done": "Descărcat ✓",
+      "failed": "Descărcarea a eșuat"
     },
-    "avatar_of": "avatar of {who}",
+    "avatar_of": "avatarul lui {who}",
     "avatar": "avatar",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "sarcină",
+      "result": "rezultat",
+      "note": "notă",
+      "reject": "respingere"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
-      "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
-      "mock": "mock",
-      "no_base": "no_base"
+      "idle": "inactiv",
+      "connecting": "se conectează",
+      "open": "deschis",
+      "reconnecting": "se reconectează",
+      "closed": "închis",
+      "mock": "simulare",
+      "no_base": "fără bază"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "încărcarea a eșuat",
+      "load_older_failed": "încărcarea mesajelor vechi a eșuat",
+      "catch_up_failed": "sincronizarea a eșuat",
+      "send_failed": "trimiterea a eșuat"
     }
   },
   "thread": {
-    "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "title": "Fir",
+    "open": "Deschide",
+    "empty": "Fir gol.",
+    "reply_placeholder": "Răspuns — Enter pentru a trimite · /search pentru filtrare",
+    "replies_label": "Răspunsuri, cele mai noi primele",
+    "load_failed": "încărcarea firului a eșuat"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "alerte activate",
+    "enable_alerts": "activează alertele",
+    "chime": "sunet",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "Mesaj direct de la {from}",
+    "title_mention": "{from} v-a menționat",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Nivel de detaliu al firului",
     "level": {
-      "minimal": "minimal",
+      "minimal": "minim",
       "normal": "normal",
-      "verbose": "verbose"
+      "verbose": "detaliat"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "Comută la tema deschisă",
+    "to_dark": "Comută la tema întunecată",
+    "light": "Deschisă",
+    "dark": "Întunecată"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "Firele acestui chiriaș necesită autentificarea unui membru.",
+    "need_member_or_token": "Firele acestui chiriaș necesită autentificarea unui membru sau un token de vizualizare.",
+    "placeholder": "token de vizualizare",
+    "label": "Token de vizualizare",
+    "use": "Folosește"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "Redimensionează bara laterală a canalelor",
+    "resize_thread": "Redimensionează panoul firului",
+    "resize_hint": "Trageți pentru a redimensiona. Dublu clic pentru resetare."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "Mesaj către {target} — Enter pentru a trimite · /search pentru filtrare",
+    "feed_label": "{target}, cele mai noi primele",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "doar citire · limitat la chiriaș",
+      "empty": "Încă nu există fire.",
+      "messages": "{n} mesaj | {n} mesaje",
+      "older": "Mai vechi"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "live · {state} · sunteți {who}",
+      "no_lobby": "Niciun hol configurat ({env} sau mesajul de bun venit al hubului)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "ultimele 50 · limitat la chiriaș",
+      "subtitle_retention": "ultimele 50 · limitat la chiriaș · păstrare {retention}"
     },
     "dm": {
       "online": "online",
-      "offline_queued": "offline · queued"
+      "offline_queued": "offline · în coadă"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · cele mai noi primele · {state}"
     }
   },
   "code": {

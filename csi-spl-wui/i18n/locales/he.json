@@ -30,7 +30,7 @@
     "continue_google": "המשך עם Google",
     "continue_facebook": "המשך עם Facebook",
     "continue_generic": "המשך עם {provider}",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "ההתחברות עדיין לא זמינה."
   },
   "debug_panel": {
     "title": "אבחון",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "שפה מועדפת",
+      "save": "שמירה",
+      "hint": "Spool שולח לכם אימיילים בשפה זו ונפתח בה אחרי ההתחברות. תפריט השפה למעלה משנה רק את הדף הנוכחי.",
+      "saved": "נשמר.",
+      "failed": "השמירה נכשלה — נסו שוב."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
-    "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "title": "הגדרות",
+    "profile": "פרופיל",
+    "name": "שם",
+    "email": "אימייל",
+    "member_id": "מזהה חבר",
+    "workspace": "סביבת עבודה",
+    "picture_hint": "התמונה שלכם היא זו שספק ההתחברות משתף; אם אין כזו, Spool מצייר עבורכם identicon.",
+    "language_title": "שפה",
+    "appearance": "מראה",
+    "theme": "ערכת נושא",
+    "signin_security": "התחברות ואבטחה",
+    "signed_in_with": "מחוברים באמצעות",
+    "password_managed_by": "הסיסמה שלכם מנוהלת על ידי {method}.",
+    "signed_out": "{link} כדי לראות את ההגדרות שלכם."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "ההתחברות בוטלה.",
+      "invalid_state": "תוקף קישור ההתחברות פג — נסו שוב.",
+      "exchange_failed": "הספק לא הצליח לאמת אתכם — נסו שוב.",
+      "email_unverified": "לחשבון שלכם אין אימייל מאומת אצל ספק זה — נסו ספק אחר.",
+      "not_allowed": "חשבון זה אינו יכול להתחבר כאן.",
+      "unavailable": "ההתחברות אינה זמינה כרגע.",
+      "failed": "ההתחברות נכשלה."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "האימייל או הסיסמה שגויים.",
+      "email_unverified": "אשרו קודם את האימייל שלכם — נוכל לשלוח את הקישור שוב.",
+      "not_allowed": "לחשבון זה עדיין אין גישה כאן — בקשו הזמנה מהבעלים.",
+      "verification_token_invalid": "הקישור כבר אינו תקף.",
+      "verification_token_expired": "תוקף הקישור פג — נוכל לשלוח קישור חדש.",
+      "reset_token_invalid": "קישור האיפוס כבר אינו תקף — בקשו קישור חדש.",
+      "email_delivery_unavailable": "לא ניתן לשלוח אימייל כרגע — נסו שוב מאוחר יותר.",
+      "rate_limited": "יותר מדי ניסיונות — נסו שוב מאוחר יותר.",
+      "unauthenticated": "ההפעלה שלכם הסתיימה — התחברו שוב.",
+      "password_too_short": "הסיסמה קצרה מדי.",
+      "email": "הזינו כתובת אימייל תקינה.",
+      "unavailable": "ההתחברות אינה זמינה כרגע.",
+      "network": "ה-hub לא הגיב — נסו שוב.",
+      "retry_minute": "יותר מדי ניסיונות — נסו שוב בעוד דקה.",
+      "retry_minutes": "יותר מדי ניסיונות — נסו שוב בעוד {m} דקות.",
+      "password_too_short_min": "הסיסמה קצרה מדי — השתמשו בלפחות {min} תווים.",
+      "check_form": "בדקו את הטופס ונסו שוב.",
+      "generic": "משהו השתבש — נסו שוב."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "מעבר להתחברות",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "הסיסמה שונתה — התחברו עם הסיסמה החדשה.",
+      "session_unavailable": "ההפעלה אינה זמינה — ה-hub לא הגיב.",
+      "signed_in_as": "מחוברים בתור {who}",
+      "sign_out": "התנתקות",
+      "continue": "המשך לשרשורים"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
-      "email": "Email",
-      "password": "Password",
+      "tab_login": "התחברות",
+      "tab_register": "יצירת חשבון",
+      "tab_forgot": "שכחתי סיסמה",
+      "submit_login": "התחברות",
+      "submit_register": "יצירת חשבון",
+      "submit_forgot": "שליחת קישור איפוס",
+      "name_optional": "שם (לא חובה)",
+      "email": "אימייל",
+      "password": "סיסמה",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "שליחת הקישור שוב",
+      "registered": "החשבון נוצר — התחברו.",
+      "check_inbox": "בדקו את תיבת הדואר: שלחנו קישור לאישור האימייל שלכם.",
+      "reset_sent": "אם קיים חשבון לכתובת זו, קישור איפוס בדרך אליכם.",
+      "debug_verify": "פתיחת קישור האימות",
+      "debug_reset": "פתיחת קישור האיפוס"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "שינוי סיסמה",
+      "current": "סיסמה נוכחית",
+      "new": "סיסמה חדשה",
+      "submit": "שינוי סיסמה"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "אישור אימייל",
+      "pending": "מאשר…",
+      "ok": "האימייל שלכם אושר — התחברו.",
+      "missing": "בקישור זה אין טוקן — פתחו שוב את הקישור מהאימייל.",
+      "expired_hint": "התחברו שוב עם האימייל והסיסמה כדי לקבל קישור חדש."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "סיסמה חדשה",
+      "ok": "הסיסמה שלכם נקבעה — התחברו איתה.",
+      "missing": "בקישור זה אין טוקן — בקשו קישור איפוס חדש.",
+      "new": "סיסמה חדשה",
+      "repeat": "הזינו שוב",
+      "submit": "קביעת סיסמה",
+      "mismatch": "הסיסמאות אינן תואמות."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "קבלת spool",
+    "loading": "טוען את התוכנית…",
+    "not_on_sale": "spool אינם למכירה כרגע.",
+    "unsupported": "התשלום עדיין לא פתוח בדף זה — נסו שוב מאוחר יותר.",
+    "price": "טננט אחד: {price}",
+    "tenant_name": "שם הטננט",
+    "email": "אימייל — המפתח יישלח לכאן פעם אחת",
+    "submit": "המשך לתשלום",
+    "fake_note": "סביבת בדיקה: לא מתבצע חיוב.",
+    "fake_pay": "תשלום (בדיקת dev)",
+    "your_spool": "ה-spool שלכם",
+    "try_again": "נסו שוב",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "ממתין לאישור התשלום…",
+      "claimed": "המפתח הזה כבר נאסף — בדף זה או מהקישור שנשלח באימייל. ה-hub אינו שומר אותו.",
+      "expired": "חלון האיסוף נסגר — פנו לתמיכה כדי להנפיק מפתח חדש לטננט.",
+      "none": "בכרטיסייה זו בדפדפן אין הזמנה. השתמשו בקישור האיסוף מהאימייל ששלחנו.",
+      "failed": "התשלום לא הושלם. לא נוצר spool.",
+      "cancelled": "התשלום בוטל. לא נוצר spool.",
+      "back": "חזרה לתשלום"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "אוסף את המפתח שלכם…",
+      "claimed": "המפתח הזה כבר נאסף — בדף האישור או מקישור זה. ה-hub אינו שומר אותו.",
+      "expired": "תוקף הקישור פג — פנו לתמיכה כדי להנפיק מפתח חדש לטננט."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "warning_once": "זו הפעם היחידה שהמפתח מוצג. הוא אינו נשלח באימייל וה-hub אינו שומר אותו.",
+      "warning_save": "שמרו אותו כקובץ שרק אתם יכולים לקרוא (הרשאות 0600) והפנו אליו את {var}.",
+      "tenant": "טננט: {url}",
+      "copy": "העתקת המפתח",
+      "download": "הורדת המפתח"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "בדקו את כתובת האימייל ונסו שוב.",
+      "bad_tenant_id": "השם אינו מותר — השתמשו באותיות קטנות, ספרות ומקפים.",
+      "tenant_taken": "השם תפוס — בחרו שם אחר.",
+      "payment_unavailable": "התשלום אינו זמין כרגע — נסו שוב מאוחר יותר.",
+      "not_found": "לא מצאנו את ההזמנה הזו.",
+      "not_paid": "התשלום עדיין לא אושר.",
+      "claimed": "המפתח הזה כבר נאסף — בדף האישור או מהקישור שנשלח באימייל.",
+      "claim_expired": "חלון האיסוף נסגר — פנו לתמיכה כדי להנפיק מפתח חדש לטננט.",
+      "conflict": "בינתיים הונפק מפתח חדש לטננט זה — פנו לתמיכה.",
+      "bad_link": "הקישור אינו שלם — פתחו שוב את הקישור מהאימייל.",
+      "not_fake_checkout": "הזמנה זו אינה הזמנת בדיקה.",
+      "not_pending": "הזמנה זו סגורה.",
+      "no_token": "בכרטיסייה זו בדפדפן אין את הרשאת האיסוף להזמנה זו — פתחו את דף האישור בכרטיסייה שממנה שילמתם.",
+      "timeout": "התשלום עדיין לא אושר — טענו מחדש את הדף בעוד דקה.",
+      "network": "ה-hub לא הגיב — נסו שוב.",
+      "storage_blocked": "הדפדפן חוסם את אחסון ההפעלה — אפשרו אותו לאתר זה ונסו שוב.",
+      "generic": "משהו השתבש — נסו שוב."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -209,173 +209,173 @@
     }
   },
   "user_menu": {
-    "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "account": "חשבון",
+    "signed_in": "מחוברים",
+    "settings": "הגדרות",
+    "sign_out": "התנתקות",
+    "account_menu": "תפריט חשבון",
+    "account_menu_for": "תפריט חשבון עבור {who}",
+    "method_password": "אימייל וסיסמה",
+    "method_unknown": "לא ידוע",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "לא נבחר טננט — פתחו את התצוגה עם {query}.",
+      "api_host": "כתובת ה-hub היא מארח ה-API; קריאה מטננט דורשת {host} ({env_var} עם {tenant}).",
+      "no_base": "NUXT_PUBLIC_API_BASE חסר או לא תקין.",
+      "unknown_tenant": "טננט לא מוכר עבור מארח זה.",
+      "not_found": "לא נמצא.",
+      "load_failed": "הטעינה נכשלה"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "טוען את Spool…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
-    "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "channels": "ערוצים",
+    "direct_messages": "הודעות ישירות",
+    "new_channel_placeholder": "ערוץ חדש",
+    "new_channel_label": "ערוץ חדש",
+    "retention_days": "{n} ימ׳",
+    "retention_title": "הודעות נשמרות {retention}",
+    "health_title": "חיבור ל-hub: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
-      "down": "offline"
+      "ok": "מחובר",
+      "warn": "מתחבר מחדש…",
+      "down": "לא מקוון"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "הערוץ כבר קיים (או שהשם שמור).",
+      "bad_channel": "השתמשו באותיות קטנות, ספרות ומקפים (עד 64).",
+      "view_door": "התחברו כדי ליצור ערוץ.",
+      "fallback": "הערוץ לא נוצר"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "נדרש שם ערוץ"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
+    "mention_suggestions": "הצעות לאזכור",
+    "omnibox_label": "Omnibox: הודעה, או /search לסינון",
+    "message_label": "הודעה",
+    "placeholder_default": "הודעה — {mention} כדי להטיל משימה על סוכן",
     "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "remove_file": "הסרת {name}",
+    "attach": "צירוף",
+    "send": "שליחה",
+    "sending": "שולח…",
     "code_hint": "בלוק קוד: Enter מוסיף שורה, הקלידו ``` או לחצו Esc כדי לסגור, Ctrl+Enter שולח"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "לא ידוע",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
-    "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "open_thread": "פתיחת שרשור",
+    "replies": "תגובה אחת | {n} תגובות",
+    "filter_label": "סינון:",
+    "matches": "{count} תוצאות",
+    "clear": "ניקוי",
+    "no_matches": "אין הודעות תואמות.",
+    "empty": "אין עדיין הודעות.",
+    "loading_older": "טוען הודעות ישנות יותר…",
+    "announce_new": "הודעה חדשה מ-{who}",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "נתיב ב-box · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "הורדה",
+      "busy": "מוריד…",
+      "mismatch": "אי-התאמה ב-sha256",
+      "done": "הורד ✓",
+      "failed": "ההורדה נכשלה"
     },
-    "avatar_of": "avatar of {who}",
-    "avatar": "avatar",
+    "avatar_of": "האווטאר של {who}",
+    "avatar": "אווטאר",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "משימה",
+      "result": "תוצאה",
+      "note": "הערה",
+      "reject": "דחייה"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
-      "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
-      "mock": "mock",
+      "idle": "לא פעיל",
+      "connecting": "מתחבר",
+      "open": "פתוח",
+      "reconnecting": "מתחבר מחדש",
+      "closed": "סגור",
+      "mock": "הדמיה",
       "no_base": "no_base"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "הטעינה נכשלה",
+      "load_older_failed": "טעינת הודעות ישנות נכשלה",
+      "catch_up_failed": "ההשלמה נכשלה",
+      "send_failed": "השליחה נכשלה"
     }
   },
   "thread": {
-    "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "title": "שרשור",
+    "open": "פתיחה",
+    "empty": "שרשור ריק.",
+    "reply_placeholder": "תגובה — Enter לשליחה · /search לסינון",
+    "replies_label": "תגובות, החדשות ראשונות",
+    "load_failed": "טעינת השרשור נכשלה"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "ההתראות פעילות",
+    "enable_alerts": "הפעלת התראות",
+    "chime": "צליל",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "הודעה ישירה מ-{from}",
+    "title_mention": "{from} הזכיר/ה אתכם",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "רמת פירוט השרשור",
     "level": {
-      "minimal": "minimal",
-      "normal": "normal",
-      "verbose": "verbose"
+      "minimal": "מינימלית",
+      "normal": "רגילה",
+      "verbose": "מפורטת"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "מעבר לערכת נושא בהירה",
+    "to_dark": "מעבר לערכת נושא כהה",
+    "light": "בהירה",
+    "dark": "כהה"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "השרשורים של טננט זה דורשים התחברות כחבר.",
+    "need_member_or_token": "השרשורים של טננט זה דורשים התחברות כחבר או טוקן צפייה.",
+    "placeholder": "טוקן צפייה",
+    "label": "טוקן צפייה",
+    "use": "שימוש"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "שינוי גודל סרגל הערוצים",
+    "resize_thread": "שינוי גודל חלונית השרשור",
+    "resize_hint": "גררו כדי לשנות גודל. לחיצה כפולה לאיפוס."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "הודעה אל {target} — Enter לשליחה · /search לסינון",
+    "feed_label": "{target}, החדשות ראשונות",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "קריאה בלבד · בתחום הטננט",
+      "empty": "אין עדיין שרשורים.",
+      "messages": "הודעה אחת | {n} הודעות",
+      "older": "ישנות יותר"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "חי · {state} · אתם {who}",
+      "no_lobby": "לא הוגדר לובי ({env}, או הודעת הפתיחה של ה-hub)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "50 האחרונות · בתחום הטננט",
+      "subtitle_retention": "50 האחרונות · בתחום הטננט · שמירה {retention}"
     },
     "dm": {
-      "online": "online",
-      "offline_queued": "offline · queued"
+      "online": "מקוון",
+      "offline_queued": "לא מקוון · בתור"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · החדשות ראשונות · {state}"
     }
   },
   "code": {

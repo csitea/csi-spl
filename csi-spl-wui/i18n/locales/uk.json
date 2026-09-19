@@ -30,7 +30,7 @@
     "continue_google": "Продовжити з Google",
     "continue_facebook": "Продовжити з Facebook",
     "continue_generic": "Продовжити з {provider}",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "Вхід поки що недоступний."
   },
   "debug_panel": {
     "title": "Діагностика",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "Бажана мова",
+      "save": "Зберегти",
+      "hint": "Spool надсилає вам листи цією мовою та відкривається нею після входу. Меню мови вгорі змінює лише поточну сторінку.",
+      "saved": "Збережено.",
+      "failed": "Не вдалося зберегти — спробуйте ще раз."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
-    "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "title": "Налаштування",
+    "profile": "Профіль",
+    "name": "Ім’я",
+    "email": "Ел. пошта",
+    "member_id": "ID учасника",
+    "workspace": "Робочий простір",
+    "picture_hint": "Ваше зображення — те, яким ділиться ваш постачальник входу; без нього spool малює ваш ідентикон.",
+    "language_title": "Мова",
+    "appearance": "Вигляд",
+    "theme": "Тема",
+    "signin_security": "Вхід і безпека",
+    "signed_in_with": "Вхід через",
+    "password_managed_by": "Вашим паролем керує {method}.",
+    "signed_out": "{link}, щоб побачити свої налаштування."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "Вхід скасовано.",
+      "invalid_state": "Термін дії цього посилання для входу минув — спробуйте ще раз.",
+      "exchange_failed": "Постачальник не зміг вас підтвердити — спробуйте ще раз.",
+      "email_unverified": "У вашому обліковому записі в цього постачальника немає підтвердженої ел. пошти — спробуйте інший.",
+      "not_allowed": "Цей обліковий запис не може тут увійти.",
+      "unavailable": "Вхід зараз недоступний.",
+      "failed": "Не вдалося увійти."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "Неправильна ел. пошта або пароль.",
+      "email_unverified": "Спершу підтвердьте ел. пошту — ми можемо надіслати посилання ще раз.",
+      "not_allowed": "Цей обліковий запис поки що не має тут доступу — попросіть власника про запрошення.",
+      "verification_token_invalid": "Це посилання більше не дійсне.",
+      "verification_token_expired": "Термін дії посилання минув — ми можемо надіслати нове.",
+      "reset_token_invalid": "Це посилання для скидання більше не дійсне — запросіть нове.",
+      "email_delivery_unavailable": "Зараз ми не можемо надсилати листи — спробуйте пізніше.",
+      "rate_limited": "Забагато спроб — спробуйте пізніше.",
+      "unauthenticated": "Ваш сеанс завершився — увійдіть знову.",
+      "password_too_short": "Пароль закороткий.",
+      "email": "Введіть дійсну адресу ел. пошти.",
+      "unavailable": "Вхід зараз недоступний.",
+      "network": "Хаб не відповів — спробуйте ще раз.",
+      "retry_minute": "Забагато спроб — спробуйте ще раз за хвилину.",
+      "retry_minutes": "Забагато спроб — спробуйте ще раз за {m} хв.",
+      "password_too_short_min": "Пароль закороткий — використайте щонайменше {min} символів.",
+      "check_form": "Перевірте форму та спробуйте ще раз.",
+      "generic": "Щось пішло не так — спробуйте ще раз."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "Перейти до входу",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "Пароль змінено — увійдіть із новим.",
+      "session_unavailable": "Сеанс недоступний — хаб не відповів.",
+      "signed_in_as": "Ви увійшли як {who}",
+      "sign_out": "Вийти",
+      "continue": "Перейти до тредів"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
-      "email": "Email",
-      "password": "Password",
+      "tab_login": "Увійти",
+      "tab_register": "Створити обліковий запис",
+      "tab_forgot": "Забули пароль",
+      "submit_login": "Увійти",
+      "submit_register": "Створити обліковий запис",
+      "submit_forgot": "Надіслати посилання для скидання",
+      "name_optional": "Ім’я (необов’язково)",
+      "email": "Ел. пошта",
+      "password": "Пароль",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "Надіслати посилання ще раз",
+      "registered": "Обліковий запис створено — увійдіть.",
+      "check_inbox": "Перевірте пошту: ми надіслали посилання для підтвердження адреси.",
+      "reset_sent": "Якщо для цієї адреси є обліковий запис, посилання для скидання вже в дорозі.",
+      "debug_verify": "відкрити посилання підтвердження",
+      "debug_reset": "відкрити посилання для скидання"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "Змінити пароль",
+      "current": "Поточний пароль",
+      "new": "Новий пароль",
+      "submit": "Змінити пароль"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "Підтвердження ел. пошти",
+      "pending": "Підтвердження…",
+      "ok": "Вашу ел. пошту підтверджено — увійдіть.",
+      "missing": "Це посилання не містить токена — знову відкрийте посилання з листа.",
+      "expired_hint": "Увійдіть знову з ел. поштою та паролем, щоб отримати нове посилання."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "Новий пароль",
+      "ok": "Пароль встановлено — увійдіть із ним.",
+      "missing": "Це посилання не містить токена — запросіть нове посилання для скидання.",
+      "new": "Новий пароль",
+      "repeat": "Повторіть його",
+      "submit": "Встановити пароль",
+      "mismatch": "Паролі не збігаються."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "Отримати spool",
+    "loading": "Завантаження плану…",
+    "not_on_sale": "Spool зараз не продаються.",
+    "unsupported": "Оплата на цій сторінці ще не відкрита — спробуйте пізніше.",
+    "price": "Один орендар: {price}",
+    "tenant_name": "Назва орендаря",
+    "email": "Ел. пошта — ключ надсилається сюди один раз",
+    "submit": "Перейти до оплати",
+    "fake_note": "Тестове середовище: гроші не списуються.",
+    "fake_pay": "Оплатити (dev-імітація)",
+    "your_spool": "Ваш spool",
+    "try_again": "Спробувати ще раз",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "Очікуємо підтвердження оплати…",
+      "claimed": "Цей ключ уже отримано — на цій сторінці або за посиланням із листа. Хаб його не зберігає.",
+      "expired": "Час на отримання минув — зверніться до підтримки, щоб перевипустити ключ орендаря.",
+      "none": "У цій вкладці браузера немає оплати. Скористайтеся посиланням для отримання з нашого листа.",
+      "failed": "Оплату не завершено. Spool не створено.",
+      "cancelled": "Оплату скасовано. Spool не створено.",
+      "back": "Назад до оплати"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "Отримуємо ваш ключ…",
+      "claimed": "Цей ключ уже отримано — на сторінці успіху або за цим посиланням. Хаб його не зберігає.",
+      "expired": "Термін дії посилання минув — зверніться до підтримки, щоб перевипустити ключ орендаря."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "warning_once": "Цей ключ показується лише цього разу. Його не надсилають листом, і хаб його не зберігає.",
+      "warning_save": "Збережіть його у файл, доступний для читання лише вам (режим 0600), і вкажіть на нього в {var}.",
+      "tenant": "Орендар: {url}",
+      "copy": "Копіювати ключ",
+      "download": "Завантажити ключ"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "Перевірте адресу ел. пошти та спробуйте ще раз.",
+      "bad_tenant_id": "Ця назва недопустима — використовуйте малі літери, цифри та дефіси.",
+      "tenant_taken": "Ця назва вже зайнята — виберіть іншу.",
+      "payment_unavailable": "Оплата зараз недоступна — спробуйте пізніше.",
+      "not_found": "Не вдається знайти цю оплату.",
+      "not_paid": "Оплату ще не підтверджено.",
+      "claimed": "Цей ключ уже отримано — на сторінці успіху або за посиланням із листа.",
+      "claim_expired": "Час на отримання минув — зверніться до підтримки, щоб перевипустити ключ орендаря.",
+      "conflict": "Тим часом ключ цього орендаря перевипустили — зверніться до підтримки.",
+      "bad_link": "Посилання неповне — знову відкрийте посилання з листа.",
+      "not_fake_checkout": "Ця оплата не є тестовою.",
+      "not_pending": "Цю оплату закрито.",
+      "no_token": "У цій вкладці браузера немає даних для отримання за цією оплатою — відкрийте сторінку успіху у вкладці, з якої ви платили.",
+      "timeout": "Оплату досі не підтверджено — перезавантажте сторінку за хвилину.",
+      "network": "Хаб не відповів — спробуйте ще раз.",
+      "storage_blocked": "Цей браузер блокує сховище сеансу — дозвольте його для цього сайту та спробуйте ще раз.",
+      "generic": "Щось пішло не так — спробуйте ще раз."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -209,173 +209,173 @@
     }
   },
   "user_menu": {
-    "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "account": "Обліковий запис",
+    "signed_in": "Ви увійшли",
+    "settings": "Налаштування",
+    "sign_out": "Вийти",
+    "account_menu": "Меню облікового запису",
+    "account_menu_for": "Меню облікового запису {who}",
+    "method_password": "Ел. пошта та пароль",
+    "method_unknown": "Невідомо",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "Орендаря не вибрано — відкрийте переглядач із {query}.",
+      "api_host": "URL хаба — це API-хост; для читання орендаря потрібен {host} ({env_var} з {tenant}).",
+      "no_base": "NUXT_PUBLIC_API_BASE відсутній або недійсний.",
+      "unknown_tenant": "Невідомий орендар для цього хоста.",
+      "not_found": "Не знайдено.",
+      "load_failed": "не вдалося завантажити"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "Завантаження Spool…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
-    "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "channels": "Канали",
+    "direct_messages": "Особисті повідомлення",
+    "new_channel_placeholder": "новий канал",
+    "new_channel_label": "Новий канал",
+    "retention_days": "{n} дн.",
+    "retention_title": "повідомлення зберігаються {retention}",
+    "health_title": "з’єднання з хабом: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
-      "down": "offline"
+      "ok": "підключено",
+      "warn": "перепідключення…",
+      "down": "офлайн"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "Такий канал уже існує (або назву зарезервовано).",
+      "bad_channel": "Використовуйте малі літери, цифри та дефіси (до 64).",
+      "view_door": "Увійдіть, щоб створити канал.",
+      "fallback": "канал не створено"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "потрібна назва каналу"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
-    "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "mention_suggestions": "Пропозиції згадок",
+    "omnibox_label": "Omnibox: повідомлення або /search для фільтрування",
+    "message_label": "Повідомлення",
+    "placeholder_default": "Повідомлення — {mention}, щоб дати завдання агенту",
+    "file_bytes": "{n} Б",
+    "remove_file": "Вилучити {name}",
+    "attach": "прикріпити",
+    "send": "Надіслати",
+    "sending": "Надсилання…",
     "code_hint": "Блок коду: Enter додає рядок, введіть ``` або натисніть Esc, щоб закрити, Ctrl+Enter надсилає"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "невідомо",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
-    "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "open_thread": "Відкрити тред",
+    "replies": "{n} відповідь | {n} відповідей",
+    "filter_label": "Фільтр:",
+    "matches": "Збігів: {count}",
+    "clear": "Очистити",
+    "no_matches": "Немає відповідних повідомлень.",
+    "empty": "Повідомлень поки немає.",
+    "loading_older": "Завантаження старіших…",
+    "announce_new": "Нове повідомлення від {who}",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "шлях на боксі · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "Завантажити",
+      "busy": "Завантаження…",
+      "mismatch": "sha256 не збігається",
+      "done": "Завантажено ✓",
+      "failed": "Не вдалося завантажити"
     },
-    "avatar_of": "avatar of {who}",
-    "avatar": "avatar",
+    "avatar_of": "аватар {who}",
+    "avatar": "аватар",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "завдання",
+      "result": "результат",
+      "note": "нотатка",
+      "reject": "відхилення"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
-      "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
-      "mock": "mock",
-      "no_base": "no_base"
+      "idle": "неактивно",
+      "connecting": "підключення",
+      "open": "відкрито",
+      "reconnecting": "перепідключення",
+      "closed": "закрито",
+      "mock": "імітація",
+      "no_base": "немає бази"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "не вдалося завантажити",
+      "load_older_failed": "не вдалося завантажити старіші",
+      "catch_up_failed": "не вдалося синхронізувати",
+      "send_failed": "не вдалося надіслати"
     }
   },
   "thread": {
-    "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "title": "Тред",
+    "open": "Відкрити",
+    "empty": "Порожній тред.",
+    "reply_placeholder": "Відповідь — Enter, щоб надіслати · /search для фільтрування",
+    "replies_label": "Відповіді, спершу новіші",
+    "load_failed": "не вдалося завантажити тред"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "сповіщення увімкнено",
+    "enable_alerts": "увімкнути сповіщення",
+    "chime": "звук",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "Особисте повідомлення від {from}",
+    "title_mention": "{from} згадав(-ла) вас",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Детальність треду",
     "level": {
-      "minimal": "minimal",
-      "normal": "normal",
-      "verbose": "verbose"
+      "minimal": "мінімальна",
+      "normal": "звичайна",
+      "verbose": "детальна"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "Перейти на світлу тему",
+    "to_dark": "Перейти на темну тему",
+    "light": "Світла",
+    "dark": "Темна"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "Для тредів цього орендаря потрібен вхід учасника.",
+    "need_member_or_token": "Для тредів цього орендаря потрібен вхід учасника або токен перегляду.",
+    "placeholder": "токен перегляду",
+    "label": "Токен перегляду",
+    "use": "Застосувати"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "Змінити розмір бічної панелі каналів",
+    "resize_thread": "Змінити розмір панелі треду",
+    "resize_hint": "Перетягніть, щоб змінити розмір. Двічі клацніть, щоб скинути."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "Повідомлення для {target} — Enter, щоб надіслати · /search для фільтрування",
+    "feed_label": "{target}, спершу новіші",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "лише читання · у межах орендаря",
+      "empty": "Тредів поки немає.",
+      "messages": "{n} повідомлення | {n} повідомлень",
+      "older": "Старіші"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "наживо · {state} · ви — {who}",
+      "no_lobby": "Лобі не налаштовано ({env} або привітання хаба)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "останні 50 · у межах орендаря",
+      "subtitle_retention": "останні 50 · у межах орендаря · зберігання {retention}"
     },
     "dm": {
-      "online": "online",
-      "offline_queued": "offline · queued"
+      "online": "онлайн",
+      "offline_queued": "офлайн · у черзі"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · спершу новіші · {state}"
     }
   },
   "code": {

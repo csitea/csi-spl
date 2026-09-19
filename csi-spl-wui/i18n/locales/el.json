@@ -30,7 +30,7 @@
     "continue_google": "Συνέχεια με Google",
     "continue_facebook": "Συνέχεια με Facebook",
     "continue_generic": "Συνέχεια με {provider}",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "Η σύνδεση δεν είναι ακόμη διαθέσιμη."
   },
   "debug_panel": {
     "title": "Διαγνωστικά",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "Προτιμώμενη γλώσσα",
+      "save": "Αποθήκευση",
+      "hint": "Το spool σάς στέλνει email σε αυτή τη γλώσσα και ανοίγει σε αυτή μετά τη σύνδεση. Το μενού γλώσσας επάνω αλλάζει μόνο τη σελίδα όπου βρίσκεστε.",
+      "saved": "Αποθηκεύτηκε.",
+      "failed": "Η αποθήκευση απέτυχε — δοκιμάστε ξανά."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
+    "title": "Ρυθμίσεις",
+    "profile": "Προφίλ",
+    "name": "Όνομα",
     "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "member_id": "Αναγνωριστικό μέλους",
+    "workspace": "Χώρος εργασίας",
+    "picture_hint": "Η εικόνα σας είναι αυτή που κοινοποιεί ο πάροχος σύνδεσης· αν δεν υπάρχει, το spool σχεδιάζει το identicon σας.",
+    "language_title": "Γλώσσα",
+    "appearance": "Εμφάνιση",
+    "theme": "Θέμα",
+    "signin_security": "Σύνδεση και ασφάλεια",
+    "signed_in_with": "Συνδεδεμένοι με",
+    "password_managed_by": "Τον κωδικό σας τον διαχειρίζεται το {method}.",
+    "signed_out": "{link} για να δείτε τις ρυθμίσεις σας."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "Η σύνδεση ακυρώθηκε.",
+      "invalid_state": "Ο σύνδεσμος σύνδεσης έληξε — δοκιμάστε ξανά.",
+      "exchange_failed": "Ο πάροχος δεν μπόρεσε να σας επιβεβαιώσει — δοκιμάστε ξανά.",
+      "email_unverified": "Ο λογαριασμός σας σε αυτόν τον πάροχο δεν έχει επαληθευμένο email — δοκιμάστε άλλον.",
+      "not_allowed": "Αυτός ο λογαριασμός δεν μπορεί να συνδεθεί εδώ.",
+      "unavailable": "Η σύνδεση δεν είναι διαθέσιμη αυτή τη στιγμή.",
+      "failed": "Η σύνδεση απέτυχε."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "Λάθος email ή κωδικός.",
+      "email_unverified": "Επιβεβαιώστε πρώτα το email σας — μπορούμε να στείλουμε ξανά τον σύνδεσμο.",
+      "not_allowed": "Αυτός ο λογαριασμός δεν έχει ακόμη πρόσβαση εδώ — ζητήστε πρόσκληση από τον κάτοχο.",
+      "verification_token_invalid": "Αυτός ο σύνδεσμος δεν ισχύει πλέον.",
+      "verification_token_expired": "Αυτός ο σύνδεσμος έληξε — μπορούμε να στείλουμε νέο.",
+      "reset_token_invalid": "Αυτός ο σύνδεσμος επαναφοράς δεν ισχύει πλέον — ζητήστε νέο.",
+      "email_delivery_unavailable": "Δεν μπορούμε να στείλουμε email αυτή τη στιγμή — δοκιμάστε αργότερα.",
+      "rate_limited": "Πάρα πολλές προσπάθειες — δοκιμάστε αργότερα.",
+      "unauthenticated": "Η συνεδρία σας έληξε — συνδεθείτε ξανά.",
+      "password_too_short": "Ο κωδικός είναι πολύ σύντομος.",
+      "email": "Εισαγάγετε μια έγκυρη διεύθυνση email.",
+      "unavailable": "Η σύνδεση δεν είναι διαθέσιμη αυτή τη στιγμή.",
+      "network": "Ο κόμβος δεν απάντησε — δοκιμάστε ξανά.",
+      "retry_minute": "Πάρα πολλές προσπάθειες — δοκιμάστε ξανά σε ένα λεπτό.",
+      "retry_minutes": "Πάρα πολλές προσπάθειες — δοκιμάστε ξανά σε {m} λεπτά.",
+      "password_too_short_min": "Ο κωδικός είναι πολύ σύντομος — χρησιμοποιήστε τουλάχιστον {min} χαρακτήρες.",
+      "check_form": "Ελέγξτε τη φόρμα και δοκιμάστε ξανά.",
+      "generic": "Κάτι πήγε στραβά — δοκιμάστε ξανά."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "Μετάβαση στη σύνδεση",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "Ο κωδικός άλλαξε — συνδεθείτε με τον νέο.",
+      "session_unavailable": "Η συνεδρία δεν είναι διαθέσιμη — ο κόμβος δεν απάντησε.",
+      "signed_in_as": "Συνδεδεμένοι ως {who}",
+      "sign_out": "Αποσύνδεση",
+      "continue": "Συνέχεια στα νήματα"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
+      "tab_login": "Σύνδεση",
+      "tab_register": "Δημιουργία λογαριασμού",
+      "tab_forgot": "Ξέχασα τον κωδικό",
+      "submit_login": "Σύνδεση",
+      "submit_register": "Δημιουργία λογαριασμού",
+      "submit_forgot": "Αποστολή συνδέσμου επαναφοράς",
+      "name_optional": "Όνομα (προαιρετικό)",
       "email": "Email",
-      "password": "Password",
+      "password": "Κωδικός",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "Στείλτε ξανά τον σύνδεσμο",
+      "registered": "Ο λογαριασμός δημιουργήθηκε — συνδεθείτε.",
+      "check_inbox": "Ελέγξτε τα εισερχόμενά σας: στείλαμε έναν σύνδεσμο για την επιβεβαίωση του email σας.",
+      "reset_sent": "Αν υπάρχει λογαριασμός με αυτή τη διεύθυνση, ο σύνδεσμος επαναφοράς είναι καθ' οδόν.",
+      "debug_verify": "άνοιγμα συνδέσμου επαλήθευσης",
+      "debug_reset": "άνοιγμα συνδέσμου επαναφοράς"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "Αλλαγή κωδικού",
+      "current": "Τρέχων κωδικός",
+      "new": "Νέος κωδικός",
+      "submit": "Αλλαγή κωδικού"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "Επιβεβαίωση email",
+      "pending": "Επιβεβαίωση…",
+      "ok": "Το email σας επιβεβαιώθηκε — συνδεθείτε.",
+      "missing": "Αυτός ο σύνδεσμος δεν περιέχει token — ανοίξτε ξανά τον σύνδεσμο από το email.",
+      "expired_hint": "Συνδεθείτε ξανά με το email και τον κωδικό σας για να λάβετε νέο σύνδεσμο."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "Νέος κωδικός",
+      "ok": "Ο κωδικός σας ορίστηκε — συνδεθείτε με αυτόν.",
+      "missing": "Αυτός ο σύνδεσμος δεν περιέχει token — ζητήστε νέο σύνδεσμο επαναφοράς.",
+      "new": "Νέος κωδικός",
+      "repeat": "Επανάληψη",
+      "submit": "Ορισμός κωδικού",
+      "mismatch": "Οι δύο κωδικοί διαφέρουν."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "Αποκτήστε ένα spool",
+    "loading": "Φόρτωση προγράμματος…",
+    "not_on_sale": "Τα spool δεν διατίθενται προς πώληση αυτή τη στιγμή.",
+    "unsupported": "Η ολοκλήρωση αγοράς δεν είναι ακόμη διαθέσιμη σε αυτή τη σελίδα — δοκιμάστε αργότερα.",
+    "price": "Ένας μισθωτής: {price}",
+    "tenant_name": "Όνομα μισθωτή",
+    "email": "Email — το κλειδί αποστέλλεται εδώ μία φορά",
+    "submit": "Συνέχεια στην πληρωμή",
+    "fake_note": "Δοκιμαστικό περιβάλλον: δεν μετακινούνται χρήματα.",
+    "fake_pay": "Πληρωμή (dev, εικονική)",
+    "your_spool": "Το spool σας",
+    "try_again": "Δοκιμάστε ξανά",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "Αναμονή επιβεβαίωσης της πληρωμής…",
+      "claimed": "Αυτό το κλειδί έχει ήδη παραληφθεί — σε αυτή τη σελίδα ή από τον σύνδεσμο του email. Ο κόμβος δεν το κρατά.",
+      "expired": "Το παράθυρο παραλαβής έκλεισε — επικοινωνήστε με την υποστήριξη για νέο κλειδί του μισθωτή.",
+      "none": "Αυτή η καρτέλα δεν περιέχει κάποια αγορά. Χρησιμοποιήστε τον σύνδεσμο παραλαβής από το email που σας στείλαμε.",
+      "failed": "Η πληρωμή δεν ολοκληρώθηκε. Δεν δημιουργήθηκε spool.",
+      "cancelled": "Η πληρωμή ακυρώθηκε. Δεν δημιουργήθηκε spool.",
+      "back": "Πίσω στην ολοκλήρωση αγοράς"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "Παραλαβή του κλειδιού σας…",
+      "claimed": "Αυτό το κλειδί έχει ήδη παραληφθεί — στη σελίδα επιτυχίας ή από αυτόν τον σύνδεσμο. Ο κόμβος δεν το κρατά.",
+      "expired": "Αυτός ο σύνδεσμος έληξε — επικοινωνήστε με την υποστήριξη για νέο κλειδί του μισθωτή."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "warning_once": "Αυτή είναι η μόνη φορά που εμφανίζεται το κλειδί. Δεν αποστέλλεται με email και ο κόμβος δεν το κρατά.",
+      "warning_save": "Αποθηκεύστε το σε αρχείο που μπορείτε να διαβάσετε μόνο εσείς (λειτουργία 0600) και ορίστε το {var} να δείχνει σε αυτό.",
+      "tenant": "Μισθωτής: {url}",
+      "copy": "Αντιγραφή κλειδιού",
+      "download": "Λήψη κλειδιού"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "Ελέγξτε τη διεύθυνση email και δοκιμάστε ξανά.",
+      "bad_tenant_id": "Αυτό το όνομα δεν επιτρέπεται — χρησιμοποιήστε πεζά γράμματα, ψηφία και παύλες.",
+      "tenant_taken": "Αυτό το όνομα χρησιμοποιείται ήδη — επιλέξτε άλλο.",
+      "payment_unavailable": "Η ολοκλήρωση αγοράς δεν είναι διαθέσιμη αυτή τη στιγμή — δοκιμάστε αργότερα.",
+      "not_found": "Δεν βρίσκουμε αυτή την αγορά.",
+      "not_paid": "Η πληρωμή δεν έχει επιβεβαιωθεί ακόμη.",
+      "claimed": "Αυτό το κλειδί έχει ήδη παραληφθεί — στη σελίδα επιτυχίας ή από τον σύνδεσμο του email.",
+      "claim_expired": "Το παράθυρο παραλαβής έκλεισε — επικοινωνήστε με την υποστήριξη για νέο κλειδί του μισθωτή.",
+      "conflict": "Στο μεταξύ εκδόθηκε νέο κλειδί για αυτόν τον μισθωτή — επικοινωνήστε με την υποστήριξη.",
+      "bad_link": "Αυτός ο σύνδεσμος είναι ελλιπής — ανοίξτε ξανά τον σύνδεσμο από το email.",
+      "not_fake_checkout": "Αυτή η αγορά δεν είναι δοκιμαστική.",
+      "not_pending": "Αυτή η αγορά έχει κλείσει.",
+      "no_token": "Αυτή η καρτέλα δεν περιέχει την παραλαβή για αυτή την αγορά — ανοίξτε τη σελίδα επιτυχίας στην καρτέλα από την οποία πληρώσατε.",
+      "timeout": "Η πληρωμή δεν έχει επιβεβαιωθεί ακόμη — ανανεώστε αυτή τη σελίδα σε ένα λεπτό.",
+      "network": "Ο κόμβος δεν απάντησε — δοκιμάστε ξανά.",
+      "storage_blocked": "Αυτό το πρόγραμμα περιήγησης μπλοκάρει την αποθήκευση συνεδρίας — επιτρέψτε την για αυτόν τον ιστότοπο και δοκιμάστε ξανά.",
+      "generic": "Κάτι πήγε στραβά — δοκιμάστε ξανά."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -209,173 +209,173 @@
     }
   },
   "user_menu": {
-    "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "account": "Λογαριασμός",
+    "signed_in": "Συνδεδεμένοι",
+    "settings": "Ρυθμίσεις",
+    "sign_out": "Αποσύνδεση",
+    "account_menu": "Μενού λογαριασμού",
+    "account_menu_for": "Μενού λογαριασμού για {who}",
+    "method_password": "Email και κωδικός",
+    "method_unknown": "Άγνωστο",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "Δεν επιλέχθηκε μισθωτής — ανοίξτε την προβολή με {query}.",
+      "api_host": "Το URL του κόμβου είναι ο host του API· οι αναγνώσεις μισθωτή χρειάζονται {host} ({env_var} με {tenant}).",
+      "no_base": "Το NUXT_PUBLIC_API_BASE λείπει ή δεν είναι έγκυρο.",
+      "unknown_tenant": "Άγνωστος μισθωτής για αυτόν τον host.",
+      "not_found": "Δεν βρέθηκε.",
+      "load_failed": "η φόρτωση απέτυχε"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "Φόρτωση του Spool…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
-    "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "channels": "Κανάλια",
+    "direct_messages": "Άμεσα μηνύματα",
+    "new_channel_placeholder": "νέο κανάλι",
+    "new_channel_label": "Νέο κανάλι",
+    "retention_days": "{n} ημ.",
+    "retention_title": "τα μηνύματα διατηρούνται {retention}",
+    "health_title": "σύνδεση με τον κόμβο: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
-      "down": "offline"
+      "ok": "συνδεδεμένο",
+      "warn": "επανασύνδεση…",
+      "down": "εκτός σύνδεσης"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "Αυτό το κανάλι υπάρχει ήδη (ή το όνομα είναι δεσμευμένο).",
+      "bad_channel": "Χρησιμοποιήστε πεζά γράμματα, ψηφία και παύλες (έως 64).",
+      "view_door": "Συνδεθείτε για να δημιουργήσετε κανάλι.",
+      "fallback": "το κανάλι δεν δημιουργήθηκε"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "απαιτείται όνομα καναλιού"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
+    "mention_suggestions": "Προτάσεις αναφορών",
+    "omnibox_label": "Omnibox: μήνυμα ή /search για φιλτράρισμα",
+    "message_label": "Μήνυμα",
+    "placeholder_default": "Μήνυμα — {mention} για να αναθέσετε εργασία σε πράκτορα",
     "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "remove_file": "Αφαίρεση {name}",
+    "attach": "επισύναψη",
+    "send": "Αποστολή",
+    "sending": "Αποστολή…",
     "code_hint": "Μπλοκ κώδικα: το Enter προσθέτει γραμμή, πληκτρολογήστε ``` ή πατήστε Esc για κλείσιμο, το Ctrl+Enter στέλνει"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "άγνωστος",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
-    "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "open_thread": "Άνοιγμα νήματος",
+    "replies": "{n} απάντηση | {n} απαντήσεις",
+    "filter_label": "Φίλτρο:",
+    "matches": "{count} αποτελέσματα",
+    "clear": "Εκκαθάριση",
+    "no_matches": "Κανένα μήνυμα δεν ταιριάζει.",
+    "empty": "Δεν υπάρχουν ακόμη μηνύματα.",
+    "loading_older": "Φόρτωση παλαιότερων…",
+    "announce_new": "Νέο μήνυμα από {who}",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "διαδρομή στο box · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "Λήψη",
+      "busy": "Λήψη…",
+      "mismatch": "ασυμφωνία sha256",
+      "done": "Ολοκληρώθηκε ✓",
+      "failed": "Η λήψη απέτυχε"
     },
-    "avatar_of": "avatar of {who}",
-    "avatar": "avatar",
+    "avatar_of": "άβαταρ του/της {who}",
+    "avatar": "άβαταρ",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "εργασία",
+      "result": "αποτέλεσμα",
+      "note": "σημείωση",
+      "reject": "απόρριψη"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
-      "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
-      "mock": "mock",
+      "idle": "αδρανές",
+      "connecting": "σύνδεση",
+      "open": "ανοιχτό",
+      "reconnecting": "επανασύνδεση",
+      "closed": "κλειστό",
+      "mock": "προσομοίωση",
       "no_base": "no_base"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "η φόρτωση απέτυχε",
+      "load_older_failed": "η φόρτωση παλαιότερων απέτυχε",
+      "catch_up_failed": "ο συγχρονισμός απέτυχε",
+      "send_failed": "η αποστολή απέτυχε"
     }
   },
   "thread": {
-    "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "title": "Νήμα",
+    "open": "Άνοιγμα",
+    "empty": "Κενό νήμα.",
+    "reply_placeholder": "Απάντηση — Enter για αποστολή · /search για φιλτράρισμα",
+    "replies_label": "Απαντήσεις, πρώτα οι νεότερες",
+    "load_failed": "η φόρτωση του νήματος απέτυχε"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "ειδοποιήσεις ενεργές",
+    "enable_alerts": "ενεργοποίηση ειδοποιήσεων",
+    "chime": "ήχος",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "DM από {from}",
+    "title_mention": "Ο/Η {from} σάς ανέφερε",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Λεπτομέρεια νήματος",
     "level": {
-      "minimal": "minimal",
-      "normal": "normal",
-      "verbose": "verbose"
+      "minimal": "ελάχιστη",
+      "normal": "κανονική",
+      "verbose": "αναλυτική"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "Μετάβαση σε φωτεινό θέμα",
+    "to_dark": "Μετάβαση σε σκοτεινό θέμα",
+    "light": "Φωτεινό",
+    "dark": "Σκοτεινό"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "Τα νήματα αυτού του μισθωτή απαιτούν σύνδεση μέλους.",
+    "need_member_or_token": "Τα νήματα αυτού του μισθωτή απαιτούν σύνδεση μέλους ή token προβολής.",
+    "placeholder": "token προβολής",
+    "label": "Token προβολής",
+    "use": "Χρήση"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "Αλλαγή μεγέθους πλαϊνής στήλης καναλιών",
+    "resize_thread": "Αλλαγή μεγέθους πλαισίου νήματος",
+    "resize_hint": "Σύρετε για αλλαγή μεγέθους. Διπλό κλικ για επαναφορά."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "Μήνυμα προς {target} — Enter για αποστολή · /search για φιλτράρισμα",
+    "feed_label": "{target}, πρώτα τα νεότερα",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "μόνο ανάγνωση · ανά μισθωτή",
+      "empty": "Δεν υπάρχουν ακόμη νήματα.",
+      "messages": "{n} μήνυμα | {n} μηνύματα",
+      "older": "Παλαιότερα"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "ζωντανά · {state} · είστε {who}",
+      "no_lobby": "Δεν έχει ρυθμιστεί λόμπι ({env} ή το καλωσόρισμα του κόμβου)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "τελευταία 50 · ανά μισθωτή",
+      "subtitle_retention": "τελευταία 50 · ανά μισθωτή · διατήρηση {retention}"
     },
     "dm": {
-      "online": "online",
-      "offline_queued": "offline · queued"
+      "online": "συνδεδεμένος",
+      "offline_queued": "εκτός σύνδεσης · σε αναμονή"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · πρώτα τα νεότερα · {state}"
     }
   },
   "code": {

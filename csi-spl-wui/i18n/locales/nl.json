@@ -30,7 +30,7 @@
     "continue_google": "Doorgaan met Google",
     "continue_facebook": "Doorgaan met Facebook",
     "continue_generic": "Doorgaan met {provider}",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "Inloggen is nog niet beschikbaar."
   },
   "debug_panel": {
     "title": "Diagnostiek",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "Voorkeurstaal",
+      "save": "Opslaan",
+      "hint": "Spool mailt je in deze taal en opent in deze taal nadat je bent ingelogd. Het taalmenu bovenaan wijzigt alleen de pagina waarop je nu bent.",
+      "saved": "Opgeslagen.",
+      "failed": "Opslaan mislukt — probeer het opnieuw."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
-    "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "title": "Instellingen",
+    "profile": "Profiel",
+    "name": "Naam",
+    "email": "E-mail",
+    "member_id": "Lid-id",
+    "workspace": "Werkruimte",
+    "picture_hint": "Je afbeelding is de afbeelding die je inlogprovider deelt; zonder afbeelding tekent spool je identicon.",
+    "language_title": "Taal",
+    "appearance": "Weergave",
+    "theme": "Thema",
+    "signin_security": "Inloggen en beveiliging",
+    "signed_in_with": "Ingelogd met",
+    "password_managed_by": "Je wachtwoord wordt beheerd door {method}.",
+    "signed_out": "{link} om je instellingen te zien."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "Inloggen is geannuleerd.",
+      "invalid_state": "Die inloglink is verlopen — probeer het opnieuw.",
+      "exchange_failed": "De provider kon je niet bevestigen — probeer het opnieuw.",
+      "email_unverified": "Je account heeft bij deze provider geen geverifieerd e-mailadres — probeer een andere.",
+      "not_allowed": "Met dit account kun je hier niet inloggen.",
+      "unavailable": "Inloggen is op dit moment niet beschikbaar.",
+      "failed": "Inloggen mislukt."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "E-mailadres of wachtwoord is onjuist.",
+      "email_unverified": "Bevestig eerst je e-mailadres — we kunnen de link opnieuw sturen.",
+      "not_allowed": "Dit account heeft hier nog geen toegang — vraag de eigenaar om een uitnodiging.",
+      "verification_token_invalid": "Die link is niet meer geldig.",
+      "verification_token_expired": "Die link is verlopen — we kunnen je een nieuwe sturen.",
+      "reset_token_invalid": "Die resetlink is niet meer geldig — vraag een nieuwe aan.",
+      "email_delivery_unavailable": "We kunnen nu geen e-mail versturen — probeer het later opnieuw.",
+      "rate_limited": "Te veel pogingen — probeer het later opnieuw.",
+      "unauthenticated": "Je sessie is beëindigd — log opnieuw in.",
+      "password_too_short": "Dat wachtwoord is te kort.",
+      "email": "Voer een geldig e-mailadres in.",
+      "unavailable": "Inloggen is op dit moment niet beschikbaar.",
+      "network": "De hub reageerde niet — probeer het opnieuw.",
+      "retry_minute": "Te veel pogingen — probeer het over een minuut opnieuw.",
+      "retry_minutes": "Te veel pogingen — probeer het over {m} minuten opnieuw.",
+      "password_too_short_min": "Dat wachtwoord is te kort — gebruik minstens {min} tekens.",
+      "check_form": "Controleer het formulier en probeer het opnieuw.",
+      "generic": "Er ging iets mis — probeer het opnieuw."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "Naar inloggen",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "Wachtwoord gewijzigd — log in met het nieuwe.",
+      "session_unavailable": "Sessie niet beschikbaar — de hub reageerde niet.",
+      "signed_in_as": "Ingelogd als {who}",
+      "sign_out": "Uitloggen",
+      "continue": "Verder naar de threads"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
-      "email": "Email",
-      "password": "Password",
+      "tab_login": "Inloggen",
+      "tab_register": "Account aanmaken",
+      "tab_forgot": "Wachtwoord vergeten",
+      "submit_login": "Inloggen",
+      "submit_register": "Account aanmaken",
+      "submit_forgot": "Resetlink versturen",
+      "name_optional": "Naam (optioneel)",
+      "email": "E-mail",
+      "password": "Wachtwoord",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "Link opnieuw versturen",
+      "registered": "Account aangemaakt — log in.",
+      "check_inbox": "Kijk in je inbox: we hebben je een link gestuurd om je e-mailadres te bevestigen.",
+      "reset_sent": "Als dat adres een account heeft, is er een resetlink onderweg.",
+      "debug_verify": "open de verificatielink",
+      "debug_reset": "open de resetlink"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "Wachtwoord wijzigen",
+      "current": "Huidig wachtwoord",
+      "new": "Nieuw wachtwoord",
+      "submit": "Wachtwoord wijzigen"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "E-mailadres bevestigen",
+      "pending": "Bevestigen…",
+      "ok": "Je e-mailadres is bevestigd — log in.",
+      "missing": "Deze link bevat geen token — open de link uit de e-mail opnieuw.",
+      "expired_hint": "Log opnieuw in met je e-mailadres en wachtwoord om een nieuwe link te krijgen."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "Nieuw wachtwoord",
+      "ok": "Je wachtwoord is ingesteld — log ermee in.",
+      "missing": "Deze link bevat geen token — vraag een nieuwe resetlink aan.",
+      "new": "Nieuw wachtwoord",
+      "repeat": "Herhaal het",
+      "submit": "Wachtwoord instellen",
+      "mismatch": "De twee wachtwoorden komen niet overeen."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "Neem een spool",
+    "loading": "Abonnement laden…",
+    "not_on_sale": "Spools zijn op dit moment niet te koop.",
+    "unsupported": "Afrekenen is op deze pagina nog niet mogelijk — probeer het later opnieuw.",
+    "price": "Eén tenant: {price}",
+    "tenant_name": "Naam van de tenant",
+    "email": "E-mail — de sleutel wordt hier één keer naartoe gestuurd",
+    "submit": "Verder naar betalen",
+    "fake_note": "Testomgeving: er wordt geen geld overgemaakt.",
+    "fake_pay": "Betalen (dev fake)",
+    "your_spool": "Je spool",
+    "try_again": "Opnieuw proberen",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "Wachten tot de betaling is bevestigd…",
+      "claimed": "Deze sleutel is al opgehaald — op deze pagina of via de gemailde link. De hub bewaart hem niet.",
+      "expired": "De ophaaltermijn is verstreken — neem contact op met support om de tenant een nieuwe sleutel te geven.",
+      "none": "Dit browsertabblad bevat geen bestelling. Gebruik de ophaallink uit de e-mail die we je hebben gestuurd.",
+      "failed": "De betaling is niet voltooid. Er is geen spool aangemaakt.",
+      "cancelled": "De betaling is geannuleerd. Er is geen spool aangemaakt.",
+      "back": "Terug naar afrekenen"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "Je sleutel wordt opgehaald…",
+      "claimed": "Deze sleutel is al opgehaald — op de bevestigingspagina of via deze link. De hub bewaart hem niet.",
+      "expired": "Deze link is verlopen — neem contact op met support om de tenant een nieuwe sleutel te geven."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
+      "warning_once": "Dit is de enige keer dat deze sleutel wordt getoond. Hij wordt niet gemaild en de hub bewaart hem niet.",
+      "warning_save": "Sla hem op in een bestand dat alleen jij kunt lezen (modus 0600) en laat {var} ernaar verwijzen.",
       "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "copy": "Sleutel kopiëren",
+      "download": "Sleutel downloaden"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "Controleer het e-mailadres en probeer het opnieuw.",
+      "bad_tenant_id": "Die naam is niet toegestaan — gebruik kleine letters, cijfers en streepjes.",
+      "tenant_taken": "Die naam is al in gebruik — kies een andere.",
+      "payment_unavailable": "Afrekenen is op dit moment niet beschikbaar — probeer het later opnieuw.",
+      "not_found": "We kunnen deze bestelling niet vinden.",
+      "not_paid": "De betaling is nog niet bevestigd.",
+      "claimed": "Deze sleutel is al opgehaald — op de bevestigingspagina of via de gemailde link.",
+      "claim_expired": "De ophaaltermijn is verstreken — neem contact op met support om de tenant een nieuwe sleutel te geven.",
+      "conflict": "Deze tenant heeft intussen een nieuwe sleutel gekregen — neem contact op met support.",
+      "bad_link": "Deze link is onvolledig — open de link uit de e-mail opnieuw.",
+      "not_fake_checkout": "Deze bestelling is geen testbestelling.",
+      "not_pending": "Deze bestelling is afgesloten.",
+      "no_token": "Dit browsertabblad heeft het ophaalrecht voor deze bestelling niet — open de bevestigingspagina in het tabblad waarin je hebt betaald.",
+      "timeout": "De betaling is nog steeds niet bevestigd — laad deze pagina over een minuut opnieuw.",
+      "network": "De hub reageerde niet — probeer het opnieuw.",
+      "storage_blocked": "Deze browser blokkeert sessieopslag — sta het toe voor deze site en probeer het opnieuw.",
+      "generic": "Er ging iets mis — probeer het opnieuw."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -210,172 +210,172 @@
   },
   "user_menu": {
     "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "signed_in": "Ingelogd",
+    "settings": "Instellingen",
+    "sign_out": "Uitloggen",
+    "account_menu": "Accountmenu",
+    "account_menu_for": "Accountmenu van {who}",
+    "method_password": "E-mail en wachtwoord",
+    "method_unknown": "Onbekend",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "Geen tenant geselecteerd — open de viewer met {query}.",
+      "api_host": "De hub-URL is de API-host; tenant-leesacties hebben {host} nodig ({env_var} met {tenant}).",
+      "no_base": "NUXT_PUBLIC_API_BASE ontbreekt of is ongeldig.",
+      "unknown_tenant": "Onbekende tenant voor deze host.",
+      "not_found": "Niet gevonden.",
+      "load_failed": "laden mislukt"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "Spool laden…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
+    "channels": "Kanalen",
+    "direct_messages": "Directe berichten",
+    "new_channel_placeholder": "nieuw kanaal",
+    "new_channel_label": "Nieuw kanaal",
     "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "retention_title": "berichten worden {retention} bewaard",
+    "health_title": "hubverbinding: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
+      "ok": "verbonden",
+      "warn": "opnieuw verbinden…",
       "down": "offline"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "Dat kanaal bestaat al (of de naam is gereserveerd).",
+      "bad_channel": "Gebruik kleine letters, cijfers en streepjes (max. 64).",
+      "view_door": "Log in om een kanaal aan te maken.",
+      "fallback": "kanaal niet aangemaakt"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "kanaalnaam verplicht"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
+    "mention_suggestions": "Suggesties voor vermeldingen",
+    "omnibox_label": "Omnibox: bericht, of /search om te filteren",
+    "message_label": "Bericht",
+    "placeholder_default": "Bericht — {mention} om een agent een taak te geven",
     "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "remove_file": "{name} verwijderen",
+    "attach": "bijvoegen",
+    "send": "Versturen",
+    "sending": "Versturen…",
     "code_hint": "Codeblok: Enter voegt een regel toe, typ ``` of druk op Esc om te sluiten, Ctrl+Enter verstuurt"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "onbekend",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
+    "open_thread": "Thread openen",
+    "replies": "{n} reactie | {n} reacties",
     "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "matches": "{count} resultaat/resultaten",
+    "clear": "Wissen",
+    "no_matches": "Geen berichten gevonden.",
+    "empty": "Nog geen berichten.",
+    "loading_older": "Oudere laden…",
+    "announce_new": "Nieuw bericht van {who}",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "pad op de box · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "Downloaden",
+      "busy": "Downloaden…",
+      "mismatch": "sha256 komt niet overeen",
+      "done": "Gedownload ✓",
+      "failed": "Downloaden mislukt"
     },
-    "avatar_of": "avatar of {who}",
+    "avatar_of": "avatar van {who}",
     "avatar": "avatar",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "taak",
+      "result": "resultaat",
+      "note": "notitie",
+      "reject": "afwijzing"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
+      "idle": "inactief",
+      "connecting": "verbinden",
       "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
+      "reconnecting": "opnieuw verbinden",
+      "closed": "gesloten",
       "mock": "mock",
       "no_base": "no_base"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "laden mislukt",
+      "load_older_failed": "oudere laden mislukt",
+      "catch_up_failed": "bijwerken mislukt",
+      "send_failed": "versturen mislukt"
     }
   },
   "thread": {
     "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "open": "Openen",
+    "empty": "Lege thread.",
+    "reply_placeholder": "Reageren — Enter om te versturen · /search om te filteren",
+    "replies_label": "Reacties, nieuwste eerst",
+    "load_failed": "thread laden mislukt"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "meldingen aan",
+    "enable_alerts": "meldingen inschakelen",
+    "chime": "geluid",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "Direct bericht van {from}",
+    "title_mention": "{from} heeft je vermeld",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Detailniveau van threads",
     "level": {
-      "minimal": "minimal",
-      "normal": "normal",
-      "verbose": "verbose"
+      "minimal": "minimaal",
+      "normal": "normaal",
+      "verbose": "uitgebreid"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "Overschakelen naar licht thema",
+    "to_dark": "Overschakelen naar donker thema",
+    "light": "Licht",
+    "dark": "Donker"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "Voor de threads van deze tenant moet een lid inloggen.",
+    "need_member_or_token": "Voor de threads van deze tenant moet een lid inloggen of is een leestoken nodig.",
+    "placeholder": "leestoken",
+    "label": "Leestoken",
+    "use": "Gebruiken"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "Formaat van kanaalzijbalk wijzigen",
+    "resize_thread": "Formaat van threadpaneel wijzigen",
+    "resize_hint": "Sleep om het formaat te wijzigen. Dubbelklik om te herstellen."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "Bericht aan {target} — Enter om te versturen · /search om te filteren",
+    "feed_label": "{target}, nieuwste eerst",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "alleen-lezen · binnen de tenant",
+      "empty": "Nog geen threads.",
+      "messages": "{n} bericht | {n} berichten",
+      "older": "Ouder"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "live · {state} · je bent {who}",
+      "no_lobby": "Geen lobby ingesteld ({env}, of het welkomstbericht van de hub)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "laatste 50 · binnen de tenant",
+      "subtitle_retention": "laatste 50 · binnen de tenant · bewaartermijn {retention}"
     },
     "dm": {
       "online": "online",
-      "offline_queued": "offline · queued"
+      "offline_queued": "offline · in wachtrij"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · nieuwste eerst · {state}"
     }
   },
   "code": {

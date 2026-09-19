@@ -30,7 +30,7 @@
     "continue_google": "Jätka Google'iga",
     "continue_facebook": "Jätka Facebookiga",
     "continue_generic": "Jätka teenusega {provider}",
-    "not_available": "Sign-in is not available yet."
+    "not_available": "Sisselogimine pole veel saadaval."
   },
   "debug_panel": {
     "title": "Diagnostika",
@@ -50,158 +50,158 @@
   },
   "settings": {
     "language": {
-      "label": "Preferred language",
-      "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
-      "saved": "Saved.",
-      "failed": "Could not save — try again."
+      "label": "Eelistatud keel",
+      "save": "Salvesta",
+      "hint": "Spool saadab sulle e-kirju selles keeles ja avaneb pärast sisselogimist selles keeles. Ülal olev keelemenüü muudab ainult lehte, millel parajasti oled.",
+      "saved": "Salvestatud.",
+      "failed": "Salvestamine ebaõnnestus — proovi uuesti."
     },
-    "title": "Settings",
-    "profile": "Profile",
-    "name": "Name",
-    "email": "Email",
-    "member_id": "Member id",
-    "workspace": "Workspace",
-    "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
-    "language_title": "Language",
-    "appearance": "Appearance",
-    "theme": "Theme",
-    "signin_security": "Sign-in and security",
-    "signed_in_with": "Signed in with",
-    "password_managed_by": "Your password is managed by {method}.",
-    "signed_out": "{link} to see your settings."
+    "title": "Seaded",
+    "profile": "Profiil",
+    "name": "Nimi",
+    "email": "E-post",
+    "member_id": "Liikme ID",
+    "workspace": "Tööruum",
+    "picture_hint": "Sinu pilt on see, mida jagab sinu sisselogimise teenusepakkuja; kui seda pole, joonistab spool sulle identiconi.",
+    "language_title": "Keel",
+    "appearance": "Välimus",
+    "theme": "Teema",
+    "signin_security": "Sisselogimine ja turvalisus",
+    "signed_in_with": "Sisse logitud teenusega",
+    "password_managed_by": "Sinu parooli haldab {method}.",
+    "signed_out": "{link}, et näha oma seadeid."
   },
   "auth": {
     "error": {
-      "cancelled": "Sign-in was cancelled.",
-      "invalid_state": "That sign-in link expired — try again.",
-      "exchange_failed": "The provider could not confirm you — try again.",
-      "email_unverified": "Your account has no verified email with this provider — try another.",
-      "not_allowed": "This account cannot sign in here.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "failed": "Sign-in failed."
+      "cancelled": "Sisselogimine tühistati.",
+      "invalid_state": "See sisselogimislink on aegunud — proovi uuesti.",
+      "exchange_failed": "Teenusepakkuja ei suutnud sind kinnitada — proovi uuesti.",
+      "email_unverified": "Sinu kontol selle teenusepakkuja juures pole kinnitatud e-posti — proovi mõnda teist.",
+      "not_allowed": "Selle kontoga ei saa siin sisse logida.",
+      "unavailable": "Sisselogimine pole praegu saadaval.",
+      "failed": "Sisselogimine ebaõnnestus."
     },
     "native_error": {
-      "invalid_credentials": "Email or password is wrong.",
-      "email_unverified": "Confirm your email first — we can send the link again.",
-      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
-      "verification_token_invalid": "That link is not valid any more.",
-      "verification_token_expired": "That link expired — we can send a new one.",
-      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
-      "email_delivery_unavailable": "We cannot send email right now — try again later.",
-      "rate_limited": "Too many attempts — try again later.",
-      "unauthenticated": "Your session ended — sign in again.",
-      "password_too_short": "That password is too short.",
-      "email": "Enter a valid email address.",
-      "unavailable": "Sign-in is unavailable right now.",
-      "network": "The hub did not answer — try again.",
-      "retry_minute": "Too many attempts — try again in a minute.",
-      "retry_minutes": "Too many attempts — try again in {m} minutes.",
-      "password_too_short_min": "That password is too short — use at least {min} characters.",
-      "check_form": "Check the form and try again.",
-      "generic": "Something went wrong — try again."
+      "invalid_credentials": "E-post või parool on vale.",
+      "email_unverified": "Kinnita esmalt oma e-post — saame lingi uuesti saata.",
+      "not_allowed": "Sellel kontol pole siin veel ligipääsu — küsi omanikult kutset.",
+      "verification_token_invalid": "See link ei kehti enam.",
+      "verification_token_expired": "See link on aegunud — saame saata uue.",
+      "reset_token_invalid": "See lähtestamislink ei kehti enam — küsi uus.",
+      "email_delivery_unavailable": "Me ei saa praegu e-kirju saata — proovi hiljem uuesti.",
+      "rate_limited": "Liiga palju katseid — proovi hiljem uuesti.",
+      "unauthenticated": "Sinu seanss lõppes — logi uuesti sisse.",
+      "password_too_short": "See parool on liiga lühike.",
+      "email": "Sisesta kehtiv e-posti aadress.",
+      "unavailable": "Sisselogimine pole praegu saadaval.",
+      "network": "Keskus ei vastanud — proovi uuesti.",
+      "retry_minute": "Liiga palju katseid — proovi minuti pärast uuesti.",
+      "retry_minutes": "Liiga palju katseid — proovi {m} minuti pärast uuesti.",
+      "password_too_short_min": "See parool on liiga lühike — kasuta vähemalt {min} märki.",
+      "check_form": "Kontrolli vormi ja proovi uuesti.",
+      "generic": "Midagi läks valesti — proovi uuesti."
     },
-    "go_to_sign_in": "Go to sign in",
+    "go_to_sign_in": "Mine sisselogimisse",
     "login": {
-      "password_changed": "Password changed — sign in with the new one.",
-      "session_unavailable": "Session unavailable — the hub did not answer.",
-      "signed_in_as": "Signed in as {who}",
-      "sign_out": "Sign out",
-      "continue": "Continue to threads"
+      "password_changed": "Parool muudetud — logi sisse uuega.",
+      "session_unavailable": "Seanss pole saadaval — keskus ei vastanud.",
+      "signed_in_as": "Sisse logitud kui {who}",
+      "sign_out": "Logi välja",
+      "continue": "Jätka lõimede juurde"
     },
     "native": {
-      "tab_login": "Sign in",
-      "tab_register": "Create account",
-      "tab_forgot": "Forgot password",
-      "submit_login": "Sign in",
-      "submit_register": "Create account",
-      "submit_forgot": "Send reset link",
-      "name_optional": "Name (optional)",
-      "email": "Email",
-      "password": "Password",
+      "tab_login": "Logi sisse",
+      "tab_register": "Loo konto",
+      "tab_forgot": "Unustasin parooli",
+      "submit_login": "Logi sisse",
+      "submit_register": "Loo konto",
+      "submit_forgot": "Saada lähtestamislink",
+      "name_optional": "Nimi (valikuline)",
+      "email": "E-post",
+      "password": "Parool",
       "dev": "dev:",
-      "resend": "Send the link again",
-      "registered": "Account created — sign in.",
-      "check_inbox": "Check your inbox: we sent a link to confirm your email.",
-      "reset_sent": "If that address has an account, a reset link is on its way.",
-      "debug_verify": "open the verify link",
-      "debug_reset": "open the reset link"
+      "resend": "Saada link uuesti",
+      "registered": "Konto loodud — logi sisse.",
+      "check_inbox": "Vaata oma postkasti: saatsime lingi e-posti kinnitamiseks.",
+      "reset_sent": "Kui sellel aadressil on konto, on lähtestamislink teel.",
+      "debug_verify": "ava kinnituslink",
+      "debug_reset": "ava lähtestamislink"
     },
     "change_password": {
-      "title": "Change password",
-      "current": "Current password",
-      "new": "New password",
-      "submit": "Change password"
+      "title": "Muuda parooli",
+      "current": "Praegune parool",
+      "new": "Uus parool",
+      "submit": "Muuda parooli"
     },
     "verify": {
-      "title": "Confirm email",
-      "pending": "Confirming…",
-      "ok": "Your email is confirmed — sign in.",
-      "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "title": "Kinnita e-post",
+      "pending": "Kinnitamine…",
+      "ok": "Sinu e-post on kinnitatud — logi sisse.",
+      "missing": "Selles lingis pole tokenit — ava link e-kirjast uuesti.",
+      "expired_hint": "Uue lingi saamiseks logi uuesti sisse oma e-posti ja parooliga."
     },
     "reset": {
-      "title": "New password",
-      "ok": "Your password is set — sign in with it.",
-      "missing": "This link carries no token — ask for a new reset link.",
-      "new": "New password",
-      "repeat": "Repeat it",
-      "submit": "Set password",
-      "mismatch": "The two passwords differ."
+      "title": "Uus parool",
+      "ok": "Sinu parool on määratud — logi sellega sisse.",
+      "missing": "Selles lingis pole tokenit — küsi uus lähtestamislink.",
+      "new": "Uus parool",
+      "repeat": "Korda parooli",
+      "submit": "Määra parool",
+      "mismatch": "Paroolid ei ühti."
     }
   },
   "checkout": {
-    "title": "Get a spool",
-    "loading": "Loading the plan…",
-    "not_on_sale": "Spools are not on sale right now.",
-    "unsupported": "Checkout is not open on this page yet — try again later.",
-    "price": "One tenant: {price}",
-    "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
-    "submit": "Continue to payment",
-    "fake_note": "Test environment: no money moves.",
-    "fake_pay": "Pay (dev fake)",
-    "your_spool": "Your spool",
-    "try_again": "Try again",
+    "title": "Hangi spool",
+    "loading": "Paketi laadimine…",
+    "not_on_sale": "Spoole praegu ei müüda.",
+    "unsupported": "Maksmine pole sellel lehel veel avatud — proovi hiljem uuesti.",
+    "price": "Üks rentnik: {price}",
+    "tenant_name": "Rentniku nimi",
+    "email": "E-post — võti saadetakse siia üks kord",
+    "submit": "Jätka maksmisega",
+    "fake_note": "Testkeskkond: raha ei liigu.",
+    "fake_pay": "Maksa (dev, näidis)",
+    "your_spool": "Sinu spool",
+    "try_again": "Proovi uuesti",
     "success": {
-      "waiting": "Waiting for the payment to be confirmed…",
-      "claimed": "This key was already collected — on this page or from the emailed link. The hub does not keep it.",
-      "expired": "The claim window has closed — contact support to re-key the tenant.",
-      "none": "This browser tab holds no checkout. Use the claim link from the email we sent.",
-      "failed": "The payment was not completed. No spool was created.",
-      "cancelled": "The payment was cancelled. No spool was created.",
-      "back": "Back to checkout"
+      "waiting": "Ootame makse kinnitust…",
+      "claimed": "See võti on juba kätte saadud — sellel lehel või e-kirja lingi kaudu. Keskus seda ei säilita.",
+      "expired": "Kättesaamise aeg on läbi — rentniku uue võtme saamiseks võta ühendust toega.",
+      "none": "Selles brauseri vahekaardis pole ühtegi makset. Kasuta kättesaamislinki meie saadetud e-kirjast.",
+      "failed": "Makse jäi lõpetamata. Spooli ei loodud.",
+      "cancelled": "Makse tühistati. Spooli ei loodud.",
+      "back": "Tagasi maksmise juurde"
     },
     "claim": {
-      "claiming": "Collecting your key…",
-      "claimed": "This key was already collected — on the success page or from this link. The hub does not keep it.",
-      "expired": "This link has expired — contact support to re-key the tenant."
+      "claiming": "Sinu võtme kättesaamine…",
+      "claimed": "See võti on juba kätte saadud — õnnestumise lehel või selle lingi kaudu. Keskus seda ei säilita.",
+      "expired": "See link on aegunud — rentniku uue võtme saamiseks võta ühendust toega."
     },
     "key": {
-      "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
-      "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
-      "copy": "Copy key",
-      "download": "Download key"
+      "warning_once": "Seda võtit näidatakse ainult see üks kord. Seda ei saadeta e-postiga ja keskus seda ei säilita.",
+      "warning_save": "Salvesta see faili, mida saad lugeda ainult sina (režiim 0600), ja suuna {var} sellele.",
+      "tenant": "Rentnik: {url}",
+      "copy": "Kopeeri võti",
+      "download": "Laadi võti alla"
     },
     "error": {
-      "bad_request": "Check the email address and try again.",
-      "bad_tenant_id": "That name is not allowed — use lower-case letters, digits and dashes.",
-      "tenant_taken": "That name is taken — pick another one.",
-      "payment_unavailable": "Checkout is unavailable right now — try again later.",
-      "not_found": "We cannot find this checkout.",
-      "not_paid": "The payment is not confirmed yet.",
-      "claimed": "This key was already collected — on the success page or from the emailed link.",
-      "claim_expired": "The claim window has closed — contact support to re-key the tenant.",
-      "conflict": "This tenant was re-keyed meanwhile — contact support.",
-      "bad_link": "This link is incomplete — open the link from the email again.",
-      "not_fake_checkout": "This checkout is not a test checkout.",
-      "not_pending": "This checkout is closed.",
-      "no_token": "This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.",
-      "timeout": "The payment is still not confirmed — reload this page in a minute.",
-      "network": "The hub did not answer — try again.",
-      "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
-      "generic": "Something went wrong — try again."
+      "bad_request": "Kontrolli e-posti aadressi ja proovi uuesti.",
+      "bad_tenant_id": "See nimi pole lubatud — kasuta väiketähti, numbreid ja sidekriipse.",
+      "tenant_taken": "See nimi on juba võetud — vali mõni teine.",
+      "payment_unavailable": "Maksmine pole praegu saadaval — proovi hiljem uuesti.",
+      "not_found": "Seda makset ei leitud.",
+      "not_paid": "Makse pole veel kinnitatud.",
+      "claimed": "See võti on juba kätte saadud — õnnestumise lehel või e-kirja lingi kaudu.",
+      "claim_expired": "Kättesaamise aeg on läbi — rentniku uue võtme saamiseks võta ühendust toega.",
+      "conflict": "Selle rentniku võti vahetati vahepeal — võta ühendust toega.",
+      "bad_link": "See link on puudulik — ava link e-kirjast uuesti.",
+      "not_fake_checkout": "See makse pole testmakse.",
+      "not_pending": "See makse on suletud.",
+      "no_token": "Selles brauseri vahekaardis pole selle makse kättesaamisandmeid — ava õnnestumise leht vahekaardis, kust maksid.",
+      "timeout": "Makse pole ikka veel kinnitatud — laadi see leht minuti pärast uuesti.",
+      "network": "Keskus ei vastanud — proovi uuesti.",
+      "storage_blocked": "See brauser blokeerib seansisalvestuse — luba see selle saidi jaoks ja proovi uuesti.",
+      "generic": "Midagi läks valesti — proovi uuesti."
     },
     "host": {
       "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
@@ -209,173 +209,173 @@
     }
   },
   "user_menu": {
-    "account": "Account",
-    "signed_in": "Signed in",
-    "settings": "Settings",
-    "sign_out": "Sign out",
-    "account_menu": "Account menu",
-    "account_menu_for": "Account menu for {who}",
-    "method_password": "Email and password",
-    "method_unknown": "Unknown",
+    "account": "Konto",
+    "signed_in": "Sisse logitud",
+    "settings": "Seaded",
+    "sign_out": "Logi välja",
+    "account_menu": "Konto menüü",
+    "account_menu_for": "Kasutaja {who} konto menüü",
+    "method_password": "E-post ja parool",
+    "method_unknown": "Teadmata",
     "method_named": "{name}"
   },
   "viewer": {
     "error": {
-      "no_tenant": "No tenant selected — open the viewer with {query}.",
-      "api_host": "The hub URL is the API host; tenant reads need {host} ({env_var} with {tenant}).",
-      "no_base": "NUXT_PUBLIC_API_BASE is missing or invalid.",
-      "unknown_tenant": "Unknown tenant for this host.",
-      "not_found": "Not found.",
-      "load_failed": "load failed"
+      "no_tenant": "Rentnikku pole valitud — ava vaatur parameetriga {query}.",
+      "api_host": "Keskuse URL on API host; rentniku lugemiseks on vaja {host} ({env_var} väärtusega {tenant}).",
+      "no_base": "NUXT_PUBLIC_API_BASE puudub või on vigane.",
+      "unknown_tenant": "Selle hosti jaoks tundmatu rentnik.",
+      "not_found": "Ei leitud.",
+      "load_failed": "laadimine ebaõnnestus"
     }
   },
   "app": {
-    "loading": "Loading Spool…"
+    "loading": "Spooli laadimine…"
   },
   "sidebar": {
-    "channels": "Channels",
-    "direct_messages": "Direct messages",
-    "new_channel_placeholder": "new channel",
-    "new_channel_label": "New channel",
-    "retention_days": "{n} d",
-    "retention_title": "messages kept {retention}",
-    "health_title": "hub connection: {state}",
+    "channels": "Kanalid",
+    "direct_messages": "Otsesõnumid",
+    "new_channel_placeholder": "uus kanal",
+    "new_channel_label": "Uus kanal",
+    "retention_days": "{n} p",
+    "retention_title": "sõnumeid säilitatakse {retention}",
+    "health_title": "ühendus keskusega: {state}",
     "health": {
-      "ok": "connected",
-      "warn": "reconnecting…",
-      "down": "offline"
+      "ok": "ühendatud",
+      "warn": "ühendan uuesti…",
+      "down": "võrguühenduseta"
     },
     "create_error": {
-      "channel_exists": "That channel already exists (or the name is reserved).",
-      "bad_channel": "Use lowercase letters, digits and dashes (max 64).",
-      "view_door": "Sign in to create a channel.",
-      "fallback": "channel not created"
+      "channel_exists": "See kanal on juba olemas (või nimi on reserveeritud).",
+      "bad_channel": "Kasuta väiketähti, numbreid ja sidekriipse (kuni 64).",
+      "view_door": "Kanali loomiseks logi sisse.",
+      "fallback": "kanalit ei loodud"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "kanali nimi on nõutud"
   },
   "composer": {
-    "mention_suggestions": "Mention suggestions",
-    "omnibox_label": "Omnibox: message, or /search to filter",
-    "message_label": "Message",
-    "placeholder_default": "Message — {mention} to task an agent",
+    "mention_suggestions": "Mainimissoovitused",
+    "omnibox_label": "Omnibox: sõnum või /search filtreerimiseks",
+    "message_label": "Sõnum",
+    "placeholder_default": "Sõnum — {mention}, et anda agendile ülesanne",
     "file_bytes": "{n} B",
-    "remove_file": "Remove {name}",
-    "attach": "attach",
-    "send": "Send",
-    "sending": "Sending…",
+    "remove_file": "Eemalda {name}",
+    "attach": "manusta",
+    "send": "Saada",
+    "sending": "Saatmine…",
     "code_hint": "Koodiplokk: Enter lisab rea, sulgemiseks kirjuta ``` või vajuta Esc, Ctrl+Enter saadab"
   },
   "feed": {
-    "unknown_author": "unknown",
+    "unknown_author": "tundmatu",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
-    "replies": "{n} reply | {n} replies",
+    "open_thread": "Ava lõim",
+    "replies": "{n} vastus | {n} vastust",
     "filter_label": "Filter:",
-    "matches": "{count} match(es)",
-    "clear": "Clear",
-    "no_matches": "No messages match.",
-    "empty": "No messages yet.",
-    "loading_older": "Loading older…",
-    "announce_new": "New message from {who}",
+    "matches": "{count} vaste(t)",
+    "clear": "Tühjenda",
+    "no_matches": "Sobivaid sõnumeid pole.",
+    "empty": "Sõnumeid veel pole.",
+    "loading_older": "Vanemate laadimine…",
+    "announce_new": "Uus sõnum kasutajalt {who}",
     "file_meta": "{size} · sha256 {hash}",
-    "on_box_path": "on-box path · {path}",
+    "on_box_path": "tee boxis · {path}",
     "download": {
-      "idle": "Download",
-      "busy": "Downloading…",
-      "mismatch": "sha256 mismatch",
-      "done": "Downloaded ✓",
-      "failed": "Download failed"
+      "idle": "Laadi alla",
+      "busy": "Allalaadimine…",
+      "mismatch": "sha256 ei ühti",
+      "done": "Alla laaditud ✓",
+      "failed": "Allalaadimine ebaõnnestus"
     },
-    "avatar_of": "avatar of {who}",
+    "avatar_of": "{who} avatar",
     "avatar": "avatar",
     "kind": {
-      "task": "task",
-      "result": "result",
-      "note": "note",
-      "reject": "reject"
+      "task": "ülesanne",
+      "result": "tulemus",
+      "note": "märkus",
+      "reject": "tagasilükkamine"
     },
     "live_state": {
-      "idle": "idle",
-      "connecting": "connecting",
-      "open": "open",
-      "reconnecting": "reconnecting",
-      "closed": "closed",
-      "mock": "mock",
+      "idle": "ootel",
+      "connecting": "ühendamine",
+      "open": "avatud",
+      "reconnecting": "uuesti ühendamine",
+      "closed": "suletud",
+      "mock": "näidis",
       "no_base": "no_base"
     },
     "error": {
-      "load_failed": "load failed",
-      "load_older_failed": "load older failed",
-      "catch_up_failed": "catch-up failed",
-      "send_failed": "send failed"
+      "load_failed": "laadimine ebaõnnestus",
+      "load_older_failed": "vanemate laadimine ebaõnnestus",
+      "catch_up_failed": "järelelaadimine ebaõnnestus",
+      "send_failed": "saatmine ebaõnnestus"
     }
   },
   "thread": {
-    "title": "Thread",
-    "open": "Open",
-    "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
-    "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "title": "Lõim",
+    "open": "Ava",
+    "empty": "Tühi lõim.",
+    "reply_placeholder": "Vastus — Enter saadab · /search filtreerib",
+    "replies_label": "Vastused, uusimad eespool",
+    "load_failed": "lõime laadimine ebaõnnestus"
   },
   "notify": {
-    "alerts_on": "alerts on",
-    "enable_alerts": "enable alerts",
-    "chime": "chime",
+    "alerts_on": "teavitused sees",
+    "enable_alerts": "lülita teavitused sisse",
+    "chime": "helin",
     "title_alerts": "#alerts · {from}",
-    "title_dm": "DM from {from}",
-    "title_mention": "{from} mentioned you",
+    "title_dm": "DM kasutajalt {from}",
+    "title_mention": "{from} mainis sind",
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Lõime detailsus",
     "level": {
-      "minimal": "minimal",
-      "normal": "normal",
-      "verbose": "verbose"
+      "minimal": "minimaalne",
+      "normal": "tavaline",
+      "verbose": "üksikasjalik"
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
-    "light": "Light",
-    "dark": "Dark"
+    "to_light": "Lülitu heledale teemale",
+    "to_dark": "Lülitu tumedale teemale",
+    "light": "Hele",
+    "dark": "Tume"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
-    "placeholder": "view token",
-    "label": "View token",
-    "use": "Use"
+    "need_member": "Selle rentniku lõimede nägemiseks on vaja liikmena sisse logida.",
+    "need_member_or_token": "Selle rentniku lõimede nägemiseks on vaja liikmena sisse logida või vaatamistokenit.",
+    "placeholder": "vaatamistoken",
+    "label": "Vaatamistoken",
+    "use": "Kasuta"
   },
   "pane": {
-    "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
-    "resize_hint": "Drag to resize. Double-click to reset."
+    "resize_sidebar": "Muuda kanalite külgriba suurust",
+    "resize_thread": "Muuda lõimepaani suurust",
+    "resize_hint": "Lohista suuruse muutmiseks. Topeltklõps lähtestab."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
-    "feed_label": "{target}, newest first",
+    "message_placeholder": "Sõnum: {target} — Enter saadab · /search filtreerib",
+    "feed_label": "{target}, uusimad eespool",
     "index": {
-      "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
-      "messages": "{n} message | {n} messages",
-      "older": "Older"
+      "subtitle": "ainult lugemiseks · rentniku piires",
+      "empty": "Lõimi veel pole.",
+      "messages": "{n} sõnum | {n} sõnumit",
+      "older": "Vanemad"
     },
     "lobby": {
-      "status": "live · {state} · you are {who}",
-      "no_lobby": "No lobby configured ({env}, or the hub welcome)."
+      "status": "otse · {state} · sina oled {who}",
+      "no_lobby": "Fuajeed pole seadistatud ({env} või keskuse tervitus)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "viimased 50 · rentniku piires",
+      "subtitle_retention": "viimased 50 · rentniku piires · säilitus {retention}"
     },
     "dm": {
-      "online": "online",
-      "offline_queued": "offline · queued"
+      "online": "võrgus",
+      "offline_queued": "võrguühenduseta · järjekorras"
     },
     "task": {
-      "status": "{n} · newest first · {state}"
+      "status": "{n} · uusimad eespool · {state}"
     }
   },
   "code": {

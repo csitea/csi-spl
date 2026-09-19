@@ -17,10 +17,10 @@
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account). dev/prd with DRY_RUN=0 and no SPOOL_HUB_DB_DSN: the
 # @param   operator (secretmanager.secretAccessor + cloudsql.client)
 # @param SPOOL_BIN (optional) - spool CLI; otherwise built from csi-spl-api
-# @description dev/prd: the host <tenant>.<fqdn> is served only once it is in
-# @description cnf env.dns.mapped_tenants and 032 (Cloud Run domain mapping)
-# @description + 025 (its ghs CNAME) are provisioned (no wildcard mapping,
-# @description owner 2026-09-19); the action says so when it is missing.
+# @description dev/prd (specs/026): a tenant needs NO host, mapping or DNS.
+# @description Members sign in at the WUI with ?tenant=<id>; boxes use the API
+# @description host with SPOOL_TENANT=<id>. "url" is the legacy tenant-host
+# @description form, kept for old clients while such hosts still exist.
 # @example TENANT_ID=acme ./run -a do_spl_tenant_create --json
 # @example ENV=lde DRY_RUN=0 TENANT_ID=acme ./run -a do_spl_tenant_create --json
 # @example ENV=dev DRY_RUN=0 TENANT_ID=t1 ./run -a do_spl_tenant_create
@@ -69,7 +69,7 @@ do_spl_tenant_create() {
     return 1
   }
 
-  [[ "$env" == lde ]] || spl_tenant_mapping_check "$tenant" "$host"
+  [[ "$env" == lde ]] || do_log "INFO specs/026: $tenant needs no host or DNS - members sign in with ?tenant=$tenant, boxes use the API host with SPOOL_TENANT=$tenant"
 
   if [[ "$dry" == 1 ]]; then
     do_log "INFO DRY_RUN would INSERT tenant $tenant (pubkey only, billing_status=manual) and print the root private key once"
@@ -140,17 +140,4 @@ do_spl_tenant_create() {
   printf '{"tenant":"%s","url":"%s","root_pubkey":"%s","root_private_key":"%s","billing_status":"manual"}\n' \
     "$tenant" "$url" "$pub" "$priv"
   do_log "OK created tenant $tenant url=$url (root private key printed once on stdout, not stored)"
-}
-
-# spl_tenant_mapping_check <tenant> <host>: dev/prd tenant hosts are one Cloud
-# Run domain mapping each (032) plus a ghs CNAME (025), both rendered from cnf
-# env.dns.mapped_tenants. Warn (never fail: the DB row is independent) when the
-# tenant is not listed, and name the steps that serve it.
-spl_tenant_mapping_check() {
-  local tenant="$1" host="$2"
-  if yq -e "(.env.dns.mapped_tenants // []) | any_c(. == \"$tenant\")" "$SPL_CNF" >/dev/null 2>&1; then
-    do_log "INFO $host is in env.dns.mapped_tenants (032 mapping + 025 CNAME)"
-    return 0
-  fi
-  do_log "WARN $host has NO Cloud Run domain mapping: add $tenant to env.dns.mapped_tenants in $ENV.env.yaml, re-render, then provision 032-gcp-cloud-run-domain-mapping and 025-gcp-dns-zone (owner go) and run do_spl_wait_for_mapping_cert DOMAIN=$host"
 }

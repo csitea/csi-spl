@@ -22,7 +22,11 @@
 # @param HUB_URL (optional) - default https://<cnf env.dns.api_fqdn>
 # @param PROBE_N (optional) - samples / control requests, default 3
 # @param PROBE_MODE (optional) - measure (default) or spoof-control
+# @param PROBE_PATH (optional) - /v1/debug/client-ip (default), or
+# @param   /api/v1/auth/client-ip to measure the WUI host's Firebase rewrite
+# @param   path (HUB_URL=https://<wui host>): its chain can differ
 # @example ENV=dev ./run -a do_spl_probe_client_ip
+# @example ENV=dev HUB_URL=https://dev.spool-hub.ai PROBE_PATH=/api/v1/auth/client-ip ./run -a do_spl_probe_client_ip
 # @example ENV=dev PROBE_MODE=spoof-control PROBE_N=130 ./run -a do_spl_probe_client_ip
 #------------------------------------------------------------------------------
 do_spl_probe_client_ip() {
@@ -49,12 +53,13 @@ do_spl_probe_client_ip() {
 
 _spl_probe_measure() {
   local url="$1" n="$2" marker="192.0.2.1" i body hops first seen="" chain client deployed
+  local path="${PROBE_PATH:-/v1/debug/client-ip}"
   for ((i = 1; i <= n; i++)); do
     body="$(curl -sS -m 15 -H "X-Forwarded-For: $marker" -H 'Cache-Control: no-cache' \
-      -w '\n%{http_code}' "$url/v1/debug/client-ip" 2>&1)" || {
-      do_log "FATAL $url/v1/debug/client-ip unreachable: $(tail -1 <<<"$body")"; return 1; }
+      -w '\n%{http_code}' "$url$path" 2>&1)" || {
+      do_log "FATAL $url$path unreachable: $(tail -1 <<<"$body")"; return 1; }
     [[ "$(tail -1 <<<"$body")" == 200 ]] || {
-      do_log "FATAL $url/v1/debug/client-ip answered $(tail -1 <<<"$body") (SPOOL_HUB_CLIENT_IP_PROBE off, or an older hub image)"
+      do_log "FATAL $url$path answered $(tail -1 <<<"$body") (SPOOL_HUB_CLIENT_IP_PROBE off, or an older hub image)"
       return 1; }
     body="$(sed '$d' <<<"$body")"
     chain="$(yq -p json -o json -I0 '.x_forwarded_for' <<<"$body")"
@@ -73,7 +78,7 @@ _spl_probe_measure() {
   done
   local current=no
   [[ "$hops" -ge 1 && "$client" == "$first" && "$deployed" == "$hops" ]] && current=yes
-  echo "$ENV hops=$hops url=$url n=$n chain=$chain peer=$(yq -p json -r '.peer' <<<"$body") deployed_hops=$deployed current=$current"
+  echo "$ENV hops=$hops url=$url$path n=$n chain=$chain peer=$(yq -p json -r '.peer' <<<"$body") deployed_hops=$deployed current=$current"
 }
 
 _spl_probe_spoof_control() {

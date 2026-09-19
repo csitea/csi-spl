@@ -28,7 +28,7 @@ cat >"$T/stub/curl" <<'EOF'
 echo "curl $*" >>"$STUB_LOG"
 n=$(grep -c '^curl ' "$STUB_LOG")
 case "$*" in
-  *"/v1/debug/client-ip"*)
+  *"/v1/debug/client-ip"*|*"/api/v1/auth/client-ip"*)
     f="$BODY_DIR/$n"; [[ -f "$f" ]] || f="$BODY_DIR/last"
     cat "$f"; printf '\n%s' "${CODE:-200}" ;;
   *"/api/v1/auth/providers"*)
@@ -68,6 +68,10 @@ out=$(run_probe 2>&1); rc=$?
 body last '{"peer":"169.254.1.1","x_forwarded_for":["192.0.2.1","203.0.113.50"],"trusted_proxy_hops":0,"client_ip":"169.254.1.1"}'
 out=$(run_probe 2>&1); rc=$?
 [[ $rc -eq 0 && "$out" == *"hops=1 "* && "$out" == *"deployed_hops=0 current=no"* ]] && pass "deployed hops 0 reported as not current" || fail "current=no: rc=$rc out=$out"
+
+out=$(run_probe PROBE_PATH=/api/v1/auth/client-ip 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"/api/v1/auth/client-ip n="* ]] && grep -q "/api/v1/auth/client-ip" "$T/calls.log" \
+  && pass "PROBE_PATH measures the sign-in (Firebase rewrite) path" || fail "PROBE_PATH: rc=$rc out=$out"
 
 # 2. a proxy that appends itself as well (client, proxy)
 body last '{"peer":"35.191.0.9","x_forwarded_for":["192.0.2.1","203.0.113.50","198.51.100.200"],"trusted_proxy_hops":0,"client_ip":"35.191.0.9"}'

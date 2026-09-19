@@ -117,11 +117,15 @@ type Limits struct {
 
 // Socket paths the connection caps apply to.
 const (
-	PathBoxWS    = "/v1/ws"
-	PathWUIWS    = "/v1/wui/ws"
-	PrefixAuth   = "/api/v1/auth/"
-	PathProbe    = "/v1/debug/client-ip"
-	TokenLimited = "rate_limited"
+	PathBoxWS  = "/v1/ws"
+	PathWUIWS  = "/v1/wui/ws"
+	PrefixAuth = "/api/v1/auth/"
+	PathProbe  = "/v1/debug/client-ip"
+	// PathProbeAuth is the same probe under the sign-in prefix, the only
+	// prefix the WUI host's Firebase rewrite forwards to the hub: that path's
+	// chain can differ from the API domain mapping's and is measured apart.
+	PathProbeAuth = PrefixAuth + "client-ip"
+	TokenLimited  = "rate_limited"
 )
 
 // Guard enforces Limits in front of the hub mux.

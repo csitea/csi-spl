@@ -267,9 +267,15 @@ func TestEdgeClientIPProbe(t *testing.T) {
 	}
 
 	on := newEnv(t, edgeOn(edge.Limits{}), func(o *hub.Options) { o.ClientIPProbe = true })
-	req, _ := http.NewRequest(http.MethodGet, on.url("any")+edge.PathProbe, nil)
+	for _, p := range []string{edge.PathProbe, edge.PathProbeAuth} {
+		probeOnce(t, on, p)
+	}
+}
+
+func probeOnce(t *testing.T, on *env, path string) {
+	req, _ := http.NewRequest(http.MethodGet, on.url("any")+path, nil)
 	req.Header.Set("X-Forwarded-For", "192.0.2.1, "+trustedEntry)
-	resp, err = on.client.Do(req)
+	resp, err := on.client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +290,7 @@ func TestEdgeClientIPProbe(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.IP != trustedEntry || got.Hops != 1 || len(got.XFF) != 2 || got.Peer != "127.0.0.1" {
-		t.Fatalf("probe: %+v", got)
+		t.Fatalf("probe %s: %+v", path, got)
 	}
 }
 

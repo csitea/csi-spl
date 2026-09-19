@@ -200,6 +200,7 @@ func (s *Server) Handler() http.Handler {
 	}
 	if s.o.ClientIPProbe {
 		mux.HandleFunc("GET "+edge.PathProbe, s.edge.Probe)
+		mux.HandleFunc("GET "+edge.PathProbeAuth, s.edge.Probe)
 	}
 	// The edge limits sit inside authCORS so a 429 on /api/v1/auth/* still
 	// carries the CORS headers the WUI needs to read it.

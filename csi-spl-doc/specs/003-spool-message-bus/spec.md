@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-18
 
-**Status**: M1 hub **Implemented** and verified (section **Verification**, 2026-09-18); read-only viewer API (US7) **Planned**; prd deploy and the ingress are **Partial/Planned** in the infra lane (007). OQ-01..15 resolved; OQ-16 (viewer door) open with the owner. **M3 wire (US8)**: OQ-W1 resolved 2026-09-19 (hub-envelope `channel` / `parent_task_id`, `contracts/channels-v1.md`); OQ-CH1..3 open with the owner.
+**Status**: M1 hub **Implemented** and verified (section **Verification**, 2026-09-18); read-only viewer API (US7) **Implemented** except the token door (OQ-16); prd deploy and the ingress are **Partial/Planned** in the infra lane (007). OQ-01..15 resolved; OQ-16 (viewer door) open with the owner. **M3 wire (US8)**: OQ-W1 resolved 2026-09-19 (hub-envelope `channel` / `parent_task_id`, `contracts/channels-v1.md`); OQ-CH1..3 open with the owner.
 
 **Redo ground rules**: `../README.md` (status vocabulary, seams §5, provisioning order §6). Status tags below follow it.
 
@@ -310,4 +310,4 @@ All fifteen are closed. OQ-07/13/14 were resolved earlier by the owner; the othe
 - **DDL home**: `csi-spl-rdb/src/sql/postgres/spool-hub/*.sql`, applied by `spool migrate` (`data-model.md`).
 - **Follow-up (parked)**: `msg.ValidID` must reject the `BOX-` prefix (identity-routing).
 
-<!-- version: 0.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:45:00Z -->
+<!-- version: 0.7.1 · updated: 2026-09-19 · last-edit: 2026-09-19T09:05:00Z -->

@@ -2,7 +2,7 @@
 
 Feature: `003-spool-message-bus`, owner goal "live-chat MVP" (2026-09-18).
 **Single source of truth** for the browser <-> hub live protocol. Consumer:
-`../../005-spool-wui/` (`csi-spl-wui/utils/live-ws.mjs`), which follows this
+`../../005-spool-wui/` (`csi-spl-wui/src/utils/live-ws.mjs`), which follows this
 file and does not restate it.
 
 Related: `./view-v1.md` (history / catch-up, same door, same CORS list),
@@ -73,7 +73,7 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 
 | `type` | Fields | Rule |
 |---|---|---|
-| `hello` | `as?`, `token?` | **first frame**, within 10 s (else close `4408`). `as` = a v:1 agent id (`^[A-Z]{2,4}-[0-9]+$`, e.g. `HUM-1`); absent -> the hub assigns `HUM-<n>`. A display name that is not an id (`AgentA`) is refused: close `4400 bad_frame`. `token` is reserved for the prd view token (OQ-16) and ignored today |
+| `hello` | `as?`, `token?` | **first frame**, within 10 s (else close `4408`). `as` = a v:1 agent id (`^[A-Z]{2,4}-[0-9]+$`, e.g. `HUM-1`) used as `from`; absent -> the hub assigns `HUM-<n>`. A display name that is not an id (`AgentA`) is mapped to a stable `HUM-<n>` per (tenant, name) — `welcome.as` is the id, `welcome.name` echoes the name (0.2.0). Live: `TestWUITwoSessionsLobbyLive` dials `as:"AgentA"` and asserts `welcome.as == "HUM-1"` (`command grep -n 'AgentA' csi-spl-api/src/go/spool-hub-api/internal/hub/wui_test.go` → `105: a := dialWUI(t, e, tid, "AgentA")` and `107: a.w.As != "HUM-1"`). Close `4400 bad_frame` only when the first frame is not a well-formed `hello` (or `as` > 64 chars). `token` is reserved for the prd view token (OQ-16) and ignored today |
 | `subscribe` | `task_id` | a UUID, or the literal `"LOBBY"` (= `LOBBY_TASK_ID`). Idempotent. Reply `subscribed` |
 | `unsubscribe` | `task_id` | idempotent. No reply |
 | `send` | `msg_id?`, `task_id`, `kind?`, `body`, `files?`, `to?`, `channel?`, `parent_task_id?` | §4 |
@@ -82,7 +82,7 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 
 | `type` | Fields | When |
 |---|---|---|
-| `welcome` | `as`, `lobby_task_id?`, `upload_token`, `upload_token_expires_at` | after `hello`. `as` is the id the hub will stamp as `from`. The upload token is for `POST /v1/files` (§5), bound to (tenant, `box-wui`), TTL 5 min |
+| `welcome` | `as`, `name?`, `lobby_task_id?`, `upload_token`, `upload_token_expires_at` | after `hello`. `as` is the id the hub will stamp as `from`; `name` echoes the display name from `hello.as` when it was not already an id. The upload token is for `POST /v1/files` (§5), bound to (tenant, `box-wui`), TTL 5 min |
 | `subscribed` | `task_id` | after `subscribe` (always the UUID, also for `"LOBBY"`) |
 | `token` | `upload_token`, `upload_token_expires_at` | reply to a browser `{type:"token"}` (fresh upload token) |
 | `message` | `task_id`, `cursor`, `received_at`, `envelope`, `env` | **live fan-out**: every message stored for a subscribed `task_id` in this tenant — from a browser, a box agent, or the hub — pushed to **every** subscribed socket (the sender's own included). `env` = the stored envelope `{from_box,to_box,msg,sig}` byte-for-byte, the same element shape as `view-v1` §4.4 (`msg` is the v:1 object); `envelope` = that v:1 object alone. For the sender, its own `message` echo arrives **before** its `ack` |
@@ -168,4 +168,4 @@ reconnect the browser sends `hello` again and re-subscribes.
 `missing_file`, `conflict_msg`, `unpaid`, `quota`, `view_door`,
 `unknown_tenant`.
 
-<!-- version: 0.3.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:05:00Z -->
+<!-- version: 0.3.1 · updated: 2026-09-19 · last-edit: 2026-09-19T09:05:00Z -->

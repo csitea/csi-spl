@@ -96,11 +96,18 @@ The WUI is served from Firebase Hosting, a different origin from the hub.
 - Allowed origins come from cnf `SPOOL_HUB_VIEW_CORS_ORIGINS` (comma list of
   bare `http(s)://host[:port]`, validated at start; **no default**;
   empty → no CORS headers, same-origin only). Never `*`.
-- Applies to `/v1/view/*` and `GET /v1/files/{file_id}` only. `/v1/ws`,
-  `POST /v1/files` and `/v1/pins` never answer CORS.
-- (Until the OQ-A1 gate opens.) Preflight `OPTIONS` → `204` with `Access-Control-Allow-Methods: GET`,
+- Applies to `/v1/view/*` and to browser file routes (`GET`/`POST`/`DELETE`
+  `/v1/files`, `./wui-live-ws.md` §5). `/v1/ws` (box door) and `/v1/pins`
+  never answer CORS. `OPTIONS /v1/files` and `OPTIONS /v1/files/{file_id}`
+  → `204` with `Access-Control-Allow-Methods: GET, POST, DELETE`
+  (`filesPreflight`; `command grep -n 'Allow-Methods", "GET, POST, DELETE"'
+  csi-spl-api/src/go/spool-hub-api/internal/hub/wui.go` → `wui.go:494`;
+  `command grep -n 'OPTIONS /v1/files' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go`
+  → `mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)`).
+- View preflight `OPTIONS /v1/view/*` → `204` with `Access-Control-Allow-Methods: GET`,
   `Access-Control-Allow-Headers: Authorization`, `Access-Control-Max-Age: 600`,
-  `Vary: Origin`. No credentials mode (the token is a header, not a cookie).
+  `Vary: Origin`. No credentials mode on the token door (the token is a header,
+  not a cookie). Session-door credentialed CORS is 003 T033b.
 
 ## 4. Shapes
 
@@ -191,9 +198,10 @@ Ordered by `last_ts` descending; `before` pages to older threads.
   else `400 bad_json`. `after=` is **asc only** (reconnect catch-up) and
   `before=` is **desc only**; the wrong pairing is `400 bad_json`
   (`TestViewThreadDescWindows`, `TestViewReads`).
-- **Live updates** (first cut): the viewer polls with `after=<last cursor>`
-  no more often than every 2 s. A browser tail socket (`/v1/view/ws`, reusing
-  the `tail_msg` frame shape) is **post-first-cut** and needs its own FR.
+- **Live updates**: the browser socket is `/v1/wui/ws` (`./wui-live-ws.md`;
+  `command grep -n "WS_PATH" csi-spl-wui/src/utils/live-ws.mjs` →
+  `export const WS_PATH = '/v1/wui/ws'`). Reconnect catch-up may poll this
+  section with `after=<last cursor>`.
 
 ### 4.5 `GET /v1/view/threads/{task_id}/children?limit=&before=`
 
@@ -220,12 +228,12 @@ answers `200 {"threads": [], "next": null}`; a non-UUID `task_id` is
 tokens reused: `unknown_tenant`, `not_found`, `quota`, `unpaid` (006 decides
 whether reads are gated while `unpaid`; this contract does not gate them).
 
-## 7. The WUI client today (drift to close in 005, not here)
+## 7. The WUI client (005 closed the invented-route drift)
 
-Measured on trunk `bbc41e7`: `grep -c "/v1/messages\|/v1/channels" csi-spl-wui/utils/spool-client.mjs -> 4`
-(`live('/v1/channels')`, `live('/v1/messages?…')`, a `POST /v1/messages`,
-a `POST /v1/channels`). None of those routes exists on the hub
-(`grep -c 'v1/messages\|v1/channels' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`).
-The read calls map onto §4.2–§4.4; the two POSTs are 005 M3 write features.
+Measured on trunk `8ffb93c` (sources under `src/` since `fff663d`):
+`command grep -c "/v1/messages\|/v1/channels" csi-spl-wui/src/utils/spool-client.mjs -> 0`.
+Live reads go to `/v1/view/*`. Live send / channel-create still throw
+`ReadOnlyError` (005 phase-3 / A1). The pre-`src/` path
+`csi-spl-wui/utils/spool-client.mjs` does not exist.
 
-<!-- version: 0.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:45:00Z -->
+<!-- version: 0.5.1 · updated: 2026-09-19 · last-edit: 2026-09-19T09:05:00Z -->

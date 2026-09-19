@@ -85,7 +85,7 @@ export interface SpoolClient {
 }
 ```
 
-- **`HttpSpoolClient`**: Dispatches requests via `fetch` to `/v1/view/*` and maintains WebSocket subscription on `/v1/ws`. Throws standard error envelopes (`ErrorResponse`) on failures.
+- **`HttpSpoolClient`**: Dispatches requests via `fetch` to `/v1/view/*` and maintains WebSocket subscription on `/v1/wui/ws` (`command grep -n WS_PATH csi-spl-wui/src/utils/live-ws.mjs` → `export const WS_PATH = '/v1/wui/ws'`; `/v1/ws` is the box Ed25519 door). Throws standard error envelopes (`ErrorResponse`) on failures.
 - **`MockSpoolClient`**: Operates against an immutable copy of `mock-data.mjs`, simulating async network latency (5–20ms) and mutating an in-memory session.
 
 ### 2.2 3-Pane Component Topology
@@ -148,4 +148,4 @@ Execution invariant: `./run` aborts immediately with exit code 1 if configuratio
 
 ---
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:33:00Z -->
+<!-- version: 1.0.1 · updated: 2026-09-19 · last-edit: 2026-09-19T09:05:00Z -->

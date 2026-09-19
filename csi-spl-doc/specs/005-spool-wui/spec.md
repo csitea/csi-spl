@@ -22,7 +22,8 @@ DNS, ingress). Dependency order: 005 comes after the M1 demo and M2 (README §4)
 005 ships **one slice first**: a **read-only thread viewer** in `csi-spl-wui`
 (Nuxt 3) over the **read-only hub viewer API that 003 owns**
 (`../003-spool-message-bus/contracts/view-v1.md`, Planned). A human opens the tenant,
-sees its threads (one per `task_id`), opens one, reads its messages oldest-first
+sees its threads (one per `task_id`), opens one, reads its messages
+newest-first on `/lobby` and `/t` (013; `/channel/*` still oldest-first)
 and downloads attached blobs. **No send, no signing, no key in the browser.**
 
 The Slack-like end state (`SPEC-spool-wui.md`: channels, DMs, `@mention`
@@ -52,12 +53,17 @@ unknown Host shows "unknown tenant" (hub 404, error token per 003).
 
 ### US2 — Thread view (P1) 🎯 MVP — Partial
 
-Selecting a thread shows every stored message of that `task_id` oldest-first:
-author as `<id>@<box>` (004 addressing; `from_box` / `to_box` are hub-envelope
-fields the viewer shows and never sets), `kind` badge (`task | result | note | reject`),
-`ts`, body as text / sanitised markdown.
+Selecting a thread on `/lobby` and `/t/[task_id]` shows stored messages
+**newest-first** (013 reverse prepend: `LiveFeed.vue`, `LiveThreadPane.vue`;
+`command grep -n "newest first" csi-spl-wui/src/pages/t/[task_id].vue
+csi-spl-wui/src/pages/lobby.vue` → 3). `/channel/<name>` still renders
+oldest-first via `MessageFeed.vue` (owner X3). view-v1 default remains
+oldest-first (`order=asc`). Author as `<id>@<box>` (004 addressing;
+`from_box` / `to_box` are hub-envelope fields the viewer shows and never
+sets), `kind` badge (`task | result | note | reject`), `ts`, body as text /
+sanitised markdown.
 
-**Acceptance**: task → note → result renders 3 cards in `ts` order; a body
+**Acceptance**: task → note → result renders 3 cards newest-first on `/t` (result, then note, then task); a body
 containing `<script>` renders as text.
 
 ### US3 — Attachment download (P1) — Partial
@@ -123,15 +129,15 @@ opening it.
 - **FR-001** — Implemented: code in `csi-spl-wui`, Nuxt 3 + TS strict + Pinia +
   pnpm, modelled on the pas-psf / csi-rel WUI (read-only reference, not imported).
   Check: `grep -c '"nuxt"' csi-spl-wui/package.json -> 1`.
-- **FR-002** — Partial: the WUI reads **only** through 003 `contracts/view-v1.md`
-  (`/v1/view/*`), `GET /v1/files/{file_id}` and `GET /v1/health` (003 FR-023; `/healthz` is shadowed on Cloud Run). Story → section
+- **FR-002** — Partial: hub **reads** go through 003 `contracts/view-v1.md`
+  (`/v1/view/*`), `GET /v1/files/{file_id}` and `GET /v1/health` (003 FR-023; `/healthz` is shadowed on Cloud Run). Live chat uses `/v1/wui/ws` (`../003-spool-message-bus/contracts/wui-live-ws.md`; `command grep -n "WS_PATH" csi-spl-wui/src/utils/live-ws.mjs` → `export const WS_PATH = '/v1/wui/ws'`). Story → section
   map: `./contracts/hub-read-needs.md`. WUI side done (`9eafd8c`); hub side on trunk (`ec3d593`); verified live
   locally (tasks T012). Missing: the token door (003 OQ-16).
 - **FR-003** — Implemented: the browser stores no private key or signed URL,
   never puts a token in `localStorage` or a URL (view-v1 §2), and never opens `/v1/ws`.
   Allowed `localStorage` keys (try/catch): `spool-theme` (theme), `spool.verbosity`
   (FR-013), `spool.chime` (FR-014), `spool.read-cursors` (FR-015). Check: every
-  `localStorage` write in `csi-spl-wui/{components,composables,stores,utils,pages,plugins}`
+  `localStorage` write in `csi-spl-wui/src/{components,composables,stores,utils,pages,plugins}`
   is one of those keys; no `token` / `Authorization` / signed-URL value is stored.
 - **FR-004** — Implemented (`67f6ff6`): tenant = request Host (006); the WUI sends no
   tenant id. Tenant reads go to the **tenant host** `<tenant>.<fqdn>` (lde
@@ -139,7 +145,7 @@ opening it.
   labels, `404 unknown_tenant` on every tenant route — 003 http-v1, `cfe5a9b`).
   `NUXT_PUBLIC_API_BASE` is a `{tenant}` template; tenant from `?tenant=` (remembered
   for the tab) then `NUXT_PUBLIC_TENANT`; a reserved first label is refused before
-  any request (`utils/tenant.mjs`, `tests/unit/tenant.test.mjs`). Verified live
+  any request (`src/utils/tenant.mjs`, `tests/unit/tenant.test.mjs`). Verified live
   locally, n=1: default `t1` lists the seeded thread; `?tenant=nosuch` shows
   "Unknown tenant".
 - **FR-005** — Partial (restamped 2026-09-19): a thread is a `task_id`. `channel` and
@@ -157,10 +163,11 @@ opening it.
   Terraform written, not applied: `curl -s -o /dev/null -w '%{http_code}' https://csi-spl-dev-site.web.app -> 404` (same for `-prd-site`).
 - **FR-008** — Implemented: lde `pnpm dev` (port 3000), `NUXT_PUBLIC_API_BASE`,
   `NUXT_PUBLIC_USE_MOCK`; orc `do_wui_dev` / `do_wui_test` / `do_wui_build`
-  (`ls csi-spl-orc/src/bash/run/wui-*.func.sh -> 3 files`).
+  (`ls csi-spl-orc/src/bash/run/wui-*.func.sh -> 5 files`:
+  `wui-{dev,test,build,up,down}.func.sh`).
 - **FR-009** — Implemented: no horizontal page scroll at 390×844 and 1280×800
   (`csi-spl-wui/tests/e2e/no-x-scroll.test.mjs`, `tests/unit/no-x-scroll.test.mjs`;
-  `pnpm test:unit -> 17 pass, 0 fail` on `bbc41e7`; e2e not re-run in this redo).
+  `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → `# pass 123 # fail 0` on `8ffb93c`).
 - **FR-010** — Partial: door per environment (ORC decision, relayed by 003 CLE-3340,
   hub `cd38303`): lde and dev run `SPOOL_HUB_VIEW_DOOR=off` (open reads); prd stays
   fail-closed (`401 view_door`) until the token format (003 OQ-16) or the social
@@ -191,12 +198,11 @@ opening it.
 ## 3. Success criteria
 
 - **SC-001**: on dev, a thread sent box-a → box-b with `spool send` appears in the
-  viewer list and opens with all its messages oldest-first.
+  viewer list and opens with its messages newest-first on `/t` (013).
 - **SC-002**: `pnpm test:unit` and `pnpm test:e2e` green, with unit tests on the live
   (non-mock) client paths.
 - **SC-003**: FR-003 stays clean (no token in `localStorage`).
-- **SC-004**: `node --test tests/unit/*.test.mjs` stays green and the count is
-  above the 71-test baseline at `de3d67c` (94 pass, 0 fail at `6618f03`); verbosity covers every v:1 kind;
+- **SC-004**: `node --test tests/unit/*.test.mjs` stays green (`# pass 123 # fail 0` on `8ffb93c`; was 17 then 29 then 94 then 122); verbosity covers every v:1 kind;
   notify tests cover mention / DM / `#alerts` / negatives; the no-x-scroll
   unit guard stays green.
 
@@ -211,12 +217,12 @@ rejected for M3); anything in M1/M2; CI logs in chat (008).
 
 | # | Gap | Evidence | Owner |
 |---|---|---|---|
-| G1 | No door for humans on the view API yet: view token proposed (view-v1 §2, 003 OQ-16); social sign-in exists (010, WUI wired `1c4e1a6`) but does not yet reach `/v1/view/*` (010 OQ-A1) | `grep -rniE 'cookie\|oauth\|view_door' csi-spl-api/src/go/spool-hub-api/internal/hub/*.go -> 0` | 003 (token) / 006 (session) |
-| G2 | No `box-wui` signer; the browser cannot send | `grep -rn box-wui csi-spl-api/src/go -> 0` | 003 / 004 |
+| G1 | ~~No door for humans on the view API~~ **partial**: member session door Implemented (003 T033b / 010 T013, `SPOOL_HUB_VIEW_DOOR=session`); view-token door still OQ-16 | `command grep -rniE 'cookie\|oauth\|view_door' csi-spl-api/src/go/spool-hub-api/internal/hub/*.go \| wc -l` → 22 | 003 (token) / 010 (session) |
+| G2 | ~~No `box-wui` signer~~ **closed** by 014 (`9f4f0b9`): hub-held `box-wui` key + dispatch. Browser live send is `/v1/wui/ws`; spool-client live channel/DM send still `ReadOnlyError` (005 phase-3 / A1) | `command grep -rn box-wui csi-spl-api/src/go \| wc -l` → 53 | 014 |
 | G3 | ~~`channel` / `parent_task_id` are not `v:1` fields~~ **closed** 2026-09-19: hub-envelope fields (OQ-W1 (a)), v:1 untouched | `grep -c 'ParentTaskID\|Channel' csi-spl-api/src/go/spool-hub-api/internal/wire/wire.go` -> non-zero; `grep -cE 'channel\|parent_task' ../002-box-agent-messaging/contracts/message-schema.md -> 0` | 003 (`contracts/channels-v1.md`) |
 | G4 | No read-only roster for humans yet | specified as view-v1 §4.1, Planned | 003 |
 | G5 | ~~view-v1 not implemented~~ **closed** `ec3d593` | `grep -c 'HandleFunc("GET /v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/view.go -> 4` | 003 |
-| G6 | ~~WUI live client calls routes that will not exist~~ **closed** `9eafd8c` | `grep -c '/v1/messages\|/v1/channels' csi-spl-wui/utils/spool-client.mjs -> 0` | 005 (T004) |
+| G6 | ~~WUI live client calls routes that will not exist~~ **closed** `9eafd8c` | `grep -c '/v1/messages\|/v1/channels' csi-spl-wui/src/utils/spool-client.mjs -> 0` | 005 (T004) |
 
 ## 6. Open questions (to the owner via CLE-00)
 
@@ -241,4 +247,4 @@ rejected for M3); anything in M1/M2; CI logs in chat (008).
   `localStorage` (aligns with 003 OQ-CH2 (a) client-held); **(b)** hub-synced
   per-human cursors (needs HUMANS 0006; later).
 
-<!-- version: 1.8.1 · updated: 2026-09-19 · last-edit: 2026-09-19T06:10:00Z -->
+<!-- version: 1.8.2 · updated: 2026-09-19 · last-edit: 2026-09-19T09:05:00Z -->

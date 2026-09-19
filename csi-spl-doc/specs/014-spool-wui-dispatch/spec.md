@@ -138,8 +138,15 @@ the operator re-pins `box-wui` with `force` (contract §2.3).
   a later 004 change.
 - The Secret Manager slot, its IAM and the cnf values (iac 029/030 and cnf:
   HOSTING / DEPLOY lanes) — named in `./tasks.md` as handoffs.
-- WUI changes: none needed; the WUI already sends `@CLE-07 …` in the body.
+- WUI changes: none needed. The WUI strips a leading `@X-n` and sets the
+  send-frame `to`; it does not leave the mention in the body
+  (`parseMention` in `csi-spl-wui/src/utils/channel-feed.mjs`:
+  `command grep -n -A4 'export function parseMention' csi-spl-wui/src/utils/channel-feed.mjs`
+  → `to: m[1], kind: 'task', body: m[2]`; live send in
+  `csi-spl-wui/src/stores/live.ts` does the same
+  `body.match(/^@([A-Z]{2,4}-\d+)\b/)`). The hub still accepts a leading
+  mention as a fallback (FR-006).
 - rdb migration 0007 (reserved for this lane): not needed — the restricted
   role keys off the reserved box id, and no new table is written.
 
-<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:05:00Z -->
+<!-- version: 0.2.1 · updated: 2026-09-19 · last-edit: 2026-09-19T09:05:00Z -->

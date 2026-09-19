@@ -29,13 +29,13 @@ mock-only, until their gaps (spec §5) close.
 
 | Item | Status | Evidence |
 |---|---|---|
-| Nuxt shell, stores, components, pages | Implemented (mock data only) | `csi-spl-wui/`; `pnpm test:unit -> 17 pass, 0 fail` |
-| Live client + viewer pages | Implemented (`9eafd8c`), live render waits on view-v1 | `/v1/view/*` only; `/`, `/t/[task_id]`; 29 unit pass, e2e 8/8, typecheck exit 0 |
-| Live follow | Partial — thread page polls while visible, no `after=` cursor yet | `pages/t/[task_id].vue` |
-| orc lde actions | Implemented | `csi-spl-orc/src/bash/run/wui-{dev,test,build}.func.sh` |
+| Nuxt shell, stores, components, pages | Implemented (mock data only) | `csi-spl-wui/`; `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → `# pass 123 # fail 0` |
+| Live client + viewer pages | Implemented (`9eafd8c`), live render waits on view-v1 | `/v1/view/*` plus `/v1/wui/ws`; `/`, `/t/[task_id]`, `/lobby`; 123 unit pass, e2e 12/12, typecheck exit 0 |
+| Live follow | Partial — `/t` and `/lobby` follow over `/v1/wui/ws` (013 newest-first); reconnect catch-up is 005 T007 `[~]` | `src/pages/t/[task_id].vue` |
+| orc lde actions | Implemented | `ls csi-spl-orc/src/bash/run/wui-*.func.sh` → 5 (`wui-{dev,test,build,up,down}.func.sh`) |
 | Hosting terraform `016` / `019` | Partial — written, not applied | `curl … https://csi-spl-dev-site.web.app -> 404` |
 | Hub viewer API (view-v1) | Implemented (`ec3d593`), token door pending OQ-16 | `grep -c 'HandleFunc("GET /v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/view.go -> 4`; live read verified locally (tasks T012) |
-| Door (view token / session) | Planned | spec §5 G1 |
+| Door (view token / session) | Partial — session door Implemented (003 T033b); token door OQ-16 | spec §5 G1 |
 | Live dev hub (for SC-001) | exists, no ingress | integrator measurement 2026-09-18 ~19:00Z: Cloud Run `csi-spl-hub-dev` Ready, no LB (031 not applied) |
 
 ## Constitution check
@@ -68,4 +68,4 @@ mock-only, until their gaps (spec §5) close.
   Hosting custom domain is `env.dns.fqdn` (019). Both depend on the open DNS
   handoff question (README §6.1) — 007's, not 005's.
 
-<!-- version: 1.4.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:50:57Z -->
+<!-- version: 1.4.1 · updated: 2026-09-19 · last-edit: 2026-09-19T09:05:00Z -->

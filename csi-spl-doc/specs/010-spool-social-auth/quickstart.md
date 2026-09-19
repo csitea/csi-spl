@@ -149,13 +149,13 @@ Commit, push, deploy (008 pipeline / the apply lane).
 ### 3.5 Verify on the env
 
 ```bash
-curl -s https://dev.spool-hub.ai/api/v1/auth/providers
+curl -s https://dev.api.spool-hub.ai/api/v1/auth/providers
 ```
 
 Expect `{"providers":["google","facebook"]}`. Then:
 
 ```bash
-curl -s -i https://dev.spool-hub.ai/api/v1/auth/google/start | grep -i '^location'
+curl -s -i https://dev.api.spool-hub.ai/api/v1/auth/google/start | grep -i '^location'
 ```
 
 Expect a `302` to `accounts.google.com` whose `redirect_uri` is the registered

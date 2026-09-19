@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: spec 010 T022 -- the browser sign-in URLs of a cloud env are DERIVED
-#          from env.dns.fqdn by do_spl_merged_cnf, never written as literals:
-#          APP_URL = https://<fqdn>, COOKIE_DOMAIN "{fqdn}" -> <fqdn>, every
-#          <P>_REDIRECT_URI = <APP_URL>/api/v1/auth/<p>/callback. A literal
+# Purpose: spec 010 T022 + T051 -- the browser sign-in URLs of a cloud env are
+#          DERIVED by do_spl_merged_cnf, never written as literals:
+#          APP_URL = https://<fqdn> (the WUI); env.dns.api_fqdn = api.<base>,
+#          or <env_subdomain>.api.<base>; every <P>_REDIRECT_URI =
+#          https://<api_fqdn>/api/v1/auth/<p>/callback (the hub's API host,
+#          owner no-LB 2026-09-19); COOKIE_DOMAIN "{base_domain}" -> <base>,
+#          which spans the WUI, the API host and every tenant host. A literal
 #          value in <env>.env.yaml wins (lde keeps its localhost URLs).
 #
 #          CONTROL: dev's committed values would pass the value checks even
@@ -27,19 +30,28 @@ tmp=$(mktemp -d)
 
 # check_derived <label> <merged yaml> -> asserts every auth URL follows the fqdn
 check_derived() {
-  local label="$1" m="$2" fqdn app p lp got
+  local label="$1" m="$2" fqdn api base sub app p lp got
   fqdn=$(yq -r '.env.dns.fqdn' "$m")
+  api=$(yq -r '.env.dns.api_fqdn' "$m")
+  base=$(yq -r '.env.dns.BASE_DOMAIN' "$m")
+  sub=$(yq -r '.env.dns.env_subdomain // ""' "$m")
+  if [[ -n "$sub" ]]; then want_api="$sub.api.$base"; else want_api="api.$base"; fi
+  [[ "$api" == "$want_api" ]] && pass "$label api_fqdn is $want_api" || fail "$label api_fqdn: $api (want $want_api)"
   app=$(yq -r '.env.auth.social.env.SPOOL_HUB_AUTH_APP_URL' "$m")
   [[ "$app" == "https://$fqdn" ]] && pass "$label APP_URL is https://<fqdn> ($app)" || fail "$label APP_URL: $app (fqdn $fqdn)"
   got=$(yq -r '.env.auth.social.env.SPOOL_HUB_AUTH_COOKIE_DOMAIN' "$m")
-  [[ "$got" == "$fqdn" ]] && pass "$label COOKIE_DOMAIN is the fqdn" || fail "$label COOKIE_DOMAIN: $got (fqdn $fqdn)"
+  [[ "$got" == "$base" ]] && pass "$label COOKIE_DOMAIN is the base domain" || fail "$label COOKIE_DOMAIN: $got (base $base)"
+  # the cookie must reach the API host and the WUI host (browser domain-match)
+  for h in "$api" "$fqdn"; do
+    [[ "$h" == "$got" || "$h" == *".$got" ]] && pass "$label cookie Domain=$got reaches $h" || fail "$label cookie Domain=$got misses $h"
+  done
   for p in $PROVIDERS; do
     lp=$(tr '[:upper:]' '[:lower:]' <<<"$p")
     got=$(yq -r ".env.auth.social.env.SPOOL_HUB_AUTH_${p}_REDIRECT_URI" "$m")
-    [[ "$got" == "https://$fqdn/api/v1/auth/$lp/callback" ]] && pass "$label $p redirect URI derived" || fail "$label $p redirect URI: $got"
+    [[ "$got" == "https://$api/api/v1/auth/$lp/callback" ]] && pass "$label $p redirect URI on the API host" || fail "$label $p redirect URI: $got"
   done
-  yq -r '.env.auth.social.env[]' "$m" | grep -qE 'PLACEHOLDER-(wui-origin|[a-z]+-redirect-uri)|\{fqdn\}' \
-    && fail "$label a URL placeholder or {fqdn} token survived the merge" || pass "$label no URL placeholder or {fqdn} token survives"
+  yq -r '.env.auth.social.env[]' "$m" | grep -qE 'PLACEHOLDER-(wui-origin|[a-z]+-redirect-uri)|\{fqdn\}|\{base_domain\}' \
+    && fail "$label a URL placeholder or {fqdn}/{base_domain} token survived the merge" || pass "$label no URL placeholder or token survives"
 }
 
 for env in dev prd; do

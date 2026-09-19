@@ -15,8 +15,9 @@ referenced secret with no version).
 
 ### 1.1 Callback (redirect) URIs — register these byte for byte
 
-The WUI origin rewrites `/api/v1/auth/**` to the hub (FR-010), so the callback host is the
-WUI host. The values live in cnf; print them rather than copy from here:
+The WUI calls the hub's API host cross-origin (FR-010 as superseded 2026-09-19, T051), so
+the callback host is the API host: dev `dev.api.<BASE_DOMAIN>`, prd `api.<BASE_DOMAIN>`
+(`env.dns.api_fqdn`). The values live in cnf; print them rather than copy from here:
 
 ```bash
 yq '.env.auth.social.env | with_entries(select(.key | test("REDIRECT_URI")))' csi-spl-cnf/csi-spl/dev.env.json
@@ -26,7 +27,7 @@ yq '.env.auth.social.env | with_entries(select(.key | test("REDIRECT_URI")))' cs
 yq '.env.auth.social.env | with_entries(select(.key | test("REDIRECT_URI")))' csi-spl-cnf/csi-spl/prd.env.json
 ```
 
-Shape: `https://<env host>/api/v1/auth/<provider>/callback`, with `<provider>` one of
+Shape: `https://<api host>/api/v1/auth/<provider>/callback`, with `<provider>` one of
 `google`, `facebook`, `microsoft`, `linkedin`, `xai`.
 
 ### 1.2 Per provider: scopes, the cnf keys, the secret slot
@@ -163,14 +164,14 @@ Commit, push, then 030 plan + apply / deploy by the DEPLOY path (spec 008).
 ## 4. Verify (T034, SC-003)
 
 ```bash
-curl -s https://dev.spool-hub.ai/api/v1/auth/providers
+curl -s https://dev.api.spool-hub.ai/api/v1/auth/providers
 ```
 
 Expect the listed slugs. Then the start redirect must carry the real client id and the
 registered redirect URI:
 
 ```bash
-curl -s -i https://dev.spool-hub.ai/api/v1/auth/google/start | grep -i '^location'
+curl -s -i https://dev.api.spool-hub.ai/api/v1/auth/google/start | grep -i '^location'
 ```
 
 Sign in with a browser; the hub log shows `auth.login_ok` (or `auth.callback_fail` with

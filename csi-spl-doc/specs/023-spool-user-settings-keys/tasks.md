@@ -13,7 +13,7 @@
 - [x] T010 rdb `0018_human_keys.sql` (0017 is held by CLE-3403's `human_preferred_locale`): hub-wide like `humans` (no tenant_id, outside RLS), one active key per human (partial unique index), `public_key` globally unique, history kept.
 - [x] T011 `store.HumanKeys` (Memory + Postgres): add (replaces the active key in one transaction), list, get, revoke.
 - [x] T012 `internal/hub/keys.go` + `internal/sign/pubkey.go` (fingerprint pinned to `ssh-keygen -lf` output): keys-v1 routes, Ed25519 validation (pin base64 + `ssh-ed25519`), private-key refusal, per-human write window, audit lines. Check: `go test ./internal/hub -run Keys` with CONTROLS (another human's key 404 on get and revoke; malformed, private-key and `private_key`-field uploads refused; duplicate across humans 409; anonymous 401); mutation-checked: dropping the human filter on get and dropping DisallowUnknownFields each fail a test. `bash csi-spl-api/src/bash/tests/hub-pg.tst.sh` → ALL HUB POSTGRES CHECKS PASSED (store/hub/auth under a non-superuser Postgres, 0018 applied).
-- [ ] T013 Hub deploy via CLE-3355 (tag bump + 030 via make), migration applied first (`do_spl_db_bootstrap`).
+- [x] T013 Hub deploy: 0018 applied on dev + prd by CLE-3411's `do_spl_db_bootstrap` (16:34Z); CLE-3355 rolled hub 0.1.10 (`c8dadef`, contains `c4b61d8`) to dev + prd: `curl https://dev.api.spool-hub.ai/version` and `https://api.spool-hub.ai/version` -> 0.1.10 `c8dadef`; anonymous `GET /api/v1/auth/keys` on dev -> 401.
 
 ## Phase 3 — WUI
 
@@ -23,7 +23,8 @@
 
 ## Phase 4 — Proof
 
-- [ ] T030 Headless-Chrome proof on dev → `/var/tmp/CLE-3408-proof/`: open Settings → Keys, download both files, upload a new public key, see it active.
-- [ ] T031 no-x-scroll + CSP e2e green; dev + prd `build.json` / `/version` carry the sha.
+- [x] T030 Headless-Chrome proof on dev → `/var/tmp/CLE-3408-proof/` (2026-09-19 ~16:52Z, WUI build `a820b68` ⊇ `2e7170b`, hub 0.1.10, n=1, member HUM-4): `node tests/e2e/settings-keys-live.proof.mjs` -> 12/12 PASS: user menu → /settings/profile with the 5-section nav, Keys generated the default pair in the browser, `.pub` (pin form), `.openssh.pub` and `.key` downloaded (64 bytes, seed‖pub, signs for the .pub; private file deleted after the check), no POST body carried the private key, an uploaded ssh-ed25519 key became active (fingerprint = node's), history shows the replaced key, CONTROL pasted private key refused and not posted, mobile x-scroll 0, deep link works.
+- [x] T031 `tests/e2e/no-x-scroll.test.mjs` 52/52 (lde mock, incl. /settings/keys); `BASE_URL=https://dev.spool-hub.ai node tests/e2e/csp-violations.test.mjs` -> 0 violations on 8 routes incl. /settings/keys, control blocked; `build.json` on dev.spool-hub.ai and spool-hub.ai -> `2e7170b` after run 35455674920 (deploy dev + prd success).
+- [ ] T032 Translate the 39 `settings.nav_label` / `settings.keys_title` / `settings.keys.*` keys into 18 locales (en placeholders today) — 021 T011 lane, CLE-3403.
 
 <!-- last-edit: 2026-09-19T16:40:00Z -->

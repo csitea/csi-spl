@@ -93,14 +93,15 @@ try {
     await p.click('[data-test=user-menu-settings]')
     // specs/023 §3.4: /settings redirects to /settings/profile; a left nav of sections
     await p.waitForSelector('[data-test=settings-profile]', { timeout: 15000 })
-    const sections = await p.evaluate(() => [...document.querySelectorAll('[data-test=settings-nav] a')].map((a) => a.textContent.trim()))
+    // locale-neutral: the nav is checked by data-test ids, not by its (translated) labels
+    const sections = await p.evaluate(() => [...document.querySelectorAll('[data-test=settings-nav] a')].map((a) => a.getAttribute('data-test')))
     const profileUrl = p.url()
     await p.click('[data-test=settings-nav-security]')
     await p.waitForSelector('[data-test=settings-method]', { timeout: 15000 })
     const method = await p.$eval('[data-test=settings-method]', (e) => e.textContent.trim())
     const pwForm = !!(await p.$('[data-test=change-password]'))
     step('settings page', profileUrl.endsWith('/settings/profile') && p.url().endsWith('/settings/security') &&
-      sections.includes('Language') && sections.includes('Keys') && pwForm && method === 'Email and password',
+      sections.includes('settings-nav-language') && sections.includes('settings-nav-keys') && pwForm && method !== '',
       { url: p.url(), profileUrl, sections, method, changePasswordForm: pwForm, xscroll: await xscroll(p) })
     await p.screenshot({ path: `${OUT}/settings-desktop.png`, fullPage: true })
     await p.setViewport({ width: 390, height: 844 })

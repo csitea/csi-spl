@@ -4,7 +4,18 @@
 #          yaml TODAY (an edited yaml that was never re-rendered fails here),
 #          the relay bucket carries the measured bnc-cpt-all-relay access model,
 #          and every step is terraform-fmt clean and validates.
-#          A missing tpl-gen clone or terraform binary is a SKIP, not a pass.
+#          A missing tpl-gen clone or terraform binary is a FAIL (spec 007
+#          T070): the suite used to SKIP both from any worktree or any user
+#          but the owner and still print "PASS: all", having validated
+#          nothing. SPL_TF_ALLOW_SKIP=1 turns the two back into SKIPs, and the
+#          summary then says PARTIAL, never "all".
+#          Control: a copy of 016 with a planted undeclared reference MUST
+#          fail validate; a validate that accepts it proves nothing.
+#
+#          tpl-gen: $TPL_GEN_DIR, else <app>/tpl-gen, else the tpl-gen clone
+#          beside the MAIN checkout (a worktree has none of its own: it is
+#          git-ignored). terraform: $TF_BIN, else the newest
+#          $HOME/.local/share/csi-spl/bin/terraform-*, else terraform on PATH.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -13,11 +24,19 @@ APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
 fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
-skip() { echo "SKIP: $1"; }
+skipped=0
+skip() {
+  if [[ "${SPL_TF_ALLOW_SKIP:-0}" == 1 ]]; then echo "SKIP: $1"; skipped=$((skipped + 1));
+  else fail "$1 (a skip validates nothing; install it, or SPL_TF_ALLOW_SKIP=1 to accept a PARTIAL run)"; fi
+}
 
 # --- 1. renders are in sync with the yaml -------------------------------------
-TPG="$APP_ROOT/tpl-gen/src/python/tpl-gen"
-if [[ -x "$TPG/.venv/bin/python" ]]; then
+TPG=""
+main_root=$(git -C "$APP_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs -r dirname)
+for c in "${TPL_GEN_DIR:-}" "$APP_ROOT/tpl-gen" "${main_root:+$main_root/tpl-gen}"; do
+  [[ -n "$c" && -x "$c/src/python/tpl-gen/.venv/bin/python" ]] && { TPG="$c/src/python/tpl-gen"; break; }
+done
+if [[ -n "$TPG" ]]; then
   for env in dev prd; do
     # tpl-gen maps a template to its output by stripping as many leading path
     # components as TGT has, so TGT must sit exactly as deep as PROJ_ROOT.
@@ -31,15 +50,16 @@ if [[ -x "$TPG/.venv/bin/python" ]]; then
     ( cd "$TPG" && ORG=csi APP=spl ENV="$env" CNF_SRC="$tgt/csi-spl/$env.env.yaml" \
         TPL_SRC="$PROJ_ROOT/src/tpl/%org%-%app%/%env%/tf" TGT="$tgt" \
         .venv/bin/python tpl_gen/tpl_gen.py >/dev/null 2>&1 )
-    if [[ -d "$tgt/csi-spl/$env/tf" ]] && diff -r "$tgt/csi-spl/$env/tf" "$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf" >/dev/null; then
-      pass "$env tfvars are in sync with $env.env.yaml"
+    n_new=$(find "$tgt/csi-spl/$env/tf" -name '*.tfvars' 2>/dev/null | wc -l)
+    if (( n_new > 0 )) && diff -r "$tgt/csi-spl/$env/tf" "$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf" >/dev/null; then
+      pass "$env tfvars are in sync with $env.env.yaml ($n_new files rendered)"
     else
       fail "$env tfvars differ from a fresh render (run ENV=$env ./run -a do_tpl_gen)"
     fi
     rm -rf "$tmp"
   done
 else
-  skip "no tpl-gen venv at $TPG"
+  skip "no tpl-gen venv (TPL_GEN_DIR, $APP_ROOT/tpl-gen, ${main_root:-<main checkout>}/tpl-gen)"
 fi
 
 # --- 2. the relay bucket is bnc-cpt-all-relay's access model ------------------
@@ -137,8 +157,10 @@ for env in dev prd; do
 done
 
 # --- 3. fmt + validate ----------------------------------------------------------
-TF=$(ls "$HOME"/.local/share/csi-spl/bin/terraform-* 2>/dev/null | sort -V | tail -1)
-if [[ -x "$TF" ]]; then
+TF="${TF_BIN:-}"
+[[ -x "$TF" ]] || TF=$(ls "$HOME"/.local/share/csi-spl/bin/terraform-* 2>/dev/null | sort -V | tail -1)
+[[ -x "$TF" ]] || TF=$(command -v terraform 2>/dev/null || true)
+if [[ -n "$TF" && -x "$TF" ]]; then
   "$TF" fmt -check -recursive "$PROJ_ROOT/src/terraform" >/dev/null && pass "terraform fmt clean" || fail "terraform fmt -check"
   # A private plugin cache: the shared one is not safe for concurrent inits
   # (measured 2026-09-17: validate failed once in 3 runs during another
@@ -155,9 +177,22 @@ if [[ -x "$TF" ]]; then
     fi
     rm -rf "$tmp"
   done
+  # Control (T070): a step with a planted undeclared reference must NOT validate.
+  tmp=$(mktemp -d); cp -r "$PROJ_ROOT/src/terraform/016-firebase-deploy-iam/." "$tmp/"
+  printf '%s\n' 'output "t070_control" {' '  value = var.t070_planted_undeclared' '}' >"$tmp/99-t070-control.tf"
+  if TF_PLUGIN_CACHE_DIR="$tf_cache" "$TF" -chdir="$tmp" init -backend=false -input=false >/dev/null 2>&1 \
+     && ! "$TF" -chdir="$tmp" validate -no-color >/dev/null 2>&1; then
+    pass "control: validate rejects a planted undeclared reference"
+  else
+    fail "control: validate accepted (or could not init) a planted broken step, so every validate PASS above proves nothing"
+  fi
+  rm -rf "$tmp"
 else
-  skip "no terraform under \$HOME/.local/share/csi-spl/bin"
+  skip "no terraform (TF_BIN, \$HOME/.local/share/csi-spl/bin/terraform-*, PATH)"
 fi
 
+if [[ "$fails" -eq 0 && "$skipped" -gt 0 ]]; then
+  echo "PARTIAL: $(basename "$0") -- $skipped check(s) SKIPPED under SPL_TF_ALLOW_SKIP=1, not validated"; exit 0
+fi
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

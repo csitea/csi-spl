@@ -119,9 +119,18 @@ none of these blocks M1. The feature text is `../010-spool-social-auth/`.
       …/csi-spl-wt-3344-cnf/…/all.env.yaml`); workaround: render in a copy
       laid out as `csi/csi-spl/` — fixed `8dded98`: derives from the project dir's
       own name; `resolve-oap-worktree.tst.sh` asserts both layouts
-- [ ] T070 `tf-steps-render-and-validate.tst.sh` SKIPs render drift and
-      validate unless tpl-gen and terraform sit under the runner's own
-      `$HOME`; the suite reads green without having validated anything
+- [x] T070 `tf-steps-render-and-validate.tst.sh` SKIPped render drift and
+      validate unless tpl-gen and terraform sat under the runner's own
+      `$HOME`; the suite read green without having validated anything
+      (measured 2026-09-19 from a worktree: `SKIP: no tpl-gen venv` +
+      `PASS: all`). Fixed: tpl-gen is also found beside the main checkout
+      (`--git-common-dir`), terraform via `TF_BIN` / `$HOME` / PATH, a SKIP
+      is a FAIL unless `SPL_TF_ALLOW_SKIP=1` (then `PARTIAL`, never `all`),
+      and a planted undeclared reference in a copy of 016 MUST fail validate.
+      Check: `bash csi-spl-iac/src/bash/tests/tf-steps-render-and-validate.tst.sh`
+      (box user) -> `24 files rendered` x2, `PASS: control: validate rejects a
+      planted undeclared reference`; control of the control:
+      `TF_BIN=/bin/true bash …` -> `FAIL: control: validate accepted`
 
 ## Phase 9: WUI Hosting seam (from spec `005`, M3)
 

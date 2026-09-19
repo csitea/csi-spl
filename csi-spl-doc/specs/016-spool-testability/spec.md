@@ -32,7 +32,7 @@ Status words follow `../README.md` §2.3.
 | ORC bash | `csi-spl-orc/src/bash/tests/*.tst.sh` | 14 | **no** |
 | CNF validator | `csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh` | 1 | **no** |
 | Spawn-agents | `csi-spl-orc/src/bash/features/spawn-agents/tests/` | 6 scripts | **no** |
-| `-race` | `go test -race` | auth/wui-ws docs only | **no** — `run-all-tests.sh` is `go test ./...` |
+| `-race` | `go test -race` | hub gate (`run-all-tests.sh`, hub-pg, hub-gcs) | **yes** — T002 `bed8732` |
 
 `30_wui-build-deploy.yml` re-runs WUI unit + typecheck before generate. `20_hub-build-deploy.yml` re-runs the hub suite before deploy. Neither runs iac/orc/cnf suites.
 
@@ -78,7 +78,7 @@ Any suite that cannot run (missing terraform, missing `HUB_URL`, missing tpl-gen
 - **FR-001** — Implemented: `hub-suite` runs `csi-spl-api/src/bash/tests/run-all-tests.sh` and fails if the log contains a Postgres/GCS skip line (`10_ci-quality.yml` “The Postgres and GCS gates really ran”).
 - **FR-002** — Implemented: WUI unit discovery (`csi-spl-wui/src/node/test/run-unit-tests.mjs`); empty discovery is exit 1; CI calls `pnpm run test:unit`.
 - **FR-003** — Planned: `10 ci: quality gate` grows jobs (or one job) that run `csi-spl-iac/src/bash/tests/run-all-tests.sh`, `csi-spl-orc/src/bash/tests/run-all-tests.sh`, and `csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh`. 008 owns the YAML. A skip of terraform validate is a failure unless `SPL_TF_ALLOW_SKIP=1` is **not** set in CI.
-- **FR-004** — Planned: `run-all-tests.sh` `go test` uses `-race` (or a dedicated job). Today: `grep -n race csi-spl-api/src/bash/tests/run-all-tests.sh` → none.
+- **FR-004** — Implemented (T002, `bed8732`): `run-all-tests.sh` runs `go test -race ./...`, and the Postgres and GCS gates run their suites with `-race`. Check: `grep -n -- -race csi-spl-api/src/bash/tests/run-all-tests.sh` → line 26.
 - **FR-005** — Planned: either run `pnpm run test:e2e` in CI with a cached browser, or keep it local and add a comment-plus-job that **fails** if someone wires `test:live` without `HUB_URL` (live-interop exit 0 on unset must not be a CI pass).
 - **FR-006** — Implemented: store contract suite is driver-parameterised (`drivers()` in `store_test.go` / `humans_test.go`); Memory always, Postgres when the hub-pg gate sets `$SPOOL_TEST_PG_DSN`.
 - **FR-007** — Implemented: hermetic fixtures via `internal/testkit` (temp `$SPOOL_ROOT` / keys / pins); no private key in git. Hygiene tests exist for baked hosts and ysg-box refs.

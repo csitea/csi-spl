@@ -19,7 +19,7 @@
 
 ## Phase 2 — Close skip-pass and CI holes
 
-- [ ] T002 Planned (api) — `csi-spl-api/src/bash/tests/run-all-tests.sh`: `go test -race ./...` (or `-race` on `./internal/{hub,auth,store,hubclient}/`). FR-004. SC-002.
+- [x] T002 Implemented (api) — `bed8732`: `csi-spl-api/src/bash/tests/run-all-tests.sh` runs `go test -race ./...`; `hub-pg.tst.sh` (store, hub, auth on Postgres) and `hub-gcs.tst.sh` (blob) run `-race` too, so the 10 hub-suite and the 20 pre-deploy suite both gate on it. No race found (`go test -race -count=5 ./...` green on 776eec1, and on Postgres). Check: `grep -n -- -race csi-spl-api/src/bash/tests/run-all-tests.sh` → line 26. Control: a two-goroutine counter test in `internal/store` passes without `-race` and turns `run-all-tests.sh` and `hub-pg.tst.sh` red (`WARNING: DATA RACE`). Cost (cold test cache, one box): 53 s → 64 s. FR-004. SC-002.
 - [ ] T003 Planned (008) — `10_ci-quality.yml` job `iac-suite`: `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` with terraform 1.9 and in-repo tpl-gen; **do not** set `SPL_TF_ALLOW_SKIP`. FR-003. SC-001.
 - [ ] T004 Planned (008) — job `orc-suite`: hermetic orc `*.tst.sh` that need no live GCP / no full lde. Split out `lde-stack.tst.sh` if it cannot run on ubuntu-latest. FR-003.
 - [ ] T005 Planned (008) — job `cnf-suite`: `bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh` (install conf-validator poetry env first). FR-003.
@@ -38,7 +38,7 @@
 | FR-001 | T010 | Implemented |
 | FR-002 | T011 | Implemented |
 | FR-003 | T003, T004, T005 | Planned |
-| FR-004 | T002 | Planned |
+| FR-004 | T002 | Implemented |
 | FR-005 | T006, T021 | Planned |
 | FR-006 | T012 | Implemented |
 | FR-007 | T013 | Implemented |

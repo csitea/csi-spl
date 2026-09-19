@@ -233,7 +233,9 @@ func TestSearch(t *testing.T) {
 }
 
 // TestSearchP95 seeds a corpus and measures search latency on Postgres
-// (search-v1 §7, T053). SPOOL_TEST_SEARCH_N sets the corpus size.
+// (search-v1 §7, T053). SPOOL_TEST_SEARCH_N sets the corpus size per tenant:
+// the default 2,000 is the CI smoke (a shared runner under -race with every
+// Postgres suite in parallel); the recorded measurement is N=20000.
 func TestSearchP95(t *testing.T) {
 	d := drivers(t)
 	s, ok := d["postgres"]
@@ -243,7 +245,7 @@ func TestSearchP95(t *testing.T) {
 	pg := s.(*Postgres)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	n := 20000
+	n := 2000
 	if v := os.Getenv("SPOOL_TEST_SEARCH_N"); v != "" {
 		fmt.Sscan(v, &n) //nolint:errcheck
 	}
@@ -253,6 +255,7 @@ func TestSearchP95(t *testing.T) {
 	// bulk seed through COPY-like multi-row inserts, as the owner role (RLS: tenant scope per batch)
 	for _, tid := range []string{ta, tb} {
 		for base := 0; base < n; base += 1000 {
+			top := min(base+999, n-1)
 			err := pg.inTenant(ctx, tid, func(tx pgx.Tx) error {
 				_, err := tx.Exec(ctx, `INSERT INTO messages (tenant_id, msg_id, task_id, channel, ts, from_box, from_id, to_box, to_id,
 					kind, body, files, msg, env_sig, env, received_at, expires_at)
@@ -262,7 +265,7 @@ func TestSearchP95(t *testing.T) {
 						(SELECT string_agg(w, ' ') FROM (SELECT ($3::text[])[1 + ((g * 7 + k * 13) % 20)] AS w FROM generate_series(1, 12) k) z),
 						CASE WHEN g % 10 = 0 THEN '[{"mode":"blob","kind":"file","name":"report.pdf","bytes":1048577}]'::jsonb ELSE '[]'::jsonb END,
 						'{}'::jsonb, 'sig', '\x00'::bytea, $2::timestamptz - g * interval '1 second', $2::timestamptz + interval '30 days'
-					FROM generate_series($4::int, $5::int) g`, tid, now, words, base, base+999)
+					FROM generate_series($4::int, $5::int) g`, tid, now, words, base, top)
 				return err
 			})
 			if err != nil {

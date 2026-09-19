@@ -344,7 +344,10 @@ rate-limited beyond the edge limits.
   read the same tenant's rows through the existing `(tenant_id, …)` indexes.
 - Budget: 2 s per search statement (`SET LOCAL statement_timeout`), plus the
   request context. Rate: §5.1.
-- Measured (`TestSearchP95`, Postgres 16 in docker, 20,000 messages per
+- Measured (`SPOOL_TEST_SEARCH_N=20000 go test -run TestSearchP95
+  ./internal/store`; CI runs the same test on 2,000 as a smoke, because a
+  shared runner under `-race` with every Postgres suite in parallel once took
+  a 20k "deploy" message query past the budget, n 1), Postgres 16 in docker, 20,000 messages per
   tenant x 2 tenants, 12 words each, `ANALYZE`d, member viewer, limit 21,
   10 queries x 5 rounds after one warm-up round = n 110 statements, under
   `go test -race` with the hub / store / auth suites running in parallel,

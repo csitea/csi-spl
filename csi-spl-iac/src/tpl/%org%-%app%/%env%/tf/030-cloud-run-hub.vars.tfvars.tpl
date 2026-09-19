@@ -20,5 +20,21 @@ timeout_seconds              = {{ hub["cloud_run"]["timeout_seconds"] | tojson }
 ingress                      = {{ hub["cloud_run"]["ingress"] | tojson }}
 cloud_sql_instance_name      = {{ steps["040-cloud-sql-postgres"]["instance_name"] | tojson }}
 files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | tojson }}
-environment_variables        = {{ hub["env"] | tojson }}
-secret_environment_variables = {{ hub["secret_env"] | tojson }}
+{#- spec 010 T020: the auth env joins hub.env; from auth.social.secret_env only
+    the session key and the LISTED providers' secrets are injected (Cloud Run
+    refuses a revision whose secret has no version). Every slot is created. #}
+{%- set auth_env = auth["social"]["env"] %}
+{%- set auth_sec = auth["social"]["secret_env"] %}
+{%- set run_env = dict(hub["env"], **auth_env) %}
+{%- set run_sec = dict(hub["secret_env"]) %}
+{%- set listed = auth_env["SPOOL_HUB_AUTH_PROVIDERS"].split(",") | map("trim") | reject("equalto", "") | list %}
+{%- if listed %}
+{%- set _ = run_sec.update({"SPOOL_HUB_AUTH_SESSION_KEY": auth_sec["SPOOL_HUB_AUTH_SESSION_KEY"]}) %}
+{%- for p in listed %}
+{%- set k = "SPOOL_HUB_AUTH_" ~ (p | upper) ~ "_CLIENT_SECRET" %}
+{%- set _ = run_sec.update({k: auth_sec[k]}) %}
+{%- endfor %}
+{%- endif %}
+environment_variables        = {{ run_env | tojson }}
+secret_environment_variables = {{ run_sec | tojson }}
+auth_secret_ids              = {{ auth_sec.values() | list | tojson }}

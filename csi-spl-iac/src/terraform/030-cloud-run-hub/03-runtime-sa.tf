@@ -23,6 +23,9 @@ resource "google_secret_manager_secret_iam_member" "hub_secret_accessor" {
   secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.hub.email}"
+
+  # an injected auth secret's slot is created in this step (06)
+  depends_on = [google_secret_manager_secret.auth]
 }
 
 # objects get/list/create/delete on the files bucket only (as the 020 relay SA)

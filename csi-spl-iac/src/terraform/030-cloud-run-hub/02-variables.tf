@@ -139,3 +139,9 @@ variable "files_bucket_name" {
   type        = string
   description = "The 050 bucket (cnf steps.050-gcs-files.files_bucket_name); the runtime SA gets objectUser on it."
 }
+
+variable "auth_secret_ids" {
+  type        = list(string)
+  description = "Secret Manager ids of the sign-in secrets (cnf env.auth.social.secret_env values). 030 creates each as an empty slot; versions are added out of band."
+  default     = []
+}

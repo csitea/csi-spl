@@ -72,6 +72,9 @@ cnf = yaml.safe_load(open(os.environ["CNF"]))["env"]
 tpl = jinja2.Environment(undefined=jinja2.StrictUndefined).from_string(open(os.environ["TPL"]).read())
 print(tpl.render(**{**cnf, "ORG": "csi", "APP": "spl", "ENV": "dev"}))' 2>&1); }
   injected() { grep -E '^secret_environment_variables ' <<<"$1" | grep -oE '"SPOOL_HUB_[A-Z_]+"' | sort | tr '\n' ' '; }
+  # the controls count injected secrets exactly: start from no box-wui key,
+  # whatever the env's own hub.wui_key.inject is (its own control is below)
+  yq -i '.env.hub.wui_key.inject = "false"' "$tmp/dev.env.yaml"
   cp "$tmp/dev.env.yaml" "$tmp/base.yaml"
   yq -i '.env.auth.social.env.SPOOL_HUB_AUTH_PROVIDERS = "google, xai"' "$tmp/dev.env.yaml"
   out=$(render); sec=$(injected "$out")

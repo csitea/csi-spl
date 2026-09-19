@@ -37,11 +37,13 @@ here (§2.4); the owner is named.
 
 Recorded by 007 (CLE-3344) as its T066–T068 = these T020–T022, behind 007's M1 gaps; T067 folds into its 029 secrets step.
 
-- [ ] T020 Planned (007) — render `env.auth.social.env` into 030 `environment_variables` (merge with `hub.env`) and `env.auth.social.secret_env` into `secret_environment_variables`; extend `tf-steps-render-and-validate.tst.sh` like its DSN assertion.
-- [ ] T021 Planned (007) — three empty Secret Manager slots (`csi-spl-hub-auth-session-key`, `csi-spl-hub-auth-google-client-secret`, `csi-spl-hub-auth-facebook-client-secret`) + `roles/secretmanager.secretAccessor` for the hub runtime SA, per env; no version resource (like 040's DSN slot).
+- [x] T020 Implemented (`19914c1`, `eccb5a1`, IDP lane CLE-3353) — the 030 template merges `env.auth.social.env`, `env.auth.native.env` and `env.mail.env` into `environment_variables`; it injects the session key only when a provider is listed or native sign-in is enabled, each LISTED provider's client secret, and the SMTP password only while `SPOOL_HUB_MAIL_TRANSPORT=smtp`, because Cloud Run refuses a revision whose secret has no version. Check: `bash csi-spl-iac/src/bash/tests/hub-auth-030.tst.sh` → `PASS: all hub-auth-030.tst.sh assertions` (controls: `providers=google,xai` injects exactly those two secrets + the session key; native on + smtp injects the session key + the SMTP password).
+- [x] T021 Implemented (`19914c1`, `eccb5a1`) — 030 `06-auth-secret-slots.tf`: 7 empty slots (session key, 5 IdP client secrets, `csi-spl-hub-mail-smtp-password`), no version resource. The accessor binding stays scoped to the injected secrets (`03-runtime-sa.tf`, which now depends on the slots). There is no `029` step to fold this into (007 T060 not started). Check: `grep -c csi-spl-hub- csi-spl-cnf/csi-spl/dev/tf/030-cloud-run-hub.vars.tfvars` → the `auth_secret_ids` line lists 7. Not applied: DEPLOY's 030 apply, which waits on the owner's gcloud login.
 - [ ] T022 Planned (007) — derive `SPOOL_HUB_AUTH_APP_URL`, `SPOOL_HUB_AUTH_COOKIE_DOMAIN` and the two redirect URIs from `env.dns.fqdn` in `do_spl_merged_cnf` so the domain stays single-source; drop the literal values from dev/prd.env.yaml.
 
 ## Phase 5 — Registration day (owner; runbook `quickstart.md` §3)
+
+Owner runbook for T030–T034, all five providers: `idp-registration-runbook.md`.
 
 - [ ] T030 Planned — Google Cloud console: OAuth consent screen + Web client per env; authorised redirect URI = cnf `SPOOL_HUB_AUTH_GOOGLE_REDIRECT_URI`.
 - [ ] T031 Planned — Meta developers: one Consumer app (Facebook Login), valid OAuth redirect URIs = cnf `SPOOL_HUB_AUTH_FACEBOOK_REDIRECT_URI` (dev + prd), privacy + data-deletion URLs, App Review for `email`, `public_profile`, then Publish.
@@ -51,8 +53,10 @@ Recorded by 007 (CLE-3344) as its T066–T068 = these T020–T022, behind 007's 
 
 ## Phase 6 — Later, same rails
 
-- [ ] T040 Planned — `microsoft` (Entra OIDC). T041 `linkedin`. T042 `xai` (issuer/authorize/token/jwks from cnf). Each: one `IdP` implementation, a `SPOOL_HUB_AUTH_<P>_*` block, a `fakeidp` path set, the same tests.
-- [ ] T043 Planned — Facebook deauthorize + data-deletion callback (required for a live Meta app; csi-rel `facebook_callbacks.go` is the donor).
+- [x] T040 Implemented (`f17210e`, IDP lane CLE-3353) — `microsoft` on the generic OIDC client (`internal/auth/oidc.go`). Authority `SPOOL_HUB_AUTH_MICROSOFT_TENANT` defaults to `consumers`; any other tenant is refused at boot unless `SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL=true` (spec OQ-I1). Check: `go test -run 'TestConfigMicrosoftTenantTrust|TestOIDC' ./internal/auth/` → ok.
+- [x] T041 Implemented (`f17210e`) — `linkedin` on the generic OIDC client, `email_verified=true` required. Check: `go test -run TestOIDCEmailVerification ./internal/auth/` → ok.
+- [x] T042 Implemented (`f17210e`) — `xai` on the generic OIDC client. Its endpoints come only from cnf (`SPOOL_HUB_AUTH_XAI_{AUTH,TOKEN,USERINFO}_URL`), https is required, and there is no Go default. xAI does publish an OIDC issuer (`curl -s https://auth.x.ai/.well-known/openid-configuration` → 200, n=1, 2026-09-19); whether it registers third-party clients is spec OQ-I2. `plannedProviders` is empty. Check: `command grep -n 'plannedProviders = ' csi-spl-api/src/go/spool-hub-api/internal/auth/config.go` → `map[string]bool{}`; `go test -run TestConfigOIDC ./internal/auth/` → ok. CONTROL: `TestOIDCBadStateOrNonceRefused` refuses a forged state, another browser's nonce, a tampered nonce cookie and a state minted for google, per provider, and admits the genuine flow. Mutation-checked once: with the cookie check disabled, 6 subtests fail.
+- [x] T043 Implemented (`f17210e`, flake fixed `f869bc3`) — `POST /api/v1/auth/facebook/{deauthorize,data-deletion}` verify the `signed_request` HMAC first and fail closed with `400`, then call `Options.Unlinker` (HUMANS wires the store's `UnlinkIdentity`). Data-deletion returns `{url, confirmation_code}` with a self-verifying code; `GET …/data-deletion?code=` answers 200 or 404. Check: `go test -count=300 -run TestFacebookMetaCallbacks ./internal/auth/` → ok. `go run ./internal/auth/cmd/auth-demo` → `OK - all 5 providers signed in against the fake IdP`.
 - [ ] T044 Planned — avatar: server-side fetch → `file_id` (narrative §3.4).
 
-<!-- version: 0.6.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:30:00Z -->
+<!-- version: 0.7.0 · updated: 2026-09-19 -->

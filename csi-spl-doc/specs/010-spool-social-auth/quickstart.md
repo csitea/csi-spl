@@ -73,6 +73,10 @@ cd csi-spl-api/src/go/spool-hub-api && go test -run TestConfigFailFast -v ./inte
 
 ## 3. Registration day (owner) — flip from placeholders to real apps
 
+All five providers, the Meta callbacks and the secret slots are covered, step by step, in
+`idp-registration-runbook.md`. The section below is the original Google + Facebook
+walk-through.
+
 Order per env: **dev first, then prd**. Nothing below is done by an agent
 without the owner's go (repo CLAUDE.md: nothing mutates GCP without the owner).
 

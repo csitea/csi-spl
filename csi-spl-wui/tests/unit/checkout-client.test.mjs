@@ -1,4 +1,4 @@
-// spec 006 T021w — checkout + success pages against contracts/checkout-v1.md.
+// spec 006 T021w — checkout, success + claim pages against contracts/checkout-v1.md 1.2.
 // Proves the security rules of the brief: the claim token lives in
 // sessionStorage only and never in a URL / error; the root private key is never
 // stored; POST /claim happens once even with overlapping polls or a re-mount;
@@ -20,6 +20,7 @@ import {
   formatPrice,
   keyFileName,
   loadCheckout,
+  readClaimFragment,
   pollAndClaim,
   resetClaim,
   saveCheckout,
@@ -42,7 +43,7 @@ function memStorage() {
 }
 
 /** A fake hub implementing checkout-v1 §1.3/§1.4; routes by URL + method. */
-function fakeHub({ paidAfter = 0, claimStatus = 200, claimed = false, claimDelayMs = 0 } = {}) {
+function fakeHub({ paidAfter = 0, claimStatus = 200, claimError = '', claimed = false, claimDelayMs = 0 } = {}) {
   const calls = []
   let polls = 0
   const fn = async (url, opts = {}) => {
@@ -51,8 +52,8 @@ function fakeHub({ paidAfter = 0, claimStatus = 200, claimed = false, claimDelay
     const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body })
     if (method === 'POST' && url.endsWith('/claim')) {
       if (claimDelayMs) await new Promise((r) => setTimeout(r, claimDelayMs))
-      if (claimStatus === 200) return reply(200, { tenant_id: 'acme', tenant_url: 'https://acme.example.com', root_private_key: KEY, emailed: true })
-      return reply(claimStatus, { error: claimStatus === 410 ? 'claimed' : 'unavailable', detail: '' })
+      if (claimStatus === 200) return reply(200, { tenant_id: 'acme', tenant_url: 'https://acme.example.com', root_private_key: KEY })
+      return reply(claimStatus, { error: claimError || (claimStatus === 410 ? 'claimed' : 'unavailable'), detail: '' })
     }
     if (method === 'GET') {
       polls++
@@ -210,6 +211,14 @@ describe('claim exactly once', () => {
     assert.equal(s.getItem(CHECKOUT_STORE_CLAIM), null)
   })
 
+  it('1.2: 410 claim_expired is "expired", 409 conflict is a non-retry error', async () => {
+    const exp = fakeHub({ claimStatus: 410, claimError: 'claim_expired' })
+    assert.deepEqual(await claimOnce(createCheckoutClient({ fetchFn: exp.fn }), { id: newId(), token: TOKEN }, memStorage()), { state: 'expired' })
+    const con = fakeHub({ claimStatus: 409, claimError: 'conflict' })
+    assert.deepEqual(await claimOnce(createCheckoutClient({ fetchFn: con.fn }), { id: newId(), token: TOKEN }, memStorage()), { state: 'error', error: 'conflict' })
+    for (const c of ['claim_expired', 'conflict', 'bad_link']) assert.notEqual(checkoutErrorMessage(c), 'Something went wrong — try again.', c)
+  })
+
   it('a status that says claimed shows "claimed" without POSTing', async () => {
     const hub = fakeHub({ claimed: true })
     const out = await pollAndClaim(createCheckoutClient({ fetchFn: hub.fn }), { id: newId(), token: '' }, { sleep: noSleep, storage: memStorage() })
@@ -232,8 +241,28 @@ describe('claim exactly once', () => {
   })
 })
 
+describe('claim link (1.2 §1.8)', () => {
+  it('reads #checkout=&token= and refuses anything malformed', () => {
+    assert.deepEqual(readClaimFragment(`#checkout=co_abc123&token=${TOKEN}`), { id: 'co_abc123', token: TOKEN })
+    assert.deepEqual(readClaimFragment(`checkout=co_abc123&token=${TOKEN}`), { id: 'co_abc123', token: TOKEN })
+    for (const bad of ['', '#', '#checkout=co_abc123', `#token=${TOKEN}`, `#checkout=x&token=${TOKEN}`, '#checkout=co_abc&token=short', `#checkout=co_a/b&token=${TOKEN}`, `#checkout=co_a&token=${TOKEN}<script>`]) {
+      assert.deepEqual(readClaimFragment(bad), { id: '', token: '' }, bad)
+    }
+  })
+
+  it('the link claim is single-flight too and 410 claimed after the success page', async () => {
+    const hub = fakeHub({ claimStatus: 410 })
+    const c = createCheckoutClient({ fetchFn: hub.fn })
+    const link = { id: newId(), token: TOKEN }
+    const [a, b] = await Promise.all([claimOnce(c, link, memStorage()), claimOnce(c, link, memStorage())])
+    assert.deepEqual(a, { state: 'claimed' })
+    assert.deepEqual(b, { state: 'claimed' })
+    assert.equal(hub.claims(), 1)
+  })
+})
+
 describe('source + build output: where secrets may never go', () => {
-  const FILES = ['src/utils/checkout-client.mjs', 'src/pages/checkout/index.vue', 'src/pages/checkout/success.vue']
+  const FILES = ['src/utils/checkout-client.mjs', 'src/pages/checkout/index.vue', 'src/pages/checkout/success.vue', 'src/pages/checkout/claim.vue', 'src/components/CheckoutKeyReveal.vue']
   const read = (p) => readFileSync(join(WUI, p), 'utf8')
   // code only: drop comments so the rules can be stated in prose
   const code = (s) => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
@@ -246,6 +275,30 @@ describe('source + build output: where secrets may never go', () => {
       assert.ok(!/claim_token\s*=|[?&]claim_token|root_private_key\s*=/.test(src), `${f}: secret in a URL`)
       assert.ok(!/query\s*:\s*\{[^}]*(claim|token|key)/i.test(src), `${f}: secret in a router query`)
     }
+  })
+
+  it('the claim page clears the fragment before claiming and never makes the token reactive', () => {
+    const src = code(read('src/pages/checkout/claim.vue'))
+    assert.ok(!/sessionStorage|setItem\(/.test(src), 'claim page writes no storage')
+    const take = src.indexOf('takeFragment()', src.indexOf('onMounted'))
+    const call = src.indexOf('claim()', take + 1)
+    assert.ok(take > 0 && call > take, 'fragment taken before the claim')
+    assert.match(src, /history\.replaceState\([^)]*location\.pathname \+ window\.location\.search\)/)
+    assert.match(src, /let link = \{ id: '', token: '' \}/, 'link token is a plain variable, not a ref')
+    assert.ok(!/ref\([^)]*token/.test(src), 'no reactive token')
+    assert.match(src, /onBeforeUnmount\([\s\S]*keyText\.value = ''/)
+    assert.match(src, /claimOnce\(/)
+    assert.ok(!/\.claim\(/.test(src), 'the page never calls client.claim directly')
+    // the router must not scroll to "#checkout=…&token=…" (it logs the selector)
+    assert.match(src, /definePageMeta\(\{[^}]*scrollToTop: false/)
+  })
+
+  it('1.2 copy: nothing says the key was emailed', () => {
+    for (const f of ['src/pages/checkout/success.vue', 'src/pages/checkout/claim.vue', 'src/components/CheckoutKeyReveal.vue']) {
+      const src = code(read(f))
+      assert.ok(!/emailed to you|was also emailed|\bemailed\b\s*\?/i.test(src), `${f}: says the key was emailed`)
+    }
+    assert.match(read('src/components/CheckoutKeyReveal.vue'), /It is not emailed and the hub does not keep it/)
   })
 
   it('the success page keeps the key in memory and clears it on leave', () => {

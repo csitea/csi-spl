@@ -304,6 +304,9 @@ windows (`as` must be a v:1 agent id; omit it and the hub assigns one).
 Checkout (spec 006 T021w, `contracts/checkout-v1.md`): `/checkout` reads the
 plan and rail, and `/checkout/success` polls until the checkout is paid, then
 claims the root private key ONCE and shows it once, with copy and download.
+`/checkout/claim#checkout=<id>&token=<t>` is the page the one email links to
+(checkout-v1 1.2 §1.8). It reads the fragment, clears it from the address bar,
+claims once and shows the key the same way. The key is never emailed.
 `NUXT_DEV_AUTH_PROXY` also forwards `/api/v1/checkout/**` to the hub. The claim
 token is kept in `sessionStorage` (`spool.checkout.claim`) and dropped after
 the claim. The key is held only in the page's memory. A reload shows "already

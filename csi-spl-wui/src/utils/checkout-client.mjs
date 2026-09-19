@@ -1,10 +1,12 @@
 /**
- * Tenant checkout client (specs/006-spool-hub-rental/contracts/checkout-v1.md).
+ * Tenant checkout client (specs/006-spool-hub-rental/contracts/checkout-v1.md 1.2).
  * Same-origin: Hosting rewrites /api/v1/checkout/** to the hub (lde: nitro devProxy).
  *
  * Secrets, and where they may live:
  *   - claim_token: sessionStorage ONLY (§1.2). Never a URL, localStorage, a
  *     log line or an error message. Dropped after a successful claim (§2.4).
+ *   - the emailed link token (§1.8): arrives in the URL FRAGMENT, is read once
+ *     and cleared from the address bar by the claim page, then held in memory.
  *   - root_private_key: returned by the claim to the caller, which holds it in
  *     component memory. This module never stores, logs or puts it in a URL.
  */
@@ -23,7 +25,10 @@ const ERRORS = {
   payment_unavailable: 'Checkout is unavailable right now — try again later.',
   not_found: 'We cannot find this checkout.',
   not_paid: 'The payment is not confirmed yet.',
-  claimed: 'This key was already shown once.',
+  claimed: 'This key was already collected — on the success page or from the emailed link.',
+  claim_expired: 'The claim window has closed — contact support to re-key the tenant.',
+  conflict: 'This tenant was re-keyed meanwhile — contact support.',
+  bad_link: 'This link is incomplete — open the link from the email again.',
   not_fake_checkout: 'This checkout is not a test checkout.',
   not_pending: 'This checkout is closed.',
   no_token: 'This browser tab does not hold the claim for this checkout — open the success page in the tab you paid from.',
@@ -59,6 +64,18 @@ export function checkoutMode(plan) {
   if (rail === 'none' || p.available === false) return 'none'
   if (rail === 'fake') return 'fake'
   return 'unsupported'
+}
+
+/**
+ * §1.8: `#checkout=<id>&token=<t>` → { id, token }; anything malformed → ''s.
+ * Pure: the page clears the fragment itself (history.replaceState).
+ */
+export function readClaimFragment(hash) {
+  const q = new URLSearchParams(String(hash || '').replace(/^#/, ''))
+  const id = String(q.get('checkout') || '')
+  const token = String(q.get('token') || '')
+  if (!/^co_[A-Za-z0-9_-]{1,64}$/.test(id) || !/^[A-Za-z0-9_-]{16,256}$/.test(token)) return { id: '', token: '' }
+  return { id, token }
 }
 
 /** A file name for the key download: `<tenant>.root.key`. */
@@ -174,10 +191,13 @@ export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' } =
 const CLAIMS = new Map()
 
 /**
- * POST /claim for this checkout at most once per page load. Outcomes:
+ * POST /claim for this checkout at most once per page load (either token,
+ * §1.4). Outcomes:
  *   { state: 'ok', result }    — the key is in `result`; the token is dropped
- *   { state: 'claimed' }       — 410: shown before, the hub no longer has it
- *   { state: 'error', error }  — anything else; the page may offer ONE
+ *   { state: 'claimed' }       — 410 claimed: collected before, by either token
+ *   { state: 'expired' }       — 410 claim_expired: past the claim window
+ *   { state: 'error', error }  — anything else (409 not_paid / conflict, 404,
+ *                                5xx, network); the page may offer ONE
  *                                user-initiated retry via resetClaim()
  */
 export function claimOnce(client, { id, token } = {}, storage) {
@@ -191,7 +211,7 @@ export function claimOnce(client, { id, token } = {}, storage) {
     }
     if (out.status === 410) {
       dropClaimToken(storage)
-      return { state: 'claimed' }
+      return { state: out.error === 'claim_expired' ? 'expired' : 'claimed' }
     }
     return { state: 'error', error: out.ok ? 'unavailable' : out.error }
   })()

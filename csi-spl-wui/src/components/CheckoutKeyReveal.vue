@@ -1,0 +1,63 @@
+<!-- The one-time root private key render shared by /checkout/success and
+     /checkout/claim (checkout-v1 1.2 §2.4–§2.5). The parent owns the key (in
+     memory only) and clears it when it is left; this component only shows it,
+     copies it and offers it as a file. Nothing here stores or logs it. -->
+<template>
+  <div data-test="checkout-key-reveal">
+    <p class="login-error" role="alert" data-test="checkout-key-warning">
+      This is the only time this key is shown. It is not emailed and the hub does not keep it.
+      Save it as a file readable only by you (mode 0600) and point <code>SPOOL_TENANT_ROOT_KEY</code> at it.
+    </p>
+    <p>Tenant: <a :href="tenantUrl" rel="noopener" data-test="checkout-tenant-url">{{ tenantUrl }}</a></p>
+    <pre class="checkout-key__text" data-test="checkout-key">{{ keyText }}</pre>
+    <div class="checkout-key__actions">
+      <button class="btn" type="button" data-test="checkout-key-copy" @click="copyKey">{{ copied ? 'Copied' : 'Copy key' }}</button>
+      <button class="btn ghost" type="button" data-test="checkout-key-download" @click="downloadKey">Download key</button>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { keyFileName } from '~/utils/checkout-client.mjs'
+
+const props = defineProps<{ keyText: string, tenantUrl: string, tenantId: string }>()
+const copied = ref(false)
+
+async function copyKey() {
+  try {
+    await navigator.clipboard.writeText(props.keyText)
+    copied.value = true
+  } catch {
+    copied.value = false
+  }
+}
+
+function downloadKey() {
+  const url = URL.createObjectURL(new Blob([props.keyText + '\n'], { type: 'application/octet-stream' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = keyFileName(props.tenantId)
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+</script>
+
+<style scoped>
+.checkout-key__text {
+  margin: 12px 0;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-composer);
+  color: var(--color-fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  user-select: all;
+}
+.checkout-key__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+</style>

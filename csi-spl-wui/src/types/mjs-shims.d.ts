@@ -247,8 +247,8 @@ declare module '~/utils/checkout-client.mjs' {
     error: string
   }
   export type ClaimOutcome =
-    | { state: 'ok', result: { tenant_id: string, tenant_url: string, root_private_key: string, emailed: boolean } }
-    | { state: 'claimed' | 'failed' | 'cancelled' | 'stopped' }
+    | { state: 'ok', result: { tenant_id: string, tenant_url: string, root_private_key: string } }
+    | { state: 'claimed' | 'expired' | 'failed' | 'cancelled' | 'stopped' }
     | { state: 'error', error: string }
   export interface CheckoutClient {
     plan(): Promise<CheckoutResult>
@@ -261,6 +261,7 @@ declare module '~/utils/checkout-client.mjs' {
   export function formatPrice(cents: unknown, currency: unknown): string
   export function checkoutMode(plan: Record<string, unknown> | null | undefined): 'fake' | 'none' | 'unsupported'
   export function keyFileName(tenant: string): string
+  export function readClaimFragment(hash: string): { id: string, token: string }
   export function saveCheckout(b: { checkout_id?: unknown, claim_token?: unknown }, storage?: Storage): boolean
   export function loadCheckout(storage?: Storage): { id: string, token: string }
   export function dropClaimToken(storage?: Storage): void

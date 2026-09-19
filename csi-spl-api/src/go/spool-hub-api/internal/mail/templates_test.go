@@ -63,6 +63,9 @@ func TestMissingVariantControl(t *testing.T) {
 func TestEveryLocaleRendersItsLink(t *testing.T) {
 	const link = "https://app.example.com/fi/verify-email?token=0123abcd"
 	for _, id := range Templates {
+		if id == TemplateTenantInvite {
+			continue // no bearer link and no TTL by design: TestTenantInviteEveryLocale
+		}
 		for _, loc := range i18n.Supported {
 			subj, body, used, err := Render(id, loc, TemplateData{Link: link, TTL: 24 * time.Hour,
 				TenantID: "acme", TenantURL: "https://acme.example.com"})

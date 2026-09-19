@@ -1,0 +1,13 @@
+You have been invited to join the spool hub tenant {{.TenantID}} on SPOOL-HUB.AI as {{if eq .Role "owner"}}an owner{{else}}a member{{end}}.
+
+Sign in here:
+{{.SignInURL}}
+
+To accept, sign in with this email address: {{.Email}}
+- with Google, if this address is a Google account, or
+- with email and password: sign up with this address and confirm it from the email we send you.
+The invitation admits this address only.
+
+The invitation expires on {{.ExpiresAt}}.
+
+If you did not expect this invitation, you can ignore this email.

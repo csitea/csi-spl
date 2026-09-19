@@ -1,0 +1,13 @@
+Je bent uitgenodigd om lid te worden van spool hub-tenant {{.TenantID}} op SPOOL-HUB.AI als {{if eq .Role "owner"}}eigenaar{{else}}lid{{end}}.
+
+Meld je hier aan:
+{{.SignInURL}}
+
+Accepteer door je aan te melden met dit e-mailadres: {{.Email}}
+- met Google, als dit adres een Google-account is, of
+- met e-mail en wachtwoord: registreer je met dit adres en bevestig het via de e-mail die we je sturen.
+De uitnodiging geldt alleen voor dit adres.
+
+De uitnodiging verloopt op {{.ExpiresAt}}.
+
+Had je deze uitnodiging niet verwacht, dan kun je deze e-mail negeren.

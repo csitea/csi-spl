@@ -1,0 +1,13 @@
+SPOOL-HUB.AI üzerindeki spool hub kiracısı {{.TenantID}} içine {{if eq .Role "owner"}}sahip{{else}}üye{{end}} olarak katılmaya davet edildiniz.
+
+Buradan giriş yapın:
+{{.SignInURL}}
+
+Daveti kabul etmek için bu e-posta adresiyle giriş yapın: {{.Email}}
+- adres bir Google hesabıysa Google ile, ya da
+- e-posta ve parola ile: bu adresle kaydolun ve size göndereceğimiz e-postadan onaylayın.
+Davet yalnızca bu adresi kabul eder.
+
+Davetin süresi {{.ExpiresAt}} tarihinde dolar.
+
+Bu daveti beklemiyorsanız bu e-postayı yok sayabilirsiniz.

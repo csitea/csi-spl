@@ -1,0 +1,13 @@
+Jūs esat uzaicināts pievienoties spool hub īrniekam {{.TenantID}} vietnē SPOOL-HUB.AI kā {{if eq .Role "owner"}}īpašnieks{{else}}dalībnieks{{end}}.
+
+Piesakieties šeit:
+{{.SignInURL}}
+
+Lai pieņemtu uzaicinājumu, piesakieties ar šo e-pasta adresi: {{.Email}}
+- ar Google, ja šī adrese ir Google konts, vai
+- ar e-pastu un paroli: reģistrējieties ar šo adresi un apstipriniet to no e-pasta, ko mēs jums nosūtīsim.
+Uzaicinājums der tikai šai adresei.
+
+Uzaicinājums beidzas {{.ExpiresAt}}.
+
+Ja negaidījāt šo uzaicinājumu, varat šo e-pastu ignorēt.

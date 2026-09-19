@@ -33,6 +33,9 @@ type Message struct {
 	Template string
 	// Locale is the locale the body was rendered in (Render's usedLocale).
 	Locale string
+	// MessageID, when set, is sent as the Message-ID header ("<id@host>") so
+	// one send can be traced in the relay and the sender's mailbox.
+	MessageID string
 }
 
 // Sender delivers a rendered Message.
@@ -177,6 +180,9 @@ func buildRFC822(from string, msg Message) []byte {
 	b.WriteString("To: " + msg.To + "\r\n")
 	b.WriteString("Subject: " + encodeSubject(msg.Subject) + "\r\n")
 	b.WriteString("Date: " + time.Now().UTC().Format(time.RFC1123Z) + "\r\n")
+	if id := msg.MessageID; id != "" && !strings.ContainsAny(id, "\r\n") {
+		b.WriteString("Message-ID: " + id + "\r\n")
+	}
 	b.WriteString("MIME-Version: 1.0\r\n")
 	b.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
 	b.WriteString("Content-Transfer-Encoding: 8bit\r\n\r\n")
@@ -231,7 +237,8 @@ func (None) Send(context.Context, Message) error { return nil }
 type Log struct{ Logger zerolog.Logger }
 
 func (l Log) Send(_ context.Context, msg Message) error {
-	l.Logger.Info().Str("template", msg.Template).Str("locale", msg.Locale).Str("to", Digest(msg.To)).Msg("mail.log_sink")
+	l.Logger.Info().Str("template", msg.Template).Str("locale", msg.Locale).Str("to", Digest(msg.To)).
+		Str("message_id", msg.MessageID).Msg("mail.log_sink")
 	return nil
 }
 

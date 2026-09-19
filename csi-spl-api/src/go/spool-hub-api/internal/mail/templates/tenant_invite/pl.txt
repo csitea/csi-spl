@@ -1,0 +1,13 @@
+Zaproszono Cię do dołączenia do dzierżawy spool hub {{.TenantID}} na SPOOL-HUB.AI jako {{if eq .Role "owner"}}właściciel{{else}}członek{{end}}.
+
+Zaloguj się tutaj:
+{{.SignInURL}}
+
+Aby przyjąć zaproszenie, zaloguj się tym adresem e-mail: {{.Email}}
+- przez Google, jeśli ten adres jest kontem Google, lub
+- e-mailem i hasłem: zarejestruj się tym adresem i potwierdź go z wiadomości, którą wyślemy.
+Zaproszenie dopuszcza tylko ten adres.
+
+Zaproszenie wygasa {{.ExpiresAt}}.
+
+Jeśli nie spodziewałeś się tego zaproszenia, zignoruj tę wiadomość.

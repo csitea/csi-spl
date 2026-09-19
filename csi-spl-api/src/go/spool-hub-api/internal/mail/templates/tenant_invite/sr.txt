@@ -1,0 +1,13 @@
+Pozvani ste da se pridružite spool hub zakupcu {{.TenantID}} na SPOOL-HUB.AI kao {{if eq .Role "owner"}}vlasnik{{else}}član{{end}}.
+
+Prijavite se ovde:
+{{.SignInURL}}
+
+Da biste prihvatili, prijavite se sa ovom adresom e-pošte: {{.Email}}
+- preko Google-a, ako je ova adresa Google nalog, ili
+- e-poštom i lozinkom: registrujte se sa ovom adresom i potvrdite je iz poruke koju ćemo vam poslati.
+Pozivnica prihvata samo ovu adresu.
+
+Pozivnica ističe {{.ExpiresAt}}.
+
+Ako niste očekivali ovu pozivnicu, možete zanemariti ovu poruku.

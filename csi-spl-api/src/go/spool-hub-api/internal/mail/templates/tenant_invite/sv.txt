@@ -1,0 +1,13 @@
+Du har bjudits in till spool hub-tenanten {{.TenantID}} på SPOOL-HUB.AI som {{if eq .Role "owner"}}ägare{{else}}medlem{{end}}.
+
+Logga in här:
+{{.SignInURL}}
+
+Tacka ja genom att logga in med den här e-postadressen: {{.Email}}
+- med Google, om adressen är ett Google-konto, eller
+- med e-post och lösenord: registrera dig med den här adressen och bekräfta den via mejlet vi skickar dig.
+Inbjudan gäller bara den här adressen.
+
+Inbjudan går ut {{.ExpiresAt}}.
+
+Om du inte väntade dig den här inbjudan kan du bortse från mejlet.

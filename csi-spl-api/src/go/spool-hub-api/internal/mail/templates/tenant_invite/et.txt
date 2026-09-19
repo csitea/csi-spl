@@ -1,0 +1,13 @@
+Sind on kutsutud liituma spool hubi rentnikuga {{.TenantID}} saidil SPOOL-HUB.AI {{if eq .Role "owner"}}omanikuna{{else}}liikmena{{end}}.
+
+Logi sisse siin:
+{{.SignInURL}}
+
+Kutse vastuvõtmiseks logi sisse selle e-posti aadressiga: {{.Email}}
+- Google'iga, kui see aadress on Google'i konto, või
+- e-posti ja parooliga: registreeru selle aadressiga ja kinnita see meie saadetud kirjast.
+Kutse kehtib ainult selle aadressi jaoks.
+
+Kutse aegub {{.ExpiresAt}}.
+
+Kui sa seda kutset ei oodanud, võid selle kirja tähelepanuta jätta.

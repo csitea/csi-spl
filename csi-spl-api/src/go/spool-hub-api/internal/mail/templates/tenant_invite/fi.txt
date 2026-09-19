@@ -1,0 +1,13 @@
+Sinut on kutsuttu spool hubin vuokraajaan {{.TenantID}} palvelussa SPOOL-HUB.AI {{if eq .Role "owner"}}omistajaksi{{else}}jäseneksi{{end}}.
+
+Kirjaudu tästä:
+{{.SignInURL}}
+
+Hyväksy kutsu kirjautumalla tällä sähköpostiosoitteella: {{.Email}}
+- Googlella, jos osoite on Google-tili, tai
+- sähköpostilla ja salasanalla: rekisteröidy tällä osoitteella ja vahvista se lähettämästämme viestistä.
+Kutsu hyväksyy vain tämän osoitteen.
+
+Kutsu vanhenee {{.ExpiresAt}}.
+
+Jos et odottanut tätä kutsua, voit jättää tämän viestin huomiotta.

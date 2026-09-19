@@ -1,0 +1,13 @@
+Ați fost invitat să vă alăturați chiriașului spool hub {{.TenantID}} pe SPOOL-HUB.AI ca {{if eq .Role "owner"}}proprietar{{else}}membru{{end}}.
+
+Autentificați-vă aici:
+{{.SignInURL}}
+
+Pentru a accepta, autentificați-vă cu această adresă de e-mail: {{.Email}}
+- cu Google, dacă adresa este un cont Google, sau
+- cu e-mail și parolă: înregistrați-vă cu această adresă și confirmați-o din e-mailul pe care vi-l trimitem.
+Invitația admite doar această adresă.
+
+Invitația expiră la {{.ExpiresAt}}.
+
+Dacă nu vă așteptați la această invitație, puteți ignora acest e-mail.

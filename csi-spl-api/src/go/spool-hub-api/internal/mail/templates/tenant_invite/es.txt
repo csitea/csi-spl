@@ -1,0 +1,13 @@
+Te han invitado a unirte al inquilino de spool hub {{.TenantID}} en SPOOL-HUB.AI como {{if eq .Role "owner"}}propietario{{else}}miembro{{end}}.
+
+Inicia sesión aquí:
+{{.SignInURL}}
+
+Para aceptar, inicia sesión con esta dirección de correo: {{.Email}}
+- con Google, si la dirección es una cuenta de Google, o
+- con correo y contraseña: regístrate con esta dirección y confírmala desde el correo que te enviaremos.
+La invitación solo admite esta dirección.
+
+La invitación caduca el {{.ExpiresAt}}.
+
+Si no esperabas esta invitación, puedes ignorar este correo.

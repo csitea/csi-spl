@@ -1,0 +1,13 @@
+Esate pakviesti prisijungti prie spool hub nuomininko {{.TenantID}} svetainėje SPOOL-HUB.AI kaip {{if eq .Role "owner"}}savininkas{{else}}narys{{end}}.
+
+Prisijunkite čia:
+{{.SignInURL}}
+
+Norėdami priimti kvietimą, prisijunkite šiuo el. pašto adresu: {{.Email}}
+- per Google, jei šis adresas yra Google paskyra, arba
+- el. paštu ir slaptažodžiu: užsiregistruokite šiuo adresu ir patvirtinkite jį iš laiško, kurį jums atsiųsime.
+Kvietimas galioja tik šiam adresui.
+
+Kvietimas baigia galioti {{.ExpiresAt}}.
+
+Jei šio kvietimo nesitikėjote, galite nekreipti dėmesio į šį laišką.

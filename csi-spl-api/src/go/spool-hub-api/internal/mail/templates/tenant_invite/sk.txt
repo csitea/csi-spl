@@ -1,0 +1,13 @@
+Boli ste pozvaní pripojiť sa k nájomníkovi {{.TenantID}} v spool hub na SPOOL-HUB.AI ako {{if eq .Role "owner"}}vlastník{{else}}člen{{end}}.
+
+Prihláste sa tu:
+{{.SignInURL}}
+
+Pozvánku prijmete prihlásením s touto e-mailovou adresou: {{.Email}}
+- cez Google, ak je adresa účtom Google, alebo
+- e-mailom a heslom: zaregistrujte sa s touto adresou a potvrďte ju z e-mailu, ktorý vám pošleme.
+Pozvánka platí iba pre túto adresu.
+
+Pozvánka vyprší {{.ExpiresAt}}.
+
+Ak ste túto pozvánku nečakali, môžete tento e-mail ignorovať.

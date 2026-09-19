@@ -26,10 +26,13 @@ const (
 	// TemplateTenantPaid is the M2 claim mail: tenant URL + single-use claim
 	// link, NEVER key material (017 T008 / SEC-03).
 	TemplateTenantPaid = "tenant_paid"
+	// TemplateTenantInvite is the invitation mail (010 FR-016): tenant, role,
+	// address, sign-in URL, expiry. It carries NO bearer token.
+	TemplateTenantInvite = "tenant_invite"
 )
 
 // Templates lists every template id (tests iterate it).
-var Templates = []string{TemplateEmailVerification, TemplatePasswordReset, TemplateTenantPaid}
+var Templates = []string{TemplateEmailVerification, TemplatePasswordReset, TemplateTenantPaid, TemplateTenantInvite}
 
 // FallbackLocale renders when a locale variant is missing (csi-rel G-02).
 const FallbackLocale = "en"
@@ -42,6 +45,13 @@ type TemplateData struct {
 	TTL       time.Duration
 	TenantID  string
 	TenantURL string
+	// Invite fields (TemplateTenantInvite). SignInURL is not a bearer link:
+	// admission matches the verified Email (010 FR-014).
+	Role      string
+	Email     string
+	SignInURL string
+	// ExpiresAt is pre-formatted (UTC) by the caller.
+	ExpiresAt string
 }
 
 // Render loads templates/<id>/<locale>.{subject,txt}. An unknown or missing
@@ -118,4 +128,20 @@ func PasswordReset(to, locale, link string, ttl time.Duration) (Message, error) 
 func TenantPaid(to, locale, tenantID, tenantURL, claimLink string, ttl time.Duration) (Message, error) {
 	return build(TemplateTenantPaid, to, locale,
 		TemplateData{Link: claimLink, TTL: ttl, TenantID: tenantID, TenantURL: tenantURL})
+}
+
+// InviteData is what the invitation mail says (010 FR-016).
+type InviteData struct {
+	TenantID  string
+	Role      string
+	Email     string
+	SignInURL string
+	ExpiresAt time.Time
+}
+
+// TenantInvite renders the invitation mail in locale. The expiry is worded
+// in UTC ("2006-01-02 15:04 UTC") in every locale.
+func TenantInvite(to, locale string, d InviteData) (Message, error) {
+	return build(TemplateTenantInvite, to, locale, TemplateData{TenantID: d.TenantID, Role: d.Role,
+		Email: d.Email, SignInURL: d.SignInURL, ExpiresAt: d.ExpiresAt.UTC().Format("2006-01-02 15:04") + " UTC"})
 }

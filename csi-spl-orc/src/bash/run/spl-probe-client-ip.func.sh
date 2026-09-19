@@ -26,7 +26,7 @@
 # @param   /api/v1/auth/client-ip to measure the WUI host's Firebase rewrite
 # @param   path (HUB_URL=https://<wui host>): its chain can differ
 # @example ENV=dev ./run -a do_spl_probe_client_ip
-# @example ENV=dev HUB_URL=https://dev.spool-hub.ai PROBE_PATH=/api/v1/auth/client-ip ./run -a do_spl_probe_client_ip
+# @example ENV=dev HUB_URL=https://<wui fqdn> PROBE_PATH=/api/v1/auth/client-ip ./run -a do_spl_probe_client_ip
 # @example ENV=dev PROBE_MODE=spoof-control PROBE_N=130 ./run -a do_spl_probe_client_ip
 #------------------------------------------------------------------------------
 do_spl_probe_client_ip() {

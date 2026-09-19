@@ -1,0 +1,155 @@
+package store
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p AdmitPolicy, now time.Time) (string, error) {
+	if err := normalizeIdentity(&id); err != nil {
+		return "", err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	// Serialise concurrent first callbacks of one identity (one HUM-*, not two).
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1 || '|' || $2, 0))`,
+		id.Provider, id.Subject); err != nil {
+		return "", err
+	}
+	var hum string
+	var disabled bool
+	err = tx.QueryRow(ctx, `SELECT h.human_id, h.disabled_at IS NOT NULL FROM human_identities i
+		JOIN humans h ON h.human_id = i.human_id WHERE i.provider = $1 AND i.subject = $2`,
+		id.Provider, id.Subject).Scan(&hum, &disabled)
+	known := err == nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", err
+	}
+	if disabled {
+		return "", ErrNotAdmitted
+	}
+	if !known {
+		if err := tx.QueryRow(ctx, `INSERT INTO humans (display_name, email, created_at)
+			VALUES (NULLIF($1, ''), NULLIF($2, ''), $3) RETURNING human_id`,
+			id.Name, id.Email, now).Scan(&hum); err != nil {
+			return "", err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO human_identities
+			(provider, subject, human_id, email, email_verified, created_at, last_login_at)
+			VALUES ($1, $2, $3, NULLIF($4, ''), $4 <> '', $5, $5)`,
+			id.Provider, id.Subject, hum, id.Email, now); err != nil {
+			return "", err
+		}
+	} else {
+		if _, err := tx.Exec(ctx, `UPDATE human_identities SET last_login_at = $3,
+			email = COALESCE(NULLIF($4, ''), email), email_verified = email_verified OR $4 <> ''
+			WHERE provider = $1 AND subject = $2`, id.Provider, id.Subject, now, id.Email); err != nil {
+			return "", err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE humans SET email = COALESCE(NULLIF($2, ''), email),
+			display_name = COALESCE(NULLIF($3, ''), display_name) WHERE human_id = $1`,
+			hum, id.Email, id.Name); err != nil {
+			return "", err
+		}
+	}
+	if tenant != "" {
+		if err := s.admitTx(ctx, tx, hum, id.Email, tenant, p, now); err != nil {
+			return "", err // rollback: a refusal writes nothing
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	return hum, nil
+}
+
+func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant string, p AdmitPolicy, now time.Time) error {
+	// The tenant row lock serialises bootstrap: one owner, not two.
+	var one int
+	err := tx.QueryRow(ctx, `SELECT 1 FROM tenants WHERE tenant_id = $1 FOR UPDATE`, tenant).Scan(&one)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotAdmitted
+	}
+	if err != nil {
+		return err
+	}
+	var member bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM tenant_memberships
+		WHERE tenant_id = $1 AND human_id = $2)`, tenant, hum).Scan(&member); err != nil {
+		return err
+	}
+	if member {
+		return nil
+	}
+	if email != "" {
+		var role, by string
+		err := tx.QueryRow(ctx, `UPDATE tenant_invites SET accepted_at = $3, accepted_by = $4
+			WHERE tenant_id = $1 AND email = $2 AND accepted_at IS NULL AND expires_at > $3
+			RETURNING role, invited_by`, tenant, email, now, hum).Scan(&role, &by)
+		if err == nil {
+			_, err = tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
+				VALUES ($1, $2, $3, $4, $5)`, tenant, hum, role, now, by)
+			return err
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+	}
+	if p.BootstrapOwner {
+		tag, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
+			SELECT $1, $2, 'owner', $3, 'bootstrap'
+			WHERE NOT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = $1)`, tenant, hum, now)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 1 {
+			return nil
+		}
+	}
+	return ErrNotAdmitted
+}
+
+func (s *Postgres) MemberRole(ctx context.Context, humanID, tenant string) (string, error) {
+	var role string
+	err := s.pool.QueryRow(ctx, `SELECT m.role FROM tenant_memberships m
+		JOIN humans h ON h.human_id = m.human_id
+		WHERE m.tenant_id = $1 AND m.human_id = $2 AND h.disabled_at IS NULL`, tenant, humanID).Scan(&role)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return role, err
+}
+
+func (s *Postgres) PutInvite(ctx context.Context, in Invite, now time.Time) error {
+	if err := normalizeInvite(&in); err != nil {
+		return err
+	}
+	tag, err := s.pool.Exec(ctx, `INSERT INTO tenant_invites (tenant_id, email, role, invited_by, created_at, expires_at)
+		SELECT $1, $2, $3, $4, $5, $6 WHERE EXISTS (SELECT 1 FROM tenants WHERE tenant_id = $1)
+		ON CONFLICT (tenant_id, email) DO UPDATE SET role = EXCLUDED.role, invited_by = EXCLUDED.invited_by,
+			created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at, accepted_at = NULL, accepted_by = NULL`,
+		in.TenantID, in.Email, in.Role, in.InvitedBy, now, in.ExpiresAt)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) UnlinkIdentity(ctx context.Context, provider, subject string) error {
+	_, err := s.pool.Exec(ctx, `DELETE FROM human_identities WHERE provider = $1 AND subject = $2`, provider, subject)
+	return err
+}
+
+// disableHuman is a test hook (humans.disabled_at); no production caller yet.
+func (s *Postgres) disableHuman(humanID string) {
+	s.pool.Exec(context.Background(), `UPDATE humans SET disabled_at = now() WHERE human_id = $1`, humanID) //nolint:errcheck
+}

@@ -24,6 +24,7 @@ type Memory struct {
 	messages   map[[2]string]*Message
 	deliveries map[[3]string]*memDelivery
 	seq        int
+	hum        memHumans // humans_memory.go, guarded by mu
 }
 
 type memPin struct {

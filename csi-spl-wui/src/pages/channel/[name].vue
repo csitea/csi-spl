@@ -4,8 +4,13 @@
       <h2>#{{ name }}</h2>
       <span class="muted">last 50 · tenant-scoped<template v-if="retention"> · {{ retention }} retention</template></span>
     </header>
-    <MessageFeed />
-    <MessageComposer @send="onSend" />
+    <MessageComposer
+      omnibox
+      :placeholder="'Message #' + name + ' — Enter to send · /search to filter'"
+      @send="onSend"
+      @search="channel.setSearch"
+    />
+    <MessageFeed :label="'#' + name + ', newest first'" />
   </div>
 </template>
 

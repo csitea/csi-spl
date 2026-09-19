@@ -1,5 +1,5 @@
 <template>
-  <aside v-if="thread.open" class="thread">
+  <aside v-if="thread.open" class="thread live-pane" aria-label="Thread">
     <header>
       <strong>Thread</strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
@@ -7,19 +7,29 @@
         <button class="btn ghost" type="button" @click="thread.close()">Close</button>
       </div>
     </header>
-    <div class="feed-body">
-      <ErrorNotice v-if="loadError" :message="loadError" source="thread" test-id="thread-error" />
-      <MessageCard
-        v-for="m in shown"
-        :key="m.msg_id"
-        :msg="m"
-      />
+    <div class="pinned-root">
+      <MessageCard v-if="split.root" :msg="split.root" />
+      <p v-else-if="!loading && !loadError" class="muted">Empty thread.</p>
     </div>
     <MessageComposer
+      omnibox
       :parent-task-id="thread.parentTaskId || undefined"
-      placeholder="Reply in thread"
+      placeholder="Reply — Enter to send · /search to filter"
       @send="onSend"
+      @search="(q: string) => { search = q }"
     />
+    <div class="feed-body">
+      <ErrorNotice v-if="loadError" :message="loadError" source="thread" test-id="thread-error" />
+      <LiveFeed
+        label="Replies, newest first"
+        :rows="replies"
+        :has-older="false"
+        :loading="loading"
+        :search="search"
+        :last-live="lastLive"
+        @clear-search="search = ''"
+      />
+    </div>
   </aside>
 </template>
 
@@ -29,6 +39,7 @@ import { useThreadStore } from '~/stores/thread'
 import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
+import { matchesSearch, rootAndReplies } from '~/utils/feed.mjs'
 import { applyVerbosity } from '~/utils/verbosity.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -39,22 +50,33 @@ const api = useSpoolApi()
 /*
  * Live: a channel / DM feed row is a thread root only (view-v1 §4.3), so the
  * replies come from GET /v1/view/threads/{task_id} and then the WS frames.
+ * 013 (X3): pinned root, reply Omnibox, replies newest first — as LiveThreadPane.
  */
 const liveRows = ref<SpoolMessage[]>([])
 const loadError = ref('')
-const shown = computed(() => api.mock
-  ? thread.messages
-  : applyVerbosity(liveRows.value, thread.verbosity))
+const loading = ref(false)
+const search = ref('')
+const lastLive = ref<SpoolMessage | null>(null)
+const split = computed(() => rootAndReplies((api.mock ? thread.messages : liveRows.value) as SpoolMessage[]))
+const replies = computed(() => {
+  const rows = split.value.replies.filter((m: SpoolMessage) => matchesSearch(m, search.value))
+  return (api.mock ? rows : applyVerbosity(rows, thread.verbosity)) as SpoolMessage[]
+})
 
 watch(() => [thread.open, thread.parentTaskId] as const, async ([open, id]) => {
   liveRows.value = []
   loadError.value = ''
+  search.value = ''
+  lastLive.value = null
   if (api.mock || !open || !id) return
+  loading.value = true
   try {
     const data = await api.getThread(id) as { messages?: SpoolMessage[] }
     if (thread.parentTaskId === id) liveRows.value = data.messages || []
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : 'thread load failed'
+  } finally {
+    loading.value = false
   }
 }, { immediate: true })
 
@@ -65,6 +87,7 @@ if (import.meta.client && !api.mock) {
     if (!id || (row.task_id !== id && row.parent_task_id !== id)) return
     if (liveRows.value.some((r) => r.msg_id === row.msg_id)) return
     liveRows.value = [...liveRows.value, row]
+    lastLive.value = row
   })
   onUnmounted(() => { off() })
 }

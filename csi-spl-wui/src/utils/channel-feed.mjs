@@ -1,5 +1,7 @@
 /** Pure feed helpers. Node tests import this file; Vue stores wrap it. */
 
+import { matchesSearch, newestFirst, windowed } from './feed.mjs'
+
 export function topLevel(messages) {
   return messages
     .filter((m) => !m.parent_task_id)
@@ -236,4 +238,14 @@ export function rowFromAck(ack, frame, { from = '', channel = null } = {}) {
     channel,
     parent_task_id: null,
   }
+}
+
+/**
+ * 013 on /channel and /dm (X3): one card per thread root, newest first, the
+ * Omnibox `/search` filter, then the first `visible` rows. Storage order is
+ * untouched; a live append or an older page only changes what is sorted.
+ */
+export function channelView(messages, { search = '', visible = 50 } = {}) {
+  const roots = rootsByTask(topLevel(messages || []))
+  return windowed(newestFirst(roots.filter((m) => matchesSearch(m, search))), visible)
 }

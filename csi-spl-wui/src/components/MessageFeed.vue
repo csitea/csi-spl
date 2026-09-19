@@ -1,14 +1,17 @@
 <template>
   <div class="feed-body">
-    <p v-if="channel.loading" class="muted">Loading…</p>
-    <ErrorNotice v-else-if="channel.error" :message="channel.error" source="channel" test-id="channel-error" />
-    <p v-else-if="channel.feed.length === 0" class="muted">No messages yet.</p>
-    <MessageCard
-      v-for="m in channel.feed"
-      :key="m.msg_id"
-      :msg="m"
-      :count="channel.repliesFor(m.task_id)"
+    <ErrorNotice v-if="channel.error" :message="channel.error" source="channel" test-id="channel-error" />
+    <LiveFeed
+      :label="label"
+      :rows="channel.newestFirst"
+      :has-older="channel.hasOlder"
+      :loading="channel.loading"
+      :search="channel.search"
+      :last-live="channel.lastLive"
+      :count-for="channel.repliesFor"
       always-thread
+      @older="channel.loadOlder()"
+      @clear-search="channel.setSearch('')"
       @open-thread="thread.openThread"
     />
   </div>
@@ -19,6 +22,8 @@ import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useChannelStore } from '~/stores/channel'
 import { useThreadStore } from '~/stores/thread'
 
+/* 013 on /channel and /dm (X3): the lobby's LiveFeed over the channel store, newest first. */
+defineProps<{ label: string }>()
 const channel = useChannelStore()
 const thread = useThreadStore()
 </script>

@@ -17,6 +17,8 @@
         :posinset="i + 1"
         :setsize="hasOlder ? -1 : rows.length"
         :thread-link="openable(m)"
+        :count="countFor ? countFor(String(m.task_id || '')) : 0"
+        :always-thread="alwaysThread"
         @open-thread="(id: string) => $emit('open-thread', id)"
       />
     </TransitionGroup>
@@ -40,6 +42,9 @@ const props = defineProps<{
   label: string
   lastLive?: SpoolMessage | null
   currentTaskId?: string | null
+  /** /channel and /dm (X3): every card is a thread root with a reply count. */
+  countFor?: (taskId: string) => number
+  alwaysThread?: boolean
 }>()
 const emit = defineEmits<{ older: [], 'clear-search': [], 'open-thread': [id: string] }>()
 

@@ -4,6 +4,7 @@ import { useLive } from '~/composables/useLive'
 import {
   belongsTo,
   channelFollow,
+  channelView,
   channelSlug,
   feedRow,
   followPlan,
@@ -29,6 +30,8 @@ export type ChannelInfo = ChannelRow & {
 
 type FeedMessage = SpoolMessage & { count?: number, thread_row?: boolean }
 
+const WINDOW = 50
+
 function newId() {
   return globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : ''
 }
@@ -44,6 +47,13 @@ export const useChannelStore = defineStore('channel', () => {
   const error = ref<string | null>(null)
 
   const feed = computed(() => rootsByTask(topLevel(messages.value)))
+  /* 013 on /channel and /dm (X3): newest first under the Omnibox, windowed, /search filtered */
+  const search = ref('')
+  const visible = ref(WINDOW)
+  const lastLive = ref<FeedMessage | null>(null)
+  const view = computed(() => channelView(messages.value, { search: search.value, visible: visible.value }))
+  const newestFirst = computed(() => view.value.rows as FeedMessage[])
+  const hasOlder = computed(() => view.value.hasOlder)
   const followed = new Set<string>()
   let followedChannel = ''
 
@@ -74,7 +84,24 @@ export const useChannelStore = defineStore('channel', () => {
     channels.value = await api.listChannels({ read }) as ChannelInfo[]
   }
 
+  function resetView() {
+    search.value = ''
+    visible.value = WINDOW
+    lastLive.value = null
+  }
+
+  /** The bottom sentinel: reveal the next older window of the rows held. */
+  function loadOlder() {
+    if (view.value.hasOlder) visible.value += WINDOW
+  }
+
+  function setSearch(q: string) {
+    search.value = q
+    visible.value = WINDOW
+  }
+
   async function selectChannel(name: string) {
+    if (active.value !== name || peer.value) resetView()
     peer.value = null
     active.value = name
     unread.value[name] = 0
@@ -82,6 +109,7 @@ export const useChannelStore = defineStore('channel', () => {
   }
 
   async function selectDm(id: string) {
+    if (peer.value !== id) resetView()
     active.value = null
     peer.value = id
     unread.value[`dm:${id}`] = 0
@@ -109,7 +137,9 @@ export const useChannelStore = defineStore('channel', () => {
   /** One live WS message (useSpoolEvents): no poll in live mode. */
   function ingestLive(m: Record<string, unknown>) {
     if (!belongsTo(m, { channel: active.value, peer: peer.value })) return
-    messages.value = mergeLive(messages.value, m) as FeedMessage[]
+    const before = messages.value
+    messages.value = mergeLive(before, m) as FeedMessage[]
+    if (messages.value !== before) lastLive.value = m as unknown as FeedMessage
     follow()
   }
 
@@ -174,6 +204,12 @@ export const useChannelStore = defineStore('channel', () => {
     loading,
     error,
     feed,
+    newestFirst,
+    hasOlder,
+    search,
+    lastLive,
+    loadOlder,
+    setSearch,
     key,
     loadChannels,
     selectChannel,

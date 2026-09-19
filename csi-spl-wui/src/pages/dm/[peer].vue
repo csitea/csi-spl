@@ -5,8 +5,13 @@
       <h2>{{ peer }}</h2>
       <span class="muted">{{ online ? 'online' : 'offline · queued' }}</span>
     </header>
-    <MessageFeed />
-    <MessageComposer :placeholder="'Message ' + peer" @send="onSend" />
+    <MessageComposer
+      omnibox
+      :placeholder="'Message ' + peer + ' — Enter to send · /search to filter'"
+      @send="onSend"
+      @search="channel.setSearch"
+    />
+    <MessageFeed :label="peer + ', newest first'" />
   </div>
 </template>
 

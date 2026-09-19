@@ -1,7 +1,6 @@
 import { cleanAs, createLiveClient, tokenStale, wsUrl } from '~/utils/live-ws.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-data.mjs'
-import { reconnectDetector } from '~/utils/live-follow.mjs'
 
 /**
  * Identity for 2-session interop: ?as=HUM-2 (a v:1 agent id, wui-live-ws §2),
@@ -65,18 +64,17 @@ export function useLive() {
       state.value = api.configError || 'no_base'
       return null
     }
-    // live-ws calls onState('open') before it re-subscribes: defer, so the
-    // catch-up read goes out after the subscribes (subscribe first, then read).
-    const reconnected = reconnectDetector(() => queueMicrotask(() => {
-      for (const fn of reconnectListeners) fn()
-    }))
     live = createLiveClient({
       url: wsUrl(api.base),
       token: api.token || '',
       as: identity.value,
-      onState: (s: string) => {
-        state.value = s
-        reconnected(s)
+      onState: (s: string) => { state.value = s },
+      // live-ws fires this after the re-subscribes (subscribe first, then read)
+      onReconnected: () => {
+        for (const fn of reconnectListeners) fn()
+      },
+      onPresence: (f) => {
+        for (const fn of presenceListeners) fn(f as unknown as Record<string, unknown>)
       },
       onToken: (f: Record<string, unknown>) => {
         if (typeof f.upload_token === 'string') uploadToken.value = f.upload_token

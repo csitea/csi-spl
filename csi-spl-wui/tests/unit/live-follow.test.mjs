@@ -10,7 +10,6 @@ import {
   isDoor,
   lastCursor,
   newRows,
-  reconnectDetector,
   signInHref,
   splitPeer,
 } from '../../src/utils/live-follow.mjs'
@@ -71,10 +70,10 @@ describe('reconnect catch-up (wui-live-ws §7, view-v1 §4.4)', () => {
       return { messages: [row('b', 'c2', '2026-09-19T10:00:02Z'), row('c', 'c3', '2026-09-19T10:00:03Z')] }
     }
     const pending = []
-    const onState = reconnectDetector(() => {
+    const onReconnected = () => {
       pending.push(catchUp(getThread, 'T1', held).then((r) => { if (r) held.push(...r.rows) }))
-    })
-    const c = createLiveClient({ url: 'ws://x/v1/wui/ws', WebSocketImpl: FakeWS, onState, setTimer: timers.setTimer, clearTimer: timers.clearTimer })
+    }
+    const c = createLiveClient({ url: 'ws://x/v1/wui/ws', WebSocketImpl: FakeWS, onReconnected, setTimer: timers.setTimer, clearTimer: timers.clearTimer })
     c.connect()
     c.subscribe('T1')
     sockets[0].open()
@@ -103,11 +102,17 @@ describe('reconnect catch-up (wui-live-ws §7, view-v1 §4.4)', () => {
     const live = src('src/stores/live.ts')
     assert.match(live, /catchUp\(/)
     assert.match(live, /onReconnected\(/)
-    assert.match(src('src/composables/useLive.ts'), /reconnectDetector|onReconnected/)
+    const useLive = src('src/composables/useLive.ts')
+    assert.match(useLive, /onReconnected: \(\) =>/)
+    assert.match(useLive, /onPresence: \(f\) =>/)
   })
 })
 
 describe('door UX (view-v1 §2: a 401 view_door is a prompt)', () => {
+  it('a member-session door switches the client to credentials include once', () => {
+    for (const f of ['src/stores/live.ts', 'src/stores/viewer.ts']) assert.match(src(f), /setDoor\('session'\)/, f)
+  })
+
   it('recognises the door and nothing else', () => {
     assert.equal(isDoor({ status: 401, token: 'view_door' }), true)
     assert.equal(isDoor({ status: 401 }), true)
@@ -170,7 +175,7 @@ describe('presence (wui-live-ws §3, channels-v1 §6)', () => {
     assert.match(roster, /splitPeer\(/)
   })
 
-  it('live-ws hands presence frames to onPresence (A1)', { todo: 'A1 (CLE-3362) adds the presence event to live-ws.mjs' }, () => {
+  it('live-ws hands presence frames to onPresence (A1 2b74ce3)', () => {
     const { FakeWS, sockets } = fakeWs()
     const seen = []
     const c = createLiveClient({ url: 'ws://x/v1/wui/ws', WebSocketImpl: FakeWS, onPresence: (f) => seen.push(f) })

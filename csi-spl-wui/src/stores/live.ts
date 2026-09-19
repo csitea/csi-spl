@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { matchesSearch, newestFirst, rootAndReplies, windowed } from '~/utils/feed.mjs'
-import { catchUp, isDoor } from '~/utils/live-follow.mjs'
+import { catchUp, doorModes, isDoor } from '~/utils/live-follow.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
 export const WINDOW = 50
@@ -59,6 +59,17 @@ function setup(key: 'main' | 'pane') {
     if (err.status !== 404) error.value = err.message || fallback
   }
 
+  /**
+   * view-v1 §2 / 010 FR-009: a door that takes a member session needs the
+   * sign-in cookie (credentials 'include'). Switch once and let the caller retry.
+   */
+  function sessionRetry(e: unknown) {
+    const err = e as { status?: number, token?: string, detail?: string }
+    if (!isDoor(err) || api.door === 'session' || !doorModes(err.detail).session) return false
+    api.setDoor('session')
+    return true
+  }
+
   /** wui-live-ws §7: after a reconnect, one after=<last cursor> read, deduped by msg_id. */
   async function catchUpAfterReconnect() {
     const id = taskId.value
@@ -100,7 +111,11 @@ function setup(key: 'main' | 'pane') {
     loading.value = true
     try {
       // 013: newest window first; older windows on scroll (loadOlder)
-      const data = await api.getThread(id, { order: 'desc', limit: WINDOW })
+      const first = () => api.getThread(id, { order: 'desc', limit: WINDOW })
+      const data = await first().catch((e) => {
+        if (sessionRetry(e)) return first()
+        throw e
+      })
       merge(data.messages)
       olderCursor.value = data.next
       if (opts.all || key === 'pane') await loadAll()

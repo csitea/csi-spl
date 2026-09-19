@@ -62,23 +62,6 @@ export async function catchUp(getThread, taskId, messages, limit = 200) {
 }
 
 /**
- * An `onState` hook that calls `fn` once per reconnect: an `open` that follows
- * a `reconnecting` (live-ws.mjs states). The first open is not a reconnect.
- * @param {() => void} fn
- * @returns {(state: string) => void}
- */
-export function reconnectDetector(fn) {
-  let dropped = false
-  return (state) => {
-    if (state === 'reconnecting') dropped = true
-    else if (state === 'open' && dropped) {
-      dropped = false
-      fn()
-    }
-  }
-}
-
-/**
  * A view-door refusal (view-v1 §2): 401 with `view_door`, or a bare 401.
  * @param {unknown} err
  * @returns {boolean}

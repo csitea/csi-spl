@@ -3,9 +3,14 @@
        fake        → the form POSTs {tenant_id, email}; checkout_id + claim_token
                      go to sessionStorage (never a URL); "Pay (dev fake)", then
                      /checkout/success,
+       card        → the same form, then the card step: the vendor's Payment
+                     Element (utils/card-element.mjs, csi-rel's storefront
+                     path) confirms the payment with return_url = the success
+                     page; the hub learns it from the signed webhook, never
+                     from this page,
        none        → "not on sale" (rail=none or available=false),
-       unsupported → the card rail has no payment step in this page yet: no
-                     form, so no checkout holds a slug it cannot pay for. -->
+       unsupported → a rail this page has no payment step for: no form, so no
+                     checkout holds a slug it cannot pay for. -->
 <template>
   <div class="login-card" data-test="checkout" :data-checkout-state="state" :data-rail="rail">
     <h1>{{ t('checkout.title') }}</h1>
@@ -30,6 +35,13 @@
         <p v-if="error" class="login-error" role="alert" data-test="checkout-error">{{ error }}</p>
         <button class="btn" type="submit" :disabled="busy" data-test="checkout-submit">{{ t('checkout.submit') }}</button>
       </form>
+      <div v-else-if="state === 'card'" class="checkout__form" data-test="checkout-card">
+        <p class="muted">{{ t('checkout.card_note') }}</p>
+        <p v-if="cardLoading" class="muted" role="status">{{ t('checkout.card_loading') }}</p>
+        <div ref="cardEl" class="checkout__card" data-test="checkout-card-element" />
+        <p v-if="error" class="login-error" role="alert" data-test="checkout-error">{{ error }}</p>
+        <button class="btn" type="button" :disabled="busy || cardLoading || !card" data-test="checkout-card-pay" @click="cardPay">{{ t('checkout.card_pay', { price }) }}</button>
+      </div>
       <div v-else-if="state === 'fake'" class="checkout__form">
         <p class="muted">{{ t('checkout.fake_note') }}</p>
         <p v-if="error" class="login-error" role="alert" data-test="checkout-error">{{ error }}</p>
@@ -40,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import {
   checkoutErrorKey,
   createCheckoutClient,
@@ -50,6 +62,7 @@ import {
   saveCheckout,
 } from '~/utils/checkout-client.mjs'
 import { validTenant } from '~/utils/tenant.mjs'
+import { mountCardPayment } from '~/utils/card-element.mjs'
 
 definePageMeta({ layout: 'login' })
 
@@ -57,9 +70,13 @@ const router = useRouter()
 const { t, locale } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 const client = createCheckoutClient()
-const state = ref<'loading' | 'unavailable' | 'form' | 'fake'>('loading')
+const state = ref<'loading' | 'unavailable' | 'form' | 'fake' | 'card'>('loading')
 const rail = ref('')
-const mode = ref<'fake' | 'none' | 'unsupported'>('none')
+const mode = ref<'fake' | 'card' | 'none' | 'unsupported'>('none')
+/* the card step: the mounted Payment Element (memory only; its client secret is never stored) */
+const cardEl = ref<HTMLElement | null>(null)
+const card = shallowRef<{ confirm: (u: string) => Promise<{ ok: boolean, error?: string }>, destroy: () => void } | null>(null)
+const cardLoading = ref(false)
 /* the plan's raw amount: formatted in the ACTIVE locale, so a language switch re-renders it */
 const plan = ref<{ cents: unknown, currency: unknown } | null>(null)
 const price = computed(() => (plan.value ? formatPrice(plan.value.cents, plan.value.currency, locale.value) : ''))
@@ -93,7 +110,7 @@ onMounted(async () => {
 })
 
 async function submit() {
-  if (busy.value || mode.value !== 'fake') return
+  if (busy.value || (mode.value !== 'fake' && mode.value !== 'card')) return
   errorCode.value = ''
   if (!validTenant(tenant.value)) {
     errorCode.value = 'bad_tenant_id'
@@ -117,11 +134,50 @@ async function submit() {
       state.value = 'fake'
       return
     }
+    if (String(out.data.rail || '') === 'card' && out.data.client_secret) {
+      await startCard(String(out.data.publishable_key || ''), String(out.data.client_secret))
+      return
+    }
     errorCode.value = 'payment_unavailable'
   } finally {
     busy.value = false
   }
 }
+
+async function startCard(publishableKey: string, clientSecret: string) {
+  state.value = 'card'
+  cardLoading.value = true
+  await nextTick()
+  try {
+    card.value = await mountCardPayment({ publishableKey, clientSecret, el: cardEl.value, locale: locale.value })
+  } catch (e) {
+    errorCode.value = (e as Error)?.message === 'card_sdk' ? 'card_sdk' : 'payment_unavailable'
+  } finally {
+    cardLoading.value = false
+  }
+}
+
+async function cardPay() {
+  if (busy.value || !card.value) return
+  busy.value = true
+  errorCode.value = ''
+  try {
+    const successUrl = new URL(localePath('/checkout/success'), window.location.origin).toString()
+    const out = await card.value.confirm(successUrl)
+    if (!out.ok) {
+      errorCode.value = out.error || 'card_failed'
+      return
+    }
+    await router.push(localePath('/checkout/success'))
+  } finally {
+    busy.value = false
+  }
+}
+
+onBeforeUnmount(() => {
+  card.value?.destroy()
+  card.value = null
+})
 
 async function fakePay() {
   if (busy.value) return
@@ -155,4 +211,5 @@ async function fakePay() {
   min-height: var(--tap);
 }
 .checkout__field small { overflow-wrap: anywhere; }
+.checkout__card { min-width: 0; min-height: var(--tap); }
 </style>

@@ -161,6 +161,9 @@
     "submit": "Nastavi na plaćanje",
     "fake_note": "Testno okruženje: novac se ne prenosi.",
     "fake_pay": "Plati (dev simulacija)",
+    "card_note": "Плаћање картицом. Подаци о картици иду само пружаоцу плаћања — никада овом сајту.",
+    "card_loading": "Учитава се образац за картицу…",
+    "card_pay": "Плати {price}",
     "your_spool": "Vaš spool",
     "try_again": "Pokušaj ponovo",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "Plaćanje još uvek nije potvrđeno — ponovo učitajte ovu stranicu za minut.",
       "network": "Hab nije odgovorio — pokušajte ponovo.",
       "storage_blocked": "Ovaj pregledač blokira skladište sesije — dozvolite ga za ovaj sajt i pokušajte ponovo.",
+      "card_declined": "Картица није прихваћена — проверите податке и покушајте поново.",
+      "card_failed": "Плаћање картицом није прошло — покушајте поново или користите другу картицу.",
+      "card_sdk": "Образац за картицу се није учитао — проверите везу или блокатор садржаја и освежите.",
       "generic": "Nešto je pošlo naopako — pokušajte ponovo."
     },
     "host": {

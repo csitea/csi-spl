@@ -161,6 +161,9 @@
     "submit": "Ödemeye devam et",
     "fake_note": "Test ortamı: para hareketi olmaz.",
     "fake_pay": "Öde (dev sahte)",
+    "card_note": "Kartla öde. Kart bilgilerin yalnızca ödeme sağlayıcısına gider — asla bu siteye gitmez.",
+    "card_loading": "Kart formu yükleniyor…",
+    "card_pay": "{price} öde",
     "your_spool": "Spool'unuz",
     "try_again": "Tekrar dene",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "Ödeme hâlâ onaylanmadı — bir dakika sonra bu sayfayı yeniden yükleyin.",
       "network": "Hub yanıt vermedi — tekrar deneyin.",
       "storage_blocked": "Bu tarayıcı oturum depolamasını engelliyor — bu site için izin verip tekrar deneyin.",
+      "card_declined": "Kart kabul edilmedi — bilgileri kontrol edip tekrar deneyin.",
+      "card_failed": "Kartla ödeme gerçekleşmedi — tekrar deneyin veya başka bir kart kullanın.",
+      "card_sdk": "Kart formu yüklenmedi — bağlantınızı veya içerik engelleyicinizi kontrol edip sayfayı yenileyin.",
       "generic": "Bir şeyler ters gitti — tekrar deneyin."
     },
     "host": {

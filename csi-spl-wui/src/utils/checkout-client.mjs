@@ -11,6 +11,7 @@
  *     component memory. This module never stores, logs or puts it in a URL.
  */
 import { validTenant } from './tenant.mjs'
+import { cardKeyUsable } from './card-element.mjs'
 
 export const CHECKOUT_PREFIX = '/api/v1/checkout'
 
@@ -35,6 +36,9 @@ const ERRORS = {
   timeout: 'The payment is still not confirmed — reload this page in a minute.',
   network: 'The hub did not answer — try again.',
   storage_blocked: 'This browser blocks session storage — allow it for this site and try again.',
+  card_declined: 'The card was not accepted — check the details and try again.',
+  card_failed: 'The card payment did not go through — try again, or use another card.',
+  card_sdk: 'The card form did not load — check your connection or content blocker and reload.',
 }
 
 const GENERIC_ERROR = 'Something went wrong — try again.'
@@ -82,16 +86,20 @@ export function formatPrice(cents, currency, locale) {
 /**
  * What the plan page can offer (checkout-v1 1.1 §1.1):
  *   'fake'        — rail=fake (lde/dev): the form, then "Pay (dev fake)"
+ *   'card'        — rail=card with a usable publishable key: the form, then
+ *                   the card step (card-element.mjs)
  *   'none'        — rail=none, or available=false: not on sale
- *   'unsupported' — a rail this page has no payment step for (the card rail,
- *                   or anything unknown): no form, so no checkout holds a slug
- *                   that the page cannot take payment for
+ *   'unsupported' — a rail this page has no payment step for (a card rail
+ *                   without a usable publishable key, or anything unknown):
+ *                   no form, so no checkout holds a slug that the page cannot
+ *                   take payment for
  */
 export function checkoutMode(plan) {
   const p = plan || {}
   const rail = String(p.rail || 'none')
   if (rail === 'none' || p.available === false) return 'none'
   if (rail === 'fake') return 'fake'
+  if (rail === 'card' && cardKeyUsable(p.publishable_key)) return 'card'
   return 'unsupported'
 }
 
@@ -192,7 +200,7 @@ export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' } =
     plan() {
       return call('/plan')
     },
-    /** §1.2 → data { checkout_id, claim_token, method, rail, tenant_url }. `method` omitted = the default. */
+    /** §1.2 → data { checkout_id, claim_token, method, rail, tenant_url } (+ client_secret, publishable_key on rail=card). `method` omitted = the default. */
     start({ tenant_id, email } = {}) {
       return call('', { method: 'POST', body: { tenant_id: String(tenant_id || ''), email: String(email || '') } })
     },

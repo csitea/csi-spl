@@ -161,6 +161,9 @@
     "submit": "Fortsätt till betalning",
     "fake_note": "Testmiljö: inga pengar dras.",
     "fake_pay": "Betala (dev-test)",
+    "card_note": "Betala med kort. Dina kortuppgifter går bara till betalningsleverantören — aldrig till den här webbplatsen.",
+    "card_loading": "Laddar kortformuläret…",
+    "card_pay": "Betala {price}",
     "your_spool": "Din spool",
     "try_again": "Försök igen",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "Betalningen är fortfarande inte bekräftad — ladda om sidan om en minut.",
       "network": "Hubben svarade inte — försök igen.",
       "storage_blocked": "Webbläsaren blockerar sessionslagring — tillåt det för den här webbplatsen och försök igen.",
+      "card_declined": "Kortet godkändes inte — kontrollera uppgifterna och försök igen.",
+      "card_failed": "Kortbetalningen gick inte igenom — försök igen eller använd ett annat kort.",
+      "card_sdk": "Kortformuläret laddades inte — kontrollera anslutningen eller innehållsblockeraren och ladda om.",
       "generic": "Något gick fel — försök igen."
     },
     "host": {

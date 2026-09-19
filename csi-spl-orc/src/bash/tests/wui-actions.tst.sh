@@ -32,9 +32,14 @@ spa_ln=$(grep -n '"source": "\*\*", "destination"' "$R" | head -1 | cut -d: -f1)
 [[ -f "$APP_ROOT/csi-spl-wui/package.json" ]] && pass "csi-spl-wui/package.json exists" || fail "missing WUI package.json"
 grep -q '"@pinia/nuxt"' "$APP_ROOT/csi-spl-wui/package.json" && pass "WUI depends on Pinia" || fail "Pinia missing"
 grep -q 'nuxt generate' "$APP_ROOT/csi-spl-wui/package.json" && pass "WUI has generate script" || fail "generate script"
-# no shop pages in the WUI tree
-if grep -rqiE 'wordpress|recaptcha|add.to.basket|stripe' "$APP_ROOT/csi-spl-wui" \
-     --exclude-dir=node_modules --exclude-dir=.nuxt --exclude-dir=.output 2>/dev/null; then
+# no shop pages in the WUI tree. The card vendor may be named ONLY by the
+# copied card step (006 T021w) and its unit test: the allow-list and its
+# CONTROLS live in csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh.
+if grep -rqiE 'wordpress|recaptcha|add.to.basket' "$APP_ROOT/csi-spl-wui" \
+     --exclude-dir=node_modules --exclude-dir=.nuxt --exclude-dir=.output 2>/dev/null ||
+   grep -rqiE 'stripe' "$APP_ROOT/csi-spl-wui" --exclude-dir=node_modules --exclude-dir=.nuxt --exclude-dir=.output \
+     --exclude=card-element.mjs --exclude=card-element.test.mjs 2>/dev/null ||
+   ! bash "$APP_ROOT/csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh" >/dev/null 2>&1; then
   fail "WUI tree still mentions shop entities"
 else
   pass "WUI tree has no shop entities"

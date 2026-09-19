@@ -75,6 +75,8 @@ const HUB_SOURCES = [...new Set([...hubCspSources(apiBase), ...hubCspSources(aut
 // <style> blocks of the generated bundle. CSP_PROD below is `nuxt preview`
 // only and keeps 'unsafe-inline' — no render step runs there to hash.
 // tests/unit/csp-policy.test.mjs pins every other directive to the render.
+// The card step's vendor origins (cnf env.payment.wui_csp) exist only in the
+// Hosting render: preview has no card rail, so frame-src stays 'self' here.
 //
 // lde additions over CSP_PROD, and ONLY these: Vite evaluates modules at
 // runtime ('unsafe-eval') and runs its HMR client from a blob: Worker; ws:/wss:
@@ -104,6 +106,7 @@ const CSP_PROD = [
   "img-src 'self' data:",
   "font-src 'self' data:",
   `connect-src 'self' ${HUB_SOURCES}`.trim(),
+  "frame-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

@@ -161,6 +161,9 @@
     "submit": "Continuă la plată",
     "fake_note": "Mediu de test: nu se transferă bani.",
     "fake_pay": "Plătește (simulare dev)",
+    "card_note": "Plătește cu cardul. Datele cardului ajung doar la procesatorul de plăți — niciodată pe acest site.",
+    "card_loading": "Se încarcă formularul cardului…",
+    "card_pay": "Plătește {price}",
     "your_spool": "Spool-ul dvs.",
     "try_again": "Încearcă din nou",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "Plata tot nu este confirmată — reîncărcați pagina peste un minut.",
       "network": "Hubul nu a răspuns — încercați din nou.",
       "storage_blocked": "Acest browser blochează stocarea sesiunii — permiteți-o pentru acest site și încercați din nou.",
+      "card_declined": "Cardul nu a fost acceptat — verificați datele și încercați din nou.",
+      "card_failed": "Plata cu cardul nu a reușit — încercați din nou sau folosiți alt card.",
+      "card_sdk": "Formularul cardului nu s-a încărcat — verificați conexiunea sau blocantul de conținut și reîncărcați.",
       "generic": "Ceva nu a mers bine — încercați din nou."
     },
     "host": {

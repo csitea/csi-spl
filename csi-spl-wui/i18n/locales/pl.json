@@ -161,6 +161,9 @@
     "submit": "Przejdź do płatności",
     "fake_note": "Środowisko testowe: żadne pieniądze nie są pobierane.",
     "fake_pay": "Zapłać (dev fake)",
+    "card_note": "Zapłać kartą. Dane karty trafiają tylko do operatora płatności — nigdy do tej strony.",
+    "card_loading": "Ładowanie formularza karty…",
+    "card_pay": "Zapłać {price}",
     "your_spool": "Twój spool",
     "try_again": "Spróbuj ponownie",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "Płatność nadal nie jest potwierdzona — odśwież tę stronę za minutę.",
       "network": "Hub nie odpowiedział — spróbuj ponownie.",
       "storage_blocked": "Ta przeglądarka blokuje pamięć sesji — zezwól na nią dla tej witryny i spróbuj ponownie.",
+      "card_declined": "Karta nie została przyjęta — sprawdź dane i spróbuj ponownie.",
+      "card_failed": "Płatność kartą nie powiodła się — spróbuj ponownie lub użyj innej karty.",
+      "card_sdk": "Formularz karty się nie załadował — sprawdź połączenie lub blokadę treści i odśwież.",
       "generic": "Coś poszło nie tak — spróbuj ponownie."
     },
     "host": {

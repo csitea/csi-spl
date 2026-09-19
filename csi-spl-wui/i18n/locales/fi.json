@@ -161,6 +161,9 @@
     "submit": "Jatka maksuun",
     "fake_note": "Testiympäristö: rahaa ei siirry.",
     "fake_pay": "Maksa (dev-testi)",
+    "card_note": "Maksa kortilla. Korttitietosi menevät vain maksupalvelulle — eivät koskaan tälle sivustolle.",
+    "card_loading": "Ladataan korttilomaketta…",
+    "card_pay": "Maksa {price}",
     "your_spool": "Sinun spoolisi",
     "try_again": "Yritä uudelleen",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "Maksua ei ole vieläkään vahvistettu — lataa sivu uudelleen minuutin kuluttua.",
       "network": "Hub ei vastannut — yritä uudelleen.",
       "storage_blocked": "Tämä selain estää istuntotallennuksen — salli se tälle sivustolle ja yritä uudelleen.",
+      "card_declined": "Korttia ei hyväksytty — tarkista tiedot ja yritä uudelleen.",
+      "card_failed": "Korttimaksu ei mennyt läpi — yritä uudelleen tai käytä toista korttia.",
+      "card_sdk": "Korttilomake ei latautunut — tarkista yhteys tai sisällönestäjä ja lataa sivu uudelleen.",
       "generic": "Jokin meni pieleen — yritä uudelleen."
     },
     "host": {

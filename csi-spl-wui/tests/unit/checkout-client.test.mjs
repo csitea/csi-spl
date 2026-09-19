@@ -131,13 +131,17 @@ describe('checkout-v1 client', () => {
     assert.equal(keyFileName('../etc'), 'tenant.root.key')
   })
 
-  it('checkoutMode (1.1 §1.1): only the fake rail opens the form', () => {
+  it('checkoutMode (1.1 §1.1): the fake rail, and the card rail with a usable publishable key, open the form', () => {
     assert.equal(checkoutMode({ rail: 'fake', available: true, methods: ['card'] }), 'fake')
     assert.equal(checkoutMode({ rail: 'fake' }), 'fake')
     assert.equal(checkoutMode({ rail: 'none' }), 'none')
     assert.equal(checkoutMode({ rail: 'fake', available: false }), 'none')
     assert.equal(checkoutMode({ rail: 'card', available: false }), 'none')
     assert.equal(checkoutMode({ rail: 'card', available: true }), 'unsupported')
+    assert.equal(checkoutMode({ rail: 'card', available: true, publishable_key: '' }), 'unsupported')
+    assert.equal(checkoutMode({ rail: 'card', available: true, publishable_key: 'sk_test_abc' }), 'unsupported')
+    assert.equal(checkoutMode({ rail: 'card', available: true, publishable_key: 'pk_test_abc123' }), 'card')
+    assert.equal(checkoutMode({ rail: 'card', available: false, publishable_key: 'pk_test_abc123' }), 'none')
     assert.equal(checkoutMode({ rail: 'hosted' }), 'unsupported')
     assert.equal(checkoutMode(null), 'none')
   })

@@ -161,6 +161,9 @@
     "submit": "Continue to payment",
     "fake_note": "Test environment: no money moves.",
     "fake_pay": "Pay (dev fake)",
+    "card_note": "Pay by card. Your card details go to the payment provider only — never to this site.",
+    "card_loading": "Loading the card form…",
+    "card_pay": "Pay {price}",
     "your_spool": "Your spool",
     "try_again": "Try again",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "The payment is still not confirmed — reload this page in a minute.",
       "network": "The hub did not answer — try again.",
       "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
+      "card_declined": "The card was not accepted — check the details and try again.",
+      "card_failed": "The card payment did not go through — try again, or use another card.",
+      "card_sdk": "The card form did not load — check your connection or content blocker and reload.",
       "generic": "Something went wrong — try again."
     },
     "host": {

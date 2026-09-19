@@ -71,6 +71,11 @@ function nuxtProdPolicy() {
 }
 
 const cnf = (env) => JSON.parse(readFileSync(join(REPO, `csi-spl-cnf/csi-spl/${env}.env.json`), 'utf8')).env
+/** cnf env.payment.wui_csp: the card step's vendor origins per directive (empty lists = none). */
+const card = (env) => {
+  const c = cnf(env).payment?.wui_csp ?? {}
+  return { script: c.script ?? [], frame: c.frame ?? [], connect: c.connect ?? [] }
+}
 
 const PAGE = [
   '<!DOCTYPE html><html><head>',
@@ -90,8 +95,12 @@ for (const env of ['dev', 'prd']) {
       p = hostingPolicy(env, bundle(PAGE, { 'login/index.html': PAGE }))
     })
 
-    it("script-src is 'self' plus the hash of the one executable inline script", () => {
-      assert.equal(p.get('script-src'), `'self' ${sha(INLINE_JS)}`)
+    it("script-src is 'self' plus the hash of the one executable inline script, plus cnf's card SDK origins", () => {
+      assert.equal(p.get('script-src'), [`'self'`, sha(INLINE_JS), ...card(env).script].join(' '))
+    })
+
+    it("frame-src is 'self' plus exactly cnf's card iframe origins (006 T021w)", () => {
+      assert.equal(p.get('frame-src'), [`'self'`, ...card(env).frame].join(' '))
     })
 
     it("style-src is 'self' plus the hash of the inline <style> block", () => {
@@ -112,8 +121,12 @@ for (const env of ['dev', 'prd']) {
 
     it("connect-src: 'self' plus the cnf hub hosts, each over https and wss, and nothing else", () => {
       const e = cnf(env)
-      const [self, ...rest] = p.get('connect-src').split(' ')
+      const [self, ...all] = p.get('connect-src').split(' ')
       assert.equal(self, "'self'")
+      // the card API origins (cnf env.payment.wui_csp.connect) come last, https only
+      const cardConnect = card(env).connect
+      assert.deepEqual(all.slice(all.length - cardConnect.length), cardConnect)
+      const rest = all.slice(0, all.length - cardConnect.length)
       assert.equal(rest.length % 2, 0, rest.join(' '))
       const hosts = []
       for (let i = 0; i < rest.length; i += 2) {
@@ -164,6 +177,31 @@ describe('CSP: the render refuses what a hash cannot allow (CONTROLS)', () => {
     assert.match(r.stderr, /style=/)
   })
 
+  it('a card origin that is not an absolute https origin -> refuses (no bare scheme, wildcard or path)', () => {
+    for (const bad of ['https:', '*', 'http://cards.example.com', 'https://*', 'https://cards.example.com/v3', "'unsafe-inline'"]) {
+      const dir = mkdtempSync(join(tmpdir(), 'csp-cnf-'))
+      const e = JSON.parse(readFileSync(join(REPO, 'csi-spl-cnf/csi-spl/dev.env.json'), 'utf8'))
+      e.env.payment = { ...(e.env.payment || {}), wui_csp: { script: [bad], frame: [], connect: [] } }
+      const repo = join(dir, 'r')
+      mkdirSync(join(repo, 'csi-spl-cnf/csi-spl'), { recursive: true })
+      mkdirSync(join(repo, 'csi-spl-orc/src/bash/scripts'), { recursive: true })
+      writeFileSync(join(repo, 'csi-spl-cnf/csi-spl/dev.env.json'), JSON.stringify(e))
+      writeFileSync(join(repo, 'csi-spl-orc/src/bash/scripts/render.sh'), readFileSync(RENDER, 'utf8'))
+      const out = join(dir, 'firebase.json')
+      const r = spawnSync('bash', [join(repo, 'csi-spl-orc/src/bash/scripts/render.sh')], { env: { ...process.env, ENV: 'dev', OUT: out, PUBLIC_DIR: bundle(PAGE) }, encoding: 'utf8' })
+      assert.notEqual(r.status, 0, bad)
+      assert.match(r.stderr, /wui_csp/, bad)
+    }
+  })
+
+  it('CONTROL: without card origins in cnf, script/frame/connect carry no vendor origin (prd today)', () => {
+    const p = hostingPolicy('prd', bundle(PAGE))
+    const c = card('prd')
+    assert.deepEqual(c, { script: [], frame: [], connect: [] })
+    assert.equal(p.get('frame-src'), "'self'")
+    assert.equal(p.get('script-src'), `'self' ${sha(INLINE_JS)}`)
+  })
+
   it('a changed inline script changes the hash (it is taken from the build, not written down)', () => {
     const a = hostingPolicy('dev', bundle(PAGE)).get('script-src')
     const b = hostingPolicy('dev', bundle(PAGE.replace(INLINE_JS, `${INLINE_JS};1`))).get('script-src')
@@ -180,7 +218,7 @@ describe('CSP: nuxt.config CSP_PROD (nuxt preview) matches the Hosting policy', 
   it('same value for every directive except the hashed ones and connect-src', () => {
     const a = nuxtProdPolicy()
     for (const [k, v] of hostingPolicy('dev', bundle(PAGE))) {
-      if (['script-src', 'style-src', 'connect-src'].includes(k)) continue
+      if (['script-src', 'style-src', 'connect-src', 'frame-src'].includes(k)) continue
       assert.equal(a.get(k), v, k)
     }
   })
@@ -191,5 +229,7 @@ describe('CSP: nuxt.config CSP_PROD (nuxt preview) matches the Hosting policy', 
     assert.equal(a.get('style-src'), "'self' 'unsafe-inline'")
     assert.ok(a.get('connect-src').startsWith("'self'"))
     assert.ok(a.get('connect-src').includes('${HUB_SOURCES}'))
+    // preview has no card rail: frame-src is 'self' only
+    assert.equal(a.get('frame-src'), "'self'")
   })
 })

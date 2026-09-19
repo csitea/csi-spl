@@ -110,13 +110,31 @@ connect = ["'self'"]
 for h in dict.fromkeys(hosts):
     connect += ["https://" + h, "wss://" + h]
 
+# The card step (006 T021w): the card vendor's SDK, its iframes and its API,
+# ONLY as cnf env.payment.wui_csp lists them for this env ({script, frame,
+# connect}: absolute https origins, no path; a wildcard only as the leftmost
+# label under a named domain, e.g. https://*.<vendor-domain>). Empty = no card
+# rail on this env's WUI, and the policy is exactly what it was without it.
+card = (env.get("payment") or {}).get("wui_csp") or {}
+ORIGIN_RE = re.compile(r"^https://(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+def card_sources(kind):
+    out = []
+    for o in card.get(kind) or []:
+        if not isinstance(o, str) or not ORIGIN_RE.match(o):
+            sys.exit("FATAL env.payment.wui_csp." + kind + " entry " + repr(o) + " is not an absolute https origin (no bare wildcard, scheme or path)")
+        out.append(o)
+    return list(dict.fromkeys(out))
+card_script, card_frame, card_connect = card_sources("script"), card_sources("frame"), card_sources("connect")
+connect += card_connect
+
 csp = "; ".join([
     "default-src 'self'",
-    " ".join(["script-src 'self'"] + sorted(script_hashes)),
+    " ".join(["script-src 'self'"] + sorted(script_hashes) + card_script),
     " ".join(["style-src 'self'"] + sorted(style_hashes)),
     "img-src 'self' data:",
     "font-src 'self' data:",
     "connect-src " + " ".join(connect),
+    " ".join(["frame-src 'self'"] + card_frame),
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

@@ -161,6 +161,9 @@
     "submit": "Verder naar betalen",
     "fake_note": "Testomgeving: er wordt geen geld overgemaakt.",
     "fake_pay": "Betalen (dev fake)",
+    "card_note": "Betaal met je kaart. Je kaartgegevens gaan alleen naar de betaalprovider — nooit naar deze site.",
+    "card_loading": "Kaartformulier laden…",
+    "card_pay": "Betaal {price}",
     "your_spool": "Je spool",
     "try_again": "Opnieuw proberen",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "De betaling is nog steeds niet bevestigd — laad deze pagina over een minuut opnieuw.",
       "network": "De hub reageerde niet — probeer het opnieuw.",
       "storage_blocked": "Deze browser blokkeert sessieopslag — sta het toe voor deze site en probeer het opnieuw.",
+      "card_declined": "De kaart is niet geaccepteerd — controleer de gegevens en probeer het opnieuw.",
+      "card_failed": "De kaartbetaling is niet gelukt — probeer het opnieuw of gebruik een andere kaart.",
+      "card_sdk": "Het kaartformulier is niet geladen — controleer je verbinding of contentblocker en herlaad.",
       "generic": "Er ging iets mis — probeer het opnieuw."
     },
     "host": {

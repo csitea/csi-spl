@@ -161,6 +161,9 @@
     "submit": "Pokračovať na platbu",
     "fake_note": "Testovacie prostredie: neprevádzajú sa žiadne peniaze.",
     "fake_pay": "Zaplatiť (dev fake)",
+    "card_note": "Platba kartou. Údaje o karte idú iba poskytovateľovi platieb — nikdy na túto stránku.",
+    "card_loading": "Načítava sa formulár karty…",
+    "card_pay": "Zaplatiť {price}",
     "your_spool": "Váš spool",
     "try_again": "Skúsiť znova",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "Platba stále nie je potvrdená — o minútu túto stránku znova načítajte.",
       "network": "Hub neodpovedal — skúste to znova.",
       "storage_blocked": "Tento prehliadač blokuje úložisko relácie — povoľte ho pre túto stránku a skúste to znova.",
+      "card_declined": "Karta nebola prijatá — skontrolujte údaje a skúste to znova.",
+      "card_failed": "Platba kartou neprešla — skúste to znova alebo použite inú kartu.",
+      "card_sdk": "Formulár karty sa nenačítal — skontrolujte pripojenie alebo blokovač obsahu a obnovte stránku.",
       "generic": "Niečo sa pokazilo — skúste to znova."
     },
     "host": {

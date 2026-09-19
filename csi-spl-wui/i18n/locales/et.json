@@ -161,6 +161,9 @@
     "submit": "Jätka maksmisega",
     "fake_note": "Testkeskkond: raha ei liigu.",
     "fake_pay": "Maksa (dev, näidis)",
+    "card_note": "Maksa kaardiga. Kaardiandmed lähevad ainult makseteenuse pakkujale — mitte kunagi sellele saidile.",
+    "card_loading": "Kaardivormi laadimine…",
+    "card_pay": "Maksa {price}",
     "your_spool": "Sinu spool",
     "try_again": "Proovi uuesti",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "Makse pole ikka veel kinnitatud — laadi see leht minuti pärast uuesti.",
       "network": "Keskus ei vastanud — proovi uuesti.",
       "storage_blocked": "See brauser blokeerib seansisalvestuse — luba see selle saidi jaoks ja proovi uuesti.",
+      "card_declined": "Kaarti ei aktsepteeritud — kontrolli andmeid ja proovi uuesti.",
+      "card_failed": "Kaardimakse ei läinud läbi — proovi uuesti või kasuta teist kaarti.",
+      "card_sdk": "Kaardivorm ei laadinud — kontrolli ühendust või sisublokeerijat ja laadi leht uuesti.",
       "generic": "Midagi läks valesti — proovi uuesti."
     },
     "host": {

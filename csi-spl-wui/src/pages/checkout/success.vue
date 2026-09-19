@@ -45,6 +45,7 @@ import {
   pollAndClaim,
   resetClaim,
 } from '~/utils/checkout-client.mjs'
+import { cardReturnCleanUrl } from '~/utils/card-element.mjs'
 
 definePageMeta({ layout: 'login' })
 
@@ -70,6 +71,10 @@ let stopped = false
 let checkoutId = ''
 
 async function run() {
+  // a card payment that needed a redirect comes back here with the vendor's
+  // parameters (one is a client secret): drop them from the address bar first
+  const clean = cardReturnCleanUrl(window.location.href)
+  if (clean) window.history.replaceState(window.history.state, '', clean)
   const { id, token } = loadCheckout()
   checkoutId = id
   if (!id) {

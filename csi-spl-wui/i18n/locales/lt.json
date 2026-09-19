@@ -161,6 +161,9 @@
     "submit": "Tęsti į apmokėjimą",
     "fake_note": "Bandomoji aplinka: pinigai nejuda.",
     "fake_pay": "Mokėti (dev imitacija)",
+    "card_note": "Mokėkite kortele. Kortelės duomenys keliauja tik mokėjimų teikėjui — niekada į šią svetainę.",
+    "card_loading": "Įkeliama kortelės forma…",
+    "card_pay": "Mokėti {price}",
     "your_spool": "Jūsų spool",
     "try_again": "Bandyti dar kartą",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "Mokėjimas vis dar nepatvirtintas — po minutės įkelkite šį puslapį iš naujo.",
       "network": "Centras neatsakė — bandykite dar kartą.",
       "storage_blocked": "Ši naršyklė blokuoja sesijos saugyklą — leiskite ją šiai svetainei ir bandykite dar kartą.",
+      "card_declined": "Kortelė nepriimta — patikrinkite duomenis ir bandykite dar kartą.",
+      "card_failed": "Mokėjimas kortele nepavyko — bandykite dar kartą arba naudokite kitą kortelę.",
+      "card_sdk": "Kortelės forma neįsikėlė — patikrinkite ryšį ar turinio blokavimo priemonę ir perkraukite.",
       "generic": "Kažkas nutiko ne taip — bandykite dar kartą."
     },
     "host": {

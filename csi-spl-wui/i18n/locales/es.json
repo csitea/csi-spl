@@ -161,6 +161,9 @@
     "submit": "Continuar al pago",
     "fake_note": "Entorno de pruebas: no se mueve dinero.",
     "fake_pay": "Pagar (dev fake)",
+    "card_note": "Paga con tarjeta. Los datos de tu tarjeta van solo al proveedor de pagos, nunca a este sitio.",
+    "card_loading": "Cargando el formulario de tarjeta…",
+    "card_pay": "Pagar {price}",
     "your_spool": "Tu spool",
     "try_again": "Reintentar",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "El pago sigue sin confirmarse — recarga esta página en un minuto.",
       "network": "El hub no respondió — inténtalo de nuevo.",
       "storage_blocked": "Este navegador bloquea el almacenamiento de sesión — permítelo para este sitio e inténtalo de nuevo.",
+      "card_declined": "La tarjeta no fue aceptada: revisa los datos e inténtalo de nuevo.",
+      "card_failed": "El pago con tarjeta no se completó: inténtalo de nuevo o usa otra tarjeta.",
+      "card_sdk": "El formulario de tarjeta no se cargó: revisa tu conexión o el bloqueador de contenido y recarga.",
       "generic": "Algo salió mal — inténtalo de nuevo."
     },
     "host": {

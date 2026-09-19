@@ -161,6 +161,9 @@
     "submit": "Turpināt uz maksājumu",
     "fake_note": "Testa vide: nauda netiek pārskaitīta.",
     "fake_pay": "Maksāt (dev imitācija)",
+    "card_note": "Maksājiet ar karti. Kartes dati nonāk tikai pie maksājumu pakalpojuma sniedzēja — nekad šajā vietnē.",
+    "card_loading": "Ielādē kartes formu…",
+    "card_pay": "Maksāt {price}",
     "your_spool": "Jūsu spool",
     "try_again": "Mēģināt vēlreiz",
     "success": {
@@ -201,6 +204,9 @@
       "timeout": "Maksājums joprojām nav apstiprināts — pārlādējiet lapu pēc minūtes.",
       "network": "Centrs neatbildēja — mēģiniet vēlreiz.",
       "storage_blocked": "Šis pārlūks bloķē sesijas krātuvi — atļaujiet to šai vietnei un mēģiniet vēlreiz.",
+      "card_declined": "Karte netika pieņemta — pārbaudiet datus un mēģiniet vēlreiz.",
+      "card_failed": "Maksājums ar karti neizdevās — mēģiniet vēlreiz vai izmantojiet citu karti.",
+      "card_sdk": "Kartes forma neielādējās — pārbaudiet savienojumu vai satura bloķētāju un pārlādējiet.",
       "generic": "Kaut kas nogāja greizi — mēģiniet vēlreiz."
     },
     "host": {

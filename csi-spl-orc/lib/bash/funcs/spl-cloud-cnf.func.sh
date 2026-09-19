@@ -44,20 +44,26 @@ do_spl_cloud_cnf() {
   SPL_DB_NAME="$(_spl_get '.env.steps."040-cloud-sql-postgres".database_name')"
   SPL_DB_USER="$(_spl_get .env.hub.db_user)"
   SPL_DSN_SECRET="$(_spl_get .env.hub.secret_env.SPOOL_HUB_DB_DSN)"
+  # 017 T029: the schema owner's login and its own, never-injected DSN slot
+  SPL_DB_OWNER_USER="$(_spl_get .env.hub.db_owner_user)"
+  SPL_OWNER_DSN_SECRET="$(_spl_get .env.hub.db_owner_dsn_secret)"
   SPL_SQL_PROXY_IMAGE="$(_spl_get .env.hub.cloud_sql_proxy_image)"
   unset -f _spl_get
   SPL_SQL_CONN="$SPL_PROJECT:$SPL_REGION:$SPL_SQL_INSTANCE"
   SPL_REGISTRY_HOST="${SPL_IMAGE_REF%%/*}"
+  SPL_DB_ROLES_SQL="$APP_PATH/$SPL_ORG_APP-rdb/src/sql/postgres/spool-hub-roles"
 
   local v
   for v in SPL_PROJECT SPL_REGION SPL_FQDN SPL_IMAGE_REF SPL_MIGRATIONS_DIR SPL_SQL_INSTANCE SPL_DB_NAME \
-           SPL_DB_USER SPL_DSN_SECRET SPL_SQL_PROXY_IMAGE; do
+           SPL_DB_USER SPL_DSN_SECRET SPL_DB_OWNER_USER SPL_OWNER_DSN_SECRET SPL_SQL_PROXY_IMAGE; do
     [[ -n "${!v}" && "${!v}" != null ]] || { do_log "FATAL $v is empty: check $ENV.env.yaml / all.env.yaml"; return 1; }
   done
+  [[ "$SPL_DB_USER" != "$SPL_DB_OWNER_USER" && "$SPL_DSN_SECRET" != "$SPL_OWNER_DSN_SECRET" ]] ||
+    { do_log "FATAL cnf hub.db_user / db_owner_user (and their secrets) must differ (017 T029)"; return 1; }
   [[ "$SPL_PROJECT" == "$SPL_ORG_APP-$ENV" ]] || { do_log "FATAL cnf gcp_project=$SPL_PROJECT, the convention says $SPL_ORG_APP-$ENV; refusing"; return 1; }
   export SPL_ORG_APP SPL_STATE_DIR SPL_CNF SPL_PROJECT SPL_REGION SPL_FQDN SPL_IMAGE_REF SPL_IMAGE_SQL_SRC \
     SPL_MIGRATIONS_DIR SPL_SQL_INSTANCE SPL_DB_NAME SPL_DB_USER SPL_DSN_SECRET SPL_SQL_CONN SPL_REGISTRY_HOST \
-    SPL_SQL_PROXY_IMAGE
+    SPL_SQL_PROXY_IMAGE SPL_DB_OWNER_USER SPL_OWNER_DSN_SECRET SPL_DB_ROLES_SQL
 }
 
 # spl_dry_run -> 0 when DRY_RUN is 1 (the default), 1 when 0; fails otherwise

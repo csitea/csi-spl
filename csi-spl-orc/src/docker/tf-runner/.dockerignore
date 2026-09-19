@@ -1,0 +1,10 @@
+# Exclude files and directories
+.vscode
+**/node_modules
+**/*.log
+bin/
+# Exclude specific file types
+**/*.md
+
+# Exclude files in a directory
+dat/log/

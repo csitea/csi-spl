@@ -80,6 +80,13 @@ only lde step that needs the npm registry:
 cd csi-spl-orc && LDE_WUI_INSTALL=1 ./run -a do_wui_up
 ```
 
+The container runs whatever `node_modules` this tree has, so after a
+`package.json` / `pnpm-lock.yaml` change run `pnpm install` here first. A stale
+tree shows as `Could not load <module>. Is it installed?` in
+`docker logs <project>-wui-1`. If the WUI port is taken (e.g. by a host
+`nuxi dev` on 3000), `do_wui_up` names the process: stop it, or pass another
+`LDE_WUI_PORT`.
+
 Open `http://localhost:3000/` (cnf `env.lde.wui.host_port`). It lists the
 threads of tenant `t1` from the hub at `http://t1.localhost:58080`.
 

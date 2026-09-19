@@ -18,6 +18,7 @@ max_instances                = {{ hub["cloud_run"]["max_instances"] | tojson }}
 concurrency                  = {{ hub["cloud_run"]["concurrency"] | tojson }}
 timeout_seconds              = {{ hub["cloud_run"]["timeout_seconds"] | tojson }}
 ingress                      = {{ hub["cloud_run"]["ingress"] | tojson }}
+deletion_protection          = {{ hub["cloud_run"]["deletion_protection"] | tojson }}
 cloud_sql_instance_name      = {{ steps["040-cloud-sql-postgres"]["instance_name"] | tojson }}
 files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | tojson }}
 {#- spec 010 T020: auth.social.env, auth.native.env and mail.env join hub.env

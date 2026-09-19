@@ -145,3 +145,9 @@ variable "auth_secret_ids" {
   description = "Secret Manager ids of the sign-in + mail secrets (cnf env.auth.social.secret_env + env.mail.secret_env values). 030 creates each as an empty slot; versions are added out of band."
   default     = []
 }
+
+variable "deletion_protection" {
+  type        = bool
+  description = "google_cloud_run_v2_service.deletion_protection (cnf hub.cloud_run.deletion_protection). true in the committed config; flipped false through cnf ONLY for a destroy run, then back to true (owner, 2026-09-19)."
+  default     = true
+}

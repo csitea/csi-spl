@@ -9,5 +9,5 @@ zone_name = "spool-hub"
 zone_description = "spool hub public zone: adopted by 025-gcp-dns-zone, never recreate (registrar NS)"
 parent_zone_name = ""
 parent_zone_project = ""
-cloud_run_mapping_records = [{"name": "dev.api", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}]
+cloud_run_mapping_records = [{"name": "api", "rrdatas": ["216.239.32.21", "216.239.34.21", "216.239.36.21", "216.239.38.21"], "type": "A"}, {"name": "api", "rrdatas": ["2001:4860:4802:32::15", "2001:4860:4802:34::15", "2001:4860:4802:36::15", "2001:4860:4802:38::15"], "type": "AAAA"}, {"name": "dev.api", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}, {"name": "t1", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}, {"name": "e2e", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}]
 fqdn = "spool-hub.ai"

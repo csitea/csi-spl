@@ -131,3 +131,36 @@ spl_sql_proxy_stop() {
   _SPL_PROXY_PID="" _SPL_PROXY_CON=""
   return 0
 }
+
+# spl_pg_env <dsn> <cmd> [args] -> runs <cmd> with the DSN's login in PG* env
+# vars (PGUSER, PGPASSWORD, PGHOST, PGPORT, PGDATABASE), so a password never
+# sits in a psql argv that `ps` shows. For the local proxy DSN of spl_proxy_dsn.
+spl_pg_env() {
+  local parts
+  parts="$(python3 -c '
+import sys, urllib.parse as u
+p = u.urlsplit(sys.argv[1])
+print("\n".join([u.unquote(p.username or ""), u.unquote(p.password or ""), p.hostname or "", str(p.port or 5432), p.path.lstrip("/")]))
+' "$1")" || return 1
+  shift
+  local -a f
+  mapfile -t f <<<"$parts"
+  PGUSER="${f[0]}" PGPASSWORD="${f[1]}" PGHOST="${f[2]}" PGPORT="${f[3]}" PGDATABASE="${f[4]}" \
+    PGSSLMODE=disable PGCONNECT_TIMEOUT=15 "$@"
+}
+
+# spl_via_proxy <cmd> [args] -> as the pinned $GCP_ACCOUNT (do_gcp_pin_account:
+# the env's project SA), runs <cmd> with SPL_PROXY_DSN set to the hub DB's
+# login through a local Cloud SQL proxy, then stops the proxy. The DSN lives in
+# the environment of <cmd> only, never argv or a log.
+spl_via_proxy() {
+  local cloud_dsn dsn rc=0
+  cloud_dsn="$(spl_read_dsn)"
+  [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as $GCP_ACCOUNT"; return 1; }
+  spl_sql_proxy_start || return 1
+  dsn="$(spl_proxy_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" ||
+    { spl_sql_proxy_stop; do_log "FATAL the DSN in $SPL_DSN_SECRET is not postgres://<user>:<pw>@/<db>?host=/cloudsql/<conn>"; return 1; }
+  SPL_PROXY_DSN="$dsn" "$@" || rc=$?
+  spl_sql_proxy_stop
+  return $rc
+}

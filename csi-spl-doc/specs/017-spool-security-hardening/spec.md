@@ -207,6 +207,40 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   connect as a role with neither, and `spool hub` logs which one it got at startup.
   *Status:* Implemented (rdb `0014_tenant_rls.sql` `f228923`, `internal/store/rls.go` `f416b87`; applied dev + prd 2026-09-19; tasks T019..T023).
 
+- **FR-SEC-014 (Tenant isolation fails closed, and stays that way) — amendment 2026-09-19, CLE-3416:**
+  (a) A tenant policy MUST match nothing when `app.tenant_id` is unset OR EMPTY. A pooled connection reads `''`, not
+  NULL, after any earlier transaction-local `set_config`, so the form is
+  `tenant_id = NULLIF(current_setting('app.tenant_id', true), '')` (rdb `0021_rls_fail_closed.sql`). A FOR SELECT
+  policy may expose hub-wide catalogue rows whose `tenant_id` IS NULL (025 system roles); no policy may expose a tenant's
+  row, or pass any write, without a tenant.
+  (b) The store MUST refuse a tenant-scoped statement without a tenant: `inTenant` and the batch path return
+  `ErrNoTenant` for an empty or blank tenant before reaching Postgres.
+  (c) CI MUST fail when any table with a `tenant_id` column — read from the catalogue after every migration, never a
+  hand list — lacks `ENABLE` + `FORCE`, lacks a policy that lets a tenant read and write its own rows and not another's,
+  or has a policy that is TRUE for a row without a tenant (`TestRLSPoliciesFailClosed`).
+  (d) Every `asOperator` caller is named with its reason in `operatorCallers` (`TestOperatorScopeCallers`). Several
+  are reached from HTTP routes — checkout hold / status / claim, the payment webhooks, and the 026 auth session's
+  `Memberships` — each keyed by an unguessable checkout id, a verified webhook, or the session's own human, never by a
+  tenant id the caller chooses.
+  (e) The hub's runtime login MUST NOT be able to lift RLS for itself: it must not own a tenant table nor be able to
+  `SET ROLE` to its owner or to a superuser / `BYPASSRLS` role (`store.HubRoleCanLiftRLS`, logged at startup as
+  `db.rls_liftable` / `db.rls_not_liftable`; `do_spl_db_rls_check` reports `liftable`, and `EXPECT_NOT_LIFTABLE=1`
+  exits 5). `hub-pg.tst.sh` proves the shape with a non-owner runtime role (`TestRLSHubRoleCannotLiftRLS`).
+  *Status:* (a)–(d) Implemented and live (0021 applied dev + prd 2026-09-19 17:06Z / 17:07Z). (e) the gate exists and
+  runs; the LIVE hub login `spool_hub` still owns the 15 tenant tables on dev and prd (`liftable=15`), because
+  `spool migrate` runs under the hub's own DSN. Closing it needs a migration owner role separate from the runtime role
+  (a Cloud SQL user, a second DSN secret, grants) — an infra change that waits for the owner's go (task T029).
+
+- **FR-SEC-015 (One permanent cross-tenant suite) — amendment 2026-09-19, CLE-3416 + CLE-3415:** Two tenants hold data
+  in EVERY `tenant_id` table (catalogue-driven; an unseeded new table fails the suite). A member, a browser socket and
+  a box of A try every read and write path against B — B's Host, `?tenant=B`, `X-Spool-Tenant: B` (026), and B's
+  task / message / file / channel / box ids on A's own tenant — and get refused, empty or 404, never B's data; B's
+  rows are unchanged after. Store half `internal/store/crosstenant_test.go`, hub half `internal/hub/crosstenant_test.go`
+  + `crosstenant_identity_test.go`, all `TestCrossTenant*`; `hub-pg.tst.sh` (10 ci hub job) requires every one to PASS
+  against Postgres. Invites and roles have no HTTP route (CLI / operator only; covered at the store level); human keys
+  are per human, not per tenant (`TestKeysOtherHumanRefused`).
+  *Status:* Implemented (`1e96587`, `17bbe5f`).
+
 ## 3. Non-Functional Requirements (NFR-SEC)
 
 - **NFR-SEC-001 (Audit Trail Integrity):** Administrative actions (tenant creation, box pinning, key revocation,
@@ -216,4 +250,4 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 - **NFR-SEC-003 (Minimal Distroless Attack Surface):** Production containers MUST execute as non-root users on
   distroless base images with read-only root filesystems where possible.
 
-<!-- version: 1.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:00:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:10:00Z -->

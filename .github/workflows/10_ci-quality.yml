@@ -195,19 +195,29 @@ jobs:
     name: "orc: hermetic action tests (stubbed gcloud/curl/docker)"
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # orc derives ORG/APP from the PARENT dirs, <base>/<ORG>/<ORG>-<APP>
+    # (csi-spl-orc/lib/bash/funcs/resolve-oap.func.sh), so the tree is checked
+    # out in the operator's layout: on the runner's default
+    # .../csi-spl/csi-spl it derives ORG=csi-spl and every tf-runner name is
+    # wrong (run 35447040549: tf-import-existing, tf-runner-make-path).
+    defaults:
+      run:
+        working-directory: csi/csi-spl
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: csi/csi-spl
 
       - name: Set up Go (version from go.mod)
         uses: actions/setup-go@v5
         with:
-          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          go-version-file: csi/csi-spl/csi-spl-api/src/go/spool-hub-api/go.mod
           cache: true
-          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
+          cache-dependency-path: csi/csi-spl/csi-spl-api/src/go/spool-hub-api/go.sum
 
       # checkout-fake-buy builds spool offline (GOPROXY=off).
       - name: Download Go modules
-        working-directory: csi-spl-api/src/go/spool-hub-api
+        working-directory: csi/csi-spl/csi-spl-api/src/go/spool-hub-api
         run: go mod download
 
       # checkout-fake-buy SKIPs its live part without a CACHED image.

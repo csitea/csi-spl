@@ -8,6 +8,9 @@
 # @description on a zero-member tenant a first sign-in becomes the bootstrap
 # @description owner (010 OQ-A5). Harvested from the 2026-09-19 t1-owner.sh /
 # @description prd-hub-invite.sh (adhoc-harvest.md). The DSN is never logged.
+# @description It then mails the invitation once (010 FR-016) over the env's
+# @description cnf relay (spl_invite_mail_env; transport not smtp = no mail,
+# @description said in the output). Resend: do_spl_hub_invite_email_send.
 # @description DRY_RUN=1 (default): print the invite, call no cloud.
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant slug
@@ -26,18 +29,19 @@ do_spl_hub_invite() {
   [[ "$role" == owner || "$role" == member ]] || { do_log "FATAL INVITE_ROLE must be owner or member, got: '$role'"; return 1; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if (( dry )); then
-    do_log "OK DRY_RUN would invite $email to $tenant as $role on $SPL_SQL_CONN, as the $SPL_PROJECT service account. Re-run with DRY_RUN=0."
+    do_log "OK DRY_RUN would invite $email to $tenant as $role on $SPL_SQL_CONN, as the $SPL_PROJECT service account, and mail the invitation (cnf mail transport: $(yq -r '.env.mail.env.SPOOL_HUB_MAIL_TRANSPORT // "none"' "$SPL_CNF")). Re-run with DRY_RUN=0."
     return 0
   fi
   spl_host_spool || return 1
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  spl_invite_mail_env || return 1
   spl_via_proxy _spl_hub_invite_run "$tenant" "$email" "$role"
 }
 
 _spl_hub_invite_run() {
   local out rc=0
-  out="$(SPOOL_HUB_DB_DSN="$SPL_PROXY_DSN" "$SPL_SPOOL" hub-invite --tenant "$1" --email "$2" --role "$3" 2>&1)" || rc=$?
+  out="$(SPOOL_HUB_DB_DSN="$SPL_PROXY_DSN" spl_run_with_mail_env "$SPL_SPOOL" hub-invite --tenant "$1" --email "$2" --role "$3" 2>&1)" || rc=$?
   (( rc == 0 )) || { do_log "FATAL hub-invite $2 to $1 as $3: $out"; return 1; }
   do_log "OK invited $2 to $1 as $3 ($GCP_ACCOUNT): $out"
 }

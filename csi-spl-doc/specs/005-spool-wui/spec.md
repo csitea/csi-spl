@@ -2,6 +2,8 @@
 
 **Feature ID**: `005-spool-wui` · **Milestone**: M3 · **Status**: Partial
 **Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo, verified on trunk `bbc41e7`; viewer code `9eafd8c`)
+**Restamped**: 2026-09-19 (M3 lane WIRE, C6): OQ-W1 answered and G3 closed by 003
+`contracts/channels-v1.md`; FR-005 / FR-011 / FR-012 re-stated against 013 and the M3 channel goal.
 
 **Ground rules, index, seams**: `../README.md` (status vocabulary §2.3, seams §5).
 **Narrative (end-state vision)**: `../../doc/md/SPEC-spool-wui.md` (Slack-like).
@@ -81,11 +83,11 @@ data (`401 view_door`).
 |---|---|
 | Send / reply as `HUM-*` from the browser | G1, G2 |
 | `@mention` command (`kind=task`) | G2 |
-| Channels (`#lobby`, `#tasks`, `#alerts`, custom) + channel creation | G3 |
-| DMs sidebar with online status | G2, G4 |
-| Notifications, unread badges | G3 |
-| Thread verbosity (`minimal / normal / verbose`) | message metadata not in `v:1` (G3) |
-| Per-channel retention (`#alerts` 7 d) | G3; retention today is 003's single sweep |
+| Channels (`#lobby`, `#tasks`, `#alerts`, custom) + channel creation | hub side done (003 `channels-v1.md`); WUI wiring off the mocks = phase 3 |
+| DMs sidebar with online status | hub side done (`view-v1` §4.3 `dm=true&peer=`, `presence` frames); human roster waits on HUMANS 0006; WUI wiring = phase 3 |
+| Notifications, unread badges | unread counts on `GET /v1/view/channels` (client-held `read=` cursors, 003 OQ-CH2); UI = WUI-UX lane |
+| Thread verbosity (`minimal / normal / verbose`) | inferred from `kind` (WUI-UX lane); no envelope field |
+| Per-channel retention (`#alerts` 7 d) | Implemented in the hub (`messages.expires_at` per channel); per-plan tiers = 006 OQ-006-1 |
 
 ## 2. Functional requirements
 
@@ -108,9 +110,13 @@ data (`401 view_door`).
   any request (`utils/tenant.mjs`, `tests/unit/tenant.test.mjs`). Verified live
   locally, n=1: default `t1` lists the seeded thread; `?tenant=nosuch` shows
   "Unknown tenant".
-- **FR-005** — Planned: threads keyed by `task_id` only. The live viewer MUST NOT
-  send or rely on `parent_task_id` or `channel` (not in frozen `v:1`). Today the
-  mock data still carries both; the live client no longer sends either (`9eafd8c`).
+- **FR-005** — Partial (restamped 2026-09-19): a thread is a `task_id`. `channel` and
+  `parent_task_id` are **hub-envelope** fields (003 `contracts/channels-v1.md`,
+  OQ-W1), never `v:1` fields; the viewer reads them from `GET /v1/view/threads`
+  (`channel`, `parent_task_id`) and sends them on the `/v1/wui/ws` `send` frame.
+  Replies share the thread's `task_id`; `parent_task_id` links child tasks. The
+  live client does not send either yet (phase-3 WUI wiring); the mock data folds
+  `parent_task_id || task_id`, which is compatible.
 - **FR-006** — Implemented: bodies go through `renderBody` (escape first, then a
   small markdown subset) before `v-html`; `tests/unit/view-api.test.mjs` asserts
   `<script>` / `<img onerror>` render as text (`9eafd8c`).
@@ -128,11 +134,14 @@ data (`401 view_door`).
   fail-closed (`401 view_door`) until the token format (003 OQ-16) or the social
   session (010 OQ-A1) is decided. The WUI sends the bearer header whenever it has a
   token, so no WUI change is needed when prd closes the door.
-- **FR-011** — Planned (M3): 3-Vertical-Pane Workspace Layout (`SPEC-spool-wui-layout.md`). The desktop shell renders three dedicated vertical panes without horizontal page scroll:
+- **FR-011** — Implemented by 013 (`../013-spool-chat-reverse/tasks.md` T001–T008, C6); the
+  text below is kept as the design record. 3-Vertical-Pane Workspace Layout (`SPEC-spool-wui-layout.md`). The desktop shell renders three dedicated vertical panes without horizontal page scroll:
   1. Left Pane (`ChannelSidebar.vue`, 260px): workspace brand, global thread navigation, public channels list, direct messages directory with presence awareness, and authenticated user profile.
   2. Middle Pane (`MessageFeed.vue`, flexible width): pinned **Top Omnibox** (default main input box where users type and hit Enter; search explicitly triggered via `/search`), top-level message feed flowing in reverse order (**newest messages prepended at the top**, older history scrolling downward), and thread expansion trigger.
   3. Right Pane (`ThreadPane.vue`, 380px): collapsible side panel rendering pinned root message card, prepended replies feed for active `parent_task_id`, verbosity level selector (`minimal`, `normal`, `verbose`), and thread reply composer.
-- **FR-012** — Planned (M3): Left Pane (People & Channels Directory).
+- **FR-012** — Partial (C6): the Left Pane shell exists (013); its channel list, DMs and
+  presence run on mock data until the phase-3 WUI wiring consumes 003
+  `channels-v1.md` (hub side Implemented 2026-09-19). Left Pane (People & Channels Directory).
   - Channels list displays default pinned channels (`#lobby`, `#tasks`, `#alerts` with 7-day retention) and custom channels, with unread badge counters and high-priority mention indicators. `#lobby` is the universal public common room (Slack's `#general` equivalent) that all tenant humans and bots/agents have access to by default.
   - Direct Messages & People section displays humans (`HUM-*`) with presence indicators, and autonomous AI agents (`CLE-*`, `GRK-*`, `AGY-*`) with deterministic robot avatars (`SPEC-spool-avatars.md`), `<id>@<box>` provenance labels, and connection status (solid green for active WebSocket session, hollow grey for offline queued).
   - Footer provides active session identity, connection health indicator, and theme switcher.
@@ -156,17 +165,19 @@ before M3); CI logs in chat (008, later); reversed chat (`SPEC-spool-chat-revers
 |---|---|---|---|
 | G1 | No door for humans on the view API yet: view token proposed (view-v1 §2, 003 OQ-16); social sign-in exists (010, WUI wired `1c4e1a6`) but does not yet reach `/v1/view/*` (010 OQ-A1) | `grep -rniE 'cookie\|oauth\|view_door' csi-spl-api/src/go/spool-hub-api/internal/hub/*.go -> 0` | 003 (token) / 006 (session) |
 | G2 | No `box-wui` signer; the browser cannot send | `grep -rn box-wui csi-spl-api/src/go -> 0` | 003 / 004 |
-| G3 | `channel` / `parent_task_id` are not `v:1` fields; 002 frozen | `grep -cE 'channel\|parent_task' ../002-box-agent-messaging/contracts/message-schema.md -> 0`; `messages.channel` + `channels` table exist, unused in M1 (`csi-spl-rdb/src/sql/postgres/spool-hub/0002_channels.sql`) | owner (OQ-W1) |
+| G3 | ~~`channel` / `parent_task_id` are not `v:1` fields~~ **closed** 2026-09-19: hub-envelope fields (OQ-W1 (a)), v:1 untouched | `grep -c 'ParentTaskID\|Channel' csi-spl-api/src/go/spool-hub-api/internal/wire/wire.go` -> non-zero; `grep -cE 'channel\|parent_task' ../002-box-agent-messaging/contracts/message-schema.md -> 0` | 003 (`contracts/channels-v1.md`) |
 | G4 | No read-only roster for humans yet | specified as view-v1 §4.1, Planned | 003 |
 | G5 | ~~view-v1 not implemented~~ **closed** `ec3d593` | `grep -c 'HandleFunc("GET /v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/view.go -> 4` | 003 |
 | G6 | ~~WUI live client calls routes that will not exist~~ **closed** `9eafd8c` | `grep -c '/v1/messages\|/v1/channels' csi-spl-wui/utils/spool-client.mjs -> 0` | 005 (T004) |
 
 ## 6. Open questions (to the owner via CLE-00)
 
-- **OQ-W1**: Channels need a `channel` field. Hub envelope field (like `to_box`),
-  a 002 amendment, or drop channels from M3?
+- ~~**OQ-W1**~~ **Answered 2026-09-19** (003 spec, WIRE lane; recommended option,
+  owner may overturn): (a) hub-envelope field like `to_box`, optional and signed
+  when present — chosen; (b) a 002 amendment — rejected (v:1 frozen); (c) drop
+  channels from M3 — rejected. `contracts/channels-v1.md`.
 - **OQ-W2** — *answered for lde/dev* (ORC, 2026-09-18): open reads on lde + dev,
   prd fail-closed. Still open for **prd**: view token (003 OQ-16) or social session
   (010 OQ-A1) as the door.
 
-<!-- version: 1.6.0 · updated: 2026-09-18 · last-edit: 2026-09-18T23:22:00Z -->
+<!-- version: 1.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T07:00:00Z -->

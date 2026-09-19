@@ -92,6 +92,18 @@ Contract `contracts/view-v1.md`. Status per task below; only the token door (T03
 - [x] T039 `#general` lobby: `SPOOL_HUB_LOBBY_TASK_ID` defined once in cnf (`2016093`), stored with channel `general`, empty 200 before the first post; `box-wui` reserved (no pin, not pinnable). — **Implemented**; same tests + `TestWUIDoorAndReservedBox`.
 - [x] T040 Files for browsers: CORS on POST/GET/DELETE `/v1/files`, owner-requested `DELETE /v1/files/{file_id}` (upload token; 204/404), `blob.Store.Delete` (Dir + GCS). — **Implemented**; `TestWUIFilesUploadDownloadDelete`, blob contract test.
 
+## Phase 10c: User Story 8 — Channels, threads, DMs, presence (M3 lane WIRE, 2026-09-19)
+
+Contract `contracts/channels-v1.md` (+ `view-v1.md` v0.5, `wui-live-ws.md` v0.3, `http-v1.md` v0.5). OQ-W1 resolved (spec.md).
+
+- [ ] T041 [US8] `internal/wire`: optional `Channel` / `ParentTaskID` on `Envelope`, signed only when present; `Frame.Channels` (hello/announce). Pre-M3 envelope golden stays byte-identical. — **Planned**.
+- [ ] T042 [US8] rdb `0008_channels_threads.sql`: seed `lobby`/`tasks`/`alerts` per tenant, migrate `channel='general'` → `lobby`, indexes for channel / parent reads. — **Planned**.
+- [ ] T043 [US8] `internal/store`: `Message.ParentTaskID`; channels (create / known / list with unread + members); subscriptions (replace per box, members per channel); thread queries with roots / parent / DM / peer / viewer; memory + Postgres, contract suite. — **Planned**.
+- [ ] T044 [US8] Hub: channel + parent on box sends and browser sends (`unknown_channel`, `general` alias), `POST /v1/channels` (+ preflight), `GET /v1/view/channels` unread/members, `/threads` roots + `dm`/`peer`, `/threads/{task_id}/children`. — **Planned**.
+- [ ] T045 [US8] Mention-driven routing: subscriptions from hello/announce, deliveries only for addressed members, `recv.agents`, drain recomputes `agents`; control test (no mention → no delivery). — **Planned**.
+- [ ] T046 [US8] Presence frames on `/v1/wui/ws` (box connect/close/announce diff, human first/last socket, snapshot after welcome). — **Planned**.
+- [ ] T047 [US8] Box client: `SPOOL_CHANNELS` → hello/announce `channels`; accept a channel `recv` for another `to_box` only with signed `channel` + `agents`, inbox copy per hosted agent. — **Planned**.
+
 ## Phase 11: Polish
 
 - [x] T037 [P] `/version` returns `{ version, commit, built_at }` as `contracts/http-v1.md` §1 says; today `server.go` writes only `{"version"}` (`grep -n '"version": s.o.Version' internal/hub/server.go -> 105`). Needs `-ldflags` for commit/build time in the hub image build (`do_build_push_hub_image`, 007 lane) plus the handler change here. — **Implemented**: `main.commit` / `main.builtAt` stamped by `csi-spl-api/src/bash/build.sh` (git HEAD + UTC time; `SPOOL_BUILD_COMMIT` / `SPOOL_BUILD_TIME` override), which `do_build_push_hub_image` already calls, so no orc change; `TestVersionBody`; a `build.sh` binary served `{"built_at":"2026-09-18T19:42:40Z","commit":"6a43acb8…","version":"0.1.0-dev"}` (n=1). Also `GET /` public hello (`TestRootHello`).
@@ -128,6 +140,11 @@ Contract `contracts/view-v1.md`. Status per task below; only the token door (T03
 | FR-021 CORS allow-list | T035 | Implemented |
 | FR-022 viewer tenant-scoped, bytes-as-stored | T031, T034, T036 | Implemented |
 | FR-023 Cloud Run-safe health path | T032 | Implemented (LB wiring: 007) |
+| FR-024 envelope `channel` / `parent_task_id` | T041, T043, T044 | Planned |
+| FR-025 channels: seed, alias, create, list | T042, T043, T044 | Planned |
+| FR-026 roots, children, DMs | T043, T044 | Planned |
+| FR-027 mention-driven routing | T045, T047 | Planned |
+| FR-028 presence | T046 | Planned |
 | NFR-001 region / cnf | T004, T023 | Implemented (dev) |
 | NFR-002 error mapping | T012, T020 | Implemented |
 | NFR-003 no schema fork | T003, T030 | Implemented |
@@ -144,6 +161,8 @@ Contract `contracts/view-v1.md`. Status per task below; only the token door (T03
 | `GET /healthz`, `GET /version` | FR-001 | Implemented (see FR-023 for Cloud Run) |
 | `GET /v1/health` | FR-023 | Implemented |
 | `GET /v1/view/*` (`contracts/view-v1.md`) | FR-018–FR-022 | Implemented (token door: OQ-16) |
+| `POST /v1/channels` (`contracts/channels-v1.md` §5.1) | FR-025 | Planned |
+| `GET /v1/view/threads/{task_id}/children` | FR-026 | Planned |
 
 ## Dependencies
 
@@ -161,4 +180,4 @@ Contract `contracts/view-v1.md`. Status per task below; only the token door (T03
 
 M1 of 003 = US1 + US2 + US3 + the WS tail of US4 — Implemented and green on Postgres + GCS; what remains for M1 is the cloud rollout (007) and the pipeline deploy (008). US7 is the next 003 code slice, due before 005 (M3) starts on real data.
 
-<!-- version: 0.6.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:46:02Z -->
+<!-- version: 0.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:58:00Z -->

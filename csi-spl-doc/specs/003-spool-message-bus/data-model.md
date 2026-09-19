@@ -96,8 +96,8 @@ session; the sender resolves `to_box` from it **before** signing (OQ-03).
 | `tenant_id` | text | FK `tenants(tenant_id)` |
 | `msg_id` | uuid | idempotency key **within** the tenant |
 | `task_id` | uuid | message / task identifier |
-| `parent_task_id` | uuid NULL | thread parent key for M3 nested replies |
-| `channel` | text NULL | channel slug (e.g. `general`, `tasks`, `dev`); NULL for DMs |
+| `parent_task_id` | uuid NULL | hub-envelope field: the parent task of a child task; NULL = root thread (replies share `task_id`, `contracts/channels-v1.md` §0) |
+| `channel` | text NULL | hub-envelope channel slug (e.g. `lobby`, `tasks`, `dev`; `general` is migrated to `lobby` by `0008`); NULL for DMs (`contracts/channels-v1.md`) |
 | `ts` | timestamptz | from the inner `v:1` |
 | `from_box` | text | envelope; must equal the hello box |
 | `from_id` | text | inner `from` (asserted by `from_box`) |
@@ -240,4 +240,4 @@ Per `contracts/limits.md` (owner `43b1050`):
   all three on Postgres 16 (`hub-pg.tst.sh`). `0002` (channels, M3) and `0003`
   (payment, 006) are materialised but unused by the M1 hub.
 
-<!-- version: 0.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:10:00Z -->
+<!-- version: 0.5.1 · updated: 2026-09-19 · last-edit: 2026-09-19T06:40:00Z -->

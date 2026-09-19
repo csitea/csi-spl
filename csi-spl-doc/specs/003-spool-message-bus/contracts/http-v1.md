@@ -72,13 +72,13 @@ Every frame is one JSON text message with a `type` discriminator. Unknown
 | # | Direction | `type` | Fields | Hub rule |
 |---|---|---|---|---|
 | 1 | hub → box | `challenge` | `nonce` | sent once, immediately after the upgrade. `nonce` = 32 random bytes, base64. Single use, bound to this socket |
-| 2 | box → hub | `hello` | `box_id`, `ts`, `nonce`, `sig`, `role`, `agents` | first frame, within 10 s, else close `4408`. See §2.2 |
+| 2 | box → hub | `hello` | `box_id`, `ts`, `nonce`, `sig`, `role`, `agents`, `channels?` | first frame, within 10 s, else close `4408`. See §2.2 |
 | 3 | hub → box | `welcome` | `box_id`, `upload_token`, `upload_token_expires_at`, `roster` | hello accepted. `roster` = tenant roster (§2.3) |
-| 4 | box → hub | `announce` | `agents` | `role=box` only. Replaces this box's announced set. Duplicate id in the list → error `roster_duplicate` (409) |
+| 4 | box → hub | `announce` | `agents`, `channels?` | `role=box` only. Replaces this box's announced set (and, M3, its channel subscriptions: `./channels-v1.md` §3). Duplicate id in the list → error `roster_duplicate` (409) |
 | 5 | hub → box | `roster` | `roster` | pushed to every `role=box` socket of the tenant when any box's set changes |
 | 6 | box → hub | `send` | `env` | §2.4. Reply is frame 7 or an `error` frame carrying the same `msg_id` |
 | 7 | hub → box | `sent` | `msg_id`, `task_id`, `ts`, `to_box`, `delivery` | `delivery` ∈ `sent`, `queued` |
-| 8 | hub → box | `recv` | `env` | the stored envelope, byte-for-byte as the sender signed it. Only to `role=box` sockets |
+| 8 | hub → box | `recv` | `env`, `agents?` | the stored envelope, byte-for-byte as the sender signed it. Only to `role=box` sockets. `agents` (M3) is set only on a mention-routed channel delivery whose `to_box` is another box: the local agents addressed (`./channels-v1.md` §4) |
 | 8a | hub → box | `queue_end` | `count` | after the queued `recv` frames that follow a `role=box` welcome; lets a one-shot `hub-sync` stop |
 | 9 | box → hub | `tail` | `task_id`, `follow` | tenant-scoped read of one task |
 | 10 | hub → box | `tail_msg` | `env` | one per stored message of the task, oldest first |
@@ -154,6 +154,11 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
   `delivery=queued`. Either way the send is a success.
 - The hub's responsibility **ends at frame delivery** (OQ-08). There is no ack
   frame; `spool-recv --ack` archives on the box only.
+- **M3 optional fields** (`./channels-v1.md` §2): the envelope may carry
+  `channel` and `parent_task_id` beside `to_box`. When present they are
+  signed too (`jq -cS` of `{from_box,to_box,msg}` plus each present field);
+  when absent the envelope and its signing payload are exactly the ones above,
+  so every pre-M3 box and envelope keeps working.
 - The receiving box re-verifies `sig` over the exact `{from_box,to_box,msg}`
   against its **locally synced** pin (`$SPOOL_ROOT/pins/box-<id>.pub`).
   Missing pin or bad `sig` → it refuses the frame (`78`) and writes nothing,
@@ -249,4 +254,4 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 - The only browser-facing surface is `./view-v1.md` (read-only). It never
   reintroduces the removed REST send/recv rows of §1.
 
-<!-- version: 0.4.6 · updated: 2026-09-18 · last-edit: 2026-09-18T20:46:02Z -->
+<!-- version: 0.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:50:00Z -->

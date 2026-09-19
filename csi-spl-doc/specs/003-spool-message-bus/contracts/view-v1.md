@@ -3,7 +3,7 @@
 Feature: `003-spool-message-bus`, User Story 7. Consumer: `../../005-spool-wui/`
 (it cites this file and does not restate it; seam in `../../README.md` §5).
 
-**Status: Implemented except the view token (§2, OQ-16).** Routes in
+**Status: Implemented except the view token (§2, OQ-16).** v0.5 (M3 WIRE): channel list with unread + members (§4.2), roots / DMs (§4.3), children (§4.5) — `TestViewChannelsThreadsDMs`. Routes in
 `csi-spl-api/src/go/spool-hub-api/internal/hub/view.go`, store queries in
 `internal/store/view.go` / `view_postgres.go`; tests `TestViewAPI`,
 `TestViewDoorTokenFailsClosed`, `TestViewReads` (memory + Postgres).
@@ -23,9 +23,9 @@ tenant, error and file rules).
   drains or claims a queued `deliveries` row, never marks anything `sent`,
   never touches `roster`, `boxes.last_hello_at` or pins. Two reads of the same
   cursor return the same bytes.
-- **Not a send path.** Human send (`HUM-<name>` via a hub-held `box-wui` key,
-  `SPEC-spool-wui.md` §4) and channel creation are M3 **write** features of
-  005 and are out of this contract. Nothing under `/v1/view/` accepts a body.
+- **Not a send path.** Human send (`./wui-live-ws.md`) and channel creation
+  (`POST /v1/channels`, `./channels-v1.md` §5.1) live outside `/v1/view/`.
+  Nothing under `/v1/view/` accepts a body.
 - **Not the box door.** The browser never opens `/v1/ws` (Ed25519 box door,
   `./http-v1.md` §2) and never holds a box key.
 
@@ -33,9 +33,10 @@ tenant, error and file rules).
 
 ```
 GET  /v1/view/roster                      boxes, pins (pubkeys), announced agents, online    FR-019
-GET  /v1/view/channels                    channels seen in stored messages, with counts      FR-019
-GET  /v1/view/threads                     thread list, newest activity first, paged          FR-019
+GET  /v1/view/channels                    defaults + created + seen channels, unread, members FR-019, FR-025
+GET  /v1/view/threads                     root threads (or DMs), newest activity first, paged FR-019, FR-026
 GET  /v1/view/threads/{task_id}           one thread's envelopes, oldest first, paged        FR-019
+GET  /v1/view/threads/{task_id}/children  child threads of a task (parent_task_id), paged    FR-026
 GET  /v1/files/{file_id}                  unchanged (./http-v1.md §3): tenant capability      FR-007
 ```
 
@@ -122,17 +123,22 @@ times** (the message's own `ts` is inside `env.msg`). Cursors are **opaque** str
 `online: false`. `pubkey` lets the viewer re-verify envelope `sig`s
 client-side (optional; the hub already verified them at ingest).
 
-### 4.2 `GET /v1/view/channels`
+### 4.2 `GET /v1/view/channels?read=<channel>~<cursor>`
 
 ```json
-{ "channels": [ { "channel": "alerts", "count": 12, "last_ts": "…" } ] }
+{ "channels": [ { "channel": "alerts", "name": "alerts", "default": true,
+    "retention_days": 7, "created_by": "hub", "count": 12, "last_ts": "…",
+    "last_cursor": "…", "unread": 2,
+    "members": { "agents": 3, "boxes": 2, "posters": 4 } } ] }
 ```
 
-Distinct non-null `messages.channel` in retention. In M1 `channel` is always
-NULL, so the list is empty; M3 channel metadata (`channels` table,
-`0002_channels.sql`) is joined in when 005 starts writing it.
+Every default channel (`lobby`, `tasks`, `alerts`), every created channel
+(`channels` table) and any channel seen in stored messages, sorted by slug.
+`channel` / `count` / `last_ts` keep their v0.4 meaning (`last_ts` is `null`
+for an empty channel). `read` (repeatable), `unread` and `members`:
+`./channels-v1.md` §5.2.
 
-### 4.3 `GET /v1/view/threads?limit=&before=&channel=&agent=`
+### 4.3 `GET /v1/view/threads?limit=&before=&channel=&agent=&roots=&dm=&peer=`
 
 ```json
 { "threads": [
@@ -145,8 +151,21 @@ NULL, so the list is empty; M3 channel metadata (`channels` table,
 ```
 
 Ordered by `last_ts` descending; `before` pages to older threads.
-`channel=` filters on `messages.channel`; `agent=` matches `from_id` or
-`to_id`. Only messages still in retention (`./limits.md`) are counted.
+`channel=` filters on `messages.channel` (`general` = `lobby`); `agent=` matches
+`from_id` or `to_id`. Only messages still in retention (`./limits.md`) are counted.
+
+- `parent_task_id` / `channel` are the **hub-envelope** fields of the thread's
+  first message (`./channels-v1.md` §2), `null` when absent.
+- **Roots by default** (v0.5): only threads whose `parent_task_id` is `null`.
+  `roots=false` lists child threads too. Before M3 no message carries a
+  parent, so the default list is unchanged for existing data.
+- **DMs**: `dm=true` keeps only messages with no channel (`channel IS NULL`);
+  `peer=<id>` or `peer=<id>@<box>` keeps threads with a message from or to that
+  peer (`GET /v1/view/threads?dm=true&peer=CLE-07`). When the reader holds a
+  member session (`HUM-*`), `dm=true` also requires the reader to be a party
+  of the thread (private delivery); with door `off` there is no reader id and
+  no such filter (lde/dev only). `dm` must be `true` or `false`, else
+  `400 bad_json`.
 
 ### 4.4 `GET /v1/view/threads/{task_id}?limit=&after=` | `?order=desc&limit=&before=`
 
@@ -176,6 +195,15 @@ Ordered by `last_ts` descending; `before` pages to older threads.
   no more often than every 2 s. A browser tail socket (`/v1/view/ws`, reusing
   the `tail_msg` frame shape) is **post-first-cut** and needs its own FR.
 
+### 4.5 `GET /v1/view/threads/{task_id}/children?limit=&before=`
+
+Same shape and paging as §4.3 (`threads`, `next`), listing the threads whose
+`parent_task_id` is `{task_id}`, newest activity first. Replies **within** a
+thread are the thread's own messages (§4.4 pages them); children are the
+separate tasks it spawned (`./channels-v1.md` §0). A parent with no children
+answers `200 {"threads": [], "next": null}`; a non-UUID `task_id` is
+`404 not_found`.
+
 ## 5. Hygiene and limits
 
 - Tenant-scoped on every query (FR-015); a `task_id` of another tenant is
@@ -186,7 +214,9 @@ Ordered by `last_ts` descending; `before` pages to older threads.
 
 ## 6. Error tokens added by this contract
 
-`view_door` (401), `bad_cursor` (400), `method_not_allowed` (405). Existing
+`view_door` (401), `bad_cursor` (400), `method_not_allowed` (405), and
+`bad_channel` (400), `channel_exists` (409), `unknown_channel` (404) from
+`./channels-v1.md`. Existing
 tokens reused: `unknown_tenant`, `not_found`, `quota`, `unpaid` (006 decides
 whether reads are gated while `unpaid`; this contract does not gate them).
 
@@ -198,4 +228,4 @@ a `POST /v1/channels`). None of those routes exists on the hub
 (`grep -c 'v1/messages\|v1/channels' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`).
 The read calls map onto §4.2–§4.4; the two POSTs are 005 M3 write features.
 
-<!-- version: 0.4.0 · updated: 2026-09-19 · last-edit: 2026-09-18T22:45:14Z -->
+<!-- version: 0.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:40:00Z -->

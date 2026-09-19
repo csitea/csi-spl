@@ -1,4 +1,4 @@
-# Contract: WUI live WebSocket v1 (browser <-> hub live chat, #general lobby)
+# Contract: WUI live WebSocket v1 (browser <-> hub live chat, #lobby, channels, presence)
 
 Feature: `003-spool-message-bus`, owner goal "live-chat MVP" (2026-09-18).
 **Single source of truth** for the browser <-> hub live protocol. Consumer:
@@ -38,7 +38,7 @@ to browser subscribers only.
 | Name | Value | Where defined |
 |---|---|---|
 | `LOBBY_TASK_ID` | `00000000-0000-4000-8000-000000000001` | cnf `env.hub.env.SPOOL_HUB_LOBBY_TASK_ID` (`csi-spl-cnf/csi-spl/all.env.yaml`), **defined once** there; the hub reads the env var and publishes it in `welcome` |
-| Lobby display name | `#general` | this file; lobby messages are stored with `channel = "general"` |
+| Lobby display name | `#lobby` | this file; lobby messages are stored with `channel = "lobby"` (v0.3; `general` stays an accepted input alias for one release and `0008` migrates stored rows, `./channels-v1.md` §1) |
 | Browser virtual box | `box-wui` | reserved box id: never pinnable (`POST /v1/pins` refuses it); no pin check applies to it as a `to_box` |
 | Broadcast addressee | `ALL-0` | the `to` of a lobby post when no single recipient is meant (a valid v:1 agent id) |
 
@@ -76,7 +76,7 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 | `hello` | `as?`, `token?` | **first frame**, within 10 s (else close `4408`). `as` = a v:1 agent id (`^[A-Z]{2,4}-[0-9]+$`, e.g. `HUM-1`); absent -> the hub assigns `HUM-<n>`. A display name that is not an id (`AgentA`) is refused: close `4400 bad_frame`. `token` is reserved for the prd view token (OQ-16) and ignored today |
 | `subscribe` | `task_id` | a UUID, or the literal `"LOBBY"` (= `LOBBY_TASK_ID`). Idempotent. Reply `subscribed` |
 | `unsubscribe` | `task_id` | idempotent. No reply |
-| `send` | `msg_id?`, `task_id`, `kind?`, `body`, `files?`, `to?` | §4 |
+| `send` | `msg_id?`, `task_id`, `kind?`, `body`, `files?`, `to?`, `channel?`, `parent_task_id?` | §4 |
 
 ### 3.2 hub -> browser
 
@@ -87,9 +87,16 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 | `token` | `upload_token`, `upload_token_expires_at` | reply to a browser `{type:"token"}` (fresh upload token) |
 | `message` | `task_id`, `cursor`, `received_at`, `envelope`, `env` | **live fan-out**: every message stored for a subscribed `task_id` in this tenant — from a browser, a box agent, or the hub — pushed to **every** subscribed socket (the sender's own included). `env` = the stored envelope `{from_box,to_box,msg,sig}` byte-for-byte, the same element shape as `view-v1` §4.4 (`msg` is the v:1 object); `envelope` = that v:1 object alone. For the sender, its own `message` echo arrives **before** its `ack` |
 | `ack` | `msg_id`, `task_id`, `cursor`, `received_at` | after a `send` is stored |
+| `presence` | `peer`, `status` | `peer` = `<agent>@<box>` (`CLE-07@box-a`) or `<HUM-n>@box-wui`; `status` ∈ `online`, `offline`. Pushed to every browser socket of the tenant when a `role=box` session is accepted (each announced agent `online`), closes (`offline`; a superseded socket emits nothing), or re-announces (the difference), and when a human's **first** browser socket opens / **last** one closes. Right after `welcome` the hub sends one `online` frame per peer online at that moment (snapshot), before any other frame (`./channels-v1.md` §6) |
 | `error` | `error`, `status`, `detail`, `msg_id?` | stable token (`./error-envelope.md`); socket stays open |
 
 Browser -> hub `{"type":"token"}` asks for a fresh upload token.
+
+Presence example (v0.3):
+
+```json
+{ "type": "presence", "peer": "CLE-07@box-a", "status": "online" }
+```
 
 ## 4. Send
 
@@ -108,6 +115,15 @@ Browser -> hub `{"type":"token"}` asks for a fresh upload token.
 - `kind`: a **v:1 kind** (`task|result|note|reject`), default `note`. There is
   **no `chat` kind** (v:1 is not forked, NFR-003): send `note` or omit it.
 - `to`: a v:1 agent id; default `ALL-0`.
+- `channel` (v0.3): a channel slug known to the tenant (`./channels-v1.md` §1;
+  `general` = `lobby`), else `404 unknown_channel`. Absent: `lobby` when
+  `task_id` is the lobby, else **no channel = a DM** (stored `NULL`).
+- `parent_task_id` (v0.3): a UUID ≠ `task_id` linking this task to a parent
+  task (child thread, `./channels-v1.md` §0), else `400 bad_json`. Absent = a
+  root. Replies to a thread use the thread's `task_id`, not this field.
+- Both are **hub-envelope** fields: they are stored beside `to_box`
+  (`{from_box,to_box,channel?,parent_task_id?,msg,sig}`), never inside the v:1
+  object.
 - `files`: v:1 blob attachments; every `file_id` must already be uploaded
   (`400 missing_file` otherwise). Limits as `./limits.md` (body 64 KiB, 16 files).
 - The hub builds the v:1 object (`v:1`, `ts` = hub time, `from` = `welcome.as`),
@@ -130,7 +146,7 @@ Browser -> hub `{"type":"token"}` asks for a fresh upload token.
 
 ## 6. Box agents in the lobby
 
-A box agent posts to `#general` with the normal send path:
+A box agent posts to `#lobby` with the normal send path:
 
 ```
 spool send --from CLE-07 --to ALL-0 --to-box box-wui --task 00000000-0000-4000-8000-000000000001 --kind note --body "build is green"
@@ -148,8 +164,8 @@ reconnect the browser sends `hello` again and re-subscribes.
 
 ## 8. Errors (new tokens)
 
-`lobby_disabled` (400), plus the existing `bad_frame`, `bad_json`,
+`lobby_disabled` (400), `unknown_channel` (404, v0.3), plus the existing `bad_frame`, `bad_json`,
 `missing_file`, `conflict_msg`, `unpaid`, `quota`, `view_door`,
 `unknown_tenant`.
 
-<!-- version: 0.2.1 · updated: 2026-09-18 · last-edit: 2026-09-18T20:48:47Z -->
+<!-- version: 0.3.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:45:00Z -->

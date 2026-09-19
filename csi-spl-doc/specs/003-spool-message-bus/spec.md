@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-18
 
-**Status**: M1 hub **Implemented** and verified (section **Verification**, 2026-09-18); read-only viewer API (US7) **Planned**; prd deploy and the ingress are **Partial/Planned** in the infra lane (007). OQ-01..15 resolved; OQ-16 (viewer door) open with the owner.
+**Status**: M1 hub **Implemented** and verified (section **Verification**, 2026-09-18); read-only viewer API (US7) **Planned**; prd deploy and the ingress are **Partial/Planned** in the infra lane (007). OQ-01..15 resolved; OQ-16 (viewer door) open with the owner. **M3 wire (US8)**: OQ-W1 resolved 2026-09-19 (hub-envelope `channel` / `parent_task_id`, `contracts/channels-v1.md`); OQ-CH1..3 open with the owner.
 
 **Redo ground rules**: `../README.md` (status vocabulary, seams §5, provisioning order §6). Status tags below follow it.
 
@@ -162,6 +162,20 @@ A human opens the WUI (spec 005) and sees the tenant's boxes, who is online, the
 4. **Given** a `POST` to any `/v1/view/*` path, **When** it arrives, **Then** `405 method_not_allowed`.
 5. **Given** `SPOOL_HUB_VIEW_CORS_ORIGINS` is empty, **When** a cross-origin preflight arrives, **Then** no CORS headers are returned.
 
+### User Story 8 - Channels, threads, DMs and presence on the wire (Priority: P1 for M3) — Implemented
+
+Humans and agents talk in named channels (`#lobby`, `#tasks`, `#alerts`, custom), in private DMs, and in threads; the WUI shows who is online. The hub carries the channel and the parent task as **hub-envelope** fields (never `v:1`), routes a channel message to a box only when one of its agents is addressed, and pushes presence to browsers. Contract: `contracts/channels-v1.md`.
+
+**Independent Test**: two pinned boxes; box-b subscribes `CLE-07` to `tasks`; box-a posts to `#tasks` without a mention → no delivery for box-b; with `@CLE-07` → box-b receives it with `agents:["CLE-07"]`; a pre-M3 envelope (no new fields) still verifies and is stored.
+
+**Acceptance Scenarios**:
+
+1. **Given** an envelope from a pre-M3 box, **When** it is sent, **Then** it verifies, is stored with `channel` NULL (or `lobby` on the lobby task) and delivered unchanged.
+2. **Given** a channel post with no mention, **When** it is stored, **Then** no box other than its `to_box` gets a `deliveries` row (the control of `TestChannelMentionRouting`).
+3. **Given** `@CLE-07` in a `#tasks` post and CLE-07 subscribed on box-b, **When** it is stored, **Then** box-b gets a `recv` with `agents:["CLE-07"]` and writes it to CLE-07's inbox.
+4. **Given** `POST /v1/channels {"channel":"releases"}` through the view door, **Then** `201`, and `GET /v1/view/channels` lists it with `unread`/`members`; `general`, `lobby` or an existing slug → `409 channel_exists`.
+5. **Given** a browser connected to `/v1/wui/ws`, **When** box-a says hello / closes, **Then** the browser receives `presence` `online` / `offline` for each of box-a's agents.
+
 ### Edge Cases
 
 - Cloud Run instance killed mid-request or mid-WS: the box reconnects (exponential backoff, cap ~30 s) and resends idempotently by `msg_id`. Storage is Postgres + GCS, never container disk; WS session state is not durable.
@@ -200,6 +214,12 @@ A human opens the WUI (spec 005) and sees the tenant's boxes, who is online, the
 - **FR-022**: Viewer responses MUST be tenant-scoped (foreign `task_id` → `404`) and MUST carry envelopes byte-for-byte as stored, file refs only, and no token or signed URL. *Status:* **Implemented** — `TestViewAPI` (env == stored bytes, cross-tenant 404).
 - **FR-023**: The hub MUST answer liveness on a path Cloud Run and the LB do not reserve (add `GET /v1/health`, keep `/healthz` for local use); 007's external gates (provisioning-order step 10, SC-004) probe it; a serverless NEG backend takes no LB health check, so there is no LB health-check path to set. *Status:* **Implemented** — `TestHealthPaths` (both paths 200). 007 still has to point the LB health check at `/v1/health`.
 
+- **FR-024**: Envelopes MAY carry the optional hub-envelope fields `channel` and `parent_task_id` (`contracts/channels-v1.md` §2); when present they are covered by the envelope `sig`, when absent the envelope and its signing payload MUST be byte-identical to `contracts/http-v1.md` §2.4 (v:1 stays frozen, NFR-003). The hub MUST refuse an unknown channel (`404 unknown_channel`) and a malformed `parent_task_id` (`400 bad_json`), and MUST persist both to `messages.channel` / `messages.parent_task_id`. *Status:* **Implemented** — `TestEnvelopeLegacyBytes`, `TestEnvelopeChannelSigned`, `TestChannelEnvelopeStored`.
+- **FR-025**: The hub MUST seed `lobby`, `tasks`, `alerts` per tenant, accept `general` as an alias of `lobby` for one release (C3), let a caller that passes the view door create a channel (`POST /v1/channels`), and list channels with unread counts and member stats (`GET /v1/view/channels`). Retention: `alerts` 7 d, every other channel and DMs 30 d (cnf). *Status:* **Implemented** — `TestChannelsCreateAndList`, `TestStoreChannels` (memory + Postgres), `0008_channels_threads.sql`.
+- **FR-026**: `GET /v1/view/threads` MUST list root threads (`parent_task_id` NULL) by default, `GET /v1/view/threads/{task_id}/children` the child threads, and `dm=true&peer=<id>` the DM threads (`channel` NULL) of a peer, restricted to threads the reader is party to when the reader holds a member session. *Status:* **Implemented** — `TestViewChannelsThreadsDMs`, `TestViewReads`.
+- **FR-027**: A channel message MUST be delivered to a box other than its `to_box` only when an agent of that box subscribed to the channel is addressed (`msg.to`, `@<agent>`, or `@channel`); boxes declare subscriptions in `hello` / `announce` `channels`; ambient chat MUST NOT create a delivery. Unsigned (browser) envelopes are not box-routed until the hub-held signer exists (spec 014). *Status:* **Implemented** — `TestChannelMentionRouting`, `TestHubclientChannelRecv`.
+- **FR-028**: The browser WS MUST push `presence` frames (`contracts/wui-live-ws.md` §3.2) on box connect / disconnect / announce change and on a human's first / last browser socket, tenant-scoped, with a snapshot after `welcome`. *Status:* **Implemented** — `TestWUIPresence`.
+
 ### Non-Functional Requirements
 
 - **NFR-001**: Region `europe-north1` for GCP resources; hosts/buckets from cnf, never literals.
@@ -212,7 +232,7 @@ A human opens the WUI (spec 005) and sees the tenant's boxes, who is online, the
 ### Key Entities
 
 - **Message (`v:1`)**: as 002 `contracts/message-schema.md`; inner `sig` absent in both modes.
-- **Envelope**: `{ from_box, to_box, msg, sig }`, where `sig` is made by the sending box key over the canonical envelope (`../002-box-agent-messaging/contracts/trust-modes.md` §5).
+- **Envelope**: `{ from_box, to_box, channel?, parent_task_id?, msg, sig }` (the two optional fields are M3, FR-024), where `sig` is made by the sending box key over the canonical envelope (`../002-box-agent-messaging/contracts/trust-modes.md` §5).
 - **File object**: `file_id` = sha256 of bytes, stored per tenant.
 - **Box pin**: `(tenant_id, box_id)` → pubkey, published with the tenant root (004/006).
 - **Roster**: agent ids a box announced at hello (dir scan of `$SPOOL_ROOT/*/`).
@@ -281,10 +301,13 @@ All fifteen are closed. OQ-07/13/14 were resolved earlier by the owner; the othe
 
 - **OQ-16: Viewer door (US7).** — **OPEN, owner to confirm.** Proposed: a stateless view token signed by the tenant **root** key over `jq -cS '{exp,scope,tenant}'`, minted offline (`spool hub-view-token`), verified against `tenants.root_pubkey`, TTL ≤ cnf `hub.view_token_max_ttl` (12 h). M3 social-auth sessions become a second door for the same endpoints. Alternative: wait for social auth and ship no interim door (the viewer then cannot run before M3). Blocks T033 only.
 
+- **OQ-W1: Where does `channel` live?** (asked in 005, 2026-09-18) — **Resolved 2026-09-19 (WIRE lane, recommended option implemented; owner may overturn via ORC)**: (a) *chosen*: a **hub-envelope field** beside `to_box`, optional, signed when present, persisted to `messages.channel`; absent = DM. (b) rejected: a 002 `v:1` amendment (v:1 is frozen; every box would need a schema bump). (c) rejected: drop channels from M3. The same decision carries `parent_task_id`, and settles 005 G3 / gap-analysis G5: threads stay keyed by `task_id`; `parent_task_id` links child tasks only (`contracts/channels-v1.md` §0).
+- **OQ-CH1..3** (channel creators, read-state home, `general` alias lifetime) — open with the owner; recommended defaults implemented (`contracts/channels-v1.md` §7).
+
 ### Clarifications (implementation, 2026-09-18)
 
 - **Hello `role`**: `box` (the session socket: receives `recv` frames, announces the roster, subject to last-hello-wins) or `cli` (a one-shot sender; never receives, never evicts). Without it every CLI send would evict the box daemon. `contracts/http-v1.md` §2.2.
 - **DDL home**: `csi-spl-rdb/src/sql/postgres/spool-hub/*.sql`, applied by `spool migrate` (`data-model.md`).
 - **Follow-up (parked)**: `msg.ValidID` must reject the `BOX-` prefix (identity-routing).
 
-<!-- version: 0.6.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:42:57Z -->
+<!-- version: 0.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:55:00Z -->

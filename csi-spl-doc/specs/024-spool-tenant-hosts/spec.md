@@ -1,5 +1,7 @@
 # Spec 024: per-tenant hosts, automated (no wildcard)
 
+> **SUPERSEDED 2026-09-19 by 026 (tenant from identity):** one api host, no per-tenant DNS. The mappings this spec created are retired through 026 §8.
+
 **Feature**: `specs/024-spool-tenant-hosts` · **Created**: 2026-09-19 · **Lane**: CLE-3404
 
 ## 0. STATUS: PAUSED, superseded by "tenant from identity" (owner, 2026-09-19 16:43Z)

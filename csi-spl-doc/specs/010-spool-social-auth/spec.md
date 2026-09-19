@@ -218,7 +218,7 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
 
 - **SEC-001** — `session.t` (tenant) is **where the flow started, not an
   authorisation**: it is caller-supplied. Tenant access is decided by the hub
-  from `HUM-*` membership (T013), never from `t`.
+  from `HUM-*` membership (T013), never from `t`. **026 (2026-09-19):** `t` is now the session's *active tenant* (a selection, re-checked against membership on every request); it replaces the Host as the tenant of a human request.
 - **SEC-002** — An IdP response never mints privilege: the session carries
   identity only.
 - **SEC-003** — Client secrets and the session key live in Secret Manager

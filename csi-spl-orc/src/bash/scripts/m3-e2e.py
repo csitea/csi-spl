@@ -19,8 +19,17 @@ Env:   M3_HUB_URL      https://<tenant>.<fqdn>   (box + tenant API)
        M3_ROOT_KEY     tenant root private key file (0600)
        M3_HUMAN_EMAIL  member human (seated by invite)
        M3_OUTSIDER_EMAIL  never-invited human (the door control)
+       M3_IMAP_USER, M3_IMAP_PASS_FILE, M3_IMAP_HOST  (optional) a hub with no
+                       debug tokens (prd): the verify mail is read over IMAP from
+                       this mailbox (the relay's own, csi-rel's verify_relay_e2e
+                       pattern; plus-addresses land in it). The token in its link
+                       is consumed through the hub's verify API, and the link's
+                       WUI page is probed and recorded (not gated).
 """
 import base64
+import email as emaillib
+import imaplib
+import re
 import hashlib
 import json
 import os
@@ -53,6 +62,11 @@ SPOOL = os.environ.get("M3_SPOOL", "")
 ROOT_KEY = os.environ.get("M3_ROOT_KEY", "")
 HUMAN = os.environ.get("M3_HUMAN_EMAIL", "")
 OUTSIDER = os.environ.get("M3_OUTSIDER_EMAIL", "")
+IMAP_USER = os.environ.get("M3_IMAP_USER", "")
+IMAP_PASS_FILE = os.environ.get("M3_IMAP_PASS_FILE", "")
+IMAP_HOST = os.environ.get("M3_IMAP_HOST", "imap.gmail.com")
+IMAP_TIMEOUT = int(os.environ.get("M3_IMAP_TIMEOUT", "240"))
+VERIFY_LINK = re.compile(r"(https?://[^\s\"'<>]*/verify-email)\?token=([0-9a-f]{64})")
 
 RESULTS = []
 
@@ -140,16 +154,95 @@ def native_login(email, tenant, tag):
         if st == 429:
             return st, out, ""
     pw = secrets.token_urlsafe(18)
+    seen = imap_uids(email) if IMAP_USER else set()
     st, _, out = http("POST", AUTH + "/api/v1/auth/register", {"email": email, "password": pw, "name": "m3-e2e " + tag})
-    if st != 202 or not isinstance(out, dict) or not out.get("debug_token"):
+    if st != 202 or not isinstance(out, dict):
         return st, {"step": "register", "body": out}, ""
-    st, _, out = http("POST", AUTH + "/api/v1/auth/email/verify", {"token": out["debug_token"]})
+    token, ev = out.get("debug_token", ""), {"email": email, "register": st, "via": "debug_token",
+                                            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    if not token and IMAP_USER:
+        token, mail_ev = imap_verify_token(email, seen)
+        ev.update(mail_ev)
+        ev["via"] = "imap"
+    if not token:
+        write_json("verify-%s.json" % tag, ev)
+        return st, {"step": "register", "body": out, "mail": ev}, ""
+    st, _, out = http("POST", AUTH + "/api/v1/auth/email/verify", {"token": token})
+    ev["hub_verify_api"] = st
+    write_json("verify-%s.json" % tag, ev)
     if st != 204:
         return st, {"step": "verify", "body": out}, ""
     write_secret(pw_name, pw)
     body["password"] = pw
     st, h, out = http("POST", AUTH + "/api/v1/auth/login", body)
     return st, out, session_cookie(h)
+
+
+def write_json(name, obj):
+    """A non-secret evidence file in the state dir (never a token or password)."""
+    with open(os.path.join(STATE, name), "w") as f:
+        json.dump(obj, f, indent=1, sort_keys=True)
+
+
+def read_json(name):
+    try:
+        with open(os.path.join(STATE, name)) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+# ---- the verify mail over IMAP (hubs without debug tokens: prd) -----------------------
+
+def imap_open():
+    with open(IMAP_PASS_FILE) as f:
+        pw = f.read().strip()
+    m = imaplib.IMAP4_SSL(IMAP_HOST, 993, timeout=30)
+    m.login(IMAP_USER, pw)
+    m.select('"[Gmail]/All Mail"', readonly=True)
+    return m
+
+
+def imap_uids(rcpt):
+    """UIDs of the mails already addressed to rcpt, so only a NEW mail counts."""
+    m = imap_open()
+    try:
+        _, data = m.uid("SEARCH", None, 'TO "%s"' % rcpt)
+        return set(data[0].split())
+    finally:
+        m.logout()
+
+
+def imap_verify_token(rcpt, seen):
+    """Poll the mailbox for a new verify mail to rcpt. Returns (token, evidence);
+    the evidence names the sender, subject, message id, the link's page (host +
+    path, no query) and that page's HTTP status, never the token."""
+    t0 = time.time()
+    while time.time() < t0 + IMAP_TIMEOUT:
+        m = imap_open()
+        try:
+            _, data = m.uid("SEARCH", None, 'TO "%s"' % rcpt)
+            for uid in reversed(data[0].split()):
+                if uid in seen:
+                    continue
+                _, fetched = m.uid("FETCH", uid, "(RFC822)")
+                msg = emaillib.message_from_bytes(fetched[0][1])
+                for part in msg.walk():
+                    if part.get_content_maintype() != "text":
+                        continue
+                    hit = VERIFY_LINK.search((part.get_payload(decode=True) or b"").decode("utf-8", "replace"))
+                    if hit:
+                        page = hit.group(1)
+                        st_page, hdrs, _ = http("GET", page)  # the bare page: consumes nothing
+                        return hit.group(2), {"mail_from": msg.get("From"), "mail_subject": msg.get("Subject"),
+                                              "mail_message_id": msg.get("Message-ID"),
+                                              "mail_after_s": round(time.time() - t0, 1), "link_page": page,
+                                              "link_page_status": st_page,
+                                              "link_page_type": (hdrs.get("Content-Type") or "").split(";")[0]}
+        finally:
+            m.logout()
+        time.sleep(5)
+    return "", {"mail": "no verify mail to %s within %ds" % (rcpt, IMAP_TIMEOUT)}
 
 
 # ---- WebSocket client (TLS or plain), one reader thread ------------------------
@@ -476,6 +569,7 @@ def run():
     tenant = urllib.parse.urlparse(HUB).hostname.split(".")[0]
     st, _, ver = http("GET", HUB + "/version")
     log("hub %s version %s" % (HUB, json.dumps(ver)))
+    RESULTS.append({"step": "hosts", "result": "INFO", "evidence": {"hub": HUB, "auth": AUTH, "version": ver}})
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
 
     # -- door: which view door the hub runs (an anonymous read answers 401 view_door
@@ -517,6 +611,14 @@ def run():
     cookie = read_secret("cookie-human")
     st, _, sess = http("GET", AUTH + "/api/v1/auth/session", headers={"Cookie": cookie})
     hum = (sess or {}).get("hum", "") if st == 200 else ""
+    mv = read_json("verify-human.json")
+    if mv and mv.get("via") == "imap":
+        # prd: the native sign-up went through a REAL mailbox. Gated: the mail
+        # arrived and the hub's verify API took its token. Recorded: whether the
+        # link's WUI page serves (it 404s until the apex serves the WUI).
+        record("h-verify-mail", mv.get("hub_verify_api") == 204 and bool(mv.get("mail_message_id")),
+               {k: mv.get(k) for k in ("email", "at", "mail_from", "mail_subject", "mail_message_id", "mail_after_s",
+                                       "hub_verify_api", "link_page", "link_page_status", "link_page_type")})
     record("h-member-session", st == 200 and hum.startswith("HUM-") and (sess or {}).get("t") == tenant,
            {"session_status": st, "hum": hum, "t": (sess or {}).get("t"), "p": (sess or {}).get("p")})
 
@@ -655,6 +757,9 @@ def run():
         except RuntimeError as e:  # a session door answers 401 view_door at the upgrade
             ev["ws_upgrade"] = str(e)[:200]
             ok = ok and "401" in str(e)
+    ov = read_json("verify-outsider.json")
+    if ov:
+        ev["outsider_verify"] = {k: ov.get(k) for k in ("via", "mail_message_id", "hub_verify_api")}
     record("e2-non-member-refused", bool(ok), ev)
 
     # -- e3. CONTROL: the view door refuses anonymous and non-member readers ---------------------------------

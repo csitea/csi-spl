@@ -57,9 +57,25 @@ csi-rel's gcp-*, tf-*, provision and make actions are canonical and
 copied UNCHANGED; when one fails, the fork's config/setup is fixed,
 never the script.
 
-**Source**: "battle tested for the last 5 years and refined ... they DO work, should you have the proper configs and setup"
+A fork keeps those scripts verbatim UNLESS its own CLAUDE.md forbids
+what they do (examples: `gcloud config set` on the shared config,
+private keys in terraform state). Each such deviation is listed here
+with the CLAUDE.md rule it satisfies. Owner choice: keep csi-spl
+rules. The ported tf-init stays byte-identical to csi-rel (no extra
+key check).
 
-**CHECK**: `command grep -n 'do_tf_init' csi-spl-iac/src/bash/run/tf-plan.func.sh csi-spl-iac/src/bash/run/provision.func.sh` -> hits in both; a red tf-* / gcp-* / provision / make action is diagnosed in `<env>.env.yaml`, the R1 key path, or `make do-setup-app-inf`, never by editing the copied script.
+Listed deviations (rule: keep csi-spl rules):
+- `gcp-000`..`gcp-004` omit `gcloud config set account` / `gcloud config
+  set project`; every gcloud call carries `--account` (or a throwaway
+  `CLOUDSDK_CONFIG`). Satisfies CLAUDE.md: never `gcloud config set`
+  on the shared config.
+- terraform never creates a `google_service_account_key` (the relay SA
+  key is minted out of band). Satisfies CLAUDE.md: no key in git, in
+  terraform state or in a log.
+
+**Source**: "battle tested for the last 5 years and refined ... they DO work, should you have the proper configs and setup", "Keep csi-spl rules"
+
+**CHECK**: `command grep -n 'do_tf_init' csi-spl-iac/src/bash/run/tf-plan.func.sh csi-spl-iac/src/bash/run/provision.func.sh` -> hits in both; `command grep -n GOOGLE_APPLICATION_CREDENTIALS csi-spl-iac/src/bash/run/tf-init.func.sh` is the export only (no extra `test -f` of that key vs csi-rel); `command grep -n 'gcloud config set' csi-spl-iac/src/bash/run/gcp-00*.func.sh` of live commands -> 0 (the gcp-000 hit is the comment that names the omission); `command grep -rn '^resource "google_service_account_key"' --include='*.tf' csi-spl-iac/src/terraform` -> 0; a red tf-* / gcp-* / provision / make action is diagnosed in `<env>.env.yaml`, the R1 key path, or `make do-setup-app-inf`, never by editing the copied script except the deviations listed above.
 
 ## R5 Every terraform variable is in the rendered tfvars
 
@@ -84,7 +100,7 @@ skipped deploy is not green).
 
 **CHECK**: `gh run list --workflow 20_hub-build-deploy.yml --branch master --limit 1 --json databaseId,headSha,conclusion` then `gh run view <id> --json jobs --jq '.jobs[] | {name,conclusion}'` — a job whose name contains `deploy` with conclusion `skipped` is not green; local `ENV=dev` then `ENV=prd` `make do-provision` of the changed steps landed first.
 
-## R7 Numeric rebuild with backups; per-step both envs; DNS exception
+## R7 Numeric rebuild with backups; per-step both envs; DNS exception; skip 020+SQL
 
 Re-provisioning: all steps run in numeric order 000 -> last. Each step
 runs across both envs, **dev first then prd**, then the next step (not
@@ -97,9 +113,15 @@ dev) except DNS.
 The ONE exception is the DNS zone step: applied prd (apex) before
 dev (sub-zone) and destroyed dev before prd.
 
-**Source**: "destroy first all of the objects and then re-apply with the new auth", "re-run all of the terraform steps from the beginning till the end", "apply at the same time to both of the environments in all of the steps, but always dev first and then prd ... except for the dns STEP, which requires the order to be otherwise"
+A rebuild destroys and re-applies every step EXCEPT
+`020-gcp-relay-bucket` (its SA key lives on every box) and
+`040-cloud-sql-postgres` (a deleted instance name can be held up to a
+week); those two are re-imported into terraform state under the new
+key instead. Owner choice: everything except 020 + SQL.
 
-**CHECK**: `ls -1d csi-spl-iac/src/terraform/[0-9]* | sort` is the step order; for each step except DNS, apply `ENV=dev` then `ENV=prd` (destroy `prd` then `dev`); `025-gcp-dns-zone` is applied on prd (apex) before any dev DNS apply, and destroyed on dev before prd; backups exist before the first destroy.
+**Source**: "destroy first all of the objects and then re-apply with the new auth", "re-run all of the terraform steps from the beginning till the end", "apply at the same time to both of the environments in all of the steps, but always dev first and then prd ... except for the dns STEP, which requires the order to be otherwise", "Everything except 020 + SQL"
+
+**CHECK**: `ls -1d csi-spl-iac/src/terraform/[0-9]* | sort` is the step order; for each step except DNS, apply `ENV=dev` then `ENV=prd` (destroy `prd` then `dev`); `025-gcp-dns-zone` is applied on prd (apex) before any dev DNS apply, and destroyed on dev before prd; a rebuild destroy/apply skips `020-gcp-relay-bucket` and `040-cloud-sql-postgres` (`ls -1d csi-spl-iac/src/terraform/020-gcp-relay-bucket csi-spl-iac/src/terraform/040-cloud-sql-postgres` -> both exist) and `terraform import`s them under the new state key instead; backups exist before the first destroy.
 
 
 ## R8 Owner-realm only; account and org from yaml
@@ -123,4 +145,4 @@ docs, never a mail address.
 
 **CHECK**: `command grep -n gcp_account_owner_email csi-spl-cnf/csi-spl/{dev,prd,all}.env.yaml` names `env.gcp.gcp_account_owner_email`; `command grep -n gcp_org_id csi-spl-cnf/csi-spl/{dev,prd,all}.env.yaml` names `env.gcp.gcp_org_id`; `command grep -rnE 'gcloud( |$)' --include='*.func.sh' csi-spl-iac/src/bash/run csi-spl-orc/src/bash/run | command grep -vE '--account|description|example|INFO|FATAL|#'` of live gcloud invocations -> each remaining line carries `--account`; `command grep -rn 'gcloud config set account' csi-spl-iac csi-spl-orc` -> 0; `command grep -rn 'projects delete' csi-spl-iac/src/bash/run` -> 0 (rebuild destroys objects inside the projects, never the projects).
 
-<!-- version: 1.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T08:40:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T09:01:30Z -->

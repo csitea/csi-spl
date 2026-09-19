@@ -19,7 +19,7 @@
 ## Phase 3: tooling + WUI
 
 - [x] T020 `spool hub-invite --role` (714f3cb), `do_spl_hub_invite`, `do_spl_tenant_member_role` take the new ids (FR-009). 0c7a4a7. Check: `adhoc-harvest-actions.tst.sh`, `hub-invite-email-send.tst.sh`.
-- [ ] T021 WUI: role in the user menu; channel "+" and composer hidden without the permission (FR-008).
+- [x] T021 WUI: `stores/access` reads `GET /v1/view/me` (fails open), the role under the name in the user menu (`user_menu.role`, `role.*` in 19 locales), channel "+" only with `channels.manage` (FR-008). Check: `tests/unit/access.test.mjs` (CONTROL: tester is offered neither channel create nor agent commands), unit runner 35/35, `nuxi typecheck` rc 0.
 
 ## Phase 4: M4 seam
 

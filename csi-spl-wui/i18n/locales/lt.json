@@ -266,7 +266,8 @@
     "account_menu_for": "{who} paskyros meniu",
     "method_password": "El. paštas ir slaptažodis",
     "method_unknown": "Nežinoma",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Vaidmuo: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Žinutė: {target} — Enter siunčia · /search ieško visur",
     "unreachable": "Paieškos paslauga nepasiekiama. Netrukus bandykite dar kartą."
+  },
+  "role": {
+    "biz_owner": "Verslo savininkas",
+    "product_owner": "Produkto savininkas",
+    "admin": "Administratorius",
+    "developer": "Kūrėjas",
+    "tester": "Testuotojas",
+    "pure_agent": "Grynas agentas"
   }
 }

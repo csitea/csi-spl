@@ -266,7 +266,8 @@
     "account_menu_for": "Меню аккаунта {who}",
     "method_password": "Эл. почта и пароль",
     "method_unknown": "Неизвестно",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Роль: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Сообщение для {target} — Enter отправляет · /search ищет везде",
     "unreachable": "Сервис поиска недоступен. Попробуйте чуть позже."
+  },
+  "role": {
+    "biz_owner": "Владелец бизнеса",
+    "product_owner": "Владелец продукта",
+    "admin": "Администратор",
+    "developer": "Разработчик",
+    "tester": "Тестировщик",
+    "pure_agent": "Чистый агент"
   }
 }

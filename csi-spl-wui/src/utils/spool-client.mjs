@@ -202,6 +202,19 @@ export function createSpoolClient({
       return { task_id: id, messages: rows.map(normalizeViewMessage), next: (data && data.next) || null }
     },
     /**
+     * specs/025 FR-006: the caller's role and permissions in the active
+     * tenant. Mock / a hub without the route (404): null = unrestricted.
+     */
+    async me() {
+      if (mock) return null
+      try {
+        return await live('/v1/view/me')
+      } catch (e) {
+        if (e && e.status === 404) return null
+        throw e
+      }
+    },
+    /**
      * channels-v1 §5.2. `read` = { channel: last-read cursor } (client-held,
      * OQ-CH2) → repeated `read=<ch>~<cursor>`; rows keep unread / last_cursor /
      * retention_days.

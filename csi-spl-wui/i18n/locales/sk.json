@@ -266,7 +266,8 @@
     "account_menu_for": "Ponuka účtu pre {who}",
     "method_password": "E-mail a heslo",
     "method_unknown": "Neznáme",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Rola: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Správa pre {target} — Enter odošle · /search hľadá všade",
     "unreachable": "Služba vyhľadávania nie je dostupná. Skúste to o chvíľu znova."
+  },
+  "role": {
+    "biz_owner": "Obchodný vlastník",
+    "product_owner": "Vlastník produktu",
+    "admin": "Administrátor",
+    "developer": "Vývojár",
+    "tester": "Tester",
+    "pure_agent": "Čistý agent"
   }
 }

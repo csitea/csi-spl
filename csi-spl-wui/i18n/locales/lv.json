@@ -266,7 +266,8 @@
     "account_menu_for": "Konta izvēlne: {who}",
     "method_password": "E-pasts un parole",
     "method_unknown": "Nezināms",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Loma: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Ziņa: {target} — Enter nosūta · /search meklē visur",
     "unreachable": "Meklēšanas pakalpojums nav sasniedzams. Drīz mēģiniet vēlreiz."
+  },
+  "role": {
+    "biz_owner": "Biznesa īpašnieks",
+    "product_owner": "Produkta īpašnieks",
+    "admin": "Administrators",
+    "developer": "Izstrādātājs",
+    "tester": "Testētājs",
+    "pure_agent": "Tīrs aģents"
   }
 }

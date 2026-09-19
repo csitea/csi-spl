@@ -266,7 +266,8 @@
     "account_menu_for": "Меню на профила на {who}",
     "method_password": "Имейл и парола",
     "method_unknown": "Неизвестно",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Роля: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Съобщение до {target} — Enter за изпращане · /search за търсене навсякъде",
     "unreachable": "Услугата за търсене не е достъпна. Опитайте отново след малко."
+  },
+  "role": {
+    "biz_owner": "Бизнес собственик",
+    "product_owner": "Продуктов собственик",
+    "admin": "Администратор",
+    "developer": "Разработчик",
+    "tester": "Тестер",
+    "pure_agent": "Чист агент"
   }
 }

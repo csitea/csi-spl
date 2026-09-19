@@ -266,7 +266,8 @@
     "account_menu_for": "Accountmenu van {who}",
     "method_password": "E-mail en wachtwoord",
     "method_unknown": "Onbekend",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Rol: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Bericht aan {target} — Enter om te verzenden · /search om overal te zoeken",
     "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw."
+  },
+  "role": {
+    "biz_owner": "Bedrijfseigenaar",
+    "product_owner": "Product owner",
+    "admin": "Beheerder",
+    "developer": "Ontwikkelaar",
+    "tester": "Tester",
+    "pure_agent": "Pure agent"
   }
 }

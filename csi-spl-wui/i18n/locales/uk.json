@@ -266,7 +266,8 @@
     "account_menu_for": "Меню облікового запису {who}",
     "method_password": "Ел. пошта та пароль",
     "method_unknown": "Невідомо",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Роль: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Повідомлення для {target} — Enter надсилає · /search шукає всюди",
     "unreachable": "Сервіс пошуку недоступний. Спробуйте трохи пізніше."
+  },
+  "role": {
+    "biz_owner": "Власник бізнесу",
+    "product_owner": "Власник продукту",
+    "admin": "Адміністратор",
+    "developer": "Розробник",
+    "tester": "Тестувальник",
+    "pure_agent": "Чистий агент"
   }
 }

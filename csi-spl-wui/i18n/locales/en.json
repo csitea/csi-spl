@@ -266,7 +266,8 @@
     "account_menu_for": "Account menu for {who}",
     "method_password": "Email and password",
     "method_unknown": "Unknown",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Role: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Message {target} — Enter to send · /search to search everything",
     "unreachable": "The search service could not be reached. Try again shortly."
+  },
+  "role": {
+    "biz_owner": "Business owner",
+    "product_owner": "Product owner",
+    "admin": "Admin",
+    "developer": "Developer",
+    "tester": "Tester",
+    "pure_agent": "Pure agent"
   }
 }

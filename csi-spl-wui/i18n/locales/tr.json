@@ -266,7 +266,8 @@
     "account_menu_for": "{who} için hesap menüsü",
     "method_password": "E-posta ve parola",
     "method_unknown": "Bilinmiyor",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Rol: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "{target} için mesaj — Enter gönderir · /search her yerde arar",
     "unreachable": "Arama hizmetine ulaşılamadı. Birazdan tekrar deneyin."
+  },
+  "role": {
+    "biz_owner": "İşletme sahibi",
+    "product_owner": "Ürün sahibi",
+    "admin": "Yönetici",
+    "developer": "Geliştirici",
+    "tester": "Test uzmanı",
+    "pure_agent": "Saf ajan"
   }
 }

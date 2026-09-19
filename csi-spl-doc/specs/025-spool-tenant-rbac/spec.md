@@ -158,9 +158,11 @@ seat like any other membership (009 D-3). Moving it to a bot seat is OQ-6.
   `DELETE /v1/members/{human_id}` → 204. Errors: 400 `bad_role` / `bad_json`,
   403 `forbidden`, 404 `not_found`, 409 `last_owner` / `role_changed`.
 - **FR-008** The WUI shows the signed-in member's role in the user menu and
-  hides what the role may not do: the channel "+" without `channels.manage`,
-  the composer without `notes.send`. Hiding is convenience; the hub check is
-  the control.
+  hides what the role may not do: the channel "+" without `channels.manage`.
+  Every phase-1 role holds `notes.send`, so the composer is not gated yet; a
+  tester's `@agent` send is refused by the hub (`forbidden`). Hiding is
+  convenience and fails open (no `/v1/view/me` answer = everything shown);
+  the hub check is the control.
 - **FR-009** Operator tooling carries the roles: `spool hub-invite --role`,
   `do_spl_hub_invite INVITE_ROLE=`, `do_spl_tenant_member_role MEMBER_ROLE= /
   FROM_ROLE=` accept the six ids (and the two legacy names).
@@ -234,4 +236,4 @@ for the personal account after 0021. Evidence: `tasks.md` T040-T041.
   `audit.read` permission reads.
 - **Agent-side permissions** (a box agent's allowed kinds / targets).
 
-<!-- version: 1.0.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:10:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:10:00Z -->

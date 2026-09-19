@@ -266,7 +266,8 @@
     "account_menu_for": "Meni naloga za {who}",
     "method_password": "Imejl i lozinka",
     "method_unknown": "Nepoznato",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Улога: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Порука за {target} — Enter шаље · /search претражује свуда",
     "unreachable": "Услуга претраге није доступна. Покушајте ускоро поново."
+  },
+  "role": {
+    "biz_owner": "Пословни власник",
+    "product_owner": "Власник производа",
+    "admin": "Администратор",
+    "developer": "Програмер",
+    "tester": "Тестер",
+    "pure_agent": "Чист агент"
   }
 }

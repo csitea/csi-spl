@@ -47,6 +47,7 @@
           <span class="user-menu__names">
             <strong class="user-menu__primary" data-test="user-menu-primary">{{ me.primary || t('user_menu.signed_in') }}</strong>
             <span v-if="me.secondary" class="user-menu__secondary" data-test="user-menu-secondary">{{ me.secondary }}</span>
+            <span v-if="access.roleKey" class="user-menu__secondary" data-test="user-menu-role">{{ t('user_menu.role', { role: t(access.roleKey) }) }}</span>
           </span>
         </div>
         <ul role="menu" class="user-menu__items" :aria-label="buttonLabel" @keydown="onMenuKey">
@@ -99,17 +100,21 @@
 
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
+import { useAccessStore } from '~/stores/access'
 import { avatarMode, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
 import { loadAvatarImageUrl } from '~/utils/avatar.mjs'
 import { useAuthBase } from '~/composables/useAuthClient'
 
 const session = useSessionStore()
+const access = useAccessStore()
 const route = useRoute()
 const localePath = useLocalePath()
 const { t } = useI18n({ useScope: 'global' })
 const menuId = 'user-menu-panel'
 
 const signedIn = computed(() => session.state === 'in' && !!session.claims)
+// specs/025 FR-008: the member's role in the active tenant, under the name.
+watch(signedIn, (v) => { if (v) access.load() }, { immediate: true })
 const me = computed(() => userIdentity(session.claims))
 const mode = computed(() => avatarMode(session.claims))
 const initials = computed(() => userInitials(session.claims))

@@ -266,7 +266,8 @@
     "account_menu_for": "Tilivalikko: {who}",
     "method_password": "Sähköposti ja salasana",
     "method_unknown": "Tuntematon",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Rooli: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Viesti: {target} — Enter lähettää · /search hakee kaikkialta",
     "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen."
+  },
+  "role": {
+    "biz_owner": "Liiketoiminnan omistaja",
+    "product_owner": "Tuoteomistaja",
+    "admin": "Ylläpitäjä",
+    "developer": "Kehittäjä",
+    "tester": "Testaaja",
+    "pure_agent": "Puhdas agentti"
   }
 }

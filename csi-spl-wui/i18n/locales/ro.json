@@ -266,7 +266,8 @@
     "account_menu_for": "Meniul contului pentru {who}",
     "method_password": "E-mail și parolă",
     "method_unknown": "Necunoscut",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Rol: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Mesaj către {target} — Enter pentru a trimite · /search pentru a căuta peste tot",
     "unreachable": "Serviciul de căutare nu poate fi contactat. Încercați din nou în curând."
+  },
+  "role": {
+    "biz_owner": "Proprietar de business",
+    "product_owner": "Proprietar de produs",
+    "admin": "Administrator",
+    "developer": "Dezvoltator",
+    "tester": "Tester",
+    "pure_agent": "Agent pur"
   }
 }

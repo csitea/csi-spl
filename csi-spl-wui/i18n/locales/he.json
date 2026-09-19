@@ -266,7 +266,8 @@
     "account_menu_for": "תפריט חשבון עבור {who}",
     "method_password": "אימייל וסיסמה",
     "method_unknown": "לא ידוע",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "תפקיד: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "הודעה אל {target} — Enter לשליחה · ‎/search לחיפוש בכל מקום",
     "unreachable": "לא ניתן להגיע לשירות החיפוש. נסו שוב בעוד רגע."
+  },
+  "role": {
+    "biz_owner": "בעל העסק",
+    "product_owner": "בעל המוצר",
+    "admin": "מנהל מערכת",
+    "developer": "מפתח",
+    "tester": "בודק",
+    "pure_agent": "סוכן טהור"
   }
 }

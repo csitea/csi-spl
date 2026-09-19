@@ -266,7 +266,8 @@
     "account_menu_for": "Мени на сметката за {who}",
     "method_password": "Е-пошта и лозинка",
     "method_unknown": "Непознато",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Улога: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Порака до {target} — Enter за праќање · /search за пребарување насекаде",
     "unreachable": "Услугата за пребарување не е достапна. Обидете се повторно наскоро."
+  },
+  "role": {
+    "biz_owner": "Бизнис сопственик",
+    "product_owner": "Сопственик на производ",
+    "admin": "Администратор",
+    "developer": "Развивач",
+    "tester": "Тестер",
+    "pure_agent": "Чист агент"
   }
 }

@@ -25,7 +25,7 @@
       <span v-if="notes.mentions['ch:' + c.channel_id]" class="badge-mention" data-testid="mention-count">@{{ notes.previewUnread(notes.mentions['ch:' + c.channel_id]) }}</span>
       <span v-if="notes.unread['ch:' + c.channel_id]" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:' + c.channel_id]) }}</span>
     </NuxtLink>
-    <form class="create-row" data-testid="create-channel" @submit.prevent="onCreate">
+    <form v-if="access.can('channels.manage')" class="create-row" data-testid="create-channel" @submit.prevent="onCreate">
       <input v-model="newChannel" :placeholder="t('sidebar.new_channel_placeholder')" :aria-label="t('sidebar.new_channel_label')" :disabled="creating">
       <button class="btn ghost" type="submit" :disabled="creating">+</button>
     </form>
@@ -59,6 +59,7 @@
 import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
+import { useAccessStore } from '~/stores/access'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
 import { connectionHealth, retentionDays } from '~/utils/channel-feed.mjs'
@@ -66,6 +67,7 @@ import { connectionHealth, retentionDays } from '~/utils/channel-feed.mjs'
 const channel = useChannelStore()
 const roster = useRosterStore()
 const session = useSessionStore()
+const access = useAccessStore()
 const notes = useNotificationStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
@@ -79,6 +81,8 @@ function retentionLabel(c: { channel_id?: string, channel?: string, retention_da
 }
 const health = computed(() => connectionHealth(live.state.value))
 onMounted(() => session.probe())
+/* specs/025 FR-008: the role decides which actions are offered (the hub re-checks). */
+watch(() => session.state, (st) => { if (st === 'in') access.load() }, { immediate: true })
 const newChannel = ref('')
 const creating = ref(false)
 const createError = ref('')

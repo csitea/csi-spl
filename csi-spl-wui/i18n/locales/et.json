@@ -266,7 +266,8 @@
     "account_menu_for": "Kasutaja {who} konto menüü",
     "method_password": "E-post ja parool",
     "method_unknown": "Teadmata",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Roll: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Sõnum: {target} — Enter saadab · /search otsib kõikjalt",
     "unreachable": "Otsinguteenusega ei saanud ühendust. Proovi varsti uuesti."
+  },
+  "role": {
+    "biz_owner": "Äriomanik",
+    "product_owner": "Tooteomanik",
+    "admin": "Administraator",
+    "developer": "Arendaja",
+    "tester": "Testija",
+    "pure_agent": "Puhas agent"
   }
 }

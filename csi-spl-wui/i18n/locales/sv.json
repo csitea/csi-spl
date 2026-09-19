@@ -266,7 +266,8 @@
     "account_menu_for": "Kontomeny för {who}",
     "method_password": "E-post och lösenord",
     "method_unknown": "Okänd",
-    "method_named": "{name}"
+    "method_named": "{name}",
+    "role": "Roll: {role}"
   },
   "viewer": {
     "error": {
@@ -467,5 +468,13 @@
     },
     "placeholder_target": "Meddelande till {target} — Enter skickar · /search söker överallt",
     "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund."
+  },
+  "role": {
+    "biz_owner": "Affärsägare",
+    "product_owner": "Produktägare",
+    "admin": "Administratör",
+    "developer": "Utvecklare",
+    "tester": "Testare",
+    "pure_agent": "Ren agent"
   }
 }

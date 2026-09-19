@@ -44,6 +44,7 @@ declare module '~/utils/spool-client.mjs' {
       messages: import('./spool').SpoolMessage[]
       next: string | null
     }>
+    me(): Promise<Record<string, unknown> | null>
     listChannels(opts?: { read?: Record<string, string> }): Promise<import('./spool').ChannelRow[]>
     listMessages(opts?: {
       channel?: string
@@ -457,4 +458,11 @@ declare module '~/utils/search.mjs' {
   export function moveIndex(i: number, n: number, key: string): number
   export function searchTarget(row: unknown): { thread: string, focus: string } | { path: string } | { search: string } | null
   export function mockSearch(messages: unknown[], q: string): unknown
+}
+
+declare module '~/utils/access.mjs' {
+  export const ROLE_IDS: string[]
+  export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null }
+  export function accessAllows(me: { permissions: string[] | null } | null | undefined, perm: string): boolean
+  export function roleLabelKey(role: string | null | undefined): string
 }

@@ -9,6 +9,10 @@
 // <this origin>/avatar/<subject>.png, a small generated PNG, so the hub's
 // server-side avatar fetch runs in lde and tests. Person.NoPicture drops it.
 //
+// Microsoft (spec 018) is served Microsoft-shaped: /<tenant>/oauth2/v2.0/
+// {authorize,token} and /<tenant>/discovery/v2.0/keys, with a PKCE S256 check
+// and a real RS256 id_token signed by a per-fake key (microsoft.go).
+//
 // The consent screen is skipped: the authorize endpoint redirects straight back
 // with a code (or with error=access_denied after Set(p, true)).
 package fakeidp
@@ -16,6 +20,7 @@ package fakeidp
 import (
 	"bytes"
 	"crypto/hmac"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -46,6 +51,10 @@ type Person struct {
 	EmailVerified bool
 	Name          string
 	NoPicture     bool // userinfo / Graph me carry no picture
+	// MicrosoftTenantID is the account's Entra tid; "" = a personal account
+	// (auth.MicrosoftConsumersTenantID). EmailDomainVerified is xms_edov.
+	MicrosoftTenantID   string
+	EmailDomainVerified bool
 }
 
 // AvatarPath is where the fake serves a person's picture.
@@ -87,6 +96,12 @@ type IdP struct {
 	codes  map[string]string // code -> provider
 	tokens map[string]string // access token -> provider
 	n      int
+
+	ms       *Client // the Microsoft app (AddMicrosoft); nil = not served
+	msKey    *rsa.PrivateKey
+	msFlows  map[string]msFlow // code -> the authorize request it answers
+	msTamper MicrosoftTamper
+	msJWKS   int // JWKS fetches served
 }
 
 // New returns a fake that knows the two client registrations.
@@ -95,9 +110,12 @@ func New(google, facebook Client, p Person) *IdP {
 		codes: map[string]string{}, tokens: map[string]string{}}
 }
 
-// AddOIDC registers an app for a generic OIDC provider (microsoft, linkedin,
-// xai) before Handler is called.
+// AddOIDC registers an app for a generic OIDC provider (linkedin, xai)
+// before Handler is called; "microsoft" is served by AddMicrosoft.
 func (f *IdP) AddOIDC(provider string, c Client) *IdP {
+	if provider == auth.ProviderMicrosoft {
+		return f.AddMicrosoft(c)
+	}
 	f.oidc[provider] = c
 	return f
 }
@@ -175,6 +193,9 @@ func (f *IdP) Handler() http.Handler {
 		}
 		writeJSON(w, http.StatusOK, body)
 	})
+	if f.ms != nil {
+		f.microsoftRoutes(mux)
+	}
 	for prov, c := range f.oidc {
 		prov, c := prov, c
 		mux.HandleFunc("GET "+auth.OIDCAuthPath(prov), func(w http.ResponseWriter, r *http.Request) {

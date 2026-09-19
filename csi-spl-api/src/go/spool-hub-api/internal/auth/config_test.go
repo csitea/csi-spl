@@ -143,11 +143,11 @@ func TestConfigOIDCProviders(t *testing.T) {
 	if got := strings.Join(c.Enabled(), ","); got != "microsoft,linkedin,xai" {
 		t.Fatalf("enabled %s", got)
 	}
-	if c.MicrosoftTenant != "consumers" || c.MicrosoftTrustEmail || c.LinkedInScopes != "openid profile email" {
+	if c.MicrosoftTenant != "common" || c.MicrosoftTrustEmail || c.LinkedInScopes != "openid profile email" {
 		t.Fatalf("defaults: %q %v %q", c.MicrosoftTenant, c.MicrosoftTrustEmail, c.LinkedInScopes)
 	}
-	ms := newIdP(c, ProviderMicrosoft, nil).(*OIDC)
-	if !strings.HasPrefix(ms.AuthURL, "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize") || !ms.EmailTrusted {
+	ms := newIdP(c, ProviderMicrosoft, nil).(*Microsoft)
+	if !strings.HasPrefix(ms.AuthCodeURL("s", "n"), "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?") || ms.TrustEmail {
 		t.Fatalf("microsoft client %+v", ms)
 	}
 	if li := newIdP(c, ProviderLinkedIn, nil).(*OIDC); li.EmailTrusted {
@@ -205,28 +205,41 @@ func TestConfigLinkedInScopes(t *testing.T) {
 	}
 }
 
-// OQ-I1: a Microsoft tenant other than consumers admits work accounts whose
-// email is unverified; refused unless the owner's TRUST_EMAIL flag is on.
-func TestConfigMicrosoftTenantTrust(t *testing.T) {
-	for _, tenant := range []string{"common", "organizations", "0000-tenant-id"} {
+// spec 018 OQ-M1/M2: the authority is a keyword or a tenant GUID; the
+// email-trust override is refused in prd; scopes must ask for openid + email.
+func TestConfigMicrosoftTenant(t *testing.T) {
+	for _, tenant := range []string{"common", "consumers", "organizations", "9188040d-6c67-4c5b-b112-36a304b66dad"} {
 		v := oidcVars()
 		v["SPOOL_HUB_AUTH_MICROSOFT_TENANT"] = tenant
-		if _, err := LoadFrom("dev", v); err == nil || !strings.Contains(err.Error(), "OQ-I1") {
-			t.Errorf("tenant %s without trust flag: %v", tenant, err)
-		}
-		v["SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL"] = "true"
-		c, err := LoadFrom("dev", v)
+		c, err := LoadFrom("prd", v)
 		if err != nil {
-			t.Errorf("tenant %s with trust flag: %v", tenant, err)
+			t.Errorf("tenant %s: %v", tenant, err)
 			continue
 		}
-		if ms := newIdP(c, ProviderMicrosoft, nil).(*OIDC); !strings.Contains(ms.AuthURL, "/"+tenant+"/") {
-			t.Errorf("authority %s", ms.AuthURL)
+		if u := newIdP(c, ProviderMicrosoft, nil).(*Microsoft).AuthCodeURL("s", "n"); !strings.Contains(u, "/"+tenant+"/oauth2/v2.0/authorize?") {
+			t.Errorf("authority %s", u)
+		}
+	}
+	for _, tenant := range []string{"consumers/../x", "contoso.onmicrosoft.com", "Common", "PLACEHOLDER-tenant", "0000-tenant-id"} {
+		v := oidcVars()
+		v["SPOOL_HUB_AUTH_MICROSOFT_TENANT"] = tenant
+		if _, err := LoadFrom("dev", v); err == nil || !strings.Contains(err.Error(), "SPOOL_HUB_AUTH_MICROSOFT_TENANT") {
+			t.Errorf("tenant %q accepted: %v", tenant, err)
 		}
 	}
 	v := oidcVars()
-	v["SPOOL_HUB_AUTH_MICROSOFT_TENANT"] = "consumers/../x"
-	if _, err := LoadFrom("dev", v); err == nil {
-		t.Error("a path in the tenant segment was accepted")
+	v["SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL"] = "true"
+	if _, err := LoadFrom("dev", v); err != nil {
+		t.Errorf("trust flag in dev: %v", err)
+	}
+	if _, err := LoadFrom("prd", v); err == nil || !strings.Contains(err.Error(), "TRUST_EMAIL") {
+		t.Errorf("trust flag in prd accepted: %v", err)
+	}
+	for _, scopes := range []string{"openid profile", "email profile"} {
+		v := oidcVars()
+		v["SPOOL_HUB_AUTH_MICROSOFT_SCOPES"] = scopes
+		if _, err := LoadFrom("dev", v); err == nil || !strings.Contains(err.Error(), "SCOPES") {
+			t.Errorf("scopes %q accepted: %v", scopes, err)
+		}
 	}
 }

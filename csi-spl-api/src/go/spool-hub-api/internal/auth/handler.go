@@ -201,7 +201,12 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, p, st.Redirect, ErrCodeExchange, "no code")
 		return
 	}
-	id, err := idp.Exchange(r.Context(), code)
+	var id Identity
+	if ne, ok := idp.(nonceExchanger); ok {
+		id, err = ne.ExchangeNonce(r.Context(), code, st.Nonce) // id_token nonce + PKCE (018)
+	} else {
+		id, err = idp.Exchange(r.Context(), code)
+	}
 	if errors.Is(err, errEmailUnverified) {
 		h.fail(w, r, p, st.Redirect, ErrCodeUnverified, err.Error())
 		return

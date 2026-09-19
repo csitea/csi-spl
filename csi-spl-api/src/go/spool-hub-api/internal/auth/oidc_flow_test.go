@@ -120,8 +120,12 @@ func TestOIDCSignInEachProvider(t *testing.T) {
 				t.Fatalf("landed on %s", landed)
 			}
 			code, s := session(t, c, r)
-			if code != http.StatusOK || s.Provider != p || s.Email != "alice@example.com" || s.Subject != "sub-123" ||
-				s.HumanID != "HUM-"+p+"-sub-123@t1" {
+			sub := "sub-123"
+			if p == auth.ProviderMicrosoft { // spec 018 FR-004: <tid>/<oid>
+				sub = auth.MicrosoftConsumersTenantID + "/" + fakeidp.MicrosoftOID("sub-123")
+			}
+			if code != http.StatusOK || s.Provider != p || s.Email != "alice@example.com" || s.Subject != sub ||
+				s.HumanID != "HUM-"+p+"-"+sub+"@t1" {
 				t.Fatalf("session %d %+v", code, s)
 			}
 		})
@@ -138,7 +142,11 @@ func TestOIDCStartCarriesNonceAndClient(t *testing.T) {
 		resp.Body.Close()
 		loc, _ := url.Parse(resp.Header.Get("Location"))
 		q := loc.Query()
-		if loc.Path != auth.OIDCAuthPath(p) || q.Get("client_id") == "" || q.Get("nonce") == "" ||
+		path := auth.OIDCAuthPath(p)
+		if p == auth.ProviderMicrosoft { // spec 018: Microsoft-shaped authority path
+			path = "/" + auth.MicrosoftAuthPath(auth.MicrosoftCommon)
+		}
+		if loc.Path != path || q.Get("client_id") == "" || q.Get("nonce") == "" ||
 			q.Get("response_type") != "code" || q.Get("redirect_uri") != r.hub+"/api/v1/auth/"+p+"/callback" ||
 			!strings.Contains(q.Get("scope"), "openid") {
 			t.Fatalf("%s authorize URL %s", p, loc)

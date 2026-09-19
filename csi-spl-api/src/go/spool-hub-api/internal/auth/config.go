@@ -1,6 +1,6 @@
 // Package auth is the hub's browser sign-in (spec 010-spool-social-auth):
-// Google (OIDC), Facebook (OAuth 2.0 + Graph) and the generic OIDC providers
-// Microsoft, LinkedIn and xAI (FR-012) — authorization-code login for the WUI, a signed CSRF `state` bound to a browser cookie, a server-side code
+// Google (OIDC), Facebook (OAuth 2.0 + Graph), Microsoft (spec 018: PKCE +
+// validated id_token) and the generic OIDC providers LinkedIn and xAI (FR-012) — authorization-code login for the WUI, a signed CSRF `state` bound to a browser cookie, a server-side code
 // exchange with the provider's client secret, and a stateless HMAC-signed
 // session cookie.
 //
@@ -43,10 +43,6 @@ var knownProviders = map[string]bool{ProviderGoogle: true, ProviderFacebook: tru
 // advertising a button that 404s. Empty since T040-T042.
 var plannedProviders = map[string]bool{}
 
-// microsoftConsumers is the Entra authority for personal Microsoft accounts
-// only, the one tenant whose email Microsoft itself verifies (OQ-I1).
-const microsoftConsumers = "consumers"
-
 // Config is the resolved auth configuration. The env names are published in
 // csi-spl-cnf all.env.yaml env.auth.social; the code reads those names only.
 type Config struct {
@@ -83,11 +79,11 @@ type Config struct {
 	MicrosoftClientSecret string `env:"SPOOL_HUB_AUTH_MICROSOFT_CLIENT_SECRET"`
 	MicrosoftRedirectURI  string `env:"SPOOL_HUB_AUTH_MICROSOFT_REDIRECT_URI"`
 	MicrosoftScopes       string `env:"SPOOL_HUB_AUTH_MICROSOFT_SCOPES" envDefault:"openid email profile"`
-	// MicrosoftTenant is the Entra authority segment. OQ-I1 (a): "consumers"
-	// (personal accounts, verified email). Anything else needs
-	// MicrosoftTrustEmail, because a work tenant's email claim is set by that
-	// tenant's admin and never verified.
-	MicrosoftTenant     string `env:"SPOOL_HUB_AUTH_MICROSOFT_TENANT" envDefault:"consumers"`
+	// MicrosoftTenant is the Entra authority segment (spec 018 OQ-M1):
+	// common (default: personal + every work/school tenant) | consumers |
+	// organizations | a tenant GUID. A work account's email is trusted only
+	// with xms_edov=true (FR-005), unless MicrosoftTrustEmail (refused in prd).
+	MicrosoftTenant     string `env:"SPOOL_HUB_AUTH_MICROSOFT_TENANT" envDefault:"common"`
 	MicrosoftTrustEmail bool   `env:"SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL" envDefault:"false"`
 
 	LinkedInClientID     string `env:"SPOOL_HUB_AUTH_LINKEDIN_CLIENT_ID"`
@@ -202,13 +198,18 @@ func (c *Config) validate() error {
 func (c *Config) validateProvider(p string) error {
 	switch p {
 	case ProviderMicrosoft:
-		t := strings.TrimSpace(c.MicrosoftTenant)
-		if t == "" || isPlaceholder(t) || strings.ContainsAny(t, "/?#") {
-			return fmt.Errorf("SPOOL_HUB_AUTH_MICROSOFT_TENANT %q must be an Entra tenant segment", t)
+		if t := strings.TrimSpace(c.MicrosoftTenant); !validMicrosoftTenant(t) {
+			return fmt.Errorf("SPOOL_HUB_AUTH_MICROSOFT_TENANT %q must be common, consumers, organizations or a tenant GUID (spec 018 OQ-M1)", t)
 		}
-		if t != microsoftConsumers && !c.MicrosoftTrustEmail {
-			return fmt.Errorf("SPOOL_HUB_AUTH_MICROSOFT_TENANT=%q accepts work accounts whose email is unverified; "+
-				"use %q or set SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL=true (spec 010 OQ-I1)", t, microsoftConsumers)
+		scopes := map[string]bool{}
+		for _, s := range strings.Fields(c.MicrosoftScopes) {
+			scopes[s] = true
+		}
+		if !scopes["openid"] || !scopes["email"] {
+			return fmt.Errorf("SPOOL_HUB_AUTH_MICROSOFT_SCOPES %q must include openid and email", c.MicrosoftScopes)
+		}
+		if c.MicrosoftTrustEmail && c.Env == "prd" {
+			return fmt.Errorf("SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL=true is refused in prd (spec 018 OQ-M2)")
 		}
 	case ProviderLinkedIn:
 		// spec 019 FR-L2: without openid there is no userinfo and without

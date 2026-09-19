@@ -10,7 +10,8 @@ import (
 )
 
 // OIDC is the generic OpenID Connect authorization-code client behind
-// Microsoft, LinkedIn and xAI (spec 010 FR-012; donor csi-rel oidc_idp.go).
+// LinkedIn and xAI (spec 010 FR-012; donor csi-rel oidc_idp.go). Microsoft has
+// its own client since spec 018 (microsoft.go).
 // Per provider only the endpoints, the scopes and the email-trust rule
 // differ. As with Google, the identity is the userinfo response fetched
 // server-to-server with the access token just issued to our confidential
@@ -115,11 +116,9 @@ func jsonTruthy(raw json.RawMessage) bool {
 // Real endpoints of the generic OIDC providers with a published, fixed issuer.
 // xAI has none here: its endpoints are cnf (FR-012).
 const (
-	microsoftLoginBase   = "https://login.microsoftonline.com/"
-	microsoftUserinfoURL = "https://graph.microsoft.com/oidc/userinfo"
-	linkedinAuthURL      = "https://www.linkedin.com/oauth/v2/authorization"
-	linkedinTokenURL     = "https://www.linkedin.com/oauth/v2/accessToken"
-	linkedinUserinfoURL  = "https://api.linkedin.com/v2/userinfo"
+	linkedinAuthURL     = "https://www.linkedin.com/oauth/v2/authorization"
+	linkedinTokenURL    = "https://www.linkedin.com/oauth/v2/accessToken"
+	linkedinUserinfoURL = "https://api.linkedin.com/v2/userinfo"
 )
 
 // OIDC paths the fake IdP serves per provider (auth.OIDCAuthPath("xai") …).
@@ -133,14 +132,6 @@ func newOIDC(c *Config, p, base string, hc *http.Client) *OIDC {
 	id, secret, redirect := c.creds(p)
 	o := &OIDC{Provider: p, ClientID: id, ClientSecret: secret, RedirectURI: redirect, HTTP: hc}
 	switch p {
-	case ProviderMicrosoft:
-		t := url.PathEscape(strings.TrimSpace(c.MicrosoftTenant))
-		o.Scopes = c.MicrosoftScopes
-		o.AuthURL = microsoftLoginBase + t + "/oauth2/v2.0/authorize"
-		o.TokenURL = microsoftLoginBase + t + "/oauth2/v2.0/token"
-		o.UserinfoURL = microsoftUserinfoURL
-		// config refuses a non-consumers tenant unless TRUST_EMAIL (OQ-I1)
-		o.EmailTrusted = true
 	case ProviderLinkedIn:
 		o.Scopes, o.AuthURL, o.TokenURL, o.UserinfoURL = c.LinkedInScopes, linkedinAuthURL, linkedinTokenURL, linkedinUserinfoURL
 	case ProviderXAI:

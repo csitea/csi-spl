@@ -29,8 +29,9 @@ type Identity struct {
 	AvatarType string // image/png | image/jpeg | image/gif | image/webp
 }
 
-// IdP is one provider's authorization-code client: Google, Facebook, or the
-// generic OIDC client (oidc.go) for Microsoft, LinkedIn and xAI.
+// IdP is one provider's authorization-code client: Google, Facebook,
+// Microsoft (microsoft.go, spec 018), or the generic OIDC client (oidc.go) for
+// LinkedIn and xAI.
 type IdP interface {
 	Name() string
 	AuthCodeURL(state, nonce string) string
@@ -275,7 +276,9 @@ func newIdP(c *Config, p string, hc *http.Client) IdP {
 			f.DialogBase, f.GraphBase, f.AvatarHTTPBase = base, base, base
 		}
 		return f
-	case ProviderMicrosoft, ProviderLinkedIn, ProviderXAI:
+	case ProviderMicrosoft:
+		return newMicrosoft(c, base, hc)
+	case ProviderLinkedIn, ProviderXAI:
 		return newOIDC(c, p, base, hc)
 	}
 	return nil

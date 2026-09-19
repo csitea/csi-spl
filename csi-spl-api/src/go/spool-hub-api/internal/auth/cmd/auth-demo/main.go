@@ -6,7 +6,7 @@
 // provider and prints every hop. Registration is the hub's store hooks on a
 // memory store with a temp blob dir, so each sign-in also shows the IdP
 // picture fetched server-side and stored as the human's avatar file_id
-// (010 T044).
+// (010 T044), except Microsoft, which has none (spec 018 FR-006).
 //
 //	go run ./internal/auth/cmd/auth-demo            # walk the flow, exit 0/1
 //	go run ./internal/auth/cmd/auth-demo -serve     # then keep serving for curl
@@ -178,7 +178,11 @@ func run(serve bool, addr, appURL, publicURL string) error {
 		var sess struct {
 			HumanID string `json:"hum"`
 		}
-		json.Unmarshal(body, &sess) //nolint:errcheck
+		json.Unmarshal(body, &sess)      //nolint:errcheck
+		if p == auth.ProviderMicrosoft { // spec 018 FR-006: no picture from Microsoft
+			fmt.Printf("  avatar: none from %s (spec 018 FR-006)\n", p)
+			continue
+		}
 		fid, err := st.Avatar(context.Background(), sess.HumanID)
 		if err != nil || fid == "" {
 			return fmt.Errorf("%s: no avatar stored for %q: %v", p, sess.HumanID, err)

@@ -1,8 +1,10 @@
 <!-- Top-right user control (CLE-3402), after the reference storefront's header
      account control: signed in → the person's avatar (member HUM-*: the stored
      IdP picture, else the deterministic identicon — SpoolAvatar; no member id:
-     initials, else a silhouette). Clicking it opens a dropdown: who they are,
-     Settings, Sign out. Signed out → the sign-in entry.
+     initials, else a silhouette). CLE-3406: first the person's OWN IdP picture
+     (auth-v1 GET /api/v1/auth/avatar, session only, no membership needed, as
+     a data: URL); a 404 or any failure falls back to the above. Clicking it
+     opens a dropdown: who they are, Settings, Sign out. Signed out → the sign-in entry.
      WAI-ARIA menu button: Enter/Space (click) and ArrowDown open on the first item,
      ArrowUp on the last; arrows wrap, Home/End jump, Escape closes and returns
      focus to the button, Tab or a click outside closes. -->
@@ -22,8 +24,9 @@
         @click="toggle"
         @keydown="onTriggerKey"
       >
-        <span class="user-menu__avatar" :class="'user-menu__avatar--' + mode" aria-hidden="true">
-          <SpoolAvatar v-if="mode === 'member'" :id="me.hum" :size="32" />
+        <span class="user-menu__avatar" :class="'user-menu__avatar--' + (ownPic ? 'member' : mode)" aria-hidden="true">
+          <img v-if="ownPic" class="spool-avatar" data-test="user-menu-picture" :src="ownPic" :width="32" :height="32" :style="{ width: '32px', height: '32px' }" alt="" draggable="false" @error="ownPic = ''">
+          <SpoolAvatar v-else-if="mode === 'member'" :id="me.hum" :size="32" />
           <template v-else-if="mode === 'initials'">{{ initials }}</template>
           <UiIcon v-else name="user" :size="20" />
         </span>
@@ -35,8 +38,9 @@
         data-test="user-menu-panel"
       >
         <div class="user-menu__who" data-test="user-menu-who">
-          <span class="user-menu__avatar user-menu__avatar--lg" :class="'user-menu__avatar--' + mode" aria-hidden="true">
-            <SpoolAvatar v-if="mode === 'member'" :id="me.hum" :size="40" />
+          <span class="user-menu__avatar user-menu__avatar--lg" :class="'user-menu__avatar--' + (ownPic ? 'member' : mode)" aria-hidden="true">
+            <img v-if="ownPic" class="spool-avatar" data-test="user-menu-picture" :src="ownPic" :width="40" :height="40" :style="{ width: '40px', height: '40px' }" alt="" draggable="false" @error="ownPic = ''">
+            <SpoolAvatar v-else-if="mode === 'member'" :id="me.hum" :size="40" />
             <template v-else-if="mode === 'initials'">{{ initials }}</template>
             <UiIcon v-else name="user" :size="24" />
           </span>
@@ -95,7 +99,9 @@
 
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
-import { avatarMode, menuButtonLabelKey, nextMenuIndex, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
+import { avatarMode, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
+import { loadAvatarImageUrl } from '~/utils/avatar.mjs'
+import { useAuthBase } from '~/composables/useAuthClient'
 
 const session = useSessionStore()
 const route = useRoute()
@@ -107,6 +113,16 @@ const signedIn = computed(() => session.state === 'in' && !!session.claims)
 const me = computed(() => userIdentity(session.claims))
 const mode = computed(() => avatarMode(session.claims))
 const initials = computed(() => userInitials(session.claims))
+
+// CLE-3406: the signed-in person's own IdP picture, '' until loaded / none.
+const authBase = useAuthBase()
+const ownPic = ref('')
+const ownPicUrl = computed(() => (signedIn.value ? ownAvatarUrl(authBase, session.claims) : ''))
+watch(ownPicUrl, async (url) => {
+  ownPic.value = ''
+  const got = await loadAvatarImageUrl(url, { credentials: 'include' })
+  if (url === ownPicUrl.value) ownPic.value = got
+}, { immediate: true })
 const buttonLabel = computed(() => {
   const k = menuButtonLabelKey(session.claims)
   return t(k.key, k.params)

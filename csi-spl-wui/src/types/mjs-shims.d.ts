@@ -236,10 +236,10 @@ declare module '~/utils/avatar.mjs' {
     ttlMs?: number
   }): Promise<Record<string, string>>
   export function avatarImageMime(bytes: ArrayBuffer | Uint8Array): string
-  export function loadAvatarBlobUrl(url: string, o?: {
+  export function bytesToDataUri(bytes: ArrayBuffer | Uint8Array, type: string): string
+  export function loadAvatarImageUrl(url: string, o?: {
     credentials?: RequestCredentials
     fetchFn?: typeof fetch
-    createObjectURL?: (b: Blob) => string
   }): Promise<string>
   export function resetAvatarFiles(): void
 }
@@ -302,6 +302,7 @@ declare module '~/utils/user-menu.mjs' {
   export function userIdentity(claims: unknown): UserIdentity
   export function userInitials(claims: unknown): string
   export function avatarMode(claims: unknown): 'member' | 'initials' | 'silhouette'
+  export function ownAvatarUrl(authBase: string, claims: unknown): string
   export function methodLabel(p: unknown): string
   export function menuButtonLabel(claims: unknown): string
   export function methodLabelKey(p: unknown): { key: string, params: Record<string, unknown> }

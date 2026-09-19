@@ -1,9 +1,10 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { matchesSearch, newestFirst, parseOmnibox, rootAndReplies, windowed } from '../../src/utils/feed.mjs'
 import {
   avatarAlt, avatarAltKey, avatarDataUri, avatarFilesFromView, avatarImageUrl, avatarSvg, hashSeed, identiconSvg, isHuman, isMember,
-  avatarImageMime, loadAvatarBlobUrl, loadAvatarFiles, resetAvatarFiles, robotSvg,
+  avatarImageMime, bytesToDataUri, loadAvatarImageUrl, loadAvatarFiles, resetAvatarFiles, robotSvg,
 } from '../../src/utils/avatar.mjs'
 
 const M = (id, ts, extra = {}) => ({ msg_id: id, ts, body: `b-${id}`, from: 'HUM-1', ...extra })
@@ -156,11 +157,10 @@ describe('stored IdP avatars (gap A5, view-v1 §4.1 humans)', () => {
     }
   })
 
-  it('shows the picture as a blob: URL (CSP img-src), once per URL; 404 / non-image / error -> default', async () => {
+  it('shows the picture as a data: URL (deployed CSP img-src is self data:), once per URL; 404 / non-image / error -> default', async () => {
     resetAvatarFiles()
     const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10])
     const calls = []
-    const made = []
     const fetchFn = async (url, opts) => {
       calls.push([url, opts])
       if (url.endsWith('/404')) return { ok: false, status: 404 }
@@ -168,21 +168,33 @@ describe('stored IdP avatars (gap A5, view-v1 §4.1 humans)', () => {
       if (url.endsWith('/boom')) throw new Error('down')
       return { ok: true, arrayBuffer: async () => PNG.buffer }
     }
-    const createObjectURL = (b) => { made.push(b); return `blob:test/${made.length}` }
-    const o = { fetchFn, createObjectURL }
+    const o = { fetchFn }
     const u = `http://t1.test/v1/files/${FID}`
-    assert.equal(await loadAvatarBlobUrl(u, o), 'blob:test/1')
-    assert.equal(await loadAvatarBlobUrl(u, o), 'blob:test/1')
+    const want = `data:image/png;base64,${Buffer.from(PNG).toString('base64')}`
+    assert.equal(await loadAvatarImageUrl(u, o), want)
+    assert.equal(await loadAvatarImageUrl(u, o), want)
     assert.equal(calls.length, 1)
     assert.equal(calls[0][1].credentials, 'omit')
     // 017 FR-SEC-002: in the session door the member cookie rides along.
-    assert.equal(await loadAvatarBlobUrl(`${u}?s`, { ...o, credentials: 'include' }), 'blob:test/2')
+    assert.equal(await loadAvatarImageUrl(`${u}?s`, { ...o, credentials: 'include' }), want)
     assert.equal(calls[1][1].credentials, 'include')
-    assert.equal(made[0].type, 'image/png')
-    for (const tail of ['404', 'html', 'boom']) assert.equal(await loadAvatarBlobUrl(`http://t1.test/${tail}`, o), '', tail)
-    assert.equal(await loadAvatarBlobUrl('', o), '')
-    assert.equal(made.length, 2)
+    for (const tail of ['404', 'html', 'boom']) assert.equal(await loadAvatarImageUrl(`http://t1.test/${tail}`, o), '', tail)
+    assert.equal(await loadAvatarImageUrl('', o), '')
     resetAvatarFiles()
+  })
+
+  it('CLE-3406: never a blob: URL - every deployed CSP img-src is exactly self + data:', () => {
+    const render = readFileSync(new URL('../../../csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh', import.meta.url), 'utf8')
+    assert.match(render, /"img-src 'self' data:",/)
+    const src = readFileSync(new URL('../../src/utils/avatar.mjs', import.meta.url), 'utf8')
+    assert.equal(/createObjectURL/.test(src), false, 'avatar.mjs makes a blob: URL the deployed CSP blocks')
+  })
+
+  it('bytesToDataUri survives a picture at the 256 KiB hub cap (chunked)', () => {
+    const big = new Uint8Array(256 << 10).map((_, i) => i & 0xff)
+    const uri = bytesToDataUri(big, 'image/png')
+    assert.ok(uri.startsWith('data:image/png;base64,'))
+    assert.deepEqual(Buffer.from(uri.split(',')[1], 'base64'), Buffer.from(big))
   })
 })
 

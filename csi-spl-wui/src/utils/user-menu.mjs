@@ -47,6 +47,22 @@ export function avatarMode(claims) {
   return userInitials(claims) ? 'initials' : 'silhouette'
 }
 
+/**
+ * The signed-in person's own IdP picture (CLE-3406, auth-v1 GET
+ * /api/v1/auth/avatar) on the auth base; '' when not signed in. It needs the
+ * session only, never a membership, so a Google user whose invite is not yet
+ * accepted sees their picture too. `at` (the session's iat) makes each
+ * sign-in a new URL, so a picture changed at Google shows after the next
+ * sign-in instead of the one cached for the page; the hub ignores it.
+ */
+export function ownAvatarUrl(authBase, claims) {
+  const c = claims && typeof claims === 'object' ? claims : null
+  if (!c) return ''
+  const root = String(authBase || '').replace(/\/+$/, '')
+  const iat = Number.isFinite(c.iat) ? `?at=${c.iat}` : ''
+  return `${root}/api/v1/auth/avatar${iat}`
+}
+
 const METHOD_LABEL = { password: 'Email and password', google: 'Google', microsoft: 'Microsoft', facebook: 'Facebook' }
 
 /** Session claim `p` (the sign-in provider) in words. */

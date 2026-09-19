@@ -205,35 +205,45 @@ export function avatarImageMime(bytes) {
   return ''
 }
 
-const avatarBlobs = new Map()
+const avatarImages = new Map()
+
+/** bytes → data:<type>;base64,… (chunked, so a 256 KiB picture never overflows the call stack). */
+export function bytesToDataUri(bytes, type) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || [])
+  let bin = ''
+  for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000))
+  return `data:${type};base64,${btoa(bin)}`
+}
 
 /**
- * The picture as a blob: URL, or '' (draw the default). The WUI CSP allows
- * img-src 'self' data: blob: and connect-src the hub, so the bytes are
- * fetched with the view door's credentials (017 FR-SEC-002: /v1/files needs
- * the member session, 'include' in the session door) and only an image by its
- * magic bytes is shown. One fetch per URL for the page's lifetime.
+ * The picture as a data: URL, or '' (draw the default). Every deployed CSP
+ * is img-src 'self' data: (render-wui-firebase-json.sh) — a blob: URL is
+ * blocked there, which is why no stored picture ever showed (CLE-3406) —
+ * and connect-src admits the hub, so the bytes are fetched with the caller's
+ * credentials (017 FR-SEC-002: /v1/files needs the member session;
+ * /api/v1/auth/avatar the session cookie) and only an image by its magic
+ * bytes is shown. One fetch per URL for the page's lifetime.
  */
-export function loadAvatarBlobUrl(url, { credentials = 'omit', fetchFn = globalThis.fetch, createObjectURL = (b) => URL.createObjectURL(b) } = {}) {
+export function loadAvatarImageUrl(url, { credentials = 'omit', fetchFn = globalThis.fetch } = {}) {
   if (!url) return Promise.resolve('')
-  if (avatarBlobs.has(url)) return avatarBlobs.get(url)
+  if (avatarImages.has(url)) return avatarImages.get(url)
   const promise = (async () => {
     try {
       const res = await fetchFn(url, { credentials })
       if (!res || !res.ok) return ''
       const bytes = new Uint8Array(await res.arrayBuffer())
       const type = avatarImageMime(bytes)
-      return type ? createObjectURL(new Blob([bytes], { type })) : ''
+      return type ? bytesToDataUri(bytes, type) : ''
     } catch {
       return ''
     }
   })()
-  avatarBlobs.set(url, promise)
+  avatarImages.set(url, promise)
   return promise
 }
 
 /** Test seam: forget every cached roster read and picture. */
 export function resetAvatarFiles() {
   avatarLoads.clear()
-  avatarBlobs.clear()
+  avatarImages.clear()
 }

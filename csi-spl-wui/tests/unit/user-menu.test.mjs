@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  avatarMode, menuButtonLabel, menuButtonLabelKey, methodLabel, methodLabelKey, nextMenuIndex, signInRedirect, userIdentity, userInitials,
+  avatarMode, menuButtonLabel, ownAvatarUrl, menuButtonLabelKey, methodLabel, methodLabelKey, nextMenuIndex, signInRedirect, userIdentity, userInitials,
 } from '../../src/utils/user-menu.mjs'
 
 describe('user menu identity (CLE-3402: top-right avatar from auth-v1 §4 session claims)', () => {
@@ -101,5 +101,26 @@ describe('sign-in entry redirect', () => {
     assert.equal(signInRedirect('/he/login?redirect=/x'), '/')
     assert.equal(signInRedirect('/fi/loginx'), '/fi/loginx')
     assert.equal(signInRedirect('/fi/settings'), '/fi/settings')
+  })
+})
+
+describe('CLE-3406: the corner shows the person\'s own IdP picture', () => {
+  it('asks the auth base for it with the session alone - a member and a not-yet-member alike', () => {
+    const member = { p: 'google', email: 'a@example.com', hum: 'HUM-3', iat: 1758300000 }
+    const invited = { p: 'google', email: 'a@example.com', iat: 1758300001 }
+    assert.equal(ownAvatarUrl('https://api.example.com/', member), 'https://api.example.com/api/v1/auth/avatar?at=1758300000')
+    assert.equal(ownAvatarUrl('https://api.example.com', invited), 'https://api.example.com/api/v1/auth/avatar?at=1758300001')
+    assert.equal(ownAvatarUrl('', { email: 'a@example.com' }), '/api/v1/auth/avatar')
+  })
+
+  it('a new sign-in is a new URL, so a picture changed at the IdP is not the cached one', () => {
+    const a = ownAvatarUrl('https://h', { iat: 1 })
+    const b = ownAvatarUrl('https://h', { iat: 2 })
+    assert.notEqual(a, b)
+  })
+
+  it('CONTROL: signed out -> no request (the sign-in entry shows)', () => {
+    assert.equal(ownAvatarUrl('https://h', null), '')
+    assert.equal(ownAvatarUrl('https://h', undefined), '')
   })
 })

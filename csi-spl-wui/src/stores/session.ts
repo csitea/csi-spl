@@ -9,6 +9,7 @@ export interface SessionClaims {
   name?: string
   hum?: string
   t?: string
+  iat?: number
   exp?: number
   /** Operator grant for the diagnostics panel; only literal `true` admits (debugAudience.mjs). */
   diagnostics_enabled?: boolean

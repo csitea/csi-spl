@@ -12,14 +12,15 @@
 </template>
 
 <script setup lang="ts">
-import { avatarAltKey, avatarDataUri, avatarImageUrl, isHuman, loadAvatarBlobUrl, loadAvatarFiles } from '~/utils/avatar.mjs'
+import { avatarAltKey, avatarDataUri, avatarImageUrl, isHuman, loadAvatarImageUrl, loadAvatarFiles } from '~/utils/avatar.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 
 /*
  * SPEC-spool-avatars §2: robot for agents, identicon for HUM-*; deterministic,
  * generated (no image files). Gap A5: a member HUM-* with a stored IdP picture
  * (view-v1 §4.1 avatar_file_id) shows it: GET /v1/files/{id} fetched and shown
- * as a blob: URL (the CSP's img-src has no hub origin); a missing id, a 404,
+ * as a data: URL (the deployed CSP's img-src is 'self' data:, no hub origin
+ * and no blob:); a missing id, a 404,
  * non-image bytes or any load error keep the default. The box is fixed at
  * size×size before and after the swap, so nothing shifts.
  */
@@ -40,7 +41,7 @@ const alt = computed(() => {
 
 watch(picture, async (url) => {
   shown.value = ''
-  const got = await loadAvatarBlobUrl(url, { credentials: api.credentials })
+  const got = await loadAvatarImageUrl(url, { credentials: api.credentials })
   if (url === picture.value) shown.value = got
 }, { immediate: true })
 

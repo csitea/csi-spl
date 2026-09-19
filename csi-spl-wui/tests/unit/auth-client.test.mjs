@@ -208,6 +208,11 @@ describe('SocialAuthButtons (auth-v1 §4, donor component)', () => {
     assert.equal(/<script[^>]+src=|accounts\.google\.com|connect\.facebook\.net/.test(src), false)
   })
 
+  it('an empty social list with native sign-in on is not "unavailable yet"', () => {
+    assert.ok(src.includes(`v-if="status === 'ok' && !providers.length && !native"`))
+    assert.ok(src.includes('native.value = out.native === true'))
+  })
+
   it('always publishes the registry state for monitors', () => {
     assert.ok(src.includes(':data-social-auth-status="status"'))
     assert.ok(src.includes(':data-social-auth-count="providers.length"'))

@@ -24,7 +24,8 @@
        data-social-auth-count   how many buttons are shown
 
      `unavailable` means the hub could not be asked, and is also written to
-     the error journal; `ok` with a count of 0 is an env with auth off. -->
+     the error journal; `ok` with a count of 0 and no native sign-in is an env
+     with auth off. -->
 <template>
   <div
     class="social-auth"
@@ -66,7 +67,7 @@
       <span class="social-auth__label">{{ label(p) }}</span>
     </a>
     <p
-      v-if="status === 'ok' && !providers.length"
+      v-if="status === 'ok' && !providers.length && !native"
       class="muted social-auth__none"
       data-test="social-auth-none"
     >Sign-in is not available yet.</p>
@@ -100,12 +101,16 @@ const { t } = useI18n({ useScope: 'global' })
 type Status = 'idle' | 'ok' | 'unavailable'
 const status = ref<Status>('idle')
 const providers = ref<string[]>([])
+// native-auth-v1: the registry also says whether email + password sign-in is
+// on; then an empty social list is not "sign-in unavailable".
+const native = ref(false)
 
 // Client-only fetch keeps SSR and the first client render identical (empty),
 // so there is never a hydration mismatch; the list appears after mount.
 onMounted(async () => {
   const out = await createAuthClient().loadProviders()
   providers.value = out.providers
+  native.value = out.native === true
   status.value = out.status as Status
   if (out.status === 'unavailable') {
     noteError({

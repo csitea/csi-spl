@@ -1,8 +1,9 @@
 # Acceptance record — M3 end to end on dev (014, 005 SC-001, 006 T011c dev part)
 
-**Lane**: M3-E2E-DEV (CLE-3372) · **Runs**: 2026-09-19 12:13Z, 12:15Z (door off) and 12:43Z (door
-`session`, after dev 030 `ec94b9b`) · **n**: 3 full runs (run 1: 2 FAILs, both in the assertions,
-fixed before run 2; runs 2 and 3: every step PASS)
+**Lane**: M3-E2E-DEV (CLE-3372) · **Runs**: 2026-09-19 12:13Z, 12:15Z (door off) 12:43Z (door
+`session`, after dev 030 `ec94b9b`) and 12:53Z (persistent Secret Manager `box-wui` key, dev 030
+`56439ab`) · **n**: 4 full runs (run 1: 2 FAILs, both in the assertions, fixed before run 2;
+runs 2, 3 and 4: every step PASS)
 **Hub under test**: dev `0.1.4` = `b067cfd` (`curl -s https://dev.<domain>/version`)
 **Harness**: `do_spl_m3_e2e` (`csi-spl-orc/src/bash/run/spl-m3-e2e.func.sh` +
 `src/bash/scripts/m3-e2e.py`), trunk `260aec3`. Tenant `t1` (006 T011d).
@@ -61,7 +62,7 @@ session cookies are kept in 0600 files next to it and never printed.
   browser client (`m3-e2e.py` `WS`, the same frames the WUI sends). Handed to
   HOSTING (CLE-3354; the dev site-2 / sub-zone move is in flight) and CLE-55.
   The WUI read path (viewer, threads) was checked in Chrome.
-- **OBS-4 ephemeral dev key vs box pins.** Every dev hub restart mints a new
+- **OBS-4 (closed on dev by run 4)** — ephemeral dev key vs box pins. Every dev hub restart mints a new
   `box-wui` key. The harness re-pins with `--force`, but a long-lived box keeps
   its old local `pins/box-box-wui.pub`, and `SyncPins` then refuses the new key
   (`pin_conflict`, exit 78, 004 T007/T008). That box's next hello fails until
@@ -87,4 +88,9 @@ Run 3 also ran on a new ephemeral `box-wui` key (the 030 revision minted
 `j7ps8eu9…`, was `+xOuUyLW…`). The harness re-pinned it with `--force` and
 dispatch verified on it (OBS-4 in practice).
 
-<!-- last-edit: 2026-09-19T12:45:00Z -->
+Run 4 (12:53Z) ran after dev 030 `56439ab`, which replaced the ephemeral key with the
+Secret Manager key (`csi-spl-hub-wui-key`, pubkey `6ElVCSaK…`, stable across
+restarts). Every step PASSed; box-b's local `box-wui` pin matched it, and the
+dispatched task verified on it. This is the key the per-tenant pin keeps from now on.
+
+<!-- last-edit: 2026-09-19T12:56:00Z -->

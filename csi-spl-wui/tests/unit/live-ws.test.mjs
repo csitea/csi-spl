@@ -43,7 +43,7 @@ describe('live-ws helpers', () => {
 
   it('normalises envelope, msg and flat message frames', () => {
     const a = messageFromFrame({ type: 'message', cursor: 'c', env: { from_box: 'box-a', to_box: 'box-b', msg: { v: 1, msg_id: 'm', body: 'hi', sig: 's' } } })
-    assert.deepEqual(a, { v: 1, msg_id: 'm', body: 'hi', from_box: 'box-a', to_box: 'box-b', cursor: 'c' })
+    assert.deepEqual(a, { v: 1, msg_id: 'm', body: 'hi', from_box: 'box-a', to_box: 'box-b', channel: null, parent_task_id: null, cursor: 'c' })
     assert.equal(messageFromFrame({ type: 'message', msg: { msg_id: 'x' } }).msg_id, 'x')
     assert.equal(messageFromFrame({ type: 'message', msg_id: 'y', body: 'b' }).msg_id, 'y')
   })
@@ -151,5 +151,63 @@ describe('live-ws client', () => {
     c.close()
     assert.equal(c.state, 'closed')
     assert.equal(sockets.length, 2)
+  })
+})
+
+describe('live-ws A1: channels, presence, reconnect (wui-live-ws 0.3 §3.2, §4, §7)', () => {
+  it('keeps the hub-envelope channel / parent_task_id of a message frame', () => {
+    const m = messageFromFrame({ type: 'message', task_id: 'T', cursor: 'c1', env: { from_box: 'box-a', to_box: 'box-wui', channel: 'alerts', parent_task_id: 'P', msg: { v: 1, msg_id: 'm', task_id: 'T' }, sig: 's' } })
+    assert.equal(m.channel, 'alerts')
+    assert.equal(m.parent_task_id, 'P')
+    assert.equal(messageFromFrame({ env: { channel: '', msg: {} } }).channel, null)
+  })
+
+  it('puts channel, parent_task_id and a caller msg_id on the send frame, only when set', async () => {
+    const { FakeWS, sockets } = fakeWs()
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS })
+    c.connect(); sockets[0].open(); sockets[0].recv({ type: 'welcome' })
+    const pa = c.send({ task_id: 'T', body: 'x', channel: 'tasks', parent_task_id: 'P', msg_id: 'mid-1' })
+    const pb = c.send({ task_id: 'T', body: 'y' })
+    const [a, b] = sockets[0].sent.filter((f) => f.type === 'send')
+    sockets[0].recv({ type: 'ack', msg_id: a.msg_id })
+    sockets[0].recv({ type: 'ack', msg_id: b.msg_id })
+    await Promise.all([pa, pb])
+    assert.equal(a.channel, 'tasks')
+    assert.equal(a.parent_task_id, 'P')
+    assert.equal(a.msg_id, 'mid-1')
+    assert.equal('channel' in b, false)
+    assert.equal('parent_task_id' in b, false)
+  })
+
+  it('emits presence frames to onPresence', () => {
+    const { FakeWS, sockets } = fakeWs()
+    const got = []
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, onPresence: (f) => got.push(f) })
+    c.connect(); sockets[0].open(); sockets[0].recv({ type: 'welcome' })
+    sockets[0].recv({ type: 'presence', peer: 'CLE-07@box-a', status: 'online' })
+    sockets[0].recv({ type: 'presence', peer: 'HUM-1@box-wui', status: 'offline' })
+    assert.deepEqual(got.map((f) => `${f.peer}:${f.status}`), ['CLE-07@box-a:online', 'HUM-1@box-wui:offline'])
+  })
+
+  it('signals onReconnected after a drop (not on the first welcome), after re-subscribing, with the last cursors', () => {
+    const { FakeWS, sockets } = fakeWs()
+    const t = manualTimers()
+    const events = []
+    const c = createLiveClient({
+      url: 'ws://x', WebSocketImpl: FakeWS, setTimer: t.setTimer, clearTimer: t.clearTimer,
+      onReconnected: (w, info) => events.push({ w, info, subsSent: sockets.at(-1).sent.filter((f) => f.type === 'subscribe').length }),
+    })
+    c.subscribe('T1')
+    c.connect(); sockets[0].open(); sockets[0].recv({ type: 'welcome', as: 'HUM-1' })
+    assert.equal(events.length, 0)
+    sockets[0].recv({ type: 'message', task_id: 'T1', cursor: 'c7', envelope: {}, env: { msg: { msg_id: 'm7', task_id: 'T1' } } })
+    assert.equal(c.lastCursor('T1'), 'c7')
+    sockets[0].close()
+    t.fire(0)
+    sockets[1].open(); sockets[1].recv({ type: 'welcome', as: 'HUM-1' })
+    assert.equal(events.length, 1)
+    assert.equal(events[0].w.as, 'HUM-1')
+    assert.equal(events[0].subsSent, 1)
+    assert.deepEqual(events[0].info.cursors, { T1: 'c7' })
   })
 })

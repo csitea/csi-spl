@@ -80,7 +80,7 @@ describe('view-api helpers', () => {
       { box_id: 'box-z', agents: ['GRK-01'], online: false, revoked: true },
     ] })
     assert.deepEqual(r, { roster: { 'box-a': ['CLE-07'] }, online: ['CLE-07@box-a'] })
-    assert.deepEqual(channelsFromView({ channels: [{ channel: 'alerts', count: 1 }] }), [{ channel_id: 'alerts', name: 'alerts' }])
+    assert.deepEqual(channelsFromView({ channels: [{ channel: 'alerts', count: 1 }] }), [{ channel_id: 'alerts', name: 'alerts', count: 1 }])
   })
 
   it('renders a body as text, never as markup', () => {
@@ -150,15 +150,6 @@ describe('spool-client live (view-v1)', () => {
     const { fn } = stubFetch({ '/v1/view/threads': [401, { error: 'view_door' }] })
     const c = createSpoolClient({ fetchFn: fn, mock: false })
     await assert.rejects(c.listThreads(), (e) => e.status === 401 && e.token === 'view_door')
-  })
-
-  it('refuses live send, channel creation and channel feeds (read-only)', async () => {
-    const { fn, calls } = stubFetch({})
-    const c = createSpoolClient({ fetchFn: fn, mock: false })
-    await assert.rejects(c.sendMessage({ text: 'x' }), (e) => e.status === 501)
-    await assert.rejects(c.createChannel({ name: 'x' }), (e) => e.status === 501)
-    await assert.rejects(c.listMessages({ channel: 'lobby' }), (e) => e.status === 501)
-    assert.equal(calls.length, 0)
   })
 
   it('probes /v1/health, not the Cloud Run-shadowed /healthz', async () => {

@@ -4,8 +4,10 @@
  * The box socket /v1/ws (Ed25519 hello) is never used from the browser.
  *
  * Lifecycle: connect → hello (token / display name) → welcome → subscribe(task_id)*
- * → message frames (live) ; send → ack | error. Reconnects with capped backoff and
- * re-subscribes; sends made while disconnected wait in a queue.
+ * → message / presence frames (live) ; send → ack | error. Reconnects with capped
+ * backoff and re-subscribes, then signals `onReconnected` so the caller can catch
+ * up with view-v1 `after=<last cursor>` (§7); sends made while disconnected wait
+ * in a queue.
  */
 
 export const FRAMES = {
@@ -19,6 +21,7 @@ export const FRAMES = {
   error: 'error',
   subscribed: 'subscribed',
   token: 'token',
+  presence: 'presence',
 }
 
 /** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2); anything else is omitted and the hub assigns HUM-<n>. */
@@ -53,10 +56,16 @@ function newId() {
   return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`
 }
 
+/** channels-v1 §2: absent, null and "" all mean absent → null. */
+function hubField(v) {
+  return typeof v === 'string' && v ? v : null
+}
+
 /**
  * Normalise an incoming message frame to a flat v:1-ish object the cards render.
- * Accepts { env: { from_box, to_box, msg } } (view-v1 §4.4 shape) or { msg } or a
- * flat message.
+ * Accepts { env: { from_box, to_box, channel?, parent_task_id?, msg } } (view-v1
+ * §4.4 shape) or { msg } or a flat message. The hub-envelope `channel` /
+ * `parent_task_id` land on the flat object (null when absent).
  */
 export function messageFromFrame(f) {
   const x = f || {}
@@ -68,6 +77,8 @@ export function messageFromFrame(f) {
   if (env) {
     out.from_box = env.from_box
     out.to_box = env.to_box
+    out.channel = hubField(env.channel)
+    out.parent_task_id = hubField(env.parent_task_id)
   }
   if (x.cursor !== undefined) out.cursor = x.cursor
   if (x.received_at !== undefined) out.received_at = x.received_at
@@ -83,6 +94,8 @@ export function createLiveClient({
   onState = () => {},
   onWelcome = () => {},
   onToken = () => {},
+  onPresence = () => {},
+  onReconnected = () => {},
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = (t) => clearTimeout(t),
   ackTimeoutMs = 10000,
@@ -93,6 +106,8 @@ export function createLiveClient({
   let closedByUs = false
   let retryTimer = null
   let welcome = null
+  let dropped = false
+  const cursors = new Map()
   const subs = new Set()
   const queue = []
   const pending = new Map()
@@ -143,6 +158,7 @@ export function createLiveClient({
         setState('closed')
         return
       }
+      dropped = true
       setState('reconnecting')
       retryTimer = setTimer(connect, backoffMs(attempt++))
     }
@@ -160,14 +176,25 @@ export function createLiveClient({
         for (const id of subs) raw({ type: FRAMES.subscribe, task_id: id })
         flush()
         onWelcome(f)
+        if (dropped) {
+          dropped = false
+          onReconnected(f, { cursors: Object.fromEntries(cursors) })
+        }
+        return
+      case FRAMES.presence:
+        onPresence(f)
         return
       case FRAMES.token:
         onToken(f)
         while (tokenWaiters.length) tokenWaiters.shift()(f)
         return
-      case FRAMES.message:
-        onMessage(messageFromFrame(f), f)
+      case FRAMES.message: {
+        const m = messageFromFrame(f)
+        const tid = f.task_id || m.task_id
+        if (tid && m.cursor) cursors.set(String(tid), m.cursor)
+        onMessage(m, f)
         return
+      }
       case FRAMES.ack: {
         const p = pending.get(f.msg_id)
         if (p) {
@@ -198,6 +225,10 @@ export function createLiveClient({
     get welcome() {
       return welcome
     },
+    /** Last cursor seen per task_id (message frames): the `after=` of a catch-up. */
+    lastCursor(taskId) {
+      return cursors.get(String(taskId || '')) || ''
+    },
     connect,
     close() {
       closedByUs = true
@@ -224,11 +255,18 @@ export function createLiveClient({
         else queue.push({ type: FRAMES.token })
       })
     },
-    /** Resolves with the ack frame; rejects on error frame, timeout or close. kind is a v:1 kind (default note); to defaults to ALL-0 hub-side. */
-    send({ task_id, kind = 'note', body = '', files = [], to } = {}) {
-      const msg_id = newId()
+    /**
+     * Resolves with the ack frame; rejects on error frame, timeout or close. kind is
+     * a v:1 kind (default note); to defaults to ALL-0 hub-side. `channel` /
+     * `parent_task_id` are hub-envelope fields (wui-live-ws §4), sent only when set;
+     * a caller `msg_id` makes a resend idempotent.
+     */
+    send({ task_id, kind = 'note', body = '', files = [], to, channel, parent_task_id, msg_id: givenId } = {}) {
+      const msg_id = givenId ? String(givenId) : newId()
       const frame = { type: FRAMES.send, msg_id, task_id: String(task_id || ''), kind, body: String(body), files }
       if (to) frame.to = to
+      if (channel) frame.channel = String(channel)
+      if (parent_task_id) frame.parent_task_id = String(parent_task_id)
       return new Promise((resolve, reject) => {
         const timer = setTimer(() => {
           pending.delete(msg_id)

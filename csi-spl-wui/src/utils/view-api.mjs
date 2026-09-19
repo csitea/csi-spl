@@ -2,10 +2,17 @@
  * Pure helpers for the 003 read-only viewer API (specs/003 contracts/view-v1.md).
  * Node tests import this file; the client and stores wrap it.
  *
- * Thread = task_id (v:1, 002). The viewer never relies on channel or
- * parent_task_id (spec 005 FR-005); the mock tenant still carries
- * parent_task_id, so mock grouping folds a reply into its root task.
+ * Thread = task_id (v:1, 002). `channel` / `parent_task_id` are hub-envelope
+ * fields (channels-v1 §0, §2), never v:1 fields: the normalisers below lift
+ * them off the envelope / thread row onto the flat message (null when absent,
+ * spec 005 FR-005). The mock tenant still carries parent_task_id, so mock
+ * grouping folds a reply into its root task.
  */
+
+/** channels-v1 §2: absent, null and "" all mean absent → null. */
+export function hubField(v) {
+  return typeof v === 'string' && v ? v : null
+}
 
 const SUBJECT_MAX = 140
 
@@ -61,6 +68,8 @@ export function normalizeThreadRow(row) {
   if (r.first_ts !== undefined || r.subject !== undefined) {
     return {
       task_id: String(r.task_id || ''),
+      parent_task_id: hubField(r.parent_task_id),
+      channel: hubField(r.channel),
       first_ts: r.first_ts || '',
       last_ts: r.last_ts || r.first_ts || '',
       count: Number(r.count) || 0,
@@ -73,6 +82,8 @@ export function normalizeThreadRow(row) {
     .filter((p) => p && !p.startsWith('@'))
   return {
     task_id: String(r.task_id || ''),
+    parent_task_id: hubField(r.parent_task_id),
+    channel: hubField(r.channel),
     first_ts: r.ts || '',
     last_ts: r.updated_at || r.ts || '',
     count: Number(r.count) || 0,
@@ -83,15 +94,22 @@ export function normalizeThreadRow(row) {
 }
 
 /**
- * One §4.4 element ({ cursor, received_at, env: { from_box, to_box, msg, sig },
- * deliveries }) → a flat v:1 message plus from_box / to_box. A flat element
- * (already v:1 + boxes) passes through. The envelope sig is dropped.
+ * One §4.4 element ({ cursor, received_at, env: { from_box, to_box, channel?,
+ * parent_task_id?, msg, sig }, deliveries }) → a flat v:1 message plus
+ * from_box / to_box / channel / parent_task_id. A flat element (already v:1 +
+ * boxes) passes through. The envelope sig is dropped.
  */
 export function normalizeViewMessage(el) {
   const e = el || {}
   if (e.env && typeof e.env === 'object') {
     const inner = e.env.msg && typeof e.env.msg === 'object' ? e.env.msg : {}
-    const out = { ...inner, from_box: e.env.from_box, to_box: e.env.to_box }
+    const out = {
+      ...inner,
+      from_box: e.env.from_box,
+      to_box: e.env.to_box,
+      channel: hubField(e.env.channel),
+      parent_task_id: hubField(e.env.parent_task_id),
+    }
     if (e.cursor !== undefined) out.cursor = e.cursor
     if (e.received_at !== undefined) out.received_at = e.received_at
     if (Array.isArray(e.deliveries)) out.deliveries = e.deliveries
@@ -123,9 +141,42 @@ export function rosterFromView(data) {
   return { roster, online }
 }
 
-/** Map view-v1 §4.2 rows onto ChannelRow. */
+/**
+ * Map view-v1 §4.2 / channels-v1 §5.2 rows onto ChannelRow, keeping the hub's
+ * unread / last_cursor / retention_days (the sidebar derives badges from them).
+ */
 export function channelsFromView(data) {
   return ((data && data.channels) || [])
     .filter((c) => c && c.channel)
-    .map((c) => ({ channel_id: String(c.channel), name: String(c.channel) }))
+    .map((c) => {
+      const row = { channel_id: String(c.channel), name: String(c.name || c.channel) }
+      if (c.created_by) row.created_by = String(c.created_by)
+      if (c.created_at) row.created_at = String(c.created_at)
+      if (c.default !== undefined) row.default = Boolean(c.default)
+      if (typeof c.retention_days === 'number') row.retention_days = c.retention_days
+      if (typeof c.count === 'number') row.count = c.count
+      if (typeof c.unread === 'number') row.unread = c.unread
+      if (c.last_ts !== undefined) row.last_ts = hubField(c.last_ts)
+      if (c.last_cursor !== undefined) row.last_cursor = hubField(c.last_cursor)
+      if (c.members && typeof c.members === 'object') {
+        row.members = {
+          agents: Number(c.members.agents) || 0,
+          boxes: Number(c.members.boxes) || 0,
+          posters: Number(c.members.posters) || 0,
+        }
+      }
+      return row
+    })
+}
+
+/**
+ * channels-v1 §5.2 `read=<channel>~<cursor>` values from { channel: cursor }
+ * (read state is client-held, OQ-CH2). Empty cursors are skipped.
+ */
+export function channelReadQuery(read) {
+  const out = []
+  for (const [ch, cur] of Object.entries(read || {})) {
+    if (ch && cur) out.push(`${ch}~${cur}`)
+  }
+  return out
 }

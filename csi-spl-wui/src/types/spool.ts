@@ -33,6 +33,9 @@ export interface SpoolMessage {
 /** One thread list row (003 view-v1 §4.3, normalised by utils/view-api.mjs). */
 export interface ThreadRow {
   task_id: string
+  /** Hub-envelope fields of the thread's first message (channels-v1 §2); null when absent. */
+  parent_task_id?: string | null
+  channel?: string | null
   first_ts: string
   last_ts: string
   count: number
@@ -41,8 +44,49 @@ export interface ThreadRow {
   subject: string
 }
 
+/** One channel (channels-v1 §5.2, normalised by utils/view-api.mjs channelsFromView). */
 export interface ChannelRow {
   channel_id: string
   name: string
   created_by?: string
+  created_at?: string
+  default?: boolean
+  retention_days?: number
+  count?: number
+  /** Messages after the `read=` cursor sent with listChannels (else = count). */
+  unread?: number
+  last_ts?: string | null
+  last_cursor?: string | null
+  members?: { agents: number, boxes: number, posters: number }
+}
+
+/** view door (view-v1 §2): `session` makes the client send cookies (010 FR-009). */
+export type ViewDoor = 'off' | 'token' | 'session' | ''
+
+/** wui-live-ws §3.2 presence frame. `peer` = `<agent>@<box>`; last writer wins per peer. */
+export interface PresenceFrame {
+  type: 'presence'
+  peer: string
+  status: 'online' | 'offline'
+}
+
+/** wui-live-ws §3.2 ack frame. */
+export interface AckFrame {
+  type?: 'ack'
+  msg_id: string
+  task_id: string
+  cursor?: string
+  received_at?: string
+}
+
+/** wui-live-ws §4 send fields (the live-ws client adds type and msg_id). */
+export interface SendFrame {
+  task_id: string
+  kind?: string
+  body?: string
+  files?: unknown[]
+  to?: string
+  channel?: string
+  parent_task_id?: string
+  msg_id?: string
 }

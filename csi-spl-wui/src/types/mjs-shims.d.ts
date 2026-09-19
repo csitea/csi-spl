@@ -1,5 +1,6 @@
 declare module '~/utils/spool-client.mjs' {
   export function sha256Hex(buf: ArrayBuffer): Promise<string>
+  export function credentialsFor(door: string): 'include' | 'omit'
   export function createSpoolClient(opts?: {
     base?: string
     fetchFn?: typeof fetch
@@ -7,18 +8,32 @@ declare module '~/utils/spool-client.mjs' {
     token?: string
     tenant?: string
     configError?: string
+    door?: import('./spool').ViewDoor
+    sender?: ((frame: import('./spool').SendFrame) => Promise<unknown>) | null
   }): {
     mock: boolean
     tenant: string
     configError: string
     base: string
     readonly token: string
+    readonly door: string
+    readonly credentials: 'include' | 'omit'
+    setDoor(door: import('./spool').ViewDoor | string): void
+    setSender(fn: ((frame: import('./spool').SendFrame) => Promise<unknown>) | null): void
     uploadFile(file: Blob, uploadToken?: string): Promise<{ file_id: string, sha256: string, bytes: number }>
     downloadFile(fileId: string): Promise<ArrayBuffer>
     setToken(token: string): void
     hasToken(): boolean
     healthz(): Promise<unknown>
-    listThreads(opts?: { limit?: number, before?: string }): Promise<{
+    listThreads(opts?: {
+      limit?: number
+      before?: string
+      channel?: string
+      dm?: boolean
+      peer?: string
+      agent?: string
+      roots?: boolean
+    }): Promise<{
       threads: import('./spool').ThreadRow[]
       next: string | null
     }>
@@ -27,26 +42,26 @@ declare module '~/utils/spool-client.mjs' {
       messages: import('./spool').SpoolMessage[]
       next: string | null
     }>
-    listChannels(): Promise<{ channel_id: string, name: string, created_by?: string }[]>
+    listChannels(opts?: { read?: Record<string, string> }): Promise<import('./spool').ChannelRow[]>
     listMessages(opts?: {
       channel?: string
       peer?: string
       limit?: number
       since?: string
-    }): Promise<Record<string, unknown>[]>
+      threads?: number
+    }): Promise<import('./spool').SpoolMessage[]>
     listRoster(): Promise<unknown>
     sendMessage(opts: {
       channel?: string | null
       peer?: string
       text: string
+      task_id?: string
       parent_task_id?: string
       files?: unknown[]
-    }): Promise<Record<string, unknown>>
-    createChannel(opts: { channel_id?: string, name?: string }): Promise<{
-      channel_id: string
-      name: string
-      created_by?: string
-    }>
+      from?: string
+      msg_id?: string
+    }): Promise<import('./spool').SpoolMessage>
+    createChannel(opts: { channel_id?: string, name?: string }): Promise<import('./spool').ChannelRow>
     fileUrl(fileId: string): string
   }
 }
@@ -69,16 +84,19 @@ declare module '~/utils/live-ws.mjs' {
     onState?: (s: string) => void
     onWelcome?: (w: Record<string, unknown>) => void
     onToken?: (f: Record<string, unknown>) => void
+    onPresence?: (f: import('./spool').PresenceFrame) => void
+    onReconnected?: (welcome: Record<string, unknown>, info: { cursors: Record<string, string> }) => void
     ackTimeoutMs?: number
   }): {
     readonly state: string
     readonly welcome: Record<string, unknown> | null
+    lastCursor(taskId: string): string
     connect(): void
     close(): void
     subscribe(taskId: string): void
     unsubscribe(taskId: string): void
     requestToken(): Promise<Record<string, unknown>>
-    send(opts: { task_id: string, kind?: string, body?: string, files?: unknown[], to?: string }): Promise<Record<string, unknown>>
+    send(opts: import('./spool').SendFrame): Promise<import('./spool').AckFrame>
   }
 }
 
@@ -160,6 +178,8 @@ declare module '~/utils/tenant.mjs' {
 
 declare module '~/utils/view-api.mjs' {
   export function subjectOf(body: string): string
+  export function hubField(v: unknown): string | null
+  export function channelReadQuery(read: Record<string, string>): string[]
   export function isDownloadable(file: { mode?: string, file_id?: string, sha256?: string }): boolean
 }
 

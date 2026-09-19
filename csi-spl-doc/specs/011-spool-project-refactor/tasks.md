@@ -23,13 +23,13 @@ Status vocabulary follows `../README.md` §2.3: `[x]` Implemented (cited) · `[~
 
 ## Phase 2 — WUI 3-Pane Reverse Prepend & Omnibox Layout (FR-R04, FR-R05, FR-R06, FR-R09)
 
-- [ ] T010 Planned — Build `components/TopOmnibox.vue`: top-pinned container with default text input; Enter sends note/task (`@mention` parsing via `mention-autocomplete.mjs`); `/search <query>` activates search mode; `Esc` clears. FR-R05.
-- [ ] T011 Planned — Refactor `components/MessageFeed.vue` to reverse prepend stream: newest messages prepended directly beneath Omnibox; scroll down for history; entrance CSS animation. FR-R06.
-- [ ] T012 Planned — Refactor `components/ThreadPane.vue`: 380px collapsible panel displaying pinned root message card, prepended replies feed, verbosity dropdown, and thread composer. FR-R04, FR-R06.
-- [ ] T013 Planned — Refactor `components/ChannelSidebar.vue`: channels list (`#lobby`, `#tasks`, `#alerts`), DMs with presence dots, agent bot chips (`CLE-*`, `GRK-*`, `AGY-*`), user profile footer. FR-R04, FR-R09.
-- [ ] T014 Planned — Compose 3-pane master shell in `components/SpoolShell.vue` and `layouts/default.vue`: Left (260px fixed), Middle (flex: 1, min-width 400px), Right (380px collapsible). FR-R04.
-- [ ] T015 Planned — Integrate `RobotAvatar.vue` component per `SPEC-spool-avatars.md`: deterministic SVG robot faces tinted by agent family (Claude purple, Grok orange, Antigravity cyan). FR-R09.
-- [ ] T016 Planned — Clean up legacy channel page `pages/channel/[name].vue` and index page `pages/index.vue` to reuse the unified 3-pane shell. FR-R04.
+- [x] T010 superseded by 013 T003 (`csi-spl-wui/components/MessageComposer.vue` omnibox mode; `pages/lobby.vue`). No `TopOmnibox.vue`. Check: `command grep -c omnibox csi-spl-wui/pages/lobby.vue` -> 1; `ls csi-spl-wui/components/TopOmnibox.vue` -> no such file. FR-R05.
+- [x] T011 superseded by 013 T004 (`csi-spl-wui/components/LiveFeed.vue`). `MessageFeed.vue` remains the legacy append feed. Check: `command grep -n '013: newest first' csi-spl-wui/components/LiveFeed.vue` -> line 34. FR-R06.
+- [x] T012 superseded by 013 T005 (`csi-spl-wui/components/LiveThreadPane.vue`). `ThreadPane.vue` remains the legacy drawer. Check: `command grep -n 'pinned-root' csi-spl-wui/components/LiveThreadPane.vue` -> line 10. FR-R04, FR-R06.
+- [x] T013 superseded by 013 T002 (`csi-spl-wui/components/ChannelSidebar.vue` roster + `SpoolAvatar`). Check: `command grep -n SpoolAvatar csi-spl-wui/components/ChannelSidebar.vue` -> line 37. FR-R04, FR-R09.
+- [x] T014 superseded by 013 T006 (`csi-spl-wui/layouts/default.vue` `.spool-shell`; `--thread-w: 380px`). No `SpoolShell.vue`. Check: `command grep -n spool-shell csi-spl-wui/layouts/default.vue` -> line 3; `ls csi-spl-wui/components/SpoolShell.vue` -> no such file. FR-R04.
+- [x] T015 superseded by 013 T002 (`csi-spl-wui/components/SpoolAvatar.vue` + `utils/avatar.mjs`). Chassis tints: CLE teal (hue 175), GRK orange (hue 28), AGY purple (hue 275). No `RobotAvatar.vue`. Check: `command grep -n 'PREFIX_HUE' csi-spl-wui/utils/avatar.mjs` -> `const PREFIX_HUE = { CLE: 175, GRK: 28, AGY: 275 }`; `ls csi-spl-wui/components/RobotAvatar.vue` -> no such file. FR-R09.
+- [x] T016 superseded by 013 T005 (`csi-spl-wui/pages/index.vue` opens `LiveThreadPane`) and 013 T003/T004 (`pages/lobby.vue` reverse feed inside `layouts/default.vue`). Leftover (not 013): `pages/channel/[name].vue` still uses `MessageFeed.vue` + bottom `MessageComposer.vue`. Check: `command grep -n 'useLiveFeed' csi-spl-wui/pages/index.vue` -> 2; `command grep -n MessageFeed csi-spl-wui/pages/channel/[name].vue` -> 1. FR-R04.
 - [ ] T017 Planned — Verify Phase 2 layout & e2e regression gate: `node csi-spl-wui/tests/e2e/no-x-scroll.test.mjs` -> 8/8 pass at 390x844 and 1280x800. FR-R15.
 
 ---
@@ -58,7 +58,7 @@ Status vocabulary follows `../README.md` §2.3: `[x]` Implemented (cited) · `[~
 
 ## Phase 5 — Documentation & Cross-Spec Harmonization (FR-R13, FR-R14, FR-R15)
 
-- [ ] T030 Planned — Register `011-spool-project-refactor` in `csi-spl-doc/specs/README.md` index table, milestone order, and seam definitions. FR-R14.
+- [x] T030 Implemented (`fc3e198`) — Register `011-spool-project-refactor` in `csi-spl-doc/specs/README.md` index table (§4), dependency order, and seam definitions (§5). Check: `command grep -nE '011-spool-project-refactor|011 \(refactor|Whole-project refactoring boundaries' csi-spl-doc/specs/README.md` -> 3 (102 index, 114 order, 131 seam). FR-R14.
 - [ ] T031 Planned — Perform terminology audit across `csi-spl-doc/doc/md/`: ensure `#lobby` is consistently identified as the universal public room and historical Gandi parking references are clarified. FR-R13.
 - [ ] T032 Planned — Add deprecation headers to draft specs in `csi-spl-doc/doc/md/draft/` pointing to authoritative M3 specs. FR-R13.
 - [ ] T033 Planned — Publish binding architecture narrative in `csi-spl-doc/doc/md/SPEC-spool-project-refactor.md`. FR-R13.
@@ -66,4 +66,4 @@ Status vocabulary follows `../README.md` §2.3: `[x]` Implemented (cited) · `[~
 
 ---
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:32:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:45:00Z -->

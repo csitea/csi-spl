@@ -51,7 +51,12 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- if (wui_key.get("inject", "false") | string | lower) == "true" %}
 {%- set _ = run_sec.update(wui_sec) %}
 {%- endif %}
-{%- set slot_ids = (auth_sec.values() | list) + (mail_sec.values() | list) + (wui_sec.values() | list) %}
+{#- 006 T022: the payment secret, injected only while the rail is hosted-hmac #}
+{%- set pay_sec = payment["secret_env"] if (payment is defined and payment["secret_env"] is defined) else {} %}
+{%- if hub["env"].get("SPOOL_HUB_PAYMENT_PROVIDER", "") == "hosted-hmac" %}
+{%- set _ = run_sec.update(pay_sec) %}
+{%- endif %}
+{%- set slot_ids = (auth_sec.values() | list) + (mail_sec.values() | list) + (wui_sec.values() | list) + (pay_sec.values() | list) %}
 {%- if listed %}
 {%- set _ = run_sec.update({"SPOOL_HUB_AUTH_SESSION_KEY": auth_sec["SPOOL_HUB_AUTH_SESSION_KEY"]}) %}
 {%- for p in listed %}

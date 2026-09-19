@@ -203,8 +203,22 @@ Rows per env:
 - 040: `google_sql_database_instance.hub`, `google_sql_database.spool` and
   `google_secret_manager_secret.hub_db_dsn`.
 
-`do_tf_import` reports its result in its log line (`OK Resource imported
-successfully`) and not in its exit code, so the action reads that line.
+`do_tf_import` reports its result in its log line and not in its exit code,
+so the action reads that line. The iac `do_log` rewrites the line: `do_log "OK
+Resource imported successfully: …"` prints `[OK] <date> … Resource imported
+successfully: …`. The literal `OK Resource imported` never appears. So the
+action matches `Resource imported successfully:`, and treats `Failed to import
+resource:` as a failure. The test answers with the real `do_log` extracted from
+`csi-spl-iac/src/bash/run/run.sh`, so a change to that format turns it red.
+The first version (ae8d2bc) matched the raw string, so every successful import
+would have read as WARN. This was found by reading the code on 2026-09-19,
+before any live import.
+
+The action stops before importing anything if the state list fails:
+`execute_step` exits through `error_handler` with the action's status, and
+`do_tf_state_list` runs under `set -e`, so `docker exec` returns non-zero.
+The live positive case was confirmed on 2026-09-19 (n=1): a dev 040
+`DRY_RUN=1` reported `skipped=3`.
 
 ```bash
 ENV=dev STEP=040-cloud-sql-postgres DRY_RUN=1 ./run -a do_tf_import_existing

@@ -17,6 +17,16 @@
 # @example ENV=dev STEP=040-cloud-sql-postgres DRY_RUN=1 ./run -a do_tf_import_existing
 # @example ENV=prd STEP=020-gcp-relay-bucket ./run -a do_tf_import_existing
 #------------------------------------------------------------------------------
+# do_tf_import (iac) reports its verdict only in its log line, not in its exit
+# code. The iac do_log rewrites that line: `do_log "OK Resource imported
+# successfully: T -> I"` prints `[OK] <date> [<proj>][@<host>] [<pid>]
+# Resource imported successfully: T -> I` -- the leading "OK" moves into a
+# tag, so match the message text, and treat its FATAL twin as a failure.
+_tf_import_succeeded() { # <do_tf_import output>
+  printf '%s\n' "$1" | grep -qF "Resource imported successfully:" &&
+    ! printf '%s\n' "$1" | grep -qF "Failed to import resource:"
+}
+
 do_tf_import_existing() {
   local env_name="${ENV:-}" step="${STEP:-}" dry_run="${DRY_RUN:-0}"
   case "$env_name" in
@@ -76,8 +86,7 @@ do_tf_import_existing() {
     fi
     echo "IMPORT $addr  <-  $id"
     out="$("${dexec[@]}" -e "TARGET=${addr}" -e "ID=${id}" "$con" ./run -a do_tf_import 2>&1)"
-    # do_tf_import logs its verdict; its exit code does not carry it.
-    if printf '%s\n' "$out" | grep -qF "OK Resource imported successfully"; then
+    if _tf_import_succeeded "$out"; then
       echo "OK    imported $addr"
       imported=$((imported + 1))
     else

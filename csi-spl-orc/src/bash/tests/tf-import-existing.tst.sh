@@ -15,6 +15,12 @@
 #   8. a failed import (NotFound) is non-fatal: rc 0, failed=N
 #   9. DRY_RUN=1 reads the state and imports nothing
 #  10. state list failing -> rc 1, imports nothing
+#  11. the import verdict is read from the REAL iac do_log output (extracted
+#      from csi-spl-iac/src/bash/run/run.sh): its "OK ..." line prints as
+#      "[OK] <date> ... Resource imported successfully:", which the action must
+#      read as success, and the FATAL line as failure (live bug found
+#      2026-09-19: the action matched the raw "OK Resource imported" string,
+#      which do_log never prints, so every successful import read as WARN)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -55,6 +61,10 @@ sh "$TABLE" 040-cloud-sql-postgres "$T/nope.tfvars" >/dev/null 2>&1
 [[ $? -eq 1 ]] && pass "missing tfvars -> exit 1" || fail "missing tfvars not refused"
 
 # ---- the action -------------------------------------------------------------
+# the real iac do_log, so the stub answers in the format do_tf_import prints
+awk '/^do_log\(\) \{/,/^}/' "$APP_ROOT/csi-spl-iac/src/bash/run/run.sh" >"$T/do_log.sh"
+command grep -q 'print_ok' "$T/do_log.sh" || fail "could not extract do_log from csi-spl-iac run.sh"
+mkdir -p "$T/log"
 # docker stub: `ps` lists $RUNNING; `exec` logs one line per call
 # (EXEC <container> <action> ORG= APP= ENV= STEP= TARGET= ID=), then answers:
 #   do_tf_state_list -> $STATE_FIXTURE (or fails when STATE_FAIL=1)
@@ -73,9 +83,11 @@ case "$*" in
     [ "${STATE_FAIL:-0}" = 1 ] && { echo "Error: backend init failed"; exit 1; }
     echo "+ terraform state list"; [ -n "${STATE_FIXTURE:-}" ] && cat "$STATE_FIXTURE"; exit 0 ;;
   "./run -a do_tf_import")
+    source "$DO_LOG_SRC"; TARGET=${kv[TARGET]}; ID=${kv[ID]}
     case " ${FAIL_ADDRS:-} " in *" ${kv[TARGET]} "*)
-      echo "Error: Cannot import non-existent remote object"; echo "FATAL Failed to import resource"; exit 0 ;; esac
-    echo "OK Resource imported successfully: ${kv[TARGET]} -> ${kv[ID]}"; exit 0 ;;
+      echo "Error: Cannot import non-existent remote object"
+      do_log "FATAL Failed to import resource: ${TARGET} -> ${ID}"; exit 0 ;; esac
+    do_log "OK Resource imported successfully: ${TARGET} -> ${ID}"; exit 0 ;;
 esac
 exit 1
 EOF
@@ -83,7 +95,7 @@ chmod +x "$T/stub/docker"
 
 run_action() { # env assignments...
   : >"$T/docker.log"
-  env DOCKER_LOG="$T/docker.log" PATH="$T/stub:$PATH" RUNNING="$CON" "$@" bash -c '
+  env DOCKER_LOG="$T/docker.log" PATH="$T/stub:$PATH" RUNNING="$CON" DO_LOG_SRC="$T/do_log.sh" LOG_DIR="$T/log" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*" >&2; }
     source "'"$PROJ_ROOT"'/src/bash/run/tf-import-existing.func.sh"
@@ -132,6 +144,18 @@ out=$(run_action ENV=prd STEP=040-cloud-sql-postgres DRY_RUN=1 STATE_FIXTURE="$T
 # 10.
 out=$(run_action ENV=dev STEP=040-cloud-sql-postgres STATE_FAIL=1); rc=$?
 [[ $rc -ne 0 && $(command grep -c do_tf_import "$T/docker.log") -eq 0 ]] && pass "state list failure -> rc 1, no import" || fail "state fail: rc=$rc"
+
+# 11. the verdict contract, straight against the real do_log
+real() { env LOG_DIR="$T/log" bash -c 'source "$0"; do_log "$1"' "$T/do_log.sh" "$1" 2>&1; }
+ok_out=$(real "OK Resource imported successfully: a.b -> x y")
+bad_out=$(real "FATAL Failed to import resource: a.b -> x y")
+[[ "$ok_out" != *"OK Resource imported successfully"* ]] \
+  && pass "real do_log does not print the raw 'OK Resource imported' string (why the old match failed)" \
+  || fail "do_log format changed: $ok_out"
+verdict() { bash -c 'do_log() { :; }; source "$0"; _tf_import_succeeded "$1"' "$PROJ_ROOT/src/bash/run/tf-import-existing.func.sh" "$1"; }
+verdict "$ok_out" && pass "real OK line -> success" || fail "real OK line read as failure: $ok_out"
+verdict "$bad_out" && fail "real FATAL line read as success" || pass "real FATAL line -> failure"
+verdict "" && fail "empty output read as success" || pass "empty output -> failure"
 
 echo "--- $fails failure(s)"
 [[ $fails -eq 0 ]]

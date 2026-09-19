@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { isDoor } from '~/utils/live-follow.mjs'
 import type { SpoolMessage, ThreadRow } from '~/types/spool'
 
 /** Read-only thread viewer (spec 005 US1, US2, US4) over 003 view-v1 §4.3 / §4.4. */
@@ -12,16 +13,22 @@ export const useViewerStore = defineStore('viewer', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const needsToken = ref(false)
+  /** The hub's 401 detail: it names the ways in (view-v1 §2), ViewTokenForm reads it. */
+  const doorDetail = ref('')
 
   function fail(e: unknown) {
-    const err = e as { status?: number, token?: string, message?: string }
-    needsToken.value = err.status === 401
+    const err = e as { status?: number, token?: string, message?: string, detail?: string }
+    needsToken.value = isDoor(err)
+    doorDetail.value = String(err.detail || '')
+    if (needsToken.value) {
+      error.value = null
+      return
+    }
     if (err.token === 'no_tenant') error.value = 'No tenant selected — open the viewer with ?tenant=<id>.'
     else if (err.token === 'api_host') error.value = 'The hub URL is the API host; tenant reads need <tenant>.<domain> (NUXT_PUBLIC_API_BASE with {tenant}).'
     else if (err.token === 'no_base' || err.token === 'bad_base') error.value = 'NUXT_PUBLIC_API_BASE is missing or invalid.'
     else if (err.status === 404 && err.token === 'unknown_tenant') error.value = 'Unknown tenant for this host.'
     else if (err.status === 404) error.value = 'Not found.'
-    else if (err.status === 401) error.value = 'A view token is required.'
     else error.value = err.message || 'load failed'
   }
 
@@ -80,5 +87,5 @@ export const useViewerStore = defineStore('viewer', () => {
     }
   }
 
-  return { threads, next, taskId, messages, loading, error, needsToken, loadThreads, loadMore, openThread, refreshThread }
+  return { threads, next, taskId, messages, loading, error, needsToken, doorDetail, loadThreads, loadMore, openThread, refreshThread }
 })

@@ -1,6 +1,7 @@
 import { cleanAs, createLiveClient, tokenStale, wsUrl } from '~/utils/live-ws.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-data.mjs'
+import { reconnectDetector } from '~/utils/live-follow.mjs'
 
 /**
  * Identity for 2-session interop: ?as=HUM-2 (a v:1 agent id, wui-live-ws §2),
@@ -31,6 +32,10 @@ type Listener = (m: Record<string, unknown>) => void
 
 let live: ReturnType<typeof createLiveClient> | null = null
 const listeners = new Set<Listener>()
+/** wui-live-ws §7: fired once per reconnect (an open after a drop), after the re-subscribes. */
+const reconnectListeners = new Set<() => void>()
+/** wui-live-ws §3 `presence` frames ({ peer, status }). */
+const presenceListeners = new Set<Listener>()
 const state = ref('idle')
 const identity = ref('')
 const uploadToken = ref('')
@@ -60,11 +65,19 @@ export function useLive() {
       state.value = api.configError || 'no_base'
       return null
     }
+    // live-ws calls onState('open') before it re-subscribes: defer, so the
+    // catch-up read goes out after the subscribes (subscribe first, then read).
+    const reconnected = reconnectDetector(() => queueMicrotask(() => {
+      for (const fn of reconnectListeners) fn()
+    }))
     live = createLiveClient({
       url: wsUrl(api.base),
       token: api.token || '',
       as: identity.value,
-      onState: (s: string) => { state.value = s },
+      onState: (s: string) => {
+        state.value = s
+        reconnected(s)
+      },
       onToken: (f: Record<string, unknown>) => {
         if (typeof f.upload_token === 'string') uploadToken.value = f.upload_token
         if (typeof f.upload_token_expires_at === 'string') uploadTokenExpiresAt.value = f.upload_token_expires_at
@@ -101,5 +114,15 @@ export function useLive() {
     return () => listeners.delete(fn)
   }
 
-  return { ensure, onMessage, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
+  function onReconnected(fn: () => void) {
+    reconnectListeners.add(fn)
+    return () => reconnectListeners.delete(fn)
+  }
+
+  function onPresence(fn: Listener) {
+    presenceListeners.add(fn)
+    return () => presenceListeners.delete(fn)
+  }
+
+  return { ensure, onMessage, onReconnected, onPresence, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
 }

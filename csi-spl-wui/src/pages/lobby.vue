@@ -13,6 +13,7 @@
     />
     <div class="feed-body">
       <p v-if="!lobbyId" class="muted">No lobby configured (NUXT_PUBLIC_LOBBY_TASK_ID, or the hub welcome).</p>
+      <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="lobbyId && store.open(lobbyId)" />
       <ErrorNotice v-if="store.error" :message="store.error" source="lobby" test-id="lobby-error" />
       <LiveFeed
         label="#lobby, newest first"

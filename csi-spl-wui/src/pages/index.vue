@@ -6,7 +6,7 @@
     </header>
     <div class="feed-body">
       <ErrorNotice v-if="viewer.error" :message="viewer.error" source="viewer" test-id="viewer-error" />
-      <ViewTokenForm v-if="viewer.needsToken" @saved="viewer.loadThreads()" />
+      <ViewTokenForm v-if="viewer.needsToken" :detail="viewer.doorDetail" @saved="viewer.loadThreads()" />
       <p v-else-if="!viewer.loading && !viewer.error && viewer.threads.length === 0" class="muted">
         No threads yet.
       </p>

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { matchesSearch, newestFirst, rootAndReplies, windowed } from '~/utils/feed.mjs'
+import { catchUp, isDoor } from '~/utils/live-follow.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
 export const WINDOW = 50
@@ -19,6 +20,8 @@ function setup(key: 'main' | 'pane') {
   const taskId = ref<string | null>(null)
   const messages = ref<SpoolMessage[]>([])
   const error = ref<string | null>(null)
+  /** view-v1 §2: the last read hit the view door (401) — pages show the door prompt. */
+  const door = ref<{ detail: string } | null>(null)
   const sending = ref(false)
   const loading = ref(false)
   const search = ref('')
@@ -46,7 +49,32 @@ function setup(key: 'main' | 'pane') {
     }
   }
 
+  /** A read failed: the door is a prompt, anything else an error line. 404 = empty thread. */
+  function fail(e: unknown, fallback: string) {
+    const err = e as { status?: number, message?: string, detail?: string }
+    if (isDoor(err)) {
+      door.value = { detail: String(err.detail || '') }
+      return
+    }
+    if (err.status !== 404) error.value = err.message || fallback
+  }
+
+  /** wui-live-ws §7: after a reconnect, one after=<last cursor> read, deduped by msg_id. */
+  async function catchUpAfterReconnect() {
+    const id = taskId.value
+    if (!id) return
+    try {
+      const r = await catchUp(api.getThread, id, messages.value)
+      if (taskId.value !== id) return
+      if (r) merge(r.rows)
+      else await open(id)
+    } catch (e) {
+      fail(e, 'catch-up failed')
+    }
+  }
+
   let off: (() => void) | null = null
+  let offReconnect: (() => void) | null = null
   /** `all`: also page to the oldest row (a pinned root needs it); the pane always does. */
   async function open(id: string, opts: { all?: boolean } = {}) {
     if (!id) return
@@ -60,11 +88,13 @@ function setup(key: 'main' | 'pane') {
     }
     taskId.value = id
     error.value = null
+    door.value = null
     if (!off) {
       off = live.onMessage((m) => {
         if (m.task_id === taskId.value) merge([m as unknown as SpoolMessage], true)
       })
     }
+    if (!offReconnect) offReconnect = live.onReconnected(() => { void catchUpAfterReconnect() })
     // wui-live-ws: subscribe first, then catch up over view-v1
     if (client) client.subscribe(id)
     loading.value = true
@@ -75,8 +105,7 @@ function setup(key: 'main' | 'pane') {
       olderCursor.value = data.next
       if (opts.all || key === 'pane') await loadAll()
     } catch (e) {
-      const err = e as { status?: number, message?: string }
-      if (err.status !== 404) error.value = err.message || 'load failed'
+      fail(e, 'load failed')
     } finally {
       loading.value = false
     }
@@ -106,7 +135,7 @@ function setup(key: 'main' | 'pane') {
       olderCursor.value = data.next
       visible.value += WINDOW
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'load older failed'
+      fail(e, 'load older failed')
       olderCursor.value = null
     } finally {
       loadingOlder.value = false
@@ -154,8 +183,8 @@ function setup(key: 'main' | 'pane') {
   }
 
   return {
-    taskId, messages, newestFirst: newestFirstRows, hasOlder, thread, error, sending, loading,
-    search, liveCount, lastLive, open, close, send, loadOlder, loadAll, setSearch,
+    taskId, messages, newestFirst: newestFirstRows, hasOlder, thread, error, door, sending, loading,
+    search, liveCount, lastLive, open, close, send, loadOlder, loadAll, setSearch, catchUpAfterReconnect,
   }
 }
 

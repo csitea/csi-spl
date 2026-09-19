@@ -1,6 +1,5 @@
 // Static guards: document horizontal scroll on mobile is forbidden.
-// Pattern from pas-psf-wui / csi-rel-wui tests/unit/no-x-scroll.test.mjs
-// and ora-cam-wui html { overflow-x: clip }.
+// Pattern from the donor WUI's tests/unit/no-x-scroll.test.mjs.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, existsSync } from 'node:fs'
@@ -11,7 +10,7 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 describe('no document x-scroll', () => {
   const basePath = join(WUI, 'src/assets/css/base.css')
-  it('base.css exists with the pas-psf/csi-rel/ora-cam clip guard', () => {
+  it('base.css exists with the donor clip guard', () => {
     assert.equal(existsSync(basePath), true)
     const css = readFileSync(basePath, 'utf8')
     for (const marker of [

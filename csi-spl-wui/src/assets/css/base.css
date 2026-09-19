@@ -3,10 +3,10 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /*
  * Document horizontal scroll on mobile is FORBIDDEN (portrait and landscape).
- * Copied as a guard from pas-psf-wui / csi-rel-wui `base.css` and ora-cam-wui
- * `overflow-x: clip` on html. Nested regions may use overflow-x: auto only
- * when max-width: 100% of parent. Prefer reflow/wrap over page-level x-scroll.
- * Regression: tests/unit/no-x-scroll.test.mjs
+ * The donor WUI's `base.css` guard: `overflow-x: clip` on html and body.
+ * Nested regions may use overflow-x: auto only when max-width: 100% of
+ * parent. Prefer reflow/wrap over page-level x-scroll.
+ * Regression: tests/unit/no-x-scroll.test.mjs, tests/e2e/no-x-scroll.test.mjs
  */
 html, body {
   margin: 0;
@@ -32,11 +32,47 @@ body {
   color: var(--color-fg);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2 {
+  font-family: var(--font-display, var(--font-stack));
+  font-weight: 600;
+  letter-spacing: var(--letter-spacing-display, -0.005em);
+  color: var(--color-heading, var(--color-fg));
+  text-wrap: balance;
+}
+h3, h4, h5, h6 {
+  font-family: var(--font-ui, var(--font-stack));
+  letter-spacing: var(--letter-spacing-ui, -0.01em);
+  color: var(--color-heading, var(--color-fg));
 }
 
 #__nuxt {
   overflow-x: clip;
   max-width: 100%;
+}
+#__nuxt > * {
+  max-width: 100%;
+  min-width: 0;
+}
+
+img { max-width: 100%; height: auto; }
+button { font: inherit; cursor: pointer; }
+
+/* An icon-only control centres its glyph and keeps a tap-friendly box; the
+   action name lives on the control's title + aria-label. */
+button:has(> .ui-icon),
+a:has(> .ui-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  line-height: 1;
+}
+button:has(> .ui-icon) > .ui-icon,
+a:has(> .ui-icon) > .ui-icon {
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

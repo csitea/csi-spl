@@ -12,7 +12,8 @@ The WUI is not part of this stack (a separate lane owns it).
 | `./run -a do_setup_app_inf` | build `spool` + the hub image, bring the stack up, smoke it (pg, gcs, migrate, serve, hello) |
 | `./run -a do_teardown_app_inf` | `compose down` for this tree (`LDE_PURGE=1` also drops the volumes) |
 | `./run -a do_gen_docker_env` | render `compose.env` + `hub.env` from cnf (called by the two above) |
-| `./run -a do_provision_spool_root` | make the box's `/var/spool-hub` (cnf `env.box`) with the shared perms model |
+| `./run -a do_provision_spool_root` | make the box's `/var/spool-hub` (cnf `env.box`) with the group-only perms model (017 FR-SEC-001) |
+| `./run -a do_repair_spool_root` | migrate an existing box spool to that model: group, members, perms; `DRY_RUN=1` default |
 
 ## Cloud actions (dev / prd) -- owner-gated
 
@@ -69,11 +70,35 @@ binary on this tree lacks a verb, e.g. `serve`, which the 003 hub lane ships);
 
 ## /var/spool-hub permissions model
 
-Mode `2777` (setgid, **not** sticky: `recv --ack` renames a message another
-user wrote) plus default ACLs `u/g/o rwx` on the root and every subdir, so an
-inbox created by one agent OS user under umask 022 stays writable for the
-others. The same model the box's agent message dir runs on. See
-`all.env.yaml` `env.box` for how to close `other` with a shared group.
+Spec 017 FR-SEC-001 (local mail is unsigned, so the spool is closed to every
+OS user outside its group): group `spool-agents` (cnf
+`env.box.spool_root_group`), mode `2770` (setgid, **not** sticky: `recv --ack`
+renames a message another user wrote), ACLs `u/g rwx`, `o ---` (cnf
+`env.box.spool_root_other`), access and default, on the root and every subdir;
+files are `rw`, never `x`. So an inbox created by one member under umask 022
+stays writable for the other members and unreachable for everyone else.
+
+**Who joins the group:** every OS user that runs an agent (the harness user
+the spawned agents run as) and every user that reads or writes the spool (the
+box owner). A running process keeps the groups it started with, so each member
+restarts its agents / re-logs in after joining.
+
+`do_provision_spool_root` never creates the group. An existing box migrates
+with the named repair action, in a quiet window (no agent mid-send):
+
+```bash
+./run -a do_repair_spool_root
+```
+
+```bash
+DRY_RUN=0 SPOOL_ROOT_MEMBERS="<HARNESS_USER> <DEV_USER>" ./run -a do_repair_spool_root
+```
+
+The first is the default dry run (current state + the exact root commands);
+the second creates the group, adds the members, re-groups the tree, sets
+setgid on every dir, applies the ACLs and proves `nobody` can neither list nor
+write the root. Until then `do_provision_spool_root` (and so
+`do_setup_app_inf`) leaves an existing root as it is, with a WARN.
 
 ## Tests
 

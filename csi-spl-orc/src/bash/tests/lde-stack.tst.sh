@@ -18,8 +18,10 @@
 #   4. _sai_has_verb: a spool that says `unknown command` is NOT a verb, under
 #      pipefail (the regression that reported a missing `serve` as present);
 #      control: a known verb is one
-#   5. do_provision_spool_root on a scratch dir: sticky cleared, setgid on,
-#      default ACL rwx, a subdir made later inherits it (SKIP without sudo -n)
+#   5. do_provision_spool_root on a scratch dir (group = the caller's): sticky
+#      cleared, setgid on, a file made later inherits the default ACL: group
+#      rw, other nothing (SKIP without sudo -n; the outsider exploit and its
+#      control are spool-permissions.tst.sh)
 #   6. lde switches (env.lde.switches): default all off, no session key, no
 #      PLACEHOLDER rendered, mail "log"; LDE_AUTH_NATIVE=1 + LDE_WUI_DISPATCH=1
 #      turn native + an ephemeral box-wui key on, with a per-tree session key
@@ -140,11 +142,11 @@ grep -q HAS-migrate "$T/verb.out" && pass "control: a known verb (migrate) is pr
 # --- 5. spool root permissions model ---------------------------------------------------
 if sudo -n true 2>/dev/null && command -v setfacl >/dev/null; then
   d="$T/spool-root"; mkdir -p "$d"; chmod 1777 "$d"
-  SNIPPET='do_provision_spool_root' in_orc SPOOL_ROOT_DIR="$d" >"$T/prov.out" 2>&1; rc=$?
+  SNIPPET='do_provision_spool_root' in_orc SPOOL_ROOT_DIR="$d" SPOOL_ROOT_GROUP="$(id -gn)" >"$T/prov.out" 2>&1; rc=$?
   if [[ $rc -eq 0 && ! -k "$d" && -g "$d" ]]; then pass "sticky cleared, setgid set"; else fail "provision rc=$rc sticky=$([[ -k $d ]] && echo y) $(tail -2 "$T/prov.out")"; fi
   (umask 077; mkdir "$d/inbox"; echo x >"$d/inbox/m")
-  getfacl -p "$d/inbox/m" 2>/dev/null | grep -q '^other::rw' && pass "a file made later under umask 077 is still other-rw (default ACL)" \
-    || fail "default ACL not inherited: $(getfacl -p "$d/inbox/m" 2>/dev/null | grep other)"
+  [[ "$(stat -c %a "$d/inbox/m")" == 660 ]] && pass "a file made later under umask 077 is still group-rw, other nothing (default ACL)" \
+    || fail "default ACL not inherited: $(stat -c %a "$d/inbox/m")"
   sudo -n rm -rf "$d"
 else
   skip "no passwordless sudo / setfacl"

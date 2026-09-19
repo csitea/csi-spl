@@ -145,22 +145,41 @@ jobs:
                 --exclude=10_ci-quality.yml --exclude=test-hygiene.sh
                 --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=tpl-gen)
           fail=0
+          # Owner-approved exception (owner decision 2026-09-19, "in the yaml,
+          # relax the gate"): the owner's gcloud account is config, key
+          # env.gcp.gcp_account_owner_email. A hit is allowed ONLY when it is
+          # in csi-spl-cnf/csi-spl/<name>.env.{yaml,json} AND the whole line
+          # is that key with one bare value -- no comment, no second value.
+          # The same address anywhere else, under another key, or trailed by
+          # anything on that line still fails. Not a blanket email allow.
+          # CONTROL: csi-spl-iac/src/bash/tests/hygiene-owner-email-allow.tst.sh
+          allow_file='^\./csi-spl-cnf/csi-spl/[a-z]+\.env\.(yaml|json)$'
+          allow_line='^[[:space:]]*"?gcp_account_owner_email"?[[:space:]]*:[[:space:]]*"?[^"[:space:]#,]+"?,?[[:space:]]*$'
+          allowed() {
+            local f="${1%%:*}" n="${1#*:}"
+            [[ "$f" =~ $allow_file ]] || return 1
+            [[ "$(sed -n "${n}p" "$f")" =~ $allow_line ]]
+          }
           sweep() {
-            local label="$1" pattern="$2" hits rc=0
+            local label="$1" pattern="$2" hits rc=0 h kept="" n_allowed=0
             # grep exits 1 on NO match -- the clean case. The step shell is
             # `bash -e` and pipefail carries grep's status out of the
             # pipeline, so an unguarded clean sweep would abort the script
             # silently. Accept 1; anything above it (bad pattern, unreadable
             # tree) is a gate failure, never a pass.
-            # One owner-ordered allowance (2026-09-19): the line carrying the
-            # cnf key gcp_account_owner_email (yaml + rendered json) may hold
-            # the owner account. The key is matched by name, so the same
-            # name/mail on any other line still fails.
-            hits="$(grep -rnIP "${excl[@]}" "$pattern" . | grep -vP '^[^:]+:[0-9]+:\s*"?gcp_account_owner_email"?\s*:' | cut -d: -f1,2 | sort -u)" || rc=$?
+            # The owner-approved allowance is applied below (allowed()), per
+            # hit, by file AND whole line -- not by key name alone.
+            hits="$(grep -rnIoP "${excl[@]}" "$pattern" . | cut -d: -f1,2 | sort -u)" || rc=$?
             if (( rc > 1 )); then
               echo "::error::hygiene: ${label} -- grep failed (rc=$rc), the sweep proved nothing"
               fail=1; return 0
             fi
+            while IFS= read -r h; do
+              [[ -n "$h" ]] || continue
+              if allowed "$h"; then n_allowed=$((n_allowed + 1)); else kept+="$h"$'\n'; fi
+            done <<<"$hits"
+            hits="${kept%$'\n'}"
+            (( n_allowed )) && echo "allowed - ${label}: ${n_allowed} line(s) = the owner-approved gcp_account_owner_email key in csi-spl-cnf"
             if [[ -n "$hits" ]]; then
               echo "::error::hygiene: ${label} -- $(wc -l <<<"$hits") line(s)"
               sed 's/^/  /' <<<"$hits"

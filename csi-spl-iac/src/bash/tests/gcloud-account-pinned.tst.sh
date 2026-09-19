@@ -35,10 +35,7 @@ bash -n "$PIN" && pass "bash -n gcp-account-pin.func.sh" || fail "bash -n gcp-ac
 
 want_acct=$(yq -r '.env.gcp.gcp_account_owner_email // ""' "$CNF_DIR/all.env.yaml")
 want_org=$(yq -r '.env.gcp.gcp_org_id // ""' "$CNF_DIR/all.env.yaml")
-# the account key must EXIST; its value may be empty in the tree (the 10 ci
-# hygiene sweep bans the owner mail address), the org must be set
-[[ "$(yq -r '.env.gcp | has("gcp_account_owner_email")' "$CNF_DIR/all.env.yaml")" == true && -n "$want_org" ]] \
-  && pass "all.env.yaml declares env.gcp.gcp_account_owner_email and sets gcp_org_id" \
+[[ -n "$want_acct" && -n "$want_org" ]] && pass "all.env.yaml sets env.gcp.gcp_account_owner_email and gcp_org_id" \
   || fail "all.env.yaml lacks env.gcp.gcp_account_owner_email / gcp_org_id"
 
 # a gcloud stub on PATH records any call: the resolution must make none
@@ -55,6 +52,8 @@ resolve() {
 }
 
 # --- 1. precedence --------------------------------------------------------------
+[[ "$(resolve do_gcp_account)" == "$want_acct" ]] && pass "no env: the account is cnf env.gcp.gcp_account_owner_email" \
+  || fail "no env: got '$(resolve do_gcp_account)'"
 [[ "$(resolve do_gcp_account GCP_ACCOUNT_OWNER_EMAIL=c@example.com)" == c@example.com ]] \
   && pass "an exported GCP_ACCOUNT_OWNER_EMAIL beats reading the yaml" || fail "GCP_ACCOUNT_OWNER_EMAIL ignored"
 [[ "$(resolve do_gcp_account GCP_ACCOUNT=sa@example.com GCP_ACCOUNT_OWNER_EMAIL=c@example.com)" == sa@example.com ]] \

@@ -30,7 +30,7 @@ are not duplicated here.
 
 - [x] T011 [FR-005] Smoke: two `$SPOOL_ROOT`s, GRK→CLE `task` and `result` back, no GCP env — **Implemented** (`hub-e2e.tst.sh` → `ALL HUB E2E CHECKS PASSED`).
 - [x] T011b [FR-011] Three pinned peers A→B, B→C, C→A `task` all delivered; prefix never changes auth — **Implemented** (`TestThreePeerMeshRing`).
-- [ ] T011c [FR-004] Cloud: owner-made tenant on `dev`, then `prd`; two real machines; M1 demo steps 2–4 — **Planned**; blocked on 007 README §6 steps 3–10 (dev hub exists but has no LB/DNS; prd APIs disabled).
+- [~] T011c [FR-004] Cloud: owner-made tenant on `dev`, then `prd`; two real machines; M1 demo steps 2–4 — **Partial**: dev done with two box clients on ONE machine (2026-09-19, CLE-3372, hub `0.1.4` = `b067cfd`, tenant t1, n=2: root-pinned `box-e2e-a`/`box-e2e-b`, `task` queued → drained, `result` back; `./run -a do_spl_m3_e2e` → every step PASS, record `../014-spool-wui-dispatch/acceptance-dev.md`). Missing: the second real machine (owner step, record §4) and prd (no tenant yet).
 - [x] T011d [FR-007] Dev owner tenant `t1` (the WUI's dev default) — **Implemented** 2026-09-19T10:02Z (CLE-3355):
       `ENV=dev DRY_RUN=0 TENANT_ID=t1 GCP_ACCOUNT=<project SA> ./run -a do_spl_tenant_create` from `csi-spl-orc`, run as the
       dev project key in a throwaway CLOUDSDK_CONFIG; the root private key went straight to a 0600 file owned by the box

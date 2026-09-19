@@ -2,13 +2,17 @@
 
 Status by verification (`../README.md` §2.3): `[x]` Implemented (cited) · `[~]` Partial · `[ ]` Planned.
 
-- [ ] T001 Planned — `utils/feed.mjs`: newest-first, windowing, `/search` match; unit tests. FR-002, FR-001.
-- [ ] T002 Planned — `utils/avatar.mjs` + `SpoolAvatar.vue`: robot (agent, prefix tint) / identicon (HUM), deterministic; on cards, roster, mentions; unit tests. FR-006.
-- [ ] T003 Planned — Omnibox mode in `MessageComposer.vue`: Enter sends, `/search` filters, Esc clears. FR-001.
-- [ ] T004 Planned — `LiveFeed.vue`: prepend transition (reduced-motion off), windowed reveal, bottom sentinel loads older; `role="feed"`. FR-002, FR-003, FR-007.
-- [ ] T005 Planned — per-pane stores `useLiveFeed(key)`; right `ThreadPane.vue` live: pinned root, reply Omnibox, newest-first. FR-004.
-- [ ] T006 Planned — 3-pane CSS per layout §1.1; narrow-screen overlay; e2e no-x-scroll on the new states. FR-005, SC-004.
-- [ ] T007 Planned — live acceptance: two tabs under lde against a trunk hub (SC-001, SC-002, SC-003).
+- [x] T001 Implemented (`c4b3cca`) — `utils/feed.mjs`: newest-first (stable), `windowed`, `parseOmnibox`, `matchesSearch` (body, author, `id@box`, file names), `rootAndReplies`; 6 unit tests. FR-002, FR-001.
+- [~] T002 Partial (`c4b3cca`, `ec3b91e`) — `utils/avatar.mjs` robots (CLE teal / GRK orange / AGY purple chassis; varied head, eyes, mouth, antenna, extras) and HUM identicons, inline-SVG data URIs, deterministic per `id@box`; 4 unit tests; `SpoolAvatar.vue` on message cards and the roster. Missing: avatars in the `@mention` suggestion list.
+- [x] T003 Implemented (`ec3b91e`) — `MessageComposer.vue` `omnibox` mode: Enter sends (a leading `@CLE-07` sends `kind=task` `to=CLE-07`), `/search <q>` emits `search` and sends nothing, Esc clears; labelled textarea. FR-001.
+- [x] T004 Implemented (`ec3b91e`) — `LiveFeed.vue`: `TransitionGroup` prepend (none under `prefers-reduced-motion`), 50-row windows, `IntersectionObserver` bottom sentinel reveals older, `role="feed"`, `aria-posinset`/`setsize`, polite announcer for live arrivals. Windows are client-side over the paged thread (spec D1). FR-002, FR-003, FR-007.
+- [x] T005 Implemented (`ec3b91e`) — `useLiveFeed('main'|'pane')` on the one WS socket; `LiveThreadPane.vue`: pinned root, reply Omnibox, newest-first replies, live; opened from a thread row (plain click; Ctrl/middle-click still opens `/t/<id>`), from `/?thread=<id>`, or "Open thread" on a card of another task. FR-004.
+- [x] T006 Implemented (`ec3b91e`) — `--thread-w: 380px`; the pane overlays below 1100px; `node tests/e2e/no-x-scroll.test.mjs` → 12/12 incl. `/?thread=<id>` (pane open) at 390×844 and 1280×800; `nuxi typecheck` exit 0; `node --test tests/unit/*.test.mjs` → 69 pass. FR-005, SC-004.
+- [x] T007 Implemented — live acceptance, n=1 each, 2026-09-19 (~00:09Z): WUI `NUXT_PUBLIC_USE_MOCK=0` against a trunk `spool serve` (lde, view door off), lobby seeded with 60 messages over the real WS (`seed history #1..60`).
+  - Load: 50 rows, newest (`#60`) on top, `Loading older…` sentinel. Scrolling to the sentinel → 68 rows, oldest at the bottom (SC-001 history).
+  - Tab `?as=HUM-22` sends "prepend check from HUM-22" → top of its own feed at once; top of the `?as=HUM-21` tab live, announced "New message from HUM-22@box-wui" (SC-001).
+  - `/search history #5` in HUM-21 → exactly 11 rows (`#59..#50`, `#5`), Omnibox cleared, nothing sent; Esc → filter gone, top row unchanged (SC-002).
+  - Thread list → click the demo thread → URL stays `/`, pane shows root `GRK-03@box-smoke, task` pinned + 2 newest-first replies; avatars on those cards are robots; lobby cards for `HUM-22`/`HUM-30` are identicons (SC-003).
 - [ ] T008 Planned (003) — newest-first window on view-v1 §4.4 (spec D1), then switch the client to it.
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T00:05:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T00:20:00Z -->

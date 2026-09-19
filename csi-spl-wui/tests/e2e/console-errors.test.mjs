@@ -26,14 +26,17 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 30000)
 // two lines, on this one route, are the error page working, not a defect.
 const NOT_FOUND_PATH = '/no-such-page'
 
+// The mock tenant's fixture thread (utils/mock-data.mjs).
+const FIXTURE_THREAD = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+
 const split = (v, dflt) => (v ? v.split(/[\s,]+/).filter(Boolean) : dflt)
 const PATHS = split(process.env.PATHS, [
   '/login',
   '/',
   '/lobby',
   '/channel/general',
-  '/t/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-  '/?thread=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  `/t/${FIXTURE_THREAD}`,
+  `/?thread=${FIXTURE_THREAD}`,
   NOT_FOUND_PATH,
 ])
 
@@ -56,12 +59,23 @@ function record(scope, kind, text) {
   problems.push({ scope, kind, text: text.replace(/\s+/g, ' ').slice(0, 400) })
 }
 
-// A harness-started `nuxi dev` has no hub and no auth proxy, so the sign-in
-// registry (GET /api/v1/auth/providers) answers 404 there by construction and
-// SocialAuthButtons shows "unavailable". That one resource is expected in that
-// one setup; against BASE_URL (a real hub or Hosting) it is a failure.
-function expectedInHarness(url) {
-  return serverStarted && !process.env.NUXT_DEV_AUTH_PROXY && /\/api\/v1\/auth\//.test(url || '')
+/**
+ * Browser-logged resource failures that are the CONTRACT working, each named
+ * narrowly. Returns the reason (printed as a note) or '' for a real problem.
+ *
+ *  - GET /api/v1/auth/session -> 401: auth-v1 §4, "401 = signed out"; this
+ *    gate browses anonymously, and Chrome logs every 4xx fetch.
+ *  - GET /v1/view/threads/<fixture> -> 404: the mock fixture thread does not
+ *    exist on a real hub; the page shows its ErrorNotice.
+ *  - /api/v1/auth/* on a harness-started `nuxi dev`: no hub and no auth proxy
+ *    there by construction, so the registry and the probe answer 404.
+ */
+function expectedFailure(text, url) {
+  const u = url || ''
+  if (/\/api\/v1\/auth\/session(\?|$)/.test(u) && /status of 401\b/.test(text)) return 'signed out (auth-v1 §4)'
+  if (u.includes(`/v1/view/threads/${FIXTURE_THREAD}`) && /status of 404\b/.test(text)) return 'fixture thread absent on a real hub'
+  if (serverStarted && !process.env.NUXT_DEV_AUTH_PROXY && /\/api\/v1\/auth\//.test(u)) return 'no hub behind nuxi dev'
+  return ''
 }
 
 async function auditPage(browser, base, path) {
@@ -75,7 +89,8 @@ async function auditPage(browser, base, path) {
     if (type === 'error') {
       const loc = msg.location()?.url || ''
       if (path === NOT_FOUND_PATH && (text.includes(`Page not found: ${NOT_FOUND_PATH}`) || loc.endsWith(NOT_FOUND_PATH))) return
-      if (expectedInHarness(loc)) { notes.push(`${scope}: ${text} (${loc})`); return }
+      const why = expectedFailure(text, loc)
+      if (why) { notes.push(`${scope}: ${why} (${loc})`); return }
       record(scope, 'console.error', `${text}${loc ? ` @ ${loc}` : ''}`)
     } else if (type === 'warning' && HYDRATION_RE.test(text)) {
       record(scope, 'hydration', text)
@@ -135,7 +150,7 @@ async function auditPage(browser, base, path) {
   }
 
   console.log(`\nvisited ${visited.length} page(s)`)
-  for (const n of notes) console.log(`  note (expected without a hub): ${n}`)
+  for (const n of notes) console.log(`  note (expected): ${n}`)
   if (problems.length) {
     console.log(`\n${problems.length} console problem(s):`)
     for (const p of problems) console.log(`  [${p.kind}] ${p.scope}: ${p.text}`)

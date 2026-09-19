@@ -9,6 +9,7 @@ import {
   threadMessages,
   threadsFromMessages,
 } from './view-api.mjs'
+import { mockSearch, normalizeSearchResponse, searchApiQuery } from './search.mjs'
 
 function uuid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -237,6 +238,14 @@ export function createSpoolClient({
       }
       out.sort((a, b) => String(a.received_at || a.ts).localeCompare(String(b.received_at || b.ts)))
       return { messages: out.slice(-limit), next: list.next || null }
+    },
+    /**
+     * 022 global search: `GET /v1/view/search?q=<raw>` (search-v1.md, the hub
+     * parses the grammar). → normalizeSearchResponse. Mock: the lde matcher.
+     */
+    async search({ q = '', cursor = '', limit = 0 } = {}) {
+      if (mock) return normalizeSearchResponse(mockSearch(state.messages, q))
+      return normalizeSearchResponse(await live(`/v1/view/search?${searchApiQuery({ q, cursor, limit })}`))
     },
     async listRoster() {
       if (mock) return { roster: state.roster, online: state.online, me: state.me }

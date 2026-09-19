@@ -213,3 +213,33 @@ describe('mock matcher (lde only)', () => {
     assert.equal(mockSearch(msgs, 'larger:1M deploy').warnings.length, 1)
   })
 })
+
+describe('spool-client search()', async () => {
+  const { createSpoolClient } = await import('../../src/utils/spool-client.mjs')
+  it('live: GET /v1/view/search with q raw, Bearer token, normalised groups', async () => {
+    const calls = []
+    const fetchFn = async (url, opts) => {
+      calls.push({ url, opts })
+      return new Response(JSON.stringify({ groups: { messages: [{ msg_id: 'm1', task_id: 't1', snippet: { text: 'hi', highlights: [[0, 2]] } }] }, next_cursor: 'n' }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    const c = createSpoolClient({ mock: false, base: 'https://t1.example.com/', fetchFn, token: 'tok' })
+    const r = await c.search({ q: 'from:EZB-1 is:task', cursor: 'c' })
+    const u = new URL(calls[0].url)
+    assert.equal(u.origin + u.pathname, 'https://t1.example.com/v1/view/search')
+    assert.equal(u.searchParams.get('q'), 'from:EZB-1 is:task')
+    assert.equal(u.searchParams.get('cursor'), 'c')
+    assert.equal(calls[0].opts.headers.authorization, 'Bearer tok')
+    assert.equal(r.groups[0].items[0].key, 'messages:m1')
+    assert.equal(r.next, 'n')
+  })
+  it('live: 400 bad_query surfaces status + the hub detail', async () => {
+    const fetchFn = async () => new Response(JSON.stringify({ error: 'bad_query', detail: 'unbalanced ( at 5' }), { status: 400, headers: { 'content-type': 'application/json' } })
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn })
+    await assert.rejects(c.search({ q: 'a (b' }), (e) => e.status === 400 && e.token === 'bad_query' && /unbalanced/.test(e.detail))
+  })
+  it('mock: searches the local corpus, no fetch', async () => {
+    const c = createSpoolClient({ mock: true, fetchFn: () => { throw new Error('no fetch in mock') } })
+    const r = await c.search({ q: '' })
+    assert.ok(Array.isArray(r.groups))
+  })
+})

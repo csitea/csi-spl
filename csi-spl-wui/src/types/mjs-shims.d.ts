@@ -25,6 +25,7 @@ declare module '~/utils/spool-client.mjs' {
     setToken(token: string): void
     hasToken(): boolean
     healthz(): Promise<unknown>
+    search(opts?: { q?: string, cursor?: string, limit?: number }): Promise<import('~/utils/search.mjs').SearchResult>
     listThreads(opts?: {
       limit?: number
       before?: string
@@ -379,4 +380,35 @@ declare module '~/utils/code-blocks.mjs' {
   export function enterAction(o: { inCode?: boolean, shift?: boolean, alt?: boolean, mod?: boolean }): 'send' | 'newline'
   export function exitFence(text: string, caret?: number): { text: string, cursor: number }
   export function closeOpenFence(text: string): string
+}
+
+declare module '~/utils/search.mjs' {
+  export type SearchGroupType = 'robots' | 'users' | 'threads' | 'files' | 'channels' | 'messages'
+  export interface SearchRow {
+    type: SearchGroupType
+    key: string
+    snippet: { text: string, highlights: unknown[] }
+    [k: string]: any
+  }
+  export interface SearchResult {
+    query: string
+    groups: { type: SearchGroupType, items: SearchRow[] }[]
+    warnings: { token: string, message: string }[]
+    next: string | null
+  }
+  export const SEARCH_GROUPS: SearchGroupType[]
+  export const SEARCH_OPERATORS: { op: string, example?: string, values?: string[] }[]
+  export function omniboxMode(text: string): 'search' | 'send'
+  export function searchQueryOf(text: string): string
+  export function searchPath(q: string): string
+  export function searchApiQuery(o: { q?: string, cursor?: string, limit?: number }): string
+  export function operatorTokenAt(text: string, caret?: number): { token: string, start: number, end: number } | null
+  export function completeOperators(token: string, catalogue?: unknown[]): { insert: string, label: string }[]
+  export function applyCompletion(text: string, tok: { start: number, end: number }, insert: string): { text: string, cursor: number }
+  export function highlightSegments(text: string, highlights: unknown): { text: string, mark: boolean }[]
+  export function normalizeSearchResponse(data: unknown): SearchResult
+  export function flattenGroups(groups: SearchResult['groups']): SearchRow[]
+  export function moveIndex(i: number, n: number, key: string): number
+  export function searchTarget(row: unknown): { thread: string, focus: string } | { path: string } | null
+  export function mockSearch(messages: unknown[], q: string): unknown
 }

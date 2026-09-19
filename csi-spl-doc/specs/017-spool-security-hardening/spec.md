@@ -205,7 +205,7 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   identity tables (`humans`, `human_identities`, `password_credentials`, the token tables) and `webhook_events_seen`
   have no `tenant_id` and stay outside RLS. A superuser or a `BYPASSRLS` role skips every policy, so the hub MUST
   connect as a role with neither, and `spool hub` logs which one it got at startup.
-  *Status:* Planned (rdb `0014_tenant_rls.sql`, `internal/store/rls.go`; tasks T019..T023).
+  *Status:* Implemented (rdb `0014_tenant_rls.sql` `f228923`, `internal/store/rls.go` `f416b87`; applied dev + prd 2026-09-19; tasks T019..T023).
 
 ## 3. Non-Functional Requirements (NFR-SEC)
 

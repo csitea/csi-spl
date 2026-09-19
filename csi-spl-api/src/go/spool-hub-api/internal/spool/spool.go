@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -170,15 +171,24 @@ func (s *Store) Recv(as string, ack bool) (*RecvResult, error) {
 			m, verr = readMessage(p)
 		}
 		if verr != nil {
+			if errors.Is(verr, fs.ErrNotExist) {
+				continue // a concurrent ack claimed it first
+			}
 			res.Failed++
 			continue
 		}
-		res.Messages = append(res.Messages, m)
 		if ack {
+			// FR-006: the rename is the claim. Only the process whose rename
+			// succeeded returns the message; a racing loser (ENOENT) drops it
+			// silently and does not fail.
 			if err := atomicMove(p, filepath.Join(s.dir(as, "archive"), name)); err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					continue
+				}
 				return res, err
 			}
 		}
+		res.Messages = append(res.Messages, m)
 	}
 	if res.Failed > 0 {
 		return res, fmt.Errorf("%d malformed message file(s) left in %s", res.Failed, inbox)
@@ -284,7 +294,9 @@ func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 }
 
 // atomicMove renames within the spool (same filesystem); falls back to
-// copy+remove across filesystems.
+// copy+remove across filesystems. Either way exactly one caller can succeed:
+// rename(2), or the final remove, is the claim. The caller that loses a race
+// gets an error wrapping fs.ErrNotExist (ENOENT).
 func atomicMove(src, dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o775); err != nil {
 		return err

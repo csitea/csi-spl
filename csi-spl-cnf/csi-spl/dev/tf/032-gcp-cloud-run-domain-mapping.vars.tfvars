@@ -13,4 +13,4 @@ gcp_sa_email = "csi-spl-dev@csi-spl-dev.iam.gserviceaccount.com"
 # (<tenant>.<fqdn>); names come from cnf, the domain from env.dns only
 cloud_run_service_name       = "csi-spl-hub-dev"
 cloud_run_custom_domain      = "dev.api.spool-hub.ai"
-cloud_run_additional_domains = ["t1.dev.spool-hub.ai"]
+cloud_run_additional_domains = ["t1.dev.spool-hub.ai", "p1proof164647.dev.spool-hub.ai", "p1proof164658.dev.spool-hub.ai", "p1gone164717.dev.spool-hub.ai", "m2proof1.dev.spool-hub.ai", "m2proof2.dev.spool-hub.ai", "p1proof171204.dev.spool-hub.ai", "p1site174600.dev.spool-hub.ai"]

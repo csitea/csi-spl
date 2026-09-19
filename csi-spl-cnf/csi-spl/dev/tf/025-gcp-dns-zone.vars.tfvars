@@ -9,5 +9,5 @@ zone_name = "spool-hub-dev"
 zone_description = "spool hub dev subzone: created by 025-gcp-dns-zone, delegated from the prd apex zone"
 parent_zone_name = "spool-hub"
 parent_zone_project = "csi-spl-prd"
-cloud_run_mapping_records = [{"name": "t1", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}]
+cloud_run_mapping_records = [{"name": "t1", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}, {"name": "p1proof164647", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}, {"name": "p1proof164658", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}, {"name": "p1gone164717", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}, {"name": "m2proof1", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}, {"name": "m2proof2", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}, {"name": "p1proof171204", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}, {"name": "p1site174600", "rrdatas": ["ghs.googlehosted.com."], "type": "CNAME"}]
 fqdn = "dev.spool-hub.ai"

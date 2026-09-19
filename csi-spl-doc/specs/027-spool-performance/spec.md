@@ -46,6 +46,7 @@ None of the audit's items is already fixed on trunk.
 ## 5. Owner decisions (routed via CLE-00)
 
 - **D1 (item 5)**: argon2id CPU on 1 vCPU. Options: (a) `cpu: "2"` in cnf (about 2x the Cloud Run vCPU cost); (b) keep 1 vCPU and cap concurrent hashes in process with a semaphore (zero cost; logins queue instead of starving the WS loop); (c) lower the params (refused: the code enforces the OWASP floor). Recommendation: (b), measured first.
+- **D3 (found by T040, not a perf item)**: the month quota is `COUNT(*)` of messages that still exist (`store/postgres.go:368`, `received_at >= period start`). Retention deletes #alerts after 7 days (cnf `SPOOL_HUB_RETENTION_ALERTS: "168h"`), so a tenant's usage for the month DROPS as its messages expire. T040 keeps that behaviour byte-identical (the counter decrements on delete, FR-002). Question for the owner: should the quota count messages *sent* in the period (monotonic)? Recommendation: yes, as a separate billing lane after T040. The counter then simply stops decrementing.
 - **D2 (P3b)**: multi-instance fanout. Recommendation: not now. Revisit only once a measured single-instance ceiling is reached.
 
-<!-- last-edit: 2026-09-19T17:03:30Z -->
+<!-- last-edit: 2026-09-19T17:11:48Z -->

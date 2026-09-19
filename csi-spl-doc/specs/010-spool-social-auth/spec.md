@@ -32,7 +32,7 @@ Deliberate differences from the csi-rel donor:
 |---|---|---|
 | Fiber, JWT, `users` table with `google_sub` / `facebook_sub` | `net/http` ServeMux (the hub's), an HMAC-signed session cookie, **no table in this package** | The hub is `net/http`; the human row is `HUM-*` (004) and is created through a `Registrar` hook the hub implements (T012), so this package never touches the store. |
 | State: HMAC-signed only, 30 min | HMAC-signed **and** bound to an HttpOnly nonce cookie, single use, 15 min (cnf) | A state lifted from another browser, or replayed, is refused (`TestStateCSRF`). |
-| Facebook avatar fetch, deauthorize callback | deauthorize + data-deletion Implemented (T043, stateless confirmation code); avatar not yet | Avatar → `file_id` is narrative §3.4 (Planned T044). |
+| Facebook avatar fetch, deauthorize callback | deauthorize + data-deletion Implemented (T043, stateless confirmation code); avatar Implemented (`5d7be9c`, hub wiring `e23fae5`; T044 `[x]` in `585faaa`) | Avatar → `file_id` is narrative §3.4. Check: `command grep -c fetchAvatar csi-spl-api/src/go/spool-hub-api/internal/auth/idp.go` → 5; `command grep -n 'func fetchAvatar' csi-spl-api/src/go/spool-hub-api/internal/auth/idp.go` → `305`. |
 | Provider "omitted when unconfigured" in prd | a listed provider that is unset or PLACEHOLDER **fails the boot** | Owner brief 2026-09-18: fail-fast env vars. The provider list itself is the switch: `""` = off. |
 
 ---
@@ -250,4 +250,4 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   (`TestStateCSRF`).
 - **SC-003** — Planned: the same on dev against the registered apps (T034).
 
-<!-- version: 0.3.0 · updated: 2026-09-19 -->
+<!-- version: 0.3.1 · updated: 2026-09-19 · last-edit: 2026-09-19T09:15:00Z -->

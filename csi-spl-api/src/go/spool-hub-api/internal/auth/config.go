@@ -60,6 +60,11 @@ type Config struct {
 	CookieName   string        `env:"SPOOL_HUB_AUTH_COOKIE_NAME" envDefault:"spool_session"`
 	CookieDomain string        `env:"SPOOL_HUB_AUTH_COOKIE_DOMAIN"`
 	CookieSecure bool          `env:"SPOOL_HUB_AUTH_COOKIE_SECURE" envDefault:"true"`
+	// StateCookieName is the OAuth state cookie (spec 010 T056). It carries
+	// CookieDomain too, so /start on the API host and /callback on the WUI
+	// host both see it. Behind Firebase Hosting it must be "__session": the
+	// only request cookie Hosting forwards to a Cloud Run rewrite (csi-rel 089).
+	StateCookieName string `env:"SPOOL_HUB_AUTH_STATE_COOKIE_NAME" envDefault:"spool_oauth_state"`
 	// IdPBaseURL points EVERY provider at one fake IdP (fakeidp: lde, tests,
 	// the auth-demo). Refused in prd, where it would hand client secrets to
 	// that host.
@@ -162,6 +167,9 @@ func (c *Config) validate() error {
 	}
 	if c.CookieName == "" {
 		return fmt.Errorf("SPOOL_HUB_AUTH_COOKIE_NAME must not be empty")
+	}
+	if c.StateCookieName == "" || c.StateCookieName == c.CookieName {
+		return fmt.Errorf("SPOOL_HUB_AUTH_STATE_COOKIE_NAME must be set and differ from SPOOL_HUB_AUTH_COOKIE_NAME")
 	}
 	if c.IdPBaseURL != "" {
 		if c.Env == "prd" {

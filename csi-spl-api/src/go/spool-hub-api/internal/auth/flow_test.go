@@ -43,20 +43,30 @@ func newRig(t *testing.T, reg auth.Registrar) *rig {
 
 func newRigWith(t *testing.T, opts auth.Options) *rig {
 	t.Helper()
+	return newRigFront(t, opts, nil, "")
+}
+
+// newRigFront: extra env over the rig's, and the IdP callbacks may go to
+// another origin (callbackBase, e.g. a Firebase-like front); "" = the hub.
+func newRigFront(t *testing.T, opts auth.Options, extra map[string]string, callbackBase string) *rig {
+	t.Helper()
 	var hubH http.Handler
 	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hubH.ServeHTTP(w, r) }))
 	t.Cleanup(hub.Close)
+	if callbackBase == "" {
+		callbackBase = hub.URL
+	}
 	wui := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "wui "+r.URL.RequestURI()) //nolint:errcheck
 	}))
 	t.Cleanup(wui.Close)
-	g := fakeidp.Client{ID: "gid", Secret: "gsecret", RedirectURI: hub.URL + "/api/v1/auth/google/callback"}
-	f := fakeidp.Client{ID: "fid", Secret: "fsecret", RedirectURI: hub.URL + "/api/v1/auth/facebook/callback"}
+	g := fakeidp.Client{ID: "gid", Secret: "gsecret", RedirectURI: callbackBase + "/api/v1/auth/google/callback"}
+	f := fakeidp.Client{ID: "fid", Secret: "fsecret", RedirectURI: callbackBase + "/api/v1/auth/facebook/callback"}
 	fake := fakeidp.New(g, f, alice)
 	idp := httptest.NewServer(fake.Handler())
 	t.Cleanup(idp.Close)
 
-	cfg, err := auth.LoadFrom("lde", map[string]string{
+	env := map[string]string{
 		"SPOOL_HUB_AUTH_PROVIDERS":              "google,facebook",
 		"SPOOL_HUB_AUTH_SESSION_KEY":            strings.Repeat("s", 32),
 		"SPOOL_HUB_AUTH_APP_URL":                wui.URL,
@@ -68,7 +78,11 @@ func newRigWith(t *testing.T, opts auth.Options) *rig {
 		"SPOOL_HUB_AUTH_FACEBOOK_CLIENT_ID":     f.ID,
 		"SPOOL_HUB_AUTH_FACEBOOK_CLIENT_SECRET": f.Secret,
 		"SPOOL_HUB_AUTH_FACEBOOK_REDIRECT_URI":  f.RedirectURI,
-	})
+	}
+	for k, v := range extra {
+		env[k] = v
+	}
+	cfg, err := auth.LoadFrom("lde", env)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -22,9 +22,9 @@ import (
 // through the hosting rewrite, as csi-rel's storefront does.
 const RoutePrefix = "/api/v1/auth/"
 
-// stateCookie carries the nonce that binds a state to the browser that
-// started the flow. Path-scoped to the auth routes.
-const stateCookie = "spool_oauth_state"
+// The state cookie (Config.StateCookieName) carries the nonce that binds a
+// state to the browser that started the flow. Path-scoped to the auth routes,
+// on Config.CookieDomain (T056: /start and /callback may be different hosts).
 
 // Callback failure codes, the ?auth_error= the WUI login page renders.
 const (
@@ -162,8 +162,8 @@ func (h *Handler) start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name: stateCookie, Value: nonce, Path: RoutePrefix, MaxAge: int(h.cfg.StateTTL.Seconds()),
-		HttpOnly: true, Secure: h.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
+		Name: h.cfg.StateCookieName, Value: nonce, Path: RoutePrefix, Domain: h.cfg.CookieDomain,
+		MaxAge: int(h.cfg.StateTTL.Seconds()), HttpOnly: true, Secure: h.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
 	})
 	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, idp.AuthCodeURL(state, nonce), http.StatusFound)
@@ -177,8 +177,8 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The state cookie is single-use: cleared on every callback outcome.
-	http.SetCookie(w, &http.Cookie{Name: stateCookie, Value: "", Path: RoutePrefix, MaxAge: -1,
-		HttpOnly: true, Secure: h.cfg.CookieSecure, SameSite: http.SameSiteLaxMode})
+	http.SetCookie(w, &http.Cookie{Name: h.cfg.StateCookieName, Value: "", Path: RoutePrefix, Domain: h.cfg.CookieDomain,
+		MaxAge: -1, HttpOnly: true, Secure: h.cfg.CookieSecure, SameSite: http.SameSiteLaxMode})
 	w.Header().Set("Cache-Control", "no-store")
 	q := r.URL.Query()
 
@@ -187,7 +187,7 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, p, "/", ErrCodeState, "state signature, expiry or provider")
 		return
 	}
-	c, err := r.Cookie(stateCookie)
+	c, err := r.Cookie(h.cfg.StateCookieName)
 	if err != nil || subtle.ConstantTimeCompare([]byte(c.Value), []byte(st.Nonce)) != 1 {
 		h.fail(w, r, p, st.Redirect, ErrCodeState, "state not bound to this browser")
 		return

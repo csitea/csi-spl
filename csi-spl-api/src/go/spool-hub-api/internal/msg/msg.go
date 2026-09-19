@@ -96,8 +96,11 @@ func Marshal(m *Message) ([]byte, error) {
 	return sortedCompact(raw)
 }
 
-// sortedCompact re-encodes JSON with recursively sorted map keys, compact, and
-// numbers preserved exactly.
+// sortedCompact re-encodes JSON with recursively sorted map keys, compact,
+// numbers preserved exactly and no HTML escaping (== jq -cS; <>& stay literal,
+// as in wire.Canonical). Files written before this held \u003c-style escapes;
+// Parse reads both, and no signature covers these bytes directly (local mail
+// is unsigned, and the hub envelope sig is over wire.Canonical's re-encoding).
 func sortedCompact(raw []byte) ([]byte, error) {
 	var any interface{}
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -105,7 +108,13 @@ func sortedCompact(raw []byte) ([]byte, error) {
 	if err := dec.Decode(&any); err != nil {
 		return nil, err
 	}
-	return json.Marshal(any) // json.Marshal sorts map[string]interface{} keys
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(any); err != nil { // sorts map[string]interface{} keys
+		return nil, err
+	}
+	return bytes.TrimRight(b.Bytes(), "\n"), nil
 }
 
 // Parse decodes a stored message, rejecting unknown top-level keys.

@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"errors"
 	"testing"
@@ -174,5 +175,28 @@ func TestEnvelopeChannelSigned(t *testing.T) {
 	l.Channel = "lobby"
 	if err := l.Verify(pub); !errors.Is(err, sign.ErrVerify) {
 		t.Errorf("channel added post-sign verified (err=%v)", err)
+	}
+}
+
+// Signature control for the 002 msg.Marshal/Canonical HTML-escape fix: before
+// it, NewEnvelope's inner Msg held <-style bytes. The envelope sig is over
+// SigningPayload's re-encoding (no HTML escaping), so a pre-fix envelope keeps
+// verifying against the SAME sig as legacyEnv and still re-marshals to it.
+func TestEnvelopeEscapedInnerStillVerifies(t *testing.T) {
+	pub := fixedKey().Public().(ed25519.PublicKey)
+	old, err := ParseEnvelope([]byte(legacyEnv))
+	if err != nil {
+		t.Fatal(err)
+	}
+	old.Msg = []byte(`{"body":"a<b & c","files":[],"from":"GRK-03","kind":"task","msg_id":"11111111-1111-4111-8111-111111111111","task_id":"22222222-2222-4222-8222-222222222222","to":"CLE-07","ts":"2026-09-18T12:00:00Z","v":1}`)
+	if err := old.Verify(pub); err != nil {
+		t.Fatalf("escaped-inner envelope no longer verifies: %v", err)
+	}
+	if raw, _ := old.Marshal(); string(raw) != legacyEnv {
+		t.Fatalf("escaped-inner envelope re-marshals differently\n got %s", raw)
+	}
+	fresh, _ := NewEnvelope(fixedKey(), "box-a", "box-b", fixedMsg())
+	if bytes.Contains(fresh.Msg, []byte(`\u00`)) || fresh.Sig != old.Sig {
+		t.Fatalf("fresh inner %s sig %s, want unescaped inner and sig %s", fresh.Msg, fresh.Sig, old.Sig)
 	}
 }

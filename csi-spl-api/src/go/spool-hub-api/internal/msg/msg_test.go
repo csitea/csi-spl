@@ -142,3 +142,61 @@ func TestNow(t *testing.T) {
 		t.Fatalf("Now format: %s", got)
 	}
 }
+
+// Golden vectors (contracts/canonical-json.md): Canonical == jq -cS 'del(.sig)'
+// and Marshal == jq -cS . of the same object, byte for byte. The second vector
+// locks '"' and newline escaping plus one files[] entry; the third is the
+// <>& control: encoding/json's default HTML escaping (< > &)
+// is not jq's and must never reach the disk or a signing payload.
+func TestCanonicalGoldenVectors(t *testing.T) {
+	const tail = `"from":"GRK-03","kind":"task","msg_id":"11111111-1111-4111-8111-111111111111","task_id":"22222222-2222-4222-8222-222222222222","to":"CLE-07","ts":"2026-09-18T12:00:00Z","v":1}`
+	blob := Attachment{Mode: "blob", Kind: "file", FileID: "ab12", Name: "a.txt", Bytes: 3, SHA256: "ab12"}
+	const blobJSON = `[{"bytes":3,"file_id":"ab12","kind":"file","mode":"blob","name":"a.txt","sha256":"ab12"}]`
+	for _, tc := range []struct {
+		name, body, bodyJSON string
+		files                []Attachment
+		filesJSON            string
+	}{
+		{"plain", "review this", `"review this"`, nil, `[]`},
+		{"quote-newline-file", "say \"hi\"\nnow/then", `"say \"hi\"\nnow/then"`, []Attachment{blob}, blobJSON},
+		{"html-control", "a<b && c>d", `"a<b && c>d"`, nil, `[]`},
+	} {
+		m := &Message{V: 1, MsgID: "11111111-1111-4111-8111-111111111111",
+			TaskID: "22222222-2222-4222-8222-222222222222", TS: "2026-09-18T12:00:00Z",
+			From: "GRK-03", To: "CLE-07", Kind: "task", Body: tc.body, Files: tc.files}
+		want := `{"body":` + tc.bodyJSON + `,"files":` + tc.filesJSON + `,` + tail
+		c, err := Canonical(m)
+		if err != nil || string(c) != want {
+			t.Fatalf("%s: Canonical (err=%v)\n got %s\nwant %s", tc.name, err, c, want)
+		}
+		d, err := Marshal(m)
+		if err != nil || string(d) != want {
+			t.Fatalf("%s: Marshal (err=%v)\n got %s\nwant %s", tc.name, err, d, want)
+		}
+		m.Sig = "c2ln"
+		withSig := strings.Replace(want, `,"task_id"`, `,"sig":"c2ln","task_id"`, 1)
+		if d, _ := Marshal(m); string(d) != withSig {
+			t.Fatalf("%s: Marshal with sig\n got %s\nwant %s", tc.name, d, withSig)
+		}
+		if c, _ := Canonical(m); string(c) != want {
+			t.Fatalf("%s: Canonical must drop sig\n got %s", tc.name, c)
+		}
+	}
+}
+
+// A file written before the fix holds <-style escapes. It must still parse
+// to the same message and re-marshal to the canonical (unescaped) bytes.
+func TestEscapedLegacyFileStillParses(t *testing.T) {
+	legacy := `{"body":"a<b && c>d","files":[],"from":"GRK-03","kind":"task","msg_id":"11111111-1111-4111-8111-111111111111","task_id":"22222222-2222-4222-8222-222222222222","to":"CLE-07","ts":"2026-09-18T12:00:00Z","v":1}`
+	m, err := Parse([]byte(legacy))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Validate(); err != nil || m.Body != "a<b && c>d" {
+		t.Fatalf("legacy file: err=%v body=%q", err, m.Body)
+	}
+	d, _ := Marshal(m)
+	if want := strings.NewReplacer(`<`, "<", `>`, ">", `&`, "&").Replace(legacy); string(d) != want {
+		t.Fatalf("re-marshal\n got %s\nwant %s", d, want)
+	}
+}

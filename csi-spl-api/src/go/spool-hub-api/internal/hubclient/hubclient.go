@@ -124,6 +124,20 @@ func (c *Client) http() *http.Client {
 	return &http.Client{Transport: tr, Timeout: 0}
 }
 
+// TenantHeader names the box's tenant to the hub (specs/026 §4; the hub's
+// hub.TenantHeader, repeated here so the client does not import the server).
+const TenantHeader = "X-Spool-Tenant"
+
+// TenantHeader is the header set a request to the hub carries: the box's
+// tenant when one is known, else none (a legacy tenant host decides).
+func (c *Client) TenantHeader() http.Header {
+	h := http.Header{}
+	if t := c.Cfg.TenantID(); t != "" {
+		h.Set(TenantHeader, t)
+	}
+	return h
+}
+
 func (c *Client) endpoint(path string) (string, error) {
 	u, err := url.Parse(c.Cfg.HubURL)
 	if err != nil || u.Host == "" {
@@ -203,7 +217,7 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 	wsURL = "ws" + strings.TrimPrefix(wsURL, "http")
 	dctx, cancel := context.WithTimeout(ctx, c.timeout())
 	defer cancel()
-	conn, _, err := websocket.Dial(dctx, wsURL, &websocket.DialOptions{HTTPClient: c.http()})
+	conn, _, err := websocket.Dial(dctx, wsURL, &websocket.DialOptions{HTTPClient: c.http(), HTTPHeader: c.TenantHeader()})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUnreachable, err)
 	}
@@ -541,6 +555,9 @@ func (s *Session) rest(ctx context.Context, method, path string, body io.Reader,
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+tok)
+	if t := s.c.Cfg.TenantID(); t != "" {
+		req.Header.Set(TenantHeader, t)
+	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/octet-stream")
 	}

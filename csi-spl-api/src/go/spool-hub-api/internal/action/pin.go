@@ -94,6 +94,9 @@ func PublishPin(cfg *config.Config, in PinArgs) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if t := cfg.TenantID(); t != "" { // specs/026: named, proven by the root signature
+		req.Header.Set(hubclient.TenantHeader, t)
+	}
 	hc := hubclient.New(cfg)
 	if in.HTTP != nil {
 		hc.HTTP = in.HTTP

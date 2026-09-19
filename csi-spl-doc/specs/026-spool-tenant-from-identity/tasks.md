@@ -7,7 +7,7 @@
 | T011 | auth: active tenant (bind `t` at sign-in, `ActiveTenant`), session response `active_tenant` + `tenants` | done |
 | T012 | hub: resolution per §2 on every door (view, WUI ws, channels, files, dispatch, pins, ws, cicd); Host = equality check | done |
 | T013 | hub tests: CONTROLS §9 | done |
-| T020 | box client + CLI: `X-Spool-Tenant`, api-host URL, legacy URL accepted | |
+| T020 | box client + CLI: `X-Spool-Tenant`, api-host URL, legacy URL accepted | done |
 | T030 | WUI: api base without `{tenant}`, tenant from the session | |
 | T040 | deploy dev then prd (deploy lane), `do_spl_m3_e2e` on the api host dev + prd | |
 | T050 | measure tenant-host traffic; retire mappings via cnf + make 032/025 (dev, prd) | |

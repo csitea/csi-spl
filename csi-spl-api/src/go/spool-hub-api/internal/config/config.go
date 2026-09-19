@@ -7,6 +7,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -39,9 +40,13 @@ type Config struct {
 	LogLevel string `env:"SPOOL_LOG_LEVEL" envDefault:"info"`
 	// LogFormat is "console" (CLI) or "json" (deployed).
 	LogFormat string `env:"SPOOL_LOG_FORMAT" envDefault:"console"`
-	// HubURL switches the box into hub mode (spec 003): https://<tenant>.<domain>.
-	// Unset = the unchanged local 002 path.
+	// HubURL switches the box into hub mode (spec 003): the api host
+	// https://api.<domain> (specs/026); a legacy https://<tenant>.<domain> still
+	// works. Unset = the unchanged local 002 path.
 	HubURL string `env:"SPOOL_HUB_URL"`
+	// Tenant is the box's tenant, sent as X-Spool-Tenant (specs/026 §4) and
+	// proven by the box's pin. Unset = derived from a legacy tenant HubURL.
+	Tenant string `env:"SPOOL_TENANT"`
 	// TenantRootKey is the path to the tenant root PRIVATE key used by spool-pin
 	// to POST/DELETE /v1/pins. Empty = local pin file only (002).
 	TenantRootKey string `env:"SPOOL_TENANT_ROOT_KEY"`
@@ -97,12 +102,34 @@ func Load() (*Config, error) {
 		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 			return nil, fmt.Errorf("SPOOL_HUB_URL %q must be an http(s) URL", c.HubURL)
 		}
+		if c.Tenant != "" && !msg.ValidTenantID(c.Tenant) {
+			return nil, fmt.Errorf("SPOOL_TENANT %q is not a tenant id", c.Tenant)
+		}
 		// FR-002 / 004 T002: hub mode is a box identity; no silent empty box_id.
 		if !msg.ValidBoxID(c.BoxID) {
 			return nil, fmt.Errorf("SPOOL_BOX_ID must be a valid box id when SPOOL_HUB_URL is set")
 		}
 	}
 	return &c, nil
+}
+
+// TenantID is the tenant a hub-mode box names (specs/026 §4): SPOOL_TENANT,
+// else the first label of a legacy tenant HubURL (<tenant>.<domain>), else ""
+// (the api host with no SPOOL_TENANT: the hub then answers 400 tenant_required).
+func (c *Config) TenantID() string {
+	if c.Tenant != "" {
+		return strings.ToLower(c.Tenant)
+	}
+	u, err := url.Parse(c.HubURL)
+	if err != nil {
+		return ""
+	}
+	host := strings.ToLower(u.Hostname())
+	label, rest, ok := strings.Cut(host, ".")
+	if !ok || rest == "" || net.ParseIP(host) != nil || !msg.ValidTenantID(label) {
+		return ""
+	}
+	return label
 }
 
 // ChannelList is $SPOOL_CHANNELS split on commas, trimmed, lower-cased,

@@ -287,3 +287,36 @@ func TestCrossTenantIdentityBoxPinnedToOneTenant(t *testing.T) {
 		t.Fatalf("A token naming B: %d", c)
 	}
 }
+
+// The box client on the api host (specs/026 §4): SPOOL_TENANT is sent as
+// X-Spool-Tenant and the pin proves it; naming another tenant fails the hello.
+func TestCrossTenantIdentityBoxClientOnAPIHost(t *testing.T) {
+	e := newEnv(t)
+	a, _ := e.tenant()
+	b, _ := e.tenant()
+	bx := e.box(a, "box-a", "AGENT-A")
+	e.pin(a, bx)
+	bx.cfg.HubURL = "http://" + apiLabel + domain
+	ctx := context.Background()
+
+	bx.cfg.Tenant = a
+	s, err := bx.c.Dial(ctx, wire.RoleCLI)
+	if err != nil {
+		t.Fatalf("api host as A: %v", err)
+	}
+	if err := s.SyncPins(ctx); err != nil { // REST carries the header too
+		t.Fatalf("pins via api host: %v", err)
+	}
+	s.Close()
+
+	bx.cfg.Tenant = b
+	if s, err := bx.c.Dial(ctx, wire.RoleCLI); err == nil {
+		s.Close()
+		t.Fatal("box pinned to A dialled in as B")
+	}
+	bx.cfg.Tenant = ""
+	if s, err := bx.c.Dial(ctx, wire.RoleCLI); err == nil {
+		s.Close()
+		t.Fatal("api host with no tenant named was accepted")
+	}
+}

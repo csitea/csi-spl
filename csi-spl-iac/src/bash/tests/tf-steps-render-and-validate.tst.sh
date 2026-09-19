@@ -117,7 +117,16 @@ for env in dev prd; do
   grep -E '^environment_variables ' "$v" | grep -q 'SPOOL_HUB_DB_DSN' && fail "$env DSN is a plain env var" || pass "$env DSN is not a plain env var"
   grep -E '^secret_environment_variables ' "$v" | grep -q '"SPOOL_HUB_DB_DSN": "csi-spl-hub-db-dsn"' && pass "$env DSN comes from Secret Manager" || fail "$env DSN is not a secret_environment_variable"
   grep -q "^files_bucket_name = \"csi-spl-$env-files\"" "$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/050-gcs-files.vars.tfvars" && pass "$env files bucket is csi-spl-$env-files" || fail "$env files bucket name"
+  # 017 T029: the schema owner's DSN has its own 040 slot, and the hub never sees it
+  grep -qx 'owner_dsn_secret_id = "csi-spl-hub-db-owner-dsn"' "$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/040-cloud-sql-postgres.vars.tfvars" \
+    && pass "$env 040 renders the owner DSN slot" || fail "$env 040 lacks owner_dsn_secret_id"
+  grep -q 'csi-spl-hub-db-owner-dsn' "$v" && fail "$env 030 references the owner DSN secret (injected or granted to the hub)" \
+    || pass "$env 030 never references the owner DSN secret"
 done
+# CONTROL for the check above: the owner slot id is a real string in 040's
+# tfvars, so the 030 grep searches for something that exists.
+grep -rq 'csi-spl-hub-db-owner-dsn' "$APP_ROOT/csi-spl-cnf/csi-spl/dev/tf/" && pass "CONTROL: the owner slot id appears in the rendered tfvars" \
+  || fail "CONTROL: owner slot id not rendered anywhere"
 
 # --- 2c. 017 GitHub WIF (CI deploy identity; no SA JSON key) --------------------
 [[ -d "$TFD/017-github-wif-deploy" ]] \

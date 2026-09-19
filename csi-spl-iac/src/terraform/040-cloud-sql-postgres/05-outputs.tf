@@ -14,3 +14,7 @@ output "database_name" {
 output "dsn_secret_id" {
   value = google_secret_manager_secret.hub_db_dsn.secret_id
 }
+
+output "owner_dsn_secret_id" {
+  value = google_secret_manager_secret.hub_db_owner_dsn.secret_id
+}

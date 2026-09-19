@@ -13,6 +13,11 @@
 #     gcloud secrets versions add <dsn_secret_id> --data-file=- --account=...
 # 030 mounts the instance's unix socket at /cloudsql and injects the secret as
 # SPOOL_HUB_DB_DSN.
+#
+# 017 T029: that injected DSN is the hub's RUNTIME login (cnf hub.db_user),
+# which owns nothing. The schema OWNER (cnf hub.db_owner_user) runs `spool
+# migrate`; its DSN sits in the second slot below, which only the per-env SA
+# reads (csi-spl-orc do_spl_db_bootstrap, do_spl_db_owner_split).
 resource "google_sql_database_instance" "hub" {
   name             = var.instance_name
   project          = var.gcp_project
@@ -84,5 +89,28 @@ resource "google_secret_manager_secret" "hub_db_dsn" {
     app  = var.app
     env  = var.env
     role = "hub-db-dsn"
+  }
+}
+
+# 017 T029: the empty slot for the schema OWNER's DSN. Never referenced by
+# 030: the hub's runtime SA gets no accessor on it, so a hub compromise does
+# not reach the login that could ALTER ... NO FORCE ROW LEVEL SECURITY.
+resource "google_secret_manager_secret" "hub_db_owner_dsn" {
+  project   = var.gcp_project
+  secret_id = var.owner_dsn_secret_id
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.gcp_region
+      }
+    }
+  }
+
+  labels = {
+    org  = var.org
+    app  = var.app
+    env  = var.env
+    role = "hub-db-owner-dsn"
   }
 }

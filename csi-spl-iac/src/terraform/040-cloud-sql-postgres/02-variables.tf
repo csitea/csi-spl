@@ -94,3 +94,13 @@ variable "dsn_secret_id" {
   type        = string
   description = "Secret Manager secret id holding the hub's DSN (= hub.secret_env.SPOOL_HUB_DB_DSN in cnf). Terraform makes the empty SLOT only; the version is added out of band."
 }
+
+variable "owner_dsn_secret_id" {
+  type        = string
+  description = "Secret Manager secret id holding the schema OWNER's DSN (cnf hub.db_owner_dsn_secret; 017 T029). Only do_spl_db_bootstrap / `spool migrate` read it; 030 never injects or grants it. Empty slot only, like dsn_secret_id."
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]+$", var.owner_dsn_secret_id))
+    error_message = "owner_dsn_secret_id must be a Secret Manager id."
+  }
+}

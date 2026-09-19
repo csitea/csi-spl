@@ -8,3 +8,4 @@ gcp_region  = "{{ gcp["gcp_region"] }}"
 {{ key }} = {{ value | tojson }}
 {%- endfor %}
 dsn_secret_id = {{ hub["secret_env"]["SPOOL_HUB_DB_DSN"] | tojson }}
+owner_dsn_secret_id = {{ hub["db_owner_dsn_secret"] | tojson }}

@@ -14,3 +14,4 @@ database_name = "spool"
 deletion_protection = true
 backup_enabled = true
 dsn_secret_id = "csi-spl-hub-db-dsn"
+owner_dsn_secret_id = "csi-spl-hub-db-owner-dsn"

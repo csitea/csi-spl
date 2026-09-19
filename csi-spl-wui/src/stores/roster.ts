@@ -3,6 +3,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { displayName } from '~/utils/channel-feed.mjs'
 import { applyPresence, splitPeer } from '~/utils/live-follow.mjs'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 
 export const useRosterStore = defineStore('roster', () => {
   const api = useSpoolApi()
@@ -39,7 +40,7 @@ export const useRosterStore = defineStore('roster', () => {
   live.onPresence(applyFrame)
 
   async function refresh() {
-    const data = await api.listRoster() as {
+    const data = await withSessionRetry(api, () => api.listRoster()) as {
       roster?: Record<string, string[]>
       online?: string[]
       me?: { id: string, box: string }

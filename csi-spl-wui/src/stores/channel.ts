@@ -19,6 +19,7 @@ import {
 } from '~/utils/channel-feed.mjs'
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
 import { pendingRow, withoutMsg } from '~/utils/feed.mjs'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { ChannelRow, SendFrame, SpoolMessage } from '~/types/spool'
 
 export type { ChannelRow }
@@ -95,7 +96,8 @@ export const useChannelStore = defineStore('channel', () => {
   /** Live: send read=<ch>~<cursor> so the hub counts unread per reader (channels-v1 §5.2). */
   async function loadChannels() {
     const read: Record<string, string> = api.mock ? {} : readMap(loadCursors()) as Record<string, string>
-    channels.value = await api.listChannels({ read }) as ChannelInfo[]
+    /* a member's first read of a fresh page flips the door to the session cookie (010 FR-009), as the lobby does */
+    channels.value = await withSessionRetry(api, () => api.listChannels({ read })) as ChannelInfo[]
   }
 
   function resetView() {
@@ -119,12 +121,12 @@ export const useChannelStore = defineStore('channel', () => {
     if (!olderCursor.value || loadingOlder) return
     loadingOlder = true
     try {
-      const page = await api.listMessages({
+      const page = await withSessionRetry(api, () => api.listMessages({
         channel: active.value || undefined,
         peer: peer.value || undefined,
         limit: 50,
-        before: olderCursor.value,
-      })
+        before: olderCursor.value || undefined,
+      }))
       const incoming = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
       const seen = new Set(messages.value.map((m) => m.msg_id))
       const add = incoming.filter((m) => m.msg_id && !seen.has(m.msg_id))
@@ -165,11 +167,11 @@ export const useChannelStore = defineStore('channel', () => {
     loading.value = true
     error.value = null
     try {
-      const page = await api.listMessages({
+      const page = await withSessionRetry(api, () => api.listMessages({
         channel: active.value || undefined,
         peer: peer.value || undefined,
         limit: 50,
-      })
+      }))
       messages.value = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
       olderCursor.value = page.next || null
       follow()
@@ -188,7 +190,7 @@ export const useChannelStore = defineStore('channel', () => {
     if (api.mock) return refresh()
     const where = { channel: active.value, peer: peer.value }
     try {
-      const page = await api.listMessages({ channel: where.channel || undefined, peer: where.peer || undefined, limit: 50 })
+      const page = await withSessionRetry(api, () => api.listMessages({ channel: where.channel || undefined, peer: where.peer || undefined, limit: 50 }))
       if (where.channel !== active.value || where.peer !== peer.value) return
       messages.value = mergePage(messages.value, (page.messages || []).map(feedRow) as unknown as FeedMessage[])
       follow()
@@ -263,7 +265,7 @@ export const useChannelStore = defineStore('channel', () => {
   async function createChannel(name: string) {
     const slug = channelSlug(name)
     if (!slug) throw new Error(i18n.t('sidebar.channel_name_required'))
-    const row = await api.createChannel({ channel_id: slug, name })
+    const row = await withSessionRetry(api, () => api.createChannel({ channel_id: slug, name }))
     const id = String(row.channel_id || slug)
     await loadChannels()
     await selectChannel(id)

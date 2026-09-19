@@ -41,6 +41,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { matchesSearch, mergeById, rootAndReplies } from '~/utils/feed.mjs'
 import { applyVerbosity } from '~/utils/verbosity.mjs'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 const thread = useThreadStore()
@@ -71,7 +72,7 @@ async function catchUp() {
   const id = thread.parentTaskId
   if (api.mock || !thread.open || !id) return
   try {
-    const data = await api.getThread(id) as { messages?: SpoolMessage[] }
+    const data = await withSessionRetry(api, () => api.getThread(id)) as { messages?: SpoolMessage[] }
     if (thread.parentTaskId === id) liveRows.value = mergeById(liveRows.value, data.messages || []).rows as SpoolMessage[]
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : t('thread.load_failed')
@@ -86,7 +87,7 @@ watch(() => [thread.open, thread.parentTaskId] as const, async ([open, id]) => {
   if (api.mock || !open || !id) return
   loading.value = true
   try {
-    const data = await api.getThread(id) as { messages?: SpoolMessage[] }
+    const data = await withSessionRetry(api, () => api.getThread(id)) as { messages?: SpoolMessage[] }
     if (thread.parentTaskId === id) liveRows.value = data.messages || []
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : t('thread.load_failed')

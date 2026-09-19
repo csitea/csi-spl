@@ -45,27 +45,28 @@
 
 - **FR-020** Deep-linkable: loading `/search?q=…` runs the query.
 - **FR-021** Results render in **grouped sections** in this order, each only when non-empty: robots, users,
-  threads, files, channels, messages. A flat `results[]` response renders as the messages section.
+  channels, boxes, threads, files, messages; each section has its own "Load more" (per-group cursor).
 - **FR-022** Snippets show match highlights from **offsets** (never HTML from the server): the WUI splits the
   text into plain / `<mark>` segments rendered as text nodes.
 - **FR-023** Click (or Enter on the active row) opens: message → its thread in the right pane, scrolled to the
-  message; thread → the thread pane; robot / user → `/dm/<id>`; channel → `/channel/<id>`; file → the thread
-  of the message that carries it.
+  message; thread → the thread pane; robot / user → `/dm/<id>`; channel → `/channel/<id>`; box → `/search?q=box:<id>`;
+  file → the thread of the message that carries it.
 - **FR-024** Keyboard: ArrowUp/ArrowDown move the active row across all sections (wrapping), Home/End jump,
   Enter opens; the list is a `listbox` with `aria-activedescendant`.
-- **FR-025** States: empty query (help with operator examples), loading, no results, error (400 `bad_query`
-  shows the hub's detail), `next_cursor` → "Load more".
+- **FR-025** States: empty query (help with operator examples), loading, no results, errors (400 `bad_query`
+  shows the hub's detail and the bad token, 429 / 503 their own line, 401 the view-door form).
 - **FR-026** Mock mode (lde, no hub) searches the local mock corpus with a tiny free-text + `from:` / `in:` /
   `is:` matcher so the UI and tests run offline. The live path never uses it.
 
-## 5. Contract assumptions (until `search-v1.md` lands)
+## 5. Contract
 
-`GET /v1/view/search?q=<raw>&cursor=<opaque>&limit=<n>` on the view door →
-`{ query, warnings[], next_cursor, groups: { robots, users, threads, files, channels, messages } }` or
-`{ results[] }`; message rows `{ msg_id, task_id, channel, from, from_box, to, kind, created_at|ts,
-snippet: { text, highlights: [[start,end]] } }`; `400 { error: "bad_query", detail, pos }`.
-The normaliser (`utils/search.mjs`) accepts `[s,e]`, `{start,end}` and `{offset,length}` highlights and
-clamps them; the delta to the real contract is recorded in `tasks.md` T006 when it lands.
+`csi-spl-doc/specs/003-spool-message-bus/contracts/search-v1.md` v1.0 (f28a6ee) — cited, not restated. What the WUI
+relies on: `GET /v1/view/search?q=<raw>&sort=&cursor=&limit=` → `groups.<plural>.{results,next}` (seven types, a
+cursor per group answers that group only → `mergeSearchPage`), display text in `snippet` / `title` / `name`
+`{text, highlights:[[s,e)]}` in UTF-16 units (= `String.slice`), `warnings[{token,pos,detail}]`, `400 bad_query
+{detail,pos,token}`, `429 rate_limited`, `503 search_budget`; autocomplete from `GET /v1/view/search/operators`
+(`normalizeOperators`), with the built-in `SEARCH_OPERATORS` only as the offline / not-yet-deployed fallback.
+Section order in the WUI: robots, users, channels, boxes, threads, files, messages (entities first, as Slack).
 
 ## 6. Tests
 

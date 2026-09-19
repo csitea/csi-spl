@@ -24,7 +24,7 @@
 
 ## Phase 4 — Contract + proof
 
-- [ ] T006 Align with `search-v1.md` (HUB-SEARCH-API lane) — record the delta.
+- [x] T006 Align with `search-v1.md` v1.0 (f28a6ee): per-group `{results,next}`, `boxes`, `snippet`/`title`/`name` display text, `{token,pos,detail}` warnings, `sort`, operators endpoint (`normalizeOperators`, `searchOperators()`). Check: `node tests/unit/search.test.mjs` → pass 37.
 - [ ] T030 no-x-scroll + CSP e2e green with the bar.
 - [ ] T031 Headless-Chrome proof on dev → `/var/tmp/CLE-3410-proof/`.
 - [ ] T032 dev + prd `build.json` == the sha.

@@ -8,8 +8,10 @@ import {
   completeOperators,
   flattenGroups,
   highlightSegments,
+  mergeSearchPage,
   mockSearch,
   moveIndex,
+  normalizeOperators,
   normalizeSearchResponse,
   omniboxMode,
   operatorTokenAt,
@@ -81,7 +83,7 @@ describe('operator autocomplete', () => {
     assert.ok(completeOperators('Is').some((c) => c.insert === 'is:'))
   })
   it('closed values after the colon', () => {
-    assert.deepEqual(completeOperators('is:').map((c) => c.insert), ['is:task ', 'is:note ', 'is:result ', 'is:reject '])
+    assert.deepEqual(completeOperators('is:r').map((c) => c.insert), ['is:result ', 'is:reject ', 'is:root ', 'is:revoked '])
     assert.deepEqual(completeOperators('type:r').map((c) => c.insert), ['type:robot '])
     assert.deepEqual(completeOperators('has:c').map((c) => c.insert), ['has:code '])
   })
@@ -93,7 +95,7 @@ describe('operator autocomplete', () => {
   })
   it('the catalogue carries every operator the brief names', () => {
     const ops = SEARCH_OPERATORS.map((o) => o.op)
-    for (const op of ['from:', 'in:', 'is:', 'has:', 'before:', 'after:', 'type:', 'title:', 'filename:', 'larger:', 'smaller:', 'online:', 'box:']) {
+    for (const op of ['from:', 'to:', 'in:', 'is:', 'has:', 'before:', 'after:', 'on:', 'type:', 'title:', 'subject:', 'name:', 'filename:', 'ext:', 'larger:', 'smaller:', 'box:', 'thread:']) {
       assert.ok(ops.includes(op), op)
     }
   })
@@ -130,35 +132,84 @@ describe('highlight segments (offsets, never HTML)', () => {
   })
 })
 
-describe('response normalisation', () => {
-  it('groups in render order, empty groups dropped', () => {
-    const r = normalizeSearchResponse({
-      query: 'x',
-      groups: {
-        messages: [{ msg_id: 'm1', task_id: 't1', snippet: { text: 'x', highlights: [[0, 1]] } }],
-        robots: [{ id: 'CLE-07', box: 'box-a', online: true }],
-        users: [],
-      },
-      next_cursor: 'n1',
-      warnings: ['foo: unknown', { token: 'bar:', message: 'unknown operator' }],
-    })
-    assert.deepEqual(r.groups.map((g) => g.type), ['robots', 'messages'])
-    assert.equal(r.groups[0].items[0].key, 'robots:CLE-07@box-a')
-    assert.equal(r.next, 'n1')
-    assert.deepEqual(r.warnings, [{ token: '', message: 'foo: unknown' }, { token: 'bar:', message: 'unknown operator' }])
+describe('response normalisation (search-v1 §4)', () => {
+  const answer = {
+    query: 'deploy foo:bar',
+    sort: 'newest',
+    types: ['message', 'thread', 'file', 'robot', 'user', 'channel', 'box'],
+    warnings: [{ token: 'foo:bar', pos: 7, detail: 'unknown operator foo: searched as text' }],
+    groups: {
+      messages: { results: [{ msg_id: 'm1', task_id: 't1', snippet: { text: 'we deploy', highlights: [[3, 9]] } }], next: 'cm' },
+      threads: { results: [{ task_id: 't1', title: { text: 'Deploy plan', highlights: [[0, 6]] }, count: 2 }], next: null },
+      files: { results: [{ file_id: null, name: { text: 'deploy.pdf', highlights: [] }, msg_id: 'm1', task_id: 't1' }, { file_id: null, name: { text: 'b.txt', highlights: [] }, msg_id: 'm1', task_id: 't1' }], next: null },
+      robots: { results: [{ id: 'CLE-07', box: 'box-a', online: true, name: { text: 'CLE-07@box-a', highlights: [[0, 3]] } }], next: null },
+      users: { results: [], next: null },
+      channels: { results: [{ channel: 'tasks', name: { text: 'tasks', highlights: [] } }], next: null },
+      boxes: { results: [{ box_id: 'box-a', name: { text: 'box-a', highlights: [] } }], next: null },
+    },
+  }
+  it('groups in render order, per-group next, empty groups dropped', () => {
+    const r = normalizeSearchResponse(answer)
+    assert.deepEqual(r.groups.map((g) => g.type), ['robots', 'channels', 'boxes', 'threads', 'files', 'messages'])
+    assert.equal(r.groups.find((g) => g.type === 'messages').next, 'cm')
+    assert.equal(r.groups.find((g) => g.type === 'threads').next, null)
+    assert.deepEqual(r.warnings, [{ token: 'foo:bar', pos: 7, detail: 'unknown operator foo: searched as text' }])
   })
-  it('a flat results[] is the messages section; string snippet and body fallback', () => {
-    const r = normalizeSearchResponse({ results: [{ msg_id: 'a', snippet: 'hi', highlights: [[0, 2]] }, { msg_id: 'b', body: 'yo' }] })
-    assert.deepEqual(r.groups.map((g) => g.type), ['messages'])
-    assert.deepEqual(r.groups[0].items[0].snippet, { text: 'hi', highlights: [[0, 2]] })
-    assert.equal(r.groups[0].items[1].snippet.text, 'yo')
+  it('display text per type: snippet / title / name', () => {
+    const r = normalizeSearchResponse(answer)
+    const by = Object.fromEntries(r.groups.map((g) => [g.type, g.items[0].display]))
+    assert.deepEqual(by.messages, { text: 'we deploy', highlights: [[3, 9]] })
+    assert.deepEqual(by.threads, { text: 'Deploy plan', highlights: [[0, 6]] })
+    assert.deepEqual(by.robots, { text: 'CLE-07@box-a', highlights: [[0, 3]] })
+    assert.equal(by.boxes.text, 'box-a')
+  })
+  it('keys are unique even for two null-id attachments of one message', () => {
+    const r = normalizeSearchResponse(answer)
+    const keys = flattenGroups(r.groups).map((x) => x.key)
+    assert.equal(new Set(keys).size, keys.length)
+  })
+  it('a flat results[] or bare-array group is accepted', () => {
+    assert.deepEqual(normalizeSearchResponse({ results: [{ msg_id: 'a', snippet: { text: 'hi', highlights: [] } }] }).groups.map((g) => g.type), ['messages'])
+    assert.deepEqual(normalizeSearchResponse({ groups: { users: [{ id: 'HUM-1' }] } }).groups[0].items[0].display.text, 'HUM-1')
+  })
+  it('a cursor page (one section) appends to its group and takes its next', () => {
+    const cur = normalizeSearchResponse(answer)
+    const page = normalizeSearchResponse({ groups: { messages: { results: [{ msg_id: 'm1' }, { msg_id: 'm2' }], next: null } } })
+    const m = mergeSearchPage(cur, page)
+    const msgs = m.groups.find((g) => g.type === 'messages')
+    assert.deepEqual(msgs.items.map((x) => x.msg_id), ['m1', 'm2'])
+    assert.equal(msgs.next, null)
+    assert.equal(m.groups.length, cur.groups.length)
   })
   it('CONTROL: junk input is an empty result, not a throw', () => {
-    for (const d of [null, undefined, 'x', 42, { groups: 'x' }, { results: 'x' }]) {
+    for (const d of [null, undefined, 'x', 42, { groups: 'x' }, { results: 'x' }, { groups: { messages: { results: [null, 3] } } }]) {
       const r = normalizeSearchResponse(d)
       assert.deepEqual(r.groups, [])
-      assert.equal(r.next, null)
     }
+  })
+})
+
+describe('operators document (search-v1 §6)', () => {
+  it('names, aliases, enum keys and type values become completions', () => {
+    const ops = normalizeOperators({
+      version: '1.0',
+      types: [{ type: 'message' }, { type: 'robot' }],
+      operators: [
+        { name: 'from', aliases: [], values: 'id', example: 'from:CLE-07' },
+        { name: 'is', values: 'enum', enum: { task: ['message'], online: ['robot'] } },
+        { name: 'title', aliases: ['subject'], values: 'text' },
+        { name: 'type', values: 'type' },
+      ],
+    })
+    assert.deepEqual(ops.map((o) => o.op), ['from:', 'is:', 'title:', 'subject:', 'type:'])
+    assert.deepEqual(completeOperators('is:', ops).map((c) => c.insert), ['is:task ', 'is:online '])
+    assert.deepEqual(completeOperators('type:', ops).map((c) => c.insert), ['type:message ', 'type:robot '])
+    assert.deepEqual(completeOperators('su', ops).map((c) => c.insert), ['subject:'])
+  })
+  it('CONTROL: junk or empty → the built-in catalogue; bad names dropped', () => {
+    assert.equal(normalizeOperators(null), SEARCH_OPERATORS)
+    assert.equal(normalizeOperators({ operators: [] }), SEARCH_OPERATORS)
+    assert.equal(normalizeOperators({ operators: [{ name: '<img>' }] }), SEARCH_OPERATORS)
   })
 })
 
@@ -174,7 +225,7 @@ describe('keyboard', () => {
     assert.equal(moveIndex(0, 0, 'ArrowDown'), -1)
   })
   it('flattened rows walk across sections', () => {
-    const r = normalizeSearchResponse({ groups: { robots: [{ id: 'A' }], messages: [{ msg_id: '1' }, { msg_id: '2' }] } })
+    const r = normalizeSearchResponse({ groups: { robots: { results: [{ id: 'A' }] }, messages: { results: [{ msg_id: '1' }, { msg_id: '2' }] } } })
     assert.deepEqual(flattenGroups(r.groups).map((x) => x.key), ['robots:A', 'messages:1', 'messages:2'])
   })
 })
@@ -187,10 +238,11 @@ describe('click targets', () => {
     assert.deepEqual(searchTarget({ type: 'files', task_id: 't', msg_id: 'm' }), { thread: 't', focus: 'm' })
     assert.deepEqual(searchTarget({ type: 'robots', id: 'CLE-07', box: 'box-a' }), { path: '/dm/CLE-07%40box-a' })
     assert.deepEqual(searchTarget({ type: 'users', id: 'HUM-1' }), { path: '/dm/HUM-1' })
-    assert.deepEqual(searchTarget({ type: 'channels', channel_id: '#lobby' }), { path: '/channel/lobby' })
+    assert.deepEqual(searchTarget({ type: 'channels', channel: 'lobby' }), { path: '/channel/lobby' })
+    assert.deepEqual(searchTarget({ type: 'boxes', box_id: 'box-a' }), { search: 'box:box-a' })
   })
   it('CONTROL: a row without an id goes nowhere', () => {
-    for (const r of [null, {}, { type: 'messages' }, { type: 'robots' }, { type: 'channels' }, { type: 'nope', id: 'x' }]) {
+    for (const r of [null, {}, { type: 'messages' }, { type: 'robots' }, { type: 'channels' }, { type: 'boxes' }, { type: 'nope', id: 'x' }]) {
       assert.equal(searchTarget(r), null)
     }
   })
@@ -202,14 +254,14 @@ describe('mock matcher (lde only)', () => {
     { msg_id: '2', task_id: 't2', ts: '2026-09-19T11:00:00Z', from: 'CLE-07', from_box: 'box-a', to: 'EZB-1', kind: 'result', channel: null, body: 'deploy done, deploy ok' },
   ]
   it('free words + from:/is:/in:, newest first, offsets on every hit', () => {
-    assert.deepEqual(mockSearch(msgs, 'deploy').groups.messages.map((m) => m.msg_id), ['2', '1'])
-    assert.deepEqual(mockSearch(msgs, 'from:EZB-1 is:task').groups.messages.map((m) => m.msg_id), ['1'])
-    assert.deepEqual(mockSearch(msgs, 'in:dm').groups.messages.map((m) => m.msg_id), ['2'])
-    assert.deepEqual(mockSearch(msgs, 'in:#lobby').groups.messages.map((m) => m.msg_id), ['1'])
-    assert.deepEqual(mockSearch(msgs, 'deploy').groups.messages[0].snippet.highlights, [[0, 6], [13, 19]])
+    assert.deepEqual(mockSearch(msgs, 'deploy').groups.messages.results.map((m) => m.msg_id), ['2', '1'])
+    assert.deepEqual(mockSearch(msgs, 'from:EZB-1 is:task').groups.messages.results.map((m) => m.msg_id), ['1'])
+    assert.deepEqual(mockSearch(msgs, 'in:dm').groups.messages.results.map((m) => m.msg_id), ['2'])
+    assert.deepEqual(mockSearch(msgs, 'in:#lobby').groups.messages.results.map((m) => m.msg_id), ['1'])
+    assert.deepEqual(mockSearch(msgs, 'deploy').groups.messages.results[0].snippet.highlights, [[0, 6], [13, 19]])
   })
   it('CONTROL: no match → empty; an operator the mock does not model warns', () => {
-    assert.deepEqual(mockSearch(msgs, 'nothing-like-this').groups.messages, [])
+    assert.deepEqual(mockSearch(msgs, 'nothing-like-this').groups.messages.results, [])
     assert.equal(mockSearch(msgs, 'larger:1M deploy').warnings.length, 1)
   })
 })
@@ -220,22 +272,30 @@ describe('spool-client search()', async () => {
     const calls = []
     const fetchFn = async (url, opts) => {
       calls.push({ url, opts })
-      return new Response(JSON.stringify({ groups: { messages: [{ msg_id: 'm1', task_id: 't1', snippet: { text: 'hi', highlights: [[0, 2]] } }] }, next_cursor: 'n' }), { status: 200, headers: { 'content-type': 'application/json' } })
+      return new Response(JSON.stringify({ groups: { messages: { results: [{ msg_id: 'm1', task_id: 't1', snippet: { text: 'hi', highlights: [[0, 2]] } }], next: 'n' } } }), { status: 200, headers: { 'content-type': 'application/json' } })
     }
     const c = createSpoolClient({ mock: false, base: 'https://t1.example.com/', fetchFn, token: 'tok' })
-    const r = await c.search({ q: 'from:EZB-1 is:task', cursor: 'c' })
+    const r = await c.search({ q: 'from:EZB-1 is:task', cursor: 'c', sort: 'relevance' })
     const u = new URL(calls[0].url)
     assert.equal(u.origin + u.pathname, 'https://t1.example.com/v1/view/search')
     assert.equal(u.searchParams.get('q'), 'from:EZB-1 is:task')
     assert.equal(u.searchParams.get('cursor'), 'c')
+    assert.equal(u.searchParams.get('sort'), 'relevance')
     assert.equal(calls[0].opts.headers.authorization, 'Bearer tok')
     assert.equal(r.groups[0].items[0].key, 'messages:m1')
-    assert.equal(r.next, 'n')
+    assert.equal(r.groups[0].next, 'n')
   })
   it('live: 400 bad_query surfaces status + the hub detail', async () => {
     const fetchFn = async () => new Response(JSON.stringify({ error: 'bad_query', detail: 'unbalanced ( at 5' }), { status: 400, headers: { 'content-type': 'application/json' } })
     const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn })
     await assert.rejects(c.search({ q: 'a (b' }), (e) => e.status === 400 && e.token === 'bad_query' && /unbalanced/.test(e.detail))
+  })
+  it('live: operators come from GET /v1/view/search/operators', async () => {
+    const urls = []
+    const fetchFn = async (url) => { urls.push(url); return new Response(JSON.stringify({ operators: [{ name: 'from' }] }), { status: 200, headers: { 'content-type': 'application/json' } }) }
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn })
+    assert.deepEqual((await c.searchOperators()).map((o) => o.op), ['from:'])
+    assert.equal(urls[0], 'https://h/v1/view/search/operators')
   })
   it('mock: searches the local corpus, no fetch', async () => {
     const c = createSpoolClient({ mock: true, fetchFn: () => { throw new Error('no fetch in mock') } })

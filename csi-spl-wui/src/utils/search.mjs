@@ -11,33 +11,59 @@
 /** `/search` or `/s`, then whitespace or end of line (case-insensitive). */
 const SEARCH_CMD_RE = /^\/(?:search|s)(?=\s|$)/i
 
-/** Result sections in render order (spec 022 FR-021). */
-export const SEARCH_GROUPS = ['robots', 'users', 'threads', 'files', 'channels', 'messages']
+/** Result sections in render order (spec 022 FR-021; group keys of search-v1 §4). */
+export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'threads', 'files', 'messages']
 
 /**
- * Operator catalogue for autocomplete — mirrors search-v1.md. `values` are the
- * closed value sets offered after the colon; open operators carry an example.
+ * Built-in operator catalogue — the offline fallback of search-v1 §6
+ * (`GET /v1/view/search/operators`, which the WUI prefers: normalizeOperators).
+ * `values` are closed value sets offered after the colon.
  */
 export const SEARCH_OPERATORS = [
   { op: 'from:', example: 'from:CLE-07' },
   { op: 'to:', example: 'to:HUM-1' },
   { op: 'in:', example: 'in:#lobby', values: ['dm'] },
-  { op: 'is:', values: ['task', 'note', 'result', 'reject'] },
-  { op: 'has:', values: ['file', 'code', 'attachment'] },
-  { op: 'type:', values: ['robot', 'user', 'thread', 'file', 'channel', 'message'] },
+  { op: 'is:', values: ['task', 'note', 'result', 'reject', 'root', 'online', 'offline', 'revoked'] },
+  { op: 'has:', values: ['file', 'attachment', 'code'] },
+  { op: 'type:', values: ['message', 'thread', 'file', 'robot', 'user', 'channel', 'box'] },
   { op: 'before:', example: 'before:2026-09-01' },
   { op: 'after:', example: 'after:7d' },
   { op: 'on:', example: 'on:2026-09-19' },
   { op: 'box:', example: 'box:box-a' },
   { op: 'thread:', example: 'thread:<task id>' },
-  { op: 'title:', example: 'title:"deploy plan"' },
-  { op: 'name:', example: 'name:EZB' },
-  { op: 'filename:', example: 'filename:report' },
+  { op: 'title:', example: 'title:"release plan"' },
+  { op: 'subject:', example: 'subject:migration' },
+  { op: 'name:', example: 'name:ops' },
+  { op: 'filename:', example: 'filename:"q3 report"' },
   { op: 'ext:', example: 'ext:pdf' },
   { op: 'larger:', example: 'larger:1M' },
-  { op: 'smaller:', example: 'smaller:100K' },
-  { op: 'online:', values: ['true', 'false'] },
+  { op: 'smaller:', example: 'smaller:10K' },
 ]
+
+/**
+ * search-v1 §6 operators document → the catalogue shape above. Aliases become
+ * their own entries; `type:` values come from `types[]`; an enum's keys are
+ * its values. Junk → the built-in catalogue.
+ */
+export function normalizeOperators(data) {
+  const d = data && typeof data === 'object' ? data : {}
+  if (!Array.isArray(d.operators) || !d.operators.length) return SEARCH_OPERATORS
+  const typeNames = (Array.isArray(d.types) ? d.types : []).map((t) => String(t && t.type || '')).filter(Boolean)
+  const out = []
+  for (const o of d.operators) {
+    const name = String((o && o.name) || '').toLowerCase()
+    if (!/^[a-z]+$/.test(name)) continue
+    let values
+    if (o.values === 'type' || name === 'type') values = typeNames.length ? typeNames : undefined
+    else if (o.enum && typeof o.enum === 'object') values = Array.isArray(o.enum) ? o.enum.map(String) : Object.keys(o.enum)
+    const example = o.example ? String(o.example) : undefined
+    for (const n of [name, ...(Array.isArray(o.aliases) ? o.aliases : [])]) {
+      const nn = String(n).toLowerCase()
+      if (/^[a-z]+$/.test(nn) && !out.some((x) => x.op === nn + ':')) out.push({ op: nn + ':', example, values })
+    }
+  }
+  return out.length ? out : SEARCH_OPERATORS
+}
 
 /** Omnibox mode of a line: 'search' for `/search …` / `/s …`, else 'send'. */
 export function omniboxMode(text) {
@@ -59,9 +85,10 @@ export function searchPath(q) {
 }
 
 /** Query string of `GET /v1/view/search` — `q` goes up raw, never rewritten. */
-export function searchApiQuery({ q = '', cursor = '', limit = 0 } = {}) {
+export function searchApiQuery({ q = '', cursor = '', limit = 0, sort = '' } = {}) {
   const p = new URLSearchParams()
   p.set('q', String(q || ''))
+  if (sort) p.set('sort', String(sort))
   if (cursor) p.set('cursor', String(cursor))
   if (limit) p.set('limit', String(limit))
   return p.toString()
@@ -132,6 +159,7 @@ function pairOf(h) {
 
 /**
  * Snippet text + match offsets → [{ text, mark }] (FR-022). Offsets are
+ * UTF-16 code units, [start, end) (search-v1 §4) — String.slice units. They are
  * clamped, reversed / empty / non-numeric ones dropped, overlaps merged. The
  * result is rendered as text nodes, so markup in `text` stays text.
  */
@@ -160,38 +188,64 @@ export function highlightSegments(text, highlights) {
   return out
 }
 
-function snippetOf(r) {
-  if (r && r.snippet && typeof r.snippet === 'object') {
-    return { text: String(r.snippet.text ?? ''), highlights: r.snippet.highlights || [] }
-  }
-  if (r && typeof r.snippet === 'string') return { text: r.snippet, highlights: r.highlights || [] }
-  return { text: String((r && (r.body || r.title || r.subject || r.name)) ?? ''), highlights: (r && r.highlights) || [] }
+function textOf(v) {
+  if (v && typeof v === 'object' && !Array.isArray(v)) return { text: String(v.text ?? ''), highlights: Array.isArray(v.highlights) ? v.highlights : [] }
+  if (typeof v === 'string') return { text: v, highlights: [] }
+  return null
+}
+
+/** The highlighted text of a row: message `snippet`, thread `title`, else `name` (search-v1 §4). */
+function displayOf(r) {
+  return textOf(r.snippet) || textOf(r.title) || textOf(r.name)
+    || { text: String(r.body || r.id || r.box_id || r.channel || r.task_id || ''), highlights: [] }
 }
 
 function keyOf(type, r, i) {
-  const id = r.msg_id || r.task_id || r.file_id || r.channel_id || r.id || i
-  return `${type}:${id}${r.box ? '@' + r.box : ''}`
+  const id = r.msg_id || r.file_id || r.task_id || r.box_id || r.channel || r.id || i
+  const extra = type === 'files' ? `/${r.msg_id || ''}/${displayOf(r).text}` : ''
+  return `${type}:${id}${r.box ? '@' + r.box : ''}${extra}`
 }
 
 /**
- * Hub response → { query, groups: [{ type, items }], warnings, next }. Accepts
- * `groups{…}` (multi-entity) or a flat `results[]` (messages only).
+ * search-v1 §4 answer → { query, groups: [{ type, items, next }], warnings }.
+ * Each group keeps its own `next` cursor (a cursor answers one section). A
+ * group given as a bare array, or a flat `results[]`, is accepted too.
  */
 export function normalizeSearchResponse(data) {
   const d = data && typeof data === 'object' ? data : {}
-  const src = d.groups && typeof d.groups === 'object' ? d.groups : { messages: d.results || d.messages || [] }
+  const src = d.groups && typeof d.groups === 'object' ? d.groups : { messages: d.results }
   const groups = []
   for (const type of SEARCH_GROUPS) {
-    const rows = Array.isArray(src[type]) ? src[type] : []
+    const g = src[type]
+    const rows = Array.isArray(g) ? g : (g && Array.isArray(g.results) ? g.results : [])
+    const next = g && !Array.isArray(g) && g.next ? String(g.next) : null
     if (!rows.length) continue
     groups.push({
       type,
-      items: rows.map((r, i) => ({ ...r, type, key: keyOf(type, r, i), snippet: snippetOf(r) })),
+      next,
+      items: rows.filter((r) => r && typeof r === 'object').map((r, i) => ({ ...r, type, key: keyOf(type, r, i), display: displayOf(r) })),
     })
   }
   const warnings = (Array.isArray(d.warnings) ? d.warnings : []).map((w) =>
-    typeof w === 'string' ? { token: '', message: w } : { token: String(w.token || ''), message: String(w.message || w.detail || '') })
-  return { query: String(d.query || ''), groups, warnings, next: d.next_cursor || d.next || null }
+    typeof w === 'string'
+      ? { token: '', pos: -1, detail: w }
+      : { token: String((w && w.token) || ''), pos: Number.isInteger(w && w.pos) ? w.pos : -1, detail: String((w && (w.detail || w.message)) || '') })
+  return { query: String(d.query || ''), groups: groups.filter((g) => g.items.length), warnings }
+}
+
+/** A cursor answer (one section) folded into the current result. */
+export function mergeSearchPage(cur, page) {
+  const groups = (cur && cur.groups ? cur.groups : []).map((g) => ({ ...g }))
+  for (const pg of (page && page.groups) || []) {
+    const g = groups.find((x) => x.type === pg.type)
+    if (!g) { groups.push(pg); continue }
+    const seen = new Set(g.items.map((x) => x.key))
+    g.items = [...g.items, ...pg.items.filter((x) => !seen.has(x.key))]
+    g.next = pg.next
+  }
+  const order = (t) => SEARCH_GROUPS.indexOf(t)
+  groups.sort((a, b) => order(a.type) - order(b.type))
+  return { ...(cur || {}), groups }
 }
 
 /** Every row of every group, in render order — the keyboard walks this. */
@@ -213,8 +267,9 @@ export function moveIndex(i, n, key) {
 }
 
 /**
- * FR-023: where a row goes. → { thread, focus } for the thread pane, or
- * { path } for a route (locale prefix is the caller's).
+ * FR-023: where a row goes. → { thread, focus } for the thread pane,
+ * { path } for a route (locale prefix is the caller's), or { search } for a
+ * follow-up query (a box → its messages).
  */
 export function searchTarget(row) {
   const r = row || {}
@@ -225,13 +280,17 @@ export function searchTarget(row) {
       return r.task_id ? { thread: String(r.task_id), focus: '' } : null
     case 'files':
       return r.task_id ? { thread: String(r.task_id), focus: r.msg_id ? String(r.msg_id) : '' } : null
+    case 'boxes': {
+      const id = String(r.box_id || '')
+      return id ? { search: `box:${id}` } : null
+    }
     case 'robots':
     case 'users': {
       const id = String(r.id || '')
       return id ? { path: `/dm/${encodeURIComponent(r.box ? `${id}@${r.box}` : id)}` } : null
     }
     case 'channels': {
-      const id = String(r.channel_id || r.id || '').replace(/^#/, '')
+      const id = String(r.channel || r.channel_id || '').replace(/^#/, '')
       return id ? { path: `/channel/${encodeURIComponent(id)}` } : null
     }
     default:
@@ -251,7 +310,7 @@ export function mockSearch(messages, q) {
   for (const raw of String(q || '').match(/"[^"]*"|\S+/g) || []) {
     const m = raw.match(/^([a-z]+):(.*)$/i)
     if (m && ['from', 'to', 'in', 'is'].includes(m[1].toLowerCase())) filters.push([m[1].toLowerCase(), m[2].toLowerCase()])
-    else if (m && SEARCH_OPERATORS.some((o) => o.op === m[1].toLowerCase() + ':')) warnings.push({ token: raw, message: 'mock: ignored' })
+    else if (m && SEARCH_OPERATORS.some((o) => o.op === m[1].toLowerCase() + ':')) warnings.push({ token: raw, detail: 'lde mock: operator ignored' })
     else words.push(raw.replace(/^"|"$/g, '').toLowerCase())
   }
   const ok = (msg) => filters.every(([k, v]) => {
@@ -274,5 +333,5 @@ export function mockSearch(messages, q) {
     results.push({ ...msg, created_at: msg.ts, snippet: { text: body, highlights } })
   }
   results.sort((a, b) => String(b.ts).localeCompare(String(a.ts)))
-  return { query: String(q || ''), warnings, next_cursor: null, groups: { messages: results } }
+  return { query: String(q || ''), sort: 'newest', types: ['message'], warnings, groups: { messages: { results, next: null } } }
 }

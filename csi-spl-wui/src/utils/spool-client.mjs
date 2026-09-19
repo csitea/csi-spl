@@ -9,7 +9,7 @@ import {
   threadMessages,
   threadsFromMessages,
 } from './view-api.mjs'
-import { mockSearch, normalizeSearchResponse, searchApiQuery } from './search.mjs'
+import { SEARCH_OPERATORS, mockSearch, normalizeOperators, normalizeSearchResponse, searchApiQuery } from './search.mjs'
 
 function uuid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -243,9 +243,14 @@ export function createSpoolClient({
      * 022 global search: `GET /v1/view/search?q=<raw>` (search-v1.md, the hub
      * parses the grammar). → normalizeSearchResponse. Mock: the lde matcher.
      */
-    async search({ q = '', cursor = '', limit = 0 } = {}) {
+    async search({ q = '', cursor = '', limit = 0, sort = '' } = {}) {
       if (mock) return normalizeSearchResponse(mockSearch(state.messages, q))
-      return normalizeSearchResponse(await live(`/v1/view/search?${searchApiQuery({ q, cursor, limit })}`))
+      return normalizeSearchResponse(await live(`/v1/view/search?${searchApiQuery({ q, cursor, limit, sort })}`))
+    },
+    /** search-v1 §6 grammar-as-data → the autocomplete catalogue. */
+    async searchOperators() {
+      if (mock) return SEARCH_OPERATORS
+      return normalizeOperators(await live('/v1/view/search/operators'))
     },
     async listRoster() {
       if (mock) return { roster: state.roster, online: state.online, me: state.me }

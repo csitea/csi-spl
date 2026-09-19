@@ -10,5 +10,5 @@ gcp_sa_email = "csi-spl-dev@csi-spl-dev.iam.gserviceaccount.com"
 
 prd_zone_name = "spool-hub"
 parent_zone_project = "csi-spl-prd"
-verification_records = []
+verification_records = [{"source": "lcbhghjiue5q.spool-hub.ai.", "target": "gv-2gbgvnbqb2z6fm.dv.googlehosted.com."}]
 tld_domain = "spool-hub.ai"

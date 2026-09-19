@@ -6,19 +6,38 @@
 # @description                ports, the Postgres container's credentials,
 # @description                the hub image + env file for this tree, the
 # @description                WUI image, port and source dir
-# @description   hub.env      the hub's runtime env = cnf env.hub.env for
-# @description                ENV=lde, one KEY=value per line. The keys are the
-# @description                env-var names published in all.env.yaml; this
-# @description                file adds and renames nothing.
+# @description   hub.env      the hub's runtime env for ENV=lde, one KEY=value
+# @description                per line: cnf env.hub.env, env.auth.social.env,
+# @description                env.auth.native.env and env.mail.env (the names
+# @description                published in all.env.yaml; a PLACEHOLDER value is
+# @description                dropped), {lde_wui_port} / {lde_hub_port} filled
+# @description                in, then the env.lde.switches applied (below).
 # @description Both land in $LDE_STATE_DIR (see do_lde_cnf), mode 0600.
+# @description
+# @description Switches (cnf env.lde.switches, env overrides via do_lde_cnf):
+# @description   LDE_AUTH_NATIVE=1     SPOOL_HUB_AUTH_NATIVE_ENABLED=true
+# @description   LDE_AUTH_PROVIDERS=p  SPOOL_HUB_AUTH_PROVIDERS=p; each
+# @description                         SPOOL_HUB_AUTH_<P>_CLIENT_ID/_SECRET and
+# @description                         an optional SPOOL_HUB_AUTH_IDP_BASE_URL
+# @description                         come from the caller's env (fail fast)
+# @description   LDE_WUI_DISPATCH=1    SPOOL_HUB_WUI_DISPATCH=true with an
+# @description                         ephemeral box-wui key (do_spl_pin_box_wui)
+# @description An auth switch also sets SPOOL_HUB_AUTH_SESSION_KEY from
+# @description $LDE_STATE_DIR/auth-session.key (generated once per tree, 0600,
+# @description never logged), so sessions survive a hub restart.
 # @example ./run -a do_gen_docker_env
+# @example LDE_AUTH_NATIVE=1 LDE_WUI_DISPATCH=1 ./run -a do_gen_docker_env
 #------------------------------------------------------------------------------
 do_gen_docker_env() {
   do_lde_cnf || return 1
   local tmp
   tmp="$(mktemp "$LDE_STATE_DIR/.hub.env.XXXXXX")" || return 1
-  # yq prints each hub.env entry as KEY=value; values are single-line strings.
-  yq -r '.env.hub.env | to_entries | .[] | .key + "=" + (.value | tostring)' "$LDE_CNF" >"$tmp" || { rm -f "$tmp"; return 1; }
+  # yq prints each entry as KEY=value; values are single-line strings. A
+  # PLACEHOLDER is a cloud slot nobody filled: lde never boots on one.
+  yq -r '[.env.hub.env, .env.auth.social.env // {}, .env.auth.native.env // {}, .env.mail.env // {}] | .[]
+         | to_entries | .[] | select((.value | tostring | test("PLACEHOLDER")) | not)
+         | .key + "=" + (.value | tostring)' "$LDE_CNF" >"$tmp" || { rm -f "$tmp"; return 1; }
+  _gde_ports "$tmp" && _gde_switches "$tmp" || { rm -f "$tmp" "$tmp".*; return 1; }
   if grep -qvE '^SPOOL_HUB_[A-Z_]+=|^STORAGE_EMULATOR_HOST=' "$tmp"; then
     do_log "FATAL hub.env holds a name outside SPOOL_HUB_* / STORAGE_EMULATOR_HOST: $(grep -vE '^SPOOL_HUB_[A-Z_]+=|^STORAGE_EMULATOR_HOST=' "$tmp" | cut -d= -f1 | tr '\n' ' ')"
     rm -f "$tmp"; return 1
@@ -54,4 +73,44 @@ LDE_WUI_PORT=$LDE_WUI_PORT
 LDE_WUI_SRC=$LDE_WUI_SRC
 ENV
   do_log "INFO rendered $LDE_COMPOSE_ENV and $LDE_HUB_ENV_FILE ($(wc -l <"$LDE_HUB_ENV_FILE") hub vars) for tree $LDE_TREE_SLUG"
+  do_log "INFO lde switches: auth_native=$LDE_AUTH_NATIVE auth_providers=${LDE_AUTH_PROVIDERS:-none} wui_dispatch=$LDE_WUI_DISPATCH"
+}
+
+# _gde_set <file> <KEY> <value> -- replace KEY's line, or append it.
+_gde_set() {
+  { grep -v "^$2=" "$1"; echo "$2=$3"; } >"$1.set" && mv -f "$1.set" "$1"
+}
+
+# _gde_ports <file> -- fill {lde_wui_port} / {lde_hub_port} with this tree's
+# ports, so an LDE_WUI_PORT override moves APP_URL and the redirect URIs too.
+_gde_ports() {
+  local line
+  while IFS= read -r line; do
+    line="${line//\{lde_wui_port\}/$LDE_WUI_PORT}"
+    printf '%s\n' "${line//\{lde_hub_port\}/$LDE_HUB_PORT}"
+  done <"$1" >"$1.ports" && mv -f "$1.ports" "$1"
+}
+
+# _gde_switches <file> -- apply env.lde.switches (see the header).
+_gde_switches() {
+  local f="$1" on_off=(false true) p id secret
+  _gde_set "$f" SPOOL_HUB_AUTH_NATIVE_ENABLED "${on_off[$LDE_AUTH_NATIVE]}" || return 1
+  _gde_set "$f" SPOOL_HUB_AUTH_PROVIDERS "$LDE_AUTH_PROVIDERS" || return 1
+  _gde_set "$f" SPOOL_HUB_WUI_DISPATCH "${on_off[$LDE_WUI_DISPATCH]}" || return 1
+  _gde_set "$f" SPOOL_HUB_WUI_KEY_EPHEMERAL "${on_off[$LDE_WUI_DISPATCH]}" || return 1
+  for p in ${LDE_AUTH_PROVIDERS//,/ }; do
+    id="SPOOL_HUB_AUTH_${p^^}_CLIENT_ID" secret="SPOOL_HUB_AUTH_${p^^}_CLIENT_SECRET"
+    [[ -n "${!id:-}" && -n "${!secret:-}" ]] || {
+      do_log "FATAL LDE_AUTH_PROVIDERS lists $p: export $id and $secret (never in cnf)"; return 1; }
+    _gde_set "$f" "$id" "${!id}" && _gde_set "$f" "$secret" "${!secret}" || return 1
+  done
+  if [[ -n "$LDE_AUTH_PROVIDERS" && -n "${SPOOL_HUB_AUTH_IDP_BASE_URL:-}" ]]; then
+    _gde_set "$f" SPOOL_HUB_AUTH_IDP_BASE_URL "$SPOOL_HUB_AUTH_IDP_BASE_URL" || return 1
+  fi
+  [[ "$LDE_AUTH_NATIVE" == 1 || -n "$LDE_AUTH_PROVIDERS" ]] || return 0
+  local key_file="$LDE_STATE_DIR/auth-session.key"
+  if [[ ! -s "$key_file" ]]; then
+    (umask 077; od -An -tx1 -N32 /dev/urandom | tr -d ' \n' >"$key_file") || return 1
+  fi
+  _gde_set "$f" SPOOL_HUB_AUTH_SESSION_KEY "$(<"$key_file")"
 }

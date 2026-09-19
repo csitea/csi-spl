@@ -141,6 +141,62 @@ cd csi-spl-orc && ./run -a do_wui_down
 cd csi-spl-orc && ./run -a do_teardown_app_inf
 ```
 
+### The lde switches: sign-in and WUI dispatch
+
+Sign-in and dispatch are off in lde by default (cnf `env.lde.switches` in
+`csi-spl-cnf/csi-spl/lde.env.yaml`). Each switch is an env var on the `./run`
+call. `do_gen_docker_env` re-renders `hub.env` on every `do_setup_app_inf` and
+`do_wui_up`, so pass the same switches to both, or the second call turns them
+off again:
+
+| switch | effect on the lde hub |
+|---|---|
+| `LDE_AUTH_NATIVE=1` | email + password sign-in (spec 015). Mail transport `log`, and register / forgot return the token in the body (debug tokens), so no inbox is needed |
+| `LDE_AUTH_PROVIDERS=google,...` | social sign-in (spec 010). Export `SPOOL_HUB_AUTH_<P>_CLIENT_ID` and `_CLIENT_SECRET` for each provider, plus `SPOOL_HUB_AUTH_IDP_BASE_URL` for a fake IdP. They never go in cnf |
+| `LDE_WUI_DISPATCH=1` | WUI dispatch (spec 014) with an ephemeral `box-wui` key. The hub mints a new key each time it starts |
+
+An auth switch also gives the tree a session key, generated once into
+`<state dir>/auth-session.key` with mode 0600. It is never in git. Auth uses
+the WUI origin: the WUI dev server proxies `/api/v1/auth/**` to the hub, and
+`SPOOL_HUB_AUTH_APP_URL` and the redirect URIs are
+`http://localhost:<wui port>`. They follow `LDE_WUI_PORT`.
+
+Turn native sign-in and dispatch on:
+
+```bash
+cd csi-spl-orc && LDE_AUTH_NATIVE=1 LDE_WUI_DISPATCH=1 ./run -a do_setup_app_inf
+```
+
+```bash
+cd csi-spl-orc && LDE_AUTH_NATIVE=1 LDE_WUI_DISPATCH=1 ./run -a do_wui_up
+```
+
+Check it. Expected: `{"native":true,"providers":[]}`:
+
+```bash
+curl -s http://t1.localhost:58080/api/v1/auth/providers
+```
+
+Expected: `200 {"box_id":"box-wui","dispatch":true,"pubkey":"..."}`:
+
+```bash
+curl -s http://t1.localhost:58080/v1/wui/pubkey
+```
+
+Pin `box-wui` under `t1` with the smoke tenant's root key. The helper checks
+that the pins row holds the hub's key. The key is ephemeral, so re-run it after
+every hub restart:
+
+```bash
+cd csi-spl-orc && ./run -a do_spl_pin_box_wui
+```
+
+Another tenant needs its own root key:
+
+```bash
+cd csi-spl-orc && TENANT_ID=acme ROOT_KEY=/path/to/acme-root.key ./run -a do_spl_pin_box_wui
+```
+
 ### On the host, with pnpm
 
 ```bash

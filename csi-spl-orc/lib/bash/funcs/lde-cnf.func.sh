@@ -18,6 +18,10 @@
 # @param PROJ_PATH - set by run.sh: the csi-spl-orc dir
 # @param APP_PATH - set by run.sh: the checkout root
 # @param LDE_STATE_DIR (optional) - default: $HOME/.local/share/<org>-<app>/lde/<tree-slug>
+# @param LDE_AUTH_NATIVE / LDE_WUI_DISPATCH (optional) - 1/0, override cnf
+# @param   env.lde.switches.auth_native / .wui_dispatch
+# @param LDE_AUTH_PROVIDERS (optional) - comma list, overrides
+# @param   env.lde.switches.auth_providers (set it empty to force social off)
 # @example do_lde_cnf && echo "$LDE_COMPOSE_PROJECT $LDE_HUB_PORT"
 #------------------------------------------------------------------------------
 do_lde_cnf() {
@@ -68,6 +72,13 @@ do_lde_cnf() {
   LDE_HUB_ENV_FILE="$LDE_STATE_DIR/hub.env"
   LDE_DOCKER_DIR="$PROJ_PATH/src/docker"
   LDE_WUI_SRC="$APP_PATH/$LDE_ORG_APP-wui"
+  # opt-in switches (cnf env.lde.switches); the caller's env wins
+  LDE_AUTH_NATIVE="$(_lde_bool LDE_AUTH_NATIVE "${LDE_AUTH_NATIVE:-$(_lde_get .env.lde.switches.auth_native)}")" || return 1
+  LDE_WUI_DISPATCH="$(_lde_bool LDE_WUI_DISPATCH "${LDE_WUI_DISPATCH:-$(_lde_get .env.lde.switches.wui_dispatch)}")" || return 1
+  LDE_AUTH_PROVIDERS="${LDE_AUTH_PROVIDERS-$(_lde_get .env.lde.switches.auth_providers)}"
+  LDE_AUTH_PROVIDERS="$(tr -d ' ' <<<"$LDE_AUTH_PROVIDERS" | tr '[:upper:]' '[:lower:]')"
+  [[ -z "$LDE_AUTH_PROVIDERS" || "$LDE_AUTH_PROVIDERS" =~ ^[a-z]+(,[a-z]+)*$ ]] || {
+    do_log "FATAL LDE_AUTH_PROVIDERS must be a comma list of provider names, got: '$LDE_AUTH_PROVIDERS'"; return 1; }
   unset -f _lde_get
 
   local v
@@ -78,7 +89,17 @@ do_lde_cnf() {
   export LDE_ORG LDE_APP LDE_ORG_APP LDE_CNF_DIR LDE_TREE_SLUG LDE_STATE_DIR LDE_CNF LDE_COMPOSE_PROJECT \
     LDE_PG_IMAGE LDE_PG_PORT LDE_PG_DB LDE_PG_USER LDE_PG_PASSWORD LDE_GCS_IMAGE LDE_GCS_PORT LDE_HUB_PORT LDE_WUI_PORT \
     LDE_HUB_CONTAINER_PORT LDE_SMOKE_TENANT LDE_FILES_BUCKET LDE_MIGRATIONS_DIR LDE_SQL_SRC LDE_HUB_IMAGE LDE_COMPOSE_ENV \
-    LDE_HUB_ENV_FILE LDE_DOCKER_DIR LDE_WUI_IMAGE LDE_WUI_SRC
+    LDE_HUB_ENV_FILE LDE_DOCKER_DIR LDE_WUI_IMAGE LDE_WUI_SRC LDE_AUTH_NATIVE LDE_WUI_DISPATCH LDE_AUTH_PROVIDERS
+}
+
+# _lde_bool <name> <value> -- prints 1 or 0 for 1/0, true/false, yes/no, on/off
+# or empty (= 0); anything else is a typo that must not read as "off".
+_lde_bool() {
+  case "${2,,}" in
+    1|true|yes|on) echo 1 ;;
+    0|false|no|off|""|null) echo 0 ;;
+    *) do_log "FATAL $1 must be 1/0 or true/false, got: '$2'"; return 1 ;;
+  esac
 }
 
 # lde_compose <args...> -- docker compose over the four lde files (infra, rdb,

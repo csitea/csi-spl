@@ -18,6 +18,15 @@
 #      control: a known verb is one
 #   5. do_provision_spool_root on a scratch dir: sticky cleared, setgid on,
 #      default ACL rwx, a subdir made later inherits it (SKIP without sudo -n)
+#   6. lde switches (env.lde.switches): default all off, no session key, no
+#      PLACEHOLDER rendered, mail "log"; LDE_AUTH_NATIVE=1 + LDE_WUI_DISPATCH=1
+#      turn native + an ephemeral box-wui key on, with a per-tree session key
+#      that is 0600, stable across renders and never logged; the auth URLs
+#      follow LDE_WUI_PORT; a social provider without caller creds fails
+#      fast; a typo'd switch fails instead of reading as off
+#   7. do_spl_pin_box_wui (stubbed hub, CLI and pg): 404 names the switch;
+#      200 pins box-wui with --force and proves the pins row; control: a row
+#      holding another key fails
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -41,10 +50,14 @@ in_orc() {
 SNIPPET='do_gen_docker_env' in_orc >"$T/gen.out" 2>&1 || { fail "do_gen_docker_env: $(tail -3 "$T/gen.out")"; }
 H="$T/state/hub.env"
 if [[ -f "$H" ]]; then
-  want=$( (yq -r '.env.hub.env | keys | .[]' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"
-           yq -r '.env.hub.env | keys | .[]' "$APP_ROOT/csi-spl-cnf/csi-spl/lde.env.yaml") | sort -u)
+  # hub.env + auth.social + auth.native + mail env keys whose MERGED value is
+  # not a PLACEHOLDER, + the four switch names
+  want=$( (yq ea -r '. as $i ireduce ({}; . * $i) | [.env.hub.env, .env.auth.social.env, .env.auth.native.env, .env.mail.env]
+             | .[] | to_entries | .[] | select((.value | tostring | test("PLACEHOLDER")) | not) | .key' \
+             "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" "$APP_ROOT/csi-spl-cnf/csi-spl/lde.env.yaml"
+           printf '%s\n' SPOOL_HUB_AUTH_NATIVE_ENABLED SPOOL_HUB_AUTH_PROVIDERS SPOOL_HUB_WUI_DISPATCH SPOOL_HUB_WUI_KEY_EPHEMERAL) | sort -u)
   got=$(cut -d= -f1 "$H" | sort -u)
-  [[ "$want" == "$got" ]] && pass "hub.env keys = all.env.yaml + lde.env.yaml hub.env keys ($(wc -l <<<"$got"))" \
+  [[ "$want" == "$got" ]] && pass "hub.env keys = cnf hub/auth/mail env keys (no PLACEHOLDER) + 4 switches ($(wc -l <<<"$got"))" \
     || fail "hub.env keys differ from cnf: $(diff <(echo "$want") <(echo "$got") | grep '^[<>]' | tr '\n' ' ')"
   grep -qx 'SPOOL_HUB_ENV=lde' "$H" && pass "SPOOL_HUB_ENV=lde" || fail "SPOOL_HUB_ENV is not lde"
   grep -q '^SPOOL_HUB_DB_DSN=postgres://[^@]*@pg:5432/' "$H" && pass "DSN points at the pg service" || fail "DSN does not point at pg:5432"
@@ -108,6 +121,55 @@ if sudo -n true 2>/dev/null && command -v setfacl >/dev/null; then
 else
   skip "no passwordless sudo / setfacl"
 fi
+
+# --- 6. lde switches ------------------------------------------------------------------
+hv() { sed -n "s/^$1=//p" "$H"; }
+SNIPPET='do_gen_docker_env' in_orc >"$T/sw0.out" 2>&1 || fail "default render: $(tail -2 "$T/sw0.out")"
+[[ "$(hv SPOOL_HUB_AUTH_NATIVE_ENABLED)|$(hv SPOOL_HUB_AUTH_PROVIDERS)|$(hv SPOOL_HUB_WUI_DISPATCH)|$(hv SPOOL_HUB_WUI_KEY_EPHEMERAL)" == "false||false|false" ]] \
+  && pass "default: native off, no provider, dispatch off" || fail "default switches: $(grep -E 'NATIVE_ENABLED|PROVIDERS|WUI_' "$H" | tr '\n' ' ')"
+grep -q '^SPOOL_HUB_AUTH_SESSION_KEY=' "$H" && fail "a session key is rendered with every auth switch off" || pass "default: no session key"
+grep -q PLACEHOLDER "$H" && fail "hub.env carries a PLACEHOLDER: $(grep PLACEHOLDER "$H" | cut -d= -f1 | tr '\n' ' ')" || pass "no PLACEHOLDER value reaches the lde hub"
+[[ "$(hv SPOOL_HUB_MAIL_TRANSPORT)" == log ]] && pass "lde mail transport is log" || fail "mail transport '$(hv SPOOL_HUB_MAIL_TRANSPORT)'"
+
+SNIPPET='do_gen_docker_env' in_orc LDE_AUTH_NATIVE=1 LDE_WUI_DISPATCH=true LDE_WUI_PORT=3999 LDE_HUB_PORT=58999 >"$T/sw1.out" 2>&1 || fail "switched render: $(tail -2 "$T/sw1.out")"
+[[ "$(hv SPOOL_HUB_AUTH_NATIVE_ENABLED)|$(hv SPOOL_HUB_WUI_DISPATCH)|$(hv SPOOL_HUB_WUI_KEY_EPHEMERAL)" == "true|true|true" ]] \
+  && pass "LDE_AUTH_NATIVE=1 LDE_WUI_DISPATCH=true: native on, dispatch on, ephemeral key" || fail "switched: $(grep -E 'NATIVE_ENABLED|WUI_' "$H" | tr '\n' ' ')"
+key=$(hv SPOOL_HUB_AUTH_SESSION_KEY)
+[[ "$key" =~ ^[0-9a-f]{64}$ ]] && pass "session key: 32 random bytes, hex" || fail "session key shape (${#key} chars)"
+[[ "$(stat -c %a "$T/state/auth-session.key" 2>/dev/null)" == 600 ]] && pass "auth-session.key is 0600" || fail "auth-session.key mode $(stat -c %a "$T/state/auth-session.key" 2>&1)"
+grep -qF "$key" "$T/sw1.out" && fail "the session key is in the render log" || pass "the session key is never logged"
+SNIPPET='do_gen_docker_env' in_orc LDE_AUTH_NATIVE=1 >/dev/null 2>&1
+[[ "$(hv SPOOL_HUB_AUTH_SESSION_KEY)" == "$key" ]] && pass "session key is stable across renders (sessions survive a restart)" || fail "session key changed on re-render"
+SNIPPET='do_gen_docker_env' in_orc LDE_AUTH_NATIVE=1 LDE_WUI_PORT=3999 >/dev/null 2>&1
+[[ "$(hv SPOOL_HUB_AUTH_APP_URL)" == http://localhost:3999 && "$(hv SPOOL_HUB_AUTH_GOOGLE_REDIRECT_URI)" == http://localhost:3999/api/v1/auth/google/callback ]] \
+  && pass "APP_URL + redirect URIs follow LDE_WUI_PORT (the WUI origin, not the hub port)" \
+  || fail "auth URLs: $(hv SPOOL_HUB_AUTH_APP_URL) $(hv SPOOL_HUB_AUTH_GOOGLE_REDIRECT_URI)"
+grep -q '{lde_' "$H" && fail "an unfilled {lde_*} token: $(grep '{lde_' "$H" | cut -d= -f1)" || pass "every {lde_*} port token is filled"
+
+SNIPPET='do_gen_docker_env' in_orc LDE_AUTH_PROVIDERS=google >"$T/sw2.out" 2>&1 \
+  && fail "LDE_AUTH_PROVIDERS=google without client creds rendered" || { grep -q 'SPOOL_HUB_AUTH_GOOGLE_CLIENT_SECRET' "$T/sw2.out" \
+  && pass "a provider without caller creds fails fast, naming the var" || fail "provider fail message: $(tail -1 "$T/sw2.out")"; }
+SNIPPET='do_gen_docker_env' in_orc LDE_AUTH_PROVIDERS=google SPOOL_HUB_AUTH_GOOGLE_CLIENT_ID=lde-test-id \
+  SPOOL_HUB_AUTH_GOOGLE_CLIENT_SECRET=lde-test-secret SPOOL_HUB_AUTH_IDP_BASE_URL=http://127.0.0.1:5999 >"$T/sw3.out" 2>&1 || fail "social render: $(tail -1 "$T/sw3.out")"
+[[ "$(hv SPOOL_HUB_AUTH_PROVIDERS)|$(hv SPOOL_HUB_AUTH_GOOGLE_CLIENT_ID)|$(hv SPOOL_HUB_AUTH_IDP_BASE_URL)" == "google|lde-test-id|http://127.0.0.1:5999" ]] \
+  && pass "LDE_AUTH_PROVIDERS=google renders the provider, caller creds and fake IdP" || fail "social: $(grep -E 'PROVIDERS|GOOGLE_CLIENT_ID|IDP' "$H" | tr '\n' ' ')"
+SNIPPET='do_gen_docker_env' in_orc LDE_AUTH_NATIVE=maybe >"$T/sw4.out" 2>&1 && fail "LDE_AUTH_NATIVE=maybe was accepted" || pass "a typo'd switch fails instead of reading as off"
+
+# --- 7. do_spl_pin_box_wui (stubbed hub, CLI, pg) ----------------------------------------
+mkdir -p "$T/state/hello" "$T/state/bin"; echo root-key-stub >"$T/state/hello/root.key"
+PUB="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+printf '#!/bin/sh\necho "$@" >"%s/pin.args"\necho ok\n' "$T" >"$T/state/bin/spool"; chmod +x "$T/state/bin/spool"
+PIN_STUB='curl() { printf "%s\n%s" "$STUB_BODY" "$STUB_CODE"; }; lde_compose() { echo "$STUB_ROW"; }; do_spl_pin_box_wui'
+SNIPPET="$PIN_STUB" in_orc STUB_CODE=404 STUB_BODY='{"error":"not_found"}' STUB_ROW= >"$T/pin1.out" 2>&1 \
+  && fail "a 404 pubkey pinned" || { grep -q 'LDE_WUI_DISPATCH=1' "$T/pin1.out" && pass "404 /v1/wui/pubkey fails and names LDE_WUI_DISPATCH=1" || fail "404 message: $(tail -1 "$T/pin1.out")"; }
+SNIPPET="$PIN_STUB" in_orc STUB_CODE=200 STUB_BODY="{\"box_id\":\"box-wui\",\"pubkey\":\"$PUB\",\"dispatch\":true}" STUB_ROW="$PUB" >"$T/pin2.out" 2>&1 \
+  && grep -q '"pinned":true' "$T/pin2.out" && pass "200: box-wui pinned, pins row proven" || fail "pin: $(tail -2 "$T/pin2.out")"
+[[ "$(cat "$T/pin.args" 2>/dev/null)" == "hub-pin --box box-wui --pubkey $PUB --root-key $T/state/hello/root.key --force" ]] \
+  && pass "hub-pin --box box-wui --force with the smoke tenant root key" || fail "hub-pin args: $(cat "$T/pin.args" 2>&1)"
+SNIPPET="$PIN_STUB" in_orc STUB_CODE=200 STUB_BODY="{\"pubkey\":\"$PUB\",\"dispatch\":true}" STUB_ROW=other >"$T/pin3.out" 2>&1 \
+  && fail "control: a pins row holding another key passed" || pass "control: a pins row holding another key fails"
+SNIPPET="$PIN_STUB" in_orc TENANT_ID=acme STUB_CODE=200 >"$T/pin4.out" 2>&1 \
+  && fail "another tenant pinned with the smoke root key" || pass "another tenant needs ROOT_KEY"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

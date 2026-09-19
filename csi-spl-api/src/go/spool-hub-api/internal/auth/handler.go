@@ -54,6 +54,17 @@ type Membership interface {
 	Member(ctx context.Context, humanID, tenant string) (bool, error)
 }
 
+// AvatarSource serves a signed-in human's own stored IdP picture (CLE-3406,
+// GET /api/v1/auth/avatar): the bytes, or ErrNoAvatar when there is none.
+// It needs no tenant membership: it is the person's own picture, so the
+// top-right avatar shows it before an invite is accepted too.
+type AvatarSource interface {
+	OwnAvatar(ctx context.Context, humanID string) ([]byte, error)
+}
+
+// ErrNoAvatar from an AvatarSource: the human has no stored picture (404).
+var ErrNoAvatar = errors.New("auth: no stored picture")
+
 // Errors from SessionForTenant. The view door maps all of them to its 401.
 var (
 	ErrNoSession    = errors.New("auth: no valid session")
@@ -72,6 +83,7 @@ type Handler struct {
 	reg        Registrar
 	members    Membership
 	unlink     IdentityUnlinker
+	avatars    AvatarSource
 	native     *native // spec 015; nil = native sign-in off
 	now        func() time.Time
 }
@@ -84,15 +96,17 @@ type Options struct {
 	// Unlinker severs a stored identity link when Meta's deauthorize /
 	// data-deletion callback arrives (FR-013); nil = nothing is stored.
 	Unlinker IdentityUnlinker
-	HTTP     *http.Client // outbound to the IdPs; nil = 15s timeout client
-	Now      func() time.Time
+	// Avatars serves GET /api/v1/auth/avatar; nil = that route answers 404.
+	Avatars AvatarSource
+	HTTP    *http.Client // outbound to the IdPs; nil = 15s timeout client
+	Now     func() time.Time
 }
 
 // New builds the handler from a validated Config.
 func New(cfg *Config, log zerolog.Logger, o Options) *Handler {
 	h := &Handler{
 		cfg: cfg, idps: map[string]IdP{}, log: log.With().Str("component", "auth").Logger(),
-		reg: o.Registrar, members: o.Membership, unlink: o.Unlinker, now: o.Now,
+		reg: o.Registrar, members: o.Membership, unlink: o.Unlinker, avatars: o.Avatars, now: o.Now,
 	}
 	if h.now == nil {
 		h.now = time.Now
@@ -111,6 +125,7 @@ func New(cfg *Config, log zerolog.Logger, o Options) *Handler {
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+RoutePrefix+"providers", h.providers)
 	mux.HandleFunc("GET "+RoutePrefix+"session", h.session)
+	mux.HandleFunc("GET "+RoutePrefix+"avatar", h.avatar)
 	mux.HandleFunc("POST "+RoutePrefix+"logout", h.logout)
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/start", h.start)
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/callback", h.callback)
@@ -249,6 +264,49 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, s)
+}
+
+// avatar answers the signed-in human's own stored IdP picture (CLE-3406):
+// 200 + the image, 401 without a session, 404 when there is none. The type
+// comes from the bytes (fetchAvatar admitted only png/jpeg/gif/webp), the
+// ETag is the content address, and nothing is cached by a shared cache.
+func (h *Handler) avatar(w http.ResponseWriter, r *http.Request) {
+	s, ok := h.SessionFromRequest(r)
+	if !ok {
+		writeErr(w, http.StatusUnauthorized, "unauthenticated", "no valid session")
+		return
+	}
+	if s.HumanID == "" || h.avatars == nil {
+		writeErr(w, http.StatusNotFound, "not_found", "no stored picture")
+		return
+	}
+	pic, err := h.avatars.OwnAvatar(r.Context(), s.HumanID)
+	if errors.Is(err, ErrNoAvatar) {
+		writeErr(w, http.StatusNotFound, "not_found", "no stored picture")
+		return
+	}
+	if err != nil {
+		h.log.Warn().Err(err).Str("human_id", s.HumanID).Msg("auth.avatar_read_failed")
+		writeErr(w, http.StatusServiceUnavailable, "unavailable", "picture store")
+		return
+	}
+	ct := sniffImage(pic)
+	if ct == "" {
+		writeErr(w, http.StatusNotFound, "not_found", "no stored picture")
+		return
+	}
+	sum := sha256.Sum256(pic)
+	etag := `"` + hex.EncodeToString(sum[:]) + `"`
+	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Set("ETag", etag)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	w.Header().Set("Content-Type", ct)
+	w.WriteHeader(http.StatusOK)
+	w.Write(pic) //nolint:errcheck
 }
 
 func (h *Handler) logout(w http.ResponseWriter, _ *http.Request) {

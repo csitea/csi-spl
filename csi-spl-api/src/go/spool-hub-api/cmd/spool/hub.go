@@ -136,7 +136,7 @@ func cmdServe() int {
 		Blob: bs, AvatarErr: func(hum string, err error) {
 			log.Warn().Err(err).Str("human_id", hum).Msg("auth.avatar_not_stored")
 		}}
-	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks})
+	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks, Avatars: hooks})
 	if nc.Enabled {
 		mc, err := mail.Load() // SPOOL_HUB_MAIL_*: no default relay host
 		if err != nil {

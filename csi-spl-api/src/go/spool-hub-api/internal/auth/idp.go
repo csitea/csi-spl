@@ -363,6 +363,15 @@ func fetchAvatar(ctx context.Context, hc *http.Client, raw, httpBase string) ([]
 	return body, ct, nil
 }
 
+// sniffImage is the stored picture's type from its bytes, "" unless it is one
+// fetchAvatar admits.
+func sniffImage(b []byte) string {
+	if ct := http.DetectContentType(b); avatarTypes[ct] {
+		return ct
+	}
+	return ""
+}
+
 // sameOrigin: u is on base's scheme://host[:port]; base "" never matches.
 func sameOrigin(u *url.URL, base string) bool {
 	if base == "" {

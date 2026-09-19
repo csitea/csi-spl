@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
@@ -31,6 +32,7 @@ var (
 	_ auth.Registrar        = AuthHooks{}
 	_ auth.Membership       = AuthHooks{}
 	_ auth.IdentityUnlinker = AuthHooks{}
+	_ auth.AvatarSource     = AuthHooks{}
 )
 
 // Register maps ErrNotAdmitted and ErrSeatQuota to auth.ErrNotAllowed
@@ -59,12 +61,15 @@ func (a AuthHooks) Register(ctx context.Context, id auth.Identity, tenant string
 }
 
 // storeAvatar puts the already-checked picture bytes (auth.fetchAvatar:
-// https, size cap, image type) at t/<tenant>/files/<sha256> and records that
-// file_id on the human. Content-addressed: a repeat login writes nothing new.
-// Without a tenant there is no blob prefix to put it under, so it waits for
-// a sign-in to one.
+// https, size cap, image type) at avatars/<sha256>, hub-wide, and records
+// that file_id on the human, on every sign-in: with no tenant, or before an
+// invite is accepted, the person's own picture is still theirs (CLE-3406,
+// GET /api/v1/auth/avatar). With a tenant it is also put at
+// t/<tenant>/files/<sha256>, the tenant file the roster names (010 T044).
+// Content-addressed: a repeat login writes nothing new; a changed picture
+// is a new file_id.
 func (a AuthHooks) storeAvatar(ctx context.Context, hum, tenant string, pic []byte) error {
-	if a.Blob == nil || tenant == "" || len(pic) == 0 {
+	if a.Blob == nil || len(pic) == 0 {
 		return nil
 	}
 	if len(pic) > auth.AvatarMaxBytes {
@@ -72,16 +77,62 @@ func (a AuthHooks) storeAvatar(ctx context.Context, hum, tenant string, pic []by
 	}
 	sum := sha256.Sum256(pic)
 	fileID := hex.EncodeToString(sum[:])
-	key, err := blob.Key(tenant, fileID)
+	own, err := blob.AvatarKey(fileID)
 	if err != nil {
 		return err
 	}
-	if ok, err := a.Blob.Exists(ctx, key); err != nil || !ok {
-		if err := a.Blob.Put(ctx, key, pic); err != nil {
+	keys := []string{own}
+	if tenant != "" {
+		key, err := blob.Key(tenant, fileID)
+		if err != nil {
 			return err
+		}
+		keys = append(keys, key)
+	}
+	for _, key := range keys {
+		if ok, err := a.Blob.Exists(ctx, key); err != nil || !ok {
+			if err := a.Blob.Put(ctx, key, pic); err != nil {
+				return err
+			}
 		}
 	}
 	return a.H.SetAvatar(ctx, hum, fileID)
+}
+
+// OwnAvatar is the signed-in human's own stored picture (auth.AvatarSource):
+// the bytes at avatars/<file_id>, or auth.ErrNoAvatar when the human has none
+// or it was stored before the hub-wide copy existed (the next sign-in puts it).
+func (a AuthHooks) OwnAvatar(ctx context.Context, humanID string) ([]byte, error) {
+	if a.Blob == nil {
+		return nil, auth.ErrNoAvatar
+	}
+	fid, err := a.H.Avatar(ctx, humanID)
+	if errors.Is(err, ErrNotFound) || (err == nil && fid == "") {
+		return nil, auth.ErrNoAvatar
+	}
+	if err != nil {
+		return nil, err
+	}
+	key, err := blob.AvatarKey(fid)
+	if err != nil {
+		return nil, auth.ErrNoAvatar
+	}
+	rc, err := a.Blob.Get(ctx, key)
+	if errors.Is(err, blob.ErrNotFound) {
+		return nil, auth.ErrNoAvatar
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	b, err := io.ReadAll(io.LimitReader(rc, auth.AvatarMaxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(b) > auth.AvatarMaxBytes {
+		return nil, errors.New("stored avatar over the size cap")
+	}
+	return b, nil
 }
 
 // Member reports membership; any lookup error fails the door closed.

@@ -31,6 +31,17 @@ func Key(tenantID, fileID string) (string, error) {
 	return "t/" + tenantID + "/files/" + fileID, nil
 }
 
+// AvatarKey is the hub-wide key of a person's own IdP picture (CLE-3406):
+// avatars/<sha256>, outside every tenant prefix, so a sign-in with no tenant
+// or into a tenant the person is not yet a member of still keeps it, and it
+// never counts against a tenant's file quota.
+func AvatarKey(fileID string) (string, error) {
+	if !sha256Re.MatchString(fileID) {
+		return "", fmt.Errorf("file_id %q is not a sha256 hex digest", fileID)
+	}
+	return "avatars/" + fileID, nil
+}
+
 // Store holds immutable, content-addressed objects.
 type Store interface {
 	Put(ctx context.Context, key string, data []byte) error

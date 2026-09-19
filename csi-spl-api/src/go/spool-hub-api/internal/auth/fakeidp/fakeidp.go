@@ -51,6 +51,9 @@ type Person struct {
 	EmailVerified bool
 	Name          string
 	NoPicture     bool // userinfo / Graph me carry no picture
+	// PictureSeed, when set, is what the picture is drawn from instead of
+	// Subject: a changed seed is a person who changed their picture.
+	PictureSeed string
 	// MicrosoftTenantID is the account's Entra tid; "" = a personal account
 	// (auth.MicrosoftConsumersTenantID). EmailDomainVerified is xms_edov.
 	MicrosoftTenantID   string
@@ -81,7 +84,11 @@ func pictureURL(r *http.Request, p Person) string {
 	if p.NoPicture {
 		return ""
 	}
-	return "http://" + r.Host + AvatarPath + url.PathEscape(p.Subject) + ".png"
+	seed := p.Subject
+	if p.PictureSeed != "" {
+		seed = p.PictureSeed
+	}
+	return "http://" + r.Host + AvatarPath + url.PathEscape(seed) + ".png"
 }
 
 // IdP is the fake. Google/Facebook are fixed at New; change who signs in, or

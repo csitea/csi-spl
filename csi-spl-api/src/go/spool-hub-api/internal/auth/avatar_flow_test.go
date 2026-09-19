@@ -53,12 +53,19 @@ func TestIdPAvatarStoredAsFileID(t *testing.T) {
 		}
 	}
 
-	// No tenant: registered, but no blob prefix to put the picture under.
+	// No tenant (CLE-3406): the picture is kept hub-wide and named on the
+	// human, but no tenant prefix gets a copy.
 	c := browser(t)
 	signIn(t, c, r, "google", "")
 	_, s := session(t, c, r)
-	if got, err := st.Avatar(ctx, s.HumanID); err != nil || got != "" {
-		t.Fatalf("tenantless sign-in stored avatar %q %v", got, err)
+	if got, err := st.Avatar(ctx, s.HumanID); err != nil || got != wantID {
+		t.Fatalf("tenantless sign-in avatar %q %v, want %s", got, err, wantID)
+	}
+	if own, _ := blob.AvatarKey(wantID); !exists(t, bs, own) {
+		t.Fatalf("tenantless sign-in: no hub-wide %s", own)
+	}
+	if exists(t, bs, key) {
+		t.Fatalf("tenantless sign-in wrote the tenant file %s", key)
 	}
 
 	// Google on t1: the picture is a t1 blob, and the human names it.
@@ -108,6 +115,15 @@ func TestIdPAvatarStoredAsFileID(t *testing.T) {
 	if len(avatarErrs) != 0 {
 		t.Fatalf("avatar errors: %v", avatarErrs)
 	}
+}
+
+func exists(t *testing.T, bs blob.Store, key string) bool {
+	t.Helper()
+	ok, err := bs.Exists(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ok
 }
 
 func nowUTC() time.Time { return time.Now().UTC() }

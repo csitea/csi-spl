@@ -15,7 +15,7 @@
       @search="store.setSearch"
     />
     <div class="feed-body">
-      <p v-if="store.error" class="muted">{{ store.error }}</p>
+      <ErrorNotice v-if="store.error" :message="store.error" source="thread" test-id="thread-error" />
       <LiveFeed
         label="Replies, newest first"
         :rows="replies"
@@ -30,6 +30,7 @@
 </template>
 
 <script setup lang="ts">
+import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
 

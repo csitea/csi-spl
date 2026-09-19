@@ -13,7 +13,7 @@
     />
     <div class="feed-body">
       <p v-if="!lobbyId" class="muted">No lobby configured (NUXT_PUBLIC_LOBBY_TASK_ID, or the hub welcome).</p>
-      <p v-if="store.error" class="muted">{{ store.error }}</p>
+      <ErrorNotice v-if="store.error" :message="store.error" source="lobby" test-id="lobby-error" />
       <LiveFeed
         label="#lobby, newest first"
         :rows="store.newestFirst"
@@ -31,6 +31,7 @@
 </template>
 
 <script setup lang="ts">
+import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
 import { useNotificationStore } from '~/stores/notification'

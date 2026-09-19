@@ -5,7 +5,7 @@
       <span class="muted">read-only · tenant-scoped</span>
     </header>
     <div class="feed-body">
-      <p v-if="viewer.error" class="muted">{{ viewer.error }}</p>
+      <ErrorNotice v-if="viewer.error" :message="viewer.error" source="viewer" test-id="viewer-error" />
       <ViewTokenForm v-if="viewer.needsToken" @saved="viewer.loadThreads()" />
       <p v-else-if="!viewer.loading && !viewer.error && viewer.threads.length === 0" class="muted">
         No threads yet.
@@ -34,15 +34,19 @@
 import { useViewerStore } from '~/stores/viewer'
 import { useLiveFeed } from '~/stores/live'
 import { formatTs } from '~/utils/channel-feed.mjs'
+import ErrorNotice from '~/components/common/ErrorNotice.vue'
+import { useSettledQuery } from '~/composables/useSettledQuery'
 
 const viewer = useViewerStore()
 /* 013 US3: a click opens the thread in the right pane; the link still works for new tabs */
 const pane = useLiveFeed('pane')
-const route = useRoute()
-/* deep link: /?thread=<task_id> opens the right pane */
+/* deep link: /?thread=<task_id> opens the right pane. `/` is prerendered, so
+   the query only exists once hydration settles (useSettledQuery). */
+const thread = useSettledQuery('thread')
 onMounted(() => {
-  const id = String(route.query.thread || '')
-  if (/^[0-9a-f-]{36}$/i.test(id)) void pane.open(id)
+  watch(thread.value, (id) => {
+    if (/^[0-9a-f-]{36}$/i.test(id)) void pane.open(id)
+  }, { immediate: true })
 })
 onMounted(() => viewer.loadThreads())
 </script>

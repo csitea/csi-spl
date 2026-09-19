@@ -1,6 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 //
-// Shape follows the pas-psf-wui donor: srcDir 'src/', '@' alias, CSP and
+// Shape follows the donor WUI: srcDir 'src/', '@' alias, CSP and
 // security headers as routeRules, long-lived vendor chunks, @nuxtjs/i18n.
 // The spool keeps its own runtimeConfig (tenant host template, mock mode,
 // lobby task id, poll interval) and the lde auth devProxy (spec 010).

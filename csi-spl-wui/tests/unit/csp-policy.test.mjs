@@ -1,5 +1,5 @@
 // The WUI has TWO copies of its CSP and they must not drift (pattern from the
-// pas-psf-wui donor's csp-policy test):
+// donor WUI's csp-policy test):
 //   * csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh — authoritative
 //     in every deployed env (static files on Firebase Hosting, no Nitro).
 //   * csi-spl-wui/nuxt.config.ts CSP_PROD — what `nuxt preview` serves.

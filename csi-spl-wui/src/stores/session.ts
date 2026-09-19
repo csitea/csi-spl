@@ -10,6 +10,8 @@ export interface SessionClaims {
   hum?: string
   t?: string
   exp?: number
+  /** Operator grant for the diagnostics panel; only literal `true` admits (debugAudience.mjs). */
+  diagnostics_enabled?: boolean
 }
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4). The cookie is HttpOnly; we only probe. */

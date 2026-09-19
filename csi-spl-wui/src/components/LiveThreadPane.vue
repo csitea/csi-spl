@@ -20,7 +20,7 @@
       @search="pane.setSearch"
     />
     <div class="feed-body">
-      <p v-if="pane.error" class="muted">{{ pane.error }}</p>
+      <ErrorNotice v-if="pane.error" :message="pane.error" source="live-pane" test-id="live-pane-error" />
       <LiveFeed
         label="Replies, newest first"
         :rows="replies"
@@ -35,6 +35,7 @@
 </template>
 
 <script setup lang="ts">
+import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useThreadStore } from '~/stores/thread'
 import { applyVerbosity } from '~/utils/verbosity.mjs'

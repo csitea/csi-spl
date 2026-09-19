@@ -464,6 +464,8 @@
       "threads": "Threads",
       "files": "Bestanden",
       "messages": "Berichten"
-    }
+    },
+    "placeholder_target": "Bericht aan {target} — Enter om te verzenden · /search om overal te zoeken",
+    "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw."
   }
 }

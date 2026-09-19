@@ -464,6 +464,8 @@
       "threads": "Ketjut",
       "files": "Tiedostot",
       "messages": "Viestit"
-    }
+    },
+    "placeholder_target": "Viesti: {target} — Enter lähettää · /search hakee kaikkialta",
+    "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen."
   }
 }

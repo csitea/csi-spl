@@ -53,7 +53,7 @@ async function onSend(text: string) {
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
-  placeholder: () => t('pages.message_placeholder', { target: '#' + name.value }),
+  placeholder: () => t('search.placeholder_target', { target: '#' + name.value }),
   send: onSend,
 })
 </script>

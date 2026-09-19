@@ -464,6 +464,8 @@
       "threads": "Vlákna",
       "files": "Súbory",
       "messages": "Správy"
-    }
+    },
+    "placeholder_target": "Správa pre {target} — Enter odošle · /search hľadá všade",
+    "unreachable": "Služba vyhľadávania nie je dostupná. Skúste to o chvíľu znova."
   }
 }

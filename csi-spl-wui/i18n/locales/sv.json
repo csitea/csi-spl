@@ -464,6 +464,8 @@
       "threads": "Trådar",
       "files": "Filer",
       "messages": "Meddelanden"
-    }
+    },
+    "placeholder_target": "Meddelande till {target} — Enter skickar · /search söker överallt",
+    "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund."
   }
 }

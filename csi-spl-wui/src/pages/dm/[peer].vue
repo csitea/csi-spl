@@ -45,7 +45,7 @@ async function onSend(text: string) {
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
-  placeholder: () => t('pages.message_placeholder', { target: peer.value }),
+  placeholder: () => t('search.placeholder_target', { target: peer.value }),
   send: onSend,
 })
 </script>

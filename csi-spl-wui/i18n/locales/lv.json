@@ -464,6 +464,8 @@
       "threads": "Pavedieni",
       "files": "Faili",
       "messages": "Ziņas"
-    }
+    },
+    "placeholder_target": "Ziņa: {target} — Enter nosūta · /search meklē visur",
+    "unreachable": "Meklēšanas pakalpojums nav sasniedzams. Drīz mēģiniet vēlreiz."
   }
 }

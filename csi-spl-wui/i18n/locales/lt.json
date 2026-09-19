@@ -464,6 +464,8 @@
       "threads": "Gijos",
       "files": "Failai",
       "messages": "Žinutės"
-    }
+    },
+    "placeholder_target": "Žinutė: {target} — Enter siunčia · /search ieško visur",
+    "unreachable": "Paieškos paslauga nepasiekiama. Netrukus bandykite dar kartą."
   }
 }

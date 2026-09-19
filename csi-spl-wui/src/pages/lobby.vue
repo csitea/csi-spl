@@ -42,7 +42,7 @@ const lobbyId = computed(() => live.lobbyTaskId.value)
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
-  placeholder: () => t('pages.message_placeholder', { target: '#lobby' }),
+  placeholder: () => t('search.placeholder_target', { target: '#lobby' }),
   send: (text: string, files: File[]) => onSend(text, undefined, files),
   busy: () => store.sending,
 })

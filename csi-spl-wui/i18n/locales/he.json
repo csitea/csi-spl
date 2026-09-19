@@ -464,6 +464,8 @@
       "threads": "שרשורים",
       "files": "קבצים",
       "messages": "הודעות"
-    }
+    },
+    "placeholder_target": "הודעה אל {target} — Enter לשליחה · ‎/search לחיפוש בכל מקום",
+    "unreachable": "לא ניתן להגיע לשירות החיפוש. נסו שוב בעוד רגע."
   }
 }

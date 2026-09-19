@@ -167,6 +167,8 @@ const errorLine = computed(() => {
   if (!e) return ''
   if (e.status === 429) return t('search.rate_limited', { s: e.retryAfter || 60 })
   if (e.status === 503) return t('search.budget')
+  // status 0 = no HTTP answer the page may read (network, CORS on a hub without the route)
+  if (!e.status && !e.token) return t('search.unreachable')
   return t('search.failed', { detail: e.detail || e.token || String(e.status || '') })
 })
 

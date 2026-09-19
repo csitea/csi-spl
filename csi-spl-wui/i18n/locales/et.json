@@ -464,6 +464,8 @@
       "threads": "Lõimed",
       "files": "Failid",
       "messages": "Sõnumid"
-    }
+    },
+    "placeholder_target": "Sõnum: {target} — Enter saadab · /search otsib kõikjalt",
+    "unreachable": "Otsinguteenusega ei saanud ühendust. Proovi varsti uuesti."
   }
 }

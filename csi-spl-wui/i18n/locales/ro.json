@@ -464,6 +464,8 @@
       "threads": "Fire",
       "files": "Fișiere",
       "messages": "Mesaje"
-    }
+    },
+    "placeholder_target": "Mesaj către {target} — Enter pentru a trimite · /search pentru a căuta peste tot",
+    "unreachable": "Serviciul de căutare nu poate fi contactat. Încercați din nou în curând."
   }
 }

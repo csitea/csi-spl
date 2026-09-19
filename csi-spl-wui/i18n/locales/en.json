@@ -464,6 +464,8 @@
       "threads": "Threads",
       "files": "Files",
       "messages": "Messages"
-    }
+    },
+    "placeholder_target": "Message {target} — Enter to send · /search to search everything",
+    "unreachable": "The search service could not be reached. Try again shortly."
   }
 }

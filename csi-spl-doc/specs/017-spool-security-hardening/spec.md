@@ -122,8 +122,13 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
     tree, sets setgid on every dir, applies the ACL model and verifies it. Run it in a quiet window (no agent mid-send).
 
 - **FR-SEC-002 (File Download Authentication):** `GET /v1/files/{file_id}` MUST require either a valid member session
-  or box bearer capability token when `SPOOL_HUB_VIEW_DOOR != off`.
-  *Status:* Planned.
+  of the Host tenant or that tenant's box upload token (`Authorization: Bearer`, a pinned box or `box-wui`) when
+  `SPOOL_HUB_VIEW_DOOR != off`. No credential, a bad/expired token or another tenant's token -> `401 view_door`,
+  checked before the blob lookup (no existence oracle); with a credential, another tenant's `file_id` -> 404. No
+  signed view token (OQ-16 is still undecided; the token door admits bearers only). Boxes keep working (`spool`
+  get-file already sends the upload token); the WUI must fetch with `credentials: 'include'` in the session door
+  (CLE-55 lane). Contract: `../003-spool-message-bus/contracts/http-v1.md` §3.
+  *Status:* Partial — hub implemented (T006/T007); dev/prd deploy and the WUI credentials change pending.
 
 - **FR-SEC-003 (Root Key Claim Isolation):** The tenant root private key MUST NOT be transmitted over email.
   `TenantWelcome` email MUST omit the private key string, confining display to a single interactive web claim modal.

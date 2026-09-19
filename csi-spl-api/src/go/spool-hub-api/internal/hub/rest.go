@@ -74,12 +74,19 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, wire.FileResult{FileID: id, SHA256: id, Bytes: int64(len(body))})
 }
 
-// GET /v1/files/{file_id}: tenant-scoped capability; another tenant's id is 404.
+// GET /v1/files/{file_id}: needs a caller credential of the Host tenant (017
+// FR-SEC-002): a box/box-wui upload token or a member session. The file_id
+// alone is not a capability. Checked before the blob lookup, so an anonymous
+// caller learns nothing about which ids exist; another tenant's id is 404.
 func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r) // the viewer downloads attachments cross-origin (FR-021)
 	t, err := s.tenantOf(r)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "unknown_tenant", "no tenant for this host")
+		return
+	}
+	if !s.mayReadFiles(r, t.ID) {
+		writeErr(w, http.StatusUnauthorized, "view_door", "an upload token or a member session is required")
 		return
 	}
 	key, err := blob.Key(t.ID, r.PathValue("file_id"))
@@ -100,6 +107,18 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, rc) //nolint:errcheck
+}
+
+// mayReadFiles: the view door is off (lde only), or the caller holds a live
+// upload token of tenant (a pinned box or box-wui), or a member session of it.
+func (s *Server) mayReadFiles(r *http.Request, tenant string) bool {
+	if s.o.ViewDoor == ViewDoorOff {
+		return true
+	}
+	if _, ok := s.bearer(r, tenant); ok {
+		return true
+	}
+	return s.sessionMayRead(r, tenant)
 }
 
 // GET /v1/pins: the tenant's active box pubkeys (authorized_keys sync).

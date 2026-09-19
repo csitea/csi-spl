@@ -578,11 +578,14 @@ func TestFilesRoundTripAndTenantIsolation(t *testing.T) {
 		t.Fatal("file bytes inside an envelope")
 	}
 
-	// Another tenant's URL cannot read it.
-	resp, _ := e.client.Get(e.url(other) + "/v1/files/" + att.FileID)
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("cross-tenant GET: %d", resp.StatusCode)
+	// Another tenant's URL cannot read it, even with that tenant's box token
+	// (017 FR-SEC-002: a credential of the Host tenant, then tenant-scoped ids).
+	ob := e.box(other, "box-o", "GRK-09")
+	e.pin(other, ob)
+	if code, _ := e.getFile(other, att.FileID, e.uploadToken(other, ob)); code != http.StatusNotFound {
+		t.Fatalf("cross-tenant GET: %d", code)
 	}
+	var resp *http.Response
 	// Anonymous PUT is refused.
 	resp, _ = e.client.Post(e.url(tid)+"/v1/files", "application/octet-stream", strings.NewReader("x"))
 	if resp.StatusCode != http.StatusUnauthorized {
@@ -967,13 +970,8 @@ func TestUnpaidSendPin402RecvInGrace(t *testing.T) {
 		t.Fatalf("inbox in grace: %+v", got)
 	}
 
-	resp, err := e.client.Get(e.url(tid) + "/v1/files/" + att.FileID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("get-file in grace: %d", resp.StatusCode)
+	if code, _ := e.getFile(tid, att.FileID, e.uploadToken(tid, a)); code != http.StatusOK {
+		t.Fatalf("get-file in grace: %d", code)
 	}
 
 	sess, err := a.c.Dial(ctx, wire.RoleCLI)
@@ -1063,13 +1061,8 @@ func TestQuotaExceeded429(t *testing.T) {
 		if err := sess.UploadFile(ctx, okAtt.FileID); err != nil {
 			t.Fatalf("under-quota PUT: %v", err)
 		}
-		resp, err := e.client.Get(e.url(tid) + "/v1/files/" + okAtt.FileID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("GET after quota PUT: %d", resp.StatusCode)
+		if code, _ := e.getFile(tid, okAtt.FileID, e.uploadToken(tid, a)); code != http.StatusOK {
+			t.Fatalf("GET after quota PUT: %d", code)
 		}
 	})
 } // ---- 008 cicd-logs stub ----------------------------------------------------------

@@ -25,8 +25,8 @@
 
 ## Phase 3 — API Surface & Blob Storage Access Control (API / HUB)
 
-- [ ] T006 Planned (HUB lane) — Enhance `internal/hub/rest.go` `handleGetFile`: require valid session authentication (`s.sessionMayRead`) or bearer upload token (`s.bearer`) when `ViewDoor != ViewDoorOff`. Eliminate unauthenticated capability URL exposure. FR-SEC-002.
-- [ ] T007 Planned (API TESTS) — Add unit and regression tests in `internal/hub/rest_test.go`: assert unauthenticated `GET /v1/files/{file_id}` returns `401 view_door` under `ViewDoorSession`. FR-SEC-002.
+- [~] T006 Partial (HUB lane, CLE-3392) — `internal/hub/rest.go` `handleGetFile`: require a member session (`s.sessionMayRead`) or an upload token of the Host tenant (`s.bearer`) when `ViewDoor != ViewDoorOff`, before the blob lookup; `401 view_door` otherwise. http-v1 §3 / view-v1 amended. Missing: dev + prd deploy (hub image tag), WUI downloads with credentials (CLE-55). FR-SEC-002.
+- [~] T007 Partial (API TESTS, CLE-3392) — `internal/hub/rest_test.go` `TestGetFileNeedsCredential` (token / session / off doors) + `TestGetFileMemberSession`. CONTROL: with the pre-change handler the same tests fail `anonymous GET: 200 confidential attachment` (3 of 3 door cases); anonymous, garbage, other-tenant token and non-member session -> 401, other tenant's id with a credential -> 404, own box / member -> 200. Missing: the deployed dev e2e (`do_spl_m3_e2e`). FR-SEC-002.
 - [ ] T008 Planned (PAYMENTS lane) — Update `internal/payments/handler.go`: remove `root_private_key` from `TenantWelcome` email template and payload. Confine key reveal to the single interactive browser checkout session (`/checkout/success`). FR-SEC-003.
 - [ ] T009 Planned (PAYMENTS TESTS) — Add regression test verifying `TenantWelcome` email body does not contain private key strings or base64 cryptographic seeds. FR-SEC-003.
 

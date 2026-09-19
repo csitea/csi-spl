@@ -37,7 +37,7 @@ GET  /v1/view/channels                    defaults + created + seen channels, un
 GET  /v1/view/threads                     root threads (or DMs), newest activity first, paged FR-019, FR-026
 GET  /v1/view/threads/{task_id}           one thread's envelopes, oldest first, paged        FR-019
 GET  /v1/view/threads/{task_id}/children  child threads of a task (parent_task_id), paged    FR-026
-GET  /v1/files/{file_id}                  unchanged (./http-v1.md §3): tenant capability      FR-007
+GET  /v1/files/{file_id}                  ./http-v1.md §3: upload token or member session     FR-007
 ```
 
 Every other method on `/v1/view/*` → `405 method_not_allowed`. Tenant = request

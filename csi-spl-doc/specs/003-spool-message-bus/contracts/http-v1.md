@@ -32,7 +32,7 @@ only**. There is no REST send/recv dialect, public or private.
 ```
 WS     /v1/ws                 challenge, hello, roster, send envelope, recv + tail frames   FR-001, 003–006
 POST   /v1/files              upload bytes, WS-issued upload token → { file_id, sha256, bytes }   FR-007
-GET    /v1/files/{file_id}    tenant-scoped capability: the bytes                                FR-007
+GET    /v1/files/{file_id}    the bytes; upload token or member session of the Host tenant       FR-007, 017 FR-SEC-002
 GET    /v1/pins               tenant box pubkeys (authorized_keys sync), upload token            004
 POST   /v1/pins               pin a box pubkey, tenant-root signed                               004 / 006
 DELETE /v1/pins/{box_id}      revoke a box pin, tenant-root signed                               004 / 006
@@ -200,8 +200,13 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 - Bytes stored at `t/<tenant_id>/files/<sha256>` in **one** bucket. No
   metadata object. The hub computes `file_id` = sha256 of the received bytes
   and replies `201 { "file_id", "sha256", "bytes" }`.
-- GET is a tenant-scoped **capability**: knowing the sha256 inside the tenant
-  is enough, and no box key is required. Another tenant's `file_id` → 404.
+- GET needs a caller credential of the Host tenant (017 FR-SEC-002; the
+  sha256 alone is **not** a capability): `Authorization: Bearer <upload_token>`
+  (a pinned box or `box-wui`, as for POST) or a member session cookie (view
+  door `session`). None, a bad/expired token or another tenant's →
+  `401 view_door`, checked before the lookup (no existence oracle). With a
+  credential, another tenant's `file_id` → 404. View door `off` (lde only)
+  admits anonymous GET.
 - M1 GET streams the bytes. A short-lived signed URL (TTL in `./limits.md`)
   is allowed later; it is never logged or persisted (Constitution VII). The box
   CLI re-hashes and refuses a mismatch (`78`) without writing a partial file.

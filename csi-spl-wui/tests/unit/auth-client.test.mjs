@@ -218,3 +218,36 @@ describe('SocialAuthButtons (auth-v1 §4, donor component)', () => {
     assert.ok(login.includes('<SocialAuthButtons class="idp" :redirect="redirect" :tenant="tenant" />'))
   })
 })
+
+describe('native sign-in pages (spec 015 A4, native-auth-v1 §2–§4)', () => {
+  const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+  const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
+
+  for (const [page, call] of [['src/pages/verify-email.vue', '.verifyEmail('], ['src/pages/reset-password.vue', '.resetPassword(']]) {
+    it(`${page}: settled token, POSTed, then dropped from the URL`, () => {
+      const src = read(page)
+      assert.ok(src.includes("useSettledQuery('token')"), 'reads token via useSettledQuery')
+      assert.equal(/route\.query\.token\b(?!\s*!==)/.test(src), false, 'no raw route.query.token read')
+      assert.ok(src.includes(call), call)
+      assert.ok(src.includes('const { token: _drop, ...rest } = route.query'), 'drops token')
+      assert.ok(src.includes('router.replace({ query: rest })'), 'replaceState')
+      assert.ok(src.indexOf(call) < src.indexOf('router.replace({ query: rest })'), 'drop after the POST')
+      assert.ok(src.includes("layout: 'login'"))
+    })
+  }
+
+  it('/login renders the native form (auth off → invisible) and change-password for p:password only', () => {
+    const login = read('src/pages/login.vue')
+    assert.ok(login.includes('<NativeAuthForm v-if="session.state !== \'in\'" :redirect="redirect" :tenant="tenant" />'))
+    assert.ok(login.includes("session.claims?.p === 'password'"))
+    assert.ok(login.includes('<ChangePasswordForm'))
+    const form = read('src/components/NativeAuthForm.vue')
+    assert.ok(form.includes("status.value = out.native ? 'on' : 'off'"), 'gated on providers.native')
+    assert.ok(form.includes('v-if="status === \'on\'"'))
+    assert.ok(form.includes(':data-native-auth="status"'))
+    for (const fn of ['auth.login(', 'auth.register(', 'auth.forgotPassword(', 'nativeErrorMessage(']) assert.ok(form.includes(fn), fn)
+    const change = read('src/components/ChangePasswordForm.vue')
+    assert.ok(change.includes('auth.changePassword('))
+    assert.ok(change.includes('session.signedOut()'), '204 clears the cookie')
+  })
+})

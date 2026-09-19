@@ -14,7 +14,7 @@ export interface SessionClaims {
   diagnostics_enabled?: boolean
 }
 
-/** Human sign-in state (spec 010 auth-v1 §3–§4). The cookie is HttpOnly; we only probe. */
+/** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
 export const useSessionStore = defineStore('session', () => {
   const auth = createAuthClient()
   const state = ref<SessionState>('loading')
@@ -33,6 +33,18 @@ export const useSessionStore = defineStore('session', () => {
     claims.value = (out.claims as SessionClaims | null) || null
   }
 
+  /** Native login (015 native-auth-v1 §2) answers 200 with the claims: adopt them, no second probe. */
+  function adopt(c: SessionClaims | null) {
+    state.value = c ? 'in' : 'out'
+    claims.value = c
+  }
+
+  /** A native password change clears the cookie (§2 `password/change` 204). */
+  function signedOut() {
+    state.value = 'out'
+    claims.value = null
+  }
+
   async function logout() {
     await auth.logout()
     state.value = 'out'
@@ -40,5 +52,5 @@ export const useSessionStore = defineStore('session', () => {
     await navigateTo('/login')
   }
 
-  return { state, claims, label, probe, logout }
+  return { state, claims, label, probe, adopt, signedOut, logout }
 })

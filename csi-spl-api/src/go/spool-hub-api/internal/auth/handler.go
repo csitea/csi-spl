@@ -72,6 +72,7 @@ type Handler struct {
 	reg        Registrar
 	members    Membership
 	unlink     IdentityUnlinker
+	native     *native // spec 015; nil = native sign-in off
 	now        func() time.Time
 }
 
@@ -114,6 +115,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/start", h.start)
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/callback", h.callback)
 	h.registerFacebookCallbacks(mux)
+	if h.native != nil {
+		h.native.register(mux)
+	}
 }
 
 // ServeHTTP makes the Handler usable on its own (tests, the auth-demo).
@@ -128,7 +132,11 @@ func (h *Handler) providers(w http.ResponseWriter, _ *http.Request) {
 	if list == nil {
 		list = []string{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"providers": list})
+	body := map[string]any{"providers": list}
+	if h.native != nil {
+		body["native"] = true // spec 015: the WUI shows the email + password form
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 func (h *Handler) start(w http.ResponseWriter, r *http.Request) {

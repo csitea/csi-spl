@@ -1,0 +1,545 @@
+// Native email + password sign-in (spec 015, contract native-auth-v1.md),
+// ported from csi-rel internal/auth (register/login/change in handlers.go,
+// password_reset.go, email_verification.go) onto this package's session and
+// Registrar. What differs from the donor, and why, is spec 015 §1.
+package auth
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"mime"
+	"net/http"
+	netmail "net/mail"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/rs/zerolog"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
+)
+
+// Error tokens of native-auth-v1 §4.
+const (
+	ErrTokInvalidCredentials = "invalid_credentials"
+	ErrTokEmailUnverified    = "email_unverified"
+	ErrTokVerifyInvalid      = "verification_token_invalid"
+	ErrTokVerifyExpired      = "verification_token_expired"
+	ErrTokResetInvalid       = "reset_token_invalid"
+	ErrTokMailUnavailable    = "email_delivery_unavailable"
+	ErrTokRateLimited        = "rate_limited"
+)
+
+const maxNativeBody = 8 << 10
+
+// native serves the spec 015 routes; it borrows the Handler's session key,
+// cookie, APP_URL and Registrar so both sign-in kinds yield one session.
+type native struct {
+	h        *Handler
+	cfg      *NativeConfig
+	store    CredStore
+	sender   mail.Sender
+	delivers bool
+	lim      *limiter
+	dummy    string // hash burnt on the unknown-email login path (FR-005)
+	log      zerolog.Logger
+}
+
+// NativeDeps are native sign-in's collaborators.
+type NativeDeps struct {
+	Store CredStore
+	// Sender delivers the verification and reset mails; Delivers says whether
+	// it reaches a real inbox (mail.Config.Delivers).
+	Sender   mail.Sender
+	Delivers bool
+}
+
+// EnableNative mounts spec 015 on this handler when cfg.Enabled. It needs the
+// 010 session key and APP_URL even when no social provider is listed.
+func (h *Handler) EnableNative(cfg *NativeConfig, d NativeDeps) error {
+	if cfg == nil || !cfg.Enabled {
+		return nil
+	}
+	if d.Store == nil {
+		return errors.New("native sign-in needs a credential store")
+	}
+	if len(h.cfg.SessionKey) < minSessionKeyLen || isPlaceholder(h.cfg.SessionKey) {
+		return fmt.Errorf("SPOOL_HUB_AUTH_SESSION_KEY must be set to at least %d bytes while SPOOL_HUB_AUTH_NATIVE_ENABLED=true", minSessionKeyLen)
+	}
+	if err := checkURL("SPOOL_HUB_AUTH_APP_URL", h.cfg.AppURL, h.cfg.requireHTTPS()); err != nil {
+		return err
+	}
+	if h.cfg.CookieName == "" {
+		return errors.New("SPOOL_HUB_AUTH_COOKIE_NAME must not be empty")
+	}
+	if h.sessionKey == nil {
+		h.stateKey = subkey(h.cfg.SessionKey, labelState)
+		h.sessionKey = subkey(h.cfg.SessionKey, labelSession)
+	}
+	dummy, err := HashPassword("spool-native-timing-equaliser", cfg.argon2())
+	if err != nil {
+		return err
+	}
+	sender := d.Sender
+	if sender == nil {
+		sender = mail.None{}
+	}
+	h.native = &native{h: h, cfg: cfg, store: d.Store, sender: sender, delivers: d.Delivers,
+		lim: newLimiter(cfg.RateWindow, h.now), dummy: dummy,
+		log: h.log.With().Str("provider", ProviderPassword).Logger()}
+	return nil
+}
+
+func (n *native) register(mux *http.ServeMux) {
+	mux.HandleFunc("POST "+RoutePrefix+"register", n.handleRegister)
+	mux.HandleFunc("POST "+RoutePrefix+"email/verify", n.handleVerify)
+	mux.HandleFunc("POST "+RoutePrefix+"login", n.handleLogin)
+	mux.HandleFunc("POST "+RoutePrefix+"password/forgot", n.handleForgot)
+	mux.HandleFunc("POST "+RoutePrefix+"password/reset", n.handleReset)
+	mux.HandleFunc("POST "+RoutePrefix+"password/change", n.handleChange)
+}
+
+// --- request plumbing ------------------------------------------------------
+
+// readNativeJSON enforces FR-009 (JSON only) and the body cap; false = answered.
+func readNativeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	w.Header().Set("Cache-Control", "no-store")
+	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
+		writeErr(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json")
+		return false
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxNativeBody)).Decode(v); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		return false
+	}
+	return true
+}
+
+// limit applies one in-process ceiling (FR-006b); false = 429 answered.
+func (n *native) limit(w http.ResponseWriter, key string, max int) bool {
+	ok, retry := n.lim.allow(key, max)
+	if ok {
+		return true
+	}
+	secs := int(retry.Seconds()) + 1
+	w.Header().Set("Retry-After", strconv.Itoa(secs))
+	writeErr(w, http.StatusTooManyRequests, ErrTokRateLimited, "too many attempts")
+	n.log.Warn().Str("bucket", strings.SplitN(key, ":", 2)[0]).Msg("auth.native_rate_limited")
+	return false
+}
+
+func (n *native) ip(r *http.Request) string { return clientIP(r, n.cfg.TrustedProxyHops) }
+
+// normEmail lower-cases and validates a bare address (FR-003); "" = invalid.
+func normEmail(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if len(s) < 3 || len(s) > 320 {
+		return ""
+	}
+	a, err := netmail.ParseAddress(s)
+	if err != nil || a.Address != s || a.Name != "" {
+		return ""
+	}
+	return s
+}
+
+func (n *native) passwordOK(w http.ResponseWriter, pw string) bool {
+	if len(pw) < n.cfg.PasswordMinLen {
+		writeErr(w, http.StatusBadRequest, "bad_request", "password_too_short: min "+strconv.Itoa(n.cfg.PasswordMinLen))
+		return false
+	}
+	if len(pw) > 1024 {
+		writeErr(w, http.StatusBadRequest, "bad_request", "password_too_long: max 1024")
+		return false
+	}
+	return true
+}
+
+// newToken is 32 bytes of crypto/rand as hex; only its sha256 is stored (FR-002).
+func newToken() (plain, hash string, err error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", "", err
+	}
+	plain = hex.EncodeToString(b)
+	return plain, tokenHash(plain), nil
+}
+
+func tokenHash(plain string) string {
+	sum := sha256.Sum256([]byte(plain))
+	return hex.EncodeToString(sum[:])
+}
+
+func (n *native) link(page, tok string) string {
+	return strings.TrimRight(n.h.cfg.AppURL, "/") + page + "?" + url.Values{"token": {tok}}.Encode()
+}
+
+func (n *native) ctx(r *http.Request) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(r.Context(), 10*time.Second)
+}
+
+// answer adds 200 {"debug_token"} when debug tokens are on and a token
+// was issued; otherwise the caller's enumeration-safe status.
+func (n *native) answer(w http.ResponseWriter, status int, body map[string]any, tok string) {
+	if n.cfg.DebugTokens && tok != "" {
+		if body == nil {
+			body = map[string]any{}
+		}
+		body["debug_token"] = tok
+		if status == http.StatusNoContent {
+			status = http.StatusOK
+		}
+	}
+	if status == http.StatusNoContent {
+		w.WriteHeader(status)
+		return
+	}
+	writeJSON(w, status, body)
+}
+
+// --- routes ------------------------------------------------------------------
+
+type registerReq struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
+}
+
+// handleRegister: the same 202 for every well-formed request (FR-005). A new
+// address gets a credential; an unverified one gets a fresh link carrying the
+// password of THIS call (FR-015); a verified one gets nothing.
+func (n *native) handleRegister(w http.ResponseWriter, r *http.Request) {
+	if !n.limit(w, "form:"+n.ip(r), n.cfg.FormPerIP) {
+		return
+	}
+	var req registerReq
+	if !readNativeJSON(w, r, &req) {
+		return
+	}
+	email := normEmail(req.Email)
+	if email == "" {
+		writeErr(w, http.StatusBadRequest, "bad_request", "email")
+		return
+	}
+	if !n.passwordOK(w, req.Password) {
+		return
+	}
+	if n.cfg.VerifyRequired && !n.delivers && !n.cfg.DebugTokens {
+		n.log.Error().Str("event", "email_verification_undeliverable").
+			Msg("auth.native_register refused: no mail transport while verification is required")
+		writeErr(w, http.StatusServiceUnavailable, ErrTokMailUnavailable, "email delivery unavailable")
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if len(name) > 200 {
+		name = name[:200]
+	}
+	hash, err := HashPassword(req.Password, n.cfg.argon2())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "hash")
+		return
+	}
+	ctx, cancel := n.ctx(r)
+	defer cancel()
+	now := n.h.now()
+	status := "verification_required"
+	cred := Credential{Subject: email, PasswordHash: hash, DisplayName: name}
+	if !n.cfg.VerifyRequired {
+		// lde only: the credential may sign in, but stays unverified, so it
+		// never reaches the Registrar (FR-004).
+		status = "registered"
+	}
+	created, err := n.store.CreateCredential(ctx, cred, now)
+	if err != nil {
+		n.log.Error().Err(err).Msg("auth.native_register store")
+		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "store")
+		return
+	}
+	var tok string
+	if n.cfg.VerifyRequired {
+		existing := cred
+		if !created {
+			if existing, err = n.store.GetCredential(ctx, email); err != nil {
+				n.log.Error().Err(err).Msg("auth.native_register lookup")
+			}
+		}
+		if err == nil && !existing.Verified() {
+			tok = n.issue(ctx, TokenVerify, email, hash, now)
+		}
+	}
+	n.log.Info().Str("email", digest(email)).Bool("created", created).Msg("auth.native_register")
+	n.answer(w, http.StatusAccepted, map[string]any{"status": status}, tok)
+}
+
+// issue mints, stores and mails one token under the account floor. It
+// returns the plaintext only for the debug body; "" = nothing issued.
+func (n *native) issue(ctx context.Context, kind, email, pwHash string, now time.Time) string {
+	plain, th, err := newToken()
+	if err != nil {
+		return ""
+	}
+	ttl, page := n.cfg.VerifyTTL, "/verify-email"
+	if kind == TokenReset {
+		ttl, page = n.cfg.ResetTTL, "/reset-password"
+	}
+	issued, err := n.store.IssueToken(ctx, kind, email, th, pwHash, now, now.Add(ttl),
+		MailFloor{MinInterval: n.cfg.MailMinInterval, MaxPerDay: n.cfg.MailMaxPerDay})
+	if err != nil {
+		n.log.Error().Err(err).Str("kind", kind).Msg("auth.native_token_issue")
+		return ""
+	}
+	if !issued {
+		n.log.Warn().Str("kind", kind).Str("email", digest(email)).Msg("auth.native_mail_floor")
+		return ""
+	}
+	link := n.link(page, plain)
+	msg := mail.EmailVerification(email, link, int(ttl.Hours()))
+	if kind == TokenReset {
+		msg = mail.PasswordReset(email, link, int(ttl.Minutes()))
+	}
+	if err := n.sender.Send(ctx, msg); err != nil {
+		// Best effort: the answer stays enumeration-safe; the person can retry.
+		n.log.Error().Err(err).Str("kind", kind).Msg("auth.native_mail_send (non-fatal)")
+	}
+	return plain
+}
+
+type tokenReq struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+func (n *native) handleVerify(w http.ResponseWriter, r *http.Request) {
+	if !n.limit(w, "form:"+n.ip(r), n.cfg.FormPerIP) {
+		return
+	}
+	var req tokenReq
+	if !readNativeJSON(w, r, &req) {
+		return
+	}
+	t := strings.TrimSpace(req.Token)
+	if t == "" {
+		writeErr(w, http.StatusUnauthorized, ErrTokVerifyInvalid, "token")
+		return
+	}
+	ctx, cancel := n.ctx(r)
+	defer cancel()
+	switch err := n.store.ConsumeVerification(ctx, tokenHash(t), n.h.now()); {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, ErrTokenExpired):
+		writeErr(w, http.StatusGone, ErrTokVerifyExpired, "token expired")
+	case errors.Is(err, ErrTokenInvalid):
+		writeErr(w, http.StatusUnauthorized, ErrTokVerifyInvalid, "token")
+	default:
+		n.log.Error().Err(err).Msg("auth.native_verify store")
+		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "store")
+	}
+}
+
+type loginReq struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Tenant   string `json:"tenant"`
+	Redirect string `json:"redirect"`
+}
+
+type loginResp struct {
+	Session
+	Redirect string `json:"redirect"`
+}
+
+func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if !n.limit(w, "login-ip:"+n.ip(r), n.cfg.LoginPerIP) {
+		return
+	}
+	var req loginReq
+	if !readNativeJSON(w, r, &req) {
+		return
+	}
+	email := normEmail(req.Email)
+	if email != "" && !n.limit(w, "login-email:"+email, n.cfg.LoginPerEmail) {
+		return
+	}
+	ctx, cancel := n.ctx(r)
+	defer cancel()
+	var cred Credential
+	var err error
+	if email != "" {
+		cred, err = n.store.GetCredential(ctx, email)
+	} else {
+		err = ErrCredNotFound
+	}
+	if err != nil && !errors.Is(err, ErrCredNotFound) {
+		n.log.Error().Err(err).Msg("auth.native_login store")
+		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "store")
+		return
+	}
+	if errors.Is(err, ErrCredNotFound) {
+		_ = VerifyPassword(n.dummy, req.Password) // equal timing (FR-005)
+		writeErr(w, http.StatusUnauthorized, ErrTokInvalidCredentials, "email or password")
+		return
+	}
+	if VerifyPassword(cred.PasswordHash, req.Password) != nil {
+		n.log.Warn().Str("email", digest(email)).Msg("auth.native_login_fail")
+		writeErr(w, http.StatusUnauthorized, ErrTokInvalidCredentials, "email or password")
+		return
+	}
+	// Past the password on purpose: this branch enumerates nothing.
+	if !cred.Verified() && n.cfg.VerifyRequired {
+		writeErr(w, http.StatusForbidden, ErrTokEmailUnverified, "confirm your email first")
+		return
+	}
+	now := n.h.now()
+	sess := Session{V: 1, Provider: ProviderPassword, Subject: email, Email: email, Name: cred.DisplayName,
+		IssuedAt: now.Unix(), Exp: now.Add(n.h.cfg.SessionTTL).Unix()}
+	if validTenant(req.Tenant) {
+		sess.Tenant = req.Tenant
+	}
+	// The Registrar treats Identity.Email as verified and matches invites on
+	// it, so an unverified credential never reaches it (FR-004).
+	if n.h.reg != nil && cred.Verified() {
+		hum, err := n.h.reg.Register(ctx, Identity{Provider: ProviderPassword, Subject: email, Email: email,
+			Name: cred.DisplayName}, sess.Tenant)
+		if errors.Is(err, ErrNotAllowed) {
+			n.log.Warn().Str("email", digest(email)).Str("tenant", sess.Tenant).Msg("auth.native_login_not_allowed")
+			writeErr(w, http.StatusForbidden, ErrCodeNotAllowed, "registrar refused")
+			return
+		}
+		if err != nil {
+			n.log.Error().Err(err).Msg("auth.native_login registrar")
+			writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "registrar")
+			return
+		}
+		sess.HumanID = hum
+	}
+	tok, err := signToken(n.h.sessionKey, sess)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "sign session")
+		return
+	}
+	if err := n.store.TouchLogin(ctx, email, now); err != nil {
+		n.log.Warn().Err(err).Msg("auth.native_login touch (non-fatal)")
+	}
+	http.SetCookie(w, n.h.sessionCookie(tok, int(n.h.cfg.SessionTTL.Seconds())))
+	n.log.Info().Str("email", digest(email)).Str("tenant", sess.Tenant).Msg("auth.login_ok")
+	writeJSON(w, http.StatusOK, loginResp{Session: sess, Redirect: safeRedirect(req.Redirect)})
+}
+
+type emailReq struct {
+	Email string `json:"email"`
+}
+
+// handleForgot always answers 204 (FR-005); the floor refusal is the same 204.
+func (n *native) handleForgot(w http.ResponseWriter, r *http.Request) {
+	if !n.limit(w, "form:"+n.ip(r), n.cfg.FormPerIP) {
+		return
+	}
+	var req emailReq
+	if !readNativeJSON(w, r, &req) {
+		return
+	}
+	email := normEmail(req.Email)
+	var tok string
+	if email != "" {
+		ctx, cancel := n.ctx(r)
+		defer cancel()
+		switch _, err := n.store.GetCredential(ctx, email); {
+		case err == nil:
+			tok = n.issue(ctx, TokenReset, email, "", n.h.now())
+		case !errors.Is(err, ErrCredNotFound):
+			n.log.Error().Err(err).Msg("auth.native_forgot store")
+		}
+	}
+	n.answer(w, http.StatusNoContent, nil, tok)
+}
+
+func (n *native) handleReset(w http.ResponseWriter, r *http.Request) {
+	if !n.limit(w, "form:"+n.ip(r), n.cfg.FormPerIP) {
+		return
+	}
+	var req tokenReq
+	if !readNativeJSON(w, r, &req) {
+		return
+	}
+	t := strings.TrimSpace(req.Token)
+	if t == "" {
+		writeErr(w, http.StatusUnauthorized, ErrTokResetInvalid, "token")
+		return
+	}
+	if !n.passwordOK(w, req.Password) {
+		return
+	}
+	hash, err := HashPassword(req.Password, n.cfg.argon2())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "hash")
+		return
+	}
+	ctx, cancel := n.ctx(r)
+	defer cancel()
+	subject, err := n.store.ConsumeReset(ctx, tokenHash(t), hash, n.h.now())
+	if errors.Is(err, ErrTokenInvalid) {
+		writeErr(w, http.StatusUnauthorized, ErrTokResetInvalid, "token")
+		return
+	}
+	if err != nil {
+		n.log.Error().Err(err).Msg("auth.native_reset store")
+		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "store")
+		return
+	}
+	n.log.Info().Str("email", digest(subject)).Msg("auth.native_password_reset")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type changeReq struct {
+	Current string `json:"current_password"`
+	New     string `json:"new_password"`
+}
+
+func (n *native) handleChange(w http.ResponseWriter, r *http.Request) {
+	s, ok := n.h.SessionFromRequest(r)
+	if !ok || s.Provider != ProviderPassword {
+		writeErr(w, http.StatusUnauthorized, "unauthenticated", "no password session")
+		return
+	}
+	if !n.limit(w, "login-email:"+s.Subject, n.cfg.LoginPerEmail) {
+		return
+	}
+	var req changeReq
+	if !readNativeJSON(w, r, &req) {
+		return
+	}
+	if !n.passwordOK(w, req.New) {
+		return
+	}
+	ctx, cancel := n.ctx(r)
+	defer cancel()
+	cred, err := n.store.GetCredential(ctx, s.Subject)
+	if err != nil && !errors.Is(err, ErrCredNotFound) {
+		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "store")
+		return
+	}
+	if err != nil || VerifyPassword(cred.PasswordHash, req.Current) != nil {
+		writeErr(w, http.StatusUnauthorized, ErrTokInvalidCredentials, "current password")
+		return
+	}
+	hash, err := HashPassword(req.New, n.cfg.argon2())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "hash")
+		return
+	}
+	if err := n.store.SetPassword(ctx, s.Subject, hash, n.h.now()); err != nil {
+		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "store")
+		return
+	}
+	// Stateless sessions: this browser signs in again; others expire (OQ-N2).
+	http.SetCookie(w, n.h.sessionCookie("", -1))
+	n.log.Info().Str("email", digest(s.Subject)).Msg("auth.native_password_changed")
+	w.WriteHeader(http.StatusNoContent)
+}

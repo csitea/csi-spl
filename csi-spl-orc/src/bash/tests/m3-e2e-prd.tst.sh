@@ -96,7 +96,7 @@ SNIPPET="M3_IMAP_PASS_FILE=$st/imap-pass spl_m3_imap_forget" in_orc >/dev/null 2
 # --- 5. the IMAP reader ----------------------------------------------------------------
 mkdir -p "$T/py"; echo pw >"$T/py/pass"
 out=$(M3_STATE="$T/py" M3_IMAP_USER=box@example.com M3_IMAP_PASS_FILE="$T/py/pass" M3_IMAP_TIMEOUT=3 \
-  python3 - "$PROJ_ROOT/src/bash/scripts/m3-e2e.py" <<'PY' 2>&1
+  python3 -B - "$PROJ_ROOT/src/bash/scripts/m3-e2e.py" <<'PY' 2>&1
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("m3", sys.argv[1]); m3 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m3)

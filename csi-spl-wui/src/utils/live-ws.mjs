@@ -77,7 +77,7 @@ export function messageFromFrame(f) {
   if (env) {
     out.from_box = env.from_box
     out.to_box = env.to_box
-    out.channel = hubField(env.channel)
+    out.channel = hubField(x.channel) || hubField(env.channel)
     out.parent_task_id = hubField(env.parent_task_id)
   }
   if (x.cursor !== undefined) out.cursor = x.cursor
@@ -109,6 +109,7 @@ export function createLiveClient({
   let dropped = false
   const cursors = new Map()
   const subs = new Set()
+  const chanSubs = new Set()
   const queue = []
   const pending = new Map()
   const tokenWaiters = []
@@ -174,6 +175,7 @@ export function createLiveClient({
         attempt = 0
         setState('open')
         for (const id of subs) raw({ type: FRAMES.subscribe, task_id: id })
+        for (const ch of chanSubs) raw({ type: FRAMES.subscribe, channel: ch })
         flush()
         onWelcome(f)
         if (dropped) {
@@ -246,6 +248,18 @@ export function createLiveClient({
       const id = String(taskId || '')
       if (!subs.delete(id)) return
       if (state === 'open') raw({ type: FRAMES.unsubscribe, task_id: id })
+    },
+    /** wui-live-ws v0.4: every message stored in `channel`, new roots included. */
+    subscribeChannel(channel) {
+      const ch = String(channel || '').replace(/^#/, '').toLowerCase()
+      if (!ch || chanSubs.has(ch)) return
+      chanSubs.add(ch)
+      if (state === 'open') raw({ type: FRAMES.subscribe, channel: ch })
+    },
+    unsubscribeChannel(channel) {
+      const ch = String(channel || '').replace(/^#/, '').toLowerCase()
+      if (!chanSubs.delete(ch)) return
+      if (state === 'open') raw({ type: FRAMES.unsubscribe, channel: ch })
     },
     /** wui-live-ws: {type:"token"} → next token frame (fresh upload token). */
     requestToken() {

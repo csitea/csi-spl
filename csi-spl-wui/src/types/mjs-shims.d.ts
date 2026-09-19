@@ -95,6 +95,8 @@ declare module '~/utils/live-ws.mjs' {
     close(): void
     subscribe(taskId: string): void
     unsubscribe(taskId: string): void
+    subscribeChannel(channel: string): void
+    unsubscribeChannel(channel: string): void
     requestToken(): Promise<Record<string, unknown>>
     send(opts: import('./spool').SendFrame): Promise<import('./spool').AckFrame>
   }
@@ -122,6 +124,7 @@ declare module '~/utils/channel-feed.mjs' {
   export function belongsTo(msg: unknown, where: { channel?: string | null, peer?: string | null }): boolean
   export function mergeLive<T>(rows: T[], msg: unknown): T[]
   export function followPlan(current: Iterable<string>, want: string[], keep?: string): { add: string[], drop: string[] }
+  export function channelFollow(current: string, view?: { channel?: string | null, peer?: string | null }): { sub: string, unsub: string, next: string }
   export function rowFromAck(ack: unknown, frame: unknown, who?: { from?: string, channel?: string | null }): Record<string, unknown>
   export function rootsByTask<T extends { task_id?: string }>(messages: T[]): T[]
   export function threadReplies(messages: { task_id?: string, parent_task_id?: string | null }[], taskId: string): number

@@ -89,3 +89,12 @@ describe('read map for spool-client listChannels({ read })', () => {
     }), { lobby: 'C1' })
   })
 })
+
+describe('read cursor from a live frame (H4)', () => {
+  it('a live frame cursor on the open channel becomes the next read= param', () => {
+    const frame = { msg_id: 'm1', channel: 'lobby', received_at: '2026-09-19T09:00:00.123456Z', cursor: 'cur-R' }
+    const cursors = markReadAt({ 'ch:lobby': { ts: '2026-09-19T08:00:00Z', id: 'old', hub: 'cur-old' } }, 'ch:lobby', frame)
+    assert.deepEqual(cursors['ch:lobby'], { ts: frame.received_at, id: 'm1', hub: 'cur-R' })
+    assert.deepEqual(readParams(cursors), ['lobby~cur-R'])
+  })
+})

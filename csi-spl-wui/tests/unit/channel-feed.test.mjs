@@ -20,6 +20,7 @@ import {
   threadReplies,
   followPlan,
   rowFromAck,
+  channelFollow,
 } from '../../src/utils/channel-feed.mjs'
 import { applyVerbosity } from '../../src/utils/verbosity.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
@@ -192,5 +193,15 @@ describe('live subscriptions + own send (hub fans out per subscribed task, gap A
     assert.equal(row.channel, 'a2')
     assert.equal(row.from, 'HUM-2')
     assert.equal(mergeLive([row], { ...row }).length, 1)
+  })
+})
+
+describe('channelFollow (H4, wui-live-ws 0.4 channel subscription)', () => {
+  it('follows the open channel, switches on navigation, drops it for a DM', () => {
+    assert.deepEqual(channelFollow('', { channel: '#Lobby' }), { sub: 'lobby', unsub: '', next: 'lobby' })
+    assert.deepEqual(channelFollow('lobby', { channel: 'lobby' }), { sub: '', unsub: '', next: 'lobby' })
+    assert.deepEqual(channelFollow('lobby', { channel: 'tasks' }), { sub: 'tasks', unsub: 'lobby', next: 'tasks' })
+    assert.deepEqual(channelFollow('tasks', { channel: null, peer: 'HUM-2@box-wui' }), { sub: '', unsub: 'tasks', next: '' })
+    assert.deepEqual(channelFollow('', {}), { sub: '', unsub: '', next: '' })
   })
 })

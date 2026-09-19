@@ -3,6 +3,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import {
   belongsTo,
+  channelFollow,
   channelSlug,
   feedRow,
   followPlan,
@@ -44,6 +45,7 @@ export const useChannelStore = defineStore('channel', () => {
 
   const feed = computed(() => rootsByTask(topLevel(messages.value)))
   const followed = new Set<string>()
+  let followedChannel = ''
 
   /** Live: subscribe the socket to every thread on screen, drop the ones that left. */
   function follow() {
@@ -55,6 +57,11 @@ export const useChannelStore = defineStore('channel', () => {
     const plan = followPlan(followed, want, live.lobbyTaskId.value)
     for (const t of plan.add) { client.subscribe(t); followed.add(t) }
     for (const t of plan.drop) { client.unsubscribe(t); followed.delete(t) }
+    /* the open channel itself, so a root someone else starts there arrives live (H4) */
+    const c = channelFollow(followedChannel, { channel: active.value, peer: peer.value })
+    if (c.unsub) client.unsubscribeChannel(c.unsub)
+    if (c.sub) client.subscribeChannel(c.sub)
+    followedChannel = c.next
   }
 
   function key() {

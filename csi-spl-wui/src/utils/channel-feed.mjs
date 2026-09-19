@@ -207,6 +207,17 @@ export function followPlan(current, want, keep = '') {
   }
 }
 
+/**
+ * The channel-level WS subscription for the open view (wui-live-ws v0.4): the
+ * open channel, none for a DM. Returns what to (un)subscribe and the new state.
+ */
+export function channelFollow(current, { channel, peer } = {}) {
+  const have = String(current || '')
+  const want = peer ? '' : String(channel || '').replace(/^#/, '').toLowerCase()
+  if (want === have) return { sub: '', unsub: '', next: have }
+  return { sub: want, unsub: have, next: want }
+}
+
 /** The card for our own live send, built from the hub ack before the echo frame. */
 export function rowFromAck(ack, frame, { from = '', channel = null } = {}) {
   const a = ack || {}

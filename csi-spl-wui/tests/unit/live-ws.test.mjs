@@ -211,3 +211,35 @@ describe('live-ws A1: channels, presence, reconnect (wui-live-ws 0.3 §3.2, §4,
     assert.deepEqual(events[0].info.cursors, { T1: 'c7' })
   })
 })
+
+describe('live-ws H4: channel subscription (wui-live-ws 0.4 §3.1)', () => {
+  it('subscribes a channel once, re-sends it after a reconnect, and unsubscribes', () => {
+    const { FakeWS, sockets } = fakeWs()
+    const t = manualTimers()
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, setTimer: t.setTimer, clearTimer: t.clearTimer })
+    c.subscribeChannel('#Tasks')
+    c.connect(); sockets[0].open(); sockets[0].recv({ type: 'welcome' })
+    c.subscribeChannel('tasks')
+    assert.deepEqual(sockets[0].sent.filter((f) => f.type === 'subscribe'), [{ type: 'subscribe', channel: 'tasks' }])
+    sockets[0].close(); t.fire(0)
+    sockets[1].open(); sockets[1].recv({ type: 'welcome' })
+    assert.deepEqual(sockets[1].sent.filter((f) => f.type === 'subscribe'), [{ type: 'subscribe', channel: 'tasks' }])
+    c.unsubscribeChannel('tasks')
+    c.unsubscribeChannel('tasks')
+    assert.deepEqual(sockets[1].sent.filter((f) => f.type === 'unsubscribe'), [{ type: 'unsubscribe', channel: 'tasks' }])
+  })
+
+  it('a new root from a channel subscription keeps the frame channel and cursor', () => {
+    const { FakeWS, sockets } = fakeWs()
+    const got = []
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, onMessage: (m) => got.push(m) })
+    c.connect(); sockets[0].open(); sockets[0].recv({ type: 'welcome' })
+    sockets[0].recv({ type: 'message', task_id: 'R', channel: 'lobby', cursor: 'cur-R', received_at: '2026-09-19T09:00:00.123456Z',
+      env: { from_box: 'box-wui', to_box: 'box-wui', msg: { v: 1, msg_id: 'm1', task_id: 'R', body: 'new root' }, sig: '' } })
+    assert.equal(got.length, 1)
+    assert.equal(got[0].channel, 'lobby')
+    assert.equal(got[0].cursor, 'cur-R')
+    assert.equal(c.lastCursor('R'), 'cur-R')
+    assert.equal(messageFromFrame({ channel: 'lobby', env: { channel: '', msg: {} } }).channel, 'lobby')
+  })
+})

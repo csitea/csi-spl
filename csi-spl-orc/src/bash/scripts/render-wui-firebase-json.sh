@@ -4,9 +4,12 @@
 #          Cloud Run service id and region come from the env yaml — never a
 #          hostname literal in this script (domain-single-source).
 #
+#          The Content-Security-Policy is built from the GENERATED bundle
+#          (spec 017 FR-SEC-005, T013/T014): run it after `nuxt generate`.
+#
 # Usage:
 #   ENV=dev ./render-wui-firebase-json.sh
-#   ENV=prd OUT=/path/to/firebase.json ./render-wui-firebase-json.sh
+#   ENV=prd OUT=/path/to/firebase.json PUBLIC_DIR=/path/.output/public ./render-wui-firebase-json.sh
 #------------------------------------------------------------------------------
 set -euo pipefail
 : "${ENV:?ENV must be set (dev or prd)}"
@@ -22,6 +25,9 @@ REGION=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["e
 FQDN=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["env"]["dns"]["fqdn"])' "$CNF")
 [[ -n "$FQDN" ]] || { echo "FATAL env.dns.fqdn is empty in $CNF" >&2; exit 1; }
 OUT="${OUT:-$ROOT/csi-spl-wui/firebase.json}"
+# the generated bundle the CSP hashes are taken from (never guessed)
+PUBLIC_DIR="${PUBLIC_DIR:-$ROOT/csi-spl-wui/.output/public}"
+[[ -f "$PUBLIC_DIR/200.html" ]] || { echo "FATAL no generated bundle at $PUBLIC_DIR (200.html missing) — run nuxt generate first; the CSP hashes come from it" >&2; exit 1; }
 
 # Spec 007 §3 (T072): the WUI is served same-origin THROUGH the 031 load
 # balancer (<fqdn>, <tenant>.<fqdn>), which sends /v1/*, /api/*, /healthz and
@@ -29,9 +35,92 @@ OUT="${OUT:-$ROOT/csi-spl-wui/firebase.json}"
 # therefore only act on the bare <site>.web.app host (and 010 T016 keeps the
 # auth one). connect-src admits the tenant hosts: a page on <fqdn> reads and
 # opens its WebSocket on <tenant>.<fqdn> (NUXT_PUBLIC_API_BASE).
-python3 - "$OUT" "$SITE_ID" "$SERVICE" "$REGION" "$FQDN" <<'PY'
-import json, sys
-out, site_id, service, region, fqdn = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+python3 - "$OUT" "$SITE_ID" "$SERVICE" "$REGION" "$FQDN" "$CNF" "$PUBLIC_DIR" <<'PY'
+import base64, glob, hashlib, json, os, re, sys
+out, site_id, service, region, fqdn, cnf, public_dir = sys.argv[1:8]
+
+# ── Content-Security-Policy (spec 017 FR-SEC-005, T013/T014) ─────────────────
+# This header is the ONLY CSP a browser sees in a deployed env: the WUI is
+# static files on Firebase Hosting, so nuxt.config.ts routeRules never run.
+#
+# script-src / style-src: 'self' plus the sha256 of every inline block the
+# generated bundle contains, and nothing else. No nonce is possible (no server
+# in the response path), and a hash list works here where csi-rel could not
+# use one: the spool WUI prerenders a handful of shells whose only executable
+# inline script is Nuxt's `window.__NUXT__.config` (measured on `nuxt
+# generate` 2026-09-19: one 997-byte script, identical in all 4 html files).
+# Its bytes change with runtimeConfig (env, tenant, version, build id), which
+# is why the hashes are taken from THIS build and never written down.
+# Scripts with a non-JavaScript type (`application/json` payload / unhead data
+# blocks) are not executed, so they need no hash. <style> blocks are Vue SFC
+# styles Nuxt inlines into the prerendered html; they are hashed the same way.
+JS_TYPES = {"", "module", "text/javascript", "application/javascript", "text/ecmascript", "application/ecmascript"}
+SCRIPT_RE = re.compile(r"<script\b([^>]*)>(.*?)</script>", re.S | re.I)
+STYLE_RE = re.compile(r"<style\b[^>]*>(.*?)</style>", re.S | re.I)
+TYPE_RE = re.compile(r"""\btype\s*=\s*["']?([^"'\s>]+)""", re.I)
+SRC_RE = re.compile(r"\bsrc\s*=", re.I)
+
+
+def sha(text):
+    return "'sha256-" + base64.b64encode(hashlib.sha256(text.encode("utf-8")).digest()).decode() + "'"
+
+
+script_hashes, style_hashes, pages = set(), set(), 0
+for path in sorted(glob.glob(os.path.join(public_dir, "**", "*.html"), recursive=True)):
+    pages += 1
+    html = open(path, encoding="utf-8").read()
+    for attrs, body in SCRIPT_RE.findall(html):
+        if SRC_RE.search(attrs):
+            continue
+        t = TYPE_RE.search(attrs)
+        if (t.group(1).lower() if t else "") in JS_TYPES:
+            script_hashes.add(sha(body))
+    for body in STYLE_RE.findall(html):
+        style_hashes.add(sha(body))
+    # Attributes a hash can never allow: an inline event handler (on*=) or a
+    # style="" attribute would be blocked in the browser, so refuse here
+    # instead of shipping a page that logs violations.
+    markup = STYLE_RE.sub("", SCRIPT_RE.sub("", html))
+    bad = re.search(r"<[a-zA-Z][^>]*?\s(on[a-z]+|style)\s*=", markup)
+    if bad:
+        sys.exit("FATAL " + path + ": inline " + bad.group(1) + "= attribute; the CSP has no 'unsafe-inline' to allow it — fix the page")
+if not pages:
+    sys.exit("FATAL no html under " + public_dir)
+
+# connect-src: 'self' plus the hub hosts from cnf, each over https and wss.
+#   * the api host(s) <label>.<BASE_DOMAIN>: 032 api_host_label (Cloud Run
+#     domain mapping, no LB) and any 031 extra_host_labels. dev.api.<domain>
+#     is OUTSIDE *.dev.<domain>, so each is listed on its own.
+#   * the tenant hosts <tenant>.<fqdn>: env.dns.mapped_tenants when cnf
+#     enumerates them (each one has its own domain mapping), otherwise
+#     *.<fqdn> — the WUI reads and opens its WebSocket on the tenant host.
+# Never a bare scheme (`https:` would admit every host and make it a no-op).
+env = json.load(open(cnf))["env"]
+base = env["dns"]["BASE_DOMAIN"]
+steps = env.get("steps", {})
+labels = list(steps.get("031-gcp-hub-ingress", {}).get("extra_host_labels", []) or [])
+api_label = steps.get("032-gcp-cloud-run-domain-mapping", {}).get("api_host_label", "")
+if api_label:
+    labels.append(api_label)
+hosts = [l + "." + base for l in labels if l]
+tenants = env["dns"].get("mapped_tenants")
+hosts += [t + "." + fqdn for t in tenants] if tenants else ["*." + fqdn]
+connect = ["'self'"]
+for h in dict.fromkeys(hosts):
+    connect += ["https://" + h, "wss://" + h]
+
+csp = "; ".join([
+    "default-src 'self'",
+    " ".join(["script-src 'self'"] + sorted(script_hashes)),
+    " ".join(["style-src 'self'"] + sorted(style_hashes)),
+    "img-src 'self' data:",
+    "font-src 'self' data:",
+    "connect-src " + " ".join(connect),
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+])
 doc = {
   "hosting": {
     "site": site_id,
@@ -50,7 +139,7 @@ doc = {
           {"key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains; preload"},
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://*." + fqdn + " wss://*." + fqdn + "; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+            "value": csp,
           },
           {"key": "X-Robots-Tag", "value": "noindex, nofollow"},
           {"key": "Cache-Control", "value": "public, max-age=0, must-revalidate"},

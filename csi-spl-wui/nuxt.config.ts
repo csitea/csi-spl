@@ -69,9 +69,11 @@ const HUB_SOURCES = [...new Set([...hubCspSources(apiBase), ...hubCspSources(aut
 //
 // connect-src is the one that matters: the viewer reads, and the live pane
 // opens its WebSocket, on the tenant host (<tenant>.<fqdn>), never anywhere
-// else. `script-src 'unsafe-inline'` stays: the WUI is static files on a CDN,
-// no server mints a per-response nonce, and Nuxt serialises its payload into
-// an inline <script>.
+// else. In every DEPLOYED env script-src / style-src carry no 'unsafe-inline'
+// (spec 017 FR-SEC-005): the Hosting render hashes the inline <script> and
+// <style> blocks of the generated bundle. CSP_PROD below is `nuxt preview`
+// only and keeps 'unsafe-inline' — no render step runs there to hash.
+// tests/unit/csp-policy.test.mjs pins every other directive to the render.
 //
 // lde additions over CSP_PROD, and ONLY these: Vite evaluates modules at
 // runtime ('unsafe-eval') and runs its HMR client from a blob: Worker; ws:/wss:

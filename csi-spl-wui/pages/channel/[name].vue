@@ -14,6 +14,7 @@ import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useSpoolEvents } from '~/composables/useSpoolEvents'
 import { useNotificationStore } from '~/stores/notification'
+import { normalizeChannel } from '~/utils/notify.mjs'
 
 const route = useRoute()
 const channel = useChannelStore()
@@ -24,6 +25,7 @@ const name = computed(() => String(route.params.name || 'lobby'))
 
 watch(name, async (n) => {
   await channel.selectChannel(n)
+  notes.markRead('ch:' + normalizeChannel(n))
 }, { immediate: true })
 
 onMounted(async () => {
@@ -33,7 +35,6 @@ onMounted(async () => {
 })
 
 async function onSend(text: string) {
-  const sent = await channel.send(text)
-  if (sent && sent.kind === 'task') notes.ping('task sent', String(sent.body || ''))
+  await channel.send(text)
 }
 </script>

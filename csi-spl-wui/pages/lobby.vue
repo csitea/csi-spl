@@ -33,14 +33,17 @@
 <script setup lang="ts">
 import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
+import { useNotificationStore } from '~/stores/notification'
 
 const store = useLiveFeed('main')
 const pane = useLiveFeed('pane')
 const live = useLive()
+const notes = useNotificationStore()
 const lobbyId = computed(() => live.lobbyTaskId.value)
 
 onMounted(() => {
   live.ensure()
+  notes.markRead('ch:lobby')
   watch(lobbyId, (id) => { if (id) void store.open(id) }, { immediate: true })
 })
 

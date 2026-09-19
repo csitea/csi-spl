@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { applyVerbosity, threadOf } from '~/utils/channel-feed.mjs'
+import { loadVerbosity, saveVerbosity } from '~/utils/verbosity.mjs'
 import { useChannelStore } from '~/stores/channel'
 
 export type Verbosity = 'minimal' | 'normal' | 'verbose'
@@ -7,7 +8,8 @@ export type Verbosity = 'minimal' | 'normal' | 'verbose'
 export const useThreadStore = defineStore('thread', () => {
   const open = ref(false)
   const parentTaskId = ref<string | null>(null)
-  const verbosity = ref<Verbosity>('normal')
+  const verbosity = ref<Verbosity>(loadVerbosity())
+  watch(verbosity, (v) => { saveVerbosity(v) })
 
   const channel = useChannelStore()
 

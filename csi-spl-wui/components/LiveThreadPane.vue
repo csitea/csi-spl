@@ -2,7 +2,8 @@
   <aside v-if="pane.taskId" class="thread live-pane" aria-label="Thread">
     <header>
       <strong>Thread <code>{{ pane.taskId.slice(0, 8) }}</code></strong>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
+        <VerbositySelector />
         <NuxtLink class="btn ghost" :to="'/t/' + pane.taskId">Open</NuxtLink>
         <button class="btn ghost" type="button" @click="pane.close()">Close</button>
       </div>
@@ -35,10 +36,13 @@
 
 <script setup lang="ts">
 import { useLiveFeed } from '~/stores/live'
+import { useThreadStore } from '~/stores/thread'
+import { applyVerbosity } from '~/utils/channel-feed.mjs'
 
 /* 013 US3: pinned root (oldest of the task_id), reply Omnibox, newest-first replies, live. */
 const pane = useLiveFeed('pane')
-const replies = computed(() => pane.thread.replies)
+const thread = useThreadStore()
+const replies = computed(() => applyVerbosity(pane.thread.replies, thread.verbosity))
 
 async function onSend(text: string, _parent?: string, files?: File[]) {
   await pane.send(text, files || [])

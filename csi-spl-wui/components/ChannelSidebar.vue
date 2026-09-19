@@ -6,6 +6,7 @@
     </div>
     <NuxtLink class="nav-item" to="/lobby" active-class="active">
       <span class="hash">#</span><span class="label">lobby</span>
+      <span v-if="notes.unread['ch:lobby']" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:lobby']) }}</span>
     </NuxtLink>
     <NuxtLink class="nav-item" to="/" exact-active-class="active">
       <span class="label">Threads</span>
@@ -20,7 +21,7 @@
     >
       <span class="hash">#</span>
       <span class="label">{{ c.name }}</span>
-      <span v-if="channel.unread[c.channel_id]" class="badge-unread">{{ channel.unread[c.channel_id] }}</span>
+      <span v-if="notes.unread['ch:' + c.channel_id]" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:' + c.channel_id]) }}</span>
     </NuxtLink>
     <form v-if="api.mock" class="create-row" @submit.prevent="onCreate">
       <input v-model="newChannel" placeholder="new channel" aria-label="New channel">
@@ -37,6 +38,7 @@
       <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
       <span class="dot" :class="{ on: p.online }" />
       <span class="label">{{ p.label }}</span>
+      <span v-if="notes.unread['dm:' + p.label]" class="badge-unread">{{ notes.previewUnread(notes.unread['dm:' + p.label]) }}</span>
     </NuxtLink>
     <div style="margin-top:auto">
       <NotificationCenter />
@@ -56,11 +58,13 @@
 import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
+import { useNotificationStore } from '~/stores/notification'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 
 const channel = useChannelStore()
 const roster = useRosterStore()
 const session = useSessionStore()
+const notes = useNotificationStore()
 /* channel creation is a later M3 write slice; the live hub API is read-only */
 const api = useSpoolApi()
 const route = useRoute()

@@ -2,7 +2,7 @@
   <aside v-if="thread.open" class="thread">
     <header>
       <strong>Thread</strong>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
         <VerbositySelector />
         <button class="btn ghost" type="button" @click="thread.close()">Close</button>
       </div>

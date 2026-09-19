@@ -23,12 +23,33 @@ For each ported file:
 diff <(sed 's/csi-rel/csi-spl/g' <src>) <dst> | wc -l
 ```
 
-0 is expected. 25 of 29 ported files measured 0 (n=1, 2026-09-19). Four
-API-enable/disable files are non-zero by 4 `diff` lines each: `$(gcloud --version)`
-became `$(gcloud --version --account="${account}")` so the pin-scan that
-landed on trunk (`gcloud-account-pinned.tst.sh`, 8ffb93c) stays green.
-`account` is already resolved in those files. No other logic changed. The
-gcloud-account-pin lane still owns pinning the rest of these actions.
+0 is expected on trunk (18a12d4). After the unpushed isolate wrap (awaiting
+ORC), every gcloud-calling file is non-zero by 5 `diff` lines (the wrap).
+Four API-enable/disable files are **9** (wrap + `--account` on `gcloud --version`).
+`gcp-list-secrets` stays **0** (echo only, not wrapped).
+
+### 1.1 Unpushed isolate wrap (hold: do not push until ORC)
+
+CLE-3361: the copy-unchanged port still writes the shared `~/.config/gcloud`.
+A first wrap (`trap … RETURN` that `rm -rf "$CLOUDSDK_CONFIG"`) is **not**
+safe: a RETURN trap is not function-scoped; it fires again when the caller
+returns and can delete the operator's own throwaway config (measured: planted
+`credentials.db` gone). Do **not** push that shape (`b65e44b`).
+
+Safer wrap, local, not on trunk — keep the function (not a subshell: several
+actions `export` results the caller needs, e.g. `GOOGLE_APPLICATION_CREDENTIALS`,
+secret env vars, `SRC_DIR` / `GCS_BUCKET`):
+
+```bash
+  local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
+  _spl_sdk_dir="$(mktemp -d)"
+  export CLOUDSDK_CONFIG="$_spl_sdk_dir"
+  trap 'rm -rf "$_spl_sdk_dir"; if [[ -n "$_spl_sdk_saved" ]]; then export CLOUDSDK_CONFIG="$_spl_sdk_saved"; else unset CLOUDSDK_CONFIG; fi; trap - RETURN' RETURN
+```
+
+Repro of the fix: caller dir still exists after orch returns; `trap -p RETURN`
+is empty. `gcp-list-secrets` only `echo`s gcloud and is not wrapped. Nobody
+should run these actions until ORC decides.
 
 `bash -n` on every ported file: ok. `cd csi-spl-iac && ./run -a do_print_help`
 lists all 29 ported `do_gcp_*` actions (and still lists gcp-000..004).
@@ -39,60 +60,60 @@ code.
 
 ## 2. The 52 files
 
-| # | file | status | reason / rename-diff |
-|---|---|---|---|
-| 1 | gcp-000-bootstrap-gcp-env | in csi-spl already | bootstrap; owned by the hub-cloud-deploy lane; not touched |
-| 2 | gcp-001-create-project | in csi-spl already | bootstrap; not touched |
-| 3 | gcp-002-create-project-service-account | in csi-spl already | bootstrap; not touched |
-| 4 | gcp-002-delete-project-service-account | **ported** | generic SA delete. `diff … \| wc -l` → **0**. Destructive, never run without the owner's per-call go |
-| 5 | gcp-003-configure-proj-sa-permissions | in csi-spl already | bootstrap; not touched |
-| 6 | gcp-004-project-apis-enable | in csi-spl already | bootstrap APIs only; not touched. Distinct from #37 |
-| 7 | gcp-add-iap-iam-policy-binding | not ported | csi-spl has no IAP |
-| 8 | gcp-build-and-push-api-image | not ported | rel api image + step 030-gcp-cloud-run; csi-spl builds/deploys the hub with `csi-spl-orc do_build_push_hub_image` / `20_hub-build-deploy.yml` and step `030-cloud-run-hub` |
-| 9 | gcp-check-iap-brand-org-internal | not ported | csi-spl has no IAP |
-| 10 | gcp-compute-lb-cleanup | **ported** | generic LB cleanup. diff → **0**. Destructive, never run without the owner's per-call go |
-| 11 | gcp-compute-lb-list | **ported** | generic LB list. diff → **0** |
-| 12 | gcp-create-org-admin-user | not ported | org/project-level identity mutation superseded by gcp-000..004 |
-| 13 | gcp-delete-cloud-run | not ported | same as #8: hub is `030-cloud-run-hub`, not the rel api Cloud Run action |
-| 14 | gcp-delete-service-account | **ported** | generic SA delete by email. diff → **0**. Destructive, never run without the owner's per-call go |
-| 15 | gcp-deploy-api-full | not ported | same as #8 |
-| 16 | gcp-deploy-cloud-function | not ported | no cloud functions in csi-spl |
-| 17 | gcp-deploy-cloud-run | not ported | same as #8 |
-| 18 | gcp-export-dns | **ported** | generic DNS export. diff → **0** |
-| 19 | gcp-export-dns-settings | **ported** | generic DNS settings dump. diff → **0** |
-| 20 | gcp-fetch-secrets | **ported** | Secret Manager fetch. diff → **0** |
-| 21 | gcp-import-to-cloudsql | **ported** | Cloud SQL import. diff → **0** |
-| 22 | gcp-list-buckets | **ported** | generic bucket list. diff → **0** |
-| 23 | gcp-list-cloudsql | **ported** | generic Cloud SQL list. diff → **0** |
-| 24 | gcp-list-firewall-rules | **ported** | generic firewall list. diff → **0** |
-| 25 | gcp-list-scheduler-jobs | **ported** | generic scheduler list. diff → **0** |
-| 26 | gcp-list-secrets | **ported** | generic Secret Manager list. diff → **0** |
-| 27 | gcp-list-service-accounts | **ported** | generic SA list. diff → **0** |
-| 28 | gcp-list-static-dns-addresses | **ported** | generic static address list. diff → **0** |
-| 29 | gcp-list-vpcs | **ported** | generic VPC list. diff → **0** |
-| 30 | gcp-modify-project-apis-disable | **ported** | generic API disable. diff → **4** (`gcloud --version` gained `--account="${account}"` for the pin-scan). Destructive, never run without the owner's per-call go |
-| 31 | gcp-modify-project-apis-enable | **ported** | generic API enable. diff → **4** (`gcloud --version` gained `--account="${account}"` for the pin-scan) |
-| 32 | gcp-modify-project-assign-owner | not ported | org/project-level identity mutation superseded by gcp-000..004 |
-| 33 | gcp-modify-project | not ported | org/project-level mutation superseded by gcp-000..004 |
-| 34 | gcp-modify-project-service-account-for-all-env | not ported | superseded by gcp-000..004 |
-| 35 | gcp-modify-project-service-account | not ported | superseded by gcp-000..004 |
-| 36 | gcp-project-apis-disable | **ported** | generic API disable (all listed services). diff → **4** (`gcloud --version` gained `--account="${account}"` for the pin-scan). Destructive, never run without the owner's per-call go |
-| 37 | gcp-project-apis-enable | **ported** | generic API enable (broader than bootstrap gcp-004). diff → **4** (`gcloud --version` gained `--account="${account}"` for the pin-scan) |
-| 38 | gcp-project-delete | **ported** | generic project delete. diff → **0**. Destructive, never run without the owner's per-call go (realm rule: never delete a project) |
-| 39 | gcp-remove-files-from-gs-found-in-web-host | not ported | rel web host |
-| 40 | gcp-remove-iap-iam-policy-binding | not ported | csi-spl has no IAP |
-| 41 | gcp-run-cloud-build | not ported | hardcoded paths |
-| 42 | gcp-s3-download-all | **ported** | GCS download. diff → **0** |
-| 43 | gcp-sm-secrets-to-env-file | **ported** | Secret Manager → env file. diff → **0** |
-| 44 | gcp-sync-local-to-s3 | **ported** | local → GCS. diff → **0** |
-| 45 | gcp-sync-s3-to-local | **ported** | GCS → local. diff → **0** |
-| 46 | gcp-sync-secrets | not ported | rel Google-Sheet secret source; csi-spl has none |
-| 47 | gcp-sync-src-bucket-data-to-tgt-bucket | **ported** | bucket → bucket. diff → **0** |
-| 48 | gcp-sync-src-s3-to-tgt-s3 | **ported** | GCS → GCS. diff → **0** |
-| 49 | gcp-sync-src-s3-to-tgt-s3-silent | **ported** | GCS → GCS silent. diff → **0** |
-| 50 | gcp-tail-logs | **ported** | Cloud Logging tail. diff → **0** |
-| 51 | gcp-update-secrets | not ported | rel Google-Sheet secret source; csi-spl has none |
-| 52 | gcp-user-stats | not ported | rel auth/payment log queries |
+| # | file | status | writes shared gcloud config | reason / rename-diff |
+|---|---|---|---|---|
+| 1 | gcp-000-bootstrap-gcp-env | in csi-spl already | n/a (other lane) | bootstrap; owned by the hub-cloud-deploy lane; not touched |
+| 2 | gcp-001-create-project | in csi-spl already | n/a (other lane) | bootstrap; not touched |
+| 3 | gcp-002-create-project-service-account | in csi-spl already | n/a (other lane) | bootstrap; not touched |
+| 4 | gcp-002-delete-project-service-account | **ported** | **no** (isolated) | generic SA delete. diff → **5** (wrap). Destructive, never run without the owner's per-call go |
+| 5 | gcp-003-configure-proj-sa-permissions | in csi-spl already | n/a (other lane) | bootstrap; not touched |
+| 6 | gcp-004-project-apis-enable | in csi-spl already | n/a (other lane) | bootstrap APIs only; not touched. Distinct from #37 |
+| 7 | gcp-add-iap-iam-policy-binding | not ported | n/a | csi-spl has no IAP |
+| 8 | gcp-build-and-push-api-image | not ported | n/a | rel api image + step 030-gcp-cloud-run; csi-spl builds/deploys the hub with `csi-spl-orc do_build_push_hub_image` / `20_hub-build-deploy.yml` and step `030-cloud-run-hub` |
+| 9 | gcp-check-iap-brand-org-internal | not ported | n/a | csi-spl has no IAP |
+| 10 | gcp-compute-lb-cleanup | **ported** | **no** (isolated) | generic LB cleanup. diff → **5**. Destructive, never run without the owner's per-call go |
+| 11 | gcp-compute-lb-list | **ported** | **no** (isolated) | generic LB list. diff → **5** |
+| 12 | gcp-create-org-admin-user | not ported | n/a | org/project-level identity mutation superseded by gcp-000..004 |
+| 13 | gcp-delete-cloud-run | not ported | n/a | same as #8: hub is `030-cloud-run-hub`, not the rel api Cloud Run action |
+| 14 | gcp-delete-service-account | **ported** | **no** (isolated) | generic SA delete by email. diff → **5**. Destructive, never run without the owner's per-call go |
+| 15 | gcp-deploy-api-full | not ported | n/a | same as #8 |
+| 16 | gcp-deploy-cloud-function | not ported | n/a | no cloud functions in csi-spl |
+| 17 | gcp-deploy-cloud-run | not ported | n/a | same as #8 |
+| 18 | gcp-export-dns | **ported** | **no** (isolated) | generic DNS export. diff → **5** |
+| 19 | gcp-export-dns-settings | **ported** | **no** (isolated) | generic DNS settings dump. diff → **5** |
+| 20 | gcp-fetch-secrets | **ported** | **no** (isolated) | Secret Manager fetch. diff → **5** |
+| 21 | gcp-import-to-cloudsql | **ported** | **no** (isolated) | Cloud SQL import. diff → **5** |
+| 22 | gcp-list-buckets | **ported** | **no** (isolated) | generic bucket list. diff → **5** |
+| 23 | gcp-list-cloudsql | **ported** | **no** (isolated) | generic Cloud SQL list. diff → **5** |
+| 24 | gcp-list-firewall-rules | **ported** | **no** (isolated) | generic firewall list. diff → **5** |
+| 25 | gcp-list-scheduler-jobs | **ported** | **no** (isolated) | generic scheduler list. diff → **5** |
+| 26 | gcp-list-secrets | **ported** | **no** (echo only) | generic Secret Manager list. diff → **0**. Does not invoke gcloud; only `echo`s commands |
+| 27 | gcp-list-service-accounts | **ported** | **no** (isolated) | generic SA list. diff → **5** |
+| 28 | gcp-list-static-dns-addresses | **ported** | **no** (isolated) | generic static address list. diff → **5** |
+| 29 | gcp-list-vpcs | **ported** | **no** (isolated) | generic VPC list. diff → **5** |
+| 30 | gcp-modify-project-apis-disable | **ported** | **no** (isolated) | generic API disable. diff → **9** (wrap + `--account` on `gcloud --version`). Destructive, never run without the owner's per-call go |
+| 31 | gcp-modify-project-apis-enable | **ported** | **no** (isolated) | generic API enable. diff → **9** |
+| 32 | gcp-modify-project-assign-owner | not ported | n/a | org/project-level identity mutation superseded by gcp-000..004 |
+| 33 | gcp-modify-project | not ported | n/a | org/project-level mutation superseded by gcp-000..004 |
+| 34 | gcp-modify-project-service-account-for-all-env | not ported | n/a | superseded by gcp-000..004 |
+| 35 | gcp-modify-project-service-account | not ported | n/a | superseded by gcp-000..004 |
+| 36 | gcp-project-apis-disable | **ported** | **no** (isolated) | generic API disable (all listed services). diff → **9**. Destructive, never run without the owner's per-call go |
+| 37 | gcp-project-apis-enable | **ported** | **no** (isolated) | generic API enable (broader than bootstrap gcp-004). diff → **9** |
+| 38 | gcp-project-delete | **ported** | **no** (isolated) | generic project delete. diff → **5**. Destructive, never run without the owner's per-call go (realm rule: never delete a project) |
+| 39 | gcp-remove-files-from-gs-found-in-web-host | not ported | n/a | rel web host |
+| 40 | gcp-remove-iap-iam-policy-binding | not ported | n/a | csi-spl has no IAP |
+| 41 | gcp-run-cloud-build | not ported | n/a | hardcoded paths |
+| 42 | gcp-s3-download-all | **ported** | **no** (isolated) | GCS download. diff → **5** |
+| 43 | gcp-sm-secrets-to-env-file | **ported** | **no** (isolated) | Secret Manager → env file. diff → **5** |
+| 44 | gcp-sync-local-to-s3 | **ported** | **no** (isolated) | local → GCS. diff → **5** |
+| 45 | gcp-sync-s3-to-local | **ported** | **no** (isolated) | GCS → local. diff → **5** |
+| 46 | gcp-sync-secrets | not ported | n/a | rel Google-Sheet secret source; csi-spl has none |
+| 47 | gcp-sync-src-bucket-data-to-tgt-bucket | **ported** | **no** (isolated) | bucket → bucket. diff → **5** |
+| 48 | gcp-sync-src-s3-to-tgt-s3 | **ported** | **no** (isolated) | GCS → GCS. diff → **5** |
+| 49 | gcp-sync-src-s3-to-tgt-s3-silent | **ported** | **no** (isolated) | GCS → GCS silent. diff → **5** |
+| 50 | gcp-tail-logs | **ported** | **no** (isolated) | Cloud Logging tail. diff → **5** |
+| 51 | gcp-update-secrets | not ported | n/a | rel Google-Sheet secret source; csi-spl has none |
+| 52 | gcp-user-stats | not ported | n/a | rel auth/payment log queries |
 
 Counts: 5 already in, 29 ported, 18 not ported. 5+29+18 = 52.
 

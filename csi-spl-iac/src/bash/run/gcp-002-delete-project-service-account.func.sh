@@ -2,6 +2,10 @@
 # @description Gcp 002 delete project service account.
 #------------------------------------------------------------------------------
 do_gcp_002_delete_project_service_account() {
+  local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
+  _spl_sdk_dir="$(mktemp -d)"
+  export CLOUDSDK_CONFIG="$_spl_sdk_dir"
+  trap 'rm -rf "$_spl_sdk_dir"; if [[ -n "$_spl_sdk_saved" ]]; then export CLOUDSDK_CONFIG="$_spl_sdk_saved"; else unset CLOUDSDK_CONFIG; fi; trap - RETURN' RETURN
   # Pin the gcloud identity for this run (spec 012 C-2). `--project` says WHERE
   # a call lands, never WHO it lands as, and `~/.config/gcloud` is one directory
   # shared by every agent on this box — `gcloud config set account` and

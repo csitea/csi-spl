@@ -7,6 +7,10 @@
 # @example ENV=prd SERVICE_KEY_FILE=$HOME/.gcp/.csi/key-sa-ci-csi-spl-prd-rdb.json GS_UTIL_URI=gs://csi-spl-prd-backups/csi-spl_db_backup_20250121.sql ./run -a do_gcp_import_to_cloudsql
 #------------------------------------------------------------------------------
 do_gcp_import_to_cloudsql() {
+  local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
+  _spl_sdk_dir="$(mktemp -d)"
+  export CLOUDSDK_CONFIG="$_spl_sdk_dir"
+  trap 'rm -rf "$_spl_sdk_dir"; if [[ -n "$_spl_sdk_saved" ]]; then export CLOUDSDK_CONFIG="$_spl_sdk_saved"; else unset CLOUDSDK_CONFIG; fi; trap - RETURN' RETURN
   # Pin the gcloud identity for this run (spec 012 C-2). `--project` says WHERE
   # a call lands, never WHO it lands as, and `~/.config/gcloud` is one directory
   # shared by every agent on this box — `gcloud config set account` and

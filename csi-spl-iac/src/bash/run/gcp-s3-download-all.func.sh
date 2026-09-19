@@ -10,6 +10,10 @@
 # @example ENV=dev GCP_PROJECT=custom-project-id ./run -a do_gcp_s3_download_all
 #------------------------------------------------------------------------------
 do_gcp_s3_download_all() {
+  local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
+  _spl_sdk_dir="$(mktemp -d)"
+  export CLOUDSDK_CONFIG="$_spl_sdk_dir"
+  trap 'rm -rf "$_spl_sdk_dir"; if [[ -n "$_spl_sdk_saved" ]]; then export CLOUDSDK_CONFIG="$_spl_sdk_saved"; else unset CLOUDSDK_CONFIG; fi; trap - RETURN' RETURN
 
   do_require_var ORG ${ORG:-}
   do_require_var APP ${APP:-}

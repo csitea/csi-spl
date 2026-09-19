@@ -34,7 +34,7 @@
 | Config SSOT | `csi-spl-cnf/csi-spl/all.env.yaml` | Set default `env.box.spool_root_other: "---"`, define proxy hops |
 | Hub REST API | `internal/hub/rest.go` | Require session or token verification on `handleGetFile` |
 | Payments & Root Key | `internal/payments/handler.go` | Remove root private key from `TenantWelcome` email template; enforce web-only interactive reveal |
-| Cloud Armor | `031-gcp-hub-ingress/03-cloud-armor.tf` | Implement edge rate-limiting rules for API and WebSocket paths; retire open `0.0.0.0/0` exception |
+| Edge limits (no LB, owner 2026-09-19) | `internal/edge`, `internal/hub/server.go`, cnf `hub.env.SPOOL_HUB_EDGE_*` | In-app per-IP socket/handshake/auth limits and socket timeouts (Cloud Armor superseded); `SPOOL_HUB_TRUSTED_PROXY_HOPS` per env from the measured chain |
 | WUI Deployment | `csi-spl-wui/firebase.json` | Parameterize `connect-src` for production domains; eliminate `'unsafe-inline'` script allowances |
 | CI/CD Pipeline | `017-github-wif-deploy`, `.github/workflows` | Apply WIF repo secrets/variables and enforce strict branch protection |
 
@@ -45,7 +45,7 @@
 1. **Local Box DAC:** Transition local agents to dedicated group membership before modifying permissions in `do_provision_spool_root` to prevent agent disruption.
 2. **Authenticated Blob Access:** Add session and capability checks to `handleGetFile` while keeping backward compatibility for active agents via WebSocket upload tokens.
 3. **Email Root Key Removal:** Update `TenantWelcome` template so only the tenant URL is emailed; ensure `checkout.vue` displays the private key securely in an unlogged modal.
-4. **Cloud Armor & Ingress Hardening:** Align Cloud Armor policies with production IP ranges and rate-limiting profiles.
-5. **WIF CI/CD Activation:** Apply step `017` terraform in GCP, export GitHub repository variables, and activate automated deployment pipelines.
+4. **In-App Edge Limits & Hop Pin:** Ship the hub's per-IP limits, measure the X-Forwarded-For chain of the Cloud Run domain mapping, then pin `SPOOL_HUB_TRUSTED_PROXY_HOPS` per env (Cloud Armor superseded by the owner's no-LB decision).
+5. **Deploy credentials:** superseded -- deploys use the per-env SA key secrets `GCP_KEY_CSI_SPL_<ENV>` (iac 120); WIF stays the alternative.
 
 <!-- version: 1.0.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:00:00Z -->

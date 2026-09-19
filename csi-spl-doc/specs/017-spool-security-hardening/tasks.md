@@ -32,11 +32,11 @@
 
 ---
 
-## Phase 4 — Perimeter Defense & Network Hardening (IAC / CLOUD ARMOR)
+## Phase 4 — Edge Limits In-App & Client-IP Trust (HUB / CNF; no LB, owner 2026-09-19)
 
-- [ ] T010 Planned (IAC lane) — Update `csi-spl-iac/src/terraform/031-gcp-hub-ingress/03-cloud-armor.tf`: implement Cloud Armor rate-limiting security rule for `/v1/ws`, `/v1/wui/ws`, and `/api/v1/auth/*` to prevent connection exhaustion and brute-force attacks. FR-SEC-004.
-- [ ] T011 Planned (CNF / DEPLOY) — Define production IP allowlists in `prd.env.yaml` to retire the temporary open `0.0.0.0/0` M1 ingress exception upon M2 sign-off. FR-SEC-004.
-- [ ] T012 Planned (CNF / DEPLOY) — Calibrate `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` in `dev.env.yaml` and `prd.env.yaml` to reflect the exact load balancer hops (Cloud Armor -> Cloud Run NEG), preventing IP spoofing in sliding-window rate limits. FR-SEC-006.
+- [ ] T010 Planned (HUB lane, CLE-3393) — In-app edge limits (Cloud Armor superseded: owner 2026-09-19, no LB, API on Cloud Run domain mappings as csi-rel). `internal/edge` + `hub.Server` middleware: per-client-IP concurrent-socket cap, per-IP handshake rate and a global socket cap on `/v1/ws` + `/v1/wui/ws` (refused `429` + `Retry-After` before the upgrade), per-IP request rate on `/api/v1/auth/*`, hello timeout and ping liveness timeout on both sockets; every limit is cnf `hub.env.SPOOL_HUB_EDGE_*`. Cloud Run limits stay cnf `hub.cloud_run.*`: `max_instances=1` (OQ-05, per-process socket map), `concurrency=1000`, `timeout_seconds=3600` (socket lifetime) — csi-rel's API runs 10 / 80 / 120 s, which does not fit a WebSocket hub (80 slots would be the whole flood budget). Check: CONTROL test in `internal/hub/edge_test.go` (the flood handshake succeeds with the limits off, is `429` with them on). FR-SEC-004.
+- [x] T011 Superseded (owner 2026-09-19: no load balancer, no Cloud Armor, so there is no edge allowlist to narrow; the per-IP limits of T010 replace it). FR-SEC-004.
+- [ ] T012 Planned (HUB / CNF, CLE-3393) — One knob `SPOOL_HUB_TRUSTED_PROXY_HOPS` (hub config) drives the edge limits and native auth (`SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` retired from cnf); set per env in `dev.env.yaml` / `prd.env.yaml` to the X-Forwarded-For chain MEASURED on the path in service with `csi-spl-orc ./run -a do_spl_probe_client_ip` (Cloud Run domain mapping once CLE-3382 cuts over; not assumed). Check: spoofed-XFF test (rotating the caller-written entry does not move the limit key). FR-SEC-006.
 
 ---
 
@@ -51,7 +51,7 @@
 
 - [x] T015 Implemented (`internal/auth/password.go`, `native_config.go`) — Enforce minimum Argon2id parameters (m >= 19 MiB, t >= 2) and refuse debug tokens in production environments. Check: `go test -run TestNativeConfigValidate ./internal/auth/` -> PASS. FR-SEC-008.
 - [x] T016 Implemented (`internal/store/postgres.go`) — Enforce parameterized database queries and prepared statements across all store operations, preventing SQL injection vulnerabilities. Check: `grep -rn "fmt.Sprintf.*SELECT" csi-spl-api/src/go/spool-hub-api/internal/store/` -> 0 hits. FR-SEC-010.
-- [~] T017 Partial (`017-github-wif-deploy`, `20_hub-build-deploy.yml`) — Apply `017-github-wif-deploy` terraform in GCP and populate GitHub repository variables `GCP_WIF_PROVIDER_*` and `GCP_DEPLOY_SA_EMAIL_*` to transition automated deployment away from manual out-of-band triggers. FR-SEC-011.
+- [x] T017 Superseded (owner 2026-09-19: key-based deploy, not WIF-first) — deploys authenticate with the per-env project SA key: GitHub secrets `GCP_KEY_CSI_SPL_DEV` / `GCP_KEY_CSI_SPL_PRD` (published by iac step `120-github-general-secrets`, `03-github-actions-secrets.tf`), consumed as `credentials_json` by `20_hub-build-deploy.yml` and `30_wui-build-deploy.yml`. Check: `gh secret list -R csitea/csi-spl` -> both names (2026-09-19); `grep -c credentials_json .github/workflows/20_hub-build-deploy.yml .github/workflows/30_wui-build-deploy.yml` -> 1 each. `017-github-wif-deploy` stays only the alternative the workflows fall back to. FR-SEC-011.
 - [x] T018 Implemented (`.github/workflows/10_ci-quality.yml`) — Distribution-hygiene automated sweep: zero personal names, literal OS users, personal home directories, or owner email addresses committed to version control. Check: `bash csi-spl-api/src/bash/tests/no-ysg-box-ref.tst.sh` -> PASS. FR-SEC-012.
 
 ## Phase 7 — Postgres Row Level Security, defense in depth (RDB / STORE, SEC-08, lane CLE-3395)

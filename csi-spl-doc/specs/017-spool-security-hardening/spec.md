@@ -50,13 +50,22 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   is rendered strictly once in the browser interface; email notifications must contain only the tenant URL and setup
   instructions, never the raw private seed.
 
-### 1.4 Public Cloud Armor Ingress Policy (`0.0.0.0/0`) & Connection Exhaustion
-- **Condition:** Cloud Armor allows `0.0.0.0/0` in dev and prd as an M1 exception. Cloud Run runs with
-  `max_instances=1` and `concurrency=1000`.
-- **Threat:** A slowloris or distributed connection exhaustion attack targeting WebSocket `/v1/ws` or `/v1/wui/ws`
-  can exhaust the 1,000 concurrent connection limit of the single instance, causing complete denial of service.
-- **Remediation Requirement:** (FR-SEC-004) Restore CIDR restriction or Cloud Armor rate limiting rules on
-  connection initiations (`SRC_IPS_V1` rate-based bans) and implement hub-level per-IP WebSocket connection quotas.
+### 1.4 Open Cloud Run Edge (`0.0.0.0/0`) & Connection Exhaustion
+- **Condition:** The hub is one Cloud Run instance (`max_instances=1`, OQ-05: the live-socket map is
+  per process) with `concurrency=1000` and a 3600 s request timeout; every WebSocket holds one of the
+  1,000 request slots for its lifetime. **Owner decision 2026-09-19: no load balancer and no Cloud Armor**
+  -- the API is served exactly as csi-rel serves its API, by Cloud Run domain mappings
+  (`api.spool-hub.ai`, `dev.api.spool-hub.ai`, per-tenant hosts; lane CLE-3382) with ingress `all`.
+  There is therefore no edge policy in front of the hub at all.
+- **Threat:** A slowloris or connection flood on `/v1/ws` or `/v1/wui/ws` exhausts the 1,000 slots of the
+  single instance (complete denial of service, sign-in included); a password spray on `/api/v1/auth/*`
+  meets only the in-process limits.
+- **Remediation Requirement:** (FR-SEC-004) In-app edge limits, keyed on the client IP (FR-SEC-006):
+  per-IP concurrent-socket and handshake-rate caps, a global socket cap below `concurrency` so REST and
+  sign-in keep slots under a flood, hello (handshake) and liveness (ping) timeouts on both sockets, and a
+  per-IP request rate on `/api/v1/auth/*`. Refusals are answered before the upgrade (`429` + `Retry-After`),
+  so a refused handshake never holds a slot. A distributed flood from many addresses is NOT stopped by
+  per-IP limits; that residual risk is accepted with the owner's no-LB decision.
 
 ### 1.5 Frontend Content Security Policy (CSP) Hardening
 - **Condition:** The Hosting CSP (rendered by `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh`;
@@ -67,13 +76,17 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 - **Remediation Requirement:** (FR-SEC-005) Transition to nonce-based or hash-based CSP, eliminate `'unsafe-inline'`,
   and parameterize `connect-src` with production API host patterns during build and deployment.
 
-### 1.6 Distributed Rate Limiting & Proxy Header Trust
-- **Condition:** Native auth rate limiting (`internal/auth/ratelimit.go`) is held in-process memory (`limiter`)
-  and defaults to `TrustedProxyHops: 0`.
-- **Threat:** Multi-instance scaling or container restarts reset rate limits. Incorrect proxy hops cause the
-  hub to evaluate internal Google Cloud proxy IPs rather than the true client IP.
-- **Remediation Requirement:** (FR-SEC-006) Store persistent rate counters or integrate Cloud Armor security
-  policies for brute-force protection, and pin `TrustedProxyHops` in configuration to match the exact proxy topology.
+### 1.6 Client-IP Trust (`X-Forwarded-For`)
+- **Condition:** Every per-IP limit (015 native auth, FR-SEC-004 edge) keys on `clientIP(r, hops)`: the
+  hops-th `X-Forwarded-For` entry from the right. Deployed hubs ran with `TrustedProxyHops: 0`, i.e. the
+  TCP peer, which on Cloud Run is a Google front-end address, not the caller.
+- **Threat:** Too few hops collapses every caller into one bucket (one client locks everyone out); too
+  many hops keys on a caller-written entry, so rotating a spoofed `X-Forwarded-For` bypasses every limit
+  (csi-rel measured exactly that bypass on its leftmost-entry key, `httpmw/ratelimit.go`, 2026-08-31).
+- **Remediation Requirement:** (FR-SEC-006) One knob, `SPOOL_HUB_TRUSTED_PROXY_HOPS`, set per env in cnf
+  to the MEASURED chain of the path in service (probe `do_spl_probe_client_ip`), and a test that a spoofed
+  `X-Forwarded-For` cannot move the limit key. Counters stay in process: with `max_instances=1` one
+  process sees every request, and the cross-instance mail floor is already in Postgres (015 FR-006a).
 
 ### 1.7 Tenant Isolation Rests on One Go `WHERE` Clause (SEC-08)
 - **Condition:** Every tenant-scoped table carries `tenant_id` (rdb 0001 FR-015), but isolation is enforced only by
@@ -116,9 +129,13 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   `TenantWelcome` email MUST omit the private key string, confining display to a single interactive web claim modal.
   *Status:* Planned.
 
-- **FR-SEC-004 (Edge Rate Limiting & Cloud Armor Hardening):** Cloud Armor security policies MUST enforce rate-limiting
-  rules on `/v1/ws`, `/v1/wui/ws`, and `/api/v1/auth/*` before traffic reaches Cloud Run.
-  *Status:* Planned.
+- **FR-SEC-004 (In-App Edge Limits; supersedes "Cloud Armor Hardening"):** With no load balancer (owner
+  2026-09-19), the hub itself MUST refuse, before the WebSocket upgrade, a handshake on `/v1/ws` or
+  `/v1/wui/ws` beyond a per-IP concurrent-socket cap, a per-IP handshake rate or a global socket cap, and a
+  request to `/api/v1/auth/*` beyond a per-IP rate (`429` + `Retry-After`); both sockets MUST enforce a hello
+  timeout and a ping liveness timeout. All limits are cnf (`hub.env.SPOOL_HUB_EDGE_*`); Cloud Run limits
+  stay cnf (`hub.cloud_run.*`).
+  *Status:* see tasks T010.
 
 - **FR-SEC-005 (CSP Hashes & Production Connect-Src):** Firebase Hosting configuration MUST replace `'unsafe-inline'`
   with build-time hashes or nonces and include the production domain and tenant subdomains in `connect-src`.
@@ -135,9 +152,10 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   never serves a deployed env.
   *Status:* Amended; tracked by tasks T013/T014.
 
-- **FR-SEC-006 (Proxy Hops Configuration):** `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` MUST be configured in
-  `dev.env.yaml` and `prd.env.yaml` to match Cloud Load Balancing + Cloud Run ingress topology.
-  *Status:* Planned.
+- **FR-SEC-006 (Proxy Hops Configuration):** `SPOOL_HUB_TRUSTED_PROXY_HOPS` MUST be set in
+  `dev.env.yaml` and `prd.env.yaml` to the measured `X-Forwarded-For` chain of the path in service (Cloud Run
+  domain mapping, no LB), and one value MUST drive both the edge limits and native auth.
+  *Status:* see tasks T012.
 
 - **FR-SEC-007 (Cryptographic Nonce Validation):** Hello handshake challenge nonces MUST be generated with 256 bits
   of cryptographically secure randomness and validated with constant-time equality comparisons.
@@ -155,9 +173,11 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   parameterized bindings (`$1, $2, ...`) with zero dynamic string interpolation for identifiers and clauses.
   *Status:* Implemented (`internal/store/postgres.go`).
 
-- **FR-SEC-011 (Workload Identity Federation Pinning):** CI/CD deploy credentials MUST use keyless Workload Identity
-  Federation pinned strictly to the repository and trunk branch ref.
-  *Status:* Partial (`017-github-wif-deploy` written, awaiting repository variable activation).
+- **FR-SEC-011 (Deploy Credential Pinning):** CI/CD deploy credentials MUST be per-env and scoped to one
+  project. *Superseded (owner 2026-09-19): deploys use the per-env project SA key, GitHub secret
+  `GCP_KEY_CSI_SPL_<ENV>` published by iac step `120-github-general-secrets`; workflows `20` and `30` auth
+  with `credentials_json`. WIF (`017-github-wif-deploy`) remains only the documented alternative.*
+  *Status:* Superseded (tasks T017).
 
 - **FR-SEC-012 (Audit Logging & Distribution Hygiene):** Server middleware MUST emit structured JSON logs withholding
   sensitive tokens, queries, and credentials, adhering to repo distribution hygiene standards.

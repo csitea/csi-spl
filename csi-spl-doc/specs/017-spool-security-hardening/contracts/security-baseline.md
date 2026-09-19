@@ -57,11 +57,11 @@ WUI, and cloud infrastructure).
            │ (HTTPS / WSS, Port 443)
            ▼
   ┌────────────────────────────────────────────────────────┐
-  │ Google Cloud Armor (WAF / Edge Protection)              │
-  │ - IP Allowlisting / Rate Limiting (M1: 0.0.0.0/0)       │
-  │ - L7 Host & Path Regex Narrowing                       │
+  │ Google Front End (Cloud Run domain mapping, no LB,      │
+  │ no Cloud Armor: owner 2026-09-19, as csi-rel)           │
+  │ - TLS termination, appends X-Forwarded-For              │
   └────────────────────────┬───────────────────────────────┘
-                           │ (Forward to Internal NEG)
+                           │ (ingress all; edge limits in-app, 017 FR-SEC-004)
                            ▼
   ┌────────────────────────────────────────────────────────┐
   │ Cloud Run Hub (`spool serve`, Distroless Static Nonroot)│

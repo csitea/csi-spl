@@ -54,4 +54,23 @@ render time so a new picture applies to old messages.
 No hotlinking random URLs as the stored avatar (XSS/tracking). Custom =
 our `file_id` only. No PII required (photo is optional).
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:10:00Z -->
+## 5. Your own picture, top right (CLE-3406)
+
+- Every sign-in with an IdP that sends a picture (Google `picture`, Facebook
+  Graph, OIDC `picture`) fetches it again on the hub and stores it hub-wide at
+  `avatars/<sha256>`. This happens with or without a tenant, and before an
+  invite is accepted. A tenant sign-in also puts `t/<tenant>/files/<sha256>`,
+  the file the roster names. A picture changed at the IdP shows after the
+  next sign-in.
+- The top-right corner reads `GET /api/v1/auth/avatar` (auth-v1 §1). It needs
+  the session only, no membership. A `404` falls back to the identicon for a
+  member HUM-*, or to initials otherwise.
+- Every picture renders as a `data:` URL. Each deployed CSP is
+  `img-src 'self' data:`, which blocks `blob:`, so the WUI never makes one.
+  `tests/unit/feed-avatar.test.mjs` pins that.
+- Microsoft: its id_token has no picture, and the Graph photo needs the
+  `User.Read` scope, which is not requested. So Microsoft users get the
+  fallback until the owner decides on that scope.
+- Live proof: `csi-spl-wui/tests/e2e/google-avatar-live.proof.mjs`.
+
+<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T16:32:00Z -->

@@ -1,7 +1,10 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { matchesSearch, newestFirst, parseOmnibox, rootAndReplies, windowed } from '../../src/utils/feed.mjs'
-import { avatarDataUri, avatarSvg, hashSeed, identiconSvg, isHuman, robotSvg } from '../../src/utils/avatar.mjs'
+import {
+  avatarAlt, avatarDataUri, avatarFilesFromView, avatarImageUrl, avatarSvg, hashSeed, identiconSvg, isHuman,
+  loadAvatarFiles, resetAvatarFiles, robotSvg,
+} from '../../src/utils/avatar.mjs'
 
 const M = (id, ts, extra = {}) => ({ msg_id: id, ts, body: `b-${id}`, from: 'HUM-1', ...extra })
 
@@ -73,5 +76,70 @@ describe('avatars (SPEC-spool-avatars §2)', () => {
     assert.equal(svg.includes('script'), false)
     assert.equal(svg.includes('box'), false)
     assert.ok(svg.startsWith('<svg') && svg.endsWith('</svg>'))
+  })
+})
+
+describe('stored IdP avatars (gap A5, view-v1 §4.1 humans)', () => {
+  const FID = 'ab'.repeat(32)
+  const ROSTER = {
+    boxes: [],
+    humans: [
+      { human_id: 'HUM-3', avatar_file_id: FID },
+      { human_id: 'HUM-4', avatar_file_id: null },
+      { human_id: 'HUM-5', avatar_file_id: '../../etc/passwd' },
+      { human_id: 'CLE-07', avatar_file_id: FID },
+    ],
+  }
+
+  it('keeps only member humans with a sha256 file_id', () => {
+    assert.deepEqual(avatarFilesFromView(ROSTER), { 'HUM-3': FID })
+    assert.deepEqual(avatarFilesFromView({ boxes: [] }), {})
+    assert.deepEqual(avatarFilesFromView(null), {})
+  })
+
+  it('builds the tenant-host file URL for a HUM-* with a picture, else "" (draw the default)', () => {
+    const files = avatarFilesFromView(ROSTER)
+    assert.equal(avatarImageUrl('http://t1.localhost:58081/', 'HUM-3', 'box-wui', files), `http://t1.localhost:58081/v1/files/${FID}`)
+    assert.equal(avatarImageUrl('', 'HUM-3', '', files), `/v1/files/${FID}`)
+    for (const [id, box] of [['HUM-4', 'box-wui'], ['HUM-9', ''], ['CLE-07', 'box-a'], ['HUM-3', 'box-a'], ['constructor', '']]) {
+      assert.equal(avatarImageUrl('http://h', id, box, files), '', `${id}@${box}`)
+    }
+    assert.equal(avatarImageUrl('http://h', 'HUM-3', '', { 'HUM-3': 'nope' }), '')
+  })
+
+  it('names who the picture is (alt text)', () => {
+    assert.equal(avatarAlt('HUM-3', 'box-wui'), 'avatar of HUM-3')
+    assert.equal(avatarAlt('CLE-07', 'box-a'), 'avatar of CLE-07@box-a')
+    assert.equal(avatarAlt(''), 'avatar')
+  })
+
+  it('reads the roster once per TTL for every avatar on the page, with the door credentials', async () => {
+    resetAvatarFiles()
+    const calls = []
+    const fetchFn = async (url, opts) => {
+      calls.push([url, opts])
+      return { ok: true, json: async () => ROSTER }
+    }
+    let t = 1000
+    const now = () => t
+    const o = { base: 'http://t1.test/', token: 'tok', credentials: 'include', fetchFn, now }
+    const [a, b] = await Promise.all([loadAvatarFiles(o), loadAvatarFiles(o)])
+    assert.deepEqual(a, { 'HUM-3': FID })
+    assert.equal(a, b)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0][0], 'http://t1.test/v1/view/roster')
+    assert.equal(calls[0][1].credentials, 'include')
+    assert.equal(calls[0][1].headers.authorization, 'Bearer tok')
+    t += 60_001
+    await loadAvatarFiles(o)
+    assert.equal(calls.length, 2)
+  })
+
+  it('falls back to no pictures on 401 / network error, never rejects', async () => {
+    resetAvatarFiles()
+    assert.deepEqual(await loadAvatarFiles({ base: 'http://a', fetchFn: async () => ({ ok: false, status: 401 }) }), {})
+    assert.deepEqual(await loadAvatarFiles({ base: 'http://b', fetchFn: async () => { throw new Error('down') } }), {})
+    assert.deepEqual(await loadAvatarFiles({ base: 'http://c', fetchFn: null }), {})
+    resetAvatarFiles()
   })
 })

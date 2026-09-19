@@ -117,3 +117,72 @@ export function avatarSvg(id, box) {
 export function avatarDataUri(id, box) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(avatarSvg(id, box))}`
 }
+
+/*
+ * Stored IdP pictures (gap A5; view-v1 §4.1 `humans`, 010 T044). The roster
+ * carries each member HUM-*'s avatar_file_id; the picture is GET
+ * /v1/files/{id} on the same tenant host. Anything missing or failing falls
+ * back to the deterministic default above.
+ */
+
+const FILE_ID_RE = /^[0-9a-f]{64}$/
+
+/** view-v1 §4.1 roster → { 'HUM-3': '<sha256 hex>' }; null / malformed ids are dropped. */
+export function avatarFilesFromView(data) {
+  const out = {}
+  for (const h of (data && Array.isArray(data.humans) ? data.humans : [])) {
+    const id = h && String(h.human_id || '')
+    const fid = h && typeof h.avatar_file_id === 'string' ? h.avatar_file_id : ''
+    if (isHuman(id) && FILE_ID_RE.test(fid)) out[id] = fid
+  }
+  return out
+}
+
+/**
+ * The picture URL for id@box, or '' (draw the default). Humans only, and only
+ * as themselves: a HUM-* on the browser box (or no box), never an agent id.
+ */
+export function avatarImageUrl(base, id, box, files) {
+  if (!isHuman(id) || (box && box !== 'box-wui')) return ''
+  const fid = files && Object.prototype.hasOwnProperty.call(files, id) ? String(files[id]) : ''
+  if (!FILE_ID_RE.test(fid)) return ''
+  return `${String(base || '').replace(/\/+$/, '')}/v1/files/${fid}`
+}
+
+/** Alt text: the id the card already names, so a screen reader hears who it is. */
+export function avatarAlt(id, box) {
+  const who = String(id || '') + (box && box !== 'box-wui' ? `@${box}` : '')
+  return who ? `avatar of ${who}` : 'avatar'
+}
+
+export const AVATAR_FILES_TTL_MS = 60_000
+const avatarLoads = new Map()
+
+/**
+ * One roster read per (base, token) per TTL, shared by every avatar on the
+ * page. Resolves {} on any failure (the default is drawn), never rejects.
+ */
+export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', fetchFn = globalThis.fetch, now = Date.now, ttlMs = AVATAR_FILES_TTL_MS } = {}) {
+  const root = String(base || '').replace(/\/+$/, '')
+  const key = `${root}\n${token}`
+  const hit = avatarLoads.get(key)
+  if (hit && now() - hit.at < ttlMs) return hit.promise
+  const headers = { accept: 'application/json' }
+  if (token) headers.authorization = `Bearer ${token}`
+  const promise = (async () => {
+    try {
+      if (typeof fetchFn !== 'function') return {}
+      const res = await fetchFn(`${root}/v1/view/roster`, { credentials, headers })
+      return res && res.ok ? avatarFilesFromView(await res.json()) : {}
+    } catch {
+      return {}
+    }
+  })()
+  avatarLoads.set(key, { at: now(), promise })
+  return promise
+}
+
+/** Test seam: forget every cached roster read. */
+export function resetAvatarFiles() {
+  avatarLoads.clear()
+}

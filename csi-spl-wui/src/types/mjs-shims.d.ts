@@ -209,4 +209,17 @@ declare module '~/utils/avatar.mjs' {
   export function identiconSvg(key: string): string
   export function avatarSvg(id: string, box?: string): string
   export function avatarDataUri(id: string, box?: string): string
+  export function avatarFilesFromView(data: unknown): Record<string, string>
+  export function avatarImageUrl(base: string, id: string, box: string | undefined, files: Record<string, string>): string
+  export function avatarAlt(id: string, box?: string): string
+  export const AVATAR_FILES_TTL_MS: number
+  export function loadAvatarFiles(o?: {
+    base?: string
+    token?: string
+    credentials?: RequestCredentials
+    fetchFn?: typeof fetch
+    now?: () => number
+    ttlMs?: number
+  }): Promise<Record<string, string>>
+  export function resetAvatarFiles(): void
 }

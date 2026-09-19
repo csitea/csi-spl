@@ -107,6 +107,12 @@ for p in "${pids[@]}"; do wait "$p" || rc=1; done
 [ "$rc" -eq 0 ] || { echo "FAIL - Postgres package suites"; exit 1; }
 echo "ok   - internal/store + internal/hub + internal/auth (015 CredStore) suites green against Postgres"
 
+# 017 T021 CONTROL: the RLS tests must RUN (not skip) as the plain owner role.
+rls="$(cd "$MOD" && SPOOL_TEST_PG_DSN="$(app_dsn spool_hub_store)" SPOOL_TEST_SQL_DIR="$SQL_DIR" \
+  go test -count=1 -run '^TestRLS' -v ./internal/store/ 2>&1)" || { echo "FAIL - RLS control: $rls"; exit 1; }
+[ "$(grep -c -- '--- PASS: TestRLS' <<<"$rls")" -eq 3 ] || { echo "FAIL - RLS control did not run: $rls"; exit 1; }
+echo "ok   - rdb 0014 RLS: tenant A's scope sees 0 rows of B in 12 tables; unscoped sees 0; without FORCE it leaked (CONTROL)"
+
 # 010 FR-014: the operator invite seats a first owner where bootstrap is off.
 INV_PUB="$("$BIN" root-keygen --out "$WORK/inv-root.key")"
 SPOOL_HUB_DB_DSN="$DSN" "$BIN" hub-tenant --tenant t-invite --root-pubkey "$INV_PUB" >/dev/null

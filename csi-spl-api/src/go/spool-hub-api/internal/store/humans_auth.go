@@ -33,7 +33,8 @@ var (
 	_ auth.IdentityUnlinker = AuthHooks{}
 )
 
-// Register maps ErrNotAdmitted to auth.ErrNotAllowed (auth_error=not_allowed).
+// Register maps ErrNotAdmitted and ErrSeatQuota to auth.ErrNotAllowed
+// (auth_error=not_allowed).
 // Identity.Email is provider-verified (auth FR-004), so it may match an invite.
 func (a AuthHooks) Register(ctx context.Context, id auth.Identity, tenant string) (string, error) {
 	now := time.Now
@@ -42,7 +43,9 @@ func (a AuthHooks) Register(ctx context.Context, id auth.Identity, tenant string
 	}
 	hum, err := a.H.Admit(ctx, Identity{Provider: id.Provider, Subject: id.Subject, Email: id.Email, Name: id.Name},
 		tenant, a.Policy, now().UTC())
-	if errors.Is(err, ErrNotAdmitted) {
+	// A new seat over the M4 cap (009 D-6): the redirect has no status, so it
+	// is not_allowed, and nothing was written.
+	if errors.Is(err, ErrNotAdmitted) || errors.Is(err, ErrSeatQuota) {
 		return "", auth.ErrNotAllowed
 	}
 	if err != nil {

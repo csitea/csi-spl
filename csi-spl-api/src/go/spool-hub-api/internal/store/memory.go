@@ -69,6 +69,10 @@ func (s *Memory) CreateTenant(_ context.Context, t Tenant) error {
 		}
 		return nil
 	}
+	if s.projectHeldLocked(t.ID, t.ProjectID) {
+		return ErrConflict
+	}
+	t.BoughtAt = t.BoughtAt.UTC()
 	s.tenants[t.ID] = t
 	s.ch.seedLocked(t.ID, time.Now().UTC())
 	return nil
@@ -181,6 +185,10 @@ func (s *Memory) TouchBox(_ context.Context, tenant, box string, now time.Time) 
 func (s *Memory) SetRoster(_ context.Context, tenant, box string, agents []string, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if t, ok := s.tenants[tenant]; ok && t.SeatsBots > 0 &&
+		overBotCap(t.SeatsBots, s.countBotsLocked(tenant), s.roster[[2]string{tenant, box}], agents) {
+		return ErrSeatQuota
+	}
 	s.boxes[[2]string{tenant, box}] = now
 	a := append([]string(nil), agents...)
 	sort.Strings(a)
@@ -386,3 +394,77 @@ func (s *Memory) MessageTimes(_ context.Context, tenant, msgID string) (time.Tim
 }
 
 func (s *Memory) Close() {}
+
+// ---- M4 seats (seats.go) ------------------------------------------------------
+
+func (s *Memory) projectHeldLocked(tenant, projectID string) bool {
+	if projectID == "" {
+		return false
+	}
+	for id, t := range s.tenants {
+		if id != tenant && t.ProjectID == projectID {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Memory) countBotsLocked(tenant string) int {
+	n := 0
+	for k, a := range s.roster {
+		if k[0] != tenant {
+			continue
+		}
+		for _, id := range a {
+			if isBot(id) {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func (s *Memory) CountMembers(_ context.Context, tenant string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.hum.memberCount(tenant), nil
+}
+
+func (s *Memory) CountBots(_ context.Context, tenant string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.countBotsLocked(tenant), nil
+}
+
+func (s *Memory) SetSeatCaps(_ context.Context, tenant string, users, bots int) error {
+	if err := checkSeatCaps(users, bots); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	t, ok := s.tenants[tenant]
+	if !ok {
+		return ErrNotFound
+	}
+	t.SeatsUsers, t.SeatsBots = users, bots
+	s.tenants[tenant] = t
+	return nil
+}
+
+func (s *Memory) SetBuyStamp(_ context.Context, tenant, org, app, projectID string, boughtAt time.Time) error {
+	if err := checkBuyStamp(org, app, projectID); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	t, ok := s.tenants[tenant]
+	if !ok {
+		return ErrNotFound
+	}
+	if s.projectHeldLocked(tenant, projectID) {
+		return ErrConflict
+	}
+	t.Org, t.App, t.ProjectID, t.BoughtAt = org, app, projectID, boughtAt.UTC()
+	s.tenants[tenant] = t
+	return nil
+}

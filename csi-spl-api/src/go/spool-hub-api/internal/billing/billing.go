@@ -32,6 +32,9 @@ const (
 const (
 	HTTPUnpaid = 402
 	HTTPQuota  = 429
+	// HTTPSeatQuota: a NEW M4 seat over the tenant's cap (specs/009 D-3,
+	// 003 error-envelope). Token TokenQuota, like the message quota.
+	HTTPSeatQuota = 402
 )
 
 // MapEvent is the payment.md table: a paid/unpaid/refund event becomes a

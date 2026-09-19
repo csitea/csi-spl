@@ -35,13 +35,29 @@ const (
 	StateExpired = "expired"
 )
 
-// Tenant is one renter (006). Only the root PUBLIC key is kept. Quotas are
-// the plan's (cnf), not per-row columns (006 FR-008, OQ-006-1).
+// ErrSeatQuota refuses a NEW M4 seat over the tenant's cap (009 D-3): a new
+// membership in Admit, or a roster replace that adds an agent in SetRoster.
+// Nothing was written. HTTP 402, token quota (003 error-envelope).
+var ErrSeatQuota = errors.New("seat quota")
+
+// Tenant is one renter (006). Only the root PUBLIC key is kept. Message,
+// pin and byte quotas are the plan's (cnf), not per-row columns (006 FR-008,
+// OQ-006-1); the M4 seat caps are per tenant because they are bought
+// (rdb 0012, 009 D-2).
 type Tenant struct {
 	ID            string
 	RootPubKey    ed25519.PublicKey
 	BillingStatus string
 	PlanID        string
+	// M4 buy-time identity (009 FR-004); "" / zero = NULL. Hosted M2 leaves
+	// ProjectID empty.
+	Org       string
+	App       string
+	ProjectID string
+	BoughtAt  time.Time
+	// M4 paid seats; 0 = M4 off (unlimited) for that kind.
+	SeatsUsers int
+	SeatsBots  int
 }
 
 func normalizeTenant(t *Tenant) error {
@@ -57,7 +73,12 @@ func normalizeTenant(t *Tenant) error {
 	if t.PlanID == "" {
 		t.PlanID = "default"
 	}
-	return nil
+	if t.Org != "" || t.App != "" || t.ProjectID != "" || !t.BoughtAt.IsZero() {
+		if err := checkBuyStamp(t.Org, t.App, t.ProjectID); err != nil {
+			return err
+		}
+	}
+	return checkSeatCaps(t.SeatsUsers, t.SeatsBots)
 }
 
 // Pin is one pinned box public key.
@@ -169,6 +190,9 @@ type Store interface {
 
 	// M2 checkouts and payment events (payments.go, checkout-v1).
 	Payments
+
+	// M4 seat caps, occupancy counts and the buy stamp (seats.go, 009).
+	Seats
 
 	Close()
 }

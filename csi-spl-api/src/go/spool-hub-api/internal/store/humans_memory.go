@@ -78,6 +78,10 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 			} else {
 				return "", ErrNotAdmitted
 			}
+			// A new membership is a new user seat (009 D-3); refuse over cap.
+			if c := s.tenants[tenant].SeatsUsers; c > 0 && h.memberCount(tenant) >= c {
+				return "", ErrSeatQuota
+			}
 		}
 	}
 	if !known {

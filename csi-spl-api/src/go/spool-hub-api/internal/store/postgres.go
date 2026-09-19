@@ -42,9 +42,15 @@ func (s *Postgres) CreateTenant(ctx context.Context, t Tenant) error {
 	if err := normalizeTenant(&t); err != nil {
 		return err
 	}
-	tag, err := s.pool.Exec(ctx, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id)
-		VALUES ($1, $2, $3, $4) ON CONFLICT (tenant_id) DO NOTHING`,
-		t.ID, []byte(t.RootPubKey), t.BillingStatus, t.PlanID)
+	tag, err := s.pool.Exec(ctx, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id,
+		org, app, project_id, bought_at, seats_users, seats_bots)
+		VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10)
+		ON CONFLICT (tenant_id) DO NOTHING`,
+		t.ID, []byte(t.RootPubKey), t.BillingStatus, t.PlanID,
+		t.Org, t.App, t.ProjectID, nullTime(t.BoughtAt), t.SeatsUsers, t.SeatsBots)
+	if isUniqueViolation(err) {
+		return ErrConflict // project_id held by another tenant (0012 partial index)
+	}
 	if err != nil {
 		return err
 	}
@@ -64,12 +70,18 @@ func (s *Postgres) CreateTenant(ctx context.Context, t Tenant) error {
 func (s *Postgres) GetTenant(ctx context.Context, id string) (Tenant, error) {
 	var t Tenant
 	var root []byte
-	err := s.pool.QueryRow(ctx, `SELECT tenant_id, root_pubkey, billing_status, plan_id
-		FROM tenants WHERE tenant_id = $1`, id).Scan(&t.ID, &root, &t.BillingStatus, &t.PlanID)
+	var bought *time.Time
+	err := s.pool.QueryRow(ctx, `SELECT tenant_id, root_pubkey, billing_status, plan_id,
+		COALESCE(org, ''), COALESCE(app, ''), COALESCE(project_id, ''), bought_at, seats_users, seats_bots
+		FROM tenants WHERE tenant_id = $1`, id).Scan(&t.ID, &root, &t.BillingStatus, &t.PlanID,
+		&t.Org, &t.App, &t.ProjectID, &bought, &t.SeatsUsers, &t.SeatsBots)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Tenant{}, ErrNotFound
 	}
 	t.RootPubKey = ed25519.PublicKey(root)
+	if bought != nil {
+		t.BoughtAt = bought.UTC()
+	}
 	return t, err
 }
 
@@ -186,6 +198,9 @@ func (s *Postgres) TouchBox(ctx context.Context, tenant, box string, now time.Ti
 
 func (s *Postgres) SetRoster(ctx context.Context, tenant, box string, agents []string, now time.Time) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := s.botSeatGate(ctx, tx, tenant, box, agents); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `INSERT INTO boxes (tenant_id, box_id) VALUES ($1, $2)
 			ON CONFLICT (tenant_id, box_id) DO NOTHING`, tenant, box); err != nil {
 			return mapFK(err)

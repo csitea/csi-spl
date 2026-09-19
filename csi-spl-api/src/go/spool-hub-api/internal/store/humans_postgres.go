@@ -70,9 +70,10 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 }
 
 func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant string, p AdmitPolicy, now time.Time) error {
-	// The tenant row lock serialises bootstrap: one owner, not two.
-	var one int
-	err := tx.QueryRow(ctx, `SELECT 1 FROM tenants WHERE tenant_id = $1 FOR UPDATE`, tenant).Scan(&one)
+	// The tenant row lock serialises bootstrap (one owner, not two) and the
+	// user-seat count (009 D-3: two first sign-ins cannot both take the last seat).
+	var capUsers int
+	err := tx.QueryRow(ctx, `SELECT seats_users FROM tenants WHERE tenant_id = $1 FOR UPDATE`, tenant).Scan(&capUsers)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotAdmitted
 	}
@@ -85,7 +86,19 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 		return err
 	}
 	if member {
-		return nil
+		return nil // re-login never consumes a seat
+	}
+	if capUsers > 0 {
+		var n int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM tenant_memberships WHERE tenant_id = $1`,
+			tenant).Scan(&n); err != nil {
+			return err
+		}
+		if n >= capUsers {
+			// Checked before the invite/bootstrap path: a refusal writes
+			// nothing, not even the invite's accepted_at.
+			return ErrSeatQuota
+		}
 	}
 	if email != "" {
 		var role, by string

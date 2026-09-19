@@ -189,10 +189,12 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 	x := &session{srv: s, conn: conn, tenant: t.ID, box: f.BoxID, role: f.Role, follows: map[string]bool{},
 		welcomed: make(chan struct{})}
 	if f.Role == wire.RoleBox {
-		if err := s.o.Store.SetRoster(ctx, t.ID, f.BoxID, f.Agents, now); err != nil {
+		agents, err := s.seatRoster(ctx, t.ID, f.BoxID, f.Agents, now)
+		if err != nil {
 			conn.CloseNow() //nolint:errcheck
 			return nil, false
 		}
+		f.Agents = agents
 		if err := s.o.Store.SetSubscriptions(ctx, t.ID, f.BoxID, f.Agents, f.Channels, now); err != nil {
 			conn.CloseNow() //nolint:errcheck
 			return nil, false
@@ -309,7 +311,11 @@ func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []
 		return
 	}
 	before, _ := s.o.Store.Roster(ctx, x.tenant)
-	if err := s.o.Store.SetRoster(ctx, x.tenant, x.box, agents, s.o.Now()); err != nil {
+	if err := s.o.Store.SetRoster(ctx, x.tenant, x.box, agents, s.o.Now()); errors.Is(err, store.ErrSeatQuota) {
+		// A new bot seat over the M4 cap (009 D-3): the previous roster stands.
+		x.fail(ctx, "", billing.TokenQuota, billing.HTTPSeatQuota, "bot seat cap reached: roster not updated")
+		return
+	} else if err != nil {
 		x.fail(ctx, "", "internal", http.StatusInternalServerError, "roster not stored")
 		return
 	}
@@ -320,6 +326,34 @@ func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []
 	s.broadcastRoster(ctx, x.tenant, nil)
 	s.presence(ctx, x.tenant, x.box, diffAgents(agents, before[x.box]), "online")
 	s.presence(ctx, x.tenant, x.box, diffAgents(before[x.box], agents), "offline")
+}
+
+// seatRoster stores a hello's roster. Over the M4 bot-seat cap (009 D-5) it
+// keeps the box's already-seated agents (old ∩ new) and drops the additions,
+// so existing peers keep working; the next announce is answered 402 quota.
+// It returns the agents actually stored.
+func (s *Server) seatRoster(ctx context.Context, tenant, box string, agents []string, now time.Time) ([]string, error) {
+	err := s.o.Store.SetRoster(ctx, tenant, box, agents, now)
+	if !errors.Is(err, store.ErrSeatQuota) {
+		return agents, err
+	}
+	before, err := s.o.Store.Roster(ctx, tenant)
+	if err != nil {
+		return nil, err
+	}
+	had := map[string]bool{}
+	for _, a := range before[box] {
+		had[a] = true
+	}
+	keep := []string{}
+	for _, a := range agents {
+		if had[a] {
+			keep = append(keep, a)
+		}
+	}
+	s.o.Log.Warn().Str("tenant", tenant).Str("box", box).Int("announced", len(agents)).Int("seated", len(keep)).
+		Msg("ws hello over bot seat cap: new agents not seated")
+	return keep, s.o.Store.SetRoster(ctx, tenant, box, keep, now)
 }
 
 // broadcastRoster pushes the tenant roster to every role=box session except skip.

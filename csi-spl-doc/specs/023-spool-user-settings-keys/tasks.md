@@ -17,9 +17,9 @@
 
 ## Phase 3 — WUI
 
-- [ ] T020 `/settings` parent layout (left nav, right `<NuxtPage/>`), sections as child routes, `/settings` → `/settings/profile`; content moved out of the old page, not copied.
-- [ ] T021 `utils/human-keys.mjs` (browser keygen via WebCrypto, spool + OpenSSH encodings, fingerprint, keys-v1 client) + `KeysSetting.vue`. Check: `node tests/unit/human-keys.test.mjs` (encodings cross-checked against Node's Ed25519).
-- [ ] T022 i18n keys in all 19 locales (en placeholders; translation = 021 T011, CLE-3403).
+- [x] T020 `/settings` parent layout (left nav, right `<NuxtPage/>`), sections as child routes, `/settings` → `/settings/profile`; content moved out of the old page, not copied.
+- [x] T021 `utils/human-keys.mjs` (browser keygen via WebCrypto, spool + OpenSSH encodings, fingerprint, keys-v1 client) + `KeysSetting.vue`. Check: `node tests/unit/human-keys.test.mjs` (encodings cross-checked against Node's Ed25519; fingerprints pinned to `ssh-keygen -lf`); `nuxi typecheck` clean; `tests/e2e/no-x-scroll.test.mjs` 52/52 incl. `/settings/keys` at 390 + 1280; live proof script `tests/e2e/settings-keys-live.proof.mjs`.
+- [x] T022 i18n keys in all 19 locales (`add_keys.py`, 39 keys; `i18n-parity` green) (en placeholders; translation = 021 T011, CLE-3403).
 
 ## Phase 4 — Proof
 

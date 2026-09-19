@@ -35,6 +35,7 @@ const PATHS = [
   { path: '/t/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', wait: '.spool-shell' },
   { path: '/channel/lobby', wait: '.spool-shell' },
   { path: '/dm/CLE-07%40box-a', wait: '.spool-shell' },
+  { path: '/settings/keys', wait: '[data-test=settings]' },
 ]
 
 // spec 021 FR-007: the same guard in every shipped locale (long strings,

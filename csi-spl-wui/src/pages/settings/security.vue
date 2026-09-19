@@ -1,0 +1,49 @@
+<!-- Settings → Sign-in and security (CLE-3402's card, specs/023 §3.4):
+     sign-in method, password change (native-auth-v1 §2, password sessions
+     only) and sign out. -->
+<template>
+  <SettingsSection id="settings-signin" :title="t('settings.signin_security')" data-test="settings-signin">
+    <div class="settings__row">
+      <span>{{ t('settings.signed_in_with') }}</span>
+      <strong data-test="settings-method">{{ method }}</strong>
+    </div>
+    <ChangePasswordForm v-if="me.method === 'password'" @changed="changed = true" />
+    <p v-else class="muted settings__hint">{{ t('settings.password_managed_by', { method }) }}</p>
+    <div class="settings__actions">
+      <button class="btn ghost" type="button" data-test="settings-signout" @click="session.logout()">
+        {{ t('user_menu.sign_out') }}
+      </button>
+    </div>
+  </SettingsSection>
+</template>
+
+<script setup lang="ts">
+import ChangePasswordForm from '~/components/ChangePasswordForm.vue'
+import SettingsSection from '~/components/SettingsSection.vue'
+import { useSessionStore } from '~/stores/session'
+import { methodLabelKey, userIdentity } from '~/utils/user-menu.mjs'
+
+const session = useSessionStore()
+const { t } = useI18n({ useScope: 'global' })
+const me = computed(() => userIdentity(session.claims))
+/* the sign-in method in words, in the active locale (spec 021) */
+const method = computed(() => {
+  const k = methodLabelKey(me.value.method)
+  return t(k.key, k.params)
+})
+/* read by pages/settings.vue once the 204 has signed this browser out */
+const changed = useState('settings-password-changed', () => false)
+</script>
+
+<style scoped>
+.settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-height: var(--tap, 44px);
+}
+.settings__hint { font-size: 13px; margin: 10px 0 0; }
+.settings__actions { margin-top: 12px; }
+</style>

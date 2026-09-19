@@ -91,12 +91,17 @@ try {
     // Settings
     await trig.click()
     await p.click('[data-test=user-menu-settings]')
+    // specs/023 §3.4: /settings redirects to /settings/profile; a left nav of sections
     await p.waitForSelector('[data-test=settings-profile]', { timeout: 15000 })
-    const sections = await p.evaluate(() => [...document.querySelectorAll('[data-test=settings] section h3')].map((h) => h.textContent.trim()))
+    const sections = await p.evaluate(() => [...document.querySelectorAll('[data-test=settings-nav] a')].map((a) => a.textContent.trim()))
+    const profileUrl = p.url()
+    await p.click('[data-test=settings-nav-security]')
+    await p.waitForSelector('[data-test=settings-method]', { timeout: 15000 })
     const method = await p.$eval('[data-test=settings-method]', (e) => e.textContent.trim())
     const pwForm = !!(await p.$('[data-test=change-password]'))
-    step('settings page', p.url().endsWith('/settings') && sections.includes('Language') && pwForm && method === 'Email and password',
-      { url: p.url(), sections, method, changePasswordForm: pwForm, xscroll: await xscroll(p) })
+    step('settings page', profileUrl.endsWith('/settings/profile') && p.url().endsWith('/settings/security') &&
+      sections.includes('Language') && sections.includes('Keys') && pwForm && method === 'Email and password',
+      { url: p.url(), profileUrl, sections, method, changePasswordForm: pwForm, xscroll: await xscroll(p) })
     await p.screenshot({ path: `${OUT}/settings-desktop.png`, fullPage: true })
     await p.setViewport({ width: 390, height: 844 })
     await new Promise((r) => setTimeout(r, 500))

@@ -42,6 +42,7 @@ const PATHS = split(process.env.PATHS, [
   '/channel/general',
   '/channel/tasks',
   '/t/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  '/settings/keys',
   '/no-such-page',
 ])
 if (!['blocked', 'runs'].includes(EXPECT_CONTROL)) throw new Error(`EXPECT_CONTROL=${EXPECT_CONTROL}`)

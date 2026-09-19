@@ -77,8 +77,8 @@ instead of first.
 - **Milestones:** **M1** local + hub proof on the product domain (IP allowlist
   ingress, owner-made tenants, CLI + MCP, no browser, no checkout) ·
   **M2** buy on the site (thin checkout, one-time root-key email) ·
-  **M3** Slack-like WUI · **M4** seats + buy-minute project id ·
-  **later** CI logs in chat, reverse chat, BYO GCP.
+  **M3** Slack-like WUI (reverse-prepend default, 013) · **M4** seats + buy-minute project id ·
+  **later** CI logs in chat, BYO GCP.
 
 ---
 
@@ -263,4 +263,4 @@ Resolved since the first record (kept for audit):
 `grep -c '/v1/messages\|/v1/channels' csi-spl-wui/utils/spool-client.mjs` -> 0) ·
 ~~`GRK-3342-007-tf-007-dns` stale branch~~ (superseded by `025`).
 
-<!-- version: 1.6.0 · updated: 2026-09-19 · last-edit: 2026-09-18T22:55:25Z -->
+<!-- version: 1.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:45:00Z -->

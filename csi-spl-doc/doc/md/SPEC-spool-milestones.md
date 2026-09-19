@@ -109,12 +109,41 @@ Humans and agents chat on the **spool-hub.ai web interface**, Slack-like:
 threads, command any agent, same `v:1` bus. `SPEC-spool-wui.md` /
 `csi-spl-wui`.
 
+**Default chat UX (C1):** reverse-prepend is the M3 default (not later, not
+an option). The Top Omnibox sits at the top of the middle pane; new messages
+prepend newest-first under it; scrolling down fetches older history. Binding:
+`SPEC-spool-chat-reverse.md` / `specs/013-spool-chat-reverse/` (013 T001–T008
+Implemented on trunk). CLI / `spool-tail` stay oldest-first. Display only —
+`v:1` `ts` / `msg_id` / `task_id` do not change.
+
+**OQ-C1** (recorded as the shipped default): (a) reverse-prepend is the M3
+default — **this file takes (a)**, matching `SPEC-spool-chat-reverse.md`
+("adopted as default M3 UX") and 013. (b) keep append-at-bottom as the M3
+default and leave reverse as a later option (the v0.3.0 Later text).
+
 **Hosting: the same setup as csi-rel and pas-psf** — static WUI (Firebase
 Hosting path) + Cloud Run API. Copy that WUI infra, not the shop pages.
 Authenticated renter: **Google, Facebook, Microsoft, LinkedIn, xAI**
 (`SPEC-spool-social-auth.md`; Google/Facebook forked from pas-psf and
 csi-rel). Not GCP IAM per agent.
 Not started until M1 is done (dev+prd infra) and M2 can sell.
+
+**OQ-C8 — M3 gate vs git log (owner; unanswered).** The sentence above is
+the binding gate: M3 starts only after the M1 demo is done and M2 can sell.
+Most recent trunk commits are M3 WUI while M1 cloud demo and M2 checkout
+remain Planned. This file does **not** pick (a) or (b).
+
+Evidence (n=1 each; re-measure on the tree you read):
+
+| Check | Result |
+|---|---|
+| `command grep -n 'T011c' csi-spl-doc/specs/006-spool-hub-rental/tasks.md` | Planned (M1 cloud demo: owner-made tenant, two real machines) |
+| `command grep -nE 'T018 \|T019 \|T020 \|T021 ' csi-spl-doc/specs/006-spool-hub-rental/tasks.md` | all four Planned (M2 payment + thin checkout) |
+
+(a) Relax the gate: keep M3 WUI work on trunk; M1 demo + M2 sell remain
+required for *public* rollout, not for further WUI commits.
+(b) Enforce the gate: M1/M2 lanes go first; park further M3 until 006 T011c
+and T018–T021 are Implemented.
 
 ---
 
@@ -141,9 +170,6 @@ Dedicated **billing grant** (their GCP card) remains the later BYO SKU
 run logs and **post them into the same chats**. Binding:
 `SPEC-spool-cicd-logs.md` / `specs/008-spool-cicd-logs/`. **Not M1–M3.**
 
-Also later: WUI **option** to reverse chats (composer at top, prepend)
-— `SPEC-spool-chat-reverse.md`. M3 default remains append-at-bottom.
-
 Also later: **dedicated GCP SKU** — they pay Google with their card; you
 provision (`SPEC-spool-byo-gcp.md`). Does **not** replace M2 hosted checkout.
 
@@ -151,7 +177,13 @@ provision (`SPEC-spool-byo-gcp.md`). Does **not** replace M2 hosted checkout.
 
 **M1 proto** (local + spool-hub.ai, infra on **dev and prd**) →
 **M2 public MVP** (thin checkout + one-time email of URL and root key) →
-**M3 rollout** (Slack WUI) → **M4** (seats + buy-minute project id) →
-**later** CI logs, reverse-chat, BYO GCP billing.
+**M3 rollout** (Slack WUI, reverse-prepend default) → **M4** (seats + buy-minute project id) →
+**later** CI logs, BYO GCP billing.
 
-<!-- version: 0.3.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:24:15Z -->
+## Changelog
+
+- **0.4.0** (2026-09-19): C1 — reverse-prepend is the M3 default (013 shipped);
+  drop it from Later / Order. OQ-C1 takes (a). C8 — record OQ-C8 (a) relax
+  the M3 gate / (b) M1/M2 lanes first; unanswered.
+
+<!-- version: 0.4.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:45:00Z -->

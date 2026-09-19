@@ -12,6 +12,8 @@ name: "10 ci: quality gate"
 # NO `pull_request:` trigger: trunk-based repo, no pull requests.
 #
 # The WUI (csi-spl-wui) has its own job below: unit tests + typecheck.
+# iac-suite, orc-suite and cnf-suite (016 T003-T005) run the bash suites of
+# csi-spl-iac, csi-spl-orc and csi-spl-cnf; none of them holds a GCP identity.
 
 on:
   workflow_dispatch: {}
@@ -104,6 +106,183 @@ jobs:
 
       - name: Typecheck
         run: pnpm run typecheck
+
+  # ===========================================================================
+  # The IAC suite (016 T003): csi-spl-iac/src/bash/tests/run-all-tests.sh --
+  # tfvars parity against a fresh tpl-gen render, the per-step contracts
+  # (025/028/030/031/017/019/120), no key in tf / tree, terraform fmt +
+  # validate of every step with its T070 control. SPL_TF_ALLOW_SKIP is NOT
+  # set: a missing terraform or tpl-gen is a FAIL there (007 T070), and any
+  # SKIP/PARTIAL line is failed here too. terraform is the version the
+  # operator runs (1.9.8); tpl-gen is the pinned cnf/tpl-gen.ref, installed by
+  # the named action do_setup_tpl_gen. Network: GitHub (tpl-gen), PyPI,
+  # registry.terraform.io (providers for `init -backend=false`). No GCP.
+  # ===========================================================================
+  iac-suite:
+    name: "iac: tfvars parity, step contracts, terraform validate"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up terraform 1.9.8
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: tpl-gen at the pin (do_setup_tpl_gen)
+        working-directory: csi-spl-iac
+        env:
+          TPL_GEN_REPO_URL: https://github.com/csitea/tpl-gen.git
+        run: ./run -a do_setup_tpl_gen
+
+      # Proof that the suite reaches no GCP: gcloud / gsutil / bq on PATH are
+      # traps that log their argv and fail, there is no key, no ADC and an
+      # empty CLOUDSDK_CONFIG. A test that stubs gcloud puts its stub first on
+      # PATH and never reaches the trap; any line in the trap log is a test
+      # that tried the real CLI, and fails the job below.
+      - name: Trap gcloud / gsutil / bq (no GCP from this job)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/gcp-trap" "$RUNNER_TEMP/gcloud-empty"
+          for b in gcloud gsutil bq; do
+            printf '#!/bin/sh\necho "%s $*" >>"%s"\nexit 1\n' "$b" "$RUNNER_TEMP/gcp-trap.log" >"$RUNNER_TEMP/gcp-trap/$b"
+            chmod +x "$RUNNER_TEMP/gcp-trap/$b"
+          done
+          : >"$RUNNER_TEMP/gcp-trap.log"
+          echo "$RUNNER_TEMP/gcp-trap" >>"$GITHUB_PATH"
+          echo "CLOUDSDK_CONFIG=$RUNNER_TEMP/gcloud-empty" >>"$GITHUB_ENV"
+          [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" && ! -e "$HOME/.gcp" ]] || { echo "::error::a GCP credential is present on the runner"; exit 1; }
+
+      - name: run-all-tests.sh
+        run: |
+          set -euo pipefail
+          unset SPL_TF_ALLOW_SKIP
+          bash csi-spl-iac/src/bash/tests/run-all-tests.sh 2>&1 | tee "$RUNNER_TEMP/iac-suite.log"
+
+      - name: No test reached GCP (the trap log is empty)
+        if: always()
+        run: |
+          if [[ -s "$RUNNER_TEMP/gcp-trap.log" ]]; then
+            echo "::error::a test called the real gcloud/gsutil/bq -- this suite must be offline"
+            sed 's/^/  /' "$RUNNER_TEMP/gcp-trap.log"
+            exit 1
+          fi
+          echo "ok - no gcloud / gsutil / bq call reached the runner's CLI"
+
+      - name: Nothing skipped (a skip is a failure in CI)
+        run: |
+          set -euo pipefail
+          if grep -E '^(SKIP|PARTIAL):' "$RUNNER_TEMP/iac-suite.log"; then
+            echo "::error::an iac check skipped in CI -- it proved nothing. Fix the runner setup above."
+            exit 1
+          fi
+          grep -q '^PASS: all tf-steps-render-and-validate.tst.sh assertions' "$RUNNER_TEMP/iac-suite.log" \
+            || { echo "::error::tf-steps-render-and-validate did not report PASS: all"; exit 1; }
+          echo "ok - no iac check skipped; render parity + validate ran"
+
+  # ===========================================================================
+  # The ORC suite (016 T004): csi-spl-orc/src/bash/tests/run-all-tests.sh.
+  # Every file is hermetic on ubuntu-latest: gcloud / curl / docker push are
+  # stubbed per test, lde-stack.tst.sh needs only `docker compose config` and
+  # `sudo -n` (both on the runner), checkout-fake-buy.tst.sh a spool build
+  # and a throwaway postgres:16-alpine (pulled here, since the test never
+  # pulls). No GCP, no tmux server, no running lde stack. Spawn-agents tests
+  # are never part of this gate (016 FR-011).
+  # ===========================================================================
+  orc-suite:
+    name: "orc: hermetic action tests (stubbed gcloud/curl/docker)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go (version from go.mod)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: true
+          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
+
+      # checkout-fake-buy builds spool offline (GOPROXY=off).
+      - name: Download Go modules
+        working-directory: csi-spl-api/src/go/spool-hub-api
+        run: go mod download
+
+      # checkout-fake-buy SKIPs its live part without a CACHED image.
+      - name: Cache the Postgres image
+        run: docker pull -q postgres:16-alpine
+
+      # Proof that the suite reaches no GCP: gcloud / gsutil / bq on PATH are
+      # traps that log their argv and fail, there is no key, no ADC and an
+      # empty CLOUDSDK_CONFIG. A test that stubs gcloud puts its stub first on
+      # PATH and never reaches the trap; any line in the trap log is a test
+      # that tried the real CLI, and fails the job below.
+      - name: Trap gcloud / gsutil / bq (no GCP from this job)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/gcp-trap" "$RUNNER_TEMP/gcloud-empty"
+          for b in gcloud gsutil bq; do
+            printf '#!/bin/sh\necho "%s $*" >>"%s"\nexit 1\n' "$b" "$RUNNER_TEMP/gcp-trap.log" >"$RUNNER_TEMP/gcp-trap/$b"
+            chmod +x "$RUNNER_TEMP/gcp-trap/$b"
+          done
+          : >"$RUNNER_TEMP/gcp-trap.log"
+          echo "$RUNNER_TEMP/gcp-trap" >>"$GITHUB_PATH"
+          echo "CLOUDSDK_CONFIG=$RUNNER_TEMP/gcloud-empty" >>"$GITHUB_ENV"
+          [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" && ! -e "$HOME/.gcp" ]] || { echo "::error::a GCP credential is present on the runner"; exit 1; }
+
+      - name: run-all-tests.sh
+        run: |
+          set -euo pipefail
+          bash csi-spl-orc/src/bash/tests/run-all-tests.sh 2>&1 | tee "$RUNNER_TEMP/orc-suite.log"
+
+      - name: No test reached GCP (the trap log is empty)
+        if: always()
+        run: |
+          if [[ -s "$RUNNER_TEMP/gcp-trap.log" ]]; then
+            echo "::error::a test called the real gcloud/gsutil/bq -- this suite must be offline"
+            sed 's/^/  /' "$RUNNER_TEMP/gcp-trap.log"
+            exit 1
+          fi
+          echo "ok - no gcloud / gsutil / bq call reached the runner's CLI"
+
+      - name: Nothing skipped (a skip is a failure in CI)
+        run: |
+          set -euo pipefail
+          if grep -E '^SKIP:' "$RUNNER_TEMP/orc-suite.log"; then
+            echo "::error::an orc check skipped in CI -- it proved nothing. Fix the runner setup above."
+            exit 1
+          fi
+          echo "ok - no orc check skipped"
+
+  # ===========================================================================
+  # The CNF suite (016 T005): the conf-validator exit-code contract
+  # (0 valid / 1 invalid / 2 could not check). The test refuses to skip: an
+  # interpreter without the validator's dependencies is exit 2. The poetry
+  # env is the module's own .venv, which the test picks up by itself.
+  # ===========================================================================
+  cnf-suite:
+    name: "cnf: conf-validator exit codes"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: poetry install (conf-validator, from its lock)
+        working-directory: csi-spl-cnf/src/python/conf-validator
+        run: |
+          set -euo pipefail
+          pip install -q poetry
+          poetry install --no-root --no-interaction
+
+      - name: conf-validator-exit-codes.tst.sh
+        run: bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh
 
   # ===========================================================================
   # Reference-hygiene gate (spec 002 T003): the spool Go source never

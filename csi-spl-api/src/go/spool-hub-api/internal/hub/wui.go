@@ -546,20 +546,8 @@ func (s *Server) admit(ctx context.Context, tenant string, m *msg.Message) (stri
 	if tok, status, detail := s.messageQuota(ctx, tenant, m.MsgID); tok != "" {
 		return tok, status, detail
 	}
-	if !s.o.AllowTextOnly {
-		for _, a := range m.Files {
-			if a.Mode != "blob" {
-				continue
-			}
-			key, kerr := blob.Key(tenant, a.FileID)
-			ok := false
-			if kerr == nil {
-				ok, _ = s.o.Blob.Exists(ctx, key)
-			}
-			if !ok {
-				return "missing_file", http.StatusBadRequest, "file_id " + a.FileID + " is not held by the hub"
-			}
-		}
+	if missing := s.missingFile(ctx, tenant, m.Files); missing != "" {
+		return "missing_file", http.StatusBadRequest, "file_id " + missing + " is not held by the hub"
 	}
 	return "", 0, ""
 }

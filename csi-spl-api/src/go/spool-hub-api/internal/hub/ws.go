@@ -465,21 +465,9 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, tok, status, detail)
 		return
 	}
-	if !s.o.AllowTextOnly {
-		for _, a := range m.Files {
-			if a.Mode != "blob" {
-				continue
-			}
-			key, kerr := blob.Key(x.tenant, a.FileID)
-			ok := false
-			if kerr == nil {
-				ok, _ = s.o.Blob.Exists(ctx, key)
-			}
-			if !ok {
-				x.fail(ctx, id, "missing_file", http.StatusBadRequest, "file_id "+a.FileID+" is not held by the hub")
-				return
-			}
-		}
+	if missing := s.missingFile(ctx, x.tenant, m.Files); missing != "" {
+		x.fail(ctx, id, "missing_file", http.StatusBadRequest, "file_id "+missing+" is not held by the hub")
+		return
 	}
 	if _, err := time.Parse(time.RFC3339, m.TS); err != nil {
 		x.fail(ctx, id, "bad_json", http.StatusBadRequest, "ts is not RFC3339")
@@ -526,6 +514,41 @@ func (s *Server) messageQuota(ctx context.Context, tenant, msgID string) (string
 		return "", 0, ""
 	}
 	return billing.TokenQuota, billing.HTTPQuota, "message quota for this period is exceeded"
+}
+
+// missingFile is the OQ-11 file rule: the first blob attachment (in message
+// order) whose object this tenant's prefix does not hold, or "" when all are
+// held or text-only mode is on. The checks run concurrently: each is a GCS
+// metadata call in production (027 T040), and one message carries up to
+// msg.MaxFiles of them.
+func (s *Server) missingFile(ctx context.Context, tenant string, files []msg.Attachment) string {
+	if s.o.AllowTextOnly {
+		return ""
+	}
+	held := make([]bool, len(files))
+	var wg sync.WaitGroup
+	for i, a := range files {
+		if a.Mode != "blob" {
+			held[i] = true
+			continue
+		}
+		key, err := blob.Key(tenant, a.FileID)
+		if err != nil {
+			continue
+		}
+		wg.Add(1)
+		go func(i int, key string) {
+			defer wg.Done()
+			held[i], _ = s.o.Blob.Exists(ctx, key)
+		}(i, key)
+	}
+	wg.Wait()
+	for i, ok := range held {
+		if !ok {
+			return files[i].FileID
+		}
+	}
+	return ""
 }
 
 // commit stores the envelope and queues or pushes it. Caller has validated.
@@ -617,20 +640,8 @@ func (s *Server) Deliver(ctx context.Context, tenant string, env *wire.Envelope)
 	if !s.toBoxKnown(ctx, tenant, env.ToBox) {
 		return "", store.ErrNotFound
 	}
-	if !s.o.AllowTextOnly {
-		for _, a := range m.Files {
-			if a.Mode != "blob" {
-				continue
-			}
-			key, kerr := blob.Key(tenant, a.FileID)
-			ok := false
-			if kerr == nil {
-				ok, _ = s.o.Blob.Exists(ctx, key)
-			}
-			if !ok {
-				return "", fmt.Errorf("missing file")
-			}
-		}
+	if s.missingFile(ctx, tenant, m.Files) != "" {
+		return "", fmt.Errorf("missing file")
 	}
 	return s.commit(ctx, tenant, env, m)
 }

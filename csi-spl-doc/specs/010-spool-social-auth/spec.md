@@ -122,7 +122,7 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   allow-listed origins only, never reflected, never `*`; OQ-A1 (a)). It needs
   auth on (a provider listed) or the hub refuses to boot. `token` (the
   default) also admits a member session, without credentialed CORS.
-- **FR-010** — Planned: the WUI reaches `/api/v1/auth/**` same-origin through
+- **FR-010** — Partial (config done, T016; not deployed until hosting 016/019 is applied; lde: the compose `wui` service proxies it via `NUXT_DEV_AUTH_PROXY`, `a2eac90`): the WUI reaches `/api/v1/auth/**` same-origin through
   a Hosting rewrite to the hub (as csi-rel), so the callback host is the WUI
   origin and one redirect URI per provider per env is registered (narrative §5).
 - **FR-011** — Implemented: no token, secret, code or raw subject is logged;

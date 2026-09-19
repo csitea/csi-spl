@@ -1,6 +1,6 @@
 # Feature Specification: Spool WUI dispatch — the box-wui key and cross-box commands from a browser
 
-**Feature ID**: `014-spool-wui-dispatch` · **Milestone**: M3 · **Status**: Partial — code Implemented (`9f4f0b9`), deploy + cnf handoffs open (see `./tasks.md`)
+**Feature ID**: `014-spool-wui-dispatch` · **Milestone**: M3 · **Status**: Partial — code Implemented (`9f4f0b9`), cnf done (`70780f1`, T021); deploy handoffs T020/T022/T023 open (see `./tasks.md`)
 **Created**: 2026-09-19 · **Lane**: DISPATCH (CLE-3349)
 **Narrative**: `../../doc/md/SPEC-spool-wui.md` lines 101-102 (the hub signs a
 signed-in human's send with a server-side `box-wui` key; pinned boxes

@@ -3,7 +3,7 @@
 Feature: `003-spool-message-bus`, User Story 7. Consumer: `../../005-spool-wui/`
 (it cites this file and does not restate it; seam in `../../README.md` §5).
 
-**Status: Implemented except the view token (§2, OQ-16).** v0.5 (M3 WIRE): channel list with unread + members (§4.2), roots / DMs (§4.3), children (§4.5) — `TestViewChannelsThreadsDMs`. Routes in
+**Status: Implemented except the view token (§2, OQ-16).** v0.5 (M3 WIRE): channel list with unread + members (§4.2), roots / DMs (§4.3), children (§4.5) — `TestChannelEnvelopeStored`, `TestStoreChannels`. Routes in
 `csi-spl-api/src/go/spool-hub-api/internal/hub/view.go`, store queries in
 `internal/store/view.go` / `view_postgres.go`; tests `TestViewAPI`,
 `TestViewDoorTokenFailsClosed`, `TestViewReads` (memory + Postgres).

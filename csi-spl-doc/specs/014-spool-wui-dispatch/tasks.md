@@ -22,7 +22,7 @@ here (§2.4); the owner is named.
 ## Phase 3 — Handoffs (other lanes)
 
 - [ ] T020 Planned (HOSTING / DEPLOY, iac 029 + 030) — Secret Manager slot `csi-spl-hub-wui-key` per env + accessor for the hub runtime SA, rendered as `SPOOL_HUB_WUI_KEY` into the hub service's secret env; no version resource.
-- [ ] T021 Planned (DEPLOY, cnf) — `SPOOL_HUB_WUI_DISPATCH: "true"` in dev, `"false"` in prd; dev `SPOOL_HUB_WUI_KEY_EPHEMERAL: "true"` until T020 has a version.
+- [x] T021 (DEPLOY, cnf) — `SPOOL_HUB_WUI_DISPATCH: "true"` in dev, `"false"` in prd; dev `SPOOL_HUB_WUI_KEY_EPHEMERAL: "true"` until T020 has a version. — **Implemented** (`70780f1`); `command grep -n WUI_DISPATCH csi-spl-cnf/csi-spl/dev.env.yaml` → 1 line `"true"`. prd carries no key, so the hub default `false` (config.go) applies. Audit CLE-3358 2026-09-19.
 - [ ] T022 Planned (owner) — mint the key, add the secret versions (contract §2.1); per tenant `spool pin --box box-wui` with the root key (§2.2).
 - [~] T023 Partial (HUMANS `a74640b`, 010 T011-T013) — store-backed Registrar + Membership landed: a registered human's session carries a durable `HUM-<n>`, which dispatch uses as `from` as-is (OQ-014-3 (a)). Missing: wiring on the deployed hubs (auth providers + registration day, 010 T030-T034); until then no deployed socket carries a member session, so dispatch answers `dispatch_unauthenticated` there (OQ-014-2).
 

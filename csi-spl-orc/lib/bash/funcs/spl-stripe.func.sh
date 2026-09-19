@@ -23,10 +23,11 @@ spl_stripe_key_dir() {
   fi
 }
 
-# spl_stripe_owner_file <path> -> refuses a missing or non-0600 file
+# spl_stripe_owner_file <path> -> refuses a missing file or one group/other
+# can touch (0600; csi-rel's own files are 0700, which is as private)
 spl_stripe_owner_file() {
   [[ -s "$1" ]] || { do_log "FATAL no owner key file at $1 (0600)"; return 1; }
-  [[ "$(stat -c %a "$1")" == 600 ]] || { do_log "FATAL $1 must be mode 0600"; return 1; }
+  (( (8#$(stat -c %a "$1") & 8#077) == 0 )) || { do_log "FATAL $1 must be owner-only (mode 0600)"; return 1; }
 }
 
 # spl_stripe_env_get <file> <NAME> -> the value of NAME=... (export, quotes

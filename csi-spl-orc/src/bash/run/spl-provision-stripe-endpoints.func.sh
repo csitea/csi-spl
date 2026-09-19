@@ -89,6 +89,12 @@ do_spl_provision_stripe_endpoints() {
   api_fqdn="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
   api_version="$(yq -r '.env.hub.env.SPOOL_HUB_STRIPE_API_VERSION // ""' "$SPL_CNF")"
   [[ -n "$wh_slot" ]] || { do_log "FATAL cnf payment.secret_env lacks SPOOL_HUB_STRIPE_WEBHOOK_SECRET"; return 1; }
+  if [[ -z "$api_version" ]]; then
+    # cnf "" = the hub driver's pinned version: the endpoint must send events in the shape the hub parses
+    api_version="$(sed -n 's/^const DefaultStripeAPIVersion = "\(.*\)"$/\1/p' \
+      "$APP_PATH/$SPL_ORG_APP-api/src/go/spool-hub-api/internal/payments/stripe_payments.go" 2>/dev/null)"
+    [[ -n "$api_version" ]] || { do_log "FATAL cannot read the hub's pinned DefaultStripeAPIVersion (set cnf SPOOL_HUB_STRIPE_API_VERSION)"; return 1; }
+  fi
   hook_url="${WEBHOOK_URL:-}"
   if [[ -z "$hook_url" ]]; then
     [[ -n "$api_fqdn" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF (or set WEBHOOK_URL)"; return 1; }
@@ -105,7 +111,7 @@ do_spl_provision_stripe_endpoints() {
   do_log "INFO Stripe endpoint for ENV=$ENV (key mode: $SPL_STRIPE_MODE)"
   do_log "INFO   REST base : $api_base"
   do_log "INFO   endpoint  : $hook_url"
-  do_log "INFO   events    : ${_SPL_STRIPE_WEBHOOK_EVENTS[*]}"
+  do_log "INFO   events    : ${_SPL_STRIPE_WEBHOOK_EVENTS[*]} (api_version $api_version)"
   do_log "INFO   stores    : the new signing secret into $wh_slot only (the secret key: do_spl_payment_secret_seed)"
   if (( dry )); then
     do_log "OK DRY_RUN would list /v1/webhook_endpoints, reuse the one tagged managed_by=$slug role=hub, else create it and store its whsec_"
@@ -160,7 +166,7 @@ for ep in d.get("data", []):
 
   local -a form=("url=$hook_url" "description=$slug $ENV hub endpoint (006 T022)"
     "metadata[managed_by]=$slug" "metadata[role]=hub" "metadata[env]=$ENV")
-  [[ -n "$api_version" ]] && form+=("api_version=$api_version")
+  form+=("api_version=$api_version")
   local i=0 ev
   for ev in "${_SPL_STRIPE_WEBHOOK_EVENTS[@]}"; do form+=("enabled_events[$i]=$ev"); i=$((i + 1)); done
   out="$(_spl_stripe_api POST "/v1/webhook_endpoints" "$api_base" "$h/sk" "${form[@]}")"

@@ -120,6 +120,8 @@ out=$(run_act DRY_RUN=0 NO_SLOT=1); rc=$?
 out=$(run_act); rc=$?
 [[ $rc -eq 0 && ! -s "$T/api/argv" ]] && pass "default is a dry run: no Stripe call" || fail "dry run: rc=$rc $out"
 grep -q "endpoint  : https://dev.api.[^ ]*/api/v1/webhooks/payment/stripe" <<<"$out" && pass "the endpoint URL is the cnf api_fqdn + the hub webhook path" || fail "url: $out"
+pinned="$(sed -n 's/^const DefaultStripeAPIVersion = "\(.*\)"$/\1/p' "$APP_ROOT/csi-spl-api/src/go/spool-hub-api/internal/payments/stripe_payments.go")"
+[[ -n "$pinned" ]] && grep -qF "api_version $pinned" <<<"$out" && pass "the endpoint pins the hub driver's Stripe API version ($pinned)" || fail "api_version: $out"
 
 out=$(run_act DRY_RUN=0); rc=$?
 ep=$(python3 -c 'import json,sys; e=json.load(open(sys.argv[1]))[0]; print(e["metadata"].get("managed_by"), e["metadata"].get("role"), len(e["enabled_events"]), e["url"].endswith("/api/v1/webhooks/payment/stripe"))' "$T/api/endpoints.json" 2>/dev/null)

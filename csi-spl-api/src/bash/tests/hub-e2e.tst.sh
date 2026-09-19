@@ -4,6 +4,7 @@
 # crosses boxes (queued, then sent to a live hub-run daemon), a result comes
 # back, and a send made while the hub is down is pending and then flushed.
 # Usage: bash hub-e2e.tst.sh <spool-binary> <postgres-dsn>   (hub-pg.tst.sh calls it)
+# EXPECT_NOT_LIFTABLE=1: also require the hub's db.rls_not_liftable log line.
 set -euo pipefail
 
 BIN="$1"
@@ -179,6 +180,13 @@ SPOOL_HUB_DB_DSN="$DSN" "$BIN" hub-tenant --tenant "$TENANT" --root-pubkey "$ROO
 ok "owner created tenant $TENANT"
 start_hub
 ok "spool serve up; /healthz 200"
+# 017 T029: hub-pg.tst.sh runs this as the RUNTIME role; the hub's own
+# startup check must then say it cannot lift row level security.
+if [ "${EXPECT_NOT_LIFTABLE:-0}" = 1 ]; then
+  grep -q '"message":"db.rls_not_liftable' "$WORK/hub.log" && ! grep -q 'db.rls_liftable' "$WORK/hub.log" ||
+    fail "EXPECT_NOT_LIFTABLE=1 but the hub did not log db.rls_not_liftable"
+  ok "hub runs as a role that cannot lift RLS (db.rls_not_liftable)"
+fi
 
 # 2. two boxes, root-pinned at the hub via spool-pin --root-key (004 T005)
 for b in box-a box-b; do

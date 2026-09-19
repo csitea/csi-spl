@@ -64,7 +64,9 @@ su_sql() {
   if [ -n "$PG_CTR" ]; then docker exec -i "$PG_CTR" psql -q -v ON_ERROR_STOP=1 -U spool -d spool_hub -c "$1"
   else "$PG_BIN/psql" -q -v ON_ERROR_STOP=1 -h "$WORK" -p "$PGPORT" -U spool -d spool_hub -c "$1"; fi
 }
-su_sql "CREATE ROLE $APP_ROLE LOGIN PASSWORD '$APP_ROLE' NOSUPERUSER NOBYPASSRLS" >/dev/null
+# CREATEROLE like the Cloud SQL API user that owns the schema there (017
+# T029): the owner creates the runtime role below.
+su_sql "CREATE ROLE $APP_ROLE LOGIN PASSWORD '$APP_ROLE' NOSUPERUSER NOBYPASSRLS CREATEROLE" >/dev/null
 app_dsn() { # <db>
   if [ -n "$PG_CTR" ]; then echo "postgres://$APP_ROLE:$APP_ROLE@127.0.0.1:$PGPORT/$1?sslmode=disable"
   else echo "postgres://$APP_ROLE@/$1?host=$WORK&port=$PGPORT&sslmode=disable"; fi
@@ -95,8 +97,20 @@ echo "ok   - spool migrate applies $(echo "$out1" | grep -c '^applied') file(s);
 # 017 FR-SEC-014: RT_ROLE is a runtime role that does NOT own the tables
 # (DML grants only), the shape TestRLSHubRoleCannotLiftRLS requires; the
 # owner APP_ROLE is its CONTROL.
+# 017 T029: the REAL split, the same SQL the cloud action runs
+# (csi-rdb spool-hub-roles/): the OWNER creates the runtime role and grants
+# it DML only, per database, after its migrate.
 RT_ROLE=spool_rt
-su_sql "CREATE ROLE $RT_ROLE LOGIN PASSWORD '$RT_ROLE' NOSUPERUSER NOBYPASSRLS" >/dev/null
+ROLES_SQL="$(cd "$SQL_DIR/../spool-hub-roles" && pwd)"
+own_sql() { # <db> <file> [psql -v args]: run a roles file AS THE OWNER (SET ROLE $APP_ROLE)
+  local db="$1" f="$2"; shift 2
+  { echo "SET ROLE $APP_ROLE;"; cat "$f"; } |
+  if [ -n "$PG_CTR" ]; then docker exec -i "$PG_CTR" psql -X -q -v ON_ERROR_STOP=1 -U spool -d "$db" "$@" -f -
+  else "$PG_BIN/psql" -X -q -v ON_ERROR_STOP=1 -h "$WORK" -p "$PGPORT" -U spool -d "$db" "$@" -f -; fi
+}
+own_sql spool_hub_app "$ROLES_SQL/runtime-role.sql" -v runtime_role="$RT_ROLE" -v runtime_verifier="$RT_ROLE" >/dev/null
+own_sql spool_hub_app "$ROLES_SQL/runtime-role.sql" -v runtime_role="$RT_ROLE" -v runtime_verifier="$RT_ROLE" >/dev/null # idempotent
+own_sql spool_hub_app "$ROLES_SQL/runtime-grants.sql" -v runtime_role="$RT_ROLE" >/dev/null
 rt_dsn() { # <db>
   if [ -n "$PG_CTR" ]; then echo "postgres://$RT_ROLE:$RT_ROLE@127.0.0.1:$PGPORT/$1?sslmode=disable"
   else echo "postgres://$RT_ROLE@/$1?host=$WORK&port=$PGPORT&sslmode=disable"; fi
@@ -107,8 +121,7 @@ for pkg in store hub auth; do
   mkdb "$db"
   pdsn="$(app_dsn "$db")"
   "$BIN" migrate --db "$pdsn" --sql-dir "$SQL_DIR" >/dev/null # auth's suite expects a migrated db
-  if [ -n "$PG_CTR" ]; then docker exec -i "$PG_CTR" psql -q -v ON_ERROR_STOP=1 -U spool -d "$db" -c "SET ROLE $APP_ROLE; GRANT USAGE ON SCHEMA public TO $RT_ROLE; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $RT_ROLE" >/dev/null
-  else "$PG_BIN/psql" -q -v ON_ERROR_STOP=1 -h "$WORK" -p "$PGPORT" -U spool -d "$db" -c "SET ROLE $APP_ROLE; GRANT USAGE ON SCHEMA public TO $RT_ROLE; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $RT_ROLE" >/dev/null; fi
+  own_sql "$db" "$ROLES_SQL/runtime-grants.sql" -v runtime_role="$RT_ROLE" >/dev/null
   ( cd "$MOD" && SPOOL_TEST_PG_DSN="$pdsn" SPOOL_TEST_SQL_DIR="$SQL_DIR" SPOOL_TEST_PG_RUNTIME_DSN="$(rt_dsn "$db")" \
       CGO_ENABLED=1 go test -race -count=1 "./internal/$pkg/" ) &
   pids+=("$!")
@@ -187,5 +200,9 @@ out="$(env "${MAILENV[@]}" "$BIN" hub-invite --tenant t-invite --email nm@exampl
   echo "$out" | grep -q '"outcome":"skipped_no_mail_flag"' || { echo "FAIL - --no-mail: $out"; exit 1; }
 echo "ok   - 010 FR-016: invite mail sent once (log transport), resend in the gap refused (exit 3), unknown not found, --no-mail, digest-only log"
 
-bash "$HERE/hub-e2e.tst.sh" "$BIN" "$DSN"
+# 017 T029: the M1 demo runs as the RUNTIME role (DML grants only, as the
+# cloud hub after do_spl_db_owner_split); the hub's own startup check must
+# log db.rls_not_liftable.
+own_sql spool_hub_app "$ROLES_SQL/runtime-grants.sql" -v runtime_role="$RT_ROLE" >/dev/null # idempotent re-run
+EXPECT_NOT_LIFTABLE=1 bash "$HERE/hub-e2e.tst.sh" "$BIN" "$(rt_dsn spool_hub_app)"
 echo "ALL HUB POSTGRES CHECKS PASSED"

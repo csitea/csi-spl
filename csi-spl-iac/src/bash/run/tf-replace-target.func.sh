@@ -5,7 +5,7 @@
 #------------------------------------------------------------------------------
 do_tf_replace_target() {
 
-  do_log "INFO START ::: provisioning step ${tf_proj}"
+  do_log "INFO START ::: provisioning step ${STEP:-}"
 
   TARGET=${TARGET:?}
 

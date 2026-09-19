@@ -5,7 +5,7 @@
 #------------------------------------------------------------------------------
 do_tf_state_remove() {
 
-  do_log "INFO START ::: provisioning step ${tf_proj}"
+  do_log "INFO START ::: provisioning step ${STEP:-}"
 
   TARGET=${TARGET:?}
 

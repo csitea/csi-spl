@@ -46,6 +46,6 @@ code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: applicat
 echo "ok   - temp fake-gcs up ($GCS_IMAGE) bucket $BUCKET on 127.0.0.1:$PORT"
 
 ( cd "$MOD" && STORAGE_EMULATOR_HOST="127.0.0.1:${PORT}" SPOOL_HUB_FILES_BUCKET="$BUCKET" \
-  go test -count=1 ./internal/blob/ )
+  CGO_ENABLED=1 go test -race -count=1 ./internal/blob/ )
 echo "ok   - internal/blob suite green against GCS emulator"
 echo "ALL HUB GCS CHECKS PASSED"

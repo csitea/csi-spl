@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Hub Postgres gate (specs/003 T021, T001b): start a throwaway Postgres in a
 # temp dir, run `spool migrate` twice (the second run must be a no-op), run the
-# internal/store contract suite against it, then drive the M1 demo end to end
+# internal/store, hub and auth suites against it under -race (016 T002), then
+# drive the M1 demo end to end
 # with the real binary: serve, two boxes, cross-box send/recv, queued delivery,
 # hub-down pending + flush.
 # Postgres comes from local server binaries (initdb) when installed, else from
@@ -80,7 +81,7 @@ for pkg in store hub auth; do
   pdsn="${DSN/\/spool_hub\?//$db?}"
   "$BIN" migrate --db "$pdsn" --sql-dir "$SQL_DIR" >/dev/null # auth's suite expects a migrated db
   ( cd "$MOD" && SPOOL_TEST_PG_DSN="$pdsn" SPOOL_TEST_SQL_DIR="$SQL_DIR" \
-      go test -count=1 "./internal/$pkg/" ) &
+      CGO_ENABLED=1 go test -race -count=1 "./internal/$pkg/" ) &
   pids+=("$!")
 done
 rc=0

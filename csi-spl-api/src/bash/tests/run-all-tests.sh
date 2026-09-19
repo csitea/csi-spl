@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Aggregate test runner for csi-spl-api (specs 002 + 003): gofmt, go vet, go test,
+# Aggregate test runner for csi-spl-api (specs 002 + 003): gofmt, go vet, go test -race,
 # the reference-hygiene gate, the no-baked-hostname gate, the end-to-end smoke,
 # the hub Postgres gate, and the hub GCS/fake-gcs blob gate.
 # Usage: bash csi-spl-api/src/bash/tests/run-all-tests.sh
@@ -20,8 +20,10 @@ echo "== go vet =="
 ( cd "$MOD" && go vet ./... )
 echo "ok   - go vet clean"
 
-echo "== go test =="
-( cd "$MOD" && go test ./... )
+# 016 T002 / FR-004: the gate runs under the race detector, so a data race
+# fails it instead of landing green (-race needs cgo: CGO_ENABLED=1 + gcc).
+echo "== go test -race =="
+( cd "$MOD" && CGO_ENABLED=1 go test -race ./... )
 
 echo "== reference-hygiene gate =="
 bash "$HERE/no-ysg-box-ref.tst.sh"

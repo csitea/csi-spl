@@ -13,6 +13,8 @@ Hosting estate (`016`, `019`, the `031` WUI route, §3) and the Cloud Armor
 stage-1 narrowing (§4) are written and wait on an owner GCP re-auth to apply;
 the secrets step, IAM users and domain verification are Planned.
 
+**Changelog**: `1.6.0` (2026-09-19) — owner infra provisioning requirements R1–R8 (`infra-provisioning-requirements.md`, FR-025–FR-032).
+
 **Narrative**: `../../doc/md/SPEC-spool-hub-api-infra.md` (copy csi-rel +
 pas-psf infra, not the shop). **Index, seams, canon**: `../README.md`.
 
@@ -285,6 +287,17 @@ where the files live and how they reach each env.
 
 ---
 
+## 5. Infra provisioning requirements (owner, 2026-09-19)
+
+Owner direction 2026-09-19. Every apply of this estate follows R1–R8.
+The source lines, one-line CHECKs, and the 2026-09-19 ADC / native-tf-plan
+context are in [`infra-provisioning-requirements.md`](./infra-provisioning-requirements.md).
+FR-025–FR-032 bind them.
+
+Context: in csi-spl (2026-09-19) agents had applied raw terraform on the
+owner's user ADC and written a native tf-plan; the owner ordered a full
+destroy + re-apply of dev and prd under R1-R7 because IAM was likely broken.
+
 ## Requirements
 
 | FR | Requirement | Status |
@@ -313,6 +326,14 @@ where the files live and how they reach each env.
 | FR-022 | `031` WUI route (§3): internet NEG to `<site_id>.web.app`, path matcher keeps `/v1/*` `/api/*` `/healthz` `/version` on the hub; cnf `wui_origin_host` (dev on, prd off, OQ-H1) | Partial — code + cnf on trunk; dev not applied |
 | FR-023 | Cloud Armor stage 1 (§4) behind `l7_narrowing` (dev on, prd off, OQ-H2) | Partial — code + cnf on trunk; dev not applied |
 | FR-024 | `30_wui-build-deploy.yml`: test, nuxt generate per env, render firebase.json from cnf, `firebase deploy --only hosting`, probe the deployed commit on `web.app` and the product host. Auth (owner direction 2026-09-19): the per-project SA key secret `GCP_KEY_CSI_SPL_<ENV>` published by iac step `120-github-general-secrets` (DEPLOY lane) is primary; WIF (017 pool + the 016 Hosting SA) is the alternative when the key secret is absent. No Firebase-specific key or token: the project SA's `roles/owner` covers Hosting | Implemented (workflow); deploy jobs skip until the key secret or the WIF variables exist |
+| FR-025 | R1: deploy and terraform use the per-project IaC SA key `$HOME/.gcp/.csi/key-csi-spl-<env>.json` (0600), minted by gcp-000..004 after one human `gcloud auth login` as `<owner-account>`; relay keys (`key-csi-spl-<env>-rel.json`) are bucket-scoped and never deploy keys. See `infra-provisioning-requirements.md` | Planned |
+| FR-026 | R2: those keys reach GitHub Actions only through terraform step `120-github-general-secrets` as secret `GCP_KEY_CSI_SPL_<ENV>`; never a hand-run `gh secret set`; workflows authenticate with `credentials_json` from that secret; WIF is the alternative. See `infra-provisioning-requirements.md` | Partial — workflows read the secret (`00`/`20`/`30`); `120` exists; apply of `120` still pending |
+| FR-027 | R3: terraform is never run natively on the host; only `cd csi-spl-orc && make do-setup-app-inf` then `ENV=<env> STEP=<step> make do-tf-plan \| do-provision \| do-deprovision` -> docker exec into tf-runner -> iac `./run`. See `infra-provisioning-requirements.md` | Partial — iac tf-* / provision wrappers on trunk; orc make + tf-runner compose still to wire |
+| FR-028 | R4: csi-rel gcp-*, tf-*, provision and make actions are canonical and copied unchanged; a failure is a config/setup defect, never a script edit. See `infra-provisioning-requirements.md` | Partial — tf-* wrappers landed as copies |
+| FR-029 | R5: every terraform variable of every step is set in the rendered `<env>/tf/<step>.vars.tfvars` (+ backend-config.tfvars) from `*.tfvars.tpl` via tpl-gen; no hand-edited tfvars; a fresh render equals the committed files. See `infra-provisioning-requirements.md` | Partial — tpl-gen + `tf-steps-render-and-validate.tst.sh` exist |
+| FR-030 | R6: deploy order is local first (dev, then prd), then the GitHub pipeline; CI/CD must pass with the deploy job actually running (a skipped deploy is not green). See `infra-provisioning-requirements.md` | Planned |
+| FR-031 | R7: all steps run in numeric order 000 -> last per env; a full rebuild destroys last -> 000 then re-applies 000 -> last, with backups taken first; the apex DNS step goes prd before dev. See `infra-provisioning-requirements.md` | Planned |
+| FR-032 | R8: all GCP objects are created in the owner's designated realm only (`csi-spl-<env>` under the designated org and billing account, via `<owner-account>`); account and org id come from `env.gcp.gcp_account_owner_email` / `env.gcp.gcp_org_id`; every gcloud/terraform wrapper resolves `--account` from them (CI may override with `GCP_ACCOUNT`); bootstrap never creates a project in another org; a rebuild destroys objects inside the projects, never the projects. See `infra-provisioning-requirements.md` | Planned |
 
 ## Success Criteria
 
@@ -333,4 +354,4 @@ store SQL, M2 payment drivers, the WUI app itself (spec `005`; its hosting
 estate is §3 here), hub CI job design (spec `008`), wire and tenancy
 semantics (`003` / `004` / `006`).
 
-<!-- version: 1.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:30:00Z -->
+<!-- version: 1.6.0 · updated: 2026-09-19 · last-edit: 2026-09-19T08:28:00Z -->

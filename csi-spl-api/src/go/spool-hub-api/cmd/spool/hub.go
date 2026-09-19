@@ -27,6 +27,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/logging"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/payments"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -126,6 +127,29 @@ func cmdServe() int {
 		}
 		log.Info().Str("mail_transport", mc.Transport).Bool("verify_required", nc.VerifyRequired).Msg("native sign-in on")
 	}
+	// 006 M2 checkout: fails fast on an unknown rail, a rail it cannot run,
+	// or fake-pay outside lde/dev (T018). No rail = checkout 503, hub up.
+	pc, err := payments.Load(hc.Env)
+	if err != nil {
+		return fail(err)
+	}
+	pmc, err := mail.Load() // the one welcome mail (T021); same relay as spec 015
+	if err != nil {
+		return fail(err)
+	}
+	prov, ver, err := payments.Wire(pc)
+	if err != nil {
+		return fail(err)
+	}
+	ph, err := payments.New(pc, payments.Deps{Store: st, Log: log.With().Str("component", "payments").Logger(),
+		Mail: pmc.Sender(log), MailDelivers: pmc.Delivers(), TenantHostPattern: hc.TenantHostPattern,
+		Provider: prov, Verifier: ver})
+	if err != nil {
+		return fail(err)
+	}
+	opts.Payments = ph
+	log.Info().Str("rail", pc.Rail()).Bool("fake_pay", pc.FakePayMounted()).Str("plan_id", pc.PlanID).
+		Int("plan_cents", pc.PlanCents).Str("mail_transport", pmc.Transport).Msg("payment rail")
 	srv, err := hub.New(opts)
 	if err != nil {
 		return fail(err)

@@ -20,8 +20,10 @@ if [[ -n "$hits" ]]; then
 fi
 echo "ok   - no $domain (or split/escaped form) in spool Go source"
 
-vendors='stripe|paypal|braintree|adyen|squareup|checkout\.com|lemonsqueezy|paddle'
-vhits=$(grep -rInE --include='*.go' -- "$vendors" "$SRC" || true)
+# csi-rel's rails (paytrail, klarna, vipps/mobilepay) added with 006 T018: the
+# spool names rails by protocol (hosted-hmac), cnf says which vendor.
+vendors='stripe|paypal|braintree|adyen|squareup|checkout\.com|lemonsqueezy|paddle|paytrail|klarna|vipps|mobilepay'
+vhits=$(grep -rIinE --include='*.go' -- "$vendors" "$SRC" || true)
 if [[ -n "$vhits" ]]; then
   echo "FAIL - payment vendor name in Go (must live in cnf only):"
   echo "$vhits"

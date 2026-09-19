@@ -72,6 +72,9 @@ type Options struct {
 	// delivers a browser send that names an agent (SPOOL_HUB_WUI_DISPATCH).
 	WUIKey      ed25519.PrivateKey
 	WUIDispatch bool
+	// Payments is the M2 checkout surface (006 checkout-v1, /api/v1/checkout*
+	// and /api/v1/webhooks/payment); nil = not mounted. Not tenant-scoped.
+	Payments interface{ Register(mux *http.ServeMux) }
 	// SessionID returns the member-session human id of a browser request; nil
 	// = Auth.SessionForTenant. Set by code only (a test seam), never by env.
 	SessionID func(r *http.Request, tenant string) (string, error)
@@ -176,6 +179,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {
 		s.o.Auth.Register(mux)
+	}
+	if s.o.Payments != nil {
+		s.o.Payments.Register(mux)
 	}
 	return s.middleware(mux)
 }

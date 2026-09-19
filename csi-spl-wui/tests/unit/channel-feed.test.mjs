@@ -4,11 +4,11 @@ import {
   topLevel,
   threadOf,
   replyCount,
-  applyVerbosity,
   parseMention,
   formatBytes,
   initials,
 } from '../../utils/channel-feed.mjs'
+import { applyVerbosity } from '../../utils/verbosity.mjs'
 import { MOCK_MESSAGES } from '../../utils/mock-data.mjs'
 
 describe('channel-feed', () => {

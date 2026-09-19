@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
-import { applyVerbosity, threadOf } from '~/utils/channel-feed.mjs'
-import { loadVerbosity, saveVerbosity } from '~/utils/verbosity.mjs'
+import { threadOf } from '~/utils/channel-feed.mjs'
+import { applyVerbosity, loadVerbosity, saveVerbosity } from '~/utils/verbosity.mjs'
 import { useChannelStore } from '~/stores/channel'
 
 export type Verbosity = 'minimal' | 'normal' | 'verbose'

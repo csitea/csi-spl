@@ -1,7 +1,5 @@
 /** Pure feed helpers. Node tests import this file; Vue stores wrap it. */
 
-import { applyVerbosity as filterByKind } from './verbosity.mjs'
-
 export function topLevel(messages) {
   return messages
     .filter((m) => !m.parent_task_id)
@@ -19,11 +17,6 @@ export function threadOf(messages, parentTaskId) {
 
 export function replyCount(messages, taskId) {
   return messages.filter((m) => m.parent_task_id === taskId).length
-}
-
-/** Visibility by `kind` only (verbosity-notify-v1.md). Body prefixes are not a filter. */
-export function applyVerbosity(messages, level) {
-  return filterByKind(messages, level)
 }
 
 export function parseMention(text) {

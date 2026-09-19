@@ -37,7 +37,7 @@
 <script setup lang="ts">
 import { useLiveFeed } from '~/stores/live'
 import { useThreadStore } from '~/stores/thread'
-import { applyVerbosity } from '~/utils/channel-feed.mjs'
+import { applyVerbosity } from '~/utils/verbosity.mjs'
 
 /* 013 US3: pinned root (oldest of the task_id), reply Omnibox, newest-first replies, live. */
 const pane = useLiveFeed('pane')

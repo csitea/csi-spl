@@ -75,6 +75,14 @@ if [[ -f "$W" ]]; then
   others=$(grep -oE "secrets(\.[A-Za-z0-9_]+|\[format\('[A-Za-z0-9_{}]+')" <<<"$code" | grep -vE "GCP_KEY_CSI_SPL_(DEV|PRD|\{0\})" | sort -u)
   [[ -z "$others" ]] && pass "workflow reads no secret but GCP_KEY_CSI_SPL_<ENV>" || fail "workflow reads other secrets: $others"
   grep -qE 'echo .*secrets|cat .*credentials' <<<"$code" && fail "workflow may print a secret" || pass "workflow prints no secret"
+  # an env deploys only where its site exists: cnf 019 wui_deploy (dev true, prd false until the owner go)
+  grep -q '"019-firebase-static-site"\]\.get("wui_deploy", False)' "$W" \
+    && pass "workflow gates each env on cnf 019 wui_deploy" || fail "workflow does not read the 019 wui_deploy gate"
+  for env in dev prd; do
+    want=false; [[ $env == dev ]] && want=true
+    got=$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["env"]["steps"]["019-firebase-static-site"].get("wui_deploy", False)).lower())' "$CNF/$env.env.json")
+    [[ "$got" == "$want" ]] && pass "$env wui_deploy = $want" || fail "$env wui_deploy is $got, want $want (prd needs the owner go + 019 applied)"
+  done
 else
   fail "missing .github/workflows/30_wui-build-deploy.yml"
 fi

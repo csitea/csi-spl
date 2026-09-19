@@ -89,6 +89,9 @@ jobs:
       envs: ${{ steps.targets.outputs.envs }}
       any: ${{ steps.targets.outputs.any }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: csi-spl-cnf
       - id: targets
         env:
           EVENT: ${{ github.event_name }}
@@ -109,6 +112,11 @@ jobs:
           fi
           ready=()
           for e in "${wanted[@]}"; do
+            # cnf gate: 019 applied for this env (the site exists), owner go
+            on=$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["env"]["steps"]["019-firebase-static-site"].get("wui_deploy", False)).lower())' "csi-spl-cnf/csi-spl/$e.env.json")
+            if [[ "$on" != true ]]; then
+              echo "::notice::$e skipped: cnf steps.019-firebase-static-site.wui_deploy is not true (site not provisioned or no go)"; continue
+            fi
             key_var="KEY_${e^^}"; wif_var="WIF_${e^^}"; sa_var="SA_${e^^}"
             if [[ "${!key_var:-false}" == true ]]; then
               ready+=("$e"); echo "$e: auth = key (GCP_KEY_CSI_SPL_${e^^})"

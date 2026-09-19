@@ -68,6 +68,6 @@ Hub-stored per-human cursors are OQ-W5 (b) / OQ-CH2 (b), later. Passing
 
 Tokens stay out of `localStorage` (005 FR-003, view-v1 §2). Allowed
 `localStorage` keys: `spool-theme`, `spool.verbosity`, `spool.chime`,
-`spool.read-cursors`.
+`spool.read-cursors`, `spool.pane-widths`.
 
-<!-- version: 1.0.1 · updated: 2026-09-19 · last-edit: 2026-09-19T06:10:00Z -->
+<!-- version: 1.0.2 · updated: 2026-09-19 · last-edit: 2026-09-19T15:30:00Z -->

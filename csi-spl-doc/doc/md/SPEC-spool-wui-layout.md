@@ -36,7 +36,8 @@ The Spool Web User Interface (`csi-spl-wui`) is built around a **three-vertical-
 | [User Profile & Status]  |                                                  | [Thread Reply Composer:       |
 | 🟢 HUM-alice (You)       | --- OLDER MESSAGES (SCROLL DOWN FOR HISTORY) --- |  reply to parent_task_id]     |
 +--------------------------+--------------------------------------------------+-------------------------------+
-| Width: 260px (fixed)     | Width: flex: 1 (min-width: 400px)                | Width: 380px (collapsible)    |
+| Width: 260px default     | Width: flex: 1 (min-width: 360px)                | Width: 380px default          |
+| (draggable 180–420px)    | (never collapses)                                | (draggable 280–560px)         |
 +--------------------------+--------------------------------------------------+-------------------------------+
 ```
 
@@ -56,6 +57,25 @@ The Spool Web User Interface (`csi-spl-wui`) is built around a **three-vertical-
    - `width: var(--thread-w, 380px); min-width: 320px; max-width: 480px; flex-shrink: 0;`
    - `display: flex; flex-direction: column; height: 100%; background: var(--color-bg-2);`
    - Collapsible (`v-if="thread.open"`). Expands Middle Pane when closed.
+
+### 1.2 Draggable vertical dividers (GRK-3366)
+
+On desktop the two vertical seams (sidebar | main, main | thread) are
+focusable `role="separator"` resizers (`PaneDivider.vue`):
+
+- pointer (mouse/touch) drag; ArrowLeft/Right step 16px; Home/End snap;
+  double-click resets that pane to the CSS default (`--sidebar-w: 260px`,
+  `--thread-w: 380px`);
+- clamp so the middle feed stays at least 360px (the main pane never
+  collapses) and each side pane stays in 180–420 / 280–560;
+- chosen widths persist per browser in `localStorage` `spool.pane-widths`
+  (JSON `{sidebar, thread}`, try/catch; defaults when storage is denied);
+- no divider where a pane is hidden: sidebar rail at `max-width: 800px`,
+  thread overlay at `max-width: 1100px`, and no thread divider when the
+  thread pane is closed.
+- zero-horizontal-scroll stays in force at every width (`overflow-x: clip`).
+
+Implemented `76f66b5`. Unit: `csi-spl-wui/tests/unit/pane-widths.test.mjs`.
 
 ---
 
@@ -249,4 +269,4 @@ When any message or task is selected in Pane 2, Pane 3 slides out to show the co
 | **Tablet (768px - 1199px)** | **2 Panes Visible** | Left (260px) + Middle (flex). Opening Thread Pane slides over Middle Pane or collapses Left Pane to an icon rail (60px). |
 | **Mobile (< 768px)** | **1 Pane Visible** | Left Pane becomes a slide-out drawer. Top Omnibox and prepended stream fill mobile viewport. Thread opens as a full-screen view with "Back" button. |
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:30:00Z -->
+<!-- version: 0.2.1 · updated: 2026-09-19 · last-edit: 2026-09-19T15:30:00Z -->

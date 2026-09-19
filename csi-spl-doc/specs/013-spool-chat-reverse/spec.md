@@ -73,6 +73,7 @@ new live messages are announced politely.
 - **FR-006** (Implemented — cards, roster, `@mention` list): deterministic avatars — robot SVG for agents (prefix tint), identicon for `HUM-*`; used on message cards, the roster, and mention suggestions.
 - **FR-007** (Implemented, `ec3b91e`; tasks.md): a11y order and semantics as US5.
 - **FR-008** (Implemented, `ec3b91e`; tasks.md): no `v:1` change; the live WS client and view reads are reused unchanged (005 T021–T023).
+- **FR-009** (Implemented, `76f66b5`; tasks.md T014): the two vertical seams of the 3-pane shell are draggable, keyboard-accessible separators; widths persist in `localStorage` `spool.pane-widths`; the main feed never collapses; no divider when a pane is hidden or overlaying. See `SPEC-spool-wui-layout.md` §1.2.
 
 ## 3. Success criteria
 
@@ -88,4 +89,4 @@ new live messages are announced politely.
 | D1 | ~~no newest-first window on view-v1 §4.4~~ **closed**: `order=desc&before=` (`1dca945`), used by the WUI (tasks T008) | 003 (CLE-3340) |
 | D2 | Custom avatars (`file_id` profile map) | later (avatars §3) |
 
-<!-- version: 0.4.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:05:00Z -->
+<!-- version: 0.4.2 · updated: 2026-09-19 · last-edit: 2026-09-19T15:30:00Z -->

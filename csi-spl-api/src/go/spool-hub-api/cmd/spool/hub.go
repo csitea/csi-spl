@@ -50,7 +50,8 @@ func cmdServe() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	st, err := openStore(ctx, hc.DBDSN)
+	st, err := openStore(ctx, hc.DBDSN, store.PoolLimits{MaxConns: int32(hc.DBMaxConns),
+		MinConns: int32(hc.DBMinConns), MaxConnIdleTime: hc.DBMaxConnIdleTime})
 	if err != nil {
 		return fail(err)
 	}
@@ -221,11 +222,11 @@ func cmdServe() int {
 
 // openStore opens Postgres; the literal DSN "memory:" is an in-process store
 // for tests and throwaway lde runs only (state dies with the process).
-func openStore(ctx context.Context, dsn string) (store.Store, error) {
+func openStore(ctx context.Context, dsn string, limits store.PoolLimits) (store.Store, error) {
 	if dsn == "memory:" {
 		return store.NewMemory(), nil
 	}
-	return store.OpenPostgres(ctx, dsn)
+	return store.OpenPostgres(ctx, dsn, limits)
 }
 
 // cmdHubTenant seeds a tenant row (006 owns tenant creation; this is the

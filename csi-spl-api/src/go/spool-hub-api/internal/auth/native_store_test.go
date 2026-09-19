@@ -21,7 +21,11 @@ func credStores(t *testing.T) map[string]auth.CredStore {
 	t.Helper()
 	out := map[string]auth.CredStore{"memory": auth.NewMemoryCredStore()}
 	if dsn := os.Getenv("SPOOL_TEST_PG_DSN"); dsn != "" {
-		pool, err := pgxpool.New(context.Background(), dsn)
+		cfg, err := pgxpool.ParseConfig(dsn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
 		if err != nil {
 			t.Fatal(err)
 		}

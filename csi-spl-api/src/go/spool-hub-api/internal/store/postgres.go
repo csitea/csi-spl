@@ -6,7 +6,9 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"net/url"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -20,9 +22,37 @@ import (
 // table of its own.
 type Postgres struct{ pool *pgxpool.Pool }
 
-// OpenPostgres connects to dsn and pings it.
-func OpenPostgres(ctx context.Context, dsn string) (*Postgres, error) {
-	pool, err := pgxpool.New(ctx, dsn)
+// PoolLimits sizes the connection pool (specs/027 T010). A zero field keeps
+// pgx's default, and a pool_* parameter the DSN sets wins over its field, so a
+// test's "&pool_max_conns=1" still gets a one-connection pool.
+type PoolLimits struct {
+	MaxConns        int32         // pool_max_conns
+	MinConns        int32         // pool_min_conns
+	MaxConnIdleTime time.Duration // pool_max_conn_idle_time
+}
+
+// OpenPostgres connects to dsn and pings it. Without limits the pool is pgx's
+// default (MaxConns max(4, NumCPU)).
+func OpenPostgres(ctx context.Context, dsn string, limits ...PoolLimits) (*Postgres, error) {
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open postgres: %w", err)
+	}
+	for _, l := range limits {
+		if l.MaxConns > 0 && !dsnSets(dsn, "pool_max_conns") {
+			cfg.MaxConns = l.MaxConns
+		}
+		if l.MinConns > 0 && !dsnSets(dsn, "pool_min_conns") {
+			cfg.MinConns = l.MinConns
+		}
+		if l.MaxConnIdleTime > 0 && !dsnSets(dsn, "pool_max_conn_idle_time") {
+			cfg.MaxConnIdleTime = l.MaxConnIdleTime
+		}
+	}
+	if cfg.MinConns > cfg.MaxConns {
+		cfg.MinConns = cfg.MaxConns
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres: %w", err)
 	}
@@ -31,6 +61,20 @@ func OpenPostgres(ctx context.Context, dsn string) (*Postgres, error) {
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 	return &Postgres{pool: pool}, nil
+}
+
+// dsnSets reports whether dsn (URL or keyword/value form) names key.
+func dsnSets(dsn, key string) bool {
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		u, err := url.Parse(dsn)
+		return err == nil && u.Query().Has(key)
+	}
+	for _, f := range strings.Fields(dsn) {
+		if k, _, ok := strings.Cut(f, "="); ok && k == key {
+			return true
+		}
+	}
+	return false
 }
 
 // Pool exposes the connection pool (for the migrator and tests).

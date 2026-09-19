@@ -320,3 +320,29 @@ func TestLoadHubDefaultLocale(t *testing.T) {
 		}
 	}
 }
+
+// 027 T010: the pool size is config with a default that fits Cloud SQL
+// db-f1-micro, and a nonsense size refuses boot.
+func TestLoadHubDBPool(t *testing.T) {
+	setHubBase(t)
+	h, err := LoadHub()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.DBMaxConns != 8 || h.DBMinConns != 2 || h.DBMaxConnIdleTime.String() != "5m0s" {
+		t.Fatalf("pool defaults %d %d %s, want 8 2 5m", h.DBMaxConns, h.DBMinConns, h.DBMaxConnIdleTime)
+	}
+	for _, bad := range [][2]string{
+		{"SPOOL_HUB_DB_MAX_CONNS", "0"},
+		{"SPOOL_HUB_DB_MIN_CONNS", "9"},
+		{"SPOOL_HUB_DB_MIN_CONNS", "-1"},
+		{"SPOOL_HUB_DB_MAX_CONN_IDLE_TIME", "0s"},
+	} {
+		t.Run(bad[0]+"="+bad[1], func(t *testing.T) {
+			t.Setenv(bad[0], bad[1])
+			if _, err := LoadHub(); err == nil {
+				t.Fatalf("%s=%s was accepted", bad[0], bad[1])
+			}
+		})
+	}
+}

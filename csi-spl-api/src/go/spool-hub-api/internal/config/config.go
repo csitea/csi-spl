@@ -167,6 +167,12 @@ type Hub struct {
 	Port       string `env:"PORT"` // Cloud Run: wins over ListenAddr
 	Env        string `env:"SPOOL_HUB_ENV"`
 	DBDSN      string `env:"SPOOL_HUB_DB_DSN"`
+	// The pgx pool (specs/027 T010). Cloud SQL db-f1-micro allows 25
+	// connections, 3 reserved for superusers: two instances overlapping in a
+	// roll at 8 each leave room for operator sessions. A DSN pool_* wins.
+	DBMaxConns        int           `env:"SPOOL_HUB_DB_MAX_CONNS" envDefault:"8"`
+	DBMinConns        int           `env:"SPOOL_HUB_DB_MIN_CONNS" envDefault:"2"`
+	DBMaxConnIdleTime time.Duration `env:"SPOOL_HUB_DB_MAX_CONN_IDLE_TIME" envDefault:"5m"`
 	// Exactly one blob store: a GCS bucket (prod) or a local dir (tests / lde).
 	FilesBucket string `env:"SPOOL_HUB_FILES_BUCKET"`
 	FilesDir    string `env:"SPOOL_HUB_FILES_DIR"`
@@ -273,6 +279,9 @@ func LoadHub() (*Hub, error) {
 	}
 	if h.DBDSN == "" {
 		return nil, fmt.Errorf("SPOOL_HUB_DB_DSN must be set (no default)")
+	}
+	if h.DBMaxConns < 1 || h.DBMinConns < 0 || h.DBMinConns > h.DBMaxConns || h.DBMaxConnIdleTime <= 0 {
+		return nil, fmt.Errorf("SPOOL_HUB_DB_MAX_CONNS must be >= 1, SPOOL_HUB_DB_MIN_CONNS 0..MAX_CONNS, SPOOL_HUB_DB_MAX_CONN_IDLE_TIME positive")
 	}
 	if (h.FilesBucket == "") == (h.FilesDir == "") {
 		return nil, fmt.Errorf("exactly one of SPOOL_HUB_FILES_BUCKET or SPOOL_HUB_FILES_DIR must be set")

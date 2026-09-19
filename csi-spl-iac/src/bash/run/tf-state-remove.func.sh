@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 
 #------------------------------------------------------------------------------
-# @description Tf plan.
+# @description Tf state remove.
 #------------------------------------------------------------------------------
-do_tf_plan() {
+do_tf_state_remove() {
 
-  do_log "INFO START ::: provisioning step ${STEP:?}"
+  do_log "INFO START ::: provisioning step ${tf_proj}"
+
+  TARGET=${TARGET:?}
 
   do_tf_init
+
+  # do_backup_region_dynamo_db_tables "$AWS_PROFILE" "$AWS_REGION"
 
   vars_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.vars.tfvars"
   backend_config_path="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV/tf/$tf_proj.backend-config.tfvars"
@@ -18,13 +22,16 @@ do_tf_plan() {
   #set -x
 
   terraform -chdir=${tf_run_path} init -backend-config=$backend_config_path -upgrade
-  terraform -chdir=${tf_run_path} plan -out=${ORG}-${APP}-${ENV}.tfplan -var-file=$vars_path -lock=false
-  #terraform -chdir=${tf_run_path} show -json ${ORG}-${APP}-${ENV}.tfplan | jq -r > ${ORG}-${APP}-${ENV}.tfplan
-  #cat ${ORG}-${APP}-${ENV}.tfplan | jq -r '.planned_values.root_module.resources[].address'
+
+  while IFS=',' read -ra TARGETS; do
+    for target in "${TARGETS[@]}"; do
+      terraform -chdir=${tf_run_path} get -update=true && terraform -chdir=${tf_run_path} state rm -lock=false ${target}
+    done
+  done <<<"$TARGET"
 
   rm -rf ${tf_run_path} #&& rm -rf ${modules_tgt_dir}
-  set +x
 
+  set +x
   set +e
 
   do_simple_log "INFO STOP  ::: provisioning step ${tf_proj}"

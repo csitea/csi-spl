@@ -5,7 +5,7 @@
 #          only). A bare `git grep private_key` cannot be 0 -- docs, this
 #          suite and the tenant JSON field root_private_key name it -- so this
 #          looks for the two shapes real key material has: a PEM private-key
-#          header, and a GCP SA key's "private_key": "<value>" field.
+#          header, and a GCP SA key's private_key JSON field with a value.
 #          CONTROL: a planted file of each shape in a scratch repo is found.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -29,7 +29,7 @@ hits=$(material "$APP_ROOT")
 # --- control -------------------------------------------------------------------
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 git -C "$T" init -q
-printf '{"type":"service_account","private_key": "x"}\n' >"$T/sa.json"
+printf '{"type":"service_account","%s": "x"}\n' "private_key" >"$T/sa.json"
 printf -- '-----BEGIN %s-----\nx\n' "PRIVATE KEY" >"$T/k.pem"
 printf 'root_private_key is a field name\n' >"$T/doc.md"
 git -C "$T" add -A

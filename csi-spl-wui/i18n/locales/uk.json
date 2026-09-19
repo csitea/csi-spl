@@ -258,7 +258,8 @@
     "remove_file": "Remove {name}",
     "attach": "attach",
     "send": "Send",
-    "sending": "Sending…"
+    "sending": "Sending…",
+    "code_hint": "Блок коду: Enter додає рядок, введіть ``` або натисніть Esc, щоб закрити, Ctrl+Enter надсилає"
   },
   "feed": {
     "unknown_author": "unknown",
@@ -372,5 +373,11 @@
     "task": {
       "status": "{n} · newest first · {state}"
     }
+  },
+  "code": {
+    "copy": "Копіювати",
+    "copied": "Скопійовано",
+    "block_label": "Блок коду",
+    "block_label_lang": "Блок коду, {lang}"
   }
 }

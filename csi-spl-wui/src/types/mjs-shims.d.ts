@@ -360,3 +360,17 @@ declare module '~/utils/pane-widths.mjs' {
   export function savePaneWidths(widths: { sidebar: number, thread: number }, store?: unknown): boolean
   export function resetPane(pane: 'sidebar' | 'thread'): number
 }
+
+declare module '~/utils/code-blocks.mjs' {
+  export type BodyPart = { type: 'text' | 'strong' | 'mention' | 'inline', text: string }
+  export type BodyBlock =
+    | { type: 'code', text: string, lang: string, closed: boolean }
+    | { type: 'para', parts: BodyPart[] }
+  export function normalizeNewlines(src: string): string
+  export function parseBody(src: string): BodyBlock[]
+  export function bodyToHtml(src: string): string
+  export function fenceStateAt(text: string, caret?: number): { inCode: boolean, lang: string }
+  export function enterAction(o: { inCode?: boolean, shift?: boolean, alt?: boolean, mod?: boolean }): 'send' | 'newline'
+  export function exitFence(text: string, caret?: number): { text: string, cursor: number }
+  export function closeOpenFence(text: string): string
+}

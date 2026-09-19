@@ -13,7 +13,7 @@
         <KindBadge :kind="String(msg.kind)" />
         <span class="msg-time">{{ time }}</span>
       </div>
-      <div class="msg-body" v-html="html" />
+      <MessageBody :body="String(msg.body || '')" />
       <FileAttachment
         v-for="(f, i) in files"
         :key="String(f.file_id || f.path || i)"
@@ -40,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatTs, renderBody } from '~/utils/channel-feed.mjs'
+import { formatTs } from '~/utils/channel-feed.mjs'
 
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
@@ -58,7 +58,6 @@ const { t, te, locale } = useI18n({ useScope: 'global' })
 /** v:1 kind in words (feed.kind.*); an unknown kind shows as sent. */
 const kindLabel = (k: string) => (te('feed.kind.' + k) ? t('feed.kind.' + k) : k)
 const time = computed(() => formatTs(String(props.msg.ts || ''), locale.value))
-const html = computed(() => renderBody(String(props.msg.body || '')))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])
 const count = computed(() => props.count || 0)
 </script>

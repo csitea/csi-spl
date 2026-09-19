@@ -258,7 +258,8 @@
     "remove_file": "Remove {name}",
     "attach": "attach",
     "send": "Send",
-    "sending": "Sending…"
+    "sending": "Sending…",
+    "code_hint": "Koodilohko: Enter lisää rivin, sulje kirjoittamalla ``` tai painamalla Esc, Ctrl+Enter lähettää"
   },
   "feed": {
     "unknown_author": "unknown",
@@ -372,5 +373,11 @@
     "task": {
       "status": "{n} · newest first · {state}"
     }
+  },
+  "code": {
+    "copy": "Kopioi",
+    "copied": "Kopioitu",
+    "block_label": "Koodilohko",
+    "block_label_lang": "Koodilohko, {lang}"
   }
 }

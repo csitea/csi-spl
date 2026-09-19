@@ -258,7 +258,8 @@
     "remove_file": "Remove {name}",
     "attach": "attach",
     "send": "Send",
-    "sending": "Sending…"
+    "sending": "Sending…",
+    "code_hint": "Блок кода: Enter добавляет строку, введите ``` или нажмите Esc, чтобы закрыть, Ctrl+Enter отправляет"
   },
   "feed": {
     "unknown_author": "unknown",
@@ -372,5 +373,11 @@
     "task": {
       "status": "{n} · newest first · {state}"
     }
+  },
+  "code": {
+    "copy": "Копировать",
+    "copied": "Скопировано",
+    "block_label": "Блок кода",
+    "block_label_lang": "Блок кода, {lang}"
   }
 }

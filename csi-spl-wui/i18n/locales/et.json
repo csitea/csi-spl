@@ -258,7 +258,8 @@
     "remove_file": "Remove {name}",
     "attach": "attach",
     "send": "Send",
-    "sending": "Sending…"
+    "sending": "Sending…",
+    "code_hint": "Koodiplokk: Enter lisab rea, sulgemiseks kirjuta ``` või vajuta Esc, Ctrl+Enter saadab"
   },
   "feed": {
     "unknown_author": "unknown",
@@ -372,5 +373,11 @@
     "task": {
       "status": "{n} · newest first · {state}"
     }
+  },
+  "code": {
+    "copy": "Kopeeri",
+    "copied": "Kopeeritud",
+    "block_label": "Koodiplokk",
+    "block_label_lang": "Koodiplokk, {lang}"
   }
 }

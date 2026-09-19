@@ -27,13 +27,17 @@
         :aria-label="omnibox ? t('composer.omnibox_label') : t('composer.message_label')"
         v-model="text"
         rows="2"
+        :class="{ 'in-code': inCode }"
         :placeholder="placeholder"
+        :aria-describedby="hintId"
         autocomplete="off"
+        spellcheck="true"
         @keydown="onKeydown"
         @input="syncMention"
         @click="syncMention"
         @keyup="syncMention"
       />
+      <p :id="hintId" class="code-hint muted" aria-live="polite">{{ inCode ? t('composer.code_hint') : '' }}</p>
       <ul v-if="picked.length" class="file-chips">
         <li v-for="(f, i) in picked" :key="f.name + i">
           📎 {{ f.name }} <small>{{ t('composer.file_bytes', { n: f.size }) }}</small>
@@ -53,6 +57,7 @@
 
 <script setup lang="ts">
 import { useRosterStore } from '~/stores/roster'
+import { closeOpenFence, enterAction, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import {
   activeMentionQuery,
@@ -74,6 +79,9 @@ const text = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)
 const mentionQuery = ref<string | null>(null)
 const activeIdx = ref(0)
+/** Slack's ``` composer: the caret sits inside an open code block. */
+const inCode = ref(false)
+const hintId = useId()
 
 const { t } = useI18n({ useScope: 'global' })
 const placeholder = computed(() => props.placeholder || t('composer.placeholder_default', { mention: '@CLE-07' }))
@@ -83,7 +91,9 @@ function caret(): number {
 }
 
 function syncMention() {
-  const q = activeMentionQuery(text.value, caret())
+  inCode.value = fenceStateAt(text.value, caret()).inCode
+  // no @-autocomplete inside a code block: the text there is literal
+  const q = inCode.value ? null : activeMentionQuery(text.value, caret())
   if (q !== mentionQuery.value) activeIdx.value = 0
   mentionQuery.value = q
 }
@@ -108,6 +118,16 @@ function pick(peer: { id: string }) {
 }
 
 function onKeydown(ev: KeyboardEvent) {
+  if (ev.isComposing) return
+  if (inCode.value && ev.key === 'Escape' && !pickerOpen.value) {
+    // Slack's exit: close the block at the caret, keep typing below it
+    ev.preventDefault()
+    const next = exitFence(text.value, caret())
+    text.value = next.text
+    inCode.value = false
+    nextTick(() => inputEl.value?.setSelectionRange(next.cursor, next.cursor))
+    return
+  }
   if (props.omnibox && ev.key === 'Escape' && !pickerOpen.value) {
     emit('search', '')
     return
@@ -136,9 +156,14 @@ function onKeydown(ev: KeyboardEvent) {
       return
     }
   }
-  if (ev.key === 'Enter' && !ev.shiftKey && !ev.altKey && !ev.ctrlKey && !ev.metaKey) {
-    ev.preventDefault()
-    onSend()
+  if (ev.key === 'Enter') {
+    const state = fenceStateAt(text.value, caret())
+    inCode.value = state.inCode
+    const act = enterAction({ inCode: state.inCode, shift: ev.shiftKey, alt: ev.altKey, mod: ev.ctrlKey || ev.metaKey })
+    if (act === 'send') {
+      ev.preventDefault()
+      onSend()
+    }
   }
 }
 
@@ -151,12 +176,13 @@ function onSend() {
       return
     }
   }
-  const body = text.value.trim()
+  const body = closeOpenFence(text.value).trim()
   if ((!body && !picked.value.length) || props.busy) return
   emit('send', body, props.parentTaskId, picked.value.slice())
   text.value = ''
   picked.value = []
   mentionQuery.value = null
+  inCode.value = false
 }
 
 function onFiles(ev: Event) {
@@ -169,6 +195,17 @@ function onFiles(ev: Event) {
 </script>
 
 <style scoped>
+textarea.in-code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--color-bg-2);
+}
+/* kept in the tree while empty so the live region announces entering a block */
+.code-hint {
+  margin: 0;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
 .file-chips {
   list-style: none;
   margin: 0 0 6px;

@@ -1,5 +1,6 @@
 /** Pure feed helpers. Node tests import this file; Vue stores wrap it. */
 
+import { bodyToHtml } from './code-blocks.mjs'
 import { matchesSearch, newestFirst, windowed } from './feed.mjs'
 
 export function topLevel(messages) {
@@ -84,16 +85,13 @@ export function formatTs(ts, locale) {
   return d.toISOString().slice(11, 16)
 }
 
+/**
+ * Escaped HTML of a body (``` blocks, `inline`, **bold**, @mentions). The feed
+ * renders parseBody through MessageBody.vue instead; this string form stays
+ * for callers that need one.
+ */
 export function renderBody(src) {
-  const escaped = String(src || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-  return escaped
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/@([A-Z]{2,4}-\d+)/g, '<span class="mention">@$1</span>')
-    .replace(/\n/g, '<br>')
+  return bodyToHtml(src)
 }
 
 /** Hub channel slug (channels-v1 §5.1: ^[a-z0-9][a-z0-9-]{0,63}$). */

@@ -258,7 +258,8 @@
     "remove_file": "Remove {name}",
     "attach": "attach",
     "send": "Send",
-    "sending": "Sending…"
+    "sending": "Sending…",
+    "code_hint": "Bloque de código: Enter añade una línea, escribe ``` o pulsa Esc para cerrar, Ctrl+Enter envía"
   },
   "feed": {
     "unknown_author": "unknown",
@@ -372,5 +373,11 @@
     "task": {
       "status": "{n} · newest first · {state}"
     }
+  },
+  "code": {
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "block_label": "Bloque de código",
+    "block_label_lang": "Bloque de código, {lang}"
   }
 }

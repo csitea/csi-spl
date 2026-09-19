@@ -258,7 +258,8 @@
     "remove_file": "Remove {name}",
     "attach": "attach",
     "send": "Send",
-    "sending": "Sending…"
+    "sending": "Sending…",
+    "code_hint": "Koda bloks: Enter pievieno rindu, lai aizvērtu, ierakstiet ``` vai nospiediet Esc, Ctrl+Enter nosūta"
   },
   "feed": {
     "unknown_author": "unknown",
@@ -372,5 +373,11 @@
     "task": {
       "status": "{n} · newest first · {state}"
     }
+  },
+  "code": {
+    "copy": "Kopēt",
+    "copied": "Nokopēts",
+    "block_label": "Koda bloks",
+    "block_label_lang": "Koda bloks, {lang}"
   }
 }

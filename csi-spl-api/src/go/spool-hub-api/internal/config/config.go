@@ -169,6 +169,27 @@ type Hub struct {
 	WUIDispatch     bool   `env:"SPOOL_HUB_WUI_DISPATCH" envDefault:"false"`
 	WUIKey          string `env:"SPOOL_HUB_WUI_KEY"`
 	WUIKeyEphemeral bool   `env:"SPOOL_HUB_WUI_KEY_EPHEMERAL" envDefault:"false"`
+	// 017 FR-SEC-006: how many proxies in front of the hub append to
+	// X-Forwarded-For; the client IP every per-IP limit keys on (edge and
+	// native auth) is the hops-th entry from the right. MEASURED per env with
+	// csi-spl-orc do_spl_probe_client_ip, never assumed. 0 = the TCP peer.
+	TrustedProxyHops int  `env:"SPOOL_HUB_TRUSTED_PROXY_HOPS" envDefault:"0"`
+	ClientIPProbe    bool `env:"SPOOL_HUB_CLIENT_IP_PROBE" envDefault:"false"`
+	// 017 FR-SEC-004 in-app edge limits (no LB / Cloud Armor, owner
+	// 2026-09-19). 0 turns one limit off. The address-free controls (global
+	// socket cap, hello + ping timeouts) default ON, csi-rel's rule that a
+	// forgotten key must not fail open. The PER-IP limits default OFF: keyed
+	// on a wrong address (hops not yet measured, so every caller shares the
+	// front end's) they would be an outage, not a limit; cnf sets them
+	// together with SPOOL_HUB_TRUSTED_PROXY_HOPS.
+	EdgeWindow            time.Duration `env:"SPOOL_HUB_EDGE_WINDOW" envDefault:"1m"`
+	EdgeWSConnsPerIP      int           `env:"SPOOL_HUB_EDGE_WS_CONNS_PER_IP" envDefault:"0"`
+	EdgeWSConnsTotal      int           `env:"SPOOL_HUB_EDGE_WS_CONNS_TOTAL" envDefault:"900"`
+	EdgeWSHandshakesPerIP int           `env:"SPOOL_HUB_EDGE_WS_HANDSHAKES_PER_IP" envDefault:"0"`
+	EdgeAuthPerIP         int           `env:"SPOOL_HUB_EDGE_AUTH_PER_IP" envDefault:"0"`
+	HelloTimeout          time.Duration `env:"SPOOL_HUB_HELLO_TIMEOUT" envDefault:"10s"`
+	WSPingInterval        time.Duration `env:"SPOOL_HUB_WS_PING_INTERVAL" envDefault:"30s"`
+	WSPingTimeout         time.Duration `env:"SPOOL_HUB_WS_PING_TIMEOUT" envDefault:"15s"`
 }
 
 // WUIPrivateKey returns the box-wui signing key: decoded from SPOOL_HUB_WUI_KEY,
@@ -210,6 +231,13 @@ func LoadHub() (*Hub, error) {
 	if h.QueueTTL <= 0 || h.HelloSkew <= 0 || h.UploadTokenTTL <= 0 || h.QueueMaxPerBox <= 0 ||
 		h.RetentionAlerts <= 0 || h.RetentionChannels <= 0 || h.BillingGrace <= 0 {
 		return nil, fmt.Errorf("hub durations and SPOOL_HUB_QUEUE_MAX_PER_BOX must be positive")
+	}
+	if h.TrustedProxyHops < 0 || h.EdgeWSConnsPerIP < 0 || h.EdgeWSConnsTotal < 0 ||
+		h.EdgeWSHandshakesPerIP < 0 || h.EdgeAuthPerIP < 0 || h.WSPingInterval < 0 {
+		return nil, fmt.Errorf("SPOOL_HUB_TRUSTED_PROXY_HOPS, SPOOL_HUB_EDGE_* and SPOOL_HUB_WS_PING_INTERVAL must be zero (off) or positive")
+	}
+	if h.EdgeWindow <= 0 || h.HelloTimeout <= 0 || h.WSPingTimeout <= 0 {
+		return nil, fmt.Errorf("SPOOL_HUB_EDGE_WINDOW, SPOOL_HUB_HELLO_TIMEOUT and SPOOL_HUB_WS_PING_TIMEOUT must be positive")
 	}
 	if h.QuotaMessagesPerMonth < 0 || h.QuotaPins < 0 || h.QuotaFileBytes < 0 {
 		return nil, fmt.Errorf("hub quotas must be zero (unlimited) or positive")

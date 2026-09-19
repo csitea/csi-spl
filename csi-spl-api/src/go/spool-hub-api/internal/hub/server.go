@@ -28,6 +28,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/edge"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -75,6 +76,15 @@ type Options struct {
 	// Payments is the M2 checkout surface (006 checkout-v1, /api/v1/checkout*
 	// and /api/v1/webhooks/payment); nil = not mounted. Not tenant-scoped.
 	Payments interface{ Register(mux *http.ServeMux) }
+	// Edge is the in-app edge protection (017 FR-SEC-004, cnf
+	// SPOOL_HUB_EDGE_* + SPOOL_HUB_TRUSTED_PROXY_HOPS); zero = every limit off.
+	Edge edge.Limits
+	// ClientIPProbe mounts GET /v1/debug/client-ip (SPOOL_HUB_CLIENT_IP_PROBE).
+	ClientIPProbe bool
+	// PingInterval / PingTimeout: socket liveness on /v1/ws and /v1/wui/ws. A
+	// peer that misses a pong for PingTimeout is closed. 0 interval = no pings.
+	PingInterval time.Duration
+	PingTimeout  time.Duration
 	// SessionID returns the member-session human id of a browser request; nil
 	// = Auth.SessionForTenant. Set by code only (a test seam), never by env.
 	SessionID func(r *http.Request, tenant string) (string, error)
@@ -94,6 +104,7 @@ type Server struct {
 	online   map[[2]string]int // (tenant, HUM-*) → open browser sockets (presence)
 	closing  bool
 	cicd     *cicdlogs.Service
+	edge     *edge.Guard
 }
 
 type uploadToken struct {
@@ -129,10 +140,14 @@ func New(o Options) (*Server, error) {
 	if o.HelloTimeout == 0 {
 		o.HelloTimeout = 10 * time.Second
 	}
+	if o.PingInterval > 0 && o.PingTimeout <= 0 {
+		o.PingTimeout = writeTimeout
+	}
 	s := &Server{
 		o: o, suffix: strings.ToLower(strings.TrimPrefix(o.TenantHostPattern, "{tenant}")),
 		boxes: map[[2]string]*session{}, sessions: map[*session]struct{}{},
 		tokens: map[string]uploadToken{}, wui: map[*wuiConn]struct{}{}, online: map[[2]string]int{},
+		edge: edge.NewGuard(o.Edge, o.Log, o.Now),
 	}
 	if o.CICD != nil {
 		o.CICD.Bus = s
@@ -183,10 +198,16 @@ func (s *Server) Handler() http.Handler {
 	if s.o.Payments != nil {
 		s.o.Payments.Register(mux)
 	}
-	if s.o.Auth != nil {
-		return s.middleware(s.authCORS(mux))
+	if s.o.ClientIPProbe {
+		mux.HandleFunc("GET "+edge.PathProbe, s.edge.Probe)
 	}
-	return s.middleware(mux)
+	// The edge limits sit inside authCORS so a 429 on /api/v1/auth/* still
+	// carries the CORS headers the WUI needs to read it.
+	inner := s.edge.Wrap(mux)
+	if s.o.Auth != nil {
+		return s.middleware(s.authCORS(inner))
+	}
+	return s.middleware(inner)
 }
 
 // Shutdown closes every live socket with 1001 (graceful drain); the caller
@@ -215,6 +236,37 @@ func (s *Server) Shutdown() {
 		}(x)
 	}
 	wg.Wait()
+}
+
+// keepalive pings conn every PingInterval until ctx ends; a missed pong within
+// PingTimeout closes the socket (017 FR-SEC-004: a half-open or unread socket does not
+// keep its slot until the Cloud Run request timeout). It closes without a
+// close handshake: a peer that ignores pings would not answer one either. The
+// pong is read by the handler's own read loop, which every socket has.
+func (s *Server) keepalive(ctx context.Context, conn *websocket.Conn) {
+	if s.o.PingInterval <= 0 {
+		return
+	}
+	go func() {
+		t := time.NewTicker(s.o.PingInterval)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				pctx, cancel := context.WithTimeout(ctx, s.o.PingTimeout)
+				err := conn.Ping(pctx)
+				cancel()
+				if err != nil {
+					if ctx.Err() == nil {
+						conn.CloseNow() //nolint:errcheck
+					}
+					return
+				}
+			}
+		}
+	}()
 }
 
 // RunSweeper applies retention every interval until ctx ends.

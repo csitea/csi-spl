@@ -96,6 +96,9 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer s.drop(x)
 	s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Str("role", x.role).Msg("ws hello accepted")
+	kctx, stopPing := context.WithCancel(ctx)
+	defer stopPing()
+	s.keepalive(kctx, conn)
 
 	for {
 		var f wire.Frame

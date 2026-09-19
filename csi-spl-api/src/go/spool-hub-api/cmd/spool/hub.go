@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/edge"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/logging"
@@ -70,6 +72,11 @@ func cmdServe() int {
 		RetentionChannels: hc.RetentionChannels, AllowTextOnly: hc.AllowTextOnly, Version: version, Commit: commit, BuiltAt: builtAt,
 		QuotaMessagesPerMonth: hc.QuotaMessagesPerMonth, QuotaPins: hc.QuotaPins, QuotaFileBytes: hc.QuotaFileBytes,
 		ViewDoor: hc.ViewDoor, ViewCORSOrigins: hc.ViewCORSOrigins, Env: hc.Env, LobbyTaskID: hc.LobbyTaskID,
+		HelloTimeout: hc.HelloTimeout, PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout,
+		ClientIPProbe: hc.ClientIPProbe,
+		Edge: edge.Limits{TrustedProxyHops: hc.TrustedProxyHops, Window: hc.EdgeWindow,
+			WSConnsPerIP: hc.EdgeWSConnsPerIP, WSConnsTotal: hc.EdgeWSConnsTotal,
+			WSHandshakesPerIP: hc.EdgeWSHandshakesPerIP, AuthPerIP: hc.EdgeAuthPerIP},
 	}
 	wuiKey, err := hc.WUIPrivateKey() // specs/014; the private key is never logged
 	if err != nil {
@@ -103,6 +110,12 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
+	// 017 FR-SEC-006: one hops value for every per-IP limit. The retired
+	// native-only knob may stay set only if it agrees.
+	if v, ok := os.LookupEnv("SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS"); ok && strings.TrimSpace(v) != strconv.Itoa(hc.TrustedProxyHops) {
+		return fail(fmt.Errorf("SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS=%q disagrees with SPOOL_HUB_TRUSTED_PROXY_HOPS=%d: set only SPOOL_HUB_TRUSTED_PROXY_HOPS", v, hc.TrustedProxyHops))
+	}
+	nc.TrustedProxyHops = hc.TrustedProxyHops
 	if hc.ViewDoor == hub.ViewDoorSession && len(ac.Enabled()) == 0 && !nc.Enabled {
 		return fail(fmt.Errorf("SPOOL_HUB_VIEW_DOOR=session needs SPOOL_HUB_AUTH_PROVIDERS or SPOOL_HUB_AUTH_NATIVE_ENABLED (nobody could sign in)"))
 	}
@@ -157,7 +170,10 @@ func cmdServe() int {
 		return fail(err)
 	}
 	go srv.RunSweeper(ctx, 10*time.Minute)
-	hs := &http.Server{Addr: hc.ListenAddr, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	// IdleTimeout closes an idle keep-alive connection; a hijacked socket is
+	// not governed by it (keepalive pings do that, 017 FR-SEC-004).
+	hs := &http.Server{Addr: hc.ListenAddr, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10}
 	errc := make(chan error, 1)
 	go func() { errc <- hs.ListenAndServe() }()
 	log.Info().Str("addr", hc.ListenAddr).Msg("hub listening")

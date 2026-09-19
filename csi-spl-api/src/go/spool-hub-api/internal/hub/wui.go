@@ -242,6 +242,9 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 		c.write(ctx, presenceFrame(p, "online")) //nolint:errcheck
 	}
 	s.humanOnline(ctx, t.ID, c.from, 1)
+	kctx, stopPing := context.WithCancel(ctx)
+	defer stopPing()
+	s.keepalive(kctx, conn)
 	defer func() { // unregister first so the offline frame is not written to this closing socket
 		s.mu.Lock()
 		delete(s.wui, c)

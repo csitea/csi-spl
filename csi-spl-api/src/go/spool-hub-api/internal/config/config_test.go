@@ -229,3 +229,35 @@ func TestLoadHubWUIDispatch(t *testing.T) {
 		t.Fatal("SPOOL_HUB_WUI_KEY did not round-trip")
 	}
 }
+
+// 017 FR-SEC-004: an absent key leaves the address-free controls ON and the
+// per-IP limits OFF (they need measured hops); 0 is off; negative is refused.
+func TestLoadHubEdgeDefaults(t *testing.T) {
+	setHubBase(t)
+	h, err := LoadHub()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.EdgeWSConnsTotal <= 0 || h.WSPingInterval <= 0 || h.WSPingTimeout <= 0 || h.HelloTimeout <= 0 ||
+		h.EdgeWSConnsPerIP != 0 || h.EdgeWSHandshakesPerIP != 0 || h.EdgeAuthPerIP != 0 ||
+		h.TrustedProxyHops != 0 || h.ClientIPProbe {
+		t.Fatalf("edge defaults: %+v", h)
+	}
+	t.Setenv("SPOOL_HUB_EDGE_AUTH_PER_IP", "120")
+	t.Setenv("SPOOL_HUB_EDGE_WS_CONNS_TOTAL", "0")
+	t.Setenv("SPOOL_HUB_TRUSTED_PROXY_HOPS", "1")
+	if h, err = LoadHub(); err != nil || h.EdgeAuthPerIP != 120 || h.EdgeWSConnsTotal != 0 || h.TrustedProxyHops != 1 {
+		t.Fatalf("cnf values, 0 = off, hops 1: %v %+v", err, h)
+	}
+	for _, k := range []string{"SPOOL_HUB_EDGE_WS_CONNS_PER_IP", "SPOOL_HUB_TRUSTED_PROXY_HOPS"} {
+		t.Setenv(k, "-1")
+		if _, err := LoadHub(); err == nil {
+			t.Fatalf("%s=-1 accepted", k)
+		}
+		t.Setenv(k, "1")
+	}
+	t.Setenv("SPOOL_HUB_WS_PING_TIMEOUT", "0s")
+	if _, err := LoadHub(); err == nil {
+		t.Fatal("SPOOL_HUB_WS_PING_TIMEOUT=0 accepted")
+	}
+}

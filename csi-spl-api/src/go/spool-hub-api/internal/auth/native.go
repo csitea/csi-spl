@@ -123,7 +123,7 @@ func readNativeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 
 // limit applies one in-process ceiling (FR-006b); false = 429 answered.
 func (n *native) limit(w http.ResponseWriter, key string, max int) bool {
-	ok, retry := n.lim.allow(key, max)
+	ok, retry := n.lim.Allow(key, max)
 	if ok {
 		return true
 	}

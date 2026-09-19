@@ -2,8 +2,10 @@
 // CLI verb, the stdio MCP server (`spool mcp`) and, later, the Cloud Run hub.
 // Verbs and MCP tools both call internal/action. Spec 002.
 //
-// Verbs (invoked as `spool <verb>`; the hyphenated `spool-<verb>` names in the
-// contract are shims over these):
+// Verbs (invoked as `spool <verb>`). The contract's hyphenated `spool-<verb>`
+// names (spec 002 FR-001, contracts/cli.md) denote these subcommands: no
+// separate `spool-<verb>` binaries or shims ship (spec 002 Clarifications
+// 2026-09-18 spell them `spool <verb>`).
 //
 //	keygen  [--box <box_id>] [--force]      box keypair; --box defaults to $SPOOL_BOX_ID
 //	pin     --box <box_id> --pubkey <b64> [--force] [--revoke] [--root-key <path>]

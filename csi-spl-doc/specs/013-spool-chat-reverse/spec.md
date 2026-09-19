@@ -14,7 +14,10 @@ Status words follow `../README.md` §2.3: **Implemented** (cited), **Partial**
 
 **Display only.** No `v:1` field changes, hub storage stays chronological
 (`ts`, `msg_id`, `task_id` in Postgres), CLI / MCP / `spool tail` stay
-oldest-first. Everything here lives in `csi-spl-wui`. The one hub-side ask
+oldest-first. Everything here lives in `csi-spl-wui`.
+**Pages** (owner 2026-09-19, row X3): `/lobby`, `/t/<id>`, the live thread
+pane, and also `/channel/<name>`, `/dm/<peer>` and the channel ThreadPane
+(tasks T009–T012). The one hub-side ask
 (newest-window paging, §4) is additive and owned by 003.
 
 Why a new dir and not a 005 slice: the owner wrote a separate binding
@@ -85,4 +88,4 @@ new live messages are announced politely.
 | D1 | ~~no newest-first window on view-v1 §4.4~~ **closed**: `order=desc&before=` (`1dca945`), used by the WUI (tasks T008) | 003 (CLE-3340) |
 | D2 | Custom avatars (`file_id` profile map) | later (avatars §3) |
 
-<!-- version: 0.3.0 · updated: 2026-09-19 · last-edit: 2026-09-19T00:40:00Z -->
+<!-- version: 0.4.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:05:00Z -->

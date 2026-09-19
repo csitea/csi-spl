@@ -4,7 +4,7 @@
 #          rail against a REAL `spool serve` + a throwaway Postgres: the tenant
 #          is unknown before fake-pay and resolves after, the key is claimed
 #          once into a 0600 file and never printed, a second claim is 410, and
-#          the hub logs the welcome mail but never the key.
+#          the hub logs the claim-link mail but never the key.
 #          CONTROLS: ENV=prd is refused; a hub with fake-pay OFF is refused
 #          (rail none); buying the same slug again fails; DRY_RUN buys nothing.
 #          Postgres: local server binaries or a CACHED docker image (never
@@ -66,7 +66,8 @@ serve() { # <port> <fake:true|false> <log>
   mkdir -p "$T/files-$1"
   SPOOL_HUB_ENV=lde SPOOL_HUB_DB_DSN="$DSN" SPOOL_HUB_FILES_DIR="$T/files-$1" SPOOL_HUB_TENANT_HOST_PATTERN='{tenant}.lde.localhost' \
     SPOOL_HUB_LISTEN_ADDR="127.0.0.1:$1" SPOOL_HUB_ENABLE_FAKE_PAY="$2" SPOOL_HUB_PAYMENT_PLAN_CENTS=2000 \
-    SPOOL_HUB_PAYMENT_PUBLIC_SCHEME=http SPOOL_HUB_MAIL_TRANSPORT=log "$BIN" serve >"$3" 2>&1 &
+    SPOOL_HUB_PAYMENT_PUBLIC_SCHEME=http SPOOL_HUB_PAYMENT_CLAIM_URL=http://localhost:3000/checkout/claim \
+    SPOOL_HUB_MAIL_TRANSPORT=log "$BIN" serve >"$3" 2>&1 &
 }
 P1=$((30000 + RANDOM % 15000)); P2=$((P1 + 1))
 serve "$P1" true "$T/hub.log"; HUB_PID=$!
@@ -94,7 +95,7 @@ jq -e '.tenant_before == 404 and .status == "paid" and .claim == 200 and .claim_
 key=$(jq -r .root_private_key "$KEY" 2>/dev/null)
 [[ ${#key} -eq 88 ]] && ! grep -qF "$key" "$T/buy.out" "$T/buy.err" "$T/hub.log" \
   && pass "the root key is in the file only (not stdout, not do_log, not the hub log)" || fail "key leaked or missing"
-grep -q '"template":"tenant_welcome"' "$T/hub.log" && pass "the hub logged the welcome mail (log transport)" || fail "no tenant_welcome in the hub log"
+grep -q '"template":"tenant_paid"' "$T/hub.log" && pass "the hub logged the one claim-link mail (log transport)" || fail "no tenant_paid in the hub log"
 in_orc ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com BASE_URL="http://127.0.0.1:$P1" DRY_RUN=0 KEY_OUT="$T/keys/again.json" >/dev/null 2>"$T/again.err" \
   && fail "CONTROL buying acme twice succeeded" \
   || { grep -q "HTTP 409" "$T/again.err" && pass "CONTROL a second buy of acme is 409" || fail "again: $(cat "$T/again.err")"; }

@@ -4,14 +4,15 @@
 # @description contracts/checkout-v1.md) against a running hub: plan (rail must
 # @description be fake) -> checkout -> the tenant host is still unknown ->
 # @description fake-pay -> status paid -> claim ONCE -> a second claim is 410 ->
-# @description the tenant host now resolves. The claimed root PRIVATE key goes
-# @description to KEY_OUT (0600) and never to stdout or do_log; stdout is a
-# @description JSON summary without secrets. The welcome mail goes wherever
-# @description the hub's mail transport sends it (dev: the mail log).
+# @description the tenant host now resolves. The root PRIVATE key is minted at
+# @description the claim (017 T008) and goes to KEY_OUT (0600), never to stdout
+# @description or do_log; stdout is a JSON summary without secrets. The one
+# @description mail (tenant URL + claim link, no key) goes wherever the hub's
+# @description mail transport sends it (dev: the mail log).
 # @description ENV=prd is refused: fake-pay does not exist there.
 # @description DRY_RUN=1 (default): only reads GET /api/v1/checkout/plan.
 # @param TENANT_ID - the slug to buy (msg.ValidTenantID)
-# @param BUYER_EMAIL - where the one welcome mail goes (no default)
+# @param BUYER_EMAIL - where the one claim-link mail goes (no default)
 # @param ENV (optional) - lde (default) or dev
 # @param DRY_RUN (optional) - 1 (default): plan only. 0: buy.
 # @param BASE_URL (optional) - hub base; default lde http://127.0.0.1:<lde hub
@@ -101,8 +102,7 @@ do_spl_checkout_fake_buy() {
   [[ "$_code" == 200 ]] || { do_log "FATAL claim $id: HTTP $_code $(jq -c 'del(.root_private_key)' <<<"$_body" 2>/dev/null)"; return 1; }
   (umask 077 && printf '%s\n' "$_body" >"$out") || return 1
   chmod 600 "$out"
-  local emailed keylen
-  emailed="$(jq -r .emailed <<<"$_body")"
+  local keylen
   keylen="$(jq -r '.root_private_key | length' <<<"$_body")"
   _body=""
 
@@ -116,8 +116,8 @@ do_spl_checkout_fake_buy() {
   local after="$_code"
 
   jq -nc --arg t "$tenant" --arg c "$id" --arg u "$turl" --arg f "$out" --arg b "$before" --arg a "$after" \
-    --arg r "$again" --arg e "$emailed" --arg l "$keylen" \
+    --arg r "$again" --arg l "$keylen" \
     '{tenant:$t, checkout_id:$c, tenant_url:$u, key_file:$f, tenant_before:($b|tonumber), fake_pay:"applied",
-      status:"paid", claim:200, key_b64_len:($l|tonumber), emailed:($e=="true"), claim_again:($r|tonumber), tenant_after:($a|tonumber)}'
+      status:"paid", claim:200, key_b64_len:($l|tonumber), claim_again:($r|tonumber), tenant_after:($a|tonumber)}'
   do_log "OK bought $tenant on the $env fake rail; root key in $out (0600), shown once, second claim $again"
 }

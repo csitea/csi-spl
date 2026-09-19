@@ -3,6 +3,8 @@ package store
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"fmt"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
@@ -24,10 +26,9 @@ func (p *memPayments) init() {
 func cloneCheckout(c *Checkout) Checkout {
 	out := *c
 	out.RootPubKey = append([]byte(nil), c.RootPubKey...)
-	out.SealedRootKey = append([]byte(nil), c.SealedRootKey...)
 	out.ClaimHash = append([]byte(nil), c.ClaimHash...)
-	if len(c.SealedRootKey) == 0 {
-		out.SealedRootKey = nil
+	if c.MailClaimHash != nil {
+		out.MailClaimHash = append([]byte(nil), c.MailClaimHash...)
 	}
 	return out
 }
@@ -125,24 +126,56 @@ func (s *Memory) ApplyPayment(_ context.Context, ev PaymentEvent, now time.Time)
 	return "", errUnknownPayEvent(ev.Kind)
 }
 
-func (s *Memory) ClaimCheckout(_ context.Context, id string, claimHash []byte, now time.Time) (Checkout, error) {
+func (s *Memory) SetClaimLink(_ context.Context, id string, mailClaimHash []byte, expires time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pay.init()
 	c, ok := s.pay.checkouts[id]
-	if !ok || len(c.ClaimHash) == 0 || !bytes.Equal(c.ClaimHash, claimHash) {
+	if !ok {
+		return ErrNotFound
+	}
+	c.MailClaimHash, c.ClaimExpires = append([]byte(nil), mailClaimHash...), expires
+	return nil
+}
+
+func claimMatches(c *Checkout, h []byte) bool {
+	return len(h) == 32 && ((len(c.ClaimHash) == 32 && bytes.Equal(c.ClaimHash, h)) ||
+		(len(c.MailClaimHash) == 32 && bytes.Equal(c.MailClaimHash, h)))
+}
+
+func (s *Memory) ClaimCheckout(_ context.Context, id string, claimHash []byte, now time.Time, newPub ed25519.PublicKey) (Checkout, error) {
+	if len(newPub) != ed25519.PublicKeySize {
+		return Checkout{}, fmt.Errorf("claim: new root pubkey must be %d bytes", ed25519.PublicKeySize)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pay.init()
+	c, ok := s.pay.checkouts[id]
+	if !ok {
+		return Checkout{}, ErrNotFound
+	}
+	if !c.ClaimedAt.IsZero() {
+		// status already shows claimed=true: no secret in saying so
+		return Checkout{}, ErrClaimed
+	}
+	if !claimMatches(c, claimHash) {
 		return Checkout{}, ErrNotFound
 	}
 	if c.Status != CheckoutPaid {
 		return Checkout{}, ErrNotPaid
 	}
-	if len(c.SealedRootKey) == 0 {
-		return Checkout{}, ErrClaimed
+	if !c.ClaimExpires.IsZero() && !now.Before(c.ClaimExpires) {
+		return Checkout{}, ErrClaimExpired
 	}
-	out := cloneCheckout(c)
-	c.SealedRootKey, c.ClaimedAt = nil, now
-	out.ClaimedAt = now
-	return out, nil
+	t, ok := s.tenants[c.TenantID]
+	if !ok || !bytes.Equal(t.RootPubKey, c.RootPubKey) {
+		return Checkout{}, ErrConflict
+	}
+	t.RootPubKey = append([]byte(nil), newPub...)
+	s.tenants[c.TenantID] = t
+	c.RootPubKey = append([]byte(nil), newPub...)
+	c.ClaimHash, c.MailClaimHash, c.ClaimedAt = nil, nil, now
+	return cloneCheckout(c), nil
 }
 
 func (s *Memory) CheckoutByProviderRef(_ context.Context, provider, ref string) (Checkout, error) {

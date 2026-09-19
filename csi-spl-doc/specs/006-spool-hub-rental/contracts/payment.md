@@ -54,12 +54,10 @@ file (`402` / `unpaid`); recv, GET file, GET pins, and WS hello stay up in
 grace. Over quota (messages/month, pins, stored file bytes; cnf) → `429` /
 `quota`. Recv is not gated by quota.
 
-Hub never stores card numbers, and never the tenant root private key **in
-clear**: between checkout and the buyer's claim it holds only the key sealed
-(AES-256-GCM) under the buyer's `claim_token`, which the hub keeps as a hash
-only, so the hub alone cannot open it; the first claim wipes the seal
-(`checkout-v1.md` §0). After pay: **success page + one email** with tenant URL
-and root private key (once, at claim). Provider and prices in **cnf**. Webhook
+Hub never stores card numbers and never the tenant root private key, and the
+key is **never emailed** (017 T008 / SEC-03): it is minted at the first claim
+and shown once in the browser (`checkout-v1.md` §0.2–0.3). After pay: **one
+email** with the tenant URL + a single-use, short-TTL claim link. Provider and prices in **cnf**. Webhook
 signature verify before any row write. Duplicate delivery id → 200 no-op.
 The buy surface is a **thin checkout page**, not the M3 Slack UI.
 

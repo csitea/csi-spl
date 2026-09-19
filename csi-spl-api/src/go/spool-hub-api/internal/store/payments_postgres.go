@@ -3,7 +3,9 @@ package store
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -37,10 +39,10 @@ func (s *Postgres) HoldCheckout(ctx context.Context, c Checkout, now time.Time, 
 			return err
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO payment_checkouts (intent_id, tenant_id, plan_id, provider, provider_ref,
-				amount_cents, currency, status, email, root_pubkey, sealed_root_key, claim_hash, created_at)
-			VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, 'pending', $8, $9, $10, $11, $12)`,
+				amount_cents, currency, status, email, root_pubkey, claim_hash, created_at)
+			VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, 'pending', $8, $9, $10, $11)`,
 			c.ID, c.TenantID, c.PlanID, c.Provider, c.ProviderRef, c.AmountCents, c.Currency, c.Email,
-			[]byte(c.RootPubKey), c.SealedRootKey, c.ClaimHash, now)
+			[]byte(c.RootPubKey), c.ClaimHash, now)
 		if isUniqueViolation(err) {
 			return ErrConflict
 		}
@@ -49,14 +51,14 @@ func (s *Postgres) HoldCheckout(ctx context.Context, c Checkout, now time.Time, 
 }
 
 const pgCheckoutCols = `intent_id, tenant_id, plan_id, provider, COALESCE(provider_ref, ''), amount_cents, currency,
-	status, COALESCE(email, ''), root_pubkey, sealed_root_key, claim_hash, created_at, paid_at, claimed_at`
+	status, COALESCE(email, ''), root_pubkey, claim_hash, mail_claim_hash, claim_expires_at, created_at, paid_at, claimed_at`
 
 func scanCheckout(row pgx.Row) (Checkout, error) {
 	var c Checkout
 	var root []byte
-	var paid, claimed *time.Time
+	var paid, claimed, expires *time.Time
 	err := row.Scan(&c.ID, &c.TenantID, &c.PlanID, &c.Provider, &c.ProviderRef, &c.AmountCents, &c.Currency,
-		&c.Status, &c.Email, &root, &c.SealedRootKey, &c.ClaimHash, &c.CreatedAt, &paid, &claimed)
+		&c.Status, &c.Email, &root, &c.ClaimHash, &c.MailClaimHash, &expires, &c.CreatedAt, &paid, &claimed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Checkout{}, ErrNotFound
 	}
@@ -69,6 +71,9 @@ func scanCheckout(row pgx.Row) (Checkout, error) {
 	}
 	if claimed != nil {
 		c.ClaimedAt = *claimed
+	}
+	if expires != nil {
+		c.ClaimExpires = *expires
 	}
 	return c, nil
 }
@@ -169,7 +174,22 @@ func (s *Postgres) ApplyPayment(ctx context.Context, ev PaymentEvent, now time.T
 	return outcome, nil
 }
 
-func (s *Postgres) ClaimCheckout(ctx context.Context, id string, claimHash []byte, now time.Time) (Checkout, error) {
+func (s *Postgres) SetClaimLink(ctx context.Context, id string, mailClaimHash []byte, expires time.Time) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE payment_checkouts SET mail_claim_hash = $2, claim_expires_at = $3
+		WHERE intent_id = $1`, id, mailClaimHash, expires)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) ClaimCheckout(ctx context.Context, id string, claimHash []byte, now time.Time, newPub ed25519.PublicKey) (Checkout, error) {
+	if len(newPub) != ed25519.PublicKeySize {
+		return Checkout{}, fmt.Errorf("claim: new root pubkey must be %d bytes", ed25519.PublicKeySize)
+	}
 	var out Checkout
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		c, err := scanCheckout(tx.QueryRow(ctx, `SELECT `+pgCheckoutCols+` FROM payment_checkouts
@@ -177,20 +197,31 @@ func (s *Postgres) ClaimCheckout(ctx context.Context, id string, claimHash []byt
 		if err != nil {
 			return err
 		}
-		if len(c.ClaimHash) == 0 || !bytes.Equal(c.ClaimHash, claimHash) {
+		if !c.ClaimedAt.IsZero() {
+			return ErrClaimed // status already shows claimed=true
+		}
+		if len(claimHash) != 32 || !(bytes.Equal(c.ClaimHash, claimHash) || (len(c.MailClaimHash) == 32 && bytes.Equal(c.MailClaimHash, claimHash))) {
 			return ErrNotFound
 		}
 		if c.Status != CheckoutPaid {
 			return ErrNotPaid
 		}
-		if len(c.SealedRootKey) == 0 {
-			return ErrClaimed
+		if !c.ClaimExpires.IsZero() && !now.Before(c.ClaimExpires) {
+			return ErrClaimExpired
 		}
-		if _, err := tx.Exec(ctx, `UPDATE payment_checkouts SET sealed_root_key = NULL, claimed_at = $2
-			WHERE intent_id = $1`, id, now); err != nil {
+		tag, err := tx.Exec(ctx, `UPDATE tenants SET root_pubkey = $3 WHERE tenant_id = $1 AND root_pubkey = $2`,
+			c.TenantID, []byte(c.RootPubKey), []byte(newPub))
+		if err != nil {
 			return err
 		}
-		c.ClaimedAt = now
+		if tag.RowsAffected() != 1 {
+			return ErrConflict
+		}
+		if _, err := tx.Exec(ctx, `UPDATE payment_checkouts SET root_pubkey = $2, claimed_at = $3,
+			claim_hash = NULL, mail_claim_hash = NULL WHERE intent_id = $1`, id, []byte(newPub), now); err != nil {
+			return err
+		}
+		c.RootPubKey, c.ClaimedAt, c.ClaimHash, c.MailClaimHash = newPub, now, nil, nil
 		out = c
 		return nil
 	})

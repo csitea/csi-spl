@@ -162,6 +162,9 @@ func TestStripeCardRail(t *testing.T) {
 	if code, cl := r.do(t, "POST", "/api/v1/checkout/claim", map[string]string{"checkout_id": id, "claim_token": co["claim_token"].(string)}); code != 200 || cl["root_private_key"] == nil {
 		t.Fatalf("claim %d %v", code, cl)
 	}
+	if m := r.mail.Messages(); len(m) != 1 || m[0].Template != TemplateTenantPaid {
+		t.Fatalf("the signed paid event sends exactly one claim-link mail: %+v", m)
+	}
 	// a held slug cancels the second intent at the provider (csi-rel CancelIntent)
 	code, co2 := r.do(t, "POST", "/api/v1/checkout", map[string]string{"tenant_id": "beta", "email": "b@example.com"})
 	if code != 201 {

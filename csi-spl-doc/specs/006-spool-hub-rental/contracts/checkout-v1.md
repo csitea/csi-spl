@@ -11,15 +11,17 @@ to `payment.md` (what is copied from csi-rel and why).
    a verified paid event (signed webhook, or fake-pay on lde/dev). Nothing
    answers on `<slug>.<domain>` until then, so nobody can sign in to an
    unpaid slug and become its owner.
-2. **The hub cannot read the root private key.** The keypair is minted at
-   checkout. The hub keeps the PUBLIC half, and the private half only
-   **sealed** (AES-256-GCM) under a key derived from a `claim_token` that is
-   returned to the buyer's browser once and stored by the hub only as a
-   SHA-256 hash. The seal is wiped on the first successful claim.
-3. **Shown once, sent once.** The first successful claim returns the key to
-   the success page and sends **one** email (tenant URL + root private key).
-   A second claim is `410 claimed`. Losing the claim token before claiming
-   loses the key: the operator re-keys out of band (payment.md §Recovery).
+2. **No private key exists before the claim, and none is ever stored or
+   emailed** (017 T008 / SEC-03). Checkout gives the slug a PLACEHOLDER root
+   public key whose private half is discarded at once; the first successful
+   claim mints the real keypair, rotates the tenant (and checkout) to its
+   public half in one transaction, and returns the private half once.
+3. **Two single-use claim tokens, stored as SHA-256 only.** The browser's
+   `claim_token` (§1.2) and a link token minted when the checkout is paid and
+   sent in the **one email** (tenant URL + claim link, no key). The first
+   claim with either burns both; later claims are `410 claimed`. Both die at
+   `SPOOL_HUB_PAYMENT_CLAIM_TTL` (default 24h) after payment → `410
+   claim_expired`, and the operator re-keys (payment.md §Recovery).
 4. **Verify before any write.** A webhook whose signature fails writes
    nothing (not even the dedup row) and answers `400` with no detail.
    A duplicate event id is `200 {"status":"duplicate"}` and changes nothing.
@@ -100,23 +102,26 @@ Polling for the success page. `200`:
 
 Request: `{"checkout_id":"co_…","claim_token":"…"}`.
 
-`200` (exactly once per checkout):
+`claim_token` is either the browser's token (§1.2) or the emailed link's
+token (§1.8). `200` (exactly once per checkout; the key is minted now):
 
 ```json
 {"tenant_id":"acme","tenant_url":"https://acme.dev.<domain>",
- "root_private_key":"<base64 64-byte ed25519 private key>","emailed":true}
+ "root_private_key":"<base64 64-byte ed25519 private key>"}
 ```
 
 `root_private_key` is the format `spool root-keygen` writes (save it 0600 and
-point `$SPOOL_TENANT_ROOT_KEY` at it). `emailed` is false when the mail
-transport is `none`/`log` or the send failed (the key is still shown).
+point `$SPOOL_TENANT_ROOT_KEY` at it). Render it once, keep it in memory only,
+never in storage, a URL or a log.
 
 | status | error | when |
 |---|---|---|
 | 400 | `bad_request` | body not JSON |
 | 404 | `not_found` | unknown checkout **or wrong claim token** (indistinguishable) |
 | 409 | `not_paid` | still pending — poll §1.3 and retry |
-| 410 | `claimed` | already claimed: the key is gone from the hub |
+| 410 | `claimed` | already claimed (by either token) |
+| 410 | `claim_expired` | past `SPOOL_HUB_PAYMENT_CLAIM_TTL` |
+| 409 | `conflict` | the tenant was re-keyed meanwhile (operator) |
 
 ### 1.5 `POST /api/v1/checkout/fake-pay` (lde/dev only)
 
@@ -159,6 +164,15 @@ CRITICAL, refund by hand.
 order (idempotent: PayPal-Request-Id = checkout id); the webhook, not this
 answer, marks it paid — poll §1.3. `404` for a non-PayPal checkout.
 
+### 1.8 The one email and the claim page (017 T008)
+
+When a checkout turns paid (signed webhook or fake-pay) the hub mints the link
+token and sends ONE mail (template `tenant_paid`): tenant URL + the link
+`<SPOOL_HUB_PAYMENT_CLAIM_URL>#checkout=<checkout_id>&token=<token>`, no key.
+The token rides in the URL **fragment**, so it never reaches a server or proxy
+log. The WUI claim page reads the fragment, clears it from the address bar
+(`history.replaceState`), and calls §1.4 once.
+
 ## 2. Success page flow (WUI)
 
 1. Plan page: `GET …/plan` → price; slug + email form → `POST …/checkout`.
@@ -167,9 +181,11 @@ answer, marks it paid — poll §1.3. `404` for a non-PayPal checkout.
    **"Pay (dev fake)"** button → `POST …/fake-pay`; `paypal` → PayPal button,
    onApprove → `POST …/paypal/capture`.
 3. Success page: poll `GET …/{checkout_id}` until `paid`, then `POST …/claim` once.
-4. Show tenant URL + root private key with copy/download, and a clear "this is
-   the only time we show it; it was also emailed" warning, then drop the
-   `claim_token` from storage.
+4. Show tenant URL + root private key with copy/download and a clear "this is
+   the only time it is shown; it is not emailed and the hub does not keep it"
+   warning, then drop the `claim_token` from storage.
+5. Claim page (`/checkout/claim`, §1.8): same render as step 4 from the link;
+   `410 claimed` → "already collected (on the success page or from this link)".
 
 ## 3. Config (cnf `hub.env`; secret via `payment.secret_env`)
 
@@ -180,6 +196,8 @@ answer, marks it paid — poll §1.3. `404` for a non-PayPal checkout.
 | `SPOOL_HUB_PAYMENT_PLAN_ID` / `_PLAN_CENTS` / `_CURRENCY` | the M2 tenant plan |
 | `SPOOL_HUB_PAYMENT_PUBLIC_SCHEME` | scheme of `tenant_url` |
 | `SPOOL_HUB_PAYMENT_HOLD` | how long a pending checkout holds its slug (default `1h`) |
+| `SPOOL_HUB_PAYMENT_CLAIM_URL` | the WUI claim page the mail links to; unset with a rail on → checkout 503 (guard); malformed → boot refused |
+| `SPOOL_HUB_PAYMENT_CLAIM_TTL` | claim window after payment (default `24h`) |
 | `SPOOL_HUB_STRIPE_PUBLISHABLE_KEY` | public, for the Payment Element |
 | `SPOOL_HUB_STRIPE_API_BASE` / `_API_VERSION` | empty = the live API / the pinned version (a stripe-mock only in lde) |
 | `SPOOL_HUB_STRIPE_SECRET_KEY` / `_WEBHOOK_SECRET` | **secrets** (slots `csi-spl-hub-stripe-secret-key`, `csi-spl-hub-stripe-webhook-secret`) |
@@ -187,4 +205,4 @@ answer, marks it paid — poll §1.3. `404` for a non-PayPal checkout.
 | `SPOOL_HUB_PAYPAL_CLIENT_ID` / `_MODE` / `_API_BASE` / `_WEBHOOK_ID` | PayPal (sandbox) |
 | `SPOOL_HUB_PAYPAL_CLIENT_SECRET` | **secret** (slot `csi-spl-hub-paypal-client-secret`) |
 
-<!-- version: 1.1.0 · updated: 2026-09-19 (Stripe + PayPal per owner direction; hosted rail removed) -->
+<!-- version: 1.2.0 · updated: 2026-09-19 (017 T008 / SEC-03: key minted at claim, never emailed; claim link §1.8) -->

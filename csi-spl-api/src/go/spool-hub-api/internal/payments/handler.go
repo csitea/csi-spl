@@ -28,8 +28,9 @@ const (
 	RoutePayPalWebhook = "/api/v1/webhooks/payment/paypal"
 )
 
-// TemplateTenantWelcome is the one email (mail.Message.Template, logs).
-const TemplateTenantWelcome = "tenant_welcome"
+// TemplateTenantPaid is the one email (mail.Message.Template, logs): tenant
+// URL + single-use claim link, NEVER key material (017 T008 / SEC-03).
+const TemplateTenantPaid = "tenant_paid"
 
 // Store is what the handler needs from the hub store.
 type Store interface {
@@ -198,7 +199,7 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 	case method != MethodCard && method != MethodPayPal:
 		writeErr(w, http.StatusBadRequest, "bad_method", "method must be card or paypal")
 		return
-	case method == MethodCard && h.cfg.Guard() != "":
+	case h.cfg.Guard() != "":
 		writeErr(w, http.StatusServiceUnavailable, "payment_unavailable", GuardReasonMisconfigured)
 		return
 	}
@@ -221,17 +222,14 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "tenant lookup failed")
 		return
 	}
-	pub, priv, err := ed25519.GenerateKey(nil)
+	// A PLACEHOLDER root key: its private half is dropped here, so nothing
+	// can use the tenant's root until the claim mints the real key (§0.2).
+	pub, _, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "keygen failed")
 		return
 	}
 	id, token := newCheckoutID(), NewClaimToken()
-	sealed, err := Seal(token, id, priv)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal", "seal failed")
-		return
-	}
 	// Provider first: a failed provider call must not hold the slug. The
 	// checkout id is the provider's order reference / idempotency key.
 	out := map[string]any{"checkout_id": id, "claim_token": token, "method": method,
@@ -259,7 +257,7 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 	}
 	c := store.Checkout{ID: id, TenantID: tid, PlanID: h.cfg.PlanID, Provider: provider, ProviderRef: ref,
 		AmountCents: h.cfg.PlanCents, Currency: h.cfg.Currency, Email: email, RootPubKey: pub,
-		SealedRootKey: sealed, ClaimHash: ClaimHash(token)}
+		ClaimHash: ClaimHash(token)}
 	if err := h.d.Store.HoldCheckout(ctx, c, h.d.Now().UTC(), h.cfg.Hold); err != nil {
 		_ = cancel(context.WithoutCancel(ctx), ref)
 		if errors.Is(err, store.ErrConflict) {
@@ -301,8 +299,13 @@ func (h *Handler) claim(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", "body is not claim JSON")
 		return
 	}
-	ctx := r.Context()
-	c, err := h.d.Store.ClaimCheckout(ctx, strings.TrimSpace(req.CheckoutID), ClaimHash(req.ClaimToken), h.d.Now().UTC())
+	// The root key is minted HERE, once, and never stored or emailed.
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "keygen failed")
+		return
+	}
+	c, err := h.d.Store.ClaimCheckout(r.Context(), strings.TrimSpace(req.CheckoutID), ClaimHash(req.ClaimToken), h.d.Now().UTC(), pub)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not_found", "no such checkout for that claim token")
@@ -311,32 +314,50 @@ func (h *Handler) claim(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "not_paid", "the payment has not arrived yet")
 		return
 	case errors.Is(err, store.ErrClaimed):
-		writeErr(w, http.StatusGone, "claimed", "the key was already shown once; the hub no longer holds it")
+		writeErr(w, http.StatusGone, "claimed", "the key was already shown once; the hub never held it")
+		return
+	case errors.Is(err, store.ErrClaimExpired):
+		writeErr(w, http.StatusGone, "claim_expired", "the claim window has closed; ask the operator to re-key the tenant")
+		return
+	case errors.Is(err, store.ErrConflict):
+		h.d.Log.Error().Str("severity", "CRITICAL").Str("checkout_id", req.CheckoutID).
+			Msg("claim: the tenant no longer carries the checkout's placeholder root key; operator re-key needed")
+		writeErr(w, http.StatusConflict, "conflict", "the tenant was re-keyed; contact support")
 		return
 	case err != nil:
 		h.d.Log.Error().Err(err).Msg("checkout: claim")
 		writeErr(w, http.StatusInternalServerError, "internal", "claim failed")
 		return
 	}
-	priv, err := Open(req.ClaimToken, c.ID, c.SealedRootKey)
-	if err != nil || !priv.Public().(ed25519.PublicKey).Equal(c.RootPubKey) {
-		// The claim hash matched, so this is corruption, not a guess.
-		h.d.Log.Error().Str("severity", "CRITICAL").Str("checkout_id", c.ID).Str("tenant_id", c.TenantID).
-			Msg("checkout: sealed root key does not open for a matching claim token; operator re-key needed (payment.md Recovery)")
-		writeErr(w, http.StatusInternalServerError, "internal", "the key could not be recovered; contact support")
+	h.d.Log.Info().Str("checkout_id", c.ID).Str("tenant_id", c.TenantID).Msg("checkout: claimed, root key minted and shown once")
+	writeJSON(w, http.StatusOK, map[string]any{"tenant_id": c.TenantID, "tenant_url": h.tenantURL(c.TenantID),
+		"root_private_key": base64.StdEncoding.EncodeToString(priv)})
+}
+
+// afterPaid sends the one email (017 T008): tenant URL + a fresh single-use
+// claim link valid for ClaimTTL. The link token exists in clear only in this
+// function and the mail; the store keeps its hash. Best-effort: the buyer's
+// browser token claims too.
+func (h *Handler) afterPaid(ctx context.Context, checkoutID string) {
+	ctx = context.WithoutCancel(ctx)
+	c, err := h.d.Store.GetCheckout(ctx, checkoutID)
+	if err != nil {
+		h.d.Log.Error().Err(err).Str("checkout_id", checkoutID).Msg("paid: checkout lookup for the claim link")
 		return
 	}
-	key := base64.StdEncoding.EncodeToString(priv)
-	url := h.tenantURL(c.TenantID)
-	emailed := false
-	if err := h.d.Mail.Send(context.WithoutCancel(ctx), TenantWelcome(c.Email, c.TenantID, url, key)); err != nil {
-		h.d.Log.Warn().Err(err).Str("checkout_id", c.ID).Msg("checkout: welcome mail not sent (key still shown once)")
-	} else {
-		emailed = h.d.MailDelivers
+	tok := NewClaimToken()
+	expires := h.d.Now().UTC().Add(h.cfg.ClaimTTL)
+	if err := h.d.Store.SetClaimLink(ctx, c.ID, ClaimHash(tok), expires); err != nil {
+		h.d.Log.Error().Err(err).Str("checkout_id", c.ID).Msg("paid: claim link not stored; no mail sent")
+		return
 	}
-	h.d.Log.Info().Str("checkout_id", c.ID).Str("tenant_id", c.TenantID).Bool("emailed", emailed).Msg("checkout: claimed")
-	writeJSON(w, http.StatusOK, map[string]any{"tenant_id": c.TenantID, "tenant_url": url,
-		"root_private_key": key, "emailed": emailed})
+	link := strings.TrimSpace(h.cfg.ClaimURL) + "#checkout=" + c.ID + "&token=" + tok
+	if err := h.d.Mail.Send(ctx, TenantPaid(c.Email, c.TenantID, h.tenantURL(c.TenantID), link, h.cfg.ClaimTTL)); err != nil {
+		h.d.Log.Warn().Err(err).Str("checkout_id", c.ID).Msg("paid: claim-link mail not sent (the browser can still claim)")
+		return
+	}
+	h.d.Log.Info().Str("checkout_id", c.ID).Str("to", mail.Digest(c.Email)).Bool("delivered", h.d.MailDelivers).
+		Msg("paid: claim-link mail sent")
 }
 
 type fakePayReq struct {
@@ -383,6 +404,9 @@ func (h *Handler) fakePay(w http.ResponseWriter, r *http.Request) {
 	if out == store.PayOutcomeConflict {
 		writeErr(w, http.StatusConflict, "tenant_taken", "the slug was taken meanwhile")
 		return
+	}
+	if out == store.PayOutcomePaid {
+		h.afterPaid(ctx, c.ID)
 	}
 	h.d.Log.Warn().Str("checkout_id", c.ID).Str("tenant_id", c.TenantID).
 		Msg("tenant paid through the DEV fake-pay rail (no money moved)")
@@ -554,27 +578,32 @@ func (h *Handler) apply(w http.ResponseWriter, r *http.Request, provider, eventI
 		writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 		return
 	}
+	if out == store.PayOutcomePaid {
+		h.afterPaid(ctx, checkoutID)
+	}
 	h.d.Log.Info().Str("provider", provider).Str("checkout_id", checkoutID).Str("action", out).Msg("payment webhook applied")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "action": out})
 }
 
-// TenantWelcome is the one email (FR-014): tenant URL + root private key.
-func TenantWelcome(to, tenantID, tenantURL, rootKey string) mail.Message {
-	return mail.Message{To: to, Template: TemplateTenantWelcome,
-		Subject: "Your spool hub tenant " + tenantID,
+// TenantPaid is the one email (FR-014 as amended by 017 T008): tenant URL +
+// a single-use claim link. It carries NO key material.
+func TenantPaid(to, tenantID, tenantURL, claimLink string, ttl time.Duration) mail.Message {
+	return mail.Message{To: to, Template: TemplateTenantPaid,
+		Subject: "Your spool hub tenant " + tenantID + " is paid",
 		TextBody: strings.Join([]string{
-			"Your spool hub tenant is ready.",
+			"Your spool hub tenant is paid and ready.",
 			"",
 			"Tenant URL:",
 			tenantURL,
 			"",
-			"Tenant ROOT private key (base64):",
-			rootKey,
+			"Collect your tenant ROOT key by opening this link once:",
+			claimLink,
 			"",
-			"This is the only copy: the hub does not keep it. Save it to a file readable",
-			"only by you (mode 0600) and point $SPOOL_TENANT_ROOT_KEY at that file; it",
-			"pins and revokes your boxes' keys. Anyone holding it controls your tenant.",
-			"Then delete this mail.",
+			"The link works once and expires in " + ttl.String() + ". The key is created",
+			"when you open it and shown only in your browser: it is never emailed and",
+			"the hub does not keep it. Save it to a file readable only by you (mode",
+			"0600) and point $SPOOL_TENANT_ROOT_KEY at it. If you already collected it",
+			"on the payment success page, this link no longer works.",
 		}, "\n")}
 }
 

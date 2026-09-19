@@ -20,7 +20,7 @@ func testCheckout(t *testing.T, tenant string) Checkout {
 	h := sha256.Sum256([]byte("claim-" + tenant))
 	id := uid("co_")
 	return Checkout{ID: id, ProviderRef: "pi_" + id, TenantID: tenant, Provider: "fake", AmountCents: 2000, Currency: "eur",
-		Email: "buyer@example.com", RootPubKey: pub, SealedRootKey: []byte("sealed"), ClaimHash: h[:]}
+		Email: "buyer@example.com", RootPubKey: pub, ClaimHash: h[:]}
 }
 
 // 006 T018a/T019: a hold is not a tenant; paid creates it active; the
@@ -49,7 +49,8 @@ func TestCheckoutHoldPayClaim(t *testing.T) {
 			if _, err := st.CheckoutByProviderRef(ctx, "other", "pi_"+c.ID); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("by ref under another provider: %v", err)
 			}
-			if _, err := st.ClaimCheckout(ctx, c.ID, c.ClaimHash, now); !errors.Is(err, ErrNotPaid) {
+			early, _, _ := ed25519.GenerateKey(nil)
+			if _, err := st.ClaimCheckout(ctx, c.ID, c.ClaimHash, now, early); !errors.Is(err, ErrNotPaid) {
 				t.Fatalf("claim before paid: want ErrNotPaid, got %v", err)
 			}
 			ev := PaymentEvent{Provider: "fake", EventID: "ev-" + c.ID, CheckoutID: c.ID, Kind: PayEventPaid}
@@ -75,19 +76,30 @@ func TestCheckoutHoldPayClaim(t *testing.T) {
 				t.Fatalf("hold on an existing tenant: %v", err)
 			}
 			wrong := sha256.Sum256([]byte("nope"))
-			if _, err := st.ClaimCheckout(ctx, c.ID, wrong[:], now); !errors.Is(err, ErrNotFound) {
+			realPub, _, _ := ed25519.GenerateKey(nil)
+			if _, err := st.ClaimCheckout(ctx, c.ID, wrong[:], now, realPub); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("wrong claim hash: want ErrNotFound, got %v", err)
 			}
-			got, err := st.ClaimCheckout(ctx, c.ID, c.ClaimHash, now)
-			if err != nil || string(got.SealedRootKey) != "sealed" || got.Email != "buyer@example.com" {
-				t.Fatalf("claim: %+v %v", got, err)
+			// the emailed link token (017 T008) claims as well as the browser's
+			link := sha256.Sum256([]byte("link-" + tenant))
+			if err := st.SetClaimLink(ctx, c.ID, link[:], now.Add(24*time.Hour)); err != nil {
+				t.Fatal(err)
 			}
-			if _, err := st.ClaimCheckout(ctx, c.ID, c.ClaimHash, now); !errors.Is(err, ErrClaimed) {
-				t.Fatalf("second claim: want ErrClaimed, got %v", err)
+			got, err := st.ClaimCheckout(ctx, c.ID, link[:], now, realPub)
+			if err != nil || !got.RootPubKey.Equal(realPub) || got.Email != "buyer@example.com" {
+				t.Fatalf("claim via link: %+v %v", got, err)
+			}
+			if ten, _ := st.GetTenant(ctx, tenant); !ten.RootPubKey.Equal(realPub) {
+				t.Fatal("claim did not rotate the tenant root key to the minted one")
+			}
+			for name, h := range map[string][]byte{"link": link[:], "browser": c.ClaimHash} {
+				if _, err := st.ClaimCheckout(ctx, c.ID, h, now, realPub); !errors.Is(err, ErrClaimed) {
+					t.Fatalf("second claim via %s: want ErrClaimed, got %v", name, err)
+				}
 			}
 			after, _ := st.GetCheckout(ctx, c.ID)
-			if len(after.SealedRootKey) != 0 || after.ClaimedAt.IsZero() || after.Status != CheckoutPaid {
-				t.Fatalf("seal must be wiped after claim: %+v", after)
+			if len(after.ClaimHash) != 0 || len(after.MailClaimHash) != 0 || after.ClaimedAt.IsZero() || after.Status != CheckoutPaid {
+				t.Fatalf("both claim hashes must burn: %+v", after)
 			}
 			// refund → billing.MapEvent("refund") = unpaid
 			ev3 := PaymentEvent{Provider: "fake", EventID: "ev-refund-" + c.ID, CheckoutID: c.ID, Kind: PayEventRefund}
@@ -149,6 +161,48 @@ func TestCheckoutExpiredHoldAndConflict(t *testing.T) {
 			}
 			if out, _ := st.ApplyPayment(ctx, PaymentEvent{Provider: "fake", EventID: uid("e"), Kind: PayEventIgnore}, now); out != PayOutcomeIgnored {
 				t.Fatalf("ignore: %q", out)
+			}
+		})
+	}
+}
+
+func TestCheckoutClaimExpiryAndConflict(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			pay := func(c Checkout) {
+				if err := st.HoldCheckout(ctx, c, now, time.Hour); err != nil {
+					t.Fatal(err)
+				}
+				if out, _ := st.ApplyPayment(ctx, PaymentEvent{Provider: "fake", EventID: uid("e"), CheckoutID: c.ID, Kind: PayEventPaid}, now); out != PayOutcomePaid {
+					t.Fatalf("paid: %q", out)
+				}
+			}
+			newPub, _, _ := ed25519.GenerateKey(nil)
+			c := testCheckout(t, uid("t"))
+			pay(c)
+			if err := st.SetClaimLink(ctx, c.ID, c.ClaimHash, now.Add(time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := st.ClaimCheckout(ctx, c.ID, c.ClaimHash, now.Add(time.Hour), newPub); !errors.Is(err, ErrClaimExpired) {
+				t.Fatalf("claim at expiry: want ErrClaimExpired, got %v", err)
+			}
+			if ten, _ := st.GetTenant(ctx, c.TenantID); !ten.RootPubKey.Equal(c.RootPubKey) {
+				t.Fatal("an expired claim rotated the key")
+			}
+			// a billing change between paid and claim does not block the claim
+			d := testCheckout(t, uid("t"))
+			pay(d)
+			if err := st.SetBillingStatus(ctx, d.TenantID, "active"); err != nil {
+				t.Fatal(err)
+			}
+			other, _, _ := ed25519.GenerateKey(nil)
+			if _, err := st.ClaimCheckout(ctx, d.ID, d.ClaimHash, now, other); err != nil {
+				t.Fatalf("first claim: %v", err)
+			}
+			if err := st.SetClaimLink(ctx, "co_none", make([]byte, 32), now); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("link on an unknown checkout: %v", err)
 			}
 		})
 	}

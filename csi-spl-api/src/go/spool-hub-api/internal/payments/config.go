@@ -54,6 +54,10 @@ type Config struct {
 	Currency      string        `env:"SPOOL_HUB_PAYMENT_CURRENCY" envDefault:"eur"`
 	PublicScheme  string        `env:"SPOOL_HUB_PAYMENT_PUBLIC_SCHEME" envDefault:"https"`
 	Hold          time.Duration `env:"SPOOL_HUB_PAYMENT_HOLD" envDefault:"1h"`
+	// ClaimURL is the WUI claim page the emailed single-use link opens
+	// (017 T008): <ClaimURL>#checkout=<id>&token=<t>. Required with a rail.
+	ClaimURL string        `env:"SPOOL_HUB_PAYMENT_CLAIM_URL"`
+	ClaimTTL time.Duration `env:"SPOOL_HUB_PAYMENT_CLAIM_TTL" envDefault:"24h"`
 
 	// Stripe (csi-rel STRIPE_*). SecretKey + WebhookSecret are secrets.
 	StripeSecretKey      string `env:"SPOOL_HUB_STRIPE_SECRET_KEY"`
@@ -151,8 +155,18 @@ func (c *Config) validate() error {
 	if c.PublicScheme != "https" && c.PublicScheme != "http" {
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_PUBLIC_SCHEME %q must be http or https", c.PublicScheme)
 	}
-	if c.Hold <= 0 {
-		return fmt.Errorf("SPOOL_HUB_PAYMENT_HOLD must be positive")
+	if c.Hold <= 0 || c.ClaimTTL <= 0 {
+		return fmt.Errorf("SPOOL_HUB_PAYMENT_HOLD and SPOOL_HUB_PAYMENT_CLAIM_TTL must be positive")
+	}
+	// A SET but malformed claim page refuses boot; an unset one only guards
+	// checkout (Guard): an image roll must never crash-loop the hub that also
+	// carries every box because the env has not caught up yet.
+	if v := strings.TrimSpace(c.ClaimURL); v != "" {
+		u, err := url.Parse(v)
+		if err != nil || u.Host == "" || u.Fragment != "" || LooksLikePlaceholderSecret(v) ||
+			(u.Scheme != "https" && !(u.Scheme == "http" && c.Env == "lde")) {
+			return fmt.Errorf("SPOOL_HUB_PAYMENT_CLAIM_URL %q must be the WUI claim page (absolute https URL, no fragment)", c.ClaimURL)
+		}
 	}
 	return nil
 }
@@ -170,10 +184,14 @@ func (c *Config) checkBase(name, v string) error {
 	return nil
 }
 
-// Guard reports why checkout on the card rail must 503 (csi-rel F-17):
-// a secret key that is unset or not Stripe-shaped, or a missing webhook
-// secret / publishable key. "" = usable. Shape only; never logs a value.
+// Guard reports why checkout must 503 (csi-rel F-17): no claim page for the
+// link mail (017 T008), or on the card rail a secret key that is unset or not
+// Stripe-shaped, or a missing webhook secret / publishable key. "" = usable.
+// Shape only; never logs a value.
 func (c *Config) Guard() string {
+	if strings.TrimSpace(c.ClaimURL) == "" && (c.Rail() != RailNone || c.EnablePayPal) {
+		return "claim page unset (SPOOL_HUB_PAYMENT_CLAIM_URL)"
+	}
 	if c.Provider != ProviderStripe {
 		return ""
 	}

@@ -14,8 +14,11 @@ import (
 // ErrNotPaid is a claim on a checkout that is not paid yet.
 var ErrNotPaid = errors.New("checkout not paid")
 
-// ErrClaimed is a second claim: the sealed key is already gone.
+// ErrClaimed is a second claim: the key was already minted and shown once.
 var ErrClaimed = errors.New("checkout already claimed")
+
+// ErrClaimExpired is a claim after claim_expires_at.
+var ErrClaimExpired = errors.New("checkout claim expired")
 
 // payment_checkouts.status values.
 const (
@@ -48,8 +51,10 @@ const (
 	PayOutcomeConflict = "conflict"
 )
 
-// Checkout is one payment_checkouts row. SealedRootKey is ciphertext the hub
-// cannot open (checkout-v1 §0.2); ClaimHash is SHA-256 of the claim token.
+// Checkout is one payment_checkouts row. RootPubKey is a PLACEHOLDER until the
+// claim rotates it to the key minted then (checkout-v1 §0.2, 017 T008): no
+// private key exists before the claim and none is ever stored. ClaimHash /
+// MailClaimHash are SHA-256 of the browser and the emailed claim tokens.
 type Checkout struct {
 	ID            string // payment_checkouts.intent_id
 	TenantID      string
@@ -61,8 +66,9 @@ type Checkout struct {
 	Status        string
 	Email         string
 	RootPubKey    ed25519.PublicKey
-	SealedRootKey []byte
 	ClaimHash     []byte
+	MailClaimHash []byte    // nil until SetClaimLink
+	ClaimExpires  time.Time // zero = no expiry set yet
 	CreatedAt     time.Time
 	PaidAt        time.Time // zero = NULL
 	ClaimedAt     time.Time // zero = NULL
@@ -91,10 +97,16 @@ type Payments interface {
 	// transaction: a duplicate changes nothing, and a failed apply leaves no
 	// dedup row, so the provider's retry is not swallowed.
 	ApplyPayment(ctx context.Context, ev PaymentEvent, now time.Time) (outcome string, err error)
-	// ClaimCheckout returns the paid checkout (with its seal) and wipes the
-	// seal atomically. ErrNotFound for an unknown id or a wrong hash,
-	// ErrNotPaid while pending, ErrClaimed after the first claim.
-	ClaimCheckout(ctx context.Context, id string, claimHash []byte, now time.Time) (Checkout, error)
+	// SetClaimLink stores the emailed claim token's hash and the claim expiry
+	// (set once, when the checkout is paid). ErrNotFound for an unknown id.
+	SetClaimLink(ctx context.Context, id string, mailClaimHash []byte, expires time.Time) error
+	// ClaimCheckout accepts either claim hash of a paid, unclaimed, unexpired
+	// checkout and, atomically: rotates the tenant's and the checkout's root
+	// pubkey from the placeholder to newPub, marks it claimed and burns both
+	// hashes. ErrNotFound for an unknown id or a wrong hash, ErrNotPaid while
+	// pending, ErrClaimed after the first claim, ErrClaimExpired past the TTL,
+	// ErrConflict when the tenant no longer carries the placeholder.
+	ClaimCheckout(ctx context.Context, id string, claimHash []byte, now time.Time, newPub ed25519.PublicKey) (Checkout, error)
 }
 
 func errUnknownPayEvent(kind string) error {
@@ -108,8 +120,8 @@ func normalizeCheckout(c *Checkout) error {
 	if len(c.RootPubKey) != ed25519.PublicKeySize {
 		return fmt.Errorf("checkout root pubkey must be %d bytes", ed25519.PublicKeySize)
 	}
-	if len(c.ClaimHash) != 32 || len(c.SealedRootKey) == 0 {
-		return errors.New("checkout needs a 32-byte claim hash and a sealed key")
+	if len(c.ClaimHash) != 32 {
+		return errors.New("checkout needs a 32-byte claim hash")
 	}
 	if c.AmountCents < 0 || c.Currency == "" {
 		return errors.New("checkout amount must be >= 0 with a currency")

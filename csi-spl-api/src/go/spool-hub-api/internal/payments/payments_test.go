@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -21,9 +22,20 @@ import (
 
 const pattern = "{tenant}.dev.example.test"
 
+const claimURL = "https://dev.example.test/checkout/claim"
+
+// withClaimURL adds the WUI claim page every rail needs (017 T008).
+func withClaimURL(vars map[string]string) map[string]string {
+	m := map[string]string{"SPOOL_HUB_PAYMENT_CLAIM_URL": claimURL}
+	for k, v := range vars {
+		m[k] = v
+	}
+	return m
+}
+
 func mustLoad(t *testing.T, env string, vars map[string]string) *Config {
 	t.Helper()
-	c, err := LoadFrom(env, vars)
+	c, err := LoadFrom(env, withClaimURL(vars))
 	if err != nil {
 		t.Fatalf("load %s %v: %v", env, vars, err)
 	}
@@ -59,8 +71,20 @@ func TestConfigFailClosed(t *testing.T) {
 		{"paypal placeholder secret", "dev", with(paypal, "SPOOL_HUB_PAYPAL_CLIENT_SECRET", "PLACEHOLDER-x")},
 		{"bad currency", "dev", map[string]string{"SPOOL_HUB_PAYMENT_CURRENCY": "euro"}},
 	}
+	refuse = append(refuse, struct {
+		name, env string
+		vars      map[string]string
+	}{"claim page over http outside lde", "dev", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true", "SPOOL_HUB_PAYMENT_CLAIM_URL": "http://dev.example.test/c"}},
+		struct {
+			name, env string
+			vars      map[string]string
+		}{"claim page with a fragment", "dev", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true", "SPOOL_HUB_PAYMENT_CLAIM_URL": claimURL + "#x"}})
 	for _, c := range refuse {
-		if _, err := LoadFrom(c.env, c.vars); err == nil {
+		vars := withClaimURL(c.vars)
+		if v, ok := c.vars["SPOOL_HUB_PAYMENT_CLAIM_URL"]; ok {
+			vars["SPOOL_HUB_PAYMENT_CLAIM_URL"] = v
+		}
+		if _, err := LoadFrom(c.env, vars); err == nil {
 			t.Errorf("%s: loaded, want a boot refusal", c.name)
 		}
 	}
@@ -89,31 +113,6 @@ func TestConfigFailClosed(t *testing.T) {
 	}
 	if c := mustLoad(t, "prd", with(good, "SPOOL_HUB_STRIPE_WEBHOOK_SECRET", "")); c.Guard() == "" {
 		t.Fatal("stripe without a webhook secret must guard (the paid event could never verify)")
-	}
-}
-
-func TestSealOpen(t *testing.T) {
-	_, priv, _ := ed25519.GenerateKey(nil)
-	tok := NewClaimToken()
-	sealed, err := Seal(tok, "co_a", priv)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Contains(sealed, priv) || bytes.Contains(sealed, priv.Seed()) {
-		t.Fatal("seal carries the key in clear")
-	}
-	got, err := Open(tok, "co_a", sealed)
-	if err != nil || !got.Equal(priv) {
-		t.Fatalf("open: %v", err)
-	}
-	if _, err := Open(NewClaimToken(), "co_a", sealed); err == nil {
-		t.Fatal("a different claim token opened the seal")
-	}
-	if _, err := Open(tok, "co_b", sealed); err == nil {
-		t.Fatal("the seal opened for another checkout id")
-	}
-	if bytes.Equal(ClaimHash(tok), sealKey(tok)) {
-		t.Fatal("the stored claim hash must not be the seal key")
 	}
 }
 
@@ -205,25 +204,45 @@ func TestFakeBuyEndToEnd(t *testing.T) {
 	if code, _ := r.do(t, "POST", "/api/v1/checkout/claim", map[string]string{"checkout_id": id, "claim_token": NewClaimToken()}); code != 404 {
 		t.Fatalf("wrong claim token: %d", code)
 	}
-	code, cl := r.do(t, "POST", "/api/v1/checkout/claim", map[string]string{"checkout_id": id, "claim_token": tok})
-	if code != 200 || cl["emailed"] != true || cl["tenant_url"] != "https://acme.dev.example.test" {
-		t.Fatalf("claim %d %v", code, cl)
+	// fake-pay sent the one email: tenant URL + claim link, NO key (SEC-03)
+	msgs := r.mail.Messages()
+	if len(msgs) != 1 || msgs[0].To != "buyer@example.com" || msgs[0].Template != TemplateTenantPaid ||
+		!strings.Contains(msgs[0].TextBody, "https://acme.dev.example.test") || !strings.Contains(msgs[0].TextBody, claimURL+"#checkout="+id+"&token=") {
+		t.Fatalf("want exactly one tenant_paid mail with the URL + claim link, got %+v", msgs)
+	}
+	link := msgs[0].TextBody[strings.Index(msgs[0].TextBody, "&token=")+len("&token="):]
+	link = strings.TrimSpace(strings.SplitN(link, "\n", 2)[0])
+	ten, _ = r.st.GetTenant(t.Context(), "acme")
+	placeholder := ten.RootPubKey
+	// the emailed link claims (first claim wins) and mints the key now
+	code, cl := r.do(t, "POST", "/api/v1/checkout/claim", map[string]string{"checkout_id": id, "claim_token": link})
+	if code != 200 || cl["tenant_url"] != "https://acme.dev.example.test" {
+		t.Fatalf("claim via link %d %v", code, cl)
 	}
 	raw, _ := base64.StdEncoding.DecodeString(cl["root_private_key"].(string))
-	if len(raw) != ed25519.PrivateKeySize || !ed25519.PrivateKey(raw).Public().(ed25519.PublicKey).Equal(ten.RootPubKey) {
-		t.Fatal("claimed key is not the tenant's root key")
+	ten, _ = r.st.GetTenant(t.Context(), "acme")
+	if len(raw) != ed25519.PrivateKeySize || !ed25519.PrivateKey(raw).Public().(ed25519.PublicKey).Equal(ten.RootPubKey) || ten.RootPubKey.Equal(placeholder) {
+		t.Fatal("the claim must mint a new root key and rotate the tenant to it")
 	}
-	if code, e := r.do(t, "POST", "/api/v1/checkout/claim", map[string]string{"checkout_id": id, "claim_token": tok}); code != 410 || e["error"] != "claimed" {
-		t.Fatalf("second claim %d %v", code, e)
+	// CONTROL (SEC-03): no key material in the mail, before or after the claim
+	key := cl["root_private_key"].(string)
+	for _, m := range r.mail.Messages() {
+		if strings.Contains(m.TextBody, key) || regexp.MustCompile(`[A-Za-z0-9+/]{86}==`).MatchString(m.TextBody) {
+			t.Fatalf("key material in the mail body: %q", m.TextBody)
+		}
 	}
-	msgs := r.mail.Messages()
-	if len(msgs) != 1 || msgs[0].To != "buyer@example.com" || msgs[0].Template != TemplateTenantWelcome ||
-		!strings.Contains(msgs[0].TextBody, cl["root_private_key"].(string)) || !strings.Contains(msgs[0].TextBody, "https://acme.dev.example.test") {
-		t.Fatalf("want exactly one welcome mail with URL + key, got %+v", msgs)
+	// the link and the browser token are both burnt: 410
+	for name, tk := range map[string]string{"link": link, "browser": tok} {
+		if code, e := r.do(t, "POST", "/api/v1/checkout/claim", map[string]string{"checkout_id": id, "claim_token": tk}); code != 410 || e["error"] != "claimed" {
+			t.Fatalf("second claim via %s %d %v", name, code, e)
+		}
 	}
-	// FR-015: neither the key nor the claim token reaches a log line.
-	if l := r.logs.String(); strings.Contains(l, cl["root_private_key"].(string)) || strings.Contains(l, tok) {
-		t.Fatal("root private key or claim token logged")
+	if len(r.mail.Messages()) != 1 {
+		t.Fatal("the claim must not send a second mail")
+	}
+	// FR-015: neither the key nor a claim token reaches a log line.
+	if l := r.logs.String(); strings.Contains(l, key) || strings.Contains(l, tok) || strings.Contains(l, link) {
+		t.Fatal("root private key or a claim token logged")
 	}
 	if code, _ := r.do(t, "POST", "/api/v1/checkout", map[string]string{"tenant_id": "acme", "email": "c@example.com"}); code != 409 {
 		t.Fatalf("buy an existing tenant: %d", code)
@@ -241,7 +260,7 @@ func TestFakePayRefused(t *testing.T) {
 	// with the flag off the route is not there, so it cannot be paid
 	pub0, _, _ := ed25519.GenerateKey(nil)
 	held := store.Checkout{ID: "co_held", TenantID: "acme", Provider: ProviderFake, Currency: "eur",
-		RootPubKey: pub0, SealedRootKey: []byte("x"), ClaimHash: ClaimHash("t")}
+		RootPubKey: pub0, ClaimHash: ClaimHash("t")}
 	if err := off.st.HoldCheckout(t.Context(), held, time.Now(), time.Hour); err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +280,7 @@ func TestFakePayRefused(t *testing.T) {
 	on := newRig(t, mustLoad(t, "dev", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true"}))
 	pub, _, _ := ed25519.GenerateKey(nil)
 	real := store.Checkout{ID: "co_real", TenantID: "acme", Provider: ProviderStripe, Currency: "eur",
-		RootPubKey: pub, SealedRootKey: []byte("x"), ClaimHash: ClaimHash("t")}
+		RootPubKey: pub, ClaimHash: ClaimHash("t")}
 	if err := on.st.HoldCheckout(t.Context(), real, time.Now(), time.Hour); err != nil {
 		t.Fatal(err)
 	}
@@ -277,5 +296,38 @@ func TestFakePayRefused(t *testing.T) {
 	}
 	if code, _ := on.do(t, "POST", RoutePayPalWebhook, map[string]string{"id": "WH-1", "event_type": "PAYMENT.CAPTURE.COMPLETED"}); code != 400 {
 		t.Fatalf("paypal webhook with paypal off: %d", code)
+	}
+}
+
+// 017 T008: the claim window is short; after it both tokens are dead.
+func TestClaimLinkExpires(t *testing.T) {
+	cfg := mustLoad(t, "dev", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true", "SPOOL_HUB_PAYMENT_CLAIM_TTL": "1h"})
+	now := time.Now()
+	card, pp, ppv := Wire(cfg)
+	r := newRigWith(t, cfg, Deps{Card: card, PayPal: pp, PayPalVerifier: ppv, Now: func() time.Time { return now }})
+	_, co := r.do(t, "POST", "/api/v1/checkout", map[string]string{"tenant_id": "acme", "email": "buyer@example.com"})
+	id := co["checkout_id"].(string)
+	if code, _ := r.do(t, "POST", "/api/v1/checkout/fake-pay", map[string]string{"checkout_id": id}); code != 200 {
+		t.Fatal(code)
+	}
+	now = now.Add(61 * time.Minute)
+	if code, e := r.do(t, "POST", "/api/v1/checkout/claim", map[string]string{"checkout_id": id, "claim_token": co["claim_token"].(string)}); code != 410 || e["error"] != "claim_expired" {
+		t.Fatalf("claim after the TTL: %d %v", code, e)
+	}
+}
+
+// An unset claim page must not crash-loop the hub on an image roll: it boots,
+// and checkout fail-closes with 503 until the env catches up.
+func TestNoClaimPageGuards503(t *testing.T) {
+	cfg, err := LoadFrom("dev", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true"})
+	if err != nil {
+		t.Fatalf("an unset claim page must not refuse boot: %v", err)
+	}
+	if cfg.Guard() == "" {
+		t.Fatal("an unset claim page must guard checkout")
+	}
+	r := newRig(t, cfg)
+	if code, e := r.do(t, "POST", "/api/v1/checkout", map[string]string{"tenant_id": "acme", "email": "a@example.com"}); code != 503 || e["detail"] != GuardReasonMisconfigured {
+		t.Fatalf("checkout without a claim page: %d %v", code, e)
 	}
 }

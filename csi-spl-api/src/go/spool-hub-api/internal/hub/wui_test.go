@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"regexp"
@@ -417,4 +418,130 @@ func TestWUIAnonymousIDDisjointFromMembers(t *testing.T) {
 	if a.w.Name != "uploader" {
 		t.Fatalf("welcome.name %q", a.w.Name)
 	}
+}
+
+// followEnv is wuiEnv plus member sessions through the SessionID seam.
+func followEnv(t *testing.T) *env {
+	return newEnv(t, func(o *hub.Options) {
+		o.ViewDoor = hub.ViewDoorOff
+		o.LobbyTaskID = lobby
+		o.ViewCORSOrigins = []string{wuiOrigin}
+		o.SessionID = func(r *http.Request, _ string) (string, error) {
+			if v := r.Header.Get(memberHeader); v != "" {
+				return v, nil
+			}
+			return "", errors.New("no session")
+		}
+	})
+}
+
+// quiet asserts that no frame arrives on c within 300 ms.
+func quiet(t *testing.T, c *websocket.Conn, why string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	var f map[string]any
+	if err := wsjson.Read(ctx, c, &f); err == nil {
+		t.Fatalf("%s: unexpected frame %v", why, f)
+	}
+}
+
+func dmSend(c *websocket.Conn, task, to, body string) {
+	wsjson.Write(context.Background(), c, map[string]any{"type": "send", "task_id": task, "to": to, "body": body}) //nolint:errcheck
+}
+
+// bodyOf is the v:1 body of a message frame (map form).
+func bodyOf(t *testing.T, f map[string]any) string {
+	t.Helper()
+	if f["type"] != "message" {
+		t.Fatalf("want a message frame, got %v", f)
+	}
+	m, _ := f["envelope"].(map[string]any)
+	s, _ := m["body"].(string)
+	return s
+}
+
+// 013 US7 (wui-live-ws v0.5): subscribe {peer} follows a DM, new roots
+// included; a member socket never receives a DM it is not party to.
+func TestWUIPeerSubscribeDM(t *testing.T) {
+	e := followEnv(t)
+	tid, _ := e.tenant()
+	a := dialMember(t, e, tid, "HUM-1", "HUM-1")
+	b := dialMember(t, e, tid, "HUM-2", "HUM-2")
+	c := dialMember(t, e, tid, "HUM-3", "HUM-3")
+	guest := dialMember(t, e, tid, "", "")
+
+	wsjson.Write(context.Background(), a, map[string]string{"type": "subscribe", "peer": "not a peer"}) //nolint:errcheck
+	if f := readType(t, a, "subscribed"); f["error"] != "bad_frame" {
+		t.Fatalf("bad peer: %v", f)
+	}
+	wsjson.Write(context.Background(), a, map[string]string{"type": "subscribe", "peer": "HUM-2"}) //nolint:errcheck
+	if f := readType(t, a, "subscribed"); f["peer"] != "HUM-2" {
+		t.Fatalf("peer subscribed %v", f)
+	}
+	wsjson.Write(context.Background(), guest, map[string]string{"type": "subscribe", "peer": "HUM-2@box-wui"}) //nolint:errcheck
+	readType(t, guest, "subscribed")
+
+	// B starts a new DM root to A: A (party) and the door-off guest get it.
+	dmSend(b, "8a7b6c5d-4e3f-4a1b-9c2d-3e4f5a6b7c8d", "HUM-1", "hi A")
+	readType(t, b, "ack")
+	if got := bodyOf(t, readType(t, a, "message")); got != "hi A" {
+		t.Fatalf("dm to A: %q", got)
+	}
+	if got := bodyOf(t, readType(t, guest, "message")); got != "hi A" {
+		t.Fatalf("guest peer follow: %q", got)
+	}
+	// CONTROL: C writes to B. A follows B but is not party, so nothing.
+	dmSend(c, "9b8c7d6e-5f4a-4b2c-8d3e-4f5a6b7c8d9e", "HUM-2", "private C->B")
+	readType(t, c, "ack")
+	quiet(t, a, "a DM A is not party to")
+	// A channel message by the followed peer is not a DM.
+	wsjson.Write(context.Background(), b, map[string]any{"type": "send", "task_id": "0c9d8e7f-6a5b-4c3d-9e4f-5a6b7c8d9e0f", "channel": "lobby", "body": "channel"}) //nolint:errcheck
+	readType(t, b, "ack")
+	quiet(t, a, "a channel message on a peer follow")
+	// Unsubscribe: the next DM from B no longer arrives.
+	wsjson.Write(context.Background(), a, map[string]string{"type": "unsubscribe", "peer": "HUM-2"}) //nolint:errcheck
+	time.Sleep(50 * time.Millisecond)
+	dmSend(b, "1d0e9f8a-7b6c-4d5e-8f0a-6b7c8d9e0f1a", "HUM-1", "after unsubscribe")
+	readType(t, b, "ack")
+	quiet(t, a, "after unsubscribe")
+}
+
+// 013 US7 (wui-live-ws v0.5): subscribe {all:true} follows the tenant for the
+// thread list: every channel message, DMs only when party; other tenants none.
+func TestWUIAllSubscribe(t *testing.T) {
+	e := followEnv(t)
+	tid, _ := e.tenant()
+	other, _ := e.tenant()
+	a := dialMember(t, e, tid, "HUM-1", "HUM-1")
+	b := dialMember(t, e, tid, "HUM-2", "HUM-2")
+	c := dialMember(t, e, tid, "HUM-3", "HUM-3")
+	x := dialMember(t, e, other, "HUM-9", "HUM-9")
+	for _, s := range []*websocket.Conn{a, x} {
+		wsjson.Write(context.Background(), s, map[string]any{"type": "subscribe", "all": true}) //nolint:errcheck
+		if f := readType(t, s, "subscribed"); f["all"] != true {
+			t.Fatalf("all subscribed %v", f)
+		}
+	}
+	wsjson.Write(context.Background(), b, map[string]any{"type": "send", "task_id": "2e1f0a9b-8c7d-4e6f-9a0b-7c8d9e0f1a2b", "channel": "lobby", "body": "new root"}) //nolint:errcheck
+	readType(t, b, "ack")
+	if got := bodyOf(t, readType(t, a, "message")); got != "new root" {
+		t.Fatalf("all: channel root %q", got)
+	}
+	dmSend(b, "3f2a1b0c-9d8e-4f7a-8b1c-8d9e0f1a2b3c", "HUM-1", "dm to A")
+	readType(t, b, "ack")
+	if got := bodyOf(t, readType(t, a, "message")); got != "dm to A" {
+		t.Fatalf("all: own DM %q", got)
+	}
+	// CONTROLS: a DM between others, and nothing crosses tenants.
+	dmSend(c, "4a3b2c1d-0e9f-4a8b-9c2d-9e0f1a2b3c4d", "HUM-2", "C->B")
+	readType(t, c, "ack")
+	quiet(t, a, "a DM A is not party to")
+	quiet(t, x, "another tenant")
+	// Unsubscribe stops it.
+	wsjson.Write(context.Background(), a, map[string]any{"type": "unsubscribe", "all": true}) //nolint:errcheck
+	time.Sleep(50 * time.Millisecond)
+	wsjson.Write(context.Background(), b, map[string]any{"type": "send", "task_id": "5b4c3d2e-1f0a-4b9c-8d3e-0f1a2b3c4d5e", "channel": "lobby", "body": "later"}) //nolint:errcheck
+	readType(t, b, "ack")
+	quiet(t, a, "after unsubscribe all")
 }

@@ -60,6 +60,8 @@ type wuiConn struct {
 	member string          // member-session human id ("" = none); dispatch needs it
 	subs   map[string]bool // task ids, guarded by srv.mu
 	chans  map[string]bool // channel ids (stored form), guarded by srv.mu
+	peers  map[string]bool // DM peers, "<id>" or "<id>@<box>" (v0.5), guarded by srv.mu
+	all    bool            // thread-list follow (v0.5), guarded by srv.mu
 	wmu    sync.Mutex
 	once   sync.Once
 }
@@ -98,6 +100,9 @@ type wuiIn struct {
 	// Hub-envelope tags (wui-live-ws.md §4, channels-v1 §2).
 	Channel      string `json:"channel,omitempty"`
 	ParentTaskID string `json:"parent_task_id,omitempty"`
+	// Subscription targets beyond task_id / channel (wui-live-ws.md v0.5).
+	Peer string `json:"peer,omitempty"`
+	All  bool   `json:"all,omitempty"`
 }
 
 type wuiErr struct {
@@ -198,7 +203,7 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 		conn.Close(wire.CloseBadFrame, "bad_frame") //nolint:errcheck
 		return
 	}
-	c := &wuiConn{conn: conn, tenant: t.ID, as: h.As, subs: map[string]bool{}, chans: map[string]bool{}}
+	c := &wuiConn{conn: conn, tenant: t.ID, as: h.As, subs: map[string]bool{}, chans: map[string]bool{}, peers: map[string]bool{}}
 	switch {
 	case msg.ValidID(h.As):
 		c.from = h.As
@@ -262,6 +267,10 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 				s.wuiSubscribeChannel(ctx, c, f)
 				continue
 			}
+			if f.Peer != "" || f.All {
+				s.wuiSubscribeFollow(ctx, c, f)
+				continue
+			}
 			task, ok := s.lobbyAlias(f.TaskID)
 			if !ok {
 				c.write(ctx, wuiErr{"error", "lobby_disabled", http.StatusBadRequest, "the hub runs without SPOOL_HUB_LOBBY_TASK_ID", ""}) //nolint:errcheck
@@ -317,6 +326,72 @@ func (s *Server) wuiSubscribeChannel(ctx context.Context, c *wuiConn, f wuiIn) {
 	if f.Type == "subscribe" {
 		c.write(ctx, map[string]string{"type": "subscribed", "channel": ch}) //nolint:errcheck
 	}
+}
+
+// wuiSubscribeFollow (un)subscribes a socket to a DM peer or to the whole
+// tenant for the thread list (wui-live-ws.md v0.5 §3.1). Which DMs a socket
+// then receives is decided per message in wants.
+func (s *Server) wuiSubscribeFollow(ctx context.Context, c *wuiConn, f wuiIn) {
+	if f.Peer != "" {
+		id, box, _ := strings.Cut(f.Peer, "@")
+		if !msg.ValidID(id) || (strings.Contains(f.Peer, "@") && !msg.ValidBoxID(box)) {
+			c.write(ctx, wuiErr{"error", "bad_frame", http.StatusBadRequest, "peer must be <agent-id> or <agent-id>@<box-id>", ""}) //nolint:errcheck
+			return
+		}
+	}
+	s.mu.Lock()
+	switch {
+	case f.Peer != "" && f.Type == "subscribe":
+		c.peers[f.Peer] = true
+	case f.Peer != "":
+		delete(c.peers, f.Peer)
+	default:
+		c.all = f.Type == "subscribe"
+	}
+	s.mu.Unlock()
+	if f.Type != "subscribe" {
+		return
+	}
+	if f.Peer != "" {
+		c.write(ctx, map[string]string{"type": "subscribed", "peer": f.Peer}) //nolint:errcheck
+	} else {
+		c.write(ctx, map[string]any{"type": "subscribed", "all": true}) //nolint:errcheck
+	}
+}
+
+// parties are the ends of one stored message, for the DM fan-out rules.
+type parties struct{ fromID, fromBox, toID, toBox string }
+
+// is reports whether a DM peer key ("<id>" or "<id>@<box>") is either end.
+func (p parties) is(key string) bool {
+	id, box, withBox := strings.Cut(key, "@")
+	return (p.fromID == id && (!withBox || p.fromBox == box)) || (p.toID == id && (!withBox || p.toBox == box))
+}
+
+// wants is the per-socket fan-out rule (caller holds srv.mu). A DM (no
+// channel) reaches a peer or `all` follower only when the socket is party to
+// it, except a peer follow without a member session (door off: the same as
+// view-v1 dm=true without a viewer).
+func (c *wuiConn) wants(taskID, channel string, p parties) bool {
+	if c.subs[taskID] || channel != "" && c.chans[channel] {
+		return true
+	}
+	if channel != "" {
+		return c.all
+	}
+	party := p.is(c.from) || c.member != "" && p.is(c.member)
+	if c.all && party {
+		return true
+	}
+	if !party && c.member != "" {
+		return false
+	}
+	for k := range c.peers {
+		if p.is(k) {
+			return true
+		}
+	}
+	return false
 }
 
 // wuiSend builds the v:1 object for a browser send and stores it through the
@@ -493,13 +568,13 @@ func (s *Server) admit(ctx context.Context, tenant string, m *msg.Message) (stri
 	return "", 0, ""
 }
 
-// fanoutWUI pushes one stored message to every browser subscribed to its task
-// or to its stored channel (once per socket).
-func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID string, receivedAt time.Time, env []byte) {
+// fanoutWUI pushes one stored message to every browser subscribed to its task,
+// its stored channel, one of its DM ends, or the whole tenant (once per socket).
+func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID string, p parties, receivedAt time.Time, env []byte) {
 	s.mu.Lock()
 	var targets []*wuiConn
 	for c := range s.wui {
-		if c.tenant == tenant && (c.subs[taskID] || channel != "" && c.chans[channel]) {
+		if c.tenant == tenant && c.wants(taskID, channel, p) {
 			targets = append(targets, c)
 		}
 	}

@@ -44,7 +44,14 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- if mail_env.get("SPOOL_HUB_MAIL_TRANSPORT", "none") == "smtp" %}
 {%- set _ = run_sec.update(mail_sec) %}
 {%- endif %}
-{%- set slot_ids = (auth_sec.values() | list) + (mail_sec.values() | list) %}
+{#- spec 014 T020: the box-wui key slot always exists; SPOOL_HUB_WUI_KEY is
+    injected only while hub.wui_key.inject is "true" (a version exists) #}
+{%- set wui_key = hub["wui_key"] if hub["wui_key"] is defined else {} %}
+{%- set wui_sec = wui_key["secret_env"] if wui_key["secret_env"] is defined else {} %}
+{%- if (wui_key.get("inject", "false") | string | lower) == "true" %}
+{%- set _ = run_sec.update(wui_sec) %}
+{%- endif %}
+{%- set slot_ids = (auth_sec.values() | list) + (mail_sec.values() | list) + (wui_sec.values() | list) %}
 {%- if listed %}
 {%- set _ = run_sec.update({"SPOOL_HUB_AUTH_SESSION_KEY": auth_sec["SPOOL_HUB_AUTH_SESSION_KEY"]}) %}
 {%- for p in listed %}

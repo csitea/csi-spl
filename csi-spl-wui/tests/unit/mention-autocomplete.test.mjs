@@ -85,3 +85,10 @@ describe('mention autocomplete', () => {
   })
 
 })
+
+describe('H5: a door-off guest GST-<n> is mentionable', () => {
+  it('keeps GST ids in the picker', () => {
+    const got = filterRosterMentions([{ id: 'GST-3' }, { id: 'ALL-0' }], 'gst')
+    assert.deepEqual(got.map((p) => p.id), ['GST-3'])
+  })
+})

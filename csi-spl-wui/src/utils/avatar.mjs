@@ -28,8 +28,14 @@ function stream(seed) {
 
 const PREFIX_HUE = { CLE: 175, GRK: 28, AGY: 275 }
 
+/** A human: a member HUM-* or a door-off guest GST-* (wui-live-ws 0.4.1 §3.1). */
 export function isHuman(id) {
-  return /^HUM-/.test(String(id || ''))
+  return /^(HUM|GST)-/.test(String(id || ''))
+}
+
+/** A member (store) human, the only kind with a stored picture; never a guest. */
+export function isMember(id) {
+  return /^HUM-\d+$/.test(String(id || ''))
 }
 
 export function prefixOf(id) {
@@ -133,7 +139,7 @@ export function avatarFilesFromView(data) {
   for (const h of (data && Array.isArray(data.humans) ? data.humans : [])) {
     const id = h && String(h.human_id || '')
     const fid = h && typeof h.avatar_file_id === 'string' ? h.avatar_file_id : ''
-    if (isHuman(id) && FILE_ID_RE.test(fid)) out[id] = fid
+    if (isMember(id) && FILE_ID_RE.test(fid)) out[id] = fid
   }
   return out
 }
@@ -143,7 +149,7 @@ export function avatarFilesFromView(data) {
  * as themselves: a HUM-* on the browser box (or no box), never an agent id.
  */
 export function avatarImageUrl(base, id, box, files) {
-  if (!isHuman(id) || (box && box !== 'box-wui')) return ''
+  if (!isMember(id) || (box && box !== 'box-wui')) return ''
   const fid = files && Object.prototype.hasOwnProperty.call(files, id) ? String(files[id]) : ''
   if (!FILE_ID_RE.test(fid)) return ''
   return `${String(base || '').replace(/\/+$/, '')}/v1/files/${fid}`

@@ -24,7 +24,7 @@ export const FRAMES = {
   presence: 'presence',
 }
 
-/** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2); anything else is omitted and the hub assigns HUM-<n>. */
+/** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2); anything else is omitted and the hub assigns a guest GST-<n> (0.4.1). */
 export const AGENT_ID_RE = /^[A-Z]{2,4}-[0-9]+$/
 
 export function cleanAs(s) {

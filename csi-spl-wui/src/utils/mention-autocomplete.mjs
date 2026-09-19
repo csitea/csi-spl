@@ -1,6 +1,6 @@
 /** @mention picker over the roster. Node tests import this file; Vue wraps it. */
 
-const AGENT_ID_RE = /^(CLE|GRK|AGY|HUM)-\d+$/
+const AGENT_ID_RE = /^(CLE|GRK|AGY|HUM|GST)-\d+$/
 
 export function isAgentId(id) {
   return AGENT_ID_RE.test(String(id || ''))
@@ -21,7 +21,7 @@ export function activeMentionQuery(text, cursor) {
 }
 
 /**
- * Filter roster peers to CLE/GRK/AGY/HUM ids matching the in-progress query.
+ * Filter roster peers to CLE/GRK/AGY/HUM/GST ids matching the in-progress query.
  * Query may be 'CLE-07' or '@CLE-07'; empty query returns every allowed peer.
  */
 export function filterRosterMentions(peers, query) {

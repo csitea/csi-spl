@@ -207,6 +207,7 @@ declare module '~/utils/feed.mjs' {
 declare module '~/utils/avatar.mjs' {
   export function hashSeed(s: string): number
   export function isHuman(id: string): boolean
+  export function isMember(id: string): boolean
   export function prefixOf(id: string): string
   export function robotSvg(key: string): string
   export function identiconSvg(key: string): string

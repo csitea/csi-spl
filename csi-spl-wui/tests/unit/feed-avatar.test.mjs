@@ -2,7 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { matchesSearch, newestFirst, parseOmnibox, rootAndReplies, windowed } from '../../src/utils/feed.mjs'
 import {
-  avatarAlt, avatarDataUri, avatarFilesFromView, avatarImageUrl, avatarSvg, hashSeed, identiconSvg, isHuman,
+  avatarAlt, avatarDataUri, avatarFilesFromView, avatarImageUrl, avatarSvg, hashSeed, identiconSvg, isHuman, isMember,
   avatarImageMime, loadAvatarBlobUrl, loadAvatarFiles, resetAvatarFiles, robotSvg,
 } from '../../src/utils/avatar.mjs'
 
@@ -177,5 +177,17 @@ describe('stored IdP avatars (gap A5, view-v1 §4.1 humans)', () => {
     assert.equal(await loadAvatarBlobUrl('', o), '')
     assert.equal(made.length, 1)
     resetAvatarFiles()
+  })
+})
+
+describe('H5: door-off guests (GST-<n>) are humans but never members', () => {
+  it('draws a guest as a human and never gives it a member picture', () => {
+    const fid = 'a'.repeat(64)
+    assert.equal(isHuman('GST-1'), true)
+    assert.equal(isMember('GST-1'), false)
+    assert.equal(isMember('HUM-1'), true)
+    assert.equal(avatarImageUrl('http://h', 'GST-1', 'box-wui', { 'GST-1': fid }), '')
+    assert.equal(avatarImageUrl('http://h', 'HUM-1', 'box-wui', { 'HUM-1': fid }), `http://h/v1/files/${fid}`)
+    assert.deepEqual(avatarFilesFromView({ humans: [{ human_id: 'GST-1', avatar_file_id: fid }] }), {})
   })
 })

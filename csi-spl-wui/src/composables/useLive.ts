@@ -4,7 +4,7 @@ import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-data.mjs'
 
 /**
  * Identity for 2-session interop: ?as=HUM-2 (a v:1 agent id, wui-live-ws §2),
- * remembered for the tab. Absent/invalid → the hub assigns HUM-<n>; welcome.as wins.
+ * remembered for the tab. Absent/invalid → the hub assigns a guest GST-<n>; welcome.as wins.
  */
 export const AS_KEY = 'spool.as'
 

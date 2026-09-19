@@ -434,5 +434,36 @@
     "copied": "Copiat",
     "block_label": "Bloc de cod",
     "block_label_lang": "Bloc de cod, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: mesaj către această pagină sau /search pentru a căuta peste tot",
+    "mode_chip": "Căutare",
+    "submit": "Caută",
+    "operator_suggestions": "Operatori de căutare",
+    "home": "Acasă Spool",
+    "open_omnibox": "Caută sau scrie",
+    "placeholder_no_target": "Tastați /search și o interogare, de ex. /search from:CLE-07 is:task",
+    "title": "Căutare",
+    "help_intro": "Tastați /search în bara de sus, apoi cuvinte, \"expresii\" și operatori, ca în Gmail. Exemple:",
+    "loading": "Se caută…",
+    "bad_query": "Interogarea nu a putut fi citită: {detail}",
+    "no_results": "Niciun rezultat.",
+    "results_label": "Rezultate pentru {q}",
+    "load_more": "Încarcă mai multe",
+    "in_dm": "mesaj direct",
+    "count_messages": "{n} mesaj | {n} mesaje",
+    "revoked": "revocat",
+    "rate_limited": "Prea multe căutări. Încercați din nou peste {s} s.",
+    "budget": "Căutarea a durat prea mult. Restrângeți interogarea.",
+    "failed": "Căutarea a eșuat ({detail}).",
+    "group": {
+      "robots": "Roboți",
+      "users": "Persoane",
+      "channels": "Canale",
+      "boxes": "Cutii",
+      "threads": "Fire",
+      "files": "Fișiere",
+      "messages": "Mesaje"
+    }
   }
 }

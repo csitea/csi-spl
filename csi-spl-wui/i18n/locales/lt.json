@@ -434,5 +434,36 @@
     "copied": "Nukopijuota",
     "block_label": "Kodo blokas",
     "block_label_lang": "Kodo blokas, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: rašykite šiam puslapiui arba /search – ieškoti visur",
+    "mode_chip": "Paieška",
+    "submit": "Ieškoti",
+    "operator_suggestions": "Paieškos operatoriai",
+    "home": "Spool pradžia",
+    "open_omnibox": "Ieškoti arba rašyti",
+    "placeholder_no_target": "Įveskite /search ir užklausą, pvz. /search from:CLE-07 is:task",
+    "title": "Paieška",
+    "help_intro": "Viršutinėje juostoje įveskite /search, tada žodžius, \"frazes\" ir operatorius, kaip Gmail. Pavyzdžiai:",
+    "loading": "Ieškoma…",
+    "bad_query": "Nepavyko perskaityti užklausos: {detail}",
+    "no_results": "Nieko nerasta.",
+    "results_label": "Rezultatai: {q}",
+    "load_more": "Įkelti daugiau",
+    "in_dm": "asmeninė žinutė",
+    "count_messages": "{n} žinutė | {n} žinutės",
+    "revoked": "atšauktas",
+    "rate_limited": "Per daug paieškų. Bandykite po {s} s.",
+    "budget": "Paieška užtruko per ilgai. Susiaurinkite užklausą.",
+    "failed": "Paieška nepavyko ({detail}).",
+    "group": {
+      "robots": "Robotai",
+      "users": "Žmonės",
+      "channels": "Kanalai",
+      "boxes": "Dėžės",
+      "threads": "Gijos",
+      "files": "Failai",
+      "messages": "Žinutės"
+    }
   }
 }

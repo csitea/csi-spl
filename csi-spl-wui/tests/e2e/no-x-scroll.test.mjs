@@ -36,6 +36,9 @@ const PATHS = [
   { path: '/channel/lobby', wait: '.spool-shell' },
   { path: '/dm/CLE-07%40box-a', wait: '.spool-shell' },
   { path: '/settings/keys', wait: '[data-test=settings]' },
+  // 022: the top bar on every shell page, and the search results view
+  { path: '/search', wait: '.search-page' },
+  { path: '/search?q=deploy', wait: '.search-page' },
 ]
 
 // spec 021 FR-007: the same guard in every shipped locale (long strings,

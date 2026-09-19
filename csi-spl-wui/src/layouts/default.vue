@@ -3,10 +3,14 @@
      diagnostics panel LAST so the most recent technical error is literally the
      bottom-most content of the page. The spool shell (sidebar, feed, thread
      panes) stays client-only: it reads sessionStorage/localStorage and opens
-     the live socket. Vertical pane dividers are pointer+keyboard resizers. -->
+     the live socket. Vertical pane dividers are pointer+keyboard resizers.
+     022: the persistent top bar (Omnibox, language switcher, user menu) sits
+     above the 3-pane shell, which fills the rest of the viewport. -->
 <template>
   <div class="layout">
     <ClientOnly>
+      <div class="app-frame">
+      <TopBar />
       <div
         class="spool-shell"
         style="max-width:100%;min-width:0"
@@ -37,11 +41,6 @@
         <ThreadPane />
         <LiveThreadPane />
       </div>
-      <!-- CLE-3402: the signed-in person's avatar + dropdown, top-right -->
-      <div class="app-corner" data-test="app-corner">
-        <!-- CLE-3403 (spec 021): the donor's header language switcher -->
-        <LanguageSwitcher />
-        <UserMenu />
       </div>
       <template #fallback>
         <div class="login"><p class="muted">{{ $t('app.loading') }}</p></div>
@@ -58,7 +57,7 @@
 
 <script setup lang="ts">
 import DebugPanel from '@/components/common/DebugPanel.vue'
-import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+import TopBar from '@/components/TopBar.vue'
 import { useThreadStore } from '~/stores/thread'
 import { useLiveFeed } from '~/stores/live'
 import { usePaneWidths } from '~/composables/usePaneWidths'

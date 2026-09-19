@@ -4,12 +4,6 @@
       <h2>#{{ name }}</h2>
       <span class="muted">{{ retention ? t('pages.channel.subtitle_retention', { retention }) : t('pages.channel.subtitle') }}</span>
     </header>
-    <MessageComposer
-      omnibox
-      :placeholder="t('pages.message_placeholder', { target: '#' + name })"
-      @send="onSend"
-      @search="channel.setSearch"
-    />
     <MessageFeed :label="t('pages.feed_label', { target: '#' + name })" />
   </div>
 </template>
@@ -21,6 +15,7 @@ import { useSpoolEvents } from '~/composables/useSpoolEvents'
 import { useNotificationStore } from '~/stores/notification'
 import { normalizeChannel } from '~/utils/notify.mjs'
 import { retentionDays } from '~/utils/channel-feed.mjs'
+import { useOmniboxTarget } from '~/stores/omnibox'
 
 const route = useRoute()
 const channel = useChannelStore()
@@ -55,4 +50,10 @@ onMounted(async () => {
 async function onSend(text: string) {
   await channel.send(text)
 }
+
+/* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
+useOmniboxTarget({
+  placeholder: () => t('pages.message_placeholder', { target: '#' + name.value }),
+  send: onSend,
+})
 </script>

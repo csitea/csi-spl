@@ -434,5 +434,36 @@
     "copied": "Skopírované",
     "block_label": "Blok kódu",
     "block_label_lang": "Blok kódu, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: správa pre túto stránku alebo /search na hľadanie všade",
+    "mode_chip": "Vyhľadávanie",
+    "submit": "Hľadať",
+    "operator_suggestions": "Operátory vyhľadávania",
+    "home": "Domov Spool",
+    "open_omnibox": "Hľadať alebo písať",
+    "placeholder_no_target": "Zadajte /search a dopyt, napr. /search from:CLE-07 is:task",
+    "title": "Vyhľadávanie",
+    "help_intro": "Do horného panela zadajte /search a potom slová, \"frázy\" a operátory ako v Gmaile. Príklady:",
+    "loading": "Hľadá sa…",
+    "bad_query": "Dopyt sa nepodarilo prečítať: {detail}",
+    "no_results": "Žiadne výsledky.",
+    "results_label": "Výsledky pre {q}",
+    "load_more": "Načítať ďalšie",
+    "in_dm": "priama správa",
+    "count_messages": "{n} správa | {n} správ",
+    "revoked": "zrušený",
+    "rate_limited": "Príliš veľa vyhľadávaní. Skúste to znova o {s} s.",
+    "budget": "Vyhľadávanie trvalo príliš dlho. Zúžte dopyt.",
+    "failed": "Vyhľadávanie zlyhalo ({detail}).",
+    "group": {
+      "robots": "Roboty",
+      "users": "Ľudia",
+      "channels": "Kanály",
+      "boxes": "Boxy",
+      "threads": "Vlákna",
+      "files": "Súbory",
+      "messages": "Správy"
+    }
   }
 }

@@ -434,5 +434,36 @@
     "copied": "Skopiowano",
     "block_label": "Blok kodu",
     "block_label_lang": "Blok kodu, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: wiadomość na tej stronie albo /search, by szukać wszędzie",
+    "mode_chip": "Wyszukiwanie",
+    "submit": "Szukaj",
+    "operator_suggestions": "Operatory wyszukiwania",
+    "home": "Strona główna Spool",
+    "open_omnibox": "Szukaj lub napisz",
+    "placeholder_no_target": "Wpisz /search i zapytanie, np. /search from:CLE-07 is:task",
+    "title": "Wyszukiwanie",
+    "help_intro": "Wpisz /search na górnym pasku, a potem słowa, \"frazy\" i operatory, jak w Gmailu. Przykłady:",
+    "loading": "Wyszukiwanie…",
+    "bad_query": "Nie udało się odczytać zapytania: {detail}",
+    "no_results": "Brak wyników.",
+    "results_label": "Wyniki dla {q}",
+    "load_more": "Wczytaj więcej",
+    "in_dm": "wiadomość prywatna",
+    "count_messages": "{n} wiadomość | {n} wiadomości",
+    "revoked": "unieważniony",
+    "rate_limited": "Zbyt wiele wyszukiwań. Spróbuj ponownie za {s} s.",
+    "budget": "Wyszukiwanie trwało zbyt długo. Zawęź zapytanie.",
+    "failed": "Wyszukiwanie nie powiodło się ({detail}).",
+    "group": {
+      "robots": "Roboty",
+      "users": "Osoby",
+      "channels": "Kanały",
+      "boxes": "Skrzynki",
+      "threads": "Wątki",
+      "files": "Pliki",
+      "messages": "Wiadomości"
+    }
   }
 }

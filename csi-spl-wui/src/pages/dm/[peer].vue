@@ -5,12 +5,6 @@
       <h2>{{ peer }}</h2>
       <span class="muted">{{ online ? t('pages.dm.online') : t('pages.dm.offline_queued') }}</span>
     </header>
-    <MessageComposer
-      omnibox
-      :placeholder="t('pages.message_placeholder', { target: peer })"
-      @send="onSend"
-      @search="channel.setSearch"
-    />
     <MessageFeed :label="t('pages.feed_label', { target: peer })" />
   </div>
 </template>
@@ -19,6 +13,7 @@
 import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useSpoolEvents } from '~/composables/useSpoolEvents'
+import { useOmniboxTarget } from '~/stores/omnibox'
 
 const route = useRoute()
 const channel = useChannelStore()
@@ -47,4 +42,10 @@ onMounted(async () => {
 async function onSend(text: string) {
   await channel.send(text)
 }
+
+/* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
+useOmniboxTarget({
+  placeholder: () => t('pages.message_placeholder', { target: peer.value }),
+  send: onSend,
+})
 </script>

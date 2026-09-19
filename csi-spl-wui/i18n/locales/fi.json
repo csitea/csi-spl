@@ -434,5 +434,36 @@
     "copied": "Kopioitu",
     "block_label": "Koodilohko",
     "block_label_lang": "Koodilohko, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: viesti tälle sivulle tai /search hakee kaikkialta",
+    "mode_chip": "Haku",
+    "submit": "Hae",
+    "operator_suggestions": "Hakuoperaattorit",
+    "home": "Spoolin etusivu",
+    "open_omnibox": "Hae tai kirjoita",
+    "placeholder_no_target": "Kirjoita /search ja hakulauseke, esim. /search from:CLE-07 is:task",
+    "title": "Haku",
+    "help_intro": "Kirjoita ylärivin kenttään /search ja sen perään sanat, \"fraasit\" ja operaattorit kuten Gmailissa. Esimerkkejä:",
+    "loading": "Haetaan…",
+    "bad_query": "Hakua ei voitu lukea: {detail}",
+    "no_results": "Ei osumia.",
+    "results_label": "Tulokset haulle {q}",
+    "load_more": "Lataa lisää",
+    "in_dm": "yksityisviesti",
+    "count_messages": "{n} viesti | {n} viestiä",
+    "revoked": "peruttu",
+    "rate_limited": "Liian monta hakua. Yritä uudelleen {s} s kuluttua.",
+    "budget": "Haku kesti liian kauan. Rajaa hakua.",
+    "failed": "Haku epäonnistui ({detail}).",
+    "group": {
+      "robots": "Robotit",
+      "users": "Ihmiset",
+      "channels": "Kanavat",
+      "boxes": "Laatikot",
+      "threads": "Ketjut",
+      "files": "Tiedostot",
+      "messages": "Viestit"
+    }
   }
 }

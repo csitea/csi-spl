@@ -1,6 +1,30 @@
 <template>
-  <form class="composer" :class="{ omnibox }" @submit.prevent="onSend">
+  <form class="composer" :class="{ omnibox, 'omnibox--global': global, 'omnibox--search': searchMode }" @submit.prevent="onSend">
     <div class="composer-box">
+      <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
+      <ul
+        v-if="opPickerOpen"
+        :id="opListId"
+        class="mention-list op-list"
+        role="listbox"
+        data-test="search-operators"
+        :aria-label="t('search.operator_suggestions')"
+      >
+        <li v-for="(c, i) in opCandidates" :key="c.insert">
+          <button
+            :id="opListId + '-' + i"
+            type="button"
+            role="option"
+            class="mention-item"
+            :class="{ active: i === opIdx }"
+            :aria-selected="i === opIdx"
+            @mousedown.prevent="pickOp(c.insert)"
+          >
+            <code class="mention-label">{{ c.insert.trim() }}</code>
+            <span v-if="c.label !== c.insert.trim()" class="muted op-example">{{ c.label }}</span>
+          </button>
+        </li>
+      </ul>
       <ul
         v-if="pickerOpen"
         class="mention-list"
@@ -22,11 +46,16 @@
           </button>
         </li>
       </ul>
+      <span v-if="searchMode" class="omnibox-mode" data-test="omnibox-mode">
+        <UiIcon name="search" :size="14" />{{ t('search.mode_chip') }}
+      </span>
       <textarea
         ref="inputEl"
-        :aria-label="omnibox ? t('composer.omnibox_label') : t('composer.message_label')"
+        :aria-label="global ? t('search.omnibox_label') : omnibox ? t('composer.omnibox_label') : t('composer.message_label')"
+        :aria-controls="opPickerOpen ? opListId : undefined"
+        :aria-activedescendant="opPickerOpen && opIdx >= 0 ? opListId + '-' + opIdx : undefined"
         v-model="text"
-        rows="2"
+        :rows="global ? 1 : 2"
         :class="{ 'in-code': inCode }"
         :placeholder="placeholder"
         :aria-describedby="hintId"
@@ -45,11 +74,12 @@
         </li>
       </ul>
       <div class="composer-row">
-        <label class="muted attach">
+        <label v-if="!searchMode" class="muted attach">
           <input type="file" multiple hidden data-testid="attach" @change="onFiles">
           📎 {{ t('composer.attach') }}
         </label>
-        <button type="submit" :disabled="busy || (!text.trim() && !picked.length)">{{ busy ? t('composer.sending') : t('composer.send') }}</button>
+        <button v-if="searchMode" type="submit" data-test="omnibox-search" :disabled="!searchQueryOf(text)">{{ t('search.submit') }}</button>
+        <button v-else type="submit" :disabled="busy || sendBlocked || (!text.trim() && !picked.length)">{{ busy ? t('composer.sending') : t('composer.send') }}</button>
       </div>
     </div>
   </form>
@@ -59,6 +89,7 @@
 import { useRosterStore } from '~/stores/roster'
 import { closeOpenFence, enterAction, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
+import { applyCompletion, completeOperators, omniboxMode, operatorTokenAt, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
 import {
   activeMentionQuery,
   filterRosterMentions,
@@ -71,8 +102,23 @@ const props = defineProps<{
   busy?: boolean
   /** 013 Top Omnibox: Enter sends; `/search <q>` filters instead; Esc clears the filter. */
   omnibox?: boolean
+  /**
+   * 022 top-bar Omnibox: `/search <q>` is a GLOBAL search (emit search, keep the
+   * line for refining), operators autocomplete, Esc on an empty line → dismiss,
+   * ArrowDown in search mode → results.
+   */
+  global?: boolean
+  /** 022: no page send target — plain text cannot be sent (search still works) */
+  sendBlocked?: boolean
+  /** 022: the operator catalogue (search-v1 §6) */
+  operators?: SearchOperator[]
 }>()
-const emit = defineEmits<{ send: [text: string, parentTaskId?: string, files?: File[]], search: [q: string] }>()
+const emit = defineEmits<{
+  send: [text: string, parentTaskId?: string, files?: File[]]
+  search: [q: string]
+  dismiss: []
+  results: []
+}>()
 const picked = ref<File[]>([])
 const roster = useRosterStore()
 const text = ref('')
@@ -82,6 +128,45 @@ const activeIdx = ref(0)
 /** Slack's ``` composer: the caret sits inside an open code block. */
 const inCode = ref(false)
 const hintId = useId()
+const opListId = useId()
+const opIdx = ref(0)
+/** caret offset, kept in sync so the operator picker follows it */
+const caretAt = ref(0)
+const opClosed = ref(false)
+const searchMode = computed(() => Boolean(props.global) && omniboxMode(text.value) === 'search')
+const opTok = computed(() => (searchMode.value ? operatorTokenAt(text.value, caretAt.value) : null))
+const opCandidates = computed(() => (opTok.value ? completeOperators(opTok.value.token, props.operators).slice(0, 8) : []))
+const opPickerOpen = computed(() => !opClosed.value && opCandidates.value.length > 0)
+
+function pickOp(insert: string) {
+  const tok = opTok.value
+  if (!tok) return
+  const next = applyCompletion(text.value, tok, insert)
+  text.value = next.text
+  caretAt.value = next.cursor
+  opIdx.value = 0
+  nextTick(() => {
+    const el = inputEl.value
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(next.cursor, next.cursor)
+  })
+}
+
+/** 022: the top bar sets the line (deep link ?q=, mobile expand) */
+function setText(s: string) {
+  text.value = s
+  nextTick(() => {
+    const el = inputEl.value
+    if (!el) return
+    caretAt.value = s.length
+    el.setSelectionRange(s.length, s.length)
+  })
+}
+function focusInput() {
+  inputEl.value?.focus()
+}
+defineExpose({ setText, focus: focusInput })
 
 const { t } = useI18n({ useScope: 'global' })
 const placeholder = computed(() => props.placeholder || t('composer.placeholder_default', { mention: '@CLE-07' }))
@@ -90,7 +175,19 @@ function caret(): number {
   return inputEl.value?.selectionStart ?? text.value.length
 }
 
-function syncMention() {
+function syncMention(ev?: Event) {
+  const prevTok = opTok.value && opTok.value.token
+  caretAt.value = caret()
+  if (ev && ev.type !== 'keyup' && opTok.value?.token !== prevTok) {
+    opClosed.value = false
+    opIdx.value = 0
+  }
+  if (searchMode.value) {
+    // a search line is a query: no code block, no @-picker
+    inCode.value = false
+    mentionQuery.value = null
+    return
+  }
   inCode.value = fenceStateAt(text.value, caret()).inCode
   // no @-autocomplete inside a code block: the text there is literal
   const q = inCode.value ? null : activeMentionQuery(text.value, caret())
@@ -119,6 +216,7 @@ function pick(peer: { id: string }) {
 
 function onKeydown(ev: KeyboardEvent) {
   if (ev.isComposing) return
+  if (props.global && onGlobalKey(ev)) return
   if (inCode.value && ev.key === 'Escape' && !pickerOpen.value) {
     // Slack's exit: close the block at the caret, keep typing below it
     ev.preventDefault()
@@ -167,8 +265,57 @@ function onKeydown(ev: KeyboardEvent) {
   }
 }
 
+/** 022 top-bar keys; true = handled. */
+function onGlobalKey(ev: KeyboardEvent): boolean {
+  if (opPickerOpen.value) {
+    const n = opCandidates.value.length
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault()
+      opIdx.value = ev.key === 'ArrowDown' ? (opIdx.value + 1) % n : (opIdx.value - 1 + n) % n
+      return true
+    }
+    if (ev.key === 'Tab' || (ev.key === 'Enter' && !ev.shiftKey)) {
+      ev.preventDefault()
+      const c = opCandidates.value[opIdx.value]
+      if (c) pickOp(c.insert)
+      return true
+    }
+    if (ev.key === 'Escape') {
+      ev.preventDefault()
+      opClosed.value = true
+      return true
+    }
+  }
+  if (searchMode.value) {
+    if (ev.key === 'Enter' && !ev.shiftKey) {
+      ev.preventDefault()
+      onSend()
+      return true
+    }
+    if (ev.key === 'ArrowDown' && caret() === text.value.length) {
+      ev.preventDefault()
+      emit('results')
+      return true
+    }
+  }
+  if (ev.key === 'Escape' && !inCode.value && !pickerOpen.value) {
+    ev.preventDefault()
+    if (text.value) text.value = ''
+    else emit('dismiss')
+    return true
+  }
+  return false
+}
+
 function onSend() {
-  if (props.omnibox) {
+  if (props.global && searchMode.value) {
+    // the rest of the line goes to the hub verbatim (search-v1 §0)
+    emit('search', searchQueryOf(text.value))
+    opClosed.value = true
+    return
+  }
+  if (props.global && props.sendBlocked) return
+  if (props.omnibox && !props.global) {
     const parsed = parseOmnibox(text.value)
     if ('search' in parsed) {
       emit('search', parsed.search || '')
@@ -268,5 +415,33 @@ textarea.in-code {
 .mention-label {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.omnibox-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 1px 8px;
+  margin: 0 0 4px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  max-width: 100%;
+}
+.op-list code { font-family: var(--font-mono); }
+.op-example {
+  font-size: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* 022: in the top bar the pickers drop DOWN over the page, not up into the bar */
+.omnibox--global .composer-box { position: relative; }
+.omnibox--global .mention-list {
+  position: absolute;
+  top: 100%;
+  inset-inline: 0;
+  margin: 4px 0 0;
+  z-index: 60;
+  box-shadow: 0 8px 24px rgb(0 0 0 / .25);
 }
 </style>

@@ -434,5 +434,36 @@
     "copied": "Kopierat",
     "block_label": "Kodblock",
     "block_label_lang": "Kodblock, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: skriv till den här sidan, eller /search för att söka överallt",
+    "mode_chip": "Sök",
+    "submit": "Sök",
+    "operator_suggestions": "Sökoperatorer",
+    "home": "Spool-start",
+    "open_omnibox": "Sök eller skriv",
+    "placeholder_no_target": "Skriv /search och en fråga, t.ex. /search from:CLE-07 is:task",
+    "title": "Sök",
+    "help_intro": "Skriv /search i fältet överst, sedan ord, \"fraser\" och operatorer, som i Gmail. Exempel:",
+    "loading": "Söker…",
+    "bad_query": "Frågan kunde inte läsas: {detail}",
+    "no_results": "Inga träffar.",
+    "results_label": "Resultat för {q}",
+    "load_more": "Ladda fler",
+    "in_dm": "direktmeddelande",
+    "count_messages": "{n} meddelande | {n} meddelanden",
+    "revoked": "återkallad",
+    "rate_limited": "För många sökningar. Försök igen om {s} s.",
+    "budget": "Sökningen tog för lång tid. Smalna av frågan.",
+    "failed": "Sökningen misslyckades ({detail}).",
+    "group": {
+      "robots": "Robotar",
+      "users": "Personer",
+      "channels": "Kanaler",
+      "boxes": "Boxar",
+      "threads": "Trådar",
+      "files": "Filer",
+      "messages": "Meddelanden"
+    }
   }
 }

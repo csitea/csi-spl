@@ -434,5 +434,36 @@
     "copied": "Kopyalandı",
     "block_label": "Kod bloğu",
     "block_label_lang": "Kod bloğu, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: bu sayfaya mesaj yazın veya her yerde aramak için /search",
+    "mode_chip": "Arama",
+    "submit": "Ara",
+    "operator_suggestions": "Arama operatörleri",
+    "home": "Spool ana sayfa",
+    "open_omnibox": "Ara veya yaz",
+    "placeholder_no_target": "/search ve bir sorgu yazın, ör. /search from:CLE-07 is:task",
+    "title": "Arama",
+    "help_intro": "Üst çubuğa /search yazın, ardından Gmail'deki gibi kelimeler, \"ifadeler\" ve operatörler. Örnekler:",
+    "loading": "Aranıyor…",
+    "bad_query": "Sorgu okunamadı: {detail}",
+    "no_results": "Eşleşme yok.",
+    "results_label": "{q} için sonuçlar",
+    "load_more": "Daha fazla yükle",
+    "in_dm": "doğrudan mesaj",
+    "count_messages": "{n} mesaj | {n} mesaj",
+    "revoked": "iptal edildi",
+    "rate_limited": "Çok fazla arama. {s} sn sonra tekrar deneyin.",
+    "budget": "Arama çok uzun sürdü. Sorguyu daraltın.",
+    "failed": "Arama başarısız ({detail}).",
+    "group": {
+      "robots": "Robotlar",
+      "users": "Kişiler",
+      "channels": "Kanallar",
+      "boxes": "Kutular",
+      "threads": "Konular",
+      "files": "Dosyalar",
+      "messages": "Mesajlar"
+    }
   }
 }

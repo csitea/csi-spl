@@ -434,5 +434,36 @@
     "copied": "Скопійовано",
     "block_label": "Блок коду",
     "block_label_lang": "Блок коду, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: повідомлення на цій сторінці або /search для пошуку всюди",
+    "mode_chip": "Пошук",
+    "submit": "Шукати",
+    "operator_suggestions": "Оператори пошуку",
+    "home": "Головна Spool",
+    "open_omnibox": "Пошук або повідомлення",
+    "placeholder_no_target": "Введіть /search і запит, напр. /search from:CLE-07 is:task",
+    "title": "Пошук",
+    "help_intro": "Введіть /search у верхньому рядку, далі слова, \"фрази\" й оператори, як у Gmail. Приклади:",
+    "loading": "Пошук…",
+    "bad_query": "Не вдалося прочитати запит: {detail}",
+    "no_results": "Нічого не знайдено.",
+    "results_label": "Результати для {q}",
+    "load_more": "Завантажити ще",
+    "in_dm": "особисте повідомлення",
+    "count_messages": "{n} повідомлення | Повідомлень: {n}",
+    "revoked": "відкликано",
+    "rate_limited": "Забагато запитів. Спробуйте знову за {s} с.",
+    "budget": "Пошук тривав надто довго. Уточніть запит.",
+    "failed": "Пошук не вдався ({detail}).",
+    "group": {
+      "robots": "Роботи",
+      "users": "Люди",
+      "channels": "Канали",
+      "boxes": "Бокси",
+      "threads": "Треди",
+      "files": "Файли",
+      "messages": "Повідомлення"
+    }
   }
 }

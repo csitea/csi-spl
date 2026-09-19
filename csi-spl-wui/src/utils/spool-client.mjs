@@ -93,10 +93,15 @@ export function createSpoolClient({
     if (!res.ok) {
       let token = ''
       let detail = ''
+      let pos
+      let bad = ''
       try {
         const body = await res.json()
         token = (body && body.error) || ''
         detail = (body && body.detail) || ''
+        // search-v1 §5.1: bad_query points at the offending token
+        if (body && Number.isInteger(body.pos)) pos = body.pos
+        if (body && typeof body.token === 'string') bad = body.token
       } catch {
         /* not json */
       }
@@ -104,6 +109,9 @@ export function createSpoolClient({
       err.status = res.status
       err.token = token
       err.detail = detail
+      if (pos !== undefined) err.pos = pos
+      if (bad) err.badToken = bad
+      if (res.status === 429) err.retryAfter = Number(res.headers.get('retry-after')) || 0
       throw err
     }
     if (res.status === 204) return null

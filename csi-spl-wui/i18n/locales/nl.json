@@ -434,5 +434,36 @@
     "copied": "Gekopieerd",
     "block_label": "Codeblok",
     "block_label_lang": "Codeblok, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: bericht aan deze pagina, of /search om overal te zoeken",
+    "mode_chip": "Zoeken",
+    "submit": "Zoeken",
+    "operator_suggestions": "Zoekoperatoren",
+    "home": "Spool-start",
+    "open_omnibox": "Zoeken of berichten",
+    "placeholder_no_target": "Typ /search en een zoekopdracht, bv. /search from:CLE-07 is:task",
+    "title": "Zoeken",
+    "help_intro": "Typ /search in de balk bovenaan, dan woorden, \"zinnen\" en operatoren, zoals in Gmail. Voorbeelden:",
+    "loading": "Zoeken…",
+    "bad_query": "De zoekopdracht kon niet worden gelezen: {detail}",
+    "no_results": "Geen resultaten.",
+    "results_label": "Resultaten voor {q}",
+    "load_more": "Meer laden",
+    "in_dm": "direct bericht",
+    "count_messages": "{n} bericht | {n} berichten",
+    "revoked": "ingetrokken",
+    "rate_limited": "Te veel zoekopdrachten. Probeer het over {s} s opnieuw.",
+    "budget": "De zoekopdracht duurde te lang. Maak hem specifieker.",
+    "failed": "Zoeken mislukt ({detail}).",
+    "group": {
+      "robots": "Robots",
+      "users": "Mensen",
+      "channels": "Kanalen",
+      "boxes": "Boxen",
+      "threads": "Threads",
+      "files": "Bestanden",
+      "messages": "Berichten"
+    }
   }
 }

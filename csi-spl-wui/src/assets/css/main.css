@@ -4,10 +4,20 @@
 a { color: var(--color-accent); text-decoration: none; }
 button, textarea, input { font-family: inherit; }
 
+:root { --top-bar-h: 52px; }
+/* 022: the top bar is sticky over the document; the shell fills the rest */
+.app-frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 100%;
+  min-width: 0;
+}
 .spool-shell {
   display: flex;
+  flex: 1;
   height: 100%;
-  min-height: 100vh;
+  min-height: calc(100vh - var(--top-bar-h));
   max-width: 100%;
   min-width: 0;
   background: var(--color-bg);
@@ -461,7 +471,7 @@ html.pane-dragging * {
   .live-pane {
     position: fixed;
     right: 0;
-    top: 0;
+    top: var(--top-bar-h);
     bottom: 0;
     width: min(var(--thread-w), 100%);
     z-index: 20;
@@ -470,29 +480,42 @@ html.pane-dragging * {
   .pane-divider[data-pane="thread"] { display: none; }
 }
 
-/* CLE-3402 top-right user control: one fixed corner cluster (UserMenu, and
-   the language switcher when CLE-3403 lands it BEFORE the avatar). The
-   right-most headers reserve --app-corner-w so the corner never covers
-   their controls (thread pane Close/Open, feed header text). */
-/* spec 021: the language switcher sits before the avatar, so the reserve is
-   avatar (56px) + switcher (--lang-corner-w) + the 6px gap. Logical
-   properties so the corner follows the reading direction (he = rtl). */
-:root { --lang-corner-w: 9.5rem; --app-corner-w: calc(56px + var(--lang-corner-w) + 6px); }
+/* CLE-3402 user control + spec 021 language switcher: since 022 they sit at
+   the end of the top bar (TopBar.vue .top-bar__end), so no header reserves
+   room for a fixed corner any more. Logical properties follow the reading
+   direction (he = rtl). */
+:root { --lang-corner-w: 9.5rem; }
 @media (max-width: 640px) {
   :root { --lang-corner-w: 5.5rem; }
 }
 .app-corner .lang-switcher__combobox { width: var(--lang-corner-w); }
-.app-corner {
-  position: fixed;
-  top: 4px;
-  inset-inline-end: 8px;
-  z-index: var(--z-sticky, 40);
+
+/* 022 top-bar Omnibox: one line that grows with its content (``` blocks) */
+.composer.omnibox--global {
+  padding: 0;
+  border: 0;
+}
+.composer.omnibox--global .composer-box {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  max-width: calc(100% - 16px);
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 4px 6px 4px 10px;
 }
-.feed-header,
-.thread header {
-  padding-inline-end: calc(var(--app-corner-w) + 16px);
+.composer.omnibox--global textarea {
+  flex: 1 1 12rem;
+  width: auto;
+  min-height: 36px;
+  max-height: 40vh;
+  field-sizing: content;
+  padding: 8px 0 0;
+  overflow-y: auto;
 }
+.composer.omnibox--global .composer-row { flex-wrap: nowrap; }
+.composer.omnibox--global .composer-row button { min-height: 36px; padding: 6px 12px; }
+.composer.omnibox--global .code-hint:empty { display: none; }
+.composer.omnibox--global .code-hint, .composer.omnibox--global .file-chips { flex-basis: 100%; }
+/* the bar carries the brand; the sidebar keeps only its controls */
+.sidebar-brand h1 { display: none; }
+.sidebar-brand { justify-content: flex-end; }
+.msg.search-focus { outline: 2px solid var(--color-accent); outline-offset: 2px; }

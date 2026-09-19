@@ -434,5 +434,36 @@
     "copied": "Nokopēts",
     "block_label": "Koda bloks",
     "block_label_lang": "Koda bloks, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: raksti šai lapai vai /search, lai meklētu visur",
+    "mode_chip": "Meklēšana",
+    "submit": "Meklēt",
+    "operator_suggestions": "Meklēšanas operatori",
+    "home": "Spool sākums",
+    "open_omnibox": "Meklēt vai rakstīt",
+    "placeholder_no_target": "Ievadiet /search un vaicājumu, piem., /search from:CLE-07 is:task",
+    "title": "Meklēšana",
+    "help_intro": "Augšējā joslā ievadiet /search, pēc tam vārdus, \"frāzes\" un operatorus kā Gmail. Piemēri:",
+    "loading": "Meklē…",
+    "bad_query": "Vaicājumu nevarēja nolasīt: {detail}",
+    "no_results": "Nekas netika atrasts.",
+    "results_label": "Rezultāti vaicājumam {q}",
+    "load_more": "Ielādēt vairāk",
+    "in_dm": "tiešā ziņa",
+    "count_messages": "{n} ziņa | {n} ziņas",
+    "revoked": "atsaukts",
+    "rate_limited": "Pārāk daudz meklējumu. Mēģiniet vēlreiz pēc {s} s.",
+    "budget": "Meklēšana ilga pārāk ilgi. Sašauriniet vaicājumu.",
+    "failed": "Meklēšana neizdevās ({detail}).",
+    "group": {
+      "robots": "Roboti",
+      "users": "Cilvēki",
+      "channels": "Kanāli",
+      "boxes": "Kastes",
+      "threads": "Pavedieni",
+      "files": "Faili",
+      "messages": "Ziņas"
+    }
   }
 }

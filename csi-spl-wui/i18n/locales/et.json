@@ -434,5 +434,36 @@
     "copied": "Kopeeritud",
     "block_label": "Koodiplokk",
     "block_label_lang": "Koodiplokk, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: kirjuta sellele lehele või /search, et otsida kõikjalt",
+    "mode_chip": "Otsing",
+    "submit": "Otsi",
+    "operator_suggestions": "Otsinguoperaatorid",
+    "home": "Spooli avaleht",
+    "open_omnibox": "Otsi või kirjuta",
+    "placeholder_no_target": "Sisesta /search ja päring, nt /search from:CLE-07 is:task",
+    "title": "Otsing",
+    "help_intro": "Sisesta ülemisele ribale /search, seejärel sõnad, \"fraasid\" ja operaatorid nagu Gmailis. Näited:",
+    "loading": "Otsin…",
+    "bad_query": "Päringut ei saanud lugeda: {detail}",
+    "no_results": "Vasteid pole.",
+    "results_label": "Tulemused päringule {q}",
+    "load_more": "Laadi veel",
+    "in_dm": "otsesõnum",
+    "count_messages": "{n} sõnum | {n} sõnumit",
+    "revoked": "tühistatud",
+    "rate_limited": "Liiga palju otsinguid. Proovi uuesti {s} s pärast.",
+    "budget": "Otsing võttis liiga kaua. Kitsenda päringut.",
+    "failed": "Otsing ebaõnnestus ({detail}).",
+    "group": {
+      "robots": "Robotid",
+      "users": "Inimesed",
+      "channels": "Kanalid",
+      "boxes": "Kastid",
+      "threads": "Lõimed",
+      "files": "Failid",
+      "messages": "Sõnumid"
+    }
   }
 }

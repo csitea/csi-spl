@@ -434,5 +434,36 @@
     "copied": "Скопировано",
     "block_label": "Блок кода",
     "block_label_lang": "Блок кода, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: сообщение на этой странице или /search для поиска везде",
+    "mode_chip": "Поиск",
+    "submit": "Найти",
+    "operator_suggestions": "Операторы поиска",
+    "home": "Главная Spool",
+    "open_omnibox": "Поиск или сообщение",
+    "placeholder_no_target": "Введите /search и запрос, напр. /search from:CLE-07 is:task",
+    "title": "Поиск",
+    "help_intro": "Введите /search в верхней строке, затем слова, \"фразы\" и операторы, как в Gmail. Примеры:",
+    "loading": "Поиск…",
+    "bad_query": "Не удалось разобрать запрос: {detail}",
+    "no_results": "Ничего не найдено.",
+    "results_label": "Результаты для {q}",
+    "load_more": "Загрузить ещё",
+    "in_dm": "личное сообщение",
+    "count_messages": "{n} сообщение | Сообщений: {n}",
+    "revoked": "отозван",
+    "rate_limited": "Слишком много запросов. Повторите через {s} с.",
+    "budget": "Поиск занял слишком много времени. Уточните запрос.",
+    "failed": "Поиск не удался ({detail}).",
+    "group": {
+      "robots": "Роботы",
+      "users": "Люди",
+      "channels": "Каналы",
+      "boxes": "Боксы",
+      "threads": "Треды",
+      "files": "Файлы",
+      "messages": "Сообщения"
+    }
   }
 }

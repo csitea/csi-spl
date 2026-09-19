@@ -434,5 +434,36 @@
     "copied": "Копирано",
     "block_label": "Блок со код",
     "block_label_lang": "Блок со код, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: порака до оваа страница или /search за пребарување насекаде",
+    "mode_chip": "Пребарување",
+    "submit": "Пребарај",
+    "operator_suggestions": "Оператори за пребарување",
+    "home": "Почетна на Spool",
+    "open_omnibox": "Пребарај или напиши",
+    "placeholder_no_target": "Внесете /search и барање, на пр. /search from:CLE-07 is:task",
+    "title": "Пребарување",
+    "help_intro": "Внесете /search во лентата горе, потоа зборови, \"фрази\" и оператори, како во Gmail. Примери:",
+    "loading": "Се пребарува…",
+    "bad_query": "Барањето не може да се прочита: {detail}",
+    "no_results": "Нема совпаѓања.",
+    "results_label": "Резултати за {q}",
+    "load_more": "Вчитај повеќе",
+    "in_dm": "директна порака",
+    "count_messages": "{n} порака | {n} пораки",
+    "revoked": "одземен",
+    "rate_limited": "Премногу пребарувања. Обидете се повторно за {s} с.",
+    "budget": "Пребарувањето траеше предолго. Стеснете го барањето.",
+    "failed": "Пребарувањето не успеа ({detail}).",
+    "group": {
+      "robots": "Роботи",
+      "users": "Луѓе",
+      "channels": "Канали",
+      "boxes": "Кутии",
+      "threads": "Нишки",
+      "files": "Датотеки",
+      "messages": "Пораки"
+    }
   }
 }

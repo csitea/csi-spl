@@ -434,5 +434,36 @@
     "copied": "Copied",
     "block_label": "Code block",
     "block_label_lang": "Code block, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: message this page, or /search to search everything",
+    "mode_chip": "Search",
+    "submit": "Search",
+    "operator_suggestions": "Search operators",
+    "home": "Spool home",
+    "open_omnibox": "Search or message",
+    "placeholder_no_target": "Type /search and a query, e.g. /search from:CLE-07 is:task",
+    "title": "Search",
+    "help_intro": "Type /search in the bar at the top, then words, \"phrases\" and operators, as in Gmail. Examples:",
+    "loading": "Searching…",
+    "bad_query": "The query could not be read: {detail}",
+    "no_results": "Nothing matches.",
+    "results_label": "Results for {q}",
+    "load_more": "Load more",
+    "in_dm": "direct message",
+    "count_messages": "{n} message | {n} messages",
+    "revoked": "revoked",
+    "rate_limited": "Too many searches. Try again in {s} s.",
+    "budget": "The search took too long. Narrow the query.",
+    "failed": "Search failed ({detail}).",
+    "group": {
+      "robots": "Robots",
+      "users": "People",
+      "channels": "Channels",
+      "boxes": "Boxes",
+      "threads": "Threads",
+      "files": "Files",
+      "messages": "Messages"
+    }
   }
 }

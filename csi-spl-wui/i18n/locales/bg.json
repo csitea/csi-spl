@@ -434,5 +434,36 @@
     "copied": "Копирано",
     "block_label": "Блок с код",
     "block_label_lang": "Блок с код, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: съобщение към тази страница или /search за търсене навсякъде",
+    "mode_chip": "Търсене",
+    "submit": "Търси",
+    "operator_suggestions": "Оператори за търсене",
+    "home": "Начало на Spool",
+    "open_omnibox": "Търсене или съобщение",
+    "placeholder_no_target": "Въведете /search и заявка, напр. /search from:CLE-07 is:task",
+    "title": "Търсене",
+    "help_intro": "Въведете /search в лентата горе, после думи, \"фрази\" и оператори, както в Gmail. Примери:",
+    "loading": "Търсене…",
+    "bad_query": "Заявката не може да бъде разчетена: {detail}",
+    "no_results": "Няма съвпадения.",
+    "results_label": "Резултати за {q}",
+    "load_more": "Зареди още",
+    "in_dm": "лично съобщение",
+    "count_messages": "{n} съобщение | {n} съобщения",
+    "revoked": "отнет",
+    "rate_limited": "Твърде много търсения. Опитайте отново след {s} с.",
+    "budget": "Търсенето отне твърде дълго. Стеснете заявката.",
+    "failed": "Търсенето не успя ({detail}).",
+    "group": {
+      "robots": "Роботи",
+      "users": "Хора",
+      "channels": "Канали",
+      "boxes": "Кутии",
+      "threads": "Нишки",
+      "files": "Файлове",
+      "messages": "Съобщения"
+    }
   }
 }

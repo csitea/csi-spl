@@ -434,5 +434,36 @@
     "copied": "Копирано",
     "block_label": "Блок кода",
     "block_label_lang": "Блок кода, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: порука овој страници или /search за претрагу свуда",
+    "mode_chip": "Претрага",
+    "submit": "Претражи",
+    "operator_suggestions": "Оператори претраге",
+    "home": "Почетна Spool",
+    "open_omnibox": "Претражи или пиши",
+    "placeholder_no_target": "Унесите /search и упит, нпр. /search from:CLE-07 is:task",
+    "title": "Претрага",
+    "help_intro": "Унесите /search у горњу траку, затим речи, \"фразе\" и операторе, као у Gmail-у. Примери:",
+    "loading": "Претрага…",
+    "bad_query": "Упит није могуће прочитати: {detail}",
+    "no_results": "Нема резултата.",
+    "results_label": "Резултати за {q}",
+    "load_more": "Учитај још",
+    "in_dm": "директна порука",
+    "count_messages": "{n} порука | {n} порука",
+    "revoked": "опозван",
+    "rate_limited": "Превише претрага. Покушајте поново за {s} с.",
+    "budget": "Претрага је трајала предуго. Сузите упит.",
+    "failed": "Претрага није успела ({detail}).",
+    "group": {
+      "robots": "Роботи",
+      "users": "Људи",
+      "channels": "Канали",
+      "boxes": "Кутије",
+      "threads": "Нити",
+      "files": "Датотеке",
+      "messages": "Поруке"
+    }
   }
 }

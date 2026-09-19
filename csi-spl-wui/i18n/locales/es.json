@@ -434,5 +434,36 @@
     "copied": "Copiado",
     "block_label": "Bloque de código",
     "block_label_lang": "Bloque de código, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: escribe a esta página o usa /search para buscar en todo",
+    "mode_chip": "Búsqueda",
+    "submit": "Buscar",
+    "operator_suggestions": "Operadores de búsqueda",
+    "home": "Inicio de Spool",
+    "open_omnibox": "Buscar o escribir",
+    "placeholder_no_target": "Escribe /search y una consulta, p. ej. /search from:CLE-07 is:task",
+    "title": "Búsqueda",
+    "help_intro": "Escribe /search en la barra superior y luego palabras, \"frases\" y operadores, como en Gmail. Ejemplos:",
+    "loading": "Buscando…",
+    "bad_query": "No se pudo leer la consulta: {detail}",
+    "no_results": "Sin resultados.",
+    "results_label": "Resultados de {q}",
+    "load_more": "Cargar más",
+    "in_dm": "mensaje directo",
+    "count_messages": "{n} mensaje | {n} mensajes",
+    "revoked": "revocado",
+    "rate_limited": "Demasiadas búsquedas. Inténtalo de nuevo en {s} s.",
+    "budget": "La búsqueda tardó demasiado. Acota la consulta.",
+    "failed": "La búsqueda falló ({detail}).",
+    "group": {
+      "robots": "Robots",
+      "users": "Personas",
+      "channels": "Canales",
+      "boxes": "Cajas",
+      "threads": "Hilos",
+      "files": "Archivos",
+      "messages": "Mensajes"
+    }
   }
 }

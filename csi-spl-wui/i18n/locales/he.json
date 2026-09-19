@@ -434,5 +434,36 @@
     "copied": "הועתק",
     "block_label": "בלוק קוד",
     "block_label_lang": "בלוק קוד, {lang}"
+  },
+  "search": {
+    "omnibox_label": "Omnibox: הודעה לדף זה, או ‎/search לחיפוש בכל מקום",
+    "mode_chip": "חיפוש",
+    "submit": "חפש",
+    "operator_suggestions": "אופרטורים לחיפוש",
+    "home": "דף הבית של Spool",
+    "open_omnibox": "חיפוש או הודעה",
+    "placeholder_no_target": "הקלידו ‎/search ושאילתה, לדוגמה ‎/search from:CLE-07 is:task",
+    "title": "חיפוש",
+    "help_intro": "הקלידו ‎/search בסרגל העליון, ואחריו מילים, \"ביטויים\" ואופרטורים, כמו ב-Gmail. דוגמאות:",
+    "loading": "מחפש…",
+    "bad_query": "לא ניתן לקרוא את השאילתה: {detail}",
+    "no_results": "אין תוצאות.",
+    "results_label": "תוצאות עבור {q}",
+    "load_more": "טען עוד",
+    "in_dm": "הודעה ישירה",
+    "count_messages": "הודעה אחת | {n} הודעות",
+    "revoked": "בוטל",
+    "rate_limited": "יותר מדי חיפושים. נסו שוב בעוד {s} שניות.",
+    "budget": "החיפוש ארך זמן רב מדי. צמצמו את השאילתה.",
+    "failed": "החיפוש נכשל ({detail}).",
+    "group": {
+      "robots": "רובוטים",
+      "users": "אנשים",
+      "channels": "ערוצים",
+      "boxes": "תיבות",
+      "threads": "שרשורים",
+      "files": "קבצים",
+      "messages": "הודעות"
+    }
   }
 }

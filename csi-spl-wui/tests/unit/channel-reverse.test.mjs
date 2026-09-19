@@ -68,15 +68,24 @@ describe('channelView (X3 ordering)', () => {
 })
 
 describe('X3 wiring: the lobby pattern on /channel, /dm and the channel ThreadPane', () => {
-  for (const page of ['pages/channel/[name].vue', 'pages/dm/[peer].vue']) {
-    it(`${page}: Omnibox above the feed`, () => {
+  // 022: the page Omnibox moved into the top bar; the page registers its send target
+  for (const page of ['pages/channel/[name].vue', 'pages/dm/[peer].vue', 'pages/lobby.vue']) {
+    it(`${page}: sends through the top-bar Omnibox, no inline one`, () => {
       const s = read(page)
-      const omni = s.indexOf('<MessageComposer')
-      assert.ok(omni > 0 && s.slice(omni, s.indexOf('/>', omni)).includes('omnibox'))
-      assert.ok(omni < s.indexOf('<MessageFeed'), 'composer before the feed')
-      assert.match(s, /@search="channel\.setSearch"/)
+      assert.match(s, /useOmniboxTarget\(\{/)
+      assert.match(s, /send: /)
+      assert.doesNotMatch(s, /<MessageComposer/, 'CONTROL: no second Omnibox in the page body')
     })
   }
+
+  it('the top bar hosts the one global Omnibox (same composer, code blocks included)', () => {
+    const bar = read('components/TopBar.vue')
+    const omni = bar.indexOf('<MessageComposer')
+    assert.ok(omni > 0)
+    const tag = bar.slice(omni, bar.indexOf('/>', omni))
+    for (const attr of ['omnibox', 'global', '@send="onSend"', '@search="onSearch"']) assert.ok(tag.includes(attr), attr)
+    assert.match(read('layouts/default.vue'), /<TopBar \/>/)
+  })
 
   it('MessageFeed renders LiveFeed (no second feed implementation)', () => {
     const s = read('components/MessageFeed.vue')

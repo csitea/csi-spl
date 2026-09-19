@@ -8,6 +8,7 @@ export type UiIconPath = string | { readonly d: string; readonly fill: true }
 /** Path data per glyph. */
 export const UI_ICON_PATHS = {
   x: ["M21 3 3 21", "M3 3l18 18"],
+  search: ["M11 3a8 8 0 1 0 0 16a8 8 0 1 0 0-16z", "m21 21-4.3-4.3"],
   check: ["M22 4.5 8.25 18.25l-6.25 -6.25"],
   // Error/warning marker, so an error notice does not signal by colour alone.
   "alert-triangle": [

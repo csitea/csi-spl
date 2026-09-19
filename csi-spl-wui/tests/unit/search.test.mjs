@@ -286,9 +286,14 @@ describe('spool-client search()', async () => {
     assert.equal(r.groups[0].next, 'n')
   })
   it('live: 400 bad_query surfaces status + the hub detail', async () => {
-    const fetchFn = async () => new Response(JSON.stringify({ error: 'bad_query', detail: 'unbalanced ( at 5' }), { status: 400, headers: { 'content-type': 'application/json' } })
+    const fetchFn = async () => new Response(JSON.stringify({ error: 'bad_query', detail: "unbalanced '('", pos: 2, token: '(' }), { status: 400, headers: { 'content-type': 'application/json' } })
     const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn })
-    await assert.rejects(c.search({ q: 'a (b' }), (e) => e.status === 400 && e.token === 'bad_query' && /unbalanced/.test(e.detail))
+    await assert.rejects(c.search({ q: 'a (b' }), (e) => e.status === 400 && e.token === 'bad_query' && /unbalanced/.test(e.detail) && e.pos === 2 && e.badToken === '(')
+  })
+  it('live: 429 carries Retry-After', async () => {
+    const fetchFn = async () => new Response(JSON.stringify({ error: 'rate_limited' }), { status: 429, headers: { 'content-type': 'application/json', 'retry-after': '12' } })
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn })
+    await assert.rejects(c.search({ q: 'x' }), (e) => e.status === 429 && e.retryAfter === 12)
   })
   it('live: operators come from GET /v1/view/search/operators', async () => {
     const urls = []

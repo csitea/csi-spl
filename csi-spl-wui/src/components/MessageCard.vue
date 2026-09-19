@@ -2,6 +2,7 @@
   <article
     class="msg"
     tabindex="0"
+    :data-msg-id="msg.msg_id || undefined"
     :aria-posinset="posinset || undefined"
     :aria-setsize="setsize || undefined"
     :aria-label="t('feed.card_aria', { who: (msg.from || t('feed.unknown_author')) + (msg.from_box ? '@' + msg.from_box : ''), kind: kindLabel(String(msg.kind || 'note')) })"

@@ -306,11 +306,14 @@ appSrc.includes('htmlAttrs') && appSrc.includes('dir') && appSrc.includes('he')
   ? pass('app.vue sets html lang/dir for RTL')
   : fail('app.vue sets html lang/dir for RTL', 'missing')
 
-// --- The sign-in frame and the app corner wire the switcher ---
-// (the donor wires AppHeader + MobileMenu; the spool has no header bar, so
-// the login layout carries it top-right and the app shell carries it in the
-// top-right .app-corner next to the user menu)
-for (const rel of ['src/layouts/login.vue', 'src/layouts/default.vue']) {
+// --- The sign-in frame and the app top bar wire the switcher ---
+// (the donor wires AppHeader + MobileMenu; the login layout carries it
+// top-right, and since 022 the app shell's top bar (TopBar.vue, mounted by
+// layouts/default.vue) carries it at its end, next to the user menu)
+readFileSync(join(WUI, 'src/layouts/default.vue'), 'utf8').includes('<TopBar')
+  ? pass('src/layouts/default.vue mounts TopBar')
+  : fail('src/layouts/default.vue mounts TopBar', 'missing')
+for (const rel of ['src/layouts/login.vue', 'src/components/TopBar.vue']) {
   const src = readFileSync(join(WUI, rel), 'utf8')
   src.includes('LanguageSwitcher')
     ? pass(rel + ' uses LanguageSwitcher')

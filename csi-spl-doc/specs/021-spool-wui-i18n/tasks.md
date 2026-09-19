@@ -29,6 +29,6 @@
 
 ## Phase 4 — Proof
 
-- [~] T030 Headless-Chrome switch proof on dev (`tests/e2e/locale-switch.proof.mjs`: 43/43 PASS on `2e2c601`, anonymous): 3 locales incl. `he` → `/var/tmp/CLE-3403-proof/`.
-- [ ] T031 no-x-scroll at every locale.
-- [ ] T032 dev + prd `build.json` == the sha; switch on https://dev.spool-hub.ai and https://spool-hub.ai.
+- [x] T030 Headless-Chrome switch proof, anonymous (`tests/e2e/locale-switch.proof.mjs`, n=1 per env, 2026-09-19T16:4xZ): dev build `ad3ed01`+ and prd build `12532b7` (both contain `5bbb421`) → 43/43 PASS each: `/` with a he browser → `/he` rtl; bg `/login` → fi via typed search, query kept, cookie `i18n_redirected=fi`; cookie beats browser on `/`; fi → en in the shell with query kept. Screenshots bg/fi/he/en desktop + mobile in `/var/tmp/CLE-3403-proof/{dev,prd}/`.: 3 locales incl. `he` → `/var/tmp/CLE-3403-proof/`.
+- [x] T031 no-x-scroll at every locale: the same proof, all 19 locales × `/login` + `/lobby` at 390×844, lang tag + dir asserted (in the 43/43); `no-x-scroll.test.mjs` covers the 18 prefixed locales locally.
+- [~] T032 WUI: dev + prd `build.json` carry `5bbb421` (via newer builds; 30 run 35455105725's own deploy jobs were superseded/cancelled). Signed-in LanguageSetting save + mail locale wait on T023 (hub 0.1.10).

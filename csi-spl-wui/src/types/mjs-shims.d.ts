@@ -49,7 +49,8 @@ declare module '~/utils/spool-client.mjs' {
       limit?: number
       since?: string
       threads?: number
-    }): Promise<import('./spool').SpoolMessage[]>
+      before?: string
+    }): Promise<{ messages: import('./spool').SpoolMessage[], next: string | null }>
     listRoster(): Promise<unknown>
     sendMessage(opts: {
       channel?: string | null

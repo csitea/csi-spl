@@ -206,11 +206,12 @@ export function createSpoolClient({
     },
     /**
      * Flat messages of a channel (`?channel=`) or a DM peer (`?dm=true&peer=`),
-     * oldest first, at most `limit`: the newest `threads` threads of the view
-     * list, each read newest-first (view-v1 §4.3 + §4.4) and merged. Every
-     * message carries `channel` / `parent_task_id` from its envelope.
+     * oldest first, at most `limit`: one page of `threads` threads from the
+     * view list (view-v1 §4.3), each read newest-first (§4.4) and merged.
+     * `next` is the §4.3 cursor — pass it as `before` for the next older
+     * window of threads, until `next` is null. Mock has no server pages.
      */
-    async listMessages({ channel, peer, limit = 50, since, threads = 20 } = {}) {
+    async listMessages({ channel, peer, limit = 50, since, threads = 20, before } = {}) {
       if (mock) {
         let rows = state.messages.slice()
         if (channel) rows = rows.filter((m) => m.channel === channel)
@@ -219,10 +220,10 @@ export function createSpoolClient({
           rows = rows.filter((m) => !m.channel && (m.from === id || m.to === id))
         }
         if (since) rows = rows.filter((m) => m.ts > since)
-        return rows.slice(-limit)
+        return { messages: rows.slice(-limit), next: null }
       }
       const filter = channel ? { channel } : peer ? { dm: true, peer: String(peer) } : {}
-      const list = await api.listThreads({ limit: threads, ...filter })
+      const list = await api.listThreads({ limit: threads, before, ...filter })
       const pages = await pool(list.threads, 6, (t) => api.getThread(t.task_id, { order: 'desc', limit }))
       const seen = new Set()
       const out = []
@@ -235,7 +236,7 @@ export function createSpoolClient({
         }
       }
       out.sort((a, b) => String(a.received_at || a.ts).localeCompare(String(b.received_at || b.ts)))
-      return out.slice(-limit)
+      return { messages: out.slice(-limit), next: list.next || null }
     },
     async listRoster() {
       if (mock) return { roster: state.roster, online: state.online, me: state.me }

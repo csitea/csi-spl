@@ -7,9 +7,10 @@ describe('spool-client mock', () => {
     const c = createSpoolClient({ mock: true })
     const channels = await c.listChannels()
     assert.deepEqual(channels.map((x) => x.channel_id), ['lobby', 'tasks', 'alerts'])
-    const feed = await c.listMessages({ channel: 'lobby', limit: 50 })
+    const { messages: feed, next } = await c.listMessages({ channel: 'lobby', limit: 50 })
     assert.ok(feed.length >= 1)
     assert.equal(feed.every((m) => m.channel === 'lobby'), true)
+    assert.equal(next, null)
   })
 
   it('sends an @mention as kind=task and appends it', async () => {
@@ -18,7 +19,7 @@ describe('spool-client mock', () => {
     assert.equal(sent.kind, 'task')
     assert.equal(sent.to, 'GRK-03')
     assert.equal(sent.channel, 'dev')
-    const feed = await c.listMessages({ channel: 'dev' })
+    const { messages: feed } = await c.listMessages({ channel: 'dev' })
     assert.equal(feed.some((m) => m.msg_id === sent.msg_id), true)
   })
 
@@ -32,7 +33,7 @@ describe('spool-client mock', () => {
 
   it('DM list is channel-null messages for that peer', async () => {
     const c = createSpoolClient({ mock: true })
-    const dms = await c.listMessages({ peer: 'GRK-03@box-a' })
+    const { messages: dms } = await c.listMessages({ peer: 'GRK-03@box-a' })
     assert.ok(dms.length >= 1)
     assert.equal(dms.every((m) => !m.channel), true)
   })
@@ -68,19 +69,20 @@ describe('spool-client live A1 (005 FR-005, channels-v1 §5, 010 FR-009)', () =>
       [(u) => u.startsWith(`/v1/view/threads/${T2}?`), [200, { task_id: T2, messages: [el('c3', '2026-09-19T00:00:03Z', { msg_id: 'm3', task_id: T2 }, { channel: 'lobby', parent_task_id: T1 })], next: null }]],
     ])
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    const feed = await c.listMessages({ channel: 'lobby', limit: 50 })
+    const { messages: feed, next } = await c.listMessages({ channel: 'lobby', limit: 50 })
     const q = new URL(calls[0].url, 'http://x').searchParams
     assert.equal(q.get('channel'), 'lobby')
     assert.equal(new URL(calls[1].url, 'http://x').searchParams.get('order'), 'desc')
     assert.deepEqual(feed.map((m) => m.msg_id), ['m1', 'm2', 'm3'])
     assert.equal(feed.every((m) => m.channel === 'lobby'), true)
     assert.equal(feed[2].parent_task_id, T1)
+    assert.equal(next, null)
   })
 
   it('DM feed asks dm=true&peer=', async () => {
     const { fn, calls } = stubFetch([[(u) => u.startsWith('/v1/view/threads?'), [200, { threads: [], next: null }]]])
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    assert.deepEqual(await c.listMessages({ peer: 'CLE-07@box-a' }), [])
+    assert.deepEqual(await c.listMessages({ peer: 'CLE-07@box-a' }), { messages: [], next: null })
     const q = new URL(calls[0].url, 'http://x').searchParams
     assert.equal(q.get('dm'), 'true')
     assert.equal(q.get('peer'), 'CLE-07@box-a')

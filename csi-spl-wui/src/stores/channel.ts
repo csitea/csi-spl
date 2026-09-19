@@ -51,9 +51,12 @@ export const useChannelStore = defineStore('channel', () => {
   const search = ref('')
   const visible = ref(WINDOW)
   const lastLive = ref<FeedMessage | null>(null)
+  /** view-v1 §4.3 cursor for the next older thread page; null = none left. */
+  const olderCursor = ref<string | null>(null)
+  let loadingOlder = false
   const view = computed(() => channelView(messages.value, { search: search.value, visible: visible.value }))
   const newestFirst = computed(() => view.value.rows as FeedMessage[])
-  const hasOlder = computed(() => view.value.hasOlder)
+  const hasOlder = computed(() => view.value.hasOlder || Boolean(olderCursor.value))
   const followed = new Set<string>()
   let followedChannel = ''
 
@@ -88,11 +91,42 @@ export const useChannelStore = defineStore('channel', () => {
     search.value = ''
     visible.value = WINDOW
     lastLive.value = null
+    olderCursor.value = null
   }
 
-  /** The bottom sentinel: reveal the next older window of the rows held. */
-  function loadOlder() {
-    if (view.value.hasOlder) visible.value += WINDOW
+  /**
+   * Bottom sentinel: reveal the next older window of rows already held, then
+   * fetch the next §4.3 thread page (`before=<next>`), append older rows at
+   * the BOTTOM (storage stays oldest-first; channelView sorts newest-first),
+   * de-duplicated by msg_id. Stops when `next` is null.
+   */
+  async function loadOlder() {
+    if (view.value.hasOlder) {
+      visible.value += WINDOW
+      return
+    }
+    if (!olderCursor.value || loadingOlder) return
+    loadingOlder = true
+    try {
+      const page = await api.listMessages({
+        channel: active.value || undefined,
+        peer: peer.value || undefined,
+        limit: 50,
+        before: olderCursor.value,
+      })
+      const incoming = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
+      const seen = new Set(messages.value.map((m) => m.msg_id))
+      const add = incoming.filter((m) => m.msg_id && !seen.has(m.msg_id))
+      if (add.length) messages.value = [...messages.value, ...add]
+      olderCursor.value = page.next || null
+      visible.value += WINDOW
+      follow()
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'load older failed'
+      olderCursor.value = null
+    } finally {
+      loadingOlder = false
+    }
   }
 
   function setSearch(q: string) {
@@ -120,12 +154,13 @@ export const useChannelStore = defineStore('channel', () => {
     loading.value = true
     error.value = null
     try {
-      const rows = await api.listMessages({
+      const page = await api.listMessages({
         channel: active.value || undefined,
         peer: peer.value || undefined,
         limit: 50,
-      }) as unknown as Record<string, unknown>[]
-      messages.value = (rows || []).map(feedRow) as unknown as FeedMessage[]
+      })
+      messages.value = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
+      olderCursor.value = page.next || null
       follow()
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'load failed'

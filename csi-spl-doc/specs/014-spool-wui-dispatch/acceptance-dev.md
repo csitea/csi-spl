@@ -1,7 +1,8 @@
 # Acceptance record — M3 end to end on dev (014, 005 SC-001, 006 T011c dev part)
 
-**Lane**: M3-E2E-DEV (CLE-3372) · **Run**: 2026-09-19 12:13Z and 12:15Z · **n**: 2 full runs
-(run 1: 2 FAILs, both in the assertions, fixed before run 2; run 2: every step PASS)
+**Lane**: M3-E2E-DEV (CLE-3372) · **Runs**: 2026-09-19 12:13Z, 12:15Z (door off) and 12:43Z (door
+`session`, after dev 030 `ec94b9b`) · **n**: 3 full runs (run 1: 2 FAILs, both in the assertions,
+fixed before run 2; runs 2 and 3: every step PASS)
 **Hub under test**: dev `0.1.4` = `b067cfd` (`curl -s https://dev.<domain>/version`)
 **Harness**: `do_spl_m3_e2e` (`csi-spl-orc/src/bash/run/spl-m3-e2e.func.sh` +
 `src/bash/scripts/m3-e2e.py`), trunk `260aec3`. Tenant `t1` (006 T011d).
@@ -36,7 +37,8 @@ session cookies are kept in 0600 files next to it and never printed.
 | d1 | DM (no channel) human ↔ agent | PASS | task `a0cae73a…`: human → EZB-1 `sent`, reply `EZB-1 → HUM-4` reached the socket; `/v1/view/threads?dm=true&peer=EZB-1` row has `channel:null`, 2 messages |
 | d2 | presence follows the box session | PASS | `{"peer":"EZB-1@box-e2e-b","status":"online"}` when `hub-run` connected, `offline` after SIGTERM |
 | e1 | CONTROL: forged / unsigned envelopes are refused by the box | PASS | a local fake hub replays copies of the c1 envelope to a clone of box-b (same id, keys, pins) running the real `spool hub-sync`: tampered body, `sig:""`, new msg_id → each **exit 78**, nothing written; the genuine copy → exit 0, 1 written (the control's control) |
-| e2 | CONTROL: a non-member human is refused | PASS | never-invited account: login with `tenant=t1` → `403 not_allowed`; its tenant-less session on t1's `/v1/wui/ws` sends a task to EZB-1 → `401 dispatch_unauthenticated` |
+| e2 | CONTROL: a non-member human is refused | PASS | never-invited account: login with `tenant=t1` → `403 not_allowed`. Door off (run 2): its tenant-less session on t1's `/v1/wui/ws` sends a task to EZB-1 → `401 dispatch_unauthenticated`. Door `session` (run 3): the socket upgrade itself → `401 view_door` |
+| e3 | CONTROL: the view door (run 3, door `session`) | PASS | anonymous `GET /v1/view/threads` → `401 view_door`; the non-member's session → `401 view_door`; the member's session reads every view above (the harness sends its cookie) |
 
 ## 3. Observations (recorded, not gated)
 
@@ -45,13 +47,13 @@ session cookies are kept in 0600 files next to it and never printed.
   and channels-v1 §4.6 never routes an unsigned browser envelope. Box-sent
   channel messages DO route mid-body mentions (§4.2). Whether humans should get
   the same is a product question (owner).
-- **OBS-2 the dev door is off, so an asserted id is taken.** The non-member's
+- **OBS-2 (closed on dev by run 3)** — the dev door was off, so an asserted id was taken. The non-member's
   socket said `hello.as:"HUM-4"` and was welcomed as `HUM-4`. It could not
   dispatch (e2), but on door-off dev it can post browser-only notes under a
   member's id. This is documented (003 `wui-live-ws.md` §3.1, "door off only"),
   and the fix is 010 T019 (`SPOOL_HUB_VIEW_DOOR=session` on dev, owner +
-  DEPLOY). Because the door is off, the `401 view_door` refusal could not be
-  measured on dev. prd keeps its default `token` door.
+  DEPLOY). The door went to `session` on dev with 030 `ec94b9b` (12:4xZ), and
+  run 3 then measured the refusals (e2, e3). prd keeps its default `token` door.
 - **OBS-3 no browser human can sign in on the dev WUI site today.**
   `https://csi-spl-dev-site.web.app/api/v1/auth/session` → `404` (n=2; the
   `/api/v1/auth/**` → hub rewrite is not live, and the hub cookie is
@@ -81,4 +83,8 @@ session cookies are kept in 0600 files next to it and never printed.
   Then re-run steps a/c against that agent id.
 - prd: no tenant exists (`t1.<domain>` → `unknown_tenant`), and dispatch is off (OQ-014-1).
 
-<!-- last-edit: 2026-09-19T12:35:00Z -->
+Run 3 also ran on a new ephemeral `box-wui` key (the 030 revision minted
+`j7ps8eu9…`, was `+xOuUyLW…`). The harness re-pinned it with `--force` and
+dispatch verified on it (OBS-4 in practice).
+
+<!-- last-edit: 2026-09-19T12:45:00Z -->

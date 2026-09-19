@@ -330,7 +330,9 @@ def pin_box(box, agent):
 
 
 def view(path):
-    st, _, out = http("GET", HUB + path)
+    """GET a viewer read as the member human: its session cookie opens a
+    session door (010 FR-009) and is ignored by a door-off hub."""
+    st, _, out = http("GET", HUB + path, headers={"Cookie": read_secret("cookie-human")})
     if st != 200:
         raise RuntimeError("GET %s -> %s %s" % (path, st, out))
     return out
@@ -475,6 +477,14 @@ def run():
     st, _, ver = http("GET", HUB + "/version")
     log("hub %s version %s" % (HUB, json.dumps(ver)))
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+
+    # -- door: which view door the hub runs (an anonymous read answers 401 view_door
+    # behind a token or session door; 200 only with the lde/dev door off)
+    st_anon, _, out_anon = http("GET", HUB + "/v1/view/threads")
+    door_on = st_anon == 401
+    RESULTS.append({"step": "door", "result": "INFO", "evidence": {"anonymous_view_threads": st_anon,
+                    "error": (out_anon or {}).get("error") if isinstance(out_anon, dict) else None}})
+    log("INFO door %s" % json.dumps(RESULTS[-1]["evidence"]))
 
     # -- 0. boxes: two keys, root-signed pins, the hub's box-wui key pinned ------------------
     pub_a, pub_b = pin_box(BOX_A, AGENT_A), pin_box(BOX_B, AGENT_B)
@@ -646,6 +656,18 @@ def run():
             ev["ws_upgrade"] = str(e)[:200]
             ok = ok and "401" in str(e)
     record("e2-non-member-refused", bool(ok), ev)
+
+    # -- e3. CONTROL: the view door refuses anonymous and non-member readers ---------------------------------
+    if door_on:
+        st_o, _, out_o = http("GET", HUB + "/v1/view/threads", headers={"Cookie": cookie_o} if cookie_o else None)
+        err_a = (out_anon or {}).get("error") if isinstance(out_anon, dict) else None
+        err_o = (out_o or {}).get("error") if isinstance(out_o, dict) else None
+        record("e3-view-door", st_anon == 401 and err_a == "view_door" and st_o == 401 and err_o == "view_door" and bool(cookie_o),
+               {"anonymous": [st_anon, err_a], "non_member_session": [st_o, err_o]})
+    else:
+        RESULTS.append({"step": "e3-view-door", "result": "OBSERVED",
+                        "evidence": {"door": "off", "anonymous_view_threads": st_anon}})
+        log("OBS  e3-view-door door off: anonymous read -> %s (the 401 control needs a token or session door)" % st_anon)
 
     # -- the viewer thread of SC-001 for the WUI screenshot ----------------------------------------------------
     RESULTS.append({"step": "info", "result": "INFO", "evidence": {"sc001_task_id": t_sc001, "task_thread": t_task,

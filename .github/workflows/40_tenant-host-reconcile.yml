@@ -1,0 +1,151 @@
+# 40 cd: tenant host reconcile (specs/022).
+#
+# Owner decision 2026-09-19: with no load balancer there is no wildcard, so
+# every tenant host <tenant>.<fqdn> is one Cloud Run domain mapping (iac 032)
+# plus one ghs CNAME (025). The hub never runs terraform: a trigger on tenants
+# queues the host in tenant_hosts (rdb 0015). THIS workflow is the owner's
+# standing go for those applies ("GitHub Actions schedule", 2026-09-19):
+#   dev, then prd: csi-spl-orc do_spl_tenant_host_reconcile
+#     1. read the open tenant_hosts rows as the env SA (DRY_RUN=1); none ->
+#        the job ends there, nothing is built and nothing is applied
+#     2. otherwise: tpl-gen at the pin, the tf infra stack (make
+#        do-setup-app-inf: tf-runner, tpl-gen, conf-validator), then
+#        DRY_RUN=0 CNF_PUSH=1: cnf env.dns.mapped_tenants + the rendered 032 /
+#        025 tfvars are committed and pushed to master FIRST, then make
+#        do-tf-plan (gate: no replace, no destroy but a removed tenant's) +
+#        make do-provision, the cert wait, the probe, tenant_hosts -> ready
+#     3. a pushed cnf change re-deploys the WUI of that env (its CSP lists the
+#        tenant hosts): a GITHUB_TOKEN push starts no workflow, a dispatch does
+#
+# Auth: ONLY the existing per-env project key secrets GCP_KEY_CSI_SPL_<ENV>
+# (published by iac 120), written to the key path the actions resolve; no new
+# credential. dev's 025 also writes its subzone delegation into the prd apex
+# zone with the prd key (as it does from the operator box), so the dev job
+# carries both keys. A key without the rights shows up as a failed step, and
+# is reported, never widened here.
+# Concurrency: one run per env (group tenant-host-<env>), never cancelled
+# mid-apply; dev and prd run one after the other (max-parallel 1).
+
+name: "40 cd: tenant host reconcile"
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment ("all" = dev then prd)'
+        type: choice
+        options: [all, dev, prd]
+        default: all
+      dry_run:
+        description: "List the open hosts only; build and apply nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # the cnf commit (mapped_tenants + rendered tfvars)
+  actions: write    # dispatch 30 (WUI CSP) after a cnf change
+
+jobs:
+  reconcile:
+    name: "reconcile ${{ matrix.environment }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        environment: [dev, prd]
+    concurrency:
+      group: tenant-host-${{ matrix.environment }}
+      cancel-in-progress: false
+    env:
+      ENV: ${{ matrix.environment }}
+      WANT: ${{ github.event.inputs.environment || 'all' }}
+      HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
+    # orc derives ORG/APP from the parent dirs: check out in the operator's
+    # layout <base>/csi/csi-spl (as 10 ci's orc-suite)
+    defaults:
+      run:
+        working-directory: csi/csi-spl/csi-spl-orc
+    steps:
+      - name: Selected?
+        id: sel
+        working-directory: .
+        run: |
+          if [[ "$WANT" != all && "$WANT" != "$ENV" ]]; then echo "go=0" >>"$GITHUB_OUTPUT"; echo "$ENV not selected"; exit 0; fi
+          if [[ "$HAS_KEY" != true ]]; then echo "go=0" >>"$GITHUB_OUTPUT"; echo "::notice::$ENV skipped: no secret GCP_KEY_CSI_SPL_${ENV^^} (iac 120)"; exit 0; fi
+          echo "go=1" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.sel.outputs.go == '1'
+        with:
+          path: csi/csi-spl
+          ref: master
+          fetch-depth: 0   # the cnf author is read from history; the push rebases
+
+      # gcloud + its beta component (domain-mappings describe); no auth here:
+      # every action activates the env key in a private CLOUDSDK_CONFIG
+      - uses: google-github-actions/setup-gcloud@v2
+        if: steps.sel.outputs.go == '1'
+        with:
+          install_components: beta
+
+      - name: Env SA keys to the path the actions resolve
+        if: steps.sel.outputs.go == '1'
+        working-directory: .
+        env:
+          KEY_DEV: ${{ secrets.GCP_KEY_CSI_SPL_DEV }}
+          KEY_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.gcp/.csi"
+          if [[ "$ENV" == dev ]]; then printf '%s' "$KEY_DEV" >"$HOME/.gcp/.csi/key-csi-spl-dev.json"; fi
+          # prd's key: the prd job, and dev's 025 delegation record in the prd apex zone
+          if [[ -n "$KEY_PRD" ]]; then printf '%s' "$KEY_PRD" >"$HOME/.gcp/.csi/key-csi-spl-prd.json"; fi
+          jq -e .client_email "$HOME/.gcp/.csi/key-csi-spl-$ENV.json" >/dev/null
+
+      - name: Open tenant hosts (read-only, as the env SA)
+        id: open
+        if: steps.sel.outputs.go == '1'
+        run: ./run -a do_spl_tenant_host_reconcile
+
+      - name: tpl-gen at the pin (do_setup_tpl_gen)
+        if: steps.open.outputs.open != '' && steps.open.outputs.open != '0' && github.event.inputs.dry_run != 'true'
+        working-directory: csi/csi-spl/csi-spl-iac
+        env:
+          TPL_GEN_REPO_URL: https://github.com/csitea/tpl-gen.git
+        run: ./run -a do_setup_tpl_gen
+
+      - name: tf infra stack (make do-setup-app-inf)
+        if: steps.open.outputs.open != '' && steps.open.outputs.open != '0' && github.event.inputs.dry_run != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: make do-setup-app-inf
+
+      - name: Reconcile (DRY_RUN=0, cnf pushed before the apply)
+        id: apply
+        if: steps.open.outputs.open != '' && steps.open.outputs.open != '0' && github.event.inputs.dry_run != 'true'
+        env:
+          DRY_RUN: "0"
+          CNF_PUSH: "1"
+        run: |
+          set -uo pipefail
+          before=$(git rev-parse HEAD)
+          rc=0; ./run -a do_spl_tenant_host_reconcile || rc=$?
+          [[ "$(git rev-parse HEAD)" != "$before" ]] && echo "pushed=1" >>"$GITHUB_OUTPUT"
+          exit $rc
+
+      - name: Re-deploy the ${{ matrix.environment }} WUI (CSP lists the tenant hosts)
+        if: always() && steps.apply.outputs.pushed == '1'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run 30_wui-build-deploy.yml -R "$GITHUB_REPOSITORY" --ref master -f environment="$ENV"
+
+      - name: Drop the keys
+        if: always()
+        working-directory: .
+        run: rm -rf "$HOME/.gcp"

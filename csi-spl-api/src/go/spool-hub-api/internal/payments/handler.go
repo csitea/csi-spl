@@ -36,6 +36,7 @@ const TemplateTenantPaid = "tenant_paid"
 type Store interface {
 	store.Payments
 	GetTenant(ctx context.Context, tenantID string) (store.Tenant, error)
+	TenantHost(ctx context.Context, tenantID string) (store.TenantHost, error)
 }
 
 // PayPalRail is the wallet driver (csi-rel PayPal Orders v2).
@@ -146,7 +147,29 @@ func (h *Handler) cardProvider() string {
 }
 
 func (h *Handler) tenantURL(id string) string {
-	return h.cfg.PublicScheme + "://" + strings.Replace(h.d.TenantHostPattern, "{tenant}", id, 1)
+	return h.cfg.PublicScheme + "://" + h.tenantHost(id)
+}
+
+func (h *Handler) tenantHost(id string) string {
+	return strings.Replace(h.d.TenantHostPattern, "{tenant}", id, 1)
+}
+
+// hostStatus is the tenant host's provisioning status (rdb 0015, specs/022):
+// "pending" until the reconcile has mapped, certified and probed
+// <tenant>.<fqdn>, then "ready". "unknown" when the hub cannot tell (no row,
+// or the read failed): the page then shows no "being prepared" notice.
+func (h *Handler) hostStatus(ctx context.Context, id string) string {
+	th, err := h.d.Store.TenantHost(ctx, id)
+	if err == nil && (th.Status == store.HostReady || th.Status == store.HostPending || th.Status == store.HostFailed) {
+		if th.Status == store.HostFailed {
+			return store.HostPending // retried by the next reconcile: still being prepared for the buyer
+		}
+		return th.Status
+	}
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		h.d.Log.Warn().Err(err).Str("tenant_id", id).Msg("checkout: tenant host status read")
+	}
+	return "unknown"
 }
 
 func (h *Handler) plan(w http.ResponseWriter, _ *http.Request) {
@@ -284,8 +307,12 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "checkout lookup failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"checkout_id": c.ID, "tenant_id": c.TenantID,
-		"status": c.Status, "claimed": !c.ClaimedAt.IsZero()})
+	out := map[string]any{"checkout_id": c.ID, "tenant_id": c.TenantID,
+		"status": c.Status, "claimed": !c.ClaimedAt.IsZero(), "tenant_host": h.tenantHost(c.TenantID)}
+	if c.Status == store.CheckoutPaid {
+		out["host_status"] = h.hostStatus(r.Context(), c.TenantID)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 type claimReq struct {
@@ -331,6 +358,7 @@ func (h *Handler) claim(w http.ResponseWriter, r *http.Request) {
 	}
 	h.d.Log.Info().Str("checkout_id", c.ID).Str("tenant_id", c.TenantID).Msg("checkout: claimed, root key minted and shown once")
 	writeJSON(w, http.StatusOK, map[string]any{"tenant_id": c.TenantID, "tenant_url": h.tenantURL(c.TenantID),
+		"tenant_host": h.tenantHost(c.TenantID), "host_status": h.hostStatus(r.Context(), c.TenantID),
 		"root_private_key": base64.StdEncoding.EncodeToString(priv)})
 }
 

@@ -64,8 +64,11 @@ function onMove(e: PointerEvent) {
   emit('input', pointerDelta(props.pane, startW.value, startX.value, e.clientX))
 }
 
+const lastTapAt = ref(0)
+
 function onUp(e: PointerEvent) {
   if (!dragging.value) return
+  const wasMove = moved.value
   dragging.value = false
   document.documentElement.classList.remove('pane-dragging')
   try {
@@ -73,6 +76,19 @@ function onUp(e: PointerEvent) {
   } catch {
     /* already released */
   }
+  // Two taps without a drag = reset. Native dblclick is also wired; some
+  // drivers (headless Chrome clickCount:2) never fire it after pointer capture.
+  if (wasMove) {
+    lastTapAt.value = 0
+    return
+  }
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  if (now - lastTapAt.value < 400) {
+    lastTapAt.value = 0
+    emit('reset')
+    return
+  }
+  lastTapAt.value = now
 }
 
 function onKey(e: KeyboardEvent) {

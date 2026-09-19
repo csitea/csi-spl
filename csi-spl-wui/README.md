@@ -301,6 +301,14 @@ HUB_URL=http://t1.localhost:58080 pnpm test:live
 Two browser sessions: open `/lobby?as=HUM-1` and `/lobby?as=HUM-2` in two
 windows (`as` must be a v:1 agent id; omit it and the hub assigns one).
 
+Checkout (spec 006 T021w, `contracts/checkout-v1.md`): `/checkout` reads the
+plan and rail, and `/checkout/success` polls until the checkout is paid, then
+claims the root private key ONCE and shows it once, with copy and download.
+`NUXT_DEV_AUTH_PROXY` also forwards `/api/v1/checkout/**` to the hub. The claim
+token is kept in `sessionStorage` (`spool.checkout.claim`) and dropped after
+the claim. The key is held only in the page's memory. A reload shows "already
+claimed". The unit rules are in `tests/unit/checkout-client.test.mjs`.
+
 Pages: `/` thread list, `/t/<task_id>` one thread oldest first. The mock
 channel / DM pages remain for the later M3 slices (spec 005 §1, Planned).
 

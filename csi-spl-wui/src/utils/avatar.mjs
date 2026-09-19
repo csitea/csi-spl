@@ -182,7 +182,45 @@ export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', f
   return promise
 }
 
-/** Test seam: forget every cached roster read. */
+/** png / jpeg / gif / webp from the magic bytes (the hub serves octet-stream), else ''. */
+export function avatarImageMime(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || [])
+  const at = (i, ...xs) => xs.every((x, k) => b[i + k] === x)
+  if (at(0, 0x89, 0x50, 0x4e, 0x47)) return 'image/png'
+  if (at(0, 0xff, 0xd8, 0xff)) return 'image/jpeg'
+  if (at(0, 0x47, 0x49, 0x46, 0x38)) return 'image/gif'
+  if (at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return 'image/webp'
+  return ''
+}
+
+const avatarBlobs = new Map()
+
+/**
+ * The picture as a blob: URL, or '' (draw the default). The WUI CSP allows
+ * img-src 'self' data: blob: and connect-src the hub, so the bytes are
+ * fetched (no cookies: /v1/files is a tenant capability) and only an image
+ * by its magic bytes is shown. One fetch per URL for the page's lifetime.
+ */
+export function loadAvatarBlobUrl(url, { fetchFn = globalThis.fetch, createObjectURL = (b) => URL.createObjectURL(b) } = {}) {
+  if (!url) return Promise.resolve('')
+  if (avatarBlobs.has(url)) return avatarBlobs.get(url)
+  const promise = (async () => {
+    try {
+      const res = await fetchFn(url, { credentials: 'omit' })
+      if (!res || !res.ok) return ''
+      const bytes = new Uint8Array(await res.arrayBuffer())
+      const type = avatarImageMime(bytes)
+      return type ? createObjectURL(new Blob([bytes], { type })) : ''
+    } catch {
+      return ''
+    }
+  })()
+  avatarBlobs.set(url, promise)
+  return promise
+}
+
+/** Test seam: forget every cached roster read and picture. */
 export function resetAvatarFiles() {
   avatarLoads.clear()
+  avatarBlobs.clear()
 }

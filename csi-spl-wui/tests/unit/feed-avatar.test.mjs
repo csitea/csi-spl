@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { matchesSearch, newestFirst, parseOmnibox, rootAndReplies, windowed } from '../../src/utils/feed.mjs'
 import {
   avatarAlt, avatarDataUri, avatarFilesFromView, avatarImageUrl, avatarSvg, hashSeed, identiconSvg, isHuman,
-  loadAvatarFiles, resetAvatarFiles, robotSvg,
+  avatarImageMime, loadAvatarBlobUrl, loadAvatarFiles, resetAvatarFiles, robotSvg,
 } from '../../src/utils/avatar.mjs'
 
 const M = (id, ts, extra = {}) => ({ msg_id: id, ts, body: `b-${id}`, from: 'HUM-1', ...extra })
@@ -140,6 +140,42 @@ describe('stored IdP avatars (gap A5, view-v1 §4.1 humans)', () => {
     assert.deepEqual(await loadAvatarFiles({ base: 'http://a', fetchFn: async () => ({ ok: false, status: 401 }) }), {})
     assert.deepEqual(await loadAvatarFiles({ base: 'http://b', fetchFn: async () => { throw new Error('down') } }), {})
     assert.deepEqual(await loadAvatarFiles({ base: 'http://c', fetchFn: null }), {})
+    resetAvatarFiles()
+  })
+
+  it('recognises png / jpeg / gif / webp by magic bytes, nothing else', () => {
+    assert.equal(avatarImageMime(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13, 10])), 'image/png')
+    assert.equal(avatarImageMime(new Uint8Array([0xff, 0xd8, 0xff, 0xe0])), 'image/jpeg')
+    assert.equal(avatarImageMime(new TextEncoder().encode('GIF89a')), 'image/gif')
+    assert.equal(avatarImageMime(new TextEncoder().encode('RIFF\0\0\0\0WEBPVP8 ')), 'image/webp')
+    for (const bad of ['<svg xmlns="http://www.w3.org/2000/svg"/>', '<html>', '']) {
+      assert.equal(avatarImageMime(new TextEncoder().encode(bad)), '', bad)
+    }
+  })
+
+  it('shows the picture as a blob: URL (CSP img-src), once per URL; 404 / non-image / error -> default', async () => {
+    resetAvatarFiles()
+    const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10])
+    const calls = []
+    const made = []
+    const fetchFn = async (url, opts) => {
+      calls.push([url, opts])
+      if (url.endsWith('/404')) return { ok: false, status: 404 }
+      if (url.endsWith('/html')) return { ok: true, arrayBuffer: async () => new TextEncoder().encode('<html>').buffer }
+      if (url.endsWith('/boom')) throw new Error('down')
+      return { ok: true, arrayBuffer: async () => PNG.buffer }
+    }
+    const createObjectURL = (b) => { made.push(b); return `blob:test/${made.length}` }
+    const o = { fetchFn, createObjectURL }
+    const u = `http://t1.test/v1/files/${FID}`
+    assert.equal(await loadAvatarBlobUrl(u, o), 'blob:test/1')
+    assert.equal(await loadAvatarBlobUrl(u, o), 'blob:test/1')
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0][1].credentials, 'omit')
+    assert.equal(made[0].type, 'image/png')
+    for (const tail of ['404', 'html', 'boom']) assert.equal(await loadAvatarBlobUrl(`http://t1.test/${tail}`, o), '', tail)
+    assert.equal(await loadAvatarBlobUrl('', o), '')
+    assert.equal(made.length, 1)
     resetAvatarFiles()
   })
 })

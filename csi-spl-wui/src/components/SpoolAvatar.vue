@@ -7,35 +7,38 @@
     :style="{ width: `${size}px`, height: `${size}px` }"
     :alt="alt"
     draggable="false"
-    @error="failed = true"
+    @error="shown = ''"
   >
 </template>
 
 <script setup lang="ts">
-import { avatarAlt, avatarDataUri, avatarImageUrl, isHuman, loadAvatarFiles } from '~/utils/avatar.mjs'
+import { avatarAlt, avatarDataUri, avatarImageUrl, isHuman, loadAvatarBlobUrl, loadAvatarFiles } from '~/utils/avatar.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 
 /*
  * SPEC-spool-avatars §2: robot for agents, identicon for HUM-*; deterministic,
  * generated (no image files). Gap A5: a member HUM-* with a stored IdP picture
- * (view-v1 §4.1 avatar_file_id) shows it, loaded from GET /v1/files/{id}; a
- * missing id, a 404 or any load error falls back to the default. The box is
- * fixed at size×size before and after the swap, so nothing shifts.
+ * (view-v1 §4.1 avatar_file_id) shows it: GET /v1/files/{id} fetched and shown
+ * as a blob: URL (the CSP's img-src has no hub origin); a missing id, a 404,
+ * non-image bytes or any load error keep the default. The box is fixed at
+ * size×size before and after the swap, so nothing shifts.
  */
 const props = withDefaults(defineProps<{ id: string, box?: string, size?: number }>(), { box: '', size: 36 })
 
 const api = useSpoolApi()
 const files = useState<Record<string, string>>('spool.avatar-files', () => ({}))
-const failed = ref(false)
+const shown = ref('')
 
 const fallback = computed(() => avatarDataUri(props.id, props.box))
 const picture = computed(() => (api.mock ? '' : avatarImageUrl(api.base, props.id, props.box, files.value)))
-const src = computed(() => (picture.value && !failed.value ? picture.value : fallback.value))
+const src = computed(() => shown.value || fallback.value)
 const alt = computed(() => avatarAlt(props.id, props.box))
 
-watch(picture, () => {
-  failed.value = false
-})
+watch(picture, async (url) => {
+  shown.value = ''
+  const got = await loadAvatarBlobUrl(url)
+  if (url === picture.value) shown.value = got
+}, { immediate: true })
 
 onMounted(async () => {
   if (api.mock || !isHuman(props.id)) return

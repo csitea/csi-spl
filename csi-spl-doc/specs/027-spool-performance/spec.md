@@ -27,7 +27,7 @@ for before and after, measured the same way (FR-001).
 | 3 | ViewThreads CTE over every unexpired tenant message, `LIMIT` applied last | `store/view_postgres.go:56` `WITH m AS (`, `LIMIT $7` at :83 | yes |
 | 4 | onSend: pin, tenant, has, count, blob exists, insert, enqueue in sequence | `hub/ws.go` :424 GetPin, :456 GetTenant, :465 HasMessage, :471 CountMessagesSince, :489 Blob.Exists, :558 InsertMessage, :563 Enqueue; no `(tenant_id, received_at)` index on `messages` (indexes in rdb `0001`, `0008`, `0020`) | yes |
 | 5 | argon2id m=19456 t=2 on 1 vCPU | `auth/native_config.go:19` default 19456, :41 OWASP floor enforced in dev/prd; cnf `hub.cloud_run.cpu: "1"` | yes; the fix is an owner decision (D1) |
-| 6 | LiveFeed not virtualised; whole-array recompute per message | `LiveFeed.vue:16` `<TransitionGroup>`; `stores/channel.ts:54,62` computed over `messages.value` | yes; CLE-3412 is editing LiveFeed now |
+| 6 | LiveFeed not virtualised; whole-array recompute per message | `LiveFeed.vue:16` `<TransitionGroup>`; `stores/channel.ts:54,62` computed over `messages.value` | **mostly no** (re-measured 17:37Z, tree after CLE-3412): the DOM is already windowed. `channelView(..., {visible})` renders `WINDOW` = 50 rows and only grows by 50 on an explicit load-older click (`channel.ts:118,135`). The per-message recompute (`topLevel` + `rootsByTask` + `channelView`) costs p50 0.25 ms / p95 0.35 ms at 2k stored messages and p50 1.77 / p95 2.50 ms at 10k (node v20.20.2 on this box, synthetic messages, n=50 after 10 warm-ups). That is far under a 16 ms frame. **Dropped**: no lane. Revisit only with a measured browser trace showing a long task |
 | P2a | SetRoster: one INSERT per agent | `store/postgres.go` SetRoster loop | yes |
 | P2b | retention: one unbounded `DELETE FROM messages WHERE expires_at <= $1` | `store/postgres.go:353`; `messages_expires` leads with `tenant_id` | yes |
 | P3b | multi-instance fanout (Redis/NATS, `max_instances > 1`) | cnf `max_instances: 1` | yes; architecture, owner decision (D2) |
@@ -56,4 +56,4 @@ None of the audit's items is already fixed on trunk.
 - **Accepted T030 trade-off**: at 5k messages the dm+viewer first page went 4.29 -> 8.03 ms p50 (8.74 -> 12.33 p95, n=30), in exchange for 200k/80k-thread pages at 600 -> 2.5 ms.
 - **D2 (P3b)**: multi-instance fanout. Recommendation: not now. Revisit only once a measured single-instance ceiling is reached.
 
-<!-- last-edit: 2026-09-19T17:23:55Z -->
+<!-- last-edit: 2026-09-19T17:35:18Z -->

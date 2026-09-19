@@ -26,7 +26,7 @@
 # @example ENV=dev DRY_RUN=0 TENANT_ID=m2card1 BUYER_EMAIL=<you> STRIPE_API_BASE=<stripe rest base> STRIPE_KEY_APP=rel STRIPE_SHARED_ACCOUNT_OK=1 ./run -a do_spl_checkout_stripe_test_buy
 #------------------------------------------------------------------------------
 do_spl_checkout_stripe_test_buy() {
-  do_require_bin curl jq || return 1
+  do_require_bin curl jq yq || return 1
   local tenant="${TENANT_ID:-}" email="${BUYER_EMAIL:-}" dry="${DRY_RUN:-1}"
   [[ "${ENV:=dev}" == dev ]] || { do_log "FATAL ENV=$ENV: the test-card buy runs on dev only (prd takes real money)"; return 1; }
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must match ^[a-z0-9][a-z0-9-]{0,31}$, got: '$tenant'"; return 1; }
@@ -56,20 +56,23 @@ do_spl_checkout_stripe_test_buy() {
   [[ "$SPL_STRIPE_MODE" == test ]] || { do_log "FATAL not a test-mode key"; return 1; }
 
   local _code _body
-  _req() { # <method> <url> [json]
+  _req() { # <method> <url> [json] [host-header]
     local args=(-sS -o "$h/body" -w '%{http_code}' -X "$1" "$2")
     [[ -n "${3:-}" ]] && args+=(-H 'Content-Type: application/json' --data "$3")
+    [[ -n "${4:-}" ]] && args+=(-H "Host: $4")
     _code="$(curl "${args[@]}")" || return 1
     _body="$(cat "$h/body")"
   }
-  local turl thost
-  _tenant() { _req GET "$turl/v1/view/threads"; }
+  # tenant probe: the hub API host with Host <tenant>.<fqdn> (tenant_url is the
+  # WUI sign-in page since checkout-v1 1.4, never a host)
+  local turl thost="$tenant.${TENANT_HOST_SUFFIX:-$SPL_FQDN}" hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
+  _tenant() { _req GET "$hub/v1/view/threads" "" "$thost"; }
 
   local id tok pi
   _req POST "$api" "$(jq -nc --arg t "$tenant" --arg e "$email" '{tenant_id:$t, email:$e}')" || return 1
   [[ "$_code" == 201 ]] || { do_log "FATAL checkout $tenant: HTTP $_code $(jq -c 'del(.claim_token, .client_secret)' <<<"$_body" 2>/dev/null)"; return 1; }
   id="$(jq -r .checkout_id <<<"$_body")" tok="$(jq -r .claim_token <<<"$_body")"
-  turl="$(jq -r .tenant_url <<<"$_body")" thost="${turl#*://}"
+  turl="$(jq -r .tenant_url <<<"$_body")"
   pi="$(jq -r .client_secret <<<"$_body")"; pi="${pi%%_secret_*}"
   [[ "$pi" == pi_* ]] || { do_log "FATAL the checkout answer carries no PaymentIntent client secret"; return 1; }
   _tenant || return 1

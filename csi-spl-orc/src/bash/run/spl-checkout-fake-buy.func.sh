@@ -17,6 +17,7 @@
 # @param DRY_RUN (optional) - 1 (default): plan only. 0: buy.
 # @param BASE_URL (optional) - hub base; default lde http://127.0.0.1:<lde hub
 # @param   port>, dev https://<env.dns.fqdn> (cnf, no baked host)
+# @param TENANT_HOST_SUFFIX (optional) - the hub's tenant host suffix the probe sends as Host: <tenant>.<suffix>; default lde "localhost" (cnf lde hub pattern), dev <env.dns.fqdn>. tenant_url is the WUI sign-in page since checkout-v1 1.4, never a host
 # @param KEY_OUT (optional) - claim JSON file; default <state dir>/tenants/
 # @param   <tenant>.<utc>.json, mode 0600
 # @example ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com ./run -a do_spl_checkout_fake_buy
@@ -75,16 +76,18 @@ do_spl_checkout_fake_buy() {
     rm -f "$out"
   }
 
-  local id tok turl thost
+  local id tok turl thost suffix
   _req POST "$api" "$(jq -nc --arg t "$tenant" --arg e "$email" '{tenant_id:$t, email:$e}')" || return 1
   [[ "$_code" == 201 ]] || { do_log "FATAL checkout $tenant: HTTP $_code $(jq -c 'del(.claim_token)' <<<"$_body" 2>/dev/null)"; return 1; }
   id="$(jq -r .checkout_id <<<"$_body")"
   tok="$(jq -r .claim_token <<<"$_body")"
-  turl="$(jq -r .tenant_url <<<"$_body")"
-  thost="${turl#*://}"
-  # tenant probe: https tenants resolve (cloud), so hit them directly; an lde
-  # tenant host does not resolve, so ask the hub with that Host header
-  _tenant() { if [[ "$turl" == https://* ]]; then _req GET "$turl/v1/view/threads"; else _req GET "$base/v1/view/threads" "" "$thost"; fi; }
+  turl="$(jq -r .tenant_url <<<"$_body")"  # the WUI sign-in page (checkout-v1 1.4)
+  # tenant probe: ask the hub itself with Host <tenant>.<suffix> (the hub
+  # still resolves a Host-named tenant for an anonymous probe: unknown ->
+  # 404 unknown_tenant, known -> 401 view_door)
+  if [[ "$env" == lde ]]; then suffix="${TENANT_HOST_SUFFIX:-localhost}"; else suffix="${TENANT_HOST_SUFFIX:-$SPL_FQDN}"; fi
+  thost="$tenant.$suffix"
+  _tenant() { _req GET "$base/v1/view/threads" "" "$thost"; }
 
   _tenant || return 1
   [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" == unknown_tenant ]] || {

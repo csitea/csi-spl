@@ -84,7 +84,7 @@ curl -s -H 'Host: acme.lde.localhost' "127.0.0.1:$P1/v1/view/threads" | grep -q 
   && pass "DRY_RUN bought nothing (acme still unknown)" || fail "DRY_RUN created acme"
 
 KEY="$T/keys/acme.json"
-if in_orc ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com BASE_URL="http://127.0.0.1:$P1" DRY_RUN=0 KEY_OUT="$KEY" >"$T/buy.out" 2>"$T/buy.err"; then
+if in_orc ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com BASE_URL="http://127.0.0.1:$P1" DRY_RUN=0 KEY_OUT="$KEY" TENANT_HOST_SUFFIX=lde.localhost >"$T/buy.out" 2>"$T/buy.err"; then
   pass "fake buy completed: $(cat "$T/buy.out")"
 else
   fail "fake buy: $(cat "$T/buy.err")"
@@ -96,7 +96,7 @@ key=$(jq -r .root_private_key "$KEY" 2>/dev/null)
 [[ ${#key} -eq 88 ]] && ! grep -qF "$key" "$T/buy.out" "$T/buy.err" "$T/hub.log" \
   && pass "the root key is in the file only (not stdout, not do_log, not the hub log)" || fail "key leaked or missing"
 grep -q '"template":"tenant_paid"' "$T/hub.log" && pass "the hub logged the one claim-link mail (log transport)" || fail "no tenant_paid in the hub log"
-in_orc ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com BASE_URL="http://127.0.0.1:$P1" DRY_RUN=0 KEY_OUT="$T/keys/again.json" >/dev/null 2>"$T/again.err" \
+in_orc ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com BASE_URL="http://127.0.0.1:$P1" DRY_RUN=0 KEY_OUT="$T/keys/again.json" TENANT_HOST_SUFFIX=lde.localhost >/dev/null 2>"$T/again.err" \
   && fail "CONTROL buying acme twice succeeded" \
   || { grep -q "HTTP 409" "$T/again.err" && pass "CONTROL a second buy of acme is 409" || fail "again: $(cat "$T/again.err")"; }
 

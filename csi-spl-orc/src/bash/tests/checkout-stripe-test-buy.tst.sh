@@ -38,7 +38,7 @@ done
 reply() { if [[ -n "$o" ]]; then printf '%s' "$2" >"$o"; printf '%s' "$1"; elif [[ -n "$w" ]]; then printf '%s\n%s' "$2" "$1"; else printf '%s' "$2"; fi; }
 case "$m $url" in
   "GET "*/api/v1/checkout/plan) reply 200 "{\"rail\":\"${RAIL:-card}\",\"available\":true,\"amount_cents\":2000,\"currency\":\"eur\"}" ;;
-  "POST "*/api/v1/checkout) reply 201 '{"checkout_id":"co_1","claim_token":"tok","tenant_url":"https://t1.dev.example.com","client_secret":"pi_1_secret_x"}' ;;
+  "POST "*/api/v1/checkout) reply 201 '{"checkout_id":"co_1","claim_token":"tok","tenant_url":"https://dev.example.com/login?tenant=t1","client_secret":"pi_1_secret_x"}' ;;
   "POST "*/v1/payment_intents/pi_1/confirm)
     [[ "$cfg" == *"Bearer $WANT_SK"* ]] || { reply 401 '{"error":{"message":"bad key"}}'; exit 0; }
     touch "$ST/confirmed"; reply 200 '{"id":"pi_1","status":"succeeded"}' ;;

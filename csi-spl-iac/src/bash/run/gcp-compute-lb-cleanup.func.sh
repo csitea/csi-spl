@@ -37,6 +37,7 @@ do_gcp_compute_lb_cleanup() {
     log_error "Failed to activate service account"
   return 1
   }
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
   gcloud config set project "${gcp_project}"
 
   log_info "=== Cleaning up LB resources for prefix: ${prefix} ==="

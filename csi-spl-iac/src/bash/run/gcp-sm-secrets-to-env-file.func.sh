@@ -36,6 +36,7 @@ do_gcp_sm_secrets_to_env_file() {
 
 	# Authenticate with the service account
 	gcloud auth activate-service-account --key-file=$HOME/.gcp/.$ORG/key-sa-ci-${ORG}-${APP}-${ENV}-bck_srvs.json
+	account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
 
   gcloud config set project ${ORG}_${APP}_${ENV}
 

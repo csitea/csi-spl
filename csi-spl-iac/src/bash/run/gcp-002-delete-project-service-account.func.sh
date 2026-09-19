@@ -53,6 +53,7 @@ do_gcp_002_delete_project_service_account() {
         echo "    gcloud auth application-default login"
   return 1
     fi
+    account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
 
     # 4. Explicitly set the desired account
     do_log "INFO" "Setting active account to ${GCP_ACCOUNT}"

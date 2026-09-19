@@ -36,6 +36,7 @@ do_gcp_sync_s3_to_local() {
 
   # Authenticate using the service account key file
   gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
 
   # Define variables
   export GCS_BUCKET="gs://${ORG}-${APP}-${ENV}-site"                           # GCS bucket name

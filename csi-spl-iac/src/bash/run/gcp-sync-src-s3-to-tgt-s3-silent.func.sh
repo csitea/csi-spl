@@ -38,11 +38,13 @@ do_gcp_sync_src_s3_to_tgt_s3_silent() {
 
   # Authenticate for source project
   gcloud auth activate-service-account --key-file=$SRC_CREDENTIALS
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
 
   # Set up a named configuration for the target project
   gcloud config configurations create target_config
   gcloud config set account $(jq -r '.client_email' $TGT_CREDENTIALS)
   gcloud auth activate-service-account --key-file=$TGT_CREDENTIALS
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
 
   # # Dry run of gcloud storage rsync command for safety
   # gcloud storage rsync --delete-unmatched-destination-objects -r --dry-run \

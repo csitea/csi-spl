@@ -41,6 +41,7 @@ do_gcp_sync_src_bucket_data_to_tgt_bucket() {
   if [ $? -ne 0 ]; then
     quit_on "User authentication failed"
   fi
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
 
   # Verify access to Source Bucket
   do_log "INFO Verifying access to source bucket (gs://$SRC_BUCKET)..."

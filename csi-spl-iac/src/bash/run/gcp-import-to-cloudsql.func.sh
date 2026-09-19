@@ -54,6 +54,7 @@ do_gcp_import_to_cloudsql() {
   test -f "$SERVICE_KEY_FILE" || quit_on "The service key file does not exist: $SERVICE_KEY_FILE"
 
   gcloud auth activate-service-account --key-file="$SERVICE_KEY_FILE" --quiet
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
   quit_on "Authenticating the service account with the key file"
 
   gcloud config set project "$PROJ_ID" --quiet

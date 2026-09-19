@@ -41,6 +41,7 @@ do_gcp_export_dns_settings() {
 
   do_log "INFO Authenticating with GCP using admin key..."
   gcloud auth activate-service-account --key-file="${ADMIN_KEY_PATH}"
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
   quit_on "authentication failed"
 
   # Set the Google Cloud project

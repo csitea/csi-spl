@@ -42,6 +42,7 @@ do_gcp_modify_project_apis_enable() {
 
   do_log "INFO Login and set project"
   gcloud auth login --update-adc || quit_on "Login failed"
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
 
   gcloud auth application-default set-quota-project "${PROJ_ID:-}" || quit_on "Setting quota project failed"
 

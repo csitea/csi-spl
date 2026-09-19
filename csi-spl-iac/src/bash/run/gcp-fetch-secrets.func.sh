@@ -50,6 +50,7 @@ do_gcp_fetch_secrets() {
   # Authenticate with GCP
   if [[ -f "$key_file" ]]; then
     gcloud auth activate-service-account --key-file="$key_file" --quiet 2>/dev/null
+    account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
     do_log "INFO Authenticated with $(basename "$key_file")"
   else
     do_log "WARN Key file not found: $key_file — using current gcloud auth"

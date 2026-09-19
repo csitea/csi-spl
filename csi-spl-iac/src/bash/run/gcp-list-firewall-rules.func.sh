@@ -47,6 +47,7 @@ do_gcp_list_firewall_rules() {
           echo "Error: Failed to authenticate with $KEY_FILE_PATH for project $PROJECT_ID." >&2
           continue
       fi
+      account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
 
       # Set the project in gcloud configuration (suppressing standard output and standard error)
       gcloud config set project "${PROJECT_ID}" &> /dev/null

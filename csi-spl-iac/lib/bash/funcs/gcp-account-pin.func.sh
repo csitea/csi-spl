@@ -109,6 +109,28 @@ do_gcp_org_id() {
 }
 
 #------------------------------------------------------------------------------
+# @description Print the account a run just activated or logged in INSIDE ITS
+# @description OWN isolated gcloud config (CLOUDSDK_CONFIG set by the action to a
+# @description private temp dir), so a ported action can re-pin --account to the
+# @description only identity that config holds. Refuses (returns 1, prints
+# @description nothing) when CLOUDSDK_CONFIG is unset or is the shared default
+# @description dir: reading the SHARED active account is exactly the cross-agent
+# @description race do_gcp_account removed.
+# @example gcloud auth activate-service-account --key-file="$k"; account=$(do_gcp_isolated_active_account) || exit 1
+#------------------------------------------------------------------------------
+do_gcp_isolated_active_account() {
+  local cfg="${CLOUDSDK_CONFIG:-}" shared="${HOME:-/nonexistent}/.config/gcloud" acct
+  if [[ -z "${cfg}" || "$(cd "${cfg}" 2>/dev/null && pwd -P)" == "$(cd "${shared}" 2>/dev/null && pwd -P)" ]]; then
+    do_log "FATAL do_gcp_isolated_active_account: CLOUDSDK_CONFIG is not an isolated config; refusing to read the shared active account" >&2
+    return 1
+  fi
+  # awk, not head: head closes the pipe early and SIGPIPEs gcloud under pipefail
+  acct=$(gcloud auth list --filter='status:ACTIVE' --format='value(account)' 2>/dev/null | awk 'NR==1')
+  [[ -n "${acct}" ]] || { do_log "FATAL no active account in the isolated gcloud config ${cfg}" >&2; return 1; }
+  printf '%s' "${acct}"
+}
+
+#------------------------------------------------------------------------------
 # @description Log the pinned project and identity BEFORE anything is mutated,
 # @description so the identity a run used is auditable after the fact rather
 # @description than inferred from a shared config that has moved since.

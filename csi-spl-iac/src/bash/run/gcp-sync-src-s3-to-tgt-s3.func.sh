@@ -42,6 +42,7 @@ do_gcp_sync_src_s3_to_tgt_s3() {
   # Authenticate using the 'all' environment service account
   # gcloud auth revoke --all
   gcloud auth activate-service-account --key-file="${ALL_CREDENTIALS}"
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
   quit_on "Authentication with 'all' environment service account failed"
 
   # Sync data using gcloud storage rsync

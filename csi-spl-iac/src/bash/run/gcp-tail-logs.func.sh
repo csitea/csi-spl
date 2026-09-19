@@ -82,6 +82,7 @@ do_gcp_tail_logs() {
       do_log "ERROR Failed to authenticate for ${env} — skipping"
       continue
     fi
+    account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
 
     gcloud config set project "$project_id" --quiet 2>/dev/null
 

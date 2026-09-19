@@ -35,6 +35,7 @@ do_gcp_delete_service_account(){
   # 4) Activate the "PROJ_ID" service account using the local key file
   gcloud auth activate-service-account \
     --key-file="$HOME/.gcp/.${ORG}/key-${PROJ_ID}.json"
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
 
   # 5) Set the project
   gcloud config set project "${PROJ_ID}"

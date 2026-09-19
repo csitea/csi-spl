@@ -77,6 +77,14 @@ func (s *Postgres) GetCheckout(ctx context.Context, id string) (Checkout, error)
 	return scanCheckout(s.pool.QueryRow(ctx, `SELECT `+pgCheckoutCols+` FROM payment_checkouts WHERE intent_id = $1`, id))
 }
 
+func (s *Postgres) CheckoutByProviderRef(ctx context.Context, provider, ref string) (Checkout, error) {
+	if ref == "" {
+		return Checkout{}, ErrNotFound
+	}
+	return scanCheckout(s.pool.QueryRow(ctx, `SELECT `+pgCheckoutCols+` FROM payment_checkouts
+		WHERE provider = $1 AND provider_ref = $2 ORDER BY created_at DESC LIMIT 1`, provider, ref))
+}
+
 func (s *Postgres) ApplyPayment(ctx context.Context, ev PaymentEvent, now time.Time) (string, error) {
 	var outcome string
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {

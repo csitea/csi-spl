@@ -18,7 +18,8 @@ func testCheckout(t *testing.T, tenant string) Checkout {
 		t.Fatal(err)
 	}
 	h := sha256.Sum256([]byte("claim-" + tenant))
-	return Checkout{ID: uid("co_"), TenantID: tenant, Provider: "fake", AmountCents: 2000, Currency: "eur",
+	id := uid("co_")
+	return Checkout{ID: id, ProviderRef: "pi_" + id, TenantID: tenant, Provider: "fake", AmountCents: 2000, Currency: "eur",
 		Email: "buyer@example.com", RootPubKey: pub, SealedRootKey: []byte("sealed"), ClaimHash: h[:]}
 }
 
@@ -41,6 +42,12 @@ func TestCheckoutHoldPayClaim(t *testing.T) {
 			c2 := testCheckout(t, tenant)
 			if err := st.HoldCheckout(ctx, c2, now.Add(time.Minute), time.Hour); !errors.Is(err, ErrConflict) {
 				t.Fatalf("live hold: want ErrConflict, got %v", err)
+			}
+			if got, err := st.CheckoutByProviderRef(ctx, "fake", "pi_"+c.ID); err != nil || got.ID != c.ID {
+				t.Fatalf("by provider ref: %+v %v", got, err)
+			}
+			if _, err := st.CheckoutByProviderRef(ctx, "other", "pi_"+c.ID); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("by ref under another provider: %v", err)
 			}
 			if _, err := st.ClaimCheckout(ctx, c.ID, c.ClaimHash, now); !errors.Is(err, ErrNotPaid) {
 				t.Fatalf("claim before paid: want ErrNotPaid, got %v", err)

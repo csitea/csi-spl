@@ -137,18 +137,20 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
-	prov, ver, err := payments.Wire(pc)
-	if err != nil {
-		return fail(err)
+	plog := log.With().Str("component", "payments").Logger()
+	if g := pc.Guard(); g != "" {
+		// csi-rel F-17: the hub stays up for the boxes; checkout answers 503.
+		plog.Error().Str("severity", "CRITICAL").Str("event", "payment_secret_invalid").Str("problem", g).
+			Msg("card rail keys unusable: checkout fail-closes with 503 until they are provisioned")
 	}
-	ph, err := payments.New(pc, payments.Deps{Store: st, Log: log.With().Str("component", "payments").Logger(),
-		Mail: pmc.Sender(log), MailDelivers: pmc.Delivers(), TenantHostPattern: hc.TenantHostPattern,
-		Provider: prov, Verifier: ver})
+	ph, err := payments.NewWired(pc, payments.Deps{Store: st, Log: plog,
+		Mail: pmc.Sender(log), MailDelivers: pmc.Delivers(), TenantHostPattern: hc.TenantHostPattern})
 	if err != nil {
 		return fail(err)
 	}
 	opts.Payments = ph
-	log.Info().Str("rail", pc.Rail()).Bool("fake_pay", pc.FakePayMounted()).Str("plan_id", pc.PlanID).
+	log.Info().Str("rail", pc.Rail()).Strs("methods", pc.Methods()).Bool("fake_pay", pc.FakePayMounted()).
+		Str("card_key_mode", pc.CardKeyMode()).Str("plan_id", pc.PlanID).
 		Int("plan_cents", pc.PlanCents).Str("mail_transport", pmc.Transport).Msg("payment rail")
 	srv, err := hub.New(opts)
 	if err != nil {

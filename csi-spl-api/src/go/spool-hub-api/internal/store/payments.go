@@ -83,6 +83,10 @@ type Payments interface {
 	// older hold is cancelled first.
 	HoldCheckout(ctx context.Context, c Checkout, now time.Time, hold time.Duration) error
 	GetCheckout(ctx context.Context, id string) (Checkout, error)
+	// CheckoutByProviderRef finds the checkout whose provider-side id (a card
+	// intent, a wallet order) is ref: webhooks name the provider's id, as in
+	// csi-rel (orders.payment_intent_id / provider_order_id). ErrNotFound if none.
+	CheckoutByProviderRef(ctx context.Context, provider, ref string) (Checkout, error)
 	// ApplyPayment records (Provider, EventID) and applies the event in ONE
 	// transaction: a duplicate changes nothing, and a failed apply leaves no
 	// dedup row, so the provider's retry is not swallowed.

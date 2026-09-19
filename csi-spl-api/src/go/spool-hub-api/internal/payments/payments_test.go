@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -31,19 +30,13 @@ func mustLoad(t *testing.T, env string, vars map[string]string) *Config {
 	return c
 }
 
-// T018: the boot guard refuses what it cannot run.
+// T018: the boot guard refuses what it cannot run; unusable card keys 503.
 func TestConfigFailClosed(t *testing.T) {
-	hosted := map[string]string{
-		"SPOOL_HUB_PAYMENT_PROVIDER": "hosted-hmac", "SPOOL_HUB_PAYMENT_MERCHANT_ID": "375917",
-		"SPOOL_HUB_PAYMENT_SECRET_KEY": "a-real-looking-secret", "SPOOL_HUB_PAYMENT_API_BASE": "https://pay.example.test",
-		"SPOOL_HUB_PAYMENT_SUCCESS_URL":  "https://dev.example.test/checkout/success",
-		"SPOOL_HUB_PAYMENT_CANCEL_URL":   "https://dev.example.test/checkout",
-		"SPOOL_HUB_PAYMENT_CALLBACK_URL": "https://dev.example.test/api/v1/webhooks/payment",
-		"SPOOL_HUB_PAYMENT_PLAN_CENTS":   "2000",
-	}
-	with := func(k, v string) map[string]string {
+	paypal := map[string]string{"SPOOL_HUB_ENABLE_PAYPAL": "true", "SPOOL_HUB_PAYPAL_CLIENT_ID": "cid-1",
+		"SPOOL_HUB_PAYPAL_CLIENT_SECRET": "csec-1", "SPOOL_HUB_PAYPAL_WEBHOOK_ID": "wh-1", "SPOOL_HUB_PAYMENT_PLAN_CENTS": "2000"}
+	with := func(base map[string]string, k, v string) map[string]string {
 		m := map[string]string{}
-		for a, b := range hosted {
+		for a, b := range base {
 			m[a] = b
 		}
 		m[k] = v
@@ -58,13 +51,12 @@ func TestConfigFailClosed(t *testing.T) {
 		{"fake-pay flag in an unnamed env", "", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true"}},
 		{"fake rail without the flag", "dev", map[string]string{"SPOOL_HUB_PAYMENT_PROVIDER": "fake"}},
 		{"fake rail on prd", "prd", map[string]string{"SPOOL_HUB_PAYMENT_PROVIDER": "fake", "SPOOL_HUB_ENABLE_FAKE_PAY": "true"}},
-		{"hosted placeholder secret", "prd", with("SPOOL_HUB_PAYMENT_SECRET_KEY", "PLACEHOLDER-secret")},
-		{"hosted missing secret", "prd", with("SPOOL_HUB_PAYMENT_SECRET_KEY", "")},
-		{"hosted missing merchant", "prd", with("SPOOL_HUB_PAYMENT_MERCHANT_ID", "")},
-		{"hosted missing api base", "prd", with("SPOOL_HUB_PAYMENT_API_BASE", "")},
-		{"hosted http api base outside lde", "dev", with("SPOOL_HUB_PAYMENT_API_BASE", "http://pay.example.test")},
-		{"hosted missing callback", "prd", with("SPOOL_HUB_PAYMENT_CALLBACK_URL", "")},
-		{"hosted free plan", "prd", with("SPOOL_HUB_PAYMENT_PLAN_CENTS", "0")},
+		{"stripe free plan", "prd", map[string]string{"SPOOL_HUB_PAYMENT_PROVIDER": "stripe"}},
+		{"stripe http api base outside lde", "dev", map[string]string{"SPOOL_HUB_STRIPE_API_BASE": "http://mock.example.test"}},
+		{"paypal on prd", "prd", paypal},
+		{"paypal live mode", "dev", with(paypal, "SPOOL_HUB_PAYPAL_MODE", "live")},
+		{"paypal without webhook id", "dev", with(paypal, "SPOOL_HUB_PAYPAL_WEBHOOK_ID", "")},
+		{"paypal placeholder secret", "dev", with(paypal, "SPOOL_HUB_PAYPAL_CLIENT_SECRET", "PLACEHOLDER-x")},
 		{"bad currency", "dev", map[string]string{"SPOOL_HUB_PAYMENT_CURRENCY": "euro"}},
 	}
 	for _, c := range refuse {
@@ -73,14 +65,30 @@ func TestConfigFailClosed(t *testing.T) {
 		}
 	}
 	// no rail: boots everywhere, checkout is 503 (prd until keys exist)
-	if c := mustLoad(t, "prd", nil); c.Rail() != RailNone || c.FakePayMounted() {
+	if c := mustLoad(t, "prd", nil); c.Rail() != RailNone || c.FakePayMounted() || len(c.Methods()) != 0 {
 		t.Fatalf("prd default rail %q fake=%v", c.Rail(), c.FakePayMounted())
 	}
 	if c := mustLoad(t, "dev", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true"}); c.Rail() != RailFake || !c.FakePayMounted() {
 		t.Fatalf("dev fake flag: rail %q", c.Rail())
 	}
-	if c := mustLoad(t, "prd", hosted); c.Rail() != RailHosted || c.FakePayMounted() {
-		t.Fatalf("prd hosted: rail %q", c.Rail())
+	// stripe with unusable keys BOOTS (the hub carries the boxes) and guards
+	stripe := map[string]string{"SPOOL_HUB_PAYMENT_PROVIDER": "stripe", "SPOOL_HUB_PAYMENT_PLAN_CENTS": "2000"}
+	for name, vars := range map[string]map[string]string{
+		"unset key":         stripe,
+		"placeholder key":   with(stripe, "SPOOL_HUB_STRIPE_SECRET_KEY", "PLACEHOLDER-stripe"),
+		"publishable as sk": with(stripe, "SPOOL_HUB_STRIPE_SECRET_KEY", "pk_test_abc"),
+	} {
+		if c := mustLoad(t, "prd", vars); c.Guard() == "" || c.Rail() != RailCard {
+			t.Errorf("%s: want a checkout guard, got %q", name, c.Guard())
+		}
+	}
+	good := with(with(with(stripe, "SPOOL_HUB_STRIPE_SECRET_KEY", "sk_test_abc"), "SPOOL_HUB_STRIPE_WEBHOOK_SECRET", "whsec_abc"),
+		"SPOOL_HUB_STRIPE_PUBLISHABLE_KEY", "pk_test_abc")
+	if c := mustLoad(t, "prd", good); c.Guard() != "" || StripeKeyMode(c.StripeSecretKey) != "test" {
+		t.Fatalf("good stripe keys guarded: %q", c.Guard())
+	}
+	if c := mustLoad(t, "prd", with(good, "SPOOL_HUB_STRIPE_WEBHOOK_SECRET", "")); c.Guard() == "" {
+		t.Fatal("stripe without a webhook secret must guard (the paid event could never verify)")
 	}
 }
 
@@ -116,11 +124,17 @@ type rig struct {
 	logs *bytes.Buffer
 }
 
-func newRig(t *testing.T, cfg *Config, prov PaymentProvider, ver WebhookVerifier) *rig {
+func newRig(t *testing.T, cfg *Config) *rig {
+	t.Helper()
+	card, pp, ppv := Wire(cfg)
+	return newRigWith(t, cfg, Deps{Card: card, PayPal: pp, PayPalVerifier: ppv})
+}
+
+func newRigWith(t *testing.T, cfg *Config, d Deps) *rig {
 	t.Helper()
 	r := &rig{st: store.NewMemory(), mail: &mail.Recorder{}, logs: &bytes.Buffer{}}
-	h, err := New(cfg, Deps{Store: r.st, Log: zerolog.New(r.logs), Mail: r.mail, MailDelivers: true,
-		TenantHostPattern: pattern, Provider: prov, Verifier: ver})
+	d.Store, d.Log, d.Mail, d.MailDelivers, d.TenantHostPattern = r.st, zerolog.New(r.logs), r.mail, true, pattern
+	h, err := New(cfg, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +159,7 @@ func (r *rig) do(t *testing.T, method, path string, body any) (int, map[string]a
 // T020 + T021: the whole buy on the fake rail, key shown and mailed once.
 func TestFakeBuyEndToEnd(t *testing.T) {
 	cfg := mustLoad(t, "dev", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true", "SPOOL_HUB_PAYMENT_PLAN_CENTS": "2000"})
-	r := newRig(t, cfg, Fake{}, nil)
+	r := newRig(t, cfg)
 
 	if code, p := r.do(t, "GET", "/api/v1/checkout/plan", nil); code != 200 || p["rail"] != RailFake || p["amount_cents"] != float64(2000) {
 		t.Fatalf("plan %d %v", code, p)
@@ -162,7 +176,7 @@ func TestFakeBuyEndToEnd(t *testing.T) {
 		t.Fatalf("bad email: %d", code)
 	}
 	code, co := r.do(t, "POST", "/api/v1/checkout", map[string]string{"tenant_id": "acme", "email": "buyer@example.com"})
-	if code != 201 || co["rail"] != RailFake || co["tenant_url"] != "https://acme.dev.example.test" || co["redirect_url"] != nil {
+	if code != 201 || co["rail"] != RailFake || co["tenant_url"] != "https://acme.dev.example.test" || co["client_secret"] != nil || co["method"] != MethodCard {
 		t.Fatalf("checkout %d %v", code, co)
 	}
 	id, tok := co["checkout_id"].(string), co["claim_token"].(string)
@@ -219,7 +233,7 @@ func TestFakeBuyEndToEnd(t *testing.T) {
 // T020 control: the fake rail is absent when the flag is off, and refuses a
 // checkout that belongs to a real rail.
 func TestFakePayRefused(t *testing.T) {
-	off := newRig(t, mustLoad(t, "dev", nil), nil, nil)
+	off := newRig(t, mustLoad(t, "dev", nil))
 	if code, _ := off.do(t, "POST", "/api/v1/checkout", map[string]string{"tenant_id": "acme", "email": "a@example.com"}); code != 503 {
 		t.Fatalf("checkout with no rail: %d", code)
 	}
@@ -244,9 +258,9 @@ func TestFakePayRefused(t *testing.T) {
 		t.Fatal("prd booted with fake-pay on")
 	}
 	// a real-rail checkout in a dev hub that also has the fake rail
-	on := newRig(t, mustLoad(t, "dev", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true"}), Fake{}, nil)
+	on := newRig(t, mustLoad(t, "dev", map[string]string{"SPOOL_HUB_ENABLE_FAKE_PAY": "true"}))
 	pub, _, _ := ed25519.GenerateKey(nil)
-	real := store.Checkout{ID: "co_real", TenantID: "acme", Provider: ProviderHostedHMAC, Currency: "eur",
+	real := store.Checkout{ID: "co_real", TenantID: "acme", Provider: ProviderStripe, Currency: "eur",
 		RootPubKey: pub, SealedRootKey: []byte("x"), ClaimHash: ClaimHash("t")}
 	if err := on.st.HoldCheckout(t.Context(), real, time.Now(), time.Hour); err != nil {
 		t.Fatal(err)
@@ -257,124 +271,11 @@ func TestFakePayRefused(t *testing.T) {
 	if _, err := on.st.GetTenant(t.Context(), "acme"); err == nil {
 		t.Fatal("fake-pay created a tenant for a real-rail checkout")
 	}
-	// the webhook on a rail without a signed callback refuses everything
-	if code, _ := on.do(t, "POST", "/api/v1/webhooks/payment", map[string]string{"x": "y"}); code != 400 {
-		t.Fatalf("webhook without a verifier: %d", code)
+	// the card webhook on a hub whose rail is not stripe refuses everything
+	if code, _ := on.do(t, "POST", RouteStripeWebhook, map[string]string{"id": "evt_1", "type": "payment_intent.succeeded"}); code != 400 {
+		t.Fatalf("stripe webhook on the fake rail: %d", code)
 	}
-}
-
-// hostedRig: a hosted-hmac hub plus a fake provider API that checks our
-// request signature and hands back a hosted page URL.
-func hostedRig(t *testing.T) (*rig, *HostedHMAC) {
-	t.Helper()
-	const secret, merchant = "a-real-looking-secret", "375917"
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		if !ValidCheckoutHMAC(secret, "sha256", r.Header.Get("signature"), checkoutFields(r), string(body)) {
-			http.Error(w, "bad sig", 401)
-			return
-		}
-		var req hostedCreateReq
-		_ = json.Unmarshal(body, &req)
-		if r.URL.Path != "/payments" || req.Amount != 2000 || req.Stamp == "" || req.CallbackURLs.Success == "" {
-			http.Error(w, "bad request", 400)
-			return
-		}
-		_ = json.NewEncoder(w).Encode(hostedCreateResp{TransactionID: "txn-" + req.Stamp, Href: "https://pay.example.test/p/" + req.Stamp})
-	}))
-	t.Cleanup(api.Close)
-	cfg := mustLoad(t, "lde", map[string]string{
-		"SPOOL_HUB_PAYMENT_PROVIDER": "hosted-hmac", "SPOOL_HUB_PAYMENT_MERCHANT_ID": merchant,
-		"SPOOL_HUB_PAYMENT_SECRET_KEY": secret, "SPOOL_HUB_PAYMENT_API_BASE": api.URL,
-		"SPOOL_HUB_PAYMENT_SUCCESS_URL": "http://localhost:3000/checkout/success", "SPOOL_HUB_PAYMENT_CANCEL_URL": "http://localhost:3000/checkout",
-		"SPOOL_HUB_PAYMENT_CALLBACK_URL": "http://localhost:58080/api/v1/webhooks/payment", "SPOOL_HUB_PAYMENT_PLAN_CENTS": "2000",
-	})
-	prov, ver, err := Wire(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return newRig(t, cfg, prov, ver), prov.(*HostedHMAC)
-}
-
-func signedCallback(p *HostedHMAC, secret string, q map[string]string) string {
-	v := url.Values{}
-	for k, x := range q {
-		v.Set(k, x)
-	}
-	v.Set("signature", SignCheckoutHMAC(secret, "sha256", q, ""))
-	return "/api/v1/webhooks/payment?" + v.Encode()
-}
-
-// T019 controls: forged signature refused and writes nothing; replay no-op.
-func TestHostedWebhookSignedPaidReplay(t *testing.T) {
-	r, p := hostedRig(t)
-	code, co := r.do(t, "POST", "/api/v1/checkout", map[string]string{"tenant_id": "acme", "email": "buyer@example.com"})
-	if code != 201 || co["rail"] != RailHosted || !strings.HasPrefix(co["redirect_url"].(string), "https://pay.example.test/p/co_") {
-		t.Fatalf("hosted checkout %d %v", code, co)
-	}
-	id := co["checkout_id"].(string)
-	if c, _ := r.st.GetCheckout(t.Context(), id); c.ProviderRef != "txn-"+id || c.Provider != ProviderHostedHMAC {
-		t.Fatalf("checkout row %+v", c)
-	}
-	fields := map[string]string{"checkout-account": p.MerchantID, "checkout-algorithm": "sha256",
-		"checkout-amount": "2000", "checkout-stamp": id, "checkout-reference": id,
-		"checkout-transaction-id": "txn-" + id, "checkout-status": "ok", "checkout-provider": "x"}
-	good := signedCallback(p, p.Secret, fields)
-
-	// forged: signed with the wrong secret
-	if code, _ := r.do(t, "GET", signedCallback(p, "not-the-secret", fields), nil); code != 400 {
-		t.Fatalf("forged signature: %d", code)
-	}
-	// tampered: good signature, status field changed after signing
-	if code, _ := r.do(t, "GET", strings.Replace(good, "checkout-status=ok", "checkout-status=fail", 1), nil); code != 400 {
-		t.Fatalf("tampered field: %d", code)
-	}
-	// someone else's account, correctly signed with our secret
-	other := map[string]string{}
-	for k, v := range fields {
-		other[k] = v
-	}
-	other["checkout-account"] = "999"
-	if code, _ := r.do(t, "GET", signedCallback(p, p.Secret, other), nil); code != 400 {
-		t.Fatalf("foreign account: %d", code)
-	}
-	if _, err := r.st.GetTenant(t.Context(), "acme"); err == nil {
-		t.Fatal("a refused webhook created the tenant")
-	}
-	// the genuine callback: the forged ones left no dedup row behind
-	if code, out := r.do(t, "GET", good, nil); code != 200 || out["action"] != store.PayOutcomePaid {
-		t.Fatalf("genuine callback %d %v", code, out)
-	}
-	if ten, err := r.st.GetTenant(t.Context(), "acme"); err != nil || ten.BillingStatus != billing.StatusActive {
-		t.Fatalf("tenant after paid: %+v %v", ten, err)
-	}
-	// replay: the provider delivers the same event again
-	if err := r.st.SetBillingStatus(t.Context(), "acme", billing.StatusGrace); err != nil {
-		t.Fatal(err)
-	}
-	if code, out := r.do(t, "GET", good, nil); code != 200 || out["status"] != "duplicate" {
-		t.Fatalf("replay %d %v", code, out)
-	}
-	if ten, _ := r.st.GetTenant(t.Context(), "acme"); ten.BillingStatus != billing.StatusGrace {
-		t.Fatalf("replay changed the tenant: %q", ten.BillingStatus)
-	}
-	// POST with the fields as headers verifies the same way
-	refund := map[string]string{}
-	for k, v := range fields {
-		refund[k] = v
-	}
-	refund["checkout-status"] = "refund"
-	req := httptest.NewRequest("POST", "/api/v1/webhooks/payment", nil)
-	for k, v := range refund {
-		req.Header.Set(k, v)
-	}
-	req.Header.Set("signature", SignCheckoutHMAC(p.Secret, "sha256", refund, ""))
-	w := httptest.NewRecorder()
-	r.h.ServeHTTP(w, req)
-	if w.Code != 200 {
-		t.Fatalf("header refund callback %d %s", w.Code, w.Body)
-	}
-	if ten, _ := r.st.GetTenant(t.Context(), "acme"); ten.BillingStatus != billing.StatusUnpaid {
-		t.Fatalf("after refund: %q", ten.BillingStatus)
+	if code, _ := on.do(t, "POST", RoutePayPalWebhook, map[string]string{"id": "WH-1", "event_type": "PAYMENT.CAPTURE.COMPLETED"}); code != 400 {
+		t.Fatalf("paypal webhook with paypal off: %d", code)
 	}
 }

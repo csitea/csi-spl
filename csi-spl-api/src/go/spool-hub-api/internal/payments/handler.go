@@ -21,10 +21,11 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
-// Route prefixes (checkout-v1 §1). Not tenant-scoped: they answer on any Host.
+// Routes (checkout-v1 §1; csi-rel paths). Not tenant-scoped: any Host.
 const (
-	RoutePrefix  = "/api/v1/checkout"
-	RouteWebhook = "/api/v1/webhooks/payment"
+	RoutePrefix        = "/api/v1/checkout"
+	RouteStripeWebhook = "/api/v1/webhooks/payment/stripe"
+	RoutePayPalWebhook = "/api/v1/webhooks/payment/paypal"
 )
 
 // TemplateTenantWelcome is the one email (mail.Message.Template, logs).
@@ -36,15 +37,22 @@ type Store interface {
 	GetTenant(ctx context.Context, tenantID string) (store.Tenant, error)
 }
 
+// PayPalRail is the wallet driver (csi-rel PayPal Orders v2).
+type PayPalRail interface {
+	PaymentProvider
+	ProviderOrderProvider
+}
+
 // Deps wires a Handler.
 type Deps struct {
 	Store             Store
 	Log               zerolog.Logger
-	Mail              mail.Sender // nil = mail.None
-	MailDelivers      bool        // the transport reaches an inbox (smtp)
-	TenantHostPattern string      // "{tenant}.<fqdn>"
-	Provider          PaymentProvider
-	Verifier          WebhookVerifier // nil = the webhook refuses everything
+	Mail              mail.Sender     // nil = mail.None
+	MailDelivers      bool            // the transport reaches an inbox (smtp)
+	TenantHostPattern string          // "{tenant}.<fqdn>"
+	Card              PaymentProvider // StripePayments, or StubPayments on the fake rail
+	PayPal            PayPalRail      // nil unless SPOOL_HUB_ENABLE_PAYPAL
+	PayPalVerifier    *PayPalVerifier // nil unless SPOOL_HUB_ENABLE_PAYPAL
 	Now               func() time.Time
 }
 
@@ -54,14 +62,43 @@ type Handler struct {
 	d   Deps
 }
 
-// New builds the handler for a loaded Config. A rail other than none needs
-// its driver.
+// Wire builds the drivers cnf names (csi-rel cmd/api paymentWiring).
+func Wire(c *Config) (card PaymentProvider, pp PayPalRail, ppv *PayPalVerifier) {
+	switch c.Rail() {
+	case RailFake:
+		card = StubPayments{}
+	case RailCard:
+		card = &StripePayments{SecretKey: c.StripeSecretKey, BaseURL: c.StripeAPIBase, APIVersion: c.StripeAPIVersion}
+	}
+	if c.EnablePayPal {
+		p := NewPayPal(c.PayPalClientID, c.PayPalClientSecret, c.PayPalMode)
+		p.BaseURL, p.Currency = c.PayPalAPIBase, c.Currency
+		pp, ppv = p, &PayPalVerifier{WebhookID: c.PayPalWebhookID}
+	}
+	return card, pp, ppv
+}
+
+// NewWired is New with the drivers cnf names wired in (Wire), so callers
+// outside this package never name a vendor (no-baked-host.tst.sh).
+func NewWired(cfg *Config, d Deps) (*Handler, error) {
+	d.Card, d.PayPal, d.PayPalVerifier = Wire(cfg)
+	return New(cfg, d)
+}
+
+// CardKeyMode is "test" / "live" for a well-shaped card key, "" otherwise
+// (boot log; never the key).
+func (c *Config) CardKeyMode() string { return StripeKeyMode(c.StripeSecretKey) }
+
+// New builds the handler for a loaded Config.
 func New(cfg *Config, d Deps) (*Handler, error) {
 	if cfg == nil || d.Store == nil {
 		return nil, errors.New("payments: config and store are required")
 	}
-	if cfg.Rail() != RailNone && d.Provider == nil {
+	if cfg.Rail() != RailNone && d.Card == nil {
 		return nil, errors.New("payments: rail " + cfg.Rail() + " has no driver")
+	}
+	if cfg.EnablePayPal && (d.PayPal == nil || d.PayPalVerifier == nil) {
+		return nil, errors.New("payments: PayPal enabled without its driver and verifier")
 	}
 	if !strings.HasPrefix(d.TenantHostPattern, "{tenant}.") {
 		return nil, errors.New("payments: tenant host pattern must start with {tenant}.")
@@ -76,7 +113,8 @@ func New(cfg *Config, d Deps) (*Handler, error) {
 }
 
 // Register mounts the routes. fake-pay exists only when FakePayMounted
-// (never on prd: Load refuses the flag there).
+// (never on prd: Load refuses the flag there); the PayPal capture only when
+// PayPal is enabled.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+RoutePrefix+"/plan", h.plan)
 	mux.HandleFunc("POST "+RoutePrefix, h.checkout)
@@ -85,8 +123,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	if h.cfg.FakePayMounted() {
 		mux.HandleFunc("POST "+RoutePrefix+"/fake-pay", h.fakePay)
 	}
-	mux.HandleFunc("POST "+RouteWebhook, h.webhook)
-	mux.HandleFunc("GET "+RouteWebhook, h.webhook)
+	if h.cfg.EnablePayPal {
+		mux.HandleFunc("POST "+RoutePrefix+"/paypal/capture", h.paypalCapture)
+	}
+	mux.HandleFunc("POST "+RouteStripeWebhook, h.stripeWebhook)
+	mux.HandleFunc("POST "+RoutePayPalWebhook, h.paypalWebhook)
 }
 
 // ServeHTTP makes the Handler usable on its own (tests).
@@ -96,9 +137,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	mux.ServeHTTP(w, r)
 }
 
-func (h *Handler) providerName() string {
-	if h.cfg.Rail() == RailHosted {
-		return ProviderHostedHMAC
+func (h *Handler) cardProvider() string {
+	if h.cfg.Rail() == RailCard {
+		return ProviderStripe
 	}
 	return ProviderFake
 }
@@ -108,10 +149,22 @@ func (h *Handler) tenantURL(id string) string {
 }
 
 func (h *Handler) plan(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{
+	methods := h.cfg.Methods()
+	if methods == nil {
+		methods = []string{}
+	}
+	out := map[string]any{
 		"plan_id": h.cfg.PlanID, "amount_cents": h.cfg.PlanCents, "currency": h.cfg.Currency,
-		"rail": h.cfg.Rail(), "tenant_url_pattern": h.cfg.PublicScheme + "://" + h.d.TenantHostPattern,
-	})
+		"rail": h.cfg.Rail(), "methods": methods, "available": h.cfg.Guard() == "" && len(methods) > 0,
+		"tenant_url_pattern": h.cfg.PublicScheme + "://" + h.d.TenantHostPattern,
+	}
+	if h.cfg.Rail() == RailCard {
+		out["publishable_key"] = strings.TrimSpace(h.cfg.StripePublishableKey)
+	}
+	if h.cfg.EnablePayPal {
+		out["paypal_client_id"] = strings.TrimSpace(h.cfg.PayPalClientID)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func newCheckoutID() string {
@@ -125,16 +178,28 @@ func newCheckoutID() string {
 type checkoutReq struct {
 	TenantID string `json:"tenant_id"`
 	Email    string `json:"email"`
+	Method   string `json:"method"` // "" = card
 }
 
 func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
-	if h.cfg.Rail() == RailNone {
-		writeErr(w, http.StatusServiceUnavailable, "payment_unavailable", "no payment rail is configured")
-		return
-	}
 	var req checkoutReq
 	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_request", "body is not checkout JSON")
+		return
+	}
+	method := strings.ToLower(strings.TrimSpace(req.Method))
+	if method == "" {
+		method = MethodCard
+	}
+	switch {
+	case method == MethodCard && h.cfg.Rail() == RailNone, method == MethodPayPal && !h.cfg.EnablePayPal:
+		writeErr(w, http.StatusServiceUnavailable, "payment_unavailable", "that payment method is not configured")
+		return
+	case method != MethodCard && method != MethodPayPal:
+		writeErr(w, http.StatusBadRequest, "bad_method", "method must be card or paypal")
+		return
+	case method == MethodCard && h.cfg.Guard() != "":
+		writeErr(w, http.StatusServiceUnavailable, "payment_unavailable", GuardReasonMisconfigured)
 		return
 	}
 	tid := strings.ToLower(strings.TrimSpace(req.TenantID))
@@ -167,18 +232,36 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "seal failed")
 		return
 	}
-	// Provider first: a failed provider call must not hold the slug.
-	ref, redirect, err := h.d.Provider.CreateRedirectOrder(ctx, id, email, h.cfg.Currency, h.cfg.PlanCents)
+	// Provider first: a failed provider call must not hold the slug. The
+	// checkout id is the provider's order reference / idempotency key.
+	out := map[string]any{"checkout_id": id, "claim_token": token, "method": method,
+		"amount_cents": h.cfg.PlanCents, "currency": h.cfg.Currency, "tenant_id": tid, "tenant_url": h.tenantURL(tid)}
+	var provider, ref string
+	var cancel func(context.Context, string) error
+	if method == MethodPayPal {
+		provider, cancel = ProviderPayPal, h.d.PayPal.CancelIntent
+		orderID, approve, perr := h.d.PayPal.CreateProviderOrder(ctx, id, h.cfg.PlanCents, h.cfg.Currency)
+		err, ref = perr, orderID
+		out["rail"], out["provider_order_id"], out["approve_url"] = MethodPayPal, orderID, approve
+	} else {
+		provider, cancel = h.cardProvider(), h.d.Card.CancelIntent
+		intentID, clientSecret, cerr := h.d.Card.CreateIntent(ctx, id, h.cfg.PlanCents, h.cfg.Currency)
+		err, ref = cerr, intentID
+		out["rail"] = h.cfg.Rail()
+		if h.cfg.Rail() == RailCard {
+			out["client_secret"], out["publishable_key"] = clientSecret, strings.TrimSpace(h.cfg.StripePublishableKey)
+		}
+	}
 	if err != nil {
-		h.d.Log.Error().Err(err).Str("checkout_id", id).Str("rail", h.cfg.Rail()).Msg("checkout: provider refused")
+		h.d.Log.Error().Err(err).Str("checkout_id", id).Str("provider", provider).Msg("checkout: provider refused")
 		writeErr(w, http.StatusServiceUnavailable, "payment_unavailable", "the payment provider did not start a payment")
 		return
 	}
-	c := store.Checkout{ID: id, TenantID: tid, PlanID: h.cfg.PlanID, Provider: h.providerName(), ProviderRef: ref,
+	c := store.Checkout{ID: id, TenantID: tid, PlanID: h.cfg.PlanID, Provider: provider, ProviderRef: ref,
 		AmountCents: h.cfg.PlanCents, Currency: h.cfg.Currency, Email: email, RootPubKey: pub,
 		SealedRootKey: sealed, ClaimHash: ClaimHash(token)}
 	if err := h.d.Store.HoldCheckout(ctx, c, h.d.Now().UTC(), h.cfg.Hold); err != nil {
-		_ = h.d.Provider.CancelIntent(context.WithoutCancel(ctx), ref)
+		_ = cancel(context.WithoutCancel(ctx), ref)
 		if errors.Is(err, store.ErrConflict) {
 			writeErr(w, http.StatusConflict, "tenant_taken", "that tenant exists or is being bought")
 			return
@@ -187,13 +270,8 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "checkout not stored")
 		return
 	}
-	h.d.Log.Info().Str("checkout_id", id).Str("tenant_id", tid).Str("rail", h.cfg.Rail()).
+	h.d.Log.Info().Str("checkout_id", id).Str("tenant_id", tid).Str("provider", provider).
 		Str("to", mail.Digest(email)).Msg("checkout: slug held")
-	out := map[string]any{"checkout_id": id, "claim_token": token, "rail": h.cfg.Rail(),
-		"amount_cents": h.cfg.PlanCents, "currency": h.cfg.Currency, "tenant_id": tid, "tenant_url": h.tenantURL(tid)}
-	if redirect != "" {
-		out["redirect_url"] = redirect
-	}
 	writeJSON(w, http.StatusCreated, out)
 }
 
@@ -312,43 +390,171 @@ func (h *Handler) fakePay(w http.ResponseWriter, r *http.Request) {
 		"applied": out == store.PayOutcomePaid})
 }
 
-// webhook verifies BEFORE any write (T019): a bad signature answers 400 with
-// no detail and writes nothing, not even the dedup row.
-func (h *Handler) webhook(w http.ResponseWriter, r *http.Request) {
-	if h.d.Verifier == nil {
-		h.d.Log.Warn().Str("rail", h.cfg.Rail()).Msg("payment webhook refused: this rail has no signed callback")
-		writeErr(w, http.StatusBadRequest, "bad_request", "")
+type paypalCaptureReq struct {
+	CheckoutID string `json:"checkout_id"`
+}
+
+// paypalCapture is csi-rel's POST /api/v1/checkout/paypal/capture: the WUI's
+// onApprove asks us to capture; the PAYMENT.CAPTURE.COMPLETED webhook, not
+// this response, marks the checkout paid (one authoritative transition).
+func (h *Handler) paypalCapture(w http.ResponseWriter, r *http.Request) {
+	var req paypalCaptureReq
+	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_request", "body is not capture JSON")
 		return
 	}
+	c, err := h.d.Store.GetCheckout(r.Context(), strings.TrimSpace(req.CheckoutID))
+	if errors.Is(err, store.ErrNotFound) || (err == nil && c.Provider != ProviderPayPal) {
+		writeErr(w, http.StatusNotFound, "not_found", "no such wallet checkout")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "checkout lookup failed")
+		return
+	}
+	if c.Status != store.CheckoutPending && c.Status != store.CheckoutPaid {
+		writeErr(w, http.StatusConflict, "not_pending", "checkout is "+c.Status)
+		return
+	}
+	if c.Status == store.CheckoutPending {
+		if _, _, err := h.d.PayPal.CaptureProviderOrder(r.Context(), c.ProviderRef, c.ID); err != nil && !errors.Is(err, ErrAlreadyCaptured) {
+			h.d.Log.Error().Err(err).Str("checkout_id", c.ID).Msg("paypal capture failed")
+			writeErr(w, http.StatusBadGateway, "payment_failed", "the wallet capture failed")
+			return
+		}
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"checkout_id": c.ID, "status": "capturing"})
+}
+
+// stripeEvent is the slice of the Stripe event envelope we consume (csi-rel).
+type stripeEvent struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	Data struct {
+		Object struct {
+			ID            string `json:"id"`
+			PaymentIntent string `json:"payment_intent"` // present on charge.* events
+		} `json:"object"`
+	} `json:"data"`
+}
+
+// stripeKind is csi-rel's eventTarget for Stripe, onto tenant billing.
+func stripeKind(t string) string {
+	switch t {
+	case "payment_intent.succeeded":
+		return store.PayEventPaid
+	case "charge.refunded":
+		return store.PayEventRefund
+	}
+	// payment_intent.payment_failed: audit only, the buyer may retry the
+	// same intent (csi-rel); disputes: audit + CRITICAL below.
+	return store.PayEventIgnore
+}
+
+// stripeWebhook verifies BEFORE any write (T019): a bad signature answers 400
+// with no detail and writes nothing, not even the dedup row.
+func (h *Handler) stripeWebhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-	if err != nil {
+	if err != nil || h.cfg.Provider != ProviderStripe ||
+		VerifyStripe(r.Header.Get("Stripe-Signature"), string(body), strings.TrimSpace(h.cfg.StripeWebhookSecret), h.d.Now()) != nil {
+		h.d.Log.Warn().Str("provider", ProviderStripe).Msg("webhook signature rejected")
 		writeErr(w, http.StatusBadRequest, "bad_request", "")
 		return
 	}
-	ev, err := h.d.Verifier.VerifyWebhook(r, body)
-	if err != nil {
-		h.d.Log.Warn().Str("provider", h.d.Verifier.Name()).Msg("payment webhook signature rejected")
+	var ev stripeEvent
+	if err := json.Unmarshal(body, &ev); err != nil || ev.ID == "" || ev.Type == "" {
 		writeErr(w, http.StatusBadRequest, "bad_request", "")
 		return
 	}
-	out, err := h.d.Store.ApplyPayment(r.Context(), store.PaymentEvent{Provider: h.d.Verifier.Name(), EventID: ev.ID,
-		CheckoutID: ev.CheckoutID, Kind: ev.Kind}, h.d.Now().UTC())
+	intentID := ev.Data.Object.PaymentIntent
+	if intentID == "" {
+		intentID = ev.Data.Object.ID
+	}
+	if strings.HasPrefix(ev.Type, "charge.dispute.") {
+		h.d.Log.Error().Str("severity", "CRITICAL").Str("event", ev.Type).Str("event_id", ev.ID).
+			Str("intent_id", intentID).Msg("payment dispute: handle it in the provider dashboard")
+	}
+	h.apply(w, r, ProviderStripe, ev.ID, intentID, stripeKind(ev.Type))
+}
+
+// paypalEvent is the slice of the PayPal webhook envelope we need (csi-rel).
+type paypalEvent struct {
+	ID        string `json:"id"`
+	EventType string `json:"event_type"`
+	Resource  struct {
+		ID                string `json:"id"`
+		SupplementaryData struct {
+			RelatedIDs struct {
+				OrderID string `json:"order_id"`
+			} `json:"related_ids"`
+		} `json:"supplementary_data"`
+	} `json:"resource"`
+}
+
+func paypalKind(t string) string {
+	switch t {
+	case "PAYMENT.CAPTURE.COMPLETED":
+		return store.PayEventPaid
+	case "PAYMENT.CAPTURE.REFUNDED", "PAYMENT.CAPTURE.REVERSED":
+		return store.PayEventRefund
+	}
+	return store.PayEventIgnore
+}
+
+func (h *Handler) paypalWebhook(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil || h.d.PayPalVerifier == nil ||
+		h.d.PayPalVerifier.Verify(r.Context(), PayPalHeadersFrom(r.Header.Get), string(body)) != nil {
+		h.d.Log.Warn().Str("provider", ProviderPayPal).Msg("webhook signature rejected")
+		writeErr(w, http.StatusBadRequest, "bad_request", "")
+		return
+	}
+	var ev paypalEvent
+	if err := json.Unmarshal(body, &ev); err != nil || ev.ID == "" || ev.EventType == "" {
+		writeErr(w, http.StatusBadRequest, "bad_request", "")
+		return
+	}
+	// capture events carry the ORDER id (our provider_ref) as related_ids;
+	// CHECKOUT.ORDER.* events carry it as resource.id.
+	ref := ev.Resource.SupplementaryData.RelatedIDs.OrderID
+	if ref == "" {
+		ref = ev.Resource.ID
+	}
+	if ev.EventType == "CUSTOMER.DISPUTE.CREATED" {
+		h.d.Log.Error().Str("severity", "CRITICAL").Str("event_id", ev.ID).Msg("payment dispute: handle it in the provider dashboard")
+	}
+	h.apply(w, r, ProviderPayPal, ev.ID, ref, paypalKind(ev.EventType))
+}
+
+// apply resolves the checkout by the provider's id and applies the verified
+// event: dedup + transition in ONE store transaction.
+func (h *Handler) apply(w http.ResponseWriter, r *http.Request, provider, eventID, ref, kind string) {
+	ctx := r.Context()
+	checkoutID := ""
+	if c, err := h.d.Store.CheckoutByProviderRef(ctx, provider, ref); err == nil {
+		checkoutID = c.ID
+	} else if !errors.Is(err, store.ErrNotFound) {
+		h.d.Log.Error().Err(err).Str("provider", provider).Msg("payment webhook: checkout lookup")
+		writeErr(w, http.StatusInternalServerError, "internal", "")
+		return
+	}
+	out, err := h.d.Store.ApplyPayment(ctx, store.PaymentEvent{Provider: provider, EventID: eventID,
+		CheckoutID: checkoutID, Kind: kind}, h.d.Now().UTC())
 	if err != nil {
-		// Nothing committed (dedup + apply are one transaction): the
-		// provider's retry will be applied, not swallowed.
-		h.d.Log.Error().Err(err).Str("checkout_id", ev.CheckoutID).Msg("payment webhook: apply failed")
+		// Nothing committed: the provider's retry will be applied, not swallowed.
+		h.d.Log.Error().Err(err).Str("checkout_id", checkoutID).Msg("payment webhook: apply failed")
 		writeErr(w, http.StatusInternalServerError, "internal", "")
 		return
 	}
 	if out == store.PayOutcomeConflict {
-		h.d.Log.Error().Str("severity", "CRITICAL").Str("checkout_id", ev.CheckoutID).Str("event_id", ev.ID).
+		h.d.Log.Error().Str("severity", "CRITICAL").Str("checkout_id", checkoutID).Str("event_id", eventID).
 			Msg("paid for a slug another root key already owns: refund by hand")
 	}
 	if out == store.PayOutcomeDuplicate {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 		return
 	}
-	h.d.Log.Info().Str("checkout_id", ev.CheckoutID).Str("action", out).Msg("payment webhook applied")
+	h.d.Log.Info().Str("provider", provider).Str("checkout_id", checkoutID).Str("action", out).Msg("payment webhook applied")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "action": out})
 }
 

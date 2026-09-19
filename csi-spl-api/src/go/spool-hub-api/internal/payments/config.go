@@ -1,10 +1,10 @@
 // Package payments is the M2 buy-a-tenant surface (specs/006
-// contracts/checkout-v1.md, payment.md): the PaymentProvider seam copied from
-// csi-rel (read-only reference, never imported), cnf-selected rails, the
-// signed payment webhook, lde/dev fake-pay, and the claim-once key handover.
-//
-// Rails are named by PROTOCOL, never by vendor (no-baked-host.tst.sh): which
-// company sits behind a rail is cnf's business.
+// contracts/checkout-v1.md, payment.md): csi-rel's payment code copied with
+// names adapted (owner direction 2026-09-19: Stripe exactly as csi-rel, plus
+// csi-rel's PayPal off by default), the signed webhooks, lde/dev fake-pay,
+// and the claim-once key handover. csi-rel is read-only reference; this
+// module never imports it. This package is the ONLY Go allowed to name a
+// payment vendor (no-baked-host.tst.sh).
 package payments
 
 import (
@@ -17,22 +17,35 @@ import (
 	"github.com/caarlos0/env/v10"
 )
 
-// SPOOL_HUB_PAYMENT_PROVIDER values.
+// SPOOL_HUB_PAYMENT_PROVIDER values: the primary (card) rail.
 const (
-	ProviderNone       = ""
-	ProviderFake       = "fake"
-	ProviderHostedHMAC = "hosted-hmac"
+	ProviderNone   = ""
+	ProviderFake   = "fake"
+	ProviderStripe = "stripe"
+	// ProviderPayPal is the optional wallet rail (SPOOL_HUB_ENABLE_PAYPAL);
+	// also payment_checkouts.provider / webhook_events_seen.provider.
+	ProviderPayPal = "paypal"
 )
 
-// Rails as the WUI sees them (GET /api/v1/checkout/plan).
+// Rails as the WUI sees them (GET /api/v1/checkout/plan, checkout-v1 §1.1).
 const (
-	RailNone   = "none"
-	RailFake   = "fake"
-	RailHosted = "hosted"
+	RailNone = "none"
+	RailFake = "fake"
+	RailCard = "card"
 )
+
+// Checkout methods (POST /api/v1/checkout "method").
+const (
+	MethodCard   = "card"
+	MethodPayPal = "paypal"
+)
+
+// GuardReasonMisconfigured is the 503 detail while a deployed card rail's
+// keys are unusable (csi-rel F-17 payment_provider_misconfigured).
+const GuardReasonMisconfigured = "payment_provider_misconfigured"
 
 // Config is the payment slice of the hub env. Every name is published in
-// cnf hub.env; SecretKey is a Secret Manager slot, never logged.
+// cnf hub.env; *_SECRET* values are Secret Manager slots, never logged.
 type Config struct {
 	Provider      string        `env:"SPOOL_HUB_PAYMENT_PROVIDER"`
 	EnableFakePay bool          `env:"SPOOL_HUB_ENABLE_FAKE_PAY" envDefault:"false"`
@@ -41,12 +54,21 @@ type Config struct {
 	Currency      string        `env:"SPOOL_HUB_PAYMENT_CURRENCY" envDefault:"eur"`
 	PublicScheme  string        `env:"SPOOL_HUB_PAYMENT_PUBLIC_SCHEME" envDefault:"https"`
 	Hold          time.Duration `env:"SPOOL_HUB_PAYMENT_HOLD" envDefault:"1h"`
-	APIBase       string        `env:"SPOOL_HUB_PAYMENT_API_BASE"`
-	MerchantID    string        `env:"SPOOL_HUB_PAYMENT_MERCHANT_ID"`
-	SecretKey     string        `env:"SPOOL_HUB_PAYMENT_SECRET_KEY"`
-	SuccessURL    string        `env:"SPOOL_HUB_PAYMENT_SUCCESS_URL"`
-	CancelURL     string        `env:"SPOOL_HUB_PAYMENT_CANCEL_URL"`
-	CallbackURL   string        `env:"SPOOL_HUB_PAYMENT_CALLBACK_URL"`
+
+	// Stripe (csi-rel STRIPE_*). SecretKey + WebhookSecret are secrets.
+	StripeSecretKey      string `env:"SPOOL_HUB_STRIPE_SECRET_KEY"`
+	StripeWebhookSecret  string `env:"SPOOL_HUB_STRIPE_WEBHOOK_SECRET"`
+	StripePublishableKey string `env:"SPOOL_HUB_STRIPE_PUBLISHABLE_KEY"`
+	StripeAPIBase        string `env:"SPOOL_HUB_STRIPE_API_BASE"`
+	StripeAPIVersion     string `env:"SPOOL_HUB_STRIPE_API_VERSION"`
+
+	// PayPal (csi-rel PAYPAL_* + ENABLE_PAYPAL). ClientSecret is a secret.
+	EnablePayPal       bool   `env:"SPOOL_HUB_ENABLE_PAYPAL" envDefault:"false"`
+	PayPalClientID     string `env:"SPOOL_HUB_PAYPAL_CLIENT_ID"`
+	PayPalClientSecret string `env:"SPOOL_HUB_PAYPAL_CLIENT_SECRET"`
+	PayPalMode         string `env:"SPOOL_HUB_PAYPAL_MODE" envDefault:"sandbox"`
+	PayPalAPIBase      string `env:"SPOOL_HUB_PAYPAL_API_BASE"`
+	PayPalWebhookID    string `env:"SPOOL_HUB_PAYPAL_WEBHOOK_ID"`
 
 	// Env is SPOOL_HUB_ENV (lde | dev | prd), set by Load.
 	Env string `env:"-"`
@@ -77,46 +99,48 @@ func load(hubEnv string, o env.Options) (*Config, error) {
 // fakeEnv: the only envs where money may be faked (csi-rel 077: never prd).
 func fakeEnv(e string) bool { return e == "lde" || e == "dev" }
 
-// validate is the fail-closed boot guard (T018): the hub refuses to start on
-// an unknown rail, a named rail it cannot run, or fake-pay outside lde/dev.
-// No rail ("") is valid: the hub serves boxes and checkout answers 503.
+// validate is the boot guard (T018): the hub refuses to start on an unknown
+// rail, fake-pay outside lde/dev, or PayPal where csi-rel forbids it (prd or
+// live mode) or without its credentials. A card rail with unusable keys does
+// NOT stop the hub (it also carries every box): Guard() fail-closes checkout
+// with 503, as csi-rel's F-17 guard does.
 func (c *Config) validate() error {
 	if c.EnableFakePay && !fakeEnv(c.Env) {
 		return fmt.Errorf("SPOOL_HUB_ENABLE_FAKE_PAY=true is allowed only with SPOOL_HUB_ENV=lde or dev (got %q)", c.Env)
 	}
 	switch c.Provider {
-	case ProviderNone:
+	case ProviderNone, ProviderStripe:
 	case ProviderFake:
 		if !c.EnableFakePay {
 			return fmt.Errorf("SPOOL_HUB_PAYMENT_PROVIDER=fake needs SPOOL_HUB_ENABLE_FAKE_PAY=true (lde/dev only)")
 		}
-	case ProviderHostedHMAC:
+	default:
+		return fmt.Errorf("SPOOL_HUB_PAYMENT_PROVIDER %q is not a known rail (\"\", %s, %s)", c.Provider, ProviderFake, ProviderStripe)
+	}
+	for name, v := range map[string]string{"SPOOL_HUB_STRIPE_API_BASE": c.StripeAPIBase, "SPOOL_HUB_PAYPAL_API_BASE": c.PayPalAPIBase} {
+		if err := c.checkBase(name, v); err != nil {
+			return err
+		}
+	}
+	if c.EnablePayPal {
+		// csi-rel PayPalFirstPartyForbidden: never prd, never live mode.
+		if c.Env == "prd" || strings.EqualFold(strings.TrimSpace(c.PayPalMode), ModeLive) {
+			return fmt.Errorf("SPOOL_HUB_ENABLE_PAYPAL=true is refused in prd and with SPOOL_HUB_PAYPAL_MODE=live (not live-tested)")
+		}
 		for name, v := range map[string]string{
-			"SPOOL_HUB_PAYMENT_MERCHANT_ID": c.MerchantID,
-			"SPOOL_HUB_PAYMENT_SECRET_KEY":  c.SecretKey,
+			"SPOOL_HUB_PAYPAL_CLIENT_ID": c.PayPalClientID, "SPOOL_HUB_PAYPAL_CLIENT_SECRET": c.PayPalClientSecret,
+			"SPOOL_HUB_PAYPAL_WEBHOOK_ID": c.PayPalWebhookID,
 		} {
 			if strings.TrimSpace(v) == "" || LooksLikePlaceholderSecret(v) {
-				return fmt.Errorf("%s must be set (not a placeholder) while SPOOL_HUB_PAYMENT_PROVIDER=%s", name, c.Provider)
+				return fmt.Errorf("%s must be set (not a placeholder) while SPOOL_HUB_ENABLE_PAYPAL=true", name)
 			}
 		}
-		for name, v := range map[string]string{
-			"SPOOL_HUB_PAYMENT_API_BASE":     c.APIBase,
-			"SPOOL_HUB_PAYMENT_SUCCESS_URL":  c.SuccessURL,
-			"SPOOL_HUB_PAYMENT_CANCEL_URL":   c.CancelURL,
-			"SPOOL_HUB_PAYMENT_CALLBACK_URL": c.CallbackURL,
-		} {
-			if err := c.checkURL(name, v); err != nil {
-				return err
-			}
-		}
-		if c.PlanCents <= 0 {
-			return fmt.Errorf("SPOOL_HUB_PAYMENT_PLAN_CENTS must be > 0 while SPOOL_HUB_PAYMENT_PROVIDER=%s", c.Provider)
-		}
-	default:
-		return fmt.Errorf("SPOOL_HUB_PAYMENT_PROVIDER %q is not a known rail (\"\", %s, %s)", c.Provider, ProviderFake, ProviderHostedHMAC)
 	}
 	if c.PlanCents < 0 {
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_PLAN_CENTS must not be negative")
+	}
+	if c.PlanCents == 0 && (c.Provider == ProviderStripe || c.EnablePayPal) {
+		return fmt.Errorf("SPOOL_HUB_PAYMENT_PLAN_CENTS must be > 0 for a real payment rail")
 	}
 	if len(c.Currency) != 3 {
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_CURRENCY %q must be a 3-letter code", c.Currency)
@@ -133,26 +157,61 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// checkURL: an absolute URL with no placeholder; https outside lde.
-func (c *Config) checkURL(name, v string) error {
+// checkBase: empty (the driver's own host) or an absolute URL; http only in
+// lde (a local stripe-mock).
+func (c *Config) checkBase(name, v string) error {
+	if strings.TrimSpace(v) == "" {
+		return nil
+	}
 	u, err := url.Parse(strings.TrimSpace(v))
-	if v == "" || err != nil || u.Host == "" || LooksLikePlaceholderSecret(v) ||
-		(u.Scheme != "https" && !(u.Scheme == "http" && c.Env == "lde")) {
-		return fmt.Errorf("%s must be an absolute https URL while SPOOL_HUB_PAYMENT_PROVIDER=%s (no default host)", name, c.Provider)
+	if err != nil || u.Host == "" || (u.Scheme != "https" && !(u.Scheme == "http" && c.Env == "lde")) {
+		return fmt.Errorf("%s %q must be an absolute https URL (http only in lde)", name, v)
 	}
 	return nil
 }
 
-// Rail is what checkout runs: the named provider, or fake when only the
-// fake-pay flag is set.
+// Guard reports why checkout on the card rail must 503 (csi-rel F-17):
+// a secret key that is unset or not Stripe-shaped, or a missing webhook
+// secret / publishable key. "" = usable. Shape only; never logs a value.
+func (c *Config) Guard() string {
+	if c.Provider != ProviderStripe {
+		return ""
+	}
+	if p := StripeKeyProblem(c.StripeSecretKey); p != "" {
+		return "secret key " + p
+	}
+	if w := strings.TrimSpace(c.StripeWebhookSecret); w == "" || LooksLikePlaceholderSecret(w) {
+		return "webhook secret unset"
+	}
+	if pk := strings.TrimSpace(c.StripePublishableKey); !strings.HasPrefix(pk, "pk_test_") && !strings.HasPrefix(pk, "pk_live_") {
+		return "publishable key unset or malformed"
+	}
+	return ""
+}
+
+// Rail is the primary rail checkout runs: stripe (card), or fake when the
+// fake provider or only the fake-pay flag is set.
 func (c *Config) Rail() string {
 	switch {
-	case c.Provider == ProviderHostedHMAC:
-		return RailHosted
+	case c.Provider == ProviderStripe:
+		return RailCard
 	case c.Provider == ProviderFake, c.Provider == ProviderNone && c.EnableFakePay:
 		return RailFake
 	}
 	return RailNone
+}
+
+// Methods lists what POST /api/v1/checkout accepts.
+func (c *Config) Methods() []string {
+	var m []string
+	switch c.Rail() {
+	case RailCard, RailFake:
+		m = append(m, MethodCard)
+	}
+	if c.EnablePayPal {
+		m = append(m, MethodPayPal)
+	}
+	return m
 }
 
 // FakePayMounted reports whether POST /api/v1/checkout/fake-pay exists.

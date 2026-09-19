@@ -144,3 +144,18 @@ func (s *Memory) ClaimCheckout(_ context.Context, id string, claimHash []byte, n
 	out.ClaimedAt = now
 	return out, nil
 }
+
+func (s *Memory) CheckoutByProviderRef(_ context.Context, provider, ref string) (Checkout, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pay.init()
+	if ref == "" {
+		return Checkout{}, ErrNotFound
+	}
+	for _, c := range s.pay.checkouts {
+		if c.Provider == provider && c.ProviderRef == ref {
+			return cloneCheckout(c), nil
+		}
+	}
+	return Checkout{}, ErrNotFound
+}

@@ -70,11 +70,15 @@ const HUB_SOURCES = hubCspSources(apiBase).join(" ")
 //
 // lde additions over CSP_PROD, and ONLY these: Vite evaluates modules at
 // runtime ('unsafe-eval') and runs its HMR client from a blob: Worker; ws:/wss:
-// is the HMR socket; localhost/127.0.0.1 are the lde hub and auth-demo.
+// is the HMR socket; localhost/127.0.0.1 are the lde hub and auth-demo;
+// frame-src data: is the `nuxt dev` error overlay, which renders the dev
+// error/404 page inside a data: URL iframe (without it every lde 404 logs a
+// CSP violation instead of showing the error).
 const CSP_DEV = [
   "default-src 'self' blob:",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
   "worker-src 'self' blob:",
+  "frame-src 'self' data:",
   "img-src 'self' data: blob:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",

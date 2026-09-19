@@ -261,3 +261,41 @@ func TestLoadHubEdgeDefaults(t *testing.T) {
 		t.Fatal("SPOOL_HUB_WS_PING_TIMEOUT=0 accepted")
 	}
 }
+
+// specs/020 FR-002: the writer version knobs default to 1 and fail fast.
+func TestMsgVersionKnob(t *testing.T) {
+	t.Setenv("SPOOL_ROOT", t.TempDir())
+	t.Setenv("SPOOL_KEYS_DIR", t.TempDir())
+	t.Setenv("SPOOL_HUB_URL", "")
+	c, err := Load()
+	if err != nil || c.MsgVersion != 1 || c.WriteVersion() != 1 {
+		t.Fatalf("box default: %v %+v", err, c)
+	}
+	t.Setenv("SPOOL_MSG_VERSION", "2")
+	if c, err := Load(); err != nil || c.WriteVersion() != 2 {
+		t.Fatalf("box v2: %v", err)
+	}
+	for _, bad := range []string{"0", "3", "x"} {
+		t.Setenv("SPOOL_MSG_VERSION", bad)
+		if _, err := Load(); err == nil {
+			t.Fatalf("SPOOL_MSG_VERSION=%s accepted", bad)
+		}
+	}
+	if (&Config{}).WriteVersion() != 1 {
+		t.Fatal("zero Config does not write v:1")
+	}
+
+	setHubBase(t)
+	h, err := LoadHub()
+	if err != nil || h.MsgVersion != 1 {
+		t.Fatalf("hub default: %v", err)
+	}
+	t.Setenv("SPOOL_HUB_MSG_VERSION", "2")
+	if h, err := LoadHub(); err != nil || h.MsgVersion != 2 {
+		t.Fatalf("hub v2: %v", err)
+	}
+	t.Setenv("SPOOL_HUB_MSG_VERSION", "3")
+	if _, err := LoadHub(); err == nil || !strings.Contains(err.Error(), "SPOOL_HUB_MSG_VERSION") {
+		t.Fatalf("SPOOL_HUB_MSG_VERSION=3: %v", err)
+	}
+}

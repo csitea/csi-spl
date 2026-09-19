@@ -193,7 +193,8 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 	}
 	ts := c.now().UTC().Format(time.RFC3339)
 	payload, _ := wire.HelloPayload(box, ch.Nonce, ts)
-	hello := wire.Frame{Type: wire.THello, BoxID: box, TS: ts, Nonce: ch.Nonce, Role: role, Sig: sign.Sign(priv, payload)}
+	hello := wire.Frame{Type: wire.THello, BoxID: box, TS: ts, Nonce: ch.Nonce, Role: role, Sig: sign.Sign(priv, payload),
+		MsgVersions: msg.Supported}
 	if role == wire.RoleBox {
 		agents, err := c.scanAgents()
 		if err != nil {

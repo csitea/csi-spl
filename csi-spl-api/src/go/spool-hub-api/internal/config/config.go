@@ -49,6 +49,18 @@ type Config struct {
 	// Channels is the box's channel subscriptions (comma list of slugs) sent in
 	// hub hello/announce (specs/003 channels-v1 §3). Unset = #lobby only.
 	Channels string `env:"SPOOL_CHANNELS"`
+	// MsgVersion is the schema version this box WRITES (specs/020
+	// contracts/migration.md §5): 1 until every reader is deployed. Readers
+	// accept 1 and 2 whatever this says. 0 (a Config built in code) = msg.Version.
+	MsgVersion int `env:"SPOOL_MSG_VERSION" envDefault:"1"`
+}
+
+// WriteVersion is the v a message composed on this box carries.
+func (c *Config) WriteVersion() int {
+	if c.MsgVersion == 0 {
+		return msg.Version
+	}
+	return c.MsgVersion
 }
 
 // Load parses the environment and resolves defaults that depend on $HOME or
@@ -60,6 +72,9 @@ func Load() (*Config, error) {
 	}
 	if c.SpoolRoot == "" {
 		return nil, fmt.Errorf("SPOOL_ROOT resolved empty")
+	}
+	if !msg.IsSupported(c.MsgVersion) {
+		return nil, fmt.Errorf("SPOOL_MSG_VERSION %d must be 1 or 2", c.MsgVersion)
 	}
 	if c.KeysDir == "" {
 		home, err := os.UserHomeDir()
@@ -190,6 +205,10 @@ type Hub struct {
 	HelloTimeout          time.Duration `env:"SPOOL_HUB_HELLO_TIMEOUT" envDefault:"10s"`
 	WSPingInterval        time.Duration `env:"SPOOL_HUB_WS_PING_INTERVAL" envDefault:"30s"`
 	WSPingTimeout         time.Duration `env:"SPOOL_HUB_WS_PING_TIMEOUT" envDefault:"15s"`
+	// MsgVersion is the schema version the hub WRITES for the messages it
+	// composes itself (WUI posts, dispatch, CI-logs notes), specs/020
+	// contracts/migration.md §5: 1 until every reader is deployed.
+	MsgVersion int `env:"SPOOL_HUB_MSG_VERSION" envDefault:"1"`
 }
 
 // WUIPrivateKey returns the box-wui signing key: decoded from SPOOL_HUB_WUI_KEY,
@@ -238,6 +257,9 @@ func LoadHub() (*Hub, error) {
 	}
 	if h.EdgeWindow <= 0 || h.HelloTimeout <= 0 || h.WSPingTimeout <= 0 {
 		return nil, fmt.Errorf("SPOOL_HUB_EDGE_WINDOW, SPOOL_HUB_HELLO_TIMEOUT and SPOOL_HUB_WS_PING_TIMEOUT must be positive")
+	}
+	if !msg.IsSupported(h.MsgVersion) {
+		return nil, fmt.Errorf("SPOOL_HUB_MSG_VERSION %d must be 1 or 2", h.MsgVersion)
 	}
 	if h.QuotaMessagesPerMonth < 0 || h.QuotaPins < 0 || h.QuotaFileBytes < 0 {
 		return nil, fmt.Errorf("hub quotas must be zero (unlimited) or positive")

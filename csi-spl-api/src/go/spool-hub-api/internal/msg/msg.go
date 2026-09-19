@@ -1,5 +1,6 @@
-// Package msg defines the canonical v:1 spool message object and its
-// serialisation, signing payload, validation, and on-disk filename rules.
+// Package msg defines the canonical spool message object (v:1, and v:2 =
+// v:1 as shipped, specs/020) and its serialisation, signing payload,
+// validation, and on-disk filename rules.
 //
 // The on-disk JSON here is byte-for-byte the object that 003 (the cloud hub)
 // will put on the wire, so nothing needs migrating when a hub is added.
@@ -14,8 +15,24 @@ import (
 	"time"
 )
 
-// Version is the only supported schema version.
-const Version = 1
+// Schema versions. v:2 is v:1 as shipped (files[] mode/kind/path written
+// down, specs/020 contracts/message-schema-v2.md): same keys, same rules.
+const (
+	V1 = 1
+	V2 = 2
+)
+
+// Version is the default version a writer emits until the 020 migration
+// flips it (contracts/migration.md P3). Writers read SPOOL_MSG_VERSION /
+// SPOOL_HUB_MSG_VERSION; readers accept every Supported version.
+const Version = V1
+
+// Supported lists the versions a reader accepts; boxes advertise it in hello
+// (msg_versions) so the hub never pushes them a version they would refuse.
+var Supported = []int{V1, V2}
+
+// IsSupported reports whether v is a version this reader accepts.
+func IsSupported(v int) bool { return v == V1 || v == V2 }
 
 // Schema limits (message-schema.md → 003 limits.md). Kept as named constants so
 // they track the contract in one place.
@@ -58,7 +75,7 @@ type Attachment struct {
 	SHA256 string `json:"sha256,omitempty"` // blob: == file_id; path-file: content hash at send
 }
 
-// Message is the canonical v:1 object.
+// Message is the canonical v:1 / v:2 object (one shape, specs/020).
 type Message struct {
 	V      int          `json:"v"`
 	MsgID  string       `json:"msg_id"`
@@ -136,8 +153,8 @@ func Parse(raw []byte) (*Message, error) {
 
 // Validate enforces the schema rules (independent of signature).
 func (m *Message) Validate() error {
-	if m.V != Version {
-		return fmt.Errorf("unsupported version %d (want %d)", m.V, Version)
+	if !IsSupported(m.V) {
+		return fmt.Errorf("unsupported version %d (want %d or %d)", m.V, V1, V2)
 	}
 	if m.MsgID == "" || m.TaskID == "" || m.TS == "" {
 		return fmt.Errorf("msg_id, task_id and ts are required")

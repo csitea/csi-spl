@@ -85,6 +85,9 @@ type Options struct {
 	// peer that misses a pong for PingTimeout is closed. 0 interval = no pings.
 	PingInterval time.Duration
 	PingTimeout  time.Duration
+	// MsgVersion is the v of the messages the hub composes itself (WUI posts,
+	// dispatch), cnf SPOOL_HUB_MSG_VERSION (specs/020); 0 = msg.Version.
+	MsgVersion int
 	// SessionID returns the member-session human id of a browser request; nil
 	// = Auth.SessionForTenant. Set by code only (a test seam), never by env.
 	SessionID func(r *http.Request, tenant string) (string, error)
@@ -424,4 +427,12 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		}()
 		next.ServeHTTP(sw, r)
 	})
+}
+
+// writeVersion is the v the hub stamps on a message it composes (specs/020).
+func (s *Server) writeVersion() int {
+	if s.o.MsgVersion == 0 {
+		return msg.Version
+	}
+	return s.o.MsgVersion
 }

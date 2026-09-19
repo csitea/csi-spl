@@ -1,6 +1,6 @@
 # Feature Specification: Spool Message Schema `v:2`
 
-**Feature ID**: `020-spool-message-v2` · **Milestone**: M3 consolidation · **Status**: Partial
+**Feature ID**: `020-spool-message-v2` · **Milestone**: M3 consolidation · **Status**: Partial (readers on trunk; deploy + writer switch open)
 **Created**: 2026-09-19 · **Lane**: MESSAGE-V2
 **Builds on**: `002-box-agent-messaging` (frozen `v:1`), `003-spool-message-bus` (hub envelope, WS frames), `014-spool-wui-dispatch`, `008-spool-cicd-logs`.
 **Authority**: `./contracts/message-schema-v2.md`, `./contracts/canonical-json-v2.md`, `./contracts/migration.md`
@@ -52,17 +52,17 @@ through one hub.
 ## Functional requirements
 
 - **FR-001** Readers accept `v ∈ {1,2}` and apply one rule set to both
-  (`message-schema-v2.md` §3). **Planned** (T005): `internal/msg/msg.go` `Validate`, `Supported`.
+  (`message-schema-v2.md` §3). **Implemented**: `internal/msg/msg.go` `Validate`, `IsSupported`, `Supported`; `TestValidateAcceptsV1AndV2`.
 - **FR-002** Writer version is a knob, default `1`: box `SPOOL_MSG_VERSION`,
   hub `SPOOL_HUB_MSG_VERSION`; any value other than `1` or `2` fails fast.
-  **Planned** (T006, T007): `internal/config/config.go`, `spool.Compose`, `hub/wui.go`, `cicdlogs`.
+  **Implemented**: `internal/config/config.go` (`WriteVersion`), `spool.Compose`, `hub/wui.go` + `server.go` `writeVersion`, `cicdlogs.Service.MsgVersion`, wired in `cmd/spool/hub.go`; `TestMsgVersionKnob`. CLI (n=1 each): default send → `v:1`, `SPOOL_MSG_VERSION=2` → `v:2`, `=3` → `spool: SPOOL_MSG_VERSION 3 must be 1 or 2`.
 - **FR-003** Canonical bytes and signatures cover both versions with the
   unchanged `jq -cS` rules; golden vectors for both versions are locked in
-  tests. **Partial**: vectors in `contracts/canonical-json-v2.md` §2; missing the test lock `TestGoldenV1V2Envelopes` (T009).
+  tests. **Implemented**: `internal/wire/v2_test.go` `TestGoldenV1V2Envelopes` (+ `internal/msg/v2_test.go` `TestV2RoundTrip`).
 - **FR-004** Boxes advertise `msg_versions` in `hello`. The hub never pushes a
   `recv` frame whose inner `v` the session did not advertise; the row stays
-  `queued` (`migration.md` §3). **Planned** (T008): `internal/hub/ws.go` `push`, `internal/hubclient/hubclient.go` hello.
-- **FR-005** The legacy `.md` bridge keeps synthesising `v:1`. **Planned** (T007): made explicit as `msg.V1`; asserted by `TestLegacyMDBridge`.
+  `queued` (`migration.md` §3). **Implemented** in code (`internal/hub/ws.go` `session.accepts` + `push`; `internal/hubclient/hubclient.go` hello; `wire.Frame.MsgVersions`, `wire.InnerVersion`); `TestV2HeldForV1OnlySession` with CONTROL; mutation (guard off) → `delivery "sent", want queued`. Live only after the hub roll (T011).
+- **FR-005** The legacy `.md` bridge keeps synthesising `v:1`. **Implemented**: `internal/spool/spool.go` legacy bridge `V: msg.V1`; `TestLegacyMDBridge` green.
 - **FR-006** The WUI type admits `v: 1 | 2`. The WUI gates on no `v`
   (`grep -rn "\.v ==\|\.v !=" csi-spl-wui/src` → 0). **Planned**: CLE-55 (UI lane).
 - **FR-007** Writers switch to `v:2` only after the gates in `migration.md` §2
@@ -79,4 +79,4 @@ through one hub.
   `recv` frame; after reconnecting with `[1,2]` it is delivered.
 - **SC-005** After P2, 0 rows stuck `queued` by the guard for 24 h on dev.
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T15:10:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T15:40:00Z -->

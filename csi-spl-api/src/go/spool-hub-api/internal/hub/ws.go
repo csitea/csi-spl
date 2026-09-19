@@ -36,6 +36,9 @@ type session struct {
 	tenant string
 	box    string
 	role   string
+	// msgVersions: the inner versions this box's reader accepts (hello
+	// msg_versions, specs/020); a pre-020 box sends none and gets v:1 only.
+	msgVersions []int
 
 	wmu     sync.Mutex
 	follows map[string]bool // task ids tailed with follow=true; guarded by srv.mu
@@ -47,6 +50,23 @@ type session struct {
 	// the welcome waits here, so the box always reads welcome first.
 	welcomed    chan struct{}
 	welcomeOnce sync.Once
+}
+
+// accepts reports whether this box's reader takes inner version v. No
+// msg_versions in hello = a pre-020 box = v:1 only.
+func (x *session) accepts(v int) bool {
+	if v == 0 { // unreadable v: not this guard's call, push as before
+		return true
+	}
+	if len(x.msgVersions) == 0 {
+		return v == msg.V1
+	}
+	for _, a := range x.msgVersions {
+		if a == v {
+			return true
+		}
+	}
+	return false
 }
 
 func (x *session) markWelcomed() { x.welcomeOnce.Do(func() { close(x.welcomed) }) }
@@ -190,7 +210,7 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 		return nil, false
 	}
 	x := &session{srv: s, conn: conn, tenant: t.ID, box: f.BoxID, role: f.Role, follows: map[string]bool{},
-		welcomed: make(chan struct{})}
+		msgVersions: f.MsgVersions, welcomed: make(chan struct{})}
 	if f.Role == wire.RoleBox {
 		agents, err := s.seatRoster(ctx, t.ID, f.BoxID, f.Agents, now)
 		if err != nil {
@@ -289,6 +309,12 @@ func (s *Server) drain(ctx context.Context, x *session) {
 // returns the row to queued. Claim-before-push makes a concurrent drain and a
 // live send unable to deliver the same row twice.
 func (s *Server) push(ctx context.Context, x *session, msgID string, env []byte) bool {
+	if !x.accepts(wire.InnerVersion(env)) {
+		// A reader that would refuse this v drops it with a log line only,
+		// after the row is already sent: silent loss. Keep it queued; the box's
+		// next hello from an upgraded binary drains it (specs/020 migration.md §3).
+		return false
+	}
 	agents, ok := s.recvAgents(ctx, x, env)
 	if !ok {
 		return false

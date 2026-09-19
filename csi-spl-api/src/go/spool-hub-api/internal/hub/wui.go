@@ -366,7 +366,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		fail("internal", http.StatusInternalServerError, "message lookup failed")
 		return
 	}
-	m := &msg.Message{V: msg.Version, MsgID: id, TaskID: task, TS: ts.UTC().Format(time.RFC3339),
+	m := &msg.Message{V: s.writeVersion(), MsgID: id, TaskID: task, TS: ts.UTC().Format(time.RFC3339),
 		From: c.from, To: to, Kind: kind, Body: f.Body, Files: []msg.Attachment{}}
 	for _, a := range f.Files {
 		mode, k := a.Mode, a.Kind

@@ -73,6 +73,11 @@ type Frame struct {
 	// (channels-v1 §3). Absent = lobby only.
 	Channels []string `json:"channels,omitempty"`
 
+	// hello (specs/020 migration.md §3): the inner msg versions this box's
+	// reader accepts. Not signed (HelloPayload is unchanged); absent = [1],
+	// i.e. every pre-020 box, and the hub then never pushes it a v:2.
+	MsgVersions []int `json:"msg_versions,omitempty"`
+
 	// welcome / roster / token
 	Roster               map[string][]string `json:"roster,omitempty"`
 	UploadToken          string              `json:"upload_token,omitempty"`
@@ -201,7 +206,22 @@ func ParseEnvelope(raw []byte) (*Envelope, error) {
 	return &e, nil
 }
 
-// Inner parses and validates the inner v:1 object.
+// InnerVersion is the inner msg's v without validating the rest; 0 when the
+// envelope or its msg does not parse. The hub's push guard reads it
+// (specs/020 migration.md §3).
+func InnerVersion(raw []byte) int {
+	var e struct {
+		Msg struct {
+			V int `json:"v"`
+		} `json:"msg"`
+	}
+	if json.Unmarshal(raw, &e) != nil {
+		return 0
+	}
+	return e.Msg.V
+}
+
+// Inner parses and validates the inner v:1 / v:2 object.
 func (e *Envelope) Inner() (*msg.Message, error) {
 	m, err := msg.Parse(e.Msg)
 	if err != nil {

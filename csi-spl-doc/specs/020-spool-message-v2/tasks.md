@@ -19,12 +19,12 @@ there; the owner is named.
 
 ## Phase 2 — Readers (API, P1)
 
-- [ ] T005 `msg`: `V1`/`V2`/`Supported`; `Validate` accepts both. FR-001.
-- [ ] T006 `config`: `SPOOL_MSG_VERSION`, `SPOOL_HUB_MSG_VERSION`, fail fast. FR-002.
-- [ ] T007 Writers read the knob: `spool.Compose`, `hub/wui.go`, `cicdlogs`; the legacy bridge stays `msg.V1`. FR-002, FR-005.
-- [ ] T008 `wire.Frame.MsgVersions`; hubclient hello sends `[1,2]`; hub `push` guard. FR-004.
-- [ ] T009 Tests (plan §2), including the guard CONTROL.
-- [ ] T010 `run-all-tests.sh` green; CI `10` + `20` green.
+- [x] T005 `msg`: `V1`/`V2`/`Supported`/`IsSupported`; `Validate` accepts both. FR-001. Check: `go test ./internal/msg` ok.
+- [x] T006 `config`: `SPOOL_MSG_VERSION`, `SPOOL_HUB_MSG_VERSION`, fail fast. FR-002. Check: `TestMsgVersionKnob`.
+- [x] T007 Writers read the knob: `spool.Compose`, `hub/wui.go`, `cicdlogs`; the legacy bridge stays `msg.V1`. FR-002, FR-005. Check: `grep -rn 'msg.Version,' --include=*.go csi-spl-api \| grep -v _test` → 0.
+- [x] T008 `wire.Frame.MsgVersions`; hubclient hello sends `[1,2]`; hub `push` guard. FR-004. Check: `TestV2HeldForV1OnlySession`, `TestHelloMsgVersionsOptional`.
+- [x] T009 Tests (plan §2), including the guard CONTROL and a mutation run (guard off → the test fails `delivery "sent", want queued`).
+- [~] T010 `run-all-tests.sh` → `ALL csi-spl-api TESTS PASSED` (local, before push). Missing: CI `10` + `20` on the pushed sha.
 
 ## Phase 3 — Deploy readers (P1-deploy)
 
@@ -38,4 +38,4 @@ there; the owner is named.
 - [ ] T015 After 24 h clean on dev: prd hub + all boxes. SC-005.
 - [ ] T016 P3: code defaults to `2` after 7 days (the queue TTL).
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T15:10:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T15:40:00Z -->

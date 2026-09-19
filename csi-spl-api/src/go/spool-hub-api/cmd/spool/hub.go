@@ -73,7 +73,7 @@ func cmdServe() int {
 		QuotaMessagesPerMonth: hc.QuotaMessagesPerMonth, QuotaPins: hc.QuotaPins, QuotaFileBytes: hc.QuotaFileBytes,
 		ViewDoor: hc.ViewDoor, ViewCORSOrigins: hc.ViewCORSOrigins, Env: hc.Env, LobbyTaskID: hc.LobbyTaskID,
 		HelloTimeout: hc.HelloTimeout, PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout,
-		ClientIPProbe: hc.ClientIPProbe,
+		ClientIPProbe: hc.ClientIPProbe, MsgVersion: hc.MsgVersion,
 		Edge: edge.Limits{TrustedProxyHops: hc.TrustedProxyHops, Window: hc.EdgeWindow,
 			WSConnsPerIP: hc.EdgeWSConnsPerIP, WSConnsTotal: hc.EdgeWSConnsTotal,
 			WSHandshakesPerIP: hc.EdgeWSHandshakesPerIP, AuthPerIP: hc.EdgeAuthPerIP},
@@ -92,7 +92,7 @@ func cmdServe() int {
 		if err != nil {
 			return fail(err)
 		}
-		svc := &cicdlogs.Service{Settings: stt, Fetch: cicdlogs.HTTPFetcher{}, Now: time.Now}
+		svc := &cicdlogs.Service{Settings: stt, Fetch: cicdlogs.HTTPFetcher{}, Now: time.Now, MsgVersion: hc.MsgVersion}
 		if k := strings.TrimSpace(hc.CICDHubBoxKey); k != "" {
 			raw, err := base64.StdEncoding.DecodeString(k)
 			if err != nil || len(raw) != ed25519.PrivateKeySize {

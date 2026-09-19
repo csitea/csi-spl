@@ -40,7 +40,7 @@ func (s *Store) ensureAgent(id string) error {
 
 func (s *Store) dir(id, box string) string { return filepath.Join(s.cfg.SpoolRoot, id, box) }
 
-// Send builds an unsigned v:1 message and writes it to the recipient's inbox
+// Send builds an unsigned message (v = cfg.WriteVersion(), specs/020) and writes it to the recipient's inbox
 // and the sender's outbox. Local mode trusts POSIX permissions on SpoolRoot: no
 // key, no pin, no sig (contracts/trust-modes.md section 2).
 func (s *Store) Send(from, to, taskID, kind, body string, atts []msg.Attachment) (*msg.Message, error) {
@@ -57,7 +57,7 @@ func (s *Store) Send(from, to, taskID, kind, body string, atts []msg.Attachment)
 	return m, nil
 }
 
-// Compose builds and validates an unsigned v:1 message without writing it.
+// Compose builds and validates an unsigned message without writing it.
 // Hub mode (003) composes first, then decides where the message goes.
 func (s *Store) Compose(from, to, taskID, kind, body string, atts []msg.Attachment) (*msg.Message, error) {
 	if !msg.ValidID(from) || !msg.ValidID(to) {
@@ -67,7 +67,7 @@ func (s *Store) Compose(from, to, taskID, kind, body string, atts []msg.Attachme
 		taskID = newUUID()
 	}
 	m := &msg.Message{
-		V: msg.Version, MsgID: newUUID(), TaskID: taskID,
+		V: s.cfg.WriteVersion(), MsgID: newUUID(), TaskID: taskID,
 		TS: msg.Now(time.Now()), From: from, To: to, Kind: kind, Body: body,
 		Files: atts,
 	}
@@ -437,7 +437,7 @@ func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 	}
 
 	m := &msg.Message{
-		V:      msg.Version,
+		V:      msg.V1, // the .md bridge contract is v:1 and never leaves the box (020 FR-005)
 		MsgID:  msgID,
 		TaskID: taskID,
 		TS:     ts,

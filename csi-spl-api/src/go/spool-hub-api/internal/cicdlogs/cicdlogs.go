@@ -104,6 +104,7 @@ type Service struct {
 	Signer       ed25519.PrivateKey
 	Now          func() time.Time
 	MaxFileBytes int64 // 0 = msg.MaxFileBytes (production)
+	MsgVersion   int   // v of the notes it composes, cnf SPOOL_HUB_MSG_VERSION (specs/020); 0 = msg.Version
 }
 
 func (s *Service) cap() int64 {
@@ -111,6 +112,13 @@ func (s *Service) cap() int64 {
 		return s.MaxFileBytes
 	}
 	return msg.MaxFileBytes
+}
+
+func (s *Service) writeVersion() int {
+	if s != nil && s.MsgVersion != 0 {
+		return s.MsgVersion
+	}
+	return msg.Version
 }
 
 func (s *Service) now() time.Time {
@@ -415,7 +423,7 @@ func (s *Service) deliverNote(ctx context.Context, tenant string, req Request, b
 		atts = []msg.Attachment{}
 	}
 	m := &msg.Message{
-		V: msg.Version, MsgID: newUUID(), TaskID: req.TaskID,
+		V: s.writeVersion(), MsgID: newUUID(), TaskID: req.TaskID,
 		TS: msg.Now(s.now()), From: s.Settings.FromID, To: req.To, Kind: "note",
 		Body: body, Files: atts,
 	}

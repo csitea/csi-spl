@@ -119,6 +119,17 @@ func cmdServe() int {
 	if hc.ViewDoor == hub.ViewDoorSession && len(ac.Enabled()) == 0 && !nc.Enabled {
 		return fail(fmt.Errorf("SPOOL_HUB_VIEW_DOOR=session needs SPOOL_HUB_AUTH_PROVIDERS or SPOOL_HUB_AUTH_NATIVE_ENABLED (nobody could sign in)"))
 	}
+	// 017 FR-SEC-013: rdb 0014 row level security binds only a role that is
+	// neither superuser nor BYPASSRLS; say which one this hub got.
+	if pg, ok := st.(*store.Postgres); ok {
+		if by, err := pg.RLSBypassed(ctx); err != nil {
+			log.Warn().Err(err).Msg("db.rls_role_unknown")
+		} else if by {
+			log.Warn().Str("severity", "WARNING").Msg("db.rls_bypassed: the hub role is superuser or BYPASSRLS, tenant RLS policies do not apply")
+		} else {
+			log.Info().Msg("db.rls_role_bound: the hub role is subject to row level security")
+		}
+	}
 	// Registration + membership are store-backed (010 T012/T013, rdb 0006).
 	// The IdP picture lands in the same tenant blob store (010 T044).
 	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner},

@@ -25,7 +25,7 @@ func (s *Postgres) CreateChannel(ctx context.Context, c Channel) error {
 	if !c.CreatedAt.IsZero() {
 		created = &c.CreatedAt
 	}
-	tag, err := s.pool.Exec(ctx, `INSERT INTO channels (tenant_id, channel_id, name, created_by, created_at)
+	tag, err := s.execTenant(ctx, c.TenantID, `INSERT INTO channels (tenant_id, channel_id, name, created_by, created_at)
 		VALUES ($1, $2, $3, $4, COALESCE($5::timestamptz, now())) ON CONFLICT (tenant_id, channel_id) DO NOTHING`,
 		c.TenantID, c.ChannelID, c.Name, c.CreatedBy, created)
 	if err != nil {
@@ -42,8 +42,8 @@ func (s *Postgres) ChannelKnown(ctx context.Context, tenant, id string) (bool, e
 		return true, nil
 	}
 	var ok bool
-	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM channels WHERE tenant_id = $1 AND channel_id = $2)`,
-		tenant, id).Scan(&ok)
+	err := s.queryRowTenant(ctx, tenant, `SELECT EXISTS (SELECT 1 FROM channels WHERE tenant_id = $1 AND channel_id = $2)`,
+		[]any{tenant, id}, &ok)
 	return ok, err
 }
 
@@ -54,7 +54,7 @@ func (s *Postgres) SetSubscriptions(ctx context.Context, tenant, box string, age
 			chs = append(chs, c)
 		}
 	}
-	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM channel_subscriptions WHERE tenant_id = $1 AND box_id = $2`, tenant, box); err != nil {
 			return err
 		}
@@ -77,21 +77,21 @@ func (s *Postgres) ChannelMembers(ctx context.Context, tenant, channel string) (
 	if channel == ChannelLobby {
 		return s.Roster(ctx, tenant)
 	}
-	rows, err := s.pool.Query(ctx, `SELECT box_id, agent_id FROM channel_subscriptions
-		WHERE tenant_id = $1 AND channel_id = $2 ORDER BY box_id, agent_id`, tenant, channel)
+	out := map[string][]string{}
+	err := s.queryTenant(ctx, tenant, `SELECT box_id, agent_id FROM channel_subscriptions
+		WHERE tenant_id = $1 AND channel_id = $2 ORDER BY box_id, agent_id`, []any{tenant, channel},
+		func(rows pgx.Rows) error {
+			var box, agent string
+			if err := rows.Scan(&box, &agent); err != nil {
+				return err
+			}
+			out[box] = append(out[box], agent)
+			return nil
+		})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := map[string][]string{}
-	for rows.Next() {
-		var box, agent string
-		if err := rows.Scan(&box, &agent); err != nil {
-			return nil, err
-		}
-		out[box] = append(out[box], agent)
-	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time.Time, reads map[string]ReadMark) ([]ChannelStat, error) {
@@ -110,76 +110,72 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 	for _, d := range DefaultChannels {
 		get(d)
 	}
-	scan := func(q string, args []any, fn func(pgx.Rows) error) error {
-		rows, err := s.pool.Query(ctx, q, args...)
-		if err != nil {
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		scan := func(q string, args []any, fn func(pgx.Rows) error) error {
+			return eachRow(ctx, tx, q, args, fn)
+		}
+		if err := scan(`SELECT channel_id, name, created_by, created_at FROM channels WHERE tenant_id = $1`,
+			[]any{tenant}, func(r pgx.Rows) error {
+				var c Channel
+				if err := r.Scan(&c.ChannelID, &c.Name, &c.CreatedBy, &c.CreatedAt); err != nil {
+					return err
+				}
+				st := get(c.ChannelID)
+				st.Name, st.CreatedBy, st.CreatedAt = c.Name, c.CreatedBy, c.CreatedAt
+				return nil
+			}); err != nil {
 			return err
 		}
-		defer rows.Close()
-		for rows.Next() {
-			if err := fn(rows); err != nil {
+		if err := scan(`SELECT channel, count(*)::int, max(received_at),
+				(array_agg(msg_id::text ORDER BY received_at DESC, msg_id::text DESC))[1], count(DISTINCT from_id)::int
+			FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2 GROUP BY channel`,
+			[]any{tenant, now}, func(r pgx.Rows) error {
+				var id string
+				var n, posters int
+				var last time.Time
+				var lastID string
+				if err := r.Scan(&id, &n, &last, &lastID, &posters); err != nil {
+					return err
+				}
+				st := get(id)
+				st.Count, st.LastAt, st.LastMsgID, st.Posters, st.Unread = n, last, lastID, posters, n
+				return nil
+			}); err != nil {
+			return err
+		}
+		for id, mark := range reads {
+			st, ok := by[id]
+			if !ok || st.Count == 0 {
+				continue
+			}
+			if err := tx.QueryRow(ctx, `SELECT count(*)::int FROM messages
+				WHERE tenant_id = $1 AND channel = $2 AND expires_at > $3 AND (received_at, msg_id::text) > ($4::timestamptz, $5::text)`,
+				tenant, id, now, mark.At, mark.MsgID).Scan(&st.Unread); err != nil {
 				return err
 			}
 		}
-		return rows.Err()
-	}
-	if err := scan(`SELECT channel_id, name, created_by, created_at FROM channels WHERE tenant_id = $1`,
-		[]any{tenant}, func(r pgx.Rows) error {
-			var c Channel
-			if err := r.Scan(&c.ChannelID, &c.Name, &c.CreatedBy, &c.CreatedAt); err != nil {
-				return err
-			}
-			st := get(c.ChannelID)
-			st.Name, st.CreatedBy, st.CreatedAt = c.Name, c.CreatedBy, c.CreatedAt
-			return nil
-		}); err != nil {
-		return nil, err
-	}
-	if err := scan(`SELECT channel, count(*)::int, max(received_at),
-			(array_agg(msg_id::text ORDER BY received_at DESC, msg_id::text DESC))[1], count(DISTINCT from_id)::int
-		FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2 GROUP BY channel`,
-		[]any{tenant, now}, func(r pgx.Rows) error {
+		if err := scan(`SELECT channel_id, count(*)::int, count(DISTINCT box_id)::int FROM channel_subscriptions
+			WHERE tenant_id = $1 GROUP BY channel_id`, []any{tenant}, func(r pgx.Rows) error {
 			var id string
-			var n, posters int
-			var last time.Time
-			var lastID string
-			if err := r.Scan(&id, &n, &last, &lastID, &posters); err != nil {
+			var agents, boxes int
+			if err := r.Scan(&id, &agents, &boxes); err != nil {
 				return err
 			}
-			st := get(id)
-			st.Count, st.LastAt, st.LastMsgID, st.Posters, st.Unread = n, last, lastID, posters, n
+			if st, ok := by[id]; ok && id != ChannelLobby {
+				st.Agents, st.Boxes = agents, boxes
+			}
 			return nil
 		}); err != nil {
-		return nil, err
-	}
-	for id, mark := range reads {
-		st, ok := by[id]
-		if !ok || st.Count == 0 {
-			continue
-		}
-		if err := s.pool.QueryRow(ctx, `SELECT count(*)::int FROM messages
-			WHERE tenant_id = $1 AND channel = $2 AND expires_at > $3 AND (received_at, msg_id::text) > ($4::timestamptz, $5::text)`,
-			tenant, id, now, mark.At, mark.MsgID).Scan(&st.Unread); err != nil {
-			return nil, err
-		}
-	}
-	if err := scan(`SELECT channel_id, count(*)::int, count(DISTINCT box_id)::int FROM channel_subscriptions
-		WHERE tenant_id = $1 GROUP BY channel_id`, []any{tenant}, func(r pgx.Rows) error {
-		var id string
-		var agents, boxes int
-		if err := r.Scan(&id, &agents, &boxes); err != nil {
 			return err
 		}
-		if st, ok := by[id]; ok && id != ChannelLobby {
-			st.Agents, st.Boxes = agents, boxes
+		lobby := by[ChannelLobby]
+		if err := tx.QueryRow(ctx, `SELECT count(*)::int, count(DISTINCT box_id)::int FROM roster WHERE tenant_id = $1`,
+			tenant).Scan(&lobby.Agents, &lobby.Boxes); err != nil {
+			return err
 		}
 		return nil
-	}); err != nil {
-		return nil, err
-	}
-	lobby := by[ChannelLobby]
-	if err := s.pool.QueryRow(ctx, `SELECT count(*)::int, count(DISTINCT box_id)::int FROM roster WHERE tenant_id = $1`,
-		tenant).Scan(&lobby.Agents, &lobby.Boxes); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 	out := make([]ChannelStat, 0, len(by))

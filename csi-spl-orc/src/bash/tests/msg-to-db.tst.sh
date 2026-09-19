@@ -75,6 +75,7 @@ grep -q '^argv: .*s3cr' "$T/psql.log" && fail "password in psql argv" || pass "n
 grep -qx 'PGPASSWORD=s3cr@t' "$T/psql.log" && pass "password (url-decoded) via PGPASSWORD" || fail "PGPASSWORD: $(grep PGPASS "$T/psql.log")"
 grep -qx 'PGOPTIONS=-c default_transaction_read_only=on' "$T/psql.log" && pass "default_transaction_read_only=on" || fail "PGOPTIONS missing"
 grep -qx 'BEGIN READ ONLY;' "$T/psql.log" && grep -qx 'ROLLBACK;' "$T/psql.log" && pass "BEGIN READ ONLY ... ROLLBACK" || fail "not a read-only txn"
+grep -qx "SET LOCAL app.rls_scope = 'operator';" "$T/psql.log" && pass "operator RLS scope, transaction-local (rdb 0014)" || fail "no operator RLS scope: every tenant table reads empty under 0014"
 
 # --- 4. no key: stops before gcloud --------------------------------------------------
 : >"$T/calls.log"

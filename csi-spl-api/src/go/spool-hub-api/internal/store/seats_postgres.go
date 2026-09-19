@@ -53,14 +53,15 @@ func (s *Postgres) botSeatGate(ctx context.Context, tx pgx.Tx, tenant, box strin
 
 func (s *Postgres) CountMembers(ctx context.Context, tenant string) (int, error) {
 	var n int
-	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM tenant_memberships WHERE tenant_id = $1`, tenant).Scan(&n)
+	err := s.queryRowTenant(ctx, tenant, `SELECT count(*) FROM tenant_memberships WHERE tenant_id = $1`,
+		[]any{tenant}, &n)
 	return n, err
 }
 
 func (s *Postgres) CountBots(ctx context.Context, tenant string) (int, error) {
 	var n int
-	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM roster WHERE tenant_id = $1 AND agent_id NOT LIKE 'HUM-%'`,
-		tenant).Scan(&n)
+	err := s.queryRowTenant(ctx, tenant, `SELECT count(*) FROM roster WHERE tenant_id = $1 AND agent_id NOT LIKE 'HUM-%'`,
+		[]any{tenant}, &n)
 	return n, err
 }
 
@@ -68,7 +69,7 @@ func (s *Postgres) SetSeatCaps(ctx context.Context, tenant string, users, bots i
 	if err := checkSeatCaps(users, bots); err != nil {
 		return err
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE tenants SET seats_users = $2, seats_bots = $3 WHERE tenant_id = $1`,
+	tag, err := s.execTenant(ctx, tenant, `UPDATE tenants SET seats_users = $2, seats_bots = $3 WHERE tenant_id = $1`,
 		tenant, users, bots)
 	if err != nil {
 		return err
@@ -83,7 +84,7 @@ func (s *Postgres) SetBuyStamp(ctx context.Context, tenant, org, app, projectID 
 	if err := checkBuyStamp(org, app, projectID); err != nil {
 		return err
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE tenants SET org = NULLIF($2, ''), app = NULLIF($3, ''),
+	tag, err := s.execTenant(ctx, tenant, `UPDATE tenants SET org = NULLIF($2, ''), app = NULLIF($3, ''),
 		project_id = NULLIF($4, ''), bought_at = $5 WHERE tenant_id = $1`,
 		tenant, org, app, projectID, nullTime(boughtAt))
 	if isUniqueViolation(err) {

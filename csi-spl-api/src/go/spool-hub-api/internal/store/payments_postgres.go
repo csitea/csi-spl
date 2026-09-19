@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 )
@@ -24,7 +25,9 @@ func (s *Postgres) HoldCheckout(ctx context.Context, c Checkout, now time.Time, 
 	if err := normalizeCheckout(&c); err != nil {
 		return err
 	}
-	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+	// asOperator: the slug hold checks tenants and cancels stale holds for a
+	// tenant that does not exist yet.
+	return s.asOperator(ctx, func(tx pgx.Tx) error {
 		var one int
 		err := tx.QueryRow(ctx, `SELECT 1 FROM tenants WHERE tenant_id = $1`, c.TenantID).Scan(&one)
 		if err == nil {
@@ -79,20 +82,31 @@ func scanCheckout(row pgx.Row) (Checkout, error) {
 }
 
 func (s *Postgres) GetCheckout(ctx context.Context, id string) (Checkout, error) {
-	return scanCheckout(s.pool.QueryRow(ctx, `SELECT `+pgCheckoutCols+` FROM payment_checkouts WHERE intent_id = $1`, id))
+	return s.checkoutAsOperator(ctx, `SELECT `+pgCheckoutCols+` FROM payment_checkouts WHERE intent_id = $1`, id)
+}
+
+// checkoutAsOperator reads one checkout by a key that is not the tenant (the
+// intent id or the provider ref): the tenant is what the row tells us.
+func (s *Postgres) checkoutAsOperator(ctx context.Context, sql string, args ...any) (Checkout, error) {
+	var c Checkout
+	err := s.asOperator(ctx, func(tx pgx.Tx) (err error) {
+		c, err = scanCheckout(tx.QueryRow(ctx, sql, args...))
+		return err
+	})
+	return c, err
 }
 
 func (s *Postgres) CheckoutByProviderRef(ctx context.Context, provider, ref string) (Checkout, error) {
 	if ref == "" {
 		return Checkout{}, ErrNotFound
 	}
-	return scanCheckout(s.pool.QueryRow(ctx, `SELECT `+pgCheckoutCols+` FROM payment_checkouts
-		WHERE provider = $1 AND provider_ref = $2 ORDER BY created_at DESC LIMIT 1`, provider, ref))
+	return s.checkoutAsOperator(ctx, `SELECT `+pgCheckoutCols+` FROM payment_checkouts
+		WHERE provider = $1 AND provider_ref = $2 ORDER BY created_at DESC LIMIT 1`, provider, ref)
 }
 
 func (s *Postgres) ApplyPayment(ctx context.Context, ev PaymentEvent, now time.Time) (string, error) {
 	var outcome string
-	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+	err := s.asOperator(ctx, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, `INSERT INTO webhook_events_seen (provider, event_id, received_at)
 			VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, ev.Provider, ev.EventID, now)
 		if err != nil {
@@ -175,8 +189,12 @@ func (s *Postgres) ApplyPayment(ctx context.Context, ev PaymentEvent, now time.T
 }
 
 func (s *Postgres) SetClaimLink(ctx context.Context, id string, mailClaimHash []byte, expires time.Time) error {
-	tag, err := s.pool.Exec(ctx, `UPDATE payment_checkouts SET mail_claim_hash = $2, claim_expires_at = $3
-		WHERE intent_id = $1`, id, mailClaimHash, expires)
+	var tag pgconn.CommandTag
+	err := s.asOperator(ctx, func(tx pgx.Tx) (err error) { // keyed by intent id, not tenant
+		tag, err = tx.Exec(ctx, `UPDATE payment_checkouts SET mail_claim_hash = $2, claim_expires_at = $3
+			WHERE intent_id = $1`, id, mailClaimHash, expires)
+		return err
+	})
 	if err != nil {
 		return err
 	}
@@ -191,7 +209,7 @@ func (s *Postgres) ClaimCheckout(ctx context.Context, id string, claimHash []byt
 		return Checkout{}, fmt.Errorf("claim: new root pubkey must be %d bytes", ed25519.PublicKeySize)
 	}
 	var out Checkout
-	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+	err := s.asOperator(ctx, func(tx pgx.Tx) error {
 		c, err := scanCheckout(tx.QueryRow(ctx, `SELECT `+pgCheckoutCols+` FROM payment_checkouts
 			WHERE intent_id = $1 FOR UPDATE`, id))
 		if err != nil {

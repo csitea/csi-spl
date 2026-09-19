@@ -97,7 +97,10 @@ EOF_SQL
 }
 
 # spl_psql_ro <proxy dsn> <sql> -> psql in a read-only transaction; the login
-# travels in PG* env vars only, never argv
+# travels in PG* env vars only, never argv. The transaction takes the
+# operator row-level-security scope (rdb 0014, 017 FR-SEC-013): this is a
+# cross-tenant operator read, and without the scope every tenant table shows
+# zero rows to the hub login.
 spl_psql_ro() {
   local parts
   parts="$(python3 -c '
@@ -107,7 +110,7 @@ print("\n".join([u.unquote(p.username or ""), u.unquote(p.password or ""), p.hos
 ' "$1")" || return 1
   local -a f
   mapfile -t f <<<"$parts"
-  printf 'BEGIN READ ONLY;\n%s\nROLLBACK;\n' "$2" |
+  printf 'BEGIN READ ONLY;\nSET LOCAL app.rls_scope = '\''operator'\'';\n%s\nROLLBACK;\n' "$2" |
     PGUSER="${f[0]}" PGPASSWORD="${f[1]}" PGHOST="${f[2]}" PGPORT="${f[3]}" PGDATABASE="${f[4]}" \
     PGSSLMODE=disable PGCONNECT_TIMEOUT=15 PGOPTIONS='-c default_transaction_read_only=on' \
     psql -X -q -At -v ON_ERROR_STOP=1 2>&1

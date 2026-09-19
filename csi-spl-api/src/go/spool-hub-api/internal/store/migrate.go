@@ -80,6 +80,11 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, dir string) ([]Applied, er
 			return out, fmt.Errorf("migration %s is empty", name)
 		}
 		err = pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
+			// A data migration sees every tenant (rdb 0014 RLS); the scope is
+			// transaction-local, like store.asOperator's.
+			if _, err := tx.Exec(ctx, pgScopeOperator); err != nil {
+				return err
+			}
 			if _, err := tx.Exec(ctx, string(raw)); err != nil {
 				return fmt.Errorf("apply %s: %w", name, err)
 			}

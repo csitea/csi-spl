@@ -55,6 +55,28 @@ else
   exit 0
 fi
 
+# 017 FR-SEC-013: everything below runs as APP_ROLE, a plain LOGIN role
+# that OWNS its databases (so it owns the tables `spool migrate` creates),
+# the Cloud SQL hub shape. The bootstrap role above is a superuser, and a
+# superuser skips every row level security policy (rdb 0014).
+APP_ROLE=spool_app
+su_sql() {
+  if [ -n "$PG_CTR" ]; then docker exec -i "$PG_CTR" psql -q -v ON_ERROR_STOP=1 -U spool -d spool_hub -c "$1"
+  else "$PG_BIN/psql" -q -v ON_ERROR_STOP=1 -h "$WORK" -p "$PGPORT" -U spool -d spool_hub -c "$1"; fi
+}
+su_sql "CREATE ROLE $APP_ROLE LOGIN PASSWORD '$APP_ROLE' NOSUPERUSER NOBYPASSRLS" >/dev/null
+app_dsn() { # <db>
+  if [ -n "$PG_CTR" ]; then echo "postgres://$APP_ROLE:$APP_ROLE@127.0.0.1:$PGPORT/$1?sslmode=disable"
+  else echo "postgres://$APP_ROLE@/$1?host=$WORK&port=$PGPORT&sslmode=disable"; fi
+}
+mkdb() { # <db>: owned by APP_ROLE
+  if [ -n "$PG_CTR" ]; then docker exec "$PG_CTR" createdb -U spool -O "$APP_ROLE" "$1"
+  else "$PG_BIN/createdb" -h "$WORK" -p "$PGPORT" -U spool -O "$APP_ROLE" "$1"; fi
+}
+mkdb spool_hub_app
+DSN="$(app_dsn spool_hub_app)"
+echo "ok   - databases owned by non-superuser role $APP_ROLE (RLS binds it)"
+
 BIN="$WORK/spool"
 ( cd "$MOD" && go build -o "$BIN" ./cmd/spool )
 
@@ -73,12 +95,8 @@ echo "ok   - spool migrate applies $(echo "$out1" | grep -c '^applied') file(s);
 pids=()
 for pkg in store hub auth; do
   db="spool_hub_$pkg"
-  if [ -n "$PG_CTR" ]; then
-    docker exec "$PG_CTR" createdb -U spool "$db"
-  else
-    "$PG_BIN/createdb" -h "$WORK" -p "$PGPORT" -U spool "$db"
-  fi
-  pdsn="${DSN/\/spool_hub\?//$db?}"
+  mkdb "$db"
+  pdsn="$(app_dsn "$db")"
   "$BIN" migrate --db "$pdsn" --sql-dir "$SQL_DIR" >/dev/null # auth's suite expects a migrated db
   ( cd "$MOD" && SPOOL_TEST_PG_DSN="$pdsn" SPOOL_TEST_SQL_DIR="$SQL_DIR" \
       CGO_ENABLED=1 go test -race -count=1 "./internal/$pkg/" ) &

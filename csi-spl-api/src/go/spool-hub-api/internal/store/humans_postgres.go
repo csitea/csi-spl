@@ -17,6 +17,13 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 		return "", err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	if tenant != "" {
+		// humans / human_identities are hub-wide (no RLS); the membership
+		// half below is tenant-scoped (rdb 0014).
+		if _, err := tx.Exec(ctx, pgScopeTenant, tenant); err != nil {
+			return "", err
+		}
+	}
 	// Serialise concurrent first callbacks of one identity (one HUM-*, not two).
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1 || '|' || $2, 0))`,
 		id.Provider, id.Subject); err != nil {
@@ -130,9 +137,10 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 
 func (s *Postgres) MemberRole(ctx context.Context, humanID, tenant string) (string, error) {
 	var role string
-	err := s.pool.QueryRow(ctx, `SELECT m.role FROM tenant_memberships m
+	err := s.queryRowTenant(ctx, tenant, `SELECT m.role FROM tenant_memberships m
 		JOIN humans h ON h.human_id = m.human_id
-		WHERE m.tenant_id = $1 AND m.human_id = $2 AND h.disabled_at IS NULL`, tenant, humanID).Scan(&role)
+		WHERE m.tenant_id = $1 AND m.human_id = $2 AND h.disabled_at IS NULL`,
+		[]any{tenant, humanID}, &role)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrNotFound
 	}
@@ -143,7 +151,7 @@ func (s *Postgres) PutInvite(ctx context.Context, in Invite, now time.Time) erro
 	if err := normalizeInvite(&in); err != nil {
 		return err
 	}
-	tag, err := s.pool.Exec(ctx, `INSERT INTO tenant_invites (tenant_id, email, role, invited_by, created_at, expires_at)
+	tag, err := s.execTenant(ctx, in.TenantID, `INSERT INTO tenant_invites (tenant_id, email, role, invited_by, created_at, expires_at)
 		SELECT $1, $2, $3, $4, $5, $6 WHERE EXISTS (SELECT 1 FROM tenants WHERE tenant_id = $1)
 		ON CONFLICT (tenant_id, email) DO UPDATE SET role = EXCLUDED.role, invited_by = EXCLUDED.invited_by,
 			created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at, accepted_at = NULL, accepted_by = NULL`,
@@ -189,21 +197,21 @@ func (s *Postgres) Avatar(ctx context.Context, humanID string) (string, error) {
 }
 
 func (s *Postgres) TenantAvatars(ctx context.Context, tenant string) (map[string]string, error) {
-	rows, err := s.pool.Query(ctx, `SELECT h.human_id, coalesce(h.avatar_file_id, '') FROM tenant_memberships m
-		JOIN humans h ON h.human_id = m.human_id WHERE m.tenant_id = $1 AND h.disabled_at IS NULL`, tenant)
+	out := map[string]string{}
+	err := s.queryTenant(ctx, tenant, `SELECT h.human_id, coalesce(h.avatar_file_id, '') FROM tenant_memberships m
+		JOIN humans h ON h.human_id = m.human_id WHERE m.tenant_id = $1 AND h.disabled_at IS NULL`,
+		[]any{tenant}, func(rows pgx.Rows) error {
+			var id, fid string
+			if err := rows.Scan(&id, &fid); err != nil {
+				return err
+			}
+			out[id] = fid
+			return nil
+		})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := map[string]string{}
-	for rows.Next() {
-		var id, fid string
-		if err := rows.Scan(&id, &fid); err != nil {
-			return nil, err
-		}
-		out[id] = fid
-	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // disableHuman is a test hook (humans.disabled_at); no production caller yet.

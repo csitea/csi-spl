@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // sqlDir is csi-spl-rdb/src/sql/postgres/spool-hub, relative to this file,
@@ -381,21 +383,18 @@ func pinHistoryReasons(t *testing.T, s Store, tenant, box string) []string {
 		}
 		return out
 	case *Postgres:
-		rows, err := x.Pool().Query(context.Background(),
-			`SELECT reason FROM pins_history WHERE tenant_id = $1 AND box_id = $2 ORDER BY at, ctid`, tenant, box)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer rows.Close()
 		var out []string
-		for rows.Next() {
-			var r string
-			if err := rows.Scan(&r); err != nil {
-				t.Fatal(err)
-			}
-			out = append(out, r)
-		}
-		if err := rows.Err(); err != nil {
+		err := x.queryTenant(context.Background(), tenant,
+			`SELECT reason FROM pins_history WHERE tenant_id = $1 AND box_id = $2 ORDER BY at, ctid`,
+			[]any{tenant, box}, func(rows pgx.Rows) error {
+				var r string
+				if err := rows.Scan(&r); err != nil {
+					return err
+				}
+				out = append(out, r)
+				return nil
+			})
+		if err != nil {
 			t.Fatal(err)
 		}
 		return out

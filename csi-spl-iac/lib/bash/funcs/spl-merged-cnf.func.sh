@@ -7,11 +7,13 @@
 # @description image 030 runs, from 028 + hub.image).
 # @description env.dns.api_fqdn is the hub's API host (owner 2026-09-19, no LB):
 # @description api.<BASE_DOMAIN>, or <env_subdomain>.api.<BASE_DOMAIN>; a literal wins.
-# @description env.auth.social.env (spec 010 T022, T051) is derived from both:
-# @description every "{fqdn}" / "{base_domain}" in a value is expanded; APP_URL
-# @description still at its PLACEHOLDER- default becomes https://<fqdn> (the WUI),
-# @description and every <P>_REDIRECT_URI still at PLACEHOLDER- becomes
-# @description https://<api_fqdn>/api/v1/auth/<p>/callback. A literal wins (lde).
+# @description env.auth.social.env (spec 010 T022, T051) is derived too: every
+# @description "{fqdn}" / "{base_domain}" in a value is expanded; APP_URL still at
+# @description its PLACEHOLDER- default becomes https://<fqdn> (the WUI), and every
+# @description <P>_REDIRECT_URI still at PLACEHOLDER- becomes
+# @description <APP_URL>/api/v1/auth/<p>/callback: the WUI host, which the IdP
+# @description clients authorise and Firebase rewrites to the hub (owner
+# @description 2026-09-19: no console change). A literal wins (lde).
 # @param $1 - the cnf dir holding all.env.yaml and <env>.env.yaml
 # @param $2 - env: dev, prd or lde
 # @param $3 - output yaml path
@@ -32,12 +34,13 @@ do_spl_merged_cnf() {
       .hub.image.ref = (.gcp.gcp_region + "-docker.pkg.dev/" + .gcp.gcp_project + "/" +
         .steps."028-gcp-artifact-registry".repository_id + "/" + .hub.image.name + ":" + (.hub.image.tag | tostring)))' |
     yq '(.env | select(.auth.social.env != null)) |= (
-      .dns.fqdn as $f | .dns.api_fqdn as $api | .dns.BASE_DOMAIN as $b |
+      .dns.fqdn as $f | .dns.BASE_DOMAIN as $b |
       with(.auth.social.env[] | select(tag == "!!str") | select(test("\{fqdn\}")); . |= sub("\{fqdn\}"; $f)) |
       with(.auth.social.env[] | select(tag == "!!str") | select(test("\{base_domain\}")); . |= sub("\{base_domain\}"; $b)) |
       with(.auth.social.env.SPOOL_HUB_AUTH_APP_URL | select(test("^PLACEHOLDER-")); . = "https://" + $f) |
+      .auth.social.env.SPOOL_HUB_AUTH_APP_URL as $app |
       with(.auth.social.env[] | select(key | test("^SPOOL_HUB_AUTH_[A-Z]+_REDIRECT_URI$")) | select(test("^PLACEHOLDER-"));
-        . = "https://" + $api + "/api/v1/auth/" + (key | sub("^SPOOL_HUB_AUTH_"; "") | sub("_REDIRECT_URI$"; "") | downcase) + "/callback"))' >"$out" || return 1
+        . = $app + "/api/v1/auth/" + (key | sub("^SPOOL_HUB_AUTH_"; "") | sub("_REDIRECT_URI$"; "") | downcase) + "/callback"))' >"$out" || return 1
   local base
   base=$(yq -r '.env.dns.BASE_DOMAIN // ""' "$out")
   [[ -n "$base" && "$base" != null ]] || { echo "do_spl_merged_cnf: env.dns.BASE_DOMAIN is empty" >&2; return 1; }

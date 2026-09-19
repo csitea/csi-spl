@@ -122,17 +122,22 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   allow-listed origins only, never reflected, never `*`; OQ-A1 (a)). It needs
   auth on (a provider listed) or the hub refuses to boot. `token` (the
   default) also admits a member session, without credentialed CORS.
-- **FR-010** — Superseded 2026-09-19 (owner: no LB; the WUI on Firebase
+- **FR-010** — Amended 2026-09-19 (owner: no LB; the WUI on Firebase
   `https://<fqdn>`, the hub on the Cloud Run API host `api.<BASE_DOMAIN>` /
-  `<env_subdomain>.api.<BASE_DOMAIN>`, T050–T055). The WUI calls
-  `/api/v1/auth/**` CROSS-ORIGIN on the API host with `credentials: 'include'`;
-  the hub answers credentialed CORS for the `SPOOL_HUB_VIEW_CORS_ORIGINS`
-  allow-list on every auth route, with a 204 preflight (GET, POST;
-  Content-Type). The callback host is the API host
-  (`https://<api host>/api/v1/auth/<p>/callback`, one per provider per env);
-  `SPOOL_HUB_AUTH_APP_URL` stays the WUI origin (post-login landing, mail
-  links). Was: same-origin through a Hosting rewrite (T016), which measured
-  404 on the deployed sites (no button rendered, CLE-3385).
+  `<env_subdomain>.api.<BASE_DOMAIN>`; owner: "no console change", the
+  redirect URIs are config as csi-rel; T050–T056). The WUI calls
+  `/api/v1/auth/{providers,session,logout,login,...}` CROSS-ORIGIN on the API
+  host with `credentials: 'include'`; the hub answers credentialed CORS for
+  the `SPOOL_HUB_VIEW_CORS_ORIGINS` allow-list on every auth route, with a 204
+  preflight (GET, POST; Content-Type). The OAuth callback stays on the WUI
+  host (`https://<fqdn>/api/v1/auth/<p>/callback`, what the IdP clients
+  authorise, measured 2026-09-19: the API-host URI gets
+  `redirect_uri_mismatch`), and Firebase Hosting rewrites `/api/v1/auth/**`
+  to the hub's Cloud Run service (csi-rel `firebase.json`), which needs hub
+  ingress `all`. Firebase forwards only the `__session` request cookie, so the
+  OAuth state cookie is `__session` with the session cookie's Domain (T056).
+  `SPOOL_HUB_AUTH_APP_URL` stays the WUI origin.
+
 - **FR-011** — Implemented: no token, secret, code or raw subject is logged;
   `auth.login_ok` / `auth.callback_fail` carry provider, reason and a 12-hex
   digest of the subject.
@@ -206,11 +211,12 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   in on its own host. (b) keep `Domain=<apex>` and move dev to a separate
   registrable domain. **Not changed here:** the prd cookie domain stays as
   cnf has it until the owner answers.
-- **OQ-A2 (owner) — answered 2026-09-19:** a dedicated hub host, the API
-  host (FR-010). dev's API host `dev.api.<BASE_DOMAIN>` sits outside
-  `dev.<BASE_DOMAIN>`, so the dev session cookie takes `Domain=<BASE_DOMAIN>`
-  (its distinct name `spool_session_dev` keeps it from shadowing prd's, and it
-  is now also sent to prd hosts, which cannot verify it: different session key).
+- **OQ-A2 (owner) — answered 2026-09-19:** the callback host stays the WUI
+  origin with the Hosting rewrite (FR-010); auth reads and native forms go to
+  the API host cross-origin. dev's API host `dev.api.<BASE_DOMAIN>` sits
+  outside `dev.<BASE_DOMAIN>`, so the dev session cookie takes
+  `Domain=<BASE_DOMAIN>` (its distinct name `spool_session_dev` keeps it from
+  shadowing prd's; prd hosts cannot verify it: different session key).
 - **OQ-A3 (004) — default implemented (rdb `0006`).** (a) **Recommended,
   implemented:** `HUM-<n>` is an opaque hub-wide sequence (`humans_seq`),
   keyed by `(provider, subject)` in `human_identities`. One human may hold

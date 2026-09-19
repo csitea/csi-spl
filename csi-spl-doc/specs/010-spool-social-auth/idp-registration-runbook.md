@@ -15,9 +15,9 @@ referenced secret with no version).
 
 ### 1.1 Callback (redirect) URIs — register these byte for byte
 
-The WUI calls the hub's API host cross-origin (FR-010 as superseded 2026-09-19, T051), so
-the callback host is the API host: dev `dev.api.<BASE_DOMAIN>`, prd `api.<BASE_DOMAIN>`
-(`env.dns.api_fqdn`). The values live in cnf; print them rather than copy from here:
+The callback host is the WUI host; Firebase Hosting rewrites `/api/v1/auth/**` to the hub
+(FR-010, as csi-rel). The WUI's other auth calls go to the API host (`env.dns.api_fqdn`)
+cross-origin. The values live in cnf; print them rather than copy from here:
 
 ```bash
 yq '.env.auth.social.env | with_entries(select(.key | test("REDIRECT_URI")))' csi-spl-cnf/csi-spl/dev.env.json
@@ -27,7 +27,7 @@ yq '.env.auth.social.env | with_entries(select(.key | test("REDIRECT_URI")))' cs
 yq '.env.auth.social.env | with_entries(select(.key | test("REDIRECT_URI")))' csi-spl-cnf/csi-spl/prd.env.json
 ```
 
-Shape: `https://<api host>/api/v1/auth/<provider>/callback`, with `<provider>` one of
+Shape: `https://<env host>/api/v1/auth/<provider>/callback`, with `<provider>` one of
 `google`, `facebook`, `microsoft`, `linkedin`, `xai`.
 
 ### 1.2 Per provider: scopes, the cnf keys, the secret slot

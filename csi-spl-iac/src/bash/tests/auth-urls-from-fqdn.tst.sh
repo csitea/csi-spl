@@ -4,8 +4,9 @@
 #          DERIVED by do_spl_merged_cnf, never written as literals:
 #          APP_URL = https://<fqdn> (the WUI); env.dns.api_fqdn = api.<base>,
 #          or <env_subdomain>.api.<base>; every <P>_REDIRECT_URI =
-#          https://<api_fqdn>/api/v1/auth/<p>/callback (the hub's API host,
-#          owner no-LB 2026-09-19); COOKIE_DOMAIN "{base_domain}" -> <base>,
+#          <APP_URL>/api/v1/auth/<p>/callback (the WUI host the IdP clients
+#          authorise; owner 2026-09-19: no console change); COOKIE_DOMAIN
+#          "{base_domain}" -> <base>,
 #          which spans the WUI, the API host and every tenant host. A literal
 #          value in <env>.env.yaml wins (lde keeps its localhost URLs).
 #
@@ -48,7 +49,7 @@ check_derived() {
   for p in $PROVIDERS; do
     lp=$(tr '[:upper:]' '[:lower:]' <<<"$p")
     got=$(yq -r ".env.auth.social.env.SPOOL_HUB_AUTH_${p}_REDIRECT_URI" "$m")
-    [[ "$got" == "https://$api/api/v1/auth/$lp/callback" ]] && pass "$label $p redirect URI on the API host" || fail "$label $p redirect URI: $got"
+    [[ "$got" == "https://$fqdn/api/v1/auth/$lp/callback" ]] && pass "$label $p redirect URI on the WUI host" || fail "$label $p redirect URI: $got"
   done
   yq -r '.env.auth.social.env[]' "$m" | grep -qE 'PLACEHOLDER-(wui-origin|[a-z]+-redirect-uri)|\{fqdn\}|\{base_domain\}' \
     && fail "$label a URL placeholder or {fqdn}/{base_domain} token survived the merge" || pass "$label no URL placeholder or token survives"

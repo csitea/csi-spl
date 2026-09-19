@@ -145,7 +145,7 @@ func TestWUITwoSessionsLobbyLive(t *testing.T) {
 	if st, _ := e.st.DeliveryState(ctx, tid, id, hub.WUIBox); st != store.StateSent {
 		t.Fatalf("delivery state %q", st)
 	}
-	if ch, _ := e.st.ViewChannels(ctx, tid, time.Now()); len(ch) != 1 || ch[0].Channel != "general" {
+	if ch, _ := e.st.ViewChannels(ctx, tid, time.Now()); len(ch) != 1 || ch[0].Channel != store.ChannelLobby { // C3: #general is stored as lobby
 		t.Fatalf("channels %+v", ch)
 	}
 	// Idempotent resend: acked, stored once.

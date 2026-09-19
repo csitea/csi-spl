@@ -106,7 +106,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		case wire.TSend:
 			s.onSend(ctx, x, f)
 		case wire.TAnnounce:
-			s.onAnnounce(ctx, x, f.Agents)
+			s.onAnnounce(ctx, x, f.Agents, f.Channels)
 		case wire.TTail:
 			s.onTail(ctx, x, f)
 		case wire.TToken:
@@ -193,6 +193,10 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 			conn.CloseNow() //nolint:errcheck
 			return nil, false
 		}
+		if err := s.o.Store.SetSubscriptions(ctx, t.ID, f.BoxID, f.Agents, f.Channels, now); err != nil {
+			conn.CloseNow() //nolint:errcheck
+			return nil, false
+		}
 	}
 	if !s.register(x) {
 		conn.Close(websocket.StatusGoingAway, "shutdown") //nolint:errcheck
@@ -210,6 +214,7 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 	}
 	if f.Role == wire.RoleBox {
 		s.broadcastRoster(ctx, t.ID, x)
+		s.presence(ctx, t.ID, f.BoxID, f.Agents, "online")
 		s.drain(ctx, x)
 	}
 	return x, true
@@ -240,12 +245,18 @@ func (s *Server) register(x *session) bool {
 func (s *Server) drop(x *session) {
 	s.mu.Lock()
 	k := [2]string{x.tenant, x.box}
-	if s.boxes[k] == x {
+	gone := s.boxes[k] == x // false for a superseded socket: its box stays online
+	if gone {
 		delete(s.boxes, k)
 	}
 	delete(s.sessions, x)
 	s.mu.Unlock()
 	x.close(websocket.StatusNormalClosure, "")
+	if gone && x.role == wire.RoleBox {
+		ctx := context.Background()
+		roster, _ := s.o.Store.Roster(ctx, x.tenant)
+		s.presence(ctx, x.tenant, x.box, roster[x.box], "offline")
+	}
 }
 
 func (s *Server) boxSession(tenant, box string) *session {
@@ -273,18 +284,22 @@ func (s *Server) drain(ctx context.Context, x *session) {
 // returns the row to queued. Claim-before-push makes a concurrent drain and a
 // live send unable to deliver the same row twice.
 func (s *Server) push(ctx context.Context, x *session, msgID string, env []byte) bool {
+	agents, ok := s.recvAgents(ctx, x, env)
+	if !ok {
+		return false
+	}
 	ok, err := s.o.Store.ClaimSent(ctx, x.tenant, msgID, x.box, s.o.Now())
 	if err != nil || !ok {
 		return false
 	}
-	if err := x.write(ctx, wire.Frame{Type: wire.TRecv, Env: env}); err != nil {
+	if err := x.write(ctx, wire.Frame{Type: wire.TRecv, Env: env, Agents: agents}); err != nil {
 		s.o.Store.Unclaim(ctx, x.tenant, msgID, x.box) //nolint:errcheck
 		return false
 	}
 	return true
 }
 
-func (s *Server) onAnnounce(ctx context.Context, x *session, agents []string) {
+func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []string) {
 	if x.role != wire.RoleBox {
 		x.fail(ctx, "", "bad_frame", http.StatusBadRequest, "announce needs role=box")
 		return
@@ -293,11 +308,18 @@ func (s *Server) onAnnounce(ctx context.Context, x *session, agents []string) {
 		x.fail(ctx, "", "roster_duplicate", http.StatusConflict, "invalid or duplicate agent id in roster")
 		return
 	}
+	before, _ := s.o.Store.Roster(ctx, x.tenant)
 	if err := s.o.Store.SetRoster(ctx, x.tenant, x.box, agents, s.o.Now()); err != nil {
 		x.fail(ctx, "", "internal", http.StatusInternalServerError, "roster not stored")
 		return
 	}
+	if err := s.o.Store.SetSubscriptions(ctx, x.tenant, x.box, agents, channels, s.o.Now()); err != nil {
+		x.fail(ctx, "", "internal", http.StatusInternalServerError, "subscriptions not stored")
+		return
+	}
 	s.broadcastRoster(ctx, x.tenant, nil)
+	s.presence(ctx, x.tenant, x.box, diffAgents(agents, before[x.box]), "online")
+	s.presence(ctx, x.tenant, x.box, diffAgents(before[x.box], agents), "offline")
 }
 
 // broadcastRoster pushes the tenant roster to every role=box session except skip.
@@ -413,6 +435,10 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, "bad_json", http.StatusBadRequest, "ts is not RFC3339")
 		return
 	}
+	if tok, status, detail := s.checkTags(ctx, x.tenant, env.Channel, env.ParentTaskID, m.TaskID); tok != "" {
+		x.fail(ctx, id, tok, status, detail)
+		return
+	}
 	delivery, err := s.commit(ctx, x.tenant, env, m)
 	if errors.Is(err, store.ErrConflict) {
 		x.fail(ctx, id, "conflict_msg", http.StatusConflict, "msg_id exists with a different envelope")
@@ -452,10 +478,7 @@ func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelop
 	if err != nil {
 		return c, err
 	}
-	channel := ""
-	if s.o.LobbyTaskID != "" && m.TaskID == s.o.LobbyTaskID {
-		channel = LobbyChannel
-	}
+	channel := s.storedChannel(env, m)
 	filesJSON, _ := json.Marshal(m.Files)
 	if m.Files == nil {
 		filesJSON = []byte(`[]`)
@@ -464,7 +487,7 @@ func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelop
 	row := store.Message{
 		TenantID: tenant, MsgID: m.MsgID, TaskID: m.TaskID, TS: ts,
 		FromBox: env.FromBox, FromID: m.From, ToBox: env.ToBox, ToID: m.To, Kind: m.Kind, Body: m.Body,
-		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel,
+		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel, ParentTaskID: env.ParentTaskID,
 		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)),
 	}
 	inserted, err := s.o.Store.InsertMessage(ctx, row)
@@ -479,6 +502,7 @@ func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelop
 		s.notifyTail(ctx, tenant, m.TaskID, canon)
 		s.fanoutWUI(ctx, tenant, m.TaskID, m.MsgID, now, canon)
 	}
+	s.routeChannel(ctx, tenant, channel, env, m, canon)
 	if env.ToBox == WUIBox {
 		if _, err := s.o.Store.ClaimSent(ctx, tenant, m.MsgID, WUIBox, now); err != nil {
 			return c, err

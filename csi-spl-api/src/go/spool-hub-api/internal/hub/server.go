@@ -88,6 +88,7 @@ type Server struct {
 	tokens   map[string]uploadToken
 	wui      map[*wuiConn]struct{} // browser live sockets (wui.go)
 	humans   humanIDs
+	online   map[[2]string]int // (tenant, HUM-*) → open browser sockets (presence)
 	closing  bool
 	cicd     *cicdlogs.Service
 }
@@ -128,7 +129,7 @@ func New(o Options) (*Server, error) {
 	s := &Server{
 		o: o, suffix: strings.ToLower(strings.TrimPrefix(o.TenantHostPattern, "{tenant}")),
 		boxes: map[[2]string]*session{}, sessions: map[*session]struct{}{},
-		tokens: map[string]uploadToken{}, wui: map[*wuiConn]struct{}{},
+		tokens: map[string]uploadToken{}, wui: map[*wuiConn]struct{}{}, online: map[[2]string]int{},
 	}
 	if o.CICD != nil {
 		o.CICD.Bus = s
@@ -170,6 +171,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/wui/ws", s.handleWUIWS)
 	mux.HandleFunc("GET /v1/wui/pubkey", s.handleWUIPubkey)
 	mux.HandleFunc("DELETE /v1/files/{file_id}", s.handleDeleteFile)
+	mux.HandleFunc("POST /v1/channels", s.handleCreateChannel)
+	mux.HandleFunc("OPTIONS /v1/channels", s.channelsPreflight)
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {
 		s.o.Auth.Register(mux)

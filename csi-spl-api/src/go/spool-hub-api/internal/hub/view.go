@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -40,6 +41,7 @@ func (s *Server) routeView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/channels", s.viewHandler(s.handleViewChannels))
 	mux.HandleFunc("GET /v1/view/threads", s.viewHandler(s.handleViewThreads))
 	mux.HandleFunc("GET /v1/view/threads/{task_id}", s.viewHandler(s.handleViewThread))
+	mux.HandleFunc("GET /v1/view/threads/{task_id}/children", s.viewHandler(s.handleViewChildren))
 	mux.HandleFunc("/v1/view/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			s.preflight(w, r)
@@ -198,20 +200,52 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 	writeJSON(w, http.StatusOK, map[string]any{"boxes": out})
 }
 
+// handleViewChannels is view-v1 §4.2 / channels-v1 §5.2: every default,
+// created and seen channel, with unread against the reader's read= cursors.
 func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t store.Tenant) {
-	rows, err := s.o.Store.ViewChannels(r.Context(), t.ID, s.o.Now())
+	reads := map[string]store.ReadMark{}
+	for _, rd := range r.URL.Query()["read"] {
+		id, cur, ok := strings.Cut(rd, "~")
+		at, msgID, err := decCursor(cur)
+		if !ok || err != nil {
+			writeErr(w, http.StatusBadRequest, "bad_cursor", "read must be <channel>~<cursor from this API>")
+			return
+		}
+		reads[store.NormalizeChannel(id)] = store.ReadMark{At: at, MsgID: msgID}
+	}
+	now := s.o.Now()
+	rows, err := s.o.Store.ViewChannelStats(r.Context(), t.ID, now, reads)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "channels unavailable")
 		return
 	}
+	type members struct {
+		Agents  int `json:"agents"`
+		Boxes   int `json:"boxes"`
+		Posters int `json:"posters"`
+	}
 	type ch struct {
-		Channel string `json:"channel"`
-		Count   int    `json:"count"`
-		LastTS  string `json:"last_ts"`
+		Channel       string  `json:"channel"`
+		Name          string  `json:"name"`
+		Default       bool    `json:"default"`
+		RetentionDays int     `json:"retention_days"`
+		CreatedBy     string  `json:"created_by"`
+		Count         int     `json:"count"`
+		LastTS        *string `json:"last_ts"`
+		LastCursor    *string `json:"last_cursor"`
+		Unread        int     `json:"unread"`
+		Members       members `json:"members"`
 	}
 	out := []ch{}
 	for _, c := range rows {
-		out = append(out, ch{Channel: c.Channel, Count: c.Count, LastTS: rfc(c.LastAt)})
+		v := ch{Channel: c.ChannelID, Name: c.Name, Default: c.Default, CreatedBy: c.CreatedBy,
+			RetentionDays: int(s.retention(c.ChannelID) / (24 * time.Hour)), Count: c.Count, Unread: c.Unread,
+			Members: members{Agents: c.Agents, Boxes: c.Boxes, Posters: c.Posters}}
+		if !c.LastAt.IsZero() {
+			ts, cur := rfc(c.LastAt), encCursor(c.LastAt, c.LastMsgID)
+			v.LastTS, v.LastCursor = &ts, &cur
+		}
+		out = append(out, v)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"channels": out})
 }
@@ -230,8 +264,49 @@ type viewThread struct {
 
 func (s *Server) handleViewThreads(w http.ResponseWriter, r *http.Request, t store.Tenant) {
 	q := r.URL.Query()
-	sq := store.ThreadQuery{Channel: q.Get("channel"), Agent: q.Get("agent"), Limit: viewLimit(r) + 1, Now: s.o.Now()}
-	if c := q.Get("before"); c != "" {
+	sq := store.ThreadQuery{Channel: store.NormalizeChannel(q.Get("channel")), Agent: q.Get("agent"),
+		Roots: true, Limit: viewLimit(r) + 1, Now: s.o.Now()}
+	for name, dst := range map[string]*bool{"roots": &sq.Roots, "dm": &sq.DM} {
+		switch q.Get(name) {
+		case "":
+		case "true":
+			*dst = true
+		case "false":
+			*dst = false
+		default:
+			writeErr(w, http.StatusBadRequest, "bad_json", name+" must be true or false")
+			return
+		}
+	}
+	if p := q.Get("peer"); p != "" { // DMs: an agent id or <id>@<box> (view-v1 §4.3)
+		id, box, _ := strings.Cut(p, "@")
+		if !msg.ValidID(id) || (box != "" && !msg.ValidBoxID(box)) {
+			writeErr(w, http.StatusBadRequest, "bad_json", "peer must be <agent-id> or <agent-id>@<box-id>")
+			return
+		}
+		sq.Agent, sq.AgentBox = id, box
+	}
+	if sq.DM { // private delivery: a signed-in reader sees only DMs it is party to
+		if id, err := s.sessionFor(r, t.ID); err == nil && id != "" {
+			sq.Viewer = id
+		}
+	}
+	s.listThreads(w, r, t, sq)
+}
+
+// GET /v1/view/threads/{task_id}/children (view-v1 §4.5).
+func (s *Server) handleViewChildren(w http.ResponseWriter, r *http.Request, t store.Tenant) {
+	task := r.PathValue("task_id")
+	if !uuidRe.MatchString(task) {
+		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
+		return
+	}
+	s.listThreads(w, r, t, store.ThreadQuery{Parent: task, Limit: viewLimit(r) + 1, Now: s.o.Now()})
+}
+
+// listThreads pages one thread-list query (§4.3 shape) with the before= cursor.
+func (s *Server) listThreads(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.ThreadQuery) {
+	if c := r.URL.Query().Get("before"); c != "" {
 		at, id, err := decCursor(c)
 		if err != nil {
 			writeErr(w, http.StatusBadRequest, "bad_cursor", "before is not a cursor from this API")
@@ -264,6 +339,10 @@ func threadView(row store.ThreadRow) viewThread {
 		c := row.Channel
 		v.Channel = &c
 	}
+	if row.Parent != "" { // the hub-envelope field (channels-v1 §2), never v:1
+		p := row.Parent
+		v.ParentTaskID = &p
+	}
 	for _, k := range row.Kinds {
 		v.Kinds[k]++
 	}
@@ -276,14 +355,9 @@ func threadView(row store.ThreadRow) viewThread {
 	}
 	sort.Strings(v.Participants)
 	var first struct {
-		Body         string `json:"body"`
-		ParentTaskID string `json:"parent_task_id"`
+		Body string `json:"body"`
 	}
 	if json.Unmarshal(row.FirstMsg, &first) == nil {
-		if first.ParentTaskID != "" {
-			p := first.ParentTaskID
-			v.ParentTaskID = &p
-		}
 		v.Subject = subject(first.Body)
 	}
 	return v

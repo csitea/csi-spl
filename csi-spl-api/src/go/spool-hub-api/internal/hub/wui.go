@@ -38,8 +38,9 @@ const (
 	WUIBox = "box-wui"
 	// BroadcastID is the v:1 `to` of a lobby post with no single recipient.
 	BroadcastID = "ALL-0"
-	// LobbyChannel is the channel lobby messages are stored under (#general).
-	LobbyChannel = "general"
+	// LobbyChannel is the channel lobby messages are stored under (#lobby;
+	// "general" is the pre-M3 name, an accepted input alias, channels-v1 §1).
+	LobbyChannel = store.ChannelLobby
 )
 
 // toBoxKnown: a pinned box of the tenant, or the virtual browser box.
@@ -93,6 +94,9 @@ type wuiIn struct {
 	Body   string    `json:"body,omitempty"`
 	To     string    `json:"to,omitempty"`
 	Files  []wuiFile `json:"files,omitempty"`
+	// Hub-envelope tags (wui-live-ws.md §4, channels-v1 §2).
+	Channel      string `json:"channel,omitempty"`
+	ParentTaskID string `json:"parent_task_id,omitempty"`
 }
 
 type wuiErr struct {
@@ -223,6 +227,16 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 	if err := c.write(ctx, welcome); err != nil {
 		return
 	}
+	for _, p := range s.onlinePeers(ctx, t.ID) { // presence snapshot (wui-live-ws.md §3.2)
+		c.write(ctx, presenceFrame(p, "online")) //nolint:errcheck
+	}
+	s.humanOnline(ctx, t.ID, c.from, 1)
+	defer func() { // unregister first so the offline frame is not written to this closing socket
+		s.mu.Lock()
+		delete(s.wui, c)
+		s.mu.Unlock()
+		s.humanOnline(ctx, t.ID, c.from, -1)
+	}()
 	for {
 		var f wuiIn
 		if err := wsjson.Read(ctx, conn, &f); err != nil {
@@ -318,6 +332,12 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		fail("bad_json", http.StatusBadRequest, err.Error())
 		return
 	}
+	f.ParentTaskID = strings.ToLower(f.ParentTaskID)
+	if tok, status, detail := s.checkTags(ctx, c.tenant, f.Channel, f.ParentTaskID, task); tok != "" {
+		fail(tok, status, detail)
+		return
+	}
+	channel := store.NormalizeChannel(f.Channel)
 	var box string
 	var pin ed25519.PublicKey
 	if agent != "" {
@@ -336,7 +356,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	var env *wire.Envelope
 	if agent != "" {
 		var err error
-		if env, err = s.dispatchEnvelope(box, "", "", pin, m); err != nil {
+		if env, err = s.dispatchEnvelope(box, channel, f.ParentTaskID, pin, m); err != nil {
 			s.o.Log.Error().Err(err).Str("msg_id", id).Msg("wui dispatch sign")
 			fail("wui_unpinned", http.StatusConflict, "the box-wui signature does not verify against this tenant's pin")
 			return
@@ -347,7 +367,8 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 			fail("bad_json", http.StatusBadRequest, "message does not encode")
 			return
 		}
-		env = &wire.Envelope{FromBox: WUIBox, ToBox: WUIBox, Msg: inner, Sig: ""}
+		env = &wire.Envelope{FromBox: WUIBox, ToBox: WUIBox, Channel: channel,
+			ParentTaskID: f.ParentTaskID, Msg: inner, Sig: ""}
 	}
 	r, err := s.commitRow(ctx, c.tenant, env, m)
 	if errors.Is(err, store.ErrConflict) {

@@ -1,51 +1,51 @@
 {
   "common": {
-    "loading": "Loading…",
-    "close": "Close",
-    "error_ref": "Error reference",
-    "copy_ref": "Copy error reference",
-    "copied": "Copied",
-    "copy_failed": "Copy failed"
+    "loading": "Загрузка…",
+    "close": "Закрыть",
+    "error_ref": "Код ошибки",
+    "copy_ref": "Копировать код ошибки",
+    "copied": "Скопировано",
+    "copy_failed": "Не удалось скопировать"
   },
   "nav": {
-    "threads": "Threads",
-    "lobby": "Lobby",
+    "threads": "Треды",
+    "lobby": "Лобби",
     "general": "#general",
-    "login": "Sign in",
-    "lang_label": "Language",
-    "lang_search_placeholder": "Search language…",
-    "lang_note": "Use Spool in your own language — pick above",
-    "lang_no_matches": "No matching languages"
+    "login": "Вход",
+    "lang_label": "Язык / Language",
+    "lang_search_placeholder": "Поиск языка…",
+    "lang_note": "Пользуйтесь Spool на своём языке — выберите выше",
+    "lang_no_matches": "Нет подходящих языков"
   },
   "error": {
-    "title_404": "The page does not exist",
-    "desc_404": "There is nothing here — the address may be mistyped or the page may have moved.",
-    "title_other": "Something went wrong",
-    "desc_other": "An error occurred ({status}). Please try again in a moment.",
-    "requested_path": "Requested address",
-    "suggestions_title": "Maybe you were looking for:",
-    "back_home": "Back to the threads"
+    "title_404": "Страница не существует",
+    "desc_404": "Здесь ничего нет — адрес может быть неверным, или страница была перемещена.",
+    "title_other": "Что-то пошло не так",
+    "desc_other": "Произошла ошибка ({status}). Попробуйте ещё раз чуть позже.",
+    "requested_path": "Запрошенный адрес",
+    "suggestions_title": "Возможно, вы искали:",
+    "back_home": "Вернуться к тредам"
   },
   "social_auth": {
-    "continue_google": "Continue with Google",
-    "continue_facebook": "Continue with Facebook",
-    "continue_generic": "Continue with {provider}"
+    "continue_google": "Продолжить с Google",
+    "continue_facebook": "Продолжить с Facebook",
+    "continue_generic": "Продолжить с {provider}"
   },
   "debug_panel": {
-    "title": "Diagnostics",
-    "granted_only": "Granted to you",
-    "clean": "no errors this session",
-    "recorded": "{count} error(s) recorded",
-    "no_errors": "No errors recorded in this session.",
-    "copy": "Copy",
-    "copied": "Copied",
-    "copy_failed": "Copy failed",
-    "clear": "Clear",
-    "here": "On this page",
-    "elsewhere": "Recorded on other pages",
-    "here_count": "{count} on this page",
-    "none_here": "none on this page",
-    "recorded_on": "recorded on"
+    "title": "Диагностика",
+    "granted_only": "Предоставлено вам",
+    "clean": "ошибок в этой сессии нет",
+    "recorded": "записано ошибок: {count}",
+    "no_errors": "В этой сессии ошибок не зафиксировано.",
+    "copy": "Копировать",
+    "copied": "Скопировано",
+    "copy_failed": "Не удалось скопировать",
+    "clear": "Очистить",
+    "here": "На этой странице",
+    "elsewhere": "Записаны на других страницах",
+    "here_count": "{count} на этой странице",
+    "none_here": "нет на этой странице",
+    "recorded_on": "записано на"
   },
   "settings": {
     "language": {

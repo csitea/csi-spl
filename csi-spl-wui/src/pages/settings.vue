@@ -46,7 +46,7 @@
 
         <section id="settings-language" class="settings__card" data-test="settings-language" aria-labelledby="settings-language-h">
           <h3 id="settings-language-h">Language</h3>
-          <!-- CLE-3403: <LanguageSetting /> mounts here -->
+          <LanguageSetting />
         </section>
 
         <section class="settings__card" data-test="settings-appearance" aria-labelledby="settings-appearance-h">

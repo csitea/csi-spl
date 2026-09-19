@@ -1,51 +1,51 @@
 {
   "common": {
-    "loading": "Loading…",
-    "close": "Close",
-    "error_ref": "Error reference",
-    "copy_ref": "Copy error reference",
-    "copied": "Copied",
-    "copy_failed": "Copy failed"
+    "loading": "Učitavanje…",
+    "close": "Zatvori",
+    "error_ref": "Šifra greške",
+    "copy_ref": "Kopiraj šifru greške",
+    "copied": "Kopirano",
+    "copy_failed": "Kopiranje nije uspelo"
   },
   "nav": {
-    "threads": "Threads",
-    "lobby": "Lobby",
+    "threads": "Niti",
+    "lobby": "Lobi",
     "general": "#general",
-    "login": "Sign in",
-    "lang_label": "Language",
-    "lang_search_placeholder": "Search language…",
-    "lang_note": "Use Spool in your own language — pick above",
-    "lang_no_matches": "No matching languages"
+    "login": "Prijava",
+    "lang_label": "Jezik",
+    "lang_search_placeholder": "Pretraži jezik…",
+    "lang_note": "Koristite Spool na svom jeziku — izaberite iznad",
+    "lang_no_matches": "Nema podudarnih jezika"
   },
   "error": {
-    "title_404": "The page does not exist",
-    "desc_404": "There is nothing here — the address may be mistyped or the page may have moved.",
-    "title_other": "Something went wrong",
-    "desc_other": "An error occurred ({status}). Please try again in a moment.",
-    "requested_path": "Requested address",
-    "suggestions_title": "Maybe you were looking for:",
-    "back_home": "Back to the threads"
+    "title_404": "Stranica ne postoji",
+    "desc_404": "Ovde nema ničega — adresa je možda pogrešna ili je stranica premeštena.",
+    "title_other": "Nešto je pošlo naopako",
+    "desc_other": "Došlo je do greške ({status}). Pokušajte ponovo za koji trenutak.",
+    "requested_path": "Tražena adresa",
+    "suggestions_title": "Možda ste tražili:",
+    "back_home": "Nazad na niti"
   },
   "social_auth": {
-    "continue_google": "Continue with Google",
-    "continue_facebook": "Continue with Facebook",
-    "continue_generic": "Continue with {provider}"
+    "continue_google": "Настави са Google",
+    "continue_facebook": "Настави са Facebook",
+    "continue_generic": "Настави са {provider}"
   },
   "debug_panel": {
-    "title": "Diagnostics",
-    "granted_only": "Granted to you",
-    "clean": "no errors this session",
-    "recorded": "{count} error(s) recorded",
-    "no_errors": "No errors recorded in this session.",
-    "copy": "Copy",
-    "copied": "Copied",
-    "copy_failed": "Copy failed",
-    "clear": "Clear",
-    "here": "On this page",
-    "elsewhere": "Recorded on other pages",
-    "here_count": "{count} on this page",
-    "none_here": "none on this page",
-    "recorded_on": "recorded on"
+    "title": "Dijagnostika",
+    "granted_only": "Додељено вама",
+    "clean": "nema grešaka u ovoj sesiji",
+    "recorded": "zabeležene greške: {count}",
+    "no_errors": "U ovoj sesiji nema zabeleženih grešaka.",
+    "copy": "Kopiraj",
+    "copied": "Kopirano",
+    "copy_failed": "Kopiranje nije uspelo",
+    "clear": "Obriši",
+    "here": "Na ovoj stranici",
+    "elsewhere": "Zabeležene na drugim stranicama",
+    "here_count": "{count} na ovoj stranici",
+    "none_here": "nema na ovoj stranici",
+    "recorded_on": "zabeleženo na"
   },
   "settings": {
     "language": {

@@ -471,11 +471,18 @@ html.pane-dragging * {
    the language switcher when CLE-3403 lands it BEFORE the avatar). The
    right-most headers reserve --app-corner-w so the corner never covers
    their controls (thread pane Close/Open, feed header text). */
-:root { --app-corner-w: 56px; }
+/* spec 021: the language switcher sits before the avatar, so the reserve is
+   avatar (56px) + switcher (--lang-corner-w) + the 6px gap. Logical
+   properties so the corner follows the reading direction (he = rtl). */
+:root { --lang-corner-w: 9.5rem; --app-corner-w: calc(56px + var(--lang-corner-w) + 6px); }
+@media (max-width: 640px) {
+  :root { --lang-corner-w: 5.5rem; }
+}
+.app-corner .lang-switcher__combobox { width: var(--lang-corner-w); }
 .app-corner {
   position: fixed;
   top: 4px;
-  right: 8px;
+  inset-inline-end: 8px;
   z-index: var(--z-sticky, 40);
   display: flex;
   align-items: center;
@@ -484,5 +491,5 @@ html.pane-dragging * {
 }
 .feed-header,
 .thread header {
-  padding-right: calc(var(--app-corner-w) + 16px);
+  padding-inline-end: calc(var(--app-corner-w) + 16px);
 }

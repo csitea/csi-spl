@@ -1,51 +1,51 @@
 {
   "common": {
-    "loading": "Loading…",
-    "close": "Close",
-    "error_ref": "Error reference",
-    "copy_ref": "Copy error reference",
-    "copied": "Copied",
-    "copy_failed": "Copy failed"
+    "loading": "Ielādē…",
+    "close": "Aizvērt",
+    "error_ref": "Kļūdas atsauce",
+    "copy_ref": "Kopēt kļūdas atsauci",
+    "copied": "Nokopēts",
+    "copy_failed": "Neizdevās nokopēt"
   },
   "nav": {
-    "threads": "Threads",
-    "lobby": "Lobby",
+    "threads": "Pavedieni",
+    "lobby": "Vestibils",
     "general": "#general",
-    "login": "Sign in",
-    "lang_label": "Language",
-    "lang_search_placeholder": "Search language…",
-    "lang_note": "Use Spool in your own language — pick above",
-    "lang_no_matches": "No matching languages"
+    "login": "Pieteikties",
+    "lang_label": "Valoda / Language",
+    "lang_search_placeholder": "Meklēt valodu…",
+    "lang_note": "Lietojiet Spool savā valodā — izvēlieties augstāk",
+    "lang_no_matches": "Nav atbilstošu valodu"
   },
   "error": {
-    "title_404": "The page does not exist",
-    "desc_404": "There is nothing here — the address may be mistyped or the page may have moved.",
-    "title_other": "Something went wrong",
-    "desc_other": "An error occurred ({status}). Please try again in a moment.",
-    "requested_path": "Requested address",
-    "suggestions_title": "Maybe you were looking for:",
-    "back_home": "Back to the threads"
+    "title_404": "Lapa neeksistē",
+    "desc_404": "Šeit nekā nav — adrese var būt kļūdaina, vai lapa ir pārvietota.",
+    "title_other": "Kaut kas nogāja greizi",
+    "desc_other": "Radās kļūda ({status}). Pēc brīža mēģiniet vēlreiz.",
+    "requested_path": "Pieprasītā adrese",
+    "suggestions_title": "Varbūt meklējāt:",
+    "back_home": "Atpakaļ uz pavedieniem"
   },
   "social_auth": {
-    "continue_google": "Continue with Google",
-    "continue_facebook": "Continue with Facebook",
-    "continue_generic": "Continue with {provider}"
+    "continue_google": "Turpināt ar Google",
+    "continue_facebook": "Turpināt ar Facebook",
+    "continue_generic": "Turpināt ar {provider}"
   },
   "debug_panel": {
-    "title": "Diagnostics",
-    "granted_only": "Granted to you",
-    "clean": "no errors this session",
-    "recorded": "{count} error(s) recorded",
-    "no_errors": "No errors recorded in this session.",
-    "copy": "Copy",
-    "copied": "Copied",
-    "copy_failed": "Copy failed",
-    "clear": "Clear",
-    "here": "On this page",
-    "elsewhere": "Recorded on other pages",
-    "here_count": "{count} on this page",
-    "none_here": "none on this page",
-    "recorded_on": "recorded on"
+    "title": "Diagnostika",
+    "granted_only": "Piešķirts jums",
+    "clean": "šajā sesijā kļūdu nav",
+    "recorded": "reģistrētas kļūdas: {count}",
+    "no_errors": "Šajā sesijā kļūdas nav reģistrētas.",
+    "copy": "Kopēt",
+    "copied": "Nokopēts",
+    "copy_failed": "Neizdevās nokopēt",
+    "clear": "Notīrīt",
+    "here": "Šajā lapā",
+    "elsewhere": "Reģistrētas citās lapās",
+    "here_count": "{count} šajā lapā",
+    "none_here": "šajā lapā nav nevienas",
+    "recorded_on": "reģistrēts lapā"
   },
   "settings": {
     "language": {

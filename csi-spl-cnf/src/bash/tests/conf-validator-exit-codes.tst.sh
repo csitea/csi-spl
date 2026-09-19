@@ -121,6 +121,10 @@ expect_rc 1 "$(run_validate "${TMP_DIR}/empty.env.yaml" dev)" "a well-formed yam
 yq '.env.gcp.gcp_project = "some-other-project"' "${TMP_DIR}/dev.env.yaml" >"${TMP_DIR}/realm.env.yaml"
 expect_rc 1 "$(run_validate "${TMP_DIR}/realm.env.yaml" dev)" "a dev config pointing at another GCP project"
 
+# spec 021: the unprefixed WUI locale must be one the WUI ships.
+yq '.env.i18n.default_locale = "xx"' "${TMP_DIR}/dev.env.yaml" >"${TMP_DIR}/i18n.env.yaml"
+expect_rc 1 "$(run_validate "${TMP_DIR}/i18n.env.yaml" dev)" "a default locale outside i18n.locales"
+
 # --- the source keeps the contract ------------------------------------------
 # Cheap, but it catches the exact regression: someone "tidying" a refusal back
 # into a bare return would otherwise only be caught if this suite still runs.

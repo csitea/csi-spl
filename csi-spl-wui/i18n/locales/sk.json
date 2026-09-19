@@ -1,51 +1,51 @@
 {
   "common": {
-    "loading": "Loading…",
-    "close": "Close",
-    "error_ref": "Error reference",
-    "copy_ref": "Copy error reference",
-    "copied": "Copied",
-    "copy_failed": "Copy failed"
+    "loading": "Načítava sa…",
+    "close": "Zavrieť",
+    "error_ref": "Kód chyby",
+    "copy_ref": "Kopírovať kód chyby",
+    "copied": "Skopírované",
+    "copy_failed": "Kopírovanie zlyhalo"
   },
   "nav": {
-    "threads": "Threads",
+    "threads": "Vlákna",
     "lobby": "Lobby",
     "general": "#general",
-    "login": "Sign in",
-    "lang_label": "Language",
-    "lang_search_placeholder": "Search language…",
-    "lang_note": "Use Spool in your own language — pick above",
-    "lang_no_matches": "No matching languages"
+    "login": "Prihlásiť sa",
+    "lang_label": "Jazyk / Language",
+    "lang_search_placeholder": "Hľadať jazyk…",
+    "lang_note": "Používajte Spool vo svojom jazyku — vyberte vyššie",
+    "lang_no_matches": "Žiadne zodpovedajúce jazyky"
   },
   "error": {
-    "title_404": "The page does not exist",
-    "desc_404": "There is nothing here — the address may be mistyped or the page may have moved.",
-    "title_other": "Something went wrong",
-    "desc_other": "An error occurred ({status}). Please try again in a moment.",
-    "requested_path": "Requested address",
-    "suggestions_title": "Maybe you were looking for:",
-    "back_home": "Back to the threads"
+    "title_404": "Stránka neexistuje",
+    "desc_404": "Nič tu nie je — adresa môže byť nesprávna alebo bola stránka presunutá.",
+    "title_other": "Niečo sa pokazilo",
+    "desc_other": "Vyskytla sa chyba ({status}). Skúste to o chvíľu znova.",
+    "requested_path": "Požadovaná adresa",
+    "suggestions_title": "Možno ste hľadali:",
+    "back_home": "Späť na vlákna"
   },
   "social_auth": {
-    "continue_google": "Continue with Google",
-    "continue_facebook": "Continue with Facebook",
-    "continue_generic": "Continue with {provider}"
+    "continue_google": "Pokračovať cez Google",
+    "continue_facebook": "Pokračovať cez Facebook",
+    "continue_generic": "Pokračovať cez {provider}"
   },
   "debug_panel": {
-    "title": "Diagnostics",
-    "granted_only": "Granted to you",
-    "clean": "no errors this session",
-    "recorded": "{count} error(s) recorded",
-    "no_errors": "No errors recorded in this session.",
-    "copy": "Copy",
-    "copied": "Copied",
-    "copy_failed": "Copy failed",
-    "clear": "Clear",
-    "here": "On this page",
-    "elsewhere": "Recorded on other pages",
-    "here_count": "{count} on this page",
-    "none_here": "none on this page",
-    "recorded_on": "recorded on"
+    "title": "Diagnostika",
+    "granted_only": "Udelené vám",
+    "clean": "v tejto relácii nie sú žiadne chyby",
+    "recorded": "zaznamenané chyby: {count}",
+    "no_errors": "V tejto relácii neboli zaznamenané žiadne chyby.",
+    "copy": "Kopírovať",
+    "copied": "Skopírované",
+    "copy_failed": "Kopírovanie zlyhalo",
+    "clear": "Vymazať",
+    "here": "Na tejto stránke",
+    "elsewhere": "Zaznamenané na iných stránkach",
+    "here_count": "{count} na tejto stránke",
+    "none_here": "žiadne na tejto stránke",
+    "recorded_on": "zaznamenané na"
   },
   "settings": {
     "language": {

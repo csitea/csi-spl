@@ -1,51 +1,51 @@
 {
   "common": {
-    "loading": "Loading…",
-    "close": "Close",
-    "error_ref": "Error reference",
-    "copy_ref": "Copy error reference",
-    "copied": "Copied",
-    "copy_failed": "Copy failed"
+    "loading": "Завантаження…",
+    "close": "Закрити",
+    "error_ref": "Код помилки",
+    "copy_ref": "Копіювати код помилки",
+    "copied": "Скопійовано",
+    "copy_failed": "Не вдалося скопіювати"
   },
   "nav": {
-    "threads": "Threads",
-    "lobby": "Lobby",
+    "threads": "Треди",
+    "lobby": "Лобі",
     "general": "#general",
-    "login": "Sign in",
-    "lang_label": "Language",
-    "lang_search_placeholder": "Search language…",
-    "lang_note": "Use Spool in your own language — pick above",
-    "lang_no_matches": "No matching languages"
+    "login": "Увійти",
+    "lang_label": "Мова / Language",
+    "lang_search_placeholder": "Пошук мови…",
+    "lang_note": "Користуйтеся Spool своєю мовою — оберіть вище",
+    "lang_no_matches": "Немає відповідних мов"
   },
   "error": {
-    "title_404": "The page does not exist",
-    "desc_404": "There is nothing here — the address may be mistyped or the page may have moved.",
-    "title_other": "Something went wrong",
-    "desc_other": "An error occurred ({status}). Please try again in a moment.",
-    "requested_path": "Requested address",
-    "suggestions_title": "Maybe you were looking for:",
-    "back_home": "Back to the threads"
+    "title_404": "Сторінка не існує",
+    "desc_404": "Тут нічого немає — адреса може бути помилковою, або сторінку перемістили.",
+    "title_other": "Щось пішло не так",
+    "desc_other": "Сталася помилка ({status}). Спробуйте ще раз за мить.",
+    "requested_path": "Запитана адреса",
+    "suggestions_title": "Можливо, ви шукали:",
+    "back_home": "Назад до тредів"
   },
   "social_auth": {
-    "continue_google": "Continue with Google",
-    "continue_facebook": "Continue with Facebook",
-    "continue_generic": "Continue with {provider}"
+    "continue_google": "Продовжити з Google",
+    "continue_facebook": "Продовжити з Facebook",
+    "continue_generic": "Продовжити з {provider}"
   },
   "debug_panel": {
-    "title": "Diagnostics",
-    "granted_only": "Granted to you",
-    "clean": "no errors this session",
-    "recorded": "{count} error(s) recorded",
-    "no_errors": "No errors recorded in this session.",
-    "copy": "Copy",
-    "copied": "Copied",
-    "copy_failed": "Copy failed",
-    "clear": "Clear",
-    "here": "On this page",
-    "elsewhere": "Recorded on other pages",
-    "here_count": "{count} on this page",
-    "none_here": "none on this page",
-    "recorded_on": "recorded on"
+    "title": "Діагностика",
+    "granted_only": "Надано вам",
+    "clean": "у цій сесії помилок немає",
+    "recorded": "записано помилок: {count}",
+    "no_errors": "У цій сесії помилок не зафіксовано.",
+    "copy": "Копіювати",
+    "copied": "Скопійовано",
+    "copy_failed": "Не вдалося скопіювати",
+    "clear": "Очистити",
+    "here": "На цій сторінці",
+    "elsewhere": "Записані на інших сторінках",
+    "here_count": "{count} на цій сторінці",
+    "none_here": "немає на цій сторінці",
+    "recorded_on": "записано на"
   },
   "settings": {
     "language": {

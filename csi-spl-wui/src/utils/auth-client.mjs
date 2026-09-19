@@ -79,6 +79,46 @@ export function nativeErrorMessage(out) {
   return NATIVE_ERRORS[code] || 'Something went wrong — try again.'
 }
 
+// ── spec 021: catalogue keys for the copy above ────────────────────────────
+// The components render these through t(); the English functions above stay
+// the canonical en source and tests/unit/auth-i18n-keys.test.mjs pins every
+// i18n/locales/en.json value to them, so the two cannot drift.
+
+/** { key, params } for authErrorMessage(code); null for an empty code. */
+export function authErrorKey(code) {
+  const c = String(code || '')
+  if (!c) return null
+  return { key: ERRORS[c] ? `auth.error.${c}` : 'auth.error.failed', params: {} }
+}
+
+/** { key, params } for retryAfterMessage(seconds). */
+export function retryAfterKey(seconds) {
+  const n = Number(seconds)
+  if (!Number.isFinite(n) || n <= 0) return { key: 'auth.native_error.rate_limited', params: {} }
+  if (n <= 60) return { key: 'auth.native_error.retry_minute', params: {} }
+  return { key: 'auth.native_error.retry_minutes', params: { m: Math.ceil(n / 60) } }
+}
+
+/** { key, params } for nativeErrorMessage(out); null when there is no error. */
+export function nativeErrorKey(out) {
+  const o = out || {}
+  const code = String(o.error || '')
+  if (!code) return null
+  if (code === 'rate_limited') return retryAfterKey(o.retryAfter)
+  if (code === 'bad_request') {
+    const d = String(o.detail || '')
+    if (d.startsWith('password_too_short')) {
+      const m = /(\d+)/.exec(d)
+      return m
+        ? { key: 'auth.native_error.password_too_short_min', params: { min: m[1] } }
+        : { key: 'auth.native_error.password_too_short', params: {} }
+    }
+    if (d.startsWith('email')) return { key: 'auth.native_error.email', params: {} }
+    return { key: 'auth.native_error.check_form', params: {} }
+  }
+  return { key: NATIVE_ERRORS[code] ? `auth.native_error.${code}` : 'auth.native_error.generic', params: {} }
+}
+
 /** Display name of a provider id: known brands spelled right, else capitalised. */
 export function providerName(p) {
   const id = String(p || '')
@@ -118,15 +158,21 @@ export function startHref(provider, redirect, tenant, base = '') {
   return `${authOrigin(base)}${AUTH_PREFIX}/${encodeURIComponent(String(provider))}/start?${q}`
 }
 
-export function createAuthClient({ fetchFn = globalThis.fetch, base = '' } = {}) {
+export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale = () => '' } = {}) {
   const root = authOrigin(base)
   // 'include': the cookie must ride a cross-origin call to the auth base; it is
   // the same as 'same-origin' when the base is ''.
-  const call = (path, opts) => fetchFn(`${root}${AUTH_PREFIX}${path}`, {
-    credentials: 'include',
-    ...opts,
-    headers: { accept: 'application/json', ...(opts && opts.headers) },
-  })
+  // X-Locale (spec 021, the donor's header): browser fetch cannot override
+  // Accept-Language, so the active UI locale rides here; the hub mails a
+  // person who has no stored preference in it.
+  const call = (path, opts) => {
+    const loc = String((typeof locale === 'function' ? locale() : locale) || '')
+    return fetchFn(`${root}${AUTH_PREFIX}${path}`, {
+      credentials: 'include',
+      ...opts,
+      headers: { accept: 'application/json', ...(loc ? { 'x-locale': loc } : {}), ...(opts && opts.headers) },
+    })
+  }
 
   /**
    * The registry read WITH its outcome, so "auth is off in this env" (status
@@ -158,11 +204,11 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '' } = {})
    * token, 'network' when the hub was not reached, 'unavailable' for a non-JSON
    * failure; `retryAfter` is the 429 Retry-After in seconds (0 when absent).
    */
-  async function post(path, body) {
+  async function post(path, body, method = 'POST') {
     let res
     try {
       res = await call(path, {
-        method: 'POST',
+        method,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body || {}),
       })
@@ -235,6 +281,13 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '' } = {})
     /** 204 clears the cookie: the caller signs in again with the new password. */
     changePassword({ current, next } = {}) {
       return post('/password/change', { current_password: String(current || ''), new_password: String(next || '') })
+    },
+    /**
+     * spec 021: store the signed-in human's preferred UI + mail language.
+     * 204/200 → ok; 400 = unsupported code; 401 = no session.
+     */
+    savePreferences({ preferred_locale } = {}) {
+      return post('/preferences', { preferred_locale: String(preferred_locale || '') }, 'PUT')
     },
     async logout() {
       const res = await call('/logout', { method: 'POST' })

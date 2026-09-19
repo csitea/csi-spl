@@ -171,7 +171,11 @@ declare module '~/utils/auth-client.mjs' {
     retryAfter: number
   }
   export function nativeErrorMessage(out: Partial<NativeResult> | null): string
-  export function createAuthClient(opts?: { fetchFn?: typeof fetch, base?: string }): {
+  export interface CopyKey { key: string, params: Record<string, unknown> }
+  export function authErrorKey(code: string): CopyKey | null
+  export function retryAfterKey(seconds: number): CopyKey
+  export function nativeErrorKey(out: Partial<NativeResult> | null): CopyKey | null
+  export function createAuthClient(opts?: { fetchFn?: typeof fetch, base?: string, locale?: string | (() => string) }): {
     loadProviders(): Promise<{ status: 'ok' | 'unavailable', reason: string, providers: string[], native: boolean }>
     register(b: { email: string, password: string, name?: string }): Promise<NativeResult>
     verifyEmail(token: string): Promise<NativeResult>
@@ -179,6 +183,7 @@ declare module '~/utils/auth-client.mjs' {
     forgotPassword(email: string): Promise<NativeResult>
     resetPassword(b: { token: string, password: string }): Promise<NativeResult>
     changePassword(b: { current: string, next: string }): Promise<NativeResult>
+    savePreferences(b: { preferred_locale: string }): Promise<NativeResult>
     providers(): Promise<string[]>
     session(): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
     logout(): Promise<boolean>

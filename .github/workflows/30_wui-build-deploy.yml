@@ -178,6 +178,8 @@ jobs:
           # credentialed CORS on /api/v1/auth/* at that host (csi-rel api_base_url)
           print("auth_base=" + s19.get("wui_auth_base", ""))
           print("lb_route=" + ("true" if s31.get("wui_origin_host") else "false"))
+          # spec 021: the unprefixed WUI locale (cnf env.i18n.default_locale)
+          print("default_locale=" + e.get("i18n", {}).get("default_locale", "bg"))
           PY
           cat "$GITHUB_OUTPUT"
 
@@ -201,6 +203,9 @@ jobs:
           NUXT_PUBLIC_TENANT: ${{ steps.cfg.outputs.tenant }}
           NUXT_PUBLIC_USE_MOCK: "0"
           NUXT_PUBLIC_AUTH_BASE: ${{ steps.cfg.outputs.auth_base }}
+          NUXT_PUBLIC_DEFAULT_LOCALE: ${{ steps.cfg.outputs.default_locale }}
+          # absolute base for the hreflang alternates (spec 021)
+          NUXT_PUBLIC_SITE_URL: https://${{ steps.cfg.outputs.fqdn }}
         run: pnpm run generate
 
       - name: Stamp build.json (the deployed-commit probe)

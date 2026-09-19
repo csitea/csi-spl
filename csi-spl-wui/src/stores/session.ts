@@ -12,6 +12,8 @@ export interface SessionClaims {
   exp?: number
   /** Operator grant for the diagnostics panel; only literal `true` admits (debugAudience.mjs). */
   diagnostics_enabled?: boolean
+  /** spec 021: the human's stored UI + mail language; null/absent = none. */
+  preferred_locale?: string | null
 }
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
@@ -45,12 +47,17 @@ export const useSessionStore = defineStore('session', () => {
     claims.value = null
   }
 
+  /** spec 021: mirror a saved preference without another probe. */
+  function setPreferredLocale(code: string) {
+    if (claims.value) claims.value = { ...claims.value, preferred_locale: code }
+  }
+
   async function logout() {
     await auth.logout()
     state.value = 'out'
     claims.value = null
-    await navigateTo('/login')
+    await navigateTo(useNuxtApp().$localePath('/login'))
   }
 
-  return { state, claims, label, probe, adopt, signedOut, logout }
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, logout }
 })

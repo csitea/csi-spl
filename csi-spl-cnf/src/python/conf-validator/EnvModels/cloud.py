@@ -26,6 +26,18 @@ class Versions(BaseModel):
     google_provider_version: Optional[str]
 
 
+class I18n(BaseModel):
+    """spec 021: the WUI + hub-mail locale set and the unprefixed default."""
+    default_locale: str
+    locales: list
+
+    @root_validator(skip_on_failure=True)
+    def default_is_shipped(cls, values):
+        if values["default_locale"] not in values["locales"]:
+            raise ValueError(f'i18n.default_locale {values["default_locale"]} is not in i18n.locales')
+        return values
+
+
 class Env(YamlModel):
     ENV: str
     ORG: str
@@ -38,6 +50,7 @@ class Env(YamlModel):
     steps: Dict[str, Optional[Dict[str, Any]]]
     hub: Any
     auth: Any
+    i18n: I18n
     mail: Any
     box: Any
 

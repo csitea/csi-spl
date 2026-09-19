@@ -1,0 +1,90 @@
+{
+  "common": {
+    "loading": "Φόρτωση…",
+    "close": "Κλείσιμο",
+    "error_ref": "Κωδικός σφάλματος",
+    "copy_ref": "Αντιγραφή κωδικού σφάλματος",
+    "copied": "Αντιγράφηκε",
+    "copy_failed": "Η αντιγραφή απέτυχε"
+  },
+  "nav": {
+    "threads": "Νήματα",
+    "lobby": "Λόμπι",
+    "general": "#general",
+    "login": "Σύνδεση",
+    "lang_label": "Γλώσσα / Language",
+    "lang_search_placeholder": "Αναζήτηση γλώσσας…",
+    "lang_note": "Χρησιμοποιήστε το Spool στη γλώσσα σας — επιλέξτε παραπάνω",
+    "lang_no_matches": "Δεν βρέθηκαν γλώσσες"
+  },
+  "error": {
+    "title_404": "Η σελίδα δεν υπάρχει",
+    "desc_404": "Δεν υπάρχει τίποτα εδώ — η διεύθυνση μπορεί να είναι λανθασμένη ή η σελίδα να έχει μετακινηθεί.",
+    "title_other": "Κάτι πήγε στραβά",
+    "desc_other": "Παρουσιάστηκε σφάλμα ({status}). Δοκιμάστε ξανά σε λίγο.",
+    "requested_path": "Ζητούμενη διεύθυνση",
+    "suggestions_title": "Ίσως ψάχνατε:",
+    "back_home": "Πίσω στα νήματα"
+  },
+  "social_auth": {
+    "continue_google": "Συνέχεια με Google",
+    "continue_facebook": "Συνέχεια με Facebook",
+    "continue_generic": "Συνέχεια με {provider}"
+  },
+  "debug_panel": {
+    "title": "Διαγνωστικά",
+    "granted_only": "Παραχωρήθηκε σε εσάς",
+    "clean": "κανένα σφάλμα σε αυτή τη συνεδρία",
+    "recorded": "καταγεγραμμένα σφάλματα: {count}",
+    "no_errors": "Δεν καταγράφηκαν σφάλματα σε αυτή τη συνεδρία.",
+    "copy": "Αντιγραφή",
+    "copied": "Αντιγράφηκε",
+    "copy_failed": "Η αντιγραφή απέτυχε",
+    "clear": "Εκκαθάριση",
+    "here": "Σε αυτή τη σελίδα",
+    "elsewhere": "Καταγράφηκαν σε άλλες σελίδες",
+    "here_count": "{count} σε αυτή τη σελίδα",
+    "none_here": "κανένα σε αυτή τη σελίδα",
+    "recorded_on": "καταγράφηκε στη"
+  },
+  "settings": {
+    "language": {
+      "label": "Preferred language",
+      "save": "Save",
+      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
+      "saved": "Saved.",
+      "failed": "Could not save — try again."
+    }
+  },
+  "auth": {
+    "error": {
+      "cancelled": "Sign-in was cancelled.",
+      "invalid_state": "That sign-in link expired — try again.",
+      "exchange_failed": "The provider could not confirm you — try again.",
+      "email_unverified": "Your account has no verified email with this provider — try another.",
+      "not_allowed": "This account cannot sign in here.",
+      "unavailable": "Sign-in is unavailable right now.",
+      "failed": "Sign-in failed."
+    },
+    "native_error": {
+      "invalid_credentials": "Email or password is wrong.",
+      "email_unverified": "Confirm your email first — we can send the link again.",
+      "not_allowed": "This account has no access here yet — ask the owner for an invite.",
+      "verification_token_invalid": "That link is not valid any more.",
+      "verification_token_expired": "That link expired — we can send a new one.",
+      "reset_token_invalid": "That reset link is not valid any more — ask for a new one.",
+      "email_delivery_unavailable": "We cannot send email right now — try again later.",
+      "rate_limited": "Too many attempts — try again later.",
+      "unauthenticated": "Your session ended — sign in again.",
+      "password_too_short": "That password is too short.",
+      "email": "Enter a valid email address.",
+      "unavailable": "Sign-in is unavailable right now.",
+      "network": "The hub did not answer — try again.",
+      "retry_minute": "Too many attempts — try again in a minute.",
+      "retry_minutes": "Too many attempts — try again in {m} minutes.",
+      "password_too_short_min": "That password is too short — use at least {min} characters.",
+      "check_form": "Check the form and try again.",
+      "generic": "Something went wrong — try again."
+    }
+  }
+}

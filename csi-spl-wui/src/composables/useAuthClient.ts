@@ -11,5 +11,7 @@ export function useAuthBase(): string {
 
 /** The auth client bound to the auth base. Call it in setup, not later. */
 export function useAuthClient() {
-  return createAuthClient({ base: useAuthBase() })
+  // spec 021: the active UI locale rides every auth call as X-Locale.
+  const i18n = useNuxtApp().$i18n as { locale?: unknown } | undefined
+  return createAuthClient({ base: useAuthBase(), locale: () => String(unref(i18n?.locale) || '') })
 }

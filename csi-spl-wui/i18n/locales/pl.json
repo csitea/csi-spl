@@ -1,51 +1,51 @@
 {
   "common": {
-    "loading": "Loading…",
-    "close": "Close",
-    "error_ref": "Error reference",
-    "copy_ref": "Copy error reference",
-    "copied": "Copied",
-    "copy_failed": "Copy failed"
+    "loading": "Ładowanie…",
+    "close": "Zamknij",
+    "error_ref": "Numer błędu",
+    "copy_ref": "Kopiuj numer błędu",
+    "copied": "Skopiowano",
+    "copy_failed": "Kopiowanie nie powiodło się"
   },
   "nav": {
-    "threads": "Threads",
+    "threads": "Wątki",
     "lobby": "Lobby",
     "general": "#general",
-    "login": "Sign in",
-    "lang_label": "Language",
-    "lang_search_placeholder": "Search language…",
-    "lang_note": "Use Spool in your own language — pick above",
-    "lang_no_matches": "No matching languages"
+    "login": "Zaloguj się",
+    "lang_label": "Język / Language",
+    "lang_search_placeholder": "Szukaj języka…",
+    "lang_note": "Korzystaj ze Spool w swoim języku — wybierz powyżej",
+    "lang_no_matches": "Brak pasujących języków"
   },
   "error": {
-    "title_404": "The page does not exist",
-    "desc_404": "There is nothing here — the address may be mistyped or the page may have moved.",
-    "title_other": "Something went wrong",
-    "desc_other": "An error occurred ({status}). Please try again in a moment.",
-    "requested_path": "Requested address",
-    "suggestions_title": "Maybe you were looking for:",
-    "back_home": "Back to the threads"
+    "title_404": "Strona nie istnieje",
+    "desc_404": "Nic tu nie ma — adres może być błędny albo strona została przeniesiona.",
+    "title_other": "Coś poszło nie tak",
+    "desc_other": "Wystąpił błąd ({status}). Spróbuj ponownie za chwilę.",
+    "requested_path": "Żądany adres",
+    "suggestions_title": "Może szukasz:",
+    "back_home": "Wróć do wątków"
   },
   "social_auth": {
-    "continue_google": "Continue with Google",
-    "continue_facebook": "Continue with Facebook",
-    "continue_generic": "Continue with {provider}"
+    "continue_google": "Kontynuuj z Google",
+    "continue_facebook": "Kontynuuj z Facebook",
+    "continue_generic": "Kontynuuj z {provider}"
   },
   "debug_panel": {
-    "title": "Diagnostics",
-    "granted_only": "Granted to you",
-    "clean": "no errors this session",
-    "recorded": "{count} error(s) recorded",
-    "no_errors": "No errors recorded in this session.",
-    "copy": "Copy",
-    "copied": "Copied",
-    "copy_failed": "Copy failed",
-    "clear": "Clear",
-    "here": "On this page",
-    "elsewhere": "Recorded on other pages",
-    "here_count": "{count} on this page",
-    "none_here": "none on this page",
-    "recorded_on": "recorded on"
+    "title": "Diagnostyka",
+    "granted_only": "Przyznane tobie",
+    "clean": "brak błędów w tej sesji",
+    "recorded": "zarejestrowane błędy: {count}",
+    "no_errors": "W tej sesji nie zarejestrowano błędów.",
+    "copy": "Kopiuj",
+    "copied": "Skopiowano",
+    "copy_failed": "Kopiowanie nie powiodło się",
+    "clear": "Wyczyść",
+    "here": "Na tej stronie",
+    "elsewhere": "Zarejestrowane na innych stronach",
+    "here_count": "{count} na tej stronie",
+    "none_here": "brak na tej stronie",
+    "recorded_on": "zarejestrowano na"
   },
   "settings": {
     "language": {

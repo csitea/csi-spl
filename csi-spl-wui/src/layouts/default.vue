@@ -39,6 +39,8 @@
       </div>
       <!-- CLE-3402: the signed-in person's avatar + dropdown, top-right -->
       <div class="app-corner" data-test="app-corner">
+        <!-- CLE-3403 (spec 021): the donor's header language switcher -->
+        <LanguageSwitcher />
         <UserMenu />
       </div>
       <template #fallback>
@@ -56,6 +58,7 @@
 
 <script setup lang="ts">
 import DebugPanel from '@/components/common/DebugPanel.vue'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import { useThreadStore } from '~/stores/thread'
 import { useLiveFeed } from '~/stores/live'
 import { usePaneWidths } from '~/composables/usePaneWidths'

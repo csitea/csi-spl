@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mjs"
 
 // ── Environment detection ─────────────────────────────────────────────────
 // nuxt.config.ts is loaded by jiti BEFORE Nuxt injects `import.meta.dev`, so
@@ -132,6 +133,46 @@ function vendorChunk(id: string): string | undefined {
   return undefined
 }
 
+// ── i18n locale set ───────────────────────────────────────────────────────
+// Shared by the i18n module config and the root redirect script (app.head)
+// so the two can never disagree on what ships. Default from cnf
+// (env.wui.i18n.default_locale -> NUXT_PUBLIC_DEFAULT_LOCALE); the donor's
+// founding default is bg, kept until the owner decides (spec 021 OQ-1).
+type SpoolLocaleCode =
+  | "bg" | "fi" | "ru" | "en" | "sv" | "he" | "tr" | "mk" | "el"
+  | "lt" | "et" | "lv" | "sr" | "ro" | "uk" | "sk" | "pl" | "es" | "nl"
+const I18N_LOCALES = [
+  { code: "bg", language: "bg-BG", name: "Български", file: "bg.json" },
+  { code: "fi", language: "fi-FI", name: "Suomi", file: "fi.json" },
+  { code: "ru", language: "ru-RU", name: "Русский", file: "ru.json" },
+  { code: "en", language: "en-GB", name: "English", file: "en.json" },
+  { code: "sv", language: "sv-SE", name: "Svenska", file: "sv.json" },
+  { code: "he", language: "he-IL", name: "עברית", file: "he.json", dir: "rtl" as const },
+  { code: "tr", language: "tr-TR", name: "Türkçe", file: "tr.json" },
+  { code: "mk", language: "mk-MK", name: "Македонски", file: "mk.json" },
+  { code: "el", language: "el-GR", name: "Ελληνικά", file: "el.json" },
+  { code: "lt", language: "lt-LT", name: "Lietuvių", file: "lt.json" },
+  { code: "et", language: "et-EE", name: "Eesti", file: "et.json" },
+  { code: "lv", language: "lv-LV", name: "Latviešu", file: "lv.json" },
+  { code: "sr", language: "sr-RS", name: "Srpski", file: "sr.json" },
+  { code: "ro", language: "ro-RO", name: "Română", file: "ro.json" },
+  { code: "uk", language: "uk-UA", name: "Українська", file: "uk.json" },
+  { code: "sk", language: "sk-SK", name: "Slovenčina", file: "sk.json" },
+  { code: "pl", language: "pl-PL", name: "Polski", file: "pl.json" },
+  { code: "es", language: "es-ES", name: "Español", file: "es.json" },
+  { code: "nl", language: "nl-NL", name: "Nederlands", file: "nl.json" },
+]
+const _envDefaultLocale = (process.env.NUXT_PUBLIC_DEFAULT_LOCALE || "bg").trim()
+if (!I18N_LOCALES.some((l) => l.code === _envDefaultLocale)) {
+  throw new Error(`NUXT_PUBLIC_DEFAULT_LOCALE=${_envDefaultLocale} is not one of the shipped locales`)
+}
+const DEFAULT_LOCALE = _envDefaultLocale as SpoolLocaleCode
+// Locale preference cookie (strictly necessary). Written by
+// src/plugins/locale-cookie.client.ts, read by the root redirect script.
+const LOCALE_COOKIE = "i18n_redirected"
+// Pages prerendered per locale (the rest is the 200.html SPA fallback).
+const PRERENDER_PAGES = ["/", "/login"]
+
 export default defineNuxtConfig({
   srcDir: "src/",
   compatibilityDate: "2026-09-18",
@@ -152,13 +193,17 @@ export default defineNuxtConfig({
 
   modules: ["@nuxtjs/i18n", "@pinia/nuxt"],
 
-  // English only. It earns its place because the donor's shared UI
-  // (ErrorNotice, error.vue, SocialAuthButtons, DebugPanel) speaks through
-  // t(); a second locale is a new file in i18n/locales, no code change.
+  // Donor i18n, copied (spec 021): 19 locales, prefix_except_default, lazy
+  // catalogues, browser detection done by the blocking root redirect script
+  // (cookie -> Accept-Language -> default) instead of the module, so the
+  // prerendered `/` never hydrates with a mismatch.
   i18n: {
-    strategy: "no_prefix",
-    defaultLocale: "en",
-    locales: [{ code: "en", language: "en-GB", name: "English", file: "en.json" }],
+    // Absolute base for hreflang alternates; empty = relative links. The WUI
+    // is noindex and serves many tenant hosts, so no base is pinned here.
+    baseUrl: process.env.NUXT_PUBLIC_SITE_URL || "",
+    strategy: "prefix_except_default",
+    defaultLocale: DEFAULT_LOCALE,
+    locales: I18N_LOCALES,
     lazy: true,
     detectBrowserLanguage: false,
     bundle: { optimizeTranslationDirective: false },
@@ -179,13 +224,30 @@ export default defineNuxtConfig({
       pollMs: process.env.NUXT_PUBLIC_POLL_MS || "4000",
       // Named env of this build (dev / prd); empty or lde = not deployed.
       envName: process.env.NUXT_PUBLIC_ENV_NAME || "",
+      // Name of the locale preference cookie (see LOCALE_COOKIE).
+      localeCookie: LOCALE_COOKIE,
+      defaultLocale: DEFAULT_LOCALE,
     },
   },
 
   app: {
     head: {
       title: "Spool",
-      htmlAttrs: { lang: "en" },
+      // lang/dir come from useLocaleHead in app.vue.
+      script: [
+        {
+          // Decide the root locale BEFORE any markup is parsed. Only acts on
+          // the exact path `/`, never for crawlers, and only when the
+          // resolved locale is not the default already in hand.
+          innerHTML: buildRootLocaleRedirectScript({
+            supported: I18N_LOCALES.map((l) => l.code),
+            defaultLocale: DEFAULT_LOCALE,
+            cookieKey: LOCALE_COOKIE,
+          }),
+          tagPosition: "head",
+          tagPriority: "critical",
+        },
+      ],
       meta: [
         { charset: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1" },
@@ -248,7 +310,12 @@ export default defineNuxtConfig({
       : {},
     prerender: {
       crawlLinks: false,
-      routes: ["/", "/login", "/channel/general", "/channel/tasks", "/channel/alerts"],
+      routes: [
+        ...PRERENDER_PAGES.flatMap((p) =>
+          I18N_LOCALES.map((l) => (l.code === DEFAULT_LOCALE ? p : `/${l.code}${p === "/" ? "" : p}`)),
+        ),
+        "/channel/general", "/channel/tasks", "/channel/alerts",
+      ],
     },
   },
 })

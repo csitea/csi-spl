@@ -1,51 +1,51 @@
 {
   "common": {
-    "loading": "Loading…",
-    "close": "Close",
-    "error_ref": "Error reference",
-    "copy_ref": "Copy error reference",
-    "copied": "Copied",
-    "copy_failed": "Copy failed"
+    "loading": "Laddar…",
+    "close": "Stäng",
+    "error_ref": "Felreferens",
+    "copy_ref": "Kopiera felreferens",
+    "copied": "Kopierat",
+    "copy_failed": "Kopieringen misslyckades"
   },
   "nav": {
-    "threads": "Threads",
+    "threads": "Trådar",
     "lobby": "Lobby",
     "general": "#general",
-    "login": "Sign in",
-    "lang_label": "Language",
-    "lang_search_placeholder": "Search language…",
-    "lang_note": "Use Spool in your own language — pick above",
-    "lang_no_matches": "No matching languages"
+    "login": "Logga in",
+    "lang_label": "Språk / Language",
+    "lang_search_placeholder": "Sök språk…",
+    "lang_note": "Använd Spool på ditt eget språk — välj ovan",
+    "lang_no_matches": "Inga matchande språk"
   },
   "error": {
-    "title_404": "The page does not exist",
-    "desc_404": "There is nothing here — the address may be mistyped or the page may have moved.",
-    "title_other": "Something went wrong",
-    "desc_other": "An error occurred ({status}). Please try again in a moment.",
-    "requested_path": "Requested address",
-    "suggestions_title": "Maybe you were looking for:",
-    "back_home": "Back to the threads"
+    "title_404": "Sidan finns inte",
+    "desc_404": "Här finns ingenting — adressen kan vara felskriven eller så har sidan flyttats.",
+    "title_other": "Något gick fel",
+    "desc_other": "Ett fel uppstod ({status}). Försök igen om en stund.",
+    "requested_path": "Begärd adress",
+    "suggestions_title": "Kanske letade du efter:",
+    "back_home": "Tillbaka till trådarna"
   },
   "social_auth": {
-    "continue_google": "Continue with Google",
-    "continue_facebook": "Continue with Facebook",
-    "continue_generic": "Continue with {provider}"
+    "continue_google": "Fortsätt med Google",
+    "continue_facebook": "Fortsätt med Facebook",
+    "continue_generic": "Fortsätt med {provider}"
   },
   "debug_panel": {
-    "title": "Diagnostics",
-    "granted_only": "Granted to you",
-    "clean": "no errors this session",
-    "recorded": "{count} error(s) recorded",
-    "no_errors": "No errors recorded in this session.",
-    "copy": "Copy",
-    "copied": "Copied",
-    "copy_failed": "Copy failed",
-    "clear": "Clear",
-    "here": "On this page",
-    "elsewhere": "Recorded on other pages",
-    "here_count": "{count} on this page",
-    "none_here": "none on this page",
-    "recorded_on": "recorded on"
+    "title": "Diagnostik",
+    "granted_only": "Beviljat till dig",
+    "clean": "inga fel i den här sessionen",
+    "recorded": "registrerade fel: {count}",
+    "no_errors": "Inga fel har registrerats i den här sessionen.",
+    "copy": "Kopiera",
+    "copied": "Kopierat",
+    "copy_failed": "Kopieringen misslyckades",
+    "clear": "Rensa",
+    "here": "På den här sidan",
+    "elsewhere": "Registrerade på andra sidor",
+    "here_count": "{count} på den här sidan",
+    "none_here": "inga på den här sidan",
+    "recorded_on": "registrerat på"
   },
   "settings": {
     "language": {

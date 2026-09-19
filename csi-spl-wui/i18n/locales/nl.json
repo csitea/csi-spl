@@ -1,51 +1,51 @@
 {
   "common": {
-    "loading": "Loading…",
-    "close": "Close",
-    "error_ref": "Error reference",
-    "copy_ref": "Copy error reference",
-    "copied": "Copied",
-    "copy_failed": "Copy failed"
+    "loading": "Laden…",
+    "close": "Sluiten",
+    "error_ref": "Foutreferentie",
+    "copy_ref": "Foutreferentie kopiëren",
+    "copied": "Gekopieerd",
+    "copy_failed": "Kopiëren mislukt"
   },
   "nav": {
     "threads": "Threads",
     "lobby": "Lobby",
     "general": "#general",
-    "login": "Sign in",
-    "lang_label": "Language",
-    "lang_search_placeholder": "Search language…",
-    "lang_note": "Use Spool in your own language — pick above",
-    "lang_no_matches": "No matching languages"
+    "login": "Inloggen",
+    "lang_label": "Taal",
+    "lang_search_placeholder": "Zoek taal…",
+    "lang_note": "Gebruik Spool in je eigen taal — kies hierboven",
+    "lang_no_matches": "Geen talen gevonden"
   },
   "error": {
-    "title_404": "The page does not exist",
-    "desc_404": "There is nothing here — the address may be mistyped or the page may have moved.",
-    "title_other": "Something went wrong",
-    "desc_other": "An error occurred ({status}). Please try again in a moment.",
-    "requested_path": "Requested address",
-    "suggestions_title": "Maybe you were looking for:",
-    "back_home": "Back to the threads"
+    "title_404": "Deze pagina bestaat niet",
+    "desc_404": "Hier is niets — het adres is misschien verkeerd getypt of de pagina is verhuisd.",
+    "title_other": "Er ging iets mis",
+    "desc_other": "Er is een fout opgetreden ({status}). Probeer het zo meteen opnieuw.",
+    "requested_path": "Opgevraagd adres",
+    "suggestions_title": "Misschien zocht je:",
+    "back_home": "Terug naar de threads"
   },
   "social_auth": {
-    "continue_google": "Continue with Google",
-    "continue_facebook": "Continue with Facebook",
-    "continue_generic": "Continue with {provider}"
+    "continue_google": "Doorgaan met Google",
+    "continue_facebook": "Doorgaan met Facebook",
+    "continue_generic": "Doorgaan met {provider}"
   },
   "debug_panel": {
-    "title": "Diagnostics",
-    "granted_only": "Granted to you",
-    "clean": "no errors this session",
-    "recorded": "{count} error(s) recorded",
-    "no_errors": "No errors recorded in this session.",
-    "copy": "Copy",
-    "copied": "Copied",
-    "copy_failed": "Copy failed",
-    "clear": "Clear",
-    "here": "On this page",
-    "elsewhere": "Recorded on other pages",
-    "here_count": "{count} on this page",
-    "none_here": "none on this page",
-    "recorded_on": "recorded on"
+    "title": "Diagnostiek",
+    "granted_only": "Aan jou toegekend",
+    "clean": "geen fouten in deze sessie",
+    "recorded": "geregistreerde fouten: {count}",
+    "no_errors": "Er zijn geen fouten geregistreerd in deze sessie.",
+    "copy": "Kopiëren",
+    "copied": "Gekopieerd",
+    "copy_failed": "Kopiëren mislukt",
+    "clear": "Wissen",
+    "here": "Op deze pagina",
+    "elsewhere": "Vastgelegd op andere pagina's",
+    "here_count": "{count} op deze pagina",
+    "none_here": "geen op deze pagina",
+    "recorded_on": "vastgelegd op"
   },
   "settings": {
     "language": {

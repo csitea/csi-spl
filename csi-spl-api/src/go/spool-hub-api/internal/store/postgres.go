@@ -243,20 +243,27 @@ func (s *Postgres) SetRoster(ctx context.Context, tenant, box string, agents []s
 		if err := s.botSeatGate(ctx, tx, tenant, box, agents); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO boxes (tenant_id, box_id) VALUES ($1, $2)
-			ON CONFLICT (tenant_id, box_id) DO NOTHING`, tenant, box); err != nil {
+		// One round trip for the replace: box row, clear, one multi-row insert
+		// (027 T010: it was one INSERT per agent).
+		b := &pgx.Batch{}
+		b.Queue(`INSERT INTO boxes (tenant_id, box_id) VALUES ($1, $2)
+			ON CONFLICT (tenant_id, box_id) DO NOTHING`, tenant, box)
+		b.Queue(`DELETE FROM roster WHERE tenant_id = $1 AND box_id = $2`, tenant, box)
+		if len(agents) > 0 {
+			b.Queue(`INSERT INTO roster (tenant_id, box_id, agent_id, announced_at)
+				SELECT $1, $2, a, $4 FROM unnest($3::text[]) AS a`, tenant, box, agents, now)
+		}
+		br := tx.SendBatch(ctx, b)
+		defer br.Close()
+		if _, err := br.Exec(); err != nil {
 			return mapFK(err)
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM roster WHERE tenant_id = $1 AND box_id = $2`, tenant, box); err != nil {
-			return err
-		}
-		for _, a := range agents {
-			if _, err := tx.Exec(ctx, `INSERT INTO roster (tenant_id, box_id, agent_id, announced_at)
-				VALUES ($1, $2, $3, $4)`, tenant, box, a, now); err != nil {
+		for i := 1; i < b.Len(); i++ {
+			if _, err := br.Exec(); err != nil {
 				return err
 			}
 		}
-		return nil
+		return br.Close()
 	})
 }
 

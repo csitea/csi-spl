@@ -226,10 +226,12 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   `SET ROLE` to its owner or to a superuser / `BYPASSRLS` role (`store.HubRoleCanLiftRLS`, logged at startup as
   `db.rls_liftable` / `db.rls_not_liftable`; `do_spl_db_rls_check` reports `liftable`, and `EXPECT_NOT_LIFTABLE=1`
   exits 5). `hub-pg.tst.sh` proves the shape with a non-owner runtime role (`TestRLSHubRoleCannotLiftRLS`).
-  *Status:* (a)–(d) Implemented and live (0021 applied dev + prd 2026-09-19 17:06Z / 17:07Z). (e) the gate exists and
-  runs; the LIVE hub login `spool_hub` still owns the 15 tenant tables on dev and prd (`liftable=15`), because
-  `spool migrate` runs under the hub's own DSN. Closing it needs a migration owner role separate from the runtime role
-  (a Cloud SQL user, a second DSN secret, grants) — an infra change that waits for the owner's go (task T029).
+  *Status:* (a)–(d) Implemented and live (0021 applied dev + prd 2026-09-19 17:06Z / 17:07Z). (e) split 2026-09-19
+  (T029, CLE-3421, owner go "Yes, split them"). The hub runs as `spool_hub_rt`, a login the schema owner creates, with
+  DML-only grants plus default privileges (csi-spl-rdb `spool-hub-roles/`). The owner `spool_hub` runs `spool migrate`,
+  and its DSN is only in `csi-spl-hub-db-owner-dsn` (040), which the hub never receives. The owner keeps its old name
+  on purpose: on Postgres 16 a role's creator holds an ADMIN grant on it that it can never revoke, so the runtime must
+  be the role the owner creates, never the reverse. The DB side reads `liftable=0` on dev and prd (was 16).
 
 - **FR-SEC-015 (One permanent cross-tenant suite) — amendment 2026-09-19, CLE-3416 + CLE-3415:** Two tenants hold data
   in EVERY `tenant_id` table (catalogue-driven; an unseeded new table fails the suite). A member, a browser socket and

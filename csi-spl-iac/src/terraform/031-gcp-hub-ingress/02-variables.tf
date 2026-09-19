@@ -121,3 +121,20 @@ variable "hub_path_regex" {
   description = "RE2 over request.path that the hub serves; anything else is 403 when l7_narrowing is on."
   default     = "^/(v1/|api/v1/|healthz$|version$)"
 }
+
+# Extra hosts (<label>.<base_domain>) sit OUTSIDE <fqdn>, so in dev (whose zone
+# is the subzone dev.<domain>) their records belong in the parent apex zone,
+# written on the parent project's own key (owner decision 2026-09-19; csi-rel
+# 007-dns pattern). Empty (prd) = the extra records go into dns_managed_zone
+# with this env's provider, exactly as before.
+variable "extra_dns_managed_zone" {
+  type        = string
+  description = "Zone for the extra_host_labels records when it is not dns_managed_zone (cnf steps.031-gcp-hub-ingress.extra_dns_managed_zone). Empty = dns_managed_zone."
+  default     = ""
+}
+
+variable "extra_dns_zone_project" {
+  type        = string
+  description = "Project of extra_dns_managed_zone; its own key ~/.gcp/.<org>/key-<project>.json writes there (cnf steps.031-gcp-hub-ingress.extra_dns_zone_project)."
+  default     = ""
+}

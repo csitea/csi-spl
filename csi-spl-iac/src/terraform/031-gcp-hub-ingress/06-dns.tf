@@ -5,6 +5,13 @@ locals {
   manage_dns  = var.dns_managed_zone != ""
   dns_project = var.dns_zone_project != "" ? var.dns_zone_project : var.gcp_project
   acme        = google_certificate_manager_dns_authorization.hub.dns_resource_record[0]
+
+  # Extra hosts sit outside <fqdn>: in dev (zone = the dev.<domain> subzone)
+  # their records live in the parent apex zone and are written by the "extra"
+  # provider on that project's key; prd leaves both empty = same zone, same
+  # project, same identity as before (a provider switch, no diff).
+  extra_zone    = var.extra_dns_managed_zone != "" ? var.extra_dns_managed_zone : var.dns_managed_zone
+  extra_project = var.extra_dns_zone_project != "" ? var.extra_dns_zone_project : local.dns_project
 }
 
 resource "google_dns_record_set" "acme_challenge" {
@@ -31,9 +38,10 @@ resource "google_dns_record_set" "hub" {
 
 resource "google_dns_record_set" "extra_acme" {
   for_each = local.manage_dns ? local.extra_hosts : {}
+  provider = google.extra
 
-  project      = local.dns_project
-  managed_zone = var.dns_managed_zone
+  project      = local.extra_project
+  managed_zone = local.extra_zone
   name         = google_certificate_manager_dns_authorization.extra[each.key].dns_resource_record[0].name
   type         = google_certificate_manager_dns_authorization.extra[each.key].dns_resource_record[0].type
   ttl          = 300
@@ -42,9 +50,10 @@ resource "google_dns_record_set" "extra_acme" {
 
 resource "google_dns_record_set" "extra" {
   for_each = local.manage_dns ? local.extra_hosts : {}
+  provider = google.extra
 
-  project      = local.dns_project
-  managed_zone = var.dns_managed_zone
+  project      = local.extra_project
+  managed_zone = local.extra_zone
   name         = "${each.value}."
   type         = "A"
   ttl          = 300

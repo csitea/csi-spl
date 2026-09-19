@@ -7,4 +7,6 @@ gcp_region  = "europe-north1"
 
 zone_name = "spool-hub"
 zone_description = "spool hub public zone: adopted by 025-gcp-dns-zone, never recreate (registrar NS)"
+parent_zone_name = ""
+parent_zone_project = ""
 fqdn = "spool-hub.ai"

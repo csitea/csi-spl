@@ -50,3 +50,15 @@ variable "zone_description" {
   description = "The zone's description, as it stands on the zone (an update is in place)."
   default     = ""
 }
+
+variable "parent_zone_name" {
+  type        = string
+  description = "The parent (apex) zone this env's subzone is delegated from (cnf steps.025-gcp-dns-zone.parent_zone_name). Empty (prd) = zone_name IS the apex zone and is adopted; set (dev) = zone_name is created here and an NS record for it is written into the parent zone."
+  default     = ""
+}
+
+variable "parent_zone_project" {
+  type        = string
+  description = "The project holding parent_zone_name (cnf steps.025-gcp-dns-zone.parent_zone_project). Its own key, ~/.gcp/.<org>/key-<project>.json, writes the delegation record."
+  default     = ""
+}

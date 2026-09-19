@@ -100,7 +100,7 @@ describe('auth client', () => {
 })
 
 describe('cross-origin auth base (A7: the WUI host is not the hub host)', () => {
-  const API = 'https://dev.api.spool-hub.ai'
+  const API = 'https://api.example.com'
 
   it('authOrigin keeps a bare http(s) origin and refuses the rest as same-origin', () => {
     assert.equal(authOrigin(API + '/'), API)

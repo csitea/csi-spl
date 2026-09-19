@@ -173,6 +173,9 @@ jobs:
           print("project=" + e["gcp"]["gcp_project"])
           print("site=" + s19["site_id"])
           print("fqdn=" + e["dns"]["fqdn"])
+          # specs/026: the WUI reads from the ONE api host; the hub takes the
+          # tenant from the signed-in session
+          print("api_fqdn=" + e["dns"]["api_fqdn"])
           print("tenant=" + s19.get("wui_default_tenant", ""))
           # "" = same-origin auth (today); set per env once the hub serves
           # credentialed CORS on /api/v1/auth/* at that host (csi-rel api_base_url)
@@ -194,12 +197,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
         working-directory: csi-spl-wui
 
-      # Reads go to the TENANT host (003 http-v1): {tenant} is filled in by the
-      # WUI at run time. Same origin when the page is served on <tenant>.<fqdn>.
+      # Reads go to the API host (specs/026: tenant from the session, no
+      # per-tenant host); NUXT_PUBLIC_TENANT is only what sign-in binds.
       - name: nuxt generate
         working-directory: csi-spl-wui
         env:
-          NUXT_PUBLIC_API_BASE: https://{tenant}.${{ steps.cfg.outputs.fqdn }}
+          NUXT_PUBLIC_API_BASE: https://${{ steps.cfg.outputs.api_fqdn }}
           NUXT_PUBLIC_TENANT: ${{ steps.cfg.outputs.tenant }}
           NUXT_PUBLIC_USE_MOCK: "0"
           NUXT_PUBLIC_AUTH_BASE: ${{ steps.cfg.outputs.auth_base }}

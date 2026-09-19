@@ -74,4 +74,20 @@ channel/DM/roster stores, `wui-live-ws.md`, or `view-v1.md`.
   `stores/thread.ts`, sidebar unread badges; drop mock `[verbose]` body filter
   and the "task sent" ping. No mock-data import in those files. Check: `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → 94 pass, 0 fail; `node tests/e2e/no-x-scroll.test.mjs` → 12/12. FR-013..015.
 
-<!-- version: 1.6.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:10:00Z -->
+## Phase 6 — Donor WUI structure port (owner order 2026-09-19)
+
+Owner: "use all of the available code in the donor WUI — the same stack, the
+same vue app structure". Sources move under `csi-spl-wui/src/` (Nuxt
+`srcDir: 'src/'`); every `csi-spl-wui/<dir>/…` path in the tasks above now
+reads `csi-spl-wui/src/<dir>/…`. Package root, `firebase.json`,
+`.output/public`, `tests/` and the orc/CI path consumers are unchanged.
+
+- [x] T029 Implemented (`fff663d`) — `srcDir: 'src/'` layout, `@` alias, discovery unit runner `src/node/test/run-unit-tests.mjs` (`pnpm test:unit`). Check: `cd csi-spl-wui && pnpm test:unit` → all files pass; `pnpm typecheck` → 0.
+- [x] T030 Implemented (`9fa748d`) — `nuxt.config.ts` donor shape: CSP_DEV/CSP_PROD + security headers as routeRules, vendor chunks, `@nuxtjs/i18n` (en only, `i18n/locales/en.json`). `tests/unit/csp-policy.test.mjs` pins CSP_PROD to `render-wui-firebase-json.sh`.
+- [x] T031 Implemented (`37b453f`) — error stack: `errorJournal.mjs`, `ErrorNotice.vue` on every viewer/thread/lobby/channel/live-pane error, gated `DebugPanel.vue` (session claim `diagnostics_enabled === true`, fails shut), `error-journal.client.ts`, `error.vue`, `useSettledQuery` on the prerendered `/login` and `/`. Check: `node tests/unit/error-journal.test.mjs` → 19 pass.
+- [x] T032 Implemented (`1f30c25`) — `SocialAuthButtons.vue` on `/login`, auth-v1 §4 endpoints and labels kept; `loadProviders()` tells auth-off from unreachable. Check: `node tests/unit/auth-client.test.mjs` → 12 pass.
+- [x] T033 Implemented (`d1225e7`) — donor token scale + base rules on the spool palette. Check: `node tests/unit/theme-tokens.test.mjs` → pass.
+- [x] T034 Implemented (`e300d5c`) — e2e: `console-errors` gate, shared `tests/e2e/lib/server.mjs`, `serve-generated.mjs`, `puppeteer-core`. Check: `pnpm test:e2e:console-errors` → 7/7; `pnpm test:e2e` → 12/12.
+- [ ] T035 Open — `diagnostics_enabled` in the hub's session claims (010 auth-v1 §3) so an operator can be granted the panel; until then it is shown to nobody.
+
+<!-- version: 1.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T09:40:00Z -->

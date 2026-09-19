@@ -50,7 +50,7 @@ callback registers them (`HUM-*`, narrative §0).
    `/api/v1/auth/google/callback`, **then** the hub exchanges the code
    server-side, requires `email_verified`, sets `spool_session`, and redirects
    to `<APP_URL><redirect>`. *(Implemented, fake IdP.)*
-3. **Given** it is the first sign-in, **then** a `HUM-*` is created. *(Planned: T012, hub + 004.)*
+3. **Given** it is the first sign-in, **then** a `HUM-*` is created. *(Implemented: T012, `store.Registrar`, rdb `0006`.)*
 
 ### US2 — Register / sign in with Facebook (P1)
 Same as US1 through `/api/v1/auth/facebook/{start,callback}`; identity from
@@ -106,13 +106,22 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   = auth off. A listed provider needs `CLIENT_ID`, `CLIENT_SECRET`,
   `REDIRECT_URI` set and not `PLACEHOLDER-*`; plus a ≥32-byte session key and
   `APP_URL`. `SPOOL_HUB_AUTH_IDP_BASE_URL` (fake IdP) is refused in prd.
-- **FR-008** — Partial: a `Registrar` hook receives the verified identity and
-  the start `tenant`, returns `HUM-*` or `ErrNotAllowed`. Missing: the hub's
-  implementation (T012).
-- **FR-009** — Planned: the session is accepted as the M3 door for
-  `/v1/view/*` (003 `contracts/view-v1.md` §2 "M3 successor"), through
-  `Handler.SessionForTenant` (Implemented `5e8ecb1`, fail-closed) once a
-  store-backed `Membership` exists (T013). OQ-A1 decided (a).
+- **FR-008** — Implemented (HUMANS CLE-3351, `tasks.md` T012): the hub's
+  `Registrar` is store-backed (`store.Registrar` over `store.Humans`, rdb
+  `0006`). A callback upserts the human by `(provider, subject)`
+  (`human_identities`): first time → a new `HUM-<n>`; again → the same id
+  (idempotent). When the sign-in started from a tenant (`?tenant=`), the
+  human must also be **admitted** (FR-014) or the callback is refused with
+  `auth_error=not_allowed` and nothing is written. `password` (NATIVE-AUTH,
+  spec 015) is a provider slug like any other.
+- **FR-009** — Implemented: the session is the M3 door for `/v1/view/*` and
+  `/v1/wui/ws` (003 `contracts/view-v1.md` §2) through
+  `Handler.SessionForTenant`, backed by the store `Membership` (T013). Door
+  mode `SPOOL_HUB_VIEW_DOOR=session` admits member sessions only and turns on
+  credentialed CORS (`Access-Control-Allow-Credentials: true` for the exact
+  allow-listed origins only, never reflected, never `*`; OQ-A1 (a)). It needs
+  auth on (a provider listed) or the hub refuses to boot. `token` (the
+  default) also admits a member session, without credentialed CORS.
 - **FR-010** — Planned: the WUI reaches `/api/v1/auth/**` same-origin through
   a Hosting rewrite to the hub (as csi-rel), so the callback host is the WUI
   origin and one redirect URI per provider per env is registered (narrative §5).
@@ -145,6 +154,20 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   the hub issued and `404` otherwise, with no table. Facebook not enabled →
   `404`.
 
+- **FR-014** — Implemented (the OQ-A5 default): tenant admission. A human is
+  admitted to tenant T when (1) they are already a member; else (2) an
+  unexpired, unaccepted invite for T matches their verified email, and they
+  become a member with the invite's role and the invite is marked accepted;
+  else (3) bootstrap (`SPOOL_HUB_AUTH_BOOTSTRAP_OWNER=true`) is on **and** T
+  has zero members, and they become owner. Otherwise they are refused.
+  Bootstrap is a trust change: it is `true` on dev and `false` (the default)
+  on prd until the owner decides OQ-A5. On prd the first owner comes from an
+  operator invite (`spool hub-invite`).
+- **FR-015** — Implemented: on `/v1/wui/ws`, a member session's `HUM-*`
+  **overrides** the browser-asserted `hello.as` / `?as=` (gap F8), so a
+  signed-in human cannot post as someone else. With the door `off`
+  (lde/dev only) the asserted id is used as before.
+
 ## 3. Security requirements
 
 - **SEC-001** — `session.t` (tenant) is **where the flow started, not an
@@ -165,15 +188,41 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
 - **OQ-A4 (owner / 007)** — prd serves the apex, so a prd cookie with
   `Domain=<BASE_DOMAIN>` is also sent to every `dev.<BASE_DOMAIN>` host. The
   dev hub cannot verify it (different session key: `401`), but the prd token
-  reaches dev infrastructure. cnf gives dev its own cookie name
-  (`spool_session_dev`) so the two never shadow each other on dev hosts; a
-  hard fix is prd tenants under their own subdomain or a separate dev domain.
-  Hub logs must never record `Cookie` headers.
+  still reaches dev infrastructure. cnf gives dev its own cookie name
+  (`spool_session_dev`), so the two cookies never shadow each other on dev
+  hosts. Hub logs never record `Cookie` headers
+  (`TestAccessLogCarriesNoCredentials`). Options: **(a) recommended** — prd
+  sets `SPOOL_HUB_AUTH_COOKIE_DOMAIN=""`, a host-only cookie on the apex. The
+  WUI reaches the hub same-origin through the Hosting rewrite (FR-010), so no
+  subdomain needs the cookie; a tenant subdomain that needs a session signs
+  in on its own host. (b) keep `Domain=<apex>` and move dev to a separate
+  registrable domain. **Not changed here:** the prd cookie domain stays as
+  cnf has it until the owner answers.
 - **OQ-A2 (owner)** — Which host is the registered callback host per env:
   the WUI origin with a rewrite (FR-010, cnf default today) or a dedicated
   hub host.
-- **OQ-A3 (004)** — `HUM-*` stable id derivation from `(provider, sub)` vs
-  verified email, and per-tenant uniqueness (narrative §3.1).
+- **OQ-A3 (004) — default implemented (rdb `0006`).** (a) **Recommended,
+  implemented:** `HUM-<n>` is an opaque hub-wide sequence (`humans_seq`),
+  keyed by `(provider, subject)` in `human_identities`. One human may hold
+  several identities. Email is an attribute, never a key, and a new identity
+  is never auto-linked to an existing human by email (otherwise an IdP that
+  lets a user change their email could take over an account). The id is
+  unique hub-wide, not per tenant; tenancy lives in `tenant_memberships`.
+  (b) Derive the id from the verified email — not the default, because email
+  changes and provider email reuse break a stable id.
+- **OQ-A5 (owner) — admission; default implemented (FR-014).** (a)
+  **Recommended, implemented:** the first human on a zero-member tenant
+  becomes its owner (`SPOOL_HUB_AUTH_BOOTSTRAP_OWNER`, dev only), and everyone
+  else needs an owner/operator invite matched on verified email. (b) Also
+  allow a per-tenant email-domain allow-list that auto-admits `@<domain>` as
+  member. Not built; it would be a `tenant_admit_domains` table in a later
+  migration. On prd bootstrap stays **off** until the owner answers, because
+  otherwise any first visitor could claim a fresh tenant.
+- **OQ-A6 (owner, = 003 OQ-16)** — view token or session only. (a)
+  **Recommended:** the session is the only browser door (`session` mode) and
+  no view token is built. (b) Define a view-token format (OQ-16) for
+  non-browser readers. Until this is decided, `token` mode admits member
+  sessions and accepts no token.
 
 - **OQ-I1 (owner) — Microsoft email trust.** Entra's userinfo carries no
   `email_verified`, and in a work/school tenant the `email` is set by that

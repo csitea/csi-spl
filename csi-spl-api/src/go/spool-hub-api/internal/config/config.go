@@ -137,11 +137,16 @@ type Hub struct {
 	CICDFromBox       string `env:"SPOOL_HUB_CICD_FROM_BOX" envDefault:"hub"`
 	CICDFromID        string `env:"SPOOL_HUB_CICD_FROM_ID" envDefault:"CI-0"`
 	CICDHubBoxKey     string `env:"SPOOL_HUB_CICD_HUB_BOX_KEY"`
-	// Viewer API (specs/003 contracts/view-v1.md). ViewDoor "off" is lde/dev only.
+	// Viewer API (specs/003 contracts/view-v1.md). ViewDoor "off" is lde/dev
+	// only; "session" = member sessions only + credentialed CORS (010 FR-009).
 	ViewDoor        string   `env:"SPOOL_HUB_VIEW_DOOR" envDefault:"token"`
 	ViewCORSOrigins []string `env:"SPOOL_HUB_VIEW_CORS_ORIGINS" envSeparator:","`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
+	// AuthBootstrapOwner: the first human to sign in to a tenant with zero
+	// members becomes its owner (010 FR-014, OQ-A5). A trust change: dev only
+	// until the owner decides; prd admits by operator invite.
+	AuthBootstrapOwner bool `env:"SPOOL_HUB_AUTH_BOOTSTRAP_OWNER" envDefault:"false"`
 }
 
 // LoadHub parses the hub environment and fails fast on a missing or
@@ -174,7 +179,7 @@ func LoadHub() (*Hub, error) {
 		return nil, err
 	}
 	switch h.ViewDoor {
-	case "token":
+	case "token", "session":
 	case "off":
 		// Open reads in lde and dev (ORC decision 2026-09-18); prd, and any
 		// unnamed env, stay fail-closed.
@@ -182,7 +187,7 @@ func LoadHub() (*Hub, error) {
 			return nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR=off is allowed only with SPOOL_HUB_ENV=lde or dev (got %q)", h.Env)
 		}
 	default:
-		return nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR %q must be token or off", h.ViewDoor)
+		return nil, fmt.Errorf("SPOOL_HUB_VIEW_DOOR %q must be token, session or off", h.ViewDoor)
 	}
 	if h.LobbyTaskID != "" && !uuidRe.MatchString(h.LobbyTaskID) {
 		return nil, fmt.Errorf("SPOOL_HUB_LOBBY_TASK_ID %q must be a lowercase UUID", h.LobbyTaskID)

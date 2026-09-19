@@ -23,6 +23,8 @@ import (
 const (
 	ViewDoorToken = "token" // default: a view token is required (OQ-16)
 	ViewDoorOff   = "off"   // lde only (config refuses it elsewhere): no door
+	// ViewDoorSession: member sessions only, credentialed CORS (010 FR-009).
+	ViewDoorSession = "session"
 )
 
 const (
@@ -54,7 +56,8 @@ func (s *Server) routeView(mux *http.ServeMux) {
 }
 
 // allowOrigin sets the CORS response headers when Origin is on the cnf
-// allow-list (FR-021). Never "*", never credentials.
+// allow-list (FR-021). Never "*"; credentials only in the session door, and
+// only for an exact allow-listed origin (010 OQ-A1 (a)).
 func (s *Server) allowOrigin(w http.ResponseWriter, r *http.Request) bool {
 	o := r.Header.Get("Origin")
 	if o == "" {
@@ -65,6 +68,9 @@ func (s *Server) allowOrigin(w http.ResponseWriter, r *http.Request) bool {
 			h := w.Header()
 			h.Set("Access-Control-Allow-Origin", o)
 			h.Add("Vary", "Origin")
+			if s.o.ViewDoor == ViewDoorSession {
+				h.Set("Access-Control-Allow-Credentials", "true")
+			}
 			return true
 		}
 	}

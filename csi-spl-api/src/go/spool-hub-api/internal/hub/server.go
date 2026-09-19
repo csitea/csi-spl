@@ -103,8 +103,12 @@ func New(o Options) (*Server, error) {
 	case "":
 		o.ViewDoor = ViewDoorToken
 	case ViewDoorToken, ViewDoorOff:
+	case ViewDoorSession:
+		if o.Auth == nil {
+			return nil, errors.New("hub: view door session needs the sign-in surface (Options.Auth)")
+		}
 	default:
-		return nil, fmt.Errorf("hub: view door %q must be token or off", o.ViewDoor)
+		return nil, fmt.Errorf("hub: view door %q must be token, session or off", o.ViewDoor)
 	}
 	if o.HelloTimeout == 0 {
 		o.HelloTimeout = 10 * time.Second

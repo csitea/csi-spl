@@ -88,7 +88,12 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
-	opts.Auth = auth.New(ac, log, auth.Options{}) // Registrar: spec 010 T012
+	if hc.ViewDoor == hub.ViewDoorSession && len(ac.Enabled()) == 0 {
+		return fail(fmt.Errorf("SPOOL_HUB_VIEW_DOOR=session needs SPOOL_HUB_AUTH_PROVIDERS (nobody could sign in)"))
+	}
+	// Registration + membership are store-backed (010 T012/T013, rdb 0006).
+	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner}}
+	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks})
 	srv, err := hub.New(opts)
 	if err != nil {
 		return fail(err)

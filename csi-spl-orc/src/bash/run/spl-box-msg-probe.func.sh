@@ -50,7 +50,7 @@ do_spl_box_msg_probe() {
   [[ -s "$rkj" ]] || { do_log "FATAL ROOT_KEY_JSON must name the tenant's saved create JSON (got '$rkj')"; return 1; }
   [[ "$(stat -c %a "$rkj")" == 600 ]] || { do_log "FATAL $rkj must be mode 0600"; return 1; }
 
-  local hub="https://$tenant.$SPL_FQDN" d="$SPL_STATE_DIR/probe/$tenant/$box"
+  local hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")" d="$SPL_STATE_DIR/probe/$tenant/$box"
   if (( dry )); then
     do_log "INFO DRY_RUN would: keygen + hub-pin $box under $tenant at $hub (first run only; state $d)"
     do_log "INFO DRY_RUN would: send one note $agent@$box -> $agent@$box${ptask:+ into task $ptask} body '[orc-probe] $label <utc>', hub-sync, hub-tail"
@@ -60,7 +60,7 @@ do_spl_box_msg_probe() {
   do_require_bin curl || return 1
   spl_host_spool || return 1
   mkdir -p "$d/spool/$agent" "$d/keys" && chmod -R go-rwx "$d" || return 1
-  _probe() { SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" SPOOL_HUB_URL="$hub" SPOOL_MIRROR_LOCAL=1 "$SPL_SPOOL" "$@"; }
+  _probe() { SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_MIRROR_LOCAL=1 "$SPL_SPOOL" "$@"; }
 
   local out rc=0
   if [[ ! -f "$d/pinned" ]]; then
@@ -108,5 +108,5 @@ print(json.dumps({"env": env, "tenant": tenant, "hub": hub, "box": box, "agent":
 EOF_PY
   (( rc == 0 )) || { do_log "FAIL hub-tail of task $task: $tail"; return 1; }
   grep -q "\"msg_id\": *\"$msg\"" <<<"$tail" || { do_log "FAIL the hub does not hold $msg (task $task): hub-tail returned no such message"; return 1; }
-  do_log "OK probe note sent by $agent@$box into $tenant ($ENV). Remove the box: spool hub-pin --box $box --revoke --root-key <root key> (SPOOL_HUB_URL=$hub)"
+  do_log "OK probe note sent by $agent@$box into $tenant ($ENV). Remove the box: spool hub-pin --box $box --revoke --root-key <root key> (SPOOL_HUB_URL=$hub SPOOL_TENANT=$tenant)"
 }

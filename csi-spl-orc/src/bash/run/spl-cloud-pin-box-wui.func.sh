@@ -35,10 +35,10 @@ do_spl_cloud_pin_box_wui() {
   [[ -s "$tf" ]] || { do_log "FATAL TENANT_FILE must name the tenant's saved create JSON (got '$tf')"; return 1; }
   [[ "$(stat -c %a "$tf")" == 600 ]] || { do_log "FATAL $tf must be mode 0600"; return 1; }
 
-  local pattern url body code pub
-  pattern="$(yq -r '.env.hub.env.SPOOL_HUB_TENANT_HOST_PATTERN // ""' "$SPL_CNF")"
-  [[ "$pattern" == "{tenant}."* ]] || { do_log "FATAL SPOOL_HUB_TENANT_HOST_PATTERN '$pattern' is not {tenant}.<fqdn>"; return 1; }
-  url="https://${pattern/"{tenant}"/$tenant}"
+  # specs/026: the API host; the tenant is named by SPOOL_TENANT (X-Spool-Tenant)
+  local url body code pub
+  url="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
+  [[ "$url" != "https://" ]] || { do_log "FATAL env.dns.api_fqdn is empty in $SPL_CNF"; return 1; }
   body="$(curl -s -m 15 -w '\n%{http_code}' "$url/v1/wui/pubkey")"
   code="${body##*$'\n'}" body="${body%$'\n'*}"
   [[ "$code" == 200 ]] || { do_log "FATAL GET $url/v1/wui/pubkey -> ${code:-none} $body (030 must inject the key: hub.wui_key.inject)"; return 1; }
@@ -70,7 +70,7 @@ PY
   local force=() out
   [[ "${FORCE:-0}" == 1 ]] && force=(--force)
   _pin() {  # <pubkey> [--force]
-    SPOOL_HUB_URL="$url" SPOOL_BOX_ID=box-operator SPOOL_ROOT="$h/spool" SPOOL_KEYS_DIR="$h/keys" \
+    SPOOL_HUB_URL="$url" SPOOL_TENANT="$tenant" SPOOL_BOX_ID=box-operator SPOOL_ROOT="$h/spool" SPOOL_KEYS_DIR="$h/keys" \
       "$cli" hub-pin --box "$box" --pubkey "$1" --root-key "$h/root.key" "${@:2}" 2>&1
   }
   out="$(_pin "$pub" "${force[@]}")" || { unset -f _pin; do_log "FATAL hub-pin $box under $tenant: $out"; return 1; }

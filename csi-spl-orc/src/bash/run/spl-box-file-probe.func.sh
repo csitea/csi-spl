@@ -37,15 +37,15 @@ do_spl_box_file_probe() {
   [[ "$agent" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. ORC-1)"; return 1; }
   [[ "$mib" =~ ^[0-9]+$ ]] && (( mib >= 1 && mib <= 32 )) || { do_log "FATAL PROBE_FILE_MIB must be 1..32 (the hub's per-file limit), got: '$mib'"; return 1; }
 
-  local hub="https://$tenant.$SPL_FQDN" d="$SPL_STATE_DIR/probe/$tenant/$box"
+  local hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")" d="$SPL_STATE_DIR/probe/$tenant/$box"
   if (( dry )); then
-    do_log "INFO DRY_RUN would: upload $mib MiB of random bytes from $agent@$box to $hub (POST /v1/files) as a self-note attachment, then hub-tail it"
+    do_log "INFO DRY_RUN would: upload $mib MiB of random bytes from $agent@$box to $hub as tenant $tenant (POST /v1/files) as a self-note attachment, then hub-tail it"
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to upload."
     return 0
   fi
   [[ -f "$d/pinned" ]] || { do_log "FATAL $box is not pinned under $tenant ($d/pinned missing): run ENV=$ENV TENANT_ID=$tenant ROOT_KEY_JSON=<json> DRY_RUN=0 ./run -a do_spl_box_msg_probe first"; return 1; }
   spl_host_spool || return 1
-  _probe() { SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" SPOOL_HUB_URL="$hub" SPOOL_MIRROR_LOCAL=1 "$SPL_SPOOL" "$@"; }
+  _probe() { SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_MIRROR_LOCAL=1 "$SPL_SPOOL" "$@"; }
 
   local f sha stamp sync1 sent tail t0 t1 rc=0
   f="$(umask 077 && mktemp "${TMPDIR:-/tmp}/spl-file-probe.XXXXXX")" || return 1

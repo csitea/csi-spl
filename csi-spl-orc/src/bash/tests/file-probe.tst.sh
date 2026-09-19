@@ -39,7 +39,7 @@ in_orc() {
 out=$(SNIPPET=do_spl_box_file_probe in_orc TENANT_ID=t1 2>&1); rc=$?
 [[ $rc -eq 0 ]] && grep -q "DRY_RUN nothing was touched" <<<"$out" && [[ ! -s "$T/calls.log" ]] && pass "dry run: no call" \
   || fail "dry run: rc=$rc calls=$(cat "$T/calls.log") out=$out"
-grep -q "upload 8 MiB .*@box-orc-probe to https://t1\." <<<"$out" && pass "dry run names 8 MiB default, box and tenant hub" || fail "dry run text: $out"
+grep -q "upload 8 MiB .*@box-orc-probe to https://[^ ]* as tenant t1 " <<<"$out" && ! grep -q "https://t1\." <<<"$out" && pass "dry run names 8 MiB default, box, the API host and tenant t1 (specs/026: no tenant host)" || fail "dry run text: $out"
 
 # --- 2. refusals -------------------------------------------------------------------------
 for bad in "PROBE_FILE_MIB=0" "PROBE_FILE_MIB=33" "PROBE_FILE_MIB=8x" "PROBE_BOX=box-wui" "PROBE_AGENT=orc-1" "TENANT_ID=T1"; do

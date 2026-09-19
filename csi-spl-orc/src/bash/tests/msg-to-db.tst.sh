@@ -90,7 +90,7 @@ printf '#!/bin/sh\necho "spool $*" >>"$STUB_LOG"\nexit 1\n' >"$T/stub/spool"; ch
 out=$(SNIPPET=do_spl_box_msg_probe in_orc TENANT_ID=t1 ROOT_KEY_JSON="$T/t1.json" 2>&1); rc=$?
 [[ $rc -eq 0 ]] && grep -q "DRY_RUN nothing was touched" <<<"$out" && [[ ! -s "$T/calls.log" ]] && pass "probe dry run: no call" \
   || fail "probe dry run: rc=$rc calls=$(cat "$T/calls.log") out=$out"
-grep -q "box-orc-probe under t1 at https://t1\." <<<"$out" && pass "probe dry run names box-orc-probe and the tenant hub" || fail "probe dry run text: $out"
+grep -q "box-orc-probe under t1 at https://" <<<"$out" && ! grep -q "https://t1\." <<<"$out" && pass "probe dry run names box-orc-probe, tenant t1 and the API host (specs/026: no tenant host)" || fail "probe dry run text: $out"
 out=$(SNIPPET=do_spl_box_msg_probe in_orc TENANT_ID=t1 ROOT_KEY_JSON="$T/t1.json" PROBE_TASK=00000000-0000-4000-8000-000000000001 2>&1)
 grep -q "into task 00000000-0000-4000-8000-000000000001" <<<"$out" && [[ ! -s "$T/calls.log" ]] && pass "probe dry run names PROBE_TASK, no call" || fail "PROBE_TASK dry run: $out"
 for bad in "PROBE_BOX=box-wui" "PROBE_BOX=Bad_Box" "PROBE_AGENT=orc-1" "PROBE_LABEL=a;b" "TENANT_ID=T1" "PROBE_TASK=lobby" "PROBE_TASK=00000000-0000-4000-8000-00000000000Z"; do

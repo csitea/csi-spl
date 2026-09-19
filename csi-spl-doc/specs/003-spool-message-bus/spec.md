@@ -236,7 +236,7 @@ A signed-in member types `/search <query>` in the WUI top-bar omnibox and gets g
 - **FR-029**: The hub MUST expose `GET /v1/view/search` (`contracts/search-v1.md`) behind the view door, tenant-scoped under RLS per statement, read-only, answering grouped sections for `message`, `thread`, `file`, `robot`, `user`, `channel`, `box` with plain-text snippets and UTF-16 highlight offsets, keyset / offset cursors bound to `q` + `sort`. *Status:* **In progress** (CLE-3409).
 - **FR-030**: The query grammar (search-v1 §2 – §3) MUST be parsed server-side by one parser; every user string MUST reach SQL as a bind parameter; malformed → `400 bad_query` with `pos`; unknown operators → text + warning. *Status:* **In progress** (CLE-3409).
 - **FR-031**: `GET /v1/view/search/operators` MUST publish the grammar as data from the parser's own table. *Status:* **In progress** (CLE-3409).
-- **FR-032**: Search MUST be rate-limited per (tenant, reader) and budgeted per statement (search-v1 §5.1, §7); message text MUST use a GIN-indexed `tsvector` (rdb 0017); users are searched by `HUM-*` and display name only, never email. *Status:* **In progress** (CLE-3409).
+- **FR-032**: Search MUST be rate-limited per (tenant, reader) and budgeted per statement (search-v1 §5.1, §7); message text MUST use a GIN-indexed `tsvector` (rdb 0020); users are searched by `HUM-*` and display name only, never email. *Status:* **In progress** (CLE-3409).
 
 ### Non-Functional Requirements
 

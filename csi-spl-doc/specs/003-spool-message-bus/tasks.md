@@ -109,9 +109,9 @@ Contract `contracts/channels-v1.md` (+ `view-v1.md` v0.5, `wui-live-ws.md` v0.3,
 Contract `contracts/search-v1.md` v1.0. WUI omnibox is lane CLE-3410 (reads the contract, does not restate it).
 
 - [x] T048 [US9] Contract `contracts/search-v1.md`: grammar, operator table, entity types, response, errors, operators endpoint. Check: `command grep -c '^| `' csi-spl-doc/specs/003-spool-message-bus/contracts/search-v1.md` -> non-zero.
-- [ ] T049 [US9] `internal/search`: tokenizer + parser (Gmail precedence), operator table, applicability, validation with `pos`, highlight offsets (UTF-16); table-driven tests per operator.
-- [ ] T050 [US9] rdb `0017_message_search.sql`: `messages.search_tsv` generated `to_tsvector('simple', body)` + GIN index.
-- [ ] T051 [US9] `internal/store`: `SearchMessages` / `SearchThreads` / `SearchFiles` on memory + Postgres (SQL compiled from the AST, bind parameters only, RLS scope, statement budget), human display names; contract suite incl. CONTROLS (other tenant, DM privacy, SQL-shaped text).
+- [x] T049 [US9] `internal/search`: tokenizer + parser (Gmail precedence), operator table, applicability, validation with `pos`, highlight offsets (UTF-16); table-driven tests per operator. Check: `cd csi-spl-api/src/go/spool-hub-api && go test -run 'TestOperators|TestParseErrors|TestWarnings|TestHighlights' ./internal/search` -> ok.
+- [x] T050 [US9] rdb `0020_message_search.sql`: `messages.search_tsv` generated `to_tsvector('simple', body)` + GIN index `messages_search`. Check: `ls csi-spl-rdb/src/sql/postgres/spool-hub/0020_message_search.sql` -> present; applied by `TestSearch` (postgres).
+- [x] T051 [US9] `internal/store`: `SearchMessages` / `SearchThreads` / `SearchFiles` on memory + Postgres (SQL compiled from the AST, bind parameters only, RLS scope, statement budget), human display names; contract suite incl. CONTROLS (other tenant, DM privacy, SQL-shaped text). Check: `cd csi-spl-api/src/go/spool-hub-api && SPOOL_TEST_PG_DSN=… go test -run TestSearch ./internal/store` -> ok on memory + postgres (or `bash csi-spl-api/src/bash/tests/hub-pg.tst.sh`).
 - [ ] T052 [US9] `internal/hub/search.go`: `GET /v1/view/search` + `/operators`, view door, rate limit, grouped sections, cursors; tests incl. CONTROLS.
 - [ ] T053 [US9] p95 latency on `hub-pg.tst.sh` with a seeded corpus, recorded in spec.md with n and tree.
 

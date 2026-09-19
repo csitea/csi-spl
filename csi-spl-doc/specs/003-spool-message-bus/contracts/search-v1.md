@@ -14,7 +14,7 @@ then this file, then `./error-envelope.md`.
 **Status: v1.0 — contract first; implementation in the same lane (tasks
 T048 – T053).** Code: grammar + parser `internal/search`, route
 `internal/hub/search.go`, store `internal/store/search*.go`, rdb
-`0017_message_search.sql`.
+`0020_message_search.sql`.
 
 ## 0. What this is, and what it is not
 
@@ -335,7 +335,7 @@ rate-limited beyond the edge limits.
 ## 7. Performance and budget
 
 - Messages: `messages.search_tsv` = `to_tsvector('simple', body)` (generated,
-  stored) with a GIN index (rdb `0017_message_search.sql`); files and threads
+  stored) with a GIN index (rdb `0020_message_search.sql`); files and threads
   read the same tenant's rows through the existing `(tenant_id, …)` indexes.
 - Budget: 2 s per search statement (`SET LOCAL statement_timeout`), plus the
   request context. Rate: §5.1.

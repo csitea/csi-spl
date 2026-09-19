@@ -106,7 +106,11 @@ func cmdServe() int {
 		return fail(fmt.Errorf("SPOOL_HUB_VIEW_DOOR=session needs SPOOL_HUB_AUTH_PROVIDERS or SPOOL_HUB_AUTH_NATIVE_ENABLED (nobody could sign in)"))
 	}
 	// Registration + membership are store-backed (010 T012/T013, rdb 0006).
-	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner}}
+	// The IdP picture lands in the same tenant blob store (010 T044).
+	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner},
+		Blob: bs, AvatarErr: func(hum string, err error) {
+			log.Warn().Err(err).Str("human_id", hum).Msg("auth.avatar_not_stored")
+		}}
 	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks})
 	if nc.Enabled {
 		mc, err := mail.Load() // SPOOL_HUB_MAIL_*: no default relay host

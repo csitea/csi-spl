@@ -5,9 +5,10 @@
 #   1. the DB actions pin the ENV's project SA (do_gcp_pin_account, cc7f79f)
 #      in a private gcloud config, never the owner account; a missing key
 #      reaches no database
-#   2. do_spl_hub_invite / do_spl_tenant_member_role: DRY_RUN (default) calls
-#      no cloud; bad input is refused; DRY_RUN=0 runs as the SA, values reach
-#      psql as variables (never spliced into the SQL), the DSN is never printed
+#   2. do_spl_hub_invite / do_spl_hub_invite_revoke / do_spl_tenant_member_role:
+#      DRY_RUN (default) calls no cloud; bad input is refused; DRY_RUN=0 runs
+#      as the SA, values reach psql as variables (never spliced into the SQL),
+#      the DSN is never printed. Revoke deletes only an unaccepted invite.
 #   3. do_spl_db_query: one statement only, inside BEGIN READ ONLY .. ROLLBACK
 #   4. do_tf_sweep_steps / do_tf_deprovision_steps drive make only: DRY_RUN
 #      plans / lists; the gate stops on a destroy; a destroy needs STEPS and
@@ -107,6 +108,27 @@ in_orc 'do_spl_hub_invite' "${INV[@]}" DRY_RUN=0; rc=$?
   && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" && pass "2. hub-invite DRY_RUN=0: spool hub-invite through the proxy as $DEV_SA" \
   || fail "2. invite real: rc=$rc $(cat "$T/calls.log" "$T/out")"
 grep -qF "$DSN_PW" "$T/out" "$T/calls.log" && fail "2. the DSN password leaked into output / argv" || pass "2. the DSN password is in neither output nor argv"
+
+REV=(TENANT_ID=t1 INVITE_EMAIL=old@example.com)
+in_orc 'do_spl_hub_invite_revoke' "${REV[@]}"; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would revoke the unaccepted invite for old@example.com on t1' "$T/out" \
+  && pass "2. hub-invite-revoke DRY_RUN: no cloud call" || fail "2. revoke dry: rc=$rc $(cat "$T/calls.log" "$T/out")"
+for bad in INVITE_EMAIL=nope TENANT_ID=T_1; do
+  in_orc 'do_spl_hub_invite_revoke' "${REV[@]}" "$bad" DRY_RUN=0; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. hub-invite-revoke $bad refused before any call" || fail "2. hub-invite-revoke $bad: rc=$rc"
+done
+in_orc 'do_spl_hub_invite_revoke' "${REV[@]}" DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q '\[email=old@example.com\]' "$T/calls.log" && grep -q "DELETE FROM tenant_invites" "$T/stdin" \
+  && grep -q "accepted_at IS NULL" "$T/stdin" && grep -q "accepted_at IS NOT NULL" "$T/stdin" \
+  && grep -q "SET LOCAL app.tenant_id = :'tenant';" "$T/stdin" && ! grep -q 'old@example.com' "$T/stdin" \
+  && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
+  && pass "2. hub-invite-revoke DRY_RUN=0: DELETE unaccepted only, values as -v, tenant RLS, as $DEV_SA" \
+  || fail "2. revoke real: rc=$rc $(cat "$T/calls.log" "$T/out")"
+grep -qF "$DSN_PW" "$T/out" "$T/calls.log" && fail "2. revoke: the DSN password leaked" || pass "2. revoke prints no DSN"
+in_orc 'do_spl_hub_invite_revoke' TENANT_ID=t1 INVITE_EMAIL=Old@Example.COM DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q '\[email=old@example.com\]' "$T/calls.log" && ! grep -qi 'Old@Example.COM' "$T/stdin" \
+  && pass "2. hub-invite-revoke lowercases the email to match tenant_invites CHECK" \
+  || fail "2. revoke lowercase: rc=$rc $(cat "$T/calls.log")"
 
 ROLE=(TENANT_ID=t1 HUMAN_ID=HUM-4 MEMBER_ROLE=member FROM_ROLE=owner)
 in_orc 'do_spl_tenant_member_role' "${ROLE[@]}"; rc=$?

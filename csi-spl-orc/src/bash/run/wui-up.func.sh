@@ -36,6 +36,14 @@ do_wui_up() {
       { do_log "FATAL the one-shot WUI install failed"; return 1; }
   fi
   [[ "$LDE_WUI_UID" != 0 ]] || { do_log "FATAL $LDE_WUI_SRC is owned by root: the wui container never runs as root"; return 1; }
+  # a host listener on the WUI port (e.g. a leftover `nuxi dev`) makes the
+  # container fail to bind with a bare "compose up failed": name it instead
+  local holder
+  if ! docker ps --filter "name=^${LDE_COMPOSE_PROJECT}-wui-1$" --filter status=running -q | grep -q . &&
+     holder="$(ss -Hltnp "sport = :$LDE_WUI_PORT" 2>/dev/null)" && [[ -n "$holder" ]]; then
+    do_log "FATAL 127.0.0.1:$LDE_WUI_PORT is already taken: $(tr -s ' ' <<<"$holder" | cut -d' ' -f4,6-) -- stop it, or pick another port with LDE_WUI_PORT"
+    return 1
+  fi
   do_log "INFO compose up hub + wui ($LDE_COMPOSE_PROJECT, wui image $LDE_WUI_IMAGE)"
   lde_compose up -d hub wui || { lde_compose ps; do_log "FATAL compose up hub wui failed"; return 1; }
 

@@ -422,8 +422,17 @@ func (s *Postgres) Sweep(ctx context.Context, now time.Time) (SweepResult, error
 	return r, nil
 }
 
+// CountMessagesSince reads the trigger-kept counters (rdb 0023) when since is a
+// billing period start, the quota's only question: the SUM of at most 16 rows
+// per period instead of a COUNT over every message of the period (027 T040).
+// Any other since counts the rows.
 func (s *Postgres) CountMessagesSince(ctx context.Context, tenant string, since time.Time) (int, error) {
 	var n int
+	if since.Equal(billing.PeriodStart(since)) {
+		err := s.queryRowTenant(ctx, tenant, `SELECT COALESCE(SUM(messages), 0) FROM message_period_counts
+			WHERE tenant_id = $1 AND period_start >= $2`, []any{tenant, since}, &n)
+		return n, err
+	}
 	err := s.queryRowTenant(ctx, tenant, `SELECT COUNT(*) FROM messages WHERE tenant_id = $1 AND received_at >= $2`,
 		[]any{tenant, since}, &n)
 	return n, err

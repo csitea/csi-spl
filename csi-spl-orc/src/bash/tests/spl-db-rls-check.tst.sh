@@ -8,6 +8,8 @@
 #      bound role before 0014 is exit 0 too (the pre-apply check)
 #   4. the SQL reads only the catalog + spool_schema_migrations, and runs in
 #      the read-only transaction of spl_psql_ro
+#   6. (FR-SEC-014) EXPECT_NOT_LIFTABLE=1 with a liftable login is exit 5;
+#      without it the OK line reports the liftable count and 0021
 #   5. with no key readable it stops before gcloud. CONTROL: the stub log
 #      records a call when one is made.
 #------------------------------------------------------------------------------
@@ -34,9 +36,9 @@ in_orc() {
     eval "$SNIPPET"'
 }
 
-verdict() { # <json> <expect> -> prints "rc=<n> <log>"
+verdict() { # <json> <expect> [<expect_not_liftable>] -> prints "rc=<n> <log>"
   local out rc
-  out=$(SNIPPET="spl_db_rls_verdict '$1' $2" in_orc 2>&1); rc=$?
+  out=$(SNIPPET="spl_db_rls_verdict '$1' $2 ${3:-0}" in_orc 2>&1); rc=$?
   echo "rc=$rc $out"
 }
 
@@ -56,10 +58,19 @@ o=$(verdict '{"role":"hub","superuser":false,"bypassrls":false,"migration_0014":
 [[ "$o" == "rc=0 OK"*"2/2"* ]] && pass "bound role, all forced: exit 0" || fail "bound: $o"
 o=$(verdict '{"role":"hub","superuser":false,"bypassrls":false,"migration_0014":false,"tables":{"t1":[false,false]}}' 0)
 [[ "$o" == "rc=0 OK"*"0/1"* ]] && pass "pre-0014 check without EXPECT_RLS: exit 0, reports 0/1" || fail "pre-apply: $o"
+# --- 6. liftable (FR-SEC-014) ---------------------------------------------------------
+LIFT='{"role":"hub","superuser":false,"bypassrls":false,"migration_0014":true,"migration_0021_fail_closed":true,"liftable":["owns or can SET ROLE to the owner of messages"],"tables":'"$ALL"'}'
+o=$(verdict "$LIFT" 1 1)
+[[ "$o" == "rc=5 FAIL"*"owner of messages"* ]] && pass "EXPECT_NOT_LIFTABLE=1 with an owner login is exit 5 and names the path" || fail "liftable: $o"
+o=$(verdict "$LIFT" 1 0)
+[[ "$o" == "rc=0 OK"*"0021 fail-closed applied=True"*"liftable=1"* ]] && pass "without EXPECT_NOT_LIFTABLE: exit 0, reports 0021 and liftable=1" || fail "liftable report: $o"
+o=$(verdict '{"role":"hub","superuser":false,"bypassrls":false,"migration_0014":true,"liftable":[],"tables":'"$ALL"'}' 1 1)
+[[ "$o" == "rc=0 OK"*"liftable=0"* ]] && pass "CONTROL: a non-owner login passes EXPECT_NOT_LIFTABLE=1" || fail "not liftable: $o"
 # --- 4. SQL -------------------------------------------------------------------------
 sql=$(SNIPPET=spl_db_rls_sql in_orc 2>&1)
 grep -qE '\b(messages|deliveries|pins|tenants|roster)\b' <<<"$sql" && fail "SQL reads a data table" || pass "SQL reads no data table"
 grep -q "relforcerowsecurity" <<<"$sql" && grep -q "rolbypassrls" <<<"$sql" && pass "SQL reads force + bypassrls" || fail "SQL lacks the flags"
+grep -q "relowner" <<<"$sql" && grep -q "0021_rls_fail_closed.sql" <<<"$sql" && pass "SQL reads table owners + 0021" || fail "SQL lacks owner / 0021"
 # --- 5. no key: no cloud call -------------------------------------------------------
 : >"$T/calls.log"
 SNIPPET=do_spl_db_rls_check in_orc SPL_SA_KEY="$T/nokey.json" >"$T/o" 2>&1 && fail "ran without a key" || pass "no key: refused"

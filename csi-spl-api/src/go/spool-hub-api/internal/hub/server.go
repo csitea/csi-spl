@@ -183,6 +183,9 @@ func (s *Server) Handler() http.Handler {
 	if s.o.Payments != nil {
 		s.o.Payments.Register(mux)
 	}
+	if s.o.Auth != nil {
+		return s.middleware(s.authCORS(mux))
+	}
 	return s.middleware(mux)
 }
 

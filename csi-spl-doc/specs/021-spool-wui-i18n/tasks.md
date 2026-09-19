@@ -11,7 +11,7 @@
 - [x] T003 `rootLocaleRedirect.mjs`, `locale-cookie.client.ts`, `localeSearch.ts`, `LanguageSwitcher.vue`, `LocaleCombobox.vue` copied; `app.vue` lang/dir/hreflang. Check: `node tests/unit/root-locale-redirect.test.mjs`, `language-switcher.test.mjs`.
 - [x] T004 Switcher in the app corner (before CLE-3402's user menu) and the sign-in frame corner; corner uses logical properties.
 - [x] T005 `LanguageSetting.vue` in `/settings` (CLE-3402's section), `preferred-locale.client.ts`, auth client `savePreferences`. Check: `locale-combobox.test.mjs`.
-- [~] T005a `X-Locale` on auth calls: shipped in `2e2c601`, it broke EVERY cross-origin auth preflight (hub CORS allow-list lacks it; reported by CLE-3402) — sign-in down on dev + prd until `ecd9ad9` (opt-in `sendLocale`, off; unit test pins no header by default). Check (n=2 per env, headless Chrome `/login?tenant=t1`): CORS console errors 0, idp buttons 1. Re-enable after T023 puts the hub's `X-Locale` CORS on dev + prd.
+- [x] T005a `X-Locale` on auth calls (re-enabled `ad17830` after hub 0.1.10): shipped in `2e2c601`, it broke EVERY cross-origin auth preflight (hub CORS allow-list lacks it; reported by CLE-3402) — sign-in down on dev + prd until `ecd9ad9` (opt-in `sendLocale`, off; unit test pins no header by default). Check (n=2 per env, headless Chrome `/login?tenant=t1`): CORS console errors 0, idp buttons 1. Re-enabled in `ad17830` once hub 0.1.10 (`c8dadef`) answered `allow-headers: Content-Type, X-Locale` on both api hosts; re-check n=2 per env: CORS errors 0, sign-in page healthy, auth calls carry `x-locale`.
 - [x] T006 cnf `env.i18n` + `30_wui-build-deploy.yml` `NUXT_PUBLIC_DEFAULT_LOCALE` / `NUXT_PUBLIC_SITE_URL`.
 - [x] T007 Donor i18n tools (`src/python/i18n`) + `add_keys.py`.
 
@@ -25,10 +25,14 @@
 - [x] T020 (`e586002`) Migration `0017_human_preferred_locale.sql` (`humans` + `password_credentials`). Check: `hub-pg.tst.sh` applies every file incl. 0017 (renumbered from 0015 at push: trunk took 0015/0016).
 - [x] T021 (`e586002`) `internal/i18n`, `X-Locale` in the CORS allow-lists, `PUT /api/v1/auth/preferences`, session `preferred_locale`, `SPOOL_HUB_DEFAULT_LOCALE` (cnf `env.i18n.default_locale`). Check: `go test ./...` ok.
 - [~] T022 (`e586002`) Mails (verify, reset, M2 claim) per locale, 19 locales, link prefix; English wording pinned. Gap: the M2 claim mail goes out in the default locale (the buyer's locale is not stored on the checkout; needs a column).
-- [ ] T023 Hub deploy via CLE-3355: `do_spl_db_bootstrap` (0017) on dev then prd, THEN a `hub.image.tag` bump containing `e586002` (asked 2026-09-19, CLE-3355 inbox). Then re-enable WUI `sendLocale`.
+- [x] T023 Hub deploy via CLE-3355 (done 2026-09-19 ~16:50Z: 0017 applied dev + prd, hub 0.1.10 `c8dadef` on both, `/version` n=1 each): `do_spl_db_bootstrap` (0017) on dev then prd, THEN a `hub.image.tag` bump containing `e586002` (asked 2026-09-19, CLE-3355 inbox). Then re-enable WUI `sendLocale`.
 
 ## Phase 4 — Proof
 
 - [x] T030 Headless-Chrome switch proof, anonymous (`tests/e2e/locale-switch.proof.mjs`, n=1 per env, 2026-09-19T16:4xZ): dev build `ad3ed01`+ and prd build `12532b7` (both contain `5bbb421`) → 43/43 PASS each: `/` with a he browser → `/he` rtl; bg `/login` → fi via typed search, query kept, cookie `i18n_redirected=fi`; cookie beats browser on `/`; fi → en in the shell with query kept. Screenshots bg/fi/he/en desktop + mobile in `/var/tmp/CLE-3403-proof/{dev,prd}/`.: 3 locales incl. `he` → `/var/tmp/CLE-3403-proof/`.
 - [x] T031 no-x-scroll at every locale: the same proof, all 19 locales × `/login` + `/lobby` at 390×844, lang tag + dir asserted (in the 43/43); `no-x-scroll.test.mjs` covers the 18 prefixed locales locally.
-- [~] T032 WUI: dev + prd `build.json` carry `5bbb421` (via newer builds; 30 run 35455105725's own deploy jobs were superseded/cancelled). Signed-in LanguageSetting save + mail locale wait on T023 (hub 0.1.10).
+- [x] T032 WUI: dev + prd `build.json` carry `5bbb421` (via newer builds; 30 run 35455105725's own deploy jobs were superseded/cancelled). Signed-in proof on dev (`tests/e2e/language-setting-live.proof.mjs`, n=1, throwaway tenant-less native account): 6/6 PASS — save fi → session `preferred_locale: fi`, page stays en, status "Saved."; PUT `xx` → 400 `unsupported_locale`; next sign-in at `/login` opens `/fi/lobby` (`fi-FI`). Screenshots `/var/tmp/CLE-3403-proof/dev-signed-in/`. Not run on prd (no debug tokens there; a prd run needs an invited test member). CLE-3408 reran the locale-neutral `user-menu-live.proof.mjs` (`0e914a9`) on dev: 10/10.
+
+## Phase 5 — Other lanes' keys
+
+- [x] T040 Translations for keys other lanes add with `add_keys.py`: CLE-3404 `checkout.host.*` (2, `5bbb421`), CLE-3408 `settings.keys*` (39, this commit). Machine drafts like T011.

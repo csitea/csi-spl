@@ -138,3 +138,14 @@ variable "extra_dns_zone_project" {
   description = "Project of extra_dns_managed_zone; its own key ~/.gcp/.<org>/key-<project>.json writes there (cnf steps.031-gcp-hub-ingress.extra_dns_zone_project)."
   default     = ""
 }
+
+# Owner 2026-09-19 (WUI domains exactly as csi-rel): <fqdn> itself is the WUI's
+# Firebase custom domain (019 bind_custom_domain; records written by
+# do_provision_firebase_dns), so this step must not hold an A record for it.
+# *.<fqdn> (tenant hosts) and the extra hosts stay on this LB until the
+# API-NO-LB lane moves them.
+variable "fqdn_a_record" {
+  type        = bool
+  description = "Write the A record <fqdn> -> this LB (cnf steps.031-gcp-hub-ingress.fqdn_a_record). false = <fqdn> belongs to Firebase Hosting."
+  default     = true
+}

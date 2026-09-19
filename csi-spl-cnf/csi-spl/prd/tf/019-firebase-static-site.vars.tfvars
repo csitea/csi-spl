@@ -9,4 +9,4 @@ site_id = "csi-spl-prd-site"
 cert_preference = "GROUPED"
 wait_dns_verification = false
 additional_fqdns = []
-bind_custom_domain = false
+bind_custom_domain = true

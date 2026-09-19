@@ -10,6 +10,7 @@ wui_origin_host = ""
 l7_narrowing = false
 hub_paths = ["/v1/*", "/api/*", "/healthz", "/version"]
 hub_path_regex = "^/(v1/|api/v1/|healthz$|version$)"
+fqdn_a_record = false
 extra_host_labels = ["api"]
 dns_managed_zone = "spool-hub"
 dns_zone_project = ""

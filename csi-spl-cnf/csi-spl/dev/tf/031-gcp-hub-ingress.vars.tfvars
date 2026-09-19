@@ -6,11 +6,12 @@ gcp_project = "csi-spl-dev"
 gcp_region  = "europe-north1"
 
 allowed_ip_ranges = ["0.0.0.0/0"]
-wui_origin_host = "csi-spl-dev-site.web.app"
-l7_narrowing = true
+wui_origin_host = ""
+l7_narrowing = false
 hub_paths = ["/v1/*", "/api/*", "/healthz", "/version"]
 hub_path_regex = "^/(v1/|api/v1/|healthz$|version$)"
 extra_host_labels = []
+fqdn_a_record = false
 dns_managed_zone = "spool-hub-dev"
 dns_zone_project = ""
 extra_dns_managed_zone = "spool-hub"

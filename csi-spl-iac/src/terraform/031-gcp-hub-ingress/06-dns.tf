@@ -26,7 +26,7 @@ resource "google_dns_record_set" "acme_challenge" {
 }
 
 resource "google_dns_record_set" "hub" {
-  for_each = local.manage_dns ? toset(["${var.fqdn}.", "*.${var.fqdn}."]) : toset([])
+  for_each = local.manage_dns ? toset(concat(var.fqdn_a_record ? ["${var.fqdn}."] : [], ["*.${var.fqdn}."])) : toset([])
 
   project      = local.dns_project
   managed_zone = var.dns_managed_zone

@@ -173,6 +173,9 @@ jobs:
           print("site=" + s19["site_id"])
           print("fqdn=" + e["dns"]["fqdn"])
           print("tenant=" + s19.get("wui_default_tenant", ""))
+          # "" = same-origin auth (today); set per env once the hub serves
+          # credentialed CORS on /api/v1/auth/* at that host (csi-rel api_base_url)
+          print("auth_base=" + s19.get("wui_auth_base", ""))
           print("lb_route=" + ("true" if s31.get("wui_origin_host") else "false"))
           PY
           cat "$GITHUB_OUTPUT"
@@ -196,6 +199,7 @@ jobs:
           NUXT_PUBLIC_API_BASE: https://{tenant}.${{ steps.cfg.outputs.fqdn }}
           NUXT_PUBLIC_TENANT: ${{ steps.cfg.outputs.tenant }}
           NUXT_PUBLIC_USE_MOCK: "0"
+          NUXT_PUBLIC_AUTH_BASE: ${{ steps.cfg.outputs.auth_base }}
         run: pnpm run generate
 
       - name: Stamp build.json (the deployed-commit probe)

@@ -120,7 +120,7 @@ func (s *Postgres) queryTenantNoJIT(ctx context.Context, tenant, sql string, arg
 
 // viewThreadsSQL builds the statement for q. Only the filters q sets reach the
 // SQL, so the planner sees concrete predicates (a channel walk takes
-// messages_channel) instead of "$n = '' OR ..." shapes. Every thread filter
+// messages_channel) instead of "$n is empty OR ..." shapes. Every thread filter
 // is a probe on that one thread inside the walk step.
 func viewThreadsSQL(tenant string, q ThreadQuery) (string, []any) {
 	c := &sqlc{}

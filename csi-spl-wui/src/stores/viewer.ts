@@ -37,7 +37,8 @@ export const useViewerStore = defineStore('viewer', () => {
       failure.value = null
       return
     }
-    if (err.token === 'no_tenant') failure.value = { key: 'viewer.error.no_tenant', params: { query: '?tenant=<id>' } }
+    /* specs/026: a session in several tenants with none active - sign in with ?tenant=<id> */
+    if (err.token === 'no_tenant' || (err.status === 409 && err.token === 'tenant_required')) failure.value = { key: 'viewer.error.no_tenant', params: { query: '?tenant=<id>' } }
     else if (err.token === 'api_host') failure.value = { key: 'viewer.error.api_host', params: { host: '<tenant>.<domain>', env_var: 'NUXT_PUBLIC_API_BASE', tenant: '{tenant}' } }
     else if (err.token === 'no_base' || err.token === 'bad_base') failure.value = { key: 'viewer.error.no_base' }
     else if (err.status === 404 && err.token === 'unknown_tenant') failure.value = { key: 'viewer.error.unknown_tenant' }

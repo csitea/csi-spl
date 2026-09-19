@@ -1,12 +1,12 @@
 /**
- * Tenant host resolution (003 contracts/http-v1.md: tenant = request Host;
- * reserved labels are the API host and never a tenant, cfe5a9b).
+ * Hub origin + tenant choice (specs/026: the hub takes the tenant from the
+ * signed-in session, not from the Host).
  *
- * The WUI reads tenant data from <tenant>.<fqdn> (lde: <tenant>.localhost),
- * never from api.<fqdn> / dev.api.<fqdn>. NUXT_PUBLIC_API_BASE is a template
- * holding {tenant}; the tenant comes from ?tenant=, then the remembered one,
- * then NUXT_PUBLIC_TENANT. The WUI's own host is not used: it is served from
- * Hosting (web.app / the env fqdn), not from a tenant host.
+ * dev / prd: NUXT_PUBLIC_API_BASE is the single api host (https://api.<fqdn>);
+ * the session's active tenant decides what is read. lde (and the transition):
+ * a template holding {tenant} still reads from <tenant>.<fqdn>. The tenant
+ * picked here (?tenant=, then the remembered one, then NUXT_PUBLIC_TENANT) is
+ * what sign-in binds the session to.
  */
 
 // mirror of internal/msg/msg.go reservedTenants (006 FR-016); the hub is the authority
@@ -35,16 +35,18 @@ export function pickTenant({ query, stored, fallback } = {}) {
 
 /**
  * The hub origin for tenant reads.
- * - template with {tenant}: substituted; no tenant → { base: '', error: 'no_tenant' }
- * - fixed origin (legacy): used as-is
- * Either way, a first host label that is reserved (api., dev., www. …) is the
- * API host, where every tenant route is 404 → { error: 'api_host' }.
+ * - template with {tenant} (lde, legacy tenant hosts): substituted; no tenant
+ *   → { base: '', error: 'no_tenant' }; a reserved label substituted is the
+ *   API host by accident → { error: 'api_host' }
+ * - fixed origin: used as-is; the api host (api.<fqdn>) is the normal case
+ *   since specs/026
  */
 export function apiBaseFor(template, tenant) {
   const tpl = String(template || '').replace(/\/+$/, '')
   if (!tpl) return { base: '', error: 'no_base' }
+  const templated = tpl.includes('{tenant}')
   let base = tpl
-  if (tpl.includes('{tenant}')) {
+  if (templated) {
     if (!validTenant(tenant)) return { base: '', error: 'no_tenant' }
     base = tpl.split('{tenant}').join(tenant)
   }
@@ -55,6 +57,6 @@ export function apiBaseFor(template, tenant) {
     return { base: '', error: 'bad_base' }
   }
   const first = host.split('.')[0]
-  if (host.includes('.') && RESERVED_TENANTS.has(first)) return { base: '', error: 'api_host' }
+  if (templated && host.includes('.') && RESERVED_TENANTS.has(first)) return { base: '', error: 'api_host' }
   return { base, error: '' }
 }

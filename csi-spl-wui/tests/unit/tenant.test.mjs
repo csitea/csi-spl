@@ -22,10 +22,9 @@ describe('tenant host (003 http-v1: tenant = Host; reserved = API host)', () => 
     assert.equal(apiBaseFor('https://{tenant}.dev.example.com', 'api').error, 'no_tenant')
   })
 
-  it('refuses the API host for tenant reads', () => {
-    assert.equal(apiBaseFor('https://api.example.com', '').error, 'api_host')
-    assert.equal(apiBaseFor('https://dev.api.example.com', '').error, 'api_host')
-    assert.equal(apiBaseFor('https://dev.example.com', '').error, 'api_host')
+  it('takes the single api host as a fixed origin (specs/026: tenant from the session)', () => {
+    assert.deepEqual(apiBaseFor('https://api.example.com/', ''), { base: 'https://api.example.com', error: '' })
+    assert.deepEqual(apiBaseFor('https://dev.api.example.com', 't1'), { base: 'https://dev.api.example.com', error: '' })
   })
 
   it('keeps a fixed tenant origin and single-label lde hosts', () => {

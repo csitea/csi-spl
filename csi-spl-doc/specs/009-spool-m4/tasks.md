@@ -2,8 +2,8 @@
 
 **Spec**: `./spec.md` · **Ground rules**: `../README.md` (status vocabulary, seams §5)
 
-**Status**: T003, T006, T007 **Implemented**; T002, T005 **Partial**;
-T001, T004 **Planned** (2026-09-19). M4 starts only after M3 (`005`) ships and
+**Status**: T001, T003, T006, T007 **Implemented**; T002, T005 **Partial**;
+T004 **Planned** (2026-09-19). M4 starts only after M3 (`005`) ships and
 M2 (`006` payment) sells; the schema and gate are in place with caps at
 `0` (= M4 off) until then:
 `grep -c 'seats_users\|project_id' csi-spl-rdb/src/sql/postgres/spool-hub/0012_m4_seats_buy_stamp.sql -> 8`.
@@ -17,8 +17,12 @@ M2 (`006` payment) sells; the schema and gate are in place with caps at
 
 ## Tasks
 
-- [ ] T001 Guard that the M2 checkout SKU stays one tenant, never seats: a
-      006 payment test asserts no seat line item on the M2 plan — FR-001. **Planned**.
+- [x] T001 Guard that the M2 checkout SKU stays one tenant, never seats: a
+      006 payment test asserts no seat line item on the M2 plan — FR-001.
+      **Implemented** (CLE-3371): `go test ./internal/payments -run TestM2SkuIsOneTenantNoSeats`
+      (the card intent carries only amount/currency/metadata/automatic methods;
+      the paid tenant has 0 seats, no project id, no bought_at). CONTROL:
+      planting `line_items[0][quantity]` in the intent turns it red.
 - [ ] T002 Schema: seats per tenant (`HUM-*` and bot peers), monthly period,
       cap from the plan (cnf) — FR-002. **Partial**: caps + occupancy counts
       done (rdb 0012 `cc65587`, store `7f2442c`; applied dev + prd 2026-09-19,

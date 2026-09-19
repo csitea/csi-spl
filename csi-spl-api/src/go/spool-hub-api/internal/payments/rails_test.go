@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"math/big"
 	"net/http"
@@ -319,5 +320,37 @@ func TestPayPalRail(t *testing.T) {
 	}
 	if ten, err := r.st.GetTenant(t.Context(), "acme"); err != nil || ten.BillingStatus != billing.StatusActive {
 		t.Fatalf("tenant after capture completed: %+v %v", ten, err)
+	}
+}
+
+// 009 T001 / FR-001: the M2 checkout SKU is ONE tenant, never seats. The
+// provider is asked for the plan amount only (no quantity / line items /
+// seat fields), and the paid tenant carries no seats and no project id
+// (a hosted tenant; the dedicated SKU's StampBuy is M4's).
+func TestM2SkuIsOneTenantNoSeats(t *testing.T) {
+	api := &stripeAPI{}
+	r := newRig(t, stripeCfg(t, api.server(t).URL))
+	_, co := r.do(t, "POST", "/api/v1/checkout", map[string]string{"tenant_id": "acme", "email": "buyer@example.com"})
+	id := co["checkout_id"].(string)
+	allowed := map[string]bool{"amount": true, "currency": true, "metadata[order_id]": true, "automatic_payment_methods[enabled]": true}
+	for k := range api.creates[0] {
+		if !allowed[k] {
+			t.Fatalf("M2 intent carries %q: the SKU must stay one tenant (no seat line items)", k)
+		}
+	}
+	if api.creates[0].Get("amount") != "2000" {
+		t.Fatalf("M2 intent amount %q, want the plan price", api.creates[0].Get("amount"))
+	}
+	if code, _ := r.stripeEvent(t, whsec, time.Now(), intentEvent("evt_m2", "payment_intent.succeeded", "pi_"+id)); code != 200 {
+		t.Fatal(code)
+	}
+	ten, err := r.st.GetTenant(t.Context(), "acme")
+	if err != nil || ten.SeatsUsers != 0 || ten.SeatsBots != 0 || ten.ProjectID != "" || !ten.BoughtAt.IsZero() {
+		t.Fatalf("an M2 tenant must carry no seats and no dedicated-project stamp: %+v %v", ten, err)
+	}
+	for _, k := range []string{"seat", "quantity", "line_item"} {
+		if strings.Contains(strings.ToLower(fmt.Sprint(co)), k) {
+			t.Fatalf("the M2 checkout answer mentions %q", k)
+		}
 	}
 }

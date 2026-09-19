@@ -47,8 +47,11 @@ The same `202` comes back whether or not the address already has a credential.
 
 ### US2 — Confirm email (P1)
 **Given** the link, **when** the WUI posts the token, **then** the credential
-becomes verified (`204`). A second click is `204` too; an unknown or consumed
-token is `401 verification_token_invalid`; an expired one `410 verification_token_expired`.
+becomes verified (`204`) with the password sent in the `register` call that
+minted the link. A second click is `204` too; an unknown, consumed or
+superseded token is `401 verification_token_invalid`; an expired one
+`410 verification_token_expired`. A new link is requested by posting
+`register` again (there is no separate resend route, FR-015).
 
 ### US3 — Sign in (P1)
 **Given** a verified credential, **when** the person posts the right password,
@@ -92,7 +95,7 @@ Already built: `POST /api/v1/auth/logout` (010).
   `Identity.Email` as verified and matches invites on it (HUMANS, 2026-09-19),
   so an unverified login (lde, flag off) gets a session with no `hum` claim,
   which the view door refuses.
-- **FR-005** Enumeration safety: `register`, `forgot`, `resend` always answer
+- **FR-005** Enumeration safety: `register` and `forgot` always answer
   the same status whatever the address; `login` answers one `401` for unknown
   email, no password and wrong password, and burns one argon2 hash on the
   unknown-email path so timing does not tell them apart.
@@ -101,7 +104,9 @@ Already built: `POST /api/v1/auth/logout` (010).
   per 60 s and 5 per 24 h per credential — refusals are the same `204`;
   (b) **per client IP and per email, in process**, decided **before** any lookup,
   answering `429 rate_limited` with `Retry-After`: login 10/15 min per email and
-  30/15 min per IP; register/forgot/resend/reset/verify 10/15 min per IP.
+  30/15 min per IP; register/forgot/reset/verify 10/15 min per IP. The client
+  IP is the `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS`-th `X-Forwarded-For`
+  entry from the right (0 = TCP peer; OQ-N6).
 - **FR-007** Admission is the Registrar's (HUMANS, OQ-A3): the login hands it
   `Identity{Provider:"password", Subject:<lower-cased email>, Email}` plus the optional
   `tenant` from the body (HUMANS' key for a native account, rdb `0006` header,
@@ -119,7 +124,7 @@ Already built: `POST /api/v1/auth/logout` (010).
   a Secret Manager slot. STARTTLS is **required** before AUTH on a non-loopback
   host (the donor's known bug). `log` records recipient-hash + template only, never the link.
 - **FR-011** `SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS=true` returns the plaintext
-  token in the `register` / `resend` / `forgot` body. Allowed in `lde` and
+  token in the `register` / `forgot` body. Allowed in `lde` and
   `dev`; the hub **refuses to boot** with it in `prd`.
 - **FR-012** Fail closed: with verification required and no way to deliver
   the link (transport `none`, and no debug tokens) `register` answers
@@ -128,6 +133,17 @@ Already built: `POST /api/v1/auth/logout` (010).
   off → the native routes are not mounted (404). **prd stays off** until the owner answers OQ-N1.
 - **FR-014** No password, hash, token or full email in any log line; emails are
   logged as the 010 `digest()`.
+- **FR-015** Pre-account takeover is closed (found while porting; the donor
+  has it). Someone may register another person's address first. So: (a) a
+  verification token stores the argon2id hash of the password of the
+  `register` call that minted it, and consuming it installs that hash;
+  (b) issuing a verification token retires every older live one, so only the
+  newest link verifies; (c) there is no password-less resend. A squatter's
+  password therefore never becomes active on an address whose owner
+  registered after them. Residual: if the squatter registers again **after**
+  the owner, the newest link (in the owner's inbox) carries the squatter's
+  password; clicking it and failing to sign in leads the owner to `forgot`,
+  whose reset replaces the password. Control: `TestNativePreAccountTakeover`.
 
 ## 4. Controls (tests that must refuse)
 
@@ -141,6 +157,8 @@ Already built: `POST /api/v1/auth/logout` (010).
 | Registrar refusal = no session | `TestNativeLoginRegistrarRefuses` |
 | unverified email never reaches the Registrar (invite claim) | `TestNativeUnverifiedNeverReachesRegistrar` |
 | enumeration-safe register/forgot | `TestNativeRegisterEnumerationSafe`, `TestNativeForgotEnumerationSafe` |
+| pre-account takeover (FR-015) | `TestNativePreAccountTakeover` |
+| CredStore semantics on memory **and Postgres** | `TestCredStoreContract/{memory,postgres}` (postgres in `hub-pg.tst.sh`) |
 | rate limits (both layers) | `TestNativeLoginRateLimited`, `TestNativeForgotAccountFloor` |
 | debug tokens refused in prd | `TestNativeConfigFailFast` |
 | no STARTTLS → no credentials sent | `TestSMTPRefusesAuthWithoutTLS` |
@@ -167,3 +185,10 @@ Already built: `POST /api/v1/auth/logout` (010).
   an app password. (a) **recommended**: the same relay, a per-env Secret
   Manager slot `spool-hub-mail-smtp-password`; (b) a transactional provider.
   **prd cannot send mail yet**: no relay secret version exists.
+- **OQ-N6 — client IP behind Cloud Run.** The per-IP limiter needs the real
+  client address; behind Cloud Run (and a Hosting rewrite) the TCP peer is
+  Google's front end, which would put every caller in one bucket.
+  (a) **recommended**: measure the `X-Forwarded-For` shape on dev
+  (T014) and set `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` per env in cnf;
+  (b) drop the per-IP layer and keep only per-email + the DB floor.
+  Implemented: the knob, default `0`.

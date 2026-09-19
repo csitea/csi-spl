@@ -20,6 +20,11 @@ is on, the answer carries `"native": true` next to the social list.
   anything is looked up (per IP; per email on `login`). Render "Too many attempts —
   try again in N minutes."
 - Responses carry `Cache-Control: no-store`.
+- **Resend = register again.** There is no separate resend route: posting
+  `register` again with the same email + password mails a fresh link (subject
+  to the per-account floor of 1 per 60 s, 5 per 24 h). Each link carries the
+  password of the call that minted it and only the newest link verifies
+  (spec FR-015), so the form must resend with the password the person typed.
 - `debug_token` shows up only when the hub runs with
   `SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS=true` (lde/dev only, never prd). A WUI may
   show it in a dev banner and must never depend on it.
@@ -29,8 +34,7 @@ is on, the answer carries `"native": true` next to the social list.
 | Method + path | Body | Answers |
 |---|---|---|
 | `POST /api/v1/auth/register` | `{"email","password","name"?}` | `202 {"status":"verification_required","debug_token"?}` for **every** well-formed request (new, existing, verified or not). `400 bad_request` + `detail` `email` / `password_too_short` (min in `detail`). `503 email_delivery_unavailable` when the hub cannot mail the link (spec FR-012). When verification is off (`SPOOL_HUB_AUTH_NATIVE_VERIFY_REQUIRED=false`) the status is `"registered"`. No session is set in either case. |
-| `POST /api/v1/auth/email/verify` | `{"token"}` | `204` verified (also on a repeat click); `401 verification_token_invalid` (unknown/consumed); `410 verification_token_expired`. No session. |
-| `POST /api/v1/auth/email/resend` | `{"email"}` | always `204` (`200 {"debug_token"}` when debug is on and a mail was issued). |
+| `POST /api/v1/auth/email/verify` | `{"token"}` | `204` verified (also on a repeat click); `401 verification_token_invalid` (unknown, consumed, or superseded by a newer link); `410 verification_token_expired`. The password that becomes active is the one sent with the `register` call that minted this link. No session. |
 | `POST /api/v1/auth/login` | `{"email","password","tenant"?,"redirect"?}` | `200` + the session claims (010 §3, `p:"password"`, `sub` = the lower-cased email, `hum` when the Registrar is wired) and `Set-Cookie: spool_session`. `401 invalid_credentials` (unknown email, wrong password — identical); `403 email_unverified` (right password, email not confirmed); `403 not_allowed` (Registrar refused: not invited); `503 unavailable` (store down). |
 | `POST /api/v1/auth/password/forgot` | `{"email"}` | always `204` (`200 {"debug_token"}` when debug is on and a mail was issued). |
 | `POST /api/v1/auth/password/reset` | `{"token","password"}` | `204` (password set, email marked verified, all reset links for the account dead, **no session**: sign in); `400 bad_request` `password_too_short`; `401 reset_token_invalid` (unknown, used or expired — identical). |
@@ -56,10 +60,10 @@ the URL (`history.replaceState`) once posted.
 | token | copy |
 |---|---|
 | `invalid_credentials` | "Email or password is wrong." |
-| `email_unverified` | "Confirm your email first — we can send the link again." (offer resend) |
+| `email_unverified` | "Confirm your email first — we can send the link again." (resend = `register` with the same email + password) |
 | `not_allowed` | "This account has no access here yet — ask the owner for an invite." |
 | `verification_token_invalid` | "That link is not valid any more." |
-| `verification_token_expired` | "That link expired — we can send a new one." |
+| `verification_token_expired` | "That link expired — we can send a new one." (via `register`) |
 | `reset_token_invalid` | "That reset link is not valid any more — ask for a new one." |
 | `email_delivery_unavailable` | "We cannot send email right now — try again later." |
 | `rate_limited` | "Too many attempts — try again later." |

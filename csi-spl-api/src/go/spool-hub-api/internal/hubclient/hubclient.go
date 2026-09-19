@@ -80,6 +80,11 @@ type Client struct {
 	PinRefresh time.Duration
 	// ReadyTimeout bounds each wait for a hub reply.
 	ReadyTimeout time.Duration
+	// Warn receives the operator warnings (a private key loaded from inside
+	// SPOOL_ROOT). nil = os.Stderr.
+	Warn io.Writer
+
+	keysDirWarned sync.Once
 }
 
 // New returns a Client for cfg with production defaults.
@@ -137,7 +142,28 @@ func (c *Client) box() (string, ed25519.PrivateKey, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	if kerr := c.Cfg.CheckKeysDir(); kerr != nil {
+		c.keysDirWarned.Do(func() { c.warnKeysDir(b, kerr) })
+	}
 	return b, priv, nil
+}
+
+// warnKeysDir tells the operator that box b's private key was loaded from a
+// keys dir inside SPOOL_ROOT (002 NFR-002, a box keyed before keygen refused
+// such a dir). The key still loads, so no box loses its identity; the warning
+// names the repair action. Once per Client.
+func (c *Client) warnKeysDir(b string, kerr error) {
+	w := c.Warn
+	if w == nil {
+		w = os.Stderr
+	}
+	c.Log.Warn().Str("box", b).Str("keys_dir", c.Cfg.KeysDir).Str("spool_root", c.Cfg.SpoolRoot).
+		Msg("private key loaded from inside SPOOL_ROOT (002 NFR-002)")
+	fmt.Fprintf(w, "WARNING: the private key of box %s was loaded from SPOOL_KEYS_DIR %q, inside SPOOL_ROOT %q (002 NFR-002: whoever can read the spool root can read this key). It still loads, for now.\n"+
+		"  Fix (csi-spl-orc): ./run -a do_repair_spool_keys           (dry run: prints the plan)\n"+
+		"                     DRY_RUN=0 ./run -a do_repair_spool_keys (moves the key to $HOME/.spool/keys)\n"+
+		"  then unset SPOOL_KEYS_DIR (or point it at the new dir) and restart this box's agents.\n"+
+		"  (%v)\n", b, c.Cfg.KeysDir, c.Cfg.SpoolRoot, kerr)
 }
 
 // ---- session -----------------------------------------------------------------

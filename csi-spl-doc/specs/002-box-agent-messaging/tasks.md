@@ -113,6 +113,18 @@ check. **Remaining**: none for 002.
 - [x] T029 Reconcile to `contracts/trust-modes.md` (moved in from `doc/md/`):
       unsigned local mail, optional per-box key, `delivery` in the send result,
       exit `78` locally only for a hash mismatch
+- [x] T030 (CLE-3400, owner 2026-09-19 "warn on keys") NFR-002 residual: keygen
+      refuses a keys dir inside `$SPOOL_ROOT` (dab3161), but a box keyed before
+      that still loads its key from there. Hub mode now prints a WARNING once
+      per client naming the fix, and still loads (no box loses its identity);
+      `do_repair_spool_keys` (csi-spl-orc, `DRY_RUN=1` default) moves the key to
+      `$HOME/.spool/keys` 0600/0700, byte-compared, never overwriting a different
+      key. Checks: `go test -run NFR002 ./internal/hubclient/` (legacy fixture
+      warns once and loads; CONTROL: outside the root is silent);
+      `bash csi-spl-orc/src/bash/tests/repair-spool-keys.tst.sh` -> `PASS: all`
+      (CONTROL: a different key at the target is refused). This box, measured
+      2026-09-19: `./run -a do_repair_spool_keys` -> no `box-*.key` under
+      `/var/spool-hub/keys`
 
 ## Dependencies
 
@@ -126,4 +138,4 @@ check. **Remaining**: none for 002.
 - The `v:1` object, CLI verbs, and MCP tools are the permanent contract `003`
   reuses — resist adding a hub flag here.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->
+<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:50:00Z -->

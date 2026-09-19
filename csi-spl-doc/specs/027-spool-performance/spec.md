@@ -47,6 +47,8 @@ None of the audit's items is already fixed on trunk.
 
 ## 5. Owner decisions (routed via CLE-00)
 
+- **Stated bound, T040 pin/tenant cache (0a11fae)**: `GetPin` and `GetTenant` are cached in process. Every pins/tenants writer clears the entry after commit, so a revoke or billing change made through THIS process applies on the very next frame (control `TestSendPathCacheInvalidation`: revoke of to_box -> unpinned_box, unpaid -> 402, revoke of the sender -> refused, tenant A's pin never answers for tenant B). A write this process did not make (the other revision during a roll overlap, hand SQL) is seen within **5 s** (TTL, `TestHotCacheStalenessBound`).
+- **Stated bound, T040 queue cap (5d711f8)**: the cap trim takes a per-(tenant, box) try-lock, so a box's queue can briefly exceed `QueueMaxPerBox`. Measured up to 64 rows over the cap after a c=50 burst (BenchmarkOnSend, n=5x4 cases, max), and 0-2 over at 16 workers (store test, n=10). The next send that takes the lock trims it back to the exact cap (`TestEnqueueConcurrentCap`). A blocking lock keeps the cap exact but drops one box to ~150-280 sends/s at c=50, so it was rejected.
 - **D1 (item 5)**: argon2id CPU on 1 vCPU. Options: (a) `cpu: "2"` in cnf (about 2x the Cloud Run vCPU cost); (b) keep 1 vCPU and cap concurrent hashes in process with a semaphore (zero cost; logins queue instead of starving the WS loop); (c) lower the params (refused: the code enforces the OWASP floor). Recommendation: (b), measured first.
 - **D3 (found by T040, not a perf item)**: the month quota is `COUNT(*)` of messages that still exist (`store/postgres.go:368`, `received_at >= period start`). Retention deletes #alerts after 7 days (cnf `SPOOL_HUB_RETENTION_ALERTS: "168h"`), so a tenant's usage for the month DROPS as its messages expire. T040 keeps that behaviour byte-identical (the counter decrements on delete, FR-002). Question for the owner: should the quota count messages *sent* in the period (monotonic)? Recommendation: yes, as a separate billing lane after T040. The counter then simply stops decrementing.
 - **D4 (T020 follow-up)**: a hub crash between the tmp upload's finalize and its promote leaves an object under `tmp/<tenant>/`. Proposed: a bucket lifecycle rule (`matchesPrefix tmp/`, age 1 day) in the 050 terraform step via make/tf-runner. It needs the owner's go (terraform apply). Recommendation: yes.
@@ -56,4 +58,4 @@ None of the audit's items is already fixed on trunk.
 - **Accepted T030 trade-off**: at 5k messages the dm+viewer first page went 4.29 -> 8.03 ms p50 (8.74 -> 12.33 p95, n=30), in exchange for 200k/80k-thread pages at 600 -> 2.5 ms.
 - **D2 (P3b)**: multi-instance fanout. Recommendation: not now. Revisit only once a measured single-instance ceiling is reached.
 
-<!-- last-edit: 2026-09-19T17:35:18Z -->
+<!-- last-edit: 2026-09-19T17:45:49Z -->

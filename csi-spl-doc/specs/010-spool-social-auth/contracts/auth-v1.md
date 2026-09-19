@@ -19,6 +19,11 @@ for start.
 | `GET /api/v1/auth/{provider}/callback?code&state` (IdP only) | success: sets `spool_session`, `302 <APP_URL><redirect>`. failure: no session, `302 <APP_URL>/login?auth_error=<code>&redirect=<path>`. Unknown provider → `404`. |
 | `GET /api/v1/auth/session` | `200` session claims (§3) or `401 unauthenticated`. `Cache-Control: no-store`. |
 | `POST /api/v1/auth/logout` | `204`, `spool_session` cleared. |
+| `POST /api/v1/auth/facebook/deauthorize` (Meta only) | form `signed_request`; valid → `200`, the Facebook identity is unlinked (`Options.Unlinker`); bad/missing signature → `400 bad_request`; Facebook not enabled → `404`. |
+| `POST /api/v1/auth/facebook/data-deletion` (Meta only) | same verification; `200 {"url":"<APP_URL>/api/v1/auth/facebook/data-deletion?code=<c>","confirmation_code":"<c>"}`. |
+| `GET /api/v1/auth/facebook/data-deletion?code=<c>` | `200 {"confirmation_code":"<c>","status":"completed"}` for a code this hub issued, else `404`. |
+
+Providers (010 FR-001, FR-012): `google`, `facebook`, `microsoft`, `linkedin`, `xai`; `/providers` lists only the enabled ones.
 
 ## 2. `auth_error` codes (the login page renders these)
 
@@ -81,4 +86,4 @@ Requires a valid session, a `HUM-*` in it (Registrar, T012) and
 default, so today every call refuses), `ErrNotMember`, or the lookup error;
 the view door maps all of them to `401 view_door`. `session.t` is never read.
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:48:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-19 -->

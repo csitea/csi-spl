@@ -32,7 +32,7 @@ Deliberate differences from the csi-rel donor:
 |---|---|---|
 | Fiber, JWT, `users` table with `google_sub` / `facebook_sub` | `net/http` ServeMux (the hub's), an HMAC-signed session cookie, **no table in this package** | The hub is `net/http`; the human row is `HUM-*` (004) and is created through a `Registrar` hook the hub implements (T012), so this package never touches the store. |
 | State: HMAC-signed only, 30 min | HMAC-signed **and** bound to an HttpOnly nonce cookie, single use, 15 min (cnf) | A state lifted from another browser, or replayed, is refused (`TestStateCSRF`). |
-| Facebook avatar fetch, deauthorize callback | not yet | Avatar → `file_id` is narrative §3.4 (Planned T044); deauthorize/data-deletion is Planned T043. |
+| Facebook avatar fetch, deauthorize callback | deauthorize + data-deletion Implemented (T043, stateless confirmation code); avatar not yet | Avatar → `file_id` is narrative §3.4 (Planned T044). |
 | Provider "omitted when unconfigured" in prd | a listed provider that is unset or PLACEHOLDER **fails the boot** | Owner brief 2026-09-18: fail-fast env vars. The provider list itself is the switch: `""` = off. |
 
 ---
@@ -67,8 +67,15 @@ unverified email or a refused registration lands on
 → `204`, cookie cleared. *(Implemented.)*
 
 ### US5 — Microsoft, LinkedIn, xAI on the same rails (P3)
-Narrative §1. *(Planned: T040–T042; listing one today fails the boot with
-"planned but not implemented".)*
+Narrative §1. One generic OIDC client (`internal/auth/oidc.go`, donor csi-rel
+`oidc_idp.go`) serves all three: code → token → userinfo, the same state /
+cookie checks, the same session. *(Implemented against the fake IdP: T040–T042;
+live only after the owner registers each app, `idp-registration-runbook.md`.)*
+
+### US6 — Meta's deauthorize + data-deletion callbacks (P1 for a live Meta app)
+Meta will not publish a Facebook Login app without a *Deauthorize callback
+URL* and a *Data deletion request URL*. The hub answers both, authorised only
+by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
 
 ---
 
@@ -113,6 +120,31 @@ Narrative §1. *(Planned: T040–T042; listing one today fails the boot with
   `auth.login_ok` / `auth.callback_fail` carry provider, reason and a 12-hex
   digest of the subject.
 
+- **FR-012** — Implemented (T040–T042): `microsoft`, `linkedin` and `xai`
+  are generic OIDC authorization-code clients (`oidc.go`). Each has the block
+  `SPOOL_HUB_AUTH_<P>_{CLIENT_ID,CLIENT_SECRET,REDIRECT_URI,SCOPES}` under the
+  same FR-007 fail-fast rules. Identity = the userinfo `sub` + email;
+  `email_verified=true` is required (bool or `"true"`), except Microsoft,
+  where no such claim exists and trust comes from OQ-I1. Endpoints:
+  Microsoft = `login.microsoftonline.com/<SPOOL_HUB_AUTH_MICROSOFT_TENANT>/oauth2/v2.0/{authorize,token}`
+  + `graph.microsoft.com/oidc/userinfo`; LinkedIn = its published OIDC
+  endpoints (`www.linkedin.com/oauth/.well-known/openid-configuration`);
+  xAI = **cnf only** (`SPOOL_HUB_AUTH_XAI_{AUTH_URL,TOKEN_URL,USERINFO_URL}`,
+  narrative §1 "never baked"), no Go default, required when `xai` is listed.
+  The fake IdP serves all three at `/oidc/<p>/{authorize,token,userinfo}`.
+- **FR-013** — Implemented (T043): `POST /api/v1/auth/facebook/deauthorize`
+  and `POST /api/v1/auth/facebook/data-deletion` (form field
+  `signed_request`) verify `HMAC-SHA256(app secret, <raw payload segment>)`
+  first and fail closed (`400`) on any defect, then call the optional
+  `Options.Unlinker` hook with `("facebook", user_id)` — the hub deletes the
+  stored `human_identities` row (rdb 0006, HUMANS lane); nil = the hub stores
+  nothing from Facebook beyond the stateless session. Data-deletion answers
+  Meta's fixed shape `{"url","confirmation_code"}`; the code is
+  self-verifying (an HMAC under a subkey of the session key), so
+  `GET /api/v1/auth/facebook/data-deletion?code=` answers `200` for a code
+  the hub issued and `404` otherwise, with no table. Facebook not enabled →
+  `404`.
+
 ## 3. Security requirements
 
 - **SEC-001** — `session.t` (tenant) is **where the flow started, not an
@@ -143,6 +175,24 @@ Narrative §1. *(Planned: T040–T042; listing one today fails the boot with
 - **OQ-A3 (004)** — `HUM-*` stable id derivation from `(provider, sub)` vs
   verified email, and per-tenant uniqueness (narrative §3.1).
 
+- **OQ-I1 (owner) — Microsoft email trust.** Entra's userinfo carries no
+  `email_verified`, and in a work/school tenant the `email` is set by that
+  tenant's admin, unverified (the "nOAuth" class): trusting it lets another
+  tenant claim a person's address. (a) **Recommended, implemented default:**
+  `SPOOL_HUB_AUTH_MICROSOFT_TENANT=consumers` — personal Microsoft accounts
+  only, whose address Microsoft has verified; any other tenant is refused at
+  boot unless (b) `SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL=true`, which accepts
+  `common` / `organizations` / a tenant id and trusts the email as-is. The
+  flag is `"false"` in every env until the owner answers.
+- **OQ-I2 (owner) — xAI client registration.** xAI publishes a full OIDC
+  issuer (`curl -s https://auth.x.ai/.well-known/openid-configuration` → `200`,
+  n=1, 2026-09-19: authorize/token/userinfo endpoints, scopes `openid profile
+  email`, claim `email_verified`, `client_secret_post`). The code is done;
+  what is **not** known is whether xAI registers third-party web clients (no
+  self-service console was found). (a) Recommended: keep `xai` out of
+  `SPOOL_HUB_AUTH_PROVIDERS` until the owner holds a client id + secret from
+  xAI; (b) drop xAI from the narrative.
+
 ## 5. Success criteria
 
 - **SC-001** — Implemented (fake IdP): both providers complete
@@ -151,4 +201,4 @@ Narrative §1. *(Planned: T040–T042; listing one today fails the boot with
   (`TestStateCSRF`).
 - **SC-003** — Planned: the same on dev against the registered apps (T034).
 
-<!-- version: 0.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:48:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-19 -->

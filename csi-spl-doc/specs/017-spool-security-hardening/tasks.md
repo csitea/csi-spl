@@ -54,4 +54,14 @@
 - [~] T017 Partial (`017-github-wif-deploy`, `20_hub-build-deploy.yml`) — Apply `017-github-wif-deploy` terraform in GCP and populate GitHub repository variables `GCP_WIF_PROVIDER_*` and `GCP_DEPLOY_SA_EMAIL_*` to transition automated deployment away from manual out-of-band triggers. FR-SEC-011.
 - [x] T018 Implemented (`.github/workflows/10_ci-quality.yml`) — Distribution-hygiene automated sweep: zero personal names, literal OS users, personal home directories, or owner email addresses committed to version control. Check: `bash csi-spl-api/src/bash/tests/no-ysg-box-ref.tst.sh` -> PASS. FR-SEC-012.
 
-<!-- version: 1.0.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:00:00Z -->
+## Phase 7 — Postgres Row Level Security, defense in depth (RDB / STORE, SEC-08, lane CLE-3395)
+
+- [ ] T019 Planned (RDB) — `csi-spl-rdb/src/sql/postgres/spool-hub/0014_tenant_rls.sql`: `ENABLE` + `FORCE ROW LEVEL SECURITY` and a `tenant_scope` (`app.tenant_id`) plus an `operator_scope` (`app.rls_scope = 'operator'`) policy on the 12 tables that carry `tenant_id`. Metadata only: no table rewrite and no data change, so it is safe on live data. FR-SEC-013.
+- [ ] T020 Planned (STORE) — `internal/store/rls.go` `inTenant` / `asOperator`. Every `*_postgres.go` statement on a tenant table runs inside one of them, and `Migrate` applies each file under operator scope. FR-SEC-013.
+- [ ] T021 Planned (TESTS) — `hub-pg.tst.sh` runs the store, hub and auth suites as a NON-superuser role that owns the tables (the Cloud SQL shape; a superuser skips every policy). A CONTROL test in `internal/store/rls_test.go` shows that, with tenant A's scope, a query without `WHERE tenant_id` sees none of B's rows and cannot write one. With RLS switched off for the same query, it sees B's rows. FR-SEC-013.
+- [ ] T022 Planned (MEASURE) — Latency cost of the per-transaction scope on the hub-pg suite, before and after, with n stated. FR-SEC-013.
+- [ ] T023 Planned (DEPLOY) — Order matters. Roll a hub image that sets the scope, then apply 0014 with `do_spl_db_bootstrap` (dev, then prd). The other order hides every row from the running hub until the roll finishes. Check that the hub role has neither `rolsuper` nor `rolbypassrls`. FR-SEC-013.
+
+---
+
+<!-- version: 1.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:00:00Z -->

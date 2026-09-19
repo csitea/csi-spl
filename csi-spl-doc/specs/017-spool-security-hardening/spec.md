@@ -73,6 +73,15 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 - **Remediation Requirement:** (FR-SEC-006) Store persistent rate counters or integrate Cloud Armor security
   policies for brute-force protection, and pin `TrustedProxyHops` in configuration to match the exact proxy topology.
 
+### 1.7 Tenant Isolation Rests on One Go `WHERE` Clause (SEC-08)
+- **Condition:** Every tenant-scoped table carries `tenant_id` (rdb 0001 FR-015), but isolation is enforced only by
+  `WHERE tenant_id = $1` in `internal/store/*_postgres.go`. The hub's database login owns the tables it queries
+  (`spool migrate` runs under the same DSN), so nothing in Postgres stops a query that forgets that clause.
+- **Threat:** One missing predicate, whether a new view query, a refactor or a copy-pasted JOIN, returns or mutates
+  every tenant's messages, pins or members. No test catches it, because every test tenant sees its own rows either way.
+- **Remediation Requirement:** (FR-SEC-013) Add Postgres row level security as defense in depth, keyed on a
+  transaction-local tenant setting, and give the cross-tenant jobs a narrow, explicit path of their own.
+
 ---
 
 ## 2. Functional Requirements (FR-SEC)
@@ -143,6 +152,20 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 
 ---
 
+- **FR-SEC-013 (Postgres Row Level Security):** Every table that carries `tenant_id` (`tenants`, `boxes`, `pins`,
+  `pins_history`, `roster`, `messages`, `deliveries`, `channels`, `channel_subscriptions`, `tenant_memberships`,
+  `tenant_invites`, `payment_checkouts`) MUST have `ENABLE` and `FORCE ROW LEVEL SECURITY`. `FORCE` is what makes the
+  policies apply to the hub login, which owns the tables. A row MUST be visible and writable only when the
+  transaction-local setting `app.tenant_id` equals its `tenant_id`. The store sets it with
+  `set_config('app.tenant_id', $1, true)` at the start of every tenant-scoped transaction (`inTenant`). The one other
+  path is `app.rls_scope = 'operator'`, also transaction-local, and only named callers may set it (`asOperator`):
+  the retention sweep, the payment webhook and the checkout lookups (the tenant is unknown until the checkout row is
+  read), and `spool migrate`. A statement that sets neither sees zero rows, so the design fails closed. Hub-wide
+  identity tables (`humans`, `human_identities`, `password_credentials`, the token tables) and `webhook_events_seen`
+  have no `tenant_id` and stay outside RLS. A superuser or a `BYPASSRLS` role skips every policy, so the hub MUST
+  connect as a role with neither, and `spool hub` logs which one it got at startup.
+  *Status:* Planned (rdb `0014_tenant_rls.sql`, `internal/store/rls.go`; tasks T019..T023).
+
 ## 3. Non-Functional Requirements (NFR-SEC)
 
 - **NFR-SEC-001 (Audit Trail Integrity):** Administrative actions (tenant creation, box pinning, key revocation,
@@ -152,4 +175,4 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 - **NFR-SEC-003 (Minimal Distroless Attack Surface):** Production containers MUST execute as non-root users on
   distroless base images with read-only root filesystems where possible.
 
-<!-- version: 1.0.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:00:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:00:00Z -->

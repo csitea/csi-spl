@@ -21,16 +21,29 @@ M2 (`006` payment) sells. Nothing below exists yet:
       006 payment test asserts no seat line item on the M2 plan — FR-001. **Planned**.
 - [ ] T002 Schema: seats per tenant (`HUM-*` and bot peers), monthly period,
       cap from the plan (cnf) — FR-002. **Planned**.
+      Lane M4-SEATS-STORE scope: rdb `0012_m4_seats_buy_stamp.sql` adds
+      `tenants.seats_users` / `seats_bots` (`0` = M4 off, spec D-2); store
+      `CountMembers`, `CountBots`, `SetSeatCaps` on Memory + Postgres (D-1).
+      The cnf per-plan cap stays with the webhook (006 lane).
 - [ ] T003 Hub gate: a **new** seat over cap → `402`; existing seats keep
       working (reuse 006 `billing`) — FR-002. **Planned**.
+      Scope: `store.ErrSeatQuota` from `Admit` (new membership only) and
+      `SetRoster` (replace math, D-3); hub `announce` → `error` `quota`/402,
+      hello keeps old ∩ new (D-5); registrar → `not_allowed` (D-6).
 - [ ] T004 Seat line items on the copied csi-rel payment rails (006
       `contracts/payment.md`) — FR-002. **Planned**.
 - [ ] T005 `project_id` stamp `{org}-{app}-{env}-{YYYYMMDDHHmm}` from the paid
       webhook's UTC time, length check ≤ 30 — FR-003. **Planned**.
+      Scope: exported `store.MintProjectID` + `store.StampBuy` (D-8); the
+      paid webhook that calls them is the 006 payment lane's.
 - [ ] T006 Persist `tenant_id`, `org`, `app`, `project_id`, `bought_at` as
       separate columns; slug ≠ project id ≠ `{org}-{app}` — FR-004. **Planned**.
+      Scope: 0012 columns + `Tenant` fields + `SetBuyStamp`; 003
+      data-model `tenants` text matches the DDL again.
 - [ ] T007 Duplicate DNS slug → `409`; duplicate project id in one UTC minute
       → retry with the next minute or a 2-char nonce — FR-005. **Planned**.
+      Scope: partial `UNIQUE (project_id) WHERE project_id IS NOT NULL`;
+      `SetBuyStamp` clash → `ErrConflict`; `StampBuy` retries (D-8).
 
 ## FR → task
 
@@ -42,4 +55,4 @@ M2 (`006` payment) sells. Nothing below exists yet:
 | FR-004 | T006 | Planned |
 | FR-005 | T007 | Planned |
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:13:23Z -->
+<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:30:00Z -->

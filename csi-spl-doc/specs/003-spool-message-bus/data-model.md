@@ -35,13 +35,15 @@ named one; see OQ below).
 |---|---|---|
 | `tenant_id` | text PK | **pretty DNS slug** `^[a-z0-9][a-z0-9-]{0,31}$` e.g. `acme` → `https://acme.spool-hub.ai`. Unique. **Not** the GCP project id. |
 | `root_pubkey` | bytea | raw 32-byte Ed25519 tenant root key; the private root is never stored |
-| `billing_status` | text | `"active"`, `"grace"`, `"unpaid"`, `"internal"` |
+| `billing_status` | text | `"active"`, `"grace"`, `"unpaid"`, `"internal"`, `"manual"` (0004 added `manual`; this line had drifted) |
 | `plan_id` | text | quota & retention tier |
 | `created_at` | timestamptz | |
-| `org` | text NULL | M4: 3-letter code; **not** unique |
-| `app` | text NULL | M4: 3-letter code; **not** unique |
-| `project_id` | text NULL | M4 dedicated: `csi-spl-dev-202609171743`; unique; **not** the slug |
-| `bought_at` | timestamptz NULL | M4: UTC minute of buy (stamp source) |
+| `org` | text NULL | M4 (0012): `^[a-z]{3}$`; **not** unique |
+| `app` | text NULL | M4 (0012): `^[a-z]{3}$`; **not** unique |
+| `project_id` | text NULL | M4 (0012) dedicated: `csi-spl-dev-202609171743`; GCP rule `^[a-z][a-z0-9-]{4,28}[a-z0-9]$` (6..30); unique where not NULL (partial index); **not** the slug. Hosted M2 leaves it NULL |
+| `bought_at` | timestamptz NULL | M4 (0012): the paid webhook's buy time (stamp source; not `created_at`) |
+| `seats_users` | int NOT NULL DEFAULT 0 | M4 (0012): paid user seats, `>= 0`; **0 = M4 off (unlimited)**. Occupancy = `tenant_memberships` rows (009 D-1) |
+| `seats_bots` | int NOT NULL DEFAULT 0 | M4 (0012): paid bot seats, `>= 0`; **0 = M4 off**. Occupancy = `roster` rows whose `agent_id` is not `HUM-*` |
 
 ### `boxes` (004)
 
@@ -240,4 +242,4 @@ Per `contracts/limits.md` (owner `43b1050`):
   all three on Postgres 16 (`hub-pg.tst.sh`). `0002` (channels, M3) and `0003`
   (payment, 006) are materialised but unused by the M1 hub.
 
-<!-- version: 0.5.1 · updated: 2026-09-19 · last-edit: 2026-09-19T05:45:00Z -->
+<!-- version: 0.5.2 · updated: 2026-09-19 · last-edit: 2026-09-19T13:30:00Z -->

@@ -20,7 +20,7 @@ MCP: `78` → tool error with `code: "verify"`. `1` → `code: "error"`.
 | 400 | bad JSON, schema, limits, bad envelope sig, `from_box` ≠ hello box, undecodable viewer cursor (`bad_cursor`) |
 | 401 | `door`: missing, expired or foreign upload token on `POST /v1/files` / `GET /v1/pins` (OQ-10). IAM/OIDC is not in M1 (OQ-06) |
 | 401 | `view_door`: missing, expired, foreign-tenant or wrong-scope view token on `/v1/view/*` (`./view-v1.md` §2) |
-| 402 | tenant unpaid (006) |
+| 402 | tenant unpaid (006); `quota`: a **new** seat over the tenant's M4 cap (`seats_users` / `seats_bots`, 009 D-3). The message quota stays 429 |
 | 404 | unknown `file_id`, or a `file_id` of another tenant; unknown tenant (Host); `to_box` not pinned |
 | 409 | `msg_id` exists with a different canonical body; ambiguous `to` without `to_box`; duplicate agent id in one box's roster; `box_id` pinned with a different key (004/006); `stale_pin_op` — pin/revoke `ts` not later than the pin's last op (004) |
 | 405 | `method_not_allowed`: anything but `GET`/`OPTIONS` on `/v1/view/*` |
@@ -55,4 +55,4 @@ CLI mapping of hub tokens: `bad_sig`, `unpinned_box`, `bad_nonce`,
 Retired with the per-agent-key model (0.1.0): `unpinned_from`,
 `id_collision` (agent ids now collide across boxes on purpose).
 
-<!-- version: 0.4.1 · updated: 2026-09-18 · last-edit: 2026-09-18T19:25:12Z -->
+<!-- version: 0.4.2 · updated: 2026-09-19 · last-edit: 2026-09-19T13:30:00Z -->

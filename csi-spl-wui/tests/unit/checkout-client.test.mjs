@@ -350,3 +350,41 @@ describe('source + build output: where secrets may never go', () => {
     }
   })
 })
+
+// specs/022: the tenant host is provisioned after the payment; the page says
+// so until §1.3 reports it ready.
+describe('pollHostReady (specs/022)', async () => {
+  const { pollHostReady } = await import('../../src/utils/checkout-client.mjs')
+  const noSleep = async () => {}
+  const seqClient = (answers) => {
+    let i = 0
+    const calls = []
+    return {
+      calls,
+      status: async (id) => { calls.push(id); return answers[Math.min(i++, answers.length - 1)] },
+    }
+  }
+  it('polls through pending and a failed request, resolves ready', async () => {
+    const c = seqClient([
+      { ok: true, data: { status: 'paid', host_status: 'pending' } },
+      { ok: false, status: 0, error: 'network' },
+      { ok: true, data: { status: 'paid', host_status: 'ready' } },
+    ])
+    assert.equal(await pollHostReady(c, 'co_1', { sleep: noSleep }), 'ready')
+    assert.deepEqual(c.calls, ['co_1', 'co_1', 'co_1'])
+  })
+  it('an unknown status ends the poll (no notice for a host the hub cannot see)', async () => {
+    const c = seqClient([{ ok: true, data: { status: 'paid', host_status: 'unknown' } }])
+    assert.equal(await pollHostReady(c, 'co_2', { sleep: noSleep }), 'unknown')
+  })
+  it('CONTROL: a host that stays pending keeps polling until maxPolls, then reads pending', async () => {
+    const c = seqClient([{ ok: true, data: { status: 'paid', host_status: 'pending' } }])
+    assert.equal(await pollHostReady(c, 'co_3', { sleep: noSleep, maxPolls: 5 }), 'pending')
+    assert.equal(c.calls.length, 5)
+  })
+  it('stops when the page is left', async () => {
+    const c = seqClient([{ ok: true, data: { host_status: 'pending' } }])
+    assert.equal(await pollHostReady(c, 'co_4', { sleep: noSleep, isStopped: () => true }), 'stopped')
+    assert.equal(c.calls.length, 0)
+  })
+})

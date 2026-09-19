@@ -255,7 +255,7 @@ declare module '~/utils/checkout-client.mjs' {
     error: string
   }
   export type ClaimOutcome =
-    | { state: 'ok', result: { tenant_id: string, tenant_url: string, root_private_key: string } }
+    | { state: 'ok', result: { tenant_id: string, tenant_url: string, root_private_key: string, tenant_host?: string, host_status?: string } }
     | { state: 'claimed' | 'expired' | 'failed' | 'cancelled' | 'stopped' }
     | { state: 'error', error: string }
   export interface CheckoutClient {
@@ -287,6 +287,12 @@ declare module '~/utils/checkout-client.mjs' {
     isStopped?: () => boolean
     onStatus?: (s: string) => void
   }): Promise<ClaimOutcome>
+  export function pollHostReady(client: CheckoutClient, id: string, opts?: {
+    intervalMs?: number
+    maxPolls?: number
+    sleep?: (ms: number) => Promise<void>
+    isStopped?: () => boolean
+  }): Promise<string>
 }
 
 declare module '~/utils/user-menu.mjs' {

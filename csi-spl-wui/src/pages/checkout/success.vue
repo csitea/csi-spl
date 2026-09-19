@@ -10,7 +10,10 @@
   <div class="login-card" data-test="checkout-success" :data-claim-state="state">
     <h1>{{ t('checkout.your_spool') }}</h1>
     <p v-if="state === 'waiting'" class="muted" role="status" data-test="checkout-waiting">{{ t('checkout.success.waiting') }}</p>
-    <CheckoutKeyReveal v-else-if="state === 'ok'" :key-text="keyText" :tenant-url="tenantUrl" :tenant-id="tenantId" />
+    <template v-else-if="state === 'ok'">
+      <CheckoutKeyReveal :key-text="keyText" :tenant-url="tenantUrl" :tenant-id="tenantId" />
+      <CheckoutHostStatus :checkout-id="hostCheckoutId" :host="tenantHost" :initial="hostStatus" />
+    </template>
     <p v-else-if="state === 'claimed'" role="status" data-test="checkout-claimed">
       {{ t('checkout.success.claimed') }}
     </p>
@@ -34,6 +37,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import CheckoutKeyReveal from '~/components/CheckoutKeyReveal.vue'
+import CheckoutHostStatus from '~/components/CheckoutHostStatus.vue'
 import {
   checkoutErrorKey,
   createCheckoutClient,
@@ -58,6 +62,10 @@ const retryable = ref(false)
 const keyText = shallowRef('')
 const tenantId = ref('')
 const tenantUrl = ref('')
+/* specs/022: the tenant host and whether it is provisioned yet */
+const tenantHost = ref('')
+const hostStatus = ref('')
+const hostCheckoutId = ref('')
 let stopped = false
 let checkoutId = ''
 
@@ -76,6 +84,9 @@ async function run() {
     keyText.value = String(r.root_private_key || '')
     tenantId.value = String(r.tenant_id || '')
     tenantUrl.value = String(r.tenant_url || '')
+    tenantHost.value = String(r.tenant_host || '')
+    hostStatus.value = String(r.host_status || '')
+    hostCheckoutId.value = checkoutId
     state.value = 'ok'
     return
   }

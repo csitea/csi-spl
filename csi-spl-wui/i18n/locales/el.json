@@ -202,6 +202,10 @@
       "network": "The hub did not answer — try again.",
       "storage_blocked": "This browser blocks session storage — allow it for this site and try again.",
       "generic": "Something went wrong — try again."
+    },
+    "host": {
+      "preparing": "Your address {host} is being prepared (usually 15–30 minutes). This page updates when it answers; keep your key safe meanwhile.",
+      "ready": "Your address {host} is ready."
     }
   },
   "user_menu": {

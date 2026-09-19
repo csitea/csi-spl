@@ -196,7 +196,7 @@ export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' } =
     start({ tenant_id, email } = {}) {
       return call('', { method: 'POST', body: { tenant_id: String(tenant_id || ''), email: String(email || '') } })
     },
-    /** §1.3 → data { checkout_id, tenant_id, status, claimed }. */
+    /** §1.3 → data { checkout_id, tenant_id, status, claimed, tenant_host, host_status }. */
     status(id) {
       return call(`/${encodeURIComponent(String(id || ''))}`)
     },
@@ -293,4 +293,35 @@ export async function pollAndClaim(client, { id, token } = {}, {
     await sleep(intervalMs)
   }
   return { state: 'error', error: 'timeout' }
+}
+
+// ── the tenant host (specs/022) ───────────────────────────────────────────
+
+/**
+ * There is no wildcard host: the tenant's own address <tenant>.<fqdn> is
+ * provisioned by a scheduled reconcile after the payment (mapping, DNS record,
+ * certificate: typically 15-30 min). `host_status` on §1.3 / §1.4 reads
+ * 'pending' until it answers, then 'ready' ('unknown' = the hub cannot tell).
+ * Polls §1.3 until the host is no longer pending and resolves to the last
+ * host_status seen, or 'stopped' when `isStopped()` (page left). A failed
+ * poll is retried; nothing here throws.
+ */
+export async function pollHostReady(client, id, {
+  intervalMs = 30000,
+  maxPolls = 240,
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+  isStopped = () => false,
+} = {}) {
+  let last = 'pending'
+  for (let i = 0; i < maxPolls; i++) {
+    if (isStopped()) return 'stopped'
+    const st = await client.status(id)
+    if (isStopped()) return 'stopped'
+    if (st.ok && st.data && st.data.host_status) {
+      last = String(st.data.host_status)
+      if (last !== 'pending') return last
+    }
+    await sleep(intervalMs)
+  }
+  return last
 }

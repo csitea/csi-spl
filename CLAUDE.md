@@ -8,8 +8,8 @@ between the hub and the boxes. Nothing else lives here: no api, no wui, no rdb.
 |---|---|
 | `csi-spl-api` | Go module (`src/go/spool-hub-api`) for spool box CLI, MCP server, and Cloud Run hub API |
 | `csi-spl-wui` | Nuxt 3 + TypeScript Slack-like WUI (M3). lde is `pnpm dev`; ship is `nuxt generate` to Firebase Hosting (`016`/`019`). Hub API stays on Cloud Run. |
-| `csi-spl-iac` | `./run` actions (GCP project bootstrap, tpl-gen, terraform init/validate/plan) and the terraform steps |
-| `csi-spl-orc` | Local dev orchestration (`lde`), container runner (`con-spl-tf-runner`), test DB, test dispatch (referencing `pas-psf-orc`) |
+| `csi-spl-iac` | `./run` actions (GCP project bootstrap, the csi-rel `gcp-*` and `tf-*` actions, `do_provision`) and the terraform steps |
+| `csi-spl-orc` | Local dev orchestration (`lde`), the terraform infra stack (`make do-setup-app-inf`: `con-csi-csi-spl-{tf-runner,tpl-gen,conf-validator}`) and its `make do-tf-*` targets, test DB, test dispatch |
 | `csi-spl-cnf` | `csi-spl/<env>.env.yaml`, the single source of truth; tpl-gen renders `csi-spl/<env>/tf/*.tfvars` from it |
 | `csi-spl-doc` | `doc/md/csi-spl.feature.md` — start there |
 | `csi-spl-dat`, `csi-spl-utl` | README only, until they have content |
@@ -32,8 +32,22 @@ commit it. Gate: `csi-spl-iac/src/bash/tests/gcloud-account-pinned.tst.sh`.
 
 - **Nothing mutates GCP without the owner.** `gcloud projects create`, a
   billing link, an IAM change and `terraform apply` each need an explicit go.
-  `do_gcp_001_create_project` is a dry run unless `DRY_RUN=0`; there is no
-  apply action.
+  The gcp-000..004 bootstrap is a dry run unless `DRY_RUN=0`. The destructive
+  `gcp-*` actions (project delete, SA delete, apis disable, lb cleanup) are
+  never run without the owner's go for that call.
+- **Terraform runs only in the tf-runner container, never on the host**
+  (csi-rel's path, flow map: `csi-spl-doc/specs/007-spool-hub-api-infra/csi-rel-flow-map.md`).
+  From the main checkout: `cd csi-spl-orc && ENV=<env> STEP=<step> make do-tf-plan`,
+  then `make do-provision` with the owner's go. `do_tf_init` sets
+  `GOOGLE_APPLICATION_CREDENTIALS` to the project key
+  `~/.gcp/.csi/key-csi-spl-<env>.json`. Tfvars are rendered with
+  `make do-generate-config-for-step` (conf-validator, then tpl-gen).
+  - **One run per env + step at a time**: `do_tf_init` wipes
+    `csi-spl-iac/bin/csi/spl/<env>/<step>` first, so two concurrent runs on
+    the same env and step break each other.
+  - **One infra stack per box**, mounting the tree that last ran
+    `make do-setup-app-inf` (which does `down --rmi all`). Run it only from
+    the main checkout, and not while someone is applying.
 - **Every gcloud call carries `--account`, or runs under a throwaway
   `CLOUDSDK_CONFIG`.** The box's `~/.config/gcloud` is shared by every agent;
   never `gcloud config set` anything in it.

@@ -26,7 +26,7 @@ Companion tables, one per lane:
 | 1 | one human `gcloud auth login` as the org admin | same (`csi-spl-iac/README.md` §Bootstrap) | same |
 | 2 | `./run -a do_gcp_000_bootstrap_gcp_env` per env → 001 project, 002 SA + key `~/.gcp/.<org>/key-<org>-<app>-<env>.json`, 003 `roles/owner`, 004 bootstrap APIs | same actions in `csi-spl-iac/src/bash/run/gcp-00{0..4}-*.func.sh` | adapted earlier (c422cc7, 8bba4e2): dry run by default, `--account` on every call, no `gcloud config set` |
 | 3 | `cd csi-rel-orc && make do-setup-app-inf`: `docker compose -f docker-compose-infra.yaml` down/build/up tf-runner, tpl-gen, conf-validator; then `./run -a do_check_container_dns` | `cd csi-spl-orc && make do-setup-app-inf` using `docker-compose-tf-infra.yaml` | ported, config differences in §3 |
-| 4 | `ENV= STEP= make do-generate-config-for-step`: conf-validator, then tpl-gen in their containers → `<env>/tf/<step>.{vars,backend-config}.tfvars` | lane IAC-TFVARS-TPLGEN (CLE-3359) | in progress |
+| 4 | `ENV= STEP= make do-generate-config-for-step`: conf-validator, then tpl-gen in their containers → `<env>/tf/<step>.{vars,backend-config}.tfvars` | same target (9c57631, CLE-3359), validating the MERGED effective config (§3.1) | ported. Verified on the box stack at 4997bc3: dev 031 → VALIDATED, rendered, tree unchanged |
 | 5 | `ENV= STEP= make do-tf-plan / do-provision / do-deprovision / do-tf-*`: `docker exec con-<org>-<app>-tf-runner ./run -a do_<action>` | same targets (`csi-spl-orc/src/make/tf-tasks.func.mk`), container `con-csi-csi-spl-tf-runner` | ported unchanged |
 | 6 | in the container: `do_provision` → `do_tf_init` (`GOOGLE_APPLICATION_CREDENTIALS=~/.gcp/.$ORG/key-${GCP_PROJECT}.json`, env.json sections exported, step + `../modules` copied to `bin/<org>/<app>/<env>/<step>`, `tfswitch $TERRAFORM_VERSION`) → `terraform init -backend-config=… && apply -var-file=…` | same files in `csi-spl-iac/src/bash/run/` | ported unchanged (1e1ee73) |
 | 7 | step `120-github-general-secrets` publishes the keys to GitHub | csi-spl step 120 publishes `GCP_KEY_CSI_SPL_<ENV>` (fe19c96, CLE-3355). Its local-exec `gh secret set` runs in the tf-runner, so the image adds `gh` (§3) | adapted by CLE-3355 |
@@ -115,6 +115,33 @@ mount the tree that last ran `make do-setup-app-inf`.
   | gcp-003 roles/owner | `config set project`, grants unconditionally | `--account`, three-way SA check, no re-grant | same | live: "holds roles/owner" dev + prd |
   | gcp-004 bootstrap APIs | `auth application-default set-quota-project` (writes shared ADC) | enables only the missing ones, no ADC write | same | live: enabled cloudresourcemanager, which was OFF in both projects |
   | 120 github secrets | `github_actions_secret.plaintext_value` + a Secret Manager mirror: the key is in tf state | `terraform_data` + local-exec `gh secret set < keyfile`; state holds only `filesha256(key)` | "No key in git, in terraform state or in a log" | `github-secrets-120.tst.sh`; live state of 120 dev/prd: 1766 B, `private_key` 0 hits, sha256 1 hit |
+
+### 3.1 The render path (CLE-3359, 9c57631 / be368d3; config and setup only)
+
+| csi-rel | csi-spl | reason |
+|---|---|---|
+| `generate-config-for-step.func.mk` validates and renders `$(APP)-cnf/$(APP)/$(ENV).env.yaml` | same recipe, but `CNF_SRC` and the validated file are `$(SPL_MERGED_CNF)`, plus the prerequisite `do-spl-merged-cnf` | csi-spl's raw `<env>.env.yaml` is deep-merged under `all.env.yaml` plus the derived fqdn. On its own it is incomplete, and the validator rejects it with rc 1 |
+| — | `spl-merged-cnf.func.mk` writes `csi-spl-cnf/csi-spl/.merged/<env>.env.yaml` (git-ignored) | the same `do_spl_merged_cnf` the native `do_tpl_gen` uses |
+| templates under `src/tpl/%app%` | symlink `%app%` → `%org%-%app%` | the make side has `APP=csi-spl`, while the native `do_tpl_gen` has `APP=spl` |
+| `run-tpl-gen.func.mk`, `setup-tpl-gen.func.mk` | byte-identical | — |
+| conf-validator module | CLI, exit contract, pyproject and lock from csi-rel. The EnvModels are csi-spl's (dev/prd effective config plus the realm rule) | a different config shape |
+| `do-generate-docs-for-step`, the csi-rel-iac copies | not ported | there are no doc templates, and csi-rel-iac has no Makefile |
+| tpl-gen / conf-validator `.venv` in the mounted tree | a named volume each, and the images own the mount point (2dbb0be, be368d3, 4997bc3) | the csi-rel init rebuilds the in-project venv of the MOUNTED tree, which is also the host venv. A new volume on a path missing from the image is root-owned, so the image creates the dir as appusr |
+
+### 3.2 csi-spl additions (no csi-rel source; approved by ORC 2026-09-19)
+
+- `do_tf_import_existing` + the 020 / 040 import table (CLE-3360, ae8d2bc,
+  fixed at 4bae1ca). The owner chose re-import over rebuild for
+  `020-gcp-relay-bucket` and the `040-cloud-sql-postgres` instance. It runs
+  `do_tf_state_list`, then `do_tf_import` in the tf-runner for each missing
+  address. It never applies.
+- The ported `gcp-*` actions each run under a throwaway `CLOUDSDK_CONFIG`
+  (GRK-3361). csi-spl's rule "never write the shared gcloud config" beats
+  csi-rel's `config set` / `activate-service-account` / `auth revoke --all`
+  (owner precedent, relayed by ORC).
+- The owner account is committed in `all.env.yaml`
+  (`env.gcp.gcp_account_owner_email`, owner order). The 10 ci hygiene sweep
+  allows exactly that key's line (3aae810).
 
 ## 4. The gcp-* actions and the other terraform callers
 

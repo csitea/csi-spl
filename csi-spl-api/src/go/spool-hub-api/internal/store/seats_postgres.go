@@ -66,6 +66,7 @@ func (s *Postgres) CountBots(ctx context.Context, tenant string) (int, error) {
 }
 
 func (s *Postgres) SetSeatCaps(ctx context.Context, tenant string, users, bots int) error {
+	defer s.hot.forget()
 	if err := checkSeatCaps(users, bots); err != nil {
 		return err
 	}
@@ -81,6 +82,7 @@ func (s *Postgres) SetSeatCaps(ctx context.Context, tenant string, users, bots i
 }
 
 func (s *Postgres) SetBuyStamp(ctx context.Context, tenant, org, app, projectID string, boughtAt time.Time) error {
+	defer s.hot.forget()
 	if err := checkBuyStamp(org, app, projectID); err != nil {
 		return err
 	}

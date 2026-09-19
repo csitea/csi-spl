@@ -20,7 +20,10 @@ import (
 // Postgres is the production Store. Its queries match the DDL in
 // csi-spl-rdb/src/sql/postgres/spool-hub/ (applied by Migrate); it invents no
 // table of its own.
-type Postgres struct{ pool *pgxpool.Pool }
+type Postgres struct {
+	pool *pgxpool.Pool
+	hot  hotCache // pins and tenant rows of the send path (hotcache.go)
+}
 
 // PoolLimits sizes the connection pool (specs/027 T010). A zero field keeps
 // pgx's default, and a pool_* parameter the DSN sets wins over its field, so a
@@ -83,6 +86,7 @@ func (s *Postgres) Pool() *pgxpool.Pool { return s.pool }
 func (s *Postgres) Close() { s.pool.Close() }
 
 func (s *Postgres) CreateTenant(ctx context.Context, t Tenant) error {
+	defer s.hot.forget()
 	if err := normalizeTenant(&t); err != nil {
 		return err
 	}
@@ -101,7 +105,7 @@ func (s *Postgres) CreateTenant(ctx context.Context, t Tenant) error {
 	if tag.RowsAffected() == 1 {
 		return nil
 	}
-	old, err := s.GetTenant(ctx, t.ID)
+	old, err := s.getTenant(ctx, t.ID) // fresh: the conflict check must not read the cache
 	if err != nil {
 		return err
 	}
@@ -112,6 +116,18 @@ func (s *Postgres) CreateTenant(ctx context.Context, t Tenant) error {
 }
 
 func (s *Postgres) GetTenant(ctx context.Context, id string) (Tenant, error) {
+	if t, ok := s.hot.tenant(id); ok {
+		return t, nil
+	}
+	gen := s.hot.generation()
+	t, err := s.getTenant(ctx, id)
+	if err == nil {
+		s.hot.putTenant(gen, t)
+	}
+	return t, err
+}
+
+func (s *Postgres) getTenant(ctx context.Context, id string) (Tenant, error) {
 	var t Tenant
 	var root []byte
 	var bought *time.Time
@@ -131,6 +147,7 @@ func (s *Postgres) GetTenant(ctx context.Context, id string) (Tenant, error) {
 }
 
 func (s *Postgres) SetBillingStatus(ctx context.Context, id, status string) error {
+	defer s.hot.forget()
 	if !billing.ValidStatus(status) {
 		return fmt.Errorf("invalid billing_status %q", status)
 	}
@@ -145,6 +162,7 @@ func (s *Postgres) SetBillingStatus(ctx context.Context, id, status string) erro
 }
 
 func (s *Postgres) PutPin(ctx context.Context, tenant, box string, pub ed25519.PublicKey, force bool, opTS, now time.Time) error {
+	defer s.hot.forget()
 	opTS = opTS.Truncate(time.Microsecond) // timestamptz precision: compare like Postgres stores
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var old []byte
@@ -179,6 +197,7 @@ func (s *Postgres) PutPin(ctx context.Context, tenant, box string, pub ed25519.P
 }
 
 func (s *Postgres) RevokePin(ctx context.Context, tenant, box string, opTS, now time.Time) error {
+	defer s.hot.forget()
 	opTS = opTS.Truncate(time.Microsecond) // timestamptz precision: compare like Postgres stores
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var pub []byte
@@ -206,6 +225,18 @@ func (s *Postgres) RevokePin(ctx context.Context, tenant, box string, opTS, now 
 }
 
 func (s *Postgres) GetPin(ctx context.Context, tenant, box string) (ed25519.PublicKey, error) {
+	if pub, ok := s.hot.pin(tenant, box); ok {
+		return pub, nil
+	}
+	gen := s.hot.generation()
+	pub, err := s.getPin(ctx, tenant, box)
+	if err == nil {
+		s.hot.putPin(gen, tenant, box, pub)
+	}
+	return pub, err
+}
+
+func (s *Postgres) getPin(ctx context.Context, tenant, box string) (ed25519.PublicKey, error) {
 	var pub []byte
 	err := s.queryRowTenant(ctx, tenant, `SELECT pubkey FROM pins
 		WHERE tenant_id = $1 AND box_id = $2 AND revoked_at IS NULL`,

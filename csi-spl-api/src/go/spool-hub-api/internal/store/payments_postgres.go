@@ -109,6 +109,7 @@ func (s *Postgres) CheckoutByProviderRef(ctx context.Context, provider, ref stri
 }
 
 func (s *Postgres) ApplyPayment(ctx context.Context, ev PaymentEvent, now time.Time) (string, error) {
+	defer s.hot.forget() // creates / reactivates / refunds a tenant row
 	var outcome string
 	err := s.asOperator(ctx, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, `INSERT INTO webhook_events_seen (provider, event_id, received_at)
@@ -215,6 +216,7 @@ func (s *Postgres) ClaimCheckout(ctx context.Context, id string, claimHash []byt
 	if len(newPub) != ed25519.PublicKeySize {
 		return Checkout{}, fmt.Errorf("claim: new root pubkey must be %d bytes", ed25519.PublicKeySize)
 	}
+	defer s.hot.forget() // rotates the tenant root key
 	var out Checkout
 	err := s.asOperator(ctx, func(tx pgx.Tx) error {
 		c, err := scanCheckout(tx.QueryRow(ctx, `SELECT `+pgCheckoutCols+` FROM payment_checkouts

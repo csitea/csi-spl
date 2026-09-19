@@ -70,6 +70,8 @@ if docker compose version >/dev/null 2>&1 && [[ -f "$T/state/compose.env" ]]; th
       && pass "wui runs with the mock off" || fail "wui NUXT_PUBLIC_USE_MOCK is not 0"
     base=$(yq -p json -r '.services.wui.environment.NUXT_PUBLIC_API_BASE' "$T/cfg.json")
     [[ "$base" =~ ^http://\{tenant\}\.localhost:[0-9]+$ ]] && pass "wui API base $base" || fail "wui API base: '$base'"
+    proxy=$(yq -p json -r '.services.wui.environment.NUXT_DEV_AUTH_PROXY' "$T/cfg.json")
+    [[ "$proxy" =~ ^http://hub:[0-9]+$ ]] && pass "wui proxies /api/v1/auth to $proxy (spec 010 FR-010)" || fail "wui auth proxy: '$proxy'"
   else
     fail "compose config: $(head -3 "$T/cfg.err")"
   fi

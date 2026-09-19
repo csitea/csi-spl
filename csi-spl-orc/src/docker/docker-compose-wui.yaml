@@ -40,6 +40,9 @@ services:
       NUXT_PUBLIC_USE_MOCK: "0"
       NUXT_PUBLIC_API_BASE: "http://{tenant}.localhost:${LDE_HUB_PORT:?unset}"
       NUXT_PUBLIC_TENANT: "${LDE_SMOKE_TENANT:?unset}"
+      # spec 010 FR-010: /api/v1/auth/** is same-origin (the Hosting rewrite
+      # in dev/prd). In lde the Nuxt server proxies it to the hub service.
+      NUXT_DEV_AUTH_PROXY: "http://hub:${LDE_HUB_CONTAINER_PORT:?unset}"
     volumes:
       - "${LDE_WUI_SRC:?unset}:/app"
       - "wui-node-modules:/app/node_modules"

@@ -299,7 +299,12 @@ func TestFacebookMetaCallbacks(t *testing.T) {
 			t.Fatalf("status for issued code: %v %v", err, st)
 		}
 		st.Body.Close()
-		st, _ = http.Get(r.hub + "/api/v1/auth/facebook/data-deletion?code=" + url.QueryEscape(code[:len(code)-1]+"0"))
+		// flip the last MAC hex digit to one that always differs from it
+		last := "0"
+		if code[len(code)-1] == '0' {
+			last = "1"
+		}
+		st, _ = http.Get(r.hub + "/api/v1/auth/facebook/data-deletion?code=" + url.QueryEscape(code[:len(code)-1]+last))
 		if st.StatusCode != http.StatusNotFound {
 			t.Fatalf("forged code status %d, want 404", st.StatusCode)
 		}

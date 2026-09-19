@@ -63,7 +63,7 @@ run_act() {  # [VAR=value ...]
     do_spl_payment_secret_seed' 2>&1); rc=$?
   printf '%s\n' "$o" >>"$T/allout"; printf '%s\n' "$o"; return $rc
 }
-adds() { grep -c . "$T/store/.adds" 2>/dev/null || echo 0; }
+adds() { cat "$T/store/.adds" 2>/dev/null | grep -c .; }
 SKS=csi-spl-hub-stripe-secret-key WHS=csi-spl-hub-stripe-webhook-secret PPS=csi-spl-hub-paypal-client-secret
 refused() {  # <label> [VAR=value ...]
   local label="$1"; shift
@@ -92,6 +92,15 @@ printf 'STRIPE_SECRET_KEY=%s\n' "$SK_TEST" >"$RD/stripe-dev.env"; chmod 600 "$RD
 refused "CONTROL: a secret key shared with another app's dir"
 out=$(run_act STRIPE_SHARED_ACCOUNT_OK=1); rc=$?
 [[ $rc -eq 0 ]] && grep -q "shared with" <<<"$out" && pass "shared key passes (dry run) with STRIPE_SHARED_ACCOUNT_OK=1" || fail "shared ok: rc=$rc $out"
+# STRIPE_KEY_APP=rel reads csi-rel's files in place; never its whsec_
+REL_WH="${p_wh}_$(rnd)"
+printf 'STRIPE_SECRET_KEY=%s\nSTRIPE_WEBHOOK_SECRET=%s\n' "$SK_TEST" "$REL_WH" >"$RD/stripe-dev.env"; chmod 600 "$RD/stripe-dev.env"
+printf '%s\n' "$PK_TEST" >"$RD/stripe-publishable-key-dev.txt"
+refused "CONTROL: STRIPE_KEY_APP=rel without the owner's go" STRIPE_KEY_APP=rel
+n=$(adds); out=$(run_act DRY_RUN=0 STRIPE_KEY_APP=rel STRIPE_SHARED_ACCOUNT_OK=1); rc=$?
+[[ $rc -eq 0 && $(adds) -eq $((n + 1)) && "$(cat "$T/store/$SKS")" == "$SK_TEST" && ! -f "$T/store/$WHS" ]] &&
+  pass "STRIPE_KEY_APP=rel + go: the secret key is seeded, csi-rel's whsec_ is NOT" || fail "key app rel: rc=$rc adds=$(adds) $out"
+rm -f "$T/store/$SKS"; sed -i '/csi-spl-hub-stripe-secret-key/d' "$T/store/.adds"
 printf 'STRIPE_SECRET_KEY=%s\n' "${p_sk}_test_$(rnd)" >"$RD/stripe-dev.env"
 
 out=$(run_act); rc=$?
@@ -117,7 +126,7 @@ out=$(ENV_=prd run_act); rc=$?
 
 all_out="$(cat "$T/argv" "$T/allout")"
 leak=0
-for v in "$SK_TEST" "$SK_LIVE" "$WH" "$PP"; do grep -qF "$v" <<<"$all_out" && leak=1; done
+for v in "$SK_TEST" "$SK_LIVE" "$WH" "$PP" "$REL_WH"; do grep -qF "$v" <<<"$all_out" && leak=1; done
 (( leak == 0 )) && pass "no secret value in any output or gcloud argv" || fail "a secret value leaked into output or argv"
 [[ $(grep -vc -- '--account=stub-sa@example.com' "$T/argv") -eq 0 ]] && pass "every gcloud call carries --account" || fail "unpinned gcloud call: $(grep -v -- '--account=' "$T/argv" | head -2)"
 

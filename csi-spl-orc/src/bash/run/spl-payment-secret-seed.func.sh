@@ -24,6 +24,7 @@
 # @description + the publishable key in <env>.env.yaml, render, 030 apply.
 # @description Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd
+# @param STRIPE_KEY_APP (optional) - read the key files of that app of the org in place (e.g. rel); needs STRIPE_SHARED_ACCOUNT_OK=1; its whsec_ is never used
 # @param STRIPE_SHARED_ACCOUNT_OK (optional) - 1: allow a key another app also uses (owner go only)
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account (the per-env project SA from its key otherwise; never the owner account)
 # @param DRY_RUN (optional) - 1 (default): report only. 0: add the versions.
@@ -36,7 +37,8 @@ do_spl_payment_secret_seed() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
 
   local org="${SPL_ORG_APP%%-*}" app="${SPL_ORG_APP#*-}"
-  local sdir="$HOME/.stripe/.$org/.$app" pdir="$HOME/.paypal/.$org/.$app"
+  spl_stripe_key_dir "$org" "$app" || return 1
+  local sdir="$SPL_STRIPE_KEY_DIR" pdir="$HOME/.paypal/.$org/.$app"
   local envf="$sdir/stripe-$ENV.env" pkf="$sdir/stripe-publishable-key-$ENV.txt"
 
   local sk_slot wh_slot pp_slot paypal cnf_pk
@@ -56,7 +58,10 @@ do_spl_payment_secret_seed() {
   local seeds=("$sk_slot:$h/sk")
 
   (umask 077 && spl_stripe_env_get "$envf" STRIPE_WEBHOOK_SECRET >"$h/wh") || return 1
-  if [[ ! -s "$h/wh" ]]; then
+  if (( SPL_STRIPE_SHARED )); then
+    # another app's file carries ITS endpoint's whsec_: never ours
+    do_log "INFO shared account: the whsec_ in $envf is the other app's endpoint; $wh_slot left to do_spl_provision_stripe_endpoints"
+  elif [[ ! -s "$h/wh" ]]; then
     do_log "INFO no STRIPE_WEBHOOK_SECRET in $envf: $wh_slot left to do_spl_provision_stripe_endpoints"
   elif [[ "$(head -c 6 "$h/wh")" == whsec_ && "$(wc -c <"$h/wh")" -gt 6 ]]; then
     seeds+=("$wh_slot:$h/wh")

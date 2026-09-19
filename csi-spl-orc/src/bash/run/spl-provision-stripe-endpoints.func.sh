@@ -28,6 +28,7 @@
 # @param STRIPE_API_BASE - required, no default: the Stripe REST base URL (e.g. the vendor's public API base, or a local mock)
 # @param WEBHOOK_URL (optional) - override the endpoint URL (https only)
 # @param RECREATE (optional) - 1: delete this action's endpoint and make a new one (the only way to recover a lost whsec_)
+# @param STRIPE_KEY_APP (optional) - use that app's key files in place (e.g. rel: the owner-approved shared account); needs STRIPE_SHARED_ACCOUNT_OK=1. The endpoint is still OURS (tagged managed_by=<org>-<app>), so events never mix
 # @param STRIPE_SHARED_ACCOUNT_OK (optional) - 1: allow a key another app also uses (owner go only)
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account (the per-env project SA from its key otherwise; never the owner account)
 # @param DRY_RUN (optional) - 1 (default): validate, resolve the URL, print the plan, touch nothing. 0: do it.
@@ -81,7 +82,8 @@ do_spl_provision_stripe_endpoints() {
   esac
 
   local org="${SPL_ORG_APP%%-*}" app="${SPL_ORG_APP#*-}" slug="$SPL_ORG_APP"
-  local envf="$HOME/.stripe/.$org/.$app/stripe-$ENV.env"
+  spl_stripe_key_dir "$org" "$app" || return 1
+  local envf="$SPL_STRIPE_KEY_DIR/stripe-$ENV.env"
   local wh_slot api_fqdn api_version hook_url
   wh_slot="$(yq -r '.env.payment.secret_env.SPOOL_HUB_STRIPE_WEBHOOK_SECRET // ""' "$SPL_CNF")"
   api_fqdn="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"

@@ -6,6 +6,23 @@
 # argv, stdout or a log: they live in 0600 files under a 0700 scratch dir.
 #------------------------------------------------------------------------------
 
+# spl_stripe_key_dir <org> <app> -> sets SPL_STRIPE_KEY_DIR and
+# SPL_STRIPE_SHARED (1 when the keys are another app's). STRIPE_KEY_APP=<app>
+# reads that app's files in place ($HOME/.stripe/.<org>/.<app>/, e.g. rel =
+# csi-rel's account; no key file is copied) and is refused without
+# STRIPE_SHARED_ACCOUNT_OK=1, the owner's explicit go. Default: our own app.
+spl_stripe_key_dir() {
+  local org="$1" app="$2" key_app="${STRIPE_KEY_APP:-$2}"
+  [[ "$key_app" =~ ^[a-z]{3}$ ]] || { do_log "FATAL STRIPE_KEY_APP '$key_app' is not a 3-letter app code"; return 1; }
+  SPL_STRIPE_KEY_DIR="$HOME/.stripe/.$org/.$key_app" SPL_STRIPE_SHARED=0
+  if [[ "$key_app" != "$app" ]]; then
+    [[ "${STRIPE_SHARED_ACCOUNT_OK:-0}" == 1 ]] ||
+      { do_log "FATAL STRIPE_KEY_APP=$key_app is another app's Stripe account: needs the owner's go (STRIPE_SHARED_ACCOUNT_OK=1)"; return 1; }
+    SPL_STRIPE_SHARED=1
+    do_log "WARN using $org-$key_app's Stripe account keys from $SPL_STRIPE_KEY_DIR (STRIPE_SHARED_ACCOUNT_OK=1)"
+  fi
+}
+
 # spl_stripe_owner_file <path> -> refuses a missing or non-0600 file
 spl_stripe_owner_file() {
   [[ -s "$1" ]] || { do_log "FATAL no owner key file at $1 (0600)"; return 1; }

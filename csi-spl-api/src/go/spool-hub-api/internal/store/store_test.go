@@ -20,7 +20,7 @@ import (
 
 // sqlDir is csi-spl-rdb/src/sql/postgres/spool-hub, relative to this file,
 // unless $SPOOL_TEST_SQL_DIR overrides it.
-func sqlDir(t *testing.T) string {
+func sqlDir(t testing.TB) string {
 	if d := os.Getenv("SPOOL_TEST_SQL_DIR"); d != "" {
 		return d
 	}

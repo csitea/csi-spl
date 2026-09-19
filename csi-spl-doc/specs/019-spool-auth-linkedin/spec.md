@@ -78,10 +78,10 @@ Consequences:
   confidential client (client_secret_post) on the generic OIDC client, endpoints
   from §1, identity from userinfo fetched with the fresh access token (same as
   Google, 010 FR-004). The `state` is signed and bound to the browser cookie (010 FR-002).
-- **FR-L2** — Planned (T010): the configured scopes must contain `openid` and
+- **FR-L2** — Implemented (T010): the configured scopes must contain `openid` and
   `email`; otherwise the hub refuses to boot while `linkedin` is listed (a scope set
   without `email` makes every sign-in fail `email_unverified`).
-- **FR-L3** — Planned (T011): a LinkedIn-shaped userinfo is accepted only with
+- **FR-L3** — Implemented (T011): a LinkedIn-shaped userinfo is accepted only with
   `email_verified: true` (bool or `"true"`); `false`, missing, or an empty email is
   `email_unverified`; the name is `name`; `picture` is fetched through `fetchAvatar`.
 - **FR-L4** — Planned (T020): the client secret reaches Secret Manager only through

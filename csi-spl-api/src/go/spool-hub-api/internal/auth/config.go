@@ -210,6 +210,12 @@ func (c *Config) validateProvider(p string) error {
 			return fmt.Errorf("SPOOL_HUB_AUTH_MICROSOFT_TENANT=%q accepts work accounts whose email is unverified; "+
 				"use %q or set SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL=true (spec 010 OQ-I1)", t, microsoftConsumers)
 		}
+	case ProviderLinkedIn:
+		// spec 019 FR-L2: without openid there is no userinfo and without
+		// email no verified address, so every sign-in would fail.
+		if !hasScopes(c.LinkedInScopes, "openid", "email") {
+			return fmt.Errorf("SPOOL_HUB_AUTH_LINKEDIN_SCOPES %q must include openid and email (spec 019 FR-L2)", c.LinkedInScopes)
+		}
 	case ProviderXAI:
 		for name, v := range map[string]string{"SPOOL_HUB_AUTH_XAI_AUTH_URL": c.XAIAuthURL,
 			"SPOOL_HUB_AUTH_XAI_TOKEN_URL": c.XAITokenURL, "SPOOL_HUB_AUTH_XAI_USERINFO_URL": c.XAIUserinfoURL} {
@@ -221,6 +227,20 @@ func (c *Config) validateProvider(p string) error {
 		}
 	}
 	return nil
+}
+
+// hasScopes reports whether the space-separated scope list holds every want.
+func hasScopes(list string, want ...string) bool {
+	have := map[string]bool{}
+	for _, s := range strings.Fields(list) {
+		have[s] = true
+	}
+	for _, w := range want {
+		if !have[w] {
+			return false
+		}
+	}
+	return true
 }
 
 // requireHTTPS: dev and prd are TLS only; lde and tests may use plain http.

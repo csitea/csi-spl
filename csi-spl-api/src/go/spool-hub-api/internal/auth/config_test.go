@@ -186,6 +186,25 @@ func TestConfigOIDCFailFast(t *testing.T) {
 	}
 }
 
+// spec 019 FR-L2: LinkedIn scopes must carry openid and email. CONTROL: the
+// cnf default and a reordered superset load (an empty value is the default).
+func TestConfigLinkedInScopes(t *testing.T) {
+	for _, scopes := range []string{"profile email", "openid profile", "openid,profile,email", "openidemail"} {
+		v := oidcVars()
+		v["SPOOL_HUB_AUTH_LINKEDIN_SCOPES"] = scopes
+		if _, err := LoadFrom("dev", v); err == nil || !strings.Contains(err.Error(), "SPOOL_HUB_AUTH_LINKEDIN_SCOPES") {
+			t.Errorf("scopes %q: want refusal, got %v", scopes, err)
+		}
+	}
+	for _, scopes := range []string{"openid profile email", "email  openid"} {
+		v := oidcVars()
+		v["SPOOL_HUB_AUTH_LINKEDIN_SCOPES"] = scopes
+		if _, err := LoadFrom("dev", v); err != nil {
+			t.Errorf("scopes %q refused: %v", scopes, err)
+		}
+	}
+}
+
 // OQ-I1: a Microsoft tenant other than consumers admits work accounts whose
 // email is unverified; refused unless the owner's TRUST_EMAIL flag is on.
 func TestConfigMicrosoftTenantTrust(t *testing.T) {

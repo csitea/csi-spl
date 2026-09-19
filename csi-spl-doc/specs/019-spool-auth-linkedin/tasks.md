@@ -7,12 +7,12 @@
 
 ## Phase 1 — Spec
 
-- [ ] T001 spec.md, plan.md, owner-runbook.md, tasks.md.
+- [x] T001 Implemented (`ea6bf1e`) — spec.md, plan.md, owner-runbook.md, tasks.md. Check: `ls csi-spl-doc/specs/019-spool-auth-linkedin` → 4 files.
 
 ## Phase 2 — Hub (internal/auth)
 
-- [ ] T010 FR-L2: `validateProvider` case `linkedin` — scopes must include `openid` and `email`, else boot fails. Test in `config_test.go`.
-- [ ] T011 FR-L3: `oidc_linkedin_test.go` — LinkedIn-shaped userinfo (§1 claims): `email_verified` true / `"true"` admitted with name + avatar; `false`, missing, empty email → `email_unverified`, nothing registered.
+- [x] T010 Implemented (this commit, see `git log -1 -- csi-spl-api/src/go/spool-hub-api/internal/auth/oidc_linkedin_test.go`) — FR-L2: `validateProvider` case `linkedin` refuses scopes without `openid` + `email`. Check: `go test -run TestConfigLinkedInScopes ./internal/auth/` → ok (4 refused, default + reordered superset admitted).
+- [x] T011 Implemented (same commit as T010) — FR-L1/FR-L3: `oidc_linkedin_test.go` pins the real endpoints + scopes and runs `Exchange` against a LinkedIn-shaped stub (client_secret_post checked, id_token in the token body, §1 claims): `email_verified` true / `"true"` admitted with name + avatar; `false`, `"false"`, missing, no email → `errEmailUnverified`; wrong secret → `errExchange`. Check: `go test -race -count=1 ./internal/auth/...` → ok. CONTROL (mutation, n=1): with the `email_verified` guard in `oidc.go` removed, 4 subtests FAIL.
 
 ## Phase 3 — Named action
 

@@ -103,7 +103,8 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 
 - **FR-SEC-001 (Host Spool DAC):** Host spool provisioning (`do_provision_spool_root`) MUST restrict `/var/spool-hub`
   to authorized agent group members with `chmod 2770` and default ACLs excluding world (`o::---`).
-  *Status:* Planned.
+  *Status:* Partial — code, cnf and test landed (`4f36ee3`: `do_provision_spool_root`, `do_repair_spool_root`,
+  `spool-permissions.tst.sh`); missing: the `DRY_RUN=0` migration on each existing box (owner / ORC, quiet window).
   - **Clarified 2026-09-19 (lane SEC-01):** the group is cnf `env.box.spool_root_group`, default `spool-agents`;
     `other` is cnf `env.box.spool_root_other`, default `---`; the root mode is `27<g><o>` derived from it
     (`2770` for `---`). The root stays **not sticky**: the frozen 002 contract (`local-folder-layout.md`) makes an ack

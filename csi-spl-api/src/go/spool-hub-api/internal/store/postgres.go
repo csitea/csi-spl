@@ -430,24 +430,44 @@ func (s *Postgres) TaskEnvelopes(ctx context.Context, tenant, taskID string) ([]
 	return out, err
 }
 
+// sweepChunk bounds one retention transaction (027 T010): a backlog of
+// expired rows is removed sweepChunk rows at a time, each chunk committing on
+// its own, never in one long transaction.
+const sweepChunk = 5000
+
+// Sweep applies retention. It is global by design: the one hub job that runs
+// asOperator. Each chunk is a range scan on rdb 0024's (expires_at) indexes,
+// so an idle sweep costs two index probes whatever the tenant count.
 func (s *Postgres) Sweep(ctx context.Context, now time.Time) (SweepResult, error) {
-	// Retention is global by design: the one hub job that runs asOperator.
+	// chunks runs sql ($1 now, $2 limit) one transaction at a time until a
+	// chunk comes back short, and returns the rows it changed.
+	chunks := func(sql string) (int, error) {
+		total := 0
+		for {
+			var n int64
+			if err := s.asOperator(ctx, func(tx pgx.Tx) error {
+				tag, err := tx.Exec(ctx, sql, now, sweepChunk)
+				n = tag.RowsAffected()
+				return err
+			}); err != nil {
+				return 0, err
+			}
+			total += int(n)
+			if n < sweepChunk {
+				return total, nil
+			}
+		}
+	}
 	var r SweepResult
-	err := s.asOperator(ctx, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `UPDATE deliveries SET state = 'expired'
-			WHERE state = 'queued' AND expires_at <= $1`, now)
-		if err != nil {
-			return err
-		}
-		r.Expired = int(tag.RowsAffected())
-		tag, err = tx.Exec(ctx, `DELETE FROM messages WHERE expires_at <= $1`, now)
-		if err != nil {
-			return err
-		}
-		r.Purged = int(tag.RowsAffected())
-		return nil
-	})
-	if err != nil {
+	var err error
+	if r.Expired, err = chunks(`UPDATE deliveries SET state = 'expired'
+		WHERE state = 'queued' AND expires_at <= $1 AND (tenant_id, msg_id, to_box) IN (
+			SELECT tenant_id, msg_id, to_box FROM deliveries
+			WHERE state = 'queued' AND expires_at <= $1 LIMIT $2)`); err != nil {
+		return SweepResult{}, err
+	}
+	if r.Purged, err = chunks(`DELETE FROM messages WHERE expires_at <= $1 AND (tenant_id, msg_id) IN (
+			SELECT tenant_id, msg_id FROM messages WHERE expires_at <= $1 LIMIT $2)`); err != nil {
 		return SweepResult{}, err
 	}
 	return r, nil

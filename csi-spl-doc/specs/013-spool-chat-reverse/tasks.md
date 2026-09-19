@@ -25,4 +25,13 @@ Status by verification (`../README.md` §2.3): `[x]` Implemented (cited) · `[~]
 
 - [x] T014 Implemented (`76f66b5`, GRK-3366) — draggable vertical dividers on the 3-pane shell (`PaneDivider.vue`, `utils/pane-widths.mjs`): pointer drag, `role="separator"` + ArrowLeft/Right/Home/End, double-click reset, clamp so the main feed stays ≥ 360px, persist `localStorage` `spool.pane-widths` (try/catch), no divider when the sidebar is the 72px rail or the thread pane is closed/overlaying. Check: `cd csi-spl-wui && node --test tests/unit/pane-widths.test.mjs` → 19 pass; `node src/node/test/run-unit-tests.mjs` → all 23 files passed (rebased tree); `nuxi typecheck` exit 0. FR-009.
 
-<!-- version: 0.4.2 · updated: 2026-09-19 · last-edit: 2026-09-19T15:30:00Z -->
+## CLE-3402 — top-right user avatar, dropdown and Settings (owner 2026-09-19)
+
+- [x] T015 Implemented (`12ece07`, `505a38e`) — the top-right corner is the signed-in person's avatar (`components/UserMenu.vue` in `.app-corner`, `layouts/default.vue`), after pas-psf's header account control; clicking it opens a dropdown (name/email, **Settings**, Sign out); signed out it is the sign-in entry. The avatar reuses `SpoolAvatar` (010 T044 stored IdP picture, else the identicon); no new endpoint — the session claims (auth-v1 §4) carry name/email/`hum`/`p`/`t`. `/settings` (`pages/settings.vue`): profile, Language (CLE-3403 `<LanguageSetting />`), Appearance, sign-in method + change password (password sessions), Sign out. The sidebar footer no longer repeats identity/Sign out. Spec: `doc/md/SPEC-spool-wui-layout.md` §1.3 (what was ported from pas-psf `/account` and what was left out, and why). Checks, 2026-09-19:
+  - `node src/node/test/run-unit-tests.mjs` → all 22 files pass (21 before; `tests/unit/user-menu.test.mjs` 9 tests); `nuxt typecheck` exit 0.
+  - `node tests/e2e/no-x-scroll.test.mjs` n=2: 13/14 (one cold-compile timeout, `390x844 /lobby` waiting for `.spool-shell`), then 14/14.
+  - live on dev, build `505a38e` (n=2, both 10/10): `BASE=https://dev.<domain> EMAIL=<invited t1 member> PW_FILE=<0600> OUT=/var/tmp/CLE-3402-proof node tests/e2e/user-menu-live.proof.mjs` — signed out desktop + mobile (corner = Sign in, `href=/login?redirect=/lobby`, x-scroll 0), native sign-in → avatar top-right (`Account menu for <user>`, member identicon), keyboard (Enter → Settings focused, ArrowDown → Sign out, Escape → button, `aria-expanded` false), items `["Settings","Sign out"]`, `/settings` sections Profile/Language/Appearance/Sign-in and security with the change-password form, mobile x-scroll 0, Sign out → corner is Sign in again.
+  - prd `505a38e`, anonymous only (prd t1 is the owner's real tenant): corner = Sign in, x-scroll 0.
+  - NOT proven: an IdP picture in the corner (the test member is native, no picture); the owner's Google sign-in on dev shows it by the same `SpoolAvatar` path proven in 010 T044.
+
+<!-- version: 0.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T15:50:00Z -->

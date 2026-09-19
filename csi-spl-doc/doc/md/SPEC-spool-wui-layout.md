@@ -76,6 +76,46 @@ focusable `role="separator"` resizers (`PaneDivider.vue`):
 - zero-horizontal-scroll stays in force at every width (`overflow-x: clip`).
 
 Implemented `76f66b5`. Unit: `csi-spl-wui/tests/unit/pane-widths.test.mjs`.
+### 1.3 Top-Right User Control & Settings (CLE-3402, owner 2026-09-19)
+
+> Owner: "we must change the interface on the top right corner to be the user
+> avatar of the logged in user - the same way in the pas-psf project it is
+> implemented" and "once you click on this there is a drop down and there is
+> the settings part of the drop down".
+
+Reference: pas-psf `pas-psf-wui/src/components/UserAccountControl.vue`
+(avatar :26-60 — stored social photo, else initials :102-118, else a
+silhouette; guest → `/login` :61-76) and `pages/account/index.vue` (its
+settings). pas-psf's avatar links straight to `/account`; the spool adds the
+dropdown the owner asked for.
+
+- **Where**: one fixed cluster `.app-corner` (`layouts/default.vue`), top-right
+  of the viewport, above the panes. `.feed-header` and the thread-pane header
+  reserve `--app-corner-w` on the right so it never covers their controls. The
+  language switcher (CLE-3403) joins the same cluster, before the avatar.
+- **Avatar** (`components/UserMenu.vue`): member `HUM-*` → `SpoolAvatar`
+  (the stored IdP picture `humans.avatar_file_id`, 010 T044 / gap A5, else the
+  deterministic identicon, SPEC-spool-avatars §2); no member id → initials;
+  nothing → a silhouette. Read from the session claims (auth-v1 §4
+  `GET /api/v1/auth/session`: `name`, `email`, `hum`, `p`, `t`); no new endpoint.
+- **Dropdown**: who (avatar, name, email or member id) · **Settings** →
+  `/settings` · **Sign out**. WAI-ARIA menu button: Enter/Space/ArrowDown open
+  on the first item, ArrowUp on the last; arrows wrap, Home/End jump, Escape
+  closes and returns focus to the button; Tab, a click outside or a route
+  change closes.
+- **Signed out**: the corner is the sign-in entry (`/login?redirect=<here>`).
+- **`/settings`** (`pages/settings.vue`), from pas-psf `/account`:
+
+  | pas-psf `/account` | spool `/settings` | why |
+  |---|---|---|
+  | email (read-only), first/last name (editable) | name, email, member id, workspace — read-only | the hub has no profile PATCH; the name comes from the IdP / registration |
+  | avatar (header) | profile picture (IdP picture or identicon) | same source as the corner |
+  | preferred locale | **Language** — `<LanguageSetting />` (CLE-3403) | owner: Settings MUST carry the language choice |
+  | change password (U-09) | change password, password sessions only (native-auth-v1 §2) | same flow; a social session says which IdP manages it |
+  | log out | Sign out | — |
+  | — | Appearance (theme) | the spool's theme toggle |
+  | linked social identities, disconnect | left out | the hub has no identities list / unlink endpoint |
+  | roles, marketing opt-in, orders, invoices, delete account | left out | shop concepts, or no hub endpoint |
 
 ---
 
@@ -157,8 +197,8 @@ Unifies all human operators and autonomous AI agents with **mandatory avatars** 
   - Clicking any person or agent loads the 1:1 stream in Pane 2 (`/dm/<peer_id>`).
 
 ### 2.6 User Profile & Status Footer
-- Displays logged-in human identity (`HUM-<username>`), avatar, and connection health.
-- Quick "Sign out" button and version stamp (`#app-version`).
+- Displays connection health, the alerts control and the version stamp (`#app-version`).
+- The signed-in identity, Sign in and Sign out moved to the top-right user control (§1.3, CLE-3402).
 
 ---
 
@@ -269,4 +309,4 @@ When any message or task is selected in Pane 2, Pane 3 slides out to show the co
 | **Tablet (768px - 1199px)** | **2 Panes Visible** | Left (260px) + Middle (flex). Opening Thread Pane slides over Middle Pane or collapses Left Pane to an icon rail (60px). |
 | **Mobile (< 768px)** | **1 Pane Visible** | Left Pane becomes a slide-out drawer. Top Omnibox and prepended stream fill mobile viewport. Thread opens as a full-screen view with "Back" button. |
 
-<!-- version: 0.2.1 · updated: 2026-09-19 · last-edit: 2026-09-19T15:30:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-19 · last-edit: 2026-09-19T15:40:00Z -->

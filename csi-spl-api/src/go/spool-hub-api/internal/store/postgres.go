@@ -264,23 +264,31 @@ func (s *Postgres) InsertMessage(ctx context.Context, m Message) (bool, error) {
 	return false, ErrConflict
 }
 
+// Enqueue is one batch, so one round trip in one implicit transaction (027
+// T040: the BEGIN / scope / insert / cap / COMMIT form took five). The cap
+// runs under a per-(tenant, box) transaction advisory lock: two concurrent cap
+// UPDATEs lock overlapping rows in different orders and deadlock (measured on
+// pg16: 195 of 2000 sends at c=50 to one over-cap box answered 500). A send
+// that finds the lock held skips the cap; the holder trims, and the next send
+// trims whatever this one added. With no concurrency the cap is exact as before.
 func (s *Postgres) Enqueue(ctx context.Context, tenant, msgID, toBox string, now, expires time.Time, maxPerBox int) error {
-	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `INSERT INTO deliveries (tenant_id, msg_id, to_box, state, received_at, expires_at)
-			VALUES ($1, $2, $3, 'queued', $4, $5) ON CONFLICT DO NOTHING`,
-			tenant, msgID, toBox, now, expires); err != nil {
-			return err
-		}
-		if maxPerBox <= 0 {
-			return nil
-		}
-		_, err := tx.Exec(ctx, `UPDATE deliveries SET state = 'expired'
-			WHERE (tenant_id, msg_id, to_box) IN (
+	if err := checkTenant(tenant); err != nil {
+		return err
+	}
+	b := &pgx.Batch{}
+	b.Queue(pgScopeTenant, tenant)
+	b.Queue(`INSERT INTO deliveries (tenant_id, msg_id, to_box, state, received_at, expires_at)
+		VALUES ($1, $2, $3, 'queued', $4, $5) ON CONFLICT DO NOTHING`,
+		tenant, msgID, toBox, now, expires)
+	if maxPerBox > 0 {
+		b.Queue(`WITH capper AS (SELECT pg_try_advisory_xact_lock(hashtextextended('deliveries-cap/' || $1 || '/' || $2, 0)) AS got)
+			UPDATE deliveries SET state = 'expired'
+			WHERE (SELECT got FROM capper) AND (tenant_id, msg_id, to_box) IN (
 				SELECT tenant_id, msg_id, to_box FROM deliveries
 				WHERE tenant_id = $1 AND to_box = $2 AND state = 'queued'
 				ORDER BY received_at DESC, msg_id DESC OFFSET $3)`, tenant, toBox, maxPerBox)
-		return err
-	})
+	}
+	return s.pool.SendBatch(ctx, b).Close()
 }
 
 func (s *Postgres) ClaimSent(ctx context.Context, tenant, msgID, toBox string, now time.Time) (bool, error) {

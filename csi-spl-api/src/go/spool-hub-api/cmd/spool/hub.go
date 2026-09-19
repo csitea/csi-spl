@@ -25,6 +25,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/logging"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -97,12 +98,30 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
-	if hc.ViewDoor == hub.ViewDoorSession && len(ac.Enabled()) == 0 {
-		return fail(fmt.Errorf("SPOOL_HUB_VIEW_DOOR=session needs SPOOL_HUB_AUTH_PROVIDERS (nobody could sign in)"))
+	nc, err := auth.LoadNative(hc.Env) // spec 015; off unless SPOOL_HUB_AUTH_NATIVE_ENABLED=true
+	if err != nil {
+		return fail(err)
+	}
+	if hc.ViewDoor == hub.ViewDoorSession && len(ac.Enabled()) == 0 && !nc.Enabled {
+		return fail(fmt.Errorf("SPOOL_HUB_VIEW_DOOR=session needs SPOOL_HUB_AUTH_PROVIDERS or SPOOL_HUB_AUTH_NATIVE_ENABLED (nobody could sign in)"))
 	}
 	// Registration + membership are store-backed (010 T012/T013, rdb 0006).
 	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner}}
 	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks})
+	if nc.Enabled {
+		mc, err := mail.Load() // SPOOL_HUB_MAIL_*: no default relay host
+		if err != nil {
+			return fail(err)
+		}
+		var cs auth.CredStore = auth.NewMemoryCredStore()
+		if pg, ok := st.(*store.Postgres); ok {
+			cs = auth.PgCredStore{Pool: pg.Pool()}
+		}
+		if err := opts.Auth.EnableNative(nc, auth.NativeDeps{Store: cs, Sender: mc.Sender(log), Delivers: mc.Delivers()}); err != nil {
+			return fail(err)
+		}
+		log.Info().Str("mail_transport", mc.Transport).Bool("verify_required", nc.VerifyRequired).Msg("native sign-in on")
+	}
 	srv, err := hub.New(opts)
 	if err != nil {
 		return fail(err)

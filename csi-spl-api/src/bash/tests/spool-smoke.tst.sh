@@ -57,6 +57,11 @@ set +e
 rc=$?
 set -e
 [ "$rc" = "1" ] && pass "keygen without \$SPOOL_BOX_ID fails fast" || fail "keygen without box exit was $rc"
+set +e
+SPOOL_KEYS_DIR="$SPOOL_ROOT/keys" SPOOL_BOX_ID=box-a "$B" keygen >/dev/null 2>&1
+rc=$?
+set -e
+[ "$rc" = "1" ] && [ ! -e "$SPOOL_ROOT/keys/box-box-a.key" ] && pass "keygen refuses a keys dir inside \$SPOOL_ROOT (FR-009)" || fail "keygen into \$SPOOL_ROOT exit was $rc"
 PUB="$(SPOOL_BOX_ID=box-a "$B" keygen)"; "$B" pin --box box-a --pubkey "$PUB"
 [ "$(stat -c '%a' "$SPOOL_KEYS_DIR/box-box-a.key")" = "600" ] && pass "box private key is box-<id>.key 0600" || fail "box key missing or not 0600"
 [ -f "$SPOOL_PINS_DIR/box-box-a.pub" ] && pass "box pin created" || fail "no box pin"

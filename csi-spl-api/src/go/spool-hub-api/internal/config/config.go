@@ -278,6 +278,50 @@ func LoadHub() (*Hub, error) {
 	return &h, nil
 }
 
+// CheckKeysDir refuses a KeysDir that is SpoolRoot or lies inside it (FR-009,
+// NFR-002: the box private key never enters the shared root). Both paths are
+// made absolute and symlinks are resolved on their longest existing prefix, so
+// neither `..` nor a symlink hides a key dir inside the root.
+func (c *Config) CheckKeysDir() error {
+	root, err := resolvePath(c.SpoolRoot)
+	if err != nil {
+		return fmt.Errorf("resolve SPOOL_ROOT: %w", err)
+	}
+	keys, err := resolvePath(c.KeysDir)
+	if err != nil {
+		return fmt.Errorf("resolve SPOOL_KEYS_DIR: %w", err)
+	}
+	rel, err := filepath.Rel(root, keys)
+	if err != nil {
+		return nil // different volumes: outside
+	}
+	if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+		return fmt.Errorf("SPOOL_KEYS_DIR %q is inside SPOOL_ROOT %q: the box private key must live outside the spool root (default $HOME/.spool/keys)", c.KeysDir, c.SpoolRoot)
+	}
+	return nil
+}
+
+// resolvePath returns p absolute and cleaned, with symlinks resolved on its
+// longest existing prefix (the rest need not exist yet).
+func resolvePath(p string) (string, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+	rest := ""
+	for cur := abs; ; {
+		if real, err := filepath.EvalSymlinks(cur); err == nil {
+			return filepath.Join(real, rest), nil
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return abs, nil
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
+	}
+}
+
 // FilesDir is the shared content-addressed blob store.
 func (c *Config) FilesDir() string { return filepath.Join(c.SpoolRoot, "files") }
 

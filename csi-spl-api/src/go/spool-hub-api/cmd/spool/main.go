@@ -142,6 +142,9 @@ func cmdKeygen(cfg *config.Config, args []string) int {
 	if !msg.ValidBoxID(*box) {
 		return fail(fmt.Errorf("--box or $SPOOL_BOX_ID must be a valid box id (e.g. box-a)"))
 	}
+	if err := cfg.CheckKeysDir(); err != nil {
+		return fail(err)
+	}
 	pub, err := sign.GenerateKey(cfg.KeysDir, *box, *force)
 	if err != nil {
 		return fail(err)

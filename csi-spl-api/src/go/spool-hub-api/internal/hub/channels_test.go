@@ -7,15 +7,19 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
@@ -59,8 +63,15 @@ func signedIn(t *testing.T, b *box, toBox, channel, parent string, m *msg.Messag
 
 // rawBox holds a hand-driven role=box socket that announces channels.
 type rawBox struct {
-	t *testing.T
-	c *websocket.Conn
+	t     *testing.T
+	c     *websocket.Conn
+	trace func(format string, args ...any) // nil = off
+}
+
+func (r *rawBox) tracef(format string, args ...any) {
+	if r.trace != nil {
+		r.trace(format, args...)
+	}
 }
 
 func (e *env) rawBox(tenant string, b *box, agents, channels []string) *rawBox {
@@ -93,14 +104,54 @@ func (r *rawBox) within(want string, d time.Duration) (wire.Frame, error) {
 		if err := wsjson.Read(ctx, r.c, &f); err != nil {
 			return f, err
 		}
+		r.tracef("frame %s count=%d agents=%v (want %s)", f.Type, f.Count, f.Agents, want)
 		if f.Type == want {
 			return f, nil
 		}
 	}
 }
 
+// traceOnFailure collects timestamped steps and the hub log, printed only when
+// the test fails (H6: the CI-only timeouts left nothing to read), or always
+// with SPOOL_TEST_TRACE=1.
+func traceOnFailure(t *testing.T) (func(string, ...any), func(*hub.Options)) {
+	var mu sync.Mutex
+	var lines []string
+	var hubLog bytes.Buffer
+	t0 := time.Now()
+	add := func(format string, args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		lines = append(lines, fmt.Sprintf("%8.3fms ", float64(time.Since(t0).Microseconds())/1000)+fmt.Sprintf(format, args...))
+	}
+	t.Cleanup(func() {
+		if !t.Failed() && os.Getenv("SPOOL_TEST_TRACE") == "" {
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		for _, l := range lines {
+			t.Log(l)
+		}
+		t.Log("hub log:\n" + hubLog.String())
+	})
+	return add, func(o *hub.Options) { o.Log = zerolog.New(&syncWriter{w: &hubLog}).With().Timestamp().Logger() }
+}
+
+type syncWriter struct {
+	mu sync.Mutex
+	w  *bytes.Buffer
+}
+
+func (s *syncWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.Write(p)
+}
+
 func TestChannelMentionRouting(t *testing.T) {
-	e := newEnv(t)
+	trace, withLog := traceOnFailure(t)
+	e := newEnv(t, withLog)
 	tid, _ := e.tenant()
 	ctx := context.Background()
 	a := e.box(tid, "box-a", "GRK-03")
@@ -175,17 +226,24 @@ func TestChannelMentionRouting(t *testing.T) {
 	_ = m4
 
 	// Offline: queued, drained on hello with agents recomputed.
+	trace("body done up to offline")
+	trace("offline: CloseNow box-b")
 	rb.c.CloseNow() //nolint:errcheck
 	eventually(t, "box-b offline", func() bool {
-		m, _, _ := post("tasks", "ALL-0", "@CLE-08 while you were out")
-		st, _ := e.st.DeliveryState(ctx, tid, m.MsgID, "box-b")
+		m, f, err := post("tasks", "ALL-0", "@CLE-08 while you were out")
+		st, serr := e.st.DeliveryState(ctx, tid, m.MsgID, "box-b")
+		trace("offline post %s: send err=%v delivery=%q; box-b row %q (%v)", m.MsgID, err, f.Delivery, st, serr)
 		return st == store.StateQueued
 	})
+	trace("reconnect box-b (no drain)")
 	rb = e.rawBoxNoDrain(tid, b, []string{"CLE-07", "CLE-08"}, []string{"tasks"})
+	rb.trace = trace
+	trace("welcome read; waiting for the drained recv")
 	if r := rb.next(wire.TRecv); len(r.Agents) != 1 || r.Agents[0] != "CLE-08" {
 		t.Fatalf("drained agents: %+v", r.Agents)
 	}
 
+	trace("drained recv read")
 	// Unknown channel and bad parent are refused, nothing stored.
 	if _, _, err := post("nosuch", "ALL-0", "x"); err == nil || !strings.Contains(err.Error(), "unknown_channel") {
 		t.Fatalf("unknown channel: %v", err)

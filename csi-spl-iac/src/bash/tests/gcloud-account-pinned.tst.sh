@@ -35,7 +35,10 @@ bash -n "$PIN" && pass "bash -n gcp-account-pin.func.sh" || fail "bash -n gcp-ac
 
 want_acct=$(yq -r '.env.gcp.gcp_account_owner_email // ""' "$CNF_DIR/all.env.yaml")
 want_org=$(yq -r '.env.gcp.gcp_org_id // ""' "$CNF_DIR/all.env.yaml")
-[[ -n "$want_acct" && -n "$want_org" ]] && pass "all.env.yaml sets env.gcp.gcp_account_owner_email and gcp_org_id" \
+# the account key must EXIST; its value may be empty in the tree (the 10 ci
+# hygiene sweep bans the owner mail address), the org must be set
+[[ "$(yq -r '.env.gcp | has("gcp_account_owner_email")' "$CNF_DIR/all.env.yaml")" == true && -n "$want_org" ]] \
+  && pass "all.env.yaml declares env.gcp.gcp_account_owner_email and sets gcp_org_id" \
   || fail "all.env.yaml lacks env.gcp.gcp_account_owner_email / gcp_org_id"
 
 # a gcloud stub on PATH records any call: the resolution must make none
@@ -52,8 +55,6 @@ resolve() {
 }
 
 # --- 1. precedence --------------------------------------------------------------
-[[ "$(resolve do_gcp_account)" == "$want_acct" ]] && pass "no env: the account is cnf env.gcp.gcp_account_owner_email" \
-  || fail "no env: got '$(resolve do_gcp_account)'"
 [[ "$(resolve do_gcp_account GCP_ACCOUNT_OWNER_EMAIL=c@example.com)" == c@example.com ]] \
   && pass "an exported GCP_ACCOUNT_OWNER_EMAIL beats reading the yaml" || fail "GCP_ACCOUNT_OWNER_EMAIL ignored"
 [[ "$(resolve do_gcp_account GCP_ACCOUNT=sa@example.com GCP_ACCOUNT_OWNER_EMAIL=c@example.com)" == sa@example.com ]] \
@@ -83,8 +84,8 @@ out=$(resolve do_gcp_account APP_PATH="$T/nowhere"); rc=$?
   || fail "the resolution called gcloud: $(cat "$T/gcloud.log")"
 out=$(resolve do_gcp_pin_account APP_PATH="$T/nowhere"); rc=$?
 [[ $rc -ne 0 ]] && pass "CONTROL: do_gcp_pin_account refuses too (rc=$rc)" || fail "do_gcp_pin_account did not refuse"
-out=$(resolve 'do_gcp_pin_account' GCP_ACCOUNT= )
-grep -q "account=$want_acct" <<<"$out" && pass "do_gcp_pin_account logs the pinned identity" || fail "no identity log line: $out"
+out=$(resolve 'do_gcp_pin_account' GCP_ACCOUNT_OWNER_EMAIL=c@example.com)
+grep -q "account=c@example.com" <<<"$out" && pass "do_gcp_pin_account logs the pinned identity" || fail "no identity log line: $out"
 
 # --- 3. org -------------------------------------------------------------------------
 [[ "$(resolve do_gcp_org_id)" == "$want_org" ]] && pass "no env: the org is cnf env.gcp.gcp_org_id" || fail "org from cnf: '$(resolve do_gcp_org_id)'"
@@ -163,8 +164,8 @@ if git -C "$APP_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
     hits=$(git -C "$APP_ROOT" grep -lF -e "$v" -- . ":(exclude)$ORG_APP-cnf/$ORG_APP/*.env.yaml" ":(exclude)$ORG_APP-cnf/$ORG_APP/*.env.json" 2>/dev/null)
     [[ -z "$hits" ]] && pass "a cnf env.gcp value appears nowhere outside the cnf yaml/json" || fail "a cnf env.gcp value is hard-coded in: $hits"
   done
-  n_cnf=$(git -C "$APP_ROOT" grep -lF -e "$want_acct" -- "$ORG_APP-cnf" | wc -l)
-  [[ "$n_cnf" -ge 1 ]] && pass "CONTROL: the same grep finds the account in the cnf ($n_cnf file(s))" || fail "CONTROL: the literal grep is blind"
+  n_cnf=$(git -C "$APP_ROOT" grep -lF -e "$want_org" -- "$ORG_APP-cnf" | wc -l)
+  [[ "$n_cnf" -ge 1 ]] && pass "CONTROL: the same grep finds the org in the cnf ($n_cnf file(s))" || fail "CONTROL: the literal grep is blind"
 else
   echo "SKIP: not a git checkout, literal scan skipped"
 fi

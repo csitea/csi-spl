@@ -108,9 +108,15 @@ type wuiErr struct {
 	MsgID  string `json:"msg_id,omitempty"`
 }
 
-// humanIDs maps a display name to a stable HUM-<n> per (tenant, name) for the
+// GuestPrefix is the id prefix of an anonymous door-off browser human
+// (wui-live-ws §3.1): a v:1 agent id outside the member HUM-<n> namespace
+// (rdb 0006 humans.human_id CHECK '^HUM-[0-9]+$'), so a guest can never take
+// a member's id, name or picture.
+const GuestPrefix = "GST-"
+
+// humanIDs maps a display name to a stable GST-<n> per (tenant, name) for the
 // life of the process, so two tabs using one name share an id. Session human
-// ids live in their own namespace, so no display name can take one's HUM-<n>.
+// ids live in their own namespace (HUM-<n>), so no display name can take one.
 type humanIDs struct {
 	mu   sync.Mutex
 	next int
@@ -134,7 +140,11 @@ func (h *humanIDs) get(ns, tenant, name string) string {
 	if v, ok := h.ids[k]; ok {
 		return v
 	}
-	v := fmt.Sprintf("HUM-%d", h.next)
+	prefix := "HUM-"
+	if ns == "name" {
+		prefix = GuestPrefix
+	}
+	v := fmt.Sprintf("%s%d", prefix, h.next)
 	h.next++
 	h.ids[k] = v
 	return v

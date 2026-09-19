@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"regexp"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
@@ -34,6 +36,7 @@ func wuiEnv(t *testing.T) *env {
 type wuiFrame struct {
 	Type        string          `json:"type"`
 	As          string          `json:"as"`
+	Name        string          `json:"name"`
 	LobbyTaskID string          `json:"lobby_task_id"`
 	UploadToken string          `json:"upload_token"`
 	TaskID      string          `json:"task_id"`
@@ -106,7 +109,7 @@ func TestWUITwoSessionsLobbyLive(t *testing.T) {
 
 	a := dialWUI(t, e, tid, "AgentA")
 	b := dialWUI(t, e, tid, "HUM-2")
-	if a.w.LobbyTaskID != lobby || a.w.UploadToken == "" || a.w.As != "HUM-1" || b.w.As != "HUM-2" {
+	if a.w.LobbyTaskID != lobby || a.w.UploadToken == "" || a.w.As != "GST-1" || b.w.As != "HUM-2" {
 		t.Fatalf("welcome a=%+v b=%+v", a.w, b.w)
 	}
 	// Before the first post the lobby thread is an empty 200.
@@ -131,7 +134,7 @@ func TestWUITwoSessionsLobbyLive(t *testing.T) {
 	}
 	got := b.read("message")
 	m := innerOf(t, got)
-	if got.TaskID != lobby || m["from"] != "HUM-1" || m["to"] != "ALL-0" || m["kind"] != "note" || m["body"] != "hello #general" || m["msg_id"] != id {
+	if got.TaskID != lobby || m["from"] != "GST-1" || m["to"] != "ALL-0" || m["kind"] != "note" || m["body"] != "hello #general" || m["msg_id"] != id {
 		t.Fatalf("B got %+v %v", got, m)
 	}
 	var env wire.Envelope
@@ -382,5 +385,36 @@ func TestWUIChannelSubscribeNewRoot(t *testing.T) {
 	var f wuiFrame
 	if err := wsjson.Read(rctx, a.c, &f); err == nil {
 		t.Fatalf("unexpected frame after unsubscribe / duplicate: %+v", f)
+	}
+}
+
+// H5 (003 wui-live-ws §3.1): with the door off, an anonymous display name
+// (or no name) gets an id outside the member HUM-<n> namespace, so its posts
+// never render as a member's identity or picture.
+func TestWUIAnonymousIDDisjointFromMembers(t *testing.T) {
+	e := wuiEnv(t)
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	member, err := e.st.(store.Humans).Admit(ctx, store.Identity{Provider: "google", Subject: "member-sub"},
+		tid, store.AdmitPolicy{BootstrapOwner: true}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	memberForm := regexp.MustCompile(`^HUM-[0-9]+$`) // rdb 0006 humans.human_id CHECK
+	seen := map[string]bool{}
+	for _, as := range []string{"uploader", "", "uploader"} {
+		w := dialWUI(t, e, tid, as).w
+		if w.As == member || memberForm.MatchString(w.As) || !msg.ValidID(w.As) {
+			t.Fatalf("anonymous hello %q got %q (member %s)", as, w.As, member)
+		}
+		seen[w.As] = true
+	}
+	if len(seen) != 2 { // one name shares an id across tabs; the unnamed one differs
+		t.Fatalf("anonymous ids %v", seen)
+	}
+	// The tolerant display-name mapping is kept: the name is echoed back.
+	a := dialWUI(t, e, tid, "uploader")
+	if a.w.Name != "uploader" {
+		t.Fatalf("welcome.name %q", a.w.Name)
 	}
 }

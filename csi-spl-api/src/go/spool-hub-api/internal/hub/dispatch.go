@@ -73,9 +73,10 @@ func dispatchAgent(to, body string) string {
 	return ""
 }
 
-// isAgent: a v:1 agent id that is neither the broadcast id nor a human.
+// isAgent: a v:1 agent id that is neither the broadcast id nor a human
+// (member HUM-* or door-off guest GST-*).
 func isAgent(id string) bool {
-	return msg.ValidID(id) && id != BroadcastID && !strings.HasPrefix(id, "HUM-")
+	return msg.ValidID(id) && id != BroadcastID && !strings.HasPrefix(id, "HUM-") && !strings.HasPrefix(id, GuestPrefix)
 }
 
 // dispatchCheck runs contract §3 steps 1-5 for a built message and returns

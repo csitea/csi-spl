@@ -15,8 +15,8 @@ Related: `./view-v1.md` (history / catch-up, same door, same CORS list),
 (`internal/hub/wui_test.go`, also under `-race`).
 
 **Tolerant parsing (0.2.0)**, so the ORC-described shape and 0.1.0 both work:
-`hello.as` may be a display name (mapped to a stable `HUM-<n>` per tenant and
-name; `welcome.as` is the id, `welcome.name` echoes the name); `kind:"chat"`
+`hello.as` may be a display name (mapped to a stable guest id `GST-<n>` per
+tenant and name, v0.4.1; `welcome.as` is the id, `welcome.name` echoes the name); `kind:"chat"`
 is stored as `note`; `"lobby"` is case-insensitive; a `files[]` item may omit
 `mode`/`kind` (`blob`/`file` assumed); the `message` frame carries both
 `envelope` (the v:1 object) and `env` (the stored envelope).
@@ -74,7 +74,7 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 
 | `type` | Fields | Rule |
 |---|---|---|
-| `hello` | `as?`, `token?` | **first frame**, within 10 s (else close `4408`). `as` = a v:1 agent id (`^[A-Z]{2,4}-[0-9]+$`, e.g. `HUM-1`) used as `from`; absent -> the hub assigns `HUM-<n>`. A display name that is not an id (`AgentA`) is mapped to a stable `HUM-<n>` per (tenant, name) — `welcome.as` is the id, `welcome.name` echoes the name (0.2.0). Live: `TestWUITwoSessionsLobbyLive` dials `as:"AgentA"` and asserts `welcome.as == "HUM-1"` (`command grep -n 'AgentA' csi-spl-api/src/go/spool-hub-api/internal/hub/wui_test.go` → `105: a := dialWUI(t, e, tid, "AgentA")` and `107: a.w.As != "HUM-1"`). Close `4400 bad_frame` only when the first frame is not a well-formed `hello` (or `as` > 64 chars). `token` is reserved for the prd view token (OQ-16) and ignored today |
+| `hello` | `as?`, `token?` | **first frame**, within 10 s (else close `4408`). `as` = a v:1 agent id (`^[A-Z]{2,4}-[0-9]+$`, e.g. `HUM-1`) used as `from`; absent -> the hub assigns a guest id `GST-<n>`. A display name that is not an id (`AgentA`) is mapped to a stable `GST-<n>` per (tenant, name) — `welcome.as` is the id, `welcome.name` echoes the name (0.2.0). **Guest ids (v0.4.1, gap H5)** are disjoint from member ids: members are `HUM-<n>` (rdb 0006 CHECK `^HUM-[0-9]+$`), so a door-off guest never renders with a member's identity or picture, and a `GST-*` is never a dispatch target. A `hello.as` that already is a v:1 id (`HUM-2`) is still taken as asserted (§0; door off only). Live: `TestWUITwoSessionsLobbyLive` dials `as:"AgentA"` and asserts `welcome.as == "GST-1"`; `TestWUIAnonymousIDDisjointFromMembers` admits member `HUM-1` first, then asserts an anonymous hello never gets a `^HUM-[0-9]+$` id. Close `4400 bad_frame` only when the first frame is not a well-formed `hello` (or `as` > 64 chars). `token` is reserved for the prd view token (OQ-16) and ignored today |
 | `subscribe` | `task_id` \| `channel` | `task_id`: a UUID, or the literal `"LOBBY"` (= `LOBBY_TASK_ID`). `channel` (v0.4): a channel slug known to the tenant (`general` = `lobby`), else `404 unknown_channel`; the socket then gets **every** message stored in that channel, including a new root thread (a new `task_id`) someone else starts there. When `channel` is set, `task_id` is ignored. Idempotent. Reply `subscribed` |
 | `unsubscribe` | `task_id` \| `channel` | idempotent. No reply |
 | `send` | `msg_id?`, `task_id`, `kind?`, `body`, `files?`, `to?`, `channel?`, `parent_task_id?` | §4 |
@@ -170,4 +170,4 @@ reconnect the browser sends `hello` again and re-subscribes.
 `missing_file`, `conflict_msg`, `unpaid`, `quota`, `view_door`,
 `unknown_tenant`.
 
-<!-- version: 0.4.0 · updated: 2026-09-19 · last-edit: 2026-09-19T09:30:00Z -->
+<!-- version: 0.4.1 · updated: 2026-09-19 · last-edit: 2026-09-19T10:05:00Z -->

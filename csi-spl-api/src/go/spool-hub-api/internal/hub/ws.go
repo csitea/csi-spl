@@ -502,7 +502,7 @@ func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelop
 	}
 	if inserted {
 		s.notifyTail(ctx, tenant, m.TaskID, canon)
-		s.fanoutWUI(ctx, tenant, m.TaskID, m.MsgID, now, canon)
+		s.fanoutWUI(ctx, tenant, m.TaskID, channel, m.MsgID, now, canon)
 	}
 	s.routeChannel(ctx, tenant, channel, env, m, canon)
 	if env.ToBox == WUIBox {

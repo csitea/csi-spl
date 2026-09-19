@@ -39,6 +39,7 @@ type wuiFrame struct {
 	TaskID      string          `json:"task_id"`
 	MsgID       string          `json:"msg_id"`
 	Cursor      string          `json:"cursor"`
+	Channel     string          `json:"channel"`
 	Error       string          `json:"error"`
 	Envelope    json.RawMessage `json:"envelope"`
 	Env         json.RawMessage `json:"env"`
@@ -327,5 +328,59 @@ func TestWUIResendAcrossSecond(t *testing.T) {
 	a.send(map[string]any{"type": "send", "msg_id": id, "task_id": "lobby", "body": "changed"})
 	if f := a.read("error"); f.Error != "conflict_msg" {
 		t.Fatalf("changed body: %+v", f)
+	}
+}
+
+// H4 (003 wui-live-ws §3.1 channel subscription): a browser viewing a channel
+// gets a NEW root thread someone else starts there live, with its cursor
+// (the same cursor as the sender's ack), once even when also task-subscribed.
+func TestWUIChannelSubscribeNewRoot(t *testing.T) {
+	e := wuiEnv(t)
+	tid, _ := e.tenant()
+	a := dialWUI(t, e, tid, "HUM-1")
+	b := dialWUI(t, e, tid, "HUM-2")
+
+	a.send(map[string]string{"type": "subscribe", "channel": "general"})
+	if f := a.read("subscribed"); f.Channel != store.ChannelLobby || f.TaskID != "" {
+		t.Fatalf("channel subscribed %+v", f)
+	}
+	a.send(map[string]string{"type": "subscribe", "channel": "no-such-channel"})
+	if f := a.read("error"); f.Error != "unknown_channel" {
+		t.Fatalf("unknown channel: %+v", f)
+	}
+
+	root := "5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a"
+	b.send(map[string]any{"type": "send", "task_id": root, "channel": "lobby", "body": "a new root"})
+	ack := b.read("ack")
+	got := a.read("message")
+	if m := innerOf(t, got); got.TaskID != root || got.Channel != store.ChannelLobby || m["body"] != "a new root" {
+		t.Fatalf("channel fan-out %+v %v", got, m)
+	}
+	if got.Cursor == "" || got.Cursor != ack.Cursor {
+		t.Fatalf("frame cursor %q, ack cursor %q", got.Cursor, ack.Cursor)
+	}
+
+	// Subscribed to the channel AND the thread: a reply arrives once.
+	a.send(map[string]string{"type": "subscribe", "task_id": root})
+	a.read("subscribed")
+	b.send(map[string]any{"type": "send", "task_id": root, "channel": "lobby", "body": "reply"})
+	b.read("ack")
+	if m := innerOf(t, a.read("message")); m["body"] != "reply" {
+		t.Fatalf("reply %v", m)
+	}
+	// A DM (no channel) on another task never reaches a channel subscriber;
+	// the next frame A sees must be its own marker below, not a duplicate.
+	b.send(map[string]any{"type": "send", "task_id": "6e5d4c3b-2a1f-4e0d-9c8b-7a6f5e4d3c2b", "body": "dm"})
+	b.read("ack")
+	a.send(map[string]string{"type": "unsubscribe", "channel": "lobby"})
+	a.send(map[string]string{"type": "subscribe", "task_id": "11111111-1111-4111-8111-111111111111"})
+	a.read("subscribed")
+	b.send(map[string]any{"type": "send", "task_id": "7f6e5d4c-3b2a-4f1e-8d9c-8b7a6f5e4d3c", "channel": "lobby", "body": "after unsubscribe"})
+	b.read("ack")
+	rctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	var f wuiFrame
+	if err := wsjson.Read(rctx, a.c, &f); err == nil {
+		t.Fatalf("unexpected frame after unsubscribe / duplicate: %+v", f)
 	}
 }

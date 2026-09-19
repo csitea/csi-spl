@@ -58,7 +58,8 @@ type wuiConn struct {
 	as     string          // display name the browser gave (or the id)
 	from   string          // v:1 agent id stamped as `from`
 	member string          // member-session human id ("" = none); dispatch needs it
-	subs   map[string]bool // guarded by srv.mu
+	subs   map[string]bool // task ids, guarded by srv.mu
+	chans  map[string]bool // channel ids (stored form), guarded by srv.mu
 	wmu    sync.Mutex
 	once   sync.Once
 }
@@ -187,7 +188,7 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 		conn.Close(wire.CloseBadFrame, "bad_frame") //nolint:errcheck
 		return
 	}
-	c := &wuiConn{conn: conn, tenant: t.ID, as: h.As, subs: map[string]bool{}}
+	c := &wuiConn{conn: conn, tenant: t.ID, as: h.As, subs: map[string]bool{}, chans: map[string]bool{}}
 	switch {
 	case msg.ValidID(h.As):
 		c.from = h.As
@@ -244,6 +245,10 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 		}
 		switch f.Type {
 		case "subscribe", "unsubscribe":
+			if f.Channel != "" {
+				s.wuiSubscribeChannel(ctx, c, f)
+				continue
+			}
 			task, ok := s.lobbyAlias(f.TaskID)
 			if !ok {
 				c.write(ctx, wuiErr{"error", "lobby_disabled", http.StatusBadRequest, "the hub runs without SPOOL_HUB_LOBBY_TASK_ID", ""}) //nolint:errcheck
@@ -271,6 +276,33 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 		default:
 			c.write(ctx, wuiErr{"error", "bad_frame", http.StatusBadRequest, "unknown frame type", ""}) //nolint:errcheck
 		}
+	}
+}
+
+// wuiSubscribeChannel (un)subscribes a socket to every message stored in a
+// channel, new roots included (wui-live-ws.md §3.1). `general` is the lobby.
+func (s *Server) wuiSubscribeChannel(ctx context.Context, c *wuiConn, f wuiIn) {
+	ch := store.NormalizeChannel(f.Channel)
+	if f.Type == "subscribe" {
+		ok, err := s.o.Store.ChannelKnown(ctx, c.tenant, ch)
+		if err != nil {
+			c.write(ctx, wuiErr{"error", "internal", http.StatusInternalServerError, "channel lookup failed", ""}) //nolint:errcheck
+			return
+		}
+		if !store.ValidChannelID(ch) || !ok {
+			c.write(ctx, wuiErr{"error", "unknown_channel", http.StatusNotFound, "no channel " + f.Channel + " in this tenant", ""}) //nolint:errcheck
+			return
+		}
+	}
+	s.mu.Lock()
+	if f.Type == "subscribe" {
+		c.chans[ch] = true
+	} else {
+		delete(c.chans, ch)
+	}
+	s.mu.Unlock()
+	if f.Type == "subscribe" {
+		c.write(ctx, map[string]string{"type": "subscribed", "channel": ch}) //nolint:errcheck
 	}
 }
 
@@ -448,12 +480,13 @@ func (s *Server) admit(ctx context.Context, tenant string, m *msg.Message) (stri
 	return "", 0, ""
 }
 
-// fanoutWUI pushes one stored message to every browser subscribed to its task.
-func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, msgID string, receivedAt time.Time, env []byte) {
+// fanoutWUI pushes one stored message to every browser subscribed to its task
+// or to its stored channel (once per socket).
+func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID string, receivedAt time.Time, env []byte) {
 	s.mu.Lock()
 	var targets []*wuiConn
 	for c := range s.wui {
-		if c.tenant == tenant && c.subs[taskID] {
+		if c.tenant == tenant && (c.subs[taskID] || channel != "" && c.chans[channel]) {
 			targets = append(targets, c)
 		}
 	}
@@ -467,6 +500,12 @@ func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, msgID string, re
 	}
 	frame := map[string]any{"type": "message", "task_id": taskID, "cursor": encCursor(receivedAt, msgID),
 		"received_at": rfc(receivedAt), "envelope": e.Msg, "env": json.RawMessage(env)}
+	if channel != "" {
+		frame["channel"] = channel
+	}
+	if e.ParentTaskID != "" {
+		frame["parent_task_id"] = e.ParentTaskID
+	}
 	for _, c := range targets {
 		c.write(ctx, frame) //nolint:errcheck
 	}

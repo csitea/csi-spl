@@ -7,7 +7,7 @@
 ## Phase 1 — Spec + pure helpers
 
 - [x] T001 Spec (`spec.md`).
-- [ ] T002 `utils/search.mjs` (mode, URL, operators, highlights, groups, keyboard) + `tests/unit/search.test.mjs`.
+- [x] T002 `utils/search.mjs` (mode, URL, operators, highlights, groups, keyboard) + `tests/unit/search.test.mjs`. Check: `node tests/unit/search.test.mjs` → pass 28.
 - [ ] T003 `spool-client.mjs` `search()` (live `GET /v1/view/search`, mock matcher).
 
 ## Phase 2 — Layout + Omnibox

@@ -127,11 +127,11 @@ stays clean.
 - **FR-007** (Implemented, `ec3b91e`; tasks.md): a11y order and semantics as US5.
 - **FR-008** (Implemented, `ec3b91e`; tasks.md): no `v:1` change; the live WS client and view reads are reused unchanged (005 T021–T023).
 - **FR-009** (Implemented, `76f66b5`; tasks.md T014): the two vertical seams of the 3-pane shell are draggable, keyboard-accessible separators; widths persist in `localStorage` `spool.pane-widths`; the main feed never collapses; no divider when a pane is hidden or overlaying. See `SPEC-spool-wui-layout.md` §1.2.
-- **FR-011** (Planned; tasks.md T018): newest on top on every message view as US7, including the thread list `/` (rows ordered by `last_ts`, newest first, a live row moves to the top).
-- **FR-012** (Planned; tasks.md T019): scroll anchoring — when rows are prepended while the feed is scrolled more than 80 px from its top, the scroll offset grows by the inserted height (the visible rows stay put) and a "N new" pill appears; the pill (or scrolling back to the top) clears it. At the top, new rows just enter.
-- **FR-013** (Planned; tasks.md T020): optimistic own send — the row is shown at once with `pending`, keyed by the client `msg_id` sent in the `send` frame (`wui-live-ws` §4 idempotent `msg_id`); the pushed `message` echo or the `ack` replaces it; a failed send removes it and shows the error. No duplicates in any view.
-- **FR-014** (Planned; tasks.md T021–T022): live push for every view over `/v1/wui/ws` — task and channel subscriptions (existing), plus a **DM** subscription (`subscribe {peer}`) and a **thread-list** subscription (`subscribe {all:true}`), hub-side in `wui-live-ws` v0.5 §3.1; tenant-scoped, behind the same door; a member socket only ever receives DMs it is party to.
-- **FR-015** (Planned; tasks.md T020, T023): reconnect with capped backoff (existing), then catch-up through view-v1 for every open view, merged by `msg_id` (feeds) or `task_id` (thread list) without dropping loaded older pages or pending rows.
+- **FR-011** (Implemented, `d7c2368`; tasks.md T018): newest on top on every message view as US7, including the thread list `/` (rows ordered by `last_ts`, newest first, a live row moves to the top).
+- **FR-012** (Implemented, `fd5ae9a`; tasks.md T019): scroll anchoring — when rows are prepended while the feed is scrolled more than 80 px from its top, the scroll offset follows the row in view (its layout position, so a row dropped from the window's bottom or a move animation cannot shift it) and a "New: N" pill appears (it takes no layout space); the pill (or scrolling back to the top) clears it. At the top, new rows just enter.
+- **FR-013** (Implemented, `d7c2368`; tasks.md T020): optimistic own send — the row is shown at once with `pending`, keyed by the client `msg_id` sent in the `send` frame (`wui-live-ws` §4 idempotent `msg_id`); the pushed `message` echo or the `ack` replaces it; a failed send removes it and shows the error. No duplicates in any view.
+- **FR-014** (Implemented, `35bf0e0` hub 0.1.10 + `d7c2368`; tasks.md T021–T022): live push for every view over `/v1/wui/ws` — task and channel subscriptions (existing), plus a **DM** subscription (`subscribe {peer}`) and a **thread-list** subscription (`subscribe {all:true}`), hub-side in `wui-live-ws` v0.5 §3.1; tenant-scoped, behind the same door; a member socket only ever receives DMs it is party to.
+- **FR-015** (Implemented, `d7c2368`; tasks.md T020, T023): reconnect with capped backoff (existing), then catch-up through view-v1 for every open view, merged by `msg_id` (feeds) or `task_id` (thread list) without dropping loaded older pages or pending rows.
 - **FR-010** (Implemented, `4c204d0`; tasks.md T016–T017): Slack-style ``` code blocks as US6 — composer state, fenced + inline rendering without `v-html`, copy button, language label, no wire change.
 
 ## 3. Success criteria
@@ -140,7 +140,7 @@ stays clean.
 - **SC-002**: `/search` filters without sending; plain text + Enter sends.
 - **SC-003**: avatars render for `HUM-*`, `CLE-*`, `GRK-*`, `AGY-*`; same id → same avatar.
 - **SC-004**: unit, e2e (no-x-scroll incl. the 3-pane pages) and typecheck green.
-- **SC-006**: on dev, two headless browsers: A's send in `#lobby`, a channel and a DM each shows at B's top within 1 s without a reload; a box `spool send` shows live too; screenshots + timings in `/var/tmp/CLE-3412-proof/`.
+- **SC-006** (met on dev n=2, tasks.md T023): on dev, two headless browsers: A's send in `#lobby`, a channel and a DM each shows at B's top within 1 s without a reload; a box `spool send` shows live too; screenshots + timings in `/var/tmp/CLE-3412-proof/`.
 - **SC-005**: on dev, typing ```` ``` ```` + code + ```` ``` ```` + Enter shows one code block with the exact text; copy puts exactly that text on the clipboard; an injected `<script>` / `onerror` payload inside and outside the block never executes, 0 CSP violations.
 
 ## 4. Dependencies and gaps
@@ -150,4 +150,4 @@ stays clean.
 | D1 | ~~no newest-first window on view-v1 §4.4~~ **closed**: `order=desc&before=` (`1dca945`), used by the WUI (tasks T008) | 003 (CLE-3340) |
 | D2 | Custom avatars (`file_id` profile map) | later (avatars §3) |
 
-<!-- version: 0.6.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:05:00Z -->
+<!-- version: 0.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:25:00Z -->

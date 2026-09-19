@@ -245,7 +245,10 @@ declare module '~/utils/scroll-anchor.mjs' {
     added?: number
     pill?: number
     nearTop?: number
+    anchorBefore?: number | null
+    anchorAfter?: number | null
   }): { top: number, pill: number, moved: boolean }
+  export function firstVisibleRow(root: Element | null, edge: number): Element | null
   export function scrollerOf(el: Element | null, doc?: Document): Element
 }
 

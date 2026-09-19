@@ -24,6 +24,7 @@
         :count="countFor ? countFor(String(m.task_id || '')) : 0"
         :always-thread="alwaysThread"
         :class="{ pending: m.pending }"
+        :data-key="m.msg_id"
         :data-pending="m.pending ? 'true' : undefined"
         @open-thread="(id: string) => $emit('open-thread', id)"
       />

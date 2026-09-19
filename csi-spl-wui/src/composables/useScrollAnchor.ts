@@ -1,16 +1,17 @@
 import type { Ref } from 'vue'
-import { anchorAfterPrepend, NEAR_TOP_PX, prependedCount, scrollerOf } from '~/utils/scroll-anchor.mjs'
+import { anchorAfterPrepend, firstVisibleRow, NEAR_TOP_PX, prependedCount, scrollerOf } from '~/utils/scroll-anchor.mjs'
 
 /**
  * 013 US7 FR-012: a newest-first feed keeps the reader's place when rows are
  * prepended while they are scrolled down, and counts them in a "new" pill.
  * `root` sits inside the feed; the scroller is found each time (`.feed-body`,
  * or the page when the window is short). `keys` are the rendered row keys,
- * newest first; `isOwn(key)` marks our own send, which jumps to the top.
+ * newest first, each row rendered with `data-key`; `isOwn(key)` marks our
+ * own send, which jumps to the top.
  */
 export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => string[], isOwn: (key: string) => boolean = () => false) {
   const pill = ref(0)
-  let before: { el: HTMLElement, top: number, height: number } | null = null
+  let before: { el: HTMLElement, top: number, height: number, key: string, y: number | null } | null = null
   let listening = false
 
   function el(): HTMLElement | null {
@@ -25,6 +26,11 @@ export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => strin
       listening = true
     }
     return s
+  }
+
+  /** viewport y of the scroller's top edge (the page: 0) */
+  function edge(s: HTMLElement) {
+    return s === document.scrollingElement ? 0 : s.getBoundingClientRect().top
   }
 
   function onScroll() {
@@ -46,7 +52,12 @@ export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => strin
   /* before the DOM patch: where the reader is */
   watch(keys, () => {
     const s = el()
-    before = s ? { el: s, top: s.scrollTop, height: s.scrollHeight } : null
+    if (!s) {
+      before = null
+      return
+    }
+    const row = firstVisibleRow(root.value, edge(s))
+    before = { el: s, top: s.scrollTop, height: s.scrollHeight, key: row ? String(row.getAttribute('data-key')) : '', y: row ? row.getBoundingClientRect().top : null }
   }, { flush: 'pre' })
 
   /* after it: hold the visible rows in place, or jump for our own send */
@@ -61,7 +72,11 @@ export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => strin
       jump()
       return
     }
-    const r = anchorAfterPrepend({ top: b.top, prevHeight: b.height, nextHeight: s.scrollHeight, added, pill: pill.value })
+    const row = b.key && root.value ? root.value.querySelector(`[data-key="${CSS.escape(b.key)}"]`) : null
+    const r = anchorAfterPrepend({
+      top: b.top, prevHeight: b.height, nextHeight: s.scrollHeight, added, pill: pill.value,
+      anchorBefore: b.y, anchorAfter: row && b.y !== null ? row.getBoundingClientRect().top : null,
+    })
     if (r.moved) s.scrollTop = r.top
     pill.value = r.pill
   }, { flush: 'post' })

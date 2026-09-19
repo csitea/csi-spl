@@ -107,9 +107,15 @@ describe('scroll anchoring (FR-012)', () => {
     const doc = { scrollingElement: html, defaultView: { getComputedStyle: (n) => ({ overflowY: n.oy }) } }
     const body = node('auto', 3000, 600)
     const feed = node('visible', 3000, 3000, body)
-    assert.equal(scrollerOf({ parentElement: feed }, doc), body)
+    assert.equal(scrollerOf(feed, doc), body)
+    assert.equal(scrollerOf(body, doc), body, 'the element itself may be the scroller')
     const short = node('auto', 500, 600)
-    assert.equal(scrollerOf({ parentElement: node('visible', 500, 500, short) }, doc), html, 'a feed body that does not overflow: the page scrolls')
+    assert.equal(scrollerOf(node('visible', 500, 500, short), doc), html, 'a feed body that does not overflow: the page scrolls')
+  })
+
+  it('with an anchor row: moves by how far that row was pushed, even when the window dropped a row at the bottom', () => {
+    /* measured on dev 783a137: +112 px row on top, 52 px row dropped at the bottom -> height +60, anchor +112 */
+    assert.deepEqual(anchorAfterPrepend({ top: 300, prevHeight: 3000, nextHeight: 3060, anchorBefore: 64, anchorAfter: 176, added: 1 }), { top: 412, pill: 1, moved: true })
   })
 
   it('nothing prepended: nothing moves', () => {

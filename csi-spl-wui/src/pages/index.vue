@@ -4,8 +4,7 @@
       <h2>{{ tr('nav.threads') }}</h2>
       <span class="muted">{{ tr('pages.index.subtitle') }}</span>
     </header>
-    <div class="feed-body">
-      <div ref="listTop" />
+    <div ref="listTop" class="feed-body">
       <button v-if="pill" class="btn new-pill" type="button" :aria-label="tr('feed.new_pill_label')" data-testid="new-pill" @click="jump">
         ↑ {{ tr('feed.new_pill', { n: pill }) }}
       </button>
@@ -18,6 +17,7 @@
         v-for="t in viewer.threads"
         :key="t.task_id"
         class="thread-row"
+        :data-key="t.task_id"
         :href="localePath('/t/' + t.task_id)"
         @click.exact.prevent="pane.open(t.task_id)"
       >

@@ -11,7 +11,8 @@ Related: `./view-v1.md` (history / catch-up, same door, same CORS list),
 
 **Status: Implemented** — `internal/hub/wui.go`; tests `TestWUITwoSessionsLobbyLive`,
 `TestWUIBoxAgentToLobby`, `TestWUIFilesUploadDownloadDelete`,
-`TestWUIDoorAndReservedBox`, `TestWUIResendAcrossSecond`, `TestWUIChannelSubscribeNewRoot`
+`TestWUIDoorAndReservedBox`, `TestWUIResendAcrossSecond`, `TestWUIChannelSubscribeNewRoot`,
+`TestWUIPeerSubscribeDM`, `TestWUIAllSubscribe`
 (`internal/hub/wui_test.go`, also under `-race`).
 
 **Tolerant parsing (0.2.0)**, so the ORC-described shape and 0.1.0 both work:
@@ -76,7 +77,9 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 |---|---|---|
 | `hello` | `as?`, `token?` | **first frame**, within 10 s (else close `4408`). `as` = a v:1 agent id (`^[A-Z]{2,4}-[0-9]+$`, e.g. `HUM-1`) used as `from`; absent -> the hub assigns a guest id `GST-<n>`. A display name that is not an id (`AgentA`) is mapped to a stable `GST-<n>` per (tenant, name) — `welcome.as` is the id, `welcome.name` echoes the name (0.2.0). **Guest ids (v0.4.1, gap H5)** are disjoint from member ids: members are `HUM-<n>` (rdb 0006 CHECK `^HUM-[0-9]+$`), so a door-off guest never renders with a member's identity or picture, and a `GST-*` is never a dispatch target. A `hello.as` that already is a v:1 id (`HUM-2`) is still taken as asserted (§0; door off only). Live: `TestWUITwoSessionsLobbyLive` dials `as:"AgentA"` and asserts `welcome.as == "GST-1"`; `TestWUIAnonymousIDDisjointFromMembers` admits member `HUM-1` first, then asserts an anonymous hello never gets a `^HUM-[0-9]+$` id. Close `4400 bad_frame` only when the first frame is not a well-formed `hello` (or `as` > 64 chars). `token` is reserved for the prd view token (OQ-16) and ignored today |
 | `subscribe` | `task_id` \| `channel` | `task_id`: a UUID, or the literal `"LOBBY"` (= `LOBBY_TASK_ID`). `channel` (v0.4): a channel slug known to the tenant (`general` = `lobby`), else `404 unknown_channel`; the socket then gets **every** message stored in that channel, including a new root thread (a new `task_id`) someone else starts there. When `channel` is set, `task_id` is ignored. Idempotent. Reply `subscribed` |
-| `unsubscribe` | `task_id` \| `channel` | idempotent. No reply |
+| `subscribe` | `peer` (v0.5) | DM follow: `peer` = `<agent-id>` or `<agent-id>@<box-id>` (else `400 bad_frame`). The socket gets every message stored **with no channel** whose `from` or `to` is that peer (and its box, when given) — new DM roots included. A socket with a member session gets only the ones it is party to (`from` or `to` is its own id), the same rule as `view-v1` §4.3 `dm=true`. Reply `subscribed {peer}` |
+| `subscribe` | `all: true` (v0.5) | thread-list follow: every message stored in the tenant; a DM (no channel) only when the socket's own id is its `from` or `to`. Reply `subscribed {all:true}` |
+| `unsubscribe` | `task_id` \| `channel` \| `peer` \| `all` | idempotent. No reply |
 | `send` | `msg_id?`, `task_id`, `kind?`, `body`, `files?`, `to?`, `channel?`, `parent_task_id?` | §4 |
 
 ### 3.2 hub -> browser
@@ -86,7 +89,7 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 | `welcome` | `as`, `name?`, `lobby_task_id?`, `upload_token`, `upload_token_expires_at` | after `hello`. `as` is the id the hub will stamp as `from`; `name` echoes the display name from `hello.as` when it was not already an id. The upload token is for `POST /v1/files` (§5), bound to (tenant, `box-wui`), TTL 5 min |
 | `subscribed` | `task_id` \| `channel` | after `subscribe`: `task_id` is always the UUID (also for `"LOBBY"`); `channel` is the stored slug (`general` answers `lobby`) |
 | `token` | `upload_token`, `upload_token_expires_at` | reply to a browser `{type:"token"}` (fresh upload token) |
-| `message` | `task_id`, `cursor`, `received_at`, `envelope`, `env`, `channel?`, `parent_task_id?` | **live fan-out**: every message stored for a subscribed `task_id` or a subscribed `channel` in this tenant (once per socket when both match) — from a browser, a box agent, or the hub — pushed to **every** subscribed socket (the sender's own included). `env` = the stored envelope `{from_box,to_box,msg,sig}` byte-for-byte, the same element shape as `view-v1` §4.4 (`msg` is the v:1 object); `envelope` = that v:1 object alone. `cursor` is the stored row's cursor (the same value as the sender's `ack` and as `view-v1`), so a client advances its read cursor from it. `channel` is the stored channel (absent for a DM), `parent_task_id` the hub-envelope link (absent for a root). For the sender, its own `message` echo arrives **before** its `ack` |
+| `message` | `task_id`, `cursor`, `received_at`, `envelope`, `env`, `channel?`, `parent_task_id?` | **live fan-out**: every message stored for a subscribed `task_id`, a subscribed `channel`, a subscribed DM `peer`, or under `all` in this tenant (once per socket when several match) — from a browser, a box agent, or the hub — pushed to **every** subscribed socket (the sender's own included). `env` = the stored envelope `{from_box,to_box,msg,sig}` byte-for-byte, the same element shape as `view-v1` §4.4 (`msg` is the v:1 object); `envelope` = that v:1 object alone. `cursor` is the stored row's cursor (the same value as the sender's `ack` and as `view-v1`), so a client advances its read cursor from it. `channel` is the stored channel (absent for a DM), `parent_task_id` the hub-envelope link (absent for a root). For the sender, its own `message` echo arrives **before** its `ack` |
 | `ack` | `msg_id`, `task_id`, `cursor`, `received_at` | after a `send` is stored |
 | `presence` | `peer`, `status` | `peer` = `<agent>@<box>` (`CLE-07@box-a`) or `<HUM-n>@box-wui`; `status` ∈ `online`, `offline`. Pushed to every browser socket of the tenant when a `role=box` session is accepted (each announced agent `online`), closes (`offline`; a superseded socket emits nothing), or re-announces (the difference), and when a human's **first** browser socket opens / **last** one closes. Right after `welcome` the hub sends one `online` frame per peer online at that moment (snapshot; a live frame of another socket may interleave, so treat presence as last-writer-wins per peer) (`./channels-v1.md` §6) |
 | `error` | `error`, `status`, `detail`, `msg_id?` | stable token (`./error-envelope.md`); socket stays open |
@@ -162,7 +165,9 @@ subscribed to the lobby. Boxes do not receive lobby traffic in this MVP.
 
 Subscribe first, then read history with `GET /v1/view/threads/{task_id}`
 (`after=<last cursor>` after a reconnect); de-duplicate by `msg.msg_id`. On
-reconnect the browser sends `hello` again and re-subscribes.
+reconnect the browser sends `hello` again and re-subscribes. For a channel,
+DM or `all` subscription the catch-up is the matching `GET /v1/view/threads`
+list (first page), merged by `task_id` (v0.5).
 
 ## 8. Errors (new tokens)
 
@@ -170,4 +175,4 @@ reconnect the browser sends `hello` again and re-subscribes.
 `missing_file`, `conflict_msg`, `unpaid`, `quota`, `view_door`,
 `unknown_tenant`.
 
-<!-- version: 0.4.1 · updated: 2026-09-19 · last-edit: 2026-09-19T10:05:00Z -->
+<!-- version: 0.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:05:00Z -->

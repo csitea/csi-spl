@@ -18,7 +18,8 @@ oldest-first. Everything here lives in `csi-spl-wui`.
 **Pages** (owner 2026-09-19, row X3): `/lobby`, `/t/<id>`, the live thread
 pane, and also `/channel/<name>`, `/dm/<peer>` and the channel ThreadPane
 (tasks T009–T012). The one hub-side ask
-(newest-window paging, §4) is additive and owned by 003.
+(newest-window paging, §4) is additive and owned by 003. US7 (CLE-3412) adds
+two additive `wui-live-ws` subscriptions (DM, thread list) hub-side.
 
 Why a new dir and not a 005 slice: the owner wrote a separate binding
 narrative for it, and 005 is already the viewer + live-chat record. 012 is
@@ -63,6 +64,28 @@ DOM and focus order equal visual order: Omnibox, newest message, older
 messages. The feed is `role="feed"` with `article`s, the Omnibox has a label,
 new live messages are announced politely.
 
+### US7 — Newest on top everywhere, pushed live (P1, owner 2026-09-19, CLE-3412)
+> "also change the flow of the messages, they must not be appended, but
+> prepended - aka newest always on the top, use websocket to push new msgs to
+> the ui on msg send" — owner, 2026-09-19.
+
+Every message view — `/lobby`, `/channel/<name>`, `/dm/<peer>`, the thread
+pane (both), `/t/<id>` and the thread list `/` (search results open in the
+thread pane, so they inherit it) — shows the newest row on top and **prepends**
+new ones. When anyone sends (this user, another human, a box agent), the hub
+pushes the stored message over the one `/v1/wui/ws` socket to every open view
+of that channel / DM / thread / thread list; no view polls. The sender's own
+row appears at once (optimistic, keyed by the `msg_id` the browser chose) and
+is replaced — never duplicated — by the pushed echo. A reader who has scrolled
+down keeps their place: the rows above grow, the viewport does not move, and a
+"N new" pill at the top of the feed jumps back to the newest. After a socket
+drop the client reconnects with backoff, re-subscribes, and reads what it
+missed through view-v1, de-duplicated by `msg_id` (thread list: by `task_id`).
+
+**Acceptance**: two browsers on one tenant; A sends in `#lobby`, a channel and
+a DM → B shows each at its top within 1 s without a reload; a box
+`spool send` into a channel B has open appears at B's top live.
+
 ### US6 — Slack-style code blocks (P1, owner 2026-09-19)
 > "enable the same feature as in slack to create code blocks by typing \"```\""
 
@@ -104,6 +127,11 @@ stays clean.
 - **FR-007** (Implemented, `ec3b91e`; tasks.md): a11y order and semantics as US5.
 - **FR-008** (Implemented, `ec3b91e`; tasks.md): no `v:1` change; the live WS client and view reads are reused unchanged (005 T021–T023).
 - **FR-009** (Implemented, `76f66b5`; tasks.md T014): the two vertical seams of the 3-pane shell are draggable, keyboard-accessible separators; widths persist in `localStorage` `spool.pane-widths`; the main feed never collapses; no divider when a pane is hidden or overlaying. See `SPEC-spool-wui-layout.md` §1.2.
+- **FR-011** (Planned; tasks.md T018): newest on top on every message view as US7, including the thread list `/` (rows ordered by `last_ts`, newest first, a live row moves to the top).
+- **FR-012** (Planned; tasks.md T019): scroll anchoring — when rows are prepended while the feed is scrolled more than 80 px from its top, the scroll offset grows by the inserted height (the visible rows stay put) and a "N new" pill appears; the pill (or scrolling back to the top) clears it. At the top, new rows just enter.
+- **FR-013** (Planned; tasks.md T020): optimistic own send — the row is shown at once with `pending`, keyed by the client `msg_id` sent in the `send` frame (`wui-live-ws` §4 idempotent `msg_id`); the pushed `message` echo or the `ack` replaces it; a failed send removes it and shows the error. No duplicates in any view.
+- **FR-014** (Planned; tasks.md T021–T022): live push for every view over `/v1/wui/ws` — task and channel subscriptions (existing), plus a **DM** subscription (`subscribe {peer}`) and a **thread-list** subscription (`subscribe {all:true}`), hub-side in `wui-live-ws` v0.5 §3.1; tenant-scoped, behind the same door; a member socket only ever receives DMs it is party to.
+- **FR-015** (Planned; tasks.md T020, T023): reconnect with capped backoff (existing), then catch-up through view-v1 for every open view, merged by `msg_id` (feeds) or `task_id` (thread list) without dropping loaded older pages or pending rows.
 - **FR-010** (Implemented, `4c204d0`; tasks.md T016–T017): Slack-style ``` code blocks as US6 — composer state, fenced + inline rendering without `v-html`, copy button, language label, no wire change.
 
 ## 3. Success criteria
@@ -112,6 +140,7 @@ stays clean.
 - **SC-002**: `/search` filters without sending; plain text + Enter sends.
 - **SC-003**: avatars render for `HUM-*`, `CLE-*`, `GRK-*`, `AGY-*`; same id → same avatar.
 - **SC-004**: unit, e2e (no-x-scroll incl. the 3-pane pages) and typecheck green.
+- **SC-006**: on dev, two headless browsers: A's send in `#lobby`, a channel and a DM each shows at B's top within 1 s without a reload; a box `spool send` shows live too; screenshots + timings in `/var/tmp/CLE-3412-proof/`.
 - **SC-005**: on dev, typing ```` ``` ```` + code + ```` ``` ```` + Enter shows one code block with the exact text; copy puts exactly that text on the clipboard; an injected `<script>` / `onerror` payload inside and outside the block never executes, 0 CSP violations.
 
 ## 4. Dependencies and gaps
@@ -121,4 +150,4 @@ stays clean.
 | D1 | ~~no newest-first window on view-v1 §4.4~~ **closed**: `order=desc&before=` (`1dca945`), used by the WUI (tasks T008) | 003 (CLE-3340) |
 | D2 | Custom avatars (`file_id` profile map) | later (avatars §3) |
 
-<!-- version: 0.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T16:40:00Z -->
+<!-- version: 0.6.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:05:00Z -->

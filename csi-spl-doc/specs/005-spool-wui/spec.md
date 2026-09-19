@@ -73,7 +73,13 @@ Download link to `GET /v1/files/{file_id}` (003, tenant-scoped capability).
 `mode: "path"` renders as an on-box path with **no link** (the bytes never left
 the box; `internal/msg/msg.go` `Attachment`).
 
-### US4 — Live follow (P2) — Planned
+### US4 — Live follow (P2) — superseded by 013 US7 (CLE-3412)
+
+Owner 2026-09-19: "use websocket to push new msgs to the ui on msg send".
+Every view is live over `/v1/wui/ws` (003 `contracts/wui-live-ws.md` v0.5:
+task, channel, DM and thread-list subscriptions); nothing polls, newest on
+top everywhere — `../013-spool-chat-reverse/spec.md` US7, FR-011..FR-015.
+The original design record follows.
 
 An open thread picks up new messages without a reload. Viewer: poll view-v1 §4.4
 with `after=` while the tab is visible (runtime config, default 4 s, never under 2 s).
@@ -247,4 +253,4 @@ rejected for M3); anything in M1/M2; CI logs in chat (008).
   `localStorage` (aligns with 003 OQ-CH2 (a) client-held); **(b)** hub-synced
   per-human cursors (needs HUMANS 0006; later).
 
-<!-- version: 1.8.2 · updated: 2026-09-19 · last-edit: 2026-09-19T09:05:00Z -->
+<!-- version: 1.9.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:05:00Z -->

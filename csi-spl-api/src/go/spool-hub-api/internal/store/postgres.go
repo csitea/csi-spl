@@ -224,16 +224,19 @@ func (s *Postgres) Roster(ctx context.Context, tenant string) (map[string][]stri
 }
 
 func (s *Postgres) InsertMessage(ctx context.Context, m Message) (bool, error) {
-	var channel any
+	var channel, parent any
 	if m.Channel != "" {
 		channel = m.Channel
 	}
+	if m.ParentTaskID != "" {
+		parent = m.ParentTaskID
+	}
 	tag, err := s.pool.Exec(ctx, `INSERT INTO messages (tenant_id, msg_id, task_id, channel, ts,
-			from_box, from_id, to_box, to_id, kind, body, files, msg, env_sig, env, received_at, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+			from_box, from_id, to_box, to_id, kind, body, files, msg, env_sig, env, received_at, expires_at, parent_task_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		ON CONFLICT (tenant_id, msg_id) DO NOTHING`,
 		m.TenantID, m.MsgID, m.TaskID, channel, m.TS, m.FromBox, m.FromID, m.ToBox, m.ToID,
-		m.Kind, m.Body, string(m.Files), string(m.Msg), m.EnvSig, m.Env, m.ReceivedAt, m.ExpiresAt)
+		m.Kind, m.Body, string(m.Files), string(m.Msg), m.EnvSig, m.Env, m.ReceivedAt, m.ExpiresAt, parent)
 	if err != nil {
 		return false, mapFK(err)
 	}

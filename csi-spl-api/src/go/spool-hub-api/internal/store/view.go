@@ -26,6 +26,11 @@ type ViewBox struct {
 type ThreadQuery struct {
 	Channel    string // "" = any
 	Agent      string // "" = any; else from_id or to_id of some message
+	AgentBox   string // with Agent: that message's from_box / to_box must match too
+	DM         bool   // only messages with no channel (channels-v1 §0)
+	Roots      bool   // only threads whose first message has no parent_task_id
+	Parent     string // "" = any; else only threads whose parent_task_id is this
+	Viewer     string // "" = any; else only threads with a message from or to this id
 	BeforeAt   time.Time
 	BeforeTask string
 	Limit      int
@@ -36,6 +41,7 @@ type ThreadQuery struct {
 type ThreadRow struct {
 	TaskID   string
 	Channel  string // of the first message; "" = none
+	Parent   string // parent_task_id of the first message; "" = none (a root)
 	FirstAt  time.Time
 	LastAt   time.Time
 	Count    int
@@ -122,16 +128,24 @@ func (s *Memory) ViewThreads(_ context.Context, tenant string, q ThreadQuery) ([
 	defer s.mu.Unlock()
 	byTask := map[string]*ThreadRow{}
 	match := map[string]bool{}
+	seen := map[string]bool{}
 	for _, m := range s.liveLocked(tenant, q.Now) { // oldest first
 		if q.Channel != "" && m.Channel != q.Channel {
 			continue
 		}
-		if q.Agent == "" || m.FromID == q.Agent || m.ToID == q.Agent {
+		if q.DM && m.Channel != "" {
+			continue
+		}
+		if q.Agent == "" || (m.FromID == q.Agent && (q.AgentBox == "" || m.FromBox == q.AgentBox)) ||
+			(m.ToID == q.Agent && (q.AgentBox == "" || m.ToBox == q.AgentBox)) {
 			match[m.TaskID] = true
+		}
+		if q.Viewer == "" || m.FromID == q.Viewer || m.ToID == q.Viewer {
+			seen[m.TaskID] = true
 		}
 		r := byTask[m.TaskID]
 		if r == nil {
-			r = &ThreadRow{TaskID: m.TaskID, Channel: m.Channel, FirstAt: m.ReceivedAt, FirstMsg: m.Msg}
+			r = &ThreadRow{TaskID: m.TaskID, Channel: m.Channel, Parent: m.ParentTaskID, FirstAt: m.ReceivedAt, FirstMsg: m.Msg}
 			byTask[m.TaskID] = r
 		}
 		r.LastAt = m.ReceivedAt
@@ -141,7 +155,10 @@ func (s *Memory) ViewThreads(_ context.Context, tenant string, q ThreadQuery) ([
 	}
 	var out []ThreadRow
 	for id, r := range byTask {
-		if !match[id] {
+		if !match[id] || !seen[id] {
+			continue
+		}
+		if (q.Roots && r.Parent != "") || (q.Parent != "" && r.Parent != q.Parent) {
 			continue
 		}
 		if !q.BeforeAt.IsZero() && !newer(q.BeforeAt, q.BeforeTask, r.LastAt, r.TaskID) {

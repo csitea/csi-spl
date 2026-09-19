@@ -1,0 +1,191 @@
+package store
+
+import (
+	"context"
+	"sort"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+// Postgres side of channels-v1 (channels.go). Default channel rows are seeded
+// by 0008 (existing tenants + an AFTER INSERT trigger on tenants); every
+// statement here still treats the defaults as known, so a tenant created
+// before 0008 ran behaves the same.
+
+const pgSeedDefaults = `INSERT INTO channels (tenant_id, channel_id, name, created_by)
+	SELECT $1, d, d, 'hub' FROM unnest($2::text[]) AS d
+	ON CONFLICT (tenant_id, channel_id) DO NOTHING`
+
+func (s *Postgres) CreateChannel(ctx context.Context, c Channel) error {
+	if c.ChannelID == ChannelGeneralAlias || !ValidChannelID(c.ChannelID) || IsDefaultChannel(c.ChannelID) {
+		return ErrConflict
+	}
+	var created *time.Time
+	if !c.CreatedAt.IsZero() {
+		created = &c.CreatedAt
+	}
+	tag, err := s.pool.Exec(ctx, `INSERT INTO channels (tenant_id, channel_id, name, created_by, created_at)
+		VALUES ($1, $2, $3, $4, COALESCE($5::timestamptz, now())) ON CONFLICT (tenant_id, channel_id) DO NOTHING`,
+		c.TenantID, c.ChannelID, c.Name, c.CreatedBy, created)
+	if err != nil {
+		return mapFK(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrConflict
+	}
+	return nil
+}
+
+func (s *Postgres) ChannelKnown(ctx context.Context, tenant, id string) (bool, error) {
+	if IsDefaultChannel(id) {
+		return true, nil
+	}
+	var ok bool
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM channels WHERE tenant_id = $1 AND channel_id = $2)`,
+		tenant, id).Scan(&ok)
+	return ok, err
+}
+
+func (s *Postgres) SetSubscriptions(ctx context.Context, tenant, box string, agents, channels []string, now time.Time) error {
+	var chs []string
+	for _, c := range channels {
+		if c != ChannelLobby && ValidChannelID(c) {
+			chs = append(chs, c)
+		}
+	}
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `DELETE FROM channel_subscriptions WHERE tenant_id = $1 AND box_id = $2`, tenant, box); err != nil {
+			return err
+		}
+		if len(chs) == 0 || len(agents) == 0 {
+			return nil
+		}
+		if _, err := tx.Exec(ctx, pgSeedDefaults, tenant, DefaultChannels); err != nil {
+			return mapFK(err)
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO channel_subscriptions (tenant_id, channel_id, agent_id, box_id, subscribed_at)
+			SELECT $1, c.channel_id, a, $2, $5
+			FROM channels c CROSS JOIN unnest($4::text[]) AS a
+			WHERE c.tenant_id = $1 AND c.channel_id = ANY($3::text[])
+			ON CONFLICT DO NOTHING`, tenant, box, chs, agents, now)
+		return err
+	})
+}
+
+func (s *Postgres) ChannelMembers(ctx context.Context, tenant, channel string) (map[string][]string, error) {
+	if channel == ChannelLobby {
+		return s.Roster(ctx, tenant)
+	}
+	rows, err := s.pool.Query(ctx, `SELECT box_id, agent_id FROM channel_subscriptions
+		WHERE tenant_id = $1 AND channel_id = $2 ORDER BY box_id, agent_id`, tenant, channel)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]string{}
+	for rows.Next() {
+		var box, agent string
+		if err := rows.Scan(&box, &agent); err != nil {
+			return nil, err
+		}
+		out[box] = append(out[box], agent)
+	}
+	return out, rows.Err()
+}
+
+func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time.Time, reads map[string]ReadMark) ([]ChannelStat, error) {
+	by := map[string]*ChannelStat{}
+	get := func(id string) *ChannelStat {
+		st := by[id]
+		if st == nil {
+			st = &ChannelStat{Channel: Channel{TenantID: tenant, ChannelID: id, Name: id}, Default: IsDefaultChannel(id)}
+			if st.Default {
+				st.CreatedBy = "hub"
+			}
+			by[id] = st
+		}
+		return st
+	}
+	for _, d := range DefaultChannels {
+		get(d)
+	}
+	scan := func(q string, args []any, fn func(pgx.Rows) error) error {
+		rows, err := s.pool.Query(ctx, q, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			if err := fn(rows); err != nil {
+				return err
+			}
+		}
+		return rows.Err()
+	}
+	if err := scan(`SELECT channel_id, name, created_by, created_at FROM channels WHERE tenant_id = $1`,
+		[]any{tenant}, func(r pgx.Rows) error {
+			var c Channel
+			if err := r.Scan(&c.ChannelID, &c.Name, &c.CreatedBy, &c.CreatedAt); err != nil {
+				return err
+			}
+			st := get(c.ChannelID)
+			st.Name, st.CreatedBy, st.CreatedAt = c.Name, c.CreatedBy, c.CreatedAt
+			return nil
+		}); err != nil {
+		return nil, err
+	}
+	if err := scan(`SELECT channel, count(*)::int, max(received_at),
+			(array_agg(msg_id::text ORDER BY received_at DESC, msg_id::text DESC))[1], count(DISTINCT from_id)::int
+		FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2 GROUP BY channel`,
+		[]any{tenant, now}, func(r pgx.Rows) error {
+			var id string
+			var n, posters int
+			var last time.Time
+			var lastID string
+			if err := r.Scan(&id, &n, &last, &lastID, &posters); err != nil {
+				return err
+			}
+			st := get(id)
+			st.Count, st.LastAt, st.LastMsgID, st.Posters, st.Unread = n, last, lastID, posters, n
+			return nil
+		}); err != nil {
+		return nil, err
+	}
+	for id, mark := range reads {
+		st, ok := by[id]
+		if !ok || st.Count == 0 {
+			continue
+		}
+		if err := s.pool.QueryRow(ctx, `SELECT count(*)::int FROM messages
+			WHERE tenant_id = $1 AND channel = $2 AND expires_at > $3 AND (received_at, msg_id::text) > ($4::timestamptz, $5::text)`,
+			tenant, id, now, mark.At, mark.MsgID).Scan(&st.Unread); err != nil {
+			return nil, err
+		}
+	}
+	if err := scan(`SELECT channel_id, count(*)::int, count(DISTINCT box_id)::int FROM channel_subscriptions
+		WHERE tenant_id = $1 GROUP BY channel_id`, []any{tenant}, func(r pgx.Rows) error {
+		var id string
+		var agents, boxes int
+		if err := r.Scan(&id, &agents, &boxes); err != nil {
+			return err
+		}
+		if st, ok := by[id]; ok && id != ChannelLobby {
+			st.Agents, st.Boxes = agents, boxes
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	lobby := by[ChannelLobby]
+	if err := s.pool.QueryRow(ctx, `SELECT count(*)::int, count(DISTINCT box_id)::int FROM roster WHERE tenant_id = $1`,
+		tenant).Scan(&lobby.Agents, &lobby.Boxes); err != nil {
+		return nil, err
+	}
+	out := make([]ChannelStat, 0, len(by))
+	for _, st := range by {
+		out = append(out, *st)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ChannelID < out[j].ChannelID })
+	return out, nil
+}

@@ -68,23 +68,25 @@ type Pin struct {
 
 // Message is one stored envelope plus the columns derived from its inner v:1.
 type Message struct {
-	TenantID   string
-	MsgID      string
-	TaskID     string
-	Channel    string // "" = NULL (M1 never sets it)
-	TS         time.Time
-	FromBox    string
-	FromID     string
-	ToBox      string
-	ToID       string
-	Kind       string
-	Body       string
-	Files      []byte // v:1 files[] JSON
-	Msg        []byte // full inner v:1 JSON
-	EnvSig     string
-	Env        []byte // canonical envelope bytes, forwarded unchanged
-	ReceivedAt time.Time
-	ExpiresAt  time.Time
+	TenantID string
+	MsgID    string
+	TaskID   string
+	Channel  string // "" = NULL = a DM (channels-v1 §0); normalized (general → lobby)
+	// ParentTaskID is the hub-envelope parent task ("" = NULL = a root thread).
+	ParentTaskID string
+	TS           time.Time
+	FromBox      string
+	FromID       string
+	ToBox        string
+	ToID         string
+	Kind         string
+	Body         string
+	Files        []byte // v:1 files[] JSON
+	Msg          []byte // full inner v:1 JSON
+	EnvSig       string
+	Env          []byte // canonical envelope bytes, forwarded unchanged
+	ReceivedAt   time.Time
+	ExpiresAt    time.Time
 }
 
 // Queued is one queued delivery ready to push to a box.
@@ -158,6 +160,9 @@ type Store interface {
 	CountMessagesSince(ctx context.Context, tenantID string, since time.Time) (int, error)
 	// HasMessage reports whether (tenant, msg_id) is already stored (idempotent send).
 	HasMessage(ctx context.Context, tenantID, msgID string) (bool, error)
+
+	// Channels, subscriptions and channel stats (channels.go, channels-v1).
+	Channels
 
 	Close()
 }

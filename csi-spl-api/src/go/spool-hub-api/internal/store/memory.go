@@ -24,7 +24,8 @@ type Memory struct {
 	messages   map[[2]string]*Message
 	deliveries map[[3]string]*memDelivery
 	seq        int
-	hum        memHumans // humans_memory.go, guarded by mu
+	hum        memHumans   // humans_memory.go, guarded by mu
+	ch         memChannels // channels_memory.go, guarded by mu
 }
 
 type memPin struct {
@@ -68,6 +69,7 @@ func (s *Memory) CreateTenant(_ context.Context, t Tenant) error {
 		return nil
 	}
 	s.tenants[t.ID] = t
+	s.ch.seedLocked(t.ID, time.Now().UTC())
 	return nil
 }
 

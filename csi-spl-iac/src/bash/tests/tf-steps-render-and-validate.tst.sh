@@ -114,7 +114,8 @@ for env in dev prd; do
   grep -qx 'ingress                      = "all"' "$v" && pass "$env hub ingress is all (owner 2026-09-19: csi-rel domain mappings, no LB)" || fail "$env hub ingress is not all"
   grep -qx 'min_instances                = 1' "$v" && pass "$env hub min_instances = 1 (M1)" || fail "$env hub min_instances is not 1"
   grep -q "\"SPOOL_HUB_FILES_BUCKET\": \"csi-spl-$env-files\"" "$v" && pass "$env hub env names the 050 bucket" || fail "$env SPOOL_HUB_FILES_BUCKET is not csi-spl-$env-files"
-  grep -E '^environment_variables ' "$v" | grep -q 'SPOOL_HUB_DB_DSN' && fail "$env DSN is a plain env var" || pass "$env DSN is not a plain env var"
+  # the exact key: SPOOL_HUB_DB_DSN_EPOCH (017 T029 roll trigger) is a plain env var on purpose
+  grep -E '^environment_variables ' "$v" | grep -q '"SPOOL_HUB_DB_DSN":' && fail "$env DSN is a plain env var" || pass "$env DSN is not a plain env var"
   grep -E '^secret_environment_variables ' "$v" | grep -q '"SPOOL_HUB_DB_DSN": "csi-spl-hub-db-dsn"' && pass "$env DSN comes from Secret Manager" || fail "$env DSN is not a secret_environment_variable"
   grep -q "^files_bucket_name = \"csi-spl-$env-files\"" "$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/050-gcs-files.vars.tfvars" && pass "$env files bucket is csi-spl-$env-files" || fail "$env files bucket name"
   # 017 T029: the schema owner's DSN has its own 040 slot, and the hub never sees it
@@ -123,6 +124,10 @@ for env in dev prd; do
   grep -q 'csi-spl-hub-db-owner-dsn' "$v" && fail "$env 030 references the owner DSN secret (injected or granted to the hub)" \
     || pass "$env 030 never references the owner DSN secret"
 done
+# CONTROL for the plain-DSN check: the exact-key grep catches a planted DSN
+printf '%s\n' 'environment_variables = {"SPOOL_HUB_DB_DSN_EPOCH": "1", "SPOOL_HUB_DB_DSN": "postgres://x"}' |
+  grep -E '^environment_variables ' | grep -q '"SPOOL_HUB_DB_DSN":' && pass "CONTROL: a planted plain SPOOL_HUB_DB_DSN is caught" \
+  || fail "CONTROL: plain-DSN grep misses a planted DSN"
 # CONTROL for the check above: the owner slot id is a real string in 040's
 # tfvars, so the 030 grep searches for something that exists.
 grep -rq 'csi-spl-hub-db-owner-dsn' "$APP_ROOT/csi-spl-cnf/csi-spl/dev/tf/" && pass "CONTROL: the owner slot id appears in the rendered tfvars" \

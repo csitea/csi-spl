@@ -68,3 +68,90 @@ export function renderBody(src) {
     .replace(/@([A-Z]{2,4}-\d+)/g, '<span class="mention">@$1</span>')
     .replace(/\n/g, '<br>')
 }
+
+/** Hub channel slug (channels-v1 §5.1: ^[a-z0-9][a-z0-9-]{0,63}$). */
+export function channelSlug(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/^#/, '')
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+}
+
+/** Sidebar retention label: only #alerts is short-lived (spec 005 FR-012, "7 d"). */
+export function retentionLabel(row) {
+  const id = String((row && (row.channel_id || row.channel)) || '')
+  if (id !== 'alerts') return ''
+  const d = Number(row && row.retention_days)
+  return `${Number.isFinite(d) && d > 0 ? d : 7} d`
+}
+
+function splitLabel(p) {
+  const [id, box] = String(p || '').split('@')
+  return { id, box }
+}
+
+/**
+ * One feed row. A flat v:1 message passes through; a view-v1 §4.3 thread row
+ * (live `/v1/view/threads?channel=` or `?dm=true&peer=`) becomes a root card
+ * keyed by its task_id, with `count - 1` replies.
+ */
+export function feedRow(row) {
+  const r = row || {}
+  if (r.msg_id) return r
+  const first = splitLabel((r.participants || [])[0])
+  const kinds = Object.entries(r.kinds || {}).sort((a, b) => b[1] - a[1])
+  return {
+    msg_id: String(r.task_id || ''),
+    task_id: String(r.task_id || ''),
+    ts: r.first_ts || r.ts || '',
+    last_ts: r.last_ts || r.first_ts || '',
+    from: first.id || '',
+    from_box: first.box,
+    to: '',
+    kind: kinds.length ? kinds[0][0] : 'note',
+    body: String(r.subject || ''),
+    channel: r.channel === undefined ? null : r.channel,
+    parent_task_id: null,
+    files: [],
+    count: Math.max(0, (Number(r.count) || 1) - 1),
+    thread_row: true,
+  }
+}
+
+/** Does a live message belong to the open channel or DM? */
+export function belongsTo(msg, { channel, peer } = {}) {
+  const m = msg || {}
+  if (peer) {
+    if (m.channel) return false
+    const { id, box } = splitLabel(peer)
+    const from = m.from === id && (!box || !m.from_box || m.from_box === box)
+    const to = m.to === id && (!box || !m.to_box || m.to_box === box)
+    return from || to
+  }
+  if (!channel) return false
+  const ch = String(m.channel || '').replace(/^#/, '').toLowerCase()
+  const want = String(channel).replace(/^#/, '').toLowerCase()
+  return ch === want || (want === 'lobby' && ch === 'general')
+}
+
+/**
+ * Merge one live WS message into the feed (no poll in live mode). Same
+ * msg_id → no-op. A reply to a thread row bumps its count; anything else
+ * is appended as a new row. Returns a new array.
+ */
+export function mergeLive(rows, msg) {
+  const m = msg || {}
+  const list = rows || []
+  if (!m.msg_id || list.some((r) => r.msg_id === m.msg_id)) return list
+  const root = m.parent_task_id || m.task_id
+  const i = list.findIndex((r) => r.thread_row && r.task_id === root)
+  if (i >= 0) {
+    const r = list[i]
+    const next = list.slice()
+    next[i] = { ...r, count: (r.count || 0) + 1, last_ts: m.ts || r.last_ts }
+    return next
+  }
+  return [...list, m]
+}

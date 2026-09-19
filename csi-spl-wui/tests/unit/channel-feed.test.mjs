@@ -7,6 +7,11 @@ import {
   parseMention,
   formatBytes,
   initials,
+  channelSlug,
+  retentionLabel,
+  feedRow,
+  belongsTo,
+  mergeLive,
 } from '../../src/utils/channel-feed.mjs'
 import { applyVerbosity } from '../../src/utils/verbosity.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
@@ -46,5 +51,62 @@ describe('channel-feed', () => {
   it('formats bytes and initials', () => {
     assert.equal(formatBytes(2048), '2.0 KiB')
     assert.equal(initials('CLE-07'), 'CL')
+  })
+})
+
+describe('channel-feed live rows (gap A2)', () => {
+  const row = {
+    task_id: 't1', first_ts: '2026-09-19T05:00:00Z', last_ts: '2026-09-19T06:00:00Z',
+    count: 3, kinds: { note: 2, task: 1 }, participants: ['HUM-1@wui', 'CLE-2@box1'],
+    subject: 'hello', channel: 'alerts',
+  }
+
+  it('maps a view-v1 thread row onto a root card', () => {
+    const f = feedRow(row)
+    assert.equal(f.msg_id, 't1')
+    assert.equal(f.task_id, 't1')
+    assert.equal(f.from, 'HUM-1')
+    assert.equal(f.from_box, 'wui')
+    assert.equal(f.body, 'hello')
+    assert.equal(f.kind, 'note')
+    assert.equal(f.channel, 'alerts')
+    assert.equal(f.count, 2)
+    assert.equal(f.parent_task_id, null)
+    const flat = { msg_id: 'm1', body: 'x' }
+    assert.equal(feedRow(flat), flat)
+  })
+
+  it('routes a live message to its channel or DM only', () => {
+    assert.equal(belongsTo({ channel: 'alerts' }, { channel: 'alerts' }), true)
+    assert.equal(belongsTo({ channel: 'tasks' }, { channel: 'alerts' }), false)
+    assert.equal(belongsTo({ channel: 'general' }, { channel: 'lobby' }), true)
+    assert.equal(belongsTo({ channel: null, from: 'CLE-2', from_box: 'b1' }, { peer: 'CLE-2@b1' }), true)
+    assert.equal(belongsTo({ channel: null, to: 'CLE-2' }, { peer: 'CLE-2' }), true)
+    assert.equal(belongsTo({ channel: null, from: 'CLE-2', from_box: 'b2' }, { peer: 'CLE-2@b1' }), false)
+    assert.equal(belongsTo({ channel: 'lobby', from: 'CLE-2' }, { peer: 'CLE-2' }), false)
+    assert.equal(belongsTo({ channel: 'lobby' }, {}), false)
+  })
+
+  it('merges live frames: dedupe, bump the thread row, append a new root', () => {
+    const rows = [feedRow(row)]
+    const reply = { msg_id: 'm9', task_id: 't1', ts: '2026-09-19T07:00:00Z', channel: 'alerts' }
+    const bumped = mergeLive(rows, reply)
+    assert.equal(bumped.length, 1)
+    assert.equal(bumped[0].count, 3)
+    assert.equal(bumped[0].last_ts, '2026-09-19T07:00:00Z')
+    assert.equal(rows[0].count, 2, 'input not mutated')
+    const fresh = { msg_id: 'm10', task_id: 't2', ts: '2026-09-19T08:00:00Z', channel: 'alerts' }
+    const appended = mergeLive(bumped, fresh)
+    assert.equal(appended.length, 2)
+    assert.equal(mergeLive(appended, fresh), appended)
+  })
+
+  it('slugs a channel name and labels only #alerts retention', () => {
+    assert.equal(channelSlug('#Release Notes!'), 'release-notes')
+    assert.equal(channelSlug('  '), '')
+    assert.equal(retentionLabel({ channel_id: 'alerts', retention_days: 7 }), '7 d')
+    assert.equal(retentionLabel({ channel: 'alerts' }), '7 d')
+    assert.equal(retentionLabel({ channel_id: 'alerts', retention_days: 3 }), '3 d')
+    assert.equal(retentionLabel({ channel_id: 'lobby', retention_days: 30 }), '')
   })
 })

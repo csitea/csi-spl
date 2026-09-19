@@ -7,6 +7,10 @@ import {
   advanceCursor,
   markReadAt,
   CURSOR_KEY,
+  cursorFromChannel,
+  unreadFromCursors,
+  readParams,
+  unreadFromChannels,
 } from '../../src/utils/read-cursor.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
@@ -39,5 +43,40 @@ describe('local read cursors', () => {
     assert.deepEqual(same, newer)
     const next = markReadAt({}, 'ch:lobby', { ts: '2026-09-19T06:00:00Z', msg_id: 'b' })
     assert.equal(next['ch:lobby'].id, 'b')
+  })
+})
+
+describe('unread from stored cursors (gap A2, channels-v1 §5.2)', () => {
+  const key = (m) => (m.channel ? `ch:${m.channel}` : `dm:${m.from}`)
+  const msgs = [
+    { msg_id: 'a', ts: '2026-09-19T05:00:00Z', channel: 'lobby' },
+    { msg_id: 'b', ts: '2026-09-19T06:00:00Z', channel: 'lobby' },
+    { msg_id: 'c', ts: '2026-09-19T07:00:00Z', channel: 'alerts' },
+    { msg_id: 'd', ts: '2026-09-19T07:30:00Z', channel: null, from: 'CLE-2' },
+  ]
+
+  it('counts only messages newer than each key cursor, after a reload', () => {
+    const store = memoryStore()
+    saveCursors({ 'ch:lobby': { ts: '2026-09-19T05:00:00Z', id: 'a' } }, store)
+    const reloaded = loadCursors(store)
+    assert.deepEqual(unreadFromCursors(msgs, reloaded, key), { 'ch:lobby': 1, 'ch:alerts': 1, 'dm:CLE-2': 1 })
+    assert.deepEqual(unreadFromCursors(msgs, { ...reloaded, 'ch:alerts': { ts: '2026-09-19T07:00:00Z', id: 'c' } }, key),
+      { 'ch:lobby': 1, 'dm:CLE-2': 1 })
+  })
+
+  it('keeps the hub cursor and sends it back as read=<channel>~<cursor>', () => {
+    const c = advanceCursor(null, { ts: '2026-09-19T05:00:00Z', msg_id: 'a', cursor: 'CUR1' })
+    assert.deepEqual(c, { ts: '2026-09-19T05:00:00Z', id: 'a', hub: 'CUR1' })
+    const row = cursorFromChannel({ channel: 'alerts', last_ts: '2026-09-19T07:00:00Z', last_cursor: 'CUR2' })
+    assert.deepEqual(row, { ts: '2026-09-19T07:00:00Z', id: '', hub: 'CUR2' })
+    assert.equal(cursorFromChannel({ channel: 'empty', last_ts: null }), null)
+    assert.deepEqual(readParams({ 'ch:lobby': c, 'ch:alerts': row, 'dm:CLE-2': { ts: 'x', id: '', hub: 'NO' }, 'ch:tasks': { ts: 'y', id: '' } }),
+      ['lobby~CUR1', 'alerts~CUR2'])
+  })
+
+  it('maps hub unread onto ch: keys', () => {
+    assert.deepEqual(unreadFromChannels([
+      { channel: 'lobby', unread: 2 }, { channel_id: 'alerts', unread: 0 }, { channel: 'tasks' },
+    ]), { 'ch:lobby': 2, 'ch:alerts': 0 })
   })
 })

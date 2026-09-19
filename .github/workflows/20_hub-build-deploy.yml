@@ -21,10 +21,14 @@
 # A commit that changes the hub code without bumping hub.image.tag still runs
 # the tests, then deploys nothing new (the tag exists) and says so.
 #
-# GCP auth is Workload Identity Federation only (017-github-wif-deploy): the
-# repo VARIABLES GCP_WIF_PROVIDER_<ENV> and GCP_DEPLOY_SA_EMAIL_<ENV>. No key.
-# An env whose two variables are not set yet is SKIPPED with a notice, so this
-# workflow can land before 017 is applied without reddening trunk.
+# GCP auth, per env (owner direction 2026-09-19, csi-rel style):
+#   key -- PRIMARY. The project SA key secret GCP_KEY_CSI_SPL_<ENV>, published
+#          by iac 120-github-general-secrets from gcp-002's key. Identity:
+#          csi-spl-<env>@csi-spl-<env>.iam.gserviceaccount.com (roles/owner).
+#   WIF -- ALTERNATIVE, used only when the key secret is absent: the 017 pool
+#          (GCP_WIF_PROVIDER_<ENV>) impersonating GCP_DEPLOY_SA_EMAIL_<ENV>.
+# An env with neither is SKIPPED with a notice, so trunk stays green before
+# either exists. The plan step sees only a boolean of the secret.
 
 name: "20 ci-cd: spool hub build + deploy"
 
@@ -106,6 +110,8 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           INPUT_ENV: ${{ github.event.inputs.environment }}
+          KEY_DEV: ${{ secrets.GCP_KEY_CSI_SPL_DEV != '' }}
+          KEY_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD != '' }}
           WIF_DEV: ${{ vars.GCP_WIF_PROVIDER_DEV }}
           SA_DEV: ${{ vars.GCP_DEPLOY_SA_EMAIL_DEV }}
           WIF_PRD: ${{ vars.GCP_WIF_PROVIDER_PRD }}
@@ -121,11 +127,13 @@ jobs:
           fi
           ready=()
           for e in "${wanted[@]}"; do
-            wif_var="WIF_${e^^}"; sa_var="SA_${e^^}"
-            if [[ -n "${!wif_var:-}" && -n "${!sa_var:-}" ]]; then
-              ready+=("$e")
+            key_var="KEY_${e^^}"; wif_var="WIF_${e^^}"; sa_var="SA_${e^^}"
+            if [[ "${!key_var:-}" == true ]]; then
+              ready+=("$e"); echo "$e: auth = key (GCP_KEY_CSI_SPL_${e^^})"
+            elif [[ -n "${!wif_var:-}" && -n "${!sa_var:-}" ]]; then
+              ready+=("$e"); echo "$e: auth = WIF (no GCP_KEY_CSI_SPL_${e^^})"
             else
-              echo "::notice::$e skipped: repo variables GCP_WIF_PROVIDER_${e^^} / GCP_DEPLOY_SA_EMAIL_${e^^} are not set (017-github-wif-deploy not applied/exported yet)"
+              echo "::notice::$e skipped: neither secret GCP_KEY_CSI_SPL_${e^^} (iac 120) nor repo variables GCP_WIF_PROVIDER_${e^^} + GCP_DEPLOY_SA_EMAIL_${e^^} (017) are set"
             fi
           done
           if (( ${#ready[@]} )); then
@@ -162,7 +170,8 @@ jobs:
       name: ${{ matrix.environment }}
     env:
       ENV: ${{ matrix.environment }}
-      DEPLOY_SA: ${{ vars[format('GCP_DEPLOY_SA_EMAIL_{0}', matrix.environment)] }}
+      HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
+      WIF_SA: ${{ vars[format('GCP_DEPLOY_SA_EMAIL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -220,11 +229,32 @@ jobs:
           fi
           echo "ok=$ok" >> "$GITHUB_OUTPUT"
 
-      - name: Authenticate to Google Cloud (WIF)
+      # The identity every later gcloud call pins (--account via GCP_ACCOUNT):
+      # the key path runs as the project SA gcp-002 created, the WIF path as
+      # the impersonated deploy SA.
+      - name: Resolve the deploy identity
         if: steps.guard.outputs.ok == 'true'
+        env:
+          GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
+        run: |
+          set -euo pipefail
+          if [[ "$HAS_KEY" == true ]]; then sa="$GCP_PROJECT@$GCP_PROJECT.iam.gserviceaccount.com"; how=key
+          else sa="$WIF_SA"; how=WIF; fi
+          [[ -n "$sa" ]] || { echo "::error::no deploy identity for $ENV"; exit 1; }
+          echo "DEPLOY_SA=$sa" >> "$GITHUB_ENV"
+          echo "$ENV deploys as $sa (auth = $how)"
+
+      - name: Authenticate to Google Cloud (project key)
+        if: steps.guard.outputs.ok == 'true' && env.HAS_KEY == 'true'
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment)] }}
+          credentials_json: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+
+      - name: Authenticate to Google Cloud (WIF alternative)
+        if: steps.guard.outputs.ok == 'true' && env.HAS_KEY != 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
           service_account: ${{ env.DEPLOY_SA }}
 
       - name: Set up Cloud SDK

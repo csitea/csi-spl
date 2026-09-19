@@ -19,9 +19,10 @@
 # The hub's deploy unit is the cnf image TAG (terraform owns the image), not
 # the commit, so "lag" here is image-vs-cnf, not commit-vs-trunk as in csi-rel.
 #
-# An env whose WIF repo variables (GCP_WIF_PROVIDER_<ENV>,
-# GCP_DEPLOY_SA_EMAIL_<ENV>, exported from 007's 017) are not set is SKIPPED
-# with a notice, exactly as 20 skips it.
+# Auth as 20: the project key secret GCP_KEY_CSI_SPL_<ENV> (iac 120) first,
+# the WIF repo variables (GCP_WIF_PROVIDER_<ENV> + GCP_DEPLOY_SA_EMAIL_<ENV>,
+# 017) only when the key is absent. An env with neither is SKIPPED with a
+# notice, exactly as 20 skips it.
 #
 # Local equivalent: ENV=<env> GCP_ACCOUNT=<you> ./csi-spl-orc/run -a do_check_hub_deploy
 
@@ -63,6 +64,8 @@ jobs:
     steps:
       - id: t
         env:
+          KEY_DEV: ${{ secrets.GCP_KEY_CSI_SPL_DEV != '' }}
+          KEY_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD != '' }}
           WIF_DEV: ${{ vars.GCP_WIF_PROVIDER_DEV }}
           SA_DEV: ${{ vars.GCP_DEPLOY_SA_EMAIL_DEV }}
           WIF_PRD: ${{ vars.GCP_WIF_PROVIDER_PRD }}
@@ -71,9 +74,9 @@ jobs:
           set -euo pipefail
           ready=()
           for e in dev prd; do
-            w="WIF_${e^^}"; s="SA_${e^^}"
-            if [[ -n "${!w:-}" && -n "${!s:-}" ]]; then ready+=("$e")
-            else echo "::notice::$e skipped: GCP_WIF_PROVIDER_${e^^} / GCP_DEPLOY_SA_EMAIL_${e^^} not set (017 not applied/exported yet)"; fi
+            k="KEY_${e^^}"; w="WIF_${e^^}"; s="SA_${e^^}"
+            if [[ "${!k:-}" == true ]] || [[ -n "${!w:-}" && -n "${!s:-}" ]]; then ready+=("$e")
+            else echo "::notice::$e skipped: neither secret GCP_KEY_CSI_SPL_${e^^} (iac 120) nor GCP_WIF_PROVIDER_${e^^} + GCP_DEPLOY_SA_EMAIL_${e^^} (017) are set"; fi
           done
           if (( ${#ready[@]} )); then envs="$(printf '"%s",' "${ready[@]}")"; echo "envs=[${envs%,}]" >> "$GITHUB_OUTPUT"; echo "any=true" >> "$GITHUB_OUTPUT"
           else echo "envs=[]" >> "$GITHUB_OUTPUT"; echo "any=false" >> "$GITHUB_OUTPUT"; fi
@@ -90,13 +93,31 @@ jobs:
         environment: ${{ fromJson(needs.targets.outputs.envs) }}
     env:
       ENV: ${{ matrix.environment }}
-      DEPLOY_SA: ${{ vars[format('GCP_DEPLOY_SA_EMAIL_{0}', matrix.environment)] }}
+      HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
+      WIF_SA: ${{ vars[format('GCP_DEPLOY_SA_EMAIL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
     steps:
       - uses: actions/checkout@v4   # trunk head: the cnf a deploy would roll to
 
-      - uses: google-github-actions/auth@v2
+      # key path: the project SA gcp-002 created (<repo>-<env>@<repo>-<env>);
+      # WIF path: the impersonated deploy SA
+      - name: Resolve the identity
+        run: |
+          set -euo pipefail
+          p="${GITHUB_REPOSITORY#*/}-$ENV"
+          if [[ "$HAS_KEY" == true ]]; then sa="$p@$p.iam.gserviceaccount.com"; else sa="$WIF_SA"; fi
+          echo "DEPLOY_SA=$sa" >> "$GITHUB_ENV"
+
+      - name: Authenticate to Google Cloud (project key)
+        if: env.HAS_KEY == 'true'
+        uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment)] }}
+          credentials_json: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+
+      - name: Authenticate to Google Cloud (WIF alternative)
+        if: env.HAS_KEY != 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
           service_account: ${{ env.DEPLOY_SA }}
 
       - uses: google-github-actions/setup-gcloud@v2

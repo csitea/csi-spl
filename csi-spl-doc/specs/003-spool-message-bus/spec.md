@@ -310,4 +310,4 @@ All fifteen are closed. OQ-07/13/14 were resolved earlier by the owner; the othe
 - **DDL home**: `csi-spl-rdb/src/sql/postgres/spool-hub/*.sql`, applied by `spool migrate` (`data-model.md`).
 - **Follow-up (parked)**: `msg.ValidID` must reject the `BOX-` prefix (identity-routing).
 
-<!-- version: 0.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:55:00Z -->
+<!-- version: 0.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:45:00Z -->

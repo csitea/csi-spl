@@ -228,4 +228,4 @@ a `POST /v1/channels`). None of those routes exists on the hub
 (`grep -c 'v1/messages\|v1/channels' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go -> 0`).
 The read calls map onto §4.2–§4.4; the two POSTs are 005 M3 write features.
 
-<!-- version: 0.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:40:00Z -->
+<!-- version: 0.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:45:00Z -->

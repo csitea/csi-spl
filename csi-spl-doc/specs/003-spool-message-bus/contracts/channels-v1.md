@@ -161,7 +161,7 @@ control: no mention → no `deliveries` row, no `recv`), `TestHubclientChannelRe
 `./wui-live-ws.md` §3.2: `{"type":"presence","peer":"CLE-07@box-a","status":"online|offline"}`
 on box connect / disconnect / announce change, and on the first / last browser
 socket of a human (`HUM-1@box-wui`); a snapshot of every online peer follows
-`welcome`. Tenant-scoped. Test: `TestWUIPresence`.
+`welcome` (live frames may interleave: last writer wins per peer). Tenant-scoped. Test: `TestWUIPresence`.
 
 ## 7. Open questions (owner, via ORC)
 
@@ -174,4 +174,4 @@ socket of a human (`HUM-1@box-wui`); a snapshot of every online peer follows
 - **OQ-CH3** — `general` alias lifetime: (a) *recommended*: accepted until
   the next minor contract version, then `404 unknown_channel`; (b) forever.
 
-<!-- version: 1.0.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:30:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:05:00Z -->

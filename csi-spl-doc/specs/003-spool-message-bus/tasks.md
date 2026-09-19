@@ -96,13 +96,13 @@ Contract `contracts/view-v1.md`. Status per task below; only the token door (T03
 
 Contract `contracts/channels-v1.md` (+ `view-v1.md` v0.5, `wui-live-ws.md` v0.3, `http-v1.md` v0.5). OQ-W1 resolved (spec.md).
 
-- [ ] T041 [US8] `internal/wire`: optional `Channel` / `ParentTaskID` on `Envelope`, signed only when present; `Frame.Channels` (hello/announce). Pre-M3 envelope golden stays byte-identical. — **Planned**.
-- [ ] T042 [US8] rdb `0008_channels_threads.sql`: seed `lobby`/`tasks`/`alerts` per tenant, migrate `channel='general'` → `lobby`, indexes for channel / parent reads. — **Planned**.
-- [ ] T043 [US8] `internal/store`: `Message.ParentTaskID`; channels (create / known / list with unread + members); subscriptions (replace per box, members per channel); thread queries with roots / parent / DM / peer / viewer; memory + Postgres, contract suite. — **Planned**.
-- [ ] T044 [US8] Hub: channel + parent on box sends and browser sends (`unknown_channel`, `general` alias), `POST /v1/channels` (+ preflight), `GET /v1/view/channels` unread/members, `/threads` roots + `dm`/`peer`, `/threads/{task_id}/children`. — **Planned**.
-- [ ] T045 [US8] Mention-driven routing: subscriptions from hello/announce, deliveries only for addressed members, `recv.agents`, drain recomputes `agents`; control test (no mention → no delivery). — **Planned**.
-- [ ] T046 [US8] Presence frames on `/v1/wui/ws` (box connect/close/announce diff, human first/last socket, snapshot after welcome). — **Planned**.
-- [ ] T047 [US8] Box client: `SPOOL_CHANNELS` → hello/announce `channels`; accept a channel `recv` for another `to_box` only with signed `channel` + `agents`, inbox copy per hosted agent. — **Planned**.
+- [x] T041 [US8] `internal/wire`: optional `Channel` / `ParentTaskID` on `Envelope`, signed only when present; `Frame.Channels` (hello/announce). Pre-M3 envelope golden stays byte-identical. — **Implemented** (`83ed0b1`). Check: `command grep -n "ParentTaskID\|Channel" csi-spl-api/src/go/spool-hub-api/internal/wire/*.go | wc -l` -> 17; `cd csi-spl-api/src/go/spool-hub-api && go test -run 'TestEnvelopeLegacyBytes|TestEnvelopeChannelSigned' ./internal/wire` -> ok.
+- [x] T042 [US8] rdb `0008_channels_threads.sql`: seed `lobby`/`tasks`/`alerts` per tenant, migrate `channel='general'` → `lobby`, indexes for channel / parent reads. — **Implemented** (`8261caf`). Check: `ls csi-spl-rdb/src/sql/postgres/spool-hub/0008_channels_threads.sql` -> present; `bash csi-spl-api/src/bash/tests/hub-pg.tst.sh` -> `spool migrate applies 7 file(s)` + ALL HUB POSTGRES CHECKS PASSED (0007 is DISPATCH's number, not yet on trunk).
+- [x] T043 [US8] `internal/store`: `Message.ParentTaskID`; channels (create / known / list with unread + members); subscriptions (replace per box, members per channel); thread queries with roots / parent / DM / peer / viewer; memory + Postgres, contract suite. — **Implemented** (`8261caf`). Check: `cd csi-spl-api/src/go/spool-hub-api && go test -run TestStoreChannels ./internal/store` -> ok (memory; Postgres via hub-pg.tst.sh).
+- [x] T044 [US8] Hub: channel + parent on box sends and browser sends (`unknown_channel`, `general` alias), `POST /v1/channels` (+ preflight), `GET /v1/view/channels` unread/members, `/threads` roots + `dm`/`peer`, `/threads/{task_id}/children`. — **Implemented** (`2343c8e`). Check: `cd csi-spl-api/src/go/spool-hub-api && go test -run 'TestChannelEnvelopeStored|TestChannelsCreateAndList' ./internal/hub` -> ok; `command grep -c 'HandleFunc("GET /v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/view.go` -> 5.
+- [x] T045 [US8] Mention-driven routing: subscriptions from hello/announce, deliveries only for addressed members, `recv.agents`, drain recomputes `agents`; control test (no mention → no delivery). — **Implemented** (`2343c8e`). Check: `cd csi-spl-api/src/go/spool-hub-api && go test -run TestChannelMentionRouting ./internal/hub` -> ok (control: ambient #tasks post -> DeliveryState(box-b) ErrNotFound, no recv).
+- [x] T046 [US8] Presence frames on `/v1/wui/ws` (box connect/close/announce diff, human first/last socket, snapshot after welcome). — **Implemented** (`2343c8e`). Check: `cd csi-spl-api/src/go/spool-hub-api && go test -run TestWUIPresence ./internal/hub` -> ok; `command grep -c '"presence"' csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md` -> 1.
+- [x] T047 [US8] Box client: `SPOOL_CHANNELS` → hello/announce `channels`; accept a channel `recv` for another `to_box` only with signed `channel` + `agents`, inbox copy per hosted agent. — **Implemented** (`a4c31ce`). Check: `cd csi-spl-api/src/go/spool-hub-api && go test -run TestHubclientChannelRecv ./internal/hub` -> ok.
 
 ## Phase 11: Polish
 
@@ -140,11 +140,11 @@ Contract `contracts/channels-v1.md` (+ `view-v1.md` v0.5, `wui-live-ws.md` v0.3,
 | FR-021 CORS allow-list | T035 | Implemented |
 | FR-022 viewer tenant-scoped, bytes-as-stored | T031, T034, T036 | Implemented |
 | FR-023 Cloud Run-safe health path | T032 | Implemented (LB wiring: 007) |
-| FR-024 envelope `channel` / `parent_task_id` | T041, T043, T044 | Planned |
-| FR-025 channels: seed, alias, create, list | T042, T043, T044 | Planned |
-| FR-026 roots, children, DMs | T043, T044 | Planned |
-| FR-027 mention-driven routing | T045, T047 | Planned |
-| FR-028 presence | T046 | Planned |
+| FR-024 envelope `channel` / `parent_task_id` | T041, T043, T044 | Implemented |
+| FR-025 channels: seed, alias, create, list | T042, T043, T044 | Implemented |
+| FR-026 roots, children, DMs | T043, T044 | Implemented |
+| FR-027 mention-driven routing | T045, T047 | Implemented |
+| FR-028 presence | T046 | Implemented |
 | NFR-001 region / cnf | T004, T023 | Implemented (dev) |
 | NFR-002 error mapping | T012, T020 | Implemented |
 | NFR-003 no schema fork | T003, T030 | Implemented |
@@ -161,8 +161,8 @@ Contract `contracts/channels-v1.md` (+ `view-v1.md` v0.5, `wui-live-ws.md` v0.3,
 | `GET /healthz`, `GET /version` | FR-001 | Implemented (see FR-023 for Cloud Run) |
 | `GET /v1/health` | FR-023 | Implemented |
 | `GET /v1/view/*` (`contracts/view-v1.md`) | FR-018–FR-022 | Implemented (token door: OQ-16) |
-| `POST /v1/channels` (`contracts/channels-v1.md` §5.1) | FR-025 | Planned |
-| `GET /v1/view/threads/{task_id}/children` | FR-026 | Planned |
+| `POST /v1/channels` (`contracts/channels-v1.md` §5.1) | FR-025 | Implemented |
+| `GET /v1/view/threads/{task_id}/children` | FR-026 | Implemented |
 
 ## Dependencies
 
@@ -180,4 +180,4 @@ Contract `contracts/channels-v1.md` (+ `view-v1.md` v0.5, `wui-live-ws.md` v0.3,
 
 M1 of 003 = US1 + US2 + US3 + the WS tail of US4 — Implemented and green on Postgres + GCS; what remains for M1 is the cloud rollout (007) and the pipeline deploy (008). US7 is the next 003 code slice, due before 005 (M3) starts on real data.
 
-<!-- version: 0.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:58:00Z -->
+<!-- version: 0.7.1 · updated: 2026-09-19 · last-edit: 2026-09-19T06:05:00Z -->

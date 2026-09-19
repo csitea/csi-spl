@@ -240,4 +240,4 @@ Per `contracts/limits.md` (owner `43b1050`):
   all three on Postgres 16 (`hub-pg.tst.sh`). `0002` (channels, M3) and `0003`
   (payment, 006) are materialised but unused by the M1 hub.
 
-<!-- version: 0.5.1 · updated: 2026-09-19 · last-edit: 2026-09-19T06:40:00Z -->
+<!-- version: 0.5.1 · updated: 2026-09-19 · last-edit: 2026-09-19T05:45:00Z -->

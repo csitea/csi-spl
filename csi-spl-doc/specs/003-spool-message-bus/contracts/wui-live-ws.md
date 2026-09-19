@@ -87,7 +87,7 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 | `token` | `upload_token`, `upload_token_expires_at` | reply to a browser `{type:"token"}` (fresh upload token) |
 | `message` | `task_id`, `cursor`, `received_at`, `envelope`, `env` | **live fan-out**: every message stored for a subscribed `task_id` in this tenant — from a browser, a box agent, or the hub — pushed to **every** subscribed socket (the sender's own included). `env` = the stored envelope `{from_box,to_box,msg,sig}` byte-for-byte, the same element shape as `view-v1` §4.4 (`msg` is the v:1 object); `envelope` = that v:1 object alone. For the sender, its own `message` echo arrives **before** its `ack` |
 | `ack` | `msg_id`, `task_id`, `cursor`, `received_at` | after a `send` is stored |
-| `presence` | `peer`, `status` | `peer` = `<agent>@<box>` (`CLE-07@box-a`) or `<HUM-n>@box-wui`; `status` ∈ `online`, `offline`. Pushed to every browser socket of the tenant when a `role=box` session is accepted (each announced agent `online`), closes (`offline`; a superseded socket emits nothing), or re-announces (the difference), and when a human's **first** browser socket opens / **last** one closes. Right after `welcome` the hub sends one `online` frame per peer online at that moment (snapshot), before any other frame (`./channels-v1.md` §6) |
+| `presence` | `peer`, `status` | `peer` = `<agent>@<box>` (`CLE-07@box-a`) or `<HUM-n>@box-wui`; `status` ∈ `online`, `offline`. Pushed to every browser socket of the tenant when a `role=box` session is accepted (each announced agent `online`), closes (`offline`; a superseded socket emits nothing), or re-announces (the difference), and when a human's **first** browser socket opens / **last** one closes. Right after `welcome` the hub sends one `online` frame per peer online at that moment (snapshot; a live frame of another socket may interleave, so treat presence as last-writer-wins per peer) (`./channels-v1.md` §6) |
 | `error` | `error`, `status`, `detail`, `msg_id?` | stable token (`./error-envelope.md`); socket stays open |
 
 Browser -> hub `{"type":"token"}` asks for a fresh upload token.
@@ -168,4 +168,4 @@ reconnect the browser sends `hello` again and re-subscribes.
 `missing_file`, `conflict_msg`, `unpaid`, `quota`, `view_door`,
 `unknown_tenant`.
 
-<!-- version: 0.3.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:45:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:05:00Z -->

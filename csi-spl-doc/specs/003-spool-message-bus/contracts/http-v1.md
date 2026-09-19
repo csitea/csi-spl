@@ -254,4 +254,4 @@ while the hub is unreachable. Same id on two boxes is legal (`CLE-07@box-a` ≠
 - The only browser-facing surface is `./view-v1.md` (read-only). It never
   reintroduces the removed REST send/recv rows of §1.
 
-<!-- version: 0.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:50:00Z -->
+<!-- version: 0.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:45:00Z -->

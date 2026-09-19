@@ -8,9 +8,19 @@ mount (003, CLE-3340). Error bodies reuse the hub's shared envelope
 
 ## 1. Routes
 
-All under `RoutePrefix = /api/v1/auth/`. The WUI calls them **same-origin**
-(Hosting rewrite `/api/v1/auth/**` → hub, 010 FR-010); links, not `fetch`,
-for start.
+All under `RoutePrefix = /api/v1/auth/`. The WUI calls them on the **auth
+base** = the hub's API origin (`NUXT_PUBLIC_AUTH_BASE`: prd
+`https://api.<BASE_DOMAIN>`, dev `https://dev.api.<BASE_DOMAIN>`),
+**cross-origin** from the WUI host, with `credentials: 'include'`. The hub
+answers them with credentialed CORS for the WUI origin (T050). `''` =
+same-origin, used only in lde, where the Nitro devProxy serves the routes.
+FR-010's Hosting rewrite is superseded (spec Phase 7): Firebase Hosting
+forwards no request cookie but `__session` to Cloud Run, so neither
+`spool_oauth_state` nor the session would survive it. Start is a link, not
+`fetch`: `<auth base>/api/v1/auth/<p>/start?redirect=<WUI path>`. The hub lands
+on `<APP_URL><redirect>`, and APP_URL is the WUI origin. Code:
+`csi-spl-wui/src/utils/auth-client.mjs` + `src/composables/useAuthClient.ts`
+(`e5a4ace`).
 
 | Method + path | Answer |
 |---|---|

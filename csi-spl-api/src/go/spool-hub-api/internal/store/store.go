@@ -167,5 +167,8 @@ type Store interface {
 	// Channels, subscriptions and channel stats (channels.go, channels-v1).
 	Channels
 
+	// M2 checkouts and payment events (payments.go, checkout-v1).
+	Payments
+
 	Close()
 }

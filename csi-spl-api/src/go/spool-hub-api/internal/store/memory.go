@@ -26,6 +26,7 @@ type Memory struct {
 	seq        int
 	hum        memHumans   // humans_memory.go, guarded by mu
 	ch         memChannels // channels_memory.go, guarded by mu
+	pay        memPayments // payments_memory.go, guarded by mu
 }
 
 type memPin struct {

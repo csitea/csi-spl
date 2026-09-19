@@ -130,6 +130,9 @@ the operator re-pins `box-wui` with `force` (contract §2.3).
 - **OQ-014-4** Who may command whom: (a) **recommended, implemented**: any
   member of the tenant may task any agent of that tenant (tenant scope only,
   never cross-tenant); (b) a per-agent allow-list.
+- **OQ-014-5** Should a sent card show a queued / `to_box` badge? **Decided
+  (owner 2026-09-19): no** — no queued/to_box badge on sent cards; §4 "WUI
+  changes: none needed" stands.
 
 ## 4. Out of scope
 
@@ -149,4 +152,4 @@ the operator re-pins `box-wui` with `force` (contract §2.3).
 - rdb migration 0007 (reserved for this lane): not needed — the restricted
   role keys off the reserved box id, and no new table is written.
 
-<!-- version: 0.2.1 · updated: 2026-09-19 · last-edit: 2026-09-19T09:05:00Z -->
+<!-- version: 0.2.2 · updated: 2026-09-19 · last-edit: 2026-09-19T13:00:00Z -->

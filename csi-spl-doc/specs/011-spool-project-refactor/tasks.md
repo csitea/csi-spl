@@ -9,14 +9,16 @@ Status vocabulary follows `../README.md` §2.3: `[x]` Implemented (cited) · `[~
 
 ## Phase 1 — WUI Client Adapter & Store Unification (FR-R07, FR-R08)
 
-- [ ] T001 Planned — Define `utils/client/interface.mjs`: declare `SpoolClient` contract (`listChannels`, `listMessages`, `getThread`, `sendMessage`, `roster`, `session`, `healthz`). FR-R07.
-- [ ] T002 Planned — Implement `utils/client/mock-client.mjs`: encapsulate `mock-data.mjs` state and simulated network latency inside `MockSpoolClient`. FR-R07.
-- [ ] T003 Planned — Implement `utils/client/http-client.mjs`: migrate live API calls (`/v1/view/*`, `/v1/ws`) from `spool-client.mjs` into `HttpSpoolClient`, removing all `if (this.mock)` branches. FR-R07.
-- [ ] T004 Planned — Refactor `utils/spool-client.mjs`: export factory `createSpoolClient(opts)` returning either `MockSpoolClient` or `HttpSpoolClient` based on configuration. Check: `node --test tests/unit/spool-client.test.mjs` -> pass. FR-R07.
-- [ ] T005 Planned — Unify stores into `stores/workspace.ts`: manage active channel slug (defaulting to `lobby`), selected DM peer, and Pane 3 drawer visibility. FR-R08.
-- [ ] T006 Planned — Unify message streaming in `stores/feed.ts`: maintain reverse-ordered message array, catch-up cursor pagination, and optimistic send insertion. FR-R08.
-- [ ] T007 Planned — Streamline thread state in `stores/thread.ts`: manage active `parent_task_id`, replies list, and verbosity selector state (`minimal`, `normal`, `verbose`). FR-R08.
-- [ ] T008 Planned — Harmonize `stores/roster.ts` and `stores/session.ts`: manage user directory, agent robot avatar styling, presence polling, and signed session lifecycle. FR-R08, FR-R09.
+**Deferred (owner 2026-09-19)** — T001–T008 are not to be started: the client adapter and the 5-store refactor rewrite exactly the files the A1–A5, H4 and X3 gap rows just changed (`src/utils/spool-client.mjs`, `src/stores/*.ts`, the channel/lobby pages). Revisit after M3. No code was changed for this decision.
+
+- [ ] T001 Deferred (owner 2026-09-19) — Define `utils/client/interface.mjs`: declare `SpoolClient` contract (`listChannels`, `listMessages`, `getThread`, `sendMessage`, `roster`, `session`, `healthz`). FR-R07.
+- [ ] T002 Deferred (owner 2026-09-19) — Implement `utils/client/mock-client.mjs`: encapsulate `mock-data.mjs` state and simulated network latency inside `MockSpoolClient`. FR-R07.
+- [ ] T003 Deferred (owner 2026-09-19) — Implement `utils/client/http-client.mjs`: migrate live API calls (`/v1/view/*`, `/v1/ws`) from `spool-client.mjs` into `HttpSpoolClient`, removing all `if (this.mock)` branches. FR-R07.
+- [ ] T004 Deferred (owner 2026-09-19) — Refactor `utils/spool-client.mjs`: export factory `createSpoolClient(opts)` returning either `MockSpoolClient` or `HttpSpoolClient` based on configuration. Check: `node --test tests/unit/spool-client.test.mjs` -> pass. FR-R07.
+- [ ] T005 Deferred (owner 2026-09-19) — Unify stores into `stores/workspace.ts`: manage active channel slug (defaulting to `lobby`), selected DM peer, and Pane 3 drawer visibility. FR-R08.
+- [ ] T006 Deferred (owner 2026-09-19) — Unify message streaming in `stores/feed.ts`: maintain reverse-ordered message array, catch-up cursor pagination, and optimistic send insertion. FR-R08.
+- [ ] T007 Deferred (owner 2026-09-19) — Streamline thread state in `stores/thread.ts`: manage active `parent_task_id`, replies list, and verbosity selector state (`minimal`, `normal`, `verbose`). FR-R08.
+- [ ] T008 Deferred (owner 2026-09-19) — Harmonize `stores/roster.ts` and `stores/session.ts`: manage user directory, agent robot avatar styling, presence polling, and signed session lifecycle. FR-R08, FR-R09.
 - [ ] T009 Planned — Verify Phase 1 regression gate: `node --test csi-spl-wui/tests/unit/*.test.mjs` -> 45/45 pass. FR-R15.
 
 ---
@@ -68,4 +70,4 @@ T010–T016 checks re-run 2026-09-19 (audit CLE-3358, tree a2eac90) after the WU
 
 ---
 
-<!-- version: 1.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T05:45:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:00:00Z -->

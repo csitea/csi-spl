@@ -332,7 +332,7 @@ destroy + re-apply of dev and prd under R1-R7 because IAM was likely broken.
 | FR-028 | R4: csi-rel gcp-*, tf-*, provision and make actions are canonical and copied unchanged; a failure is a config/setup defect, never a script edit. See `infra-provisioning-requirements.md` | Partial — tf-* wrappers landed as copies |
 | FR-029 | R5: every terraform variable of every step is set in the rendered `<env>/tf/<step>.vars.tfvars` (+ backend-config.tfvars) from `*.tfvars.tpl` via tpl-gen; no hand-edited tfvars; a fresh render equals the committed files. See `infra-provisioning-requirements.md` | Partial — tpl-gen + `tf-steps-render-and-validate.tst.sh` exist |
 | FR-030 | R6: deploy order is local first (dev, then prd), then the GitHub pipeline; CI/CD must pass with the deploy job actually running (a skipped deploy is not green). See `infra-provisioning-requirements.md` | Planned |
-| FR-031 | R7: all steps run in numeric order 000 -> last per env; a full rebuild destroys last -> 000 then re-applies 000 -> last, with backups taken first; the apex DNS step goes prd before dev. See `infra-provisioning-requirements.md` | Planned |
+| FR-031 | R7: all steps run in numeric order 000 -> last; each step is applied across both envs, dev first then prd; the ONE exception is the DNS zone step (applied prd/apex before dev/sub-zone, destroyed dev before prd); a full rebuild destroys last -> 000 then re-applies 000 -> last, with backups taken first. See `infra-provisioning-requirements.md` | Planned |
 | FR-032 | R8: all GCP objects are created in the owner's designated realm only (`csi-spl-<env>` under the designated org and billing account, via `<owner-account>`); account and org id come from `env.gcp.gcp_account_owner_email` / `env.gcp.gcp_org_id`; every gcloud/terraform wrapper resolves `--account` from them (CI may override with `GCP_ACCOUNT`); bootstrap never creates a project in another org; a rebuild destroys objects inside the projects, never the projects. See `infra-provisioning-requirements.md` | Planned |
 
 ## Success Criteria
@@ -354,4 +354,4 @@ store SQL, M2 payment drivers, the WUI app itself (spec `005`; its hosting
 estate is §3 here), hub CI job design (spec `008`), wire and tenancy
 semantics (`003` / `004` / `006`).
 
-<!-- version: 1.6.0 · updated: 2026-09-19 · last-edit: 2026-09-19T08:28:00Z -->
+<!-- version: 1.6.0 · updated: 2026-09-19 · last-edit: 2026-09-19T08:40:00Z -->

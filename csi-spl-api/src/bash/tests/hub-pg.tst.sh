@@ -92,13 +92,24 @@ echo "ok   - spool migrate applies $(echo "$out1" | grep -c '^applied') file(s);
 # suite's queued messages mid-test: TestChannelMentionRouting timed out
 # waiting for the drained recv (CI 35436333578; reproduced with the sweep
 # SQL in a loop, 4 fails in 40 s against 16/16 clean before; H6).
+# 017 FR-SEC-014: RT_ROLE is a runtime role that does NOT own the tables
+# (DML grants only), the shape TestRLSHubRoleCannotLiftRLS requires; the
+# owner APP_ROLE is its CONTROL.
+RT_ROLE=spool_rt
+su_sql "CREATE ROLE $RT_ROLE LOGIN PASSWORD '$RT_ROLE' NOSUPERUSER NOBYPASSRLS" >/dev/null
+rt_dsn() { # <db>
+  if [ -n "$PG_CTR" ]; then echo "postgres://$RT_ROLE:$RT_ROLE@127.0.0.1:$PGPORT/$1?sslmode=disable"
+  else echo "postgres://$RT_ROLE@/$1?host=$WORK&port=$PGPORT&sslmode=disable"; fi
+}
 pids=()
 for pkg in store hub auth; do
   db="spool_hub_$pkg"
   mkdb "$db"
   pdsn="$(app_dsn "$db")"
   "$BIN" migrate --db "$pdsn" --sql-dir "$SQL_DIR" >/dev/null # auth's suite expects a migrated db
-  ( cd "$MOD" && SPOOL_TEST_PG_DSN="$pdsn" SPOOL_TEST_SQL_DIR="$SQL_DIR" \
+  if [ -n "$PG_CTR" ]; then docker exec -i "$PG_CTR" psql -q -v ON_ERROR_STOP=1 -U spool -d "$db" -c "SET ROLE $APP_ROLE; GRANT USAGE ON SCHEMA public TO $RT_ROLE; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $RT_ROLE" >/dev/null
+  else "$PG_BIN/psql" -q -v ON_ERROR_STOP=1 -h "$WORK" -p "$PGPORT" -U spool -d "$db" -c "SET ROLE $APP_ROLE; GRANT USAGE ON SCHEMA public TO $RT_ROLE; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $RT_ROLE" >/dev/null; fi
+  ( cd "$MOD" && SPOOL_TEST_PG_DSN="$pdsn" SPOOL_TEST_SQL_DIR="$SQL_DIR" SPOOL_TEST_PG_RUNTIME_DSN="$(rt_dsn "$db")" \
       CGO_ENABLED=1 go test -race -count=1 "./internal/$pkg/" ) &
   pids+=("$!")
 done
@@ -107,11 +118,29 @@ for p in "${pids[@]}"; do wait "$p" || rc=1; done
 [ "$rc" -eq 0 ] || { echo "FAIL - Postgres package suites"; exit 1; }
 echo "ok   - internal/store + internal/hub + internal/auth (015 CredStore) suites green against Postgres"
 
-# 017 T021 CONTROL: the RLS tests must RUN (not skip) as the plain owner role.
+# 017 T021 + FR-SEC-014 CONTROL: EVERY ^TestRLS test must RUN and PASS (a
+# skip is a failure), counted from the source so a new one cannot hide.
 rls="$(cd "$MOD" && SPOOL_TEST_PG_DSN="$(app_dsn spool_hub_store)" SPOOL_TEST_SQL_DIR="$SQL_DIR" \
+  SPOOL_TEST_PG_RUNTIME_DSN="$(rt_dsn spool_hub_store)" \
   go test -count=1 -run '^TestRLS' -v ./internal/store/ 2>&1)" || { echo "FAIL - RLS control: $rls"; exit 1; }
-[ "$(grep -c -- '--- PASS: TestRLS' <<<"$rls")" -eq 3 ] || { echo "FAIL - RLS control did not run: $rls"; exit 1; }
-echo "ok   - rdb 0014 RLS: tenant A's scope sees 0 rows of B in 12 tables; unscoped sees 0; without FORCE it leaked (CONTROL)"
+want_rls="$(cat "$MOD"/internal/store/*_test.go | grep -c '^func TestRLS')"
+[ "$(grep -c -- '--- PASS: TestRLS' <<<"$rls")" -eq "$want_rls" ] || { echo "FAIL - RLS control: not all $want_rls TestRLS ran: $rls"; exit 1; }
+echo "ok   - RLS: $want_rls TestRLS PASS - every tenant_id table (from the catalogue) ENABLE+FORCE with a fail-closed tenant policy, the gate goes red on 6 scratch shapes, '' leaked under the 0014 form, store refuses an empty tenant, a non-owner runtime role cannot lift RLS (CONTROLS)"
+
+# FR-SEC-014 CONTROL through a real migration: a scratch file adding a
+# tenant_id table without RLS turns the catalogue gate red.
+mkdir -p "$WORK/sql-scratch"
+cp "$SQL_DIR"/*.sql "$WORK/sql-scratch/"
+printf '%s\n' 'CREATE TABLE scratch_unprotected (tenant_id text NOT NULL REFERENCES tenants (tenant_id));' >"$WORK/sql-scratch/9999_scratch_unprotected.sql"
+mkdb spool_hub_scratch
+"$BIN" migrate --db "$(app_dsn spool_hub_scratch)" --sql-dir "$WORK/sql-scratch" >/dev/null
+if red="$(cd "$MOD" && SPOOL_TEST_PG_DSN="$(app_dsn spool_hub_scratch)" SPOOL_TEST_SQL_DIR="$WORK/sql-scratch" \
+  go test -count=1 -run '^TestRLSPoliciesFailClosed$' ./internal/store/ 2>&1)"; then
+  echo "FAIL - the RLS gate stayed green with an unprotected tenant_id table: $red"; exit 1
+fi
+grep -q 'scratch_unprotected: carries tenant_id but row security is enable=false force=false' <<<"$red" ||
+  { echo "FAIL - the RLS gate went red for the wrong reason: $red"; exit 1; }
+echo "ok   - RLS gate CONTROL: a scratch migration with an unprotected tenant_id table turns TestRLSPoliciesFailClosed red"
 
 # 010 FR-014: the operator invite seats a first owner where bootstrap is off.
 INV_PUB="$("$BIN" root-keygen --out "$WORK/inv-root.key")"

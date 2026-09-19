@@ -130,6 +130,15 @@ func cmdServe() int {
 		} else {
 			log.Info().Msg("db.rls_role_bound: the hub role is subject to row level security")
 		}
+		// 017 FR-SEC-014: a role that owns the tables can lift FORCE itself.
+		if why, err := pg.HubRoleCanLiftRLS(ctx); err != nil {
+			log.Warn().Err(err).Msg("db.rls_lift_unknown")
+		} else if len(why) > 0 {
+			log.Warn().Str("severity", "WARNING").Int("paths", len(why)).Str("first", why[0]).
+				Msg("db.rls_liftable: the hub role could switch tenant row level security off (it should not own the tables)")
+		} else {
+			log.Info().Msg("db.rls_not_liftable: the hub role cannot switch row level security off")
+		}
 	}
 	// Registration + membership are store-backed (010 T012/T013, rdb 0006).
 	// The IdP picture lands in the same tenant blob store (010 T044).

@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -17,9 +19,25 @@ const (
 	pgScopeOperator = `SELECT set_config('app.rls_scope', 'operator', true)`
 )
 
+// ErrNoTenant: a tenant-scoped statement was asked for without a tenant. The
+// store refuses it before it reaches Postgres (specs/017 FR-SEC-014): an empty
+// scope is an error, never "every row" and never a silent empty answer.
+var ErrNoTenant = errors.New("store: tenant-scoped statement without a tenant")
+
+// checkTenant is the store half of fail-closed; 0021 is the database half.
+func checkTenant(tenant string) error {
+	if strings.TrimSpace(tenant) == "" {
+		return ErrNoTenant
+	}
+	return nil
+}
+
 // inTenant runs fn in one transaction scoped to tenant. A query in fn that
 // forgets WHERE tenant_id still cannot see or write another tenant's rows.
 func (s *Postgres) inTenant(ctx context.Context, tenant string, fn func(pgx.Tx) error) error {
+	if err := checkTenant(tenant); err != nil {
+		return err
+	}
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, pgScopeTenant, tenant); err != nil {
 			return err
@@ -33,6 +51,9 @@ func (s *Postgres) inTenant(ctx context.Context, tenant string, fn func(pgx.Tx) 
 // ends with it (measured: inTenant's BEGIN / set_config / COMMIT added three
 // round trips to every single-statement call).
 func (s *Postgres) tenantBatch(ctx context.Context, tenant, sql string, args []any, use func(pgx.BatchResults) error) error {
+	if err := checkTenant(tenant); err != nil {
+		return err
+	}
 	b := &pgx.Batch{}
 	b.Queue(pgScopeTenant, tenant)
 	b.Queue(sql, args...)
@@ -116,4 +137,37 @@ func (s *Postgres) RLSBypassed(ctx context.Context) (bool, error) {
 	var by bool
 	err := s.pool.QueryRow(ctx, `SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user`).Scan(&by)
 	return by, err
+}
+
+// HubRoleCanLiftRLS lists every way the connected role could switch tenant
+// row level security off for itself (specs/017 FR-SEC-014): superuser or
+// BYPASSRLS, owning (or being able to SET ROLE to the owner of) a tenant_id
+// table - an owner may ALTER TABLE ... NO FORCE / DISABLE ROW LEVEL SECURITY
+// or DROP POLICY - or being able to SET ROLE to a superuser / BYPASSRLS role.
+// Empty means the role is bound and cannot unbind itself.
+func (s *Postgres) HubRoleCanLiftRLS(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT 'superuser or BYPASSRLS' FROM pg_roles WHERE rolname = current_user AND (rolsuper OR rolbypassrls)
+		UNION ALL
+		SELECT 'can SET ROLE to ' || r.rolname || ' (superuser or BYPASSRLS)' FROM pg_roles r
+		 WHERE r.rolname <> current_user AND (r.rolsuper OR r.rolbypassrls) AND pg_has_role(current_user, r.oid, 'MEMBER')
+		UNION ALL
+		SELECT 'owns or can SET ROLE to the owner of ' || c.relname FROM pg_class c
+		  JOIN pg_namespace n ON n.oid = c.relnamespace
+		  JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped
+		 WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND pg_has_role(current_user, c.relowner, 'MEMBER')
+		ORDER BY 1`)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	err = scanRows(rows, func(r pgx.Rows) error {
+		var why string
+		if err := r.Scan(&why); err != nil {
+			return err
+		}
+		out = append(out, why)
+		return nil
+	})
+	return out, err
 }

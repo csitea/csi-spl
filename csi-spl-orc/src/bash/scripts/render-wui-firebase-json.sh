@@ -88,9 +88,10 @@ if not pages:
     sys.exit("FATAL no html under " + public_dir)
 
 # connect-src: 'self' plus the hub hosts from cnf, each over https and wss.
-#   * the api host(s) <label>.<BASE_DOMAIN>: 032 api_host_label (Cloud Run
-#     domain mapping, no LB) and any 031 extra_host_labels. dev.api.<domain>
-#     is OUTSIDE *.dev.<domain>, so each is listed on its own.
+#   * the api host: env.dns.api_fqdn (the 032 Cloud Run domain mapping, no
+#     LB), plus any 031 extra_host_labels as <label>.<BASE_DOMAIN>.
+#     dev.api.<domain> is OUTSIDE *.dev.<domain>, so each is listed on its own.
+#     A missing api_fqdn is fatal: without it the WUI cannot reach auth.
 #   * the tenant hosts <tenant>.<fqdn>: env.dns.mapped_tenants when cnf
 #     enumerates them (each one has its own domain mapping), otherwise
 #     *.<fqdn> — the WUI reads and opens its WebSocket on the tenant host.
@@ -98,11 +99,11 @@ if not pages:
 env = json.load(open(cnf))["env"]
 base = env["dns"]["BASE_DOMAIN"]
 steps = env.get("steps", {})
+api_fqdn = env["dns"].get("api_fqdn", "")
+if not api_fqdn:
+    sys.exit("FATAL env.dns.api_fqdn is empty in " + cnf + ": connect-src would omit the hub api host")
 labels = list(steps.get("031-gcp-hub-ingress", {}).get("extra_host_labels", []) or [])
-api_label = steps.get("032-gcp-cloud-run-domain-mapping", {}).get("api_host_label", "")
-if api_label:
-    labels.append(api_label)
-hosts = [l + "." + base for l in labels if l]
+hosts = [api_fqdn] + [l + "." + base for l in labels if l]
 tenants = env["dns"].get("mapped_tenants")
 hosts += [t + "." + fqdn for t in tenants] if tenants else ["*." + fqdn]
 connect = ["'self'"]

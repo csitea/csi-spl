@@ -124,11 +124,11 @@ for (const env of ['dev', 'prd']) {
       }
       const base = e.dns.BASE_DOMAIN
       for (const h of hosts) assert.ok(h === base || h.endsWith(`.${base}`), `${h} is outside ${base}`)
-      // the api host of this env (<label>.<BASE_DOMAIN>) and the tenant host(s)
-      const s = e.steps ?? {}
-      const labels = [...(s['031-gcp-hub-ingress']?.extra_host_labels ?? [])]
-      if (s['032-gcp-cloud-run-domain-mapping']?.api_host_label) labels.push(s['032-gcp-cloud-run-domain-mapping'].api_host_label)
-      for (const l of labels) assert.ok(hosts.includes(`${l}.${base}`), `api host ${l}.${base}`)
+      // the api host of this env (env.dns.api_fqdn: sign-in and the session
+      // probe go there cross-origin) and the tenant host(s)
+      assert.ok(e.dns.api_fqdn, 'cnf env.dns.api_fqdn')
+      assert.ok(hosts.includes(e.dns.api_fqdn), `api host ${e.dns.api_fqdn}`)
+      for (const l of e.steps?.['031-gcp-hub-ingress']?.extra_host_labels ?? []) assert.ok(hosts.includes(`${l}.${base}`), `extra host ${l}.${base}`)
       const tenants = e.dns.mapped_tenants
       const tenantHosts = tenants?.length ? tenants.map((t) => `${t}.${e.dns.fqdn}`) : [`*.${e.dns.fqdn}`]
       for (const t of tenantHosts) assert.ok(hosts.includes(t), `tenant host ${t}`)

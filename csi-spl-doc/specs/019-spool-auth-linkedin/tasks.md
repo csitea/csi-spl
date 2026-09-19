@@ -26,7 +26,7 @@
 ## Phase 5 — Live (blocked on the owner: `~/.gcp/.csi/.spl/linkedin-client-{dev,prd}.json`)
 
 - [ ] T050 Owner: `owner-runbook.md` §2–§3 for dev and prd.
-- [ ] T051 dev: client id in `dev.env.yaml`, seed (`IDP=linkedin ENV=dev DRY_RUN=0`), list `linkedin`, deploy, SC-L3.
+- [ ] T051 dev: client id in `dev.env.yaml`, seed (`IDP=linkedin ENV=dev DRY_RUN=0`), list `linkedin`, deploy, SC-L3. The running hub image must be built from a tree containing `e9815b8` (T010): on 2026-09-19 both envs run `spool-hub:0.1.4` (`do_check_hub_deploy` → `current`, CI run 35445875372), a tag built before it, so the listing waits for the next `env.hub.image.tag` bump (deploy lane).
 - [ ] T052 prd: the same, after T051 and T030 are live in prd (OQ-L5).
 
 <!-- version: 0.1.0 · updated: 2026-09-19 -->

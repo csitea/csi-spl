@@ -77,6 +77,8 @@ refused "a non-0600 owner file"
 stripe_env dev "notakey" "$WH";              refused "a malformed secret key"
 stripe_env dev "$SK_LIVE" "$WH";             refused "a live secret key on dev"
 stripe_env dev "$SK_TEST" "not-a-webhook";   refused "a non-whsec_ webhook secret"
+stripe_env dev "$SK_TEST" "";
+out=$(run_act); grep -q "left to do_spl_provision_stripe_endpoints" <<<"$out" && pass "no webhook secret in the file: the slot is left to the endpoints action" || fail "no-whsec: $out"
 stripe_env prd "$SK_TEST" "$WH"
 ENV_=prd refused "a test secret key on prd"
 stripe_env dev "$SK_TEST" "$WH"

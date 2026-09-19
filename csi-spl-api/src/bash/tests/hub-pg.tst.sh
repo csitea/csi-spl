@@ -127,6 +127,18 @@ want_rls="$(cat "$MOD"/internal/store/*_test.go | grep -c '^func TestRLS')"
 [ "$(grep -c -- '--- PASS: TestRLS' <<<"$rls")" -eq "$want_rls" ] || { echo "FAIL - RLS control: not all $want_rls TestRLS ran: $rls"; exit 1; }
 echo "ok   - RLS: $want_rls TestRLS PASS - every tenant_id table (from the catalogue) ENABLE+FORCE with a fail-closed tenant policy, the gate goes red on 6 scratch shapes, '' leaked under the 0014 form, store refuses an empty tenant, a non-owner runtime role cannot lift RLS (CONTROLS)"
 
+# 017 FR-SEC-015: the ONE cross-tenant suite (TestCrossTenant* in store and
+# hub, CLE-3415's TestCrossTenantIdentity* included) must RUN and PASS in
+# full against Postgres - counted from the source, so a skip is a failure.
+for pkg in store; do
+  ct="$(cd "$MOD" && SPOOL_TEST_PG_DSN="$(app_dsn "spool_hub_$pkg")" SPOOL_TEST_SQL_DIR="$SQL_DIR" \
+    go test -count=1 -run '^TestCrossTenant' -v "./internal/$pkg/" 2>&1)" || { echo "FAIL - cross-tenant suite ($pkg): $ct"; exit 1; }
+  want_ct="$(cat "$MOD/internal/$pkg/"*_test.go | grep -c '^func TestCrossTenant')"
+  [ "$want_ct" -gt 0 ] && [ "$(grep -c -- '^--- PASS: TestCrossTenant' <<<"$ct")" -eq "$want_ct" ] ||
+    { echo "FAIL - cross-tenant suite ($pkg): not all $want_ct TestCrossTenant ran: $ct"; exit 1; }
+  echo "ok   - cross-tenant suite ($pkg): $want_ct TestCrossTenant PASS against Postgres"
+done
+
 # FR-SEC-014 CONTROL through a real migration: a scratch file adding a
 # tenant_id table without RLS turns the catalogue gate red.
 mkdir -p "$WORK/sql-scratch"

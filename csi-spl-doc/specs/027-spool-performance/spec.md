@@ -47,6 +47,8 @@ None of the audit's items is already fixed on trunk.
 
 - **D1 (item 5)**: argon2id CPU on 1 vCPU. Options: (a) `cpu: "2"` in cnf (about 2x the Cloud Run vCPU cost); (b) keep 1 vCPU and cap concurrent hashes in process with a semaphore (zero cost; logins queue instead of starving the WS loop); (c) lower the params (refused: the code enforces the OWASP floor). Recommendation: (b), measured first.
 - **D3 (found by T040, not a perf item)**: the month quota is `COUNT(*)` of messages that still exist (`store/postgres.go:368`, `received_at >= period start`). Retention deletes #alerts after 7 days (cnf `SPOOL_HUB_RETENTION_ALERTS: "168h"`), so a tenant's usage for the month DROPS as its messages expire. T040 keeps that behaviour byte-identical (the counter decrements on delete, FR-002). Question for the owner: should the quota count messages *sent* in the period (monotonic)? Recommendation: yes, as a separate billing lane after T040. The counter then simply stops decrementing.
+- **D4 (T020 follow-up)**: a hub crash between the tmp upload's finalize and its promote leaves an object under `tmp/<tenant>/`. Proposed: a bucket lifecycle rule (`matchesPrefix tmp/`, age 1 day) in the 050 terraform step via make/tf-runner. It needs the owner's go (terraform apply). Recommendation: yes.
+- **Accepted T020 trade-offs** (measured, FR-001): GCS upload latency rises 169 -> 246 ms/upload (the server-side copy) in exchange for peak heap 605 -> 8 MiB over 8 concurrent 32 MiB uploads. A re-upload of bytes the tenant already holds, sent WITH `Content-Length` while the tenant is at quota, is now 429 from the pre-check (it was 201); without `Content-Length` it is unchanged.
 - **D2 (P3b)**: multi-instance fanout. Recommendation: not now. Revisit only once a measured single-instance ceiling is reached.
 
-<!-- last-edit: 2026-09-19T17:11:48Z -->
+<!-- last-edit: 2026-09-19T17:12:58Z -->

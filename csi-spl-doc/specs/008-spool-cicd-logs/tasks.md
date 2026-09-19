@@ -91,9 +91,9 @@ its deploy check; terraform and applies stay 007's / the owner's.
       `contracts/pipeline.md` §3 (`workloadIdentityUser` is already in 017;
       add `artifactregistry.reader`+`writer` on the 028 repo, `run.developer`
       on the 030 service, `iam.serviceAccountUser` on the hub runtime SA).
-- [ ] T105 [US2] [owner go] dev: apply 017, then export its outputs:
-      `gh variable set GCP_WIF_PROVIDER_DEV` / `GCP_DEPLOY_SA_EMAIL_DEV`
-      from `terraform output -raw wif_provider_name` / `deploy_sa_email`.
+- [~] T105 [US2] dev + prd: 017 applied 2026-09-19 (make, project key, 7 added each). The export is superseded
+      by the owner's key auth: tf 120 published `GCP_KEY_CSI_SPL_{DEV,PRD}` (`gh secret list -R csitea/csi-spl` -> both,
+      09:58Z), and 20/00/30 authenticate with it first, WIF second (f8721dd).
 - [ ] T106 [US2] First live dev deploy: bump dev `hub.image.tag`, push;
       record the run id; require the deploy job `success` (not `skipped`),
       image == cnf ref, Ready, latest revision ready. Closes FR-P05/P06/P08

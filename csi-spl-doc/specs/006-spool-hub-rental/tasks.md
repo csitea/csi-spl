@@ -31,7 +31,11 @@ are not duplicated here.
 - [x] T011 [FR-005] Smoke: two `$SPOOL_ROOT`s, GRK→CLE `task` and `result` back, no GCP env — **Implemented** (`hub-e2e.tst.sh` → `ALL HUB E2E CHECKS PASSED`).
 - [x] T011b [FR-011] Three pinned peers A→B, B→C, C→A `task` all delivered; prefix never changes auth — **Implemented** (`TestThreePeerMeshRing`).
 - [ ] T011c [FR-004] Cloud: owner-made tenant on `dev`, then `prd`; two real machines; M1 demo steps 2–4 — **Planned**; blocked on 007 README §6 steps 3–10 (dev hub exists but has no LB/DNS; prd APIs disabled).
-- [ ] T011d [FR-007] Dev owner tenant `t1` (the WUI's dev default, `nuxt.config.ts` `tenant`) so the dev WUI has data: `ENV=dev DRY_RUN=0 GCP_ACCOUNT=<OPERATOR> TENANT_ID=t1 ./run -a do_spl_tenant_create` from `csi-spl-orc` (with no `SPOOL_HUB_DB_DSN` the action now reads the DSN secret as `GCP_ACCOUNT` and goes through the Cloud SQL proxy, like `do_spl_db_bootstrap`; the root private key is printed once on stdout, keep it out of logs). Check: `curl -s -o /dev/null -w '%{http_code}' https://t1.dev.spool-hub.ai/v1/view/threads` -> not `404` (was `404 unknown_tenant`, 2026-09-19). — **Planned**; code path in `tenant-create.tst.sh` §5; blocked 2026-09-19T05:45Z on the operator's gcloud re-login (reauth required, n=1).
+- [x] T011d [FR-007] Dev owner tenant `t1` (the WUI's dev default) — **Implemented** 2026-09-19T10:02Z (CLE-3355):
+      `ENV=dev DRY_RUN=0 TENANT_ID=t1 GCP_ACCOUNT=<project SA> ./run -a do_spl_tenant_create` from `csi-spl-orc`, run as the
+      dev project key in a throwaway CLOUDSDK_CONFIG; the root private key went straight to a 0600 file owned by the box
+      user, never to a log or message. Check: `curl -s https://t1.dev.spool-hub.ai/v1/view/threads` -> `{"next":null,"threads":[]}` 200
+      (was `404 unknown_tenant`).
 
 ## Phase 4: Quota / unpaid (US4)
 

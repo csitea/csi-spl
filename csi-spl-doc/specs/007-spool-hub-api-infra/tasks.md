@@ -85,8 +85,10 @@ Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
 
 - [x] T049 Land `017-github-wif-deploy` with a deploy SA it creates and scoped
       grants (`2a7888c`; iac suite 6/6, `validate 017-github-wif-deploy` PASS) — FR-013
-- [ ] T050 Apply `017` per env after `028` + `030` (owner go, apply lane); export `GCP_WIF_PROVIDER_<ENV>` /
-      `GCP_DEPLOY_SA_EMAIL_<ENV>` as repo variables for `008` — FR-013, SC-005
+- [~] T050 Apply `017` per env after `028` + `030` — FR-013, SC-005. **Applied** dev + prd 2026-09-19 through
+      `make do-provision` on the project key (7 added each; CLE-3355). The WIF variable export is superseded:
+      the owner chose project-key auth for CI (GitHub secret `GCP_KEY_CSI_SPL_<ENV>`, tf 120); WIF stays the
+      alternative. Check: `ENV=dev STEP=017-github-wif-deploy make do-tf-plan` -> No changes.
 
 ## Phase 6: remaining copies + hygiene
 

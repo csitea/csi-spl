@@ -107,6 +107,15 @@ mount the tree that last ran `make do-setup-app-inf`.
   the key with `gh secret set` from a local-exec, not as a resource
   attribute).
 
+  Per item (owner answer (a), 2026-09-19; CLE-3355):
+
+  | ported item | csi-rel does | csi-spl does | csi-spl CLAUDE.md rule it satisfies | evidence |
+  |---|---|---|---|---|
+  | gcp-002 SA + key | `gcloud config set account/project`, `gcloud auth login` | `--account` per call, no config write; dry run unless `DRY_RUN=0`; the org key-creation policy is lifted only when enforced and re-enforced on every path (a failed key create included); a stale key file is refused | "every gcloud call carries `--account` ... never `gcloud config set` anything" | `gcp-002-004-bootstrap.tst.sh` (36 assertions); live 2026-09-19 08:20Z: both keys minted, policy was not enforced so it was never touched |
+  | gcp-003 roles/owner | `config set project`, grants unconditionally | `--account`, three-way SA check, no re-grant | same | live: "holds roles/owner" dev + prd |
+  | gcp-004 bootstrap APIs | `auth application-default set-quota-project` (writes shared ADC) | enables only the missing ones, no ADC write | same | live: enabled cloudresourcemanager, which was OFF in both projects |
+  | 120 github secrets | `github_actions_secret.plaintext_value` + a Secret Manager mirror: the key is in tf state | `terraform_data` + local-exec `gh secret set < keyfile`; state holds only `filesha256(key)` | "No key in git, in terraform state or in a log" | `github-secrets-120.tst.sh`; live state of 120 dev/prd: 1766 B, `private_key` 0 hits, sha256 1 hit |
+
 ## 4. The gcp-* actions and the other terraform callers
 
 See [`csi-rel-gcp-actions.md`](csi-rel-gcp-actions.md) (lane IAC-GCP-ACTIONS)

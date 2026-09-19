@@ -130,7 +130,7 @@ echo "ok   - RLS: $want_rls TestRLS PASS - every tenant_id table (from the catal
 # 017 FR-SEC-015: the ONE cross-tenant suite (TestCrossTenant* in store and
 # hub, CLE-3415's TestCrossTenantIdentity* included) must RUN and PASS in
 # full against Postgres - counted from the source, so a skip is a failure.
-for pkg in store; do
+for pkg in store hub; do
   ct="$(cd "$MOD" && SPOOL_TEST_PG_DSN="$(app_dsn "spool_hub_$pkg")" SPOOL_TEST_SQL_DIR="$SQL_DIR" \
     go test -count=1 -run '^TestCrossTenant' -v "./internal/$pkg/" 2>&1)" || { echo "FAIL - cross-tenant suite ($pkg): $ct"; exit 1; }
   want_ct="$(cat "$MOD/internal/$pkg/"*_test.go | grep -c '^func TestCrossTenant')"

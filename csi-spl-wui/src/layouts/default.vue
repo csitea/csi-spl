@@ -15,6 +15,10 @@
         <ThreadPane />
         <LiveThreadPane />
       </div>
+      <!-- CLE-3402: the signed-in person's avatar + dropdown, top-right -->
+      <div class="app-corner" data-test="app-corner">
+        <UserMenu />
+      </div>
       <template #fallback>
         <div class="login"><p class="muted">Loading Spool…</p></div>
       </template>

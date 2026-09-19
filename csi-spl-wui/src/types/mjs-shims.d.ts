@@ -279,3 +279,22 @@ declare module '~/utils/checkout-client.mjs' {
     onStatus?: (s: string) => void
   }): Promise<ClaimOutcome>
 }
+
+declare module '~/utils/user-menu.mjs' {
+  export interface UserIdentity {
+    hum: string
+    name: string
+    email: string
+    method: string
+    tenant: string
+    primary: string
+    secondary: string
+  }
+  export function userIdentity(claims: unknown): UserIdentity
+  export function userInitials(claims: unknown): string
+  export function avatarMode(claims: unknown): 'member' | 'initials' | 'silhouette'
+  export function methodLabel(p: unknown): string
+  export function menuButtonLabel(claims: unknown): string
+  export function nextMenuIndex(current: number, key: string, count: number): number
+  export function signInRedirect(fullPath: string): string
+}

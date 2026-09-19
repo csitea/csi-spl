@@ -422,3 +422,23 @@ button, textarea, input { font-family: inherit; }
     box-shadow: -8px 0 24px rgb(0 0 0 / .35);
   }
 }
+
+/* CLE-3402 top-right user control: one fixed corner cluster (UserMenu, and
+   the language switcher when CLE-3403 lands it BEFORE the avatar). The
+   right-most headers reserve --app-corner-w so the corner never covers
+   their controls (thread pane Close/Open, feed header text). */
+:root { --app-corner-w: 56px; }
+.app-corner {
+  position: fixed;
+  top: 4px;
+  right: 8px;
+  z-index: var(--z-sticky, 40);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 16px);
+}
+.feed-header,
+.thread header {
+  padding-right: calc(var(--app-corner-w) + 16px);
+}

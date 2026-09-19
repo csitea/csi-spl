@@ -1,0 +1,31 @@
+#!/bin/bash
+#------------------------------------------------------------------------------
+# @description Bootstrap one env's GCP prerequisites in order: gcp-001 (project +
+# @description billing), gcp-002 (IaC SA + key), gcp-003 (roles/owner), gcp-004
+# @description (bootstrap APIs). A thin orchestrator: every step is idempotent,
+# @description dry-run by default and stops the run on its own failure (they
+# @description exit), so a later step never runs on an earlier step's unread
+# @description state. Ported from csi-rel-iac gcp-000, minus its interactive
+# @description login and `gcloud config set account`: the caller proves the
+# @description identity (gcloud auth login GCP_ACCOUNT, as the box user) first.
+# @param ENV - required: dev or prd
+# @param GCP_ACCOUNT - required: an org-level human identity
+# @param GCP_ORG_ID - required (gcp-002 sets the org policy there; gcp-001 parent)
+# @param GCP_BILLING_ACCOUNT_ID - required by gcp-001
+# @param DRY_RUN (optional) - 1 (default) for every step. 0: mutate.
+# @example ENV=dev GCP_ACCOUNT=admin@example.com GCP_ORG_ID=123456789012 GCP_BILLING_ACCOUNT_ID=XXXXXX-XXXXXX-XXXXXX ./run -a do_gcp_000_bootstrap_gcp_env
+#------------------------------------------------------------------------------
+do_gcp_000_bootstrap_gcp_env() {
+  do_require_var GCP_ORG_ID "${GCP_ORG_ID:-}"
+
+  do_log "INFO ============================================"
+  do_log "INFO Bootstrap GCP env ${ENV:-<unset>} DRY_RUN=${DRY_RUN:-1}"
+  do_log "INFO ============================================"
+
+  do_gcp_001_create_project
+  do_gcp_002_create_project_service_account
+  do_gcp_003_configure_proj_sa_permissions
+  do_gcp_004_project_apis_enable
+
+  do_log "OK Bootstrap complete for ${PROJ_ID:-?}; SA key: \$HOME/.gcp/.${ORG:-<org>}/key-${PROJ_ID:-<project>}.json"
+}

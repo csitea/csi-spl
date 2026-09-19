@@ -20,14 +20,30 @@ timeout_seconds              = {{ hub["cloud_run"]["timeout_seconds"] | tojson }
 ingress                      = {{ hub["cloud_run"]["ingress"] | tojson }}
 cloud_sql_instance_name      = {{ steps["040-cloud-sql-postgres"]["instance_name"] | tojson }}
 files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | tojson }}
-{#- spec 010 T020: the auth env joins hub.env; from auth.social.secret_env only
-    the session key and the LISTED providers' secrets are injected (Cloud Run
-    refuses a revision whose secret has no version). Every slot is created. #}
+{#- spec 010 T020: auth.social.env, auth.native.env and mail.env join hub.env
+    (plain values). Secrets are injected only when used, since Cloud Run refuses
+    a revision whose secret has no version: the session key when an IdP is
+    listed or native sign-in is enabled, each LISTED IdP's client secret, and the
+    SMTP password while SPOOL_HUB_MAIL_TRANSPORT=smtp. Every slot is created. #}
 {%- set auth_env = auth["social"]["env"] %}
 {%- set auth_sec = auth["social"]["secret_env"] %}
 {%- set run_env = dict(hub["env"], **auth_env) %}
 {%- set run_sec = dict(hub["secret_env"]) %}
 {%- set listed = auth_env["SPOOL_HUB_AUTH_PROVIDERS"].split(",") | map("trim") | reject("equalto", "") | list %}
+{#- native sign-in (spec 015) needs the session key even with no IdP listed #}
+{%- set native_env = auth["native"]["env"] if (auth["native"] is defined and auth["native"]["env"] is defined) else {} %}
+{%- set native_on = (native_env.get("SPOOL_HUB_AUTH_NATIVE_ENABLED", "false") | string | lower) == "true" %}
+{%- set _ = run_env.update(native_env) %}
+{%- if native_on %}
+{%- set _ = run_sec.update({"SPOOL_HUB_AUTH_SESSION_KEY": auth_sec["SPOOL_HUB_AUTH_SESSION_KEY"]}) %}
+{%- endif %}
+{%- set mail_env = mail["env"] if (mail is defined and mail["env"] is defined) else {} %}
+{%- set mail_sec = mail["secret_env"] if (mail is defined and mail["secret_env"] is defined) else {} %}
+{%- set _ = run_env.update(mail_env) %}
+{%- if mail_env.get("SPOOL_HUB_MAIL_TRANSPORT", "none") == "smtp" %}
+{%- set _ = run_sec.update(mail_sec) %}
+{%- endif %}
+{%- set slot_ids = (auth_sec.values() | list) + (mail_sec.values() | list) %}
 {%- if listed %}
 {%- set _ = run_sec.update({"SPOOL_HUB_AUTH_SESSION_KEY": auth_sec["SPOOL_HUB_AUTH_SESSION_KEY"]}) %}
 {%- for p in listed %}
@@ -37,4 +53,4 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- endif %}
 environment_variables        = {{ run_env | tojson }}
 secret_environment_variables = {{ run_sec | tojson }}
-auth_secret_ids              = {{ auth_sec.values() | list | tojson }}
+auth_secret_ids              = {{ slot_ids | tojson }}

@@ -142,6 +142,6 @@ variable "files_bucket_name" {
 
 variable "auth_secret_ids" {
   type        = list(string)
-  description = "Secret Manager ids of the sign-in secrets (cnf env.auth.social.secret_env values). 030 creates each as an empty slot; versions are added out of band."
+  description = "Secret Manager ids of the sign-in + mail secrets (cnf env.auth.social.secret_env + env.mail.secret_env values). 030 creates each as an empty slot; versions are added out of band."
   default     = []
 }

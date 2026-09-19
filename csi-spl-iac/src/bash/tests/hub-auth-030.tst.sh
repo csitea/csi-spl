@@ -20,8 +20,8 @@ fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 skip() { echo "SKIP: $1"; }
 
 CNF="$APP_ROOT/csi-spl-cnf/csi-spl"
-slots=$(yq -r '.env.auth.social.secret_env | to_entries | .[].value' "$CNF/all.env.yaml" | sort | tr '\n' ' ')
-[[ "$(wc -w <<<"$slots")" -eq 6 ]] && pass "cnf names 6 auth secret slots (session key + 5 IdPs)" || fail "cnf auth secret slots: $slots"
+slots=$(yq -r '(.env.auth.social.secret_env, .env.mail.secret_env) | to_entries | .[].value' "$CNF/all.env.yaml" | sort | tr '\n' ' ')
+[[ "$(wc -w <<<"$slots")" -eq 7 ]] && pass "cnf names 7 secret slots (session key + 5 IdPs + SMTP password)" || fail "cnf secret slots: $slots"
 
 for env in dev prd; do
   v="$CNF/$env/tf/030-cloud-run-hub.vars.tfvars"
@@ -34,8 +34,8 @@ for env in dev prd; do
   done
   grep -qE 'SESSION_KEY|CLIENT_SECRET' <<<"$envline" && fail "$env an auth secret is a plain env var" || pass "$env no auth secret is a plain env var"
   grep -q 'SPOOL_HUB_AUTH' <<<"$secline" && fail "$env injects an auth secret while no provider is listed" || pass "$env injects no auth secret while no provider is listed"
-  got=$(grep -E '^auth_secret_ids ' "$v" | grep -oE 'csi-spl-hub-auth-[a-z-]+' | sort | tr '\n' ' ')
-  [[ "$got" == "$slots" ]] && pass "$env 030 creates all 6 auth slots" || fail "$env auth_secret_ids: $got"
+  got=$(grep -E '^auth_secret_ids ' "$v" | grep -oE 'csi-spl-hub-(auth|mail)-[a-z-]+' | sort | tr '\n' ' ')
+  [[ "$got" == "$slots" ]] && pass "$env 030 creates all 7 slots" || fail "$env auth_secret_ids: $got"
 done
 
 TFD="$PROJ_ROOT/src/terraform/030-cloud-run-hub"
@@ -49,17 +49,28 @@ if [[ -x "$TPG/.venv/bin/python" ]]; then
   # shellcheck disable=SC1091
   source "$PROJ_ROOT/lib/bash/funcs/spl-merged-cnf.func.sh"
   do_spl_merged_cnf "$CNF" dev "$tmp/dev.env.yaml"
-  yq -i '.env.auth.social.env.SPOOL_HUB_AUTH_PROVIDERS = "google, xai"' "$tmp/dev.env.yaml"
-  out=$(cd "$TPG" && ENV=dev TPL="$PROJ_ROOT/src/tpl/%org%-%app%/%env%/tf/030-cloud-run-hub.vars.tfvars.tpl" CNF="$tmp/dev.env.yaml" \
+  render() { (cd "$TPG" && ENV=dev TPL="$PROJ_ROOT/src/tpl/%org%-%app%/%env%/tf/030-cloud-run-hub.vars.tfvars.tpl" CNF="$tmp/dev.env.yaml" \
     .venv/bin/python -c '
 import os, yaml, jinja2
 cnf = yaml.safe_load(open(os.environ["CNF"]))["env"]
 tpl = jinja2.Environment(undefined=jinja2.StrictUndefined).from_string(open(os.environ["TPL"]).read())
-print(tpl.render(**{**cnf, "ORG": "csi", "APP": "spl", "ENV": "dev"}))' 2>&1)
-  sec=$(grep -E '^secret_environment_variables ' <<<"$out" | grep -oE '"SPOOL_HUB_[A-Z_]+"' | sort | tr '\n' ' ')
+print(tpl.render(**{**cnf, "ORG": "csi", "APP": "spl", "ENV": "dev"}))' 2>&1); }
+  injected() { grep -E '^secret_environment_variables ' <<<"$1" | grep -oE '"SPOOL_HUB_[A-Z_]+"' | sort | tr '\n' ' '; }
+  cp "$tmp/dev.env.yaml" "$tmp/base.yaml"
+  yq -i '.env.auth.social.env.SPOOL_HUB_AUTH_PROVIDERS = "google, xai"' "$tmp/dev.env.yaml"
+  out=$(render); sec=$(injected "$out")
   want='"SPOOL_HUB_AUTH_GOOGLE_CLIENT_SECRET" "SPOOL_HUB_AUTH_SESSION_KEY" "SPOOL_HUB_AUTH_XAI_CLIENT_SECRET" "SPOOL_HUB_DB_DSN" '
   [[ "$sec" == "$want" ]] && pass "control: providers=google,xai injects the session key + exactly those two secrets" \
     || fail "control: providers=google,xai injected: ${sec:-<nothing>} ($(head -c 300 <<<"$out"))"
+  # spec 015: native sign-in on with no IdP listed still needs the session key;
+  # SMTP transport injects the relay password, and both plain blocks reach env
+  cp "$tmp/base.yaml" "$tmp/dev.env.yaml"
+  yq -i '.env.auth.native.env.SPOOL_HUB_AUTH_NATIVE_ENABLED = "true" | .env.mail.env.SPOOL_HUB_MAIL_TRANSPORT = "smtp"' "$tmp/dev.env.yaml"
+  out=$(render); sec=$(injected "$out")
+  want='"SPOOL_HUB_AUTH_SESSION_KEY" "SPOOL_HUB_DB_DSN" "SPOOL_HUB_MAIL_SMTP_PASSWORD" '
+  [[ "$sec" == "$want" ]] && grep -E '^environment_variables ' <<<"$out" | grep -q '"SPOOL_HUB_MAIL_TRANSPORT": "smtp"' \
+    && pass "control: native on + smtp injects the session key + SMTP password, plain mail env rendered" \
+    || fail "control: native on + smtp injected: ${sec:-<nothing>} ($(head -c 300 <<<"$out"))"
   rm -rf "$tmp"
 else
   skip "no tpl-gen venv at $TPG (control render)"

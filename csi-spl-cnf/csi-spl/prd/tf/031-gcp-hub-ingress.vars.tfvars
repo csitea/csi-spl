@@ -6,6 +6,8 @@ gcp_project = "csi-spl-prd"
 gcp_region  = "europe-north1"
 
 allowed_ip_ranges = ["0.0.0.0/0"]
+wui_origin_host = ""
+l7_narrowing = false
 extra_host_labels = ["api"]
 dns_managed_zone = "spool-hub"
 dns_zone_project = ""

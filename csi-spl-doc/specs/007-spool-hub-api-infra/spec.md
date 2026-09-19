@@ -5,11 +5,13 @@ the dir keeps its name, `../README.md` §4)
 
 **Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo)
 
-**Status**: **Partial** (re-measured 2026-09-18 ~19:45Z, §1.2) — dev runs
-through ingress (cert ACTIVE); prd holds 001, the imported zone, 040, 050,
-028 and is short of the image, DB bootstrap, 030 and 031; option A is decided
-and in effect (apex -> hub LB pending prd 030/031); `017` is on trunk and
-not applied; the secrets step, IAM users and domain verification are Planned.
+**Status**: **Partial** (restamped 2026-09-19, §1.3) — the hub serves on
+both envs through `031` (`https://spool-hub.ai/version` and
+`https://dev.spool-hub.ai/version` -> 200, commit `c972f24`); option A is in
+effect (apex -> prd hub LB); `017` is on trunk and not applied; the WUI
+Hosting estate (`016`, `019`, the `031` WUI route, §3) and the Cloud Armor
+stage-1 narrowing (§4) are written and wait on an owner GCP re-auth to apply;
+the secrets step, IAM users and domain verification are Planned.
 
 **Narrative**: `../../doc/md/SPEC-spool-hub-api-infra.md` (copy csi-rel +
 pas-psf infra, not the shop). **Index, seams, canon**: `../README.md`.
@@ -83,6 +85,20 @@ gcloud call ran read-only with `--account=$GCP_ACCOUNT`.
 | Zone records | `gcloud dns record-sets list --zone=spool-hub --project=csi-spl-prd` -> NS, SOA, `dev.` A, `*.dev.` A, `_acme-challenge.dev.` CNAME; **no apex, no www** |
 | Apex | `dig +short @ns-cloud-e1.googledomains.com A spool-hub.ai` -> empty |
 
+### 1.3 Restamp (2026-09-19 ~06:06Z, n=1 each, trunk `f5cba39`; C7 of the M3 gap analysis)
+
+No GCP identity was usable this session (`gcloud … --account=<owner>` ->
+"Reauthentication failed"; ADC expired), so these rest on public probes, not
+on terraform state.
+
+| Claim | Command -> result |
+|---|---|
+| prd hub live (T020c, T036, T042 were stale "Planned") | `curl -s https://spool-hub.ai/version` -> `{"commit":"c972f24…","version":"0.1.0-dev"}`; `www.`, `api.` -> 200 |
+| apex -> prd LB | `dig +short A spool-hub.ai @ns-cloud-e1.googledomains.com` -> `34.54.10.95` (= `www.`, `api.`) |
+| dev hosts -> dev LB | same for `dev.`, `t1.dev.`, `dev.api.` -> `136.68.5.155` |
+| T071 stale | `command grep -c api/v1/auth csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` -> `2` (`1dbc29a`) |
+| WUI not hosted (before §3) | `curl -s -o /dev/null -w '%{http_code}' https://csi-spl-{dev,prd}-site.web.app/` -> `404` `404`; `https://spool-hub.ai/login` -> `404` (05:44Z) |
+
 ---
 
 ## 2. The DNS gap and its decision
@@ -128,6 +144,86 @@ answers, both are written as tasks (T020a / T020b) and neither is executed.
 Either way the **apex stays Gandi parking** until the owner attaches the hub
 or WUI; since prd `env.dns.fqdn` is the apex, `031` in prd must not write an
 apex A record before that go.
+
+---
+
+## 3. WUI hosting and routing (M3; 005 T009, a1 Gap 8, a2 B4 / G17)
+
+**Decision (T072), recommended default implemented on dev: the `031` load
+balancer is the one front door; Firebase Hosting is its WUI origin.**
+
+On `<fqdn>` and `<tenant>.<fqdn>` a URL-map path matcher sends
+`/v1/*`, `/api/*`, `/healthz`, `/version` to the hub backend (Cloud Armor
+policy, serverless NEG -> `030`) and **every other path** to a second backend:
+a global internet NEG (`INTERNET_FQDN_PORT`) at `<site_id>.web.app:443` with
+the Host rewritten to that name, so Firebase serves the `019` site and its SPA
+fallback. Extra hosts (`api.`, `dev.api.`) keep the plain hub default.
+
+```
+browser -> https://t1.dev.<domain>/...        (cert: 031 wildcard, LB 031)
+   /v1/*  /api/*  /healthz  /version  ->  hub backend (Cloud Armor) -> Cloud Run 030
+   /v1/ws, /v1/wui/ws (WebSocket)     ->  same hub backend (ALB passes WS natively)
+   anything else                      ->  wui backend -> <site_id>.web.app (Host rewritten)
+```
+
+Why the LB path matcher and not Firebase Hosting rewrites to Cloud Run
+(the other T072 option, "rewrites"):
+
+1. **WebSocket.** `/v1/ws` (boxes) and `/v1/wui/ws` (browser live feed) must
+   pass. Firebase Hosting rewrites to Cloud Run are documented as not
+   supporting WebSocket upgrades (unmeasured here, n=0; the LB path needs no
+   such claim — the ALB already carries `/v1/ws` today).
+2. **Tenant Host.** The hub routes on `Host` = `<tenant>.<fqdn>` (006). A
+   Hosting rewrite reaches Cloud Run with the service host; the LB path keeps
+   the browser's Host untouched on hub paths.
+3. **Wildcard.** `*.<fqdn>` cannot be a Firebase custom domain; tenant hosts
+   must stay on the `031` wildcard certificate anyway.
+4. **Ingress.** `030` is `internal-and-cloud-load-balancing` (FR-011); a
+   Hosting rewrite would need it opened past the LB and its Cloud Armor.
+
+Consequences: same origin (the rendered CSP keeps `connect-src 'self'` and
+adds `https://*.<fqdn> wss://*.<fqdn>` for a page on the bare `<fqdn>`); `019`
+binds **no** custom domain (`bind_custom_domain: false`); the render's `run`
+rewrites stay (010 T016) but act only on the bare `web.app` host; `GET /` on
+a product host is now the WUI, not the hub's plain-text hello.
+
+**OQ-H1 — which host serves the WUI (owner; also closes T072).**
+(a) **Recommended, implemented on dev:** the env's own names —
+`<fqdn>` + `<tenant>.<fqdn>` — through the LB as above; in prd the apex
+`<domain>` and `<tenant>.<domain>` serve the WUI at `/` and the hub at
+`/v1/*`; `api.<domain>` stays hub-only. prd flag: cnf
+`steps.031-gcp-hub-ingress.wui_origin_host` = `""` (off) until answered.
+(b) A separate WUI host (`app.<domain>`) bound straight to Firebase
+(`019 bind_custom_domain: true`), reading the hub cross-origin on
+`<tenant>.<domain>`: needs hub CORS for that origin, the CSP widened and
+cross-site cookies for sign-in (see 010 OQ-A4 for the cookie Domain question).
+
+## 4. Cloud Armor: from the M1 open ingress to tenant-authenticated L7
+
+The hub backend's policy is `031 03-cloud-armor.tf`. Rules evaluate by
+priority, first match wins. The WUI backend (§3) carries none: it serves the
+same public bytes as `<site_id>.web.app`.
+
+| Stage | What | Rules | Where |
+|---|---|---|---|
+| 0 — M1 (FR-012) | IP allowlist `0.0.0.0/0`; the data plane gates itself (box hello signed by a pinned key, file ids are capabilities, view door) | 1000+ allow, default deny | prd today |
+| **1 — L7 host + path** | deny(403) a `Host` that is not `<fqdn>`, `<tenant>.<fqdn>` or an extra host (LB-IP scans, foreign Hosts), and a path outside `^/(v1/\|api/v1/\|healthz$\|version$)`. Boxes are unaffected: they dial `https://<tenant>.<fqdn>/v1/ws` | 900 host, 910 path | **dev (cnf `l7_narrowing: true`)**; prd = OQ-H2 |
+| 2 — rate + WAF | `throttle` per source IP on `/v1/ws` handshakes and `/api/v1/auth/*` (e.g. 120/min, exceed deny(429)); preconfigured WAF `sqli-v33-stable` / `xss-v33-stable` at sensitivity 1 on `/api/*` only (never on the WS paths) | 800–850 | M2, both envs |
+| 3 — tenant-authenticated | the Host rule lists only **registered** tenants (rendered from the 006 tenant registry into the policy on every tenant create, like the DNS-free wildcard: a policy update, not a record); `/v1/view/*` without an `Authorization` header or session cookie is refused at the edge; Adaptive Protection on. Cryptographic auth stays in the hub (Ed25519 hello, view token, session): Cloud Armor only refuses what can never succeed | 700–790 | after 006 rental + 010 sessions |
+| M2 IP allowlist (FR-012) | 403 for a non-allowlisted source, per SC-004; only once box egress CIDRs are known per tenant | 1000+ | owner |
+
+**Dev proof of stage 1** (T076): a box-style WebSocket upgrade to
+`https://<tenant>.dev.<domain>/v1/ws` still gets `101`, while the control
+requests `https://dev.api.<domain>/wp-login.php` (path) and a request to the
+LB IP with `Host: evil.example` (host) get `403` from the policy.
+
+**OQ-H2 — prd stage 1 (owner).** (a) **Recommended:** apply it now — it
+refuses only requests the hub cannot serve. (b) Keep prd on stage 0 until M2.
+Ready-to-apply (T077): set `l7_narrowing: true` in
+`csi-spl-cnf/csi-spl/prd.env.yaml` (`031-gcp-hub-ingress`), then
+`ENV=prd ./run -a do_tpl_gen`, `ENV=prd STEP=031-gcp-hub-ingress ./run -a
+do_tf_plan` (expect `1 to change`, the security policy, 2 rules added, 0
+destroy), apply that plan, and re-run the §4 probes against `<tenant>.<domain>`.
 
 ---
 
@@ -212,6 +308,11 @@ where the files live and how they reach each env.
 | FR-017 | DNS ops: `do_export_all_dns_settings`, `do_flush_dns`, `do_wait_for_cert`, `do_gandi_*` | Implemented (`f68affe`, `04f7dca`) |
 | FR-018 | Nothing mutates GCP without the owner; every gcloud call carries `--account`; no key in git, tf state or log | Implemented — rule in repo `CLAUDE.md`; gates `no-keys-in-tf`, `rdb-no-store-entities`, `no-baked-hostname` (`6646f41`) |
 | FR-019 | The domain lives only in `env.dns.BASE_DOMAIN`; no hostname literal in Go | Implemented (`domain-single-source.tst.sh`) |
+| FR-020 | `016` Hosting deploy SA per env (no key); its WIF binding to the `017` pool's trunk principal set behind `bind_github_wif` | Partial — code on trunk; not applied (owner re-auth) |
+| FR-021 | `019` site per env; custom domains only with `bind_custom_domain` (default false, §3) | Partial — code on trunk; not applied |
+| FR-022 | `031` WUI route (§3): internet NEG to `<site_id>.web.app`, path matcher keeps `/v1/*` `/api/*` `/healthz` `/version` on the hub; cnf `wui_origin_host` (dev on, prd off, OQ-H1) | Partial — code + cnf on trunk; dev not applied |
+| FR-023 | Cloud Armor stage 1 (§4) behind `l7_narrowing` (dev on, prd off, OQ-H2) | Partial — code + cnf on trunk; dev not applied |
+| FR-024 | `30_wui-build-deploy.yml`: test, nuxt generate per env, render firebase.json from cnf, `firebase deploy --only hosting` via WIF, probe the deployed commit on `web.app` and the product host | Implemented (workflow); deploy jobs skip until the repo variables exist |
 
 ## Success Criteria
 
@@ -228,7 +329,8 @@ where the files live and how they reach each env.
 ## Out of Scope
 
 Shop steps (a storefront `019`, `021`, `032`, `060`–`063`, `130` / `131`),
-store SQL, M2 payment drivers, M3 WUI hosting (spec `005`), CI job design
-(spec `008`), wire and tenancy semantics (`003` / `004` / `006`).
+store SQL, M2 payment drivers, the WUI app itself (spec `005`; its hosting
+estate is §3 here), hub CI job design (spec `008`), wire and tenancy
+semantics (`003` / `004` / `006`).
 
-<!-- version: 1.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:24:15Z -->
+<!-- version: 1.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:30:00Z -->

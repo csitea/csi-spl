@@ -82,3 +82,42 @@ variable "extra_host_labels" {
     error_message = "every extra_host_labels entry must be lower-case DNS labels, e.g. api or dev.api."
   }
 }
+
+# Spec 007 §3 (T072): the WUI behind this load balancer. Non-empty = the
+# Firebase Hosting site's default host (019 output lb_origin_host, e.g.
+# <site_id>.web.app): <fqdn> and *.<fqdn> then send every path EXCEPT
+# hub_paths to that site (internet NEG, Host rewritten to it), and hub_paths
+# to the hub as before. Empty (default) = no WUI route; every path is the hub.
+variable "wui_origin_host" {
+  type        = string
+  description = "Firebase Hosting default host the WUI path matcher targets (cnf steps.031-gcp-hub-ingress.wui_origin_host). Empty = no WUI route."
+  default     = ""
+
+  validation {
+    condition     = var.wui_origin_host == "" || can(regex("^[a-z0-9-]+[.](web[.]app|firebaseapp[.]com)$", var.wui_origin_host))
+    error_message = "wui_origin_host must be empty or a Firebase default host, <site>.web.app or <site>.firebaseapp.com."
+  }
+}
+
+variable "hub_paths" {
+  type        = list(string)
+  description = "Paths that stay on the hub when wui_origin_host is set (URL-map path_rule syntax). WebSocket /v1/ws and /v1/wui/ws are under /v1/*."
+  default     = ["/v1/*", "/api/*", "/healthz", "/version"]
+}
+
+# Spec 007 §4 (Cloud Armor transition, stage 2): L7 narrowing on the hub
+# backend, BEFORE the IP allowlist rules. false (default) = the policy is the
+# plain M1 allowlist. true adds two deny(403) rules: a Host that is not
+# <fqdn>, <tenant>.<fqdn> or an extra host, and a path outside hub_path_regex.
+# Boxes are unaffected: they use https://<tenant>.<fqdn>/v1/ws.
+variable "l7_narrowing" {
+  type        = bool
+  description = "Add the stage-2 L7 deny rules (host + path) to the hub Cloud Armor policy (cnf steps.031-gcp-hub-ingress.l7_narrowing). dev true, prd false until the owner says so."
+  default     = false
+}
+
+variable "hub_path_regex" {
+  type        = string
+  description = "RE2 over request.path that the hub serves; anything else is 403 when l7_narrowing is on."
+  default     = "^/(v1/|api/v1/|healthz$|version$)"
+}

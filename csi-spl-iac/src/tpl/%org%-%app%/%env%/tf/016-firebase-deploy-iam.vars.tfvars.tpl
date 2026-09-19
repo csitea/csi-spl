@@ -6,3 +6,6 @@ gcp_project = "{{ gcp["gcp_project"] }}"
 gcp_region  = "{{ gcp["gcp_region"] }}"
 deploy_sa_account_id = "{{ ORG }}-{{ APP }}-{{ ENV }}-fb-deploy"
 deploy_roles = ["roles/firebasehosting.admin", "roles/serviceusage.serviceUsageConsumer", "roles/run.viewer"]
+bind_github_wif = {{ steps["016-firebase-deploy-iam"].get("bind_github_wif", false) | tojson }}
+wif_pool_id     = {{ steps["017-github-wif-deploy"]["pool_id"] | tojson }}
+github_ref      = {{ steps["017-github-wif-deploy"]["github_ref"] | tojson }}

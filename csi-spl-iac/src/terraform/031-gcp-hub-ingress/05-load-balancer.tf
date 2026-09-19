@@ -43,6 +43,37 @@ resource "google_compute_url_map" "hub" {
   name            = "${local.name_prefix}-urlmap"
   project         = var.gcp_project
   default_service = google_compute_backend_service.hub.id
+
+  # Spec 007 §3 (T072): with wui_origin_host set, the env's own names serve
+  # the WUI at every path except hub_paths. Extra hosts (api., dev.api.) keep
+  # the default: every path is the hub.
+  dynamic "host_rule" {
+    for_each = local.wui ? [1] : []
+    content {
+      hosts        = [var.fqdn, "*.${var.fqdn}"]
+      path_matcher = "wui"
+    }
+  }
+
+  dynamic "path_matcher" {
+    for_each = local.wui ? [1] : []
+    content {
+      name            = "wui"
+      default_service = google_compute_backend_service.wui[0].id
+
+      # Firebase Hosting picks the site by Host: send it the site's own name.
+      default_route_action {
+        url_rewrite {
+          host_rewrite = var.wui_origin_host
+        }
+      }
+
+      path_rule {
+        paths   = var.hub_paths
+        service = google_compute_backend_service.hub.id
+      }
+    }
+  }
 }
 
 resource "google_compute_ssl_policy" "hub" {

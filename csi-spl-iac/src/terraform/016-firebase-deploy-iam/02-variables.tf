@@ -51,3 +51,25 @@ variable "deploy_roles" {
   ]
   description = "Project-level roles bound to the firebase-deploy SA."
 }
+
+# CI identity for the WUI deploy workflow (30_wui-build-deploy.yml): trunk
+# runs of the pool that 017 creates may impersonate THIS SA. false (default)
+# until 017 is applied in this env; then true and re-apply. Same principal
+# set 017 binds to its own deploy SA: the pinned ref of the pool.
+variable "bind_github_wif" {
+  type        = bool
+  default     = false
+  description = "Grant roles/iam.workloadIdentityUser on the firebase-deploy SA to the 017 pool's trunk principal set (cnf steps.016-firebase-deploy-iam.bind_github_wif)."
+}
+
+variable "wif_pool_id" {
+  type        = string
+  default     = "github-actions"
+  description = "The 017 workload identity pool id (cnf steps.017-github-wif-deploy.pool_id)."
+}
+
+variable "github_ref" {
+  type        = string
+  default     = "refs/heads/master"
+  description = "The only ref whose runs may impersonate the SA (cnf steps.017-github-wif-deploy.github_ref)."
+}

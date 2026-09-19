@@ -1,0 +1,235 @@
+# ci-cd: spool WUI build + deploy (Firebase Hosting)
+#
+# Modelled on csi-rel's 21_wui-build-deploy.yml (test -> plan -> per-env
+# matrix: nuxt generate with that env's values, render firebase.json from
+# cnf, firebase deploy --only hosting, probe), without the shop gates.
+#
+# WHERE THE SITE IS SERVED (spec 007 §3, T072): Firebase Hosting holds the
+# files (019 site <org>-<app>-<env>-site); the 031 load balancer is the front
+# door for <fqdn> and <tenant>.<fqdn> and sends every path except /v1/*,
+# /api/*, /healthz and /version to the site. So the deployed commit is probed
+# twice: on <site>.web.app/build.json (the site) and, where cnf turns the LB
+# route on (031 wui_origin_host), on https://<fqdn>/build.json (the product
+# host). A red probe is a failed deploy.
+#
+# Build cannot be shared: nuxt generate bakes NUXT_PUBLIC_* into the bundle,
+# so dev and prd each build their own .output/public.
+#
+# GCP auth is Workload Identity Federation only: the pool/provider from
+# 017-github-wif-deploy (GCP_WIF_PROVIDER_<ENV>) impersonating the narrow
+# Hosting deploy SA from 016-firebase-deploy-iam
+# (GCP_FIREBASE_DEPLOY_SA_EMAIL_<ENV>; 016 bind_github_wif grants the trunk
+# principal set). No key, no FIREBASE_TOKEN. An env whose two variables are
+# not set yet is SKIPPED with a notice, so this lands before 016/017 are
+# applied without reddening trunk.
+
+name: "30 ci-cd: spool WUI build + deploy"
+
+on:
+  push:
+    branches: [master]
+    # An ALLOW-LIST of the trees a WUI build reads. Never add paths-ignore.
+    paths:
+      - 'csi-spl-wui/**'
+      - 'csi-spl-cnf/csi-spl/*.env.json'   # site id, fqdn, project, tenant
+      - 'csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh'
+      - '.github/workflows/30_wui-build-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment ("all" = dev + prd)'
+        type: choice
+        required: true
+        default: 'dev'
+        options:
+          - dev
+          - prd
+          - all
+
+permissions:
+  contents: read
+  id-token: write   # google-github-actions/auth via WIF
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # test: the WUI suite. A deploy never ships a red tree.
+  # ---------------------------------------------------------------------------
+  test:
+    name: WUI unit tests + typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: csi-spl-wui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: csi-spl-wui/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: csi-spl-wui/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:unit
+      - run: pnpm run typecheck
+
+  # ---------------------------------------------------------------------------
+  # plan: which envs, and which of them can authenticate yet
+  # ---------------------------------------------------------------------------
+  plan:
+    name: Determine deploy targets
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      envs: ${{ steps.targets.outputs.envs }}
+      any: ${{ steps.targets.outputs.any }}
+    steps:
+      - id: targets
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_ENV: ${{ github.event.inputs.environment }}
+          WIF_DEV: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          SA_DEV: ${{ vars.GCP_FIREBASE_DEPLOY_SA_EMAIL_DEV }}
+          WIF_PRD: ${{ vars.GCP_WIF_PROVIDER_PRD }}
+          SA_PRD: ${{ vars.GCP_FIREBASE_DEPLOY_SA_EMAIL_PRD }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT" == workflow_dispatch && -n "$INPUT_ENV" && "$INPUT_ENV" != all ]]; then
+            wanted=("$INPUT_ENV")
+          else
+            wanted=(dev prd)
+          fi
+          ready=()
+          for e in "${wanted[@]}"; do
+            wif_var="WIF_${e^^}"; sa_var="SA_${e^^}"
+            if [[ -n "${!wif_var:-}" && -n "${!sa_var:-}" ]]; then
+              ready+=("$e")
+            else
+              echo "::notice::$e skipped: repo variables GCP_WIF_PROVIDER_${e^^} / GCP_FIREBASE_DEPLOY_SA_EMAIL_${e^^} are not set (016 bind_github_wif + 017 not applied/exported yet)"
+            fi
+          done
+          if (( ${#ready[@]} )); then
+            envs="$(printf '"%s",' "${ready[@]}")"; envs="[${envs%,}]"; any=true
+          else
+            envs='[]'; any=false
+          fi
+          echo "deploy targets: $envs"
+          { echo "envs=$envs"; echo "any=$any"; } >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # deploy: generate, render, deploy, probe -- per env
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy WUI to ${{ matrix.environment }}
+    needs: plan
+    if: needs.plan.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # One firebase deploy per site at a time; never killed mid-flight.
+    concurrency:
+      group: deploy-wui-${{ matrix.environment }}-${{ github.ref }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJson(needs.plan.outputs.envs) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read this env's values from cnf
+        id: cfg
+        env:
+          ENV: ${{ matrix.environment }}
+        run: |
+          set -euo pipefail
+          python3 - "csi-spl-cnf/csi-spl/${ENV}.env.json" >> "$GITHUB_OUTPUT" <<'PY'
+          import json, sys
+          e = json.load(open(sys.argv[1]))["env"]
+          s19 = e["steps"]["019-firebase-static-site"]
+          s31 = e["steps"]["031-gcp-hub-ingress"]
+          print("project=" + e["gcp"]["gcp_project"])
+          print("site=" + s19["site_id"])
+          print("fqdn=" + e["dns"]["fqdn"])
+          print("tenant=" + s19.get("wui_default_tenant", ""))
+          print("lb_route=" + ("true" if s31.get("wui_origin_host") else "false"))
+          PY
+          cat "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: csi-spl-wui/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: csi-spl-wui/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: csi-spl-wui
+
+      # Reads go to the TENANT host (003 http-v1): {tenant} is filled in by the
+      # WUI at run time. Same origin when the page is served on <tenant>.<fqdn>.
+      - name: nuxt generate
+        working-directory: csi-spl-wui
+        env:
+          NUXT_PUBLIC_API_BASE: https://{tenant}.${{ steps.cfg.outputs.fqdn }}
+          NUXT_PUBLIC_TENANT: ${{ steps.cfg.outputs.tenant }}
+          NUXT_PUBLIC_USE_MOCK: "0"
+        run: pnpm run generate
+
+      - name: Stamp build.json (the deployed-commit probe)
+        working-directory: csi-spl-wui
+        run: |
+          set -euo pipefail
+          printf '{"commit":"%s","built_at":"%s","run":"%s"}\n' \
+            "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$GITHUB_RUN_ID" > .output/public/build.json
+          cat .output/public/build.json
+
+      - name: Render firebase.json from cnf
+        env:
+          ENV: ${{ matrix.environment }}
+        run: bash csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars[format('GCP_WIF_PROVIDER_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+          service_account: ${{ vars[format('GCP_FIREBASE_DEPLOY_SA_EMAIL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+
+      - name: firebase deploy --only hosting
+        working-directory: csi-spl-wui
+        run: |
+          set -euo pipefail
+          # GOOGLE_APPLICATION_CREDENTIALS is exported by google-github-actions/auth.
+          pnpm dlx firebase-tools@13 deploy --only hosting \
+            --project "${{ steps.cfg.outputs.project }}" --non-interactive
+
+      - name: Probe the deployed commit
+        env:
+          SITE: ${{ steps.cfg.outputs.site }}
+          FQDN: ${{ steps.cfg.outputs.fqdn }}
+          LB_ROUTE: ${{ steps.cfg.outputs.lb_route }}
+        run: |
+          set -uo pipefail
+          urls=("https://${SITE}.web.app")
+          [[ "$LB_ROUTE" == true ]] && urls+=("https://${FQDN}")
+          rc=0
+          for u in "${urls[@]}"; do
+            ok=0
+            for i in 1 2 3 4 5 6; do
+              got=$(curl -fsS "${u}/build.json?run=${GITHUB_RUN_ID}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["commit"])' 2>/dev/null || true)
+              if [[ "$got" == "$GITHUB_SHA" ]]; then ok=1; break; fi
+              sleep 10
+            done
+            code=$(curl -sS -o /dev/null -w '%{http_code}' "${u}/")
+            if (( ok )) && [[ "$code" == 200 ]]; then
+              echo "ok - ${u} serves ${GITHUB_SHA:0:8}, / -> 200"
+            else
+              echo "::error::${u} does not serve ${GITHUB_SHA:0:8} (build.json commit '${got}', / -> ${code})"; rc=1
+            fi
+          done
+          # the hub still answers behind the same host
+          [[ "$LB_ROUTE" == true ]] && { code=$(curl -sS -o /dev/null -w '%{http_code}' "https://${FQDN}/version"); \
+            [[ "$code" == 200 ]] && echo "ok - https://${FQDN}/version -> 200 (hub)" || { echo "::error::https://${FQDN}/version -> $code"; rc=1; }; }
+          exit $rc

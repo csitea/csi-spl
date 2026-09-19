@@ -2,11 +2,11 @@
 # pas-psf/csi-rel Hosting *shape* — site + custom domain + managed cert —
 # without shop pages or public-site ACLs.
 #
-# Hub API stays on Cloud Run (030). The deploy render script adds Hosting
-# rewrites from /v1/** to that service; this step only creates the site.
-#
-# fqdn is env.dns.fqdn from cnf (the env product host). Tenant wildcard
-# hosts are the hub mapping (031), not extra Hosting custom domains.
+# Hub API stays on Cloud Run (030). The product hosts (<fqdn>, *.<fqdn>) are
+# served by the 031 load balancer: /v1/*, /api/*, /healthz, /version go to the
+# hub, every other path to THIS site's <site_id>.web.app as an internet NEG
+# (spec 007 §3, T072). So by default this step creates the site only; the
+# custom-domain resources exist only with bind_custom_domain = true.
 
 resource "google_project_service" "firebase" {
   project            = var.gcp_project
@@ -39,6 +39,8 @@ resource "google_firebase_hosting_site" "default" {
 }
 
 resource "google_firebase_hosting_custom_domain" "default" {
+  count = var.bind_custom_domain ? 1 : 0
+
   provider              = google-beta
   project               = var.gcp_project
   site_id               = google_firebase_hosting_site.default.site_id
@@ -50,7 +52,7 @@ resource "google_firebase_hosting_custom_domain" "default" {
 }
 
 resource "google_firebase_hosting_custom_domain" "additional" {
-  for_each = toset(var.additional_fqdns)
+  for_each = var.bind_custom_domain ? toset(var.additional_fqdns) : toset([])
 
   provider              = google-beta
   project               = var.gcp_project

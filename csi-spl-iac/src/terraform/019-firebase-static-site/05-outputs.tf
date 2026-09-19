@@ -14,23 +14,28 @@ output "firebase_alt_url" {
 }
 
 output "custom_domain_https_url" {
-  description = "Public HTTPS URL on the custom domain (works once DNS is in place and the cert provisions)"
-  value       = "https://${var.fqdn}/"
+  description = "Public HTTPS URL on the custom domain (works once DNS is in place and the cert provisions). Null when bind_custom_domain = false."
+  value       = var.bind_custom_domain ? "https://${var.fqdn}/" : null
+}
+
+output "lb_origin_host" {
+  description = "The host the 031 load balancer's WUI internet NEG targets (cnf steps.031-gcp-hub-ingress.wui_origin_host)."
+  value       = "${google_firebase_hosting_site.default.site_id}.web.app"
 }
 
 output "required_dns_updates" {
   description = "Records Firebase needs in DNS. Add them via the DNS step / gcloud, then Firebase verifies asynchronously."
-  value       = google_firebase_hosting_custom_domain.default.required_dns_updates
+  value       = one(google_firebase_hosting_custom_domain.default[*].required_dns_updates)
 }
 
 output "ownership_state" {
   description = "Verification state: PENDING_VERIFICATION / VERIFIED / etc."
-  value       = google_firebase_hosting_custom_domain.default.ownership_state
+  value       = one(google_firebase_hosting_custom_domain.default[*].ownership_state)
 }
 
 output "host_state" {
   description = "Live state: HOST_PENDING_VERIFICATION / HOST_ACTIVE / etc."
-  value       = google_firebase_hosting_custom_domain.default.host_state
+  value       = one(google_firebase_hosting_custom_domain.default[*].host_state)
 }
 
 output "additional_custom_domains" {
@@ -46,5 +51,5 @@ output "additional_custom_domains" {
 
 output "custom_domains" {
   description = "Every custom domain this site binds — the primary plus the additional ones."
-  value       = sort(concat([var.fqdn], var.additional_fqdns))
+  value       = var.bind_custom_domain ? sort(concat([var.fqdn], var.additional_fqdns)) : []
 }

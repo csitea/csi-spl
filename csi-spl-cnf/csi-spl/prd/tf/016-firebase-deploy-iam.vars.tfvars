@@ -6,3 +6,6 @@ gcp_project = "csi-spl-prd"
 gcp_region  = "europe-north1"
 deploy_sa_account_id = "csi-spl-prd-fb-deploy"
 deploy_roles = ["roles/firebasehosting.admin", "roles/serviceusage.serviceUsageConsumer", "roles/run.viewer"]
+bind_github_wif = false
+wif_pool_id     = "github-actions"
+github_ref      = "refs/heads/master"

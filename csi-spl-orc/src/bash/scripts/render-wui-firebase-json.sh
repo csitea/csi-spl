@@ -19,11 +19,19 @@ CNF="$ROOT/csi-spl-cnf/csi-spl/${ENV}.env.json"
 SITE_ID=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["env"]["steps"]["019-firebase-static-site"]["site_id"])' "$CNF")
 SERVICE=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["env"]["hub"]["service_name"])' "$CNF")
 REGION=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["env"]["gcp"]["gcp_region"])' "$CNF")
+FQDN=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["env"]["dns"]["fqdn"])' "$CNF")
+[[ -n "$FQDN" ]] || { echo "FATAL env.dns.fqdn is empty in $CNF" >&2; exit 1; }
 OUT="${OUT:-$ROOT/csi-spl-wui/firebase.json}"
 
-python3 - "$OUT" "$SITE_ID" "$SERVICE" "$REGION" <<'PY'
+# Spec 007 §3 (T072): the WUI is served same-origin THROUGH the 031 load
+# balancer (<fqdn>, <tenant>.<fqdn>), which sends /v1/*, /api/*, /healthz and
+# /version to the hub before Firebase ever sees them. The run rewrites below
+# therefore only act on the bare <site>.web.app host (and 010 T016 keeps the
+# auth one). connect-src admits the tenant hosts: a page on <fqdn> reads and
+# opens its WebSocket on <tenant>.<fqdn> (NUXT_PUBLIC_API_BASE).
+python3 - "$OUT" "$SITE_ID" "$SERVICE" "$REGION" "$FQDN" <<'PY'
 import json, sys
-out, site_id, service, region = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+out, site_id, service, region, fqdn = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
 doc = {
   "hosting": {
     "site": site_id,
@@ -42,7 +50,7 @@ doc = {
           {"key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains; preload"},
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+            "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://*." + fqdn + " wss://*." + fqdn + "; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
           },
           {"key": "X-Robots-Tag", "value": "noindex, nofollow"},
           {"key": "Cache-Control", "value": "public, max-age=0, must-revalidate"},

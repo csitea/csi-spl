@@ -9,6 +9,12 @@ locals {
 
   # Cloud Armor takes at most 10 source ranges per basic rule.
   allow_chunks = chunklist(var.allowed_ip_ranges, 10)
+
+  # RE2 for the Host header, dots as [.] so no escaping crosses HCL and CEL:
+  # <fqdn>, <label>.<fqdn> and each extra host, optionally with :443.
+  fqdn_re    = replace(var.fqdn, ".", "[.]")
+  extra_re   = [for l in var.extra_host_labels : replace("${l}.${var.base_domain}", ".", "[.]")]
+  host_regex = "^(${join("|", concat([local.fqdn_re, "[a-z0-9-]+[.]${local.fqdn_re}"], local.extra_re))})(:443)?$"
 }
 
 resource "google_compute_security_policy" "hub" {
@@ -27,6 +33,37 @@ resource "google_compute_security_policy" "hub" {
         versioned_expr = "SRC_IPS_V1"
         config {
           src_ip_ranges = rule.value
+        }
+      }
+    }
+  }
+
+  # Stage 2 (l7_narrowing): refuse a Host outside this env's names (a scan of
+  # the bare LB IP, a foreign Host) and a path the hub does not serve. One
+  # subexpression each (Cloud Armor allows at most 5 per rule).
+  dynamic "rule" {
+    for_each = var.l7_narrowing ? [1] : []
+    content {
+      action      = "deny(403)"
+      priority    = 900
+      description = "L7: Host is not ${var.fqdn}, *.${var.fqdn} or an extra host"
+      match {
+        expr {
+          expression = "!request.headers['host'].lower().matches('${local.host_regex}')"
+        }
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.l7_narrowing ? [1] : []
+    content {
+      action      = "deny(403)"
+      priority    = 910
+      description = "L7: path is not one the hub serves"
+      match {
+        expr {
+          expression = "!request.path.matches('${var.hub_path_regex}')"
         }
       }
     }

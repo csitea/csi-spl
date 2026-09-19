@@ -9,3 +9,4 @@ site_id = "{{ ORG }}-{{ APP }}-{{ ENV }}-site"
 cert_preference = "GROUPED"
 wait_dns_verification = false
 additional_fqdns = []
+bind_custom_domain = {{ steps["019-firebase-static-site"].get("bind_custom_domain", false) | tojson }}

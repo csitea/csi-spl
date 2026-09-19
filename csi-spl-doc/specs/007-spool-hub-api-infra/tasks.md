@@ -42,9 +42,11 @@ Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
 - [x] T020a NS -> `ns-cloud-e1..e4` (`dig +norec NS … @v0n1.nic.ai` ->
       ns-cloud-e*, ~19:45Z); `do_gandi_set_nameservers` accepts ns-cloud-* and
       applies with `CONFIRM=yes` (`1b78621`, `gandi-livedns.tst.sh`) — FR-005
-- [ ] T020c prd apex `A` -> prd LB (written by `031` in prd, `<fqdn>` = apex),
-      after prd `030`; until then the apex resolves to nothing (measured
-      ~19:45Z) — FR-005, FR-012
+- [x] T020c prd apex `A` -> prd LB (written by `031` in prd, `<fqdn>` = apex),
+      after prd `030` — FR-005, FR-012. Restamped 2026-09-19 (C7; public
+      probe, state not re-read). Check: `dig +short A spool-hub.ai
+      @ns-cloud-e1.googledomains.com` -> `34.54.10.95`; `curl -s
+      https://spool-hub.ai/version` -> commit `c972f24`
 - [ ] T020d named extra hosts: prd `api.<domain>`, dev `dev.api.<domain>`,
       each its own DNS authorization + certificate + HOSTNAME cert-map entry
       + ACME CNAME + A record, primary certificate untouched; authored and
@@ -62,8 +64,10 @@ Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
 - [x] T034 `do_spl_db_bootstrap` dev (DSN secret v1 enabled; `9f8f492`) — FR-010
 - [x] T035 rdb pointer: `csi-spl-rdb/src/sql/postgres/spool-hub/000{1,2,3}_*.sql`
       bundled into the image and applied by `spool migrate` — US6
-- [~] T036 prd: 040, 050, 028 applied (state 19:43Z); image, DB bootstrap, after T005 and T012 —
-      FR-006..FR-010
+- [x] T036 prd: 040, 050, 028 applied (state 19:43Z); image and DB bootstrap
+      done — FR-006..FR-010. Restamped 2026-09-19 (C7): the prd hub runs the
+      image and answers, which it cannot without its DSN. Check: `curl -s
+      https://spool-hub.ai/version` -> `{"commit":"c972f24…"}` (n=1, 05:44Z)
 
 ## Phase 4: Cloud Run + ingress (steps 9–10, US3, US4)
 
@@ -72,8 +76,10 @@ Verified 2026-09-18 ~19:15Z on trunk `bbc41e7` (spec §1.1).
 - [~] T041 `031-gcp-hub-ingress` dev apply (applied: 15 in state, cert ACTIVE; `0.0.0.0/0` since `37e2e58`, the documented M1 exception, so `/v1/health` 200 from any IP) after T011 + T013; cnf
       `allowed_ip_ranges` set by the owner; `do_wait_for_cert` ACTIVE;
       `/v1/health` 200 (M1: any IP; from M2: 403 for a non-allowlisted IP) (003 FR-023; a serverless NEG takes no LB health check) — FR-012, SC-004
-- [ ] T042 prd `030` + `031` (no apex A record without owner go) — FR-011,
-      FR-012
+- [x] T042 prd `030` + `031` (apex A record by owner go, T013) — FR-011,
+      FR-012. Restamped 2026-09-19 (C7). Check: `for h in spool-hub.ai
+      www.spool-hub.ai api.spool-hub.ai; do curl -s -o /dev/null -w "%{http_code} "
+      https://$h/version; done` -> `200 200 200`
 
 ## Phase 5: CI identity (US5)
 
@@ -137,11 +143,18 @@ none of these blocks M1. The feature text is `../010-spool-social-auth/`.
 Routed here by the 005 lane; the script is WUI-hosting code, so it waits for
 the WUI code owner to be confirmed before anyone edits it.
 
-- [ ] T071 `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` lacks the
-      spec 010 T016 rewrite `/api/v1/auth/**` -> the hub service, before the
-      `**` fallback (`grep -c api/v1/auth` on the script -> 0; the checked-in
-      lde `csi-spl-wui/firebase.json` has it, `1c4e1a6`)
-- [ ] T072 **Decision (007 with 003 / 006), before 005 T009 dev Hosting**: the
+- [x] T071 `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` lacked the
+      spec 010 T016 rewrite `/api/v1/auth/**` -> the hub service — fixed by
+      `1dbc29a` (the task was stale, C7). With §3 the LB sends `/api/*` to the
+      hub before Firebase sees it; the rewrite still serves the bare `web.app`
+      host. Check: `command grep -c api/v1/auth
+      csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` -> `2`
+- [~] T072 **Decided as OQ-H1 (spec §3), default (a) implemented on dev:** the
+      `031` LB path matcher (hub paths -> hub, the rest -> the `019` site via an
+      internet NEG); Hosting rewrites rejected (no WebSocket, no tenant Host,
+      no wildcard custom domain, ingress). Open only for the owner's answer
+      and the prd flag. Check: `bash csi-spl-iac/src/bash/tests/wui-hosting-019-031.tst.sh`
+      -> `PASS: all`. The question as first written: the
       WUI -> hub read path. Same-origin `/v1/**` rewrites through Firebase
       Hosting meet two unverified obstacles: the hub resolves the tenant from
       `Host` (006), and a Hosting rewrite is believed (unchecked) not to
@@ -152,8 +165,43 @@ the WUI code owner to be confirmed before anyone edits it.
       rendered CSP `connect-src` widened and CORS on the hub. Measure both
       before choosing.
 
+## Phase 10: WUI Hosting estate + Cloud Armor (M3 HOSTING lane, spec §3, §4)
+
+Every apply here waits on an owner GCP re-auth (2026-09-19: `gcloud …
+--account=<owner>` -> "Reauthentication failed", ADC expired, no
+`firebase login`).
+
+- [x] T073 `30_wui-build-deploy.yml`: WUI unit + typecheck, `nuxt generate`
+      per env with cnf values, render `firebase.json`, WIF auth as the `016`
+      SA, `firebase deploy --only hosting`, probe `build.json` commit on
+      `<site>.web.app` and (route on) `https://<fqdn>/` + the hub `/version`;
+      deploy jobs skip while `GCP_WIF_PROVIDER_<ENV>` /
+      `GCP_FIREBASE_DEPLOY_SA_EMAIL_<ENV>` are unset — FR-024. Check:
+      `command grep -lE 'firebase|nuxt generate' .github/workflows/*.yml` ->
+      `30_wui-build-deploy.yml`
+- [x] T074a Code: `016` WIF binding behind `bind_github_wif`, `019` custom
+      domain behind `bind_custom_domain`, `031` WUI route behind
+      `wui_origin_host` and L7 rules behind `l7_narrowing`, cnf dev on / prd
+      off, tfvars rendered — FR-020..FR-023. Check:
+      `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` (box user) -> `12/12`
+- [ ] T074 Apply `016` then `019` on dev (owner go given in the M3 brief; blocked
+      on re-auth); verify `curl -so /dev/null -w '%{http_code}'
+      https://csi-spl-dev-site.web.app/` -> `200` after the first deploy
+- [ ] T075 Apply `016` then `019` on prd; same probe on `csi-spl-prd-site`
+- [ ] T076 dev `031` apply (WUI route + stage-1 Armor); verify
+      `https://dev.<domain>/` and `https://t1.dev.<domain>/` -> `200` (WUI),
+      `/version` -> `200` (hub), a WS upgrade to `/v1/ws` -> `101`, and the §4
+      controls -> `403`
+- [ ] T077 prd stage 1 (OQ-H2, owner): ready-to-apply steps in spec §4
+- [ ] T078 After `017` is applied per env: `bind_github_wif: true`, re-apply
+      `016`, set repo variables `GCP_FIREBASE_DEPLOY_SA_EMAIL_<ENV>` (016 output
+      `firebase_deploy_sa_email`) beside 017's `GCP_WIF_PROVIDER_<ENV>`
+- [ ] T079 prd WUI route (OQ-H1, owner): `wui_origin_host:
+      csi-spl-prd-site.web.app`, render, plan (`031`: NEG + backend + url map),
+      apply
+
 ## Out of this task list
 
-M2 payment drivers, M3 WUI hosting (`005`), pipeline job design (`008`).
+M2 payment drivers, the WUI app (`005`; its hosting is Phase 10), hub pipeline job design (`008`).
 
-<!-- version: 1.5.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:24:15Z -->
+<!-- version: 1.6.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:30:00Z -->

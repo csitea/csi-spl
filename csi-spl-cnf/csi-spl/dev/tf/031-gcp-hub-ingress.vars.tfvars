@@ -6,6 +6,8 @@ gcp_project = "csi-spl-dev"
 gcp_region  = "europe-north1"
 
 allowed_ip_ranges = ["0.0.0.0/0"]
+wui_origin_host = "csi-spl-dev-site.web.app"
+l7_narrowing = true
 extra_host_labels = ["dev.api"]
 dns_managed_zone = "spool-hub"
 dns_zone_project = "csi-spl-prd"

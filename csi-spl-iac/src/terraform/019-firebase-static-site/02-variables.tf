@@ -44,6 +44,18 @@ variable "site_id" {
   }
 }
 
+# Spec 007 §3 (T072, decided): the WUI is served THROUGH the 031 load balancer
+# (a path matcher sends every non-hub path to this site as an internet NEG),
+# so the product hosts stay on the LB certificate and are NOT Firebase custom
+# domains. false (default) = no custom-domain resource at all; true binds
+# var.fqdn (+ additional_fqdns) straight to Firebase, which only makes sense
+# for a host whose DNS points at Firebase instead of the hub LB.
+variable "bind_custom_domain" {
+  type        = bool
+  default     = false
+  description = "Bind var.fqdn and additional_fqdns as Firebase custom domains (cnf steps.019-firebase-static-site.bind_custom_domain). Default false: the 031 LB fronts the site."
+}
+
 variable "cert_preference" {
   type        = string
   default     = "GROUPED"

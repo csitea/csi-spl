@@ -180,3 +180,34 @@ reported by the DEPLOY lane, n=1 per env) each env held exactly one secret,
 imports fail with NotFound. The importer prints WARN for each one and keeps
 going (exit 0, `failed=7`), and the next 030 apply creates them. Case 4 of the
 test pins this non-fatal behaviour.
+
+## 6. New tools that are not csi-rel ports: importers for 020 and 040
+
+The rebuild re-imports 020 (the relay bucket and its sender SA) and the 040
+Cloud SQL instance instead of re-creating them. csi-rel has no importer for
+either step, so these are new tools. They follow the model of csi-rel's tf-030
+importer: one row per declared resource, ids taken from the tfvars, idempotent,
+import only, and a failure is non-fatal. They differ in one way: they run
+through the tf-runner, not in a throwaway container.
+
+| file | role |
+|---|---|
+| `csi-spl-orc/src/bash/scripts/tf-import-table.sh <step> <vars.tfvars>` | Prints `address<TAB>id` for each resource of 020 or 040. It calls nothing |
+| `csi-spl-orc/src/bash/run/tf-import-existing.func.sh` (`do_tf_import_existing`) | Reads the state with `docker exec con-<org>-<app>-tf-runner ./run -a do_tf_state_list`. For each row not in state, it imports with `./run -a do_tf_import` (the same call as `make do-tf-import`). `DRY_RUN=1` prints what it would import and imports nothing |
+| `csi-spl-orc/src/bash/tests/tf-import-existing.tst.sh` | A drift guard between the table and the step's `resource` blocks, both ways, for dev and prd. It also checks, with docker stubbed, the exec contract, skips for addresses already in state, non-fatal NotFound, dry run, and a failing state list |
+
+Rows per env:
+
+- 020: `google_storage_bucket.relay`, `google_service_account.relay` and
+  `google_storage_bucket_iam_member.relay_object_user`.
+- 040: `google_sql_database_instance.hub`, `google_sql_database.spool` and
+  `google_secret_manager_secret.hub_db_dsn`.
+
+`do_tf_import` reports its result in its log line (`OK Resource imported
+successfully`) and not in its exit code, so the action reads that line.
+
+```bash
+ENV=dev STEP=040-cloud-sql-postgres DRY_RUN=1 ./run -a do_tf_import_existing
+```
+
+Run it from `csi-spl-orc`. Drop `DRY_RUN=1` to import.

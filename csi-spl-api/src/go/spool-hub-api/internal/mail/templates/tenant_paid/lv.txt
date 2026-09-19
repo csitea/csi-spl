@@ -1,6 +1,6 @@
 Jūsu spool hub īrnieks ir apmaksāts un gatavs.
 
-Īrnieka URL:
+Darbvieta {{.TenantID}} — piesakieties:
 {{.TenantURL}}
 
 Saņemiet īrnieka ROOT atslēgu, vienreiz atverot šo saiti:

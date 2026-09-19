@@ -226,7 +226,7 @@
     "key": {
       "warning_once": "Esta es la única vez que se muestra esta clave. No se envía por correo y el hub no la guarda.",
       "warning_save": "Guárdala en un archivo que solo tú puedas leer (modo 0600) y apunta {var} a él.",
-      "tenant": "Inquilino: {url}",
+      "tenant": "Espacio de trabajo {id}: inicia sesión en {url}",
       "copy": "Copiar clave",
       "download": "Descargar clave"
     },

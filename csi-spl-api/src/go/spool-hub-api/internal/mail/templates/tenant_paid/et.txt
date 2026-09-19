@@ -1,6 +1,6 @@
 Sinu spool hubi rentnik on makstud ja valmis.
 
-Rentniku URL:
+Tööruum {{.TenantID}} — logi sisse aadressil:
 {{.TenantURL}}
 
 Võta oma rentniku ROOT-võti, avades selle lingi üks kord:

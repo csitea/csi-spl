@@ -226,7 +226,7 @@
     "key": {
       "warning_once": "Det här är enda gången nyckeln visas. Den skickas inte via e-post och hubben sparar den inte.",
       "warning_save": "Spara den som en fil som bara du kan läsa (läge 0600) och peka {var} på den.",
-      "tenant": "Tenant: {url}",
+      "tenant": "Arbetsyta {id} — logga in på {url}",
       "copy": "Kopiera nyckel",
       "download": "Ladda ner nyckel"
     },

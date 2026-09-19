@@ -1,6 +1,6 @@
 Tu inquilino de spool hub está pagado y listo.
 
-URL del inquilino:
+Espacio de trabajo {{.TenantID}}: inicia sesión en:
 {{.TenantURL}}
 
 Recoge la clave ROOT de tu inquilino abriendo este enlace una vez:

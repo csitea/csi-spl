@@ -226,7 +226,7 @@
     "key": {
       "warning_once": "Dit is de enige keer dat deze sleutel wordt getoond. Hij wordt niet gemaild en de hub bewaart hem niet.",
       "warning_save": "Sla hem op in een bestand dat alleen jij kunt lezen (modus 0600) en laat {var} ernaar verwijzen.",
-      "tenant": "Tenant: {url}",
+      "tenant": "Werkruimte {id} — meld je aan op {url}",
       "copy": "Sleutel kopiëren",
       "download": "Sleutel downloaden"
     },

@@ -26,7 +26,6 @@
         <label class="checkout__field">
           <span>{{ t('checkout.tenant_name') }}</span>
           <input v-model.trim="tenant" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" required data-test="checkout-tenant">
-          <small v-if="tenantPreview" class="muted">{{ tenantPreview }}</small>
         </label>
         <label class="checkout__field">
           <span>{{ t('checkout.email') }}</span>
@@ -80,7 +79,6 @@ const cardLoading = ref(false)
 /* the plan's raw amount: formatted in the ACTIVE locale, so a language switch re-renders it */
 const plan = ref<{ cents: unknown, currency: unknown } | null>(null)
 const price = computed(() => (plan.value ? formatPrice(plan.value.cents, plan.value.currency, locale.value) : ''))
-const pattern = ref('')
 const tenant = ref('')
 const email = ref('')
 /* a checkout error code, rendered through the catalogue (spec 021) */
@@ -92,8 +90,6 @@ const error = computed(() => {
 const busy = ref(false)
 const checkoutId = ref('')
 
-const tenantPreview = computed(() =>
-  tenant.value && pattern.value && validTenant(tenant.value) ? pattern.value.replace('{tenant}', tenant.value) : '')
 
 onMounted(async () => {
   const out = await client.plan()
@@ -105,7 +101,6 @@ onMounted(async () => {
   rail.value = String(out.data.rail || 'none')
   mode.value = checkoutMode(out.data)
   plan.value = { cents: out.data.amount_cents, currency: out.data.currency }
-  pattern.value = String(out.data.tenant_url_pattern || '')
   state.value = 'form'
 })
 

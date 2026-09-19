@@ -49,8 +49,7 @@ hub error envelope `{"error":<token>,"detail":<text>}`.
 ```json
 {"plan_id":"default","amount_cents":2000,"currency":"eur","rail":"card",
  "methods":["card","paypal"],"available":true,
- "publishable_key":"pk_…","paypal_client_id":"…",
- "tenant_url_pattern":"https://{tenant}.dev.<domain>"}
+ "publishable_key":"pk_…","paypal_client_id":"…"}
 ```
 
 `rail` is the card rail: `none` (unavailable), `fake` (lde/dev fake-pay) or
@@ -71,7 +70,7 @@ refused). `email` is where the one email goes.
 ```json
 {"checkout_id":"co_…","claim_token":"…","method":"card","rail":"card",
  "amount_cents":2000,"currency":"eur","tenant_id":"acme",
- "tenant_url":"https://acme.dev.<domain>",
+ "tenant_url":"https://dev.<domain>/login?tenant=acme",
  "client_secret":"pi_…_secret_…","publishable_key":"pk_…"}
 ```
 
@@ -110,7 +109,7 @@ Request: `{"checkout_id":"co_…","claim_token":"…"}`.
 token (§1.8). `200` (exactly once per checkout; the key is minted now):
 
 ```json
-{"tenant_id":"acme","tenant_url":"https://acme.dev.<domain>",
+{"tenant_id":"acme","tenant_url":"https://dev.<domain>/login?tenant=acme",
  "tenant_host":"acme.dev.<domain>","host_status":"pending|ready|unknown",
  "root_private_key":"<base64 64-byte ed25519 private key>"}
 ```
@@ -178,6 +177,13 @@ The token rides in the URL **fragment**, so it never reaches a server or proxy
 log. The WUI claim page reads the fragment, clears it from the address bar
 (`history.replaceState`), and calls §1.4 once.
 
+### 1.8a `tenant_url` = the WUI sign-in page (1.4, owner 2026-09-19 "tenant from identity")
+
+No per-tenant host: `tenant_url` (§1.2, §1.4, the paid mail) is
+`<WUI origin>/login?tenant=<id>`, the origin taken from
+`SPOOL_HUB_PAYMENT_CLAIM_URL` (same shape as the invitation mail). `GET /plan`
+no longer returns `tenant_url_pattern`; the WUI tolerates either.
+
 ### 1.9 M4 seats and the dedicated SKU (009 T002/T004/T005; additive, 1.3)
 
 Only when cnf prices a seat kind (`SPOOL_HUB_PAYMENT_SEAT_USER_CENTS` /
@@ -221,7 +227,7 @@ Only when cnf prices a seat kind (`SPOOL_HUB_PAYMENT_SEAT_USER_CENTS` /
 | `SPOOL_HUB_PAYMENT_PROVIDER` | `""` none · `fake` · `stripe`; anything else refuses boot |
 | `SPOOL_HUB_ENABLE_FAKE_PAY` | lde/dev only; `true` elsewhere refuses boot; with provider `""` it selects the fake rail |
 | `SPOOL_HUB_PAYMENT_PLAN_ID` / `_PLAN_CENTS` / `_CURRENCY` | the M2 tenant plan |
-| `SPOOL_HUB_PAYMENT_PUBLIC_SCHEME` | scheme of `tenant_url` |
+| `SPOOL_HUB_PAYMENT_PUBLIC_SCHEME` | unused since 1.4 (`tenant_url` takes the claim page origin) |
 | `SPOOL_HUB_PAYMENT_HOLD` | how long a pending checkout holds its slug (default `1h`) |
 | `SPOOL_HUB_PAYMENT_CLAIM_URL` | the WUI claim page the mail links to; unset with a rail on → checkout 503 (guard); malformed → boot refused |
 | `SPOOL_HUB_PAYMENT_CLAIM_TTL` | claim window after payment (default `24h`) |
@@ -232,4 +238,4 @@ Only when cnf prices a seat kind (`SPOOL_HUB_PAYMENT_SEAT_USER_CENTS` /
 | `SPOOL_HUB_PAYPAL_CLIENT_ID` / `_MODE` / `_API_BASE` / `_WEBHOOK_ID` | PayPal (sandbox) |
 | `SPOOL_HUB_PAYPAL_CLIENT_SECRET` | **secret** (slot `csi-spl-hub-paypal-client-secret`) |
 
-<!-- version: 1.3.0 · updated: 2026-09-19 (§1.9 M4 seats + dedicated SKU, additive) -->
+<!-- version: 1.4.0 · updated: 2026-09-19 (§1.8a tenant_url = WUI sign-in, tenant_url_pattern dropped) -->

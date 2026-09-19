@@ -226,7 +226,7 @@
     "key": {
       "warning_once": "Tento kľúč sa zobrazuje iba teraz. Neposiela sa e-mailom a hub ho neuchováva.",
       "warning_save": "Uložte ho do súboru, ktorý môžete čítať iba vy (mode 0600), a nastavte naň {var}.",
-      "tenant": "Nájomník: {url}",
+      "tenant": "Pracovný priestor {id} — prihláste sa na {url}",
       "copy": "Kopírovať kľúč",
       "download": "Stiahnuť kľúč"
     },

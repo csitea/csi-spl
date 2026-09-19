@@ -10,12 +10,14 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/invitemail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -154,8 +156,21 @@ func (h *Handler) cardProvider() string {
 	return ProviderFake
 }
 
+// tenantURL is where the buyer signs in to the new tenant: the WUI sign-in
+// page <app>/login?tenant=<id> (owner decision 2026-09-19, "tenant from
+// identity": no per-tenant host; the same shape invitemail.SignInURL builds).
+// The WUI origin is the claim page's (SPOOL_HUB_PAYMENT_CLAIM_URL, required
+// with a rail), so no second setting can disagree with it. "" when unset.
 func (h *Handler) tenantURL(id string) string {
-	return h.cfg.PublicScheme + "://" + h.tenantHost(id)
+	u, err := url.Parse(strings.TrimSpace(h.cfg.ClaimURL))
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	s, err := invitemail.SignInURL(u.Scheme+"://"+u.Host, "", "", id)
+	if err != nil {
+		return ""
+	}
+	return s
 }
 
 func (h *Handler) tenantHost(id string) string {
@@ -188,7 +203,6 @@ func (h *Handler) plan(w http.ResponseWriter, _ *http.Request) {
 	out := map[string]any{
 		"plan_id": h.cfg.PlanID, "amount_cents": h.cfg.PlanCents, "currency": h.cfg.Currency,
 		"rail": h.cfg.Rail(), "methods": methods, "available": h.cfg.Guard() == "" && len(methods) > 0,
-		"tenant_url_pattern": h.cfg.PublicScheme + "://" + h.d.TenantHostPattern,
 	}
 	if h.cfg.Rail() == RailCard {
 		out["publishable_key"] = strings.TrimSpace(h.cfg.StripePublishableKey)

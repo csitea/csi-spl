@@ -226,7 +226,7 @@
     "key": {
       "warning_once": "Bu anahtar yalnızca bu kez gösterilir. E-postayla gönderilmez ve hub onu saklamaz.",
       "warning_save": "Yalnızca sizin okuyabileceğiniz bir dosyaya kaydedin (mod 0600) ve {var} değişkenini ona yönlendirin.",
-      "tenant": "Kiracı: {url}",
+      "tenant": "Çalışma alanı {id} — şu adresten giriş yapın: {url}",
       "copy": "Anahtarı kopyala",
       "download": "Anahtarı indir"
     },

@@ -11,6 +11,7 @@
       </i18n-t>
     </p>
     <i18n-t keypath="checkout.key.tenant" tag="p" scope="global">
+      <template #id><strong>{{ tenantId }}</strong></template>
       <template #url><a :href="tenantUrl" rel="noopener" data-test="checkout-tenant-url">{{ tenantUrl }}</a></template>
     </i18n-t>
     <pre class="checkout-key__text" data-test="checkout-key">{{ keyText }}</pre>

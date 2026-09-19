@@ -226,7 +226,7 @@
     "key": {
       "warning_once": "Ovaj ključ se prikazuje samo sada. Ne šalje se imejlom i hab ga ne čuva.",
       "warning_save": "Sačuvajte ga kao fajl koji samo vi možete da čitate (režim 0600) i usmerite {var} na njega.",
-      "tenant": "Zakupac: {url}",
+      "tenant": "Radni prostor {id} — prijavite se na {url}",
       "copy": "Kopiraj ključ",
       "download": "Preuzmi ključ"
     },

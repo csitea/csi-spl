@@ -1,6 +1,6 @@
 Jūsų spool hub nuomininkas apmokėtas ir paruoštas.
 
-Nuomininko URL:
+Darbo sritis {{.TenantID}} — prisijunkite adresu:
 {{.TenantURL}}
 
 Atsiimkite nuomininko ROOT raktą vieną kartą atidarę šią nuorodą:

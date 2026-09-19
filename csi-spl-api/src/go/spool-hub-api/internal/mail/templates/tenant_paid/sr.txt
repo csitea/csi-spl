@@ -1,6 +1,6 @@
 Vaš spool hub zakupac je plaćen i spreman.
 
-URL zakupca:
+Radni prostor {{.TenantID}} — prijavite se na:
 {{.TenantURL}}
 
 Preuzmite ROOT ključ zakupca tako što ćete jednom otvoriti ovaj link:

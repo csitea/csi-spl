@@ -226,7 +226,7 @@
     "key": {
       "warning_once": "This is the only time this key is shown. It is not emailed and the hub does not keep it.",
       "warning_save": "Save it as a file readable only by you (mode 0600) and point {var} at it.",
-      "tenant": "Tenant: {url}",
+      "tenant": "Workspace {id} — sign in at {url}",
       "copy": "Copy key",
       "download": "Download key"
     },

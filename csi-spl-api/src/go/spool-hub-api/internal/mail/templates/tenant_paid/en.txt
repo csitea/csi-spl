@@ -1,6 +1,6 @@
 Your spool hub tenant is paid and ready.
 
-Tenant URL:
+Workspace {{.TenantID}} — sign in at:
 {{.TenantURL}}
 
 Collect your tenant ROOT key by opening this link once:

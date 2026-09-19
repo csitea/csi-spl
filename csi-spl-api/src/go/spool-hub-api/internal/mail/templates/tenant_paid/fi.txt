@@ -1,6 +1,6 @@
 Vuokraajasi spool hubissa on maksettu ja valmis.
 
-Vuokraajan URL:
+Työtila {{.TenantID}} — kirjaudu osoitteessa:
 {{.TenantURL}}
 
 Nouda vuokraajasi ROOT-avain avaamalla tämä linkki kerran:

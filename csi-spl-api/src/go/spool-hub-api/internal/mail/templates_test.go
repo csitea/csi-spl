@@ -68,7 +68,7 @@ func TestEveryLocaleRendersItsLink(t *testing.T) {
 		}
 		for _, loc := range i18n.Supported {
 			subj, body, used, err := Render(id, loc, TemplateData{Link: link, TTL: 24 * time.Hour,
-				TenantID: "acme", TenantURL: "https://acme.example.com"})
+				TenantID: "acme", TenantURL: "https://example.com/login?tenant=acme"})
 			if err != nil || used != loc {
 				t.Fatalf("%s/%s: used=%s err=%v", id, loc, used, err)
 			}
@@ -89,7 +89,7 @@ func TestEveryLocaleRendersItsLink(t *testing.T) {
 			if !strings.Contains(body, Duration(loc, 24*time.Hour)) {
 				t.Errorf("%s/%s: TTL wording %q missing:\n%s", id, loc, Duration(loc, 24*time.Hour), body)
 			}
-			if id == TemplateTenantPaid && (!strings.Contains(body, "https://acme.example.com") ||
+			if id == TemplateTenantPaid && (!strings.Contains(body, "https://example.com/login?tenant=acme") || strings.Count(body, "acme") < 2 ||
 				!strings.Contains(subj, "acme") || !strings.Contains(body, "$SPOOL_TENANT_ROOT_KEY") || !strings.Contains(body, "0600")) {
 				t.Errorf("%s/%s: tenant fields:\n%s\n%s", id, loc, subj, body)
 			}
@@ -140,8 +140,8 @@ func TestEnglishWordingUnchanged(t *testing.T) {
 	}, "\n") {
 		t.Fatalf("%+v", pr)
 	}
-	tp, _ := TenantPaid("a@example.com", "en", "acme", "https://acme.example.com", "LINK", 24*time.Hour)
-	if tp.Subject != "Your spool hub tenant acme is paid" || !strings.HasPrefix(tp.TextBody, "Your spool hub tenant is paid and ready.\n\nTenant URL:\nhttps://acme.example.com\n\nCollect your tenant ROOT key by opening this link once:\nLINK\n\nThe link works once and expires in 24 hours. The key is created\n") {
+	tp, _ := TenantPaid("a@example.com", "en", "acme", "https://example.com/login?tenant=acme", "LINK", 24*time.Hour)
+	if tp.Subject != "Your spool hub tenant acme is paid" || !strings.HasPrefix(tp.TextBody, "Your spool hub tenant is paid and ready.\n\nWorkspace acme — sign in at:\nhttps://example.com/login?tenant=acme\n\nCollect your tenant ROOT key by opening this link once:\nLINK\n\nThe link works once and expires in 24 hours. The key is created\n") {
 		t.Fatalf("%+v", tp)
 	}
 }

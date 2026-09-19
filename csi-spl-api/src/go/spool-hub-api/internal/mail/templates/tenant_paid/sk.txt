@@ -1,6 +1,6 @@
 Váš nájomník v spool hub je zaplatený a pripravený.
 
-URL nájomníka:
+Pracovný priestor {{.TenantID}} — prihláste sa na:
 {{.TenantURL}}
 
 Vyzdvihnite si ROOT kľúč nájomníka jednorazovým otvorením tohto odkazu:

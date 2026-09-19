@@ -1,6 +1,6 @@
 spool hub kiracınız ödendi ve hazır.
 
-Kiracı URL'si:
+Çalışma alanı {{.TenantID}} — şu adresten giriş yapın:
 {{.TenantURL}}
 
 Kiracınızın ROOT anahtarını almak için bu bağlantıyı bir kez açın:

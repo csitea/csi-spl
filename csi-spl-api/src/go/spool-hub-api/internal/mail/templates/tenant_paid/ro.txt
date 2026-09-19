@@ -1,6 +1,6 @@
 Chiriașul dumneavoastră spool hub este plătit și gata de utilizare.
 
-URL-ul chiriașului:
+Spațiul de lucru {{.TenantID}} — conectați-vă la:
 {{.TenantURL}}
 
 Ridicați cheia ROOT a chiriașului deschizând o singură dată acest link:

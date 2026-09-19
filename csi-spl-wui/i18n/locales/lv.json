@@ -226,7 +226,7 @@
     "key": {
       "warning_once": "Šī atslēga tiek parādīta tikai šoreiz. Tā netiek nosūtīta pa e-pastu, un centrs to neglabā.",
       "warning_save": "Saglabājiet to failā, ko varat lasīt tikai jūs (režīms 0600), un norādiet uz to {var}.",
-      "tenant": "Nomnieks: {url}",
+      "tenant": "Darbvieta {id} — piesakieties: {url}",
       "copy": "Kopēt atslēgu",
       "download": "Lejupielādēt atslēgu"
     },

@@ -226,7 +226,7 @@
     "key": {
       "warning_once": "Tämä avain näytetään vain tämän kerran. Sitä ei lähetetä sähköpostitse, eikä hub säilytä sitä.",
       "warning_save": "Tallenna se tiedostoksi, jonka vain sinä voit lukea (tila 0600), ja osoita {var} siihen.",
-      "tenant": "Tenantti: {url}",
+      "tenant": "Työtila {id} — kirjaudu osoitteessa {url}",
       "copy": "Kopioi avain",
       "download": "Lataa avain"
     },

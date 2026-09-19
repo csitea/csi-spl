@@ -226,7 +226,7 @@
     "key": {
       "warning_once": "Šis raktas rodomas tik šį kartą. Jis nesiunčiamas el. paštu, o centras jo nesaugo.",
       "warning_save": "Išsaugokite jį faile, kurį galite skaityti tik jūs (režimas 0600), ir nukreipkite {var} į jį.",
-      "tenant": "Nuomininkas: {url}",
+      "tenant": "Darbo sritis {id} — prisijunkite adresu {url}",
       "copy": "Kopijuoti raktą",
       "download": "Atsisiųsti raktą"
     },

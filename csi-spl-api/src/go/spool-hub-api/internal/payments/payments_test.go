@@ -175,7 +175,7 @@ func TestFakeBuyEndToEnd(t *testing.T) {
 		t.Fatalf("bad email: %d", code)
 	}
 	code, co := r.do(t, "POST", "/api/v1/checkout", map[string]string{"tenant_id": "acme", "email": "buyer@example.com"})
-	if code != 201 || co["rail"] != RailFake || co["tenant_url"] != "https://acme.dev.example.test" || co["client_secret"] != nil || co["method"] != MethodCard {
+	if code != 201 || co["rail"] != RailFake || co["tenant_url"] != "https://dev.example.test/login?tenant=acme" || co["client_secret"] != nil || co["method"] != MethodCard {
 		t.Fatalf("checkout %d %v", code, co)
 	}
 	id, tok := co["checkout_id"].(string), co["claim_token"].(string)
@@ -207,7 +207,7 @@ func TestFakeBuyEndToEnd(t *testing.T) {
 	// fake-pay sent the one email: tenant URL + claim link, NO key (SEC-03)
 	msgs := r.mail.Messages()
 	if len(msgs) != 1 || msgs[0].To != "buyer@example.com" || msgs[0].Template != TemplateTenantPaid ||
-		!strings.Contains(msgs[0].TextBody, "https://acme.dev.example.test") || !strings.Contains(msgs[0].TextBody, claimURL+"#checkout="+id+"&token=") {
+		!strings.Contains(msgs[0].TextBody, "https://dev.example.test/login?tenant=acme") || !strings.Contains(msgs[0].TextBody, claimURL+"#checkout="+id+"&token=") {
 		t.Fatalf("want exactly one tenant_paid mail with the URL + claim link, got %+v", msgs)
 	}
 	// CLE-3403: no buyer locale is kept, so the claim mail is in the default
@@ -221,7 +221,7 @@ func TestFakeBuyEndToEnd(t *testing.T) {
 	placeholder := ten.RootPubKey
 	// the emailed link claims (first claim wins) and mints the key now
 	code, cl := r.do(t, "POST", "/api/v1/checkout/claim", map[string]string{"checkout_id": id, "claim_token": link})
-	if code != 200 || cl["tenant_url"] != "https://acme.dev.example.test" {
+	if code != 200 || cl["tenant_url"] != "https://dev.example.test/login?tenant=acme" {
 		t.Fatalf("claim via link %d %v", code, cl)
 	}
 	raw, _ := base64.StdEncoding.DecodeString(cl["root_private_key"].(string))

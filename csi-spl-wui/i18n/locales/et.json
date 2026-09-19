@@ -226,7 +226,7 @@
     "key": {
       "warning_once": "Seda võtit näidatakse ainult see üks kord. Seda ei saadeta e-postiga ja keskus seda ei säilita.",
       "warning_save": "Salvesta see faili, mida saad lugeda ainult sina (režiim 0600), ja suuna {var} sellele.",
-      "tenant": "Rentnik: {url}",
+      "tenant": "Tööruum {id} — logi sisse aadressil {url}",
       "copy": "Kopeeri võti",
       "download": "Laadi võti alla"
     },

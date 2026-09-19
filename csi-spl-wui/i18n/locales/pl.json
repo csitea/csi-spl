@@ -226,7 +226,7 @@
     "key": {
       "warning_once": "Ten klucz jest wyświetlany tylko raz. Nie jest wysyłany e-mailem, a hub go nie przechowuje.",
       "warning_save": "Zapisz go w pliku czytelnym tylko dla Ciebie (tryb 0600) i wskaż go w {var}.",
-      "tenant": "Dzierżawa: {url}",
+      "tenant": "Obszar roboczy {id} — zaloguj się pod adresem {url}",
       "copy": "Kopiuj klucz",
       "download": "Pobierz klucz"
     },

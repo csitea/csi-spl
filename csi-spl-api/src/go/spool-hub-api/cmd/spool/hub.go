@@ -26,6 +26,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/edge"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/invitemail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/logging"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
@@ -280,6 +281,9 @@ func cmdHubTenantBilling(args []string) int {
 // cmdHubInvite is the operator's way to seat a tenant's first owner where
 // bootstrap is off (prd, 010 FR-014 / OQ-A5): the first sign-in whose
 // VERIFIED email matches is admitted with --role, once, before --ttl ends.
+// It then mails the invitation once (010 FR-016) through the relay named by
+// SPOOL_HUB_MAIL_* (transport none = no mail, said in the JSON); --no-mail
+// skips it.
 func cmdHubInvite(args []string) int {
 	fs := flag.NewFlagSet("hub-invite", flag.ContinueOnError)
 	tenant := fs.String("tenant", "", "tenant id")
@@ -287,6 +291,8 @@ func cmdHubInvite(args []string) int {
 	role := fs.String("role", store.RoleOwner, "owner|member")
 	ttl := fs.Duration("ttl", 7*24*time.Hour, "how long the invite stays open")
 	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
+	noMail := fs.Bool("no-mail", false, "write the invite only, send no invitation email")
+	mf := inviteMailFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -307,8 +313,93 @@ func cmdHubInvite(args []string) int {
 		}
 		return fail(err)
 	}
-	fmt.Println(action.JSON(map[string]string{"tenant": *tenant, "role": *role, "expires_at": in.ExpiresAt.Format(time.RFC3339), "status": "invited"}))
+	out := map[string]any{"tenant": *tenant, "role": *role, "expires_at": in.ExpiresAt.Format(time.RFC3339), "status": "invited"}
+	if *noMail {
+		out["mail"] = map[string]any{"outcome": "skipped_no_mail_flag"}
+		fmt.Println(action.JSON(out))
+		return 0
+	}
+	res, err := mf.send(ctx, st, *tenant, *email)
+	out["mail"] = res
+	fmt.Println(action.JSON(out))
+	if err != nil {
+		return fail(err)
+	}
 	return 0
+}
+
+// cmdHubInviteMail (re)sends the invitation email for an existing invite
+// (010 FR-016): open invites only, --min-gap / --max-sends enforced in the
+// DB. Exit 0 = sent; 3 = not sent (accepted, expired, rate limited, not
+// found, or transport none); 1 = error.
+func cmdHubInviteMail(args []string) int {
+	fs := flag.NewFlagSet("hub-invite-mail", flag.ContinueOnError)
+	tenant := fs.String("tenant", "", "tenant id")
+	email := fs.String("email", "", "the invitee's email (the invite key)")
+	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
+	mf := inviteMailFlags(fs)
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if !msg.ValidTenantID(*tenant) || *email == "" || *dsn == "" {
+		return fail(fmt.Errorf("--tenant (valid slug), --email and --db / $SPOOL_HUB_DB_DSN are required"))
+	}
+	ctx := context.Background()
+	st, err := store.OpenPostgres(ctx, *dsn)
+	if err != nil {
+		return fail(err)
+	}
+	defer st.Close()
+	res, err := mf.send(ctx, st, *tenant, *email)
+	fmt.Println(action.JSON(map[string]any{"tenant": *tenant, "mail": res}))
+	if err != nil {
+		return fail(err)
+	}
+	if res.Outcome != invitemail.Sent {
+		return 3
+	}
+	return 0
+}
+
+type inviteMailOpts struct {
+	appURL, locale, defLocale *string
+	minGap                    *time.Duration
+	maxSends                  *int
+}
+
+func inviteMailFlags(fs *flag.FlagSet) inviteMailOpts {
+	return inviteMailOpts{
+		appURL:    fs.String("app-url", os.Getenv("SPOOL_HUB_AUTH_APP_URL"), "the env's WUI origin https://<fqdn> (default $SPOOL_HUB_AUTH_APP_URL)"),
+		locale:    fs.String("locale", "", "mail locale (default: --default-locale; the invitee has none stored)"),
+		defLocale: fs.String("default-locale", envOr("SPOOL_HUB_DEFAULT_LOCALE", "bg"), "the WUI's unprefixed locale (default $SPOOL_HUB_DEFAULT_LOCALE)"),
+		minGap:    fs.Duration("min-gap", invitemail.DefaultMinGap, "least time between two sends of one invite"),
+		maxSends:  fs.Int("max-sends", invitemail.DefaultMaxSends, "most sends per invite since it was (re)created"),
+	}
+}
+
+func envOr(k, def string) string {
+	if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+		return v
+	}
+	return def
+}
+
+// send mails through the SPOOL_HUB_MAIL_* relay. Transport none sends
+// nothing and claims nothing ("skipped_no_relay").
+func (o inviteMailOpts) send(ctx context.Context, st *store.Postgres, tenant, email string) (invitemail.Result, error) {
+	res := invitemail.Result{To: mail.Digest(email)}
+	mc, err := mail.Load()
+	if err != nil {
+		return res, err
+	}
+	if mc.Transport == mail.TransportNone {
+		res.Outcome = "skipped_no_relay"
+		return res, nil
+	}
+	log := logging.New(&config.Config{LogLevel: "info", LogFormat: "json"}).With().Str("component", "cli").Logger()
+	return invitemail.Send(ctx, invitemail.Deps{Store: st, Sender: mc.Sender(log), Delivers: mc.Delivers(), Log: log,
+		AppURL: *o.appURL, Locale: *o.locale, DefaultLocale: *o.defLocale,
+		Limits: store.InviteMailLimits{MinGap: *o.minGap, MaxSends: *o.maxSends}}, tenant, email)
 }
 
 // cmdRootKeygen creates a tenant ROOT keypair (the renter's key; it pins and

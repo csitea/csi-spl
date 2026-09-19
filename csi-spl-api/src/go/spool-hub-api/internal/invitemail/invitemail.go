@@ -133,7 +133,7 @@ func Send(ctx context.Context, d Deps, tenant, email string) (Result, error) {
 	if err != nil {
 		return res, err
 	}
-	res.Outcome, res.ExpiresAt, res.MailCount = c.Outcome, c.Invite.ExpiresAt, c.PrevMailCount
+	res.Outcome, res.ExpiresAt, res.MailCount = c.Outcome, c.Invite.ExpiresAt.UTC(), c.PrevMailCount
 	if c.Outcome != store.InviteMailClaimed {
 		log.Info().Str("outcome", c.Outcome).Msg("invite.mail_skipped")
 		return res, nil

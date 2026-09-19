@@ -123,5 +123,28 @@ if SPOOL_HUB_DB_DSN="$DSN" "$BIN" hub-invite --tenant t-nosuch --email x@example
 fi
 echo "ok   - spool hub-invite: invite for an existing tenant, unknown tenant refused"
 
+# 010 FR-016: the invitation email. Transport none (the default above) sends
+# nothing and says so; transport log mails once, a resend in the gap is
+# refused (exit 3), the log line carries a digest, never the address.
+echo "$inv" | grep -q '"outcome":"skipped_no_relay"' || { echo "FAIL - hub-invite without a relay: $inv"; exit 1; }
+MAILENV=(SPOOL_HUB_DB_DSN="$DSN" SPOOL_HUB_MAIL_TRANSPORT=log SPOOL_HUB_AUTH_APP_URL=https://app.example.com SPOOL_HUB_DEFAULT_LOCALE=bg)
+inv="$(env "${MAILENV[@]}" "$BIN" hub-invite --tenant t-invite --email Mem@Example.com --role member 2>"$WORK/inv.log")"
+echo "$inv" | grep -q '"outcome":"sent"' && echo "$inv" | grep -q '"delivered":false' &&
+  echo "$inv" | grep -q '"sign_in_url":"https://app.example.com/login?tenant=t-invite"' ||
+  { echo "FAIL - hub-invite log transport: $inv"; exit 1; }
+if grep -qi 'mem@example.com' "$WORK/inv.log" || ! grep -q '"message":"invite.mail_sent"' "$WORK/inv.log"; then
+  echo "FAIL - invite mail log leaks the address or lacks the line: $(cat "$WORK/inv.log")"; exit 1
+fi
+rc=0; out="$(env "${MAILENV[@]}" "$BIN" hub-invite-mail --tenant t-invite --email mem@example.com 2>/dev/null)" || rc=$?
+[ "$rc" -eq 3 ] && echo "$out" | grep -q '"outcome":"rate_limited"' || { echo "FAIL - resend in the gap: rc=$rc $out"; exit 1; }
+out="$(env "${MAILENV[@]}" "$BIN" hub-invite-mail --tenant t-invite --email mem@example.com --min-gap 0s --locale en 2>/dev/null)" &&
+  echo "$out" | grep -q '"outcome":"sent"' && echo "$out" | grep -q '"locale":"en"' && echo "$out" | grep -q '"mail_count":2' ||
+  { echo "FAIL - resend after the gap: $out"; exit 1; }
+rc=0; out="$(env "${MAILENV[@]}" "$BIN" hub-invite-mail --tenant t-invite --email nobody@example.com 2>/dev/null)" || rc=$?
+[ "$rc" -eq 3 ] && echo "$out" | grep -q '"outcome":"not_found"' || { echo "FAIL - resend unknown invite: rc=$rc $out"; exit 1; }
+out="$(env "${MAILENV[@]}" "$BIN" hub-invite --tenant t-invite --email nm@example.com --no-mail 2>/dev/null)" &&
+  echo "$out" | grep -q '"outcome":"skipped_no_mail_flag"' || { echo "FAIL - --no-mail: $out"; exit 1; }
+echo "ok   - 010 FR-016: invite mail sent once (log transport), resend in the gap refused (exit 3), unknown not found, --no-mail, digest-only log"
+
 bash "$HERE/hub-e2e.tst.sh" "$BIN" "$DSN"
 echo "ALL HUB POSTGRES CHECKS PASSED"

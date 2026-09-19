@@ -51,10 +51,16 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- if (wui_key.get("inject", "false") | string | lower) == "true" %}
 {%- set _ = run_sec.update(wui_sec) %}
 {%- endif %}
-{#- 006 T022: the payment secret, injected only while the rail is hosted-hmac #}
+{#- 006 T022: the stripe pair only while the provider is stripe, the PayPal
+    secret only while SPOOL_HUB_ENABLE_PAYPAL is "true"; every slot exists #}
 {%- set pay_sec = payment["secret_env"] if (payment is defined and payment["secret_env"] is defined) else {} %}
-{%- if hub["env"].get("SPOOL_HUB_PAYMENT_PROVIDER", "") == "hosted-hmac" %}
-{%- set _ = run_sec.update(pay_sec) %}
+{%- if hub["env"].get("SPOOL_HUB_PAYMENT_PROVIDER", "") == "stripe" %}
+{%- for k in ["SPOOL_HUB_STRIPE_SECRET_KEY", "SPOOL_HUB_STRIPE_WEBHOOK_SECRET"] %}
+{%- set _ = run_sec.update({k: pay_sec[k]}) %}
+{%- endfor %}
+{%- endif %}
+{%- if (hub["env"].get("SPOOL_HUB_ENABLE_PAYPAL", "false") | string | lower) == "true" %}
+{%- set _ = run_sec.update({"SPOOL_HUB_PAYPAL_CLIENT_SECRET": pay_sec["SPOOL_HUB_PAYPAL_CLIENT_SECRET"]}) %}
 {%- endif %}
 {%- set slot_ids = (auth_sec.values() | list) + (mail_sec.values() | list) + (wui_sec.values() | list) + (pay_sec.values() | list) %}
 {%- if listed %}

@@ -23,10 +23,16 @@ to `payment.md` (what is copied from csi-rel and why).
 4. **Verify before any write.** A webhook whose signature fails writes
    nothing (not even the dedup row) and answers `400` with no detail.
    A duplicate event id is `200 {"status":"duplicate"}` and changes nothing.
-5. **Fail closed.** An unknown `SPOOL_HUB_PAYMENT_PROVIDER`, a named rail with
-   a missing / placeholder secret or URL, or `SPOOL_HUB_ENABLE_FAKE_PAY=true`
-   outside lde/dev **refuses to boot**. No rail configured (`""`) boots, and
-   `POST /api/v1/checkout` answers `503 payment_unavailable`.
+5. **Fail closed.** An unknown `SPOOL_HUB_PAYMENT_PROVIDER`,
+   `SPOOL_HUB_ENABLE_FAKE_PAY=true` outside lde/dev, or PayPal on prd / in live
+   mode **refuses to boot**. No rail (`""`) boots and checkout answers
+   `503 payment_unavailable`; a card rail whose keys are unusable boots too
+   (the hub carries every box) and checkout answers `503` with detail
+   `payment_provider_misconfigured` (csi-rel F-17).
+6. **Providers are csi-rel's** (owner direction 2026-09-19): the card rail is
+   Stripe exactly as csi-rel does it (PaymentIntent + Payment Element + signed
+   webhook); csi-rel's PayPal (Orders v2, approve-then-capture) is copied OFF
+   by default and is **not live-tested**.
 
 ## 1. Routes
 
@@ -39,38 +45,50 @@ hub error envelope `{"error":<token>,"detail":<text>}`.
 `200`:
 
 ```json
-{"plan_id":"default","amount_cents":2000,"currency":"eur","rail":"fake",
+{"plan_id":"default","amount_cents":2000,"currency":"eur","rail":"card",
+ "methods":["card","paypal"],"available":true,
+ "publishable_key":"pk_…","paypal_client_id":"…",
  "tenant_url_pattern":"https://{tenant}.dev.<domain>"}
 ```
 
-`rail` is `none` (checkout unavailable), `fake` (lde/dev fake-pay) or
-`hosted` (the buyer is redirected to the provider's hosted payment page).
+`rail` is the card rail: `none` (unavailable), `fake` (lde/dev fake-pay) or
+`card` (Stripe: `publishable_key` for the Payment Element). `methods` lists
+what §1.2 accepts; `paypal` only while PayPal is enabled (never prd), with
+`paypal_client_id` for the PayPal JS SDK. `available` is false while the
+card rail is guarded.
 
 ### 1.2 `POST /api/v1/checkout`
 
-Request: `{"tenant_id":"acme","email":"buyer@example.com"}`.
+Request: `{"tenant_id":"acme","email":"buyer@example.com","method":"card"}`
+(`method` optional: `card` default, or `paypal`).
 `tenant_id` follows `msg.ValidTenantID` (lower-case slug, reserved labels
 refused). `email` is where the one email goes.
 
 `201`:
 
 ```json
-{"checkout_id":"co_…","claim_token":"…","rail":"hosted",
+{"checkout_id":"co_…","claim_token":"…","method":"card","rail":"card",
  "amount_cents":2000,"currency":"eur","tenant_id":"acme",
  "tenant_url":"https://acme.dev.<domain>",
- "redirect_url":"https://<provider hosted page>"}
+ "client_secret":"pi_…_secret_…","publishable_key":"pk_…"}
 ```
 
-`redirect_url` only for `rail=hosted`. The page MUST keep `checkout_id` and
-`claim_token` (e.g. `sessionStorage`) before redirecting and MUST NOT put
-`claim_token` in any URL (it would reach the provider and access logs).
+`rail=card`: mount the Stripe Payment Element with `client_secret` +
+`publishable_key` and `confirmPayment` with `return_url` = the success page.
+`rail=fake`: no secret; show the fake-pay button (§1.5). `method=paypal`:
+`{"rail":"paypal","provider_order_id":"…","approve_url":"…"}` — render the
+PayPal button for that order id; on approve call §1.7 (`approve_url` is the
+no-popup fallback). The page MUST keep `checkout_id` and `claim_token` (e.g.
+`sessionStorage`) before any redirect and MUST NOT put `claim_token` in any
+URL (it would reach the provider and access logs).
 
 | status | error | when |
 |---|---|---|
 | 400 | `bad_request` | body not JSON, email missing / malformed |
+| 400 | `bad_method` | `method` is not `card` / `paypal` |
 | 400 | `bad_tenant_id` | slug invalid or reserved |
 | 409 | `tenant_taken` | the tenant exists, or another checkout holds the slug (hold = `SPOOL_HUB_PAYMENT_HOLD`, default 1h) |
-| 503 | `payment_unavailable` | no rail configured / provider call failed |
+| 503 | `payment_unavailable` | method not configured, card rail guarded (`payment_provider_misconfigured`), or the provider call failed |
 
 ### 1.3 `GET /api/v1/checkout/{checkout_id}`
 
@@ -111,30 +129,44 @@ paid transition a signed webhook applies.
 `applied:false`. `404 not_found`; `422 not_fake_checkout` for a checkout on a
 real rail; `409 not_pending` for failed / cancelled.
 
-### 1.6 `POST|GET /api/v1/webhooks/payment`
+### 1.6 Webhooks (csi-rel paths)
 
-The provider's server-to-server callback (`SPOOL_HUB_PAYMENT_CALLBACK_URL`
-points here). Signature: HMAC over the `checkout-*` fields plus body, keyed by
-`SPOOL_HUB_PAYMENT_SECRET_KEY` (csi-rel 069 scheme). Fields come from headers
-(POST) or the query string (GET redirect callback).
+`POST /api/v1/webhooks/payment/stripe` — `Stripe-Signature` verified with the
+endpoint secret (`t=,v1=` HMAC-SHA256, 5-minute tolerance, csi-rel
+`VerifyStripe`). `payment_intent.succeeded` → paid; `charge.refunded` →
+refund (tenant `unpaid`); `payment_intent.payment_failed` → acknowledged only
+(the buyer may retry the same intent); `charge.dispute.*` → acknowledged +
+CRITICAL log. The checkout is found by the intent id.
+
+`POST /api/v1/webhooks/payment/paypal` (PayPal enabled only) — offline
+RSA-SHA256 transmission signature over `id|time|webhook_id|crc32(body)`,
+cert only from `*.paypal.com` (csi-rel). `PAYMENT.CAPTURE.COMPLETED` → paid;
+`…REFUNDED` / `…REVERSED` → refund. The checkout is found by the order id.
 
 | answer | when |
 |---|---|
-| `400 bad_request` (no detail) | signature missing / wrong, or required fields missing — nothing written |
+| `400 bad_request` (no detail) | signature missing / wrong / stale, or the rail is off — nothing written |
 | `200 {"status":"duplicate"}` | this `(provider, event id)` was already processed |
 | `200 {"status":"ok","action":"paid"}` | tenant created `active` (or re-activated) |
-| `200 {"status":"ok","action":"failed"\|"refund"\|"ignored"\|"no_matching_checkout"\|"conflict"}` | acknowledged |
+| `200 {"status":"ok","action":"refund"\|"ignored"\|"no_matching_checkout"\|"already_paid"\|"conflict"}` | acknowledged |
 
 `conflict` = paid, but the slug was meanwhile taken by another buyer: logged
 CRITICAL, refund by hand.
 
+### 1.7 `POST /api/v1/checkout/paypal/capture` (PayPal enabled only)
+
+`{"checkout_id":"co_…"}` → `202 {"status":"capturing"}`. Captures the approved
+order (idempotent: PayPal-Request-Id = checkout id); the webhook, not this
+answer, marks it paid — poll §1.3. `404` for a non-PayPal checkout.
+
 ## 2. Success page flow (WUI)
 
 1. Plan page: `GET …/plan` → price; slug + email form → `POST …/checkout`.
-2. Keep `checkout_id` + `claim_token`; `rail=hosted` → `location = redirect_url`;
-   `rail=fake` → a **"Pay (dev fake)"** button → `POST …/fake-pay`.
-3. Success page (the provider returns the browser to `SPOOL_HUB_PAYMENT_SUCCESS_URL`):
-   poll `GET …/{checkout_id}` until `paid`, then `POST …/claim` once.
+2. Keep `checkout_id` + `claim_token`; `rail=card` → Stripe Payment Element,
+   `confirmPayment({return_url: <success page>})`; `rail=fake` → a
+   **"Pay (dev fake)"** button → `POST …/fake-pay`; `paypal` → PayPal button,
+   onApprove → `POST …/paypal/capture`.
+3. Success page: poll `GET …/{checkout_id}` until `paid`, then `POST …/claim` once.
 4. Show tenant URL + root private key with copy/download, and a clear "this is
    the only time we show it; it was also emailed" warning, then drop the
    `claim_token` from storage.
@@ -143,14 +175,16 @@ CRITICAL, refund by hand.
 
 | name | meaning |
 |---|---|
-| `SPOOL_HUB_PAYMENT_PROVIDER` | `""` none · `fake` · `hosted-hmac`; anything else refuses boot |
+| `SPOOL_HUB_PAYMENT_PROVIDER` | `""` none · `fake` · `stripe`; anything else refuses boot |
 | `SPOOL_HUB_ENABLE_FAKE_PAY` | lde/dev only; `true` elsewhere refuses boot; with provider `""` it selects the fake rail |
 | `SPOOL_HUB_PAYMENT_PLAN_ID` / `_PLAN_CENTS` / `_CURRENCY` | the M2 tenant plan |
 | `SPOOL_HUB_PAYMENT_PUBLIC_SCHEME` | scheme of `tenant_url` |
 | `SPOOL_HUB_PAYMENT_HOLD` | how long a pending checkout holds its slug (default `1h`) |
-| `SPOOL_HUB_PAYMENT_API_BASE` | provider API base (no baked host) — `hosted-hmac` |
-| `SPOOL_HUB_PAYMENT_MERCHANT_ID` | provider account id — `hosted-hmac` |
-| `SPOOL_HUB_PAYMENT_SUCCESS_URL` / `_CANCEL_URL` / `_CALLBACK_URL` | browser returns + webhook URL — `hosted-hmac` |
-| `SPOOL_HUB_PAYMENT_SECRET_KEY` | **secret** (Secret Manager slot `csi-spl-hub-payment-secret-key`) — `hosted-hmac` |
+| `SPOOL_HUB_STRIPE_PUBLISHABLE_KEY` | public, for the Payment Element |
+| `SPOOL_HUB_STRIPE_API_BASE` / `_API_VERSION` | empty = the live API / the pinned version (a stripe-mock only in lde) |
+| `SPOOL_HUB_STRIPE_SECRET_KEY` / `_WEBHOOK_SECRET` | **secrets** (slots `csi-spl-hub-stripe-secret-key`, `csi-spl-hub-stripe-webhook-secret`) |
+| `SPOOL_HUB_ENABLE_PAYPAL` | default `false`; refused on prd and with `SPOOL_HUB_PAYPAL_MODE=live` |
+| `SPOOL_HUB_PAYPAL_CLIENT_ID` / `_MODE` / `_API_BASE` / `_WEBHOOK_ID` | PayPal (sandbox) |
+| `SPOOL_HUB_PAYPAL_CLIENT_SECRET` | **secret** (slot `csi-spl-hub-paypal-client-secret`) |
 
-<!-- version: 1.0.0 · updated: 2026-09-19 -->
+<!-- version: 1.1.0 · updated: 2026-09-19 (Stripe + PayPal per owner direction; hosted rail removed) -->

@@ -37,9 +37,10 @@
 # @param   (field root_private_key); or ROOT_KEY = a root.key file instead
 # @param M3_HUMAN_EMAIL (optional) - member human, default m3-e2e-human@example.com
 # @param M3_OUTSIDER_EMAIL (optional) - never invited, default m3-e2e-outsider@example.com
-# @param GCP_ACCOUNT (optional) - the invite's DSN read + proxy identity
-# @param   (do_gcp_account); run in a throwaway CLOUDSDK_CONFIG holding the
-# @param   project key, as 006 T011d did. Only used when an invite is needed.
+# @param SPL_SA_KEY (optional) - the env's service-account key for the invite
+# @param   (DSN read + Cloud SQL proxy); default $HOME/.gcp/.<org>/key-<project>.json.
+# @param   Activated in a throwaway CLOUDSDK_CONFIG, never the owner account
+# @param   (owner rule 2026-09-19). Only used when an invite is needed.
 # @param SPL_STATE_DIR (optional) - default $HOME/.local/share/<org>-<app>/cloud/<env>
 # @example ENV=dev TENANT_ID=t1 ROOT_KEY_JSON=/var/csi/csi-spl/tenants/dev/t1.<ts>.json ./run -a do_spl_m3_e2e
 #------------------------------------------------------------------------------
@@ -82,17 +83,32 @@ do_spl_m3_e2e() {
 }
 
 # spl_m3_invite <tenant> <email>: `spool hub-invite --role member` through the
-# Cloud SQL proxy (the path do_spl_tenant_create uses). The DSN stays in a local.
+# Cloud SQL proxy (the path do_spl_tenant_create uses), as the env's service
+# account in a throwaway gcloud config (never the owner account, never the
+# shared ~/.config/gcloud). The DSN stays in a local.
 spl_m3_invite() {
-  do_gcp_pin_account "$SPL_CNF" || return 1
-  local cloud_dsn dsn out
-  cloud_dsn="$(spl_read_dsn)"
-  [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as $GCP_ACCOUNT"; return 1; }
-  spl_sql_proxy_start || return 1
-  dsn="$(spl_proxy_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" || { spl_sql_proxy_stop; do_log "FATAL unexpected DSN shape in $SPL_DSN_SECRET"; return 1; }
-  out="$(SPOOL_HUB_DB_DSN="$dsn" "$SPL_SPOOL" hub-invite --tenant "$1" --email "$2" --role member 2>&1)"
+  local key="${SPL_SA_KEY:-$HOME/.gcp/.${SPL_ORG_APP%%-*}/key-$SPL_PROJECT.json}"
+  [[ -r "$key" ]] || { do_log "FATAL no service-account key for $SPL_PROJECT at $key (set SPL_SA_KEY)"; return 1; }
+  local cfg
+  cfg="$(mktemp -d)" || return 1
+  (
+    export CLOUDSDK_CONFIG="$cfg"
+    gcloud auth activate-service-account --key-file="$key" >/dev/null 2>&1 ||
+      { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }
+    GCP_ACCOUNT="$(do_gcp_isolated_active_account)" || exit 1
+    export GCP_ACCOUNT
+    local cloud_dsn dsn out rc
+    cloud_dsn="$(spl_read_dsn)"
+    [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as $GCP_ACCOUNT"; exit 1; }
+    spl_sql_proxy_start || exit 1
+    dsn="$(spl_proxy_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" || { spl_sql_proxy_stop; do_log "FATAL unexpected DSN shape in $SPL_DSN_SECRET"; exit 1; }
+    out="$(SPOOL_HUB_DB_DSN="$dsn" "$SPL_SPOOL" hub-invite --tenant "$1" --email "$2" --role member 2>&1)"
+    rc=$?
+    spl_sql_proxy_stop
+    [[ $rc == 0 ]] || { do_log "FATAL hub-invite $2 to $1: $out"; exit 1; }
+    do_log "OK invited $2 to $1 as member ($GCP_ACCOUNT): $out"
+  )
   local rc=$?
-  spl_sql_proxy_stop
-  [[ $rc == 0 ]] || { do_log "FATAL hub-invite $2 to $1: $out"; return 1; }
-  do_log "OK invited $2 to $1 as member: $out"
+  rm -rf "$cfg"
+  return $rc
 }

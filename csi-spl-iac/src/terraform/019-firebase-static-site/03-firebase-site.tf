@@ -36,6 +36,13 @@ resource "google_firebase_hosting_site" "default" {
     google_firebase_project.default,
     google_project_service.firebasehosting,
   ]
+
+  # A deleted Hosting site id "cannot be reactivated by you or anyone else"
+  # (Firebase docs, multisites: deleting a site). A destroy would burn
+  # <org>-<app>-<env>-site forever, so it must fail loudly instead.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "google_firebase_hosting_custom_domain" "default" {

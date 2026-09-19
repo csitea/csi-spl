@@ -28,6 +28,10 @@ for env in dev prd; do
     && pass "$env 019 binds no custom domain (the 031 LB fronts the site)" || fail "$env 019 bind_custom_domain is not false"
 done
 
+# a deleted Firebase site id can never be reused: the site must refuse a destroy
+awk '/resource "google_firebase_hosting_site" "default"/,/^}/' "$TFD/019-firebase-static-site/03-firebase-site.tf" | grep -q 'prevent_destroy = true' \
+  && pass "019 site carries prevent_destroy (a deleted site id is gone forever)" || fail "019 site lacks prevent_destroy"
+
 # --- 031: the WUI route --------------------------------------------------------
 lb="$TFD/031-gcp-hub-ingress/05-load-balancer.tf"
 grep -q 'host_rewrite = var.wui_origin_host' "$lb" && pass "031 rewrites Host to the Firebase site" || fail "031 has no host_rewrite"

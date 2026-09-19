@@ -184,10 +184,17 @@ Every apply here waits on an owner GCP re-auth (2026-09-19: `gcloud …
       `wui_origin_host` and L7 rules behind `l7_narrowing`, cnf dev on / prd
       off, tfvars rendered — FR-020..FR-023. Check:
       `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` (box user) -> `12/12`
-- [ ] T074 Apply `016` then `019` on dev (owner go given in the M3 brief; blocked
-      on re-auth); verify `curl -so /dev/null -w '%{http_code}'
-      https://csi-spl-dev-site.web.app/` -> `200` after the first deploy
-- [ ] T075 Apply `016` then `019` on prd; same probe on `csi-spl-prd-site`
+- [x] T074 dev `016` then `019` (owner go 2026-09-19, relayed by the WUI
+      orchestrator), through `make do-tf-plan` / `do-provision` (tf-runner,
+      project key, `3bb310c`), then a local WUI deploy on the key
+      (`firebase deploy --only hosting`, trunk `1f7329d`), 2026-09-19 ~09:02Z, n=1:
+      016 plan `4 to add, 0 to change, 0 to destroy` -> `Apply complete! Resources:
+      4 added` (`csi-spl-dev-fb-deploy@…`); 019 plan `4 to add` (services x2,
+      firebase_project, site; 0 custom domains) -> `4 added`. Check:
+      `curl -sI https://csi-spl-dev-site.web.app/ | head -1` -> `HTTP/2 200`
+      (was 404); `curl -s https://csi-spl-dev-site.web.app/build.json` ->
+      `{"commit":"1f7329d…"}`
+- [ ] T075 (no owner go for prd yet) Apply `016` then `019` on prd; same probe on `csi-spl-prd-site`
 - [ ] T076 dev `031` apply (WUI route + stage-1 Armor); verify
       `https://dev.<domain>/` and `https://t1.dev.<domain>/` -> `200` (WUI),
       `/version` -> `200` (hub), a WS upgrade to `/v1/ws` -> `101`, and the §4

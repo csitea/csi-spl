@@ -19,6 +19,7 @@
     "test:e2e:no-x-scroll": "node tests/e2e/no-x-scroll.test.mjs"
   },
   "dependencies": {
+    "@nuxtjs/i18n": "^9.5.6",
     "@pinia/nuxt": "^0.11.3",
     "nuxt": "^3.16.0",
     "pinia": "^3.0.4",

@@ -131,7 +131,7 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   signed view token (OQ-16 is still undecided; the token door admits bearers only). Boxes keep working (`spool`
   get-file already sends the upload token); the WUI must fetch with `credentials: 'include'` in the session door
   (CLE-55 lane). Contract: `../003-spool-message-bus/contracts/http-v1.md` §3.
-  *Status:* Partial — hub implemented (T006/T007); dev/prd deploy and the WUI credentials change pending.
+  *Status:* Implemented — hub `1bcff63` + WUI `30e50d6`, live on dev and prd (hub 0.1.8); prd controls in T006.
 
 - **FR-SEC-003 (Root Key Claim Isolation):** The tenant root private key MUST NOT be transmitted over email.
   `TenantWelcome` email MUST omit the private key string, confining display to a single interactive web claim modal.

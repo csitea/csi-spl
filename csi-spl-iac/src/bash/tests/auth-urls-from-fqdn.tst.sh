@@ -63,6 +63,16 @@ for env in dev prd; do
   check_derived "$env" "$tmp/$env.yaml"
 done
 
+# T053: the WUI auth base is "" (same-origin) or derived from api_fqdn, never a
+# literal host in the yaml; after the merge it is "" or exactly https://<api_fqdn>
+for env in dev prd; do
+  raw=$(yq -r '.env.steps."019-firebase-static-site".wui_auth_base // ""' "$CNF/$env.env.yaml")
+  [[ -z "$raw" || "$raw" == "https://{api_fqdn}" ]] && pass "$env wui_auth_base is '' or https://{api_fqdn} ('$raw')" || fail "$env wui_auth_base literal: '$raw'"
+  got=$(yq -r '.env.steps."019-firebase-static-site".wui_auth_base // ""' "$tmp/$env.yaml")
+  api=$(yq -r '.env.dns.api_fqdn' "$tmp/$env.yaml")
+  [[ -z "$got" || "$got" == "https://$api" ]] && pass "$env merged wui_auth_base is '' or https://<api_fqdn> ('$got')" || fail "$env merged wui_auth_base: '$got'"
+done
+
 # lde: its literal localhost URLs and host-only cookie win over the derivation
 do_spl_merged_cnf "$CNF" lde "$tmp/lde.yaml" || fail "lde: cannot merge cnf"
 for k in APP_URL COOKIE_DOMAIN $(printf '%s_REDIRECT_URI ' $PROVIDERS); do
@@ -78,6 +88,12 @@ cp "$CNF/all.env.yaml" "$CNF/dev.env.yaml" "$tmp/cnf/"
 yq -i '.env.dns.env_subdomain = "ctl"' "$tmp/cnf/dev.env.yaml"
 do_spl_merged_cnf "$tmp/cnf" dev "$tmp/ctl.yaml" || fail "control: cannot merge"
 [[ "$(yq -r '.env.dns.fqdn' "$tmp/ctl.yaml")" == ctl.* ]] && check_derived "control ctl" "$tmp/ctl.yaml" || fail "control: fqdn did not move"
+# control: the {api_fqdn} token in wui_auth_base follows the subdomain too
+yq -i '.env.steps."019-firebase-static-site".wui_auth_base = "https://{api_fqdn}"' "$tmp/cnf/dev.env.yaml"
+do_spl_merged_cnf "$tmp/cnf" dev "$tmp/ctl2.yaml" || fail "control: cannot merge (auth base)"
+got=$(yq -r '.env.steps."019-firebase-static-site".wui_auth_base' "$tmp/ctl2.yaml")
+[[ "$got" == "https://$(yq -r '.env.dns.api_fqdn' "$tmp/ctl2.yaml")" && "$got" == https://ctl.api.* ]] \
+  && pass "control: wui_auth_base https://{api_fqdn} -> $got" || fail "control: wui_auth_base -> '$got'"
 yq -i '.env.auth.social.env.SPOOL_HUB_AUTH_XAI_REDIRECT_URI = "https://literal.example.com/cb"' "$tmp/cnf/dev.env.yaml"
 do_spl_merged_cnf "$tmp/cnf" dev "$tmp/lit.yaml" || fail "control: cannot merge the literal"
 [[ "$(yq -r '.env.auth.social.env.SPOOL_HUB_AUTH_XAI_REDIRECT_URI' "$tmp/lit.yaml")" == "https://literal.example.com/cb" ]] \

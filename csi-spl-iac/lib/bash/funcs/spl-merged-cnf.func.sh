@@ -14,6 +14,9 @@
 # @description <APP_URL>/api/v1/auth/<p>/callback: the WUI host, which the IdP
 # @description clients authorise and Firebase rewrites to the hub (owner
 # @description 2026-09-19: no console change). A literal wins (lde).
+# @description steps.019-firebase-static-site.wui_auth_base (the WUI's
+# @description NUXT_PUBLIC_AUTH_BASE, spec 010 T053) expands "{api_fqdn}", so the
+# @description cnf says "https://{api_fqdn}" and never the host; "" = same-origin.
 # @param $1 - the cnf dir holding all.env.yaml and <env>.env.yaml
 # @param $2 - env: dev, prd or lde
 # @param $3 - output yaml path
@@ -26,6 +29,9 @@ do_spl_merged_cnf() {
   yq eval-all '. as $i ireduce ({}; . * $i)' "$dir/all.env.yaml" "$dir/$env.env.yaml" |
     yq '.env.dns.fqdn = (select(.env.dns.env_subdomain != "") | .env.dns.env_subdomain + "." + .env.dns.BASE_DOMAIN) // .env.dns.BASE_DOMAIN' |
     yq '.env.dns.api_fqdn = (.env.dns.api_fqdn // ((select(.env.dns.env_subdomain != "") | .env.dns.env_subdomain + ".api." + .env.dns.BASE_DOMAIN) // ("api." + .env.dns.BASE_DOMAIN)))' |
+    yq '(.env | select(.steps."019-firebase-static-site".wui_auth_base != null)) |= (
+      .dns.api_fqdn as $a |
+      with(.steps."019-firebase-static-site".wui_auth_base | select(test("\{api_fqdn\}")); . |= sub("\{api_fqdn\}"; $a)))' |
     yq '(.env | select(.hub != null)) |= (
       .hub.env.SPOOL_HUB_ENV = (.hub.env.SPOOL_HUB_ENV // .ENV) |
       .hub.env.SPOOL_HUB_FILES_BUCKET = (.hub.env.SPOOL_HUB_FILES_BUCKET // .steps."050-gcs-files".files_bucket_name) |

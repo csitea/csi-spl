@@ -114,8 +114,9 @@ none of these blocks M1. The feature text is `../010-spool-social-auth/`.
 - [ ] T067 (010 T021) empty Secret Manager slots for the auth session key and
       the two client secrets + secretAccessor for the hub runtime SA, per env;
       no version resource (fold into `029`, T060)
-- [ ] T068 (010 T022) derive `SPOOL_HUB_AUTH_APP_URL` and the redirect URIs
-      from `env.dns.fqdn` in `do_spl_merged_cnf`
+- [x] T068 (010 T022) derive `SPOOL_HUB_AUTH_APP_URL` and the redirect URIs
+      from `env.dns.fqdn` in `do_spl_merged_cnf` — Implemented (`86759b2`);
+      check: `bash csi-spl-iac/src/bash/tests/auth-urls-from-fqdn.tst.sh`
 
 ## Phase 8: tooling defects found in the audit
 

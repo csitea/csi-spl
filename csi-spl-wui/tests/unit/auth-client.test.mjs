@@ -61,6 +61,15 @@ describe('auth-v1 helpers (spec 010)', () => {
 })
 
 describe('auth client', () => {
+  it('spec 021: sends NO x-locale unless sendLocale (a CORS preflight the hub refuses broke sign-in)', async () => {
+    const off = stub(200, { providers: [] })
+    await createAuthClient({ fetchFn: off.fn, locale: () => 'fi' }).providers()
+    await createAuthClient({ fetchFn: off.fn, locale: () => 'fi' }).session()
+    for (const c of off.calls) assert.equal(c.opts.headers['x-locale'], undefined, c.url)
+    const on = stub(200, { providers: [] })
+    await createAuthClient({ fetchFn: on.fn, locale: () => 'fi', sendLocale: true }).providers()
+    assert.equal(on.calls[0].opts.headers['x-locale'], 'fi')
+  })
   it('loadProviders tells auth-off apart from an unreachable registry', async () => {
     const load = (st, body, o) => createAuthClient({ fetchFn: stub(st, body, o).fn }).loadProviders()
     assert.deepEqual(await load(200, { providers: ['google'] }), { status: 'ok', reason: '', providers: ['google'], native: false })

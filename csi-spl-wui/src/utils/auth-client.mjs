@@ -158,15 +158,18 @@ export function startHref(provider, redirect, tenant, base = '') {
   return `${authOrigin(base)}${AUTH_PREFIX}/${encodeURIComponent(String(provider))}/start?${q}`
 }
 
-export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale = () => '' } = {}) {
+export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale = () => '', sendLocale = false } = {}) {
   const root = authOrigin(base)
   // 'include': the cookie must ride a cross-origin call to the auth base; it is
   // the same as 'same-origin' when the base is ''.
   // X-Locale (spec 021, the donor's header): browser fetch cannot override
   // Accept-Language, so the active UI locale rides here; the hub mails a
-  // person who has no stored preference in it.
+  // person who has no stored preference in it. OFF unless `sendLocale`: the
+  // header is non-simple, so a cross-origin call preflights, and a hub whose
+  // CORS allow-list lacks X-Locale refuses EVERY auth call (2e2c601 broke
+  // sign-in on dev + prd exactly so). Turn it on only where the hub admits it.
   const call = (path, opts) => {
-    const loc = String((typeof locale === 'function' ? locale() : locale) || '')
+    const loc = sendLocale ? String((typeof locale === 'function' ? locale() : locale) || '') : ''
     return fetchFn(`${root}${AUTH_PREFIX}${path}`, {
       credentials: 'include',
       ...opts,

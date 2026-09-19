@@ -67,7 +67,11 @@ type Frame struct {
 	TS     string   `json:"ts,omitempty"`
 	Sig    string   `json:"sig,omitempty"`
 	Role   string   `json:"role,omitempty"`
-	Agents []string `json:"agents,omitempty"`
+	Agents []string `json:"agents,omitempty"` // hello/announce roster; on recv: the addressed local agents (channels-v1 §4)
+
+	// hello / announce (M3): channel subscriptions of every agent in Agents
+	// (channels-v1 §3). Absent = lobby only.
+	Channels []string `json:"channels,omitempty"`
 
 	// welcome / roster / token
 	Roster               map[string][]string `json:"roster,omitempty"`
@@ -96,11 +100,17 @@ type Frame struct {
 // Envelope is the box-signed hub envelope (trust-modes §5). Msg is kept as the
 // raw inner v:1 bytes so nothing between the signer and the verifier re-encodes
 // a signed field.
+//
+// Channel and ParentTaskID are the optional M3 hub-envelope fields (specs/003
+// contracts/channels-v1.md §2): never v:1 fields, signed only when present, so
+// an envelope without them is byte-identical to a pre-M3 one.
 type Envelope struct {
-	FromBox string          `json:"from_box"`
-	ToBox   string          `json:"to_box"`
-	Msg     json.RawMessage `json:"msg"`
-	Sig     string          `json:"sig"`
+	FromBox      string          `json:"from_box"`
+	ToBox        string          `json:"to_box"`
+	Channel      string          `json:"channel,omitempty"`
+	ParentTaskID string          `json:"parent_task_id,omitempty"`
+	Msg          json.RawMessage `json:"msg"`
+	Sig          string          `json:"sig"`
 }
 
 // Canonical re-encodes any JSON value with sorted keys, compact, exact numbers
@@ -131,18 +141,32 @@ func HelloPayload(boxID, nonce, ts string) ([]byte, error) {
 }
 
 // SigningPayload is the byte string an envelope sig covers:
-// jq -cS '{from_box,to_box,msg}' (OQ-03a: to_box is always present).
+// jq -cS '{from_box,to_box,msg}' (OQ-03a: to_box is always present), plus
+// channel and parent_task_id only when present (channels-v1 §2).
 func (e *Envelope) SigningPayload() ([]byte, error) {
-	return Canonical(map[string]any{"from_box": e.FromBox, "to_box": e.ToBox, "msg": e.Msg})
+	p := map[string]any{"from_box": e.FromBox, "to_box": e.ToBox, "msg": e.Msg}
+	if e.Channel != "" {
+		p["channel"] = e.Channel
+	}
+	if e.ParentTaskID != "" {
+		p["parent_task_id"] = e.ParentTaskID
+	}
+	return Canonical(p)
 }
 
 // NewEnvelope marshals m and signs the envelope with the sending box key.
 func NewEnvelope(priv ed25519.PrivateKey, fromBox, toBox string, m *msg.Message) (*Envelope, error) {
+	return NewEnvelopeIn(priv, fromBox, toBox, "", "", m)
+}
+
+// NewEnvelopeIn is NewEnvelope with the optional M3 channel / parent_task_id
+// tags ("" = absent), both covered by the sig when present.
+func NewEnvelopeIn(priv ed25519.PrivateKey, fromBox, toBox, channel, parentTaskID string, m *msg.Message) (*Envelope, error) {
 	inner, err := msg.Canonical(m) // inner v:1 without sig (both modes omit it)
 	if err != nil {
 		return nil, err
 	}
-	e := &Envelope{FromBox: fromBox, ToBox: toBox, Msg: inner}
+	e := &Envelope{FromBox: fromBox, ToBox: toBox, Channel: channel, ParentTaskID: parentTaskID, Msg: inner}
 	p, err := e.SigningPayload()
 	if err != nil {
 		return nil, err

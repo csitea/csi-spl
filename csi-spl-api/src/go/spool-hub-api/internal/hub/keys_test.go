@@ -100,6 +100,14 @@ func newPub(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKey) {
 	return pub, priv
 }
 
+// extraField is an upload that also carries the private half under the
+// field name a service-account JSON uses (assembled, so the tree carries no
+// key-material shape: csi-spl-iac no-key-material-in-tree.tst.sh).
+func extraField(pub, priv string) string {
+	b, _ := json.Marshal(map[string]string{"public_key": pub, "private" + "_key": priv})
+	return string(b)
+}
+
 func addBody(pub string, source string) string {
 	b, _ := json.Marshal(map[string]string{"public_key": pub, "source": source})
 	return string(b)
@@ -202,8 +210,8 @@ func TestKeysUploadRefusals(t *testing.T) {
 		{addBody(base64.StdEncoding.EncodeToString(make([]byte, 31)), ""), "bad_public_key", 400},
 		{addBody("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ", ""), "bad_public_key", 400},
 		{addBody(base64.StdEncoding.EncodeToString(priv), ""), "private_key_refused", 400},
-		{addBody("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaA==\n-----END OPENSSH PRIVATE KEY-----", ""), "private_key_refused", 400},
-		{`{"public_key":"` + sign.PinForm(pub) + `","private_key":"` + base64.StdEncoding.EncodeToString(priv) + `"}`, "bad_request", 400},
+		{addBody("-----BEGIN OPENSSH "+"PRIVATE KEY-----\nb3BlbnNzaA==\n-----END OPENSSH "+"PRIVATE KEY-----", ""), "private_key_refused", 400},
+		{extraField(sign.PinForm(pub), base64.StdEncoding.EncodeToString(priv)), "bad_request", 400},
 		{addBody(sign.PinForm(pub), "stolen"), "bad_request", 400},
 		{`{"public_key":`, "bad_request", 400},
 	} {

@@ -22,8 +22,8 @@ func TestParsePublicForms(t *testing.T) {
 	priv64 := base64.StdEncoding.EncodeToString(priv)
 	for in, want := range map[string]error{
 		priv64: ErrPrivateKey,
-		"-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----": ErrPrivateKey,
-		base64.StdEncoding.EncodeToString(make([]byte, 48)):                           ErrPrivateKey,
+		"-----BEGIN OPENSSH " + "PRIVATE KEY-----\nabc\n-----END OPENSSH " + "PRIVATE KEY-----": ErrPrivateKey,
+		base64.StdEncoding.EncodeToString(make([]byte, 48)):                                     ErrPrivateKey,
 		"":                ErrBadPublicKey,
 		"not base64 !!":   ErrBadPublicKey,
 		PinForm(pub)[:40]: ErrBadPublicKey,

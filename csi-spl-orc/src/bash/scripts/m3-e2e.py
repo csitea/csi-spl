@@ -17,7 +17,8 @@ Env:   M3_HUB_URL      https://<api host>        (box + tenant API; specs/026: o
        M3_TENANT       the tenant (default: the first label of M3_HUB_URL, the
                        legacy <tenant>.<fqdn> form)
        M3_OTHER_TENANT (optional) a tenant the humans and boxes are NOT in, for
-                       the 026 controls (default t1, or e2e when M3_TENANT is t1)
+                       the 026 controls; it must EXIST, or a box naming it is
+                       only a 404 (default csitea, created on dev + prd)
        M3_AUTH_URL     https://<fqdn>            (/api/v1/auth/*, cookie domain)
        M3_STATE        run state dir (0700)
        M3_SPOOL        spool CLI
@@ -62,7 +63,7 @@ WUI = "box-wui"
 
 HUB = os.environ.get("M3_HUB_URL", "").rstrip("/")
 TENANT = os.environ.get("M3_TENANT", "") or (urllib.parse.urlparse(HUB).hostname or "").split(".")[0]
-OTHER = os.environ.get("M3_OTHER_TENANT", "") or ("e2e" if TENANT == "t1" else "t1")
+OTHER = os.environ.get("M3_OTHER_TENANT", "") or ("t1" if TENANT == "csitea" else "csitea")  # exists on dev + prd
 AUTH = os.environ.get("M3_AUTH_URL", "").rstrip("/")
 STATE = os.environ.get("M3_STATE", "")
 SPOOL = os.environ.get("M3_SPOOL", "")

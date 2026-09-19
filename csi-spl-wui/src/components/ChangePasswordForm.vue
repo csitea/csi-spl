@@ -19,11 +19,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { createAuthClient, nativeErrorMessage } from '~/utils/auth-client.mjs'
+import { nativeErrorMessage } from '~/utils/auth-client.mjs'
 import { useSessionStore } from '~/stores/session'
+import { useAuthClient } from '~/composables/useAuthClient'
 
 const emit = defineEmits<{ changed: [] }>()
-const auth = createAuthClient()
+const auth = useAuthClient()
 const session = useSessionStore()
 const current = ref('')
 const next = ref('')

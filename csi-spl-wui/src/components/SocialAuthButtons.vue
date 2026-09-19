@@ -4,8 +4,8 @@
      The set of providers comes from the hub (GET /api/v1/auth/providers), in
      cnf order — NOT a hardcoded pair — so a provider the hub enables appears
      with zero WUI change. Each button is a plain <a> to the hub's start route
-     (same-origin; Hosting rewrites /api/v1/auth/** to Cloud Run, lde uses the
-     Nitro devProxy): the OAuth dance is a full-page redirect, never fetch(),
+     on the auth base (the hub's API origin, NUXT_PUBLIC_AUTH_BASE; '' in lde,
+     where the Nitro devProxy serves it same-origin): the OAuth dance is a full-page redirect, never fetch(),
      and no IdP SDK is loaded, so nothing is requested from an IdP until the
      visitor clicks.
 
@@ -39,7 +39,7 @@
       class="btn social-auth__btn"
       :class="`social-auth__btn--${p}`"
       :data-test="`social-auth-${p}`"
-      :href="startHref(p, redirect, tenant)"
+      :href="startHref(p, redirect, tenant, authBase)"
       rel="nofollow"
     >
       <span class="social-auth__mark" aria-hidden="true">
@@ -83,11 +83,11 @@
 import { onMounted, ref } from 'vue'
 import {
   authErrorMessage,
-  createAuthClient,
   providerName,
   startHref,
 } from '@/utils/auth-client.mjs'
 import { noteError } from '@/composables/errorJournal.mjs'
+import { useAuthBase, useAuthClient } from '@/composables/useAuthClient'
 
 withDefaults(defineProps<{
   /** Post-login destination; auth-client's safeRedirect keeps it same-site. */
@@ -97,6 +97,8 @@ withDefaults(defineProps<{
 }>(), { redirect: '/', tenant: '' })
 
 const { t } = useI18n({ useScope: 'global' })
+const authBase = useAuthBase()
+const auth = useAuthClient()
 
 type Status = 'idle' | 'ok' | 'unavailable'
 const status = ref<Status>('idle')
@@ -108,7 +110,7 @@ const native = ref(false)
 // Client-only fetch keeps SSR and the first client render identical (empty),
 // so there is never a hydration mismatch; the list appears after mount.
 onMounted(async () => {
-  const out = await createAuthClient().loadProviders()
+  const out = await auth.loadProviders()
   providers.value = out.providers
   native.value = out.native === true
   status.value = out.status as Status
@@ -116,7 +118,7 @@ onMounted(async () => {
     noteError({
       source: 'social-auth',
       method: 'GET',
-      url: '/api/v1/auth/providers',
+      url: `${authBase}/api/v1/auth/providers`,
       status: Number(out.reason) || 0,
       message: `provider registry unavailable (${out.reason})`,
     })

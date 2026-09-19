@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { createAuthClient } from '~/utils/auth-client.mjs'
+import { useAuthClient } from '~/composables/useAuthClient'
 
 export type SessionState = 'in' | 'out' | 'unknown' | 'loading'
 
@@ -16,7 +16,7 @@ export interface SessionClaims {
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
 export const useSessionStore = defineStore('session', () => {
-  const auth = createAuthClient()
+  const auth = useAuthClient()
   const state = ref<SessionState>('loading')
   const claims = ref<SessionClaims | null>(null)
 

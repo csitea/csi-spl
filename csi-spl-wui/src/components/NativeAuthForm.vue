@@ -71,8 +71,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { createAuthClient, nativeErrorMessage, safeRedirect, type NativeResult } from '~/utils/auth-client.mjs'
+import { nativeErrorMessage, safeRedirect, type NativeResult } from '~/utils/auth-client.mjs'
 import { useSessionStore, type SessionClaims } from '~/stores/session'
+import { useAuthClient } from '~/composables/useAuthClient'
 
 const props = withDefaults(defineProps<{
   redirect?: string
@@ -87,7 +88,7 @@ const MODES: { id: Mode, label: string }[] = [
 ]
 const SUBMIT: Record<Mode, string> = { login: 'Sign in', register: 'Create account', forgot: 'Send reset link' }
 
-const auth = createAuthClient()
+const auth = useAuthClient()
 const session = useSessionStore()
 const status = ref<'idle' | 'on' | 'off'>('idle')
 const mode = ref<Mode>('login')

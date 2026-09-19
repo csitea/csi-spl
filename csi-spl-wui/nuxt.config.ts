@@ -48,7 +48,12 @@ function hubCspSources(base: string): string[] {
   const ws = m[1].toLowerCase() === "https" ? "wss" : "ws"
   return [`${m[1].toLowerCase()}://${host}`, `${ws}://${host}`]
 }
-const HUB_SOURCES = hubCspSources(apiBase).join(" ")
+// The hub's API origin for /api/v1/auth/** (spec 010 auth-v1 §1): the WUI host
+// is not the hub host in any deployed env, so sign-in, the session probe and
+// the native forms go there cross-origin with credentials. "" = same-origin
+// (lde: the devProxy below). A build sets it per env, e.g. https://api.<domain>.
+const authBase = (process.env.NUXT_PUBLIC_AUTH_BASE || "").replace(/\/+$/, "")
+const HUB_SOURCES = [...new Set([...hubCspSources(apiBase), ...hubCspSources(authBase)])].join(" ")
 
 // ── Content-Security-Policy ───────────────────────────────────────────────
 // These strings apply only when Nitro is the runtime (lde / preview). The WUI
@@ -160,6 +165,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBase,
+      authBase,
       tenant: process.env.NUXT_PUBLIC_TENANT || (isDev ? "t1" : ""),
       // #lobby is a well-known task_id (003 wui-live-ws.md / cnf LOBBY_TASK_ID);
       // the hub welcome frame overrides this when it names one.

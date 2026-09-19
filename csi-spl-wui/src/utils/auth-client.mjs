@@ -1,8 +1,12 @@
 /**
  * Social sign-in client (specs/010-spool-social-auth/contracts/auth-v1.md §1–§4)
  * and native email + password sign-in (specs/015-spool-native-auth/contracts/native-auth-v1.md).
- * Same-origin: Hosting rewrites /api/v1/auth/** to the hub (lde: nitro devProxy).
- * The WUI never reads the spool_session cookie; it asks GET /api/v1/auth/session.
+ * Every call goes to the AUTH BASE: the hub's API origin (runtime
+ * NUXT_PUBLIC_AUTH_BASE, e.g. https://api.<domain>), cross-origin from the WUI
+ * host with credentials, so the hub's session cookie (Domain = the shared
+ * parent) rides along and the hub's credentialed CORS admits the WUI origin.
+ * '' = same-origin (lde: the nitro devProxy serves /api/v1/auth/**).
+ * The WUI never reads the session cookie; it asks GET /api/v1/auth/session.
  */
 
 export const AUTH_PREFIX = '/api/v1/auth'
@@ -93,18 +97,33 @@ export function safeRedirect(path) {
   return p
 }
 
-/** §4: a plain link, no SDK. tenant only when it is a DNS label. */
-export function startHref(provider, redirect, tenant) {
+/**
+ * The auth base as an origin: '' (same-origin) or http(s)://host[:port] with
+ * no path. Anything else is refused as '' rather than sending the browser, or
+ * the session cookie, somewhere unintended.
+ */
+export function authOrigin(base) {
+  const b = String(base || '').trim().replace(/\/+$/, '')
+  return /^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(b) ? b : ''
+}
+
+/**
+ * §4: a plain link, no SDK. tenant only when it is a DNS label. The redirect
+ * stays a WUI path: the hub lands on <APP_URL><redirect>, APP_URL = the WUI.
+ */
+export function startHref(provider, redirect, tenant, base = '') {
   const q = new URLSearchParams({ redirect: safeRedirect(redirect) })
   const t = String(tenant || '')
   if (/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(t)) q.set('tenant', t)
-  return `${AUTH_PREFIX}/${encodeURIComponent(String(provider))}/start?${q}`
+  return `${authOrigin(base)}${AUTH_PREFIX}/${encodeURIComponent(String(provider))}/start?${q}`
 }
 
 export function createAuthClient({ fetchFn = globalThis.fetch, base = '' } = {}) {
-  const root = String(base || '').replace(/\/+$/, '')
+  const root = authOrigin(base)
+  // 'include': the cookie must ride a cross-origin call to the auth base; it is
+  // the same as 'same-origin' when the base is ''.
   const call = (path, opts) => fetchFn(`${root}${AUTH_PREFIX}${path}`, {
-    credentials: 'same-origin',
+    credentials: 'include',
     ...opts,
     headers: { accept: 'application/json', ...(opts && opts.headers) },
   })

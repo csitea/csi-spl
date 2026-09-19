@@ -158,7 +158,8 @@ declare module '~/utils/auth-client.mjs' {
   export function providerName(p: string): string
   export function providerLabel(p: string): string
   export function safeRedirect(path: string): string
-  export function startHref(provider: string, redirect: string, tenant?: string): string
+  export function authOrigin(base: string): string
+  export function startHref(provider: string, redirect: string, tenant?: string, base?: string): string
   export function retryAfterMessage(seconds: number): string
   export interface NativeResult {
     ok: boolean

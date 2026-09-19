@@ -19,10 +19,13 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { createAuthClient, nativeErrorMessage } from '~/utils/auth-client.mjs'
+import { nativeErrorMessage } from '~/utils/auth-client.mjs'
 import { useSettledQuery } from '~/composables/useSettledQuery'
+import { useAuthClient } from '~/composables/useAuthClient'
 
 definePageMeta({ layout: 'login' })
+
+const auth = useAuthClient()
 
 const route = useRoute()
 const router = useRouter()
@@ -36,7 +39,7 @@ let posted = false
 async function verify(tok: string) {
   if (posted || !tok) return
   posted = true
-  const out = await createAuthClient().verifyEmail(tok)
+  const out = await auth.verifyEmail(tok)
   // §3: drop the token once posted
   const { token: _drop, ...rest } = route.query
   void router.replace({ query: rest })

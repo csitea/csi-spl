@@ -26,10 +26,13 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { createAuthClient, nativeErrorMessage } from '~/utils/auth-client.mjs'
+import { nativeErrorMessage } from '~/utils/auth-client.mjs'
 import { useSettledQuery } from '~/composables/useSettledQuery'
+import { useAuthClient } from '~/composables/useAuthClient'
 
 definePageMeta({ layout: 'login' })
+
+const auth = useAuthClient()
 
 const route = useRoute()
 const router = useRouter()
@@ -52,7 +55,7 @@ async function submit() {
   }
   busy.value = true
   try {
-    const out = await createAuthClient().resetPassword({ token: held.value, password: password.value })
+    const out = await auth.resetPassword({ token: held.value, password: password.value })
     // §3: drop the token once posted (kept in memory for a too-short retry)
     if (route.query.token !== undefined) {
       const { token: _drop, ...rest } = route.query

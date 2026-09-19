@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   authErrorMessage,
+  authOrigin,
   createAuthClient,
   nativeErrorMessage,
   providerLabel,
@@ -75,7 +76,7 @@ describe('auth client', () => {
     const ok = stub(200, { providers: ['google', 'facebook'] })
     assert.deepEqual(await createAuthClient({ fetchFn: ok.fn }).providers(), ['google', 'facebook'])
     assert.equal(ok.calls[0].url, '/api/v1/auth/providers')
-    assert.equal(ok.calls[0].opts.credentials, 'same-origin')
+    assert.equal(ok.calls[0].opts.credentials, 'include')
     assert.deepEqual(await createAuthClient({ fetchFn: stub(200, { providers: [] }).fn }).providers(), [])
     assert.deepEqual(await createAuthClient({ fetchFn: stub(404, {}).fn }).providers(), [])
     assert.deepEqual(await createAuthClient({ fetchFn: stub(0, {}, { throws: true }).fn }).providers(), [])
@@ -95,6 +96,52 @@ describe('auth client', () => {
     assert.equal(await createAuthClient({ fetchFn: s.fn }).logout(), true)
     assert.equal(s.calls[0].opts.method, 'POST')
     assert.equal(s.calls[0].url, '/api/v1/auth/logout')
+  })
+})
+
+describe('cross-origin auth base (A7: the WUI host is not the hub host)', () => {
+  const API = 'https://dev.api.spool-hub.ai'
+
+  it('authOrigin keeps a bare http(s) origin and refuses the rest as same-origin', () => {
+    assert.equal(authOrigin(API + '/'), API)
+    assert.equal(authOrigin('http://localhost:58080'), 'http://localhost:58080')
+    for (const bad of ['', null, 'api.example', 'https://x/api', 'javascript:alert(1)', '//evil.example', 'https://a b']) {
+      assert.equal(authOrigin(bad), '', String(bad))
+    }
+  })
+
+  it('start links go to the hub origin, the redirect stays a WUI path', () => {
+    assert.equal(startHref('google', '/t/abc', 't1', API), `${API}/api/v1/auth/google/start?redirect=%2Ft%2Fabc&tenant=t1`)
+    assert.equal(startHref('google', 'https://evil.example', '', API + '/'), `${API}/api/v1/auth/google/start?redirect=%2F`)
+    assert.equal(startHref('google', '/', '', 'https://x/p'), '/api/v1/auth/google/start?redirect=%2F')
+  })
+
+  it('every call (probe, providers, native, logout) hits the base with credentials', async () => {
+    const s = stub(200, { providers: [] })
+    const c = createAuthClient({ fetchFn: s.fn, base: API })
+    await c.loadProviders()
+    await c.session()
+    await c.login({ email: 'a@b.c', password: 'pw' })
+    await c.verifyEmail('t')
+    await c.resetPassword({ token: 't', password: 'p' })
+    await c.logout()
+    assert.deepEqual(s.calls.map((x) => x.url), [
+      `${API}/api/v1/auth/providers`, `${API}/api/v1/auth/session`, `${API}/api/v1/auth/login`,
+      `${API}/api/v1/auth/email/verify`, `${API}/api/v1/auth/password/reset`, `${API}/api/v1/auth/logout`,
+    ])
+    for (const x of s.calls) assert.equal(x.opts.credentials, 'include', x.url)
+  })
+
+  it('no WUI file builds a client or a start link without the auth base', () => {
+    const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+    for (const f of ['src/stores/session.ts', 'src/components/NativeAuthForm.vue', 'src/components/ChangePasswordForm.vue',
+      'src/components/SocialAuthButtons.vue', 'src/pages/verify-email.vue', 'src/pages/reset-password.vue']) {
+      const src = readFileSync(join(WUI, f), 'utf8')
+      assert.equal(/createAuthClient\(/.test(src), false, `${f} must use useAuthClient()`)
+      assert.ok(src.includes('useAuthClient'), f)
+    }
+    const cfg = readFileSync(join(WUI, 'nuxt.config.ts'), 'utf8')
+    assert.ok(/process\.env\.NUXT_PUBLIC_AUTH_BASE/.test(cfg) && /\n\s+authBase,\n/.test(cfg), 'runtime key public.authBase')
   })
 })
 
@@ -129,7 +176,7 @@ describe('native-auth-v1 client (spec 015)', () => {
       assert.equal(out.ok, true, path)
       assert.equal(calls[0].url, `/api/v1/auth${path}`)
       assert.equal(calls[0].opts.method, 'POST')
-      assert.equal(calls[0].opts.credentials, 'same-origin')
+      assert.equal(calls[0].opts.credentials, 'include')
       assert.equal(calls[0].opts.headers['content-type'], 'application/json')
       assert.deepEqual(JSON.parse(calls[0].opts.body), body, path)
     }
@@ -204,7 +251,7 @@ describe('SocialAuthButtons (auth-v1 §4, donor component)', () => {
 
   it('is registry-driven plain links, no IdP SDK', () => {
     assert.ok(src.includes('loadProviders()'))
-    assert.ok(src.includes(':href="startHref(p, redirect, tenant)"'))
+    assert.ok(src.includes(':href="startHref(p, redirect, tenant, authBase)"'))
     assert.equal(/<script[^>]+src=|accounts\.google\.com|connect\.facebook\.net/.test(src), false)
   })
 

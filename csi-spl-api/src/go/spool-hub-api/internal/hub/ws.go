@@ -483,7 +483,9 @@ func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelop
 	if m.Files == nil {
 		filesJSON = []byte(`[]`)
 	}
-	now := s.o.Now()
+	// Postgres keeps received_at in µs: an ack / fan-out cursor built from the
+	// ns clock would not match the stored row's (nor a resend's re-ack).
+	now := s.o.Now().Truncate(time.Microsecond)
 	row := store.Message{
 		TenantID: tenant, MsgID: m.MsgID, TaskID: m.TaskID, TS: ts,
 		FromBox: env.FromBox, FromID: m.From, ToBox: env.ToBox, ToID: m.To, Kind: m.Kind, Body: m.Body,

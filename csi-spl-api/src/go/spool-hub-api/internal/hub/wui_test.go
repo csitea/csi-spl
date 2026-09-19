@@ -290,10 +290,11 @@ func TestWUIDoorAndReservedBox(t *testing.T) {
 
 // H1 (003 wui-live-ws §3.2 + §4): a browser resending the same msg_id in a
 // LATER second is re-acked with the stored row's cursor, not 409 conflict_msg,
-// and stores nothing new. The injected clock moves 2 s between the sends.
+// and stores nothing new. The injected clock moves 2 s between the sends; its
+// ns part makes the Postgres run (SPOOL_TEST_PG_DSN) check the µs cursor too.
 func TestWUIResendAcrossSecond(t *testing.T) {
 	var mu sync.Mutex
-	now := time.Date(2026, 9, 19, 9, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 9, 19, 9, 0, 0, 123456789, time.UTC)
 	e := newEnv(t, func(o *hub.Options) {
 		o.ViewDoor = hub.ViewDoorOff
 		o.LobbyTaskID = lobby

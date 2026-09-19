@@ -31,6 +31,12 @@ var validKinds = map[string]bool{"task": true, "result": true, "note": true, "re
 // idRe matches an agent id: a 2-4 letter kind prefix and a number, e.g. CLE-07.
 var idRe = regexp.MustCompile(`^[A-Z]{2,4}-\d+$`)
 
+// LegacySender is the `from` of a legacy .md message whose sender is not an
+// agent id (e.g. the orchestrator's `--ORC--` files): a valid id, so the
+// synthesized object validates like any other (message-schema.md, Legacy
+// bridge; spec 002 Clarifications 2026-09-19).
+const LegacySender = "LGC-0"
+
 // boxRe matches a box id ($SPOOL_BOX_ID), e.g. box-a.
 var boxRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 

@@ -37,6 +37,15 @@ ysg-box implementation as a REFERENCE ONLY; do not touch it."
   `from_box`/`to_box` stay in the hub envelope (trust-modes §5), not in the
   inner `v:1` object. This answers the 002 side of 003 OQ-01.
 
+### Session 2026-09-19 (spec-drift follow-up, legacy bridge)
+
+- FR-015 fallback: a legacy `.md` whose sender is not a valid agent id gets
+  `from: "LGC-0"` (a valid id, `msg.LegacySender`), not `"LEGACY"`; `to` is
+  always the inbox owner; the synthesized object is validated like any other
+  and a failing one is surfaced as malformed (exit `1`, left in `inbox/`).
+  Measured before the change on one box (n=12793 legacy `.md`, 2241 from
+  `ORC`, 0 inbox mail over 64 KiB), so no delivered mail becomes malformed.
+
 ## Context
 
 This is the **near-term, implementable-now** slice of the spool. The end vision
@@ -240,4 +249,4 @@ so MCP is additive and lower priority than a working CLI.
 - A live `SendMessage`/tmux notification integration with delivery semantics.
 - Any change to ysg-box.
 
-<!-- version: 0.1.1 · updated: 2026-09-18 · last-edit: 2026-09-18T16:15:00Z -->
+<!-- version: 0.1.2 · updated: 2026-09-19 · last-edit: 2026-09-19T14:30:00Z -->

@@ -65,13 +65,20 @@ When `spool recv` scans `$SPOOL_ROOT/<id>/inbox/` and encounters legacy `.md` fi
    - `msg_id`: deterministic UUID (derived from filename and content hash).
    - `task_id`: extracted from header/frontmatter if present, else fallback deterministic thread UUID.
    - `ts`: parsed from `<YYYYMMDD-HHMMSS>` in filename or file mtime (RFC3339 UTC).
-   - `from`: parsed from `<from>` in filename `<ts>--<from>--<subject>.md`.
-   - `to`: recipient whose inbox contains the file.
+   - `from`: parsed from `<from>` in filename `<ts>--<from>--<subject>.md`
+     (a valid `from:` in the frontmatter wins). When neither is a valid agent
+     id (e.g. `--ORC--`), `from` is the sentinel **`LGC-0`**, never a string
+     that fails the id regex.
+   - `to`: recipient whose inbox contains the file (a frontmatter `to:` is
+     ignored).
    - `kind`: `"note"`
    - `body`: raw file contents.
    - `files`: `[]`
    - `sig`: omitted (local mail is unsigned)
+   The synthesized object is validated like any other `v:1` message; one
+   that fails (e.g. a body over 64 KiB) is surfaced as malformed: it stays in
+   `inbox/` and `recv` exits `1`.
 3. On `--ack`, the `.md` file is moved to `archive/` identically to `.json` files.
 4. Result: AI agents only need `spool recv` to receive all incoming mail regardless of sender version.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-19 · last-edit: 2026-09-19T14:30:00Z -->

@@ -339,7 +339,9 @@ func ExitCode(err error) int {
 }
 
 // readLegacyMD ingests a legacy .md message file (e.g. from ysg-box inbox-send.sh)
-// wrapping it into a synthetic unsigned v:1 message with kind="note".
+// wrapping it into a synthetic unsigned v:1 message with kind="note". A sender
+// that is not an agent id becomes msg.LegacySender; `to` is always the inbox
+// owner; the result must pass Validate or the file is malformed.
 func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -347,7 +349,7 @@ func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 	}
 	base := filepath.Base(path)
 	from := ""
-	to := as
+	to := as // the contract: the recipient whose inbox holds the file
 	ts := ""
 	taskID := ""
 	subject := ""
@@ -396,10 +398,6 @@ func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 					if msg.ValidID(val) {
 						from = val
 					}
-				case "to":
-					if val != "" {
-						to = val
-					}
 				case "sent":
 					if t, err := time.Parse("20060102T150405Z", val); err == nil {
 						ts = t.UTC().Format(time.RFC3339)
@@ -420,7 +418,7 @@ func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 	}
 
 	if from == "" {
-		from = "LEGACY"
+		from = msg.LegacySender
 	}
 	if ts == "" {
 		if fi, err := os.Stat(path); err == nil {
@@ -438,7 +436,7 @@ func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 		}
 	}
 
-	return &msg.Message{
+	m := &msg.Message{
 		V:      msg.Version,
 		MsgID:  msgID,
 		TaskID: taskID,
@@ -448,7 +446,12 @@ func (s *Store) readLegacyMD(path string, as string) (*msg.Message, error) {
 		Kind:   "note",
 		Body:   body,
 		Files:  []msg.Attachment{},
-	}, nil
+	}
+	// FR-015: the synthesized object is validated like any other v:1 message.
+	if err := m.Validate(); err != nil {
+		return nil, fmt.Errorf("legacy %s: %w", base, err)
+	}
+	return m, nil
 }
 
 func deterministicUUID(data string) string {

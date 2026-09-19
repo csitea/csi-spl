@@ -11,7 +11,7 @@
 - [x] T011 Implemented — WUI unit discovery + typecheck in `wui-suite`. FR-002.
 - [x] T012 Implemented — store `drivers()` Memory + Postgres; hub-pg one DB per package. FR-006.
 - [x] T013 Implemented — `internal/testkit` temp dirs; baked-host / ysg-box hygiene. FR-007.
-- [x] T014 Implemented — 007 T070: missing terraform/tpl-gen is FAIL (not silent PASS). FR-010. Still local-only until T003.
+- [x] T014 Implemented — 007 T070: missing terraform/tpl-gen is FAIL (not silent PASS). FR-010. In CI since T003.
 
 ## Phase 1 — Docs (016)
 
@@ -20,9 +20,9 @@
 ## Phase 2 — Close skip-pass and CI holes
 
 - [x] T002 Implemented (api) — `bed8732`: `csi-spl-api/src/bash/tests/run-all-tests.sh` runs `go test -race ./...`; `hub-pg.tst.sh` (store, hub, auth on Postgres) and `hub-gcs.tst.sh` (blob) run `-race` too, so the 10 hub-suite and the 20 pre-deploy suite both gate on it. No race found (`go test -race -count=5 ./...` green on 776eec1, and on Postgres). Check: `grep -n -- -race csi-spl-api/src/bash/tests/run-all-tests.sh` → line 26. Control: a two-goroutine counter test in `internal/store` passes without `-race` and turns `run-all-tests.sh` and `hub-pg.tst.sh` red (`WARNING: DATA RACE`). Cost (cold test cache, one box): 53 s → 64 s. FR-004. SC-002.
-- [ ] T003 Planned (008) — `10_ci-quality.yml` job `iac-suite`: `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` with terraform 1.9 and in-repo tpl-gen; **do not** set `SPL_TF_ALLOW_SKIP`. FR-003. SC-001.
-- [ ] T004 Planned (008) — job `orc-suite`: hermetic orc `*.tst.sh` that need no live GCP / no full lde. Split out `lde-stack.tst.sh` if it cannot run on ubuntu-latest. FR-003.
-- [ ] T005 Planned (008) — job `cnf-suite`: `bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh` (install conf-validator poetry env first). FR-003.
+- [x] T003 Implemented `5cf1a56` (+ `1311b4f` `do_setup_tpl_gen`) — `10_ci-quality.yml` job `iac-suite`: `run-all-tests.sh` with terraform 1.9.8 and tpl-gen at `cnf/tpl-gen.ref` (`./run -a do_setup_tpl_gen`); `SPL_TF_ALLOW_SKIP` unset, any `SKIP:`/`PARTIAL:` line fails the job; gcloud/gsutil/bq trapped (trap log empty = no GCP). Check: run 35447312122 green on `75fa7cd`; CONTROL run 35447535287 (020 template broken) red on `tf-steps-render-and-validate` + parity. FR-003. SC-001.
+- [x] T004 Implemented `5cf1a56` + `75fa7cd` — job `orc-suite`: ALL orc `*.tst.sh` (20 at `75fa7cd`); none needs a split: `lde-stack` uses only `docker compose config` + `sudo -n`, `checkout-fake-buy` a pulled `postgres:16-alpine`, the rest stub gcloud/curl/docker. Checked out as `csi/csi-spl` because orc `do_resolve_oap` derives ORG/APP from the parent dirs (runner default gave `con-csi-spl-csi-spl-tf-runner`). `SKIP:` fails; gcloud trapped. Check: run 35447312122 green; CONTROL run 35447535287 (`wui-up` compose line removed) red on `wui-actions`. FR-003.
+- [x] T005 Implemented `5cf1a56` — job `cnf-suite`: Python 3.12, `poetry install --no-root` from the lock, then `conf-validator-exit-codes.tst.sh` (refuses to skip: exit 2 without deps). Check: run 35447312122 green; CONTROL run 35447535287 (validator `EXIT_INVALID` -> `EXIT_OK`) red, 2 cases `exit 0, want 1`. FR-003.
 - [ ] T006 Planned (005/wui) — `tests/e2e/live-interop.test.mjs`: if `CI` is set and `HUB_URL` is unset, exit 1 (not 0). FR-005. SC-003.
 - [x] T007 Implemented — `specs/README.md` §4 lists 014, 015, 016 (this dir) and 017; seam “Test layers” → `016 contracts/test-layers.md`.
 
@@ -37,14 +37,14 @@
 |---|---|---|
 | FR-001 | T010 | Implemented |
 | FR-002 | T011 | Implemented |
-| FR-003 | T003, T004, T005 | Planned |
+| FR-003 | T003, T004, T005 | Implemented |
 | FR-004 | T002 | Implemented |
 | FR-005 | T006, T021 | Planned |
 | FR-006 | T012 | Implemented |
 | FR-007 | T013 | Implemented |
 | FR-008 | (009/006 when those features grow tests) | Partial |
 | FR-009 | hub-e2e via T010; cloud demo stays 006 T011c | Partial |
-| FR-010 | T014, T003 | Partial (local yes, CI no) |
+| FR-010 | T014, T003 | Implemented (local and CI) |
 | FR-011 | T020 | Implemented |
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T12:55:31Z -->
+<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:15:00Z -->

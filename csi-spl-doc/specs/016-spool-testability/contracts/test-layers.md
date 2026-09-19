@@ -16,14 +16,14 @@
 | G. WUI browser | `pnpm run test:e2e` | no-x-scroll at 390×844 / 1280×800 | **not in CI** |
 | H. WUI live | `HUB_URL=… pnpm run test:live` | two sockets vs a real hub | unset `HUB_URL` currently exit 0 — **do not add to CI as-is** |
 | I. IAC bash | `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` | tfvars parity, 025/028/030/031/017/019/120, hygiene, no keys in tf | missing terraform = FAIL unless `SPL_TF_ALLOW_SKIP=1` |
-| J. ORC bash | `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` | lde stack, tenant-create, wui-actions, deploy-check, DNS helpers | local docker/lde for some files |
-| K. CNF | `bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh` | validator 0/1/2; refuses to skip | not in CI |
+| J. ORC bash | `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` | lde stack, tenant-create, wui-actions, deploy-check, DNS helpers | skip → CI fail; needs a cached `postgres:16-alpine` + the `<ORG>/<ORG>-<APP>` checkout layout |
+| K. CNF | `bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh` | validator 0/1/2; refuses to skip | in CI (`cnf-suite`); no skip path |
 | L. Spawn-agents | `csi-spl-orc/src/bash/features/spawn-agents/tests/run-all-tests.sh` | tmux window spawn | **never in product CI** (needs tmux) |
 | M. Hygiene sweep | `10_ci-quality.yml` `distribution-hygiene` | no personal names / hosts in the tree | a clean grep is a pass (008 FR-P07) |
 
 ## 2. CI today (`10_ci-quality.yml`)
 
-Runs **A–F** (via hub-suite + wui-suite) and **M**. Does not run **G–L**.
+Runs **A–F** (via hub-suite + wui-suite), **I** (`iac-suite`), **J** (`orc-suite`, all files; checked out as `csi/csi-spl`), **K** (`cnf-suite`) and **M**. Does not run **G**, **H**, **L**. In I and J a `SKIP:` line fails the job and gcloud/gsutil/bq are traps (any call fails the job).
 
 `20_hub-build-deploy.yml` `test` job = A–D again. `30_wui-build-deploy.yml` `test` job = E–F again.
 
@@ -36,8 +36,8 @@ Runs **A–F** (via hub-suite + wui-suite) and **M**. Does not run **G–L**.
 | Suite | Local missing dep | CI |
 |---|---|---|
 | hub-pg / hub-gcs | exit 0 skip | **red** if the skip line appears |
-| iac tf validate | FAIL, or PARTIAL if `SPL_TF_ALLOW_SKIP=1` | must run without that env |
+| iac tf validate | FAIL, or PARTIAL if `SPL_TF_ALLOW_SKIP=1` | runs without that env; `SKIP:`/`PARTIAL:` → red |
 | live-interop | exit 0 skip | must not be a CI job until fail-closed |
 | spawn-agents | local | never CI |
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T12:55:31Z -->
+<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:15:00Z -->

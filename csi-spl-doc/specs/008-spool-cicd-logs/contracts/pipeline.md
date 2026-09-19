@@ -37,11 +37,15 @@ silently (no run, green checks), and the suites are cheap.
 |---|---|---|
 | `hub-suite` | `bash csi-spl-api/src/bash/tests/run-all-tests.sh` (gofmt, vet, test, smoke, Postgres gate, fake-gcs gate) | exit 0 **and** no `^skip - no (Postgres server binaries\|cached )` line in the log — a skipped gate is a failure in CI |
 | `wui-suite` | in `csi-spl-wui`: `pnpm install --frozen-lockfile`, `pnpm run test:unit`, `pnpm run typecheck` (pnpm version from `packageManager`) | all three exit 0; the browser e2e (`test:e2e`) is not run in CI |
+| `iac-suite` | terraform 1.9.8, `./run -a do_setup_tpl_gen` (tpl-gen at `cnf/tpl-gen.ref`), then `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` without `SPL_TF_ALLOW_SKIP` (016 T003) | exit 0, no `^(SKIP\|PARTIAL):` line, `PASS: all tf-steps-render-and-validate` present, gcloud/gsutil/bq trap log empty |
+| `orc-suite` | checkout at `csi/csi-spl` (orc derives ORG/APP from the parent dirs), Go modules, `postgres:16-alpine` pulled, then `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` (016 T004) | exit 0, no `^SKIP:` line, gcloud/gsutil/bq trap log empty |
+| `cnf-suite` | Python 3.12, `poetry install --no-root` in conf-validator, then `bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh` (016 T005) | exit 0 (the test exits 2 rather than skip) |
 | `no-ysg-box-ref` | `csi-spl-api/src/bash/tests/no-ysg-box-ref.tst.sh` | exit 0 |
 | `distribution-hygiene` | 5 grep sweeps (org/bank, personal name, OS user/box/AD id, `/home/<user>/`, owner mail domain) | no hit; prints `file:line` only, never the matched value (a CI log is a distribution channel). A sweep that finds **nothing** is a pass, never an abort (see spec FR-P07). |
 
-Permissions: `contents: read`. Network: the Go module proxy and one emulator
-image pull (`fsouza/fake-gcs-server:1.52.2`).
+Permissions: `contents: read`. Network: the Go module proxy, the emulator
+and Postgres image pulls, GitHub (tpl-gen), PyPI and registry.terraform.io
+(providers for `init -backend=false`). No GCP identity in any job.
 
 ### 2.2 `20 ci-cd: spool hub build + deploy`
 

@@ -35,9 +35,10 @@
 # Usage:
 #   tf-030-import-existing-cloud-run.sh <vars.tfvars>
 # Example (throwaway container, from a scratch copy of the step):
+#   TF_HOME=<container home, the action uses its tf_home>
 #   docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/work/030:/tf" -w /tf \
-#     -v "$HOME/.gcp:/home/tf/.gcp:ro" -e HOME=/home/tf \
-#     -e GOOGLE_APPLICATION_CREDENTIALS=/home/tf/.gcp/.csi/key-csi-spl-dev.json \
+#     -v "$HOME/.gcp:$TF_HOME/.gcp:ro" -e HOME="$TF_HOME" \
+#     -e GOOGLE_APPLICATION_CREDENTIALS="$TF_HOME/.gcp/.csi/key-csi-spl-dev.json" \
 #     -e TF_VAR_STEP=030-cloud-run-hub -e TF_VAR_proj_path=/tf \
 #     -e TF_VAR_base_path=/ -e TF_VAR_TERRAFORM_VERSION=1.9 \
 #     -e TF_VAR_INFRA_VERSION=0 -e TF_VAR_CNF_VER=import --entrypoint sh \

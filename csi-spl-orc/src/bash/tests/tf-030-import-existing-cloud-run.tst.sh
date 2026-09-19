@@ -24,6 +24,7 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
 STEP=030-cloud-run-hub
+tf_home=/home/tf  # the action's container HOME
 STEP_DIR="$APP_ROOT/csi-spl-iac/src/terraform/$STEP"
 IMPORTER="$PROJ_ROOT/src/bash/scripts/tf-030-import-existing-cloud-run.sh"
 fails=0
@@ -158,7 +159,7 @@ sed -n 1p "$T/docker.log" | command grep -q "init -input=false -backend-config=$
   && pass "init uses the step backend-config" || fail "init args"
 sed -n 2p "$T/docker.log" | command grep -q "/tf/tf-030-import-existing-cloud-run.sh $STEP.vars.tfvars" \
   && pass "importer runs with the step tfvars" || fail "importer args"
-command grep -c "GOOGLE_APPLICATION_CREDENTIALS=/home/tf/.gcp/.csi/key-csi-spl-dev.json" "$T/docker.log" | command grep -qx 2 \
+command grep -c "GOOGLE_APPLICATION_CREDENTIALS=${tf_home}/.gcp/.csi/key-csi-spl-dev.json" "$T/docker.log" | command grep -qx 2 \
   && pass "both runs on the project key" || fail "credentials"
 command grep -qwE 'apply|destroy' "$T/docker.log" && fail "apply/destroy in a docker call" || pass "no apply/destroy"
 [[ -f "$T/tf-030-dev/04-cloud-run-service.tf" && -f "$T/tf-030-dev/$STEP.vars.tfvars" && -f "$T/tf-030-dev/tf-030-import-existing-cloud-run.sh" ]] \

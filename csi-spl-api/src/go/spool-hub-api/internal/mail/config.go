@@ -18,7 +18,7 @@ const (
 
 // Config is the relay configuration. No host, port or sender has a default:
 // a relay pinned in code leaks one environment into every other (FR-010).
-// SMTPPassword is a secret (Secret Manager slot spool-hub-mail-smtp-password).
+// SMTPPassword is a secret (Secret Manager slot csi-spl-hub-mail-smtp-password).
 type Config struct {
 	Transport    string        `env:"SPOOL_HUB_MAIL_TRANSPORT" envDefault:"none"`
 	SMTPHost     string        `env:"SPOOL_HUB_MAIL_SMTP_HOST"`

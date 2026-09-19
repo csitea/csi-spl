@@ -183,7 +183,7 @@ Already built: `POST /api/v1/auth/logout` (010).
   human. Implemented: (a) (nothing extra built); (b) is a follow-up if the owner wants one human.
 - **OQ-N5 — prd mail relay.** csi-rel relays through Google Workspace SMTP with
   an app password. (a) **recommended**: the same relay, a per-env Secret
-  Manager slot `spool-hub-mail-smtp-password`; (b) a transactional provider.
+  Manager slot `csi-spl-hub-mail-smtp-password`; (b) a transactional provider.
   **prd cannot send mail yet**: no relay secret version exists.
 - **OQ-N6 — client IP behind Cloud Run.** The per-IP limiter needs the real
   client address; behind Cloud Run (and a Hosting rewrite) the TCP peer is

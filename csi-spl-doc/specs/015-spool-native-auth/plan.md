@@ -36,7 +36,7 @@ One new module import: `golang.org/x/crypto/argon2` (x/crypto is already in
 | everything above | NATIVE-AUTH (CLE-3352) |
 | `Registrar` / `Membership` store + `cmd/spool/hub.go` wiring of both | HUMANS (CLE-3351) |
 | the call `ah.EnableNative(...)` in `cmd/spool/hub.go` | NATIVE after HUMANS' wiring, or HUMANS (T012 below) |
-| cnf `env.auth.native` + `env.mail`, Secret Manager slot `spool-hub-mail-smtp-password`, render into Cloud Run 030 | DEPLOY / IDP (secret slots); asked in the final report |
+| cnf `env.auth.native` + `env.mail`, Secret Manager slot `csi-spl-hub-mail-smtp-password`, render into Cloud Run 030 | DEPLOY / IDP (secret slots); asked in the final report |
 | WUI login / register / verify / reset pages | spawned after this contract lands |
 
 ## 3. Decisions taken here

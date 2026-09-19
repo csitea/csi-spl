@@ -24,6 +24,6 @@ Check commands run from that module dir with `PATH=/usr/local/go/bin:$PATH GOFLA
 ## Phase 3 — wiring and environments
 
 - [x] T012 Implemented (`e0f7e7e`) — `cmd/spool/hub.go`: `auth.LoadNative` + `EnableNative` with `PgCredStore` (memory store for `memory:`) and the `SPOOL_HUB_MAIL_*` sender, after HUMANS' `AuthHooks` wiring (`a74640b`); the session-door guard accepts native. Check (real binary, lde, `memory:`, native + debug tokens + mail `log`): register → `202` + debug_token, verify → `204`, login → `200` with `hum:"HUM-1"`, wrong password → `401 invalid_credentials`; the token appears 0 times in the hub log (n=1).
-- [ ] T013 Planned — cnf `env.auth.native` + `env.mail` names; Secret Manager slot `spool-hub-mail-smtp-password`; render into Cloud Run 030. Owner: DEPLOY (cnf, 030 render) / IDP (secret slots); asked in the lane report.
+- [ ] T013 Planned — cnf `env.auth.native` + `env.mail` names; Secret Manager slot `csi-spl-hub-mail-smtp-password`; render into Cloud Run 030. Owner: DEPLOY (cnf, 030 render) / IDP (secret slots); asked in the lane report.
 - [ ] T014 Planned — dev: native ON with `SPOOL_HUB_MAIL_TRANSPORT=log` + debug tokens (or a real relay once T013 lands); measure the `X-Forwarded-For` shape and set `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` (OQ-N6); live register → verify → login on the dev hub. Blocked on T013.
 - [ ] T015 Planned — prd: stays OFF (OQ-N1 (a)); needs the owner's go and a mail relay secret version (OQ-N5). prd cannot send mail today.

@@ -18,6 +18,7 @@
     "test:e2e:no-x-scroll": "node tests/e2e/no-x-scroll.test.mjs",
     "test:e2e:console-errors": "node tests/e2e/console-errors.test.mjs",
     "test:e2e:csp": "node tests/e2e/csp-violations.test.mjs",
+    "test:e2e:scroll-anchor": "node tests/e2e/scroll-anchor.test.mjs",
     "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs"
   },
   "dependencies": {

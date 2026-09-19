@@ -250,6 +250,7 @@ declare module '~/utils/scroll-anchor.mjs' {
     anchorAfter?: number | null
   }): { top: number, pill: number, moved: boolean }
   export function firstVisibleRow(root: Element | null, edge: number): Element | null
+  export function layoutTop(el: HTMLElement | null): number
   export function scrollerOf(el: Element | null, doc?: Document): Element
 }
 

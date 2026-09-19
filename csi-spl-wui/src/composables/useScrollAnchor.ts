@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import { anchorAfterPrepend, firstVisibleRow, NEAR_TOP_PX, prependedCount, scrollerOf } from '~/utils/scroll-anchor.mjs'
+import { anchorAfterPrepend, firstVisibleRow, layoutTop, NEAR_TOP_PX, prependedCount, scrollerOf } from '~/utils/scroll-anchor.mjs'
 
 /**
  * 013 US7 FR-012: a newest-first feed keeps the reader's place when rows are
@@ -57,7 +57,7 @@ export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => strin
       return
     }
     const row = firstVisibleRow(root.value, edge(s))
-    before = { el: s, top: s.scrollTop, height: s.scrollHeight, key: row ? String(row.getAttribute('data-key')) : '', y: row ? row.getBoundingClientRect().top : null }
+    before = { el: s, top: s.scrollTop, height: s.scrollHeight, key: row ? String(row.getAttribute('data-key')) : '', y: row ? layoutTop(row as HTMLElement) : null }
   }, { flush: 'pre' })
 
   /* after it: hold the visible rows in place, or jump for our own send */
@@ -75,7 +75,7 @@ export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => strin
     const row = b.key && root.value ? root.value.querySelector(`[data-key="${CSS.escape(b.key)}"]`) : null
     const r = anchorAfterPrepend({
       top: b.top, prevHeight: b.height, nextHeight: s.scrollHeight, added, pill: pill.value,
-      anchorBefore: b.y, anchorAfter: row && b.y !== null ? row.getBoundingClientRect().top : null,
+      anchorBefore: b.y, anchorAfter: row && b.y !== null ? layoutTop(row as HTMLElement) : null,
     })
     if (r.moved) s.scrollTop = r.top
     pill.value = r.pill

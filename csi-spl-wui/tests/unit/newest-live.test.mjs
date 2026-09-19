@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mergeById, newestFirst, pendingRow, withoutMsg } from '../../src/utils/feed.mjs'
 import { channelView, dmFollow, feedRow, mergeLive, mergePage, rowFromAck } from '../../src/utils/channel-feed.mjs'
-import { anchorAfterPrepend, NEAR_TOP_PX, prependedCount, scrollerOf } from '../../src/utils/scroll-anchor.mjs'
+import { anchorAfterPrepend, layoutTop, NEAR_TOP_PX, prependedCount, scrollerOf } from '../../src/utils/scroll-anchor.mjs'
 import { bumpThread, mergeThreadPage } from '../../src/utils/thread-list.mjs'
 import { createLiveClient } from '../../src/utils/live-ws.mjs'
 
@@ -116,6 +116,12 @@ describe('scroll anchoring (FR-012)', () => {
   it('with an anchor row: moves by how far that row was pushed, even when the window dropped a row at the bottom', () => {
     /* measured on dev 783a137: +112 px row on top, 52 px row dropped at the bottom -> height +60, anchor +112 */
     assert.deepEqual(anchorAfterPrepend({ top: 300, prevHeight: 3000, nextHeight: 3060, anchorBefore: 64, anchorAfter: 176, added: 1 }), { top: 412, pill: 1, moved: true })
+  })
+
+  it('layoutTop sums offsetTop up the chain (transforms never enter it)', () => {
+    const page = { offsetTop: 0, offsetParent: null }
+    const feed = { offsetTop: 120, offsetParent: page }
+    assert.equal(layoutTop({ offsetTop: 300, offsetParent: feed }), 420)
   })
 
   it('nothing prepended: nothing moves', () => {

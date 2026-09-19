@@ -51,3 +51,14 @@ export function firstVisibleRow(root, edge) {
   }
   return null
 }
+
+/**
+ * Layout y of an element (sum of offsetTop up the offsetParent chain).
+ * Transforms do not move it, so a TransitionGroup FLIP (the inverse transform
+ * it puts on moved rows during the update) cannot fool the anchor.
+ */
+export function layoutTop(el) {
+  let y = 0
+  for (let n = el; n; n = n.offsetParent) y += n.offsetTop || 0
+  return y
+}

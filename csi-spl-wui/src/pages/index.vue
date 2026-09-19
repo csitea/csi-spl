@@ -5,9 +5,11 @@
       <span class="muted">{{ tr('pages.index.subtitle') }}</span>
     </header>
     <div ref="listTop" class="feed-body">
-      <button v-if="pill" class="btn new-pill" type="button" :aria-label="tr('feed.new_pill_label')" data-testid="new-pill" @click="jump">
-        ↑ {{ tr('feed.new_pill', { n: pill }) }}
-      </button>
+      <div class="new-pill-wrap">
+        <button v-if="pill" class="btn new-pill" type="button" :aria-label="tr('feed.new_pill_label')" data-testid="new-pill" @click="jump">
+          ↑ {{ tr('feed.new_pill', { n: pill }) }}
+        </button>
+      </div>
       <ErrorNotice v-if="viewer.error" :message="viewer.error" source="viewer" test-id="viewer-error" />
       <ViewTokenForm v-if="viewer.needsToken" :detail="viewer.doorDetail" @saved="viewer.loadThreads()" />
       <p v-else-if="!viewer.loading && !viewer.error && viewer.threads.length === 0" class="muted">

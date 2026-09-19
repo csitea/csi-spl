@@ -10,9 +10,11 @@
       {{ t('feed.filter_label') }} <strong>{{ search }}</strong> · {{ t('feed.matches', { count: rows.length + (hasOlder ? '+' : '') }) }}
       <button class="btn ghost" type="button" @click="$emit('clear-search')">{{ t('feed.clear') }}</button>
     </p>
-    <button v-if="pill" class="btn new-pill" type="button" :aria-label="t('feed.new_pill_label')" data-testid="new-pill" @click="jump">
-      ↑ {{ t('feed.new_pill', { n: pill }) }}
-    </button>
+    <div class="new-pill-wrap">
+      <button v-if="pill" class="btn new-pill" type="button" :aria-label="t('feed.new_pill_label')" data-testid="new-pill" @click="jump">
+        ↑ {{ t('feed.new_pill', { n: pill }) }}
+      </button>
+    </div>
     <TransitionGroup name="prepend" tag="div" class="live-rows">
       <MessageCard
         v-for="(m, i) in rows"

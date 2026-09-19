@@ -42,9 +42,22 @@ func AvatarKey(fileID string) (string, error) {
 	return "avatars/" + fileID, nil
 }
 
+// TmpKey is the scratch key of one in-flight upload of tenant (027 T020):
+// tmp/<tenant>/<nonce>, outside every t/<tenant>/files/ prefix, so it never
+// counts against a quota and one bucket lifecycle rule on "tmp/" can sweep
+// what a crashed hub leaves behind.
+func TmpKey(tenantID, nonce string) string { return "tmp/" + tenantID + "/" + nonce }
+
 // Store holds immutable, content-addressed objects.
 type Store interface {
 	Put(ctx context.Context, key string, data []byte) error
+	// PutReader streams r into key (a TmpKey: no content-address
+	// precondition) and returns the bytes written. On any error nothing is
+	// left at key: the caller need not clean up after a failed PutReader.
+	PutReader(ctx context.Context, key string, r io.Reader) (int64, error)
+	// Promote moves src to dst. When dst already exists (content-addressed:
+	// same bytes) dst is kept, src is removed and existed is true.
+	Promote(ctx context.Context, src, dst string) (existed bool, err error)
 	Get(ctx context.Context, key string) (io.ReadCloser, error)
 	Exists(ctx context.Context, key string) (bool, error)
 	// Delete removes the object; ErrNotFound when it is absent (owner-requested
@@ -79,6 +92,47 @@ func (d Dir) Put(_ context.Context, key string, data []byte) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), p)
+}
+
+func (d Dir) PutReader(_ context.Context, key string, r io.Reader) (int64, error) {
+	p := d.path(key)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return 0, err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(p), ".tmp-*")
+	if err != nil {
+		return 0, err
+	}
+	n, err := io.Copy(tmp, r)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp.Name(), p)
+	}
+	if err != nil {
+		os.Remove(tmp.Name())
+		return n, err
+	}
+	return n, nil
+}
+
+// Promote hard-links src to dst (fails with EEXIST when dst is present, so a
+// concurrent upload of the same bytes cannot overwrite it), then drops src.
+func (d Dir) Promote(_ context.Context, src, dst string) (bool, error) {
+	ps, pd := d.path(src), d.path(dst)
+	if err := os.MkdirAll(filepath.Dir(pd), 0o755); err != nil {
+		return false, err
+	}
+	err := os.Link(ps, pd)
+	existed := errors.Is(err, os.ErrExist)
+	if err != nil && !existed {
+		return false, err
+	}
+	if err := os.Remove(ps); err != nil && !os.IsNotExist(err) {
+		return existed, err
+	}
+	return existed, nil
 }
 
 func (d Dir) Get(_ context.Context, key string) (io.ReadCloser, error) {
@@ -163,6 +217,47 @@ func (g *GCS) Put(ctx context.Context, key string, data []byte) error {
 		return nil
 	}
 	return err
+}
+
+func (g *GCS) PutReader(ctx context.Context, key string, r io.Reader) (int64, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	w := g.bucket.Object(key).NewWriter(ctx)
+	w.ContentType = "application/octet-stream"
+	// 0 = one streamed request with no client buffer (the default is a 16 MiB
+	// buffer per in-flight upload). A failed upload is not resumed: the body
+	// is a one-shot stream anyway, so the client retries the POST.
+	w.ChunkSize = 0
+	n, err := io.Copy(w, r)
+	if err != nil {
+		cancel() // aborts the upload: the object is never finalized
+		w.Close()
+		return n, err
+	}
+	return n, w.Close()
+}
+
+// Promote is a server-side copy (no bytes through the hub) guarded by
+// DoesNotExist on dst, then a delete of src. The explicit Exists first is for
+// fake-gcs, which ignores the precondition on rewrite; GCS enforces it, so a
+// concurrent upload of the same bytes still cannot overwrite dst.
+func (g *GCS) Promote(ctx context.Context, src, dst string) (bool, error) {
+	existed, err := g.Exists(ctx, dst)
+	if err != nil {
+		return false, err
+	}
+	if !existed {
+		_, err = g.bucket.Object(dst).If(storage.Conditions{DoesNotExist: true}).
+			CopierFrom(g.bucket.Object(src)).Run(ctx)
+		existed = isPrecondition(err)
+		if err != nil && !existed {
+			return false, err
+		}
+	}
+	if err := g.Delete(ctx, src); err != nil && !errors.Is(err, ErrNotFound) {
+		return existed, err
+	}
+	return existed, nil
 }
 
 func (g *GCS) Get(ctx context.Context, key string) (io.ReadCloser, error) {

@@ -1,6 +1,7 @@
 package hub_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -12,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 )
 
@@ -20,13 +23,30 @@ import (
 // through the real handler on a blob.Dir. The bodies are generated on the fly
 // (a seeded PRNG), so the client holds no copy and the heap measured is the
 // hub's. It logs one UPLOADPERF line per run; use -count>=5 for n.
+// SPOOL_PERF_UPLOAD=gcs uses the GCS driver against $STORAGE_EMULATOR_HOST
+// instead (fake-gcs), so the client's per-writer buffer is in the number.
 func TestUploadHeapPerf(t *testing.T) {
 	if os.Getenv("SPOOL_PERF_UPLOAD") == "" {
 		t.Skip("set SPOOL_PERF_UPLOAD=1 to run the upload heap harness")
 	}
 	const uploads = 8
 	size := int64(msg.MaxFileBytes)
-	e := newEnv(t)
+	backend := "dir"
+	var mut []func(*hub.Options)
+	if os.Getenv("SPOOL_PERF_UPLOAD") == "gcs" {
+		backend = "gcs"
+		bucket := os.Getenv("SPOOL_HUB_FILES_BUCKET")
+		if bucket == "" {
+			bucket = "csi-spl-test-files"
+		}
+		g, err := blob.OpenGCS(context.Background(), bucket)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer g.Close()
+		mut = append(mut, func(o *hub.Options) { o.Blob = g })
+	}
+	e := newEnv(t, mut...)
 	tid, _ := e.tenant()
 	a := e.box(tid, "box-a", "GRK-03")
 	e.pin(tid, a)
@@ -90,7 +110,7 @@ func TestUploadHeapPerf(t *testing.T) {
 	}
 	runtime.ReadMemStats(&ms)
 	mib := func(b uint64) float64 { return float64(b) / (1 << 20) }
-	t.Logf("UPLOADPERF uploads=%d size_mib=%.0f peak_heapinuse_mib=%.1f peak_over_base_per_upload_mib=%.2f totalalloc_per_upload_mib=%.2f ns_per_upload=%d",
-		uploads, mib(uint64(size)), mib(peak.Load()), mib(peak.Load()-min(peak.Load(), baseInuse))/uploads,
+	t.Logf("UPLOADPERF backend=%s uploads=%d size_mib=%.0f peak_heapinuse_mib=%.1f peak_over_base_per_upload_mib=%.2f totalalloc_per_upload_mib=%.2f ns_per_upload=%d",
+		backend, uploads, mib(uint64(size)), mib(peak.Load()), mib(peak.Load()-min(peak.Load(), baseInuse))/uploads,
 		mib(ms.TotalAlloc-baseAlloc)/uploads, elapsed.Nanoseconds()/uploads)
 }

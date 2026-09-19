@@ -101,6 +101,9 @@ type Options struct {
 	// KeysWriteLimit is the per-human hourly ceiling on key writes (specs/023
 	// FR-008); 0 = keysWritesPerHour.
 	KeysWriteLimit int
+	// FileUsageTTL: how long a tenant's listed file bytes are trusted by the
+	// upload quota (fileusage.go); 0 = defaultFileUsageTTL. Code only.
+	FileUsageTTL time.Duration
 }
 
 // Server is one hub process.
@@ -121,6 +124,7 @@ type Server struct {
 	keysLim  *edge.Window // keys.go, per-human writes
 
 	searchRate *edge.Window // search.go, per (tenant, reader)
+	fileUsage  *fileUsage   // fileusage.go, per-tenant stored file bytes
 }
 
 type uploadToken struct {
@@ -173,6 +177,7 @@ func New(o Options) (*Server, error) {
 		boxes: map[[2]string]*session{}, sessions: map[*session]struct{}{},
 		tokens: map[string]uploadToken{}, wui: map[*wuiConn]struct{}{}, online: map[[2]string]int{},
 		edge: edge.NewGuard(o.Edge, o.Log, o.Now), searchRate: edge.NewWindow(time.Minute, o.Now),
+		fileUsage: newFileUsage(o.FileUsageTTL),
 	}
 	if o.CICD != nil {
 		o.CICD.Bus = s

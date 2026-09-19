@@ -1,6 +1,7 @@
 package blob
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -92,6 +93,68 @@ func testStore(t *testing.T, s Store) {
 	if err := s.Delete(ctx, key); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("second delete: %v", err)
 	}
+	testStream(t, s)
+}
+
+type failAfter struct{ n int }
+
+func (f *failAfter) Read(p []byte) (int, error) {
+	if f.n <= 0 {
+		return 0, errors.New("client went away")
+	}
+	k := min(len(p), f.n)
+	f.n -= k
+	return k, nil
+}
+
+// testStream is the streamed-upload contract (027 T020): PutReader to a
+// TmpKey, Promote to the content key; a second Promote of the same bytes
+// keeps one object and removes its tmp; a failed PutReader leaves nothing.
+func testStream(t *testing.T, s Store) {
+	t.Helper()
+	ctx := context.Background()
+	tenant := "t-" + uid()
+	data := make([]byte, 3<<20+7) // spans several GCS chunks
+	rand.Read(data)               //nolint:errcheck
+	sum := sha256.Sum256(data)
+	key, _ := Key(tenant, hex.EncodeToString(sum[:]))
+	for i, wantExisted := range []bool{false, true} {
+		tmp := TmpKey(tenant, uid())
+		n, err := s.PutReader(ctx, tmp, bytes.NewReader(data))
+		if err != nil || n != int64(len(data)) {
+			t.Fatalf("PutReader %d: %d %v", i, n, err)
+		}
+		existed, err := s.Promote(ctx, tmp, key)
+		if err != nil || existed != wantExisted {
+			t.Fatalf("Promote %d: existed=%v %v", i, existed, err)
+		}
+		if ok, _ := s.Exists(ctx, tmp); ok {
+			t.Fatalf("tmp %s left after Promote %d", tmp, i)
+		}
+	}
+	r, err := s.Get(ctx, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := io.ReadAll(r)
+	r.Close()
+	if !bytes.Equal(got, data) {
+		t.Fatal("promoted bytes differ")
+	}
+	if n, _ := s.PrefixBytes(ctx, "t/"+tenant+"/files/"); n != int64(len(data)) {
+		t.Fatalf("PrefixBytes after dup promote: %d, want one object of %d", n, len(data))
+	}
+	tmp := TmpKey(tenant, uid())
+	if _, err := s.PutReader(ctx, tmp, &failAfter{n: 2 << 20}); err == nil {
+		t.Fatal("PutReader of a failing reader succeeded")
+	}
+	if ok, _ := s.Exists(ctx, tmp); ok {
+		t.Fatal("failed PutReader left an object at its key")
+	}
+	if n, _ := s.PrefixBytes(ctx, "tmp/"+tenant+"/"); n != 0 {
+		t.Fatalf("failed PutReader left %d bytes under tmp/", n)
+	}
+	s.Delete(ctx, key) //nolint:errcheck
 }
 
 // openTestGCS opens the GCS driver against $STORAGE_EMULATOR_HOST (fake-gcs

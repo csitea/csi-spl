@@ -48,4 +48,8 @@ echo "ok   - temp fake-gcs up ($GCS_IMAGE) bucket $BUCKET on 127.0.0.1:$PORT"
 ( cd "$MOD" && STORAGE_EMULATOR_HOST="127.0.0.1:${PORT}" SPOOL_HUB_FILES_BUCKET="$BUCKET" \
   CGO_ENABLED=1 go test -race -count=1 ./internal/blob/ )
 echo "ok   - internal/blob suite green against GCS emulator"
+# 027 T020: the hub's streamed POST /v1/files on GCS, and objects.list per upload.
+( cd "$MOD" && STORAGE_EMULATOR_HOST="127.0.0.1:${PORT}" SPOOL_HUB_FILES_BUCKET="$BUCKET" \
+  CGO_ENABLED=1 go test -race -count=1 -v -run 'TestUploadGCSListCalls' ./internal/hub/ ) | grep -E 'UPLOADGCS|^(--- |ok|FAIL)'
+echo "ok   - hub streamed upload green against GCS emulator"
 echo "ALL HUB GCS CHECKS PASSED"

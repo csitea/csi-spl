@@ -36,38 +36,91 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 		writeUnpaid(w)
 		return
 	}
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, msg.MaxFileBytes))
-	if err != nil {
-		var mbe *http.MaxBytesError
-		if errors.As(err, &mbe) {
-			writeErr(w, http.StatusRequestEntityTooLarge, "limit_file", "file exceeds the per-file limit")
-			return
-		}
-		writeErr(w, http.StatusBadRequest, "bad_json", "could not read the body")
+	// 027 T020: the body streams to a scratch object while it is hashed, so
+	// the hub holds a few MiB per upload, not the file. Refusals that need no
+	// byte (size, quota by Content-Length) answer before reading any.
+	if r.ContentLength > msg.MaxFileBytes {
+		writeErr(w, http.StatusRequestEntityTooLarge, "limit_file", "file exceeds the per-file limit")
 		return
 	}
-	sum := sha256.Sum256(body)
-	id := hex.EncodeToString(sum[:])
-	key, _ := blob.Key(t.ID, id)
-	exists, _ := s.o.Blob.Exists(r.Context(), key)
-	if !exists {
-		used, err := s.o.Blob.PrefixBytes(r.Context(), "t/"+t.ID+"/files/")
+	if r.ContentLength > 0 {
+		over, err := s.fileUsage.over(r.Context(), s.o.Blob, s.quota(), t.ID, r.ContentLength, s.o.Now())
 		if err != nil {
 			s.o.Log.Error().Err(err).Msg("blob prefix bytes")
 			writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
 			return
 		}
-		if s.quota().Over(billing.Usage{FileBytes: used}, 0, 0, int64(len(body))) != "" {
+		if over {
 			writeQuota(w, "stored file bytes exceed the tenant quota")
 			return
 		}
 	}
-	if err := s.o.Blob.Put(r.Context(), key, body); err != nil {
-		s.o.Log.Error().Err(err).Msg("blob put")
+	// Cleanup must outlive a client that went away mid-body.
+	bg := context.WithoutCancel(r.Context())
+	tmp := blob.TmpKey(t.ID, randHex(16))
+	h := sha256.New()
+	body := &readErr{r: http.MaxBytesReader(w, r.Body, msg.MaxFileBytes)}
+	n, err := s.o.Blob.PutReader(r.Context(), tmp, io.TeeReader(body, h))
+	if err != nil {
+		s.o.Blob.Delete(bg, tmp) //nolint:errcheck // PutReader leaves nothing; belt and braces
+		var mbe *http.MaxBytesError
+		switch {
+		case errors.As(body.err, &mbe):
+			writeErr(w, http.StatusRequestEntityTooLarge, "limit_file", "file exceeds the per-file limit")
+		case body.err != nil:
+			writeErr(w, http.StatusBadRequest, "bad_json", "could not read the body")
+		default:
+			s.o.Log.Error().Err(err).Msg("blob put")
+			writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
+		}
+		return
+	}
+	id := hex.EncodeToString(h.Sum(nil))
+	key, _ := blob.Key(t.ID, id)
+	exists, _ := s.o.Blob.Exists(r.Context(), key)
+	if exists {
+		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
+		writeJSON(w, http.StatusCreated, wire.FileResult{FileID: id, SHA256: id, Bytes: n})
+		return
+	}
+	fits, err := s.fileUsage.reserve(r.Context(), s.o.Blob, s.quota(), t.ID, n, s.o.Now())
+	if err != nil {
+		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
+		s.o.Log.Error().Err(err).Msg("blob prefix bytes")
 		writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
 		return
 	}
-	writeJSON(w, http.StatusCreated, wire.FileResult{FileID: id, SHA256: id, Bytes: int64(len(body))})
+	if !fits {
+		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
+		writeQuota(w, "stored file bytes exceed the tenant quota")
+		return
+	}
+	existed, err := s.o.Blob.Promote(bg, tmp, key)
+	if err != nil || existed {
+		s.fileUsage.release(t.ID, n)
+	}
+	if err != nil {
+		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
+		s.o.Log.Error().Err(err).Msg("blob promote")
+		writeErr(w, http.StatusServiceUnavailable, "internal", "object store unavailable")
+		return
+	}
+	writeJSON(w, http.StatusCreated, wire.FileResult{FileID: id, SHA256: id, Bytes: n})
+}
+
+// readErr remembers the body's read error, so a failed PutReader can tell a
+// client fault (413 / 400) from an object-store fault (503).
+type readErr struct {
+	r   io.Reader
+	err error
+}
+
+func (e *readErr) Read(p []byte) (int, error) {
+	n, err := e.r.Read(p)
+	if err != nil && err != io.EOF {
+		e.err = err
+	}
+	return n, err
 }
 
 // GET /v1/files/{file_id}: needs a caller credential of the Host tenant (017
@@ -262,6 +315,7 @@ func (s *Server) PutFile(ctx context.Context, tenant, name string, data []byte) 
 	if err := s.o.Blob.Put(ctx, key, data); err != nil {
 		return msg.Attachment{}, err
 	}
+	s.fileUsage.forget(tenant) // unquota'd writer: the next upload lists afresh
 	if name == "" {
 		name = id
 	}

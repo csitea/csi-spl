@@ -624,6 +624,7 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "delete failed")
 	default:
+		s.fileUsage.forget(t.ID) // the next upload lists the prefix afresh
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

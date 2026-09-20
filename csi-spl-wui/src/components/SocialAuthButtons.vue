@@ -62,6 +62,28 @@
         >
           <path fill="currentColor" d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3v3h-3v6.95c5.05-.5 9-4.76 9-9.95z" />
         </svg>
+        <svg
+          v-else-if="p === 'microsoft'"
+          class="social-auth__logo"
+          viewBox="0 0 21 21"
+          data-test="social-logo-microsoft"
+        >
+          <!-- Official MS-SymbolLockup (identity platform branding). -->
+          <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+          <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+          <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+          <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+        </svg>
+        <svg
+          v-else-if="p === 'linkedin'"
+          class="social-auth__logo"
+          viewBox="0 0 72 72"
+          data-test="social-logo-linkedin"
+        >
+          <!-- Official LinkedIn [in] Logo; fill is current LinkedIn Blue. -->
+          <path fill="#0A66C2" d="M8 72h56c4.418 0 8-3.582 8-8V8c0-4.418-3.582-8-8-8H8C3.582 0 0 3.582 0 8v56c0 4.418 3.582 8 8 8z" />
+          <path fill="#FFF" d="M62,62 L51.315625,62 L51.315625,43.8021149 C51.315625,38.8127542 49.4197917,36.0245323 45.4707031,36.0245323 C41.1746094,36.0245323 38.9300781,38.9261103 38.9300781,43.8021149 L38.9300781,62 L28.6333333,62 L28.6333333,27.3333333 L38.9300781,27.3333333 L38.9300781,32.0029283 C38.9300781,32.0029283 42.0260417,26.2742151 49.3825521,26.2742151 C56.7356771,26.2742151 62,30.7644705 62,40.051212 L62,62 Z M16.349349,22.7940133 C12.8420573,22.7940133 10,19.9296567 10,16.3970067 C10,12.8643566 12.8420573,10 16.349349,10 C19.8566406,10 22.6970052,12.8643566 22.6970052,16.3970067 C22.6970052,19.9296567 19.8566406,22.7940133 16.349349,22.7940133 Z M11.0325521,62 L21.769401,62 L21.769401,27.3333333 L11.0325521,27.3333333 L11.0325521,62 Z" />
+        </svg>
         <span v-else>{{ providerName(p).charAt(0) }}</span>
       </span>
       <span class="social-auth__label">{{ label(p) }}</span>
@@ -127,7 +149,7 @@ onMounted(async () => {
 // Bespoke copy for the providers we ship marks for; any other IdP gets the
 // generic "Continue with <Name>" — never a raw key.
 function label(p: string): string {
-  if (p === 'google' || p === 'facebook') return t(`social_auth.continue_${p}`)
+  if (p === 'google' || p === 'facebook' || p === 'microsoft' || p === 'linkedin') return t(`social_auth.continue_${p}`)
   return t('social_auth.continue_generic', { provider: providerName(p) })
 }
 </script>
@@ -178,6 +200,24 @@ function label(p: string): string {
 }
 .social-auth__btn--facebook:hover {
   background: #166fe0;
+}
+.social-auth__btn--microsoft {
+  /* Microsoft identity platform light theme (FR-011): white, 1px #8C8C8C, text #5E5E5E. */
+  border: 1px solid #8C8C8C;
+  background: #fff;
+  color: #5E5E5E;
+}
+.social-auth__btn--microsoft:hover {
+  background: #f3f2f1;
+}
+.social-auth__btn--linkedin {
+  /* LinkedIn brand: [in] mark in LinkedIn Blue #0A66C2 on white. */
+  border: 1px solid #0A66C2;
+  background: #fff;
+  color: #0A66C2;
+}
+.social-auth__btn--linkedin:hover {
+  background: #f3f6f8;
 }
 .social-auth__btn:focus-visible {
   outline: 2px solid var(--color-accent);

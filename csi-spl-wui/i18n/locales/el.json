@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Συνέχεια με Google",
     "continue_facebook": "Συνέχεια με Facebook",
+    "continue_microsoft": "Σύνδεση με Microsoft",
+    "continue_linkedin": "Συνέχεια με LinkedIn",
     "continue_generic": "Συνέχεια με {provider}",
     "not_available": "Η σύνδεση δεν είναι ακόμη διαθέσιμη."
   },

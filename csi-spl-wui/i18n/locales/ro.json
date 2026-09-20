@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Continuă cu Google",
     "continue_facebook": "Continuă cu Facebook",
+    "continue_microsoft": "Conectează-te cu Microsoft",
+    "continue_linkedin": "Continuă cu LinkedIn",
     "continue_generic": "Continuă cu {provider}",
     "not_available": "Autentificarea nu este încă disponibilă."
   },

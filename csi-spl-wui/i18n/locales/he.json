@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "המשך עם Google",
     "continue_facebook": "המשך עם Facebook",
+    "continue_microsoft": "התחבר עם Microsoft",
+    "continue_linkedin": "המשך עם LinkedIn",
     "continue_generic": "המשך עם {provider}",
     "not_available": "ההתחברות עדיין לא זמינה."
   },

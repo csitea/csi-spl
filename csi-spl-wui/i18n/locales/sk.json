@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Pokračovať cez Google",
     "continue_facebook": "Pokračovať cez Facebook",
+    "continue_microsoft": "Prihlásiť sa cez Microsoft",
+    "continue_linkedin": "Pokračovať cez LinkedIn",
     "continue_generic": "Pokračovať cez {provider}",
     "not_available": "Prihlásenie zatiaľ nie je k dispozícii."
   },

@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Google ile devam et",
     "continue_facebook": "Facebook ile devam et",
+    "continue_microsoft": "Microsoft ile oturum aç",
+    "continue_linkedin": "LinkedIn ile devam et",
     "continue_generic": "{provider} ile devam et",
     "not_available": "Giriş henüz kullanılamıyor."
   },

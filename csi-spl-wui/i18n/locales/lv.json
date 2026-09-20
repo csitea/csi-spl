@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Turpināt ar Google",
     "continue_facebook": "Turpināt ar Facebook",
+    "continue_microsoft": "Pierakstīties ar Microsoft",
+    "continue_linkedin": "Turpināt ar LinkedIn",
     "continue_generic": "Turpināt ar {provider}",
     "not_available": "Pieteikšanās vēl nav pieejama."
   },

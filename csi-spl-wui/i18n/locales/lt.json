@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Tęsti su Google",
     "continue_facebook": "Tęsti su Facebook",
+    "continue_microsoft": "Prisijungti su Microsoft",
+    "continue_linkedin": "Tęsti su LinkedIn",
     "continue_generic": "Tęsti su {provider}",
     "not_available": "Prisijungimas dar neprieinamas."
   },

@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Continue with Google",
     "continue_facebook": "Continue with Facebook",
+    "continue_microsoft": "Sign in with Microsoft",
+    "continue_linkedin": "Continue with LinkedIn",
     "continue_generic": "Continue with {provider}",
     "not_available": "Sign-in is not available yet."
   },

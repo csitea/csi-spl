@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Продължи с Google",
     "continue_facebook": "Продължи с Facebook",
+    "continue_microsoft": "Влез с Microsoft",
+    "continue_linkedin": "Продължи с LinkedIn",
     "continue_generic": "Продължи с {provider}",
     "not_available": "Входът все още не е наличен."
   },

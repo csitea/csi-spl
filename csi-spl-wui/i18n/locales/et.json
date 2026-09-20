@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Jätka Google'iga",
     "continue_facebook": "Jätka Facebookiga",
+    "continue_microsoft": "Logi sisse Microsoftiga",
+    "continue_linkedin": "Jätka LinkedIniga",
     "continue_generic": "Jätka teenusega {provider}",
     "not_available": "Sisselogimine pole veel saadaval."
   },

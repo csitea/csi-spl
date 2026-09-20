@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Fortsätt med Google",
     "continue_facebook": "Fortsätt med Facebook",
+    "continue_microsoft": "Logga in med Microsoft",
+    "continue_linkedin": "Fortsätt med LinkedIn",
     "continue_generic": "Fortsätt med {provider}",
     "not_available": "Inloggning är inte tillgänglig ännu."
   },

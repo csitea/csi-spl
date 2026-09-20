@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Kontynuuj z Google",
     "continue_facebook": "Kontynuuj z Facebook",
+    "continue_microsoft": "Zaloguj się przez Microsoft",
+    "continue_linkedin": "Kontynuuj z LinkedIn",
     "continue_generic": "Kontynuuj z {provider}",
     "not_available": "Logowanie nie jest jeszcze dostępne."
   },

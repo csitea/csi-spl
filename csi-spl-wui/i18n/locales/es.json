@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Continuar con Google",
     "continue_facebook": "Continuar con Facebook",
+    "continue_microsoft": "Iniciar sesión con Microsoft",
+    "continue_linkedin": "Continuar con LinkedIn",
     "continue_generic": "Continuar con {provider}",
     "not_available": "El inicio de sesión aún no está disponible."
   },

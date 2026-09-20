@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -281,6 +281,67 @@ describe('SocialAuthButtons (auth-v1 §4, donor component)', () => {
   it('/login renders it, with the settled redirect and tenant', () => {
     const login = readFileSync(join(WUI, 'src/pages/login.vue'), 'utf8')
     assert.ok(login.includes('<SocialAuthButtons class="idp" :redirect="redirect" :tenant="tenant" />'))
+  })
+  it('renders Microsoft and LinkedIn marks only when those providers are advertised', () => {
+    // Buttons exist only for registry entries (v-for="p in providers").
+    assert.match(src, /v-for="p in providers"/)
+    assert.match(src, /v-else-if="p === 'microsoft'"/)
+    assert.match(src, /data-test="social-logo-microsoft"/)
+    assert.match(src, /v-else-if="p === 'linkedin'"/)
+    assert.match(src, /data-test="social-logo-linkedin"/)
+    // Official Microsoft four-square (identity platform MS-SymbolLockup).
+    assert.ok(src.includes('fill="#f25022"'))
+    assert.ok(src.includes('fill="#00a4ef"'))
+    assert.ok(src.includes('fill="#7fba00"'))
+    assert.ok(src.includes('fill="#ffb900"'))
+    assert.ok(src.includes('viewBox="0 0 21 21"'))
+    // Official LinkedIn [in] Logo in current LinkedIn Blue.
+    assert.ok(src.includes('#0A66C2'))
+    assert.ok(src.includes('viewBox="0 0 72 72"'))
+    // Letter fallback stays v-else: an unbranded IdP (xai) gets no brand mark.
+    assert.ok(src.includes('<span v-else>{{ providerName(p).charAt(0) }}</span>'))
+    assert.ok(src.includes("p === 'microsoft' || p === 'linkedin'"))
+
+    // Parse the v-if chain: a provider list only yields a mark when that
+    // provider has a gated SVG. An empty / unknown list yields none.
+    const map = {}
+    const re = /v-(?:else-)?if="p === '([^']+)'"[\s\S]*?data-test="(social-logo-[^"]+)"/g
+    let m
+    while ((m = re.exec(src))) map[m[1]] = m[2]
+    assert.equal(map.google, 'social-logo-google')
+    assert.equal(map.facebook, 'social-logo-facebook')
+    assert.equal(map.microsoft, 'social-logo-microsoft')
+    assert.equal(map.linkedin, 'social-logo-linkedin')
+    assert.equal(map.xai, undefined)
+    const marksFor = (list) => list.map((p) => map[p]).filter(Boolean)
+    assert.deepEqual(marksFor(['google', 'facebook']), ['social-logo-google', 'social-logo-facebook'])
+    assert.deepEqual(marksFor(['microsoft', 'linkedin']), ['social-logo-microsoft', 'social-logo-linkedin'])
+    assert.deepEqual(marksFor(['google', 'microsoft', 'linkedin']), [
+      'social-logo-google', 'social-logo-microsoft', 'social-logo-linkedin',
+    ])
+    assert.deepEqual(marksFor(['xai']), [])
+    assert.deepEqual(marksFor([]), [])
+    // Light-theme Microsoft colours (FR-011).
+    assert.match(src, /\.social-auth__btn--microsoft[\s\S]*?border:\s*1px solid #8C8C8C/)
+    assert.match(src, /\.social-auth__btn--microsoft[\s\S]*?color:\s*#5E5E5E/)
+  })
+
+  it('catalogues continue_microsoft and continue_linkedin in every locale', () => {
+    const localesDir = join(WUI, 'i18n/locales')
+    const files = readdirSync(localesDir).filter((f) => f.endsWith('.json')).sort()
+    assert.equal(files.length, 19)
+    const en = JSON.parse(readFileSync(join(localesDir, 'en.json'), 'utf8'))
+    assert.equal(en.social_auth.continue_microsoft, 'Sign in with Microsoft')
+    assert.equal(en.social_auth.continue_linkedin, 'Continue with LinkedIn')
+    for (const f of files) {
+      const d = JSON.parse(readFileSync(join(localesDir, f), 'utf8'))
+      const ms = d.social_auth && d.social_auth.continue_microsoft
+      const li = d.social_auth && d.social_auth.continue_linkedin
+      assert.equal(typeof ms, 'string', f + ' continue_microsoft')
+      assert.equal(typeof li, 'string', f + ' continue_linkedin')
+      assert.ok(ms.trim(), f + ' continue_microsoft empty')
+      assert.ok(li.trim(), f + ' continue_linkedin empty')
+    }
   })
 })
 

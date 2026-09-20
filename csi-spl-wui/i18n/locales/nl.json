@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Doorgaan met Google",
     "continue_facebook": "Doorgaan met Facebook",
+    "continue_microsoft": "Aanmelden met Microsoft",
+    "continue_linkedin": "Doorgaan met LinkedIn",
     "continue_generic": "Doorgaan met {provider}",
     "not_available": "Inloggen is nog niet beschikbaar."
   },

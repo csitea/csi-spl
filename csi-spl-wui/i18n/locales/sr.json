@@ -29,6 +29,8 @@
   "social_auth": {
     "continue_google": "Настави са Google",
     "continue_facebook": "Настави са Facebook",
+    "continue_microsoft": "Пријави се са Microsoft",
+    "continue_linkedin": "Настави са LinkedIn",
     "continue_generic": "Настави са {provider}",
     "not_available": "Prijava još nije dostupna."
   },

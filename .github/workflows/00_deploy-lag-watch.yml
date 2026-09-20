@@ -19,6 +19,18 @@
 # The hub's deploy unit is the cnf image TAG (terraform owns the image), not
 # the commit, so "lag" here is image-vs-cnf, not commit-vs-trunk as in csi-rel.
 #
+# THAT IS ONLY HALF THE QUESTION, so this file runs a second, independent job.
+# image-vs-cnf is green for as long as nobody bumps env.hub.image.tag -- a lane
+# lands hub source, 20 (its own header) "runs the tests, then deploys nothing
+# new", cnf still names the old tag, the service still runs it, every gate is
+# green and trunk's code is not live. Measured: this workflow concluded SUCCESS
+# on 8 consecutive runs, 35463951071 (2026-09-19T19:18Z) through 35484293822
+# (2026-09-20T02:33Z), while dev and prd both served af8c6db and trunk 13e70d0
+# already carried hub source f2c024a and a228c92. So `lag` asks commit-vs-trunk
+# instead, of both components, by reading what each env publishes about itself
+# (hub /version, WUI /build.json) -- csi-spl-orc do_check_deploy_lag. It needs
+# no GCP identity at all, so unlike `watch` it runs for both envs always.
+#
 # Auth as 20: the project key secret GCP_KEY_CSI_SPL_<ENV> (iac 120) first,
 # the WIF repo variables (GCP_WIF_PROVIDER_<ENV> + GCP_DEPLOY_SA_EMAIL_<ENV>,
 # 017) only when the key is absent. An env with neither is SKIPPED with a
@@ -158,4 +170,70 @@ jobs:
         if: steps.lag.outputs.rc != '0'
         run: |
           echo "::error::$ENV is not running the cnf image at trunk head (do_check_hub_deploy rc ${{ steps.lag.outputs.rc }}: 3 lagging, 4 unhealthy, 1 cannot tell) -- see the job summary"
+          exit 1
+
+  # ---------------------------------------------------------------------------
+  # lag: is TRUNK HEAD actually served -- by BOTH envs, hub AND WUI?
+  #
+  # The guard a lane cannot close "done" past: `watch` above compares the live
+  # image with the image cnf NAMES, this one compares the live COMMIT with the
+  # commit under test. do_check_deploy_lag counts a commit as lag only when it
+  # changed an INPUT of that component (the hub image's own build inputs; the
+  # allow-list 30 deploys on), so a docs-only or iac-only trunk head is never
+  # red, and GRACE_MINUTES keeps a roll that is still in flight out of the
+  # verdict. No GCP call, no credential, nothing mutated: one HTTPS GET per
+  # component plus local git.
+  #
+  # SOFT vs HARD, as 22_deploy-verify: `lagging` (rc 3) FAILS -- the env has
+  # been behind longer than the grace and somebody must roll it. `cannot tell`
+  # (rc 1 -- endpoint blip, junk body) is a ::warning:: and stays green; an
+  # endpoint that answers WRONG is 22's job, and an unready revision is
+  # `watch`'s. Nothing is auto-dispatched here: a WUI lag would be a 30
+  # dispatch, but a hub lag needs a cnf image-tag bump, which is a change to
+  # the repo and nobody's to make from a cron.
+  # ---------------------------------------------------------------------------
+  lag:
+    name: Does ${{ matrix.environment }} serve this commit?
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, prd]
+    steps:
+      # fetch-depth 0: the check walks history between the served commit and
+      # this one. On the default depth 1 every verdict is "cannot tell".
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: do_check_deploy_lag
+        id: lag
+        env:
+          ENV: ${{ matrix.environment }}
+          SHA: ${{ github.sha }}
+          GRACE_MINUTES: ${{ vars.DEPLOY_LAG_GRACE_MINUTES || '45' }}
+        run: |
+          set -uo pipefail
+          rc=0
+          out="$(./csi-spl-orc/run -a do_check_deploy_lag 2>&1)" || rc=$?
+          verdicts="$(grep -E "^$ENV (hub|wui) (current|pending|lagging|unknown) " <<<"$out")"
+          echo "${verdicts:-$ENV: no verdict (rc $rc)}"
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          { echo "## Deploy lag: is ${GITHUB_SHA:0:8} served by $ENV?"; echo
+            echo '```'; echo "${verdicts:-no verdict, rc $rc}"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cannot tell -- warn, do not redden trunk
+        if: steps.lag.outputs.rc == '1'
+        run: |
+          echo "::warning::$ENV could not be told apart: do_check_deploy_lag reached no usable answer (endpoint unreachable, or a body with no commit) -- see the job summary"
+        env:
+          ENV: ${{ matrix.environment }}
+
+      - name: Fail the run so the lag is visible
+        if: steps.lag.outputs.rc == '3'
+        env:
+          ENV: ${{ matrix.environment }}
+        run: |
+          echo "::error::$ENV does not serve ${GITHUB_SHA:0:8} and the grace period has passed -- a component of trunk is not live. Roll it (hub: bump cnf env.hub.image.tag, then 030 through make do-provision; WUI: dispatch 30) and re-run. See the job summary."
           exit 1

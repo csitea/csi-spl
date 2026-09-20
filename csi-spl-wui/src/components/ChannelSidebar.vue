@@ -9,10 +9,12 @@
     </NuxtLink>
     <h2>{{ t('sidebar.channels') }}</h2>
     <NuxtLink
-      v-for="c in channel.channels"
+      v-for="c in channel.ordered"
       :key="c.channel_id"
       class="nav-item"
       :class="{ active: channel.active === c.channel_id }"
+      :data-key="c.channel_id"
+      :data-ts="channelActivity(c, channel.liveAt) || undefined"
       :to="localePath('/channel/' + c.channel_id)"
     >
       <span class="hash">#</span>
@@ -28,10 +30,12 @@
     <p v-if="createError" class="muted create-error" role="alert">{{ createError }}</p>
     <h2>{{ t('sidebar.direct_messages') }}</h2>
     <NuxtLink
-      v-for="p in roster.peers"
+      v-for="p in peers"
       :key="p.label"
       class="nav-item"
       :class="{ active: channel.peer === p.label }"
+      :data-key="p.label"
+      :data-ts="channel.dmAt[p.label] || undefined"
       :to="localePath('/dm/' + encodeURIComponent(p.label))"
     >
       <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
@@ -58,7 +62,7 @@ import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
-import { connectionHealth, retentionDays } from '~/utils/channel-feed.mjs'
+import { channelActivity, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
 
 const channel = useChannelStore()
 const roster = useRosterStore()
@@ -76,6 +80,8 @@ function retentionLabel(c: { channel_id?: string, channel?: string, retention_da
   return n ? t('sidebar.retention_days', { n }) : ''
 }
 const health = computed(() => connectionHealth(live.state.value))
+/* CLE-3425: newest first here too - the peer we last exchanged a DM with on top */
+const peers = computed(() => orderPeers(roster.peers, channel.dmAt))
 onMounted(() => session.probe())
 /* specs/025 FR-008: the role decides which actions are offered (the hub re-checks). */
 watch(() => session.state, (st) => { if (st === 'in') access.load() }, { immediate: true })

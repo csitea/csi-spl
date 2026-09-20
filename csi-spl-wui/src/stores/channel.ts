@@ -2,15 +2,19 @@ import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import {
+  addChannelRow,
   belongsTo,
   channelFollow,
   channelView,
   dmFollow,
   mergePage,
   channelSlug,
+  dmActivity,
   feedRow,
   followPlan,
   mergeLive,
+  noteActivity,
+  orderChannels,
   rowFromAck,
   parseMention,
   rootsByTask,
@@ -51,6 +55,16 @@ export const useChannelStore = defineStore('channel', () => {
   const unread = ref<Record<string, number>>({})
   const loading = ref(false)
   const error = ref<string | null>(null)
+  /**
+   * CLE-3425 — last activity per channel id and per DM peer label, fed by the
+   * tab-wide `all` follow (plugins/spool-live.client.ts). The sidebar orders
+   * both lists by it, so a message in a channel nobody has open still moves
+   * that channel to the top with no refetch and no reload.
+   */
+  const liveAt = ref<Record<string, string>>({})
+  const dmAt = ref<Record<string, string>>({})
+  /** The sidebar's channel list: newest activity first (CLE-3425). */
+  const ordered = computed(() => orderChannels(channels.value, liveAt.value) as ChannelInfo[])
 
   const feed = computed(() => rootsByTask(topLevel(messages.value)))
   /* 013 on /channel and /dm (X3): newest first under the Omnibox, windowed, /search filtered */
@@ -91,6 +105,36 @@ export const useChannelStore = defineStore('channel', () => {
 
   function key() {
     return peer.value ? `dm:${peer.value}` : `ch:${active.value || ''}`
+  }
+
+  /**
+   * CLE-3425 — one live frame into the sidebar's order. Called for EVERY frame
+   * of the tenant, not only the open view's (ingestLive keeps that filter).
+   */
+  function noteLive(m: Record<string, unknown>, self = '') {
+    const next = noteActivity({ channels: liveAt.value, peers: dmAt.value }, m, self)
+    if (next.channels !== liveAt.value) liveAt.value = next.channels
+    if (next.peers !== dmAt.value) dmAt.value = next.peers
+  }
+
+  /** CLE-3425 — a channel created anywhere in the tenant (hub `channel` frame). */
+  function addChannel(frame: Record<string, unknown>) {
+    channels.value = addChannelRow(channels.value, frame) as ChannelInfo[]
+  }
+
+  /**
+   * CLE-3425 — the last DM per peer, so the DM list is ordered by activity on
+   * the first paint too (live frames keep it fresh afterwards). A hub without
+   * the route, or a closed door, leaves the previous map alone.
+   */
+  async function loadDmActivity(self = '') {
+    if (api.mock) return
+    try {
+      const page = await withSessionRetry(api, () => api.listThreads({ dm: true, limit: 50 }))
+      dmAt.value = { ...dmAt.value, ...dmActivity(page.threads, self) }
+    } catch {
+      /* the sidebar still lists peers; only the order falls back to a-z */
+    }
   }
 
   /** Live: send read=<ch>~<cursor> so the hub counts unread per reader (channels-v1 §5.2). */
@@ -278,6 +322,12 @@ export const useChannelStore = defineStore('channel', () => {
 
   return {
     channels,
+    ordered,
+    liveAt,
+    dmAt,
+    noteLive,
+    addChannel,
+    loadDmActivity,
     active,
     peer,
     messages,

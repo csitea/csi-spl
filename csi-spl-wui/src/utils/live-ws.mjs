@@ -22,6 +22,8 @@ export const FRAMES = {
   subscribed: 'subscribed',
   token: 'token',
   presence: 'presence',
+  /* CLE-3425: a channel created anywhere in the tenant (wui-live-ws v0.6) */
+  channel: 'channel',
 }
 
 /** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2); anything else is omitted and the hub assigns a guest GST-<n> (0.4.1). */
@@ -95,6 +97,8 @@ export function createLiveClient({
   onWelcome = () => {},
   onToken = () => {},
   onPresence = () => {},
+  /** CLE-3425 §3.3 `channel` frames ({ channel, name, created_by, created_at }). */
+  onChannel = () => {},
   onReconnected = () => {},
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = (t) => clearTimeout(t),
@@ -111,7 +115,10 @@ export function createLiveClient({
   const subs = new Set()
   const chanSubs = new Set()
   const peerSubs = new Set()
-  let allSub = false
+  /* CLE-3425: `all` is ref-counted. The thread list holds it while `/` is open
+     and the app shell holds it for the whole tab, so the page leaving `/` must
+     not take the shell's follow down with it. */
+  let allSub = 0
   const queue = []
   const pending = new Map()
   const tokenWaiters = []
@@ -179,7 +186,7 @@ export function createLiveClient({
         for (const id of subs) raw({ type: FRAMES.subscribe, task_id: id })
         for (const ch of chanSubs) raw({ type: FRAMES.subscribe, channel: ch })
         for (const p of peerSubs) raw({ type: FRAMES.subscribe, peer: p })
-        if (allSub) raw({ type: FRAMES.subscribe, all: true })
+        if (allSub > 0) raw({ type: FRAMES.subscribe, all: true })
         flush()
         onWelcome(f)
         if (dropped) {
@@ -189,6 +196,9 @@ export function createLiveClient({
         return
       case FRAMES.presence:
         onPresence(f)
+        return
+      case FRAMES.channel:
+        onChannel(f)
         return
       case FRAMES.token:
         onToken(f)
@@ -279,13 +289,14 @@ export function createLiveClient({
     },
     /** wui-live-ws v0.5: the whole tenant, for the thread list (DMs only when party). */
     subscribeAll() {
-      if (allSub) return
-      allSub = true
+      allSub++
+      if (allSub > 1) return
       if (state === 'open') raw({ type: FRAMES.subscribe, all: true })
     },
     unsubscribeAll() {
-      if (!allSub) return
-      allSub = false
+      if (allSub === 0) return
+      allSub--
+      if (allSub > 0) return
       if (state === 'open') raw({ type: FRAMES.unsubscribe, all: true })
     },
     /** wui-live-ws: {type:"token"} → next token frame (fresh upload token). */

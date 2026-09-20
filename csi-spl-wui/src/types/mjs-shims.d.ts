@@ -89,6 +89,7 @@ declare module '~/utils/live-ws.mjs' {
     onWelcome?: (w: Record<string, unknown>) => void
     onToken?: (f: Record<string, unknown>) => void
     onPresence?: (f: import('./spool').PresenceFrame) => void
+    onChannel?: (f: Record<string, unknown>) => void
     onReconnected?: (welcome: Record<string, unknown>, info: { cursors: Record<string, string> }) => void
     ackTimeoutMs?: number
   }): {
@@ -145,6 +146,13 @@ declare module '~/utils/channel-feed.mjs' {
   export function orderChannels<T extends { channel_id?: string }>(rows: T[], liveAt?: Record<string, string>): T[]
   export function orderPeers<T extends { label?: string, online?: boolean }>(rows: T[], lastAt?: Record<string, string>): T[]
   export function dmActivity(threads: unknown[], self?: string): Record<string, string>
+  export function dmPeerOf(msg: unknown, self?: string): string
+  export function noteActivity(
+    maps: { channels?: Record<string, string>, peers?: Record<string, string> },
+    msg: unknown,
+    self?: string,
+  ): { channels: Record<string, string>, peers: Record<string, string> }
+  export function addChannelRow<T>(rows: T[], frame: unknown): T[]
 }
 
 declare module '~/utils/mock-data.mjs' {

@@ -12,9 +12,12 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  addChannelRow,
   channelActivity,
   channelView,
   dmActivity,
+  dmPeerOf,
+  noteActivity,
   feedRow,
   mergeLive,
   orderChannels,
@@ -151,6 +154,81 @@ describe('orderPeers / dmActivity: the sidebar DM list, newest first', () => {
   })
 })
 
+describe('noteActivity / dmPeerOf: one live frame moves the sidebar order', () => {
+  const empty = { channels: {}, peers: {} }
+
+  it('a channel frame stamps that channel, whichever view is open', () => {
+    const next = noteActivity(empty, { channel: 'alerts', received_at: '2026-09-20T04:00:00Z' }, 'HUM-4')
+    assert.deepEqual(next.channels, { alerts: '2026-09-20T04:00:00Z' })
+    assert.deepEqual(next.peers, {})
+  })
+
+  it('#lobby and the pre-M3 alias land under the stored channel id', () => {
+    assert.deepEqual(noteActivity(empty, { channel: '#Lobby', ts: 'x' }, 'HUM-4').channels, { lobby: 'x' })
+  })
+
+  it('a DM frame stamps the OTHER end, labelled as the sidebar labels it', () => {
+    const m = { from: 'EZB-1', from_box: 'box-e2e-b', to: 'HUM-4', to_box: 'box-wui', received_at: 'z' }
+    assert.deepEqual(noteActivity(empty, m, 'HUM-4').peers, { 'EZB-1@box-e2e-b': 'z' })
+    assert.equal(dmPeerOf(m, 'HUM-4'), 'EZB-1@box-e2e-b')
+    assert.equal(dmPeerOf({ from: 'HUM-4', from_box: 'box-wui', to: 'ALL-0' }, 'HUM-4'), '', 'a broadcast has no peer')
+  })
+
+  it('an older frame changes nothing and returns the same objects (no needless re-render)', () => {
+    const held = { channels: { lobby: '2026-09-20T05:00:00Z' }, peers: {} }
+    const next = noteActivity(held, { channel: 'lobby', received_at: '2026-09-20T04:00:00Z' }, 'HUM-4')
+    assert.equal(next.channels, held.channels)
+    assert.equal(next.peers, held.peers)
+  })
+
+  it('a frame with no clock is ignored (CONTROL)', () => {
+    assert.equal(noteActivity(empty, { channel: 'lobby' }, 'HUM-4').channels, empty.channels)
+  })
+})
+
+describe('addChannelRow: a channel created in another session', () => {
+  const rows = [{ channel_id: 'lobby', last_ts: '2026-09-20T03:04:50Z' }]
+
+  it('adds the row and orderChannels puts it on top through created_at', () => {
+    const next = addChannelRow(rows, { channel: 'brand-new', name: 'Brand New', created_at: '2026-09-20T06:00:00Z', created_by: 'HUM-4' })
+    assert.equal(next.length, 2)
+    assert.deepEqual(orderChannels(next).map((c) => c.channel_id), ['brand-new', 'lobby'])
+  })
+
+  it('a channel we already list is left exactly as the hub described it', () => {
+    const next = addChannelRow(rows, { channel: 'lobby', name: 'somethingelse' })
+    assert.equal(next, rows)
+  })
+
+  it('a frame with no channel id changes nothing (CONTROL)', () => {
+    assert.equal(addChannelRow(rows, {}), rows)
+  })
+})
+
+describe('the tab-wide live follow (plugins/spool-live.client.ts)', () => {
+  const plugin = read('plugins/spool-live.client.ts')
+
+  it('holds one `all` follow for the tab and feeds the sidebar order', () => {
+    assert.match(plugin, /client\.subscribeAll\(\)/)
+    assert.match(plugin, /live\.onMessage\(\(m\) => channel\.noteLive\(m, live\.identity\.value\)\)/)
+    assert.match(plugin, /live\.onChannel\(\(f\) => channel\.addChannel\(f\)\)/)
+  })
+
+  it('catches up on reconnect, and does nothing in the socketless mock tenant', () => {
+    assert.match(plugin, /onReconnected/)
+    assert.match(plugin, /loadChannels\(\)/)
+    assert.match(plugin, /if \(api\.mock\) return/)
+  })
+
+  it('`all` is ref-counted, so leaving `/` does not drop the tab follow', () => {
+    const ws = read('utils/live-ws.mjs')
+    assert.match(ws, /let allSub = 0/)
+    assert.match(ws, /allSub\+\+/)
+    assert.match(ws, /allSub--/)
+    assert.match(ws, /if \(allSub > 0\) return/)
+  })
+})
+
 describe('DOM contract: every list row carries the clock it is ordered by', () => {
   it('a message / thread card prints its ACTIVITY time, not the root ts', () => {
     const s = read('components/MessageCard.vue')
@@ -161,5 +239,14 @@ describe('DOM contract: every list row carries the clock it is ordered by', () =
 
   it('the thread list row carries last_ts', () => {
     assert.match(read('pages/index.vue'), /:data-ts="t\.last_ts \|\| undefined"/)
+  })
+
+  it('the sidebar renders the ORDERED lists and stamps both', () => {
+    const s = read('components/ChannelSidebar.vue')
+    assert.match(s, /v-for="c in channel\.ordered"/)
+    assert.match(s, /:data-ts="channelActivity\(c, channel\.liveAt\) \|\| undefined"/)
+    assert.match(s, /v-for="p in peers"/)
+    assert.match(s, /orderPeers\(roster\.peers, channel\.dmAt\)/)
+    assert.doesNotMatch(s, /v-for="c in channel\.channels"/, 'CONTROL: the unordered hub list is not rendered')
   })
 })

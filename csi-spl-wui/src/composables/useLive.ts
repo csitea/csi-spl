@@ -35,6 +35,8 @@ const listeners = new Set<Listener>()
 const reconnectListeners = new Set<() => void>()
 /** wui-live-ws §3 `presence` frames ({ peer, status }). */
 const presenceListeners = new Set<Listener>()
+/** CLE-3425 `channel` frames ({ channel, name, created_at }): a channel created in the tenant. */
+const channelListeners = new Set<Listener>()
 const state = ref('idle')
 const identity = ref('')
 const uploadToken = ref('')
@@ -75,6 +77,9 @@ export function useLive() {
       },
       onPresence: (f) => {
         for (const fn of presenceListeners) fn(f as unknown as Record<string, unknown>)
+      },
+      onChannel: (f) => {
+        for (const fn of channelListeners) fn(f as unknown as Record<string, unknown>)
       },
       onToken: (f: Record<string, unknown>) => {
         if (typeof f.upload_token === 'string') uploadToken.value = f.upload_token
@@ -122,5 +127,11 @@ export function useLive() {
     return () => presenceListeners.delete(fn)
   }
 
-  return { ensure, onMessage, onReconnected, onPresence, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
+  /** CLE-3425: a channel created anywhere in the tenant, for the sidebar. */
+  function onChannel(fn: Listener) {
+    channelListeners.add(fn)
+    return () => channelListeners.delete(fn)
+  }
+
+  return { ensure, onMessage, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
 }

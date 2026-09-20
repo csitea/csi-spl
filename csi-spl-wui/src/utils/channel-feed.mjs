@@ -376,6 +376,64 @@ export function dmActivity(threads, self = '') {
 }
 
 /**
+ * CLE-3425 — the DM peer of one message, as the sidebar labels peers
+ * ("<id>@<box>"): the end that is not us. `self` is our v:1 id (live.identity);
+ * a broadcast (ALL-0) and a message with no other end give ''.
+ */
+export function dmPeerOf(msg, self = '') {
+  const m = msg || {}
+  const me = String(self || '')
+  for (const [id, box] of [[m.from, m.from_box], [m.to, m.to_box]]) {
+    const i = String(id || '')
+    if (!i || i === me || /^ALL-0$/.test(i)) continue
+    return box ? `${i}@${box}` : i
+  }
+  return ''
+}
+
+/**
+ * CLE-3425 — fold one live frame into the per-channel / per-peer "last activity"
+ * maps the sidebar orders by. Returns the new maps (the same objects when
+ * nothing moved, so a store can skip the write).
+ */
+export function noteActivity({ channels = {}, peers = {} }, msg, self = '') {
+  const m = msg || {}
+  const at = String(m.received_at || m.ts || '')
+  if (!at) return { channels, peers }
+  const ch = String(m.channel || '').replace(/^#/, '').toLowerCase()
+  if (ch) {
+    if (at <= String(channels[ch] || '')) return { channels, peers }
+    return { channels: { ...channels, [ch]: at }, peers }
+  }
+  const label = dmPeerOf(m, self)
+  if (!label || at <= String(peers[label] || '')) return { channels, peers }
+  return { channels, peers: { ...peers, [label]: at } }
+}
+
+/**
+ * CLE-3425 — a `channel` frame (a channel created anywhere in the tenant) into
+ * the sidebar rows: a new row is added, a known one keeps what the hub told us.
+ * orderChannels puts it on top through its created_at.
+ */
+export function addChannelRow(rows, frame) {
+  const f = frame || {}
+  const id = String(f.channel || '')
+  if (!id) return rows || []
+  const list = rows || []
+  if (list.some((c) => String(c.channel_id || '') === id)) return list
+  return [...list, {
+    channel_id: id,
+    name: String(f.name || id),
+    created_by: String(f.created_by || ''),
+    created_at: String(f.created_at || ''),
+    default: false,
+    count: 0,
+    unread: 0,
+    last_ts: null,
+  }]
+}
+
+/**
  * The DM-level WS subscription for the open view (wui-live-ws v0.5 `peer`):
  * the open DM peer, none for a channel. Same shape as channelFollow.
  */

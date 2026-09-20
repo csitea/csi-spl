@@ -198,8 +198,15 @@ describe('WS follows: DM peer and thread list (wui-live-ws v0.5)', () => {
     sockets[1].onopen(); sockets[1].onmessage({ data: JSON.stringify({ type: 'welcome' }) })
     assert.deepEqual(sockets[1].sent.slice(1), [{ type: 'subscribe', peer: 'HUM-2' }, { type: 'subscribe', all: true }])
     assert.equal(reconnected, 1)
+    /* CLE-3425: `all` is ref-counted - two holders (the thread list on `/` and
+       the tab-wide shell follow), so the FIRST unsubscribe must not drop it. */
     c.unsubscribePeer('HUM-2'); c.unsubscribeAll()
+    assert.deepEqual(sockets[1].sent.slice(3), [{ type: 'unsubscribe', peer: 'HUM-2' }],
+      'one of the two `all` holders left: the follow stays')
+    c.unsubscribeAll()
     assert.deepEqual(sockets[1].sent.slice(3), [{ type: 'unsubscribe', peer: 'HUM-2' }, { type: 'unsubscribe', all: true }])
+    c.unsubscribeAll()
+    assert.deepEqual(sockets[1].sent.slice(5), [], 'CONTROL: an extra unsubscribe sends nothing')
   })
 
   it('dmFollow moves the peer subscription with the open DM', () => {

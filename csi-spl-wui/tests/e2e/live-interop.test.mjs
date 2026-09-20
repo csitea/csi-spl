@@ -6,13 +6,18 @@
 //   HUB_URL=http://t1.localhost:58080 node --experimental-websocket tests/e2e/live-interop.test.mjs
 // Optional: BOX_POST_BODY=<text> — also wait for a box-agent lobby post with that body
 // (send it with: spool send --to ALL-0 --to-box box-wui --task-id <lobby> --kind note --body <text>).
-// Without HUB_URL the test is skipped (exit 0).
+// Without HUB_URL the test is skipped (exit 0) locally. When CI is set,
+// an unset HUB_URL is exit 1 so a skip cannot pass the gate (016 T006).
 
 import { createLiveClient, wsUrl } from '../../src/utils/live-ws.mjs'
 import { createSpoolClient, sha256Hex } from '../../src/utils/spool-client.mjs'
 
 const HUB = (process.env.HUB_URL || '').replace(/\/+$/, '')
 if (!HUB) {
+  if (process.env.CI) {
+    console.error('FAIL live-interop: HUB_URL is unset in CI (016 T006). Set HUB_URL or do not wire test:live into CI.')
+    process.exit(1)
+  }
   console.log('SKIP live-interop: HUB_URL unset')
   process.exit(0)
 }

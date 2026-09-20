@@ -55,10 +55,28 @@ type Config struct {
 	// Channels is the box's channel subscriptions (comma list of slugs) sent in
 	// hub hello/announce (specs/003 channels-v1 §3). Unset = #lobby only.
 	Channels string `env:"SPOOL_CHANNELS"`
+	// NotifyCmd is the terminal leg (specs/028): the command run after a v:1
+	// message lands in a LOCAL agent's inbox, so the agent's tmux pane SHOWS
+	// it. On a box this is csi-spl-orc's spool-notify.sh, exported by
+	// spool-harness for the agent session and for the hub-run sidecar it
+	// starts. Unset (a hub, CI, a test) or "off" = no terminal leg. Split on
+	// whitespace into argv; no shell is involved.
+	NotifyCmd string `env:"SPOOL_NOTIFY_CMD"`
+	// NotifyTimeout bounds that command. It can never fail a delivery: the
+	// file is already written when it runs (002).
+	NotifyTimeout time.Duration `env:"SPOOL_NOTIFY_TIMEOUT" envDefault:"10s"`
 	// MsgVersion is the schema version this box WRITES (specs/020
 	// contracts/migration.md §5): 1 until every reader is deployed. Readers
 	// accept 1 and 2 whatever this says. 0 (a Config built in code) = msg.Version.
 	MsgVersion int `env:"SPOOL_MSG_VERSION" envDefault:"1"`
+}
+
+// NotifyTimeoutOr is NotifyTimeout, or 10s for a Config built in code.
+func (c *Config) NotifyTimeoutOr() time.Duration {
+	if c.NotifyTimeout <= 0 {
+		return 10 * time.Second
+	}
+	return c.NotifyTimeout
 }
 
 // WriteVersion is the v a message composed on this box carries.

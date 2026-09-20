@@ -19,6 +19,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/notify"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 )
 
@@ -120,6 +121,16 @@ func (s *Store) writeBox(m *msg.Message, id, box string) (bool, error) {
 	}
 	if err := writeFileAtomic(filepath.Join(s.dir(id, box), msg.Filename(m)), blob, 0o664); err != nil {
 		return false, err
+	}
+	// specs/028 FR-001: this is the ONE place a message enters a local agent's
+	// inbox, whichever hop brought it here - a same-box `spool send` (CLI or
+	// the spool_send MCP tool), or the hub sidecar's Deliver/DeliverTo
+	// (cross-box mail, a channel mention, a signed-in human's box-wui task).
+	// Hooking it here is also what gives FR-003 for free: a redelivery that
+	// DeliverTo already short-circuited never reaches this line, so a
+	// reconnecting sidecar does not ring an old message a second time.
+	if box == "inbox" {
+		notify.Run(s.cfg, m, id)
 	}
 	return true, nil
 }

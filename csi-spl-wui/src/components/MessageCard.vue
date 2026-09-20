@@ -3,6 +3,7 @@
     class="msg"
     tabindex="0"
     :data-msg-id="msg.msg_id || undefined"
+    :data-ts="at || undefined"
     :aria-posinset="posinset || undefined"
     :aria-setsize="setsize || undefined"
     :aria-label="t('feed.card_aria', { who: (msg.from || t('feed.unknown_author')) + (msg.from_box ? '@' + msg.from_box : ''), kind: kindLabel(String(msg.kind || 'note')) })"
@@ -45,6 +46,7 @@
 
 <script setup lang="ts">
 import { formatTs } from '~/utils/channel-feed.mjs'
+import { activityOf } from '~/utils/feed.mjs'
 
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
@@ -61,7 +63,10 @@ defineEmits<{ 'open-thread': [taskId: string] }>()
 const { t, te, locale } = useI18n({ useScope: 'global' })
 /** v:1 kind in words (feed.kind.*); an unknown kind shows as sent. */
 const kindLabel = (k: string) => (te('feed.kind.' + k) ? t('feed.kind.' + k) : k)
-const time = computed(() => formatTs(String(props.msg.ts || ''), locale.value))
+/* CLE-3425: a thread card is ordered by its LAST activity, so it shows that
+   moment — a card that sits above another must not print an older time. */
+const at = computed(() => activityOf(props.msg))
+const time = computed(() => formatTs(at.value, locale.value))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])
 const count = computed(() => props.count || 0)
 </script>

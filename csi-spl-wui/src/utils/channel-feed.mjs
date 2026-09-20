@@ -1,7 +1,7 @@
 /** Pure feed helpers. Node tests import this file; Vue stores wrap it. */
 
 import { bodyToHtml } from './code-blocks.mjs'
-import { matchesSearch, newestFirst, windowed } from './feed.mjs'
+import { activityOf, matchesSearch, newestActivityFirst, newestFirst, windowed } from './feed.mjs'
 
 export function topLevel(messages) {
   return messages
@@ -278,13 +278,101 @@ export function rowFromAck(ack, frame, { from = '', channel = null } = {}) {
 }
 
 /**
- * 013 on /channel and /dm (X3): one card per thread root, newest first, the
- * Omnibox `/search` filter, then the first `visible` rows. Storage order is
- * untouched; a live append or an older page only changes what is sorted.
+ * One card per thread (task_id), carrying the thread's LAST activity
+ * (CLE-3425). The card itself stays the thread's oldest message — that is the
+ * root the channel lists — but `last_ts` is the newest moment of any message of
+ * that task, so a reply inside an old thread bumps the card. A hub thread row
+ * (thread_row) already carries `last_ts` and its own `count`; a flat page gets
+ * both computed here.
+ */
+export function threadCards(messages) {
+  const out = []
+  const at = new Map()
+  for (const m of messages || []) {
+    const id = m && m.task_id
+    if (!id) {
+      out.push(m)
+      continue
+    }
+    const i = at.get(id)
+    if (i === undefined) {
+      at.set(id, out.length)
+      out.push({ ...m, last_ts: activityOf(m) })
+      continue
+    }
+    const card = out[i]
+    const ts = activityOf(m)
+    out[i] = {
+      ...card,
+      last_ts: ts > activityOf(card) ? ts : activityOf(card),
+      count: card.thread_row ? card.count : (Number(card.count) || 0) + 1,
+    }
+  }
+  return out
+}
+
+/**
+ * 013 on /channel and /dm (X3): one card per thread root, newest ACTIVITY first
+ * (CLE-3425: a reply inside a thread bumps its card), the Omnibox `/search`
+ * filter, then the first `visible` rows. Storage order is untouched; a live
+ * append or an older page only changes what is sorted.
  */
 export function channelView(messages, { search = '', visible = 50 } = {}) {
-  const roots = rootsByTask(topLevel(messages || []))
-  return windowed(newestFirst(roots.filter((m) => matchesSearch(m, search))), visible)
+  const cards = threadCards(topLevel(messages || []))
+  return windowed(newestActivityFirst(cards.filter((m) => matchesSearch(m, search))), visible)
+}
+
+/**
+ * CLE-3425 — the sidebar channel list, newest first. A channel ranks by the
+ * newest of: a live message just pushed for it (`liveAt`, so the order moves
+ * with no refetch), the hub's `last_ts`, and its `created_at` (so a channel
+ * created seconds ago tops the list although nobody has posted in it yet).
+ * Channels nothing is known about keep a stable a-z tail.
+ */
+export function channelActivity(row, liveAt = {}) {
+  const c = row || {}
+  const id = String(c.channel_id || c.channel || '')
+  return [String(liveAt[id] || ''), String(c.last_ts || ''), String(c.created_at || '')]
+    .reduce((a, b) => (b > a ? b : a), '')
+}
+
+export function orderChannels(rows, liveAt = {}) {
+  return (rows || []).slice().sort((a, b) => {
+    const c = channelActivity(b, liveAt).localeCompare(channelActivity(a, liveAt))
+    return c !== 0 ? c : String(a.channel_id || '').localeCompare(String(b.channel_id || ''))
+  })
+}
+
+/**
+ * CLE-3425 — the sidebar DM list, newest first: peers ranked by the last DM
+ * either way (`lastAt` keyed by "<id>@<box>"). Peers with no DM yet keep the
+ * old tail — online first, then a-z — so the list is stable for a fresh tenant.
+ */
+export function orderPeers(rows, lastAt = {}) {
+  const at = (p) => String((lastAt || {})[String((p && p.label) || '')] || '')
+  return (rows || []).slice().sort((a, b) => {
+    const c = at(b).localeCompare(at(a))
+    if (c !== 0) return c
+    if (Boolean(a.online) !== Boolean(b.online)) return a.online ? -1 : 1
+    return String(a.label || '').localeCompare(String(b.label || ''))
+  })
+}
+
+/**
+ * CLE-3425 — last DM moment per peer label from view-v1 §4.3 DM thread rows
+ * (`?dm=true`), for orderPeers. `self` (our own label) is never a peer.
+ */
+export function dmActivity(threads, self = '') {
+  const out = {}
+  for (const t of threads || []) {
+    const at = String((t && (t.last_ts || t.first_ts)) || '')
+    for (const p of (t && t.participants) || []) {
+      const label = String(p || '')
+      if (!label || label === self) continue
+      if (at > String(out[label] || '')) out[label] = at
+    }
+  }
+  return out
 }
 
 /**

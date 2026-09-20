@@ -140,6 +140,11 @@ declare module '~/utils/channel-feed.mjs' {
   export function rootsByTask<T extends { task_id?: string }>(messages: T[]): T[]
   export function threadReplies(messages: { task_id?: string, parent_task_id?: string | null }[], taskId: string): number
   export function channelView<T>(messages: T[], opts?: { search?: string, visible?: number }): { rows: T[], hasOlder: boolean }
+  export function threadCards<T extends { task_id?: string }>(messages: T[]): T[]
+  export function channelActivity(row: unknown, liveAt?: Record<string, string>): string
+  export function orderChannels<T extends { channel_id?: string }>(rows: T[], liveAt?: Record<string, string>): T[]
+  export function orderPeers<T extends { label?: string, online?: boolean }>(rows: T[], lastAt?: Record<string, string>): T[]
+  export function dmActivity(threads: unknown[], self?: string): Record<string, string>
 }
 
 declare module '~/utils/mock-data.mjs' {
@@ -216,6 +221,8 @@ declare module '~/utils/view-api.mjs' {
 
 declare module '~/utils/feed.mjs' {
   export function newestFirst<T>(messages: T[]): T[]
+  export function activityOf(row: unknown): string
+  export function newestActivityFirst<T>(rows: T[]): T[]
   export function windowed<T>(rows: T[], count: number): { rows: T[], hasOlder: boolean }
   export function parseOmnibox(text: string): { search?: string, send?: string }
   export function matchesSearch(m: unknown, q: string): boolean

@@ -20,6 +20,7 @@
         :key="t.task_id"
         class="thread-row"
         :data-key="t.task_id"
+        :data-ts="t.last_ts || undefined"
         :href="localePath('/t/' + t.task_id)"
         @click.exact.prevent="pane.open(t.task_id)"
       >

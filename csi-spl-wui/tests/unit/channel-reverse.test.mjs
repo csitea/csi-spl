@@ -32,9 +32,16 @@ describe('channelView (X3 ordering)', () => {
     assert.deepEqual(ids(channelView(mergeLive([msg(1), msg(2)], own))), ['mine', 'm02', 'm01'])
   })
 
-  it('a live in-thread reply bumps no card and keeps the order (one card per task_id)', () => {
+  /* CLE-3425 replaces the pre-2026-09-20 assertion here ("a live in-thread
+     reply bumps no card"): the owner's order is newest first EVERYWHERE, and a
+     thread that just received a reply is the newest thing in the channel. One
+     card per task_id still holds — the card moves, it is not duplicated. */
+  it('a live in-thread reply bumps its card to the top (one card per task_id)', () => {
     const reply = { ...msg(9), msg_id: 'r1', task_id: 't01' }
-    assert.deepEqual(ids(channelView(mergeLive([msg(1), msg(2)], reply))), ['m02', 'm01'])
+    const v = channelView(mergeLive([msg(1), msg(2)], reply))
+    assert.deepEqual(ids(v), ['m01', 'm02'])
+    assert.equal(v.rows[0].last_ts, '2026-09-19T10:09:00Z')
+    assert.equal(v.rows[0].count, 1, 'the root card counts the reply')
   })
 
   it('after a load of older pages the older rows go to the bottom, newest stays on top', () => {
@@ -55,10 +62,15 @@ describe('channelView (X3 ordering)', () => {
     assert.equal(all.rows[59].msg_id, 'm00')
   })
 
-  it('view-v1 §4.3 thread rows (live) sort by their first_ts, newest first', () => {
+  it('view-v1 §4.3 thread rows (live) sort by their LAST activity, newest first', () => {
     const a = feedRow({ task_id: 'ta', first_ts: '2026-09-19T09:00:00Z', count: 3, participants: ['HUM-2@box-wui'] })
     const b = feedRow({ task_id: 'tb', first_ts: '2026-09-19T09:05:00Z', count: 1, participants: ['CLE-7@box-a'] })
     assert.deepEqual(ids(channelView([a, b])), ['tb', 'ta'])
+    /* CLE-3425: the same two rows, but `ta` was replied to after `tb` started —
+       the busy thread is on top. The pre-2026-09-20 code sorted on first_ts and
+       left it buried, which is the defect the owner reported. */
+    const busy = feedRow({ task_id: 'ta', first_ts: '2026-09-19T09:00:00Z', last_ts: '2026-09-19T09:10:00Z', count: 4, participants: ['HUM-2@box-wui'] })
+    assert.deepEqual(ids(channelView([busy, b])), ['ta', 'tb'])
   })
 
   it('/search filters without reordering', () => {

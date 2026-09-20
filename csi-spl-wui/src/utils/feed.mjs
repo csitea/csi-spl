@@ -15,6 +15,25 @@ export function newestFirst(messages) {
   })
 }
 
+/**
+ * When a row LAST changed (CLE-3425): a thread card's newest reply (`last_ts`),
+ * else the message's own moment. A card sorted on this one moves back to the top
+ * as soon as anyone replies inside it — sorting on `ts` alone leaves a busy
+ * thread buried under newer but idle ones, which is what the owner saw on
+ * /channel and /dm.
+ */
+export function activityOf(row) {
+  return String((row && (row.last_ts || row.received_at || row.ts)) || '')
+}
+
+/** Newest ACTIVITY first (activityOf); ties broken by msg_id so it is stable. */
+export function newestActivityFirst(rows) {
+  return (rows || []).slice().sort((a, b) => {
+    const c = activityOf(b).localeCompare(activityOf(a))
+    return c !== 0 ? c : String(b.msg_id || '').localeCompare(String(a.msg_id || ''))
+  })
+}
+
 /** The first `count` rows of a newest-first list, and whether older ones remain. */
 export function windowed(rows, count) {
   const n = Math.max(0, Number(count) || 0)

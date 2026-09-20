@@ -436,7 +436,14 @@
     "copy": "Копирај",
     "copied": "Копирано",
     "block_label": "Блок кода",
-    "block_label_lang": "Блок кода, {lang}"
+    "block_label_lang": "Блок кода, {lang}",
+    "open_full": "Otvori ceo kôd",
+    "show_all": "Prikaži još {n} redova",
+    "showing_lines": "{shown} od {total} redova",
+    "size": "{lines} redova · {chars} znakova",
+    "wrap_lines": "Prelomi redove",
+    "line_numbers": "Brojevi redova",
+    "too_big": "Ovaj blok koda je prevelik za slanje: {actual_lines} redova / {actual_chars} znakova, iznad ograničenja od oko {pages} A4 stranice ({lines} redova ili {chars} znakova). Priložite ga kao datoteku."
   },
   "search": {
     "omnibox_label": "Omnibox: порука овој страници или /search за претрагу свуда",

@@ -436,7 +436,14 @@
     "copy": "Kopeeri",
     "copied": "Kopeeritud",
     "block_label": "Koodiplokk",
-    "block_label_lang": "Koodiplokk, {lang}"
+    "block_label_lang": "Koodiplokk, {lang}",
+    "open_full": "Ava kogu kood",
+    "show_all": "Näita veel {n} rida",
+    "showing_lines": "{shown} / {total} reast",
+    "size": "{lines} rida · {chars} märki",
+    "wrap_lines": "Murra read",
+    "line_numbers": "Reanumbrid",
+    "too_big": "See koodiplokk on saatmiseks liiga suur: {actual_lines} rida / {actual_chars} märki, üle umbes {pages} A4 lehekülje piiri ({lines} rida või {chars} märki). Lisa see failina."
   },
   "search": {
     "omnibox_label": "Omnibox: kirjuta sellele lehele või /search, et otsida kõikjalt",

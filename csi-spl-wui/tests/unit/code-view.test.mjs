@@ -20,7 +20,7 @@ import {
   SEND_LIMIT,
   SUPPORTED_LANGS,
   countLines,
-  flattenTokens,
+  createTokenEmitter,
   lineText,
   measureCode,
   normalizeLang,
@@ -28,6 +28,7 @@ import {
   oversizeBlocks,
   plainLines,
   previewOf,
+  scopeToClass,
   sendLimitError,
   tokensToLines,
 } from '../../src/utils/code-view.mjs'
@@ -184,26 +185,53 @@ describe('grammar names', () => {
 })
 
 describe('tokens: lines in, lines out, nothing becomes markup', () => {
-  it('flattenTokens turns a lowlight tree into { text, cls } and inherits nesting', () => {
-    const tree = {
-      type: 'root',
-      children: [
-        { type: 'text', value: 'a ' },
-        {
-          type: 'element',
-          properties: { className: ['hljs-string'] },
-          children: [
-            { type: 'text', value: 'b' },
-            { type: 'element', properties: { className: ['hljs-subst'] }, children: [{ type: 'text', value: 'c' }] },
-          ],
-        },
-      ],
-    }
-    assert.deepEqual(flattenTokens(tree), [
+  it('scopeToClass matches what highlight.js own renderer would emit', () => {
+    assert.equal(scopeToClass('keyword'), 'hljs-keyword')
+    assert.equal(scopeToClass('title.function_'), 'hljs-title function__')
+    assert.equal(scopeToClass('comment.line'), 'hljs-comment line_')
+    assert.equal(scopeToClass('language:xml'), 'language-xml')
+    assert.equal(scopeToClass('keyword', 'x-'), 'x-keyword')
+  })
+
+  it('the emitter appends flat runs and inherits open scopes — it builds no HTML', () => {
+    const E = createTokenEmitter()
+    const e = new E({ classPrefix: 'hljs-' })
+    e.addText('a ')
+    e.startScope('string')
+    e.addText('b')
+    e.startScope('subst')
+    e.addText('c')
+    e.endScope()
+    e.endScope()
+    e.finalize()
+    assert.deepEqual(e.tokens, [
       { text: 'a ', cls: '' },
       { text: 'b', cls: 'hljs-string' },
       { text: 'c', cls: 'hljs-string hljs-subst' },
     ])
+    // the one place HTML could have been built returns nothing, on purpose
+    assert.equal(e.toHTML(), '')
+  })
+
+  it('the emitter joins adjacent runs of the same scope and drops empty text', () => {
+    const E = createTokenEmitter()
+    const e = new E({})
+    e.addText('a')
+    e.addText('')
+    e.addText('b')
+    assert.deepEqual(e.tokens, [{ text: 'ab', cls: '' }])
+  })
+
+  it('an embedded language keeps both scopes (CSS inside HTML)', () => {
+    const E = createTokenEmitter()
+    const outer = new E({})
+    const inner = new E({})
+    inner.startScope('keyword')
+    inner.addText('color')
+    inner.endScope()
+    outer.startScope('tag')
+    outer.__addSublanguage(inner, 'css')
+    assert.deepEqual(outer.tokens, [{ text: 'color', cls: 'hljs-tag language-css hljs-keyword' }])
   })
 
   it('tokensToLines splits on newlines and keeps blank lines', () => {
@@ -226,7 +254,7 @@ describe('tokens: lines in, lines out, nothing becomes markup', () => {
   })
 })
 
-describe('the highlighter (lowlight): tokens, never markup', () => {
+describe('the highlighter (highlight.js + our emitter): tokens, never markup', () => {
   it('a known fence tag highlights, and every token is a plain string plus a class', async () => {
     __resetHighlighter()
     const toks = await highlightTokens('def f(x):\n    return 1', 'py')
@@ -309,6 +337,8 @@ describe('no eval and no injected stylesheet (CSP: no unsafe-eval / unsafe-inlin
     const src = read('node_modules/highlight.js/lib/core.js')
     assert.equal(/\beval\s*\(|new Function\s*\(/.test(src), false)
     assert.equal(/WebAssembly/.test(src), false)
+    // and the emitter we hand it never produces a markup string
+    assert.equal(/<span|innerHTML/.test(code('src/utils/code-view.mjs')), false)
   })
 
   it('the grammars are lazy: every loader is a literal import() the bundler can split', () => {
@@ -319,9 +349,17 @@ describe('no eval and no injected stylesheet (CSP: no unsafe-eval / unsafe-inlin
     assert.equal(/import\(\s*[`'"][^`'"]*\$\{|import\(\s*\w/.test(src), false)
   })
 
-  it('nothing imports lowlight or highlight.js statically (that would be the main bundle)', () => {
+  it('nothing imports highlight.js statically (that would put it in the main bundle)', () => {
     for (const f of ['src/utils/highlighter.mjs', 'src/utils/code-langs.mjs', 'src/utils/code-view.mjs']) {
       assert.equal(/^\s*import\s[^\n]*from\s*['"](lowlight|highlight\.js)/m.test(read(f)), false, f)
     }
+  })
+
+  it('lowlight is NOT a dependency: its only entry re-exports every grammar', () => {
+    // measured 2026-09-20: keeping it cost one 806 KB chunk in the initial graph
+    const pkg = JSON.parse(read('package.json'))
+    assert.equal('lowlight' in (pkg.dependencies || {}), false)
+    assert.equal('lowlight' in (pkg.devDependencies || {}), false)
+    assert.ok(pkg.dependencies['highlight.js'], 'highlight.js is a direct, pinned dependency')
   })
 })

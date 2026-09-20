@@ -436,7 +436,14 @@
     "copy": "Copiază",
     "copied": "Copiat",
     "block_label": "Bloc de cod",
-    "block_label_lang": "Bloc de cod, {lang}"
+    "block_label_lang": "Bloc de cod, {lang}",
+    "open_full": "Deschide tot codul",
+    "show_all": "Arată încă {n} linii",
+    "showing_lines": "{shown} din {total} linii",
+    "size": "{lines} linii · {chars} caractere",
+    "wrap_lines": "Încadrează liniile",
+    "line_numbers": "Numerotarea liniilor",
+    "too_big": "Acest bloc de cod este prea mare pentru a fi trimis: {actual_lines} linii / {actual_chars} caractere, peste limita de aproximativ {pages} pagini A4 ({lines} linii sau {chars} caractere). Atașează-l ca fișier."
   },
   "search": {
     "omnibox_label": "Omnibox: mesaj către această pagină sau /search pentru a căuta peste tot",

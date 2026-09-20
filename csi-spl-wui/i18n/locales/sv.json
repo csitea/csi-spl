@@ -436,7 +436,14 @@
     "copy": "Kopiera",
     "copied": "Kopierat",
     "block_label": "Kodblock",
-    "block_label_lang": "Kodblock, {lang}"
+    "block_label_lang": "Kodblock, {lang}",
+    "open_full": "Öppna hela koden",
+    "show_all": "Visa {n} rader till",
+    "showing_lines": "{shown} av {total} rader",
+    "size": "{lines} rader · {chars} tecken",
+    "wrap_lines": "Radbryt rader",
+    "line_numbers": "Radnummer",
+    "too_big": "Det här kodblocket är för stort för att skickas: {actual_lines} rader / {actual_chars} tecken, över gränsen på cirka {pages} A4-sidor ({lines} rader eller {chars} tecken). Bifoga det som en fil i stället."
   },
   "search": {
     "omnibox_label": "Omnibox: skriv till den här sidan, eller /search för att söka överallt",

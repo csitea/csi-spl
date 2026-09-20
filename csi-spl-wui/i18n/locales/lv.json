@@ -436,7 +436,14 @@
     "copy": "Kopēt",
     "copied": "Nokopēts",
     "block_label": "Koda bloks",
-    "block_label_lang": "Koda bloks, {lang}"
+    "block_label_lang": "Koda bloks, {lang}",
+    "open_full": "Atvērt visu kodu",
+    "show_all": "Rādīt vēl {n} rindas",
+    "showing_lines": "{shown} no {total} rindām",
+    "size": "{lines} rindas · {chars} rakstzīmes",
+    "wrap_lines": "Aplauzt rindas",
+    "line_numbers": "Rindu numuri",
+    "too_big": "Šis koda bloks ir pārāk liels, lai to nosūtītu: {actual_lines} rindas / {actual_chars} rakstzīmes, virs ierobežojuma aptuveni {pages} A4 lappuses ({lines} rindas vai {chars} rakstzīmes). Pievienojiet to kā failu."
   },
   "search": {
     "omnibox_label": "Omnibox: raksti šai lapai vai /search, lai meklētu visur",

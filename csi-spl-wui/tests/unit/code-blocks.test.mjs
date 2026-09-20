@@ -131,18 +131,43 @@ describe('never markup (SEC)', () => {
     assert.equal(parseBody('```"onx=1\nx\n```')[0].lang, '')
   })
 
-  it('MessageBody.vue renders with text interpolation, never v-html', () => {
-    const src = readFileSync(join(WUI, 'src/components/MessageBody.vue'), 'utf8')
-    assert.equal(/v-html|innerHTML/.test(src), false)
-    const card = readFileSync(join(WUI, 'src/components/MessageCard.vue'), 'utf8')
-    assert.equal(/v-html/.test(card), false, 'MessageCard no longer uses v-html')
+  it('the whole message path renders with text interpolation, never v-html', () => {
+    // CLE-3423 added highlighting, which is exactly where a v-html would
+    // creep back in — so the ban is asserted over every component on the path,
+    // not only the one that used to hold the markup.
+    for (const f of [
+      'src/components/MessageBody.vue',
+      'src/components/CodeBlock.vue',
+      'src/components/CodeLines.vue',
+      'src/components/CodeViewer.vue',
+      'src/components/UiDialog.vue',
+      'src/components/MessageCard.vue',
+    ]) {
+      // comments SAY "never v-html", so they are not evidence either way
+      const src = readFileSync(join(WUI, f), 'utf8')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '')
+      assert.equal(/v-html|innerHTML/.test(src), false, f)
+      assert.ok(src.includes('<template>'), `${f}: the stripper kept the markup`)
+    }
   })
 
-  it('code block CSS scrolls inside the block only (no page x-scroll)', () => {
-    const css = readFileSync(join(WUI, 'src/components/MessageBody.vue'), 'utf8')
-    assert.ok(/overflow-x:\s*auto/.test(css))
-    assert.ok(css.includes('max-width: 100%'))
-    assert.equal(/\b100vw\b/.test(css), false)
+  it('a code block WRAPS instead of scrolling sideways (owner 2026-09-19, FR-016)', () => {
+    // This reverses what T017 proved on 4c204d0 ("the block scrolls sideways
+    // and the page does not"): the owner asked for no horizontal scrolling in
+    // a snippet at all. The card's rows soft-wrap; `no-wrap` is the dialog's
+    // opt-out, and only then may the BLOCK scroll.
+    const css = readFileSync(join(WUI, 'src/components/CodeLines.vue'), 'utf8')
+    assert.match(css, /\.code-src\s*\{[^}]*white-space:\s*pre-wrap/)
+    assert.match(css, /\.code-src\s*\{[^}]*overflow-wrap:\s*anywhere/)
+    assert.match(css, /\.code-lines\s*\{[^}]*overflow-x:\s*hidden/)
+    assert.match(css, /\.code-lines\.no-wrap\s*\{\s*overflow-x:\s*auto/)
+    for (const f of ['src/components/CodeLines.vue', 'src/components/CodeBlock.vue']) {
+      const src = readFileSync(join(WUI, f), 'utf8')
+      assert.ok(src.includes('max-width: 100%'), f)
+      assert.equal(/\b100vw\b/.test(src), false, f)
+    }
   })
 })
 

@@ -434,6 +434,75 @@ declare module '~/utils/code-blocks.mjs' {
   export function closeOpenFence(text: string): string
 }
 
+declare module '~/utils/code-view.mjs' {
+  /** one highlighted run: raw text plus the grammar's class names */
+  export interface CodeToken { text: string, cls: string }
+  export type CodeLine = CodeToken[]
+  export interface CodeSize { lines: number, chars: number, pages: number }
+  export interface CodePreview {
+    text: string
+    truncated: boolean
+    shownLines: number
+    totalLines: number
+    hiddenLines: number
+    totalChars: number
+  }
+  export interface OversizeBlock { index: number, lang: string, lines: number, chars: number, pages: number }
+  export interface CodeSendError {
+    key: 'code.too_big'
+    params: { pages: number, lines: number, chars: number, actual_lines: number, actual_chars: number }
+    blocks: OversizeBlock[]
+  }
+  export const A4_PAGE: { readonly lines: number, readonly chars: number }
+  export const MAX_SEND_PAGES: number
+  export const SEND_LIMIT: { readonly lines: number, readonly chars: number }
+  export const PREVIEW_LIMIT: { readonly lines: number, readonly chars: number }
+  export const LANG_ALIASES: Readonly<Record<string, string>>
+  export const SUPPORTED_LANGS: readonly string[]
+  export const AUTODETECT_LANGS: readonly string[]
+  export function countLines(text: string): number
+  export function measureCode(text: string): CodeSize
+  export function overSendLimit(text: string): boolean
+  export function oversizeBlocks(body: string): OversizeBlock[]
+  export function sendLimitError(body: string): CodeSendError | null
+  export function previewOf(text: string, limit?: { lines: number, chars: number }): CodePreview
+  export function normalizeLang(tag: string): string
+  export function scopeToClass(name: string, prefix?: string): string
+  export function createTokenEmitter(): new (options?: { classPrefix?: string }) => {
+    options: Record<string, unknown>
+    prefix: string
+    tokens: CodeToken[]
+    scopes: string[]
+    readonly cls: string
+    addText(value: string): void
+    openNode(name: string): void
+    closeNode(): void
+    startScope(name: string): void
+    endScope(): void
+    __addSublanguage(other: { tokens: CodeToken[] }, name: string): void
+    finalize(): void
+    toHTML(): string
+  }
+  export function plainTokens(text: string): CodeToken[]
+  export function tokensToLines(tokens: CodeToken[]): CodeLine[]
+  export function plainLines(text: string): CodeLine[]
+  export function lineText(line: CodeLine): string
+}
+
+declare module '~/utils/code-langs.mjs' {
+  export const LANG_LOADERS: Readonly<Record<string, () => Promise<{ default: unknown }>>>
+}
+
+declare module '~/utils/highlighter.mjs' {
+  import type { CodeLine, CodeToken } from '~/utils/code-view.mjs'
+  export const MIN_AUTODETECT_RELEVANCE: number
+  export function loadGrammar(lang: string): Promise<string>
+  export function loadedGrammars(): string[]
+  export function highlightTokens(text: string, langTag: string): Promise<CodeToken[]>
+  export function highlightLines(text: string, langTag: string): Promise<CodeLine[]>
+  export function __resetHighlighter(): void
+}
+
 declare module '~/utils/search.mjs' {
   export type SearchGroupType = 'robots' | 'users' | 'channels' | 'boxes' | 'threads' | 'files' | 'messages'
   export interface SearchOperator { op: string, example?: string, values?: string[] }

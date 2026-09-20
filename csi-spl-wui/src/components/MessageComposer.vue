@@ -82,6 +82,14 @@
           </button>
         </li>
       </ul>
+      <!-- a size refusal is a validation message, not a failure with a
+           reference to quote, so it is NOT an ErrorNotice: minting an
+           ERR-CLIENT-… into the diagnostics journal for "this snippet is
+           long" would bury the failures that journal exists for -->
+      <p v-if="sizeError" class="composer-too-big" role="alert" data-testid="composer-too-big">
+        <UiIcon name="alert-triangle" :size="16" />
+        <span>{{ t(sizeError.key, sizeError.params) }}</span>
+      </p>
       <div class="composer-row">
         <label v-if="!searchMode" class="muted attach">
           <input type="file" multiple hidden data-testid="attach" @change="onFiles">
@@ -97,6 +105,7 @@
 <script setup lang="ts">
 import { useRosterStore } from '~/stores/roster'
 import { closeOpenFence, enterAction, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
+import { sendLimitError } from '~/utils/code-view.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { applyCompletion, completeOperators, omniboxMode, operatorTokenAt, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
 import {
@@ -136,6 +145,13 @@ const mentionQuery = ref<string | null>(null)
 const activeIdx = ref(0)
 /** Slack's ``` composer: the caret sits inside an open code block. */
 const inCode = ref(false)
+/**
+ * 013 FR-018 — the send-time size gate. A code block past 3 A4
+ * (code-view.mjs SEND_LIMIT: 150 lines / 9000 chars) is a file, not a
+ * message: the send is refused here and the author is told to attach it
+ * instead. Held as { key, params } so the 19 catalogues own the wording.
+ */
+const sizeError = ref<ReturnType<typeof sendLimitError>>(null)
 const hintId = useId()
 const opListId = useId()
 const opIdx = ref(0)
@@ -183,6 +199,9 @@ const placeholder = computed(() => props.placeholder || t('composer.placeholder_
 function caret(): number {
   return inputEl.value?.selectionStart ?? text.value.length
 }
+
+/* a refusal is about the text that was there; editing it clears it */
+watch(text, () => { sizeError.value = null })
 
 function syncMention(ev?: Event) {
   const prevTok = opTok.value && opTok.value.token
@@ -334,6 +353,13 @@ function onSend() {
   }
   const body = closeOpenFence(text.value).trim()
   if ((!body && !picked.value.length) || props.busy) return
+  const tooBig = sendLimitError(body)
+  if (tooBig) {
+    // nothing is sent and nothing is cleared: the author keeps the text and
+    // can attach it as a file (005 T023 upload) instead
+    sizeError.value = tooBig
+    return
+  }
   emit('send', body, props.parentTaskId, picked.value.slice())
   text.value = ''
   picked.value = []
@@ -351,6 +377,22 @@ function onFiles(ev: Event) {
 </script>
 
 <style scoped>
+.composer-too-big {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius);
+  background: var(--color-bg-2);
+  color: var(--color-danger);
+  font-size: 12px;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.composer-too-big span { min-width: 0; }
 textarea.in-code {
   font-family: var(--font-mono);
   font-size: 13px;

@@ -436,7 +436,14 @@
     "copy": "Kopyala",
     "copied": "Kopyalandı",
     "block_label": "Kod bloğu",
-    "block_label_lang": "Kod bloğu, {lang}"
+    "block_label_lang": "Kod bloğu, {lang}",
+    "open_full": "Kodun tamamını aç",
+    "show_all": "{n} satır daha göster",
+    "showing_lines": "{total} satırdan {shown} tanesi",
+    "size": "{lines} satır · {chars} karakter",
+    "wrap_lines": "Satırları kaydır",
+    "line_numbers": "Satır numaraları",
+    "too_big": "Bu kod bloğu göndermek için çok büyük: {actual_lines} satır / {actual_chars} karakter, yaklaşık {pages} A4 sayfalık sınırın üzerinde ({lines} satır veya {chars} karakter). Bunun yerine dosya olarak ekleyin."
   },
   "search": {
     "omnibox_label": "Omnibox: bu sayfaya mesaj yazın veya her yerde aramak için /search",

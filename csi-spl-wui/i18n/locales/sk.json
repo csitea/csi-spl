@@ -436,7 +436,14 @@
     "copy": "Kopírovať",
     "copied": "Skopírované",
     "block_label": "Blok kódu",
-    "block_label_lang": "Blok kódu, {lang}"
+    "block_label_lang": "Blok kódu, {lang}",
+    "open_full": "Otvoriť celý kód",
+    "show_all": "Zobraziť ďalších {n} riadkov",
+    "showing_lines": "{shown} z {total} riadkov",
+    "size": "{lines} riadkov · {chars} znakov",
+    "wrap_lines": "Zalamovať riadky",
+    "line_numbers": "Čísla riadkov",
+    "too_big": "Tento blok kódu je príliš veľký na odoslanie: {actual_lines} riadkov / {actual_chars} znakov, nad limitom približne {pages} strán A4 ({lines} riadkov alebo {chars} znakov). Priložte ho ako súbor."
   },
   "search": {
     "omnibox_label": "Omnibox: správa pre túto stránku alebo /search na hľadanie všade",

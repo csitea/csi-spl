@@ -436,7 +436,14 @@
     "copy": "Копировать",
     "copied": "Скопировано",
     "block_label": "Блок кода",
-    "block_label_lang": "Блок кода, {lang}"
+    "block_label_lang": "Блок кода, {lang}",
+    "open_full": "Открыть весь код",
+    "show_all": "Показать ещё {n} строк",
+    "showing_lines": "{shown} из {total} строк",
+    "size": "{lines} строк · {chars} символов",
+    "wrap_lines": "Переносить строки",
+    "line_numbers": "Номера строк",
+    "too_big": "Этот блок кода слишком велик для отправки: {actual_lines} строк / {actual_chars} символов, больше лимита примерно в {pages} страницы A4 ({lines} строк или {chars} символов). Прикрепите его как файл."
   },
   "search": {
     "omnibox_label": "Omnibox: сообщение на этой странице или /search для поиска везде",

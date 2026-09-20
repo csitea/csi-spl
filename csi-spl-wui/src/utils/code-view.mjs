@@ -205,21 +205,96 @@ export function normalizeLang(tag) {
 /* ---------- tokens ---------- */
 
 /**
- * Flatten a lowlight/hast tree to `[{ text, cls }]`.
+ * A highlight.js scope name (`keyword`, `title.function_`, `language:xml`) as
+ * the class string its own HTML renderer would emit.
  *
- * lowlight returns a tree of `element` nodes whose only content is `text`
- * nodes — no attributes but className, no raw HTML anywhere. Flattening it
- * keeps that guarantee visible at the call site: the renderer receives
- * strings and class names, and has nothing it *could* inject.
+ * Transcribed from `scopeToCSSClass` in highlight.js/lib/core.js (11.11): a
+ * tiered scope prefixes only its first piece and suffixes the rest with
+ * underscores, and a sub-language scope becomes `language-<name>`. Keeping
+ * the same class names is what lets any `hljs-*` theme — including ours in
+ * CodeLines.vue — work unchanged.
  */
-export function flattenTokens(node, inherited = '') {
-  if (!node) return []
-  if (node.type === 'text') return node.value === '' ? [] : [{ text: node.value, cls: inherited }]
-  const own = node.properties && Array.isArray(node.properties.className)
-    ? node.properties.className.join(' ')
-    : ''
-  const cls = node.type === 'root' ? inherited : [inherited, own].filter(Boolean).join(' ')
-  return (node.children || []).flatMap((k) => flattenTokens(k, cls))
+export function scopeToClass(name, prefix = 'hljs-') {
+  const s = String(name)
+  if (s.startsWith('language:')) return s.replace('language:', 'language-')
+  if (s.includes('.')) {
+    const pieces = s.split('.')
+    return [prefix + pieces.shift(), ...pieces.map((x, i) => x + '_'.repeat(i + 1))].join(' ')
+  }
+  return prefix + s
+}
+
+/**
+ * A highlight.js emitter that builds `[{ text, cls }]` instead of a string of
+ * HTML.
+ *
+ * highlight.js drives an emitter through five calls — `addText`, `startScope`
+ * / `endScope` (and the older `openNode` / `closeNode`), `__addSublanguage`,
+ * `finalize`, `toHTML` — and its stock emitter concatenates `<span>`s into a
+ * buffer. Ours keeps a stack of open scopes and appends flat runs, so THE
+ * MARKUP IS NEVER BUILT: there is no string for a `<script>` in a message to
+ * end up inside, and the renderer gets text it interpolates. `toHTML` returns
+ * the empty string deliberately — `result.value` is the HTML nobody here
+ * wants, and building it would defeat the point.
+ *
+ * Pure: it never touches the DOM, and a node test drives it directly.
+ */
+export function createTokenEmitter() {
+  return class TokenEmitter {
+    constructor(options) {
+      this.options = options || {}
+      this.prefix = typeof this.options.classPrefix === 'string' ? this.options.classPrefix : 'hljs-'
+      /** the flat token run, in source order */
+      this.tokens = []
+      /** class strings of the scopes currently open, outermost first */
+      this.scopes = []
+    }
+
+    get cls() {
+      return this.scopes.join(' ')
+    }
+
+    addText(value) {
+      if (value === '') return
+      const cls = this.cls
+      const last = this.tokens[this.tokens.length - 1]
+      // adjacent runs of the same scope are one token: fewer spans, and the
+      // line splitter downstream has less to walk
+      if (last && last.cls === cls) last.text += value
+      else this.tokens.push({ text: value, cls })
+    }
+
+    openNode(name) {
+      this.scopes.push(scopeToClass(String(name), this.prefix))
+    }
+
+    closeNode() {
+      this.scopes.pop()
+    }
+
+    startScope(name) {
+      this.openNode(name)
+    }
+
+    endScope() {
+      this.closeNode()
+    }
+
+    /** an embedded language (JS inside HTML): its tokens, under our scopes */
+    __addSublanguage(other, name) {
+      const outer = [this.cls, name ? `language-${name}` : ''].filter(Boolean).join(' ')
+      for (const t of other.tokens) {
+        this.tokens.push({ text: t.text, cls: [outer, t.cls].filter(Boolean).join(' ') })
+      }
+    }
+
+    finalize() {}
+
+    /** highlight.js assigns this to `result.value`; we never read it. */
+    toHTML() {
+      return ''
+    }
+  }
 }
 
 /** Plain, unhighlighted tokens for `text` — the fallback and the control. */

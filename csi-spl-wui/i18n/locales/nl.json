@@ -436,7 +436,14 @@
     "copy": "Kopiëren",
     "copied": "Gekopieerd",
     "block_label": "Codeblok",
-    "block_label_lang": "Codeblok, {lang}"
+    "block_label_lang": "Codeblok, {lang}",
+    "open_full": "Volledige code openen",
+    "show_all": "Nog {n} regels tonen",
+    "showing_lines": "{shown} van {total} regels",
+    "size": "{lines} regels · {chars} tekens",
+    "wrap_lines": "Regels afbreken",
+    "line_numbers": "Regelnummers",
+    "too_big": "Dit codeblok is te groot om te versturen: {actual_lines} regels / {actual_chars} tekens, boven de limiet van ongeveer {pages} A4-pagina's ({lines} regels of {chars} tekens). Voeg het als bestand toe."
   },
   "search": {
     "omnibox_label": "Omnibox: bericht aan deze pagina, of /search om overal te zoeken",

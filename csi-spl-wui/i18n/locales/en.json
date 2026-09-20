@@ -436,7 +436,14 @@
     "copy": "Copy",
     "copied": "Copied",
     "block_label": "Code block",
-    "block_label_lang": "Code block, {lang}"
+    "block_label_lang": "Code block, {lang}",
+    "open_full": "Open the full code",
+    "show_all": "Show all {n} more lines",
+    "showing_lines": "{shown} of {total} lines",
+    "size": "{lines} lines · {chars} characters",
+    "wrap_lines": "Wrap lines",
+    "line_numbers": "Line numbers",
+    "too_big": "This code block is too big to send: {actual_lines} lines / {actual_chars} characters, over the limit of about {pages} A4 pages ({lines} lines or {chars} characters). Attach it as a file instead."
   },
   "search": {
     "omnibox_label": "Omnibox: message this page, or /search to search everything",

@@ -1,29 +1,36 @@
 /**
  * Lazy syntax highlighting, as tokens — never as markup.
  *
- * Why lowlight and not a highlighter that returns HTML: every other option
- * (highlight.js directly, Prism, marked+hljs) hands back a *string of HTML*,
- * which a Vue renderer can only show through `v-html`. 013 FR-010 (4c204d0)
- * deliberately removed the last `v-html` from the message path, so the WUI
- * would keep one guarantee — nothing in a message body can become markup.
- * lowlight is a thin wrapper over the same highlight.js grammars that returns
- * a TREE of `{ type:'element', properties:{className}, children }` and
- * `{ type:'text', value }` nodes, so the guarantee is kept by construction
- * rather than by sanitising afterwards. `flattenTokens` (code-view.mjs) turns
- * that tree into `{ text, cls }` pairs and Vue interpolates the text.
+ * highlight.js is the grammar set (190 languages, plain regex tables), but
+ * its stock output is a STRING OF HTML, which a Vue renderer can only show
+ * through `v-html`. 013 FR-010 (4c204d0) deliberately removed the last
+ * `v-html` from the message path so the WUI would keep one guarantee:
+ * nothing in a message body can become markup. So we drive highlight.js with
+ * our OWN emitter (`createTokenEmitter`, code-view.mjs) — the same five calls
+ * its stock emitter answers, appending `{ text, cls }` runs instead of
+ * concatenating `<span>`s. No HTML string is ever built, so there is nothing
+ * for a `<script>` in a body to be inside.
  *
- * CSP (017 FR-SEC-005 / SEC-06): the grammars are plain regex tables — no
- * `eval`, no `new Function`, no WASM, so nothing here needs `unsafe-eval` or
- * `wasm-unsafe-eval`. The theme is CSS in a component's `<style>` block,
- * compiled into the stylesheet bundle, so nothing needs `unsafe-inline`
- * either. Both are asserted by tests/unit/code-view.test.mjs.
+ * That is also why this does not use `lowlight`, the ready-made wrapper that
+ * returns a hast tree. Measured 2026-09-20 on this tree with
+ * `pnpm run generate`: lowlight's only entry point re-exports its `all` and
+ * `common` grammar bundles, the package declares no `sideEffects: false`, and
+ * Rollup therefore kept them — one 806 KB chunk that statically imports every
+ * grammar, pulled in by the initial graph. Our emitter is 60 lines and costs
+ * nothing.
+ *
+ * CSP (017 FR-SEC-005 / SEC-06): the grammars are regex tables — no `eval`,
+ * no `new Function`, no WASM — so nothing needs `unsafe-eval` or
+ * `wasm-unsafe-eval`. The theme is CSS in CodeLines.vue, compiled into the
+ * stylesheet bundle, so nothing needs `unsafe-inline` either. Both are
+ * asserted by tests/unit/code-view.test.mjs against the shipped runtime.
  *
  * COST: the engine and every grammar are dynamic imports, fetched the first
  * time a message actually shows code in that language. The main bundle pays
  * for the two `import()` call sites and nothing else.
  */
 
-import { AUTODETECT_LANGS, flattenTokens, normalizeLang, plainTokens, tokensToLines } from './code-view.mjs'
+import { AUTODETECT_LANGS, createTokenEmitter, normalizeLang, plainTokens, tokensToLines } from './code-view.mjs'
 import { LANG_LOADERS } from './code-langs.mjs'
 
 /**
@@ -41,11 +48,15 @@ let enginePromise = null
 /** grammar name -> promise of its registration (so two blocks share one fetch). */
 const registered = new Map()
 
-/** @returns {Promise<import('lowlight').Lowlight>} */
+/** The configured highlight.js core, loaded once. */
 function engine() {
   if (!enginePromise) {
-    enginePromise = import('lowlight')
-      .then((m) => m.createLowlight())
+    enginePromise = import('highlight.js/lib/core')
+      .then((m) => {
+        const hl = m.default
+        hl.configure({ __emitter: createTokenEmitter(), classPrefix: 'hljs-' })
+        return hl
+      })
       .catch((err) => {
         // a failed chunk must degrade to plain text, not break the feed
         enginePromise = null
@@ -64,8 +75,8 @@ export async function loadGrammar(lang) {
   if (!name || !LANG_LOADERS[name]) return ''
   if (!registered.has(name)) {
     const p = (async () => {
-      const [low, mod] = await Promise.all([engine(), LANG_LOADERS[name]()])
-      low.register({ [name]: mod.default })
+      const [hl, mod] = await Promise.all([engine(), LANG_LOADERS[name]()])
+      hl.registerLanguage(name, mod.default)
       return name
     })().catch(() => {
       registered.delete(name)
@@ -97,18 +108,17 @@ export async function highlightTokens(text, langTag) {
   if (!src) return []
   try {
     const name = await loadGrammar(langTag)
-    const low = await engine()
-    if (name) return flattenTokens(low.highlight(name, src))
+    const hl = await engine()
+    if (name) return hl.highlight(src, { language: name })._emitter.tokens
     // highlightAuto guesses between everything REGISTERED, which is exactly
     // the set this page already paid for — no extra chunk is ever fetched to
     // detect. The result is then accepted only for a language we would have
     // auto-detected on purpose, and only when the guess is strong enough.
     if (loadedGrammars().every((g) => !AUTODETECT_LANGS.includes(g))) return plainTokens(src)
-    const guess = low.highlightAuto(src)
-    const detected = guess.data && guess.data.language
-    if (!detected || !AUTODETECT_LANGS.includes(detected)) return plainTokens(src)
-    if ((guess.data.relevance ?? 0) < MIN_AUTODETECT_RELEVANCE) return plainTokens(src)
-    return flattenTokens(guess)
+    const guess = hl.highlightAuto(src)
+    if (!guess.language || !AUTODETECT_LANGS.includes(guess.language)) return plainTokens(src)
+    if ((guess.relevance ?? 0) < MIN_AUTODETECT_RELEVANCE) return plainTokens(src)
+    return guess._emitter.tokens
   } catch {
     return plainTokens(src)
   }

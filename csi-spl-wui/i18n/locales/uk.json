@@ -436,7 +436,14 @@
     "copy": "Копіювати",
     "copied": "Скопійовано",
     "block_label": "Блок коду",
-    "block_label_lang": "Блок коду, {lang}"
+    "block_label_lang": "Блок коду, {lang}",
+    "open_full": "Відкрити весь код",
+    "show_all": "Показати ще {n} рядків",
+    "showing_lines": "{shown} з {total} рядків",
+    "size": "{lines} рядків · {chars} символів",
+    "wrap_lines": "Переносити рядки",
+    "line_numbers": "Номери рядків",
+    "too_big": "Цей блок коду завеликий для надсилання: {actual_lines} рядків / {actual_chars} символів, понад ліміт приблизно {pages} сторінок A4 ({lines} рядків або {chars} символів). Прикріпіть його як файл."
   },
   "search": {
     "omnibox_label": "Omnibox: повідомлення на цій сторінці або /search для пошуку всюди",

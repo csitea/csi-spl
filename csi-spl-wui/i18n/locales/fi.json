@@ -436,7 +436,14 @@
     "copy": "Kopioi",
     "copied": "Kopioitu",
     "block_label": "Koodilohko",
-    "block_label_lang": "Koodilohko, {lang}"
+    "block_label_lang": "Koodilohko, {lang}",
+    "open_full": "Avaa koko koodi",
+    "show_all": "Näytä {n} riviä lisää",
+    "showing_lines": "{shown} / {total} riviä",
+    "size": "{lines} riviä · {chars} merkkiä",
+    "wrap_lines": "Rivitä rivit",
+    "line_numbers": "Rivinumerot",
+    "too_big": "Tämä koodilohko on liian suuri lähetettäväksi: {actual_lines} riviä / {actual_chars} merkkiä, yli noin {pages} A4-sivun rajan ({lines} riviä tai {chars} merkkiä). Liitä se tiedostona."
   },
   "search": {
     "omnibox_label": "Omnibox: viesti tälle sivulle tai /search hakee kaikkialta",

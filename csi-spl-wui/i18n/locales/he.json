@@ -436,7 +436,14 @@
     "copy": "העתקה",
     "copied": "הועתק",
     "block_label": "בלוק קוד",
-    "block_label_lang": "בלוק קוד, {lang}"
+    "block_label_lang": "בלוק קוד, {lang}",
+    "open_full": "פתיחת הקוד המלא",
+    "show_all": "הצגת {n} שורות נוספות",
+    "showing_lines": "{shown} מתוך {total} שורות",
+    "size": "{lines} שורות · {chars} תווים",
+    "wrap_lines": "גלישת שורות",
+    "line_numbers": "מספרי שורות",
+    "too_big": "בלוק הקוד גדול מדי לשליחה: {actual_lines} שורות / {actual_chars} תווים, מעל המגבלה של כ-{pages} עמודי A4 ({lines} שורות או {chars} תווים). צרפו אותו כקובץ."
   },
   "search": {
     "omnibox_label": "Omnibox: הודעה לדף זה, או ‎/search לחיפוש בכל מקום",

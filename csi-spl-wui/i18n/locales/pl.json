@@ -436,7 +436,14 @@
     "copy": "Kopiuj",
     "copied": "Skopiowano",
     "block_label": "Blok kodu",
-    "block_label_lang": "Blok kodu, {lang}"
+    "block_label_lang": "Blok kodu, {lang}",
+    "open_full": "Otwórz cały kod",
+    "show_all": "Pokaż jeszcze {n} wierszy",
+    "showing_lines": "{shown} z {total} wierszy",
+    "size": "{lines} wierszy · {chars} znaków",
+    "wrap_lines": "Zawijaj wiersze",
+    "line_numbers": "Numery wierszy",
+    "too_big": "Ten blok kodu jest za duży, aby go wysłać: {actual_lines} wierszy / {actual_chars} znaków, powyżej limitu około {pages} stron A4 ({lines} wierszy lub {chars} znaków). Dołącz go jako plik."
   },
   "search": {
     "omnibox_label": "Omnibox: wiadomość na tej stronie albo /search, by szukać wszędzie",

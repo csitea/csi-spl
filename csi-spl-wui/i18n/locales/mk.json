@@ -436,7 +436,14 @@
     "copy": "Копирај",
     "copied": "Копирано",
     "block_label": "Блок со код",
-    "block_label_lang": "Блок со код, {lang}"
+    "block_label_lang": "Блок со код, {lang}",
+    "open_full": "Отвори го целиот код",
+    "show_all": "Прикажи уште {n} редови",
+    "showing_lines": "{shown} од {total} редови",
+    "size": "{lines} редови · {chars} знаци",
+    "wrap_lines": "Прелом на редовите",
+    "line_numbers": "Броеви на редовите",
+    "too_big": "Овој блок код е премногу голем за испраќање: {actual_lines} редови / {actual_chars} знаци, над ограничувањето од околу {pages} A4 страници ({lines} редови или {chars} знаци). Прикачете го како датотека."
   },
   "search": {
     "omnibox_label": "Omnibox: порака до оваа страница или /search за пребарување насекаде",

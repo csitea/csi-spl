@@ -436,7 +436,14 @@
     "copy": "Kopijuoti",
     "copied": "Nukopijuota",
     "block_label": "Kodo blokas",
-    "block_label_lang": "Kodo blokas, {lang}"
+    "block_label_lang": "Kodo blokas, {lang}",
+    "open_full": "Atverti visą kodą",
+    "show_all": "Rodyti dar {n} eilučių",
+    "showing_lines": "{shown} iš {total} eilučių",
+    "size": "{lines} eilučių · {chars} simbolių",
+    "wrap_lines": "Kelti eilutes",
+    "line_numbers": "Eilučių numeriai",
+    "too_big": "Šis kodo blokas per didelis siųsti: {actual_lines} eilučių / {actual_chars} simbolių, viršija maždaug {pages} A4 puslapių ribą ({lines} eilučių arba {chars} simbolių). Pridėkite jį kaip failą."
   },
   "search": {
     "omnibox_label": "Omnibox: rašykite šiam puslapiui arba /search – ieškoti visur",

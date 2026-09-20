@@ -592,15 +592,24 @@ func stripeKind(t string) string {
 		return store.PayEventRefund
 	}
 	// payment_intent.payment_failed: audit only, the buyer may retry the
-	// same intent (csi-rel); disputes: audit + CRITICAL below.
+	// same intent (csi-rel); disputes: audit + CRITICAL in apply, but only
+	// for a payment of ours (the account is shared).
 	return store.PayEventIgnore
 }
 
 // stripeWebhook verifies BEFORE any write (T019): a bad signature answers 400
 // with no detail and writes nothing, not even the dedup row.
+//
+// The rail flag is NOT part of that door. The signing secret is: a delivery
+// that verifies against it came from our own endpoint, whatever
+// SPOOL_HUB_PAYMENT_PROVIDER says today (it is held at "" between provisioning
+// the endpoint and the owner's go to charge). Refusing those with a 400 had
+// Stripe retry every one of them for days and then disable the endpoint —
+// which would drop the paid events that ARE ours. Verified goes through; the
+// checkout lookup in apply decides what, if anything, happens.
 func (h *Handler) stripeWebhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-	if err != nil || h.cfg.Provider != ProviderStripe ||
+	if err != nil ||
 		VerifyStripe(r.Header.Get("Stripe-Signature"), string(body), strings.TrimSpace(h.cfg.StripeWebhookSecret), h.d.Now()) != nil {
 		h.d.Log.Warn().Str("provider", ProviderStripe).Msg("webhook signature rejected")
 		writeErr(w, http.StatusBadRequest, "bad_request", "")
@@ -615,11 +624,9 @@ func (h *Handler) stripeWebhook(w http.ResponseWriter, r *http.Request) {
 	if intentID == "" {
 		intentID = ev.Data.Object.ID
 	}
-	if strings.HasPrefix(ev.Type, "charge.dispute.") {
-		h.d.Log.Error().Str("severity", "CRITICAL").Str("event", ev.Type).Str("event_id", ev.ID).
-			Str("intent_id", intentID).Msg("payment dispute: handle it in the provider dashboard")
-	}
-	h.apply(w, r, ProviderStripe, ev.ID, intentID, stripeKind(ev.Type))
+	h.apply(w, r, delivery{Provider: ProviderStripe, EventID: ev.ID, Type: ev.Type, Ref: intentID,
+		Kind: stripeKind(ev.Type), Dispute: strings.HasPrefix(ev.Type, "charge.dispute."),
+		SharedAccount: true})
 }
 
 // paypalEvent is the slice of the PayPal webhook envelope we need (csi-rel).
@@ -665,26 +672,65 @@ func (h *Handler) paypalWebhook(w http.ResponseWriter, r *http.Request) {
 	if ref == "" {
 		ref = ev.Resource.ID
 	}
-	if ev.EventType == "CUSTOMER.DISPUTE.CREATED" {
-		h.d.Log.Error().Str("severity", "CRITICAL").Str("event_id", ev.ID).Msg("payment dispute: handle it in the provider dashboard")
-	}
-	h.apply(w, r, ProviderPayPal, ev.ID, ref, paypalKind(ev.EventType))
+	// The wallet account is this hub's alone, so a dispute naming no checkout
+	// of ours is still our money (csi-rel flagDispute): SharedAccount false.
+	h.apply(w, r, delivery{Provider: ProviderPayPal, EventID: ev.ID, Type: ev.EventType, Ref: ref,
+		Kind: paypalKind(ev.EventType), Dispute: ev.EventType == "CUSTOMER.DISPUTE.CREATED"})
 }
+
+// delivery is one signature-verified provider delivery, ready to apply.
+type delivery struct {
+	Provider string // ProviderStripe | ProviderPayPal: the dedup key's half
+	EventID  string // the provider's event id: the other half
+	Type     string // the provider's event type, for the logs
+	Ref      string // the provider-side id (card intent, wallet order) it names
+	Kind     string // store.PayEvent*
+	Dispute  bool   // a chargeback was opened on Ref
+	// SharedAccount: another app bills on the same provider account (006
+	// T022, one Stripe account for both), so a delivery naming no checkout
+	// of ours is that app's ordinary traffic and not an incident.
+	SharedAccount bool
+}
+
+// EventWebhookForeign is the fixed log `event` for a verified delivery that
+// names no checkout of ours — the counter for the noise the shared provider
+// account sends this endpoint. A rise in it is normal; a rise in it while OUR
+// paid events stop is the endpoint being mis-pointed.
+const EventWebhookForeign = "payment_webhook_foreign"
 
 // apply resolves the checkout by the provider's id and applies the verified
 // event: dedup + transition in ONE store transaction.
-func (h *Handler) apply(w http.ResponseWriter, r *http.Request, provider, eventID, ref, kind string) {
+func (h *Handler) apply(w http.ResponseWriter, r *http.Request, d delivery) {
 	ctx := r.Context()
 	checkoutID := ""
-	if c, err := h.d.Store.CheckoutByProviderRef(ctx, provider, ref); err == nil {
+	if c, err := h.d.Store.CheckoutByProviderRef(ctx, d.Provider, d.Ref); err == nil {
 		checkoutID = c.ID
 	} else if !errors.Is(err, store.ErrNotFound) {
-		h.d.Log.Error().Err(err).Str("provider", provider).Msg("payment webhook: checkout lookup")
+		h.d.Log.Error().Err(err).Str("provider", d.Provider).Msg("payment webhook: checkout lookup")
 		writeErr(w, http.StatusInternalServerError, "internal", "")
 		return
 	}
-	out, err := h.d.Store.ApplyPayment(ctx, store.PaymentEvent{Provider: provider, EventID: eventID,
-		CheckoutID: checkoutID, Kind: kind, Env: h.cfg.Env}, h.d.Now().UTC())
+	switch {
+	case checkoutID == "":
+		// Acked below, whatever it is: no retry of an event about someone
+		// else's payment will ever match, and a 4xx only spends the
+		// endpoint's retry budget until Stripe disables it.
+		h.d.Log.Info().Str("event", EventWebhookForeign).Str("provider", d.Provider).
+			Str("event_type", d.Type).Str("event_id", d.EventID).Str("ref", d.Ref).
+			Bool("dispute", d.Dispute).Bool("shared_account", d.SharedAccount).
+			Msg("payment webhook: no checkout of ours names that payment")
+		if d.Dispute && !d.SharedAccount {
+			h.d.Log.Error().Str("severity", "CRITICAL").Str("event", "payment_dispute_opened").
+				Str("event_type", d.Type).Str("event_id", d.EventID).Str("intent_id", d.Ref).
+				Msg("payment dispute on this hub's provider account: handle it in the provider dashboard")
+		}
+	case d.Dispute:
+		h.d.Log.Error().Str("severity", "CRITICAL").Str("event", "payment_dispute_opened").
+			Str("event_type", d.Type).Str("event_id", d.EventID).Str("intent_id", d.Ref).
+			Str("checkout_id", checkoutID).Msg("payment dispute: handle it in the provider dashboard")
+	}
+	out, err := h.d.Store.ApplyPayment(ctx, store.PaymentEvent{Provider: d.Provider, EventID: d.EventID,
+		CheckoutID: checkoutID, Kind: d.Kind, Env: h.cfg.Env}, h.d.Now().UTC())
 	if err != nil {
 		// Nothing committed: the provider's retry will be applied, not swallowed.
 		h.d.Log.Error().Err(err).Str("checkout_id", checkoutID).Msg("payment webhook: apply failed")
@@ -692,7 +738,7 @@ func (h *Handler) apply(w http.ResponseWriter, r *http.Request, provider, eventI
 		return
 	}
 	if out == store.PayOutcomeConflict {
-		h.d.Log.Error().Str("severity", "CRITICAL").Str("checkout_id", checkoutID).Str("event_id", eventID).
+		h.d.Log.Error().Str("severity", "CRITICAL").Str("checkout_id", checkoutID).Str("event_id", d.EventID).
 			Msg("paid for a slug another root key already owns: refund by hand")
 	}
 	if out == store.PayOutcomeDuplicate {
@@ -702,7 +748,7 @@ func (h *Handler) apply(w http.ResponseWriter, r *http.Request, provider, eventI
 	if out == store.PayOutcomePaid {
 		h.afterPaid(ctx, checkoutID)
 	}
-	h.d.Log.Info().Str("provider", provider).Str("checkout_id", checkoutID).Str("action", out).Msg("payment webhook applied")
+	h.d.Log.Info().Str("provider", d.Provider).Str("checkout_id", checkoutID).Str("action", out).Msg("payment webhook applied")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "action": out})
 }
 

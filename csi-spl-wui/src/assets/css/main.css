@@ -556,4 +556,53 @@ html.pane-dragging * {
 /* the bar carries the brand; the sidebar keeps only its controls */
 .sidebar-brand h1 { display: none; }
 .sidebar-brand { justify-content: flex-end; }
-.msg.search-focus { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* the search hit the pane scrolled to: the focus ring, held for a moment */
+.msg.search-focus { outline: var(--focus-ring-w) solid var(--focus-ring); outline-offset: var(--focus-offset); box-shadow: var(--focus-3d); }
+
+/* ---- CLE-3427: keyboard focus and selection, in ONE place ----------------
+   Tab cycling must read as RAISED (soft ring + halo + drop shadow + inner
+   highlight), never as a flat hard line, and in the LIGHT theme the line
+   itself is lighter than the old --color-accent: relative luminance 0.41
+   (#4bb8dc) against 0.26 (#0a97c4) — asserted in tests/unit/focus-tokens.test.mjs.
+   The indicator stays conformant because the dark --focus-edge hairline in
+   --focus-3d carries the contrast (>= 3:1 against every surface token, WCAG
+   2.2 focus appearance), so nothing lost an outline without a better one.
+
+   `!important` is deliberate and is the reason this is one rule and not a
+   sweep: component sheets (several of them scoped, and owned by other lanes)
+   each carry their own `outline: 2px solid var(--color-accent)` or
+   `outline: none`, which a zero-specificity :where() rule cannot reach. The
+   owner asked for one treatment every view follows. */
+:focus-visible {
+  outline: var(--focus-ring-w) solid var(--focus-ring) !important;
+  outline-offset: var(--focus-offset) !important;
+  box-shadow: var(--focus-3d);
+}
+/* A tabbed ROW also steps a shade darker while it holds the focus. */
+.nav-item:focus-visible,
+.msg:focus-visible,
+.thread-row:focus-visible,
+.search-row:focus-visible {
+  background: var(--color-selected);
+}
+/* Selected / current: a step DARKER than the normal fill, with an accent
+   edge so the state is never colour alone. */
+.nav-item.active,
+.msg.selected,
+.thread-row.selected {
+  background: var(--color-selected);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+.msg.selected { border-radius: var(--radius); }
+/* Pressed: the same step down; an accent-filled control darkens its accent. */
+.nav-item:active,
+.thread-row:active,
+.msg:active,
+.icon-btn:active,
+.btn.ghost:active {
+  background: var(--color-selected);
+}
+.btn:active,
+.composer-row button:active {
+  background: var(--color-accent-pressed);
+}

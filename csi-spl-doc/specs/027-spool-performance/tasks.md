@@ -20,4 +20,4 @@ ORC-PERF (CLE-3413) updates this table as lanes report. Numbers: `before -> afte
 | T110 | D6 thread summary table for long sparse-viewer DM threads | — | owner decision D6 (recommend not now) | |
 | T070 | P3b multi-instance fanout | — | owner decision D2, sent to CLE-00 16:53Z (recommend not now) | |
 
-<!-- last-edit: 2026-09-20T03:14:52Z -->
+<!-- last-edit: 2026-09-20T03:15:59Z -->

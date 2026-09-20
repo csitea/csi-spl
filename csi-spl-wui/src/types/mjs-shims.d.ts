@@ -545,6 +545,30 @@ declare module '~/utils/search.mjs' {
   export function mockSearch(messages: unknown[], q: string): unknown
 }
 
+
+declare module '~/utils/slash-focus.mjs' {
+  export const MOBILE_MAX: number
+  export function isTypingTarget(el: EventTarget | null | undefined): boolean
+  export function isOpenModal(root: { querySelector: (sel: string) => Element | null } | null | undefined): boolean
+  export function isMobileViewport(width: number | undefined, max?: number): boolean
+  export function eventInOmnibox(target: EventTarget | null | undefined, omniboxRoot: ParentNode | null | undefined): boolean
+  export function slashFocusAction(ev: { key: string, defaultPrevented?: boolean, isComposing?: boolean, repeat?: boolean, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean }, ctx?: Record<string, unknown>): 'focus' | 'restore' | 'ignore'
+  export function slashFocusContext(ev: { target?: EventTarget | null }, opts?: {
+    omniboxRoot?: ParentNode | null
+    document?: { querySelector: (sel: string) => Element | null } | null
+    viewportWidth?: number
+    hasRestore?: boolean
+  }): {
+    inOmnibox: boolean
+    inTypingTarget: boolean
+    inModal: boolean
+    isMobile: boolean
+    pickerOpen: boolean
+    inCode: boolean
+    hasRestore: boolean
+  }
+}
+
 declare module '~/utils/access.mjs' {
   export const ROLE_IDS: string[]
   export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null }

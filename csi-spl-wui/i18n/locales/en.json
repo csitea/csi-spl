@@ -476,7 +476,9 @@
       "messages": "Messages"
     },
     "placeholder_target": "Message {target} — Enter to send · /search to search everything",
-    "unreachable": "The search service could not be reached. Try again shortly."
+    "unreachable": "The search service could not be reached. Try again shortly.",
+    "slash_shortcut": "Press / to focus the omnibox. Escape returns to where you were.",
+    "slash_badge_title": "Press / to focus"
   },
   "role": {
     "biz_owner": "Business owner",

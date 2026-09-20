@@ -476,7 +476,9 @@
       "messages": "Meddelanden"
     },
     "placeholder_target": "Meddelande till {target} — Enter skickar · /search söker överallt",
-    "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund."
+    "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund.",
+    "slash_shortcut": "Tryck / för att fokusera omnibox. Escape återställer fokuset dit det var.",
+    "slash_badge_title": "Tryck / för att fokusera"
   },
   "role": {
     "biz_owner": "Affärsägare",

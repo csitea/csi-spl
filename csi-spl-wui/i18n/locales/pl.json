@@ -476,7 +476,9 @@
       "messages": "Wiadomości"
     },
     "placeholder_target": "Wiadomość do {target} — Enter wysyła · /search szuka wszędzie",
-    "unreachable": "Usługa wyszukiwania jest nieosiągalna. Spróbuj ponownie za chwilę."
+    "unreachable": "Usługa wyszukiwania jest nieosiągalna. Spróbuj ponownie za chwilę.",
+    "slash_shortcut": "Naciśnij /, aby ustawić focus na omnibox. Escape przywraca focus tam, gdzie był.",
+    "slash_badge_title": "Naciśnij /, aby ustawić focus"
   },
   "role": {
     "biz_owner": "Właściciel biznesowy",

@@ -476,7 +476,9 @@
       "messages": "Mesaje"
     },
     "placeholder_target": "Mesaj către {target} — Enter pentru a trimite · /search pentru a căuta peste tot",
-    "unreachable": "Serviciul de căutare nu poate fi contactat. Încercați din nou în curând."
+    "unreachable": "Serviciul de căutare nu poate fi contactat. Încercați din nou în curând.",
+    "slash_shortcut": "Apăsați / pentru a focaliza omnibox-ul. Escape readuce focusul unde era.",
+    "slash_badge_title": "Apăsați / pentru a focaliza"
   },
   "role": {
     "biz_owner": "Proprietar de business",

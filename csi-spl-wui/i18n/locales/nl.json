@@ -476,7 +476,9 @@
       "messages": "Berichten"
     },
     "placeholder_target": "Bericht aan {target} — Enter om te verzenden · /search om overal te zoeken",
-    "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw."
+    "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw.",
+    "slash_shortcut": "Druk op / om de omnibox te focussen. Escape zet de focus terug waar die was.",
+    "slash_badge_title": "Druk op / om te focussen"
   },
   "role": {
     "biz_owner": "Bedrijfseigenaar",

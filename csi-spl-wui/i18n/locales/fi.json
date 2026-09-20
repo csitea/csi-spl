@@ -476,7 +476,9 @@
       "messages": "Viestit"
     },
     "placeholder_target": "Viesti: {target} — Enter lähettää · /search hakee kaikkialta",
-    "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen."
+    "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen.",
+    "slash_shortcut": "Paina / kohdistaaksesi omniboxin. Escape palauttaa kohdistuksen entiseen paikkaan.",
+    "slash_badge_title": "Paina / kohdistaaksesi"
   },
   "role": {
     "biz_owner": "Liiketoiminnan omistaja",

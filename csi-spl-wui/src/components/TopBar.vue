@@ -23,6 +23,13 @@
         @dismiss="onDismiss"
         @results="omnibox.focusResults++"
       />
+      <kbd
+        class="slash-badge"
+        data-test="slash-badge"
+        aria-hidden="true"
+        :title="t('search.slash_badge_title')"
+      >/</kbd>
+      <p :id="slashHintId" class="sr-only" data-test="slash-shortcut-hint">{{ t('search.slash_shortcut') }}</p>
       <button
         type="button"
         class="icon-btn top-bar__close"
@@ -59,6 +66,7 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
 import { searchPath } from '~/utils/search.mjs'
+import { slashFocusAction, slashFocusContext } from '~/utils/slash-focus.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
@@ -68,6 +76,35 @@ const omnibox = useOmniboxStore()
 const search = useSearchStore()
 const composer = ref<InstanceType<typeof MessageComposer> | null>(null)
 const expanded = ref(false)
+const slashHintId = useId()
+const restoreEl = ref<HTMLElement | null>(null)
+
+function onDocKey(ev: KeyboardEvent) {
+  const root = document.querySelector('[data-test=top-bar-omnibox]')
+  const ctx = slashFocusContext(ev, {
+    omniboxRoot: root,
+    document,
+    viewportWidth: window.innerWidth,
+    hasRestore: Boolean(restoreEl.value),
+  })
+  const act = slashFocusAction(ev, ctx)
+  if (act === 'focus') {
+    ev.preventDefault()
+    const prev = document.activeElement
+    restoreEl.value = prev instanceof HTMLElement ? prev : null
+    composer.value?.focus()
+    return
+  }
+  if (act === 'restore') {
+    ev.preventDefault()
+    ev.stopImmediatePropagation()
+    const prev = restoreEl.value
+    restoreEl.value = null
+    const ta = root?.querySelector('textarea')
+    ta?.blur()
+    if (prev && document.contains(prev) && prev !== document.body) prev.focus()
+  }
+}
 
 const placeholder = computed(() => omnibox.target ? omnibox.target.placeholder() : t('search.placeholder_no_target'))
 const busy = computed(() => Boolean(omnibox.target && omnibox.target.busy && omnibox.target.busy()))
@@ -102,6 +139,10 @@ watch(() => [onSearchPage.value, route.query.q], showQuery, { flush: 'post' })
 onMounted(() => {
   showQuery()
   void search.loadOperators()
+  document.addEventListener('keydown', onDocKey, true)
+})
+onUnmounted(() => {
+  document.removeEventListener('keydown', onDocKey, true)
 })
 </script>
 
@@ -142,7 +183,24 @@ onMounted(() => {
   min-width: 0;
   max-width: 960px;
   margin-inline: auto;
+  position: relative;
 }
+.slash-badge {
+  position: absolute;
+  inset-inline-end: 10px;
+  top: 8px;
+  pointer-events: none;
+  font-size: 11px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  line-height: 1;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-muted, var(--color-fg));
+  background: var(--color-surface);
+  opacity: 0.85;
+}
+.top-bar__omnibox:focus-within .slash-badge { display: none; }
 .top-bar__close { display: none; }
 .top-bar__search-toggle {
   display: none;
@@ -165,6 +223,7 @@ onMounted(() => {
 }
 /* FR-003: phone — the Omnibox folds into the icon; opened, it covers the bar */
 @media (max-width: 640px) {
+  .slash-badge { display: none; }
   .top-bar__omnibox { display: none; }
   .top-bar__search-toggle { display: inline-grid; place-items: center; }
   .top-bar--open .top-bar__omnibox {

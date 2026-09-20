@@ -54,11 +54,12 @@
         :aria-label="global ? t('search.omnibox_label') : omnibox ? t('composer.omnibox_label') : t('composer.message_label')"
         :aria-controls="opPickerOpen ? opListId : undefined"
         :aria-activedescendant="opPickerOpen && opIdx >= 0 ? opListId + '-' + opIdx : undefined"
+        :aria-keyshortcuts="global ? '/' : undefined"
         v-model="text"
         :rows="global ? 1 : 2"
         :class="{ 'in-code': inCode }"
         :placeholder="placeholder"
-        :aria-describedby="hintId"
+        :aria-describedby="global ? `${hintId} ${slashHintId}` : hintId"
         autocomplete="off"
         spellcheck="true"
         @keydown="onKeydown"
@@ -67,6 +68,7 @@
         @keyup="syncMention"
       />
       <p :id="hintId" class="code-hint muted" aria-live="polite">{{ inCode ? t('composer.code_hint') : '' }}</p>
+      <p v-if="global" :id="slashHintId" class="sr-only">{{ t('search.slash_shortcut') }}</p>
       <ul v-if="picked.length" class="file-chips">
         <li v-for="(f, i) in picked" :key="f.name + i">
           📎 {{ f.name }} <small>{{ t('composer.file_bytes', { n: f.size }) }}</small>
@@ -153,6 +155,7 @@ const inCode = ref(false)
  */
 const sizeError = ref<ReturnType<typeof sendLimitError>>(null)
 const hintId = useId()
+const slashHintId = useId()
 const opListId = useId()
 const opIdx = ref(0)
 /** caret offset, kept in sync so the operator picker follows it */

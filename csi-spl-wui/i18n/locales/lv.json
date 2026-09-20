@@ -476,7 +476,9 @@
       "messages": "Ziņas"
     },
     "placeholder_target": "Ziņa: {target} — Enter nosūta · /search meklē visur",
-    "unreachable": "Meklēšanas pakalpojums nav sasniedzams. Drīz mēģiniet vēlreiz."
+    "unreachable": "Meklēšanas pakalpojums nav sasniedzams. Drīz mēģiniet vēlreiz.",
+    "slash_shortcut": "Nospiediet /, lai fokusētu omnibox. Escape atgriež fokusu tur, kur tas bija.",
+    "slash_badge_title": "Nospiediet /, lai fokusētu"
   },
   "role": {
     "biz_owner": "Biznesa īpašnieks",

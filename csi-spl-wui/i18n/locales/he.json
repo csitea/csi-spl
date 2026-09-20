@@ -476,7 +476,9 @@
       "messages": "הודעות"
     },
     "placeholder_target": "הודעה אל {target} — Enter לשליחה · ‎/search לחיפוש בכל מקום",
-    "unreachable": "לא ניתן להגיע לשירות החיפוש. נסו שוב בעוד רגע."
+    "unreachable": "לא ניתן להגיע לשירות החיפוש. נסו שוב בעוד רגע.",
+    "slash_shortcut": "לחצו / כדי למקד את ה-omnibox. Escape מחזיר את המיקוד למקום הקודם.",
+    "slash_badge_title": "לחצו / למיקוד"
   },
   "role": {
     "biz_owner": "בעל העסק",

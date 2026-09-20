@@ -476,7 +476,9 @@
       "messages": "Sõnumid"
     },
     "placeholder_target": "Sõnum: {target} — Enter saadab · /search otsib kõikjalt",
-    "unreachable": "Otsinguteenusega ei saanud ühendust. Proovi varsti uuesti."
+    "unreachable": "Otsinguteenusega ei saanud ühendust. Proovi varsti uuesti.",
+    "slash_shortcut": "Vajuta /, et fokuseerida omnibox. Escape viib fookuse tagasi.",
+    "slash_badge_title": "Vajuta / fokuseerimiseks"
   },
   "role": {
     "biz_owner": "Äriomanik",

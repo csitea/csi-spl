@@ -21,7 +21,7 @@
 ## Phase 4 — Other lanes
 
 - [ ] T030 FR-L5 — **CLE-3380**: callbacks derived on `https://api.<fqdn>/api/v1/auth/<p>/callback`.
-- [ ] T031 FR-L6 — **CLE-55**: LinkedIn brand mark in `SocialAuthButtons.vue`.
+- [x] T031 Implemented (`e8c2f75`, GRK-3371 for CLE-55) — LinkedIn [in] Logo (`#0A66C2`) next to `social_auth.continue_linkedin` in all 19 locales. Shows only when `/api/v1/auth/providers` lists `linkedin`. FR-L6. Check: `command grep -c social-logo-linkedin csi-spl-wui/src/components/SocialAuthButtons.vue` → 1; `cd csi-spl-wui && node --test tests/unit/auth-client.test.mjs` → pass.
 
 ## Phase 5 — Live (blocked on the owner: `~/.gcp/.csi/.spl/linkedin-client-{dev,prd}.json`)
 

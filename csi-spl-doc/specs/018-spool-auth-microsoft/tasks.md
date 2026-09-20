@@ -22,7 +22,7 @@ here; each names its owner.
 ## Phase 2 — Secret path and WUI (other lanes)
 
 - [x] T020 Implemented by CLE-3387 (`3c388d9`, spec 019) — `do_spl_auth_idp_secret_seed` with `IDP=microsoft` and a bare-GUID Secret-ID refusal. FR-010. Check (re-run by CLE-3386 on 4dc854e, n=1): `bash csi-spl-orc/src/bash/tests/auth-idp-secret-seed.tst.sh` → `auth-idp-secret-seed: ALL PASS` (21 PASS lines, including the microsoft Secret-ID refusal and its CONTROL).
-- [~] T025 Partial (CLE-55, WUI) — the generic button already renders "Continue with Microsoft" when the hub lists it; the branded change was sent to CLE-55 on 2026-09-19 (inbox `20260919T134241Z--CLE-3386--…`). Change: Microsoft button in `SocialAuthButtons.vue`: four-square mark, `social_auth.continue_microsoft` = "Sign in with Microsoft", Microsoft light-theme colours. FR-011.
+- [x] T025 Implemented (`e8c2f75`, GRK-3371 for CLE-55) — Microsoft four-square MS-SymbolLockup in `SocialAuthButtons.vue`, `social_auth.continue_microsoft` = "Sign in with Microsoft" in all 19 locales, light-theme colours `#FFFFFF` / `#8C8C8C` / `#5E5E5E`. Shows only when `/api/v1/auth/providers` lists `microsoft`. FR-011. Check: `command grep -c social-logo-microsoft csi-spl-wui/src/components/SocialAuthButtons.vue` → 1; `cd csi-spl-wui && node --test tests/unit/auth-client.test.mjs` → pass (SocialAuthButtons marks advertised-only).
 
 ## Phase 3 — Deferred
 

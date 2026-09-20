@@ -115,6 +115,61 @@ flight, or when 20's last verdict was a failure (the deploy is broken, not
 starved). The unit is the cnf image **tag**, not the commit, because
 terraform owns the image.
 
+### 2.5.2 `00 ops` job `lag` — is trunk HEAD actually SERVED? (FR-P09, second half)
+
+§2.5.1 compares the live image with the image **cnf names**, and that question
+is green for as long as nobody bumps `env.hub.image.tag`. A lane lands hub
+source, 20 runs the tests and (§2.4) "deploys nothing new", cnf still names the
+old tag, the service still runs it — every gate green, trunk's code not live.
+Measured on this workflow: **success on 8 consecutive runs**, `35463951071`
+(2026-09-19T19:18Z) through `35484293822` (2026-09-20T02:33Z), while dev and prd
+both served `af8c6db` and trunk `13e70d0` already carried hub source `f2c024a`
+and `a228c92`. The 20 deploy job says it plainly in its own summary on
+`031fa36`: `ROLLED: false`, `IMAGE_REF: …/spool-hub:0.1.16`.
+
+So the `lag` job asks **commit vs trunk**, per env and per component, through
+`ENV=<env> SHA=<sha> ./csi-spl-orc/run -a do_check_deploy_lag`, reading what
+each env publishes about itself:
+
+| component | probe | from |
+|---|---|---|
+| hub | `GET https://<env.dns.api_fqdn>/version` → `.commit` | 22's `/version` contract |
+| wui | `GET https://<env.dns.fqdn>/build.json` → `.commit` | 30's `build.json` stamp |
+
+A commit counts as lag **only when it changed an input of that component**, so
+a docs-only or iac-only trunk head is never red:
+
+- **hub** — what the image is built from, as `do_build_push_hub_image` itself
+  defines it: the Go module, its `build.sh`, the DDL dir cnf names
+  (`env.hub.image.sql_src`), the hub `Dockerfile`, `.version`. Not the api test
+  scripts and not `spool-hub-roles/`: neither is copied into the image.
+- **wui** — workflow 30's push allow-list, verbatim.
+
+The two lists differ **on purpose**: 30 deploys on every path it triggers on,
+20 does not. `GRACE_MINUTES` (repo variable `DEPLOY_LAG_GRACE_MINUTES`, default
+45) is measured from the **oldest** unserved input commit, so a roll in flight
+reads `pending`, not `lagging`.
+
+Verdicts, worst wins: `0` current / pending, `3` lagging, `1` cannot tell. SOFT
+vs HARD as in §2.6: **3 fails** the run; **1 warns** and stays green — an
+endpoint that answers *wrong* is 22's job and an unready revision is §2.5.1's,
+so nothing is lost. Nothing is auto-dispatched: a WUI lag would be a 30
+dispatch, but a hub lag needs a cnf image-tag bump — a change to the repo, and
+not a cron's to make.
+
+The job needs **no GCP identity** (one HTTPS GET per component plus local git),
+so unlike §2.5.1 it runs for both envs unconditionally. Its checkout is
+`fetch-depth: 0`: the check walks history between the served commit and the one
+under test, and on the default depth 1 every verdict reads "cannot tell".
+
+First run in CI, dispatch `35486669128` on `0cf7e2b`: both `lag` jobs **failed**
+with `dev|prd hub lagging served=af8c6db6 n=2 oldest=f2c024a7 age=535m
+grace=45m`, while the §2.5.1 jobs on the same commit were green. Tests:
+`csi-spl-orc/src/bash/tests/check-deploy-lag.tst.sh`, hermetic (a synthetic git
+repo — this repo is checked out at depth 1 in CI — and `file://` fixtures), 21
+assertions including the control that an artificial lag older than the grace is
+red and the same lag inside the grace is not.
+
 ### 2.6 `22 ci-cd: spool hub deploy verify` — post-deploy HTTPS smoke
 
 Called by 20's `verify` job (`workflow_call`), and dispatchable by hand. It

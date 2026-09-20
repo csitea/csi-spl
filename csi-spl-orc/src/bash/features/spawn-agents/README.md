@@ -32,12 +32,14 @@ the reference does it:
 | path | role |
 |---|---|
 | `lib/spool-env.inc.sh` | the one resolver: env vars, users, tmux socket, binaries, the id rules, pane lookup |
+| `lib/spool-notify.inc.sh` | the one renderer and doorbell (`specs/028-spool-terminal-delivery`): a message is made VISIBLE in the recipient's pane, under the safe-poke rules |
 | `scripts/next-agent-id.sh` | allocates the next free id and claims it by `mkdir $SPOOL_ROOT/<id>`. `--claim <ID>` claims one exact id |
 | `scripts/spawn-window.sh` | creates the detached window and starts the launcher in it. Prints `<ID> <PANE>` |
 | `scripts/spawn-{claude,grok,agy}.sh` | the per-CLI adapters |
 | `scripts/spawn-core.inc.sh` | the shared launcher core |
 | `scripts/spool-harness.sh` | the standard box launcher (`specs/012-spool-box-api`): prepares an agent's spool dirs, checks the box identity, starts the hub sidecar in hub mode, injects `SPOOL_*`, then exec-s the agent CLI |
-| `scripts/spool-send.sh` | runs `spool send` and then rings the recipient's tmux window. It replaces `inbox-send.sh` |
+| `scripts/spool-send.sh` | runs `spool send` and then shows the message in the recipient's tmux pane. It replaces `inbox-send.sh` |
+| `scripts/spool-notify.sh` | shows a message that is ALREADY in an inbox. This is what `SPOOL_NOTIFY_CMD` points at, so the hub sidecar (cross-box, and a human's WUI task) reaches the terminal too |
 | `scripts/riname.sh` | renames an agent's window by id (`--agent <ID>`) |
 | `scripts/trust-workdir.sh` | pre-accepts each CLI's "trust this folder?" dialog |
 | `tests/run-all-tests.sh` | every test. Each one uses a throwaway root and a private tmux server |
@@ -57,6 +59,8 @@ box.
 | `SPOOL_BOX_TAG` | empty. When set, window names read `<tag>: <ID>` |
 | `SPOOL_ORCHESTRATOR_ID` | `CLE-00`. Spawned agents report to this id |
 | `SPOOL_BIN` | `csi-spl-api/src/go/spool-hub-api/bin/spool`, else `spool` on `PATH` |
+| `SPOOL_NOTIFY_CMD` | the notifier the spool binary runs after it writes a message into a local inbox. `spool-harness` sets it to `scripts/spool-notify.sh`; `off` disables it; unset = no terminal leg |
+| `SPOOL_NOTIFY_BODY_MAX` `SPOOL_NOTIFY_LINE_MAX` | `600` / `1200` — the bounds on the pane line (`specs/028/contracts/poke-line.md`) |
 | `CLAUDE_BIN` `GROK_BIN` `AGY_BIN` | `<agent home>/.local/bin/<cli>`, else the bare name |
 
 ## 3. Use
@@ -84,10 +88,19 @@ steps.
 SPOOL_AGENT_USER=<AGENT_USER> bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh grok GRK-4442 /var/tmp/spool-work /path/to/brief.md
 ```
 
-### 3.4 Send a task and ring the peer
+### 3.4 Send a task and show it in the peer's pane
 
 ```bash
 bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh --from CLE-4441 --to GRK-4442 --kind task --body "ping"
+```
+
+### 3.4.1 Show a message that already landed in an inbox
+
+The hub sidecar writes cross-box mail and a human's WUI task straight into
+`$SPOOL_ROOT/<id>/inbox/`; this is the leg that puts it on the terminal.
+
+```bash
+bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh --to GRK-4442 --from CLE-4441 --kind task --body "ping"
 ```
 
 ### 3.5 Read your inbox
@@ -124,14 +137,14 @@ bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-harness.sh --as CL
 bash csi-spl-orc/src/bash/features/spawn-agents/tests/run-all-tests.sh
 ```
 
-## 4. Exit codes of spool-send.sh
+## 4. Exit codes of spool-send.sh and spool-notify.sh
 
-The message file is written before the doorbell rings. Any exit code below 10
+The message file is written before the pane is touched. Any exit code below 10
 therefore means the message **was** delivered:
 
 | code | meaning |
 |---|---|
-| `0` | delivered and poked, or `--no-poke` was given |
+| `0` | delivered and shown in the pane, or `--no-poke` was given |
 | `5` | delivered, but no live window carries the recipient's id |
 | `6` | delivered, but the poke was refused because the pane holds unsent typed text |
 | `7` | delivered, but the pane runs only shells because the agent has exited |

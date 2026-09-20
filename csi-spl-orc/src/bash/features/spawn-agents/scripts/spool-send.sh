@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # spool-send.sh — deliver one message to a peer agent through the spool, then
-# ring its tmux window as a doorbell.
+# show it in the peer's tmux pane.
 #
-# The spool-native replacement for the box engine's inbox-send.sh:
+# The spool-native replacement for a box engine's inbox-send.sh:
 #
 #   inbox-send.sh (reference)               spool-send.sh (this)
 #   ---------------------------------       -----------------------------------
@@ -11,11 +11,12 @@
 #                                           and a copy in <from>/outbox/
 #   free markdown body                      `body` string; kind task|result|
 #                                           note|reject; task_id threads it
-#   tmux poke = doorbell                    unchanged: a SHELL-INERT poke line
+#   tmux poke = doorbell                    the line CARRIES the message
+#                                           (specs/028, contracts/poke-line.md)
 #
-# The FILE is the source of truth; the poke is only a notification (trust-modes
+# The FILE is the source of truth; the pane line is the second leg (trust-modes
 # §2: local mode = file + poll). Every non-zero exit below 10 therefore still
-# means the message WAS delivered — only the doorbell was skipped. Local mode is
+# means the message WAS delivered — only the pane was left alone. Local mode is
 # unsigned: the written object carries no `sig`.
 #
 # Usage:
@@ -28,7 +29,7 @@
 # `poke:` status line.
 #
 # Exit codes:
-#   0   delivered and poked (or --no-poke)
+#   0   delivered and shown in the pane (or --no-poke)
 #   5   delivered; no live window carries <to> — it reads its inbox on its own
 #   6   delivered; REFUSED to poke: the pane holds unsent typed text
 #   7   delivered; the pane runs only bare shells (the agent has exited)
@@ -39,6 +40,8 @@ set -uo pipefail
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
 . "$_here/../lib/spool-env.inc.sh"
+# shellcheck source=../lib/spool-notify.inc.sh
+. "$_here/../lib/spool-notify.inc.sh"
 spool_env_resolve
 
 usage() {
@@ -46,7 +49,7 @@ usage() {
   exit 2
 }
 
-FROM=""; TO=""; KIND=""; TASK=""; BODY=""; BODY_SET=0; POKE=1; POKE_ONLY=0
+FROM=""; TO=""; KIND=""; TASK=""; MSGID=""; BODY=""; BODY_SET=0; POKE=1; POKE_ONLY=0
 EXTRA=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -79,54 +82,21 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   args=(send --from "$FROM" --to "$TO" --kind "$KIND" --body "$BODY")
   [ -n "$TASK" ] && args+=(--task "$TASK")
   args+=("${EXTRA[@]}")
-  out="$(SPOOL_ROOT="$SPOOL_ROOT" "$SPOOL_BIN" "${args[@]}")"; rc=$?
+  # specs/028 FR-008: the binary's own notify hook is OFF for this send. This
+  # script rings the pane itself, below, so it can report the outcome as its
+  # exit code; letting both fire would show the message twice.
+  out="$(SPOOL_ROOT="$SPOOL_ROOT" SPOOL_NOTIFY_CMD=off "$SPOOL_BIN" "${args[@]}")"; rc=$?
   if [ "$rc" -ne 0 ]; then
     echo "ERROR: '${SPOOL_BIN} send' failed (rc=${rc}); nothing was delivered" >&2
     exit $((10 + rc))
   fi
   printf '%s\n' "$out"
   TASK="$(printf '%s' "$out" | sed -n 's/.*"task_id" *: *"\([^"]*\)".*/\1/p')"
+  MSGID="$(printf '%s' "$out" | sed -n 's/.*"msg_id" *: *"\([^"]*\)".*/\1/p')"
 fi
 
 [ "$POKE" -eq 1 ] || { echo "poke: skipped (--no-poke); ${TO} finds it on its next 'spool recv'"; exit 0; }
 
-# ---- the doorbell ----------------------------------------------------------
-PANE="$(spool_pane_of "$TO")"
-if [ -z "$PANE" ]; then
-  echo "poke: none - no live window carries ${TO}; the message waits in ${SPOOL_ROOT}/${TO}/inbox/"
-  exit 5
-fi
-spool_tmux_argv
-
-# A pane whose tty runs nothing but shells has lost its agent: the poke would
-# land in a bare shell (harmless, it is inert) and reach nobody. `sudo` and
-# `su` are NOT shells here: the launcher hops to the agent user through them,
-# and sudo runs the CLI on its OWN pty, so a live agent's pane tty shows just
-# "bash sudo" (measured in the 4444 dogfood: every poke to a live agent was
-# skipped while sudo was on this list).
-PANE_TTY="$("${SPOOL_TM[@]}" display-message -p -t "$PANE" '#{pane_tty}' 2>/dev/null || true)"
-if [ -n "$PANE_TTY" ]; then
-  TTY_CMDS="$(ps -t "${PANE_TTY#/dev/}" -o comm= 2>/dev/null | sort -u | tr '\n' ' ')"
-  if [ -n "$TTY_CMDS" ] && ! printf '%s\n' $TTY_CMDS | grep -qvxE 'bash|sh|zsh|dash|login'; then
-    echo "poke: skipped - ${TO} pane ${PANE} runs only shells (${TTY_CMDS% }); the agent has exited"
-    exit 7
-  fi
-fi
-
-# Never type over a human's (or the agent's) unsent input: send-keys appends to
-# the input line and submits it, so the poke would carry that text with it.
-# The TUI's own greyed-out suggestion is drawn DIM (ESC[2m) and is not input:
-# capture WITH escapes, drop dim runs, then strip the remaining escapes.
-ESC=$'\033'
-LAST="$("${SPOOL_TM[@]}" capture-pane -p -e -t "$PANE" 2>/dev/null | grep -E '❯|^> ' | tail -1 || true)"
-LAST="$(printf '%s' "$LAST" | sed -E "s/${ESC}\[2m[^${ESC}]*//g; s/${ESC}\[[0-9;]*[A-Za-z]//g")"
-TYPED="$(printf '%s' "$LAST" | sed -E 's/^.*(❯|^>) ?//; s/[[:space:]]+$//')"
-if [ -n "$LAST" ] && [ -n "$TYPED" ] && [ "${TYPED#: \'SPOOL }" = "$TYPED" ]; then
-  echo "poke: REFUSED - ${TO} pane ${PANE} holds unsent text; the message waits in its inbox"
-  exit 6
-fi
-
-POKE_LINE=": 'SPOOL ${TO}: ${KIND:-ping} from ${FROM:-?}${TASK:+ task ${TASK}} - run: spool recv --as ${TO}'"
-"${SPOOL_TM[@]}" send-keys -t "$PANE" -l "$POKE_LINE" && sleep 0.3 && "${SPOOL_TM[@]}" send-keys -t "$PANE" Enter
-echo "poke: ${PANE} (${TO})"
-exit 0
+# ---- the pane leg (lib/spool-notify.inc.sh, contracts/poke-line.md) --------
+spool_notify "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
+exit $?

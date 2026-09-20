@@ -30,6 +30,9 @@ hasnt "local mode is unsigned (no sig)" '"sig"' "$obj"
 sleep 0.5
 screen="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$P91")"
 has "the pane shows the shell-inert poke line" ": 'SPOOL CLE-91: task from CLE-90 task ${TASK}" "$screen"
+# specs/028 FR-002: the line carries the message, it is not a bare doorbell.
+has "the pane shows the BODY itself" "ping from 90" "$screen"
+has "the pane names how to read it in full" "run: spool recv --as CLE-91" "$screen"
 
 # ---- recv, reply on the same thread, tail --------------------------------
 got="$(sp recv --as CLE-91 --ack)"

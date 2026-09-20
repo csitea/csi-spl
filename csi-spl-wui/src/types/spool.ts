@@ -12,7 +12,7 @@ export interface FileRef {
 }
 
 export interface SpoolMessage {
-  v: 1
+  v: 1 | 2
   msg_id: string
   task_id: string
   ts: string

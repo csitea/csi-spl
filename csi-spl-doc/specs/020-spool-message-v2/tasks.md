@@ -30,7 +30,7 @@ there; the owner is named.
 
 - [x] T011 Hub dev, then prd, at a tag that contains T005–T008 (`fb55fcf`): **0.1.9** (`71a87eb`, CLE-3355, 20 run 35449626342). Check (n=1 per env, 2026-09-19T14:55Z): `curl -s https://dev.api.spool-hub.ai/version` and `curl -s https://spool-hub.ai/version` -> both `"commit":"71a87eb…","version":"0.1.9"`; `git merge-base --is-ancestor fb55fcf 71a87eb` -> 0.
 - [ ] T012 Rebuild the box binaries in `contracts/migration.md` §4 (box owners / ORC).
-- [ ] T013 WUI: `types/spool.ts` `v: 1 | 2`; local mock rows may stay `v: 1` (UI lane **CLE-55**, asked 2026-09-19T14:42Z). FR-006.
+- [x] T013 Implemented `b3a8026` (GRK-3372) — WUI `types/spool.ts` `v: 1 | 2`; local mock rows stay `v: 1`. Check: `nuxi typecheck` exit 0. FR-006.
 
 ## Phase 4 — Writers (P2, owner go per step)
 
@@ -38,4 +38,4 @@ there; the owner is named.
 - [ ] T015 After 24 h clean on dev: prd hub + all boxes. SC-005.
 - [ ] T016 P3: code defaults to `2` after 7 days (the queue TTL).
 
-<!-- version: 0.2.2 · updated: 2026-09-19 · last-edit: 2026-09-19T14:56:00Z -->
+<!-- version: 0.2.3 · updated: 2026-09-20 · last-edit: 2026-09-20T03:28:49Z -->

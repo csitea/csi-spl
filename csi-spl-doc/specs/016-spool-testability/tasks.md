@@ -23,7 +23,7 @@
 - [x] T003 Implemented `5cf1a56` (+ `1311b4f` `do_setup_tpl_gen`) — `10_ci-quality.yml` job `iac-suite`: `run-all-tests.sh` with terraform 1.9.8 and tpl-gen at `cnf/tpl-gen.ref` (`./run -a do_setup_tpl_gen`); `SPL_TF_ALLOW_SKIP` unset, any `SKIP:`/`PARTIAL:` line fails the job; gcloud/gsutil/bq trapped (trap log empty = no GCP). Check: run 35447312122 green on `75fa7cd`; CONTROL run 35447535287 (020 template broken) red on `tf-steps-render-and-validate` + parity. FR-003. SC-001.
 - [x] T004 Implemented `5cf1a56` + `75fa7cd` — job `orc-suite`: ALL orc `*.tst.sh` (20 at `75fa7cd`); none needs a split: `lde-stack` uses only `docker compose config` + `sudo -n`, `checkout-fake-buy` a pulled `postgres:16-alpine`, the rest stub gcloud/curl/docker. Checked out as `csi/csi-spl` because orc `do_resolve_oap` derives ORG/APP from the parent dirs (runner default gave `con-csi-spl-csi-spl-tf-runner`). `SKIP:` fails; gcloud trapped. Check: run 35447312122 green; CONTROL run 35447535287 (`wui-up` compose line removed) red on `wui-actions`. FR-003.
 - [x] T005 Implemented `5cf1a56` — job `cnf-suite`: Python 3.12, `poetry install --no-root` from the lock, then `conf-validator-exit-codes.tst.sh` (refuses to skip: exit 2 without deps). Check: run 35447312122 green; CONTROL run 35447535287 (validator `EXIT_INVALID` -> `EXIT_OK`) red, 2 cases `exit 0, want 1`. FR-003.
-- [ ] T006 Planned (005/wui) — `tests/e2e/live-interop.test.mjs`: if `CI` is set and `HUB_URL` is unset, exit 1 (not 0). FR-005. SC-003.
+- [x] T006 Implemented `a798b07` (GRK-3372) — `tests/e2e/live-interop.test.mjs`: if `CI` is set and `HUB_URL` is unset, exit 1 (not 0). Check: `CI=1` unset `HUB_URL` → exit 1; `CI` unset → exit 0. FR-005. SC-003.
 - [x] T007 Implemented — `specs/README.md` §4 lists 014, 015, 016 (this dir) and 017; seam “Test layers” → `016 contracts/test-layers.md`.
 
 ## Phase 3 — Out of the product gate (document only)
@@ -39,7 +39,7 @@
 | FR-002 | T011 | Implemented |
 | FR-003 | T003, T004, T005 | Implemented |
 | FR-004 | T002 | Implemented |
-| FR-005 | T006, T021 | Planned |
+| FR-005 | T006, T021 | Partial (T006 done; T021 still Planned) |
 | FR-006 | T012 | Implemented |
 | FR-007 | T013 | Implemented |
 | FR-008 | (009/006 when those features grow tests) | Partial |
@@ -47,4 +47,4 @@
 | FR-010 | T014, T003 | Implemented (local and CI) |
 | FR-011 | T020 | Implemented |
 
-<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:15:00Z -->
+<!-- version: 0.2.1 · updated: 2026-09-20 · last-edit: 2026-09-20T03:28:49Z -->

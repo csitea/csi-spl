@@ -86,35 +86,82 @@ export function doorModes(detail) {
 }
 
 /**
+ * The session-door arming in flight for a client, so concurrent callers share
+ * one of them. Keyed by the api object and dropped as soon as it settles.
+ * @type {WeakMap<object, Promise<{ armed: boolean, value?: unknown, error?: unknown }>>}
+ */
+const arming = new WeakMap()
+
+/**
+ * Switch the door to 'session' and prove it with one retry. A retry that fails
+ * without an HTTP status (network / CORS) is a token door refusing credentials:
+ * restore the door and report it unarmed, so every caller falls back to its own
+ * 401 prompt (A3, 901ea06).
+ * @param {{ door: string, setDoor: (d: string) => void }} api
+ * @param {string} prev
+ * @param {() => Promise<unknown>} read
+ * @returns {Promise<{ armed: boolean, value?: unknown, error?: unknown }>}
+ */
+async function armSessionDoor(api, prev, read) {
+  api.setDoor('session')
+  try {
+    return { armed: true, value: await read() }
+  } catch (e) {
+    const st = /** @type {{ status?: number }} */ (e || {}).status
+    if (!st) {
+      api.setDoor(prev)
+      return { armed: false }
+    }
+    /* an answered retry: the door IS the session one, this read just failed */
+    return { armed: true, error: e }
+  }
+}
+
+/**
  * view-v1 §2 / 010 FR-009: a door that takes a member session needs the
  * sign-in cookie (credentials 'include'). On a 401 whose detail offers a
  * session, switch the client to door 'session' once and retry. The 401 detail
  * is the same for a token door, whose CORS refuses credentials: a retry that
  * fails without an HTTP status (network / CORS) restores the door and rethrows
  * the ORIGINAL 401, so the caller still shows the door prompt.
+ *
+ * The door is read BEFORE the read goes out, not in the catch: the shell fires
+ * several reads at once (channels, roster, a thread), and reading it after the
+ * fact sees the door a SIBLING caller has already switched, so this caller
+ * rethrows a 401 that a retry would have answered — the channel list stayed
+ * empty for a poll on prd (CLE-3415). Concurrent callers then share ONE arming
+ * of the door (single-flight): the first switches it and proves it with its own
+ * retry, the others wait for that verdict and re-issue their own read, which is
+ * a different URL for each of them and cannot be shared.
  * @template T
  * @param {{ door: string, setDoor: (d: string) => void }} api
  * @param {() => Promise<T>} read
  * @returns {Promise<T>}
  */
 export async function withSessionRetry(api, read) {
+  const door = api.door
   try {
     return await read()
   } catch (e) {
     const err = /** @type {{ status?: number, detail?: string }} */ (e || {})
-    if (!isDoor(err) || api.door === 'session' || !doorModes(err.detail).session) throw e
-    const prev = api.door
-    api.setDoor('session')
-    try {
-      return await read()
-    } catch (e2) {
-      const st = /** @type {{ status?: number }} */ (e2 || {}).status
-      if (!st) {
-        api.setDoor(prev)
-        throw e
-      }
-      throw e2
+    if (!isDoor(err) || door === 'session' || !doorModes(err.detail).session) throw e
+    const pending = arming.get(api)
+    if (pending) {
+      /* someone else is arming the door: their verdict, our own read */
+      if (!(await pending).armed) throw e
+      return /** @type {Promise<T>} */ (read())
     }
+    const run = armSessionDoor(api, door, read)
+    arming.set(api, run)
+    let out
+    try {
+      out = await run
+    } finally {
+      if (arming.get(api) === run) arming.delete(api)
+    }
+    if (!out.armed) throw e
+    if (out.error) throw out.error
+    return /** @type {T} */ (out.value)
   }
 }
 

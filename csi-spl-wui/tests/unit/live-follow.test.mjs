@@ -142,6 +142,84 @@ describe('door UX (view-v1 §2: a 401 view_door is a prompt)', () => {
     assert.equal(n, 2)
   })
 
+  /*
+   * CLE-3415: the shell fires several reads at once (channels + roster from the
+   * bootstrap plugin, a thread from the pane). The door used to be read in the
+   * catch, so a caller whose 401 landed AFTER a sibling had switched the door
+   * saw door === 'session' and rethrew a 401 the retry would have answered —
+   * on prd the channel list stayed empty for a poll.
+   */
+  it('a read that went out before a sibling armed the door still retries', async () => {
+    const api = fakeApi()
+    let n = 0
+    const out = await withSessionRetry(api, async () => {
+      n++
+      if (n === 1) {
+        api.door = 'session' /* a sibling armed it while this read was in flight */
+        throw door401()
+      }
+      return 'rows'
+    })
+    assert.equal(out, 'rows')
+    assert.equal(n, 2)
+  })
+
+  it('two concurrent reads share ONE arming of the door and both resolve', async () => {
+    const api = fakeApi()
+    let armings = 0
+    api.setDoor = function (d) { armings++; this.door = d }
+    const gate = []
+    const calls = { channels: 0, roster: 0 }
+    const read = (what) => async () => {
+      calls[what]++
+      if (api.door === 'session') return what
+      await new Promise((r) => gate.push(r))
+      throw door401()
+    }
+    const both = [withSessionRetry(api, read('channels')), withSessionRetry(api, read('roster'))]
+    await new Promise((r) => setTimeout(r, 0))
+    assert.equal(gate.length, 2, 'both reads went out before either 401 landed')
+    for (const release of gate.splice(0)) release()
+    assert.deepEqual(await Promise.all(both), ['channels', 'roster'])
+    assert.equal(armings, 1, 'one door arming, shared by both callers')
+    /* each caller re-issues its OWN url: the arming is shared, the read is not */
+    assert.deepEqual(calls, { channels: 2, roster: 2 })
+  })
+
+  it('a token door refuses both concurrent retries once, restores the door and rethrows the 401', async () => {
+    const api = fakeApi()
+    let retries = 0
+    const gate = []
+    const read = async () => {
+      if (api.door === 'session') { retries++; throw new TypeError('Failed to fetch') }
+      await new Promise((r) => gate.push(r))
+      throw door401()
+    }
+    const both = [withSessionRetry(api, read), withSessionRetry(api, read)]
+    await new Promise((r) => setTimeout(r, 0))
+    for (const release of gate.splice(0)) release()
+    const settled = await Promise.allSettled(both)
+    for (const r of settled) {
+      assert.equal(r.status, 'rejected')
+      assert.equal(r.reason.status, 401)
+      assert.equal(r.reason.token, 'view_door')
+    }
+    assert.equal(retries, 1, 'only the first caller tried the credentialed retry')
+    assert.equal(api.door, '', 'the door is restored for the prompt (901ea06)')
+  })
+
+  it('a restored door lets the NEXT 401 arm again', async () => {
+    const api = fakeApi()
+    await assert.rejects(withSessionRetry(api, async () => {
+      if (api.door === 'session') throw new TypeError('Failed to fetch')
+      throw door401()
+    }))
+    assert.equal(api.door, '')
+    let n = 0
+    assert.equal(await withSessionRetry(api, async () => { n++; if (api.door !== 'session') throw door401(); return 'rows' }), 'rows')
+    assert.equal(n, 2)
+  })
+
   it('the live and viewer stores read through withSessionRetry', () => {
     for (const f of ['src/stores/live.ts', 'src/stores/viewer.ts']) assert.match(src(f), /withSessionRetry\(api,/, f)
   })

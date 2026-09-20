@@ -20,6 +20,11 @@
 #   SPOOL_ORCHESTRATOR_ID  who spawned agents report to   default CLE-00
 #   SPOOL_BIN           the spool binary            default: this repo's build
 #                       output, else `spool` on PATH
+#   SPOOL_NOTIFY_CMD    the terminal leg (specs/028): the command the spool
+#                       binary runs after a message lands in a local agent's
+#                       inbox, so the agent's pane SHOWS it. Default: this
+#                       feature's scripts/spool-notify.sh. `off` disables it.
+#                       Resolved here, EXPORTED by spool-harness.sh
 #   CLAUDE_BIN GROK_BIN AGY_BIN   default <agent home>/.local/bin/<cli> when it
 #                       exists, else the bare name
 #
@@ -89,6 +94,14 @@ spool_env_resolve() {
     else SPOOL_BIN="$(command -v spool 2>/dev/null || printf 'spool')"
     fi
   fi
+
+  # specs/028 FR-005: the box's own renderer, unless the operator names another
+  # one or turns the terminal leg off. Not exported here - spool-harness.sh
+  # decides which processes get it (the agent session and its hub-run sidecar).
+  if [ -z "${SPOOL_NOTIFY_CMD:-}" ] && [ -x "$SPOOL_FEATURE_DIR/scripts/spool-notify.sh" ]; then
+    SPOOL_NOTIFY_CMD="$SPOOL_FEATURE_DIR/scripts/spool-notify.sh"
+  fi
+  SPOOL_NOTIFY_CMD="${SPOOL_NOTIFY_CMD:-}"
 
   local cli var
   for cli in claude grok agy; do

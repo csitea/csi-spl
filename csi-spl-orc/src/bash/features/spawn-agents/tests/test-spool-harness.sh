@@ -19,6 +19,12 @@ has "local: the command ran" harness-ok "$out"
 has "local: SPOOL_AGENT_ID and SPOOL_ROOT injected" "id=CLE-99 root=$SPOOL_ROOT" "$out"
 has "local: no box id -> SPOOL_BOX_ID stays unset" "box=unset" "$out"
 has "local: umask 0002 (files 0664)" 0002 "$out"
+# specs/028 FR-005: the agent session carries the terminal leg, so the peers of
+# its own `spool send` / spool_send MCP calls get rung.
+out2="$(bash "$H" --as CLE-99 env 2>/dev/null)"
+has "local: SPOOL_NOTIFY_CMD exported to the agent" "SPOOL_NOTIFY_CMD=$T_SCRIPTS/spool-notify.sh" "$out2"
+out2="$(SPOOL_NOTIFY_CMD=off bash "$H" --as CLE-99 env 2>/dev/null)"
+has "local: an explicit SPOOL_NOTIFY_CMD wins" "SPOOL_NOTIFY_CMD=off" "$out2"
 for d in CLE-99 CLE-99/inbox CLE-99/outbox CLE-99/archive files pins; do
   eq "local: $d is 0775" 775 "$(mode "$SPOOL_ROOT/$d")"
 done
@@ -64,6 +70,7 @@ cat >"$T_TMP/bin/spool" <<'EOF'
 #!/usr/bin/env bash
 [ "$1" = hub-run ] || exit 1
 [ -n "${FAKE_SIDECAR_DIE:-}" ] && { echo "dial: connection refused"; exit 1; }
+echo "NOTIFY=${SPOOL_NOTIFY_CMD:-unset}" >"$SPOOL_ROOT/.hub/sidecar-env"
 ids="$(ls "$SPOOL_ROOT" | grep -E '^[A-Z]{2,4}-[0-9]+$' | sed 's/.*/"&"/' | paste -sd, -)"
 printf '{"%s":[%s]}' "$SPOOL_BOX_ID" "$ids" >"$SPOOL_ROOT/.hub/roster.json"
 sleep 60
@@ -80,6 +87,9 @@ has "hub: sidecar started" "started spool hub-run" "$err"
 has "hub: agent announced" "CLE-3 announced on box-a" "$err"
 pid1="$(cat "$SPOOL_ROOT/.hub/hub-run.pid")"
 check "hub: the sidecar outlives the harness" kill -0 "$pid1"
+# specs/028 FR-001: the sidecar writes cross-box mail and a human's WUI task
+# into a local inbox, so IT is the process that must carry the terminal leg.
+has "hub: the sidecar carries SPOOL_NOTIFY_CMD" "NOTIFY=$T_SCRIPTS/spool-notify.sh" "$(cat "$SPOOL_ROOT/.hub/sidecar-env" 2>/dev/null)"
 
 # A second session: the live sidecar is reused. Its roster already lists the
 # agent here (the fake wrote every dir), so no restart is needed.

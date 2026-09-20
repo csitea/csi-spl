@@ -15,6 +15,7 @@
 #                (started when absent, one per root under a lock), and the
 #                agent seen under this box in its roster cache
 #   4. env       exports SPOOL_ROOT, SPOOL_BOX_ID (when set), SPOOL_AGENT_ID
+#                and SPOOL_NOTIFY_CMD (the terminal leg, specs/028)
 #   5. exec      replaces itself with the agent command
 #
 # --to-box <box_id> names the box this session is attached to: it sets
@@ -26,6 +27,10 @@
 #   SPOOL_KEYS_DIR              default $HOME/.spool/keys
 #   SPOOL_HUB_URL               set = hub mode
 #   SPOOL_BIN                   the spool binary (see lib/spool-env.inc.sh)
+#   SPOOL_NOTIFY_CMD            the terminal leg (specs/028): the command the
+#                               spool binary runs after a message lands in a
+#                               local agent's inbox. Default: this feature's
+#                               scripts/spool-notify.sh; `off` disables it
 #   SPOOL_HARNESS_SIDECAR       auto (start when absent) | external (a service
 #                               owns it: only wait for the roster) | off
 #   SPOOL_HARNESS_WAIT_SECS     roster wait, default 25 (hub-run rescans every 10s)
@@ -145,7 +150,11 @@ sidecar() {
     flock 9
     if ! sidecar_alive "$pidf"; then
       command -v "$SPOOL_BIN" >/dev/null 2>&1 || die 69 "spool binary '$SPOOL_BIN' not found (set SPOOL_BIN)"
+      # specs/028 FR-001: the sidecar is what writes cross-box mail and a
+      # signed-in human's WUI task into a local inbox, so it is the process
+      # that has to carry the terminal leg.
       SPOOL_ROOT="$SPOOL_ROOT" SPOOL_BOX_ID="$SPOOL_BOX_ID" \
+      SPOOL_NOTIFY_CMD="$SPOOL_NOTIFY_CMD" \
         setsid "$SPOOL_BIN" hub-run >>"$logf" 2>&1 </dev/null 9>&- &
       echo "$!" >"$pidf"
       started=1
@@ -175,6 +184,10 @@ sidecar() {
 # ── 4. env ─────────────────────────────────────────────────────────────────
 export SPOOL_ROOT SPOOL_AGENT_ID="$agent"
 [ -n "$SPOOL_BOX_ID" ] && export SPOOL_BOX_ID
+# The agent's own sends go out through this process tree, so the RECIPIENT's
+# pane is rung whether the agent used the `spool send` verb or the spool_send
+# MCP tool (specs/012 FR-001: one API, so one terminal leg too).
+[ -n "$SPOOL_NOTIFY_CMD" ] && export SPOOL_NOTIFY_CMD
 
 # ── 5. exec ────────────────────────────────────────────────────────────────
 command -v "$1" >/dev/null 2>&1 || die 127 "agent command '$1' not found"

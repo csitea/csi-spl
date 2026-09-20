@@ -210,6 +210,9 @@ export default defineNuxtConfig({
     lazy: true,
     detectBrowserLanguage: false,
     bundle: { optimizeTranslationDirective: false },
+    // Default "absolute" embeds the CI workspace path in shipped
+    // __NUXT__.config locales[].files[].path (e.g. /home/runner/work/...).
+    experimental: { generatedLocaleFilePathFormat: "off" },
   },
 
   runtimeConfig: {

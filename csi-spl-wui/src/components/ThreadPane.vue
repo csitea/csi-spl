@@ -4,7 +4,16 @@
       <strong>{{ t('thread.title') }}</strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
         <VerbositySelector />
-        <button class="btn ghost" type="button" @click="thread.close()">{{ t('common.close') }}</button>
+        <button
+          class="icon-btn"
+          type="button"
+          data-test="thread-pane-close"
+          :aria-label="t('common.close')"
+          :title="t('common.close')"
+          @click="thread.close()"
+        >
+          <UiIcon name="x" :size="18" />
+        </button>
       </div>
     </header>
     <div class="pinned-root">

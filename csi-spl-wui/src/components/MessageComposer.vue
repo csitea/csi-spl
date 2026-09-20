@@ -70,7 +70,16 @@
       <ul v-if="picked.length" class="file-chips">
         <li v-for="(f, i) in picked" :key="f.name + i">
           📎 {{ f.name }} <small>{{ t('composer.file_bytes', { n: f.size }) }}</small>
-          <button type="button" class="btn ghost" :aria-label="t('composer.remove_file', { name: f.name })" @click="picked.splice(i, 1)">×</button>
+          <button
+            type="button"
+            class="icon-btn"
+            data-test="composer-remove-file"
+            :aria-label="t('composer.remove_file', { name: f.name })"
+            :title="t('composer.remove_file', { name: f.name })"
+            @click="picked.splice(i, 1)"
+          >
+            <UiIcon name="x" :size="14" />
+          </button>
         </li>
       </ul>
       <div class="composer-row">

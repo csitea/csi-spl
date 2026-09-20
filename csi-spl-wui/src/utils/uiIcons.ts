@@ -31,6 +31,13 @@ export const UI_ICON_PATHS = {
   ],
   "log-in": ["M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4", "m10 17 5-5-5-5", "M15 12H3"],
   "log-out": ["M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4", "m16 17 5-5-5-5", "M21 12H9"],
+  // "Open" affordance (lucide square-arrow-out-up-right): box + arrow out.
+  // One glyph for every Open control — pane or dedicated page.
+  open: [
+    "M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6",
+    "m21 3-9 9",
+    "M15 3h6v6",
+  ],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

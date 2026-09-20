@@ -22,11 +22,14 @@
       />
       <button
         v-if="threadLink"
-        class="replies"
+        class="icon-btn icon-btn--accent"
         type="button"
+        data-test="open-thread"
+        :aria-label="t('feed.open_thread')"
+        :title="t('feed.open_thread')"
         @click="$emit('open-thread', String(msg.task_id))"
       >
-        {{ t('feed.open_thread') }}
+        <UiIcon name="open" :size="16" />
       </button>
       <button
         v-if="count > 0 || alwaysThread"

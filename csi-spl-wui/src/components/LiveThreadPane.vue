@@ -4,8 +4,25 @@
       <strong>{{ t('thread.title') }} <code>{{ pane.taskId.slice(0, 8) }}</code></strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
         <VerbositySelector />
-        <NuxtLink class="btn ghost" :to="localePath('/t/' + pane.taskId)">{{ t('thread.open') }}</NuxtLink>
-        <button class="btn ghost" type="button" @click="pane.close()">{{ t('common.close') }}</button>
+        <NuxtLink
+          class="icon-btn icon-btn--accent"
+          data-test="live-thread-open"
+          :to="localePath('/t/' + pane.taskId)"
+          :aria-label="t('thread.open')"
+          :title="t('thread.open')"
+        >
+          <UiIcon name="open" :size="18" />
+        </NuxtLink>
+        <button
+          class="icon-btn"
+          type="button"
+          data-test="live-thread-close"
+          :aria-label="t('common.close')"
+          :title="t('common.close')"
+          @click="pane.close()"
+        >
+          <UiIcon name="x" :size="18" />
+        </button>
       </div>
     </header>
     <div class="pinned-root">

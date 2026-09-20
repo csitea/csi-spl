@@ -22,7 +22,7 @@
       />
       <button
         type="button"
-        class="top-bar__close"
+        class="icon-btn top-bar__close"
         data-test="top-bar-search-close"
         :aria-label="t('common.close')"
         :title="t('common.close')"
@@ -172,16 +172,12 @@ onMounted(() => {
   }
   .top-bar--open .top-bar__omnibox > :first-child { flex: 1; min-width: 0; }
   .top-bar--open .top-bar__close {
-    display: inline-grid;
-    place-items: center;
+    display: inline-flex;
     min-width: var(--tap);
     min-height: var(--tap);
+    width: var(--tap);
+    height: var(--tap);
     border: 1px solid var(--color-border);
-    border-radius: 8px;
-    background: transparent;
-    color: var(--color-fg);
-    cursor: pointer;
-    flex-shrink: 0;
   }
 }
 </style>

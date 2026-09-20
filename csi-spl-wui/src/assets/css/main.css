@@ -289,6 +289,41 @@ html.pane-dragging * {
   color: var(--color-fg);
   border: 1px solid var(--color-border);
 }
+/* Compact icon-only control. Accessible name lives on aria-label + title.
+   Hit area is at least 32×32 (touch). */
+.icon-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 32px;
+  min-height: 32px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-fg);
+  cursor: pointer;
+  text-decoration: none;
+  flex-shrink: 0;
+  line-height: 0;
+}
+.icon-btn:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border);
+  color: var(--color-fg);
+}
+.icon-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  background: var(--color-surface-hover);
+}
+.icon-btn--accent { color: var(--color-accent); }
+.icon-btn--accent:hover { color: var(--color-accent); }
 .file-card {
   margin-top: 8px;
   border: 1px solid var(--color-border);

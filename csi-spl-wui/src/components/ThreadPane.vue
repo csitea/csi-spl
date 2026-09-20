@@ -1,5 +1,5 @@
 <template>
-  <aside v-if="thread.open" class="thread live-pane" :aria-label="t('thread.title')">
+  <aside v-if="thread.open" class="thread live-pane" data-test="thread-section" data-section="channel" :aria-label="t('thread.title')">
     <header>
       <strong>{{ t('thread.title') }}</strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">

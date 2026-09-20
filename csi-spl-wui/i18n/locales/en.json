@@ -200,7 +200,7 @@
     "unsupported": "Checkout is not open on this page yet — try again later.",
     "price": "One tenant: {price}",
     "tenant_name": "Tenant name",
-    "email": "Email — the key is sent here once",
+    "email": "Email — where the claim link is sent",
     "submit": "Continue to payment",
     "fake_note": "Test environment: no money moves.",
     "fake_pay": "Pay (dev fake)",

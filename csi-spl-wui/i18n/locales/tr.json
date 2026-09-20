@@ -200,7 +200,7 @@
     "unsupported": "Ödeme bu sayfada henüz açık değil — daha sonra tekrar deneyin.",
     "price": "Bir kiracı: {price}",
     "tenant_name": "Kiracı adı",
-    "email": "E-posta — anahtar buraya bir kez gönderilir",
+    "email": "E-posta — talep bağlantısını buraya göndeririz",
     "submit": "Ödemeye devam et",
     "fake_note": "Test ortamı: para hareketi olmaz.",
     "fake_pay": "Öde (dev sahte)",

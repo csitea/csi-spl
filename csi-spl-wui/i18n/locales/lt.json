@@ -200,7 +200,7 @@
     "unsupported": "Apmokėjimas šiame puslapyje dar neatidarytas — bandykite vėliau.",
     "price": "Vienas nuomininkas: {price}",
     "tenant_name": "Nuomininko pavadinimas",
-    "email": "El. paštas — raktas čia išsiunčiamas vieną kartą",
+    "email": "El. paštas — čia siunčiame atsiėmimo nuorodą",
     "submit": "Tęsti į apmokėjimą",
     "fake_note": "Bandomoji aplinka: pinigai nejuda.",
     "fake_pay": "Mokėti (dev imitacija)",

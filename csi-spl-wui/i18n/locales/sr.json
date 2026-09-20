@@ -200,7 +200,7 @@
     "unsupported": "Plaćanje još nije otvoreno na ovoj stranici — pokušajte kasnije.",
     "price": "Jedan zakupac: {price}",
     "tenant_name": "Naziv zakupca",
-    "email": "Imejl — ključ se ovde šalje jednom",
+    "email": "Imejl — ovde šaljemo link za preuzimanje",
     "submit": "Nastavi na plaćanje",
     "fake_note": "Testno okruženje: novac se ne prenosi.",
     "fake_pay": "Plati (dev simulacija)",

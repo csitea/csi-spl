@@ -200,7 +200,7 @@
     "unsupported": "Plata nu este încă deschisă pe această pagină — încercați mai târziu.",
     "price": "Un chiriaș: {price}",
     "tenant_name": "Numele chiriașului",
-    "email": "E-mail — cheia este trimisă aici o singură dată",
+    "email": "E-mail — aici trimitem linkul de preluare",
     "submit": "Continuă la plată",
     "fake_note": "Mediu de test: nu se transferă bani.",
     "fake_pay": "Plătește (simulare dev)",

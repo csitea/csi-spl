@@ -200,7 +200,7 @@
     "unsupported": "Maksmine pole sellel lehel veel avatud — proovi hiljem uuesti.",
     "price": "Üks rentnik: {price}",
     "tenant_name": "Rentniku nimi",
-    "email": "E-post — võti saadetakse siia üks kord",
+    "email": "E-post — siia saadame kättesaamislingi",
     "submit": "Jätka maksmisega",
     "fake_note": "Testkeskkond: raha ei liigu.",
     "fake_pay": "Maksa (dev, näidis)",

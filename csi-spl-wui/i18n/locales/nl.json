@@ -200,7 +200,7 @@
     "unsupported": "Afrekenen is op deze pagina nog niet mogelijk — probeer het later opnieuw.",
     "price": "Eén tenant: {price}",
     "tenant_name": "Naam van de tenant",
-    "email": "E-mail — de sleutel wordt hier één keer naartoe gestuurd",
+    "email": "E-mail — hierheen sturen we de ophaallink",
     "submit": "Verder naar betalen",
     "fake_note": "Testomgeving: er wordt geen geld overgemaakt.",
     "fake_pay": "Betalen (dev fake)",

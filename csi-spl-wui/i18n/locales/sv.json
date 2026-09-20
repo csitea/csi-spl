@@ -200,7 +200,7 @@
     "unsupported": "Kassan är inte öppen på den här sidan ännu — försök igen senare.",
     "price": "En tenant: {price}",
     "tenant_name": "Tenantnamn",
-    "email": "E-post — nyckeln skickas hit en gång",
+    "email": "E-post — hit skickar vi hämtningslänken",
     "submit": "Fortsätt till betalning",
     "fake_note": "Testmiljö: inga pengar dras.",
     "fake_pay": "Betala (dev-test)",

@@ -200,7 +200,7 @@
     "unsupported": "Zamówienie na tej stronie nie jest jeszcze dostępne — spróbuj później.",
     "price": "Jedna dzierżawa: {price}",
     "tenant_name": "Nazwa dzierżawy",
-    "email": "E-mail — klucz zostanie tu wysłany raz",
+    "email": "E-mail — tu wysyłamy link do odbioru",
     "submit": "Przejdź do płatności",
     "fake_note": "Środowisko testowe: żadne pieniądze nie są pobierane.",
     "fake_pay": "Zapłać (dev fake)",

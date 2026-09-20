@@ -200,7 +200,7 @@
     "unsupported": "El pago aún no está abierto en esta página — inténtalo más tarde.",
     "price": "Un inquilino: {price}",
     "tenant_name": "Nombre del inquilino",
-    "email": "Correo — la clave se envía aquí una sola vez",
+    "email": "Correo — aquí enviamos el enlace de recogida",
     "submit": "Continuar al pago",
     "fake_note": "Entorno de pruebas: no se mueve dinero.",
     "fake_pay": "Pagar (dev fake)",

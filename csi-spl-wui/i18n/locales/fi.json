@@ -200,7 +200,7 @@
     "unsupported": "Kassa ei ole vielä avoinna tällä sivulla — yritä myöhemmin uudelleen.",
     "price": "Yksi tenantti: {price}",
     "tenant_name": "Tenantin nimi",
-    "email": "Sähköposti — avain lähetetään tähän kerran",
+    "email": "Sähköposti — tähän lähetämme noutolinkin",
     "submit": "Jatka maksuun",
     "fake_note": "Testiympäristö: rahaa ei siirry.",
     "fake_pay": "Maksa (dev-testi)",

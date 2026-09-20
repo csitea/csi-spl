@@ -200,7 +200,7 @@
     "unsupported": "Pokladňa na tejto stránke zatiaľ nie je otvorená — skúste to neskôr.",
     "price": "Jeden nájomník: {price}",
     "tenant_name": "Názov nájomníka",
-    "email": "E-mail — kľúč sa sem pošle raz",
+    "email": "E-mail — sem pošleme odkaz na vyzdvihnutie",
     "submit": "Pokračovať na platbu",
     "fake_note": "Testovacie prostredie: neprevádzajú sa žiadne peniaze.",
     "fake_pay": "Zaplatiť (dev fake)",

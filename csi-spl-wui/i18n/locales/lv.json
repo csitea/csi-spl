@@ -200,7 +200,7 @@
     "unsupported": "Norēķini šajā lapā vēl nav atvērti — mēģiniet vēlāk.",
     "price": "Viens nomnieks: {price}",
     "tenant_name": "Nomnieka nosaukums",
-    "email": "E-pasts — atslēga tiek nosūtīta šeit vienreiz",
+    "email": "E-pasts — šeit nosūtām saņemšanas saiti",
     "submit": "Turpināt uz maksājumu",
     "fake_note": "Testa vide: nauda netiek pārskaitīta.",
     "fake_pay": "Maksāt (dev imitācija)",

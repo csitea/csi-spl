@@ -38,6 +38,22 @@ export const UI_ICON_PATHS = {
     "m21 3-9 9",
     "M15 3h6v6",
   ],
+  // Theme toggle: destination glyph. lucide sun (circle as a path) and
+  // lucide moon (crescent / half-moon). Path-only — never a circle or rect element.
+  sun: [
+    "M12 8a4 4 0 1 0 0 8 4 4 0 1 0 0-8z",
+    "M12 2v2",
+    "M12 20v2",
+    "m4.93 4.93 1.41 1.41",
+    "m17.66 17.66 1.41 1.41",
+    "M2 12h2",
+    "M20 12h2",
+    "m6.34 17.66-1.41 1.41",
+    "m19.07 4.93-1.41 1.41",
+  ],
+  moon: [
+    "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z",
+  ],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

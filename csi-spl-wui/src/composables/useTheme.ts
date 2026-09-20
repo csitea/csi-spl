@@ -1,39 +1,36 @@
-export type SpoolTheme = 'dark' | 'light'
+import {
+  applyThemeAttr,
+  nextTheme,
+  parseTheme,
+  readStoredTheme,
+  writeStoredTheme,
+  type SpoolTheme,
+} from '~/utils/theme.mjs'
 
-const KEY = 'spool-theme'
+export type { SpoolTheme }
 
 function apply(theme: SpoolTheme) {
   if (!import.meta.client) return
-  document.documentElement.setAttribute('data-theme', theme)
-  try {
-    localStorage.setItem(KEY, theme)
-  } catch {
-    /* private mode */
-  }
+  applyThemeAttr(theme, document.documentElement)
+  writeStoredTheme(theme)
 }
 
 export function useTheme() {
   const theme = useState<SpoolTheme>('spool-theme', () => 'dark')
 
   function setTheme(next: SpoolTheme) {
-    theme.value = next
-    apply(next)
+    const t = parseTheme(next)
+    theme.value = t
+    apply(t)
   }
 
   function toggle() {
-    setTheme(theme.value === 'dark' ? 'light' : 'dark')
+    setTheme(nextTheme(theme.value))
   }
 
   function hydrate() {
     if (!import.meta.client) return
-    let next: SpoolTheme = 'dark'
-    try {
-      const stored = localStorage.getItem(KEY)
-      if (stored === 'light' || stored === 'dark') next = stored
-    } catch {
-      /* ignore */
-    }
-    setTheme(next)
+    setTheme(readStoredTheme())
   }
 
   return { theme, setTheme, toggle, hydrate }

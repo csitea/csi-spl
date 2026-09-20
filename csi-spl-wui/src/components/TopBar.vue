@@ -5,7 +5,10 @@
      spec 021). On a phone the Omnibox folds into a search icon. -->
 <template>
   <header class="top-bar" data-test="top-bar" :class="{ 'top-bar--open': expanded }">
-    <NuxtLink class="top-bar__brand" :to="localePath('/')" :aria-label="t('search.home')">spool</NuxtLink>
+    <div class="top-bar__start" data-test="top-bar-start">
+      <NuxtLink class="top-bar__brand" :to="localePath('/')" :aria-label="t('search.home')">spool</NuxtLink>
+      <ThemeToggle />
+    </div>
     <div class="top-bar__omnibox" data-test="top-bar-omnibox">
       <MessageComposer
         ref="composer"
@@ -52,6 +55,7 @@
 <script setup lang="ts">
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import MessageComposer from '@/components/MessageComposer.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
 import { searchPath } from '~/utils/search.mjs'
@@ -117,6 +121,13 @@ onMounted(() => {
   min-width: 0;
   box-sizing: border-box;
   flex-shrink: 0;
+}
+.top-bar__start {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 0;
 }
 .top-bar__brand {
   font-size: 15px;

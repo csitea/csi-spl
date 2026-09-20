@@ -1,9 +1,5 @@
 <template>
   <nav class="sidebar">
-    <div class="sidebar-brand">
-      <h1>Spool</h1>
-      <ThemeToggle />
-    </div>
     <NuxtLink class="nav-item" :to="localePath('/lobby')" active-class="active">
       <span class="hash">#</span><span class="label">lobby</span>
       <span v-if="notes.unread['ch:lobby']" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:lobby']) }}</span>

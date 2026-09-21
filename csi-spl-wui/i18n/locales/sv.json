@@ -320,7 +320,8 @@
     "send_failed": "Inte skickat — meddelandet nådde inte hubben.",
     "send_failed_closed": "Inte skickat — anslutningen bröts. Din text finns kvar.",
     "send_failed_timeout": "Inte skickat — hubben svarade inte i tid. Din text finns kvar.",
-    "send_retry": "Försök igen"
+    "send_retry": "Försök igen",
+    "send_failed_empty": "Inget att skicka — enbart en omnämning är inget meddelande. Lägg till text eller bifoga en fil."
   },
   "feed": {
     "unknown_author": "okänd",

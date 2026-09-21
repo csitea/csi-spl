@@ -15,8 +15,9 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
+import { parseMention } from '../../src/utils/channel-feed.mjs'
 import { fileURLToPath } from 'node:url'
-import { failureToken, sendFailureKey, shouldAutoResend } from '../../src/utils/send-failure.mjs'
+import { emptySendError, failureToken, isEmptySend, sendFailureKey, shouldAutoResend } from '../../src/utils/send-failure.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -47,6 +48,41 @@ describe('classifying a failed send (CLE-3433)', () => {
     assert.equal(sendFailureKey(timeout), 'composer.send_failed_timeout')
     assert.equal(sendFailureKey(new Error('who knows')), 'composer.send_failed')
     assert.equal(sendFailureKey(undefined), 'composer.send_failed')
+    assert.equal(sendFailureKey(emptySendError()), 'composer.send_failed_empty')
+  })
+})
+
+/* CLE-3434 found this in the dev hub's own store: a row at 12:45:42Z with
+   body = "". The composer refuses an empty BOX, but the live path then runs
+   parseMention() over the text, and `@CLE-00` alone strips to nothing - so a
+   task frame with an empty body reached the hub. To the next reader an empty
+   row is indistinguishable from the lost message this lane is about. */
+describe('an empty send never reaches the hub (CLE-3433)', () => {
+  it('text-only, files-only and both are all real messages', () => {
+    assert.equal(isEmptySend('hello'), false)
+    assert.equal(isEmptySend('', [{ name: 'a.pdf' }]), false)
+    assert.equal(isEmptySend('hello', [{ name: 'a.pdf' }]), false)
+  })
+
+  it('nothing, whitespace, and what a mention-only line parses down to are not', () => {
+    assert.equal(isEmptySend('', []), true)
+    assert.equal(isEmptySend('   \n\t ', []), true)
+    assert.equal(isEmptySend(null, undefined), true)
+    assert.equal(isEmptySend(undefined, null), true)
+    /* the real case: parseMention('@CLE-00') -> { to: 'CLE-00', body: '' } */
+    assert.equal(isEmptySend(parseMention('@CLE-00').body, []), true)
+    assert.equal(isEmptySend(parseMention('@CLE-00 hi').body, []), false)
+  })
+
+  it('sendLive refuses it AFTER the mention is parsed, before the frame goes out', () => {
+    const s = src('src/stores/channel.ts')
+    const live = s.slice(s.indexOf('async function sendLive'))
+    const guard = live.indexOf('isEmptySend(frame.body, frame.files)')
+    assert.ok(guard > 0, 'no empty-send guard in sendLive')
+    /* before the optimistic row and before the send, or it is not a guard */
+    assert.ok(guard < live.indexOf('pendingRow('), 'guard runs after the optimistic row')
+    assert.ok(guard < live.indexOf('await client.send(frame)'), 'guard runs after the send')
+    assert.match(live.slice(guard - 80, guard + 80), /throw emptySendError\(\)/)
   })
 })
 
@@ -70,7 +106,7 @@ describe('the send path cannot lose text silently any more (CLE-3433)', () => {
 
   it('sendLive retries once on a dropped socket, keeping the optimistic row', () => {
     const s = src('src/stores/channel.ts')
-    assert.match(s, /import \{ shouldAutoResend \} from '~\/utils\/send-failure\.mjs'/)
+    assert.match(s, /import \{[^}]*shouldAutoResend[^}]*\} from '~\/utils\/send-failure\.mjs'/)
     assert.match(s, /if \(!shouldAutoResend\(first\)\) \{/)
     /* the retry reuses the SAME frame, so the hub de-dupes on our msg_id */
     const body = s.slice(s.indexOf('catch (first)'), s.indexOf('const row = rowFromAck'))
@@ -84,7 +120,7 @@ describe('the send path cannot lose text silently any more (CLE-3433)', () => {
     assert.equal(files.length, 19)
     for (const code of files) {
       const c = JSON.parse(readFileSync(join(dir, `${code}.json`), 'utf8')).composer
-      for (const k of ['send_failed', 'send_failed_closed', 'send_failed_timeout', 'send_retry']) {
+      for (const k of ['send_failed', 'send_failed_closed', 'send_failed_timeout', 'send_failed_empty', 'send_retry']) {
         assert.equal(typeof c[k], 'string', `${code}: composer.${k} missing`)
         assert.ok(c[k].trim().length > 0, `${code}: composer.${k} empty`)
       }

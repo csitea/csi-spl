@@ -320,7 +320,8 @@
     "send_failed": "Saatmata — sõnum ei jõudnud hubi.",
     "send_failed_closed": "Saatmata — ühendus katkes. Sinu tekst on alles.",
     "send_failed_timeout": "Saatmata — hub ei vastanud õigeks ajaks. Sinu tekst on alles.",
-    "send_retry": "Proovi uuesti"
+    "send_retry": "Proovi uuesti",
+    "send_failed_empty": "Pole midagi saata — pelgalt mainimine ei ole sõnum. Lisa teksti või manusta fail."
   },
   "feed": {
     "unknown_author": "tundmatu",

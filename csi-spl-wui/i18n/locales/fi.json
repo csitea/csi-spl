@@ -320,7 +320,8 @@
     "send_failed": "Ei lähetetty — viesti ei päässyt hubiin.",
     "send_failed_closed": "Ei lähetetty — yhteys katkesi. Tekstisi on yhä tallessa.",
     "send_failed_timeout": "Ei lähetetty — hub ei vastannut ajoissa. Tekstisi on yhä tallessa.",
-    "send_retry": "Yritä uudelleen"
+    "send_retry": "Yritä uudelleen",
+    "send_failed_empty": "Ei mitään lähetettävää — pelkkä maininta ei ole viesti. Lisää tekstiä tai liitä tiedosto."
   },
   "feed": {
     "unknown_author": "tuntematon",

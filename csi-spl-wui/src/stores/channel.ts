@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { shouldAutoResend } from '~/utils/send-failure.mjs'
+import { emptySendError, isEmptySend, shouldAutoResend } from '~/utils/send-failure.mjs'
 import {
   addChannelRow,
   belongsTo,
@@ -282,6 +282,11 @@ export const useChannelStore = defineStore('channel', () => {
       to: peer.value ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),
     }
     if (active.value) frame.channel = active.value
+    /* CLE-3433: `@CLE-00` alone parses to a task frame with an EMPTY body.
+       The composer cannot catch it - it only sees the text before the
+       mention is stripped - so the refusal lives here, where the real
+       payload is known. An empty row reads exactly like a lost one. */
+    if (isEmptySend(frame.body, frame.files)) throw emptySendError()
     /* 013 US7 FR-013: our card shows at once under the msg_id we send; echo / ack replace it */
     frame.msg_id = newId() || undefined
     const channelNow = active.value

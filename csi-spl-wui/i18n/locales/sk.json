@@ -320,7 +320,8 @@
     "send_failed": "Neodoslané — správa sa nedostala do hubu.",
     "send_failed_closed": "Neodoslané — spojenie sa prerušilo. Váš text tu zostal.",
     "send_failed_timeout": "Neodoslané — hub neodpovedal včas. Váš text tu zostal.",
-    "send_retry": "Skúsiť znova"
+    "send_retry": "Skúsiť znova",
+    "send_failed_empty": "Nie je čo odoslať — samotná zmienka nie je správa. Pridajte text alebo priložte súbor."
   },
   "feed": {
     "unknown_author": "neznámy",

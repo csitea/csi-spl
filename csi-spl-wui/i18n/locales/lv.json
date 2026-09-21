@@ -320,7 +320,8 @@
     "send_failed": "Nav nosūtīts — ziņa nesasniedza hub.",
     "send_failed_closed": "Nav nosūtīts — savienojums pārtrūka. Jūsu teksts ir saglabāts.",
     "send_failed_timeout": "Nav nosūtīts — hub neatbildēja laikus. Jūsu teksts ir saglabāts.",
-    "send_retry": "Mēģināt vēlreiz"
+    "send_retry": "Mēģināt vēlreiz",
+    "send_failed_empty": "Nav ko sūtīt — tikai pieminējums nav ziņa. Pievienojiet tekstu vai pievienojiet failu."
   },
   "feed": {
     "unknown_author": "nezināms",

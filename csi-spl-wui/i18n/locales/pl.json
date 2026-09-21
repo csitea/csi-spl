@@ -320,7 +320,8 @@
     "send_failed": "Nie wysłano — wiadomość nie dotarła do huba.",
     "send_failed_closed": "Nie wysłano — połączenie zostało przerwane. Twój tekst jest nadal tutaj.",
     "send_failed_timeout": "Nie wysłano — hub nie odpowiedział na czas. Twój tekst jest nadal tutaj.",
-    "send_retry": "Spróbuj ponownie"
+    "send_retry": "Spróbuj ponownie",
+    "send_failed_empty": "Nie ma czego wysłać — samo wspomnienie to nie wiadomość. Dodaj tekst lub załącz plik."
   },
   "feed": {
     "unknown_author": "nieznany",

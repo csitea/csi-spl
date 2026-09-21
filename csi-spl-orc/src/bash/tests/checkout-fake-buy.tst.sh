@@ -62,17 +62,49 @@ for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U spool -d spool_hub 
 DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
 "$BIN" migrate --db "$DSN" --sql-dir "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub" >/dev/null || { fail "migrate"; exit 1; }
 
-serve() { # <port> <fake:true|false> <log>
+serve() { # <label> <fake:true|false> <log>
   mkdir -p "$T/files-$1"
+  # LISTEN_ADDR :0 -- the kernel picks, and the hub logs the port it bound
+  # (cmd/spool/hub.go logs ln.Addr() AFTER net.Listen returns, so that line is
+  # proof of a bound socket). The old form drew a port out of 30000..44999 and
+  # took the next one for the second hub: that range overlaps the Linux
+  # ephemeral range 32768..60999, where the kernel hands out the source port of
+  # every outbound connection, and "the next one" was never checked at all.
   SPOOL_HUB_ENV=lde SPOOL_HUB_DB_DSN="$DSN" SPOOL_HUB_FILES_DIR="$T/files-$1" SPOOL_HUB_TENANT_HOST_PATTERN='{tenant}.lde.localhost' \
-    SPOOL_HUB_LISTEN_ADDR="127.0.0.1:$1" SPOOL_HUB_ENABLE_FAKE_PAY="$2" SPOOL_HUB_PAYMENT_PLAN_CENTS=2000 \
+    SPOOL_HUB_LISTEN_ADDR="127.0.0.1:0" SPOOL_HUB_ENABLE_FAKE_PAY="$2" SPOOL_HUB_PAYMENT_PLAN_CENTS=2000 \
     SPOOL_HUB_PAYMENT_PUBLIC_SCHEME=http SPOOL_HUB_PAYMENT_CLAIM_URL=http://localhost:3000/checkout/claim \
     SPOOL_HUB_MAIL_TRANSPORT=log "$BIN" serve >"$3" 2>&1 &
 }
-P1=$((30000 + RANDOM % 15000)); P2=$((P1 + 1))
-serve "$P1" true "$T/hub.log"; HUB_PID=$!
-serve "$P2" false "$T/hub2.log"; HUB2_PID=$!
-for p in "$P1" "$P2"; do for _ in $(seq 1 50); do curl -fs "127.0.0.1:$p/healthz" >/dev/null && break; sleep 0.2; done; done
+hub_port() { # <log> -> the port the hub bound, or "" until it says
+  sed -n 's/.*"addr":"127\.0\.0\.1:\([0-9][0-9]*\)".*"message":"hub listening".*/\1/p' "$1" 2>/dev/null | tail -1
+}
+# Echoes the port on stdout; every diagnostic goes to stderr, because the
+# caller reads this through $( ) -- and returns non-zero rather than exiting,
+# because an exit inside $( ) kills only the substitution and would leave the
+# port empty with the script still running.
+wait_hub() { # <log> <pid> -> echoes the port; non-zero if the hub is not up
+  local port=""
+  for _ in $(seq 1 100); do
+    port="$(hub_port "$1")"
+    [ -n "$port" ] && break
+    kill -0 "$2" 2>/dev/null || break
+    sleep 0.1
+  done
+  if [ -z "$port" ]; then
+    { echo "FAIL: hub never logged a listening address ($1)"; tail -5 "$1"; } >&2
+    return 1
+  fi
+  for _ in $(seq 1 50); do
+    curl -fs --max-time 2 "127.0.0.1:$port/healthz" >/dev/null && { echo "$port"; return 0; }
+    sleep 0.2
+  done
+  { echo "FAIL: hub on 127.0.0.1:$port did not answer /healthz ($1)"; tail -5 "$1"; } >&2
+  return 1
+}
+serve pay   true  "$T/hub.log";  HUB_PID=$!
+serve nopay false "$T/hub2.log"; HUB2_PID=$!
+P1="$(wait_hub "$T/hub.log"  "$HUB_PID")"  || { fail "fake-pay hub did not come up"; exit 1; }
+P2="$(wait_hub "$T/hub2.log" "$HUB2_PID")" || { fail "no-fake-pay hub did not come up"; exit 1; }
 
 in_orc ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com BASE_URL="http://127.0.0.1:$P2" DRY_RUN=0 >/dev/null 2>"$T/off.err" \
   && fail "CONTROL a hub with fake-pay off was not refused" \

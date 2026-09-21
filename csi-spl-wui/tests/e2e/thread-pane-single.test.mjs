@@ -27,6 +27,7 @@
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
+import { applyViewport, setPageViewport, CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const OUT = process.env.OUT || ''
@@ -49,7 +50,8 @@ async function launch() {
       return puppeteer.launch({
         executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
         headless: true,
-        args: ['--no-sandbox'],
+        defaultViewport: null,
+        args: CHROME_LAUNCH_ARGS,
       })
     } catch { /* try the next spec */ }
   }
@@ -104,9 +106,10 @@ try {
   page.setDefaultNavigationTimeout(NAV_TIMEOUT)
 
   for (const vp of [{ name: 'desktop 1280x800', width: 1280, height: 800 }, { name: 'mobile 390x844', width: 390, height: 844 }]) {
-    await page.setViewport({ width: vp.width, height: vp.height })
+    await setPageViewport(page, vp)
     await page.goto(`${srv.base}/channel/lobby`, { waitUntil: 'networkidle2' })
     await page.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
+    await applyViewport(page, vp)
     await sleep(1200)
 
     const seen = []

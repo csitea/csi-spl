@@ -18,6 +18,14 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { freePort, startServer } from './lib/server.mjs'
+import {
+  applyViewport,
+  applyViewportCdp,
+  setPageViewport,
+  setPageViewportCdp,
+  CHROME_LAUNCH_ARGS,
+  isViewportHarnessError,
+} from './lib/viewport.mjs'
 
 const CHROME = process.env.CHROME_PATH ?? '/usr/bin/google-chrome'
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 30000)
@@ -272,12 +280,10 @@ async function launchChrome() {
     CHROME,
     [
       '--headless=new',
-      '--no-sandbox',
-      '--disable-gpu',
-      '--disable-dev-shm-usage',
       '--disable-extensions',
       `--remote-debugging-port=${port}`,
       `--user-data-dir=${dir}`,
+      ...CHROME_LAUNCH_ARGS,
       'about:blank',
     ],
     { stdio: ['ignore', 'pipe', 'pipe'] },
@@ -339,12 +345,7 @@ async function launchChrome() {
 async function measureCdp(chrome, vp, route, url) {
   const page = await chrome.newPage()
   try {
-    await page.cdp.send('Emulation.setDeviceMetricsOverride', {
-      width: vp.width,
-      height: vp.height,
-      deviceScaleFactor: 1,
-      mobile: vp.width < 800,
-    })
+    await setPageViewportCdp(page.cdp, vp)
     const nav = page.cdp.send('Page.navigate', { url })
     const loaded = new Promise((resolve) => {
       page.cdp.on('Page.loadEventFired', resolve)
@@ -376,6 +377,7 @@ async function measureCdp(chrome, vp, route, url) {
     if (!metrics?.ready) {
       throw new Error(`selector ${route.wait} not found at ${metrics?.href || url}`)
     }
+    await applyViewportCdp(page.cdp, vp)
     await new Promise((r) => setTimeout(r, 150))
     const ev = await page.cdp.send('Runtime.evaluate', {
       expression: `(() => {
@@ -393,16 +395,11 @@ async function measureCdp(chrome, vp, route, url) {
 async function measurePuppeteer(browser, vp, route, url) {
   const page = await browser.newPage()
   try {
-    await page.setViewport({
-      width: vp.width,
-      height: vp.height,
-      deviceScaleFactor: 1,
-      isMobile: vp.width < 800,
-      hasTouch: vp.width < 800,
-    })
+    await setPageViewport(page, vp)
     const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })
     if (!resp) throw new Error('no response')
     await page.waitForSelector(route.wait, { timeout: NAV_TIMEOUT })
+    await applyViewport(page, vp)
     await new Promise((r) => setTimeout(r, 150))
     return page.evaluate(() => {
       const root = document.scrollingElement || document.documentElement
@@ -435,7 +432,8 @@ function assertNoX(name, dims) {
       browser = await puppeteer.launch({
         executablePath: CHROME,
         headless: true,
-        args: ['--no-sandbox', '--disable-dev-shm-usage'],
+        defaultViewport: null,
+        args: CHROME_LAUNCH_ARGS,
       })
     } else {
       chrome = await launchChrome()
@@ -450,6 +448,7 @@ function assertNoX(name, dims) {
             : await measureCdp(chrome, vp, route, url)
           assertNoX(label, dims)
         } catch (e) {
+          if (isViewportHarnessError(e)) throw e
           fail(label, e.message)
         }
       }
@@ -465,6 +464,7 @@ function assertNoX(name, dims) {
             : await measureCdp(chrome, narrow, route, `${server.base}${route.path}`)
           assertNoX(label, dims)
         } catch (e) {
+          if (isViewportHarnessError(e)) throw e
           fail(label, e.message)
         }
       }

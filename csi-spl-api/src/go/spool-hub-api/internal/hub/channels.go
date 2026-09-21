@@ -270,6 +270,8 @@ func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "channel not stored")
 	default:
+		/* CLE-3425: every other session's sidebar learns about it at once */
+		s.fanoutChannel(r.Context(), t.ID, c)
 		writeJSON(w, http.StatusCreated, map[string]any{"channel": c.ChannelID, "name": c.Name,
 			"created_by": c.CreatedBy, "created_at": rfc(c.CreatedAt), "default": false})
 	}

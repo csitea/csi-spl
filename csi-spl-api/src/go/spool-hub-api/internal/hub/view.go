@@ -216,8 +216,27 @@ func (s *Server) viewHumans(r *http.Request, tenant string) ([]viewHuman, error)
 		}
 		out = append(out, v)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].HumanID < out[j].HumanID })
+	/* CLE-3425: newest member first, by the HUM-<n> the hub hands out in order
+	   (so HUM-10 before HUM-2, which a plain string sort gets backwards). */
+	sort.Slice(out, func(i, j int) bool { return humNumber(out[i].HumanID) > humNumber(out[j].HumanID) })
 	return out, nil
+}
+
+// humNumber is the <n> of a HUM-<n> member id; 0 for anything else (a 010 id
+// such as HUM-google-sub-1@t1 keeps a stable a-z position at the tail).
+func humNumber(id string) int {
+	rest, ok := strings.CutPrefix(id, "HUM-")
+	if !ok {
+		return 0
+	}
+	n := 0
+	for _, r := range rest {
+		if r < '0' || r > '9' {
+			return 0
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n
 }
 
 // handleViewChannels is view-v1 §4.2 / channels-v1 §5.2: every default,
@@ -250,6 +269,7 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 		Default       bool    `json:"default"`
 		RetentionDays int     `json:"retention_days"`
 		CreatedBy     string  `json:"created_by"`
+		CreatedAt     *string `json:"created_at"`
 		Count         int     `json:"count"`
 		LastTS        *string `json:"last_ts"`
 		LastCursor    *string `json:"last_cursor"`
@@ -264,6 +284,13 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 		if !c.LastAt.IsZero() {
 			ts, cur := rfc(c.LastAt), encCursor(c.LastAt, c.LastMsgID)
 			v.LastTS, v.LastCursor = &ts, &cur
+		}
+		/* CLE-3425: a channel created seconds ago has no message yet, and the
+		   client ranks it by this. Rows arrive newest activity first (the store
+		   sorts them); created_at is what makes an EMPTY new channel rank. */
+		if !c.CreatedAt.IsZero() {
+			at := rfc(c.CreatedAt)
+			v.CreatedAt = &at
 		}
 		out = append(out, v)
 	}

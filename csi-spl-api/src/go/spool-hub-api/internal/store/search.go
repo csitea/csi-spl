@@ -255,14 +255,32 @@ func (s *Memory) TenantHumans(_ context.Context, tenant string) ([]HumanEntry, e
 	return out, nil
 }
 
-// sortHumans orders by the HUM-* number (HUM-2 before HUM-10).
+// sortHumans orders NEWEST member first (CLE-3425: every listing is newest
+// first), by the HUM-<n> the hub hands out in order - so HUM-10 before HUM-2,
+// which is also why this counts digits instead of comparing strings.
 func sortHumans(hs []HumanEntry) {
+	/* 0 for anything that is not a HUM-<digits> (a 010 id such as
+	   HUM-google-sub-1@t1): those keep a stable a-z tail instead of being
+	   ranked by the character codes of their text, which is what counting
+	   without this guard did. */
 	num := func(id string) int {
+		rest, ok := strings.CutPrefix(id, "HUM-")
+		if !ok {
+			return 0
+		}
 		n := 0
-		for _, r := range strings.TrimPrefix(id, "HUM-") {
+		for _, r := range rest {
+			if r < '0' || r > '9' {
+				return 0
+			}
 			n = n*10 + int(r-'0')
 		}
 		return n
 	}
-	sort.Slice(hs, func(i, j int) bool { return num(hs[i].HumanID) < num(hs[j].HumanID) })
+	sort.Slice(hs, func(i, j int) bool {
+		if num(hs[i].HumanID) != num(hs[j].HumanID) {
+			return num(hs[i].HumanID) > num(hs[j].HumanID)
+		}
+		return hs[i].HumanID < hs[j].HumanID
+	})
 }

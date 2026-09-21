@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"regexp"
+	"sort"
 	"time"
 )
 
@@ -71,6 +72,30 @@ type ChannelStat struct {
 	Agents    int // subscribed (agent, box) pairs; lobby: every announced agent
 	Boxes     int // distinct boxes of those agents
 	Posters   int // distinct from ids in retention
+}
+
+// ChannelActivity is when a channel last changed: its newest message, else the
+// moment it was created. A channel nobody has posted in yet is still new, so a
+// channel created seconds ago outranks one that has been quiet for a week.
+func ChannelActivity(st ChannelStat) time.Time {
+	if st.LastAt.After(st.CreatedAt) {
+		return st.LastAt
+	}
+	return st.CreatedAt
+}
+
+// SortChannelStats orders newest activity first (CLE-3425: the WUI sidebar, and
+// any other client, renders the answer in the order it arrives). Channels
+// nothing is known about - a default channel of a fresh tenant - keep a stable
+// a-z tail, and a-z also breaks a tie.
+func SortChannelStats(out []ChannelStat) {
+	sort.Slice(out, func(i, j int) bool {
+		a, b := ChannelActivity(out[i]), ChannelActivity(out[j])
+		if !a.Equal(b) {
+			return a.After(b)
+		}
+		return out[i].ChannelID < out[j].ChannelID
+	})
 }
 
 // Channels is the store side of channels-v1. Memory and Postgres implement it.

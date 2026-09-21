@@ -92,6 +92,7 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 | `message` | `task_id`, `cursor`, `received_at`, `envelope`, `env`, `channel?`, `parent_task_id?` | **live fan-out**: every message stored for a subscribed `task_id`, a subscribed `channel`, a subscribed DM `peer`, or under `all` in this tenant (once per socket when several match) — from a browser, a box agent, or the hub — pushed to **every** subscribed socket (the sender's own included). `env` = the stored envelope `{from_box,to_box,msg,sig}` byte-for-byte, the same element shape as `view-v1` §4.4 (`msg` is the v:1 object); `envelope` = that v:1 object alone. `cursor` is the stored row's cursor (the same value as the sender's `ack` and as `view-v1`), so a client advances its read cursor from it. `channel` is the stored channel (absent for a DM), `parent_task_id` the hub-envelope link (absent for a root). For the sender, its own `message` echo arrives **before** its `ack` |
 | `ack` | `msg_id`, `task_id`, `cursor`, `received_at` | after a `send` is stored |
 | `presence` | `peer`, `status` | `peer` = `<agent>@<box>` (`CLE-07@box-a`) or `<HUM-n>@box-wui`; `status` ∈ `online`, `offline`. Pushed to every browser socket of the tenant when a `role=box` session is accepted (each announced agent `online`), closes (`offline`; a superseded socket emits nothing), or re-announces (the difference), and when a human's **first** browser socket opens / **last** one closes. Right after `welcome` the hub sends one `online` frame per peer online at that moment (snapshot; a live frame of another socket may interleave, so treat presence as last-writer-wins per peer) (`./channels-v1.md` §6) |
+| `channel` | `channel`, `name`, `created_by`, `created_at` | **v0.6** (CLE-3425): a channel was created in this tenant (`POST /v1/channels`, `./channels-v1.md` §5.1). Pushed to **every** browser socket of the tenant — no subscription, because a fresh channel holds no message, so the `message` fan-out cannot carry it and a sidebar would otherwise learn of it only on a reload or a reconnect. It says nothing a member cannot read from `GET /v1/view/channels`. Test: `TestWUIChannelFrameOnCreate` (with the CONTROL that a socket of another tenant gets nothing) |
 | `error` | `error`, `status`, `detail`, `msg_id?` | stable token (`./error-envelope.md`); socket stays open |
 
 Browser -> hub `{"type":"token"}` asks for a fresh upload token.
@@ -175,4 +176,4 @@ list (first page), merged by `task_id` (v0.5).
 `missing_file`, `conflict_msg`, `unpaid`, `quota`, `view_door`,
 `unknown_tenant`.
 
-<!-- version: 0.5.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:05:00Z -->
+<!-- version: 0.6.0 · updated: 2026-09-21 · last-edit: 2026-09-21T07:55:00Z -->

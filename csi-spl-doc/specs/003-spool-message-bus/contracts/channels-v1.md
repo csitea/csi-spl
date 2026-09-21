@@ -137,14 +137,21 @@ control: no mention → no `deliveries` row, no `recv`), `TestHubclientChannelRe
 ```json
 { "channels": [
   { "channel": "lobby", "name": "lobby", "default": true, "retention_days": 30,
-    "created_by": "hub", "count": 12, "last_ts": "…", "last_cursor": "…",
-    "unread": 3, "members": { "agents": 4, "boxes": 2, "posters": 3 } } ] }
+    "created_by": "hub", "created_at": "…", "count": 12, "last_ts": "…",
+    "last_cursor": "…", "unread": 3,
+    "members": { "agents": 4, "boxes": 2, "posters": 3 } } ] }
 ```
 
 - Every default, every created channel, and any channel seen in stored
-  messages; sorted by `channel`. `last_ts` / `last_cursor` are `null` for an
-  empty channel. `count` / `last_*` / `unread` / `posters` see only messages
-  in retention.
+  messages, **newest activity first** (1.1.0, CLE-3425): ordered by the newest
+  of `last_ts` and `created_at`, a-z breaking a tie, so a client renders the
+  answer as it arrives. `last_ts` / `last_cursor` are `null` for an empty
+  channel, and `created_at` is then the only thing that ranks it — a channel
+  created seconds ago leads the list although nobody has posted in it yet.
+  `created_at` is `null` only for a channel the hub knows of solely from stored
+  messages. `count` / `last_*` / `unread` / `posters` see only messages in
+  retention. Tests: `TestViewChannelsNewestActivityFirst` (hub),
+  `TestSortChannelStatsNewestActivityFirst` (store).
 - `read` (repeatable) = the reader's last-read cursor per channel (a cursor
   from `./view-v1.md` §4.4). `unread` = messages after it; without one,
   `unread = count`. A cursor the hub cannot decode → `400 bad_cursor`. Read
@@ -174,4 +181,4 @@ socket of a human (`HUM-1@box-wui`); a snapshot of every online peer follows
 - **OQ-CH3** — `general` alias lifetime: (a) *recommended*: accepted until
   the next minor contract version, then `404 unknown_channel`; (b) forever.
 
-<!-- version: 1.0.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:05:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-21 · last-edit: 2026-09-21T07:55:00Z -->

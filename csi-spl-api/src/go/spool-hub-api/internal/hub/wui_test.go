@@ -45,6 +45,7 @@ type wuiFrame struct {
 	MsgID       string          `json:"msg_id"`
 	Cursor      string          `json:"cursor"`
 	Channel     string          `json:"channel"`
+	CreatedAt   string          `json:"created_at"` // CLE-3425 `channel` frames
 	Error       string          `json:"error"`
 	Envelope    json.RawMessage `json:"envelope"`
 	Env         json.RawMessage `json:"env"`

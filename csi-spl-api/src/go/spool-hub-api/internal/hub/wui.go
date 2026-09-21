@@ -583,6 +583,30 @@ func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID s
 	}
 }
 
+// fanoutChannel pushes one `channel` frame to every browser socket of the
+// tenant (CLE-3425, wui-live-ws v0.6 §3.3). A channel created in one session has
+// to appear in every other session's sidebar without a reload, and it carries no
+// message yet, so the message fan-out cannot carry it.
+//
+// Tenant-scoped and door-gated by construction: s.wui only holds sockets that
+// passed humanTenant, and the frame says nothing a member of the tenant cannot
+// read from GET /v1/view/channels.
+func (s *Server) fanoutChannel(ctx context.Context, tenant string, c store.Channel) {
+	frame := map[string]any{"type": "channel", "channel": c.ChannelID, "name": c.Name,
+		"created_by": c.CreatedBy, "created_at": rfc(c.CreatedAt)}
+	s.mu.Lock()
+	var targets []*wuiConn
+	for w := range s.wui {
+		if w.tenant == tenant {
+			targets = append(targets, w)
+		}
+	}
+	s.mu.Unlock()
+	for _, w := range targets {
+		w.write(ctx, frame) //nolint:errcheck
+	}
+}
+
 // DELETE /v1/files/{file_id}: owner-requested; needs a valid upload token of
 // the tenant (box or box-wui). 204, or 404 when absent / another tenant's.
 func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {

@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -182,6 +181,6 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 	for _, st := range by {
 		out = append(out, *st)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ChannelID < out[j].ChannelID })
+	SortChannelStats(out) // CLE-3425: newest activity first
 	return out, nil
 }

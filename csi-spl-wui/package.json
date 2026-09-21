@@ -19,6 +19,7 @@
     "test:e2e:console-errors": "node tests/e2e/console-errors.test.mjs",
     "test:e2e:csp": "node tests/e2e/csp-violations.test.mjs",
     "test:e2e:scroll-anchor": "node tests/e2e/scroll-anchor.test.mjs",
+    "test:e2e:thread-pane": "node tests/e2e/thread-pane-single.test.mjs",
     "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs"
   },
   "dependencies": {

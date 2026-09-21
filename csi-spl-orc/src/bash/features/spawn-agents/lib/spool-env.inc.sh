@@ -190,33 +190,91 @@ spool_decorate() {  # ID
 
 # The agent id a window name carries, or nothing. Accepts an optional
 # "<tag>: " in front and anything after the id ("CLE-07 > wip").
-spool_id_of_window() {  # WINDOW_NAME
-  local n="${1:-}"
-  n="$(printf '%s' "$n" | sed -E 's/^[A-Za-z0-9][A-Za-z0-9._-]*: //')"
+#
+# Fork-free on purpose (CLE-3435). spool_pane_of calls this once per live pane
+# on the terminal-delivery hot path, and the `sed` it used to run cost ~3.5 ms
+# a pane: 52 ms of the notifier's budget across the 15 panes live on the box
+# when it was measured, and that grows with the fleet. Parameter expansion
+# reads the same grammar: the stripped prefix is anchored and its character
+# class excludes both ':' and ' ', so it can only ever be the text before the
+# FIRST ": " - which is exactly ${n%%: *}.
+spool_id_of_window_var() {  # VAR WINDOW_NAME
+  local n="${2:-}" pre
+  case "$n" in
+    *": "*) pre="${n%%: *}"
+            [[ "$pre" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && n="${n#*: }" ;;
+  esac
   n="${n%% *}"
-  [[ "$n" =~ $SPOOL_ID_RE ]] && printf '%s' "$n"
+  [[ "$n" =~ $SPOOL_ID_RE ]] || n=""
+  printf -v "$1" '%s' "$n"
+}
+
+# The printing wrapper, for callers that read it once. On the hot path use the
+# _var form: `$(spool_id_of_window ...)` forks a subshell per call, which is
+# the very cost the parameter expansion above exists to remove.
+spool_id_of_window() {  # WINDOW_NAME
+  local _idw
+  spool_id_of_window_var _idw "${1:-}"
+  printf '%s' "$_idw"
   return 0
 }
 
 # The live pane of an agent: registry rows newest-first whose pane still
 # exists AND whose window still carries the id, else the first live window
-# named for the id. Prints the pane id (%NN) or nothing.
-spool_pane_of() {  # ID
-  local id="$1" reg="$SPOOL_ROOT/registry.tsv" pane live p w
+# named for the id. Puts the pane id (%NN), or '', in VAR, and that pane's tty
+# in SPOOL_PANE_TTY.
+#
+# One tmux round trip and one id parse per live pane (CLE-3435). It used to
+# re-scan the whole pane list - id-parsing every row again - once per registry
+# row of the id, so it paid R x P parses where P is enough; with a `sed` per
+# parse that was 110 ms of a 190 ms notifier.
+#
+# The _var form exists because the caller on the hot path is the notifier, and
+# `pane="$(spool_pane_of "$to")"` is a subshell: it forks, and it drops
+# SPOOL_PANE_TTY on the floor, so the poke then paid a `display-message` round
+# trip to re-learn a tty this function already had.
+spool_pane_of_var() {  # VAR ID
+  local __pv="$1" id="$2" reg="$SPOOL_ROOT/registry.tsv" p tty w rid i
+  local -a order=() regrows=()
+  local -A pid=() ptty=()
+  SPOOL_PANE_TTY=""
+  printf -v "$__pv" '%s' ""
   spool_tmux_argv
-  live="$("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id}	#{window_name}' 2>/dev/null || true)"
-  [ -n "$live" ] || return 0
+  while IFS=$'\t' read -r p tty w; do
+    [ -n "$p" ] || continue
+    order+=("$p")
+    spool_id_of_window_var rid "$w"
+    pid["$p"]="$rid"
+    ptty["$p"]="$tty"
+  done < <("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id}	#{pane_tty}	#{window_name}' 2>/dev/null || true)
+  [ "${#order[@]}" -gt 0 ] || return 0
+
+  # The registry appends, so its rows for an id are oldest-first: walk back.
   if [ -r "$reg" ]; then
-    while IFS= read -r pane; do
-      [ -n "$pane" ] || continue
-      while IFS=$'\t' read -r p w; do
-        if [ "$p" = "$pane" ] && [ "$(spool_id_of_window "$w")" = "$id" ]; then
-          printf '%s' "$pane"; return 0
-        fi
-      done <<<"$live"
-    done < <(awk -F'\t' -v id="$id" '$1 == id { print $3 }' "$reg" | tac)
+    while IFS=$'\t' read -r rid _ p _; do
+      [ "$rid" = "$id" ] && regrows+=("$p")
+    done < "$reg"
+    for (( i=${#regrows[@]}-1; i>=0; i-- )); do
+      p="${regrows[$i]}"
+      if [ -n "$p" ] && [ "${pid[$p]:-}" = "$id" ]; then
+        SPOOL_PANE_TTY="${ptty[$p]}"
+        printf -v "$__pv" '%s' "$p"; return 0
+      fi
+    done
   fi
-  while IFS=$'\t' read -r p w; do
-    if [ "$(spool_id_of_window "$w")" = "$id" ]; then printf '%s' "$p"; return 0; fi
-  done <<<"$live"
+  for p in "${order[@]}"; do
+    if [ "${pid[$p]}" = "$id" ]; then
+      SPOOL_PANE_TTY="${ptty[$p]}"
+      printf -v "$__pv" '%s' "$p"; return 0
+    fi
+  done
+}
+
+# The printing wrapper, for callers that only want the pane id. A command
+# substitution round it cannot carry SPOOL_PANE_TTY back out.
+spool_pane_of() {  # ID
+  local _pane
+  spool_pane_of_var _pane "$1"
+  printf '%s' "$_pane"
+  return 0
 }

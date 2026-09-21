@@ -81,6 +81,37 @@ bash "$SN" --to CLE-97 --body x >/dev/null;  eq "unsent typed text: refused, exi
 bash "$SN" --to CLE-91 --body 'second message' >/dev/null
 eq "a pane holding an earlier poke is poked again" 0 "$?"
 
+# ---- the hot path stays cheap (CLE-3435) ----------------------------------
+# The notifier is the last hop of a <300 ms delivery budget, and its cost used
+# to grow with the size of the fleet: spool_pane_of forked a `sed` for every
+# live pane, once per registry row of the id. These pin the two properties
+# that removed it, so a later edit cannot quietly put the forks back.
+
+# spool_id_of_window_var is the fork-free form; the printing wrapper must
+# agree with it on every name shape the window list can hold.
+for _n in 'CLE-07' 'CLE-07 > wip' 'box: CLE-07' 'box: CLE-07 > wip' \
+          'bash' '' 'a b: CLE-07' 'BOX-1' 'cle-7'; do
+  spool_id_of_window_var _v "$_n"
+  eq "id_of_window agrees with its _var form on '${_n}'" "$(spool_id_of_window "$_n")" "$_v"
+done
+eq "a tag prefix is stripped"        CLE-07 "$(spool_id_of_window 'box: CLE-07 > wip')"
+eq "a prefix with a space is not"    ""     "$(spool_id_of_window 'a b: CLE-07')"
+
+# spool_pane_of must hand back the pane's tty from the SAME tmux call, so the
+# poke needs no second round trip to learn it.
+SPOOL_PANE_TTY=sentinel
+spool_pane_of_var _p CLE-91
+eq "spool_pane_of finds the registered pane" "$P91" "$_p"
+case "$SPOOL_PANE_TTY" in
+  /dev/*) ok "…and caches that pane's tty for the poke" ;;
+  *) nok "…and caches that pane's tty for the poke (got '${SPOOL_PANE_TTY}')" ;;
+esac
+SPOOL_PANE_TTY=sentinel
+spool_pane_of_var _p CLE-95
+eq "no pane for an unknown id" "" "$_p"
+eq "…and the printing wrapper agrees" "" "$(spool_pane_of CLE-95)"
+eq "…and no stale tty is left behind" "" "$SPOOL_PANE_TTY"
+
 # ---- usage ----------------------------------------------------------------
 bash "$SN" --body x >/dev/null 2>&1;             eq "no --to: exit 2" 2 "$?"
 bash "$SN" --to BOX-1 --body x >/dev/null 2>&1;  eq "BOX recipient: exit 2" 2 "$?"

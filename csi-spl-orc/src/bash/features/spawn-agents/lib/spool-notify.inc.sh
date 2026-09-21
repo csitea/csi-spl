@@ -11,6 +11,8 @@
 #
 #   SPOOL_NOTIFY_BODY_MAX   body excerpt cut, in characters   default 600
 #   SPOOL_NOTIFY_LINE_MAX   whole-line backstop cut           default 1200
+#   SPOOL_NOTIFY_ENTER_DELAY  seconds between typing the line and Enter,
+#                           the TUI's paste debounce             default 0.3
 
 # ── sanitising ──────────────────────────────────────────────────────────────
 # TEXT -> one line that is safe inside a single-quoted shell argument and
@@ -58,7 +60,8 @@ spool_notify_render() {  # VAR TO KIND FROM TASK MSGID BODY
 spool_notify_poke() {  # TO LINE
   local to="$1" line="$2" pane pane_tty tty_cmds last typed esc=$'\033'
 
-  pane="$(spool_pane_of "$to")"
+  # _var, not $( ): the subshell would fork and would lose SPOOL_PANE_TTY.
+  spool_pane_of_var pane "$to"
   if [ -z "$pane" ]; then
     echo "poke: none - no live window carries ${to}; the message waits in ${SPOOL_ROOT}/${to}/inbox/"
     return 5
@@ -71,7 +74,13 @@ spool_notify_poke() {  # TO LINE
   # and sudo runs the CLI on its OWN pty, so a live agent's pane tty shows just
   # "bash sudo" (measured in the 4444 dogfood: every poke to a live agent was
   # skipped while sudo was on this list).
-  pane_tty="$("${SPOOL_TM[@]}" display-message -p -t "$pane" '#{pane_tty}' 2>/dev/null || true)"
+  #
+  # spool_pane_of asked tmux for this pane's tty in the SAME list-panes -F it
+  # used to find the pane, so the tmux round trip a `display-message -p
+  # '#{pane_tty}'` costs here is already paid (CLE-3435); it is only asked for
+  # when a caller resolved the pane some other way.
+  pane_tty="${SPOOL_PANE_TTY:-}"
+  [ -n "$pane_tty" ] || pane_tty="$("${SPOOL_TM[@]}" display-message -p -t "$pane" '#{pane_tty}' 2>/dev/null || true)"
   if [ -n "$pane_tty" ]; then
     tty_cmds="$(ps -t "${pane_tty#/dev/}" -o comm= 2>/dev/null | sort -u | tr '\n' ' ')"
     if [ -n "$tty_cmds" ] && ! printf '%s\n' $tty_cmds | grep -qvxE 'bash|sh|zsh|dash|login'; then
@@ -92,8 +101,13 @@ spool_notify_poke() {  # TO LINE
     return 6
   fi
 
+  # The line lands on the agent's SCREEN with this call: that is the instant
+  # the delivery+visible budget is measured to (CLE-3435). The gap that
+  # follows is the TUI's paste debounce, not visibility - submit too early
+  # and the CLI reads a half-typed line - so it is bounded and tunable
+  # rather than removed, and it is deliberately NOT part of the number.
   "${SPOOL_TM[@]}" send-keys -t "$pane" -l "$line" \
-    && sleep 0.3 \
+    && sleep "${SPOOL_NOTIFY_ENTER_DELAY:-0.3}" \
     && "${SPOOL_TM[@]}" send-keys -t "$pane" Enter
   echo "poke: ${pane} (${to})"
   return 0

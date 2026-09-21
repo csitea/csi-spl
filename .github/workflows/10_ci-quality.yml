@@ -11,7 +11,8 @@ name: "10 ci: quality gate"
 #
 # NO `pull_request:` trigger: trunk-based repo, no pull requests.
 #
-# The WUI (csi-spl-wui) has its own job below: unit tests + typecheck.
+# The WUI (csi-spl-wui) has two jobs below: unit tests + typecheck, and
+# browser e2e (016 T021) against a generated mock-tenant bundle.
 # iac-suite, orc-suite and cnf-suite (016 T003-T005) run the bash suites of
 # csi-spl-iac, csi-spl-orc and csi-spl-cnf; none of them holds a GCP identity.
 
@@ -73,8 +74,8 @@ jobs:
   # ===========================================================================
   # The WUI suite: csi-spl-wui unit tests (node --test) and nuxt typecheck.
   # pnpm comes from package.json packageManager; the lockfile is frozen so a
-  # drifted lockfile fails here instead of resolving silently. The e2e
-  # no-x-scroll check needs a browser and is not run here.
+  # drifted lockfile fails here instead of resolving silently. Browser e2e
+  # (no-x-scroll, console-errors, thread-pane) is the wui-e2e job below.
   # ===========================================================================
   wui-suite:
     name: "wui: unit tests + typecheck"
@@ -106,6 +107,121 @@ jobs:
 
       - name: Typecheck
         run: pnpm run typecheck
+
+
+  # ===========================================================================
+  # The WUI browser suite (016 T021): no-x-scroll, console-errors, and the
+  # 1..1 thread-pane gate, against a generated mock-tenant bundle served the
+  # way Firebase Hosting does (serve-generated.mjs SPA fallback). Chrome is
+  # the runner's google-chrome; missing Chrome is a failure, never a skip.
+  # BASE_URL points at that local server so the tests drive THIS commit, not
+  # a live hub and not nuxi dev.
+  #
+  # Left out (need a live hub, credentials, or Hosting CSP headers):
+  #   pnpm test:live              live-interop — HUB_URL / two sockets
+  #   pnpm test:e2e:csp           Hosting CSP from firebase.json render
+  #   pnpm test:e2e:rounded       visual, not in the T021 pick
+  #   pnpm test:e2e:scroll-anchor same
+  #   tests/e2e/*.proof.mjs       live sites or credentials
+  # ===========================================================================
+  wui-e2e:
+    name: "wui: browser e2e (mock, generated)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: csi-spl-wui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: csi-spl-wui/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: csi-spl-wui/pnpm-lock.yaml
+
+      - name: pnpm install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Chrome is on the runner (a skip is a failure)
+        run: |
+          set -euo pipefail
+          if [[ -x /usr/bin/google-chrome ]]; then
+            chrome=/usr/bin/google-chrome
+          elif [[ -x /usr/bin/google-chrome-stable ]]; then
+            chrome=/usr/bin/google-chrome-stable
+          else
+            echo "::error::no google-chrome on the runner — this job proved nothing"
+            exit 1
+          fi
+          echo "CHROME_PATH=$chrome" >> "$GITHUB_ENV"
+          "$chrome" --version
+
+      - name: nuxt generate (mock tenant)
+        env:
+          NUXT_PUBLIC_USE_MOCK: "1"
+          NUXT_PUBLIC_DEFAULT_LOCALE: "en"
+        run: pnpm run generate
+
+      - name: Browser e2e (no-x-scroll, console-errors, thread-pane)
+        env:
+          CI: "1"
+        run: |
+          set -euo pipefail
+          : "${CHROME_PATH:?CHROME_PATH unset}"
+          # Signed-out 401 on GET /api/v1/auth/session (auth-v1 §4). Without
+          # this, serve-generated.mjs would SPA-fallback those URLs to HTML
+          # and the console-errors gate would see a JSON parse error.
+          python3 - <<'PY' >"$RUNNER_TEMP/wui-e2e-api.log" 2>&1 &
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+          class H(BaseHTTPRequestHandler):
+              def _send(self, code, body):
+                  self.send_response(code)
+                  self.send_header("Content-Type", "application/json")
+                  self.send_header("Access-Control-Allow-Origin", "*")
+                  self.end_headers()
+                  self.wfile.write(body)
+              def do_GET(self):
+                  p = self.path.split("?")[0]
+                  if p == "/api/v1/auth/session":
+                      return self._send(401, b'{"error":"unauthenticated"}')
+                  if p == "/api/v1/auth/providers":
+                      return self._send(200, b'{"native":false,"providers":[]}')
+                  self._send(404, b'{"error":"not_found"}')
+              def do_OPTIONS(self):
+                  self.send_response(204)
+                  self.send_header("Access-Control-Allow-Origin", "*")
+                  self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+                  self.send_header("Access-Control-Allow-Headers", "*")
+                  self.end_headers()
+              def log_message(self, *a):
+                  pass
+          HTTPServer(("127.0.0.1", 4174), H).serve_forever()
+          PY
+          api_pid=$!
+          node src/node/test/serve-generated.mjs --port 4173 --api http://127.0.0.1:4174 \
+            >"$RUNNER_TEMP/wui-e2e-serve.log" 2>&1 &
+          serve_pid=$!
+          cleanup() { kill "$api_pid" "$serve_pid" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for i in $(seq 1 40); do
+            if curl -fsS -o /dev/null http://127.0.0.1:4173/login; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS -o /dev/null http://127.0.0.1:4173/login \
+            || { echo "::error::generated bundle not serving on :4173"; cat "$RUNNER_TEMP/wui-e2e-serve.log"; exit 1; }
+          export BASE_URL=http://127.0.0.1:4173
+          pnpm run test:e2e
+          pnpm run test:e2e:console-errors
+          pnpm run test:e2e:thread-pane
 
   # ===========================================================================
   # The IAC suite (016 T003): csi-spl-iac/src/bash/tests/run-all-tests.sh --

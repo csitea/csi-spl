@@ -132,10 +132,12 @@ lobby 03:04:50Z, the other two idle.
 - [x] T030 Implemented (`de64134`) — search rows carry the clock their group is
   ordered by (`search.mjs` `rowAt`, `data-key` + `data-ts` on every row), the
   last list whose rendered order could not be read off the page.
-- [x] T031 Proven — SC-006 extended, live on dev, **12/12 PASS**, build
-  `3a473a7` + hub 0.1.17 (`/var/tmp/CLE-3425-proof/after-dev-3`; the run before
-  it, `after-dev-2`, passed the same 11 checks and failed only the script's own
-  vacuous-group bug, fixed in the same commit as this line):
+- [x] T031 Proven — SC-006 extended, live on dev, **12/12 PASS**, WUI build
+  `f450bd9` (`git merge-base --is-ancestor 3a473a7 f450bd9` → exit 0, so it
+  carries every commit of this lane) + hub 0.1.17
+  (`/var/tmp/CLE-3425-proof/after-dev-3`; the run before it, `after-dev-2`,
+  passed the same 11 checks and failed only the script's own vacuous-group bug,
+  fixed in the same commit as this line):
   `BASE=https://dev.<domain> EMAIL=<t1 test member> PW_FILE=<0600> OUT=<dir> node tests/e2e/list-order-live.proof.mjs`.
   Two signed-in sessions A and B. ORDER (read off `data-ts`, which must never
   increase down a list): thread list 50 rows, lobby feed 33, `#lobby` thread

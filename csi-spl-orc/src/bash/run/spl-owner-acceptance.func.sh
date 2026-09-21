@@ -104,13 +104,19 @@ do_spl_owner_acceptance() {
 
   do_log "INFO owner acceptance on $ENV/$tenant: $email -> $agent@$box, thread $thread, evidence $out"
   local rc=0
-  ( cd "$APP_PATH/$SPL_ORG_APP-wui" &&
-    BASE="$wui" EMAIL="$email" PW_FILE="$pwf" PEER="$agent@$box" OWNER_THREAD="$thread" \
-    OUT="$out" TENANT="$tenant" CHROME_PATH="$chrome" ${pc:+PUPPETEER_CORE="$pc"} \
-    PANE_CMD="$pane_cmd" REPLY_CMD="$reply_cmd" \
-    CASE_PAUSE_MS="${OA_CASE_PAUSE_MS:-4000}" LIMIT_MS="${OA_LIMIT_MS:-1500}" \
-    PANE_TIMEOUT="${OA_PANE_TIMEOUT:-45}" POST_RESULTS="${OA_POST_RESULTS:-1}" \
-    node "$proof_js" ) || rc=$?
+  # `env`, not an assignment prefix: PANE_CMD and REPLY_CMD are whole shell
+  # commands, and a multi-line assignment prefix carrying one is a parse that
+  # fails obscurely (measured 2026-09-21: exit 127, "PANE_CMD=bash …: No such
+  # file or directory", with the value read as the command name).
+  local -a envv=(
+    "BASE=$wui" "EMAIL=$email" "PW_FILE=$pwf" "PEER=$agent@$box" "OWNER_THREAD=$thread"
+    "OUT=$out" "TENANT=$tenant" "CHROME_PATH=$chrome"
+    "PANE_CMD=$pane_cmd" "REPLY_CMD=$reply_cmd"
+    "CASE_PAUSE_MS=${OA_CASE_PAUSE_MS:-4000}" "LIMIT_MS=${OA_LIMIT_MS:-1500}"
+    "PANE_TIMEOUT=${OA_PANE_TIMEOUT:-45}" "POST_RESULTS=${OA_POST_RESULTS:-1}"
+  )
+  [[ -n "$pc" ]] && envv+=("PUPPETEER_CORE=$pc")
+  ( cd "$APP_PATH/$SPL_ORG_APP-wui" && env "${envv[@]}" node "$proof_js" ) || rc=$?
 
   if (( rc == 0 )); then
     do_log "OK owner acceptance on $ENV/$tenant: every case PASS ($out/results.json)"

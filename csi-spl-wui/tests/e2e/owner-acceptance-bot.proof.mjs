@@ -80,7 +80,7 @@ const res = {
   cases: [],
 }
 
-const TOTAL = 7
+const TOTAL = 8
 let posted = 0
 
 /** Record a case, print it, and — when asked — post the verdict into the thread. */
@@ -181,44 +181,55 @@ try {
     await sleep(CASE_PAUSE_MS)
   }
 
-  // ── case 2 (OA-32) the bot's message is in the thread at once, exactly once ──
-  await announce(page, 2, 'DM display', `this message on top for the sender, exactly one copy`)
+  // ── cases 2 + 3 — ONE send, both halves, and NOTHING said in between ────────
+  // The first version of this announced case 3 before looking at the pane.
+  // The notice pane holds only a few notices, so the bot's own announce and
+  // verdict lines EVICTED the very message it then went looking for: measured
+  // 2026-09-21, body_seen false at 45 s for a message whose notice had been
+  // rung 3 s after the send. A test whose own chatter destroys its evidence
+  // reports a delivery failure that did not happen. So both halves of one send
+  // are asserted before another word is posted.
+  await announce(page, 2, 'DM display', `this message on top for the sender, and the same message in ${PEER_AGENT}'s pane`)
   const n2 = `oa ${RUN} display`
   const seen2 = topHas(page, n2)
   const t2 = await post(page, n2)
   const at2 = await seen2
   const wui2 = at2 && at2 - t2
   res.timings.wui_ms.display = wui2
-  await sleep(2000)
   const rows2 = await rowsWith(page, n2)
-  await page.screenshot({ path: `${OUT}/02-display.png` }).catch(() => {})
-  await verdict(page, 2, 'OA-32', 'the message the bot sent is on top for the sender, exactly once',
-    at2 !== null && wui2 <= LIMIT_MS && rows2.length === 1,
-    { wui_ms: wui2, copies: rows2.length, msg_id: rows2[0]?.msg_id || '' })
-
-  // ── case 3 (OA-33) the SAME message is visible in the agent's pane ──────────
-  await announce(page, 3, 'terminal display', `the same message VISIBLE in ${PEER_AGENT}'s pane, with its msg_id`)
   const msgId = rows2[0]?.msg_id || ''
+  const taskId = rows2[0]?.task_id || ''
+  // the terminal half FIRST, while the notice is still the newest one
   const bodySeen = await paneSeen(n2)
   const idSeen = msgId ? await paneSeen(msgId, 5) : { rc: 1, out: '(no msg_id on the row)' }
   res.timings.pane_s.display = (() => { try { return JSON.parse(bodySeen.out.trim().split('\n').pop()).seconds } catch { return null } })()
+  const rows2b = await rowsWith(page, n2)
+  await page.screenshot({ path: `${OUT}/02-display.png` }).catch(() => {})
+  await verdict(page, 2, 'OA-32', 'the message the bot sent is on top for the sender, exactly once',
+    at2 !== null && wui2 <= LIMIT_MS && rows2b.length === 1,
+    { wui_ms: wui2, copies: rows2b.length, msg_id: msgId, task_id: taskId })
   await verdict(page, 3, 'OA-33', `the message is visible in ${PEER_AGENT}'s pane, with its msg_id`,
     bodySeen.rc === 0 && idSeen.rc === 0,
     { body_seen: bodySeen.rc === 0, msg_id_seen: idSeen.rc === 0, msg_id: msgId,
       pane_s: res.timings.pane_s.display, pane_cmd_ran: !bodySeen.skipped, evidence: bodySeen.out.trim().split('\n').pop() })
 
   // ── case 4 (OA-34) the agent's reply comes back into the SAME thread ────────
+  // The task to answer is the one the bot's own message CREATED, read off its
+  // row — not OWNER_THREAD. A DM send starts a new task (see case 8), so
+  // answering OWNER_THREAD would put the reply in a conversation the bot is
+  // not in, and this case would fail for a reason that is not the reply leg.
   await announce(page, 4, 'the reply leg', `${PEER_AGENT}'s answer appearing in this thread`)
   const n4 = `oa ${RUN} reply`
   const seen4 = topHas(page, n4, 90000)
   const t4 = Date.now()
-  const replied = await sh(REPLY_CMD, { TASK: OWNER_THREAD, BODY: n4 })
+  const replied = await sh(REPLY_CMD, { TASK: taskId || OWNER_THREAD, BODY: n4 })
   const at4 = await seen4
   res.timings.reply_ms.desk = at4 && at4 - t4
   await page.screenshot({ path: `${OUT}/04-reply.png` }).catch(() => {})
   await verdict(page, 4, 'OA-34', `${PEER_AGENT}'s reply shows up in the same thread`,
     replied.rc === 0 && at4 !== null,
-    { reply_rc: replied.rc, reply_ms: res.timings.reply_ms.desk, reply_cmd_ran: !replied.skipped, tail: replied.out.slice(-300) })
+    { reply_rc: replied.rc, reply_ms: res.timings.reply_ms.desk, reply_cmd_ran: !replied.skipped,
+      answered_task: taskId || OWNER_THREAD, tail: replied.out.slice(-300) })
 
   // ── case 5 (OA-19 in the DM composer) ``` opens a code block HERE ───────────
   await announce(page, 5, 'code blocks in the DM composer', `three backticks opening a monospace block, and Enter adding a line rather than sending`)
@@ -271,9 +282,19 @@ try {
     await page.setOfflineMode(false)
     await sleep(4000)
   }
+  // The owner's case is a DISJUNCTION — "either lands or visibly fails with a
+  // retry, never silently disappears" — so that is what is asserted. The first
+  // version asserted only the failure half and read FAIL on a run where the
+  // send LANDED after the socket came back (measured 2026-09-21): the message
+  // was in the agent's inbox and the case still reported a defect. Asserting
+  // one half of an either/or is how a green system gets called broken.
   const visiblyFailed = !!kept && (kept.error.length > 0 || kept.retry || kept.text.includes(n6))
-  await verdict(page, 6, 'OA-24', 'a send that cannot reach the hub says so and keeps the text — it never disappears in silence',
-    visiblyFailed, { drove: fail6.drove, why: fail6.why || '', kept_text: !!kept && kept.text.includes(n6), error_shown: !!kept && kept.error.length > 0, retry_offered: !!kept && kept.retry })
+  await sleep(4000)
+  const landed = (await rowsWith(page, n6)).length === 1
+  await verdict(page, 6, 'OA-24', 'a send either LANDS or visibly FAILS with a retry — it never disappears in silence',
+    fail6.drove && (landed !== visiblyFailed) && (landed || visiblyFailed),
+    { drove: fail6.drove, why: fail6.why || '', outcome: landed ? 'landed' : visiblyFailed ? 'visibly failed' : 'DISAPPEARED',
+      kept_text: !!kept && kept.text.includes(n6), error_shown: !!kept && kept.error.length > 0, retry_offered: !!kept && kept.retry })
 
   // ── case 7 (OA-35) the run is readable in the thread ────────────────────────
   // Asserted from the thread itself, not from this process's own bookkeeping:
@@ -284,6 +305,17 @@ try {
   const labelled = await page.evaluate(() => [...document.querySelectorAll('.live-rows > article.msg')]
     .filter((a) => /case \d+\/\d+/.test(a.textContent)).length)
   await page.screenshot({ path: `${OUT}/07-thread-transcript.png` }).catch(() => {})
+  // ── case 8 (OA-38) the owner's URL — does ?thread= actually bind? ──────────
+  // The owner's instruction was "make it communicate with you <a /dm/…?thread=
+  // …> URL". This case asks whether that URL means what it looks like: a
+  // message sent from it joining THAT conversation. It is asserted rather than
+  // assumed, because every earlier case in this run silently got its own new
+  // task instead.
+  const joined = taskId && taskId === OWNER_THREAD
+  await verdict(page, 8, 'OA-38', `a message sent from /dm/<peer>?thread=<id> joins THAT thread`,
+    !!joined, { requested_thread: OWNER_THREAD, task_the_send_actually_got: taskId || '(none)',
+      note: joined ? '' : 'the DM page starts a NEW task per send; ?thread= is not read by it' })
+
   await verdict(page, 7, 'OA-35', 'the run posted a labelled PASS/FAIL line per case into the thread',
     POST_RESULTS ? posted >= res.cases.length : true,
     { verdict_lines_posted: posted, cases_so_far: res.cases.length, labelled_rows_in_thread: labelled, rows_tagged_with_this_run: inThread })

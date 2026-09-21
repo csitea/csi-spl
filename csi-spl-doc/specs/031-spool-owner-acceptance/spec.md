@@ -66,6 +66,7 @@ The gate keeps the two in step.
 | the WUI bot (this spec) | OA-31 OA-32 OA-33 OA-34 OA-35 | `csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs`, run by `do_spl_owner_acceptance` |
 | the run is one named action | OA-36 | `csi-spl-orc/src/bash/tests/owner-acceptance.tst.sh` |
 | a real IdP sign-in | OA-37 | `MANUAL`, §5 |
+| the owner's own thread URL | OA-38 | the bot — currently **FAIL**, §3.1 |
 
 ### 2.1 Why the terminal cases are `orc-e2e` and not CI
 
@@ -102,6 +103,33 @@ thread**, so the run can be watched where they are already looking:
 - **FR-B06** — The agent-to-agent cases (OA-01, OA-02) use **throwaway** agent
   ids and boxes. They never poke a live lane's pane and never write into
   another tenant.
+
+### 3.1 OA-38 — the owner's URL does not do what it looks like (FAIL, 2026-09-21)
+
+The owner asked the bot to "make it communicate with you" at
+`/dm/CLE-00@box-desk?thread=<id>`. The run found that **a message sent from
+that page does not join that thread**: the DM page never reads
+`route.query.thread`, and each send starts a new task.
+
+Measured, on tree `f76f648`, `ENV=dev TENANT_ID=t1 … do_spl_owner_acceptance`,
+n=1:
+
+- `grep -n 'query.thread\|route.query' csi-spl-wui/src/pages/dm/\[peer\].vue`
+  -> no hits; the page's `onSend` is `channel.send(text)` with no parent task.
+- `grep -n 'task_id: parentTaskId || newId()' csi-spl-wui/src/stores/channel.ts`
+  -> 1 hit (line 278): with no parent task, every send mints a new one.
+- the run's own evidence: 12 messages in `CLE-00`'s inbox from that one page,
+  each carrying a DIFFERENT `task` in its poke line.
+
+The consequence for the owner is exactly the symptom they described: messages
+sent from that URL scatter into separate conversations, and an agent's reply
+into one of them does not appear beside the others. **This is reported to
+CLE-3433 (the WUI send lane), not fixed here** — this lane records cases, and
+a fix in someone else's file is a rebase conflict for them.
+
+Until it is fixed, the bot's reply case answers the task its OWN message
+created, read off the row's `data-task-id`, so the reply leg is testable on
+its own rather than failing for this unrelated reason.
 
 ## 4. Success criteria
 

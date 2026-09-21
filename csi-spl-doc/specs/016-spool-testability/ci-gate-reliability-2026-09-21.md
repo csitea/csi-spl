@@ -25,6 +25,7 @@ defect seen again by the next push:
 | C5 | 13:23–13:26 | 4 | `wui: browser e2e (mock, generated)` | `FAIL 390x844 /login: scrollWidth=9999 innerWidth=1560` — **two facts, and the first one is deliberate**: `c04ac2f` ("plant overflow so wui-e2e must go red", 016 T021) added a workflow step appending `html,body{min-width:9999px!important}` to the generated CSS, reverted by `8b7902e`. The `9999` is that plant. `innerWidth=1560` on a check labelled 390x844 is a separate, real harness miss, guarded since `4153561`. | **intentional control** on trunk, over a latent harness miss |
 | C6 | 12:54 | 1 (inside C2) | `hub` | `--- FAIL: TestV2HeldForV1OnlySession (5.05s)` … `delivery "queued" frame &{recv …}` | flake |
 | C7 | 13:18 | 1 | `hub` | `FAIL - hub did not come up`, over a hub log ending in `"addr":"127.0.0.1:37604" … "hub listening"` | flake, mechanism unproven |
+| C9 | 17:51 | 1 | `hub` | `blob_test.go:34: failed PutReader left an object at its key` — found **on this lane's own sha** (`fee7005`) while landing the changes below, i.e. a third flake the 42-run window happened not to contain | flake, now deterministic |
 | C8 | 01:03–07:37 | 8 on `00` | `Does dev/prd serve this commit?` | `dev hub lagging served=af8c6db6 sha=cea65d28 n=3 … age=2177m grace=45m` | correct alarm, not a CI fault |
 
 7 + 12 + 7 + 4 + 1 = 31 on the gate; C3 and C6 fall inside C2's runs; C8 is
@@ -66,6 +67,7 @@ hub 2` names the four things that actually broke.
 | 1 | `do_check_dist_hygiene` — the `10 ci` Sweep step, extracted from the workflow with `yq` and run over a `git ls-files` export of the working tree, in about a second. C2 becomes a one-second local failure instead of 12 red runs. | `b5be577` |
 | 2 | `TestV2HeldForV1OnlySession` waits for `welcome` before sending. C6's shape — `delivery "queued"` **with the recv frame present** — is only reachable if the send landed between the hello write and the hub registering the session. `ws.go` registers before it writes `welcome`, so that read is the barrier; every other raw-socket test in the package already takes it. | `d8578b3` |
 | 3 | The hub binds with `net.Listen` before logging `hub listening`, and logs `ln.Addr()`. `ListenAndServe` binds inside the goroutine, so the old line announced a socket that might never have bound — which is why C7 could not be diagnosed. With the real address in the log, `hub-e2e.tst.sh` asks for port 0 and reads back what it got, and `hub-gcs.tst.sh` takes a port below `/proc/sys/net/ipv4/ip_local_port_range` and binds it first. Both previously drew from 20000–39999, which overlaps the ephemeral range 32768–60999. | `cdbb737` |
+| 3b | `GCS.PutReader` deletes an aborted upload's key and then **proves it gone** (`deleteUntilGone`, at most a second, error path only). It already cancelled, closed and deleted once; the finalize has landed after that delete returned. The contract in `blob.go` is "nothing is left at key", not "a delete was issued". CONTROL `TestGCSDeleteUntilGone` plants exactly what a racing finalize leaves. | `ae61c72` |
 | 4 | `do_report_ci_gate` — failures per job over the last N runs, `CI_GATE_SIGNATURES=1` for the first failure line of each. Wired into `10 ci` as a `gate-health` job that runs only on failure and writes the table into the run summary, so the next red run carries its own history. | `b4994ec`, `(gate-health)` |
 
 ### Residual risk, per item
@@ -81,6 +83,10 @@ hub 2` names the four things that actually broke.
 - **3**: it is **not claimed** that a port collision caused C7. It is one
   mechanism that fits the evidence, it is now gone, and the next occurrence
   will say whether the process was alive and what held the port.
+- **3b**: the race is not reproduced here — it needs a slow runner. What
+  changed is the postcondition: it is now retried until it holds, rather than
+  attempted once. If it ever cannot hold, the error names the key instead of
+  surfacing three layers up as a contract violation.
 - **4**: a report, not a gate. `continue-on-error: true`, so it can never turn
   a run red, and correspondingly it proves nothing — read it, do not trust it
   as a control.
@@ -99,7 +105,7 @@ wrote them, before the push**, in under a minute:
 > | `csi-spl-cnf/**`, any tfvars, any image tag | `ENV=<env> ./run -a do_tpl_gen` then `git diff --exit-code` | C4 |
 > | `csi-spl-wui/**` | `pnpm run typecheck` | C3 |
 | `csi-spl-wui/**`, anything the browser renders | `BASE_URL=<generated bundle> pnpm run test:e2e` | the viewport-miss half of C5 — **typecheck does not drive Chrome** (GRK-3381) |
-> | `csi-spl-api/**` | `bash csi-spl-api/src/bash/tests/run-all-tests.sh` | C6, C7 |
+> | `csi-spl-api/**` | `bash csi-spl-api/src/bash/tests/run-all-tests.sh` | C6, C7, C9 |
 
 Each of C2, C3, C4 would have been a local failure in the lane that wrote it.
 

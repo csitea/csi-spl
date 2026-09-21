@@ -19,8 +19,11 @@
 //      consulted here or anywhere downstream.
 //
 // The spool reads the grant from the session claims (GET /api/v1/auth/session,
-// spec 010 auth-v1 §3). The hub does not emit `diagnostics_enabled` yet, so
-// today the panel is shown to nobody — which is the fail-shut default.
+// spec 010 auth-v1 §3). The hub decides it per human from cnf
+// (SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS, empty in every env = nobody) and answers
+// it on every session read, so it is never part of the signed cookie: there is
+// no such field for a browser to assert, and dropping an address revokes the
+// panel at that reader's next probe rather than 12h later.
 
 /**
  * Does this role list hold one of the allowed roles?

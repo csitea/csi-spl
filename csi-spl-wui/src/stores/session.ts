@@ -11,7 +11,11 @@ export interface SessionClaims {
   t?: string
   iat?: number
   exp?: number
-  /** Operator grant for the diagnostics panel; only literal `true` admits (debugAudience.mjs). */
+  /**
+   * Operator grant for the diagnostics panel (005 T035): the hub answers it
+   * per human from cnf on every session read, and only the literal `true`
+   * admits (debugAudience.mjs). Never set here — it arrives with the claims.
+   */
   diagnostics_enabled?: boolean
   /** spec 021: the human's stored UI + mail language; null/absent = none. */
   preferred_locale?: string | null

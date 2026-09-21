@@ -39,6 +39,7 @@ echo "gcloud $*" >>"$STUB_LOG"
 case "$*" in
   *"print-access-token"*) head -c 1024 /dev/zero | tr '\0' 'x'; echo; exit 0 ;;
   *"objects describe"*)   [ -n "$STUB_SIZE" ] && echo "$STUB_SIZE"; exit "${STUB_DESCRIBE_RC:-0}" ;;
+  *"buckets describe"*)   [ "${STUB_NO_BUCKET:-0}" = 1 ] && exit 1; echo "a-bucket"; exit 0 ;;
   *) exit "${STUB_RC:-0}" ;;
 esac
 STUB
@@ -51,6 +52,7 @@ PIN='do_gcp_pin_account(){ export GCP_ACCOUNT=tester@example.com; };'
 in_orc() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" STUB_LOG="$T/calls.log" \
     STUB_SIZE="${STUB_SIZE:-}" STUB_RC="${STUB_RC:-0}" STUB_DESCRIBE_RC="${STUB_DESCRIBE_RC:-0}" \
+    STUB_NO_BUCKET="${STUB_NO_BUCKET:-0}" \
     PATH="$T/stub:$PATH" ENV=dev "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -113,6 +115,19 @@ o=$(check 12)
 [[ "$o" == rc=4* ]] && pass "a 12-byte object is exit 4 (a stub dump is not a backup)" || fail "small object: $o"
 o=$(check 999999)
 [[ "$o" == rc=0* ]] && pass "CONTROL: a 999999-byte object passes" || fail "big object: $o"
+
+# --- 4b. a missing 045 bucket is a NAMED refusal, not a raw gcloud error ------------
+: >"$T/calls.log"
+o=$(STUB_NO_BUCKET=1 STUB_SIZE=999999 SNIPPET="$PIN do_spl_db_backup" in_orc DRY_RUN=0 2>&1); rc=$?
+(( rc == 2 )) && pass "a missing 045 bucket is exit 2" || fail "missing bucket rc=$rc: $o"
+[[ "$o" == *"does not exist"* && "$o" == *"045-gcs-db-backups"* && "$o" == *"make do-provision"* ]] &&
+  pass "the refusal names the step AND the command that fixes it" || fail "refusal text: $o"
+grep -q 'sql export' "$T/calls.log" && fail "it exported despite no bucket" ||
+  pass "no bucket: nothing is exported"
+: >"$T/calls.log"
+STUB_NO_BUCKET=0 STUB_SIZE=999999 SNIPPET="$PIN do_spl_db_backup" in_orc DRY_RUN=0 >/dev/null 2>&1
+grep -q 'sql export' "$T/calls.log" && pass "CONTROL: with the bucket present the export runs" ||
+  fail "CONTROL: no export with a present bucket: $(cat "$T/calls.log")"
 
 # --- 5. the restore verdict ----------------------------------------------------------
 cmp_v() { # <restored> <live> -> "rc=<n> <output>"

@@ -49,6 +49,7 @@ do_spl_db_backup() {
     return 0
   fi
 
+  spl_db_backup_bucket_exists "$bucket" || return $?
   spl_db_backup_export "$uri" || return $?
   spl_db_backup_check "$uri" || return $?
   printf 'uri=%s\n' "$uri"
@@ -72,6 +73,20 @@ spl_db_backup_bucket() {
 # bucket needs no versioning and why the instance agent needs no overwrite.
 spl_db_backup_object_name() {
   printf '%s-%s.sql.gz' "$SPL_DB_NAME" "$(date -u +%Y%m%dT%H%M%SZ)"
+}
+
+# spl_db_backup_bucket_exists <bucket> -> exit 2 and the command that fixes it
+# when the 045 bucket is not there yet. Without this the run dies on a raw
+# gcloud "bucket does not exist", which reads like a broken backup job rather
+# than like an apply nobody has run. The scheduled workflow goes red either
+# way, which is correct - but only one of the two tells the reader what to do.
+spl_db_backup_bucket_exists() {
+  gcloud storage buckets describe "gs://$1" --account="$GCP_ACCOUNT" --format='value(name)' >/dev/null 2>&1 && return 0
+  do_log "FATAL $ENV: gs://$1 does not exist (or is not readable as $GCP_ACCOUNT)."
+  do_log "FATAL apply the iac step that creates it, with the owner's go for that call:"
+  do_log "FATAL   cd csi-spl-orc && ENV=$ENV STEP=045-gcs-db-backups make do-tf-plan"
+  do_log "FATAL   cd csi-spl-orc && ENV=$ENV STEP=045-gcs-db-backups make do-provision"
+  return 2
 }
 
 # spl_db_backup_export <uri> -> the export, retrying while the instance says an
@@ -108,151 +123,4 @@ spl_db_backup_check() {
   (( size >= min )) ||
     { do_log "FATAL $ENV: $uri is $size bytes, below the $min-byte floor: treating it as a failed dump"; return 4; }
   do_log "INFO $ENV: $uri is $size bytes"
-}
-
-#------------------------------------------------------------------------------
-# @description PROVE a dump restores. Downloads one object from the env's 045
-# @description bucket, restores it into a THROWAWAY local postgres container,
-# @description counts every table, and compares that against the live database
-# @description read-only. Nothing in GCP is mutated and the live DB is only
-# @description read: the scratch database is a container on this box (or on the
-# @description runner), and it is removed either way.
-# @description
-# @description The comparison is deliberately NOT "the counts are equal". The
-# @description dump and the live read are two different instants, and dev takes
-# @description writes between them, so equality would be red for the wrong
-# @description reason. What it asserts instead is what a broken dump actually
-# @description looks like: a table that the live DB has and the restore does
-# @description not, or a table that restores EMPTY while the live one has rows.
-# @description The full per-table table is printed so drift is visible.
-# @param ENV - required: dev or prd
-# @param OBJECT (optional) - the gs:// uri to verify; default the newest in the bucket
-# @param SPL_RESTORE_IMAGE (optional) - default postgres:16-alpine
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
-# @example ENV=dev ./run -a do_spl_db_backup_verify
-# @example ENV=prd OBJECT=gs://csi-spl-prd-db-backups/prd/spool-20260921T051700Z.sql.gz ./run -a do_spl_db_backup_verify
-#------------------------------------------------------------------------------
-do_spl_db_backup_verify() {
-  do_require_bin gcloud docker psql python3 yq || return 1
-  do_spl_cloud_cnf || return 1
-  local bucket
-  bucket="$(spl_db_backup_bucket)" || return 1
-  do_gcp_pin_account "$SPL_CNF" || return 1
-  do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-
-  local uri="${OBJECT:-}"
-  [[ -n "$uri" ]] || uri="$(spl_db_backup_newest "$bucket")" ||
-    { do_log "FATAL $ENV: no object in gs://$bucket to verify"; return 1; }
-  do_log "INFO $ENV: verifying $uri"
-
-  local work rc=0
-  work="$(mktemp -d)" || return 1
-  gcloud storage cp "$uri" "$work/dump.sql.gz" --account="$GCP_ACCOUNT" >/dev/null 2>&1 ||
-    { rm -rf "$work"; do_log "FATAL $ENV: cannot download $uri"; return 1; }
-  gunzip -f "$work/dump.sql.gz" ||
-    { rm -rf "$work"; do_log "FATAL $ENV: $uri is not gzip"; return 4; }
-  do_log "INFO $ENV: downloaded $(stat -c %s "$work/dump.sql") bytes of SQL"
-
-  spl_db_backup_restore_counts "$work/dump.sql" >"$work/restored.txt" || rc=$?
-  (( rc == 0 )) || { rm -rf "$work"; return $rc; }
-  spl_via_proxy _spl_db_backup_live_counts >"$work/live.txt" || rc=$?
-  (( rc == 0 )) || { rm -rf "$work"; do_log "FATAL $ENV: cannot read the live counts"; return 1; }
-
-  spl_db_backup_compare "$work/restored.txt" "$work/live.txt" || rc=$?
-  rm -rf "$work"
-  return $rc
-}
-
-# spl_db_backup_newest <bucket> -> the newest object uri in the bucket.
-spl_db_backup_newest() {
-  local u
-  u="$(gcloud storage ls "gs://$1/**" --account="$GCP_ACCOUNT" 2>/dev/null | sort | tail -1)"
-  [[ -n "$u" ]] || return 1
-  printf '%s' "$u"
-}
-
-# spl_db_backup_restore_counts <dump.sql> -> "<table> <count>" per line, from a
-# THROWAWAY postgres container that is removed whatever happens. The container
-# is the scratch database: nothing local and nothing in the cloud is touched.
-spl_db_backup_restore_counts() {
-  local dump="$1" img="${SPL_RESTORE_IMAGE:-postgres:16-alpine}" con i
-  con="spl-restorecheck-$ENV-$$"
-  docker run -d --rm --name "$con" -e POSTGRES_PASSWORD=restorecheck -e POSTGRES_DB=restorecheck \
-    "$img" >/dev/null 2>&1 || { do_log "FATAL cannot start $img for the restore check"; return 1; }
-  # shellcheck disable=SC2064
-  trap "docker rm -f '$con' >/dev/null 2>&1 || true; trap - RETURN" RETURN
-  for i in $(seq 60); do
-    docker exec "$con" pg_isready -U postgres -q 2>/dev/null && break
-    sleep 1
-  done
-  docker exec "$con" pg_isready -U postgres -q 2>/dev/null ||
-    { do_log "FATAL the restore-check container never became ready"; return 1; }
-
-  # The dump names the cloud logins as owners; they do not exist here, so
-  # ON_ERROR_STOP stays OFF and the count comparison is what decides, not the
-  # exit code of a role-grant line.
-  docker exec -i "$con" psql -q -U postgres -d restorecheck -v ON_ERROR_STOP=0 <"$dump" >/dev/null 2>&1
-  docker exec "$con" psql -U postgres -d restorecheck -XAtc "
-    SELECT table_name FROM information_schema.tables
-     WHERE table_type = 'BASE TABLE' AND table_schema = 'public' ORDER BY 1" 2>/dev/null |
-    while read -r t; do
-      [[ -n "$t" ]] || continue
-      printf '%s %s\n' "$t" "$(docker exec "$con" psql -U postgres -d restorecheck -XAtc "SELECT count(*) FROM \"$t\"" 2>/dev/null)"
-    done
-}
-
-# _spl_db_backup_live_counts -> "<table> <count>" per line from the LIVE DB,
-# read-only, in the operator RLS scope (without it every tenant table counts 0
-# and the comparison would pass a dump that is actually empty).
-_spl_db_backup_live_counts() {
-  local tables
-  tables="$(spl_psql_ro "$SPL_PROXY_DSN" "SELECT table_name FROM information_schema.tables
-     WHERE table_type = 'BASE TABLE' AND table_schema = 'public' ORDER BY 1;")" || return 1
-  local t sql=""
-  while read -r t; do
-    [[ -n "$t" ]] || continue
-    sql+="SELECT '$t', count(*) FROM \"$t\" UNION ALL "
-  done <<<"$tables"
-  [[ -n "$sql" ]] || { do_log "FATAL the live DB reports no table"; return 1; }
-  spl_psql_ro "$SPL_PROXY_DSN" "${sql%UNION ALL } ORDER BY 1;" | tr '|' ' '
-}
-
-# spl_db_backup_compare <restored> <live> -> the verdict. Exit 5 when a live
-# table is missing from the restore, or restored EMPTY while the live one has
-# rows. Those are what a truncated or RLS-blanked dump looks like; a plain
-# count difference is not, because the two reads are minutes apart.
-spl_db_backup_compare() {
-  local v
-  v="$(python3 -c '
-import sys
-def load(p):
-    d = {}
-    for line in open(p):
-        parts = line.split()
-        if len(parts) == 2 and parts[1].isdigit():
-            d[parts[0]] = int(parts[1])
-    return d
-res, live = load(sys.argv[1]), load(sys.argv[2])
-missing = sorted(t for t in live if t not in res)
-blank = sorted(t for t in live if t in res and live[t] > 0 and res[t] == 0)
-print("TABLE RESTORED LIVE")
-for t in sorted(set(res) | set(live)):
-    print("%s %s %s" % (t, res.get(t, "-"), live.get(t, "-")))
-if missing:
-    print("VERDICT 5 %d live table(s) missing from the restore: %s" % (len(missing), ",".join(missing)))
-elif blank:
-    print("VERDICT 5 %d table(s) restored EMPTY while live has rows: %s" % (len(blank), ",".join(blank)))
-elif not res:
-    print("VERDICT 5 the restore produced no table at all")
-else:
-    rows = sum(res.values())
-    print("VERDICT 0 %d table(s), %d row(s) restored; every live table is present and non-empty where live is" % (len(res), rows))
-' "$1" "$2")" || { do_log "FATAL cannot compare the counts"; return 1; }
-  printf '%s\n' "$v" | grep -v '^VERDICT '
-  local line code msg
-  line="$(grep '^VERDICT ' <<<"$v")"
-  code="$(awk '{print $2}' <<<"$line")"
-  msg="${line#VERDICT $code }"
-  if [[ "$code" == 0 ]]; then do_log "OK $ENV restore check: $msg"; else do_log "FAIL $ENV restore check: $msg"; fi
-  return "$code"
 }

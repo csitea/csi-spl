@@ -5,6 +5,7 @@ package logging
 
 import (
 	"os"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -12,10 +13,16 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 )
 
+// zerolog.TimeFieldFormat is a package GLOBAL, so setting it on every New was
+// a write that two concurrent callers could make at once - a real data race,
+// dormant only because nothing built a logger from two goroutines until the
+// notify queue did (CLE-3435). The value never varies, so it is set once.
+var timeFormatOnce sync.Once
+
 // New returns a logger configured from cfg. It never fails: an unknown level
-// falls back to info.
+// falls back to info. Safe to call concurrently.
 func New(cfg *config.Config) zerolog.Logger {
-	zerolog.TimeFieldFormat = time.RFC3339
+	timeFormatOnce.Do(func() { zerolog.TimeFieldFormat = time.RFC3339 })
 	lvl, err := zerolog.ParseLevel(cfg.LogLevel)
 	if err != nil {
 		lvl = zerolog.InfoLevel

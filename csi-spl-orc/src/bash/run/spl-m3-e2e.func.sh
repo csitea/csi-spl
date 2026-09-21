@@ -18,6 +18,12 @@
 # @description      browser's thread
 # @description   d  DM (no channel) human <-> agent; presence online/offline
 # @description      as box-b's hub-run connects / stops
+# @description   f  specs/028: each of a, b, c and d is VISIBLE in the recipient
+# @description      agent's TERMINAL - the box's own renderer typed the sender,
+# @description      the kind, the ids and the body into a pane, under the
+# @description      safe-poke rules. The panes are a PRIVATE tmux server under
+# @description      the state dir, never the box user's. CONTROL: none of the
+# @description      four appears in the OTHER agent's pane
 # @description   e1 CONTROL forged / unsigned copies of the signed task, replayed
 # @description      to a clone of box-b by a local fake hub: exit 78, nothing
 # @description      written (a genuine copy: exit 0, written)
@@ -64,6 +70,9 @@
 # @param   (DSN read + Cloud SQL proxy); default $HOME/.gcp/.<org>/key-<project>.json.
 # @param   Activated in a throwaway CLOUDSDK_CONFIG, never the owner account
 # @param   (owner rule 2026-09-19). Only used when an invite is needed.
+# @param M3_NOTIFY_CMD (optional) - the terminal-leg renderer (specs/028), default
+# @param   <org>-<app>-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh.
+# @param   Set it empty to skip step f (it is then recorded OBSERVED, not PASS)
 # @param SPL_STATE_DIR (optional) - default $HOME/.local/share/<org>-<app>/cloud/<env>
 # @example ENV=dev TENANT_ID=t1 ROOT_KEY_JSON=/var/csi/csi-spl/tenants/dev/t1.<ts>.json ./run -a do_spl_m3_e2e
 # @example ENV=prd M3_CREATE_TENANT=1 ./run -a do_spl_m3_e2e
@@ -110,6 +119,10 @@ do_spl_m3_e2e() {
     M3_SPOOL="$SPL_SPOOL" M3_ROOT_KEY="$key" \
     M3_HUMAN_EMAIL="${M3_HUMAN_EMAIL:-m3-e2e-human@example.com}" \
     M3_OUTSIDER_EMAIL="${M3_OUTSIDER_EMAIL:-m3-e2e-outsider@example.com}"
+  # specs/028: the box's own renderer, so step f asserts what a terminal SHOWS
+  # rather than only that a file was written.
+  local notify_default="$APP_PATH/$SPL_ORG_APP-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh"
+  export M3_NOTIFY_CMD="${M3_NOTIFY_CMD-$notify_default}"
   local py="$APP_PATH/$SPL_ORG_APP-orc/src/bash/scripts/m3-e2e.py" rc=0
   do_log "INFO M3 e2e on $ENV/$tenant: hub $M3_HUB_URL auth $M3_AUTH_URL human $M3_HUMAN_EMAIL ($role)"
   python3 "$py" auth-check || rc=$?

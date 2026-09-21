@@ -37,6 +37,8 @@ import email as emaillib
 import imaplib
 import re
 import hashlib
+import atexit
+import getpass
 import json
 import os
 import queue
@@ -75,6 +77,14 @@ IMAP_PASS_FILE = os.environ.get("M3_IMAP_PASS_FILE", "")
 IMAP_HOST = os.environ.get("M3_IMAP_HOST", "imap.gmail.com")
 IMAP_TIMEOUT = int(os.environ.get("M3_IMAP_TIMEOUT", "240"))
 VERIFY_LINK = re.compile(r"(https?://[^\s\"'<>]*/verify-email)\?token=([0-9a-f]{64})")
+
+# specs/028-spool-terminal-delivery: the terminal leg. M3_NOTIFY_CMD is the
+# box's own renderer (csi-spl-orc .../scripts/spool-notify.sh); the panes are a
+# PRIVATE tmux server under the state dir, so this asserts what an agent's
+# terminal actually SHOWS without going near the box user's tmux.
+NOTIFY = os.environ.get("M3_NOTIFY_CMD", "")
+TMUX_SOCK = os.path.join(STATE, "tmux.sock") if STATE else ""
+PANES = {}
 
 RESULTS = []
 
@@ -390,7 +400,67 @@ def box_env(box, hub=None, box_id=None, tenant=None):
     e = dict(os.environ)
     e.update({"SPOOL_ROOT": d + "/spool", "SPOOL_KEYS_DIR": d + "/keys", "SPOOL_BOX_ID": box_id or box,
               "SPOOL_HUB_URL": hub or HUB, "SPOOL_TENANT": tenant or TENANT})
+    if NOTIFY and PANES:
+        # Every box process that can WRITE a local inbox - the CLI send, a
+        # hub-sync drain, the hub-run sidecar - carries it, because the hook is
+        # at the inbox write (028 FR-001), not at any one of those callers.
+        me = getpass.getuser()
+        e.update({"SPOOL_NOTIFY_CMD": NOTIFY, "SPOOL_TMUX_SOCKET": TMUX_SOCK,
+                  "SPOOL_BOX_USER": me, "SPOOL_AGENT_USER": me, "SPOOL_BOX_TAG": ""})
     return e
+
+
+def tmux(*args):
+    return subprocess.run(["tmux", "-u", "-S", TMUX_SOCK] + list(args), capture_output=True, text=True)
+
+
+def terminal_up(pairs):
+    """One private tmux server, one window per agent, and a registry.tsv in
+    each box's spool root that points at it - the same lookup a real box uses
+    (lib/spool-env.inc.sh spool_pane_of). Returns {agent: pane_id}, or {} when
+    this machine has no tmux or no notifier to run.
+
+    Call it AFTER pin_box: that wipes and recreates the box dir."""
+    if not NOTIFY or not os.path.exists(NOTIFY) or not shutil.which("tmux"):
+        return {}
+    tmux("kill-server")
+    # Wide on purpose: the pane line is one line, and a wrap would split the
+    # body across rows and make `in` on the capture lie.
+    r = tmux("-f", "/dev/null", "new-session", "-d", "-s", "m3", "-n", "home", "-x", "400", "-y", "50", "sleep 3600")
+    if r.returncode != 0:
+        log("INFO no private tmux server for the terminal leg: %s" % (r.stderr.strip() or r.stdout.strip()))
+        return {}
+    panes = {}
+    for box, agent in pairs:
+        r = tmux("new-window", "-d", "-t", "m3:", "-n", agent, "-P", "-F", "#{pane_id}", "sleep 3600")
+        if r.returncode != 0:
+            continue
+        pane = r.stdout.strip()
+        panes[agent] = pane
+        reg = os.path.join(STATE, box, "spool", "registry.tsv")
+        with open(reg, "a") as f:
+            f.write("%s\tclaude\t%s\t%s\t%s\n" % (agent, pane, STATE, "20260101T000000Z"))
+    atexit.register(lambda: tmux("kill-server"))
+    log("INFO terminal leg: notifier %s, panes %s" % (NOTIFY, json.dumps(panes, sort_keys=True)))
+    return panes
+
+
+def pane_text(agent):
+    if agent not in PANES:
+        return ""
+    r = tmux("capture-pane", "-p", "-t", PANES[agent])
+    return r.stdout if r.returncode == 0 else ""
+
+
+def wait_pane(agent, needle, timeout=20):
+    """Seconds until `needle` is VISIBLE in the agent's pane, else None."""
+    t0 = time.time()
+    end = t0 + timeout
+    while time.time() < end:
+        if needle in pane_text(agent):
+            return round(time.time() - t0, 2)
+        time.sleep(0.3)
+    return None
 
 
 def on(box, *args, hub=None, timeout=60, box_id=None, tenant=None):
@@ -592,6 +662,8 @@ def run():
 
     # -- 0. boxes: two keys, root-signed pins, the hub's box-wui key pinned ------------------
     pub_a, pub_b = pin_box(BOX_A, AGENT_A), pin_box(BOX_B, AGENT_B)
+    PANES.update(terminal_up([(BOX_A, AGENT_A), (BOX_B, AGENT_B)]))
+    term = {}   # specs/028: case -> seconds until the body was visible in the pane
     wui = view("/v1/wui/pubkey")
     must(BOX_A, "hub-pin", "--box", WUI, "--pubkey", wui["pubkey"], "--root-key", ROOT_KEY, "--force")
     for b in (BOX_B, BOX_A, BOX_B):  # second hello refreshes each box's roster copy
@@ -616,6 +688,9 @@ def run():
            {"send": sa, "box_b_sync": rep, "box_b_inbox_has_it": got is not None, "view_threads_lists_task": listed,
             "view_thread_messages": len(msgs), "delivery_state": msgs[0]["deliveries"] if msgs else None})
     t_sc001 = sa.get("task_id")
+    # 028 SC-001: agent -> agent ACROSS boxes. box-b's hub-sync wrote it, so
+    # box-b's hub-sync is what had to ring EZB-1.
+    term["a-box-to-box-task"] = wait_pane(AGENT_B, "m3-e2e a->b " + stamp)
 
     # -- humans ---------------------------------------------------------------------------------------
     cookie = read_secret("cookie-human")
@@ -668,6 +743,8 @@ def run():
         record("b-lobby-mention-routed", bool(men) and men.get("type") == "ack" and men.get("to_box") == BOX_B and got_men is not None
                and got_men.get("from") == hum,
                {"ack": men, "box_b_inbox": got_men})
+        # 028 SC-002: a human's @mention in a channel, kind=note.
+        term["b-human-mention-note"] = wait_pane(AGENT_B, "m3-e2e mention " + stamp)
         # Observation, not a gate: spec 014 FR-006 dispatches on a LEADING mention only and
         # channels-v1 section 4.6 never routes an unsigned browser envelope, so a mid-body
         # mention from a human stays in the browser.
@@ -690,6 +767,9 @@ def run():
                {"ack": task, "stored_env_from_box": env.get("from_box"), "stored_env_to_box": env.get("to_box"),
                 "stored_env_sig_len": len(env.get("sig") or ""), "box_b_inbox": got_task,
                 "verified_by": "spool hub-run receive() against $SPOOL_ROOT/pins/box-box-wui.pub"})
+        # 028 SC-002: a human's DIRECTED task, box-wui signed, written by the
+        # hub-run sidecar - the path that reached no terminal at all before 028.
+        term["c-human-task"] = wait_pane(AGENT_B, "m3-e2e task: report the box id " + stamp)
         rc, out, err = on(BOX_B, "send", "--from", AGENT_B, "--to", hum, "--task", t_task, "--kind", "result",
                           "--to-box", WUI, "--body", "m3-e2e result: I am %s on %s" % (AGENT_B, BOX_B))
         res = json.loads(out) if rc == 0 else {"exit": rc, "err": err}
@@ -711,6 +791,8 @@ def run():
                           and (f.get("envelope") or {}).get("from") == AGENT_B, 20)
         dm_list = view("/v1/view/threads?dm=true&peer=" + AGENT_B)["threads"]
         dm_row = next((t for t in dm_list if t["task_id"] == t_dm), None)
+        # 028 SC-002: a human's DM (no channel), kind=note.
+        term["d-human-dm-note"] = wait_pane(AGENT_B, "m3-e2e dm " + stamp)
         record("d-dm-round-trip", bool(dm) and dm.get("type") == "ack" and got_dm is not None and rc == 0 and dm_back is not None
                and dm_row is not None and dm_row.get("channel") is None,
                {"ack": dm, "box_b_inbox": got_dm is not None, "reply_rc": rc, "wui_frame": dm_back is not None,
@@ -722,6 +804,26 @@ def run():
     record("d-presence", online is not None and offline is not None,
            {"online": online, "offline": offline})
     ws.close()
+
+    # -- f. specs/028: every one of those messages is VISIBLE in the agent's pane ----------------
+    if PANES.get(AGENT_B):
+        # CONTROL (028 FR-007 / SC-003): the OTHER agent's pane saw none of them.
+        other = pane_text(AGENT_A)
+        leaked = sorted(k for k, n in (("a-box-to-box-task", "m3-e2e a->b " + stamp),
+                                       ("b-human-mention-note", "m3-e2e mention " + stamp),
+                                       ("c-human-task", "m3-e2e task: report the box id " + stamp),
+                                       ("d-human-dm-note", "m3-e2e dm " + stamp)) if n in other)
+        seen = pane_text(AGENT_B)
+        record("f-visible-in-agent-terminal",
+               all(v is not None for v in term.values()) and len(term) == 4 and not leaked,
+               {"seconds_until_visible": term, "leaked_into_%s_pane" % AGENT_A: leaked,
+                "notifier": NOTIFY, "pane": PANES.get(AGENT_B),
+                "pane_tail": [ln for ln in seen.splitlines() if "SPOOL " in ln][-4:]})
+    else:
+        RESULTS.append({"step": "f-visible-in-agent-terminal", "result": "OBSERVED",
+                        "evidence": {"skipped": "no tmux or no M3_NOTIFY_CMD on this machine",
+                                     "notifier": NOTIFY, "tmux": bool(shutil.which("tmux"))}})
+        log("OBS  f-visible-in-agent-terminal %s" % json.dumps(RESULTS[-1]["evidence"], sort_keys=True))
 
     # -- e1. CONTROL: forged / unsigned envelopes are refused by the box (exit 78) ------------------------
     pins_list = [{"box_id": WUI, "pubkey": wui["pubkey"]}, {"box_id": BOX_A, "pubkey": pub_a}, {"box_id": BOX_B, "pubkey": pub_b}]

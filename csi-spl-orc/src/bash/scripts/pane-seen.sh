@@ -24,8 +24,15 @@
 #   pane-seen.sh --agent CLE-00 --needle 'case 1/7 …' [--timeout 30] [--sock PATH]
 #
 # Prints ONE json line: {"agent":…,"seen":true|false,"pane":…,"kind":"agent"|
-# "notice","seconds":…,"panes":{…}}. Exit 0 when seen, 1 when not, 2 on a
-# usage error. --quiet drops the line and leaves only the exit code.
+# "notice","ms":…,"seconds":…,"panes":{…}}. Exit 0 when seen, 1 when not, 2 on
+# a usage error. --quiet drops the line and leaves only the exit code.
+#
+# `ms` exists because `seconds` cannot answer the question that is actually
+# asked of it. The owner's budget for a message becoming visible is 0.3 s, and
+# a whole-second field reports every healthy delivery as "0" — indistinguishable
+# from 0.9 s, which is three times over. It is still an UPPER BOUND, not an
+# instrumented figure: it includes this script's 0.25 s poll and its caller's
+# round trip, so it can only ever say "no worse than".
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -72,7 +79,8 @@ ap="$(agent_pane)" np="$(notice_pane)"
 want="$(printf '%s' "$needle" | flatten)"
 [ -n "$want" ] || { echo "pane-seen.sh: --needle is only whitespace" >&2; exit 2; }
 
-start=$(date +%s) seen_pane='' seen_kind=''
+now_ms() { date +%s%3N; }
+start=$(now_ms) seen_pane='' seen_kind=''
 while :; do
   for pair in "notice:$np" "agent:$ap"; do
     kind="${pair%%:*}" pane="${pair#*:}"
@@ -82,17 +90,16 @@ while :; do
     fi
   done
   [ -n "$seen_pane" ] && break
-  now=$(date +%s)
-  [ $(( now - start )) -ge "$timeout" ] && break
-  sleep 0.5
+  [ $(( ($(now_ms) - start) / 1000 )) -ge "$timeout" ] && break
+  sleep 0.25
 done
-elapsed=$(( $(date +%s) - start ))
+elapsed_ms=$(( $(now_ms) - start ))
 
 if [ "$quiet" -eq 0 ]; then
-  printf '{"agent":%s,"seen":%s,"pane":%s,"kind":%s,"seconds":%s,"panes":{"agent":%s,"notice":%s},"sock":%s}\n' \
+  printf '{"agent":%s,"seen":%s,"pane":%s,"kind":%s,"ms":%s,"seconds":%s,"panes":{"agent":%s,"notice":%s},"sock":%s}\n' \
     "$(json_str "$agent")" \
     "$([ -n "$seen_pane" ] && echo true || echo false)" \
-    "$(json_str "$seen_pane")" "$(json_str "$seen_kind")" "$elapsed" \
+    "$(json_str "$seen_pane")" "$(json_str "$seen_kind")" "$elapsed_ms" "$(( elapsed_ms / 1000 ))" \
     "$(json_str "$ap")" "$(json_str "$np")" "$(json_str "$sock")"
 fi
 [ -n "$seen_pane" ]

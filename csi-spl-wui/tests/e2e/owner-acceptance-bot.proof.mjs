@@ -76,7 +76,7 @@ const res = {
   at: new Date().toISOString(), limit_ms: LIMIT_MS, pane_timeout_s: PANE_TIMEOUT,
   // Kept apart on purpose: adding a terminal-visible time to a model reply
   // time produces a number that is true of nothing (OA-14).
-  timings: { wui_ms: {}, pane_s: {}, reply_ms: {} },
+  timings: { wui_ms: {}, pane_ms: {}, reply_ms: {} },
   cases: [],
 }
 
@@ -247,7 +247,9 @@ try {
   // the terminal half FIRST, while the notice is still the newest one
   const bodySeen = await paneSeen(n2)
   const idSeen = msgId ? await paneSeen(msgId, 5) : { rc: 1, out: '(no msg_id on the row)' }
-  res.timings.pane_s.display = (() => { try { return JSON.parse(bodySeen.out.trim().split('\n').pop()).seconds } catch { return null } })()
+  // ms, not seconds: the owner's budget is 0.3 s, and a whole-second field
+  // reports every healthy delivery as 0 — which cannot be compared to it.
+  res.timings.pane_ms.display = (() => { try { return JSON.parse(bodySeen.out.trim().split('\n').pop()).ms } catch { return null } })()
   const rows2b = await rowsWith(page, n2)
   await page.screenshot({ path: `${OUT}/02-display.png` }).catch(() => {})
   const pos2 = await positionOf(page, n2)
@@ -257,7 +259,7 @@ try {
   await verdict(page, 3, 'OA-33', `the message is visible in ${PEER_AGENT}'s pane, with its msg_id`,
     bodySeen.rc === 0 && idSeen.rc === 0,
     { body_seen: bodySeen.rc === 0, msg_id_seen: idSeen.rc === 0, msg_id: msgId,
-      pane_s: res.timings.pane_s.display, pane_cmd_ran: !bodySeen.skipped, evidence: bodySeen.out.trim().split('\n').pop() })
+      pane_ms: res.timings.pane_ms.display, pane_cmd_ran: !bodySeen.skipped, evidence: bodySeen.out.trim().split('\n').pop() })
 
   // ── case 4 (OA-34) the agent's reply comes back into the SAME thread ────────
   // The task to answer is the one the bot's own message CREATED, read off its
@@ -378,6 +380,6 @@ try {
 const bad = res.cases.filter((c) => !c.ok).length
 const ran = res.cases.length
 console.log(`${ran - bad}/${ran} cases PASS (of ${TOTAL} planned); build ${res.build?.commit || '?'}`)
-console.log(`timings, kept apart: wui_ms ${JSON.stringify(res.timings.wui_ms)} pane_s ${JSON.stringify(res.timings.pane_s)} reply_ms ${JSON.stringify(res.timings.reply_ms)}`)
+console.log(`timings, kept apart (each an upper bound, never added): wui_ms ${JSON.stringify(res.timings.wui_ms)} pane_ms ${JSON.stringify(res.timings.pane_ms)} reply_ms ${JSON.stringify(res.timings.reply_ms)}`)
 console.log(`evidence: ${OUT}/results.json`)
 process.exit(bad || ran < TOTAL || res.error ? 1 : 0)

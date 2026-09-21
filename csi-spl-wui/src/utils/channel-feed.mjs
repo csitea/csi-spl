@@ -296,11 +296,24 @@ export function channelFollow(current, { channel, peer } = {}) {
   return { sub: want, unsub: have, next: want }
 }
 
-/** The card for our own live send, built from the hub ack before the echo frame. */
+/**
+ * The card for our own live send, built from the hub ack before the echo frame.
+ *
+ * It carries the ack's `delivery` and `to_box` through (CLE-3435). The hub
+ * already decides both in `onSend` and puts them on the ack - `sent` means it
+ * handed the message to the recipient's box, `queued` that the box is offline
+ * and it is being held - and until now the client threw them away. That is the
+ * only evidence a human has that their message ARRIVED, and it is available
+ * ~83 ms after they press send, against a reply that takes ~14 s because it
+ * contains a model turn. A reader that does not understand a value must show
+ * nothing rather than guess, so an absent `delivery` stays absent.
+ */
 export function rowFromAck(ack, frame, { from = '', channel = null } = {}) {
   const a = ack || {}
   const f = frame || {}
   return {
+    ...(a.delivery ? { delivery: String(a.delivery) } : {}),
+    ...(a.to_box ? { to_box: String(a.to_box) } : {}),
     msg_id: String(a.msg_id || ''),
     task_id: String(a.task_id || f.task_id || ''),
     ts: a.received_at || new Date().toISOString(),

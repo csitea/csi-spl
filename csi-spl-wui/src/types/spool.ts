@@ -79,6 +79,16 @@ export interface AckFrame {
   task_id: string
   cursor?: string
   received_at?: string
+  /**
+   * What the hub did with it (contracts/flush.md): `sent` = handed to the
+   * recipient's box, `queued` = the box is offline and it is held, `local`,
+   * `pending`. This is the delivery RECEIPT - the evidence a human has that
+   * their message arrived, ~83 ms after send, without waiting for a reply
+   * that contains a model turn (CLE-3435).
+   */
+  delivery?: string
+  /** the box the hub routed it to */
+  to_box?: string
 }
 
 /** wui-live-ws §4 send fields (the live-ws client adds type and msg_id). */

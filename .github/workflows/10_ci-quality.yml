@@ -169,26 +169,6 @@ jobs:
           NUXT_PUBLIC_DEFAULT_LOCALE: "en"
         run: pnpm run generate
 
-      # CONTROL (016 T021 non-vacuity): a planted overflow MUST fail
-      # test:e2e. Reverted in the next commit. Does not touch product CSS.
-      - name: CONTROL — plant a horizontal overflow (this job must go red)
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          root = Path(".output/public")
-          n = 0
-          for p in root.rglob("*.css"):
-              t = p.read_text()
-              t2 = t.replace("overflow-x:clip", "overflow-x:visible").replace("overflow-x: clip", "overflow-x: visible")
-              t2 += "\nhtml,body{min-width:9999px!important;overflow-x:visible!important}\n"
-              p.write_text(t2)
-              n += 1
-          print(f"CONTROL planted overflow in {n} css files")
-          if n < 1:
-              raise SystemExit("CONTROL planted nothing — the job would not prove failure")
-          PY
-
       - name: Browser e2e (no-x-scroll, console-errors, thread-pane)
         env:
           CI: "1"

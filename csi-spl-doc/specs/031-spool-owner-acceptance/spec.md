@@ -142,6 +142,52 @@ its own rather than failing for this unrelated reason.
   dev WUI in the owner's thread and prints one PASS/FAIL line per case, with a
   `results.json` under the proof dir.
 
+### 4.1 Verified status — the live run of 2026-09-21
+
+`ENV=dev TENANT_ID=t1 OA_THREAD=0cd6b6d2-… DRY_RUN=0 ./run -a do_spl_owner_acceptance`
+against `https://dev.spool-hub.ai`, WUI build `ed7c5615`, tree `ed74ce7`, n=1,
+16:23:27–16:26 EEST. **5 of 8 cases PASS.** Evidence:
+`~/.local/share/<org>-<app>/cloud/dev/owner-acceptance/t1/<utc>/results.json`
+plus seven screenshots.
+
+| case | result | note |
+|---|---|---|
+| OA-31 signed in as its own member, thread open | PASS | never the owner's account |
+| OA-32 the row is on top for the sender, once | PASS | `wui_ms` 19 |
+| OA-33 visible in the agent's pane | **FAIL** | the delivery outage below — not the pane leg |
+| OA-34 the agent's reply comes back | **FAIL** | same cause: `do_spl_desk_reply` exit 3, nothing in the inbox to answer |
+| OA-19 code block in the DM composer | PASS | opened, held Enter, closed, rendered as code |
+| OA-24 a send lands or visibly fails | PASS | outcome `landed` |
+| OA-35 a PASS/FAIL line per case in the thread | PASS | 7 verdict lines posted |
+| OA-38 the owner's `?thread=` URL | **FAIL** | §3.1 |
+
+Timings are reported apart, never blended: `wui_ms {"display":19}`,
+`pane_s {"display":45}` (the timeout, not a measurement — the message never
+arrived), `reply_ms {"desk":null}`.
+
+### 4.2 The delivery outage OA-33 / OA-34 hit (handed to CLE-3434)
+
+**The hub accepted the messages, the browser showed them, the agent never
+received them, nothing was logged, and the sidecar process stayed healthy.**
+That is the owner's own symptom, and it is silent.
+
+Measured on the same run:
+
+- `ps -eo pid,etimes,args | grep hub-run` -> one process, pid 2492877,
+  `etimes` 992 at 16:27:23: alive since 16:10:51, never restarted.
+- the sidecar log's last session line is `16:10:51 INF hub session up`; the
+  only entry after it is, at 16:25:52,
+  `WRN pin refresh error="hub refused: door (a valid upload token is required)"`.
+- `ls --time-style=+%H:%M:%S .../spool/CLE-00/inbox | tail -1` -> newest file
+  **16:19:18**, still 16:19:18 at 16:27:23 — eight minutes of silence across
+  a run that sent eight messages.
+- `grep -rl ced3f727 .../spool/CLE-00/` -> no hit, for a message whose WUI row
+  survived the server echo (so the hub acked it).
+
+An earlier run at 16:16–16:19 delivered normally, so this is a transition
+rather than a setup that was never right. The sidecar was deliberately left
+running: the live process is the evidence, and the desk is CLE-3434's lane.
+
 ## 5. Manual procedures
 
 ### OA-37 — a real human Google / Microsoft / LinkedIn sign-in

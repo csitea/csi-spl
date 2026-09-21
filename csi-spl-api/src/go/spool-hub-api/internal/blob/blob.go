@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/googleapi"
@@ -231,17 +232,41 @@ func (g *GCS) PutReader(parent context.Context, key string, r io.Reader) (int64,
 	n, err := io.Copy(w, r)
 	if err != nil {
 		// Cancel aborts the upload, but Close can still race it and finalize
-		// the bytes sent so far (seen on a slow CI runner). Close waits for
-		// the upload to end, so a delete after it removes any such object.
+		// the bytes sent so far (seen on a slow CI runner). One delete after
+		// Close is not enough: the finalize has landed AFTER that delete
+		// returned, leaving the object at key and failing the contract above
+		// (run 35634691126, 2026-09-21: "failed PutReader left an object at
+		// its key"). So delete until the key is provably gone.
 		cancel()
 		w.Close()
-		if derr := g.bucket.Object(key).Delete(context.WithoutCancel(parent)); derr != nil &&
-			!errors.Is(derr, storage.ErrObjectNotExist) {
+		if derr := g.deleteUntilGone(context.WithoutCancel(parent), key); derr != nil {
 			return n, errors.Join(err, derr)
 		}
 		return n, err
 	}
 	return n, w.Close()
+}
+
+// deleteUntilGone removes key and then PROVES it gone, briefly retrying: an
+// aborted upload can be finalized by the server after the first delete has
+// already returned, and the caller's contract is "nothing is left at key",
+// not "a delete was issued". Error path only; it costs nothing on success.
+func (g *GCS) deleteUntilGone(ctx context.Context, key string) error {
+	const attempts, gap = 20, 50 * time.Millisecond // <= 1s
+	var last error
+	for i := 0; i < attempts; i++ {
+		if err := g.bucket.Object(key).Delete(ctx); err != nil && !errors.Is(err, storage.ErrObjectNotExist) {
+			last = err
+		}
+		switch ok, err := g.Exists(ctx, key); {
+		case err != nil:
+			last = err
+		case !ok:
+			return nil
+		}
+		time.Sleep(gap)
+	}
+	return errors.Join(last, fmt.Errorf("blob: %s is still present after an aborted upload", key))
 }
 
 // Promote is a server-side copy (no bytes through the hub) guarded by

@@ -34,6 +34,34 @@ func TestGCS(t *testing.T) {
 	testStore(t, openTestGCS(t))
 }
 
+// CONTROL for the aborted-upload cleanup (027 T020): what a finalize racing
+// the abort leaves behind is an ordinary object sitting at the tmp key, and
+// deleteUntilGone must not return until that key is really gone. One delete
+// was not enough on a slow runner -- run 35634691126 read "failed PutReader
+// left an object at its key" -- so this asserts the postcondition, not the
+// call. The second half is the idempotence the retry loop depends on: an
+// absent key is success, never an error.
+func TestGCSDeleteUntilGone(t *testing.T) {
+	g := openTestGCS(t)
+	ctx := context.Background()
+	key := TmpKey("t-"+uid(), uid())
+	if err := g.Put(ctx, key, []byte("bytes a finalize left behind")); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := g.Exists(ctx, key); err != nil || !ok {
+		t.Fatalf("the planted object is not there: %v %v", ok, err)
+	}
+	if err := g.deleteUntilGone(ctx, key); err != nil {
+		t.Fatalf("deleteUntilGone: %v", err)
+	}
+	if ok, err := g.Exists(ctx, key); err != nil || ok {
+		t.Fatalf("still present after deleteUntilGone: %v %v", ok, err)
+	}
+	if err := g.deleteUntilGone(ctx, key); err != nil {
+		t.Fatalf("deleteUntilGone on an absent key must be nil, got %v", err)
+	}
+}
+
 func uid() string {
 	b := make([]byte, 6)
 	rand.Read(b) //nolint:errcheck

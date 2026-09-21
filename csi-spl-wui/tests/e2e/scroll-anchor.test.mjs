@@ -64,6 +64,20 @@ try {
     await new Promise((r) => setTimeout(r, 1200))
     const after = await p.evaluate(() => ({ top: window.__sc.scrollTop, y: window.__anchor.getBoundingClientRect().top, pill: !!document.querySelector('[data-testid=new-pill]') }))
     ok(`${height}px (${before.page ? 'page' : 'feed-body'} scrolls): the row in view stays put, pill shown`, Math.abs(after.y - before.y) < 2 && after.pill && after.top > before.top, { before, after })
+    /* CLE-3425: "shown" has to mean ON SCREEN AND HITTABLE. This test used to
+       assert only that the element exists, and it did exist - at y = -379 px,
+       scrolled out of view, because `position: sticky` resolved against
+       .feed-body (overflow-y: auto) which never scrolls here. The click below
+       then threw "Node is either not clickable" instead of failing a check. */
+    const seen = await p.evaluate(() => {
+      const el = document.querySelector('[data-testid=new-pill]')
+      if (!el) return { pill: false }
+      const r = el.getBoundingClientRect()
+      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+      return { pill: true, top: r.top, bottom: r.bottom, vh: window.innerHeight, hit: at === el || (at ? el.contains(at) : false) }
+    })
+    ok(`${height}px: the pill is on screen and hittable, not just present`,
+      seen.pill && seen.top >= 0 && seen.bottom <= seen.vh && seen.hit, seen)
     if (process.env.OUT) await p.screenshot({ path: `${process.env.OUT}/scroll-anchor-${height}.png` })
     await p.click('[data-testid=new-pill]')
     await new Promise((r) => setTimeout(r, 1000))

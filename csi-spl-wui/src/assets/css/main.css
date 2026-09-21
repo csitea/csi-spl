@@ -168,7 +168,16 @@ html.pane-dragging * {
 }
 .feed-body {
   flex: 1;
-  overflow-y: auto;
+  /* CLE-3425: the main column is scrolled by the PAGE (since the 022 top bar),
+     so this `auto` never scrolled anything here - but it still made .feed-body
+     the nearest SCROLLPORT, which is what `position: sticky` resolves against.
+     The "new items" pill therefore stuck to a box that does not move and rode
+     the page out of view: measured at 1280x480, scrolled down, the pill sat at
+     y = -379 px, off screen and unclickable, while its own test only asserted
+     that the element exists. `visible` hands the pill the page as its
+     scrollport. The thread pane keeps its own scroller (.live-pane .feed-body
+     below), and overflow-x stays clipped for the no-x-scroll gate. */
+  overflow-y: visible;
   overflow-x: clip;
   padding: 16px 20px 8px;
   min-width: 0;

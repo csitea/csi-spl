@@ -411,8 +411,12 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "checkout lookup failed")
 		return
 	}
+	// locale: the buyer's language as the row kept it (rdb 0025), "" when they
+	// never said — so the buy can be checked from outside the hub, without a
+	// DB or a log line (spec 021 T022).
 	out := map[string]any{"checkout_id": c.ID, "tenant_id": c.TenantID,
-		"status": c.Status, "claimed": !c.ClaimedAt.IsZero(), "tenant_host": h.tenantHost(c.TenantID)}
+		"status": c.Status, "claimed": !c.ClaimedAt.IsZero(), "tenant_host": h.tenantHost(c.TenantID),
+		"locale": c.Locale}
 	if c.Status == store.CheckoutPaid {
 		out["host_status"] = h.hostStatus(r.Context(), c.TenantID)
 	}

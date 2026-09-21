@@ -13,6 +13,13 @@
 # @description DRY_RUN=1 (default): only reads GET /api/v1/checkout/plan.
 # @param TENANT_ID - the slug to buy (msg.ValidTenantID)
 # @param BUYER_EMAIL - where the one claim-link mail goes (no default)
+# @param LOCALE (optional) - the language the buyer is reading the checkout in
+# @param   (spec 021 T022), one of the 19 internal/i18n Supported codes: it is
+# @param   sent as the checkout body's `locale`, kept on the row (rdb 0025
+# @param   buyer_locale) and read back from GET /checkout/{id} `locale`, which
+# @param   this action ASSERTS. The claim mail and its link prefix follow it.
+# @param   Unset = say nothing: the row keeps "" and the mail stays on
+# @param   SPOOL_HUB_DEFAULT_LOCALE, which is what every buy did before 0025.
 # @param ENV (optional) - lde (default) or dev
 # @param DRY_RUN (optional) - 1 (default): plan only. 0: buy.
 # @param BASE_URL (optional) - hub base; default lde http://127.0.0.1:<lde hub
@@ -21,15 +28,25 @@
 # @param KEY_OUT (optional) - claim JSON file; default <state dir>/tenants/
 # @param   <tenant>.<utc>.json, mode 0600
 # @example ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com ./run -a do_spl_checkout_fake_buy
+# @example ENV=lde DRY_RUN=0 LOCALE=fi TENANT_ID=acmefi BUYER_EMAIL=buyer@example.com ./run -a do_spl_checkout_fake_buy
 # @example ENV=dev DRY_RUN=0 TENANT_ID=m2proof1 BUYER_EMAIL=<you> ./run -a do_spl_checkout_fake_buy
 #------------------------------------------------------------------------------
 do_spl_checkout_fake_buy() {
   do_require_bin curl || return 1
   do_require_bin jq || return 1
   local tenant="${TENANT_ID:-}" email="${BUYER_EMAIL:-}" env="${ENV:-lde}" dry="${DRY_RUN:-1}"
+  local locale="${LOCALE:-}"
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must match ^[a-z0-9][a-z0-9-]{0,31}$, got: '$tenant'"; return 1; }
   [[ "$email" == *@*.* ]] || { do_log "FATAL BUYER_EMAIL must be an address (no default)"; return 1; }
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: $dry"; return 2; }
+  # The 19 locales of internal/i18n Supported / rdb 0017+0025, listed here so a
+  # typo fails before it holds a slug (the hub would silently drop it).
+  if [[ -n "$locale" ]]; then
+    case " bg fi ru en sv he tr mk el lt et lv sr ro uk sk pl es nl " in
+      *" $locale "*) : ;;
+      *) do_log "FATAL LOCALE '$locale' is not one of the 19 supported locales (bg fi ru en sv he tr mk el lt et lv sr ro uk sk pl es nl)"; return 1 ;;
+    esac
+  fi
 
   local base="${BASE_URL:-}" state
   case "$env" in
@@ -77,7 +94,10 @@ do_spl_checkout_fake_buy() {
   }
 
   local id tok turl
-  _req POST "$api" "$(jq -nc --arg t "$tenant" --arg e "$email" '{tenant_id:$t, email:$e}')" || return 1
+  # `locale` rides the BODY (checkout-v1 1.2): never a header, so no CORS
+  # allow-list can refuse the checkout.
+  _req POST "$api" "$(jq -nc --arg t "$tenant" --arg e "$email" --arg l "$locale" \
+    '{tenant_id:$t, email:$e} + (if $l == "" then {} else {locale:$l} end)')" || return 1
   [[ "$_code" == 201 ]] || { do_log "FATAL checkout $tenant: HTTP $_code $(jq -c 'del(.claim_token)' <<<"$_body" 2>/dev/null)"; return 1; }
   id="$(jq -r .checkout_id <<<"$_body")"
   tok="$(jq -r .claim_token <<<"$_body")"
@@ -99,6 +119,14 @@ do_spl_checkout_fake_buy() {
 
   _req GET "$api/$id" || return 1
   [[ "$(jq -r .status <<<"$_body")" == paid ]] || { do_log "FATAL checkout $id is not paid after fake-pay: $_body"; return 1; }
+  # spec 021 T022: the row kept the buyer's locale (or "" when none was sent),
+  # which is what the claim mail and its link prefix follow.
+  local kept
+  kept="$(jq -r '.locale // ""' <<<"$_body")"
+  [[ "$kept" == "$locale" ]] || {
+    do_log "FATAL checkout $id kept locale '$kept', sent '${locale:-<none>}' (hub too old for checkout-v1 1.3 locale, or it dropped the value)"
+    return 1
+  }
 
   local out="${KEY_OUT:-$state/tenants/$tenant.$(date -u +%Y%m%dT%H%M%SZ).json}"
   mkdir -p "$(dirname "$out")" && chmod 700 "$(dirname "$out")" || return 1
@@ -120,8 +148,9 @@ do_spl_checkout_fake_buy() {
   local after="$_code"
 
   jq -nc --arg t "$tenant" --arg c "$id" --arg u "$turl" --arg f "$out" --arg b "$before" --arg a "$after" \
-    --arg r "$again" --arg l "$keylen" \
+    --arg r "$again" --arg l "$keylen" --arg loc "$kept" \
     '{tenant:$t, checkout_id:$c, tenant_url:$u, key_file:$f, tenant_before:($b|tonumber), fake_pay:"applied",
-      status:"paid", claim:200, key_b64_len:($l|tonumber), claim_again:($r|tonumber), tenant_after:($a|tonumber)}'
-  do_log "OK bought $tenant on the $env fake rail; root key in $out (0600), shown once, second claim $again"
+      status:"paid", claim:200, key_b64_len:($l|tonumber), claim_again:($r|tonumber), tenant_after:($a|tonumber),
+      locale:$loc}'
+  do_log "OK bought $tenant on the $env fake rail in locale '${kept:-<hub default>}'; root key in $out (0600), shown once, second claim $again"
 }

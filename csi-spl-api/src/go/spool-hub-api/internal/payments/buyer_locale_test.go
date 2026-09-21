@@ -47,6 +47,11 @@ func buyLocalized(t *testing.T, r *rig, tenant, bodyLocale string, headers map[s
 	if err != nil {
 		t.Fatal(err)
 	}
+	// §1.3 reports the same locale the row keeps, so a buy can be checked from
+	// outside the hub (do_spl_checkout_fake_buy asserts on it).
+	if code, st := r.do(t, "GET", "/api/v1/checkout/"+id, nil); code != 200 || st["locale"] != c.Locale {
+		t.Fatalf("status locale %v, row %q (%d)", st["locale"], c.Locale, code)
+	}
 	m := msgs[len(msgs)-1]
 	return c, m.Locale, m.TextBody
 }

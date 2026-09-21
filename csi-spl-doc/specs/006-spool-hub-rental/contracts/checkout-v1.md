@@ -104,7 +104,10 @@ URL (it would reach the provider and access logs).
 
 Polling for the success page. `200`:
 `{"checkout_id":"co_…","tenant_id":"acme","status":"pending|paid|failed|cancelled","claimed":false,
-"tenant_host":"acme.dev.<domain>","host_status":"pending|ready|unknown"}`.
+"tenant_host":"acme.dev.<domain>","host_status":"pending|ready|unknown","locale":"fi"}`.
+`locale` is the buyer's language as §1.2 kept it (`""` = never said, the claim
+mail follows the hub default), so a buy can be checked from outside the hub
+without reading the DB or a log line.
 `host_status` (specs/024, only once `paid`): `pending` while the tenant's own
 host (Cloud Run domain mapping + DNS record + certificate) is being provisioned
 by the reconcile, `ready` once it answers, `unknown` when the hub cannot tell.

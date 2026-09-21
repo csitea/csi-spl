@@ -46,7 +46,7 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
     it(`${page}: the send carries the open thread, and the placeholder follows it`, () => {
       const s = src(page)
       assert.match(s, /omniboxParentTaskId\(thread\)/)
-      assert.match(s, /channel\.send\(text, replyTo\.value \|\| undefined\)/)
+      assert.match(s, /channel\.send\(text, replyTo\.value \|\| undefined, files\)/)
       assert.match(s, /omniboxPlaceholderKey\(replyTo\.value\)/)
       assert.match(s, /from '~\/utils\/omnibox-thread\.mjs'/)
     })

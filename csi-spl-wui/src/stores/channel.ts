@@ -25,7 +25,7 @@ import {
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
 import { pendingRow, withoutMsg } from '~/utils/feed.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
-import type { ChannelRow, SendFrame, SpoolMessage } from '~/types/spool'
+import type { ChannelRow, FileRef, SendFrame, SpoolMessage } from '~/types/spool'
 
 export type { ChannelRow }
 
@@ -267,6 +267,33 @@ export const useChannelStore = defineStore('channel', () => {
     return row
   }
 
+  /**
+   * CLE-3433: a picked File is not a wire value. `stores/live.ts` POSTs each
+   * one to /v1/files first and puts the returned ref on the frame; this store
+   * never did, so /channel and /dm offered the attach control and then sent a
+   * frame with no files at all. Measured on the deployed dev build bb20552,
+   * signed in, WS frames captured and held back (n=1 per route): /lobby put
+   * 1 file on the frame, /dm and /channel put 0 - and the chip vanished from
+   * the composer either way, so it LOOKED sent.
+   *
+   * Anything that is already a ref passes through untouched, which is what
+   * makes the auto-resend on a dropped socket safe: the retry reuses the same
+   * frame and must not upload a second time.
+   */
+  async function toFileRefs(files?: unknown[]) {
+    const refs: FileRef[] = []
+    for (const f of files || []) {
+      if (typeof Blob !== 'undefined' && f instanceof Blob) {
+        const live = useLive()
+        const up = await api.uploadFile(f, await live.freshUploadToken()) as { file_id: string, sha256: string, bytes: number }
+        refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: (f as File).name })
+      } else if (f) {
+        refs.push(f as FileRef)
+      }
+    }
+    return refs
+  }
+
   /** Live send over the hub WUI socket (wui-live-ws §4); the echo frame lands via ingestLive. */
   async function sendLive(text: string, parentTaskId?: string, files?: unknown[]) {
     const live = useLive()
@@ -278,7 +305,7 @@ export const useChannelStore = defineStore('channel', () => {
       task_id: parentTaskId || newId(),
       kind: peer.value ? 'note' : parsed.kind,
       body: peer.value ? text : parsed.body,
-      files: files || [],
+      files: await toFileRefs(files),
       to: peer.value ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),
     }
     if (active.value) frame.channel = active.value

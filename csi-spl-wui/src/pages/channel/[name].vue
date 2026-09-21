@@ -63,8 +63,8 @@ onMounted(() => {
 /* CLE-3433 / OA-38: while `?thread=` names a thread, the Omnibox writes into
    THAT thread. Without this, channel.sendLive's `task_id: parentTaskId ||
    newId()` minted a new task per send and the exchange scattered. */
-async function onSend(text: string) {
-  await channel.send(text, replyTo.value || undefined)
+async function onSend(text: string, files?: File[]) {
+  await channel.send(text, replyTo.value || undefined, files)
 }
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */

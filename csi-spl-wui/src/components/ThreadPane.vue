@@ -126,7 +126,10 @@ if (import.meta.client && !api.mock) {
   onUnmounted(() => { off(); offReconnect() })
 }
 
-async function onSend(text: string, parent?: string) {
-  await channel.send(text, parent || thread.parentTaskId || undefined)
+/* CLE-3433: `files` was not in this signature, so an attachment picked in
+   the thread composer was dropped on the floor - see utils comment in
+   stores/channel.ts toFileRefs() for the measurement */
+async function onSend(text: string, parent?: string, files?: File[]) {
+  await channel.send(text, parent || thread.parentTaskId || undefined, files)
 }
 </script>

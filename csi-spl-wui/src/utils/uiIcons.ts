@@ -54,6 +54,12 @@ export const UI_ICON_PATHS = {
   moon: [
     "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z",
   ],
+  // CLE-3433: the notification control in the collapsed 72px sidebar rail,
+  // where its label does not fit and must not be shown as wrapped text.
+  bell: [
+    "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9",
+    "M13.73 21a2 2 0 0 1-3.46 0",
+  ],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

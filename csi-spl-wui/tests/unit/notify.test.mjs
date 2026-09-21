@@ -141,4 +141,27 @@ describe('live #alerts / DM escalation wiring (gap A2)', () => {
     assert.equal(store.includes('isUnread(m, cursors[key])'), true)
     assert.equal(store.includes('mentions'), true)
   })
+
+  /* CLE-3433. main.css collapses the sidebar to a 72px rail at 800px and
+     below and hides the section headings, the nav labels, the create row and
+     the version stamp. NotificationCenter never got that treatment, so the
+     words "enable alerts" were wrapped inside a 40px-wide button carrying
+     `overflow-wrap: anywhere` and rendered as a column of single letters —
+     measured on the deployed dev build 28ec27b as 40x234px at every viewport
+     from 390 to 768. Pin the rail form, and pin that the control is hidden
+     from NOBODY: a phone is where push matters most, so it keeps an
+     accessible name rather than being display:none'd like the labels. */
+  it('CLE-3433: in the collapsed rail the alerts control is an icon, and keeps its name', () => {
+    const vue = src('src/components/NotificationCenter.vue')
+    assert.match(vue, /@media \(max-width: 800px\)/)
+    assert.match(vue, /:aria-label="alertsLabel"/)
+    assert.match(vue, /name="bell"/)
+    const rail = vue.slice(vue.indexOf('@media (max-width: 800px)'))
+    assert.match(rail, /\.notify-text \{ display: none; \}/)
+    assert.match(rail, /\.notify-glyph \{ display: block; \}/)
+    /* the control itself is never removed */
+    assert.doesNotMatch(rail, /\.notify-box \{[^}]*display:\s*none/)
+    assert.doesNotMatch(rail, /\.notify-alerts \{[^}]*display:\s*none/)
+    assert.match(src('src/utils/uiIcons.ts'), /\n  bell: \[/)
+  })
 })

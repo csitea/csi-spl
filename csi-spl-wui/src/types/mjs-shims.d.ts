@@ -125,6 +125,8 @@ declare module '~/utils/channel-feed.mjs' {
   export function hueFor(id: string): number
   export function formatBytes(n: number | undefined, locale?: string): string
   export function formatTs(ts: string, locale?: string): string
+  export function formatAbsTs(ts: string): string
+  export function formatThreadTs(ts: string, originMs?: number): string
   export function renderBody(src: string): string
   export function channelSlug(name: string): string
   export function retentionLabel(row: { channel_id?: string, channel?: string, retention_days?: number }): string

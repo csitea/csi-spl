@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatTs } from '~/utils/channel-feed.mjs'
+import { formatThreadTs, formatTs } from '~/utils/channel-feed.mjs'
 import { activityOf } from '~/utils/feed.mjs'
 
 import type { FileRef, SpoolMessage } from '~/types/spool'
@@ -68,6 +68,8 @@ const props = defineProps<{
   clickable?: boolean
   /** the row the open thread is rooted at */
   selected?: boolean
+  /** Date.now() at thread open (ticks while open): `yyyy-mm-dd HH:MM:SS   <sec>` */
+  sinceMs?: number
 }>()
 const emit = defineEmits<{ 'open-thread': [msg: SpoolMessage] }>()
 
@@ -77,7 +79,11 @@ const kindLabel = (k: string) => (te('feed.kind.' + k) ? t('feed.kind.' + k) : k
 /* CLE-3425: a thread card is ordered by its LAST activity, so it shows that
    moment — a card that sits above another must not print an older time. */
 const at = computed(() => activityOf(props.msg))
-const time = computed(() => formatTs(at.value, locale.value))
+const time = computed(() => (
+  props.sinceMs != null
+    ? formatThreadTs(at.value, props.sinceMs)
+    : formatTs(at.value, locale.value)
+))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])
 const count = computed(() => props.count || 0)
 

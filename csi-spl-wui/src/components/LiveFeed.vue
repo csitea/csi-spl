@@ -28,6 +28,7 @@
         :always-thread="alwaysThread"
         :clickable="clickable"
         :selected="isSelected(m)"
+        :since-ms="sinceMs"
         :class="{ pending: m.pending }"
         :data-key="m.msg_id"
         :data-pending="m.pending ? 'true' : undefined"
@@ -65,6 +66,8 @@ const props = defineProps<{
   clickable?: boolean
   /** what "no rows" says here — in a thread pane that is "no replies yet". */
   emptyText?: string
+  /** thread-pane clock (Date.now()); omitted on channel / lobby cards */
+  sinceMs?: number
 }>()
 const emit = defineEmits<{ older: [], 'clear-search': [], 'open-thread': [msg: SpoolMessage] }>()
 

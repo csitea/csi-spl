@@ -70,7 +70,7 @@ export function formatBytes(n, locale) {
 /**
  * HH:MM (UTC) of a message timestamp. `locale` (optional, the active UI
  * locale) formats it the way that locale writes a time of day; without it the
- * output is unchanged (ISO "14:05").
+ * output is unchanged (ISO "14:05"). Channel / list cards keep this form.
  */
 export function formatTs(ts, locale) {
   const d = new Date(ts)
@@ -83,6 +83,30 @@ export function formatTs(ts, locale) {
     }
   }
   return d.toISOString().slice(11, 16)
+}
+
+/** UTC wall clock `yyyy-mm-dd HH:MM:SS` of a v:1 `ts` (RFC3339 Z). */
+export function formatAbsTs(ts) {
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return String(ts || '')
+  const iso = d.toISOString()
+  return iso.slice(0, 10) + ' ' + iso.slice(11, 19)
+}
+
+/**
+ * Thread-pane clock: absolute UTC time, three spaces, then whole seconds
+ * between `originMs` (when this thread was opened, or "now" while it stays
+ * open) and the message. Never negative (a reply after open shows 0 until
+ * origin catches up).
+ */
+export function formatThreadTs(ts, originMs) {
+  const abs = formatAbsTs(ts)
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return abs
+  const origin = Number(originMs)
+  if (!Number.isFinite(origin)) return abs
+  const sec = Math.max(0, Math.floor((origin - d.getTime()) / 1000))
+  return abs + '   ' + String(sec)
 }
 
 /**

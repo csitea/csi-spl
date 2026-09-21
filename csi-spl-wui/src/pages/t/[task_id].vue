@@ -6,7 +6,7 @@
       <VerbositySelector />
     </header>
     <div class="pinned-root">
-      <MessageCard v-if="store.thread.root" :msg="store.thread.root" />
+      <MessageCard v-if="store.thread.root" :msg="store.thread.root" :since-ms="sinceMs" />
     </div>
     <MessageComposer
       omnibox
@@ -25,6 +25,7 @@
         :loading="store.loading"
         :search="store.search"
         :last-live="store.lastLive"
+        :since-ms="sinceMs"
         @clear-search="store.setSearch('')"
       />
     </div>
@@ -48,6 +49,7 @@ const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_sta
 const taskId = computed(() => String(route.params.task_id || ''))
 const shortId = computed(() => taskId.value.slice(0, 8))
 const thread = useThreadStore()
+const sinceMs = useNowTick(() => Boolean(taskId.value))
 /* 005 FR-013: the same verbosity filter as the thread pane */
 const replies = computed(() => applyVerbosity(store.thread.replies, thread.verbosity))
 

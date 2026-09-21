@@ -14,6 +14,8 @@ import {
   retentionLabel,
   retentionDays,
   formatTs,
+  formatAbsTs,
+  formatThreadTs,
   feedRow,
   belongsTo,
   mergeLive,
@@ -70,6 +72,10 @@ describe('channel-feed', () => {
     assert.equal(formatTs(ts, 'fi'), '14.05')
     assert.equal(formatTs(ts, 'en'), new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(ts)))
     assert.equal(formatTs('not a date', 'fi'), 'not a date')
+    assert.equal(formatAbsTs(ts), '2026-09-19 14:05:00')
+    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T14:05:07Z')), '2026-09-19 14:05:00   7')
+    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T14:04:00Z')), '2026-09-19 14:05:00   0')
+    assert.equal(formatThreadTs('not a date', 1), 'not a date')
     assert.equal(formatBytes(2048, 'fi'), '2,0 KiB')
     assert.equal(formatBytes(2048, 'en'), '2.0 KiB')
     assert.equal(retentionDays({ channel_id: 'alerts' }), 7)

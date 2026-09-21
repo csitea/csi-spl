@@ -17,7 +17,7 @@
       </div>
     </header>
     <div class="pinned-root" data-test="thread-root">
-      <MessageCard v-if="root" :msg="root" />
+      <MessageCard v-if="root" :msg="root" :since-ms="sinceMs" />
       <p v-else-if="!loading && !loadError" class="muted">{{ t('thread.empty') }}</p>
     </div>
     <MessageComposer
@@ -37,6 +37,7 @@
         :search="search"
         :last-live="lastLive"
         :empty-text="t('thread.no_replies')"
+        :since-ms="sinceMs"
         @clear-search="search = ''"
       />
     </div>
@@ -55,6 +56,7 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 const thread = useThreadStore()
+const sinceMs = useNowTick(() => thread.open)
 const channel = useChannelStore()
 const api = useSpoolApi()
 const { t } = useI18n({ useScope: 'global' })

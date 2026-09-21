@@ -27,7 +27,7 @@
       </div>
     </header>
     <div class="pinned-root" data-test="thread-root">
-      <MessageCard v-if="root" :msg="root" />
+      <MessageCard v-if="root" :msg="root" :since-ms="sinceMs" />
       <p v-else-if="!pane.loading" class="muted">{{ t('thread.empty') }}</p>
     </div>
     <MessageComposer
@@ -48,6 +48,7 @@
         :search="pane.search"
         :last-live="pane.lastLive"
         :empty-text="t('thread.no_replies')"
+        :since-ms="sinceMs"
         @clear-search="pane.setSearch('')"
       />
     </div>
@@ -64,6 +65,7 @@ import type { SpoolMessage } from '~/types/spool'
 /* 013 US3: pinned root (oldest of the task_id), reply Omnibox, newest-first replies, live. */
 const pane = useLiveFeed('pane')
 const { t } = useI18n({ useScope: 'global' })
+const sinceMs = useNowTick(() => Boolean(pane.taskId))
 const localePath = useLocalePath()
 const thread = useThreadStore()
 

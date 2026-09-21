@@ -201,7 +201,7 @@ html.pane-dragging * {
 .spool-avatar { display: block; border-radius: var(--radius-sm); flex-shrink: 0; }
 .msg-meta { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .msg-author { font-weight: 600; font-size: 14px; }
-.msg-time { color: var(--color-muted); font-size: 12px; }
+.msg-time { color: var(--color-muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .msg-body {
   font-size: 14px;
   line-height: 1.45;

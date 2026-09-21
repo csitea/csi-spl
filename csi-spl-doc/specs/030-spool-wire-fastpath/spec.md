@@ -156,6 +156,58 @@ lane against the same FR-002/FR-003.
 
 ---
 
+## 0.5 The result, measured live on dev
+
+FP-2 landed. `do_spl_wire_probe` measures the reply leg both ways against a
+live hub: same probe box, same message shape, same CLI process spawn in both
+legs, so the delta is the connection and nothing else.
+
+**Version**: hub `0.1.17`, commit `39a5a25ae53df8436359ad64f49e42dcb271bb03`
+(`GET https://dev.api.spool-hub.ai/version`, printed by the probe itself).
+**Tree**: probe landed at `5784d1d`. **Tenant**: `t1` on dev, probe box
+`box-wire-probe`, which sends only to itself. **n**: 20 per leg (a 10-per-leg
+run half an hour earlier agreed: 608.0 / 281.0).
+
+| leg | p50 | p95 | min | max |
+|---|---:|---:|---:|---:|
+| **dial** — pre-030, a cold socket per send | 588.0 ms | 1580.4 ms | 536 | 1607 |
+| **submit** — 030, the sidecar's warm socket | **231.5 ms** | **401.2 ms** | 118 | 424 |
+| **delta** | **−356.5 ms** | **−1179.2 ms** | | |
+
+Reproduce:
+
+```
+ENV=dev TENANT_ID=t1 WIRE_N=20 DRY_RUN=0 ./run -a do_spl_wire_probe
+```
+
+Three things worth reading carefully before this number is re-used:
+
+1. **It is the REPLY LEG, not the whole round trip.** It is one hop of
+   CLE-3435's budget, not the budget.
+2. **Both legs include the CLI process spawn** (21.5 ms p50 on its own), and
+   both ran on a box carrying ~20 live agents, which is why the absolute
+   numbers are above the 220.6 ms transport figure in §0. The *delta* is the
+   claim; the absolutes are this box on this afternoon.
+3. **It was measured against the DEPLOYED 0.1.17 hub, and that is not a
+   caveat — it is the design.** FP-2 is box-side. The hub serves the identical
+   envelope either way and cannot tell the paths apart, which is exactly what
+   the byte-identity control asserts. A hub deploy ships the new binary; it is
+   not what makes the win appear.
+
+### 0.6 Deployment status
+
+Not yet served as a new hub image. A deploy is a new `hub.image.tag`, and the
+tag is derived into two further committed files — `<env>.env.json` and
+`<env>/tf/030-cloud-run-hub.vars.tfvars` — because terraform owns the image.
+Bumping the yaml alone turns trunk red on `cloud-actions.tst.sh` ("action
+`…:0.1.18` vs 030 `…:0.1.17`"), which is what this lane did and reverted
+(`cba622e`). Rendering the other two runs through the tf-runner, which this
+repo treats as one stack per box, from the main checkout, not during an apply —
+so it was handed to CLE-3355, which owns deploys, rather than forced from a
+worktree during a 20-agent afternoon.
+
+Nothing of FP-2 is blocked by that: see point 3 above.
+
 ## 1. Requirements
 
 - **FR-001** — Every change in this spec is justified by a measurement in §0 or

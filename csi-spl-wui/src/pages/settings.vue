@@ -81,9 +81,11 @@ const changed = useState('settings-password-changed', () => false)
   overflow-wrap: anywhere;
 }
 .settings-nav__link:hover { background: var(--color-bg-2); }
+/* CLE-3427: the active nav item is a SELECTED item — a step DARKER than the
+   hover fill, and its 3px edge is the one ring colour the whole WUI uses. */
 .settings-nav__link--active {
-  background: var(--color-bg-2);
-  border-inline-start-color: var(--color-accent);
+  background: var(--color-selected);
+  border-inline-start-color: var(--focus-ring);
   font-weight: 600;
 }
 .settings-content { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
@@ -91,6 +93,6 @@ const changed = useState('settings-password-changed', () => false)
   .settings-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .settings-nav ul { flex-direction: row; flex-wrap: wrap; gap: 4px; }
   .settings-nav__link { border-inline-start: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 6px 8px; }
-  .settings-nav__link--active { border-bottom-color: var(--color-accent); background: none; }
+  .settings-nav__link--active { border-bottom-color: var(--focus-ring); background: none; }
 }
 </style>

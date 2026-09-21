@@ -462,9 +462,14 @@ textarea.in-code {
   font-size: 13px;
   box-sizing: border-box;
 }
-.mention-item.active,
 .mention-item:hover {
   background: var(--color-surface-hover);
+}
+/* CLE-3427: the highlighted suggestion is a SELECTED list row — darker fill,
+   one 3px marker bar in the shared ring colour. */
+.mention-item.active {
+  background: var(--color-selected);
+  box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring);
 }
 .mention-label {
   min-width: 0;

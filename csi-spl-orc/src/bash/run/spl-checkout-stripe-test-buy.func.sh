@@ -16,6 +16,12 @@
 # @description DRY_RUN=1 (default): only reads GET /api/v1/checkout/plan.
 # @param TENANT_ID - the slug to buy (msg.ValidTenantID)
 # @param BUYER_EMAIL - where the one claim-link mail goes (no default)
+# @param LOCALE (optional) - the language the buyer is reading the checkout in
+# @param   (spec 021 T022), one of the 19 internal/i18n Supported codes: sent as
+# @param   the checkout body's `locale`, kept on the row (rdb 0025 buyer_locale)
+# @param   and read back from GET /checkout/{id} `locale`, which this action
+# @param   ASSERTS. The claim mail and its link prefix follow it. Unset = say
+# @param   nothing: the mail stays on SPOOL_HUB_DEFAULT_LOCALE.
 # @param STRIPE_API_BASE - required, no default: the Stripe REST base URL
 # @param ENV (optional) - dev (default; the only env)
 # @param STRIPE_KEY_APP / STRIPE_SHARED_ACCOUNT_OK (optional) - as do_spl_payment_secret_seed
@@ -28,6 +34,15 @@
 do_spl_checkout_stripe_test_buy() {
   do_require_bin curl jq yq || return 1
   local tenant="${TENANT_ID:-}" email="${BUYER_EMAIL:-}" dry="${DRY_RUN:-1}"
+  local locale="${LOCALE:-}"
+  # The 19 locales of internal/i18n Supported / rdb 0017+0025, listed here so a
+  # typo fails before it holds a slug (the hub would silently drop it).
+  if [[ -n "$locale" ]]; then
+    case " bg fi ru en sv he tr mk el lt et lv sr ro uk sk pl es nl " in
+      *" $locale "*) : ;;
+      *) do_log "FATAL LOCALE '$locale' is not one of the 19 supported locales (bg fi ru en sv he tr mk el lt et lv sr ro uk sk pl es nl)"; return 1 ;;
+    esac
+  fi
   [[ "${ENV:=dev}" == dev ]] || { do_log "FATAL ENV=$ENV: the test-card buy runs on dev only (prd takes real money)"; return 1; }
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must match ^[a-z0-9][a-z0-9-]{0,31}$, got: '$tenant'"; return 1; }
   [[ "$email" == *@*.* ]] || { do_log "FATAL BUYER_EMAIL must be an address (no default)"; return 1; }
@@ -70,7 +85,10 @@ do_spl_checkout_stripe_test_buy() {
   _tenant() { _req GET "$hub/v1/ws" "" "X-Spool-Tenant: $tenant"; }
 
   local id tok pi
-  _req POST "$api" "$(jq -nc --arg t "$tenant" --arg e "$email" '{tenant_id:$t, email:$e}')" || return 1
+  # `locale` rides the BODY (checkout-v1 1.2): never a header, so no CORS
+  # allow-list can refuse the checkout.
+  _req POST "$api" "$(jq -nc --arg t "$tenant" --arg e "$email" --arg l "$locale" \
+    '{tenant_id:$t, email:$e} + (if $l == "" then {} else {locale:$l} end)')" || return 1
   [[ "$_code" == 201 ]] || { do_log "FATAL checkout $tenant: HTTP $_code $(jq -c 'del(.claim_token, .client_secret)' <<<"$_body" 2>/dev/null)"; return 1; }
   id="$(jq -r .checkout_id <<<"$_body")" tok="$(jq -r .claim_token <<<"$_body")"
   turl="$(jq -r .tenant_url <<<"$_body")"
@@ -98,6 +116,14 @@ do_spl_checkout_stripe_test_buy() {
     sleep 3; waited=$((waited + 3))
   done
   local status_json="$_body"
+  # spec 021 T022: the row kept the buyer's locale (or "" when none was sent),
+  # which is what the claim mail and its link prefix follow.
+  local kept
+  kept="$(jq -r '.locale // ""' <<<"$_body")"
+  [[ "$kept" == "$locale" ]] || {
+    do_log "FATAL checkout $id kept locale '$kept', sent '${locale:-<none>}' (hub too old for checkout-v1 1.3 locale, or it dropped the value)"
+    return 1
+  }
 
   local kout="${KEY_OUT:-$state/tenants/$tenant.$(date -u +%Y%m%dT%H%M%SZ).json}"
   mkdir -p "$(dirname "$kout")" && chmod 700 "$(dirname "$kout")" || return 1
@@ -115,9 +141,9 @@ do_spl_checkout_stripe_test_buy() {
   [[ "$(jq -r .error <<<"$_body" 2>/dev/null)" != unknown_tenant ]] || { do_log "FATAL after payment $tenant is still unknown_tenant"; return 1; }
 
   jq -nc --arg t "$tenant" --arg c "$id" --arg p "$pi" --arg u "$turl" --arg f "$kout" --arg b "$before" \
-    --arg a "$_code" --arg r "$again" --arg l "$keylen" --arg w "$waited" --argjson s "$status_json" \
+    --arg a "$_code" --arg r "$again" --arg l "$keylen" --arg w "$waited" --argjson s "$status_json" --arg loc "$kept" \
     '{tenant:$t, checkout_id:$c, payment_intent:$p, tenant_url:$u, key_file:$f, tenant_before:($b|tonumber),
       confirm:"succeeded", webhook_paid_after_s:($w|tonumber), status:$s, claim:200, key_b64_len:($l|tonumber),
-      claim_again:($r|tonumber), tenant_after:($a|tonumber)}'
-  do_log "OK bought $tenant on the dev Stripe TEST card rail ($pi); paid by the real webhook; root key in $kout (0600)"
+      claim_again:($r|tonumber), tenant_after:($a|tonumber), locale:$loc}'
+  do_log "OK bought $tenant on the dev Stripe TEST card rail ($pi) in locale '${kept:-<hub default>}'; paid by the real webhook; root key in $kout (0600)"
 }

@@ -189,9 +189,21 @@ try {
       key: e.getAttribute('data-key') || '', ts: e.getAttribute('data-ts') || '',
     })),
   })))
-  const bad = perGroup.map((g) => ({ group: g.group, ...descending(g.rows) })).filter((g) => !g.ok)
-  step('order: every search group is newest first', perGroup.length > 0 && bad.length === 0,
-    { groups: perGroup.map((g) => `${g.group}:${g.rows.length}`), bad })
+  /* A group whose rows carry NO clock cannot be time-ordered and is reported,
+     never silently passed: `robots` and `users` are identities (the hub orders
+     them by id), so only the stamped groups are checked here. */
+  const judged = perGroup.map((g) => ({
+    group: g.group,
+    stamped: g.rows.filter((r) => r.ts).length,
+    ...descending(g.rows),
+  }))
+  const timed = judged.filter((g) => g.stamped > 1)
+  const bad = timed.filter((g) => !g.ok)
+  step('order: every timed search group is newest first', timed.length > 0 && bad.length === 0, {
+    checked: timed.map((g) => `${g.group}:${g.stamped}`),
+    not_time_ordered: judged.filter((g) => g.stamped <= 1).map((g) => `${g.group}:${g.stamped}`),
+    bad,
+  })
   const sr = await hubGet(a, api, '/v1/view/search?q=live')
   const groups = (sr.body && sr.body.groups) || {}
   res.detail.search_groups = Object.fromEntries(Object.entries(groups)

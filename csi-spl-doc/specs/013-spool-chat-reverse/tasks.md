@@ -77,4 +77,92 @@ Owner, verbatim: "add proper syntax highlighting in the code windows - some kind
 - [x] T028 Implemented (`e54e4db`, CLE-3429) — exactly one thread section in the shell (1..1): `src/utils/thread-pane.mjs` plus mutually exclusive `v-if` / `v-else` mounting in `src/layouts/default.vue` and the `closes()` sync watcher, so no route in the walk can show two panes or none. Shell invariant, no FR of its own. Check, same tree, n=1: `node --test tests/unit/thread-pane-single.test.mjs` -> **7 pass, 0 fail**.
 - The code viewer (FR-016/017/018, CLE-3423) is deliberately NOT restated here: it is T024-T025 above, written by the lane that measured it. An earlier index-sync pass numbered it `T027` against a trunk that did not yet carry those rows; the numbering in this file is the owning lane's.
 
-<!-- version: 1.0.0 · updated: 2026-09-21 · last-edit: 2026-09-21T08:20:00Z -->
+### CLE-3425 — the measurement behind T026/T027, the hub half, and the live proof
+
+Owner, verbatim: "change the order of appearance in the messages / any listing …
+the default order should be newest first and popping on the top when a new msg
+arrives and not being presented as the last one … and it should pop-up in
+real-time … without the user having to refresh the page — use web sockets".
+CLE-3412 delivered that for the messages of the OPEN view; the owner asked
+again, so this lane measured every other list first and then fixed what failed.
+
+Measured before-state, dev t1, 2026-09-20, WUI `019b93f`, hub 0.1.16:
+
+| list | before | verdict |
+|---|---|---|
+| thread list `/` | newest activity first, live | already right (CLE-3412) |
+| lobby feed | newest message first, live | already right (CLE-3412) |
+| `/channel`, `/dm` cards | ordered by the ROOT ts | **wrong** |
+| sidebar channels | a-z from the hub, never live | **wrong** |
+| sidebar DMs | a-z by label | **wrong** |
+| search results | order unknown — the page showed the view door | **blocked** |
+
+The channel evidence, `GET /v1/view/threads?channel=lobby` (n=8 rows): the lobby
+task `first_ts` 2026-09-19T16:29:52Z, `last_ts` 2026-09-20T03:04:50Z — the most
+recently active thread in the channel — rendered BELOW seven threads whose only
+activity was 17:56–18:56 the previous day. The sidebar evidence: rendered
+`alerts, live-proof, lobby, tasks` while activity was live-proof 03:24:56Z,
+lobby 03:04:50Z, the other two idle.
+
+- T026 / T027 above are this lane's; what the rows do not carry is the WHY and
+  the session gate. `channelView` sorted cards on the ROOT `ts`, so a reply into
+  a thread moved nothing at all; it now sorts on `threadCards`' `last_ts`. The
+  sidebar took ONE tab-wide `all` follow instead of a subscription per row, and
+  `all` had to become ref-counted (`live-ws.mjs`) so the thread list on `/`
+  dropping its own follow does not take the shell's down. Gated on the member
+  session afterwards in `cbac1cd` (W4, CLE-55): signed out the whole follow -
+  socket included - reads nothing. Measured signed out on prd `/lobby` and
+  `/channel/lobby`, WUI `6c0fd44`, n=2 pages: `/v1/view/*` request count **1**
+  (only `/v1/view/search/operators`, fired by `TopBar.vue`, another lane's
+  file), down from 2.
+
+- [x] T029 Implemented (`ebe5f55`; live on hub **0.1.17**, `39a5a25`, dev + prd,
+  rolled by CLE-3355) — the hub answers newest first and pushes the one event a
+  message fan-out cannot carry. `GET /v1/view/channels` newest activity first
+  (`store.SortChannelStats` / `ChannelActivity`, both stores) and each row now
+  carries `created_at`, so a channel created seconds ago ranks although it holds
+  no message (channels-v1 **1.1.0**). New `channel` WS frame on
+  `POST /v1/channels` to every browser socket of the tenant (wui-live-ws
+  **0.6.0**). `view-v1` §4.1 humans and the search `humans` group: newest member
+  first. Checks: `go test -race ./...` green (tree `ebe5f55`, n=1);
+  `TestViewChannelsNewestActivityFirst`, `TestWUIChannelFrameOnCreate` (with the
+  CONTROL that another tenant's socket gets nothing),
+  `TestViewRosterHumansNewestFirst`, `TestSortChannelStatsNewestActivityFirst`,
+  `TestSortHumansNewestFirst`.
+- [x] T030 Implemented (`de64134`) — search rows carry the clock their group is
+  ordered by (`search.mjs` `rowAt`, `data-key` + `data-ts` on every row), the
+  last list whose rendered order could not be read off the page.
+- [x] T031 Proven — SC-006 extended, live on dev, **12/12 PASS**, build
+  `3a473a7` + hub 0.1.17 (`/var/tmp/CLE-3425-proof/after-dev-3`; the run before
+  it, `after-dev-2`, passed the same 11 checks and failed only the script's own
+  vacuous-group bug, fixed in the same commit as this line):
+  `BASE=https://dev.<domain> EMAIL=<t1 test member> PW_FILE=<0600> OUT=<dir> node tests/e2e/list-order-live.proof.mjs`.
+  Two signed-in sessions A and B. ORDER (read off `data-ts`, which must never
+  increase down a list): thread list 50 rows, lobby feed 33, `#lobby` thread
+  cards 20, sidebar channels 5, sidebar DMs (1 peer stamped of 9), search
+  `threads:5` and `messages:5`; the thread list also matches the hub's own
+  answer row for row. LIVE, with no reload: a reply into an OLD thread moves its
+  card to B's top in **164 ms**, a message in another channel moves that channel
+  to the top of B's sidebar in **109 ms**, a channel created by A appears on top
+  of B's sidebar in **174 ms** (the `channel` frame) — all against a 1000 ms
+  limit. Screenshots + `results.json` per run.
+  - NOT time-ordered, reported rather than passed: the search `robots`, `users`,
+    `channels` and `boxes` groups carry no clock per row (the hub orders those
+    by id), so the script names them instead of checking them.
+  - NOT proven: two DISTINCT humans (dev t1 has one test member — the fan-out
+    rule for distinct humans is the Go test); prd signed in (prd t1 is the
+    owner's real tenant: anonymous checks only — `spool-hub.ai/build.json`
+    carries the shas, and the signed-out request count above); the DM-list tail
+    beyond one peer with DM history.
+- [x] T032 Fixed on the way, separate commit (`3a473a7`) — `/search` reads
+  through `withSessionRetry`. Signed in as the test member, `/search?q=live`
+  rendered "This tenant's threads need a member sign-in or a view token." and 0
+  result rows (n=2, `/search` and `/en/search`), so search order could not be
+  audited at all: `stores/search.ts` read straight through, so a member's first
+  read on a fresh page never armed the session door (010 FR-009). `2dfefe7`
+  fixed the same thing for `/channel`, `/dm` and the roster and did not reach
+  the 022 search store. No live worktree or branch owned search.
+
+<!-- version: 0.10.0 · updated: 2026-09-21 · last-edit: 2026-09-21T08:15:00Z -->
+
+<!-- version: 1.1.0 · updated: 2026-09-21 · last-edit: 2026-09-21T08:25:00Z -->

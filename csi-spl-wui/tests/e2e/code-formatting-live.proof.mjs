@@ -59,6 +59,8 @@ const step = (name, ok, ev = {}) => {
   console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev))
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+/** a newline that never sends, whether or not the caret sits in a fence */
+let shiftEnter = async () => {}
 const nonce = 'cf' + Date.now().toString(36)
 const OMNI = '[data-test=top-bar-omnibox] textarea'
 const PANE = '.thread-pane form.composer textarea, aside form.composer textarea'
@@ -84,6 +86,11 @@ try {
     document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(`${e.violatedDirective} ${e.blockedURI}`))
   })
   await p.setViewport({ width: 1440, height: 900 })
+  shiftEnter = async () => {
+    await p.keyboard.down('Shift')
+    await p.keyboard.press('Enter')
+    await p.keyboard.up('Shift')
+  }
   await p.goto(`${BASE}/login?tenant=${encodeURIComponent(TENANT)}&redirect=%2Flobby`, { waitUntil: 'networkidle2' })
   await p.waitForSelector('[data-test=native-auth-email]')
   await p.type('[data-test=native-auth-email]', email)
@@ -98,14 +105,33 @@ try {
   await p.goto(dm, { waitUntil: 'networkidle2' })
   await sleep(3000)
 
-  /** type `body` into `sel`, then Ctrl+Enter, and read back the card holding `tag` */
+  /**
+   * Type `tag` then `lines` into the composer at `sel`, as a person would.
+   *
+   * Line breaks are SHIFT+Enter throughout. Plain Enter is a newline only
+   * INSIDE a fence; outside one it sends, which is Slack's contract and this
+   * WUI's - so a prose line typed before the ``` would post itself as its own
+   * message and the rest would land in a second one. Shift+Enter is a newline
+   * in both states (enterAction), so one rule covers the whole body.
+   *
+   * A tab goes in with sendCharacter, which inserts the character; typing it
+   * with keyboard.type presses the Tab KEY and moves focus out of the box.
+   */
   async function compose(sel, tag, lines) {
     const ta = await p.waitForSelector(sel)
     await ta.focus()
     await p.keyboard.type(`${tag} `)
     for (const [i, line] of lines.entries()) {
-      await p.keyboard.type(line)
-      if (i < lines.length - 1) await p.keyboard.press('Enter')
+      const pieces = line.split('\t')
+      for (const [k, piece] of pieces.entries()) {
+        if (k) await p.keyboard.sendCharacter('\t')
+        if (piece) await p.keyboard.type(piece)
+      }
+      if (i < lines.length - 1) {
+        await p.keyboard.down('Shift')
+        await p.keyboard.press('Enter')
+        await p.keyboard.up('Shift')
+      }
     }
     return ta
   }
@@ -147,7 +173,7 @@ try {
   step('Omnibox: ``` opens a monospace block', /in-code/.test(openA.cls) && /mono/i.test(openA.font), openA)
   step('Omnibox: the box grew to hold the block', !growA.clipped, growA)
   await p.screenshot({ path: `${OUT}/1-omnibox-composer.png` })
-  await p.keyboard.type('\n```')
+  await shiftEnter(); await p.keyboard.type('```')
   const cardA = await sendAndRead(tagA)
   step('Omnibox: sent ```bash is a coloured code block', Boolean(cardA.hasCodeBlock && cardA.coloured > 0), cardA)
   step('Omnibox: it wraps instead of scrolling sideways', cardA.rowXScroll === 0, { rowXScroll: cardA.rowXScroll })
@@ -156,7 +182,7 @@ try {
   // ---- 2. an UNTAGGED block is coloured too ---------------------------------
   const tagB = `untagged ${nonce}`
   await compose(OMNI, tagB, ['```', ...SH])
-  await p.keyboard.type('\n```')
+  await shiftEnter(); await p.keyboard.type('```')
   const cardB = await sendAndRead(tagB)
   step('UNTAGGED ``` is auto-detected and coloured', Boolean(cardB.hasCodeBlock && cardB.coloured > 0), cardB)
   step('UNTAGGED colours as much as the tagged one did', cardB.coloured >= cardA.coloured, {
@@ -166,7 +192,7 @@ try {
   // ---- 3. CONTROL: prose in a fence stays plain -----------------------------
   const tagC = `prose ${nonce}`
   await compose(OMNI, tagC, ['```', 'the quick brown fox jumps over the lazy dog and then goes home'])
-  await p.keyboard.type('\n```')
+  await shiftEnter(); await p.keyboard.type('```')
   const cardC = await sendAndRead(tagC)
   step('CONTROL: prose in a fence is a block but is NOT coloured', Boolean(cardC.hasCodeBlock) && cardC.coloured === 0, cardC)
 
@@ -176,7 +202,7 @@ try {
   // is only the body text a terminal produces: prose, a fence, hard tabs.
   const tagD = `agentshape ${nonce}`
   await compose(OMNI, tagD, ['here is the failing step:', '```', '\tif err != nil {', '\t\treturn err', '\t}'])
-  await p.keyboard.type('\n```')
+  await shiftEnter(); await p.keyboard.type('```')
   const cardD = await sendAndRead(tagD)
   step('an agent-shaped body (prose + fence + tabs) renders as one code block', Boolean(cardD.hasCodeBlock), cardD)
   step('the tabs survive into the block', /\t/.test(cardD.text), { hasTab: /\t/.test(cardD.text) })
@@ -194,7 +220,7 @@ try {
     const growE = await grew(taE)
     step('THREAD PANE: the box grew to hold the block (was a 2-line peephole)', !growE.clipped, growE)
     await p.screenshot({ path: `${OUT}/2-thread-pane-composer.png` })
-    await p.keyboard.type('\n```')
+    await shiftEnter(); await p.keyboard.type('```')
     const cardE = await sendAndRead(tagE)
     step('THREAD PANE: the reply renders as a coloured code block', Boolean(cardE.hasCodeBlock && cardE.coloured > 0), cardE)
   }
@@ -216,7 +242,7 @@ try {
   // send one now and read the body back as a tree, not as text
   const tagF = `xss ${nonce}`
   await compose(OMNI, tagF, ['```', evil])
-  await p.keyboard.type('\n```')
+  await shiftEnter(); await p.keyboard.type('```')
   const cardF = await sendAndRead(tagF)
   step('CONTROL: nothing in a body became markup', cardF.injected === 0 && dialogs.length === 0, {
     injected: cardF.injected, dialogs,

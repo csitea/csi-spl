@@ -9,9 +9,12 @@
 #      curl, docker or spool call. CONTROL: the stub log records one when made
 #   3. do_spl_desk_reply refuses a bad kind, a non-HUM DESK_TO and a non-uuid
 #      DESK_TASK before it reads anything
-#   4. spl_desk_pick: the NEWEST human message wins; a box sender is never
-#      answered; DESK_TO / DESK_TASK narrow it; exit 3 when nothing is waiting;
-#      both overrides together open a thread no message of ours carries yet
+#   4. spl_desk_pick: a box sender is never answered; ONE waiting human
+#      conversation is answered; SEVERAL are refused (exit 4) and listed rather
+#      than guessed - answering "the newest human" let a second person's
+#      messages steal the thread an answer was meant for; the answered
+#      watermark makes already-answered messages stop counting; DESK_TO /
+#      DESK_TASK override; both together open a thread we hold no message of
 #   5. spl_desk_detach leaves the caller's descriptors alone: a daemon started
 #      inside a command substitution must not hold it open. That regression hung
 #      `./run` after every step of do_spl_desk_up had passed (2026-09-21)
@@ -96,21 +99,44 @@ msgs=$(cat <<JSON
  {"msg_id":"m3","task_id":"$U1","ts":"2026-09-21T13:00:00Z","from":"EZB-1","body":"a box, never answered"}]
 JSON
 )
-out=$(SNIPPET="spl_desk_pick '$msgs' '' ''" in_orc 2>&1)
-[[ "$out" == "HUM-4	$U2	m2	newest human" ]] && pass "the newest HUMAN message wins, body squeezed" ||
-  fail "pick newest: $out"
-out=$(SNIPPET="spl_desk_pick '$msgs' 'HUM-9' ''" in_orc 2>&1)
+# Two humans in two threads: a guess here is what put an answer meant for the
+# owner into a probe account's thread while the owner watched (2026-09-21).
+out=$(SNIPPET="spl_desk_pick '$msgs' '' '' '' 0" in_orc 2>&1); rc=$?
+[[ $rc -eq 4 ]] && pass "two waiting conversations are REFUSED, not guessed (exit 4)" ||
+  fail "two conversations did not exit 4 (rc=$rc): $out"
+[[ "$out" == *"DESK_TO=HUM-9 DESK_TASK=$U1"* && "$out" == *"DESK_TO=HUM-4 DESK_TASK=$U2"* ]] &&
+  pass "…and both are named, with the flags to choose one" || fail "the refusal does not name both: $out"
+out=$(SNIPPET="spl_desk_pick '$msgs' '' '' '' 1" in_orc 2>&1)
+[[ "$out" == "HUM-4	$U2	m2	newest  human" || "$out" == "HUM-4	$U2	m2	newest human" ]] &&
+  pass "DESK_ANY=1 takes the newest human anyway" || fail "DESK_ANY: $out"
+# One conversation only: answered without asking.
+one='[{"msg_id":"m1","task_id":"'$U1'","ts":"2026-09-21T10:00:00Z","from":"HUM-9","body":"first"},
+     {"msg_id":"m9","task_id":"'$U1'","ts":"2026-09-21T11:00:00Z","from":"HUM-9","body":"and again"}]'
+out=$(SNIPPET="spl_desk_pick '$one' '' '' '' 0" in_orc 2>&1)
+[[ "$out" == "HUM-9	$U1	m9	and again" ]] && pass "one waiting conversation is answered, at its newest message" ||
+  fail "single conversation: $out"
+# The watermark: what we already answered stops counting, so the second human
+# becomes the only one waiting and is answered without a question.
+printf '{"to":"HUM-9","task":"%s","ts":"2026-09-21T10:30:00Z"}' "$U1" >"$T/answered"
+out=$(SNIPPET="spl_desk_pick '$msgs' '' '' '$T/answered' 0" in_orc 2>&1)
+[[ "$out" == "HUM-4	$U2	m2"* ]] && pass "the answered watermark leaves one conversation waiting" ||
+  fail "watermark: $out"
+printf '{"to":"HUM-9","task":"%s","ts":"2026-09-21T23:00:00Z"}' "$U1" >"$T/answered"
+SNIPPET="spl_desk_pick '$msgs' '' '' '$T/answered' 0" in_orc >/dev/null 2>&1
+[[ $? -eq 3 ]] && pass "nothing newer than the last answer is exit 3" || fail "stale watermark did not exit 3"
+rm -f "$T/answered"
+out=$(SNIPPET="spl_desk_pick '$msgs' 'HUM-9' '' '' 0" in_orc 2>&1)
 [[ "$out" == "HUM-9	$U1	m1	first" ]] && pass "DESK_TO narrows it to that human" || fail "pick by to: $out"
-out=$(SNIPPET="spl_desk_pick '$msgs' '' '$U1'" in_orc 2>&1)
+out=$(SNIPPET="spl_desk_pick '$msgs' '' '$U1' '' 0" in_orc 2>&1)
 [[ "$out" == HUM-9* ]] && pass "DESK_TASK narrows it to that thread" || fail "pick by task: $out"
 boxonly='[{"msg_id":"m3","task_id":"'$U1'","ts":"2026-09-21T13:00:00Z","from":"EZB-1","body":"box"}]'
-SNIPPET="spl_desk_pick '$boxonly' '' ''" in_orc >/dev/null 2>&1
+SNIPPET="spl_desk_pick '$boxonly' '' '' '' 0" in_orc >/dev/null 2>&1
 [[ $? -eq 3 ]] && pass "a box-only inbox is nothing to answer (exit 3)" || fail "box-only inbox did not exit 3"
-SNIPPET="spl_desk_pick '[]' '' ''" in_orc >/dev/null 2>&1
+SNIPPET="spl_desk_pick '[]' '' '' '' 0" in_orc >/dev/null 2>&1
 [[ $? -eq 3 ]] && pass "an empty inbox is nothing to answer (exit 3)" || fail "empty inbox did not exit 3"
-SNIPPET="spl_desk_pick 'not json' '' ''" in_orc >/dev/null 2>&1
+SNIPPET="spl_desk_pick 'not json' '' '' '' 0" in_orc >/dev/null 2>&1
 [[ $? -eq 3 ]] && pass "unreadable recv output is nothing to answer (exit 3)" || fail "bad json did not exit 3"
-out=$(SNIPPET="spl_desk_pick '[]' 'HUM-9' '$U2'" in_orc 2>&1)
+out=$(SNIPPET="spl_desk_pick '[]' 'HUM-9' '$U2' '' 0" in_orc 2>&1)
 [[ "$out" == "HUM-9	$U2		" ]] && pass "both overrides open a thread we hold no message of" ||
   fail "both overrides: $out"
 

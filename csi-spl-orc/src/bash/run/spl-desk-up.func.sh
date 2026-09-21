@@ -34,6 +34,10 @@
 # @param DESK_NOTIFY_CMD (optional) - the terminal-leg renderer (specs/028),
 # @param   default <org>-<app>-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh.
 # @param   `off` seats the agent with NO terminal leg (inbox only)
+# @param DESK_POKE (optional) - 1 (default) types the poke line into the agent's
+# @param   PROMPT under the safe-poke rules; 0 leaves the prompt alone and shows
+# @param   the message only. Use 0 where a person watches the pane and the
+# @param   prompt is theirs: an agent with 0 is told nothing it can act on
 # @param DESK_WAIT_SECS (optional) - roster wait, default 30 (hub-run rescans every 10s)
 # @param DESK_WUI_URL (optional) - the WUI origin for the printed DM URL,
 # @param   default https://<env.dns.fqdn>
@@ -56,6 +60,8 @@ do_spl_desk_up() {
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   local notify="${DESK_NOTIFY_CMD-$APP_PATH/$SPL_ORG_APP-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh}"
   [[ "$notify" == off || -x "$notify" ]] || { do_log "FATAL DESK_NOTIFY_CMD '$notify' is not executable (use 'off' for no terminal leg)"; return 1; }
+  local poke="${DESK_POKE:-1}"
+  [[ "$poke" == 0 || "$poke" == 1 ]] || { do_log "FATAL DESK_POKE must be 0 or 1, got: '$poke'"; return 1; }
 
   local wui="${DESK_WUI_URL:-https://$SPL_FQDN}"
   if (( dry )); then
@@ -73,7 +79,7 @@ do_spl_desk_up() {
 
   local pub
   pub="$(spl_desk_pin "$d" "$box" "$tenant" "$hub" "$rkj")" || return 1
-  spl_desk_sidecar "$d" "$box" "$tenant" "$hub" "$notify" || return 1
+  spl_desk_sidecar "$d" "$box" "$tenant" "$hub" "$notify" "$poke" || return 1
   local pid="$SPL_DESK_PID"
   local announced=0
   spl_desk_wait_roster "$d" "$box" "$agent" "$wait" && announced=1
@@ -90,7 +96,7 @@ EOF_PY
   (( announced )) || {
     do_log "FAIL $agent is not announced on $box within ${wait}s: see $d/spool/.hub/hub-run.log"; return 1; }
   do_log "OK $agent is seated on $box in $tenant ($ENV): a human DMs it at $wui/dm/$agent@$box"
-  do_log "OK the terminal leg is $notify; the agent answers with: $reply"
+  do_log "OK the terminal leg is $notify (prompt poke: $poke); the agent answers with: $reply"
 }
 
 # spl_desk_validate <tenant> <box> <agent>: the shared id rules of the desk
@@ -150,7 +156,7 @@ spl_desk_alive() {
 # `./run` never returns. Measured on this box 2026-09-21: the sidecar held
 # run.sh's fd 61/62/63 and the action hung after every step had passed.
 spl_desk_sidecar() {
-  local d="$1" box="$2" tenant="$3" hub="$4" notify="$5"
+  local d="$1" box="$2" tenant="$3" hub="$4" notify="$5" poke="${6:-1}"
   local hubd="$d/spool/.hub" pidf
   pidf="$hubd/hub-run.pid"
   SPL_DESK_PID=""
@@ -161,7 +167,7 @@ spl_desk_sidecar() {
     do_log "INFO the hub-run sidecar of $box is already live (pid $SPL_DESK_PID, log $hubd/hub-run.log)"
   else
     SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" \
-    SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_NOTIFY_CMD="$notify" \
+    SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_NOTIFY_CMD="$notify" SPOOL_POKE="$poke" \
       spl_desk_detach "$hubd/hub-run.log" "$SPL_SPOOL" hub-run
     SPL_DESK_PID=$!
     printf '%s\n' "$SPL_DESK_PID" >"$pidf"

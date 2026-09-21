@@ -8,15 +8,25 @@
 # @description appears in the browser's open DM.
 # @description   1. `spool recv --as <agent>` on the desk root (no --ack: the
 # @description      message stays in the inbox unless DESK_ACK=1)
-# @description   2. the newest message whose `from` is a HUM-* id, unless
-# @description      DESK_TO / DESK_TASK name the thread explicitly
+# @description   2. the conversation to answer. NOT simply "the newest human":
+# @description      two people (or a probe) writing to the same agent would
+# @description      then take turns stealing each other's thread, and an answer
+# @description      meant for one appears under the other - measured
+# @description      2026-09-21, while the owner watched. So: only messages
+# @description      NEWER than this desk's last answer count, and
+# @description        - exactly one such (sender, thread)  -> answer it
+# @description        - several                            -> REFUSE, exit 4,
+# @description          and name them; pass DESK_TO / DESK_TASK to choose
+# @description        - none                               -> exit 3
+# @description      DESK_TO / DESK_TASK override the whole rule
 # @description   3. `spool send --from <agent> --to <hum> --task <task>
 # @description      --to-box box-wui --kind <DESK_KIND>`; the desk's hub-run
 # @description      sidecar flushes it to the hub
 # @description Prints one JSON line (msg_id, task_id, to, kind, the answered
 # @description message's id and its first characters). No secret is read.
-# @description Exit 3 when the inbox holds nothing from a human yet: the owner
-# @description has not written, so there is nothing to answer.
+# @description Exit 3 when nothing newer than this desk's last answer is
+# @description waiting. Exit 4 when more than one human conversation is, which
+# @description is a question for the operator, not a guess for the action.
 # @description Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant the desk is seated in
@@ -27,6 +37,8 @@
 # @param DESK_TO (optional) - answer THIS human id instead of the newest sender
 # @param DESK_TASK (optional) - answer in THIS thread instead of the newest one
 # @param DESK_ACK (optional) - 1 = archive the answered message, default 0
+# @param DESK_ANY (optional) - 1 = answer the newest human message even when
+# @param   several conversations are waiting (the pre-2026-09-21 behaviour)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='Moi! Olen CLE-00.' DRY_RUN=0 ./run -a do_spl_desk_reply
 #------------------------------------------------------------------------------
@@ -56,11 +68,19 @@ do_spl_desk_reply() {
   [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
   spl_host_spool || return 1
 
-  local msgs pick
+  local msgs pick prc=0
   msgs="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- recv --as "$agent" 2>&1)" ||
     { do_log "FATAL recv --as $agent on $box: $msgs"; return 1; }
-  pick="$(spl_desk_pick "$msgs" "$to" "$task")" || {
-    do_log "INFO $agent has nothing from a human to answer yet (inbox $d/spool/$agent/inbox)"; return 3; }
+  pick="$(spl_desk_pick "$msgs" "$to" "$task" "$d/answered" "${DESK_ANY:-0}")" || prc=$?
+  if (( prc == 3 )); then
+    do_log "INFO $agent has nothing newer than its last answer to reply to (inbox $d/spool/$agent/inbox)"; return 3
+  elif (( prc == 4 )); then
+    do_log "FATAL $agent has more than one conversation waiting; name one with DESK_TO and DESK_TASK (or DESK_ANY=1):"
+    do_log "FATAL $pick"
+    return 4
+  elif (( prc != 0 )); then
+    do_log "FATAL cannot choose a conversation to answer: $pick"; return 1
+  fi
   local ans_to ans_task ans_msg ans_head
   IFS=$'\t' read -r ans_to ans_task ans_msg ans_head <<<"$pick"
   [[ -n "$ans_to" && -n "$ans_task" ]] || { do_log "FATAL cannot read a human and a thread out of $agent's inbox"; return 1; }
@@ -80,6 +100,12 @@ print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent, "kin
                   "to": to, "task_id": task, "answered_msg_id": in_msg, "answered_head": head,
                   "send": sent}, sort_keys=True))
 EOF_PY
+  # The watermark of this desk's conversation: what "newer than the last
+  # answer" means next time. It is a hint, not a record - losing it only makes
+  # the next run ask instead of choosing.
+  python3 -c 'import json,sys; open(sys.argv[1],"w").write(json.dumps({"to":sys.argv[2],"task":sys.argv[3],"ts":sys.argv[4]}))' \
+    "$d/answered" "$ans_to" "$ans_task" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>/dev/null ||
+    do_log "WARN could not record which conversation $agent just answered ($d/answered)"
   if [[ "${DESK_ACK:-0}" == 1 ]]; then
     spl_desk_spool "$d" "$box" "$tenant" "$hub" -- recv --as "$agent" --ack >/dev/null 2>&1 ||
       do_log "WARN could not archive $agent's inbox after the answer"
@@ -87,35 +113,66 @@ EOF_PY
   do_log "OK $agent answered $ans_to in thread $ans_task ($kind); the sidecar flushes it to $hub"
 }
 
-# spl_desk_pick <recv json> <to override> <task override>: the message to
-# answer, as "<to>\t<task>\t<msg_id>\t<head>". Newest first by ts, humans only
-# (a HUM-* sender): a desk answers the person in the browser, not another box.
-# Exit 3 when there is nothing to answer.
+# spl_desk_pick <recv json> <to override> <task override> <answered file> <any>:
+# the conversation to answer, as "<to>\t<task>\t<msg_id>\t<head>".
+#
+# Humans only (a HUM-* sender): a desk answers the person in the browser, not
+# another box. Among those, only messages NEWER than this desk's last answer
+# are candidates - an inbox is never drained, so "the newest human message"
+# alone would keep re-picking whoever spoke most recently ANYWHERE, and an
+# answer meant for one person would land in another's thread.
+#
+# Exit 3 nothing to answer; exit 4 more than one conversation is waiting, with
+# them listed on stdout - that is a question for the operator, not a guess.
 spl_desk_pick() {
-  python3 - "$1" "${2:-}" "${3:-}" <<'EOF_PY'
+  python3 - "$1" "${2:-}" "${3:-}" "${4:-}" "${5:-0}" <<'EOF_PY'
 import json, sys
-raw, to, task = sys.argv[1], sys.argv[2], sys.argv[3]
+raw, to, task, answered, any_one = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5] == "1"
 try:
     msgs = json.loads(raw) or []
 except ValueError:
     msgs = []
-def human(m):
-    return str(m.get("from", "")).startswith("HUM-")
-rows = [m for m in msgs if isinstance(m, dict) and human(m)]
+rows = [m for m in msgs if isinstance(m, dict) and str(m.get("from", "")).startswith("HUM-")]
+
+def out(m, to_=None, task_=None):
+    head = " ".join(str(m.get("body", "")).split())[:80] if m else ""
+    print("\t".join([to_ or m.get("from", ""), task_ or m.get("task_id", ""),
+                     (m or {}).get("msg_id", "") if m else "", head]))
+    sys.exit(0)
+
 if to:
     rows = [m for m in rows if m.get("from") == to]
 if task:
     rows = [m for m in rows if m.get("task_id") == task]
-if not rows:
-    # An override may name a thread no message of ours carries yet (the owner
-    # opened a fresh DM): answer it anyway when BOTH are given.
+rows.sort(key=lambda m: (str(m.get("ts", "")), str(m.get("msg_id", ""))))
+
+if to or task:
+    # An explicit choice is obeyed, including a thread we hold no message of
+    # yet (the person opened a fresh DM) when BOTH halves are named.
+    if rows:
+        out(rows[-1])
     if to and task:
         print("\t".join([to, task, "", ""]))
         sys.exit(0)
     sys.exit(3)
-rows.sort(key=lambda m: (str(m.get("ts", "")), str(m.get("msg_id", ""))))
-m = rows[-1]
-head = " ".join(str(m.get("body", "")).split())[:80]
-print("\t".join([m.get("from", ""), m.get("task_id", ""), m.get("msg_id", ""), head]))
+
+since = ""
+try:
+    with open(answered) as f:
+        since = str(json.load(f).get("ts", ""))
+except (OSError, ValueError, AttributeError):
+    since = ""
+fresh = [m for m in rows if not since or str(m.get("ts", "")) > since]
+if not fresh:
+    sys.exit(3)
+threads = {}
+for m in fresh:
+    threads.setdefault((m.get("from", ""), m.get("task_id", "")), []).append(m)
+if len(threads) > 1 and not any_one:
+    for (frm, tsk), ms in sorted(threads.items(), key=lambda kv: str(kv[1][-1].get("ts", ""))):
+        print("DESK_TO=%s DESK_TASK=%s  (%d waiting, newest: %s)"
+              % (frm, tsk, len(ms), " ".join(str(ms[-1].get("body", "")).split())[:60]))
+    sys.exit(4)
+out(fresh[-1])
 EOF_PY
 }

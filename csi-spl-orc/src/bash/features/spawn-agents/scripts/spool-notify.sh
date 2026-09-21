@@ -69,6 +69,19 @@ spool_valid_id "$TO" || exit 2
 spool_poke_show "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
 
 # 2. OFFER it to the prompt, under the safe-poke rules, unchanged.
+#
+#    SPOOL_POKE=0 leaves the prompt alone entirely - no poke, and no queue
+#    either, so nothing can be re-offered later. That is a real trade, not a
+#    tidy-up: the poke line is how an AGENT learns it has mail, its prompt
+#    being its only input, so with this off the notice reaches the pane and
+#    nobody acts on it until a person reads it. Set it where a person watches
+#    the pane and the prompt is theirs - the orchestrator's own seat, where a
+#    queue that had waited out a long busy prompt delivered a batch of
+#    already-answered notices in one burst (measured 2026-09-21).
+if [ "${SPOOL_POKE:-1}" = 0 ]; then
+  echo "poke: off (SPOOL_POKE=0) - ${TO} was SHOWN the message; its prompt was not touched"
+  exit 0
+fi
 spool_notify_render _line "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
 spool_notify_poke "$TO" "$_line"
 rc=$?

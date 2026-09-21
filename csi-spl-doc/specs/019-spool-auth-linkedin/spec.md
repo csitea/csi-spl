@@ -88,14 +88,15 @@ Consequences:
   `IDP=linkedin ENV=<env> ./run -a do_spl_auth_idp_secret_seed` (csi-spl-orc), from the
   owner file `$HOME/.gcp/.csi/.spl/linkedin-client-<env>.json` (§4). Same action serves
   `microsoft` (018), `facebook`, `xai`.
-- **FR-L5** — Owned by CLE-3380 (A7 cross-origin): the callback is on the **hub API
-  host**, `https://api.<fqdn>/api/v1/auth/linkedin/callback`, derived by
-  `do_spl_merged_cnf`; `SPOOL_HUB_AUTH_APP_URL` stays the WUI origin. Values:
-  dev `https://dev.api.spool-hub.ai/api/v1/auth/linkedin/callback`,
-  prd `https://api.spool-hub.ai/api/v1/auth/linkedin/callback`.
-  Today (`yq .env.auth.social.env.SPOOL_HUB_AUTH_LINKEDIN_REDIRECT_URI csi-spl-cnf/csi-spl/dev.env.json`)
-  the render still says the WUI host `https://dev.spool-hub.ai/...`; 019 does not
-  change the derivation.
+- **FR-L5** — Implemented (T030; owner 2026-09-19, 010 OQ-A2 / FR-010, csi-rel
+  shape): the callback stays on the **WUI apex**,
+  `https://<fqdn>/api/v1/auth/linkedin/callback`, derived by `do_spl_merged_cnf`.
+  Firebase Hosting rewrites `/api/v1/auth/**` to the hub, so the IdP callback is
+  same-origin. `wui_auth_base` is the api host (the rewrite target);
+  `SPOOL_HUB_AUTH_APP_URL` stays the WUI origin. Rendered:
+  dev `https://dev.spool-hub.ai/api/v1/auth/linkedin/callback`,
+  prd `https://spool-hub.ai/api/v1/auth/linkedin/callback`.
+  An API-host callback URI is declined (`redirect_uri_mismatch` measured 2026-09-19).
 - **FR-L6** — Owned by CLE-55 (WUI): the login page shows a LinkedIn brand mark next to
   "Continue with LinkedIn" (the button itself already appears when the hub lists
   `linkedin`: the list is registry-driven).
@@ -162,6 +163,6 @@ Console steps: `owner-runbook.md`.
   reusing 018's `idtoken.go` once it lands. Not needed for correctness; revisit if an
   auditor asks.
 - **OQ-L5 — prd rollout timing.** Recommended: prd only after one owner sign-in on dev
-  succeeds end to end (T051), and after CLE-3380's api-host callbacks are live in prd.
+  succeeds end to end (T051). T030 apex callbacks are already the rendered cnf on both envs.
 
 <!-- version: 0.1.0 · updated: 2026-09-19 -->

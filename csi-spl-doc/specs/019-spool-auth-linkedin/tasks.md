@@ -20,7 +20,7 @@
 
 ## Phase 4 — Other lanes
 
-- [ ] T030 FR-L5 — **CLE-3380**: callbacks derived on `https://api.<fqdn>/api/v1/auth/<p>/callback`.
+- [x] T030 FR-L5 — Implemented as the WUI apex (owner 2026-09-19, 010 OQ-A2 / FR-010, csi-rel shape; GRK-3380, 2026-09-21). Hosting forwards `/api/v1/auth/**` to the hub, so the IdP callback stays same-origin on `https://<fqdn>/api/v1/auth/<p>/callback`. `wui_auth_base` is the api host (rewrite target). Check: `python3 -c` walk of `csi-spl-cnf/csi-spl/{dev,prd}.env.json` → LinkedIn redirect `https://dev.spool-hub.ai/api/v1/auth/linkedin/callback` / `https://spool-hub.ai/api/v1/auth/linkedin/callback`; `env.steps.019-firebase-static-site.wui_auth_base` → `https://dev.api.spool-hub.ai` / `https://api.spool-hub.ai`. API-host callback URI declined (`redirect_uri_mismatch` measured 2026-09-19). No cnf change.
 - [x] T031 Implemented (`e8c2f75`, GRK-3371 for CLE-55) — LinkedIn [in] Logo (`#0A66C2`) next to `social_auth.continue_linkedin` in all 19 locales. Shows only when `/api/v1/auth/providers` lists `linkedin`. FR-L6. Check: `command grep -c social-logo-linkedin csi-spl-wui/src/components/SocialAuthButtons.vue` → 1; `cd csi-spl-wui && node --test tests/unit/auth-client.test.mjs` → pass.
 
 ## Phase 5 — Live (blocked on the owner: `~/.gcp/.csi/.spl/linkedin-client-{dev,prd}.json`)

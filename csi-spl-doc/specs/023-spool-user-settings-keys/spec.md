@@ -131,8 +131,10 @@ renders once, in the parent, for every section.
 - **FR-008** Writes are rate-limited per human (in-process window) and
   audited: a structured log line per add / revoke (human id, key id,
   fingerprint, source, reason) plus the durable history rows.
-- **FR-009** i18n: every string is a catalogue key in all 19 locales (en
-  values as placeholders until CLE-3403's translator pass, 021 T011).
+- **FR-009** i18n: every string is a catalogue key in all 19 locales. Check
+  (GRK-3380, 2026-09-21): 19 locale files each carry all 58 `settings` leaves;
+  identical-to-English is 0 for es/ru/tr/uk/he/sv/nl and 1/58 for el
+  (`settings.email` = `Email`).
 - **FR-010** No document x-scroll at phone width; CSP unchanged (WebCrypto
   and `blob:` downloads need no new directive).
 

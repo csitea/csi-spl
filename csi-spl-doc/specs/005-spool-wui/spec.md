@@ -159,14 +159,16 @@ opening it.
   OQ-W1), never `v:1` fields; the viewer reads them from `GET /v1/view/threads`
   (`channel`, `parent_task_id`) and sends them on the `/v1/wui/ws` `send` frame.
   Replies share the thread's `task_id`; `parent_task_id` links child tasks. The
-  live client does not send either yet (phase-3 WUI wiring); the mock data folds
-  `parent_task_id || task_id`, which is compatible.
+  live client sends both on the `/v1/wui/ws` `send` frame (`stores/live.ts`
+  `send(..., {parentTaskId?, channel?})`; P3).
 - **FR-006** — Implemented: bodies go through `renderBody` (escape first, then a
   small markdown subset) before `v-html`; `tests/unit/view-api.test.mjs` asserts
   `<script>` / `<img onerror>` render as text (`9eafd8c`).
-- **FR-007** — Partial: `nuxt generate` → Firebase Hosting via 007 steps
-  `016-firebase-deploy-iam` + `019-firebase-static-site`; hub stays on Cloud Run.
-  Terraform written, not applied: `curl -s -o /dev/null -w '%{http_code}' https://csi-spl-dev-site.web.app -> 404` (same for `-prd-site`).
+- **FR-007** — Implemented (GRK-3380, 2026-09-21): `nuxt generate` → Firebase
+  Hosting via 007 steps `016` / `019`; hub stays on Cloud Run. Live:
+  `curl -s https://dev.spool-hub.ai/build.json` and `https://spool-hub.ai/build.json`
+  both return commit `44e94470cb90a1bce16db55d0fa23c0c4b6b1ba2` run `35602385949`;
+  `csi-spl-{dev,prd}-site.web.app/build.json` 200, same sha.
 - **FR-008** — Implemented: lde `pnpm dev` (port 3000), `NUXT_PUBLIC_API_BASE`,
   `NUXT_PUBLIC_USE_MOCK`; orc `do_wui_dev` / `do_wui_test` / `do_wui_build`
   (`ls csi-spl-orc/src/bash/run/wui-*.func.sh -> 5 files`:

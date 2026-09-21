@@ -58,11 +58,33 @@ Cookie `spool_session` (cnf `SPOOL_HUB_AUTH_COOKIE_NAME`; dev: `spool_session_de
 
 ```json
 { "v": 1, "p": "google", "sub": "<idp subject>", "email": "person@example.com",
-  "name": "FirstName LastName", "hum": "HUM-…", "t": "<tenant>", "iat": 1789759591, "exp": 1789802791 }
+  "name": "FirstName LastName", "hum": "HUM-…", "t": "<tenant>", "iat": 1789759591, "exp": 1789802791,
+  "preferred_locale": null, "diagnostics_enabled": false, "active_tenant": null, "tenants": [] }
 ```
 
 `hum` appears once the hub's Registrar is wired (T012). `t` is the tenant the
 sign-in **started** from; it is not an authorisation (spec SEC-001).
+
+The last four are **not** cookie claims: they are read per call and answered
+alongside the signed ones. `preferred_locale` (spec 021), `active_tenant` +
+`tenants` (specs/026 §3), and:
+
+`diagnostics_enabled` — 005 T035, CLE-3440. The operator's grant for the WUI
+diagnostics panel, decided per human from cnf
+`SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS` (a comma list of verified addresses; empty
+in every env, which grants **nobody**; an entry that is not one real address
+fails the hub's boot). Always present, always a boolean, and the WUI admits
+only the literal `true` (`csi-spl-wui/src/composables/debugAudience.mjs`).
+
+Why it is not in the cookie: `Session` has no such field, so **a browser
+cannot assert it** — a cookie whose payload names it and whose MAC verifies is
+still read back as `false` — and dropping an address revokes the panel at that
+reader's next probe rather than at the end of a 12h session. A native sign-in
+(015) carrying an unverified email is refused the grant regardless of the
+list. The native `POST /login` answer carries the same field, because the WUI
+adopts those claims with no second probe. Code:
+`internal/auth/config.go` (`DiagnosticsGranted`) + `handler.go`
+(`diagnosticsGrant`); tests `internal/auth/diagnostics_test.go`.
 
 ## 4. Login component (for 005)
 
@@ -97,4 +119,4 @@ Requires a valid session, a `HUM-*` in it (Registrar, T012) and
 default, so today every call refuses), `ErrNotMember`, or the lookup error;
 the view door maps all of them to `401 view_door`. `session.t` is never read.
 
-<!-- version: 0.3.0 · updated: 2026-09-19 -->
+<!-- version: 0.4.0 · updated: 2026-09-21 -->

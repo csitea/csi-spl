@@ -67,6 +67,8 @@
             :class="{ active: indexOf(row) === active }"
             :aria-selected="indexOf(row) === active"
             :data-type="row.type"
+            :data-key="row.key"
+            :data-ts="rowAt(row) || undefined"
             @click="open(row)"
             @mousemove="active = indexOf(row)"
           >
@@ -114,7 +116,7 @@ import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
 import { useThreadStore } from '~/stores/thread'
 import { useThreadRoute } from '~/composables/useThreadRoute'
-import { flattenGroups, highlightSegments, moveIndex, searchPath, searchTarget, type SearchRow } from '~/utils/search.mjs'
+import { flattenGroups, highlightSegments, moveIndex, searchPath, searchTarget, type SearchRow, rowAt } from '~/utils/search.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()

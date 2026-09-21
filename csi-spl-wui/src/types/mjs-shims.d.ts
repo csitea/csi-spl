@@ -529,6 +529,7 @@ declare module '~/utils/search.mjs' {
   export const SEARCH_GROUPS: SearchGroupType[]
   export const SEARCH_OPERATORS: SearchOperator[]
   export function normalizeOperators(data: unknown): SearchOperator[]
+  export function rowAt(row: unknown): string
   export function omniboxMode(text: string): 'search' | 'send'
   export function searchQueryOf(text: string): string
   export function searchPath(q: string): string

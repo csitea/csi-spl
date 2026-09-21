@@ -25,6 +25,7 @@ import {
   threadCards,
 } from '../../src/utils/channel-feed.mjs'
 import { activityOf, newestActivityFirst } from '../../src/utils/feed.mjs'
+import { normalizeSearchResponse, rowAt } from '../../src/utils/search.mjs'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 const read = (p) => readFileSync(join(SRC, p), 'utf8')
@@ -226,6 +227,37 @@ describe('the tab-wide live follow (plugins/spool-live.client.ts)', () => {
     assert.match(ws, /allSub\+\+/)
     assert.match(ws, /allSub--/)
     assert.match(ws, /if \(allSub > 0\) return/)
+  })
+})
+
+describe('search rows carry the clock their group is ordered by', () => {
+  it('rowAt reads the right field per group type', () => {
+    assert.equal(rowAt({ received_at: 'a', last_at: 'b' }), 'a', 'a message')
+    assert.equal(rowAt({ last_at: 'b' }), 'b', 'a thread')
+    assert.equal(rowAt({ last_ts: 'c' }), 'c', 'a channel')
+    assert.equal(rowAt({ last_hello_at: 'd' }), 'd', 'a box')
+    assert.equal(rowAt({}), '')
+  })
+
+  it('the hub\'s per-group order is preserved exactly (it answers newest first)', () => {
+    const r = normalizeSearchResponse({
+      query: 'live',
+      groups: {
+        messages: { results: [
+          { msg_id: 'm2', received_at: '2026-09-20T03:00:00Z' },
+          { msg_id: 'm1', received_at: '2026-09-19T03:00:00Z' },
+        ], next: null },
+      },
+    })
+    const items = r.groups.find((g) => g.type === 'messages').items
+    assert.deepEqual(items.map((x) => x.msg_id), ['m2', 'm1'])
+    assert.deepEqual(items.map(rowAt), ['2026-09-20T03:00:00Z', '2026-09-19T03:00:00Z'])
+  })
+
+  it('the search row stamps data-key and data-ts', () => {
+    const s = read('pages/search.vue')
+    assert.match(s, /:data-key="row\.key"/)
+    assert.match(s, /:data-ts="rowAt\(row\) \|\| undefined"/)
   })
 })
 

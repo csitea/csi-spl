@@ -233,6 +233,17 @@ export function normalizeSearchResponse(data) {
   return { query: String(d.query || ''), groups: groups.filter((g) => g.items.length), warnings }
 }
 
+/**
+ * CLE-3425 — the clock a search row is ordered by, whatever its group: a message
+ * its received_at, a thread its last_at, a channel its last_ts, a box its last
+ * hello. Stamped on the row as data-ts so the rendered order can be audited
+ * against the clock (the hub answers each group newest first, search-v1 §4).
+ */
+export function rowAt(row) {
+  const r = row || {}
+  return String(r.received_at || r.last_at || r.last_ts || r.last_hello_at || r.created_at || '')
+}
+
 /** A cursor answer (one section) folded into the current result. */
 export function mergeSearchPage(cur, page) {
   const groups = (cur && cur.groups ? cur.groups : []).map((g) => ({ ...g }))

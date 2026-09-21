@@ -6,11 +6,21 @@
 //     [EXPECT=on|off] [PROVIDER=google] [CHROME_PATH=...] \
 //     node tests/e2e/diagnostics-panel-live.proof.mjs
 //
+// Sign-in is the hub's own provider round trip by default (lde, fake IdP). On
+// a deployed env pass EMAIL + PW_FILE and it signs in through the WUI's native
+// form instead, and reads the session on AUTH_BASE — Firebase Hosting forwards
+// no request cookie but __session, so a credentialed call to the WUI host is
+// always 401 there:
+//
+//   BASE=https://dev.<domain> AUTH_BASE=https://dev.api.<domain> \
+//     EMAIL=<member> PW_FILE=<0600 file> [TENANT=t1] EXPECT=off OUT=<dir> \
+//     node tests/e2e/diagnostics-panel-live.proof.mjs
+//
 // The hub behind BASE decides the grant (SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS);
 // EXPECT says which answer this run is asserting, so a run that proves
 // nothing cannot read green.
 import { createRequire } from 'node:module'
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 async function loadPuppeteer() {
@@ -29,6 +39,11 @@ const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const EXPECT = process.env.EXPECT === 'on' ? 'on' : 'off'
 const PROVIDER = process.env.PROVIDER || 'google'
+const AUTH_BASE = (process.env.AUTH_BASE || BASE).replace(/\/+$/, '')
+const TENANT = process.env.TENANT || 't1'
+const EMAIL = process.env.EMAIL || ''
+// Read once, held in memory, never printed or screenshotted.
+const PW = process.env.PW_FILE ? readFileSync(process.env.PW_FILE, 'utf8').trim() : ''
 mkdirSync(OUT, { recursive: true })
 
 const puppeteer = await loadPuppeteer()
@@ -55,13 +70,25 @@ try {
   if (anon !== null) failed++
   await p.screenshot({ path: `${OUT}/01-signed-out.png` })
 
-  // ── sign in through the hub (the fake IdP consents for us) ────────────
-  await p.goto(`${BASE}/api/v1/auth/${PROVIDER}/start?redirect=%2F`, { waitUntil: 'networkidle2' })
-  await sleep(2500)
+  // ── sign in ───────────────────────────────────────────────────────────
+  if (EMAIL && PW) {
+    // A deployed env: the WUI's own native form, so the session is made the
+    // way a person makes one.
+    await p.goto(`${BASE}/login?tenant=${encodeURIComponent(TENANT)}&redirect=%2F`, { waitUntil: 'networkidle2' })
+    await p.waitForSelector('[data-test=native-auth-email]')
+    await p.type('[data-test=native-auth-email]', EMAIL)
+    await p.type('[data-test=native-auth-password]', PW)
+    await p.click('[data-test=native-auth-submit]')
+    await sleep(4000)
+  } else {
+    // lde: the hub's provider round trip, with the fake IdP consenting.
+    await p.goto(`${BASE}/api/v1/auth/${PROVIDER}/start?redirect=%2F`, { waitUntil: 'networkidle2' })
+    await sleep(2500)
+  }
   const claims = await p.evaluate(async (base) => {
     const r = await fetch(base + '/api/v1/auth/session', { credentials: 'include', cache: 'no-store' })
     return { status: r.status, body: r.status === 200 ? await r.json() : null }
-  }, BASE)
+  }, AUTH_BASE)
   res.session = claims
   step('signed in', claims.status === 200, { email: claims.body && claims.body.email })
   if (claims.status !== 200) failed++

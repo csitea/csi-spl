@@ -13,7 +13,7 @@ adds guards and proofs around it, one shared seed action, and the owner inputs.
 | `internal/auth/oidc_linkedin_test.go` (new) | LinkedIn-shaped userinfo contract (FR-L3): verified bool/string accepted, false/missing/empty email refused, name + avatar | 019 |
 | `csi-spl-orc/src/bash/run/spl-auth-idp-secret-seed.func.sh` (new) | `do_spl_auth_idp_secret_seed`, IDP = facebook, microsoft, linkedin, xai (FR-L4); refuses a bare-GUID Microsoft "Secret ID" (request from 018) | 019 |
 | `csi-spl-orc/src/bash/tests/auth-idp-secret-seed.tst.sh` (new) | stubbed gcloud + file-backed store, same shape as `auth-secrets-seed.tst.sh` | 019 |
-| `do_spl_merged_cnf` callback derivation on the api host (FR-L5) | — | CLE-3380 |
+| `do_spl_merged_cnf` callback derivation on the WUI apex (FR-L5 / T030; owner 2026-09-19) | already rendered | 019 |
 | WUI LinkedIn brand mark (FR-L6) | request sent | CLE-55 |
 | cnf `SPOOL_HUB_AUTH_LINKEDIN_CLIENT_ID` + `SPOOL_HUB_AUTH_PROVIDERS` per env (FR-L7) | after the owner files exist | 019 |
 | hub image + 030 deploy | the deploy path (spec 008) | CLE-3355 / CI |
@@ -44,8 +44,9 @@ It never mints the session key (that stays `do_spl_auth_secrets_seed`).
 
 ## 4. Risks
 
-- The callback host changes under CLE-3380: the owner must register the **api-host**
-  URLs; the runbook prints them from the rendered cnf after that lane lands.
+- The owner must register the **WUI-apex** redirect URLs already in rendered cnf
+  (T030, owner 2026-09-19, 010 OQ-A2): `https://dev.spool-hub.ai/api/v1/auth/linkedin/callback`
+  and `https://spool-hub.ai/api/v1/auth/linkedin/callback`. An API-host URI is declined.
 - Pairwise `sub`: replacing an app orphans identities (spec OQ-L2).
 
 <!-- version: 0.1.0 · updated: 2026-09-19 -->

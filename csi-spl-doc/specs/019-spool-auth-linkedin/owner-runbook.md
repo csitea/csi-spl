@@ -11,16 +11,20 @@ What the agent needs back from you, and nothing else: the two files in §3.
 1.1 A LinkedIn **company page** you administer (spec OQ-L3). If none exists: LinkedIn →
 *For Business* → *Create a Company Page*.
 
-1.2 The exact callback URL per env. The hub API host serves the callback (the WUI calls
-the hub cross-origin; lane CLE-3380):
+1.2 The exact callback URL per env. Paste these into the LinkedIn console
+(*Auth* → *Authorized redirect URLs for your app*), byte for byte, https, no
+trailing slash. The callback stays on the **WUI apex** (owner 2026-09-19, 010
+OQ-A2 / FR-010, csi-rel shape; 019 T030): Firebase Hosting rewrites
+`/api/v1/auth/**` to the hub, so the IdP callback is same-origin. An API-host
+URI (`api.<fqdn>`) is declined (`redirect_uri_mismatch` measured 2026-09-19).
 
-| env | Authorized redirect URL |
+| env | Authorized redirect URL (paste this) |
 |---|---|
-| dev | `https://dev.api.spool-hub.ai/api/v1/auth/linkedin/callback` |
-| prd | `https://api.spool-hub.ai/api/v1/auth/linkedin/callback` |
+| dev | `https://dev.spool-hub.ai/api/v1/auth/linkedin/callback` |
+| prd | `https://spool-hub.ai/api/v1/auth/linkedin/callback` |
 
-Byte for byte: https, no trailing slash. Once CLE-3380 has landed, this prints the
-rendered value (must equal the table):
+Rendered cnf must equal the table (`wui_auth_base` is the api host, the rewrite
+target, not the redirect URI):
 
 ```bash
 yq '.env.auth.social.env.SPOOL_HUB_AUTH_LINKEDIN_REDIRECT_URI' csi-spl-cnf/csi-spl/dev.env.json

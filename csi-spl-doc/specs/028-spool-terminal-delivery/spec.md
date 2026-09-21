@@ -87,9 +87,10 @@ step PASS, `rc=0`. `live-terminal-proof.sh` 2026-09-21T07:51Z, tree `001ddca`,
 n=1 — 5/5.
 
 Deploy: the terminal leg runs in the box's own `spool` binary, not in the hub,
-so nothing here waits on a Cloud Run roll. The hub image links the same
-`internal/spool` but never sets `SPOOL_NOTIFY_CMD`; `d5b6042` reaches dev and
-prd with CLE-3355's `0.1.17` (`tasks.md` T050).
+so nothing here waited on a Cloud Run roll. `d5b6042` shipped anyway with
+CLE-3355's `0.1.17`: both hosts serve commit `39a5a25a` (2026-09-21T07:54Z) and
+`do_check_deploy_lag` reads `hub current` with `rc=0` on dev and prd
+(`tasks.md` T050).
 
 ## 3. Assumptions and decisions (auto-mode, logged)
 
@@ -108,4 +109,4 @@ prd with CLE-3355's `0.1.17` (`tasks.md` T050).
   hazard (newlines submit lines, quotes break inertness) and unreadable. The
   contract bounds it and names the command that prints the whole message.
 
-<!-- version: 1.1.0 · updated: 2026-09-21 · last-edit: 2026-09-21T07:56:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-21 · last-edit: 2026-09-21T08:00:00Z -->

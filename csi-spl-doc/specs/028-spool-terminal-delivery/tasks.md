@@ -76,12 +76,25 @@ the owner.
 
 ## Phase 5 — Deploy
 
-- [~] T050 Partial (not this lane's to close) — the box side needs no deploy:
-  the terminal leg runs in the box's own `spool` binary, which a box builds
-  (`csi-spl-api/src/bash/build.sh`) and `spool-harness` wires up. The hub image
-  links the same `internal/spool`, but a hub never sets `SPOOL_NOTIFY_CMD`, so
-  its behaviour is unchanged. `d5b6042` rides CLE-3355's pending `0.1.17` roll
-  (dev+prd served `0.1.16`/`af8c6db` at 2026-09-21T07:44Z). Owner: CLE-3355.
-  Check: `ENV=<env> SHA=$(git rev-parse origin/master) ./run -a do_check_deploy_lag`.
+- [x] T050 Implemented — **served on dev AND prd**. The terminal leg itself
+  runs in the box's own `spool` binary (built by `csi-spl-api/src/bash/build.sh`,
+  wired by `spool-harness`), so the feature never needed a Cloud Run roll; the
+  hub links the same `internal/spool` but never sets `SPOOL_NOTIFY_CMD`.
+  `d5b6042` nonetheless shipped with CLE-3355's `0.1.17`. Measured here, not
+  relayed, at 2026-09-21T07:58Z:
 
-<!-- version: 1.0.0 · updated: 2026-09-21 · last-edit: 2026-09-21T07:55:00Z -->
+  ```
+  GET https://dev.api.spool-hub.ai/version -> 0.1.17 commit 39a5a25a built 2026-09-21T07:54:34Z
+  GET https://api.spool-hub.ai/version     -> 0.1.17 commit 39a5a25a built 2026-09-21T07:54:26Z
+  git merge-base --is-ancestor d5b6042 39a5a25a                       -> exit 0
+  ENV=dev SHA=$(git rev-parse origin/master) ./run -a do_check_deploy_lag
+    -> dev hub current served=39a5a25a n=0                             rc=0
+  ENV=prd SHA=$(git rev-parse origin/master) ./run -a do_check_deploy_lag
+    -> prd hub current served=39a5a25a n=0                             rc=0
+  ```
+
+  CI on the lane's last code sha `001ddca`: `10 ci: quality gate` success
+  (3m41s, run `35575064998`), `20 ci-cd: spool hub build + deploy` success
+  (5m22s, run `35575065210`).
+
+<!-- version: 1.0.0 · updated: 2026-09-21 · last-edit: 2026-09-21T08:00:00Z -->

@@ -67,7 +67,8 @@ The gate keeps the two in step.
 | the run is one named action | OA-36 | `csi-spl-orc/src/bash/tests/owner-acceptance.tst.sh` |
 | a real IdP sign-in | OA-37 | `MANUAL`, §5 |
 | the owner's own thread URL | OA-38 | the bot — **PASS** since `7044c2e0`, §3.1 |
-| attachments survive a send | OA-39 | CLE-3433's finding, `UNVERIFIED` — §3.2 |
+| attachments survive a send | OA-39 | **PASS** on `713d6a8` — §3.2 |
+| an attached file round trips | OA-40 | the half OA-39 does NOT prove — `PENDING`, §3.2 |
 
 ### 2.1 Why the terminal cases are `orc-e2e` and not CI
 
@@ -107,6 +108,11 @@ thread**, so the run can be watched where they are already looking:
 
 ### 3.1 OA-38 — the owner's URL does not do what it looks like (FAIL, 2026-09-21)
 
+**Fixed in `c689a52`, measured PASS on build `7044c2e0`.** CLE-3433 confirmed
+the ancestry rather than either of us guessing:
+`git merge-base --is-ancestor c689a52 7044c2e0` -> exit 0. The row cites the
+build this lane actually measured, not the later one that also carries it.
+
 The owner asked the bot to "make it communicate with you" at
 `/dm/CLE-00@box-desk?thread=<id>`. The run found that **a message sent from
 that page does not join that thread**: the DM page never reads
@@ -124,9 +130,14 @@ n=1:
 
 The consequence for the owner is exactly the symptom they described: messages
 sent from that URL scatter into separate conversations, and an agent's reply
-into one of them does not appear beside the others. **This is reported to
+into one of them does not appear beside the others. **This was reported to
 CLE-3433 (the WUI send lane), not fixed here** — this lane records cases, and
 a fix in someone else's file is a rebase conflict for them.
+
+CLE-3433's nuance is the better description of the defect, and is why it hid
+for so long: **the thread PANE composer was always correctly bound**
+(`:parent-task-id`), so the feature looked like it worked. What was broken is
+that the big top box wrote somewhere other than where the URL said you were.
 
 Until it is fixed, the bot's reply case answers the task its OWN message
 created, read off the row's `data-task-id`, so the reply leg is testable on
@@ -147,8 +158,30 @@ way `stores/live.ts` does. Types could not catch it, which is why it is worth
 a case rather than a comment: a handler with fewer parameters is assignable to
 `(text, files) => unknown`.
 
-`UNVERIFIED` until it is measured live — on CLE-3433's own instruction, a row
-flips on a measurement and not on a report.
+**PASS**, measured on deployed `713d6a8` (built 13:46:31Z, run 35607565054),
+same held-back-frame script, n=1 per route:
+
+| route | before (`bb20552`) | after (`713d6a8`) |
+|---|---|---|
+| `/lobby` | 1 file | 1 file — the CONTROL, unchanged |
+| `/dm/<peer>` | **0 files** | 1 file |
+| `/channel/lobby` | **0 files** | 1 file |
+
+The control is what makes the pair readable: a route that was already correct
+stayed correct, so the two that moved moved because of the fix and not because
+the script changed. Ancestry was checked rather than assumed —
+`git merge-base --is-ancestor a3b703b 713d6a8` -> exit 0, and
+`git merge-base --is-ancestor bb20552 a3b703b` -> exit 0 — so the after-build
+carries the fix and the before-build genuinely predates it.
+
+**Two limits CLE-3433 stated with the evidence, kept here because dropping
+them would overstate it**: n=1 per route with one 27-byte text file, so it
+proves the ref reaches the frame and not that a large or binary upload
+survives; and the frame was HELD BACK, so it proves the CLIENT puts the file
+on the wire and not that the hub stores and serves it. That second half is
+**OA-40**, and it is `PENDING` rather than folded into OA-39 — "the file was
+sent" and "the file arrived" are different claims, and this register exists to
+stop exactly that kind of merge.
 
 ## 4. Success criteria
 
@@ -172,14 +205,24 @@ plus seven screenshots.
 | case | result | note |
 |---|---|---|
 | OA-31 signed in as its own member, thread open | PASS | never the owner's account |
-| OA-32 the row is on top for the sender, once | PASS | `wui_ms` 19 |
+| OA-32 the message shows in the thread, once | **UNVERIFIED** | PASS at 16:23 (`wui_ms` 19); red at 16:35 on this lane's own `topHas` bug, since fixed and not yet re-measured |
 | OA-33 visible in the agent's pane | **FAIL**, now PASS | the stall below — not the pane leg. PASS on the 16:35 re-run, `pane_s` 32 |
-| OA-34 the agent's reply comes back | **FAIL** | same cause: `do_spl_desk_reply` exit 3, nothing in the inbox to answer |
+| OA-34 the agent's reply comes back | **UNVERIFIED** | the reply IS sent (`do_spl_desk_reply` rc 0, the outbox file exists); the assert was the same `topHas` bug, not yet re-measured |
 | OA-38 re-measured 16:35 | **PASS** | CLE-3433 landed the `?thread=` binding; the send now joins the owner's thread |
 | OA-19 code block in the DM composer | PASS | opened, held Enter, closed, rendered as code |
 | OA-24 a send lands or visibly fails | PASS | outcome `landed` |
 | OA-35 a PASS/FAIL line per case in the thread | PASS | 7 verdict lines posted |
 | OA-38 the owner's `?thread=` URL | **FAIL** | §3.1 |
+
+**The latency observation, for OA-14 / CLE-3435.** The 16:35 run read
+`pane_s {"display":32}` — 32 seconds from the send to the message being
+VISIBLE in the agent's notice pane, against an owner budget of 0.3 s. Two
+cautions before anyone routes that as work: it is **n=1**, and it is an upper
+bound that includes this bot's own round trip to `pane-seen.sh` and its 0.5 s
+poll, not an instrumented measurement of the delivery leg. It is offered as
+"worth measuring properly", not as a number. OA-14 stays `PENDING` with
+CLE-3435, whose budget harness is the thing that should produce the real
+figure.
 
 Timings are reported apart, never blended: `wui_ms {"display":19}`,
 `pane_s {"display":45}` (the timeout, not a measurement — the message never

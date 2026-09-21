@@ -166,8 +166,13 @@ spl_desk_sidecar() {
     SPL_DESK_PID="$(cat "$pidf")"
     do_log "INFO the hub-run sidecar of $box is already live (pid $SPL_DESK_PID, log $hubd/hub-run.log)"
   else
+    # SPOOL_TRACE is passed THROUGH, never defaulted (CLE-3435). Unset - which
+    # is every ordinary desk - the spool binary's stopwatch stays off and costs
+    # nothing; do_spl_latency_probe sets it to time the hops this sidecar
+    # crosses.
     SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" \
     SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_NOTIFY_CMD="$notify" SPOOL_POKE="$poke" \
+    SPOOL_TRACE="${SPOOL_TRACE:-}" \
       spl_desk_detach "$hubd/hub-run.log" "$SPL_SPOOL" hub-run
     SPL_DESK_PID=$!
     printf '%s\n' "$SPL_DESK_PID" >"$pidf"

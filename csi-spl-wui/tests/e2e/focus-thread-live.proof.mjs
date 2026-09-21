@@ -366,8 +366,12 @@ try {
       await sleep(800)
       await open(page, '/lobby')
       await measure(page)
-      await sleep(1200)
-      await page.evaluate((t) => window.__cle3427.clickRow(t), nonce)
+      /* the row must be RENDERED before it can be clicked: the feed is live and
+         a fixed sleep loses the race about one run in four (measured) */
+      await page.waitForFunction((t) => [...document.querySelectorAll('article.msg')].some((r) => r.textContent.includes(t)),
+        { polling: 'mutation', timeout: 20000 }, nonce).catch(() => {})
+      const reclicked = await page.evaluate((t) => window.__cle3427.clickRow(t), nonce)
+      if (!reclicked) step(`${theme}: the message is still in the feed to reopen`, false, { nonce })
       /* the pane reads the thread over the network: poll, do not guess a sleep */
       const arrived = await page.waitForFunction(
         () => document.querySelectorAll('[data-test=thread-section] .live-rows > article.msg').length >= 1,

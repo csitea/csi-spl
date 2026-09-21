@@ -65,6 +65,15 @@ export function normalizeOperators(data) {
   return out.length ? out : SEARCH_OPERATORS
 }
 
+/**
+ * Whether TopBar may fetch GET /v1/view/search/operators.
+ * Mock hydrates immediately (no hub). Live waits for a member session so a
+ * signed-out /channel/lobby does not 401. Same predicate as createShellBootstrap.
+ */
+export function shouldLoadOperators({ mock, sessionState } = {}) {
+  return Boolean(mock) || String(sessionState) === 'in'
+}
+
 /** Omnibox mode of a line: 'search' for `/search …` / `/s …`, else 'send'. */
 export function omniboxMode(text) {
   return SEARCH_CMD_RE.test(String(text || '')) ? 'search' : 'send'

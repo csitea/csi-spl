@@ -19,7 +19,14 @@ import {
   searchPath,
   searchQueryOf,
   searchTarget,
+  shouldLoadOperators,
 } from '../../src/utils/search.mjs'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('omnibox mode switch', () => {
   it('/search and /s switch to search, with or without a query', () => {
@@ -306,5 +313,29 @@ describe('spool-client search()', async () => {
     const c = createSpoolClient({ mock: true, fetchFn: () => { throw new Error('no fetch in mock') } })
     const r = await c.search({ q: '' })
     assert.ok(Array.isArray(r.groups))
+  })
+})
+
+describe('shouldLoadOperators (signed-out gate)', () => {
+  it('mock hydrates immediately, live only when session is in', () => {
+    assert.equal(shouldLoadOperators({ mock: true, sessionState: 'out' }), true)
+    assert.equal(shouldLoadOperators({ mock: true, sessionState: 'loading' }), true)
+    assert.equal(shouldLoadOperators({ mock: false, sessionState: 'in' }), true)
+  })
+  it('CONTROL: live signed-out / loading / unknown / missing does not fetch', () => {
+    for (const st of ['out', 'loading', 'unknown', '', undefined]) {
+      assert.equal(shouldLoadOperators({ mock: false, sessionState: st }), false, st)
+    }
+    assert.equal(shouldLoadOperators({}), false)
+  })
+  it('TopBar watches the session and does not fetch on mount', () => {
+    const bar = read('src/components/TopBar.vue')
+    assert.match(bar, /shouldLoadOperators\(\{ mock: api\.mock, sessionState: st \}\)/)
+    assert.match(bar, /watch\(\(\) => session\.state/)
+    assert.match(bar, /useSessionStore\(\)/)
+    assert.match(bar, /useSpoolApi\(\)/)
+    assert.match(bar, /immediate: true/)
+    assert.doesNotMatch(bar, /onMounted\([\s\S]*loadOperators/)
+    assert.match(bar, /void search\.loadOperators\(\)/)
   })
 })

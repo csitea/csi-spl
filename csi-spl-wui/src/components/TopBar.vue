@@ -65,8 +65,9 @@ import MessageComposer from '@/components/MessageComposer.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
-import { searchPath } from '~/utils/search.mjs'
+import { searchPath, shouldLoadOperators } from '~/utils/search.mjs'
 import { slashFocusAction, slashFocusContext } from '~/utils/slash-focus.mjs'
+import { useSessionStore } from '~/stores/session'
 
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
@@ -74,6 +75,8 @@ const router = useRouter()
 const route = useRoute()
 const omnibox = useOmniboxStore()
 const search = useSearchStore()
+const session = useSessionStore()
+const api = useSpoolApi()
 const composer = ref<InstanceType<typeof MessageComposer> | null>(null)
 const expanded = ref(false)
 const slashHintId = useId()
@@ -136,9 +139,15 @@ function showQuery() {
 }
 watch(() => [onSearchPage.value, route.query.q], showQuery, { flush: 'post' })
 
+/* 022 catalogue: mock hydrates immediately; live waits for a member session
+   so signed-out /channel/lobby does not GET /v1/view/search/operators (401).
+   A human who signs in (and never opens /search) still gets autocomplete. */
+watch(() => session.state, (st) => {
+  if (shouldLoadOperators({ mock: api.mock, sessionState: st })) void search.loadOperators()
+}, { immediate: true })
+
 onMounted(() => {
   showQuery()
-  void search.loadOperators()
   document.addEventListener('keydown', onDocKey, true)
 })
 onUnmounted(() => {

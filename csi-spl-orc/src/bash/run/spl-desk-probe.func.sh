@@ -26,6 +26,9 @@
 # @param DESK_HUMAN_EMAIL (optional) - the member that DMs the agent; default the
 # @param   m3-e2e member of this state dir (m3-e2e-human@example.com on dev).
 # @param   Its password lives in the m3-e2e state dir, 0600, and is never printed
+# @param DESK_NOTIFY_CMD (optional) - the box's terminal-leg renderer; the probe
+# @param   asks it for its verdict when the pane shows nothing (its exit code is
+# @param   poke-line.md section 3). Default the orc feature's spool-notify.sh
 # @param DESK_TMUX_SOCK (optional) - the tmux socket the panes live on,
 # @param   default /tmp/tmux-<uid>/default
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -62,6 +65,7 @@ do_spl_desk_probe() {
   local out="$d/probe-results.json" rc=0
   DESK_AGENT="$agent" DESK_BOX="$box" DESK_ROOT="$d/spool" DESK_OUT="$out" \
   DESK_REPLY_CMD="$reply_cmd" DESK_REPLY_CWD="$orc" \
+  DESK_NOTIFY_CMD="${DESK_NOTIFY_CMD-$orc/src/bash/features/spawn-agents/scripts/spool-notify.sh}" \
   DESK_TMUX_SOCK="${DESK_TMUX_SOCK:-/tmp/tmux-$(id -u)/default}" \
   ENV="$ENV" TENANT_ID="$tenant" DRY_RUN=0 \
   M3_HUB_URL="$hub" M3_AUTH_URL="$hub" M3_TENANT="$tenant" M3_STATE="$m3st" M3_SPOOL="$SPL_SPOOL" \

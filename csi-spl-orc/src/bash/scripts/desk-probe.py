@@ -93,6 +93,25 @@ def pane_of(agent):
     return ""
 
 
+def notice_pane_of(agent):
+    """The notice pane spool_poke_show splits into the agent's window, marked
+    with the pane option @spool_notices. On a pane that paints a TUI this is
+    where the body is VISIBLE, since the prompt may legitimately refuse it."""
+    try:
+        out = subprocess.run(["tmux", "-u", "-S", TMUX_SOCK, "list-panes", "-a", "-F",
+                              "#{pane_id}\t#{@spool_notices}"],
+                             capture_output=True, text=True, timeout=15).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    for line in out.splitlines():
+        if "\t" not in line:
+            continue
+        pane, mark = line.split("\t", 1)
+        if mark.strip() == agent:
+            return pane
+    return ""
+
+
 def pane_text(pane):
     """The visible pane AND its recent scrollback: a busy agent's pane scrolls
     a poke off the screen in seconds, and a plain capture would then report a
@@ -104,16 +123,17 @@ def pane_text(pane):
         return ""
 
 
-def wait_pane(pane, needle, timeout=30):
-    """capture-pane hard-wraps, and can split a word across lines, so the raw
+def wait_pane(panes, needle, timeout=30):
+    """Seconds until `needle` is visible in ANY of `panes`, else None.
+
+    capture-pane hard-wraps, and can split a word across lines, so the raw
     substring is not a reliable assert: compare on the whitespace-free text."""
     flat = "".join(needle.split())
     end = time.time() + timeout
-    seen = ""
     while time.time() < end:
-        seen = pane_text(pane)
-        if flat in "".join(seen.split()):
-            return seen
+        for pane in panes:
+            if pane and flat in "".join(pane_text(pane).split()):
+                return pane
         time.sleep(0.5)
     return None
 
@@ -199,9 +219,12 @@ def main():
             return finish(1)
 
         if pane:
-            shown = wait_pane(pane, ask)
+            notice = notice_pane_of(AGENT)
+            shown = wait_pane([pane, notice], ask)
             if shown is not None:
-                record("p-dm-in-pane", True, {"pane": pane, "needle": ask, "via": "capture-pane"})
+                record("p-dm-in-pane", True,
+                       {"pane": shown, "agent_pane": pane, "notice_pane": notice, "needle": ask,
+                        "via": "notice pane" if shown == notice else "agent pane"})
             else:
                 # Not shown is not the same as not delivered. poke-line.md §3
                 # gives the notifier four outcomes and three of them leave the
@@ -216,7 +239,7 @@ def main():
                                              "means": POKE_RC.get(rc, ""),
                                              "note": "delivered; the pane was left alone on purpose"})
                 else:
-                    record("p-dm-in-pane", False, {"pane": pane, "needle": ask,
+                    record("p-dm-in-pane", False, {"pane": pane, "notice_pane": notice, "needle": ask,
                                                    "notify_exit": rc, "notify": line,
                                                    "tail": pane_text(pane).splitlines()[-3:]})
         else:

@@ -151,14 +151,40 @@ rm -f "$log"
 # --- 9. fail fast: no parent, both parents, bad env, bad DRY_RUN --------------
 # APP_PATH has no cnf here: an empty GCP_ACCOUNT / GCP_ORG_ID is only a refusal
 # when the yaml does not supply one (with the real cnf it resolves from
-# env.gcp; gcloud-account-pinned.tst.sh covers that side)
+# env.gcp; gcloud-account-pinned.tst.sh covers that side).
+# HOME is this same throwaway dir: do_gcp_sa_key_file reads
+# $HOME/.gcp/.<org>/key-<org>-<app>-<env>.json (GCP_SA_KEY_FILE names it
+# explicitly). An empty GCP_ACCOUNT on a box that already has the
+# provisioned SA key would otherwise resolve and call gcloud. ACCOUNT /
+# GCP_ACCOUNT_OWNER_EMAIL / GCP_SA_KEY_FILE are emptied so an inherited
+# env cannot supply an identity either.
 for case in "GCP_ORG_ID=" "GCP_FOLDER_ID=1" "ENV=tst" "DRY_RUN=yes" "GCP_BILLING_ACCOUNT_ID=" "GCP_ACCOUNT="; do
   log=$(mktemp); : >"$log"
-  run_action live_absent "$log" DRY_RUN=0 APP_PATH="$NOCNF" $case; rc=$?
+  run_action live_absent "$log" DRY_RUN=0 APP_PATH="$NOCNF" HOME="$NOCNF" \
+    ACCOUNT= GCP_ACCOUNT_OWNER_EMAIL= GCP_SA_KEY_FILE= $case; rc=$?
   if [[ $rc -ne 0 && ! -s "$log" ]]; then pass "fails fast before any gcloud call: $case"
   else fail "did not fail fast (rc=$rc, $(wc -l <"$log") gcloud calls): $case"; fi
   rm -f "$log"
 done
+
+# CONTROL: the empty-log assertion above is live — a pin that never refuses
+# reaches gcloud, so the same check would fail.
+ctl_pin=$(mktemp)
+cat >"$ctl_pin" <<EOF
+# shellcheck disable=SC1090
+source "$PIN_FILE"
+_do_gcp_resolve_account() { printf '%s' 'leaked@example.com'; return 0; }
+EOF
+log=$(mktemp); : >"$log"
+run_action live_absent "$log" DRY_RUN=0 APP_PATH="$NOCNF" HOME="$NOCNF" \
+  ACCOUNT= GCP_ACCOUNT_OWNER_EMAIL= GCP_SA_KEY_FILE= GCP_ACCOUNT= \
+  PIN_FILE="$ctl_pin"; rc=$?
+if [[ $rc -ne 0 && ! -s "$log" ]]; then
+  fail "CONTROL: a pin that does not refuse was still scored as fail-fast (rc=$rc)"
+else
+  pass "CONTROL: a pin that does not refuse reaches gcloud (rc=$rc, $(wc -l <"$log") calls)"
+fi
+rm -f "$log" "$ctl_pin"
 
 if [[ "$fails" -eq 0 ]]; then
   echo "PASS: all $(basename "$0") assertions"

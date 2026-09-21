@@ -529,13 +529,17 @@ html.pane-dragging * {
 .msg.search-focus { outline: var(--focus-ring-w) solid var(--focus-ring); outline-offset: var(--focus-offset); box-shadow: var(--focus-3d); }
 
 /* ---- CLE-3427: keyboard focus and selection, in ONE place ----------------
-   Tab cycling must read as RAISED (soft ring + halo + drop shadow + inner
-   highlight), never as a flat hard line, and in the LIGHT theme the line
-   itself is lighter than the old --color-accent: relative luminance 0.41
-   (#4bb8dc) against 0.26 (#0a97c4) — asserted in tests/unit/focus-tokens.test.mjs.
-   The indicator stays conformant because the dark --focus-edge hairline in
-   --focus-3d carries the contrast (>= 3:1 against every surface token, WCAG
-   2.2 focus appearance), so nothing lost an outline without a better one.
+   Tab cycling must read as RAISED, never as a flat hard line, and in the
+   LIGHT theme the line itself is lighter than the old --color-accent:
+   relative luminance 0.41 (#4bb8dc) against 0.26 (#0a97c4), asserted in
+   tests/unit/focus-tokens.test.mjs.
+
+   Owner, 2026-09-20: "any selected item should have no more than 1 color in
+   the selected border which cannot be wider than 3 px". Every ring below is
+   var(--focus-ring) — the focus outline and the selected row's marker bar
+   alike, so a row that is selected AND focused still shows one colour — and
+   no ring exceeds 3px. The raise is a blurred drop shadow with ZERO spread:
+   it draws no second ring and contributes no second ring colour.
 
    `!important` is deliberate and is the reason this is one rule and not a
    sweep: component sheets (several of them scoped, and owned by other lanes)
@@ -554,13 +558,14 @@ html.pane-dragging * {
 .search-row:focus-visible {
   background: var(--color-selected);
 }
-/* Selected / current: a step DARKER than the normal fill, with an accent
-   edge so the state is never colour alone. */
+/* Selected / current: a step DARKER than the normal fill, plus a marker bar
+   in the SAME one colour as the focus ring, 3px wide. */
 .nav-item.active,
 .msg.selected,
-.thread-row.selected {
+.thread-row.selected,
+.search-row.active {
   background: var(--color-selected);
-  box-shadow: inset 3px 0 0 var(--color-accent);
+  box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring);
 }
 .msg.selected { border-radius: var(--radius); }
 /* Pressed: the same step down; an accent-filled control darkens its accent. */
@@ -575,3 +580,7 @@ html.pane-dragging * {
 .composer-row button:active {
   background: var(--color-accent-pressed);
 }
+
+/* CLE-3427: a feed row whose whole surface opens its thread. The pointer says
+   so; the keyboard half is Enter / Space on the focused row (MessageCard). */
+.msg--clickable { cursor: pointer; }

@@ -1,12 +1,19 @@
 // CLE-3427 — the focus / selection tokens, asserted as NUMBERS rather than as
-// "the CSS mentions a colour": a focus indicator is an accessibility control,
-// so the test computes relative luminance and contrast from variables.css and
-// fails when a future edit makes the ring darker than the owner asked for or
-// drops it below the WCAG 2.2 focus-appearance floor.
+// "the CSS mentions a colour": the test computes relative luminance from
+// variables.css and fails when a future edit makes the ring darker than the
+// owner asked for, widens a ring past the ceiling, or lets a second colour
+// into the treatment.
 //
 // Owner (2026-09-20): "the line in the light theme is too dark, it should be
 // bit lighter … also the selected element should change his color to a bit
-// darker one".
+// darker one" and, later the same day: "any selected item should have no more
+// than 1 color in the selected border which cannot be wider than 3 px".
+//
+// Those two orders and the WCAG 1.4.11 3:1 bar for the indicator cannot all
+// hold at once on a light surface — a single line light enough to read as
+// "lighter" measures about 2:1 there, and the two-tone ring that did clear
+// 3:1 is what "no more than 1 color" forbids. The owner's rule wins; the
+// arithmetic is recorded in variables.css so nobody has to rediscover it.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
@@ -67,7 +74,7 @@ const SURFACES = ['--color-bg', '--color-bg-2', '--color-surface', '--color-surf
 describe('focus + selection tokens (CLE-3427)', () => {
   it('every theme defines the whole set — a half-themed token is a broken theme', () => {
     for (const theme of ['root', 'light', 'dark']) {
-      for (const name of ['--focus-ring', '--focus-edge', '--focus-ring-w', '--focus-offset', '--focus-3d', '--color-selected', '--color-accent-pressed']) {
+      for (const name of ['--focus-ring', '--focus-ring-w', '--focus-offset', '--select-bar-w', '--focus-3d', '--color-selected', '--color-accent-pressed']) {
         assert.ok(token(theme, name), `${theme} is missing ${name}`)
       }
     }
@@ -79,21 +86,34 @@ describe('focus + selection tokens (CLE-3427)', () => {
     assert.ok(now > before, `light --focus-ring luminance ${now.toFixed(3)} must exceed ${before.toFixed(3)}`)
   })
 
-  it('the indicator still meets the WCAG 2.2 3:1 floor against every surface', () => {
-    /* the light ring is deliberately low-contrast; the dark hairline beside it
-       is what the check must pass on. Measured together, per surface. */
+  it('one colour and no more than 3px: the owner\'s ceiling, read off the tokens', () => {
     for (const theme of ['light', 'dark']) {
-      for (const surface of SURFACES) {
-        const best = Math.max(
-          contrast(token(theme, '--focus-ring'), token(theme, surface)),
-          contrast(token(theme, '--focus-edge'), token(theme, surface)),
-        )
-        assert.ok(best >= 3, `${theme} focus indicator on ${surface}: ${best.toFixed(2)}:1`)
+      for (const w of ['--focus-ring-w', '--select-bar-w']) {
+        const px = Number(String(token(theme, w)).replace('px', '').trim())
+        assert.ok(px > 0 && px <= 3, `${theme} ${w} is ${token(theme, w)}, ceiling is 3px`)
       }
-      /* and the two halves of the indicator must read as two halves */
-      const pair = contrast(token(theme, '--focus-ring'), token(theme, '--focus-edge'))
-      assert.ok(pair >= 3, `${theme} ring vs edge: ${pair.toFixed(2)}:1`)
+      /* the raise may not draw a second ring: a spread would be one */
+      const shadow = String(token(theme, '--focus-3d'))
+      assert.equal(/inset/.test(shadow), false, `${theme} --focus-3d draws an inset ring`)
+      const layers = shadow.split(/,(?![^(]*\))/)
+      assert.equal(layers.length, 1, `${theme} --focus-3d stacks ${layers.length} shadows`)
+      const lengths = layers[0].replace(/rgba?\([^)]*\)|#[0-9a-f]{3,8}/gi, '').trim().split(/\s+/).filter(Boolean)
+      assert.equal(lengths.length, 3, `${theme} --focus-3d must be offset-x offset-y blur with NO spread: ${shadow}`)
     }
+  })
+
+  it('the selected marker is the SAME colour as the focus ring, so a selected + focused row shows one', () => {
+    assert.match(MAIN, /box-shadow:\s*inset var\(--select-bar-w\) 0 0 var\(--focus-ring\)/)
+    /* and nothing in the shared treatment reaches for a second ring colour */
+    /* the declarations only: a comment that QUOTES another rule is prose, not a ring */
+    const treatment = MAIN.slice(MAIN.indexOf('/* ---- CLE-3427: keyboard focus and selection')).replace(/\/\*[\s\S]*?\*\//g, '')
+    const NOT_A_COLOUR = ['--focus-ring-w', '--select-bar-w', '--focus-offset', '--focus-3d', '--radius']
+    const ringColours = new Set(
+      [...treatment.matchAll(/(?:outline|box-shadow):([^;]*);/g)]
+        .flatMap((decl) => [...decl[1].matchAll(/var\((--[a-z0-9-]+)\)/g)].map((v) => v[1]))
+        .filter((v) => !NOT_A_COLOUR.includes(v)),
+    )
+    assert.deepEqual([...ringColours], ['--focus-ring'], 'more than one ring colour in the treatment')
   })
 
   it('the selected fill is DARKER than the fills it replaces, in both themes', () => {

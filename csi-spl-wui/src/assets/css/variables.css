@@ -36,23 +36,24 @@
   --color-glow: rgba(52, 213, 240, 0.35);
 
   /* CLE-3427 — keyboard focus and selection, defined ONCE for every view.
-     --focus-ring   the visible line of the focus indicator
-     --focus-edge   the hairline just outside it: this is what keeps the
-                    indicator at >= 3:1 against the surface (WCAG 2.2 focus
-                    appearance) even where the ring itself is light
-     --focus-3d     the raise - halo, drop shadow and an inner highlight, so a
-                    tabbed control reads as lifted instead of as a flat line
+     Owner, 2026-09-20: "any selected item should have no more than 1 color in
+     the selected border which cannot be wider than 3 px". So there is exactly
+     ONE ring colour in the whole treatment — --focus-ring, used by the focus
+     outline AND by the bar that marks a selected row, so an element that is
+     both still shows one colour — and no ring is wider than 3px.
+     --focus-ring    the one colour of every ring
+     --focus-ring-w  its width (<= 3px, the owner's ceiling)
+     --select-bar-w  the selected row's marker bar (<= 3px, same ceiling)
+     --focus-3d      the raise: a BLURRED DROP SHADOW ONLY — zero spread, so
+                     it draws no second ring and adds no second colour. The
+                     lift comes from the shadow, not from a halo.
      --color-selected  the current / pressed fill: a step DARKER than the
-                    element's normal background, in both themes. */
+                     element's normal background, in both themes. */
   --focus-ring: #6ee4f7;
-  --focus-edge: rgba(2, 6, 14, 0.9);
   --focus-ring-w: 2px;
   --focus-offset: 2px;
-  --focus-3d:
-    0 0 0 5px rgba(52, 213, 240, 0.18),
-    0 0 0 6px var(--focus-edge),
-    0 4px 10px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --select-bar-w: 3px;
+  --focus-3d: 0 4px 10px rgba(0, 0, 0, 0.5);
   --color-selected: #02040a;
   --color-accent-pressed: #1fb7d2;
 
@@ -114,15 +115,14 @@
 
   /* CLE-3427: the light theme's focus line is LIGHTER than the old
      --color-accent (#0a97c4, relative luminance 0.26) - #4bb8dc is 0.41 -
-     and the dark --focus-edge hairline carries the contrast (6.8:1 against
-     the hover fill, 8.4:1 against a surface). */
+     which is what the owner asked for. Measured cost, stated rather than
+     hidden: a SINGLE light line cannot also clear the 3:1 non-text-contrast
+     bar on a light surface (#4bb8dc reads 2.1:1 on --color-bg, 1.9:1 on
+     --color-surface-hover), and the two-tone ring that did clear it is
+     exactly what "no more than 1 color" forbids. What carries the state here
+     is the ring PLUS the darker --color-selected fill the focused row takes. */
   --focus-ring: #4bb8dc;
-  --focus-edge: #0b4f6e;
-  --focus-3d:
-    0 0 0 5px rgba(75, 184, 220, 0.22),
-    0 0 0 6px var(--focus-edge),
-    0 4px 10px rgba(12, 60, 110, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --focus-3d: 0 4px 10px rgba(12, 60, 110, 0.28);
   --color-selected: #c3d5ec;
   --color-accent-pressed: #0a7ea3;
 }
@@ -150,23 +150,24 @@
   --color-glow: rgba(52, 213, 240, 0.35);
 
   /* CLE-3427 — keyboard focus and selection, defined ONCE for every view.
-     --focus-ring   the visible line of the focus indicator
-     --focus-edge   the hairline just outside it: this is what keeps the
-                    indicator at >= 3:1 against the surface (WCAG 2.2 focus
-                    appearance) even where the ring itself is light
-     --focus-3d     the raise - halo, drop shadow and an inner highlight, so a
-                    tabbed control reads as lifted instead of as a flat line
+     Owner, 2026-09-20: "any selected item should have no more than 1 color in
+     the selected border which cannot be wider than 3 px". So there is exactly
+     ONE ring colour in the whole treatment — --focus-ring, used by the focus
+     outline AND by the bar that marks a selected row, so an element that is
+     both still shows one colour — and no ring is wider than 3px.
+     --focus-ring    the one colour of every ring
+     --focus-ring-w  its width (<= 3px, the owner's ceiling)
+     --select-bar-w  the selected row's marker bar (<= 3px, same ceiling)
+     --focus-3d      the raise: a BLURRED DROP SHADOW ONLY — zero spread, so
+                     it draws no second ring and adds no second colour. The
+                     lift comes from the shadow, not from a halo.
      --color-selected  the current / pressed fill: a step DARKER than the
-                    element's normal background, in both themes. */
+                     element's normal background, in both themes. */
   --focus-ring: #6ee4f7;
-  --focus-edge: rgba(2, 6, 14, 0.9);
   --focus-ring-w: 2px;
   --focus-offset: 2px;
-  --focus-3d:
-    0 0 0 5px rgba(52, 213, 240, 0.18),
-    0 0 0 6px var(--focus-edge),
-    0 4px 10px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --select-bar-w: 3px;
+  --focus-3d: 0 4px 10px rgba(0, 0, 0, 0.5);
   --color-selected: #02040a;
   --color-accent-pressed: #1fb7d2;
 }

@@ -3,6 +3,21 @@
 **Version**: 0.1.0 · spec `030-spool-wire-fastpath` · extends 003
 `contracts/http-v1.md` §2.2 (hello) and §2.3 (welcome).
 
+> **STATUS: `caps` is DEFINED HERE BUT NOT YET CARRIED ON THE WIRE.**
+> `wire.Frame` has no `caps` field and the hub neither reads nor sends one
+> (`grep -n '"caps"' internal/wire/wire.go` → no match). Nothing negotiates
+> capabilities today, and nothing needs to: **FP-2, the only fast path 030
+> shipped, requires no agreement with the hub at all.** It is box-local —
+> the CLI hands its envelope to a sidecar on the same machine, which writes
+> the identical bytes on a socket the hub already accepted. The hub cannot
+> tell the two paths apart, so there is nothing to negotiate; the CLI
+> "negotiates" by finding a local listener or not, and falls back by dialling.
+>
+> This contract exists because the NEXT fast path may not have that property,
+> and because an unsigned hello field is the cheapest safe vehicle when one
+> does. **Whoever needs it implements §1–§2 then** — and should not assume a
+> deployed hub understands `caps` before that.
+
 This contract adds **one optional, unsigned field** to two existing frames. It
 adds no new message semantics: every capability here is permission to reach the
 same stored message over a cheaper path.
@@ -42,7 +57,7 @@ not, so no deployed verifier changes behaviour.
 
 | token | side | meaning |
 |---|---|---|
-| `submit` | client | this box runs a local submit listener: its CLI hands outbound envelopes to the sidecar's warm hub session instead of dialling a new `role=cli` socket (spec FP-2). Purely box-local; the hub never sees the difference. |
+| `submit` | client | *Reserved, not emitted.* This box runs a local submit listener: its CLI hands outbound envelopes to the sidecar's warm hub session instead of dialling a new `role=cli` socket (spec FP-2). Purely box-local — the hub never sees the difference, which is exactly why FP-2 ships without sending this token. It is listed so a later reader knows the name is taken and why it was not needed. |
 
 A token is added to this table by the spec that introduces it, together with
 the control that proves an old peer still works without it.

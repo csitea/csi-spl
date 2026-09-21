@@ -86,6 +86,23 @@ func TestV2HeldForV1OnlySession(t *testing.T) {
 		if err := wsjson.Write(ctx, c, h); err != nil {
 			t.Fatal(err)
 		}
+		// Barrier, not decoration: the hub registers the session BEFORE it
+		// writes welcome (ws.go), so reading welcome is the only proof that
+		// the next send() will see this box as live. Without it the send
+		// races the registration and reads "queued" for a box that is in
+		// fact connected -- run 35602240116 on 2026-09-21 failed exactly
+		// there, with the recv frame present in the same assertion.
+		rctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		for {
+			var wel wire.Frame
+			if err := wsjson.Read(rctx, c, &wel); err != nil {
+				t.Fatalf("no welcome after hello: %v", err)
+			}
+			if wel.Type == wire.TWelcome {
+				break
+			}
+		}
 		return c
 	}
 

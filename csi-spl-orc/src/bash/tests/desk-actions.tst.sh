@@ -176,6 +176,25 @@ out=$(SNIPPET="spl_desk_repair stranded 1 t1 box-desk CLE-00" in_orc 2>&1)
 out=$(SNIPPET="spl_desk_repair ok 1 t1 box-desk CLE-00" in_orc DRY_RUN=0 2>&1)
 [[ -z "$out" ]] && pass "a healthy desk is never restarted" || fail "ok was repaired: $out"
 
+# A healthy sidecar can still be running code older than the checkout: a desk
+# restarted a minute before a fix lands is reachable AND stale, and re-measuring
+# "the fix does not work" against it is the cost (2026-09-21, the keepalive).
+# Compared by CONTENT: every agent shares $SPL_STATE_DIR/bin/spool and any
+# action that builds rewrites it, so mtime says stale almost always and means
+# nothing.
+printf 'same' >"$T/a"; printf 'same' >"$T/b"; printf 'other' >"$T/c"
+touch -d '1 hour ago' "$T/a"      # a and b differ in mtime, not in bytes
+SNIPPET="spl_desk_same_file '$T/a' '$T/b'" in_orc >/dev/null 2>&1
+[[ $? -eq 0 ]] && pass "identical bytes are the same file, whatever the mtime" || fail "same bytes read as different"
+SNIPPET="spl_desk_same_file '$T/a' '$T/c'" in_orc >/dev/null 2>&1
+[[ $? -ne 0 ]] && pass "different bytes are a different build" || fail "different bytes read as same"
+SNIPPET="spl_desk_same_file '$T/a' '$T/missing'" in_orc >/dev/null 2>&1
+[[ $? -eq 2 ]] && pass "an unreadable side is unknown (2), not a false match" || fail "missing file did not read as unknown"
+SNIPPET="spl_desk_stale_build 999999" in_orc >/dev/null 2>&1
+[[ $? -ne 0 ]] && pass "a pid that is not running is not a stale-build claim" || fail "dead pid read as stale"
+SNIPPET="spl_desk_stale_build notapid" in_orc >/dev/null 2>&1
+[[ $? -ne 0 ]] && pass "a malformed pid is refused" || fail "a malformed pid was accepted"
+
 # The check's own dry run stays offline and reads the roster from a file.
 : >"$T/calls.log"
 printf '%s' "$(ros false 1)" >"$T/roster.json"

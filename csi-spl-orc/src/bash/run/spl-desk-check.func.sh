@@ -24,6 +24,13 @@
 # @param DESK_AGENT - required: the seated agent id
 # @param DESK_BOX (optional) - default box-desk
 # @param DESK_REPAIR (optional) - 1 = restart a stranded/down desk (needs DRY_RUN=0)
+# @description Also reports sidecar_stale_build: the bytes the process is
+# @description running differ from the spool binary now on disk, so a restart
+# @description would give it different code. Expect this to be TRUE often on a
+# @description busy box - trunk moves and every action that builds rewrites the
+# @description shared binary - so it is advisory, not a fault. It matters when
+# @description you are about to MEASURE whether a fix works: do not measure a
+# @description sidecar that predates it.
 # @param DESK_ROSTER_JSON (optional) - read the roster from this file instead of
 # @param   the hub (the tests' seam; also useful against a saved capture)
 # @param PROBE_EMAIL / PROBE_PW_FILE (optional) - the member session the roster
@@ -44,22 +51,26 @@ do_spl_desk_check() {
   pidf="$d/spool/.hub/hub-run.pid"
   if spl_desk_alive "$pidf"; then alive=1; pid="$(cat "$pidf")"; fi
 
+  local stale=0
+  (( alive )) && spl_desk_stale_build "$pid" && stale=1
+
   local roster
   roster="$(spl_desk_roster "$tenant")" || return 1
   local verdict
   verdict="$(spl_desk_verdict "$roster" "$box" "$agent" "$alive")" || {
     do_log "FATAL cannot read the roster for $box/$agent"; return 1; }
 
-  python3 - "$ENV" "$tenant" "$box" "$agent" "$pid" "$alive" "$verdict" "$d" <<'EOF_PY'
+  python3 - "$ENV" "$tenant" "$box" "$agent" "$pid" "$alive" "$verdict" "$d" "$stale" <<'EOF_PY'
 import json, sys
-env, tenant, box, agent, pid, alive, verdict, state = sys.argv[1:]
+env, tenant, box, agent, pid, alive, verdict, state, stale = sys.argv[1:]
 v, online, listed, hello = (verdict.split("\t") + ["", "", ""])[:4]
 print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent,
                   "verdict": v, "sidecar_pid": int(pid) if pid else None,
                   "sidecar_alive": alive == "1", "hub_box_online": online == "1",
                   "hub_lists_agent": listed == "1", "hub_last_hello_at": hello or None,
-                  "state_dir": state}, sort_keys=True))
+                  "sidecar_stale_build": stale == "1", "state_dir": state}, sort_keys=True))
 EOF_PY
+  (( stale )) && do_log "INFO the sidecar of $box is NOT running the spool binary now on disk: restart it (do_spl_desk_up rebuilds) before measuring anything that depends on a recent fix"
   local v="${verdict%%$'\t'*}"
   case "$v" in
     ok) do_log "OK $agent on $box is reachable in $tenant ($ENV): the sidecar is up AND the hub has a session for it"; return 0 ;;
@@ -71,6 +82,33 @@ EOF_PY
     agent-missing) do_log "FAIL box $box is online in $tenant ($ENV) but the hub does not list $agent on it" ;;
   esac
   spl_desk_repair "$v" "$repair" "$tenant" "$box" "$agent"
+}
+
+# spl_desk_same_file <a> <b>: 0 when both exist and hold identical bytes.
+spl_desk_same_file() {
+  local a b
+  [[ -r "$1" && -r "$2" ]] || return 2
+  a="$(sha256sum <"$1" 2>/dev/null | cut -d" " -f1)" || return 2
+  b="$(sha256sum <"$2" 2>/dev/null | cut -d" " -f1)" || return 2
+  [[ -n "$a" && "$a" == "$b" ]]
+}
+
+# spl_desk_stale_build <pid>: 0 when the RUNNING process is not the binary now
+# on disk - it started before a rebuild and is executing older code.
+#
+# Compared by CONTENT, not by mtime. Every agent on this box shares
+# $SPL_STATE_DIR/bin/spool and any action calling spl_host_spool rewrites it,
+# so "the file is newer than the process" is true almost always and says
+# nothing (measured 2026-09-21: it reported stale one minute after a restart
+# that had just rebuilt). /proc/<pid>/exe still reads the bytes the process
+# actually runs, even once the path has been replaced, so hashing both answers
+# the question that matters: is the running code the current code.
+spl_desk_stale_build() {
+  local pid="$1" bin="$SPL_STATE_DIR/bin/spool"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  [[ -r "/proc/$pid/exe" && -r "$bin" ]] || return 1
+  spl_desk_same_file "/proc/$pid/exe" "$bin" && return 1
+  return 0
 }
 
 # spl_desk_roster <tenant>: the live roster JSON, or the file DESK_ROSTER_JSON

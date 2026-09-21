@@ -66,11 +66,24 @@ leg, and 002 keeps the file as the record.
 
 - Resolve a target by window **index**. Indices renumber; `spool_pane_of`
   returns a pane id (`%NN`) and checks the window still carries the id.
-- Poke a pane with unsent text. `send-keys` appends to the input line and the
-  `Enter` then submits whatever the human had half-typed.
+- Poke a pane with unsent text **on a TUI input line**. `send-keys` appends to
+  the input line and the `Enter` then submits whatever the human had
+  half-typed. Measured 2026-09-21 on a real pane showing `❯ half typed and never
+  sent`: exit 6, the line untouched, the message still delivered.
+
+  **The bound, measured rather than assumed.** The detector reads the last line
+  carrying a TUI input marker (`❯`, or `> ` at the start of a line). A pane
+  sitting at a bare SHELL prompt (`bash-5.2$ …`) has no such line, so
+  type-ahead there is NOT detected and the pane IS poked - confirmed on this box
+  the same day. That is a bound, not an exposure: a pane whose tty runs only
+  shells is skipped as an exited agent (next rule), so the only way to reach it
+  is a shell pane with a foreground job, which is not an agent session. Widening
+  the detector to arbitrary `$`/`#`/`%` prompts was rejected: a shell pane shows
+  command OUTPUT on that line far more often than type-ahead, and a false
+  refusal silently drops the terminal leg.
 - Poke a pane that has lost its agent (only `bash`/`sh`/`zsh`/`dash`/`login` on
   its tty). `sudo` and `su` on that tty are NOT that case: the launcher hops
   through them and the CLI runs on its own pty.
 - Send more than one line, or a line whose inertness depends on the body.
 
-<!-- version: 1.0.0 · updated: 2026-09-20 · last-edit: 2026-09-20T04:00:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-21 · last-edit: 2026-09-21T07:50:00Z -->

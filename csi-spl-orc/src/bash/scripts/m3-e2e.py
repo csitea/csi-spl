@@ -452,10 +452,15 @@ def pane_text(agent):
     return r.stdout if r.returncode == 0 else ""
 
 
-def wait_pane(agent, needle, timeout=20):
-    """Seconds until `needle` is VISIBLE in the agent's pane, else None."""
-    t0 = time.time()
-    end = t0 + timeout
+def wait_pane(agent, needle, timeout=20, since=None):
+    """Seconds until `needle` is VISIBLE in the agent's pane, else None.
+
+    `since` is the moment the message was SENT, so the number is the whole
+    send -> visible latency. Without it the number is only the poll cost: the
+    notifier runs inline with the inbox write (028 D-03), so by the time the
+    caller returns from `hub-sync` the pane is already painted."""
+    t0 = since or time.time()
+    end = time.time() + timeout
     while time.time() < end:
         if needle in pane_text(agent):
             return round(time.time() - t0, 2)
@@ -678,6 +683,7 @@ def run():
             "box_b_local_box_wui_pin_matches_hub": pins.get(WUI) == wui["pubkey"]})
 
     # -- a. box-a -> box-b spool send, visible in the viewer API (005 SC-001) -----------------
+    t_a = time.time()
     rc, out, err = on(BOX_A, "send", "--from", AGENT_A, "--to", AGENT_B, "--kind", "task", "--body", "m3-e2e a->b " + stamp)
     sa = json.loads(out) if rc == 0 else {"exit": rc, "err": err}
     rep = json.loads(must(BOX_B, "hub-sync"))
@@ -690,7 +696,7 @@ def run():
     t_sc001 = sa.get("task_id")
     # 028 SC-001: agent -> agent ACROSS boxes. box-b's hub-sync wrote it, so
     # box-b's hub-sync is what had to ring EZB-1.
-    term["a-box-to-box-task"] = wait_pane(AGENT_B, "m3-e2e a->b " + stamp)
+    term["a-box-to-box-task"] = wait_pane(AGENT_B, "m3-e2e a->b " + stamp, since=t_a)
 
     # -- humans ---------------------------------------------------------------------------------------
     cookie = read_secret("cookie-human")
@@ -720,8 +726,11 @@ def run():
     peer_b = "%s@%s" % (AGENT_B, BOX_B)
     online = ws.wait(lambda f: f.get("type") == "presence" and f.get("peer") == peer_b and f.get("status") == "online", 30)
     try:
+        sent_at = {}
+
         def send_wait(frame, timeout=20):
             frame.setdefault("msg_id", str(uuid.uuid4()))
+            sent_at[frame["msg_id"]] = time.time()
             ws.send(frame)
             return ws.wait(lambda f: f.get("msg_id") == frame["msg_id"] and f.get("type") in ("ack", "error"), timeout)
 
@@ -744,7 +753,8 @@ def run():
                and got_men.get("from") == hum,
                {"ack": men, "box_b_inbox": got_men})
         # 028 SC-002: a human's @mention in a channel, kind=note.
-        term["b-human-mention-note"] = wait_pane(AGENT_B, "m3-e2e mention " + stamp)
+        term["b-human-mention-note"] = wait_pane(AGENT_B, "m3-e2e mention " + stamp,
+                                   since=sent_at.get((men or {}).get("msg_id")))
         # Observation, not a gate: spec 014 FR-006 dispatches on a LEADING mention only and
         # channels-v1 section 4.6 never routes an unsigned browser envelope, so a mid-body
         # mention from a human stays in the browser.
@@ -769,7 +779,8 @@ def run():
                 "verified_by": "spool hub-run receive() against $SPOOL_ROOT/pins/box-box-wui.pub"})
         # 028 SC-002: a human's DIRECTED task, box-wui signed, written by the
         # hub-run sidecar - the path that reached no terminal at all before 028.
-        term["c-human-task"] = wait_pane(AGENT_B, "m3-e2e task: report the box id " + stamp)
+        term["c-human-task"] = wait_pane(AGENT_B, "m3-e2e task: report the box id " + stamp,
+                                   since=sent_at.get((task or {}).get("msg_id")))
         rc, out, err = on(BOX_B, "send", "--from", AGENT_B, "--to", hum, "--task", t_task, "--kind", "result",
                           "--to-box", WUI, "--body", "m3-e2e result: I am %s on %s" % (AGENT_B, BOX_B))
         res = json.loads(out) if rc == 0 else {"exit": rc, "err": err}
@@ -792,7 +803,8 @@ def run():
         dm_list = view("/v1/view/threads?dm=true&peer=" + AGENT_B)["threads"]
         dm_row = next((t for t in dm_list if t["task_id"] == t_dm), None)
         # 028 SC-002: a human's DM (no channel), kind=note.
-        term["d-human-dm-note"] = wait_pane(AGENT_B, "m3-e2e dm " + stamp)
+        term["d-human-dm-note"] = wait_pane(AGENT_B, "m3-e2e dm " + stamp,
+                                   since=sent_at.get((dm or {}).get("msg_id")))
         record("d-dm-round-trip", bool(dm) and dm.get("type") == "ack" and got_dm is not None and rc == 0 and dm_back is not None
                and dm_row is not None and dm_row.get("channel") is None,
                {"ack": dm, "box_b_inbox": got_dm is not None, "reply_rc": rc, "wui_frame": dm_back is not None,

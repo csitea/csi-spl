@@ -33,6 +33,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-env.inc.sh"
 # shellcheck source=../lib/spool-notify.inc.sh
 . "$_here/../lib/spool-notify.inc.sh"
+# shellcheck source=../lib/spool-poke-queue.inc.sh
+. "$_here/../lib/spool-poke-queue.inc.sh"
 spool_env_resolve
 
 usage() {
@@ -61,4 +63,25 @@ done
 [ -n "$TO" ] || { echo "ERROR: --to is required" >&2; usage; }
 spool_valid_id "$TO" || exit 2
 
-spool_notify "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
+# 1. SHOW it. tmux's status line for the agent's window (and its tty where no
+#    TUI owns the screen) is a surface the prompt rule does not gate, so a busy
+#    pane still DISPLAYS the message. It injects nothing.
+spool_poke_show "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
+
+# 2. OFFER it to the prompt, under the safe-poke rules, unchanged.
+spool_notify_render _line "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
+spool_notify_poke "$TO" "$_line"
+rc=$?
+
+# 3. A REFUSED line is queued, not dropped. The rule that a half-written line
+#    is never typed over is right; one-shot delivery on top of it is what made
+#    a refusal indistinguishable from a swallowed message for an agent whose
+#    only input is its prompt. The daemon re-offers it until the prompt frees.
+if [ "$rc" = 6 ]; then
+  if entry="$(spool_poke_queue_add "$TO" "$_line")" && spool_poke_retry_ensure "$TO"; then
+    echo "poke: queued for ${TO} (${entry##*/}); a retry daemon offers it again when the prompt is clear"
+  else
+    echo "poke: could NOT queue the refused line for ${TO}; it waits in ${SPOOL_ROOT}/${TO}/inbox/"
+  fi
+fi
+exit "$rc"

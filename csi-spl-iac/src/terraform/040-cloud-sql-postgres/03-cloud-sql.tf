@@ -55,6 +55,29 @@ resource "google_sql_database_instance" "hub" {
       hour = 3
     }
 
+    # Query Insights (spec 029 D1, owner go 2026-09-21). WHY: measured on both
+    # envs 2026-09-21, there are NO per-statement timings at all -
+    # pg_stat_statements is available but NOT installed, and installing it
+    # needs a flag that RESTARTS the instance. Insights is the additive,
+    # no-restart half of that answer, so it goes first and 029 keeps
+    # pg_stat_statements as the owner-gated next step.
+    #
+    # record_client_address and record_application_tags stay OFF: neither is
+    # needed to find a slow query, and both widen what the panel stores about
+    # callers. Cloud SQL normalises the query text (literals are replaced
+    # before storage), which is why the string length below is a shape budget
+    # and not a data budget.
+    dynamic "insights_config" {
+      for_each = var.query_insights_enabled ? [1] : []
+      content {
+        query_insights_enabled  = true
+        query_string_length     = var.query_insights_string_length
+        query_plans_per_minute  = var.query_insights_plans_per_minute
+        record_application_tags = false
+        record_client_address   = false
+      }
+    }
+
     user_labels = {
       org  = var.org
       app  = var.app

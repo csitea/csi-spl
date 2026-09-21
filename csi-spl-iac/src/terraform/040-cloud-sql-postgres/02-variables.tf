@@ -104,3 +104,31 @@ variable "owner_dsn_secret_id" {
     error_message = "owner_dsn_secret_id must be a Secret Manager id."
   }
 }
+
+variable "query_insights_enabled" {
+  type        = bool
+  description = "Cloud SQL Query Insights: per-query latency and plans. Measured 2026-09-21 (spec 029 §3.5): there are NO per-statement timings on either env - pg_stat_statements is not installed, and turning THAT on restarts the instance. Insights is the additive, no-restart half of the same answer."
+  default     = false
+}
+
+variable "query_insights_string_length" {
+  type        = number
+  description = "Bytes of each normalised query Insights stores (Cloud SQL replaces literals before storing, so this is shape, not data)."
+  default     = 1024
+
+  validation {
+    condition     = var.query_insights_string_length >= 256 && var.query_insights_string_length <= 4500
+    error_message = "query_insights_string_length must be between 256 and 4500."
+  }
+}
+
+variable "query_insights_plans_per_minute" {
+  type        = number
+  description = "Execution plans sampled per minute (Cloud SQL allows 0-20; 5 is its default)."
+  default     = 5
+
+  validation {
+    condition     = var.query_insights_plans_per_minute >= 0 && var.query_insights_plans_per_minute <= 20
+    error_message = "query_insights_plans_per_minute must be between 0 and 20."
+  }
+}

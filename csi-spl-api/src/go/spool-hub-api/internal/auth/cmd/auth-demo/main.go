@@ -124,6 +124,16 @@ func run(serve bool, addr, appURL, publicURL string) error {
 	for k, v := range oidcVars {
 		vars[k] = v
 	}
+	// 005 T035: the demo shows the diagnostics grant on and off without a
+	// rebuild — the walk-through prints the whole session body, so
+	//
+	//	SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS=demo@example.com go run ./internal/auth/cmd/auth-demo
+	//
+	// reads diagnostics_enabled:true for demo@example.com and false without
+	// it. The demo person is demo@example.com (above).
+	if v := os.Getenv("SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS"); v != "" {
+		vars["SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS"] = v
+	}
 	cfg, err := auth.LoadFrom("lde", vars)
 	if err != nil {
 		return err

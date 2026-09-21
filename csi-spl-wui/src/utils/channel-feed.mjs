@@ -94,10 +94,25 @@ export function formatAbsTs(ts) {
 }
 
 /**
- * Thread-pane clock: absolute UTC time, three spaces, then whole seconds
- * between `originMs` (when this thread was opened, or "now" while it stays
- * open) and the message. Never negative (a reply after open shows 0 until
- * origin catches up).
+ * Age as the coarsest units that still fit: `7s`, `3m 12s`, `2h 15m 3s`.
+ * Zero parts drop (`3m`, `2h 15m`). Never negative.
+ */
+export function formatElapsed(sec) {
+  const n = Math.max(0, Math.floor(Number(sec) || 0))
+  const h = Math.floor(n / 3600)
+  const m = Math.floor((n % 3600) / 60)
+  const s = n % 60
+  const parts = []
+  if (h) parts.push(h + 'h')
+  if (m) parts.push(m + 'm')
+  if (s || !parts.length) parts.push(s + 's')
+  return parts.join(' ')
+}
+
+/**
+ * Thread-pane clock: absolute UTC time, three spaces, then elapsed age
+ * (`7s` / `3m 12s` / `2h 15m 3s`) from `originMs` (thread open, ticking).
+ * A reply after open shows `0s` until origin catches up.
  */
 export function formatThreadTs(ts, originMs) {
   const abs = formatAbsTs(ts)
@@ -106,7 +121,7 @@ export function formatThreadTs(ts, originMs) {
   const origin = Number(originMs)
   if (!Number.isFinite(origin)) return abs
   const sec = Math.max(0, Math.floor((origin - d.getTime()) / 1000))
-  return abs + '   ' + String(sec)
+  return abs + '   ' + formatElapsed(sec)
 }
 
 /**

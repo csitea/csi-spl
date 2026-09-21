@@ -15,6 +15,7 @@ import {
   retentionDays,
   formatTs,
   formatAbsTs,
+  formatElapsed,
   formatThreadTs,
   feedRow,
   belongsTo,
@@ -73,8 +74,16 @@ describe('channel-feed', () => {
     assert.equal(formatTs(ts, 'en'), new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(ts)))
     assert.equal(formatTs('not a date', 'fi'), 'not a date')
     assert.equal(formatAbsTs(ts), '2026-09-19 14:05:00')
-    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T14:05:07Z')), '2026-09-19 14:05:00   7')
-    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T14:04:00Z')), '2026-09-19 14:05:00   0')
+    assert.equal(formatElapsed(0), '0s')
+    assert.equal(formatElapsed(7), '7s')
+    assert.equal(formatElapsed(60), '1m')
+    assert.equal(formatElapsed(72), '1m 12s')
+    assert.equal(formatElapsed(3600), '1h')
+    assert.equal(formatElapsed(7383), '2h 3m 3s')
+    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T14:05:07Z')), '2026-09-19 14:05:00   7s')
+    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T14:08:00Z')), '2026-09-19 14:05:00   3m')
+    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T16:08:12Z')), '2026-09-19 14:05:00   2h 3m 12s')
+    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T14:04:00Z')), '2026-09-19 14:05:00   0s')
     assert.equal(formatThreadTs('not a date', 1), 'not a date')
     assert.equal(formatBytes(2048, 'fi'), '2,0 KiB')
     assert.equal(formatBytes(2048, 'en'), '2.0 KiB')

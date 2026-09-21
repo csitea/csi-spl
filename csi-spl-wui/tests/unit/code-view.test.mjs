@@ -285,22 +285,54 @@ describe('the highlighter (highlight.js + our emitter): tokens, never markup', (
     assert.deepEqual(toks, [{ text: 'hello', cls: '' }])
   })
 
-  it('auto-detect only guesses between grammars this page has ALREADY loaded', async () => {
+  // CLE-3437: an UNTAGGED block is the common case — it is what a person
+  // typing ``` in a hurry sends, and what an agent pasting terminal output
+  // sends. It used to be left plain unless some other block on the page had
+  // already happened to load an auto-detectable grammar, which on a freshly
+  // opened DM is never. Now the auto-detect subset is fetched on demand.
+  it('an untagged block is auto-detected, from a cold page', async () => {
     __resetHighlighter()
     assert.deepEqual(loadedGrammars(), [])
-    // nothing loaded yet -> plain, no network, no new chunk
-    assert.deepEqual(await highlightTokens('SELECT 1 FROM t', ''), [{ text: 'SELECT 1 FROM t', cls: '' }])
-    await loadGrammar('sql')
-    assert.deepEqual(loadedGrammars(), ['sql'])
     const toks = await highlightTokens('SELECT a, b FROM t WHERE a = 1', '')
     assert.ok(toks.some((t) => t.cls.includes('hljs-keyword')), JSON.stringify(toks))
   })
 
-  it('CONTROL: prose is left plain rather than coloured as the one loaded grammar', async () => {
+  it('untagged colours the same shell script that ```bash does', async () => {
+    const sh = '#!/bin/bash\nset -e\nfor f in *.log; do\n  echo "$f"\ndone'
     __resetHighlighter()
-    await loadGrammar('sql')
+    const tagged = await highlightTokens(sh, 'bash')
+    __resetHighlighter()
+    const untagged = await highlightTokens(sh, '')
+    const coloured = (t) => t.filter((x) => x.cls).length
+    assert.ok(coloured(tagged) > 0, 'tagged should colour')
+    assert.equal(coloured(untagged), coloured(tagged))
+  })
+
+  it('it fetches the auto-detect subset and nothing beyond it', async () => {
+    __resetHighlighter()
+    await highlightTokens('SELECT a, b FROM t WHERE a = 1', '')
+    assert.deepEqual([...loadedGrammars()].sort(), [...AUTODETECT_LANGS].sort())
+  })
+
+  it('a tagged block still costs ONE grammar — no auto-detect set is fetched', async () => {
+    __resetHighlighter()
+    await highlightTokens('def f(x):\n    return 1', 'py')
+    assert.deepEqual(loadedGrammars(), ['python'])
+  })
+
+  it('CONTROL: prose in a fence is left plain, not coloured as some grammar', async () => {
+    __resetHighlighter()
     const prose = 'the quick brown fox jumps over the lazy dog'
     assert.deepEqual(await highlightTokens(prose, ''), [{ text: prose, cls: '' }])
+    // and the subset WAS available — this is a judgement, not an empty registry
+    assert.deepEqual([...loadedGrammars()].sort(), [...AUTODETECT_LANGS].sort())
+  })
+
+  it('an explicitly loaded grammar outside the subset never wins a guess', async () => {
+    __resetHighlighter()
+    await loadGrammar('go')
+    const toks = await highlightTokens('SELECT a, b FROM t WHERE a = 1', '')
+    assert.ok(toks.some((t) => t.cls.includes('hljs-keyword')), JSON.stringify(toks))
   })
 
   it('highlightLines returns one row per source line, losing nothing', async () => {

@@ -193,11 +193,23 @@ onUnmounted(() => {
   max-width: 960px;
   margin-inline: auto;
   position: relative;
+  /* CLE-3433: a FLEX row, so the `/` keycap is a sibling of the composer
+     pill instead of an absolutely positioned overlay. Absolute placement
+     resolved against this box, whose inline end is also where the
+     composer's Send button sits — the keycap landed ON the word "Send"
+     and clipped it (measured on dev build 28ec27b at 1440x900: badge
+     x 1089..1110, Send x 1050..1112, rectangles intersecting). Laid out
+     in flow the two can never collide at any width. */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.top-bar__omnibox > .composer {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .slash-badge {
-  position: absolute;
-  inset-inline-end: 10px;
-  top: 8px;
+  flex: 0 0 auto;
   pointer-events: none;
   font-size: 11px;
   font-family: var(--font-mono, ui-monospace, monospace);

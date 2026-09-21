@@ -180,6 +180,21 @@ describe('wiring: TopBar + MessageComposer + i18n', () => {
     assert.match(bar, /@media \(max-width: 640px\)[\s\S]*\.slash-badge \{ display: none; \}/)
     assert.match(bar, /\.top-bar__omnibox:focus-within \.slash-badge/)
   })
+  it('CLE-3433: the / keycap is laid out IN FLOW, so it cannot land on the Send button', () => {
+    const bar = read('src/components/TopBar.vue')
+    /* The defect this pins: `.slash-badge { position: absolute; inset-inline-end: … }`
+       resolved against `.top-bar__omnibox`, whose inline end is where the
+       composer's Send button sits — the keycap covered the word "Send" on the
+       first screen every visitor sees (dev build 28ec27b). A flex row cannot
+       overlap, so assert the row and the absence of the overlay. */
+    const badge = bar.slice(bar.indexOf('.slash-badge {'))
+    const block = badge.slice(0, badge.indexOf('}'))
+    assert.doesNotMatch(block, /position:\s*absolute/)
+    assert.doesNotMatch(block, /inset-inline-end/)
+    const omni = bar.slice(bar.indexOf('.top-bar__omnibox {'))
+    assert.match(omni.slice(0, omni.indexOf('}')), /display:\s*flex/)
+    assert.match(bar, /\.top-bar__omnibox > \.composer \{[\s\S]*?flex: 1 1 auto/)
+  })
   it('the global Omnibox exposes the shortcut to assistive tech', () => {
     const src = read('src/components/MessageComposer.vue')
     assert.match(src, /:aria-keyshortcuts="global \? '\/' : undefined"/)

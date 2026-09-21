@@ -196,17 +196,63 @@ Three things worth reading carefully before this number is re-used:
 
 ### 0.6 Deployment status
 
-Not yet served as a new hub image. A deploy is a new `hub.image.tag`, and the
-tag is derived into two further committed files — `<env>.env.json` and
-`<env>/tf/030-cloud-run-hub.vars.tfvars` — because terraform owns the image.
-Bumping the yaml alone turns trunk red on `cloud-actions.tst.sh` ("action
-`…:0.1.18` vs 030 `…:0.1.17`"), which is what this lane did and reverted
-(`cba622e`). Rendering the other two runs through the tf-runner, which this
-repo treats as one stack per box, from the main checkout, not during an apply —
-so it was handed to CLE-3355, which owns deploys, rather than forced from a
-worktree during a 20-agent afternoon.
+**FP-2 is deployed and serving on dev and prd** as image tag `0.1.18`, rolled
+2026-09-21 13:34 (revision `csi-spl-hub-dev-00032-rlz`; deploy and post-deploy
+smoke jobs green in both envs). Its commit `74394b9` contains FP-2 — checked
+with `git merge-base --is-ancestor fb0dac9 74394b9`, not read off a run colour.
 
-Nothing of FP-2 is blocked by that: see point 3 above.
+The keepalive fix (§0.7) landed after that image was built, so it ships in
+`0.1.19`.
+
+**A tag bump is three files per env, and getting that wrong turns trunk red.**
+The tag is derived into `<env>.env.json` and
+`<env>/tf/030-cloud-run-hub.vars.tfvars`, because terraform owns the image.
+Bumping the yaml alone fails `cloud-actions.tst.sh` ("action `…:0.1.18` vs 030
+`…:0.1.17`") and `tpl-gen-step-render-parity.tst.sh`, in two separate CI jobs.
+This lane did exactly that and reverted (`cba622e`).
+
+Rendering the other two is **`./run -a do_tpl_gen`** from `csi-spl-iac`: a plain
+HOST action — a pinned tpl-gen checkout and a Python venv writing into the cnf
+tree. It is *not* `make do-generate-config-for-step`, which goes through the
+tf-runner and is the one this repo treats as one stack per box. The revert
+message here originally confused the two and gave unsafe-sounding advice for a
+command that is in fact safe; CLE-3437 corrected it.
+
+**`/version` is not the image tag.** `GET /version` read `0.1.17` while both
+services ran image `0.1.18`: the tag comes from cnf `hub.image.ref`, but the
+version *string* comes from the repo-root `.version`, baked in by
+`csi-spl-api/src/bash/build.sh` as `-X main.version`. Nothing kept them in step,
+so a deploy checked by the version string alone reads one release behind what is
+actually running. `2e4c1ce` moves both together. **The `commit` field is the one
+that never lies** — prefer it for any deploy check.
+
+### 0.7 Keepalive — a dead socket stops being a silent one
+
+Found while this lane was open, by CLE-3438's acceptance bot and CLE-3434's
+live reading of a stalled desk. **The hub has pinged its peers since 017
+FR-SEC-004; the client never did.** A box socket that black-holed left the
+sidecar blocked in `wsjson.Read` for ever on a session it still believed was up:
+
+```
+16:10:51  hub session up / submit listener up
+16:19:18  last message written to CLE-00's inbox
+16:30:01  hub session up          <- a RESTART, not a recovery
+```
+
+CLE-3434's reading is what settles it: `GET /v1/view/roster` said
+`box-desk online=FALSE` while `ss -tnp` still showed the socket `ESTAB`.
+
+**Nothing was lost.** The messages from that window landed at 16:30:01, the
+instant the sidecar reconnected and the hub's queue drained. The durable path
+worked exactly as designed; the liveness path did not exist. Those are different
+defects with different fixes, and only one of them was broken — worth stating,
+because the symptom reads as loss.
+
+A `role=box` session now pings every 30 s and closes the socket when no pong
+arrives within 10 s; the read loop then fails and `Run` redials with the backoff
+it already had. It can only END a session, never fail a message. It does not
+make a stall impossible — it **bounds** it, to ~40 s instead of "until a human
+notices". `KeepAlive` / `KeepAliveTimeout` on `hubclient.Client` are the knobs.
 
 ## 1. Requirements
 

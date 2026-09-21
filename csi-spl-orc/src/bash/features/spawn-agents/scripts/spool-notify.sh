@@ -35,7 +35,9 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-notify.inc.sh"
 # shellcheck source=../lib/spool-poke-queue.inc.sh
 . "$_here/../lib/spool-poke-queue.inc.sh"
-spool_env_resolve
+# The notifier never launches a CLI, and it is the one caller on a latency
+# budget: skip resolving the CLI paths (CLE-3435).
+SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
 usage() {
   sed -n '/^# Usage:/,/^# The rendered/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2

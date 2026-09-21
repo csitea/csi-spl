@@ -82,8 +82,6 @@ spool_env_resolve() {
   SPOOL_TMUX_SIZE="${SPOOL_TMUX_SIZE:-200x50}"
   SPOOL_BOX_TAG="${SPOOL_BOX_TAG:-}"
   SPOOL_ORCHESTRATOR_ID="${SPOOL_ORCHESTRATOR_ID:-CLE-00}"
-  SPOOL_AGENT_HOME="$(_spool_home_of "$SPOOL_AGENT_USER")"
-
   SPOOL_FEATURE_DIR="$(_spool_feature_dir)"
   if [ -z "${SPOOL_BIN:-}" ]; then
     # <repo>/csi-spl-orc/src/bash/features/spawn-agents -> <repo>
@@ -103,6 +101,14 @@ spool_env_resolve() {
   fi
   SPOOL_NOTIFY_CMD="${SPOOL_NOTIFY_CMD:-}"
 
+  # The CLI paths cost a getent (SPOOL_AGENT_HOME) and, when no build output
+  # exists, a `command -v` - and the notifier, the one caller on a latency
+  # budget, never launches a CLI. It asks for them to be skipped (CLE-3435).
+  # Opt-OUT, not opt-in: a caller that forgets gets the full resolve, which is
+  # the safe direction.
+  [ "${SPOOL_ENV_NO_BINS:-}" = 1 ] && { export SPOOL_ROOT; return 0; }
+
+  SPOOL_AGENT_HOME="$(_spool_home_of "$SPOOL_AGENT_USER")"
   local cli var
   for cli in claude grok agy; do
     var="$(printf '%s' "$cli" | tr '[:lower:]' '[:upper:]')_BIN"

@@ -134,9 +134,17 @@ spool_notify_poke() {  # TO LINE
   # to the input line and submits it, so the poke would carry that text with
   # it. The TUI's own greyed-out suggestion is drawn DIM (ESC[2m) and is not
   # input: capture WITH escapes, drop dim runs, then strip the remaining ones.
-  last="$("${SPOOL_TM[@]}" capture-pane -p -e -t "$pane" 2>/dev/null | grep -E '❯|^> ' | tail -1 || true)"
-  last="$(printf '%s' "$last" | sed -E "s/${esc}\[2m[^${esc}]*//g; s/${esc}\[[0-9;]*[A-Za-z]//g")"
-  typed="$(printf '%s' "$last" | sed -E 's/^.*(❯|^>) ?//; s/[[:space:]]+$//')"
+  # One pipeline, not three: the two `$(printf | sed)` passes that followed
+  # were four more processes run one after another, where sed can just be the
+  # last stage of the capture that already runs (CLE-3435). Same three
+  # substitutions, same order.
+  last="$("${SPOOL_TM[@]}" capture-pane -p -e -t "$pane" 2>/dev/null \
+    | grep -E '❯|^> ' | tail -1 \
+    | sed -E "s/${esc}\[2m[^${esc}]*//g; s/${esc}\[[0-9;]*[A-Za-z]//g" || true)"
+  typed="${last##*❯}"
+  [ "$typed" = "$last" ] && typed="${last##*> }"
+  typed="${typed# }"
+  typed="${typed%"${typed##*[![:space:]]}"}"
   if [ -n "$last" ] && [ -n "$typed" ] && [ "${typed#: \'SPOOL }" = "$typed" ]; then
     echo "poke: REFUSED - ${to} pane ${pane} holds unsent text; the message waits in its inbox"
     return 6

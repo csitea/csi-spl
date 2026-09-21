@@ -89,5 +89,23 @@ How to apply:
 - The relay contract is git-rel's, not ours: before changing bucket semantics
   read the git-rel sources named in the doc, section 4.
 - Tests: `bash csi-spl-iac/src/bash/tests/run-all-tests.sh`. Keep them green.
+- **Run the cheap gate for the tree you touched, before you push.** Measured
+  2026-09-21 (`csi-spl-doc/specs/016-spool-testability/ci-gate-reliability-2026-09-21.md`):
+  42 red runs that day were SIX defects — each one red for the 5..20 minutes
+  and the 4..12 other pushes that landed before its lane fixed it. Every one of
+  them was catchable locally in under a minute:
+
+  | you touched | run first |
+  |---|---|
+  | anything at all | `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s) |
+  | `csi-spl-cnf/**`, a tfvars, an image tag | `ENV=<env> ./run -a do_tpl_gen` then `git diff --exit-code` |
+  | `csi-spl-wui/**` | `pnpm run typecheck` |
+  | `csi-spl-api/**` | `bash csi-spl-api/src/bash/tests/run-all-tests.sh` |
+
+  Pushing onto a red trunk is NOT the thing to avoid — that just serialises the
+  fleet and punishes lanes that did nothing. Landing the red is.
+- What is red lately, per JOB rather than per run:
+  `cd csi-spl-iac && CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate`.
+  Counted per run, one bad line reads as twelve broken pipelines.
 - Commits: `Yordan Georgiev <yordan.georgiev@csitea.net>`, no AI trailers,
   explicit pathspecs.

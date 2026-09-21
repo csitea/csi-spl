@@ -44,6 +44,10 @@ do-import: demand_var-AWS_PROFILE demand_var-ENV demand_var-TF_PROJ demand_var-R
 .PHONY: do-provision ## @-> 03.03 provision a step
 do-provision: demand_var-ENV demand_var-STEP
 	./run -a do_check_container_dns
+	@case "$(STEP)" in 030-cloud-run-hub) \
+	  ENV=$(ENV) ./run -a do_check_hub_image_regress \
+	    || { echo "REFUSED: 030 apply from this tree would move the live hub image backwards (see the verdict above). Refresh the checkout the tf-runner mounts, or set ALLOW_IMAGE_REGRESS=1 for a deliberate rollback."; exit 1; } ;; \
+	esac
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \

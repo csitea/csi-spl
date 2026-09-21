@@ -59,8 +59,11 @@ reads like a broken backup job.
 envs. What remains is not mine to take:
 
 - the owner decisions **D1–D6** (spec §6), sent to ORC;
-- the **first scheduled run of workflow 45** (daily, 05:17 UTC), which will be
-  the first unattended proof. Both buckets now exist, so it has what it needs.
+- the **daily 05:17 UTC schedule**. It is no longer an unrehearsed unknown:
+  run **35578876785** dispatched the same workflow at trunk on 2026-09-21 and
+  **both jobs succeeded on GitHub runners** (dev 95 773 B -> 26 tables /
+  756 rows; prd 33 270 B -> 26 tables / 255 rows), so the schedule exercises a
+  path that has already run green unattended. Spec §6.5.
 
 ## Controls this lane relied on
 

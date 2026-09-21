@@ -402,6 +402,26 @@ its own DSN secret slot that 030 never injects, read-only, used only by
 `do_spl_db_health` — the way `spool_hub_rt` was created. **Never** a widening
 of the login the hub itself runs as.
 
+## 6.5 The workflow itself is proven, not just the actions
+
+Run **35578876785**, dispatched 2026-09-21T08:37Z at trunk, `environment=all`,
+`dry_run=false`, `verify=true`. **Both jobs succeeded on GitHub runners, with
+no operator involved** — which is the thing an operator-run action cannot
+demonstrate:
+
+```
+dev  gs://csi-spl-dev-db-backups/dev/spool-20260921T083818Z.sql.gz  95 773 B
+     -> 440 930 B of SQL -> 26 table(s), 756 row(s), every live table present
+prd  gs://csi-spl-prd-db-backups/prd/spool-20260921T083954Z.sql.gz  33 270 B
+     -> 156 675 B of SQL -> 26 table(s), 255 row(s), every live table present
+```
+
+The whole path ran on the runner: the env key from
+`GCP_KEY_CSI_SPL_<ENV>`, the Cloud SQL export, the download, the throwaway
+postgres container, the per-table comparison against the live database, and
+the key removal. The daily schedule exercises exactly this, so the first
+unattended 05:17 UTC run has already been rehearsed with a real dispatch.
+
 ## 7. Out of scope
 
 Anything that changes the schema, the instance flags, the tier or the

@@ -464,7 +464,7 @@ jobs:
               | sed -E 's/\x1b\[[0-9;]*m//g' \
               | grep -avE '\[(DEBUG|INFO)\]' || true
             echo '```'
-          } >>"$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
   # ===========================================================================
   # Distribution-hygiene sweep: org-neutral, no personal names, no literal OS

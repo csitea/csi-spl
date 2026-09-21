@@ -132,12 +132,14 @@ lobby 03:04:50Z, the other two idle.
 - [x] T030 Implemented (`de64134`) — search rows carry the clock their group is
   ordered by (`search.mjs` `rowAt`, `data-key` + `data-ts` on every row), the
   last list whose rendered order could not be read off the page.
-- [x] T031 Proven — SC-006 extended, live on dev, **12/12 PASS**, WUI build
-  `f450bd9` (`git merge-base --is-ancestor 3a473a7 f450bd9` → exit 0, so it
-  carries every commit of this lane) + hub 0.1.17
-  (`/var/tmp/CLE-3425-proof/after-dev-3`; the run before it, `after-dev-2`,
-  passed the same 11 checks and failed only the script's own vacuous-group bug,
-  fixed in the same commit as this line):
+- [x] T031 Proven — SC-006 extended, live on dev, **n=2 runs, 12/12 then 13/13
+  PASS** (the second run adds the unread-badge leg), WUI builds `f450bd9` and
+  `5d0119c` (`git merge-base --is-ancestor 3a473a7 <build>` → exit 0 for each, so
+  both carry every commit of this lane) + hub 0.1.17
+  (`/var/tmp/CLE-3425-proof/after-dev-3`, `after-dev-n2`). The two runs had to be
+  ~15 min apart: native login is rate-limited to 10 attempts per email per 15 min
+  and each run signs in twice, so a 6th run in a quarter hour fails at sign-in
+  with `POST /api/v1/auth/login` → `429 rate_limited`, `retry-after: 26`:
   `BASE=https://dev.<domain> EMAIL=<t1 test member> PW_FILE=<0600> OUT=<dir> node tests/e2e/list-order-live.proof.mjs`.
   Two signed-in sessions A and B. ORDER (read off `data-ts`, which must never
   increase down a list): thread list 50 rows, lobby feed 33, `#lobby` thread
@@ -156,6 +158,23 @@ lobby 03:04:50Z, the other two idle.
     owner's real tenant: anonymous checks only — `spool-hub.ai/build.json`
     carries the shas, and the signed-out request count above); the DM-list tail
     beyond one peer with DM history.
+- [x] T033 Fixed on the way, separate commit — the "new items" pill (FR-012)
+  was OFF SCREEN on the desktop layout, so the affordance the owner asked for
+  could not be used. Measured, `nuxi dev` mock tenant, real Chrome, 1280×480,
+  scrolled down 400 px, two rows injected through the page's own store: pill
+  rect **y = −379 px**, `elementFromPoint(centre)` → null, a click threw "Node is
+  either not clickable", `scrollTop` stayed 562. After: **y = 60 px** (top bar 52
+  + 8), `elementFromPoint(centre)` IS the pill, a real click takes scrollTop
+  562 → 0 and the pill goes away. Cause: `.feed-body` carries `overflow-y: auto`,
+  which scrolls nothing in the main column since the 022 top bar (measured
+  `scrollHeight == clientHeight == 687` while body 794 > 480) but still made it
+  the nearest SCROLLPORT — and that is what `position: sticky` resolves against,
+  so the pill stuck to a box that does not move. `overflow-y: visible` hands it
+  the page; the thread pane keeps its own scroller. T019's gate could not catch
+  it (it asserted the pill EXISTS, then threw on the click), so it is EXTENDED
+  with "the pill is on screen and hittable, not just present":
+  `node tests/e2e/scroll-anchor.test.mjs` → **8/8** at 480 and 800 px (was 6,
+  throwing at the third). `no-x-scroll` 56/56, `thread-pane-single` 34/34.
 - [x] T032 Fixed on the way, separate commit (`3a473a7`) — `/search` reads
   through `withSessionRetry`. Signed in as the test member, `/search?q=live`
   rendered "This tenant's threads need a member sign-in or a view token." and 0
@@ -167,4 +186,4 @@ lobby 03:04:50Z, the other two idle.
 
 <!-- version: 0.10.0 · updated: 2026-09-21 · last-edit: 2026-09-21T08:15:00Z -->
 
-<!-- version: 1.1.0 · updated: 2026-09-21 · last-edit: 2026-09-21T08:25:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-21 · last-edit: 2026-09-21T08:30:00Z -->

@@ -258,6 +258,15 @@ try {
   const ts1 = await sideSeen
   step(`live: a message in #${target} moves it to the top of B's sidebar`, ts1 !== null && ts1 - t1 <= LIMIT_MS,
     { ms: ts1 ? ts1 - t1 : null, target, sidebar: (await rowsOf(b, SIDE_CH)).map((r) => r.key) })
+  /* the same frame has to raise the unread badge of a channel B is NOT viewing
+     (013 FR-014): before the tab-wide follow this moved only on a reload */
+  const badge = await b.evaluate((want) => {
+    const row = [...document.querySelectorAll('nav.sidebar a.nav-item[href*="/channel/"]')]
+      .find((e) => e.getAttribute('data-key') === want)
+    const el = row && row.querySelector('.badge-unread')
+    return el ? el.textContent.trim() : ''
+  }, target)
+  step(`live: #${target} shows an unread badge on B without a reload`, Boolean(badge), { badge, target })
   await b.screenshot({ path: `${OUT}/live-sidebar-bump-B.png` })
 
   // 2.3 a channel created in A appears at the top of B's sidebar (needs the hub

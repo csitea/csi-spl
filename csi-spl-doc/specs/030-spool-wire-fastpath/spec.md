@@ -40,7 +40,7 @@ both `dev.api.spool-hub.ai` and `api.spool-hub.ai`. **Tree**: `csi-spl`
 | hop | p50 | p95 | n | what it is |
 |---|---:|---:|---:|---|
 | **cold connection box→hub** (DNS cached) | **220.6 ms** | **266.5 ms** | 20 | TCP + TLS + first byte. **Paid per `spool send`** |
-| **terminal notifier, synchronous** | **170.5 ms** | **178.0 ms** | 12 | `spool-notify.sh`, its *cheapest* path (no live pane, exit 5) |
+| **terminal notifier, synchronous** | **~80-94 ms** | **~86-109 ms** | 12+12 | `spool-notify.sh`, its *cheapest* path (no live pane, exit 5). See §0.4 |
 | one round trip box↔hub | 61.5 ms | 66.6 ms | 20 | irreducible; TCP connect phase |
 | `spool send` process, local mode | 21.5 ms | 28.2 ms | 20 | whole CLI: spawn + runtime init + cnf + file write |
 | **the file mailbox write** | **0.062 ms** | — | 26k+ | `Store.DeliverTo`, 80-byte chat line |
@@ -80,18 +80,40 @@ then close. The sidecar is holding a *warm, authenticated socket to the same
 hub* the whole time. Every desk-agent reply pays ~220 ms to rebuild what is
 already open, before its hello even starts.
 
-**C2 — the terminal leg blocks the socket read loop (170.5 ms p50).**
+**C2 — the terminal leg blocks the socket read loop (~80-94 ms p50).**
 `notify.Run` is called **synchronously** inside `spool.Store.writeBox`, which
 runs inside `Session.receive`, which runs inside the sidecar's `readLoop`. So
-for 170 ms per delivered message the box **cannot read its next `recv` frame**.
-Two messages back to back: the second waits 170 ms behind the first *and then
-pays its own*. That is head-of-line blocking on the delivery leg — and it is
+for ~80-94 ms per delivered message the box **cannot read its next `recv`
+frame**. Two messages back to back: the second waits that long behind the first
+*and then pays its own*. That is head-of-line blocking on the delivery leg — and it is
 paid for a step whose own contract (028 FR-006) says it "never fails a
 delivery" and is "logged and forgotten".
 
-Together C1 and C2 are **~390 ms p50** on a 300 ms budget, in hops that carry no
-message semantics at all. Neither is a protocol-format problem; both are
+Together C1 and C2 are **~300-315 ms p50** on a 300 ms budget, in hops that
+carry no message semantics at all. Neither is a protocol-format problem; both are
 *connection-lifetime* and *concurrency* problems.
+
+### 0.4 A correction to this spec's own first draft
+
+The first version of this table read **170.5 ms p50** for the notifier. That
+number was wrong and the way it was wrong is worth keeping, because it is the
+shape of error this repo's measurement rule exists to catch.
+
+It was not merely stale. The tree measured (`dc102e7`) already contained
+CLE-3435's notifier fix (`4206bcb`). The defect was in the *invocation*: the
+command was run through a `sudo -u ysg env … bash` hop, and **that hop alone
+costs 21.0 ms p50** (`sudo -u ysg env X=1 bash -c true`, n=12); the remainder
+looks like cold page cache on the script's first runs.
+
+Clean re-measurement, no sudo hop, tree `dc102e7`, n=12, exit-5 path:
+**94.0 ms p50 / 109.0 ms p95**. CLE-3435, who owns that path, reads
+**80 ms p50 / 86 ms p95** (n=12, tree `4206bcb`) on a cleaner invocation.
+Both are used above; theirs is the one to quote.
+
+The conclusion the table supports does not move - the notifier is still two
+orders of magnitude above the file hop and still blocks the read loop - but a
+number that was going to be traded against protocol complexity was out by ~2x,
+and it was out because of how it was called, not what it measured.
 
 ### 0.3 The recommendation
 
@@ -100,7 +122,13 @@ ORC's reading and the measurement supports it:
 
 1. **FP-1 — the terminal leg stops blocking the read loop.** Queue it per
    recipient, drain it on a worker. Order per agent is preserved; the socket
-   keeps reading. Removes C2 (~170 ms) from the delivery leg.
+   keeps reading. Removes C2 (~80-94 ms) from the delivery leg.
+   **Owned by CLE-3435**, not by this lane: ORC assigned it event-driven
+   notify / pane render / receipt, and it asked this lane not to spend budget
+   there. A working implementation built here before that was known (a
+   per-recipient `notify.Queue` plus `spool.Store.WithNotifier`) was handed to
+   CLE-3435 rather than landed, so the two lanes do not collide. This spec
+   keeps FR-002/FR-003 as the requirement it must satisfy.
 2. **FP-2 — a box reply goes out over the sidecar's ALREADY-WARM socket**
    instead of dialling a new one. The CLI hands the signed envelope to the
    local sidecar over a unix socket; the sidecar writes it on the hub session it
@@ -113,16 +141,17 @@ ORC's reading and the measurement supports it:
 
 **Trade-offs the owner decides:**
 
-| | FP-1 (async terminal leg) | FP-2 (local submit socket) |
+| | FP-1 (async terminal leg, CLE-3435) | FP-2 (local submit socket, this lane) |
 |---|---|---|
-| wins | ~170 ms on every delivery | ~220 ms on every reply |
+| wins | ~80-94 ms on every delivery | ~220 ms on every reply |
 | risk | a notifier now runs after `writeBox` returns; a crash in the gap loses the *poke*, never the message (the file is already written) | a new local IPC surface on the box; needs a fallback path and a permissions story (0700, owner-only) |
 | size | small, contained in `internal/notify` + the sidecar | larger: new listener, new frame, capability negotiation |
 | reversible | yes — one cnf flag back to synchronous | yes — remove the socket and the CLI dials as today |
 
-FP-1 is small, safe and wins the larger share of a *delivery*; it lands first.
-FP-2 wins the reply leg and is the piece that needs the capability negotiation
-in §2.
+FP-2 is what this lane builds: it is the largest single cost either lane has
+measured (220.6 ms p50), it is unambiguously a client/protocol change, and it is
+the piece that needs the capability negotiation in §2. FP-1 lands in CLE-3435's
+lane against the same FR-002/FR-003.
 
 ---
 

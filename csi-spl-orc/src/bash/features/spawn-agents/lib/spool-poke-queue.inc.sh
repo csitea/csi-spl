@@ -82,8 +82,10 @@ spool_poke_retry_ensure() {  # ID
 #
 #   1. a notice pane, split into the agent's own window (default on an agent
 #      that paints a TUI). It is the only PERSISTENT in-window surface such a
-#      pane has: the notices scroll there in blue, the agent's own pane just
-#      redraws a few rows shorter, and nothing is ever sent to its input.
+#      pane has: the notices stand there in blue NEWEST FIRST (013/CLE-3425 -
+#      a terminal appends, so the pane is repainted by spool-notice-pane.sh),
+#      the agent's own pane just redraws a few rows shorter, and nothing is
+#      ever sent to its input.
 #   2. tmux's status line for that window (display-message). Instant, coloured,
 #      impossible to corrupt - it is tmux's own chrome, not the pane's canvas -
 #      but it fades after its dwell, so it is the flash, not the record.
@@ -98,9 +100,12 @@ spool_poke_retry_ensure() {  # ID
 # notifier the moment it writes the inbox file). Nothing here polls.
 #
 #   SPOOL_SHOW            1 (default) or 0 to skip the visible half entirely
+#   SPOOL_POKE            1 (default) or 0 to leave the PROMPT alone entirely
+#                         (read by spool-notify.sh; the pane still shows it)
 #   SPOOL_SHOW_PANE       auto (default: a notice pane when the agent's pane is
 #                         on the alternate screen) | 1 always | 0 never
 #   SPOOL_SHOW_PANE_LINES notice pane height, default 8
+#   SPOOL_SHOW_PANE_MAX   notices kept in the pane, newest first, default 50
 #   SPOOL_SHOW_MS         status-line dwell, default 20000 (0 = until a key)
 #   SPOOL_SHOW_BODY_MAX   body excerpt, default 400
 #   SPOOL_SHOW_COLOUR     1 (default) or 0; NO_COLOR in the environment wins
@@ -116,24 +121,49 @@ spool_show_colour() {
   [ -z "${NO_COLOR:-}" ] && [ "${SPOOL_SHOW_COLOUR:-1}" = 1 ]
 }
 
+# The command a notice pane runs. Not a `tail`: a terminal appends, and the
+# newest notice belongs on TOP (013/CLE-3425), so the pane is repainted by
+# spool-notice-pane.sh. SPOOL_NOTICE_PANE_V is bumped whenever this changes, so
+# a pane left behind by an older version is respawned instead of going stale.
+SPOOL_NOTICE_PANE_V=4
+
+spool_notice_pane_cmd() {  # LOG
+  printf 'exec %q --log %q --max %s' \
+    "$SPOOL_FEATURE_DIR/scripts/spool-notice-pane.sh" "$1" "${SPOOL_SHOW_PANE_MAX:-50}"
+}
+
 # The notice pane of ID: an existing one, or a new split of ID's own window.
 # Prints the pane id, or nothing when one cannot be made.
 spool_show_notice_pane() {  # ID AGENT_PANE
-  local id="$1" agent_pane="$2" p mark pane lines log
+  local id="$1" agent_pane="$2" p mark ver pane lines log cmd
   spool_tmux_argv
-  while IFS=' ' read -r p mark; do
-    [ "$mark" = "$id" ] && { printf '%s' "$p"; return 0; }
-  done < <("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id} #{@spool_notices}' 2>/dev/null)
-  lines="${SPOOL_SHOW_PANE_LINES:-8}"
-  [[ "$lines" =~ ^[0-9]+$ ]] || lines=8
   log="$(spool_poke_queue_dir "$id")/notices.log"
   mkdir -p "$(dirname "$log")" 2>/dev/null || return 1
   : >>"$log" || return 1
+  cmd="$(spool_notice_pane_cmd "$log")"
+  while IFS=' ' read -r p mark ver; do
+    [ "$mark" = "$id" ] || continue
+    # An older renderer (or none) in a pane we own: replace it in place, so the
+    # agent's window keeps the same layout and the same pane id.
+    if [ "$ver" != "$SPOOL_NOTICE_PANE_V" ]; then
+      # A log written by an older renderer is in an older RECORD format and
+      # would repaint as nonsense. Keep it beside the new one rather than
+      # deleting it: this is a delivery hint, the inbox is the record.
+      [ -s "$log" ] && mv -f "$log" "$log.v${ver:-0}" 2>/dev/null
+      : >>"$log" 2>/dev/null
+      "${SPOOL_TM[@]}" respawn-pane -k -t "$p" "$cmd" 2>/dev/null &&
+        "${SPOOL_TM[@]}" set-option -p -t "$p" @spool_notices_v "$SPOOL_NOTICE_PANE_V" 2>/dev/null
+    fi
+    printf '%s' "$p"; return 0
+  done < <("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id} #{@spool_notices} #{@spool_notices_v}' 2>/dev/null)
+  lines="${SPOOL_SHOW_PANE_LINES:-8}"
+  [[ "$lines" =~ ^[0-9]+$ ]] || lines=8
   # -d: the new pane never takes focus, so the agent keeps the keyboard.
   pane="$("${SPOOL_TM[@]}" split-window -d -v -l "$lines" -t "$agent_pane" -P -F '#{pane_id}' \
-            "exec tail -n 50 -f '$log'" 2>/dev/null)" || return 1
+            "$cmd" 2>/dev/null)" || return 1
   [ -n "$pane" ] || return 1
   "${SPOOL_TM[@]}" set-option -p -t "$pane" @spool_notices "$id" 2>/dev/null
+  "${SPOOL_TM[@]}" set-option -p -t "$pane" @spool_notices_v "$SPOOL_NOTICE_PANE_V" 2>/dev/null
   "${SPOOL_TM[@]}" set-option -p -t "$pane" remain-on-exit off 2>/dev/null
   printf '%s' "$pane"
 }
@@ -173,7 +203,11 @@ spool_poke_show() {  # TO KIND FROM TASK MSGID BODY
     np="$(spool_show_notice_pane "$to" "$pane")"
     if [ -n "$np" ]; then
       log="$(spool_poke_queue_dir "$to")/notices.log"
-      printf '%s%s%s\n%s%s%s\n\n' "$blue" "$head" "$off" "$dim" "$body" "$off" >>"$log" 2>/dev/null &&
+      # One RECORD per line, <head>TAB<body>: the renderer decides the order and
+      # the colour, so the newest can be put on top without re-parsing escapes.
+      # Both fields went through spool_notify_clean, which leaves no tab or
+      # newline in either, so a line is exactly one record.
+      printf '%s\t%s\n' "$head" "$body" >>"$log" 2>/dev/null &&
         shown="notice pane ${np}"
     fi
   fi

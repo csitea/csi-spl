@@ -51,12 +51,15 @@ has "…and the tty, on a normal-screen pane" "pane tty" "$out"
 sleep 0.5
 log="$q/notices.log"
 check "the notice log exists" test -s "$log"
+# The log is one RECORD per line, <head>TAB<body>: the renderer owns order and
+# colour, so the newest can go on top without re-parsing escape sequences.
+eq "the log holds one record per line" 1 "$(wc -l <"$log")"
 notice="$(cat "$log")"
 has "it names the recipient, kind and sender" "SPOOL CLE-91: note from CLE-90" "$notice"
 has "it names the task and the msg"           "task T-7 msg M-7"               "$notice"
 has "it CARRIES the body"                     "hello from the hub"             "$notice"
-has "the head is blue"                        "$(printf '\033[1;38;5;39m')"     "$notice"
-has "the body is blue"                        "$(printf '\033[38;5;110m')"      "$notice"
+eq "a record is head TAB body" 2 "$(awk -F'\t' '{print NF}' "$log")"
+hasnt "the log itself carries no escapes"     "$(printf '\033')"                "$notice"
 
 # The pane really was split into CLE-91's own window, and marked as ours.
 marks="$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id} #{@spool_notices}')"
@@ -68,17 +71,46 @@ eq "it sits in the agent's OWN window" "$w_agent" "$w_notice"
 check "the agent's pane still has the keyboard" \
   test "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$w_agent" '#{pane_id}')" = "$P91"
 
-# A second notice reuses that pane rather than splitting again.
-SPOOL_SHOW_PANE=1 spool_poke_show CLE-91 note CLE-90 T-8 M-8 'second' >/dev/null
+# What the pane actually SHOWS: the body, in blue.
+sleep 0.8
+screen="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -e -t "$np")"
+has "the pane shows the head"  "SPOOL CLE-91: note from CLE-90" "$screen"
+has "the pane shows the BODY"  "hello from the hub"             "$screen"
+has "the head is blue"         "$(printf '\033[38;5;39m')"       "$screen"
+has "…and bold"                "$(printf '\033[1m')"             "$screen"
+has "the body is blue"         "$(printf '\033[38;5;110m')"      "$screen"
+
+# A second notice reuses that pane rather than splitting again…
+SPOOL_SHOW_PANE=1 spool_poke_show CLE-91 note CLE-90 T-8 M-8 'the SECOND message' >/dev/null
 eq "a second notice reuses the pane" 1 \
   "$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{@spool_notices}' | grep -c '^CLE-91$')"
 
-# NO_COLOR is honoured.
-rm -f "$log"
-NO_COLOR=1 SPOOL_SHOW_PANE=1 spool_poke_show CLE-91 note CLE-90 T-9 M-9 'plain please' >/dev/null
-sleep 0.3
-hasnt "NO_COLOR drops every escape" "$(printf '\033')" "$(cat "$log")"
-has   "…and keeps the text"         "plain please"     "$(cat "$log")"
+# …and it lands ABOVE the first. A terminal appends; the owner's rule for every
+# listing is newest-first (013/CLE-3425), so the pane is repainted, not tailed.
+sleep 1
+plain="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$np")"
+first_row="$(printf '%s\n' "$plain" | grep -n 'hello from the hub' | head -1 | cut -d: -f1)"
+second_row="$(printf '%s\n' "$plain" | grep -n 'the SECOND message' | head -1 | cut -d: -f1)"
+check "both messages are on screen" test -n "$first_row" -a -n "$second_row"
+check "the NEWEST message is ABOVE the older one (row $second_row < $first_row)" \
+  test "${second_row:-99}" -lt "${first_row:-0}"
+
+# NO_COLOR is honoured by the renderer, which is what paints.
+nolog="$T_TMP/nocolour.log"
+printf 'SPOOL CLE-93: note from CLE-90\tplain please\n' >"$nolog"
+PN="$(t_window notices-nc "NO_COLOR=1 exec $T_SCRIPTS/spool-notice-pane.sh --log $nolog")"
+sleep 1
+screen="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -e -t "$PN")"
+hasnt "NO_COLOR drops every escape" "$(printf '\033[')" "$screen"
+has   "…and keeps the text"         "plain please"      "$screen"
+
+# An empty log says so rather than showing a blank pane.
+emptylog="$T_TMP/empty.log"
+: >"$emptylog"
+PE="$(t_window notices-empty "exec $T_SCRIPTS/spool-notice-pane.sh --log $emptylog")"
+sleep 1
+has "an empty notice pane explains itself" "no messages yet" \
+  "$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PE")"
 
 # No window for an id: reported, never fatal.
 out="$(spool_poke_show CLE-99 note CLE-90 T M 'nobody home')"; rc=$?
@@ -126,5 +158,82 @@ for i in $(seq 1 40); do daemon_gone && break; sleep 0.5; done
 check "the drained daemon exited" daemon_gone
 out="$(bash "$T_SCRIPTS/spool-poke-retry.sh" --to CLE-92 --once 2>&1)"
 has "an empty queue ends a new one at once" "queue is empty" "$out"
+
+# ── the four acceptance tests for the notice pane (CLE-3434 / ORC) ─────────
+# Stated as the owner experiences them, against a throwaway agent pane. The
+# real orchestrator pane is not touched by any of this.
+rm -f "$q"/*.poke
+A_PANE="$(t_window CLE-94 'sleep 600')"
+aq="$(spool_poke_queue_dir CLE-94)"
+alog="$aq/notices.log"
+
+send_notice() {  # BODY
+  SPOOL_SHOW_PANE=1 SPOOL_SHOW_PANE_LINES=8 SPOOL_POKE=0 \
+    spool_poke_show CLE-94 note HUM-9 "task-$2" "msg-$2" "$1" >/dev/null
+}
+notice_pane() {
+  tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id} #{@spool_notices}' |
+    awk '$2 == "CLE-94" {print $1; exit}'
+}
+
+# Deliberately more notices than the pane can hold: the acceptance test is
+# about what is VISIBLE, and an 8-row pane cannot show six of them.
+for n in 1 2 3 4 5; do send_notice "message number $n" "$n"; sleep 0.2; done
+sleep 1
+NP="$(notice_pane)"
+check "acceptance: a notice pane exists" test -n "$NP"
+send_notice "THE NEWEST ONE" 6
+sleep 1.5
+vis="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$NP")"
+
+# (1) NEWEST ON TOP: the first visible line is the newest message's header.
+first_line="$(printf '%s\n' "$vis" | sed -n '1p')"
+has "acceptance 1: the FIRST visible line is the newest header" "msg msg-6" "$first_line"
+has "acceptance 1: …and its body is right under it" "THE NEWEST ONE" \
+  "$(printf '%s\n' "$vis" | sed -n '2p')"
+
+# (2) EXACTLY ONCE: no notice appears twice anywhere the pane can be captured.
+# The alternate screen is what makes this true and checkable - a repainting
+# pane on the normal screen leaves every earlier paint in the scrollback.
+deep="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -S -200 -t "$NP")"
+eq "acceptance 2: the newest notice appears exactly once in 200 lines" 1 \
+  "$(printf '%s\n' "$deep" | grep -c 'THE NEWEST ONE')"
+eq "acceptance 2: …and so does an older one that is still visible" 1 \
+  "$(printf '%s\n' "$deep" | grep -c 'message number 5')"
+eq "acceptance 2: the log holds one record per delivery" 6 "$(wc -l <"$alog")"
+
+# (3) NO REPLAY: a repaint, and a full restart of the renderer, must not
+# re-notify anything. A notice is a render of the log, never a new delivery.
+before="$(wc -l <"$alog")"
+tmux -S "$SPOOL_TMUX_SOCKET" resize-pane -t "$NP" -y 12 2>/dev/null   # forces a repaint
+sleep 1
+eq "acceptance 3: a repaint delivers nothing new" "$before" "$(wc -l <"$alog")"
+tmux -S "$SPOOL_TMUX_SOCKET" respawn-pane -k -t "$NP" \
+  "exec $T_SCRIPTS/spool-notice-pane.sh --log $alog --max 50" 2>/dev/null
+sleep 1.5
+eq "acceptance 3: a renderer restart delivers nothing new" "$before" "$(wc -l <"$alog")"
+vis2="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$NP")"
+has "acceptance 3: …and still shows the newest on top" "msg msg-6" \
+  "$(printf '%s\n' "$vis2" | sed -n '1p')"
+eq "acceptance 3: …exactly once" 1 \
+  "$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -S -200 -t "$NP" | grep -c 'THE NEWEST ONE')"
+
+# (4) NO PROMPT INJECTION: with SPOOL_POKE=0 the prompt is never typed into,
+# nothing is queued, and the exit is clean. A pane holding unsent text proves
+# it, because that is the case that used to queue and replay.
+P95="$(t_window CLE-95 'exec cat')"
+tty95="$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$P95" '#{pane_tty}')"
+printf 'welcome\r\n\xe2\x9d\xaf half typed text\r' >"$tty95"
+sleep 0.4
+out="$(SPOOL_POKE=0 SPOOL_SHOW_PANE=0 bash "$SN" --to CLE-95 --from HUM-9 --kind note \
+        --task T-9 --msg-id M-9 --body 'must not reach the prompt')"
+eq "acceptance 4: SPOOL_POKE=0 exits 0" 0 "$?"
+has "acceptance 4: …and says the prompt was not touched" "its prompt was not touched" "$out"
+scr95="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$P95")"
+hasnt "acceptance 4: no poke line was typed" ": 'SPOOL CLE-95" "$scr95"
+has   "acceptance 4: the unsent text is untouched" 'half typed text' "$scr95"
+eq "acceptance 4: nothing was queued, so nothing can replay" 0 \
+  "$(ls -1 "$(spool_poke_queue_dir CLE-95)"/*.poke 2>/dev/null | wc -l)"
+check "acceptance 4: no retry daemon was started" test ! -e "$(spool_poke_queue_dir CLE-95)/retry.pid"
 
 t_done

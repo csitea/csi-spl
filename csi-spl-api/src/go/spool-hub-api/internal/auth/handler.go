@@ -290,6 +290,11 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 type sessionResp struct {
 	Session
 	PreferredLocale *string `json:"preferred_locale"`
+	// DiagnosticsEnabled is the operator's grant for the WUI diagnostics
+	// panel (005 T035). It sits HERE and not in Session on purpose: Session is
+	// what gets signed into the cookie, and a grant that rode the cookie would
+	// outlive its revocation by a whole session TTL. See diagnosticsGrant.
+	DiagnosticsEnabled bool `json:"diagnostics_enabled"`
 	// specs/026 §3: the tenant this session works in (null when none
 	// resolves) and every membership (the phase 2 switcher's list).
 	ActiveTenant *string      `json:"active_tenant"`
@@ -303,7 +308,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "unauthenticated", "no valid session")
 		return
 	}
-	out := sessionResp{Session: s}
+	out := sessionResp{Session: s, DiagnosticsEnabled: h.diagnosticsGrant(s)}
 	h.sessionTenants(r, &out)
 	if s.HumanID != "" && h.prefs != nil {
 		// A settings lookup never fails the session: the WUI then follows the browser.
@@ -315,6 +320,28 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
+}
+
+// diagnosticsGrant answers the WUI's `diagnostics_enabled` claim (005 T035,
+// 010 auth-v1 section 3): may THIS signed-in human see the diagnostics panel?
+//
+// Two properties it exists to hold:
+//
+//  1. The answer comes from cnf on EVERY session read and is never a field of
+//     the signed session cookie. There is no such key in Session to carry, so
+//     nothing the browser sends can assert the grant — a cookie whose payload
+//     names it included — and removing an address revokes the panel at the
+//     reader's next probe, not at the end of a 12h session.
+//  2. The address must have been PROVEN. A social sign-in only ever reaches
+//     here with an IdP-verified email; a native one (015) can carry an
+//     unverified address only where SPOOL_HUB_AUTH_NATIVE_VERIFY_REQUIRED is
+//     false, which native_config refuses outside lde. That one case is denied
+//     here rather than trusting an address its owner never confirmed.
+func (h *Handler) diagnosticsGrant(s Session) bool {
+	if s.Provider == ProviderPassword && h.native != nil && !h.native.cfg.VerifyRequired {
+		return false
+	}
+	return h.cfg.DiagnosticsGranted(s.Email)
 }
 
 // avatar answers the signed-in human's own stored IdP picture (CLE-3406):

@@ -383,6 +383,9 @@ type loginReq struct {
 type loginResp struct {
 	Session
 	Redirect string `json:"redirect"`
+	// The same operator grant GET /session answers (005 T035), so the WUI can
+	// adopt these claims without a second probe. Computed, never signed in.
+	DiagnosticsEnabled bool `json:"diagnostics_enabled"`
 }
 
 func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -460,7 +463,8 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, n.h.sessionCookie(tok, int(n.h.cfg.SessionTTL.Seconds())))
 	n.log.Info().Str("email", digest(email)).Str("tenant", sess.Tenant).Msg("auth.login_ok")
-	writeJSON(w, http.StatusOK, loginResp{Session: sess, Redirect: safeRedirect(req.Redirect)})
+	writeJSON(w, http.StatusOK, loginResp{Session: sess, Redirect: safeRedirect(req.Redirect),
+		DiagnosticsEnabled: n.h.diagnosticsGrant(sess)})
 }
 
 type emailReq struct {

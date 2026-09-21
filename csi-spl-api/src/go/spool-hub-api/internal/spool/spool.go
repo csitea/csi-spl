@@ -138,7 +138,11 @@ func (s *Store) writeBox(m *msg.Message, id, box string) (bool, error) {
 	// DeliverTo already short-circuited never reaches this line, so a
 	// reconnecting sidecar does not ring an old message a second time.
 	if box == "inbox" {
-		notify.Run(s.cfg, m, id)
+		// Deliver, not Run: a long-running box daemon installs a per-recipient
+		// queue (notify.Start) so the terminal leg does not hold up the read
+		// loop behind it; every other caller is short-lived and still runs it
+		// synchronously, which is what keeps a CLI's poke alive past its exit.
+		notify.Deliver(s.cfg, m, id)
 	}
 	return true, nil
 }

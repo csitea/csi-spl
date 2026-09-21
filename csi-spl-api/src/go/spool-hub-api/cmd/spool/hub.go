@@ -30,6 +30,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/logging"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/notify"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/payments"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
@@ -493,6 +494,11 @@ func cmdHubRun(cfg *config.Config) int {
 	if err != nil {
 		return fail(err)
 	}
+	// The daemon is the one caller that outlives its deliveries, so it is the
+	// one that can take the terminal leg off the read loop (CLE-3435). Stop
+	// drains what is queued before the process leaves.
+	q := notify.Start(cfg)
+	defer q.Stop()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := c.Run(ctx); err != nil {

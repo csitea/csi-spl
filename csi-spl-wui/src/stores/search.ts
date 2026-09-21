@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { SEARCH_OPERATORS, mergeSearchPage, type SearchOperator, type SearchResult } from '~/utils/search.mjs'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 
 type SearchError = { status: number, token: string, detail: string, pos: number, badToken: string, retryAfter: number, raw: unknown }
 
@@ -42,7 +43,14 @@ export const useSearchStore = defineStore('search', () => {
     }
     loading.value = true
     try {
-      const r = await useSpoolApi().search({ q: query })
+      /* 010 FR-009: a member's first read of a fresh page flips the view door to
+         the sign-in cookie. Without this a signed-in human deep-linking to
+         /search?q=… got the door prompt instead of results (measured on dev
+         2026-09-21: "This tenant's threads need a member sign-in or a view
+         token"), the same 401 view_door 2dfefe7 fixed for /channel, /dm and the
+         roster. */
+      const api = useSpoolApi()
+      const r = await withSessionRetry(api, () => api.search({ q: query }))
       if (mine === seq) result.value = r
     } catch (e) {
       if (mine === seq) {
@@ -61,7 +69,9 @@ export const useSearchStore = defineStore('search', () => {
     const mine = seq
     loadingMore.value = type
     try {
-      const page = await useSpoolApi().search({ q: q.value, cursor: g.next })
+      const api = useSpoolApi()
+      const cursor = String(g.next || '')
+      const page = await withSessionRetry(api, () => api.search({ q: q.value, cursor }))
       if (mine === seq && result.value) result.value = mergeSearchPage(result.value, page)
     } catch (e) {
       if (mine === seq) error.value = toError(e)
@@ -75,7 +85,8 @@ export const useSearchStore = defineStore('search', () => {
     if (opsLoaded) return
     opsLoaded = true
     try {
-      operators.value = await useSpoolApi().searchOperators()
+      const api = useSpoolApi()
+      operators.value = await withSessionRetry(api, () => api.searchOperators())
     } catch {
       /* route not deployed yet / door closed: keep the built-in catalogue */
     }

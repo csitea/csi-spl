@@ -21,12 +21,24 @@
 # cannot submit early. poke-line.md §2 fixes the order of these five steps.
 spool_notify_clean() {  # TEXT
   local esc=$'\033'
-  printf '%s' "${1:-}" \
-    | sed -E "s/${esc}\[[0-9;?]*[A-Za-z]//g; s/${esc}[]()#%][^${esc}]*//g; s/${esc}//g" \
-    | tr '\t\n\r' '   ' \
-    | tr -d '\000-\010\013\014\016-\037\177' \
-    | tr "'" '"' \
-    | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
+  # One `sed -z`, not a five-stage pipeline (CLE-3435). The steps and their
+  # ORDER are unchanged - poke-line.md §2 fixes both, and the hostile-body
+  # test pins the result - but this is called once per field, six times per
+  # message, and each stage was a process: 30 forks, 35 ms of a 314 ms leg.
+  #
+  # -z is what lets one sed do the whole job: it reads to NUL rather than to
+  # newline, so the newline-to-space step is an ordinary substitution instead
+  # of a `tr` the line-based sed could never have performed.
+  printf '%s' "${1:-}" | sed -zE "
+    s/${esc}\[[0-9;?]*[A-Za-z]//g
+    s/${esc}[]()#%][^${esc}]*//g
+    s/${esc}//g
+    s/[\t\n\r]/ /g
+    s/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]//g
+    s/'/\"/g
+    s/[[:space:]]+/ /g
+    s/^ //
+    s/ \$//"
 }
 
 # Cut TEXT to N characters, appending " …" when it was cut.
@@ -68,6 +80,16 @@ spool_notify_trace() {  # STAGE
   return 0
 }
 
+# 0 when CMD is one of the shells that, alone on a pane, means the agent has
+# gone. An EMPTY cmd is treated as a shell: unknown must fall through to the
+# `ps` scan, never silently count as alive.
+spool_notify_is_shell() {  # CMD
+  case "${1:-}" in
+    bash|sh|zsh|dash|login|'') return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # ── the doorbell ────────────────────────────────────────────────────────────
 # Ring TO's pane with LINE. Prints one `poke:` line. Exit codes: poke-line.md §3
 # (0 poked, 5 no window, 6 refused - unsent text, 7 only shells).
@@ -89,13 +111,18 @@ spool_notify_poke() {  # TO LINE
   # "bash sudo" (measured in the 4444 dogfood: every poke to a live agent was
   # skipped while sudo was on this list).
   #
-  # spool_pane_of asked tmux for this pane's tty in the SAME list-panes -F it
-  # used to find the pane, so the tmux round trip a `display-message -p
-  # '#{pane_tty}'` costs here is already paid (CLE-3435); it is only asked for
-  # when a caller resolved the pane some other way.
+  # `ps -t` is the authority, and it is also the single most expensive thing
+  # the notifier does - 78 ms of a 314 ms leg on this box, because it scans the
+  # whole process table (CLE-3435). It is not needed to CONFIRM life: tmux
+  # already reported the pane's foreground command in the list-panes -F
+  # spool_pane_of ran, at no extra cost, and a foreground command that is not a
+  # shell means the agent is there. So the scan now runs only when the cheap
+  # answer is ambiguous - a shell in front, which is exactly the dead-agent
+  # shape it exists to catch. A live agent pays nothing; a dead one is decided
+  # by the same `ps` as before, on the same evidence.
   pane_tty="${SPOOL_PANE_TTY:-}"
   [ -n "$pane_tty" ] || pane_tty="$("${SPOOL_TM[@]}" display-message -p -t "$pane" '#{pane_tty}' 2>/dev/null || true)"
-  if [ -n "$pane_tty" ]; then
+  if spool_notify_is_shell "${SPOOL_PANE_CMD:-}" && [ -n "$pane_tty" ]; then
     tty_cmds="$(ps -t "${pane_tty#/dev/}" -o comm= 2>/dev/null | sort -u | tr '\n' ' ')"
     if [ -n "$tty_cmds" ] && ! printf '%s\n' $tty_cmds | grep -qvxE 'bash|sh|zsh|dash|login'; then
       echo "poke: skipped - ${to} pane ${pane} runs only shells (${tty_cmds% }); the agent has exited"

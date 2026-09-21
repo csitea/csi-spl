@@ -222,7 +222,7 @@ spool_id_of_window() {  # WINDOW_NAME
 # The live pane of an agent: registry rows newest-first whose pane still
 # exists AND whose window still carries the id, else the first live window
 # named for the id. Puts the pane id (%NN), or '', in VAR, and that pane's tty
-# in SPOOL_PANE_TTY.
+# in SPOOL_PANE_TTY and its foreground command in SPOOL_PANE_CMD.
 #
 # One tmux round trip and one id parse per live pane (CLE-3435). It used to
 # re-scan the whole pane list - id-parsing every row again - once per registry
@@ -234,19 +234,20 @@ spool_id_of_window() {  # WINDOW_NAME
 # SPOOL_PANE_TTY on the floor, so the poke then paid a `display-message` round
 # trip to re-learn a tty this function already had.
 spool_pane_of_var() {  # VAR ID
-  local __pv="$1" id="$2" reg="$SPOOL_ROOT/registry.tsv" p tty w rid i
+  local __pv="$1" id="$2" reg="$SPOOL_ROOT/registry.tsv" p tty cmd w rid i
   local -a order=() regrows=()
-  local -A pid=() ptty=()
-  SPOOL_PANE_TTY=""
+  local -A pid=() ptty=() pcmd=()
+  SPOOL_PANE_TTY=""; SPOOL_PANE_CMD=""
   printf -v "$__pv" '%s' ""
   spool_tmux_argv
-  while IFS=$'\t' read -r p tty w; do
+  while IFS=$'\t' read -r p tty cmd w; do
     [ -n "$p" ] || continue
     order+=("$p")
     spool_id_of_window_var rid "$w"
     pid["$p"]="$rid"
     ptty["$p"]="$tty"
-  done < <("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id}	#{pane_tty}	#{window_name}' 2>/dev/null || true)
+    pcmd["$p"]="$cmd"
+  done < <("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id}	#{pane_tty}	#{pane_current_command}	#{window_name}' 2>/dev/null || true)
   [ "${#order[@]}" -gt 0 ] || return 0
 
   # The registry appends, so its rows for an id are oldest-first: walk back.
@@ -257,14 +258,14 @@ spool_pane_of_var() {  # VAR ID
     for (( i=${#regrows[@]}-1; i>=0; i-- )); do
       p="${regrows[$i]}"
       if [ -n "$p" ] && [ "${pid[$p]:-}" = "$id" ]; then
-        SPOOL_PANE_TTY="${ptty[$p]}"
+        SPOOL_PANE_TTY="${ptty[$p]}"; SPOOL_PANE_CMD="${pcmd[$p]}"
         printf -v "$__pv" '%s' "$p"; return 0
       fi
     done
   fi
   for p in "${order[@]}"; do
     if [ "${pid[$p]}" = "$id" ]; then
-      SPOOL_PANE_TTY="${ptty[$p]}"
+      SPOOL_PANE_TTY="${ptty[$p]}"; SPOOL_PANE_CMD="${pcmd[$p]}"
       printf -v "$__pv" '%s' "$p"; return 0
     fi
   done

@@ -17,7 +17,7 @@ select {
   background: var(--color-composer);
   color: var(--color-fg);
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 4px 6px;
 }
 </style>

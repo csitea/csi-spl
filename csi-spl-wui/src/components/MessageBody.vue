@@ -37,7 +37,7 @@ const blocks = computed(() => parseBody(props.body))
   font-family: var(--font-mono);
   background: var(--color-bg-2);
   padding: 1px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   white-space: pre-wrap;
 }

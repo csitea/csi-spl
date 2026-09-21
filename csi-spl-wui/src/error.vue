@@ -161,7 +161,7 @@ useHead({
 .err__path code {
   background: var(--color-surface-hover);
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 2px 6px;
 }
 .err__suggest {
@@ -188,7 +188,7 @@ useHead({
   line-height: 28px;
   box-sizing: border-box;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-accent);
   text-decoration: none;
@@ -203,7 +203,7 @@ useHead({
   padding: 10px 22px;
   min-height: var(--tap);
   box-sizing: border-box;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-accent);
   color: var(--color-on-accent);
   text-decoration: none;

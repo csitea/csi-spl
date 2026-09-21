@@ -276,6 +276,6 @@ onMounted(async () => {
 .keys__history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .keys__history li { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; min-width: 0; }
 .keys__history code { overflow-wrap: anywhere; word-break: break-all; min-width: 0; }
-.keys__state { font-size: 12px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--color-border); }
+.keys__state { font-size: 12px; padding: 1px 6px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); }
 .keys__state--active { color: var(--color-accent); border-color: var(--color-accent); }
 </style>

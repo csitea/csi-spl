@@ -57,7 +57,7 @@ function downloadKey() {
   margin: 12px 0;
   padding: 8px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-composer);
   color: var(--color-fg);
   white-space: pre-wrap;

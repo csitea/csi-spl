@@ -420,7 +420,7 @@ textarea.in-code {
 .file-chips li {
   font-size: 12px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 2px 6px;
   overflow-wrap: anywhere;
   min-width: 0;
@@ -446,6 +446,7 @@ textarea.in-code {
   min-width: 0;
 }
 .mention-item {
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -482,7 +483,7 @@ textarea.in-code {
   font-size: 11px;
   padding: 1px 8px;
   margin: 0 0 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-accent);
   color: var(--color-on-accent);
   max-width: 100%;

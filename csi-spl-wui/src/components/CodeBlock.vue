@@ -129,7 +129,7 @@ const copied = computed(() => copiedId.value === 'block')
   padding: 0;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--color-muted);
   cursor: pointer;
 }

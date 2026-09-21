@@ -93,7 +93,7 @@ async function submit() {
   background: var(--color-composer);
   border: 1px solid var(--color-border);
   color: var(--color-fg);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 6px 8px;
   min-height: var(--tap);
 }

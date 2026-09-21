@@ -172,6 +172,7 @@ function label(p: string): string {
   display: none;
 }
 .social-auth__btn {
+  border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;

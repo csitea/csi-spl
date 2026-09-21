@@ -123,7 +123,7 @@ async function onCreate() {
   margin-left: auto;
   color: var(--color-danger);
   border: 1px solid var(--color-danger);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   padding: 0 6px;
   flex-shrink: 0;

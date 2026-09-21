@@ -297,6 +297,7 @@ watch(signedIn, (v) => { if (!v) close(false) })
 .user-menu__secondary { font-size: 12px; color: var(--color-muted); }
 .user-menu__items { list-style: none; margin: 6px 0 0; padding: 0; }
 .user-menu__item {
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: flex-start;

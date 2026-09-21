@@ -295,7 +295,7 @@ useHead(() => ({ title: query.value ? `${t('search.title')}: ${query.value}` : t
 .search-results mark, .search-bad mark {
   background: var(--color-glow);
   color: inherit;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   padding: 0 1px;
 }
 .search-bad-q code { font-family: var(--font-mono); overflow-wrap: anywhere; }

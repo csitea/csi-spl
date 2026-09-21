@@ -214,7 +214,7 @@ onUnmounted(() => {
   padding: 0;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--color-muted);
   cursor: pointer;
 }
@@ -238,7 +238,7 @@ onUnmounted(() => {
   min-width: 0;
 }
 @media (max-width: 640px) {
-  .ui-dialog-backdrop { padding: 0; }
-  .ui-dialog { height: 100%; max-height: 100%; border-radius: 0; border: 0; }
+  .ui-dialog-backdrop { padding: 8px; }
+  .ui-dialog { height: 100%; max-height: 100%; border-radius: var(--radius-md); }
 }
 </style>

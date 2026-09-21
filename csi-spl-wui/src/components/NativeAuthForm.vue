@@ -200,7 +200,7 @@ async function resend() {
   flex: 1 1 auto;
   min-height: var(--tap);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-muted);
   cursor: pointer;
@@ -214,7 +214,7 @@ async function resend() {
   background: var(--color-composer);
   border: 1px solid var(--color-border);
   color: var(--color-fg);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 6px 8px;
   min-height: var(--tap);
 }

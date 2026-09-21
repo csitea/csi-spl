@@ -211,7 +211,7 @@ function onSelect(loc: LocaleEntry | null) {
   min-width: 0;
   max-width: 100%;
   border: 1px solid var(--color-border, #ccc);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--color-surface, #fff);
   overflow: hidden;
 }
@@ -221,6 +221,7 @@ function onSelect(loc: LocaleEntry | null) {
   border-color: var(--color-accent, #3050ff);
 }
 .locale-cbx__input {
+  border-radius: var(--radius-sm);
   flex: 1 1 auto;
   min-width: 0;
   min-height: 40px;
@@ -234,6 +235,7 @@ function onSelect(loc: LocaleEntry | null) {
   outline: none;
 }
 .locale-cbx__button {
+  border-radius: var(--radius-sm);
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -263,11 +265,12 @@ function onSelect(loc: LocaleEntry | null) {
   overflow-y: auto;
   background: var(--color-surface, #fff);
   border: 1px solid var(--color-border, #ccc);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   box-sizing: border-box;
 }
 .locale-cbx__option {
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   gap: 8px;

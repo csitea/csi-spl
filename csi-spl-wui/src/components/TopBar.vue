@@ -195,7 +195,7 @@ onUnmounted(() => {
   line-height: 1;
   padding: 2px 6px;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--color-muted, var(--color-fg));
   background: var(--color-surface);
   opacity: 0.85;
@@ -207,7 +207,7 @@ onUnmounted(() => {
   min-width: var(--tap);
   min-height: var(--tap);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-fg);
   cursor: pointer;

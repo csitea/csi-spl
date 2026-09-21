@@ -100,7 +100,7 @@ const copied = computed(() => copiedId.value === 'full')
   gap: 5px;
   font-size: 12px;
   padding: 3px 9px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: transparent;
   color: var(--color-muted);

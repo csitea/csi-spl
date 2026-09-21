@@ -92,7 +92,7 @@ const changed = useState('settings-password-changed', () => false)
 @media (max-width: 720px) {
   .settings-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .settings-nav ul { flex-direction: row; flex-wrap: wrap; gap: 4px; }
-  .settings-nav__link { border-inline-start: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 6px 8px; }
+  .settings-nav__link { border-inline-start: 0; border-bottom: 2px solid transparent; border-radius: var(--radius-sm); padding: 6px 8px; }
   .settings-nav__link--active { border-bottom-color: var(--focus-ring); background: none; }
 }
 </style>

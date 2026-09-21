@@ -205,7 +205,7 @@ async function copy(): Promise<void> {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85em;
   padding: 0.1rem 0.35rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--color-fg) 8%, transparent);
   overflow-wrap: anywhere;
 }
@@ -216,7 +216,7 @@ async function copy(): Promise<void> {
   justify-content: center;
   padding: 0.15rem;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: inherit;
   cursor: pointer;

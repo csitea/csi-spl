@@ -1,0 +1,53 @@
+# The owner acceptance register — one row per case the OWNER stated, and the
+# test that proves it. Read by csi-spl-iac/src/bash/tests/owner-acceptance-register.tst.sh,
+# which fails when a row names a test that is not in the tree, so this file
+# cannot rot into a list of promises. Tab separated; `#` starts a comment.
+#
+# runner   how the case is exercised, and therefore where it runs:
+#          go         csi-spl-api/src/bash/tests/run-all-tests.sh   (CI: hub-suite)
+#          node-unit  csi-spl-wui `pnpm run test:unit`              (CI: wui-suite)
+#          node-e2e   a puppeteer-core proof against a DEPLOYED host (not in CI: needs a browser + a signed-in member)
+#          orc-tst    csi-spl-orc/src/bash/tests/run-all-tests.sh   (CI: orc-suite)
+#          orc-e2e    a ./run action against a live env             (not in CI: needs GCP + a tenant root key)
+#          spawn-tst  csi-spl-orc/src/bash/features/spawn-agents/tests/ (never in CI by 016 FR-011: needs a tmux server)
+#          manual     a human has to do it; the procedure is in spec.md §5
+# status   PASS / FAIL / PENDING (the test is not in the tree yet) / MANUAL
+#
+# case_id	area	title	spec	runner	test_path	status	owner
+OA-01	terminal	agent -> agent on the SAME box is visible in B's pane, and not in A's	028	go	csi-spl-api/src/go/spool-hub-api/internal/spool/notify_hook_test.go	PASS	CLE-3428
+OA-02	terminal	agent -> agent CROSS BOX through the hub is visible in B's pane	028	orc-e2e	csi-spl-orc/src/bash/scripts/m3-e2e.py	PASS	CLE-3428
+OA-03	terminal	a human @mention in a channel is visible in the mentioned agent's pane	028	orc-e2e	csi-spl-orc/src/bash/scripts/m3-e2e.py	PASS	CLE-3428
+OA-04	terminal	a human DIRECTED TASK is visible in the addressed agent's pane	028	orc-e2e	csi-spl-orc/src/bash/scripts/m3-e2e.py	PASS	CLE-3428
+OA-05	terminal	a human DM is visible in the addressed agent's pane	028	orc-e2e	csi-spl-orc/src/bash/scripts/m3-e2e.py	PASS	CLE-3428
+OA-06	terminal	the pane line carries body + sender + kind + task_id + msg_id	028	go	csi-spl-api/src/go/spool-hub-api/internal/spool/notify_hook_test.go	PASS	CLE-3428
+OA-07	terminal	CONTROL: a message for agent X never appears in another agent's pane	028	orc-e2e	csi-spl-orc/src/bash/scripts/m3-e2e.py	PASS	CLE-3428
+OA-08	terminal	a BUSY pane keeps its half-typed line and is not poked over	028	spawn-tst	csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-notify.sh	PASS	CLE-3428
+OA-09	terminal	a redelivery that wrote nothing rings nothing (no replay on reconnect)	028	go	csi-spl-api/src/go/spool-hub-api/internal/spool/notify_hook_test.go	PASS	CLE-3428
+OA-10	notice	the NEWEST notice is the FIRST visible line of the notice pane	028	pending	csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh	PENDING	CLE-3434
+OA-11	notice	each notice is rendered EXACTLY ONCE, and never re-notified across repaint / restart / reconnect	028	pending	csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh	PENDING	CLE-3434
+OA-12	notice	the notifier never types into the agent’s own prompt: a notice lands in the NOTICE pane	028	pending	csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh	PENDING	CLE-3434
+OA-13	notice	notices are BLUE, and the history is bounded	028	pending	csi-spl-orc/src/bash/tests/desk-notice-pane.tst.sh	PENDING	CLE-3434
+OA-14	latency	delivery+visible p50/p95 under 0.3 s on the live dev path, model reply time reported SEPARATELY	030	pending	csi-spl-orc/src/bash/tests/chat-latency-budget.tst.sh	PENDING	CLE-3435
+OA-15	newest	every listing defaults NEWEST FIRST	013	node-unit	csi-spl-wui/tests/unit/list-order.test.mjs	PASS	CLE-3425
+OA-16	newest	a new item appears ON TOP live over the socket, without a refresh	013	node-unit	csi-spl-wui/tests/unit/newest-live.test.mjs	PASS	CLE-3425
+OA-17	newest	live proof of newest-first against a deployed host	013	node-e2e	csi-spl-wui/tests/e2e/newest-live.proof.mjs	PASS	CLE-3425
+OA-18	newest	live proof that every list (threads, channels, DMs) is newest-first	013	node-e2e	csi-spl-wui/tests/e2e/list-order-live.proof.mjs	PASS	CLE-3425
+OA-19	code	typing ``` opens a code block in EVERY composer, the DM composer included	013	node-unit	csi-spl-wui/tests/unit/code-blocks.test.mjs	PASS	CLE-3437
+OA-20	code	a fenced message renders highlighted, wrapped, with a copy control	013	node-unit	csi-spl-wui/tests/unit/code-view.test.mjs	PASS	CLE-3437
+OA-21	code	a send over 3 A4 is REFUSED with the upload-instead error	013	node-unit	csi-spl-wui/tests/unit/code-view.test.mjs	PASS	CLE-3437
+OA-22	code	an XSS payload inside and outside a code block never executes	013	node-unit	csi-spl-wui/tests/unit/code-view.test.mjs	PASS	CLE-3437
+OA-23	code	live proof of code blocks against a deployed host	013	node-e2e	csi-spl-wui/tests/e2e/code-blocks-live.proof.mjs	PASS	CLE-3437
+OA-24	send	a WUI send either LANDS or visibly FAILS with a retry — it never silently disappears	013	node-unit	csi-spl-wui/tests/unit/send-failure.test.mjs	PASS	CLE-3433
+OA-25	send	live proof of the send-failure path against a deployed host	013	node-e2e	csi-spl-wui/tests/e2e/send-failure.proof.mjs	PASS	CLE-3433
+OA-26	ui	no sharp corners: every visible rectangular surface has a non-zero radius	013	node-unit	csi-spl-wui/tests/unit/rounded-corners.test.mjs	PASS	GRK-3376
+OA-27	ui	a selected border is ONE colour and at most 3 px	013	node-unit	csi-spl-wui/tests/unit/focus-tokens.test.mjs	PASS	CLE-3427
+OA-28	ui	Tab focus is visible and reads as 3D	013	node-unit	csi-spl-wui/tests/unit/focus-tokens.test.mjs	PASS	CLE-3427
+OA-29	ui	'/' focuses the Omnibox and is ignored in inputs and modals	022	node-unit	csi-spl-wui/tests/unit/slash-focus.test.mjs	PASS	CLE-3422
+OA-30	ui	the theme toggle shows the DESTINATION icon, sun in dark and half-moon in light	013	node-unit	csi-spl-wui/tests/unit/theme-toggle.test.mjs	PASS	CLE-3424
+OA-31	bot	the bot signs in to the dev WUI as its OWN member and opens the owner's thread	031	pending	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	PENDING	CLE-3438
+OA-32	bot	a message the bot sends appears IMMEDIATELY in the thread for the sender	031	pending	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	PENDING	CLE-3438
+OA-33	bot	that message is VISIBLE in the desk agent's pane, once, with sender / kind / ids / body	031	pending	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	PENDING	CLE-3438
+OA-34	bot	the desk agent's REPLY shows up in the same WUI thread	031	pending	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	PENDING	CLE-3438
+OA-35	bot	the run posts a readable PASS/FAIL line per case into the owner's thread	031	pending	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	PENDING	CLE-3438
+OA-36	bot	the whole run is ONE named action with per-case PASS/FAIL and evidence	031	pending	csi-spl-orc/src/bash/tests/owner-acceptance.tst.sh	PENDING	CLE-3438
+OA-37	manual	a REAL human Google / Microsoft / LinkedIn sign-in reaches the WUI	010	manual	csi-spl-doc/specs/031-spool-owner-acceptance/spec.md	MANUAL	CLE-3438

@@ -194,39 +194,38 @@ stop exactly that kind of merge.
   dev WUI in the owner's thread and prints one PASS/FAIL line per case, with a
   `results.json` under the proof dir.
 
-### 4.1 Verified status — the live run of 2026-09-21
+### 4.1 Verified status — 8 of 8, twice, 2026-09-21
 
 `ENV=dev TENANT_ID=t1 OA_THREAD=0cd6b6d2-… DRY_RUN=0 ./run -a do_spl_owner_acceptance`
-against `https://dev.spool-hub.ai`, WUI build `ed7c5615`, tree `ed74ce7`, n=1,
-16:23:27–16:26 EEST. **5 of 8 cases PASS.** Evidence:
+against `https://dev.spool-hub.ai`, WUI build `713d6a8`, tree `99a8fcb`,
+**n=2** (16:50:35 and 16:52:5x EEST, 8/8 both times). Evidence:
 `~/.local/share/<org>-<app>/cloud/dev/owner-acceptance/t1/<utc>/results.json`
-plus seven screenshots.
+plus seven screenshots per run.
 
-| case | result | note |
+| case | result | evidence |
 |---|---|---|
-| OA-31 signed in as its own member, thread open | PASS | never the owner's account |
-| OA-32 the message shows in the thread, once | **UNVERIFIED** | PASS at 16:23 (`wui_ms` 19); red at 16:35 on this lane's own `topHas` bug, since fixed and not yet re-measured |
-| OA-33 visible in the agent's pane | **FAIL**, now PASS | the stall below — not the pane leg. PASS on the 16:35 re-run, `pane_s` 32 |
-| OA-34 the agent's reply comes back | **UNVERIFIED** | the reply IS sent (`do_spl_desk_reply` rc 0, the outbox file exists); the assert was the same `topHas` bug, not yet re-measured |
-| OA-38 re-measured 16:35 | **PASS** | CLE-3433 landed the `?thread=` binding; the send now joins the owner's thread |
+| OA-31 signed in as its own member, thread open | PASS | one sign-in attempt, no retry needed |
+| OA-32 in the thread at once, exactly once | PASS | `wui_ms` 23 / 25, `copies` 1 |
+| OA-33 visible in the agent's pane with its msg_id | PASS | `pane_ms` 293, notice pane `%78` |
+| OA-34 the agent's reply comes back to the thread | PASS | `reply_ms` 6500 / 5695 |
 | OA-19 code block in the DM composer | PASS | opened, held Enter, closed, rendered as code |
 | OA-24 a send lands or visibly fails | PASS | outcome `landed` |
 | OA-35 a PASS/FAIL line per case in the thread | PASS | 7 verdict lines posted |
-| OA-38 the owner's `?thread=` URL | **FAIL** | §3.1 |
+| OA-38 the owner's `?thread=` URL | PASS | requested and actual task ids equal |
 
-**The latency observation, for OA-14 / CLE-3435.** The 16:35 run read
-`pane_s {"display":32}` — 32 seconds from the send to the message being
-VISIBLE in the agent's notice pane, against an owner budget of 0.3 s. Two
-cautions before anyone routes that as work: it is **n=1**, and it is an upper
-bound that includes this bot's own round trip to `pane-seen.sh` and its 0.5 s
-poll, not an instrumented measurement of the delivery leg. It is offered as
-"worth measuring properly", not as a number. OA-14 stays `PENDING` with
-CLE-3435, whose budget harness is the thing that should produce the real
-figure.
+**The three timings are reported apart and never added**, which is the owner's
+own rule and the reason they are useful: `wui_ms 25` (the sender's own row),
+`pane_ms 293` (delivery and visible in the terminal), `reply_ms 5695` (how
+long the agent took to answer). Blending them would produce ~6 s and hide that
+the transport legs are fast and the *thinking* is what takes the time.
 
-Timings are reported apart, never blended: `wui_ms {"display":19}`,
-`pane_s {"display":45}` (the timeout, not a measurement — the message never
-arrived), `reply_ms {"desk":null}`.
+**What `pane_ms 293` does and does not say.** It is an **upper bound at n=2**,
+not an instrumented figure: `pane-seen.sh` polls every 250 ms, so the true
+value is anywhere at or below 293 ms and the resolution is the poll. It is
+enough to say the terminal leg is not seconds-slow — which is what the earlier
+`32 s` reading turned out to be measuring (a stranded sidecar, §4.2) — and it
+is **not** enough to claim the 0.3 s budget is met. OA-14 stays with CLE-3435,
+whose instrumented harness is the thing that should answer that.
 
 ### 4.2 The stall OA-33 / OA-34 hit — an 11-minute DEAFNESS, not message loss
 

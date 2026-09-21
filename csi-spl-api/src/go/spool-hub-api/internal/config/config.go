@@ -65,6 +65,17 @@ type Config struct {
 	// NotifyTimeout bounds that command. It can never fail a delivery: the
 	// file is already written when it runs (002).
 	NotifyTimeout time.Duration `env:"SPOOL_NOTIFY_TIMEOUT" envDefault:"10s"`
+	// SubmitSocket is the box-local listener the hub-run sidecar opens so a
+	// `spool send` hands its signed envelope to the sidecar's ALREADY-WARM hub
+	// session instead of dialling a new one (specs/030 FP-2). Measured
+	// 2026-09-21: a cold dial to the live dev hub costs 220.6 ms p50 / 266.5 ms
+	// p95 (n=20) before the hello even starts, and the sidecar is holding an
+	// authenticated socket to that same hub the whole time.
+	//
+	// Unset = SubmitPath() below (inside HubDir). "off" = no listener and no
+	// client attempt: every send dials as it did before 030, which is the
+	// rollback (spec FR-007).
+	SubmitSocket string `env:"SPOOL_SUBMIT_SOCKET"`
 	// MsgVersion is the schema version this box WRITES (specs/020
 	// contracts/migration.md §5): 1 until every reader is deployed. Readers
 	// accept 1 and 2 whatever this says. 0 (a Config built in code) = msg.Version.
@@ -177,6 +188,23 @@ func (c *Config) Mirror() (bool, error) {
 // HubDir is the box's private hub state: roster cache, pending and rejected
 // envelopes. Hidden, so the $SPOOL_ROOT/*/ agent scan never sees it.
 func (c *Config) HubDir() string { return filepath.Join(c.SpoolRoot, ".hub") }
+
+// SubmitOff reports that the 030 submit path is disabled by cnf.
+func (c *Config) SubmitOff() bool { return strings.EqualFold(strings.TrimSpace(c.SubmitSocket), "off") }
+
+// SubmitPath is the box-local submit socket (specs/030 FP-2), or "" when it is
+// off. It lives in HubDir, beside the pending envelopes it short-circuits, so
+// one box root carries one sidecar's worth of state and two roots on one
+// machine never share a listener.
+func (c *Config) SubmitPath() string {
+	if c.SubmitOff() {
+		return ""
+	}
+	if p := strings.TrimSpace(c.SubmitSocket); p != "" {
+		return p
+	}
+	return filepath.Join(c.HubDir(), "submit.sock")
+}
 
 // Hub is the hub process configuration (`spool serve`, spec 003). The names are
 // the infra lane's (csi-spl-cnf all.env.yaml env.hub); nothing is baked in.

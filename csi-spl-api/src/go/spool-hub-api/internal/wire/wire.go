@@ -221,6 +221,21 @@ func InnerVersion(raw []byte) int {
 	return e.Msg.V
 }
 
+// InnerMsgID is the inner msg's msg_id without validating the rest; "" when
+// the envelope or its msg does not parse. Cheaper than a full Inner() when the
+// caller only needs to name the message it is holding (e.g. to match a reply).
+func InnerMsgID(raw []byte) string {
+	var e struct {
+		Msg struct {
+			MsgID string `json:"msg_id"`
+		} `json:"msg"`
+	}
+	if json.Unmarshal(raw, &e) != nil {
+		return ""
+	}
+	return e.Msg.MsgID
+}
+
 // Inner parses and validates the inner v:1 / v:2 object.
 func (e *Envelope) Inner() (*msg.Message, error) {
 	m, err := msg.Parse(e.Msg)

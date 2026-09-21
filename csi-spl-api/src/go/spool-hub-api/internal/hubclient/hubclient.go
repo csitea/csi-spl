@@ -201,6 +201,14 @@ type Session struct {
 	queueEnd chan int
 	done     chan struct{}
 	closeErr error
+
+	// smu serialises one request/reply pair at a time on this socket. Replies
+	// arrive on ONE channel and are matched by msg_id, so two concurrent
+	// requests can consume each other's frame - harmless while only the CLI's
+	// own goroutine sent, but the 030 submit listener answers callers
+	// concurrently (submit.go). Held across the write AND the wait, which is
+	// what makes the reply a caller gets the reply it asked for.
+	smu sync.Mutex
 }
 
 // Dial connects, answers the hub's challenge and waits for welcome. For
@@ -350,6 +358,8 @@ func (s *Session) WaitQueueEnd(ctx context.Context) (int, error) {
 }
 
 func (s *Session) request(ctx context.Context, f wire.Frame, want string, match func(wire.Frame) bool) (wire.Frame, error) {
+	s.smu.Lock()
+	defer s.smu.Unlock()
 	wctx, cancel := context.WithTimeout(ctx, s.c.timeout())
 	defer cancel()
 	if err := wsjson.Write(wctx, s.conn, f); err != nil {
@@ -438,6 +448,8 @@ func (s *Session) Announce(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.smu.Lock()
+	defer s.smu.Unlock()
 	wctx, cancel := context.WithTimeout(ctx, s.c.timeout())
 	defer cancel()
 	return wsjson.Write(wctx, s.conn, wire.Frame{Type: wire.TAnnounce, Agents: agents, Channels: s.c.Cfg.ChannelList()})

@@ -66,8 +66,42 @@ func (c *Client) SendMessage(ctx context.Context, m *msg.Message, explicitToBox 
 	return delivery, err
 }
 
-// sendNow tries one cli-role session: upload blobs, send, settle the pending file.
+// sendNow delivers one already-signed, already-pending envelope.
+//
+// specs/030 FP-2: it first offers the envelope to a LOCAL hub-run sidecar,
+// which writes it on the warm hub session it already holds. That skips the
+// cold dial this function used to pay every time - 220.6 ms p50 / 266.5 ms p95
+// against the live dev hub (2026-09-21, n=20) - and the hub cannot tell the
+// difference, because the bytes on the wire are the ones the CLI signed.
+//
+// Without a sidecar (or with SPOOL_SUBMIT_SOCKET=off) it falls through to the
+// unchanged role=cli dial, so a box that runs no sidecar behaves exactly as it
+// did before 030.
 func (c *Client) sendNow(ctx context.Context, env *wire.Envelope, m *msg.Message, pending string) (string, error) {
+	if len(m.Files) == 0 { // blobs need the REST upload a cli session carries
+		raw, err := env.Marshal()
+		if err != nil {
+			return "", err
+		}
+		switch d, serr := c.submit(ctx, raw); {
+		case serr == nil:
+			os.Remove(pending) //nolint:errcheck
+			return d, nil
+		case errors.Is(serr, errNoSidecar):
+			// no listener: fall through to the dial below
+		case errors.Is(serr, ErrUnreachable):
+			// The sidecar or its hub link is in trouble. The pending file is
+			// already on disk, so the flush retries and the hub dedups on
+			// msg_id: at-most-once delivery is preserved either way.
+			return wire.DeliveryPending, nil
+		default:
+			var he *HubError
+			if errors.As(serr, &he) && he.clientError() {
+				c.reject(pending) // a 4xx will never be accepted, whoever sends it
+			}
+			return "", serr
+		}
+	}
 	sess, err := c.Dial(ctx, wire.RoleCLI)
 	if errors.Is(err, ErrUnreachable) {
 		return wire.DeliveryPending, nil
@@ -258,8 +292,24 @@ func (c *Client) Run(ctx context.Context) error {
 
 // hold serves one session until it ends. It returns ErrSuperseded on 4409 and
 // nil for every other close (the caller reconnects).
+//
+// While it holds the session it also answers the box-local submit socket
+// (specs/030 FP-2), so a `spool send` on this box writes its envelope on THIS
+// warm socket instead of dialling its own. The listener lives and dies with the
+// session: between reconnects there is nothing to submit to, and a CLI that
+// finds no listener dials as it did before 030.
 func (c *Client) hold(ctx context.Context, sess *Session) error {
 	defer sess.Close()
+	sctx, stopSubmit := context.WithCancel(ctx)
+	defer stopSubmit()
+	if srv, err := c.Listen(); err != nil {
+		// Not fatal: the box keeps working, every send just pays the dial.
+		c.Log.Warn().Err(err).Str("socket", c.Cfg.SubmitPath()).Msg("submit listener not opened; sends will dial")
+	} else if srv != nil {
+		defer srv.Close()
+		go srv.Serve(sctx, sess)
+		c.Log.Info().Str("socket", c.Cfg.SubmitPath()).Msg("submit listener up")
+	}
 	if _, err := sess.Flush(ctx); err != nil {
 		c.Log.Warn().Err(err).Msg("flush")
 	}

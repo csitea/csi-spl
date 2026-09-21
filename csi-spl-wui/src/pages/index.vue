@@ -44,8 +44,13 @@ import { formatTs } from '~/utils/channel-feed.mjs'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSettledQuery } from '~/composables/useSettledQuery'
 import { useScrollAnchor } from '~/composables/useScrollAnchor'
+import { useSessionStore } from '~/stores/session'
+import { useSpoolApi } from '~/composables/useSpoolApi'
+import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 
 const viewer = useViewerStore()
+const session = useSessionStore()
+const api = useSpoolApi()
 /* `tr`, not `t`: the thread rows below are iterated as `t` */
 const { t: tr, locale } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
@@ -62,9 +67,21 @@ onMounted(() => {
 /* 013 US7: newest activity on top, live over the socket; a reader scrolled down keeps their place */
 const listTop = ref<HTMLElement | null>(null)
 const { pill, jump } = useScrollAnchor(listTop, () => viewer.threads.map((r) => r.task_id))
-onMounted(async () => {
-  await viewer.loadThreads()
-  viewer.follow()
-})
+/* W5 (GRK-3377): `/` opened the hub socket while signed out - viewer.follow()
+   calls live.ensure(), which constructs and connects a client, and the hub
+   answers the upgrade 401, so a signed-out visitor got 4 attempts plus backoff
+   (measured on both apexes, tree e52e250). The read and the follow now wait for
+   a member session, on the same predicate as the rest of the shell; a sign-in
+   flips the same store, so a human who signs in gets both with no reload. */
+let listStarted = false
+watch(() => api.mock || String(session.state) === 'in', (ready) => {
+  if (!ready || listStarted) return
+  listStarted = true
+  /* the mock tenant has no door and no socket: it reads at once and follows
+     nothing (viewer.follow() returns early there) */
+  void viewer.loadThreads().then(() => {
+    if (shouldOpenHubSocket(session.state, api.mock)) viewer.follow()
+  })
+}, { immediate: true })
 onUnmounted(() => viewer.unfollow())
 </script>

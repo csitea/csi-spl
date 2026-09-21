@@ -29,7 +29,7 @@
 ## Phase 3 — Out of the product gate (document only)
 
 - [x] T020 Implemented as policy — spawn-agents tests are local (FR-011). Do not add them to `10_ci-quality.yml`.
-- [ ] T021 Planned — optional later: WUI `test:e2e` on a browser-capable runner (OQ-016-2). Not required to close US2.
+- [x] T021 Implemented `05aaaa7` (GRK-3379) — `10_ci-quality.yml` job `wui-e2e`: `nuxt generate` with `NUXT_PUBLIC_USE_MOCK=1`, serve via `serve-generated.mjs`, then `pnpm test:e2e` + `test:e2e:console-errors` + `test:e2e:thread-pane`. Missing Chrome fails the job. Left out: `test:live` (needs `HUB_URL`), `test:e2e:csp` (Hosting CSP), `*.proof.mjs` (live sites or credentials). Check: `command grep -c wui-e2e .github/workflows/10_ci-quality.yml` → 5. CONTROL red run 35605305098 (job 106350815619, `scrollWidth=9999`); green run 35604599982 (job 106348514551, 56/56 + zero console + 34/34) and 35605772205 (job 106352358451) after revert. FR-005.
 
 ## FR → task
 
@@ -39,7 +39,7 @@
 | FR-002 | T011 | Implemented |
 | FR-003 | T003, T004, T005 | Implemented |
 | FR-004 | T002 | Implemented |
-| FR-005 | T006, T021 | Partial (T006 done; T021 still Planned) |
+| FR-005 | T006, T021 | Implemented |
 | FR-006 | T012 | Implemented |
 | FR-007 | T013 | Implemented |
 | FR-008 | (009/006 when those features grow tests) | Partial |
@@ -47,4 +47,4 @@
 | FR-010 | T014, T003 | Implemented (local and CI) |
 | FR-011 | T020 | Implemented |
 
-<!-- version: 0.2.1 · updated: 2026-09-20 · last-edit: 2026-09-20T03:28:49Z -->
+<!-- version: 0.2.2 · updated: 2026-09-21 · last-edit: 2026-09-21T13:31:01Z -->

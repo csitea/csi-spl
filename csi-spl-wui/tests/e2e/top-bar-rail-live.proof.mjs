@@ -72,7 +72,10 @@ try {
           .find((b) => shown(b) && b.closest('[data-test="top-bar-omnibox"]'))
         const rb = shown(badge) ? badge.getBoundingClientRect() : null
         const rs = submit ? submit.getBoundingClientRect() : null
-        const alerts = document.querySelector('[data-testid="notify-alerts"]')
+        /* the .notify-box fallback measures a build from BEFORE the testid
+           existed too - without it this proof passes the very defect it
+           exists to catch, silently, on every older deploy */
+        const alerts = document.querySelector('[data-testid="notify-alerts"], .notify-box button')
         const ra = shown(alerts) ? alerts.getBoundingClientRect() : null
         return {
           shell: Boolean(document.querySelector('nav.sidebar')),
@@ -86,7 +89,8 @@ try {
       /* a label laid out one letter per line is many times taller than wide */
       const shredded = m.alerts ? m.alerts.h > m.alerts.w * 3 : false
       /* the alerts control keeps a name wherever the app shell is on screen */
-      const unnamed = m.shell && m.alerts ? !m.alerts.name : false
+      /* with the shell on screen the control must BE there, and be named */
+      const unnamed = m.shell ? !m.alerts || !m.alerts.name : false
       const served = status > 0 && status < 400 && (m.shell || MISSING_OK)
       const ok = served && !m.overlap && !shredded && !unnamed && m.xscroll <= 0 && errs.length === 0
       if (!ok) failed++

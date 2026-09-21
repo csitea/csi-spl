@@ -10,8 +10,9 @@
 
 <script setup lang="ts">
 import { useChannelStore } from '~/stores/channel'
-import { useRosterStore } from '~/stores/roster'
+import { useSessionStore } from '~/stores/session'
 import { useSpoolEvents } from '~/composables/useSpoolEvents'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { normalizeChannel } from '~/utils/notify.mjs'
 import { retentionDays } from '~/utils/channel-feed.mjs'
@@ -19,9 +20,10 @@ import { useOmniboxTarget } from '~/stores/omnibox'
 
 const route = useRoute()
 const channel = useChannelStore()
-const roster = useRosterStore()
 const notes = useNotificationStore()
 const events = useSpoolEvents()
+const api = useSpoolApi()
+const session = useSessionStore()
 const name = computed(() => String(route.params.name || 'lobby'))
 const { t } = useI18n({ useScope: 'global' })
 const retention = computed(() => {
@@ -36,15 +38,17 @@ function markRead(n: string) {
   else notes.markRead('ch:' + normalizeChannel(n))
 }
 
-watch(name, async (n) => {
+/* the shell reads (channels + roster) belong to the plugin's createShellBootstrap
+   (once per app). This page only selects the open feed: mock hydrates immediately,
+   live waits for a member session — same predicate as onSession. */
+watch([name, () => session.state], async ([n, st]) => {
+  if (!api.mock && String(st) !== 'in') return
   await channel.selectChannel(n)
   markRead(n)
 }, { immediate: true })
 
-onMounted(async () => {
+onMounted(() => {
   events.start()
-  await channel.loadChannels()
-  await roster.refresh()
 })
 
 async function onSend(text: string) {

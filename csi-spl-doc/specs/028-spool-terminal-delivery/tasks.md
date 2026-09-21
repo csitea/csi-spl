@@ -46,13 +46,42 @@ the owner.
 
 ## Phase 4 — Proof
 
-- [ ] T040 Planned — `do_spl_m3_e2e` gains a "delivered to the agent terminal"
-  assertion rather than a second harness. SC-004.
-- [ ] T041 Planned — live on a box, with `capture-pane` evidence and timings,
-  for every way a person or an agent addresses an agent: a cross-box message,
-  a WUI DM, a WUI `@mention` in a channel, `kind=note` and `kind=task`.
-  SC-001, SC-002.
-- [ ] T042 Planned — the controls: a message for another agent never appears in
-  that pane (SC-003), and a pane holding a half-typed line is never clobbered.
+- [x] T040 Implemented (`8bb82ba`, timings `001ddca`) — `do_spl_m3_e2e` step
+  `f-visible-in-agent-terminal`, in the existing harness, not a second one.
+  Run: `ENV=dev TENANT_ID=t1 ROOT_KEY_JSON=… ./run -a do_spl_m3_e2e` against
+  `https://dev.api.spool-hub.ai`, 2026-09-21T07:43Z, tree `8bb82ba`, n=1 —
+  **every step PASS**, `rc=0`. SC-004.
+- [x] T041 Implemented — every way a person or an agent addresses an agent,
+  each measured as "the BODY is visible in the recipient's pane":
 
-<!-- version: 0.2.0 · updated: 2026-09-20 · last-edit: 2026-09-20T06:55:00Z -->
+  | case | how it is addressed | kind | result |
+  |---|---|---|---|
+  | a | agent -> agent, ACROSS boxes | task | PASS |
+  | b | human, `@mention` in #lobby | note | PASS |
+  | c | human, directed task (box-wui signed, written by the sidecar) | task | PASS |
+  | d | human, DM (no channel) | note | PASS |
+
+  Evidence: `results.json` step `f`, four `: 'SPOOL EZB-1: … :: <body> :: run:
+  spool recv --as EZB-1'` lines captured from the pane. Plus
+  `tests/live-terminal-proof.sh` on the box user's REAL tmux server (n=1,
+  2026-09-21T07:51Z, `001ddca`): local send 0.53 s, cross-box over the dev hub
+  2.59 s, both visible. SC-001, SC-002.
+- [x] T042 Implemented — the controls, all on the live runs above:
+  `leaked_into_EZA-1_pane: []` (SC-003); an agent pane mid-sentence keeps its
+  half-typed line and is not poked, while the message IS delivered; a pane
+  whose tty runs only shells is skipped as an exited agent (exit 7).
+  **Bound recorded, not glossed**: the unsent-text rule fires on a TUI input
+  line, so a bare SHELL prompt is not protected — measured, and written into
+  `contracts/poke-line.md` §4 with why widening the detector was rejected.
+
+## Phase 5 — Deploy
+
+- [~] T050 Partial (not this lane's to close) — the box side needs no deploy:
+  the terminal leg runs in the box's own `spool` binary, which a box builds
+  (`csi-spl-api/src/bash/build.sh`) and `spool-harness` wires up. The hub image
+  links the same `internal/spool`, but a hub never sets `SPOOL_NOTIFY_CMD`, so
+  its behaviour is unchanged. `d5b6042` rides CLE-3355's pending `0.1.17` roll
+  (dev+prd served `0.1.16`/`af8c6db` at 2026-09-21T07:44Z). Owner: CLE-3355.
+  Check: `ENV=<env> SHA=$(git rev-parse origin/master) ./run -a do_check_deploy_lag`.
+
+<!-- version: 1.0.0 · updated: 2026-09-21 · last-edit: 2026-09-21T07:55:00Z -->

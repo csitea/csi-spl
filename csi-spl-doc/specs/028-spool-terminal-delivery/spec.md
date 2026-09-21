@@ -72,6 +72,25 @@ to go and run a command.
 - **SC-004** — `do_spl_m3_e2e` asserts the terminal delivery, rather than a
   second harness being stood up next to it.
 
+### Verified status (2026-09-21)
+
+| SC | Status | Evidence |
+|---|---|---|
+| SC-001 cross-box message visible | **Met** | e2e step `f`, case `a`; and `live-terminal-proof.sh` case 2, 2.59 s, on the box user's real tmux |
+| SC-002 WUI human task visible | **Met** | e2e step `f`, cases `b` (@mention note), `c` (directed task), `d` (DM note) |
+| SC-003 another agent never sees it | **Met** | e2e `leaked_into_EZA-1_pane: []`; proof case 3 |
+| SC-004 asserted inside `do_spl_m3_e2e` | **Met** | step `f-visible-in-agent-terminal` |
+
+Run: `ENV=dev TENANT_ID=t1 ROOT_KEY_JSON=… ./run -a do_spl_m3_e2e` against
+`https://dev.api.spool-hub.ai`, 2026-09-21T07:43Z, tree `8bb82ba`, n=1 — every
+step PASS, `rc=0`. `live-terminal-proof.sh` 2026-09-21T07:51Z, tree `001ddca`,
+n=1 — 5/5.
+
+Deploy: the terminal leg runs in the box's own `spool` binary, not in the hub,
+so nothing here waits on a Cloud Run roll. The hub image links the same
+`internal/spool` but never sets `SPOOL_NOTIFY_CMD`; `d5b6042` reaches dev and
+prd with CLE-3355's `0.1.17` (`tasks.md` T050).
+
 ## 3. Assumptions and decisions (auto-mode, logged)
 
 - **D-01 The hook is in the binary, not a watcher.** A bash loop polling
@@ -89,4 +108,4 @@ to go and run a command.
   hazard (newlines submit lines, quotes break inertness) and unreadable. The
   contract bounds it and names the command that prints the whole message.
 
-<!-- version: 1.0.0 · updated: 2026-09-20 · last-edit: 2026-09-20T04:00:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-21 · last-edit: 2026-09-21T07:56:00Z -->

@@ -84,20 +84,56 @@ do_spl_desk_up() {
   local pid="$SPL_DESK_PID"
   local announced=0
   spl_desk_wait_roster "$d" "$box" "$agent" "$wait" && announced=1
+  local notice_pane
+  notice_pane="$(spl_desk_show_pane "$d" "$agent" "$notify")"
+  [[ -n "$notice_pane" ]] && do_log "INFO the notice pane of $agent is $notice_pane (its window's own split; blue, newest first)"
 
   local reply="ENV=$ENV TENANT_ID=$tenant DESK_AGENT=$agent${DESK_BOX:+ DESK_BOX=$box} DRY_RUN=0 DESK_BODY='<your answer>' ./run -a do_spl_desk_reply"
-  python3 - "$ENV" "$tenant" "$hub" "$box" "$agent" "$pub" "$d" "$pid" "$announced" "$notify" "$wui/dm/$agent@$box" "$reply" <<'EOF_PY'
+  python3 - "$ENV" "$tenant" "$hub" "$box" "$agent" "$pub" "$d" "$pid" "$announced" "$notify" "$wui/dm/$agent@$box" "$reply" "${notice_pane:-}" <<'EOF_PY'
 import json, sys
-env, tenant, hub, box, agent, pub, state, pid, announced, notify, dm_url, reply = sys.argv[1:]
+env, tenant, hub, box, agent, pub, state, pid, announced, notify, dm_url, reply, notice = sys.argv[1:]
 print(json.dumps({"env": env, "tenant": tenant, "hub": hub, "box": box, "agent": agent,
                   "box_pubkey": pub, "state_dir": state, "sidecar_pid": int(pid),
                   "roster_announced": announced == "1", "notify_cmd": notify,
+                  "notice_pane": notice or None,
                   "dm_url": dm_url, "reply_cmd": reply}, sort_keys=True))
 EOF_PY
   (( announced )) || {
     do_log "FAIL $agent is not announced on $box within ${wait}s: see $d/spool/.hub/hub-run.log"; return 1; }
   do_log "OK $agent is seated on $box in $tenant ($ENV): a human DMs it at $wui/dm/$agent@$box"
   do_log "OK the terminal leg is $notify (prompt poke: $poke); the agent answers with: $reply"
+}
+
+# spl_desk_show_pane <state dir> <agent> <notify cmd>: re-attach the agent's
+# notice pane, so ONE command brings a desk back. Prints its pane id.
+#
+# Neither the sidecar nor the pane survives a reboot - the sidecar is a
+# detached process and the pane belongs to a tmux server that also died. After
+# the box came back on 2026-09-21 the desk was reachable again in one action
+# while the notices still rendered NOWHERE, which is the failure the owner
+# complained about wearing a different hat. So the pane is part of "up".
+#
+# Only for a pane that paints a TUI: on the normal screen the notifier writes
+# to the tty and a split would be noise. Never fatal - a desk with no window
+# is still a desk, and the inbox is still the record.
+spl_desk_show_pane() {
+  local d="$1" agent="$2" notify="$3" feat
+  [[ "$notify" == off ]] && return 0
+  feat="$APP_PATH/$SPL_ORG_APP-orc/src/bash/features/spawn-agents"
+  [[ -r "$feat/lib/spool-poke-queue.inc.sh" ]] || return 0
+  (
+    export SPOOL_ROOT="$d/spool"
+    # shellcheck disable=SC1091
+    . "$feat/lib/spool-env.inc.sh" && . "$feat/lib/spool-notify.inc.sh" && . "$feat/lib/spool-poke-queue.inc.sh" || exit 0
+    spool_env_resolve
+    local pane alt
+    pane="$(spool_pane_of "$agent")"
+    [ -n "$pane" ] || exit 0
+    spool_tmux_argv
+    alt="$("${SPOOL_TM[@]}" display-message -p -t "$pane" '#{alternate_on}' 2>/dev/null)"
+    [ "$alt" = 1 ] || exit 0
+    spool_show_notice_pane "$agent" "$pane"
+  ) 2>/dev/null
 }
 
 # spl_desk_validate <tenant> <box> <agent>: the shared id rules of the desk

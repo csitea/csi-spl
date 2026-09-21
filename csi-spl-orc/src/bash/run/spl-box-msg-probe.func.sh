@@ -23,6 +23,12 @@
 # @description into a 0600 scratch file and removed. Remove the probe box with
 # @description `spool hub-pin --revoke` (printed at the end).
 # @description Dry run unless DRY_RUN=0.
+# @description TEARDOWN: the box is pinned ONCE and reused by every later
+# @description run, so nothing here removes it and the roster keeps it
+# @description forever. When the rig is finished with, run
+# @description   ENV=<env> TENANT_ID=<t> BOX_IDS=<box> DRY_RUN=0 ./run -a do_spl_box_purge
+# @description (pin-semantics.md 6: a signed revoke would NOT take it out of
+# @description GET /v1/view/roster - only removing the pin row does).
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant slug
 # @param ROOT_KEY_JSON - required: the 0600 JSON do_spl_tenant_create wrote (root_private_key)

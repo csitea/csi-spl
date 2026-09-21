@@ -17,6 +17,8 @@
 # @description and removes the scratch file. The object stays in the tenant's
 # @description files prefix (content-addressed; it counts against its quota).
 # @description Dry run unless DRY_RUN=0.
+# @description TEARDOWN: this reuses the box do_spl_box_msg_probe pinned; it
+# @description leaves the roster only with do_spl_box_purge (pin-semantics.md 6).
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant slug
 # @param PROBE_BOX (optional) - default box-orc-probe

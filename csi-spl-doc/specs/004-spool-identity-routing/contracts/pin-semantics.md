@@ -83,4 +83,44 @@ Residual: an op signed with a far-future `ts` is refused by the skew check, so
 it cannot pre-empt later ops; no nonce, so the ordering rests on the operator's
 clock being within the skew window.
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:23:00Z -->
+## 6. Retiring a box: revoke is not removal
+
+A revoke ends a box's authority. It does **not** take the box out of the
+tenant's roster, and the two are routinely confused.
+
+`GET /v1/view/roster` is built FROM `pins` (store `ViewBoxes`:
+`FROM pins LEFT JOIN boxes LEFT JOIN roster`), and
+`../../003-spool-message-bus/contracts/view-v1.md` §4.1 says it in as many
+words: *revoked pins are listed with `revoked: true`*. So
+`DELETE /v1/pins/{box_id}` leaves the box in the owner's JSON for good. The WUI
+happens to hide it (`rosterFromView` skips `revoked`); the JSON does not, and an
+owner reading the API sees a roster that only grows.
+
+| you want | do |
+|---|---|
+| this key must stop working, the box stays known | revoke (§2), signed by the tenant root |
+| this box must leave the roster | purge the rows: `csi-spl-orc` `do_spl_box_purge` |
+
+`do_spl_box_purge` deletes the `pins`, `boxes`, `roster` and
+`channel_subscriptions` rows of an explicitly named box, and nothing else: it
+removes an **identity**, never history, so `messages`, `deliveries` and
+`pins_history` stay. It is the teardown for the probe and e2e rigs, which pin a
+box once and reuse it across runs (`do_spl_box_msg_probe`,
+`do_spl_box_file_probe`, `do_spl_m3_e2e`) — nothing ever removed one, so dev/t1
+had accumulated 9 boxes of which 7 were dead rigs by 2026-09-21.
+
+Purge is deliberately not automatic at the end of a probe run: a probe that
+revoked or purged its own box would need `ROOT_KEY_JSON` and a fresh root-signed
+pin on **every** run. Run the teardown when the rig is finished with, and read
+`do_spl_roster_show` (the live JSON, through a member session) as the proof.
+
+Guards, because this is a row delete on live data: `BOX_IDS` is an explicit list
+with no pattern form; `box-wui` is refused (it is the hub's own WUI-dispatch
+signing box, `../../014-spool-wui-dispatch/contracts/wui-dispatch.md` §2.2 — its
+`last_hello_at` is null because it never opens a box socket, not because it is
+dead); a box that said hello inside `PURGE_MIN_IDLE_HOURS` is held back and the
+whole statement rolls back; and every statement runs under
+`SET LOCAL app.tenant_id`, so the rdb 0014 row-level-security policy — not the
+script — is what makes another tenant's box invisible.
+
+<!-- version: 1.2.0 · updated: 2026-09-21 · last-edit: 2026-09-21T13:25:00Z -->

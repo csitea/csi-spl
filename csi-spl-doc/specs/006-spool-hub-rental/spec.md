@@ -19,7 +19,7 @@ store, `spool migrate`) · 007 (cloud estate, DNS, ingress; README §6).
 ## Scope and seams
 
 006 owns, per `../README.md` §5: **tenant host resolution, the tenant row and
-its root key, quota `429`, unpaid `402`, the grace window, and M2 payment**.
+its root key, quota `429`, unpaid `402`, the grace window, and M2 payment** (amended by 026: tenant host resolution retired in favour of tenant from identity on `api.<domain>`).
 It cites and does not restate:
 
 | Topic | Owner |
@@ -165,7 +165,7 @@ page + one email carry the tenant URL and root private key, once.
 |---|---|---|
 | **FR-001** | `tenants` row: `tenant_id` (`^[a-z0-9][a-z0-9-]{0,31}$`), 32-byte `root_pubkey`, `billing_status`, `plan_id`, `created_at`. | **Implemented** (`csi-spl-rdb/src/sql/postgres/spool-hub/0001_hub_core.sql`) |
 | **FR-001a** | Operator-created renter tenants carry `billing_status=manual` (narrative §2). | **Implemented** (`0004_tenant_manual.sql`; `billing.StatusManual` writes like `active`; `TestManualTenantMayWrite`, `TestTenantManualAndPubkeyOnly`) |
-| **FR-002** | Tenant from the request **Host** against `$SPOOL_HUB_TENANT_HOST_PATTERN` (`{tenant}.<fqdn>`, cnf; no baked host). Host is the one routing choice; a `/t/<tenant>/` path prefix is not offered. | **Implemented** (`internal/hub/server.go` `tenantOf`; pattern must start `{tenant}.`) |
+| **FR-002** | Tenant from the request **Host** against `$SPOOL_HUB_TENANT_HOST_PATTERN` (`{tenant}.<fqdn>`, cnf; no baked host). Host is the one routing choice; a `/t/<tenant>/` path prefix is not offered. **Amended by 026:** tenant now resolved from identity, session token, or pinned box key on `api.<domain>`; per-tenant Host routing retired. | **Implemented** (`internal/hub/server.go` `tenantOf`; pattern must start `{tenant}.`; amended by 026) |
 | **FR-003** | Pin/revoke box pubkeys only with a tenant-root signature; semantics per 004. | **Implemented** (`TestPinRESTRootSigned`, `TestPinRevokeAndForce`) |
 | **FR-004** | Pins, messages, files, quotas isolated **per tenant**; the same `box_id`/agent id in two tenants are unrelated. | **Implemented** (`TestTwoTenantsSameAgentIDIsolated`: same `box-a`/`GRK-03` in two tenants, no cross-delivery, A's key refused as B's `box-a`; `TestFilesRoundTripAndTenantIsolation`) |
 | **FR-005** | No renter GCP IAM, no per-agent token. Box key + tenant root only. | **Implemented** (hub-e2e runs with no `CLOUDSDK_*`) |
@@ -214,4 +214,4 @@ queue, file upload token — 003 `contracts/http-v1.md` and trust-modes §4–§
 NATS, Kafka, git-rel, ysg-box, customer GCP accounts, card storage, custom
 domains, seats (M4), WUI (005).
 
-<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:55:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-20 · last-edit: 2026-09-20T06:40:00Z -->

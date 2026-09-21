@@ -105,6 +105,18 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `014-spool-wui-dispatch/` | WUI dispatch: box-wui key signing, browser-to-box task dispatch, pin controls | M3 | dispatch lane |
 | `015-spool-native-auth/` | native email + password sign-in, argon2id hashing, email verification, password reset | M3 | native-auth lane |
 | `016-spool-testability/` | test inventory, skip-as-failure CI policy, dual-driver proofs | cross-cutting | integrator |
+| `017-spool-security-hardening/` | threat mitigation, DB owner/runtime split (`spool_hub_rt`, DML-only), RLS enforcement (`0014`/`0021`), secret separation (`csi-spl-hub-db-owner-dsn`), in-app edge limits | M3/M4 consolidation | security lane |
+| `018-spool-auth-microsoft/` | Microsoft Entra ID / Microsoft identity platform sign-in, PKCE, RS256 JWKS cache, branded lockup | M3 (WUI login) | CLE-3386 |
+| `019-spool-auth-linkedin/` | LinkedIn OIDC sign-in, branded mark, secret seed action | M3 (WUI login) | CLE-3387 |
+| `020-spool-message-v2/` | message schema `v:2`, canonical JSON, version negotiation (`wire.Frame.MsgVersions`), dual-version readers | M3 consolidation | message-v2 lane |
+| `021-spool-wui-i18n/` | WUI + hub i18n: 19 locales, donor language switcher, cookie/browser redirect, default locale `en`, `humans.preferred_locale` | M3 | CLE-3403 |
+| `022-spool-wui-top-bar-search/` | WUI persistent top bar, global search omnibox (`/search`), operator picker, grouped results | M3 | wui-topbar-search lane |
+| `023-spool-user-settings-keys/` | GitHub-style user settings navigation, `/settings/keys`, in-browser Ed25519 keypair generation, public key upload / private download | M3 | CLE-3408 |
+| `024-spool-tenant-hosts/` | per-tenant hosts, automated DNS reconcile (**SUPERSEDED** by 026: paused, mappings retired) | M1/M2 | CLE-3404 (**superseded**) |
+| `025-spool-tenant-rbac/` | tenant roles and permissions in DB (`0021_tenant_rbac.sql`: product owner, biz owner, admin, developer, tester, pure agent) replacing binary owner/member | M3/M4 | CLE-3414 |
+| `026-spool-tenant-from-identity/` | tenant from identity, not Host: single API host `api.<domain>`, `X-Spool-Tenant`, session `t`, per-tenant CNAMEs destroyed | M2/M3 | CLE-3415 |
+| `027-spool-performance/` | pool tuning (8 conns), in-memory pin/tenant hotCache, concurrent blob Exists, indexed ViewThreads (`0022`), chunked retention sweeper (`0024`) | M3 consolidation | CLE-3413 (ORC-PERF) |
+| `028-spool-terminal-delivery/` | message visible in recipient agent's pane: renderer, doorbell, `spool-notify.sh`, shell-inert poke line | M3 | CLE-3428 |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -116,6 +128,10 @@ Dependency order between specs:
 `002 → 004 → 003 → 007 (+008 pipeline) → 006 (M1 tenancy) → M1 demo →
 006 (M2 payment) → 005 (M3) → 010 (social auth) → 014 (wui dispatch) →
 015 (native auth) → 016 (testability) → 011 (refactor consolidation) →
+017 (security hardening) → 018/019 (MS/LinkedIn auth) → 020 (message v2) →
+021 (i18n) → 022 (top-bar search) → 023 (user keys) →
+024 (tenant hosts, superseded) → 025 (tenant RBAC) →
+026 (tenant from identity) → 027 (performance) → 028 (terminal delivery) →
 009 (M4) → 008 (CI logs in chat)`.
 
 ---
@@ -127,13 +143,24 @@ Dependency order between specs:
 | `trust-modes.md` wording | 002 (frozen) | everyone cites `trust-modes §N` |
 | Hub envelope, WS frames, REST files/pins, error envelope | 003 `contracts/` | 004, 006 cite; do not restate |
 | Pin semantics (409, `--force`, history, revoke, sync) | 004 | 003 cites for the REST shape |
-| Tenant host resolution, root key, quota 429, unpaid 402 | 006 | 003 cites the status codes |
+| Tenant host resolution, root key, quota 429, unpaid 402 | 006 | 003 cites the status codes; amended by 026 (tenant from identity) |
 | WUI read API (endpoints the viewer calls) | 003 `contracts/` | 005 cites and depends |
 | Terraform steps, DNS, secrets, WIF, lde | 007 | 003/006 name cnf keys, never tf |
 | WIF deploy identity (tf step `017`) | 007 | 008 consumes the repo variables it exports |
 | Pipeline jobs, gates, deploy matrix | 008 | 007 references the deploy action |
 | Whole-project refactoring boundaries, adapters & contracts | 011 | 003, 005, 006, 007, 008, 010 cite for clean architecture & adapter rules |
 | Test layers, skip-pass policy, what CI must run | 016 `contracts/test-layers.md` | 008 owns the YAML; 016 inventories and files tasks 008/api/wui execute |
+| Database owner/runtime split, DML role `spool_hub_rt`, RLS enforcement | 017 `contracts/security-baseline.md` | 003, 007, 008 cite it; 007 provisions role + secret; 003 runs as `spool_hub_rt` |
+| Microsoft / LinkedIn OIDC providers and client descriptors | 018, 019 `spec.md` | 010 owns `/auth/*` rails and session cookie; 018/019 define provider-specific scopes and token exchange |
+| Message schema `v:2`, canonical JSON, wire versions | 020 `contracts/message-schema-v2.md` | 002 (frozen v1), 003 (envelope), 008, 014 cite |
+| WUI + hub i18n catalogues, `X-Locale`, default locale `en` | 021 `spec.md` | 005, 010, 015 cite; 023 consumes for settings |
+| Global search grammar, parser, omnibox `/search` | 022 `spec.md` (no `contracts/` dir: `git ls-tree -r --name-only origin/master csi-spl-doc/specs/022-spool-wui-top-bar-search/` -> `spec.md`, `tasks.md`) | 003 implements hub search; 005 / 013 top-bar layout consumes |
+| Human Ed25519 user keys (`/settings/keys`) | 023 `contracts/keys-v1.md` | 010 (auth), 014 (dispatch) cite |
+| Per-tenant hosts automated DNS (superseded) | 024 `spec.md` | **Superseded by 026**; mappings destroyed, single API host |
+| Tenant RBAC roles (`product_owner`, `biz_owner`, `admin`, `developer`, `tester`, `agent`) | 025 `spec.md` | Amends 010 two-role model (`owner` \| `member`); 003/014 enforce |
+| Single API host `api.<domain>`, tenant from identity/session/token | 026 `spec.md` | Amends 003 FR-015 / OQ-07, 004, 006 FR-002, 010 SEC-001; supersedes 024 |
+| Hub connection pool (8), hotCache, batch roster, chunked retention | 027 `spec.md` | 003, 007, rdb cite for performance budgets |
+| Terminal delivery, pane doorbell & poke line | 028 `contracts/poke-line.md` | 002 (inbox write), 003 (`hub-run` sidecar), 012 (`spool-harness`) cite |
 
 ---
 
@@ -255,9 +282,8 @@ steps are each a task.
 | Item | Owner |
 |---|---|
 | **Ingress: documented M1 exception** (decided 2026-09-18). The Cloud Armor allowlist is `0.0.0.0/0` in dev and prd (`37e2e58`), recorded in `../doc/md/SPEC-spool-milestones.md` (M1 Ingress) and 007 FR-012 / SC-004. It widens only L7: the **data plane stays gated**: a WS needs a hello signed by a root-pinned box key, `GET /v1/files/{id}` is a capability by sha256, `/v1/view/*` needs a view token **in prd**. **Exception: dev runs `SPOOL_HUB_VIEW_DOOR=off`** (`csi-spl-cnf/csi-spl/dev.env.yaml`; the hub refuses `off` outside lde/dev), so dev thread reads are open to anyone who knows a dev tenant host, so `/v1/health` 200 from any IP is expected. **End condition: M2 sign-off**; 403-for-non-allowlisted is an M2 expectation | 008 T115 + the M2 ingress follow-up |
-| `017-github-wif-deploy` on trunk (`2a7888c`) but **not applied**; repo vars `GCP_WIF_PROVIDER_<ENV>` / `GCP_DEPLOY_SA_EMAIL_<ENV>` unset, so the `20 ci-cd` deploy job skips both envs. Both hubs were deployed outside the pipeline. Deployed-state check: `./run -a do_check_hub_deploy` (`7bfe152`); post-deploy smoke: `22_deploy-verify.yml` (`81ab284`) | 007 T050 (apply, owner go) → 008 T105–T109 |
+| `017-github-wif-deploy` (tf step `017`, trunk `2a7888c`) is still **not applied**: `gh variable list -R csitea/csi-spl` prints nothing, so `GCP_WIF_PROVIDER_<ENV>` / `GCP_DEPLOY_SA_EMAIL_<ENV>` are unset and every deploy job takes its **other** branch — the SA-key secrets (`gh secret list` -> `GCP_KEY_CSI_SPL_DEV`, `GCP_KEY_CSI_SPL_PRD`, iac 120). So the pipeline DOES deploy both envs (the earlier record that it skips them, and that both hubs were deployed outside the pipeline, is stale); what is outstanding is only the keyless identity. Deployed-state check: `./run -a do_check_hub_deploy` (`csi-spl-orc/src/bash/run/check-hub-deploy.func.sh`); post-deploy smoke: `22_deploy-verify.yml` | 007 T050 (apply, owner go) -> 008 T105-T109 |
 | Several lanes stamped `last-edit` in local time with a `Z` suffix | cosmetic; fix on next edit |
-| IAC (25), ORC (14) and CNF validator tests exist but are not jobs in `10_ci-quality.yml`; `go test` in the hub suite is not `-race`; WUI live-interop exits 0 without `HUB_URL` | 016 T002–T006 (008 owns the YAML) |
 
 Resolved since the first record (kept for audit):
 ~~quality gate false red~~ (`4839514`, `cb1f254`) ·
@@ -267,6 +293,31 @@ Resolved since the first record (kept for audit):
 ~~dev hub not reachable~~ (031 applied; 200 above) ·
 ~~view-v1 not built / WUI on dropped routes~~ (`internal/hub/view.go` serves `/v1/view/*`;
 `grep -c '/v1/messages\|/v1/channels' csi-spl-wui/utils/spool-client.mjs` -> 0) ·
-~~`GRK-3342-007-tf-007-dns` stale branch~~ (superseded by `025`).
+~~`GRK-3342-007-tf-007-dns` stale branch~~ (superseded by `025`) ·
+~~10_ci-quality test skip holes and missing -race~~ (016 T002–T006 closed: `bed8732`, `5cf1a56`, `a798b07`, `cfcec60`) ·
+~~Per-tenant DNS routing and manual CNAMEs~~ (superseded by 026 tenant from identity on `api.<domain>`, `0e09b33`, `170b863`) ·
+~~Database RLS liftable by runtime role~~ (017 T029 owner/runtime DB split live dev + prd, `spool_hub_rt`, `85274e0`) ·
+~~Postgres pool starvation & unbounded sweep~~ (027 T010–T040 pool tuned to 8, in-memory hotCache, chunked sweep `0024`, `f0484b8`, `57a21c7`) ·
+~~Missing message visibility in recipient terminal~~ (028 spec + orc renderer, `31355bd`) ·
+~~WUI channel/DM threads sorted by initial root ts~~ (CLE-3425: sorted by last activity `activityOf`, `9adb06c`).
 
-<!-- version: 1.8.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:00:00Z -->
+### 8.5 Master trunk sync pass (specs 017 through 028, trunk through cea65d2)
+
+Pass run by the integrator reconciling git-spec with trunk source code and infrastructure:
+
+| Topic | State on trunk | Citation / Evidence |
+|---|---|---|
+| **017 Security Hardening** | Implemented & Live: DB split to `spool_hub_rt` (DML-only) + owner DSN `csi-spl-hub-db-owner-dsn`; RLS forced across 15 tenant tables (`0014`, `0021`); `EXPECT_NOT_LIFTABLE=1` exits 0 with `liftable=0` on dev and prd; hub logs `db.rls_not_liftable` | `85274e0`, `3dfce38`, `c0fe234`, `097a6c5`, `db-owner-split.tst.sh` (35/35 PASS) |
+| **018 & 019 Social Auth (MS & LinkedIn)** | Implemented (code): OIDC clients in `internal/auth`, branded SVG lockups in `SocialAuthButtons.vue` in all 19 locales; live rollout gated on owner App Registration | `4dc854e`, `ea6bf1e`, `e8c2f75`, `auth-idp-secret-seed.tst.sh` (ALL PASS) |
+| **020 Message Schema `v:2`** | Partial: readers implemented on trunk (`msg.Supported` admits 1 & 2, `wire.Frame.MsgVersions`); WUI `SpoolMessage.v` admits `1 \| 2`; hub 0.1.9 live; writers switch pending | `fb55fcf`, `71a87eb`, `cfcec60`, `nuxi typecheck` exit 0 |
+| **021 WUI + Hub i18n** | Implemented & Live: 19 locales, donor language switcher, cookie redirect, default locale `en` (OQ-1 decided), `0017_human_preferred_locale.sql` live dev + prd, `X-Locale` header | `2e2c601`, `e586002`, `f2c024a`, `locale-switch.proof.mjs` (43/43 PASS) |
+| **022 Top Bar & Global Search** | Implemented & Live: TopBar layout, Omnibox `/search` mode, grouped search results (`search-v1`), CSP & no-x-scroll clean | `63e37dc`, `top-bar-search.proof.mjs` |
+| **023 User Settings & Keys** | Implemented & Live: GitHub-style `/settings` nav, in-browser Ed25519 keygen, `.pub`/`.key` download, `0018_human_keys.sql` live dev + prd | `2e7170b`, `settings-keys-live.proof.mjs` (12/12 PASS) |
+| **024 Tenant Hosts** | **SUPERSEDED** by 026: scheduled workflow 40 disabled, per-tenant CNAMEs destroyed | `0e09b33`, `170b863` |
+| **025 Tenant RBAC** | Implemented & Live: `0021_tenant_rbac.sql` applied dev + prd; 6 roles (`product_owner`, `biz_owner`, `admin`, `developer`, `tester`, `agent`); hub entry gates enforce; WUI role reflection | `714f3cb`, `8fe6517`, `do_spl_rbac_probe` PASS |
+| **026 Tenant from Identity** | Implemented & Live: single API host `api.<domain>`, `X-Spool-Tenant` header, session `t`, pinned key resolution; per-tenant DNS destroyed (`mapped_tenants = []`); `do_spl_m3_e2e` passing on API host dev (14 PASS) & prd (15 PASS) | `0e09b33`, `170b863`, `dcfbe0a` |
+| **027 Performance** | Implemented & Live: Postgres pool tuned to 8 conns (`398b374`), in-memory hotCache for pins/tenants (`0a11fae`), indexed ViewThreads `0022` (`74e01d8`), chunked retention sweeper `0024` (`0ba3ea5`), 200k c=50 send throughput 33.9 -> 2570 sends/s, p95 3.3s -> 27ms | `1f73fae`, `e6a96ec`, `f0484b8`, `57a21c7`, hub 0.1.16 live dev + prd |
+| **028 Terminal Delivery** | Implemented through T030, proof (T040-T042) planned: orc renderer + safe-poke rules (`31355bd`), the Go store hook in `internal/notify` at `spool.Store.writeBox` (`d5b6042`), and the harness export of `SPOOL_NOTIFY_CMD` for both the agent session and the `spool hub-run` sidecar (T030, NOT planned as an earlier sync pass recorded it). Measured on this tree 2026-09-21, n=1: `test-spool-notify.sh` -> **37 passed, 0 failed**, `test-spool-send.sh` -> **26 passed**, `test-spool-harness.sh` -> **47 passed** | `31355bd`, `d5b6042`, `028/tasks.md` T010/T011/T020/T030 |
+| **WUI Feed Ordering & Shell** | Implemented & Live: thread cards and sidebar channel/DM lists ordered by LAST activity (`activityOf`, `9adb06c`, `cea65d2`); single thread section in shell layout (`e54e4db`, CLE-3429); syntax-highlighted wrapping code snippets & generic modal dialog (`469c432`, CLE-3423) | `9adb06c`, `cea65d2`, `e54e4db`, `469c432`, `list-order.test.mjs` (28 PASS) |
+
+<!-- version: 1.9.1 · updated: 2026-09-21 · last-edit: 2026-09-21T08:25:00Z -->

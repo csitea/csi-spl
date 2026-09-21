@@ -130,7 +130,7 @@ box's live session. `force` re-pins a new key; only the new key verifies.
 - Sub-agents never inherit a parent id and never use dotted ids (`AGY-01.1`
   fails the regex); each gets its own top-level id and directory.
 - Pin writes on an unpaid tenant (402) or over quota (429) → 006.
-- Tenant resolved from the request Host; unknown host → `unknown_tenant` (006).
+- Tenant resolved from the request Host; unknown host → `unknown_tenant` (006). (Amended by 026: tenant is resolved from identity, session, or pinned box key; one API host api.<domain>, per-tenant Host routing retired).
 
 ## Requirements
 
@@ -229,4 +229,4 @@ Test runs (tree: this lane's worktree at `4f611d6`; n=1 each):
 - Per-agent keys or IAM; the private-deploy IAM door (003 OQ-06, not M1).
 - Multi-recipient / box-wide fanout; cross-tenant uniqueness.
 
-<!-- version: 1.2.0 · updated: 2026-09-19 · last-edit: 2026-09-18T22:55:25Z -->
+<!-- version: 1.3.0 · updated: 2026-09-20 · last-edit: 2026-09-20T06:40:00Z -->

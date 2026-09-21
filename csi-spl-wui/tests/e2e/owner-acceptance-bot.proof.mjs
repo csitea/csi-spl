@@ -172,12 +172,40 @@ try {
   const ctx = await browser.createBrowserContext()
   page = await ctx.newPage()
   await page.setViewport({ width: 1280, height: 900 })
-  await page.goto(`${BASE}/login?tenant=${encodeURIComponent(TENANT)}&redirect=%2Flobby`, { waitUntil: 'networkidle2' })
-  await page.waitForSelector('[data-test=native-auth-email]', { timeout: 30000 })
-  await page.type('[data-test=native-auth-email]', EMAIL)
-  await page.type('[data-test=native-auth-password]', PW)
-  await page.click('[data-test=native-auth-submit]')
-  const signedIn = await page.waitForSelector('[data-test=user-menu-trigger]', { timeout: 30000 }).then(() => true, () => false)
+
+  // Sign-in is retried, and the reason is captured. Trunk here carries several
+  // WUI deploys an hour, and a run that starts inside one gets a page whose
+  // auth form has not hydrated: measured twice on 2026-09-21, both times with
+  // the build stamp changing across the run. A one-shot sign-in turns that
+  // into "0/8 PASS", which reads as a broken system and is a redeploy. The
+  // retry is BOUNDED and its attempts are recorded, so a genuine auth failure
+  // still fails — it just fails with the page's own error text attached.
+  const attempts = []
+  let signedIn = false
+  for (let i = 1; i <= 3 && !signedIn; i++) {
+    try {
+      await page.goto(`${BASE}/login?tenant=${encodeURIComponent(TENANT)}&redirect=%2Flobby`, { waitUntil: 'networkidle2' })
+      await page.waitForSelector('[data-test=native-auth-email]', { timeout: 20000 })
+      await page.type('[data-test=native-auth-email]', EMAIL)
+      await page.type('[data-test=native-auth-password]', PW)
+      await page.click('[data-test=native-auth-submit]')
+      signedIn = await page.waitForSelector('[data-test=user-menu-trigger]', { timeout: 30000 }).then(() => true, () => false)
+    } catch (e) { /* recorded below */ }
+    const build = await fetch(BASE + '/build.json').then((r) => r.json()).catch(() => ({}))
+    const shown = await page.evaluate(() => {
+      const el = document.querySelector('[role=alert]') || document.querySelector('.error-notice__message')
+      return el ? el.textContent.trim().slice(0, 200) : ''
+    }).catch(() => '')
+    attempts.push({ i, ok: signedIn, build: build.commit || '', page_says: shown })
+    // Never retry into a rate limit. The auth form has a per-IP ceiling that
+    // is SHARED with every other lane probing dev, and a retry does not wait
+    // it out — it spends it, for this run and for whoever signs in next.
+    // Measured 2026-09-21: three attempts, the second and third both answered
+    // "Too many attempts", while another lane was locked out at the same time.
+    if (/too many/i.test(shown)) { res.rate_limited = true; break }
+    if (!signedIn && i < 3) await sleep(15000)
+  }
+  res.sign_in_attempts = attempts
 
   const threadUrl = `${BASE}/dm/${encodeURIComponent(PEER)}?thread=${encodeURIComponent(OWNER_THREAD)}`
   if (signedIn) {
@@ -189,7 +217,8 @@ try {
   await page.screenshot({ path: `${OUT}/01-thread-open.png` }).catch(() => {})
   await verdict(signedIn ? page : null, 1, 'OA-31',
     `the bot signed in as its own member and opened the owner's thread`,
-    signedIn && composer, { url: signedIn ? page.url() : '(not signed in)', email_is_not_the_owner: true })
+    signedIn && composer,
+    { url: signedIn ? page.url() : '(not signed in)', email_is_not_the_owner: true, attempts })
   if (!signedIn || !composer) throw new Error('the bot could not open the thread; nothing else can be asserted')
 
   if (POST_RESULTS) {

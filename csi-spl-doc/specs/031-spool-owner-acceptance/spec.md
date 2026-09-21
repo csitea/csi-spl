@@ -66,7 +66,8 @@ The gate keeps the two in step.
 | the WUI bot (this spec) | OA-31 OA-32 OA-33 OA-34 OA-35 | `csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs`, run by `do_spl_owner_acceptance` |
 | the run is one named action | OA-36 | `csi-spl-orc/src/bash/tests/owner-acceptance.tst.sh` |
 | a real IdP sign-in | OA-37 | `MANUAL`, §5 |
-| the owner's own thread URL | OA-38 | the bot — currently **FAIL**, §3.1 |
+| the owner's own thread URL | OA-38 | the bot — **PASS** since `7044c2e0`, §3.1 |
+| attachments survive a send | OA-39 | CLE-3433's finding, `UNVERIFIED` — §3.2 |
 
 ### 2.1 Why the terminal cases are `orc-e2e` and not CI
 
@@ -130,6 +131,24 @@ a fix in someone else's file is a rebase conflict for them.
 Until it is fixed, the bot's reply case answers the task its OWN message
 created, read off the row's `data-task-id`, so the reply leg is testable on
 its own rather than failing for this unrelated reason.
+
+### 3.2 OA-39 — the same two handlers dropped ATTACHMENTS (CLE-3433)
+
+Found by CLE-3433 while fixing OA-38, and recorded here because it is the same
+owner case in a different costume: *the composer said it was sent, and it was
+not*. Their measurement, on deployed `bb20552`, signed in, every outgoing WS
+frame captured and held back, n=1 per route: `/lobby` 1 frame with 1 file;
+`/dm` 1 frame with **0** files; `/channel` 1 frame with **0** files — and the
+file chip vanished from the composer in all three, so it looked sent.
+
+Two causes, both fixed in `a3b703b`: the handlers did not accept the `files`
+argument, and `stores/channel.ts` never uploaded a `File` to `/v1/files` the
+way `stores/live.ts` does. Types could not catch it, which is why it is worth
+a case rather than a comment: a handler with fewer parameters is assignable to
+`(text, files) => unknown`.
+
+`UNVERIFIED` until it is measured live — on CLE-3433's own instruction, a row
+flips on a measurement and not on a report.
 
 ## 4. Success criteria
 

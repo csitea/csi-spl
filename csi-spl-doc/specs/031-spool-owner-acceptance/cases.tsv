@@ -53,3 +53,4 @@ OA-35	bot	the run posts a readable PASS/FAIL line per case into the owner's thre
 OA-36	bot	the whole run is ONE named action with per-case PASS/FAIL and evidence	031	orc-tst	csi-spl-orc/src/bash/tests/owner-acceptance.tst.sh	PASS	CLE-3438
 OA-37	manual	a REAL human Google / Microsoft / LinkedIn sign-in reaches the WUI	010	manual	csi-spl-doc/specs/031-spool-owner-acceptance/spec.md	MANUAL	CLE-3438
 OA-38	bot	a message sent from /dm/<peer>?thread=<id> joins THAT thread — the owner's own URL	013	node-e2e	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	PASS	CLE-3433
+OA-39	send	a message with an ATTACHMENT carries the file — the composer never shows it sent when it was dropped	013	node-e2e	csi-spl-wui/tests/e2e/send-failure.proof.mjs	UNVERIFIED	CLE-3433

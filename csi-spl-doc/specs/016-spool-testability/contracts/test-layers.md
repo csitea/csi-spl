@@ -13,7 +13,7 @@
 | D. Local CLI | `bash csi-spl-api/src/bash/tests/spool-smoke.tst.sh` | 002 unsigned send/recv/files/mcp | no skip |
 | E. WUI unit | `cd csi-spl-wui && pnpm run test:unit` | view-v1 client, avatars, live-ws fakes, auth-client | empty dir → fail |
 | F. WUI typecheck | `pnpm run typecheck` | TS | no skip |
-| G. WUI browser | `pnpm run test:e2e` | no-x-scroll at 390×844 / 1280×800 | **not in CI** |
+| G. WUI browser | `pnpm run test:e2e` (+ `test:e2e:console-errors`, `test:e2e:thread-pane`) | no-x-scroll at 390×844 / 1280×800; viewport must apply or the harness fails (`harness: viewport not applied`) | in CI (`wui-e2e`, 016 T021). Missing Chrome fails the job. |
 | H. WUI live | `HUB_URL=… pnpm run test:live` | two sockets vs a real hub | unset `HUB_URL` currently exit 0 — **do not add to CI as-is** |
 | I. IAC bash | `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` | tfvars parity, 025/028/030/031/017/019/120, hygiene, no keys in tf | missing terraform = FAIL unless `SPL_TF_ALLOW_SKIP=1` |
 | J. ORC bash | `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` | lde stack, tenant-create, wui-actions, deploy-check, DNS helpers | skip → CI fail; needs a cached `postgres:16-alpine` + the `<ORG>/<ORG>-<APP>` checkout layout |
@@ -23,9 +23,9 @@
 
 ## 2. CI today (`10_ci-quality.yml`)
 
-Runs **A–F** (via hub-suite + wui-suite), **I** (`iac-suite`), **J** (`orc-suite`, all files; checked out as `csi/csi-spl`), **K** (`cnf-suite`) and **M**. Does not run **G**, **H**, **L**. In I and J a `SKIP:` line fails the job and gcloud/gsutil/bq are traps (any call fails the job).
+Runs **A–F** (via hub-suite + wui-suite), **G** (`wui-e2e`: generate mock tenant, serve `.output/public`, then the three browser scripts), **I** (`iac-suite`), **J** (`orc-suite`, all files; checked out as `csi/csi-spl`), **K** (`cnf-suite`) and **M**. Does not run **H**, **L**. In I and J a `SKIP:` line fails the job and gcloud/gsutil/bq are traps (any call fails the job).
 
-`20_hub-build-deploy.yml` `test` job = A–D again. `30_wui-build-deploy.yml` `test` job = E–F again.
+`20_hub-build-deploy.yml` `test` job = A–D again. `30_wui-build-deploy.yml` `test` job = E–F again. Browser e2e is the `10` `wui-e2e` job, not `30`.
 
 ## 3. Dual-driver rule (store)
 
@@ -40,4 +40,4 @@ Runs **A–F** (via hub-suite + wui-suite), **I** (`iac-suite`), **J** (`orc-sui
 | live-interop | exit 0 skip | must not be a CI job until fail-closed |
 | spawn-agents | local | never CI |
 
-<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:15:00Z -->
+<!-- version: 0.2.3 · updated: 2026-09-21 · last-edit: 2026-09-21T17:56:00Z -->

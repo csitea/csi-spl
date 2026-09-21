@@ -68,7 +68,7 @@ go test ./internal/wire  -run '^$' -bench BenchmarkProtocol -benchmem -count 3
   measurement.**
 - **There is no polling loop on either interactive leg** to remove. (The 2-second
   `outbox-watch.sh` scan the owner may be thinking of is fleet tooling in
-  `ysg-box`, a different repo and a different lane — reported, not touched.)
+  a separate fleet-tooling repo, a different lane — reported, not touched.)
 
 ### 0.2 What it rules IN — the two real costs
 
@@ -101,8 +101,9 @@ shape of error this repo's measurement rule exists to catch.
 
 It was not merely stale. The tree measured (`dc102e7`) already contained
 CLE-3435's notifier fix (`4206bcb`). The defect was in the *invocation*: the
-command was run through a `sudo -u ysg env … bash` hop, and **that hop alone
-costs 21.0 ms p50** (`sudo -u ysg env X=1 bash -c true`, n=12); the remainder
+command was run through a `sudo -u <BOX_USER> env … bash` hop, and **that hop
+alone costs 21.0 ms p50** (`sudo -u <BOX_USER> env X=1 bash -c true`, n=12);
+the remainder
 looks like cold page cache on the script's first runs.
 
 Clean re-measurement, no sudo hop, tree `dc102e7`, n=12, exit-5 path:
@@ -233,4 +234,4 @@ Tokens defined by this spec live in `contracts/fastpath-v1.md`.
   on hops that cost microseconds.
 - The hub's internal DB ordering (027, and CLE-3435's hop table).
 - The browser leg's render cost (CLE-3434).
-- `ysg-box` fleet tooling, including the 2-second `outbox-watch.sh` scan.
+- The separate fleet-tooling repo, including its 2-second `outbox-watch.sh` scan.

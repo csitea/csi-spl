@@ -22,7 +22,7 @@
 //
 // Run:
 //   pnpm test:e2e:thread-pane
-//   BASE_URL=https://dev.spool-hub.ai pnpm test:e2e:thread-pane
+//   BASE_URL=https://dev.<domain> pnpm test:e2e:thread-pane
 //   OUT=/var/tmp/CLE-3429-proof pnpm test:e2e:thread-pane   # screenshots
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'

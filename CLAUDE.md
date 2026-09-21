@@ -100,10 +100,15 @@ How to apply:
   | anything at all | `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s) |
   | `csi-spl-cnf/**`, a tfvars, an image tag | `ENV=<env> ./run -a do_tpl_gen` then `git diff --exit-code` |
   | `csi-spl-wui/**` | `pnpm run typecheck` |
+  | `csi-spl-wui/**`, anything the browser renders | `BASE_URL=<generated bundle> pnpm run test:e2e` — typecheck does not drive Chrome |
   | `csi-spl-api/**` | `bash csi-spl-api/src/bash/tests/run-all-tests.sh` |
 
   Pushing onto a red trunk is NOT the thing to avoid — that just serialises the
   fleet and punishes lanes that did nothing. Landing the red is.
+- **A control that has to turn trunk red belongs on a throwaway branch**
+  (`gh workflow run <file> --ref <branch>`), not on trunk. In the run list a
+  deliberate plant is indistinguishable from a defect, and the next person to
+  read that list spends an hour proving it was intentional.
 - What is red lately, per JOB rather than per run:
   `cd csi-spl-iac && CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate`.
   Counted per run, one bad line reads as twelve broken pipelines.

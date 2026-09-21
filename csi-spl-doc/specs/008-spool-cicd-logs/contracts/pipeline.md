@@ -42,8 +42,9 @@ silently (no run, green checks), and the suites are cheap.
 | `cnf-suite` | Python 3.12, `poetry install --no-root` in conf-validator, then `bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh` (016 T005) | exit 0 (the test exits 2 rather than skip) |
 | `no-ysg-box-ref` | `csi-spl-api/src/bash/tests/no-ysg-box-ref.tst.sh` | exit 0 |
 | `distribution-hygiene` | 5 grep sweeps (org/bank, personal name, OS user/box/AD id, `/home/<user>/`, owner mail domain) | no hit; prints `file:line` only, never the matched value (a CI log is a distribution channel). A sweep that finds **nothing** is a pass, never an abort (see spec FR-P07). |
+| `gate-health` | `if: failure()` only: `cd csi-spl-iac && ./run -a do_report_ci_gate` (failures per JOB over the last 40 runs) into the job log and the run summary | **none — a report, not a gate.** `continue-on-error: true`, so it cannot redden a run, and correspondingly it proves nothing. Adds `actions: read` for this job alone. Verified by dispatching the workflow on a throwaway branch with one job forced to fail (CLE-3442); it cannot be proved by a green run, because a green run skips it. |
 
-Permissions: `contents: read`. Network: the Go module proxy, the emulator
+Permissions: `contents: read`, plus `actions: read` on `gate-health` alone. Network: the Go module proxy, the emulator
 and Postgres image pulls, GitHub (tpl-gen), PyPI and registry.terraform.io
 (providers for `init -backend=false`). No GCP identity in any job.
 

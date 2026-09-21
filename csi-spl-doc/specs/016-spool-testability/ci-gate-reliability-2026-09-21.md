@@ -22,7 +22,7 @@ defect seen again by the next push:
 | C2 | 12:54–13:08 | 12 | `distribution-hygiene` + `iac` | `::error::hygiene: literal OS user / box / AD id -- 2 line(s)` → `./csi-spl-doc/specs/030-spool-wire-fastpath/spec.md:104` and `:105` | real defect |
 | C3 | 12:58–13:04 | (inside C2) 5 + 3 on `30` | `wui: unit tests + typecheck` | `FAIL key present auth.native_error.__control_missing__: missing in en.json` | real defect |
 | C4 | 13:16–13:20 | 7 | `iac` + `orc` | `FAIL: dev image: action '…/spool-hub:0.1.18' vs 030 '…/spool-hub:0.1.17'` and `FAIL: dev tfvars differ from a fresh render (run ENV=dev ./run -a do_tpl_gen)` | real defect |
-| C5 | 13:23–13:26 | 4 | `wui: browser e2e (mock, generated)` | `FAIL 390x844 /login: scrollWidth=9999 innerWidth=1560` — the 390-wide viewport never took, so the gate measured a 1560-wide page | harness defect |
+| C5 | 13:23–13:26 | 4 | `wui: browser e2e (mock, generated)` | `FAIL 390x844 /login: scrollWidth=9999 innerWidth=1560` — **two facts, and the first one is deliberate**: `c04ac2f` ("plant overflow so wui-e2e must go red", 016 T021) added a workflow step appending `html,body{min-width:9999px!important}` to the generated CSS, reverted by `8b7902e`. The `9999` is that plant. `innerWidth=1560` on a check labelled 390x844 is a separate, real harness miss, guarded since `4153561`. | **intentional control** on trunk, over a latent harness miss |
 | C6 | 12:54 | 1 (inside C2) | `hub` | `--- FAIL: TestV2HeldForV1OnlySession (5.05s)` … `delivery "queued" frame &{recv …}` | flake |
 | C7 | 13:18 | 1 | `hub` | `FAIL - hub did not come up`, over a hub log ending in `"addr":"127.0.0.1:37604" … "hub listening"` | flake, mechanism unproven |
 | C8 | 01:03–07:37 | 8 on `00` | `Does dev/prd serve this commit?` | `dev hub lagging served=af8c6db6 sha=cea65d28 n=3 … age=2177m grace=45m` | correct alarm, not a CI fault |
@@ -30,9 +30,19 @@ defect seen again by the next push:
 7 + 12 + 7 + 4 + 1 = 31 on the gate; C3 and C6 fall inside C2's runs; C8 is
 the hourly watcher and is a different question.
 
-**So the gate is not flaky. 29 of 31 red gate runs were a real defect sitting
-on trunk, and 2 were flakes.** The owner's experience is nonetheless exactly
-right: a red workflow on the repo page, over and over, for most of a day.
+**So the gate is not flaky. 26 of 31 red gate runs were a real defect sitting
+on trunk, 4 were a control that was SUPPOSED to be red, and 1 was a flake**
+(C6, the second flake, reddened a run C2 had already reddened). The owner's
+experience is nonetheless exactly right: a red workflow on the repo page, over
+and over, for most of a day.
+
+**Verified rather than relayed** — C5 came from the e2e lane (GRK-3381) and is
+the one row of this table not read off a log by this lane:
+
+    git show c04ac2f:.github/workflows/10_ci-quality.yml \
+      | grep -c 'CONTROL — plant a horizontal overflow\|min-width:9999px'   -> 2
+    git show 25649ab:...  -> 2      (still planted at the last red run)
+    git show 8b7902e:...  -> 0      (the revert)
 
 ## 2. Why six defects read as forty-two failures
 
@@ -87,10 +97,20 @@ wrote them, before the push**, in under a minute:
 > |---|---|---|
 > | anything at all | `cd csi-spl-iac && ./run -a do_check_dist_hygiene` (~1 s) | C2 |
 > | `csi-spl-cnf/**`, any tfvars, any image tag | `ENV=<env> ./run -a do_tpl_gen` then `git diff --exit-code` | C4 |
-> | `csi-spl-wui/**` | `pnpm run typecheck` | C3, C5 |
+> | `csi-spl-wui/**` | `pnpm run typecheck` | C3 |
+| `csi-spl-wui/**`, anything the browser renders | `BASE_URL=<generated bundle> pnpm run test:e2e` | the viewport-miss half of C5 — **typecheck does not drive Chrome** (GRK-3381) |
 > | `csi-spl-api/**` | `bash csi-spl-api/src/bash/tests/run-all-tests.sh` | C6, C7 |
 
 Each of C2, C3, C4 would have been a local failure in the lane that wrote it.
+
+And one thing the fleet should do about deliberately-red trunk: **a control
+that must turn trunk red is indistinguishable, in the run list, from a defect**
+— C5 cost this lane an hour of classification before the owning lane named it.
+Either keep the plant off trunk (dispatch it on a throwaway branch, which is
+how `gate-health` below was proved), or say so in the commit subject of the
+plant AND of the revert, which `c04ac2f` / `8b7902e` in fact do. The run list
+does not show commit subjects, so the second form only helps a reader who
+already suspects it.
 
 ## 5. Two things left for their owners
 

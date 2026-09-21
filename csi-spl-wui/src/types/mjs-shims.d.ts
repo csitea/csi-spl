@@ -324,7 +324,8 @@ declare module '~/utils/checkout-client.mjs' {
     | { state: 'error', error: string }
   export interface CheckoutClient {
     plan(): Promise<CheckoutResult>
-    start(b: { tenant_id: string, email: string }): Promise<CheckoutResult>
+    /** `locale` (spec 021 T022): the active UI locale, kept on the checkout row so the claim mail speaks it. */
+    start(b: { tenant_id: string, email: string, locale?: string }): Promise<CheckoutResult>
     status(id: string): Promise<CheckoutResult>
     claim(b: { checkout_id: string, claim_token: string }): Promise<CheckoutResult>
     fakePay(id: string): Promise<CheckoutResult>

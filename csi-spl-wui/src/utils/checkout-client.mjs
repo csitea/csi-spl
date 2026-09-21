@@ -200,9 +200,23 @@ export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' } =
     plan() {
       return call('/plan')
     },
-    /** §1.2 → data { checkout_id, claim_token, method, rail, tenant_url } (+ client_secret, publishable_key on rail=card). `method` omitted = the default. */
-    start({ tenant_id, email } = {}) {
-      return call('', { method: 'POST', body: { tenant_id: String(tenant_id || ''), email: String(email || '') } })
+    /**
+     * §1.2 → data { checkout_id, claim_token, method, rail, tenant_url } (+ client_secret, publishable_key on rail=card). `method` omitted = the default.
+     *
+     * `locale` (spec 021 T022) is the ACTIVE UI locale, kept on the checkout
+     * row (rdb 0025) so the claim mail the hub sends after the payment speaks
+     * the language the buyer bought in. It rides the BODY, not a header: a
+     * custom header would preflight, and a hub whose CORS allow-list lacks it
+     * would refuse the whole checkout (the same trap that broke sign-in,
+     * 2e2c601). Omitted when empty; the hub falls back to its default and
+     * refuses nothing, so an unknown code costs the buyer nothing.
+     */
+    start({ tenant_id, email, locale } = {}) {
+      const loc = String(locale || '').trim()
+      return call('', {
+        method: 'POST',
+        body: { tenant_id: String(tenant_id || ''), email: String(email || ''), ...(loc ? { locale: loc } : {}) },
+      })
     },
     /** §1.3 → data { checkout_id, tenant_id, status, claimed, tenant_host, host_status }. */
     status(id) {

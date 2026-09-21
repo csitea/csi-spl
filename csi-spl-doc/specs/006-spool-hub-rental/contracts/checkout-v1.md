@@ -60,10 +60,19 @@ card rail is guarded.
 
 ### 1.2 `POST /api/v1/checkout`
 
-Request: `{"tenant_id":"acme","email":"buyer@example.com","method":"card"}`
+Request: `{"tenant_id":"acme","email":"buyer@example.com","method":"card","locale":"fi"}`
 (`method` optional: `card` default, or `paypal`).
 `tenant_id` follows `msg.ValidTenantID` (lower-case slug, reserved labels
 refused). `email` is where the one email goes.
+`locale` (optional, spec 021 T022) is the language the buyer is reading the
+checkout in: the WUI's active locale, one of the 19 `internal/i18n` `Supported`
+codes. It is kept on the checkout row (rdb 0025 `buyer_locale`) because the
+claim mail is sent by the paid webhook, long after this request is gone; that
+mail and the claim link's path prefix then follow it. It rides the BODY, not a
+header, so the checkout never depends on a CORS allow-list. Precedence:
+`locale` > `X-Locale` > `Accept-Language` > `SPOOL_HUB_DEFAULT_LOCALE` at send
+time. A code the hub does not ship is DROPPED, never refused and never
+reflected: the sale goes through and the mail falls back to the default.
 
 `201`:
 

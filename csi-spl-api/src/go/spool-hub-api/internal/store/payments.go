@@ -80,6 +80,11 @@ type Checkout struct {
 	SeatsBots  int
 	Org        string
 	App        string
+	// Locale is the language the BUYER was reading the checkout in (rdb 0025,
+	// spec 021 T022): one of i18n.Supported, or "" when they never said. The
+	// claim mail is sent by the paid webhook, long after the request is gone,
+	// so it can only follow this column; "" leaves it on the hub default.
+	Locale string
 }
 
 // SeatPeriod is one tenant_seat_periods row: the seats paid for one UTC
@@ -162,6 +167,11 @@ func normalizeCheckout(c *Checkout) error {
 	}
 	if (c.Org == "") != (c.App == "") {
 		return errors.New("checkout org and app come together (dedicated SKU) or not at all")
+	}
+	// The buyer's locale is never trusted onward (it prefixes a URL path and
+	// picks a mail template file): an unsupported code is refused here.
+	if err := checkLocale(c.Locale); err != nil {
+		return err
 	}
 	return checkBuyStamp(c.Org, c.App, "")
 }

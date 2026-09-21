@@ -43,11 +43,11 @@ func (s *Postgres) HoldCheckout(ctx context.Context, c Checkout, now time.Time, 
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO payment_checkouts (intent_id, tenant_id, plan_id, provider, provider_ref,
 				amount_cents, currency, status, email, root_pubkey, claim_hash, created_at,
-				seats_users, seats_bots, org, app)
+				seats_users, seats_bots, org, app, buyer_locale)
 			VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, 'pending', $8, $9, $10, $11,
-				$12, $13, NULLIF($14, ''), NULLIF($15, ''))`,
+				$12, $13, NULLIF($14, ''), NULLIF($15, ''), NULLIF($16, ''))`,
 			c.ID, c.TenantID, c.PlanID, c.Provider, c.ProviderRef, c.AmountCents, c.Currency, c.Email,
-			[]byte(c.RootPubKey), c.ClaimHash, now, c.SeatsUsers, c.SeatsBots, c.Org, c.App)
+			[]byte(c.RootPubKey), c.ClaimHash, now, c.SeatsUsers, c.SeatsBots, c.Org, c.App, c.Locale)
 		if isUniqueViolation(err) {
 			return ErrConflict
 		}
@@ -57,7 +57,7 @@ func (s *Postgres) HoldCheckout(ctx context.Context, c Checkout, now time.Time, 
 
 const pgCheckoutCols = `intent_id, tenant_id, plan_id, provider, COALESCE(provider_ref, ''), amount_cents, currency,
 	status, COALESCE(email, ''), root_pubkey, claim_hash, mail_claim_hash, claim_expires_at, created_at, paid_at, claimed_at,
-	seats_users, seats_bots, COALESCE(org, ''), COALESCE(app, '')`
+	seats_users, seats_bots, COALESCE(org, ''), COALESCE(app, ''), COALESCE(buyer_locale, '')`
 
 func scanCheckout(row pgx.Row) (Checkout, error) {
 	var c Checkout
@@ -65,7 +65,7 @@ func scanCheckout(row pgx.Row) (Checkout, error) {
 	var paid, claimed, expires *time.Time
 	err := row.Scan(&c.ID, &c.TenantID, &c.PlanID, &c.Provider, &c.ProviderRef, &c.AmountCents, &c.Currency,
 		&c.Status, &c.Email, &root, &c.ClaimHash, &c.MailClaimHash, &expires, &c.CreatedAt, &paid, &claimed,
-		&c.SeatsUsers, &c.SeatsBots, &c.Org, &c.App)
+		&c.SeatsUsers, &c.SeatsBots, &c.Org, &c.App, &c.Locale)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Checkout{}, ErrNotFound
 	}

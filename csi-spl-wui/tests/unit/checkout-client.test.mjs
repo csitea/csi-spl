@@ -93,6 +93,29 @@ describe('checkout-v1 client', () => {
       assert.ok(!s.url.includes(TOKEN), `token in URL ${s.url}`)
     }
     assert.deepEqual(JSON.parse(seen[3].opts.body), { checkout_id: 'co_1', claim_token: TOKEN })
+    // no locale asked for, none sent: the hub keeps its default (§1.2, rdb 0025)
+    assert.deepEqual(JSON.parse(seen[1].opts.body), { tenant_id: 'acme', email: 'b@example.com' })
+  })
+
+  it('spec 021 T022: the active locale rides the checkout BODY, so the claim mail speaks it', async () => {
+    const seen = []
+    const c = createCheckoutClient({
+      fetchFn: async (url, opts) => {
+        seen.push({ url, opts })
+        return { ok: true, status: 201, json: async () => ({ checkout_id: 'co_1' }) }
+      },
+    })
+    await c.start({ tenant_id: 'acme', email: 'b@example.com', locale: 'fi' })
+    assert.deepEqual(JSON.parse(seen[0].opts.body), { tenant_id: 'acme', email: 'b@example.com', locale: 'fi' })
+    // The body, never a header: X-Locale is non-simple, so it preflights, and a
+    // hub whose CORS allow-list lacks it refuses the whole checkout (2e2c601).
+    for (const k of Object.keys(seen[0].opts.headers)) assert.notEqual(k.toLowerCase(), 'x-locale')
+    // nothing to say -> the key is absent, not an empty string the hub must strip
+    for (const loc of ['', null, undefined, '   ']) {
+      seen.length = 0
+      await c.start({ tenant_id: 'acme', email: 'b@example.com', locale: loc })
+      assert.deepEqual(JSON.parse(seen[0].opts.body), { tenant_id: 'acme', email: 'b@example.com' }, `locale ${JSON.stringify(loc)}`)
+    }
   })
 
   it('maps error envelopes to tokens and never echoes the request', async () => {
@@ -288,6 +311,11 @@ describe('source + build output: where secrets may never go', () => {
   const read = (p) => readFileSync(join(WUI, p), 'utf8')
   // code only: drop comments so the rules can be stated in prose
   const code = (s) => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+  it('spec 021 T022: the checkout page hands its active locale to start()', () => {
+    const src = code(read('src/pages/checkout/index.vue'))
+    assert.match(src, /client\.start\(\{[^}]*locale:\s*locale\.value/, 'index.vue does not send the active locale')
+  })
 
   it('no localStorage, no console, no secret in a URL / router query', () => {
     for (const f of FILES) {

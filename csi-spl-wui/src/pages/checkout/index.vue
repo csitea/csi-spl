@@ -114,7 +114,8 @@ async function submit() {
   busy.value = true
   try {
     forgetCheckout()
-    const out = await client.start({ tenant_id: tenant.value, email: email.value })
+    /* spec 021 T022: the language this page is in rides the checkout, so the claim mail is in it too */
+    const out = await client.start({ tenant_id: tenant.value, email: email.value, locale: locale.value })
     if (!out.ok || !out.data) {
       errorCode.value = out.error
       return

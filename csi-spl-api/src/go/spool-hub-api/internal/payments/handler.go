@@ -60,7 +60,7 @@ type Deps struct {
 	PayPalVerifier    *PayPalVerifier // nil unless SPOOL_HUB_ENABLE_PAYPAL
 	Now               func() time.Time
 	// DefaultLocale is SPOOL_HUB_DEFAULT_LOCALE: the claim mail's language
-	// (the checkout keeps no buyer locale yet) and the claim link's
+	// when the checkout kept no buyer locale, and the claim link's
 	// prefix_except_default reference. "" = i18n.DefaultLocale.
 	DefaultLocale string
 }
@@ -236,6 +236,10 @@ type checkoutReq struct {
 	SeatsBots  int    `json:"seats_bots"`
 	Org        string `json:"org"`
 	App        string `json:"app"`
+	// Locale is the language the buyer is reading the checkout in (spec 021
+	// T022): the WUI's active locale. "" / unsupported = not said, and the
+	// request headers get a say instead (buyerLocale).
+	Locale string `json:"locale"`
 }
 
 // lineItems checks the M4 part of a checkout request against the plan and
@@ -273,6 +277,21 @@ func (h *Handler) lineItems(req *checkoutReq) (items []LineItem, total int, bad 
 		return nil, 0, "bad_org_app"
 	}
 	return items, total, ""
+}
+
+// buyerLocale is the language the buyer is reading the checkout in, kept on
+// the checkout row (rdb 0025) so the claim mail the paid webhook sends -- long
+// after this request is gone -- speaks it. The WUI's explicit body `locale`
+// wins, then X-Locale, then Accept-Language; "" means the buyer never said and
+// the mail follows SPOOL_HUB_DEFAULT_LOCALE at send time.
+//
+// Normalize, never the raw value: this string picks a mail template file and
+// prefixes a URL path, so only one of the 19 i18n.Supported codes may pass.
+func buyerLocale(r *http.Request, body string) string {
+	if loc := i18n.Normalize(body); loc != "" {
+		return loc
+	}
+	return i18n.Match(r.Header.Get(i18n.HeaderLocale), r.Header.Get("Accept-Language"), "")
 }
 
 func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
@@ -364,7 +383,8 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 	}
 	c := store.Checkout{ID: id, TenantID: tid, PlanID: h.cfg.PlanID, Provider: provider, ProviderRef: ref,
 		AmountCents: total, Currency: h.cfg.Currency, Email: email, RootPubKey: pub,
-		ClaimHash: ClaimHash(token), SeatsUsers: req.SeatsUsers, SeatsBots: req.SeatsBots, Org: req.Org, App: req.App}
+		ClaimHash: ClaimHash(token), SeatsUsers: req.SeatsUsers, SeatsBots: req.SeatsBots, Org: req.Org, App: req.App,
+		Locale: buyerLocale(r, req.Locale)}
 	if err := h.d.Store.HoldCheckout(ctx, c, h.d.Now().UTC(), h.cfg.Hold); err != nil {
 		_ = cancel(context.WithoutCancel(ctx), ref)
 		if errors.Is(err, store.ErrConflict) {
@@ -463,10 +483,13 @@ func (h *Handler) afterPaid(ctx context.Context, checkoutID string) {
 		h.d.Log.Error().Err(err).Str("checkout_id", c.ID).Msg("paid: claim link not stored; no mail sent")
 		return
 	}
-	// The checkout row keeps no buyer locale, so the mail is in the default
-	// locale (CLE-3403 gap); LocalizeURL then adds no prefix, but keeps the
-	// link right the day a buyer locale is passed here.
-	loc := h.d.DefaultLocale
+	// The buyer's own language (rdb 0025, spec 021 T022), and the hub default
+	// when the checkout kept none -- or kept one this build no longer ships,
+	// which Normalize drops rather than carry into a template path or a URL.
+	loc := i18n.Normalize(c.Locale)
+	if loc == "" {
+		loc = h.d.DefaultLocale
+	}
 	link := i18n.LocalizeURL(strings.TrimSpace(h.cfg.ClaimURL), loc, h.d.DefaultLocale) + "#checkout=" + c.ID + "&token=" + tok
 	m, err := TenantPaid(c.Email, loc, c.TenantID, h.tenantURL(c.TenantID), link, h.cfg.ClaimTTL)
 	if err != nil {

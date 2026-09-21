@@ -132,9 +132,12 @@ type Humans interface {
 	RemoveMember(ctx context.Context, tenant, humanID string) error
 }
 
+// checkLocale guards every stored locale (humans / password_credentials
+// preferred_locale rdb 0017, payment_checkouts.buyer_locale rdb 0025): "" is
+// "never said", anything else must be one of i18n.Supported.
 func checkLocale(loc string) error {
 	if loc != "" && !i18n.IsSupported(loc) {
-		return errors.New("preferred_locale must be one of the supported locales")
+		return errors.New("locale must be one of the supported locales")
 	}
 	return nil
 }

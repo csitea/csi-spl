@@ -36,7 +36,8 @@ silently (no run, green checks), and the suites are cheap.
 | Job | Runs | Pass condition |
 |---|---|---|
 | `hub-suite` | `bash csi-spl-api/src/bash/tests/run-all-tests.sh` (gofmt, vet, test, smoke, Postgres gate, fake-gcs gate) | exit 0 **and** no `^skip - no (Postgres server binaries\|cached )` line in the log — a skipped gate is a failure in CI |
-| `wui-suite` | in `csi-spl-wui`: `pnpm install --frozen-lockfile`, `pnpm run test:unit`, `pnpm run typecheck` (pnpm version from `packageManager`) | all three exit 0; the browser e2e (`test:e2e`) is not run in CI |
+| `wui-suite` | in `csi-spl-wui`: `pnpm install --frozen-lockfile`, `pnpm run test:unit`, `pnpm run typecheck` (pnpm version from `packageManager`) | all three exit 0. Browser e2e is the `wui-e2e` job, not this one. |
+| `wui-e2e` | `nuxt generate` with `NUXT_PUBLIC_USE_MOCK=1`, serve `.output/public` via `serve-generated.mjs`, then `pnpm test:e2e` + `test:e2e:console-errors` + `test:e2e:thread-pane` (016 T021). Chrome is the runner's `google-chrome`; missing Chrome fails the job. After setViewport the harness reads innerWidth/innerHeight back and fails with `harness: viewport not applied` rather than page x-scroll numbers at the wrong size (GRK-3381 `4153561`). | all scripts exit 0; a missed viewport is a harness failure, never a page result |
 | `iac-suite` | terraform 1.9.8, `./run -a do_setup_tpl_gen` (tpl-gen at `cnf/tpl-gen.ref`), then `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` without `SPL_TF_ALLOW_SKIP` (016 T003) | exit 0, no `^(SKIP\|PARTIAL):` line, `PASS: all tf-steps-render-and-validate` present, gcloud/gsutil/bq trap log empty |
 | `orc-suite` | checkout at `csi/csi-spl` (orc derives ORG/APP from the parent dirs), Go modules, `postgres:16-alpine` pulled, then `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` (016 T004) | exit 0, no `^SKIP:` line, gcloud/gsutil/bq trap log empty |
 | `cnf-suite` | Python 3.12, `poetry install --no-root` in conf-validator, then `bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh` (016 T005) | exit 0 (the test exits 2 rather than skip) |
@@ -240,4 +241,4 @@ provisions.
 WUI deploy (Firebase, tf `016`/`019`, M3 — 005's), `terraform apply` of any
 step (owner-gated, never from CI), per-sha tags, pull-request builds.
 
-<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:17:52Z -->
+<!-- version: 1.2.1 · updated: 2026-09-21 · last-edit: 2026-09-21T18:06:00Z -->

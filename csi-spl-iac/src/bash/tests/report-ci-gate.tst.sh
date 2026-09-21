@@ -13,6 +13,8 @@
 #     a. no runs at all               -> refused (non-zero), not "healthy"
 #     b. gh itself fails              -> refused (non-zero)
 #     c. a non-numeric CI_GATE_RUNS   -> refused before any call
+#     d. CI_GATE_REPO reaches gh as GH_REPO -- `gh api` has no --repo flag, so
+#        a wrong wiring here would silently report the WRONG repo in CI
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -33,6 +35,7 @@ cat >"$T/stub/gh" <<'STUB'
 #!/usr/bin/env bash
 # canned API JSON + the CALLER's own --jq filter through real jq
 [[ "${GH_STUB_BROKEN:-0}" == 1 ]] && { echo "gh: stub failure" >&2; exit 1; }
+printf '%s\n' "${GH_REPO:-}" >>"$GH_STUB_DIR/gh_repo.seen"
 args=("$@"); jqf=""
 for ((i = 0; i < ${#args[@]}; i++)); do [[ "${args[i]}" == "--jq" ]] && jqf="${args[i+1]}"; done
 src=""
@@ -118,6 +121,21 @@ report; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'no failed run in the window' "$T/out" \
   && pass "a clean window reports no failure and exits 0" \
   || { fail "a clean window was not reported as clean (rc=$rc)"; sed 's/^/    | /' "$T/out"; }
+
+# --- CONTROL d. CI_GATE_REPO reaches gh as GH_REPO ----------------------------
+cp "$T/api/runs-with-failures.json" "$T/api/runs.json"   # runs + jobs + logs calls
+: >"$T/api/gh_repo.seen"
+report CI_GATE_REPO=an-org/a-repo CI_GATE_SIGNATURES=1 >/dev/null
+if grep -qx 'an-org/a-repo' "$T/api/gh_repo.seen" && ! grep -qvx 'an-org/a-repo' "$T/api/gh_repo.seen"; then
+  pass "CONTROL d. every gh call saw GH_REPO=an-org/a-repo ($(wc -l <"$T/api/gh_repo.seen") call(s))"
+else
+  fail "CONTROL d. CI_GATE_REPO did not reach gh as GH_REPO"; sed 's/^/    | /' "$T/api/gh_repo.seen"
+fi
+: >"$T/api/gh_repo.seen"
+report CI_GATE_SIGNATURES=1 >/dev/null
+grep -qvx '' "$T/api/gh_repo.seen" \
+  && { fail "CONTROL d. GH_REPO was set although CI_GATE_REPO was not"; sed 's/^/    | /' "$T/api/gh_repo.seen"; } \
+  || pass "CONTROL d. without CI_GATE_REPO, GH_REPO is left alone (gh infers the repo from the cwd)"
 
 # --- CONTROL a. no runs at all ------------------------------------------------
 echo '[]' >"$T/api/runs.json"

@@ -13,22 +13,24 @@
 # @description The repo comes from the checkout's own remote -- no default URL.
 # @param CI_GATE_RUNS (optional) - default 40: how many recent runs to read
 # @param CI_GATE_WORKFLOW (optional) - default 10_ci-quality.yml
-# @param CI_GATE_REPO (optional) - default: whatever `gh` infers from the cwd
+# @param CI_GATE_REPO (optional) - default: whatever `gh` infers from the cwd.
+# @param CI_GATE_REPO It is passed as GH_REPO, the only way `gh api` takes a
+# @param CI_GATE_REPO repo (that subcommand has no --repo flag). The whole body
+# @param CI_GATE_REPO runs in a subshell, so the export dies with the action.
 # @param CI_GATE_SIGNATURES (optional) - 1 also fetches each failed job's log
 # @example ./run -a do_report_ci_gate
 # @example CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate
 #------------------------------------------------------------------------------
-do_report_ci_gate() {
+do_report_ci_gate() { (
   local n="${CI_GATE_RUNS:-40}"
   local wf="${CI_GATE_WORKFLOW:-10_ci-quality.yml}"
-  local -a R=()
-  [[ -n "${CI_GATE_REPO:-}" ]] && R=(-R "$CI_GATE_REPO")
+  if [[ -n "${CI_GATE_REPO:-}" ]]; then export GH_REPO="$CI_GATE_REPO"; fi
 
   command -v gh >/dev/null 2>&1 || { do_log "FATAL gh is required"; return 1; }
   [[ "$n" =~ ^[0-9]+$ ]] && (( n > 0 )) || { do_log "FATAL CI_GATE_RUNS must be a positive integer, got '$n'"; return 1; }
 
   local tmp; tmp=$(mktemp -d) || return 1
-  if ! gh "${R[@]}" run list --workflow "$wf" --limit "$n" \
+  if ! gh run list --workflow "$wf" --limit "$n" \
         --json databaseId,conclusion,createdAt,headSha \
         --jq '.[] | [.databaseId, (if (.conclusion // "") == "" then "running" else .conclusion end), .createdAt, .headSha[0:8]] | @tsv' >"$tmp/runs.tsv" 2>"$tmp/err"; then
     do_log "FATAL gh run list failed: $(head -2 "$tmp/err")"
@@ -56,7 +58,7 @@ do_report_ci_gate() {
   local rid concl created sha jid jname
   : >"$tmp/jobs.tsv"
   while IFS=$'\t' read -r rid concl created sha; do
-    gh "${R[@]}" api "repos/{owner}/{repo}/actions/runs/$rid/jobs" --paginate \
+    gh api "repos/{owner}/{repo}/actions/runs/$rid/jobs" --paginate \
       --jq '.jobs[] | select(.conclusion=="failure") | [.id, .name] | @tsv' 2>/dev/null |
       while IFS=$'\t' read -r jid jname; do
         printf '%s\t%s\t%s\t%s\t%s\n' "$rid" "$created" "$sha" "$jid" "$jname" >>"$tmp/jobs.tsv"
@@ -71,7 +73,7 @@ do_report_ci_gate() {
   while IFS=$'\t' read -r rid created sha jid jname; do
     sig=""
     if [[ "${CI_GATE_SIGNATURES:-0}" == 1 ]]; then
-      sig=$(gh "${R[@]}" api "repos/{owner}/{repo}/actions/jobs/$jid/logs" 2>/dev/null |
+      sig=$(gh api "repos/{owner}/{repo}/actions/jobs/$jid/logs" 2>/dev/null |
             grep -aE '(^|[[:space:]])(FAIL[:[:space:]]|FAILED:|--- FAIL|::error::)' |
             grep -avE '36;1m|echo "::error' | sed -E 's/^[^ ]*Z //' | head -1)
       sig="${sig:0:160}"
@@ -81,4 +83,4 @@ do_report_ci_gate() {
 
   rm -rf "$tmp"
   return 0
-}
+) }

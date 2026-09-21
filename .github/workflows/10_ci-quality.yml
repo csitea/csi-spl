@@ -424,6 +424,49 @@ jobs:
       - run: bash csi-spl-api/src/bash/tests/no-ysg-box-ref.tst.sh
 
   # ===========================================================================
+  # Gate health (CLE-3442): on a RED run only, the failures-per-JOB table for
+  # the last 40 runs, written into this run's summary. Counted per run, one
+  # banned line in one spec.md read as twelve broken pipelines on 2026-09-21;
+  # counted per job it reads as one defect that sat on trunk for 14 minutes,
+  # which is the thing a lane can act on.
+  #
+  # A REPORT, never a gate: continue-on-error, so it cannot redden a run, and
+  # correspondingly it proves nothing -- read it, do not trust it as a control.
+  # It runs the same named action an operator runs (do_report_ci_gate), and
+  # `actions: read` is the only permission it adds, for this job alone.
+  # ===========================================================================
+  gate-health:
+    name: "gate health: what else has been failing"
+    needs: [hub-suite, wui-suite, wui-e2e, iac-suite, orc-suite, cnf-suite, no-ysg-box-ref, distribution-hygiene]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Failures per job over the last 40 runs
+        working-directory: csi-spl-iac
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_GATE_RUNS: "40"
+          CI_GATE_REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          {
+            echo "## gate health -- failures per job, last ${CI_GATE_RUNS} runs"
+            echo
+            echo '```'
+            ./run -a do_report_ci_gate 2>&1 \
+              | sed -E 's/\x1b\[[0-9;]*m//g' \
+              | grep -avE '\[(DEBUG|INFO)\]' || true
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  # ===========================================================================
   # Distribution-hygiene sweep: org-neutral, no personal names, no literal OS
   # users / box names / AD identities / personal home dirs, no owner mail
   # address. Values are withheld from the log on purpose -- a CI log is a

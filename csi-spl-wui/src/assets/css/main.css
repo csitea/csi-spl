@@ -267,6 +267,17 @@ html.pane-dragging * {
   outline: none;
   font-size: 14px;
   overflow-wrap: anywhere;
+  /* CLE-3437: a ``` block is many lines, so the box that holds it has to be
+     many lines. The top-bar Omnibox got this in 022; the IN-PAGE composers
+     (thread pane, live thread pane, /t/<task>) never did, so a block typed
+     there was a two-line peephole with its own scrollbar and the author could
+     not see what they had written (measured on dev a212596, thread pane at
+     1440x900: clientHeight 44, scrollHeight 64 on a four-line block, with the
+     first line already scrolled out of view). Bounded, so a long block never
+     pushes Send off the screen. */
+  field-sizing: content;
+  max-height: 40vh;
+  overflow-y: auto;
 }
 .composer-row {
   display: flex;

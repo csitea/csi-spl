@@ -47,12 +47,13 @@ do_spl_desk_reply() {
   hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
   [[ "$hub" != https:// ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
   d="$SPL_STATE_DIR/desk/$tenant/$box"
-  [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
   if (( dry )); then
     do_log "INFO DRY_RUN would: read $agent's inbox on $box and answer the newest human${to:+ $to}${task:+ in task $task} with a $kind"
+    [[ -d "$d/spool/$agent" ]] || do_log "INFO DRY_RUN there is no desk for $agent on $box in $tenant yet ($d): do_spl_desk_up seats one"
     do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0 to answer."
     return 0
   fi
+  [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
   spl_host_spool || return 1
 
   local msgs pick

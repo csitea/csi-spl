@@ -14,10 +14,18 @@
 // ref-counted in the live client, so the thread list on `/` taking its own
 // follow and dropping it again does not take this one down.
 //
+// Gated on a member session, the same way the shell's other reads are (W4,
+// CLE-55): signed out the hub answers 401 view_door to the DM read and the
+// socket has no door either, so nothing here goes out until the session store
+// says 'in'. The probe is owned by the shell and by the login page, and a
+// sign-in flips the same store, so a human who signs in gets the follow with no
+// reload. The mock tenant has no socket at all.
+//
 // Client-only: there is no socket on the server, and nothing here may be baked
 // into a prerendered page.
 import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
+import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 
@@ -28,18 +36,27 @@ export default defineNuxtPlugin(() => {
   const channel = useChannelStore()
   const roster = useRosterStore()
   const live = useLive()
+  let started = false
 
-  const client = live.ensure()
-  if (!client) return
-  client.subscribeAll()
-  void channel.loadDmActivity(live.identity.value)
-
-  live.onMessage((m) => channel.noteLive(m, live.identity.value))
-  live.onChannel((f) => channel.addChannel(f))
-  live.onReconnected(() => {
-    /* whatever the socket missed while it was down (wui-live-ws §7) */
-    void channel.loadChannels()
+  /** The follow itself: one socket, one `all`, one first read. Once per tab. */
+  function start() {
+    if (started) return
+    const client = live.ensure()
+    if (!client) return
+    started = true
+    client.subscribeAll()
     void channel.loadDmActivity(live.identity.value)
-    void roster.refresh()
-  })
+
+    live.onMessage((m) => channel.noteLive(m, live.identity.value))
+    live.onChannel((f) => channel.addChannel(f))
+    live.onReconnected(() => {
+      /* whatever the socket missed while it was down (wui-live-ws §7) */
+      void channel.loadChannels()
+      void channel.loadDmActivity(live.identity.value)
+      void roster.refresh()
+    })
+  }
+
+  const session = useSessionStore()
+  watch(() => session.state, (state) => { if (String(state) === 'in') start() }, { immediate: true })
 })

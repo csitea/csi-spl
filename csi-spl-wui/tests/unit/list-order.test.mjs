@@ -221,6 +221,16 @@ describe('the tab-wide live follow (plugins/spool-live.client.ts)', () => {
     assert.match(plugin, /if \(api\.mock\) return/)
   })
 
+  /* W4 (CLE-55): signed out the hub answers 401 view_door to the DM read and the
+     socket has no door either, so the whole follow waits for the session. */
+  it('reads nothing until the session store says `in`, and starts once', () => {
+    assert.match(plugin, /useSessionStore/)
+    assert.match(plugin, /String\(state\) === 'in'/)
+    assert.match(plugin, /if \(started\) return/)
+    const gate = plugin.indexOf("=== 'in'")
+    assert.ok(gate > plugin.indexOf('loadDmActivity'), 'the read sits inside start(), behind the gate')
+  })
+
   it('`all` is ref-counted, so leaving `/` does not drop the tab follow', () => {
     const ws = read('utils/live-ws.mjs')
     assert.match(ws, /let allSub = 0/)

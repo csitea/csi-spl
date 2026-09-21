@@ -16,6 +16,17 @@
 #   SPOOL_POKE_RETRY_SECS   how long to keep offering, default 1800
 #   SPOOL_POKE_RETRY_EVERY  seconds between sweeps, default 2
 #   SPOOL_POKE_GAP          seconds between two accepted pokes, default 1
+#   SPOOL_POKE_MAX_AGE      an entry older than this is DROPPED, not offered,
+#                           default 300. A prompt that stays busy for half an
+#                           hour otherwise collects a queue that all arrives at
+#                           once the moment it clears - notices for messages
+#                           answered long ago. Measured on this box 2026-09-21:
+#                           24 entries waiting behind one busy prompt. The
+#                           message is in the inbox either way; only the
+#                           doorbell is dropped, and a doorbell for something
+#                           half an hour old is noise, not news.
+#   SPOOL_POKE              0 makes this daemon exit at once and clear the
+#                           queue: the seat has said its prompt is off limits
 #
 # Exit codes:
 #   0   the queue is empty, or the deadline passed with entries left (they stay
@@ -48,6 +59,12 @@ spool_valid_id "$TO" || exit 2
 DIR="$(spool_poke_queue_dir "$TO")"
 mkdir -p "$DIR" 2>/dev/null || { echo "spool-poke-retry: cannot create $DIR" >&2; exit 73; }
 
+if [ "${SPOOL_POKE:-1}" = 0 ]; then
+  rm -f "$DIR"/*.poke
+  echo "spool-poke-retry: SPOOL_POKE=0 for ${TO}; queue cleared, nothing will be offered"
+  exit 0
+fi
+
 # One daemon per recipient. A second one would race the first for the same
 # entries and could type the same line twice.
 exec 8>"$DIR/retry.lock" || exit 73
@@ -55,6 +72,7 @@ flock -n 8 || { echo "spool-poke-retry: another daemon holds ${TO}'s queue"; exi
 echo "$$" >"$DIR/retry.pid"
 trap 'rm -f "$DIR/retry.pid"' EXIT
 
+now=0
 every="${SPOOL_POKE_RETRY_EVERY:-2}"
 gap="${SPOOL_POKE_GAP:-1}"
 deadline=$(( $(date +%s) + ${SPOOL_POKE_RETRY_SECS:-1800} ))
@@ -65,7 +83,15 @@ while :; do
   while IFS= read -r f; do [ -n "$f" ] && entries+=("$f"); done < <(ls -1 "$DIR"/*.poke 2>/dev/null | sort)
   [ "${#entries[@]}" -eq 0 ] && { echo "spool-poke-retry: ${TO}'s queue is empty"; exit 0; }
 
+  now="$(date +%s)"
   for f in "${entries[@]}"; do
+    # Stale entries are dropped, never offered: see SPOOL_POKE_MAX_AGE above.
+    age_of="$(stat -c %Y "$f" 2>/dev/null)" || age_of="$now"
+    if [ "$(( now - age_of ))" -gt "${SPOOL_POKE_MAX_AGE:-300}" ]; then
+      rm -f "$f"
+      echo "spool-poke-retry: dropped a poke for ${TO} older than ${SPOOL_POKE_MAX_AGE:-300}s; the message is in its inbox"
+      continue
+    fi
     line="$(cat "$f" 2>/dev/null)" || continue
     [ -n "$line" ] || { rm -f "$f"; continue; }
     spool_notify_poke "$TO" "$line"; rc=$?

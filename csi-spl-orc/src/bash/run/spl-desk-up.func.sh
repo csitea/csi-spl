@@ -79,6 +79,7 @@ do_spl_desk_up() {
 
   local pub
   pub="$(spl_desk_pin "$d" "$box" "$tenant" "$hub" "$rkj")" || return 1
+  spl_desk_purge_pokes "$d" "$agent" "$poke"
   spl_desk_sidecar "$d" "$box" "$tenant" "$hub" "$notify" "$poke" || return 1
   local pid="$SPL_DESK_PID"
   local announced=0
@@ -134,6 +135,25 @@ spl_desk_pin() {
   printf '%s\n' "$pub" >"$d/pinned"
   do_log "INFO pinned $box ($pub) under $tenant at $hub"
   cat "$d/pinned"
+}
+
+# spl_desk_purge_pokes <state dir> <agent> <poke>: with the prompt leg OFF,
+# leave nothing behind that could still ring it. A queue and its daemon outlive
+# the sidecar that made them, so a desk restarted with DESK_POKE=0 would
+# otherwise still be storming its own prompt from the PREVIOUS run - which is
+# exactly what happened here on 2026-09-21: 24 entries and a live daemon
+# survived a restart meant to stop them.
+spl_desk_purge_pokes() {
+  local d="$1" agent="$2" poke="$3" q="$1/spool/$2/.pokes" pid n
+  [[ "$poke" == 0 ]] || return 0
+  pid="$(cat "$q/retry.pid" 2>/dev/null)"
+  if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null; do_log "INFO stopped the poke-retry daemon of $agent (pid $pid): DESK_POKE=0"
+  fi
+  n="$(ls -1 "$q"/*.poke 2>/dev/null | wc -l)"
+  rm -f "$q"/*.poke "$q/retry.pid" 2>/dev/null
+  (( n > 0 )) && do_log "INFO dropped $n queued poke(s) for $agent: DESK_POKE=0, and every one of those messages is in its inbox"
+  return 0
 }
 
 # spl_desk_alive <pid file>: 0 when that pid is a live `spool hub-run`.

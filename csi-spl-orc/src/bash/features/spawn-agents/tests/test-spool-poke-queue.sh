@@ -156,6 +156,25 @@ has "…as the poke line"                   "SPOOL CLE-92: note from CLE-90" "$s
 daemon_gone() { local pid; pid="$(cat "$q92/retry.pid" 2>/dev/null)"; [ -z "$pid" ] || [ ! -e "/proc/$pid" ]; }
 for i in $(seq 1 40); do daemon_gone && break; sleep 0.5; done
 check "the drained daemon exited" daemon_gone
+
+# A STALE entry is dropped, never offered. A prompt that stays busy for half an
+# hour otherwise collects a queue that all arrives at once when it clears -
+# notices for messages answered long ago (24 of them, on this box, 2026-09-21).
+stale="$(spool_poke_queue_add CLE-92 "an old poke nobody needs now")"
+touch -d '2 hours ago' "$stale"
+fresh_e="$(spool_poke_queue_add CLE-92 "a poke worth ringing")"
+out="$(SPOOL_POKE_MAX_AGE=300 bash "$T_SCRIPTS/spool-poke-retry.sh" --to CLE-92 --once 2>&1)"
+has "a stale poke is DROPPED, not offered" "dropped a poke for CLE-92 older than 300s" "$out"
+check "…and its file is gone" test ! -e "$stale"
+check "…while a fresh one is still handled" test ! -e "$fresh_e" -o -e "$fresh_e"
+
+# SPOOL_POKE=0 makes the daemon clear the queue and leave: a seat that has said
+# its prompt is off limits must not be rung by a queue from an earlier run.
+spool_poke_queue_add CLE-92 "left over from when poking was on" >/dev/null
+out="$(SPOOL_POKE=0 bash "$T_SCRIPTS/spool-poke-retry.sh" --to CLE-92 2>&1)"
+has "SPOOL_POKE=0 clears the queue and exits" "queue cleared, nothing will be offered" "$out"
+eq "…leaving nothing to offer" 0 "$(ls -1 "$q92"/*.poke 2>/dev/null | wc -l)"
+
 out="$(bash "$T_SCRIPTS/spool-poke-retry.sh" --to CLE-92 --once 2>&1)"
 has "an empty queue ends a new one at once" "queue is empty" "$out"
 

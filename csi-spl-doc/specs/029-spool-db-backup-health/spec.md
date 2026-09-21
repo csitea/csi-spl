@@ -290,12 +290,12 @@ overlap and an export is never cancelled mid-flight.
   table size, never on `dead_pct` alone (§3.6).
 - **FR-010** Every claim about the live DB states version/config, tree and n.
 
-## 6. Owner decisions (none taken here)
+## 6. Owner decisions
 
 | id | decision | recommendation |
 |---|---|---|
-| **D1** | Turn on `pg_stat_statements` (flag `cloudsql.enable_pg_stat_statements`, **restarts the instance**) | yes on dev first, then prd in the Sunday 03:00 window — today there are NO statement timings at all |
-| **D2** | Turn on Query Insights (no restart) | yes, both envs — it is the cheapest way out of §3.5 |
+| **D1** | Turn on Query Insights (no restart) | **TAKEN 2026-09-21, both envs** — see §6.2 |
+| **D2** | Turn on `pg_stat_statements` (flag `cloudsql.enable_pg_stat_statements`, **restarts the instance**) | **NOT now** (ORC, 2026-09-21): do not spend a restart while D1 is unmeasured. Sequencing in §6.3 when it is wanted |
 | **D3** | Set `statement_timeout` / `idle_in_transaction_session_timeout` | yes, a generous ceiling (e.g. 60 s / 5 min) beats "forever" |
 | **D4** | Confirm `payment_checkouts` / `pins_history` are meant to outlive a deleted tenant | confirm as is; no change |
 | **D5** | prd tier `db-f1-micro` (no SLA, shared core) and ZONAL (no HA) | raise the tier before the pool (see 027 D5); HA is a separate cost call |
@@ -320,6 +320,87 @@ report its own failure. All three are fixed and described in `tasks.md`. The
 second one is worth carrying forward: **on the first prd verify it produced a
 verdict accusing a dump that was perfectly good**, which is the worst thing a
 backup verifier can do.
+
+## 6.2 D1 taken: Query Insights, dev and prd (2026-09-21)
+
+Owner decision relayed by ORC: take the cheaper step first. Implemented as iac
+040 `insights_config`, driven by three cnf knobs with validations
+(`query_insights_enabled`, `query_insights_string_length` 256–4500,
+`query_insights_plans_per_minute` 0–20), rendered through tpl-gen like every
+other step. The block is `dynamic` on `query_insights_enabled`, so an env that
+has not opted in renders no `insights_config` and nothing changes for it.
+
+**`record_client_address` and `record_application_tags` stay OFF.** Neither is
+needed to find a slow query and both widen what the panel stores about callers.
+Cloud SQL normalises query text before storing it (literals are replaced),
+which is why `query_string_length` is a *shape* budget, not a data budget —
+worth stating out loud in a database whose rows are tenant messages.
+
+Plans were `0 to add, 1 to change, 0 to destroy` on each env, the change being
+exactly the one added `insights_config` block; applies were `0 added, 1
+changed, 0 destroyed`.
+
+**"No restart" is measured here, not cited.** After each apply:
+
+```
+SELECT pg_postmaster_start_time(), now() - pg_postmaster_start_time()
+dev ->  2026-09-18 18:11:00.676294+00 | 2 days 14:17:04
+prd ->  2026-09-18 19:36:14.143791+00 | 2 days 12:57:38
+```
+
+Both postmaster start times are the ones from before the applies, so Postgres
+did not restart on either env and no connection was dropped. Both instances
+stayed `RUNNABLE` throughout. The dev modification took 1 m 37 s, prd 3 m 45 s
+— that is the Cloud SQL control plane updating instance settings, not a
+database outage, and the uptime above is what proves the difference.
+
+`gcloud sql instances describe` now reports, on both:
+`insightsConfig: {queryInsightsEnabled: true, queryPlansPerMinute: 5,
+queryStringLength: 1024}` — and no `recordClientAddress` /
+`recordApplicationTags`, because both are false.
+
+## 6.3 D2 deferred: what `pg_stat_statements` will cost when it is wanted
+
+Two changes, in this order:
+
+1. the flag `cloudsql.enable_pg_stat_statements=on` in
+   `settings.databaseFlags`. **This restarts the instance.** 040 does not
+   manage `database_flags` at all today, so it also needs a new variable, a
+   cnf entry and a rendered tfvar — a real iac change, never a console toggle.
+2. `CREATE EXTENSION pg_stat_statements;` in `spool`, as the owner login. That
+   is DDL and belongs in an rdb migration, not an ad hoc psql.
+
+**Sequencing**: dev at any time (a restart there costs a few failed requests);
+**prd only in the Sunday 03:00 maintenance window**, which 040 already
+declares. The hub's pool reconnects by itself, but requests in flight during
+the restart fail, so prd is not a casual change.
+
+## 6.4 `pg_monitor` is not ours to grant — measured, not reasoned
+
+Read-only catalog query on dev (`do_spl_db_query`, PG 16.15, n=1):
+
+```
+grantees of pg_monitor:  cloudsqlobservability | cloudsqladmin | admin_option = f
+                         cloudsqlreplica       | cloudsqladmin | admin_option = f
+                         cloudsqlsuperuser     | cloudsqladmin | admin_option = f
+spool_hub is a member of cloudsqlsuperuser     | admin_option = f
+```
+
+**Every holder has `admin_option = f`**, so no role we control can re-grant it.
+Only `cloudsqladmin` can, and that is Cloud SQL's own superuser. The
+owner/runtime split (CLE-3421) is therefore neither the blocker nor the fix:
+the grant is simply not available to us. WAL size and true bloat stay
+unreadable by this route (`permission denied for function pg_ls_waldir`).
+
+**And it should not go on the runtime login even if it could.** `pg_monitor`
+carries `pg_read_all_stats`, which exposes other sessions' **query text** — in
+this database that is a path for tenant data to leak through query strings.
+
+**The shape any future observability identity must take**, and the split gives
+exactly the right precedent: a THIRD login, created by the owner in SQL, with
+its own DSN secret slot that 030 never injects, read-only, used only by
+`do_spl_db_health` — the way `spool_hub_rt` was created. **Never** a widening
+of the login the hub itself runs as.
 
 ## 7. Out of scope
 

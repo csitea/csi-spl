@@ -20,7 +20,10 @@ says otherwise.
 | T050 | apply 045 on dev and prd (`make do-provision`, step 045) | **done, both envs** | ORC gave the go 2026-09-21T08:07Z. Plan was `2 to add, 0 to change, 0 to destroy` on each; apply `2 added, 0 changed, 0 destroyed` on each. Buckets `csi-spl-dev-db-backups` / `csi-spl-prd-db-backups`; the IAM grant went to the instance service agent `p436311356630-pavt4a@` (dev) / `p351721145894-firmcx@` (prd) |
 | T051 | one real backup per env, `DRY_RUN=0` | **done, both envs** | dev `gs://csi-spl-dev-db-backups/dev/spool-20260921T080842Z.sql.gz` **93 796 B**; prd `gs://csi-spl-prd-db-backups/prd/spool-20260921T081331Z.sql.gz` **33 274 B** |
 | T052 | prove one restore per env (`do_spl_db_backup_verify`) | **done, both envs, with the fixed code** | dev: 428 656 B of SQL, **26 tables, 735 rows, every count identical**. prd: 156 676 B, **26 tables, 255 rows, every count identical** |
-| T060 | D1–D6 (spec §6) | **owner decisions, none taken** | sent to ORC with T004 |
+| T060 | D1 Query Insights (spec §6.2) | **done, dev + prd** | iac 040 `insights_config` + 3 cnf knobs; plan `0 add / 1 change / 0 destroy` each, apply `0 added / 1 changed / 0 destroyed` each. **No restart, measured on BOTH**: `pg_postmaster_start_time()` unchanged — dev 2026-09-18 18:11Z (uptime 2 d 14 h), prd 2026-09-18 19:36Z (2 d 13 h). Modify took 1 m 37 s dev / 3 m 45 s prd, both `RUNNABLE` throughout. `insightsConfig.queryInsightsEnabled: true` on both |
+| T061 | D2 `pg_stat_statements` | **deferred by ORC 2026-09-21** | not while D1 is unmeasured; the restart + sequencing is written up in spec §6.3 |
+| T062 | `pg_monitor` for the health action | **closed: not ours to grant** | measured — every holder of `pg_monitor` has `admin_option = f`, and `spool_hub` is only a non-admin member of `cloudsqlsuperuser`. Spec §6.4 records the shape a future observability login must take |
+| T063 | D3–D6 (spec §6) | **owner decisions, none taken** | sent to ORC with T004 |
 
 ## Three defects the REAL runs found, which no offline test could
 

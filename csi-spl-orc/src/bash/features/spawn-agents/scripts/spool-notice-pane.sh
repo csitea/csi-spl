@@ -34,6 +34,7 @@ mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 : >>"$LOG" || { echo "spool-notice-pane: cannot write $LOG" >&2; exit 73; }
 
 esc=$'\033'
+tab=$'\t'
 
 # A repaint pushes the previous screenful into the pane's SCROLLBACK, so after
 # a few messages `capture-pane -S -200` shows the same notice several times and
@@ -82,7 +83,18 @@ pane_rows() {
 
 render() {
   local -a rows=() out=()
-  while IFS= read -r line; do [ -n "$line" ] && rows+=("$line"); done < <(tail -n "$MAX" "$LOG" 2>/dev/null)
+  # A record is <head>TAB<body> and carries no control characters: this
+  # renderer writes the colour, the log never does. Anything else was written
+  # by an OLDER or FOREIGN writer - a second checkout of this feature pointed
+  # at the same spool root, which happened on this box 2026-09-21 - and is
+  # skipped rather than painted. Painting it produced body-above-header
+  # nonsense, because an older writer put one record on three lines.
+  while IFS= read -r line; do
+    case "$line" in
+      *"$esc"*) continue ;;
+      *"$tab"*) rows+=("$line") ;;
+    esac
+  done < <(tail -n "$MAX" "$LOG" 2>/dev/null)
   local fit budget i head body
   fit="$(pane_rows)"
   # One row short of the pane: each printed line ends in a newline, so filling

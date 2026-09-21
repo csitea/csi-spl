@@ -218,6 +218,18 @@ has "acceptance 3: …and still shows the newest on top" "msg msg-6" \
 eq "acceptance 3: …exactly once" 1 \
   "$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -S -200 -t "$NP" | grep -c 'THE NEWEST ONE')"
 
+# A log that a SECOND checkout of this feature is also writing to, in its own
+# older format, must not turn the pane into nonsense: those records are skipped,
+# ours still render, newest first. (Measured on this box 2026-09-21: a second
+# worktree pointed its notifier at a live agent's spool root.)
+printf '\033[1;38;5;39mFOREIGN HEAD\033[0m\n\033[38;5;110mforeign body\033[0m\n\n' >>"$alog"
+send_notice "MINE AFTER THE FOREIGN ONE" 7
+sleep 1.5
+vis3="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$NP")"
+has "a foreign-format record does not break the pane" "msg msg-7" \
+  "$(printf '%s\n' "$vis3" | sed -n '1p')"
+hasnt "…and is not painted" "foreign body" "$vis3"
+
 # (4) NO PROMPT INJECTION: with SPOOL_POKE=0 the prompt is never typed into,
 # nothing is queued, and the exit is clean. A pane holding unsent text proves
 # it, because that is the case that used to queue and replay.

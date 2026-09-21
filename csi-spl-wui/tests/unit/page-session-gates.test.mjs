@@ -90,3 +90,22 @@ describe('the gate itself: reconnect-shaped calls stay once-per-session', () => 
     assert.deepEqual(n, { channels: 1, roster: 1 })
   })
 })
+
+describe('useSpoolEvents live socket waits for a member session (W5)', () => {
+  const ev = () => src('src/composables/useSpoolEvents.ts')
+
+  it('live start() watches session.state before live.ensure / startHubSocket', () => {
+    const s = ev()
+    assert.match(s, /watch\(\(\) => session\.state/)
+    assert.match(s, /shouldOpenHubSocket\(/)
+    assert.match(s, /startHubSocket\(/)
+    assert.match(s, /stopHubSocket\(/)
+    assert.match(s, /immediate:\s*true/)
+  })
+
+  it('CONTROL: mock path still hydrates via start() then polls, no socket', () => {
+    const s = ev()
+    assert.match(s, /if \(api\.mock\) \{\s+timer = setInterval/)
+    assert.match(s, /boot\.start\(/)
+  })
+})

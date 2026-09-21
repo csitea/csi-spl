@@ -29,6 +29,9 @@
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
+import { useSessionStore } from '~/stores/session'
+import { useSpoolApi } from '~/composables/useSpoolApi'
+import { shouldOpenHubSocket, startHubSocket, stopHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useNotificationStore } from '~/stores/notification'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useThreadStore } from '~/stores/thread'
@@ -39,6 +42,8 @@ const store = useLiveFeed('main')
 const pane = useLiveFeed('pane')
 const thread = useThreadStore()
 const live = useLive()
+const api = useSpoolApi()
+const session = useSessionStore()
 const notes = useNotificationStore()
 const { t, te } = useI18n({ useScope: 'global' })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
@@ -74,10 +79,26 @@ useOmniboxTarget({
 })
 
 onMounted(() => {
-  live.ensure()
   notes.markRead('ch:lobby')
-  watch(lobbyId, (id) => { if (id) void store.open(id) }, { immediate: true })
 })
+
+/* W5: same watch shape as spool-live.client.ts (cbac1cd). Mock has no socket
+   (ensure() only sets identity). Live waits for a member session; a sign-in
+   brings the socket up with no reload; a sign-out closes it so it does not
+   retry. store.open also calls live.ensure(), so it sits behind the same gate. */
+watch([lobbyId, () => session.state], ([id, st]) => {
+  if (api.mock) {
+    live.ensure()
+    if (id) void store.open(id)
+    return
+  }
+  if (shouldOpenHubSocket(st)) {
+    startHubSocket(live)
+    if (id) void store.open(id)
+  } else {
+    stopHubSocket(live)
+  }
+}, { immediate: true })
 
 async function onSend(text: string, _parent?: string, files?: File[]) {
   await store.send(text, files || [])

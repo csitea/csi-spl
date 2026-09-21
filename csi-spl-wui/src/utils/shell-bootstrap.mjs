@@ -43,3 +43,40 @@ export function createShellBootstrap(deps) {
 
   return { start, onSession, get started() { return started } }
 }
+
+/**
+ * Hub WUI socket (003 wui-live-ws / W5). Mock tenant has none; live only with
+ * a member session — the same predicate createShellBootstrap.onSession uses
+ * for the channel/roster reads, and the same watch shape as spool-live.client.ts.
+ * @param {unknown} sessionState
+ * @param {boolean} [mock]
+ */
+export function shouldOpenHubSocket(sessionState, mock = false) {
+  if (mock) return false
+  return String(sessionState) === 'in'
+}
+
+/**
+ * Close the hub socket if one is already up. Must not call ensure() from idle:
+ * ensure() constructs and connect()s a client, which is the signed-out leak.
+ * @param {{ state?: { value?: unknown }, ensure?: () => { close?: () => void } | null }} live
+ */
+export function stopHubSocket(live) {
+  const s = String((live && live.state && live.state.value) || '')
+  if (s === 'idle' || s === 'mock' || s === 'closed' || s === 'no_base' || !s) return
+  const client = live.ensure && live.ensure()
+  if (client && typeof client.close === 'function') client.close()
+}
+
+/**
+ * Open or resume the hub socket. ensure() connect()s on first create; a
+ * previously closed client needs an explicit connect() to come back.
+ * @param {{ ensure?: () => { state?: string, connect?: () => void } | null }} live
+ */
+export function startHubSocket(live) {
+  const client = live && live.ensure ? live.ensure() : null
+  if (client && (client.state === 'closed' || client.state === 'idle') && typeof client.connect === 'function') {
+    client.connect()
+  }
+  return client
+}

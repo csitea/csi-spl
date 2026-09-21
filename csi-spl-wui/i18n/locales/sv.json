@@ -362,7 +362,8 @@
       "send_failed": "sändningen misslyckades"
     },
     "new_pill": "Nya: {n}",
-    "new_pill_label": "Gå till de senaste meddelandena"
+    "new_pill_label": "Gå till de senaste meddelandena",
+    "open_thread_hint": "Tryck på Enter för att öppna meddelandets tråd."
   },
   "thread": {
     "title": "Tråd",
@@ -370,7 +371,8 @@
     "empty": "Tom tråd.",
     "reply_placeholder": "Svara — Enter för att skicka · /search för att filtrera",
     "replies_label": "Svar, nyaste först",
-    "load_failed": "kunde inte läsa in tråden"
+    "load_failed": "kunde inte läsa in tråden",
+    "no_replies": "Inga svar än — skriv det första."
   },
   "notify": {
     "alerts_on": "aviseringar på",

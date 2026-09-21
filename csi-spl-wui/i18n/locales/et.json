@@ -362,7 +362,8 @@
       "send_failed": "saatmine ebaõnnestus"
     },
     "new_pill": "Uusi: {n}",
-    "new_pill_label": "Mine uusimate sõnumite juurde"
+    "new_pill_label": "Mine uusimate sõnumite juurde",
+    "open_thread_hint": "Selle sõnumi lõime avamiseks vajuta Enter."
   },
   "thread": {
     "title": "Lõim",
@@ -370,7 +371,8 @@
     "empty": "Tühi lõim.",
     "reply_placeholder": "Vastus — Enter saadab · /search filtreerib",
     "replies_label": "Vastused, uusimad eespool",
-    "load_failed": "lõime laadimine ebaõnnestus"
+    "load_failed": "lõime laadimine ebaõnnestus",
+    "no_replies": "Vastuseid veel ei ole — kirjuta esimene."
   },
   "notify": {
     "alerts_on": "teavitused sees",

@@ -16,9 +16,10 @@
         :search="store.search"
         :last-live="store.lastLive"
         :current-task-id="store.taskId"
+        clickable
         @older="store.loadOlder()"
         @clear-search="store.setSearch('')"
-        @open-thread="(id: string) => pane.open(id)"
+        @open-thread="openRow"
       />
     </div>
   </div>
@@ -30,15 +31,40 @@ import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
 import { useNotificationStore } from '~/stores/notification'
 import { useOmniboxTarget } from '~/stores/omnibox'
+import { useThreadStore } from '~/stores/thread'
+import { useThreadRoute } from '~/composables/useThreadRoute'
+import type { SpoolMessage } from '~/types/spool'
 
 const store = useLiveFeed('main')
 const pane = useLiveFeed('pane')
+const thread = useThreadStore()
 const live = useLive()
 const notes = useNotificationStore()
 const { t, te } = useI18n({ useScope: 'global' })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
 const lobbyId = computed(() => live.lobbyTaskId.value)
+
+/*
+ * CLE-3427: clicking a message opens ITS thread in the pane, always. The
+ * lobby is one task, so a row is not a thread root and threadTargetFor gives
+ * it a message-rooted thread keyed by its msg_id — empty until someone
+ * replies, which is exactly the case the owner asked for. The pane is the
+ * live 'pane' store; the clicked row is handed over as the pinned root
+ * because it lives in the lobby task, not in the task the pane reads.
+ */
+const { openRow } = useThreadRoute({
+  currentTaskId: () => String(store.taskId || ''),
+  rowFor: (msgId) => store.messages.find((m) => m.msg_id === msgId) as SpoolMessage | undefined,
+  open: async (target, root) => {
+    thread.setTarget(target, root)
+    await pane.open(target.taskId)
+  },
+  close: () => {
+    thread.close()
+    pane.close()
+  },
+})
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({

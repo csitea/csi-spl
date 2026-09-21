@@ -362,7 +362,8 @@
       "send_failed": "trimiterea a eșuat"
     },
     "new_pill": "Noi: {n}",
-    "new_pill_label": "Salt la cele mai noi mesaje"
+    "new_pill_label": "Salt la cele mai noi mesaje",
+    "open_thread_hint": "Apasă Enter pentru a deschide firul acestui mesaj."
   },
   "thread": {
     "title": "Fir",
@@ -370,7 +371,8 @@
     "empty": "Fir gol.",
     "reply_placeholder": "Răspuns — Enter pentru a trimite · /search pentru filtrare",
     "replies_label": "Răspunsuri, cele mai noi primele",
-    "load_failed": "încărcarea firului a eșuat"
+    "load_failed": "încărcarea firului a eșuat",
+    "no_replies": "Încă nu există răspunsuri — scrie-l pe primul."
   },
   "notify": {
     "alerts_on": "alerte activate",

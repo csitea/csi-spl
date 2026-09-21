@@ -155,7 +155,15 @@ function setup(key: 'main' | 'pane') {
     visible.value = WINDOW
   }
 
-  async function send(body: string, files: File[] = []) {
+  /**
+   * CLE-3427: `opts` is what a MESSAGE-rooted thread needs. Its task_id is the
+   * clicked message's msg_id, a task the hub has never seen, so the reply says
+   * which task it hangs off (`parentTaskId` -> parent_task_id, hub checkTags:
+   * a UUID other than task_id) and which channel it belongs to, and the thread
+   * is then reachable from the channel it was started in. Both are omitted for
+   * an ordinary reply, which changes nothing about the frame.
+   */
+  async function send(body: string, files: File[] = [], opts: { parentTaskId?: string, channel?: string | null } = {}) {
     if (!taskId.value) return
     let msgId = ''
     sending.value = true
@@ -174,9 +182,11 @@ function setup(key: 'main' | 'pane') {
       /* 013 US7 FR-013: shown at once under the msg_id we send; the pushed echo replaces it */
       msgId = crypto.randomUUID()
       const task = taskId.value
-      merge([pendingRow({ msg_id: msgId, task_id: task, from: live.identity.value, to, kind, body: text, files: refs }) as SpoolMessage])
+      const parent = opts.parentTaskId && opts.parentTaskId !== task ? opts.parentTaskId : undefined
+      const channel = opts.channel || undefined
+      merge([pendingRow({ msg_id: msgId, task_id: task, from: live.identity.value, to, kind, body: text, files: refs, channel: channel || null, parent_task_id: parent || null }) as SpoolMessage])
       if (client) {
-        const ack = await client.send({ task_id: task, kind, body: text, files: refs, to, msg_id: msgId }) as { cursor?: string, received_at?: string }
+        const ack = await client.send({ task_id: task, kind, body: text, files: refs, to, msg_id: msgId, parent_task_id: parent, channel }) as { cursor?: string, received_at?: string }
         const own = messages.value.find((m) => m.msg_id === msgId)
         if (own && own.pending && taskId.value === task) {
           merge([{ ...own, pending: false, cursor: ack.cursor, received_at: ack.received_at || own.received_at }])

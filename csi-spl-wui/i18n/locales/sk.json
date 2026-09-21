@@ -362,7 +362,8 @@
       "send_failed": "odoslanie zlyhalo"
     },
     "new_pill": "Nové: {n}",
-    "new_pill_label": "Prejsť na najnovšie správy"
+    "new_pill_label": "Prejsť na najnovšie správy",
+    "open_thread_hint": "Stlačením Enter otvoríte vlákno tejto správy."
   },
   "thread": {
     "title": "Vlákno",
@@ -370,7 +371,8 @@
     "empty": "Prázdne vlákno.",
     "reply_placeholder": "Odpoveď — Enter odošle · /search na filtrovanie",
     "replies_label": "Odpovede, najnovšie prvé",
-    "load_failed": "načítanie vlákna zlyhalo"
+    "load_failed": "načítanie vlákna zlyhalo",
+    "no_replies": "Zatiaľ žiadne odpovede — napíšte prvú."
   },
   "notify": {
     "alerts_on": "upozornenia zapnuté",

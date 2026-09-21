@@ -362,7 +362,8 @@
       "send_failed": "gönderme başarısız"
     },
     "new_pill": "Yeni: {n}",
-    "new_pill_label": "En yeni mesajlara git"
+    "new_pill_label": "En yeni mesajlara git",
+    "open_thread_hint": "Bu iletinin konusunu açmak için Enter'a basın."
   },
   "thread": {
     "title": "Konu",
@@ -370,7 +371,8 @@
     "empty": "Boş konu.",
     "reply_placeholder": "Yanıt — göndermek için Enter · filtrelemek için /search",
     "replies_label": "Yanıtlar, en yeniler önce",
-    "load_failed": "konu yüklenemedi"
+    "load_failed": "konu yüklenemedi",
+    "no_replies": "Henüz yanıt yok — ilkini siz yazın."
   },
   "notify": {
     "alerts_on": "uyarılar açık",

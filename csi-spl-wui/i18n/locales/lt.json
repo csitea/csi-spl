@@ -362,7 +362,8 @@
       "send_failed": "išsiųsti nepavyko"
     },
     "new_pill": "Naujų: {n}",
-    "new_pill_label": "Pereiti prie naujausių žinučių"
+    "new_pill_label": "Pereiti prie naujausių žinučių",
+    "open_thread_hint": "Paspauskite Enter, kad atidarytumėte šios žinutės giją."
   },
   "thread": {
     "title": "Gija",
@@ -370,7 +371,8 @@
     "empty": "Tuščia gija.",
     "reply_placeholder": "Atsakymas — Enter išsiųsti · /search filtruoti",
     "replies_label": "Atsakymai, naujausi viršuje",
-    "load_failed": "gijos įkelti nepavyko"
+    "load_failed": "gijos įkelti nepavyko",
+    "no_replies": "Atsakymų kol kas nėra — parašykite pirmąjį."
   },
   "notify": {
     "alerts_on": "įspėjimai įjungti",

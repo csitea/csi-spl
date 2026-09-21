@@ -362,7 +362,8 @@
       "send_failed": "versturen mislukt"
     },
     "new_pill": "Nieuw: {n}",
-    "new_pill_label": "Naar de nieuwste berichten"
+    "new_pill_label": "Naar de nieuwste berichten",
+    "open_thread_hint": "Druk op Enter om de thread van dit bericht te openen."
   },
   "thread": {
     "title": "Thread",
@@ -370,7 +371,8 @@
     "empty": "Lege thread.",
     "reply_placeholder": "Reageren — Enter om te versturen · /search om te filteren",
     "replies_label": "Reacties, nieuwste eerst",
-    "load_failed": "thread laden mislukt"
+    "load_failed": "thread laden mislukt",
+    "no_replies": "Nog geen antwoorden — schrijf het eerste."
   },
   "notify": {
     "alerts_on": "meldingen aan",

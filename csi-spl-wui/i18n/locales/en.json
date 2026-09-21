@@ -362,7 +362,8 @@
       "send_failed": "send failed"
     },
     "new_pill": "New: {n}",
-    "new_pill_label": "Jump to the newest messages"
+    "new_pill_label": "Jump to the newest messages",
+    "open_thread_hint": "Press Enter to open this message's thread."
   },
   "thread": {
     "title": "Thread",
@@ -370,7 +371,8 @@
     "empty": "Empty thread.",
     "reply_placeholder": "Reply — Enter to send · /search to filter",
     "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed"
+    "load_failed": "thread load failed",
+    "no_replies": "No replies yet — write the first one."
   },
   "notify": {
     "alerts_on": "alerts on",

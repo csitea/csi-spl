@@ -362,7 +362,8 @@
       "send_failed": "wysyłanie nie powiodło się"
     },
     "new_pill": "Nowe: {n}",
-    "new_pill_label": "Przejdź do najnowszych wiadomości"
+    "new_pill_label": "Przejdź do najnowszych wiadomości",
+    "open_thread_hint": "Naciśnij Enter, aby otworzyć wątek tej wiadomości."
   },
   "thread": {
     "title": "Wątek",
@@ -370,7 +371,8 @@
     "empty": "Pusty wątek.",
     "reply_placeholder": "Odpowiedz — Enter wysyła · /search, aby filtrować",
     "replies_label": "Odpowiedzi, od najnowszych",
-    "load_failed": "ładowanie wątku nie powiodło się"
+    "load_failed": "ładowanie wątku nie powiodło się",
+    "no_replies": "Brak odpowiedzi — napisz pierwszą."
   },
   "notify": {
     "alerts_on": "alerty włączone",

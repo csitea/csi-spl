@@ -362,7 +362,8 @@
       "send_failed": "lähetys epäonnistui"
     },
     "new_pill": "Uusia: {n}",
-    "new_pill_label": "Siirry uusimpiin viesteihin"
+    "new_pill_label": "Siirry uusimpiin viesteihin",
+    "open_thread_hint": "Avaa tämän viestin ketju painamalla Enter."
   },
   "thread": {
     "title": "Ketju",
@@ -370,7 +371,8 @@
     "empty": "Tyhjä ketju.",
     "reply_placeholder": "Vastaa — Enter lähettää · /search suodattaa",
     "replies_label": "Vastaukset, uusimmat ensin",
-    "load_failed": "ketjun lataus epäonnistui"
+    "load_failed": "ketjun lataus epäonnistui",
+    "no_replies": "Ei vielä vastauksia — kirjoita ensimmäinen."
   },
   "notify": {
     "alerts_on": "ilmoitukset päällä",

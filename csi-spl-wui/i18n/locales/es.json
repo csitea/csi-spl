@@ -362,7 +362,8 @@
       "send_failed": "error al enviar"
     },
     "new_pill": "Nuevos: {n}",
-    "new_pill_label": "Ir a los mensajes más recientes"
+    "new_pill_label": "Ir a los mensajes más recientes",
+    "open_thread_hint": "Pulsa Intro para abrir el hilo de este mensaje."
   },
   "thread": {
     "title": "Hilo",
@@ -370,7 +371,8 @@
     "empty": "Hilo vacío.",
     "reply_placeholder": "Responder — Enter para enviar · /search para filtrar",
     "replies_label": "Respuestas, las más recientes primero",
-    "load_failed": "error al cargar el hilo"
+    "load_failed": "error al cargar el hilo",
+    "no_replies": "Aún no hay respuestas: escribe la primera."
   },
   "notify": {
     "alerts_on": "alertas activadas",

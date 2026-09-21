@@ -16,8 +16,8 @@
         </button>
       </div>
     </header>
-    <div class="pinned-root">
-      <MessageCard v-if="split.root" :msg="split.root" />
+    <div class="pinned-root" data-test="thread-root">
+      <MessageCard v-if="root" :msg="root" />
       <p v-else-if="!loading && !loadError" class="muted">{{ t('thread.empty') }}</p>
     </div>
     <MessageComposer
@@ -36,6 +36,7 @@
         :loading="loading"
         :search="search"
         :last-live="lastLive"
+        :empty-text="t('thread.no_replies')"
         @clear-search="search = ''"
       />
     </div>
@@ -71,6 +72,10 @@ const lastLive = ref<SpoolMessage | null>(null)
 /* 013 US7 FR-013: our own reply shows at once (the channel store holds it pending until the echo) */
 const pendingHere = computed(() => channel.messages.filter((m) => m.pending && m.task_id === thread.parentTaskId) as SpoolMessage[])
 const split = computed(() => rootAndReplies((api.mock ? thread.messages : mergeById(liveRows.value, pendingHere.value).rows) as SpoolMessage[]))
+/* CLE-3427: a thread opened on a message that is not the task's oldest (or
+   on a task the hub has no messages for yet) shows the row that was clicked
+   as its root — thread.rootMsg — instead of the empty line. */
+const root = computed(() => split.value.root || thread.rootMsg)
 const replies = computed(() => {
   const rows = split.value.replies.filter((m: SpoolMessage) => matchesSearch(m, search.value))
   return (api.mock ? rows : applyVerbosity(rows, thread.verbosity)) as SpoolMessage[]

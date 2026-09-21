@@ -112,6 +112,8 @@ import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
+import { useThreadStore } from '~/stores/thread'
+import { useThreadRoute } from '~/composables/useThreadRoute'
 import { flattenGroups, highlightSegments, moveIndex, searchPath, searchTarget, type SearchRow } from '~/utils/search.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -121,7 +123,22 @@ const router = useRouter()
 const search = useSearchStore()
 const omnibox = useOmniboxStore()
 const pane = useLiveFeed('pane')
+const thread = useThreadStore()
 const listEl = ref<HTMLElement | null>(null)
+
+/* CLE-3427: the thread a hit opens is in the URL too, so a search result the
+   reader wants to show someone is one link, not "search this, then click the
+   third row". The `q` parameter is untouched. */
+useThreadRoute({
+  open: async (target) => {
+    thread.setTarget(target, null)
+    await pane.open(target.taskId)
+  },
+  close: () => {
+    thread.close()
+    pane.close()
+  },
+})
 const active = ref(-1)
 
 const examples = [
@@ -217,6 +234,7 @@ async function open(row: SearchRow) {
   if (!to) return
   if ('path' in to) return void router.push(localePath(to.path))
   if ('search' in to) return void router.push(localePath(searchPath(to.search)))
+  thread.setTarget({ taskId: to.thread, mode: 'task', rootMsgId: '', parentTaskId: '' }, null)
   await pane.open(to.thread)
   if (to.focus) focusMessage(to.focus)
 }
@@ -264,7 +282,9 @@ useHead(() => ({ title: query.value ? `${t('search.title')}: ${query.value}` : t
   min-width: 0;
   max-width: 100%;
 }
-.search-row.active { background: var(--color-surface-hover); }
+/* CLE-3427: a chosen row is a SELECTED item — the darker fill and the one
+   3px marker bar of the shared treatment, not a lighter hover fill. */
+.search-row.active { background: var(--color-selected); box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }
 .search-row__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; font-size: 14px; }
 .search-row__who { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .search-row__text { min-width: 0; overflow-wrap: anywhere; }

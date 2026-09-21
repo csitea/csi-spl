@@ -362,7 +362,8 @@
       "send_failed": "sūtīšana neizdevās"
     },
     "new_pill": "Jaunas: {n}",
-    "new_pill_label": "Pāriet uz jaunākajām ziņām"
+    "new_pill_label": "Pāriet uz jaunākajām ziņām",
+    "open_thread_hint": "Nospiediet Enter, lai atvērtu šīs ziņas pavedienu."
   },
   "thread": {
     "title": "Pavediens",
@@ -370,7 +371,8 @@
     "empty": "Tukšs pavediens.",
     "reply_placeholder": "Atbilde — Enter, lai sūtītu · /search filtrēšanai",
     "replies_label": "Atbildes, jaunākās vispirms",
-    "load_failed": "pavediena ielāde neizdevās"
+    "load_failed": "pavediena ielāde neizdevās",
+    "no_replies": "Atbilžu vēl nav — uzrakstiet pirmo."
   },
   "notify": {
     "alerts_on": "paziņojumi ieslēgti",

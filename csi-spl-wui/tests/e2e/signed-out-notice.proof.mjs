@@ -45,14 +45,21 @@ const step = (name, ok, ev = {}) => {
   console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev))
 }
 
-/** What the page shows right now, read from the DOM. */
-const readState = () => {
+/**
+ * What the page shows right now, read from the DOM. It is passed to
+ * page.evaluate() as a function VALUE, never as a string: the deployed CSP
+ * carries no 'unsafe-eval', so a `new Function(...)` trampoline throws
+ * EvalError against dev and prd while passing happily against a local build
+ * that serves no CSP at all. Measured 2026-09-21 on dev.
+ */
+function readState() {
   const notice = document.querySelector('[data-test="signed-out-notice"]')
   const create = document.querySelector('[data-testid="create-channel"]')
+  const link = notice ? notice.querySelector('a') : null
   return {
     shell: Boolean(document.querySelector('nav.sidebar')),
     notice: notice ? notice.innerText.trim() : null,
-    href: notice ? (notice.querySelector('a') || {}).getAttribute?.('href') || null : null,
+    href: link ? link.getAttribute('href') : null,
     createRow: Boolean(create),
   }
 }
@@ -85,15 +92,17 @@ try {
   await page.goto(BASE + PATHS[0], { waitUntil: 'networkidle2', timeout: 30000 })
   await new Promise((r) => setTimeout(r, 2000))
   for (const [state, wantNotice] of [['loading', false], ['unknown', false], ['out', true], ['in', false]]) {
-    const m = await page.evaluate(async (st, fn) => {
+    /* set, settle, then read — two calls, because puppeteer serializes an
+       argument and a function passed as one does not arrive callable */
+    const set = await page.evaluate((st) => {
       const app = document.querySelector('#__nuxt')?.__vue_app__ || document.body.__vue_app__
       const store = app?.config?.globalProperties?.$pinia?._s?.get('session')
       if (!store) return { err: 'session store unreachable' }
       store.state = st
-      await new Promise((r) => setTimeout(r, 400))
-      // eslint-disable-next-line no-new-func
-      return { state: store.state, ...new Function('return (' + fn + ')')()() }
-    }, state, readState.toString())
+      return { state: store.state }
+    }, state)
+    await new Promise((r) => setTimeout(r, 400))
+    const m = set.err ? set : { ...set, ...(await page.evaluate(readState)) }
     step(`session '${state}' ${wantNotice ? 'SHOWS' : 'hides'} the notice`,
       !m.err && Boolean(m.notice) === wantNotice, m)
     await page.screenshot({ path: `${OUT}/session-${state}.png` })

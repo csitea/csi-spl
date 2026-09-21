@@ -33,7 +33,10 @@ each other on every push.
   **exists in the tree**. The gate fails otherwise.
 - **FR-003** — A case that is not yet automated is `PENDING` and names the
   **intended** test path and an owning lane, so the gap has an addressee.
-  A `PENDING` row is information, never a reason to soften the case.
+  A case whose test is in the tree but has not yet been run against the live
+  env is `UNVERIFIED` — a distinct status, because "a test exists" and "the
+  case is proven" are different claims and collapsing them is how a register
+  starts lying. Neither is ever a reason to soften the case.
 - **FR-004** — A case that **cannot** be automated is `MANUAL` and carries a
   procedure a human can follow, in §5 of this page.
 - **FR-005** — This page and `cases.tsv` cannot drift: every `OA-NN` in one
@@ -60,7 +63,8 @@ The gate keeps the two in step.
 | code blocks (013) | OA-19 OA-20 OA-21 OA-22 OA-23 | the WUI unit suite and the live code-block proof |
 | send reliability (013) | OA-24 OA-25 | the WUI unit suite and the live send-failure proof |
 | UI rules (013 / 022) | OA-26 OA-27 OA-28 OA-29 OA-30 | the WUI unit suite |
-| the WUI bot (this spec) | OA-31 OA-32 OA-33 OA-34 OA-35 OA-36 | `owner-acceptance-bot.proof.mjs`, run by `do_spl_owner_acceptance` |
+| the WUI bot (this spec) | OA-31 OA-32 OA-33 OA-34 OA-35 | `csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs`, run by `do_spl_owner_acceptance` |
+| the run is one named action | OA-36 | `csi-spl-orc/src/bash/tests/owner-acceptance.tst.sh` |
 | a real IdP sign-in | OA-37 | `MANUAL`, §5 |
 
 ### 2.1 Why the terminal cases are `orc-e2e` and not CI
@@ -150,7 +154,13 @@ control is the consent screen itself.
   stated case out of the register until someone automates it — is how the list
   got lost the first time. A `PENDING` row with an owner is a handoff; an
   absent row is an amnesia.
-- **D-04 The bot runs in the owner's thread, not a private one.** The owner
+- **D-04 The pane assert stays in bash.** The bot is a node process driving a
+  browser and cannot read tmux. The 028 pane rules — the box-tag prefix on the
+  window name, the `@spool_notices` pane, and the hard wrap that splits a word
+  across lines — already exist in `desk-probe.py` and `spool-notify.sh`, so the
+  bot shells out to `csi-spl-orc/src/bash/scripts/pane-seen.sh` rather than
+  carrying a second copy that would drift from them.
+- **D-05 The bot runs in the owner's thread, not a private one.** The owner
   asked to watch it. The cost is that the thread carries test traffic, so
   every bot message is labelled as a case and the agent-to-agent cases use
   throwaway ids that touch no live lane.

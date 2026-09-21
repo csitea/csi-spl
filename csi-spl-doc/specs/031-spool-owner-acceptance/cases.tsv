@@ -11,7 +11,8 @@
 #          orc-e2e    a ./run action against a live env             (not in CI: needs GCP + a tenant root key)
 #          spawn-tst  csi-spl-orc/src/bash/features/spawn-agents/tests/ (never in CI by 016 FR-011: needs a tmux server)
 #          manual     a human has to do it; the procedure is in spec.md §5
-# status   PASS / FAIL / PENDING (the test is not in the tree yet) / MANUAL
+# status   PASS / FAIL / UNVERIFIED (the test is in the tree, not yet run
+#          against the live env) / PENDING (no test yet) / MANUAL
 #
 # case_id	area	title	spec	runner	test_path	status	owner
 OA-01	terminal	agent -> agent on the SAME box is visible in B's pane, and not in A's	028	go	csi-spl-api/src/go/spool-hub-api/internal/spool/notify_hook_test.go	PASS	CLE-3428
@@ -44,10 +45,10 @@ OA-27	ui	a selected border is ONE colour and at most 3 px	013	node-unit	csi-spl-
 OA-28	ui	Tab focus is visible and reads as 3D	013	node-unit	csi-spl-wui/tests/unit/focus-tokens.test.mjs	PASS	CLE-3427
 OA-29	ui	'/' focuses the Omnibox and is ignored in inputs and modals	022	node-unit	csi-spl-wui/tests/unit/slash-focus.test.mjs	PASS	CLE-3422
 OA-30	ui	the theme toggle shows the DESTINATION icon, sun in dark and half-moon in light	013	node-unit	csi-spl-wui/tests/unit/theme-toggle.test.mjs	PASS	CLE-3424
-OA-31	bot	the bot signs in to the dev WUI as its OWN member and opens the owner's thread	031	pending	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	PENDING	CLE-3438
-OA-32	bot	a message the bot sends appears IMMEDIATELY in the thread for the sender	031	pending	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	PENDING	CLE-3438
-OA-33	bot	that message is VISIBLE in the desk agent's pane, once, with sender / kind / ids / body	031	pending	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	PENDING	CLE-3438
-OA-34	bot	the desk agent's REPLY shows up in the same WUI thread	031	pending	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	PENDING	CLE-3438
-OA-35	bot	the run posts a readable PASS/FAIL line per case into the owner's thread	031	pending	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	PENDING	CLE-3438
-OA-36	bot	the whole run is ONE named action with per-case PASS/FAIL and evidence	031	pending	csi-spl-orc/src/bash/tests/owner-acceptance.tst.sh	PENDING	CLE-3438
+OA-31	bot	the bot signs in to the dev WUI as its OWN member and opens the owner's thread	031	node-e2e	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	UNVERIFIED	CLE-3438
+OA-32	bot	a message the bot sends appears IMMEDIATELY in the thread for the sender	031	node-e2e	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	UNVERIFIED	CLE-3438
+OA-33	bot	that message is VISIBLE in the desk agent's pane, once, with sender / kind / ids / body	031	node-e2e	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	UNVERIFIED	CLE-3438
+OA-34	bot	the desk agent's REPLY shows up in the same WUI thread	031	node-e2e	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	UNVERIFIED	CLE-3438
+OA-35	bot	the run posts a readable PASS/FAIL line per case into the owner's thread	031	node-e2e	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	UNVERIFIED	CLE-3438
+OA-36	bot	the whole run is ONE named action with per-case PASS/FAIL and evidence	031	orc-tst	csi-spl-orc/src/bash/tests/owner-acceptance.tst.sh	PASS	CLE-3438
 OA-37	manual	a REAL human Google / Microsoft / LinkedIn sign-in reaches the WUI	010	manual	csi-spl-doc/specs/031-spool-owner-acceptance/spec.md	MANUAL	CLE-3438

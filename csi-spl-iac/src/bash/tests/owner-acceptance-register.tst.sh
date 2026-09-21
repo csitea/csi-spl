@@ -36,7 +36,7 @@ pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 
 RUNNERS='go node-unit node-e2e orc-tst orc-e2e spawn-tst manual pending'
-STATUSES='PASS FAIL PENDING MANUAL'
+STATUSES='PASS FAIL PENDING UNVERIFIED MANUAL'
 
 # check_register <tsv> <tree-root> -> prints one reason per line; empty = valid.
 # Pure: it reads only the two arguments, so a control can hand it a planted

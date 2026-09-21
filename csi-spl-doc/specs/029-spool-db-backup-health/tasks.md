@@ -17,32 +17,47 @@ says otherwise.
 | T022 | their offline test | **done** | `spl-db-backup.tst.sh`, 25 checks, with controls (DRY_RUN=0 *does* reach gcloud; a 999999-byte object *does* pass) |
 | T030 | workflow **45 ops: hub db daily backup**, `17 5 * * *`, dev then prd, per-env concurrency, key from `GCP_KEY_CSI_SPL_<ENV>` | **done** | spec §4.5 (red run = the alert), §4.6 (why not near 01:00) |
 | T040 | spec 029 + these tasks | **done** | this file |
-| T050 | apply 045 on dev and prd (`make do-provision`, step 045) | **waits on the owner** | repo rule: nothing mutates GCP without the owner's go for that call. Plan first, then apply |
-| T051 | one real backup per env, `DRY_RUN=0` | **blocked by T050** | the bucket must exist first |
-| T052 | prove one restore per env (`do_spl_db_backup_verify`) | **blocked by T051** | this is the §4.4 proof the owner asked for |
+| T050 | apply 045 on dev and prd (`make do-provision`, step 045) | **done, both envs** | ORC gave the go 2026-09-21T08:07Z. Plan was `2 to add, 0 to change, 0 to destroy` on each; apply `2 added, 0 changed, 0 destroyed` on each. Buckets `csi-spl-dev-db-backups` / `csi-spl-prd-db-backups`; the IAM grant went to the instance service agent `p436311356630-pavt4a@` (dev) / `p351721145894-firmcx@` (prd) |
+| T051 | one real backup per env, `DRY_RUN=0` | **done, both envs** | dev `gs://csi-spl-dev-db-backups/dev/spool-20260921T080842Z.sql.gz` **93 796 B**; prd `gs://csi-spl-prd-db-backups/prd/spool-20260921T081331Z.sql.gz` **33 274 B** |
+| T052 | prove one restore per env (`do_spl_db_backup_verify`) | **done, both envs, with the fixed code** | dev: 428 656 B of SQL, **26 tables, 735 rows, every count identical**. prd: 156 676 B, **26 tables, 255 rows, every count identical** |
 | T060 | D1–D6 (spec §6) | **owner decisions, none taken** | sent to ORC with T004 |
 
-## What is NOT done, and why
+## Three defects the REAL runs found, which no offline test could
 
-**T050–T052 need the owner's go**, and nothing here works around that. The
-repo rule is explicit: `terraform apply` needs an explicit go for that call.
-So the bucket does not exist yet on either env, and therefore no real dump has
-been taken and no restore has been proven against a live object.
+The offline suites were green before any of this. Every one of these came out
+of running the thing against dev and prd.
 
-Everything that does not need the go is landed and green: the action, the
-verify, the terraform, the cnf, the workflow and the tests. The moment 045 is
-applied, the sequence is three commands per env:
+1. **One action per file.** `do_load_functions` derives `do_<snake>` from
+   `<kebab>.func.sh`, so a second `do_*` function in `spl-db-backup.func.sh`
+   was sourced but never registered — `actions_found=0`. The verify now has
+   its own file.
+2. **`pg_isready` lies during `initdb`.** The postgres image runs a temporary
+   server while it initialises, on the unix socket only, so `pg_isready`
+   answers YES before the real server exists; the restore then runs into the
+   restart. On the first prd verify that produced *"ready after 2s"*, psql
+   exit 2, **zero tables restored**, and a verdict reading *"26 live table(s)
+   missing from the restore"* — **accusing a dump that was perfectly good.**
+   That is the worst failure a verifier can have. The probe is now a real
+   `SELECT 1` over **TCP**, which the temporary server never listens on. The
+   same race is why dev's first verify died 3 s in while its second run of the
+   SAME dump passed with every count identical.
+3. **An empty restore could not speak.** psql's output went to `/dev/null`, so
+   a restore that landed nothing could only be reported as "every table is
+   missing". It is captured now, and an empty restore fails as a **restore**
+   fault carrying psql's own last 20 lines.
 
-```
-cd csi-spl-orc && ENV=<env> STEP=045-gcs-db-backups make do-tf-plan   # then do-provision with the go
-ENV=<env> DRY_RUN=0 ./run -a do_spl_db_backup
-ENV=<env>           ./run -a do_spl_db_backup_verify
-```
+Also added: a missing 045 bucket is exit 2 naming the step and the two
+commands that create it, instead of a raw gcloud "bucket does not exist" that
+reads like a broken backup job.
 
-The scheduled workflow is committed and will fire daily, but **its first runs
-will fail on a missing bucket until T050 is done** — which is the correct
-failure: a red run is the alert (spec §4.5), and a backup job that silently
-did nothing would be worse.
+## What is left
+
+**Nothing inside this lane's scope.** T001–T052 are done and proven on both
+envs. What remains is not mine to take:
+
+- the owner decisions **D1–D6** (spec §6), sent to ORC;
+- the **first scheduled run of workflow 45** (daily, 05:17 UTC), which will be
+  the first unattended proof. Both buckets now exist, so it has what it needs.
 
 ## Controls this lane relied on
 

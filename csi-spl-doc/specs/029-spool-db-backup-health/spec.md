@@ -301,6 +301,26 @@ overlap and an export is never cancelled mid-flight.
 | **D5** | prd tier `db-f1-micro` (no SLA, shared core) and ZONAL (no HA) | raise the tier before the pool (see 027 D5); HA is a separate cost call |
 | **D6** | Drop the dead `tenant_hosts` schema (spec 026 retired it) | 024/026 lane's call, not this one |
 
+## 6.1 Proven, 2026-09-21 (ORC gave the go for the 045 apply at 08:07Z)
+
+Plans were `2 to add, 0 to change, 0 to destroy` on each env; applies were
+`2 added, 0 changed, 0 destroyed`.
+
+| | dev | prd |
+|---|---|---|
+| bucket | `csi-spl-dev-db-backups` | `csi-spl-prd-db-backups` |
+| instance service agent granted | `p436311356630-pavt4a@gcp-sa-cloud-sql…` | `p351721145894-firmcx@gcp-sa-cloud-sql…` |
+| first dump | `dev/spool-20260921T080842Z.sql.gz`, **93 796 B** | `prd/spool-20260921T081331Z.sql.gz`, **33 274 B** |
+| restored | 428 656 B of SQL | 156 676 B of SQL |
+| **verdict** | **26 tables, 735 rows, every count identical** | **26 tables, 255 rows, every count identical** |
+
+Three defects surfaced only by running it for real — one action per file, a
+`pg_isready` that answers YES during `initdb`, and a restore that could not
+report its own failure. All three are fixed and described in `tasks.md`. The
+second one is worth carrying forward: **on the first prd verify it produced a
+verdict accusing a dump that was perfectly good**, which is the worst thing a
+backup verifier can do.
+
 ## 7. Out of scope
 
 Anything that changes the schema, the instance flags, the tier or the

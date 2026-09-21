@@ -459,3 +459,103 @@ func asHubError(err error, target **HubError) bool {
 	}
 	return false
 }
+
+// specs/030: a box socket that black-holes must END, not hang. The hub has
+// pinged since 017 FR-SEC-004; the client never did, so a session the box
+// believed was up could stop delivering silently and stay that way until
+// something restarted it. Observed on the dev desk 2026-09-21: no session line
+// between 16:10:51 and a 16:30:01 restart, no delivery after 16:19, and then
+// the hub's whole queue arriving at once - nothing lost, 11 minutes silent.
+//
+// The hub here completes the hello and then STOPS READING. coder/websocket
+// answers pings from its read loop, so a peer that never reads never pongs:
+// that is a black hole without needing to drop packets. Without the client
+// keepalive this test hangs until its deadline; with it, Done closes.
+func TestBoxSessionEndsWhenTheHubStopsAnswering(t *testing.T) {
+	mux := http.NewServeMux()
+	// A role=box dial syncs pins over REST right after welcome; without this
+	// route the dial fails before the socket is ever tested.
+	mux.HandleFunc("/v1/pins", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(wire.PinList{Pins: []wire.PinEntry{}}) //nolint:errcheck
+	})
+	mux.HandleFunc("/v1/ws", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+		if err != nil {
+			return
+		}
+		ctx := context.Background()
+		if err := wsjson.Write(ctx, conn, wire.Frame{Type: wire.TChallenge, Nonce: "nonce-nonce-nonce"}); err != nil {
+			return
+		}
+		var hello wire.Frame
+		if err := wsjson.Read(ctx, conn, &hello); err != nil {
+			return
+		}
+		if err := wsjson.Write(ctx, conn, wire.Frame{Type: wire.TWelcome, BoxID: hello.BoxID,
+			UploadToken: "tok", UploadTokenExpiresAt: time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}); err != nil {
+			return
+		}
+		wsjson.Write(ctx, conn, wire.Frame{Type: wire.TQueueEnd, Count: 0}) //nolint:errcheck
+		// From here the socket is open and utterly unresponsive: no reads, so
+		// no pongs. Hold it until the test is done with it.
+		time.Sleep(20 * time.Second)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	c := testClient(t)
+	c.Cfg.HubURL = srv.URL
+	c.Cfg.Tenant = "t1"
+	c.Cfg.SubmitSocket = "off" // this control is about the socket, not submit
+	c.ReadyTimeout = 5 * time.Second
+	c.KeepAlive = 200 * time.Millisecond
+	c.KeepAliveTimeout = 400 * time.Millisecond
+
+	sess, err := c.Dial(context.Background(), wire.RoleBox)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer sess.Close()
+	select {
+	case <-sess.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("the session never noticed a hub that stopped answering: it would stay silently up, which is the defect")
+	}
+}
+
+// Keepalive must not end a HEALTHY session: a hub that answers pings keeps its
+// box. Without this, "close on any ping trouble" would look identical to the
+// fix above while cutting every live socket.
+func TestKeepAliveLeavesAHealthySessionAlone(t *testing.T) {
+	h := newFakeHub(t)
+	c := hubClient(t, h)
+	c.KeepAlive = 100 * time.Millisecond
+	c.KeepAliveTimeout = 2 * time.Second
+
+	sess, err := c.Dial(context.Background(), wire.RoleBox)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer sess.Close()
+	select {
+	case <-sess.Done():
+		t.Fatal("keepalive closed a session whose hub was answering")
+	case <-time.After(1500 * time.Millisecond): // ~15 ping rounds
+	}
+	if _, err := sess.Send(context.Background(), mustEnv(t, c, "still alive")); err != nil {
+		t.Fatalf("the session should still carry a send: %v", err)
+	}
+}
+
+func mustEnv(t *testing.T, c *Client, body string) *wire.Envelope {
+	t.Helper()
+	priv, err := sign.LoadPrivate(c.Cfg.KeysDir, "box-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env, err := wire.NewEnvelope(priv, "box-a", "box-b", compose(t, c, body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return env
+}

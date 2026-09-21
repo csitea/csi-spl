@@ -81,6 +81,20 @@ type Client struct {
 	PinRefresh time.Duration
 	// ReadyTimeout bounds each wait for a hub reply.
 	ReadyTimeout time.Duration
+	// KeepAlive is how often a role=box session pings the hub, and
+	// KeepAliveTimeout how long it waits for the pong before deciding the
+	// socket is dead and closing it so Run reconnects. 0 = the defaults below;
+	// a negative KeepAlive turns it off (tests).
+	//
+	// specs/030: the hub has pinged since 017 FR-SEC-004, but the CLIENT never
+	// did, so a socket that black-holes left the box waiting for ever on a
+	// session it still believed was up. Measured on the dev desk 2026-09-21:
+	// "hub session up" at 16:10:51, no further session line, and no delivery
+	// after 16:19 - until a restart at 16:30:01, when the hub's queue drained
+	// and every message from those 11 minutes arrived at once. Nothing was
+	// lost; the box simply stopped listening and could not tell.
+	KeepAlive        time.Duration
+	KeepAliveTimeout time.Duration
 	// Warn receives the operator warnings (a private key loaded from inside
 	// SPOOL_ROOT). nil = os.Stderr.
 	Warn io.Writer
@@ -279,7 +293,56 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 		}
 	}
 	go s.readLoop()
+	if role == wire.RoleBox {
+		go s.keepalive()
+	}
 	return s, nil
+}
+
+// defaultKeepAlive / defaultKeepAliveTimeout: often enough that a dead socket
+// costs a box well under a minute of silence, rarely enough to be free.
+const (
+	defaultKeepAlive        = 30 * time.Second
+	defaultKeepAliveTimeout = 10 * time.Second
+)
+
+// keepalive pings the hub until the session ends. A ping that is not ponged in
+// time means the socket is dead however healthy it looks, so the conn is closed
+// without a handshake - the read loop then fails, hold returns, and Run redials
+// with its usual backoff. It can only ever END a session, never fail a message.
+func (s *Session) keepalive() {
+	every, wait := s.c.KeepAlive, s.c.KeepAliveTimeout
+	if every == 0 {
+		every = defaultKeepAlive
+	}
+	if every < 0 {
+		return
+	}
+	if wait <= 0 {
+		wait = defaultKeepAliveTimeout
+	}
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-s.done:
+			return
+		case <-t.C:
+			ctx, cancel := context.WithTimeout(context.Background(), wait)
+			err := s.conn.Ping(ctx)
+			cancel()
+			if err != nil {
+				select {
+				case <-s.done: // already ending; not our call to report
+				default:
+					s.c.Log.Warn().Err(err).Dur("after", wait).
+						Msg("hub socket did not answer a ping; closing it so the session reconnects")
+				}
+				s.conn.CloseNow() //nolint:errcheck
+				return
+			}
+		}
+	}
 }
 
 func (s *Session) readLoop() {

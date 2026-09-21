@@ -3,7 +3,7 @@
 // XSS payload, type ```js (monospace block, hint), Enter adds lines instead of
 // sending, a very long line, the payload again inside the block, ``` closes,
 // Enter sends. The sent card must show one code block (label "js", exact
-// text, x-scroll inside the block only), the copy button must put exactly
+// text, WRAPPED - no x-scroll in the block or the page, CLE-3423), the copy button must put exactly
 // the code on the clipboard, and the CONTROL: nothing executes (no dialog,
 // no <img>/<script> in the body) and 0 CSP violations. Desktop + mobile
 // screenshots and results.json to OUT.
@@ -103,11 +103,16 @@ try {
     const blocks = a.querySelectorAll('.code-block')
     const pre = a.querySelector('.code-block pre')
     const cs = pre && getComputedStyle(pre)
+    const rows = [...a.querySelectorAll('.code-block .code-line .code-src')]
     return {
       blocks: blocks.length,
       lang: a.querySelector('.code-lang')?.textContent.trim() || '',
-      code: pre ? pre.textContent : '',
-      whiteSpace: cs?.whiteSpace,
+      // CLE-3423: one row per source line, so the text is the rows joined —
+      // `pre.textContent` has no newlines to give any more
+      code: rows.map((r) => r.textContent).join('\n'),
+      // and the browser's own serialisation (what a user's select+copy gets)
+      innerText: pre ? pre.innerText : '',
+      whiteSpace: rows[0] && getComputedStyle(rows[0]).whiteSpace,
       font: cs?.fontFamily,
       preScrolls: pre ? pre.scrollWidth > pre.clientWidth : false,
       inline: [...a.querySelectorAll('.msg-para code')].map((c) => c.textContent),
@@ -116,10 +121,13 @@ try {
       paraText: a.querySelector('.msg-para')?.textContent || '',
     }
   })
-  step('one code block, label js, exact text, whitespace kept', got.blocks === 1 && got.lang === 'js' && got.code === expectedCode && got.whiteSpace === 'pre',
+  step('one code block, label js, exact text, whitespace kept', got.blocks === 1 && got.lang === 'js' && got.code === expectedCode && got.whiteSpace === 'pre-wrap',
     { blocks: got.blocks, lang: got.lang, exact: got.code === expectedCode, whiteSpace: got.whiteSpace, font: got.font })
+  step('select-and-copy still yields the lines (block rows serialise with newlines)', got.innerText.trim() === expectedCode.trim(), { exact: got.innerText.trim() === expectedCode.trim() })
   step('inline `code` styled', got.inline.includes('inline'), { inline: got.inline })
-  step('long line scrolls inside the block, page has no x-scroll', got.preScrolls && (await xscroll(p)) <= 0, { preScrolls: got.preScrolls, xscroll: await xscroll(p) })
+  // CLE-3423 (owner 2026-09-19) REVERSES what this step asserted on 4c204d0:
+  // a 400-character line now WRAPS, so neither the block nor the page scrolls
+  step('the long line wraps: neither the block nor the page scrolls sideways', !got.preScrolls && (await xscroll(p)) <= 0, { preScrolls: got.preScrolls, xscroll: await xscroll(p) })
   await p.screenshot({ path: `${OUT}/feed-code-block-desktop.png` })
 
   const copyBtn = await el.$('[data-testid=code-copy]')

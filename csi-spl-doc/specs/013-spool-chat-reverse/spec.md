@@ -114,7 +114,13 @@ code is content; CRLF/CR read as LF.
 Security: the body is parsed into plain strings and rendered with Vue text
 interpolation (`MessageBody.vue`); `MessageCard.vue` no longer uses `v-html`,
 and no Markdown-to-HTML library is used. SEC-06 CSP (no `unsafe-inline`)
-stays clean.
+stays clean. Syntax highlighting (FR-016) does not weaken that: highlight.js
+is driven through its emitter interface by our own token emitter, so no HTML
+string is built at any point and the renderer receives `{ text, cls }` pairs
+it interpolates. The grammars are regex tables — no `eval`, no `new
+Function`, no WASM — so CSP needs neither `unsafe-eval` nor
+`wasm-unsafe-eval`, and the token theme is CSS in a component, so it needs no
+`unsafe-inline` either.
 
 ## 2. Functional requirements
 
@@ -133,6 +139,9 @@ stays clean.
 - **FR-014** (Implemented, `35bf0e0` hub 0.1.10 + `d7c2368`; tasks.md T021–T022): live push for every view over `/v1/wui/ws` — task and channel subscriptions (existing), plus a **DM** subscription (`subscribe {peer}`) and a **thread-list** subscription (`subscribe {all:true}`), hub-side in `wui-live-ws` v0.5 §3.1; tenant-scoped, behind the same door; a member socket only ever receives DMs it is party to.
 - **FR-015** (Implemented, `d7c2368`; tasks.md T020, T023): reconnect with capped backoff (existing), then catch-up through view-v1 for every open view, merged by `msg_id` (feeds) or `task_id` (thread list) without dropping loaded older pages or pending rows.
 - **FR-010** (Implemented, `4c204d0`; tasks.md T016–T017): Slack-style ``` code blocks as US6 — composer state, fenced + inline rendering without `v-html`, copy button, language label, no wire change.
+- **FR-016** (Implemented, `de1451e` + `469c432`; tasks.md T024): a ``` block is **syntax highlighted** and **never scrolls sideways**. The grammar comes from the fence tag (`js`, `c++`, `yml` … `LANG_ALIASES`); with no tag, auto-detection is allowed to guess only between grammars the page has ALREADY loaded, and only above a relevance floor, so the fallback costs no extra request and prose is left plain. Rows soft-wrap with a hanging indent on the continuations (the wrapped-line marker); `no-wrap` exists only inside the dialog (FR-017), where the dialog body — never the page — scrolls. A block longer than the preview cut shows its head, says how many of how many lines that is, and offers two ways to the full source. **This reverses the half of T017 that proved "the block scrolls sideways and the page does not"** (owner 2026-09-19: "the code snippets must not have horizontal scrolling").
+- **FR-017** (Implemented, `469c432`; tasks.md T024): a **generic modal dialog** (`components/UiDialog.vue`) — focus trap, Escape, backdrop close, restored focus, locked page scroll, `aria-modal` + labelled title, scrollable body — that owns no content. Content types go in its default slot; `components/CodeViewer.vue` (full source: highlighting, wrap toggle, line numbers, copy, size) is the first, and a **file preview is a later sibling of that file, not a branch inside the dialog** (the extension point; NOT built here, by instruction).
+- **FR-018** (Implemented, `de1451e` + `469c432`; tasks.md T024): a code block bigger than **3 A4** is refused **at send** by the composer, with a message telling the author to attach it as a file instead (005 T023 upload). "3 A4" is ONE constant — `A4_PAGE` = 50 lines / 3000 chars, `MAX_SEND_PAGES` = 3, so `SEND_LIMIT` = **150 lines or 9000 characters**, whichever runs out first; exactly at the limit still sends. The refusal is `code.too_big` in all 19 locales and carries both the limit and the actual size; the text is kept in the composer so it can be attached. Inline `` `code` `` is not a block and is never refused.
 
 ## 3. Success criteria
 
@@ -142,6 +151,7 @@ stays clean.
 - **SC-004**: unit, e2e (no-x-scroll incl. the 3-pane pages) and typecheck green.
 - **SC-006** (met on dev n=2, tasks.md T023): on dev, two headless browsers: A's send in `#lobby`, a channel and a DM each shows at B's top within 1 s without a reload; a box `spool send` shows live too; screenshots + timings in `/var/tmp/CLE-3412-proof/`.
 - **SC-005**: on dev, typing ```` ``` ```` + code + ```` ``` ```` + Enter shows one code block with the exact text; copy puts exactly that text on the clipboard; an injected `<script>` / `onerror` payload inside and outside the block never executes, 0 CSP violations.
+- **SC-007**: on dev, a snippet longer than the preview cut shows a bounded, highlighted preview that wraps (no x-scroll on the block or the page at 1280 and 390); the icon "open" and the explicit button both open the dialog on the WHOLE source with line numbers; Tab cannot leave the dialog; wrap and line-number toggles work; copy yields exactly the source; Escape closes and returns focus; a snippet over 3 A4 is refused at send with the limit named and nothing sent; 0 CSP violations and the payload never executes.
 
 ## 4. Dependencies and gaps
 

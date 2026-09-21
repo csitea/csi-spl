@@ -1,0 +1,163 @@
+# 45 ops: daily off-instance backup of the hub DB (specs/029).
+#
+# Owner order 2026-09-20, verbatim: "the same one should update the specs for
+# creating a backup job on the db - for now once daily, triggered from the
+# github actions". This is that job.
+#
+# IS IT REDUNDANT? Measured 2026-09-21 on both envs (csi-spl-orc
+# do_spl_db_health, section cloudsql): the instance's OWN automated backups are
+# enabled, point-in-time recovery is on, transaction logs are retained 7 days,
+# and the last four runs read SUCCESSFUL on each env. So NO, this job is not
+# the first line of defence, and it is not a replacement. It is additive, and
+# the three things it buys are the ones the built-ins cannot:
+#   1. a Cloud SQL backup restores ONLY into Cloud SQL, and it lives inside the
+#      instance's project - it dies with the instance, and with the project;
+#   2. retainedBackups is 7, so one bad week nobody notices loses every copy.
+#      The 045 bucket keeps 30 days;
+#   3. a logical dump can be read, diffed, grepped and partially restored. A
+#      Cloud SQL backup is opaque.
+#
+# HOW, and why not pg_dump. `gcloud sql export` runs INSIDE Google: the
+# instance streams straight to the 045 bucket. So no row of tenant data ever
+# transits this GitHub-hosted runner, the runner never sees a database
+# password, and the export runs as the instance's own superuser - which means
+# rdb 0014 FORCE row-level security cannot silently empty a table in the dump.
+# A proxied pg_dump as the RUNTIME login needs both --enable-row-security and
+# the operator scope, and is one forgotten flag away from a dump full of
+# zero-row tables that still looks like a backup.
+#
+# THE RUN PROVES ITSELF. Taking a dump is not evidence that the dump restores,
+# so every run then downloads what it just wrote, restores it into a THROWAWAY
+# postgres container on the runner, and compares every table against the live
+# database read-only (do_spl_db_backup_verify). The comparison is deliberately
+# not "the counts are equal" - the dump and the live read are minutes apart and
+# dev takes writes in between - but "no live table is missing from the restore,
+# and no table restored empty while the live one has rows". Those two are what
+# a truncated or RLS-blanked dump actually looks like.
+#
+# FAILURE IS THE ALERT. A red scheduled workflow is the notification, exactly
+# as 00_deploy-lag-watch works. There is no separate alerting to forget to wire.
+#
+# Auth: ONLY the existing per-env project key secrets GCP_KEY_CSI_SPL_<ENV>
+# (published by iac 120). No new credential. An env without its key is SKIPPED
+# with a notice, as 20 and 40 skip it.
+#
+# Schedule: 05:17 UTC. NOT near 01:00 - that is the instance's own backup
+# window, an export and a backup cannot overlap, and the window DRIFTS
+# (measured 2026-09-21: a 01:00 window enqueued at 02:17Z on dev and 01:54Z on
+# prd). The action also retries a busy instance, so a collision costs time, not
+# a missed backup.
+#
+# Local equivalent:
+#   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_db_backup
+#   ENV=<env>            ./csi-spl-orc/run -a do_spl_db_backup_verify
+
+name: "45 ops: hub db daily backup"
+
+on:
+  schedule:
+    # Daily. GitHub's scheduler is best-effort (csi-rel measured ~100 min real
+    # gaps on a declared 10), so treat this as "once a day", not as 05:17.
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment ("all" = dev then prd)'
+        type: choice
+        options: [all, dev, prd]
+        default: all
+      dry_run:
+        description: "Resolve and print the target object only; export nothing"
+        type: boolean
+        default: false
+      verify:
+        description: "Restore the dump into a throwaway container and compare"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  # a superseded backup run has nothing to add; the per-env group below is the
+  # one that must never be cancelled mid-export
+  group: db-backup-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: "backup ${{ matrix.environment }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        environment: [dev, prd]
+    concurrency:
+      # one export per env at a time, never cancelled while it runs: a
+      # cancelled export can leave the instance holding the operation
+      group: db-backup-${{ matrix.environment }}
+      cancel-in-progress: false
+    env:
+      ENV: ${{ matrix.environment }}
+      WANT: ${{ github.event.inputs.environment || 'all' }}
+      HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
+    # orc derives ORG/APP from the parent dirs: check out in the operator's
+    # layout <base>/csi/csi-spl (as 10 ci's orc-suite and 40 do)
+    defaults:
+      run:
+        working-directory: csi/csi-spl/csi-spl-orc
+    steps:
+      - name: Selected?
+        id: sel
+        working-directory: .
+        run: |
+          if [[ "$WANT" != all && "$WANT" != "$ENV" ]]; then echo "go=0" >>"$GITHUB_OUTPUT"; echo "$ENV not selected"; exit 0; fi
+          if [[ "$HAS_KEY" != true ]]; then echo "go=0" >>"$GITHUB_OUTPUT"; echo "::notice::$ENV skipped: no secret GCP_KEY_CSI_SPL_${ENV^^} (iac 120)"; exit 0; fi
+          echo "go=1" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.sel.outputs.go == '1'
+        with:
+          path: csi/csi-spl
+          ref: master
+
+      # no auth here: the action activates the env key in its own private
+      # CLOUDSDK_CONFIG and pins --account on every call
+      - uses: google-github-actions/setup-gcloud@v2
+        if: steps.sel.outputs.go == '1'
+
+      - name: psql for the restore check
+        if: steps.sel.outputs.go == '1' && github.event.inputs.verify != 'false'
+        working-directory: .
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: Env SA key to the path the actions resolve
+        if: steps.sel.outputs.go == '1'
+        working-directory: .
+        env:
+          KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.gcp/.csi"
+          printf '%s' "$KEY" >"$HOME/.gcp/.csi/key-csi-spl-$ENV.json"
+          jq -e .client_email "$HOME/.gcp/.csi/key-csi-spl-$ENV.json" >/dev/null
+
+      - name: Export the hub DB to the 045 bucket
+        id: backup
+        if: steps.sel.outputs.go == '1'
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+        run: ./run -a do_spl_db_backup
+
+      # the dump is only a backup once something has restored it
+      - name: Prove it restores (throwaway container, live read-only)
+        if: steps.sel.outputs.go == '1' && github.event.inputs.dry_run != 'true' && github.event.inputs.verify != 'false'
+        run: ./run -a do_spl_db_backup_verify
+
+      - name: Drop the key
+        if: always()
+        working-directory: .
+        run: rm -rf "$HOME/.gcp"

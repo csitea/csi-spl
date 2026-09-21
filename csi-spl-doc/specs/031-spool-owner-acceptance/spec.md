@@ -154,8 +154,9 @@ plus seven screenshots.
 |---|---|---|
 | OA-31 signed in as its own member, thread open | PASS | never the owner's account |
 | OA-32 the row is on top for the sender, once | PASS | `wui_ms` 19 |
-| OA-33 visible in the agent's pane | **FAIL** | the delivery outage below — not the pane leg |
+| OA-33 visible in the agent's pane | **FAIL**, now PASS | the stall below — not the pane leg. PASS on the 16:35 re-run, `pane_s` 32 |
 | OA-34 the agent's reply comes back | **FAIL** | same cause: `do_spl_desk_reply` exit 3, nothing in the inbox to answer |
+| OA-38 re-measured 16:35 | **PASS** | CLE-3433 landed the `?thread=` binding; the send now joins the owner's thread |
 | OA-19 code block in the DM composer | PASS | opened, held Enter, closed, rendered as code |
 | OA-24 a send lands or visibly fails | PASS | outcome `landed` |
 | OA-35 a PASS/FAIL line per case in the thread | PASS | 7 verdict lines posted |
@@ -165,13 +166,14 @@ Timings are reported apart, never blended: `wui_ms {"display":19}`,
 `pane_s {"display":45}` (the timeout, not a measurement — the message never
 arrived), `reply_ms {"desk":null}`.
 
-### 4.2 The delivery outage OA-33 / OA-34 hit (handed to CLE-3434)
+### 4.2 The stall OA-33 / OA-34 hit — an 11-minute DEAFNESS, not message loss
 
-**The hub accepted the messages, the browser showed them, the agent never
-received them, nothing was logged, and the sidecar process stayed healthy.**
-That is the owner's own symptom, and it is silent.
+**Fixed on trunk: `1dfaf71` (CLE-3436, the client keepalive) and `e52bf02`
+(CLE-3434, `do_spl_desk_check`).**
 
-Measured on the same run:
+The bot found a desk that had stopped delivering while its process stayed
+alive and its own log still read `hub session up`. Measured on dev, tree
+`ed74ce7`, n=1:
 
 - `ps -eo pid,etimes,args | grep hub-run` -> one process, pid 2492877,
   `etimes` 992 at 16:27:23: alive since 16:10:51, never restarted.
@@ -181,12 +183,39 @@ Measured on the same run:
 - `ls --time-style=+%H:%M:%S .../spool/CLE-00/inbox | tail -1` -> newest file
   **16:19:18**, still 16:19:18 at 16:27:23 — eight minutes of silence across
   a run that sent eight messages.
-- `grep -rl ced3f727 .../spool/CLE-00/` -> no hit, for a message whose WUI row
-  survived the server echo (so the hub acked it).
+- CLE-3434 added the two facts that settle it: `GET /v1/view/roster` read
+  `box-desk online=FALSE, last_hello 13:10:51Z` while `ss -tnp` still showed
+  the socket `ESTAB`. The hub had no session, the client believed it had one.
 
-An earlier run at 16:16–16:19 delivered normally, so this is a transition
-rather than a setup that was never right. The sidecar was deliberately left
-running: the live process is the evidence, and the desk is CLE-3434's lane.
+**The correction this lane got wrong, and it matters.** This was first reported
+— by this lane — as "the hub accepted it, the agent never received it", which
+reads as LOSS. It was not. CLE-3436 checked the inbox after the restart and
+every 16:26 message was there, written at the instant the sidecar reconnected:
+the hub queued them and the drain delivered them. The DURABLE path did its
+job; the LIVENESS path did not. Those have different fixes, and only one of
+them was broken.
+
+The measurement that produced the wrong reading was a correct one taken at the
+wrong moment: `grep -rl <msg_id> .../CLE-00/` found nothing **while the box was
+deaf**, and "missing now" was read as "lost". The check that tells the truth is
+the same grep after the box reconnects. That distinction is now the rule this
+lane applies: **a stall is only loss if the message is still missing once the
+box is back.**
+
+Cause (CLE-3436): the hub has pinged its peers since 017 FR-SEC-004; the client
+never did, so a socket that black-holed left the sidecar blocked in
+`wsjson.Read` on a session it believed was up. A box session now pings every
+30 s and closes on a missing pong, which bounds the stall at about 40 s rather
+than ending it — and `do_spl_desk_check` names the state (`ok | stranded |
+down | unpinned | agent-missing`) in one line when it happens again.
+
+**The trap CLE-3434 caught, worth keeping.** `do_spl_desk_up` rebuilds the
+binary, so a restart normally picks up trunk — but a restart that happens
+*before* the fix lands produces a healthy sidecar running the old code, and a
+re-run then measures the old code and reports the fix as ineffective. The
+check is the binary, not the restart:
+`strings <state>/bin/spool | grep -c "did not answer a ping"` -> 0 before,
+1 after.
 
 ## 5. Manual procedures
 

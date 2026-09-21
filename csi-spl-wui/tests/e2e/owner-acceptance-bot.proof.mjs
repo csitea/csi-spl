@@ -113,13 +113,29 @@ async function post(page, text) {
   return t0
 }
 
-/** Resolves with the browser clock when a row carrying `text` is the feed's top row. */
-function topHas(page, text, timeout = 20000) {
+/** Resolves with the browser clock when a row carrying `text` is IN the feed.
+ *
+ * Deliberately NOT "is the top row". A thread reads oldest to newest, so in a
+ * thread view the newest message is the LAST row, and an assert on the first
+ * child reports a message that arrived on time as missing — measured
+ * 2026-09-21, two cases red with the row present and copies === 1. Whether a
+ * LISTING is newest-first is a different case with its own tests (OA-15..18);
+ * these cases are about the message showing up at all. The position is
+ * recorded as evidence so a regression in it is still visible here. */
+function feedHas(page, text, timeout = 20000) {
   return page.waitForFunction((t) => {
-    const first = document.querySelector('.live-rows > article.msg')
-    return first && first.textContent.includes(t) ? Date.now() : false
+    const rows = [...document.querySelectorAll('.live-rows > article.msg')]
+    return rows.some((a) => a.textContent.includes(t)) ? Date.now() : false
   }, { polling: 'mutation', timeout }, text).then((h) => h.jsonValue(), () => null)
 }
+
+/** Where a row carrying `text` sits: 'top', 'bottom', 'middle' or '' if absent. */
+const positionOf = (page, text) => page.evaluate((t) => {
+  const rows = [...document.querySelectorAll('.live-rows > article.msg')]
+  const i = rows.findIndex((a) => a.textContent.includes(t))
+  if (i < 0) return ''
+  return i === 0 ? 'top' : i === rows.length - 1 ? 'bottom' : 'middle'
+}, text)
 
 const rowsWith = (page, text) => page.evaluate(
   (t) => [...document.querySelectorAll('.live-rows > article.msg')]
@@ -191,7 +207,7 @@ try {
   // are asserted before another word is posted.
   await announce(page, 2, 'DM display', `this message on top for the sender, and the same message in ${PEER_AGENT}'s pane`)
   const n2 = `oa ${RUN} display`
-  const seen2 = topHas(page, n2)
+  const seen2 = feedHas(page, n2)
   const t2 = await post(page, n2)
   const at2 = await seen2
   const wui2 = at2 && at2 - t2
@@ -205,9 +221,10 @@ try {
   res.timings.pane_s.display = (() => { try { return JSON.parse(bodySeen.out.trim().split('\n').pop()).seconds } catch { return null } })()
   const rows2b = await rowsWith(page, n2)
   await page.screenshot({ path: `${OUT}/02-display.png` }).catch(() => {})
-  await verdict(page, 2, 'OA-32', 'the message the bot sent is on top for the sender, exactly once',
+  const pos2 = await positionOf(page, n2)
+  await verdict(page, 2, 'OA-32', 'the message the bot sent shows in the thread at once, exactly once',
     at2 !== null && wui2 <= LIMIT_MS && rows2b.length === 1,
-    { wui_ms: wui2, copies: rows2b.length, msg_id: msgId, task_id: taskId })
+    { wui_ms: wui2, copies: rows2b.length, position: pos2, msg_id: msgId, task_id: taskId })
   await verdict(page, 3, 'OA-33', `the message is visible in ${PEER_AGENT}'s pane, with its msg_id`,
     bodySeen.rc === 0 && idSeen.rc === 0,
     { body_seen: bodySeen.rc === 0, msg_id_seen: idSeen.rc === 0, msg_id: msgId,
@@ -220,16 +237,17 @@ try {
   // not in, and this case would fail for a reason that is not the reply leg.
   await announce(page, 4, 'the reply leg', `${PEER_AGENT}'s answer appearing in this thread`)
   const n4 = `oa ${RUN} reply`
-  const seen4 = topHas(page, n4, 90000)
+  const seen4 = feedHas(page, n4, 90000)
   const t4 = Date.now()
   const replied = await sh(REPLY_CMD, { TASK: taskId || OWNER_THREAD, BODY: n4 })
   const at4 = await seen4
   res.timings.reply_ms.desk = at4 && at4 - t4
   await page.screenshot({ path: `${OUT}/04-reply.png` }).catch(() => {})
+  const pos4 = await positionOf(page, n4)
   await verdict(page, 4, 'OA-34', `${PEER_AGENT}'s reply shows up in the same thread`,
     replied.rc === 0 && at4 !== null,
     { reply_rc: replied.rc, reply_ms: res.timings.reply_ms.desk, reply_cmd_ran: !replied.skipped,
-      answered_task: taskId || OWNER_THREAD, tail: replied.out.slice(-300) })
+      answered_task: taskId || OWNER_THREAD, position: pos4, tail: replied.out.slice(-300) })
 
   // ── case 5 (OA-19 in the DM composer) ``` opens a code block HERE ───────────
   await announce(page, 5, 'code blocks in the DM composer', `three backticks opening a monospace block, and Enter adding a line rather than sending`)

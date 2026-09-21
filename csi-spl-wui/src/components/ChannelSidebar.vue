@@ -55,7 +55,9 @@
       </div>
       <NotificationCenter />
       <!-- identity, Sign in / Sign out: the top-right UserMenu (CLE-3402) -->
-      <p id="app-version" class="version-stamp">{{ version }}</p>
+      <!-- CLE-3433: the semver plus the deployed commit, so "did my fix
+           ship?" is answerable from the page instead of from build.json -->
+      <p id="app-version" class="version-stamp" :title="versionTitle || undefined" data-test="app-version">{{ versionText }}</p>
     </div>
   </nav>
 </template>
@@ -70,6 +72,7 @@ import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
 import { channelActivity, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
+import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
 
 const channel = useChannelStore()
 const roster = useRosterStore()
@@ -99,6 +102,11 @@ const creating = ref(false)
 const createError = ref('')
 const config = useRuntimeConfig()
 const version = computed(() => String(config.public.appVersion || 'v0.1.0-dev'))
+/* the deployed stamp, read once, client only; null in lde and on any failure */
+const build = ref(null)
+onMounted(async () => { build.value = await readBuildStamp() })
+const versionText = computed(() => buildStampText(version.value, build.value))
+const versionTitle = computed(() => buildStampTitle(build.value))
 
 /** channels-v1 §5.1 errors, in words (409 channel_exists, 400 bad_channel). */
 function createCopy(e: unknown) {

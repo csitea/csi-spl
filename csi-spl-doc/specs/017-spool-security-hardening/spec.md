@@ -135,7 +135,7 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 
 - **FR-SEC-003 (Root Key Claim Isolation):** The tenant root private key MUST NOT be transmitted over email.
   `TenantWelcome` email MUST omit the private key string, confining display to a single interactive web claim modal.
-  *Status:* Planned.
+  *Status:* Implemented — hub `e3265ed` (key minted at the single-use claim, never emailed; the one mail is template `tenant_paid`, renamed from `TenantWelcome`); standing test `5718690` (`go test ./internal/payments/ -run 'TestClaimMail'` -> PASS, 2026-09-21, GRK-3382).
 
 - **FR-SEC-004 (In-App Edge Limits; supersedes "Cloud Armor Hardening"):** With no load balancer (owner
   2026-09-19), the hub itself MUST refuse, before the WebSocket upgrade, a handshake on `/v1/ws` or
@@ -252,4 +252,4 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 - **NFR-SEC-003 (Minimal Distroless Attack Surface):** Production containers MUST execute as non-root users on
   distroless base images with read-only root filesystems where possible.
 
-<!-- version: 1.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:10:00Z -->
+<!-- version: 1.2.1 · updated: 2026-09-21 · last-edit: 2026-09-21T14:44:05Z -->

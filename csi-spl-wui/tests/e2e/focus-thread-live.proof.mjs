@@ -382,7 +382,10 @@ try {
     /* 6 — the keyboard half: Enter on the focused row */
     await open(page, '/lobby')
     await measure(page)
-    await sleep(800)
+    /* wait for the row instead of sleeping at it: the feed is live and the
+       window it renders moves while the proof walks */
+    await page.waitForFunction((t) => [...document.querySelectorAll('article.msg')].some((r) => r.textContent.includes(t)),
+      { polling: 'mutation', timeout: 20000 }, nonce).catch(() => {})
     const focused = await page.evaluate((t) => window.__cle3427.focusRow(t), nonce)
     await page.keyboard.press('Enter')
     await sleep(1500)
@@ -392,10 +395,16 @@ try {
 
     /* 7 — a search result opens its thread in the pane */
     /* the index is asynchronous: re-run the query until it has the message */
+    /* search-v1 tokenises: the quoted PHRASE form is the one that reliably
+       matches a nonce inside a sentence, so try it first and say which form
+       produced the hit rather than leaving a bare 0 rows. */
+    const queries = [`"${run}"`, run, 'cle3427']
     let hits = 0
     let why = {}
+    let usedQuery = ''
     for (let i = 0; i < 6 && hits === 0; i++) {
-      await page.goto(`${BASE}/search?q=${encodeURIComponent(run)}`, { waitUntil: 'networkidle2' })
+      usedQuery = queries[i % queries.length]
+      await page.goto(`${BASE}/search?q=${encodeURIComponent(usedQuery)}`, { waitUntil: 'networkidle2' })
       await measure(page)
       await sleep(2500)
       /* a query that returns nothing and a query that was REFUSED look the
@@ -404,8 +413,10 @@ try {
         rows: document.querySelectorAll('.search-row').length,
         empty: Boolean(document.querySelector('[data-test=search-empty]')),
         loading: Boolean(document.querySelector('[data-test=search-loading]')),
+        help: Boolean(document.querySelector('[data-test=search-help]')),
         error: (document.querySelector('[data-test=search-error], [data-test=search-bad-query]') || {}).textContent || '',
         door: Boolean(document.querySelector('[data-test=view-token-form], .view-token')),
+        q: new URL(location.href).searchParams.get('q') || '',
       }))
       hits = why.rows
     }
@@ -414,7 +425,7 @@ try {
       await sleep(2000)
       const s = await page.evaluate(() => window.__cle3427.sections())
       const u = new URL(page.url())
-      step(`${theme}: a search result opens its thread in the pane`, s.length === 1, { sections: s, hits })
+      step(`${theme}: a search result opens its thread in the pane`, s.length === 1, { sections: s, hits, query: usedQuery })
       step(`${theme}: the search result's thread is in the URL`, Boolean(u.searchParams.get('thread')), { thread: u.searchParams.get('thread') })
       await ownerRule(page, `${theme}-search`)
       await page.screenshot({ path: `${OUT}/${theme}-6-search-thread.png` })

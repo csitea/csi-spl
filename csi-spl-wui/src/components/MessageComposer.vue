@@ -194,7 +194,16 @@ function setText(s: string) {
 function focusInput() {
   inputEl.value?.focus()
 }
-defineExpose({ setText, focus: focusInput })
+/* CLE-3433: the box is cleared on emit, because the emit is fire-and-forget
+   and there is nothing to await. That is fine as long as a caller whose send
+   FAILED can put the text back - otherwise the only copy of what the human
+   wrote is gone, which is exactly how the owner lost a message. */
+function restore(body: string, files?: File[]) {
+  text.value = body
+  if (files && files.length) picked.value = [...files]
+  focusInput()
+}
+defineExpose({ setText, focus: focusInput, restore })
 
 const { t } = useI18n({ useScope: 'global' })
 const placeholder = computed(() => props.placeholder || t('composer.placeholder_default', { mention: '@CLE-07' }))

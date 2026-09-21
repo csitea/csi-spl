@@ -316,7 +316,11 @@
     "attach": "pievienot",
     "send": "Sūtīt",
     "sending": "Sūta…",
-    "code_hint": "Koda bloks: Enter pievieno rindu, lai aizvērtu, ierakstiet ``` vai nospiediet Esc, Ctrl+Enter nosūta"
+    "code_hint": "Koda bloks: Enter pievieno rindu, lai aizvērtu, ierakstiet ``` vai nospiediet Esc, Ctrl+Enter nosūta",
+    "send_failed": "Nav nosūtīts — ziņa nesasniedza hub.",
+    "send_failed_closed": "Nav nosūtīts — savienojums pārtrūka. Jūsu teksts ir saglabāts.",
+    "send_failed_timeout": "Nav nosūtīts — hub neatbildēja laikus. Jūsu teksts ir saglabāts.",
+    "send_retry": "Mēģināt vēlreiz"
   },
   "feed": {
     "unknown_author": "nezināms",

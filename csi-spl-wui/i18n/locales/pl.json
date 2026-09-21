@@ -316,7 +316,11 @@
     "attach": "załącz",
     "send": "Wyślij",
     "sending": "Wysyłanie…",
-    "code_hint": "Blok kodu: Enter dodaje wiersz, wpisz ``` lub naciśnij Esc, aby zamknąć, Ctrl+Enter wysyła"
+    "code_hint": "Blok kodu: Enter dodaje wiersz, wpisz ``` lub naciśnij Esc, aby zamknąć, Ctrl+Enter wysyła",
+    "send_failed": "Nie wysłano — wiadomość nie dotarła do huba.",
+    "send_failed_closed": "Nie wysłano — połączenie zostało przerwane. Twój tekst jest nadal tutaj.",
+    "send_failed_timeout": "Nie wysłano — hub nie odpowiedział na czas. Twój tekst jest nadal tutaj.",
+    "send_retry": "Spróbuj ponownie"
   },
   "feed": {
     "unknown_author": "nieznany",

@@ -316,7 +316,11 @@
     "attach": "priloži",
     "send": "Pošalji",
     "sending": "Slanje…",
-    "code_hint": "Блок кода: Enter додаје ред, откуцајте ``` или притисните Esc за затварање, Ctrl+Enter шаље"
+    "code_hint": "Блок кода: Enter додаје ред, откуцајте ``` или притисните Esc за затварање, Ctrl+Enter шаље",
+    "send_failed": "Nije poslato — poruka nije stigla do huba.",
+    "send_failed_closed": "Nije poslato — veza je prekinuta. Vaš tekst je i dalje tu.",
+    "send_failed_timeout": "Nije poslato — hub nije odgovorio na vreme. Vaš tekst je i dalje tu.",
+    "send_retry": "Pokušajte ponovo"
   },
   "feed": {
     "unknown_author": "nepoznato",

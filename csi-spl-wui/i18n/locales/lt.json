@@ -316,7 +316,11 @@
     "attach": "pridėti",
     "send": "Siųsti",
     "sending": "Siunčiama…",
-    "code_hint": "Kodo blokas: Enter prideda eilutę, uždarykite įvesdami ``` arba paspausdami Esc, Ctrl+Enter siunčia"
+    "code_hint": "Kodo blokas: Enter prideda eilutę, uždarykite įvesdami ``` arba paspausdami Esc, Ctrl+Enter siunčia",
+    "send_failed": "Neišsiųsta — žinutė nepasiekė hub.",
+    "send_failed_closed": "Neišsiųsta — ryšys nutrūko. Jūsų tekstas išsaugotas.",
+    "send_failed_timeout": "Neišsiųsta — hub neatsakė laiku. Jūsų tekstas išsaugotas.",
+    "send_retry": "Bandyti dar kartą"
   },
   "feed": {
     "unknown_author": "nežinomas",

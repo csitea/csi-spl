@@ -316,7 +316,11 @@
     "attach": "manusta",
     "send": "Saada",
     "sending": "Saatmine…",
-    "code_hint": "Koodiplokk: Enter lisab rea, sulgemiseks kirjuta ``` või vajuta Esc, Ctrl+Enter saadab"
+    "code_hint": "Koodiplokk: Enter lisab rea, sulgemiseks kirjuta ``` või vajuta Esc, Ctrl+Enter saadab",
+    "send_failed": "Saatmata — sõnum ei jõudnud hubi.",
+    "send_failed_closed": "Saatmata — ühendus katkes. Sinu tekst on alles.",
+    "send_failed_timeout": "Saatmata — hub ei vastanud õigeks ajaks. Sinu tekst on alles.",
+    "send_retry": "Proovi uuesti"
   },
   "feed": {
     "unknown_author": "tundmatu",

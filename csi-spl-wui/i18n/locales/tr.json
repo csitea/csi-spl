@@ -316,7 +316,11 @@
     "attach": "ekle",
     "send": "Gönder",
     "sending": "Gönderiliyor…",
-    "code_hint": "Kod bloğu: Enter satır ekler, kapatmak için ``` yazın veya Esc'e basın, Ctrl+Enter gönderir"
+    "code_hint": "Kod bloğu: Enter satır ekler, kapatmak için ``` yazın veya Esc'e basın, Ctrl+Enter gönderir",
+    "send_failed": "Gönderilmedi — mesaj hub'a ulaşmadı.",
+    "send_failed_closed": "Gönderilmedi — bağlantı koptu. Metniniz hâlâ burada.",
+    "send_failed_timeout": "Gönderilmedi — hub zamanında yanıt vermedi. Metniniz hâlâ burada.",
+    "send_retry": "Tekrar dene"
   },
   "feed": {
     "unknown_author": "bilinmiyor",

@@ -316,7 +316,11 @@
     "attach": "צירוף",
     "send": "שליחה",
     "sending": "שולח…",
-    "code_hint": "בלוק קוד: Enter מוסיף שורה, הקלידו ``` או לחצו Esc כדי לסגור, Ctrl+Enter שולח"
+    "code_hint": "בלוק קוד: Enter מוסיף שורה, הקלידו ``` או לחצו Esc כדי לסגור, Ctrl+Enter שולח",
+    "send_failed": "לא נשלח — ההודעה לא הגיעה ל-hub.",
+    "send_failed_closed": "לא נשלח — החיבור נותק. הטקסט שלכם נשמר.",
+    "send_failed_timeout": "לא נשלח — ה-hub לא הגיב בזמן. הטקסט שלכם נשמר.",
+    "send_retry": "נסו שוב"
   },
   "feed": {
     "unknown_author": "לא ידוע",

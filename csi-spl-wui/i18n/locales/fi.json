@@ -316,7 +316,11 @@
     "attach": "liitä",
     "send": "Lähetä",
     "sending": "Lähetetään…",
-    "code_hint": "Koodilohko: Enter lisää rivin, sulje kirjoittamalla ``` tai painamalla Esc, Ctrl+Enter lähettää"
+    "code_hint": "Koodilohko: Enter lisää rivin, sulje kirjoittamalla ``` tai painamalla Esc, Ctrl+Enter lähettää",
+    "send_failed": "Ei lähetetty — viesti ei päässyt hubiin.",
+    "send_failed_closed": "Ei lähetetty — yhteys katkesi. Tekstisi on yhä tallessa.",
+    "send_failed_timeout": "Ei lähetetty — hub ei vastannut ajoissa. Tekstisi on yhä tallessa.",
+    "send_retry": "Yritä uudelleen"
   },
   "feed": {
     "unknown_author": "tuntematon",

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
+import { shouldAutoResend } from '~/utils/send-failure.mjs'
 import {
   addChannelRow,
   belongsTo,
@@ -291,12 +292,30 @@ export const useChannelStore = defineStore('channel', () => {
       })
       messages.value = mergeLive(messages.value, own) as FeedMessage[]
     }
+    /* CLE-3433: one automatic resend when the socket went away underneath a
+       pending frame. The frame carries our own msg_id, so the hub de-dupes
+       the race where the first copy did land, and live-ws will have queued
+       and flushed on the new socket by the time this second call runs. Any
+       other failure is REPORTED, not retried - see utils/send-failure.mjs.
+
+       The optimistic row stays put across the retry: rolling it back was half
+       of how the owner's message disappeared without a trace on 2026-09-21.
+       It is removed only when the send has definitively failed, and by then
+       the caller is showing the text again with a Retry. */
     let ack
     try {
       ack = await client.send(frame)
-    } catch (e) {
-      if (frame.msg_id) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
-      throw e
+    } catch (first) {
+      if (!shouldAutoResend(first)) {
+        if (frame.msg_id) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
+        throw first
+      }
+      try {
+        ack = await client.send(frame)
+      } catch (second) {
+        if (frame.msg_id) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
+        throw second
+      }
     }
     const row = rowFromAck(ack, frame, { from: live.identity.value, channel: channelNow })
     if (row.msg_id) {

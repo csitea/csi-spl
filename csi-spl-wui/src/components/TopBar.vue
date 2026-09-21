@@ -30,6 +30,21 @@
         :title="t('search.slash_badge_title')"
       >/</kbd>
       <p :id="slashHintId" class="sr-only" data-test="slash-shortcut-hint">{{ t('search.slash_shortcut') }}</p>
+      <!-- CLE-3433: a send that did not land says so HERE, next to the box
+           that still holds the text, and offers the one action that helps -->
+      <ErrorNotice
+        v-if="sendError"
+        class="top-bar__send-error"
+        :message="t(sendError.key)"
+        source="omnibox-send"
+        test-id="omnibox-send-error"
+      >
+        <template #detail>
+          <button type="button" class="btn ghost" data-test="omnibox-send-retry" @click="retrySend">
+            {{ t('composer.send_retry') }}
+          </button>
+        </template>
+      </ErrorNotice>
       <button
         type="button"
         class="icon-btn top-bar__close"
@@ -67,6 +82,8 @@ import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
 import { searchPath, shouldLoadOperators } from '~/utils/search.mjs'
 import { slashFocusAction, slashFocusContext } from '~/utils/slash-focus.mjs'
+import { sendFailureKey } from '~/utils/send-failure.mjs'
+import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSessionStore } from '~/stores/session'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -112,11 +129,39 @@ function onDocKey(ev: KeyboardEvent) {
 const placeholder = computed(() => omnibox.target ? omnibox.target.placeholder() : t('search.placeholder_no_target'))
 const busy = computed(() => Boolean(omnibox.target && omnibox.target.busy && omnibox.target.busy()))
 
+/* CLE-3433. This handler used to be `await target.send(...)` with no catch.
+   Vue does not await an emit's listener, so a rejection here became an
+   UNHANDLED promise rejection: the composer had already cleared the box on
+   the same tick it emitted, and channel.sendLive had already rolled its
+   optimistic row back - so a dropped frame left no text, no row and no
+   error. That is how the owner's message disappeared on 2026-09-21.
+
+   Now a failure puts the text back in the box, names the reason and offers a
+   Retry. Nothing is cleared until the send has resolved. */
+const sendError = ref<{ key: string, err: unknown, text: string, files: File[] } | null>(null)
+
 async function onSend(text: string, _parent?: string, files?: File[]) {
   const target = omnibox.target
   if (!target) return
-  await target.send(text, files || [])
+  const sent = files || []
+  sendError.value = null
+  try {
+    await target.send(text, sent)
+  } catch (err) {
+    sendError.value = { key: sendFailureKey(err), err, text, files: sent }
+    composer.value?.restore(text, sent)
+  }
 }
+
+async function retrySend() {
+  const failed = sendError.value
+  if (!failed) return
+  await onSend(failed.text, undefined, failed.files)
+}
+
+/* the reader edited the text, or moved on: the old failure is not about what
+   is in the box any more */
+watch(() => route.fullPath, () => { sendError.value = null })
 
 function onSearch(q: string) {
   void router.push(localePath(searchPath(q)))
@@ -222,6 +267,13 @@ onUnmounted(() => {
   opacity: 0.85;
 }
 .top-bar__omnibox:focus-within .slash-badge { display: none; }
+.top-bar__send-error {
+  position: absolute;
+  top: 100%;
+  inset-inline: 0;
+  margin-top: 4px;
+  z-index: 60;
+}
 .top-bar__close { display: none; }
 .top-bar__search-toggle {
   display: none;

@@ -316,7 +316,11 @@
     "attach": "adjuntar",
     "send": "Enviar",
     "sending": "Enviando…",
-    "code_hint": "Bloque de código: Enter añade una línea, escribe ``` o pulsa Esc para cerrar, Ctrl+Enter envía"
+    "code_hint": "Bloque de código: Enter añade una línea, escribe ``` o pulsa Esc para cerrar, Ctrl+Enter envía",
+    "send_failed": "No enviado: el mensaje no llegó al hub.",
+    "send_failed_closed": "No enviado: se cortó la conexión. Tu texto sigue aquí.",
+    "send_failed_timeout": "No enviado: el hub no respondió a tiempo. Tu texto sigue aquí.",
+    "send_retry": "Reintentar"
   },
   "feed": {
     "unknown_author": "desconocido",

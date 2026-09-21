@@ -10,7 +10,12 @@ set -euo pipefail
 BIN="$1"
 DSN="$2"
 WORK="$(mktemp -d)"
-PORT="$(( 20000 + RANDOM % 20000 ))"
+# The kernel picks the port (LISTEN_ADDR :0) and the hub logs the one it got;
+# PORT is read back from that line on the first start_hub and reused after.
+# A port drawn from RANDOM landed in 20000..39999, which OVERLAPS the Linux
+# ephemeral range (/proc/sys/net/ipv4/ip_local_port_range, 32768..60999): any
+# outbound connection the runner makes can be holding it.
+PORT=""
 TENANT="t-e2e"
 # wui-live-ws.md §1; same value as cnf env.hub.env.SPOOL_HUB_LOBBY_TASK_ID.
 LOBBY="00000000-0000-4000-8000-000000000001"
@@ -27,17 +32,44 @@ trap cleanup EXIT
 fail() { echo "FAIL - $*"; [ -f "$WORK/hub.log" ] && tail -20 "$WORK/hub.log"; exit 1; }
 ok() { echo "ok   - $*"; }
 
+# the newest address the hub bound, from its own log; empty until it logs one
+hub_logged_port() {
+  sed -n 's/.*"addr":"127\.0\.0\.1:\([0-9][0-9]*\)".*"message":"hub listening".*/\1/p' \
+    "$WORK/hub.log" 2>/dev/null | tail -1
+}
+
 start_hub() {
   SPOOL_HUB_DB_DSN="$DSN" SPOOL_HUB_FILES_DIR="$WORK/blobs" \
-  SPOOL_HUB_TENANT_HOST_PATTERN="{tenant}.localhost" SPOOL_HUB_LISTEN_ADDR="127.0.0.1:$PORT" \
+  SPOOL_HUB_TENANT_HOST_PATTERN="{tenant}.localhost" SPOOL_HUB_LISTEN_ADDR="127.0.0.1:${PORT:-0}" \
   SPOOL_HUB_LOG_FORMAT=json SPOOL_HUB_ENV=lde \
   SPOOL_HUB_VIEW_DOOR=off SPOOL_HUB_LOBBY_TASK_ID="$LOBBY" \
   "$BIN" serve >>"$WORK/hub.log" 2>&1 &
   HUB_PID=$!
+  # First start: learn the port the kernel handed out. The hub logs that line
+  # only after net.Listen returned, so it is proof of a bound socket, not a
+  # claim made before binding. Later starts reuse the same port, so a box that
+  # queued mail against this hub flushes to the same URL.
+  if [ -z "$PORT" ]; then
+    for _ in $(seq 1 100); do
+      PORT="$(hub_logged_port)"
+      [ -n "$PORT" ] && break
+      kill -0 "$HUB_PID" 2>/dev/null || break
+      sleep 0.1
+    done
+    [ -n "$PORT" ] || fail "hub never logged a listening address"
+  fi
   for _ in $(seq 1 100); do
-    curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1 && return 0
+    curl -fsS --max-time 2 "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1 && return 0
     sleep 0.1
   done
+  # Say WHY. "did not come up" against a log that ends in "hub listening" cost
+  # a full investigation on 2026-09-21 and still did not name a cause.
+  if kill -0 "$HUB_PID" 2>/dev/null; then
+    echo "   hub pid $HUB_PID is alive, but nothing answered http://127.0.0.1:$PORT/healthz"
+  else
+    echo "   hub pid $HUB_PID exited before /healthz answered"
+  fi
+  command -v ss >/dev/null 2>&1 && ss -ltn 2>/dev/null | grep -F ":$PORT" | sed 's/^/   /'
   fail "hub did not come up"
 }
 stop_hub() { kill "$HUB_PID"; wait "$HUB_PID" 2>/dev/null || true; HUB_PID=""; }

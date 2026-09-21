@@ -25,7 +25,36 @@ if ! command -v docker >/dev/null || ! docker image inspect "$GCS_IMAGE" >/dev/n
   exit 0
 fi
 
-PORT="$(( 20000 + RANDOM % 20000 ))"
+# fake-gcs must be told its own external URL at start, so the port cannot be
+# left to the kernel here. Take one BELOW the ephemeral range
+# (/proc/sys/net/ipv4/ip_local_port_range) and prove it free by binding it:
+# a port drawn from 20000..39999 overlaps 32768..60999, where the kernel hands
+# out the source port of every outbound connection the runner makes.
+free_port() {
+  python3 - <<'PYPORT'
+import random, socket
+lo = 32768
+try:
+    lo = int(open('/proc/sys/net/ipv4/ip_local_port_range').read().split()[0])
+except OSError:
+    pass
+hi = max(10001, lo - 1)
+for _ in range(200):
+    p = random.randint(10000, hi)
+    s = socket.socket()
+    try:
+        s.bind(('127.0.0.1', p))
+    except OSError:
+        continue
+    finally:
+        s.close()
+    print(p)
+    break
+else:
+    raise SystemExit('no free port below %d' % lo)
+PYPORT
+}
+PORT="$(free_port)" || { echo "FAIL - no free port for fake-gcs"; exit 1; }
 CTR="spool-hub-gcs-test-$$"
 docker run -d --rm --pull never --name "$CTR" -p "127.0.0.1:${PORT}:4443" \
   "$GCS_IMAGE" \

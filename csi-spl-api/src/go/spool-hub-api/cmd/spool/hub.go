@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -201,11 +202,22 @@ func cmdServe() int {
 	go srv.RunSweeper(ctx, 10*time.Minute)
 	// IdleTimeout closes an idle keep-alive connection; a hijacked socket is
 	// not governed by it (keepalive pings do that, 017 FR-SEC-004).
-	hs := &http.Server{Addr: hc.ListenAddr, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second,
+	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10}
+	// Bind BEFORE claiming to listen, and log the address the kernel actually
+	// gave us. ListenAndServe binds inside the goroutine, so the old line
+	// announced "hub listening" for a socket that might never have bound --
+	// a failed bind and a healthy hub read identically in the log, which is
+	// why run 35604372799 was undiagnosable. Logging ln.Addr() also lets a
+	// harness ask for port 0 and read back the port it got, instead of
+	// guessing one out of the ephemeral range and racing the kernel for it.
+	ln, err := net.Listen("tcp", hc.ListenAddr)
+	if err != nil {
+		return fail(fmt.Errorf("listen on %s: %w", hc.ListenAddr, err))
+	}
 	errc := make(chan error, 1)
-	go func() { errc <- hs.ListenAndServe() }()
-	log.Info().Str("addr", hc.ListenAddr).Msg("hub listening")
+	go func() { errc <- hs.Serve(ln) }()
+	log.Info().Str("addr", ln.Addr().String()).Msg("hub listening")
 	select {
 	case err := <-errc:
 		return fail(err)

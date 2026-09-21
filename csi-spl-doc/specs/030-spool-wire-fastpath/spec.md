@@ -180,6 +180,21 @@ Reproduce:
 ENV=dev TENANT_ID=t1 WIRE_N=20 DRY_RUN=0 ./run -a do_spl_wire_probe
 ```
 
+**Re-run against the DEPLOYED 0.1.19 hub** (commit `2e4c1ce`, serving on dev and
+prd, n=12) once the box had quietened down:
+
+| leg | p50 | p95 |
+|---|---:|---:|
+| dial | 619.5 ms | 681.4 ms |
+| **submit** | **125.0 ms** | **160.4 ms** |
+| delta | −494.5 ms | −521.0 ms |
+
+So on a quiet box the reply leg is now **125 ms p50 / 160 ms p95, inside the
+owner's 300 ms budget on its own**. The earlier 231.5 / 401.2 reading was taken
+while ~20 agents were building and testing on the same machine. Both are true;
+the spread between them is box load, not protocol, which is the honest way to
+read either number.
+
 Three things worth reading carefully before this number is re-used:
 
 1. **It is the REPLY LEG, not the whole round trip.** It is one hop of

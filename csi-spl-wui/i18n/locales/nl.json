@@ -147,6 +147,7 @@
       "generic": "Er ging iets mis — probeer het opnieuw."
     },
     "go_to_sign_in": "Naar inloggen",
+    "signed_out_view": "{link} om berichten te lezen en te versturen.",
     "login": {
       "password_changed": "Wachtwoord gewijzigd — log in met het nieuwe.",
       "session_unavailable": "Sessie niet beschikbaar — de hub reageerde niet.",

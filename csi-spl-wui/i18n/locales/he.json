@@ -147,6 +147,7 @@
       "generic": "משהו השתבש — נסו שוב."
     },
     "go_to_sign_in": "מעבר להתחברות",
+    "signed_out_view": "{link} כדי לקרוא ולשלוח הודעות.",
     "login": {
       "password_changed": "הסיסמה שונתה — התחברו עם הסיסמה החדשה.",
       "session_unavailable": "ההפעלה אינה זמינה — ה-hub לא הגיב.",

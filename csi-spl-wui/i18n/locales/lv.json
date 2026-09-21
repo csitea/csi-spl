@@ -147,6 +147,7 @@
       "generic": "Kaut kas nogāja greizi — mēģiniet vēlreiz."
     },
     "go_to_sign_in": "Uz pieteikšanos",
+    "signed_out_view": "{link}, lai lasītu un sūtītu ziņas.",
     "login": {
       "password_changed": "Parole nomainīta — piesakieties ar jauno.",
       "session_unavailable": "Sesija nav pieejama — centrs neatbildēja.",

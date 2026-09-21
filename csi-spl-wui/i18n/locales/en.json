@@ -147,6 +147,7 @@
       "generic": "Something went wrong — try again."
     },
     "go_to_sign_in": "Go to sign in",
+    "signed_out_view": "{link} to read and send messages.",
     "login": {
       "password_changed": "Password changed — sign in with the new one.",
       "session_unavailable": "Session unavailable — the hub did not answer.",

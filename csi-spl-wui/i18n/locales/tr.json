@@ -147,6 +147,7 @@
       "generic": "Bir şeyler ters gitti — tekrar deneyin."
     },
     "go_to_sign_in": "Girişe git",
+    "signed_out_view": "Mesajları okumak ve göndermek için {link}.",
     "login": {
       "password_changed": "Parola değiştirildi — yenisiyle giriş yapın.",
       "session_unavailable": "Oturum kullanılamıyor — hub yanıt vermedi.",

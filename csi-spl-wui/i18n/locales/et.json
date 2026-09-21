@@ -147,6 +147,7 @@
       "generic": "Midagi läks valesti — proovi uuesti."
     },
     "go_to_sign_in": "Mine sisselogimisse",
+    "signed_out_view": "{link}, et sõnumeid lugeda ja saata.",
     "login": {
       "password_changed": "Parool muudetud — logi sisse uuega.",
       "session_unavailable": "Seanss pole saadaval — keskus ei vastanud.",

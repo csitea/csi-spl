@@ -147,6 +147,7 @@
       "generic": "Algo salió mal — inténtalo de nuevo."
     },
     "go_to_sign_in": "Ir a iniciar sesión",
+    "signed_out_view": "{link} para leer y enviar mensajes.",
     "login": {
       "password_changed": "Contraseña cambiada — inicia sesión con la nueva.",
       "session_unavailable": "Sesión no disponible — el hub no respondió.",

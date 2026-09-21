@@ -147,6 +147,7 @@
       "generic": "Ceva nu a mers bine — încercați din nou."
     },
     "go_to_sign_in": "Mergi la autentificare",
+    "signed_out_view": "{link} pentru a citi și trimite mesaje.",
     "login": {
       "password_changed": "Parola a fost schimbată — autentificați-vă cu cea nouă.",
       "session_unavailable": "Sesiune indisponibilă — hubul nu a răspuns.",

@@ -147,6 +147,7 @@
       "generic": "Coś poszło nie tak — spróbuj ponownie."
     },
     "go_to_sign_in": "Przejdź do logowania",
+    "signed_out_view": "{link}, aby czytać i wysyłać wiadomości.",
     "login": {
       "password_changed": "Hasło zmienione — zaloguj się nowym hasłem.",
       "session_unavailable": "Sesja niedostępna — hub nie odpowiedział.",

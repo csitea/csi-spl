@@ -147,6 +147,7 @@
       "generic": "Nešto je pošlo naopako — pokušajte ponovo."
     },
     "go_to_sign_in": "Idi na prijavu",
+    "signed_out_view": "{link} da biste čitali i slali poruke.",
     "login": {
       "password_changed": "Lozinka je promenjena — prijavite se novom.",
       "session_unavailable": "Sesija nije dostupna — hab nije odgovorio.",

@@ -147,6 +147,7 @@
       "generic": "Kažkas nutiko ne taip — bandykite dar kartą."
     },
     "go_to_sign_in": "Eiti į prisijungimą",
+    "signed_out_view": "{link}, kad galėtumėte skaityti ir siųsti žinutes.",
     "login": {
       "password_changed": "Slaptažodis pakeistas — prisijunkite su nauju.",
       "session_unavailable": "Sesija neprieinama — centras neatsakė.",

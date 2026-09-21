@@ -147,6 +147,7 @@
       "generic": "Något gick fel — försök igen."
     },
     "go_to_sign_in": "Gå till inloggning",
+    "signed_out_view": "{link} för att läsa och skicka meddelanden.",
     "login": {
       "password_changed": "Lösenordet har ändrats — logga in med det nya.",
       "session_unavailable": "Sessionen är inte tillgänglig — hubben svarade inte.",

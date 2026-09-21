@@ -23,7 +23,12 @@
       <span v-if="notes.mentions['ch:' + c.channel_id]" class="badge-mention" data-testid="mention-count">@{{ notes.previewUnread(notes.mentions['ch:' + c.channel_id]) }}</span>
       <span v-if="notes.unread['ch:' + c.channel_id]" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:' + c.channel_id]) }}</span>
     </NuxtLink>
-    <form v-if="access.can('channels.manage')" class="create-row" data-testid="create-channel" @submit.prevent="onCreate">
+    <!-- CLE-3433: `access.can` fails OPEN by design (the store only hides
+         actions; the hub re-checks every write), which is right for a member
+         whose /view/me read failed and wrong for a visitor who is not signed
+         in at all - they were offered a live "new channel" field that can
+         only answer 401. A settled signed-out probe is not a failed read. -->
+    <form v-if="!signedOut && access.can('channels.manage')" class="create-row" data-testid="create-channel" @submit.prevent="onCreate">
       <input v-model="newChannel" :placeholder="t('sidebar.new_channel_placeholder')" :aria-label="t('sidebar.new_channel_label')" :disabled="creating">
       <button class="btn ghost" type="submit" :disabled="creating">+</button>
     </form>
@@ -60,6 +65,8 @@ import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
+import { useSpoolApi } from '~/composables/useSpoolApi'
+import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
 import { channelActivity, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
@@ -68,6 +75,8 @@ const channel = useChannelStore()
 const roster = useRosterStore()
 const session = useSessionStore()
 const access = useAccessStore()
+const api = useSpoolApi()
+const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
 const notes = useNotificationStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })

@@ -57,6 +57,20 @@ export function shouldOpenHubSocket(sessionState, mock = false) {
 }
 
 /**
+ * CLE-3433: is this a visitor we should be showing a way IN, rather than an
+ * empty member view? Only a SETTLED 'out' qualifies — 'loading' and 'unknown'
+ * must not flash a sign-in notice at a human whose cookie is still being
+ * probed, and 'unknown' is an unreachable hub (auth-v1 §4), not a signed-out
+ * person. The mock tenant has no sign-in at all, so it is never signed out.
+ * @param {unknown} sessionState
+ * @param {boolean} [mock]
+ */
+export function isSignedOutVisitor(sessionState, mock = false) {
+  if (mock) return false
+  return String(sessionState) === 'out'
+}
+
+/**
  * Close the hub socket if one is already up. Must not call ensure() from idle:
  * ensure() constructs and connect()s a client, which is the signed-out leak.
  * @param {{ state?: { value?: unknown }, ensure?: () => { close?: () => void } | null }} live

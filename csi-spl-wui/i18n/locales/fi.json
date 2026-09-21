@@ -147,6 +147,7 @@
       "generic": "Jokin meni pieleen — yritä uudelleen."
     },
     "go_to_sign_in": "Siirry kirjautumaan",
+    "signed_out_view": "{link}, niin voit lukea ja lähettää viestejä.",
     "login": {
       "password_changed": "Salasana vaihdettu — kirjaudu sisään uudella salasanalla.",
       "session_unavailable": "Istunto ei ole käytettävissä — hub ei vastannut.",

@@ -147,6 +147,7 @@
       "generic": "Niečo sa pokazilo — skúste to znova."
     },
     "go_to_sign_in": "Prejsť na prihlásenie",
+    "signed_out_view": "{link}, aby ste mohli čítať a posielať správy.",
     "login": {
       "password_changed": "Heslo bolo zmenené — prihláste sa novým heslom.",
       "session_unavailable": "Relácia nie je k dispozícii — hub neodpovedal.",

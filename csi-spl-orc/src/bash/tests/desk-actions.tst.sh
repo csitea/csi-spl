@@ -15,7 +15,12 @@
 #      messages steal the thread an answer was meant for; the answered
 #      watermark makes already-answered messages stop counting; DESK_TO /
 #      DESK_TASK override; both together open a thread we hold no message of
-#   5. spl_desk_detach leaves the caller's descriptors alone: a daemon started
+#   5. spl_desk_verdict tells "the sidecar is alive" apart from "the hub has a
+#      session for it" - the two facts whose gap is SILENT: a hub redeploy
+#      leaves the box blocked on a dead socket with a healthy-looking process
+#      and no log line. stranded / down / unpinned / agent-missing / ok, and a
+#      repair that refuses the verdicts a restart cannot fix
+#   6. spl_desk_detach leaves the caller's descriptors alone: a daemon started
 #      inside a command substitution must not hold it open. That regression hung
 #      `./run` after every step of do_spl_desk_up had passed (2026-09-21)
 #------------------------------------------------------------------------------
@@ -140,7 +145,47 @@ out=$(SNIPPET="spl_desk_pick '[]' 'HUM-9' '$U2' '' 0" in_orc 2>&1)
 [[ "$out" == "HUM-9	$U2		" ]] && pass "both overrides open a thread we hold no message of" ||
   fail "both overrides: $out"
 
-# --- 5. the detach does not hold the caller's descriptors --------------------------
+# --- 5. is the desk REACHABLE, or only apparently so? -------------------------------
+# The live shape this came from (dev, 2026-09-21): sidecar alive 17 minutes,
+# hub answering online:false, 8 accepted messages that never arrived.
+ros() {  # ONLINE LISTED [BOX]
+  printf '{"boxes":[{"box_id":"%s","online":%s,"revoked":false,"last_hello_at":"2026-09-21T13:10:51Z","agents":[%s]}]}' \
+    "${3:-box-desk}" "$1" "$([ "$2" = 1 ] && echo '"CLE-00"' || echo '')"
+}
+v_of() { SNIPPET="spl_desk_verdict '$1' box-desk CLE-00 $2" in_orc 2>&1 | cut -f1; }
+
+[[ "$(v_of "$(ros true 1)" 1)"  == ok ]]            && pass "alive + hub session = ok"            || fail "ok: $(v_of "$(ros true 1)" 1)"
+[[ "$(v_of "$(ros false 1)" 1)" == stranded ]]      && pass "alive + hub says OFFLINE = stranded"  || fail "stranded: $(v_of "$(ros false 1)" 1)"
+[[ "$(v_of "$(ros true 1)" 0)"  == down ]]          && pass "no sidecar = down"                    || fail "down: $(v_of "$(ros true 1)" 0)"
+[[ "$(v_of "$(ros true 0)" 1)"  == agent-missing ]] && pass "box online, agent not announced"      || fail "agent-missing: $(v_of "$(ros true 0)" 1)"
+[[ "$(v_of "$(ros true 1 box-other)" 1)" == unpinned ]] && pass "the hub does not know this box"   || fail "unpinned: $(v_of "$(ros true 1 box-other)" 1)"
+[[ "$(v_of '{"boxes":[]}' 1)" == unpinned ]] && pass "an empty roster is unpinned, not ok"         || fail "empty roster: $(v_of '{"boxes":[]}' 1)"
+# A revoked pin must not read as a live session.
+[[ "$(v_of '{"boxes":[{"box_id":"box-desk","online":true,"revoked":true,"agents":["CLE-00"]}]}' 1)" == stranded ]] &&
+  pass "a REVOKED box is not reachable, whatever online says" || fail "revoked box did not read as unreachable"
+SNIPPET="spl_desk_verdict 'not json' box-desk CLE-00 1" in_orc >/dev/null 2>&1
+[[ $? -ne 0 ]] && pass "an unreadable roster is an error, not a verdict" || fail "bad roster json did not fail"
+
+# The repair refuses what a restart cannot fix, and refuses without DESK_REPAIR.
+out=$(SNIPPET="spl_desk_repair stranded 0 t1 box-desk CLE-00" in_orc 2>&1)
+[[ "$out" == *"not repairing"* ]] && pass "no repair unless DESK_REPAIR=1" || fail "repair gate: $out"
+out=$(SNIPPET="spl_desk_repair unpinned 1 t1 box-desk CLE-00" in_orc DRY_RUN=0 2>&1)
+[[ "$out" == *"not something a restart fixes"* ]] && pass "an unpinned box is not restarted blindly" || fail "unpinned repair: $out"
+out=$(SNIPPET="spl_desk_repair stranded 1 t1 box-desk CLE-00" in_orc 2>&1)
+[[ "$out" == *"DRY_RUN would"* ]] && pass "a repair is a dry run until DRY_RUN=0" || fail "repair dry run: $out"
+out=$(SNIPPET="spl_desk_repair ok 1 t1 box-desk CLE-00" in_orc DRY_RUN=0 2>&1)
+[[ -z "$out" ]] && pass "a healthy desk is never restarted" || fail "ok was repaired: $out"
+
+# The check's own dry run stays offline and reads the roster from a file.
+: >"$T/calls.log"
+printf '%s' "$(ros false 1)" >"$T/roster.json"
+out=$(SNIPPET=do_spl_desk_check in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_ROSTER_JSON="$T/roster.json" 2>&1)
+[[ "$out" == *'"verdict": "stranded"'* || "$out" == *'"verdict": "down"'* ]] &&
+  pass "do_spl_desk_check prints a JSON verdict" || fail "desk_check output: $out"
+[[ ! -s "$T/calls.log" ]] && pass "do_spl_desk_check makes no gcloud/curl/spool call" ||
+  fail "desk_check called out: $(cat "$T/calls.log")"
+
+# --- 6. the detach does not hold the caller's descriptors --------------------------
 # The regression: `pid="$(spl_desk_sidecar ...)"` never returned, because the
 # daemon inherited run.sh's logging pipes and the reader never saw EOF.
 out=$(SNIPPET='

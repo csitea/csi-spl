@@ -20,9 +20,14 @@ import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 import { useSpoolEvents } from '~/composables/useSpoolEvents'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOmniboxTarget } from '~/stores/omnibox'
+import { useThreadStore } from '~/stores/thread'
+import { omniboxParentTaskId, omniboxPlaceholderKey } from '~/utils/omnibox-thread.mjs'
 
 const route = useRoute()
 const channel = useChannelStore()
+const thread = useThreadStore()
+/* the task an Omnibox send hangs off: the open thread, or a new one */
+const replyTo = computed(() => omniboxParentTaskId(thread))
 const roster = useRosterStore()
 const events = useSpoolEvents()
 const api = useSpoolApi()
@@ -50,13 +55,18 @@ onMounted(() => {
   events.start()
 })
 
+/* CLE-3433 / OA-38: while `?thread=` names a thread, the Omnibox writes into
+   THAT thread. Without this, channel.sendLive's `task_id: parentTaskId ||
+   newId()` minted a new task per send and the exchange scattered. */
 async function onSend(text: string) {
-  await channel.send(text)
+  await channel.send(text, replyTo.value || undefined)
 }
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
-  placeholder: () => t('search.placeholder_target', { target: peer.value }),
+  placeholder: () => (replyTo.value
+    ? t(omniboxPlaceholderKey(replyTo.value))
+    : t('search.placeholder_target', { target: peer.value })),
   send: onSend,
 })
 </script>

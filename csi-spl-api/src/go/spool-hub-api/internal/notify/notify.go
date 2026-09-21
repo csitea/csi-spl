@@ -24,6 +24,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/logging"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/trace"
 )
 
 // Off is the $SPOOL_NOTIFY_CMD value that disables the terminal leg explicitly
@@ -71,6 +72,7 @@ func Run(cfg *config.Config, m *msg.Message, to string) {
 		"--body-stdin",
 	)
 
+	trace.Mark(trace.Event{Stage: trace.StageNotifyStart, MsgID: m.MsgID, To: to})
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.NotifyTimeoutOr())
 	defer cancel()
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) //nolint:gosec // operator-set command, no shell
@@ -84,11 +86,24 @@ func Run(cfg *config.Config, m *msg.Message, to string) {
 	// so it must see the same root this store wrote into, whatever the parent
 	// process inherited.
 	cmd.Env = append(os.Environ(), "SPOOL_ROOT="+cfg.SpoolRoot)
+	// The notifier reports its own "the line is on the screen" instant into
+	// the same trace file; this one brackets the whole leg, submit wait and
+	// all, which is what blocks the caller (CLE-3435).
+	if trace.On() {
+		cmd.Env = append(cmd.Env, "SPOOL_TRACE="+os.Getenv("SPOOL_TRACE"),
+			"SPOOL_TRACE_MSG_ID="+m.MsgID, "SPOOL_TRACE_TO="+to)
+	}
 	out, err := cmd.CombinedOutput()
+
+	var ee *exec.ExitError
+	rc := 0
+	if errors.As(err, &ee) {
+		rc = ee.ExitCode()
+	}
+	trace.Mark(trace.Event{Stage: trace.StageNotifyDone, MsgID: m.MsgID, To: to, RC: rc})
 
 	log := logging.New(cfg).With().Str("to", to).Str("msg_id", m.MsgID).Logger()
 	line := strings.TrimSpace(string(out))
-	var ee *exec.ExitError
 	switch {
 	case err == nil:
 		log.Debug().Str("notify", line).Msg("terminal delivery")

@@ -21,6 +21,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/notify"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/trace"
 )
 
 // Store binds the spool operations to a resolved config.
@@ -121,6 +122,13 @@ func (s *Store) writeBox(m *msg.Message, id, box string) (bool, error) {
 	}
 	if err := writeFileAtomic(filepath.Join(s.dir(id, box), msg.Filename(m)), blob, 0o664); err != nil {
 		return false, err
+	}
+	if box == "inbox" {
+		// The delivery itself: from here the message survives a crash, a
+		// restart and a closed socket (002). The hop table subtracts this
+		// from ws_recv to price the file mailbox - the part of the design
+		// the owner asked about (CLE-3435).
+		trace.Mark(trace.Event{Stage: trace.StageInboxWritten, MsgID: m.MsgID, To: id})
 	}
 	// specs/028 FR-001: this is the ONE place a message enters a local agent's
 	// inbox, whichever hop brought it here - a same-box `spool send` (CLI or

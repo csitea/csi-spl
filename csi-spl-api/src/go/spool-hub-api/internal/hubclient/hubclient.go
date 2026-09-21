@@ -32,6 +32,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/spool"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/trace"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
@@ -512,6 +513,10 @@ func (s *Session) receive(ctx context.Context, raw []byte, agents []string) erro
 	if err != nil {
 		return err
 	}
+	// The first instant this box can name the message (CLE-3435). Everything
+	// before it - the hub's work and two network legs - is measured from the
+	// sender's clock instead; everything after it is this clock's to subtract.
+	trace.Mark(trace.Event{Stage: trace.StageWSRecv, MsgID: m.MsgID, To: m.To})
 	if e.FromBox == wuiBox && m.Kind != "task" && m.Kind != "note" {
 		return fmt.Errorf("envelope from %s with kind %q: %w", wuiBox, m.Kind, sign.ErrVerify)
 	}

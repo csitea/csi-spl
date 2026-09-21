@@ -13,6 +13,8 @@
 #   SPOOL_NOTIFY_LINE_MAX   whole-line backstop cut           default 1200
 #   SPOOL_NOTIFY_ENTER_DELAY  seconds between typing the line and Enter,
 #                           the TUI's paste debounce             default 0.3
+#   SPOOL_TRACE             latency trace file (CLE-3435); the spool binary
+#                           sets it, with SPOOL_TRACE_MSG_ID / _TO. Unset = off
 
 # ── sanitising ──────────────────────────────────────────────────────────────
 # TEXT -> one line that is safe inside a single-quoted shell argument and
@@ -52,6 +54,18 @@ spool_notify_render() {  # VAR TO KIND FROM TASK MSGID BODY
   # worse than a shorter one, so close it again.
   case "$line" in *"'") ;; *) line="${line}'" ;; esac
   printf -v "$__var" '%s' "$line"
+}
+
+# ── the stopwatch ───────────────────────────────────────────────────────────
+# One NDJSON line into $SPOOL_TRACE, the same file internal/trace writes, so
+# the box-side hops can be subtracted from one clock (CLE-3435). Off unless
+# the spool binary set SPOOL_TRACE for this call; never fails the poke.
+spool_notify_trace() {  # STAGE
+  [ -n "${SPOOL_TRACE:-}" ] || return 0
+  printf '{"stage":"%s","ts_nano":%s,"msg_id":"%s","to":"%s"}\n' \
+    "$1" "$(date +%s%N)" "${SPOOL_TRACE_MSG_ID:-}" "${SPOOL_TRACE_TO:-}" \
+    >> "$SPOOL_TRACE" 2>/dev/null || :
+  return 0
 }
 
 # ── the doorbell ────────────────────────────────────────────────────────────
@@ -107,6 +121,7 @@ spool_notify_poke() {  # TO LINE
   # and the CLI reads a half-typed line - so it is bounded and tunable
   # rather than removed, and it is deliberately NOT part of the number.
   "${SPOOL_TM[@]}" send-keys -t "$pane" -l "$line" \
+    && spool_notify_trace notify_visible \
     && sleep "${SPOOL_NOTIFY_ENTER_DELAY:-0.3}" \
     && "${SPOOL_TM[@]}" send-keys -t "$pane" Enter
   echo "poke: ${pane} (${to})"

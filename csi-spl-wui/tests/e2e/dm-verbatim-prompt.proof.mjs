@@ -20,7 +20,7 @@
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
 //
-//   BASE       the WUI origin, e.g. https://dev.spool-hub.ai
+//   BASE       the WUI origin, e.g. https://dev.<fqdn>
 //   EMAIL      the bot member (never the owner's account)
 //   PW_FILE    0600 file holding that member's password
 //   PEER       the desk agent, e.g. CLE-44@box-desk

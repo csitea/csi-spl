@@ -52,6 +52,10 @@ const OWN_MSG = '11111111-1111-4111-8111-111111111111'
 /** a message from CLE-07@box-a: not ours, and box-signed — the hub refuses both */
 const THEIR_MSG = '33333333-3333-4333-8333-333333333333'
 const THEIR_TASK = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+/* CLE-3446: the same CLE-07@box-a message as the ROOT of its own task - the
+   3rd panel's pinned-root path, which step 8's feed path does not reach */
+const BOT_MSG = '33333333-3333-4333-8333-333333333333'
+const BOT_TASK = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 
 if (OUT) mkdirSync(OUT, { recursive: true })
 
@@ -107,6 +111,14 @@ const rowFromStore = (p, msgId) => p.evaluate((msgId) => {
   return m ? JSON.parse(JSON.stringify(m)) : null
 }, msgId)
 
+/** The same, out of the 3rd panel's own store (live-pane). */
+const rowFromPane = (p, msgId) => p.evaluate((msgId) => {
+  const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
+  const pane = pinia?._s.get('live-pane')
+  const m = pane?.messages?.find((x) => x.msg_id === msgId)
+  return m ? JSON.parse(JSON.stringify(m)) : null
+}, msgId)
+
 /** What a row on screen actually shows. `where` scopes it to the 3rd panel. */
 const readRow = (p, msgId, where = '') => p.evaluate((msgId, where) => {
   const scope = where ? document.querySelector(where) : document
@@ -151,6 +163,61 @@ async function plantPrefill(p, msgId) {
     box.dispatchEvent(new Event('input', { bubbles: true }))
   }, msgId)
   await sleep(150)
+}
+
+/** Who the 3rd panel's pinned root actually IS, read off the rendered card. */
+const paneRootIdentity = (p) => p.evaluate(() => {
+  const row = document.querySelector('[data-test=thread-section] [data-test=thread-root] article.msg')
+  if (!row) return { found: false }
+  const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
+  const pane = pinia?._s.get('live-pane')
+  const id = row.getAttribute('data-msg-id') || ''
+  const m = pane?.messages?.find((x) => x.msg_id === id) || null
+  return {
+    found: true,
+    msg_id: id,
+    from: m ? m.from : null,
+    from_box: m ? m.from_box : null,
+    pending: m ? Boolean(m.pending) : null,
+    editing: Boolean(row.querySelector('[data-test=msg-edit-box]')),
+  }
+})
+
+/**
+ * PROVE_RED=keep-editor — put the bot root back into the exact observable
+ * state the defect produced, without editing src/.
+ *
+ * The FIRST version of this plant pressed `e` on the bot root and the gate
+ * stayed green, because pressing `e` there is the thing the fix legitimately
+ * refuses: the plant was asking for the defect through the front door, which
+ * is locked. A plant that cannot fail is the same vacuous pass this gate
+ * exists to catch, so it is written against the OBSERVABLE state instead.
+ *
+ * What the real defect looked like, measured in Chrome before the fix:
+ *   {"editing":true,"boxValue":"Welcome to **#lobby**. This is the lde mock
+ *    feed.","root":{"msg_id":"33333333-…"}}
+ * i.e. a [data-test=msg-edit-box] inside the bot's pinned root, holding the
+ * PREVIOUS row's body. That is what this injects.
+ *
+ * Note that the natural red is the stronger evidence and it is on the record:
+ * this assertion failed on the unfixed tree with exactly the output above and
+ * passed once ThreadPane / LiveThreadPane / t/[task_id] keyed the mount. The
+ * plant is here so the gate can be re-demonstrated later, not as its proof.
+ */
+async function plantKeepEditor(p) {
+  if (RED !== 'keep-editor') return
+  await p.evaluate(() => {
+    const row = document.querySelector('[data-test=thread-section] [data-test=thread-root] article.msg')
+    if (!row || row.querySelector('[data-test=msg-edit-box]')) return
+    const body = row.querySelector('.msg-body')
+    const box = document.createElement('textarea')
+    box.setAttribute('data-test', 'msg-edit-box')
+    box.className = 'msg-edit-box'
+    box.value = 'Welcome to **#lobby**. This is the lde mock feed.'
+    if (body) body.replaceWith(box)
+    else row.appendChild(box)
+  })
+  await sleep(300)
 }
 
 const srv = await startServer()
@@ -299,6 +366,82 @@ try {
     ok("pressing e on somebody else's message does NOT open an editor", !theirs.editing, { editing: theirs.editing })
   } else {
     ok("pressing e on somebody else's message does NOT open an editor", false, { reason: 'their row was not on screen to focus' })
+  }
+
+  /* ---- 8.1 CLE-3446: an OPEN editor must not survive a root swap ------- */
+  /*
+   * THE OWNER'S BUG, 2026-09-22: "the editing of the msg appears whenever the
+   * bot is sending" - and "of course msgs sent by bots should not be editable".
+   *
+   * Step 8 above navigates first (`page.goto`), which throws the MessageCard
+   * away and builds a fresh one. That is why it passed all day while the owner
+   * was looking at the defect: the path it exercises is not the path the 3rd
+   * panel uses. The pinned root is mounted as
+   * `<MessageCard v-if="root" :msg="root">` with NO `:key` (ThreadPane.vue,
+   * LiveThreadPane.vue, pages/t/[task_id].vue), so swapping the thread PATCHES
+   * one instance instead of replacing it, and the card's local `edit` ref - an
+   * open textarea - rides across onto a row `canEdit()` says false for.
+   *
+   * So this asserts the state AFTER a swap with the editor open, with no
+   * navigation in between. Plant the defect and watch it go red:
+   *
+   *   PROVE_RED=keep-editor pnpm run test:e2e:msg-edit
+   *
+   * which re-opens the editor on the bot root after the swap, reproducing the
+   * un-keyed card's behaviour without editing src/.
+   */
+  await page.goto(`${srv.base}/lobby`, { waitUntil: 'networkidle2' })
+  await page.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
+  await page.waitForSelector(`article.msg[data-msg-id="${OWN_MSG}"]`, { timeout: NAV_TIMEOUT })
+  await sleep(600)
+  const ownRow2 = await rowFromStore(page, OWN_MSG)
+
+  /* Learn the bot row first, from the store, so the swap below carries a REAL
+     row rather than one this test invented. CLE-07@box-a fails both clauses of
+     the published predicate (`m.from === <my HUM-id> && m.from_box === 'box-wui'`). */
+  await drive(page, 'openTask', THEIR_TASK)
+  await sleep(1200)
+  const botRow = await rowFromPane(page, BOT_MSG)
+  ok('8.1 setup: the bot row is real and fails BOTH clauses of the predicate',
+    Boolean(botRow) && botRow.from === 'CLE-07' && botRow.from_box === 'box-a',
+    { from: botRow && botRow.from, from_box: botRow && botRow.from_box })
+
+  await drive(page, 'openPane', { taskId: OWN_MSG, msgId: OWN_MSG, parent: LOBBY_TASK, row: ownRow2 })
+  await page.waitForSelector(`${PANE} article.msg`, { timeout: NAV_TIMEOUT })
+  await sleep(800)
+  await focusRow(page, OWN_MSG, PANE)
+  await page.keyboard.press('e')
+  await sleep(400)
+  const armed = await readRow(page, OWN_MSG, PANE)
+  ok('8.1 setup: the editor is open on our OWN root row', armed.editing, { editing: armed.editing })
+
+  /* Swap the pinned root to the BOT message, the way clicking a row does:
+     a MESSAGE-rooted target plus pane.open(). `taskId` is reassigned without
+     ever passing through null (stores/live.ts open()), so the pane's <aside>
+     is never torn down -- which is the whole point: a remount would build a
+     fresh MessageCard and hide the defect, exactly as step 8's page.goto does. */
+  await drive(page, 'openPane', { taskId: BOT_MSG, msgId: BOT_MSG, parent: THEIR_TASK, row: botRow })
+  await sleep(1500)
+  await plantKeepEditor(page)
+  const swapped = await readRow(page, BOT_MSG, PANE)
+  const botIdentity = await paneRootIdentity(page)
+  ok('8.1 setup: the 3rd panel is now rooted at the BOT message',
+    swapped.found && botIdentity.msg_id === BOT_MSG, { found: swapped.found, root: botIdentity })
+
+  /* THE ASSERTION the owner is waiting on */
+  ok('CLE-3446: no editor is left open on the bot message after the root swap',
+    swapped.found && !swapped.editing,
+    { editing: swapped.editing, boxValue: swapped.boxValue, root: botIdentity, plant: RED || 'none' })
+
+  /* and `e` still must not open one on it */
+  const botFocused = await focusRow(page, BOT_MSG, PANE)
+  if (botFocused) {
+    await page.keyboard.press('e')
+    await sleep(400)
+    const afterE = await readRow(page, BOT_MSG, PANE)
+    ok('CLE-3446: pressing e on the bot root does NOT open an editor', !afterE.editing, { editing: afterE.editing })
+  } else {
+    ok('CLE-3446: pressing e on the bot root does NOT open an editor', false, { reason: 'the bot root was not focusable' })
   }
 
   /* ---- 9. nothing the browser REFUSED, and no script blew up ---------- */

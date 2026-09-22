@@ -17,7 +17,7 @@
       </div>
     </header>
     <div class="pinned-root" data-test="thread-root">
-      <MessageCard v-if="root" :msg="root" :since-ms="sinceMs" :editable="canEdit(root)" @edited="onEdited" />
+      <MessageCard v-if="root" :key="String(root.msg_id || '')" :msg="root" :since-ms="sinceMs" :editable="canEdit(root)" @edited="onEdited" />
       <p v-else-if="!loading && !loadError" class="muted">{{ t('thread.empty') }}</p>
     </div>
     <MessageComposer

@@ -6,7 +6,7 @@
       <VerbositySelector />
     </header>
     <div class="pinned-root">
-      <MessageCard v-if="store.thread.root" :msg="store.thread.root" :since-ms="sinceMs" :editable="canEdit(store.thread.root)" @edited="onEdited" />
+      <MessageCard v-if="store.thread.root" :key="String(store.thread.root.msg_id || '')" :msg="store.thread.root" :since-ms="sinceMs" :editable="canEdit(store.thread.root)" @edited="onEdited" />
     </div>
     <MessageComposer
       omnibox

@@ -350,3 +350,55 @@ describe('the wire body helper', () => {
     assert.equal(editWireBody(undefined), '')
   })
 })
+
+
+/*
+ * CLE-3446 — the OWNER's bug, 2026-09-22:
+ *
+ *   "also the editing of the msg appears whenever the bot is sending"
+ *   "of course msgs sent by bots should not be editable"
+ *
+ * The predicate above was never wrong. The row under the card changed.
+ *
+ * The 3rd panel's pinned root is ONE MessageCard that gets re-rooted rather
+ * than remounted -- `stores/live.ts open()` reassigns `taskId` without it ever
+ * passing through null, so the <aside> is never torn down. `:editable` is a
+ * prop and updated correctly; `edit` / `saving` / `editError` are local refs
+ * and did not, so an editor opened on your own message stayed open on
+ * whatever landed in the panel next. Measured in Chrome with the textarea
+ * sitting on CLE-07@box-a's message still holding HUM-1's body.
+ *
+ * The browser gate is tests/e2e/msg-edit.test.mjs step 8.1 and it is the one
+ * that proves behaviour. These two are the cheap structural guards, in the
+ * suite that runs in a second, so the shape cannot quietly come back.
+ *
+ * CONTROL: drop the `:key` from any one of the three mounts, or delete the
+ * watcher from MessageCard.vue, and the matching case here goes red.
+ */
+describe('CLE-3446 — an edit never rides across onto another row', () => {
+  /* every host that pins a single root MessageCard, and the expression it pins */
+  const ROOTS = [
+    ['ThreadPane', 'src/components/ThreadPane.vue', 'root'],
+    ['LiveThreadPane', 'src/components/LiveThreadPane.vue', 'root'],
+    ['t/[task_id]', 'src/pages/t/[task_id].vue', 'store.thread.root'],
+  ]
+
+  it('every pinned-root MessageCard is keyed by msg_id, so a re-root REPLACES the card', () => {
+    for (const [name, rel, root] of ROOTS) {
+      const tpl = src(rel)
+      const mount = tpl.split('\n').find((l) => l.includes('<MessageCard') && l.includes(`:msg="${root}"`))
+      assert.ok(mount, `${name}: no pinned-root <MessageCard :msg="${root}"> found`)
+      assert.match(mount, /:key="String\(.*\.msg_id \|\| ''\)"/, `${name} mounts the root card without a :key`)
+    }
+  })
+
+  it('MessageCard resets its edit state when the row identity changes', () => {
+    /* the half that does not depend on every future host remembering the key */
+    const card = src('src/components/MessageCard.vue')
+    const m = card.match(/watch\(\(\) => String\(props\.msg\?\.msg_id \|\| ''\)[\s\S]{0,400}?\n\}\)/)
+    assert.ok(m, 'MessageCard.vue has no watcher on props.msg.msg_id')
+    for (const cleared of ['edit.value = null', 'saving.value = false', "editError.value = ''"]) {
+      assert.ok(m[0].includes(cleared), `the msg_id watcher does not clear: ${cleared}`)
+    }
+  })
+})

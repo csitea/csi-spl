@@ -210,6 +210,35 @@ const draft = computed({
   set: (v: string) => { edit.value = withDraft(edit.value, v) },
 })
 
+/*
+ * CLE-3446 — the row under this card can CHANGE, and the edit state must not
+ * ride across when it does.
+ *
+ * THE OWNER, 2026-09-22: "the editing of the msg appears whenever the bot is
+ * sending". The 3rd panel's pinned root is one MessageCard that is re-rooted
+ * rather than remounted (stores/live.ts open() reassigns taskId without it
+ * ever passing through null, so the <aside> is never torn down). `editable`
+ * is a prop and re-evaluated correctly; `edit` / `saving` / `editError` are
+ * local refs and were not. So an editor opened on your own message stayed
+ * open on whatever landed in the panel next -- measured in Chrome with the
+ * textarea sitting on CLE-07@box-a's message still holding HUM-1's body
+ * (tests/e2e/msg-edit.test.mjs step 8.1).
+ *
+ * The hosts now key that mount by msg_id, which is the structural fix. This
+ * watcher is the one that does not depend on every future host remembering:
+ * a card whose row identity changed is a card with no edit in progress.
+ *
+ * It is a plain reset and NOT closeEdit(): closeEdit() pulls focus back to
+ * the row on the next tick, which would steal the caret from wherever the
+ * human actually is when a panel re-roots underneath them.
+ */
+watch(() => String(props.msg?.msg_id || ''), (now, before) => {
+  if (now === before) return
+  edit.value = null
+  saving.value = false
+  editError.value = ''
+})
+
 function startEdit() {
   if (!canEdit(props.msg)) return
   editError.value = ''

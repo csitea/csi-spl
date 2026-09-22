@@ -734,30 +734,44 @@ def run():
             ws.send(frame)
             return ws.wait(lambda f: f.get("msg_id") == frame["msg_id"] and f.get("type") in ("ack", "error"), timeout)
 
-        # -- b. #lobby: ambient note reaches no box; a leading @mention does ------------------
+        # -- b. #lobby: a PLAIN post reaches every member; a mention neither narrows nor widens it ----
+        # Owner rule 2026-09-22 (channels-v1 section 4): "if we are in a channel - all of the
+        # participants in the channel will receive the msg". #lobby's members are every announced
+        # agent of the tenant, so one plain line must land in BOTH boxes: EZB-1 through box-e2e-b's
+        # live hub-run sidecar, EZA-1 through box-e2e-a's next hub-sync. Until this rule the same
+        # post reached no box at all - the browser envelope was unsigned and routeChannel drops
+        # unsigned envelopes, whatever the body says.
         amb = send_wait({"type": "send", "task_id": str(uuid.uuid4()), "channel": "lobby", "kind": "note",
-                         "body": "m3-e2e ambient " + stamp})
+                         "body": "m3-e2e plain channel post " + stamp})
         men = send_wait({"type": "send", "task_id": str(uuid.uuid4()), "channel": "lobby", "kind": "note",
                          "body": "@%s m3-e2e mention %s" % (AGENT_B, stamp)})
         mid = send_wait({"type": "send", "task_id": str(uuid.uuid4()), "channel": "lobby", "kind": "note",
                          "body": "m3-e2e mid-body @%s %s" % (AGENT_B, stamp)})
         got_men = wait_inbox(BOX_B, AGENT_B, lambda m: m.get("msg_id") == (men or {}).get("msg_id"))
+        amb_id = (amb or {}).get("msg_id")
+        got_amb_b = wait_inbox(BOX_B, AGENT_B, lambda m: m.get("msg_id") == amb_id)
+        must(BOX_A, "hub-sync")  # box-e2e-a has no sidecar in this phase: drain its queue by hand
+        got_amb_a = wait_inbox(BOX_A, AGENT_A, lambda m: m.get("msg_id") == amb_id)
         time.sleep(3)
         ids_b = {m["msg_id"] for m in inbox(BOX_B, AGENT_B)}
         amb_rows = thread(amb["task_id"])[0]["deliveries"] if amb and amb.get("type") == "ack" else None
-        # the browser audience's own row (to_box box-wui) is expected; no BOX may have one
-        record("b-lobby-ambient-not-routed", bool(amb) and amb.get("type") == "ack" and amb["msg_id"] not in ids_b
-               and amb_rows is not None and all(r["to_box"] == WUI for r in amb_rows),
-               {"ack": amb, "in_box_b_inbox": bool(amb) and amb.get("msg_id") in ids_b, "deliveries": amb_rows})
+        amb_boxes = sorted({r["to_box"] for r in amb_rows}) if amb_rows is not None else None
+        # The browser audience's own row (to_box box-wui) is there as before; what is new is that
+        # BOTH member boxes have one too, from ONE stored box-wui-signed envelope.
+        record("b-lobby-plain-post-reaches-every-member",
+               bool(amb) and amb.get("type") == "ack" and got_amb_b is not None and got_amb_a is not None
+               and got_amb_b.get("from") == hum and amb_boxes == sorted([BOX_A, BOX_B, WUI]),
+               {"ack": amb, "box_b_inbox": got_amb_b, "box_a_inbox": got_amb_a,
+                "delivery_boxes": amb_boxes, "deliveries": amb_rows})
         record("b-lobby-mention-routed", bool(men) and men.get("type") == "ack" and men.get("to_box") == BOX_B and got_men is not None
                and got_men.get("from") == hum,
                {"ack": men, "box_b_inbox": got_men})
         # 028 SC-002: a human's @mention in a channel, kind=note.
         term["b-human-mention-note"] = wait_pane(AGENT_B, "m3-e2e mention " + stamp,
                                    since=sent_at.get((men or {}).get("msg_id")))
-        # Observation, not a gate: spec 014 FR-006 dispatches on a LEADING mention only and
-        # channels-v1 section 4.6 never routes an unsigned browser envelope, so a mid-body
-        # mention from a human stays in the browser.
+        # Observation, not a gate: spec 014 FR-006 still dispatches on a LEADING mention only, so a
+        # mid-body mention picks no to_box. It reaches the box all the same now - as a channel
+        # member, not as a mention - which is the point of the rule.
         RESULTS.append({"step": "b-obs-mid-body-mention", "result": "OBSERVED",
                         "evidence": {"ack": mid, "in_box_b_inbox": bool(mid) and mid.get("msg_id") in ids_b}})
         log("OBS  b-obs-mid-body-mention %s" % json.dumps(RESULTS[-1]["evidence"], sort_keys=True))

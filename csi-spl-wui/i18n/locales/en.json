@@ -314,7 +314,8 @@
     "create_channel_slug_hint": "It will be #{slug}",
     "create_channel_slug_rule": "Lowercase letters, digits and dashes.",
     "create_channel_submit": "Create channel",
-    "create_channel_busy": "Creating…"
+    "create_channel_busy": "Creating…",
+    "you": "(you)"
   },
   "composer": {
     "mention_suggestions": "Mention suggestions",

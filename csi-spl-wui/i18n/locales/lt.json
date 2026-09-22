@@ -314,7 +314,8 @@
     "create_channel_slug_hint": "Jis bus #{slug}",
     "create_channel_slug_rule": "Mažosios raidės, skaitmenys ir brūkšneliai.",
     "create_channel_submit": "Sukurti kanalą",
-    "create_channel_busy": "Kuriama…"
+    "create_channel_busy": "Kuriama…",
+    "you": "(jūs)"
   },
   "composer": {
     "mention_suggestions": "Paminėjimų pasiūlymai",

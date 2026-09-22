@@ -314,7 +314,8 @@
     "create_channel_slug_hint": "Den blir #{slug}",
     "create_channel_slug_rule": "Små bokstäver, siffror och bindestreck.",
     "create_channel_submit": "Skapa kanal",
-    "create_channel_busy": "Skapar…"
+    "create_channel_busy": "Skapar…",
+    "you": "(du)"
   },
   "composer": {
     "mention_suggestions": "Förslag på omnämnanden",

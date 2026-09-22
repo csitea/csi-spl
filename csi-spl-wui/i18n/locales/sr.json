@@ -314,7 +314,8 @@
     "create_channel_slug_hint": "Biće #{slug}",
     "create_channel_slug_rule": "Mala slova, cifre i crtice.",
     "create_channel_submit": "Napravi kanal",
-    "create_channel_busy": "Pravi se…"
+    "create_channel_busy": "Pravi se…",
+    "you": "(vi)"
   },
   "composer": {
     "mention_suggestions": "Predlozi za pominjanje",

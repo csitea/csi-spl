@@ -314,7 +314,8 @@
     "create_channel_slug_hint": "Będzie to #{slug}",
     "create_channel_slug_rule": "Małe litery, cyfry i myślniki.",
     "create_channel_submit": "Utwórz kanał",
-    "create_channel_busy": "Tworzenie…"
+    "create_channel_busy": "Tworzenie…",
+    "you": "(Ty)"
   },
   "composer": {
     "mention_suggestions": "Sugestie wzmianek",

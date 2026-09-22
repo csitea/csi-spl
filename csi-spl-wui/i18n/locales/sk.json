@@ -314,7 +314,8 @@
     "create_channel_slug_hint": "Bude to #{slug}",
     "create_channel_slug_rule": "Malé písmená, číslice a pomlčky.",
     "create_channel_submit": "Vytvoriť kanál",
-    "create_channel_busy": "Vytvára sa…"
+    "create_channel_busy": "Vytvára sa…",
+    "you": "(vy)"
   },
   "composer": {
     "mention_suggestions": "Návrhy zmienok",

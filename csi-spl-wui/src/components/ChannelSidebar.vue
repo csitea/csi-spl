@@ -113,6 +113,10 @@
       <SpoolAvatar :id="roster.self.id" :box="roster.self.box" :size="22" />
       <span class="dot" :class="{ on: roster.self.online }" />
       <span class="label">{{ roster.self.label }}</span>
+      <!-- `sidebar.you` carries its own brackets: a bracket hard-coded here
+           lands on the wrong side of an RTL label (he), because the bidi
+           algorithm resolves neutral punctuation from its surroundings. -->
+      <span class="muted self-row__you">{{ t('sidebar.you') }}</span>
     </div>
     <NuxtLink
       v-for="p in peers"
@@ -245,6 +249,14 @@ async function onCreate() {
    hover highlight, nothing that reads as "click me" (CLE-3448) */
 .self-row { cursor: default; }
 .self-row:hover { background: transparent; }
+/* shrinks last, after the id: which row is yours matters more than the tail
+   of a long label, and the 72px rail hides both (main.css max-width 800) */
+.self-row__you { font-size: 12px; flex-shrink: 0; }
+/* the 72px rail keeps avatar + dot and drops every word (main.css does the
+   same to .label there); a bare "(you)" beside an avatar says nothing */
+@media (max-width: 800px) {
+  .self-row__you { display: none; }
+}
 /* the heading row: title on the left, the one + on the right */
 .sidebar-head {
   display: flex;

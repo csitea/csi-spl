@@ -9,8 +9,14 @@
 // Run: node tests/unit/human-presence.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { mergeSnapshotOnline, peopleRows } from '../../src/utils/live-follow.mjs'
 import { BROWSER_BOX, rosterFromView } from '../../src/utils/view-api.mjs'
+
+const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 /* What the dev hub answered on 2026-09-22, trimmed to two of each. */
 const VIEW = {
@@ -78,5 +84,33 @@ describe('CLE-3448 a human in the people pane', () => {
     const rows = peopleRows({ [BROWSER_BOX]: ['HUM-4'] }, ['HUM-4@' + BROWSER_BOX], 'HUM-9')
     assert.equal(rows.length, 1)
     assert.equal(rows[0].online, true)
+  })
+})
+
+/*
+ * The reader's row says WHOSE row it is. `i18n-parity.test.mjs` already
+ * proves every locale holds the key; what it cannot see is a key that was
+ * scaffolded into 19 files and translated in one - `add_keys.py` seeds the
+ * other 18 with the ENGLISH value on purpose, so a forgotten
+ * `splice_locales.py` leaves a catalogue that is complete and untranslated,
+ * and every gate reads green.
+ */
+describe('CLE-3448 the reader\'s row is labelled', () => {
+  it('the sidebar renders sidebar.you on the self row', () => {
+    const vue = read('src/components/ChannelSidebar.vue')
+    assert.match(vue, /self-row/)
+    assert.match(vue, /t\('sidebar\.you'\)/)
+  })
+
+  it('all 19 locales translate it - none is left on the English placeholder', () => {
+    const dir = join(WUI, 'i18n/locales')
+    const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
+    assert.equal(files.length, 19)
+    const en = JSON.parse(read('i18n/locales/en.json')).sidebar.you
+    assert.ok(en, 'en carries the key')
+    const untranslated = files
+      .filter((f) => f !== 'en.json')
+      .filter((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')).sidebar.you === en)
+    assert.deepEqual(untranslated, [], 'these locales still hold the English value')
   })
 })

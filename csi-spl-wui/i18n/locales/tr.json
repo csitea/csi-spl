@@ -314,7 +314,8 @@
     "create_channel_slug_hint": "#{slug} olacak",
     "create_channel_slug_rule": "Küçük harfler, rakamlar ve tireler.",
     "create_channel_submit": "Kanal oluştur",
-    "create_channel_busy": "Oluşturuluyor…"
+    "create_channel_busy": "Oluşturuluyor…",
+    "you": "(siz)"
   },
   "composer": {
     "mention_suggestions": "Bahsetme önerileri",

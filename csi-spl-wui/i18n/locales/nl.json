@@ -314,7 +314,8 @@
     "create_channel_slug_hint": "Het wordt #{slug}",
     "create_channel_slug_rule": "Kleine letters, cijfers en streepjes.",
     "create_channel_submit": "Kanaal aanmaken",
-    "create_channel_busy": "Aanmaken…"
+    "create_channel_busy": "Aanmaken…",
+    "you": "(jij)"
   },
   "composer": {
     "mention_suggestions": "Suggesties voor vermeldingen",

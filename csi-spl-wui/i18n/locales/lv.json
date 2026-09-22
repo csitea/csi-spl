@@ -314,7 +314,8 @@
     "create_channel_slug_hint": "Tas būs #{slug}",
     "create_channel_slug_rule": "Mazie burti, cipari un defises.",
     "create_channel_submit": "Izveidot kanālu",
-    "create_channel_busy": "Veido…"
+    "create_channel_busy": "Veido…",
+    "you": "(jūs)"
   },
   "composer": {
     "mention_suggestions": "Pieminēšanas ieteikumi",

@@ -314,7 +314,8 @@
     "create_channel_slug_hint": "Va fi #{slug}",
     "create_channel_slug_rule": "Litere mici, cifre și liniuțe.",
     "create_channel_submit": "Creează canalul",
-    "create_channel_busy": "Se creează…"
+    "create_channel_busy": "Se creează…",
+    "you": "(tu)"
   },
   "composer": {
     "mention_suggestions": "Sugestii de mențiuni",

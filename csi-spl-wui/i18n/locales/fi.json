@@ -314,7 +314,8 @@
     "create_channel_slug_hint": "Siitä tulee #{slug}",
     "create_channel_slug_rule": "Pieniä kirjaimia, numeroita ja väliviivoja.",
     "create_channel_submit": "Luo kanava",
-    "create_channel_busy": "Luodaan…"
+    "create_channel_busy": "Luodaan…",
+    "you": "(sinä)"
   },
   "composer": {
     "mention_suggestions": "Mainintaehdotukset",

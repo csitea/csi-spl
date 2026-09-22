@@ -225,4 +225,102 @@ upgrade above.
   `e` actually reaching the handler and the textarea appearing pre-filled — and that is what the
   browser gate now covers.
 
-<!-- version: 1.8.0 · updated: 2026-09-22 · last-edit: 2026-09-22T08:10:00Z -->
+
+## CLE-3446 — the owner's two bugs on the day the edit feature shipped
+
+Reported live, ~90 minutes after `ada3bed`..`261f4f7` went out. The owner, 2026-09-22:
+
+> "basically three is some kind of mix between the who sends the msg and the avatar , also the
+> editing of the msg appears whenever the bot is sending"
+
+and, minutes later:
+
+> "of course msgs sent by bots should not be editable"
+
+**Two bugs, not one.** They were reported in one breath and it was tempting to treat them as one
+mechanism; they are not, and saying so early would have been wrong.
+
+- [x] T039 Implemented (`025b8e6`) — **B: an open editor rode onto the next row.**
+  MEASURED FIRST, before any fix: `PATCH /v1/messages/{id}` on dev (t1, viewer `HUM-4`, live sha
+  `6026c59`), n=2, against `HUM-17`'s row and `ORC-1`'s row → **403 `not_author`** both times,
+  body unchanged and `revision` / `edited_at` null on re-read. The hub half was correct, so this
+  was a UI-only defect. (Rule 7, `not_editable`, was NOT reached — rule 6 refuses first for every
+  row in reach. Recorded as not-shown rather than implied.)
+
+  The predicate was never wrong; the row under the card changed. `ThreadPane.vue`,
+  `LiveThreadPane.vue` and `pages/t/[task_id].vue` mounted the pinned root with **no `:key`**, and
+  `stores/live.ts open()` reassigns `taskId` without it passing through null, so the `<aside>` is
+  never torn down and Vue PATCHES one `MessageCard`. `editable` is a prop and went false
+  correctly; `edit` / `saving` / `editError` are local refs and did not. Fix: key the three mounts
+  by `msg_id` AND watch `props.msg.msg_id` in the card (the half that does not depend on every
+  future host remembering the key).
+
+  Check: `cd csi-spl-wui && node tests/e2e/msg-edit.test.mjs` → **26/26**. The gate was a
+  **NATURAL red on the unfixed tree** — 24/26, exit 1, on
+  `{"editing":true,"boxValue":"Welcome to **#lobby**. This is the lde mock feed."}`: an editable
+  box, on `CLE-07@box-a`'s message, holding a different author's text. Only the hub's rule 6
+  stopped it landing. `PROVE_RED=keep-editor` re-reds it. Unit controls: drop a `:key` → *"ThreadPane
+  mounts the root card without a :key"*; delete the watcher → *"MessageCard.vue has no watcher on
+  props.msg.msg_id"*. Both restored.
+
+  Why the existing gate stayed green all day: step 8 of `msg-edit.test.mjs` calls `page.goto`
+  first, which destroys the component — a true assertion about a situation the 3rd panel never
+  reaches.
+
+- [x] T040 Implemented (`70b367d`) — **author-only upgraded from INFERRED to OWNER-STATED**, quoting
+  the owner, in this file's ORDERED-vs-INFERRED block, the `utils/msg-edit.mjs` header and
+  `useMessageEdit.ts`. **Escape-cancels stays INFERRED and each place says so explicitly** rather
+  than leaving it to be read out of what is missing. The no-time-window half stays CLE-00's ruling.
+  032 §4 was CLE-00's in `89564da`. Check: `node --test tests/unit/msg-edit.test.mjs` → 40 pass.
+
+- [x] T041 Implemented (`816d229`, `e284552`) — **A: a channel row is ONE MESSAGE, sender → recipient.**
+  No data defect. `threadCards` spread the FIRST message of a task and thereafter updated only
+  `last_ts` / `count`, so the row kept the ROOT's `from` / `from_box` / `body` beside the NEWEST
+  message's clock. In a two-party conversation the root is always the human, so every row rendered
+  the human's identicon and the agent's reply was folded away. `MessageCard` feeds `SpoolAvatar`
+  and `AgentBadge` from the same `msg.from`, which is why the NAME was wrong too. Diagnosed by
+  CLE-00, re-verified here against the sources before anything changed.
+
+  Built to the format the owner settled (relayed by CLE-3444): per message, sender → recipient,
+  the arrow flipping per row, kind badge kept, real ISO 8601 with the `T` and the `Z`.
+  `channelView` drops the fold; `recipientOf()` reads the right-hand party from THAT message;
+  `formatIsoTs()` is NEW — `formatAbsTs` returns `yyyy-mm-dd HH:MM:SS`, other surfaces read it,
+  and a formatter that is nearly right is how two surfaces end up disagreeing about what a
+  timestamp is. The 3rd panel's own ticking `sinceMs` clock is untouched.
+
+  **This overturns part of CLE-3425, deliberately and on the owner's word:** "one card per
+  task_id" no longer holds on /channel and /dm. What CLE-3425 was protecting survives — newest
+  first everywhere, a replied-to thread is the newest thing in the channel — because the reply is
+  now a row of its own. Three cases in `channel-reverse` / `list-order` are rewritten with that
+  reasoning in them; `threadCards` is kept unchanged with its own tests.
+
+  `e284552` is the follow-up and is the one worth reading: there are **TWO** "everyone" sentinels,
+  the hub's `ALL-0` and the client's `@channel` (`parseMention`, `rowFromAck`,
+  `stores/channel.ts:320`; stripped by `spool-client.mjs:317` before the wire). Excluding only
+  `ALL-0` put an arrow and a generated ROBOT avatar for a participant called "@channel" beside
+  every ordinary channel message the viewer sends. **It was found by rendering the row in Chrome,
+  not by reading it back** — the unit gate missed it because the gate was written against the
+  sentinel that had been measured on dev.
+
+  Check: `node --test tests/unit/*.test.mjs` → **738 pass, 0 fail**; `pnpm run typecheck` exit 0;
+  `node tests/e2e/no-x-scroll.test.mjs` → 56/56 (the row got wider). Gate is a NATURAL red:
+  restore the fold in `channelView` and *"both sides of a two-party thread are rows, each with its
+  OWN sender"* fails with the root's sender on the reply's row.
+
+### Open, filed rather than chased (CLE-3446)
+
+- [ ] `SpoolAvatar` holds `shown` as a local ref updated only from `watch(picture)`. For every id
+  with no stored IdP picture `picture` is `''` on both sides of a swap, so the watcher never fires
+  and a reused card could keep the previous face under the new name. **Not the owner's symptom A**
+  — that was row identity, above — and much harder to reach now the root mounts are keyed, but the
+  mechanism is real on inspection and unproven either way. It needs a signed-in member with a
+  stored IdP picture to reproduce; no dev test account has one (they sign in natively, so no
+  `avatar_file_id`), and the lde mock forces `api.mock`, which makes `picture` `''` for everyone.
+
+- [ ] Trap for whoever adds the next export to a `.mjs`: it is a **TWO-file change**.
+  `src/types/mjs-shims.d.ts` carries an ambient `declare module '~/utils/<x>.mjs'` that ENUMERATES
+  the exports, and TS believes it over the real file for the aliased specifier. A new export is
+  then invisible as `has no exported member 'X'` while resolving fine via a relative path —
+  measured both ways on the same file in the same run.
+
+<!-- version: 1.9.0 · updated: 2026-09-22 · last-edit: 2026-09-22T12:30:00Z -->

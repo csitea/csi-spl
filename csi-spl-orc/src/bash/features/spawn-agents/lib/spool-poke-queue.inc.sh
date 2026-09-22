@@ -98,14 +98,29 @@ spool_poke_retry_ensure() {  # ID
 #                          paints that frame over a screen whose anchor moved,
 #                          and the bottom of the terminal is the corruption
 #                          the owner reported.
-#        split -h -l 40 -> agent 148x51: all 51 rows still there, ROW-001 still
-#                          on line 1, ROW-END still last. Nothing moved; only
-#                          the line TAILS past column 148 are cut, and the
-#                          TUI's next paint restores those.
+#        split -h -l 48 -> agent 140x51: all 51 rows still there, ROW-001 still
+#                          on line 1, ROW-END still last. Nothing moved.
 #
 #      So the width knob does not merely rotate the bug: the row anchor, which
 #      is the thing a partial redraw depends on, survives a width change and
-#      does not survive a height change. Reproduce both with
+#      does not survive a height change.
+#
+#      BUT -h IS NOT FREE EITHER, and the proof script measures that too, with
+#      a subject shaped like a real agent CLI - a static transcript plus a live
+#      frame repainted on SIGWINCH:
+#
+#        -v -l 8   top transcript row TX-001 -> TX-010 (nine rows destroyed,
+#                  everything under them moved up), 38 of 47 line ends survive
+#        -h -l 48  top transcript row still TX-001, live frame on the right row,
+#                  and 0 of 47 line ends survive - every transcript line lost
+#                  whatever sat past the new width, permanently, because no
+#                  process holds a copy of it to repaint
+#
+#      So for an ALREADY-RUNNING CLI this is better, not perfect: it trades a
+#      moved screen for clipped line tails. The complete fix is not to resize a
+#      live TUI at all, which is why spawn-window.sh splits the strip BEFORE
+#      the CLI paints. An agent already running when its strip arrives takes
+#      exactly one width change, once. Reproduce all of it with
 #      scripts/spool-strip-resize-proof.sh.
 #   2. tmux's status line for that window (display-message). Instant, coloured,
 #      impossible to corrupt - it is tmux's own chrome, not the pane's canvas -

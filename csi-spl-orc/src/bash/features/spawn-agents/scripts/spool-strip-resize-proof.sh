@@ -60,6 +60,41 @@ while :; do sleep 0.2; done
 EOF
 chmod +x "$T/painter.sh"
 
+# The SECOND subject, and the one that models a real agent CLI: a STATIC
+# transcript written once and never repainted, plus a LIVE FRAME at the bottom
+# that is re-rendered on every SIGWINCH. That is the shape of an Ink-style
+# renderer - it erases the lines of its own previous frame and writes the new
+# one, and it has no copy of the transcript above, so nothing can repaint that.
+#
+# The transcript lines are longer than the narrowed pane on purpose: a width
+# change is where they are at risk, and the point of this case is to show which
+# part of the screen survives which resize.
+cat >"$T/inkish.sh" <<'EOF'
+#!/usr/bin/env bash
+set -u
+esc=$''
+FRAME=3
+frame() {
+  local rows i
+  rows="$(tput lines 2>/dev/null)"; [[ "$rows" =~ ^[0-9]+$ ]] || rows=24
+  for ((i = 0; i < FRAME; i++)); do
+    printf '%s[%d;1H%s[2K' "$esc" "$((rows - FRAME + 1 + i))" "$esc"
+    printf 'FRAME-%d ready >' "$i"
+  done
+}
+rows="$(tput lines 2>/dev/null)"; [[ "$rows" =~ ^[0-9]+$ ]] || rows=24
+printf '%s[?1049h%s[H%s[2J' "$esc" "$esc" "$esc"
+for ((i = 1; i <= rows - FRAME - 1; i++)); do
+  printf 'TX-%03d %s-TXEND-%03d
+' "$i" "$(printf 'w%.0s' $(seq 1 165))" "$i"
+done
+frame
+trap 'frame' WINCH
+trap 'exit 0' TERM INT
+while :; do sleep 0.2; done
+EOF
+chmod +x "$T/inkish.sh"
+
 fails=0
 say() { printf '%s\n' "$*"; }
 
@@ -113,8 +148,47 @@ else
   fails=$((fails + 1))
 fi
 say ""
-say "what a width change DOES cost: the line tails past the new width are cut,"
-say "because tmux does not reflow the alternate screen. A CLI repaints those on"
-say "its next frame; a row that moved is not repairable that way, which is the"
-say "whole difference."
+# ── the second subject: what an INK-STYLE renderer actually ends up with ───
+# A static transcript plus a live frame it repaints on SIGWINCH. This is the
+# case the owner sees, and it is the one that says what the -h split does NOT
+# fix, so that nobody later reads this file as "the distortion is gone".
+ink_case() {  # -v|-h SIZE LABEL
+  local dir="$1" size="$2" label="$3" cap rows frame_row tx_first tx_intact
+  tmux -S "$SOCK" kill-server 2>/dev/null; sleep 0.2
+  tmux -S "$SOCK" -f /dev/null new-session -d -s p -x "$W" -y "$H" -n w "$T/inkish.sh" || return 1
+  sleep 1
+  tmux -S "$SOCK" split-window -d "$dir" -l "$size" -t w.0 'sleep 600' 2>/dev/null
+  sleep 1.5
+  cap="$(tmux -S "$SOCK" capture-pane -p -t w.0)"
+  rows="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_height}')"
+  frame_row="$(printf '%s\n' "$cap" | grep -n 'FRAME-0' | head -1 | cut -d: -f1)"
+  tx_first="$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9]*' || true)"
+  tx_intact="$(printf '%s\n' "$cap" | grep -c 'TXEND' || true)"
+  say "  ${label}"
+  say "    pane is now       : $(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_width}x#{pane_height}')"
+  say "    top transcript row: ${tx_first:-<not TX-001, it MOVED>}"
+  say "    live frame lands  : row ${frame_row:-?} of ${rows} (it belongs on row $(( rows - 2 )))"
+  say "    transcript lines still showing their END marker: ${tx_intact}"
+}
+say ""
+say "the SECOND subject - a static transcript plus a live frame repainted on"
+say "SIGWINCH, which is the shape of an agent CLI rather than of a full repaint:"
+say ""
+say "  bottom bar, split -v -l ${ROWS}:"
+ink_case -v "$ROWS" "the transcript is asked to survive a HEIGHT change"
+say ""
+say "  right strip, split -h -l ${COLS}:"
+ink_case -h "$COLS" "the transcript is asked to survive a WIDTH change"
+say ""
+say "read it like this. A HEIGHT change moves the rows, so the live frame is"
+say "repainted onto a screen whose anchor has shifted and the bottom of the"
+say "terminal is wrong. A WIDTH change leaves every row where it is and the live"
+say "frame lands correctly - but the transcript ABOVE it loses whatever sat past"
+say "the new width, permanently, because no process holds a copy to repaint."
+say ""
+say "So -h is strictly better and it is NOT a complete fix for a CLI that is"
+say "ALREADY running. The complete fix is not to resize a live TUI at all:"
+say "spawn-window.sh splits the strip BEFORE the CLI paints, so an agent spawned"
+say "from now on never takes the resize. An agent already running when its strip"
+say "arrives takes exactly one width change, once."
 [ "$fails" -eq 0 ]

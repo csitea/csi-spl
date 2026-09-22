@@ -77,12 +77,19 @@ pane="$(printf '%s\n' "$out" | grep -m1 -xE '%[0-9]+')"
 # The notice strip is split NOW, before the CLI has painted anything, so the
 # TUI starts at the size it will keep and never takes a mid-session resize.
 #
-# That ordering is the fix, not a tidiness: measured on tmux 3.5a, splitting a
-# pane that is ALREADY on the alternate screen at 189x51 moves or truncates
-# what is drawn there (spool-strip-resize-proof.sh), and a CLI that repaints
-# only its own live frame then paints it over a screen that moved. Splitting
-# first costs the new pane nothing - it has drawn nothing yet - and there is
-# no later resize to survive.
+# That ordering is the fix, and the ONLY complete one. Measured on tmux 3.5a
+# against a pane already on the alternate screen at 189x51, with a subject
+# shaped like an agent CLI - static transcript, live frame repainted on
+# SIGWINCH (spool-strip-resize-proof.sh):
+#
+#   a HEIGHT split destroys the top rows and moves everything under them
+#   a WIDTH split moves nothing, and clips every transcript line at the new
+#     width, permanently - no process holds a copy to repaint
+#
+# So a right-hand strip is strictly better than a bottom bar for a CLI that is
+# already running, and it is still not free. Splitting BEFORE the CLI paints
+# costs nothing at all: the pane has drawn nothing yet, and there is no later
+# resize to survive.
 #
 # Never fatal: a window with no strip is still a window, the notifier will
 # split one on the first message, and a spawn that failed for this would be a

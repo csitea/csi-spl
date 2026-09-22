@@ -4,6 +4,9 @@
 **Created**: 2026-09-19 · **Lane**: MESSAGE-V2
 **Builds on**: `002-box-agent-messaging` (frozen `v:1`), `003-spool-message-bus` (hub envelope, WS frames), `014-spool-wui-dispatch`, `008-spool-cicd-logs`.
 **Authority**: `./contracts/message-schema-v2.md`, `./contracts/canonical-json-v2.md`, `./contracts/migration.md`
+**See also**: `../032-spool-message-edit/` — editing a sent message and the append-only
+revision register. It adds **no field** to the `v:2` object (its edit marker is hub metadata
+beside `cursor` / `received_at`), so this spec's freeze is untouched.
 
 Status vocabulary follows `../README.md` §2.3: **Implemented** (cited), **Partial** (missing part named), **Planned**.
 
@@ -79,4 +82,4 @@ through one hub.
   `recv` frame; after reconnecting with `[1,2]` it is delivered.
 - **SC-005** After P2, 0 rows stuck `queued` by the guard for 24 h on dev.
 
-<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T14:34:00Z -->
+<!-- version: 0.2.1 · updated: 2026-09-22 · last-edit: 2026-09-22T07:48:00Z -->

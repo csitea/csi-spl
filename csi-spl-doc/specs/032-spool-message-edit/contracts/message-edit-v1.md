@@ -1,6 +1,6 @@
 # Contract: Message Edit + Revision Register (`message-edit-v1`)
 
-Feature: `020-spool-message-v2`. Owner request, 2026-09-22, verbatim:
+Feature: `032-spool-message-edit`. Owner request, 2026-09-22, verbatim:
 
 > we need to add the WUI capability to edit the msgs , slack wise , once a msg in the 3rd
 > panel is selected , if one presses the e shortcut the msg becomes once again a textbox
@@ -12,12 +12,13 @@ Feature: `020-spool-message-v2`. Owner request, 2026-09-22, verbatim:
 
 **This file is the hub/DB half of the contract and it is normative for the browser half**
 (`../../005-spool-wui`, lane CLE-3445). Field names here are the only ones either side
-writes. Spec home decided by the integrator (CLE-00, 2026-09-22); see §9 for the
-reservation this lane registered against that number.
+writes. Spec home settled by the integrator on 2026-09-22 (§9): this dir, not
+`020-spool-message-v2`.
 
 **Authority for what it extends**: `../../003-spool-message-bus/contracts/view-v1.md`
 (§4.4 thread element), `../../003-spool-message-bus/contracts/wui-live-ws.md` (browser
-frames), `./message-schema-v2.md` (the inner object, **unchanged by this contract**).
+frames), `../../020-spool-message-v2/contracts/message-schema-v2.md` (the inner object,
+**unchanged by this contract**).
 
 ---
 
@@ -31,7 +32,8 @@ not a new message.
 
 The inner `v:1`/`v:2` object gains **no field**. The edit marker is *hub metadata*, in the
 same class as `cursor` and `received_at`: it rides on the view element and on the frame,
-never inside the signed object. `./message-schema-v2.md` §1 stays true as written.
+never inside the signed object. `020-spool-message-v2`'s `message-schema-v2.md` §1 stays
+true as written.
 
 ---
 
@@ -172,14 +174,28 @@ row from it.
 
 ### 3.1 Why it must NOT reuse `type: "message"` — measured
 
+This is the load-bearing claim of the whole frame design, so it carries its own check.
+Three readers ran it independently (CLE-3443, CLE-3444, CLE-00) and all three got the
+same line:
+
 ```
-sed -n '77,95p' csi-spl-wui/src/utils/feed.mjs
+git show origin/master:csi-spl-wui/src/utils/feed.mjs | sed -n '77,95p'
 ```
--> `mergeById()` replaces a held row **only when the held row is `pending`**
-(line 89: `else if (list[i].pending && !m.pending)`). A second `message` frame carrying a
-`msg_id` the store already holds as a confirmed row is **silently dropped**. Re-sending
-`message` after an edit would therefore change nothing on any screen that already had the
-message — which is every screen that matters.
+```
+    } else if (list[i].pending && !m.pending) {
+      list[i] = m
+      confirmed++
+    }
+```
+
+`mergeById()` replaces a held row **only when the held row is `pending`** (line 89). A
+second `message` frame carrying a `msg_id` the store already holds as a **confirmed** row
+is therefore **silently dropped** — no error, no render, nothing to see. Re-sending
+`message` after an edit would change nothing on any screen that already had the message,
+which is every screen that matters.
+
+That is a defect that ships green and is found by a reader rather than by a test, which
+is why the edit gets its own frame type rather than reusing one that looks like it fits.
 
 So the edit needs its own frame type **and its own handler** that replaces the row in
 place by `msg_id`. That handler is CLE-3445's to write; this contract only guarantees the
@@ -316,15 +332,20 @@ schema exactly as it tolerates every other additive migration.
 
 ---
 
-## 9. Reservation on the spec number
+## 9. Why this dir and not `020-spool-message-v2`
 
-CLE-00 decided this belongs to `020-spool-message-v2`, and numbering is the integrator's
-by `../../README.md` §5, so this file sits here. Registered reservation, for the record:
-020's own Clarifications say the `v:2` object adds **no field** and 020 is `Partial` with
-a deploy-and-writer-switch still open, so a second, independent feature under the same
-number makes that Status line ambiguous. This contract is compatible with the freeze — it
-adds no field to the message object (§0) — so the objection is about *readability of
-020's status*, not correctness. A `032-spool-message-edit` dir would cost the same two
-cross-references (`005` and here) that 020 costs. The integrator's call stands.
+First published under `020-spool-message-v2/contracts/` (db78443), moved here the same
+morning by the integrator's ruling, with this lane's reservation upheld:
+
+`020` is `Partial` with a deploy-and-writer switch still open, and its own Clarifications
+say the `v:2` object adds **no field**. A second, independent feature under that number
+makes 020's Status line unreadable — a later reader cannot tell which half of "Partial"
+is which. The move cost one commit on the one morning nothing yet cited the old path
+(`git grep -c message-edit-v1 origin/master -- csi-spl-doc csi-spl-wui` -> 1, the contract
+citing itself).
+
+This contract remains compatible with 020's freeze, which is the reason it *could* have
+lived there: it adds no field to the message object (§0), because the edit marker is hub
+metadata beside `cursor` and `received_at`. `020` carries a one-line pointer here.
 
 <!-- version: 0.1.0 · updated: 2026-09-22 · last-edit: 2026-09-22T07:45:00Z -->

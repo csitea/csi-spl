@@ -32,16 +32,25 @@ describe('channelView (X3 ordering)', () => {
     assert.deepEqual(ids(channelView(mergeLive([msg(1), msg(2)], own))), ['mine', 'm02', 'm01'])
   })
 
-  /* CLE-3425 replaces the pre-2026-09-20 assertion here ("a live in-thread
-     reply bumps no card"): the owner's order is newest first EVERYWHERE, and a
-     thread that just received a reply is the newest thing in the channel. One
-     card per task_id still holds — the card moves, it is not duplicated. */
-  it('a live in-thread reply bumps its card to the top (one card per task_id)', () => {
-    const reply = { ...msg(9), msg_id: 'r1', task_id: 't01' }
+  /*
+   * CLE-3446 SUPERSEDES the "one card per task_id" half of CLE-3425 here, on
+   * the owner's word of 2026-09-22 (the settled row format is per message,
+   * sender -> recipient). The half CLE-3425 was actually protecting SURVIVES
+   * and is what this now pins: newest first EVERYWHERE, and a thread that just
+   * received a reply is the newest thing in the channel.
+   *
+   * What changed is that the reply is a ROW now instead of a count on the
+   * root's card. That matters because a folded card carried the ROOT's `from`
+   * and avatar, so in a two-party conversation every row showed the same face
+   * and the agent's reply was folded away — which is the bug the owner
+   * reported.
+   */
+  it('a live in-thread reply is its OWN row, on top, carrying its own sender', () => {
+    const reply = { ...msg(9), msg_id: 'r1', task_id: 't01', from: 'CLE-07' }
     const v = channelView(mergeLive([msg(1), msg(2)], reply))
-    assert.deepEqual(ids(v), ['m01', 'm02'])
-    assert.equal(v.rows[0].last_ts, '2026-09-19T10:09:00Z')
-    assert.equal(v.rows[0].count, 1, 'the root card counts the reply')
+    assert.deepEqual(ids(v), ['r1', 'm02', 'm01'])
+    assert.equal(v.rows[0].from, 'CLE-07', 'the reply row is the REPLIER, not the thread root')
+    assert.equal(v.rows[2].from, 'HUM-2', 'and the root keeps its own sender')
   })
 
   it('after a load of older pages the older rows go to the bottom, newest stays on top', () => {

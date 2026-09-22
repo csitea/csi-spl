@@ -26,6 +26,9 @@ import {
   followPlan,
   rowFromAck,
   channelFollow,
+  channelView,
+  formatIsoTs,
+  recipientOf,
 } from '../../src/utils/channel-feed.mjs'
 import { applyVerbosity } from '../../src/utils/verbosity.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
@@ -236,5 +239,90 @@ describe('channelFollow (H4, wui-live-ws 0.4 channel subscription)', () => {
     assert.deepEqual(channelFollow('lobby', { channel: 'tasks' }), { sub: 'tasks', unsub: 'lobby', next: 'tasks' })
     assert.deepEqual(channelFollow('tasks', { channel: null, peer: 'HUM-2@box-wui' }), { sub: '', unsub: 'tasks', next: '' })
     assert.deepEqual(channelFollow('', {}), { sub: '', unsub: '', next: '' })
+  })
+})
+
+
+/*
+ * CLE-3446 — symptom A. The owner, 2026-09-22:
+ *
+ *   "basically three is some kind of mix between the who sends the msg and
+ *    the avatar"
+ *
+ * There was no data defect. `threadCards` spread the FIRST message of a task
+ * and thereafter updated only `last_ts` and `count`, so a card kept the ROOT's
+ * `from` / `from_box` / `body` beside the NEWEST message's clock. In a
+ * two-party conversation the root is always the human, so every row rendered
+ * the human's identicon and the agent's reply was folded away entirely.
+ * `MessageCard` renders SpoolAvatar and AgentBadge from the same `msg.from`,
+ * which is why the name was wrong too.
+ *
+ * The owner then settled the format (relayed by CLE-3444, 2026-09-22):
+ *
+ *   [identicon] HUM-17@box-wui   ->  [robot] CLE-3444@box-desk   note   <iso>
+ *   [robot] CLE-3444@box-desk    ->  [identicon] HUM-17@box-wui  note   <iso>
+ *
+ * per message, sender -> recipient, the arrow flipping per row, kind badge
+ * kept, and a REAL ISO 8601 stamp with the T and the Z.
+ *
+ * CONTROL — and this one was a NATURAL red, not a planted one: with
+ * `channelView` still folding (`threadCards(topLevel(...))`), the first case
+ * below reads ['t1-1'] for a two-message conversation and fails with the
+ * ROOT's sender on the reply's row. That is the owner's bug, reproduced in
+ * the suite that runs in a second.
+ */
+describe('CLE-3446 — a channel row is ONE MESSAGE, and carries its own sender', () => {
+  const at = (n) => `2026-09-22T11:${String(n).padStart(2, '0')}:03Z`
+  /* a two-party conversation in ONE task: the human opens it, the agent replies */
+  const CONV = [
+    { msg_id: 'm1', task_id: 'tA', ts: at(58), from: 'HUM-17', from_box: 'box-wui', to: 'CLE-3444', to_box: 'box-desk', kind: 'note', body: 'ping', parent_task_id: null },
+    { msg_id: 'm2', task_id: 'tA', ts: at(59), from: 'CLE-3444', from_box: 'box-desk', to: 'HUM-17', to_box: 'box-wui', kind: 'note', body: 'pong', parent_task_id: null },
+  ]
+
+  it('both sides of a two-party thread are rows, each with its OWN sender', () => {
+    const rows = channelView(CONV).rows
+    assert.deepEqual(rows.map((m) => m.msg_id), ['m2', 'm1'], 'the agent reply is a row, newest first')
+    assert.equal(rows[0].from, 'CLE-3444', "the reply's row is the AGENT")
+    assert.equal(rows[0].from_box, 'box-desk')
+    assert.equal(rows[1].from, 'HUM-17', "the opener's row is the HUMAN")
+    assert.equal(rows[1].from_box, 'box-wui')
+  })
+
+  it('the avatar cannot disagree with the sender, because both read msg.from', () => {
+    /* the mechanism, pinned: MessageCard feeds SpoolAvatar and AgentBadge from
+       the SAME field, so a row that carries the right `from` cannot show the
+       wrong face. The defect was upstream, in what the row carried. */
+    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+    assert.match(vue, /<SpoolAvatar class="avatar" :id="String\(msg\.from \|\| ''\)"/)
+    assert.match(vue, /<AgentBadge :id="String\(msg\.from\)"/)
+  })
+
+  it('the arrow flips per row: the recipient is read from THAT message', () => {
+    const rows = channelView(CONV).rows
+    assert.deepEqual(recipientOf(rows[0]), { id: 'HUM-17', box: 'box-wui' })
+    assert.deepEqual(recipientOf(rows[1]), { id: 'CLE-3444', box: 'box-desk' })
+  })
+
+  it('a broadcast has no recipient — ALL-0 is the hub, not a participant', () => {
+    assert.equal(recipientOf({ to: 'ALL-0', to_box: 'box-wui' }), null)
+    assert.equal(recipientOf({ to: '' }), null)
+    assert.equal(recipientOf(null), null)
+  })
+
+  it('MessageCard renders the recipient beside the sender', () => {
+    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+    assert.match(vue, /v-if="recipient"/, 'no recipient half in the row')
+    assert.match(vue, /:id="recipient\.id" :box="recipient\.box"/, 'the right-hand avatar is not the recipient')
+    assert.match(vue, /recipientOf\(props\.msg\)/, 'the recipient is not read from THIS message')
+  })
+
+  it('stamps REAL ISO 8601 — with the T and the Z, and without bending formatAbsTs', () => {
+    assert.equal(formatIsoTs('2026-09-22T11:58:03Z'), '2026-09-22T11:58:03Z')
+    /* the hub sends fractional seconds on some rows; the owner's format has none */
+    assert.equal(formatIsoTs('2026-09-22T09:07:33.67515Z'), '2026-09-22T09:07:33Z')
+    assert.equal(formatIsoTs('not a date'), 'not a date')
+    /* CONTROL: the old formatter is still the old formatter, untouched */
+    assert.equal(formatAbsTs('2026-09-22T11:58:03Z'), '2026-09-22 11:58:03')
+    assert.notEqual(formatIsoTs('2026-09-22T11:58:03Z'), formatAbsTs('2026-09-22T11:58:03Z'))
   })
 })

@@ -18,10 +18,21 @@
   >
     <SpoolAvatar class="avatar" :id="String(msg.from || '')" :box="msg.from_box ? String(msg.from_box) : ''" />
     <div>
+      <!--
+        CLE-3446 — the owner's settled row format, 2026-09-22: per message,
+        sender -> recipient, and the arrow flips per row because BOTH ends are
+        read from THIS message. A broadcast (ALL-0) has no recipient and shows
+        the sender alone.
+      -->
       <div class="msg-meta">
         <AgentBadge :id="String(msg.from)" :box="msg.from_box ? String(msg.from_box) : undefined" />
+        <template v-if="recipient">
+          <span class="msg-to-arrow" aria-hidden="true">→</span>
+          <SpoolAvatar class="avatar avatar--to" :id="recipient.id" :box="recipient.box" :size="20" />
+          <AgentBadge :id="recipient.id" :box="recipient.box || undefined" />
+        </template>
         <KindBadge :kind="String(msg.kind)" />
-        <span class="msg-time">{{ time }}</span>
+        <span class="msg-time" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined">{{ time }}</span>
         <span
           v-if="edited"
           class="msg-edited"
@@ -88,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatThreadTs, formatTs } from '~/utils/channel-feed.mjs'
+import { formatIsoTs, formatThreadTs, recipientOf } from '~/utils/channel-feed.mjs'
 import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { activityOf } from '~/utils/feed.mjs'
 import {
@@ -122,17 +133,28 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ 'open-thread': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
 
-const { t, te, locale } = useI18n({ useScope: 'global' })
+const { t, te } = useI18n({ useScope: 'global' })
 /** v:1 kind in words (feed.kind.*); an unknown kind shows as sent. */
 const kindLabel = (k: string) => (te('feed.kind.' + k) ? t('feed.kind.' + k) : k)
 /* CLE-3425: a thread card is ordered by its LAST activity, so it shows that
    moment — a card that sits above another must not print an older time. */
 const at = computed(() => activityOf(props.msg))
+/*
+ * CLE-3446 — a feed row stamps REAL ISO 8601, with the T and the Z, which is
+ * what the owner settled on. formatIsoTs is a NEW formatter: formatAbsTs
+ * returns `yyyy-mm-dd HH:MM:SS` and other surfaces read it, so it was not bent
+ * into this shape.
+ *
+ * The 3rd panel's own clock (`sinceMs`, CLE-3425's `… sent <age>`) is left
+ * exactly as it was — the owner's format was given for the message list, and
+ * silently re-stamping another lane's ticking clock is not in this fix.
+ */
 const time = computed(() => (
   props.sinceMs != null
     ? formatThreadTs(at.value, props.sinceMs)
-    : formatTs(at.value, locale.value)
+    : formatIsoTs(at.value)
 ))
+const recipient = computed(() => recipientOf(props.msg))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])
 const count = computed(() => props.count || 0)
 

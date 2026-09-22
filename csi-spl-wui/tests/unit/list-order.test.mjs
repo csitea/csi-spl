@@ -72,21 +72,22 @@ describe('threadCards: one card per task, carrying the thread LAST activity', ()
   })
 })
 
-describe('channelView: /channel and /dm order by last activity', () => {
-  it('the busiest thread is on top even when it was started first', () => {
+describe('channelView: /channel and /dm are one row per MESSAGE (CLE-3446)', () => {
+  it('the newest message is on top, whichever thread it belongs to', () => {
     /* t1 started 10:01 and was replied to at 10:20; t2 started 10:10 and went
-       quiet. Ordering on the ROOT ts (the pre-CLE-3425 behaviour) put t2 first. */
+       quiet. The reply is the newest thing in the channel, so it leads — which
+       is the ordering CLE-3425 asked for, now expressed per message. */
     const rows = [msg('t1', 1), msg('t2', 10), msg('t1', 20)]
-    assert.deepEqual(ids(channelView(rows).rows), ['t1-1', 't2-10'])
+    assert.deepEqual(ids(channelView(rows).rows), ['t1-20', 't2-10', 't1-1'])
   })
 
-  it('a live reply moves its card up with no refetch and adds no second card', () => {
+  it('a live reply appears as its own row and does not replace the root', () => {
     const before = [msg('t1', 1), msg('t2', 10)]
     assert.deepEqual(ids(channelView(before).rows), ['t2-10', 't1-1'])
     const after = mergeLive(before, msg('t1', 30))
     const v = channelView(after)
-    assert.deepEqual(ids(v.rows), ['t1-1', 't2-10'])
-    assert.equal(v.rows.length, 2, 'the card moved, it was not duplicated')
+    assert.deepEqual(ids(v.rows), ['t1-30', 't2-10', 't1-1'])
+    assert.equal(v.rows.length, 3, 'the reply is a row, not a count on the root')
   })
 
   it('a live root still lands on top (CLE-3412 must not regress)', () => {
@@ -276,7 +277,10 @@ describe('DOM contract: every list row carries the clock it is ordered by', () =
     const s = read('components/MessageCard.vue')
     assert.match(s, /:data-ts="at \|\| undefined"/)
     assert.match(s, /activityOf\(props\.msg\)/)
-    assert.match(s, /formatTs\(at\.value/)
+    /* CLE-3446: the FORMATTER changed on the owner's word (real ISO 8601, with
+       the T and the Z); the contract this case exists for did not — the printed
+       time is still read from `at`, the clock the list is ordered by. */
+    assert.match(s, /formatIsoTs\(at\.value/)
   })
 
   it('the thread list row carries last_ts', () => {

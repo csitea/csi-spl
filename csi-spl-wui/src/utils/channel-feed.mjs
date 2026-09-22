@@ -85,6 +85,25 @@ export function formatTs(ts, locale) {
   return d.toISOString().slice(11, 16)
 }
 
+/**
+ * CLE-3446 — the owner's settled row format wants a REAL ISO 8601 stamp, with
+ * the `T` and the `Z`: `2026-09-22T11:58:03Z`.
+ *
+ * `formatAbsTs` below is NOT that and must not be bent into it: it returns
+ * `yyyy-mm-dd HH:MM:SS`, a space separator and no zone, and other rows read it.
+ * It is nearly right, which is exactly why reaching for it would be the wrong
+ * move — a formatter that is nearly right is how two surfaces end up disagreeing
+ * about what a timestamp is.
+ *
+ * Seconds precision: the hub's `ts` carries fractional seconds on some rows
+ * (`2026-09-22T09:07:33.67515Z`) and the owner's example does not.
+ */
+export function formatIsoTs(ts) {
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return String(ts || '')
+  return d.toISOString().replace(/\.\d+Z$/, 'Z')
+}
+
 /** UTC wall clock `yyyy-mm-dd HH:MM:SS` of a v:1 `ts` (RFC3339 Z). */
 export function formatAbsTs(ts) {
   const d = new Date(ts)
@@ -371,8 +390,33 @@ export function threadCards(messages) {
  * append or an older page only changes what is sorted.
  */
 export function channelView(messages, { search = '', visible = 50 } = {}) {
-  const cards = threadCards(topLevel(messages || []))
-  return windowed(newestActivityFirst(cards.filter((m) => matchesSearch(m, search))), visible)
+  /*
+   * CLE-3446 — ONE ROW PER MESSAGE, not one folded card per thread.
+   *
+   * THE OWNER, 2026-09-22: "basically three is some kind of mix between the
+   * who sends the msg and the avatar".
+   *
+   * `threadCards` spreads the FIRST message of a task and thereafter updates
+   * only `last_ts` and `count`, so a card kept the ROOT's `from` / `from_box` /
+   * `body` beside the NEWEST message's clock. In a two-party conversation the
+   * root is always the human, so every row rendered the human's identicon and
+   * the agent's reply was folded away entirely. No data defect — a rendering
+   * model that could not express what the owner was looking at.
+   *
+   * The owner has since settled the format (relayed 2026-09-22): per message,
+   * sender -> recipient, the arrow flipping per row. A folded summary cannot
+   * carry a per-message sender, so the fold goes.
+   *
+   * THIS OVERTURNS PART OF CLE-3425, deliberately and on the owner's word:
+   * "one card per task_id" no longer holds on /channel and /dm. What CLE-3425
+   * was actually protecting does hold — newest first EVERYWHERE, and a thread
+   * that just received a reply is the newest thing in the channel — because
+   * the reply is now a row of its own and sorts on its own moment.
+   * `threadCards` itself is kept, with its tests: it is still correct, it is
+   * simply no longer what this view wants.
+   */
+  const rows = topLevel(messages || [])
+  return windowed(newestActivityFirst(rows.filter((m) => matchesSearch(m, search))), visible)
 }
 
 /**
@@ -387,6 +431,27 @@ export function channelActivity(row, liveAt = {}) {
   const id = String(c.channel_id || c.channel || '')
   return [String(liveAt[id] || ''), String(c.last_ts || ''), String(c.created_at || '')]
     .reduce((a, b) => (b > a ? b : a), '')
+}
+
+/**
+ * CLE-3446 — the RIGHT-hand party of a row, in the owner's settled format:
+ *
+ *   [identicon] HUM-17@box-wui   ->  [robot] CLE-3444@box-desk   note   <iso>
+ *   [robot] CLE-3444@box-desk    ->  [identicon] HUM-17@box-wui  note   <iso>
+ *
+ * The arrow flips per row because BOTH ends are read from that message, which
+ * is the whole point: before this, a row carried the thread root's identity
+ * and every row of a two-party conversation showed the same face.
+ *
+ * `ALL-0` is the hub's "everyone" and is not a participant, so a broadcast has
+ * no right-hand party and the row shows the sender alone. Returns null for
+ * that, and for a row that addresses nobody.
+ */
+export function recipientOf(msg) {
+  const m = msg || {}
+  const id = String(m.to || '')
+  if (!id || /^ALL-0$/.test(id)) return null
+  return { id, box: String(m.to_box || '') }
 }
 
 export function orderChannels(rows, liveAt = {}) {

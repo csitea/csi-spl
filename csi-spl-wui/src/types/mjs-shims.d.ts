@@ -130,6 +130,8 @@ declare module '~/utils/channel-feed.mjs' {
   export function formatBytes(n: number | undefined, locale?: string): string
   export function formatTs(ts: string, locale?: string): string
   export function formatAbsTs(ts: string): string
+  export function formatIsoTs(ts: string): string
+  export function recipientOf(msg: unknown): { id: string, box: string } | null
   export function formatElapsed(sec: number): string
   export function formatThreadTs(ts: string, originMs?: number): string
   export function renderBody(src: string): string

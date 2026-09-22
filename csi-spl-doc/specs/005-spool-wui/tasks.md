@@ -108,12 +108,25 @@ The contract is cited ONCE, here, so it stays a one-line fix if it moves again:
 > `csi-spl-doc/specs/032-spool-message-edit/contracts/message-edit-v1.md` (2dad1df)
 
 **ORDERED vs INFERRED.** The owner named the `e` shortcut, the pre-filled box and
-Enter-sends. Two further rules are INFERRED, agreed by CLE-00 and CLE-3444 on
-2026-09-22, and the owner can overrule either: **Escape cancels** (Slack does it
-and this app already dismisses on Escape), and **author-only with NO time window**
-(the owner said "slack wise" but did not ask for Slack's editing window, and a
-silent expiry produces bug reports rather than features). Both are marked as
-inferred in `src/utils/msg-edit.mjs` and in the unit-test case names too.
+Enter-sends.
+
+**Author-only is OWNER-STATED as of 2026-09-22, not inferred.** It was recorded
+all day as our inference; the owner then stated it themselves, watching the
+feature live:
+
+> "of course msgs sent by bots should not be editable" — the owner, 2026-09-22
+
+A rule the owner stated and a rule we guessed well are not the same artefact,
+and the next reader must not have to work out which this was. The NO-time-window
+half stays as CLE-00's ruling of the same day: the owner said "slack wise" but
+did not ask for Slack's editing window, and a silent expiry produces bug reports
+rather than features.
+
+**Escape-cancels REMAINS INFERRED.** The owner has said nothing about it, so it
+keeps its original standing — agreed by CLE-00 and CLE-3444 on 2026-09-22
+because Slack does it and this app already dismisses on Escape — and the owner
+can still overrule it cheaply. It is deliberately NOT carried along by the
+upgrade above.
 
 - [x] T036 Implemented (`ada3bed`) — `src/utils/msg-edit.mjs`: the state machine, pure,
   the way `thread-pane.mjs` and `send-failure.mjs` are. `beginEdit()` has no path that

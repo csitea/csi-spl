@@ -40,7 +40,20 @@ export function useMessageEdit() {
   const viewerId = computed(() => String(access.me?.humanId || live.identity.value || roster.me?.id || ''))
   const viewer = computed(() => ({ id: viewerId.value, box: String(roster.me?.box || '') }))
 
-  /** Author-only, no time window, and browser-authored — message-edit-v1 §4. */
+  /**
+   * Author-only, no time window, and browser-authored — message-edit-v1 §4.
+   *
+   * Author-only is OWNER-STATED, 2026-09-22 ("of course msgs sent by bots
+   * should not be editable"), not our inference; the no-time-window half is
+   * CLE-00's ruling of the same day. Escape-cancels, over in
+   * utils/msg-edit.mjs, stays INFERRED — the owner said nothing about it.
+   *
+   * CLE-3446: this predicate answers about a ROW, and it was never the thing
+   * that was wrong. The bug was that a MessageCard outlived the row it was
+   * mounted for, so a `false` here arrived at a card that was already holding
+   * an open editor. The hosts key that mount by msg_id now, and MessageCard
+   * resets its own edit state when the identity changes.
+   */
   function canEdit(msg: SpoolMessage | null | undefined) {
     return canEditMessage(msg, viewer.value)
   }

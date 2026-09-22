@@ -28,14 +28,21 @@
  *     Shift / Alt. This file calls the SAME function, so the two can never
  *     drift apart.
  *
- * INFERRED, not ordered (recorded so the next reader can tell the two apart,
- * and so the owner can overrule either):
+ * OWNER-STATED, 2026-09-22 — author-only. This was recorded as OUR inference
+ * until the owner stated it themselves, watching the feature live:
+ *
+ *   "of course msgs sent by bots should not be editable"
+ *
+ * so it is no longer ours to trade away. The NO-time-window half remains
+ * CLE-00's ruling of the same day. A shortcut that opens an editor the hub
+ * will refuse is a defect, so the gate is here and not only in the template.
+ *
+ * STILL INFERRED, not ordered (recorded so the next reader can tell the two
+ * apart, and so the owner can overrule it):
  *  - Escape cancels and restores the original body. The owner named Enter
  *    only; both seats agreed on Escape because Slack does it and this app
- *    already uses Escape to dismiss.
- *  - Author-only, with NO time window (CLE-00's ruling, 2026-09-22). A
- *    shortcut that opens an editor the hub will refuse is a defect, so the
- *    gate is here and not only in the template.
+ *    already uses Escape to dismiss. The owner has said NOTHING about Escape,
+ *    so it did not ride along with the upgrade above.
  *
  * The wire half is CLE-3443's, published as the `message-edit-v1` contract
  * (db78443; its spec home moved out of 020 while this was being written, so
@@ -66,6 +73,14 @@ export const BROWSER_BOX = 'box-wui'
  * server's rules 4 and 5: `m.from === <my HUM-id> && m.from_box === 'box-wui'`.
  * It is quoted rather than approximated, because the whole point of a client
  * gate is that it never offers an editor the hub will refuse.
+ *
+ * `from_box` here is the FLAT client row's, lifted from the wire ENVELOPE by
+ * view-api.mjs:108 (`from_box: e.env.from_box`) and by live-ws.mjs:94. It
+ * exists at two levels and means different things at each: `env.from_box` is
+ * populated, `env.msg.from_box` is not. Measured on dev 2026-09-22, n=10 rows
+ * — and a from_box measurement that does not say WHICH LEVEL it read is not a
+ * measurement. It cost three seats an hour on the day of CLE-3446, this one
+ * included.
  */
 export function isOwnMessage(msg, viewer) {
   const from = String((msg && msg.from) || '')

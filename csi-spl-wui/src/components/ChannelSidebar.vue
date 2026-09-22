@@ -98,6 +98,22 @@
       </template>
     </UiDialog>
     <h2>{{ t('sidebar.direct_messages') }}</h2>
+    <!-- CLE-3448: the reader's own row. A signed-in human is the one peer
+         guaranteed to be online, and was the only one the pane never drew -
+         so "am I connected?" had no answer here at all. It is not a link:
+         there is no DM with yourself, and the row exists to show presence. -->
+    <div
+      v-if="roster.self"
+      class="nav-item self-row"
+      data-testid="people-self"
+      :data-key="roster.self.label"
+      aria-current="true"
+      :title="t('auth.login.signed_in_as', { who: roster.self.label })"
+    >
+      <SpoolAvatar :id="roster.self.id" :box="roster.self.box" :size="22" />
+      <span class="dot" :class="{ on: roster.self.online }" />
+      <span class="label">{{ roster.self.label }}</span>
+    </div>
     <NuxtLink
       v-for="p in peers"
       :key="p.label"
@@ -225,6 +241,10 @@ async function onCreate() {
 
 <style scoped>
 .retention { font-size: 11px; flex-shrink: 0; }
+/* the reader's own row is a status line, not a destination: no pointer, no
+   hover highlight, nothing that reads as "click me" (CLE-3448) */
+.self-row { cursor: default; }
+.self-row:hover { background: transparent; }
 /* the heading row: title on the left, the one + on the right */
 .sidebar-head {
   display: flex;

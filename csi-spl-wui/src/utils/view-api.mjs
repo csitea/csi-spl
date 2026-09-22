@@ -147,7 +147,25 @@ export function isDownloadable(file) {
   return Boolean(f.file_id || f.sha256)
 }
 
-/** Map view-v1 §4.1 roster rows onto the roster store's { roster, online }. */
+/** wui-live-ws §1: the browser's virtual box — every human is an agent of it. */
+export const BROWSER_BOX = 'box-wui'
+
+const MEMBER_ID_RE = /^HUM-[0-9]+$/
+
+/**
+ * Map view-v1 §4.1 roster rows onto the roster store's { roster, online }.
+ *
+ * `humans` (§4.1, the tenant's members) is folded into the browser box, so a
+ * member is a peer whether or not they happen to hold a socket right now.
+ * CLE-3448: dropping it meant the people pane could only ever show a human
+ * a live `presence` frame had just announced — and a reader who is the only
+ * human signed in is exactly the one no frame announces to anybody else.
+ *
+ * Their ONLINE state is not ours to say: `/v1/view/roster` reports `online`
+ * per BOX, and box-wui is never a live box session (it holds no key), so it
+ * always reads `online: false`. Presence for a human comes from the socket
+ * alone (wui-live-ws §3.2) and so is never put in `online` here.
+ */
 export function rosterFromView(data) {
   const roster = {}
   const online = []
@@ -157,6 +175,10 @@ export function rosterFromView(data) {
     roster[b.box_id] = agents
     if (b.online) for (const a of agents) online.push(`${a}@${b.box_id}`)
   }
+  const humans = ((data && data.humans) || [])
+    .map((h) => String((h && h.human_id) || ''))
+    .filter((id) => MEMBER_ID_RE.test(id))
+  if (humans.length) roster[BROWSER_BOX] = [...new Set([...(roster[BROWSER_BOX] || []), ...humans])]
   return { roster, online }
 }
 

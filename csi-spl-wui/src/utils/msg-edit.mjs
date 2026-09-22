@@ -52,19 +52,22 @@
  */
 import { closeOpenFence, enterAction } from './code-blocks.mjs'
 import { emptySendError, isEmptySend, sendFailureKey } from './send-failure.mjs'
+import { BROWSER_BOX } from './view-api.mjs'
 
 /** The one key that opens the editor on the focused row. */
 export const EDIT_KEY = 'e'
 
-/**
- * The box a browser-authored envelope carries (message-edit-v1 §4).
+/*
+ * `BROWSER_BOX` is the box a browser-authored envelope carries
+ * (message-edit-v1 §4), imported above from its one definition in
+ * view-api.mjs — Nuxt auto-imports by export NAME, so a second module
+ * exporting it warns at build time and silently picks one.
  *
  * A box-signed envelope cannot be edited by anyone: its Ed25519 signature
  * covers the canonical inner bytes and the hub holds no key to re-sign for
  * that box, so the hub answers 409 `not_editable`. That refuses nothing the
  * owner asked for — every row the `e` shortcut can reach was typed here.
  */
-export const BROWSER_BOX = 'box-wui'
 
 /**
  * Is this row the viewer's own, browser-authored message?

@@ -283,7 +283,11 @@ describe('presence (wui-live-ws §3, channels-v1 §6)', () => {
   it('the roster applies presence and lists online humans', () => {
     const roster = src('src/stores/roster.ts')
     assert.match(roster, /applyPresence\(/)
-    assert.match(roster, /splitPeer\(/)
+    /* CLE-3448: the row shaping and the snapshot merge moved into this module
+       (peopleRows / mergeSnapshotOnline), so Node drives them without Vue -
+       see tests/unit/human-presence.test.mjs. The store only wires them. */
+    assert.match(roster, /peopleRows\(/)
+    assert.match(roster, /mergeSnapshotOnline\(/)
   })
 
   it('live-ws hands presence frames to onPresence (A1 2b74ce3)', () => {

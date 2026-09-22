@@ -1,37 +1,34 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { displayName } from '~/utils/channel-feed.mjs'
-import { applyPresence, splitPeer } from '~/utils/live-follow.mjs'
-import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { applyPresence, mergeSnapshotOnline, peopleRows, withSessionRetry } from '~/utils/live-follow.mjs'
+import { BROWSER_BOX } from '~/utils/view-api.mjs'
 
 export const useRosterStore = defineStore('roster', () => {
   const api = useSpoolApi()
   const live = useLive()
   const roster = ref<Record<string, string[]>>({})
   const online = ref<string[]>([])
-  const me = ref({ id: 'HUM-1', box: 'box-wui' })
+  /** The mock tenant answers with its own `me`; live, the socket's welcome does. */
+  const me = ref({ id: '', box: BROWSER_BOX })
 
-  const peers = computed(() => {
-    const rows: { id: string, box: string, label: string, online: boolean }[] = []
-    const listed = new Set<string>()
-    for (const [box, agents] of Object.entries(roster.value)) {
-      for (const id of agents) {
-        if (id === me.value.id && box === me.value.box) continue
-        const label = displayName(id, box)
-        listed.add(label)
-        rows.push({ id, box, label, online: online.value.includes(label) })
-      }
-    }
-    /* 003 FR-028: humans (HUM-n@box-wui) are in no box roster; presence alone lists them */
-    for (const label of online.value) {
-      if (listed.has(label)) continue
-      const { id, box } = splitPeer(label)
-      if (!box || (id === me.value.id && box === me.value.box) || id === live.identity.value) continue
-      rows.push({ id, box, label, online: true })
-    }
-    return rows.sort((a, b) => a.label.localeCompare(b.label))
-  })
+  /**
+   * Who the reader is, as the pane must know them. The socket's `welcome.as`
+   * (wui-live-ws §3.2) is authoritative and arrives before any presence frame.
+   *
+   * CLE-3448: this used to default to a literal `HUM-1` that a live session
+   * never overwrote — `/v1/view/roster` carries no `me` — so on any tenant
+   * whose member list holds a real HUM-1, that member would be taken for the
+   * reader and hidden from everybody.
+   */
+  const selfId = computed(() => live.identity.value || me.value.id)
+
+  /** Every peer the reader can see, the reader's own row marked `self`. */
+  const people = computed(() => peopleRows(roster.value, online.value, selfId.value, me.value.box))
+  /** The reader's own row, or null before the socket has said who we are. */
+  const self = computed(() => people.value.find((p) => p.self) || null)
+  /** Everyone but the reader: what the DM list and the @mention picker want. */
+  const peers = computed(() => people.value.filter((p) => !p.self))
 
   /** wui-live-ws §3: one `presence` frame, last writer wins per peer. */
   function applyFrame(f: Record<string, unknown>) {
@@ -46,12 +43,7 @@ export const useRosterStore = defineStore('roster', () => {
       me?: { id: string, box: string }
     }
     if (data.roster) roster.value = data.roster
-    if (data.online) {
-      /* the roster snapshot owns its boxes; presence-only peers (humans) survive it */
-      const boxes = new Set(Object.keys(roster.value))
-      const kept = online.value.filter((l) => !boxes.has(splitPeer(l).box))
-      online.value = [...new Set([...data.online, ...kept])]
-    }
+    if (data.online) online.value = mergeSnapshotOnline(online.value, data.online, roster.value)
     if (data.me) me.value = data.me
   }
 
@@ -60,5 +52,5 @@ export const useRosterStore = defineStore('roster', () => {
     return online.value.includes(label) || online.value.includes(id)
   }
 
-  return { roster, online, me, peers, refresh, isOnline, applyFrame }
+  return { roster, online, me, self, people, peers, refresh, isOnline, applyFrame }
 })

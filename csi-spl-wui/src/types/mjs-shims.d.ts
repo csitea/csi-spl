@@ -230,6 +230,8 @@ declare module '~/utils/tenant.mjs' {
 }
 
 declare module '~/utils/view-api.mjs' {
+  export const BROWSER_BOX: string
+  export function rosterFromView(data: unknown): { roster: Record<string, string[]>, online: string[] }
   export function subjectOf(body: string): string
   export function hubField(v: unknown): string | null
   export function channelReadQuery(read: Record<string, string>): string[]
@@ -243,7 +245,6 @@ declare module '~/utils/msg-edit.mjs' {
   /** what the editor holds while it is open: the draft, and what Escape restores */
   export interface MsgEditState { msgId: string, original: string, draft: string }
   export const EDIT_KEY: string
-  export const BROWSER_BOX: string
   export function isOwnMessage(msg: unknown, viewer: { id?: string, box?: string } | null): boolean
   export function canEditMessage(msg: unknown, viewer: { id?: string, box?: string } | null): boolean
   export function wantsEdit(ev: KeyboardEvent, opts?: { editable?: boolean }): boolean

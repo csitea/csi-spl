@@ -6,8 +6,11 @@
  *   GET /v1/view/threads/{task_id}?after=<last cursor>, de-duplicated by msg_id.
  * - Door: view-v1 §2 — a 401 `view_door` is a prompt (sign in, or a view
  *   token), not a raw error.
- * - Presence: wui-live-ws §3 `presence` frames, last-writer-wins per peer.
+ * - Presence: wui-live-ws §3 `presence` frames, last-writer-wins per peer,
+ *   and the rows the people pane draws from them (`peopleRows`).
  */
+import { displayName } from './channel-feed.mjs'
+import { BROWSER_BOX } from './view-api.mjs'
 
 /**
  * The cursor of the newest stored row (view-v1 §4.4: cursors are opaque, the
@@ -209,4 +212,79 @@ export function splitPeer(label) {
   const s = String(label || '')
   const at = s.indexOf('@')
   return at < 0 ? { id: s, box: '' } : { id: s.slice(0, at), box: s.slice(at + 1) }
+}
+
+/**
+ * Everyone the reader can see, one row each, sorted by label.
+ *
+ * Three sources, in this order, first writer wins per label:
+ *   - the agents of each box (view-v1 §4.1 `boxes`);
+ *   - the tenant's members, folded into box-wui by `rosterFromView`, so a
+ *     member is listed whether or not they are online right now;
+ *   - a peer named ONLY by a live `presence` frame — a door-off guest
+ *     (`GST-n@box-wui`) is in no roster at all (003 FR-028).
+ *
+ * `online` is the socket's list, not the snapshot's: wui-live-ws §3.2 is the
+ * only thing that knows a human holds a browser socket.
+ *
+ * `self` marks the reader's own row. CLE-3448: the pane used to DROP that row,
+ * which is why a human signed in alone saw no human at all — the one peer
+ * guaranteed to be online was the one deliberately hidden.
+ *
+ * @param {Record<string, string[]>} roster box id → agent ids
+ * @param {string[]} online peer labels the socket has called online
+ * @param {string} selfId the reader's own agent id (`welcome.as`); '' = unknown
+ * @param {string} [selfBox]
+ * @returns {{ id: string, box: string, label: string, online: boolean, self: boolean }[]}
+ */
+export function peopleRows(roster, online, selfId, selfBox = BROWSER_BOX) {
+  const lit = new Set(Array.isArray(online) ? online : [])
+  const box0 = selfBox || BROWSER_BOX
+  const mine = (id, box) => Boolean(selfId) && id === selfId && box === box0
+  const rows = []
+  const listed = new Set()
+  const src = roster && typeof roster === 'object' ? roster : {}
+  for (const [box, agents] of Object.entries(src)) {
+    for (const id of Array.isArray(agents) ? agents : []) {
+      if (!id) continue
+      const label = displayName(id, box)
+      if (listed.has(label)) continue
+      listed.add(label)
+      rows.push({ id, box, label, online: lit.has(label), self: mine(id, box) })
+    }
+  }
+  for (const label of lit) {
+    if (listed.has(label)) continue
+    const { id, box } = splitPeer(label)
+    if (!id || !box) continue
+    listed.add(label)
+    rows.push({ id, box, label, online: true, self: mine(id, box) })
+  }
+  return rows.sort((a, b) => a.label.localeCompare(b.label))
+}
+
+/**
+ * Fold a fresh `/v1/view/roster` presence snapshot onto what the socket has
+ * already said, and answer the new `online` list.
+ *
+ * The snapshot is authoritative for the boxes it reports on and ONLY those:
+ * a box it calls offline really is offline, so its stale entries must go.
+ * box-wui is excluded from that authority on purpose — it is listed as a box
+ * (it has a pin row) but never holds a live box session, so the snapshot
+ * always reads `online: false` for it, while whether the humans on it are
+ * online is entirely a matter of who holds a browser socket.
+ *
+ * CLE-3448: letting the snapshot own box-wui deleted every human's dot on the
+ * next refresh, and `refresh()` runs again on every reconnect.
+ *
+ * @param {string[]} online what the socket has said so far
+ * @param {string[]} snapshot the snapshot's own online labels
+ * @param {Record<string, string[]>} roster the snapshot's boxes
+ * @returns {string[]}
+ */
+export function mergeSnapshotOnline(online, snapshot, roster) {
+  const src = roster && typeof roster === 'object' ? roster : {}
+  const owned = new Set(Object.keys(src).filter((b) => b !== BROWSER_BOX))
+  const kept = (Array.isArray(online) ? online : []).filter((l) => !owned.has(splitPeer(l).box))
+  return [...new Set([...(Array.isArray(snapshot) ? snapshot : []), ...kept])]
 }

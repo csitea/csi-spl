@@ -37,8 +37,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { BROWSER_BOX } from '../../src/utils/view-api.mjs'
 import {
-  BROWSER_BOX,
   EDIT_KEY,
   beginEdit,
   canEditMessage,

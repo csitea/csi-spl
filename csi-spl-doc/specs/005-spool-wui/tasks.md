@@ -176,8 +176,24 @@ inferred in `src/utils/msg-edit.mjs` and in the unit-test case names too.
   a real PATCH against the deployed hub**, and durability across a page reload, which is a hub
   property the mock cannot show at all — its store is `cloneMock()` inside the client module and
   a reload resets it, so the gate re-reads through the API instead of claiming it. Re-running
-  this gate with `BASE_URL` against a signed-in live host once 0.1.21 is serving would close that
-  gap; it is available to whoever picks it up.
+  this gate with `BASE_URL` against a signed-in live host would close that gap; it is available to
+  whoever picks it up.
+
+  **Follow-up, measured 2026-09-22T08:33Z — the roll landed and the endpoint IS serving.**
+  `dd86875` (`cnf(032, CLE-3443): hub 0.1.21`) is live on both hubs, and the route answers:
+
+  | probe (both `api.spool-hub.ai` and `dev.api.spool-hub.ai`) | result |
+  |---|---|
+  | `OPTIONS /v1/messages/{id}` | `204` — the browser preflight passes |
+  | `PATCH /v1/messages/{id}`, no auth | `401 {"error":"view_door"}` |
+  | `PATCH /v1/definitely-not-a-route/{id}` (control) | `404` |
+
+  The control is the point: an unknown route still answers 404, so the 401 is the edit route
+  refusing an unauthenticated caller rather than a catch-all — the endpoint is mounted and
+  reachable from a browser. **Still NOT proved here:** an authenticated PATCH round-trip against
+  the deployed hub. That needs a signed-in session (the native-login rate limit is 10 per email
+  per 15 min), and this gate is written for the mock bundle, so it is genuinely open work and not
+  something this row quietly claims.
 
   **The gate was shown FAILING, with the defect planted in `src/`, not in the harness.**
   `beginEdit()` changed to `return { msgId, original, draft: '' }`:

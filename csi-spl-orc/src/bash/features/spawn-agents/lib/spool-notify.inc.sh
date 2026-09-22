@@ -13,6 +13,13 @@
 #   SPOOL_NOTIFY_LINE_MAX   whole-line backstop cut           default 1200
 #   SPOOL_NOTIFY_ENTER_DELAY  seconds between typing the line and Enter,
 #                           the TUI's paste debounce             default 0.3
+#   SPOOL_POKE_STYLE        auto (default) | body | line. What a TUI prompt is
+#                           given: `body` = the sender's message VERBATIM, the
+#                           way a human types into a chat box (owner,
+#                           2026-09-22); `line` = the shell-inert `: 'SPOOL …'`
+#                           poke line; `auto` = body from a HUMAN sender
+#                           (HUM-*/GST-*), line from an agent
+#   SPOOL_NOTIFY_PROMPT_MAX verbatim body cut, in characters    default 4000
 #   SPOOL_TRACE             latency trace file (CLE-3435); the spool binary
 #                           sets it, with SPOOL_TRACE_MSG_ID / _TO. Unset = off
 
@@ -45,6 +52,46 @@ spool_notify_clean() {  # TEXT
 spool_notify_cut() {  # TEXT N
   local t="${1:-}" n="${2:-600}"
   if [ "${#t}" -gt "$n" ]; then printf '%s …' "${t:0:$n}"; else printf '%s' "$t"; fi
+}
+
+# TEXT -> one line that is safe to TYPE AT A TUI PROMPT, and nothing more.
+#
+# The five steps of spool_notify_clean exist to make a body safe inside a
+# single-quoted SHELL argument. A TUI prompt is not a shell: `send-keys -l`
+# puts the bytes in the CLI's input buffer and nothing parses them, so the one
+# step that mangles the human's words - `'` becomes `"` - buys nothing here and
+# costs every apostrophe in the message ("don't" -> "don"t"). It is the only
+# step dropped. Newlines still become spaces: `send-keys -l` treats a newline
+# as Enter, so a two-line body would submit half a sentence.
+spool_notify_clean_prompt() {  # TEXT
+  local esc=$'\033'
+  printf '%s' "${1:-}" | sed -zE "
+    s/${esc}\[[0-9;?]*[A-Za-z]//g
+    s/${esc}[]()#%][^${esc}]*//g
+    s/${esc}//g
+    s/[\t\n\r]/ /g
+    s/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]//g
+    s/[[:space:]]+/ /g
+    s/^ //
+    s/ \$//"
+}
+
+# Render BODY into VAR as the line a TUI prompt is given verbatim.
+# Empty after cleaning -> VAR is empty and the caller keeps the poke line: an
+# agent must never be handed a blank prompt and an Enter.
+spool_notify_render_prompt() {  # VAR BODY
+  local __var="$1" body
+  body="$(spool_notify_clean_prompt "${2:-}")"
+  body="$(spool_notify_cut "$body" "${SPOOL_NOTIFY_PROMPT_MAX:-4000}")"
+  printf -v "$__var" '%s' "$body"
+}
+
+# 0 when ID is a human sender: a signed-in WUI member (HUM-) or a door-off
+# guest (GST-). Only a human's message is typed verbatim under SPOOL_POKE_STYLE
+# auto - an agent's is not, because the `from` and the `spool recv` tail in the
+# poke line ARE the inter-agent protocol, and a bare body would strip both.
+spool_notify_is_human() {  # ID
+  case "${1:-}" in HUM-*|GST-*) return 0 ;; *) return 1 ;; esac
 }
 
 # Render the poke line into VAR. Every field is cleaned, not just the body:
@@ -93,8 +140,16 @@ spool_notify_is_shell() {  # CMD
 # ── the doorbell ────────────────────────────────────────────────────────────
 # Ring TO's pane with LINE. Prints one `poke:` line. Exit codes: poke-line.md §3
 # (0 poked, 5 no window, 6 refused - unsent text, 7 only shells).
-spool_notify_poke() {  # TO LINE
-  local to="$1" line="$2" pane pane_tty tty_cmds last typed esc=$'\033'
+#
+# BODY and FROM are optional and decide WHAT the prompt is given (§1.1): with
+# SPOOL_POKE_STYLE auto/body, a pane that is a TUI is typed the body VERBATIM
+# instead of the poke line. The line actually chosen is left in
+# SPOOL_POKE_LINE, so a caller that queues a refusal queues what it would have
+# typed rather than re-deriving it.
+spool_notify_poke() {  # TO LINE [BODY] [FROM]
+  local to="$1" line="$2" body="${3:-}" from="${4:-}"
+  local pane pane_tty tty_cmds last typed alt prompt esc=$'\033'
+  SPOOL_POKE_LINE="$line"
 
   # _var, not $( ): the subshell would fork and would lose SPOOL_PANE_TTY.
   spool_pane_of_var pane "$to"
@@ -128,6 +183,27 @@ spool_notify_poke() {  # TO LINE
       echo "poke: skipped - ${to} pane ${pane} runs only shells (${tty_cmds% }); the agent has exited"
       return 7
     fi
+  fi
+
+  # WHAT the prompt is given. The owner's rule, 2026-09-22: "the communication
+  # would be as a human would be typing into this chat textbox" - so a message
+  # from a human is the human's words, nothing wrapped round them.
+  #
+  # Gated on `alternate_on`, and that gate is the whole safety argument. The
+  # `: 'SPOOL …'` line is shell-INERT by construction; a raw body is not, and a
+  # pane sitting at a shell prompt would EXECUTE it. A full-screen CLI paints
+  # on the alternate screen buffer and every live agent pane on this box
+  # reports 1, the one bare shell 0 (measured 2026-09-21, poke-queue lib). So
+  # the verbatim body reaches a TUI input buffer, which parses nothing, and
+  # never a shell.
+  case "${SPOOL_POKE_STYLE:-auto}" in
+    line) ;;
+    body) spool_notify_render_prompt prompt "$body" ;;
+    *)    spool_notify_is_human "$from" && spool_notify_render_prompt prompt "$body" ;;
+  esac
+  if [ -n "${prompt:-}" ]; then
+    alt="$("${SPOOL_TM[@]}" display-message -p -t "$pane" '#{alternate_on}' 2>/dev/null)"
+    [ "$alt" = 1 ] && line="$prompt" && SPOOL_POKE_LINE="$line"
   fi
 
   # Never type over a human's (or the agent's) unsent input: send-keys appends
@@ -167,5 +243,5 @@ spool_notify_poke() {  # TO LINE
 spool_notify() {  # TO KIND FROM TASK MSGID BODY
   local _line
   spool_notify_render _line "$@"
-  spool_notify_poke "$1" "$_line"
+  spool_notify_poke "$1" "$_line" "${6:-}" "${3:-}"
 }

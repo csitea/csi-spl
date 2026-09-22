@@ -47,7 +47,15 @@ to go and run a command.
 - **FR-004** — The safe-poke rules of `spool-send.sh` are reused, never
   reimplemented: registry-first pane resolution, pane id (`%NN`) not window
   index, no poke into a pane holding unsent typed text, no poke into a pane
-  that runs only shells, and a shell-inert `: '…'` line.
+  that runs only shells, and a shell-inert `: '…'` line **wherever the pane
+  could be a shell** (`alternate_on` 0). See FR-009.
+- **FR-009** (owner, 2026-09-22) — A message from a HUMAN reaches an agent's
+  prompt as the human's own words, verbatim, followed by Enter — "as a human
+  would be typing into this chat textbox". The `: 'SPOOL …'` wrapper of FR-002
+  is what a human's message must NOT be dressed in: an agent reads a quoted
+  no-op as noise and acts on none of it. `contracts/poke-line.md` §1.1 pins
+  the rule, its two limits (agent senders keep the §1 line; a verbatim body is
+  typed only onto the alternate screen) and the controls for both.
 - **FR-005** — The notifier is off unless `SPOOL_NOTIFY_CMD` names it. A box
   gets it from `spool-harness` (which exports it for the agent session and for
   the `hub-run` sidecar it starts); `off` disables it; a CI or test process
@@ -108,5 +116,25 @@ CLE-3355's `0.1.17`: both hosts serve commit `39a5a25a` (2026-09-21T07:54Z) and
 - **D-04 The excerpt, not the body.** An unbounded body typed into a pane is a
   hazard (newlines submit lines, quotes break inertness) and unreadable. The
   contract bounds it and names the command that prints the whole message.
+- **D-05 (2026-09-22) The excerpt was the wrong shape for a HUMAN sender.**
+  D-04 is right about the hazards and wrong about who the line is for. An
+  agent's only input is its prompt, and what D-04 put there for a human's DM
+  was a shell no-op quoting the message — which is exactly what the owner
+  reported as "the msg is displayed in the tmux panel, but the agent does not
+  understand the input". The hazards D-04 names are all real and all still
+  handled: newlines and control bytes are still stripped, the body is still
+  bounded, and inertness is still required wherever the pane could be a shell.
+  What changed is that on a confirmed TUI, where nothing parses the bytes,
+  inertness buys nothing and costs the message. FR-009 / poke-line.md §1.1.
+- **D-06 (2026-09-22) `SPOOL_POKE=0` is a box-wide switch, and that is a
+  defect in its own right.** There is ONE `hub-run` sidecar per box
+  (`spl_desk_sidecar` reuses the live one under `flock`), so the value chosen
+  by the FIRST `do_spl_desk_up` on that box is inherited by every agent seated
+  there afterwards. Measured 2026-09-22 on `box-desk`: the sidecar carried
+  `SPOOL_POKE=0`, chosen for the CLE-00 seat, and every other agent on the box
+  silently lost its prompt leg with it — a WUI DM reached the inbox and the
+  notice strip and no prompt at all. The owner's call the same day was to run
+  the box with the prompt leg ON for every agent, CLE-00 included, rather than
+  make the switch per-agent.
 
-<!-- version: 1.1.0 · updated: 2026-09-21 · last-edit: 2026-09-21T08:00:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T13:10:00Z -->

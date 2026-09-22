@@ -28,6 +28,47 @@ shell (`:` is the no-op builtin, the rest is one quoted argument), and
 `spool-send.sh`'s unsent-text check treats a line already starting with it as a
 previous poke rather than as a human's typing.
 
+## 1.1 What a TUI prompt is given: the human's words, verbatim
+
+**Owner rule, 2026-09-22** — "the input should be set on THIS here input where
+a human would type this and an enter hit", "so that the communication would be
+as a human would be typing into this chat textbox".
+
+So the line above is not what an agent's prompt gets when the sender is a
+human. `SPOOL_POKE_STYLE` decides:
+
+| value | a TUI prompt is typed |
+|---|---|
+| `auto` (default) | the BODY verbatim when `from` is `HUM-*` / `GST-*`; the §1 poke line otherwise |
+| `body` | the BODY verbatim, whoever sent it |
+| `line` | the §1 poke line, whoever sent it |
+
+Two limits are load-bearing, and each has a test that turns red without it.
+
+**An agent sender keeps the §1 line.** `from` and the `run: spool recv --as
+<TO>` tail ARE the inter-agent protocol; a bare body strips both and the
+receiving agent cannot answer or find the message. Only a human's message is
+the human's words.
+
+**A verbatim body is typed ONLY into a pane whose `alternate_on` is 1.** This
+is the whole safety argument for §1's inertness, not a tidy-up. The `: 'SPOOL
+…'` line is shell-inert by construction; a raw body is not, and a pane sitting
+at a shell prompt would EXECUTE it. A full-screen CLI paints on the alternate
+screen buffer — every live agent pane on this box reported 1 and the one bare
+shell reported 0 (measured 2026-09-21, recorded in `spool-poke-queue.inc.sh`).
+So the verbatim body reaches a TUI input buffer, which parses nothing, and
+never a shell. Anything not on the alternate screen falls back to the §1 line.
+
+The body is still made single-line-safe (§2 steps 1, 2, 4 and a
+`SPOOL_NOTIFY_PROMPT_MAX` bound, default 4000). Step 3 — `'` becomes `"` —
+is **not** applied: it exists to keep the body inside a single-quoted shell
+argument, and a TUI prompt has no shell, so applying it would only mangle
+every apostrophe the human typed (`don't` → `don"t`).
+
+`spool_notify_poke` leaves the line it actually chose in `SPOOL_POKE_LINE`, so
+a refusal (§3 code 6) queues what would have been typed rather than
+re-deriving it.
+
 ## 2. Sanitisation and bounds
 
 Applied to the body, and to every interpolated field, in this order:
@@ -86,4 +127,4 @@ leg, and 002 keeps the file as the record.
   through them and the CLI runs on its own pty.
 - Send more than one line, or a line whose inertness depends on the body.
 
-<!-- version: 1.1.0 · updated: 2026-09-21 · last-edit: 2026-09-21T07:50:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T13:10:00Z -->

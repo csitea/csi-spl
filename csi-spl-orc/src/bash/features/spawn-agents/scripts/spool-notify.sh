@@ -92,8 +92,12 @@ if spool_poke_muted "$TO"; then
   echo "poke: off (${SPOOL_ROOT}/${TO}/.no-poke) - ${TO} was SHOWN the message; its prompt was not touched"
   exit 0
 fi
+#    BODY and FROM are passed through so the prompt can be given the sender's
+#    words VERBATIM when the sender is a human and the pane is a TUI
+#    (SPOOL_POKE_STYLE, poke-line.md §1.1). spool_notify_poke leaves whatever
+#    it chose in SPOOL_POKE_LINE.
 spool_notify_render _line "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
-spool_notify_poke "$TO" "$_line"
+spool_notify_poke "$TO" "$_line" "$BODY" "$FROM"
 rc=$?
 
 # 3. A REFUSED line is queued, not dropped. The rule that a half-written line
@@ -101,7 +105,7 @@ rc=$?
 #    a refusal indistinguishable from a swallowed message for an agent whose
 #    only input is its prompt. The daemon re-offers it until the prompt frees.
 if [ "$rc" = 6 ]; then
-  if entry="$(spool_poke_queue_add "$TO" "$_line")" && spool_poke_retry_ensure "$TO"; then
+  if entry="$(spool_poke_queue_add "$TO" "${SPOOL_POKE_LINE:-$_line}")" && spool_poke_retry_ensure "$TO"; then
     echo "poke: queued for ${TO} (${entry##*/}); a retry daemon offers it again when the prompt is clear"
   else
     echo "poke: could NOT queue the refused line for ${TO}; it waits in ${SPOOL_ROOT}/${TO}/inbox/"

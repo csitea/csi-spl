@@ -112,6 +112,71 @@ eq "no pane for an unknown id" "" "$_p"
 eq "…and the printing wrapper agrees" "" "$(spool_pane_of CLE-95)"
 eq "…and no stale tty is left behind" "" "$SPOOL_PANE_TTY"
 
+# ---- the VERBATIM prompt (poke-line.md 1.1, owner 2026-09-22) -------------
+# "the communication would be as a human would be typing into this chat
+# textbox": a human's message reaches a TUI prompt as the human's own words.
+
+P="$(spool_notify_clean_prompt "it's a \"quoted\" word")"
+eq "an apostrophe SURVIVES the prompt cleaner" "it's a \"quoted\" word" "$P"
+CL="$(spool_notify_clean "it's a word")"
+has "the shell cleaner still kills it, so the poke line stays inert" 'it"s' "$CL"
+
+P="$(spool_notify_clean_prompt "$(printf 'red \033[31mtext\033[0m\nsecond\tline')")"
+eq "ESC, newline and tab are still removed" "red text second line" "$P"
+check "the prompt is one line" test "$(printf '%s' "$P" | wc -l)" -eq 0
+
+spool_notify_render_prompt P '   spaced   out   '
+eq "whitespace collapsed and trimmed" "spaced out" "$P"
+spool_notify_render_prompt P ''
+eq "an empty body renders no prompt, never a bare Enter" "" "$P"
+SPOOL_NOTIFY_PROMPT_MAX=20 spool_notify_render_prompt P "$(head -c 200 /dev/zero | tr '\0' 'y')"
+check "a huge body is bounded" test "${#P}" -lt 30
+
+spool_notify_is_human HUM-17 && ok "HUM- is a human"   || nok "HUM- is a human"
+spool_notify_is_human GST-3  && ok "GST- is a human"   || nok "GST- is a human"
+spool_notify_is_human CLE-90 && nok "CLE- is not"      || ok "CLE- is not"
+
+# A pane on the ALTERNATE screen is the agent-TUI shape; one on the normal
+# screen is a shell, where a raw body would EXECUTE and must never be typed.
+PT="$(t_window CLE-81 "sh -c 'printf \"\033[?1049h\"; sleep 600'")"
+printf 'CLE-81\tclaude\t%s\t/x\t20260101T000000Z\n' "$PT" >> "$SPOOL_ROOT/registry.tsv"
+sleep 0.4
+eq "the test TUI pane is on the alternate screen" 1 \
+   "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$PT" '#{alternate_on}')"
+
+bash "$SN" --to CLE-81 --from HUM-17 --kind note --msg-id M-8 \
+     --body "fix the Ansible years too, it's wrong" >/dev/null
+sleep 0.6
+screen="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PT")"
+has   "a HUMAN message reaches the prompt VERBATIM" "fix the Ansible years too, it's wrong" "$screen"
+hasnt "with no SPOOL wrapper round it"              ": 'SPOOL CLE-81:" "$screen"
+
+# CONTROL 1: an AGENT sender keeps the poke line - `from` and the `spool recv`
+# tail are the inter-agent protocol and a bare body would strip both.
+bash "$SN" --to CLE-81 --from CLE-90 --kind task --msg-id M-9 --body 'agent to agent' >/dev/null
+sleep 0.6
+screen="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PT")"
+has "an AGENT sender still gets the inert poke line" ": 'SPOOL CLE-81:" "$screen"
+
+# CONTROL 2: the same human message at a SHELL pane (normal screen) must NOT
+# be typed raw - this is the control that turns red if the alternate_on gate
+# is deleted, and it is the whole safety argument for the gate.
+PS_="$(t_window CLE-82 "sh -c 'printf \"shell here\n\"; sleep 600'")"
+printf 'CLE-82\tclaude\t%s\t/x\t20260101T000000Z\n' "$PS_" >> "$SPOOL_ROOT/registry.tsv"
+sleep 0.4
+eq "the control pane is on the NORMAL screen" 0 \
+   "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$PS_" '#{alternate_on}')"
+bash "$SN" --to CLE-82 --from HUM-17 --kind note --msg-id M-10 --body 'rm -rf /tmp/nope' >/dev/null
+sleep 0.6
+screen="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PS_")"
+has "a shell pane keeps the SHELL-INERT line" ": 'SPOOL CLE-82:" "$screen"
+
+# SPOOL_POKE_STYLE=line pins the old behaviour for a caller that wants it.
+SPOOL_POKE_STYLE=line bash "$SN" --to CLE-81 --from HUM-17 --msg-id M-11 --body 'styled as a line' >/dev/null
+sleep 0.6
+screen="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PT")"
+has "SPOOL_POKE_STYLE=line restores the poke line for a human too" ": 'SPOOL CLE-81:" "$screen"
+
 # ---- usage ----------------------------------------------------------------
 bash "$SN" --body x >/dev/null 2>&1;             eq "no --to: exit 2" 2 "$?"
 bash "$SN" --to BOX-1 --body x >/dev/null 2>&1;  eq "BOX recipient: exit 2" 2 "$?"

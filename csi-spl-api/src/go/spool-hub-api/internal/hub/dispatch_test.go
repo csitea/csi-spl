@@ -303,6 +303,166 @@ func TestWUIDispatchFlagOff(t *testing.T) {
 	}
 }
 
+// channelFrame sends a browser post tagged with a channel (the WUI sets
+// `channel` whenever a channel page is open, stores/channel.ts).
+func channelFrame(t *testing.T, c *websocket.Conn, id, task, channel, body string) map[string]any {
+	t.Helper()
+	f := map[string]any{"type": "send", "msg_id": id, "task_id": task, "kind": "note",
+		"body": body, "channel": channel}
+	wsjson.Write(context.Background(), c, f) //nolint:errcheck
+	return readType(t, c, "ack")
+}
+
+// Owner rule 2026-09-22 ("if we are in a channel - all of the participants in
+// the channel will receive the msg"), the browser half: a plain line a member
+// types into a channel - no @mention, no `to` - is signed with the box-wui key
+// and box-routed to EVERY box that hosts a member, and lands in the inbox of
+// every member on that box.
+//
+// This is the case the hub answered with nothing at all before: the send was
+// unsigned, and routeChannel drops unsigned envelopes.
+func TestWUIChannelPostReachesEveryMemberBox(t *testing.T) {
+	pub, key, _ := ed25519.GenerateKey(nil)
+	e := dispatchEnv(t, true, key)
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	a := e.box(tid, "box-a", "CLE-07", "CLE-08")
+	b := e.box(tid, "box-b", "GRK-03")
+	c := e.box(tid, "box-c", "AGY-09") // pinned, announced, NOT in the channel
+	a.cfg.Channels, b.cfg.Channels = "releases", "releases"
+	e.pin(tid, a)
+	e.pin(tid, b)
+	e.pin(tid, c)
+	e.pinKey(tid, hub.WUIBox, pub)
+	if err := e.st.CreateChannel(ctx, store.Channel{TenantID: tid, ChannelID: "releases",
+		Name: "releases", CreatedBy: "hub", CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	for _, x := range []struct {
+		box    string
+		agents []string
+		chans  []string
+	}{{"box-a", []string{"CLE-07", "CLE-08"}, []string{"releases"}},
+		{"box-b", []string{"GRK-03"}, []string{"releases"}},
+		{"box-c", []string{"AGY-09"}, nil}} {
+		if err := e.st.SetRoster(ctx, tid, x.box, x.agents, now); err != nil {
+			t.Fatal(err)
+		}
+		if err := e.st.SetSubscriptions(ctx, tid, x.box, x.agents, x.chans, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	w := dialMember(t, e, tid, "Alice", "HUM-google-sub-1@"+tid)
+	task := "9e5a4b62-7d8f-4a91-8bc3-2d3e4f5a6b7c"
+	id := "1f2e3d4c-5b6a-4978-8695-a4b3c2d1e0f9"
+	if ack := channelFrame(t, w, id, task, "releases", "standup in five"); ack["type"] != "ack" {
+		t.Fatalf("channel post: %v", ack)
+	}
+
+	// One signed envelope, to_box box-wui: no single box owns a channel post.
+	envs, _ := e.st.TaskEnvelopes(ctx, tid, task)
+	if len(envs) != 1 {
+		t.Fatalf("stored %d envelopes", len(envs))
+	}
+	envl, err := wire.ParseEnvelope(envs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if envl.FromBox != hub.WUIBox || envl.ToBox != hub.WUIBox || envl.Channel != "releases" || envl.Sig == "" {
+		t.Fatalf("channel envelope %+v", envl)
+	}
+	if err := envl.Verify(pub); err != nil {
+		t.Fatalf("channel post does not verify against the box-wui pin: %v", err)
+	}
+
+	// A deliveries row per member box - and none for the box that did not join.
+	for _, box := range []string{"box-a", "box-b"} {
+		q, err := e.st.QueuedFor(ctx, tid, box, time.Now())
+		if err != nil || len(q) != 1 || q[0].MsgID != id {
+			t.Fatalf("queued for %s: %v %+v", box, err, q)
+		}
+	}
+	if _, err := e.st.DeliveryState(ctx, tid, id, "box-c"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("a box that is not in the channel was enqueued: %v", err)
+	}
+
+	// End to end: both boxes come online and every member reads it.
+	sa, err := a.c.Dial(ctx, wire.RoleBox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sa.Close()
+	sb, err := b.c.Dial(ctx, wire.RoleBox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sb.Close()
+	for _, x := range []struct {
+		b  *box
+		as string
+	}{{a, "CLE-07"}, {a, "CLE-08"}, {b, "GRK-03"}} {
+		eventually(t, x.as+" inbox", func() bool { return len(inbox(t, x.b, x.as)) == 1 })
+		if got := inbox(t, x.b, x.as)[0]; got.MsgID != id || got.Body != "standup in five" {
+			t.Fatalf("%s inbox %+v", x.as, got)
+		}
+	}
+	if errs := sa.RecvErrors(); len(errs) != 0 {
+		t.Fatalf("box-a recv errors: %v", errs)
+	}
+	if errs := sb.RecvErrors(); len(errs) != 0 {
+		t.Fatalf("box-b recv errors: %v", errs)
+	}
+}
+
+// 025 CONTROL: the fan-out is what agents.command buys. A tester (notes.send,
+// no agents.command) still posts - the message is stored and reaches every
+// browser - but the post stays browser-only: unsigned, no box delivery. The
+// post itself is NOT raised to agents.command, because #lobby has every
+// announced agent as a member and that would silence the role altogether.
+func TestWUIChannelPostWithoutAgentsCommandStaysBrowserOnly(t *testing.T) {
+	pub, key, _ := ed25519.GenerateKey(nil)
+	e := newEnv(t, func(o *hub.Options) {
+		o.ViewDoor = hub.ViewDoorOff
+		o.LobbyTaskID = lobby
+		o.ViewCORSOrigins = []string{wuiOrigin}
+		o.WUIKey, o.WUIDispatch = key, true
+		o.Authorizer = rbac.Fixed(rbac.Tester)
+		o.SessionID = func(r *http.Request, _ string) (string, error) {
+			if v := r.Header.Get(memberHeader); v != "" {
+				return v, nil
+			}
+			return "", errors.New("no session")
+		}
+	})
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	a := e.box(tid, "box-a", "CLE-07")
+	e.pin(tid, a)
+	e.pinKey(tid, hub.WUIBox, pub)
+	now := time.Now()
+	e.st.SetRoster(ctx, tid, "box-a", []string{"CLE-07"}, now)                           //nolint:errcheck
+	e.st.SetSubscriptions(ctx, tid, "box-a", []string{"CLE-07"}, []string{"tasks"}, now) //nolint:errcheck
+
+	w := dialMember(t, e, tid, "Alice", "HUM-google-sub-1@"+tid)
+	task := "3c4d5e6f-7a8b-4c9d-8e1f-2a3b4c5d6e7f"
+	id := "4d5e6f7a-8b9c-4d1e-9f20-3b4c5d6e7f80"
+	if ack := channelFrame(t, w, id, task, "tasks", "a tester says hello"); ack["type"] != "ack" {
+		t.Fatalf("tester post: %v", ack)
+	}
+	envs, _ := e.st.TaskEnvelopes(ctx, tid, task)
+	if len(envs) != 1 {
+		t.Fatalf("tester post not stored: %d", len(envs))
+	}
+	if envl, _ := wire.ParseEnvelope(envs[0]); envl == nil || envl.Sig != "" {
+		t.Fatalf("a role without agents.command signed a post: %+v", envl)
+	}
+	if _, err := e.st.DeliveryState(ctx, tid, id, "box-a"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("a role without agents.command reached a box: %v", err)
+	}
+}
+
 // 014 FR-009: a box accepts a box-wui envelope only for kind task|note. The
 // hub never builds another kind; Deliver (the hub-originated path) is used to
 // push one anyway, followed by a note that must arrive — so the result's

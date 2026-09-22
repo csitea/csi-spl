@@ -303,16 +303,26 @@ describe('CLE-3446 — a channel row is ONE MESSAGE, and carries its own sender'
     assert.deepEqual(recipientOf(rows[1]), { id: 'CLE-3444', box: 'box-desk' })
   })
 
-  it('a broadcast has no recipient — ALL-0 is the hub, not a participant', () => {
+  it('a broadcast has no recipient — BOTH "everyone" sentinels, not just the hub one', () => {
+    /* ALL-0 is the hub's and is on every row off the wire. `@channel` is the
+       CLIENT's -- parseMention, rowFromAck and the optimistic row in
+       stores/channel.ts all default to it, and spool-client strips it before
+       the frame goes out. Excluding only ALL-0 puts an arrow, an id and a
+       generated ROBOT avatar for a participant called "@channel" beside every
+       ordinary channel message the viewer sends. */
     assert.equal(recipientOf({ to: 'ALL-0', to_box: 'box-wui' }), null)
+    assert.equal(recipientOf({ to: '@channel' }), null)
     assert.equal(recipientOf({ to: '' }), null)
     assert.equal(recipientOf(null), null)
+    /* and a real participant still is one */
+    assert.deepEqual(recipientOf({ to: 'CLE-07', to_box: 'box-a' }), { id: 'CLE-07', box: 'box-a' })
   })
 
   it('MessageCard renders the recipient beside the sender', () => {
     const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
     assert.match(vue, /v-if="recipient"/, 'no recipient half in the row')
-    assert.match(vue, /:id="recipient\.id" :box="recipient\.box"/, 'the right-hand avatar is not the recipient')
+    assert.match(vue, /class="avatar--to" :id="recipient\.id" :box="recipient\.box"/, 'the right-hand avatar is not the recipient')
+    assert.doesNotMatch(vue, /class="avatar avatar--to"/, 'CONTROL: the inline mark must not take the 36px row-gutter rule')
     assert.match(vue, /recipientOf\(props\.msg\)/, 'the recipient is not read from THIS message')
   })
 

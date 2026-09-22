@@ -443,14 +443,25 @@ export function channelActivity(row, liveAt = {}) {
  * is the whole point: before this, a row carried the thread root's identity
  * and every row of a two-party conversation showed the same face.
  *
- * `ALL-0` is the hub's "everyone" and is not a participant, so a broadcast has
- * no right-hand party and the row shows the sender alone. Returns null for
- * that, and for a row that addresses nobody.
+ * A BROADCAST has no right-hand party and shows the sender alone. There are
+ * TWO sentinels for "everyone" and both must be excluded, which is the kind of
+ * thing that is only obvious once you have seen the other one render:
+ *
+ *  - `ALL-0`     the hub's, on every row that comes off the wire
+ *                (`spool-client.mjs` live send, `live-ws.mjs` §4 default)
+ *  - `@channel`  the client's, from `parseMention` (line 28), `rowFromAck`
+ *                (line 343) and the optimistic row in `stores/channel.ts:320`,
+ *                and never sent — `spool-client.mjs:317` strips it before the
+ *                frame goes out.
+ *
+ * Excluding only `ALL-0` would put an arrow, an id and a generated ROBOT avatar
+ * for a participant called "@channel" beside every ordinary channel message the
+ * viewer sends. Returns null for both, and for a row that addresses nobody.
  */
 export function recipientOf(msg) {
   const m = msg || {}
   const id = String(m.to || '')
-  if (!id || /^ALL-0$/.test(id)) return null
+  if (!id || id === 'ALL-0' || id === '@channel') return null
   return { id, box: String(m.to_box || '') }
 }
 

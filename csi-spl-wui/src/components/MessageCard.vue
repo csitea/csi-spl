@@ -28,7 +28,7 @@
         <AgentBadge :id="String(msg.from)" :box="msg.from_box ? String(msg.from_box) : undefined" />
         <template v-if="recipient">
           <span class="msg-to-arrow" aria-hidden="true">→</span>
-          <SpoolAvatar class="avatar avatar--to" :id="recipient.id" :box="recipient.box" :size="20" />
+          <SpoolAvatar class="avatar--to" :id="recipient.id" :box="recipient.box" :size="20" />
           <AgentBadge :id="recipient.id" :box="recipient.box || undefined" />
         </template>
         <KindBadge :kind="String(msg.kind)" />
@@ -334,3 +334,26 @@ async function save() {
   }
 }
 </script>
+
+<style scoped>
+/*
+ * CLE-3446 — the recipient half of the owner's row format.
+ *
+ * The inline avatar deliberately does NOT take the shared `.avatar` class:
+ * that rule is the row's 36px left gutter (`width: 36px; height: 36px`), and
+ * this one is a 20px inline mark. It would have LOOKED right anyway, because
+ * SpoolAvatar writes width/height as an inline style and inline styles beat a
+ * stylesheet -- which is exactly the kind of accident that survives review and
+ * then breaks the day someone drops the inline style.
+ *
+ * `.msg-meta` is `align-items: baseline` (shared, other rows rely on it), so
+ * both inline marks centre themselves rather than sitting on the text baseline.
+ */
+.avatar--to { align-self: center; }
+.msg-to-arrow {
+  align-self: center;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1;
+}
+</style>

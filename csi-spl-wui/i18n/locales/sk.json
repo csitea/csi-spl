@@ -369,7 +369,19 @@
     },
     "new_pill": "Nové: {n}",
     "new_pill_label": "Prejsť na najnovšie správy",
-    "open_thread_hint": "Stlačením Enter otvoríte vlákno tejto správy."
+    "open_thread_hint": "Stlačením Enter otvoríte vlákno tejto správy.",
+    "edit": {
+      "label": "Upraviť správu",
+      "hint": "Enter uloží · Shift+Enter nový riadok · Esc zruší",
+      "shortcut_hint": "Stlačte e na úpravu tejto správy",
+      "marker": "(upravené)",
+      "marker_title": "Upravené {at}",
+      "saving": "Ukladá sa…",
+      "failed_not_author": "Túto správu môže upraviť iba jej autor.",
+      "failed_not_editable": "Táto správa bola odoslaná z box a nedá sa upraviť.",
+      "failed_not_found": "Táto správa už neexistuje.",
+      "failed_too_large": "Príliš dlhá na uloženie. Priložte ju ako súbor."
+    }
   },
   "thread": {
     "title": "Vlákno",

@@ -369,7 +369,19 @@
     },
     "new_pill": "Yeni: {n}",
     "new_pill_label": "En yeni mesajlara git",
-    "open_thread_hint": "Bu iletinin konusunu açmak için Enter'a basın."
+    "open_thread_hint": "Bu iletinin konusunu açmak için Enter'a basın.",
+    "edit": {
+      "label": "Mesajı düzenle",
+      "hint": "Enter kaydeder · Shift+Enter yeni satır · Esc iptal eder",
+      "shortcut_hint": "Bu mesajı düzenlemek için e tuşuna basın",
+      "marker": "(düzenlendi)",
+      "marker_title": "{at} tarihinde düzenlendi",
+      "saving": "Kaydediliyor…",
+      "failed_not_author": "Bu mesajı yalnızca yazarı düzenleyebilir.",
+      "failed_not_editable": "Bu mesaj bir box'tan gönderildi ve düzenlenemez.",
+      "failed_not_found": "O mesaj artık yok.",
+      "failed_too_large": "Kaydedilemeyecek kadar uzun. Dosya olarak ekleyin."
+    }
   },
   "thread": {
     "title": "Konu",

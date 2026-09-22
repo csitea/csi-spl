@@ -369,7 +369,19 @@
     },
     "new_pill": "Нове: {n}",
     "new_pill_label": "Иди на најновије поруке",
-    "open_thread_hint": "Притисните Enter да отворите тему ове поруке."
+    "open_thread_hint": "Притисните Enter да отворите тему ове поруке.",
+    "edit": {
+      "label": "Izmeni poruku",
+      "hint": "Enter čuva · Shift+Enter novi red · Esc otkazuje",
+      "shortcut_hint": "Pritisnite e da izmenite ovu poruku",
+      "marker": "(izmenjeno)",
+      "marker_title": "Izmenjeno {at}",
+      "saving": "Čuvanje…",
+      "failed_not_author": "Samo autor može da izmeni ovu poruku.",
+      "failed_not_editable": "Ova poruka je poslata iz box-a i ne može da se izmeni.",
+      "failed_not_found": "Te poruke više nema.",
+      "failed_too_large": "Predugačka za čuvanje. Priložite je kao datoteku."
+    }
   },
   "thread": {
     "title": "Nit",

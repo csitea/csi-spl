@@ -369,7 +369,19 @@
     },
     "new_pill": "New: {n}",
     "new_pill_label": "Jump to the newest messages",
-    "open_thread_hint": "Press Enter to open this message's thread."
+    "open_thread_hint": "Press Enter to open this message's thread.",
+    "edit": {
+      "label": "Edit message",
+      "hint": "Enter saves · Shift+Enter adds a line · Esc cancels",
+      "shortcut_hint": "Press e to edit this message",
+      "marker": "(edited)",
+      "marker_title": "Edited {at}",
+      "saving": "Saving…",
+      "failed_not_author": "Only the author can edit this message.",
+      "failed_not_editable": "This message was sent from a box and cannot be edited.",
+      "failed_not_found": "That message is no longer there.",
+      "failed_too_large": "Too long to save. Attach it as a file instead."
+    }
   },
   "thread": {
     "title": "Thread",

@@ -369,7 +369,19 @@
     },
     "new_pill": "חדשות: {n}",
     "new_pill_label": "מעבר להודעות החדשות ביותר",
-    "open_thread_hint": "הקישו Enter כדי לפתוח את השרשור של ההודעה הזו."
+    "open_thread_hint": "הקישו Enter כדי לפתוח את השרשור של ההודעה הזו.",
+    "edit": {
+      "label": "עריכת ההודעה",
+      "hint": "Enter שומר · Shift+Enter שורה חדשה · Esc מבטל",
+      "shortcut_hint": "הקישו e כדי לערוך הודעה זו",
+      "marker": "(נערך)",
+      "marker_title": "נערך ב-{at}",
+      "saving": "שומר…",
+      "failed_not_author": "רק הכותב יכול לערוך הודעה זו.",
+      "failed_not_editable": "ההודעה נשלחה מ-box ולא ניתן לערוך אותה.",
+      "failed_not_found": "ההודעה אינה קיימת עוד.",
+      "failed_too_large": "ארוך מדי לשמירה. צרפו אותה כקובץ."
+    }
   },
   "thread": {
     "title": "שרשור",

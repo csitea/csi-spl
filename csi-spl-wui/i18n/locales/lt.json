@@ -369,7 +369,19 @@
     },
     "new_pill": "Naujų: {n}",
     "new_pill_label": "Pereiti prie naujausių žinučių",
-    "open_thread_hint": "Paspauskite Enter, kad atidarytumėte šios žinutės giją."
+    "open_thread_hint": "Paspauskite Enter, kad atidarytumėte šios žinutės giją.",
+    "edit": {
+      "label": "Redaguoti žinutę",
+      "hint": "Enter išsaugo · Shift+Enter prideda eilutę · Esc atšaukia",
+      "shortcut_hint": "Paspauskite e, kad redaguotumėte šią žinutę",
+      "marker": "(redaguota)",
+      "marker_title": "Redaguota {at}",
+      "saving": "Išsaugoma…",
+      "failed_not_author": "Redaguoti šią žinutę gali tik jos autorius.",
+      "failed_not_editable": "Ši žinutė išsiųsta iš box ir jos redaguoti negalima.",
+      "failed_not_found": "Tokios žinutės nebėra.",
+      "failed_too_large": "Per ilga, kad būtų išsaugota. Pridėkite ją kaip failą."
+    }
   },
   "thread": {
     "title": "Gija",

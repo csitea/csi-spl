@@ -369,7 +369,19 @@
     },
     "new_pill": "Nowe: {n}",
     "new_pill_label": "Przejdź do najnowszych wiadomości",
-    "open_thread_hint": "Naciśnij Enter, aby otworzyć wątek tej wiadomości."
+    "open_thread_hint": "Naciśnij Enter, aby otworzyć wątek tej wiadomości.",
+    "edit": {
+      "label": "Edytuj wiadomość",
+      "hint": "Enter zapisuje · Shift+Enter nowy wiersz · Esc anuluje",
+      "shortcut_hint": "Naciśnij e, aby edytować tę wiadomość",
+      "marker": "(edytowano)",
+      "marker_title": "Edytowano {at}",
+      "saving": "Zapisywanie…",
+      "failed_not_author": "Tylko autor może edytować tę wiadomość.",
+      "failed_not_editable": "Ta wiadomość została wysłana z box i nie można jej edytować.",
+      "failed_not_found": "Tej wiadomości już nie ma.",
+      "failed_too_large": "Zbyt długa, aby ją zapisać. Dołącz ją jako plik."
+    }
   },
   "thread": {
     "title": "Wątek",

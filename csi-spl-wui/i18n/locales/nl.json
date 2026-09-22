@@ -369,7 +369,19 @@
     },
     "new_pill": "Nieuw: {n}",
     "new_pill_label": "Naar de nieuwste berichten",
-    "open_thread_hint": "Druk op Enter om de thread van dit bericht te openen."
+    "open_thread_hint": "Druk op Enter om de thread van dit bericht te openen.",
+    "edit": {
+      "label": "Bericht bewerken",
+      "hint": "Enter slaat op · Shift+Enter nieuwe regel · Esc annuleert",
+      "shortcut_hint": "Druk op e om dit bericht te bewerken",
+      "marker": "(bewerkt)",
+      "marker_title": "Bewerkt op {at}",
+      "saving": "Opslaan…",
+      "failed_not_author": "Alleen de auteur kan dit bericht bewerken.",
+      "failed_not_editable": "Dit bericht is vanuit een box verstuurd en kan niet worden bewerkt.",
+      "failed_not_found": "Dat bericht bestaat niet meer.",
+      "failed_too_large": "Te lang om op te slaan. Voeg het als bestand toe."
+    }
   },
   "thread": {
     "title": "Thread",

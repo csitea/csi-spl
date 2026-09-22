@@ -369,7 +369,19 @@
     },
     "new_pill": "Noi: {n}",
     "new_pill_label": "Salt la cele mai noi mesaje",
-    "open_thread_hint": "Apasă Enter pentru a deschide firul acestui mesaj."
+    "open_thread_hint": "Apasă Enter pentru a deschide firul acestui mesaj.",
+    "edit": {
+      "label": "Editează mesajul",
+      "hint": "Enter salvează · Shift+Enter rând nou · Esc anulează",
+      "shortcut_hint": "Apasă e pentru a edita acest mesaj",
+      "marker": "(editat)",
+      "marker_title": "Editat la {at}",
+      "saving": "Se salvează…",
+      "failed_not_author": "Doar autorul poate edita acest mesaj.",
+      "failed_not_editable": "Acest mesaj a fost trimis dintr-un box și nu poate fi editat.",
+      "failed_not_found": "Acel mesaj nu mai există.",
+      "failed_too_large": "Prea lung pentru a fi salvat. Atașează-l ca fișier."
+    }
   },
   "thread": {
     "title": "Fir",

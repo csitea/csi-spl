@@ -369,7 +369,19 @@
     },
     "new_pill": "Nya: {n}",
     "new_pill_label": "Gå till de senaste meddelandena",
-    "open_thread_hint": "Tryck på Enter för att öppna meddelandets tråd."
+    "open_thread_hint": "Tryck på Enter för att öppna meddelandets tråd.",
+    "edit": {
+      "label": "Redigera meddelandet",
+      "hint": "Enter sparar · Shift+Enter ny rad · Esc avbryter",
+      "shortcut_hint": "Tryck e för att redigera det här meddelandet",
+      "marker": "(redigerat)",
+      "marker_title": "Redigerat {at}",
+      "saving": "Sparar…",
+      "failed_not_author": "Bara författaren kan redigera det här meddelandet.",
+      "failed_not_editable": "Det här meddelandet skickades från en box och kan inte redigeras.",
+      "failed_not_found": "Meddelandet finns inte längre.",
+      "failed_too_large": "För långt för att sparas. Bifoga det som en fil."
+    }
   },
   "thread": {
     "title": "Tråd",

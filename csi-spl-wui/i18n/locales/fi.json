@@ -369,7 +369,19 @@
     },
     "new_pill": "Uusia: {n}",
     "new_pill_label": "Siirry uusimpiin viesteihin",
-    "open_thread_hint": "Avaa tämän viestin ketju painamalla Enter."
+    "open_thread_hint": "Avaa tämän viestin ketju painamalla Enter.",
+    "edit": {
+      "label": "Muokkaa viestiä",
+      "hint": "Enter tallentaa · Shift+Enter lisää rivin · Esc peruuttaa",
+      "shortcut_hint": "Muokkaa tätä viestiä painamalla e",
+      "marker": "(muokattu)",
+      "marker_title": "Muokattu {at}",
+      "saving": "Tallennetaan…",
+      "failed_not_author": "Vain viestin kirjoittaja voi muokata sitä.",
+      "failed_not_editable": "Tämä viesti lähetettiin box'ista, eikä sitä voi muokata.",
+      "failed_not_found": "Viestiä ei enää ole.",
+      "failed_too_large": "Liian pitkä tallennettavaksi. Liitä se tiedostona."
+    }
   },
   "thread": {
     "title": "Ketju",

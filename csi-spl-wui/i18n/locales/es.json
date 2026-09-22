@@ -369,7 +369,19 @@
     },
     "new_pill": "Nuevos: {n}",
     "new_pill_label": "Ir a los mensajes más recientes",
-    "open_thread_hint": "Pulsa Intro para abrir el hilo de este mensaje."
+    "open_thread_hint": "Pulsa Intro para abrir el hilo de este mensaje.",
+    "edit": {
+      "label": "Editar mensaje",
+      "hint": "Enter guarda · Shift+Enter añade una línea · Esc cancela",
+      "shortcut_hint": "Pulsa e para editar este mensaje",
+      "marker": "(editado)",
+      "marker_title": "Editado el {at}",
+      "saving": "Guardando…",
+      "failed_not_author": "Solo el autor puede editar este mensaje.",
+      "failed_not_editable": "Este mensaje se envió desde un box y no se puede editar.",
+      "failed_not_found": "Ese mensaje ya no existe.",
+      "failed_too_large": "Demasiado largo para guardarlo. Adjúntalo como archivo."
+    }
   },
   "thread": {
     "title": "Hilo",

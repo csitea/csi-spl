@@ -369,7 +369,19 @@
     },
     "new_pill": "Jaunas: {n}",
     "new_pill_label": "Pāriet uz jaunākajām ziņām",
-    "open_thread_hint": "Nospiediet Enter, lai atvērtu šīs ziņas pavedienu."
+    "open_thread_hint": "Nospiediet Enter, lai atvērtu šīs ziņas pavedienu.",
+    "edit": {
+      "label": "Rediģēt ziņu",
+      "hint": "Enter saglabā · Shift+Enter pievieno rindu · Esc atceļ",
+      "shortcut_hint": "Nospiediet e, lai rediģētu šo ziņu",
+      "marker": "(rediģēts)",
+      "marker_title": "Rediģēts {at}",
+      "saving": "Saglabā…",
+      "failed_not_author": "Šo ziņu var rediģēt tikai tās autors.",
+      "failed_not_editable": "Šī ziņa nosūtīta no box, un to nevar rediģēt.",
+      "failed_not_found": "Šādas ziņas vairs nav.",
+      "failed_too_large": "Pārāk gara, lai saglabātu. Pievienojiet to kā failu."
+    }
   },
   "thread": {
     "title": "Pavediens",

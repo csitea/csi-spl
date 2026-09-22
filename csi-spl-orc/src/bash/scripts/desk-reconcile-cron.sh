@@ -53,14 +53,22 @@ set -uo pipefail
 # reads a profile and a cron job does not. So the PATH is set here rather than
 # inherited, and the tools are checked BEFORE any work, so a missing one names
 # itself in the log instead of surfacing as a failed reconcile.
+# DESK_CRON_PATH_EXTRA covers a toolchain installed outside the standard
+# directories. `go` is the one that bites here: do_spl_desk_up builds the spool
+# binary (spl_host_spool), and Go's own documented install location is
+# /usr/local/go/bin, which is on nobody's PATH unless a profile put it there -
+# and a cron job reads no profile.
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
+PATH="${PATH}:${DESK_CRON_PATH_EXTRA:-/usr/local/go/bin}"
 export PATH
 
-# The tools do_spl_desk_up_all and the actions under it require. Overridable
-# only so a test can point the checker at a binary that cannot exist and prove
-# the checker itself fails - a preflight that has never been seen failing is a
-# preflight nobody should trust.
-DESK_CRON_TOOLS="${DESK_CRON_TOOLS:-python3 yq flock curl setsid tmux git}"
+# The tools do_spl_desk_up_all and the actions under it require. `go` is in the
+# list because the reconcile BUILDS the spool binary; it was found missing by
+# asking rather than by a later failure, which is the whole argument for this
+# check existing. Overridable only so a test can point the checker at a binary
+# that cannot exist and prove the checker itself fails - a preflight that has
+# never been seen failing is a preflight nobody should trust.
+DESK_CRON_TOOLS="${DESK_CRON_TOOLS:-python3 yq flock curl setsid tmux git go}"
 
 ENV_NAME="${ENV:-dev}"
 TENANT="${TENANT_ID:-t1}"

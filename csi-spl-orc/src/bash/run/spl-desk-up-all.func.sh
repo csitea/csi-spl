@@ -40,6 +40,11 @@
 # @param   orchestrator seat is the worked example. Every other agent still
 # @param   takes the poke, which is the whole point of making it per agent
 # @param DESK_WAIT_SECS (optional) - roster wait per agent, default 30
+# @param DESK_RECHECK_SECS (optional) - the SECOND roster read for an agent that
+# @param   missed its own wait, default 20. The sidecar rescans every ~10s, so a
+# @param   tick that creates several dirs can push one agent announce past its
+# @param   window; re-reading the roster costs nothing and keeps a race out of
+# @param   the failure list, where it would teach everyone to ignore it
 # @param ROOT_KEY_JSON (optional) - only for the FIRST run of a desk box
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 ./run -a do_spl_desk_up_all
@@ -107,6 +112,31 @@ do_spl_desk_up_all() {
       failed+=("$a"); do_log "FAIL could not seat $a on $box"
     fi
   done
+
+  # SECOND PASS over the ones that failed. The only failure this reconcile sees
+  # in practice is the roster-announce wait timing out: the sidecar rescans its
+  # dir list every ~10s, and a tick that creates two new agent dirs makes the
+  # announce for a THIRD agent land after its own 30s window. Measured
+  # 2026-09-22: CLE-3447 failed the wait inside the tick and seated by hand a
+  # minute later with the roster answering in about a second.
+  #
+  # Re-reading the roster is the whole retry - not another do_spl_desk_up, which
+  # would rebuild and re-pin for nothing. An agent still absent on the second
+  # read stays FAILED, so a real fault is not swallowed; and this matters
+  # because a reconcile that exits 1 on every tick for a race teaches everyone
+  # to ignore the one tick that exits 1 for a reason.
+  if [[ ${#failed[@]} -gt 0 ]]; then
+    local -a still=()
+    for a in "${failed[@]}"; do
+      if spl_desk_wait_roster "$d" "$box" "$a" "${DESK_RECHECK_SECS:-20}" >/dev/null 2>&1; then
+        do_log "INFO $a WAS announced on the second read: its announce landed after its own wait, not a fault"
+        seated+=("$a")
+      else
+        still+=("$a")
+      fi
+    done
+    failed=("${still[@]}")
+  fi
 
   if [[ "$retire" == 1 ]]; then
     for a in "${dead[@]}"; do

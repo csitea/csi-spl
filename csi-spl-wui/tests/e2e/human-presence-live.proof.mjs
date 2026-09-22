@@ -12,7 +12,7 @@
 // (`.sidebar .nav-item[data-key]`, `.dot`), so the run goes red on a broken
 // deploy instead of skipping the assertion.
 //
-//   BASE=https://dev.spool-hub.ai EMAIL=<member> PW_FILE=<0600 file> \
+//   BASE=https://dev.<fqdn> EMAIL=<member> PW_FILE=<0600 file> \
 //     TENANT=t1 OUT=/var/tmp/CLE-3448-proof \
 //     [CHROME_PATH=/usr/bin/google-chrome] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/human-presence-live.proof.mjs

@@ -12,7 +12,7 @@ import assert from 'node:assert/strict'
 import { mergeSnapshotOnline, peopleRows } from '../../src/utils/live-follow.mjs'
 import { BROWSER_BOX, rosterFromView } from '../../src/utils/view-api.mjs'
 
-/* What dev.api.spool-hub.ai answered on 2026-09-22, trimmed to two of each. */
+/* What the dev hub answered on 2026-09-22, trimmed to two of each. */
 const VIEW = {
   boxes: [
     { box_id: 'box-desk', pubkey: 'k', revoked: false, online: true, agents: ['CLE-00', 'CLE-44'] },

@@ -248,6 +248,26 @@ for bad in 0 60 five; do
   svc DRY_RUN=0 DESK_CRON_EVERY="$bad" >/dev/null 2>&1
   [[ $? -ne 0 ]] && pass "DESK_CRON_EVERY=$bad is refused" || fail "DESK_CRON_EVERY=$bad was accepted"
 done
+# DESK_MUTE has to reach the crontab line. Without it a tick UNDOES a
+# deliberate mute - DESK_POKE defaults to 1, so the reconcile deletes the
+# .no-poke marker and that seat starts taking poke lines again, five minutes
+# after a human decided it should not. A mute a timer reverses is worse than no
+# mute, because it reverses when nobody is watching.
+svc DRY_RUN=0 DESK_MUTE="CLE-00 CLE-9" >/dev/null 2>&1
+line="$(grep -F "# $TAG" "$T/crontab.txt")"
+[[ "$line" == *"DESK_MUTE='CLE-00 CLE-9'"* ]] && pass "DESK_MUTE is baked into the cron line" ||
+  fail "the cron line carries no DESK_MUTE: $line"
+# CONTROL: with none asked for, the line carries none rather than an empty one.
+svc DRY_RUN=0 >/dev/null 2>&1
+[[ "$(grep -F "# $TAG" "$T/crontab.txt")" != *DESK_MUTE* ]] &&
+  pass "CONTROL no DESK_MUTE asked for, none in the line" || fail "an empty DESK_MUTE was baked in"
+svc DRY_RUN=0 DESK_MUTE="not-an-agent" >/dev/null 2>&1
+[[ $? -ne 0 ]] && pass "a DESK_MUTE entry that is not an agent id is refused" ||
+  fail "a bogus DESK_MUTE entry was accepted"
+# …and the cron script passes it on to the action rather than dropping it.
+grep -q 'DESK_MUTE="\${DESK_MUTE:-}"' "$PROJ_ROOT/src/bash/scripts/desk-reconcile-cron.sh" &&
+  pass "the cron script hands DESK_MUTE to the action" || fail "the cron script drops DESK_MUTE"
+
 svc DRY_RUN=0 DESK_SERVICE_ACTION=remove >/dev/null 2>&1
 [[ "$(grep -cF "# $TAG" "$T/crontab.txt")" == 0 ]] && pass "remove takes the line out" || fail "remove left the line"
 out=$(svc DESK_SERVICE_ACTION=check); rc=$?

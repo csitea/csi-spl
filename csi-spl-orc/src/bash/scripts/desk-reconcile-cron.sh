@@ -82,14 +82,21 @@ if [ "$PRINT" = 1 ]; then
   # <org>-<app> from the module dir, like every other name in this tree, so a
   # fork of this repo does not fight this one over the same crontab line.
   ORG_APP="$(basename "$ORC")"; ORG_APP="${ORG_APP%-orc}"
-  printf '*/5 * * * * ENV=%s TENANT_ID=%s %s >> %s/cron.out 2>&1 # %s:desk-reconcile\n' \
-    "$ENV_NAME" "$TENANT" "$SELF" \
+  m=""; [ -n "${DESK_MUTE:-}" ] && m=" DESK_MUTE='${DESK_MUTE}'"
+  printf '*/5 * * * * ENV=%s TENANT_ID=%s%s %s >> %s/cron.out 2>&1 # %s:desk-reconcile\n' \
+    "$ENV_NAME" "$TENANT" "$m" "$SELF" \
     "${DESK_CRON_LOG_DIR:-/var/${ORG_APP%%-*}/$ORG_APP/desk-reconcile}" "$ORG_APP"
   exit 0
 fi
 
 say "INFO reconciling desks: env=$ENV_NAME tenant=$TENANT orc=$ORC"
-( cd "$ORC" && env ENV="$ENV_NAME" TENANT_ID="$TENANT" DRY_RUN=0 ./run -a do_spl_desk_up_all )
+# DESK_MUTE travels from the crontab line through to the action. Without it a
+# tick would UNDO a deliberate mute - DESK_POKE defaults to 1, so the reconcile
+# removes the .no-poke marker and that seat starts taking poke lines again. A
+# mute a timer quietly reverses is worse than no mute: it reverses when nobody
+# is looking.
+( cd "$ORC" && env ENV="$ENV_NAME" TENANT_ID="$TENANT" DESK_MUTE="${DESK_MUTE:-}" DRY_RUN=0 \
+    ./run -a do_spl_desk_up_all )
 rc=$?
 say "INFO do_spl_desk_up_all exit $rc"
 exit "$rc"

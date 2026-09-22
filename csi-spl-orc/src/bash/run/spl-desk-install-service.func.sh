@@ -31,6 +31,12 @@
 # @param ENV (optional) - the env baked into the cron line, default dev
 # @param TENANT_ID (optional) - the tenant baked into the cron line, default t1
 # @param DESK_CRON_EVERY (optional) - minutes between ticks, default 5
+# @param DESK_MUTE (optional) - space-separated agent ids the reconcile seats
+# @param   with their PROMPT left alone, baked into the cron line. Without it a
+# @param   tick would UNDO a deliberate mute: DESK_POKE defaults to 1, so the
+# @param   next reconcile removes the .no-poke marker and the seat starts taking
+# @param   poke lines again. A mute that a timer quietly reverses is worse than
+# @param   no mute, because nobody is watching at the moment it reverses
 # @param DESK_CRON_SRC (optional) - the checkout the cron line points at.
 # @param   Default: the SHARED checkout this action would name. A worktree is
 # @param   refused: it is deleted when its agent finishes and the job then stops
@@ -63,8 +69,11 @@ do_spl_desk_install_service() {
     { do_log "FATAL $script is missing or not executable in $src"; return 1; }
   logdir="${DESK_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/desk-reconcile}"
 
-  local line
-  line="*/$every * * * * ENV=$env_name TENANT_ID=$tenant $script >> $logdir/cron.out 2>&1 # $tag"
+  local mute="${DESK_MUTE:-}" line
+  for a in $mute; do
+    [[ "$a" =~ ^[A-Z]{2,4}-[0-9]+$ ]] || { do_log "FATAL DESK_MUTE holds '$a', which is not an agent id"; return 1; }
+  done
+  line="*/$every * * * * ENV=$env_name TENANT_ID=$tenant${mute:+ DESK_MUTE='$mute'} $script >> $logdir/cron.out 2>&1 # $tag"
 
   local installed=0 current=""
   current="$(spl_desk_cron_line "$tag")"

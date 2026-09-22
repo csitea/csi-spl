@@ -757,10 +757,14 @@ def run():
         amb_rows = thread(amb["task_id"])[0]["deliveries"] if amb and amb.get("type") == "ack" else None
         amb_boxes = sorted({r["to_box"] for r in amb_rows}) if amb_rows is not None else None
         # The browser audience's own row (to_box box-wui) is there as before; what is new is that
-        # BOTH member boxes have one too, from ONE stored box-wui-signed envelope.
+        # BOTH member boxes have one too, from ONE stored box-wui-signed envelope. A SUBSET, not
+        # an equality: #lobby's members are every announced agent of the tenant, so any other box
+        # seated there (a do_spl_desk_up desk box, on dev t1) is correctly in the list as well -
+        # asserting the exact set would make this step fail for being MORE right.
         record("b-lobby-plain-post-reaches-every-member",
                bool(amb) and amb.get("type") == "ack" and got_amb_b is not None and got_amb_a is not None
-               and got_amb_b.get("from") == hum and amb_boxes == sorted([BOX_A, BOX_B, WUI]),
+               and got_amb_b.get("from") == hum and amb_boxes is not None
+               and {BOX_A, BOX_B, WUI}.issubset(set(amb_boxes)),
                {"ack": amb, "box_b_inbox": got_amb_b, "box_a_inbox": got_amb_a,
                 "delivery_boxes": amb_boxes, "deliveries": amb_rows})
         record("b-lobby-mention-routed", bool(men) and men.get("type") == "ack" and men.get("to_box") == BOX_B and got_men is not None
@@ -833,11 +837,13 @@ def run():
 
     # -- f. specs/028: every one of those messages is VISIBLE in the agent's pane ----------------
     if PANES.get(AGENT_B):
-        # CONTROL (028 FR-007 / SC-003): the OTHER agent's pane saw none of them.
+        # CONTROL (028 FR-007 / SC-003): the OTHER agent's pane saw none of the DIRECT ones.
+        # Only DMs qualify since the owner rule of 2026-09-22 (channels-v1 section 4): a message
+        # tagged with a channel reaches every member of that channel, and EZA-1 is a member of
+        # #lobby like everyone else, so the mention note and the lobby task are EXPECTED in its
+        # pane once box-e2e-a drains. Listing them here would assert the rule is broken.
         other = pane_text(AGENT_A)
         leaked = sorted(k for k, n in (("a-box-to-box-task", "m3-e2e a->b " + stamp),
-                                       ("b-human-mention-note", "m3-e2e mention " + stamp),
-                                       ("c-human-task", "m3-e2e task: report the box id " + stamp),
                                        ("d-human-dm-note", "m3-e2e dm " + stamp)) if n in other)
         seen = pane_text(AGENT_B)
         record("f-visible-in-agent-terminal",

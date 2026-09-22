@@ -128,11 +128,42 @@ neither the new table nor the new columns.
 
 SC-003.
 
-## T011 — the live proof action
+## T011 — the live proof action, and its RUN
 
-**Status**: Implemented — `csi-spl-orc/src/bash/run/spl-msg-edit-probe.func.sh`,
+**Status**: Implemented **and run green on dev and prd** — `c5c6482`,
+`csi-spl-orc/src/bash/run/spl-msg-edit-probe.func.sh`,
 `csi-spl-orc/src/bash/scripts/msg-edit-probe.py`.
 `ENV=<env> TENANT_ID=<test tenant> ./run -a do_spl_msg_edit_probe`.
+
+**The run is the status, not the file.** For a proof action "Implemented" has
+the same vacuity as a test nobody has watched fail (CLE-3444, 2026-09-22): it
+asserts the apparatus, not the result. So:
+
+```
+ENV=dev TENANT_ID=t1  -> rc 0, 9/9 PASS
+ENV=prd TENANT_ID=e2e -> rc 0, 9/9 PASS
+  e-login · e-welcome · e-send · e-patch (200, revision 2, edited_at set)
+  e-not-moved (cursor_same true, received_at_same true) · e-frame (message_edited)
+  e-reread · e-empty-refused (400 empty_body) · e-refusal-changed-nothing
+```
+
+and the register read back from each database with `do_spl_db_query`:
+
+```
+dev t1  msg 1dd72f22  rev 1 "…ORIGINAL" HUM-4 08:41:04.177461+00
+                      rev 2 "…EDITED"   HUM-4 08:41:04+00
+prd e2e msg 034cb7df  rev 1 "…ORIGINAL" HUM-1 08:41:52.51485+00
+                      rev 2 "…EDITED"   HUM-1 08:41:53+00
+```
+
+Revision 1's `edited_at` equals the message's own `received_at` to the
+microsecond — it is the body as first sent, captured at the first edit.
+
+The prd write was explicitly requested: CLE-00, 2026-09-22 — *"ONE REAL EDIT
+ROUND-TRIP, END TO END, ON EACH ENV… If prd cannot be driven without touching
+real data, do dev only with a test member and a message you created."* Both envs
+have an m3-e2e test tenant, so both ran in that form, and CLE-00 accepted the
+result for both.
 
 It exists because **every cheaper probe stops at rule 1**. An unauthenticated
 `PATCH` is refused before the handler touches the database, so `OPTIONS -> 204`
@@ -150,7 +181,33 @@ prints, so the probe holds no database credential.
 
 ## T012 — gate `.version` against `hub.image.tag`
 
-**Status**: Planned. Owner decision pending on the remedy (CLE-00, 2026-09-22).
+**Status**: Implemented — the gate in
+`csi-spl-iac/src/bash/tests/hub-version-tag-parity.tst.sh`, and the realign to
+0.1.22 in the same change. Owner chose option 1 (fix the running hub), relayed
+by CLE-00 2026-09-22.
+
+**Shown failing first, on the real defect rather than a plant.** Run against the
+tree as it stood (`.version` 0.1.20, tags 0.1.21):
+
+```
+FAIL: hub.image.tag != .version; GET /version would name a release the image is not:
+      dev.env.yaml hub.image.tag=0.1.21  but .version=0.1.20
+      prd.env.yaml hub.image.tag=0.1.21  but .version=0.1.20
+EXIT=1
+```
+
+It would have caught the very commit that created the problem. After the
+realign it reads
+`PASS: every env's hub.image.tag equals the repo-root .version (0.1.22)`.
+
+Two controls, because a guard that finds nothing proves nothing: a planted
+`.version=9.9.9` must be caught AND name both envs, and an empty `.version`
+must be rc 2 rather than passing vacuously by comparing two empty strings.
+
+It lives in the iac suite, which the `10 quality gate` runs with **no `paths:`
+filter**. That is the point: a commit that bumps the tag and forgets `.version`
+touches the cnf paths anyway, so a path filter would have run and still let the
+drift through.
 
 `dd86875` bumped `hub.image.tag` to 0.1.21 in both env files but not the
 repo-root `.version`, which `csi-spl-api/src/bash/build.sh:13,18` bakes in as
@@ -191,4 +248,4 @@ the three normaliser pass-throughs and the `message_edited` handler
 as part of this request. The rows it will read exist; its endpoint is
 deliberately unspecified (contract §7, last paragraph).
 
-<!-- version: 0.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T08:45:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-22 · last-edit: 2026-09-22T08:55:00Z -->

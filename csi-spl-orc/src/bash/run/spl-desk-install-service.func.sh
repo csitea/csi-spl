@@ -87,6 +87,7 @@ EOF_PY
     if (( installed )); then
       local ran; ran="$(spl_desk_cron_script "$current")"
       if [[ -n "$ran" && ! -x "$ran" ]]; then
+        spl_desk_cron_say "$current"
         do_log "FAIL the desk reconcile is installed but the script it names is gone or not executable: $ran"
         do_log "FAIL That line runs NOTHING while still looking installed. Re-install: DRY_RUN=0 ./run -a do_spl_desk_install_service"
         return 1
@@ -107,11 +108,15 @@ EOF_PY
     if [[ "$act" == install ]]; then
       do_log "INFO DRY_RUN would: mkdir -p $logdir"
       do_log "INFO DRY_RUN would: put ONE tagged line in the box user's crontab:"
-      do_log "INFO DRY_RUN   $line"
-      (( installed )) && do_log "INFO DRY_RUN replacing the line already there: $current"
+      spl_desk_cron_say "$line"
+      (( installed )) && spl_desk_cron_say "replacing the line already there: $current"
     else
-      (( installed )) && do_log "INFO DRY_RUN would: remove the tagged crontab line: $current" ||
+      if (( installed )); then
+        do_log "INFO DRY_RUN would: remove the tagged crontab line:"
+        spl_desk_cron_say "$current"
+      else
         do_log "INFO DRY_RUN nothing to remove: no line tagged $tag"
+      fi
     fi
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
     return 0
@@ -127,7 +132,8 @@ EOF_PY
   spl_desk_cron_write "$tag" "$line" || return 1
   current="$(spl_desk_cron_line "$tag")"
   [[ "$current" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written. Got: ${current:-<nothing>}"; return 1; }
-  do_log "OK the desk reconcile runs every ${every}m as the box user: $line"
+  do_log "OK the desk reconcile runs every ${every}m as the box user:"
+  spl_desk_cron_say "$line"
   do_log "OK verify it later with DESK_SERVICE_ACTION=check ./run -a do_spl_desk_install_service"
 }
 
@@ -157,6 +163,18 @@ spl_desk_cron_src() {
       return 1 ;;
   esac
   SPL_DESK_CRON_SRC="$src"
+}
+
+# spl_desk_cron_say <line>: print a crontab line for a human to read.
+#
+# NOT through do_log. A crontab schedule starts with "*/5 * * * *", do_log
+# expands its argument, and the asterisks then come out as the contents of the
+# current directory - measured 2026-09-22, an operator was shown
+# "*/5 dat lib Makefile README.md run src ...". The FILE was always written
+# correctly (printf '%s' with the value quoted); it was the line the operator
+# reads that was a lie, which is the worse of the two to leave in place.
+spl_desk_cron_say() {
+  printf '    %s\n' "$1"
 }
 
 # spl_desk_cron_script <crontab line>: the script path that line runs, or

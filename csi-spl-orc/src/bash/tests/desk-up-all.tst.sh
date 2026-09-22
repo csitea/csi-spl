@@ -79,7 +79,14 @@ in_orc() {
       SPOOL_ROOT="$T/spool" SPOOL_BOX_USER="$(id -un)" SPOOL_TMUX_SOCKET="$T/nosuch.sock" \
       PATH="$T/stub:$PATH" ENV=dev "$@" bash -c '
     set -uo pipefail
-    do_log() { echo "$*"; }
+    # This stub reproduces the ONE property of run.sh do_log that this file
+    # tests: it builds its message with `echo $*` UNQUOTED (csi-spl-orc/run,
+    # in the type_of_msg / rest_of_msg block), so an argument holding * is
+    # glob-expanded against the working directory. A stub that quoted let the
+    # defect through - measured 2026-09-22: the planted do_log call passed a
+    # gate written specifically to catch it, because only the stub was safe.
+    # shellcheck disable=SC2086
+    do_log() { echo $*; }
     do_require_bin() { return 0; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
     eval "$SNIPPET"'
@@ -190,6 +197,15 @@ out=$(svc DESK_SERVICE_ACTION=check); rc=$?
 [[ "$out" == *'"installed": false'* ]] && pass "…and says so as JSON" || fail "check JSON: $out"
 out=$(svc DRY_RUN=1)
 [[ "$out" == *"DRY_RUN would"* ]] && pass "the install is a dry run until DRY_RUN=0" || fail "install dry run: $out"
+# The line an operator READS must be the line that gets written. do_log expands
+# its argument, and a crontab schedule begins with "*/5 * * * *", so printing it
+# that way showed "*/5 dat lib Makefile README.md run src ..." - the file was
+# always right and the report was a lie, which is the worse of the two.
+[[ "$out" == *"*/5 * * * * ENV=dev"* ]] &&
+  pass "the dry run shows the REAL schedule, unglobbed" || fail "the shown schedule was globbed: $out"
+hasdir=0
+for f in $(ls "$PROJ_ROOT" 2>/dev/null | head -3); do [[ "$out" == *" $f "* ]] && hasdir=1; done
+[[ "$hasdir" == 0 ]] && pass "…and no directory listing leaked into it" || fail "a directory listing leaked into the shown line: $out"
 [[ "$(wc -c <"$T/crontab.txt")" == 0 ]] && pass "…and it wrote nothing" || fail "the dry run wrote to the crontab"
 out=$(svc DRY_RUN=0)
 [[ $? -eq 0 ]] && pass "the install succeeds" || fail "install: $out"

@@ -37,19 +37,41 @@
 #   still installed"; nothing answers it automatically.
 #
 #   desk-reconcile-cron.sh [--env dev] [--tenant t1] [--print-crontab]
+#                          [--check-tools]
 #
 # Exit: 0 reconciled (or another tick held the lock), 1 something was not
-# seated, 2 usage or a refusal.
+# seated, 2 usage or a refusal, 3 a tool this needs is not on the PATH.
 set -uo pipefail
+
+# CRON'''S PATH IS NOT YOUR PATH, and this is not a hypothetical. The very first
+# tick after installation died with:
+#
+#   FATAL Missing required tool(s): yq
+#
+# vixie cron runs a job with PATH=/usr/bin:/bin, and `yq` on this box lives in
+# /usr/local/bin. Every interactive test passed, because an interactive shell
+# reads a profile and a cron job does not. So the PATH is set here rather than
+# inherited, and the tools are checked BEFORE any work, so a missing one names
+# itself in the log instead of surfacing as a failed reconcile.
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
+export PATH
+
+# The tools do_spl_desk_up_all and the actions under it require. Overridable
+# only so a test can point the checker at a binary that cannot exist and prove
+# the checker itself fails - a preflight that has never been seen failing is a
+# preflight nobody should trust.
+DESK_CRON_TOOLS="${DESK_CRON_TOOLS:-python3 yq flock curl setsid tmux git}"
 
 ENV_NAME="${ENV:-dev}"
 TENANT="${TENANT_ID:-t1}"
 PRINT=0
+CHECK_TOOLS=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --env) ENV_NAME="${2:?}"; shift 2 ;;
     --tenant) TENANT="${2:?}"; shift 2 ;;
     --print-crontab) PRINT=1; shift ;;
+    --check-tools) CHECK_TOOLS=1; shift ;;
     -h|--help) sed -n '36p' "$0" | sed 's/^# *//'; exit 2 ;;
     *) echo "desk-reconcile-cron: unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -60,6 +82,29 @@ SELF="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/$(basename 
 ORC="$(cd "$(dirname "$SELF")/../../.." && pwd)"
 ROOT="$(cd "$ORC/.." && pwd)"
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
+
+# 0 when every tool this needs resolves on the PATH; otherwise it NAMES the
+# missing ones. Run before anything else, so a PATH problem reads as a PATH
+# problem rather than as a reconcile that failed for unclear reasons.
+check_tools() {
+  local t missing=""
+  for t in $DESK_CRON_TOOLS; do
+    command -v "$t" >/dev/null 2>&1 || missing="${missing} $t"
+  done
+  [ -z "$missing" ] && return 0
+  say "FATAL these tools are not on the PATH:${missing}"
+  say "FATAL PATH=$PATH"
+  say "FATAL A cron job does not read a login profile, so a tool outside the"
+  say "FATAL standard directories has to be reachable from the PATH set at the"
+  say "FATAL top of this script."
+  return 3
+}
+
+if [ "$CHECK_TOOLS" = 1 ]; then
+  check_tools || exit $?
+  say "OK every tool the reconcile needs resolves: $DESK_CRON_TOOLS"
+  exit 0
+fi
 
 # A crontab line that points into an agent worktree keeps working right up
 # until that agent finishes and its worktree is removed, and then stops
@@ -89,6 +134,7 @@ if [ "$PRINT" = 1 ]; then
   exit 0
 fi
 
+check_tools || exit $?
 say "INFO reconciling desks: env=$ENV_NAME tenant=$TENANT orc=$ORC"
 # DESK_MUTE travels from the crontab line through to the action. Without it a
 # tick would UNDO a deliberate mute - DESK_POKE defaults to 1, so the reconcile

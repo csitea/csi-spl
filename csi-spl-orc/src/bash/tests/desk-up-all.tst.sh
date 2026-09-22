@@ -286,6 +286,26 @@ out=$(bash "$WT/desk-reconcile-cron.sh" 2>&1); rc=$?
 out=$(bash "$WT/desk-reconcile-cron.sh" --print-crontab 2>&1); rc=$?
 [[ $rc -eq 2 ]] && pass "…and refuses to PRINT a crontab line pointing at one" ||
   fail "it printed a worktree crontab line: $out"
+# CRON'S PATH IS NOT AN INTERACTIVE PATH, and this is the defect that took the
+# very first tick after installation: vixie cron runs a job with
+# PATH=/usr/bin:/bin, `yq` on this box is in /usr/local/bin, and the tick died
+# with "Missing required tool(s): yq" while every interactive test had passed.
+# An interactive shell reads a profile; a cron job does not.
+out=$(env -i PATH=/usr/bin:/bin HOME="$HOME" bash "$CRON" --check-tools 2>&1); rc=$?
+[[ $rc -eq 0 ]] && pass "every tool the reconcile needs resolves under a CRON-like PATH" ||
+  fail "a cron-like PATH cannot find the tools (rc=$rc): $out"
+[[ "$out" == *"yq"* ]] && pass "…and the check names what it looked for" || fail "check-tools names nothing: $out"
+# CONTROL: the preflight itself must be able to fail. Point it at a binary that
+# cannot exist - a check that has never been seen failing is a check nobody
+# should trust, and this one is the difference between "yq is missing" in the
+# log and a reconcile that failed for unstated reasons.
+out=$(env -i PATH=/usr/bin:/bin HOME="$HOME" DESK_CRON_TOOLS="python3 not-a-real-binary-xyz" \
+        bash "$CRON" --check-tools 2>&1); rc=$?
+[[ $rc -eq 3 ]] && pass "CONTROL a missing tool is exit 3, not a confusing later failure" ||
+  fail "CONTROL a missing tool gave rc=$rc: $out"
+[[ "$out" == *"not-a-real-binary-xyz"* && "$out" == *"PATH="* ]] &&
+  pass "CONTROL …and the failure names the tool and the PATH it searched" || fail "CONTROL no diagnosis: $out"
+
 out=$(bash "$CO/$(basename "$PROJ_ROOT")/src/bash/scripts/desk-reconcile-cron.sh" --print-crontab 2>&1)
 [[ "$out" == *"# $TAG"* && "$out" == *"desk-reconcile-cron.sh"* ]] &&
   pass "--print-crontab from the checkout prints the tagged line" || fail "--print-crontab: $out"

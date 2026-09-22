@@ -235,6 +235,19 @@ out=$(SNIPPET=do_spl_desk_check in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_ROSTE
 [[ ! -s "$T/calls.log" ]] && pass "do_spl_desk_check makes no gcloud/curl/spool call" ||
   fail "desk_check called out: $(cat "$T/calls.log")"
 
+# A roster read that FAILS must say why. It used to print nothing at all: the
+# action exited 1 with three framework lines and no reason, and the real answer
+# - a 429 from six agents competing for the member login - only appeared by
+# running roster-show.py by hand. A health check that cannot say why it failed
+# is the same defect as a desk that cannot say why a message did not arrive.
+out=$(SNIPPET=do_spl_desk_check in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 \
+        DESK_ROSTER_JSON=/nonexistent-roster.json 2>&1)
+[[ $? -ne 0 ]] && pass "an unreadable roster fails the check" || fail "an unreadable roster passed"
+[[ "$out" == *"cannot read"* ]] && pass "…and SAYS it could not read it" ||
+  fail "the roster failure is silent: $out"
+[[ "$out" == *"/nonexistent-roster.json"* ]] && pass "…naming what it tried to read" ||
+  fail "the failure names nothing: $out"
+
 # --- 6. the detach does not hold the caller's descriptors --------------------------
 # The regression: `pid="$(spl_desk_sidecar ...)"` never returned, because the
 # daemon inherited run.sh's logging pipes and the reader never saw EOF.

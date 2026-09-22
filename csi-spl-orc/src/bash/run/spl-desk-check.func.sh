@@ -72,7 +72,22 @@ do_spl_desk_check() {
   fi
 
   local roster
-  roster="$(spl_desk_roster "$tenant")" || return 1
+  # NAME the failure. This used to be `roster="$(...)" || return 1`, and a
+  # roster read that failed printed NOTHING AT ALL: the action exited 1 with
+  # three framework lines and no reason. Measured 2026-09-22 with six agents on
+  # the box, where the real answer was
+  #   {"step": "login", "status": 429, "error": "rate_limited"}
+  # and finding that took running roster-show.py by hand. A health check that
+  # cannot say why it failed is the same defect as a desk that cannot say why a
+  # message did not arrive, which is what this whole action exists for.
+  local rrc=0
+  roster="$(spl_desk_roster "$tenant")" || rrc=$?
+  if (( rrc )); then
+    do_log "FATAL cannot read the roster for $tenant (exit $rrc). What the read returned:"
+    do_log "FATAL   ${roster:-<nothing>}"
+    do_log "FATAL A 429 here is this box's own agents competing for the member login; retry, or pass DESK_ROSTER_JSON to read a saved capture."
+    return 1
+  fi
   local verdict
   verdict="$(spl_desk_verdict "$roster" "$box" "$agent" "$alive" "$livepoke")" || {
     do_log "FATAL cannot read the roster for $box/$agent"; return 1; }

@@ -110,8 +110,16 @@ FR-ED-010.
 
 ## T009 — apply the migration, then roll the image
 
-**Status**: Planned — owner-gated. The DDL apply is a GCP mutation and is not
-this lane's to run unasked.
+**Status**: Implemented — owner's go relayed by CLE-00 2026-09-22
+("Go for both, once CI is green"), applied as `dd86875`.
+
+`0026` applied on dev then prd (`do_spl_db_bootstrap`), verified from the
+databases rather than the exit codes: the ledger row on both carries
+`sha256 5b97a3d475138a01`, which equals the local file's
+`sha256sum … | cut -c1-16`, so the bytes applied are the bytes on trunk. Then
+the image: both `/version` report `commit dd86875`, `OPTIONS /v1/messages/<uuid>`
+went 404 -> 204, and `do_check_deploy_lag` reads `current` for hub and wui on
+both envs. The end-to-end proof is T011.
 
 Order is fixed by contract §8: `0026` on dev and prd FIRST, the image that
 serves the endpoint SECOND. Backwards is a 500 on an absent table; forwards is
@@ -119,6 +127,55 @@ safe at every intermediate moment, because the running image reads and writes
 neither the new table nor the new columns.
 
 SC-003.
+
+## T011 — the live proof action
+
+**Status**: Implemented — `csi-spl-orc/src/bash/run/spl-msg-edit-probe.func.sh`,
+`csi-spl-orc/src/bash/scripts/msg-edit-probe.py`.
+`ENV=<env> TENANT_ID=<test tenant> ./run -a do_spl_msg_edit_probe`.
+
+It exists because **every cheaper probe stops at rule 1**. An unauthenticated
+`PATCH` is refused before the handler touches the database, so `OPTIONS -> 204`
+and `PATCH -> 401` read exactly the same whether `0026` applied, applied without
+the runtime grants, or never ran. Only a real round-trip exercises the endpoint,
+the DDL and the grants together. Nine steps: sign in, post over the browser
+socket, PATCH, assert the 200 with `edited_at` / `revision` 2, assert the message
+did NOT move, catch the `message_edited` frame on the same socket, re-read the
+thread, and drive the empty-body refusal and prove it changed nothing.
+
+It WRITES one message and edits it, so it is pointed at a test tenant (dev `t1`,
+prd `e2e`), never at a tenant holding a human's conversation. It reads no
+database; the register is checked with `do_spl_db_query` against the `msg_id` it
+prints, so the probe holds no database credential.
+
+## T012 — gate `.version` against `hub.image.tag`
+
+**Status**: Planned. Owner decision pending on the remedy (CLE-00, 2026-09-22).
+
+`dd86875` bumped `hub.image.tag` to 0.1.21 in both env files but not the
+repo-root `.version`, which `csi-spl-api/src/bash/build.sh:13,18` bakes in as
+`-X main.version`. So the 0.1.21 image reports `version: "0.1.20"`.
+
+This is a REPEAT: `2e4c1ce` (CLE-3436) is titled *"…and realign .version with the
+image tag"* and its body says *"Anyone checking a deploy by /version alone would
+have been misled… The commit field is the one that never lies; use it."* The
+previous bump `039c2df` touched seven files including `.version`; `dd86875`
+touched six.
+
+Impact is bounded: `do_check_deploy_lag` reads `commit`, not `version`, so every
+automated check stayed honest. The cost is to a human reading `/version`.
+
+Grepped `.github`, `csi-spl-iac/src/bash/tests`, `csi-spl-orc/src/bash/tests` and
+`csi-spl-cnf` and found no comparison between the two — `.version` appears only
+as a path filter in `20_hub-build-deploy.yml:49` and as an input path in
+`check-deploy-lag.tst.sh:71`. That is a search, not a proof of absence, but it is
+consistent with the drift having happened twice.
+
+The task: a cheap check that repo-root `.version` equals `hub.image.tag` in
+`dev.env.yaml` and `prd.env.yaml`, wired into the hygiene/quality gate, so the
+next bump cannot land six of seven files. **Writing this row is authorised;
+running a build or a roll to fix the current drift is not, and is CLE-00's to
+release.**
 
 ## T010 — the browser half
 
@@ -134,4 +191,4 @@ the three normaliser pass-throughs and the `message_edited` handler
 as part of this request. The rows it will read exist; its endpoint is
 deliberately unspecified (contract §7, last paragraph).
 
-<!-- version: 0.1.0 · updated: 2026-09-22 · last-edit: 2026-09-22T08:02:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T08:45:00Z -->

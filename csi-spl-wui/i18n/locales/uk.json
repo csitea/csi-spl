@@ -5,7 +5,8 @@
     "error_ref": "Код помилки",
     "copy_ref": "Копіювати код помилки",
     "copied": "Скопійовано",
-    "copy_failed": "Не вдалося скопіювати"
+    "copy_failed": "Не вдалося скопіювати",
+    "cancel": "Скасувати"
   },
   "nav": {
     "threads": "Треди",
@@ -304,7 +305,16 @@
       "view_door": "Увійдіть, щоб створити канал.",
       "fallback": "канал не створено"
     },
-    "channel_name_required": "потрібна назва каналу"
+    "channel_name_required": "потрібна назва каналу",
+    "create_channel_title": "Новий канал",
+    "create_channel_name_label": "Назва",
+    "create_channel_description_label": "Опис",
+    "create_channel_description_placeholder": "для чого цей канал",
+    "create_channel_description_hint": "Необов'язково. Показується в заголовку каналу, до 500 символів.",
+    "create_channel_slug_hint": "Буде #{slug}",
+    "create_channel_slug_rule": "Малі латинські літери, цифри й дефіси.",
+    "create_channel_submit": "Створити канал",
+    "create_channel_busy": "Створення…"
   },
   "composer": {
     "mention_suggestions": "Пропозиції згадок",

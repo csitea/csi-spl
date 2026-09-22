@@ -5,7 +5,8 @@
     "error_ref": "Hata referansı",
     "copy_ref": "Hata referansını kopyala",
     "copied": "Kopyalandı",
-    "copy_failed": "Kopyalama başarısız"
+    "copy_failed": "Kopyalama başarısız",
+    "cancel": "İptal"
   },
   "nav": {
     "threads": "Konular",
@@ -304,7 +305,16 @@
       "view_door": "Kanal oluşturmak için giriş yapın.",
       "fallback": "kanal oluşturulmadı"
     },
-    "channel_name_required": "kanal adı gerekli"
+    "channel_name_required": "kanal adı gerekli",
+    "create_channel_title": "Yeni kanal",
+    "create_channel_name_label": "Başlık",
+    "create_channel_description_label": "Açıklama",
+    "create_channel_description_placeholder": "bu kanal ne için",
+    "create_channel_description_hint": "İsteğe bağlı. Kanal başlığında görünür, en fazla 500 karakter.",
+    "create_channel_slug_hint": "#{slug} olacak",
+    "create_channel_slug_rule": "Küçük harfler, rakamlar ve tireler.",
+    "create_channel_submit": "Kanal oluştur",
+    "create_channel_busy": "Oluşturuluyor…"
   },
   "composer": {
     "mention_suggestions": "Bahsetme önerileri",

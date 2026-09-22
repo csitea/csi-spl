@@ -5,7 +5,8 @@
     "error_ref": "Error reference",
     "copy_ref": "Copy error reference",
     "copied": "Copied",
-    "copy_failed": "Copy failed"
+    "copy_failed": "Copy failed",
+    "cancel": "Cancel"
   },
   "nav": {
     "threads": "Threads",
@@ -304,7 +305,16 @@
       "view_door": "Sign in to create a channel.",
       "fallback": "channel not created"
     },
-    "channel_name_required": "channel name required"
+    "channel_name_required": "channel name required",
+    "create_channel_title": "New channel",
+    "create_channel_name_label": "Title",
+    "create_channel_description_label": "Description",
+    "create_channel_description_placeholder": "what this channel is for",
+    "create_channel_description_hint": "Optional. Shown in the channel header, up to 500 characters.",
+    "create_channel_slug_hint": "It will be #{slug}",
+    "create_channel_slug_rule": "Lowercase letters, digits and dashes.",
+    "create_channel_submit": "Create channel",
+    "create_channel_busy": "Creating…"
   },
   "composer": {
     "mention_suggestions": "Mention suggestions",

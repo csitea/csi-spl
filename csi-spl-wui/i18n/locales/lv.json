@@ -5,7 +5,8 @@
     "error_ref": "Kļūdas atsauce",
     "copy_ref": "Kopēt kļūdas atsauci",
     "copied": "Nokopēts",
-    "copy_failed": "Neizdevās nokopēt"
+    "copy_failed": "Neizdevās nokopēt",
+    "cancel": "Atcelt"
   },
   "nav": {
     "threads": "Pavedieni",
@@ -304,7 +305,16 @@
       "view_door": "Piesakieties, lai izveidotu kanālu.",
       "fallback": "kanāls netika izveidots"
     },
-    "channel_name_required": "nepieciešams kanāla nosaukums"
+    "channel_name_required": "nepieciešams kanāla nosaukums",
+    "create_channel_title": "Jauns kanāls",
+    "create_channel_name_label": "Nosaukums",
+    "create_channel_description_label": "Apraksts",
+    "create_channel_description_placeholder": "kam šis kanāls paredzēts",
+    "create_channel_description_hint": "Neobligāts. Redzams kanāla galvenē, līdz 500 rakstzīmēm.",
+    "create_channel_slug_hint": "Tas būs #{slug}",
+    "create_channel_slug_rule": "Mazie burti, cipari un defises.",
+    "create_channel_submit": "Izveidot kanālu",
+    "create_channel_busy": "Veido…"
   },
   "composer": {
     "mention_suggestions": "Pieminēšanas ieteikumi",

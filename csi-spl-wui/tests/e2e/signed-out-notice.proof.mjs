@@ -54,6 +54,7 @@ const step = (name, ok, ev = {}) => {
  */
 function readState() {
   const notice = document.querySelector('[data-test="signed-out-notice"]')
+  /* the + next to the Channels heading; a visitor must not be offered it */
   const create = document.querySelector('[data-testid="create-channel"]')
   const link = notice ? notice.querySelector('a') : null
   return {

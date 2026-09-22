@@ -5,7 +5,8 @@
     "error_ref": "Κωδικός σφάλματος",
     "copy_ref": "Αντιγραφή κωδικού σφάλματος",
     "copied": "Αντιγράφηκε",
-    "copy_failed": "Η αντιγραφή απέτυχε"
+    "copy_failed": "Η αντιγραφή απέτυχε",
+    "cancel": "Άκυρο"
   },
   "nav": {
     "threads": "Νήματα",
@@ -304,7 +305,16 @@
       "view_door": "Συνδεθείτε για να δημιουργήσετε κανάλι.",
       "fallback": "το κανάλι δεν δημιουργήθηκε"
     },
-    "channel_name_required": "απαιτείται όνομα καναλιού"
+    "channel_name_required": "απαιτείται όνομα καναλιού",
+    "create_channel_title": "Νέο κανάλι",
+    "create_channel_name_label": "Τίτλος",
+    "create_channel_description_label": "Περιγραφή",
+    "create_channel_description_placeholder": "σε τι χρησιμεύει αυτό το κανάλι",
+    "create_channel_description_hint": "Προαιρετικό. Εμφανίζεται στην κεφαλίδα του καναλιού, έως 500 χαρακτήρες.",
+    "create_channel_slug_hint": "Θα είναι #{slug}",
+    "create_channel_slug_rule": "Πεζά λατινικά γράμματα, ψηφία και παύλες.",
+    "create_channel_submit": "Δημιουργία καναλιού",
+    "create_channel_busy": "Δημιουργία…"
   },
   "composer": {
     "mention_suggestions": "Προτάσεις αναφορών",

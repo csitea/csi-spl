@@ -60,6 +60,8 @@ export interface ThreadRow {
 export interface ChannelRow {
   channel_id: string
   name: string
+  /** What the channel is for, as its creator typed it (channels-v1 §5.1). */
+  description?: string
   created_by?: string
   created_at?: string
   default?: boolean

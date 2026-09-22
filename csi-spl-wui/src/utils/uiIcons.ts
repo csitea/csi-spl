@@ -54,6 +54,8 @@ export const UI_ICON_PATHS = {
   moon: [
     "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z",
   ],
+  // The sidebar's one "add a channel" control, next to the Channels heading.
+  plus: ["M12 5v14", "M5 12h14"],
   // CLE-3433: the notification control in the collapsed 72px sidebar rail,
   // where its label does not fit and must not be shown as wrapped text.
   bell: [

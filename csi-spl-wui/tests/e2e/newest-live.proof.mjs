@@ -163,15 +163,26 @@ try {
   }
 
   /* a channel other than the lobby */
-  /* the test member creates it through the sidebar "+" form when the tenant lacks it */
+  /* the test member creates it through the sidebar "+" dialog when the tenant
+     lacks it (2026-09-22: the + next to the Channels heading opens a modal
+     that takes a title and a description) */
   const channel = process.env.CHANNEL || 'live-proof'
   await open(a, '/channel/lobby')
   const known = await a.evaluate((c) => [...document.querySelectorAll('a[href*="/channel/"]')].some((x) => x.getAttribute('href').endsWith('/channel/' + c)), channel)
   if (!known) {
-    await a.type('[data-testid=create-channel] input', channel)
-    await a.click('[data-testid=create-channel] button')
+    await a.click('[data-testid=create-channel]')
+    await a.waitForSelector('[data-testid=create-channel-form]', { timeout: 10000 })
+    await a.type('[data-testid=create-channel-name]', channel)
+    await a.type('[data-testid=create-channel-description]', 'live proof run ' + run)
+    await a.click('[data-testid=create-channel-submit]')
     const made = await a.waitForFunction((c) => location.pathname.endsWith('/channel/' + c), { timeout: 15000 }, channel).then(() => true, () => false)
-    step(`channel #${channel} created by the test member (sidebar form)`, made, { url: a.url() })
+    step(`channel #${channel} created by the test member (sidebar + dialog)`, made, { url: a.url() })
+    /* the description the dialog collected is what the channel header says */
+    const about = await a.evaluate(() => {
+      const el = document.querySelector('[data-test="channel-description"]')
+      return el ? el.textContent.trim() : null
+    })
+    step('the channel header shows the description the dialog collected', about === 'live proof run ' + run, { about })
   }
   await leg(`channel-${channel}`, a, b, `/channel/${encodeURIComponent(channel)}`)
 

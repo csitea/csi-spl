@@ -65,7 +65,7 @@ declare module '~/utils/spool-client.mjs' {
       from?: string
       msg_id?: string
     }): Promise<import('./spool').SpoolMessage>
-    createChannel(opts: { channel_id?: string, name?: string }): Promise<import('./spool').ChannelRow>
+    createChannel(opts: { channel_id?: string, name?: string, description?: string }): Promise<import('./spool').ChannelRow>
     /** message-edit-v1 §1: PATCH /v1/messages/{msg_id} with { body }. */
     editMessage(msgId: string, body: string): Promise<import('./spool').SpoolMessage>
     fileUrl(fileId: string): string

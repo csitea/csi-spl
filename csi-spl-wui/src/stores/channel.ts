@@ -368,10 +368,10 @@ export const useChannelStore = defineStore('channel', () => {
     return ack
   }
 
-  async function createChannel(name: string) {
+  async function createChannel(name: string, description = '') {
     const slug = channelSlug(name)
     if (!slug) throw new Error(i18n.t('sidebar.channel_name_required'))
-    const row = await withSessionRetry(api, () => api.createChannel({ channel_id: slug, name }))
+    const row = await withSessionRetry(api, () => api.createChannel({ channel_id: slug, name, description }))
     const id = String(row.channel_id || slug)
     await loadChannels()
     await selectChannel(id)

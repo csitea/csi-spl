@@ -5,7 +5,8 @@
     "error_ref": "Foutreferentie",
     "copy_ref": "Foutreferentie kopiëren",
     "copied": "Gekopieerd",
-    "copy_failed": "Kopiëren mislukt"
+    "copy_failed": "Kopiëren mislukt",
+    "cancel": "Annuleren"
   },
   "nav": {
     "threads": "Threads",
@@ -304,7 +305,16 @@
       "view_door": "Log in om een kanaal aan te maken.",
       "fallback": "kanaal niet aangemaakt"
     },
-    "channel_name_required": "kanaalnaam verplicht"
+    "channel_name_required": "kanaalnaam verplicht",
+    "create_channel_title": "Nieuw kanaal",
+    "create_channel_name_label": "Titel",
+    "create_channel_description_label": "Omschrijving",
+    "create_channel_description_placeholder": "waarvoor dit kanaal bedoeld is",
+    "create_channel_description_hint": "Optioneel. Wordt getoond in de kanaalkop, maximaal 500 tekens.",
+    "create_channel_slug_hint": "Het wordt #{slug}",
+    "create_channel_slug_rule": "Kleine letters, cijfers en streepjes.",
+    "create_channel_submit": "Kanaal aanmaken",
+    "create_channel_busy": "Aanmaken…"
   },
   "composer": {
     "mention_suggestions": "Suggesties voor vermeldingen",

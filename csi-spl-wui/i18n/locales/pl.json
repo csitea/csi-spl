@@ -5,7 +5,8 @@
     "error_ref": "Numer błędu",
     "copy_ref": "Kopiuj numer błędu",
     "copied": "Skopiowano",
-    "copy_failed": "Kopiowanie nie powiodło się"
+    "copy_failed": "Kopiowanie nie powiodło się",
+    "cancel": "Anuluj"
   },
   "nav": {
     "threads": "Wątki",
@@ -304,7 +305,16 @@
       "view_door": "Zaloguj się, aby utworzyć kanał.",
       "fallback": "nie utworzono kanału"
     },
-    "channel_name_required": "nazwa kanału jest wymagana"
+    "channel_name_required": "nazwa kanału jest wymagana",
+    "create_channel_title": "Nowy kanał",
+    "create_channel_name_label": "Tytuł",
+    "create_channel_description_label": "Opis",
+    "create_channel_description_placeholder": "do czego służy ten kanał",
+    "create_channel_description_hint": "Opcjonalnie. Widoczny w nagłówku kanału, do 500 znaków.",
+    "create_channel_slug_hint": "Będzie to #{slug}",
+    "create_channel_slug_rule": "Małe litery, cyfry i myślniki.",
+    "create_channel_submit": "Utwórz kanał",
+    "create_channel_busy": "Tworzenie…"
   },
   "composer": {
     "mention_suggestions": "Sugestie wzmianek",

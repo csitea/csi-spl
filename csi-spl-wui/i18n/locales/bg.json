@@ -5,7 +5,8 @@
     "error_ref": "Код на грешката",
     "copy_ref": "Копирай кода на грешката",
     "copied": "Копирано",
-    "copy_failed": "Копирането не успя"
+    "copy_failed": "Копирането не успя",
+    "cancel": "Отказ"
   },
   "nav": {
     "threads": "Нишки",
@@ -304,7 +305,16 @@
       "view_door": "Влезте, за да създадете канал.",
       "fallback": "каналът не е създаден"
     },
-    "channel_name_required": "името на канала е задължително"
+    "channel_name_required": "името на канала е задължително",
+    "create_channel_title": "Нов канал",
+    "create_channel_name_label": "Заглавие",
+    "create_channel_description_label": "Описание",
+    "create_channel_description_placeholder": "за какво е този канал",
+    "create_channel_description_hint": "По избор. Показва се в заглавката на канала, до 500 знака.",
+    "create_channel_slug_hint": "Ще бъде #{slug}",
+    "create_channel_slug_rule": "Малки латински букви, цифри и тирета.",
+    "create_channel_submit": "Създаване на канал",
+    "create_channel_busy": "Създаване…"
   },
   "composer": {
     "mention_suggestions": "Предложения за споменаване",

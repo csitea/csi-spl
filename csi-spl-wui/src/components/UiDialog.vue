@@ -137,7 +137,13 @@ watch(
       document.documentElement.style.overflow = 'hidden'
       await nextTick()
       const items = focusables()
-      ;(items[0] ?? panelEl.value)?.focus()
+      /* Opening a dialog puts focus where the person is meant to WORK. Without
+         a nominated target that is items[0], which is the header's Close
+         button - fine for a viewer, wrong for a form, where it means the first
+         keystroke goes nowhere. Content marks its own field with
+         `data-autofocus`; anything without one keeps the old behaviour. */
+      const first = items.find((el) => el.hasAttribute('data-autofocus')) ?? items[0]
+      ;(first ?? panelEl.value)?.focus()
     } else {
       document.documentElement.style.overflow = ''
       returnFocusTo?.focus?.()

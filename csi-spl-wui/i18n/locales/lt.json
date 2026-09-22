@@ -5,7 +5,8 @@
     "error_ref": "Klaidos kodas",
     "copy_ref": "Kopijuoti klaidos kodą",
     "copied": "Nukopijuota",
-    "copy_failed": "Nepavyko nukopijuoti"
+    "copy_failed": "Nepavyko nukopijuoti",
+    "cancel": "Atšaukti"
   },
   "nav": {
     "threads": "Gijos",
@@ -304,7 +305,16 @@
       "view_door": "Prisijunkite, kad sukurtumėte kanalą.",
       "fallback": "kanalas nesukurtas"
     },
-    "channel_name_required": "reikia kanalo pavadinimo"
+    "channel_name_required": "reikia kanalo pavadinimo",
+    "create_channel_title": "Naujas kanalas",
+    "create_channel_name_label": "Pavadinimas",
+    "create_channel_description_label": "Aprašymas",
+    "create_channel_description_placeholder": "kam skirtas šis kanalas",
+    "create_channel_description_hint": "Neprivaloma. Rodoma kanalo antraštėje, iki 500 simbolių.",
+    "create_channel_slug_hint": "Jis bus #{slug}",
+    "create_channel_slug_rule": "Mažosios raidės, skaitmenys ir brūkšneliai.",
+    "create_channel_submit": "Sukurti kanalą",
+    "create_channel_busy": "Kuriama…"
   },
   "composer": {
     "mention_suggestions": "Paminėjimų pasiūlymai",

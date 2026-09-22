@@ -169,6 +169,7 @@ export function channelsFromView(data) {
     .filter((c) => c && c.channel)
     .map((c) => {
       const row = { channel_id: String(c.channel), name: String(c.name || c.channel) }
+      if (c.description) row.description = String(c.description)
       if (c.created_by) row.created_by = String(c.created_by)
       if (c.created_at) row.created_at = String(c.created_at)
       if (c.default !== undefined) row.default = Boolean(c.default)

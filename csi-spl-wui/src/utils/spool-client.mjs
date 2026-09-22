@@ -377,12 +377,20 @@ export function createSpoolClient({
       })
       return normalizeViewMessage(data)
     },
-    /** channels-v1 §5.1: POST /v1/channels; 409 channel_exists / 400 bad_channel keep their token. */
-    async createChannel({ channel_id, name } = {}) {
+    /**
+     * channels-v1 §5.1: POST /v1/channels; 409 channel_exists / 400 bad_channel
+     * keep their token. `description` (§5.1, 1.2.0) is what the new-channel
+     * dialog collected next to the title, and is sent ONLY when there is one:
+     * the hub rejects unknown fields, so a no-description create still works
+     * against a hub that predates rdb 0027.
+     */
+    async createChannel({ channel_id, name, description } = {}) {
       const slug = channelSlug(channel_id || name)
       if (!slug) throw Object.assign(new Error('channel id required'), { status: 400, token: 'bad_channel' })
+      const about = String(description || '').trim().slice(0, 500)
       if (mock) {
         const row = { channel_id: slug, name: name || slug, created_by: state.me.id }
+        if (about) row.description = about
         if (!state.channels.some((c) => c.channel_id === slug)) state.channels.push(row)
         return row
       }
@@ -391,7 +399,11 @@ export function createSpoolClient({
         data = await live('/v1/channels', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ channel: slug, name: String(name || slug).slice(0, 80) }),
+          body: JSON.stringify({
+            channel: slug,
+            name: String(name || slug).slice(0, 80),
+            ...(about ? { description: about } : {}),
+          }),
         })
       } catch (e) {
         const msg = CHANNEL_ERRORS[e && e.token]

@@ -7,7 +7,26 @@
     <NuxtLink class="nav-item" :to="localePath('/')" exact-active-class="active">
       <span class="label">{{ t('nav.threads') }}</span>
     </NuxtLink>
-    <h2>{{ t('sidebar.channels') }}</h2>
+    <!-- CLE-00 (owner, 2026-09-22): the heading and the ONE control that adds
+         a channel. A plain <button> next to the title, so Tab reaches it in
+         document order and Enter / Space open the dialog - the old inline
+         text field sat in the channel list itself, took two tab stops before
+         anyone had decided to create anything, and had nowhere to put what
+         the channel is FOR. -->
+    <div class="sidebar-head">
+      <h2>{{ t('sidebar.channels') }}</h2>
+      <button
+        v-if="canCreate"
+        type="button"
+        class="icon-btn create-channel"
+        data-testid="create-channel"
+        :aria-label="t('sidebar.new_channel_label')"
+        :title="t('sidebar.new_channel_label')"
+        @click="openCreate"
+      >
+        <UiIcon name="plus" :size="18" />
+      </button>
+    </div>
     <NuxtLink
       v-for="c in channel.ordered"
       :key="c.channel_id"
@@ -15,6 +34,7 @@
       :class="{ active: channel.active === c.channel_id }"
       :data-key="c.channel_id"
       :data-ts="channelActivity(c, channel.liveAt) || undefined"
+      :title="c.description || undefined"
       :to="localePath('/channel/' + c.channel_id)"
     >
       <span class="hash">#</span>
@@ -23,16 +43,60 @@
       <span v-if="notes.mentions['ch:' + c.channel_id]" class="badge-mention" data-testid="mention-count">@{{ notes.previewUnread(notes.mentions['ch:' + c.channel_id]) }}</span>
       <span v-if="notes.unread['ch:' + c.channel_id]" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:' + c.channel_id]) }}</span>
     </NuxtLink>
-    <!-- CLE-3433: `access.can` fails OPEN by design (the store only hides
-         actions; the hub re-checks every write), which is right for a member
-         whose /view/me read failed and wrong for a visitor who is not signed
-         in at all - they were offered a live "new channel" field that can
-         only answer 401. A settled signed-out probe is not a failed read. -->
-    <form v-if="!signedOut && access.can('channels.manage')" class="create-row" data-testid="create-channel" @submit.prevent="onCreate">
-      <input v-model="newChannel" :placeholder="t('sidebar.new_channel_placeholder')" :aria-label="t('sidebar.new_channel_label')" :disabled="creating">
-      <button class="btn ghost" type="submit" :disabled="creating">+</button>
-    </form>
-    <p v-if="createError" class="muted create-error" role="alert">{{ createError }}</p>
+    <!-- The new-channel dialog: title + description, one place, nothing in the
+         list until it is created (013 FR-017 - UiDialog owns focus trap,
+         Escape, backdrop and restored focus; this owns only the fields). -->
+    <UiDialog v-model:open="createOpen" :title="t('sidebar.create_channel_title')" size="md">
+      <form
+        id="create-channel-form"
+        class="create-channel-form"
+        data-testid="create-channel-form"
+        novalidate
+        @submit.prevent="onCreate"
+      >
+        <label class="create-channel-form__field">
+          <span>{{ t('sidebar.create_channel_name_label') }}</span>
+          <input
+            v-model="newChannel"
+            type="text"
+            maxlength="80"
+            autocomplete="off"
+            data-autofocus
+            data-testid="create-channel-name"
+            :placeholder="t('sidebar.new_channel_placeholder')"
+            :disabled="creating"
+          >
+          <!-- the slug is what the URL and every @mention will say, so it is
+               shown while it is still being typed, not discovered afterwards -->
+          <small class="muted">{{ slug ? t('sidebar.create_channel_slug_hint', { slug }) : t('sidebar.create_channel_slug_rule') }}</small>
+        </label>
+        <label class="create-channel-form__field">
+          <span>{{ t('sidebar.create_channel_description_label') }}</span>
+          <textarea
+            v-model="newDescription"
+            rows="3"
+            maxlength="500"
+            data-testid="create-channel-description"
+            :placeholder="t('sidebar.create_channel_description_placeholder')"
+            :disabled="creating"
+          />
+          <small class="muted">{{ t('sidebar.create_channel_description_hint') }}</small>
+        </label>
+        <p v-if="createError" class="create-error" role="alert" data-testid="create-channel-error">{{ createError }}</p>
+      </form>
+      <template #footer>
+        <div class="create-channel-form__actions">
+          <button type="button" class="btn ghost" :disabled="creating" @click="createOpen = false">{{ t('common.cancel') }}</button>
+          <button
+            type="submit"
+            form="create-channel-form"
+            class="btn"
+            data-testid="create-channel-submit"
+            :disabled="creating || !slug"
+          >{{ creating ? t('sidebar.create_channel_busy') : t('sidebar.create_channel_submit') }}</button>
+        </div>
+      </template>
+    </UiDialog>
     <h2>{{ t('sidebar.direct_messages') }}</h2>
     <NuxtLink
       v-for="p in peers"
@@ -71,7 +135,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
-import { channelActivity, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
+import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
 
 const channel = useChannelStore()
@@ -98,8 +162,31 @@ onMounted(() => session.probe())
 /* specs/025 FR-008: the role decides which actions are offered (the hub re-checks). */
 watch(() => session.state, (st) => { if (st === 'in') access.load() }, { immediate: true })
 const newChannel = ref('')
+const newDescription = ref('')
+const createOpen = ref(false)
 const creating = ref(false)
 const createError = ref('')
+/* what the channel will actually be called in a URL and in an @mention */
+const slug = computed(() => channelSlug(newChannel.value))
+/* CLE-3433: `access.can` fails OPEN by design (the store only hides actions;
+   the hub re-checks every write), which is right for a member whose /view/me
+   read failed and wrong for a visitor who is not signed in at all - they were
+   offered a control that can only answer 401. A settled signed-out probe is
+   not a failed read. */
+const canCreate = computed(() => !signedOut.value && access.can('channels.manage'))
+
+function openCreate() {
+  createError.value = ''
+  createOpen.value = true
+}
+
+/* a dismissed dialog keeps nothing: the next + starts on an empty form */
+watch(createOpen, (open) => {
+  if (open) return
+  newChannel.value = ''
+  newDescription.value = ''
+  createError.value = ''
+})
 const config = useRuntimeConfig()
 const version = computed(() => String(config.public.appVersion || 'v0.1.0-dev'))
 /* the deployed stamp, read once, client only; null in lde and on any failure */
@@ -123,8 +210,10 @@ async function onCreate() {
   creating.value = true
   createError.value = ''
   try {
-    const row = await channel.createChannel(name)
-    newChannel.value = ''
+    const row = await channel.createChannel(name, newDescription.value.trim())
+    /* close first: the dialog restores focus to the + it was opened from, and
+       the watcher clears the form, so a failed create keeps what was typed */
+    createOpen.value = false
     await navigateTo(localePath('/channel/' + row.channel_id))
   } catch (e) {
     createError.value = createCopy(e)
@@ -136,6 +225,50 @@ async function onCreate() {
 
 <style scoped>
 .retention { font-size: 11px; flex-shrink: 0; }
+/* the heading row: title on the left, the one + on the right */
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline-end: 10px;
+  min-width: 0;
+}
+.sidebar-head h2 { flex: 1; min-width: 0; }
+.create-channel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  min-width: 0;
+}
+.create-channel-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.create-channel-form__field > span { font-size: 13px; font-weight: 600; }
+.create-channel-form__field input,
+.create-channel-form__field textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--color-composer);
+  border: 1px solid var(--color-border);
+  color: var(--color-fg);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  font: inherit;
+}
+.create-channel-form__field textarea { resize: vertical; }
+.create-channel-form__field small { font-size: 11px; overflow-wrap: anywhere; }
+.create-channel-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .badge-mention {
   margin-left: auto;
   color: var(--color-danger);
@@ -146,7 +279,7 @@ async function onCreate() {
   flex-shrink: 0;
 }
 .badge-mention + .badge-unread { margin-left: 4px; }
-.create-error { padding: 0 16px; font-size: 12px; overflow-wrap: anywhere; }
+.create-error { margin: 0; font-size: 12px; color: var(--color-danger); overflow-wrap: anywhere; }
 .health-dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--color-danger);

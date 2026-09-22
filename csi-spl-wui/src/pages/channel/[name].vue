@@ -2,6 +2,9 @@
   <div class="feed-col">
     <header class="feed-header">
       <h2>#{{ name }}</h2>
+      <!-- what its creator said it is for (channels-v1 §5.1), else the generic
+           line; the retention note is never dropped, it just moves along -->
+      <span v-if="description" class="muted feed-header__about" :title="description" data-test="channel-description">{{ description }}</span>
       <span class="muted">{{ retention ? t('pages.channel.subtitle_retention', { retention }) : t('pages.channel.subtitle') }}</span>
     </header>
     <SignedOutNotice v-if="signedOut" />
@@ -35,6 +38,7 @@ const session = useSessionStore()
 const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
 const name = computed(() => String(route.params.name || 'lobby'))
 const { t } = useI18n({ useScope: 'global' })
+const description = computed(() => String(channel.channels.find((c) => c.channel_id === name.value)?.description || ''))
 const retention = computed(() => {
   const n = retentionDays(channel.channels.find((c) => c.channel_id === name.value) || { channel_id: name.value })
   return n ? t('sidebar.retention_days', { n }) : ''

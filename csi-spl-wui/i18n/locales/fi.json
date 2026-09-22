@@ -5,7 +5,8 @@
     "error_ref": "Virheen viite",
     "copy_ref": "Kopioi virheen viite",
     "copied": "Kopioitu",
-    "copy_failed": "Kopiointi epäonnistui"
+    "copy_failed": "Kopiointi epäonnistui",
+    "cancel": "Peruuta"
   },
   "nav": {
     "threads": "Ketjut",
@@ -304,7 +305,16 @@
       "view_door": "Kirjaudu sisään luodaksesi kanavan.",
       "fallback": "kanavaa ei luotu"
     },
-    "channel_name_required": "kanavan nimi vaaditaan"
+    "channel_name_required": "kanavan nimi vaaditaan",
+    "create_channel_title": "Uusi kanava",
+    "create_channel_name_label": "Otsikko",
+    "create_channel_description_label": "Kuvaus",
+    "create_channel_description_placeholder": "mihin tämä kanava on",
+    "create_channel_description_hint": "Valinnainen. Näkyy kanavan otsikkorivillä, enintään 500 merkkiä.",
+    "create_channel_slug_hint": "Siitä tulee #{slug}",
+    "create_channel_slug_rule": "Pieniä kirjaimia, numeroita ja väliviivoja.",
+    "create_channel_submit": "Luo kanava",
+    "create_channel_busy": "Luodaan…"
   },
   "composer": {
     "mention_suggestions": "Mainintaehdotukset",

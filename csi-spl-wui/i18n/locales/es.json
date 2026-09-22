@@ -5,7 +5,8 @@
     "error_ref": "Referencia del error",
     "copy_ref": "Copiar la referencia del error",
     "copied": "Copiado",
-    "copy_failed": "No se pudo copiar"
+    "copy_failed": "No se pudo copiar",
+    "cancel": "Cancelar"
   },
   "nav": {
     "threads": "Hilos",
@@ -304,7 +305,16 @@
       "view_door": "Inicia sesión para crear un canal.",
       "fallback": "no se creó el canal"
     },
-    "channel_name_required": "el nombre del canal es obligatorio"
+    "channel_name_required": "el nombre del canal es obligatorio",
+    "create_channel_title": "Nuevo canal",
+    "create_channel_name_label": "Título",
+    "create_channel_description_label": "Descripción",
+    "create_channel_description_placeholder": "para qué sirve este canal",
+    "create_channel_description_hint": "Opcional. Se muestra en la cabecera del canal, hasta 500 caracteres.",
+    "create_channel_slug_hint": "Será #{slug}",
+    "create_channel_slug_rule": "Letras minúsculas, dígitos y guiones.",
+    "create_channel_submit": "Crear canal",
+    "create_channel_busy": "Creando…"
   },
   "composer": {
     "mention_suggestions": "Sugerencias de menciones",

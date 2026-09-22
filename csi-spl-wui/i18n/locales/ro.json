@@ -5,7 +5,8 @@
     "error_ref": "Referință eroare",
     "copy_ref": "Copiază referința erorii",
     "copied": "Copiat",
-    "copy_failed": "Copierea a eșuat"
+    "copy_failed": "Copierea a eșuat",
+    "cancel": "Anulează"
   },
   "nav": {
     "threads": "Fire",
@@ -304,7 +305,16 @@
       "view_door": "Autentificați-vă pentru a crea un canal.",
       "fallback": "canalul nu a fost creat"
     },
-    "channel_name_required": "numele canalului este obligatoriu"
+    "channel_name_required": "numele canalului este obligatoriu",
+    "create_channel_title": "Canal nou",
+    "create_channel_name_label": "Titlu",
+    "create_channel_description_label": "Descriere",
+    "create_channel_description_placeholder": "la ce folosește acest canal",
+    "create_channel_description_hint": "Opțional. Apare în antetul canalului, maximum 500 de caractere.",
+    "create_channel_slug_hint": "Va fi #{slug}",
+    "create_channel_slug_rule": "Litere mici, cifre și liniuțe.",
+    "create_channel_submit": "Creează canalul",
+    "create_channel_busy": "Se creează…"
   },
   "composer": {
     "mention_suggestions": "Sugestii de mențiuni",

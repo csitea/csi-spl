@@ -5,7 +5,8 @@
     "error_ref": "Kód chyby",
     "copy_ref": "Kopírovať kód chyby",
     "copied": "Skopírované",
-    "copy_failed": "Kopírovanie zlyhalo"
+    "copy_failed": "Kopírovanie zlyhalo",
+    "cancel": "Zrušiť"
   },
   "nav": {
     "threads": "Vlákna",
@@ -304,7 +305,16 @@
       "view_door": "Ak chcete vytvoriť kanál, prihláste sa.",
       "fallback": "kanál nebol vytvorený"
     },
-    "channel_name_required": "názov kanála je povinný"
+    "channel_name_required": "názov kanála je povinný",
+    "create_channel_title": "Nový kanál",
+    "create_channel_name_label": "Názov",
+    "create_channel_description_label": "Popis",
+    "create_channel_description_placeholder": "na čo je tento kanál",
+    "create_channel_description_hint": "Voliteľné. Zobrazuje sa v hlavičke kanála, najviac 500 znakov.",
+    "create_channel_slug_hint": "Bude to #{slug}",
+    "create_channel_slug_rule": "Malé písmená, číslice a pomlčky.",
+    "create_channel_submit": "Vytvoriť kanál",
+    "create_channel_busy": "Vytvára sa…"
   },
   "composer": {
     "mention_suggestions": "Návrhy zmienok",

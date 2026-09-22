@@ -5,7 +5,8 @@
     "error_ref": "מזהה שגיאה",
     "copy_ref": "העתק מזהה שגיאה",
     "copied": "הועתק",
-    "copy_failed": "ההעתקה נכשלה"
+    "copy_failed": "ההעתקה נכשלה",
+    "cancel": "ביטול"
   },
   "nav": {
     "threads": "שרשורים",
@@ -304,7 +305,16 @@
       "view_door": "התחברו כדי ליצור ערוץ.",
       "fallback": "הערוץ לא נוצר"
     },
-    "channel_name_required": "נדרש שם ערוץ"
+    "channel_name_required": "נדרש שם ערוץ",
+    "create_channel_title": "ערוץ חדש",
+    "create_channel_name_label": "כותרת",
+    "create_channel_description_label": "תיאור",
+    "create_channel_description_placeholder": "למה הערוץ הזה מיועד",
+    "create_channel_description_hint": "רשות. מוצג בכותרת הערוץ, עד 500 תווים.",
+    "create_channel_slug_hint": "הוא יהיה #{slug}",
+    "create_channel_slug_rule": "אותיות לטיניות קטנות, ספרות ומקפים.",
+    "create_channel_submit": "יצירת ערוץ",
+    "create_channel_busy": "יוצר…"
   },
   "composer": {
     "mention_suggestions": "הצעות לאזכור",

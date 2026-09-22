@@ -166,6 +166,17 @@ html.pane-dragging * {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* The channel description in the header: it takes the slack between the name
+   and the retention note, and ELLIPSES rather than widening the document (a
+   500-char description must not make the page scroll sideways). */
+.feed-header__about {
+  flex: 1 1 60px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .feed-body {
   flex: 1;
   /* CLE-3425: the main column is scrolled by the PAGE (since the 022 top bar),
@@ -472,24 +483,6 @@ html.pane-dragging * {
   text-align: left;
 }
 .muted { color: var(--color-muted); font-size: 13px; }
-.create-row {
-  display: flex;
-  gap: 6px;
-  padding: 8px 16px;
-  max-width: 100%;
-  min-width: 0;
-}
-.create-row input {
-  flex: 1;
-  min-width: 0;
-  max-width: 100%;
-  background: var(--color-composer);
-  border: 1px solid var(--color-border);
-  color: var(--color-fg);
-  border-radius: var(--radius-sm);
-  padding: 6px 8px;
-  min-height: var(--tap);
-}
 .version-stamp {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -499,7 +492,10 @@ html.pane-dragging * {
 }
 @media (max-width: 800px) {
   .sidebar { width: 72px; }
-  .sidebar h2, .nav-item span.label, .create-row, .version-stamp { display: none; }
+  .sidebar h2, .nav-item span.label, .version-stamp { display: none; }
+  /* the rail keeps the + (the heading text is what does not fit, not the
+     control): centre it where the heading was */
+  .sidebar-head { justify-content: center; padding: 10px 0 4px; }
   .pane-divider[data-pane="sidebar"] { display: none; }
   .thread {
     position: absolute;

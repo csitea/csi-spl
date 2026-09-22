@@ -5,7 +5,8 @@
     "error_ref": "Šifra greške",
     "copy_ref": "Kopiraj šifru greške",
     "copied": "Kopirano",
-    "copy_failed": "Kopiranje nije uspelo"
+    "copy_failed": "Kopiranje nije uspelo",
+    "cancel": "Otkaži"
   },
   "nav": {
     "threads": "Niti",
@@ -304,7 +305,16 @@
       "view_door": "Prijavite se da biste napravili kanal.",
       "fallback": "kanal nije napravljen"
     },
-    "channel_name_required": "naziv kanala je obavezan"
+    "channel_name_required": "naziv kanala je obavezan",
+    "create_channel_title": "Novi kanal",
+    "create_channel_name_label": "Naslov",
+    "create_channel_description_label": "Opis",
+    "create_channel_description_placeholder": "čemu služi ovaj kanal",
+    "create_channel_description_hint": "Opciono. Prikazuje se u zaglavlju kanala, najviše 500 znakova.",
+    "create_channel_slug_hint": "Biće #{slug}",
+    "create_channel_slug_rule": "Mala slova, cifre i crtice.",
+    "create_channel_submit": "Napravi kanal",
+    "create_channel_busy": "Pravi se…"
   },
   "composer": {
     "mention_suggestions": "Predlozi za pominjanje",

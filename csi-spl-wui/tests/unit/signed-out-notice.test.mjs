@@ -63,8 +63,10 @@ describe('the signed-out feed routes offer a way in (CLE-3433)', () => {
   it('the sidebar stops offering "new channel" to someone who cannot create one', () => {
     const s = src('src/components/ChannelSidebar.vue')
     /* access.can fails OPEN by design; a settled signed-out probe is not a
-       failed read, and the field could only ever answer 401 */
-    assert.match(s, /v-if="!signedOut && access\.can\('channels\.manage'\)"/)
+       failed read, and the control could only ever answer 401. The gate is one
+       computed now (the + button), not a v-if repeated per element. */
+    assert.match(s, /const canCreate = computed\(\(\) => !signedOut\.value && access\.can\('channels\.manage'\)\)/)
+    assert.match(s, /v-if="canCreate"/)
     assert.match(s, /isSignedOutVisitor\(session\.state, api\.mock\)/)
   })
 

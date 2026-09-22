@@ -5,7 +5,8 @@
     "error_ref": "Vea viide",
     "copy_ref": "Kopeeri vea viide",
     "copied": "Kopeeritud",
-    "copy_failed": "Kopeerimine ebaõnnestus"
+    "copy_failed": "Kopeerimine ebaõnnestus",
+    "cancel": "Loobu"
   },
   "nav": {
     "threads": "Lõimed",
@@ -304,7 +305,16 @@
       "view_door": "Kanali loomiseks logi sisse.",
       "fallback": "kanalit ei loodud"
     },
-    "channel_name_required": "kanali nimi on nõutud"
+    "channel_name_required": "kanali nimi on nõutud",
+    "create_channel_title": "Uus kanal",
+    "create_channel_name_label": "Pealkiri",
+    "create_channel_description_label": "Kirjeldus",
+    "create_channel_description_placeholder": "milleks see kanal on",
+    "create_channel_description_hint": "Valikuline. Kuvatakse kanali päises, kuni 500 tähemärki.",
+    "create_channel_slug_hint": "Sellest saab #{slug}",
+    "create_channel_slug_rule": "Väiketähed, numbrid ja sidekriipsud.",
+    "create_channel_submit": "Loo kanal",
+    "create_channel_busy": "Loon…"
   },
   "composer": {
     "mention_suggestions": "Mainimissoovitused",

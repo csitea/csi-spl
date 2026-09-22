@@ -5,7 +5,8 @@
     "error_ref": "Код на грешката",
     "copy_ref": "Копирај го кодот на грешката",
     "copied": "Копирано",
-    "copy_failed": "Копирањето не успеа"
+    "copy_failed": "Копирањето не успеа",
+    "cancel": "Откажи"
   },
   "nav": {
     "threads": "Нишки",
@@ -304,7 +305,16 @@
       "view_door": "Најавете се за да создадете канал.",
       "fallback": "каналот не е создаден"
     },
-    "channel_name_required": "потребно е име на каналот"
+    "channel_name_required": "потребно е име на каналот",
+    "create_channel_title": "Нов канал",
+    "create_channel_name_label": "Наслов",
+    "create_channel_description_label": "Опис",
+    "create_channel_description_placeholder": "за што служи овој канал",
+    "create_channel_description_hint": "Изборно. Се прикажува во заглавието на каналот, до 500 знаци.",
+    "create_channel_slug_hint": "Ќе биде #{slug}",
+    "create_channel_slug_rule": "Мали латинични букви, цифри и црти.",
+    "create_channel_submit": "Создај канал",
+    "create_channel_busy": "Се создава…"
   },
   "composer": {
     "mention_suggestions": "Предлози за спомнување",

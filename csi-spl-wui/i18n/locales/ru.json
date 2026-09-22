@@ -5,7 +5,8 @@
     "error_ref": "Код ошибки",
     "copy_ref": "Копировать код ошибки",
     "copied": "Скопировано",
-    "copy_failed": "Не удалось скопировать"
+    "copy_failed": "Не удалось скопировать",
+    "cancel": "Отмена"
   },
   "nav": {
     "threads": "Треды",
@@ -304,7 +305,16 @@
       "view_door": "Войдите, чтобы создать канал.",
       "fallback": "канал не создан"
     },
-    "channel_name_required": "укажите имя канала"
+    "channel_name_required": "укажите имя канала",
+    "create_channel_title": "Новый канал",
+    "create_channel_name_label": "Название",
+    "create_channel_description_label": "Описание",
+    "create_channel_description_placeholder": "для чего этот канал",
+    "create_channel_description_hint": "Необязательно. Показывается в заголовке канала, до 500 символов.",
+    "create_channel_slug_hint": "Будет #{slug}",
+    "create_channel_slug_rule": "Строчные латинские буквы, цифры и дефисы.",
+    "create_channel_submit": "Создать канал",
+    "create_channel_busy": "Создание…"
   },
   "composer": {
     "mention_suggestions": "Варианты упоминаний",

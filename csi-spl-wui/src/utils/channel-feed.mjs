@@ -553,6 +553,7 @@ export function addChannelRow(rows, frame) {
   return [...list, {
     channel_id: id,
     name: String(f.name || id),
+    description: String(f.description || ''),
     created_by: String(f.created_by || ''),
     created_at: String(f.created_at || ''),
     default: false,

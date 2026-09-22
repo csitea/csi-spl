@@ -17,6 +17,18 @@
 # Only the last --max records are kept in the file, and only as many as the
 # pane is TALL are painted - printing more would scroll the newest record,
 # which is printed first, straight off the top.
+#
+# Since 2026-09-22 the pane is a narrow RIGHT-HAND strip, not a full-width
+# bottom bar, so every record is WORD-WRAPPED to the pane's width here rather
+# than left to the terminal. Two reasons, and neither is cosmetic:
+#
+#   1. a terminal wrap costs rows the budget below did not count, so a record
+#      that looked like 2 rows lands as 5 and pushes the newest record - which
+#      is printed FIRST - off the top. That is the same bug pane_rows exists to
+#      stop, arriving through the width instead of the height.
+#   2. a wrap at the pane edge breaks mid-word and leaves no indent, so a
+#      48-column strip reads as a wall. A wrapped continuation is indented by
+#      two, which is what makes it read as a chat column.
 set -uo pipefail
 
 LOG="" MAX=50
@@ -61,24 +73,64 @@ else
   BLUE="" DIM="" FAINT="" OFF=""
 fi
 
-# How tall this pane is. A repaint that prints MORE lines than the pane holds
-# scrolls, and since the newest record is printed FIRST it is the one that
-# scrolls away - the exact opposite of what this pane is for. Measured on the
-# live orchestrator pane 2026-09-21: 39 records into 8 rows showed the OLDEST.
-pane_rows() {
-  local r=""
+# How tall AND how wide this pane is, into PANE_ROWS / PANE_COLS. A repaint
+# that prints MORE lines than the pane holds scrolls, and since the newest
+# record is printed FIRST it is the one that scrolls away - the exact opposite
+# of what this pane is for. Measured on the live orchestrator pane 2026-09-21:
+# 39 records into 8 rows showed the OLDEST.
+#
+# One tmux round trip for both numbers: this runs on every repaint.
+PANE_ROWS=24 PANE_COLS=80
+pane_geom() {
+  local g="" r="" c=""
   # tmux is the authority on its own pane. `tput lines` needs a terminfo entry
   # for $TERM, which inside tmux is a tmux-* name that is often not installed;
   # it then reports its 24-line default, 24 lines go into an 8-row pane, and
   # the newest record - printed first - scrolls straight off the top. That is
   # the whole bug, wearing a different hat.
   if [ -n "${TMUX_PANE:-}" ] && [ -n "${TMUX:-}" ]; then
-    r="$(tmux display-message -p -t "$TMUX_PANE" '#{pane_height}' 2>/dev/null)"
+    g="$(tmux display-message -p -t "$TMUX_PANE" '#{pane_height} #{pane_width}' 2>/dev/null)"
+    r="${g%% *}"; c="${g##* }"
   fi
   [[ "$r" =~ ^[0-9]+$ ]] && [ "$r" -gt 2 ] || r="$(tput lines 2>/dev/null)"
   [[ "$r" =~ ^[0-9]+$ ]] && [ "$r" -gt 2 ] || r="${LINES:-24}"
   [[ "$r" =~ ^[0-9]+$ ]] && [ "$r" -gt 2 ] || r=24
-  printf '%s' "$r"
+  [[ "$c" =~ ^[0-9]+$ ]] && [ "$c" -gt 8 ] || c="$(tput cols 2>/dev/null)"
+  [[ "$c" =~ ^[0-9]+$ ]] && [ "$c" -gt 8 ] || c="${COLUMNS:-80}"
+  [[ "$c" =~ ^[0-9]+$ ]] && [ "$c" -gt 8 ] || c=80
+  PANE_ROWS="$r"; PANE_COLS="$c"
+}
+
+# WRAPPED: TEXT broken into lines of at most WIDTH columns, every line after
+# the first indented by INDENT. A word too long to fit a line of its own is
+# hard-split rather than handed to the terminal, because the terminal's own
+# wrap is the row the budget did not count.
+#
+# Pure parameter expansion: this runs once per printed record on every repaint,
+# and a `fold` here is a process per record.
+WRAPPED=()
+wrap_text() {  # TEXT WIDTH INDENT
+  local text="$1" width="$2" indent="$3" line="" word budget cont pad i
+  local -  # restores the shell options set below on return
+  set -f   # a body may hold * or ? and this is an unquoted expansion
+  WRAPPED=()
+  [[ "$width" =~ ^[0-9]+$ ]] && [ "$width" -ge 8 ] || width=8
+  [[ "$indent" =~ ^[0-9]+$ ]] && [ "$indent" -le $(( width - 4 )) ] || indent=0
+  cont=$(( width - indent ))
+  budget=$width
+  for word in $text; do
+    while [ "${#word}" -gt "$budget" ]; do
+      if [ -n "$line" ]; then WRAPPED+=("$line"); line=""; budget=$cont; continue; fi
+      WRAPPED+=("${word:0:$budget}"); word="${word:$budget}"; budget=$cont
+    done
+    if [ -z "$line" ]; then line="$word"
+    elif [ $(( ${#line} + 1 + ${#word} )) -le "$budget" ]; then line="$line $word"
+    else WRAPPED+=("$line"); line="$word"; budget=$cont
+    fi
+  done
+  [ -n "$line" ] && WRAPPED+=("$line")
+  printf -v pad '%*s' "$indent" ''
+  for (( i = 1; i < ${#WRAPPED[@]}; i++ )); do WRAPPED[i]="${pad}${WRAPPED[i]}"; done
 }
 
 render() {
@@ -95,22 +147,27 @@ render() {
       *"$tab"*) rows+=("$line") ;;
     esac
   done < <(tail -n "$MAX" "$LOG" 2>/dev/null)
-  local fit budget i head body
-  fit="$(pane_rows)"
+  local budget i j head body
+  pane_geom
   # One row short of the pane: each printed line ends in a newline, so filling
   # every row scrolls the pane by one - and the line that leaves is the FIRST,
   # which is the newest record's header. Measured 2026-09-21: the pane opened
   # on the newest BODY, its header one row above the top.
-  budget=$(( fit - 1 )); (( budget < 1 )) && budget=1
+  budget=$(( PANE_ROWS - 1 )); (( budget < 1 )) && budget=1
   if [ "${#rows[@]}" -eq 0 ]; then
-    out=("${FAINT}(no messages yet - a DM to this agent appears here, newest first)${OFF}")
+    wrap_text "(no messages yet - a DM to this agent appears here, newest first)" "$PANE_COLS" 2
+    for (( j = 0; j < ${#WRAPPED[@]}; j++ )); do out+=("${FAINT}${WRAPPED[j]}${OFF}"); done
   else
     for (( i = ${#rows[@]} - 1; i >= 0; i-- )); do
       head="${rows[i]%%$'\t'*}"
       body="${rows[i]#*$'\t'}"
       [ "$body" = "${rows[i]}" ] && body=""
-      out+=("${BLUE}${head}${OFF}")
-      [ -n "$body" ] && out+=("${DIM}${body}${OFF}")
+      wrap_text "$head" "$PANE_COLS" 2
+      for (( j = 0; j < ${#WRAPPED[@]}; j++ )); do out+=("${BLUE}${WRAPPED[j]}${OFF}"); done
+      if [ -n "$body" ]; then
+        wrap_text "$body" "$PANE_COLS" 2
+        for (( j = 0; j < ${#WRAPPED[@]}; j++ )); do out+=("${DIM}${WRAPPED[j]}${OFF}"); done
+      fi
       out+=("")
       # Stop building as soon as the pane is full: the rest would scroll the
       # newest record off the top anyway.

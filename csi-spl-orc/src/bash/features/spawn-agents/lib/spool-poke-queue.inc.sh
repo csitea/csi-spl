@@ -80,12 +80,33 @@ spool_poke_retry_ensure() {  # ID
 #
 # Three surfaces, in the order they are taken:
 #
-#   1. a notice pane, split into the agent's own window (default on an agent
-#      that paints a TUI). It is the only PERSISTENT in-window surface such a
-#      pane has: the notices stand there in blue NEWEST FIRST (013/CLE-3425 -
-#      a terminal appends, so the pane is repainted by spool-notice-pane.sh),
-#      the agent's own pane just redraws a few rows shorter, and nothing is
-#      ever sent to its input.
+#   1. a notice STRIP, split into the agent's own window down its RIGHT-HAND
+#      side (default on an agent that paints a TUI). It is the only PERSISTENT
+#      in-window surface such a pane has: the notices stand there in blue
+#      NEWEST FIRST (013/CLE-3425 - a terminal appends, so the pane is
+#      repainted by spool-notice-pane.sh), and nothing is ever sent to the
+#      agent's input.
+#
+#      RIGHT, not BOTTOM, and that is a correctness matter as well as the
+#      owner's instruction (2026-09-22). Measured on tmux 3.5a against a pane
+#      on the ALTERNATE screen, 189x51, with 51 numbered rows drawn:
+#
+#        split -v -l 8  -> agent 189x42: the top 9 rows are GONE and every
+#                          surviving row has moved up 9. A TUI that repaints
+#                          only its own live frame - which is what a
+#                          partially-redrawing CLI does on SIGWINCH - then
+#                          paints that frame over a screen whose anchor moved,
+#                          and the bottom of the terminal is the corruption
+#                          the owner reported.
+#        split -h -l 40 -> agent 148x51: all 51 rows still there, ROW-001 still
+#                          on line 1, ROW-END still last. Nothing moved; only
+#                          the line TAILS past column 148 are cut, and the
+#                          TUI's next paint restores those.
+#
+#      So the width knob does not merely rotate the bug: the row anchor, which
+#      is the thing a partial redraw depends on, survives a width change and
+#      does not survive a height change. Reproduce both with
+#      scripts/spool-strip-resize-proof.sh.
 #   2. tmux's status line for that window (display-message). Instant, coloured,
 #      impossible to corrupt - it is tmux's own chrome, not the pane's canvas -
 #      but it fades after its dwell, so it is the flash, not the record.
@@ -104,7 +125,15 @@ spool_poke_retry_ensure() {  # ID
 #                         (read by spool-notify.sh; the pane still shows it)
 #   SPOOL_SHOW_PANE       auto (default: a notice pane when the agent's pane is
 #                         on the alternate screen) | 1 always | 0 never
-#   SPOOL_SHOW_PANE_LINES notice pane height, default 8
+#   SPOOL_SHOW_PANE_COLS  notice STRIP width in columns, default 48. The strip
+#                         is a RIGHT-HAND column (owner, 2026-09-22), so width
+#                         is the knob height used to be; it is clamped to at
+#                         most half the window so the agent always keeps the
+#                         larger half
+#   SPOOL_SHOW_PANE_LINES kept ONLY for a caller that still sets it, and only as
+#                         the width when SPOOL_SHOW_PANE_COLS is unset and it is
+#                         wide enough to be a column (>= 20). A bottom bar's 8
+#                         is not a column, so the default width is used instead
 #   SPOOL_SHOW_PANE_MAX   notices kept in the pane, newest first, default 50
 #   SPOOL_SHOW_MS         status-line dwell, default 20000 (0 = until a key)
 #   SPOOL_SHOW_BODY_MAX   body excerpt, default 400
@@ -125,17 +154,49 @@ spool_show_colour() {
 # newest notice belongs on TOP (013/CLE-3425), so the pane is repainted by
 # spool-notice-pane.sh. SPOOL_NOTICE_PANE_V is bumped whenever this changes, so
 # a pane left behind by an older version is respawned instead of going stale.
-SPOOL_NOTICE_PANE_V=4
+SPOOL_NOTICE_PANE_V=5
 
 spool_notice_pane_cmd() {  # LOG
   printf 'exec %q --log %q --max %s' \
     "$SPOOL_FEATURE_DIR/scripts/spool-notice-pane.sh" "$1" "${SPOOL_SHOW_PANE_MAX:-50}"
 }
 
-# The notice pane of ID: an existing one, or a new split of ID's own window.
+# The WIDTH of the notice strip, in columns, given the window it goes into.
+# Prints a number. Clamped to [20, window/2] so the agent always keeps the
+# larger half of its own window, whatever an operator asks for.
+#
+# SPOOL_SHOW_PANE_LINES was the bottom bar's HEIGHT and its default was 8. A
+# caller that still sets it is honoured only when the value could plausibly be
+# a column (>= 20); 8 columns is not a chat strip, it is the old default
+# arriving in the new knob, so it is ignored rather than obeyed.
+spool_strip_cols() {  # WINDOW_WIDTH
+  local win="${1:-0}" want="${SPOOL_SHOW_PANE_COLS:-}" cap
+  if [ -z "$want" ] && [[ "${SPOOL_SHOW_PANE_LINES:-}" =~ ^[0-9]+$ ]] &&
+     [ "${SPOOL_SHOW_PANE_LINES}" -ge 20 ]; then
+    want="$SPOOL_SHOW_PANE_LINES"
+  fi
+  [[ "$want" =~ ^[0-9]+$ ]] || want=48
+  [[ "$win" =~ ^[0-9]+$ ]] && [ "$win" -gt 0 ] || win=$(( want * 2 ))
+  cap=$(( win / 2 )); [ "$cap" -lt 20 ] && cap=20
+  [ "$want" -gt "$cap" ] && want="$cap"
+  [ "$want" -lt 20 ] && want=20
+  printf '%s' "$want"
+}
+
+# 0 when PANE is already a RIGHT-HAND strip rather than a bottom bar. A pane
+# split with -h starts at a column past 0; one split with -v starts at column
+# 0 and only its row differs. That one number is the whole test, and it is the
+# one tmux keeps whatever the window is later resized to.
+spool_strip_is_right() {  # PANE
+  local left
+  left="$("${SPOOL_TM[@]}" display-message -p -t "$1" '#{pane_left}' 2>/dev/null)"
+  [[ "$left" =~ ^[0-9]+$ ]] && [ "$left" -gt 0 ]
+}
+
+# The notice strip of ID: an existing one, or a new split of ID's own window.
 # Prints the pane id, or nothing when one cannot be made.
 spool_show_notice_pane() {  # ID AGENT_PANE
-  local id="$1" agent_pane="$2" p mark ver pane lines log cmd
+  local id="$1" agent_pane="$2" p mark ver pane cols win log cmd
   spool_tmux_argv
   log="$(spool_poke_queue_dir "$id")/notices.log"
   mkdir -p "$(dirname "$log")" 2>/dev/null || return 1
@@ -143,6 +204,16 @@ spool_show_notice_pane() {  # ID AGENT_PANE
   cmd="$(spool_notice_pane_cmd "$log")"
   while IFS=' ' read -r p mark ver; do
     [ "$mark" = "$id" ] || continue
+    # A BOTTOM BAR left behind by an older version of this feature cannot be
+    # respawned into the right shape: respawn-pane replaces the process, never
+    # the geometry. It is killed here and re-split below, so one delivery is
+    # enough to move every pane the fleet is still carrying. The agent's own
+    # pane grows back to full height at that moment - a resize it would have
+    # taken anyway, and the LAST one it takes.
+    if ! spool_strip_is_right "$p"; then
+      "${SPOOL_TM[@]}" kill-pane -t "$p" 2>/dev/null
+      break
+    fi
     # An older renderer (or none) in a pane we own: replace it in place, so the
     # agent's window keeps the same layout and the same pane id.
     if [ "$ver" != "$SPOOL_NOTICE_PANE_V" ]; then
@@ -156,10 +227,11 @@ spool_show_notice_pane() {  # ID AGENT_PANE
     fi
     printf '%s' "$p"; return 0
   done < <("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id} #{@spool_notices} #{@spool_notices_v}' 2>/dev/null)
-  lines="${SPOOL_SHOW_PANE_LINES:-8}"
-  [[ "$lines" =~ ^[0-9]+$ ]] || lines=8
-  # -d: the new pane never takes focus, so the agent keeps the keyboard.
-  pane="$("${SPOOL_TM[@]}" split-window -d -v -l "$lines" -t "$agent_pane" -P -F '#{pane_id}' \
+  win="$("${SPOOL_TM[@]}" display-message -p -t "$agent_pane" '#{window_width}' 2>/dev/null)"
+  cols="$(spool_strip_cols "$win")"
+  # -h puts the new pane to the RIGHT of the target (owner, 2026-09-22), and
+  # -d means it never takes focus, so the agent keeps the keyboard.
+  pane="$("${SPOOL_TM[@]}" split-window -d -h -l "$cols" -t "$agent_pane" -P -F '#{pane_id}' \
             "$cmd" 2>/dev/null)" || return 1
   [ -n "$pane" ] || return 1
   "${SPOOL_TM[@]}" set-option -p -t "$pane" @spool_notices "$id" 2>/dev/null

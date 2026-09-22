@@ -2,8 +2,8 @@
 # The two halves added around the safe-poke rule (specs/028, CLE-3434):
 #
 #   SHOW   the notice reaches surfaces the prompt rule does not gate - a notice
-#          pane split into the agent's own window, tmux's status line, and the
-#          pane's tty only where no TUI owns the screen
+#          STRIP split down the RIGHT of the agent's own window, tmux's status
+#          line, and the pane's tty only where no TUI owns the screen
 #   DEFER  a REFUSED line is queued and re-offered until the prompt is clear,
 #          so the rule delays a message instead of swallowing it
 #
@@ -43,7 +43,7 @@ P91="$(t_window CLE-91 'sleep 600')"
 
 # The notice pane: the persistent surface for a pane that paints a TUI. A
 # `sleep` pane is on the NORMAL screen, so ask for the pane explicitly.
-out="$(SPOOL_SHOW_PANE=1 SPOOL_SHOW_PANE_LINES=6 spool_poke_show CLE-91 note CLE-90 T-7 M-7 'hello from the hub')"
+out="$(SPOOL_SHOW_PANE=1 SPOOL_SHOW_PANE_COLS=40 spool_poke_show CLE-91 note CLE-90 T-7 M-7 'hello from the hub')"
 eq "show exits 0" 0 "$?"
 has "it reports a notice pane"  "notice pane"  "$out"
 has "…and the status line"      "status line"  "$out"
@@ -70,6 +70,36 @@ w_notice="$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$np" '#{window_i
 eq "it sits in the agent's OWN window" "$w_agent" "$w_notice"
 check "the agent's pane still has the keyboard" \
   test "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$w_agent" '#{pane_id}')" = "$P91"
+
+# ── the strip is on the RIGHT, and the agent keeps its ROWS ─────────────────
+# The owner's instruction (2026-09-22) and the distortion fix are the same
+# change: a `-v` split takes ROWS from a live pane, and on the alternate screen
+# tmux answers a height shrink by scrolling what is drawn - the top rows go and
+# everything below moves up, which is what a partially-redrawing CLI cannot
+# repair. `-h` takes columns and moves nothing. scripts/spool-strip-resize-proof.sh
+# measures that claim directly; these two assertions pin the SHAPE this code
+# produces, which is the half a unit test can own.
+geom() { tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$1" "$2"; }
+check "the strip starts at a column past 0 (it is on the RIGHT, not the bottom)" \
+  test "$(geom "$np" '#{pane_left}')" -gt 0
+eq "the strip is as TALL as the agent's pane" \
+  "$(geom "$P91" '#{pane_height}')" "$(geom "$np" '#{pane_height}')"
+eq "the agent's pane still starts at column 0" 0 "$(geom "$P91" '#{pane_left}')"
+eq "…and still at row 0, so nothing it had drawn moved" 0 "$(geom "$P91" '#{pane_top}')"
+eq "the strip is the asked-for width" 40 "$(geom "$np" '#{pane_width}')"
+
+# The width knob is clamped, both ends. A strip nobody can read is not a chat
+# column, and one that takes more than half the window turns the instruction
+# ("a vertical chat on the right") into a takeover.
+eq "a silly-narrow width is raised to a readable column" 20 "$(SPOOL_SHOW_PANE_COLS=4 spool_strip_cols 200)"
+eq "a width past half the window is capped at half"     100 "$(SPOOL_SHOW_PANE_COLS=180 spool_strip_cols 200)"
+eq "the default is a chat column"                        48 "$(spool_strip_cols 200)"
+# SPOOL_SHOW_PANE_LINES was the BOTTOM BAR's height and defaulted to 8. Read as
+# a width that is not a chat column, it is the old default arriving in the new
+# knob, so it is ignored; a caller that names a real column width is obeyed.
+eq "the old height default does not become the new width" 48 "$(SPOOL_SHOW_PANE_LINES=8 spool_strip_cols 200)"
+eq "…but a column-sized value from that caller is honoured" 36 "$(SPOOL_SHOW_PANE_LINES=36 spool_strip_cols 200)"
+eq "SPOOL_SHOW_PANE_COLS wins over it"                    30 "$(SPOOL_SHOW_PANE_COLS=30 SPOOL_SHOW_PANE_LINES=36 spool_strip_cols 200)"
 
 # What the pane actually SHOWS: the body, in blue.
 sleep 0.8
@@ -186,13 +216,20 @@ A_PANE="$(t_window CLE-94 'sleep 600')"
 aq="$(spool_poke_queue_dir CLE-94)"
 alog="$aq/notices.log"
 
-send_notice() {  # BODY
-  SPOOL_SHOW_PANE=1 SPOOL_SHOW_PANE_LINES=8 SPOOL_POKE=0 \
+send_notice() {  # BODY N
+  SPOOL_SHOW_PANE=1 SPOOL_SHOW_PANE_COLS=40 SPOOL_POKE=0 \
     spool_poke_show CLE-94 note HUM-9 "task-$2" "msg-$2" "$1" >/dev/null
 }
 notice_pane() {
   tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id} #{@spool_notices}' |
     awk '$2 == "CLE-94" {print $1; exit}'
+}
+# The TOP RECORD as the eye reads it: every line down to the first blank one.
+# In a 40-column strip a header is two or three WRAPPED lines, so "the first
+# line" is no longer the same question as "the newest record" - the record is,
+# and it is the one the owner's newest-first rule is about.
+top_record() {  # SCREEN
+  printf '%s\n' "$1" | awk 'NF == 0 { exit } { print }'
 }
 
 # Deliberately more notices than the pane can hold: the acceptance test is
@@ -205,11 +242,21 @@ send_notice "THE NEWEST ONE" 6
 sleep 1.5
 vis="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$NP")"
 
-# (1) NEWEST ON TOP: the first visible line is the newest message's header.
-first_line="$(printf '%s\n' "$vis" | sed -n '1p')"
-has "acceptance 1: the FIRST visible line is the newest header" "msg msg-6" "$first_line"
-has "acceptance 1: …and its body is right under it" "THE NEWEST ONE" \
-  "$(printf '%s\n' "$vis" | sed -n '2p')"
+# (1) NEWEST ON TOP: the record at the top of the pane is the newest one.
+top="$(top_record "$vis")"
+has "acceptance 1: the TOP record is the newest header" "msg msg-6" "$top"
+has "acceptance 1: …and carries its body" "THE NEWEST ONE" "$top"
+hasnt "acceptance 1: …with nothing older above it" "message number 5" "$top"
+has "acceptance 1: the very first line is still the header's OPENING" "SPOOL CLE-94:" \
+  "$(printf '%s\n' "$vis" | sed -n '1p')"
+
+# NOTHING the strip prints may be wider than the strip. A line the terminal
+# wraps costs a row the budget never counted, and since the newest record is
+# printed FIRST it is the one that scrolls off the top - the same defect
+# pane_rows exists to stop, arriving through the width instead.
+widest="$(printf '%s\n' "$vis" | awk '{ if (length > m) m = length } END { print m + 0 }')"
+check "acceptance 1: no printed line is wider than the strip (${widest} <= 40)" \
+  test "$widest" -le 40
 
 # (2) EXACTLY ONCE: no notice appears twice anywhere the pane can be captured.
 # The alternate screen is what makes this true and checkable - a repainting
@@ -233,7 +280,7 @@ sleep 1.5
 eq "acceptance 3: a renderer restart delivers nothing new" "$before" "$(wc -l <"$alog")"
 vis2="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$NP")"
 has "acceptance 3: …and still shows the newest on top" "msg msg-6" \
-  "$(printf '%s\n' "$vis2" | sed -n '1p')"
+  "$(top_record "$vis2")"
 eq "acceptance 3: …exactly once" 1 \
   "$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -S -200 -t "$NP" | grep -c 'THE NEWEST ONE')"
 
@@ -246,8 +293,41 @@ send_notice "MINE AFTER THE FOREIGN ONE" 7
 sleep 1.5
 vis3="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$NP")"
 has "a foreign-format record does not break the pane" "msg msg-7" \
-  "$(printf '%s\n' "$vis3" | sed -n '1p')"
+  "$(top_record "$vis3")"
 hasnt "…and is not painted" "foreign body" "$vis3"
+
+# ── a BOTTOM BAR left over from before 2026-09-22 becomes a right strip ────
+# The fleet was carrying one bottom bar per seated agent when this changed, and
+# they cannot be respawned into the new shape: respawn-pane replaces the
+# process, never the geometry. So the first notice after the change KILLS the
+# bar and splits a strip - one delivery per agent, no operator step, and no
+# window left holding the shape the owner asked us to stop using.
+P96="$(t_window CLE-96 'sleep 600')"
+OLDBAR="$(tmux -S "$SPOOL_TMUX_SOCKET" split-window -d -v -l 8 -t "$P96" -P -F '#{pane_id}' 'sleep 600')"
+tmux -S "$SPOOL_TMUX_SOCKET" set-option -p -t "$OLDBAR" @spool_notices CLE-96
+tmux -S "$SPOOL_TMUX_SOCKET" set-option -p -t "$OLDBAR" @spool_notices_v 4
+check "a legacy bottom bar starts at column 0" \
+  test "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$OLDBAR" '#{pane_left}')" = 0
+
+SPOOL_SHOW_PANE=1 SPOOL_SHOW_PANE_COLS=40 SPOOL_POKE=0 \
+  spool_poke_show CLE-96 note HUM-9 T-96 M-96 'the bar should have moved' >/dev/null
+sleep 0.5
+marks96="$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id} #{@spool_notices}' | awk '$2 == "CLE-96" {print $1}')"
+eq "exactly one pane is still marked for CLE-96" 1 "$(printf '%s\n' "$marks96" | grep -c '^%')"
+check "the old bottom bar is gone" \
+  test "$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id}' | grep -cx "$OLDBAR")" = 0
+check "…and what replaced it is a RIGHT strip" \
+  test "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$marks96" '#{pane_left}')" -gt 0
+eq "…as tall as the agent's pane, which is back to full height" \
+  "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$P96" '#{pane_height}')" \
+  "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$marks96" '#{pane_height}')"
+# CONTROL: a pane that is ALREADY a strip is reused, not killed and re-split -
+# otherwise every message would flash the agent's window.
+SPOOL_SHOW_PANE=1 SPOOL_SHOW_PANE_COLS=40 SPOOL_POKE=0 \
+  spool_poke_show CLE-96 note HUM-9 T-97 M-97 'and stayed put' >/dev/null
+sleep 0.5
+eq "CONTROL a strip that is already right is kept, same pane id" "$marks96" \
+  "$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id} #{@spool_notices}' | awk '$2 == "CLE-96" {print $1}')"
 
 # (4) NO PROMPT INJECTION: with SPOOL_POKE=0 the prompt is never typed into,
 # nothing is queued, and the exit is clean. A pane holding unsent text proves

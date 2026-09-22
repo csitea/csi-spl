@@ -73,4 +73,26 @@ printf -v cmd '%q ' env "${envs[@]}" bash "$LAUNCHER" "$TITLE" "$@"
 out="$("${SPOOL_TM[@]}" new-window -d -t "${sess}:" -n "$(spool_decorate "$TITLE")" -P -F '#{pane_id}' "$cmd")"; rc=$?
 pane="$(printf '%s\n' "$out" | grep -m1 -xE '%[0-9]+')"
 [ -n "$pane" ] || { echo "spawn-window: new-window (rc=$rc) printed no pane id: ${out:-<nothing>}" >&2; exit 4; }
+
+# The notice strip is split NOW, before the CLI has painted anything, so the
+# TUI starts at the size it will keep and never takes a mid-session resize.
+#
+# That ordering is the fix, not a tidiness: measured on tmux 3.5a, splitting a
+# pane that is ALREADY on the alternate screen at 189x51 moves or truncates
+# what is drawn there (spool-strip-resize-proof.sh), and a CLI that repaints
+# only its own live frame then paints it over a screen that moved. Splitting
+# first costs the new pane nothing - it has drawn nothing yet - and there is
+# no later resize to survive.
+#
+# Never fatal: a window with no strip is still a window, the notifier will
+# split one on the first message, and a spawn that failed for this would be a
+# far worse outcome than a missing strip.
+if [ "${SPOOL_SHOW_PANE:-auto}" != 0 ]; then
+  # shellcheck source=../lib/spool-notify.inc.sh
+  if . "$HERE/../lib/spool-notify.inc.sh" 2>/dev/null &&
+     . "$HERE/../lib/spool-poke-queue.inc.sh" 2>/dev/null; then
+    spool_show_notice_pane "$TITLE" "$pane" >/dev/null 2>&1 || true
+  fi
+fi
+
 printf '%s %s\n' "$TITLE" "$pane"

@@ -67,7 +67,8 @@ agent recipient:
   `,` `:` `;` is dropped). The message's
   `to` becomes that agent.
 
-Otherwise the send is the unchanged browser-only path (`box-wui -> box-wui`).
+Otherwise the send is the browser-only path (`box-wui -> box-wui`) — **except
+that a send tagged with a `channel` is signed too** (§3.1).
 
 Steps, in order (the first failure answers its error frame, nothing stored):
 
@@ -88,6 +89,34 @@ Steps, in order (the first failure answers its error frame, nothing stored):
 The ack gains `to_box` and `delivery` (`sent` | `queued`):
 `{"type":"ack","msg_id","task_id","cursor","received_at","to_box":"box-a","delivery":"sent"}`.
 
+### 3.1 Channel posts (owner rule 2026-09-22)
+
+A browser send that carries a `channel` and names no agent is signed by the
+same key, with `to_box` = `box-wui`: no single box owns a channel post, and
+`003 contracts/channels-v1.md` §4 fans it out to one `deliveries` row per
+member box. Steps 1, 2, 6, 7 and 8 above apply unchanged; steps 3 and 4 (a
+single target box and its pin) do not, because there is no single target.
+
+- The channel signed is the **resolved** one: the frame's tag, else `lobby` on
+  the lobby task. A lobby post whose frame carried no tag used to be stored
+  under `lobby` and routed to lobby members with an envelope claiming no
+  channel — which every receiving box refuses.
+- Permission: posting stays `notes.send`; the **fan-out** needs
+  `agents.command` (025), because the post now lands in agent inboxes. Without
+  it — or with `SPOOL_HUB_WUI_DISPATCH` off, or with no `box-wui` pin in the
+  tenant — the post stays browser-only and unsigned, exactly as before. It is
+  never refused for that reason: a tenant that has not pinned `box-wui` never
+  asked for agents to read its chat.
+- The ack is the browser-only ack: no `to_box`, no `delivery`. The post is not
+  addressed to one box, so neither field has a value to carry.
+- A `channel` send that DOES name an agent keeps `to_box` = that agent's box
+  (the dispatch above) and is additionally fanned out to the other member
+  boxes, its own included — the members sitting next to the dispatched agent
+  are what the owner rule is about.
+
+Tests: `TestWUIChannelPostReachesEveryMemberBox`,
+`TestWUIChannelPostWithoutAgentsCommandStaysBrowserOnly`.
+
 ## 4. Error frames (new tokens)
 
 | token | status | when |
@@ -107,4 +136,4 @@ A box verifies a `box-wui` envelope with the same code as any other
 and additionally refuses it unless `kind ∈ {task, note}`. A hello as
 `box-wui` is refused by the hub (`4401`).
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:10:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T13:29:42Z -->

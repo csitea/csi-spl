@@ -84,33 +84,74 @@ field, so that model would split every agent reply into its own thread. With
 - Box side: `SPOOL_CHANNELS` (comma list of slugs, optional) on the box.
 - A frame without `channels` (every pre-M3 box) is a member of `lobby` only.
 
-## 4. Mention-driven routing (`SPEC-spool-wui.md` §2.1)
+## 4. Membership routing (owner rule 2026-09-22)
+
+> "Whenever I select an agent in the ui and send him a msg this msg should be
+> received only by this agent if this is direct msg" — "if we are in a channel
+> - all of the participants in the channel will receive the msg"
 
 For every stored message with a channel `C`, after the normal `to_box`
 delivery, the hub computes extra recipients:
 
 1. Members of `C`: subscribed `(box, agent)` pairs (for `lobby`, every
    announced agent of the tenant).
-2. A member is **addressed** when `msg.to` is its agent id, or the body
-   mentions `@<agent>` (e.g. `@CLE-07`, on a token boundary), or the body
-   contains `@channel` (every member).
-3. **Ambient chat is not routed**: a channel message with no mention and a
-   broadcast `to` (`ALL-0`) creates **no** box delivery.
-4. Per addressed box (never `from_box`, never the envelope's own `to_box`,
-   never `box-wui`) the hub adds a `deliveries` row and pushes
-   `{"type":"recv","env":…,"agents":["CLE-07"]}`; while the box is offline the
-   row is queued and drained on hello with the same `agents` (recomputed from
-   the stored envelope and the current roster).
-5. The box accepts a `recv` whose `to_box` is not its own **only** when the
+2. **Every member is addressed.** Membership IS the address: a plain post, an
+   `@CLE-07` mention and `@channel` all reach the same set, and nothing parses
+   the body. A leading `@AGENT` still picks the `to_box` of a browser send
+   (`../../014-spool-wui-dispatch/contracts/wui-dispatch.md` §3) and `msg.to`
+   still names the agent the `to_box` delivery is for — neither narrows the
+   channel.
+3. Per member box the hub adds a `deliveries` row and pushes
+   `{"type":"recv","env":…,"agents":["CLE-07","CLE-08"]}`; while the box is
+   offline the row is queued and drained on hello with the same `agents`
+   (recomputed from the stored envelope and the current subscriptions).
+   Skipped: `box-wui` (the browser audience, served by the WUI fan-out) and
+   `from_box` (its own agents wrote the post). An **agent-origin** envelope
+   also skips its `to_box`, which the shared commit path already delivered; a
+   **browser-origin** one does not — `box-wui` owns no agent, so the `to_box`
+   of a dispatch is just another member box, and the members sitting next to
+   the dispatched agent are exactly what the owner rule is about. `Enqueue` is
+   idempotent per `(msg_id, box)`, so that second row is a no-op insert and
+   only the recv frame's `agents` list changes.
+4. A box accepts a `recv` whose `to_box` is not its own **only** when the
    envelope carries a signed `channel` and the frame lists `agents`; it
    verifies the sig as usual and writes one inbox copy per listed agent that
-   it hosts (the `v:1` object is unchanged).
-6. Browser-originated envelopes are unsigned (`sig: ""`) until the hub-held
-   `box-wui` signer lands (DISPATCH lane, spec 014); the hub **does not route
-   unsigned envelopes to boxes** (a box would refuse them, exit 78).
+   it hosts (the `v:1` object is unchanged). A channel frame addressed to the
+   box **itself** carries that list too, and those copies are written as well
+   as `msg.to`'s.
+5. A **DM** (no channel) is routed to exactly one box, unchanged: `to` is
+   resolved to one box or the send is refused. Nothing here widens it.
+6. The hub **does not box-route an unsigned envelope** (a box would refuse it,
+   exit 78). A browser channel post is therefore signed with the hub-held
+   `box-wui` key before it is committed — `to_box` `box-wui`, since no single
+   box owns a channel post — and every receiving box verifies it against the
+   tenant's `box-wui` pin with the same code it runs on any envelope. One
+   trust path, the DISPATCH lane's (spec 014). A tenant that has not pinned
+   `box-wui` keeps the browser-only post rather than getting a refusal.
 
-Tests: `TestChannelMentionRouting` (mention → box-b `recv` with `agents`;
-control: no mention → no `deliveries` row, no `recv`), `TestHubclientChannelRecv`.
+**Permission** (`../../025-spool-tenant-rbac/`): posting stays `notes.send`,
+and the **fan-out** is what `agents.command` buys. `#lobby` has every announced
+agent as a member, so raising the post itself to `agents.command` would stop a
+`tester` chatting at all; without the permission the post is stored and reaches
+every browser exactly as before, and no box delivery is built. The identity
+rule is a dispatch's (014 §3 step 1): a signed-in member, never a door-off
+anonymous socket.
+
+**Cost**: the fan-out multiplies `deliveries` rows, not messages — the 006
+message quota is counted once per message in `admit()`, and `QueueMaxPerBox`
+caps per `(tenant, box)`, so each member box is capped independently. One
+`Enqueue` batch (one round trip) per member box, per post.
+
+**What changed** (was: "mention-driven routing", M3): ambient chat used to
+route nowhere, so a channel post with no mention reached no agent at all, and
+a browser post reached none whatever it said.
+
+Tests: `TestChannelMembershipRouting` (a plain line reaches every member;
+controls: a channel the box did not join reaches nobody, a DM is not
+channel-routed), `TestHubclientChannelRecv` (the real box client writes one
+copy per member), `TestWUIChannelPostReachesEveryMemberBox` (the browser half,
+end to end), `TestWUIChannelPostWithoutAgentsCommandStaysBrowserOnly` (the
+permission control).
 
 ## 5. REST
 
@@ -184,4 +225,4 @@ socket of a human (`HUM-1@box-wui`); a snapshot of every online peer follows
 - **OQ-CH3** — `general` alias lifetime: (a) *recommended*: accepted until
   the next minor contract version, then `404 unknown_channel`; (b) forever.
 
-<!-- version: 1.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T12:10:30Z -->
+<!-- version: 1.3.0 · updated: 2026-09-22 · last-edit: 2026-09-22T13:28:20Z -->

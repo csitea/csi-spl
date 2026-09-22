@@ -14,6 +14,7 @@
       @older="channel.loadOlder()"
       @clear-search="channel.setSearch('')"
       @open-thread="openRow"
+      @edited="onEdited"
     />
   </div>
 </template>
@@ -23,12 +24,21 @@ import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useChannelStore } from '~/stores/channel'
 import { useThreadStore } from '~/stores/thread'
 import { useThreadRoute } from '~/composables/useThreadRoute'
+import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 
 /* 013 on /channel and /dm (X3): the lobby's LiveFeed over the channel store, newest first. */
 defineProps<{ label: string }>()
 const channel = useChannelStore()
 const thread = useThreadStore()
+
+/* CLE-3445: the same message can be on screen in the feed AND as the pinned
+   root of the 3rd panel, so every store that may hold it is told. */
+const { applyEverywhere } = useMessageEdit()
+
+function onEdited(row: SpoolMessage) {
+  applyEverywhere(row)
+}
 
 /* CLE-3427: a click anywhere on a row opens its thread in the pane and puts
    it in the URL. Every row here is a thread root of its own (the feed is

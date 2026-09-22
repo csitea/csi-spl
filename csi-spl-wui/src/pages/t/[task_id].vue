@@ -6,7 +6,7 @@
       <VerbositySelector />
     </header>
     <div class="pinned-root">
-      <MessageCard v-if="store.thread.root" :msg="store.thread.root" :since-ms="sinceMs" />
+      <MessageCard v-if="store.thread.root" :msg="store.thread.root" :since-ms="sinceMs" :editable="canEdit(store.thread.root)" @edited="onEdited" />
     </div>
     <MessageComposer
       omnibox
@@ -27,6 +27,7 @@
         :last-live="store.lastLive"
         :since-ms="sinceMs"
         @clear-search="store.setSearch('')"
+        @edited="onEdited"
       />
     </div>
   </div>
@@ -38,6 +39,8 @@ import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
 import { useThreadStore } from '~/stores/thread'
 import { applyVerbosity } from '~/utils/verbosity.mjs'
+import { useMessageEdit } from '~/composables/useMessageEdit'
+import type { SpoolMessage } from '~/types/spool'
 
 const route = useRoute()
 const store = useLiveFeed('main')
@@ -60,6 +63,14 @@ function reopen() {
 onMounted(() => {
   watch(taskId, reopen, { immediate: true })
 })
+
+/* CLE-3445: an edit landed on this page's own feed store (the live store
+   already applies a `message_edited` frame from another session itself). */
+const { canEdit, applyEverywhere } = useMessageEdit()
+
+function onEdited(row: SpoolMessage) {
+  applyEverywhere(row)
+}
 
 async function onSend(text: string, _parent?: string, files?: File[]) {
   await store.send(text, files || [])

@@ -90,4 +90,91 @@ reads `csi-spl-wui/src/<dir>/…`. Package root, `firebase.json`,
 - [x] T034 Implemented (`e300d5c`) — e2e: `console-errors` gate, shared `tests/e2e/lib/server.mjs`, `serve-generated.mjs`, `puppeteer-core`. Check: `pnpm test:e2e:console-errors` → 7/7; `pnpm test:e2e` → 12/12.
 - [x] T035 Implemented (`2af5fab` hub, `25649ab` cnf, `bb20552` + `12f5b52` wui, CLE-3440) — `diagnostics_enabled` in the hub's session claims (010 auth-v1 §3): cnf `SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS` grants it per human, empty in every env so it is still shown to nobody until an operator names someone. Read per call, never a cookie claim, so a browser cannot assert it and a removal revokes at the next probe. Check: `go test ./internal/auth/ -run Diagnostics -v` → 4 tests / 12 subtests pass; `node --test tests/unit/diagnostics-claim.test.mjs` → 13 pass; live `EXPECT=on|off node tests/e2e/diagnostics-panel-live.proof.mjs` → on: claim true + panel in the DOM, off: claim false + no panel in the rendered body.
 
-<!-- version: 1.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T09:40:00Z -->
+## Phase 7 — Editing a sent message, browser half (owner order 2026-09-22, CLE-3445)
+
+Owner: *"we need to add the WUI capability to edit the msgs, slack wise — once a
+msg in the 3rd panel is selected, if one presses the e shortcut the msg becomes
+once again a textbox and after once writes the new msg (the old msg should be
+shown there) and hits the enter the msg is sent"*, and minutes later *"but there
+should be a register in the db that the msg was updaed, aka both the old and the
+new msg should be stored (for later feature to be able to compare those msgs)."*
+
+**The seam.** The hub, the DB and the append-only revision register are
+`032-spool-message-edit` (CLE-3443); that spec's Non-goals name the browser half
+— selection, the `e` binding, the inline editor, Escape, the `(edited)` marker
+and its i18n string, and the browser e2e — as 005's. These rows are that half.
+The contract is cited ONCE, here, so it stays a one-line fix if it moves again:
+
+> `csi-spl-doc/specs/032-spool-message-edit/contracts/message-edit-v1.md` (2dad1df)
+
+**ORDERED vs INFERRED.** The owner named the `e` shortcut, the pre-filled box and
+Enter-sends. Two further rules are INFERRED, agreed by CLE-00 and CLE-3444 on
+2026-09-22, and the owner can overrule either: **Escape cancels** (Slack does it
+and this app already dismisses on Escape), and **author-only with NO time window**
+(the owner said "slack wise" but did not ask for Slack's editing window, and a
+silent expiry produces bug reports rather than features). Both are marked as
+inferred in `src/utils/msg-edit.mjs` and in the unit-test case names too.
+
+- [x] T036 Implemented (`ada3bed`) — `src/utils/msg-edit.mjs`: the state machine, pure,
+  the way `thread-pane.mjs` and `send-failure.mjs` are. `beginEdit()` has no path that
+  yields an empty draft (the owner's "the old msg should be shown there"); `commitEdit()`
+  mutates nothing and only reports, so the caller rolls back to `state.original` — the
+  CLE-3433 lesson as a shape rather than a comment. Enter / Shift+Enter call the SAME
+  `enterAction()` from `code-blocks.mjs` that `MessageComposer.vue` calls, and the test
+  asserts every `{inCode, shift, alt, mod}` combination against `enterAction` itself, so
+  the two cannot drift. `feed.edit.*` translated in all 19 catalogues (not English
+  placeholders), checked for the `<x` and bare-`@` shapes that break `nuxt generate` → 0.
+  Check: `cd csi-spl-wui && node --test tests/unit/msg-edit.test.mjs` → 38 pass, 0 fail.
+- [x] T037 Implemented (`a14bc84`) — the wire half. Three keys that were being dropped
+  silently: `normalizeViewMessage()` and `messageFromFrame()` both allow-list onto the flat
+  row, and `edited_at` / `edited_by` / `revision` ride at the element's TOP level, not
+  inside `env.msg`. Each is copied only when present, because §2 omits them until the first
+  edit and the marker tests for presence. The edit needs its OWN frame type, measured not
+  assumed: `sed -n '77,95p' src/utils/feed.mjs` → line 89 `} else if (list[i].pending &&
+  !m.pending) {`, so `mergeById()` drops a repeat of a row already held as confirmed — that
+  measurement is now a regression guard in the suite. `applyEdit()` replaces at the existing
+  index and never re-sorts (FR-ED-009: an edit does not move the message).
+  `editMessage()` = `PATCH /v1/messages/{msg_id}` `{ body }`, `/v1/` not `/api/v1/`, and
+  `content-type` is the only header — a NEW request header is a new CORS preflight, which
+  has broken sign-in here before, and the test asserts the header set rather than trusting
+  the reading. Check: `cd csi-spl-wui && node --test tests/unit/msg-edit-wire.test.mjs` → 26 pass, 0 fail.
+- [x] T038 Implemented (`<this sha>`) — the editor itself: `MessageCard.vue` takes `e` on
+  the focused row (same `target === currentTarget` guard as its existing Enter / Space),
+  becomes a textarea pre-filled with the OLD body, Escape restores and returns focus to the
+  row, Enter commits. The `(edited)` marker sits in `msg-meta` with the time, driven by
+  `edited_at`'s presence. Author-only via `useMessageEdit()`, whose predicate is the hub's
+  own (`m.from === <my id> && m.from_box === 'box-wui' && !m.pending`) — a shortcut that
+  opens an editor the hub answers 409/403 for is a defect. One `applyEverywhere()` tells
+  every store that may hold the row: the first version told two stores and the browser
+  proof caught the lobby feed behind the 3rd panel still showing the OLD body.
+  Check: `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → 730 pass, 0 fail;
+  `./node_modules/.bin/nuxi typecheck` → exit 0.
+- [x] T039 Implemented (`<this sha>`) — `tests/e2e/msg-edit-live.proof.mjs`, in real Chrome:
+  focus a row → `e` → the textarea holds the OLD body **as source, not as rendered
+  markdown** → type → Enter → the row shows the new body and the marker; a second pass for
+  Escape; the same row in the feed behind the panel; a fresh API read; and `e` on somebody
+  else's message opening nothing. Check: `cd csi-spl-wui && node tests/e2e/msg-edit-live.proof.mjs` → 21/21 OK.
+
+  **SUBSTITUTION, stated rather than papered over.** This runs against the lde MOCK bundle,
+  because the hub endpoint is not deployed. Measured 2026-09-22T08:0x Z, by this lane:
+  `curl -s https://api.spool-hub.ai/version` and `curl -s https://dev.api.spool-hub.ai/version`
+  → both `{"commit":"039c2dfa…","version":"0.1.20"}`, and
+  `curl -o /dev/null -w '%{http_code}' -X OPTIONS https://dev.api.spool-hub.ai/v1/messages/<uuid>`
+  → `404`. The hub half (`d8ecb2a`) is on trunk but the image tag in `csi-spl-cnf` is not
+  bumped, which is contract §8's ordering and CLE-00's lane. So the e2e proves the BROWSER
+  contract against a mock that reproduces all four hub refusals; it does NOT prove a real
+  hub edit. Durability across a page reload is likewise a hub property and is not provable
+  here — the mock store is `cloneMock()` inside the client module and a reload resets it, so
+  the proof re-reads through the API instead and says so.
+
+  **The gate was shown FAILING, with the defect planted in `src/`, not in the harness.**
+  `beginEdit()` changed to `return { msgId, original, draft: '' }`:
+  `node --test tests/unit/msg-edit.test.mjs` → **35 pass, 3 fail** (`pre-fills the draft with
+  the stored body`, `pre-fills a multi-line body verbatim, fence and all`, `knows whether
+  anything was actually typed`), and the Chrome e2e → **20/21, exit 1**, on
+  `the box is PRE-FILLED with the old message, as SOURCE not as rendered markdown
+  {"expected":"Welcome to **#lobby**. …","got":""}`. Restored (`diff` against the backup →
+  identical) and re-run green. The proof also carries `PROVE_RED=prefill-empty|no-marker|no-escape`
+  for a harness-side plant that needs no edit to `src/`.
+
+<!-- version: 1.8.0 · updated: 2026-09-22 · last-edit: 2026-09-22T08:10:00Z -->

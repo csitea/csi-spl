@@ -29,10 +29,12 @@
         :clickable="clickable"
         :selected="isSelected(m)"
         :since-ms="sinceMs"
+        :editable="canEdit(m)"
         :class="{ pending: m.pending }"
         :data-key="m.msg_id"
         :data-pending="m.pending ? 'true' : undefined"
         @open-thread="(row: SpoolMessage) => $emit('open-thread', row)"
+        @edited="(row: SpoolMessage) => $emit('edited', row)"
       />
     </TransitionGroup>
     <p v-if="!loading && !rows.length" class="muted empty">{{ search ? t('feed.no_matches') : (emptyText || t('feed.empty')) }}</p>
@@ -48,6 +50,7 @@ import type { SpoolMessage } from '~/types/spool'
 import { useScrollAnchor } from '~/composables/useScrollAnchor'
 import { useThreadStore } from '~/stores/thread'
 import { isSelectedRow } from '~/utils/thread-open.mjs'
+import { useMessageEdit } from '~/composables/useMessageEdit'
 
 /* 013: newest first under the Omnibox; entering rows animate; the bottom sentinel loads older windows.
    US7: a reader scrolled down keeps their place when rows arrive on top, and gets a "new" pill. */
@@ -69,7 +72,7 @@ const props = defineProps<{
   /** thread-pane clock (Date.now()); omitted on channel / lobby cards */
   sinceMs?: number
 }>()
-const emit = defineEmits<{ older: [], 'clear-search': [], 'open-thread': [msg: SpoolMessage] }>()
+const emit = defineEmits<{ older: [], 'clear-search': [], 'open-thread': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const thread = useThreadStore()
@@ -94,6 +97,11 @@ const announce = computed(() => {
   const m = props.lastLive
   return m ? t('feed.announce_new', { who: `${m.from}${m.from_box ? '@' + m.from_box : ''}` }) : ''
 })
+
+/* CLE-3445: `e` is offered only on the viewer's OWN browser-authored rows —
+   the hub refuses anything else, and a shortcut that opens an editor the
+   server will 403 is a defect. The predicate lives in utils/msg-edit.mjs. */
+const { canEdit } = useMessageEdit()
 
 function openable(m: SpoolMessage) {
   return Boolean(m.task_id && props.currentTaskId && m.task_id !== props.currentTaskId)

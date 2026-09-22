@@ -74,5 +74,16 @@ export const useThreadStore = defineStore('thread', () => {
     rootMsg.value = null
   }
 
-  return { open, parentTaskId, verbosity, messages, target, rootMsg, openThread, openTarget, setTarget, close }
+  /**
+   * CLE-3445: the pinned root of a MESSAGE-rooted thread is held here, not in
+   * the feed store — so an edit to that message has to be applied here too or
+   * the 3rd panel keeps showing the old body while every other view updates.
+   */
+  function applyEditedRoot(row: { msg_id?: string } | null) {
+    const id = String((row && row.msg_id) || '')
+    if (!id || !rootMsg.value || String(rootMsg.value.msg_id || '') !== id) return
+    rootMsg.value = { ...rootMsg.value, ...(row as Partial<SpoolMessage>) }
+  }
+
+  return { open, parentTaskId, verbosity, messages, target, rootMsg, openThread, openTarget, setTarget, applyEditedRoot, close }
 })

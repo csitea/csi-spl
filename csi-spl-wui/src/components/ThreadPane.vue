@@ -17,7 +17,7 @@
       </div>
     </header>
     <div class="pinned-root" data-test="thread-root">
-      <MessageCard v-if="root" :msg="root" :since-ms="sinceMs" />
+      <MessageCard v-if="root" :msg="root" :since-ms="sinceMs" :editable="canEdit(root)" @edited="onEdited" />
       <p v-else-if="!loading && !loadError" class="muted">{{ t('thread.empty') }}</p>
     </div>
     <MessageComposer
@@ -39,6 +39,7 @@
         :empty-text="t('thread.no_replies')"
         :since-ms="sinceMs"
         @clear-search="search = ''"
+        @edited="onEdited"
       />
     </div>
   </aside>
@@ -53,6 +54,8 @@ import { useLive } from '~/composables/useLive'
 import { matchesSearch, mergeById, rootAndReplies } from '~/utils/feed.mjs'
 import { applyVerbosity } from '~/utils/verbosity.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { applyEdit } from '~/utils/msg-edit.mjs'
+import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 
 const thread = useThreadStore()
@@ -124,6 +127,27 @@ if (import.meta.client && !api.mock) {
   })
   const offReconnect = live.onReconnected(() => { void catchUp() })
   onUnmounted(() => { off(); offReconnect() })
+}
+
+/*
+ * CLE-3445 — an edit landed (here, or in another session via a
+ * `message_edited` frame). This pane reads its own rows, so it patches its
+ * own copy; the channel store holds the same message in the feed behind the
+ * pane and is told too, or closing the pane would show the old body again.
+ */
+const { canEdit, applyEverywhere } = useMessageEdit()
+
+function onEdited(row: SpoolMessage) {
+  /* this pane reads its replies into a ref of its own, so it patches that
+     itself and then hands the row to every store that may also hold it */
+  liveRows.value = applyEdit(liveRows.value, row) as SpoolMessage[]
+  applyEverywhere(row)
+}
+
+if (import.meta.client && !api.mock) {
+  const liveEdits = useLive()
+  const offEdited = liveEdits.onEdited((m) => onEdited(m as unknown as SpoolMessage))
+  onUnmounted(() => { offEdited() })
 }
 
 /* CLE-3433: `files` was not in this signature, so an attachment picked in

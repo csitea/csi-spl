@@ -24,6 +24,7 @@ import {
 } from '~/utils/channel-feed.mjs'
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
 import { pendingRow, withoutMsg } from '~/utils/feed.mjs'
+import { applyEdit } from '~/utils/msg-edit.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { ChannelRow, FileRef, SendFrame, SpoolMessage } from '~/types/spool'
 
@@ -244,6 +245,16 @@ export const useChannelStore = defineStore('channel', () => {
     }
   }
 
+  /**
+   * CLE-3445: a message this store holds was edited — here, or in another
+   * session via a `message_edited` frame. applyEdit replaces it at its index
+   * and never re-sorts (FR-ED-009: an edit does not move the message), and
+   * ignores a msg_id this feed does not hold.
+   */
+  function applyEdited(row: unknown) {
+    messages.value = applyEdit(messages.value, row) as FeedMessage[]
+  }
+
   /** One live WS message (useSpoolEvents): no poll in live mode. */
   function ingestLive(m: Record<string, unknown>) {
     if (!belongsTo(m, { channel: active.value, peer: peer.value })) return
@@ -398,6 +409,7 @@ export const useChannelStore = defineStore('channel', () => {
     selectDm,
     refresh,
     ingestLive,
+    applyEdited,
     catchUp,
     send,
     createChannel,

@@ -210,6 +210,58 @@ html.pane-dragging * {
   min-width: 0;
   max-width: 100%;
 }
+/*
+ * CLE-3445 — the message row as a textbox.
+ *
+ * This is NOT a `.composer`, and the composer-grow gate is right that it
+ * should not pretend to be one: it has no attach control, no mention picker
+ * and no Send button. It does share the one lesson that gate exists for —
+ * a rows="2" box is a two-line peephole the moment a ``` block is in it — so
+ * it sizes to its content and is bounded, for the same reason and by its own
+ * rule rather than by borrowing the composer's selector.
+ */
+.msg-edit-box {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin-top: 2px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-fg);
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  field-sizing: content;
+  max-height: 40vh;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  resize: none;
+}
+.msg-edit-box:disabled { opacity: .7; cursor: progress; }
+.msg-edit-hint { margin: 2px 0 0; font-size: 11px; }
+.msg-edit-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 4px 8px;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-2);
+  color: var(--color-danger);
+  font-size: 12px;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.msg-edit-error span { min-width: 0; }
+/* the marker sits with the time, in the same muted voice — it is metadata,
+   not a badge, and must not compete with the author or the kind */
+.msg-edited { color: var(--color-muted); font-size: 12px; white-space: nowrap; }
 .msg-body code {
   font-family: var(--font-mono);
   background: var(--color-bg-2);

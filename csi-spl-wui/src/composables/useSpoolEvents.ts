@@ -30,6 +30,7 @@ export function useSpoolEvents() {
   })
   let timer: ReturnType<typeof setInterval> | null = null
   let off: (() => unknown) | null = null
+  let offEdited: (() => unknown) | null = null
   let offReconnect: (() => unknown) | null = null
   let offSession: (() => void) | null = null
 
@@ -40,6 +41,8 @@ export function useSpoolEvents() {
     }
     if (off) off()
     off = null
+    if (offEdited) offEdited()
+    offEdited = null
     if (offReconnect) offReconnect()
     offReconnect = null
     if (offSession) offSession()
@@ -61,6 +64,9 @@ export function useSpoolEvents() {
     function attach() {
       startHubSocket(live)
       if (!off) off = live.onMessage((m) => channel.ingestLive(m))
+      /* CLE-3445: an edit is a REPLACEMENT, so it takes its own frame and its
+         own path — ingestLive merges, and a merge drops a row already held */
+      if (!offEdited) offEdited = live.onEdited((m) => channel.applyEdited(m))
       if (!offReconnect) offReconnect = live.onReconnected(() => {
         void channel.catchUp()
         void boot.onSession(String(session.state))
@@ -69,6 +75,8 @@ export function useSpoolEvents() {
     function detach() {
       if (off) off()
       off = null
+      if (offEdited) offEdited()
+      offEdited = null
       if (offReconnect) offReconnect()
       offReconnect = null
       stopHubSocket(live)

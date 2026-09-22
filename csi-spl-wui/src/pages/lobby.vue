@@ -23,6 +23,7 @@
         @older="store.loadOlder()"
         @clear-search="store.setSearch('')"
         @open-thread="openRow"
+        @edited="onEdited"
       />
     </div>
   </div>
@@ -39,6 +40,7 @@ import { useNotificationStore } from '~/stores/notification'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useThreadStore } from '~/stores/thread'
 import { useThreadRoute } from '~/composables/useThreadRoute'
+import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 
 const store = useLiveFeed('main')
@@ -54,6 +56,15 @@ const { t, te } = useI18n({ useScope: 'global' })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
 const lobbyId = computed(() => live.lobbyTaskId.value)
+
+/* CLE-3445: an edit landed on a lobby row. That row is the main feed store's
+   AND the pinned root of the 3rd panel when its thread is open, so every
+   store that may hold it is told through the one helper. */
+const { applyEverywhere } = useMessageEdit()
+
+function onEdited(row: SpoolMessage) {
+  applyEverywhere(row)
+}
 
 /*
  * CLE-3427: clicking a message opens ITS thread in the pane, always. The

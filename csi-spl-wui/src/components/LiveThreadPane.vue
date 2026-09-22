@@ -27,7 +27,7 @@
       </div>
     </header>
     <div class="pinned-root" data-test="thread-root">
-      <MessageCard v-if="root" :msg="root" :since-ms="sinceMs" />
+      <MessageCard v-if="root" :msg="root" :since-ms="sinceMs" :editable="canEdit(root)" @edited="onEdited" />
       <p v-else-if="!pane.loading" class="muted">{{ t('thread.empty') }}</p>
     </div>
     <MessageComposer
@@ -50,6 +50,7 @@
         :empty-text="t('thread.no_replies')"
         :since-ms="sinceMs"
         @clear-search="pane.setSearch('')"
+        @edited="onEdited"
       />
     </div>
   </aside>
@@ -60,6 +61,7 @@ import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useThreadStore } from '~/stores/thread'
 import { applyVerbosity } from '~/utils/verbosity.mjs'
+import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 
 /* 013 US3: pinned root (oldest of the task_id), reply Omnibox, newest-first replies, live. */
@@ -86,6 +88,20 @@ const target = computed(() => (thread.target && thread.target.taskId === pane.ta
 const messageRooted = computed(() => target.value?.mode === 'message')
 const root = computed<SpoolMessage | null>(() => (messageRooted.value ? thread.rootMsg : pane.thread.root))
 const replies = computed(() => applyVerbosity(messageRooted.value ? pane.newestFirst : pane.thread.replies, thread.verbosity))
+
+/*
+ * CLE-3445 — an edit landed. Which stores hold this row depends on the
+ * thread's shape (a task-rooted pane reads its root from the feed store, a
+ * MESSAGE-rooted one pins thread.rootMsg, which no feed owns) AND on the
+ * route behind the panel, so the pane does not try to work it out: it tells
+ * all of them. See applyEverywhere — the first version of this told two
+ * stores and left the lobby feed behind the panel on the OLD body.
+ */
+const { canEdit, applyEverywhere } = useMessageEdit()
+
+function onEdited(row: SpoolMessage) {
+  applyEverywhere(row)
+}
 
 function close() {
   pane.close()

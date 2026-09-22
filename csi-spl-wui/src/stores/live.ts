@@ -3,6 +3,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, windowed, withoutMsg } from '~/utils/feed.mjs'
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
+import { applyEdit } from '~/utils/msg-edit.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
 export const WINDOW = 50
@@ -52,6 +53,18 @@ function setup(key: 'main' | 'pane') {
     }
   }
 
+  /**
+   * CLE-3445: an edited message replaces the row held for its msg_id, in
+   * place. It is NOT routed through merge(): mergeById drops a repeat of a
+   * row already held as confirmed (feed.mjs line 89), which is why the hub
+   * sends `message_edited` as its own frame at all. Nothing re-sorts and
+   * nothing counts as "new": FR-ED-009 leaves ts / received_at / cursor
+   * untouched, so a typo fix must not ring the new-message pill.
+   */
+  function applyEdited(row: unknown) {
+    messages.value = applyEdit(messages.value, row) as SpoolMessage[]
+  }
+
   /** A read failed: the door is a prompt, anything else an error line. 404 = empty thread. */
   function fail(e: unknown, fallback: string) {
     const err = e as { status?: number, message?: string, detail?: string }
@@ -78,6 +91,7 @@ function setup(key: 'main' | 'pane') {
 
   let off: (() => void) | null = null
   let offReconnect: (() => void) | null = null
+  let offEdited: (() => void) | null = null
   /** `all`: also page to the oldest row (a pinned root needs it); the pane always does. */
   async function open(id: string, opts: { all?: boolean } = {}) {
     if (!id) return
@@ -97,6 +111,8 @@ function setup(key: 'main' | 'pane') {
         if (m.task_id === taskId.value) merge([m as unknown as SpoolMessage], true)
       })
     }
+    /* CLE-3445: another session edited a row this pane is showing */
+    if (!offEdited) offEdited = live.onEdited((m) => applyEdited(m))
     if (!offReconnect) offReconnect = live.onReconnected(() => { void catchUpAfterReconnect() })
     // wui-live-ws: subscribe first, then catch up over view-v1
     if (client) client.subscribe(id)
@@ -117,6 +133,8 @@ function setup(key: 'main' | 'pane') {
   function close() {
     const client = live.ensure()
     if (taskId.value && client) client.unsubscribe(taskId.value)
+    if (offEdited) offEdited()
+    offEdited = null
     taskId.value = null
     messages.value = []
   }
@@ -206,6 +224,7 @@ function setup(key: 'main' | 'pane') {
   return {
     taskId, messages, newestFirst: newestFirstRows, hasOlder, thread, error, door, sending, loading,
     search, liveCount, lastLive, open, close, send, loadOlder, loadAll, setSearch, catchUpAfterReconnect,
+    applyEdited,
   }
 }
 

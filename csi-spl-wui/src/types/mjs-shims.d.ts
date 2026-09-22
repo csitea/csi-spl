@@ -66,6 +66,8 @@ declare module '~/utils/spool-client.mjs' {
       msg_id?: string
     }): Promise<import('./spool').SpoolMessage>
     createChannel(opts: { channel_id?: string, name?: string }): Promise<import('./spool').ChannelRow>
+    /** message-edit-v1 §1: PATCH /v1/messages/{msg_id} with { body }. */
+    editMessage(msgId: string, body: string): Promise<import('./spool').SpoolMessage>
     fileUrl(fileId: string): string
   }
 }
@@ -90,6 +92,8 @@ declare module '~/utils/live-ws.mjs' {
     onToken?: (f: Record<string, unknown>) => void
     onPresence?: (f: import('./spool').PresenceFrame) => void
     onChannel?: (f: Record<string, unknown>) => void
+    /** CLE-3445 `message_edited`: a replacement for a row already held. */
+    onEdited?: (m: Record<string, unknown>, raw: unknown) => void
     onReconnected?: (welcome: Record<string, unknown>, info: { cursors: Record<string, string> }) => void
     ackTimeoutMs?: number
   }): {
@@ -228,6 +232,30 @@ declare module '~/utils/view-api.mjs' {
   export function hubField(v: unknown): string | null
   export function channelReadQuery(read: Record<string, string>): string[]
   export function isDownloadable(file: { mode?: string, file_id?: string, sha256?: string }): boolean
+  export function normalizeViewMessage(el: unknown): import('./spool').SpoolMessage
+  export function copyEditFields<T extends Record<string, unknown>>(src: unknown, out: T): T
+}
+
+declare module '~/utils/msg-edit.mjs' {
+  import type { SpoolMessage } from './spool'
+  /** what the editor holds while it is open: the draft, and what Escape restores */
+  export interface MsgEditState { msgId: string, original: string, draft: string }
+  export const EDIT_KEY: string
+  export const BROWSER_BOX: string
+  export function isOwnMessage(msg: unknown, viewer: { id?: string, box?: string } | null): boolean
+  export function canEditMessage(msg: unknown, viewer: { id?: string, box?: string } | null): boolean
+  export function wantsEdit(ev: KeyboardEvent, opts?: { editable?: boolean }): boolean
+  export function beginEdit(msg: unknown): MsgEditState | null
+  export function withDraft(state: MsgEditState | null, draft: string): MsgEditState | null
+  export function editWireBody(draft: string): string
+  export function editIsDirty(state: MsgEditState | null): boolean
+  export function editKeyAction(ev: KeyboardEvent, opts?: { inCode?: boolean }): '' | 'cancel' | 'commit' | 'newline'
+  export function commitEdit(state: MsgEditState | null): { action: 'commit' | 'unchanged' | 'empty', body: string, error?: Error }
+  export function cancelEdit(state: MsgEditState | null): string
+  export function isEdited(msg: unknown): boolean
+  export function revisionOf(msg: unknown): number
+  export function applyEdit<T>(rows: T[], edited: unknown): T[]
+  export function editFailureKey(err: unknown): string
 }
 
 declare module '~/utils/feed.mjs' {

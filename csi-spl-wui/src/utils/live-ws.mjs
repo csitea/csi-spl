@@ -10,6 +10,8 @@
  * in a queue.
  */
 
+import { copyEditFields } from './view-api.mjs'
+
 export const FRAMES = {
   hello: 'hello',
   welcome: 'welcome',
@@ -24,6 +26,18 @@ export const FRAMES = {
   presence: 'presence',
   /* CLE-3425: a channel created anywhere in the tenant (wui-live-ws v0.6) */
   channel: 'channel',
+  /*
+   * CLE-3445 / message-edit-v1 §3: a message whose body was edited.
+   *
+   * It CANNOT be delivered as a second `message` frame, and that is measured
+   * rather than assumed. `git show origin/master:src/utils/feed.mjs | sed -n
+   * '77,95p'` -> `} else if (list[i].pending && !m.pending) {`: mergeById()
+   * replaces a held row ONLY while the held row is pending, so a `message`
+   * frame for a msg_id already held as confirmed is silently dropped — on
+   * every screen that already had the message, which is every screen that
+   * matters. Hence its own type and its own replace-by-msg_id handler.
+   */
+  edited: 'message_edited',
 }
 
 /** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2); anything else is omitted and the hub assigns a guest GST-<n> (0.4.1). */
@@ -84,6 +98,9 @@ export function messageFromFrame(f) {
   }
   if (x.cursor !== undefined) out.cursor = x.cursor
   if (x.received_at !== undefined) out.received_at = x.received_at
+  /* message-edit-v1 §6: edited_at / edited_by / revision sit on the FRAME,
+     beside cursor, not inside env.msg — same allow-list gap as view-api's */
+  copyEditFields(x, out)
   return out
 }
 
@@ -99,6 +116,8 @@ export function createLiveClient({
   onPresence = () => {},
   /** CLE-3425 §3.3 `channel` frames ({ channel, name, created_by, created_at }). */
   onChannel = () => {},
+  /** CLE-3445: a `message_edited` frame — a REPLACEMENT for a row already held. */
+  onEdited = () => {},
   onReconnected = () => {},
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = (t) => clearTimeout(t),
@@ -209,6 +228,18 @@ export function createLiveClient({
         const tid = f.task_id || m.task_id
         if (tid && m.cursor) cursors.set(String(tid), m.cursor)
         onMessage(m, f)
+        return
+      }
+      case FRAMES.edited: {
+        /* The same payload shape as `message` plus msg_id and the three edit
+           fields. It is NOT fed to onMessage: an edit is a replacement, and
+           the merge every onMessage listener runs appends or ignores.
+           message-edit-v1 §FR-ED-009 also guarantees ts / received_at /
+           cursor are UNCHANGED by an edit, so the cursor map is deliberately
+           left alone here — a typo fix must not move the read position. */
+        const m = messageFromFrame(f)
+        if (f.msg_id && !m.msg_id) m.msg_id = f.msg_id
+        onEdited(m, f)
         return
       }
       case FRAMES.ack: {

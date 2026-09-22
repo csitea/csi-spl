@@ -113,11 +113,30 @@ export function normalizeViewMessage(el) {
     if (e.cursor !== undefined) out.cursor = e.cursor
     if (e.received_at !== undefined) out.received_at = e.received_at
     if (Array.isArray(e.deliveries)) out.deliveries = e.deliveries
+    copyEditFields(e, out)
     delete out.sig
     return out
   }
   const out = { ...e }
   delete out.sig
+  return out
+}
+
+/**
+ * message-edit-v1 §6 — the edit marker rides BESIDE the envelope, at the
+ * element's top level next to `cursor` and `received_at`, NOT inside
+ * `env.msg`. This function is allow-listed like its neighbours, so without
+ * this call the three keys are dropped on the floor and the "(edited)" marker
+ * never renders. The keys are omitted entirely until a message has been
+ * edited (§2), so each one is copied only when present — writing
+ * `out.edited_at = undefined` would turn "never edited" into a key that
+ * exists, which is the very thing the marker tests for.
+ */
+export function copyEditFields(src, out) {
+  const e = src || {}
+  if (e.edited_at !== undefined) out.edited_at = e.edited_at
+  if (e.edited_by !== undefined) out.edited_by = e.edited_by
+  if (e.revision !== undefined) out.revision = e.revision
   return out
 }
 

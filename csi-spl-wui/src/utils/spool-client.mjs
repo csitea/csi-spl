@@ -336,6 +336,47 @@ export function createSpoolClient({
         received_at: ack.received_at,
       }
     },
+    /**
+     * message-edit-v1 §1 — PATCH /v1/messages/{msg_id}, body { body }.
+     *
+     * The prefix is `/v1/`, NOT `/api/v1/`: the latter is the auth handler's
+     * mount, the view / channels surface is `/v1/`. `content-type` is the
+     * only header, and it is one the channels POST already sends, so this
+     * adds no new CORS preflight — a new request header has broken sign-in
+     * in this repo before.
+     *
+     * The tenant is the member session's (spec 026) and is never in the body.
+     * Refusals arrive as { error, detail } and `live()` already lifts `error`
+     * onto err.token, which is what utils/msg-edit.mjs switches on.
+     */
+    async editMessage(msgId, body) {
+      const id = String(msgId || '')
+      const text = String(body == null ? '' : body)
+      if (!id) throw Object.assign(new Error('msg_id required'), { status: 400, token: 'bad_json' })
+      if (mock) {
+        /* The lde mock is a real edit against the in-memory store, including
+           the two refusals the hub makes, so the browser e2e exercises the
+           whole path (open, type, commit, marker, rollback) without a hub. */
+        const row = state.messages.find((m) => m.msg_id === id)
+        if (!row) throw Object.assign(new Error('no such message'), { status: 404, token: 'not_found' })
+        if (!text.trim()) throw Object.assign(new Error('body must not be empty'), { status: 400, token: 'empty_body' })
+        if (row.from !== state.me.id) throw Object.assign(new Error('only the author may edit this message'), { status: 403, token: 'not_author' })
+        if (row.from_box !== state.me.box) throw Object.assign(new Error('box-signed envelope'), { status: 409, token: 'not_editable' })
+        row.body = text
+        /* §FR-ED-009: an edit does NOT move the message — ts, received_at and
+           cursor are deliberately left exactly as they were. */
+        row.edited_at = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
+        row.edited_by = state.me.id
+        row.revision = (Number(row.revision) || 1) + 1
+        return { ...row }
+      }
+      const data = await live(`/v1/messages/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ body: text }),
+      })
+      return normalizeViewMessage(data)
+    },
     /** channels-v1 §5.1: POST /v1/channels; 409 channel_exists / 400 bad_channel keep their token. */
     async createChannel({ channel_id, name } = {}) {
       const slug = channelSlug(channel_id || name)

@@ -37,6 +37,8 @@ const reconnectListeners = new Set<() => void>()
 const presenceListeners = new Set<Listener>()
 /** CLE-3425 `channel` frames ({ channel, name, created_at }): a channel created in the tenant. */
 const channelListeners = new Set<Listener>()
+/** CLE-3445 `message_edited` frames: a REPLACEMENT for a row the screen already holds. */
+const editedListeners = new Set<Listener>()
 const state = ref('idle')
 const identity = ref('')
 const uploadToken = ref('')
@@ -98,6 +100,9 @@ export function useLive() {
       onMessage: (m: Record<string, unknown>) => {
         for (const fn of listeners) fn(m)
       },
+      onEdited: (m: Record<string, unknown>) => {
+        for (const fn of editedListeners) fn(m)
+      },
     })
     live.connect()
     return live
@@ -133,5 +138,15 @@ export function useLive() {
     return () => channelListeners.delete(fn)
   }
 
-  return { ensure, onMessage, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
+  /**
+   * CLE-3445: another session edited a message this one is showing. Kept
+   * apart from onMessage because an edit is a replacement and every
+   * onMessage listener merges by appending — see applyEdit in msg-edit.mjs.
+   */
+  function onEdited(fn: Listener) {
+    editedListeners.add(fn)
+    return () => editedListeners.delete(fn)
+  }
+
+  return { ensure, onMessage, onEdited, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
 }

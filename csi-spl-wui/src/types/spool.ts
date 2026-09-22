@@ -30,6 +30,16 @@ export interface SpoolMessage {
   deliveries?: { to_box: string, state: string }[]
   /** 013 US7 FR-013: our own send, shown before the hub echo / ack confirms it. */
   pending?: boolean
+  /**
+   * message-edit-v1 §2 (CLE-3445). All three are OMITTED until a message has
+   * been edited — `edited_at` is an RFC3339 UTC string and its PRESENCE is
+   * the marker's test, `revision` counts bodies with the original included
+   * (2 after the first edit). They ride at the element's top level, beside
+   * `cursor`, not inside `env.msg`.
+   */
+  edited_at?: string
+  edited_by?: string
+  revision?: number
 }
 
 /** One thread list row (003 view-v1 §4.3, normalised by utils/view-api.mjs). */

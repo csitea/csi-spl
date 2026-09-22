@@ -138,7 +138,7 @@ inferred in `src/utils/msg-edit.mjs` and in the unit-test case names too.
   `content-type` is the only header — a NEW request header is a new CORS preflight, which
   has broken sign-in here before, and the test asserts the header set rather than trusting
   the reading. Check: `cd csi-spl-wui && node --test tests/unit/msg-edit-wire.test.mjs` → 26 pass, 0 fail.
-- [x] T038 Implemented (`<this sha>`) — the editor itself: `MessageCard.vue` takes `e` on
+- [x] T038 Implemented (`2ba496d`) — the editor itself: `MessageCard.vue` takes `e` on
   the focused row (same `target === currentTarget` guard as its existing Enter / Space),
   becomes a textarea pre-filled with the OLD body, Escape restores and returns focus to the
   row, Enter commits. The `(edited)` marker sits in `msg-meta` with the time, driven by
@@ -149,7 +149,7 @@ inferred in `src/utils/msg-edit.mjs` and in the unit-test case names too.
   proof caught the lobby feed behind the 3rd panel still showing the OLD body.
   Check: `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → 730 pass, 0 fail;
   `./node_modules/.bin/nuxi typecheck` → exit 0.
-- [x] T039 Implemented (`<this sha>`) — `tests/e2e/msg-edit-live.proof.mjs`, in real Chrome:
+- [x] T039 Implemented (`2ba496d`) — `tests/e2e/msg-edit-live.proof.mjs`, in real Chrome:
   focus a row → `e` → the textarea holds the OLD body **as source, not as rendered
   markdown** → type → Enter → the row shows the new body and the marker; a second pass for
   Escape; the same row in the feed behind the panel; a fresh API read; and `e` on somebody

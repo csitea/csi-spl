@@ -71,6 +71,13 @@ type ViewMsg struct {
 	ReceivedAt time.Time
 	Env        []byte
 	Deliveries []ViewDelivery
+	// The edit marker (specs/032 contracts/message-edit-v1.md §2.1). Zero /
+	// "" / 0 = never edited, and the view then emits no key at all. An edit
+	// changes neither ReceivedAt nor the cursor built from it: the message
+	// must not move in the thread because someone fixed a typo.
+	EditedAt time.Time
+	EditedBy string
+	Revision int
 }
 
 // ViewDelivery is a deliveries row as the viewer sees it (never changed).
@@ -193,7 +200,11 @@ func (s *Memory) ViewThread(_ context.Context, tenant string, q ThreadMsgQuery) 
 		if !q.BeforeAt.IsZero() && !newer(q.BeforeAt, q.BeforeID, m.ReceivedAt, m.MsgID) {
 			continue
 		}
-		v := ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{}}
+		v := ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{},
+			EditedAt: m.EditedAt, EditedBy: m.EditedBy}
+		if revs := s.revisions[[2]string{tenant, m.MsgID}]; len(revs) > 0 {
+			v.Revision = revs[len(revs)-1].Revision
+		}
 		for k, d := range s.deliveries {
 			if k[0] == tenant && k[1] == m.MsgID {
 				v.Deliveries = append(v.Deliveries, ViewDelivery{ToBox: k[2], State: d.state})

@@ -66,6 +66,13 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.Enqueue(ctx, s.tenant, m.MsgID, "box-a", now, now.Add(time.Hour), 0); err != nil { // deliveries
 		t.Fatal(err)
 	}
+	// message_revisions (rdb 0026): one edit writes revisions 1 and 2, so the
+	// register holds rows for both tenants. The marker stays in the body, so
+	// the search leak checks below are unaffected by the rewrite.
+	if _, err := pg.ApplyEdit(ctx, s.tenant, m.MsgID, Edit{Body: "the " + s.marker + " plan, revised",
+		Msg: m.Msg, Env: m.Env, EditedBy: "CLE-01", EditedAt: now.Add(time.Second)}); err != nil {
+		t.Fatal(err)
+	}
 	if err := pg.CreateChannel(ctx, Channel{TenantID: s.tenant, ChannelID: s.channelID, Name: "c" + s.marker[:12], CreatedBy: "CLE-01", CreatedAt: now}); err != nil { // channels
 		t.Fatal(err)
 	}

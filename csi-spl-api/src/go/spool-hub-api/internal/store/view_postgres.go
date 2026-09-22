@@ -219,7 +219,10 @@ func (s *Postgres) ViewThread(ctx context.Context, tenant string, q ThreadMsgQue
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		idx := map[string]int{}
 		var ids []string
-		err := eachRow(ctx, tx, `SELECT msg_id::text, received_at, env FROM messages
+		err := eachRow(ctx, tx, `SELECT msg_id::text, received_at, env, edited_at, edited_by,
+				CASE WHEN edited_at IS NULL THEN 0 ELSE COALESCE((SELECT MAX(revision)
+					FROM message_revisions r WHERE r.tenant_id = messages.tenant_id AND r.msg_id = messages.msg_id), 0) END
+			FROM messages
 			WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3
 				AND ($4::timestamptz IS NULL OR (received_at, msg_id::text) > ($4::timestamptz, $5::text))
 				AND ($7::timestamptz IS NULL OR (received_at, msg_id::text) < ($7::timestamptz, $8::text))
@@ -227,8 +230,17 @@ func (s *Postgres) ViewThread(ctx context.Context, tenant string, q ThreadMsgQue
 			LIMIT $6`, []any{tenant, q.TaskID, q.Now, optTime(q.AfterAt), q.AfterID, pgLimit(q.Limit), optTime(q.BeforeAt), q.BeforeID},
 			func(rows pgx.Rows) error {
 				v := ViewMsg{Deliveries: []ViewDelivery{}}
-				if err := rows.Scan(&v.MsgID, &v.ReceivedAt, &v.Env); err != nil {
+				var editedBy *string
+				var editedAt *time.Time
+				if err := rows.Scan(&v.MsgID, &v.ReceivedAt, &v.Env, &editedAt, &editedBy, &v.Revision); err != nil {
 					return err
+				}
+				// The register probe is paid only by an edited row: an
+				// unedited one (the overwhelming majority) short-circuits on
+				// the NULL and costs nothing.
+				v.EditedBy = deref(editedBy)
+				if editedAt != nil {
+					v.EditedAt = *editedAt
 				}
 				idx[v.MsgID] = len(out)
 				ids = append(ids, v.MsgID)

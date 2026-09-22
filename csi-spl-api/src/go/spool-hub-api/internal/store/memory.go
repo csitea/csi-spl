@@ -15,13 +15,15 @@ import (
 // Memory is an in-process Store for unit tests (003 Assumptions: memory
 // allowed in tests; production is Postgres). Same semantics as Postgres.
 type Memory struct {
-	mu         sync.Mutex
-	tenants    map[string]Tenant
-	pins       map[[2]string]*memPin
-	history    []memHist
-	boxes      map[[2]string]time.Time
-	roster     map[[2]string][]string
-	messages   map[[2]string]*Message
+	mu       sync.Mutex
+	tenants  map[string]Tenant
+	pins     map[[2]string]*memPin
+	history  []memHist
+	boxes    map[[2]string]time.Time
+	roster   map[[2]string][]string
+	messages map[[2]string]*Message
+	// specs/032: every body a message has had, oldest first, per (tenant, msg).
+	revisions  map[[2]string][]MessageRevision
 	deliveries map[[3]string]*memDelivery
 	seq        int
 	hum        memHumans             // humans_memory.go, guarded by mu
@@ -56,6 +58,7 @@ func NewMemory() *Memory {
 		tenants: map[string]Tenant{}, pins: map[[2]string]*memPin{},
 		boxes: map[[2]string]time.Time{}, roster: map[[2]string][]string{},
 		messages: map[[2]string]*Message{}, deliveries: map[[3]string]*memDelivery{},
+		revisions: map[[2]string][]MessageRevision{},
 	}
 }
 

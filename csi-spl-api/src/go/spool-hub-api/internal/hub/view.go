@@ -430,6 +430,11 @@ type viewMsg struct {
 	ReceivedAt string          `json:"received_at"`
 	Env        json.RawMessage `json:"env"`
 	Deliveries []viewDelivery  `json:"deliveries"`
+	// specs/032 §2.1: omitted entirely while the message has never been
+	// edited, so a reload renders the marker exactly as the live frame does.
+	EditedAt string `json:"edited_at,omitempty"`
+	EditedBy string `json:"edited_by,omitempty"`
+	Revision int    `json:"revision,omitempty"`
 }
 
 func (s *Server) handleViewThread(w http.ResponseWriter, r *http.Request, t store.Tenant) {
@@ -494,6 +499,9 @@ func (s *Server) handleViewThread(w http.ResponseWriter, r *http.Request, t stor
 	for _, m := range rows {
 		v := viewMsg{Cursor: encCursor(m.ReceivedAt, m.MsgID), ReceivedAt: rfc(m.ReceivedAt),
 			Env: json.RawMessage(m.Env), Deliveries: []viewDelivery{}}
+		if !m.EditedAt.IsZero() {
+			v.EditedAt, v.EditedBy, v.Revision = rfc(m.EditedAt), m.EditedBy, m.Revision
+		}
 		for _, d := range m.Deliveries {
 			v.Deliveries = append(v.Deliveries, viewDelivery{ToBox: d.ToBox, State: d.State})
 		}

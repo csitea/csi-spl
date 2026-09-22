@@ -108,6 +108,11 @@ type Message struct {
 	Env          []byte // canonical envelope bytes, forwarded unchanged
 	ReceivedAt   time.Time
 	ExpiresAt    time.Time
+	// The latest edit (specs/032, rdb 0026); zero / "" = never edited. The
+	// insert path never sets them: a message is born unedited, and only
+	// MessageEdits.ApplyEdit ever writes them.
+	EditedAt time.Time
+	EditedBy string
 }
 
 // Queued is one queued delivery ready to push to a box.
@@ -184,6 +189,9 @@ type Store interface {
 	// MessageTimes returns a stored message's ts and received_at (ErrNotFound
 	// if none): a hub-built resend reuses them so it re-acks, not conflicts.
 	MessageTimes(ctx context.Context, tenantID, msgID string) (ts, receivedAt time.Time, err error)
+
+	// Editing a sent message and its append-only revision register (specs/032).
+	MessageEdits
 
 	// Channels, subscriptions and channel stats (channels.go, channels-v1).
 	Channels

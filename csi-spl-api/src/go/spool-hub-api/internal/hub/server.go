@@ -220,6 +220,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/wui/pubkey", s.handleWUIPubkey)
 	mux.HandleFunc("DELETE /v1/files/{file_id}", s.handleDeleteFile)
 	mux.HandleFunc("POST /v1/channels", s.handleCreateChannel)
+	mux.HandleFunc("PATCH /v1/messages/{msg_id}", s.handleEditMessage) // specs/032
+	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}", s.editPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels", s.channelsPreflight)
 	s.routeMembers(mux)
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)

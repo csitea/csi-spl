@@ -329,6 +329,37 @@ sleep 0.5
 eq "CONTROL a strip that is already right is kept, same pane id" "$marks96" \
   "$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id} #{@spool_notices}' | awk '$2 == "CLE-96" {print $1}')"
 
+# ── a RENDERER bump respawns the pane and KEEPS the log ────────────────────
+# A notice pane is a long-lived process started from a path: editing the
+# renderer does not reach panes already running it, so SPOOL_NOTICE_PANE_V is
+# what makes a change actually arrive. But an older RENDERER reads the current
+# records perfectly well, and rotating the log for it would blank a pane the
+# owner is reading for nothing. Only SPOOL_NOTICE_RECORD_V may rotate.
+log96="$(spool_poke_queue_dir CLE-96)/notices.log"
+before96="$(wc -l <"$log96")"
+check "the log has records to lose" test "$before96" -gt 0
+tmux -S "$SPOOL_TMUX_SOCKET" set-option -p -t "$marks96" @spool_notices_v 1
+SPOOL_SHOW_PANE=1 SPOOL_SHOW_PANE_COLS=40 SPOOL_POKE=0 \
+  spool_poke_show CLE-96 note HUM-9 T-98 M-98 'after a renderer bump' >/dev/null
+sleep 0.5
+eq "an old RENDERER version is respawned to the current one" "$SPOOL_NOTICE_PANE_V" \
+  "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$marks96" '#{@spool_notices_v}')"
+check "…and the log KEPT its records (only a record-format change may rotate)" \
+  test "$(wc -l <"$log96")" -gt "$before96"
+check "…so no rotated copy was made" test ! -e "$log96.v1"
+
+# A RECORD-format change is the one that rotates: those records would repaint
+# as nonsense, so they are moved aside rather than painted or deleted.
+tmux -S "$SPOOL_TMUX_SOCKET" set-option -p -t "$marks96" @spool_notices_v 1
+tmux -S "$SPOOL_TMUX_SOCKET" set-option -p -t "$marks96" @spool_notices_rv 0
+SPOOL_SHOW_PANE=1 SPOOL_SHOW_PANE_COLS=40 SPOOL_POKE=0 \
+  spool_poke_show CLE-96 note HUM-9 T-99 M-99 'after a record-format bump' >/dev/null
+sleep 0.5
+check "a RECORD-format change rotates the log aside" test -s "$log96.v1"
+eq "…leaving only the new record" 1 "$(wc -l <"$log96")"
+eq "…and the pane carries the current record version" "$SPOOL_NOTICE_RECORD_V" \
+  "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$marks96" '#{@spool_notices_rv}')"
+
 # A CHAT, not a routing table. A full uuid pair is two rows of a 48-column
 # strip and a human reads neither, so the RENDERER shortens ids to eight
 # characters - what git, the hub's logs and every report here already use, and
@@ -336,6 +367,11 @@ eq "CONTROL a strip that is already right is kept, same pane id" "$marks96" \
 # so does the poke line the agent acts on.
 U1=57e6f191-582e-45b1-a08e-389c0b034803
 U2=ca8bb6f3-5f68-49fc-aea2-857021dbf44b
+# A SHORT-id record first, then the uuid one, so both are on screen together
+# and the control cannot pass on a record some earlier block happened to leave.
+SPOOL_SHOW_PANE=1 SPOOL_SHOW_PANE_COLS=40 SPOOL_POKE=0 \
+  spool_poke_show CLE-96 note HUM-9 T-96 M-96 'a short-id record' >/dev/null
+sleep 0.3
 SPOOL_SHOW_PANE=1 SPOOL_SHOW_PANE_COLS=40 SPOOL_POKE=0 \
   spool_poke_show CLE-96 note HUM-9 "$U1" "$U2" 'a uuid-carrying record' >/dev/null
 sleep 1.5

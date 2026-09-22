@@ -187,9 +187,30 @@ spool_show_colour() {
 
 # The command a notice pane runs. Not a `tail`: a terminal appends, and the
 # newest notice belongs on TOP (013/CLE-3425), so the pane is repainted by
-# spool-notice-pane.sh. SPOOL_NOTICE_PANE_V is bumped whenever this changes, so
-# a pane left behind by an older version is respawned instead of going stale.
-SPOOL_NOTICE_PANE_V=5
+# spool-notice-pane.sh.
+#
+# TWO versions, because they answer two different questions and conflating them
+# throws away messages for no reason.
+#
+#   SPOOL_NOTICE_PANE_V    the RENDERER. Bump it whenever spool-notice-pane.sh
+#                          changes what it paints, so a pane still running the
+#                          old renderer is respawned instead of going stale.
+#                          A notice pane is a LONG-LIVED process started from a
+#                          path; editing the renderer does not reach the panes
+#                          already running it, and without a bump the fleet
+#                          keeps the old one indefinitely while the code claims
+#                          otherwise. (Same shape as the bottom bars that could
+#                          not be respawned into strips.)
+#   SPOOL_NOTICE_RECORD_V  the LOG FORMAT. Only this one may rotate the log:
+#                          records written in an older format repaint as
+#                          nonsense, so they are moved aside. A renderer change
+#                          reads the SAME records perfectly well, and rotating
+#                          for it would blank every notice on screen to no
+#                          purpose. A pane carrying no record version predates
+#                          the option and is treated as 1, which is what it is -
+#                          <head>TAB<body> has not changed since v4.
+SPOOL_NOTICE_PANE_V=6
+SPOOL_NOTICE_RECORD_V=1
 
 spool_notice_pane_cmd() {  # LOG
   printf 'exec %q --log %q --max %s' \
@@ -231,13 +252,13 @@ spool_strip_is_right() {  # PANE
 # The notice strip of ID: an existing one, or a new split of ID's own window.
 # Prints the pane id, or nothing when one cannot be made.
 spool_show_notice_pane() {  # ID AGENT_PANE
-  local id="$1" agent_pane="$2" p mark ver pane cols win log cmd
+  local id="$1" agent_pane="$2" p mark ver rver pane cols win log cmd
   spool_tmux_argv
   log="$(spool_poke_queue_dir "$id")/notices.log"
   mkdir -p "$(dirname "$log")" 2>/dev/null || return 1
   : >>"$log" || return 1
   cmd="$(spool_notice_pane_cmd "$log")"
-  while IFS=' ' read -r p mark ver; do
+  while IFS=' ' read -r p mark ver rver; do
     [ "$mark" = "$id" ] || continue
     # A BOTTOM BAR left behind by an older version of this feature cannot be
     # respawned into the right shape: respawn-pane replaces the process, never
@@ -252,16 +273,21 @@ spool_show_notice_pane() {  # ID AGENT_PANE
     # An older renderer (or none) in a pane we own: replace it in place, so the
     # agent's window keeps the same layout and the same pane id.
     if [ "$ver" != "$SPOOL_NOTICE_PANE_V" ]; then
-      # A log written by an older renderer is in an older RECORD format and
-      # would repaint as nonsense. Keep it beside the new one rather than
-      # deleting it: this is a delivery hint, the inbox is the record.
-      [ -s "$log" ] && mv -f "$log" "$log.v${ver:-0}" 2>/dev/null
-      : >>"$log" 2>/dev/null
+      # A log in an OLDER RECORD FORMAT would repaint as nonsense, so it is
+      # kept beside the new one rather than deleted: this is a delivery hint,
+      # the inbox is the record. A pane that is merely running an older
+      # RENDERER keeps its log - the records are fine, and blanking a pane the
+      # owner is reading is a cost with nothing bought.
+      if [ "${rver:-1}" != "$SPOOL_NOTICE_RECORD_V" ]; then
+        [ -s "$log" ] && mv -f "$log" "$log.v${ver:-0}" 2>/dev/null
+        : >>"$log" 2>/dev/null
+      fi
       "${SPOOL_TM[@]}" respawn-pane -k -t "$p" "$cmd" 2>/dev/null &&
-        "${SPOOL_TM[@]}" set-option -p -t "$p" @spool_notices_v "$SPOOL_NOTICE_PANE_V" 2>/dev/null
+        "${SPOOL_TM[@]}" set-option -p -t "$p" @spool_notices_v "$SPOOL_NOTICE_PANE_V" 2>/dev/null &&
+        "${SPOOL_TM[@]}" set-option -p -t "$p" @spool_notices_rv "$SPOOL_NOTICE_RECORD_V" 2>/dev/null
     fi
     printf '%s' "$p"; return 0
-  done < <("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id} #{@spool_notices} #{@spool_notices_v}' 2>/dev/null)
+  done < <("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id} #{@spool_notices} #{@spool_notices_v} #{@spool_notices_rv}' 2>/dev/null)
   win="$("${SPOOL_TM[@]}" display-message -p -t "$agent_pane" '#{window_width}' 2>/dev/null)"
   cols="$(spool_strip_cols "$win")"
   # -h puts the new pane to the RIGHT of the target (owner, 2026-09-22), and
@@ -271,6 +297,7 @@ spool_show_notice_pane() {  # ID AGENT_PANE
   [ -n "$pane" ] || return 1
   "${SPOOL_TM[@]}" set-option -p -t "$pane" @spool_notices "$id" 2>/dev/null
   "${SPOOL_TM[@]}" set-option -p -t "$pane" @spool_notices_v "$SPOOL_NOTICE_PANE_V" 2>/dev/null
+  "${SPOOL_TM[@]}" set-option -p -t "$pane" @spool_notices_rv "$SPOOL_NOTICE_RECORD_V" 2>/dev/null
   "${SPOOL_TM[@]}" set-option -p -t "$pane" remain-on-exit off 2>/dev/null
   printf '%s' "$pane"
 }

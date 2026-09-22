@@ -133,6 +133,22 @@ wrap_text() {  # TEXT WIDTH INDENT
   for (( i = 1; i < ${#WRAPPED[@]}; i++ )); do WRAPPED[i]="${pad}${WRAPPED[i]}"; done
 }
 
+# A head with its uuids shortened to eight characters, for DISPLAY only.
+#
+# In a 48-column strip a full head is three rows, two of them routing metadata
+# a human does not read: "task 57e6f191-582e-45b1-a08e-389c0b034803 msg
+# ca8bb6f3-5f68-49fc-aea2-857021dbf44b". Two messages then fill sixteen rows of
+# a pane the owner asked to read as a CHAT. Eight characters is what git, the
+# hub's own logs and every id in this repo's reports use, and it is enough to
+# match an id against a log line.
+#
+# The LOG keeps the full ids - this is the renderer, and the record is the
+# record. The poke line the agent acts on is untouched, so nothing that needs
+# a whole uuid ever sees a shortened one.
+shorten_ids() {  # HEAD
+  printf '%s' "$1" | sed -E 's/\b([0-9a-fA-F]{8})-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/\1/g'
+}
+
 render() {
   local -a rows=() out=()
   # A record is <head>TAB<body> and carries no control characters: this
@@ -162,7 +178,7 @@ render() {
       head="${rows[i]%%$'\t'*}"
       body="${rows[i]#*$'\t'}"
       [ "$body" = "${rows[i]}" ] && body=""
-      wrap_text "$head" "$PANE_COLS" 2
+      wrap_text "$(shorten_ids "$head")" "$PANE_COLS" 2
       for (( j = 0; j < ${#WRAPPED[@]}; j++ )); do out+=("${BLUE}${WRAPPED[j]}${OFF}"); done
       if [ -n "$body" ]; then
         wrap_text "$body" "$PANE_COLS" 2

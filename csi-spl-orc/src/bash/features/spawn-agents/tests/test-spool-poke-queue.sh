@@ -329,6 +329,29 @@ sleep 0.5
 eq "CONTROL a strip that is already right is kept, same pane id" "$marks96" \
   "$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id} #{@spool_notices}' | awk '$2 == "CLE-96" {print $1}')"
 
+# A CHAT, not a routing table. A full uuid pair is two rows of a 48-column
+# strip and a human reads neither, so the RENDERER shortens ids to eight
+# characters - what git, the hub's logs and every report here already use, and
+# enough to match an id against a log line. The LOG keeps the whole thing, and
+# so does the poke line the agent acts on.
+U1=57e6f191-582e-45b1-a08e-389c0b034803
+U2=ca8bb6f3-5f68-49fc-aea2-857021dbf44b
+SPOOL_SHOW_PANE=1 SPOOL_SHOW_PANE_COLS=40 SPOOL_POKE=0 \
+  spool_poke_show CLE-96 note HUM-9 "$U1" "$U2" 'a uuid-carrying record' >/dev/null
+sleep 1.5
+uvis="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$marks96")"
+# Asserted on the SHORT forms, not on "task <id>": at 40 columns the word
+# "task" ends one row and the id starts the next, so a needle spanning the wrap
+# would fail on the wrapping rather than on the shortening.
+has   "a uuid is shortened for the strip"  "57e6f191 msg ca8bb6f3" "$uvis"
+hasnt "…and the long form is NOT painted"  "$U1"                   "$uvis"
+hasnt "…nor the other one"                 "$U2"                   "$uvis"
+# CONTROL: the LOG still holds the whole id, so nothing that needs it lost it.
+has "CONTROL the log keeps the full uuid" "$U1" \
+  "$(tail -n 1 "$(spool_poke_queue_dir CLE-96)/notices.log")"
+# CONTROL: a SHORT id is left alone - this shortens uuids, not every id.
+has "CONTROL a short task id is untouched" "task T-96" "$uvis"
+
 # (4) NO PROMPT INJECTION: with SPOOL_POKE=0 the prompt is never typed into,
 # nothing is queued, and the exit is clean. A pane holding unsent text proves
 # it, because that is the case that used to queue and replay.

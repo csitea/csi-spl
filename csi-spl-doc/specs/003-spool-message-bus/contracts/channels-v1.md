@@ -117,18 +117,20 @@ control: no mention → no `deliveries` row, no `recv`), `TestHubclientChannelRe
 ### 5.1 `POST /v1/channels` (create)
 
 ```json
-{ "channel": "releases", "name": "Releases" }
+{ "channel": "releases", "name": "Releases", "description": "what ships, and when" }
 ```
 
 - Door: the **view door** (`./view-v1.md` §2). Door `off` (lde/dev): any
   caller. Door `token` (prd): a member sign-in session only — today that
   admits nobody (fail closed) until 010 T012/T013 land. Boxes do not create
   channels in v1 (OQ-CH1).
-- `201` `{ "channel", "name", "created_by", "created_at", "default": false }`;
+- `201` `{ "channel", "name", "description", "created_by", "created_at", "default": false }`;
   `created_by` = the session's `HUM-*`, else `"wui"`. `name` defaults to the slug
-  (≤ 80 chars).
-- `400 bad_channel` (slug or name), `409 channel_exists` (existing, default, or
-  `general`), `401 view_door`, `402 unpaid`, `404 unknown_tenant`.
+  (≤ 80 chars). `description` (1.2.0, rdb 0027) is what the channel is for, as
+  the creator typed it in the WUI's new-channel dialog next to the title:
+  optional, trimmed, `""` when omitted, ≤ 500 chars.
+- `400 bad_channel` (slug, name or description), `409 channel_exists` (existing,
+  default, or `general`), `401 view_door`, `402 unpaid`, `404 unknown_tenant`.
 - CORS: `OPTIONS /v1/channels` preflight for allow-listed origins
   (`POST`, headers `Authorization, Content-Type`). Test: `TestChannelsCreateAndList`.
 
@@ -136,7 +138,8 @@ control: no mention → no `deliveries` row, no `recv`), `TestHubclientChannelRe
 
 ```json
 { "channels": [
-  { "channel": "lobby", "name": "lobby", "default": true, "retention_days": 30,
+  { "channel": "lobby", "name": "lobby", "description": "", "default": true,
+    "retention_days": 30,
     "created_by": "hub", "created_at": "…", "count": 12, "last_ts": "…",
     "last_cursor": "…", "unread": 3,
     "members": { "agents": 4, "boxes": 2, "posters": 3 } } ] }
@@ -181,4 +184,4 @@ socket of a human (`HUM-1@box-wui`); a snapshot of every online peer follows
 - **OQ-CH3** — `general` alias lifetime: (a) *recommended*: accepted until
   the next minor contract version, then `404 unknown_channel`; (b) forever.
 
-<!-- version: 1.1.0 · updated: 2026-09-21 · last-edit: 2026-09-21T07:55:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T12:10:30Z -->

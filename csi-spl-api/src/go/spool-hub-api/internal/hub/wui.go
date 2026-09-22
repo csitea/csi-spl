@@ -593,7 +593,7 @@ func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID s
 // read from GET /v1/view/channels.
 func (s *Server) fanoutChannel(ctx context.Context, tenant string, c store.Channel) {
 	frame := map[string]any{"type": "channel", "channel": c.ChannelID, "name": c.Name,
-		"created_by": c.CreatedBy, "created_at": rfc(c.CreatedAt)}
+		"description": c.Description, "created_by": c.CreatedBy, "created_at": rfc(c.CreatedAt)}
 	s.mu.Lock()
 	var targets []*wuiConn
 	for w := range s.wui {

@@ -148,7 +148,8 @@ A viewer falls back to the default on `404` or any load error.
 ### 4.2 `GET /v1/view/channels?read=<channel>~<cursor>`
 
 ```json
-{ "channels": [ { "channel": "alerts", "name": "alerts", "default": true,
+{ "channels": [ { "channel": "alerts", "name": "alerts", "description": "",
+    "default": true,
     "retention_days": 7, "created_by": "hub", "count": 12, "last_ts": "…",
     "last_cursor": "…", "unread": 2,
     "members": { "agents": 3, "boxes": 2, "posters": 4 } } ] }
@@ -157,8 +158,9 @@ A viewer falls back to the default on `404` or any load error.
 Every default channel (`lobby`, `tasks`, `alerts`), every created channel
 (`channels` table) and any channel seen in stored messages, sorted by slug.
 `channel` / `count` / `last_ts` keep their v0.4 meaning (`last_ts` is `null`
-for an empty channel). `read` (repeatable), `unread` and `members`:
-`./channels-v1.md` §5.2.
+for an empty channel). `description` is `""` for a default channel and for
+every channel created before rdb 0027. `read` (repeatable), `unread` and
+`members`: `./channels-v1.md` §5.2.
 
 ### 4.3 `GET /v1/view/threads?limit=&before=&channel=&agent=&roots=&dm=&peer=`
 
@@ -251,4 +253,4 @@ Live reads go to `/v1/view/*`. Live send / channel-create still throw
 `ReadOnlyError` (005 phase-3 / A1). The pre-`src/` path
 `csi-spl-wui/utils/spool-client.mjs` does not exist.
 
-<!-- version: 0.5.1 · updated: 2026-09-19 · last-edit: 2026-09-19T09:05:00Z -->
+<!-- version: 0.5.2 · updated: 2026-09-22 · last-edit: 2026-09-22T12:10:30Z -->

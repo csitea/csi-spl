@@ -21,7 +21,12 @@ import (
 // contracts/channels-v1.md). channel / parent_task_id are hub-envelope fields;
 // the v:1 object is never touched.
 
-const channelNameMax = 80
+const (
+	channelNameMax = 80
+	// channelDescMax is what the WUI's new-channel dialog accepts in its
+	// description field (rdb 0027). A sentence about the channel, not a page.
+	channelDescMax = 500
+)
 
 // mentionRe finds @<agent-id> and @channel on a token boundary.
 var mentionRe = regexp.MustCompile(`(?:^|[^A-Za-z0-9_@-])@([A-Z]{2,4}-[0-9]+|channel)(?:$|[^A-Za-z0-9_-])`)
@@ -242,16 +247,18 @@ func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Channel string `json:"channel"`
-		Name    string `json:"name"`
+		Channel     string `json:"channel"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {channel, name?}")
+		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {channel, name?, description?}")
 		return
 	}
 	body.Name = strings.TrimSpace(body.Name)
+	body.Description = strings.TrimSpace(body.Description)
 	if body.Name == "" {
 		body.Name = body.Channel
 	}
@@ -259,11 +266,16 @@ func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_channel", "channel must match ^[a-z0-9][a-z0-9-]{0,63}$ and name be at most 80 characters")
 		return
 	}
+	if utf8.RuneCountInString(body.Description) > channelDescMax {
+		writeErr(w, http.StatusBadRequest, "bad_channel", "description must be at most 500 characters")
+		return
+	}
 	by := "wui"
 	if id, err := s.sessionFor(r, t.ID); err == nil && id != "" {
 		by = id
 	}
-	c := store.Channel{TenantID: t.ID, ChannelID: body.Channel, Name: body.Name, CreatedBy: by, CreatedAt: s.o.Now().UTC()}
+	c := store.Channel{TenantID: t.ID, ChannelID: body.Channel, Name: body.Name, Description: body.Description,
+		CreatedBy: by, CreatedAt: s.o.Now().UTC()}
 	switch err := s.o.Store.CreateChannel(r.Context(), c); {
 	case errors.Is(err, store.ErrConflict):
 		writeErr(w, http.StatusConflict, "channel_exists", "channel "+body.Channel+" exists or is reserved")
@@ -273,7 +285,7 @@ func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 		/* CLE-3425: every other session's sidebar learns about it at once */
 		s.fanoutChannel(r.Context(), t.ID, c)
 		writeJSON(w, http.StatusCreated, map[string]any{"channel": c.ChannelID, "name": c.Name,
-			"created_by": c.CreatedBy, "created_at": rfc(c.CreatedAt), "default": false})
+			"description": c.Description, "created_by": c.CreatedBy, "created_at": rfc(c.CreatedAt), "default": false})
 	}
 }
 

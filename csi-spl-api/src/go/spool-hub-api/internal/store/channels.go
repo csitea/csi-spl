@@ -51,8 +51,11 @@ type Channel struct {
 	TenantID  string
 	ChannelID string
 	Name      string
-	CreatedBy string
-	CreatedAt time.Time
+	// Description is what the channel is for, as the creator typed it next to
+	// the title (rdb 0027). Empty when none was given; never NULL.
+	Description string
+	CreatedBy   string
+	CreatedAt   time.Time
 }
 
 // ReadMark is a reader's last-read position in a channel: a view cursor.

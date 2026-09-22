@@ -24,9 +24,9 @@ func (s *Postgres) CreateChannel(ctx context.Context, c Channel) error {
 	if !c.CreatedAt.IsZero() {
 		created = &c.CreatedAt
 	}
-	tag, err := s.execTenant(ctx, c.TenantID, `INSERT INTO channels (tenant_id, channel_id, name, created_by, created_at)
-		VALUES ($1, $2, $3, $4, COALESCE($5::timestamptz, now())) ON CONFLICT (tenant_id, channel_id) DO NOTHING`,
-		c.TenantID, c.ChannelID, c.Name, c.CreatedBy, created)
+	tag, err := s.execTenant(ctx, c.TenantID, `INSERT INTO channels (tenant_id, channel_id, name, description, created_by, created_at)
+		VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, now())) ON CONFLICT (tenant_id, channel_id) DO NOTHING`,
+		c.TenantID, c.ChannelID, c.Name, c.Description, c.CreatedBy, created)
 	if err != nil {
 		return mapFK(err)
 	}
@@ -113,14 +113,14 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 		scan := func(q string, args []any, fn func(pgx.Rows) error) error {
 			return eachRow(ctx, tx, q, args, fn)
 		}
-		if err := scan(`SELECT channel_id, name, created_by, created_at FROM channels WHERE tenant_id = $1`,
+		if err := scan(`SELECT channel_id, name, description, created_by, created_at FROM channels WHERE tenant_id = $1`,
 			[]any{tenant}, func(r pgx.Rows) error {
 				var c Channel
-				if err := r.Scan(&c.ChannelID, &c.Name, &c.CreatedBy, &c.CreatedAt); err != nil {
+				if err := r.Scan(&c.ChannelID, &c.Name, &c.Description, &c.CreatedBy, &c.CreatedAt); err != nil {
 					return err
 				}
 				st := get(c.ChannelID)
-				st.Name, st.CreatedBy, st.CreatedAt = c.Name, c.CreatedBy, c.CreatedAt
+				st.Name, st.Description, st.CreatedBy, st.CreatedAt = c.Name, c.Description, c.CreatedBy, c.CreatedAt
 				return nil
 			}); err != nil {
 			return err

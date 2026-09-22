@@ -123,7 +123,8 @@ func TestWUIChannelFrameOnCreate(t *testing.T) {
 	b := dialWUI(t, e, tid, "HUM-2")
 	outsider := dialWUI(t, e, other, "HUM-3")
 
-	req, _ := http.NewRequest(http.MethodPost, e.url(tid)+"/v1/channels", strings.NewReader(`{"channel":"releases","name":"Releases"}`))
+	req, _ := http.NewRequest(http.MethodPost, e.url(tid)+"/v1/channels",
+		strings.NewReader(`{"channel":"releases","name":"Releases","description":"what ships, and when"}`))
 	req.Header.Set("Origin", wuiOrigin)
 	resp, err := e.client.Do(req)
 	if err != nil {
@@ -136,7 +137,9 @@ func TestWUIChannelFrameOnCreate(t *testing.T) {
 
 	for name, c := range map[string]*wuiClient{"A": a, "B": b} {
 		f := c.read("channel")
-		if f.Channel != "releases" || f.Name != "Releases" || f.CreatedAt == "" {
+		/* the description rides the frame too, or a sidebar that learns of the
+		   channel live shows it without one until the next reload (rdb 0027) */
+		if f.Channel != "releases" || f.Name != "Releases" || f.Description != "what ships, and when" || f.CreatedAt == "" {
 			t.Fatalf("%s channel frame: %+v", name, f)
 		}
 		if _, err := time.Parse(time.RFC3339, f.CreatedAt); err != nil {

@@ -266,6 +266,7 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 	type ch struct {
 		Channel       string  `json:"channel"`
 		Name          string  `json:"name"`
+		Description   string  `json:"description"`
 		Default       bool    `json:"default"`
 		RetentionDays int     `json:"retention_days"`
 		CreatedBy     string  `json:"created_by"`
@@ -278,7 +279,7 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 	}
 	out := []ch{}
 	for _, c := range rows {
-		v := ch{Channel: c.ChannelID, Name: c.Name, Default: c.Default, CreatedBy: c.CreatedBy,
+		v := ch{Channel: c.ChannelID, Name: c.Name, Description: c.Description, Default: c.Default, CreatedBy: c.CreatedBy,
 			RetentionDays: int(s.retention(c.ChannelID) / (24 * time.Hour)), Count: c.Count, Unread: c.Unread,
 			Members: members{Agents: c.Agents, Boxes: c.Boxes, Posters: c.Posters}}
 		if !c.LastAt.IsZero() {

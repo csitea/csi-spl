@@ -359,13 +359,22 @@ func TestChannelsCreateAndList(t *testing.T) {
 		json.Unmarshal(raw, &v) //nolint:errcheck
 		return resp.StatusCode, v
 	}
-	if code, v := post(`{"channel":"releases","name":"Releases"}`); code != http.StatusCreated || v["channel"] != "releases" || v["created_by"] != "wui" || v["default"] != false {
+	/* the description the WUI dialog collects next to the title (rdb 0027):
+	   trimmed, echoed by the 201, and readable again from §5.2 below */
+	if code, v := post(`{"channel":"releases","name":"Releases","description":"  what ships, and when  "}`); code != http.StatusCreated ||
+		v["channel"] != "releases" || v["created_by"] != "wui" || v["default"] != false ||
+		v["description"] != "what ships, and when" {
 		t.Fatalf("create: %d %+v", code, v)
+	}
+	/* omitted description is "", never null: one shape for every client */
+	if code, v := post(`{"channel":"quiet"}`); code != http.StatusCreated || v["description"] != "" {
+		t.Fatalf("create without description: %d %+v", code, v)
 	}
 	for body, want := range map[string]string{
 		`{"channel":"releases"}`: "channel_exists", `{"channel":"lobby"}`: "channel_exists",
 		`{"channel":"general"}`: "channel_exists", `{"channel":"Bad Slug"}`: "bad_channel",
 		`{"channel":"x","extra":1}`: "bad_json",
+		`{"channel":"toolong","description":"` + strings.Repeat("d", 501) + `"}`: "bad_channel",
 	} {
 		if _, v := post(body); v["error"] != want {
 			t.Fatalf("%s: %+v, want %s", body, v, want)
@@ -406,9 +415,15 @@ func TestChannelsCreateAndList(t *testing.T) {
 		return out
 	}
 	all := list("")
-	if len(all) != 4 || all["alerts"]["retention_days"] != float64(7) || all["tasks"]["retention_days"] != float64(30) ||
+	if len(all) != 5 || all["alerts"]["retention_days"] != float64(7) || all["tasks"]["retention_days"] != float64(30) ||
 		all["releases"]["name"] != "Releases" || all["tasks"]["last_ts"] != nil {
 		t.Fatalf("channels: %+v", all)
+	}
+	/* §5.2 carries the description back; a default channel and a channel made
+	   without one both read "" rather than a missing key */
+	if all["releases"]["description"] != "what ships, and when" || all["quiet"]["description"] != "" ||
+		all["lobby"]["description"] != "" {
+		t.Fatalf("descriptions: %+v", all)
 	}
 	if l := all["lobby"]; l["count"] != float64(2) || l["unread"] != float64(2) || l["default"] != true ||
 		l["members"].(map[string]any)["posters"] != float64(1) {

@@ -123,7 +123,7 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 	for k, c := range s.ch.rows {
 		if k[0] == tenant {
 			st := get(k[1])
-			st.Name, st.CreatedBy, st.CreatedAt = c.Name, c.CreatedBy, c.CreatedAt
+			st.Name, st.Description, st.CreatedBy, st.CreatedAt = c.Name, c.Description, c.CreatedBy, c.CreatedAt
 		}
 	}
 	posters := map[string]map[string]bool{}

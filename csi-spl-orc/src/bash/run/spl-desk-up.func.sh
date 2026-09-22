@@ -34,10 +34,18 @@
 # @param DESK_NOTIFY_CMD (optional) - the terminal-leg renderer (specs/028),
 # @param   default <org>-<app>-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh.
 # @param   `off` seats the agent with NO terminal leg (inbox only)
-# @param DESK_POKE (optional) - 1 (default) types the poke line into the agent's
-# @param   PROMPT under the safe-poke rules; 0 leaves the prompt alone and shows
-# @param   the message only. Use 0 where a person watches the pane and the
-# @param   prompt is theirs: an agent with 0 is told nothing it can act on
+# @param DESK_POKE (optional) - 1 (default) types the poke line into THIS
+# @param   AGENT's prompt under the safe-poke rules; 0 leaves that one prompt
+# @param   alone and shows the message only. Use 0 where a person watches the
+# @param   pane and the prompt is theirs: an agent with 0 is told nothing it can
+# @param   act on. PER AGENT since 2026-09-22 - it writes the marker file
+# @param   <spool root>/<agent>/.no-poke, because one sidecar serves the whole
+# @param   box and muting it muted every seat
+# @param DESK_BOX_POKE (optional) - 1 (default) or 0 for the WHOLE box: the
+# @param   sidecar's SPOOL_POKE. 0 silences every agent on this box, which is
+# @param   almost never what you want - mute the one seat with DESK_POKE=0.
+# @param   A live sidecar carrying a different value is RESTARTED, because that
+# @param   flag is only read at exec
 # @param DESK_WAIT_SECS (optional) - roster wait, default 30 (hub-run rescans every 10s)
 # @param DESK_WUI_URL (optional) - the WUI origin for the printed DM URL,
 # @param   default https://<env.dns.fqdn>
@@ -60,8 +68,9 @@ do_spl_desk_up() {
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   local notify="${DESK_NOTIFY_CMD-$APP_PATH/$SPL_ORG_APP-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh}"
   [[ "$notify" == off || -x "$notify" ]] || { do_log "FATAL DESK_NOTIFY_CMD '$notify' is not executable (use 'off' for no terminal leg)"; return 1; }
-  local poke="${DESK_POKE:-1}"
+  local poke="${DESK_POKE:-1}" boxpoke="${DESK_BOX_POKE:-1}"
   [[ "$poke" == 0 || "$poke" == 1 ]] || { do_log "FATAL DESK_POKE must be 0 or 1, got: '$poke'"; return 1; }
+  [[ "$boxpoke" == 0 || "$boxpoke" == 1 ]] || { do_log "FATAL DESK_BOX_POKE must be 0 or 1, got: '$boxpoke'"; return 1; }
 
   local wui="${DESK_WUI_URL:-https://$SPL_FQDN}"
   if (( dry )); then
@@ -79,8 +88,9 @@ do_spl_desk_up() {
 
   local pub
   pub="$(spl_desk_pin "$d" "$box" "$tenant" "$hub" "$rkj")" || return 1
+  spl_desk_mute "$d" "$agent" "$poke"
   spl_desk_purge_pokes "$d" "$agent" "$poke"
-  spl_desk_sidecar "$d" "$box" "$tenant" "$hub" "$notify" "$poke" || return 1
+  spl_desk_sidecar "$d" "$box" "$tenant" "$hub" "$notify" "$boxpoke" || return 1
   local pid="$SPL_DESK_PID"
   local announced=0
   spl_desk_wait_roster "$d" "$box" "$agent" "$wait" && announced=1
@@ -101,7 +111,7 @@ EOF_PY
   (( announced )) || {
     do_log "FAIL $agent is not announced on $box within ${wait}s: see $d/spool/.hub/hub-run.log"; return 1; }
   do_log "OK $agent is seated on $box in $tenant ($ENV): a human DMs it at $wui/dm/$agent@$box"
-  do_log "OK the terminal leg is $notify (prompt poke: $poke); the agent answers with: $reply"
+  do_log "OK the terminal leg is $notify (prompt poke for $agent: $poke, box-wide: $boxpoke); the agent answers with: $reply"
 }
 
 # spl_desk_show_pane <state dir> <agent> <notify cmd>: re-attach the agent's
@@ -173,6 +183,26 @@ spl_desk_pin() {
   cat "$d/pinned"
 }
 
+# spl_desk_mute <state dir> <agent> <poke>: the PER-AGENT prompt leg, as the
+# marker file the notifier reads.
+#
+# A file rather than a variable, and per agent rather than per box, because the
+# box-wide SPOOL_POKE is the one sidecar's environment: it is read once at exec
+# and it is shared by every seat. On 2026-09-22 the orchestrator seat wanted a
+# quiet prompt, the only knob available muted the whole box, and two owner DMs
+# reached nobody while every check read green.
+spl_desk_mute() {
+  local d="$1" agent="$2" poke="$3" m="$1/spool/$2/.no-poke"
+  if [[ "$poke" == 0 ]]; then
+    : >"$m" 2>/dev/null || { do_log "FAIL cannot write $m; $agent will still be poked"; return 1; }
+    do_log "INFO $agent is MUTED (DESK_POKE=0): its prompt is never typed into, and only that one seat is affected"
+  elif [[ -e "$m" ]]; then
+    rm -f "$m" 2>/dev/null
+    do_log "INFO $agent is no longer muted: its prompt takes the poke line again"
+  fi
+  return 0
+}
+
 # spl_desk_purge_pokes <state dir> <agent> <poke>: with the prompt leg OFF,
 # leave nothing behind that could still ring it. A queue and its daemon outlive
 # the sidecar that made them, so a desk restarted with DESK_POKE=0 would
@@ -213,11 +243,30 @@ spl_desk_alive() {
 # run.sh's fd 61/62/63 and the action hung after every step had passed.
 spl_desk_sidecar() {
   local d="$1" box="$2" tenant="$3" hub="$4" notify="$5" poke="${6:-1}"
-  local hubd="$d/spool/.hub" pidf
+  # $poke here is the BOX-wide SPOOL_POKE, not one agent's: this process serves
+  # every seat on the box. A single agent is spared with spl_desk_mute.
+  local hubd="$d/spool/.hub" pidf livepoke
   pidf="$hubd/hub-run.pid"
   SPL_DESK_PID=""
   exec 9>"$hubd/hub-run.lock" || { do_log "FATAL cannot open $hubd/hub-run.lock"; return 1; }
   flock 9
+  # SPOOL_POKE is read by the sidecar ONCE, at exec. A live sidecar carrying a
+  # different value than this call asks for is not a desk that can be fixed by
+  # asking again: re-running with DESK_POKE=1 against a SPOOL_POKE=0 process
+  # changed nothing and reported success, which is how two owner messages sat
+  # unread in an agent inbox on 2026-09-22 while every check read green. So the
+  # mismatch RESTARTS it rather than being accepted.
+  if spl_desk_alive "$pidf"; then
+    livepoke="$(spl_desk_sidecar_poke "$(cat "$pidf")")"
+    if [[ -n "$livepoke" && "$livepoke" != "$poke" ]]; then
+      do_log "INFO the live sidecar of $box runs SPOOL_POKE=$livepoke but this call asks for $poke; restarting it, because that flag is only read at exec"
+      kill "$(cat "$pidf")" 2>/dev/null || true
+      local w
+      for ((w = 0; w < 75; w++)); do spl_desk_alive "$pidf" || break; sleep 0.2; done
+      spl_desk_alive "$pidf" && { do_log "FATAL the sidecar of $box will not stop, so SPOOL_POKE cannot be changed"; flock -u 9; exec 9>&-; return 1; }
+      rm -f "$pidf"
+    fi
+  fi
   if spl_desk_alive "$pidf"; then
     SPL_DESK_PID="$(cat "$pidf")"
     do_log "INFO the hub-run sidecar of $box is already live (pid $SPL_DESK_PID, log $hubd/hub-run.log)"
@@ -236,6 +285,20 @@ spl_desk_sidecar() {
   fi
   flock -u 9; exec 9>&-
   [[ -n "$SPL_DESK_PID" ]]
+}
+
+# spl_desk_sidecar_poke <pid>: the SPOOL_POKE that process was started with, or
+# nothing when it cannot be read.
+#
+# From /proc/<pid>/environ, which is the value the process actually runs under -
+# not what a config file or this action would set now. That distinction is the
+# whole point: the flag is read at exec, so only the process itself knows it.
+spl_desk_sidecar_poke() {
+  local pid="$1" v
+  [[ "$pid" =~ ^[0-9]+$ && -r "/proc/$pid/environ" ]] || return 0
+  v="$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | sed -n 's/^SPOOL_POKE=//p' | tail -n 1)"
+  [[ "$v" == 0 || "$v" == 1 ]] && printf '%s' "$v"
+  return 0
 }
 
 # spl_desk_detach <log file> <cmd> [args]: start CMD as a session leader whose

@@ -84,6 +84,14 @@ if [ "${SPOOL_POKE:-1}" = 0 ]; then
   echo "poke: off (SPOOL_POKE=0) - ${TO} was SHOWN the message; its prompt was not touched"
   exit 0
 fi
+#    The per-AGENT form of the same decision. SPOOL_POKE is the sidecar's
+#    environment and one sidecar serves the whole box, so muting one seat used
+#    to mean muting every seat - which is how an orchestrator pane that wanted
+#    a quiet prompt silenced three working agents (2026-09-22).
+if spool_poke_muted "$TO"; then
+  echo "poke: off (${SPOOL_ROOT}/${TO}/.no-poke) - ${TO} was SHOWN the message; its prompt was not touched"
+  exit 0
+fi
 spool_notify_render _line "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
 spool_notify_poke "$TO" "$_line"
 rc=$?

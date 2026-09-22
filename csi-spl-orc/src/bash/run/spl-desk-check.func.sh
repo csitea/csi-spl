@@ -13,9 +13,16 @@
 # @description   local  - the hub-run sidecar's pid file, and whether it lives
 # @description   hub    - GET /v1/view/roster: is DESK_BOX online, and does it
 # @description            carry DESK_AGENT
-# @description Verdicts: ok | stranded (process alive, hub says offline - the
-# @description silent one) | down (no sidecar) | unpinned (the hub does not
-# @description know this box) | agent-missing (box online, agent not announced).
+# @description Verdicts: ok | muted (everything green, but the sidecar runs
+# @description SPOOL_POKE=0 so the agent is never TOLD - measured 2026-09-22,
+# @description two owner messages sat unread in an agent inbox while this action
+# @description said ok) | stranded (process alive, hub says offline - the silent
+# @description one) | down (no sidecar) | unpinned (the hub does not know this
+# @description box) | agent-missing (box online, agent not announced).
+# @description It also prints spool_root, which is NOT /var/spool-hub: a desk has
+# @description its own root under the state dir, and measuring the wrong tree is
+# @description how an afternoon went into "the messages were never delivered"
+# @description when they were sitting in the desk inbox all along (2026-09-22).
 # @description Read-only. DESK_REPAIR=1 with DRY_RUN=0 restarts a desk that is
 # @description stranded or down, which is the documented recovery until the box
 # @description client detects a dead session by itself.
@@ -54,26 +61,49 @@ do_spl_desk_check() {
   local stale=0
   (( alive )) && spl_desk_stale_build "$pid" && stale=1
 
+  # The EFFECTIVE prompt leg for THIS agent: the box-wide flag the sidecar
+  # actually runs under (read from the process - it is consumed at exec, so
+  # nothing else knows it) AND the per-agent marker the notifier reads.
+  local boxpoke="" livepoke=""
+  if (( alive )); then
+    boxpoke="$(spl_desk_sidecar_poke "$pid")"
+    if [[ -e "$d/spool/$agent/.no-poke" ]]; then livepoke=0
+    else livepoke="$boxpoke"; fi
+  fi
+
   local roster
   roster="$(spl_desk_roster "$tenant")" || return 1
   local verdict
-  verdict="$(spl_desk_verdict "$roster" "$box" "$agent" "$alive")" || {
+  verdict="$(spl_desk_verdict "$roster" "$box" "$agent" "$alive" "$livepoke")" || {
     do_log "FATAL cannot read the roster for $box/$agent"; return 1; }
 
-  python3 - "$ENV" "$tenant" "$box" "$agent" "$pid" "$alive" "$verdict" "$d" "$stale" <<'EOF_PY'
+  python3 - "$ENV" "$tenant" "$box" "$agent" "$pid" "$alive" "$verdict" "$d" "$stale" "$livepoke" "$boxpoke" <<'EOF_PY'
 import json, sys
-env, tenant, box, agent, pid, alive, verdict, state, stale = sys.argv[1:]
+env, tenant, box, agent, pid, alive, verdict, state, stale, poke, boxpoke = sys.argv[1:]
 v, online, listed, hello = (verdict.split("\t") + ["", "", ""])[:4]
 print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent,
                   "verdict": v, "sidecar_pid": int(pid) if pid else None,
                   "sidecar_alive": alive == "1", "hub_box_online": online == "1",
                   "hub_lists_agent": listed == "1", "hub_last_hello_at": hello or None,
-                  "sidecar_stale_build": stale == "1", "state_dir": state}, sort_keys=True))
+                  "sidecar_stale_build": stale == "1", "state_dir": state,
+                  "spool_root": state + "/spool",
+                  "terminal_poke": None if poke == "" else poke == "1",
+                  "terminal_poke_box": None if boxpoke == "" else boxpoke == "1",
+                  "agent_muted": poke == "0" and boxpoke == "1"}, sort_keys=True))
 EOF_PY
   (( stale )) && do_log "INFO the sidecar of $box is NOT running the spool binary now on disk: restart it (do_spl_desk_up rebuilds) before measuring anything that depends on a recent fix"
   local v="${verdict%%$'\t'*}"
   case "$v" in
-    ok) do_log "OK $agent on $box is reachable in $tenant ($ENV): the sidecar is up AND the hub has a session for it"; return 0 ;;
+    ok) do_log "OK $agent on $box is reachable in $tenant ($ENV): the sidecar is up AND the hub has a session for it"
+        do_log "OK its inbox is $d/spool/$agent/inbox (the DESK root, not /var/spool-hub)"; return 0 ;;
+    muted)
+      do_log "FAIL $agent on $box is MUTED in $tenant ($ENV): every leg is green and the sidecar runs SPOOL_POKE=0."
+      do_log "FAIL A DM lands in $d/spool/$agent/inbox and is shown in the notice strip, and the agent is never TOLD - an agent reads its prompt, not its pane."
+      if [[ -e "$d/spool/$agent/.no-poke" ]]; then
+        do_log "FAIL This ONE seat is muted by $d/spool/$agent/.no-poke. Recover: DESK_POKE=1 DRY_RUN=0 do_spl_desk_up"
+      else
+        do_log "FAIL The WHOLE BOX is muted: the sidecar runs SPOOL_POKE=0, so every agent on $box is in this state. Recover: DESK_BOX_POKE=1 DRY_RUN=0 do_spl_desk_up (the flag is read at exec, so the sidecar is restarted)"
+      fi ;;
     stranded)
       do_log "FAIL $agent on $box is STRANDED in $tenant ($ENV): the sidecar (pid $pid) is alive and the hub says the box is OFFLINE."
       do_log "FAIL Messages the hub accepts are NOT reaching this box, and nothing logs it. Recover: DESK_REPAIR=1 DRY_RUN=0" ;;
@@ -128,11 +158,12 @@ spl_desk_roster() {
     python3 "$APP_PATH/$SPL_ORG_APP-orc/src/bash/scripts/roster-show.py"
 }
 
-# spl_desk_verdict <roster json> <box> <agent> <alive>: "<verdict>\t<online>\t<listed>\t<last hello>"
+# spl_desk_verdict <roster json> <box> <agent> <alive> [poke]: "<verdict>\t<online>\t<listed>\t<last hello>"
 spl_desk_verdict() {
-  python3 - "$1" "$2" "$3" "$4" <<'EOF_PY'
+  python3 - "$1" "$2" "$3" "$4" "${5:-}" <<'EOF_PY'
 import json, sys
 raw, box, agent, alive = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "1"
+poke = sys.argv[5] if len(sys.argv) > 5 else ""
 try:
     boxes = (json.loads(raw) or {}).get("boxes", [])
 except ValueError:
@@ -151,6 +182,12 @@ elif not online:
     v = "stranded"
 elif not listed:
     v = "agent-missing"
+elif poke == "0":
+    # Everything a health check used to look at is green here. The message is
+    # delivered, the strip shows it, and the one leg that reaches the agent -
+    # its prompt - is switched off, so nothing is acted on and nothing logs a
+    # failure. That is worse than down: down is visible.
+    v = "muted"
 else:
     v = "ok"
 print("\t".join([v, "1" if online else "0", "1" if listed else "0", hello]))
@@ -165,7 +202,7 @@ spl_desk_repair() {
   if [[ "$repair" != 1 ]]; then
     do_log "INFO not repairing (DESK_REPAIR is not 1)"; return 1
   fi
-  [[ "$v" == stranded || "$v" == down ]] || {
+  [[ "$v" == stranded || "$v" == down || "$v" == muted ]] || {
     do_log "FATAL '$v' is not something a restart fixes; look at the pin and the tenant"; return 1; }
   if spl_dry_run; then
     do_log "INFO DRY_RUN would: restart the desk $agent@$box in $tenant ($v). Re-run with DRY_RUN=0."
@@ -173,6 +210,8 @@ spl_desk_repair() {
   fi
   do_log "INFO repairing a '$v' desk: do_spl_desk_down then do_spl_desk_up for $agent@$box"
   TENANT_ID="$tenant" DESK_BOX="$box" DESK_AGENT="$agent" DRY_RUN=0 do_spl_desk_down || return 1
-  TENANT_ID="$tenant" DESK_BOX="$box" DESK_AGENT="$agent" DRY_RUN=0 do_spl_desk_up || return 1
+  # A muted desk is repaired by turning the prompt leg back ON - restarting it
+  # with the same SPOOL_POKE=0 would come back muted and report success.
+  TENANT_ID="$tenant" DESK_BOX="$box" DESK_AGENT="$agent" DESK_POKE=1 DRY_RUN=0 do_spl_desk_up || return 1
   do_log "OK repaired: $agent@$box has a fresh sidecar and the hub has a session for it again"
 }

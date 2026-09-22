@@ -122,7 +122,11 @@ spool_poke_retry_ensure() {  # ID
 #
 #   SPOOL_SHOW            1 (default) or 0 to skip the visible half entirely
 #   SPOOL_POKE            1 (default) or 0 to leave the PROMPT alone entirely
-#                         (read by spool-notify.sh; the pane still shows it)
+#                         (read by spool-notify.sh; the pane still shows it).
+#                         BOX-wide: it is the notifier's environment, inherited
+#                         from the one `hub-run` sidecar that serves the whole
+#                         box, so it cannot say "this agent yes, that one no".
+#                         Per-AGENT muting is the .no-poke marker below.
 #   SPOOL_SHOW_PANE       auto (default: a notice pane when the agent's pane is
 #                         on the alternate screen) | 1 always | 0 never
 #   SPOOL_SHOW_PANE_COLS  notice STRIP width in columns, default 48. The strip
@@ -138,6 +142,22 @@ spool_poke_retry_ensure() {  # ID
 #   SPOOL_SHOW_MS         status-line dwell, default 20000 (0 = until a key)
 #   SPOOL_SHOW_BODY_MAX   body excerpt, default 400
 #   SPOOL_SHOW_COLOUR     1 (default) or 0; NO_COLOR in the environment wins
+
+# 0 when THIS agent has asked for its prompt to be left alone, whatever the
+# box-wide SPOOL_POKE says: the marker file $SPOOL_ROOT/<ID>/.no-poke.
+#
+# A per-agent knob is needed because SPOOL_POKE is not one. One `hub-run`
+# sidecar serves every agent on a box and the notifier inherits its
+# environment, so the only way to spare ONE pane used to be to mute the whole
+# box - which is exactly what happened on 2026-09-22: the orchestrator's own
+# seat wanted a quiet prompt, every seat got one, and two owner DMs reached
+# nobody. The file makes "spare that pane" cost one pane instead of all of them.
+#
+# A file, not another variable: the sidecar reads its environment once at exec,
+# so a variable could not be changed without restarting delivery for everyone.
+spool_poke_muted() {  # ID
+  [ -e "$SPOOL_ROOT/$1/.no-poke" ]
+}
 
 # TEXT with tmux format syntax neutralised: display-message EXPANDS #{...} and
 # #(...) in its argument, so a message body is a format-injection surface.

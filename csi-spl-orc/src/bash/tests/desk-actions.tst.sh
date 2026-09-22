@@ -20,6 +20,10 @@
 #      leaves the box blocked on a dead socket with a healthy-looking process
 #      and no log line. stranded / down / unpinned / agent-missing / ok, and a
 #      repair that refuses the verdicts a restart cannot fix
+#   7. the PROMPT leg: a desk where every other leg is green and SPOOL_POKE=0
+#      reads MUTED, not ok - the state two owner DMs sat unread in on
+#      2026-09-22 while every check said healthy - and the mute is per AGENT,
+#      because SPOOL_POKE belongs to the one sidecar the whole box shares
 #   6. spl_desk_detach leaves the caller's descriptors alone: a daemon started
 #      inside a command substitution must not hold it open. That regression hung
 #      `./run` after every step of do_spl_desk_up had passed (2026-09-21)
@@ -152,7 +156,7 @@ ros() {  # ONLINE LISTED [BOX]
   printf '{"boxes":[{"box_id":"%s","online":%s,"revoked":false,"last_hello_at":"2026-09-21T13:10:51Z","agents":[%s]}]}' \
     "${3:-box-desk}" "$1" "$([ "$2" = 1 ] && echo '"CLE-00"' || echo '')"
 }
-v_of() { SNIPPET="spl_desk_verdict '$1' box-desk CLE-00 $2" in_orc 2>&1 | cut -f1; }
+v_of() { SNIPPET="spl_desk_verdict '$1' box-desk CLE-00 $2 ${3:-}" in_orc 2>&1 | cut -f1; }
 
 [[ "$(v_of "$(ros true 1)" 1)"  == ok ]]            && pass "alive + hub session = ok"            || fail "ok: $(v_of "$(ros true 1)" 1)"
 [[ "$(v_of "$(ros false 1)" 1)" == stranded ]]      && pass "alive + hub says OFFLINE = stranded"  || fail "stranded: $(v_of "$(ros false 1)" 1)"
@@ -163,6 +167,33 @@ v_of() { SNIPPET="spl_desk_verdict '$1' box-desk CLE-00 $2" in_orc 2>&1 | cut -f
 # A revoked pin must not read as a live session.
 [[ "$(v_of '{"boxes":[{"box_id":"box-desk","online":true,"revoked":true,"agents":["CLE-00"]}]}' 1)" == stranded ]] &&
   pass "a REVOKED box is not reachable, whatever online says" || fail "revoked box did not read as unreachable"
+# MUTED: every leg green and the prompt leg off. This is the state a check
+# used to call "ok" while the agent was never told anything - measured
+# 2026-09-22, two owner DMs unread in an inbox that every dashboard said was
+# healthy. It is worse than "down", because "down" is visible.
+[[ "$(v_of "$(ros true 1)" 1 0)" == muted ]] && pass "green everywhere + SPOOL_POKE=0 = muted" ||
+  fail "muted: $(v_of "$(ros true 1)" 1 0)"
+[[ "$(v_of "$(ros true 1)" 1 1)" == ok ]] && pass "…and with the poke ON it is ok again" ||
+  fail "poke=1 did not read ok: $(v_of "$(ros true 1)" 1 1)"
+[[ "$(v_of "$(ros true 1)" 1)"  == ok ]] && pass "an UNKNOWN poke state is not called muted" ||
+  fail "unknown poke read as muted"
+# A muted desk is a restart the action must be willing to make, unlike unpinned.
+out=$(SNIPPET="spl_desk_repair muted 1 t1 box-desk CLE-00" in_orc 2>&1)
+[[ "$out" == *"DRY_RUN would"* ]] && pass "a muted desk IS something a restart fixes" || fail "muted repair refused: $out"
+
+# The marker the notifier reads: per AGENT, because SPOOL_POKE is per BOX. One
+# sidecar serves every seat, so the only knob that existed muted all of them.
+MD="$T/mute/spool/CLE-00"; mkdir -p "$MD"
+SNIPPET="spl_desk_mute '$T/mute' CLE-00 0" in_orc >/dev/null 2>&1
+[[ -e "$MD/.no-poke" ]] && pass "DESK_POKE=0 writes the per-agent .no-poke marker" || fail "no marker written"
+SNIPPET="spl_desk_mute '$T/mute' CLE-00 1" in_orc >/dev/null 2>&1
+[[ ! -e "$MD/.no-poke" ]] && pass "DESK_POKE=1 takes it away again" || fail "the marker survived DESK_POKE=1"
+# CONTROL: muting one seat must not touch another.
+mkdir -p "$T/mute/spool/CLE-77"
+SNIPPET="spl_desk_mute '$T/mute' CLE-00 0" in_orc >/dev/null 2>&1
+[[ -e "$MD/.no-poke" && ! -e "$T/mute/spool/CLE-77/.no-poke" ]] &&
+  pass "CONTROL muting one seat leaves every other seat poked" || fail "muting one seat affected another"
+
 SNIPPET="spl_desk_verdict 'not json' box-desk CLE-00 1" in_orc >/dev/null 2>&1
 [[ $? -ne 0 ]] && pass "an unreadable roster is an error, not a verdict" || fail "bad roster json did not fail"
 

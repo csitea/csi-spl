@@ -34,6 +34,11 @@
 # @param DESK_RETIRE (optional) - 1 (default) retire agents with no live window,
 # @param   0 leave them announced
 # @param DESK_SKIP (optional) - space-separated agent ids never to seat
+# @param DESK_MUTE (optional) - space-separated agent ids seated with their
+# @param   PROMPT left alone (DESK_POKE=0 for those seats only). Use it for a
+# @param   pane a PERSON is talking in, where a poke line interrupts them - the
+# @param   orchestrator seat is the worked example. Every other agent still
+# @param   takes the poke, which is the whole point of making it per agent
 # @param DESK_WAIT_SECS (optional) - roster wait per agent, default 30
 # @param ROOT_KEY_JSON (optional) - only for the FIRST run of a desk box
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -60,7 +65,7 @@ do_spl_desk_up_all() {
   fi
   do_log "INFO live agent windows: ${live[*]}"
 
-  local a skip=" ${DESK_SKIP:-} "
+  local a skip=" ${DESK_SKIP:-} " mute=" ${DESK_MUTE:-} "
   for a in "${live[@]}"; do
     [[ "$skip" == *" $a "* ]] && { do_log "INFO skipping $a (DESK_SKIP)"; continue; }
     seat+=("$a")
@@ -71,6 +76,7 @@ do_spl_desk_up_all() {
 
   if (( dry )); then
     do_log "INFO DRY_RUN would: seat ${#seat[@]} agent(s) on $box in $tenant: ${seat[*]:-none}"
+    [[ -n "${DESK_MUTE:-}" ]] && do_log "INFO DRY_RUN would: seat these with the prompt left alone (DESK_MUTE): ${DESK_MUTE}"
     if [[ "$retire" == 1 ]]; then
       do_log "INFO DRY_RUN would: retire ${#dead[@]} agent(s) whose window is gone: ${dead[*]:-none}"
     else
@@ -90,8 +96,11 @@ do_spl_desk_up_all() {
     exec 8>&-; return 0
   fi
 
+  local apoke
   for a in "${seat[@]}"; do
-    if TENANT_ID="$tenant" DESK_BOX="$box" DESK_AGENT="$a" DESK_POKE="$poke" \
+    apoke="$poke"
+    [[ "$mute" == *" $a "* ]] && apoke=0
+    if TENANT_ID="$tenant" DESK_BOX="$box" DESK_AGENT="$a" DESK_POKE="$apoke" \
        DESK_WAIT_SECS="${DESK_WAIT_SECS:-30}" DRY_RUN=0 do_spl_desk_up; then
       seated+=("$a")
     else

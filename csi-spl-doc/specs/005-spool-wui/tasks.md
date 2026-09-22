@@ -149,23 +149,35 @@ inferred in `src/utils/msg-edit.mjs` and in the unit-test case names too.
   proof caught the lobby feed behind the 3rd panel still showing the OLD body.
   Check: `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → 730 pass, 0 fail;
   `./node_modules/.bin/nuxi typecheck` → exit 0.
-- [x] T039 Implemented (`2ba496d`) — `tests/e2e/msg-edit-live.proof.mjs`, in real Chrome:
+- [x] T039 Implemented (`2ba496d`, wired into CI by `<ci sha>`) — `tests/e2e/msg-edit.test.mjs`, in real Chrome:
   focus a row → `e` → the textarea holds the OLD body **as source, not as rendered
   markdown** → type → Enter → the row shows the new body and the marker; a second pass for
   Escape; the same row in the feed behind the panel; a fresh API read; and `e` on somebody
-  else's message opening nothing. Check: `cd csi-spl-wui && node tests/e2e/msg-edit-live.proof.mjs` → 21/21 OK.
+  else's message opening nothing.
+  Check: `cd csi-spl-wui && pnpm run test:e2e:msg-edit` → 21/21 OK. It is a `.test.mjs`, not a
+  `.proof.mjs`, because it needs no credentials and no live endpoint: it runs in
+  `10 ci: quality gate` → `wui: browser e2e (mock, generated)` on every push, against the same
+  generated bundle and stub API that job already builds. The `.proof.mjs` shelf here is for the
+  ones CI cannot run (`user-menu-live.proof.mjs` needs a real signed-in session).
 
-  **SUBSTITUTION, stated rather than papered over.** This runs against the lde MOCK bundle,
-  because the hub endpoint is not deployed. Measured 2026-09-22T08:0x Z, by this lane:
+  **SUBSTITUTION, pinned to the moment it was true.** These e2e legs ran against the generated
+  lde MOCK bundle, not a live hub. *Measured 2026-09-22T08:07Z, on sha `2ba496d`, by this lane:*
   `curl -s https://api.spool-hub.ai/version` and `curl -s https://dev.api.spool-hub.ai/version`
-  → both `{"commit":"039c2dfa…","version":"0.1.20"}`, and
+  → both `{"commit":"039c2dfa…","version":"0.1.20"}`; and
   `curl -o /dev/null -w '%{http_code}' -X OPTIONS https://dev.api.spool-hub.ai/v1/messages/<uuid>`
-  → `404`. The hub half (`d8ecb2a`) is on trunk but the image tag in `csi-spl-cnf` is not
-  bumped, which is contract §8's ordering and CLE-00's lane. So the e2e proves the BROWSER
-  contract against a mock that reproduces all four hub refusals; it does NOT prove a real
-  hub edit. Durability across a page reload is likewise a hub property and is not provable
-  here — the mock store is `cloneMock()` inside the client module and a reload resets it, so
-  the proof re-reads through the API instead and says so.
+  → `404`. The hub half (`d8ecb2a`) was on trunk with its `csi-spl-cnf` image tag unbumped, which
+  is contract §8's ordering (`0026` first, image second) and CLE-00's lane, not this one.
+  **That 404 is a fact about 08:07Z, not a standing claim** — T009 (the migration and the 0.1.21
+  roll) was released shortly afterwards and is expected to change it.
+
+  So, precisely: the browser contract is proved — `e`, the pre-filled box, Enter, Escape, the
+  marker, the cross-view update — against a mock that reproduces all four hub refusals
+  (`not_author` 403, `not_found` 404, `empty_body` 400, `not_editable` 409). **NOT proved here:
+  a real PATCH against the deployed hub**, and durability across a page reload, which is a hub
+  property the mock cannot show at all — its store is `cloneMock()` inside the client module and
+  a reload resets it, so the gate re-reads through the API instead of claiming it. Re-running
+  this gate with `BASE_URL` against a signed-in live host once 0.1.21 is serving would close that
+  gap; it is available to whoever picks it up.
 
   **The gate was shown FAILING, with the defect planted in `src/`, not in the harness.**
   `beginEdit()` changed to `return { msgId, original, draft: '' }`:
@@ -176,5 +188,12 @@ inferred in `src/utils/msg-edit.mjs` and in the unit-test case names too.
   {"expected":"Welcome to **#lobby**. …","got":""}`. Restored (`diff` against the backup →
   identical) and re-run green. The proof also carries `PROVE_RED=prefill-empty|no-marker|no-escape`
   for a harness-side plant that needs no edit to `src/`.
+
+  The PURE half of this was already a CI gate from T036: `tests/unit/msg-edit.test.mjs` runs in
+  `wui: unit tests + typecheck` on every push and pins the pre-fill (`beginEdit` never yields an
+  empty draft) and the author predicate (`wantsEdit` / `canEditMessage` true only for an own,
+  non-pending, `box-wui` row). What was missing until the CI wiring above was the Vue/DOM half —
+  `e` actually reaching the handler and the textarea appearing pre-filled — and that is what the
+  browser gate now covers.
 
 <!-- version: 1.8.0 · updated: 2026-09-22 · last-edit: 2026-09-22T08:10:00Z -->

@@ -17,7 +17,7 @@
 // asserts the textarea's value EQUALS the old body rather than asserting that
 // a textarea appeared. Plant the defect and watch it go red:
 //
-//   PROVE_RED=prefill-empty node tests/e2e/msg-edit-live.proof.mjs
+//   PROVE_RED=prefill-empty pnpm run test:e2e:msg-edit
 //
 // which makes the proof itself blank the box after opening it — the same
 // observable state a `beginEdit` that forgot the body would produce — so the
@@ -26,10 +26,17 @@
 //   PROVE_RED=no-marker   the "(edited)" marker is ignored even if rendered
 //   PROVE_RED=no-escape   Escape is not sent, so the original is never restored
 //
+// This is a `.test.mjs` and not a `.proof.mjs` on purpose: it needs no
+// credentials and no live endpoint, so it runs in CI on every push
+// (`10 ci: quality gate` -> `wui: browser e2e (mock, generated)`) rather than
+// only when an operator remembers it. The `.proof.mjs` shelf in this directory
+// is for the ones that CANNOT run there — user-menu-live, for instance, needs
+// a real signed-in session.
+//
 // Run:
-//   node tests/e2e/msg-edit-live.proof.mjs
-//   BASE_URL=<generated bundle> node tests/e2e/msg-edit-live.proof.mjs
-//   OUT=/var/tmp/CLE-3445-proof node tests/e2e/msg-edit-live.proof.mjs
+//   pnpm run test:e2e:msg-edit
+//   BASE_URL=<generated bundle> pnpm run test:e2e:msg-edit     # exactly what CI does
+//   OUT=/var/tmp/CLE-3445-proof pnpm run test:e2e:msg-edit     # screenshots
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { mkdirSync } from 'node:fs'
@@ -294,20 +301,27 @@ try {
     ok("pressing e on somebody else's message does NOT open an editor", false, { reason: 'their row was not on screen to focus' })
   }
 
-  /* ---- 9. nothing the browser refused ---------------------------------- */
+  /* ---- 9. nothing the browser REFUSED, and no script blew up ---------- */
   /*
-   * Scoped, and the scope is measured rather than assumed: the mock harness
-   * itself logs two 404s on every page — `/api/v1/auth/session` and
-   * `/build.json`, neither of which a nuxi dev server serves. Asserting
-   * "zero console errors" here would fail on the harness and say nothing
-   * about this lane, so the two known lines are named and excluded and
-   * everything else still counts.
+   * Deliberately narrow, because this gate runs in CI and a gate that goes
+   * red for somebody else's reason is worse than no gate.
+   *
+   * What is asserted: CSP violations, and page errors (an exception that
+   * escaped). Those are this lane's business — a new inline handler or a new
+   * style would trip the deployed CSP, and the editor is new DOM.
+   *
+   * What is NOT asserted: failed resource loads. The harness's own stub API
+   * answers 401 / 404 by design, and a local run without the stub produces
+   * 502s; neither says anything about editing a message. `console-errors`
+   * is its own gate on trunk and owns that question already — restating it
+   * here would only mean two jobs going red for one unrelated cause.
    */
-  const HARNESS_404 = /\/api\/v1\/auth\/session|\/build\.json/
+  const RESOURCE = /Failed to load resource/i
   const csp = consoleErrors.filter((m) => /Content Security Policy|Refused to/i.test(m))
-  const ours = consoleErrors.filter((m) => !HARNESS_404.test(m))
-  ok('no CSP violation and no page error of ours', csp.length === 0 && ours.length === 0,
-    { csp: csp.slice(0, 2), errors: ours.slice(0, 3), harness_404_ignored: consoleErrors.length - ours.length })
+  const pageErrors = consoleErrors.filter((m) => m.startsWith('pageerror:'))
+  ok('no CSP violation and no uncaught page error', csp.length === 0 && pageErrors.length === 0,
+    { csp: csp.slice(0, 2), pageErrors: pageErrors.slice(0, 2),
+      resource_errors_not_asserted: consoleErrors.filter((m) => RESOURCE.test(m)).length })
 } catch (e) {
   if (isViewportHarnessError(e)) ok('harness: the viewport was applied', false, { error: String(e.message) })
   else ok('the proof ran to the end', false, { error: String(e && e.message ? e.message : e).slice(0, 300) })

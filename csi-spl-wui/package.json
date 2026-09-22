@@ -21,6 +21,7 @@
     "test:e2e:rounded": "node tests/e2e/rounded-corners.test.mjs",
     "test:e2e:scroll-anchor": "node tests/e2e/scroll-anchor.test.mjs",
     "test:e2e:thread-pane": "node tests/e2e/thread-pane-single.test.mjs",
+    "test:e2e:msg-edit": "node tests/e2e/msg-edit.test.mjs",
     "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs"
   },
   "dependencies": {

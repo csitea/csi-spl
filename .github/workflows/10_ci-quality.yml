@@ -169,7 +169,7 @@ jobs:
           NUXT_PUBLIC_DEFAULT_LOCALE: "en"
         run: pnpm run generate
 
-      - name: Browser e2e (no-x-scroll, console-errors, thread-pane)
+      - name: Browser e2e (no-x-scroll, console-errors, thread-pane, msg-edit)
         env:
           CI: "1"
         run: |
@@ -222,6 +222,7 @@ jobs:
           pnpm run test:e2e
           pnpm run test:e2e:console-errors
           pnpm run test:e2e:thread-pane
+          pnpm run test:e2e:msg-edit
 
   # ===========================================================================
   # The IAC suite (016 T003): csi-spl-iac/src/bash/tests/run-all-tests.sh --

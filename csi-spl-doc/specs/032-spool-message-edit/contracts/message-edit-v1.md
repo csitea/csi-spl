@@ -205,9 +205,14 @@ frame carries everything it needs to build the replacement row without a refetch
 
 ## 4. Authorisation
 
-**The author, and nobody else. No time window.** (Integrator ruling, 2026-09-22; the
-owner said "slack wise" but did not ask for Slack's editing window, and a silent expiry
-produces a bug report rather than a feature.)
+**The author, and nobody else. No time window.**
+
+The author-only half is **OWNER-STATED, 2026-09-22**: *"of course msgs sent by bots should
+not be editable"*. It was an integrator ruling first, made the same morning, and the owner
+stated it themselves after seeing the `e` affordance offered on bot messages in the live WUI.
+The **no time window** half is still the integrator's ruling (the owner said "slack wise" but
+did not ask for Slack's editing window, and a silent expiry produces a bug report rather than
+a feature); the owner has not spoken to it, so it stays overrulable cheaply.
 
 The hub requires **all** of the following, in this order:
 
@@ -348,4 +353,4 @@ This contract remains compatible with 020's freeze, which is the reason it *coul
 lived there: it adds no field to the message object (§0), because the edit marker is hub
 metadata beside `cursor` and `received_at`. `020` carries a one-line pointer here.
 
-<!-- version: 0.1.0 · updated: 2026-09-22 · last-edit: 2026-09-22T07:45:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T11:42:31Z -->

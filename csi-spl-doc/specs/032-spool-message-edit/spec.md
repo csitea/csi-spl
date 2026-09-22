@@ -25,9 +25,12 @@ them — comparing the two.
 
 ### Session 2026-09-22 (integrator rulings, CLE-00)
 
-- **Authorisation: the author only, and no time window.** The owner said "slack wise" but
-  did not ask for Slack's editing window, and a silent expiry produces a bug report rather
-  than a feature.
+- **Authorisation: the author only, and no time window.** **OWNER-STATED, 2026-09-22**:
+  *"of course msgs sent by bots should not be editable"*. It began as an integrator ruling
+  the same morning — the owner said "slack wise" but did not ask for Slack's editing window,
+  and a silent expiry produces a bug report rather than a feature — and the owner then stated
+  the rule themselves when they found the `e` affordance being offered on bot messages. The
+  no-time-window half remains the integrator's; the owner has not spoken to it.
 - **Escape cancels the edit.** Recorded as **INFERRED**, not owner-stated.
 - **Spec home**: this dir, moved out of `020-spool-message-v2` on the morning it was
   written (`contracts/message-edit-v1.md` §9).
@@ -120,4 +123,4 @@ that fails if the guard is removed.
   (contract §8), and the intermediate state is safe because the old image reads and
   writes neither the new table nor the new columns.
 
-<!-- version: 0.1.0 · updated: 2026-09-22 · last-edit: 2026-09-22T07:50:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T11:42:31Z -->

@@ -106,11 +106,27 @@ func (s *Server) dispatchCheck(ctx context.Context, c *wuiConn, m *msg.Message) 
 	if _, err := s.o.Store.GetPin(ctx, c.tenant, box); err != nil {
 		return "", nil, "unpinned_box", http.StatusNotFound, box + " is not pinned in this tenant"
 	}
-	pin, err = s.o.Store.GetPin(ctx, c.tenant, WUIBox)
-	if err != nil || !pin.Equal(s.wuiPub()) {
+	if pin = s.wuiPin(ctx, c.tenant); pin == nil {
 		return "", nil, "wui_unpinned", http.StatusConflict, "this tenant has not pinned the hub's box-wui key (GET /v1/wui/pubkey, then pin it with the tenant root key)"
 	}
 	return box, pin, "", 0, ""
+}
+
+// wuiPin is the tenant's active box-wui pin when it is this hub's own key,
+// else nil: the one condition under which the hub may sign for box-wui and a
+// receiving box will verify it (§3 step 5). Both signers - a dispatch to one
+// agent's box and a channel post fanned out to every member box - go through
+// it, so a rotation window closes them together.
+func (s *Server) wuiPin(ctx context.Context, tenant string) ed25519.PublicKey {
+	pub := s.wuiPub()
+	if pub == nil {
+		return nil
+	}
+	pin, err := s.o.Store.GetPin(ctx, tenant, WUIBox)
+	if err != nil || !pin.Equal(pub) {
+		return nil
+	}
+	return pin
 }
 
 // dispatchEnvelope signs m for box (with the send's channel / parent tags,

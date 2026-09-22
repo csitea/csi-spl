@@ -149,7 +149,7 @@ func (s *syncWriter) Write(p []byte) (int, error) {
 	return s.w.Write(p)
 }
 
-func TestChannelMentionRouting(t *testing.T) {
+func TestChannelMembershipRouting(t *testing.T) {
 	trace, withLog := traceOnFailure(t)
 	e := newEnv(t, withLog)
 	tid, _ := e.tenant()
@@ -171,27 +171,28 @@ func TestChannelMentionRouting(t *testing.T) {
 		return m, f, err
 	}
 
-	// Control: ambient chat in #tasks (no mention, to ALL-0) reaches no box.
-	m0, f, err := post("tasks", "ALL-0", "ambient: build is green, @CLE-07x is not a mention")
+	// THE control for the owner rule (2026-09-22): a plain line in #tasks,
+	// no mention and a broadcast `to`, reaches BOTH members of box-b. Delete
+	// the membership routing and this is the assertion that goes red - the
+	// pre-rule hub answered "no deliveries row, no recv" here.
+	m0, f, err := post("tasks", "ALL-0", "build is green, @CLE-07x is not a mention")
 	if err != nil || f.Delivery != wire.DeliverySent {
-		t.Fatalf("ambient send: %v %+v", err, f)
+		t.Fatalf("plain send: %v %+v", err, f)
 	}
-	if _, err := e.st.DeliveryState(ctx, tid, m0.MsgID, "box-b"); !errors.Is(err, store.ErrNotFound) {
-		t.Fatalf("ambient chat queued for box-b: %v", err)
+	if r := rb.next(wire.TRecv); len(r.Agents) != 2 || r.Agents[0] != "CLE-07" || r.Agents[1] != "CLE-08" {
+		t.Fatalf("plain post agents: %+v (a channel post addresses every member)", r.Agents)
 	}
-	if fr, err := rb.within(wire.TRecv, 300*time.Millisecond); err == nil {
-		t.Fatalf("ambient chat pushed to box-b: %+v", fr)
+	if st, _ := e.st.DeliveryState(ctx, tid, m0.MsgID, "box-b"); st != store.StateSent {
+		t.Fatalf("plain post delivery state %q", st)
 	}
-	rb.c.CloseNow() //nolint:errcheck // a timed-out read killed the socket
-	rb = e.rawBox(tid, b, []string{"CLE-07", "CLE-08"}, []string{"tasks"})
 
-	// @CLE-07 → box-b, agents [CLE-07].
+	// A mention neither narrows nor widens it: still every member.
 	m1, _, err := post("tasks", "ALL-0", "@CLE-07 please run the suite")
 	if err != nil {
 		t.Fatal(err)
 	}
 	r := rb.next(wire.TRecv)
-	if len(r.Agents) != 1 || r.Agents[0] != "CLE-07" {
+	if len(r.Agents) != 2 {
 		t.Fatalf("mention agents: %+v", r.Agents)
 	}
 	if got, _ := wire.ParseEnvelope(r.Env); got == nil || got.Channel != "tasks" || got.ToBox != hub.WUIBox {
@@ -200,8 +201,6 @@ func TestChannelMentionRouting(t *testing.T) {
 	if st, _ := e.st.DeliveryState(ctx, tid, m1.MsgID, "box-b"); st != store.StateSent {
 		t.Fatalf("mention delivery state %q", st)
 	}
-
-	// @channel → every member of box-b.
 	if _, _, err := post("tasks", "ALL-0", "heads up @channel"); err != nil {
 		t.Fatal(err)
 	}
@@ -209,15 +208,26 @@ func TestChannelMentionRouting(t *testing.T) {
 		t.Fatalf("@channel agents: %+v", r.Agents)
 	}
 
-	// Not subscribed: #alerts mention of CLE-07 is not routed (box-b did not subscribe).
+	// CONTROL: membership is what routes, not the body. #alerts is a channel
+	// box-b did not join, so even a mention of CLE-07 reaches no box.
 	m3, _, _ := post("alerts", "ALL-0", "@CLE-07 disk full")
 	if _, err := e.st.DeliveryState(ctx, tid, m3.MsgID, "box-b"); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("unsubscribed channel routed: %v", err)
 	}
-	// ... but #lobby is implicit for every announced agent.
-	m4, _, _ := post("general", "ALL-0", "@CLE-08 hi from the lobby alias")
-	if r := rb.next(wire.TRecv); len(r.Agents) != 1 || r.Agents[0] != "CLE-08" {
-		t.Fatalf("lobby mention: %+v", r.Agents)
+	// CONTROL: a DM (no channel tag, not the lobby task) is not fanned out
+	// either - the owner rule is about channels, and DM routing is untouched.
+	dm := chanMsg(uuidV4(), "CLE-07", "note", "just for you")
+	if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "", "", dm)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.DeliveryState(ctx, tid, dm.MsgID, "box-b"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("DM channel-routed to box-b: %v", err)
+	}
+
+	// #lobby is implicit for every announced agent, under the general alias.
+	m4, _, _ := post("general", "ALL-0", "hi from the lobby alias")
+	if r := rb.next(wire.TRecv); len(r.Agents) != 2 {
+		t.Fatalf("lobby post: %+v", r.Agents)
 	}
 	rows, _ := e.st.ViewThreads(ctx, tid, store.ThreadQuery{Now: time.Now(), Channel: "lobby"})
 	if len(rows) != 1 {
@@ -225,12 +235,12 @@ func TestChannelMentionRouting(t *testing.T) {
 	}
 	_ = m4
 
-	// Offline: queued, drained on hello with agents recomputed.
+	// Offline: queued, drained on hello with the member list recomputed.
 	trace("body done up to offline")
 	trace("offline: CloseNow box-b")
 	rb.c.CloseNow() //nolint:errcheck
 	eventually(t, "box-b offline", func() bool {
-		m, f, err := post("tasks", "ALL-0", "@CLE-08 while you were out")
+		m, f, err := post("tasks", "ALL-0", "while you were out")
 		st, serr := e.st.DeliveryState(ctx, tid, m.MsgID, "box-b")
 		trace("offline post %s: send err=%v delivery=%q; box-b row %q (%v)", m.MsgID, err, f.Delivery, st, serr)
 		return st == store.StateQueued
@@ -239,7 +249,7 @@ func TestChannelMentionRouting(t *testing.T) {
 	rb = e.rawBoxNoDrain(tid, b, []string{"CLE-07", "CLE-08"}, []string{"tasks"})
 	rb.trace = trace
 	trace("welcome read; waiting for the drained recv")
-	if r := rb.next(wire.TRecv); len(r.Agents) != 1 || r.Agents[0] != "CLE-08" {
+	if r := rb.next(wire.TRecv); len(r.Agents) != 2 {
 		t.Fatalf("drained agents: %+v", r.Agents)
 	}
 
@@ -502,8 +512,10 @@ func TestWUIPresence(t *testing.T) {
 	}
 }
 
-// The real box client: SPOOL_CHANNELS reaches the hub in hello, a mention in
-// #tasks lands in the addressed agent's inbox only, v:1 unchanged.
+// The real box client: SPOOL_CHANNELS reaches the hub in hello, and a post in
+// #tasks lands in the inbox of EVERY member the box hosts (owner rule
+// 2026-09-22), v:1 unchanged. Control: a channel this box did not join
+// reaches nobody - the fan-out follows membership, not the body.
 func TestHubclientChannelRecv(t *testing.T) {
 	e := newEnv(t)
 	tid, _ := e.tenant()
@@ -526,21 +538,23 @@ func TestHubclientChannelRecv(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	ambient := chanMsg(uuidV4(), "ALL-0", "note", "nothing for anyone")
-	if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "tasks", "", ambient)); err != nil {
+	plain := chanMsg(uuidV4(), "ALL-0", "note", "nothing for anyone in particular")
+	if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "tasks", "", plain)); err != nil {
 		t.Fatal(err)
 	}
-	m := chanMsg(uuidV4(), "ALL-0", "task", "@CLE-07 run the suite")
-	if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "tasks", "", m)); err != nil {
+	// CONTROL: #alerts is not one of the channels box-b joined, and this one
+	// even mentions CLE-07. It must reach neither inbox - so the assertions
+	// below are about membership, not "everything is delivered".
+	off := chanMsg(uuidV4(), "ALL-0", "task", "@CLE-07 disk full")
+	if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "alerts", "", off)); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, "CLE-07 inbox", func() bool { return len(inbox(t, b, "CLE-07")) == 1 })
-	got := inbox(t, b, "CLE-07")[0]
-	if got.MsgID != m.MsgID || got.To != "ALL-0" || got.Body != m.Body {
-		t.Fatalf("inbox copy: %+v", got)
-	}
-	if n := len(inbox(t, b, "CLE-08")); n != 0 {
-		t.Fatalf("CLE-08 got %d messages", n)
+	for _, id := range []string{"CLE-07", "CLE-08"} {
+		eventually(t, id+" inbox", func() bool { return len(inbox(t, b, id)) == 1 })
+		got := inbox(t, b, id)[0]
+		if got.MsgID != plain.MsgID || got.To != "ALL-0" || got.Body != plain.Body {
+			t.Fatalf("%s inbox copy: %+v", id, got)
+		}
 	}
 	if errs := sb.RecvErrors(); len(errs) != 0 {
 		t.Fatalf("recv errors: %v", errs)

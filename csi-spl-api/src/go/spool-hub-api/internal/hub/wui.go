@@ -462,7 +462,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		fail(tok, status, detail)
 		return
 	}
-	channel := store.NormalizeChannel(f.Channel)
+	channel := s.channelOf(f.Channel, task)
 	// specs/025: a note needs notes.send, commanding an agent agents.command
 	// (checked per send, so a demotion bites on the open socket too).
 	perm := rbac.NotesSend
@@ -473,6 +473,19 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		fail("forbidden", http.StatusForbidden, "your role in this tenant does not grant "+perm)
 		return
 	}
+	// Owner rule 2026-09-22: a channel post reaches every agent member of the
+	// channel, @mention or not - so a plain post now lands in agent inboxes,
+	// which is what agents.command guards (025 §3.1, "command an agent through
+	// box-wui dispatch"). POSTING stays notes.send: a tester must still be able
+	// to chat in #lobby, and #lobby has every announced agent as a member, so
+	// raising the post itself to agents.command would silence the role
+	// altogether. The FAN-OUT is what the stronger permission buys - without
+	// it the post is stored and shown in every browser (fanoutWUI) and no box
+	// delivery is built, which is exactly the pre-fan-out behaviour. Same
+	// identity rule as a dispatch (014 §3 step 1): a signed-in member, never a
+	// door-off anonymous socket.
+	fanOut := agent == "" && channel != "" && s.o.WUIDispatch && c.member != "" &&
+		s.allowed(ctx, c.member, c.tenant, rbac.AgentsCommand)
 	var box string
 	var pin ed25519.PublicKey
 	if agent != "" {
@@ -496,7 +509,21 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 			fail("wui_unpinned", http.StatusConflict, "the box-wui signature does not verify against this tenant's pin")
 			return
 		}
-	} else {
+	} else if fanOut {
+		// The same signer as a dispatch, to_box box-wui: no single box owns a
+		// channel post, and routeChannel builds one delivery per member box.
+		// A tenant that has not pinned box-wui gets the old browser-only post
+		// rather than a refusal - it never asked for agents to read its chat.
+		if p := s.wuiPin(ctx, c.tenant); p != nil {
+			signed, err := s.dispatchEnvelope(WUIBox, channel, f.ParentTaskID, p, m)
+			if err != nil {
+				s.o.Log.Error().Err(err).Str("msg_id", id).Msg("wui channel sign")
+			} else {
+				env = signed
+			}
+		}
+	}
+	if env == nil {
 		inner, err := msg.Canonical(m)
 		if err != nil {
 			fail("bad_json", http.StatusBadRequest, "message does not encode")

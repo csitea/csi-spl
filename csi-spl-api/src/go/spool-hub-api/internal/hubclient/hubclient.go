@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -548,32 +549,36 @@ const wuiBox = "box-wui"
 // and writes the inner v:1 into the recipient's inbox. A missing pin or bad
 // sig refuses the frame (exit 78 class) and writes nothing.
 //
-// A frame whose to_box is another box is accepted only as a mention-routed
-// channel delivery (specs/003 channels-v1 §4.5): the envelope carries a signed
-// channel and the hub lists the addressed agents; one inbox copy is written
-// per listed agent this box hosts.
+// A frame whose to_box is another box is accepted only as a channel delivery
+// (specs/003 channels-v1 §4.5): the envelope carries a signed channel and the
+// hub lists the addressed agents; one inbox copy is written per listed agent
+// this box hosts.
+//
+// A channel frame addressed to THIS box carries that list too, and the copies
+// are written as well as msg.to's (owner rule 2026-09-22: every member of the
+// channel receives the post). Before it, a browser "@CLE-66 do X" in a channel
+// reached CLE-66 and nobody else on its box, however many members sat there.
 func (s *Session) receive(ctx context.Context, raw []byte, agents []string) error {
 	e, err := wire.ParseEnvelope(raw)
 	if err != nil {
 		return err
 	}
 	var targets []string
-	if e.ToBox != s.box {
-		if e.Channel == "" || len(agents) == 0 {
-			return fmt.Errorf("frame for to_box %q arrived at box %q", e.ToBox, s.box)
-		}
+	own := e.ToBox == s.box
+	if !own && (e.Channel == "" || len(agents) == 0) {
+		return fmt.Errorf("frame for to_box %q arrived at box %q", e.ToBox, s.box)
+	}
+	if e.Channel != "" && len(agents) > 0 {
 		local, err := s.c.scanAgents()
 		if err != nil {
 			return err
 		}
 		for _, a := range agents {
-			for _, l := range local {
-				if a == l {
-					targets = append(targets, a)
-				}
+			if slices.Contains(local, a) {
+				targets = append(targets, a)
 			}
 		}
-		if len(targets) == 0 {
+		if !own && len(targets) == 0 {
 			return fmt.Errorf("channel frame for agents %v hosts none of them at box %q", agents, s.box)
 		}
 	}
@@ -602,8 +607,8 @@ func (s *Session) receive(ctx context.Context, raw []byte, agents []string) erro
 			}
 		}
 	}
-	if targets == nil {
-		targets = []string{m.To}
+	if own && !slices.Contains(targets, m.To) {
+		targets = append(targets, m.To)
 	}
 	for _, id := range targets {
 		wrote, err := spool.New(s.c.Cfg).DeliverTo(m, id)

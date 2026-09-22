@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -17,7 +16,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
-// Channels, mention-driven routing and presence (specs/003
+// Channels, membership routing and presence (specs/003
 // contracts/channels-v1.md). channel / parent_task_id are hub-envelope fields;
 // the v:1 object is never touched.
 
@@ -28,54 +27,41 @@ const (
 	channelDescMax = 500
 )
 
-// mentionRe finds @<agent-id> and @channel on a token boundary.
-var mentionRe = regexp.MustCompile(`(?:^|[^A-Za-z0-9_@-])@([A-Z]{2,4}-[0-9]+|channel)(?:$|[^A-Za-z0-9_-])`)
-
-// mentions returns the agent ids mentioned in body and whether @channel is.
-func mentions(body string) (map[string]bool, bool) {
-	ids := map[string]bool{}
-	all := false
-	// Matches share boundary characters; scan with overlapping restarts.
-	for i := 0; i < len(body); {
-		loc := mentionRe.FindStringSubmatchIndex(body[i:])
-		if loc == nil {
-			break
-		}
-		tok := body[i+loc[2] : i+loc[3]]
-		if tok == "channel" {
-			all = true
-		} else {
-			ids[tok] = true
-		}
-		i += loc[3]
+// channelTargets returns the agents of one box that a channel post reaches:
+// every member of the channel (owner rule 2026-09-22 - "if we are in a channel
+// - all of the participants in the channel will receive the msg"). Membership
+// IS the address, so a plain post, an @mention and @channel all reach the same
+// set and nothing here parses the body. A leading @AGENT still decides the
+// envelope's to_box for a browser send (dispatch.go), and msg.to still names
+// the one agent the to_box delivery is for - neither narrows the channel.
+func channelTargets(agents []string) []string {
+	if len(agents) == 0 {
+		return nil
 	}
-	return ids, all
-}
-
-// addressed returns the agents (of one box, subscribed to the message's
-// channel) that m addresses: msg.to, an @mention, or @channel (channels-v1 §4).
-func addressed(agents []string, m *msg.Message) []string {
-	ids, all := mentions(m.Body)
-	var out []string
-	for _, a := range agents {
-		if all || ids[a] || m.To == a {
-			out = append(out, a)
-		}
-	}
+	out := append([]string(nil), agents...)
 	sort.Strings(out)
 	return out
 }
 
-// storedChannel is the messages.channel of an envelope: its (normalized)
-// channel tag, else lobby on the lobby task, else "" (a DM).
-func (s *Server) storedChannel(env *wire.Envelope, m *msg.Message) string {
-	if c := store.NormalizeChannel(env.Channel); c != "" {
+// channelOf is the channel a message belongs to: its (normalized) channel
+// tag, else lobby on the lobby task, else "" (a DM). A browser send signs
+// THIS, not the raw tag: a lobby post whose frame carried no tag would
+// otherwise be stored under lobby and routed to lobby members with an
+// envelope that claims no channel - which every receiving box refuses
+// (hubclient.receive, channels-v1 §4.5).
+func (s *Server) channelOf(channel, taskID string) string {
+	if c := store.NormalizeChannel(channel); c != "" {
 		return c
 	}
-	if s.o.LobbyTaskID != "" && m.TaskID == s.o.LobbyTaskID {
+	if s.o.LobbyTaskID != "" && taskID == s.o.LobbyTaskID {
 		return store.ChannelLobby
 	}
 	return ""
+}
+
+// storedChannel is the messages.channel of an envelope.
+func (s *Server) storedChannel(env *wire.Envelope, m *msg.Message) string {
+	return s.channelOf(env.Channel, m.TaskID)
 }
 
 // checkTags validates the optional hub-envelope fields (channels-v1 §2).
@@ -96,10 +82,19 @@ func (s *Server) checkTags(ctx context.Context, tenant, channel, parent, taskID 
 	return "", 0, ""
 }
 
-// routeChannel adds a delivery for every box with an addressed member of the
-// message's channel, other than from_box, the envelope's own to_box and
-// box-wui; ambient chat routes nowhere. Unsigned (browser) envelopes are not
-// box-routed: a box would refuse them (channels-v1 §4.6, spec 014).
+// routeChannel adds a delivery for every box that hosts a member of the
+// message's channel; ambient chat in a DM routes nowhere. Unsigned (browser)
+// envelopes are not box-routed: a box would refuse them (channels-v1 §4.6,
+// spec 014) - a browser channel post is signed by the hub's box-wui key before
+// it gets here (wuiSend), so the unsigned case is one the fan-out is OFF for.
+//
+// Skips: box-wui (the browser audience, delivered by fanoutWUI) and from_box
+// (its own agents wrote the post). An AGENT-origin envelope also skips its
+// to_box, which the shared commit path already delivered. A BROWSER-origin one
+// does not: box-wui owns no agent, so a dispatch's to_box is just another
+// member box, and the other members sitting on it are exactly what the owner
+// rule is about. Enqueue is idempotent per (msg_id, box), so the second row is
+// a no-op insert and only the recv frame's agents list changes.
 func (s *Server) routeChannel(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, canon []byte) {
 	if channel == "" || env.Sig == "" {
 		return
@@ -109,9 +104,13 @@ func (s *Server) routeChannel(ctx context.Context, tenant, channel string, env *
 		s.o.Log.Error().Err(err).Str("msg_id", m.MsgID).Msg("channel members")
 		return
 	}
+	fromBrowser := env.FromBox == WUIBox
 	now := s.o.Now()
 	for box, agents := range members {
-		if box == env.FromBox || box == env.ToBox || box == WUIBox || len(addressed(agents, m)) == 0 {
+		if box == WUIBox || box == env.FromBox || (!fromBrowser && box == env.ToBox) {
+			continue
+		}
+		if len(channelTargets(agents)) == 0 {
 			continue
 		}
 		if err := s.o.Store.Enqueue(ctx, tenant, m.MsgID, box, now, now.Add(s.o.QueueTTL), s.o.QueueMaxPerBox); err != nil {
@@ -124,24 +123,23 @@ func (s *Server) routeChannel(ctx context.Context, tenant, channel string, env *
 	}
 }
 
-// recvAgents is the recv frame's agents list for a channel delivery to a box
-// that is not the envelope's to_box; ok=false when nothing there is addressed
-// any more (the row stays queued and expires by TTL).
+// recvAgents is the recv frame's agents list for a channel delivery: the
+// channel members this box hosts (channels-v1 §4). ok=false drops the push
+// when nothing there is a member any more and the row is only there for the
+// channel (it stays queued and expires by TTL); a delivery to the envelope's
+// own to_box always stands - msg.to is on that box whether or not it joined.
 func (s *Server) recvAgents(ctx context.Context, x *session, raw []byte) ([]string, bool) {
 	e, err := wire.ParseEnvelope(raw)
-	if err != nil || e.ToBox == x.box || e.Channel == "" {
+	if err != nil || e.Channel == "" {
 		return nil, true
 	}
-	m, err := e.Inner()
-	if err != nil {
-		return nil, false
-	}
+	own := e.ToBox == x.box
 	members, err := s.o.Store.ChannelMembers(ctx, x.tenant, store.NormalizeChannel(e.Channel))
 	if err != nil {
-		return nil, false
+		return nil, own
 	}
-	a := addressed(members[x.box], m)
-	return a, len(a) > 0
+	a := channelTargets(members[x.box])
+	return a, own || len(a) > 0
 }
 
 // ---- presence (wui-live-ws.md §3.2) --------------------------------------------

@@ -94,8 +94,9 @@ export function formatAbsTs(ts) {
 }
 
 /**
- * Age as the coarsest units that still fit: `7s`, `3m 12s`, `2h 15m 3s`.
- * Zero parts drop (`3m`, `2h 15m`). Never negative.
+ * Age in the coarsest units that still fit. Under one minute: `7s` / `0s`.
+ * From one minute on, seconds drop (`1m`, `2h 3m`) so a ticking clock does
+ * not keep a seconds field once minutes have started.
  */
 export function formatElapsed(sec) {
   const n = Math.max(0, Math.floor(Number(sec) || 0))
@@ -105,14 +106,14 @@ export function formatElapsed(sec) {
   const parts = []
   if (h) parts.push(h + 'h')
   if (m) parts.push(m + 'm')
-  if (s || !parts.length) parts.push(s + 's')
+  if (!h && !m) parts.push(s + 's')
   return parts.join(' ')
 }
 
 /**
- * Thread-pane clock: absolute UTC time, three spaces, then elapsed age
- * (`7s` / `3m 12s` / `2h 15m 3s`) from `originMs` (thread open, ticking).
- * A reply after open shows `0s` until origin catches up.
+ * Thread-pane clock: absolute UTC time, the word `sent`, then elapsed age
+ * (`7s` / `1m` / `2h 3m`) from `originMs` (thread open, ticking).
+ * A reply after open shows `sent 0s` until origin catches up.
  */
 export function formatThreadTs(ts, originMs) {
   const abs = formatAbsTs(ts)
@@ -121,7 +122,7 @@ export function formatThreadTs(ts, originMs) {
   const origin = Number(originMs)
   if (!Number.isFinite(origin)) return abs
   const sec = Math.max(0, Math.floor((origin - d.getTime()) / 1000))
-  return abs + '   ' + formatElapsed(sec)
+  return abs + ' sent ' + formatElapsed(sec)
 }
 
 /**

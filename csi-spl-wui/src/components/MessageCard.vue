@@ -68,7 +68,7 @@ const props = defineProps<{
   clickable?: boolean
   /** the row the open thread is rooted at */
   selected?: boolean
-  /** Date.now() at thread open (ticks while open): `yyyy-mm-dd HH:MM:SS   <sec>` */
+  /** Date.now() at thread open (ticks while open): `yyyy-mm-dd HH:MM:SS sent <age>` */
   sinceMs?: number
 }>()
 const emit = defineEmits<{ 'open-thread': [msg: SpoolMessage] }>()

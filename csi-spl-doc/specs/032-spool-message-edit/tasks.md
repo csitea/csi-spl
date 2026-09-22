@@ -159,11 +159,27 @@ prd e2e msg 034cb7df  rev 1 "…ORIGINAL" HUM-1 08:41:52.51485+00
 Revision 1's `edited_at` equals the message's own `received_at` to the
 microsecond — it is the body as first sent, captured at the first edit.
 
-The prd write was explicitly requested: CLE-00, 2026-09-22 — *"ONE REAL EDIT
-ROUND-TRIP, END TO END, ON EACH ENV… If prd cannot be driven without touching
-real data, do dev only with a test member and a message you created."* Both envs
-have an m3-e2e test tenant, so both ran in that form, and CLE-00 accepted the
-result for both.
+**Who authorised the prd write, precisely.** The probe WRITES — it posts a
+message and edits it — so on prd that is a production write and the authority
+matters. It was **CLE-00's own decision, 2026-09-22, and it was NOT inside the
+owner's go**, which covered the migration and the image roll only. CLE-00 has
+reported it to the owner as its own call and stands behind it: the write went to
+the `e2e` TEST tenant, which is what that tenant exists for, and the order
+carried an explicit out — *"if prd cannot be driven without touching real data,
+do dev only… and tell me plainly that prd is proven to DDL level only."* Both
+envs have an m3-e2e test tenant, so both ran in that form and no such asymmetry
+was needed. CLE-00 accepted the result for both.
+
+Sources: `20260922T083600Z--CLE-00--RECONSTRUCTED-order-real-edit-round-trip-each-env.md`
+(marked reconstructed: the order was first given as a doorbell with no inbox
+file, which CLE-00 has recorded as its own protocol breach) and
+`20260922T084952Z--CLE-00--OWNER-GO-realign-0122-plus-gate.md` under "Still
+owed", which restates it in a file that existed at the time.
+
+**CLE-3444 did not authorise this and declined to.** Asked to pick, it answered
+that the probe writes, that against prd `e2e` that is a production write, and
+that it was *"CLE-00's call not mine"*. Recorded because a later reader auditing
+who may authorise a production write should find the decline, not an ambiguity.
 
 It exists because **every cheaper probe stops at rule 1**. An unauthenticated
 `PATCH` is refused before the handler touches the database, so `OPTIONS -> 204`
@@ -248,4 +264,4 @@ the three normaliser pass-throughs and the `message_edited` handler
 as part of this request. The rows it will read exist; its endpoint is
 deliberately unspecified (contract §7, last paragraph).
 
-<!-- version: 0.3.0 · updated: 2026-09-22 · last-edit: 2026-09-22T08:55:00Z -->
+<!-- version: 0.3.1 · updated: 2026-09-22 · last-edit: 2026-09-22T09:16:00Z -->

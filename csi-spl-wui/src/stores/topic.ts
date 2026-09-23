@@ -53,7 +53,7 @@ export const useTopicStore = defineStore('topic', () => {
 
   const messages = computed(() => topicOf(channel.messages, parentTaskId.value))
 
-  /** A click on the topic pane: the pane is selected, the message is not. */
+  /** A click on the topic pane selects the pane. The topic that opened it stays selected too. */
   function selectPane() {
     paneSelected.value = true
   }

@@ -1,7 +1,7 @@
 import { topicPaneClickAction } from '~/utils/topic-open.mjs'
 import { useTopicStore } from '~/stores/topic'
 
-/** A click on the topic pane selects the pane and clears the selected message. */
+/** A click on the topic pane selects the pane. The topic row that opened it stays selected. */
 export function useTopicPaneClick() {
   const topic = useTopicStore()
 

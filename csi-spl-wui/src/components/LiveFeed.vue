@@ -107,10 +107,9 @@ function openable(m: SpoolMessage) {
   return Boolean(m.task_id && props.currentTaskId && m.task_id !== props.currentTaskId)
 }
 
-/* CLE-3427: the row the open topic is rooted at reads as selected (a darker
-   fill + aria-current). Only a feed whose rows open a topic can have one. */
+/* The row the open topic is rooted at stays selected. The title in the
+   right pane is selected as well, so selecting that pane does not clear this row. */
 function isSelected(m: SpoolMessage) {
-  /* a click on the topic pane takes the highlight off this row */
-  return Boolean(props.clickable) && !topic.paneSelected && isSelectedRow(m, topic.target)
+  return Boolean(props.clickable) && isSelectedRow(m, topic.target)
 }
 </script>

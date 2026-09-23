@@ -497,6 +497,8 @@ html.pane-dragging * {
   min-width: 0;
 }
 .topic-heading__title {
+  display: inline-block;
+  max-width: 100%;
   min-width: 0;
   overflow-wrap: anywhere;
   border-radius: var(--radius-sm);

@@ -127,14 +127,15 @@ describe('the pane click is wired to both topic panes', () => {
   const wui = join(dirname(fileURLToPath(import.meta.url)), '../..')
   const read = (rel) => readFileSync(join(wui, rel), 'utf8')
 
-  it('clicking the pane selects it and the feed drops the message highlight', () => {
+  it('clicking the pane selects it and the feed keeps the topic row selected', () => {
     for (const rel of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue']) {
       const src = read(rel)
       assert.match(src, /:class="\{ selected: topic\.paneSelected \}"/, rel)
       assert.match(src, /@click="onTopicPaneClick"/, rel)
+      assert.match(src, /data-test="topic-heading"[^>]*aria-current="true"/, rel)
     }
     assert.match(read('src/composables/useTopicPaneClick.ts'), /topic\.selectPane\(\)/)
-    assert.match(read('src/components/LiveFeed.vue'), /!topic\.paneSelected && isSelectedRow/)
+    assert.match(read('src/components/LiveFeed.vue'), /return Boolean\(props\.clickable\) && isSelectedRow\(m, topic\.target\)/)
     const store = read('src/stores/topic.ts')
     assert.match(store, /function selectPane\(\)/)
     assert.match(store, /paneSelected\.value = false/)
@@ -145,7 +146,7 @@ describe('the pane click is wired to both topic panes', () => {
 describe('a click on the topic pane', () => {
   const el = (hit) => ({ closest: (sel) => (hit && String(sel).includes(hit) ? {} : null) })
 
-  it('selects the pane, which is what takes the highlight off the message', () => {
+  it('selects the pane, and the topic row that opened it stays selected', () => {
     assert.equal(topicPaneClickAction(null), 'pane')
     assert.equal(topicPaneClickAction(el('')), 'pane')
     assert.equal(topicPaneClickAction(el('article')), 'pane')

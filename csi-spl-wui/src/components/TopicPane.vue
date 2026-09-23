@@ -3,14 +3,15 @@
     v-if="topic.open"
     class="topic live-pane"
     :class="{ selected: topic.paneSelected }"
+    data-pane="topic"
     data-test="topic-section"
     data-section="channel"
     :data-selected="topic.paneSelected ? 'true' : undefined"
-    :aria-label="t('topic.title')"
+    :aria-label="heading"
     @click="onTopicPaneClick"
   >
     <header>
-      <strong class="topic-heading__title" data-test="topic-heading">{{ heading }}</strong>
+      <strong class="topic-heading__title" data-test="topic-heading" data-selected="true" aria-current="true">{{ heading }}</strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
         <button
           class="icon-btn"

@@ -110,6 +110,20 @@ try {
   step('the people pane lists the signed-in human', !!mine, { looked_for: `${meId}@box-wui`, keys: rows.map((r) => r.key) })
   step('the signed-in human is shown ONLINE', !!(mine && mine.lit), { row: mine || null })
 
+  /*
+   * The row has to SAY it is the reader's. A missing catalogue key does not
+   * throw in vue-i18n - it renders the key path - so the failure this
+   * catches is a live "sidebar.you" sitting in the sidebar, which no unit
+   * test can see and which every build gate reads green.
+   */
+  const youText = await p.evaluate(() => {
+    const el = document.querySelector('[data-testid=people-self] .self-row__you')
+      || document.querySelector('[data-testid=people-self]')
+    return el ? el.textContent.trim() : ''
+  })
+  step('the self row carries the localised "you" marker', Boolean(youText) && !youText.includes('sidebar.you'),
+    { text: youText })
+
   /* Every member of the tenant belongs in the pane, online or not
      (view-v1 §4.1 `humans`), not only the ones holding a socket right now. */
   const members = store && store.roster ? (store.roster['box-wui'] || []) : []

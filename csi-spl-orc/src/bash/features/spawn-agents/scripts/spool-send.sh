@@ -124,7 +124,7 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   # type into the recipient's prompt"; the strip is the surface that injects
   # nothing and is the one the safe-poke rule deliberately does not gate, so
   # silencing it here would remove the record and keep none of the safety.
-  _nb="$(spool_notify_cut "$(spool_notify_clean "$BODY")" "${SPOOL_SHOW_BODY_MAX:-400}")"
+  _nb="$(spool_notify_shown_body "$BODY")"
   [ -n "$_nb" ] || _nb='(no body)'
   _nk="$(spool_notify_clean "$KIND")"; _nk="${_nk:-ping}"
   _nf="$(spool_notify_clean "$FROM")"; _nf="${_nf:-?}"

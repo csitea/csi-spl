@@ -76,13 +76,22 @@ spool_notify_clean_prompt() {  # TEXT
     s/ \$//"
 }
 
+# The body a person reads, in every surface that shows the message: the WUI
+# row, the agent's left pane (the prompt), and the notice strip. One string.
+# spool_notify_clean is NOT this — it rewrites apostrophes so a poke line can
+# sit inside single quotes, and that rewrite is what made the strip say
+# it"s while the web UI and the prompt said it's.
+# Empty after cleaning -> empty. The prompt caller then keeps the poke line.
+spool_notify_shown_body() {  # TEXT
+  spool_notify_cut "$(spool_notify_clean_prompt "${1:-}")" "${SPOOL_NOTIFY_PROMPT_MAX:-4000}"
+}
+
 # Render BODY into VAR as the line a TUI prompt is given verbatim.
 # Empty after cleaning -> VAR is empty and the caller keeps the poke line: an
 # agent must never be handed a blank prompt and an Enter.
 spool_notify_render_prompt() {  # VAR BODY
   local __var="$1" body
-  body="$(spool_notify_clean_prompt "${2:-}")"
-  body="$(spool_notify_cut "$body" "${SPOOL_NOTIFY_PROMPT_MAX:-4000}")"
+  body="$(spool_notify_shown_body "${2:-}")"
   printf -v "$__var" '%s' "$body"
 }
 

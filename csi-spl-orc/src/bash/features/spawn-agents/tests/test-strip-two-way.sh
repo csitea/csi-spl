@@ -100,6 +100,14 @@ SPOOL_SHOW=0 bash "$SS" --from CLE-90 --to CLE-91 --kind note --body 'invisible 
 eq "SPOOL_SHOW=0 records nothing for the sender"  0 "$(grep -c 'invisible one' "$log90")"
 eq "…nor for the recipient"                       0 "$(grep -c 'invisible one' "$log91")"
 
+
+# The strip body is the WUI body. The shell cleaner rewrites apostrophes so a
+# poke line stays inside single quotes; that rewrite must not reach the column
+# a person reads.
+SPOOL_SHOW_PANE=1 bash "$SS" --from CLE-90 --to CLE-91 --kind note --body "it's the same words" >/dev/null 2>&1
+eq "the strip keeps the apostrophe" 1 "$(grep -c "it's the same words" "$log90")"
+eq "…and does not rewrite it" 0 "$(grep -c 'it"s the same words' "$log90")"
+
 # A strip the sender already had is ADOPTED, never split twice: the at-spawn
 # split (ysg-box CLE-3450) means a live agent always has one before it sends.
 eq "the sender kept exactly one strip" 1 \

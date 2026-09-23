@@ -404,7 +404,9 @@ spool_poke_show() {  # TO KIND FROM TASK MSGID BODY
   kind="$(spool_notify_clean "$kind")"; kind="${kind:-ping}"
   from="$(spool_notify_clean "$from")"; from="${from:-?}"
   task="$(spool_notify_clean "$task")"; msgid="$(spool_notify_clean "$msgid")"
-  body="$(spool_notify_cut "$(spool_notify_clean "$body")" "${SPOOL_SHOW_BODY_MAX:-400}")"
+  # Same body the prompt is typed and the WUI row shows. SPOOL_SHOW_BODY_MAX
+  # still overrides the bound; the default is the prompt bound, not 400.
+  body="$(spool_notify_shown_body "$body")"
   [ -n "$body" ] || body='(no body)'
   head="$(spool_notice_head_in "$to" "$kind" "$from" "$task" "$msgid")"
   plain="${head} :: ${body}"

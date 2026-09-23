@@ -327,6 +327,8 @@
       "unblock": "Poista esto",
       "mute": "Mykistä",
       "unmute": "Poista mykistys",
+      "pin": "Kiinnitä",
+      "unpin": "Irrota",
       "remove": "Poista"
     }
   },

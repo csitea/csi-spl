@@ -327,6 +327,8 @@
       "unblock": "Atblokuoti",
       "mute": "Nutildyti",
       "unmute": "Įjungti garsą",
+      "pin": "Prisegti",
+      "unpin": "Atsegti",
       "remove": "Pašalinti"
     }
   },

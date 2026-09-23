@@ -65,6 +65,7 @@ const props = defineProps<{
   admin?: boolean
   blocked?: boolean
   muted?: boolean
+  pinned?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -75,6 +76,7 @@ const emit = defineEmits<{
   block: []
   mute: []
   remove: []
+  pin: []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -89,6 +91,7 @@ const items = computed(() => rowMenuItems(!!props.unread, {
   admin: props.admin,
   blocked: props.blocked,
   muted: props.muted,
+  pinned: props.pinned,
 }))
 
 function itemEls(): HTMLElement[] {
@@ -192,6 +195,8 @@ function choose(id: string) {
     emit('mute')
   } else if (id === 'remove') {
     emit('remove')
+  } else if (id === 'pin') {
+    emit('pin')
   } else {
     emit('open')
   }

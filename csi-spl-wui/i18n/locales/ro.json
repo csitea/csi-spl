@@ -327,6 +327,8 @@
       "unblock": "Deblochează",
       "mute": "Dezactivează sunetul",
       "unmute": "Activează sunetul",
+      "pin": "Fixează",
+      "unpin": "Anulează fixarea",
       "remove": "Elimină"
     }
   },

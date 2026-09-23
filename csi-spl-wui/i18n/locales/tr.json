@@ -327,6 +327,8 @@
       "unblock": "Engeli kaldır",
       "mute": "Sessize al",
       "unmute": "Sesi aç",
+      "pin": "Sabitle",
+      "unpin": "Sabitlemeyi kaldır",
       "remove": "Kaldır"
     }
   },

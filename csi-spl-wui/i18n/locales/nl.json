@@ -327,6 +327,8 @@
       "unblock": "Deblokkeren",
       "mute": "Dempen",
       "unmute": "Dempen opheffen",
+      "pin": "Vastzetten",
+      "unpin": "Losmaken",
       "remove": "Verwijderen"
     }
   },

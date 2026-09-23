@@ -62,7 +62,7 @@
       v-for="p in peers"
       :key="p.label"
       class="nav-row"
-      :class="{ 'nav-row--muted': mutedPeers[p.label], 'nav-row--blocked': blockedPeers[p.label] }"
+      :class="{ 'nav-row--muted': mutedPeers[p.label], 'nav-row--blocked': blockedPeers[p.label], 'nav-row--pinned': pinnedPeers.includes(p.label) }"
     >
     <NuxtLink
       class="nav-item"
@@ -86,8 +86,10 @@
       :admin="peerAdmin"
       :blocked="!!blockedPeers[p.label]"
       :muted="!!mutedPeers[p.label]"
+      :pinned="pinnedPeers.includes(p.label)"
       @block="togglePeer('block', p.label)"
       @mute="togglePeer('mute', p.label)"
+      @pin="togglePin(p.label)"
       @remove="removePeer(p)"
       :open="rowMenu === 'dm:' + p.label"
       @toggle="toggleRowMenu('dm:' + p.label)"
@@ -284,7 +286,7 @@
             @mark-read="notes.markRead('ch:' + row.id)"
           />
           </div>
-          <div v-else-if="row.kind === 'dm'" class="nav-row" :class="{ 'nav-row--muted': mutedPeers[row.label], 'nav-row--blocked': blockedPeers[row.label] }">
+          <div v-else-if="row.kind === 'dm'" class="nav-row" :class="{ 'nav-row--muted': mutedPeers[row.label], 'nav-row--blocked': blockedPeers[row.label], 'nav-row--pinned': pinnedPeers.includes(row.label) }">
           <NuxtLink
             class="nav-item"
             :class="{ active: channel.peer === row.label }"
@@ -308,8 +310,10 @@
       :admin="peerAdmin"
       :blocked="!!blockedPeers[row.label]"
       :muted="!!mutedPeers[row.label]"
+      :pinned="pinnedPeers.includes(row.label)"
       @block="togglePeer('block', row.label)"
       @mute="togglePeer('mute', row.label)"
+      @pin="togglePin(row.label)"
       @remove="removePeer(row)"
             :open="rowMenu === 'flow:dm:' + row.label"
             @toggle="toggleRowMenu('flow:dm:' + row.label)"
@@ -373,7 +377,7 @@ import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDa
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { flowRows, SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
-import { rowMenuAdmin } from '~/utils/sidebar-row-menu.mjs'
+import { pinRows, rowMenuAdmin } from '~/utils/sidebar-row-menu.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'threads' | 'flow'
@@ -477,8 +481,18 @@ const health = computed(() => connectionHealth(live.state.value))
 const hiddenPeers = ref<Record<string, true>>({})
 const blockedPeers = ref<Record<string, true>>({})
 const mutedPeers = ref<Record<string, true>>({})
+/* index 0 is the top of the people list */
+const pinnedPeers = ref<string[]>([])
 const peerAdmin = computed(() => rowMenuAdmin(access.me))
-const peers = computed(() => orderPeers(roster.peers, channel.dmAt).filter((p) => !hiddenPeers.value[p.label]))
+const peers = computed(() => pinRows(
+  orderPeers(roster.peers, channel.dmAt).filter((p) => !hiddenPeers.value[p.label]),
+  pinnedPeers.value,
+))
+
+function togglePin(label: string) {
+  const rest = pinnedPeers.value.filter((l) => l !== label)
+  pinnedPeers.value = pinnedPeers.value.includes(label) ? rest : [label, ...rest]
+}
 
 function togglePeer(which: 'block' | 'mute', label: string) {
   const bag = which === 'block' ? blockedPeers : mutedPeers
@@ -501,14 +515,15 @@ async function removePeer(p: { id?: string, label: string }) {
     void roster.refresh()
   }
   hiddenPeers.value = { ...hiddenPeers.value, [p.label]: true }
+  pinnedPeers.value = pinnedPeers.value.filter((l) => l !== p.label)
 }
-const flow = computed(() => flowRows({
+const flow = computed(() => pinRows(flowRows({
   channels: channel.ordered,
   peers: peers.value,
   threads: viewer.threads,
   liveAt: channel.liveAt,
   dmAt: channel.dmAt,
-}))
+}), pinnedPeers.value))
 onMounted(() => session.probe())
 /* specs/025 FR-008: the role decides which actions are offered (the hub re-checks). */
 watch(() => session.state, (st) => { if (st === 'in') access.load() }, { immediate: true })
@@ -700,6 +715,7 @@ async function onCreate() {
 .nav-row > .nav-item { padding-inline-end: 44px; }
 .nav-row--muted { opacity: 0.55; }
 .nav-row--blocked .label { text-decoration: line-through; }
+.nav-row--pinned { box-shadow: inset 3px 0 0 var(--color-accent); }
 @media (max-width: 800px) {
   .nav-row > .nav-item { padding-inline-end: 28px; }
 }

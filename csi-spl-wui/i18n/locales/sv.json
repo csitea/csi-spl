@@ -327,6 +327,8 @@
       "unblock": "Häv blockering",
       "mute": "Tysta",
       "unmute": "Slå på ljud",
+      "pin": "Fäst",
+      "unpin": "Lösgör",
       "remove": "Ta bort"
     }
   },

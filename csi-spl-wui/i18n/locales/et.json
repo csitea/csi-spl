@@ -327,6 +327,8 @@
       "unblock": "Eemalda blokeering",
       "mute": "Vaigista",
       "unmute": "Tühista vaigistus",
+      "pin": "Kinnita",
+      "unpin": "Eemalda kinnitus",
       "remove": "Eemalda"
     }
   },

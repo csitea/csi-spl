@@ -95,6 +95,11 @@ export const UI_ICON_PATHS = {
     "M9 11a4 4 0 1 0 0-8 4 4 0 1 0 0 8z",
     "m16 11 2 2 4-4",
   ],
+  // Row menu: pin a person to the top of the list.
+  pin: [
+    "M12 17v5",
+    "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z",
+  ],
   // Row menu: remove a person from the tenant.
   trash: [
     "M3 6h18",

@@ -5,8 +5,9 @@
  * only there when an admin (or the tenant owner) is signed in.
  *
  * @param {boolean} unread
- * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean }} [opts]
+ * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean }} [opts]
  */
+/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'trash', labelKey: string }[]} */
 export function rowMenuItems(unread, opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
   const items = [
@@ -25,6 +26,11 @@ export function rowMenuItems(unread, opts = {}) {
       icon: o.muted ? 'bell' : 'bell-off',
       labelKey: o.muted ? 'sidebar.row_menu.unmute' : 'sidebar.row_menu.mute',
     })
+    items.push({
+      id: 'pin',
+      icon: 'pin',
+      labelKey: o.pinned ? 'sidebar.row_menu.unpin' : 'sidebar.row_menu.pin',
+    })
     if (o.admin) items.push({ id: 'remove', icon: 'trash', labelKey: 'sidebar.row_menu.remove' })
   }
   return items
@@ -38,4 +44,27 @@ export function rowMenuItems(unread, opts = {}) {
 export function rowMenuAdmin(me) {
   if (!me || typeof me !== 'object') return false
   return me.role === 'admin' || me.tenantOwner === true
+}
+
+/**
+ * Pinned labels come first, in the order given (index 0 is the top).
+ * Every other row keeps the order it arrived in.
+ * @template T
+ * @param {T[]} rows
+ * @param {string[]} pins
+ * @returns {T[]}
+ */
+export function pinRows(rows, pins) {
+  const order = Array.isArray(pins) ? pins.map((l) => String(l)) : []
+  const rank = new Map()
+  order.forEach((label, i) => { if (label && !rank.has(label)) rank.set(label, i) })
+  const labelOf = (row) => String((row && row.label) || '')
+  const pinned = []
+  const rest = []
+  for (const row of rows || []) {
+    if (rank.has(labelOf(row))) pinned.push(row)
+    else rest.push(row)
+  }
+  pinned.sort((a, b) => rank.get(labelOf(a)) - rank.get(labelOf(b)))
+  return pinned.concat(rest)
 }

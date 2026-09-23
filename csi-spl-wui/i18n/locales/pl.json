@@ -327,6 +327,8 @@
       "unblock": "Odblokuj",
       "mute": "Wycisz",
       "unmute": "Wyłącz wyciszenie",
+      "pin": "Przypnij",
+      "unpin": "Odepnij",
       "remove": "Usuń"
     }
   },

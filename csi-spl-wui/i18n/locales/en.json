@@ -327,6 +327,8 @@
       "unblock": "Unblock",
       "mute": "Mute",
       "unmute": "Unmute",
+      "pin": "Pin",
+      "unpin": "Unpin",
       "remove": "Remove"
     }
   },

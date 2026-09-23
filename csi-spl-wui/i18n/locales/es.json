@@ -327,6 +327,8 @@
       "unblock": "Desbloquear",
       "mute": "Silenciar",
       "unmute": "Dejar de silenciar",
+      "pin": "Fijar",
+      "unpin": "Quitar fijación",
       "remove": "Quitar"
     }
   },

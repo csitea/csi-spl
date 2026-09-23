@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { rowMenuAdmin, rowMenuItems } from '../../src/utils/sidebar-row-menu.mjs'
+import { pinRows, rowMenuAdmin, rowMenuItems } from '../../src/utils/sidebar-row-menu.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -19,11 +19,13 @@ describe('rowMenuItems', () => {
 
   it('people and bots get block and mute, and remove only for an admin', () => {
     const person = rowMenuItems(false, { person: true }).map((i) => i.id)
-    assert.deepEqual(person, ['open', 'copy', 'block', 'mute'])
+    assert.deepEqual(person, ['open', 'copy', 'block', 'mute', 'pin'])
     const admin = rowMenuItems(true, { person: true, admin: true }).map((i) => i.id)
-    assert.deepEqual(admin, ['open', 'copy', 'read', 'block', 'mute', 'remove'])
+    assert.deepEqual(admin, ['open', 'copy', 'read', 'block', 'mute', 'pin', 'remove'])
     assert.equal(rowMenuItems(false, { person: true, blocked: true })[2].labelKey, 'sidebar.row_menu.unblock')
     assert.equal(rowMenuItems(false, { person: true, muted: true })[3].labelKey, 'sidebar.row_menu.unmute')
+    assert.equal(rowMenuItems(false, { person: true, pinned: true })[4].labelKey, 'sidebar.row_menu.unpin')
+    assert.equal(rowMenuItems(false).some((i) => i.id === 'pin'), false)
   })
 
   it('remove stays closed unless the signed-in role is admin or the tenant owner', () => {
@@ -36,7 +38,7 @@ describe('rowMenuItems', () => {
 
   it('every action has an icon and a catalogue name', () => {
     const items = rowMenuItems(true, { person: true, admin: true, blocked: true, muted: true })
-    assert.deepEqual(items.map((i) => i.icon), ['open', 'copy', 'check', 'user-check', 'bell', 'trash'])
+    assert.deepEqual(items.map((i) => i.icon), ['open', 'copy', 'check', 'user-check', 'bell', 'pin', 'trash'])
     for (const item of items) {
       assert.match(item.labelKey, /^sidebar\.row_menu\./)
     }
@@ -58,6 +60,15 @@ describe('the language switcher changes the row-menu names', () => {
         assert.equal(row[key].includes('{name}'), en[key].includes('{name}'), code + ' ' + key)
       }
     }
+  })
+})
+
+describe('pinRows', () => {
+  it('puts pinned labels first, newest pin at the top, and keeps the rest', () => {
+    const rows = [{ label: 'a' }, { label: 'b' }, { label: 'c' }, { label: 'd' }]
+    assert.deepEqual(pinRows(rows, ['c', 'a']).map((r) => r.label), ['c', 'a', 'b', 'd'])
+    assert.deepEqual(pinRows(rows, []).map((r) => r.label), ['a', 'b', 'c', 'd'])
+    assert.deepEqual(pinRows(rows, ['missing', 'b']).map((r) => r.label), ['b', 'a', 'c', 'd'])
   })
 })
 

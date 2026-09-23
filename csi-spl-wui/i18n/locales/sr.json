@@ -327,6 +327,8 @@
       "unblock": "Deblokiraj",
       "mute": "Utišaj",
       "unmute": "Uključi zvuk",
+      "pin": "Закачи",
+      "unpin": "Откачи",
       "remove": "Ukloni"
     }
   },

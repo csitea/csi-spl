@@ -12,6 +12,7 @@ import {
   productPath,
   signedOutLoginTarget,
 } from '../../src/utils/signed-out-redirect.mjs'
+import { loginBarTitle } from '../../src/utils/login-title.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -153,6 +154,19 @@ describe('login landing', () => {
   })
 
   it('the language switcher stays on the login frame', () => {
-    assert.match(src('src/layouts/login.vue'), /<LanguageSwitcher/)
+    const frame = src('src/layouts/login.vue')
+    assert.match(frame, /<LanguageSwitcher/)
+    assert.match(frame, /data-test="login-bar"/)
+    assert.match(frame, /data-test="login-bar-title"/)
+    assert.doesNotMatch(frame, /login-corner/)
+  })
+
+  it('the top-bar title is spool plus the build env', () => {
+    assert.equal(loginBarTitle('dev', false), 'spool-dev')
+    assert.equal(loginBarTitle('prd', false), 'spool-prd')
+    assert.equal(loginBarTitle('', true), 'spool-dev')
+    assert.equal(loginBarTitle('  ', true), 'spool-dev')
+    assert.equal(loginBarTitle('', false), 'spool')
+    assert.equal(loginBarTitle('not an env', false), 'spool')
   })
 })

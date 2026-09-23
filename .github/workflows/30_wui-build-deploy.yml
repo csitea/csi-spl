@@ -209,6 +209,8 @@ jobs:
           NUXT_PUBLIC_DEFAULT_LOCALE: ${{ steps.cfg.outputs.default_locale }}
           # absolute base for the hreflang alternates (spec 021)
           NUXT_PUBLIC_SITE_URL: https://${{ steps.cfg.outputs.fqdn }}
+          # signed-out bar title: spool-dev / spool-prd
+          NUXT_PUBLIC_ENV_NAME: ${{ matrix.environment }}
         run: pnpm run generate
 
       - name: Stamp build.json (the deployed-commit probe)

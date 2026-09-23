@@ -258,6 +258,27 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 		writeErr(w, http.StatusInternalServerError, "internal", "channels unavailable")
 		return
 	}
+	// The read door (rdb 0028): a created channel the reader is not in is
+	// omitted entirely - not greyed out, not listed as joinable. Its name and
+	// description are as private as its messages.
+	if hum, _ := s.memberID(r, t.ID); hum != "" {
+		mine, err := s.readerChannels(r.Context(), t.ID, hum)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal", "channels unavailable")
+			return
+		}
+		in := map[string]bool{}
+		for _, c := range mine {
+			in[c] = true
+		}
+		kept := rows[:0]
+		for _, c := range rows {
+			if store.ChannelPublic(c.ChannelID) || in[c.ChannelID] {
+				kept = append(kept, c)
+			}
+		}
+		rows = kept
+	}
 	type members struct {
 		Agents  int `json:"agents"`
 		Boxes   int `json:"boxes"`
@@ -334,10 +355,16 @@ func (s *Server) handleViewThreads(w http.ResponseWriter, r *http.Request, t sto
 		}
 		sq.Agent, sq.AgentBox = id, box
 	}
-	if sq.DM { // private delivery: a signed-in reader sees only DMs it is party to
-		if id, err := s.sessionFor(r, t.ID); err == nil && id != "" {
-			sq.Viewer = id
-		}
+	// The read door (rdb 0028, privacy.go): a signed-in reader sees the
+	// channels it is in plus the DMs it is an end of, and nothing else. This
+	// used to run only under dm=true, so an unfiltered list handed every
+	// thread of the tenant - DMs included - to any member.
+	hum, _ := s.memberID(r, t.ID)
+	if sq.DM { // dm=true is the explicit "only my DMs" filter, on top of it
+		sq.Viewer = hum
+	}
+	if !s.readerScope(w, r, t.ID, hum, &sq) {
+		return
 	}
 	s.listThreads(w, r, t, sq)
 }
@@ -349,7 +376,36 @@ func (s *Server) handleViewChildren(w http.ResponseWriter, r *http.Request, t st
 		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
 		return
 	}
-	s.listThreads(w, r, t, store.ThreadQuery{Parent: task, Limit: viewLimit(r) + 1, Now: s.o.Now()})
+	hum, _ := s.memberID(r, t.ID)
+	// A parent you cannot read does not exist, so neither do its children -
+	// listing them would leak the subjects of a private channel by uuid.
+	switch ok, found, err := s.canReadThread(r.Context(), t.ID, task, hum); {
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "threads unavailable")
+		return
+	case found && !ok:
+		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
+		return
+	}
+	sq := store.ThreadQuery{Parent: task, Limit: viewLimit(r) + 1, Now: s.o.Now()}
+	if !s.readerScope(w, r, t.ID, hum, &sq) {
+		return
+	}
+	s.listThreads(w, r, t, sq)
+}
+
+// readerScope loads hum's channel allow-list into sq. false = it answered.
+func (s *Server) readerScope(w http.ResponseWriter, r *http.Request, tenant, hum string, sq *store.ThreadQuery) bool {
+	if hum == "" {
+		return true
+	}
+	chans, err := s.readerChannels(r.Context(), tenant, hum)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "threads unavailable")
+		return false
+	}
+	sq.Reader, sq.ReaderChannels = hum, chans
+	return true
 }
 
 // listThreads pages one thread-list query (§4.3 shape) with the before= cursor.
@@ -444,8 +500,31 @@ func (s *Server) handleViewThread(w http.ResponseWriter, r *http.Request, t stor
 		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
 		return
 	}
+	// The read door (rdb 0028, privacy.go). Only rbac.ThreadsRead - a
+	// TENANT-wide role - stood here before, so knowing a task_id was enough
+	// to read another member's DM or a channel you were never in.
+	hum, _ := s.memberID(r, t.ID)
+	switch ok, found, err := s.canReadThread(r.Context(), t.ID, task, hum); {
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "thread unavailable")
+		return
+	case found && !ok:
+		// 404, never 403: a refusal that distinguishes "not yours" from "no
+		// such thread" confirms the thread exists to someone who may not
+		// know that (owner's call: a non-member cannot learn it exists).
+		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
+		return
+	}
 	q := r.URL.Query()
 	sq := store.ThreadMsgQuery{TaskID: task, Limit: viewLimit(r) + 1, Now: s.o.Now()}
+	if hum != "" {
+		mine, err := s.readerChannels(r.Context(), t.ID, hum)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal", "thread unavailable")
+			return
+		}
+		sq.Reader, sq.ReaderChannels = hum, mine
+	}
 	switch q.Get("order") {
 	case "", "asc":
 	case "desc":

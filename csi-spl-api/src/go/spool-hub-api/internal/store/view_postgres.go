@@ -163,6 +163,16 @@ func viewThreadsSQL(tenant string, q ThreadQuery) (string, []any) {
 		walk += " AND (SELECT true FROM messages v WHERE " + thread("v") +
 			" AND (v.from_id = " + v + " OR v.to_id = " + v + ") LIMIT 1)"
 	}
+	// The read door (rdb 0028): the thread must hold at least one message
+	// this reader may see - one in a public channel, one in a channel they
+	// belong to, or a DM they are an end of. Same probe shape as Viewer, so
+	// it stays a LIMIT 1 index step inside the walk rather than a join.
+	if q.Reader != "" {
+		rd, pub, mine := c.arg(q.Reader), c.arg(DefaultChannels), c.arg(q.ReaderChannels)
+		walk += " AND (SELECT true FROM messages d WHERE " + thread("d") + " AND (" +
+			"d.channel = ANY(" + pub + "::text[]) OR d.channel = ANY(" + mine + "::text[]) OR " +
+			"(d.channel IS NULL AND (d.from_id = " + rd + " OR d.to_id = " + rd + "))) LIMIT 1)"
+	}
 	first := func(test string) string { // the thread's first message's parent passes test
 		return " AND (SELECT f.parent_task_id " + test + " FROM messages f WHERE " + thread("f") +
 			" ORDER BY f.received_at, f.msg_id::text LIMIT 1)"
@@ -215,6 +225,15 @@ func (s *Postgres) ViewThread(ctx context.Context, tenant string, q ThreadMsgQue
 	if q.Desc {
 		order = "ORDER BY received_at DESC, msg_id::text DESC"
 	}
+	// The per-message read door (rdb 0028). In the statement, not after it,
+	// so LIMIT counts only messages this reader may see and a page is never
+	// short because the rest of it was filtered away afterwards.
+	door, doorArgs := "true", []any{}
+	if q.Reader != "" {
+		door = `((channel IS NULL AND (from_id = $9 OR to_id = $9))
+			OR channel = ANY($10::text[]) OR channel = ANY($11::text[]))`
+		doorArgs = []any{q.Reader, DefaultChannels, q.ReaderChannels}
+	}
 	var out []ViewMsg
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		idx := map[string]int{}
@@ -226,8 +245,9 @@ func (s *Postgres) ViewThread(ctx context.Context, tenant string, q ThreadMsgQue
 			WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3
 				AND ($4::timestamptz IS NULL OR (received_at, msg_id::text) > ($4::timestamptz, $5::text))
 				AND ($7::timestamptz IS NULL OR (received_at, msg_id::text) < ($7::timestamptz, $8::text))
+				AND `+door+`
 			`+order+`
-			LIMIT $6`, []any{tenant, q.TaskID, q.Now, optTime(q.AfterAt), q.AfterID, pgLimit(q.Limit), optTime(q.BeforeAt), q.BeforeID},
+			LIMIT $6`, append([]any{tenant, q.TaskID, q.Now, optTime(q.AfterAt), q.AfterID, pgLimit(q.Limit), optTime(q.BeforeAt), q.BeforeID}, doorArgs...),
 			func(rows pgx.Rows) error {
 				v := ViewMsg{Deliveries: []ViewDelivery{}}
 				var editedBy *string

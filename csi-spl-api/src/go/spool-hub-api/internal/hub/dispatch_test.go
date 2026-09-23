@@ -354,6 +354,12 @@ func TestWUIChannelPostReachesEveryMemberBox(t *testing.T) {
 		}
 	}
 
+	// rdb 0028: a human posts into a channel they are IN. Before the read
+	// door this was implicit - every member of the tenant was in every
+	// channel - and the post is refused without it.
+	if err := e.st.AddChannelHumans(ctx, tid, "releases", []string{"HUM-google-sub-1@" + tid}, "hub", now); err != nil {
+		t.Fatal(err)
+	}
 	w := dialMember(t, e, tid, "Alice", "HUM-google-sub-1@"+tid)
 	task := "9e5a4b62-7d8f-4a91-8bc3-2d3e4f5a6b7c"
 	id := "1f2e3d4c-5b6a-4978-8695-a4b3c2d1e0f9"

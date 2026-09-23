@@ -26,8 +26,12 @@ type SearchQuery struct {
 	Q      *search.Query
 	Now    time.Time
 	Viewer string // member HUM-*: DMs only when party of the thread; "" = no filter (door off)
-	Limit  int
-	Budget time.Duration // Postgres statement_timeout; 0 = none
+	// ViewerChannels are the CREATED channels Viewer belongs to (rdb 0028).
+	// Without it a search hands back the text of every channel of the
+	// tenant, which is the same leak the thread read had.
+	ViewerChannels []string
+	Limit          int
+	Budget         time.Duration // Postgres statement_timeout; 0 = none
 
 	Relevance bool // messages: rank, paged by Offset
 	Offset    int
@@ -125,6 +129,20 @@ func (s *Memory) viewerTasksLocked(live []*Message, viewer string) map[string]bo
 	return out
 }
 
+// hides reports whether this reader must not see a message in channel. A DM
+// (channel "") is decided by party, which the callers test with mine[task].
+func (q SearchQuery) Hides(channel string) bool {
+	if q.Viewer == "" || channel == "" || ChannelPublic(channel) {
+		return false
+	}
+	for _, c := range q.ViewerChannels {
+		if c == channel {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Memory) SearchMessages(_ context.Context, tenant string, q SearchQuery) ([]SearchMsgRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -133,7 +151,7 @@ func (s *Memory) SearchMessages(_ context.Context, tenant string, q SearchQuery)
 	var out []SearchMsgRow
 	for i := len(live) - 1; i >= 0; i-- { // newest first
 		m := live[i]
-		if q.Viewer != "" && m.Channel == "" && !mine[m.TaskID] {
+		if q.Viewer != "" && m.Channel == "" && !mine[m.TaskID] || q.Hides(m.Channel) {
 			continue
 		}
 		sm := searchMsg(m)
@@ -170,7 +188,7 @@ func (s *Memory) SearchFiles(_ context.Context, tenant string, q SearchQuery) ([
 	var out []SearchFileRow
 	for i := len(live) - 1; i >= 0; i-- {
 		m := live[i]
-		if q.Viewer != "" && m.Channel == "" && !mine[m.TaskID] {
+		if q.Viewer != "" && m.Channel == "" && !mine[m.TaskID] || q.Hides(m.Channel) {
 			continue
 		}
 		sm := searchMsg(m)
@@ -219,6 +237,9 @@ func (s *Memory) SearchThreads(_ context.Context, tenant string, q SearchQuery) 
 	var out []SearchThreadRow
 	for _, id := range order {
 		r := byTask[id]
+		if q.Hides(r.Channel) {
+			continue
+		}
 		if q.Viewer != "" && r.Channel == "" {
 			party := false
 			for _, m := range msgs[id] {

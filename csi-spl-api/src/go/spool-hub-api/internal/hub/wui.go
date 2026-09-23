@@ -276,6 +276,20 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 				c.write(ctx, wuiErr{"error", "bad_frame", http.StatusBadRequest, "task_id must be a UUID or \"lobby\"", ""}) //nolint:errcheck
 				continue
 			}
+			// The read door (rdb 0028): subscribing by task_id used to be
+			// enough to follow another member's DM or a private channel
+			// live. An unknown thread is allowed - the lobby, and any new
+			// thread, has no message yet - and wants() vetoes per message.
+			if f.Type == "subscribe" {
+				switch may, found, err := s.canReadThread(ctx, c.tenant, task, c.member); {
+				case err != nil:
+					c.write(ctx, wuiErr{"error", "internal", http.StatusInternalServerError, "thread lookup failed", ""}) //nolint:errcheck
+					continue
+				case found && !may:
+					c.write(ctx, wuiErr{"error", "not_found", http.StatusNotFound, "no such thread", ""}) //nolint:errcheck
+					continue
+				}
+			}
 			s.mu.Lock()
 			if f.Type == "subscribe" {
 				c.subs[task] = true
@@ -308,6 +322,18 @@ func (s *Server) wuiSubscribeChannel(ctx context.Context, c *wuiConn, f wuiIn) {
 			return
 		}
 		if !store.ValidChannelID(ch) || !ok {
+			c.write(ctx, wuiErr{"error", "unknown_channel", http.StatusNotFound, "no channel " + f.Channel + " in this tenant", ""}) //nolint:errcheck
+			return
+		}
+		// The read door (rdb 0028, privacy.go). The refusal is the SAME
+		// unknown_channel a non-existent channel gets: a non-member must not
+		// be able to tell the two apart, or the id becomes an oracle for
+		// which private channels exist.
+		switch may, err := s.canReadChannel(ctx, c.tenant, ch, c.member); {
+		case err != nil:
+			c.write(ctx, wuiErr{"error", "internal", http.StatusInternalServerError, "channel lookup failed", ""}) //nolint:errcheck
+			return
+		case !may:
 			c.write(ctx, wuiErr{"error", "unknown_channel", http.StatusNotFound, "no channel " + f.Channel + " in this tenant", ""}) //nolint:errcheck
 			return
 		}
@@ -368,14 +394,33 @@ func (p parties) is(key string) bool {
 // channel) reaches a peer or `all` follower only when the socket is party to
 // it, except a peer follow without a member session (door off: the same as
 // view-v1 dm=true without a viewer).
-func (c *wuiConn) wants(taskID, channel string, p parties) bool {
+// members is the channel's human members (rdb 0028), or nil when no
+// membership rule applies - a DM, or one of the public default channels.
+func (c *wuiConn) wants(taskID, channel string, p parties, members map[string]bool) bool {
+	party := p.is(c.from) || c.member != "" && p.is(c.member)
+	// The read door runs FIRST and only ever refuses. A socket may subscribe
+	// to a task_id while the thread is still empty (the lobby, a new thread),
+	// so a grant taken then must not carry a later post out of a channel this
+	// socket is not in.
+	switch {
+	case channel == "":
+		if c.member != "" && !party {
+			return false
+		}
+	case members != nil && c.member != "":
+		// c.member == "" is a socket with no sign-in session: the door-off
+		// rig (lde), where privacy.go filters nothing either. In the session
+		// door humanTenant has already refused an upgrade without one.
+		if !members[c.member] && !members[c.from] {
+			return false
+		}
+	}
 	if c.subs[taskID] || channel != "" && c.chans[channel] {
 		return true
 	}
 	if channel != "" {
 		return c.all
 	}
-	party := p.is(c.from) || c.member != "" && p.is(c.member)
 	if c.all && party {
 		return true
 	}
@@ -463,6 +508,17 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		return
 	}
 	channel := s.channelOf(f.Channel, task)
+	// rdb 0028: posting into a channel you are not in would both leak the
+	// post to its members and place you in a conversation you cannot read
+	// back. Same unknown_channel token as a channel that does not exist.
+	switch may, err := s.canReadChannel(ctx, c.tenant, channel, c.member); {
+	case err != nil:
+		fail("internal", http.StatusInternalServerError, "channel lookup failed")
+		return
+	case !may:
+		fail("unknown_channel", http.StatusNotFound, "no channel "+f.Channel+" in this tenant")
+		return
+	}
 	// specs/025: a note needs notes.send, commanding an agent agents.command
 	// (checked per send, so a demotion bites on the open socket too).
 	perm := rbac.NotesSend
@@ -582,10 +638,15 @@ func (s *Server) admit(ctx context.Context, tenant string, m *msg.Message) (stri
 // fanoutWUI pushes one stored message to every browser subscribed to its task,
 // its stored channel, one of its DM ends, or the whole tenant (once per socket).
 func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID string, p parties, receivedAt time.Time, env []byte) {
+	// One membership lookup per stored message, outside the lock: wants()
+	// runs under srv.mu and cannot go to the store, and a set cached on the
+	// socket would keep delivering to someone removed from the channel
+	// seconds ago.
+	members := s.channelMemberSet(ctx, tenant, channel)
 	s.mu.Lock()
 	var targets []*wuiConn
 	for c := range s.wui {
-		if c.tenant == tenant && c.wants(taskID, channel, p) {
+		if c.tenant == tenant && c.wants(taskID, channel, p, members) {
 			targets = append(targets, c)
 		}
 	}
@@ -621,12 +682,19 @@ func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID s
 func (s *Server) fanoutChannel(ctx context.Context, tenant string, c store.Channel) {
 	frame := map[string]any{"type": "channel", "channel": c.ChannelID, "name": c.Name,
 		"description": c.Description, "created_by": c.CreatedBy, "created_at": rfc(c.CreatedAt)}
+	// rdb 0028: the sidebar event carries the channel's NAME and description,
+	// so it goes to its members only - a fresh channel means its creator.
+	members := s.channelMemberSet(ctx, tenant, c.ChannelID)
 	s.mu.Lock()
 	var targets []*wuiConn
 	for w := range s.wui {
-		if w.tenant == tenant {
-			targets = append(targets, w)
+		if w.tenant != tenant {
+			continue
 		}
+		if members != nil && w.member != "" && !members[w.member] && !members[w.from] {
+			continue
+		}
+		targets = append(targets, w)
 	}
 	s.mu.Unlock()
 	for _, w := range targets {

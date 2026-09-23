@@ -158,8 +158,13 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), s.o.SearchBudget+time.Second)
 	defer cancel()
-	base := store.SearchQuery{Q: q, Now: now, Viewer: reader, Limit: limit + 1, Budget: s.o.SearchBudget,
-		Relevance: sortBy == "relevance"}
+	mine, err := s.readerChannels(ctx, t.ID, reader) // rdb 0028, the read door
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "search unavailable")
+		return
+	}
+	base := store.SearchQuery{Q: q, Now: now, Viewer: reader, ViewerChannels: mine,
+		Limit: limit + 1, Budget: s.o.SearchBudget, Relevance: sortBy == "relevance"}
 	groups := map[string]section{}
 	names := []string{}
 	for _, ty := range types {
@@ -269,7 +274,7 @@ func (s *Server) searchSection(ctx context.Context, t store.Tenant, q *search.Qu
 				"from": f.Msg.FromID, "from_box": f.Msg.FromBox, "received_at": rfc(f.Msg.ReceivedAt)})
 		}
 	default:
-		rows, err := s.searchEntities(ctx, t.ID, q, c.T, sq.Now)
+		rows, err := s.searchEntities(ctx, t.ID, q, c.T, sq)
 		if err != nil {
 			return out, err
 		}
@@ -286,7 +291,7 @@ func (s *Server) searchSection(ctx context.Context, t store.Tenant, q *search.Qu
 
 // searchEntities filters the tenant's robots, users, channels or boxes (small
 // sets the viewer already lists) with the parsed query, sorted by name.
-func (s *Server) searchEntities(ctx context.Context, tenant string, q *search.Query, ty search.Type, now time.Time) ([]any, error) {
+func (s *Server) searchEntities(ctx context.Context, tenant string, q *search.Query, ty search.Type, sq store.SearchQuery) ([]any, error) {
 	type row struct {
 		e search.Entity
 		v map[string]any
@@ -346,11 +351,16 @@ func (s *Server) searchEntities(ctx context.Context, tenant string, q *search.Qu
 				map[string]any{"id": h.HumanID, "display_name": strPtr(h.DisplayName), "avatar_file_id": strPtr(h.AvatarFileID), "online": online})
 		}
 	case search.TypeChannel:
-		chs, err := s.o.Store.ViewChannelStats(ctx, tenant, now, nil)
+		chs, err := s.o.Store.ViewChannelStats(ctx, tenant, sq.Now, nil)
 		if err != nil {
 			return nil, err
 		}
 		for _, c := range chs {
+			// rdb 0028: searching must not surface the name of a channel the
+			// reader is not in - that is exactly what the sidebar hides.
+			if sq.Hides(c.ChannelID) {
+				continue
+			}
 			var last *string
 			if !c.LastAt.IsZero() {
 				l := rfc(c.LastAt)

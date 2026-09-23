@@ -223,6 +223,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /v1/messages/{msg_id}", s.handleEditMessage) // specs/032
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}", s.editPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels", s.channelsPreflight)
+	s.routeChannelMembers(mux)
 	s.routeMembers(mux)
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {

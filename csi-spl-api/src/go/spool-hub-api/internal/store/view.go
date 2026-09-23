@@ -24,17 +24,25 @@ type ViewBox struct {
 // ThreadQuery pages GET /v1/view/threads: newest activity first, strictly
 // before (BeforeAt, BeforeTask) when BeforeAt is set.
 type ThreadQuery struct {
-	Channel    string // "" = any
-	Agent      string // "" = any; else from_id or to_id of some message
-	AgentBox   string // with Agent: that message's from_box / to_box must match too
-	DM         bool   // only messages with no channel (channels-v1 §0)
-	Roots      bool   // only threads whose first message has no parent_task_id
-	Parent     string // "" = any; else only threads whose parent_task_id is this
-	Viewer     string // "" = any; else only threads with a message from or to this id
-	BeforeAt   time.Time
-	BeforeTask string
-	Limit      int
-	Now        time.Time
+	Channel  string // "" = any
+	Agent    string // "" = any; else from_id or to_id of some message
+	AgentBox string // with Agent: that message's from_box / to_box must match too
+	DM       bool   // only messages with no channel (channels-v1 §0)
+	Roots    bool   // only threads whose first message has no parent_task_id
+	Parent   string // "" = any; else only threads whose parent_task_id is this
+	Viewer   string // "" = any; else only threads with a message from or to this id
+	// Reader is the member the list is FOR (rdb 0028, the read door): it
+	// keeps only threads in a channel that member may read, plus DMs it is
+	// an end of. "" = no door (the door-off rig). Unlike Viewer, which is
+	// the caller's explicit dm=true filter, this one is not optional.
+	Reader string
+	// ReaderChannels are the CREATED channels Reader belongs to. The default
+	// channels are public and always readable, so they are not listed here.
+	ReaderChannels []string
+	BeforeAt       time.Time
+	BeforeTask     string
+	Limit          int
+	Now            time.Time
 }
 
 // ThreadRow is one task_id's aggregate. Times are hub receive times.
@@ -55,14 +63,20 @@ type ThreadRow struct {
 // strictly before (BeforeAt, BeforeID) when BeforeAt is set (chat-reverse
 // windows, SPEC-spool-chat-reverse.md §3).
 type ThreadMsgQuery struct {
-	TaskID   string
-	AfterAt  time.Time
-	AfterID  string
-	Desc     bool
-	BeforeAt time.Time
-	BeforeID string
-	Limit    int
-	Now      time.Time
+	// Reader is the member reading (rdb 0028). Messages it may not read are
+	// not returned AT ALL - not redacted, not counted - so a page of a
+	// thread that mixes a DM with a channel reply hands back only the half
+	// this reader is entitled to. "" = no door (the door-off rig).
+	Reader         string
+	ReaderChannels []string
+	TaskID         string
+	AfterAt        time.Time
+	AfterID        string
+	Desc           bool
+	BeforeAt       time.Time
+	BeforeID       string
+	Limit          int
+	Now            time.Time
 }
 
 // ViewMsg is one stored envelope with its hub-side delivery rows.
@@ -147,6 +161,9 @@ func (s *Memory) ViewThreads(_ context.Context, tenant string, q ThreadQuery) ([
 			(m.ToID == q.Agent && (q.AgentBox == "" || m.ToBox == q.AgentBox)) {
 			match[m.TaskID] = true
 		}
+		if q.Reader != "" && !readableBy(m.Channel, m.FromID, m.ToID, q.Reader, q.ReaderChannels) {
+			continue
+		}
 		if q.Viewer == "" || m.FromID == q.Viewer || m.ToID == q.Viewer {
 			seen[m.TaskID] = true
 		}
@@ -200,6 +217,9 @@ func (s *Memory) ViewThread(_ context.Context, tenant string, q ThreadMsgQuery) 
 		if !q.BeforeAt.IsZero() && !newer(q.BeforeAt, q.BeforeID, m.ReceivedAt, m.MsgID) {
 			continue
 		}
+		if q.Reader != "" && !readableBy(m.Channel, m.FromID, m.ToID, q.Reader, q.ReaderChannels) {
+			continue
+		}
 		v := ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{},
 			EditedAt: m.EditedAt, EditedBy: m.EditedBy}
 		if revs := s.revisions[[2]string{tenant, m.MsgID}]; len(revs) > 0 {
@@ -241,4 +261,21 @@ func (s *Memory) ViewChannels(_ context.Context, tenant string, now time.Time) (
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Channel < out[j].Channel })
 	return out, nil
+}
+
+// readableBy is the rdb 0028 read door on one message: a public channel, a
+// channel the reader is in, or a DM the reader is an end of.
+func readableBy(channel, from, to, reader string, chans []string) bool {
+	if channel == "" {
+		return from == reader || to == reader
+	}
+	if ChannelPublic(channel) {
+		return true
+	}
+	for _, c := range chans {
+		if c == channel {
+			return true
+		}
+	}
+	return false
 }

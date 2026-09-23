@@ -196,6 +196,10 @@ type Store interface {
 	// Channels, subscriptions and channel stats (channels.go, channels-v1).
 	Channels
 
+	// Which HUMANS may read a channel, and the read door's thread lookup
+	// (channel_humans.go, rdb 0028).
+	ChannelHumans
+
 	// M2 checkouts and payment events (payments.go, checkout-v1).
 	Payments
 

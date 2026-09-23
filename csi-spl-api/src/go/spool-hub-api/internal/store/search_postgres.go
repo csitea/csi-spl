@@ -195,8 +195,12 @@ func (s *Postgres) SearchMessages(ctx context.Context, tenant string, q SearchQu
 	priv := "true"
 	if q.Viewer != "" {
 		v := c.arg(q.Viewer)
-		priv = `(m.channel IS NOT NULL OR EXISTS (SELECT 1 FROM messages p WHERE p.tenant_id = m.tenant_id
-			AND p.task_id = m.task_id AND p.expires_at > ` + now + ` AND (p.from_id = ` + v + ` OR p.to_id = ` + v + `)))`
+		// rdb 0028: a channel message is NOT automatically visible any more -
+		// it must be a public default or one this reader belongs to.
+		pub, mine := c.arg(DefaultChannels), c.arg(q.ViewerChannels)
+		priv = `((m.channel IS NULL AND EXISTS (SELECT 1 FROM messages p WHERE p.tenant_id = m.tenant_id
+			AND p.task_id = m.task_id AND p.expires_at > ` + now + ` AND (p.from_id = ` + v + ` OR p.to_id = ` + v + `)))
+			OR m.channel = ANY(` + pub + `::text[]) OR m.channel = ANY(` + mine + `::text[]))`
 	}
 	where := c.cond(q.Q.Root, c.messageLeaf)
 	order, page := "ORDER BY m.received_at DESC, m.msg_id::text DESC", ""
@@ -239,8 +243,12 @@ func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery
 	priv := "true"
 	if q.Viewer != "" {
 		v := c.arg(q.Viewer)
-		priv = `(m.channel IS NOT NULL OR EXISTS (SELECT 1 FROM messages p WHERE p.tenant_id = m.tenant_id
-			AND p.task_id = m.task_id AND p.expires_at > ` + now + ` AND (p.from_id = ` + v + ` OR p.to_id = ` + v + `)))`
+		// rdb 0028: a channel message is NOT automatically visible any more -
+		// it must be a public default or one this reader belongs to.
+		pub, mine := c.arg(DefaultChannels), c.arg(q.ViewerChannels)
+		priv = `((m.channel IS NULL AND EXISTS (SELECT 1 FROM messages p WHERE p.tenant_id = m.tenant_id
+			AND p.task_id = m.task_id AND p.expires_at > ` + now + ` AND (p.from_id = ` + v + ` OR p.to_id = ` + v + `)))
+			OR m.channel = ANY(` + pub + `::text[]) OR m.channel = ANY(` + mine + `::text[]))`
 	}
 	where := c.cond(q.Q.Root, c.fileLeaf)
 	page := ""
@@ -285,7 +293,9 @@ func (s *Postgres) SearchThreads(ctx context.Context, tenant string, q SearchQue
 	priv := "true"
 	if q.Viewer != "" {
 		v := c.arg(q.Viewer)
-		priv = "(t.channel <> '' OR EXISTS (SELECT 1 FROM live x WHERE x.task_id = t.task_id AND (x.from_id = " + v + " OR x.to_id = " + v + ")))"
+		pub, mine := c.arg(DefaultChannels), c.arg(q.ViewerChannels)
+		priv = "((t.channel = '' AND EXISTS (SELECT 1 FROM live x WHERE x.task_id = t.task_id AND (x.from_id = " + v +
+			" OR x.to_id = " + v + "))) OR t.channel = ANY(" + pub + "::text[]) OR t.channel = ANY(" + mine + "::text[]))"
 	}
 	where := c.cond(q.Q.Root, c.threadLeaf)
 	page := ""

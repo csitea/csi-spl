@@ -197,7 +197,17 @@ export function createSpoolClient({
       if (limit) q.set('limit', String(limit))
       if (after) q.set('after', after)
       if (before) q.set('before', before)
-      const data = await live(`/v1/view/threads/${encodeURIComponent(id)}?${q}`)
+      let data
+      try {
+        data = await live(`/v1/view/threads/${encodeURIComponent(id)}?${q}`)
+      } catch (e) {
+        // rdb 0028: a thread you may not read answers 404, exactly as one
+        // that does not exist does - the hub will not tell a non-member
+        // which of the two it is. An empty thread is the honest rendering;
+        // an error toast would leak that something IS there.
+        if (e && e.status === 404) return { task_id: id, messages: [], next: null }
+        throw e
+      }
       const rows = (data && data.messages) || []
       return { task_id: id, messages: rows.map(normalizeViewMessage), next: (data && data.next) || null }
     },

@@ -11,6 +11,8 @@ import (
 type memChannels struct {
 	rows map[[2]string]Channel             // (tenant, channel)
 	subs map[[2]string]map[string][]string // (tenant, box) → channel → agents
+	// humans is the 0028 half: (tenant, channel) → human → added_by.
+	humans map[[2]string]map[string]string
 }
 
 func (c *memChannels) init() {

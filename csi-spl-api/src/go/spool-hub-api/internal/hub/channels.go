@@ -269,7 +269,10 @@ func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	by := "wui"
-	if id, err := s.sessionFor(r, t.ID); err == nil && id != "" {
+	// memberID, not sessionFor: sessionFor bypasses the SessionID seam, so
+	// under a seam rig the creator was recorded as "wui" and (since rdb 0028)
+	// lost the channel it had just made.
+	if id, err := s.memberID(r, t.ID); err == nil && id != "" {
 		by = id
 	}
 	c := store.Channel{TenantID: t.ID, ChannelID: body.Channel, Name: body.Name, Description: body.Description,
@@ -280,6 +283,14 @@ func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "channel not stored")
 	default:
+		// rdb 0028: a created channel is members-only, so it must not be
+		// born empty - the creator would lose the channel they just made.
+		// Before the fan-out, which is itself members-only now.
+		if by != "wui" {
+			if err := s.o.Store.AddChannelHumans(r.Context(), t.ID, c.ChannelID, []string{by}, by, s.o.Now()); err != nil {
+				s.o.Log.Error().Err(err).Str("channel", c.ChannelID).Msg("channel creator membership")
+			}
+		}
 		/* CLE-3425: every other session's sidebar learns about it at once */
 		s.fanoutChannel(r.Context(), t.ID, c)
 		writeJSON(w, http.StatusCreated, map[string]any{"channel": c.ChannelID, "name": c.Name,

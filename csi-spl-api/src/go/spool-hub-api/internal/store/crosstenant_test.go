@@ -85,6 +85,9 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		t.Fatal(err)
 	}
 	s.humanID = hum
+	if err := pg.AddChannelHumans(ctx, s.tenant, s.channelID, []string{hum}, hum, now); err != nil { // channel_humans
+		t.Fatal(err)
+	}
 	if err := pg.PutInvite(ctx, Invite{TenantID: s.tenant, Email: "inv-" + s.tenant + "@example.com", Role: "developer", InvitedBy: hum,
 		ExpiresAt: now.Add(24 * time.Hour)}, now); err != nil { // tenant_invites
 		t.Fatal(err)

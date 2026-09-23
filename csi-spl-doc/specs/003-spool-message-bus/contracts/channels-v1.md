@@ -214,7 +214,79 @@ on box connect / disconnect / announce change, and on the first / last browser
 socket of a human (`HUM-1@box-wui`); a snapshot of every online peer follows
 `welcome` (live frames may interleave: last writer wins per peer). Tenant-scoped. Test: `TestWUIPresence`.
 
-## 7. Open questions (owner, via ORC)
+## 7. The read door — who may read a channel (rdb 0028)
+
+Owner's call, 2026-09-23, after a member of tenant `t1` opened another
+member's DM with an agent through `/channel/<name>?thread=<uuid>`:
+
+> "fix the fact that all of the messaging is public [...] the messages should
+> be public only if both of the users are in the same channel"
+
+Until 0028 the only gate on a read was `rbac.threads.read`, a **tenant-wide**
+role. `channel_subscriptions` (§4) is the AGENT half — where a post must be
+delivered — and there was no human membership at all, so any signed-in member
+of a tenant could read any thread of it by its `task_id`.
+
+### 7.1 The two rules
+
+| the message is | readable by |
+|---|---|
+| in a **default** channel (`#lobby`, `#tasks`, `#alerts`) | every member of the tenant |
+| in a **created** channel | the humans in `channel_humans` for it |
+| **untagged** (a DM) | the two ends of that message |
+
+A non-member cannot learn a created channel exists: it is absent from
+`GET /v1/view/channels` and from search, its threads answer **404**, and a
+`subscribe` to it is refused with the same `unknown_channel` a channel that
+does not exist gets. 404 and not 403 — a refusal that tells the two apart is
+an oracle for which private channels exist.
+
+### 7.2 Per MESSAGE, not per thread
+
+One thread can hold both kinds: the WUI posts a reply from whichever channel
+page it is on, so a DM thread picks up a channel-tagged message the moment
+someone answers it from a channel view (dev `t1`
+`57e6f191-582e-45b1-a08e-389c0b034803` is exactly that, and is the thread the
+defect was reported from). Access is therefore **not** a property of the
+thread. `GET /v1/view/threads/{task_id}` opens when at least one message in it
+is readable, and then returns **only** the readable ones — filtered in the
+statement, so `limit` counts what comes back. Were it per thread, appending
+one message to a DM would buy the whole private history before it.
+Test: `TestMixedThreadHidesTheDMHalf`.
+
+### 7.3 Where it is applied
+
+`GET /v1/view/threads/{task_id}` and `/children`, `GET /v1/view/threads`,
+`GET /v1/view/channels`, `GET /v1/search`, and on the browser socket:
+`subscribe` (by channel and by `task_id`), `send`, the message fan-out, the
+edit fan-out and the `channel` created-frame. Posting into a channel you are
+not in is refused for the same reason reading it is.
+
+A socket or request with **no** member session filters nothing: that is the
+door-off rig (`SPOOL_HUB_VIEW_DOOR=off`, lde only), and it is the rule the DM
+filter has always used. In the session door `humanTenant` has already refused
+anything without a session.
+
+### 7.4 Membership
+
+`channel_humans (tenant_id, channel_id, human_id, joined_at, added_by)`,
+tenant-scoped RLS in the 0021 fail-closed form.
+
+- `GET /v1/channels/{channel}/members` — members only.
+- `POST /v1/channels/{channel}/members` `{human_id}` — needs `channels.manage`
+  **and** membership; the target must already be a member of the tenant.
+- `DELETE /v1/channels/{channel}/members/{human_id}` — `channels.manage`, or
+  yourself (leaving needs no permission).
+- Creating a channel puts its creator in it; a members-only channel born empty
+  would be lost the moment it was made.
+- A default channel has no membership: both writes answer `409 channel_public`.
+
+**Backfill (0028).** Membership is derived from evidence, never from "everyone
+in the tenant" — that would carry the leak forward under a new name. Each
+created channel admits its creator plus every human who posted in it or was
+addressed in it. Anyone else is out on the first deploy and has to be added.
+
+## 8. Open questions (owner, via ORC)
 
 - **OQ-CH1** — who creates channels: (a) *recommended, implemented*: humans
   through the view door only; box agents later via a signed frame; (b) boxes
@@ -225,4 +297,4 @@ socket of a human (`HUM-1@box-wui`); a snapshot of every online peer follows
 - **OQ-CH3** — `general` alias lifetime: (a) *recommended*: accepted until
   the next minor contract version, then `404 unknown_channel`; (b) forever.
 
-<!-- version: 1.3.0 · updated: 2026-09-22 · last-edit: 2026-09-22T13:28:20Z -->
+<!-- version: 1.4.0 · updated: 2026-09-23 · last-edit: 2026-09-23T15:05:00Z -->

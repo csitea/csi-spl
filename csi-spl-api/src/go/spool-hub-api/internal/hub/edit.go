@@ -242,10 +242,11 @@ func editedPayload(m store.EditableMessage, canon []byte, at time.Time, by strin
 // disagree about what the message says.
 func (s *Server) fanoutEdited(ctx context.Context, tenant string, m store.EditableMessage, canon []byte, at time.Time, by string, rev int) {
 	p := parties{m.FromID, m.FromBox, m.ToID, m.ToBox}
+	members := s.channelMemberSet(ctx, tenant, m.Channel) // rdb 0028, as fanoutWUI
 	s.mu.Lock()
 	var targets []*wuiConn
 	for c := range s.wui {
-		if c.tenant == tenant && c.wants(m.TaskID, m.Channel, p) {
+		if c.tenant == tenant && c.wants(m.TaskID, m.Channel, p, members) {
 			targets = append(targets, c)
 		}
 	}

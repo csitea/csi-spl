@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -183,4 +184,101 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 	}
 	SortChannelStats(out) // CLE-3425: newest activity first
 	return out, nil
+}
+
+// ---- human channel membership (rdb 0028, channel_humans.go) ---------------
+
+func (s *Postgres) ChannelHumanMembers(ctx context.Context, tenant, channel string) ([]string, error) {
+	var out []string
+	err := s.queryTenant(ctx, tenant, `SELECT human_id FROM channel_humans
+		WHERE tenant_id = $1 AND channel_id = $2 ORDER BY human_id`, []any{tenant, NormalizeChannel(channel)},
+		func(rows pgx.Rows) error {
+			var h string
+			if err := rows.Scan(&h); err != nil {
+				return err
+			}
+			out = append(out, h)
+			return nil
+		})
+	return out, err
+}
+
+func (s *Postgres) HumanChannels(ctx context.Context, tenant, human string) ([]string, error) {
+	var out []string
+	err := s.queryTenant(ctx, tenant, `SELECT channel_id FROM channel_humans
+		WHERE tenant_id = $1 AND human_id = $2 ORDER BY channel_id`, []any{tenant, human},
+		func(rows pgx.Rows) error {
+			var c string
+			if err := rows.Scan(&c); err != nil {
+				return err
+			}
+			out = append(out, c)
+			return nil
+		})
+	return out, err
+}
+
+func (s *Postgres) AddChannelHumans(ctx context.Context, tenant, channel string, humans []string, by string, now time.Time) error {
+	channel = NormalizeChannel(channel)
+	if len(humans) == 0 {
+		return nil
+	}
+	if by == "" {
+		by = "hub"
+	}
+	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		// A default channel has no row until something seeds it, and the FK
+		// needs one; seeding is idempotent.
+		if _, err := tx.Exec(ctx, pgSeedDefaults, tenant, DefaultChannels); err != nil {
+			return mapFK(err)
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO channel_humans (tenant_id, channel_id, human_id, joined_at, added_by)
+			SELECT $1, $2, h, $3, $4 FROM unnest($5::text[]) AS h
+			ON CONFLICT DO NOTHING`, tenant, channel, now, by, humans)
+		return mapFK(err)
+	})
+}
+
+func (s *Postgres) RemoveChannelHuman(ctx context.Context, tenant, channel, human string) error {
+	tag, err := s.execTenant(ctx, tenant, `DELETE FROM channel_humans
+		WHERE tenant_id = $1 AND channel_id = $2 AND human_id = $3`, tenant, NormalizeChannel(channel), human)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ThreadAccess is one aggregate over the thread's messages: its first
+// message's channel, and every id at either end. A task_id that is not a
+// canonical uuid matches no row (027 T030, same as ViewThread).
+func (s *Postgres) ThreadAccess(ctx context.Context, tenant, task string, now time.Time) (ThreadAccess, error) {
+	var a ThreadAccess
+	if !canonUUIDRe.MatchString(task) {
+		return a, nil
+	}
+	var chans, ends []string
+	var n int
+	err := s.queryRowTenant(ctx, tenant, `SELECT count(*)::int,
+			array_agg(DISTINCT COALESCE(channel, '')),
+			COALESCE(array_agg(DISTINCT from_id) FILTER (WHERE channel IS NULL), '{}')
+				|| COALESCE(array_agg(DISTINCT to_id) FILTER (WHERE channel IS NULL), '{}')
+		FROM messages WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3`,
+		[]any{tenant, task, now}, &n, &chans, &ends)
+	if err != nil || n == 0 {
+		return a, err
+	}
+	a.Found, a.Channels = true, chans
+	seen := map[string]bool{}
+	for _, p := range ends {
+		if p != "" && !seen[p] {
+			seen[p] = true
+			a.DMParties = append(a.DMParties, p)
+		}
+	}
+	sort.Strings(a.Channels)
+	sort.Strings(a.DMParties)
+	return a, nil
 }

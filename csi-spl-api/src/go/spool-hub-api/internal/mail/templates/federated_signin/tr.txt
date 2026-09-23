@@ -1,0 +1,10 @@
+Biri bu adres için spool parolasını sıfırlamak istedi, ancak bu adresin parolası yok.
+
+Bu adres şununla oturum açıyor: {{.Providers}}
+
+Oturum açma sayfasında o düğmeyi kullanın:
+{{.SignInURL}}
+
+Ayrıca bir parola da isterseniz, bu adresle kaydolun ve göndereceğimiz e-postadan onaylayın - parola aynı hesaba eklenir.
+
+Bu siz değilseniz bu e-postayı yok sayın: hiçbir şey değişmedi.

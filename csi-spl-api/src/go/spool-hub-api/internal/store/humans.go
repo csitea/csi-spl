@@ -7,12 +7,26 @@ import (
 	"strings"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/i18n"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
+// ProviderNative is the provider slug of a native email+password identity
+// (rdb 0006, rdb 0009). Every other slug is a federated (IdP) identity. Taken
+// from auth so the two cannot drift; auth does not import store, so the
+// direction is safe.
+const ProviderNative = auth.ProviderPassword
+
 // Humans, their sign-in identities and tenant membership (specs/010 T012/T013,
 // FR-008, FR-012, OQ-A3, OQ-A5; rdb 0006_users_and_memberships.sql).
+//
+// CLE-3451 amends rdb 0006's note "a new identity is never linked to an
+// existing human by email alone": it is linked when BOTH sides carry a
+// PROVIDER-VERIFIED address (Admit, below). Keying humans on (provider,
+// subject) alone made signing up with a password for an address that already
+// had a Google identity mint a SECOND, unlinked human, which then had no
+// invite and no bootstrap left and was refused with 403 not_allowed.
 
 // ErrNotAdmitted refuses a sign-in to a tenant: not a member, no matching
 // invite, and no bootstrap (FR-012). Nothing was written.
@@ -121,6 +135,13 @@ type Humans interface {
 	// subject) sign-in belongs to; "" (nil error) when there is no such
 	// identity or nothing is picked.
 	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
+	// FederatedAccount lists the providers, other than ProviderNative, whose
+	// VERIFIED identity carries email on a human that is not disabled, sorted,
+	// plus that human's picked locale ("" when none). An address nobody signs
+	// in with is an empty list and a nil error. CLE-3451 defect 1: the
+	// forgot-password route needs to tell a Google-only address apart from an
+	// address that does not exist, WITHOUT saying so on the wire.
+	FederatedAccount(ctx context.Context, email string) (providers []string, locale string, err error)
 	// TenantRoles is every role visible to tenant (system + its own) with
 	// its grants (rdb 0021; memory: rbac.Defaults).
 	TenantRoles(ctx context.Context, tenant string) (map[string]rbac.Role, error)

@@ -1,0 +1,10 @@
+Keegi palus selle aadressi spool-parooli lähtestada, kuid sellel aadressil ei ole parooli.
+
+See aadress logib sisse teenusega: {{.Providers}}
+
+Kasuta sisselogimislehel seda nuppu:
+{{.SignInURL}}
+
+Kui soovid ka parooli, registreeru selle aadressiga ja kinnita see meie saadetud kirjast - parool lisatakse samale kontole.
+
+Kui see ei olnud sina, eira seda kirja: midagi ei muutunud.

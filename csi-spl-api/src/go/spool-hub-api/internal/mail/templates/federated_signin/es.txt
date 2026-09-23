@@ -1,0 +1,10 @@
+Alguien pidió restablecer la contraseña de spool para esta dirección, pero esta dirección no tiene contraseña.
+
+Esta dirección inicia sesión con: {{.Providers}}
+
+Usa ese botón en la página de inicio de sesión:
+{{.SignInURL}}
+
+Si prefieres tener también una contraseña, regístrate con esta dirección y confírmala desde el correo que te enviaremos - la contraseña se añade a la misma cuenta.
+
+Si no fuiste tú, ignora este correo: no ha cambiado nada.

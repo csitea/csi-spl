@@ -1,0 +1,10 @@
+Neko je zatražio resetovanje spool lozinke za ovu adresu, ali ova adresa nema lozinku.
+
+Ova adresa se prijavljuje preko: {{.Providers}}
+
+Iskoristite to dugme na stranici za prijavu:
+{{.SignInURL}}
+
+Ako želite i lozinku, registrujte se sa ovom adresom i potvrdite je iz poruke koju ćemo poslati - lozinka se dodaje istom nalogu.
+
+Ako to niste bili vi, zanemarite ovu poruku: ništa nije promenjeno.

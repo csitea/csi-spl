@@ -1,0 +1,10 @@
+Kažkas paprašė atkurti šio adreso spool slaptažodį, bet šis adresas slaptažodžio neturi.
+
+Šis adresas jungiasi su: {{.Providers}}
+
+Naudokite tą mygtuką prisijungimo puslapyje:
+{{.SignInURL}}
+
+Jei norite turėti ir slaptažodį, užsiregistruokite šiuo adresu ir patvirtinkite jį iš mūsų laiško - slaptažodis bus pridėtas prie tos pačios paskyros.
+
+Jei tai buvote ne jūs, nepaisykite šio laiško: niekas nepasikeitė.

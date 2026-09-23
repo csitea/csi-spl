@@ -80,6 +80,17 @@ type Preferences interface {
 	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
 }
 
+// FederatedLookup tells the forgot-password route that an address it holds no
+// password credential for is nonetheless a known account that signs in with an
+// IdP (CLE-3451 defect 1). nil = that route cannot tell such an address from
+// one that does not exist, and behaves exactly as it did before.
+type FederatedLookup interface {
+	// FederatedAccount lists the providers whose VERIFIED identity carries
+	// email - never ProviderPassword - sorted, plus the human's picked locale
+	// ("" when none). No such account is an empty list and a nil error.
+	FederatedAccount(ctx context.Context, email string) (providers []string, locale string, err error)
+}
+
 // Errors from SessionForTenant. The view door maps all of them to its 401.
 var (
 	ErrNoSession    = errors.New("auth: no valid session")
@@ -100,6 +111,7 @@ type Handler struct {
 	unlink     IdentityUnlinker
 	avatars    AvatarSource
 	prefs      Preferences
+	federated  FederatedLookup
 	defLocale  string  // SPOOL_HUB_DEFAULT_LOCALE (i18n)
 	native     *native // spec 015; nil = native sign-in off
 	now        func() time.Time
@@ -117,6 +129,10 @@ type Options struct {
 	Avatars AvatarSource
 	// Preferences backs preferred_locale (session + PUT preferences); nil = off.
 	Preferences Preferences
+	// Federated backs the forgot-password route's "you signed up with Google"
+	// mail (CLE-3451); nil = that route falls silent on such an address, as
+	// it did before.
+	Federated FederatedLookup
 	// DefaultLocale is SPOOL_HUB_DEFAULT_LOCALE: the mail locale when the
 	// request names none, and the locale WUI links carry no prefix for
 	// (prefix_except_default). "" = i18n.DefaultLocale.
@@ -129,7 +145,8 @@ type Options struct {
 func New(cfg *Config, log zerolog.Logger, o Options) *Handler {
 	h := &Handler{
 		cfg: cfg, idps: map[string]IdP{}, log: log.With().Str("component", "auth").Logger(),
-		reg: o.Registrar, members: o.Membership, unlink: o.Unlinker, avatars: o.Avatars, prefs: o.Preferences, now: o.Now,
+		reg: o.Registrar, members: o.Membership, unlink: o.Unlinker, avatars: o.Avatars, prefs: o.Preferences,
+		federated: o.Federated, now: o.Now,
 		defLocale: o.DefaultLocale,
 	}
 	if h.now == nil {

@@ -1,0 +1,10 @@
+Cineva a cerut resetarea parolei spool pentru această adresă, dar adresa nu are parolă.
+
+Această adresă se conectează cu: {{.Providers}}
+
+Folosiți acel buton pe pagina de conectare:
+{{.SignInURL}}
+
+Dacă preferați să aveți și o parolă, înregistrați-vă cu această adresă și confirmați-o din mesajul pe care îl trimitem - parola se adaugă aceluiași cont.
+
+Dacă nu ați fost dumneavoastră, ignorați acest mesaj: nimic nu s-a schimbat.

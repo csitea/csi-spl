@@ -75,6 +75,14 @@ var nativeBase = map[string]string{
 
 func newNRig(t *testing.T, extra map[string]string, members auth.Membership, delivers bool) *nrig {
 	t.Helper()
+	return newNRigWith(t, extra, members, delivers, nil)
+}
+
+// newNRigWith is newNRig plus the CLE-3451 federated lookup; nil = the hub
+// cannot tell an IdP-only address from an unknown one, which is how every
+// rig above it runs.
+func newNRigWith(t *testing.T, extra map[string]string, members auth.Membership, delivers bool, fed auth.FederatedLookup) *nrig {
+	t.Helper()
 	r := &nrig{box: &mail.Recorder{}, reg: &recReg{}, store: auth.NewMemoryCredStore(),
 		t: time.Date(2026, 9, 19, 6, 0, 0, 0, time.UTC)}
 	var hubH http.Handler
@@ -100,7 +108,7 @@ func newNRig(t *testing.T, extra map[string]string, members auth.Membership, del
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.h = auth.New(cfg, zerolog.Nop(), auth.Options{Registrar: r.reg, Membership: members, Now: r.now})
+	r.h = auth.New(cfg, zerolog.Nop(), auth.Options{Registrar: r.reg, Membership: members, Federated: fed, Now: r.now})
 	if err := r.h.EnableNative(nc, auth.NativeDeps{Store: r.store, Sender: r.box, Delivers: delivers}); err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,10 @@
+Iemand vroeg om het spool-wachtwoord voor dit adres opnieuw in te stellen, maar dit adres heeft geen wachtwoord.
+
+Dit adres logt in met: {{.Providers}}
+
+Gebruik die knop op de inlogpagina:
+{{.SignInURL}}
+
+Wil je liever ook een wachtwoord, registreer je dan met dit adres en bevestig het via de mail die we sturen - het wachtwoord wordt aan hetzelfde account toegevoegd.
+
+Was jij dit niet, negeer deze mail dan: er is niets veranderd.

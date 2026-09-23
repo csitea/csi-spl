@@ -153,7 +153,7 @@ func cmdServe() int {
 	// CLE-3403: preferred_locale lives on the human (rdb 0017); the default
 	// locale is cnf, validated by LoadHub.
 	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks, Avatars: hooks,
-		Preferences: hooks, DefaultLocale: hc.DefaultLocale})
+		Preferences: hooks, Federated: hooks, DefaultLocale: hc.DefaultLocale})
 	log.Info().Str("default_locale", hc.DefaultLocale).Msg("i18n")
 	if nc.Enabled {
 		mc, err := mail.Load() // SPOOL_HUB_MAIL_*: no default relay host

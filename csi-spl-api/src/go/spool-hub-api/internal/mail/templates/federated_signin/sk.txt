@@ -1,0 +1,10 @@
+Niekto požiadal o obnovenie hesla spool pre túto adresu, ale táto adresa heslo nemá.
+
+Táto adresa sa prihlasuje cez: {{.Providers}}
+
+Použite toto tlačidlo na prihlasovacej stránke:
+{{.SignInURL}}
+
+Ak chcete mať aj heslo, zaregistrujte sa s touto adresou a potvrďte ju z e-mailu, ktorý pošleme - heslo sa pridá k tomu istému účtu.
+
+Ak ste to neboli vy, tento e-mail ignorujte: nič sa nezmenilo.

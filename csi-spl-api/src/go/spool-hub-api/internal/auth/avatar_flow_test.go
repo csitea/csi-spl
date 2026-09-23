@@ -83,18 +83,17 @@ func TestIdPAvatarStoredAsFileID(t *testing.T) {
 		t.Fatalf("blob bytes differ from the IdP picture (%d vs %d)", len(b), len(want))
 	}
 
-	// Facebook reads Graph's picture edge (a separate human, same picture);
-	// t1 has its owner now, so this identity comes in on an invite.
-	if err := st.PutInvite(ctx, store.Invite{TenantID: "t1", Email: alice.Email, InvitedBy: s.HumanID,
-		ExpiresAt: nowUTC().Add(time.Hour)}, nowUTC()); err != nil {
-		t.Fatal(err)
-	}
+	// Facebook reads Graph's picture edge. It carries the same VERIFIED
+	// address, so it is the SAME human (CLE-3451 defect 2) - and needs no
+	// invite to t1, because that human already owns it. No PutInvite here on
+	// purpose: if linking regressed, this reads auth_error=not_allowed rather
+	// than passing on an invite that hid the second human.
 	fb := browser(t)
 	if u := signIn(t, fb, r, "facebook", "?tenant=t1"); u.Query().Get("auth_error") != "" {
 		t.Fatalf("facebook on t1 landed on %s", u)
 	}
-	if _, s2 := session(t, fb, r); s2.HumanID == "" || s2.HumanID == s.HumanID {
-		t.Fatalf("facebook human %q (google %q)", s2.HumanID, s.HumanID)
+	if _, s2 := session(t, fb, r); s2.HumanID != s.HumanID {
+		t.Fatalf("facebook human %q, want google's %q", s2.HumanID, s.HumanID)
 	} else if got, _ := st.Avatar(ctx, s2.HumanID); got != wantID {
 		t.Fatalf("facebook avatar = %q, want %s", got, wantID)
 	}

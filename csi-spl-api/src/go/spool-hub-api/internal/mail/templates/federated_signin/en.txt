@@ -1,0 +1,10 @@
+Someone asked to reset the spool password for this address, but it has no password.
+
+This address signs in with: {{.Providers}}
+
+Use that button on the sign-in page:
+{{.SignInURL}}
+
+If you would rather have a password too, register with this address and confirm it from the mail we send you - the password is added to the same account.
+
+If this was not you, ignore this mail: nothing changed.

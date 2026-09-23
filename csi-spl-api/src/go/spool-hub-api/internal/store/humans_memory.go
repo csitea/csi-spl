@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -15,6 +17,15 @@ type memHuman struct {
 
 type memMember struct{ role, admittedBy string }
 
+// memIdent is one human_identities row: which human the (provider, subject)
+// belongs to, and the address the provider asserted. verified mirrors the
+// column of the same name - CLE-3451 links a new identity onto an existing
+// human only when BOTH sides carry a verified address.
+type memIdent struct {
+	human, email string
+	verified     bool
+}
+
 type memInvite struct {
 	Invite
 	accepted  bool
@@ -26,7 +37,7 @@ type memInvite struct {
 type memHumans struct {
 	next       int
 	humans     map[string]*memHuman
-	identities map[[2]string]string    // (provider, subject) -> HUM-*
+	identities map[[2]string]*memIdent // (provider, subject) -> the row
 	members    map[[2]string]memMember // (tenant, HUM-*) -> role
 	invites    map[[2]string]*memInvite
 }
@@ -34,7 +45,7 @@ type memHumans struct {
 func (h *memHumans) init() {
 	if h.humans == nil {
 		h.humans = map[string]*memHuman{}
-		h.identities = map[[2]string]string{}
+		h.identities = map[[2]string]*memIdent{}
 		h.members = map[[2]string]memMember{}
 		h.invites = map[[2]string]*memInvite{}
 	}
@@ -50,6 +61,22 @@ func (h *memHumans) memberCount(tenant string) int {
 	return n
 }
 
+// verifiedHuman is the human an already-known identity proved this address
+// for, "" when no identity carries it VERIFIED (CLE-3451 defect 2). Ordered by
+// human id so the answer does not depend on map iteration order.
+func (h *memHumans) verifiedHuman(email string) string {
+	if email == "" {
+		return ""
+	}
+	best := ""
+	for _, i := range h.identities {
+		if i.verified && i.email == email && (best == "" || i.human < best) {
+			best = i.human
+		}
+	}
+	return best
+}
+
 func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPolicy, now time.Time) (string, error) {
 	if err := normalizeIdentity(&id); err != nil {
 		return "", err
@@ -58,8 +85,24 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 	defer s.mu.Unlock()
 	h := &s.hum
 	h.init()
-	hum, known := h.identities[[2]string{id.Provider, id.Subject}]
-	if known && h.humans[hum].disabled {
+	var hum string
+	row, known := h.identities[[2]string{id.Provider, id.Subject}]
+	if known {
+		hum = row.human
+	}
+	// CLE-3451 defect 2: a NEW identity whose provider-verified address already
+	// belongs to a human joins that human instead of minting a second, unlinked
+	// one. id.Email is non-empty only when the provider asserted the address
+	// (auth FR-004: oidc.go / idp.go refuse the sign-in otherwise), and the row
+	// side must carry verified - merging on an unverified address on either
+	// side would be an account takeover.
+	linked := false
+	if !known {
+		if h2 := h.verifiedHuman(id.Email); h2 != "" {
+			hum, linked = h2, true
+		}
+	}
+	if (known || linked) && h.humans[hum].disabled {
 		return "", ErrNotAdmitted
 	}
 	// Decide admission before writing anything (a refusal writes nothing).
@@ -71,7 +114,7 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 		}
 		_, member := h.members[[2]string{tenant, hum}]
 		switch {
-		case known && member:
+		case (known || linked) && member:
 		default:
 			if i, ok := h.invites[[2]string{tenant, id.Email}]; ok && id.Email != "" && !i.accepted && now.Before(i.ExpiresAt) {
 				inv = i
@@ -88,10 +131,15 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 		}
 	}
 	if !known {
-		h.next++
-		hum = fmt.Sprintf("HUM-%d", h.next)
-		h.humans[hum] = &memHuman{}
-		h.identities[[2]string{id.Provider, id.Subject}] = hum
+		if !linked {
+			h.next++
+			hum = fmt.Sprintf("HUM-%d", h.next)
+			h.humans[hum] = &memHuman{}
+		}
+		h.identities[[2]string{id.Provider, id.Subject}] = &memIdent{human: hum}
+	}
+	if ident := h.identities[[2]string{id.Provider, id.Subject}]; id.Email != "" {
+		ident.email, ident.verified = id.Email, true
 	}
 	if id.Email != "" {
 		h.humans[hum].email = id.Email
@@ -208,10 +256,42 @@ func (s *Memory) IdentityLocale(_ context.Context, provider, subject string) (st
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.hum.init()
-	if hm, ok := s.hum.humans[s.hum.identities[[2]string{provider, subject}]]; ok {
-		return hm.locale, nil
+	if row, ok := s.hum.identities[[2]string{provider, subject}]; ok {
+		if hm, ok := s.hum.humans[row.human]; ok {
+			return hm.locale, nil
+		}
 	}
 	return "", nil
+}
+
+// FederatedAccount is CLE-3451 defect 1's lookup: which IdPs already carry
+// this address, verified, on a human that is not disabled.
+func (s *Memory) FederatedAccount(_ context.Context, email string) ([]string, string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return nil, "", nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	locales := map[string]string{}
+	var provs []string
+	for k, i := range s.hum.identities {
+		hm, ok := s.hum.humans[i.human]
+		if !i.verified || i.email != email || k[0] == ProviderNative || !ok || hm.disabled {
+			continue
+		}
+		provs = append(provs, k[0])
+		locales[k[0]] = hm.locale
+	}
+	sort.Strings(provs)
+	locale := ""
+	for _, p := range provs { // deterministic: the first provider's human
+		if locale = locales[p]; locale != "" {
+			break
+		}
+	}
+	return provs, locale, nil
 }
 
 func (s *Memory) TenantAvatars(_ context.Context, tenant string) (map[string]string, error) {
@@ -225,6 +305,18 @@ func (s *Memory) TenantAvatars(_ context.Context, tenant string) (map[string]str
 		}
 	}
 	return out, nil
+}
+
+// unverifyIdentity is a test hook: it leaves the address on the identity but
+// clears human_identities.email_verified, the one shape no production path
+// writes today and the one CLE-3451's linking must refuse to merge on.
+func (s *Memory) unverifyIdentity(provider, subject string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	if row, ok := s.hum.identities[[2]string{provider, subject}]; ok {
+		row.verified = false
+	}
 }
 
 // disableHuman is a test hook (humans.disabled_at); no production caller yet.

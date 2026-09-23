@@ -489,11 +489,67 @@ func (n *native) handleForgot(w http.ResponseWriter, r *http.Request) {
 		case err == nil:
 			tok = n.issue(ctx, TokenReset, email, "", n.h.now(),
 				n.mailLocale(ctx, email, cred.Locale, n.h.RequestLocale(r)))
-		case !errors.Is(err, ErrCredNotFound):
+		case errors.Is(err, ErrCredNotFound):
+			// No password to reset - but the address may still be a real
+			// account that signs in with an IdP. Before CLE-3451 this branch
+			// did nothing at all, so a Google-only address got a 204 and no
+			// mail: indistinguishable from a broken site, with no recovery
+			// path. Mail THAT person which button to use; an address nobody
+			// has still gets nothing (FR-005 is unweakened, see
+			// forgotFederated).
+			n.forgotFederated(ctx, r, email)
+		default:
 			n.log.Error().Err(err).Msg("auth.native_forgot store")
 		}
 	}
 	n.answer(w, http.StatusNoContent, nil, tok)
+}
+
+// forgotFederated mails the "this address signs in with <provider>" note when
+// email is a known IdP-only account. It never touches the response: the route
+// answers the same 204 either way, so the wire still enumerates nothing.
+//
+// FR-005 for an address that does not exist AT ALL is unchanged on purpose:
+// no lookup result, no mail, and no log line that tells it apart from any
+// other miss. Only a KNOWN account produces a mail or a log event.
+func (n *native) forgotFederated(ctx context.Context, r *http.Request, email string) {
+	if n.h.federated == nil {
+		return
+	}
+	provs, locale, err := n.h.federated.FederatedAccount(ctx, email)
+	if err != nil {
+		n.log.Error().Err(err).Msg("auth.native_forgot federated lookup (non-fatal)")
+		return
+	}
+	if len(provs) == 0 {
+		return // not an account: exactly what this branch did before CLE-3451
+	}
+	// One note per address per rate window, so an always-204 route cannot be
+	// turned into a mail amplifier. The refusal is silent on the wire, like
+	// the credential floor above it.
+	if ok, _ := n.lim.Allow("forgot-federated:"+email, 1); !ok {
+		n.log.Warn().Str("email", digest(email)).Msg("auth.native_federated_mail_floor")
+		return
+	}
+	if !i18n.IsSupported(locale) {
+		locale = n.h.RequestLocale(r)
+	}
+	msg, err := mail.FederatedSignIn(email, locale, provs, n.signInURL(locale))
+	if err != nil {
+		n.log.Error().Err(err).Msg("auth.native_federated_mail_render (non-fatal)")
+		return
+	}
+	n.log.Info().Str("email", digest(email)).Strs("providers", provs).
+		Str("locale", msg.Locale).Msg("auth.native_forgot_federated")
+	if err := n.sender.Send(ctx, msg); err != nil {
+		n.log.Error().Err(err).Msg("auth.native_federated_mail_send (non-fatal)")
+	}
+}
+
+// signInURL is the WUI login page in loc, carrying no token and no tenant
+// (the same prefix_except_default routing as link).
+func (n *native) signInURL(loc string) string {
+	return strings.TrimRight(n.h.cfg.AppURL, "/") + i18n.URLPrefix(loc, n.h.defLocale) + "/login"
 }
 
 func (n *native) handleReset(w http.ResponseWriter, r *http.Request) {

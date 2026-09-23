@@ -70,10 +70,19 @@ func TestHumansAdmitAndMembership(t *testing.T) {
 			if r, _ := h.MemberRole(ctx, b, tid); r != RoleDefault {
 				t.Fatalf("invite role: %q", r)
 			}
-			// The invite is single use: a third identity with bob's email is refused.
+			// CLE-3451: a password identity for bob's VERIFIED address IS bob,
+			// not a second human - so it is admitted as the member he already
+			// is, and the spent invite is not touched. Before the fix this
+			// minted a second, unlinked human and ended 403 not_allowed.
 			bob2 := Identity{Provider: "password", Subject: "bob@example.com", Email: "bob@example.com"}
-			if _, err := h.Admit(ctx, bob2, tid, AdmitPolicy{}, now); !errors.Is(err, ErrNotAdmitted) {
-				t.Fatalf("invite re-used: %v", err)
+			if got, err := h.Admit(ctx, bob2, tid, AdmitPolicy{}, now); err != nil || got != b {
+				t.Fatalf("password identity for bob's address: %q %v, want %q", got, err, b)
+			}
+			// The invite is single use: a DIFFERENT person, whose address no
+			// live invite names, is still refused (bootstrap is spent too).
+			carol := Identity{Provider: "google", Subject: uid("sub-"), Email: "carol@example.com"}
+			if _, err := h.Admit(ctx, carol, tid, boot, now); !errors.Is(err, ErrNotAdmitted) {
+				t.Fatalf("uninvited third human: %v", err)
 			}
 			// Membership is per tenant.
 			other := newTenant(t, s)

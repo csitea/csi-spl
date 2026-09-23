@@ -1,0 +1,10 @@
+Någon bad om att återställa spool-lösenordet för den här adressen, men adressen har inget lösenord.
+
+Den här adressen loggar in med: {{.Providers}}
+
+Använd den knappen på inloggningssidan:
+{{.SignInURL}}
+
+Om du hellre vill ha ett lösenord också, registrera dig med den här adressen och bekräfta den via mejlet vi skickar dig - lösenordet läggs till på samma konto.
+
+Om det inte var du kan du bortse från mejlet: ingenting ändrades.

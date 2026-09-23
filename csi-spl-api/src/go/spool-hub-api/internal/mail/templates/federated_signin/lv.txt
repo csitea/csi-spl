@@ -1,0 +1,10 @@
+Kāds lūdza atjaunot šīs adreses spool paroli, taču šai adresei paroles nav.
+
+Šī adrese pierakstās ar: {{.Providers}}
+
+Izmantojiet šo pogu pierakstīšanās lapā:
+{{.SignInURL}}
+
+Ja vēlaties arī paroli, reģistrējieties ar šo adresi un apstipriniet to no mūsu nosūtītās vēstules - parole tiks pievienota tam pašam kontam.
+
+Ja tas nebijāt jūs, ignorējiet šo vēstuli: nekas nav mainījies.

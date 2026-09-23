@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -24,7 +25,19 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 			return "", err
 		}
 	}
-	// Serialise concurrent first callbacks of one identity (one HUM-*, not two).
+	// Serialise concurrent first callbacks of one identity (one HUM-*, not two)
+	// and, when the address is provider-verified, of one ADDRESS too: the
+	// linking below reads other providers' rows, so two first callbacks of the
+	// same address must not both mint a human (CLE-3451). The address lock is
+	// always taken first, so no two transactions take the pair in opposite
+	// orders and deadlock. The '@' prefix cannot collide with a provider slug
+	// (providerRe forbids it).
+	if id.Email != "" {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('@email|' || $1, 0))`,
+			id.Email); err != nil {
+			return "", err
+		}
+	}
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1 || '|' || $2, 0))`,
 		id.Provider, id.Subject); err != nil {
 		return "", err
@@ -38,14 +51,38 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return "", err
 	}
+	// CLE-3451 defect 2: a NEW identity whose PROVIDER-VERIFIED address already
+	// belongs to a human joins that human instead of minting a second, unlinked
+	// one (which then finds no invite, no bootstrap, and is refused 403
+	// not_allowed). BOTH sides must be verified, or this is an account
+	// takeover: id.Email is non-empty only when the provider asserted
+	// email_verified (auth FR-004 - idp.go / oidc.go refuse the sign-in
+	// otherwise), and the stored side must carry email_verified = true.
+	linked := false
+	if !known && id.Email != "" {
+		var lhum string
+		var ldisabled bool
+		err := tx.QueryRow(ctx, `SELECT i.human_id, h.disabled_at IS NOT NULL
+			FROM human_identities i JOIN humans h ON h.human_id = i.human_id
+			WHERE i.email = $1 AND i.email_verified
+			ORDER BY i.created_at, i.provider, i.subject LIMIT 1`, id.Email).Scan(&lhum, &ldisabled)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return "", err
+		}
+		if err == nil {
+			hum, disabled, linked = lhum, ldisabled, true
+		}
+	}
 	if disabled {
 		return "", ErrNotAdmitted
 	}
 	if !known {
-		if err := tx.QueryRow(ctx, `INSERT INTO humans (display_name, email, created_at)
-			VALUES (NULLIF($1, ''), NULLIF($2, ''), $3) RETURNING human_id`,
-			id.Name, id.Email, now).Scan(&hum); err != nil {
-			return "", err
+		if !linked {
+			if err := tx.QueryRow(ctx, `INSERT INTO humans (display_name, email, created_at)
+				VALUES (NULLIF($1, ''), NULLIF($2, ''), $3) RETURNING human_id`,
+				id.Name, id.Email, now).Scan(&hum); err != nil {
+				return "", err
+			}
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO human_identities
 			(provider, subject, human_id, email, email_verified, created_at, last_login_at)
@@ -59,6 +96,8 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 			WHERE provider = $1 AND subject = $2`, id.Provider, id.Subject, now, id.Email); err != nil {
 			return "", err
 		}
+	}
+	if known || linked {
 		if _, err := tx.Exec(ctx, `UPDATE humans SET email = COALESCE(NULLIF($2, ''), email),
 			display_name = COALESCE(NULLIF($3, ''), display_name) WHERE human_id = $1`,
 			hum, id.Email, id.Name); err != nil {
@@ -252,7 +291,45 @@ func (s *Postgres) TenantAvatars(ctx context.Context, tenant string) (map[string
 	return out, nil
 }
 
+// unverifyIdentity is a test hook: see Memory.unverifyIdentity.
+func (s *Postgres) unverifyIdentity(provider, subject string) {
+	s.pool.Exec(context.Background(), //nolint:errcheck
+		`UPDATE human_identities SET email_verified = false WHERE provider = $1 AND subject = $2`, provider, subject)
+}
+
 // disableHuman is a test hook (humans.disabled_at); no production caller yet.
 func (s *Postgres) disableHuman(humanID string) {
 	s.pool.Exec(context.Background(), `UPDATE humans SET disabled_at = now() WHERE human_id = $1`, humanID) //nolint:errcheck
+}
+
+// FederatedAccount is CLE-3451 defect 1's lookup: which IdPs already carry
+// this address, verified, on a human that is not disabled. The forgot-password
+// route uses it to mail "you sign in with Google" instead of falling silent;
+// it never changes what the route answers on the wire.
+func (s *Postgres) FederatedAccount(ctx context.Context, email string) ([]string, string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return nil, "", nil
+	}
+	rows, err := s.pool.Query(ctx, `SELECT i.provider, COALESCE(h.preferred_locale, '')
+		FROM human_identities i JOIN humans h ON h.human_id = i.human_id
+		WHERE i.email = $1 AND i.email_verified AND i.provider <> $2 AND h.disabled_at IS NULL
+		ORDER BY i.provider`, email, ProviderNative)
+	if err != nil {
+		return nil, "", err
+	}
+	defer rows.Close()
+	var provs []string
+	locale := ""
+	for rows.Next() {
+		var p, loc string
+		if err := rows.Scan(&p, &loc); err != nil {
+			return nil, "", err
+		}
+		provs = append(provs, p)
+		if locale == "" {
+			locale = loc
+		}
+	}
+	return provs, locale, rows.Err()
 }

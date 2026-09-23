@@ -29,10 +29,15 @@ const (
 	// TemplateTenantInvite is the invitation mail (010 FR-016): tenant, role,
 	// address, sign-in URL, expiry. It carries NO bearer token.
 	TemplateTenantInvite = "tenant_invite"
+	// TemplateFederatedSignIn is CLE-3451 defect 1: "forgot password" on an
+	// address that has no password but DOES sign in with an IdP. It names the
+	// provider and the sign-in page. NO bearer token and no TTL.
+	TemplateFederatedSignIn = "federated_signin"
 )
 
 // Templates lists every template id (tests iterate it).
-var Templates = []string{TemplateEmailVerification, TemplatePasswordReset, TemplateTenantPaid, TemplateTenantInvite}
+var Templates = []string{TemplateEmailVerification, TemplatePasswordReset, TemplateTenantPaid,
+	TemplateTenantInvite, TemplateFederatedSignIn}
 
 // FallbackLocale renders when a locale variant is missing (csi-rel G-02).
 const FallbackLocale = "en"
@@ -52,6 +57,40 @@ type TemplateData struct {
 	SignInURL string
 	// ExpiresAt is pre-formatted (UTC) by the caller.
 	ExpiresAt string
+	// Providers is the worded provider list of TemplateFederatedSignIn
+	// ("Google", "Google and Microsoft"), never raw slugs.
+	Providers string
+}
+
+// providerNames words a provider slug for a mail. An unknown slug is title-cased
+// so a new IdP reads sanely before anyone adds it here.
+var providerNames = map[string]string{
+	"google": "Google", "facebook": "Facebook", "microsoft": "Microsoft",
+	"linkedin": "LinkedIn", "xai": "xAI", "apple": "Apple", "github": "GitHub",
+}
+
+// ProviderName is the human wording of one provider slug.
+func ProviderName(slug string) string {
+	if n, ok := providerNames[slug]; ok {
+		return n
+	}
+	if slug == "" {
+		return ""
+	}
+	return strings.ToUpper(slug[:1]) + slug[1:]
+}
+
+// providerList joins the worded names. The separator is "+" in every locale on
+// purpose: an "and" per language is 19 more strings to keep right, and the list
+// is almost always one provider.
+func providerList(slugs []string) string {
+	out := make([]string, 0, len(slugs))
+	for _, s := range slugs {
+		if n := ProviderName(s); n != "" {
+			out = append(out, n)
+		}
+	}
+	return strings.Join(out, " + ")
 }
 
 // Render loads templates/<id>/<locale>.{subject,txt}. An unknown or missing
@@ -144,4 +183,12 @@ type InviteData struct {
 func TenantInvite(to, locale string, d InviteData) (Message, error) {
 	return build(TemplateTenantInvite, to, locale, TemplateData{TenantID: d.TenantID, Role: d.Role,
 		Email: d.Email, SignInURL: d.SignInURL, ExpiresAt: d.ExpiresAt.UTC().Format("2006-01-02 15:04") + " UTC"})
+}
+
+// FederatedSignIn renders CLE-3451 defect 1's mail: this address has no
+// password, it signs in with these providers, here is the sign-in page.
+// It carries no token, so it is safe to send on an unauthenticated route.
+func FederatedSignIn(to, locale string, providers []string, signInURL string) (Message, error) {
+	return build(TemplateFederatedSignIn, to, locale,
+		TemplateData{Providers: providerList(providers), SignInURL: signInURL})
 }

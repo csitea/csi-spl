@@ -1,0 +1,10 @@
+Ktoś poprosił o zresetowanie hasła spool dla tego adresu, ale ten adres nie ma hasła.
+
+Ten adres loguje się przez: {{.Providers}}
+
+Użyj tego przycisku na stronie logowania:
+{{.SignInURL}}
+
+Jeśli wolisz mieć także hasło, zarejestruj się tym adresem i potwierdź go z wiadomości, którą wyślemy - hasło zostanie dodane do tego samego konta.
+
+Jeśli to nie ty, zignoruj tę wiadomość: nic się nie zmieniło.

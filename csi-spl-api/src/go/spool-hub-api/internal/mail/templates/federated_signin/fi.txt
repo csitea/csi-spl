@@ -1,0 +1,10 @@
+Joku pyysi spool-salasanan palautusta tälle osoitteelle, mutta osoitteella ei ole salasanaa.
+
+Tämä osoite kirjautuu tavalla: {{.Providers}}
+
+Käytä sitä painiketta kirjautumissivulla:
+{{.SignInURL}}
+
+Jos haluat myös salasanan, rekisteröidy tällä osoitteella ja vahvista se lähettämästämme viestistä - salasana lisätään samaan tiliin.
+
+Jos et tehnyt tätä, jätä viesti huomiotta: mikään ei muuttunut.

@@ -35,6 +35,7 @@ var (
 	_ auth.AvatarSource     = AuthHooks{}
 	_ auth.Preferences      = AuthHooks{}
 	_ auth.TenantLister     = AuthHooks{}
+	_ auth.FederatedLookup  = AuthHooks{}
 )
 
 // Register maps ErrNotAdmitted and ErrSeatQuota to auth.ErrNotAllowed
@@ -190,4 +191,10 @@ func (a AuthHooks) SetPreferredLocale(ctx context.Context, humanID, locale strin
 // IdentityLocale is the picked locale of the human behind one sign-in.
 func (a AuthHooks) IdentityLocale(ctx context.Context, provider, subject string) (string, error) {
 	return a.H.IdentityLocale(ctx, provider, subject)
+}
+
+// FederatedAccount tells the forgot-password route that an address with no
+// password credential is nonetheless a known IdP account (CLE-3451 defect 1).
+func (a AuthHooks) FederatedAccount(ctx context.Context, email string) ([]string, string, error) {
+	return a.H.FederatedAccount(ctx, email)
 }

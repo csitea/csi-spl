@@ -36,7 +36,7 @@ is on, the answer carries `"native": true` next to the social list.
 | `POST /api/v1/auth/register` | `{"email","password","name"?}` | `202 {"status":"verification_required","debug_token"?}` for **every** well-formed request (new, existing, verified or not). `400 bad_request` + `detail` `email` / `password_too_short` (min in `detail`). `503 email_delivery_unavailable` when the hub cannot mail the link (spec FR-012). When verification is off (`SPOOL_HUB_AUTH_NATIVE_VERIFY_REQUIRED=false`) the status is `"registered"`. No session is set in either case. |
 | `POST /api/v1/auth/email/verify` | `{"token"}` | `204` verified (also on a repeat click); `401 verification_token_invalid` (unknown, consumed, or superseded by a newer link); `410 verification_token_expired`. The password that becomes active is the one sent with the `register` call that minted this link. No session. |
 | `POST /api/v1/auth/login` | `{"email","password","tenant"?,"redirect"?}` | `200` + the session claims (010 §3, `p:"password"`, `sub` = the lower-cased email, `hum` when the Registrar is wired) and `Set-Cookie: spool_session`. `401 invalid_credentials` (unknown email, wrong password — identical); `403 email_unverified` (right password, email not confirmed); `403 not_allowed` (Registrar refused: not invited); `503 unavailable` (store down). |
-| `POST /api/v1/auth/password/forgot` | `{"email"}` | always `204` (`200 {"debug_token"}` when debug is on and a mail was issued). |
+| `POST /api/v1/auth/password/forgot` | `{"email"}` | always `204` (`200 {"debug_token"}` when debug is on and a **reset** token was issued). See §2.1: what is mailed depends on the address, the status never does. |
 | `POST /api/v1/auth/password/reset` | `{"token","password"}` | `204` (password set, email marked verified, all reset links for the account dead, **no session**: sign in); `400 bad_request` `password_too_short`; `401 reset_token_invalid` (unknown, used or expired — identical). |
 | `POST /api/v1/auth/password/change` | `{"current_password","new_password"}` | needs a `spool_session` with `p:"password"`. `204` + cookie cleared; `401 unauthenticated` (no/other-provider session); `401 invalid_credentials` (wrong current); `400 bad_request` `password_too_short`. |
 | `POST /api/v1/auth/logout` | — | 010, unchanged: `204`, cookie cleared. |
@@ -45,12 +45,43 @@ is on, the answer carries `"native": true` next to the social list.
 admission for that tenant. `redirect` is echoed back as `"redirect"` after the
 same-site guard (`/` when unsafe), so the page knows where to go next.
 
+### 2.1 `password/forgot` on an address with no password (CLE-3451)
+
+Amends FR-005 for ONE case. The status on the wire is `204` in all three rows
+below; only what lands in the inbox differs, and the person who gets it is the
+one who already owns that address.
+
+| the address | mailed | logged |
+|---|---|---|
+| has a password credential | `password_reset` (subject to the per-account floor) | as before |
+| has NO password but a **verified** identity with an IdP | `federated_signin` — names the provider(s) and the sign-in page, carries **no token** | `auth.native_forgot_federated` |
+| is not known at all | nothing | nothing — no line distinguishes it from any other miss |
+
+The third row is the one FR-005 is about and it is **unchanged**: a stranger
+cannot tell a real address from an invented one, because neither the status,
+the body nor the log says anything. What changed is the second row, which
+before CLE-3451 was byte-identical to the third: a Google-only address got a
+204, no mail and no recovery path at all, which reads as a broken site.
+
+`federated_signin` is rate-limited to one per address per
+`SPOOL_HUB_AUTH_NATIVE_RATE_WINDOW`, so an unauthenticated always-204 route
+cannot be used as a mail amplifier. The refusal is silent, like the credential
+floor.
+
+The mail tells the person they may also register a password for that address.
+That is safe and true since CLE-3451: a new identity whose **provider-verified**
+address matches an existing human's **verified** identity joins that human
+instead of minting a second one. Both sides must be verified — an unverified
+address on either side never merges, because that would be an account
+takeover. The WUI needs no change for this; the mail is the whole signal.
+
 ## 3. Links the mail carries
 
 | template | link |
 |---|---|
 | `email_verification` | `<SPOOL_HUB_AUTH_APP_URL>/verify-email?token=<hex64>` |
 | `password_reset` | `<SPOOL_HUB_AUTH_APP_URL>/reset-password?token=<hex64>` |
+| `federated_signin` | `<SPOOL_HUB_AUTH_APP_URL>[/<locale>]/login` — no token, no tenant |
 
 The WUI pages read `token` from the query and POST it; they must drop it from
 the URL (`history.replaceState`) once posted.

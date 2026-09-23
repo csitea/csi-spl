@@ -68,11 +68,13 @@ func TestStoreBackedRegistrarAndMembership(t *testing.T) {
 		t.Fatalf("non-member of t2 admitted: %v", err)
 	}
 
-	// Facebook is a different identity: a different human (no email linking).
+	// Facebook is a different identity of the SAME person: both providers
+	// asserted the same VERIFIED address, so it joins alice's human instead of
+	// minting a second, unlinked one (CLE-3451 defect 2).
 	c2 := browser(t)
 	signIn(t, c2, r, "facebook", "")
-	if _, s2 := session(t, c2, r); s2.HumanID == "" || s2.HumanID == s.HumanID {
-		t.Fatalf("facebook identity linked by email: %q vs %q", s2.HumanID, s.HumanID)
+	if _, s2 := session(t, c2, r); s2.HumanID != s.HumanID {
+		t.Fatalf("facebook identity minted %q, want alice's %q", s2.HumanID, s.HumanID)
 	}
 	// Same provider again, no tenant: idempotent on (provider, subject).
 	c3 := browser(t)

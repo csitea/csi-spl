@@ -420,7 +420,8 @@
     "reply_placeholder": "Reageren — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen · /search om te filteren",
     "replies_label": "Reacties, nieuwste eerst",
     "load_failed": "onderwerp laden mislukt",
-    "no_replies": "Nog geen antwoorden — schrijf het eerste."
+    "no_replies": "Nog geen antwoorden — schrijf het eerste.",
+    "list_title": "Onderwerp: {text}"
   },
   "notify": {
     "alerts_on": "meldingen aan",

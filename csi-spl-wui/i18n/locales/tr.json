@@ -420,7 +420,8 @@
     "reply_placeholder": "Yanıt — yeni satır için Enter · göndermek için Ctrl+Enter veya Cmd+Enter · filtrelemek için /search",
     "replies_label": "Yanıtlar, en yeniler önce",
     "load_failed": "konu yüklenemedi",
-    "no_replies": "Henüz yanıt yok — ilkini siz yazın."
+    "no_replies": "Henüz yanıt yok — ilkini siz yazın.",
+    "list_title": "Konu: {text}"
   },
   "notify": {
     "alerts_on": "uyarılar açık",

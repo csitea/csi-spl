@@ -420,7 +420,8 @@
     "reply_placeholder": "Reply — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to filter",
     "replies_label": "Replies, newest first",
     "load_failed": "topic load failed",
-    "no_replies": "No replies yet — write the first one."
+    "no_replies": "No replies yet — write the first one.",
+    "list_title": "Topic: {text}"
   },
   "notify": {
     "alerts_on": "alerts on",

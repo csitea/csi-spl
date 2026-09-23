@@ -420,7 +420,8 @@
     "reply_placeholder": "Răspuns — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru filtrare",
     "replies_label": "Răspunsuri, cele mai noi primele",
     "load_failed": "încărcarea temei a eșuat",
-    "no_replies": "Încă nu există răspunsuri — scrie-l pe primul."
+    "no_replies": "Încă nu există răspunsuri — scrie-l pe primul.",
+    "list_title": "Temă: {text}"
   },
   "notify": {
     "alerts_on": "alerte activate",

@@ -420,7 +420,8 @@
     "reply_placeholder": "Atbilde — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter, lai sūtītu · /search filtrēšanai",
     "replies_label": "Atbildes, jaunākās vispirms",
     "load_failed": "tēmas ielāde neizdevās",
-    "no_replies": "Atbilžu vēl nav — uzrakstiet pirmo."
+    "no_replies": "Atbilžu vēl nav — uzrakstiet pirmo.",
+    "list_title": "Tēma: {text}"
   },
   "notify": {
     "alerts_on": "paziņojumi ieslēgti",

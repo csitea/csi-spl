@@ -420,7 +420,8 @@
     "reply_placeholder": "Отговор — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за филтриране",
     "replies_label": "Отговори, най-новите първи",
     "load_failed": "зареждането на темата не успя",
-    "no_replies": "Още няма отговори — напишете първия."
+    "no_replies": "Още няма отговори — напишете първия.",
+    "list_title": "Тема: {text}"
   },
   "notify": {
     "alerts_on": "известията са включени",

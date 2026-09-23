@@ -420,7 +420,8 @@
     "reply_placeholder": "Responder — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para filtrar",
     "replies_label": "Respuestas, las más recientes primero",
     "load_failed": "error al cargar el tema",
-    "no_replies": "Aún no hay respuestas: escribe la primera."
+    "no_replies": "Aún no hay respuestas: escribe la primera.",
+    "list_title": "Tema: {text}"
   },
   "notify": {
     "alerts_on": "alertas activadas",

@@ -420,7 +420,8 @@
     "reply_placeholder": "Svara — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka · /search för att filtrera",
     "replies_label": "Svar, nyaste först",
     "load_failed": "kunde inte läsa in ämnet",
-    "no_replies": "Inga svar än — skriv det första."
+    "no_replies": "Inga svar än — skriv det första.",
+    "list_title": "Ämne: {text}"
   },
   "notify": {
     "alerts_on": "aviseringar på",

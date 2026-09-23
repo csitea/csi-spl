@@ -15,10 +15,19 @@ export function hubField(v) {
 }
 
 const SUBJECT_MAX = 140
+/** How much of the first message the topics list shows after "Topic:". */
+export const TOPIC_TITLE_CHARS = 100
 
 export function subjectOf(body) {
   const line = String(body || '').split('\n')[0].trim()
   return line.length > SUBJECT_MAX ? line.slice(0, SUBJECT_MAX) : line
+}
+
+/** First 100 characters of a topic's first message, whitespace collapsed. */
+export function topicOpening(text) {
+  const flat = String(text || '').replace(/\s+/g, ' ').trim()
+  const chars = Array.from(flat)
+  return chars.length > TOPIC_TITLE_CHARS ? chars.slice(0, TOPIC_TITLE_CHARS).join('') : flat
 }
 
 function label(id, box) {

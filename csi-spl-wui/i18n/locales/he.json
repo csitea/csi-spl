@@ -420,7 +420,8 @@
     "reply_placeholder": "תגובה — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · /search לסינון",
     "replies_label": "תגובות, החדשות ראשונות",
     "load_failed": "טעינת הנושא נכשלה",
-    "no_replies": "אין עדיין תגובות — כתבו את הראשונה."
+    "no_replies": "אין עדיין תגובות — כתבו את הראשונה.",
+    "list_title": "נושא: {text}"
   },
   "notify": {
     "alerts_on": "ההתראות פעילות",

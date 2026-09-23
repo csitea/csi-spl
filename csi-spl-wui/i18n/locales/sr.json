@@ -420,7 +420,8 @@
     "reply_placeholder": "Odgovor — Enter za novi red · Ctrl+Enter ili Cmd+Enter za slanje · /search za filtriranje",
     "replies_label": "Odgovori, najnoviji prvi",
     "load_failed": "učitavanje teme nije uspelo",
-    "no_replies": "Још нема одговора — напишите први."
+    "no_replies": "Још нема одговора — напишите први.",
+    "list_title": "Tema: {text}"
   },
   "notify": {
     "alerts_on": "obaveštenja uključena",

@@ -420,7 +420,8 @@
     "reply_placeholder": "Odpowiedz — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search, aby filtrować",
     "replies_label": "Odpowiedzi, od najnowszych",
     "load_failed": "ładowanie tematu nie powiodło się",
-    "no_replies": "Brak odpowiedzi — napisz pierwszą."
+    "no_replies": "Brak odpowiedzi — napisz pierwszą.",
+    "list_title": "Temat: {text}"
   },
   "notify": {
     "alerts_on": "alerty włączone",

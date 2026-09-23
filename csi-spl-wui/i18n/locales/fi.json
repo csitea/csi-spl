@@ -420,7 +420,8 @@
     "reply_placeholder": "Vastaa — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search suodattaa",
     "replies_label": "Vastaukset, uusimmat ensin",
     "load_failed": "aiheen lataus epäonnistui",
-    "no_replies": "Ei vielä vastauksia — kirjoita ensimmäinen."
+    "no_replies": "Ei vielä vastauksia — kirjoita ensimmäinen.",
+    "list_title": "Aihe: {text}"
   },
   "notify": {
     "alerts_on": "ilmoitukset päällä",

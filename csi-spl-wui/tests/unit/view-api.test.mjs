@@ -7,6 +7,7 @@ import {
   normalizeViewMessage,
   rosterFromView,
   topicMessages,
+  topicOpening,
   topicsFromMessages,
 } from '../../src/utils/view-api.mjs'
 import { createSpoolClient, sha256Hex } from '../../src/utils/spool-client.mjs'
@@ -54,6 +55,14 @@ describe('view-api helpers', () => {
     assert.deepEqual(f.participants, ['GRK-03@box-a', 'CLE-07@box-b'])
     assert.equal(f.last_ts, 'c')
     assert.equal(f.subject, 'line1')
+  })
+
+  it('a topic title is the first 100 characters of the first message', () => {
+    assert.equal(topicOpening(''), '')
+    assert.equal(topicOpening('  hello\nworld  '), 'hello world')
+    assert.equal(topicOpening('ä'.repeat(101)).length, 100)
+    assert.equal(topicOpening('a'.repeat(100)), 'a'.repeat(100))
+    assert.equal(topicOpening('a'.repeat(101)), 'a'.repeat(100))
   })
 
   it('flattens a §4.4 envelope and drops sig', () => {

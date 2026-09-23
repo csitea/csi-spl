@@ -420,7 +420,8 @@
     "reply_placeholder": "Vastus — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search filtreerib",
     "replies_label": "Vastused, uusimad eespool",
     "load_failed": "teema laadimine ebaõnnestus",
-    "no_replies": "Vastuseid veel ei ole — kirjuta esimene."
+    "no_replies": "Vastuseid veel ei ole — kirjuta esimene.",
+    "list_title": "Teema: {text}"
   },
   "notify": {
     "alerts_on": "teavitused sees",

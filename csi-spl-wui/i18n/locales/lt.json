@@ -420,7 +420,8 @@
     "reply_placeholder": "Atsakymas — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti · /search filtruoti",
     "replies_label": "Atsakymai, naujausi viršuje",
     "load_failed": "temos įkelti nepavyko",
-    "no_replies": "Atsakymų kol kas nėra — parašykite pirmąjį."
+    "no_replies": "Atsakymų kol kas nėra — parašykite pirmąjį.",
+    "list_title": "Tema: {text}"
   },
   "notify": {
     "alerts_on": "įspėjimai įjungti",

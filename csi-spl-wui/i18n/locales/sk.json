@@ -420,7 +420,8 @@
     "reply_placeholder": "Odpoveď — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search na filtrovanie",
     "replies_label": "Odpovede, najnovšie prvé",
     "load_failed": "načítanie témy zlyhalo",
-    "no_replies": "Zatiaľ žiadne odpovede — napíšte prvú."
+    "no_replies": "Zatiaľ žiadne odpovede — napíšte prvú.",
+    "list_title": "Téma: {text}"
   },
   "notify": {
     "alerts_on": "upozornenia zapnuté",

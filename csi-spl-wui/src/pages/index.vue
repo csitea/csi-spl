@@ -29,7 +29,7 @@
           <KindBadge v-for="k in Object.keys(t.kinds)" :key="k" :kind="k" />
           <span class="msg-time">{{ formatTs(t.last_ts, locale) }}</span>
         </div>
-        <div class="topic-subject">{{ t.subject }}</div>
+        <div class="topic-subject">{{ topicRowTitle(t.subject) }}</div>
         <small class="muted">{{ tr('pages.index.messages', { n: t.count }, t.count) }}</small>
       </a>
       <button v-if="viewer.next" class="btn ghost" type="button" @click="viewer.loadMore()">{{ tr('pages.index.older') }}</button>
@@ -54,6 +54,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
+import { topicOpening } from '~/utils/view-api.mjs'
 
 const viewer = useViewerStore()
 const channel = useChannelStore()
@@ -62,6 +63,10 @@ const session = useSessionStore()
 const api = useSpoolApi()
 /* `tr`, not `t`: the topic rows below are iterated as `t` */
 const { t: tr, locale } = useI18n({ useScope: 'global' })
+function topicRowTitle(subject: string) {
+  const text = topicOpening(subject)
+  return text ? tr('topic.list_title', { text }) : ''
+}
 const localePath = useLocalePath()
 /* 013 US3: a click opens the topic in the right pane; the link still works for new tabs */
 const pane = useLiveFeed('pane')

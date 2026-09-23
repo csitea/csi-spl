@@ -274,6 +274,7 @@ declare module '~/utils/view-api.mjs' {
   export const BROWSER_BOX: string
   export function rosterFromView(data: unknown): { roster: Record<string, string[]>, online: string[] }
   export function subjectOf(body: string): string
+  export function topicOpening(text: string): string
   export function hubField(v: unknown): string | null
   export function channelReadQuery(read: Record<string, string>): string[]
   export function isDownloadable(file: { mode?: string, file_id?: string, sha256?: string }): boolean

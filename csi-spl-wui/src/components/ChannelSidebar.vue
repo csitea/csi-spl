@@ -253,11 +253,11 @@
           :href="localePath('/t/' + row.task_id)"
           @click.exact.prevent="pane.open(row.task_id)"
         >
-          <span class="label">{{ row.subject || row.participants.join(', ') || row.task_id }}</span>
+          <span class="label">{{ topicRowTitle(row.subject, row.participants.join(', ') || row.task_id) }}</span>
         </a>
         <SidebarRowMenu
           :menu-id="'th:' + row.task_id"
-          :name="row.subject || row.participants.join(', ') || row.task_id"
+          :name="topicRowTitle(row.subject, row.participants.join(', ') || row.task_id)"
           :href="localePath('/t/' + row.task_id)"
           :unread="false"
           :open="rowMenu === 'th:' + row.task_id"
@@ -394,6 +394,7 @@ import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDa
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { flowRows, SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { topicOpening } from '~/utils/view-api.mjs'
 import { dropIndex, moveKey, pinRows, rowMenuAdmin } from '~/utils/sidebar-row-menu.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
@@ -407,6 +408,11 @@ const RAIL: { id: SideTab, icon: UiIconName, labelKey: string }[] = [
   { id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' },
 ]
 const tab = ref<SideTab>('dm')
+/* The topics list names each row from the opening of its first message. */
+function topicRowTitle(subject: string, fallback: string) {
+  const text = topicOpening(subject)
+  return text ? t('topic.list_title', { text }) : fallback
+}
 const rowMenu = ref('')
 function toggleRowMenu(id: string) {
   rowMenu.value = rowMenu.value === id ? '' : id

@@ -39,10 +39,10 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
   })
 
   for (const page of PAGES) {
-    it(`${page}: the open topic does not capture the Omnibox`, () => {
+    it(`${page}: the open topic captures the Omnibox only while Topics is the selected list`, () => {
       const s = src(page)
       assert.doesNotMatch(s, /omniboxParentTaskId/)
-      assert.doesNotMatch(s, /omnibox-topic/)
+      assert.match(s, /omniboxReplyTaskId/)
       assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId\)/)
     })
   }
@@ -77,7 +77,8 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
     assert.match(src('src/pages/index.vue'), /omniboxReplyTaskId/)
     assert.match(src('src/pages/t/[task_id].vue'), /omniboxReplyTaskId/)
     assert.match(src('src/components/ChannelSidebar.vue'), /setCurrent\(id\)/)
-    assert.doesNotMatch(src('src/pages/dm/[peer].vue'), /omniboxReplyTaskId/)
-    assert.doesNotMatch(src('src/pages/channel/[name].vue'), /omniboxReplyTaskId/)
+    assert.match(src('src/components/ChannelSidebar.vue'), /req\.stay/)
+    assert.match(src('src/components/MessageCard.vue'), /reveal\('topics'\)/)
+    assert.match(src('src/components/MessageCard.vue'), /data-test="topic-replies"/)
   })
 })

@@ -90,7 +90,8 @@
         v-if="count > 0 || alwaysTopic"
         class="replies"
         type="button"
-        @click="$emit('open-topic', msg)"
+        data-test="topic-replies"
+        @click="openReplies"
       >
         {{ t('feed.replies', { n: count }, count) }}
       </button>
@@ -112,6 +113,7 @@ import {
   withDraft,
 } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
+import { useSidePane } from '~/composables/useSidePane'
 
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
@@ -132,6 +134,13 @@ const props = defineProps<{
   editable?: boolean
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
+const sidePane = useSidePane()
+
+/** The replies link opens this topic and selects the Topics list beside it. */
+function openReplies() {
+  sidePane.reveal('topics')
+  emit('open-topic', props.msg)
+}
 
 const { t, te } = useI18n({ useScope: 'global' })
 /** v:1 kind in words (feed.kind.*); an unknown kind shows as sent. */

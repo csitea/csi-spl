@@ -384,6 +384,7 @@ import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
 import { useViewerStore } from '~/stores/viewer'
+import { useTopicStore } from '~/stores/topic'
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -445,6 +446,7 @@ function onTabKey(e: KeyboardEvent) {
 const channel = useChannelStore()
 const viewer = useViewerStore()
 const pane = useLiveFeed('pane')
+const topicStore = useTopicStore()
 const roster = useRosterStore()
 const session = useSessionStore()
 const access = useAccessStore()
@@ -469,6 +471,7 @@ function tabUnread(id: SideTab) {
 }
 const topicOpen = computed(() => {
   if (pane.taskId) return pane.taskId
+  if (topicStore.open && topicStore.parentTaskId) return topicStore.parentTaskId
   const m = route.path.match(/\/t\/([^/]+)$/)
   return m ? decodeURIComponent(m[1]) : ''
 })
@@ -486,7 +489,16 @@ async function selectTab(next: SideTab) {
 }
 const sidePane = useSidePane()
 watch(() => sidePane.requested.value, (req) => {
-  if (req) void selectTab(req.id)
+  if (!req) return
+  /* The replies link shows the Topics list and stays on this page, so the
+     topic that just opened remains the one the omnibox writes into. */
+  if (req.stay) {
+    holdFlow.value = false
+    tab.value = req.id
+    if ((req.id === 'topics' || req.id === 'flow') && viewer.topics.length === 0) void viewer.loadTopics()
+    return
+  }
+  void selectTab(req.id)
 })
 watch(tab, (id) => {
   rowMenu.value = ''

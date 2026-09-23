@@ -37,7 +37,8 @@ import { shouldOpenHubSocket, startHubSocket, stopHubSocket } from '~/utils/shel
 import { useNotificationStore } from '~/stores/notification'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
-import { sendsNewTopic } from '~/utils/omnibox-topic.mjs'
+import { omniboxReplyTaskId, sendsNewTopic } from '~/utils/omnibox-topic.mjs'
+import { useSidePane } from '~/composables/useSidePane'
 import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'
 import { useMessageEdit } from '~/composables/useMessageEdit'
@@ -47,6 +48,7 @@ const store = useLiveFeed('main')
 const channel = useChannelStore()
 const pane = useLiveFeed('pane')
 const topic = useTopicStore()
+const sidePane = useSidePane()
 const live = useLive()
 const api = useSpoolApi()
 const session = useSessionStore()
@@ -95,8 +97,16 @@ const { openRow } = useTopicRoute({
 })
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
+function lobbyReplyId() {
+  return omniboxReplyTaskId({
+    tab: sidePane.current.value,
+    selectedTaskId: String(pane.taskId || ''),
+    namedTopicId: '',
+  })
+}
+
 useOmniboxTarget({
-  placeholder: () => t('search.placeholder_target', { target: '#lobby' }),
+  placeholder: () => (lobbyReplyId() ? t('topic.reply_placeholder') : t('search.placeholder_target', { target: '#lobby' })),
   send: (text: string, files: File[], topicId?: string, channelId?: string) => onSend(text, files, topicId, channelId),
   busy: () => store.sending,
 })
@@ -141,6 +151,15 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
   const here = String(store.taskId || '')
   if (topicId && topicId !== here) {
     await channel.send(text, topicId, files, channelId)
+    return
+  }
+  const replyHere = omniboxReplyTaskId({
+    tab: sidePane.current.value,
+    selectedTaskId: String(pane.taskId || ''),
+    namedTopicId: '',
+  })
+  if (replyHere && pane.taskId && replyHere === pane.taskId) {
+    await pane.send(text, files || [])
     return
   }
   const paneOpen = topic.open || Boolean(pane.taskId)

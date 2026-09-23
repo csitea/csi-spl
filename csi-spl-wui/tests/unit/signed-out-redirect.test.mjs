@@ -152,7 +152,7 @@ describe('login landing', () => {
     assert.equal(files.length, 19)
     for (const f of files) {
       const j = JSON.parse(readFileSync(join(dir, f), 'utf8'))
-      assert.equal(j.auth.login.where_humans_meet, 'where humans meet', f)
+      assert.equal(j.auth.login.where_humans_meet, 'where people meet with ai', f)
     }
   })
 

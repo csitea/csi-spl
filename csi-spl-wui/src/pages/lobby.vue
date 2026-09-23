@@ -37,6 +37,7 @@ import { shouldOpenHubSocket, startHubSocket, stopHubSocket } from '~/utils/shel
 import { useNotificationStore } from '~/stores/notification'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
+import { sendsNewThread } from '~/utils/omnibox-thread.mjs'
 import { useThreadStore } from '~/stores/thread'
 import { useThreadRoute } from '~/composables/useThreadRoute'
 import { useMessageEdit } from '~/composables/useMessageEdit'
@@ -111,23 +112,41 @@ onMounted(() => {
 watch([lobbyId, () => session.state], ([id, st]) => {
   if (api.mock) {
     live.ensure()
-    if (id) void store.open(id)
+    if (id) void store.open(id).then(() => loadLobbyThreads())
     return
   }
   if (shouldOpenHubSocket(st)) {
     startHubSocket(live)
-    if (id) void store.open(id)
+    if (id) void store.open(id).then(() => loadLobbyThreads())
   } else {
     stopHubSocket(live)
   }
 }, { immediate: true })
 
-/* A line with no resolved `in:` is a new lobby message (this room's task).
-   `in:` naming some other thread replies there instead. */
+/* Threads posted into #lobby besides the room task, so a new thread is still
+   here after a reload. The room task itself is already loaded by store.open. */
+async function loadLobbyThreads() {
+  try {
+    const page = await api.listMessages({ channel: 'lobby', limit: 50 })
+    store.admit((page.messages || []) as SpoolMessage[])
+  } catch {
+    /* the lobby task is already on screen */
+  }
+}
+
+/* The right pane is closed and the line names no thread: one new thread,
+   this message only. An open pane, or `in:` naming the lobby task, still
+   posts into the room. `in:` naming some other thread replies there. */
 async function onSend(text: string, files?: File[], threadId?: string, channelId?: string) {
   const here = String(store.taskId || '')
   if (threadId && threadId !== here) {
     await channel.send(text, threadId, files, channelId)
+    return
+  }
+  const paneOpen = thread.open || Boolean(pane.taskId)
+  if (sendsNewThread({ paneOpen, namedThreadId: threadId || '' })) {
+    const sent = await channel.send(text, undefined, files, channelId || 'lobby')
+    if (sent) store.admit([sent as SpoolMessage])
     return
   }
   await store.send(text, files || [])

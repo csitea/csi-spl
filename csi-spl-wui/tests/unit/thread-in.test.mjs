@@ -160,10 +160,12 @@ describe('the box follows the line, not the open pane', () => {
     assert.match(live, /const showHere = !channelId \|\| channelId === active\.value/)
   })
 
-  it('lobby still posts into the lobby task unless in: names another one', () => {
+  it('a closed right pane starts a new lobby thread; an open one still posts into the room', () => {
     const s = src('src/pages/lobby.vue')
+    assert.match(s, /sendsNewThread/)
     assert.match(s, /threadId !== here/)
     assert.match(s, /channel\.send\(text, threadId, files, channelId\)/)
+    assert.match(s, /channelId \|\| 'lobby'/)
     assert.match(s, /store\.send\(text, files \|\| \[\]\)/)
   })
 })

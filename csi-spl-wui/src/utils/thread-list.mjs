@@ -30,13 +30,17 @@ export function bumpThread(threads, m) {
   let row
   if (i >= 0) {
     const t = list[i]
+    /* The send and its own echo both carry this msg_id. Counting both would
+       show two messages in a thread that has one. */
+    if (t.last_msg_id && t.last_msg_id === m.msg_id) return list
     const kinds = { ...(t.kinds || {}) }
     if (m.kind) kinds[m.kind] = (kinds[m.kind] || 0) + 1
-    row = { ...t, count: (Number(t.count) || 0) + 1, kinds, last_ts: ts > String(t.last_ts || '') ? ts : t.last_ts,
+    row = { ...t, last_msg_id: m.msg_id, count: (Number(t.count) || 0) + 1, kinds, last_ts: ts > String(t.last_ts || '') ? ts : t.last_ts,
       participants: [...new Set([...(t.participants || []), ...who])] }
   } else {
     if (m.parent_task_id) return list
     row = { task_id: id, parent_task_id: null, channel: m.channel || null, first_ts: ts, last_ts: ts, count: 1,
+      last_msg_id: m.msg_id,
       kinds: m.kind ? { [m.kind]: 1 } : {}, participants: [...new Set(who)], subject: String(m.body || '').split('\n')[0].slice(0, 120) }
   }
   const rest = list.filter((t) => t.task_id !== id)

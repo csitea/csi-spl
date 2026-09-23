@@ -171,6 +171,9 @@ describe('thread list live (FR-011)', () => {
     assert.equal(next[0].subject, 'hello')
     assert.equal(next[0].count, 1)
     assert.equal(bumpThread(rows, { msg_id: 'x', task_id: 'kid', parent_task_id: 'a', received_at: '2026-09-19T10:05:00Z' }), rows)
+    /* the send and its echo are one message */
+    const again = bumpThread(next, { msg_id: 'n', task_id: 'c', body: 'hello', received_at: '2026-09-19T10:04:00Z' })
+    assert.equal(again[0].count, 1)
   })
 })
 

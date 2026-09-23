@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { omniboxParentTaskId, omniboxPlaceholderKey } from '../../src/utils/omnibox-thread.mjs'
+import { omniboxParentTaskId, omniboxPlaceholderKey, sendsNewThread } from '../../src/utils/omnibox-thread.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -54,6 +54,13 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
       const j = JSON.parse(src(`i18n/locales/${code}.json`))
       assert.equal(typeof (j.thread && j.thread.reply_placeholder), 'string', `${code}: thread.reply_placeholder missing`)
     }
+  })
+
+  it('a closed right pane with no named thread is a new thread of one message', () => {
+    assert.equal(sendsNewThread({ paneOpen: false, namedThreadId: '' }), true)
+    assert.equal(sendsNewThread({}), true)
+    assert.equal(sendsNewThread({ paneOpen: true, namedThreadId: '' }), false)
+    assert.equal(sendsNewThread({ paneOpen: false, namedThreadId: 'T-1' }), false)
   })
 
   it('CONTROL: sendLive still mints a new task when there is no parent', () => {

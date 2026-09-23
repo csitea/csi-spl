@@ -45,6 +45,7 @@ import { useViewerStore } from '~/stores/viewer'
 import type { SpoolMessage } from '~/types/spool'
 import { useLiveFeed } from '~/stores/live'
 import { formatTs } from '~/utils/channel-feed.mjs'
+import { bumpThread } from '~/utils/thread-list.mjs'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSettledQuery } from '~/composables/useSettledQuery'
 import { useScrollAnchor } from '~/composables/useScrollAnchor'
@@ -83,6 +84,10 @@ const { pill, jump } = useScrollAnchor(listTop, () => viewer.threads.map((r) => 
    `in: <title>` replies into that thread, and anything else starts a new message. */
 async function onSend(text: string, files?: File[], threadId?: string, channelId?: string) {
   const sent = await channel.send(text, threadId || undefined, files, channelId)
+  /* The list has no feed of its own. A send with the right pane closed is a
+     new thread of this one message, so the row has to appear here itself.
+     The same msg_id arriving on the socket does not count a second time. */
+  if (sent) viewer.threads = bumpThread(viewer.threads, sent as unknown as Record<string, unknown>) as typeof viewer.threads
   threadStore.noteBorn(threadStore.open || Boolean(pane.taskId), threadId, sent as SpoolMessage)
 }
 useOmniboxTarget({

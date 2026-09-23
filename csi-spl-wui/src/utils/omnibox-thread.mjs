@@ -34,3 +34,12 @@ export function omniboxParentTaskId(thread) {
 export function omniboxPlaceholderKey(parentTaskId) {
   return parentTaskId ? 'thread.reply_placeholder' : ''
 }
+
+/**
+ * The right pane is closed and the line does not name a thread with `in:`.
+ * That send is a new thread whose only message is the one just written.
+ * An open pane, or a line that names a thread, is not this case.
+ */
+export function sendsNewThread({ paneOpen = false, namedThreadId = '' } = {}) {
+  return !paneOpen && !namedThreadId
+}

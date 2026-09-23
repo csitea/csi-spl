@@ -139,6 +139,11 @@ function setup(key: 'main' | 'pane') {
     }
   }
 
+  /** A message that is not part of the open task, shown in this feed anyway. */
+  function admit(rows: SpoolMessage[]) {
+    merge(rows || [])
+  }
+
   function close() {
     const client = live.ensure()
     if (taskId.value && client) client.unsubscribe(taskId.value)
@@ -233,7 +238,7 @@ function setup(key: 'main' | 'pane') {
 
   return {
     taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, thread, error, door, sending, loading,
-    search, liveCount, lastLive, open, close, send, loadOlder, loadAll, setSearch, catchUpAfterReconnect,
+    search, liveCount, lastLive, open, close, send, admit, loadOlder, loadAll, setSearch, catchUpAfterReconnect,
     applyEdited,
   }
 }

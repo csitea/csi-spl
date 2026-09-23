@@ -27,6 +27,7 @@
       </ul>
       <ul
         v-if="pickerOpen"
+        ref="mentionListEl"
         class="mention-list"
         role="listbox"
         :aria-label="t('composer.mention_suggestions')"
@@ -145,6 +146,7 @@ const text = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)
 const mentionQuery = ref<string | null>(null)
 const activeIdx = ref(0)
+const mentionListEl = ref<HTMLUListElement | null>(null)
 /** Slack's ``` composer: the caret sits inside an open code block. */
 const inCode = ref(false)
 /**
@@ -231,7 +233,12 @@ function syncMention(ev?: Event) {
   inCode.value = fenceStateAt(text.value, caret()).inCode
   // no @-autocomplete inside a code block: the text there is literal
   const q = inCode.value ? null : activeMentionQuery(text.value, caret())
-  if (q !== mentionQuery.value) activeIdx.value = 0
+  if (q !== mentionQuery.value) {
+    activeIdx.value = 0
+    nextTick(() => {
+      if (mentionListEl.value) mentionListEl.value.scrollTop = 0
+    })
+  }
   mentionQuery.value = q
 }
 
@@ -241,6 +248,16 @@ const candidates = computed(() => {
 })
 
 const pickerOpen = computed(() => mentionQuery.value !== null && candidates.value.length > 0)
+
+/** Arrow keys move the highlight; the short list has to follow or the row leaves the window. */
+function scrollActiveMention() {
+  nextTick(() => {
+    const list = mentionListEl.value
+    if (!list) return
+    const row = list.querySelectorAll<HTMLElement>('.mention-item')[activeIdx.value]
+    row?.scrollIntoView({ block: 'nearest' })
+  })
+}
 
 function pick(peer: { id: string }) {
   const next = insertMention(text.value, caret(), peer.id)
@@ -275,11 +292,13 @@ function onKeydown(ev: KeyboardEvent) {
     if (ev.key === 'ArrowDown') {
       ev.preventDefault()
       activeIdx.value = (activeIdx.value + 1) % n
+      scrollActiveMention()
       return
     }
     if (ev.key === 'ArrowUp') {
       ev.preventDefault()
       activeIdx.value = (activeIdx.value - 1 + n) % n
+      scrollActiveMention()
       return
     }
     if (ev.key === 'Tab' || (ev.key === 'Enter' && !ev.shiftKey)) {

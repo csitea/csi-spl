@@ -71,6 +71,7 @@ describe('mention autocomplete', () => {
     assert.equal(src.includes('filterRosterMentions'), true)
     assert.equal(src.includes('activeMentionQuery'), true)
     assert.equal(src.includes('insertMention'), true)
+    assert.equal(src.includes('scrollIntoView'), true)
     assert.equal(src.includes('parseMention'), false)
   })
 

@@ -285,22 +285,23 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 		Posters int `json:"posters"`
 	}
 	type ch struct {
-		Channel       string  `json:"channel"`
-		Name          string  `json:"name"`
-		Description   string  `json:"description"`
-		Default       bool    `json:"default"`
-		RetentionDays int     `json:"retention_days"`
-		CreatedBy     string  `json:"created_by"`
-		CreatedAt     *string `json:"created_at"`
-		Count         int     `json:"count"`
-		LastTS        *string `json:"last_ts"`
-		LastCursor    *string `json:"last_cursor"`
-		Unread        int     `json:"unread"`
-		Members       members `json:"members"`
+		Channel           string  `json:"channel"`
+		Name              string  `json:"name"`
+		Description       string  `json:"description"`
+		MembersOpenInvite bool    `json:"members_open_invite"`
+		Default           bool    `json:"default"`
+		RetentionDays     int     `json:"retention_days"`
+		CreatedBy         string  `json:"created_by"`
+		CreatedAt         *string `json:"created_at"`
+		Count             int     `json:"count"`
+		LastTS            *string `json:"last_ts"`
+		LastCursor        *string `json:"last_cursor"`
+		Unread            int     `json:"unread"`
+		Members           members `json:"members"`
 	}
 	out := []ch{}
 	for _, c := range rows {
-		v := ch{Channel: c.ChannelID, Name: c.Name, Description: c.Description, Default: c.Default, CreatedBy: c.CreatedBy,
+		v := ch{Channel: c.ChannelID, Name: c.Name, Description: c.Description, MembersOpenInvite: c.MembersOpenInvite, Default: c.Default, CreatedBy: c.CreatedBy,
 			RetentionDays: int(s.retention(c.ChannelID) / (24 * time.Hour)), Count: c.Count, Unread: c.Unread,
 			Members: members{Agents: c.Agents, Boxes: c.Boxes, Posters: c.Posters}}
 		if !c.LastAt.IsZero() {

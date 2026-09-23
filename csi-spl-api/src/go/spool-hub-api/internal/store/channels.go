@@ -54,8 +54,13 @@ type Channel struct {
 	// Description is what the channel is for, as the creator typed it next to
 	// the title (rdb 0027). Empty when none was given; never NULL.
 	Description string
-	CreatedBy   string
-	CreatedAt   time.Time
+	// MembersOpenInvite is the setting "everyone can invite new members"
+	// (rdb 0031). Off (false, the default, and the value of a missing row)
+	// means only the channel owner may add a member. On means every current
+	// member may. A created_by of "hub" or "wui" is not an owner.
+	MembersOpenInvite bool
+	CreatedBy         string
+	CreatedAt         time.Time
 }
 
 // ReadMark is a reader's last-read position in a channel: a view cursor.
@@ -106,6 +111,14 @@ type Channels interface {
 	// CreateChannel inserts a channel; ErrConflict when it exists, is a
 	// default or is the general alias.
 	CreateChannel(ctx context.Context, c Channel) error
+	// Channel returns one channels row. ErrNotFound when the tenant has no
+	// such created channel. A default channel that was never seeded still
+	// answers a row (CreatedBy "hub", MembersOpenInvite false), the same
+	// answer ChannelKnown gives.
+	Channel(ctx context.Context, tenantID, channelID string) (Channel, error)
+	// SetMembersOpenInvite stores the invite setting (rdb 0031).
+	// ErrConflict on a default channel. ErrNotFound when it is absent.
+	SetMembersOpenInvite(ctx context.Context, tenantID, channelID string, open bool) error
 	// ChannelKnown: a default channel or a created one of the tenant.
 	ChannelKnown(ctx context.Context, tenantID, channelID string) (bool, error)
 	// SetSubscriptions replaces box's subscriptions: every agent × every known

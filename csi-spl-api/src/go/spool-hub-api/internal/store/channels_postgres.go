@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"time"
 
@@ -13,8 +14,8 @@ import (
 // statement here still treats the defaults as known, so a tenant created
 // before 0008 ran behaves the same.
 
-const pgSeedDefaults = `INSERT INTO channels (tenant_id, channel_id, name, created_by)
-	SELECT $1, d, d, 'hub' FROM unnest($2::text[]) AS d
+const pgSeedDefaults = `INSERT INTO channels (tenant_id, channel_id, name, created_by, members_open_invite)
+	SELECT $1, d, d, 'hub', false FROM unnest($2::text[]) AS d
 	ON CONFLICT (tenant_id, channel_id) DO NOTHING`
 
 func (s *Postgres) CreateChannel(ctx context.Context, c Channel) error {
@@ -25,14 +26,49 @@ func (s *Postgres) CreateChannel(ctx context.Context, c Channel) error {
 	if !c.CreatedAt.IsZero() {
 		created = &c.CreatedAt
 	}
-	tag, err := s.execTenant(ctx, c.TenantID, `INSERT INTO channels (tenant_id, channel_id, name, description, created_by, created_at)
-		VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, now())) ON CONFLICT (tenant_id, channel_id) DO NOTHING`,
-		c.TenantID, c.ChannelID, c.Name, c.Description, c.CreatedBy, created)
+	tag, err := s.execTenant(ctx, c.TenantID, `INSERT INTO channels (tenant_id, channel_id, name, description, created_by, created_at, members_open_invite)
+		VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, now()), $7) ON CONFLICT (tenant_id, channel_id) DO NOTHING`,
+		c.TenantID, c.ChannelID, c.Name, c.Description, c.CreatedBy, created, c.MembersOpenInvite)
 	if err != nil {
 		return mapFK(err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrConflict
+	}
+	return nil
+}
+
+func (s *Postgres) Channel(ctx context.Context, tenant, id string) (Channel, error) {
+	id = NormalizeChannel(id)
+	var c Channel
+	err := s.queryRowTenant(ctx, tenant, `SELECT channel_id, name, description, created_by, created_at, members_open_invite
+		FROM channels WHERE tenant_id = $1 AND channel_id = $2`,
+		[]any{tenant, id}, &c.ChannelID, &c.Name, &c.Description, &c.CreatedBy, &c.CreatedAt, &c.MembersOpenInvite)
+	if errors.Is(err, pgx.ErrNoRows) {
+		if IsDefaultChannel(id) {
+			return Channel{TenantID: tenant, ChannelID: id, Name: id, CreatedBy: "hub"}, nil
+		}
+		return Channel{}, ErrNotFound
+	}
+	if err != nil {
+		return Channel{}, err
+	}
+	c.TenantID = tenant
+	return c, nil
+}
+
+func (s *Postgres) SetMembersOpenInvite(ctx context.Context, tenant, id string, open bool) error {
+	id = NormalizeChannel(id)
+	if ChannelPublic(id) {
+		return ErrConflict
+	}
+	tag, err := s.execTenant(ctx, tenant, `UPDATE channels SET members_open_invite = $3
+		WHERE tenant_id = $1 AND channel_id = $2`, tenant, id, open)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
@@ -114,14 +150,14 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 		scan := func(q string, args []any, fn func(pgx.Rows) error) error {
 			return eachRow(ctx, tx, q, args, fn)
 		}
-		if err := scan(`SELECT channel_id, name, description, created_by, created_at FROM channels WHERE tenant_id = $1`,
+		if err := scan(`SELECT channel_id, name, description, created_by, created_at, members_open_invite FROM channels WHERE tenant_id = $1`,
 			[]any{tenant}, func(r pgx.Rows) error {
 				var c Channel
-				if err := r.Scan(&c.ChannelID, &c.Name, &c.Description, &c.CreatedBy, &c.CreatedAt); err != nil {
+				if err := r.Scan(&c.ChannelID, &c.Name, &c.Description, &c.CreatedBy, &c.CreatedAt, &c.MembersOpenInvite); err != nil {
 					return err
 				}
 				st := get(c.ChannelID)
-				st.Name, st.Description, st.CreatedBy, st.CreatedAt = c.Name, c.Description, c.CreatedBy, c.CreatedAt
+				st.Name, st.Description, st.CreatedBy, st.CreatedAt, st.MembersOpenInvite = c.Name, c.Description, c.CreatedBy, c.CreatedAt, c.MembersOpenInvite
 				return nil
 			}); err != nil {
 			return err

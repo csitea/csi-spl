@@ -272,14 +272,37 @@ anything without a session.
 `channel_humans (tenant_id, channel_id, human_id, joined_at, added_by)`,
 tenant-scoped RLS in the 0021 fail-closed form.
 
-- `GET /v1/channels/{channel}/members` — members only.
-- `POST /v1/channels/{channel}/members` `{human_id}` — needs `channels.manage`
-  **and** membership; the target must already be a member of the tenant.
+A created channel has `members_open_invite` (rdb 0031), a boolean that
+defaults to false. Off, only the channel owner may add a member. The owner
+is `channels.created_by` when that value matches `^HUM-`; `hub` and `wui`
+are not owners. On, every current member of the channel may add a tenant
+human. A member who holds `channels.manage` but is not the owner is refused
+while the flag is false.
+
+- `GET /v1/channels/{channel}/members` — members only. The body carries
+  `members_open_invite` next to `channel`, `default` and `members` (false
+  when unset), and `agents`: one `{id, box}` per subscribed agent, sorted
+  by id then box. `box-wui` and an id matching `^HUM-` are left out. Empty
+  is `[]`, never null. A default channel still answers `default: true` and
+  `members: []`, and still lists its agents (lobby: the announced roster).
+- `PATCH /v1/channels/{channel}` `{"members_open_invite": true}` or `false`,
+  and no other fields. The caller must already be in the channel: a
+  non-member gets 404 `unknown_channel`, the same as a missing channel. A
+  default channel answers 409 `channel_public`. The owner gets 200 and the
+  saved boolean; any other member gets 403 `forbidden`. This does not use
+  `channels.manage`.
+- `POST /v1/channels/{channel}/members` `{human_id}` — allowed when the
+  caller is the owner, or when `members_open_invite` is true and the caller
+  is already in the channel; otherwise 403 `forbidden`. The target must
+  already be a member of the tenant. The other refusals stay: 400
+  `bad_json`, 404 `not_a_member`, 409 `channel_public`, 404
+  `unknown_channel` for a non-member.
 - `DELETE /v1/channels/{channel}/members/{human_id}` — `channels.manage`, or
   yourself (leaving needs no permission).
 - Creating a channel puts its creator in it; a members-only channel born empty
   would be lost the moment it was made.
-- A default channel has no membership: both writes answer `409 channel_public`.
+- A default channel has no membership and no invite setting: the member
+  writes and the invite PATCH answer `409 channel_public`.
 
 **Backfill (0028).** Membership is derived from evidence, never from "everyone
 in the tenant" — that would carry the leak forward under a new name. Each

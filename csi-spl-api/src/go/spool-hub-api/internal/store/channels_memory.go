@@ -51,6 +51,38 @@ func (s *Memory) CreateChannel(_ context.Context, c Channel) error {
 	return nil
 }
 
+func (s *Memory) Channel(_ context.Context, tenant, id string) (Channel, error) {
+	id = NormalizeChannel(id)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ch.init()
+	if c, ok := s.ch.rows[[2]string{tenant, id}]; ok {
+		return c, nil
+	}
+	if IsDefaultChannel(id) {
+		return Channel{TenantID: tenant, ChannelID: id, Name: id, CreatedBy: "hub"}, nil
+	}
+	return Channel{}, ErrNotFound
+}
+
+func (s *Memory) SetMembersOpenInvite(_ context.Context, tenant, id string, open bool) error {
+	id = NormalizeChannel(id)
+	if ChannelPublic(id) {
+		return ErrConflict
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ch.init()
+	k := [2]string{tenant, id}
+	c, ok := s.ch.rows[k]
+	if !ok {
+		return ErrNotFound
+	}
+	c.MembersOpenInvite = open
+	s.ch.rows[k] = c
+	return nil
+}
+
 func (s *Memory) ChannelKnown(_ context.Context, tenant, id string) (bool, error) {
 	if IsDefaultChannel(id) {
 		return true, nil
@@ -125,7 +157,7 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 	for k, c := range s.ch.rows {
 		if k[0] == tenant {
 			st := get(k[1])
-			st.Name, st.Description, st.CreatedBy, st.CreatedAt = c.Name, c.Description, c.CreatedBy, c.CreatedAt
+			st.Name, st.Description, st.CreatedBy, st.CreatedAt, st.MembersOpenInvite = c.Name, c.Description, c.CreatedBy, c.CreatedAt, c.MembersOpenInvite
 		}
 	}
 	posters := map[string]map[string]bool{}

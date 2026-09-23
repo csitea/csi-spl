@@ -68,6 +68,30 @@ func listedChannels(t *testing.T, e *env, tid, as string) map[string]bool {
 	return idSet(t, e, tid, "/v1/view/channels", as, "channels", "channel")
 }
 
+func fmtAgent(m map[string]any) string {
+	id, _ := m["id"].(string)
+	box, _ := m["box"].(string)
+	return id + "@" + box
+}
+
+func viewInvite(t *testing.T, e *env, tid, as, channel string) (bool, bool) {
+	t.Helper()
+	code, out := call(t, e, tid, http.MethodGet, "/v1/view/channels", as, nil)
+	if code != http.StatusOK {
+		t.Fatalf("GET /v1/view/channels: %d %v", code, out)
+	}
+	rows, _ := out["channels"].([]any)
+	for _, r := range rows {
+		m, ok := r.(map[string]any)
+		if !ok || m["channel"] != channel {
+			continue
+		}
+		v, ok := m["members_open_invite"].(bool)
+		return v, ok
+	}
+	return false, false
+}
+
 func listedTopics(t *testing.T, e *env, tid, as string) map[string]bool {
 	return idSet(t, e, tid, "/v1/view/topics?roots=false", as, "topics", "task_id")
 }
@@ -293,6 +317,41 @@ func TestChannelMembersAPI(t *testing.T) {
 	if ms, _ := out["members"].([]any); len(ms) != 2 {
 		t.Errorf("members: %v, want the 2 seeded", out["members"])
 	}
+	if out["members_open_invite"] != false {
+		t.Errorf("members_open_invite default: %v, want false", out["members_open_invite"])
+	}
+	if ag, ok := out["agents"].([]any); !ok || len(ag) != 0 {
+		t.Errorf("agents before any subscription: %v", out["agents"])
+	}
+
+	// The channel's agents come from its subscriptions. A HUM-* id is a
+	// human, and box-wui is the browser, so neither is listed. A non-member
+	// still gets 404 and does not see the list.
+	if err := e.st.SetSubscriptions(ctx, tid, "box-a", []string{"CLE-07", "HUM-9"}, []string{"live-proof"}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.SetSubscriptions(ctx, tid, "box-wui", []string{"CLE-08"}, []string{"live-proof"}, now); err != nil {
+		t.Fatal(err)
+	}
+	code, out = call(t, e, tid, http.MethodGet, "/v1/channels/live-proof/members", owner, nil)
+	if code != http.StatusOK {
+		t.Fatalf("GET members with agents: %d %v", code, out)
+	}
+	found := map[string]bool{}
+	ags, ok := out["agents"].([]any)
+	if !ok {
+		t.Fatalf("agents: %v", out["agents"])
+	}
+	for _, a := range ags {
+		m, _ := a.(map[string]any)
+		found[fmtAgent(m)] = true
+	}
+	if !found["CLE-07@box-a"] || found["HUM-9@box-a"] || found["CLE-08@box-wui"] {
+		t.Errorf("agents: %v", ags)
+	}
+	if code, body := call(t, e, tid, http.MethodGet, "/v1/channels/live-proof/members", other, nil); code != http.StatusNotFound {
+		t.Errorf("non-member listing members after subscribe: %d %v", code, body)
+	}
 
 	// Adding makes the topic readable; that is the whole point of the table.
 	if c, n := readTopic(t, e, tid, task, other); c != http.StatusNotFound {
@@ -306,7 +365,8 @@ func TestChannelMembersAPI(t *testing.T) {
 		t.Errorf("after being added, %s reads %d with %d messages, want 200 with 1", other, c, n)
 	}
 
-	// A member of the channel without channels.manage cannot add anyone...
+	// A member of the channel who is not its owner cannot add anyone while
+	// members_open_invite is false...
 	if code, _ = call(t, e, tid, http.MethodPost, "/v1/channels/live-proof/members", weak,
 		map[string]string{"human_id": other}); code != http.StatusForbidden {
 		t.Errorf("tester-role add: %d, want 403", code)
@@ -328,6 +388,77 @@ func TestChannelMembersAPI(t *testing.T) {
 	if code, _ = call(t, e, tid, http.MethodPost, "/v1/channels/lobby/members", owner,
 		map[string]string{"human_id": other}); code != http.StatusConflict {
 		t.Errorf("adding to #lobby: %d, want 409", code)
+	}
+
+	// A member who holds channels.manage but did not create the channel is
+	// refused while members_open_invite is false.
+	mgr := seat(t, e, tid, "developer")
+	if err := e.st.AddChannelHumans(ctx, tid, "live-proof", []string{mgr}, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ = call(t, e, tid, http.MethodPost, "/v1/channels/live-proof/members", mgr,
+		map[string]string{"human_id": other}); code != http.StatusForbidden {
+		t.Errorf("non-owner with channels.manage, flag off: %d, want 403", code)
+	}
+
+	// The owner turns the setting on. GET members and the channel list report it.
+	if code, out = call(t, e, tid, http.MethodPatch, "/v1/channels/live-proof", owner,
+		map[string]bool{"members_open_invite": true}); code != http.StatusOK || out["members_open_invite"] != true {
+		t.Fatalf("owner PATCH on: %d %v", code, out)
+	}
+	if code, out = call(t, e, tid, http.MethodGet, "/v1/channels/live-proof/members", owner, nil); code != http.StatusOK ||
+		out["members_open_invite"] != true {
+		t.Fatalf("GET members after PATCH on: %d %v", code, out)
+	}
+	if v, ok := viewInvite(t, e, tid, owner, "live-proof"); !ok || !v {
+		t.Errorf("view channels members_open_invite: %v present=%v", v, ok)
+	}
+	if v, ok := viewInvite(t, e, tid, owner, "lobby"); !ok || v {
+		t.Errorf("default channel members_open_invite: %v present=%v", v, ok)
+	}
+
+	// That same non-owner can now add a member.
+	if code, out = call(t, e, tid, http.MethodPost, "/v1/channels/live-proof/members", mgr,
+		map[string]string{"human_id": other}); code != http.StatusCreated {
+		t.Fatalf("non-owner POST with flag on: %d %v", code, out)
+	}
+
+	// A non-owner cannot change the setting, and the flag stays on.
+	if code, _ = call(t, e, tid, http.MethodPatch, "/v1/channels/live-proof", mgr,
+		map[string]bool{"members_open_invite": false}); code != http.StatusForbidden {
+		t.Errorf("non-owner PATCH: %d, want 403", code)
+	}
+	if code, out = call(t, e, tid, http.MethodGet, "/v1/channels/live-proof/members", owner, nil); code != http.StatusOK ||
+		out["members_open_invite"] != true {
+		t.Fatalf("refused PATCH must leave the flag on: %d %v", code, out)
+	}
+
+	// The owner turns it off, and the non-owner is refused again.
+	if code, out = call(t, e, tid, http.MethodPatch, "/v1/channels/live-proof", owner,
+		map[string]bool{"members_open_invite": false}); code != http.StatusOK || out["members_open_invite"] != false {
+		t.Fatalf("owner PATCH off: %d %v", code, out)
+	}
+	if code, _ = call(t, e, tid, http.MethodPost, "/v1/channels/live-proof/members", mgr,
+		map[string]string{"human_id": other}); code != http.StatusForbidden {
+		t.Errorf("non-owner POST with flag off again: %d, want 403", code)
+	}
+
+	// A default channel still answers default:true and members:[], and rejects the setting.
+	if code, out = call(t, e, tid, http.MethodGet, "/v1/channels/lobby/members", owner, nil); code != http.StatusOK ||
+		out["default"] != true || out["members_open_invite"] != false {
+		t.Fatalf("lobby members: %d %v", code, out)
+	}
+	if ms, ok := out["members"].([]any); !ok || len(ms) != 0 {
+		t.Errorf("lobby members list: %v", out["members"])
+	}
+	if ag, ok := out["agents"].([]any); !ok {
+		t.Errorf("lobby agents: %v, want []", out["agents"])
+	} else if len(ag) != 0 {
+		t.Errorf("lobby agents with no roster: %v", ag)
+	}
+	if code, _ = call(t, e, tid, http.MethodPatch, "/v1/channels/lobby", owner,
+		map[string]bool{"members_open_invite": true}); code != http.StatusConflict {
+		t.Errorf("PATCH lobby: %d, want 409", code)
 	}
 }
 

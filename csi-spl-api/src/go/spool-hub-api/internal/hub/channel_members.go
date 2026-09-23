@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
+	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -11,9 +13,11 @@ import (
 )
 
 // Who is in a channel (rdb 0028). A created channel is members-only and
-// invisible to everyone else, so there is no self-service join: a member with
-// channels.manage adds you, exactly as somebody has to invite you to the
-// tenant before you can sign in to it at all.
+// invisible to everyone else, so there is no self-service join. The channel
+// owner adds a member. The owner is channels.created_by when that value
+// matches ^HUM-; "hub" and "wui" are not owners. When members_open_invite
+// is on (rdb 0031, default off), every current member may add a tenant
+// human. Leaving, and removing someone else, are unchanged.
 //
 // Every route here is behind the SAME read door as the channel's messages:
 // you must already be in the channel to see or change who else is. A caller
@@ -24,8 +28,10 @@ func (s *Server) routeChannelMembers(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/channels/{channel}/members", s.handleListChannelMembers)
 	mux.HandleFunc("POST /v1/channels/{channel}/members", s.handleAddChannelMember)
 	mux.HandleFunc("DELETE /v1/channels/{channel}/members/{human_id}", s.handleRemoveChannelMember)
+	mux.HandleFunc("PATCH /v1/channels/{channel}", s.handlePatchChannelInvite)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/members", s.channelMembersPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/members/{human_id}", s.channelMembersPreflight)
+	mux.HandleFunc("OPTIONS /v1/channels/{channel}", s.channelInvitePreflight)
 }
 
 func (s *Server) channelMembersPreflight(w http.ResponseWriter, r *http.Request) {
@@ -36,6 +42,37 @@ func (s *Server) channelMembersPreflight(w http.ResponseWriter, r *http.Request)
 		h.Set("Access-Control-Max-Age", "600")
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// channelInvitePreflight is CORS for PATCH /v1/channels/{channel}.
+func (s *Server) channelInvitePreflight(w http.ResponseWriter, r *http.Request) {
+	if s.allowOrigin(w, r) {
+		h := w.Header()
+		h.Set("Access-Control-Allow-Methods", "PATCH")
+		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
+		h.Set("Access-Control-Max-Age", "600")
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// channelOwner reports whether caller is the human who created the channel.
+// created_by must match ^HUM-; "hub" and "wui" are not owners.
+func channelOwner(createdBy, caller string) bool {
+	return caller != "" && createdBy == caller && strings.HasPrefix(createdBy, "HUM-")
+}
+
+// channelRecord loads the channels row. ok=false means it already answered.
+func (s *Server) channelRecord(w http.ResponseWriter, r *http.Request, tenant, ch string) (store.Channel, bool) {
+	row, err := s.o.Store.Channel(r.Context(), tenant, ch)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+r.PathValue("channel")+" in this tenant")
+		return store.Channel{}, false
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "channel lookup failed")
+		return store.Channel{}, false
+	}
+	return row, true
 }
 
 // channelDoor resolves the tenant, the caller, and the channel they named,
@@ -80,6 +117,10 @@ func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	row, ok := s.channelRecord(w, r, t.ID, ch)
+	if !ok {
+		return
+	}
 	ms, err := s.o.Store.ChannelHumanMembers(r.Context(), t.ID, ch)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "members unavailable")
@@ -88,17 +129,69 @@ func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request
 	if ms == nil {
 		ms = []string{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"channel": ch, "default": store.ChannelPublic(ch), "members": ms})
+	agents, err := s.o.Store.ChannelMembers(r.Context(), t.ID, ch)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "members unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"channel": ch, "default": store.ChannelPublic(ch), "members": ms,
+		"members_open_invite": row.MembersOpenInvite,
+		"agents":              channelAgentList(agents),
+	})
+}
+
+// channelAgent is one subscribed agent on GET /v1/channels/{channel}/members.
+type channelAgent struct {
+	ID  string `json:"id"`
+	Box string `json:"box"`
+}
+
+// channelAgentList flattens box → agent ids. box-wui is the browser, and a
+// HUM-* id is a human, so neither is an agent of the channel. Empty is [],
+// never null. Order is id, then box.
+func channelAgentList(byBox map[string][]string) []channelAgent {
+	out := []channelAgent{}
+	for box, ids := range byBox {
+		if box == "box-wui" {
+			continue
+		}
+		for _, id := range ids {
+			if strings.HasPrefix(id, "HUM-") {
+				continue
+			}
+			out = append(out, channelAgent{ID: id, Box: box})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ID != out[j].ID {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].Box < out[j].Box
+	})
+	return out
 }
 
 // POST /v1/channels/{channel}/members {"human_id": "HUM-n"} — add one member.
+// The owner may always. Any current member may when members_open_invite is
+// on. channels.manage is not this door.
 func (s *Server) handleAddChannelMember(w http.ResponseWriter, r *http.Request) {
 	t, ch, hum, ok := s.channelDoor(w, r)
 	if !ok {
 		return
 	}
-	if !s.permit(w, r, t.ID, hum, rbac.ChannelsManage) { // specs/025
-		return
+	// A default channel has no owner and no flag. Answer 409 before the
+	// invite rule, which would otherwise refuse everyone (created_by is
+	// "hub") and hide channel_public.
+	if !store.ChannelPublic(ch) {
+		row, ok := s.channelRecord(w, r, t.ID, ch)
+		if !ok {
+			return
+		}
+		if !channelOwner(row.CreatedBy, hum) && !row.MembersOpenInvite {
+			writeErr(w, http.StatusForbidden, "forbidden", "only the channel owner may add members")
+			return
+		}
 	}
 	if !billing.AllowsWrite(t.BillingStatus) {
 		writeUnpaid(w)
@@ -139,6 +232,41 @@ func (s *Server) handleAddChannelMember(w http.ResponseWriter, r *http.Request) 
 	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("human", body.HumanID).
 		Str("by", hum).Msg("channel member added")
 	writeJSON(w, http.StatusCreated, map[string]any{"channel": ch, "human_id": body.HumanID, "added_by": hum})
+}
+
+// PATCH /v1/channels/{channel} {"members_open_invite": true|false}.
+// The owner only. A default channel is 409. This does not use channels.manage.
+func (s *Server) handlePatchChannelInvite(w http.ResponseWriter, r *http.Request) {
+	t, ch, hum, ok := s.channelDoor(w, r)
+	if !ok {
+		return
+	}
+	if store.ChannelPublic(ch) {
+		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: it has no invite setting")
+		return
+	}
+	row, ok := s.channelRecord(w, r, t.ID, ch)
+	if !ok {
+		return
+	}
+	if !channelOwner(row.CreatedBy, hum) {
+		writeErr(w, http.StatusForbidden, "forbidden", "only the channel owner may change who can invite")
+		return
+	}
+	var body struct {
+		MembersOpenInvite *bool `json:"members_open_invite"`
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil || body.MembersOpenInvite == nil {
+		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {members_open_invite}")
+		return
+	}
+	if err := s.o.Store.SetMembersOpenInvite(r.Context(), t.ID, ch, *body.MembersOpenInvite); err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "channel setting not stored")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"channel": ch, "members_open_invite": *body.MembersOpenInvite})
 }
 
 // DELETE /v1/channels/{channel}/members/{human_id} — remove one member, or

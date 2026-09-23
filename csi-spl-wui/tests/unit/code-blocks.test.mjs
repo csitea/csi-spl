@@ -105,6 +105,13 @@ describe('fence parser', () => {
     ])
   })
 
+  it('an id@box label is one mention, not an id plus a stray box', () => {
+    assert.deepEqual(parseBody('ping @GRK-3492@box-desk now'), [
+      para(txt('ping '), { type: 'mention', text: '@GRK-3492@box-desk' }, txt(' now')),
+    ])
+    assert.deepEqual(parseBody('```\n@GRK-3492@box-desk\n```'), [code('@GRK-3492@box-desk')])
+  })
+
   it('tokenize keeps an empty body empty', () => {
     assert.deepEqual(tokenize(''), [])
     assert.deepEqual(parseBody(null), [])

@@ -3,6 +3,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, windowed, withoutMsg } from '~/utils/feed.mjs'
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
+import { parseMention } from '~/utils/channel-feed.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
@@ -192,10 +193,10 @@ function setup(key: 'main' | 'pane') {
         const up = await api.uploadFile(f, await live.freshUploadToken()) as { file_id: string, sha256: string, bytes: number }
         refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: f.name })
       }
-      const m = body.match(/^@([A-Z]{2,4}-\d+)\b\s*([\s\S]*)$/)
-      const kind = m ? 'task' : 'note'
-      const to = m ? m[1] : undefined
-      const text = m ? m[2] : body
+      const parsed = parseMention(body)
+      const kind = parsed.kind === 'task' ? 'task' : 'note'
+      const to = kind === 'task' ? parsed.to : undefined
+      const text = parsed.body
       const client = live.ensure()
       /* 013 US7 FR-013: shown at once under the msg_id we send; the pushed echo replaces it */
       msgId = crypto.randomUUID()

@@ -71,6 +71,7 @@ describe('notify escalation', () => {
 
   it('parses mention ids and copies', () => {
     assert.deepEqual(mentionedIds('cc @CLE-07 and @HUM-1 please'), ['CLE-07', 'HUM-1'])
+    assert.deepEqual(mentionedIds('ping @GRK-3492@box-desk please'), ['GRK-3492'])
     assert.deepEqual(mentionedIds('email me@example.com'), [])
     const copy = notifyCopy(msg({ from: 'GRK-03', body: 'up' }), 'alerts')
     assert.equal(copy.title.startsWith('#alerts'), true)

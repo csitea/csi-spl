@@ -85,6 +85,36 @@ describe('mention autocomplete', () => {
     assert.equal(note.to, '@channel')
   })
 
+  it('id@box stays one token, matches that row, and routes on the bare id', () => {
+    const typed = '@GRK-3492@box-desk'
+    assert.equal(activeMentionQuery(typed, typed.length), 'GRK-3492@box-desk')
+    assert.equal(activeMentionQuery('@GRK-3492@', '@GRK-3492@'.length), 'GRK-3492@')
+    assert.equal(activeMentionQuery('@GRK-3492', '@GRK-3492'.length), 'GRK-3492')
+
+    const desk = { id: 'GRK-3492', box: 'box-desk', label: 'GRK-3492@box-desk', online: false }
+    const other = { id: 'GRK-3492', box: 'box-other', label: 'GRK-3492@box-other', online: false }
+    const full = filterRosterMentions([desk, other], 'GRK-3492@box-desk')
+    assert.deepEqual(full.map((p) => p.label), ['GRK-3492@box-desk'])
+    const bare = filterRosterMentions([desk], 'GRK-3492')
+    assert.deepEqual(bare.map((p) => p.label), ['GRK-3492@box-desk'])
+    assert.equal(filterRosterMentions([desk, other], 'GRK-3492').length, 2)
+
+    const picked = insertMention(typed, typed.length, desk.label)
+    assert.equal(picked.text, '@GRK-3492@box-desk ')
+    assert.equal(picked.text.includes('@GRK-3492 @'), false)
+    assert.deepEqual(parseMention(picked.text + 'please'), { to: 'GRK-3492', kind: 'task', body: 'please' })
+    assert.deepEqual(parseMention('@GRK-3492 please'), { to: 'GRK-3492', kind: 'task', body: 'please' })
+  })
+
+  it('MessageComposer inserts the roster label and the thread send uses parseMention', () => {
+    const wui = join(dirname(fileURLToPath(import.meta.url)), '../..')
+    const src = readFileSync(join(wui, 'src/components/MessageComposer.vue'), 'utf8')
+    assert.match(src, /peer\.label \|\| peer\.id/)
+    const live = readFileSync(join(wui, 'src/stores/live.ts'), 'utf8')
+    assert.match(live, /parseMention\(/)
+    assert.doesNotMatch(live, /body\.match\(\/\^@/)
+  })
+
 })
 
 describe('H5: a door-off guest GST-<n> is mentionable', () => {

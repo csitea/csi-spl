@@ -65,6 +65,13 @@ describe('channel-feed', () => {
     assert.equal(note.to, '@channel')
   })
 
+  it('a leading id@box routes on the bare id and drops the box from the body', () => {
+    assert.deepEqual(parseMention('@GRK-3492@box-desk please'), { to: 'GRK-3492', kind: 'task', body: 'please' })
+    assert.deepEqual(parseMention('@GRK-3492@box-desk'), { to: 'GRK-3492', kind: 'task', body: '' })
+    assert.deepEqual(parseMention('@GRK-3492 please'), { to: 'GRK-3492', kind: 'task', body: 'please' })
+    assert.deepEqual(parseMention('@CLE-07please'), { to: '@channel', kind: 'note', body: '@CLE-07please' })
+  })
+
   it('formats bytes and initials', () => {
     assert.equal(formatBytes(2048), '2.0 KiB')
     assert.equal(initials('CLE-07'), 'CL')

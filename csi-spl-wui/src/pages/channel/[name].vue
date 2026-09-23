@@ -13,16 +13,21 @@
 
 <script setup lang="ts">
 import { useChannelStore } from '~/stores/channel'
+import { useLiveFeed } from '~/stores/live'
 import { useSessionStore } from '~/stores/session'
+import { useThreadStore } from '~/stores/thread'
 import { useSpoolEvents } from '~/composables/useSpoolEvents'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { normalizeChannel } from '~/utils/notify.mjs'
 import { retentionDays } from '~/utils/channel-feed.mjs'
 import { useOmniboxTarget } from '~/stores/omnibox'
+import type { SpoolMessage } from '~/types/spool'
 
 const route = useRoute()
 const channel = useChannelStore()
+const thread = useThreadStore()
+const livePane = useLiveFeed('pane')
 const notes = useNotificationStore()
 const events = useSpoolEvents()
 const api = useSpoolApi()
@@ -57,9 +62,11 @@ onMounted(() => {
 
 /* The line decides. `@receiver` (and any line that does not name a thread)
    starts a new message here. `in: <title>` arrives as threadId and replies
-   into that thread. The open pane does not capture the box. */
+   into that thread. While the right pane is open, a new message is another
+   thread at the top of that pane. */
 async function onSend(text: string, files?: File[], threadId?: string, channelId?: string) {
-  await channel.send(text, threadId || undefined, files, channelId)
+  const sent = await channel.send(text, threadId || undefined, files, channelId)
+  thread.noteBorn(thread.open || Boolean(livePane.taskId), threadId, sent as SpoolMessage)
 }
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */

@@ -220,6 +220,11 @@ declare module '~/utils/thread-in.mjs' {
 }
 
 
+declare module '~/utils/born-threads.mjs' {
+  export function noteBornThread<T>(rows: T[] | null | undefined, paneOpen: unknown, threadId: unknown, row: unknown): T[]
+  export function dismissBornThread<T extends { msg_id?: string }>(rows: T[] | null | undefined, msgId: string): T[]
+}
+
 declare module '~/utils/auth-client.mjs' {
   export const AUTH_PREFIX: string
   export function authErrorMessage(code: string): string

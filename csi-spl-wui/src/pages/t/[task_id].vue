@@ -39,6 +39,7 @@ import type { SpoolMessage } from '~/types/spool'
 
 const route = useRoute()
 const store = useLiveFeed('main')
+const side = useLiveFeed('pane')
 const channel = useChannelStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
@@ -75,7 +76,8 @@ async function onSend(text: string, files?: File[], threadId?: string, channelId
     await store.send(text, files || [])
     return
   }
-  await channel.send(text, threadId || undefined, files, channelId)
+  const sent = await channel.send(text, threadId || undefined, files, channelId)
+  thread.noteBorn(thread.open || Boolean(side.taskId), threadId, sent as SpoolMessage)
 }
 useOmniboxTarget({
   placeholder: () => t('search.placeholder_target', { target: shortId.value }),

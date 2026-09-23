@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { dismissBornThread, noteBornThread } from '~/utils/born-threads.mjs'
 import { threadOf } from '~/utils/channel-feed.mjs'
 import { applyVerbosity, loadVerbosity, saveVerbosity } from '~/utils/verbosity.mjs'
 import { useChannelStore } from '~/stores/channel'
@@ -35,6 +36,18 @@ export const useThreadStore = defineStore('thread', () => {
    */
   const target = ref<ThreadTarget | null>(null)
   const rootMsg = ref<SpoolMessage | null>(null)
+  /** New Omnibox threads shown at the top of the right pane, newest first. */
+  const born = ref<SpoolMessage[]>([])
+
+  function noteBorn(paneOpen: boolean, threadId: string | undefined, row: SpoolMessage | null | undefined) {
+    born.value = noteBornThread(born.value, paneOpen, threadId, row) as SpoolMessage[]
+  }
+  function dismissBorn(msgId: string) {
+    born.value = dismissBornThread(born.value, msgId) as SpoolMessage[]
+  }
+  function clearBorn() {
+    born.value = []
+  }
 
   const channel = useChannelStore()
 
@@ -72,6 +85,7 @@ export const useThreadStore = defineStore('thread', () => {
     parentTaskId.value = null
     target.value = null
     rootMsg.value = null
+    born.value = []
   }
 
   /**
@@ -85,5 +99,5 @@ export const useThreadStore = defineStore('thread', () => {
     rootMsg.value = { ...rootMsg.value, ...(row as Partial<SpoolMessage>) }
   }
 
-  return { open, parentTaskId, verbosity, messages, target, rootMsg, openThread, openTarget, setTarget, applyEditedRoot, close }
+  return { open, parentTaskId, verbosity, messages, target, rootMsg, born, noteBorn, dismissBorn, clearBorn, openThread, openTarget, setTarget, applyEditedRoot, close }
 })

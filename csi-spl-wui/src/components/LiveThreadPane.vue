@@ -26,6 +26,7 @@
         </button>
       </div>
     </header>
+    <BornThreads />
     <div class="pinned-root" data-test="thread-root">
       <MessageCard v-if="root" :key="String(root.msg_id || '')" :msg="root" :since-ms="sinceMs" :editable="canEdit(root)" @edited="onEdited" />
       <p v-else-if="!pane.loading" class="muted">{{ t('thread.empty') }}</p>

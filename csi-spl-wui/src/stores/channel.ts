@@ -369,11 +369,12 @@ export const useChannelStore = defineStore('channel', () => {
       }
     }
     const row = rowFromAck(ack, frame, { from: live.identity.value, channel: channelNow })
+    if (!row.msg_id) row.msg_id = String(frame.msg_id || '')
     if (row.msg_id && showHere) {
       messages.value = mergeLive(messages.value, row) as FeedMessage[]
       follow()
     }
-    return ack
+    return row
   }
 
   async function createChannel(name: string, description = '') {

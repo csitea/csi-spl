@@ -40,7 +40,9 @@
 <script setup lang="ts">
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
+import { useThreadStore } from '~/stores/thread'
 import { useViewerStore } from '~/stores/viewer'
+import type { SpoolMessage } from '~/types/spool'
 import { useLiveFeed } from '~/stores/live'
 import { formatTs } from '~/utils/channel-feed.mjs'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
@@ -52,6 +54,7 @@ import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 
 const viewer = useViewerStore()
 const channel = useChannelStore()
+const threadStore = useThreadStore()
 const session = useSessionStore()
 const api = useSpoolApi()
 /* `tr`, not `t`: the thread rows below are iterated as `t` */
@@ -79,7 +82,8 @@ const { pill, jump } = useScrollAnchor(listTop, () => viewer.threads.map((r) => 
 /* The threads list has no feed of its own. The Omnibox still writes:
    `in: <title>` replies into that thread, and anything else starts a new message. */
 async function onSend(text: string, files?: File[], threadId?: string, channelId?: string) {
-  await channel.send(text, threadId || undefined, files, channelId)
+  const sent = await channel.send(text, threadId || undefined, files, channelId)
+  threadStore.noteBorn(threadStore.open || Boolean(pane.taskId), threadId, sent as SpoolMessage)
 }
 useOmniboxTarget({
   placeholder: () => tr('search.placeholder_target', { target: tr('nav.threads') }),

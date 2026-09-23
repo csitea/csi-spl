@@ -7,17 +7,15 @@ export function isAgentId(id) {
 }
 
 /**
- * In-progress mention at the caret: an agent id, optionally `@box` (the roster
- * label `id@box`, which may still be partial). The value is the substring
- * after the opening @. Null when the caret is not in an @token.
+ * In-progress mention query at `cursor` (substring after @, no leading @).
+ * Null when the caret is not in an @token (start-of-string or after whitespace).
  */
-const MENTION_AT_RE = /(^|[\s])@([A-Za-z0-9-]*(?:@[A-Za-z0-9-]*)?)$/
-
 export function activeMentionQuery(text, cursor) {
   const s = String(text || '')
   const n = Number(cursor)
   const i = Number.isFinite(n) ? Math.max(0, Math.min(s.length, n)) : s.length
-  const m = s.slice(0, i).match(MENTION_AT_RE)
+  const before = s.slice(0, i)
+  const m = before.match(/(^|[\s])@([A-Za-z0-9-]*)$/)
   if (!m) return null
   return m[2]
 }
@@ -40,9 +38,7 @@ export function filterRosterMentions(peers, query) {
 }
 
 /**
- * Replace the in-progress @token with `@token `. `id` is a bare agent id or
- * the roster label `id@box`. The whole typed token is replaced, so a trailing
- * `@box` is not left behind. parseMention routes on the bare id.
+ * Replace the in-progress @token with `@ID ` (id only — parseMention routes on that).
  */
 export function insertMention(text, cursor, id) {
   const s = String(text || '')
@@ -50,7 +46,7 @@ export function insertMention(text, cursor, id) {
   const i = Number.isFinite(n) ? Math.max(0, Math.min(s.length, n)) : s.length
   const before = s.slice(0, i)
   const after = s.slice(i)
-  const m = before.match(MENTION_AT_RE)
+  const m = before.match(/(^|[\s])@([A-Za-z0-9-]*)$/)
   const start = m ? before.length - m[2].length - 1 : i
   const inserted = `@${id} `
   return { text: s.slice(0, start) + inserted + after, cursor: start + inserted.length }

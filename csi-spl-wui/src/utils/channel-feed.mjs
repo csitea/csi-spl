@@ -24,7 +24,7 @@ export function replyCount(messages, taskId) {
 
 export function parseMention(text) {
   const raw = String(text || '')
-  const m = raw.match(/^@([A-Z]{2,4}-\d+)(?:@[a-z0-9][a-z0-9-]{0,31})?\b\s*([\s\S]*)$/)
+  const m = raw.match(/^@([A-Z]{2,4}-\d+)\b\s*([\s\S]*)$/)
   if (!m) return { to: '@channel', kind: 'note', body: raw }
   return { to: m[1], kind: 'task', body: m[2] }
 }

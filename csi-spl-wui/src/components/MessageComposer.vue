@@ -263,9 +263,8 @@ function scrollActiveMention() {
   })
 }
 
-function pick(peer: { id: string, label?: string }) {
-  const token = peer.label || peer.id
-  const next = insertMention(text.value, caret(), token)
+function pick(peer: { id: string }) {
+  const next = insertMention(text.value, caret(), peer.id)
   text.value = next.text
   mentionQuery.value = null
   nextTick(() => {

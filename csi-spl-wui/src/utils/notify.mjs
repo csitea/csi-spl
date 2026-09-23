@@ -6,7 +6,7 @@
 import { storageGet, storageSet } from './prefs.mjs'
 
 export const CHIME_KEY = 'spool.chime'
-export const MENTION_RE = /@([A-Z]{2,4}-\d+)(?:@[a-z0-9][a-z0-9-]{0,31})?\b/g
+export const MENTION_RE = /@([A-Z]{2,4}-\d+)\b/g
 
 export function normalizeChannel(name) {
   const s = String(name || '').replace(/^#/, '').trim().toLowerCase()

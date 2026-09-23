@@ -136,7 +136,7 @@ export function tokenize(src, { openAnywhere = false } = {}) {
   return out
 }
 
-const RICH_RE = /\*\*([^*\n]+)\*\*|@([A-Z]{2,4}-\d+(?:@[a-z0-9][a-z0-9-]{0,31})?)/g
+const RICH_RE = /\*\*([^*\n]+)\*\*|@([A-Z]{2,4}-\d+)/g
 
 /** Split plain text into text / strong / mention parts. */
 export function richParts(text) {

@@ -8,16 +8,17 @@
       <p v-if="!lobbyId" class="muted">{{ t('pages.lobby.no_lobby', { env: 'NUXT_PUBLIC_LOBBY_TASK_ID' }) }}</p>
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="lobbyId && store.open(lobbyId)" />
       <ErrorNotice v-if="store.error" :message="store.error" source="lobby" test-id="lobby-error" />
+      <!-- Owner, 2026-09-23: pane 2 is thread starters. A reply (parent_task_id) stays in pane 3. -->
       <LiveFeed
         :label="t('pages.feed_label', { target: '#lobby' })"
-        :rows="store.newestFirst"
-        :has-older="store.hasOlder"
+        :rows="store.lobbyRows"
+        :has-older="store.lobbyHasOlder"
         :loading="store.loading"
         :search="store.search"
         :last-live="store.lastLive"
         :current-task-id="store.taskId"
         clickable
-        @older="store.loadOlder()"
+        @older="store.loadOlder('lobby')"
         @clear-search="store.setSearch('')"
         @open-thread="openRow"
         @edited="onEdited"

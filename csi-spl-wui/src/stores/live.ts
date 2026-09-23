@@ -3,7 +3,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, windowed, withoutMsg } from '~/utils/feed.mjs'
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
-import { parseMention } from '~/utils/channel-feed.mjs'
+import { channelView, parseMention } from '~/utils/channel-feed.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
@@ -40,6 +40,15 @@ function setup(key: 'main' | 'pane') {
   const view = computed(() => windowed(filtered.value, visible.value))
   const newestFirstRows = computed(() => view.value.rows as SpoolMessage[])
   const hasOlder = computed(() => view.value.hasOlder || Boolean(olderCursor.value))
+  /*
+   * #lobby pane 2. The room is one task, so one card per task_id would hide
+   * every starter but the first. Starters have no parent_task_id. A reply
+   * carries one and stays out of this list. Pane 3 still reads newestFirst
+   * on the pane store.
+   */
+  const lobbyView = computed(() => channelView(messages.value, { search: search.value, visible: visible.value, lobby: true }))
+  const lobbyRows = computed(() => lobbyView.value.rows as SpoolMessage[])
+  const lobbyHasOlder = computed(() => lobbyView.value.hasOlder || Boolean(olderCursor.value))
   const thread = computed(() => rootAndReplies(messages.value.filter((m) => matchesSearch(m, search.value))))
 
   /** By msg_id: new rows are added, a confirmed row replaces our pending one (013 US7). */
@@ -144,8 +153,9 @@ function setup(key: 'main' | 'pane') {
    * Scrolling down reached the bottom: reveal the next older window. Rows
    * already held are shown first; then the next server window (before=).
    */
-  async function loadOlder() {
-    if (view.value.hasOlder) {
+  async function loadOlder(which?: 'lobby') {
+    const heldMore = which === 'lobby' ? lobbyView.value.hasOlder : view.value.hasOlder
+    if (heldMore) {
       visible.value += WINDOW
       return
     }
@@ -223,7 +233,7 @@ function setup(key: 'main' | 'pane') {
   }
 
   return {
-    taskId, messages, newestFirst: newestFirstRows, hasOlder, thread, error, door, sending, loading,
+    taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, thread, error, door, sending, loading,
     search, liveCount, lastLive, open, close, send, loadOlder, loadAll, setSearch, catchUpAfterReconnect,
     applyEdited,
   }

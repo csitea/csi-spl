@@ -72,22 +72,26 @@ describe('threadCards: one card per task, carrying the thread LAST activity', ()
   })
 })
 
-describe('channelView: /channel and /dm are one row per MESSAGE (CLE-3446)', () => {
-  it('the newest message is on top, whichever thread it belongs to', () => {
+describe('channelView: pane 2 is the thread starter (owner 2026-09-23)', () => {
+  it('a reply is not a row; the starter stays and rises on the reply', () => {
     /* t1 started 10:01 and was replied to at 10:20; t2 started 10:10 and went
-       quiet. The reply is the newest thing in the channel, so it leads — which
-       is the ordering CLE-3425 asked for, now expressed per message. */
+       quiet. The reply moves t1's starter to the top. The row is still t1's
+       first message — not the reply. */
     const rows = [msg('t1', 1), msg('t2', 10), msg('t1', 20)]
-    assert.deepEqual(ids(channelView(rows).rows), ['t1-20', 't2-10', 't1-1'])
+    const v = channelView(rows).rows
+    assert.deepEqual(ids(v), ['t1-1', 't2-10'])
+    assert.equal(v[0].msg_id, 't1-1')
+    assert.equal(v[0].body, 't1 1')
   })
 
-  it('a live reply appears as its own row and does not replace the root', () => {
+  it('a live reply bumps the starter and does not add a row', () => {
     const before = [msg('t1', 1), msg('t2', 10)]
     assert.deepEqual(ids(channelView(before).rows), ['t2-10', 't1-1'])
     const after = mergeLive(before, msg('t1', 30))
     const v = channelView(after)
-    assert.deepEqual(ids(v.rows), ['t1-30', 't2-10', 't1-1'])
-    assert.equal(v.rows.length, 3, 'the reply is a row, not a count on the root')
+    assert.deepEqual(ids(v.rows), ['t1-1', 't2-10'])
+    assert.equal(v.rows[0].body, 't1 1')
+    assert.equal(v.rows.length, 2, 'the reply is not a pane-2 row')
   })
 
   it('a live root still lands on top (CLE-3412 must not regress)', () => {

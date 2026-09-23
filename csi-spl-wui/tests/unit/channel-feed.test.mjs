@@ -244,34 +244,12 @@ describe('channelFollow (H4, wui-live-ws 0.4 channel subscription)', () => {
 
 
 /*
- * CLE-3446 — symptom A. The owner, 2026-09-22:
- *
- *   "basically three is some kind of mix between the who sends the msg and
- *    the avatar"
- *
- * There was no data defect. `threadCards` spread the FIRST message of a task
- * and thereafter updated only `last_ts` and `count`, so a card kept the ROOT's
- * `from` / `from_box` / `body` beside the NEWEST message's clock. In a
- * two-party conversation the root is always the human, so every row rendered
- * the human's identicon and the agent's reply was folded away entirely.
- * `MessageCard` renders SpoolAvatar and AgentBadge from the same `msg.from`,
- * which is why the name was wrong too.
- *
- * The owner then settled the format (relayed by CLE-3444, 2026-09-22):
- *
- *   [identicon] HUM-17@box-wui   ->  [robot] CLE-3444@box-desk   note   <iso>
- *   [robot] CLE-3444@box-desk    ->  [identicon] HUM-17@box-wui  note   <iso>
- *
- * per message, sender -> recipient, the arrow flipping per row, kind badge
- * kept, and a REAL ISO 8601 stamp with the T and the Z.
- *
- * CONTROL — and this one was a NATURAL red, not a planted one: with
- * `channelView` still folding (`threadCards(topLevel(...))`), the first case
- * below reads ['t1-1'] for a two-message conversation and fails with the
- * ROOT's sender on the reply's row. That is the owner's bug, reproduced in
- * the suite that runs in a second.
+ * CLE-3446 kept sender -> recipient on the row that is shown (avatar and name
+ * from the same `from`). Owner, 2026-09-23: pane 2 shows only the starter, so
+ * that format is the starter's. A reply body must not sit beside the starter
+ * avatar — the card is the starter, full stop.
  */
-describe('CLE-3446 — a channel row is ONE MESSAGE, and carries its own sender', () => {
+describe('pane 2 row is the starter and carries the starter sender', () => {
   const at = (n) => `2026-09-22T11:${String(n).padStart(2, '0')}:03Z`
   /* a two-party conversation in ONE task: the human opens it, the agent replies */
   const CONV = [
@@ -279,13 +257,12 @@ describe('CLE-3446 — a channel row is ONE MESSAGE, and carries its own sender'
     { msg_id: 'm2', task_id: 'tA', ts: at(59), from: 'CLE-3444', from_box: 'box-desk', to: 'HUM-17', to_box: 'box-wui', kind: 'note', body: 'pong', parent_task_id: null },
   ]
 
-  it('both sides of a two-party thread are rows, each with its OWN sender', () => {
+  it('pane 2 keeps the starter, not the reply beside the starter avatar', () => {
     const rows = channelView(CONV).rows
-    assert.deepEqual(rows.map((m) => m.msg_id), ['m2', 'm1'], 'the agent reply is a row, newest first')
-    assert.equal(rows[0].from, 'CLE-3444', "the reply's row is the AGENT")
-    assert.equal(rows[0].from_box, 'box-desk')
-    assert.equal(rows[1].from, 'HUM-17', "the opener's row is the HUMAN")
-    assert.equal(rows[1].from_box, 'box-wui')
+    assert.deepEqual(rows.map((m) => m.msg_id), ['m1'])
+    assert.equal(rows[0].from, 'HUM-17')
+    assert.equal(rows[0].from_box, 'box-wui')
+    assert.equal(rows[0].body, 'ping')
   })
 
   it('the avatar cannot disagree with the sender, because both read msg.from', () => {
@@ -297,10 +274,10 @@ describe('CLE-3446 — a channel row is ONE MESSAGE, and carries its own sender'
     assert.match(vue, /<AgentBadge :id="String\(msg\.from\)"/)
   })
 
-  it('the arrow flips per row: the recipient is read from THAT message', () => {
+  it('the pane-2 arrow is the starter recipient; the reply keeps its own', () => {
     const rows = channelView(CONV).rows
-    assert.deepEqual(recipientOf(rows[0]), { id: 'HUM-17', box: 'box-wui' })
-    assert.deepEqual(recipientOf(rows[1]), { id: 'CLE-3444', box: 'box-desk' })
+    assert.deepEqual(recipientOf(rows[0]), { id: 'CLE-3444', box: 'box-desk' })
+    assert.deepEqual(recipientOf(CONV[1]), { id: 'HUM-17', box: 'box-wui' })
   })
 
   it('a broadcast has no recipient — BOTH "everyone" sentinels, not just the hub one', () => {
@@ -334,5 +311,85 @@ describe('CLE-3446 — a channel row is ONE MESSAGE, and carries its own sender'
     /* CONTROL: the old formatter is still the old formatter, untouched */
     assert.equal(formatAbsTs('2026-09-22T11:58:03Z'), '2026-09-22 11:58:03')
     assert.notEqual(formatIsoTs('2026-09-22T11:58:03Z'), formatAbsTs('2026-09-22T11:58:03Z'))
+  })
+})
+
+/*
+ * Owner, 2026-09-23: pane 2 is thread starters only.
+ * Channel / DM: one task_id, earliest by ts, replies stay available to pane 3.
+ * Lobby: one shared task_id, every message with no parent_task_id, the reply omitted.
+ */
+describe('pane 2 lists only the thread starter (owner 2026-09-23)', () => {
+  const starter = {
+    msg_id: 's', task_id: 't', ts: '2026-09-23T10:00:00Z', from: 'HUM-1', body: 'start', parent_task_id: null,
+  }
+  const replyA = {
+    msg_id: 'r1', task_id: 't', ts: '2026-09-23T10:05:00Z', from: 'CLE-07', body: 'first reply', parent_task_id: null,
+  }
+  const replyB = {
+    msg_id: 'r2', task_id: 't', ts: '2026-09-23T10:09:00Z', from: 'CLE-07', body: 'second reply', parent_task_id: 't',
+  }
+
+  it('one starter and two replies are one pane-2 row, and that row is the starter', () => {
+    /* newest first in the array, so a first-seen fold would pick a reply */
+    const all = [replyB, starter, replyA]
+    const rows = channelView(all).rows
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0].msg_id, 's')
+    assert.equal(rows[0].body, 'start')
+    assert.equal(rows[0].from, 'HUM-1')
+    assert.equal(rows[0].count, 2)
+    const thread = threadOf(all, 't')
+    assert.deepEqual(thread.map((m) => m.msg_id), ['s', 'r1', 'r2'])
+  })
+
+  it('a parent_task_id on a different task_id is still not a pane-2 row', () => {
+    const child = {
+      msg_id: 'c', task_id: 'child', ts: '2026-09-23T10:08:00Z', from: 'CLE-07', body: 'child', parent_task_id: 't',
+    }
+    const rows = channelView([child, starter]).rows
+    assert.deepEqual(rows.map((m) => m.msg_id), ['s'])
+    assert.equal(rows[0].body, 'start')
+  })
+
+  it('a lobby-shaped room keeps two starters and drops the reply', () => {
+    const task = 'lobby-task'
+    const a = { msg_id: 'a', task_id: task, ts: '2026-09-23T10:00:00Z', body: 'one', parent_task_id: null }
+    const b = { msg_id: 'b', task_id: task, ts: '2026-09-23T10:02:00Z', body: 'two', parent_task_id: null }
+    const reply = { msg_id: 'c', task_id: task, ts: '2026-09-23T10:03:00Z', body: 'reply', parent_task_id: task }
+    const rows = channelView([a, b, reply], { lobby: true }).rows
+    assert.equal(rows.length, 2)
+    assert.deepEqual(rows.map((m) => m.msg_id), ['b', 'a'])
+    assert.equal(rows.some((m) => m.msg_id === 'c'), false)
+  })
+
+  it('a lobby reply whose parent is the starter msg_id lifts that starter only', () => {
+    const task = 'lobby-task'
+    const a = { msg_id: 'a', task_id: task, ts: '2026-09-23T10:00:00Z', body: 'one', parent_task_id: null }
+    const b = { msg_id: 'b', task_id: task, ts: '2026-09-23T10:02:00Z', body: 'two', parent_task_id: null }
+    const reply = { msg_id: 'c', task_id: 'a', ts: '2026-09-23T10:09:00Z', body: 'reply', parent_task_id: 'a' }
+    const rows = channelView([a, b, reply], { lobby: true }).rows
+    assert.deepEqual(rows.map((m) => m.msg_id), ['a', 'b'])
+    assert.equal(rows[0].body, 'one')
+    assert.equal(rows[0].msg_id, 'a')
+  })
+
+  it('rowFromAck keeps parent_task_id from the send frame', () => {
+    const row = rowFromAck(
+      { msg_id: 'm', task_id: 'child', received_at: '2026-09-23T10:00:00Z' },
+      { task_id: 'child', body: 'reply', parent_task_id: 'lobby-task' },
+      { from: 'HUM-1' },
+    )
+    assert.equal(row.parent_task_id, 'lobby-task')
+    assert.equal(row.body, 'reply')
+    const bare = rowFromAck({ msg_id: 'm2', task_id: 't' }, { task_id: 't', body: 'hi' })
+    assert.equal(bare.parent_task_id, null)
+  })
+
+  it('the lobby page passes the starter list into pane 2', () => {
+    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/pages/lobby.vue'), 'utf8')
+    assert.match(vue, /:rows="store\.lobbyRows"/)
+    assert.match(vue, /store\.loadOlder\('lobby'\)/)
+    assert.doesNotMatch(vue, /:rows="store\.newestFirst"/)
   })
 })

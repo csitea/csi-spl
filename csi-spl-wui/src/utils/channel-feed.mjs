@@ -345,7 +345,7 @@ export function rowFromAck(ack, frame, { from = '', channel = null } = {}) {
     body: String(f.body || ''),
     files: f.files || [],
     channel,
-    parent_task_id: null,
+    parent_task_id: (typeof f.parent_task_id === 'string' && f.parent_task_id) ? f.parent_task_id : null,
   }
 }
 
@@ -383,40 +383,104 @@ export function threadCards(messages) {
   return out
 }
 
+/** Earliest message by `ts` (tie: msg_id). Pane 2's starter, not array order. */
+function earlierByTs(a, b) {
+  const c = String(a.ts || '').localeCompare(String(b.ts || ''))
+  if (c !== 0) return c < 0 ? a : b
+  return String(a.msg_id || '').localeCompare(String(b.msg_id || '')) <= 0 ? a : b
+}
+
 /**
- * 013 on /channel and /dm (X3): one card per thread root, newest ACTIVITY first
- * (CLE-3425: a reply inside a thread bumps its card), the Omnibox `/search`
- * filter, then the first `visible` rows. Storage order is untouched; a live
- * append or an older page only changes what is sorted.
+ * Channel / DM pane 2: one card per task_id. The card is the earliest message
+ * by ts with no parent_task_id. A later message with that task_id is a reply
+ * even with no parent_task_id. A message with parent_task_id is a reply of
+ * that parent and is never its own card. Replies only move last_ts and count,
+ * so the card's author and body stay the starter's.
  */
-export function channelView(messages, { search = '', visible = 50 } = {}) {
-  /*
-   * CLE-3446 — ONE ROW PER MESSAGE, not one folded card per thread.
-   *
-   * THE OWNER, 2026-09-22: "basically three is some kind of mix between the
-   * who sends the msg and the avatar".
-   *
-   * `threadCards` spreads the FIRST message of a task and thereafter updates
-   * only `last_ts` and `count`, so a card kept the ROOT's `from` / `from_box` /
-   * `body` beside the NEWEST message's clock. In a two-party conversation the
-   * root is always the human, so every row rendered the human's identicon and
-   * the agent's reply was folded away entirely. No data defect — a rendering
-   * model that could not express what the owner was looking at.
-   *
-   * The owner has since settled the format (relayed 2026-09-22): per message,
-   * sender -> recipient, the arrow flipping per row. A folded summary cannot
-   * carry a per-message sender, so the fold goes.
-   *
-   * THIS OVERTURNS PART OF CLE-3425, deliberately and on the owner's word:
-   * "one card per task_id" no longer holds on /channel and /dm. What CLE-3425
-   * was actually protecting does hold — newest first EVERYWHERE, and a thread
-   * that just received a reply is the newest thing in the channel — because
-   * the reply is now a row of its own and sorts on its own moment.
-   * `threadCards` itself is kept, with its tests: it is still correct, it is
-   * simply no longer what this view wants.
-   */
-  const rows = topLevel(messages || [])
-  return windowed(newestActivityFirst(rows.filter((m) => matchesSearch(m, search))), visible)
+function threadStarterCards(messages) {
+  const list = []
+  for (const m of messages || []) if (m) list.push(m)
+  const starterOf = new Map()
+  for (const m of list) {
+    if (m.parent_task_id || !m.task_id) continue
+    const prev = starterOf.get(m.task_id)
+    starterOf.set(m.task_id, prev ? earlierByTs(prev, m) : m)
+  }
+  const cards = new Map()
+  for (const [id, m] of starterOf) cards.set(id, { ...m, last_ts: activityOf(m) })
+  for (const m of list) {
+    const id = String(m.parent_task_id || m.task_id || '')
+    const card = id && cards.get(id)
+    if (!card) continue
+    if (!m.parent_task_id && card.msg_id === m.msg_id) continue
+    const ts = activityOf(m)
+    cards.set(id, {
+      ...card,
+      last_ts: ts > activityOf(card) ? ts : activityOf(card),
+      count: card.thread_row ? card.count : (Number(card.count) || 0) + 1,
+    })
+  }
+  const out = []
+  const seen = new Set()
+  for (const m of list) {
+    if (m.parent_task_id || !m.task_id || seen.has(m.task_id)) continue
+    const card = cards.get(m.task_id)
+    if (!card) continue
+    seen.add(m.task_id)
+    out.push(card)
+  }
+  for (const m of list) {
+    if (!m.task_id && !m.parent_task_id) out.push(m)
+  }
+  return out
+}
+
+/**
+ * Lobby pane 2. The room is one shared task, so task_id must not collapse it
+ * to a single card. A starter has no parent_task_id. A reply carries
+ * parent_task_id and is omitted. A reply whose parent_task_id is a starter
+ * msg_id may move that starter up; it does not become a row.
+ */
+function lobbyStarterRows(messages) {
+  const list = []
+  for (const m of messages || []) if (m) list.push(m)
+  const starters = list.filter((m) => !m.parent_task_id)
+  const byMsg = new Map()
+  for (const s of starters) {
+    if (s.msg_id && !byMsg.has(s.msg_id)) byMsg.set(s.msg_id, s)
+  }
+  const lifted = new Map()
+  for (const m of list) {
+    if (!m.parent_task_id) continue
+    const hit = byMsg.get(String(m.parent_task_id))
+    if (!hit) continue
+    const ts = activityOf(m)
+    const prev = lifted.get(hit.msg_id) || activityOf(hit)
+    if (ts > prev) lifted.set(hit.msg_id, ts)
+  }
+  return starters.map((s) => {
+    const ts = s.msg_id && lifted.get(s.msg_id)
+    return ts ? { ...s, last_ts: ts } : s
+  })
+}
+
+/**
+ * 013 on /channel and /dm (X3): newest ACTIVITY first (a reply bumps its
+ * starter), the Omnibox `/search` filter, then the first `visible` rows.
+ * Storage order is untouched.
+ *
+ * Owner, 2026-09-23: pane 2 lists only the message that started the thread.
+ * Do not restore one row per message. The card is the starter — its author
+ * and its body — and the reply stays in pane 3.
+ *
+ * Channel and DM: one task_id is one thread; the earliest message by ts is
+ * the row. Lobby (`lobby: true`) is one shared task for the room and keeps
+ * every message that has no parent_task_id.
+ */
+export function channelView(messages, { search = '', visible = 50, lobby = false } = {}) {
+  const rows = (lobby ? lobbyStarterRows(messages) : threadStarterCards(messages))
+    .filter((m) => matchesSearch(m, search))
+  return windowed(newestActivityFirst(rows), visible)
 }
 
 /**

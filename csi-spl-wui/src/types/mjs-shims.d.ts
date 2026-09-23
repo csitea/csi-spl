@@ -149,7 +149,7 @@ declare module '~/utils/channel-feed.mjs' {
   export function rowFromAck(ack: unknown, frame: unknown, who?: { from?: string, channel?: string | null }): Record<string, unknown>
   export function rootsByTask<T extends { task_id?: string }>(messages: T[]): T[]
   export function threadReplies(messages: { task_id?: string, parent_task_id?: string | null }[], taskId: string): number
-  export function channelView<T>(messages: T[], opts?: { search?: string, visible?: number }): { rows: T[], hasOlder: boolean }
+  export function channelView<T>(messages: T[], opts?: { search?: string, visible?: number, lobby?: boolean }): { rows: T[], hasOlder: boolean }
   export function threadCards<T extends { task_id?: string }>(messages: T[]): T[]
   export function channelActivity(row: unknown, liveAt?: Record<string, string>): string
   export function orderChannels<T extends { channel_id?: string }>(rows: T[], liveAt?: Record<string, string>): T[]

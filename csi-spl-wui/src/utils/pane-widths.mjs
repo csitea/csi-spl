@@ -5,7 +5,8 @@ import { storageGetJson, storageSetJson } from './prefs.mjs'
 export const SIDEBAR_DEFAULT = 260
 export const THREAD_DEFAULT = 380
 export const SIDEBAR_MIN = 180
-export const SIDEBAR_MAX = 420
+/** The left pane's divider stops at this fraction of the viewport. */
+export const SIDEBAR_MAX_RATIO = 0.35
 export const THREAD_MIN = 280
 export const THREAD_MAX = 560
 export const MAIN_MIN = 360
@@ -32,6 +33,12 @@ export function sidebarShown(viewportW) {
   return num(viewportW, 1280) > SIDEBAR_NARROW_MAX
 }
 
+/** Widest the left pane may be dragged: 35% of the viewport, and never under its minimum. */
+export function sidebarMaxPx(viewportW) {
+  const px = Math.round(num(viewportW, 1280) * SIDEBAR_MAX_RATIO)
+  return Math.max(SIDEBAR_MIN, px)
+}
+
 export function threadShown(viewportW, threadOpen) {
   return Boolean(threadOpen) && num(viewportW, 1280) > THREAD_NARROW_MAX
 }
@@ -52,7 +59,7 @@ export function clampSidebar(width, ctx = {}) {
     ? clamp(num(ctx.threadW, THREAD_DEFAULT), THREAD_MIN, THREAD_MAX)
     : 0
   const maxFit = viewportW - dividersPx(ctx) - threadW - MAIN_MIN
-  const max = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, maxFit))
+  const max = Math.min(sidebarMaxPx(viewportW), Math.max(SIDEBAR_MIN, maxFit))
   return clamp(Math.round(num(width, SIDEBAR_DEFAULT)), SIDEBAR_MIN, max)
 }
 
@@ -63,7 +70,7 @@ export function clampThread(width, ctx = {}) {
     return clamp(Math.round(num(width, THREAD_DEFAULT)), THREAD_MIN, THREAD_MAX)
   }
   const sidebarW = sidebarShown(viewportW)
-    ? clamp(num(ctx.sidebarW, SIDEBAR_DEFAULT), SIDEBAR_MIN, SIDEBAR_MAX)
+    ? clamp(num(ctx.sidebarW, SIDEBAR_DEFAULT), SIDEBAR_MIN, sidebarMaxPx(viewportW))
     : 0
   const maxFit = viewportW - dividersPx(ctx) - sidebarW - MAIN_MIN
   const max = Math.min(THREAD_MAX, Math.max(THREAD_MIN, maxFit))
@@ -73,7 +80,8 @@ export function clampThread(width, ctx = {}) {
 export function clampPair(sidebar, thread, ctx = {}) {
   const viewportW = num(ctx.viewportW, 1280)
   const threadOpen = Boolean(ctx.threadOpen)
-  let s = clamp(Math.round(num(sidebar, SIDEBAR_DEFAULT)), SIDEBAR_MIN, SIDEBAR_MAX)
+  const sidebarCap = sidebarMaxPx(viewportW)
+  let s = clamp(Math.round(num(sidebar, SIDEBAR_DEFAULT)), SIDEBAR_MIN, sidebarCap)
   let t = clamp(Math.round(num(thread, THREAD_DEFAULT)), THREAD_MIN, THREAD_MAX)
   s = clampSidebar(s, { viewportW, threadW: t, threadOpen })
   t = clampThread(t, { viewportW, sidebarW: s, threadOpen })
@@ -81,15 +89,16 @@ export function clampPair(sidebar, thread, ctx = {}) {
     const budget = viewportW - dividersPx({ viewportW, threadOpen }) - MAIN_MIN
     if (s + t > budget) {
       t = clamp(budget - s, THREAD_MIN, THREAD_MAX)
-      s = clamp(budget - t, SIDEBAR_MIN, SIDEBAR_MAX)
+      s = clamp(budget - t, SIDEBAR_MIN, sidebarCap)
     }
   }
   return { sidebar: s, thread: t }
 }
 
 export function sidebarRange(ctx = {}) {
+  const cap = sidebarMaxPx(num(ctx.viewportW, 1280))
   const min = clampSidebar(SIDEBAR_MIN, ctx)
-  const max = clampSidebar(SIDEBAR_MAX, ctx)
+  const max = clampSidebar(cap, ctx)
   return { min: Math.min(min, max), max: Math.max(min, max) }
 }
 

@@ -8,7 +8,8 @@ import {
   SIDEBAR_DEFAULT,
   THREAD_DEFAULT,
   SIDEBAR_MIN,
-  SIDEBAR_MAX,
+  SIDEBAR_MAX_RATIO,
+  sidebarMaxPx,
   THREAD_MIN,
   THREAD_MAX,
   MAIN_MIN,
@@ -52,14 +53,23 @@ describe('pane-widths clamp', () => {
   it('defaults sit inside the static min/max', () => {
     assert.equal(SIDEBAR_DEFAULT, 260)
     assert.equal(THREAD_DEFAULT, 380)
-    assert.ok(SIDEBAR_DEFAULT >= SIDEBAR_MIN && SIDEBAR_DEFAULT <= SIDEBAR_MAX)
+    assert.equal(SIDEBAR_MAX_RATIO, 0.35)
+    assert.ok(SIDEBAR_DEFAULT >= SIDEBAR_MIN && SIDEBAR_DEFAULT <= sidebarMaxPx(1280))
     assert.ok(THREAD_DEFAULT >= THREAD_MIN && THREAD_DEFAULT <= THREAD_MAX)
+  })
+
+  it('the left pane drags out to 35% of the viewport', () => {
+    for (const w of [1280, 1440, 1920]) {
+      assert.equal(sidebarMaxPx(w), Math.round(w * 0.35))
+      assert.equal(clampSidebar(9999, { viewportW: w, threadOpen: false }), Math.round(w * 0.35))
+    }
+    assert.equal(clampSidebar(9999, { viewportW: 1440, threadOpen: true, threadW: 380 }), Math.round(1440 * 0.35))
   })
 
   it('clamps sidebar below min and above max', () => {
     const ctx = { viewportW: 1280, threadOpen: false }
     assert.equal(clampSidebar(0, ctx), SIDEBAR_MIN)
-    assert.equal(clampSidebar(9999, ctx), SIDEBAR_MAX)
+    assert.equal(clampSidebar(9999, ctx), sidebarMaxPx(1280))
     assert.equal(clampSidebar(260, ctx), 260)
   })
 
@@ -72,9 +82,9 @@ describe('pane-widths clamp', () => {
 
   it('keeps the main feed at least MAIN_MIN when the thread is open', () => {
     const ctx = { viewportW: 1280, threadOpen: true, threadW: THREAD_MAX }
-    const s = clampSidebar(SIDEBAR_MAX, ctx)
+    const s = clampSidebar(sidebarMaxPx(1280), ctx)
     const t = clampThread(THREAD_MAX, { viewportW: 1280, threadOpen: true, sidebarW: s })
-    const pair = clampPair(SIDEBAR_MAX, THREAD_MAX, { viewportW: 1280, threadOpen: true })
+    const pair = clampPair(sidebarMaxPx(1280), THREAD_MAX, { viewportW: 1280, threadOpen: true })
     const used = pair.sidebar + pair.thread + 2 * DIVIDER_W
     assert.ok(1280 - used >= MAIN_MIN, `main=${1280 - used}`)
     assert.ok(1280 - (s + t + 2 * DIVIDER_W) >= MAIN_MIN)
@@ -82,8 +92,8 @@ describe('pane-widths clamp', () => {
 
   it('keeps the main feed at least MAIN_MIN when the thread is closed', () => {
     const s = clampSidebar(9999, { viewportW: 900, threadOpen: false })
+    assert.equal(s, sidebarMaxPx(900))
     assert.ok(900 - s - DIVIDER_W >= MAIN_MIN)
-    assert.ok(s <= SIDEBAR_MAX)
   })
 
   it('does not apply the thread width against the budget when the pane is closed', () => {
@@ -105,7 +115,7 @@ describe('pane-widths clamp', () => {
     const s = sidebarRange(ctx)
     const t = threadRange(ctx)
     assert.equal(s.min, SIDEBAR_MIN)
-    assert.equal(s.max, SIDEBAR_MAX)
+    assert.equal(s.max, sidebarMaxPx(1280))
     assert.equal(t.min, THREAD_MIN)
     assert.equal(t.max, THREAD_MAX)
   })

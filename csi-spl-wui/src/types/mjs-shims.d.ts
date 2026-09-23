@@ -457,7 +457,8 @@ declare module '~/utils/pane-widths.mjs' {
   export const SIDEBAR_DEFAULT: number
   export const THREAD_DEFAULT: number
   export const SIDEBAR_MIN: number
-  export const SIDEBAR_MAX: number
+  export const SIDEBAR_MAX_RATIO: number
+  export function sidebarMaxPx(viewportW: number): number
   export const THREAD_MIN: number
   export const THREAD_MAX: number
   export const MAIN_MIN: number

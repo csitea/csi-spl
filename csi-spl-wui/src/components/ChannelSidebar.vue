@@ -59,10 +59,13 @@
       <span class="muted self-row__you">{{ t('sidebar.you') }}</span>
     </div>
     <div
-      v-for="p in peers"
+      v-for="(p, peerIndex) in peers"
       :key="p.label"
       class="nav-row"
-      :class="{ 'nav-row--muted': mutedPeers[p.label], 'nav-row--blocked': blockedPeers[p.label], 'nav-row--pinned': pinnedPeers.includes(p.label) }"
+      :data-order="p.label"
+      :class="{ 'nav-row--muted': mutedPeers[p.label], 'nav-row--blocked': blockedPeers[p.label], 'nav-row--pinned': pinnedPeers.includes(p.label), 'nav-row--drag': dragging('peers', p.label), 'nav-row--drop': dropping('peers', p.label, peerIndex), 'nav-row--drop-after': droppingAfter('peers', peerIndex, peers.length) }"
+      @pointerdown="rowPointerDown($event, 'peers', p.label)"
+      @click.capture="swallowDragClick"
     >
     <NuxtLink
       class="nav-item"
@@ -128,9 +131,13 @@
       </button>
     </div>
     <div
-      v-for="c in channel.ordered"
+      v-for="(c, channelIndex) in channelRows"
       :key="c.channel_id"
       class="nav-row"
+      :data-order="c.channel_id"
+      :class="{ 'nav-row--pinned': channelOrder.includes(c.channel_id), 'nav-row--drag': dragging('channels', c.channel_id), 'nav-row--drop': dropping('channels', c.channel_id, channelIndex), 'nav-row--drop-after': droppingAfter('channels', channelIndex, channelRows.length) }"
+      @pointerdown="rowPointerDown($event, 'channels', c.channel_id)"
+      @click.capture="swallowDragClick"
     >
     <NuxtLink
       class="nav-item"
@@ -224,9 +231,13 @@
         <h2>{{ t('nav.threads') }}</h2>
         <p v-if="!viewer.loading && viewer.threads.length === 0" class="muted thread-empty">{{ t('pages.index.empty') }}</p>
         <div
-          v-for="row in viewer.threads"
+          v-for="(row, threadIndex) in threadRows"
           :key="row.task_id"
           class="nav-row"
+          :data-order="row.task_id"
+          :class="{ 'nav-row--pinned': threadOrder.includes(row.task_id), 'nav-row--drag': dragging('threads', row.task_id), 'nav-row--drop': dropping('threads', row.task_id, threadIndex), 'nav-row--drop-after': droppingAfter('threads', threadIndex, threadRows.length) }"
+          @pointerdown="rowPointerDown($event, 'threads', row.task_id)"
+          @click.capture="swallowDragClick"
         >
         <a
           class="nav-item"
@@ -261,7 +272,7 @@
         <h2>{{ t('sidebar.flow') }}</h2>
         <p v-if="flow.length === 0" class="muted thread-empty">{{ t('feed.empty') }}</p>
         <template v-for="row in flow" :key="row.key">
-          <div v-if="row.kind === 'channel'" class="nav-row">
+          <div v-if="row.kind === 'channel'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick">
           <NuxtLink
             class="nav-item"
             :class="{ active: channel.active === row.id }"
@@ -286,7 +297,7 @@
             @mark-read="notes.markRead('ch:' + row.id)"
           />
           </div>
-          <div v-else-if="row.kind === 'dm'" class="nav-row" :class="{ 'nav-row--muted': mutedPeers[row.label], 'nav-row--blocked': blockedPeers[row.label], 'nav-row--pinned': pinnedPeers.includes(row.label) }">
+          <div v-else-if="row.kind === 'dm'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': mutedPeers[row.label], 'nav-row--blocked': blockedPeers[row.label], 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick">
           <NuxtLink
             class="nav-item"
             :class="{ active: channel.peer === row.label }"
@@ -310,10 +321,10 @@
       :admin="peerAdmin"
       :blocked="!!blockedPeers[row.label]"
       :muted="!!mutedPeers[row.label]"
-      :pinned="pinnedPeers.includes(row.label)"
+      :pinned="flowOrder.includes(row.key)"
       @block="togglePeer('block', row.label)"
       @mute="togglePeer('mute', row.label)"
-      @pin="togglePin(row.label)"
+      @pin="toggleFlowPin(row)"
       @remove="removePeer(row)"
             :open="rowMenu === 'flow:dm:' + row.label"
             @toggle="toggleRowMenu('flow:dm:' + row.label)"
@@ -322,7 +333,7 @@
             @mark-read="notes.markRead('dm:' + row.label)"
           />
           </div>
-          <div v-else class="nav-row">
+          <div v-else class="nav-row" :data-order="row.key" :class="{ 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick">
           <a
             class="nav-item"
             :class="{ active: threadOpen === row.id }"
@@ -377,7 +388,7 @@ import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDa
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { flowRows, SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
-import { pinRows, rowMenuAdmin } from '~/utils/sidebar-row-menu.mjs'
+import { dropIndex, moveKey, pinRows, rowMenuAdmin } from '~/utils/sidebar-row-menu.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'threads' | 'flow'
@@ -481,17 +492,38 @@ const health = computed(() => connectionHealth(live.state.value))
 const hiddenPeers = ref<Record<string, true>>({})
 const blockedPeers = ref<Record<string, true>>({})
 const mutedPeers = ref<Record<string, true>>({})
-/* index 0 is the top of the people list */
+/* index 0 is the top. A drag replaces the whole list: that order is pinned,
+   and a person who appears later sorts after it, in the usual activity order. */
 const pinnedPeers = ref<string[]>([])
+const channelOrder = ref<string[]>([])
+const threadOrder = ref<string[]>([])
+const flowOrder = ref<string[]>([])
 const peerAdmin = computed(() => rowMenuAdmin(access.me))
 const peers = computed(() => pinRows(
   orderPeers(roster.peers, channel.dmAt).filter((p) => !hiddenPeers.value[p.label]),
   pinnedPeers.value,
 ))
+const channelRows = computed(() => pinRows(
+  channel.ordered,
+  channelOrder.value,
+  (c) => String(c.channel_id || ''),
+))
+const threadRows = computed(() => pinRows(
+  viewer.threads,
+  threadOrder.value,
+  (t) => String(t.task_id || ''),
+))
 
+function toggleOrder(order: string[], key: string) {
+  return order.includes(key) ? order.filter((l) => l !== key) : [key, ...order.filter((l) => l !== key)]
+}
 function togglePin(label: string) {
-  const rest = pinnedPeers.value.filter((l) => l !== label)
-  pinnedPeers.value = pinnedPeers.value.includes(label) ? rest : [label, ...rest]
+  pinnedPeers.value = toggleOrder(pinnedPeers.value, label)
+  flowOrder.value = toggleOrder(flowOrder.value, 'dm:' + label)
+}
+function toggleFlowPin(row: { key: string, kind: string, label: string }) {
+  flowOrder.value = toggleOrder(flowOrder.value, row.key)
+  if (row.kind === 'dm') pinnedPeers.value = toggleOrder(pinnedPeers.value, row.label)
 }
 
 function togglePeer(which: 'block' | 'mute', label: string) {
@@ -516,6 +548,7 @@ async function removePeer(p: { id?: string, label: string }) {
   }
   hiddenPeers.value = { ...hiddenPeers.value, [p.label]: true }
   pinnedPeers.value = pinnedPeers.value.filter((l) => l !== p.label)
+  flowOrder.value = flowOrder.value.filter((l) => l !== 'dm:' + p.label)
 }
 const flow = computed(() => pinRows(flowRows({
   channels: channel.ordered,
@@ -523,7 +556,83 @@ const flow = computed(() => pinRows(flowRows({
   threads: viewer.threads,
   liveAt: channel.liveAt,
   dmAt: channel.dmAt,
-}), pinnedPeers.value))
+}), flowOrder.value, (row) => String(row.key || '')))
+
+type DragList = 'peers' | 'channels' | 'threads' | 'flow'
+const drag = ref<{ list: DragList, key: string, overIndex: number, active: boolean } | null>(null)
+let suppressDragClick = false
+const dragPanel: Record<DragList, string> = {
+  peers: 'sidebar-panel-dm',
+  channels: 'sidebar-panel-channels',
+  threads: 'sidebar-panel-threads',
+  flow: 'sidebar-panel-flow',
+}
+function orderBag(list: DragList) {
+  if (list === 'peers') return pinnedPeers
+  if (list === 'channels') return channelOrder
+  if (list === 'threads') return threadOrder
+  return flowOrder
+}
+function dragging(list: DragList, key: string) {
+  const d = drag.value
+  return !!d && d.active && d.list === list && d.key === key
+}
+function dropping(list: DragList, key: string, index: number) {
+  const d = drag.value
+  if (!d || !d.active || d.list !== list || d.key === key) return false
+  if (d.overIndex === index) return true
+  return false
+}
+function droppingAfter(list: DragList, index: number, last: number) {
+  const d = drag.value
+  return !!d && d.active && d.list === list && d.overIndex >= last && index === last - 1
+}
+function rowPointerDown(e: PointerEvent, list: DragList, key: string) {
+  if (e.button !== 0) return
+  const target = e.target
+  if (!(target instanceof Element) || target.closest('.sidebar-row-menu, button, input, textarea')) return
+  const startY = e.clientY
+  const pointerId = e.pointerId
+  let active = false
+  let overIndex = 0
+  const panelId = dragPanel[list]
+  const keysNow = () => {
+    const panel = document.getElementById(panelId)
+    return panel ? [...panel.querySelectorAll<HTMLElement>('.nav-row')].map((el) => el.dataset.order || '') : []
+  }
+  const move = (ev: PointerEvent) => {
+    if (ev.pointerId !== pointerId) return
+    if (!active && Math.abs(ev.clientY - startY) < 6) return
+    active = true
+    const panel = document.getElementById(panelId)
+    const els = panel ? [...panel.querySelectorAll<HTMLElement>('.nav-row')] : []
+    const rects = els.map((el) => {
+      const r = el.getBoundingClientRect()
+      return { top: r.top, bottom: r.bottom }
+    })
+    overIndex = dropIndex(rects, ev.clientY)
+    drag.value = { list, key, overIndex, active: true }
+  }
+  const up = () => {
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', up)
+    if (active) {
+      suppressDragClick = true
+      const keys = keysNow()
+      const from = keys.indexOf(key)
+      if (from >= 0) orderBag(list).value = moveKey(keys, from, overIndex)
+    }
+    drag.value = null
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', up)
+}
+function swallowDragClick(e: MouseEvent) {
+  if (!suppressDragClick) return
+  suppressDragClick = false
+  e.preventDefault()
+  e.stopPropagation()
+}
 onMounted(() => session.probe())
 /* specs/025 FR-008: the role decides which actions are offered (the hub re-checks). */
 watch(() => session.state, (st) => { if (st === 'in') access.load() }, { immediate: true })
@@ -716,6 +825,13 @@ async function onCreate() {
 .nav-row--muted { opacity: 0.55; }
 .nav-row--blocked .label { text-decoration: line-through; }
 .nav-row--pinned { box-shadow: inset 3px 0 0 var(--color-accent); }
+.nav-row { cursor: grab; }
+.nav-row .nav-item { cursor: grab; }
+.nav-row--drag { opacity: 0.45; }
+.nav-row--drag,
+.nav-row--drag .nav-item { cursor: grabbing; }
+.nav-row--drop { box-shadow: inset 0 2px 0 var(--color-accent); }
+.nav-row--drop-after { box-shadow: inset 0 -2px 0 var(--color-accent); }
 @media (max-width: 800px) {
   .nav-row > .nav-item { padding-inline-end: 28px; }
 }

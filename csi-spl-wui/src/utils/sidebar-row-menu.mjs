@@ -52,13 +52,16 @@ export function rowMenuAdmin(me) {
  * @template T
  * @param {T[]} rows
  * @param {string[]} pins
+ * @param {(row: T) => string} [keyOf]
  * @returns {T[]}
  */
-export function pinRows(rows, pins) {
+export function pinRows(rows, pins, keyOf) {
   const order = Array.isArray(pins) ? pins.map((l) => String(l)) : []
   const rank = new Map()
   order.forEach((label, i) => { if (label && !rank.has(label)) rank.set(label, i) })
-  const labelOf = (row) => String((row && row.label) || '')
+  const labelOf = typeof keyOf === 'function'
+    ? keyOf
+    : (row) => String((row && row.label) || '')
   const pinned = []
   const rest = []
   for (const row of rows || []) {
@@ -67,4 +70,41 @@ export function pinRows(rows, pins) {
   }
   pinned.sort((a, b) => rank.get(labelOf(a)) - rank.get(labelOf(b)))
   return pinned.concat(rest)
+}
+
+/**
+ * Move keys[from] so it is inserted before the original index `to`.
+ * `to === keys.length` appends. A no-op move returns a copy.
+ * @param {string[]} keys
+ * @param {number} from
+ * @param {number} to
+ * @returns {string[]}
+ */
+export function moveKey(keys, from, to) {
+  const list = (Array.isArray(keys) ? keys : []).map((k) => String(k))
+  if (!Number.isInteger(from) || from < 0 || from >= list.length) return list
+  if (!Number.isInteger(to) || to < 0) return list
+  const next = list.slice()
+  const [item] = next.splice(from, 1)
+  let dest = to > from ? to - 1 : to
+  if (dest < 0) dest = 0
+  if (dest > next.length) dest = next.length
+  next.splice(dest, 0, item)
+  return next
+}
+
+/**
+ * Index to insert before, given row rectangles and a pointer Y.
+ * Past the last midpoint, the index is rects.length (append).
+ * @param {{ top: number, bottom: number }[]} rects
+ * @param {number} y
+ */
+export function dropIndex(rects, y) {
+  const list = Array.isArray(rects) ? rects : []
+  for (let i = 0; i < list.length; i++) {
+    const top = Number(list[i] && list[i].top) || 0
+    const bottom = Number(list[i] && list[i].bottom) || 0
+    if (y < (top + bottom) / 2) return i
+  }
+  return list.length
 }

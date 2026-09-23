@@ -96,7 +96,7 @@ describe('the strip is icons, in that order', () => {
     const threads = vue.indexOf('data-testid="sidebar-panel-threads"')
     const flow = vue.indexOf('data-testid="sidebar-panel-flow"')
     assert.ok(ch > 0 && threads > ch && flow > threads)
-    assert.match(vue, /v-for="row in viewer\.threads"/)
+    assert.match(vue, /v-for="\(row, threadIndex\) in threadRows"/)
     assert.match(vue, /v-for="row in flow"/)
     assert.match(vue, /flowRows\(/)
     assert.match(vue, /t\('sidebar\.flow'\)/)

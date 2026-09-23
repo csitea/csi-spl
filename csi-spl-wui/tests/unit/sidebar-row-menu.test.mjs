@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { pinRows, rowMenuAdmin, rowMenuItems } from '../../src/utils/sidebar-row-menu.mjs'
+import { dropIndex, moveKey, pinRows, rowMenuAdmin, rowMenuItems } from '../../src/utils/sidebar-row-menu.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -69,6 +69,21 @@ describe('pinRows', () => {
     assert.deepEqual(pinRows(rows, ['c', 'a']).map((r) => r.label), ['c', 'a', 'b', 'd'])
     assert.deepEqual(pinRows(rows, []).map((r) => r.label), ['a', 'b', 'c', 'd'])
     assert.deepEqual(pinRows(rows, ['missing', 'b']).map((r) => r.label), ['b', 'a', 'c', 'd'])
+    const withNew = [{ label: 'new' }, { label: 'a' }, { label: 'b' }]
+    assert.deepEqual(pinRows(withNew, ['b', 'a']).map((r) => r.label), ['b', 'a', 'new'])
+  })
+})
+
+describe('moveKey', () => {
+  it('reorders and appends, and a new key is not required to be in the list', () => {
+    assert.deepEqual(moveKey(['a', 'b', 'c'], 0, 3), ['b', 'c', 'a'])
+    assert.deepEqual(moveKey(['a', 'b', 'c'], 2, 0), ['c', 'a', 'b'])
+    assert.deepEqual(moveKey(['a', 'b', 'c'], 0, 1), ['a', 'b', 'c'])
+    const rects = [{ top: 0, bottom: 10 }, { top: 10, bottom: 20 }, { top: 20, bottom: 30 }]
+    assert.equal(dropIndex(rects, 1), 0)
+    assert.equal(dropIndex(rects, 6), 1)
+    assert.equal(dropIndex(rects, 16), 2)
+    assert.equal(dropIndex(rects, 40), 3)
   })
 })
 
@@ -80,12 +95,12 @@ describe('the menu sits on objects, not the tab rail', () => {
   it('each list row has a menu and the icon rail does not', () => {
     const rail = vue.slice(vue.indexOf('class="sidebar-rail"'), vue.indexOf('class="sidebar-body"'))
     assert.doesNotMatch(rail, /SidebarRowMenu/)
-    const self = vue.slice(vue.indexOf('data-testid="people-self"'), vue.indexOf('v-for="p in peers"'))
+    const self = vue.slice(vue.indexOf('data-testid="people-self"'), vue.indexOf('v-for="(p, peerIndex) in peers"'))
     assert.doesNotMatch(self, /SidebarRowMenu/)
     const markers = [
-      'v-for="p in peers"',
-      'v-for="c in channel.ordered"',
-      'v-for="row in viewer.threads"',
+      'v-for="(p, peerIndex) in peers"',
+      'v-for="(c, channelIndex) in channelRows"',
+      'v-for="(row, threadIndex) in threadRows"',
       "row.kind === 'channel'",
       "row.kind === 'dm'",
       'v-else',
@@ -99,8 +114,8 @@ describe('the menu sits on objects, not the tab rail', () => {
     }
     assert.equal(vue.split('<SidebarRowMenu').length - 1, 6)
     assert.equal(vue.split(':person="true"').length - 1, 2)
-    const ch = vue.indexOf('v-for="c in channel.ordered"')
-    const th = vue.indexOf('v-for="row in viewer.threads"')
+    const ch = vue.indexOf('v-for="(c, channelIndex) in channelRows"')
+    const th = vue.indexOf('v-for="(row, threadIndex) in threadRows"')
     assert.equal(vue.slice(ch, th).includes(':person="true"'), false)
   })
 

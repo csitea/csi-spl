@@ -293,9 +293,9 @@ describe('DOM contract: every list row carries the clock it is ordered by', () =
 
   it('the sidebar renders the ORDERED lists and stamps both', () => {
     const s = read('components/ChannelSidebar.vue')
-    assert.match(s, /v-for="c in channel\.ordered"/)
+    assert.match(s, /v-for="\(c, channelIndex\) in channelRows"/)
     assert.match(s, /:data-ts="channelActivity\(c, channel\.liveAt\) \|\| undefined"/)
-    assert.match(s, /v-for="p in peers"/)
+    assert.match(s, /v-for="\(p, peerIndex\) in peers"/)
     assert.match(s, /orderPeers\(roster\.peers, channel\.dmAt\)/)
     assert.doesNotMatch(s, /v-for="c in channel\.channels"/, 'CONTROL: the unordered hub list is not rendered')
   })

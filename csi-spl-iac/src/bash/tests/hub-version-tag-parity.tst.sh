@@ -91,5 +91,43 @@ else
   fail "CONTROL: an empty .version did not fail"
 fi
 
+# ---- every OTHER version file in the tree agrees with the root ------------
+# The owner's instruction is that the APP has one version. csi-spl-wui carries
+# its own .version and package.json, and nothing compared them to the root:
+# the 0.3.7 bump moved the root and csi-spl-wui/.version and left
+# csi-spl-wui/package.json on 0.3.6, silently, exactly the drift the two
+# hub files used to have before this gate existed.
+root=$(tr -d '[:space:]' <"$APP_ROOT/.version" 2>/dev/null)
+if [[ -n "$root" ]]; then
+  drift=0
+  while IFS= read -r vf; do
+    [[ "$vf" == "$APP_ROOT/.version" ]] && continue
+    v=$(tr -d '[:space:]' <"$vf" 2>/dev/null)
+    [[ -n "$v" ]] || continue
+    [[ "$v" == "$root" ]] || { fail "${vf#"$APP_ROOT"/} is $v but the repo-root .version is $root"; drift=1; }
+  done < <(find "$APP_ROOT" -name .version -not -path '*/node_modules/*' -not -path '*/.git/*' \
+    -not -path "$APP_ROOT/tpl-gen/*" | sort)
+  if command -v node >/dev/null; then
+    while IFS= read -r pj; do
+      v=$(node -e 'try{process.stdout.write(String(require(process.argv[1]).version||""))}catch(e){}' "$pj")
+      [[ -n "$v" ]] || continue
+      [[ "$v" == "$root" ]] || { fail "${pj#"$APP_ROOT"/} version is $v but the repo-root .version is $root"; drift=1; }
+    done < <(find "$APP_ROOT" -name package.json -not -path '*/node_modules/*' -not -path '*/.git/*' \
+      -not -path "$APP_ROOT/tpl-gen/*" | sort)
+  fi
+  (( drift )) || pass "every component .version and package.json version equals the repo-root $root"
+fi
+
+# ---- CONTROL 3: a planted component drift is caught -------------------------
+mkdir -p "$scratch/component"
+printf '0.0.1\n' >"$scratch/component/.version"
+printf '9.9.9\n' >"$scratch/.version"
+planted3=$(cd "$scratch" && { v=$(tr -d '[:space:]' <.version); c=$(tr -d '[:space:]' <component/.version); [[ "$v" == "$c" ]] || echo "drift"; })
+if [[ "$planted3" == "drift" ]]; then
+  pass "CONTROL: a component .version that differs from the root is a drift"
+else
+  fail "CONTROL: a planted component drift was not detected"
+fi
+
 [[ "$fails" -eq 0 ]] && echo "PASS: all hub-version-tag-parity.tst.sh assertions"
 exit "$fails"

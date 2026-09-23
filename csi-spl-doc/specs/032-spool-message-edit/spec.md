@@ -1,6 +1,6 @@
 # Feature Specification: Edit a Sent Message + Append-Only Revision Register
 
-**Feature ID**: `032-spool-message-edit` · **Milestone**: M3 · **Status**: Planned
+**Feature ID**: `032-spool-message-edit` · **Milestone**: M3 · **Status**: Implemented
 **Created**: 2026-09-22 · **Lane**: MESSAGE-EDIT (hub + DB: CLE-3443 · browser: CLE-3445 under `../005-spool-wui`)
 **Authority**: `./contracts/message-edit-v1.md`
 
@@ -88,17 +88,25 @@ that fails if the guard is removed.
 
 | id | requirement | status |
 |---|---|---|
-| FR-ED-001 | `PATCH /v1/messages/{msg_id}` replaces a message's body (contract §1) | Planned |
-| FR-ED-002 | `message_revisions` is append-only: an edit INSERTs, nothing UPDATEs a body out of existence (contract §7) | Planned |
-| FR-ED-003 | The first edit captures the ORIGINAL body as revision 1 in the same transaction | Planned |
-| FR-ED-004 | Only the author may edit; no time window (contract §4) | Planned |
-| FR-ED-005 | A box-signed envelope is refused 409 `not_editable` (contract §4 rule 7) | Planned |
-| FR-ED-006 | An empty or whitespace-only body is refused 400 `empty_body` | Planned |
-| FR-ED-007 | `edited_at` / `edited_by` / `revision` appear on the view element and on the frame; omitted while never edited (contract §2.1) | Planned |
-| FR-ED-008 | A `message_edited` frame reaches the `message` audience of that message (contract §3) | Planned |
-| FR-ED-009 | An edit does NOT move the message: `ts`, `received_at` and `cursor` are unchanged | Planned |
-| FR-ED-010 | `message_revisions` is under the same tenant RLS as `messages`, fail-closed (0021 NULLIF form) | Planned |
-| FR-ED-011 | Revisions are purged with their message by the retention sweep | Planned |
+| FR-ED-001 | `PATCH /v1/messages/{msg_id}` replaces a message's body (contract §1) | Implemented |
+| FR-ED-002 | `message_revisions` is append-only: an edit INSERTs, nothing UPDATEs a body out of existence (contract §7) | Implemented |
+| FR-ED-003 | The first edit captures the ORIGINAL body as revision 1 in the same transaction | Implemented |
+| FR-ED-004 | Only the author may edit; no time window (contract §4) | Implemented |
+| FR-ED-005 | A box-signed envelope is refused 409 `not_editable` (contract §4 rule 7) | Implemented |
+| FR-ED-006 | An empty or whitespace-only body is refused 400 `empty_body` | Implemented |
+| FR-ED-007 | `edited_at` / `edited_by` / `revision` appear on the view element and on the frame; omitted while never edited (contract §2.1) | Implemented |
+| FR-ED-008 | A `message_edited` frame reaches the `message` audience of that message (contract §3) | Implemented |
+| FR-ED-009 | An edit does NOT move the message: `ts`, `received_at` and `cursor` are unchanged | Implemented |
+| FR-ED-010 | `message_revisions` is under the same tenant RLS as `messages`, fail-closed (0021 NULLIF form) | Implemented |
+| FR-ED-011 | Revisions are purged with their message by the retention sweep | Implemented |
+
+The status column was still `Planned` after `tasks.md` T001–T009 were marked
+Implemented (`d8ecb2a`, `0026_message_revisions.sql`, `internal/hub/edit.go`).
+Code prevails. FR-ED-005 also refuses a human channel post once the hub has
+signed it with the box-wui key (`internal/hub/wui.go` fan-out, then
+`internal/hub/edit.go` rule 7), because `env_sig` is no longer empty. That
+interaction is left as-is; changing it would be a behaviour change, not a
+spec correction.
 
 ## Non-goals
 
@@ -123,4 +131,4 @@ that fails if the guard is removed.
   (contract §8), and the intermediate state is safe because the old image reads and
   writes neither the new table nor the new columns.
 
-<!-- version: 0.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T11:42:31Z -->
+<!-- version: 0.2.1 · updated: 2026-09-23 · last-edit: 2026-09-23T07:23:09Z -->

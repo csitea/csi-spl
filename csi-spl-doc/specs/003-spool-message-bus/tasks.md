@@ -57,7 +57,7 @@
 - [x] T021 Postgres `internal/store`; contract suite on memory and a temp Postgres (`SPOOL_TEST_PG_DSN`). — **Implemented**; `hub-pg.tst.sh` → `internal/store + internal/hub suites green against Postgres`.
 - [x] T021a Retention sweep: queued TTL + cap → `expired`; messages purged per tier. — **Implemented**; `grep -n 'Store.Sweep' internal/hub/server.go -> 142` (periodic in `serve`).
 - [x] T022 [P] GCS `internal/blob`, one bucket, tenant prefix, bucket from cnf. — **Implemented**; `hub-gcs.tst.sh` → `ALL HUB GCS CHECKS PASSED`.
-- [ ] T023 [P] **Infra lane (007)**, cited not owned: Cloud Run `max-instances=1`, min 1 (cnf), Cloud SQL, GCS, per `../README.md` §6. — **Partial**: dev — `csi-spl-hub-dev` Ready, `spool-hub:0.1.0`, scale 1/1, DSN secret v1, `spool` DB (integrator measurement 2026-09-18 ~19:00Z, n=1; `gcloud run services describe … --account=$GCP_ACCOUNT` re-checked here). Missing: dev LB + cert + DNS (step 10); **all of prd** (Cloud Run/SQL APIs `SERVICE_DISABLED`). Deploy jobs in `20_hub-build-deploy.yml` are skipped until WIF repo vars exist (008 / tf `017`).
+- [ ] T023 [P] **Infra lane (007)**, cited not owned: Cloud Run `max-instances=1`, min 1 (cnf), Cloud SQL, GCS, per `../README.md` §6. — **Partial**: the 2026-09-18 measurement in this bullet (image `0.1.0`, prd APIs disabled, deploy jobs skipped, dev LB missing) is **stale**. Superseded on tree `324a071` by `../README.md` §6.1 and §8.4, and by cnf: `all.env.yaml` `max_instances: 1`, `dev.env.yaml` and `prd.env.yaml` `hub.image.tag` `0.1.23`. This pass did not re-run `gcloud`, so the checkbox stays open rather than being marked from a cnf pin alone.
 
 ## Phase 7: User Story 4 — Live tail (P2)
 
@@ -192,4 +192,4 @@ Contract `contracts/search-v1.md` v1.0. WUI omnibox is lane CLE-3410 (reads the 
 
 M1 of 003 = US1 + US2 + US3 + the WS tail of US4 — Implemented and green on Postgres + GCS; what remains for M1 is the cloud rollout (007) and the pipeline deploy (008). US7 is the next 003 code slice, due before 005 (M3) starts on real data.
 
-<!-- version: 0.7.1 · updated: 2026-09-19 · last-edit: 2026-09-19T06:05:00Z -->
+<!-- version: 0.7.2 · updated: 2026-09-23 · last-edit: 2026-09-23T07:23:09Z -->

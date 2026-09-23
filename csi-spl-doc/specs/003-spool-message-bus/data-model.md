@@ -9,11 +9,15 @@ the box-signed **envelope** (`../002-box-agent-messaging/contracts/trust-modes.m
 <dsn> --sql-dir <that dir>`. `internal/store` queries match that DDL; this
 file describes it and the two MUST NOT drift.
 
-Tenant-native from M1 (`SPEC-spool-milestones.md`): every table carries
-`tenant_id`. The tenant is resolved from the request Host. One GCS bucket,
+Tenant-native from M1 (`SPEC-spool-milestones.md`): tenant-scoped tables carry
+`tenant_id`. `humans` (0006) and `rbac_permissions` (0021) do not — they are
+hub-wide catalogues. The tenant is resolved from the caller (specs/026,
+`internal/hub/resolve.go`), not from the Host. One GCS bucket,
 keys `t/<tenant>/files/<sha256>`. The `tenants` table is owned by 006; pins and
 boxes are owned by 004. Their shapes are repeated here only so that the hub
-schema reads as one piece.
+schema reads as one piece. Tables added after 0003 are not all redrawn below;
+the DDL directory is the catalogue (27 `*.sql` files on tree `324a071`,
+including two files numbered `0021`).
 
 ## 1. GCS
 
@@ -113,6 +117,8 @@ session; the sender resolves `to_box` from it **before** signing (OQ-03).
 | `env` | bytea | the canonical envelope bytes the hub verified; forwarded unchanged on `recv` / `tail_msg` |
 | `received_at` | timestamptz | server ingest clock |
 | `expires_at` | timestamptz | retention (§5): `received_at` + 7 days for channel `alerts`, else + 30 days (cnf per plan tier) |
+| `edited_at` | timestamptz NULL | 0026: set on the latest edit; NULL = never edited |
+| `edited_by` | text NULL | 0026: v:1 id of the latest editor |
 
 PK `(tenant_id, msg_id)`. The 0.1.0 draft had `msg_id` as a global PK. That
 contradicts per-tenant isolation (two tenants may mint colliding ids through a
@@ -129,9 +135,26 @@ different canonical returns 409 `conflict_msg` (FR-010).
 | `name` | text | display name |
 | `created_by` | text | agent or human creator |
 | `created_at` | timestamptz | |
-| `is_private` | boolean | default false |
+| `is_private` | boolean | default false. **Stored only.** `git grep -l is_private -- '*.go'` → 0 on `324a071`. The hub does not read it. Every channel is tenant-visible until a later change actually consults the column. |
+| `description` | text NOT NULL default `''` | 0027. The create-channel dialog stores it. |
 
 PK `(tenant_id, channel_id)`. Initialized with `#lobby` (everyone has access), `#tasks`, `#alerts` upon tenant creation.
+
+### `message_revisions` (032, rdb 0026)
+
+Append-only bodies of an edited message. No rows until the first edit.
+Revision 1 is the body as first sent.
+
+| column | type | notes |
+|---|---|---|
+| `tenant_id` | text | FK with `msg_id` to `messages`, `ON DELETE CASCADE` |
+| `msg_id` | uuid | |
+| `revision` | int | `>= 1` |
+| `body` | text | the body at this revision |
+| `edited_by` | text | v:1 id that wrote this revision |
+| `edited_at` | timestamptz | |
+
+PK `(tenant_id, msg_id, revision)`. RLS uses the 0021 `NULLIF` form.
 
 ### `channel_subscriptions` (M3)
 
@@ -210,15 +233,14 @@ the hub; the others never reach it.
 The 0.1.0 index `messages (from_id, ts)` had no `tenant_id` and was dropped:
 every query path is tenant-scoped.
 
-## 4a. Viewer reads (US7, Planned — `contracts/view-v1.md`)
+## 4a. Viewer reads (US7 — `contracts/view-v1.md`)
 
-The read-only viewer API adds **no table and no column**. It reads `pins`,
+The read-only viewer API adds no table of its own. It reads `pins`,
 `boxes`, `roster`, `messages` (including the stored `env` bytes) and
-`deliveries.state`, and writes nothing (FR-019). `messages_task` serves one
-thread; the thread list (group by `task_id`, order by last activity) may need
-`messages (tenant_id, received_at)` — added as `0004_view_indexes.sql` only if
-Postgres `EXPLAIN` shows it (tasks.md T031). The view token is stateless and
-verified against `tenants.root_pubkey`; nothing about it is stored.
+`deliveries.state`, and a viewer read writes nothing (FR-019). Dev and prd
+authenticate that read with a member session (`SPOOL_HUB_VIEW_DOOR=session`),
+not with a stateless token checked against `tenants.root_pubkey`. The token
+format is still 003 OQ-16. `off` is lde only.
 
 ## 5. Retention (hub sweep)
 
@@ -237,9 +259,12 @@ Per `contracts/limits.md` (owner `43b1050`):
   (Constitution II / VI) require it from cnf. The value is the owner's call.
 - Resolved: OQ-05 (roster persisted), OQ-06 (`iam_principal` reserved), OQ-08
   (`acks` dropped), OQ-13 (7-day queue TTL).
-- Verified 2026-09-18: `ls csi-spl-rdb/src/sql/postgres/spool-hub/ ->
-  0001_hub_core.sql 0002_channels.sql 0003_payment.sql`; `spool migrate` applies
-  all three on Postgres 16 (`hub-pg.tst.sh`). `0002` (channels, M3) and `0003`
-  (payment, 006) are materialised but unused by the M1 hub.
+- The 2026-09-18 catalogue (`0001`–`0003` only) is stale. On tree `324a071`,
+  `ls csi-spl-rdb/src/sql/postgres/spool-hub/*.sql | wc -l` → 27. There is no
+  `0007`. Two files share the number `0021` (`0021_rls_fail_closed.sql` and
+  `0021_tenant_rbac.sql`). `spool migrate` keys the ledger on the filename
+  (`internal/store/migrate.go`), so both apply, in `sort.Strings` order
+  (the RLS rewrite runs first). A later table must include the `NULLIF`
+  policy itself; the rewrite does not see files that sort after it.
 
-<!-- version: 0.5.2 · updated: 2026-09-19 · last-edit: 2026-09-19T13:30:00Z -->
+<!-- version: 0.6.0 · updated: 2026-09-23 · last-edit: 2026-09-23T07:23:09Z -->

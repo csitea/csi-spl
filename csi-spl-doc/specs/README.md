@@ -117,6 +117,10 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `026-spool-tenant-from-identity/` | tenant from identity, not Host: single API host `api.<domain>`, `X-Spool-Tenant`, session `t`, per-tenant CNAMEs destroyed | M2/M3 | CLE-3415 |
 | `027-spool-performance/` | pool tuning (8 conns), in-memory pin/tenant hotCache, concurrent blob Exists, indexed ViewThreads (`0022`), chunked retention sweeper (`0024`) | M3 consolidation | CLE-3413 (ORC-PERF) |
 | `028-spool-terminal-delivery/` | message visible in recipient agent's pane: renderer, doorbell, `spool-notify.sh`, shell-inert poke line | M3 | CLE-3428 |
+| `029-spool-db-backup-health/` | read-only DB health action, daily off-instance backup, restore proof | M3 ops | CLE-3430 |
+| `030-spool-wire-fastpath/` | warm submit socket and box-side keepalive; no new hub envelope | M3 | CLE-3436 |
+| `031-spool-owner-acceptance/` | owner acceptance register `cases.tsv` plus the gate that the named test exists | M3 | CLE-3438 |
+| `032-spool-message-edit/` | edit a sent message; append-only `message_revisions` | M3 | CLE-3443 / CLE-3445 |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -132,7 +136,8 @@ Dependency order between specs:
 021 (i18n) → 022 (top-bar search) → 023 (user keys) →
 024 (tenant hosts, superseded) → 025 (tenant RBAC) →
 026 (tenant from identity) → 027 (performance) → 028 (terminal delivery) →
-009 (M4) → 008 (CI logs in chat)`.
+029 (db health + backup) → 030 (wire fast path) → 031 (owner acceptance) →
+032 (message edit) → 009 (M4) → 008 (CI logs in chat)`.
 
 ---
 
@@ -161,6 +166,10 @@ Dependency order between specs:
 | Single API host `api.<domain>`, tenant from identity/session/token | 026 `spec.md` | Amends 003 FR-015 / OQ-07, 004, 006 FR-002, 010 SEC-001; supersedes 024 |
 | Hub connection pool (8), hotCache, batch roster, chunked retention | 027 `spec.md` | 003, 007, rdb cite for performance budgets |
 | Terminal delivery, pane doorbell & poke line | 028 `contracts/poke-line.md` | 002 (inbox write), 003 (`hub-run` sidecar), 012 (`spool-harness`) cite |
+| DB health action, daily backup bucket `045`, restore proof | 029 `spec.md` + `tasks.md` | 007 provisions `045`; 008 does not own workflow `45` |
+| Warm submit socket, hello `caps`, box keepalive | 030 `contracts/fastpath-v1.md` | 003 envelope unchanged; 020 mixed-fleet rule; 028 terminal leg |
+| Owner acceptance rows | 031 `cases.tsv` | each row names the spec that owns the behaviour |
+| Message edit request, frame, register | 032 `contracts/message-edit-v1.md` | 003 stores it; 005 browser shortcut |
 
 ---
 
@@ -281,7 +290,7 @@ steps are each a task.
 
 | Item | Owner |
 |---|---|
-| **Ingress: documented M1 exception** (decided 2026-09-18). The Cloud Armor allowlist is `0.0.0.0/0` in dev and prd (`37e2e58`), recorded in `../doc/md/SPEC-spool-milestones.md` (M1 Ingress) and 007 FR-012 / SC-004. It widens only L7: the **data plane stays gated**: a WS needs a hello signed by a root-pinned box key, `GET /v1/files/{id}` is a capability by sha256, `/v1/view/*` needs a view token **in prd**. **Exception: dev runs `SPOOL_HUB_VIEW_DOOR=off`** (`csi-spl-cnf/csi-spl/dev.env.yaml`; the hub refuses `off` outside lde/dev), so dev thread reads are open to anyone who knows a dev tenant host, so `/v1/health` 200 from any IP is expected. **End condition: M2 sign-off**; 403-for-non-allowlisted is an M2 expectation | 008 T115 + the M2 ingress follow-up |
+| **Ingress: documented M1 exception** (decided 2026-09-18). The Cloud Armor allowlist is `0.0.0.0/0` in dev and prd (`37e2e58`), recorded in `../doc/md/SPEC-spool-milestones.md` (M1 Ingress) and 007 FR-012 / SC-004. It widens only L7: the **data plane stays gated**: a WS needs a hello signed by a root-pinned box key. `GET /v1/files/{id}` needs an upload token or a member session (`internal/hub/rest.go` `fileReader`); the sha256 is not a capability. `/v1/view/*` on dev and prd needs a member session (`SPOOL_HUB_VIEW_DOOR=session` in `dev.env.yaml` and `prd.env.yaml`, tree `324a071`). `off` is lde only (`lde.env.yaml`). The 2026-09-18 wording that dev runs `off`, and that a file id is a capability, is superseded. `/v1/health` 200 from any IP is still expected. **End condition: M2 sign-off**; 403-for-non-allowlisted is an M2 expectation | 008 T115 + the M2 ingress follow-up |
 | `017-github-wif-deploy` (tf step `017`, trunk `2a7888c`) is still **not applied**: `gh variable list -R csitea/csi-spl` prints nothing, so `GCP_WIF_PROVIDER_<ENV>` / `GCP_DEPLOY_SA_EMAIL_<ENV>` are unset and every deploy job takes its **other** branch — the SA-key secrets (`gh secret list` -> `GCP_KEY_CSI_SPL_DEV`, `GCP_KEY_CSI_SPL_PRD`, iac 120). So the pipeline DOES deploy both envs (the earlier record that it skips them, and that both hubs were deployed outside the pipeline, is stale); what is outstanding is only the keyless identity. Deployed-state check: `./run -a do_check_hub_deploy` (`csi-spl-orc/src/bash/run/check-hub-deploy.func.sh`); post-deploy smoke: `22_deploy-verify.yml` | 007 T050 (apply, owner go) -> 008 T105-T109 |
 | Several lanes stamped `last-edit` in local time with a `Z` suffix | cosmetic; fix on next edit |
 
@@ -317,7 +326,25 @@ Pass run by the integrator reconciling git-spec with trunk source code and infra
 | **025 Tenant RBAC** | Implemented & Live: `0021_tenant_rbac.sql` applied dev + prd; 6 roles (`product_owner`, `biz_owner`, `admin`, `developer`, `tester`, `agent`); hub entry gates enforce; WUI role reflection | `714f3cb`, `8fe6517`, `do_spl_rbac_probe` PASS |
 | **026 Tenant from Identity** | Implemented & Live: single API host `api.<domain>`, `X-Spool-Tenant` header, session `t`, pinned key resolution; per-tenant DNS destroyed (`mapped_tenants = []`); `do_spl_m3_e2e` passing on API host dev (14 PASS) & prd (15 PASS) | `0e09b33`, `170b863`, `dcfbe0a` |
 | **027 Performance** | Implemented & Live: Postgres pool tuned to 8 conns (`398b374`), in-memory hotCache for pins/tenants (`0a11fae`), indexed ViewThreads `0022` (`74e01d8`), chunked retention sweeper `0024` (`0ba3ea5`), 200k c=50 send throughput 33.9 -> 2570 sends/s, p95 3.3s -> 27ms | `1f73fae`, `e6a96ec`, `f0484b8`, `57a21c7`, hub 0.1.16 live dev + prd |
-| **028 Terminal Delivery** | Implemented through T030, proof (T040-T042) planned: orc renderer + safe-poke rules (`31355bd`), the Go store hook in `internal/notify` at `spool.Store.writeBox` (`d5b6042`), and the harness export of `SPOOL_NOTIFY_CMD` for both the agent session and the `spool hub-run` sidecar (T030, NOT planned as an earlier sync pass recorded it). Measured on this tree 2026-09-21, n=1: `test-spool-notify.sh` -> **37 passed, 0 failed**, `test-spool-send.sh` -> **26 passed**, `test-spool-harness.sh` -> **47 passed** | `31355bd`, `d5b6042`, `028/tasks.md` T010/T011/T020/T030 |
+| **028 Terminal Delivery** | Implemented through T050, including the proof (T040–T042 are `[x]` in `028/tasks.md`, not planned). The earlier "proof planned" cell in this table was stale against that file. | `31355bd`, `d5b6042`, `028/tasks.md` |
 | **WUI Feed Ordering & Shell** | Implemented & Live: thread cards and sidebar channel/DM lists ordered by LAST activity (`activityOf`, `9adb06c`, `cea65d2`); single thread section in shell layout (`e54e4db`, CLE-3429); syntax-highlighted wrapping code snippets & generic modal dialog (`469c432`, CLE-3423) | `9adb06c`, `cea65d2`, `e54e4db`, `469c432`, `list-order.test.mjs` (28 PASS) |
 
-<!-- version: 1.9.1 · updated: 2026-09-21 · last-edit: 2026-09-21T08:25:00Z -->
+### 8.6 Spec-vs-code pass (tree `324a071`, 2026-09-23)
+
+Code prevails. Live GCP was not re-queried. Citations are `git grep` / file reads on this tree, n=1.
+
+| Topic | What the tree shows | Spec change |
+|---|---|---|
+| Index stopped at 028 | dirs `029`–`032` exist | §4, §5, dependency order |
+| 028 proof | `028/tasks.md` T040–T042 are `[x]` | §8.5 cell corrected above |
+| View door | `grep SPOOL_HUB_VIEW_DOOR csi-spl-cnf/csi-spl/*.env.yaml` → lde `off`, dev `session`, prd `session` | §8.4; also 003 FR-020, 005 FR-010, 007 FR-012, milestones ingress |
+| File read | `fileReader` in `internal/hub/rest.go` requires a bearer upload token or `humanTenant` | sha256-as-capability wording removed from §8.4 |
+| 032 header | `spec.md` said Planned; `tasks.md` T001–T009 Implemented; `0026_message_revisions.sql` and `internal/hub/edit.go` exist | 032 header set to Implemented |
+| 006 FR-013 | tasks T018–T021 are `[x]`; `internal/payments/handler.go` registers checkout, claim, webhooks | FR-013 status aligned; T022 stays open |
+| 006 FR-002 | `git grep 'func (s *Server) tenantOf'` → no match | citation moved to `internal/hub/resolve.go` |
+| 003 data-model | missing `channels.description`, `messages.edited_at` / `edited_by`, `message_revisions`; `is_private` has `git grep -l is_private -- '*.go'` → 0; `humans` and `rbac_permissions` have no `tenant_id` | data-model.md amended |
+| 020 writers | `internal/msg/msg.go` `const Version = V1` | unchanged: writers still default to v1 |
+| 030 | no `tasks.md`; status lived only in `spec.md` §0.5–0.7 | `030/tasks.md` added as the status list |
+| 031 | no `tasks.md`; `cases.tsv` is the register (OA-10..14 and OA-40 are PENDING) | indexed; no tasks file invented |
+
+<!-- version: 1.10.0 · updated: 2026-09-23 · last-edit: 2026-09-23T07:23:09Z -->

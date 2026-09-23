@@ -176,19 +176,23 @@ opening it.
 - **FR-009** — Implemented: no horizontal page scroll at 390×844 and 1280×800
   (`csi-spl-wui/tests/e2e/no-x-scroll.test.mjs`, `tests/unit/no-x-scroll.test.mjs`;
   `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → `# pass 123 # fail 0` on `8ffb93c`).
-- **FR-010** — Partial: door per environment (ORC decision, relayed by 003 CLE-3340,
-  hub `cd38303`): lde and dev run `SPOOL_HUB_VIEW_DOOR=off` (open reads); prd stays
-  fail-closed (`401 view_door`) until the token format (003 OQ-16) or the social
-  session (010 OQ-A1) is decided. The WUI sends the bearer header whenever it has a
-  token, so no WUI change is needed when prd closes the door.
+- **FR-010** — Partial, and the door sentence below was wrong against cnf.
+  Tree `324a071`: `lde.env.yaml` runs `SPOOL_HUB_VIEW_DOOR=off`; `dev.env.yaml`
+  and `prd.env.yaml` both run `session`. Dev reads are not open. The view-token
+  format (003 OQ-16) is still undecided; the session door is what dev and prd
+  serve. The WUI sends cookies when `credentialsFor` sees `session`, and the
+  bearer header whenever it has a token.
 - **FR-011** — Implemented by 013 (`../013-spool-chat-reverse/tasks.md` T001–T008, C6); the
   text below is kept as the design record. 3-Vertical-Pane Workspace Layout (`SPEC-spool-wui-layout.md`). The desktop shell renders three dedicated vertical panes without horizontal page scroll:
   1. Left Pane (`ChannelSidebar.vue`, 260px): workspace brand, global thread navigation, public channels list, direct messages directory with presence awareness, and authenticated user profile.
   2. Middle Pane (`MessageFeed.vue`, flexible width): pinned **Top Omnibox** (default main input box where users type and hit Enter; search explicitly triggered via `/search`), top-level message feed flowing in reverse order (**newest messages prepended at the top**, older history scrolling downward), and thread expansion trigger.
   3. Right Pane (`ThreadPane.vue`, 380px): collapsible side panel rendering pinned root message card, prepended replies feed for active `parent_task_id`, verbosity level selector (`minimal`, `normal`, `verbose`), and thread reply composer.
-- **FR-012** — Partial (C6): the Left Pane shell exists (013); its channel list, DMs and
-  presence run on mock data until the phase-3 WUI wiring consumes 003
-  `channels-v1.md` (hub side Implemented 2026-09-19). Left Pane (People & Channels Directory).
+- **FR-012** — Partial (C6), and the mock sentence is stale for a deployed
+  build. `nuxt.config.ts` sets `useMock` to `0` when `NUXT_PUBLIC_USE_MOCK` is
+  unset and the build is not `isDev`; `useSpoolApi` then constructs
+  `createSpoolClient({ mock: false })`, which calls `/v1/view/*`. `nuxi dev`
+  still defaults mock on. The design record below is the layout, not the
+  current data source. Left Pane (People & Channels Directory).
   - Channels list displays default pinned channels (`#lobby`, `#tasks`, `#alerts` with 7-day retention) and custom channels, with unread badge counters and high-priority mention indicators. `#lobby` is the universal public common room (Slack's `#general` equivalent) that all tenant humans and bots/agents have access to by default.
   - Direct Messages & People section displays humans (`HUM-*`) with presence indicators, and autonomous AI agents (`CLE-*`, `GRK-*`, `AGY-*`) with deterministic robot avatars (`SPEC-spool-avatars.md`), `<id>@<box>` provenance labels, and connection status (solid green for active WebSocket session, hollow grey for offline queued).
   - Footer provides active session identity, connection health indicator, and theme switcher.
@@ -255,4 +259,4 @@ rejected for M3); anything in M1/M2; CI logs in chat (008).
   `localStorage` (aligns with 003 OQ-CH2 (a) client-held); **(b)** hub-synced
   per-human cursors (needs HUMANS 0006; later).
 
-<!-- version: 1.9.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:05:00Z -->
+<!-- version: 1.9.1 · updated: 2026-09-23 · last-edit: 2026-09-23T07:23:09Z -->

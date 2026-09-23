@@ -55,8 +55,10 @@ Only the **active** key verifies hello and envelopes. History is audit only.
   interval (trust-modes §4.1); revoked pins are not listed.
 - Missing local pin → written `0644`.
 - Same key locally → no-op.
-- Different key locally → **not clobbered**; `pin_conflict`, exit 78. The
-  operator checks and runs `spool pin --force`.
+- Different key locally → **not clobbered**. `spool hub-sync` exits 78
+  (`pin_conflict`); the operator accepts the hub key with `spool pin --force`.
+  `spool hub-run` logs the conflict and stays connected, and still installs
+  every other pin. One stale pin must not take the box offline.
 - Sync never deletes a local pin; a local revoke is `spool pin --revoke`.
 
 ## 4. CLI

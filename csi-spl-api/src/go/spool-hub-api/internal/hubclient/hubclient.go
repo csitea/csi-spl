@@ -216,6 +216,10 @@ type Session struct {
 	queueEnd chan int
 	done     chan struct{}
 	closeErr error
+	// pinConflict is a local pin the hub has rotated and this box refused to
+	// overwrite. The daemon logs it and stays connected; hub-sync still
+	// returns it (exit 78).
+	pinConflict error
 
 	// smu serialises one request/reply pair at a time on this socket. Replies
 	// arrive on ONE channel and are matched by msg_id, so two concurrent
@@ -290,7 +294,16 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 	c.saveRoster(wel.Roster)
 	if role == wire.RoleBox {
 		if err := s.SyncPins(ctx); err != nil {
-			return fail(err)
+			// A stale pin for some other box used to fail this hello, and the
+			// daemon retried the same conflict forever. Measured on the dev
+			// desk 2026-09-23: box-e2e-a differed, so for 90 minutes no human
+			// message reached a desk agent and no reply could be flushed.
+			var he *HubError
+			if errors.As(err, &he) && he.Token == "pin_conflict" {
+				c.Log.Warn().Err(err).Msg("pin sync left a local pin unchanged; this box stays connected")
+			} else {
+				return fail(err)
+			}
 		}
 	}
 	go s.readLoop()
@@ -671,19 +684,35 @@ func (s *Session) rest(ctx context.Context, method, path string, body io.Reader,
 
 // SyncPins installs the tenant's box pubkeys as $SPOOL_ROOT/pins/box-<id>.pub
 // (authorized_keys refresh, trust-modes §4). A local pin that differs from the
-// hub is not overwritten: pin_conflict, exit 78 (004 T007/T008).
+// hub is not overwritten: pin_conflict, exit 78 on spool hub-sync (004 T008).
+// The loop does not stop at the first conflict, so every other pin is still
+// installed. Dial keeps the session up; the returned error is for the CLI.
 func (s *Session) SyncPins(ctx context.Context) error {
 	var list wire.PinList
 	if err := s.rest(ctx, http.MethodGet, "/v1/pins", nil, &list); err != nil {
 		return err
 	}
+	var conflict *HubError
 	for _, p := range list.Pins {
 		if !msg.ValidBoxID(p.BoxID) {
 			continue
 		}
-		if err := s.installPin(p.BoxID, p.PubKey); err != nil {
-			return err
+		err := s.installPin(p.BoxID, p.PubKey)
+		if err == nil {
+			continue
 		}
+		var he *HubError
+		if errors.As(err, &he) && he.Token == "pin_conflict" {
+			if conflict == nil {
+				conflict = he
+			}
+			continue
+		}
+		return err
+	}
+	if conflict != nil {
+		s.pinConflict = conflict
+		return conflict
 	}
 	return nil
 }

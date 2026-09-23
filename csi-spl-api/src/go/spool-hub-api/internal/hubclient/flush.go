@@ -253,6 +253,11 @@ func (c *Client) Sync(ctx context.Context) (SyncReport, error) {
 	if len(rerrs) > 0 {
 		return r, rerrs[0]
 	}
+	// hub-sync still reports a pin it refused to overwrite. Run does not:
+	// Dial has already kept the session.
+	if sess.pinConflict != nil {
+		return r, sess.pinConflict
+	}
 	return r, nil
 }
 

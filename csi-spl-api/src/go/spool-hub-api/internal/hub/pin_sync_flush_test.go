@@ -47,6 +47,14 @@ func TestPinSyncWritesAndConflictNoClobber(t *testing.T) {
 	if err := os.WriteFile(pa, []byte(other+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// The daemon hello must survive. A stale pin for another box used to fail
+	// Dial, and hub-run then retried that same conflict until the file was
+	// deleted, which took the whole desk offline.
+	sess, derr := b.c.Dial(ctx, wire.RoleBox)
+	if derr != nil {
+		t.Fatalf("stale pin for another box dropped the session: %v", derr)
+	}
+	sess.Close()
 	_, err := b.c.Sync(ctx)
 	var he *hubclient.HubError
 	if !errors.As(err, &he) || he.Token != "pin_conflict" {

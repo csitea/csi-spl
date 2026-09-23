@@ -315,9 +315,9 @@ describe('pane 2 row is the starter and carries the starter sender', () => {
 })
 
 /*
- * Owner, 2026-09-23: pane 2 is thread starters only.
- * Channel / DM: one task_id, earliest by ts, replies stay available to pane 3.
- * Lobby: one shared task_id, every message with no parent_task_id, the reply omitted.
+ * Pane 2 is thread starters only, including #lobby. One task_id is one thread:
+ * the earliest message by ts is the row, and a later message is a reply even
+ * with no parent_task_id. Replies stay available to pane 3.
  */
 describe('pane 2 lists only the thread starter (owner 2026-09-23)', () => {
   const starter = {
@@ -352,26 +352,26 @@ describe('pane 2 lists only the thread starter (owner 2026-09-23)', () => {
     assert.equal(rows[0].body, 'start')
   })
 
-  it('a lobby-shaped room keeps two starters and drops the reply', () => {
+  it('a lobby task keeps its starter and drops later messages, parent or not', () => {
     const task = 'lobby-task'
     const a = { msg_id: 'a', task_id: task, ts: '2026-09-23T10:00:00Z', body: 'one', parent_task_id: null }
     const b = { msg_id: 'b', task_id: task, ts: '2026-09-23T10:02:00Z', body: 'two', parent_task_id: null }
     const reply = { msg_id: 'c', task_id: task, ts: '2026-09-23T10:03:00Z', body: 'reply', parent_task_id: task }
     const rows = channelView([a, b, reply], { lobby: true }).rows
-    assert.equal(rows.length, 2)
-    assert.deepEqual(rows.map((m) => m.msg_id), ['b', 'a'])
-    assert.equal(rows.some((m) => m.msg_id === 'c'), false)
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0].msg_id, 'a')
+    assert.equal(rows[0].body, 'one')
+    assert.ok(String(rows[0].last_ts) >= '2026-09-23T10:03:00Z')
   })
 
-  it('a lobby reply whose parent is the starter msg_id lifts that starter only', () => {
+  it('a follow-up on its own task_id whose parent is the starter is not a pane-2 row', () => {
     const task = 'lobby-task'
     const a = { msg_id: 'a', task_id: task, ts: '2026-09-23T10:00:00Z', body: 'one', parent_task_id: null }
     const b = { msg_id: 'b', task_id: task, ts: '2026-09-23T10:02:00Z', body: 'two', parent_task_id: null }
-    const reply = { msg_id: 'c', task_id: 'a', ts: '2026-09-23T10:09:00Z', body: 'reply', parent_task_id: 'a' }
-    const rows = channelView([a, b, reply], { lobby: true }).rows
-    assert.deepEqual(rows.map((m) => m.msg_id), ['a', 'b'])
+    const reply = { msg_id: 'c', task_id: 'child', ts: '2026-09-23T10:09:00Z', body: 'reply', parent_task_id: task }
+    const rows = channelView([a, b, reply]).rows
+    assert.deepEqual(rows.map((m) => m.msg_id), ['a'])
     assert.equal(rows[0].body, 'one')
-    assert.equal(rows[0].msg_id, 'a')
   })
 
   it('rowFromAck keeps parent_task_id from the send frame', () => {

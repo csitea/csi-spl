@@ -41,12 +41,11 @@ function setup(key: 'main' | 'pane') {
   const newestFirstRows = computed(() => view.value.rows as SpoolMessage[])
   const hasOlder = computed(() => view.value.hasOlder || Boolean(olderCursor.value))
   /*
-   * #lobby pane 2. The room is one task, so one card per task_id would hide
-   * every starter but the first. Starters have no parent_task_id. A reply
-   * carries one and stays out of this list. Pane 3 still reads newestFirst
-   * on the pane store.
+   * #lobby pane 2. The room is one task and follow-ups are later messages of
+   * that task, usually with no parent_task_id. They are replies: pane 2 keeps
+   * the earliest message only. Pane 3 reads the rest of the task.
    */
-  const lobbyView = computed(() => channelView(messages.value, { search: search.value, visible: visible.value, lobby: true }))
+  const lobbyView = computed(() => channelView(messages.value, { search: search.value, visible: visible.value }))
   const lobbyRows = computed(() => lobbyView.value.rows as SpoolMessage[])
   const lobbyHasOlder = computed(() => lobbyView.value.hasOlder || Boolean(olderCursor.value))
   const thread = computed(() => rootAndReplies(messages.value.filter((m) => matchesSearch(m, search.value))))

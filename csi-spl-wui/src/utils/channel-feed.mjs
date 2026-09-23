@@ -436,50 +436,21 @@ function threadStarterCards(messages) {
 }
 
 /**
- * Lobby pane 2. The room is one shared task, so task_id must not collapse it
- * to a single card. A starter has no parent_task_id. A reply carries
- * parent_task_id and is omitted. A reply whose parent_task_id is a starter
- * msg_id may move that starter up; it does not become a row.
- */
-function lobbyStarterRows(messages) {
-  const list = []
-  for (const m of messages || []) if (m) list.push(m)
-  const starters = list.filter((m) => !m.parent_task_id)
-  const byMsg = new Map()
-  for (const s of starters) {
-    if (s.msg_id && !byMsg.has(s.msg_id)) byMsg.set(s.msg_id, s)
-  }
-  const lifted = new Map()
-  for (const m of list) {
-    if (!m.parent_task_id) continue
-    const hit = byMsg.get(String(m.parent_task_id))
-    if (!hit) continue
-    const ts = activityOf(m)
-    const prev = lifted.get(hit.msg_id) || activityOf(hit)
-    if (ts > prev) lifted.set(hit.msg_id, ts)
-  }
-  return starters.map((s) => {
-    const ts = s.msg_id && lifted.get(s.msg_id)
-    return ts ? { ...s, last_ts: ts } : s
-  })
-}
-
-/**
- * 013 on /channel and /dm (X3): newest ACTIVITY first (a reply bumps its
- * starter), the Omnibox `/search` filter, then the first `visible` rows.
+ * 013 on /channel, /dm and #lobby (X3): newest ACTIVITY first (a reply bumps
+ * its starter), the Omnibox `/search` filter, then the first `visible` rows.
  * Storage order is untouched.
  *
- * Owner, 2026-09-23: pane 2 lists only the message that started the thread.
- * Do not restore one row per message. The card is the starter — its author
- * and its body — and the reply stays in pane 3.
+ * Pane 2 lists only the message that started the thread. A later message on
+ * the same task_id is a reply even when it has no parent_task_id — that is
+ * how the hub stores a follow-up in #lobby, which is one shared task. A
+ * message whose parent_task_id names another task is that task's reply and
+ * is never its own card. The card keeps the starter's author and body; the
+ * reply stays in pane 3.
  *
- * Channel and DM: one task_id is one thread; the earliest message by ts is
- * the row. Lobby (`lobby: true`) is one shared task for the room and keeps
- * every message that has no parent_task_id.
+ * `lobby` is accepted and ignored: #lobby uses this same rule.
  */
-export function channelView(messages, { search = '', visible = 50, lobby = false } = {}) {
-  const rows = (lobby ? lobbyStarterRows(messages) : threadStarterCards(messages))
-    .filter((m) => matchesSearch(m, search))
+export function channelView(messages, { search = '', visible = 50 } = {}) {
+  const rows = threadStarterCards(messages).filter((m) => matchesSearch(m, search))
   return windowed(newestActivityFirst(rows), visible)
 }
 

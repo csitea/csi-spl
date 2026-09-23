@@ -8,7 +8,7 @@
       <p v-if="!lobbyId" class="muted">{{ t('pages.lobby.no_lobby', { env: 'NUXT_PUBLIC_LOBBY_TASK_ID' }) }}</p>
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="lobbyId && store.open(lobbyId)" />
       <ErrorNotice v-if="store.error" :message="store.error" source="lobby" test-id="lobby-error" />
-      <!-- Owner, 2026-09-23: pane 2 is thread starters. A reply (parent_task_id) stays in pane 3. -->
+      <!-- Pane 2 is the thread starter only. Later messages of the lobby task are replies and stay in pane 3. -->
       <LiveFeed
         :label="t('pages.feed_label', { target: '#lobby' })"
         :rows="store.lobbyRows"
@@ -63,17 +63,25 @@ function onEdited(row: SpoolMessage) {
 }
 
 /*
- * CLE-3427: clicking a message opens ITS thread in the pane, always. The
- * lobby is one task, so a row is not a thread root and threadTargetFor gives
- * it a message-rooted thread keyed by its msg_id — empty until someone
- * replies, which is exactly the case the owner asked for. The pane is the
- * live 'pane' store; the clicked row is handed over as the pinned root
- * because it lives in the lobby task, not in the task the pane reads.
+ * Clicking the starter opens the lobby task in the right pane. Follow-ups
+ * are later messages of that same task, so the pane reads the task and
+ * shows them as replies. A message-rooted target (a deep link) still opens
+ * the task it names.
  */
 const { openRow } = useThreadRoute({
   currentTaskId: () => String(store.taskId || ''),
   rowFor: (msgId) => store.messages.find((m) => m.msg_id === msgId) as SpoolMessage | undefined,
   open: async (target, root) => {
+    /* A row in this feed is a message of the lobby task. Opening it as a
+       message-rooted thread would load an empty child task and hide the
+       follow-ups. Open the task itself so pane 3 lists those follow-ups. */
+    const feedTask = String(store.taskId || '')
+    const rowTask = String((root && root.task_id) || '')
+    if (root && rowTask && rowTask === feedTask) {
+      thread.setTarget({ taskId: rowTask, mode: 'task', rootMsgId: String(root.msg_id || ''), parentTaskId: '' }, root)
+      await pane.open(rowTask)
+      return
+    }
     thread.setTarget(target, root)
     await pane.open(target.taskId)
   },

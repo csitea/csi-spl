@@ -13,12 +13,13 @@
 // deploy instead of skipping the assertion.
 //
 //   BASE=https://dev.<fqdn> EMAIL=<member> PW_FILE=<0600 file> \
-//     TENANT=t1 OUT=/var/tmp/CLE-3448-proof \
+//     TENANT=t1 OUT=/var/tmp/CLE-3448-proof [LOCALE=he] \
 //     [CHROME_PATH=/usr/bin/google-chrome] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/human-presence-live.proof.mjs
 import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 async function loadPuppeteer() {
   const require = createRequire(import.meta.url)
@@ -37,9 +38,21 @@ const OUT = need('OUT')
 const EMAIL = need('EMAIL')
 const PW = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 't1'
+/*
+ * LOCALE drives the run through one language's routes (spec 021,
+ * prefix_except_default: the default locale has NO prefix, every other one
+ * is `/<code>/...`). Empty = the default. The catalogue is read from disk so
+ * the assertion compares the DEPLOYED bundle against what this tree ships,
+ * rather than against a string written twice.
+ */
+const LOCALE = (process.env.LOCALE || '').trim()
+const PREFIX = LOCALE ? `/${LOCALE}` : ''
+const HERE = dirname(fileURLToPath(import.meta.url))
+const catalogue = JSON.parse(readFileSync(join(HERE, `../../i18n/locales/${LOCALE || 'en'}.json`), 'utf8'))
+const WANT_YOU = String(catalogue.sidebar.you || '')
 mkdirSync(OUT, { recursive: true })
 const puppeteer = await loadPuppeteer()
-const res = { base: BASE, tenant: TENANT, at: new Date().toISOString(), steps: [], ws: [] }
+const res = { base: BASE, tenant: TENANT, locale: LOCALE || '(default)', at: new Date().toISOString(), steps: [], ws: [] }
 const step = (name, ok, ev = {}) => { res.steps.push({ name, ok, ...ev }); console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev)) }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -63,7 +76,7 @@ try {
     try { res.ws.push(JSON.parse(e.response.payloadData)) } catch { /* not JSON */ }
   })
 
-  await p.goto(`${BASE}/login?tenant=${encodeURIComponent(TENANT)}&redirect=%2Flobby`, { waitUntil: 'domcontentloaded' })
+  await p.goto(`${BASE}${PREFIX}/login?tenant=${encodeURIComponent(TENANT)}&redirect=${encodeURIComponent(`${PREFIX}/lobby`)}`, { waitUntil: 'domcontentloaded' })
   await p.waitForSelector('[data-test=native-auth-email]', { timeout: 30000 })
   await p.type('[data-test=native-auth-email]', EMAIL)
   await p.type('[data-test=native-auth-password]', PW)
@@ -121,8 +134,8 @@ try {
       || document.querySelector('[data-testid=people-self]')
     return el ? el.textContent.trim() : ''
   })
-  step('the self row carries the localised "you" marker', Boolean(youText) && !youText.includes('sidebar.you'),
-    { text: youText })
+  step('the self row carries the localised "you" marker', Boolean(youText) && youText === WANT_YOU,
+    { locale: LOCALE || '(default)', text: youText, want: WANT_YOU })
 
   /* Every member of the tenant belongs in the pane, online or not
      (view-v1 §4.1 `humans`), not only the ones holding a socket right now. */

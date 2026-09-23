@@ -59,10 +59,11 @@ shell reported 0 (measured 2026-09-21, recorded in `spool-poke-queue.inc.sh`).
 So the verbatim body reaches a TUI input buffer, which parses nothing, and
 never a shell. Anything not on the alternate screen falls back to the §1 line.
 
-A verbatim body is one bracketed paste (`tmux paste-buffer -p`) and then Enter,
-with no debounce sleep. `send-keys -l` dribbles the characters and needed
-`${SPOOL_NOTIFY_ENTER_DELAY:-0.3}` so the CLI did not read a half line; a paste
-does not. The §1 poke line still uses `send-keys -l` and that delay.
+A verbatim body is one bracketed paste (`tmux paste-buffer -p`). Enter follows
+once the start of that body is visible in the pane, capped at about 0.3s, so
+Enter cannot land on an empty composer and leave the body sitting as unsent
+text. The §1 poke line still uses `send-keys -l` and
+`${SPOOL_NOTIFY_ENTER_DELAY:-0.3}`.
 
 The body is still made single-line-safe (§2 steps 1, 2, 4 and a
 `SPOOL_NOTIFY_PROMPT_MAX` bound, default 4000). Step 3 — `'` becomes `"` —
@@ -117,6 +118,13 @@ leg, and 002 keeps the file as the record.
   half-typed. Measured 2026-09-21 on a real pane showing `❯ half typed and never
   sent`: exit 6, the line untouched, the message still delivered.
 
+  A dim suggestion is not typed text. Claude draws an empty composer as
+  `❯`, a no-break space, then an `ESC[2m` ghost (`hello from HUM-9` on the
+  dev desk, 2026-09-23). The dim run is dropped before the check. The
+  no-break space is not input: in the C locale it is not `[:space:]`, and
+  counting it refused every note until the retry dropped the doorbell at
+  300s. Characters after that gap are still unsent text.
+
   **The bound, measured rather than assumed.** The detector reads the last line
   carrying a TUI input marker (`❯`, or `> ` at the start of a line). A pane
   sitting at a bare SHELL prompt (`bash-5.2$ …`) has no such line, so
@@ -132,4 +140,4 @@ leg, and 002 keeps the file as the record.
   through them and the CLI runs on its own pty.
 - Send more than one line, or a line whose inertness depends on the body.
 
-<!-- version: 1.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T13:10:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-23 · last-edit: 2026-09-23T12:28:00Z -->

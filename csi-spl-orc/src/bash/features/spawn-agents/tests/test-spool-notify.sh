@@ -139,6 +139,8 @@ spool_notify_is_human CLE-90 && nok "CLE- is not"      || ok "CLE- is not"
 spool_notify_has_unsent '  │ ❯ │' && nok "an input-box border is not unsent text" || ok "an input-box border is not unsent text"
 spool_notify_has_unsent '❯' && nok "an empty prompt is not unsent text" || ok "an empty prompt is not unsent text"
 spool_notify_has_unsent '❯ half typed' && ok "real typing is still unsent text" || nok "real typing is still unsent text"
+spool_notify_has_unsent $'❯\u00a0' && nok "a claude ghost-text gap is not unsent text" || ok "a claude ghost-text gap is not unsent text"
+spool_notify_has_unsent $'❯\u00a0half typed' && ok "typing after that gap is still unsent text" || nok "typing after that gap is still unsent text"
 
 # A pane on the ALTERNATE screen is the agent-TUI shape; one on the normal
 # screen is a shell, where a raw body would EXECUTE and must never be typed.

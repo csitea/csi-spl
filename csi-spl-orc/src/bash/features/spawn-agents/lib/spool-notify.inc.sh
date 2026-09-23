@@ -165,11 +165,21 @@ spool_notify_has_unsent() {  # LINE
   typed="${last##*❯}"
   [ "$typed" = "$last" ] && typed="${last##*> }"
   typed="${typed//[│╭╰╮╯─┌┐└┘├┤┬┴┼]/}"
+  # Claude draws an empty composer as ❯, a NBSP, then DIM ghost text.
+  # The dim run is removed before this runs. NBSP is not [:space:] in the
+  # C locale, so the gap alone counted as typed text and every note was
+  # refused. Measured on the dev desk 2026-09-23: capture-pane -e of an
+  # idle Claude pane was ❯, C2 A0, ESC[2m, "hello from HUM-9", ESC[0m.
+  # Two notes sat in the inbox until the retry dropped them at 300s.
+  typed="${typed//$'\u00a0'/}"
+  typed="${typed//$'\u200b'/}"
+  typed="${typed//$'\u2009'/}"
+  typed="${typed//$'\u202f'/}"
+  typed="${typed//$'\ufeff'/}"
   typed="${typed#"${typed%%[![:space:]]*}"}"
   typed="${typed%"${typed##*[![:space:]]}"}"
   [ -n "$typed" ] && [ "${typed#: \'SPOOL }" = "$typed" ]
 }
-
 spool_notify_poke() {  # TO LINE [BODY] [FROM]
   local to="$1" line="$2" body="${3:-}" from="${4:-}"
   local pane pane_tty tty_cmds last alt prompt esc=$'\033'

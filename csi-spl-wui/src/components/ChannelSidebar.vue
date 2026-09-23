@@ -58,9 +58,12 @@
            algorithm resolves neutral punctuation from its surroundings. -->
       <span class="muted self-row__you">{{ t('sidebar.you') }}</span>
     </div>
-    <NuxtLink
+    <div
       v-for="p in peers"
       :key="p.label"
+      class="nav-row"
+    >
+    <NuxtLink
       class="nav-item"
       :class="{ active: channel.peer === p.label }"
       :data-key="p.label"
@@ -72,6 +75,18 @@
       <span class="label">{{ p.label }}</span>
       <span v-if="notes.unread['dm:' + p.label]" class="badge-unread">{{ notes.previewUnread(notes.unread['dm:' + p.label]) }}</span>
     </NuxtLink>
+    <SidebarRowMenu
+      :menu-id="'dm:' + p.label"
+      :name="p.label"
+      :href="localePath('/dm/' + encodeURIComponent(p.label))"
+      :unread="!!notes.unread['dm:' + p.label]"
+      :open="rowMenu === 'dm:' + p.label"
+      @toggle="toggleRowMenu('dm:' + p.label)"
+      @close="closeRowMenu()"
+      @open="navigateTo(localePath('/dm/' + encodeURIComponent(p.label)))"
+      @mark-read="notes.markRead('dm:' + p.label)"
+    />
+    </div>
       </div>
       <div
         v-show="tab === 'channels'"
@@ -101,9 +116,12 @@
         <UiIcon name="plus" :size="18" />
       </button>
     </div>
-    <NuxtLink
+    <div
       v-for="c in channel.ordered"
       :key="c.channel_id"
+      class="nav-row"
+    >
+    <NuxtLink
       class="nav-item"
       :class="{ active: channel.active === c.channel_id }"
       :data-key="c.channel_id"
@@ -117,6 +135,18 @@
       <span v-if="notes.mentions['ch:' + c.channel_id]" class="badge-mention" data-testid="mention-count">@{{ notes.previewUnread(notes.mentions['ch:' + c.channel_id]) }}</span>
       <span v-if="notes.unread['ch:' + c.channel_id]" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:' + c.channel_id]) }}</span>
     </NuxtLink>
+    <SidebarRowMenu
+      :menu-id="'ch:' + c.channel_id"
+      :name="c.name"
+      :href="localePath('/channel/' + c.channel_id)"
+      :unread="!!notes.unread['ch:' + c.channel_id]"
+      :open="rowMenu === 'ch:' + c.channel_id"
+      @toggle="toggleRowMenu('ch:' + c.channel_id)"
+      @close="closeRowMenu()"
+      @open="navigateTo(localePath('/channel/' + c.channel_id))"
+      @mark-read="notes.markRead('ch:' + c.channel_id)"
+    />
+    </div>
     <!-- The new-channel dialog: title + description, one place, nothing in the
          list until it is created (013 FR-017 - UiDialog owns focus trap,
          Escape, backdrop and restored focus; this owns only the fields). -->
@@ -182,9 +212,12 @@
       >
         <h2>{{ t('nav.threads') }}</h2>
         <p v-if="!viewer.loading && viewer.threads.length === 0" class="muted thread-empty">{{ t('pages.index.empty') }}</p>
-        <a
+        <div
           v-for="row in viewer.threads"
           :key="row.task_id"
+          class="nav-row"
+        >
+        <a
           class="nav-item"
           :class="{ active: threadOpen === row.task_id }"
           :data-key="row.task_id"
@@ -194,6 +227,17 @@
         >
           <span class="label">{{ row.subject || row.participants.join(', ') || row.task_id }}</span>
         </a>
+        <SidebarRowMenu
+          :menu-id="'th:' + row.task_id"
+          :name="row.subject || row.participants.join(', ') || row.task_id"
+          :href="localePath('/t/' + row.task_id)"
+          :unread="false"
+          :open="rowMenu === 'th:' + row.task_id"
+          @toggle="toggleRowMenu('th:' + row.task_id)"
+          @close="closeRowMenu()"
+          @open="pane.open(row.task_id)"
+        />
+        </div>
       </div>
       <div
         v-show="tab === 'flow'"
@@ -206,8 +250,8 @@
         <h2>{{ t('sidebar.flow') }}</h2>
         <p v-if="flow.length === 0" class="muted thread-empty">{{ t('feed.empty') }}</p>
         <template v-for="row in flow" :key="row.key">
+          <div v-if="row.kind === 'channel'" class="nav-row">
           <NuxtLink
-            v-if="row.kind === 'channel'"
             class="nav-item"
             :class="{ active: channel.active === row.id }"
             :data-key="row.id"
@@ -219,8 +263,20 @@
             <span class="label">{{ row.label }}</span>
             <span v-if="notes.unread['ch:' + row.id]" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:' + row.id]) }}</span>
           </NuxtLink>
+          <SidebarRowMenu
+            :menu-id="'flow:ch:' + row.id"
+            :name="row.label"
+            :href="localePath('/channel/' + row.id)"
+            :unread="!!notes.unread['ch:' + row.id]"
+            :open="rowMenu === 'flow:ch:' + row.id"
+            @toggle="toggleRowMenu('flow:ch:' + row.id)"
+            @close="closeRowMenu()"
+            @open="navigateTo(localePath('/channel/' + row.id))"
+            @mark-read="notes.markRead('ch:' + row.id)"
+          />
+          </div>
+          <div v-else-if="row.kind === 'dm'" class="nav-row">
           <NuxtLink
-            v-else-if="row.kind === 'dm'"
             class="nav-item"
             :class="{ active: channel.peer === row.label }"
             :data-key="row.label"
@@ -233,8 +289,20 @@
             <span class="label">{{ row.label }}</span>
             <span v-if="notes.unread['dm:' + row.label]" class="badge-unread">{{ notes.previewUnread(notes.unread['dm:' + row.label]) }}</span>
           </NuxtLink>
+          <SidebarRowMenu
+            :menu-id="'flow:dm:' + row.label"
+            :name="row.label"
+            :href="localePath('/dm/' + encodeURIComponent(row.label))"
+            :unread="!!notes.unread['dm:' + row.label]"
+            :open="rowMenu === 'flow:dm:' + row.label"
+            @toggle="toggleRowMenu('flow:dm:' + row.label)"
+            @close="closeRowMenu()"
+            @open="navigateTo(localePath('/dm/' + encodeURIComponent(row.label)))"
+            @mark-read="notes.markRead('dm:' + row.label)"
+          />
+          </div>
+          <div v-else class="nav-row">
           <a
-            v-else
             class="nav-item"
             :class="{ active: threadOpen === row.id }"
             :data-key="row.id"
@@ -245,6 +313,17 @@
           >
             <span class="label">{{ row.label }}</span>
           </a>
+          <SidebarRowMenu
+            :menu-id="'flow:th:' + row.id"
+            :name="row.label"
+            :href="localePath('/t/' + row.id)"
+            :unread="false"
+            :open="rowMenu === 'flow:th:' + row.id"
+            @toggle="toggleRowMenu('flow:th:' + row.id)"
+            @close="closeRowMenu()"
+            @open="pane.open(row.id)"
+          />
+          </div>
         </template>
       </div>
     <div class="sidebar-foot">
@@ -289,10 +368,16 @@ const RAIL: { id: SideTab, icon: UiIconName, labelKey: string }[] = [
   { id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' },
 ]
 const tab = ref<SideTab>('dm')
+const rowMenu = ref('')
+function toggleRowMenu(id: string) {
+  rowMenu.value = rowMenu.value === id ? '' : id
+}
+function closeRowMenu() { rowMenu.value = '' }
 /* The flow list stays up while a row from it is opened. Another icon clears it. */
 const holdFlow = ref(false)
 const route = useRoute()
 watch(() => route.path, (path) => {
+  rowMenu.value = ''
   if (holdFlow.value) return
   const next = tabForPath(path)
   if (next) tab.value = next
@@ -359,6 +444,7 @@ watch(() => sidePane.requested.value, (req) => {
   if (req) void selectTab(req.id)
 })
 watch(tab, (id) => {
+  rowMenu.value = ''
   if ((id === 'threads' || id === 'flow') && viewer.threads.length === 0) void viewer.loadThreads()
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
@@ -558,4 +644,16 @@ async function onCreate() {
 }
 .health-dot.ok { background: var(--color-ok); }
 .health-dot.warn { background: var(--color-muted); }
+
+/* Each object keeps the link full width. The three-line menu sits on the
+   trailing edge and must not cover the name. */
+.nav-row {
+  position: relative;
+  min-width: 0;
+}
+.nav-row:focus-within { z-index: 4; }
+.nav-row > .nav-item { padding-inline-end: 44px; }
+@media (max-width: 800px) {
+  .nav-row > .nav-item { padding-inline-end: 28px; }
+}
 </style>

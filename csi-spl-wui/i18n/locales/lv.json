@@ -317,7 +317,13 @@
     "create_channel_submit": "Izveidot kanālu",
     "create_channel_busy": "Veido…",
     "you": "(jūs)",
-    "flow": "Flow"
+    "flow": "Flow",
+    "row_menu": {
+      "label": "Menu for {name}",
+      "open": "Open",
+      "copy_link": "Copy link",
+      "mark_read": "Mark as read"
+    }
   },
   "composer": {
     "mention_suggestions": "Pieminēšanas ieteikumi",

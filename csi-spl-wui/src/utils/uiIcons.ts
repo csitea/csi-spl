@@ -65,6 +65,8 @@ export const UI_ICON_PATHS = {
   hash: ["M4 9h16", "M4 15h16", "M10 3 8 21", "M16 3 14 21"],
   // Left-strip tab: threads (lucide rows-3).
   list: ["M3 6h18", "M3 12h18", "M3 18h18"],
+  // Row menu on a left-pane object. Three bars, separate from the threads tab.
+  menu: ["M4 6h16", "M4 12h16", "M4 18h16"],
   // Left-strip tab: the live flow (lucide waves).
   waves: [
     "M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1",

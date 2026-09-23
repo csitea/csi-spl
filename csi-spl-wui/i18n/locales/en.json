@@ -317,7 +317,13 @@
     "create_channel_submit": "Create channel",
     "create_channel_busy": "Creating…",
     "you": "(you)",
-    "flow": "Flow"
+    "flow": "Flow",
+    "row_menu": {
+      "label": "Menu for {name}",
+      "open": "Open",
+      "copy_link": "Copy link",
+      "mark_read": "Mark as read"
+    }
   },
   "composer": {
     "mention_suggestions": "Mention suggestions",

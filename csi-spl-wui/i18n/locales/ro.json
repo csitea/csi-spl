@@ -317,7 +317,13 @@
     "create_channel_submit": "Creează canalul",
     "create_channel_busy": "Se creează…",
     "you": "(tu)",
-    "flow": "Flow"
+    "flow": "Flow",
+    "row_menu": {
+      "label": "Menu for {name}",
+      "open": "Open",
+      "copy_link": "Copy link",
+      "mark_read": "Mark as read"
+    }
   },
   "composer": {
     "mention_suggestions": "Sugestii de mențiuni",

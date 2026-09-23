@@ -317,7 +317,13 @@
     "create_channel_submit": "Kanaal aanmaken",
     "create_channel_busy": "Aanmaken…",
     "you": "(jij)",
-    "flow": "Flow"
+    "flow": "Flow",
+    "row_menu": {
+      "label": "Menu for {name}",
+      "open": "Open",
+      "copy_link": "Copy link",
+      "mark_read": "Mark as read"
+    }
   },
   "composer": {
     "mention_suggestions": "Suggesties voor vermeldingen",

@@ -1,7 +1,8 @@
 <template>
-  <div class="feed-col">
+  <div class="feed-col" data-pane="msgs">
     <header class="feed-header">
-      <h2>#{{ name }}</h2>
+      <h2>{{ t('pane.msgs') }}</h2>
+      <span class="muted">#{{ name }}</span>
       <!-- what its creator said it is for (channels-v1 §5.1), else the generic
            line; the retention note is never dropped, it just moves along -->
       <span v-if="description" class="muted feed-header__about" :title="description" data-test="channel-description">{{ description }}</span>

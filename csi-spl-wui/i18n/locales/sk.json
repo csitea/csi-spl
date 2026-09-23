@@ -456,7 +456,8 @@
   "pane": {
     "resize_sidebar": "Zmeniť šírku bočného panela kanálov",
     "resize_topic": "Zmeniť šírku panela témy",
-    "resize_hint": "Potiahnutím zmeníte veľkosť. Dvojklikom obnovíte pôvodnú."
+    "resize_hint": "Potiahnutím zmeníte veľkosť. Dvojklikom obnovíte pôvodnú.",
+    "msgs": "Správy"
   },
   "pages": {
     "message_placeholder": "Správa pre {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search na filtrovanie",

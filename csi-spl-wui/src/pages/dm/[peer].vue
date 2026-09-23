@@ -1,8 +1,9 @@
 <template>
-  <div class="feed-col">
+  <div class="feed-col" data-pane="msgs">
     <header class="feed-header">
       <span class="dot" :class="{ on: online }" />
-      <h2>{{ peer }}</h2>
+      <h2>{{ t('pane.msgs') }}</h2>
+      <span class="muted">{{ peer }}</span>
       <span class="muted">{{ online ? t('pages.dm.online') : t('pages.dm.offline_queued') }}</span>
     </header>
     <MessageFeed :label="t('pages.feed_label', { target: peer })" />

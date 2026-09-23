@@ -456,7 +456,8 @@
   "pane": {
     "resize_sidebar": "Keisti kanalų šoninės juostos dydį",
     "resize_topic": "Keisti temos skydelio dydį",
-    "resize_hint": "Vilkite, kad pakeistumėte dydį. Dukart spustelėkite, kad atkurtumėte."
+    "resize_hint": "Vilkite, kad pakeistumėte dydį. Dukart spustelėkite, kad atkurtumėte.",
+    "msgs": "Žinutės"
   },
   "pages": {
     "message_placeholder": "Žinutė {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti · /search filtruoti",

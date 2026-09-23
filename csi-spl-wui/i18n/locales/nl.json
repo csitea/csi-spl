@@ -456,7 +456,8 @@
   "pane": {
     "resize_sidebar": "Formaat van kanaalzijbalk wijzigen",
     "resize_topic": "Formaat van onderwerppaneel wijzigen",
-    "resize_hint": "Sleep om het formaat te wijzigen. Dubbelklik om te herstellen."
+    "resize_hint": "Sleep om het formaat te wijzigen. Dubbelklik om te herstellen.",
+    "msgs": "Berichten"
   },
   "pages": {
     "message_placeholder": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen · /search om te filteren",

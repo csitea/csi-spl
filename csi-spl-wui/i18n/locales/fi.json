@@ -456,7 +456,8 @@
   "pane": {
     "resize_sidebar": "Muuta kanavasivupalkin kokoa",
     "resize_topic": "Muuta aihepaneelin kokoa",
-    "resize_hint": "Muuta kokoa vetämällä. Palauta kaksoisnapsautuksella."
+    "resize_hint": "Muuta kokoa vetämällä. Palauta kaksoisnapsautuksella.",
+    "msgs": "Viestit"
   },
   "pages": {
     "message_placeholder": "Viesti kohteeseen {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search suodattaa",

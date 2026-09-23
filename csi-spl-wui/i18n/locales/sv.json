@@ -456,7 +456,8 @@
   "pane": {
     "resize_sidebar": "Ändra storlek på kanalsidofältet",
     "resize_topic": "Ändra storlek på ämnespanelen",
-    "resize_hint": "Dra för att ändra storlek. Dubbelklicka för att återställa."
+    "resize_hint": "Dra för att ändra storlek. Dubbelklicka för att återställa.",
+    "msgs": "Meddelanden"
   },
   "pages": {
     "message_placeholder": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka · /search för att filtrera",

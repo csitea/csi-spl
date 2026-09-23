@@ -456,7 +456,8 @@
   "pane": {
     "resize_sidebar": "Redimensionează bara laterală a canalelor",
     "resize_topic": "Redimensionează panoul temei",
-    "resize_hint": "Trageți pentru a redimensiona. Dublu clic pentru resetare."
+    "resize_hint": "Trageți pentru a redimensiona. Dublu clic pentru resetare.",
+    "msgs": "Mesaje"
   },
   "pages": {
     "message_placeholder": "Mesaj către {target} — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru filtrare",

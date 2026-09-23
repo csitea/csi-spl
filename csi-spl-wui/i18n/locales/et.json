@@ -456,7 +456,8 @@
   "pane": {
     "resize_sidebar": "Muuda kanalite külgriba suurust",
     "resize_topic": "Muuda teemapaneeli suurust",
-    "resize_hint": "Lohista suuruse muutmiseks. Topeltklõps lähtestab."
+    "resize_hint": "Lohista suuruse muutmiseks. Topeltklõps lähtestab.",
+    "msgs": "Sõnumid"
   },
   "pages": {
     "message_placeholder": "Sõnum: {target} — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search filtreerib",

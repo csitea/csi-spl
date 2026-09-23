@@ -1,7 +1,8 @@
 <template>
-  <div class="feed-col">
+  <div class="feed-col" data-pane="msgs">
     <header class="feed-header">
-      <h2># lobby</h2>
+      <h2>{{ t('pane.msgs') }}</h2>
+      <span class="muted"># lobby</span>
       <span class="muted">{{ t('pages.lobby.status', { state: stateLabel(live.state.value), who: live.identity.value || '…' }) }}</span>
     </header>
     <div class="feed-body">

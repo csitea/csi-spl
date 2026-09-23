@@ -456,7 +456,8 @@
   "pane": {
     "resize_sidebar": "Zmień rozmiar paska kanałów",
     "resize_topic": "Zmień rozmiar panelu tematu",
-    "resize_hint": "Przeciągnij, aby zmienić rozmiar. Kliknij dwukrotnie, aby przywrócić."
+    "resize_hint": "Przeciągnij, aby zmienić rozmiar. Kliknij dwukrotnie, aby przywrócić.",
+    "msgs": "Wiadomości"
   },
   "pages": {
     "message_placeholder": "Wiadomość do {target} — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search, aby filtrować",

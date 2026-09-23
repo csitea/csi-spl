@@ -456,7 +456,8 @@
   "pane": {
     "resize_sidebar": "Kanal kenar çubuğunu yeniden boyutlandır",
     "resize_topic": "Konu panelini yeniden boyutlandır",
-    "resize_hint": "Boyutlandırmak için sürükleyin. Sıfırlamak için çift tıklayın."
+    "resize_hint": "Boyutlandırmak için sürükleyin. Sıfırlamak için çift tıklayın.",
+    "msgs": "Mesajlar"
   },
   "pages": {
     "message_placeholder": "{target} için mesaj — yeni satır için Enter · göndermek için Ctrl+Enter veya Cmd+Enter · filtrelemek için /search",

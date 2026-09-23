@@ -456,7 +456,8 @@
   "pane": {
     "resize_sidebar": "Redimensionar la barra de canales",
     "resize_topic": "Redimensionar el panel del tema",
-    "resize_hint": "Arrastra para redimensionar. Doble clic para restablecer."
+    "resize_hint": "Arrastra para redimensionar. Doble clic para restablecer.",
+    "msgs": "Mensajes"
   },
   "pages": {
     "message_placeholder": "Mensaje a {target} — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para filtrar",

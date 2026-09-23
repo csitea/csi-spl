@@ -456,7 +456,8 @@
   "pane": {
     "resize_sidebar": "Promeni veličinu bočne trake kanala",
     "resize_topic": "Promeni veličinu okna teme",
-    "resize_hint": "Prevucite za promenu veličine. Dvaput kliknite za vraćanje."
+    "resize_hint": "Prevucite za promenu veličine. Dvaput kliknite za vraćanje.",
+    "msgs": "Поруке"
   },
   "pages": {
     "message_placeholder": "Poruka za {target} — Enter za novi red · Ctrl+Enter ili Cmd+Enter za slanje · /search za filtriranje",

@@ -29,6 +29,7 @@ for k in claude grok agy; do
   launch="$(cat "$T_TMP/plan-$k/launch.cmd")"
   has "$k: launch exports SPOOL_ROOT" "SPOOL_ROOT='${SPOOL_ROOT}'" "$launch"
   has "$k: launch exports SPOOL_AGENT_ID" "SPOOL_AGENT_ID='${p}-77'" "$launch"
+  [ "$k" = grok ] && printf '%s\n' "$out" > "$T_TMP/grok.out"
   # Normalise the kind-specific parts for the parity check below.
   printf '%s' "$prompt" | sed -E "s/^As your VERY FIRST action, .*\. Then read your full task brief/Then read your full task brief/; s/${p}-77/ID/g" > "$T_TMP/norm-$k"
 done
@@ -38,6 +39,9 @@ check "parity: claude and agy prompts match after normalisation" cmp -s "$T_TMP/
 has "agy: prompt goes after --prompt-interactive" '--prompt-interactive "' "$(cat "$T_TMP/plan-agy/launch.cmd")"
 has "claude: session named after the id" "--name 'CLE-77'" "$(cat "$T_TMP/plan-claude/launch.cmd")"
 has "grok: retitles through riname --agent" "riname.sh --agent GRK-77 \\\"do the thing\\\"" "$(cat "$T_TMP/plan-grok/launch.cmd")"
+has "grok: claude permission flag, which this grok build accepts" "--dangerously-skip-permissions" "$(cat "$T_TMP/plan-grok/launch.cmd")"
+has "grok: permission mode does not depend on config.toml" "--permission-mode bypassPermissions" "$(cat "$T_TMP/plan-grok/launch.cmd")"
+has "grok: resume stub repeats the permission flags" "--permission-mode bypassPermissions --resume" "$(cat "$T_TMP/grok.out")"
 
 # ---- the prompt survives shell-live bytes -----------------------------------
 out="$(bash "$T_SCRIPTS/spawn-grok.sh" GRK-78 "$WD" "$T_TMP/brief.md" 'x $(touch '"$T_TMP"'/pwned) `id` "q"' 2>&1)"

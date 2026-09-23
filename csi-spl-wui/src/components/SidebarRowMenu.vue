@@ -58,6 +58,10 @@ const props = defineProps<{
   href: string
   unread?: boolean
   open: boolean
+  person?: boolean
+  admin?: boolean
+  blocked?: boolean
+  muted?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -65,6 +69,9 @@ const emit = defineEmits<{
   close: []
   open: []
   markRead: []
+  block: []
+  mute: []
+  remove: []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -74,7 +81,12 @@ const focused = ref(-1)
 
 const panelId = computed(() => 'sidebar-row-menu-' + props.menuId.replace(/[^A-Za-z0-9_-]/g, '-'))
 const buttonLabel = computed(() => (props.open ? t('common.close') : t('sidebar.row_menu.label', { name: props.name })))
-const items = computed(() => rowMenuItems(!!props.unread))
+const items = computed(() => rowMenuItems(!!props.unread, {
+  person: props.person,
+  admin: props.admin,
+  blocked: props.blocked,
+  muted: props.muted,
+}))
 
 function itemEls(): HTMLElement[] {
   return [...(root.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
@@ -171,6 +183,12 @@ function choose(id: string) {
     void copyLink()
   } else if (id === 'read') {
     emit('markRead')
+  } else if (id === 'block') {
+    emit('block')
+  } else if (id === 'mute') {
+    emit('mute')
+  } else if (id === 'remove') {
+    emit('remove')
   } else {
     emit('open')
   }

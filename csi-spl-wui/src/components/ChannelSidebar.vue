@@ -62,6 +62,7 @@
       v-for="p in peers"
       :key="p.label"
       class="nav-row"
+      :class="{ 'nav-row--muted': mutedPeers[p.label], 'nav-row--blocked': blockedPeers[p.label] }"
     >
     <NuxtLink
       class="nav-item"
@@ -80,6 +81,14 @@
       :name="p.label"
       :href="localePath('/dm/' + encodeURIComponent(p.label))"
       :unread="!!notes.unread['dm:' + p.label]"
+
+      :person="true"
+      :admin="peerAdmin"
+      :blocked="!!blockedPeers[p.label]"
+      :muted="!!mutedPeers[p.label]"
+      @block="togglePeer('block', p.label)"
+      @mute="togglePeer('mute', p.label)"
+      @remove="removePeer(p)"
       :open="rowMenu === 'dm:' + p.label"
       @toggle="toggleRowMenu('dm:' + p.label)"
       @close="closeRowMenu()"
@@ -275,7 +284,7 @@
             @mark-read="notes.markRead('ch:' + row.id)"
           />
           </div>
-          <div v-else-if="row.kind === 'dm'" class="nav-row">
+          <div v-else-if="row.kind === 'dm'" class="nav-row" :class="{ 'nav-row--muted': mutedPeers[row.label], 'nav-row--blocked': blockedPeers[row.label] }">
           <NuxtLink
             class="nav-item"
             :class="{ active: channel.peer === row.label }"
@@ -294,6 +303,14 @@
             :name="row.label"
             :href="localePath('/dm/' + encodeURIComponent(row.label))"
             :unread="!!notes.unread['dm:' + row.label]"
+
+      :person="true"
+      :admin="peerAdmin"
+      :blocked="!!blockedPeers[row.label]"
+      :muted="!!mutedPeers[row.label]"
+      @block="togglePeer('block', row.label)"
+      @mute="togglePeer('mute', row.label)"
+      @remove="removePeer(row)"
             :open="rowMenu === 'flow:dm:' + row.label"
             @toggle="toggleRowMenu('flow:dm:' + row.label)"
             @close="closeRowMenu()"
@@ -356,6 +373,7 @@ import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDa
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { flowRows, SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { rowMenuAdmin } from '~/utils/sidebar-row-menu.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'threads' | 'flow'
@@ -456,7 +474,34 @@ function retentionLabel(c: { channel_id?: string, channel?: string, retention_da
 }
 const health = computed(() => connectionHealth(live.state.value))
 /* CLE-3425: newest first here too - the peer we last exchanged a DM with on top */
-const peers = computed(() => orderPeers(roster.peers, channel.dmAt))
+const hiddenPeers = ref<Record<string, true>>({})
+const blockedPeers = ref<Record<string, true>>({})
+const mutedPeers = ref<Record<string, true>>({})
+const peerAdmin = computed(() => rowMenuAdmin(access.me))
+const peers = computed(() => orderPeers(roster.peers, channel.dmAt).filter((p) => !hiddenPeers.value[p.label]))
+
+function togglePeer(which: 'block' | 'mute', label: string) {
+  const bag = which === 'block' ? blockedPeers : mutedPeers
+  const next = { ...bag.value }
+  if (next[label]) delete next[label]
+  else next[label] = true
+  bag.value = next
+}
+
+/* A human is a tenant member: DELETE /v1/members/{id}. A bot is not, so the
+   row leaves this pane for the session and the hub membership is untouched. */
+async function removePeer(p: { id?: string, label: string }) {
+  const id = String(p.id || '')
+  if (/^HUM-\d+$/.test(id) && !api.mock) {
+    try {
+      await api.removeMember(id)
+    } catch {
+      return
+    }
+    void roster.refresh()
+  }
+  hiddenPeers.value = { ...hiddenPeers.value, [p.label]: true }
+}
 const flow = computed(() => flowRows({
   channels: channel.ordered,
   peers: peers.value,
@@ -653,6 +698,8 @@ async function onCreate() {
 }
 .nav-row:focus-within { z-index: 4; }
 .nav-row > .nav-item { padding-inline-end: 44px; }
+.nav-row--muted { opacity: 0.55; }
+.nav-row--blocked .label { text-decoration: line-through; }
 @media (max-width: 800px) {
   .nav-row > .nav-item { padding-inline-end: 28px; }
 }

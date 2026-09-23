@@ -225,6 +225,21 @@ export function createSpoolClient({
       }
     },
     /**
+     * DELETE /v1/members/{human_id} (025 FR-007). Humans only; the hub
+     * answers 404 for anything else. Mock has no memberships.
+     */
+    async removeMember(humanId) {
+      const id = String(humanId || '')
+      if (!/^HUM-\d+$/.test(id)) {
+        const err = new Error('not a member')
+        err.status = 404
+        err.token = 'not_found'
+        throw err
+      }
+      if (mock) return null
+      return live(`/v1/members/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    },
+    /**
      * channels-v1 §5.2. `read` = { channel: last-read cursor } (client-held,
      * OQ-CH2) → repeated `read=<ch>~<cursor>`; rows keep unread / last_cursor /
      * retention_days.

@@ -45,6 +45,7 @@ declare module '~/utils/spool-client.mjs' {
       next: string | null
     }>
     me(): Promise<Record<string, unknown> | null>
+    removeMember(humanId: string): Promise<null>
     listChannels(opts?: { read?: Record<string, string> }): Promise<import('./spool').ChannelRow[]>
     listMessages(opts?: {
       channel?: string

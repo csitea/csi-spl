@@ -71,7 +71,7 @@ describe('mention autocomplete', () => {
     assert.equal(src.includes('filterRosterMentions'), true)
     assert.equal(src.includes('activeMentionQuery'), true)
     assert.equal(src.includes('insertMention'), true)
-    assert.equal(src.includes('scrollIntoView'), true)
+    assert.equal(src.includes('list.scrollTop'), true)
     assert.equal(src.includes('parseMention'), false)
   })
 
@@ -121,5 +121,16 @@ describe('H5: a door-off guest GST-<n> is mentionable', () => {
   it('keeps GST ids in the picker', () => {
     const got = filterRosterMentions([{ id: 'GST-3' }, { id: 'ALL-0' }], 'gst')
     assert.deepEqual(got.map((p) => p.id), ['GST-3'])
+  })
+
+  it('3994 matches CLE-3994 anywhere in the tag', () => {
+    const peers = [
+      { id: 'CLE-3994', box: 'box-desk', label: 'CLE-3994@box-desk' },
+      { id: 'CLE-3444', box: 'box-desk', label: 'CLE-3444@box-desk' },
+      { id: 'GRK-3492', box: 'box-desk', label: 'GRK-3492@box-desk' },
+    ]
+    assert.deepEqual(filterRosterMentions(peers, '3994').map((p) => p.id), ['CLE-3994'])
+    assert.deepEqual(filterRosterMentions(peers, '@3994').map((p) => p.id), ['CLE-3994'])
+    assert.deepEqual(filterRosterMentions(peers, 'desk').map((p) => p.id), ['CLE-3994', 'CLE-3444', 'GRK-3492'])
   })
 })

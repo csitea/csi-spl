@@ -249,13 +249,17 @@ const candidates = computed(() => {
 
 const pickerOpen = computed(() => mentionQuery.value !== null && candidates.value.length > 0)
 
-/** Arrow keys move the highlight; the short list has to follow or the row leaves the window. */
+/** Arrow keys move the highlight. Scroll only this list: scrollIntoView also moves the page under the bar. */
 function scrollActiveMention() {
   nextTick(() => {
     const list = mentionListEl.value
     if (!list) return
     const row = list.querySelectorAll<HTMLElement>('.mention-item')[activeIdx.value]
-    row?.scrollIntoView({ block: 'nearest' })
+    if (!row) return
+    const listRect = list.getBoundingClientRect()
+    const rowRect = row.getBoundingClientRect()
+    if (rowRect.top < listRect.top) list.scrollTop += rowRect.top - listRect.top
+    else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom
   })
 }
 
@@ -463,8 +467,10 @@ textarea.in-code {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   max-height: 180px;
+  min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
-  overflow-x: clip;
+  overscroll-behavior: contain;
   max-width: 100%;
   min-width: 0;
 }

@@ -25,6 +25,7 @@ export function activeMentionQuery(text, cursor) {
 /**
  * Filter roster peers to CLE/GRK/AGY/HUM/GST ids matching the in-progress query.
  * Query may be 'CLE-07' or '@CLE-07'; empty query returns every allowed peer.
+ * The text matches any part of the id or the label, so "3994" finds CLE-3994.
  */
 export function filterRosterMentions(peers, query) {
   const rows = Array.isArray(peers) ? peers : []
@@ -34,7 +35,7 @@ export function filterRosterMentions(peers, query) {
   return allowed.filter((p) => {
     const id = String(p.id || '').toUpperCase()
     const label = String(p.label || '').toUpperCase()
-    return id.startsWith(q) || label.startsWith(q)
+    return id.includes(q) || label.includes(q)
   })
 }
 

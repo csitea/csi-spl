@@ -31,6 +31,11 @@ export const useTopicStore = defineStore('topic', () => {
    */
   const target = ref<TopicTarget | null>(null)
   const rootMsg = ref<SpoolMessage | null>(null)
+  /**
+   * The right pane is the selected surface. While this is set, the message
+   * the topic was opened from is not highlighted.
+   */
+  const paneSelected = ref(false)
   /** New Omnibox topics shown at the top of the right pane, newest first. */
   const born = ref<SpoolMessage[]>([])
 
@@ -48,12 +53,18 @@ export const useTopicStore = defineStore('topic', () => {
 
   const messages = computed(() => topicOf(channel.messages, parentTaskId.value))
 
+  /** A click on the topic pane: the pane is selected, the message is not. */
+  function selectPane() {
+    paneSelected.value = true
+  }
+
   /** The channel / DM pane: open this target and show the pane. */
   function openTarget(next: TopicTarget, root: SpoolMessage | null = null) {
     target.value = next
     rootMsg.value = root
     parentTaskId.value = next.taskId
     open.value = true
+    paneSelected.value = false
   }
 
   /** The channel / DM pane by task id (the pre-CLE-3427 entry point). */
@@ -65,6 +76,8 @@ export const useTopicStore = defineStore('topic', () => {
   function setTarget(next: TopicTarget | null, root: SpoolMessage | null = null) {
     target.value = next
     rootMsg.value = root
+    /* opening or re-clicking a message selects that message, not the pane */
+    paneSelected.value = false
     /* the channel / DM pane is driven by `open`; the live pane by its own store */
     if (!next) {
       open.value = false
@@ -78,6 +91,7 @@ export const useTopicStore = defineStore('topic', () => {
     target.value = null
     rootMsg.value = null
     born.value = []
+    paneSelected.value = false
   }
 
   /**
@@ -91,5 +105,5 @@ export const useTopicStore = defineStore('topic', () => {
     rootMsg.value = { ...rootMsg.value, ...(row as Partial<SpoolMessage>) }
   }
 
-  return { open, parentTaskId, messages, target, rootMsg, born, noteBorn, dismissBorn, clearBorn, openTopic, openTarget, setTarget, applyEditedRoot, close }
+  return { open, parentTaskId, messages, target, rootMsg, born, paneSelected, noteBorn, dismissBorn, clearBorn, openTopic, openTarget, setTarget, selectPane, applyEditedRoot, close }
 })

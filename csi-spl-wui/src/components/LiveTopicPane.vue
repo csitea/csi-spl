@@ -1,5 +1,14 @@
 <template>
-  <aside v-if="pane.taskId" class="topic live-pane" data-test="topic-section" data-section="live" :aria-label="t('topic.title')">
+  <aside
+    v-if="pane.taskId"
+    class="topic live-pane"
+    :class="{ selected: topic.paneSelected }"
+    data-test="topic-section"
+    data-section="live"
+    :data-selected="topic.paneSelected ? 'true' : undefined"
+    :aria-label="t('topic.title')"
+    @click="onTopicPaneClick"
+  >
     <header>
       <strong>{{ t('topic.title') }} <code>{{ pane.taskId.slice(0, 8) }}</code></strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
@@ -60,6 +69,7 @@ const { t } = useI18n({ useScope: 'global' })
 const sinceMs = useNowTick(() => Boolean(pane.taskId))
 const localePath = useLocalePath()
 const topic = useTopicStore()
+const { onTopicPaneClick } = useTopicPaneClick()
 
 /*
  * CLE-3427 — two shapes of topic land in this pane.

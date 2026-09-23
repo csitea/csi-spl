@@ -710,6 +710,7 @@ html.pane-dragging * {
 .sidebar-tab[aria-selected="true"],
 .msg.selected,
 .topic-row.selected,
+.topic.selected,
 .search-row.active {
   background: var(--color-selected);
   box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring);

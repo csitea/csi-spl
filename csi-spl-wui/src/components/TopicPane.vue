@@ -1,5 +1,14 @@
 <template>
-  <aside v-if="topic.open" class="topic live-pane" data-test="topic-section" data-section="channel" :aria-label="t('topic.title')">
+  <aside
+    v-if="topic.open"
+    class="topic live-pane"
+    :class="{ selected: topic.paneSelected }"
+    data-test="topic-section"
+    data-section="channel"
+    :data-selected="topic.paneSelected ? 'true' : undefined"
+    :aria-label="t('topic.title')"
+    @click="onTopicPaneClick"
+  >
     <header>
       <strong>{{ t('topic.title') }}</strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
@@ -47,6 +56,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 
 const topic = useTopicStore()
+const { onTopicPaneClick } = useTopicPaneClick()
 const sinceMs = useNowTick(() => topic.open)
 const channel = useChannelStore()
 const api = useSpoolApi()

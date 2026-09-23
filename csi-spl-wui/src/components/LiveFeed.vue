@@ -110,6 +110,7 @@ function openable(m: SpoolMessage) {
 /* CLE-3427: the row the open topic is rooted at reads as selected (a darker
    fill + aria-current). Only a feed whose rows open a topic can have one. */
 function isSelected(m: SpoolMessage) {
-  return Boolean(props.clickable) && isSelectedRow(m, topic.target)
+  /* a click on the topic pane takes the highlight off this row */
+  return Boolean(props.clickable) && !topic.paneSelected && isSelectedRow(m, topic.target)
 }
 </script>

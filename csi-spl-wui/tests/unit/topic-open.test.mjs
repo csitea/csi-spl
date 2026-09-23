@@ -5,12 +5,16 @@
 // there is not one for the msgs)".
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   isSelectedRow,
   queryWithTopic,
   sameQuery,
   sameTarget,
   targetFromQuery,
+  topicPaneClickAction,
   topicQuery,
   topicTargetFor,
 } from '../../src/utils/topic-open.mjs'
@@ -116,6 +120,46 @@ describe('the row the open topic is rooted at', () => {
 
   it('nothing is selected when no topic is open', () => {
     assert.equal(isSelectedRow(msgRow, null), false)
+  })
+})
+
+describe('the pane click is wired to both topic panes', () => {
+  const wui = join(dirname(fileURLToPath(import.meta.url)), '../..')
+  const read = (rel) => readFileSync(join(wui, rel), 'utf8')
+
+  it('clicking the pane selects it and the feed drops the message highlight', () => {
+    for (const rel of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue']) {
+      const src = read(rel)
+      assert.match(src, /:class="\{ selected: topic\.paneSelected \}"/, rel)
+      assert.match(src, /@click="onTopicPaneClick"/, rel)
+    }
+    assert.match(read('src/composables/useTopicPaneClick.ts'), /topic\.selectPane\(\)/)
+    assert.match(read('src/components/LiveFeed.vue'), /!topic\.paneSelected && isSelectedRow/)
+    const store = read('src/stores/topic.ts')
+    assert.match(store, /function selectPane\(\)/)
+    assert.match(store, /paneSelected\.value = false/)
+    assert.match(read('src/assets/css/main.css'), /\.topic\.selected/)
+  })
+})
+
+describe('a click on the topic pane', () => {
+  const el = (hit) => ({ closest: (sel) => (hit && String(sel).includes(hit) ? {} : null) })
+
+  it('selects the pane, which is what takes the highlight off the message', () => {
+    assert.equal(topicPaneClickAction(null), 'pane')
+    assert.equal(topicPaneClickAction(el('')), 'pane')
+    assert.equal(topicPaneClickAction(el('article')), 'pane')
+  })
+
+  it('a control keeps its own job and leaves the selection alone', () => {
+    for (const hit of ['button', 'textarea', 'role="button"']) {
+      assert.equal(topicPaneClickAction(el(hit)), '', hit)
+    }
+  })
+
+  it('selecting text in the pane is not a click that moves the selection', () => {
+    assert.equal(topicPaneClickAction(el(''), { selecting: true }), '')
+    assert.equal(topicPaneClickAction(null, { selecting: true }), '')
   })
 })
 

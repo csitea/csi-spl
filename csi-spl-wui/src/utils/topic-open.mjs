@@ -98,3 +98,20 @@ export function isSelectedRow(msg, target) {
     ? String(m.msg_id || '') === target.rootMsgId
     : String(m.task_id || '') === target.taskId
 }
+
+/**
+ * Clicks that already have a job inside the topic pane. A close button, the
+ * open-topic link, and the editor must not also move the selection.
+ */
+export const TOPIC_PANE_OWN_CLICK = 'button, a, input, textarea, select, label, summary, [role="button"]'
+
+/**
+ * What a click in the topic pane does to the selection.
+ * 'pane' — the pane becomes the selected surface and the message highlight goes.
+ * '' — a control, or a drag that is selecting text: leave the selection as it is.
+ */
+export function topicPaneClickAction(el, { selecting = false } = {}) {
+  if (selecting) return ''
+  if (el && typeof el.closest === 'function' && el.closest(TOPIC_PANE_OWN_CLICK)) return ''
+  return 'pane'
+}

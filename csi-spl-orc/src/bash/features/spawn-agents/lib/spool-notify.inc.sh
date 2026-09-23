@@ -155,9 +155,24 @@ spool_notify_is_shell() {  # CMD
 # instead of the poke line. The line actually chosen is left in
 # SPOOL_POKE_LINE, so a caller that queues a refusal queues what it would have
 # typed rather than re-deriving it.
+# 0 when LINE (CSI already stripped) is real unsent input.
+# A grok input row is "│ ❯ │". The trailing bar survived the trim, so every
+# human message was refused while that box was on screen. Measured on the
+# dev desk 2026-09-23: three notes from a human sat in the inbox and the
+# retry log said the pane held unsent text; the remnant was the one character │.
+spool_notify_has_unsent() {  # LINE
+  local last="${1:-}" typed
+  typed="${last##*❯}"
+  [ "$typed" = "$last" ] && typed="${last##*> }"
+  typed="${typed//[│╭╰╮╯─┌┐└┘├┤┬┴┼]/}"
+  typed="${typed#"${typed%%[![:space:]]*}"}"
+  typed="${typed%"${typed##*[![:space:]]}"}"
+  [ -n "$typed" ] && [ "${typed#: \'SPOOL }" = "$typed" ]
+}
+
 spool_notify_poke() {  # TO LINE [BODY] [FROM]
   local to="$1" line="$2" body="${3:-}" from="${4:-}"
-  local pane pane_tty tty_cmds last typed alt prompt esc=$'\033'
+  local pane pane_tty tty_cmds last alt prompt esc=$'\033'
   SPOOL_POKE_LINE="$line"
 
   # _var, not $( ): the subshell would fork and would lose SPOOL_PANE_TTY.
@@ -226,11 +241,7 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
   last="$("${SPOOL_TM[@]}" capture-pane -p -e -t "$pane" 2>/dev/null \
     | grep -E '❯|^> ' | tail -1 \
     | sed -E "s/${esc}\[2m[^${esc}]*//g; s/${esc}\[[0-9;]*[A-Za-z]//g" || true)"
-  typed="${last##*❯}"
-  [ "$typed" = "$last" ] && typed="${last##*> }"
-  typed="${typed# }"
-  typed="${typed%"${typed##*[![:space:]]}"}"
-  if [ -n "$last" ] && [ -n "$typed" ] && [ "${typed#: \'SPOOL }" = "$typed" ]; then
+  if spool_notify_has_unsent "$last"; then
     echo "poke: REFUSED - ${to} pane ${pane} holds unsent text; the message waits in its inbox"
     return 6
   fi

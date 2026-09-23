@@ -136,6 +136,10 @@ spool_notify_is_human HUM-17 && ok "HUM- is a human"   || nok "HUM- is a human"
 spool_notify_is_human GST-3  && ok "GST- is a human"   || nok "GST- is a human"
 spool_notify_is_human CLE-90 && nok "CLE- is not"      || ok "CLE- is not"
 
+spool_notify_has_unsent '  │ ❯ │' && nok "an input-box border is not unsent text" || ok "an input-box border is not unsent text"
+spool_notify_has_unsent '❯' && nok "an empty prompt is not unsent text" || ok "an empty prompt is not unsent text"
+spool_notify_has_unsent '❯ half typed' && ok "real typing is still unsent text" || nok "real typing is still unsent text"
+
 # A pane on the ALTERNATE screen is the agent-TUI shape; one on the normal
 # screen is a shell, where a raw body would EXECUTE and must never be typed.
 PT="$(t_window CLE-81 "sh -c 'printf \"\033[?1049h\"; sleep 600'")"

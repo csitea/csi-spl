@@ -108,12 +108,12 @@ describe('X3 wiring: the lobby pattern on /channel, /dm and the channel ThreadPa
     assert.doesNotMatch(s, /v-for=/)
   })
 
-  it('ThreadPane: pinned root, reply Omnibox, newest-first replies via LiveFeed', () => {
+  it('ThreadPane: pinned root, then the replies, with no reply field of its own', () => {
     const s = read('components/ThreadPane.vue')
     const root = s.indexOf('pinned-root')
-    const omni = s.indexOf('<MessageComposer')
     const feed = s.indexOf('<LiveFeed')
-    assert.ok(root > 0 && root < omni && omni < feed)
+    assert.ok(root > 0 && root < feed)
+    assert.doesNotMatch(s, /<MessageComposer/)
     assert.match(s, /rootAndReplies/)
   })
 })

@@ -29,11 +29,7 @@ const OMNIBOX_PAGES = [
   'src/pages/channel/[name].vue',
   'src/pages/lobby.vue',
 ]
-/* every in-place composer that is not the Omnibox */
-const PANE_COMPOSERS = [
-  'src/components/ThreadPane.vue',
-  'src/components/LiveThreadPane.vue',
-]
+/* thread panes no longer have their own composer; the top bar sends the reply */
 
 describe('cause 1: the handler has to ACCEPT the files (CLE-3433)', () => {
   for (const page of OMNIBOX_PAGES) {
@@ -51,11 +47,6 @@ describe('cause 1: the handler has to ACCEPT the files (CLE-3433)', () => {
     })
   }
 
-  for (const c of PANE_COMPOSERS) {
-    it(`${c}: its own composer's @send handler takes files too`, () => {
-      assert.match(src(c), /function onSend\([^)]*files\??:\s*File\[\]/)
-    })
-  }
 })
 
 describe('cause 2: a picked File is not a wire value (CLE-3433)', () => {

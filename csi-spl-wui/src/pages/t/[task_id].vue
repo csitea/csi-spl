@@ -8,13 +8,6 @@
     <div class="pinned-root">
       <MessageCard v-if="store.thread.root" :key="String(store.thread.root.msg_id || '')" :msg="store.thread.root" :since-ms="sinceMs" :editable="canEdit(store.thread.root)" @edited="onEdited" />
     </div>
-    <MessageComposer
-      omnibox
-      :placeholder="t('thread.reply_placeholder')"
-      :busy="store.sending"
-      @send="onSend"
-      @search="store.setSearch"
-    />
     <div class="feed-body">
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="reopen" />
       <ErrorNotice v-if="store.error" :message="store.error" source="thread" test-id="thread-error" />
@@ -70,9 +63,5 @@ const { canEdit, applyEverywhere } = useMessageEdit()
 
 function onEdited(row: SpoolMessage) {
   applyEverywhere(row)
-}
-
-async function onSend(text: string, _parent?: string, files?: File[]) {
-  await store.send(text, files || [])
 }
 </script>

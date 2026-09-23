@@ -71,12 +71,12 @@ describe('composer growth (CLE-3437)', () => {
     assert.deepEqual(offenders, [], 'these render their own composer textarea instead of MessageComposer')
   })
 
-  it('every in-page composer is that shared component', () => {
+  it('the top bar is the only message box; a thread has no reply field of its own', () => {
+    assert.match(read('src/components/TopBar.vue'), /<MessageComposer/)
     for (const rel of [
       'src/components/ThreadPane.vue',
       'src/components/LiveThreadPane.vue',
       'src/pages/t/[task_id].vue',
-      'src/components/TopBar.vue',
-    ]) assert.match(read(rel), /<MessageComposer/, `${rel} must compose through MessageComposer`)
+    ]) assert.doesNotMatch(read(rel), /<MessageComposer|<textarea/, `${rel} still has a reply box`)
   })
 })

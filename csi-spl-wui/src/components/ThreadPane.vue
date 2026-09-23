@@ -20,13 +20,6 @@
       <MessageCard v-if="root" :key="String(root.msg_id || '')" :msg="root" :since-ms="sinceMs" :editable="canEdit(root)" @edited="onEdited" />
       <p v-else-if="!loading && !loadError" class="muted">{{ t('thread.empty') }}</p>
     </div>
-    <MessageComposer
-      omnibox
-      :parent-task-id="thread.parentTaskId || undefined"
-      :placeholder="t('thread.reply_placeholder')"
-      @send="onSend"
-      @search="(q: string) => { search = q }"
-    />
     <div class="feed-body">
       <ErrorNotice v-if="loadError" :message="loadError" source="thread" test-id="thread-error" />
       <LiveFeed
@@ -67,7 +60,8 @@ const { t } = useI18n({ useScope: 'global' })
 /*
  * Live: a channel / DM feed row is a thread root only (view-v1 §4.3), so the
  * replies come from GET /v1/view/threads/{task_id} and then the WS frames.
- * 013 (X3): pinned root, reply Omnibox, replies newest first — as LiveThreadPane.
+ * 013 (X3): pinned root, replies newest first. The reply box is the top
+ * Omnibox, not a second field in this pane.
  */
 const liveRows = ref<SpoolMessage[]>([])
 const loadError = ref('')
@@ -148,12 +142,5 @@ if (import.meta.client && !api.mock) {
   const liveEdits = useLive()
   const offEdited = liveEdits.onEdited((m) => onEdited(m as unknown as SpoolMessage))
   onUnmounted(() => { offEdited() })
-}
-
-/* CLE-3433: `files` was not in this signature, so an attachment picked in
-   the thread composer was dropped on the floor - see utils comment in
-   stores/channel.ts toFileRefs() for the measurement */
-async function onSend(text: string, parent?: string, files?: File[]) {
-  await channel.send(text, parent || thread.parentTaskId || undefined, files)
 }
 </script>

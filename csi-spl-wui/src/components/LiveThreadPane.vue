@@ -30,13 +30,6 @@
       <MessageCard v-if="root" :key="String(root.msg_id || '')" :msg="root" :since-ms="sinceMs" :editable="canEdit(root)" @edited="onEdited" />
       <p v-else-if="!pane.loading" class="muted">{{ t('thread.empty') }}</p>
     </div>
-    <MessageComposer
-      omnibox
-      :placeholder="t('thread.reply_placeholder')"
-      :busy="pane.sending"
-      @send="onSend"
-      @search="pane.setSearch"
-    />
     <div class="feed-body">
       <ViewTokenForm v-if="pane.door" :detail="pane.door.detail" @saved="pane.taskId && pane.open(pane.taskId)" />
       <ErrorNotice v-if="pane.error" :message="pane.error" source="live-pane" test-id="live-pane-error" />
@@ -106,14 +99,5 @@ function onEdited(row: SpoolMessage) {
 function close() {
   pane.close()
   thread.close()
-}
-
-async function onSend(text: string, _parent?: string, files?: File[]) {
-  /* a reply in a message-rooted thread says which task it hangs off and which
-     channel it belongs to, so the thread is reachable from that channel */
-  const t = target.value
-  await pane.send(text, files || [], t && t.mode === 'message'
-    ? { parentTaskId: t.parentTaskId, channel: root.value?.channel || undefined }
-    : {})
 }
 </script>

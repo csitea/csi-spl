@@ -8,7 +8,7 @@
  *    (the old msg should be shown there) and hits the enter the msg is sent"
  *
  * Pure, so the Node tests drive the whole state machine without a browser —
- * the same split as thread-pane.mjs and send-failure.mjs. MessageCard.vue is
+ * the same split as topic-pane.mjs and send-failure.mjs. MessageCard.vue is
  * the only thing that owns a textarea; everything that DECIDES is here.
  *
  * Three rules this file exists to keep honest:
@@ -228,7 +228,7 @@ export function revisionOf(msg) {
  *  - message-edit-v1 FR-ED-009: an edit does not move the message. `ts`,
  *    `received_at` and `cursor` are unchanged by it, so this replaces at the
  *    existing index and never re-sorts. A typo fix must not jump to the
- *    bottom of the thread.
+ *    bottom of the topic.
  *
  * A msg_id this list does not hold is ignored rather than appended: an edit
  * is a replacement, and inventing a row for a message the reader never had

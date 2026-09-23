@@ -3,11 +3,11 @@ import { channelSlug, parseMention } from './channel-feed.mjs'
 import {
   channelReadQuery,
   channelsFromView,
-  normalizeThreadRow,
+  normalizeTopicRow,
   normalizeViewMessage,
   rosterFromView,
-  threadMessages,
-  threadsFromMessages,
+  topicMessages,
+  topicsFromMessages,
 } from './view-api.mjs'
 import { SEARCH_OPERATORS, mockSearch, normalizeOperators, normalizeSearchResponse, searchApiQuery } from './search.mjs'
 
@@ -152,7 +152,7 @@ export function createSpoolClient({
       if (mock) return { ok: true, mock: true }
       return live('/v1/health')
     },
-    async listThreads({ limit = 50, before, channel, dm, peer, agent, roots } = {}) {
+    async listTopics({ limit = 50, before, channel, dm, peer, agent, roots } = {}) {
       if (mock) {
         let rows = state.messages.slice()
         if (channel) rows = rows.filter((m) => m.channel === channel)
@@ -161,7 +161,7 @@ export function createSpoolClient({
           const [id] = String(peer).split('@')
           rows = rows.filter((m) => m.from === id || m.to === id)
         }
-        return { threads: threadsFromMessages(rows).slice(0, limit), next: null }
+        return { topics: topicsFromMessages(rows).slice(0, limit), next: null }
       }
       const q = new URLSearchParams()
       if (limit) q.set('limit', String(limit))
@@ -171,20 +171,20 @@ export function createSpoolClient({
       if (peer) q.set('peer', peer)
       if (agent) q.set('agent', agent)
       if (roots === false) q.set('roots', 'false')
-      const data = await live(`/v1/view/threads?${q}`)
-      const rows = (data && data.threads) || []
-      return { threads: rows.map(normalizeThreadRow), next: (data && data.next) || null }
+      const data = await live(`/v1/view/topics?${q}`)
+      const rows = (data && data.topics) || []
+      return { topics: rows.map(normalizeTopicRow), next: (data && data.next) || null }
     },
     /**
      * view-v1 §4.4. Default: oldest first, `after=` for catch-up. With
      * `order: 'desc'`: the newest `limit` newest-first; `next` → pass as `before`
      * for the next older window (013 reverse prepend; hub 1dca945).
      */
-    async getThread(taskId, { limit = 200, after, order, before } = {}) {
+    async getTopic(taskId, { limit = 200, after, order, before } = {}) {
       const id = String(taskId || '')
       if (!id) throw new Error('task_id required')
       if (mock) {
-        const all = threadMessages(state.messages, id)
+        const all = topicMessages(state.messages, id)
         if (order !== 'desc') return { task_id: id, messages: all, next: null }
         const desc = all.slice().reverse()
         const start = before ? desc.findIndex((m) => m.msg_id === before) + 1 : 0
@@ -199,11 +199,11 @@ export function createSpoolClient({
       if (before) q.set('before', before)
       let data
       try {
-        data = await live(`/v1/view/threads/${encodeURIComponent(id)}?${q}`)
+        data = await live(`/v1/view/topics/${encodeURIComponent(id)}?${q}`)
       } catch (e) {
-        // rdb 0028: a thread you may not read answers 404, exactly as one
+        // rdb 0028: a topic you may not read answers 404, exactly as one
         // that does not exist does - the hub will not tell a non-member
-        // which of the two it is. An empty thread is the honest rendering;
+        // which of the two it is. An empty topic is the honest rendering;
         // an error toast would leak that something IS there.
         if (e && e.status === 404) return { task_id: id, messages: [], next: null }
         throw e
@@ -253,12 +253,12 @@ export function createSpoolClient({
     },
     /**
      * Flat messages of a channel (`?channel=`) or a DM peer (`?dm=true&peer=`),
-     * oldest first, at most `limit`: one page of `threads` threads from the
+     * oldest first, at most `limit`: one page of `topics` topics from the
      * view list (view-v1 §4.3), each read newest-first (§4.4) and merged.
      * `next` is the §4.3 cursor — pass it as `before` for the next older
-     * window of threads, until `next` is null. Mock has no server pages.
+     * window of topics, until `next` is null. Mock has no server pages.
      */
-    async listMessages({ channel, peer, limit = 50, since, threads = 20, before } = {}) {
+    async listMessages({ channel, peer, limit = 50, since, topics = 20, before } = {}) {
       if (mock) {
         let rows = state.messages.slice()
         if (channel) rows = rows.filter((m) => m.channel === channel)
@@ -270,8 +270,8 @@ export function createSpoolClient({
         return { messages: rows.slice(-limit), next: null }
       }
       const filter = channel ? { channel } : peer ? { dm: true, peer: String(peer) } : {}
-      const list = await api.listThreads({ limit: threads, before, ...filter })
-      const pages = await pool(list.threads, 6, (t) => api.getThread(t.task_id, { order: 'desc', limit }))
+      const list = await api.listTopics({ limit: topics, before, ...filter })
+      const pages = await pool(list.topics, 6, (t) => api.getTopic(t.task_id, { order: 'desc', limit }))
       const seen = new Set()
       const out = []
       for (const page of pages) {
@@ -304,8 +304,8 @@ export function createSpoolClient({
     },
     /**
      * Post into a channel (`channel`), a DM (`peer`, no channel) or an existing
-     * thread (`task_id`); a new post starts a new task. `parent_task_id` links a
-     * CHILD task (channels-v1 §0), it does not thread a reply. Live: one
+     * topic (`task_id`); a new post starts a new task. `parent_task_id` links a
+     * CHILD task (channels-v1 §0), it does not topic a reply. Live: one
      * wui-live-ws §4 `send` frame via the injected sender; resolves with the
      * flat message plus the ack's cursor / received_at.
      */

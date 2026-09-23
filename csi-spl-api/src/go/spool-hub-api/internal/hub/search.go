@@ -234,9 +234,9 @@ func (s *Server) searchSection(ctx context.Context, t store.Tenant, q *search.Qu
 				"created_at": rfc(m.TS), "received_at": rfc(m.ReceivedAt), "files": m.Files,
 				"snippet": hl{text, hs}})
 		}
-	case search.TypeThread:
+	case search.TypeTopic:
 		sq.Relevance = false
-		rows, err := se.SearchThreads(ctx, t.ID, sq)
+		rows, err := se.SearchTopics(ctx, t.ID, sq)
 		if err != nil {
 			return out, err
 		}

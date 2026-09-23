@@ -279,20 +279,20 @@ done
 on box-b recv --as CLE-07 | grep -q '"body":"while down"' || fail "daemon did not reconnect and receive the flushed message"
 ok "hub back: flush sent the pending envelope; hub-run reconnected and received it"
 
-# 8. the thread from the hub
+# 8. the topic from the hub
 n="$(on box-a hub-tail --task "$task" --json | wc -l)"
 [ "$n" = 4 ] || fail "hub-tail has $n messages, want 4"
-ok "hub-tail returns the 4-message thread (task, live, result, flushed)"
+ok "hub-tail returns the 4-message topic (task, live, result, flushed)"
 
 # 9. door-off view API + /v1/wui/ws (003 T036 door-off variant; token door waits on T033/B1)
 command -v python3 >/dev/null || fail "python3 required for /v1/wui/ws e2e"
-threads="$(view_get /v1/view/threads)"
-echo "$threads" | grep -q "$task" || fail "view threads missing $task: $threads"
-one="$(view_get "/v1/view/threads/$task")"
-echo "$one" | grep -q '"task_id"' || fail "view one thread: $one"
-echo "$one" | grep -q "build it" || fail "view one thread missing body: $one"
-children="$(view_get "/v1/view/threads/$task/children")"
-echo "$children" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert isinstance(d.get("threads"), list), d' \
+topics="$(view_get /v1/view/topics)"
+echo "$topics" | grep -q "$task" || fail "view topics missing $task: $topics"
+one="$(view_get "/v1/view/topics/$task")"
+echo "$one" | grep -q '"task_id"' || fail "view one topic: $one"
+echo "$one" | grep -q "build it" || fail "view one topic missing body: $one"
+children="$(view_get "/v1/view/topics/$task/children")"
+echo "$children" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert isinstance(d.get("topics"), list), d' \
   || fail "view children: $children"
 roster="$(view_get /v1/view/roster)"
 echo "$roster" | python3 -c 'import json,sys; ids={b["box_id"] for b in json.load(sys.stdin)["boxes"]}; assert ids>={"box-a","box-b"}, ids' \
@@ -300,7 +300,7 @@ echo "$roster" | python3 -c 'import json,sys; ids={b["box_id"] for b in json.loa
 channels="$(view_get /v1/view/channels)"
 echo "$channels" | python3 -c 'import json,sys; s={c["channel"] for c in json.load(sys.stdin)["channels"]}; assert s>={"lobby","tasks","alerts"}, s' \
   || fail "view channels: $channels"
-ok "door-off GET /v1/view/{threads,threads/{id},children,roster,channels}"
+ok "door-off GET /v1/view/{topics,topics/{id},children,roster,channels}"
 wsout="$(wui_hello_subscribe)"
 echo "$wsout" | grep -q "ok HUM-1 $LOBBY" || fail "wui ws: $wsout"
 ok "door-off /v1/wui/ws hello + subscribe LOBBY"

@@ -10,14 +10,14 @@
 # @description      the hub's box-wui key pinned (--force: dev's key is
 # @description      ephemeral, a hub restart mints a new one)
 # @description   a  box-a -> box-b `spool send`, drained by hub-sync, listed by
-# @description      /v1/view/threads (the WUI viewer's API)
+# @description      /v1/view/topics (the WUI viewer's API)
 # @description   b  a member human on /v1/wui/ws: a PLAIN #lobby post reaches
 # @description      every member - EZB-1 through box-b's live sidecar and
 # @description      EZA-1 through box-a's hub-sync (owner rule 2026-09-22);
 # @description      a leading @EZB-1 mention still picks the to_box
 # @description   c  a task to EZB-1 is box-wui SIGNED; box-b's hub-run verifies
 # @description      it on its local box-wui pin; its kind=result reaches the
-# @description      browser's thread
+# @description      browser's topic
 # @description   d  DM (no channel) human <-> agent; presence online/offline
 # @description      as box-b's hub-run connects / stops
 # @description   f  specs/028: each of a, b, c and d is VISIBLE in the recipient

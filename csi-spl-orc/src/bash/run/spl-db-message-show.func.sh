@@ -17,7 +17,7 @@
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant slug (e.g. t1)
 # @param MSG_ID (optional) - one message uuid
-# @param TASK_ID (optional) - every message of one task/thread uuid
+# @param TASK_ID (optional) - every message of one task/topic uuid
 # @param LAST (optional) - the newest n messages of the tenant (1..50, default 5)
 # @param SPL_SA_KEY (optional) - default $HOME/.gcp/.<org>/key-<project>.json
 # @param SPL_PROXY_PORT (optional) - local proxy port, default 55499

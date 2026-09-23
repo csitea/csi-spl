@@ -1,12 +1,12 @@
-// CLE-3429 — the shell shows exactly ONE thread section (1..1).
+// CLE-3429 — the shell shows exactly ONE topic section (1..1).
 //
-// Why this module exists: the shell has two thread panes driven by two
-// independent pinia stores — LiveThreadPane off useLiveFeed('pane') (fed by
-// /, /lobby, /search and the /?thread= deep link) and ThreadPane off the
-// thread store (fed by the /channel and /dm feeds through MessageFeed).
+// Why this module exists: the shell has two topic panes driven by two
+// independent pinia stores — LiveTopicPane off useLiveFeed('pane') (fed by
+// /, /lobby, /search and the /?topic= deep link) and TopicPane off the
+// topic store (fed by the /channel and /dm feeds through MessageFeed).
 // Neither store is reset on a route change, so any path that armed one while
-// the other was still armed rendered BOTH asides at once: open a thread on
-// /channel/lobby, walk to /lobby, open one there — two thread sections, and
+// the other was still armed rendered BOTH asides at once: open a topic on
+// /channel/lobby, walk to /lobby, open one there — two topic sections, and
 // they stayed for every later route.
 //
 // The decision now lives here, in one pure function, and layouts/default.vue
@@ -16,36 +16,36 @@
 // other half — they keep the state honest so the section the reader opened
 // LAST is the one that wins.
 
-/** The live pane (useLiveFeed('pane')): /, /lobby, /search, /?thread=. */
+/** The live pane (useLiveFeed('pane')): /, /lobby, /search, /?topic=. */
 export const LIVE = 'live'
-/** The channel / DM thread store: /channel/<name>, /dm/<peer>. */
+/** The channel / DM topic store: /channel/<name>, /dm/<peer>. */
 export const CHANNEL = 'channel'
-/** No thread on screen — the shell is two panes wide. */
+/** No topic on screen — the shell is two panes wide. */
 export const NONE = 'none'
 
 /**
- * Which single thread section the shell renders for a shell state.
+ * Which single topic section the shell renders for a shell state.
  * The live pane outranks the channel store when both are armed; the layout's
  * watchers make sure that only lasts one tick.
  *
- * @param {{ paneTaskId?: string|null, threadOpen?: boolean }} state
+ * @param {{ paneTaskId?: string|null, topicOpen?: boolean }} state
  * @returns {'live'|'channel'|'none'}
  */
-export function threadSection(state = {}) {
+export function topicSection(state = {}) {
   if (state.paneTaskId) return LIVE
-  if (state.threadOpen) return CHANNEL
+  if (state.topicOpen) return CHANNEL
   return NONE
 }
 
 /**
- * How many thread sections a shell state may render. The invariant this
+ * How many topic sections a shell state may render. The invariant this
  * module exists for: never more than 1, for any state whatsoever.
  *
- * @param {{ paneTaskId?: string|null, threadOpen?: boolean }} state
+ * @param {{ paneTaskId?: string|null, topicOpen?: boolean }} state
  * @returns {0|1}
  */
 export function sectionCount(state = {}) {
-  return threadSection(state) === NONE ? 0 : 1
+  return topicSection(state) === NONE ? 0 : 1
 }
 
 /**
@@ -53,11 +53,11 @@ export function sectionCount(state = {}) {
  * close, or '' when there is nothing to close.
  *
  * @param {'live'|'channel'} opened  the section just opened
- * @param {{ paneTaskId?: string|null, threadOpen?: boolean }} state  the state BEFORE it opened
+ * @param {{ paneTaskId?: string|null, topicOpen?: boolean }} state  the state BEFORE it opened
  * @returns {'live'|'channel'|''}
  */
 export function closes(opened, state = {}) {
-  if (opened === LIVE) return state.threadOpen ? CHANNEL : ''
+  if (opened === LIVE) return state.topicOpen ? CHANNEL : ''
   if (opened === CHANNEL) return state.paneTaskId ? LIVE : ''
   return ''
 }

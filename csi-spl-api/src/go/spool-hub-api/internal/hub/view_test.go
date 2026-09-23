@@ -47,18 +47,18 @@ func errToken(b []byte) string {
 	return eb.Error
 }
 
-type threadsResp struct {
-	Threads []struct {
+type topicsResp struct {
+	Topics []struct {
 		TaskID       string         `json:"task_id"`
 		Count        int            `json:"count"`
 		Kinds        map[string]int `json:"kinds"`
 		Participants []string       `json:"participants"`
 		Subject      string         `json:"subject"`
-	} `json:"threads"`
+	} `json:"topics"`
 	Next *string `json:"next"`
 }
 
-type threadResp struct {
+type topicResp struct {
 	TaskID   string `json:"task_id"`
 	Messages []struct {
 		Cursor     string          `json:"cursor"`
@@ -71,7 +71,7 @@ type threadResp struct {
 	Next *string `json:"next"`
 }
 
-// US7 (contracts/view-v1.md): roster, threads, one thread, paging, reads
+// US7 (contracts/view-v1.md): roster, topics, one topic, paging, reads
 // that change nothing, tenant scoping, 405, CORS allow-list.
 func TestViewAPI(t *testing.T) {
 	e := newEnv(t, func(o *hub.Options) {
@@ -125,23 +125,23 @@ func TestViewAPI(t *testing.T) {
 		t.Fatalf("box-a with a live role=box socket not online: %s", body)
 	}
 
-	// Threads list.
-	code, _, body = viewGet(t, e, tid, "/v1/view/threads")
-	var th threadsResp
+	// Topics list.
+	code, _, body = viewGet(t, e, tid, "/v1/view/topics")
+	var th topicsResp
 	json.Unmarshal(body, &th) //nolint:errcheck
-	if code != 200 || len(th.Threads) != 1 || th.Threads[0].TaskID != out.TaskID || th.Threads[0].Count != 1 ||
-		th.Threads[0].Kinds["task"] != 1 || th.Threads[0].Subject != "please review" || len(th.Threads[0].Participants) != 2 || th.Next != nil {
-		t.Fatalf("threads %d %s", code, body)
+	if code != 200 || len(th.Topics) != 1 || th.Topics[0].TaskID != out.TaskID || th.Topics[0].Count != 1 ||
+		th.Topics[0].Kinds["task"] != 1 || th.Topics[0].Subject != "please review" || len(th.Topics[0].Participants) != 2 || th.Next != nil {
+		t.Fatalf("topics %d %s", code, body)
 	}
 
-	// One thread: the stored envelope byte-for-byte, delivery queued.
-	code, _, body = viewGet(t, e, tid, "/v1/view/threads/"+out.TaskID)
-	var one threadResp
+	// One topic: the stored envelope byte-for-byte, delivery queued.
+	code, _, body = viewGet(t, e, tid, "/v1/view/topics/"+out.TaskID)
+	var one topicResp
 	json.Unmarshal(body, &one) //nolint:errcheck
 	stored, _ := e.st.TaskEnvelopes(ctx, tid, out.TaskID)
 	if code != 200 || len(one.Messages) != 1 || string(one.Messages[0].Env) != string(stored[0]) ||
 		len(one.Messages[0].Deliveries) != 1 || one.Messages[0].Deliveries[0].State != store.StateQueued {
-		t.Fatalf("thread %d %s", code, body)
+		t.Fatalf("topic %d %s", code, body)
 	}
 
 	// US7-1: the reads changed nothing; box-b still drains its queued message.
@@ -151,67 +151,67 @@ func TestViewAPI(t *testing.T) {
 	if r, err := b.c.Sync(ctx); err != nil || r.Delivered != 1 {
 		t.Fatalf("drain after reads: %+v %v", r, err)
 	}
-	_, _, body = viewGet(t, e, tid, "/v1/view/threads/"+out.TaskID)
+	_, _, body = viewGet(t, e, tid, "/v1/view/topics/"+out.TaskID)
 	json.Unmarshal(body, &one) //nolint:errcheck
 	if one.Messages[0].Deliveries[0].State != store.StateSent {
 		t.Fatalf("after drain: %s", body)
 	}
 
-	// Paging: a second thread (the reply starts its own task), limit=1 / before=next;
-	// polling one thread with after=<its last cursor> returns nothing new.
+	// Paging: a second topic (the reply starts its own task), limit=1 / before=next;
+	// polling one topic with after=<its last cursor> returns nothing new.
 	send(t, b, "CLE-07", "GRK-03", "result", "done", "box-a")
-	_, _, body = viewGet(t, e, tid, "/v1/view/threads/"+out.TaskID+"?after="+one.Messages[0].Cursor)
-	var tail threadResp
+	_, _, body = viewGet(t, e, tid, "/v1/view/topics/"+out.TaskID+"?after="+one.Messages[0].Cursor)
+	var tail topicResp
 	json.Unmarshal(body, &tail) //nolint:errcheck
 	if len(tail.Messages) != 0 || tail.Next != nil {
 		t.Fatalf("after last cursor: %s", body)
 	}
-	_, _, body = viewGet(t, e, tid, "/v1/view/threads?limit=1")
-	var p1 threadsResp
+	_, _, body = viewGet(t, e, tid, "/v1/view/topics?limit=1")
+	var p1 topicsResp
 	json.Unmarshal(body, &p1) //nolint:errcheck
-	if len(p1.Threads) != 1 || p1.Next == nil {
+	if len(p1.Topics) != 1 || p1.Next == nil {
 		t.Fatalf("page 1: %s", body)
 	}
-	_, _, body = viewGet(t, e, tid, "/v1/view/threads?limit=1&before="+*p1.Next)
-	var p2 threadsResp
+	_, _, body = viewGet(t, e, tid, "/v1/view/topics?limit=1&before="+*p1.Next)
+	var p2 topicsResp
 	json.Unmarshal(body, &p2) //nolint:errcheck
-	if len(p2.Threads) != 1 || p2.Threads[0].TaskID == p1.Threads[0].TaskID || p2.Next != nil {
+	if len(p2.Topics) != 1 || p2.Topics[0].TaskID == p1.Topics[0].TaskID || p2.Next != nil {
 		t.Fatalf("page 2: %s", body)
 	}
-	if code, _, body = viewGet(t, e, tid, "/v1/view/threads?before=AAAA"); code != 400 || errToken(body) != "bad_cursor" {
+	if code, _, body = viewGet(t, e, tid, "/v1/view/topics?before=AAAA"); code != 400 || errToken(body) != "bad_cursor" {
 		t.Fatalf("bad cursor: %d %s", code, body)
 	}
 
-	// US7-3: another tenant's Host cannot see the thread; unknown host 404s.
-	if code, _, body = viewGet(t, e, other, "/v1/view/threads/"+out.TaskID); code != 404 || errToken(body) != "not_found" {
+	// US7-3: another tenant's Host cannot see the topic; unknown host 404s.
+	if code, _, body = viewGet(t, e, other, "/v1/view/topics/"+out.TaskID); code != 404 || errToken(body) != "not_found" {
 		t.Fatalf("cross-tenant: %d %s", code, body)
 	}
-	if code, _, body = viewGet(t, e, "nosuch", "/v1/view/threads"); code != 404 || errToken(body) != "unknown_tenant" {
+	if code, _, body = viewGet(t, e, "nosuch", "/v1/view/topics"); code != 404 || errToken(body) != "unknown_tenant" {
 		t.Fatalf("unknown tenant: %d %s", code, body)
 	}
-	if code, _, _ = viewGet(t, e, tid, "/v1/view/threads/not-a-uuid"); code != 404 {
+	if code, _, _ = viewGet(t, e, tid, "/v1/view/topics/not-a-uuid"); code != 404 {
 		t.Fatalf("non-uuid task: %d", code)
 	}
 
 	// US7-4: read-only.
-	resp, _ := e.client.Post(e.url(tid)+"/v1/view/threads", "application/json", strings.NewReader(`{}`))
+	resp, _ := e.client.Post(e.url(tid)+"/v1/view/topics", "application/json", strings.NewReader(`{}`))
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("POST: %d", resp.StatusCode)
 	}
 
 	// US7-5 / FR-021: CORS only for listed origins, only on view + file GET.
-	_, hd, _ := viewGet(t, e, tid, "/v1/view/threads", "Origin", wuiOrigin)
+	_, hd, _ := viewGet(t, e, tid, "/v1/view/topics", "Origin", wuiOrigin)
 	if hd.Get("Access-Control-Allow-Origin") != wuiOrigin || hd.Get("Access-Control-Allow-Credentials") != "" {
 		t.Fatalf("listed origin headers: %v", hd)
 	}
-	if _, hd, _ = viewGet(t, e, tid, "/v1/view/threads", "Origin", "http://evil.test"); hd.Get("Access-Control-Allow-Origin") != "" {
+	if _, hd, _ = viewGet(t, e, tid, "/v1/view/topics", "Origin", "http://evil.test"); hd.Get("Access-Control-Allow-Origin") != "" {
 		t.Fatalf("unlisted origin got CORS: %v", hd)
 	}
 	if _, hd, _ = viewGet(t, e, tid, "/v1/pins", "Origin", wuiOrigin); hd.Get("Access-Control-Allow-Origin") != "" {
 		t.Fatalf("/v1/pins answered CORS: %v", hd)
 	}
-	pre, _ := http.NewRequest(http.MethodOptions, e.url(tid)+"/v1/view/threads", nil)
+	pre, _ := http.NewRequest(http.MethodOptions, e.url(tid)+"/v1/view/topics", nil)
 	pre.Header.Set("Origin", wuiOrigin)
 	pre.Header.Set("Access-Control-Request-Method", "GET")
 	resp, err := e.client.Do(pre)
@@ -228,7 +228,7 @@ func TestViewAPI(t *testing.T) {
 func TestViewDoorTokenFailsClosed(t *testing.T) {
 	e := newEnv(t)
 	tid, _ := e.tenant()
-	for _, p := range []string{"/v1/view/roster", "/v1/view/threads", "/v1/view/channels"} {
+	for _, p := range []string{"/v1/view/roster", "/v1/view/topics", "/v1/view/channels"} {
 		code, _, body := viewGet(t, e, tid, p, "Authorization", "Bearer anything")
 		if code != http.StatusUnauthorized || errToken(body) != "view_door" {
 			t.Fatalf("%s: %d %s", p, code, body)
@@ -259,7 +259,7 @@ func TestViewSessionDoorFailsClosedWithoutMembership(t *testing.T) {
 	}
 	e := newEnv(t, func(o *hub.Options) { o.Auth = auth.New(ac, zerolog.Nop(), auth.Options{}) })
 	tid, _ := e.tenant()
-	code, _, body := viewGet(t, e, tid, "/v1/view/threads", "Cookie", "spool_session=forged")
+	code, _, body := viewGet(t, e, tid, "/v1/view/topics", "Cookie", "spool_session=forged")
 	if code != http.StatusUnauthorized || errToken(body) != "view_door" {
 		t.Fatalf("session door without membership: %d %s", code, body)
 	}
@@ -273,12 +273,12 @@ func TestAccessLogCarriesNoCredentials(t *testing.T) {
 	w := zerolog.SyncWriter(writerFunc(func(p []byte) (int, error) { mu.Lock(); defer mu.Unlock(); return buf.WriteString(string(p)) }))
 	e := newEnv(t, func(o *hub.Options) { o.Log = zerolog.New(w) })
 	tid, _ := e.tenant()
-	viewGet(t, e, tid, "/v1/view/threads?before=SECRET-QUERY", "Cookie", "spool_session=SECRET-COOKIE", "Authorization", "Bearer SECRET-TOKEN")
+	viewGet(t, e, tid, "/v1/view/topics?before=SECRET-QUERY", "Cookie", "spool_session=SECRET-COOKIE", "Authorization", "Bearer SECRET-TOKEN")
 	viewGet(t, e, tid, "/v1/pins", "Cookie", "spool_session_dev=SECRET-COOKIE", "Authorization", "Bearer SECRET-TOKEN")
 	mu.Lock()
 	logged := buf.String()
 	mu.Unlock()
-	if !strings.Contains(logged, `"path":"/v1/view/threads"`) {
+	if !strings.Contains(logged, `"path":"/v1/view/topics"`) {
 		t.Fatalf("access log line missing: %s", logged)
 	}
 	for _, secret := range []string{"SECRET-COOKIE", "SECRET-TOKEN", "SECRET-QUERY"} {
@@ -329,7 +329,7 @@ func TestReservedHostIsAPIHostNotTenant(t *testing.T) {
 				t.Fatalf("%s%s: %d, want 200", host, p, code)
 			}
 		}
-		for _, p := range []string{"/v1/pins", "/v1/view/threads", "/v1/files/" + strings.Repeat("0", 64)} {
+		for _, p := range []string{"/v1/pins", "/v1/view/topics", "/v1/files/" + strings.Repeat("0", 64)} {
 			if code, _, body := viewGet(t, e, host, p); code != http.StatusUnauthorized {
 				t.Fatalf("%s%s: %d %s, want 401", host, p, code, body)
 			}
@@ -339,7 +339,7 @@ func TestReservedHostIsAPIHostNotTenant(t *testing.T) {
 
 // Chat-reverse windows (view-v1 §4.4): order=desc returns the newest N first,
 // next pages strictly older; after/before are each tied to one order.
-func TestViewThreadDescWindows(t *testing.T) {
+func TestViewTopicDescWindows(t *testing.T) {
 	e := newEnv(t, func(o *hub.Options) { o.ViewDoor = hub.ViewDoorOff })
 	tid, _ := e.tenant()
 	a := e.box(tid, "box-a", "GRK-03")
@@ -356,7 +356,7 @@ func TestViewThreadDescWindows(t *testing.T) {
 			t.Fatalf("send %s: %v %+v", body, err, out)
 		}
 	}
-	bodies := func(tr threadResp) []string {
+	bodies := func(tr topicResp) []string {
 		var out []string
 		for _, m := range tr.Messages {
 			var env struct {
@@ -369,8 +369,8 @@ func TestViewThreadDescWindows(t *testing.T) {
 		}
 		return out
 	}
-	base := "/v1/view/threads/" + first.TaskID
-	var p1, p2, p3 threadResp
+	base := "/v1/view/topics/" + first.TaskID
+	var p1, p2, p3 topicResp
 	_, _, body := viewGet(t, e, tid, base+"?order=desc&limit=2")
 	json.Unmarshal(body, &p1) //nolint:errcheck
 	if got := strings.Join(bodies(p1), ","); got != "m5,m4" || p1.Next == nil {
@@ -393,7 +393,7 @@ func TestViewThreadDescWindows(t *testing.T) {
 	}
 	// asc + after unchanged
 	_, _, body = viewGet(t, e, tid, base+"?limit=10")
-	var asc threadResp
+	var asc topicResp
 	json.Unmarshal(body, &asc) //nolint:errcheck
 	if got := strings.Join(bodies(asc), ","); got != "m1,m2,m3,m4,m5" {
 		t.Fatalf("asc: %s", got)

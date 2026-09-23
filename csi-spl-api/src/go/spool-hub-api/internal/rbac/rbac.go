@@ -17,7 +17,7 @@ import (
 
 // Permission ids (025 §3.1).
 const (
-	ThreadsRead    = "threads.read"
+	TopicsRead     = "topics.read"
 	NotesSend      = "notes.send"
 	AgentsCommand  = "agents.command"
 	ChannelsManage = "channels.manage"
@@ -55,7 +55,7 @@ type PermissionDoc struct{ ID, Description string }
 
 // Permissions is the phase-1 catalogue, in the order the spec lists it.
 var Permissions = []PermissionDoc{
-	{ThreadsRead, "read roster, channels and threads; open the WUI socket"},
+	{TopicsRead, "read roster, channels and topics; open the WUI socket"},
 	{NotesSend, "post a note from the WUI"},
 	{AgentsCommand, "command an agent through box-wui dispatch"},
 	{ChannelsManage, "create channels"},
@@ -69,14 +69,14 @@ var Permissions = []PermissionDoc{
 
 // Defaults is the phase-1 system role seed (025 §3.2, OQ-1..8 defaults).
 var Defaults = []Role{
-	{ID: BizOwner, TenantOwner: true, Perms: sorted(ThreadsRead, NotesSend, AgentsCommand, ChannelsManage,
+	{ID: BizOwner, TenantOwner: true, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead)},
-	{ID: ProductOwner, Perms: sorted(ThreadsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead)},
-	{ID: Admin, Perms: sorted(ThreadsRead, NotesSend, AgentsCommand, ChannelsManage,
+	{ID: ProductOwner, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead)},
+	{ID: Admin, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead)},
-	{ID: Developer, Perms: sorted(ThreadsRead, NotesSend, AgentsCommand, ChannelsManage)},
-	{ID: Tester, Perms: sorted(ThreadsRead, NotesSend)},
-	{ID: PureAgent, Perms: sorted(ThreadsRead, NotesSend, AgentsCommand)},
+	{ID: Developer, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage)},
+	{ID: Tester, Perms: sorted(TopicsRead, NotesSend)},
+	{ID: PureAgent, Perms: sorted(TopicsRead, NotesSend, AgentsCommand)},
 }
 
 // DefaultRoles is Defaults keyed by id (a fresh map each call).

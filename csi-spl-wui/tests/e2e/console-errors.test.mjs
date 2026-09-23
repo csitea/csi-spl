@@ -26,8 +26,8 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 30000)
 // two lines, on this one route, are the error page working, not a defect.
 const NOT_FOUND_PATH = '/no-such-page'
 
-// The mock tenant's fixture thread (utils/mock-data.mjs).
-const FIXTURE_THREAD = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+// The mock tenant's fixture topic (utils/mock-data.mjs).
+const FIXTURE_TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 
 const split = (v, dflt) => (v ? v.split(/[\s,]+/).filter(Boolean) : dflt)
 const PATHS = split(process.env.PATHS, [
@@ -35,8 +35,8 @@ const PATHS = split(process.env.PATHS, [
   '/',
   '/lobby',
   '/channel/general',
-  `/t/${FIXTURE_THREAD}`,
-  `/?thread=${FIXTURE_THREAD}`,
+  `/t/${FIXTURE_TOPIC}`,
+  `/?topic=${FIXTURE_TOPIC}`,
   NOT_FOUND_PATH,
 ])
 
@@ -65,7 +65,7 @@ function record(scope, kind, text) {
  *
  *  - GET /api/v1/auth/session -> 401: auth-v1 §4, "401 = signed out"; this
  *    gate browses anonymously, and Chrome logs every 4xx fetch.
- *  - GET /v1/view/threads/<fixture> -> 404: the mock fixture thread does not
+ *  - GET /v1/view/topics/<fixture> -> 404: the mock fixture topic does not
  *    exist on a real hub; the page shows its ErrorNotice.
  *  - /api/v1/auth/* on a harness-started `nuxi dev`: no hub and no auth proxy
  *    there by construction, so the registry and the probe answer 404.
@@ -73,7 +73,7 @@ function record(scope, kind, text) {
 function expectedFailure(text, url) {
   const u = url || ''
   if (/\/api\/v1\/auth\/session(\?|$)/.test(u) && /status of 401\b/.test(text)) return 'signed out (auth-v1 §4)'
-  if (u.includes(`/v1/view/threads/${FIXTURE_THREAD}`) && /status of 404\b/.test(text)) return 'fixture thread absent on a real hub'
+  if (u.includes(`/v1/view/topics/${FIXTURE_TOPIC}`) && /status of 404\b/.test(text)) return 'fixture topic absent on a real hub'
   if (serverStarted && !process.env.NUXT_DEV_AUTH_PROXY && /\/api\/v1\/auth\//.test(u)) return 'no hub behind nuxi dev'
   return ''
 }

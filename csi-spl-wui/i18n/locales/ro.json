@@ -9,7 +9,7 @@
     "cancel": "Anulează"
   },
   "nav": {
-    "threads": "Teme",
+    "topics": "Teme",
     "lobby": "Hol",
     "general": "#general",
     "login": "Autentificare",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "necunoscut",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Deschide tema",
+    "open_topic": "Deschide tema",
     "replies": "{n} răspuns | {n} răspunsuri",
     "filter_label": "Filtru:",
     "matches": "Potriviri: {count}",
@@ -399,7 +399,7 @@
     },
     "new_pill": "Noi: {n}",
     "new_pill_label": "Salt la cele mai noi mesaje",
-    "open_thread_hint": "Apasă Enter pentru a deschide tema acestui mesaj.",
+    "open_topic_hint": "Apasă Enter pentru a deschide tema acestui mesaj.",
     "edit": {
       "label": "Editează mesajul",
       "hint": "Enter salvează · Shift+Enter rând nou · Esc anulează",
@@ -413,7 +413,7 @@
       "failed_too_large": "Prea lung pentru a fi salvat. Atașează-l ca fișier."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Temă",
     "open": "Deschide",
     "empty": "Temă goală.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Redimensionează bara laterală a canalelor",
-    "resize_thread": "Redimensionează panoul temei",
+    "resize_topic": "Redimensionează panoul temei",
     "resize_hint": "Trageți pentru a redimensiona. Dublu clic pentru resetare."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "Persoane",
       "channels": "Canale",
       "boxes": "Cutii",
-      "threads": "Teme",
+      "topics": "Teme",
       "files": "Fișiere",
       "messages": "Mesaje"
     },

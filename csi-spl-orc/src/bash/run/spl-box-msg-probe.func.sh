@@ -35,9 +35,9 @@
 # @param PROBE_BOX (optional) - default box-orc-probe
 # @param PROBE_AGENT (optional) - default ORC-1
 # @param PROBE_LABEL (optional) - free text in the body, default "message-to-db"
-# @param PROBE_TASK (optional) - post into this existing thread (a task UUID, e.g.
+# @param PROBE_TASK (optional) - post into this existing topic (a task UUID, e.g.
 #   the tenant lobby) instead of a fresh one, so a browser following that
-#   thread sees the box send pushed live (013 US7, CLE-3412)
+#   topic sees the box send pushed live (013 US7, CLE-3412)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 ROOT_KEY_JSON=/var/csi/csi-spl/tenants/prd/t1.<ts>.json DRY_RUN=0 ./run -a do_spl_box_msg_probe
 #------------------------------------------------------------------------------

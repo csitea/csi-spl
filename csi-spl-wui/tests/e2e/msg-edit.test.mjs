@@ -90,14 +90,14 @@ const drive = (p, fn, arg) => p.evaluate((fn, arg) => {
   const pinia = app?.config?.globalProperties?.$pinia
   if (!pinia) return 'no-pinia'
   const pane = pinia._s.get('live-pane')
-  const thread = pinia._s.get('thread')
-  if (!pane || !thread) return 'no-store'
+  const topic = pinia._s.get('topic')
+  if (!pane || !topic) return 'no-store'
   if (fn === 'openPane') {
-    thread.setTarget({ taskId: arg.taskId, mode: 'message', rootMsgId: arg.msgId, parentTaskId: arg.parent }, arg.row)
+    topic.setTarget({ taskId: arg.taskId, mode: 'message', rootMsgId: arg.msgId, parentTaskId: arg.parent }, arg.row)
     void pane.open(arg.taskId)
   }
   if (fn === 'openTask') {
-    thread.setTarget({ taskId: arg, mode: 'task', rootMsgId: '', parentTaskId: '' }, null)
+    topic.setTarget({ taskId: arg, mode: 'task', rootMsgId: '', parentTaskId: '' }, null)
     void pane.open(arg)
   }
   return 'ok'
@@ -167,7 +167,7 @@ async function plantPrefill(p, msgId) {
 
 /** Who the 3rd panel's pinned root actually IS, read off the rendered card. */
 const paneRootIdentity = (p) => p.evaluate(() => {
-  const row = document.querySelector('[data-test=thread-section] [data-test=thread-root] article.msg')
+  const row = document.querySelector('[data-test=topic-section] [data-test=topic-root] article.msg')
   if (!row) return { found: false }
   const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
   const pane = pinia?._s.get('live-pane')
@@ -201,13 +201,13 @@ const paneRootIdentity = (p) => p.evaluate(() => {
  *
  * Note that the natural red is the stronger evidence and it is on the record:
  * this assertion failed on the unfixed tree with exactly the output above and
- * passed once ThreadPane / LiveThreadPane / t/[task_id] keyed the mount. The
+ * passed once TopicPane / LiveTopicPane / t/[task_id] keyed the mount. The
  * plant is here so the gate can be re-demonstrated later, not as its proof.
  */
 async function plantKeepEditor(p) {
   if (RED !== 'keep-editor') return
   await p.evaluate(() => {
-    const row = document.querySelector('[data-test=thread-section] [data-test=thread-root] article.msg')
+    const row = document.querySelector('[data-test=topic-section] [data-test=topic-root] article.msg')
     if (!row || row.querySelector('[data-test=msg-edit-box]')) return
     const body = row.querySelector('.msg-body')
     const box = document.createElement('textarea')
@@ -238,13 +238,13 @@ try {
   await page.waitForSelector(`article.msg[data-msg-id="${OWN_MSG}"]`, { timeout: NAV_TIMEOUT })
   await sleep(600)
 
-  /* ---- 1. the 3rd panel: open the thread rooted at our own message ------ */
+  /* ---- 1. the 3rd panel: open the topic rooted at our own message ------ */
   const row = await rowFromStore(page, OWN_MSG)
   ok('the lobby feed holds our own message', Boolean(row), { msg_id: row && row.msg_id, from: row && row.from, from_box: row && row.from_box })
   await drive(page, 'openPane', { taskId: OWN_MSG, msgId: OWN_MSG, parent: LOBBY_TASK, row })
-  await page.waitForSelector('[data-test=thread-section] [data-test=thread-root] article.msg', { timeout: NAV_TIMEOUT })
+  await page.waitForSelector('[data-test=topic-section] [data-test=topic-root] article.msg', { timeout: NAV_TIMEOUT })
   await sleep(800)
-  const PANE = '[data-test=thread-section] [data-test=thread-root]'
+  const PANE = '[data-test=topic-section] [data-test=topic-root]'
   let seen = await readRow(page, OWN_MSG, PANE)
   /*
    * The ORIGINAL is read from the STORE, not from `.msg-body`.
@@ -307,7 +307,7 @@ try {
   ok('the box holds what was typed', seen.boxValue === NEW, { got: String(seen.boxValue).slice(0, 60) })
   await page.keyboard.press('Enter')
   await page.waitForFunction((id, want) => {
-    const b = document.querySelector(`[data-test=thread-section] [data-test=thread-root] article.msg[data-msg-id="${id}"] .msg-body`)
+    const b = document.querySelector(`[data-test=topic-section] [data-test=topic-root] article.msg[data-msg-id="${id}"] .msg-body`)
     return Boolean(b && b.textContent.includes(want))
   }, { polling: 'mutation', timeout: 20000 }, OWN_MSG, NEW).catch(() => {})
   await sleep(500)
@@ -334,7 +334,7 @@ try {
    * endpoint not being deployed.
    *
    * What IS provable is that the edit reached the data layer rather than
-   * only the rendered row: re-read the thread through the client's own API
+   * only the rendered row: re-read the topic through the client's own API
    * and look at the body it answers with.
    */
   const reread = await page.evaluate(async (id, task) => {
@@ -358,11 +358,11 @@ try {
   await page.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
   await drive(page, 'openTask', THEIR_TASK)
   await sleep(1500)
-  const theirFocused = await focusRow(page, THEIR_MSG, '[data-test=thread-section]')
+  const theirFocused = await focusRow(page, THEIR_MSG, '[data-test=topic-section]')
   if (theirFocused) {
     await page.keyboard.press('e')
     await sleep(400)
-    const theirs = await readRow(page, THEIR_MSG, '[data-test=thread-section]')
+    const theirs = await readRow(page, THEIR_MSG, '[data-test=topic-section]')
     ok("pressing e on somebody else's message does NOT open an editor", !theirs.editing, { editing: theirs.editing })
   } else {
     ok("pressing e on somebody else's message does NOT open an editor", false, { reason: 'their row was not on screen to focus' })
@@ -377,8 +377,8 @@ try {
    * away and builds a fresh one. That is why it passed all day while the owner
    * was looking at the defect: the path it exercises is not the path the 3rd
    * panel uses. The pinned root is mounted as
-   * `<MessageCard v-if="root" :msg="root">` with NO `:key` (ThreadPane.vue,
-   * LiveThreadPane.vue, pages/t/[task_id].vue), so swapping the thread PATCHES
+   * `<MessageCard v-if="root" :msg="root">` with NO `:key` (TopicPane.vue,
+   * LiveTopicPane.vue, pages/t/[task_id].vue), so swapping the topic PATCHES
    * one instance instead of replacing it, and the card's local `edit` ref - an
    * open textarea - rides across onto a row `canEdit()` says false for.
    *

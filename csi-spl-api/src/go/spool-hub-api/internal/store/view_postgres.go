@@ -57,27 +57,27 @@ func (s *Postgres) ViewBoxes(ctx context.Context, tenant string) ([]ViewBox, err
 // ::uuid cast (which would fail) and the uuid indexes stay usable.
 var canonUUIDRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
-// ViewThreads (027 T030) costs the page, not the tenant. It walks the tenant's
+// ViewTopics (027 T030) costs the page, not the tenant. It walks the tenant's
 // messages newest first (rdb 0022 messages_received / messages_dm_received,
-// or 0008 messages_channel for a channel) and keeps each thread's LATEST message only (no later one in the
-// same thread passes the same filters: messages_task_received), so that walk
-// yields each thread once, in (last_at DESC, task_id DESC) order. The walk is
+// or 0008 messages_channel for a channel) and keeps each topic's LATEST message only (no later one in the
+// same topic passes the same filters: messages_task_received), so that walk
+// yields each topic once, in (last_at DESC, task_id DESC) order. The walk is
 // a recursive CTE whose every step is "the next such message below the
 // previous one" (ORDER BY ... LIMIT 1, an ordered index scan whatever the
-// planner estimates), and it stops after Limit threads; only those threads are
+// planner estimates), and it stops after Limit topics; only those topics are
 // aggregated (LATERAL).
 // Message filters (expiry, channel, DM) apply to the walk, the latest check
-// and the aggregate alike; thread filters (agent, viewer, roots, parent)
+// and the aggregate alike; topic filters (agent, viewer, roots, parent)
 // apply to the aggregate. Rows are those of the pre-027 whole-tenant CTE,
-// which view_threads_test.go keeps as the oracle.
-func (s *Postgres) ViewThreads(ctx context.Context, tenant string, q ThreadQuery) ([]ThreadRow, error) {
+// which view_topics_test.go keeps as the oracle.
+func (s *Postgres) ViewTopics(ctx context.Context, tenant string, q TopicQuery) ([]TopicRow, error) {
 	if q.Parent != "" && !canonUUIDRe.MatchString(q.Parent) {
 		return nil, nil
 	}
-	sql, args := viewThreadsSQL(tenant, q)
-	var out []ThreadRow
+	sql, args := viewTopicsSQL(tenant, q)
+	var out []TopicRow
 	err := s.queryTenantNoJIT(ctx, tenant, sql, args, func(rows pgx.Rows) error {
-		var r ThreadRow
+		var r TopicRow
 		if err := rows.Scan(&r.TaskID, &r.Channel, &r.Parent, &r.FirstAt, &r.LastAt, &r.Count,
 			&r.Kinds, &r.Parties, &r.FirstMsg); err != nil {
 			return err
@@ -89,7 +89,7 @@ func (s *Postgres) ViewThreads(ctx context.Context, tenant string, q ThreadQuery
 }
 
 // pgScopeTenantNoJIT is pgScopeTenant plus jit off for the same implicit
-// transaction. The thread walk's cost estimate is the whole tenant's (the
+// transaction. The topic walk's cost estimate is the whole tenant's (the
 // planner cannot see that LIMIT stops the walk early), which is above
 // jit_above_cost: measured on pg 16.14 at 200k messages, JIT compiled for
 // 311 ms around a 22 ms execution.
@@ -118,11 +118,11 @@ func (s *Postgres) queryTenantNoJIT(ctx context.Context, tenant, sql string, arg
 	return br.Close()
 }
 
-// viewThreadsSQL builds the statement for q. Only the filters q sets reach the
+// viewTopicsSQL builds the statement for q. Only the filters q sets reach the
 // SQL, so the planner sees concrete predicates (a channel walk takes
-// messages_channel) instead of "$n is empty OR ..." shapes. Every thread filter
-// is a probe on that one thread inside the walk step.
-func viewThreadsSQL(tenant string, q ThreadQuery) (string, []any) {
+// messages_channel) instead of "$n is empty OR ..." shapes. Every topic filter
+// is a probe on that one topic inside the walk step.
+func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
 	c := &sqlc{}
 	tn, now := c.arg(tenant), c.arg(q.Now)
 	msgs := func(a string) string { // the message filters, on alias a
@@ -135,15 +135,15 @@ func viewThreadsSQL(tenant string, q ThreadQuery) (string, []any) {
 		}
 		return w
 	}
-	thread := func(a string) string { // a's messages in l's thread
+	topic := func(a string) string { // a's messages in l's topic
 		return msgs(a) + " AND " + a + ".task_id = l.task_id"
 	}
-	// Every probe is a boolean scalar subquery on l's thread: it is never
+	// Every probe is a boolean scalar subquery on l's topic: it is never
 	// pulled up into a (hash) join over the whole tenant, and the planner
 	// rates a boolean qual at 1/2, not at the 1/rows of an equality on a
 	// unique column, so each LIMIT 1 step stays an ordered index scan.
-	// l is its thread's latest message (the cheapest probe, run first):
-	walk := msgs("l") + ` AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE ` + thread("x") + `
+	// l is its topic's latest message (the cheapest probe, run first):
+	walk := msgs("l") + ` AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE ` + topic("x") + `
 			ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1)`
 	if !q.BeforeAt.IsZero() {
 		at := c.arg(q.BeforeAt)
@@ -155,26 +155,26 @@ func viewThreadsSQL(tenant string, q ThreadQuery) (string, []any) {
 			b := c.arg(q.AgentBox)
 			fromBox, toBox = " AND g.from_box = "+b, " AND g.to_box = "+b
 		}
-		walk += " AND (SELECT true FROM messages g WHERE " + thread("g") +
+		walk += " AND (SELECT true FROM messages g WHERE " + topic("g") +
 			" AND ((g.from_id = " + id + fromBox + ") OR (g.to_id = " + id + toBox + ")) LIMIT 1)"
 	}
 	if q.Viewer != "" {
 		v := c.arg(q.Viewer)
-		walk += " AND (SELECT true FROM messages v WHERE " + thread("v") +
+		walk += " AND (SELECT true FROM messages v WHERE " + topic("v") +
 			" AND (v.from_id = " + v + " OR v.to_id = " + v + ") LIMIT 1)"
 	}
-	// The read door (rdb 0028): the thread must hold at least one message
+	// The read door (rdb 0028): the topic must hold at least one message
 	// this reader may see - one in a public channel, one in a channel they
 	// belong to, or a DM they are an end of. Same probe shape as Viewer, so
 	// it stays a LIMIT 1 index step inside the walk rather than a join.
 	if q.Reader != "" {
 		rd, pub, mine := c.arg(q.Reader), c.arg(DefaultChannels), c.arg(q.ReaderChannels)
-		walk += " AND (SELECT true FROM messages d WHERE " + thread("d") + " AND (" +
+		walk += " AND (SELECT true FROM messages d WHERE " + topic("d") + " AND (" +
 			"d.channel = ANY(" + pub + "::text[]) OR d.channel = ANY(" + mine + "::text[]) OR " +
 			"(d.channel IS NULL AND (d.from_id = " + rd + " OR d.to_id = " + rd + "))) LIMIT 1)"
 	}
-	first := func(test string) string { // the thread's first message's parent passes test
-		return " AND (SELECT f.parent_task_id " + test + " FROM messages f WHERE " + thread("f") +
+	first := func(test string) string { // the topic's first message's parent passes test
+		return " AND (SELECT f.parent_task_id " + test + " FROM messages f WHERE " + topic("f") +
 			" ORDER BY f.received_at, f.msg_id::text LIMIT 1)"
 	}
 	if q.Roots {
@@ -213,11 +213,11 @@ func viewThreadsSQL(tenant string, q ThreadQuery) (string, []any) {
 	return sql, c.args
 }
 
-// ViewThread reads one thread by task_id = $2::uuid (027 T030: the pre-027
+// ViewTopic reads one topic by task_id = $2::uuid (027 T030: the pre-027
 // task_id::text = $2 could not use an index and scanned every message of the
 // tenant). A task id that is not a canonical uuid matched no row then and
 // matches none now.
-func (s *Postgres) ViewThread(ctx context.Context, tenant string, q ThreadMsgQuery) ([]ViewMsg, error) {
+func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery) ([]ViewMsg, error) {
 	if !canonUUIDRe.MatchString(q.TaskID) {
 		return nil, nil
 	}

@@ -1,18 +1,18 @@
 <template>
   <div class="feed-col">
     <header class="feed-header">
-      <h2><NuxtLink :to="localePath('/')">{{ t('nav.threads') }}</NuxtLink> / <code>{{ shortId }}</code></h2>
+      <h2><NuxtLink :to="localePath('/')">{{ t('nav.topics') }}</NuxtLink> / <code>{{ shortId }}</code></h2>
       <span class="muted">{{ t('pages.task.status', { n: store.messages.length, state: stateLabel(live.state.value) }) }}</span>
       <VerbositySelector />
     </header>
     <div class="pinned-root">
-      <MessageCard v-if="store.thread.root" :key="String(store.thread.root.msg_id || '')" :msg="store.thread.root" :since-ms="sinceMs" :editable="canEdit(store.thread.root)" @edited="onEdited" />
+      <MessageCard v-if="store.topic.root" :key="String(store.topic.root.msg_id || '')" :msg="store.topic.root" :since-ms="sinceMs" :editable="canEdit(store.topic.root)" @edited="onEdited" />
     </div>
     <div class="feed-body">
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="reopen" />
-      <ErrorNotice v-if="store.error" :message="store.error" source="thread" test-id="thread-error" />
+      <ErrorNotice v-if="store.error" :message="store.error" source="topic" test-id="topic-error" />
       <LiveFeed
-        :label="t('thread.replies_label')"
+        :label="t('topic.replies_label')"
         :rows="replies"
         :has-older="false"
         :loading="store.loading"
@@ -32,7 +32,7 @@ import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useLive } from '~/composables/useLive'
-import { useThreadStore } from '~/stores/thread'
+import { useTopicStore } from '~/stores/topic'
 import { applyVerbosity } from '~/utils/verbosity.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
@@ -48,10 +48,10 @@ const localePath = useLocalePath()
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
 const taskId = computed(() => String(route.params.task_id || ''))
 const shortId = computed(() => taskId.value.slice(0, 8))
-const thread = useThreadStore()
+const topic = useTopicStore()
 const sinceMs = useNowTick(() => Boolean(taskId.value))
-/* 005 FR-013: the same verbosity filter as the thread pane */
-const replies = computed(() => applyVerbosity(store.thread.replies, thread.verbosity))
+/* 005 FR-013: the same verbosity filter as the topic pane */
+const replies = computed(() => applyVerbosity(store.topic.replies, topic.verbosity))
 
 function reopen() {
   if (taskId.value) void store.open(taskId.value, { all: true })
@@ -71,13 +71,13 @@ function onEdited(row: SpoolMessage) {
 
 /* The open task does not capture the box. `in:` naming this task replies
    here; `in:` naming another replies there; anything else is a new message. */
-async function onSend(text: string, files?: File[], threadId?: string, channelId?: string) {
-  if (threadId && threadId === taskId.value && store.taskId) {
+async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
+  if (topicId && topicId === taskId.value && store.taskId) {
     await store.send(text, files || [])
     return
   }
-  const sent = await channel.send(text, threadId || undefined, files, channelId)
-  thread.noteBorn(thread.open || Boolean(side.taskId), threadId, sent as SpoolMessage)
+  const sent = await channel.send(text, topicId || undefined, files, channelId)
+  topic.noteBorn(topic.open || Boolean(side.taskId), topicId, sent as SpoolMessage)
 }
 useOmniboxTarget({
   placeholder: () => t('search.placeholder_target', { target: shortId.value }),

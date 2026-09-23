@@ -116,8 +116,8 @@ func TestWUITwoSessionsLobbyLive(t *testing.T) {
 	if a.w.LobbyTaskID != lobby || a.w.UploadToken == "" || a.w.As != "GST-1" || b.w.As != "HUM-2" {
 		t.Fatalf("welcome a=%+v b=%+v", a.w, b.w)
 	}
-	// Before the first post the lobby thread is an empty 200.
-	if code, _, body := viewGet(t, e, tid, "/v1/view/threads/"+lobby); code != 200 {
+	// Before the first post the lobby topic is an empty 200.
+	if code, _, body := viewGet(t, e, tid, "/v1/view/topics/"+lobby); code != 200 {
 		t.Fatalf("empty lobby: %d %s", code, body)
 	}
 	a.send(map[string]string{"type": "subscribe", "task_id": "lobby"})
@@ -339,7 +339,7 @@ func TestWUIResendAcrossSecond(t *testing.T) {
 }
 
 // H4 (003 wui-live-ws §3.1 channel subscription): a browser viewing a channel
-// gets a NEW root thread someone else starts there live, with its cursor
+// gets a NEW root topic someone else starts there live, with its cursor
 // (the same cursor as the sender's ack), once even when also task-subscribed.
 func TestWUIChannelSubscribeNewRoot(t *testing.T) {
 	e := wuiEnv(t)
@@ -367,7 +367,7 @@ func TestWUIChannelSubscribeNewRoot(t *testing.T) {
 		t.Fatalf("frame cursor %q, ack cursor %q", got.Cursor, ack.Cursor)
 	}
 
-	// Subscribed to the channel AND the thread: a reply arrives once.
+	// Subscribed to the channel AND the topic: a reply arrives once.
 	a.send(map[string]string{"type": "subscribe", "task_id": root})
 	a.read("subscribed")
 	b.send(map[string]any{"type": "send", "task_id": root, "channel": "lobby", "body": "reply"})
@@ -512,7 +512,7 @@ func TestWUIPeerSubscribeDM(t *testing.T) {
 }
 
 // 013 US7 (wui-live-ws v0.5): subscribe {all:true} follows the tenant for the
-// thread list: every channel message, DMs only when party; other tenants none.
+// topic list: every channel message, DMs only when party; other tenants none.
 func TestWUIAllSubscribe(t *testing.T) {
 	e := followEnv(t)
 	tid, _ := e.tenant()

@@ -24,7 +24,7 @@ describe('verbosity + notify wiring', () => {
       'src/components/VerbositySelector.vue',
       'src/components/NotificationCenter.vue',
       'src/stores/notification.ts',
-      'src/stores/thread.ts',
+      'src/stores/topic.ts',
     ]) {
       const src = readFileSync(join(WUI, rel), 'utf8')
       assert.equal(src.includes('mock-data'), false, rel)
@@ -38,8 +38,8 @@ describe('verbosity + notify wiring', () => {
     assert.equal(src.includes('channel.unread['), false)
   })
 
-  it('live thread pane hosts the verbosity selector', () => {
-    const src = readFileSync(join(WUI, 'src/components/LiveThreadPane.vue'), 'utf8')
+  it('live topic pane hosts the verbosity selector', () => {
+    const src = readFileSync(join(WUI, 'src/components/LiveTopicPane.vue'), 'utf8')
     assert.equal(src.includes('VerbositySelector'), true)
     assert.equal(src.includes('applyVerbosity'), true)
   })

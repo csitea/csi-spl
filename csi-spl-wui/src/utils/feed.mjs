@@ -16,10 +16,10 @@ export function newestFirst(messages) {
 }
 
 /**
- * When a row LAST changed (CLE-3425): a thread card's newest reply (`last_ts`),
+ * When a row LAST changed (CLE-3425): a topic card's newest reply (`last_ts`),
  * else the message's own moment. A card sorted on this one moves back to the top
  * as soon as anyone replies inside it — sorting on `ts` alone leaves a busy
- * thread buried under newer but idle ones, which is what the owner saw on
+ * topic buried under newer but idle ones, which is what the owner saw on
  * /channel and /dm.
  */
 export function activityOf(row) {
@@ -61,7 +61,7 @@ export function matchesSearch(m, q) {
   return hay.includes(needle)
 }
 
-/** Root of a thread = its oldest message; replies = the rest, newest first. */
+/** Root of a topic = its oldest message; replies = the rest, newest first. */
 export function rootAndReplies(messages) {
   const byAge = newestFirst(messages).reverse()
   const root = byAge[0] || null

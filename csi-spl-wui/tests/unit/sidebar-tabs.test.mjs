@@ -1,5 +1,5 @@
 // The left strip is four icon tabs, top to bottom: direct messages,
-// channels, threads, flow. The strip is at most 5% of the viewport.
+// channels, topics, flow. The strip is at most 5% of the viewport.
 //
 // Run: node tests/unit/sidebar-tabs.test.mjs
 import { describe, it } from 'node:test'
@@ -13,8 +13,8 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('tabForPath', () => {
-  it('the strip order is direct messages, channels, threads, flow', () => {
-    assert.deepEqual([...SIDE_TABS], ['dm', 'channels', 'threads', 'flow'])
+  it('the strip order is direct messages, channels, topics, flow', () => {
+    assert.deepEqual([...SIDE_TABS], ['dm', 'channels', 'topics', 'flow'])
   })
 
   it('a route opens its own tab', () => {
@@ -22,10 +22,10 @@ describe('tabForPath', () => {
     assert.equal(tabForPath('/fi/dm/CLE-07@box-a'), 'dm')
     assert.equal(tabForPath('/channel/tasks'), 'channels')
     assert.equal(tabForPath('/en/channel/lobby'), 'channels')
-    assert.equal(tabForPath('/'), 'threads')
-    assert.equal(tabForPath('/fi'), 'threads')
-    assert.equal(tabForPath('/t/abc'), 'threads')
-    assert.equal(tabForPath('/fi/t/abc'), 'threads')
+    assert.equal(tabForPath('/'), 'topics')
+    assert.equal(tabForPath('/fi'), 'topics')
+    assert.equal(tabForPath('/t/abc'), 'topics')
+    assert.equal(tabForPath('/fi/t/abc'), 'topics')
   })
 
   it('lobby, search and settings keep the reader\'s current tab', () => {
@@ -41,13 +41,11 @@ describe('tabForPath', () => {
 })
 
 describe('/switch-pane:', () => {
-  it('messages, channels and threads open those panes', () => {
+  it('messages, channels and topics open those panes', () => {
     assert.equal(switchPaneOf('/switch-pane: messages'), 'dm')
     assert.equal(switchPaneOf('/switch-pane: channels'), 'channels')
-    assert.equal(switchPaneOf('/switch-pane: threads'), 'threads')
-    assert.equal(switchPaneOf('/switch-pane: thread'), 'threads')
-    assert.equal(switchPaneOf('/switch-pane: topics'), 'threads')
-    assert.equal(switchPaneOf('/switch-pane: topic'), 'threads')
+    assert.equal(switchPaneOf('/switch-pane: topics'), 'topics')
+    assert.equal(switchPaneOf('/switch-pane: topic'), 'topics')
     assert.equal(switchPaneOf('/switch-pane: flow'), 'flow')
     assert.equal(switchPaneOf('  /Switch-Pane: Messages  '), 'dm')
     assert.equal(switchPaneOf('/switch-pane:channels'), 'channels')
@@ -76,7 +74,7 @@ describe('the strip is icons, in that order', () => {
   const css = src('src/assets/css/main.css')
 
   it('the rail lists the four tabs in order, icons only', () => {
-    const ids = ["'dm'", "'channels'", "'threads'", "'flow'"]
+    const ids = ["'dm'", "'channels'", "'topics'", "'flow'"]
     let at = 0
     for (const id of ids) {
       const i = vue.indexOf(`id: ${id}`, at)
@@ -94,19 +92,19 @@ describe('the strip is icons, in that order', () => {
     assert.doesNotMatch(rail, /\{\{\s*t\(/)
   })
 
-  it('threads and flow are their own panels; threads is not a row inside channels', () => {
+  it('topics and flow are their own panels; topics is not a row inside channels', () => {
     const ch = vue.indexOf('data-testid="sidebar-panel-channels"')
-    const threads = vue.indexOf('data-testid="sidebar-panel-threads"')
+    const topics = vue.indexOf('data-testid="sidebar-panel-topics"')
     const flow = vue.indexOf('data-testid="sidebar-panel-flow"')
-    assert.ok(ch > 0 && threads > ch && flow > threads)
-    assert.match(vue, /v-for="\(row, threadIndex\) in threadRows"/)
+    assert.ok(ch > 0 && topics > ch && flow > topics)
+    assert.match(vue, /v-for="\(row, topicIndex\) in topicRows"/)
     assert.match(vue, /v-for="row in flow"/)
     assert.match(vue, /flowRows\(/)
     assert.match(vue, /t\('sidebar\.flow'\)/)
     assert.doesNotMatch(vue, /navigateTo\(localePath\('\/lobby'\)\)/)
   })
 
-  it('flow mixes channels, direct messages and threads, newest first', () => {
+  it('flow mixes channels, direct messages and topics, newest first', () => {
     const rows = flowRows({
       channels: [
         { channel_id: 'tasks', name: 'tasks', last_ts: '2026-09-18T10:00:00Z' },
@@ -116,7 +114,7 @@ describe('the strip is icons, in that order', () => {
         { id: 'CLE-07', box: 'box-a', label: 'CLE-07@box-a', online: true },
         { id: 'GRK-03', box: 'box-a', label: 'GRK-03@box-a', online: false },
       ],
-      threads: [
+      topics: [
         { task_id: 't-old', subject: 'older', last_ts: '2026-09-19T10:00:00Z' },
         { task_id: 't-new', subject: 'newer', last_ts: '2026-09-21T10:00:00Z' },
       ],
@@ -131,7 +129,7 @@ describe('the strip is icons, in that order', () => {
       'th:t-old',
       'dm:GRK-03@box-a',
     ])
-    assert.deepEqual(rows.map((r) => r.kind), ['channel', 'thread', 'dm', 'channel', 'thread', 'dm'])
+    assert.deepEqual(rows.map((r) => r.kind), ['channel', 'topic', 'dm', 'channel', 'topic', 'dm'])
     const stamped = rows.filter((r) => r.at)
     for (let i = 1; i < stamped.length; i++) {
       assert.ok(stamped[i].at <= stamped[i - 1].at, stamped.map((r) => r.at).join(' > '))
@@ -161,8 +159,8 @@ describe('the strip is icons, in that order', () => {
   it('every locale has a Flow name', () => {
     const en = JSON.parse(src('i18n/locales/en.json'))
     assert.equal(en.sidebar.flow, 'Flow')
-    assert.equal(en.nav.threads, 'Topics')
-    assert.equal(en.thread.title, 'Topic')
-    assert.equal(en.search.group.threads, 'Topics')
+    assert.equal(en.nav.topics, 'Topics')
+    assert.equal(en.topic.title, 'Topic')
+    assert.equal(en.search.group.topics, 'Topics')
   })
 })

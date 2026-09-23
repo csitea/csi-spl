@@ -39,9 +39,9 @@ var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4
 func (s *Server) routeView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/roster", s.viewHandler(s.handleViewRoster))
 	mux.HandleFunc("GET /v1/view/channels", s.viewHandler(s.handleViewChannels))
-	mux.HandleFunc("GET /v1/view/threads", s.viewHandler(s.handleViewThreads))
-	mux.HandleFunc("GET /v1/view/threads/{task_id}", s.viewHandler(s.handleViewThread))
-	mux.HandleFunc("GET /v1/view/threads/{task_id}/children", s.viewHandler(s.handleViewChildren))
+	mux.HandleFunc("GET /v1/view/topics", s.viewHandler(s.handleViewTopics))
+	mux.HandleFunc("GET /v1/view/topics/{task_id}", s.viewHandler(s.handleViewTopic))
+	mux.HandleFunc("GET /v1/view/topics/{task_id}/children", s.viewHandler(s.handleViewChildren))
 	s.routeSearch(mux) // search-v1.md
 	mux.HandleFunc("/v1/view/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
@@ -319,7 +319,7 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 	writeJSON(w, http.StatusOK, map[string]any{"channels": out})
 }
 
-type viewThread struct {
+type viewTopic struct {
 	TaskID       string         `json:"task_id"`
 	ParentTaskID *string        `json:"parent_task_id"`
 	Channel      *string        `json:"channel"`
@@ -331,9 +331,9 @@ type viewThread struct {
 	Subject      string         `json:"subject"`
 }
 
-func (s *Server) handleViewThreads(w http.ResponseWriter, r *http.Request, t store.Tenant) {
+func (s *Server) handleViewTopics(w http.ResponseWriter, r *http.Request, t store.Tenant) {
 	q := r.URL.Query()
-	sq := store.ThreadQuery{Channel: store.NormalizeChannel(q.Get("channel")), Agent: q.Get("agent"),
+	sq := store.TopicQuery{Channel: store.NormalizeChannel(q.Get("channel")), Agent: q.Get("agent"),
 		Roots: true, Limit: viewLimit(r) + 1, Now: s.o.Now()}
 	for name, dst := range map[string]*bool{"roots": &sq.Roots, "dm": &sq.DM} {
 		switch q.Get(name) {
@@ -358,7 +358,7 @@ func (s *Server) handleViewThreads(w http.ResponseWriter, r *http.Request, t sto
 	// The read door (rdb 0028, privacy.go): a signed-in reader sees the
 	// channels it is in plus the DMs it is an end of, and nothing else. This
 	// used to run only under dm=true, so an unfiltered list handed every
-	// thread of the tenant - DMs included - to any member.
+	// topic of the tenant - DMs included - to any member.
 	hum, _ := s.memberID(r, t.ID)
 	if sq.DM { // dm=true is the explicit "only my DMs" filter, on top of it
 		sq.Viewer = hum
@@ -366,50 +366,50 @@ func (s *Server) handleViewThreads(w http.ResponseWriter, r *http.Request, t sto
 	if !s.readerScope(w, r, t.ID, hum, &sq) {
 		return
 	}
-	s.listThreads(w, r, t, sq)
+	s.listTopics(w, r, t, sq)
 }
 
-// GET /v1/view/threads/{task_id}/children (view-v1 §4.5).
+// GET /v1/view/topics/{task_id}/children (view-v1 §4.5).
 func (s *Server) handleViewChildren(w http.ResponseWriter, r *http.Request, t store.Tenant) {
 	task := r.PathValue("task_id")
 	if !uuidRe.MatchString(task) {
-		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
+		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
 		return
 	}
 	hum, _ := s.memberID(r, t.ID)
 	// A parent you cannot read does not exist, so neither do its children -
 	// listing them would leak the subjects of a private channel by uuid.
-	switch ok, found, err := s.canReadThread(r.Context(), t.ID, task, hum); {
+	switch ok, found, err := s.canReadTopic(r.Context(), t.ID, task, hum); {
 	case err != nil:
-		writeErr(w, http.StatusInternalServerError, "internal", "threads unavailable")
+		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
 		return
 	case found && !ok:
-		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
+		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
 		return
 	}
-	sq := store.ThreadQuery{Parent: task, Limit: viewLimit(r) + 1, Now: s.o.Now()}
+	sq := store.TopicQuery{Parent: task, Limit: viewLimit(r) + 1, Now: s.o.Now()}
 	if !s.readerScope(w, r, t.ID, hum, &sq) {
 		return
 	}
-	s.listThreads(w, r, t, sq)
+	s.listTopics(w, r, t, sq)
 }
 
 // readerScope loads hum's channel allow-list into sq. false = it answered.
-func (s *Server) readerScope(w http.ResponseWriter, r *http.Request, tenant, hum string, sq *store.ThreadQuery) bool {
+func (s *Server) readerScope(w http.ResponseWriter, r *http.Request, tenant, hum string, sq *store.TopicQuery) bool {
 	if hum == "" {
 		return true
 	}
 	chans, err := s.readerChannels(r.Context(), tenant, hum)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal", "threads unavailable")
+		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
 		return false
 	}
 	sq.Reader, sq.ReaderChannels = hum, chans
 	return true
 }
 
-// listThreads pages one thread-list query (§4.3 shape) with the before= cursor.
-func (s *Server) listThreads(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.ThreadQuery) {
+// listTopics pages one topic-list query (§4.3 shape) with the before= cursor.
+func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.TopicQuery) {
 	if c := r.URL.Query().Get("before"); c != "" {
 		at, id, err := decCursor(c)
 		if err != nil {
@@ -418,9 +418,9 @@ func (s *Server) listThreads(w http.ResponseWriter, r *http.Request, t store.Ten
 		}
 		sq.BeforeAt, sq.BeforeTask = at, id
 	}
-	rows, err := s.o.Store.ViewThreads(r.Context(), t.ID, sq)
+	rows, err := s.o.Store.ViewTopics(r.Context(), t.ID, sq)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal", "threads unavailable")
+		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
 		return
 	}
 	var next *string
@@ -429,15 +429,15 @@ func (s *Server) listThreads(w http.ResponseWriter, r *http.Request, t store.Ten
 		c := encCursor(rows[len(rows)-1].LastAt, rows[len(rows)-1].TaskID)
 		next = &c
 	}
-	out := []viewThread{}
+	out := []viewTopic{}
 	for _, row := range rows {
-		out = append(out, threadView(row))
+		out = append(out, topicView(row))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"threads": out, "next": next})
+	writeJSON(w, http.StatusOK, map[string]any{"topics": out, "next": next})
 }
 
-func threadView(row store.ThreadRow) viewThread {
-	v := viewThread{TaskID: row.TaskID, FirstTS: rfc(row.FirstAt), LastTS: rfc(row.LastAt),
+func topicView(row store.TopicRow) viewTopic {
+	v := viewTopic{TaskID: row.TaskID, FirstTS: rfc(row.FirstAt), LastTS: rfc(row.LastAt),
 		Count: row.Count, Kinds: map[string]int{}}
 	if row.Channel != "" {
 		c := row.Channel
@@ -494,33 +494,33 @@ type viewMsg struct {
 	Revision int    `json:"revision,omitempty"`
 }
 
-func (s *Server) handleViewThread(w http.ResponseWriter, r *http.Request, t store.Tenant) {
+func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store.Tenant) {
 	task := r.PathValue("task_id")
 	if !uuidRe.MatchString(task) {
-		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
+		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
 		return
 	}
-	// The read door (rdb 0028, privacy.go). Only rbac.ThreadsRead - a
+	// The read door (rdb 0028, privacy.go). Only rbac.TopicsRead - a
 	// TENANT-wide role - stood here before, so knowing a task_id was enough
 	// to read another member's DM or a channel you were never in.
 	hum, _ := s.memberID(r, t.ID)
-	switch ok, found, err := s.canReadThread(r.Context(), t.ID, task, hum); {
+	switch ok, found, err := s.canReadTopic(r.Context(), t.ID, task, hum); {
 	case err != nil:
-		writeErr(w, http.StatusInternalServerError, "internal", "thread unavailable")
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
 		return
 	case found && !ok:
 		// 404, never 403: a refusal that distinguishes "not yours" from "no
-		// such thread" confirms the thread exists to someone who may not
+		// such topic" confirms the topic exists to someone who may not
 		// know that (owner's call: a non-member cannot learn it exists).
-		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
+		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
 		return
 	}
 	q := r.URL.Query()
-	sq := store.ThreadMsgQuery{TaskID: task, Limit: viewLimit(r) + 1, Now: s.o.Now()}
+	sq := store.TopicMsgQuery{TaskID: task, Limit: viewLimit(r) + 1, Now: s.o.Now()}
 	if hum != "" {
 		mine, err := s.readerChannels(r.Context(), t.ID, hum)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "internal", "thread unavailable")
+			writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
 			return
 		}
 		sq.Reader, sq.ReaderChannels = hum, mine
@@ -559,14 +559,14 @@ func (s *Server) handleViewThread(w http.ResponseWriter, r *http.Request, t stor
 		}
 		sq.BeforeAt, sq.BeforeID = at, id
 	}
-	rows, err := s.o.Store.ViewThread(r.Context(), t.ID, sq)
+	rows, err := s.o.Store.ViewTopic(r.Context(), t.ID, sq)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "internal", "thread unavailable")
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
 		return
 	}
 	if len(rows) == 0 && sq.AfterAt.IsZero() && sq.BeforeAt.IsZero() && task != s.o.LobbyTaskID {
 		// the lobby exists before its first post (wui-live-ws.md §1)
-		writeErr(w, http.StatusNotFound, "not_found", "no such thread")
+		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
 		return
 	}
 	var next *string

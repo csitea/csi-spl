@@ -61,7 +61,7 @@ func (s *Server) humanTenant(w http.ResponseWriter, r *http.Request) (store.Tena
 			return t, "", false
 		}
 		hum, _ := s.memberID(r, t.ID)
-		if !s.permit(w, r, t.ID, hum, rbac.ThreadsRead) { // specs/025
+		if !s.permit(w, r, t.ID, hum, rbac.TopicsRead) { // specs/025
 			return store.Tenant{}, "", false
 		}
 		return t, hum, true
@@ -90,7 +90,7 @@ func (s *Server) humanTenant(w http.ResponseWriter, r *http.Request) (store.Tena
 	if s.o.SessionID != nil { // test seam: the attributed human
 		hum, _ = s.o.SessionID(r, t.ID)
 	}
-	if !s.permit(w, r, t.ID, hum, rbac.ThreadsRead) { // specs/025: every browser door reads
+	if !s.permit(w, r, t.ID, hum, rbac.TopicsRead) { // specs/025: every browser door reads
 		return store.Tenant{}, "", false
 	}
 	return t, hum, true

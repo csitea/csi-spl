@@ -27,7 +27,7 @@ declare module '~/utils/spool-client.mjs' {
     healthz(): Promise<unknown>
     search(opts?: { q?: string, cursor?: string, limit?: number, sort?: string }): Promise<import('~/utils/search.mjs').SearchResult>
     searchOperators(): Promise<import('~/utils/search.mjs').SearchOperator[]>
-    listThreads(opts?: {
+    listTopics(opts?: {
       limit?: number
       before?: string
       channel?: string
@@ -36,10 +36,10 @@ declare module '~/utils/spool-client.mjs' {
       agent?: string
       roots?: boolean
     }): Promise<{
-      threads: import('./spool').ThreadRow[]
+      topics: import('./spool').TopicRow[]
       next: string | null
     }>
-    getThread(taskId: string, opts?: { limit?: number, after?: string, order?: 'desc', before?: string }): Promise<{
+    getTopic(taskId: string, opts?: { limit?: number, after?: string, order?: 'desc', before?: string }): Promise<{
       task_id: string
       messages: import('./spool').SpoolMessage[]
       next: string | null
@@ -52,7 +52,7 @@ declare module '~/utils/spool-client.mjs' {
       peer?: string
       limit?: number
       since?: string
-      threads?: number
+      topics?: number
       before?: string
     }): Promise<{ messages: import('./spool').SpoolMessage[], next: string | null }>
     listRoster(): Promise<unknown>
@@ -117,17 +117,17 @@ declare module '~/utils/live-ws.mjs' {
 }
 
 declare module '~/utils/sidebar-tabs.mjs' {
-  export const SIDE_TABS: readonly ['dm', 'channels', 'threads', 'flow']
-  export function tabForPath(path: string): 'dm' | 'channels' | 'threads' | 'flow' | null
-  export function switchPaneOf(text: string): 'dm' | 'channels' | 'threads' | 'flow' | '' | null
+  export const SIDE_TABS: readonly ['dm', 'channels', 'topics', 'flow']
+  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | null
+  export function switchPaneOf(text: string): 'dm' | 'channels' | 'topics' | 'flow' | '' | null
   export function flowRows(src?: {
     channels?: unknown[]
     peers?: unknown[]
-    threads?: unknown[]
+    topics?: unknown[]
     liveAt?: Record<string, string>
     dmAt?: Record<string, string>
   }): {
-    kind: 'channel' | 'dm' | 'thread'
+    kind: 'channel' | 'dm' | 'topic'
     key: string
     id: string
     at: string
@@ -139,7 +139,7 @@ declare module '~/utils/sidebar-tabs.mjs' {
 
 declare module '~/utils/channel-feed.mjs' {
   export function topLevel<T extends { parent_task_id?: string | null, ts?: string }>(messages: T[]): T[]
-  export function threadOf<T extends { task_id?: string, parent_task_id?: string | null, ts?: string }>(
+  export function topicOf<T extends { task_id?: string, parent_task_id?: string | null, ts?: string }>(
     messages: T[],
     parentTaskId: string | null,
   ): T[]
@@ -155,7 +155,7 @@ declare module '~/utils/channel-feed.mjs' {
   export function formatIsoTs(ts: string): string
   export function recipientOf(msg: unknown): { id: string, box: string } | null
   export function formatElapsed(sec: number): string
-  export function formatThreadTs(ts: string, originMs?: number): string
+  export function formatTopicTs(ts: string, originMs?: number): string
   export function renderBody(src: string): string
   export function channelSlug(name: string): string
   export function retentionLabel(row: { channel_id?: string, channel?: string, retention_days?: number }): string
@@ -170,13 +170,13 @@ declare module '~/utils/channel-feed.mjs' {
   export function mergePage<T>(rows: T[], incoming: T[]): T[]
   export function rowFromAck(ack: unknown, frame: unknown, who?: { from?: string, channel?: string | null }): Record<string, unknown>
   export function rootsByTask<T extends { task_id?: string }>(messages: T[]): T[]
-  export function threadReplies(messages: { task_id?: string, parent_task_id?: string | null }[], taskId: string): number
+  export function topicReplies(messages: { task_id?: string, parent_task_id?: string | null }[], taskId: string): number
   export function channelView<T>(messages: T[], opts?: { search?: string, visible?: number, lobby?: boolean }): { rows: T[], hasOlder: boolean }
-  export function threadCards<T extends { task_id?: string }>(messages: T[]): T[]
+  export function topicCards<T extends { task_id?: string }>(messages: T[]): T[]
   export function channelActivity(row: unknown, liveAt?: Record<string, string>): string
   export function orderChannels<T extends { channel_id?: string }>(rows: T[], liveAt?: Record<string, string>): T[]
   export function orderPeers<T extends { label?: string, online?: boolean }>(rows: T[], lastAt?: Record<string, string>): T[]
-  export function dmActivity(threads: unknown[], self?: string): Record<string, string>
+  export function dmActivity(topics: unknown[], self?: string): Record<string, string>
   export function dmPeerOf(msg: unknown, self?: string): string
   export function noteActivity(
     maps: { channels?: Record<string, string>, peers?: Record<string, string> },
@@ -206,12 +206,12 @@ declare module '~/utils/mention-autocomplete.mjs' {
   ): { text: string, cursor: number }
 }
 
-declare module '~/utils/thread-in.mjs' {
+declare module '~/utils/topic-in.mjs' {
   export function activeInQuery(text: string, cursor?: number): string | null
-  export function filterThreadTitles<T extends { title?: string }>(threads: T[], query: string): T[]
+  export function filterTopicTitles<T extends { title?: string }>(topics: T[], query: string): T[]
   export function insertInClause(text: string, cursor: number, title: string): { text: string, cursor: number }
-  export function threadChoices(src?: {
-    threads?: unknown[]
+  export function topicChoices(src?: {
+    topics?: unknown[]
     messages?: unknown[]
   }): { taskId: string, title: string, channel: string }[]
   export function resolveInClause(
@@ -221,9 +221,9 @@ declare module '~/utils/thread-in.mjs' {
 }
 
 
-declare module '~/utils/born-threads.mjs' {
-  export function noteBornThread<T>(rows: T[] | null | undefined, paneOpen: unknown, threadId: unknown, row: unknown): T[]
-  export function dismissBornThread<T extends { msg_id?: string }>(rows: T[] | null | undefined, msgId: string): T[]
+declare module '~/utils/born-topics.mjs' {
+  export function noteBornTopic<T>(rows: T[] | null | undefined, paneOpen: unknown, topicId: unknown, row: unknown): T[]
+  export function dismissBornTopic<T extends { msg_id?: string }>(rows: T[] | null | undefined, msgId: string): T[]
 }
 
 declare module '~/utils/auth-client.mjs' {
@@ -344,9 +344,9 @@ declare module '~/utils/scroll-anchor.mjs' {
   export function scrollerOf(el: Element | null, doc?: Document): Element
 }
 
-declare module '~/utils/thread-list.mjs' {
-  export function bumpThread<T>(threads: T[], m: Record<string, unknown>): T[]
-  export function mergeThreadPage<T>(threads: T[], page: T[]): T[]
+declare module '~/utils/topic-list.mjs' {
+  export function bumpTopic<T>(topics: T[], m: Record<string, unknown>): T[]
+  export function mergeTopicPage<T>(topics: T[], page: T[]): T[]
 }
 
 declare module '~/utils/avatar.mjs' {
@@ -456,53 +456,53 @@ declare module '~/utils/user-menu.mjs' {
 
 declare module '~/utils/pane-widths.mjs' {
   export const SIDEBAR_DEFAULT: number
-  export const THREAD_DEFAULT: number
+  export const TOPIC_DEFAULT: number
   export const SIDEBAR_MIN: number
   export const SIDEBAR_MAX_RATIO: number
   export function sidebarMaxPx(viewportW: number): number
-  export const THREAD_MIN: number
-  export const THREAD_MAX: number
+  export const TOPIC_MIN: number
+  export const TOPIC_MAX: number
   export const MAIN_MIN: number
   export const DIVIDER_W: number
   export const STEP: number
   export const PANE_WIDTHS_KEY: string
   export const SIDEBAR_NARROW_MAX: number
-  export const THREAD_NARROW_MAX: number
+  export const TOPIC_NARROW_MAX: number
   export function num(v: unknown, fallback: number): number
   export function clamp(n: number, min: number, max: number): number
   export function sidebarShown(viewportW: number): boolean
-  export function threadShown(viewportW: number, threadOpen: boolean): boolean
+  export function topicShown(viewportW: number, topicOpen: boolean): boolean
   export function clampSidebar(width: unknown, ctx?: {
-    viewportW?: number, threadOpen?: boolean, threadW?: number, sidebarW?: number
+    viewportW?: number, topicOpen?: boolean, topicW?: number, sidebarW?: number
   }): number
-  export function clampThread(width: unknown, ctx?: {
-    viewportW?: number, threadOpen?: boolean, threadW?: number, sidebarW?: number
+  export function clampTopic(width: unknown, ctx?: {
+    viewportW?: number, topicOpen?: boolean, topicW?: number, sidebarW?: number
   }): number
-  export function clampPair(sidebar: unknown, thread: unknown, ctx?: {
-    viewportW?: number, threadOpen?: boolean
-  }): { sidebar: number, thread: number }
+  export function clampPair(sidebar: unknown, topic: unknown, ctx?: {
+    viewportW?: number, topicOpen?: boolean
+  }): { sidebar: number, topic: number }
   export function sidebarRange(ctx?: {
-    viewportW?: number, threadOpen?: boolean, threadW?: number, sidebarW?: number
+    viewportW?: number, topicOpen?: boolean, topicW?: number, sidebarW?: number
   }): { min: number, max: number }
-  export function threadRange(ctx?: {
-    viewportW?: number, threadOpen?: boolean, threadW?: number, sidebarW?: number
+  export function topicRange(ctx?: {
+    viewportW?: number, topicOpen?: boolean, topicW?: number, sidebarW?: number
   }): { min: number, max: number }
   export function applySeparatorKey(
-    pane: 'sidebar' | 'thread',
+    pane: 'sidebar' | 'topic',
     key: string,
     current: number,
     min: number,
     max: number,
   ): number
   export function pointerDelta(
-    pane: 'sidebar' | 'thread',
+    pane: 'sidebar' | 'topic',
     startWidth: number,
     startX: number,
     clientX: number,
   ): number
-  export function loadPaneWidths(store?: unknown): { sidebar: number, thread: number }
-  export function savePaneWidths(widths: { sidebar: number, thread: number }, store?: unknown): boolean
-  export function resetPane(pane: 'sidebar' | 'thread'): number
+  export function loadPaneWidths(store?: unknown): { sidebar: number, topic: number }
+  export function savePaneWidths(widths: { sidebar: number, topic: number }, store?: unknown): boolean
+  export function resetPane(pane: 'sidebar' | 'topic'): number
 }
 
 declare module '~/utils/code-blocks.mjs' {
@@ -589,7 +589,7 @@ declare module '~/utils/highlighter.mjs' {
 }
 
 declare module '~/utils/search.mjs' {
-  export type SearchGroupType = 'robots' | 'users' | 'channels' | 'boxes' | 'threads' | 'files' | 'messages'
+  export type SearchGroupType = 'robots' | 'users' | 'channels' | 'boxes' | 'topics' | 'files' | 'messages'
   export interface SearchOperator { op: string, example?: string, values?: string[] }
   export interface SearchRow {
     type: SearchGroupType
@@ -620,7 +620,7 @@ declare module '~/utils/search.mjs' {
   export function mergeSearchPage(cur: SearchResult, page: SearchResult): SearchResult
   export function flattenGroups(groups: SearchGroup[]): SearchRow[]
   export function moveIndex(i: number, n: number, key: string): number
-  export function searchTarget(row: unknown): { thread: string, focus: string } | { path: string } | { search: string } | null
+  export function searchTarget(row: unknown): { topic: string, focus: string } | { path: string } | { search: string } | null
   export function mockSearch(messages: unknown[], q: string): unknown
 }
 

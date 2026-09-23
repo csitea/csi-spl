@@ -19,8 +19,8 @@ var (
 		FromID: "HUM-3", FromBox: "box-wui", ToID: "CLE-07", ToBox: "box-a", ReceivedAt: now.Add(-10 * 24 * time.Hour)}
 	fPDF  = File{Msg: mTask, Name: "Q3 Report.pdf", Kind: "file", Bytes: 2 << 20, HasBytes: true}
 	fDir  = File{Msg: mTask, Name: "logs", Kind: "dir"}
-	thr   = Thread{TaskID: task1, Channel: "tasks", Title: "Migrate the hub to 0018", LastAt: now.Add(-time.Hour), Msgs: []Msg{mTask}}
-	thrCh = Thread{TaskID: "22222222-2222-4333-8444-555555555555", Parent: task1, Channel: "alerts", Title: "disk full", LastAt: now.Add(-40 * 24 * time.Hour), Msgs: []Msg{mDM}}
+	thr   = Topic{TaskID: task1, Channel: "tasks", Title: "Migrate the hub to 0018", LastAt: now.Add(-time.Hour), Msgs: []Msg{mTask}}
+	thrCh = Topic{TaskID: "22222222-2222-4333-8444-555555555555", Parent: task1, Channel: "alerts", Title: "disk full", LastAt: now.Add(-40 * 24 * time.Hour), Msgs: []Msg{mDM}}
 	robot = Entity{Type: TypeRobot, Name: "CLE-07@box-a", Text: []string{"CLE-07", "box-a"}, Box: "box-a", Online: true}
 	user  = Entity{Type: TypeUser, Name: "Ops Person (HUM-3)", Text: []string{"HUM-3", "Ops Person"}}
 	chanE = Entity{Type: TypeChannel, Name: "tasks", Text: []string{"tasks"}}
@@ -31,21 +31,21 @@ type want struct{ tMsg, dm, pdf, dir, thr, thrCh, robot, user, chanE, boxE bool 
 
 func eval(q *Query) want {
 	return want{MatchMsg(q.Root, mTask), MatchMsg(q.Root, mDM), MatchFile(q.Root, fPDF), MatchFile(q.Root, fDir),
-		MatchThread(q.Root, thr), MatchThread(q.Root, thrCh), MatchEntity(q.Root, robot), MatchEntity(q.Root, user),
+		MatchTopic(q.Root, thr), MatchTopic(q.Root, thrCh), MatchEntity(q.Root, robot), MatchEntity(q.Root, user),
 		MatchEntity(q.Root, chanE), MatchEntity(q.Root, boxE)}
 }
 
 // TestOperators is the table-driven suite of search-v1 §3.2: one row (at
 // least) per operator, with the sections it selects and what it matches.
 func TestOperators(t *testing.T) {
-	all := []Type{TypeMessage, TypeThread, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}
-	mtf := []Type{TypeMessage, TypeThread, TypeFile}
+	all := []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}
+	mtf := []Type{TypeMessage, TypeTopic, TypeFile}
 	cases := []struct {
 		q     string
 		types []Type
 		w     want // only the fields of the selected types are meaningful
 	}{
-		// free text: FTS on messages / thread titles, substring elsewhere
+		// free text: FTS on messages / topic titles, substring elsewhere
 		{"deploy", all, want{tMsg: true}},
 		{"DEPLOY hub", all, want{tMsg: true}},
 		{"hub", all, want{tMsg: true, thr: true}},
@@ -66,7 +66,7 @@ func TestOperators(t *testing.T) {
 		{"from:CLE-07@box-z", mtf, want{}},
 		{"from:box-wui", mtf, want{dm: true, thrCh: true}},
 		{"to:CLE-07", mtf, want{dm: true, thrCh: true}},
-		{"box:box-b", []Type{TypeMessage, TypeThread, TypeFile, TypeRobot, TypeBox}, want{tMsg: true, pdf: true, dir: true, thr: true, boxE: true}},
+		{"box:box-b", []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeBox}, want{tMsg: true, pdf: true, dir: true, thr: true, boxE: true}},
 		// in:
 		{"in:#tasks", mtf, want{tMsg: true, pdf: true, dir: true, thr: true}},
 		{"in:dm", mtf, want{dm: true}},
@@ -75,7 +75,7 @@ func TestOperators(t *testing.T) {
 		// is:
 		{"is:task", []Type{TypeMessage}, want{tMsg: true}},
 		{"is:note", []Type{TypeMessage}, want{dm: true}},
-		{"is:root", []Type{TypeThread}, want{thr: true}},
+		{"is:root", []Type{TypeTopic}, want{thr: true}},
 		{"is:online", []Type{TypeRobot, TypeUser, TypeBox}, want{robot: true}},
 		{"is:offline", []Type{TypeRobot, TypeUser, TypeBox}, want{user: true, boxE: true}},
 		{"is:revoked", []Type{TypeRobot, TypeBox}, want{boxE: true}},
@@ -83,9 +83,9 @@ func TestOperators(t *testing.T) {
 		{"has:file", []Type{TypeMessage}, want{tMsg: true}},
 		{"has:attachment", []Type{TypeMessage}, want{tMsg: true}},
 		{"has:code", []Type{TypeMessage}, want{tMsg: true}},
-		// thread:
-		{"thread:" + task1, mtf, want{tMsg: true, pdf: true, dir: true, thr: true}},
-		{"thread:" + strings.ToUpper(task1), mtf, want{tMsg: true, pdf: true, dir: true, thr: true}},
+		// topic:
+		{"topic:" + task1, mtf, want{tMsg: true, pdf: true, dir: true, thr: true}},
+		{"topic:" + strings.ToUpper(task1), mtf, want{tMsg: true, pdf: true, dir: true, thr: true}},
 		// dates
 		{"after:7d", mtf, want{tMsg: true, pdf: true, dir: true, thr: true}},
 		{"before:7d", mtf, want{dm: true, thrCh: true}},
@@ -96,8 +96,8 @@ func TestOperators(t *testing.T) {
 		{"after:1h", mtf, want{thr: true}},
 		{"after:2w", mtf, want{tMsg: true, dm: true, pdf: true, dir: true, thr: true}},
 		// title: / subject:
-		{"title:migrate", []Type{TypeThread}, want{thr: true}},
-		{`subject:"disk full"`, []Type{TypeThread}, want{thrCh: true}},
+		{"title:migrate", []Type{TypeTopic}, want{thr: true}},
+		{`subject:"disk full"`, []Type{TypeTopic}, want{thrCh: true}},
 		// name: / filename: / ext: / larger: / smaller:
 		{"name:box", []Type{TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}, want{robot: true, boxE: true}},
 		{"name:hum-3", []Type{TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}, want{user: true}},
@@ -140,8 +140,8 @@ func TestOperators(t *testing.T) {
 		mask(TypeMessage, got.dm, w.dm, "dm message")
 		mask(TypeFile, got.pdf, w.pdf, "pdf file")
 		mask(TypeFile, got.dir, w.dir, "dir file")
-		mask(TypeThread, got.thr, w.thr, "thread")
-		mask(TypeThread, got.thrCh, w.thrCh, "child thread")
+		mask(TypeTopic, got.thr, w.thr, "topic")
+		mask(TypeTopic, got.thrCh, w.thrCh, "child topic")
 		mask(TypeRobot, got.robot, w.robot, "robot")
 		mask(TypeUser, got.user, w.user, "user")
 		mask(TypeChannel, got.chanE, w.chanE, "channel")
@@ -174,7 +174,7 @@ func TestParseErrors(t *testing.T) {
 		{"before:yesterday", 0, "before:yesterday"},
 		{"on:7d", 0, "on:7d"},
 		{"after:0d", 0, "after:0d"},
-		{"thread:xyz", 0, "thread:xyz"},
+		{"topic:xyz", 0, "topic:xyz"},
 		{"larger:big", 0, "larger:big"},
 		{"larger:99999999999999G", 0, "larger:99999999999999G"},
 		{"ext:p.df", 0, "ext:p.df"},

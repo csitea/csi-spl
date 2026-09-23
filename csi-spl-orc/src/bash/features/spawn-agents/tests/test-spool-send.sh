@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# spool-send.sh: v:1 delivery through `spool send`, unsigned, threaded by
+# spool-send.sh: v:1 delivery through `spool send`, unsigned, one topic per
 # task_id; the tmux poke is a doorbell with checked outcomes.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
@@ -34,7 +34,7 @@ has "the pane shows the shell-inert poke line" ": 'SPOOL CLE-91: task from CLE-9
 has "the pane shows the BODY itself" "ping from 90" "$screen"
 has "the pane names how to read it in full" "run: spool recv --as CLE-91" "$screen"
 
-# ---- recv, reply on the same thread, tail --------------------------------
+# ---- recv, reply on the same topic, tail --------------------------------
 got="$(sp recv --as CLE-91 --ack)"
 has "recv returns the task" '"kind":"task"' "$(printf '%s' "$got" | tr -d ' \n')"
 check "--ack moved it to archive" test -z "$(ls "$SPOOL_ROOT/CLE-91/inbox/" 2>/dev/null)"
@@ -42,7 +42,7 @@ bash "$SS" --from CLE-91 --to CLE-90 --kind result --task "$TASK" --body 'pong f
 eq "reply to an agent with no window: delivered, exit 5" 5 "$rc"
 check "the reply is in CLE-90's inbox" test -n "$(ls "$SPOOL_ROOT/CLE-90/inbox/"*.json 2>/dev/null)"
 tail_out="$(sp tail --task "$TASK")"
-eq "tail shows the 2-message thread" 2 "$(printf '%s\n' "$tail_out" | grep -c .)"
+eq "tail shows the 2-message topic" 2 "$(printf '%s\n' "$tail_out" | grep -c .)"
 has "tail is oldest-first (task first)" "task" "$(printf '%s\n' "$tail_out" | head -1)"
 
 # ---- doorbell outcomes -----------------------------------------------------

@@ -2,7 +2,7 @@
 
 A signed-in member DMs the desk agent from a scripted WUI session; the message
 has to reach the agent's inbox AND its terminal pane (specs/028); the documented
-reply action has to put the answer back in the browser's thread.
+reply action has to put the answer back in the browser's topic.
 
 Run it through `./run -a do_spl_desk_probe`, which sets the environment. The WUI
 session, the login and the viewer API come from m3-e2e.py - one renderer of the
@@ -254,11 +254,11 @@ def main():
                 return finish(1)
             back = ws.wait(lambda f: f.get("type") == "message" and f.get("task_id") == task
                            and (f.get("envelope") or {}).get("from") == AGENT, 30)
-            kinds = [m["env"]["msg"]["kind"] for m in m3.thread(task)]
-            bodies = [m["env"]["msg"]["body"] for m in m3.thread(task)]
-            record("p-reply-in-wui-thread", back is not None and answer in bodies,
+            kinds = [m["env"]["msg"]["kind"] for m in m3.topic(task)]
+            bodies = [m["env"]["msg"]["body"] for m in m3.topic(task)]
+            record("p-reply-in-wui-topic", back is not None and answer in bodies,
                    {"wui_frame_msg_id": (back or {}).get("envelope", {}).get("msg_id"),
-                    "thread_kinds": kinds, "thread_bodies": bodies})
+                    "topic_kinds": kinds, "topic_bodies": bodies})
         rc = 0 if all(r["result"] != "FAIL" for r in RESULTS) else 1
     finally:
         ws.close()

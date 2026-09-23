@@ -14,18 +14,18 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// 027 T030 (CLE-3419): ViewThreads walks each thread's latest message instead
+// 027 T030 (CLE-3419): ViewTopics walks each topic's latest message instead
 // of aggregating the whole tenant. The pre-027 query stays here as the oracle:
 // on seeded data every filter combination must return the same rows, byte for
 // byte. Postgres only (SPOOL_TEST_PG_DSN); SPOOL_TEST_PERF=1 adds the timed
 // BEFORE/AFTER harness.
 
-// viewThreadsOracle is ViewThreads as it was on trunk 2dfefe7.
-func viewThreadsOracle(ctx context.Context, s *Postgres, tenant string, q ThreadQuery) ([]ThreadRow, error) {
-	var out []ThreadRow
-	err := s.queryTenant(ctx, tenant, oracleThreadsSQL, []any{tenant, q.Now, q.Channel, q.Agent, optTime(q.BeforeAt), q.BeforeTask, pgLimit(q.Limit),
+// viewTopicsOracle is ViewTopics as it was on trunk 2dfefe7.
+func viewTopicsOracle(ctx context.Context, s *Postgres, tenant string, q TopicQuery) ([]TopicRow, error) {
+	var out []TopicRow
+	err := s.queryTenant(ctx, tenant, oracleTopicsSQL, []any{tenant, q.Now, q.Channel, q.Agent, optTime(q.BeforeAt), q.BeforeTask, pgLimit(q.Limit),
 		q.DM, q.AgentBox, q.Viewer, q.Roots, q.Parent}, func(rows pgx.Rows) error {
-		var r ThreadRow
+		var r TopicRow
 		if err := rows.Scan(&r.TaskID, &r.Channel, &r.Parent, &r.FirstAt, &r.LastAt, &r.Count,
 			&r.Kinds, &r.Parties, &r.FirstMsg); err != nil {
 			return err
@@ -36,7 +36,7 @@ func viewThreadsOracle(ctx context.Context, s *Postgres, tenant string, q Thread
 	return out, err
 }
 
-const oracleThreadsSQL = `WITH m AS (
+const oracleTopicsSQL = `WITH m AS (
 			SELECT task_id::text AS task_id, msg_id::text AS msg_id, received_at, kind,
 				from_id, from_box, to_id, to_box, COALESCE(channel, '') AS channel,
 				COALESCE(parent_task_id::text, '') AS parent, msg
@@ -65,14 +65,14 @@ const oracleThreadsSQL = `WITH m AS (
 		ORDER BY last_at DESC, task_id DESC
 		LIMIT $7`
 
-// seedThreads bulk-loads n messages over tasks threads into tenant, as the
+// seedTopics bulk-loads n messages over tasks topics into tenant, as the
 // operator (one INSERT ... SELECT; InsertMessage would take minutes at 200k).
-// Shape: 60% channel threads over 5 channels, 40% DMs between HUM-1, HUM-2
-// and four agents; every 5th thread is a child of an earlier one; a thread's
+// Shape: 60% channel topics over 5 channels, 40% DMs between HUM-1, HUM-2
+// and four agents; every 5th topic is a child of an earlier one; a topic's
 // messages fall in a 2-day window somewhere in the last 30 days; every 20th
 // message is expired; and received_at is rounded to the millisecond so ties
-// (same instant, other thread or same thread) occur.
-func seedThreads(t testing.TB, s *Postgres, tenant string, n, tasks int, now time.Time, seed float64) {
+// (same instant, other topic or same topic) occur.
+func seedTopics(t testing.TB, s *Postgres, tenant string, n, tasks int, now time.Time, seed float64) {
 	t.Helper()
 	ctx := context.Background()
 	err := s.asOperator(ctx, func(tx pgx.Tx) error {
@@ -130,7 +130,7 @@ func pgOnly(t *testing.T) *Postgres {
 	return pg
 }
 
-func sameRows(a, b []ThreadRow) string {
+func sameRows(a, b []TopicRow) string {
 	if len(a) != len(b) {
 		return fmt.Sprintf("len %d != %d", len(a), len(b))
 	}
@@ -145,10 +145,10 @@ func sameRows(a, b []ThreadRow) string {
 	return ""
 }
 
-// threadQueries is every filter combination the hub sends (view.go
-// handleViewThreads / handleViewChildren), plus the corner combinations.
-func threadQueries(now time.Time, parent string) map[string]ThreadQuery {
-	out := map[string]ThreadQuery{}
+// topicQueries is every filter combination the hub sends (view.go
+// handleViewTopics / handleViewChildren), plus the corner combinations.
+func topicQueries(now time.Time, parent string) map[string]TopicQuery {
+	out := map[string]TopicQuery{}
 	for _, ch := range []string{"", "c1"} {
 		for _, dm := range []bool{false, true} {
 			for _, roots := range []bool{false, true} {
@@ -156,7 +156,7 @@ func threadQueries(now time.Time, parent string) map[string]ThreadQuery {
 					for _, viewer := range []string{"", "HUM-1"} {
 						for _, par := range []string{"", parent} {
 							name := fmt.Sprintf("ch=%s,dm=%v,roots=%v,agent=%s@%s,viewer=%s,parent=%v", ch, dm, roots, ag[0], ag[1], viewer, par != "")
-							out[name] = ThreadQuery{Channel: ch, DM: dm, Roots: roots, Agent: ag[0], AgentBox: ag[1],
+							out[name] = TopicQuery{Channel: ch, DM: dm, Roots: roots, Agent: ag[0], AgentBox: ag[1],
 								Viewer: viewer, Parent: par, Limit: 25, Now: now}
 						}
 					}
@@ -170,14 +170,14 @@ func threadQueries(now time.Time, parent string) map[string]ThreadQuery {
 // The CONTROL: the new query returns what the oracle returns, for every
 // filter combination, on every page (so the cursor pages are the oracle's:
 // gapless and non-overlapping), and never an expired message or another
-// tenant's thread.
-func TestViewThreadsMatchesOracle(t *testing.T) {
+// tenant's topic.
+func TestViewTopicsMatchesOracle(t *testing.T) {
 	pg := pgOnly(t)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	ta, tb := newTenant(t, pg), newTenant(t, pg)
-	seedThreads(t, pg, ta, 3000, 300, now, 0.11)
-	seedThreads(t, pg, tb, 3000, 300, now, 0.22) // same shape, other tenant
+	seedTopics(t, pg, ta, 3000, 300, now, 0.11)
+	seedTopics(t, pg, tb, 3000, 300, now, 0.22) // same shape, other tenant
 
 	// A parent that has children in the seed.
 	var parent string
@@ -199,14 +199,14 @@ func TestViewThreadsMatchesOracle(t *testing.T) {
 	}
 
 	pages, nonEmpty := 0, 0
-	for name, q := range threadQueries(now, parent) {
+	for name, q := range topicQueries(now, parent) {
 		seen := map[string]bool{}
 		for page := 0; ; page++ {
-			got, err := pg.ViewThreads(ctx, ta, q)
+			got, err := pg.ViewTopics(ctx, ta, q)
 			if err != nil {
 				t.Fatalf("%s: %v", name, err)
 			}
-			want, err := viewThreadsOracle(ctx, pg, ta, q)
+			want, err := viewTopicsOracle(ctx, pg, ta, q)
 			if err != nil {
 				t.Fatalf("%s oracle: %v", name, err)
 			}
@@ -220,7 +220,7 @@ func TestViewThreadsMatchesOracle(t *testing.T) {
 				}
 				seen[r.TaskID] = true
 				if q.Viewer == "HUM-1" && !partyTo(r, "HUM-1") {
-					t.Fatalf("%s: HUM-1 sees thread %s it is not party to: %v", name, r.TaskID, r.Parties)
+					t.Fatalf("%s: HUM-1 sees topic %s it is not party to: %v", name, r.TaskID, r.Parties)
 				}
 			}
 			if len(got) < q.Limit {
@@ -242,7 +242,7 @@ func TestViewThreadsMatchesOracle(t *testing.T) {
 
 	// Expired messages never count: the seed expires every 20th message, so
 	// the unfiltered total must equal the unexpired count.
-	all, err := pg.ViewThreads(ctx, ta, ThreadQuery{Now: now})
+	all, err := pg.ViewTopics(ctx, ta, TopicQuery{Now: now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,11 +255,11 @@ func TestViewThreadsMatchesOracle(t *testing.T) {
 		sum += r.Count
 	}
 	if sum != live || live >= 3000 {
-		t.Fatalf("thread counts sum to %d, unexpired messages %d (of 3000)", sum, live)
+		t.Fatalf("topic counts sum to %d, unexpired messages %d (of 3000)", sum, live)
 	}
 }
 
-func partyTo(r ThreadRow, id string) bool {
+func partyTo(r TopicRow, id string) bool {
 	for _, p := range r.Parties {
 		if len(p) > len(id) && p[:len(id)+1] == id+"@" {
 			return true
@@ -269,8 +269,8 @@ func partyTo(r ThreadRow, id string) bool {
 }
 
 // The viewer CONTROL on hand-built rows: HUM-1 never sees HUM-2's DM with an
-// agent, and a thread in tenant B never shows up for tenant A.
-func TestViewThreadsViewerAndTenant(t *testing.T) {
+// agent, and a topic in tenant B never shows up for tenant A.
+func TestViewTopicsViewerAndTenant(t *testing.T) {
 	pg := pgOnly(t)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -287,14 +287,14 @@ func TestViewThreadsViewerAndTenant(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	got, err := pg.ViewThreads(ctx, ta, ThreadQuery{DM: true, Roots: true, Viewer: "HUM-1", Limit: 10, Now: now})
+	got, err := pg.ViewTopics(ctx, ta, TopicQuery{DM: true, Roots: true, Viewer: "HUM-1", Limit: 10, Now: now})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 1 || got[0].TaskID != mine {
 		t.Fatalf("HUM-1 in tenant A: %+v", got)
 	}
-	got, err = pg.ViewThreads(ctx, ta, ThreadQuery{DM: true, Roots: true, Limit: 10, Now: now})
+	got, err = pg.ViewTopics(ctx, ta, TopicQuery{DM: true, Roots: true, Limit: 10, Now: now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,11 +303,11 @@ func TestViewThreadsViewerAndTenant(t *testing.T) {
 	}
 }
 
-// TestViewThreadsPerf is the FR-001 harness (SPOOL_TEST_PERF=1): 2 tenants x
-// {5k, 50k, 200k} messages over 2k threads, ViewThreads limit 50 (the hub
-// asks for limit+1), first page and a deep cursor page (after thread 1000),
+// TestViewTopicsPerf is the FR-001 harness (SPOOL_TEST_PERF=1): 2 tenants x
+// {5k, 50k, 200k} messages over 2k topics, ViewTopics limit 50 (the hub
+// asks for limit+1), first page and a deep cursor page (after topic 1000),
 // p50/p95 over n runs, for the oracle (BEFORE) and the live query (AFTER).
-func TestViewThreadsPerf(t *testing.T) {
+func TestViewTopicsPerf(t *testing.T) {
 	if os.Getenv("SPOOL_TEST_PERF") != "1" {
 		t.Skip("SPOOL_TEST_PERF unset")
 	}
@@ -323,33 +323,33 @@ func TestViewThreadsPerf(t *testing.T) {
 	t.Logf("pg %s, n=%d per cell, limit 51", ver, runs)
 	type impl struct {
 		name string
-		fn   func(context.Context, *Postgres, string, ThreadQuery) ([]ThreadRow, error)
+		fn   func(context.Context, *Postgres, string, TopicQuery) ([]TopicRow, error)
 	}
-	impls := []impl{{"before", viewThreadsOracle}, {"after", func(ctx context.Context, s *Postgres, tn string, q ThreadQuery) ([]ThreadRow, error) {
-		return s.ViewThreads(ctx, tn, q)
+	impls := []impl{{"before", viewTopicsOracle}, {"after", func(ctx context.Context, s *Postgres, tn string, q TopicQuery) ([]TopicRow, error) {
+		return s.ViewTopics(ctx, tn, q)
 	}}}
-	// The brief's grid holds 2k threads, so a bigger tenant is also a longer
-	// thread (2.5 -> 100 messages); the last row holds the thread length at
+	// The brief's grid holds 2k topics, so a bigger tenant is also a longer
+	// topic (2.5 -> 100 messages); the last row holds the topic length at
 	// 2.5 instead, to separate the two.
 	for _, sz := range []struct{ size, tasks int }{{5000, 2000}, {50000, 2000}, {200000, 2000}, {200000, 80000}} {
 		size := sz.size
 		ta, tb := newTenant(t, pg), newTenant(t, pg)
-		seedThreads(t, pg, ta, size, sz.tasks, now, 0.3)
-		seedThreads(t, pg, tb, size, sz.tasks, now, 0.4)
+		seedTopics(t, pg, ta, size, sz.tasks, now, 0.3)
+		seedTopics(t, pg, tb, size, sz.tasks, now, 0.4)
 		for _, qc := range []struct {
 			name string
-			q    ThreadQuery
+			q    TopicQuery
 		}{
-			{"all-roots", ThreadQuery{Roots: true}},
-			{"channel", ThreadQuery{Channel: "c1", Roots: true}},
-			{"dm-viewer", ThreadQuery{DM: true, Roots: true, Viewer: "HUM-1"}},
+			{"all-roots", TopicQuery{Roots: true}},
+			{"channel", TopicQuery{Channel: "c1", Roots: true}},
+			{"dm-viewer", TopicQuery{DM: true, Roots: true, Viewer: "HUM-1"}},
 		} {
 			q := qc.q
 			q.Now, q.Limit = now, 51
-			// deep cursor: the 1000th thread of this filter (or its last one)
+			// deep cursor: the 1000th topic of this filter (or its last one)
 			deep := q
 			deep.Limit = 1000
-			rows, err := viewThreadsOracle(ctx, pg, ta, deep)
+			rows, err := viewTopicsOracle(ctx, pg, ta, deep)
 			if err != nil || len(rows) == 0 {
 				t.Fatalf("deep cursor: %v %d", err, len(rows))
 			}
@@ -358,7 +358,7 @@ func TestViewThreadsPerf(t *testing.T) {
 			depth := len(rows)
 			for _, page := range []struct {
 				name string
-				q    ThreadQuery
+				q    TopicQuery
 			}{{"first", q}, {fmt.Sprintf("deep@%d", depth), deep}} {
 				for _, im := range impls {
 					var ds []time.Duration
@@ -373,7 +373,7 @@ func TestViewThreadsPerf(t *testing.T) {
 					}
 					sort.Slice(ds, func(i, j int) bool { return ds[i] < ds[j] })
 					p50, p95 := ds[len(ds)/2], ds[(len(ds)*95+99)/100-1]
-					t.Logf("PERF size=%d threads=%d filter=%s page=%s impl=%s n=%d p50=%.2fms p95=%.2fms", size, sz.tasks, qc.name,
+					t.Logf("PERF size=%d topics=%d filter=%s page=%s impl=%s n=%d p50=%.2fms p95=%.2fms", size, sz.tasks, qc.name,
 						page.name, im.name, len(ds), ms(p50), ms(p95))
 				}
 			}
@@ -383,10 +383,10 @@ func TestViewThreadsPerf(t *testing.T) {
 
 func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
 
-// TestViewThreadsExplain prints EXPLAIN (ANALYZE, BUFFERS) of the oracle and
+// TestViewTopicsExplain prints EXPLAIN (ANALYZE, BUFFERS) of the oracle and
 // the live query for SPOOL_TEST_EXPLAIN_TENANT (a tenant the perf harness
 // seeded), first page and the cursor SPOOL_TEST_EXPLAIN_BEFORE=<rfc3339>/<task>.
-func TestViewThreadsExplain(t *testing.T) {
+func TestViewTopicsExplain(t *testing.T) {
 	tn := os.Getenv("SPOOL_TEST_EXPLAIN_TENANT")
 	if tn == "" {
 		t.Skip("SPOOL_TEST_EXPLAIN_TENANT unset")
@@ -396,11 +396,11 @@ func TestViewThreadsExplain(t *testing.T) {
 	now := time.Now().UTC()
 	for _, qc := range []struct {
 		name string
-		q    ThreadQuery
+		q    TopicQuery
 	}{
-		{"all-roots", ThreadQuery{Roots: true}},
-		{"channel", ThreadQuery{Channel: "c1", Roots: true}},
-		{"dm-viewer", ThreadQuery{DM: true, Roots: true, Viewer: "HUM-1"}},
+		{"all-roots", TopicQuery{Roots: true}},
+		{"channel", TopicQuery{Channel: "c1", Roots: true}},
+		{"dm-viewer", TopicQuery{DM: true, Roots: true, Viewer: "HUM-1"}},
 	} {
 		q := qc.q
 		q.Now, q.Limit = now, 51
@@ -409,13 +409,13 @@ func TestViewThreadsExplain(t *testing.T) {
 			q.BeforeAt, _ = time.Parse(time.RFC3339Nano, at)
 			q.BeforeTask = task
 		}
-		newSQL, newArgs := viewThreadsSQL(tn, q)
+		newSQL, newArgs := viewTopicsSQL(tn, q)
 		for _, im := range []struct {
 			name string
 			sql  string
 			args []any
 		}{
-			{"before", oracleThreadsSQL, []any{tn, q.Now, q.Channel, q.Agent, optTime(q.BeforeAt), q.BeforeTask, pgLimit(q.Limit),
+			{"before", oracleTopicsSQL, []any{tn, q.Now, q.Channel, q.Agent, optTime(q.BeforeAt), q.BeforeTask, pgLimit(q.Limit),
 				q.DM, q.AgentBox, q.Viewer, q.Roots, q.Parent}},
 			{"after", newSQL, newArgs},
 		} {

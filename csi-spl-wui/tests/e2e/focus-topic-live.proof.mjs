@@ -6,8 +6,8 @@
 //    the selected element should change his color to a bit darker one"
 //   "any selected item should have no more than 1 color in the selected
 //    border which cannot be wider than 3 px"
-// and the second half of the brief: clicking a message opens ITS thread in
-// the thread pane ALWAYS, including a message nobody has replied to yet.
+// and the second half of the brief: clicking a message opens ITS topic in
+// the topic pane ALWAYS, including a message nobody has replied to yet.
 //
 // What is measured, in the browser, from COMPUTED styles rather than from the
 // stylesheet: the ring on every element the Tab walk lands on, the ring on
@@ -26,7 +26,7 @@
 //
 //   BASE=https://dev.<domain> EMAIL=<invited member> PW_FILE=<0600 file> \
 //     OUT=/var/tmp/CLE-3427-proof [TENANT=t1] [CHROME_PATH=...] \
-//     [PUPPETEER_CORE=<path>] node tests/e2e/focus-thread-live.proof.mjs
+//     [PUPPETEER_CORE=<path>] node tests/e2e/focus-topic-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
 import { createRequire } from 'node:module'
@@ -155,7 +155,7 @@ window.__cle3427 = (() => {
       return { ...describe(el), ...ringsOf(el) }
     },
     selected: () => [...document.querySelectorAll(
-      '.nav-item.active, .msg.selected, .thread-row.selected, .search-row.active, .mention-item.active, .settings-nav__link--active, [aria-current="true"], [aria-selected="true"]'
+      '.nav-item.active, .msg.selected, .topic-row.selected, .search-row.active, .mention-item.active, .settings-nav__link--active, [aria-current="true"], [aria-selected="true"]'
     )].map((el) => ({ ...describe(el), ...ringsOf(el) })),
     fillOf: (sel) => { const el = document.querySelector(sel); return el ? ringsOf(el) : null },
     rowFills: () => {
@@ -170,11 +170,11 @@ window.__cle3427 = (() => {
       const plain = items.find((n) => !n.classList.contains('active'))
       return { active: active ? ringsOf(active) : null, plain: plain ? ringsOf(plain) : null }
     },
-    sections: () => [...document.querySelectorAll('[data-test=thread-section]')].map((a) => a.getAttribute('data-section')),
-    rootText: () => { const el = document.querySelector('[data-test=thread-root]'); return el ? el.textContent.trim() : '' },
-    paneEmpty: () => Boolean(document.querySelector('[data-test=thread-section] .feed-body .empty')),
-    paneComposer: () => Boolean(document.querySelector('[data-test=thread-section] form.composer textarea')),
-    paneReplies: () => document.querySelectorAll('[data-test=thread-section] .live-rows > article.msg').length,
+    sections: () => [...document.querySelectorAll('[data-test=topic-section]')].map((a) => a.getAttribute('data-section')),
+    rootText: () => { const el = document.querySelector('[data-test=topic-root]'); return el ? el.textContent.trim() : '' },
+    paneEmpty: () => Boolean(document.querySelector('[data-test=topic-section] .feed-body .empty')),
+    paneComposer: () => Boolean(document.querySelector('[data-test=topic-section] form.composer textarea')),
+    paneReplies: () => document.querySelectorAll('[data-test=topic-section] .live-rows > article.msg').length,
     clickRow: (text) => {
       const row = [...document.querySelectorAll('article.msg')].find((r) => r.textContent.includes(text))
       if (!row) return false
@@ -311,7 +311,7 @@ try {
     await ownerRule(page, `${theme}-channel`)
     await page.screenshot({ path: `${OUT}/${theme}-2-selected-channel.png` })
 
-    /* 3 — a lobby message nobody has replied to opens its thread on a click */
+    /* 3 — a lobby message nobody has replied to opens its topic on a click */
     await open(page, '/lobby')
     await measure(page)
     const nonce = `cle3427 ${theme} ${run}`
@@ -330,19 +330,19 @@ try {
       replies: window.__cle3427.paneReplies(),
     }))
     let url = new URL(page.url())
-    step(`${theme}: clicking the message opens ONE thread section`, clicked && dom.sections.length === 1, { sections: dom.sections })
+    step(`${theme}: clicking the message opens ONE topic section`, clicked && dom.sections.length === 1, { sections: dom.sections })
     step(`${theme}: the pane is rooted at THAT message`, dom.root.includes(nonce), { root: dom.root.slice(0, 80) })
     step(`${theme}: with no replies yet it shows the empty state and a ready composer`, dom.empty && dom.composer && dom.replies === 0,
       { empty: dom.empty, composer: dom.composer, replies: dom.replies })
-    step(`${theme}: the URL deep-links the thread`, Boolean(url.searchParams.get('thread')) && Boolean(url.searchParams.get('in')),
-      { thread: url.searchParams.get('thread'), in: url.searchParams.get('in') })
+    step(`${theme}: the URL deep-links the topic`, Boolean(url.searchParams.get('topic')) && Boolean(url.searchParams.get('in')),
+      { topic: url.searchParams.get('topic'), in: url.searchParams.get('in') })
     const rowFills = await page.evaluate(() => window.__cle3427.rowFills())
     res.fills[`row-${theme}`] = rowFills
     step(`${theme}: the opened row reads as selected — a DARKER fill than its neighbours`,
       Boolean(rowFills.selected && rowFills.plain) && rowFills.selected.luminance < rowFills.plain.luminance,
       { selected: rowFills.selected && rowFills.selected.background, plain: rowFills.plain && rowFills.plain.background })
     await ownerRule(page, `${theme}-lobby-selected`)
-    await page.screenshot({ path: `${OUT}/${theme}-3-thread-no-replies.png` })
+    await page.screenshot({ path: `${OUT}/${theme}-3-topic-no-replies.png` })
 
     /* 4 — the deep link survives a reload */
     const deep = page.url()
@@ -350,23 +350,23 @@ try {
     await measure(page)
     await sleep(2000)
     const after = await page.evaluate(() => window.__cle3427.sections())
-    step(`${theme}: reloading the deep link reopens the same thread`, after.length === 1, { sections: after, url: deep.replace(BASE, '') })
+    step(`${theme}: reloading the deep link reopens the same topic`, after.length === 1, { sections: after, url: deep.replace(BASE, '') })
 
     /* 5 — a reply, then the same message opened again shows it */
     const reply = `reply ${theme} ${run}`
-    const ta = await page.waitForSelector('[data-test=thread-section] form.composer textarea', { timeout: 10000 }).catch(() => null)
+    const ta = await page.waitForSelector('[data-test=topic-section] form.composer textarea', { timeout: 10000 }).catch(() => null)
     if (ta) {
       await ta.focus()
       await page.keyboard.type(reply)
       await page.keyboard.down('Control')
       await page.keyboard.press('Enter')
       await page.keyboard.up('Control')
-      const shown = await page.waitForFunction((t) => [...document.querySelectorAll('[data-test=thread-section] .live-rows > article.msg')].some((r) => r.textContent.includes(t)),
+      const shown = await page.waitForFunction((t) => [...document.querySelectorAll('[data-test=topic-section] .live-rows > article.msg')].some((r) => r.textContent.includes(t)),
         { polling: 'mutation', timeout: 20000 }, reply).then(() => true, () => false)
-      step(`${theme}: a reply in the message-rooted thread lands in that thread`, shown, { reply })
-      await page.screenshot({ path: `${OUT}/${theme}-4-thread-with-reply.png` })
-      /* close, reopen the same row: the reply is still its thread's */
-      await page.click('[data-test=live-thread-close]').catch(() => {})
+      step(`${theme}: a reply in the message-rooted topic lands in that topic`, shown, { reply })
+      await page.screenshot({ path: `${OUT}/${theme}-4-topic-with-reply.png` })
+      /* close, reopen the same row: the reply is still its topic's */
+      await page.click('[data-test=live-topic-close]').catch(() => {})
       await sleep(800)
       await open(page, '/lobby')
       await measure(page)
@@ -376,15 +376,15 @@ try {
         { polling: 'mutation', timeout: 20000 }, nonce).catch(() => {})
       const reclicked = await page.evaluate((t) => window.__cle3427.clickRow(t), nonce)
       if (!reclicked) step(`${theme}: the message is still in the feed to reopen`, false, { nonce })
-      /* the pane reads the thread over the network: poll, do not guess a sleep */
+      /* the pane reads the topic over the network: poll, do not guess a sleep */
       const arrived = await page.waitForFunction(
-        () => document.querySelectorAll('[data-test=thread-section] .live-rows > article.msg').length >= 1,
+        () => document.querySelectorAll('[data-test=topic-section] .live-rows > article.msg').length >= 1,
         { polling: 'mutation', timeout: 20000 },
       ).then(() => true, () => false)
       const again = await page.evaluate(() => ({ replies: window.__cle3427.paneReplies(), sections: window.__cle3427.sections() }))
       step(`${theme}: reopening the message shows the reply it now has`, arrived && again.sections.length === 1 && again.replies >= 1, again)
     } else {
-      step(`${theme}: a reply in the message-rooted thread lands in that thread`, false, { reason: 'no composer in the pane' })
+      step(`${theme}: a reply in the message-rooted topic lands in that topic`, false, { reason: 'no composer in the pane' })
     }
 
     /* 6 — the keyboard half: Enter on the focused row */
@@ -398,10 +398,10 @@ try {
     await page.keyboard.press('Enter')
     await sleep(1500)
     const byKey = await page.evaluate(() => window.__cle3427.sections())
-    step(`${theme}: Enter on the focused row opens the thread too`, focused && byKey.length === 1, { focused, sections: byKey })
+    step(`${theme}: Enter on the focused row opens the topic too`, focused && byKey.length === 1, { focused, sections: byKey })
     await page.screenshot({ path: `${OUT}/${theme}-5-enter-opens.png` })
 
-    /* 7 — a search result opens its thread in the pane */
+    /* 7 — a search result opens its topic in the pane */
     /* the index is asynchronous: re-run the query until it has the message */
     /* search-v1 tokenises: the quoted PHRASE form is the one that reliably
        matches a nonce inside a sentence, so try it first and say which form
@@ -433,12 +433,12 @@ try {
       await sleep(2000)
       const s = await page.evaluate(() => window.__cle3427.sections())
       const u = new URL(page.url())
-      step(`${theme}: a search result opens its thread in the pane`, s.length === 1, { sections: s, hits, query: usedQuery })
-      step(`${theme}: the search result's thread is in the URL`, Boolean(u.searchParams.get('thread')), { thread: u.searchParams.get('thread') })
+      step(`${theme}: a search result opens its topic in the pane`, s.length === 1, { sections: s, hits, query: usedQuery })
+      step(`${theme}: the search result's topic is in the URL`, Boolean(u.searchParams.get('topic')), { topic: u.searchParams.get('topic') })
       await ownerRule(page, `${theme}-search`)
-      await page.screenshot({ path: `${OUT}/${theme}-6-search-thread.png` })
+      await page.screenshot({ path: `${OUT}/${theme}-6-search-topic.png` })
     } else {
-      step(`${theme}: a search result opens its thread in the pane`, false, { reason: 'no row to click', ...why })
+      step(`${theme}: a search result opens its topic in the pane`, false, { reason: 'no row to click', ...why })
     }
 
     /* 8 — no document x-scroll, desktop and phone */

@@ -48,7 +48,7 @@ function setup(key: 'main' | 'pane') {
   const lobbyView = computed(() => channelView(messages.value, { search: search.value, visible: visible.value }))
   const lobbyRows = computed(() => lobbyView.value.rows as SpoolMessage[])
   const lobbyHasOlder = computed(() => lobbyView.value.hasOlder || Boolean(olderCursor.value))
-  const thread = computed(() => rootAndReplies(messages.value.filter((m) => matchesSearch(m, search.value))))
+  const topic = computed(() => rootAndReplies(messages.value.filter((m) => matchesSearch(m, search.value))))
 
   /** By msg_id: new rows are added, a confirmed row replaces our pending one (013 US7). */
   function merge(rows: SpoolMessage[], fromLive = false) {
@@ -74,7 +74,7 @@ function setup(key: 'main' | 'pane') {
     messages.value = applyEdit(messages.value, row) as SpoolMessage[]
   }
 
-  /** A read failed: the door is a prompt, anything else an error line. 404 = empty thread. */
+  /** A read failed: the door is a prompt, anything else an error line. 404 = empty topic. */
   function fail(e: unknown, fallback: string) {
     const err = e as { status?: number, message?: string, detail?: string }
     if (isDoor(err)) {
@@ -89,7 +89,7 @@ function setup(key: 'main' | 'pane') {
     const id = taskId.value
     if (!id) return
     try {
-      const r = await catchUp(api.getThread, id, messages.value)
+      const r = await catchUp(api.getTopic, id, messages.value)
       if (taskId.value !== id) return
       if (r) merge(r.rows)
       else await open(id)
@@ -128,7 +128,7 @@ function setup(key: 'main' | 'pane') {
     loading.value = true
     try {
       // 013: newest window first; older windows on scroll (loadOlder)
-      const data = await withSessionRetry(api, () => api.getThread(id, { order: 'desc', limit: WINDOW }))
+      const data = await withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: WINDOW }))
       merge(data.messages)
       olderCursor.value = data.next
       if (opts.all || key === 'pane') await loadAll()
@@ -166,7 +166,7 @@ function setup(key: 'main' | 'pane') {
     if (!olderCursor.value || !taskId.value || loadingOlder.value) return
     loadingOlder.value = true
     try {
-      const data = await api.getThread(taskId.value, { order: 'desc', limit: WINDOW, before: olderCursor.value })
+      const data = await api.getTopic(taskId.value, { order: 'desc', limit: WINDOW, before: olderCursor.value })
       merge(data.messages)
       olderCursor.value = data.next
       visible.value += WINDOW
@@ -178,7 +178,7 @@ function setup(key: 'main' | 'pane') {
     }
   }
 
-  /** The pinned root of a long thread needs the oldest row: page to the end. */
+  /** The pinned root of a long topic needs the oldest row: page to the end. */
   async function loadAll() {
     for (let i = 0; i < MAX_PAGES && olderCursor.value; i++) await loadOlder()
   }
@@ -189,10 +189,10 @@ function setup(key: 'main' | 'pane') {
   }
 
   /**
-   * CLE-3427: `opts` is what a MESSAGE-rooted thread needs. Its task_id is the
+   * CLE-3427: `opts` is what a MESSAGE-rooted topic needs. Its task_id is the
    * clicked message's msg_id, a task the hub has never seen, so the reply says
    * which task it hangs off (`parentTaskId` -> parent_task_id, hub checkTags:
-   * a UUID other than task_id) and which channel it belongs to, and the thread
+   * a UUID other than task_id) and which channel it belongs to, and the topic
    * is then reachable from the channel it was started in. Both are omitted for
    * an ordinary reply, which changes nothing about the frame.
    */
@@ -237,7 +237,7 @@ function setup(key: 'main' | 'pane') {
   }
 
   return {
-    taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, thread, error, door, sending, loading,
+    taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, door, sending, loading,
     search, liveCount, lastLive, open, close, send, admit, loadOlder, loadAll, setSearch, catchUpAfterReconnect,
     applyEdited,
   }

@@ -1,6 +1,6 @@
 // The Omnibox is the only writer. `@receiver` starts a new message. `in:`
-// replies into the thread whose starter (first message) has that title.
-// The open thread pane must not capture the box: that is what scattered one
+// replies into the topic whose starter (first message) has that title.
+// The open topic pane must not capture the box: that is what scattered one
 // exchange into twelve tasks (CLE-3433 / OA-38) and what made a reply look
 // like the only thing the box could do.
 import { describe, it } from 'node:test'
@@ -10,11 +10,11 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   activeInQuery,
-  filterThreadTitles,
+  filterTopicTitles,
   insertInClause,
   resolveInClause,
-  threadChoices,
-} from '../../src/utils/thread-in.mjs'
+  topicChoices,
+} from '../../src/utils/topic-in.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -34,7 +34,7 @@ describe('in: query at the caret', () => {
   })
 })
 
-describe('thread title dropdown', () => {
+describe('topic title dropdown', () => {
   const rows = [
     { taskId: '1', title: 'Review the spool' },
     { taskId: '2', title: 'Apply the patch' },
@@ -42,12 +42,12 @@ describe('thread title dropdown', () => {
   ]
 
   it('empty query lists the first 8 and a substring is case-insensitive', () => {
-    const many = Array.from({ length: 10 }, (_, i) => ({ taskId: String(i), title: `Thread ${i}` }))
-    assert.equal(filterThreadTitles(many, '').length, 8)
-    assert.equal(filterThreadTitles(many, '')[0].taskId, '0')
-    assert.deepEqual(filterThreadTitles(rows, 'review').map((r) => r.taskId), ['1', '3'])
-    assert.deepEqual(filterThreadTitles(rows, 'PATCH').map((r) => r.taskId), ['2'])
-    assert.deepEqual(filterThreadTitles(rows, 'nope'), [])
+    const many = Array.from({ length: 10 }, (_, i) => ({ taskId: String(i), title: `Topic ${i}` }))
+    assert.equal(filterTopicTitles(many, '').length, 8)
+    assert.equal(filterTopicTitles(many, '')[0].taskId, '0')
+    assert.deepEqual(filterTopicTitles(rows, 'review').map((r) => r.taskId), ['1', '3'])
+    assert.deepEqual(filterTopicTitles(rows, 'PATCH').map((r) => r.taskId), ['2'])
+    assert.deepEqual(filterTopicTitles(rows, 'nope'), [])
   })
 
   it('inserts the full title, not the fragment that was typed', () => {
@@ -60,14 +60,14 @@ describe('thread title dropdown', () => {
   })
 })
 
-describe('which threads can be named', () => {
+describe('which topics can be named', () => {
   it('uses the starter only, and a viewer subject beats a feed body', () => {
-    const choices = threadChoices({
-      threads: [{ task_id: 'T1', subject: 'Viewer subject', channel: 'tasks' }],
+    const choices = topicChoices({
+      topics: [{ task_id: 'T1', subject: 'Viewer subject', channel: 'tasks' }],
       messages: [
         { task_id: 'T1', ts: '2026-09-18T10:00:00Z', msg_id: 'a', body: 'Feed body that must not win' },
         { task_id: 'T1', ts: '2026-09-18T10:05:00Z', msg_id: 'b', body: 'later on the same task' },
-        { task_id: 'T2', ts: '2026-09-18T11:00:00Z', msg_id: 'c', body: 'Second thread\nrest' },
+        { task_id: 'T2', ts: '2026-09-18T11:00:00Z', msg_id: 'c', body: 'Second topic\nrest' },
         { task_id: 'T2', ts: '2026-09-18T09:00:00Z', msg_id: 'd', body: 'Earlier starter', channel: 'alerts' },
         { task_id: 'child', parent_task_id: 'T2', ts: '2026-09-18T08:00:00Z', msg_id: 'e', body: 'A reply is not a title' },
       ],
@@ -84,7 +84,7 @@ describe('which threads can be named', () => {
 describe('resolving in: on send', () => {
   const choices = [SHORT, LONG]
 
-  it('an exact title replies into that thread and leaves the rest of the line', () => {
+  it('an exact title replies into that topic and leaves the rest of the line', () => {
     const hit = resolveInClause('in: Review the spool thanks', choices)
     assert.equal(hit.taskId, 'long')
     assert.equal(hit.channel, 'tasks')
@@ -128,29 +128,29 @@ describe('resolving in: on send', () => {
 describe('the box follows the line, not the open pane', () => {
   const pages = ['src/pages/dm/[peer].vue', 'src/pages/channel/[name].vue', 'src/pages/lobby.vue']
 
-  it('channel and DM no longer bind the Omnibox to the open thread', () => {
+  it('channel and DM no longer bind the Omnibox to the open topic', () => {
     for (const page of pages.slice(0, 2)) {
       const s = src(page)
       assert.doesNotMatch(s, /omniboxParentTaskId/)
-      assert.match(s, /channel\.send\(text, threadId \|\| undefined, files, channelId\)/)
+      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId\)/)
     }
   })
 
-  it('the composer offers thread titles and resolves in: before it emits', () => {
+  it('the composer offers topic titles and resolves in: before it emits', () => {
     const s = src('src/components/MessageComposer.vue')
-    assert.match(s, /data-test="thread-in-suggestions"/)
+    assert.match(s, /data-test="topic-in-suggestions"/)
     assert.match(s, /activeInQuery/)
-    assert.match(s, /filterThreadTitles/)
+    assert.match(s, /filterTopicTitles/)
     assert.match(s, /insertInClause/)
     assert.match(s, /resolveInClause/)
     assert.ok(s.indexOf('resolveInClause(') < s.indexOf("emit('send'"))
     assert.doesNotMatch(s, /omniboxParentTaskId/)
   })
 
-  it('TopBar keeps the resolved thread on Retry', () => {
+  it('TopBar keeps the resolved topic on Retry', () => {
     const s = src('src/components/TopBar.vue')
     assert.match(s, /await target\.send\(text, sent, parent, channelId\)/)
-    assert.match(s, /onSend\(failed\.text, failed\.threadId, failed\.files, failed\.channelId\)/)
+    assert.match(s, /onSend\(failed\.text, failed\.topicId, failed\.files, failed\.channelId\)/)
   })
 
   it('a reply into another channel does not ride the DM peer or this feed', () => {
@@ -160,11 +160,11 @@ describe('the box follows the line, not the open pane', () => {
     assert.match(live, /const showHere = !channelId \|\| channelId === active\.value/)
   })
 
-  it('a closed right pane starts a new lobby thread; an open one still posts into the room', () => {
+  it('a closed right pane starts a new lobby topic; an open one still posts into the room', () => {
     const s = src('src/pages/lobby.vue')
-    assert.match(s, /sendsNewThread/)
-    assert.match(s, /threadId !== here/)
-    assert.match(s, /channel\.send\(text, threadId, files, channelId\)/)
+    assert.match(s, /sendsNewTopic/)
+    assert.match(s, /topicId !== here/)
+    assert.match(s, /channel\.send\(text, topicId, files, channelId\)/)
     assert.match(s, /channelId \|\| 'lobby'/)
     assert.match(s, /store\.send\(text, files \|\| \[\]\)/)
   })

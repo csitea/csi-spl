@@ -2,9 +2,9 @@
  * Pure helpers for the 003 read-only viewer API (specs/003 contracts/view-v1.md).
  * Node tests import this file; the client and stores wrap it.
  *
- * Thread = task_id (v:1, 002). `channel` / `parent_task_id` are hub-envelope
+ * Topic = task_id (v:1, 002). `channel` / `parent_task_id` are hub-envelope
  * fields (channels-v1 §0, §2), never v:1 fields: the normalisers below lift
- * them off the envelope / thread row onto the flat message (null when absent,
+ * them off the envelope / topic row onto the flat message (null when absent,
  * spec 005 FR-005). The mock tenant still carries parent_task_id, so mock
  * grouping folds a reply into its root task.
  */
@@ -27,7 +27,7 @@ function label(id, box) {
 }
 
 /** Group flat v:1 messages into view-v1 §4.3 rows, newest activity first. */
-export function threadsFromMessages(messages) {
+export function topicsFromMessages(messages) {
   const by = new Map()
   const sorted = messages.slice().sort((a, b) => String(a.ts).localeCompare(String(b.ts)))
   for (const m of sorted) {
@@ -51,8 +51,8 @@ export function threadsFromMessages(messages) {
   return [...by.values()].sort((a, b) => String(b.last_ts).localeCompare(String(a.last_ts)))
 }
 
-/** All messages of one thread, oldest first (mock side of view-v1 §4.4). */
-export function threadMessages(messages, taskId) {
+/** All messages of one topic, oldest first (mock side of view-v1 §4.4). */
+export function topicMessages(messages, taskId) {
   return messages
     .filter((m) => (m.parent_task_id || m.task_id) === taskId)
     .slice()
@@ -63,7 +63,7 @@ export function threadMessages(messages, taskId) {
  * One §4.3 row → the shape the viewer renders. Also accepts the flat
  * first-message row of the earlier branch API (ts / updated_at / from / body).
  */
-export function normalizeThreadRow(row) {
+export function normalizeTopicRow(row) {
   const r = row || {}
   if (r.first_ts !== undefined || r.subject !== undefined) {
     return {

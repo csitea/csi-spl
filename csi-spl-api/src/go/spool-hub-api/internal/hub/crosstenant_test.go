@@ -71,7 +71,7 @@ func seedCrossB(t *testing.T, e *env) crossB {
 	}
 	// CONTROL: B's data is really there, where the paths below look for it.
 	if envs, err := e.st.TaskEnvelopes(ctx, b.tenant, b.taskID); err != nil || len(envs) != 1 || !strings.Contains(string(envs[0]), b.marker) {
-		t.Fatalf("control: B's thread: %d %v", len(envs), err)
+		t.Fatalf("control: B's topic: %d %v", len(envs), err)
 	}
 	if ok, _ := (blob.Dir{Root: e.blobs}).Exists(ctx, "t/"+b.tenant+"/files/"+b.fileID); !ok {
 		t.Fatal("control: B's file is not in the blob store")
@@ -105,18 +105,18 @@ func TestCrossTenantMemberNamesBsIds(t *testing.T) {
 	}
 	for _, host := range []string{apiLabel, a} {
 		// Positive control: the door is open for A on this host.
-		if code, body := r.req(t, http.MethodGet, host, "/v1/view/threads", nil, nil); code != http.StatusOK {
-			t.Fatalf("%s: A's own threads: %d %s", host, code, body)
+		if code, body := r.req(t, http.MethodGet, host, "/v1/view/topics", nil, nil); code != http.StatusOK {
+			t.Fatalf("%s: A's own topics: %d %s", host, code, body)
 		}
 		for _, c := range []struct {
 			path string
 			want int // 0 = any non-2xx or a 200 with nothing of B's
 		}{
-			{"/v1/view/threads/" + b.taskID, http.StatusNotFound},
-			{"/v1/view/threads/" + b.taskID + "/children", 0},
-			{"/v1/view/threads/" + b.taskID + "?after=" + b.msgID, 0},
-			{"/v1/view/threads", 0},
-			{"/v1/view/threads?channel=" + b.channel, 0},
+			{"/v1/view/topics/" + b.taskID, http.StatusNotFound},
+			{"/v1/view/topics/" + b.taskID + "/children", 0},
+			{"/v1/view/topics/" + b.taskID + "?after=" + b.msgID, 0},
+			{"/v1/view/topics", 0},
+			{"/v1/view/topics?channel=" + b.channel, 0},
 			{"/v1/view/channels", 0},
 			{"/v1/view/roster", 0},
 			{"/v1/view/search?q=" + url.QueryEscape(b.marker), 0},
@@ -147,7 +147,7 @@ func TestCrossTenantMemberNamesBsIds(t *testing.T) {
 	if ok, err := r.e.st.ChannelKnown(ctx, b.tenant, b.channel); err != nil || !ok {
 		t.Errorf("B's channel after A created the same name: %v %v", ok, err)
 	}
-	// Nothing of A's reached B's thread. Not "exactly 1": the one DELETE on
+	// Nothing of A's reached B's topic. Not "exactly 1": the one DELETE on
 	// messages is the global retention Sweep, which no hub test calls, so a
 	// vanished seed means another process swept the same database (the store
 	// suite's Sweep(now+31d)) - retention, not a cross-tenant write. hub-pg
@@ -157,11 +157,11 @@ func TestCrossTenantMemberNamesBsIds(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(envs) > 1 {
-		t.Errorf("B's thread holds %d message(s) after A's calls, want at most B's own 1", len(envs))
+		t.Errorf("B's topic holds %d message(s) after A's calls, want at most B's own 1", len(envs))
 	}
 	for _, env := range envs {
 		if !strings.Contains(string(env), b.marker) {
-			t.Errorf("B's thread holds a message that is not B's: %s", env)
+			t.Errorf("B's topic holds a message that is not B's: %s", env)
 		}
 	}
 }
@@ -240,11 +240,11 @@ func TestCrossTenantWUISocketNamesBsIds(t *testing.T) {
 	// ids out; B's content must not appear anywhere.
 	b.noB(t, "A's WUI socket", 0, strings.Join(all, "\n"), b.taskID, b.msgID, b.fileID, b.channel)
 
-	// B unchanged: its message is still B's, its thread has none of A's.
+	// B unchanged: its message is still B's, its topic has none of A's.
 	envs, _ := r.e.st.TaskEnvelopes(ctx, b.tenant, b.taskID)
 	for _, env := range envs {
 		if strings.Contains(string(env), "from A") {
-			t.Error("A's post landed in B's thread")
+			t.Error("A's post landed in B's topic")
 		}
 	}
 	if len(envs) == 0 || !strings.Contains(string(envs[0]), b.marker) {
@@ -285,7 +285,7 @@ func TestCrossTenantBoxNamesBsIds(t *testing.T) {
 	envs, _ := e.st.TaskEnvelopes(ctx, b.tenant, b.taskID)
 	for _, env := range envs {
 		if strings.Contains(string(env), "A to B") {
-			t.Error("A's box message landed in B's thread")
+			t.Error("A's box message landed in B's topic")
 		}
 	}
 	// A's pins listing has none of B's boxes.

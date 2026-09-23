@@ -1,5 +1,5 @@
 /**
- * Thread verbosity inferred from v:1 `kind` (005 contracts/verbosity-notify-v1.md).
+ * Topic verbosity inferred from v:1 `kind` (005 contracts/verbosity-notify-v1.md).
  * No envelope field. Node tests import this file; Vue stores wrap it.
  */
 

@@ -1,6 +1,6 @@
 // 013 US7 (CLE-3412): newest on top everywhere, pushed live — ordering,
 // dedupe of our optimistic send, scroll anchoring, reconnect catch-up, and
-// the WS follows for DMs and the thread list (wui-live-ws v0.5).
+// the WS follows for DMs and the topic list (wui-live-ws v0.5).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { mergeById, newestFirst, pendingRow, withoutMsg } from '../../src/utils/feed.mjs'
 import { channelView, dmFollow, feedRow, mergeLive, mergePage, rowFromAck } from '../../src/utils/channel-feed.mjs'
 import { anchorAfterPrepend, layoutTop, NEAR_TOP_PX, prependedCount, scrollerOf } from '../../src/utils/scroll-anchor.mjs'
-import { bumpThread, mergeThreadPage } from '../../src/utils/thread-list.mjs'
+import { bumpTopic, mergeTopicPage } from '../../src/utils/topic-list.mjs'
 import { createLiveClient } from '../../src/utils/live-ws.mjs'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
@@ -130,7 +130,7 @@ describe('scroll anchoring (FR-012)', () => {
 })
 
 describe('reconnect catch-up (FR-015)', () => {
-  it('channel: a fresh first page merges by msg_id; older pages and pending sends stay; thread counts move on', () => {
+  it('channel: a fresh first page merges by msg_id; older pages and pending sends stay; topic counts move on', () => {
     const older = feedRow({ task_id: 'old', first_ts: '2026-09-18T10:00:00Z', last_ts: '2026-09-18T10:00:00Z', count: 1, participants: ['HUM-2@box-wui'], subject: 'old' })
     const known = feedRow({ task_id: 'k', first_ts: '2026-09-19T10:00:00Z', last_ts: '2026-09-19T10:00:00Z', count: 1, participants: ['HUM-2@box-wui'], subject: 'k' })
     const own = pendingRow({ msg_id: 'own', task_id: 'o', channel: 'lobby' })
@@ -143,41 +143,41 @@ describe('reconnect catch-up (FR-015)', () => {
     assert.equal(rows.find((r) => r.msg_id === 'k').count, 2)
   })
 
-  it('thread list: a fresh first page replaces rows by task_id, keeps older pages, newest first', () => {
+  it('topic list: a fresh first page replaces rows by task_id, keeps older pages, newest first', () => {
     const t = (id, last) => ({ task_id: id, last_ts: last, count: 1, kinds: {}, participants: [], subject: id })
-    const merged = mergeThreadPage([t('a', '2026-09-19T10:00:00Z'), t('z', '2026-09-01T10:00:00Z')], [{ ...t('a', '2026-09-19T10:09:00Z'), count: 4 }, t('b', '2026-09-19T10:05:00Z')])
+    const merged = mergeTopicPage([t('a', '2026-09-19T10:00:00Z'), t('z', '2026-09-01T10:00:00Z')], [{ ...t('a', '2026-09-19T10:09:00Z'), count: 4 }, t('b', '2026-09-19T10:05:00Z')])
     assert.deepEqual(merged.map((r) => r.task_id), ['a', 'b', 'z'])
     assert.equal(merged[0].count, 4)
   })
 })
 
-describe('thread list live (FR-011)', () => {
+describe('topic list live (FR-011)', () => {
   const rows = [
     { task_id: 'a', last_ts: '2026-09-19T10:02:00Z', count: 2, kinds: { note: 2 }, participants: ['HUM-2@box-wui'], subject: 'a' },
     { task_id: 'b', last_ts: '2026-09-19T10:01:00Z', count: 1, kinds: { note: 1 }, participants: ['HUM-3@box-wui'], subject: 'b' },
   ]
 
-  it('a reply in an older thread moves it to the top with its count bumped', () => {
-    const next = bumpThread(rows, { msg_id: 'r', task_id: 'b', from: 'CLE-07', from_box: 'box-a', to: 'ALL-0', kind: 'result', received_at: '2026-09-19T10:03:00Z' })
+  it('a reply in an older topic moves it to the top with its count bumped', () => {
+    const next = bumpTopic(rows, { msg_id: 'r', task_id: 'b', from: 'CLE-07', from_box: 'box-a', to: 'ALL-0', kind: 'result', received_at: '2026-09-19T10:03:00Z' })
     assert.deepEqual(next.map((r) => r.task_id), ['b', 'a'])
     assert.equal(next[0].count, 2)
     assert.deepEqual(next[0].kinds, { note: 1, result: 1 })
     assert.deepEqual(next[0].participants, ['HUM-3@box-wui', 'CLE-07@box-a'])
   })
 
-  it('a new root starts a row on top; a child thread does not', () => {
-    const next = bumpThread(rows, { msg_id: 'n', task_id: 'c', from: 'HUM-1', from_box: 'box-wui', to: 'ALL-0', kind: 'note', body: 'hello\nworld', channel: 'lobby', received_at: '2026-09-19T10:04:00Z' })
+  it('a new root starts a row on top; a child topic does not', () => {
+    const next = bumpTopic(rows, { msg_id: 'n', task_id: 'c', from: 'HUM-1', from_box: 'box-wui', to: 'ALL-0', kind: 'note', body: 'hello\nworld', channel: 'lobby', received_at: '2026-09-19T10:04:00Z' })
     assert.equal(next[0].task_id, 'c')
     assert.equal(next[0].subject, 'hello')
     assert.equal(next[0].count, 1)
-    assert.equal(bumpThread(rows, { msg_id: 'x', task_id: 'kid', parent_task_id: 'a', received_at: '2026-09-19T10:05:00Z' }), rows)
+    assert.equal(bumpTopic(rows, { msg_id: 'x', task_id: 'kid', parent_task_id: 'a', received_at: '2026-09-19T10:05:00Z' }), rows)
     /* the send and its echo are one message */
-    const again = bumpThread(next, { msg_id: 'n', task_id: 'c', body: 'hello', received_at: '2026-09-19T10:04:00Z' })
+    const again = bumpTopic(next, { msg_id: 'n', task_id: 'c', body: 'hello', received_at: '2026-09-19T10:04:00Z' })
     assert.equal(again[0].count, 1)
   })
 })
 
-describe('WS follows: DM peer and thread list (wui-live-ws v0.5)', () => {
+describe('WS follows: DM peer and topic list (wui-live-ws v0.5)', () => {
   function fakeWs() {
     const sockets = []
     class FakeWS {
@@ -201,7 +201,7 @@ describe('WS follows: DM peer and thread list (wui-live-ws v0.5)', () => {
     sockets[1].onopen(); sockets[1].onmessage({ data: JSON.stringify({ type: 'welcome' }) })
     assert.deepEqual(sockets[1].sent.slice(1), [{ type: 'subscribe', peer: 'HUM-2' }, { type: 'subscribe', all: true }])
     assert.equal(reconnected, 1)
-    /* CLE-3425: `all` is ref-counted - two holders (the thread list on `/` and
+    /* CLE-3425: `all` is ref-counted - two holders (the topic list on `/` and
        the tab-wide shell follow), so the FIRST unsubscribe must not drop it. */
     c.unsubscribePeer('HUM-2'); c.unsubscribeAll()
     assert.deepEqual(sockets[1].sent.slice(3), [{ type: 'unsubscribe', peer: 'HUM-2' }],
@@ -220,7 +220,7 @@ describe('WS follows: DM peer and thread list (wui-live-ws v0.5)', () => {
 })
 
 describe('wiring (no view polls in live mode)', () => {
-  it('LiveFeed and the thread list anchor the scroll and show the pill', () => {
+  it('LiveFeed and the topic list anchor the scroll and show the pill', () => {
     for (const f of ['components/LiveFeed.vue', 'pages/index.vue']) {
       assert.match(read(f), /useScrollAnchor\(/, f)
       assert.match(read(f), /new-pill/, f)
@@ -234,16 +234,16 @@ describe('wiring (no view polls in live mode)', () => {
     assert.match(read('composables/useSpoolEvents.ts'), /channel\.catchUp\(\)/)
   })
 
-  it('the thread list follows the tenant and bumps rows live', () => {
+  it('the topic list follows the tenant and bumps rows live', () => {
     const s = read('stores/viewer.ts')
     assert.match(s, /subscribeAll\(\)/)
-    assert.match(s, /bumpThread\(/)
+    assert.match(s, /bumpTopic\(/)
     assert.doesNotMatch(s, /setInterval/)
   })
 
   it('every store send is optimistic under the msg_id it sends', () => {
     assert.match(read('stores/live.ts'), /msg_id: msgId/)
     assert.match(read('stores/channel.ts'), /frame\.msg_id = newId\(\)/)
-    assert.match(read('components/ThreadPane.vue'), /pendingHere/)
+    assert.match(read('components/TopicPane.vue'), /pendingHere/)
   })
 })

@@ -3,11 +3,11 @@ import assert from 'node:assert/strict'
 import {
   channelsFromView,
   isDownloadable,
-  normalizeThreadRow,
+  normalizeTopicRow,
   normalizeViewMessage,
   rosterFromView,
-  threadMessages,
-  threadsFromMessages,
+  topicMessages,
+  topicsFromMessages,
 } from '../../src/utils/view-api.mjs'
 import { createSpoolClient, sha256Hex } from '../../src/utils/spool-client.mjs'
 import { renderBody } from '../../src/utils/channel-feed.mjs'
@@ -33,8 +33,8 @@ function stubFetch(routes) {
 }
 
 describe('view-api helpers', () => {
-  it('groups mock messages into threads, newest activity first', () => {
-    const rows = threadsFromMessages(MOCK_MESSAGES)
+  it('groups mock messages into topics, newest activity first', () => {
+    const rows = topicsFromMessages(MOCK_MESSAGES)
     const t = rows.find((r) => r.task_id === 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
     assert.equal(t.count, 4)
     assert.deepEqual(t.kinds, { task: 1, note: 2, result: 1 })
@@ -42,15 +42,15 @@ describe('view-api helpers', () => {
     assert.equal(t.participants.includes('HUM-1@box-wui'), true)
   })
 
-  it('thread messages are oldest first', () => {
-    const ms = threadMessages(MOCK_MESSAGES, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+  it('topic messages are oldest first', () => {
+    const ms = topicMessages(MOCK_MESSAGES, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
     assert.deepEqual(ms.map((m) => m.kind), ['task', 'note', 'note', 'result'])
   })
 
   it('normalises a view-v1 §4.3 row and the flat branch row', () => {
-    const v = normalizeThreadRow({ task_id: T, first_ts: 'a', last_ts: 'b', count: 2, kinds: { task: 1 }, participants: ['X@b'], subject: 's' })
+    const v = normalizeTopicRow({ task_id: T, first_ts: 'a', last_ts: 'b', count: 2, kinds: { task: 1 }, participants: ['X@b'], subject: 's' })
     assert.equal(v.last_ts, 'b')
-    const f = normalizeThreadRow({ task_id: T, ts: 'a', updated_at: 'c', from: 'GRK-03', from_box: 'box-a', to: 'CLE-07', to_box: 'box-b', kind: 'task', body: 'line1\nline2', count: 3 })
+    const f = normalizeTopicRow({ task_id: T, ts: 'a', updated_at: 'c', from: 'GRK-03', from_box: 'box-a', to: 'CLE-07', to_box: 'box-b', kind: 'task', body: 'line1\nline2', count: 3 })
     assert.deepEqual(f.participants, ['GRK-03@box-a', 'CLE-07@box-b'])
     assert.equal(f.last_ts, 'c')
     assert.equal(f.subject, 'line1')
@@ -92,37 +92,37 @@ describe('view-api helpers', () => {
 })
 
 describe('spool-client live (view-v1)', () => {
-  it('lists threads from /v1/view/threads with a bearer token and no cookies', async () => {
-    const { fn, calls } = stubFetch({ '/v1/view/threads?': [200, { threads: [{ task_id: T, first_ts: 'a', last_ts: 'b', count: 1, kinds: {}, participants: [], subject: 'hi' }], next: 'n1' }] })
+  it('lists topics from /v1/view/topics with a bearer token and no cookies', async () => {
+    const { fn, calls } = stubFetch({ '/v1/view/topics?': [200, { topics: [{ task_id: T, first_ts: 'a', last_ts: 'b', count: 1, kinds: {}, participants: [], subject: 'hi' }], next: 'n1' }] })
     const c = createSpoolClient({ base: 'http://t1.localhost:58080/', fetchFn: fn, mock: false, token: 'tok' })
-    const out = await c.listThreads({ limit: 10 })
-    assert.equal(out.threads[0].subject, 'hi')
+    const out = await c.listTopics({ limit: 10 })
+    assert.equal(out.topics[0].subject, 'hi')
     assert.equal(out.next, 'n1')
-    assert.equal(calls[0].url, 'http://t1.localhost:58080/v1/view/threads?limit=10')
+    assert.equal(calls[0].url, 'http://t1.localhost:58080/v1/view/topics?limit=10')
     assert.equal(calls[0].opts.headers.authorization, 'Bearer tok')
     assert.equal(calls[0].opts.credentials, 'omit')
   })
 
-  it('reads one thread from /v1/view/threads/{task_id}', async () => {
-    const { fn, calls } = stubFetch({ [`/v1/view/threads/${T}`]: [200, { task_id: T, messages: [{ cursor: 'c', env: { from_box: 'a', to_box: 'b', msg: { v: 1, msg_id: 'm', task_id: T } } }], next: null }] })
+  it('reads one topic from /v1/view/topics/{task_id}', async () => {
+    const { fn, calls } = stubFetch({ [`/v1/view/topics/${T}`]: [200, { task_id: T, messages: [{ cursor: 'c', env: { from_box: 'a', to_box: 'b', msg: { v: 1, msg_id: 'm', task_id: T } } }], next: null }] })
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    const out = await c.getThread(T)
+    const out = await c.getTopic(T)
     assert.equal(out.messages[0].from_box, 'a')
-    assert.equal(calls[0].url.startsWith(`/v1/view/threads/${T}?`), true)
+    assert.equal(calls[0].url.startsWith(`/v1/view/topics/${T}?`), true)
     assert.equal('authorization' in calls[0].opts.headers, false)
   })
 
-  it('polls one thread with after=<cursor>', async () => {
-    const { fn, calls } = stubFetch({ [`/v1/view/threads/${T}`]: [200, { task_id: T, messages: [], next: null }] })
+  it('polls one topic with after=<cursor>', async () => {
+    const { fn, calls } = stubFetch({ [`/v1/view/topics/${T}`]: [200, { task_id: T, messages: [], next: null }] })
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    await c.getThread(T, { after: 'c 9' })
+    await c.getTopic(T, { after: 'c 9' })
     assert.equal(new URL(calls[0].url, 'http://x').searchParams.get('after'), 'c 9')
   })
 
   it('asks view-v1 §4.4 for newest-first windows with order=desc and before=', async () => {
-    const { fn, calls } = stubFetch({ [`/v1/view/threads/${T}`]: [200, { task_id: T, messages: [], next: 'c-old' }] })
+    const { fn, calls } = stubFetch({ [`/v1/view/topics/${T}`]: [200, { task_id: T, messages: [], next: 'c-old' }] })
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    const out = await c.getThread(T, { order: 'desc', limit: 50, before: 'c9' })
+    const out = await c.getTopic(T, { order: 'desc', limit: 50, before: 'c9' })
     const q = new URL(calls[0].url, 'http://x').searchParams
     assert.equal(q.get('order'), 'desc')
     assert.equal(q.get('limit'), '50')
@@ -137,7 +137,7 @@ describe('spool-client live (view-v1)', () => {
     const seen = []
     let before
     for (let i = 0; i < 10; i++) {
-      const page = await c.getThread(id, { order: 'desc', limit: 2, before })
+      const page = await c.getTopic(id, { order: 'desc', limit: 2, before })
       seen.push(...page.messages.map((m) => m.ts))
       if (!page.next) break
       before = page.next
@@ -147,9 +147,9 @@ describe('spool-client live (view-v1)', () => {
   })
 
   it('surfaces the error token and status', async () => {
-    const { fn } = stubFetch({ '/v1/view/threads': [401, { error: 'view_door' }] })
+    const { fn } = stubFetch({ '/v1/view/topics': [401, { error: 'view_door' }] })
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    await assert.rejects(c.listThreads(), (e) => e.status === 401 && e.token === 'view_door')
+    await assert.rejects(c.listTopics(), (e) => e.status === 401 && e.token === 'view_door')
   })
 
   it('probes /v1/health, not the Cloud Run-shadowed /healthz', async () => {
@@ -162,7 +162,7 @@ describe('spool-client live (view-v1)', () => {
   it('a config error (no tenant / API host) fails before any request', async () => {
     const { fn, calls } = stubFetch({})
     const c = createSpoolClient({ fetchFn: fn, mock: false, configError: 'api_host' })
-    await assert.rejects(c.listThreads(), (e) => e.status === 0 && e.token === 'api_host')
+    await assert.rejects(c.listTopics(), (e) => e.status === 0 && e.token === 'api_host')
     assert.equal(calls.length, 0)
   })
 
@@ -209,11 +209,11 @@ describe('spool-client live (view-v1)', () => {
     assert.deepEqual(new Uint8Array(await c.downloadFile(up.file_id)), bytes)
   })
 
-  it('mock mode serves threads without a hub', async () => {
+  it('mock mode serves topics without a hub', async () => {
     const c = createSpoolClient({ mock: true })
-    const { threads } = await c.listThreads()
-    assert.ok(threads.length >= 1)
-    const one = await c.getThread(threads[0].task_id)
+    const { topics } = await c.listTopics()
+    assert.ok(topics.length >= 1)
+    const one = await c.getTopic(topics[0].task_id)
     assert.ok(one.messages.length >= 1)
   })
 })

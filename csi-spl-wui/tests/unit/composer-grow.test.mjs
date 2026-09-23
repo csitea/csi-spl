@@ -2,7 +2,7 @@
 //
 // The owner asked for code formatting on ``` a second time. It was not the
 // parser and it was not the renderer: both worked on every surface (measured
-// live on dev a212596). It was the COMPOSER in the thread pane, which still
+// live on dev a212596). It was the COMPOSER in the topic pane, which still
 // sized itself from rows="2" while the top-bar Omnibox had been given
 // `field-sizing: content` back in 022. A four-line block there measured
 // clientHeight 44 against scrollHeight 64 — a two-line peephole with its own
@@ -57,7 +57,7 @@ describe('composer growth (CLE-3437)', () => {
 
   // The rule above is keyed on `.composer textarea`, so it reaches a message
   // box only through MessageComposer.vue. A second, hand-rolled composer would
-  // silently miss it — which is exactly how the thread pane got left behind.
+  // silently miss it — which is exactly how the topic pane got left behind.
   // (A textarea outside a `.composer`, like the key-paste box in
   // KeysSetting.vue, is not a message box and is none of this rule's business.)
   it('MessageComposer.vue owns the only composer textarea', () => {
@@ -71,11 +71,11 @@ describe('composer growth (CLE-3437)', () => {
     assert.deepEqual(offenders, [], 'these render their own composer textarea instead of MessageComposer')
   })
 
-  it('the top bar is the only message box; a thread has no reply field of its own', () => {
+  it('the top bar is the only message box; a topic has no reply field of its own', () => {
     assert.match(read('src/components/TopBar.vue'), /<MessageComposer/)
     for (const rel of [
-      'src/components/ThreadPane.vue',
-      'src/components/LiveThreadPane.vue',
+      'src/components/TopicPane.vue',
+      'src/components/LiveTopicPane.vue',
       'src/pages/t/[task_id].vue',
     ]) assert.doesNotMatch(read(rel), /<MessageComposer|<textarea/, `${rel} still has a reply box`)
   })

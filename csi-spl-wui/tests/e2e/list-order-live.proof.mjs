@@ -8,15 +8,15 @@
 // The order check reads `data-ts` off each row — the clock the row is ordered
 // by, which every list stamps since CLE-3425 — and asserts it never increases
 // down the list. That is the owner's requirement stated literally, and it needs
-// no second source of truth to disagree with. The thread list is additionally
+// no second source of truth to disagree with. The topic list is additionally
 // cross-checked against the hub's own answer (its rows carry task_id, so the two
 // are comparable).
 //
-// Lists covered: the thread list `/`, the lobby feed, a channel feed, the
+// Lists covered: the topic list `/`, the lobby feed, a channel feed, the
 // sidebar channel list, the sidebar DM list, search results. The channel legs
 // CLE-3412 already proved (a NEW root on top) stay in
 // tests/e2e/newest-live.proof.mjs; this file adds the ones it did not cover: a
-// REPLY into an existing thread, a channel bumped while another view is open,
+// REPLY into an existing topic, a channel bumped while another view is open,
 // and a channel created in another session.
 //
 //   BASE=https://dev.<domain> EMAIL=<invited member> PW_FILE=<0600 file> \
@@ -140,18 +140,18 @@ try {
 
   /* ---- 1. ORDER: every list newest first ---- */
 
-  // 1.1 thread list `/` — DOM order, and the hub's own answer for the same rows
+  // 1.1 topic list `/` — DOM order, and the hub's own answer for the same rows
   await open(a, '/')
-  const threads = await rowsOf(a, '.thread-row')
-  const d1 = descending(threads)
-  step('order: thread list / is newest activity first', d1.ok, d1)
-  const th = await hubGet(a, api, '/v1/view/threads?limit=50')
-  const wantThreads = ((th.body && th.body.threads) || []).map((t) => t.task_id)
-  const gotThreads = threads.map((r) => r.key).filter((k) => wantThreads.includes(k))
-  const sameAsHub = gotThreads.join('|') === wantThreads.filter((k) => gotThreads.includes(k)).join('|')
-  step('order: thread list / matches the hub\'s own newest-first answer', sameAsHub && gotThreads.length > 0,
-    { n: gotThreads.length, got: gotThreads.slice(0, 5) })
-  await a.screenshot({ path: `${OUT}/order-thread-list.png` })
+  const topics = await rowsOf(a, '.topic-row')
+  const d1 = descending(topics)
+  step('order: topic list / is newest activity first', d1.ok, d1)
+  const th = await hubGet(a, api, '/v1/view/topics?limit=50')
+  const wantTopics = ((th.body && th.body.topics) || []).map((t) => t.task_id)
+  const gotTopics = topics.map((r) => r.key).filter((k) => wantTopics.includes(k))
+  const sameAsHub = gotTopics.join('|') === wantTopics.filter((k) => gotTopics.includes(k)).join('|')
+  step('order: topic list / matches the hub\'s own newest-first answer', sameAsHub && gotTopics.length > 0,
+    { n: gotTopics.length, got: gotTopics.slice(0, 5) })
+  await a.screenshot({ path: `${OUT}/order-topic-list.png` })
 
   // 1.2 lobby message feed
   await open(a, '/lobby')
@@ -159,12 +159,12 @@ try {
   step('order: lobby feed is newest message first', d2.ok, d2)
   await a.screenshot({ path: `${OUT}/order-lobby.png` })
 
-  // 1.3 channel feed: thread cards by LAST activity
+  // 1.3 channel feed: topic cards by LAST activity
   await open(a, '/channel/' + CHANNEL)
   const d3 = descending(await rowsOf(a, FEED))
-  step(`order: #${CHANNEL} thread cards are newest ACTIVITY first`, d3.ok, d3)
-  const cth = await hubGet(a, api, `/v1/view/threads?limit=20&channel=${encodeURIComponent(CHANNEL)}`)
-  res.detail.channel_threads = ((cth.body && cth.body.threads) || []).slice(0, 8)
+  step(`order: #${CHANNEL} topic cards are newest ACTIVITY first`, d3.ok, d3)
+  const cth = await hubGet(a, api, `/v1/view/topics?limit=20&channel=${encodeURIComponent(CHANNEL)}`)
+  res.detail.channel_topics = ((cth.body && cth.body.topics) || []).slice(0, 8)
     .map((t) => ({ task_id: t.task_id, first_ts: t.first_ts, last_ts: t.last_ts }))
   await a.screenshot({ path: `${OUT}/order-channel.png` })
 
@@ -214,9 +214,9 @@ try {
 
   /* ---- 2. LIVE: a new item arrives on top with no reload ---- */
 
-  // 2.1 a REPLY into an existing thread bumps its card to the top of the feed.
+  // 2.1 a REPLY into an existing topic bumps its card to the top of the feed.
   // The reply is sent through the app's OWN send path (the channel store, which
-  // is what the thread-pane composer calls), so the hub and the push are real.
+  // is what the topic-pane composer calls), so the hub and the push are real.
   await open(a, '/channel/' + CHANNEL)
   await open(b, '/channel/' + CHANNEL)
   const cards = await rowsOf(b, FEED)
@@ -239,13 +239,13 @@ try {
       return { t, task: String(row.task_id) }
     }, { key: oldest.key, text: `reply-bump ${run}` })
     const t = await seen
-    step('live: a reply into an OLD thread moves its card to B\'s top',
+    step('live: a reply into an OLD topic moves its card to B\'s top',
       t !== null && t0.t > 0 && t - t0.t <= LIMIT_MS,
       { ms: t && t0.t ? t - t0.t : null, card: oldest.key, task: t0.task, why: t0.why })
     await b.screenshot({ path: `${OUT}/live-reply-bump-B.png` })
   } else {
-    step('live: a reply into an OLD thread moves its card to B\'s top', false,
-      { skipped: 'fewer than two stamped thread cards in the channel', cards: cards.length })
+    step('live: a reply into an OLD topic moves its card to B\'s top', false,
+      { skipped: 'fewer than two stamped topic cards in the channel', cards: cards.length })
   }
 
   // 2.2 a message in ANOTHER channel bumps that channel to the top of B's sidebar

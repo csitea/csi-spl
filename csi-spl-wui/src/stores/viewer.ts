@@ -1,14 +1,14 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
-import { bumpThread, mergeThreadPage } from '~/utils/thread-list.mjs'
+import { bumpTopic, mergeTopicPage } from '~/utils/topic-list.mjs'
 import { useLive } from '~/composables/useLive'
-import type { SpoolMessage, ThreadRow } from '~/types/spool'
+import type { SpoolMessage, TopicRow } from '~/types/spool'
 
-/** Read-only thread viewer (spec 005 US1, US2, US4) over 003 view-v1 §4.3 / §4.4. */
+/** Read-only topic viewer (spec 005 US1, US2, US4) over 003 view-v1 §4.3 / §4.4. */
 export const useViewerStore = defineStore('viewer', () => {
   const api = useSpoolApi()
-  const threads = ref<ThreadRow[]>([])
+  const topics = ref<TopicRow[]>([])
   const next = ref<string | null>(null)
   const taskId = ref<string | null>(null)
   const messages = ref<SpoolMessage[]>([])
@@ -47,13 +47,13 @@ export const useViewerStore = defineStore('viewer', () => {
     else failure.value = err.message ? { key: '', raw: err.message } : { key: 'viewer.error.load_failed' }
   }
 
-  async function loadThreads() {
+  async function loadTopics() {
     loading.value = true
     failure.value = null
     try {
       /* 010 FR-009: a member-session door rides the sign-in cookie */
-      const data = await withSessionRetry(api, () => api.listThreads({ limit: 50 }))
-      threads.value = data.threads
+      const data = await withSessionRetry(api, () => api.listTopics({ limit: 50 }))
+      topics.value = data.topics
       next.value = data.next
       needsToken.value = false
     } catch (e) {
@@ -66,8 +66,8 @@ export const useViewerStore = defineStore('viewer', () => {
   async function loadMore() {
     if (!next.value) return
     try {
-      const data = await api.listThreads({ limit: 50, before: next.value })
-      threads.value = [...threads.value, ...(data.threads)]
+      const data = await api.listTopics({ limit: 50, before: next.value })
+      topics.value = [...topics.value, ...(data.topics)]
       next.value = data.next
     } catch (e) {
       fail(e)
@@ -75,7 +75,7 @@ export const useViewerStore = defineStore('viewer', () => {
   }
 
   /*
-   * 013 US7 FR-011: the thread list is live — the socket follows the whole
+   * 013 US7 FR-011: the topic list is live — the socket follows the whole
    * tenant (wui-live-ws v0.5 `all`), a pushed message moves its row to the
    * top; a reconnect re-reads the first page and merges it by task_id.
    */
@@ -87,7 +87,7 @@ export const useViewerStore = defineStore('viewer', () => {
     const client = live.ensure()
     if (!client) return
     client.subscribeAll()
-    offMessage = live.onMessage((m) => { threads.value = bumpThread(threads.value, m) as ThreadRow[] })
+    offMessage = live.onMessage((m) => { topics.value = bumpTopic(topics.value, m) as TopicRow[] })
     offReconnect = live.onReconnected(() => { void catchUp() })
   }
   function unfollow() {
@@ -100,28 +100,28 @@ export const useViewerStore = defineStore('viewer', () => {
   }
   async function catchUp() {
     try {
-      const data = await api.listThreads({ limit: 50 })
-      threads.value = mergeThreadPage(threads.value, data.threads) as ThreadRow[]
+      const data = await api.listTopics({ limit: 50 })
+      topics.value = mergeTopicPage(topics.value, data.topics) as TopicRow[]
     } catch (e) {
       fail(e)
     }
   }
 
-  async function openThread(id: string) {
+  async function openTopic(id: string) {
     if (taskId.value !== id) messages.value = []
     taskId.value = id
-    await refreshThread()
+    await refreshTopic()
   }
 
-  /** view-v1 §4.4: the first read is the whole thread; later polls pass the last cursor as after= and append. */
-  async function refreshThread() {
+  /** view-v1 §4.4: the first read is the whole topic; later polls pass the last cursor as after= and append. */
+  async function refreshTopic() {
     if (!taskId.value) return
     const last = messages.value[messages.value.length - 1]
     const after = last && last.cursor ? last.cursor : undefined
     loading.value = messages.value.length === 0
     failure.value = null
     try {
-      const data = await api.getThread(taskId.value, after ? { after } : undefined)
+      const data = await api.getTopic(taskId.value, after ? { after } : undefined)
       if (after) {
         const seen = new Set(messages.value.map((m) => m.msg_id))
         messages.value = [...messages.value, ...data.messages.filter((m) => !seen.has(m.msg_id))]
@@ -136,5 +136,5 @@ export const useViewerStore = defineStore('viewer', () => {
     }
   }
 
-  return { threads, next, taskId, messages, loading, error, needsToken, doorDetail, loadThreads, loadMore, openThread, refreshThread, follow, unfollow, catchUp }
+  return { topics, next, taskId, messages, loading, error, needsToken, doorDetail, loadTopics, loadMore, openTopic, refreshTopic, follow, unfollow, catchUp }
 })

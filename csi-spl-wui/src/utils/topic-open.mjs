@@ -1,47 +1,47 @@
 /**
- * Which thread a clicked feed row opens, and how that choice survives a
+ * Which topic a clicked feed row opens, and how that choice survives a
  * reload (CLE-3427). Pure: the Node tests import this file, the Vue stores
  * and panes wrap it.
  *
- * A thread here is a task_id: its root is the task's oldest message, its
+ * A topic here is a task_id: its root is the task's oldest message, its
  * replies are the rest (utils/feed.mjs rootAndReplies). A feed row is one of
  * two things, and only the first one could be opened before this lane:
  *
- *  - a thread ROOT of its own — every row on /channel and /dm (the feed is
+ *  - a topic ROOT of its own — every row on /channel and /dm (the feed is
  *    built by rootsByTask), a search hit from another task. Opening it opens
- *    that task, exactly as the "open thread" control already did.
+ *    that task, exactly as the "open topic" control already did.
  *
  *  - one message INSIDE the feed's own task — every row in #lobby, where the
  *    whole channel is a single task. `openable()` in LiveFeed refused those
- *    rows (m.task_id === currentTaskId), so a lobby message had no thread to
- *    open at all. Such a row now opens a MESSAGE-rooted thread: the clicked
+ *    rows (m.task_id === currentTaskId), so a lobby message had no topic to
+ *    open at all. Such a row now opens a MESSAGE-rooted topic: the clicked
  *    message is pinned as the root, and its replies are the messages of the
  *    task whose id IS that message's msg_id, tagged parent_task_id = the task
  *    the message itself was posted in (hub checkTags only requires a UUID
  *    other than task_id). A message nobody has replied to therefore opens
  *    with an empty reply list and a ready composer — which is the point: the
- *    thread exists from the first click, not from the first reply.
+ *    topic exists from the first click, not from the first reply.
  */
 
-/** The `?thread=` / `?in=` pair a target is deep-linked as. */
-export function threadQuery(target) {
-  if (!target || !target.taskId) return { thread: undefined, in: undefined }
+/** The `?topic=` / `?in=` pair a target is deep-linked as. */
+export function topicQuery(target) {
+  if (!target || !target.taskId) return { topic: undefined, in: undefined }
   return target.mode === 'message'
-    ? { thread: target.taskId, in: target.parentTaskId || undefined }
-    : { thread: target.taskId, in: undefined }
+    ? { topic: target.taskId, in: target.parentTaskId || undefined }
+    : { topic: target.taskId, in: undefined }
 }
 
 /** The target a clicked row opens; null when the row carries no id at all. */
-export function threadTargetFor(msg, { currentTaskId = '' } = {}) {
+export function topicTargetFor(msg, { currentTaskId = '' } = {}) {
   const m = msg || {}
   const taskId = String(m.task_id || '')
   const msgId = String(m.msg_id || '')
   const here = String(currentTaskId || '')
-  /* a row that is its own thread root: the task IS the thread */
+  /* a row that is its own topic root: the task IS the topic */
   if (taskId && taskId !== here) {
     return { taskId, mode: 'task', rootMsgId: msgId, parentTaskId: '' }
   }
-  /* a message inside the feed's own task: the message is the thread */
+  /* a message inside the feed's own task: the message is the topic */
   if (msgId) {
     return { taskId: msgId, mode: 'message', rootMsgId: msgId, parentTaskId: taskId }
   }
@@ -52,7 +52,7 @@ export function threadTargetFor(msg, { currentTaskId = '' } = {}) {
 export function targetFromQuery(query) {
   const q = query || {}
   const one = (v) => (Array.isArray(v) ? v[0] : v)
-  const taskId = String(one(q.thread) || '')
+  const taskId = String(one(q.topic) || '')
   if (!taskId) return null
   const parentTaskId = String(one(q.in) || '')
   return parentTaskId
@@ -60,7 +60,7 @@ export function targetFromQuery(query) {
     : { taskId, mode: 'task', rootMsgId: '', parentTaskId: '' }
 }
 
-/** Same thread, in the same mode? (both null counts as same) */
+/** Same topic, in the same mode? (both null counts as same) */
 export function sameTarget(a, b) {
   if (!a || !b) return !a && !b
   return a.taskId === b.taskId && a.mode === b.mode && String(a.parentTaskId || '') === String(b.parentTaskId || '')
@@ -68,14 +68,14 @@ export function sameTarget(a, b) {
 
 /**
  * The route query for a target, keeping every other parameter (`q`, `tenant`,
- * …) untouched and DROPPING thread/in when the pane closes — a stale
- * ?thread= would re-open it on the next navigation.
+ * …) untouched and DROPPING topic/in when the pane closes — a stale
+ * ?topic= would re-open it on the next navigation.
  */
-export function queryWithThread(query, target) {
+export function queryWithTopic(query, target) {
   const out = { ...(query || {}) }
-  const { thread, in: parent } = threadQuery(target)
-  if (thread) out.thread = thread
-  else delete out.thread
+  const { topic, in: parent } = topicQuery(target)
+  if (topic) out.topic = topic
+  else delete out.topic
   if (parent) out.in = parent
   else delete out.in
   return out
@@ -90,7 +90,7 @@ export function sameQuery(a, b) {
   return JSON.stringify(norm(a)) === JSON.stringify(norm(b))
 }
 
-/** Is this row the one the open thread is rooted at? */
+/** Is this row the one the open topic is rooted at? */
 export function isSelectedRow(msg, target) {
   const m = msg || {}
   if (!target || !target.taskId) return false

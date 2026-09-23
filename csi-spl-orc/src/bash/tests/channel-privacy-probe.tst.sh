@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # rdb 0028 do_spl_channel_privacy_probe / channel-privacy-probe.py, hermetic: a
-# stub hub on 127.0.0.1 answers the login and GET /v1/view/threads/{id} with
-# the thread in $T/thread.json.
+# stub hub on 127.0.0.1 answers the login and GET /v1/view/topics/{id} with
+# the topic in $T/topic.json.
 #
 # The probe's whole job is to tell a CLOSED door from an OPEN one, so the test
 # has to show it doing both. CONTROL 1 is a leaking hub (the pre-0028 shape,
-# the real dev thread: five untagged HUM-17 messages plus one channel-tagged
+# the real dev topic: five untagged HUM-17 messages plus one channel-tagged
 # reply) and must FAIL. CONTROL 2 is a hub that returns nothing at all, which
 # would satisfy "no leaked message" vacuously, and must also fail - that is
 # what ALLOW_MIN is for.
@@ -38,8 +38,8 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.headers.get("Cookie") != "spool_session=tok": return self.reply(401, {"error": "view_door"})
         if self.path == "/v1/view/me": return self.reply(200, {"human_id": "HUM-4"})
-        if self.path.startswith("/v1/view/threads/"):
-            rows = json.load(open(os.path.join(T, "thread.json")))
+        if self.path.startswith("/v1/view/topics/"):
+            rows = json.load(open(os.path.join(T, "topic.json")))
             if rows is None: return self.reply(404, {"error": "not_found"})
             return self.reply(200, {"messages": rows})
         self.reply(404, {"error": "not_found"})
@@ -61,7 +61,7 @@ run() { # run <allow_min> <deny_from>
 }
 
 # ---- the door holds: only the channel-tagged reply comes back ---------------
-printf '[%s]' "$(msg HUM-9 live-proof)" >"$T/thread.json"
+printf '[%s]' "$(msg HUM-9 live-proof)" >"$T/topic.json"
 out=$(run 1 HUM-17); rc=$?
 if [[ $rc -eq 0 ]]; then
   pass "a hub that returns only the readable message passes (exit 0)"
@@ -69,9 +69,9 @@ else
   fail "the closed-door case did not pass (exit $rc): $out"
 fi
 
-# ---- CONTROL 1: the pre-0028 leak, the real dev thread's shape --------------
+# ---- CONTROL 1: the pre-0028 leak, the real dev topic's shape --------------
 leak="$(msg HUM-17 '')"
-printf '[%s,%s,%s,%s,%s,%s]' "$leak" "$leak" "$leak" "$leak" "$leak" "$(msg HUM-9 live-proof)" >"$T/thread.json"
+printf '[%s,%s,%s,%s,%s,%s]' "$leak" "$leak" "$leak" "$leak" "$leak" "$(msg HUM-9 live-proof)" >"$T/topic.json"
 out=$(run 1 HUM-17); rc=$?
 if [[ $rc -ne 0 ]] && grep -q '"leaked"' <<<"$out" && grep -q 'HUM-17/DM' <<<"$out"; then
   pass "CONTROL: a leaking hub FAILS and names the messages (exit $rc)"
@@ -80,12 +80,12 @@ else
 fi
 
 # ---- CONTROL 2: returning nothing must not pass vacuously -------------------
-printf 'null' >"$T/thread.json"
+printf 'null' >"$T/topic.json"
 out=$(run 1 HUM-17); rc=$?
 if [[ $rc -ne 0 ]]; then
   pass "CONTROL: a 404 with ALLOW_MIN=1 FAILS, it does not pass by returning nothing (exit $rc)"
 else
-  fail "CONTROL: an empty thread satisfied the probe vacuously: $out"
+  fail "CONTROL: an empty topic satisfied the probe vacuously: $out"
 fi
 # ...and the same 404 is a PASS when nothing was expected, or the check above
 # would be red for the wrong reason.
@@ -98,7 +98,7 @@ fi
 
 # ---- a bad password is exit 2, not a silent pass ----------------------------
 printf 'pw-bad' >"$T/pw"
-printf '[%s]' "$(msg HUM-9 live-proof)" >"$T/thread.json"
+printf '[%s]' "$(msg HUM-9 live-proof)" >"$T/topic.json"
 out=$(run 1 HUM-17); rc=$?
 if [[ $rc -eq 2 ]]; then
   pass "CONTROL: a refused sign-in is exit 2, distinct from a door verdict"

@@ -95,7 +95,7 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 	if hum != "" {
 		a, err := s.access(r.Context(), hum, t.ID)
 		if err != nil {
-			writeForbidden(w, rbac.ThreadsRead, "no role in this tenant")
+			writeForbidden(w, rbac.TopicsRead, "no role in this tenant")
 			return
 		}
 		out.HumanID, out.Role, out.TenantOwner, out.Permissions = &hum, &a.Role, &a.TenantOwner, a.List()

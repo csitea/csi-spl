@@ -3,7 +3,7 @@
 // links to /search?q=… gets the door prompt instead of results.
 //
 // Measured on dev 2026-09-21 (WUI 1eeaa84, hub 0.1.17), signed in as the test
-// member: GET /search?q=live rendered "This tenant's threads need a member
+// member: GET /search?q=live rendered "This tenant's topics need a member
 // sign-in or a view token." and zero result rows. 2dfefe7 fixed exactly this for
 // /channel, /dm and the roster; the search store was reading straight through.
 import { describe, it } from 'node:test'

@@ -29,16 +29,16 @@ describe('icon buttons (Close = x, Open = square-arrow-out-up-right)', () => {
     assert.match(css, /outline:\s*2px solid var\(--color-accent\)/)
   })
 
-  it('thread panes and message cards keep i18n names on aria-label + title, not as visible text', () => {
-    const live = read('src/components/LiveThreadPane.vue')
-    const thread = read('src/components/ThreadPane.vue')
+  it('topic panes and message cards keep i18n names on aria-label + title, not as visible text', () => {
+    const live = read('src/components/LiveTopicPane.vue')
+    const topic = read('src/components/TopicPane.vue')
     const card = read('src/components/MessageCard.vue')
     const bar = read('src/components/TopBar.vue')
     const composer = read('src/components/MessageComposer.vue')
 
     for (const [name, src] of [
-      ['LiveThreadPane', live],
-      ['ThreadPane', thread],
+      ['LiveTopicPane', live],
+      ['TopicPane', topic],
       ['TopBar', bar],
     ]) {
       assert.match(src, /:aria-label="t\('common\.close'\)"/, name)
@@ -48,14 +48,14 @@ describe('icon buttons (Close = x, Open = square-arrow-out-up-right)', () => {
     }
 
     assert.match(live, /name="open"/)
-    assert.match(live, /:aria-label="t\('thread\.open'\)"/)
-    assert.match(live, /:title="t\('thread\.open'\)"/)
-    assert.equal(/\>\{\{\s*t\('thread\.open'\)\s*\}\}</.test(live), false, 'visible Open')
+    assert.match(live, /:aria-label="t\('topic\.open'\)"/)
+    assert.match(live, /:title="t\('topic\.open'\)"/)
+    assert.equal(/\>\{\{\s*t\('topic\.open'\)\s*\}\}</.test(live), false, 'visible Open')
 
     assert.match(card, /name="open"/)
-    assert.match(card, /:aria-label="t\('feed\.open_thread'\)"/)
-    assert.match(card, /:title="t\('feed\.open_thread'\)"/)
-    assert.equal(/\>\{\{\s*t\('feed\.open_thread'\)\s*\}\}</.test(card), false, 'visible Open thread')
+    assert.match(card, /:aria-label="t\('feed\.open_topic'\)"/)
+    assert.match(card, /:title="t\('feed\.open_topic'\)"/)
+    assert.equal(/\>\{\{\s*t\('feed\.open_topic'\)\s*\}\}</.test(card), false, 'visible Open topic')
 
     assert.match(composer, /name="x"/)
     assert.match(composer, /composer\.remove_file/)
@@ -65,8 +65,8 @@ describe('icon buttons (Close = x, Open = square-arrow-out-up-right)', () => {
   it('reuses existing en catalogue keys (no new Close/Open strings)', () => {
     const en = JSON.parse(read('i18n/locales/en.json'))
     assert.equal(en.common.close, 'Close')
-    assert.equal(en.thread.open, 'Open')
-    assert.equal(en.feed.open_thread, 'Open topic')
+    assert.equal(en.topic.open, 'Open')
+    assert.equal(en.feed.open_topic, 'Open topic')
     assert.equal(typeof en.composer.remove_file, 'string')
   })
 })

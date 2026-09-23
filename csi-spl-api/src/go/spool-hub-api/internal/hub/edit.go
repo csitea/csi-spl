@@ -23,7 +23,7 @@ import (
 // existence.
 //
 // The message does NOT move: msg_id, ts, received_at and the cursor built from
-// received_at are all unchanged, because a typo fix must not reorder a thread.
+// received_at are all unchanged, because a typo fix must not reorder a topic.
 //
 // The edit marker (edited_at / edited_by / revision) is HUB metadata and rides
 // beside cursor and received_at on the view element. It is never a field of

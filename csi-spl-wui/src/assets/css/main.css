@@ -222,7 +222,7 @@ html.pane-dragging * {
      the page out of view: measured at 1280x480, scrolled down, the pill sat at
      y = -379 px, off screen and unclickable, while its own test only asserted
      that the element exists. `visible` hands the pill the page as its
-     scrollport. The thread pane keeps its own scroller (.live-pane .feed-body
+     scrollport. The topic pane keeps its own scroller (.live-pane .feed-body
      below), and overflow-x stays clipped for the no-x-scroll gate. */
   overflow-y: visible;
   overflow-x: clip;
@@ -368,9 +368,9 @@ html.pane-dragging * {
   overflow-wrap: anywhere;
   /* CLE-3437: a ``` block is many lines, so the box that holds it has to be
      many lines. The top-bar Omnibox got this in 022; the IN-PAGE composers
-     (thread pane, live thread pane, /t/<task>) never did, so a block typed
+     (topic pane, live topic pane, /t/<task>) never did, so a block typed
      there was a two-line peephole with its own scrollbar and the author could
-     not see what they had written (measured on dev a212596, thread pane at
+     not see what they had written (measured on dev a212596, topic pane at
      1440x900: clientHeight 44, scrollHeight 64 on a four-line block, with the
      first line already scrolled out of view). Bounded, so a long block never
      pushes Send off the screen. */
@@ -476,8 +476,8 @@ html.pane-dragging * {
   overflow-wrap: anywhere;
 }
 
-.thread {
-  width: var(--thread-w);
+.topic {
+  width: var(--topic-w);
   max-width: 100%;
   min-width: 0;
   border-left: 1px solid var(--color-border);
@@ -486,7 +486,7 @@ html.pane-dragging * {
   flex-direction: column;
   flex-shrink: 0;
 }
-.thread header {
+.topic header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -554,7 +554,7 @@ html.pane-dragging * {
      what is left (an avatar or a hash) instead of keeping 16px of padding */
   .sidebar .nav-item { padding-inline: 4px; justify-content: center; gap: 4px; }
   .pane-divider[data-pane="sidebar"] { display: none; }
-  .thread {
+  .topic {
     position: absolute;
     right: 0;
     top: 0;
@@ -563,8 +563,8 @@ html.pane-dragging * {
   }
 }
 
-/* read-only thread viewer (spec 005 US1) */
-.thread-row {
+/* read-only topic viewer (spec 005 US1) */
+.topic-row {
   border-radius: var(--radius-sm);
   display: block;
   padding: 10px 8px;
@@ -574,8 +574,8 @@ html.pane-dragging * {
   min-width: 0;
   max-width: 100%;
 }
-.thread-row:hover { background: var(--color-surface-hover); }
-.thread-subject {
+.topic-row:hover { background: var(--color-surface-hover); }
+.topic-subject {
   font-size: 14px;
   margin: 2px 0;
   overflow-wrap: anywhere;
@@ -608,8 +608,8 @@ html.pane-dragging * {
 .older-sentinel { min-height: 24px; padding: 8px 0; text-align: center; }
 .search-chip { font-size: 13px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }
 .pinned-root { border-bottom: 1px solid var(--color-border); padding: 8px 16px; min-width: 0; max-width: 100%; }
-/* Omnibox threads started while this pane is open: newest at the top. */
-.born-threads {
+/* Omnibox topics started while this pane is open: newest at the top. */
+.born-topics {
   border-bottom: 1px solid var(--color-border);
   max-height: 40%;
   overflow-x: hidden;
@@ -628,11 +628,11 @@ html.pane-dragging * {
     right: 0;
     top: var(--top-bar-h);
     bottom: 0;
-    width: min(var(--thread-w), 100%);
+    width: min(var(--topic-w), 100%);
     z-index: 20;
     box-shadow: -8px 0 24px rgb(0 0 0 / .35);
   }
-  .pane-divider[data-pane="thread"] { display: none; }
+  .pane-divider[data-pane="topic"] { display: none; }
 }
 
 /* CLE-3402 user control + spec 021 language switcher: since 022 they sit at
@@ -700,7 +700,7 @@ html.pane-dragging * {
 .nav-item:focus-visible,
 .sidebar-tab:focus-visible,
 .msg:focus-visible,
-.thread-row:focus-visible,
+.topic-row:focus-visible,
 .search-row:focus-visible {
   background: var(--color-selected);
 }
@@ -709,7 +709,7 @@ html.pane-dragging * {
 .nav-item.active,
 .sidebar-tab[aria-selected="true"],
 .msg.selected,
-.thread-row.selected,
+.topic-row.selected,
 .search-row.active {
   background: var(--color-selected);
   box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring);
@@ -718,7 +718,7 @@ html.pane-dragging * {
 /* Pressed: the same step down; an accent-filled control darkens its accent. */
 .nav-item:active,
 .sidebar-tab:active,
-.thread-row:active,
+.topic-row:active,
 .msg:active,
 .icon-btn:active,
 .btn.ghost:active {
@@ -728,6 +728,6 @@ html.pane-dragging * {
   background: var(--color-accent-pressed);
 }
 
-/* CLE-3427: a feed row whose whole surface opens its thread. The pointer says
+/* CLE-3427: a feed row whose whole surface opens its topic. The pointer says
    so; the keyboard half is Enter / Space on the focused row (MessageCard). */
 .msg--clickable { cursor: pointer; }

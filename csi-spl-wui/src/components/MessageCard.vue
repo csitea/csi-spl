@@ -76,21 +76,21 @@
         :file="f"
       />
       <button
-        v-if="threadLink"
+        v-if="topicLink"
         class="icon-btn icon-btn--accent"
         type="button"
-        data-test="open-thread"
-        :aria-label="t('feed.open_thread')"
-        :title="t('feed.open_thread')"
-        @click="$emit('open-thread', msg)"
+        data-test="open-topic"
+        :aria-label="t('feed.open_topic')"
+        :title="t('feed.open_topic')"
+        @click="$emit('open-topic', msg)"
       >
         <UiIcon name="open" :size="16" />
       </button>
       <button
-        v-if="count > 0 || alwaysThread"
+        v-if="count > 0 || alwaysTopic"
         class="replies"
         type="button"
-        @click="$emit('open-thread', msg)"
+        @click="$emit('open-topic', msg)"
       >
         {{ t('feed.replies', { n: count }, count) }}
       </button>
@@ -99,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatIsoTs, formatThreadTs, recipientOf } from '~/utils/channel-feed.mjs'
+import { formatIsoTs, formatTopicTs, recipientOf } from '~/utils/channel-feed.mjs'
 import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { activityOf } from '~/utils/feed.mjs'
 import {
@@ -118,25 +118,25 @@ import type { FileRef, SpoolMessage } from '~/types/spool'
 const props = defineProps<{
   msg: SpoolMessage
   count?: number
-  alwaysThread?: boolean
+  alwaysTopic?: boolean
   posinset?: number
   setsize?: number
-  threadLink?: boolean
-  /** CLE-3427: the whole row opens its thread (pointer and keyboard). */
+  topicLink?: boolean
+  /** CLE-3427: the whole row opens its topic (pointer and keyboard). */
   clickable?: boolean
-  /** the row the open thread is rooted at */
+  /** the row the open topic is rooted at */
   selected?: boolean
-  /** Date.now() at thread open (ticks while open): `yyyy-mm-dd HH:MM:SS sent <age>` */
+  /** Date.now() at topic open (ticks while open): `yyyy-mm-dd HH:MM:SS sent <age>` */
   sinceMs?: number
   /** CLE-3445: offer the `e` shortcut on this row (author-only; the host decides). */
   editable?: boolean
 }>()
-const emit = defineEmits<{ 'open-thread': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
+const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
 
 const { t, te } = useI18n({ useScope: 'global' })
 /** v:1 kind in words (feed.kind.*); an unknown kind shows as sent. */
 const kindLabel = (k: string) => (te('feed.kind.' + k) ? t('feed.kind.' + k) : k)
-/* CLE-3425: a thread card is ordered by its LAST activity, so it shows that
+/* CLE-3425: a topic card is ordered by its LAST activity, so it shows that
    moment — a card that sits above another must not print an older time. */
 const at = computed(() => activityOf(props.msg))
 /*
@@ -151,7 +151,7 @@ const at = computed(() => activityOf(props.msg))
  */
 const time = computed(() => (
   props.sinceMs != null
-    ? formatThreadTs(at.value, props.sinceMs)
+    ? formatTopicTs(at.value, props.sinceMs)
     : formatIsoTs(at.value)
 ))
 const recipient = computed(() => recipientOf(props.msg))
@@ -159,16 +159,16 @@ const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files :
 const count = computed(() => props.count || 0)
 
 /*
- * CLE-3427 — clicking the row opens its thread. The row already carried
+ * CLE-3427 — clicking the row opens its topic. The row already carried
  * tabindex="0" for the feed pattern, so the keyboard half is Enter / Space on
- * the focused row; the explicit "open thread" icon button stays as the
+ * the focused row; the explicit "open topic" icon button stays as the
  * discoverable, screen-reader-named affordance.
  *
  * Two things a whole-row click must not eat: a click on something that is
  * itself interactive (a link in the body, the copy-code button, a file
  * attachment, the reply-count button — those handle themselves), and the
  * click that ENDS a text selection inside the message, which is how a reader
- * copies a line and never means "open the thread".
+ * copies a line and never means "open the topic".
  */
 const INTERACTIVE = 'a, button, input, textarea, select, label, summary, [role="button"], [contenteditable="true"]'
 
@@ -182,12 +182,12 @@ function onClick(ev: MouseEvent) {
   const el = ev.target as HTMLElement | null
   if (el && el.closest && el.closest(INTERACTIVE)) return
   if (selecting()) return
-  emit('open-thread', props.msg)
+  emit('open-topic', props.msg)
 }
 
 function onKey(ev: KeyboardEvent) {
   /* CLE-3445: `e` on the focused row opens the editor. Checked BEFORE the
-     open-thread keys so a row that is editable but not clickable still takes
+     open-topic keys so a row that is editable but not clickable still takes
      it, and guarded by the same target === currentTarget rule. */
   if (wantsEdit(ev, { editable: props.editable && !editing.value })) {
     ev.preventDefault()
@@ -199,7 +199,7 @@ function onKey(ev: KeyboardEvent) {
   /* only the row itself: Enter inside a child control is that control's */
   if (ev.target !== ev.currentTarget) return
   ev.preventDefault()
-  emit('open-thread', props.msg)
+  emit('open-topic', props.msg)
 }
 
 /*

@@ -47,7 +47,7 @@ func (p *parser) operator(t *token, name, val string, phrase, neg bool) (*Node, 
 		for _, part := range strings.Split(lv, ",") {
 			ty, ok := typeAliases[strings.TrimSpace(part)]
 			if !ok {
-				return bad("type: must be message, thread, file, robot, user, channel or box")
+				return bad("type: must be message, topic, file, robot, user, channel or box")
 			}
 			if !seen[ty] {
 				seen[ty] = true
@@ -90,9 +90,9 @@ func (p *parser) operator(t *token, name, val string, phrase, neg bool) (*Node, 
 		if lv == "attachment" {
 			term.Enum = "file"
 		}
-	case OpThread:
+	case OpTopic:
 		if !uuidRe.MatchString(lv) {
-			return bad("thread: must be a task id (UUID)")
+			return bad("topic: must be a task id (UUID)")
 		}
 		term.Value = lv
 	case OpBefore, OpAfter, OpOn:

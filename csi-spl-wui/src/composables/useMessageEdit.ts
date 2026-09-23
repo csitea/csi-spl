@@ -3,7 +3,7 @@ import { useLive } from '~/composables/useLive'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { useChannelStore } from '~/stores/channel'
-import { useThreadStore } from '~/stores/thread'
+import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { canEditMessage } from '~/utils/msg-edit.mjs'
 import type { SpoolMessage } from '~/types/spool'
@@ -74,8 +74,8 @@ export function useMessageEdit() {
    *
    * The same message is on screen in more than one place at once, and which
    * places depends on the route: the lobby feed and the pinned root of the
-   * 3rd panel are the same message when that row's thread is open, and a
-   * /channel row is the channel store's while the pane's root is the thread
+   * 3rd panel are the same message when that row's topic is open, and a
+   * /channel row is the channel store's while the pane's root is the topic
    * store's. Measured on the mock harness before this existed: editing in the
    * 3rd panel updated the panel and left the feed behind it showing the OLD
    * body, because the pane told only the two stores it knew about.
@@ -90,7 +90,7 @@ export function useMessageEdit() {
     useChannelStore().applyEdited(row)
     useLiveFeed('main').applyEdited(row)
     useLiveFeed('pane').applyEdited(row)
-    useThreadStore().applyEditedRoot(row)
+    useTopicStore().applyEditedRoot(row)
   }
 
   return { viewer, viewerId, canEdit, commit, applyEverywhere }

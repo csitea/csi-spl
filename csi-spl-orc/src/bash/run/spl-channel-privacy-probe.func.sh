@@ -2,13 +2,13 @@
 #------------------------------------------------------------------------------
 # @description rdb 0028 live proof, READ-ONLY: sign one tenant member in on the
 # @description env's API host (env.dns.api_fqdn) with its native password and
-# @description read GET /v1/view/threads/{task_id}, asserting BOTH halves of
+# @description read GET /v1/view/topics/{task_id}, asserting BOTH halves of
 # @description the read door: the messages that member may read come back, and
 # @description the ones it may not do not.
 # @description   Both halves, always. A door that returns nothing passes every
 # @description   "must not be readable" assertion vacuously, so the probe fails
 # @description   unless at least PROBE_ALLOW_MIN messages also come back.
-# @description   The interesting thread is one that MIXES a DM with a
+# @description   The interesting topic is one that MIXES a DM with a
 # @description   channel-tagged reply, which is the shape the defect was
 # @description   reported from (dev t1 57e6f191-582e-45b1-a08e-389c0b034803):
 # @description   DENY_FROM names the id whose UNTAGGED messages this member is

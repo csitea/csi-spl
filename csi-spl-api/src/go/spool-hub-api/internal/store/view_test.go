@@ -59,9 +59,9 @@ func TestViewReads(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			all, err := s.ViewThreads(ctx, tid, ThreadQuery{Now: now})
+			all, err := s.ViewTopics(ctx, tid, TopicQuery{Now: now})
 			if err != nil || len(all) != 2 || all[0].TaskID != t1 || all[1].TaskID != t2 {
-				t.Fatalf("threads (expired excluded, newest first): %v %+v", err, all)
+				t.Fatalf("topics (expired excluded, newest first): %v %+v", err, all)
 			}
 			r := all[0]
 			if r.Count != 2 || len(r.Kinds) != 2 || r.Kinds[0] != "task" || r.Kinds[1] != "result" ||
@@ -69,31 +69,31 @@ func TestViewReads(t *testing.T) {
 				string(r.FirstMsg) == "" {
 				t.Fatalf("t1 row: %+v", r)
 			}
-			page, _ := s.ViewThreads(ctx, tid, ThreadQuery{Now: now, Limit: 1})
+			page, _ := s.ViewTopics(ctx, tid, TopicQuery{Now: now, Limit: 1})
 			if len(page) != 1 || page[0].TaskID != t1 {
 				t.Fatalf("limit 1: %+v", page)
 			}
-			page, _ = s.ViewThreads(ctx, tid, ThreadQuery{Now: now, BeforeAt: r.LastAt, BeforeTask: r.TaskID})
+			page, _ = s.ViewTopics(ctx, tid, TopicQuery{Now: now, BeforeAt: r.LastAt, BeforeTask: r.TaskID})
 			if len(page) != 1 || page[0].TaskID != t2 {
 				t.Fatalf("before cursor: %+v", page)
 			}
-			if f, _ := s.ViewThreads(ctx, tid, ThreadQuery{Now: now, Channel: "alerts"}); len(f) != 1 || f[0].TaskID != t2 || f[0].Channel != "alerts" {
+			if f, _ := s.ViewTopics(ctx, tid, TopicQuery{Now: now, Channel: "alerts"}); len(f) != 1 || f[0].TaskID != t2 || f[0].Channel != "alerts" {
 				t.Fatalf("channel filter: %+v", f)
 			}
-			if f, _ := s.ViewThreads(ctx, tid, ThreadQuery{Now: now, Agent: "GRK-09"}); len(f) != 1 || f[0].TaskID != t2 {
+			if f, _ := s.ViewTopics(ctx, tid, TopicQuery{Now: now, Agent: "GRK-09"}); len(f) != 1 || f[0].TaskID != t2 {
 				t.Fatalf("agent filter: %+v", f)
 			}
-			if f, _ := s.ViewThreads(ctx, newTenant(t, s), ThreadQuery{Now: now}); len(f) != 0 {
-				t.Fatalf("other tenant sees %d threads", len(f))
+			if f, _ := s.ViewTopics(ctx, newTenant(t, s), TopicQuery{Now: now}); len(f) != 0 {
+				t.Fatalf("other tenant sees %d topics", len(f))
 			}
 			if ch, err := s.ViewChannels(ctx, tid, now); err != nil || len(ch) != 1 || ch[0].Channel != "alerts" || ch[0].Count != 1 {
 				t.Fatalf("channels: %v %+v", err, ch)
 			}
 
 			before, _ := s.DeliveryState(ctx, tid, m1.MsgID, "box-b")
-			msgs, err := s.ViewThread(ctx, tid, ThreadMsgQuery{TaskID: t1, Now: now})
+			msgs, err := s.ViewTopic(ctx, tid, TopicMsgQuery{TaskID: t1, Now: now})
 			if err != nil || len(msgs) != 2 || msgs[0].MsgID != m1.MsgID || string(msgs[0].Env) != "e1" {
-				t.Fatalf("thread: %v %+v", err, msgs)
+				t.Fatalf("topic: %v %+v", err, msgs)
 			}
 			if d := msgs[0].Deliveries; len(d) != 1 || d[0].ToBox != "box-b" || d[0].State != StateQueued {
 				t.Fatalf("deliveries: %+v", d)
@@ -101,24 +101,24 @@ func TestViewReads(t *testing.T) {
 			if len(msgs[1].Deliveries) != 0 {
 				t.Fatalf("m2 has no delivery row: %+v", msgs[1].Deliveries)
 			}
-			after, _ := s.ViewThread(ctx, tid, ThreadMsgQuery{TaskID: t1, Now: now, AfterAt: msgs[0].ReceivedAt, AfterID: msgs[0].MsgID})
+			after, _ := s.ViewTopic(ctx, tid, TopicMsgQuery{TaskID: t1, Now: now, AfterAt: msgs[0].ReceivedAt, AfterID: msgs[0].MsgID})
 			if len(after) != 1 || after[0].MsgID != m2.MsgID {
 				t.Fatalf("after cursor: %+v", after)
 			}
-			if one, _ := s.ViewThread(ctx, tid, ThreadMsgQuery{TaskID: t1, Now: now, Limit: 1}); len(one) != 1 {
+			if one, _ := s.ViewTopic(ctx, tid, TopicMsgQuery{TaskID: t1, Now: now, Limit: 1}); len(one) != 1 {
 				t.Fatalf("limit: %+v", one)
 			}
 			// Newest-first windows (chat-reverse): newest, then strictly older.
-			desc, _ := s.ViewThread(ctx, tid, ThreadMsgQuery{TaskID: t1, Now: now, Desc: true, Limit: 1})
+			desc, _ := s.ViewTopic(ctx, tid, TopicMsgQuery{TaskID: t1, Now: now, Desc: true, Limit: 1})
 			if len(desc) != 1 || desc[0].MsgID != m2.MsgID {
 				t.Fatalf("desc newest: %+v", desc)
 			}
-			older, _ := s.ViewThread(ctx, tid, ThreadMsgQuery{TaskID: t1, Now: now, Desc: true, BeforeAt: desc[0].ReceivedAt, BeforeID: desc[0].MsgID})
+			older, _ := s.ViewTopic(ctx, tid, TopicMsgQuery{TaskID: t1, Now: now, Desc: true, BeforeAt: desc[0].ReceivedAt, BeforeID: desc[0].MsgID})
 			if len(older) != 1 || older[0].MsgID != m1.MsgID || len(older[0].Deliveries) != 1 {
 				t.Fatalf("desc before cursor: %+v", older)
 			}
-			if none, _ := s.ViewThread(ctx, tid, ThreadMsgQuery{TaskID: t3, Now: now}); len(none) != 0 {
-				t.Fatalf("expired thread visible: %+v", none)
+			if none, _ := s.ViewTopic(ctx, tid, TopicMsgQuery{TaskID: t3, Now: now}); len(none) != 0 {
+				t.Fatalf("expired topic visible: %+v", none)
 			}
 
 			// FR-019: reading changed nothing.

@@ -23,7 +23,7 @@ import (
 
 // putRow stores one message whose env is VALID JSON, so the view API can
 // marshal it (putMsg's "env-<uuid>" cannot be, and a response that fails to
-// encode is an empty 200 that reads exactly like an empty thread).
+// encode is an empty 200 that reads exactly like an empty topic).
 func putRow(t *testing.T, e *env, tenant, task, channel, from, to, body string, at time.Time) store.Message {
 	t.Helper()
 	inner := `{"v":1,"msg_id":"` + uuidV4() + `","task_id":"` + task + `","from":"` + from +
@@ -39,9 +39,9 @@ func putRow(t *testing.T, e *env, tenant, task, channel, from, to, body string, 
 	return m
 }
 
-func readThread(t *testing.T, e *env, tid, task, as string) (int, int) {
+func readTopic(t *testing.T, e *env, tid, task, as string) (int, int) {
 	t.Helper()
-	code, out := call(t, e, tid, http.MethodGet, "/v1/view/threads/"+task, as, nil)
+	code, out := call(t, e, tid, http.MethodGet, "/v1/view/topics/"+task, as, nil)
 	msgs, _ := out["messages"].([]any)
 	return code, len(msgs)
 }
@@ -68,8 +68,8 @@ func listedChannels(t *testing.T, e *env, tid, as string) map[string]bool {
 	return idSet(t, e, tid, "/v1/view/channels", as, "channels", "channel")
 }
 
-func listedThreads(t *testing.T, e *env, tid, as string) map[string]bool {
-	return idSet(t, e, tid, "/v1/view/threads?roots=false", as, "threads", "task_id")
+func listedTopics(t *testing.T, e *env, tid, as string) map[string]bool {
+	return idSet(t, e, tid, "/v1/view/topics?roots=false", as, "topics", "task_id")
 }
 
 // privacyRig: two members, one created channel HUM-1 is in and HUM-2 is not,
@@ -103,7 +103,7 @@ func newPrivacyRig(t *testing.T) privacyRig {
 
 // The reported defect: "the messages should be public only if both of the
 // users are in the same channel".
-func TestChannelPrivacyThreadRead(t *testing.T) {
+func TestChannelPrivacyTopicRead(t *testing.T) {
 	r := newPrivacyRig(t)
 	for _, tc := range []struct {
 		what, task, as string
@@ -118,7 +118,7 @@ func TestChannelPrivacyThreadRead(t *testing.T) {
 		{"HUM-2 reads #live-proof", r.priv, "HUM-2", http.StatusNotFound, 0},
 		{"HUM-2 reads another member's DM", r.dm, "HUM-2", http.StatusNotFound, 0},
 	} {
-		code, n := readThread(t, r.e, r.tid, tc.task, tc.as)
+		code, n := readTopic(t, r.e, r.tid, tc.task, tc.as)
 		if code != tc.wantCode || n != tc.want {
 			t.Errorf("%s: got %d with %d messages, want %d with %d", tc.what, code, n, tc.wantCode, tc.want)
 		}
@@ -143,16 +143,16 @@ func TestChannelPrivacyListings(t *testing.T) {
 		}
 	}
 
-	seen := listedThreads(t, r.e, r.tid, "HUM-1")
+	seen := listedTopics(t, r.e, r.tid, "HUM-1")
 	if !seen[r.priv] || !seen[r.dm] || !seen[r.public] {
-		t.Errorf("CONTROL: HUM-1's own thread list is incomplete: %v", seen)
+		t.Errorf("CONTROL: HUM-1's own topic list is incomplete: %v", seen)
 	}
-	seen = listedThreads(t, r.e, r.tid, "HUM-2")
+	seen = listedTopics(t, r.e, r.tid, "HUM-2")
 	if seen[r.priv] || seen[r.dm] {
-		t.Errorf("LEAK: HUM-2's thread list carries another member's threads: %v", seen)
+		t.Errorf("LEAK: HUM-2's topic list carries another member's topics: %v", seen)
 	}
 	if !seen[r.public] {
-		t.Errorf("the #lobby thread must stay visible to every member: %v", seen)
+		t.Errorf("the #lobby topic must stay visible to every member: %v", seen)
 	}
 }
 
@@ -184,14 +184,14 @@ func TestChannelPrivacyLive(t *testing.T) {
 	member := dialMember(t, r.e, r.tid, "HUM-1", "HUM-1")
 	outsider := dialMember(t, r.e, r.tid, "HUM-2", "HUM-2")
 
-	// CONTROL: the member subscribes to the channel and to the thread.
+	// CONTROL: the member subscribes to the channel and to the topic.
 	wsjson.Write(ctx, member, map[string]string{"type": "subscribe", "channel": "live-proof"}) //nolint:errcheck
 	if f := readType(t, member, "subscribed"); f["type"] != "subscribed" {
 		t.Fatalf("CONTROL: the member was refused its own channel: %v", f)
 	}
 	wsjson.Write(ctx, member, map[string]string{"type": "subscribe", "task_id": r.priv}) //nolint:errcheck
 	if f := readType(t, member, "subscribed"); f["type"] != "subscribed" {
-		t.Fatalf("CONTROL: the member was refused its own thread: %v", f)
+		t.Fatalf("CONTROL: the member was refused its own topic: %v", f)
 	}
 
 	// The outsider is refused with the SAME token a channel that does not
@@ -202,7 +202,7 @@ func TestChannelPrivacyLive(t *testing.T) {
 		want  string
 	}{
 		{"channel", map[string]string{"type": "subscribe", "channel": "live-proof"}, "unknown_channel"},
-		{"channel thread", map[string]string{"type": "subscribe", "task_id": r.priv}, "not_found"},
+		{"channel topic", map[string]string{"type": "subscribe", "task_id": r.priv}, "not_found"},
 		{"another member's DM", map[string]string{"type": "subscribe", "task_id": r.dm}, "not_found"},
 	} {
 		wsjson.Write(ctx, outsider, tc.frame) //nolint:errcheck
@@ -294,15 +294,15 @@ func TestChannelMembersAPI(t *testing.T) {
 		t.Errorf("members: %v, want the 2 seeded", out["members"])
 	}
 
-	// Adding makes the thread readable; that is the whole point of the table.
-	if c, n := readThread(t, e, tid, task, other); c != http.StatusNotFound {
+	// Adding makes the topic readable; that is the whole point of the table.
+	if c, n := readTopic(t, e, tid, task, other); c != http.StatusNotFound {
 		t.Fatalf("precondition: %s already reads it (%d, %d messages)", other, c, n)
 	}
 	if code, out = call(t, e, tid, http.MethodPost, "/v1/channels/live-proof/members", owner,
 		map[string]string{"human_id": other}); code != http.StatusCreated {
 		t.Fatalf("add member: %d %v", code, out)
 	}
-	if c, n := readThread(t, e, tid, task, other); c != http.StatusOK || n != 1 {
+	if c, n := readTopic(t, e, tid, task, other); c != http.StatusOK || n != 1 {
 		t.Errorf("after being added, %s reads %d with %d messages, want 200 with 1", other, c, n)
 	}
 
@@ -315,7 +315,7 @@ func TestChannelMembersAPI(t *testing.T) {
 	if code, _ = call(t, e, tid, http.MethodDelete, "/v1/channels/live-proof/members/"+other, other, nil); code != http.StatusNoContent {
 		t.Errorf("leaving: %d, want 204", code)
 	}
-	if c, _ := readThread(t, e, tid, task, other); c != http.StatusNotFound {
+	if c, _ := readTopic(t, e, tid, task, other); c != http.StatusNotFound {
 		t.Errorf("after leaving, %s still reads it: %d", other, c)
 	}
 
@@ -333,16 +333,16 @@ func TestChannelMembersAPI(t *testing.T) {
 
 var _ = websocket.StatusNormalClosure
 
-// The shape of the thread the owner actually reported, taken from dev t1
+// The shape of the topic the owner actually reported, taken from dev t1
 // 57e6f191-582e-45b1-a08e-389c0b034803: five UNTAGGED messages between one
 // member and an agent, then a sixth from a DIFFERENT member carrying a
 // channel tag, because the WUI posts a reply from whichever channel page it
 // is on. The leak was read first and answered second, so the intruder ends up
-// inside the thread.
+// inside the topic.
 //
-// Access to the thread must therefore not be a property of the THREAD. If it
+// Access to the topic must therefore not be a property of the TOPIC. If it
 // were, appending that one message would buy the five private ones before it.
-func TestMixedThreadHidesTheDMHalf(t *testing.T) {
+func TestMixedTopicHidesTheDMHalf(t *testing.T) {
 	e := followEnv(t)
 	tid, _ := e.tenant()
 	ctx := context.Background()
@@ -357,16 +357,16 @@ func TestMixedThreadHidesTheDMHalf(t *testing.T) {
 		t.Fatal(err)
 	}
 	task := uuidV4()
-	for i, body := range []string{"can you see this msg", "Also reply in this thread if you can see it",
+	for i, body := range []string{"can you see this msg", "Also reply in this topic if you can see it",
 		"so this is the reply", "@CLE-3444 can you see this msg", "hello"} {
 		putRow(t, e, tid, task, "", "HUM-17", "CLE-3444", body, now.Add(time.Duration(i)*time.Second))
 	}
 	putRow(t, e, tid, task, "live-proof", "HUM-9", "ALL-0", "test", now.Add(time.Minute))
 
 	bodies := func(as string) []string {
-		code, out := call(t, e, tid, http.MethodGet, "/v1/view/threads/"+task, as, nil)
+		code, out := call(t, e, tid, http.MethodGet, "/v1/view/topics/"+task, as, nil)
 		if code != http.StatusOK {
-			t.Fatalf("%s reading the thread: %d %v", as, code, out)
+			t.Fatalf("%s reading the topic: %d %v", as, code, out)
 		}
 		var got []string
 		for _, m := range out["messages"].([]any) {
@@ -380,8 +380,8 @@ func TestMixedThreadHidesTheDMHalf(t *testing.T) {
 	if got := bodies("HUM-17"); len(got) != 5 {
 		t.Errorf("CONTROL: the DM owner reads %d of its own 5 messages: %v", len(got), got)
 	}
-	// The intruder is a party of the THREAD and a member of the channel the
-	// sixth message carries, so the thread opens - and hands back that one
+	// The intruder is a party of the TOPIC and a member of the channel the
+	// sixth message carries, so the topic opens - and hands back that one
 	// message and nothing else.
 	got := bodies("HUM-9")
 	if len(got) != 1 || got[0] != "test" {

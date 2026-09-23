@@ -2,7 +2,7 @@
 // a refresh" (the owner's order of 2026-09-20, extending 013 US7 / CLE-3412).
 //
 // 013 proved it for one list: the messages of the open view. This suite covers
-// the lists it did not — the channel / DM thread cards ordered by their LAST
+// the lists it did not — the channel / DM topic cards ordered by their LAST
 // activity, the sidebar channel list, the sidebar DM list — plus the DOM
 // contract the live audit reads (`data-ts` on every row of every list, so the
 // rendered order can be checked against the clock rather than against a guess).
@@ -22,7 +22,7 @@ import {
   mergeLive,
   orderChannels,
   orderPeers,
-  threadCards,
+  topicCards,
 } from '../../src/utils/channel-feed.mjs'
 import { activityOf, newestActivityFirst } from '../../src/utils/feed.mjs'
 import { normalizeSearchResponse, rowAt } from '../../src/utils/search.mjs'
@@ -55,24 +55,24 @@ describe('activityOf / newestActivityFirst', () => {
   })
 })
 
-describe('threadCards: one card per task, carrying the thread LAST activity', () => {
+describe('topicCards: one card per task, carrying the topic LAST activity', () => {
   it('keeps the root as the card and lifts the newest reply onto last_ts', () => {
-    const cards = threadCards([msg('t1', 1), msg('t1', 9), msg('t2', 5)])
+    const cards = topicCards([msg('t1', 1), msg('t1', 9), msg('t2', 5)])
     assert.deepEqual(ids(cards), ['t1-1', 't2-5'])
     assert.equal(cards[0].last_ts, '2026-09-20T10:09:00Z')
     assert.equal(cards[0].count, 1)
     assert.equal(cards[1].last_ts, '2026-09-20T10:05:00Z')
   })
 
-  it('a hub thread row keeps its own count (the hub already counted it)', () => {
+  it('a hub topic row keeps its own count (the hub already counted it)', () => {
     const row = feedRow({ task_id: 't3', first_ts: '2026-09-20T09:00:00Z', last_ts: '2026-09-20T09:30:00Z', count: 7, participants: ['HUM-4@box-wui'] })
-    const cards = threadCards([row])
+    const cards = topicCards([row])
     assert.equal(cards[0].count, 6, 'feedRow already turned count into replies')
     assert.equal(cards[0].last_ts, '2026-09-20T09:30:00Z')
   })
 })
 
-describe('channelView: pane 2 is the thread starter (owner 2026-09-23)', () => {
+describe('channelView: pane 2 is the topic starter (owner 2026-09-23)', () => {
   it('a reply is not a row; the starter stays and rises on the reply', () => {
     /* t1 started 10:01 and was replied to at 10:20; t2 started 10:10 and went
        quiet. The reply moves t1's starter to the top. The row is still t1's
@@ -248,7 +248,7 @@ describe('the tab-wide live follow (plugins/spool-live.client.ts)', () => {
 describe('search rows carry the clock their group is ordered by', () => {
   it('rowAt reads the right field per group type', () => {
     assert.equal(rowAt({ received_at: 'a', last_at: 'b' }), 'a', 'a message')
-    assert.equal(rowAt({ last_at: 'b' }), 'b', 'a thread')
+    assert.equal(rowAt({ last_at: 'b' }), 'b', 'a topic')
     assert.equal(rowAt({ last_ts: 'c' }), 'c', 'a channel')
     assert.equal(rowAt({ last_hello_at: 'd' }), 'd', 'a box')
     assert.equal(rowAt({}), '')
@@ -277,7 +277,7 @@ describe('search rows carry the clock their group is ordered by', () => {
 })
 
 describe('DOM contract: every list row carries the clock it is ordered by', () => {
-  it('a message / thread card prints its ACTIVITY time, not the root ts', () => {
+  it('a message / topic card prints its ACTIVITY time, not the root ts', () => {
     const s = read('components/MessageCard.vue')
     assert.match(s, /:data-ts="at \|\| undefined"/)
     assert.match(s, /activityOf\(props\.msg\)/)
@@ -287,7 +287,7 @@ describe('DOM contract: every list row carries the clock it is ordered by', () =
     assert.match(s, /formatIsoTs\(at\.value/)
   })
 
-  it('the thread list row carries last_ts', () => {
+  it('the topic list row carries last_ts', () => {
     assert.match(read('pages/index.vue'), /:data-ts="t\.last_ts \|\| undefined"/)
   })
 

@@ -53,8 +53,8 @@
         ref="inListEl"
         class="mention-list"
         role="listbox"
-        data-test="thread-in-suggestions"
-        :aria-label="t('nav.threads')"
+        data-test="topic-in-suggestions"
+        :aria-label="t('nav.topics')"
       >
         <li v-for="(row, i) in inCandidates" :key="row.taskId">
           <button
@@ -168,11 +168,11 @@ import {
 } from '~/utils/mention-autocomplete.mjs'
 import {
   activeInQuery,
-  filterThreadTitles,
+  filterTopicTitles,
   insertInClause,
   resolveInClause,
-  threadChoices,
-} from '~/utils/thread-in.mjs'
+  topicChoices,
+} from '~/utils/topic-in.mjs'
 
 const props = defineProps<{
   placeholder?: string
@@ -214,9 +214,9 @@ const mentionListEl = ref<HTMLUListElement | null>(null)
 const inQuery = ref<string | null>(null)
 const inIdx = ref(0)
 const inListEl = ref<HTMLUListElement | null>(null)
-/** The thread the reader picked, so two starters with one title stay distinct. */
+/** The topic the reader picked, so two starters with one title stay distinct. */
 const pickedIn = ref<{ taskId: string, title: string, channel: string } | null>(null)
-const threadsAsked = ref(false)
+const topicsAsked = ref(false)
 /** Slack's ``` composer: the caret sits inside an open code block. */
 const inCode = ref(false)
 /**
@@ -342,7 +342,7 @@ function syncMention(ev?: Event) {
     })
   }
   if (searchMode.value) {
-    // a search line is a query: no code block, no @-picker, no thread picker
+    // a search line is a query: no code block, no @-picker, no topic picker
     inCode.value = false
     mentionQuery.value = null
     inQuery.value = null
@@ -358,7 +358,7 @@ function syncMention(ev?: Event) {
     })
   }
   mentionQuery.value = q
-  /* `in:` is the thread-title picker. An @ token at the caret wins, same as a code fence. */
+  /* `in:` is the topic-title picker. An @ token at the caret wins, same as a code fence. */
   const nextIn = (inCode.value || q !== null) ? null : activeInQuery(text.value, caret())
   if (nextIn !== inQuery.value) {
     inIdx.value = 0
@@ -376,19 +376,19 @@ const candidates = computed(() => {
 
 const pickerOpen = computed(() => mentionQuery.value !== null && candidates.value.length > 0)
 
-const threadCatalogue = computed(() => threadChoices({
-  threads: viewer.threads,
+const topicCatalogue = computed(() => topicChoices({
+  topics: viewer.topics,
   messages: [...channelFeed.messages, ...liveMain.messages],
 }))
 const inCandidates = computed(() => (
-  inQuery.value === null ? [] : filterThreadTitles(threadCatalogue.value, inQuery.value)
+  inQuery.value === null ? [] : filterTopicTitles(topicCatalogue.value, inQuery.value)
 ))
 const inPickerOpen = computed(() => inQuery.value !== null && inCandidates.value.length > 0 && !pickerOpen.value)
 
 watch(inQuery, (q) => {
-  if (q === null || threadsAsked.value || viewer.threads.length > 0) return
-  threadsAsked.value = true
-  void viewer.loadThreads()
+  if (q === null || topicsAsked.value || viewer.topics.length > 0) return
+  topicsAsked.value = true
+  void viewer.loadTopics()
 })
 
 /** Arrow keys move the highlight. Scroll only this list: scrollIntoView also moves the page under the bar. */
@@ -548,8 +548,8 @@ function onGlobalKey(ev: KeyboardEvent): boolean {
 }
 
 function onSend() {
-  /* `/switch-pane: messages|channels|threads|topics|flow` changes the left pane
-     and is never sent. Topic and thread are the same pane. An unknown name stays in the box. */
+  /* `/switch-pane: messages|channels|topics|flow` changes the left pane
+     and is never sent. `topic` is the same pane. An unknown name stays in the box. */
   if (props.global || props.omnibox) {
     const pane = switchPaneOf(text.value)
     if (pane !== null) {
@@ -586,15 +586,15 @@ function onSend() {
     }
   }
   let body = closeOpenFence(text.value).trim()
-  let threadId = props.parentTaskId
+  let topicId = props.parentTaskId
   let channelId: string | undefined
   if ((props.global || props.omnibox) && body) {
-    const resolved = resolveInClause(body, threadCatalogue.value)
+    const resolved = resolveInClause(body, topicCatalogue.value)
     if (resolved.taskId) {
       const chosen = pickedIn.value
       const same = Boolean(chosen && resolved.title.toLowerCase() === chosen.title.toLowerCase())
       body = resolved.body
-      threadId = same && chosen ? chosen.taskId : resolved.taskId
+      topicId = same && chosen ? chosen.taskId : resolved.taskId
       channelId = (same && chosen ? chosen.channel : resolved.channel) || undefined
     }
   }
@@ -606,7 +606,7 @@ function onSend() {
     sizeError.value = tooBig
     return
   }
-  emit('send', body, threadId, picked.value.slice(), channelId)
+  emit('send', body, topicId, picked.value.slice(), channelId)
   text.value = ''
   picked.value = []
   mentionQuery.value = null

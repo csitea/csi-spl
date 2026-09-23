@@ -1,5 +1,5 @@
 // 013 on /channel and /dm (X3): newest first under the Omnibox, the same
-// LiveFeed / Omnibox as /lobby, and the channel ThreadPane reversed too.
+// LiveFeed / Omnibox as /lobby, and the channel TopicPane reversed too.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -34,10 +34,10 @@ describe('channelView (X3 ordering)', () => {
 
   /*
    * Owner, 2026-09-23: pane 2 is the starter again. A reply still makes that
-   * thread the newest thing in the channel (CLE-3425), and the row that moves
+   * topic the newest thing in the channel (CLE-3425), and the row that moves
    * is the starter — its author and its body — not the reply.
    */
-  it('a live in-thread reply lifts the starter, and the row stays the starter', () => {
+  it('a live in-topic reply lifts the starter, and the row stays the starter', () => {
     const reply = { ...msg(9), msg_id: 'r1', task_id: 't01', from: 'CLE-07', body: 'pong' }
     const v = channelView(mergeLive([msg(1), msg(2)], reply))
     assert.deepEqual(ids(v), ['m01', 'm02'])
@@ -64,12 +64,12 @@ describe('channelView (X3 ordering)', () => {
     assert.equal(all.rows[59].msg_id, 'm00')
   })
 
-  it('view-v1 §4.3 thread rows (live) sort by their LAST activity, newest first', () => {
+  it('view-v1 §4.3 topic rows (live) sort by their LAST activity, newest first', () => {
     const a = feedRow({ task_id: 'ta', first_ts: '2026-09-19T09:00:00Z', count: 3, participants: ['HUM-2@box-wui'] })
     const b = feedRow({ task_id: 'tb', first_ts: '2026-09-19T09:05:00Z', count: 1, participants: ['CLE-7@box-a'] })
     assert.deepEqual(ids(channelView([a, b])), ['tb', 'ta'])
     /* CLE-3425: the same two rows, but `ta` was replied to after `tb` started —
-       the busy thread is on top. The pre-2026-09-20 code sorted on first_ts and
+       the busy topic is on top. The pre-2026-09-20 code sorted on first_ts and
        left it buried, which is the defect the owner reported. */
     const busy = feedRow({ task_id: 'ta', first_ts: '2026-09-19T09:00:00Z', last_ts: '2026-09-19T09:10:00Z', count: 4, participants: ['HUM-2@box-wui'] })
     assert.deepEqual(ids(channelView([busy, b])), ['ta', 'tb'])
@@ -81,7 +81,7 @@ describe('channelView (X3 ordering)', () => {
   })
 })
 
-describe('X3 wiring: the lobby pattern on /channel, /dm and the channel ThreadPane', () => {
+describe('X3 wiring: the lobby pattern on /channel, /dm and the channel TopicPane', () => {
   // 022: the page Omnibox moved into the top bar; the page registers its send target
   for (const page of ['pages/channel/[name].vue', 'pages/dm/[peer].vue', 'pages/lobby.vue']) {
     it(`${page}: sends through the top-bar Omnibox, no inline one`, () => {
@@ -108,8 +108,8 @@ describe('X3 wiring: the lobby pattern on /channel, /dm and the channel ThreadPa
     assert.doesNotMatch(s, /v-for=/)
   })
 
-  it('ThreadPane: pinned root, then the replies, with no reply field of its own', () => {
-    const s = read('components/ThreadPane.vue')
+  it('TopicPane: pinned root, then the replies, with no reply field of its own', () => {
+    const s = read('components/TopicPane.vue')
     const root = s.indexOf('pinned-root')
     const feed = s.indexOf('<LiveFeed')
     assert.ok(root > 0 && root < feed)

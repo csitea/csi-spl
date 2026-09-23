@@ -1,5 +1,5 @@
 <!-- 022 FR-020..025: global search results, deep-linkable as /search?q=….
-     Grouped sections (robots, users, channels, boxes, threads, files,
+     Grouped sections (robots, users, channels, boxes, topics, files,
      messages; search-v1 §4), highlights from offsets rendered as text nodes,
      one listbox across all sections (ArrowUp/Down wrap, Home/End, Enter
      opens), per-section "Load more" on that section's cursor. -->
@@ -114,8 +114,8 @@ import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
-import { useThreadStore } from '~/stores/thread'
-import { useThreadRoute } from '~/composables/useThreadRoute'
+import { useTopicStore } from '~/stores/topic'
+import { useTopicRoute } from '~/composables/useTopicRoute'
 import { flattenGroups, highlightSegments, moveIndex, searchPath, searchTarget, type SearchRow, rowAt } from '~/utils/search.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -125,19 +125,19 @@ const router = useRouter()
 const search = useSearchStore()
 const omnibox = useOmniboxStore()
 const pane = useLiveFeed('pane')
-const thread = useThreadStore()
+const topic = useTopicStore()
 const listEl = ref<HTMLElement | null>(null)
 
-/* CLE-3427: the thread a hit opens is in the URL too, so a search result the
+/* CLE-3427: the topic a hit opens is in the URL too, so a search result the
    reader wants to show someone is one link, not "search this, then click the
    third row". The `q` parameter is untouched. */
-useThreadRoute({
+useTopicRoute({
   open: async (target) => {
-    thread.setTarget(target, null)
+    topic.setTarget(target, null)
     await pane.open(target.taskId)
   },
   close: () => {
-    thread.close()
+    topic.close()
     pane.close()
   },
 })
@@ -166,7 +166,7 @@ function meta(row: SearchRow): string {
   const r = row as Record<string, any>
   switch (row.type) {
     case 'messages': return [r.channel ? '#' + r.channel : t('search.in_dm'), when(r.received_at || r.created_at)].filter(Boolean).join(' · ')
-    case 'threads': return [r.channel ? '#' + r.channel : t('search.in_dm'), t('search.count_messages', { n: Number(r.count) || 0 }, Number(r.count) || 0), when(r.last_ts)].filter(Boolean).join(' · ')
+    case 'topics': return [r.channel ? '#' + r.channel : t('search.in_dm'), t('search.count_messages', { n: Number(r.count) || 0 }, Number(r.count) || 0), when(r.last_ts)].filter(Boolean).join(' · ')
     case 'files': return [label(r.from, r.from_box), r.bytes != null ? t('composer.file_bytes', { n: r.bytes }) : '', when(r.received_at)].filter(Boolean).join(' · ')
     case 'robots': return r.revoked ? t('search.revoked') : ''
     case 'users': return r.display_name && r.id ? String(r.id) : ''
@@ -229,15 +229,15 @@ function onKey(ev: KeyboardEvent) {
   }
 }
 
-/** FR-023: message / file → its thread in the right pane at that message */
+/** FR-023: message / file → its topic in the right pane at that message */
 async function open(row: SearchRow) {
   active.value = indexOf(row)
   const to = searchTarget(row)
   if (!to) return
   if ('path' in to) return void router.push(localePath(to.path))
   if ('search' in to) return void router.push(localePath(searchPath(to.search)))
-  thread.setTarget({ taskId: to.thread, mode: 'task', rootMsgId: '', parentTaskId: '' }, null)
-  await pane.open(to.thread)
+  topic.setTarget({ taskId: to.topic, mode: 'task', rootMsgId: '', parentTaskId: '' }, null)
+  await pane.open(to.topic)
   if (to.focus) focusMessage(to.focus)
 }
 

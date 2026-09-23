@@ -165,7 +165,7 @@ func Get(cfg *config.Config, fileID, dest string, dir bool) (GetResult, error) {
 	return GetResult{FileID: fileID, Path: dest}, nil
 }
 
-// Tail renders a thread oldest-first: one human line per message, or with
+// Tail renders a topic oldest-first: one human line per message, or with
 // asJSON one raw v:1 object per line (NDJSON). Every line ends in a newline.
 func Tail(cfg *config.Config, taskID string, asJSON bool) (string, error) {
 	if taskID == "" {

@@ -24,7 +24,7 @@ type PutFileIn struct {
 type SendIn struct {
 	From    string   `json:"from" jsonschema:"sender agent id, e.g. GRK-03"`
 	To      string   `json:"to" jsonschema:"recipient agent id, e.g. CLE-07"`
-	TaskID  string   `json:"task_id,omitempty" jsonschema:"thread uuid; a new one is minted when empty"`
+	TaskID  string   `json:"task_id,omitempty" jsonschema:"topic uuid; a new one is minted when empty"`
 	Kind    string   `json:"kind" jsonschema:"one of task, result, note, reject"`
 	Body    string   `json:"body" jsonschema:"message text"`
 	FileIDs []string `json:"file_ids,omitempty" jsonschema:"file_ids from spool_put_file to attach"`
@@ -45,7 +45,7 @@ type GetFileIn struct {
 
 // TailIn is the input of spool_tail.
 type TailIn struct {
-	TaskID string `json:"task_id" jsonschema:"thread uuid"`
+	TaskID string `json:"task_id" jsonschema:"topic uuid"`
 	JSON   bool   `json:"json,omitempty" jsonschema:"emit raw v:1 NDJSON instead of human lines"`
 }
 
@@ -110,7 +110,7 @@ func NewServer(cfg *config.Config, version string) *sdk.Server {
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "spool_tail",
-		Description: "List a thread oldest-first: human lines, or raw v:1 NDJSON with json=true (== spool tail).",
+		Description: "List a topic oldest-first: human lines, or raw v:1 NDJSON with json=true (== spool tail).",
 	}, func(_ context.Context, _ *sdk.CallToolRequest, in TailIn) (*sdk.CallToolResult, any, error) {
 		out, err := action.Tail(cfg, in.TaskID, in.JSON)
 		if err != nil {

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """rdb 0028 live probe, READ-ONLY: prove the read door on the DEPLOYED hub.
 
-Signs one member in and asserts, against a thread the caller names:
+Signs one member in and asserts, against a topic the caller names:
 
   * the messages it may read come back (the CONTROL - a door that returns
     nothing passes every "must not be readable" assertion vacuously, so the
     positive half is not optional), and
-  * the messages it may NOT read do not. A thread that mixes a DM with a
+  * the messages it may NOT read do not. A topic that mixes a DM with a
     channel-tagged reply is the interesting case, and is the shape the defect
     was reported from: PROBE_DENY_FROM names the id whose UNTAGGED messages
     this member is not an end of, and none of them may appear.
 
-Nothing is written: only GET /v1/view/threads/{task_id} is called after the
+Nothing is written: only GET /v1/view/topics/{task_id} is called after the
 sign-in.
 
 Env: PROBE_API (https://<api host>), PROBE_TENANT, PROBE_EMAIL, PROBE_PW_FILE,
@@ -89,12 +89,12 @@ def main():
         return 2
     st, _, me = http("GET", API + "/v1/view/me", cookie=cookie)
     who = me.get("human_id") if isinstance(me, dict) else ""
-    st, _, body = http("GET", f"{API}/v1/view/threads/{TASK}", cookie=cookie)
+    st, _, body = http("GET", f"{API}/v1/view/topics/{TASK}", cookie=cookie)
     v = {"human_id": who, "task_id": TASK, "status": st, "ok": True, "checks": {}}
     if st == 404:
-        # The whole thread is closed to this member. Legitimate, but it is not
+        # The whole topic is closed to this member. Legitimate, but it is not
         # a proof of anything unless nothing was expected back.
-        v["checks"]["thread"] = {"readable": 0, "want_min": ALLOW_MIN}
+        v["checks"]["topic"] = {"readable": 0, "want_min": ALLOW_MIN}
         v["ok"] = ALLOW_MIN == 0
         print(json.dumps(v, sort_keys=True))
         return 0 if v["ok"] else 1

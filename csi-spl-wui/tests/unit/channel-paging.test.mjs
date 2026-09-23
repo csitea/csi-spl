@@ -1,4 +1,4 @@
-// A6: server paging of older threads in channel and DM feeds.
+// A6: server paging of older topics in channel and DM feeds.
 // listMessages({channel|dm, before}) passes view-v1 §4.3 next as before=;
 // the channel store appends the older page at the bottom, deduped by msg_id,
 // and stops when next is null.
@@ -39,8 +39,8 @@ const el = (cursor, received_at, msg, extra = {}) => ({
   env: { from_box: 'box-a', to_box: 'box-wui', ...extra, msg: { v: 1, ...msg }, sig: 's' },
 })
 
-function threadListCalls(calls) {
-  return calls.filter((c) => String(c.url).startsWith('/v1/view/threads?'))
+function topicListCalls(calls) {
+  return calls.filter((c) => String(c.url).startsWith('/v1/view/topics?'))
 }
 
 function beforeOf(call) {
@@ -72,15 +72,15 @@ async function pageFeed(api, filter) {
   }
 }
 
-const page1Threads = {
-  threads: [
+const page1Topics = {
+  topics: [
     { task_id: TN, channel: 'lobby', first_ts: '2026-09-19T12:00:00Z', last_ts: '2026-09-19T12:00:00Z', subject: 'newest' },
     { task_id: TM, channel: 'lobby', first_ts: '2026-09-19T11:30:00Z', last_ts: '2026-09-19T11:30:00Z', subject: 'mid' },
   ],
   next: 'CUR1',
 }
-const page2Threads = {
-  threads: [
+const page2Topics = {
+  topics: [
     { task_id: TO, channel: 'lobby', first_ts: '2026-09-19T11:00:00Z', last_ts: '2026-09-19T11:00:00Z', subject: 'oldest' },
   ],
   next: null,
@@ -94,19 +94,19 @@ function twoPageRoutes(dupOnPage2 = false) {
     page2Msgs.push(el('cn', '2026-09-19T12:00:00Z', { msg_id: 'new-1', task_id: TN, ts: '2026-09-19T12:00:00Z', body: 'newest root' }, { channel: 'lobby' }))
   }
   return [
-    [(u) => u.startsWith('/v1/view/threads?') && !new URL(u, 'http://x').searchParams.get('before'), [200, page1Threads]],
-    [(u) => u.startsWith('/v1/view/threads?') && new URL(u, 'http://x').searchParams.get('before') === 'CUR1', [200, page2Threads]],
-    [(u) => u.startsWith(`/v1/view/threads/${TN}?`), [200, {
+    [(u) => u.startsWith('/v1/view/topics?') && !new URL(u, 'http://x').searchParams.get('before'), [200, page1Topics]],
+    [(u) => u.startsWith('/v1/view/topics?') && new URL(u, 'http://x').searchParams.get('before') === 'CUR1', [200, page2Topics]],
+    [(u) => u.startsWith(`/v1/view/topics/${TN}?`), [200, {
       task_id: TN,
       messages: [el('cn', '2026-09-19T12:00:00Z', { msg_id: 'new-1', task_id: TN, ts: '2026-09-19T12:00:00Z', body: 'newest root' }, { channel: 'lobby' })],
       next: null,
     }]],
-    [(u) => u.startsWith(`/v1/view/threads/${TM}?`), [200, {
+    [(u) => u.startsWith(`/v1/view/topics/${TM}?`), [200, {
       task_id: TM,
       messages: [el('cm', '2026-09-19T11:30:00Z', { msg_id: 'mid-1', task_id: TM, ts: '2026-09-19T11:30:00Z', body: 'mid root' }, { channel: 'lobby' })],
       next: null,
     }]],
-    [(u) => u.startsWith(`/v1/view/threads/${TO}?`), [200, { task_id: TO, messages: page2Msgs, next: null }]],
+    [(u) => u.startsWith(`/v1/view/topics/${TO}?`), [200, { task_id: TO, messages: page2Msgs, next: null }]],
   ]
 }
 
@@ -114,16 +114,16 @@ describe('listMessages paging (view-v1 §4.3 before=/next)', () => {
   it('the 2nd call sends before=<next> from the first page', async () => {
     const { fn, calls } = stubFetch(twoPageRoutes())
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    const p1 = await c.listMessages({ channel: 'lobby', threads: 2 })
+    const p1 = await c.listMessages({ channel: 'lobby', topics: 2 })
     assert.equal(p1.next, 'CUR1')
     assert.deepEqual(p1.messages.map((m) => m.msg_id), ['mid-1', 'new-1'])
-    const lists = threadListCalls(calls)
+    const lists = topicListCalls(calls)
     assert.equal(lists.length, 1)
     assert.equal(beforeOf(lists[0]), null)
     assert.equal(new URL(lists[0].url, 'http://x').searchParams.get('channel'), 'lobby')
 
-    const p2 = await c.listMessages({ channel: 'lobby', threads: 2, before: p1.next })
-    const lists2 = threadListCalls(calls)
+    const p2 = await c.listMessages({ channel: 'lobby', topics: 2, before: p1.next })
+    const lists2 = topicListCalls(calls)
     assert.equal(lists2.length, 2)
     assert.equal(beforeOf(lists2[1]), 'CUR1')
     assert.equal(p2.next, null)
@@ -132,13 +132,13 @@ describe('listMessages paging (view-v1 §4.3 before=/next)', () => {
 
   it('DM pages pass dm=true&peer= and before=', async () => {
     const { fn, calls } = stubFetch([
-      [(u) => u.startsWith('/v1/view/threads?'), [200, { threads: [], next: 'DM1' }]],
+      [(u) => u.startsWith('/v1/view/topics?'), [200, { topics: [], next: 'DM1' }]],
     ])
     const c = createSpoolClient({ fetchFn: fn, mock: false })
     const p1 = await c.listMessages({ peer: 'CLE-07@box-a' })
     assert.equal(p1.next, 'DM1')
     const p2 = await c.listMessages({ peer: 'CLE-07@box-a', before: p1.next })
-    const lists = threadListCalls(calls)
+    const lists = topicListCalls(calls)
     assert.equal(lists.length, 2)
     const q1 = new URL(lists[0].url, 'http://x').searchParams
     const q2 = new URL(lists[1].url, 'http://x').searchParams
@@ -166,7 +166,7 @@ describe('channel store paging action (sentinel → older page)', () => {
   it('older rows land at the bottom; newest stays on top', async () => {
     const { fn } = stubFetch(twoPageRoutes())
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    const feed = await pageFeed(c, { channel: 'lobby', threads: 2 })
+    const feed = await pageFeed(c, { channel: 'lobby', topics: 2 })
     await feed.loadOlder()
     const view = channelView(feed.held)
     assert.deepEqual(view.rows.map((m) => m.msg_id), ['new-1', 'mid-1', 'old-1'])
@@ -177,7 +177,7 @@ describe('channel store paging action (sentinel → older page)', () => {
   it('de-duplicates by msg_id when the older page repeats a held row', async () => {
     const { fn } = stubFetch(twoPageRoutes(true))
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    const feed = await pageFeed(c, { channel: 'lobby', threads: 2 })
+    const feed = await pageFeed(c, { channel: 'lobby', topics: 2 })
     await feed.loadOlder()
     const ids = feed.held.map((m) => m.msg_id)
     assert.deepEqual(ids, ['mid-1', 'new-1', 'old-1'])
@@ -187,13 +187,13 @@ describe('channel store paging action (sentinel → older page)', () => {
   it('does not call again once next is null', async () => {
     const { fn, calls } = stubFetch(twoPageRoutes())
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    const feed = await pageFeed(c, { channel: 'lobby', threads: 2 })
+    const feed = await pageFeed(c, { channel: 'lobby', topics: 2 })
     await feed.loadOlder()
     assert.equal(feed.next, null)
-    const n = threadListCalls(calls).length
+    const n = topicListCalls(calls).length
     await feed.loadOlder()
     await feed.loadOlder()
-    assert.equal(threadListCalls(calls).length, n)
+    assert.equal(topicListCalls(calls).length, n)
     assert.equal(n, 2)
   })
 })
@@ -211,8 +211,8 @@ describe('A6 wiring in channel.ts and spool-client', () => {
 
   it('listMessages accepts before and returns next', () => {
     const src = read('utils/spool-client.mjs')
-    assert.match(src, /async listMessages\(\{ channel, peer, limit = 50, since, threads = 20, before \}/)
-    assert.match(src, /listThreads\(\{ limit: threads, before, \.\.\.filter \}\)/)
+    assert.match(src, /async listMessages\(\{ channel, peer, limit = 50, since, topics = 20, before \}/)
+    assert.match(src, /listTopics\(\{ limit: topics, before, \.\.\.filter \}\)/)
     assert.match(src, /next: list\.next \|\| null/)
     const shim = read('types/mjs-shims.d.ts')
     assert.match(shim, /before\?: string/)

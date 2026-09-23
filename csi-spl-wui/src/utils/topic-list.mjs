@@ -1,6 +1,6 @@
 /**
- * 013 US7 FR-011: the thread list `/` newest first and live. A pushed
- * message (live-ws messageFromFrame shape) moves its thread row to the top,
+ * 013 US7 FR-011: the topic list `/` newest first and live. A pushed
+ * message (live-ws messageFromFrame shape) moves its topic row to the top,
  * or starts a new row; rows stay ordered by last_ts, newest first.
  */
 
@@ -16,12 +16,12 @@ function byNewest(a, b) {
 }
 
 /**
- * Apply one live message. A reply inside a known thread bumps its count,
+ * Apply one live message. A reply inside a known topic bumps its count,
  * kinds, participants and last_ts; an unknown task_id becomes a new row
- * unless it is a child thread (parent_task_id: the list shows roots, §4.3).
+ * unless it is a child topic (parent_task_id: the list shows roots, §4.3).
  */
-export function bumpThread(threads, m) {
-  const list = threads || []
+export function bumpTopic(topics, m) {
+  const list = topics || []
   const id = String((m && m.task_id) || '')
   if (!id || !m.msg_id) return list
   const ts = String(m.received_at || m.ts || '')
@@ -31,7 +31,7 @@ export function bumpThread(threads, m) {
   if (i >= 0) {
     const t = list[i]
     /* The send and its own echo both carry this msg_id. Counting both would
-       show two messages in a thread that has one. */
+       show two messages in a topic that has one. */
     if (t.last_msg_id && t.last_msg_id === m.msg_id) return list
     const kinds = { ...(t.kinds || {}) }
     if (m.kind) kinds[m.kind] = (kinds[m.kind] || 0) + 1
@@ -48,8 +48,8 @@ export function bumpThread(threads, m) {
 }
 
 /** Reconnect catch-up: a fresh first page replaces rows by task_id, keeps older pages. */
-export function mergeThreadPage(threads, page) {
-  const byId = new Map((threads || []).map((t) => [t.task_id, t]))
+export function mergeTopicPage(topics, page) {
+  const byId = new Map((topics || []).map((t) => [t.task_id, t]))
   for (const t of page || []) if (t && t.task_id) byId.set(t.task_id, t)
   return [...byId.values()].sort(byNewest)
 }

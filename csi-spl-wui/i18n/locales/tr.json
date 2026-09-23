@@ -9,7 +9,7 @@
     "cancel": "İptal"
   },
   "nav": {
-    "threads": "Konular",
+    "topics": "Konular",
     "lobby": "Lobi",
     "general": "#general",
     "login": "Giriş yap",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "bilinmiyor",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Konuyu aç",
+    "open_topic": "Konuyu aç",
     "replies": "{n} yanıt | {n} yanıt",
     "filter_label": "Filtre:",
     "matches": "{count} eşleşme",
@@ -399,7 +399,7 @@
     },
     "new_pill": "Yeni: {n}",
     "new_pill_label": "En yeni mesajlara git",
-    "open_thread_hint": "Bu iletinin konusunu açmak için Enter'a basın.",
+    "open_topic_hint": "Bu iletinin konusunu açmak için Enter'a basın.",
     "edit": {
       "label": "Mesajı düzenle",
       "hint": "Enter kaydeder · Shift+Enter yeni satır · Esc iptal eder",
@@ -413,7 +413,7 @@
       "failed_too_large": "Kaydedilemeyecek kadar uzun. Dosya olarak ekleyin."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Konu",
     "open": "Aç",
     "empty": "Boş konu.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Kanal kenar çubuğunu yeniden boyutlandır",
-    "resize_thread": "Konu panelini yeniden boyutlandır",
+    "resize_topic": "Konu panelini yeniden boyutlandır",
     "resize_hint": "Boyutlandırmak için sürükleyin. Sıfırlamak için çift tıklayın."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "Kişiler",
       "channels": "Kanallar",
       "boxes": "Kutular",
-      "threads": "Konular",
+      "topics": "Konular",
       "files": "Dosyalar",
       "messages": "Mesajlar"
     },

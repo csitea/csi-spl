@@ -10,7 +10,7 @@ export function topLevel(messages) {
     .sort((a, b) => String(a.ts).localeCompare(String(b.ts)))
 }
 
-export function threadOf(messages, parentTaskId) {
+export function topicOf(messages, parentTaskId) {
   if (!parentTaskId) return []
   return messages
     .filter((m) => m.task_id === parentTaskId || m.parent_task_id === parentTaskId)
@@ -130,11 +130,11 @@ export function formatElapsed(sec) {
 }
 
 /**
- * Thread-pane clock: absolute UTC time, the word `sent`, then elapsed age
- * (`7s` / `1m` / `2h 3m`) from `originMs` (thread open, ticking).
+ * Topic-pane clock: absolute UTC time, the word `sent`, then elapsed age
+ * (`7s` / `1m` / `2h 3m`) from `originMs` (topic open, ticking).
  * A reply after open shows `sent 0s` until origin catches up.
  */
-export function formatThreadTs(ts, originMs) {
+export function formatTopicTs(ts, originMs) {
   const abs = formatAbsTs(ts)
   const d = new Date(ts)
   if (Number.isNaN(d.getTime())) return abs
@@ -195,8 +195,8 @@ function splitLabel(p) {
 }
 
 /**
- * One feed row. A flat v:1 message passes through; a view-v1 §4.3 thread row
- * (live `/v1/view/threads?channel=` or `?dm=true&peer=`) becomes a root card
+ * One feed row. A flat v:1 message passes through; a view-v1 §4.3 topic row
+ * (live `/v1/view/topics?channel=` or `?dm=true&peer=`) becomes a root card
  * keyed by its task_id, with `count - 1` replies.
  */
 export function feedRow(row) {
@@ -218,12 +218,12 @@ export function feedRow(row) {
     parent_task_id: null,
     files: [],
     count: Math.max(0, (Number(r.count) || 1) - 1),
-    thread_row: true,
+    topic_row: true,
   }
 }
 
 /**
- * One card per v:1 thread (task_id): live listMessages returns flat messages
+ * One card per v:1 topic (task_id): live listMessages returns flat messages
  * where replies share the root's task_id. Earliest message wins; mock roots
  * already have unique task_ids, so this is a no-op there.
  */
@@ -239,11 +239,11 @@ export function rootsByTask(messages) {
   return out
 }
 
-/** Replies of one thread: child tasks (parent_task_id) plus in-thread messages (same task_id). */
-export function threadReplies(messages, taskId) {
+/** Replies of one topic: child tasks (parent_task_id) plus in-topic messages (same task_id). */
+export function topicReplies(messages, taskId) {
   if (!taskId) return 0
-  const same = (messages || []).filter((m) => m.task_id === taskId && !m.thread_row).length
-  const row = (messages || []).find((m) => m.thread_row && m.task_id === taskId)
+  const same = (messages || []).filter((m) => m.task_id === taskId && !m.topic_row).length
+  const row = (messages || []).find((m) => m.topic_row && m.task_id === taskId)
   return replyCount(messages || [], taskId) + (row ? Number(row.count) || 0 : Math.max(0, same - 1))
 }
 
@@ -265,7 +265,7 @@ export function belongsTo(msg, { channel, peer } = {}) {
 
 /**
  * Merge one live WS message into the feed (no poll in live mode). Same
- * msg_id → no-op, except that a confirmed row replaces a `pending` one. A reply to a thread row bumps its count; anything else
+ * msg_id → no-op, except that a confirmed row replaces a `pending` one. A reply to a topic row bumps its count; anything else
  * is appended as a new row. Returns a new array.
  */
 export function mergeLive(rows, msg) {
@@ -281,7 +281,7 @@ export function mergeLive(rows, msg) {
     return next
   }
   const root = m.parent_task_id || m.task_id
-  const i = list.findIndex((r) => r.thread_row && r.task_id === root)
+  const i = list.findIndex((r) => r.topic_row && r.task_id === root)
   if (i >= 0) {
     const r = list[i]
     const next = list.slice()
@@ -350,14 +350,14 @@ export function rowFromAck(ack, frame, { from = '', channel = null } = {}) {
 }
 
 /**
- * One card per thread (task_id), carrying the thread's LAST activity
- * (CLE-3425). The card itself stays the thread's oldest message — that is the
+ * One card per topic (task_id), carrying the topic's LAST activity
+ * (CLE-3425). The card itself stays the topic's oldest message — that is the
  * root the channel lists — but `last_ts` is the newest moment of any message of
- * that task, so a reply inside an old thread bumps the card. A hub thread row
- * (thread_row) already carries `last_ts` and its own `count`; a flat page gets
+ * that task, so a reply inside an old topic bumps the card. A hub topic row
+ * (topic_row) already carries `last_ts` and its own `count`; a flat page gets
  * both computed here.
  */
-export function threadCards(messages) {
+export function topicCards(messages) {
   const out = []
   const at = new Map()
   for (const m of messages || []) {
@@ -377,7 +377,7 @@ export function threadCards(messages) {
     out[i] = {
       ...card,
       last_ts: ts > activityOf(card) ? ts : activityOf(card),
-      count: card.thread_row ? card.count : (Number(card.count) || 0) + 1,
+      count: card.topic_row ? card.count : (Number(card.count) || 0) + 1,
     }
   }
   return out
@@ -397,7 +397,7 @@ function earlierByTs(a, b) {
  * that parent and is never its own card. Replies only move last_ts and count,
  * so the card's author and body stay the starter's.
  */
-function threadStarterCards(messages) {
+function topicStarterCards(messages) {
   const list = []
   for (const m of messages || []) if (m) list.push(m)
   const starterOf = new Map()
@@ -417,7 +417,7 @@ function threadStarterCards(messages) {
     cards.set(id, {
       ...card,
       last_ts: ts > activityOf(card) ? ts : activityOf(card),
-      count: card.thread_row ? card.count : (Number(card.count) || 0) + 1,
+      count: card.topic_row ? card.count : (Number(card.count) || 0) + 1,
     })
   }
   const out = []
@@ -440,7 +440,7 @@ function threadStarterCards(messages) {
  * its starter), the Omnibox `/search` filter, then the first `visible` rows.
  * Storage order is untouched.
  *
- * Pane 2 lists only the message that started the thread. A later message on
+ * Pane 2 lists only the message that started the topic. A later message on
  * the same task_id is a reply even when it has no parent_task_id — that is
  * how the hub stores a follow-up in #lobby, which is one shared task. A
  * message whose parent_task_id names another task is that task's reply and
@@ -450,7 +450,7 @@ function threadStarterCards(messages) {
  * `lobby` is accepted and ignored: #lobby uses this same rule.
  */
 export function channelView(messages, { search = '', visible = 50 } = {}) {
-  const rows = threadStarterCards(messages).filter((m) => matchesSearch(m, search))
+  const rows = topicStarterCards(messages).filter((m) => matchesSearch(m, search))
   return windowed(newestActivityFirst(rows), visible)
 }
 
@@ -475,7 +475,7 @@ export function channelActivity(row, liveAt = {}) {
  *   [robot] CLE-3444@box-desk    ->  [identicon] HUM-17@box-wui  note   <iso>
  *
  * The arrow flips per row because BOTH ends are read from that message, which
- * is the whole point: before this, a row carried the thread root's identity
+ * is the whole point: before this, a row carried the topic root's identity
  * and every row of a two-party conversation showed the same face.
  *
  * A BROADCAST has no right-hand party and shows the sender alone. There are
@@ -523,12 +523,12 @@ export function orderPeers(rows, lastAt = {}) {
 }
 
 /**
- * CLE-3425 — last DM moment per peer label from view-v1 §4.3 DM thread rows
+ * CLE-3425 — last DM moment per peer label from view-v1 §4.3 DM topic rows
  * (`?dm=true`), for orderPeers. `self` (our own label) is never a peer.
  */
-export function dmActivity(threads, self = '') {
+export function dmActivity(topics, self = '') {
   const out = {}
-  for (const t of threads || []) {
+  for (const t of topics || []) {
     const at = String((t && (t.last_ts || t.first_ts)) || '')
     for (const p of (t && t.participants) || []) {
       const label = String(p || '')
@@ -610,7 +610,7 @@ export function dmFollow(current, { peer } = {}) {
 }
 
 /**
- * Reconnect catch-up (FR-015): a fresh first page merged by msg_id — a thread
+ * Reconnect catch-up (FR-015): a fresh first page merged by msg_id — a topic
  * row is replaced (its count moved on), a new one added; older pages already
  * loaded and pending sends stay.
  */
@@ -623,7 +623,7 @@ export function mergePage(rows, incoming) {
     if (i === undefined) {
       at.set(m.msg_id, list.length)
       list.push(m)
-    } else if (list[i].thread_row || list[i].pending) {
+    } else if (list[i].topic_row || list[i].pending) {
       list[i] = m
     }
   }

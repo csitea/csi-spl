@@ -251,11 +251,11 @@ func (s *Postgres) RemoveChannelHuman(ctx context.Context, tenant, channel, huma
 	return nil
 }
 
-// ThreadAccess is one aggregate over the thread's messages: its first
+// TopicAccess is one aggregate over the topic's messages: its first
 // message's channel, and every id at either end. A task_id that is not a
-// canonical uuid matches no row (027 T030, same as ViewThread).
-func (s *Postgres) ThreadAccess(ctx context.Context, tenant, task string, now time.Time) (ThreadAccess, error) {
-	var a ThreadAccess
+// canonical uuid matches no row (027 T030, same as ViewTopic).
+func (s *Postgres) TopicAccess(ctx context.Context, tenant, task string, now time.Time) (TopicAccess, error) {
+	var a TopicAccess
 	if !canonUUIDRe.MatchString(task) {
 		return a, nil
 	}

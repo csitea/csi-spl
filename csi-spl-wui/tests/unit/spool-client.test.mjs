@@ -62,11 +62,11 @@ function stubFetch(routes) {
 const el = (cursor, received_at, msg, extra = {}) => ({ cursor, received_at, env: { from_box: 'box-a', to_box: 'box-wui', ...extra, msg: { v: 1, ...msg }, sig: 's' } })
 
 describe('spool-client live A1 (005 FR-005, channels-v1 §5, 010 FR-009)', () => {
-  it('channel feed hits /v1/view/threads?channel= and merges each thread oldest-first', async () => {
+  it('channel feed hits /v1/view/topics?channel= and merges each topic oldest-first', async () => {
     const { fn, calls } = stubFetch([
-      [(u) => u.startsWith('/v1/view/threads?'), [200, { threads: [{ task_id: T2, channel: 'lobby', first_ts: 'b', last_ts: 'b', subject: 'b' }, { task_id: T1, channel: 'lobby', first_ts: 'a', last_ts: 'a', subject: 'a' }], next: null }]],
-      [(u) => u.startsWith(`/v1/view/threads/${T1}?`), [200, { task_id: T1, messages: [el('c2', '2026-09-19T00:00:02Z', { msg_id: 'm2', task_id: T1 }, { channel: 'lobby' }), el('c1', '2026-09-19T00:00:01Z', { msg_id: 'm1', task_id: T1 }, { channel: 'lobby' })], next: null }]],
-      [(u) => u.startsWith(`/v1/view/threads/${T2}?`), [200, { task_id: T2, messages: [el('c3', '2026-09-19T00:00:03Z', { msg_id: 'm3', task_id: T2 }, { channel: 'lobby', parent_task_id: T1 })], next: null }]],
+      [(u) => u.startsWith('/v1/view/topics?'), [200, { topics: [{ task_id: T2, channel: 'lobby', first_ts: 'b', last_ts: 'b', subject: 'b' }, { task_id: T1, channel: 'lobby', first_ts: 'a', last_ts: 'a', subject: 'a' }], next: null }]],
+      [(u) => u.startsWith(`/v1/view/topics/${T1}?`), [200, { task_id: T1, messages: [el('c2', '2026-09-19T00:00:02Z', { msg_id: 'm2', task_id: T1 }, { channel: 'lobby' }), el('c1', '2026-09-19T00:00:01Z', { msg_id: 'm1', task_id: T1 }, { channel: 'lobby' })], next: null }]],
+      [(u) => u.startsWith(`/v1/view/topics/${T2}?`), [200, { task_id: T2, messages: [el('c3', '2026-09-19T00:00:03Z', { msg_id: 'm3', task_id: T2 }, { channel: 'lobby', parent_task_id: T1 })], next: null }]],
     ])
     const c = createSpoolClient({ fetchFn: fn, mock: false })
     const { messages: feed, next } = await c.listMessages({ channel: 'lobby', limit: 50 })
@@ -80,7 +80,7 @@ describe('spool-client live A1 (005 FR-005, channels-v1 §5, 010 FR-009)', () =>
   })
 
   it('DM feed asks dm=true&peer=', async () => {
-    const { fn, calls } = stubFetch([[(u) => u.startsWith('/v1/view/threads?'), [200, { threads: [], next: null }]]])
+    const { fn, calls } = stubFetch([[(u) => u.startsWith('/v1/view/topics?'), [200, { topics: [], next: null }]]])
     const c = createSpoolClient({ fetchFn: fn, mock: false })
     assert.deepEqual(await c.listMessages({ peer: 'CLE-07@box-a' }), { messages: [], next: null })
     const q = new URL(calls[0].url, 'http://x').searchParams
@@ -89,12 +89,12 @@ describe('spool-client live A1 (005 FR-005, channels-v1 §5, 010 FR-009)', () =>
     assert.equal(q.get('channel'), null)
   })
 
-  it('thread rows keep channel / parent_task_id', async () => {
-    const { fn } = stubFetch([[(u) => u.startsWith('/v1/view/threads?'), [200, { threads: [{ task_id: T2, parent_task_id: T1, channel: 'tasks', first_ts: 'a', subject: 's' }], next: null }]]])
+  it('topic rows keep channel / parent_task_id', async () => {
+    const { fn } = stubFetch([[(u) => u.startsWith('/v1/view/topics?'), [200, { topics: [{ task_id: T2, parent_task_id: T1, channel: 'tasks', first_ts: 'a', subject: 's' }], next: null }]]])
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    const { threads } = await c.listThreads({ channel: 'tasks', roots: false })
-    assert.equal(threads[0].channel, 'tasks')
-    assert.equal(threads[0].parent_task_id, T1)
+    const { topics } = await c.listTopics({ channel: 'tasks', roots: false })
+    assert.equal(topics[0].channel, 'tasks')
+    assert.equal(topics[0].parent_task_id, T1)
   })
 
   it('listChannels sends read=<ch>~<cursor> and keeps unread / last_cursor / retention_days', async () => {
@@ -160,13 +160,13 @@ describe('spool-client live A1 (005 FR-005, channels-v1 §5, 010 FR-009)', () =>
     assert.equal(credentialsFor('off'), 'omit')
     assert.equal(credentialsFor('token'), 'omit')
     assert.equal(credentialsFor('session'), 'include')
-    const { fn, calls } = stubFetch([[() => true, [200, { threads: [], next: null }]]])
+    const { fn, calls } = stubFetch([[() => true, [200, { topics: [], next: null }]]])
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    await c.listThreads()
+    await c.listTopics()
     assert.equal(calls[0].opts.credentials, 'omit')
     c.setDoor('session')
     assert.equal(c.credentials, 'include')
-    await c.listThreads()
+    await c.listTopics()
     assert.equal(calls[1].opts.credentials, 'include')
     const s = createSpoolClient({ fetchFn: fn, mock: false, door: 'session' })
     await s.listRoster()
@@ -176,6 +176,6 @@ describe('spool-client live A1 (005 FR-005, channels-v1 §5, 010 FR-009)', () =>
   it('a 401 keeps the hub error detail (door prompt, A3)', async () => {
     const { fn } = stubFetch([[() => true, [401, { error: 'view_door', detail: 'session required' }]]])
     const c = createSpoolClient({ fetchFn: fn, mock: false })
-    await assert.rejects(c.listThreads(), (e) => e.token === 'view_door' && e.detail === 'session required')
+    await assert.rejects(c.listTopics(), (e) => e.token === 'view_door' && e.detail === 'session required')
   })
 })

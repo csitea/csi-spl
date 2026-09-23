@@ -95,7 +95,7 @@ func (c *sqlc) msgLeaf(t *search.Term) (string, bool) {
 			return "m.channel IS NULL", true
 		}
 		return "m.channel = " + c.arg(t.Channel), true
-	case search.OpThread:
+	case search.OpTopic:
 		return "m.task_id = " + c.arg(t.Value) + "::uuid", true
 	case search.OpBefore, search.OpAfter, search.OpOn:
 		return c.timeRange("m.received_at", t), true
@@ -141,8 +141,8 @@ func (c *sqlc) fileLeaf(t *search.Term) string {
 	return "false"
 }
 
-// threadLeaf on alias t (the per-task aggregate) with live x for parties.
-func (c *sqlc) threadLeaf(t *search.Term) string {
+// topicLeaf on alias t (the per-task aggregate) with live x for parties.
+func (c *sqlc) topicLeaf(t *search.Term) string {
 	exists := func(pred string) string {
 		return "EXISTS (SELECT 1 FROM live x WHERE x.task_id = t.task_id AND (" + pred + "))"
 	}
@@ -163,7 +163,7 @@ func (c *sqlc) threadLeaf(t *search.Term) string {
 		return "t.channel = " + c.arg(t.Channel)
 	case search.OpIs:
 		return "t.parent = ''"
-	case search.OpThread:
+	case search.OpTopic:
 		return "t.task_id = " + c.arg(t.Value)
 	case search.OpBefore, search.OpAfter, search.OpOn:
 		return c.timeRange("t.last_at", t)
@@ -287,7 +287,7 @@ func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery
 	return out, err
 }
 
-func (s *Postgres) SearchThreads(ctx context.Context, tenant string, q SearchQuery) ([]SearchThreadRow, error) {
+func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuery) ([]SearchTopicRow, error) {
 	c := &sqlc{}
 	t, now := c.arg(tenant), c.arg(q.Now)
 	priv := "true"
@@ -297,7 +297,7 @@ func (s *Postgres) SearchThreads(ctx context.Context, tenant string, q SearchQue
 		priv = "((t.channel = '' AND EXISTS (SELECT 1 FROM live x WHERE x.task_id = t.task_id AND (x.from_id = " + v +
 			" OR x.to_id = " + v + "))) OR t.channel = ANY(" + pub + "::text[]) OR t.channel = ANY(" + mine + "::text[]))"
 	}
-	where := c.cond(q.Q.Root, c.threadLeaf)
+	where := c.cond(q.Q.Root, c.topicLeaf)
 	page := ""
 	if !q.AfterAt.IsZero() {
 		page = " AND (t.last_at, t.task_id) < (" + c.arg(q.AfterAt) + "::timestamptz, " + c.arg(q.AfterID) + "::text)"
@@ -322,9 +322,9 @@ func (s *Postgres) SearchThreads(ctx context.Context, tenant string, q SearchQue
 		WHERE ` + priv + ` AND ` + where + page + `
 		ORDER BY last_at DESC, task_id DESC
 		LIMIT ` + c.arg(pgLimit(q.Limit))
-	var out []SearchThreadRow
+	var out []SearchTopicRow
 	err := s.search(ctx, tenant, q, sql, c.args, func(rows pgx.Rows) error {
-		var r SearchThreadRow
+		var r SearchTopicRow
 		if err := rows.Scan(&r.TaskID, &r.Channel, &r.Parent, &r.Title, &r.FirstAt, &r.LastAt, &r.Count,
 			&r.Kinds, &r.Parties, &r.FirstMsg); err != nil {
 			return err

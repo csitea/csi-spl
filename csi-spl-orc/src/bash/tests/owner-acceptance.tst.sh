@@ -3,14 +3,14 @@
 # Purpose: specs/031 — the owner acceptance run (do_spl_owner_acceptance) and
 #          the pane assert it leans on (pane-seen.sh). Hermetic: no cloud call,
 #          no browser, no tmux server, no spool binary.
-#   1. spl_oa_validate takes a task UUID and nothing else. A wrong OA_THREAD
+#   1. spl_oa_validate takes a task UUID and nothing else. A wrong OA_TOPIC
 #      would start a NEW conversation beside the one the owner is reading,
 #      which is worse than an error, so the shape is checked before anything
 #      is sent. CONTROL: a good uuid passes
 #   2. the action inherits the desk id rules (tenant slug, box, agent)
 #   3. the dry run makes no gcloud / curl / docker / spool / node / tmux call.
 #      CONTROL: the stub log records one when a real call is made
-#   4. the dry run NAMES the thread and the peer it would post into — the
+#   4. the dry run NAMES the topic and the peer it would post into — the
 #      owner has to be able to read, before DRY_RUN=0, exactly which
 #      conversation is about to carry test traffic
 #   5. DRY_RUN=0 refuses before it sends when the bot has no password on disk
@@ -49,19 +49,19 @@ in_orc() {
 
 GOOD=0cd6b6d2-4336-46a2-a0b6-65bb962877ee
 
-# --- 1. the thread rule --------------------------------------------------------
+# --- 1. the topic rule --------------------------------------------------------
 SNIPPET="spl_oa_validate $GOOD" in_orc >/dev/null 2>&1 &&
-  pass "CONTROL a task UUID is accepted as OA_THREAD" || fail "a good uuid was refused"
+  pass "CONTROL a task UUID is accepted as OA_TOPIC" || fail "a good uuid was refused"
 while read -r desc value; do
   out=$(SNIPPET="spl_oa_validate '${value//_/ }'" in_orc 2>&1)
   if [[ $? -eq 0 ]]; then
-    fail "OA_THREAD accepts $desc — it would start a thread beside the owner's"
+    fail "OA_TOPIC accepts $desc — it would start a topic beside the owner's"
   else
-    grep -q FATAL <<<"$out" && pass "OA_THREAD refuses $desc" ||
-      fail "OA_THREAD refuses $desc without saying why: $out"
+    grep -q FATAL <<<"$out" && pass "OA_TOPIC refuses $desc" ||
+      fail "OA_TOPIC refuses $desc without saying why: $out"
   fi
 done <<'EOF'
-an_empty_thread 
+an_empty_topic 
 a_channel_slug lobby
 an_uppercase_uuid 0CD6B6D2-4336-46A2-A0B6-65BB962877EE
 a_truncated_uuid 0cd6b6d2-4336-46a2-a0b6
@@ -75,16 +75,16 @@ for bad in "'' box-desk CLE-00" "t1 box-wui CLE-00" "t1 box-desk box-desk"; do
     fail "the run accepted a bad desk triple: ($bad)"
 done
 
-# --- 3 + 4. the dry run is offline, and says which thread it would post into ---
+# --- 3 + 4. the dry run is offline, and says which topic it would post into ---
 : >"$T/calls.log"
-out=$(SNIPPET='do_spl_owner_acceptance' in_orc TENANT_ID=t1 OA_THREAD="$GOOD" 2>&1)
+out=$(SNIPPET='do_spl_owner_acceptance' in_orc TENANT_ID=t1 OA_TOPIC="$GOOD" 2>&1)
 rc=$?
 [[ $rc -eq 0 ]] && pass "the dry run succeeds without a cloud, a browser or a desk" ||
   fail "the dry run failed (rc=$rc): $out"
 [[ ! -s "$T/calls.log" ]] && pass "no gcloud, curl, docker, spool, node or tmux call in the dry run" ||
   fail "the dry run called out: $(cat "$T/calls.log")"
-grep -q "$GOOD" <<<"$out" && pass "the dry run NAMES the thread it would post into" ||
-  fail "the dry run does not name the thread: $out"
+grep -q "$GOOD" <<<"$out" && pass "the dry run NAMES the topic it would post into" ||
+  fail "the dry run does not name the topic: $out"
 grep -q 'CLE-00@box-desk' <<<"$out" && pass "the dry run names the peer it would talk to" ||
   fail "the dry run does not name the peer: $out"
 grep -q 'DRY_RUN=0' <<<"$out" && pass "the dry run says how to really run it" ||
@@ -96,7 +96,7 @@ grep -q 'DRY_RUN=0' <<<"$out" && pass "the dry run says how to really run it" ||
   fail "CONTROL the stub log stayed empty — the dry-run check proves nothing"
 
 # --- 5. DRY_RUN=0 refuses before sending when the bot has no password ----------
-out=$(SNIPPET='do_spl_owner_acceptance' in_orc TENANT_ID=t1 OA_THREAD="$GOOD" DRY_RUN=0 2>&1)
+out=$(SNIPPET='do_spl_owner_acceptance' in_orc TENANT_ID=t1 OA_TOPIC="$GOOD" DRY_RUN=0 2>&1)
 if [[ $? -ne 0 ]] && grep -qi 'password\|pw-human\|do_spl_m3_e2e' <<<"$out"; then
   pass "DRY_RUN=0 refuses before it sends when the bot member has no password on disk"
 else
@@ -154,7 +154,7 @@ BOT="$APP_ROOT/csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs"
 [[ -f "$BOT" ]] && pass "the acceptance bot is in the tree" || fail "no acceptance bot at $BOT"
 if command -v node >/dev/null 2>&1 && [[ "$(command -v node)" != "$T/stub/node" ]]; then
   node --check "$BOT" >/dev/null 2>&1 && pass "the acceptance bot parses" || fail "the acceptance bot does not parse"
-  for v in BASE OUT EMAIL PEER OWNER_THREAD PW_FILE; do
+  for v in BASE OUT EMAIL PEER OWNER_TOPIC PW_FILE; do
     grep -q "need('$v')" "$BOT" && pass "the bot fails fast without $v" ||
       fail "the bot does not require $v — it would run against a default nobody chose"
   done

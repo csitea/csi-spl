@@ -1,72 +1,72 @@
 import {
   SIDEBAR_DEFAULT,
-  THREAD_DEFAULT,
+  TOPIC_DEFAULT,
   clampPair,
   clampSidebar,
-  clampThread,
+  clampTopic,
   loadPaneWidths,
   savePaneWidths,
   resetPane,
   sidebarRange,
-  threadRange,
+  topicRange,
   sidebarShown,
-  threadShown,
+  topicShown,
 } from '~/utils/pane-widths.mjs'
 
 export function usePaneWidths(opts: {
-  threadOpen: Ref<boolean>
+  topicOpen: Ref<boolean>
 }) {
   const viewportW = ref(import.meta.client && typeof window !== 'undefined' ? window.innerWidth : 1280)
   const storedSidebar = ref(SIDEBAR_DEFAULT)
-  const storedThread = ref(THREAD_DEFAULT)
+  const storedTopic = ref(TOPIC_DEFAULT)
 
   const ctx = computed(() => ({
     viewportW: viewportW.value,
-    threadOpen: opts.threadOpen.value,
+    topicOpen: opts.topicOpen.value,
     sidebarW: storedSidebar.value,
-    threadW: storedThread.value,
+    topicW: storedTopic.value,
   }))
 
   const displayed = computed(() => clampPair(
     storedSidebar.value,
-    storedThread.value,
-    { viewportW: viewportW.value, threadOpen: opts.threadOpen.value },
+    storedTopic.value,
+    { viewportW: viewportW.value, topicOpen: opts.topicOpen.value },
   ))
 
   const sidebarBounds = computed(() => sidebarRange({
     ...ctx.value,
-    threadW: displayed.value.thread,
+    topicW: displayed.value.topic,
   }))
-  const threadBounds = computed(() => threadRange({
+  const topicBounds = computed(() => topicRange({
     ...ctx.value,
     sidebarW: displayed.value.sidebar,
   }))
 
   const showSidebarDivider = computed(() => sidebarShown(viewportW.value))
-  const showThreadDivider = computed(() => threadShown(viewportW.value, opts.threadOpen.value))
+  const showTopicDivider = computed(() => topicShown(viewportW.value, opts.topicOpen.value))
 
   const shellStyle = computed(() => ({
     '--sidebar-w': `${displayed.value.sidebar}px`,
-    '--thread-w': `${displayed.value.thread}px`,
+    '--topic-w': `${displayed.value.topic}px`,
   }))
 
   function persist() {
-    savePaneWidths({ sidebar: storedSidebar.value, thread: storedThread.value })
+    savePaneWidths({ sidebar: storedSidebar.value, topic: storedTopic.value })
   }
 
   function setSidebar(n: number) {
     storedSidebar.value = clampSidebar(n, {
       viewportW: viewportW.value,
-      threadOpen: opts.threadOpen.value,
-      threadW: storedThread.value,
+      topicOpen: opts.topicOpen.value,
+      topicW: storedTopic.value,
     })
     persist()
   }
 
-  function setThread(n: number) {
-    storedThread.value = clampThread(n, {
+  function setTopic(n: number) {
+    storedTopic.value = clampTopic(n, {
       viewportW: viewportW.value,
-      threadOpen: opts.threadOpen.value,
+      topicOpen: opts.topicOpen.value,
       sidebarW: storedSidebar.value,
     })
     persist()
@@ -77,8 +77,8 @@ export function usePaneWidths(opts: {
     persist()
   }
 
-  function resetThread() {
-    storedThread.value = resetPane('thread')
+  function resetTopic() {
+    storedTopic.value = resetPane('topic')
     persist()
   }
 
@@ -90,7 +90,7 @@ export function usePaneWidths(opts: {
   function hydrate() {
     const loaded = loadPaneWidths()
     storedSidebar.value = loaded.sidebar
-    storedThread.value = loaded.thread
+    storedTopic.value = loaded.topic
     onResize()
   }
 
@@ -106,14 +106,14 @@ export function usePaneWidths(opts: {
   return {
     displayed,
     sidebarBounds,
-    threadBounds,
+    topicBounds,
     showSidebarDivider,
-    showThreadDivider,
+    showTopicDivider,
     shellStyle,
     setSidebar,
-    setThread,
+    setTopic,
     resetSidebar,
-    resetThread,
+    resetTopic,
     hydrate,
   }
 }

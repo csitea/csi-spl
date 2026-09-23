@@ -15,7 +15,7 @@ import (
 func (s *Postgres) GetEditable(ctx context.Context, tenant, msgID string, now time.Time) (EditableMessage, error) {
 	var m EditableMessage
 	// A non-UUID id can only be a 404; asking Postgres would be an error, not
-	// an answer (ViewThread takes the same guard).
+	// an answer (ViewTopic takes the same guard).
 	if !canonUUIDRe.MatchString(msgID) {
 		return m, ErrNotFound
 	}

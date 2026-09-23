@@ -519,7 +519,7 @@ func cmdHubRun(cfg *config.Config) int {
 	return 0
 }
 
-// cmdHubTail prints a task's hub thread (human lines, or --json NDJSON of the
+// cmdHubTail prints a task's hub topic (human lines, or --json NDJSON of the
 // inner v:1); --follow keeps printing new messages until signalled.
 func cmdHubTail(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("hub-tail", flag.ContinueOnError)

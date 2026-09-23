@@ -42,10 +42,10 @@ export interface SpoolMessage {
   revision?: number
 }
 
-/** One thread list row (003 view-v1 §4.3, normalised by utils/view-api.mjs). */
-export interface ThreadRow {
+/** One topic list row (003 view-v1 §4.3, normalised by utils/view-api.mjs). */
+export interface TopicRow {
   task_id: string
-  /** Hub-envelope fields of the thread's first message (channels-v1 §2); null when absent. */
+  /** Hub-envelope fields of the topic's first message (channels-v1 §2); null when absent. */
   parent_task_id?: string | null
   channel?: string | null
   first_ts: string

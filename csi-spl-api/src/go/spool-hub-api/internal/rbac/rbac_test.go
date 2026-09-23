@@ -74,7 +74,7 @@ func TestDefaultsMatrix(t *testing.T) {
 		}
 	}
 	for _, r := range roles {
-		if !has(r.ID, ThreadsRead) {
+		if !has(r.ID, TopicsRead) {
 			t.Errorf("%s cannot read", r.ID)
 		}
 	}
@@ -120,18 +120,18 @@ func TestAuthorizerCacheAndFailClosed(t *testing.T) {
 		t.Fatalf("role table not refreshed after TTL: %d", src.calls)
 	}
 	// Not a member, unknown role, source error: all deny.
-	if z.Can(ctx, "HUM-9", "t1", ThreadsRead) {
+	if z.Can(ctx, "HUM-9", "t1", TopicsRead) {
 		t.Fatal("non-member allowed")
 	}
 	if _, err := z.Access(ctx, "HUM-9", "t1"); !errors.Is(err, ErrNotMember) {
 		t.Fatalf("non-member err: %v", err)
 	}
-	if z.Can(ctx, "HUM-2", "t1", ThreadsRead) {
+	if z.Can(ctx, "HUM-2", "t1", TopicsRead) {
 		t.Fatal("unknown role allowed")
 	}
 	src.err = errors.New("db down")
 	z.Invalidate("t1")
-	if z.Can(ctx, "HUM-1", "t1", ThreadsRead) {
+	if z.Can(ctx, "HUM-1", "t1", TopicsRead) {
 		t.Fatal("source error allowed")
 	}
 }

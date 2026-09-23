@@ -1,9 +1,9 @@
 /**
  * Where an Omnibox line goes.
  *
- * The open thread pane does not decide. The line does:
- *   - `in: <thread title>` replies into that thread. The title is the first
- *     message of the thread (the same text pane 2 shows on the starter card).
+ * The open topic pane does not decide. The line does:
+ *   - `in: <topic title>` replies into that topic. The title is the first
+ *     message of the topic (the same text pane 2 shows on the starter card).
  *   - anything else, including `@receiver`, starts a new message.
  *
  * A unique prefix is not a title. Enter in the dropdown inserts the full
@@ -35,8 +35,8 @@ export function activeInQuery(text, cursor) {
 }
 
 /** Case-insensitive substring of the title. Empty query returns the first 8. */
-export function filterThreadTitles(threads, query) {
-  const rows = Array.isArray(threads) ? threads : []
+export function filterTopicTitles(topics, query) {
+  const rows = Array.isArray(topics) ? topics : []
   const q = String(query || '').trim().toLowerCase()
   const matched = q
     ? rows.filter((t) => String((t && t.title) || '').toLowerCase().includes(q))
@@ -71,15 +71,15 @@ function earlier(a, b) {
 }
 
 /**
- * One row per thread the dropdown and the send resolver share.
- * Viewer subjects win, so a loaded thread list is not renamed by a feed row.
+ * One row per topic the dropdown and the send resolver share.
+ * Viewer subjects win, so a loaded topic list is not renamed by a feed row.
  * Feed messages contribute only their starter: the earliest row of a task
  * with no parent_task_id. A reply is not its own title.
  * @returns {{ taskId: string, title: string, channel: string }[]}
  */
-export function threadChoices({ threads = [], messages = [] } = {}) {
+export function topicChoices({ topics = [], messages = [] } = {}) {
   const by = new Map()
-  for (const row of threads || []) {
+  for (const row of topics || []) {
     if (!row) continue
     const id = String(row.task_id || row.taskId || '')
     const title = titleOf(row.subject || row.title || '')

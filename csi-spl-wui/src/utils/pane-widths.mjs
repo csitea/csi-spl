@@ -1,26 +1,26 @@
 /**
  * Draggable 3-pane widths. The left divider's stop is 35% of the screen,
- * counted from the left edge across the full horizontal width. The thread
+ * counted from the left edge across the full horizontal width. The topic
  * pane yields before that stop moves. Persist the dragged widths.
  */
 
 import { storageGetJson, storageSetJson } from './prefs.mjs'
 
 export const SIDEBAR_DEFAULT = 260
-export const THREAD_DEFAULT = 380
+export const TOPIC_DEFAULT = 380
 export const SIDEBAR_MIN = 180
 /** The left pane's divider stops at this fraction of the viewport. */
 export const SIDEBAR_MAX_RATIO = 0.35
-export const THREAD_MIN = 280
-export const THREAD_MAX = 560
+export const TOPIC_MIN = 280
+export const TOPIC_MAX = 560
 export const MAIN_MIN = 360
 export const DIVIDER_W = 6
 export const STEP = 16
 export const PANE_WIDTHS_KEY = 'spool.pane-widths'
 /** Match main.css: sidebar collapses to the 72px rail at this width. */
 export const SIDEBAR_NARROW_MAX = 800
-/** Match main.css: thread pane overlays below this width. */
-export const THREAD_NARROW_MAX = 1100
+/** Match main.css: topic pane overlays below this width. */
+export const TOPIC_NARROW_MAX = 1100
 
 export function num(v, fallback) {
   const n = Number(v)
@@ -39,7 +39,7 @@ export function sidebarShown(viewportW) {
 
 /**
  * Where the left divider stops, in pixels from the left edge of the screen.
- * 35% of the viewport's horizontal width. The thread pane is not part of
+ * 35% of the viewport's horizontal width. The topic pane is not part of
  * this measurement.
  */
 export function sidebarMaxPx(viewportW) {
@@ -47,56 +47,56 @@ export function sidebarMaxPx(viewportW) {
   return Math.max(SIDEBAR_MIN, px)
 }
 
-export function threadShown(viewportW, threadOpen) {
-  return Boolean(threadOpen) && num(viewportW, 1280) > THREAD_NARROW_MAX
+export function topicShown(viewportW, topicOpen) {
+  return Boolean(topicOpen) && num(viewportW, 1280) > TOPIC_NARROW_MAX
 }
 
 function dividersPx(ctx) {
   const viewportW = num(ctx && ctx.viewportW, 1280)
-  const threadOpen = Boolean(ctx && ctx.threadOpen)
+  const topicOpen = Boolean(ctx && ctx.topicOpen)
   let n = 0
   if (sidebarShown(viewportW)) n += 1
-  if (threadShown(viewportW, threadOpen)) n += 1
+  if (topicShown(viewportW, topicOpen)) n += 1
   return n * DIVIDER_W
 }
 
 export function clampSidebar(width, ctx = {}) {
   const viewportW = num(ctx.viewportW, 1280)
-  /* The stop is a mark on the screen, left to right. A wide thread does not
+  /* The stop is a mark on the screen, left to right. A wide topic does not
      pull it back. */
   const max = sidebarMaxPx(viewportW)
   return clamp(Math.round(num(width, SIDEBAR_DEFAULT)), SIDEBAR_MIN, max)
 }
 
-export function clampThread(width, ctx = {}) {
+export function clampTopic(width, ctx = {}) {
   const viewportW = num(ctx.viewportW, 1280)
-  const threadOpen = Boolean(ctx.threadOpen)
-  if (!threadShown(viewportW, threadOpen)) {
-    return clamp(Math.round(num(width, THREAD_DEFAULT)), THREAD_MIN, THREAD_MAX)
+  const topicOpen = Boolean(ctx.topicOpen)
+  if (!topicShown(viewportW, topicOpen)) {
+    return clamp(Math.round(num(width, TOPIC_DEFAULT)), TOPIC_MIN, TOPIC_MAX)
   }
   const sidebarW = sidebarShown(viewportW)
     ? clamp(num(ctx.sidebarW, SIDEBAR_DEFAULT), SIDEBAR_MIN, sidebarMaxPx(viewportW))
     : 0
   const maxFit = viewportW - dividersPx(ctx) - sidebarW - MAIN_MIN
-  const max = Math.min(THREAD_MAX, Math.max(THREAD_MIN, maxFit))
-  return clamp(Math.round(num(width, THREAD_DEFAULT)), THREAD_MIN, max)
+  const max = Math.min(TOPIC_MAX, Math.max(TOPIC_MIN, maxFit))
+  return clamp(Math.round(num(width, TOPIC_DEFAULT)), TOPIC_MIN, max)
 }
 
-export function clampPair(sidebar, thread, ctx = {}) {
+export function clampPair(sidebar, topic, ctx = {}) {
   const viewportW = num(ctx.viewportW, 1280)
-  const threadOpen = Boolean(ctx.threadOpen)
+  const topicOpen = Boolean(ctx.topicOpen)
   const sidebarCap = sidebarMaxPx(viewportW)
   let s = clamp(Math.round(num(sidebar, SIDEBAR_DEFAULT)), SIDEBAR_MIN, sidebarCap)
-  let t = clamp(Math.round(num(thread, THREAD_DEFAULT)), THREAD_MIN, THREAD_MAX)
-  s = clampSidebar(s, { viewportW, threadOpen })
-  /* The left edge is already fixed. If both panes are wide, the thread
+  let t = clamp(Math.round(num(topic, TOPIC_DEFAULT)), TOPIC_MIN, TOPIC_MAX)
+  s = clampSidebar(s, { viewportW, topicOpen })
+  /* The left edge is already fixed. If both panes are wide, the topic
      gives up width so the divider stays on its 35% mark. */
-  if (threadShown(viewportW, threadOpen)) {
-    const roomForThread = viewportW - dividersPx({ viewportW, threadOpen }) - s - MAIN_MIN
-    const threadCap = Math.min(THREAD_MAX, Math.max(THREAD_MIN, roomForThread))
-    t = clamp(t, THREAD_MIN, threadCap)
+  if (topicShown(viewportW, topicOpen)) {
+    const roomForTopic = viewportW - dividersPx({ viewportW, topicOpen }) - s - MAIN_MIN
+    const topicCap = Math.min(TOPIC_MAX, Math.max(TOPIC_MIN, roomForTopic))
+    t = clamp(t, TOPIC_MIN, topicCap)
   }
-  return { sidebar: s, thread: t }
+  return { sidebar: s, topic: t }
 }
 
 export function sidebarRange(ctx = {}) {
@@ -106,19 +106,19 @@ export function sidebarRange(ctx = {}) {
   return { min: Math.min(min, max), max: Math.max(min, max) }
 }
 
-export function threadRange(ctx = {}) {
-  const min = clampThread(THREAD_MIN, ctx)
-  const max = clampThread(THREAD_MAX, ctx)
+export function topicRange(ctx = {}) {
+  const min = clampTopic(TOPIC_MIN, ctx)
+  const max = clampTopic(TOPIC_MAX, ctx)
   return { min: Math.min(min, max), max: Math.max(min, max) }
 }
 
 /**
  * WAI-ARIA APG window splitter: arrows move the separator.
- * Sidebar grows to the right; thread (right pane) grows to the left.
+ * Sidebar grows to the right; topic (right pane) grows to the left.
  */
 export function applySeparatorKey(pane, key, current, min, max) {
-  const dir = pane === 'thread' ? -1 : 1
-  const n = num(current, pane === 'thread' ? THREAD_DEFAULT : SIDEBAR_DEFAULT)
+  const dir = pane === 'topic' ? -1 : 1
+  const n = num(current, pane === 'topic' ? TOPIC_DEFAULT : SIDEBAR_DEFAULT)
   if (key === 'ArrowLeft') return clamp(Math.round(n - dir * STEP), min, max)
   if (key === 'ArrowRight') return clamp(Math.round(n + dir * STEP), min, max)
   if (key === 'Home') return dir === 1 ? min : max
@@ -128,27 +128,27 @@ export function applySeparatorKey(pane, key, current, min, max) {
 
 export function pointerDelta(pane, startWidth, startX, clientX) {
   const dx = num(clientX, 0) - num(startX, 0)
-  const start = num(startWidth, pane === 'thread' ? THREAD_DEFAULT : SIDEBAR_DEFAULT)
-  return pane === 'thread' ? start - dx : start + dx
+  const start = num(startWidth, pane === 'topic' ? TOPIC_DEFAULT : SIDEBAR_DEFAULT)
+  return pane === 'topic' ? start - dx : start + dx
 }
 
 export function loadPaneWidths(store) {
   const raw = storageGetJson(PANE_WIDTHS_KEY, null, store)
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { sidebar: SIDEBAR_DEFAULT, thread: THREAD_DEFAULT }
+    return { sidebar: SIDEBAR_DEFAULT, topic: TOPIC_DEFAULT }
   }
   return {
     sidebar: num(raw.sidebar, SIDEBAR_DEFAULT),
-    thread: num(raw.thread, THREAD_DEFAULT),
+    topic: num(raw.topic, TOPIC_DEFAULT),
   }
 }
 
 export function savePaneWidths(widths, store) {
   const sidebar = Math.round(num(widths && widths.sidebar, SIDEBAR_DEFAULT))
-  const thread = Math.round(num(widths && widths.thread, THREAD_DEFAULT))
-  return storageSetJson(PANE_WIDTHS_KEY, { sidebar, thread }, store)
+  const topic = Math.round(num(widths && widths.topic, TOPIC_DEFAULT))
+  return storageSetJson(PANE_WIDTHS_KEY, { sidebar, topic }, store)
 }
 
 export function resetPane(pane) {
-  return pane === 'thread' ? THREAD_DEFAULT : SIDEBAR_DEFAULT
+  return pane === 'topic' ? TOPIC_DEFAULT : SIDEBAR_DEFAULT
 }

@@ -125,7 +125,7 @@ func TestSearch(t *testing.T) {
 				"is:result":                      {m2.MsgID},
 				"has:file":                       {m1.MsgID},
 				"has:code":                       {m1.MsgID},
-				"thread:" + tk2:                  {m3.MsgID},
+				"topic:" + tk2:                   {m3.MsgID},
 				"after:1h":                       {d2.MsgID, d1.MsgID, m3.MsgID, m2.MsgID, m1.MsgID},
 				"before:1h":                      {},
 				"on:" + now.Format("2006-01-02"): {d2.MsgID, d1.MsgID, m3.MsgID, m2.MsgID, m1.MsgID},
@@ -192,21 +192,21 @@ func TestSearch(t *testing.T) {
 				t.Fatalf("CONTROL tenant B files: %+v", rs)
 			}
 
-			// threads: title FTS, participants, root, DM privacy
-			th, err := se.SearchThreads(ctx, ta, sq(t, "title:migration", now))
+			// topics: title FTS, participants, root, DM privacy
+			th, err := se.SearchTopics(ctx, ta, sq(t, "title:migration", now))
 			if err != nil || len(th) != 1 || th[0].TaskID != tk2 || th[0].Title != "Migration plan for 0020" || th[0].Parent != tk1 || th[0].Count != 1 {
 				t.Fatalf("title: %v %+v", err, th)
 			}
-			if th, _ := se.SearchThreads(ctx, ta, sq(t, "please", now)); len(th) != 1 || th[0].TaskID != tk1 || th[0].Count != 2 {
-				t.Fatalf("thread text: %+v", th)
+			if th, _ := se.SearchTopics(ctx, ta, sq(t, "please", now)); len(th) != 1 || th[0].TaskID != tk1 || th[0].Count != 2 {
+				t.Fatalf("topic text: %+v", th)
 			}
-			if th, _ := se.SearchThreads(ctx, ta, sq(t, "is:root from:CLE-07", now)); len(th) != 1 || th[0].TaskID != tk1 {
-				t.Fatalf("root threads with a message from CLE-07: %+v", th)
+			if th, _ := se.SearchTopics(ctx, ta, sq(t, "is:root from:CLE-07", now)); len(th) != 1 || th[0].TaskID != tk1 {
+				t.Fatalf("root topics with a message from CLE-07: %+v", th)
 			}
-			tq := sq(t, "type:thread in:dm", now)
+			tq := sq(t, "type:topic in:dm", now)
 			tq.Viewer = "HUM-1"
-			if th, _ := se.SearchThreads(ctx, ta, tq); len(th) != 1 || th[0].TaskID != dm {
-				t.Fatalf("CONTROL thread DM privacy: %+v", th)
+			if th, _ := se.SearchTopics(ctx, ta, tq); len(th) != 1 || th[0].TaskID != dm {
+				t.Fatalf("CONTROL topic DM privacy: %+v", th)
 			}
 
 			// humans: names, never email; tenant scoped
@@ -251,7 +251,7 @@ func TestSearchP95(t *testing.T) {
 	}
 	ta, tb := newTenant(t, s), newTenant(t, s)
 	words := []string{"deploy", "hub", "migration", "release", "rollback", "tenant", "billing", "search", "index", "cursor",
-		"thread", "channel", "robot", "report", "latency", "budget", "alert", "disk", "network", "certificate"}
+		"topic", "channel", "robot", "report", "latency", "budget", "alert", "disk", "network", "certificate"}
 	// bulk seed through COPY-like multi-row inserts, as the owner role (RLS: tenant scope per batch)
 	for _, tid := range []string{ta, tb} {
 		for base := 0; base < n; base += 1000 {
@@ -302,8 +302,8 @@ func TestSearchP95(t *testing.T) {
 					_, err = pg.SearchMessages(ctx, ta, q)
 				case search.TypeFile:
 					_, err = pg.SearchFiles(ctx, ta, q)
-				case search.TypeThread:
-					_, err = pg.SearchThreads(ctx, ta, q)
+				case search.TypeTopic:
+					_, err = pg.SearchTopics(ctx, ta, q)
 				default:
 					continue
 				}
@@ -328,8 +328,8 @@ func TestSearchP95(t *testing.T) {
 		t.Fatalf("p95 %v is over the %v ceiling", p95, ceiling)
 	}
 	// the budget answers ErrSearchBudget, never a hang
-	p, _ := search.Parse("type:thread deploy", now)
-	if _, err := pg.SearchThreads(ctx, ta, SearchQuery{Q: p, Now: now, Limit: 21, Budget: time.Millisecond}); err != nil && !errors.Is(err, ErrSearchBudget) {
+	p, _ := search.Parse("type:topic deploy", now)
+	if _, err := pg.SearchTopics(ctx, ta, SearchQuery{Q: p, Now: now, Limit: 21, Budget: time.Millisecond}); err != nil && !errors.Is(err, ErrSearchBudget) {
 		t.Fatalf("budget: %v", err)
 	}
 }

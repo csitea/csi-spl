@@ -9,7 +9,7 @@
     "cancel": "Zrušiť"
   },
   "nav": {
-    "threads": "Témy",
+    "topics": "Témy",
     "lobby": "Lobby",
     "general": "#general",
     "login": "Prihlásiť sa",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "neznámy",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Otvoriť tému",
+    "open_topic": "Otvoriť tému",
     "replies": "{n} odpoveď | Počet odpovedí: {n}",
     "filter_label": "Filter:",
     "matches": "Zhody: {count}",
@@ -399,7 +399,7 @@
     },
     "new_pill": "Nové: {n}",
     "new_pill_label": "Prejsť na najnovšie správy",
-    "open_thread_hint": "Stlačením Enter otvoríte tému tejto správy.",
+    "open_topic_hint": "Stlačením Enter otvoríte tému tejto správy.",
     "edit": {
       "label": "Upraviť správu",
       "hint": "Enter uloží · Shift+Enter nový riadok · Esc zruší",
@@ -413,7 +413,7 @@
       "failed_too_large": "Príliš dlhá na uloženie. Priložte ju ako súbor."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Téma",
     "open": "Otvoriť",
     "empty": "Prázdna téma.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Zmeniť šírku bočného panela kanálov",
-    "resize_thread": "Zmeniť šírku panela témy",
+    "resize_topic": "Zmeniť šírku panela témy",
     "resize_hint": "Potiahnutím zmeníte veľkosť. Dvojklikom obnovíte pôvodnú."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "Ľudia",
       "channels": "Kanály",
       "boxes": "Boxy",
-      "threads": "Témy",
+      "topics": "Témy",
       "files": "Súbory",
       "messages": "Správy"
     },

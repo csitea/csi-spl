@@ -7,8 +7,8 @@ let failed = 0
 const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); else { failed++; console.log(`  FAIL ${name} ${why}`) } }
 
 console.log('access')
-const tester = normalizeMe({ human_id: 'HUM-3', tenant_id: 't1', role: 'tester', tenant_owner: false, permissions: ['notes.send', 'threads.read'] })
-ok('tester reads and sends notes', accessAllows(tester, 'threads.read') && accessAllows(tester, 'notes.send'))
+const tester = normalizeMe({ human_id: 'HUM-3', tenant_id: 't1', role: 'tester', tenant_owner: false, permissions: ['notes.send', 'topics.read'] })
+ok('tester reads and sends notes', accessAllows(tester, 'topics.read') && accessAllows(tester, 'notes.send'))
 ok('CONTROL: tester is not offered channel create', !accessAllows(tester, 'channels.manage'))
 ok('CONTROL: tester is not offered agent commands', !accessAllows(tester, 'agents.command'))
 const owner = normalizeMe({ human_id: 'HUM-1', role: 'biz_owner', tenant_owner: true, permissions: ['billing.manage', 'channels.manage'] })

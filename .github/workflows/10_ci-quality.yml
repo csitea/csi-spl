@@ -75,7 +75,7 @@ jobs:
   # The WUI suite: csi-spl-wui unit tests (node --test) and nuxt typecheck.
   # pnpm comes from package.json packageManager; the lockfile is frozen so a
   # drifted lockfile fails here instead of resolving silently. Browser e2e
-  # (no-x-scroll, console-errors, thread-pane) is the wui-e2e job below.
+  # (no-x-scroll, console-errors, topic-pane) is the wui-e2e job below.
   # ===========================================================================
   wui-suite:
     name: "wui: unit tests + typecheck"
@@ -111,7 +111,7 @@ jobs:
 
   # ===========================================================================
   # The WUI browser suite (016 T021): no-x-scroll, console-errors, and the
-  # 1..1 thread-pane gate, against a generated mock-tenant bundle served the
+  # 1..1 topic-pane gate, against a generated mock-tenant bundle served the
   # way Firebase Hosting does (serve-generated.mjs SPA fallback). Chrome is
   # the runner's google-chrome; missing Chrome is a failure, never a skip.
   # BASE_URL points at that local server so the tests drive THIS commit, not
@@ -169,7 +169,7 @@ jobs:
           NUXT_PUBLIC_DEFAULT_LOCALE: "en"
         run: pnpm run generate
 
-      - name: Browser e2e (no-x-scroll, console-errors, thread-pane, msg-edit)
+      - name: Browser e2e (no-x-scroll, console-errors, topic-pane, msg-edit)
         env:
           CI: "1"
         run: |
@@ -221,7 +221,7 @@ jobs:
           export BASE_URL=http://127.0.0.1:4173
           pnpm run test:e2e
           pnpm run test:e2e:console-errors
-          pnpm run test:e2e:thread-pane
+          pnpm run test:e2e:topic-pane
           pnpm run test:e2e:msg-edit
 
   # ===========================================================================

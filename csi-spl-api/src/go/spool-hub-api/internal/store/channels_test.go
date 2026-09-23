@@ -9,7 +9,7 @@ import (
 
 // channels-v1 on memory and, with SPOOL_TEST_PG_DSN, Postgres: seeded
 // defaults, create rules, subscriptions, members, stats with unread, and the
-// thread filters of view-v1 §4.3/§4.5 (roots, children, DMs, peer, viewer).
+// topic filters of view-v1 §4.3/§4.5 (roots, children, DMs, peer, viewer).
 func TestStoreChannels(t *testing.T) {
 	for name, s := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
@@ -77,7 +77,7 @@ func TestStoreChannels(t *testing.T) {
 				t.Fatalf("subscriptions not replaced: %+v", m)
 			}
 
-			// messages: two #tasks posts, one DM thread, a child thread, an expired #alerts
+			// messages: two #tasks posts, one DM topic, a child topic, an expired #alerts
 			root, child, dm := uuid4(), uuid4(), uuid4()
 			a1 := msgFor(tid, root, "box-wui", now, now.Add(-5*time.Minute), "a1")
 			a1.Channel = "tasks"
@@ -117,9 +117,9 @@ func TestStoreChannels(t *testing.T) {
 				t.Fatalf("releases stat: %+v", st)
 			}
 
-			ids := func(q ThreadQuery) []string {
+			ids := func(q TopicQuery) []string {
 				q.Now = now
-				rows, err := s.ViewThreads(ctx, tid, q)
+				rows, err := s.ViewTopics(ctx, tid, q)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -140,17 +140,17 @@ func TestStoreChannels(t *testing.T) {
 					}
 				}
 			}
-			eq("all", ids(ThreadQuery{}), dm, child, root)
-			eq("roots", ids(ThreadQuery{Roots: true}), dm, root)
-			eq("children", ids(ThreadQuery{Parent: root}), child)
-			eq("dm", ids(ThreadQuery{DM: true}), dm)
-			eq("dm peer", ids(ThreadQuery{DM: true, Agent: "CLE-07"}), dm)
-			eq("dm peer@box", ids(ThreadQuery{DM: true, Agent: "CLE-07", AgentBox: "box-b"}), dm)
-			eq("dm peer wrong box", ids(ThreadQuery{DM: true, Agent: "CLE-07", AgentBox: "box-a"}))
-			eq("dm viewer party", ids(ThreadQuery{DM: true, Viewer: "HUM-1"}), dm)
-			eq("dm viewer not party", ids(ThreadQuery{DM: true, Viewer: "HUM-2"}))
-			eq("channel roots", ids(ThreadQuery{Channel: "tasks", Roots: true}), root)
-			rows, _ := s.ViewThreads(ctx, tid, ThreadQuery{Now: now, Parent: root})
+			eq("all", ids(TopicQuery{}), dm, child, root)
+			eq("roots", ids(TopicQuery{Roots: true}), dm, root)
+			eq("children", ids(TopicQuery{Parent: root}), child)
+			eq("dm", ids(TopicQuery{DM: true}), dm)
+			eq("dm peer", ids(TopicQuery{DM: true, Agent: "CLE-07"}), dm)
+			eq("dm peer@box", ids(TopicQuery{DM: true, Agent: "CLE-07", AgentBox: "box-b"}), dm)
+			eq("dm peer wrong box", ids(TopicQuery{DM: true, Agent: "CLE-07", AgentBox: "box-a"}))
+			eq("dm viewer party", ids(TopicQuery{DM: true, Viewer: "HUM-1"}), dm)
+			eq("dm viewer not party", ids(TopicQuery{DM: true, Viewer: "HUM-2"}))
+			eq("channel roots", ids(TopicQuery{Channel: "tasks", Roots: true}), root)
+			rows, _ := s.ViewTopics(ctx, tid, TopicQuery{Now: now, Parent: root})
 			if len(rows) != 1 || rows[0].Parent != root || rows[0].Channel != "tasks" {
 				t.Fatalf("child row: %+v", rows)
 			}

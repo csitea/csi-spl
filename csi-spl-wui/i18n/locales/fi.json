@@ -9,7 +9,7 @@
     "cancel": "Peruuta"
   },
   "nav": {
-    "threads": "Aiheet",
+    "topics": "Aiheet",
     "lobby": "Aula",
     "general": "#general",
     "login": "Kirjaudu sisään",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "tuntematon",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Avaa aihe",
+    "open_topic": "Avaa aihe",
     "replies": "{n} vastaus | {n} vastausta",
     "filter_label": "Suodatin:",
     "matches": "Osumia: {count}",
@@ -399,7 +399,7 @@
     },
     "new_pill": "Uusia: {n}",
     "new_pill_label": "Siirry uusimpiin viesteihin",
-    "open_thread_hint": "Avaa tämän viestin aihe painamalla Enter.",
+    "open_topic_hint": "Avaa tämän viestin aihe painamalla Enter.",
     "edit": {
       "label": "Muokkaa viestiä",
       "hint": "Enter tallentaa · Shift+Enter lisää rivin · Esc peruuttaa",
@@ -413,7 +413,7 @@
       "failed_too_large": "Liian pitkä tallennettavaksi. Liitä se tiedostona."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Aihe",
     "open": "Avaa",
     "empty": "Tyhjä aihe.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Muuta kanavasivupalkin kokoa",
-    "resize_thread": "Muuta aihepaneelin kokoa",
+    "resize_topic": "Muuta aihepaneelin kokoa",
     "resize_hint": "Muuta kokoa vetämällä. Palauta kaksoisnapsautuksella."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "Ihmiset",
       "channels": "Kanavat",
       "boxes": "Laatikot",
-      "threads": "Aiheet",
+      "topics": "Aiheet",
       "files": "Tiedostot",
       "messages": "Viestit"
     },

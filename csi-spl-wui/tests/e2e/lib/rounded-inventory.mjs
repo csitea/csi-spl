@@ -10,7 +10,7 @@
 export const INVENTORY_JS = `(() => {
   const ALLOW_CLASS = [
     'layout', 'app-frame', 'spool-shell', 'spool-main', 'feed-col',
-    'sidebar', 'thread', 'live-pane', 'live-feed', 'live-rows',
+    'sidebar', 'topic', 'live-pane', 'live-feed', 'live-rows',
     'feed-header', 'feed-body', 'top-bar', 'top-bar__start', 'top-bar__end',
     'top-bar__omnibox', 'app-corner', 'pane-divider', 'ui-dialog-backdrop',
     'composer', 'new-pill-wrap', 'older-sentinel', 'sr-only', 'visually-hidden',
@@ -158,7 +158,7 @@ export const INVENTORY_JS = `(() => {
   }
 
   const SELECTED = [
-    '.nav-item.active', '.msg.selected', '.thread-row.selected',
+    '.nav-item.active', '.msg.selected', '.topic-row.selected',
     '.search-row.active', '.settings-nav__link--active',
     '.native-auth__tab.is-active', '.lang-switcher__option--selected',
     '.locale-cbx__option--selected', '[aria-current="page"]',

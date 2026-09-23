@@ -46,7 +46,7 @@ export const useSearchStore = defineStore('search', () => {
       /* 010 FR-009: a member's first read of a fresh page flips the view door to
          the sign-in cookie. Without this a signed-in human deep-linking to
          /search?q=… got the door prompt instead of results (measured on dev
-         2026-09-21: "This tenant's threads need a member sign-in or a view
+         2026-09-21: "This tenant's topics need a member sign-in or a view
          token"), the same 401 view_door 2dfefe7 fixed for /channel, /dm and the
          roster. */
       const api = useSpoolApi()

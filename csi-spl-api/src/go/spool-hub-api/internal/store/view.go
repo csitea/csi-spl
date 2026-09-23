@@ -21,18 +21,18 @@ type ViewBox struct {
 	Agents      []string  // last announcement, sorted
 }
 
-// ThreadQuery pages GET /v1/view/threads: newest activity first, strictly
+// TopicQuery pages GET /v1/view/topics: newest activity first, strictly
 // before (BeforeAt, BeforeTask) when BeforeAt is set.
-type ThreadQuery struct {
+type TopicQuery struct {
 	Channel  string // "" = any
 	Agent    string // "" = any; else from_id or to_id of some message
 	AgentBox string // with Agent: that message's from_box / to_box must match too
 	DM       bool   // only messages with no channel (channels-v1 §0)
-	Roots    bool   // only threads whose first message has no parent_task_id
-	Parent   string // "" = any; else only threads whose parent_task_id is this
-	Viewer   string // "" = any; else only threads with a message from or to this id
+	Roots    bool   // only topics whose first message has no parent_task_id
+	Parent   string // "" = any; else only topics whose parent_task_id is this
+	Viewer   string // "" = any; else only topics with a message from or to this id
 	// Reader is the member the list is FOR (rdb 0028, the read door): it
-	// keeps only threads in a channel that member may read, plus DMs it is
+	// keeps only topics in a channel that member may read, plus DMs it is
 	// an end of. "" = no door (the door-off rig). Unlike Viewer, which is
 	// the caller's explicit dm=true filter, this one is not optional.
 	Reader string
@@ -45,8 +45,8 @@ type ThreadQuery struct {
 	Now            time.Time
 }
 
-// ThreadRow is one task_id's aggregate. Times are hub receive times.
-type ThreadRow struct {
+// TopicRow is one task_id's aggregate. Times are hub receive times.
+type TopicRow struct {
 	TaskID   string
 	Channel  string // of the first message; "" = none
 	Parent   string // parent_task_id of the first message; "" = none (a root)
@@ -58,14 +58,14 @@ type ThreadRow struct {
 	FirstMsg []byte   // inner v:1 JSON of the first message
 }
 
-// ThreadMsgQuery pages GET /v1/view/threads/{task_id}: oldest first, strictly
+// TopicMsgQuery pages GET /v1/view/topics/{task_id}: oldest first, strictly
 // after (AfterAt, AfterID) when AfterAt is set; or, with Desc, newest first,
 // strictly before (BeforeAt, BeforeID) when BeforeAt is set (chat-reverse
 // windows, SPEC-spool-chat-reverse.md §3).
-type ThreadMsgQuery struct {
+type TopicMsgQuery struct {
 	// Reader is the member reading (rdb 0028). Messages it may not read are
 	// not returned AT ALL - not redacted, not counted - so a page of a
-	// thread that mixes a DM with a channel reply hands back only the half
+	// topic that mixes a DM with a channel reply hands back only the half
 	// this reader is entitled to. "" = no door (the door-off rig).
 	Reader         string
 	ReaderChannels []string
@@ -88,7 +88,7 @@ type ViewMsg struct {
 	// The edit marker (specs/032 contracts/message-edit-v1.md §2.1). Zero /
 	// "" / 0 = never edited, and the view then emits no key at all. An edit
 	// changes neither ReceivedAt nor the cursor built from it: the message
-	// must not move in the thread because someone fixed a typo.
+	// must not move in the topic because someone fixed a typo.
 	EditedAt time.Time
 	EditedBy string
 	Revision int
@@ -144,10 +144,10 @@ func (s *Memory) liveLocked(tenant string, now time.Time) []*Message {
 	return ms
 }
 
-func (s *Memory) ViewThreads(_ context.Context, tenant string, q ThreadQuery) ([]ThreadRow, error) {
+func (s *Memory) ViewTopics(_ context.Context, tenant string, q TopicQuery) ([]TopicRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	byTask := map[string]*ThreadRow{}
+	byTask := map[string]*TopicRow{}
 	match := map[string]bool{}
 	seen := map[string]bool{}
 	for _, m := range s.liveLocked(tenant, q.Now) { // oldest first
@@ -169,7 +169,7 @@ func (s *Memory) ViewThreads(_ context.Context, tenant string, q ThreadQuery) ([
 		}
 		r := byTask[m.TaskID]
 		if r == nil {
-			r = &ThreadRow{TaskID: m.TaskID, Channel: m.Channel, Parent: m.ParentTaskID, FirstAt: m.ReceivedAt, FirstMsg: m.Msg}
+			r = &TopicRow{TaskID: m.TaskID, Channel: m.Channel, Parent: m.ParentTaskID, FirstAt: m.ReceivedAt, FirstMsg: m.Msg}
 			byTask[m.TaskID] = r
 		}
 		r.LastAt = m.ReceivedAt
@@ -177,7 +177,7 @@ func (s *Memory) ViewThreads(_ context.Context, tenant string, q ThreadQuery) ([
 		r.Kinds = append(r.Kinds, m.Kind)
 		r.Parties = append(r.Parties, m.FromID+"@"+m.FromBox, m.ToID+"@"+m.ToBox)
 	}
-	var out []ThreadRow
+	var out []TopicRow
 	for id, r := range byTask {
 		if !match[id] || !seen[id] {
 			continue
@@ -197,7 +197,7 @@ func (s *Memory) ViewThreads(_ context.Context, tenant string, q ThreadQuery) ([
 	return out, nil
 }
 
-func (s *Memory) ViewThread(_ context.Context, tenant string, q ThreadMsgQuery) ([]ViewMsg, error) {
+func (s *Memory) ViewTopic(_ context.Context, tenant string, q TopicMsgQuery) ([]ViewMsg, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []ViewMsg

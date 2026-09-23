@@ -113,7 +113,7 @@ func TestCrossTenantIdentityHumanNeverReachesOtherTenant(t *testing.T) {
 	// CONTROL: B's Host on every browser door is 403 tenant_mismatch.
 	for _, c := range []struct{ method, path, body string }{
 		{http.MethodGet, "/v1/view/roster", ""},
-		{http.MethodGet, "/v1/view/threads", ""},
+		{http.MethodGet, "/v1/view/topics", ""},
 		{http.MethodGet, "/v1/files/" + strings.Repeat("0", 64), ""},
 		{http.MethodPost, "/v1/channels", `{"channel":"x-from-a"}`},
 	} {

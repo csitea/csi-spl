@@ -29,7 +29,7 @@ type Type string
 
 const (
 	TypeMessage Type = "message"
-	TypeThread  Type = "thread"
+	TypeTopic   Type = "topic"
 	TypeFile    Type = "file"
 	TypeRobot   Type = "robot"
 	TypeUser    Type = "user"
@@ -38,7 +38,7 @@ const (
 )
 
 // Types is every type in response order (search-v1 §4).
-var Types = []Type{TypeMessage, TypeThread, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}
+var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}
 
 // Group is the plural response key of t.
 func (t Type) Group() string {
@@ -50,7 +50,7 @@ func (t Type) Group() string {
 
 var typeAliases = map[string]Type{
 	"message": TypeMessage, "msg": TypeMessage, "messages": TypeMessage,
-	"thread": TypeThread, "threads": TypeThread,
+	"topic": TypeTopic, "topics": TypeTopic,
 	"file": TypeFile, "files": TypeFile, "attachment": TypeFile,
 	"robot": TypeRobot, "robots": TypeRobot, "agent": TypeRobot, "bot": TypeRobot,
 	"user": TypeUser, "users": TypeUser, "human": TypeUser,
@@ -79,7 +79,7 @@ const (
 	OpIn       = "in"
 	OpIs       = "is"
 	OpHas      = "has"
-	OpThread   = "thread"
+	OpTopic    = "topic"
 	OpBefore   = "before"
 	OpAfter    = "after"
 	OpOn       = "on"
@@ -103,30 +103,30 @@ type Operator struct {
 }
 
 var (
-	msgThreadFile = []Type{TypeMessage, TypeThread, TypeFile}
-	presence      = []Type{TypeRobot, TypeUser, TypeBox}
+	msgTopicFile = []Type{TypeMessage, TypeTopic, TypeFile}
+	presence     = []Type{TypeRobot, TypeUser, TypeBox}
 )
 
 // Operators is the table; the parser, the applicability check and the
 // operators endpoint all read it.
 var Operators = []Operator{
-	{Name: OpType, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, thread, file, robot, user, channel, box (comma list)"},
-	{Name: OpFrom, Values: "id", Applies: msgThreadFile, Example: "from:CLE-07", Doc: "sender: agent, agent@box, HUM-n or box"},
-	{Name: OpTo, Values: "id", Applies: msgThreadFile, Example: "to:HUM-3", Doc: "recipient: agent, agent@box, HUM-n or box"},
-	{Name: OpBox, Values: "box", Applies: []Type{TypeMessage, TypeThread, TypeFile, TypeRobot, TypeBox}, Example: "box:box-a", Doc: "sent from or to this box; a robot on it; the box itself"},
-	{Name: OpIn, Values: "channel", Applies: msgThreadFile, Example: "in:#tasks", Doc: "a channel (#name or name), or dm for direct messages"},
+	{Name: OpType, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box (comma list)"},
+	{Name: OpFrom, Values: "id", Applies: msgTopicFile, Example: "from:CLE-07", Doc: "sender: agent, agent@box, HUM-n or box"},
+	{Name: OpTo, Values: "id", Applies: msgTopicFile, Example: "to:HUM-3", Doc: "recipient: agent, agent@box, HUM-n or box"},
+	{Name: OpBox, Values: "box", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeBox}, Example: "box:box-a", Doc: "sent from or to this box; a robot on it; the box itself"},
+	{Name: OpIn, Values: "channel", Applies: msgTopicFile, Example: "in:#tasks", Doc: "a channel (#name or name), or dm for direct messages"},
 	{Name: OpIs, Values: "enum", Enum: map[string][]Type{
 		"task": {TypeMessage}, "note": {TypeMessage}, "result": {TypeMessage}, "reject": {TypeMessage},
-		"root": {TypeThread}, "online": presence, "offline": presence, "revoked": {TypeRobot, TypeBox},
-	}, Applies: []Type{TypeMessage, TypeThread, TypeRobot, TypeUser, TypeBox}, Example: "is:task", Doc: "message kind, root thread, presence or revoked pin"},
+		"root": {TypeTopic}, "online": presence, "offline": presence, "revoked": {TypeRobot, TypeBox},
+	}, Applies: []Type{TypeMessage, TypeTopic, TypeRobot, TypeUser, TypeBox}, Example: "is:task", Doc: "message kind, root topic, presence or revoked pin"},
 	{Name: OpHas, Values: "enum", Enum: map[string][]Type{
 		"file": {TypeMessage}, "attachment": {TypeMessage}, "code": {TypeMessage},
 	}, Applies: []Type{TypeMessage}, Example: "has:file", Doc: "messages with attachments or a fenced code block"},
-	{Name: OpThread, Values: "uuid", Applies: msgThreadFile, Example: "thread:<task_id>", Doc: "one thread (task id)"},
-	{Name: OpBefore, Values: "date", Applies: msgThreadFile, Example: "before:2026-09-01", Doc: "received before a UTC day, or before an age (24h, 7d, 2w)"},
-	{Name: OpAfter, Values: "date", Applies: msgThreadFile, Example: "after:7d", Doc: "received on or after a UTC day, or within an age"},
-	{Name: OpOn, Values: "date", Applies: msgThreadFile, Example: "on:2026-09-19", Doc: "received on a UTC day"},
-	{Name: OpTitle, Aliases: []string{"subject"}, Values: "text", Applies: []Type{TypeThread}, Example: "title:migration", Doc: "thread title words"},
+	{Name: OpTopic, Values: "uuid", Applies: msgTopicFile, Example: "topic:<task_id>", Doc: "one topic (task id)"},
+	{Name: OpBefore, Values: "date", Applies: msgTopicFile, Example: "before:2026-09-01", Doc: "received before a UTC day, or before an age (24h, 7d, 2w)"},
+	{Name: OpAfter, Values: "date", Applies: msgTopicFile, Example: "after:7d", Doc: "received on or after a UTC day, or within an age"},
+	{Name: OpOn, Values: "date", Applies: msgTopicFile, Example: "on:2026-09-19", Doc: "received on a UTC day"},
+	{Name: OpTitle, Aliases: []string{"subject"}, Values: "text", Applies: []Type{TypeTopic}, Example: "title:migration", Doc: "topic title words"},
 	{Name: OpName, Values: "text", Applies: []Type{TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}, Example: "name:ops", Doc: "the entity's name contains this"},
 	{Name: OpFilename, Values: "text", Applies: []Type{TypeFile}, Example: `filename:"q3 report"`, Doc: "attachment name contains this"},
 	{Name: OpExt, Values: "ext", Applies: []Type{TypeFile}, Example: "ext:pdf", Doc: "attachment extension"},

@@ -142,7 +142,7 @@ func TestRBACPerRoleEntryPoints(t *testing.T) {
 		t.Fatalf("demoted member still commands agents on its open socket: %v", f)
 	}
 	// A non-member session reads nothing.
-	if code, body := call(t, e, tid, http.MethodGet, "/v1/view/threads", "HUM-999999", nil); code != http.StatusForbidden {
+	if code, body := call(t, e, tid, http.MethodGet, "/v1/view/topics", "HUM-999999", nil); code != http.StatusForbidden {
 		t.Fatalf("non-member read: %d %v", code, body)
 	}
 }

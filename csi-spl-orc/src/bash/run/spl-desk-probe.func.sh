@@ -14,7 +14,7 @@
 # @description      window carries it, that step is OBSERVED, not FAIL: the
 # @description      message is still delivered
 # @description   6. the documented reply leg (do_spl_desk_reply) must put the
-# @description      answer back in the SAME thread, and the browser's socket
+# @description      answer back in the SAME topic, and the browser's socket
 # @description      must receive it
 # @description The probe writes results.json next to the desk state and prints
 # @description one PASS/FAIL line per step. It sends real messages into the

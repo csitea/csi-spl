@@ -19,7 +19,7 @@ import {
   rowFromAck,
   parseMention,
   rootsByTask,
-  threadReplies,
+  topicReplies,
   topLevel,
 } from '~/utils/channel-feed.mjs'
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
@@ -38,7 +38,7 @@ export type ChannelInfo = ChannelRow & {
   last_cursor?: string | null
 }
 
-type FeedMessage = SpoolMessage & { count?: number, thread_row?: boolean }
+type FeedMessage = SpoolMessage & { count?: number, topic_row?: boolean }
 
 const WINDOW = 50
 
@@ -73,7 +73,7 @@ export const useChannelStore = defineStore('channel', () => {
   const search = ref('')
   const visible = ref(WINDOW)
   const lastLive = ref<FeedMessage | null>(null)
-  /** view-v1 §4.3 cursor for the next older thread page; null = none left. */
+  /** view-v1 §4.3 cursor for the next older topic page; null = none left. */
   const olderCursor = ref<string | null>(null)
   let loadingOlder = false
   const view = computed(() => channelView(messages.value, { search: search.value, visible: visible.value }))
@@ -83,7 +83,7 @@ export const useChannelStore = defineStore('channel', () => {
   let followedChannel = ''
   let followedPeer = ''
 
-  /** Live: subscribe the socket to every thread on screen, drop the ones that left. */
+  /** Live: subscribe the socket to every topic on screen, drop the ones that left. */
   function follow() {
     if (api.mock || !import.meta.client) return
     const live = useLive()
@@ -132,8 +132,8 @@ export const useChannelStore = defineStore('channel', () => {
   async function loadDmActivity(self = '') {
     if (api.mock) return
     try {
-      const page = await withSessionRetry(api, () => api.listThreads({ dm: true, limit: 50 }))
-      dmAt.value = { ...dmAt.value, ...dmActivity(page.threads, self) }
+      const page = await withSessionRetry(api, () => api.listTopics({ dm: true, limit: 50 }))
+      dmAt.value = { ...dmAt.value, ...dmActivity(page.topics, self) }
     } catch {
       /* the sidebar still lists peers; only the order falls back to a-z */
     }
@@ -155,7 +155,7 @@ export const useChannelStore = defineStore('channel', () => {
 
   /**
    * Bottom sentinel: reveal the next older window of rows already held, then
-   * fetch the next §4.3 thread page (`before=<next>`), append older rows at
+   * fetch the next §4.3 topic page (`before=<next>`), append older rows at
    * the BOTTOM (storage stays oldest-first; channelView sorts newest-first),
    * de-duplicated by msg_id. Stops when `next` is null.
    */
@@ -388,7 +388,7 @@ export const useChannelStore = defineStore('channel', () => {
   }
 
   function repliesFor(taskId: string) {
-    return threadReplies(messages.value, taskId)
+    return topicReplies(messages.value, taskId)
   }
 
   return {

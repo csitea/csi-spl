@@ -17,7 +17,7 @@ const FROM_ROSTER_CAP = 8
 const SEARCH_CMD_RE = /^\/(?:search|s)(?=\s|$)/i
 
 /** Result sections in render order (spec 022 FR-021; group keys of search-v1 §4). */
-export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'threads', 'files', 'messages']
+export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'topics', 'files', 'messages']
 
 /**
  * Built-in operator catalogue — the offline fallback of search-v1 §6
@@ -30,12 +30,12 @@ export const SEARCH_OPERATORS = [
   { op: 'in:', example: 'in:#lobby', values: ['dm'] },
   { op: 'is:', values: ['task', 'note', 'result', 'reject', 'root', 'online', 'offline', 'revoked'] },
   { op: 'has:', values: ['file', 'attachment', 'code'] },
-  { op: 'type:', values: ['message', 'thread', 'file', 'robot', 'user', 'channel', 'box'] },
+  { op: 'type:', values: ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box'] },
   { op: 'before:', example: 'before:2026-09-01' },
   { op: 'after:', example: 'after:7d' },
   { op: 'on:', example: 'on:2026-09-19' },
   { op: 'box:', example: 'box:box-a' },
-  { op: 'thread:', example: 'thread:<task id>' },
+  { op: 'topic:', example: 'topic:<task id>' },
   { op: 'title:', example: 'title:"release plan"' },
   { op: 'subject:', example: 'subject:migration' },
   { op: 'name:', example: 'name:ops' },
@@ -247,7 +247,7 @@ function textOf(v) {
   return null
 }
 
-/** The highlighted text of a row: message `snippet`, thread `title`, else `name` (search-v1 §4). */
+/** The highlighted text of a row: message `snippet`, topic `title`, else `name` (search-v1 §4). */
 function displayOf(r) {
   return textOf(r.snippet) || textOf(r.title) || textOf(r.name)
     || { text: String(r.body || r.id || r.box_id || r.channel || r.task_id || ''), highlights: [] }
@@ -288,7 +288,7 @@ export function normalizeSearchResponse(data) {
 
 /**
  * CLE-3425 — the clock a search row is ordered by, whatever its group: a message
- * its received_at, a thread its last_at, a channel its last_ts, a box its last
+ * its received_at, a topic its last_at, a channel its last_ts, a box its last
  * hello. Stamped on the row as data-ts so the rendered order can be audited
  * against the clock (the hub answers each group newest first, search-v1 §4).
  */
@@ -331,7 +331,7 @@ export function moveIndex(i, n, key) {
 }
 
 /**
- * FR-023: where a row goes. → { thread, focus } for the thread pane,
+ * FR-023: where a row goes. → { topic, focus } for the topic pane,
  * { path } for a route (locale prefix is the caller's), or { search } for a
  * follow-up query (a box → its messages).
  */
@@ -339,11 +339,11 @@ export function searchTarget(row) {
   const r = row || {}
   switch (r.type) {
     case 'messages':
-      return r.task_id ? { thread: String(r.parent_task_id || r.task_id), focus: r.msg_id ? String(r.msg_id) : '' } : null
-    case 'threads':
-      return r.task_id ? { thread: String(r.task_id), focus: '' } : null
+      return r.task_id ? { topic: String(r.parent_task_id || r.task_id), focus: r.msg_id ? String(r.msg_id) : '' } : null
+    case 'topics':
+      return r.task_id ? { topic: String(r.task_id), focus: '' } : null
     case 'files':
-      return r.task_id ? { thread: String(r.task_id), focus: r.msg_id ? String(r.msg_id) : '' } : null
+      return r.task_id ? { topic: String(r.task_id), focus: r.msg_id ? String(r.msg_id) : '' } : null
     case 'boxes': {
       const id = String(r.box_id || '')
       return id ? { search: `box:${id}` } : null

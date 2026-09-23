@@ -9,7 +9,7 @@
     "cancel": "Otkaži"
   },
   "nav": {
-    "threads": "Teme",
+    "topics": "Teme",
     "lobby": "Lobi",
     "general": "#general",
     "login": "Prijava",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "nepoznato",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Otvori temu",
+    "open_topic": "Otvori temu",
     "replies": "{n} odgovor | {n} odgovora",
     "filter_label": "Filter:",
     "matches": "Podudaranja: {count}",
@@ -399,7 +399,7 @@
     },
     "new_pill": "Нове: {n}",
     "new_pill_label": "Иди на најновије поруке",
-    "open_thread_hint": "Притисните Enter да отворите тему ове поруке.",
+    "open_topic_hint": "Притисните Enter да отворите тему ове поруке.",
     "edit": {
       "label": "Izmeni poruku",
       "hint": "Enter čuva · Shift+Enter novi red · Esc otkazuje",
@@ -413,7 +413,7 @@
       "failed_too_large": "Predugačka za čuvanje. Priložite je kao datoteku."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Tema",
     "open": "Otvori",
     "empty": "Prazna tema.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Promeni veličinu bočne trake kanala",
-    "resize_thread": "Promeni veličinu okna teme",
+    "resize_topic": "Promeni veličinu okna teme",
     "resize_hint": "Prevucite za promenu veličine. Dvaput kliknite za vraćanje."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "Људи",
       "channels": "Канали",
       "boxes": "Кутије",
-      "threads": "Теме",
+      "topics": "Теме",
       "files": "Датотеке",
       "messages": "Поруке"
     },

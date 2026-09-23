@@ -9,7 +9,7 @@
     "cancel": "Atcelt"
   },
   "nav": {
-    "threads": "Tēmas",
+    "topics": "Tēmas",
     "lobby": "Vestibils",
     "general": "#general",
     "login": "Pieteikties",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "nezināms",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Atvērt tēmu",
+    "open_topic": "Atvērt tēmu",
     "replies": "{n} atbilde | {n} atbildes",
     "filter_label": "Filtrs:",
     "matches": "Atbilstības: {count}",
@@ -399,7 +399,7 @@
     },
     "new_pill": "Jaunas: {n}",
     "new_pill_label": "Pāriet uz jaunākajām ziņām",
-    "open_thread_hint": "Nospiediet Enter, lai atvērtu šīs ziņas tēmu.",
+    "open_topic_hint": "Nospiediet Enter, lai atvērtu šīs ziņas tēmu.",
     "edit": {
       "label": "Rediģēt ziņu",
       "hint": "Enter saglabā · Shift+Enter pievieno rindu · Esc atceļ",
@@ -413,7 +413,7 @@
       "failed_too_large": "Pārāk gara, lai saglabātu. Pievienojiet to kā failu."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Tēma",
     "open": "Atvērt",
     "empty": "Tukša tēma.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Mainīt kanālu sānjoslas izmēru",
-    "resize_thread": "Mainīt tēmas paneļa izmēru",
+    "resize_topic": "Mainīt tēmas paneļa izmēru",
     "resize_hint": "Velciet, lai mainītu izmēru. Veiciet dubultklikšķi, lai atiestatītu."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "Cilvēki",
       "channels": "Kanāli",
       "boxes": "Kastes",
-      "threads": "Tēmas",
+      "topics": "Tēmas",
       "files": "Faili",
       "messages": "Ziņas"
     },

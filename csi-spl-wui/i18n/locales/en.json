@@ -9,7 +9,7 @@
     "cancel": "Cancel"
   },
   "nav": {
-    "threads": "Topics",
+    "topics": "Topics",
     "lobby": "Lobby",
     "general": "#general",
     "login": "Sign in",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "unknown",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open topic",
+    "open_topic": "Open topic",
     "replies": "{n} reply | {n} replies",
     "filter_label": "Filter:",
     "matches": "{count} match(es)",
@@ -399,7 +399,7 @@
     },
     "new_pill": "New: {n}",
     "new_pill_label": "Jump to the newest messages",
-    "open_thread_hint": "Press Enter to open this message's topic.",
+    "open_topic_hint": "Press Enter to open this message's topic.",
     "edit": {
       "label": "Edit message",
       "hint": "Enter saves · Shift+Enter adds a line · Esc cancels",
@@ -413,7 +413,7 @@
       "failed_too_large": "Too long to save. Attach it as a file instead."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Topic",
     "open": "Open",
     "empty": "Empty topic.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize topic pane",
+    "resize_topic": "Resize topic pane",
     "resize_hint": "Drag to resize. Double-click to reset."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "People",
       "channels": "Channels",
       "boxes": "Boxes",
-      "threads": "Topics",
+      "topics": "Topics",
       "files": "Files",
       "messages": "Messages"
     },

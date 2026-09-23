@@ -96,7 +96,7 @@ export function redactText(input, max = MAX_FIELD_CHARS) {
  *
  * Why not just `redactText` on the whole pathname: the blob rule collapses any
  * run of 24+ URL-safe characters, and `/` and `-` are both inside that class,
- * so the run does not stop at a segment boundary. `/v1/view/threads/<uuid>`
+ * so the run does not stop at a segment boundary. `/v1/view/topics/<uuid>`
  * would collapse whole into `/<redacted:blob>` and no longer say which
  * endpoint had failed.
  *

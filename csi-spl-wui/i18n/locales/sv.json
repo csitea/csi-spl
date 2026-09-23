@@ -9,7 +9,7 @@
     "cancel": "Avbryt"
   },
   "nav": {
-    "threads": "Ämnen",
+    "topics": "Ämnen",
     "lobby": "Lobby",
     "general": "#general",
     "login": "Logga in",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "okänd",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Öppna ämne",
+    "open_topic": "Öppna ämne",
     "replies": "{n} svar | {n} svar",
     "filter_label": "Filter:",
     "matches": "{count} träff(ar)",
@@ -399,7 +399,7 @@
     },
     "new_pill": "Nya: {n}",
     "new_pill_label": "Gå till de senaste meddelandena",
-    "open_thread_hint": "Tryck på Enter för att öppna meddelandets ämne.",
+    "open_topic_hint": "Tryck på Enter för att öppna meddelandets ämne.",
     "edit": {
       "label": "Redigera meddelandet",
       "hint": "Enter sparar · Shift+Enter ny rad · Esc avbryter",
@@ -413,7 +413,7 @@
       "failed_too_large": "För långt för att sparas. Bifoga det som en fil."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Ämne",
     "open": "Öppna",
     "empty": "Tomt ämne.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Ändra storlek på kanalsidofältet",
-    "resize_thread": "Ändra storlek på ämnespanelen",
+    "resize_topic": "Ändra storlek på ämnespanelen",
     "resize_hint": "Dra för att ändra storlek. Dubbelklicka för att återställa."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "Personer",
       "channels": "Kanaler",
       "boxes": "Boxar",
-      "threads": "Ämnen",
+      "topics": "Ämnen",
       "files": "Filer",
       "messages": "Meddelanden"
     },

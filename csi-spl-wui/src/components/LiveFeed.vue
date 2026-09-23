@@ -10,7 +10,7 @@
       {{ t('feed.filter_label') }} <strong>{{ search }}</strong> · {{ t('feed.matches', { count: rows.length + (hasOlder ? '+' : '') }) }}
       <button class="btn ghost" type="button" @click="$emit('clear-search')">{{ t('feed.clear') }}</button>
     </p>
-    <p v-if="clickable" id="feed-open-hint" class="sr-only">{{ t('feed.open_thread_hint') }}</p>
+    <p v-if="clickable" id="feed-open-hint" class="sr-only">{{ t('feed.open_topic_hint') }}</p>
     <div class="new-pill-wrap">
       <button v-if="pill" class="btn new-pill" type="button" :aria-label="t('feed.new_pill_label')" data-testid="new-pill" @click="jump">
         ↑ {{ t('feed.new_pill', { n: pill }) }}
@@ -23,9 +23,9 @@
         :msg="m"
         :posinset="i + 1"
         :setsize="hasOlder ? -1 : rows.length"
-        :thread-link="openable(m)"
+        :topic-link="openable(m)"
         :count="countFor ? countFor(String(m.task_id || '')) : 0"
-        :always-thread="alwaysThread"
+        :always-topic="alwaysTopic"
         :clickable="clickable"
         :selected="isSelected(m)"
         :since-ms="sinceMs"
@@ -33,7 +33,7 @@
         :class="{ pending: m.pending }"
         :data-key="m.msg_id"
         :data-pending="m.pending ? 'true' : undefined"
-        @open-thread="(row: SpoolMessage) => $emit('open-thread', row)"
+        @open-topic="(row: SpoolMessage) => $emit('open-topic', row)"
         @edited="(row: SpoolMessage) => $emit('edited', row)"
       />
     </TransitionGroup>
@@ -48,8 +48,8 @@
 <script setup lang="ts">
 import type { SpoolMessage } from '~/types/spool'
 import { useScrollAnchor } from '~/composables/useScrollAnchor'
-import { useThreadStore } from '~/stores/thread'
-import { isSelectedRow } from '~/utils/thread-open.mjs'
+import { useTopicStore } from '~/stores/topic'
+import { isSelectedRow } from '~/utils/topic-open.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 
 /* 013: newest first under the Omnibox; entering rows animate; the bottom sentinel loads older windows.
@@ -62,20 +62,20 @@ const props = defineProps<{
   label: string
   lastLive?: SpoolMessage | null
   currentTaskId?: string | null
-  /** /channel and /dm (X3): every card is a thread root with a reply count. */
+  /** /channel and /dm (X3): every card is a topic root with a reply count. */
   countFor?: (taskId: string) => number
-  alwaysThread?: boolean
-  /** CLE-3427: a click (or Enter / Space) anywhere on a row opens its thread. */
+  alwaysTopic?: boolean
+  /** CLE-3427: a click (or Enter / Space) anywhere on a row opens its topic. */
   clickable?: boolean
-  /** what "no rows" says here — in a thread pane that is "no replies yet". */
+  /** what "no rows" says here — in a topic pane that is "no replies yet". */
   emptyText?: string
-  /** thread-pane clock (Date.now()); omitted on channel / lobby cards */
+  /** topic-pane clock (Date.now()); omitted on channel / lobby cards */
   sinceMs?: number
 }>()
-const emit = defineEmits<{ older: [], 'clear-search': [], 'open-thread': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
+const emit = defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
 
 const { t } = useI18n({ useScope: 'global' })
-const thread = useThreadStore()
+const topic = useTopicStore()
 const sentinel = ref<HTMLElement | null>(null)
 const root = ref<HTMLElement | null>(null)
 const { pill, jump } = useScrollAnchor(
@@ -107,9 +107,9 @@ function openable(m: SpoolMessage) {
   return Boolean(m.task_id && props.currentTaskId && m.task_id !== props.currentTaskId)
 }
 
-/* CLE-3427: the row the open thread is rooted at reads as selected (a darker
-   fill + aria-current). Only a feed whose rows open a thread can have one. */
+/* CLE-3427: the row the open topic is rooted at reads as selected (a darker
+   fill + aria-current). Only a feed whose rows open a topic can have one. */
 function isSelected(m: SpoolMessage) {
-  return Boolean(props.clickable) && isSelectedRow(m, thread.target)
+  return Boolean(props.clickable) && isSelectedRow(m, topic.target)
 }
 </script>

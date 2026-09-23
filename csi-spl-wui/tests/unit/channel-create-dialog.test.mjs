@@ -36,7 +36,7 @@ describe('the + control next to the Channels heading', () => {
   const sidebar = src('src/components/ChannelSidebar.vue')
 
   it('is a real button in the heading row, not a field in the channel list', () => {
-    assert.match(sidebar, /<div class="sidebar-head">\s*<h2>\{\{ t\('sidebar\.channels'\) \}\}<\/h2>/)
+    assert.match(sidebar, /<div class="sidebar-head">\s*<h2[^>]*>\s*\{\{ t\('sidebar\.channels'\) \}\}/)
     assert.match(sidebar, /type="button"[\s\S]{0,200}data-testid="create-channel"/)
     assert.match(sidebar, /<UiIcon name="plus"/)
     /* the old always-open row is gone from the markup AND from the stylesheet */

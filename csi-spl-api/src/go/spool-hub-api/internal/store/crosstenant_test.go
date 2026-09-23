@@ -241,8 +241,8 @@ func TestCrossTenantStoreAPI(t *testing.T) {
 	if env, err := pg.TaskEnvelopes(ctx, a.tenant, b.taskID); err != nil || len(env) != 0 {
 		t.Errorf("TaskEnvelopes(A, B's task) = %d %v", len(env), err)
 	}
-	if msgs, err := pg.ViewThread(ctx, a.tenant, ThreadMsgQuery{TaskID: b.taskID, Limit: 50, Now: now}); err != nil || len(msgs) != 0 {
-		t.Errorf("ViewThread(A, B's task) = %d %v", len(msgs), err)
+	if msgs, err := pg.ViewTopic(ctx, a.tenant, TopicMsgQuery{TaskID: b.taskID, Limit: 50, Now: now}); err != nil || len(msgs) != 0 {
+		t.Errorf("ViewTopic(A, B's task) = %d %v", len(msgs), err)
 	}
 	if st, err := pg.DeliveryState(ctx, a.tenant, b.msgID, "box-a"); err == nil && st != "" {
 		t.Errorf("DeliveryState(A, B's msg) = %q", st)

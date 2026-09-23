@@ -11,7 +11,7 @@ import (
 //
 // An edit is NOT an overwrite. The message's current body is rewritten in
 // place — same msg_id, same ts, same received_at, so it never moves in the
-// thread — and every body it has ever had stays readable in the register. The
+// topic — and every body it has ever had stays readable in the register. The
 // owner asked for both halves in one breath: "both the old and the new msg
 // should be stored ( for later feature to be able to compare those msgs )".
 //
@@ -38,7 +38,7 @@ type EditableMessage struct {
 	MsgID        string
 	TaskID       string
 	Channel      string // "" = a DM
-	ParentTaskID string // "" = a root thread
+	ParentTaskID string // "" = a root topic
 	FromBox      string
 	FromID       string
 	ToBox        string

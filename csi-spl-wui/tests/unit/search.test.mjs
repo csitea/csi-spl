@@ -86,12 +86,13 @@ describe('operator autocomplete', () => {
   })
   it('any part of an operator, example, or value matches', () => {
     assert.deepEqual(completeOperators('f').map((c) => c.insert), ['from:', 'is:offline ', 'has:file ', 'type:file ', 'before:', 'after:', 'filename:', 'ext:'])
-    assert.deepEqual(completeOperators('task').map((c) => c.insert), ['is:task ', 'thread:'])
+    assert.deepEqual(completeOperators('task').map((c) => c.insert), ['is:task ', 'topic:'])
     assert.ok(completeOperators('Is').some((c) => c.insert === 'is:'))
   })
   it('closed values after the colon', () => {
     assert.deepEqual(completeOperators('is:r').map((c) => c.insert), ['is:result ', 'is:reject ', 'is:root ', 'is:revoked '])
-    assert.deepEqual(completeOperators('type:r').map((c) => c.insert), ['type:thread ', 'type:robot ', 'type:user '])
+    assert.deepEqual(completeOperators('type:r').map((c) => c.insert), ['type:robot ', 'type:user '])
+    assert.deepEqual(completeOperators('type:top').map((c) => c.insert), ['type:topic '])
     assert.deepEqual(completeOperators('has:c').map((c) => c.insert), ['has:attachment ', 'has:code '])
   })
   it('CONTROL: a finished closed value and an unknown prefix offer nothing', () => {
@@ -166,7 +167,7 @@ describe('operator autocomplete', () => {
   })
   it('the catalogue carries every operator the brief names', () => {
     const ops = SEARCH_OPERATORS.map((o) => o.op)
-    for (const op of ['from:', 'to:', 'in:', 'is:', 'has:', 'before:', 'after:', 'on:', 'type:', 'title:', 'subject:', 'name:', 'filename:', 'ext:', 'larger:', 'smaller:', 'box:', 'thread:']) {
+    for (const op of ['from:', 'to:', 'in:', 'is:', 'has:', 'before:', 'after:', 'on:', 'type:', 'title:', 'subject:', 'name:', 'filename:', 'ext:', 'larger:', 'smaller:', 'box:', 'topic:']) {
       assert.ok(ops.includes(op), op)
     }
   })
@@ -207,11 +208,11 @@ describe('response normalisation (search-v1 §4)', () => {
   const answer = {
     query: 'deploy foo:bar',
     sort: 'newest',
-    types: ['message', 'thread', 'file', 'robot', 'user', 'channel', 'box'],
+    types: ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box'],
     warnings: [{ token: 'foo:bar', pos: 7, detail: 'unknown operator foo: searched as text' }],
     groups: {
       messages: { results: [{ msg_id: 'm1', task_id: 't1', snippet: { text: 'we deploy', highlights: [[3, 9]] } }], next: 'cm' },
-      threads: { results: [{ task_id: 't1', title: { text: 'Deploy plan', highlights: [[0, 6]] }, count: 2 }], next: null },
+      topics: { results: [{ task_id: 't1', title: { text: 'Deploy plan', highlights: [[0, 6]] }, count: 2 }], next: null },
       files: { results: [{ file_id: null, name: { text: 'deploy.pdf', highlights: [] }, msg_id: 'm1', task_id: 't1' }, { file_id: null, name: { text: 'b.txt', highlights: [] }, msg_id: 'm1', task_id: 't1' }], next: null },
       robots: { results: [{ id: 'CLE-07', box: 'box-a', online: true, name: { text: 'CLE-07@box-a', highlights: [[0, 3]] } }], next: null },
       users: { results: [], next: null },
@@ -221,16 +222,16 @@ describe('response normalisation (search-v1 §4)', () => {
   }
   it('groups in render order, per-group next, empty groups dropped', () => {
     const r = normalizeSearchResponse(answer)
-    assert.deepEqual(r.groups.map((g) => g.type), ['robots', 'channels', 'boxes', 'threads', 'files', 'messages'])
+    assert.deepEqual(r.groups.map((g) => g.type), ['robots', 'channels', 'boxes', 'topics', 'files', 'messages'])
     assert.equal(r.groups.find((g) => g.type === 'messages').next, 'cm')
-    assert.equal(r.groups.find((g) => g.type === 'threads').next, null)
+    assert.equal(r.groups.find((g) => g.type === 'topics').next, null)
     assert.deepEqual(r.warnings, [{ token: 'foo:bar', pos: 7, detail: 'unknown operator foo: searched as text' }])
   })
   it('display text per type: snippet / title / name', () => {
     const r = normalizeSearchResponse(answer)
     const by = Object.fromEntries(r.groups.map((g) => [g.type, g.items[0].display]))
     assert.deepEqual(by.messages, { text: 'we deploy', highlights: [[3, 9]] })
-    assert.deepEqual(by.threads, { text: 'Deploy plan', highlights: [[0, 6]] })
+    assert.deepEqual(by.topics, { text: 'Deploy plan', highlights: [[0, 6]] })
     assert.deepEqual(by.robots, { text: 'CLE-07@box-a', highlights: [[0, 3]] })
     assert.equal(by.boxes.text, 'box-a')
   })
@@ -303,10 +304,10 @@ describe('keyboard', () => {
 
 describe('click targets', () => {
   it('per type', () => {
-    assert.deepEqual(searchTarget({ type: 'messages', task_id: 't', msg_id: 'm' }), { thread: 't', focus: 'm' })
-    assert.deepEqual(searchTarget({ type: 'messages', task_id: 'r', parent_task_id: 'p', msg_id: 'm' }), { thread: 'p', focus: 'm' })
-    assert.deepEqual(searchTarget({ type: 'threads', task_id: 't' }), { thread: 't', focus: '' })
-    assert.deepEqual(searchTarget({ type: 'files', task_id: 't', msg_id: 'm' }), { thread: 't', focus: 'm' })
+    assert.deepEqual(searchTarget({ type: 'messages', task_id: 't', msg_id: 'm' }), { topic: 't', focus: 'm' })
+    assert.deepEqual(searchTarget({ type: 'messages', task_id: 'r', parent_task_id: 'p', msg_id: 'm' }), { topic: 'p', focus: 'm' })
+    assert.deepEqual(searchTarget({ type: 'topics', task_id: 't' }), { topic: 't', focus: '' })
+    assert.deepEqual(searchTarget({ type: 'files', task_id: 't', msg_id: 'm' }), { topic: 't', focus: 'm' })
     assert.deepEqual(searchTarget({ type: 'robots', id: 'CLE-07', box: 'box-a' }), { path: '/dm/CLE-07%40box-a' })
     assert.deepEqual(searchTarget({ type: 'users', id: 'HUM-1' }), { path: '/dm/HUM-1' })
     assert.deepEqual(searchTarget({ type: 'channels', channel: 'lobby' }), { path: '/channel/lobby' })

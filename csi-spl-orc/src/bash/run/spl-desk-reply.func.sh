@@ -4,17 +4,17 @@
 # @description in the WUI - the reply leg of do_spl_desk_up. The agent reads its
 # @description own inbox, takes the newest message from a human (a HUM-* sender,
 # @description the id a signed-in WUI session carries), and sends one message
-# @description back into the SAME thread, addressed to box-wui, so the answer
+# @description back into the SAME topic, addressed to box-wui, so the answer
 # @description appears in the browser's open DM.
 # @description   1. `spool recv --as <agent>` on the desk root (no --ack: the
 # @description      message stays in the inbox unless DESK_ACK=1)
 # @description   2. the conversation to answer. NOT simply "the newest human":
 # @description      two people (or a probe) writing to the same agent would
-# @description      then take turns stealing each other's thread, and an answer
+# @description      then take turns stealing each other's topic, and an answer
 # @description      meant for one appears under the other - measured
 # @description      2026-09-21, while the owner watched. So: only messages
 # @description      NEWER than this desk's last answer count, and
-# @description        - exactly one such (sender, thread)  -> answer it
+# @description        - exactly one such (sender, topic)  -> answer it
 # @description        - several                            -> REFUSE, exit 4,
 # @description          and name them; pass DESK_TO / DESK_TASK to choose
 # @description        - none                               -> exit 3
@@ -35,7 +35,7 @@
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DESK_KIND (optional) - note (default) | result | reject
 # @param DESK_TO (optional) - answer THIS human id instead of the newest sender
-# @param DESK_TASK (optional) - answer in THIS thread instead of the newest one
+# @param DESK_TASK (optional) - answer in THIS topic instead of the newest one
 # @param DESK_ACK (optional) - 1 = archive the answered message, default 0
 # @param DESK_ANY (optional) - 1 = answer the newest human message even when
 # @param   several conversations are waiting (the pre-2026-09-21 behaviour)
@@ -83,7 +83,7 @@ do_spl_desk_reply() {
   fi
   local ans_to ans_task ans_msg ans_head
   IFS=$'\t' read -r ans_to ans_task ans_msg ans_head <<<"$pick"
-  [[ -n "$ans_to" && -n "$ans_task" ]] || { do_log "FATAL cannot read a human and a thread out of $agent's inbox"; return 1; }
+  [[ -n "$ans_to" && -n "$ans_task" ]] || { do_log "FATAL cannot read a human and a topic out of $agent's inbox"; return 1; }
 
   local sent rc=0
   sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
@@ -110,7 +110,7 @@ EOF_PY
     spl_desk_spool "$d" "$box" "$tenant" "$hub" -- recv --as "$agent" --ack >/dev/null 2>&1 ||
       do_log "WARN could not archive $agent's inbox after the answer"
   fi
-  do_log "OK $agent answered $ans_to in thread $ans_task ($kind); the sidecar flushes it to $hub"
+  do_log "OK $agent answered $ans_to in topic $ans_task ($kind); the sidecar flushes it to $hub"
 }
 
 # spl_desk_pick <recv json> <to override> <task override> <answered file> <any>:
@@ -120,7 +120,7 @@ EOF_PY
 # another box. Among those, only messages NEWER than this desk's last answer
 # are candidates - an inbox is never drained, so "the newest human message"
 # alone would keep re-picking whoever spoke most recently ANYWHERE, and an
-# answer meant for one person would land in another's thread.
+# answer meant for one person would land in another's topic.
 #
 # Exit 3 nothing to answer; exit 4 more than one conversation is waiting, with
 # them listed on stdout - that is a question for the operator, not a guess.
@@ -147,7 +147,7 @@ if task:
 rows.sort(key=lambda m: (str(m.get("ts", "")), str(m.get("msg_id", ""))))
 
 if to or task:
-    # An explicit choice is obeyed, including a thread we hold no message of
+    # An explicit choice is obeyed, including a topic we hold no message of
     # yet (the person opened a fresh DM) when BOTH halves are named.
     if rows:
         out(rows[-1])
@@ -165,11 +165,11 @@ except (OSError, ValueError, AttributeError):
 fresh = [m for m in rows if not since or str(m.get("ts", "")) > since]
 if not fresh:
     sys.exit(3)
-threads = {}
+topics = {}
 for m in fresh:
-    threads.setdefault((m.get("from", ""), m.get("task_id", "")), []).append(m)
-if len(threads) > 1 and not any_one:
-    for (frm, tsk), ms in sorted(threads.items(), key=lambda kv: str(kv[1][-1].get("ts", ""))):
+    topics.setdefault((m.get("from", ""), m.get("task_id", "")), []).append(m)
+if len(topics) > 1 and not any_one:
+    for (frm, tsk), ms in sorted(topics.items(), key=lambda kv: str(kv[1][-1].get("ts", ""))):
         print("DESK_TO=%s DESK_TASK=%s  (%d waiting, newest: %s)"
               % (frm, tsk, len(ms), " ".join(str(ms[-1].get("body", "")).split())[:60]))
     sys.exit(4)

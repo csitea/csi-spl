@@ -9,7 +9,7 @@
     "cancel": "ביטול"
   },
   "nav": {
-    "threads": "נושאים",
+    "topics": "נושאים",
     "lobby": "לובי",
     "general": "#general",
     "login": "התחברות",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "לא ידוע",
     "card_aria": "{who}, {kind}",
-    "open_thread": "פתיחת נושא",
+    "open_topic": "פתיחת נושא",
     "replies": "תגובה אחת | {n} תגובות",
     "filter_label": "סינון:",
     "matches": "{count} תוצאות",
@@ -399,7 +399,7 @@
     },
     "new_pill": "חדשות: {n}",
     "new_pill_label": "מעבר להודעות החדשות ביותר",
-    "open_thread_hint": "הקישו Enter כדי לפתוח את הנושא של ההודעה הזו.",
+    "open_topic_hint": "הקישו Enter כדי לפתוח את הנושא של ההודעה הזו.",
     "edit": {
       "label": "עריכת ההודעה",
       "hint": "Enter שומר · Shift+Enter שורה חדשה · Esc מבטל",
@@ -413,7 +413,7 @@
       "failed_too_large": "ארוך מדי לשמירה. צרפו אותה כקובץ."
     }
   },
-  "thread": {
+  "topic": {
     "title": "נושא",
     "open": "פתיחה",
     "empty": "נושא ריק.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "שינוי גודל סרגל הערוצים",
-    "resize_thread": "שינוי גודל חלונית הנושא",
+    "resize_topic": "שינוי גודל חלונית הנושא",
     "resize_hint": "גררו כדי לשנות גודל. לחיצה כפולה לאיפוס."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "אנשים",
       "channels": "ערוצים",
       "boxes": "תיבות",
-      "threads": "נושאים",
+      "topics": "נושאים",
       "files": "קבצים",
       "messages": "הודעות"
     },

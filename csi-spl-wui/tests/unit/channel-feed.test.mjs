@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   topLevel,
-  threadOf,
+  topicOf,
   replyCount,
   parseMention,
   formatBytes,
@@ -16,13 +16,13 @@ import {
   formatTs,
   formatAbsTs,
   formatElapsed,
-  formatThreadTs,
+  formatTopicTs,
   feedRow,
   belongsTo,
   mergeLive,
   connectionHealth,
   rootsByTask,
-  threadReplies,
+  topicReplies,
   followPlan,
   rowFromAck,
   channelFollow,
@@ -34,27 +34,27 @@ import { applyVerbosity } from '../../src/utils/verbosity.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
 
 describe('channel-feed', () => {
-  it('splits top-level from thread replies', () => {
+  it('splits top-level from topic replies', () => {
     const top = topLevel(MOCK_MESSAGES)
     assert.equal(top.every((m) => !m.parent_task_id), true)
     const task = MOCK_MESSAGES.find((m) => m.kind === 'task')
-    const thread = threadOf(MOCK_MESSAGES, task.task_id)
-    assert.ok(thread.length >= 3)
-    assert.equal(replyCount(MOCK_MESSAGES, task.task_id), thread.length - 1)
+    const topic = topicOf(MOCK_MESSAGES, task.task_id)
+    assert.ok(topic.length >= 3)
+    assert.equal(replyCount(MOCK_MESSAGES, task.task_id), topic.length - 1)
   })
 
   it('verbosity shows task/result/reject at minimal and notes at normal', () => {
     const taskId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-    const thread = threadOf(MOCK_MESSAGES, taskId)
-    const min = applyVerbosity(thread, 'minimal')
-    const norm = applyVerbosity(thread, 'normal')
-    const verb = applyVerbosity(thread, 'verbose')
+    const topic = topicOf(MOCK_MESSAGES, taskId)
+    const min = applyVerbosity(topic, 'minimal')
+    const norm = applyVerbosity(topic, 'normal')
+    const verb = applyVerbosity(topic, 'verbose')
     assert.equal(min.some((m) => m.kind === 'result'), true)
     assert.equal(min.some((m) => m.kind === 'task'), true)
     assert.equal(min.some((m) => m.kind === 'note'), false)
     assert.equal(norm.some((m) => m.body === 'Applying patch'), true)
     assert.equal(norm.some((m) => String(m.body).startsWith('[verbose]')), true)
-    assert.equal(verb.length, thread.length)
+    assert.equal(verb.length, topic.length)
   })
 
   it('parses @mention into a task', () => {
@@ -84,13 +84,13 @@ describe('channel-feed', () => {
     assert.equal(formatElapsed(72), '1m')
     assert.equal(formatElapsed(3600), '1h')
     assert.equal(formatElapsed(7383), '2h 3m')
-    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T14:05:07Z')), '2026-09-19 14:05:00 sent 7s')
-    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T14:05:59Z')), '2026-09-19 14:05:00 sent 59s')
-    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T14:06:00Z')), '2026-09-19 14:05:00 sent 1m')
-    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T14:08:00Z')), '2026-09-19 14:05:00 sent 3m')
-    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T16:08:12Z')), '2026-09-19 14:05:00 sent 2h 3m')
-    assert.equal(formatThreadTs(ts, Date.parse('2026-09-19T14:04:00Z')), '2026-09-19 14:05:00 sent 0s')
-    assert.equal(formatThreadTs('not a date', 1), 'not a date')
+    assert.equal(formatTopicTs(ts, Date.parse('2026-09-19T14:05:07Z')), '2026-09-19 14:05:00 sent 7s')
+    assert.equal(formatTopicTs(ts, Date.parse('2026-09-19T14:05:59Z')), '2026-09-19 14:05:00 sent 59s')
+    assert.equal(formatTopicTs(ts, Date.parse('2026-09-19T14:06:00Z')), '2026-09-19 14:05:00 sent 1m')
+    assert.equal(formatTopicTs(ts, Date.parse('2026-09-19T14:08:00Z')), '2026-09-19 14:05:00 sent 3m')
+    assert.equal(formatTopicTs(ts, Date.parse('2026-09-19T16:08:12Z')), '2026-09-19 14:05:00 sent 2h 3m')
+    assert.equal(formatTopicTs(ts, Date.parse('2026-09-19T14:04:00Z')), '2026-09-19 14:05:00 sent 0s')
+    assert.equal(formatTopicTs('not a date', 1), 'not a date')
     assert.equal(formatBytes(2048, 'fi'), '2,0 KiB')
     assert.equal(formatBytes(2048, 'en'), '2.0 KiB')
     assert.equal(retentionDays({ channel_id: 'alerts' }), 7)
@@ -106,7 +106,7 @@ describe('channel-feed live rows (gap A2)', () => {
     subject: 'hello', channel: 'alerts',
   }
 
-  it('maps a view-v1 thread row onto a root card', () => {
+  it('maps a view-v1 topic row onto a root card', () => {
     const f = feedRow(row)
     assert.equal(f.msg_id, 't1')
     assert.equal(f.task_id, 't1')
@@ -132,7 +132,7 @@ describe('channel-feed live rows (gap A2)', () => {
     assert.equal(belongsTo({ channel: 'lobby' }, {}), false)
   })
 
-  it('merges live frames: dedupe, bump the thread row, append a new root', () => {
+  it('merges live frames: dedupe, bump the topic row, append a new root', () => {
     const rows = [feedRow(row)]
     const reply = { msg_id: 'm9', task_id: 't1', ts: '2026-09-19T07:00:00Z', channel: 'alerts' }
     const bumped = mergeLive(rows, reply)
@@ -204,20 +204,20 @@ describe('live flat feed (A1 listMessages shape, gap A2)', () => {
     { msg_id: 'd', task_id: 't1', ts: '4' },
     { msg_id: 'e', task_id: 't9', parent_task_id: 't2', ts: '5' },
   ]
-  it('shows one card per thread and counts its replies', () => {
+  it('shows one card per topic and counts its replies', () => {
     assert.deepEqual(rootsByTask(topLevel(flat)).map((m) => m.msg_id), ['a', 'b'])
-    assert.equal(threadReplies(flat, 't1'), 2)
-    assert.equal(threadReplies(flat, 't2'), 1)
-    assert.equal(threadReplies([feedRow({ task_id: 't5', count: 4 })], 't5'), 3)
+    assert.equal(topicReplies(flat, 't1'), 2)
+    assert.equal(topicReplies(flat, 't2'), 1)
+    assert.equal(topicReplies([feedRow({ task_id: 't5', count: 4 })], 't5'), 3)
   })
-  it('matches mock replyCount for mock threads', () => {
+  it('matches mock replyCount for mock topics', () => {
     const task = MOCK_MESSAGES.find((m) => m.kind === 'task')
-    assert.equal(threadReplies(MOCK_MESSAGES, task.task_id), replyCount(MOCK_MESSAGES, task.task_id))
+    assert.equal(topicReplies(MOCK_MESSAGES, task.task_id), replyCount(MOCK_MESSAGES, task.task_id))
   })
 })
 
 describe('live subscriptions + own send (hub fans out per subscribed task, gap A2)', () => {
-  it('adds new threads, drops gone ones, never drops the lobby task', () => {
+  it('adds new topics, drops gone ones, never drops the lobby task', () => {
     assert.deepEqual(followPlan(['t1', 't2', 'LOBBY'], ['t2', 't3'], 'LOBBY'), { add: ['t3'], drop: ['t1'] })
     assert.deepEqual(followPlan([], ['t1', '', 't1']), { add: ['t1'], drop: [] })
   })
@@ -315,11 +315,11 @@ describe('pane 2 row is the starter and carries the starter sender', () => {
 })
 
 /*
- * Pane 2 is thread starters only, including #lobby. One task_id is one thread:
+ * Pane 2 is topic starters only, including #lobby. One task_id is one topic:
  * the earliest message by ts is the row, and a later message is a reply even
  * with no parent_task_id. Replies stay available to pane 3.
  */
-describe('pane 2 lists only the thread starter (owner 2026-09-23)', () => {
+describe('pane 2 lists only the topic starter (owner 2026-09-23)', () => {
   const starter = {
     msg_id: 's', task_id: 't', ts: '2026-09-23T10:00:00Z', from: 'HUM-1', body: 'start', parent_task_id: null,
   }
@@ -339,8 +339,8 @@ describe('pane 2 lists only the thread starter (owner 2026-09-23)', () => {
     assert.equal(rows[0].body, 'start')
     assert.equal(rows[0].from, 'HUM-1')
     assert.equal(rows[0].count, 2)
-    const thread = threadOf(all, 't')
-    assert.deepEqual(thread.map((m) => m.msg_id), ['s', 'r1', 'r2'])
+    const topic = topicOf(all, 't')
+    assert.deepEqual(topic.map((m) => m.msg_id), ['s', 'r1', 'r2'])
   })
 
   it('a parent_task_id on a different task_id is still not a pane-2 row', () => {

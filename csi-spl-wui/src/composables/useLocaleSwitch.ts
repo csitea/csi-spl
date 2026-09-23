@@ -52,7 +52,7 @@ export function useLocaleSwitch() {
       ? offered
       : localeTargetPath(route.path, code, codes, defaultLocale)
 
-    // ALWAYS re-apply the current query/hash: a verify/reset token or a thread
+    // ALWAYS re-apply the current query/hash: a verify/reset token or a topic
     // deep link must survive a language switch. switchLocalePath usually
     // returns fullPath, but path-only and empty results have dropped it.
     await navigateTo(

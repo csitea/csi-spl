@@ -3,17 +3,15 @@
 import { channelActivity } from './channel-feed.mjs'
 import { productPath } from './signed-out-redirect.mjs'
 
-export const SIDE_TABS = ['dm', 'channels', 'threads', 'flow']
+export const SIDE_TABS = ['dm', 'channels', 'topics', 'flow']
 
 /** Names accepted after `/switch-pane:`. `messages` is the direct-message pane.
- *  `topic` and `thread` name the same pane. */
+ *  `topic` and `topics` are the same pane. */
 const SWITCH_PANE_NAMES = {
   messages: 'dm',
   channels: 'channels',
-  threads: 'threads',
-  thread: 'threads',
-  topics: 'threads',
-  topic: 'threads',
+  topics: 'topics',
+  topic: 'topics',
   flow: 'flow',
 }
 
@@ -22,21 +20,21 @@ const SWITCH_PANE_NAMES = {
  * Search and settings return null so the reader's own choice stays.
  * The call site starts on direct messages.
  * @param {string} path vue-router path, no query
- * @returns {'dm' | 'channels' | 'threads' | 'flow' | null}
+ * @returns {'dm' | 'channels' | 'topics' | 'flow' | null}
  */
 export function tabForPath(path) {
   const p = productPath(path)
   if (p === '/dm' || p.startsWith('/dm/')) return 'dm'
   if (p === '/channel' || p.startsWith('/channel/')) return 'channels'
-  if (p === '/' || p === '/t' || p.startsWith('/t/')) return 'threads'
+  if (p === '/' || p === '/t' || p.startsWith('/t/')) return 'topics'
   return null
 }
 
 /**
- * One list of every channel, direct-message peer and thread, newest
+ * One list of every channel, direct-message peer and topic, newest
  * activity first. A row with no clock sorts after every dated row.
  * Ties break on the row key so the order does not flicker.
- * @param {{ channels?: unknown[], peers?: unknown[], threads?: unknown[], liveAt?: Record<string, string>, dmAt?: Record<string, string> }} [src]
+ * @param {{ channels?: unknown[], peers?: unknown[], topics?: unknown[], liveAt?: Record<string, string>, dmAt?: Record<string, string> }} [src]
  */
 export function flowRows(src = {}) {
   const liveAt = src.liveAt || {}
@@ -66,12 +64,12 @@ export function flowRows(src = {}) {
       online: Boolean(p && p.online),
     })
   }
-  for (const t of src.threads || []) {
+  for (const t of src.topics || []) {
     const id = String((t && t.task_id) || '')
     if (!id) continue
     const people = Array.isArray(t.participants) ? t.participants.filter(Boolean).join(', ') : ''
     rows.push({
-      kind: 'thread',
+      kind: 'topic',
       key: 'th:' + id,
       id,
       at: String((t && (t.last_ts || t.first_ts)) || ''),
@@ -89,9 +87,9 @@ export function flowRows(src = {}) {
  * Omnibox command `/switch-pane: <name>`.
  * `null` — this line is not the command (send it as a message).
  * `''` — it is the command, but the name is not a pane (do not send).
- * Otherwise the pane id: messages → dm, channels, threads (also topic), flow.
+ * Otherwise the pane id: messages → dm, channels, topics (also topic), flow.
  * @param {string} text
- * @returns {'dm' | 'channels' | 'threads' | 'flow' | '' | null}
+ * @returns {'dm' | 'channels' | 'topics' | 'flow' | '' | null}
  */
 export function switchPaneOf(text) {
   const s = String(text || '').trim()

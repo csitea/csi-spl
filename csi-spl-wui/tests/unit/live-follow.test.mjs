@@ -65,14 +65,14 @@ describe('reconnect catch-up (wui-live-ws §7, view-v1 §4.4)', () => {
     const timers = manualTimers()
     const held = [row('a', 'c1', '2026-09-19T10:00:01Z'), row('b', 'c2', '2026-09-19T10:00:02Z')]
     const calls = []
-    const getThread = async (id, opts) => {
+    const getTopic = async (id, opts) => {
       calls.push({ id, ...opts })
       // the hub returns rows after c2; one of them the socket already delivered
       return { messages: [row('b', 'c2', '2026-09-19T10:00:02Z'), row('c', 'c3', '2026-09-19T10:00:03Z')] }
     }
     const pending = []
     const onReconnected = () => {
-      pending.push(catchUp(getThread, 'T1', held).then((r) => { if (r) held.push(...r.rows) }))
+      pending.push(catchUp(getTopic, 'T1', held).then((r) => { if (r) held.push(...r.rows) }))
     }
     const c = createLiveClient({ url: 'ws://x/v1/wui/ws', WebSocketImpl: FakeWS, onReconnected, setTimer: timers.setTimer, clearTimer: timers.clearTimer })
     c.connect()
@@ -144,7 +144,7 @@ describe('door UX (view-v1 §2: a 401 view_door is a prompt)', () => {
 
   /*
    * CLE-3415: the shell fires several reads at once (channels + roster from the
-   * bootstrap plugin, a thread from the pane). The door used to be read in the
+   * bootstrap plugin, a topic from the pane). The door used to be read in the
    * catch, so a caller whose 401 landed AFTER a sibling had switched the door
    * saw door === 'session' and rethrew a 401 the retry would have answered —
    * on prd the channel list stayed empty for a poll.
@@ -246,8 +246,8 @@ describe('door UX (view-v1 §2: a 401 view_door is a prompt)', () => {
     assert.equal(signInHref('/login?x=1', 'Bad Tenant'), '/login?redirect=%2F')
   })
 
-  it('/t, /lobby, / and the thread pane render the door prompt', () => {
-    for (const f of ['src/pages/t/[task_id].vue', 'src/pages/lobby.vue', 'src/pages/index.vue', 'src/components/LiveThreadPane.vue']) {
+  it('/t, /lobby, / and the topic pane render the door prompt', () => {
+    for (const f of ['src/pages/t/[task_id].vue', 'src/pages/lobby.vue', 'src/pages/index.vue', 'src/components/LiveTopicPane.vue']) {
       assert.match(src(f), /<ViewTokenForm/, f)
     }
     assert.match(src('src/components/ViewTokenForm.vue'), /signInHref\(/)

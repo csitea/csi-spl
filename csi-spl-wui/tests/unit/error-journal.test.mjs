@@ -37,9 +37,9 @@ const CLIENT = { isClient: true }
 
 describe('errorJournal: redaction happens at capture', () => {
   it('drops the whole query string of a URL (view token, OAuth code/state)', () => {
-    const u = redactUrl('https://t1.example.test/v1/view/threads?view_token=abc&code=xyz')
+    const u = redactUrl('https://t1.example.test/v1/view/topics?view_token=abc&code=xyz')
     assert.equal(u.origin, 'https://t1.example.test')
-    assert.equal(u.path, '/v1/view/threads')
+    assert.equal(u.path, '/v1/view/topics')
   })
 
   it('scrubs secrets, JWTs, bearer tokens and e-mail from free text', () => {
@@ -48,7 +48,7 @@ describe('errorJournal: redaction happens at capture', () => {
   })
 
   it('keeps route structure but still redacts a UUID-shaped segment', () => {
-    assert.equal(redactPath('/v1/view/threads'), '/v1/view/threads')
+    assert.equal(redactPath('/v1/view/topics'), '/v1/view/topics')
     const p = redactPath('/t/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
     assert.ok(p.startsWith('/t/'), p)
     assert.equal(p.includes('bbbbbbbb-bbbb'), false, p)
@@ -106,7 +106,7 @@ describe('errorJournal: the buffer', () => {
   })
 
   it('the one-line summary leads with the reference id', () => {
-    const rec = noteError({ source: 'viewer', method: 'get', url: '/v1/view/threads', status: 502 }, CLIENT)
+    const rec = noteError({ source: 'viewer', method: 'get', url: '/v1/view/topics', status: 502 }, CLIENT)
     assert.ok(summariseRecord(rec).startsWith(rec.errorId))
     assert.ok(formatRecords([rec], { version: 'v0.1.0', page: '/' }).startsWith('spool WUI diagnostics'))
   })
@@ -162,13 +162,13 @@ describe('wiring', () => {
     assert.equal(/preventDefault|stopPropagation|throw /.test(src.replace(/\/\/.*$/gm, '')), false)
   })
 
-  it('viewer, thread, lobby, channel and live pane errors go through ErrorNotice', () => {
+  it('viewer, topic, lobby, channel and live pane errors go through ErrorNotice', () => {
     for (const rel of [
       'src/pages/index.vue',
       'src/pages/t/[task_id].vue',
       'src/pages/lobby.vue',
       'src/components/MessageFeed.vue',
-      'src/components/LiveThreadPane.vue',
+      'src/components/LiveTopicPane.vue',
     ]) {
       assert.ok(read(rel).includes('<ErrorNotice'), rel)
     }
@@ -181,7 +181,7 @@ describe('wiring', () => {
     }
     assert.equal(/route\.query\.(redirect|tenant|auth_error)/.test(login), false)
     const index = read('src/pages/index.vue')
-    assert.ok(index.includes("useSettledQuery('thread')"))
-    assert.equal(index.includes('route.query.thread'), false)
+    assert.ok(index.includes("useSettledQuery('topic')"))
+    assert.equal(index.includes('route.query.topic'), false)
   })
 })

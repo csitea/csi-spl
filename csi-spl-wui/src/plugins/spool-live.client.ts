@@ -11,7 +11,7 @@
 // This plugin holds ONE `all` follow for the life of the tab (the hub's `wants`
 // rule already limits DMs to the ones we are party to, wui.go), and feeds the
 // per-channel / per-peer "last activity" the sidebar orders by. `all` is
-// ref-counted in the live client, so the thread list on `/` taking its own
+// ref-counted in the live client, so the topic list on `/` taking its own
 // follow and dropping it again does not take this one down.
 //
 // Gated on a member session, the same way the shell's other reads are (W4,

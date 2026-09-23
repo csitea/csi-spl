@@ -3,7 +3,7 @@
 // a channel and in a DM; B has the same view open and must show each message
 // as its TOP row within LIMIT_MS, without a reload. A's own row must appear at
 // once and exactly once (optimistic, then confirmed). B scrolled down keeps
-// its place and gets the "new" pill. B on the thread list `/` gets A's new
+// its place and gets the "new" pill. B on the topic list `/` gets A's new
 // channel root on top. With BOX_CMD set, a box `spool send` into the lobby
 // (do_spl_box_msg_probe PROBE_TASK=<lobby>) appears on B's top too.
 // Screenshots, timings and results.json to OUT.
@@ -191,19 +191,19 @@ try {
   const peer = process.env.PEER || 'HUM-4'
   await leg(`dm-${peer}`, a, b, `/dm/${encodeURIComponent(peer)}`)
 
-  /* thread list: A starts a new root in the channel, B on `/` shows it on top */
+  /* topic list: A starts a new root in the channel, B on `/` shows it on top */
   if (channel) {
     await open(a, `/channel/${encodeURIComponent(channel)}`)
     await b.goto(BASE + '/', { waitUntil: 'networkidle2' })
-    await b.waitForSelector('.thread-row', { timeout: 20000 }).catch(() => {})
+    await b.waitForSelector('.topic-row', { timeout: 20000 }).catch(() => {})
     await sleep(1500)
-    const nonce = `live threads ${run}`
-    const seen = topHas(b, '.thread-row', nonce)
+    const nonce = `live topics ${run}`
+    const seen = topHas(b, '.topic-row', nonce)
     const t0 = await send(a, nonce)
     const tb = await seen
-    res.timings.thread_list = { b_live_ms: tb && tb - t0 }
-    step(`thread list: a new root shows as B's top row within ${LIMIT_MS} ms`, tb !== null && tb - t0 <= LIMIT_MS, { b_ms: tb && tb - t0 })
-    await b.screenshot({ path: `${OUT}/threads-B.png` })
+    res.timings.topic_list = { b_live_ms: tb && tb - t0 }
+    step(`topic list: a new root shows as B's top row within ${LIMIT_MS} ms`, tb !== null && tb - t0 <= LIMIT_MS, { b_ms: tb && tb - t0 })
+    await b.screenshot({ path: `${OUT}/topics-B.png` })
   }
 
   /* a box send into the lobby */

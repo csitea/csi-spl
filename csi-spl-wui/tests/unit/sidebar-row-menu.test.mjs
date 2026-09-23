@@ -119,7 +119,7 @@ describe('the menu sits on objects, not the tab rail', () => {
     const markers = [
       'v-for="(p, peerIndex) in peers"',
       'v-for="(c, channelIndex) in channelRows"',
-      'v-for="(row, threadIndex) in threadRows"',
+      'v-for="(row, topicIndex) in topicRows"',
       "row.kind === 'channel'",
       "row.kind === 'dm'",
       'v-else',
@@ -134,7 +134,7 @@ describe('the menu sits on objects, not the tab rail', () => {
     assert.equal(vue.split('<SidebarRowMenu').length - 1, 6)
     assert.equal(vue.split(':person="true"').length - 1, 2)
     const ch = vue.indexOf('v-for="(c, channelIndex) in channelRows"')
-    const th = vue.indexOf('v-for="(row, threadIndex) in threadRows"')
+    const th = vue.indexOf('v-for="(row, topicIndex) in topicRows"')
     assert.equal(vue.slice(ch, th).includes(':person="true"'), false)
   })
 

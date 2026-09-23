@@ -89,7 +89,7 @@ func TestSearchAPI(t *testing.T) {
 
 	// grouped: every type the query applies to, fixed order, plural keys
 	code, _, r, raw := searchGet(t, e, ta, "deploy", "")
-	if code != http.StatusOK || strings.Join(r.Types, ",") != "message,thread,file,robot,user,channel,box" {
+	if code != http.StatusOK || strings.Join(r.Types, ",") != "message,topic,file,robot,user,channel,box" {
 		t.Fatalf("grouped: %d %+v", code, r)
 	}
 	if n := len(r.Groups["messages"].Results); n != 4 {

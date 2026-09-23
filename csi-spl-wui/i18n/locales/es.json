@@ -9,7 +9,7 @@
     "cancel": "Cancelar"
   },
   "nav": {
-    "threads": "Temas",
+    "topics": "Temas",
     "lobby": "Vestíbulo",
     "general": "#general",
     "login": "Iniciar sesión",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "desconocido",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Abrir tema",
+    "open_topic": "Abrir tema",
     "replies": "{n} respuesta | {n} respuestas",
     "filter_label": "Filtro:",
     "matches": "{count} coincidencia(s)",
@@ -399,7 +399,7 @@
     },
     "new_pill": "Nuevos: {n}",
     "new_pill_label": "Ir a los mensajes más recientes",
-    "open_thread_hint": "Pulsa Intro para abrir el tema de este mensaje.",
+    "open_topic_hint": "Pulsa Intro para abrir el tema de este mensaje.",
     "edit": {
       "label": "Editar mensaje",
       "hint": "Enter guarda · Shift+Enter añade una línea · Esc cancela",
@@ -413,7 +413,7 @@
       "failed_too_large": "Demasiado largo para guardarlo. Adjúntalo como archivo."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Tema",
     "open": "Abrir",
     "empty": "Tema vacío.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Redimensionar la barra de canales",
-    "resize_thread": "Redimensionar el panel del tema",
+    "resize_topic": "Redimensionar el panel del tema",
     "resize_hint": "Arrastra para redimensionar. Doble clic para restablecer."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "Personas",
       "channels": "Canales",
       "boxes": "Cajas",
-      "threads": "Temas",
+      "topics": "Temas",
       "files": "Archivos",
       "messages": "Mensajes"
     },

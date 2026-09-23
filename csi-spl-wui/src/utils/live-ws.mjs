@@ -134,7 +134,7 @@ export function createLiveClient({
   const subs = new Set()
   const chanSubs = new Set()
   const peerSubs = new Set()
-  /* CLE-3425: `all` is ref-counted. The thread list holds it while `/` is open
+  /* CLE-3425: `all` is ref-counted. The topic list holds it while `/` is open
      and the app shell holds it for the whole tab, so the page leaving `/` must
      not take the shell's follow down with it. */
   let allSub = 0
@@ -318,7 +318,7 @@ export function createLiveClient({
       if (!peerSubs.delete(p)) return
       if (state === 'open') raw({ type: FRAMES.unsubscribe, peer: p })
     },
-    /** wui-live-ws v0.5: the whole tenant, for the thread list (DMs only when party). */
+    /** wui-live-ws v0.5: the whole tenant, for the topic list (DMs only when party). */
     subscribeAll() {
       allSub++
       if (allSub > 1) return

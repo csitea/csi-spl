@@ -98,7 +98,7 @@ def main():
                                       "error": (body or {}).get("error") if isinstance(body, dict) else None}):
             return finish(1, {"msg_id": msg_id})
 
-        # FR-ED-009: the edit must NOT move the message in the thread.
+        # FR-ED-009: the edit must NOT move the message in the topic.
         record("e-not-moved", body.get("cursor") == ack.get("cursor") and body.get("received_at") == ack.get("received_at"),
                {"cursor_same": body.get("cursor") == ack.get("cursor"),
                 "received_at_same": body.get("received_at") == ack.get("received_at")})
@@ -110,7 +110,7 @@ def main():
                 "frame_body": (fr.get("envelope") or {}).get("body") if fr else None})
 
         # FR-ED-007: a re-read agrees with the live frame.
-        st, _, th = m3.http("GET", API + "/v1/view/threads/" + task + "?order=desc&limit=20", None, {"Cookie": cookie})
+        st, _, th = m3.http("GET", API + "/v1/view/topics/" + task + "?order=desc&limit=20", None, {"Cookie": cookie})
         row = next((r for r in (th or {}).get("messages", [])
                     if ((r.get("env") or {}).get("msg") or {}).get("msg_id") == msg_id), None) if st == 200 else None
         record("e-reread", bool(row) and ((row.get("env") or {}).get("msg") or {}).get("body") == second
@@ -122,7 +122,7 @@ def main():
         st, _, refused = m3.http("PATCH", API + "/v1/messages/" + msg_id, {"body": "   "}, {"Cookie": cookie})
         record("e-empty-refused", st == 400 and (refused or {}).get("error") == "empty_body",
                {"status": st, "error": (refused or {}).get("error")})
-        st, _, after = m3.http("GET", API + "/v1/view/threads/" + task + "?order=desc&limit=20", None, {"Cookie": cookie})
+        st, _, after = m3.http("GET", API + "/v1/view/topics/" + task + "?order=desc&limit=20", None, {"Cookie": cookie})
         row2 = next((r for r in (after or {}).get("messages", [])
                      if ((r.get("env") or {}).get("msg") or {}).get("msg_id") == msg_id), None) if st == 200 else None
         record("e-refusal-changed-nothing",

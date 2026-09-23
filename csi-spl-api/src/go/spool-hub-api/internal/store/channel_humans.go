@@ -21,28 +21,28 @@ import (
 // channel is members-only.
 func ChannelPublic(channelID string) bool { return IsDefaultChannel(NormalizeChannel(channelID)) }
 
-// ThreadAccess is what a read door needs to know about one thread without
+// TopicAccess is what a read door needs to know about one topic without
 // reading its messages: the channel it belongs to, and the ids at both ends
 // of every message in it.
-// One thread can hold BOTH: the WUI posts a reply from whichever channel page
-// it is on, so a DM thread picks up a channel-tagged message the moment
-// somebody answers it from a channel view. dev t1 thread
+// One topic can hold BOTH: the WUI posts a reply from whichever channel page
+// it is on, so a DM topic picks up a channel-tagged message the moment
+// somebody answers it from a channel view. dev t1 topic
 // 57e6f191-582e-45b1-a08e-389c0b034803 is exactly that shape. So a single
-// Channel field cannot describe a thread, and "is a party of the thread"
+// Channel field cannot describe a topic, and "is a party of the topic"
 // cannot be the DM rule: appending one message would otherwise buy the whole
 // private history before it.
-type ThreadAccess struct {
+type TopicAccess struct {
 	Found bool
-	// Channels are the distinct channel tags in the thread. "" is present
-	// when the thread holds at least one DM (untagged) message.
+	// Channels are the distinct channel tags in the topic. "" is present
+	// when the topic holds at least one DM (untagged) message.
 	Channels []string
 	// DMParties are the ends of the UNTAGGED messages only - never of the
 	// channel-tagged ones.
 	DMParties []string
 }
 
-// HasDM reports whether the thread holds an untagged (DM) message.
-func (a ThreadAccess) HasDM() bool {
+// HasDM reports whether the topic holds an untagged (DM) message.
+func (a TopicAccess) HasDM() bool {
 	for _, c := range a.Channels {
 		if c == "" {
 			return true
@@ -51,8 +51,8 @@ func (a ThreadAccess) HasDM() bool {
 	return false
 }
 
-// Party reports whether id is an end of some DM message in the thread.
-func (a ThreadAccess) Party(id string) bool {
+// Party reports whether id is an end of some DM message in the topic.
+func (a TopicAccess) Party(id string) bool {
 	if id == "" {
 		return false
 	}
@@ -78,9 +78,9 @@ type ChannelHumans interface {
 	AddChannelHumans(ctx context.Context, tenantID, channelID string, humans []string, by string, now time.Time) error
 	// RemoveChannelHuman drops one membership. ErrNotFound: not a member.
 	RemoveChannelHuman(ctx context.Context, tenantID, channelID, humanID string) error
-	// ThreadAccess describes one thread for the read door. Found=false when
+	// TopicAccess describes one topic for the read door. Found=false when
 	// the tenant has no message with that task_id in retention.
-	ThreadAccess(ctx context.Context, tenantID, taskID string, now time.Time) (ThreadAccess, error)
+	TopicAccess(ctx context.Context, tenantID, taskID string, now time.Time) (TopicAccess, error)
 }
 
 var (
@@ -161,10 +161,10 @@ func (s *Memory) RemoveChannelHuman(_ context.Context, tenant, channel, human st
 	return nil
 }
 
-func (s *Memory) ThreadAccess(_ context.Context, tenant, task string, now time.Time) (ThreadAccess, error) {
+func (s *Memory) TopicAccess(_ context.Context, tenant, task string, now time.Time) (TopicAccess, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var a ThreadAccess
+	var a TopicAccess
 	chans, ends := map[string]bool{}, map[string]bool{}
 	for _, m := range s.liveLocked(tenant, now) {
 		if m.TaskID != task {

@@ -10,7 +10,7 @@
 #   YAML frontmatter into the peer inbox    object into $SPOOL_ROOT/<to>/inbox/
 #                                           and a copy in <from>/outbox/
 #   free markdown body                      `body` string; kind task|result|
-#                                           note|reject; task_id threads it
+#                                           note|reject; task_id topics it
 #   tmux poke = doorbell                    the line CARRIES the message
 #                                           (specs/028, contracts/poke-line.md)
 #                                           and the sender's own notice STRIP

@@ -58,7 +58,7 @@ describe('rounded corners (GRK-3376)', () => {
   it('interactive rows that currently look like boxes carry a token radius', () => {
     const main = read('src/assets/css/main.css')
     assert.match(main, /\.nav-item\s*\{[^}]*border-radius:\s*var\(--radius/)
-    assert.match(main, /\.thread-row\s*\{[^}]*border-radius:\s*var\(--radius/)
+    assert.match(main, /\.topic-row\s*\{[^}]*border-radius:\s*var\(--radius/)
     assert.match(main, /\.icon-btn\s*\{[^}]*border-radius:\s*var\(--radius/)
     assert.match(main, /\.btn[\s,{][^}]*border-radius:\s*var\(--radius/)
     assert.match(main, /\.composer-box\s*\{[^}]*border-radius:\s*var\(--radius/)

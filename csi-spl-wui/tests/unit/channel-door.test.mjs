@@ -16,7 +16,7 @@ describe('channel views read through the session door', () => {
   for (const [file, calls] of [
     ['stores/channel.ts', ['listChannels', 'listMessages', 'createChannel']],
     ['stores/roster.ts', ['listRoster']],
-    ['components/ThreadPane.vue', ['getThread']],
+    ['components/TopicPane.vue', ['getTopic']],
   ]) {
     it(`${file}: every ${calls.join('/')} call is wrapped in withSessionRetry`, () => {
       const src = read(file)

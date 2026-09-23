@@ -132,7 +132,7 @@ const busy = computed(() => Boolean(omnibox.target && omnibox.target.busy && omn
 
    Now a failure puts the text back in the box, names the reason and offers a
    Retry. Nothing is cleared until the send has resolved. */
-const sendError = ref<{ key: string, err: unknown, text: string, files: File[], threadId?: string, channelId?: string } | null>(null)
+const sendError = ref<{ key: string, err: unknown, text: string, files: File[], topicId?: string, channelId?: string } | null>(null)
 
 async function onSend(text: string, parent?: string, files?: File[], channelId?: string) {
   const target = omnibox.target
@@ -142,7 +142,7 @@ async function onSend(text: string, parent?: string, files?: File[], channelId?:
   try {
     await target.send(text, sent, parent, channelId)
   } catch (err) {
-    sendError.value = { key: sendFailureKey(err), err, text, files: sent, threadId: parent, channelId }
+    sendError.value = { key: sendFailureKey(err), err, text, files: sent, topicId: parent, channelId }
     composer.value?.restore(text, sent)
   }
 }
@@ -150,7 +150,7 @@ async function onSend(text: string, parent?: string, files?: File[], channelId?:
 async function retrySend() {
   const failed = sendError.value
   if (!failed) return
-  await onSend(failed.text, failed.threadId, failed.files, failed.channelId)
+  await onSend(failed.text, failed.topicId, failed.files, failed.channelId)
 }
 
 /* the reader edited the text, or moved on: the old failure is not about what

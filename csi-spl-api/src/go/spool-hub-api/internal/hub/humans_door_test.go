@@ -125,7 +125,7 @@ func TestSessionDoorMemberReadsNonMemberRefused(t *testing.T) {
 	theirs, _ := r.e.tenant()
 
 	// Nobody signed in: the session door is shut.
-	if code, _, body := r.get(t, mine, "/v1/view/threads"); code != http.StatusUnauthorized || errToken([]byte(body)) != "view_door" {
+	if code, _, body := r.get(t, mine, "/v1/view/topics"); code != http.StatusUnauthorized || errToken([]byte(body)) != "view_door" {
 		t.Fatalf("anonymous: %d %s", code, body)
 	}
 
@@ -142,7 +142,7 @@ func TestSessionDoorMemberReadsNonMemberRefused(t *testing.T) {
 	if landed := r.signIn(t, mine); !strings.HasPrefix(landed, "http://"+wuiHost+"/t") || strings.Contains(landed, "auth_error") {
 		t.Fatalf("sign-in to mine landed on %s", landed)
 	}
-	code, hd, body := r.get(t, mine, "/v1/view/threads")
+	code, hd, body := r.get(t, mine, "/v1/view/topics")
 	if code != http.StatusOK {
 		t.Fatalf("member read: %d %s", code, body)
 	}
@@ -152,7 +152,7 @@ func TestSessionDoorMemberReadsNonMemberRefused(t *testing.T) {
 
 	// CONTROL: the same valid session on a tenant she is not a member of: the
 	// legacy Host names another tenant than the session (specs/026 §5).
-	if code, hd, body := r.get(t, theirs, "/v1/view/threads"); code != http.StatusForbidden || errToken([]byte(body)) != "tenant_mismatch" {
+	if code, hd, body := r.get(t, theirs, "/v1/view/topics"); code != http.StatusForbidden || errToken([]byte(body)) != "tenant_mismatch" {
 		t.Fatalf("non-member read: %d %s", code, body)
 	} else if hd.Get("Access-Control-Allow-Origin") != wuiOrigin {
 		t.Fatalf("a 403 still carries CORS so the WUI can read it: %v", hd)

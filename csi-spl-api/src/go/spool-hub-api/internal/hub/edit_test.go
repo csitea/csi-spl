@@ -89,7 +89,7 @@ func revisions(t *testing.T, e *env, tid, msgID string) []store.MessageRevision 
 // TestEditMessageRoundTrip — US1 + US2 + US3 in one pass: the author edits,
 // the response carries the new body and the marker, a SECOND open session is
 // pushed a message_edited frame without asking for one, a later read of the
-// thread still shows the edit, and the register holds BOTH bodies.
+// topic still shows the edit, and the register holds BOTH bodies.
 func TestEditMessageRoundTrip(t *testing.T) {
 	e := followEnv(t)
 	tid, _ := e.tenant()
@@ -119,7 +119,7 @@ func TestEditMessageRoundTrip(t *testing.T) {
 		t.Fatalf("revision %v (want 2 on a first edit)", out["revision"])
 	}
 	// FR-ED-009: the message did not move. Same cursor, same received_at as
-	// the ack that stored it — a typo fix must not reorder a thread.
+	// the ack that stored it — a typo fix must not reorder a topic.
 	if out["cursor"] != ack["cursor"] || out["received_at"] != ack["received_at"] {
 		t.Fatalf("the edit moved the message: cursor %v -> %v, received_at %v -> %v",
 			ack["cursor"], out["cursor"], ack["received_at"], out["received_at"])
@@ -147,20 +147,20 @@ func TestEditMessageRoundTrip(t *testing.T) {
 
 	// A later read shows the edit and the marker (a reload must agree with
 	// the live frame).
-	code, thread := call(t, e, tid, http.MethodGet, "/v1/view/threads/"+lobby, "HUM-2", nil)
+	code, topic := call(t, e, tid, http.MethodGet, "/v1/view/topics/"+lobby, "HUM-2", nil)
 	if code != http.StatusOK {
-		t.Fatalf("view thread: %d %v", code, thread)
+		t.Fatalf("view topic: %d %v", code, topic)
 	}
-	rows, _ := thread["messages"].([]any)
+	rows, _ := topic["messages"].([]any)
 	if len(rows) != 1 {
-		t.Fatalf("thread rows %d", len(rows))
+		t.Fatalf("topic rows %d", len(rows))
 	}
 	row, _ := rows[0].(map[string]any)
 	if got := bodyOfEnv(t, row); got != "the original text" {
-		t.Fatalf("thread body %q", got)
+		t.Fatalf("topic body %q", got)
 	}
 	if row["edited_by"] != "HUM-1" || row["edited_at"] == nil || row["revision"].(float64) != 2 {
-		t.Fatalf("thread marker: %v", row)
+		t.Fatalf("topic marker: %v", row)
 	}
 
 	// US2: BOTH bodies survive. This is the owner's hard constraint.
@@ -379,13 +379,13 @@ func TestEditMessageUnedited(t *testing.T) {
 	author := dialMember(t, e, tid, "HUM-1", "HUM-1")
 	postNote(t, author, "never edited")
 
-	code, thread := call(t, e, tid, http.MethodGet, "/v1/view/threads/"+lobby, "HUM-1", nil)
+	code, topic := call(t, e, tid, http.MethodGet, "/v1/view/topics/"+lobby, "HUM-1", nil)
 	if code != http.StatusOK {
-		t.Fatalf("view thread: %d %v", code, thread)
+		t.Fatalf("view topic: %d %v", code, topic)
 	}
-	rows, _ := thread["messages"].([]any)
+	rows, _ := topic["messages"].([]any)
 	if len(rows) != 1 {
-		t.Fatalf("thread rows %d", len(rows))
+		t.Fatalf("topic rows %d", len(rows))
 	}
 	row, _ := rows[0].(map[string]any)
 	for _, k := range []string{"edited_at", "edited_by", "revision"} {

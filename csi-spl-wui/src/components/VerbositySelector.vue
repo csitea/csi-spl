@@ -1,14 +1,14 @@
 <template>
-  <select v-model="thread.verbosity" :aria-label="t('verbosity.label')">
+  <select v-model="topic.verbosity" :aria-label="t('verbosity.label')">
     <option v-for="l in LEVELS" :key="l" :value="l">{{ t('verbosity.level.' + l) }}</option>
   </select>
 </template>
 
 <script setup lang="ts">
-import { useThreadStore } from '~/stores/thread'
+import { useTopicStore } from '~/stores/topic'
 import { LEVELS } from '~/utils/verbosity.mjs'
 
-const thread = useThreadStore()
+const topic = useTopicStore()
 const { t } = useI18n({ useScope: 'global' })
 </script>
 

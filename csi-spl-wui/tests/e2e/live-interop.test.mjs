@@ -94,7 +94,7 @@ try {
 
   // persistence
   const api = createSpoolClient({ base: HUB, mock: false })
-  const hist = await api.getThread(lobby)
+  const hist = await api.getTopic(lobby)
   const bodies = hist.messages.map((m) => m.body)
   bodies.includes(bodyA) && bodies.includes(bodyB) ? ok('both persist (view-v1 re-fetch)') : bad('persist', `${bodies.length} stored`)
 

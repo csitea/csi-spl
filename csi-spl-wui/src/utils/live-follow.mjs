@@ -1,9 +1,9 @@
 /**
- * Thread follow, door and presence helpers (gap row A3). Node tests import
+ * Topic follow, door and presence helpers (gap row A3). Node tests import
  * this file; the live / roster stores and the pages wrap it.
  *
  * - Reconnect catch-up: wui-live-ws §7 — after a reconnect, one
- *   GET /v1/view/threads/{task_id}?after=<last cursor>, de-duplicated by msg_id.
+ *   GET /v1/view/topics/{task_id}?after=<last cursor>, de-duplicated by msg_id.
  * - Door: view-v1 §2 — a 401 `view_door` is a prompt (sign in, or a view
  *   token), not a raw error.
  * - Presence: wui-live-ws §3 `presence` frames, last-writer-wins per peer,
@@ -47,20 +47,20 @@ export function newRows(have, incoming) {
 }
 
 /**
- * One catch-up read after a reconnect. `getThread` is the spool client's
+ * One catch-up read after a reconnect. `getTopic` is the spool client's
  * (taskId, { after, limit }) → { messages }. Without a cursor there is nothing
  * to anchor on, so this returns null and the caller re-opens instead.
  * @template {{ msg_id?: string, cursor?: string, received_at?: string }} T
- * @param {(id: string, opts: { after: string, limit?: number }) => Promise<{ messages: T[] }>} getThread
+ * @param {(id: string, opts: { after: string, limit?: number }) => Promise<{ messages: T[] }>} getTopic
  * @param {string} taskId
  * @param {T[]} messages
  * @param {number} [limit]
  * @returns {Promise<null | { after: string, rows: T[] }>}
  */
-export async function catchUp(getThread, taskId, messages, limit = 200) {
+export async function catchUp(getTopic, taskId, messages, limit = 200) {
   const after = lastCursor(messages)
   if (!taskId || !after) return null
-  const data = await getThread(taskId, { after, limit })
+  const data = await getTopic(taskId, { after, limit })
   return { after, rows: newRows(messages, (data && data.messages) || []) }
 }
 
@@ -129,7 +129,7 @@ async function armSessionDoor(api, prev, read) {
  * the ORIGINAL 401, so the caller still shows the door prompt.
  *
  * The door is read BEFORE the read goes out, not in the catch: the shell fires
- * several reads at once (channels, roster, a thread), and reading it after the
+ * several reads at once (channels, roster, a topic), and reading it after the
  * fact sees the door a SIBLING caller has already switched, so this caller
  * rethrows a 401 that a retry would have answered — the channel list stayed
  * empty for a poll on prd (CLE-3415). Concurrent callers then share ONE arming

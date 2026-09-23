@@ -9,7 +9,7 @@
     "cancel": "Loobu"
   },
   "nav": {
-    "threads": "Teemad",
+    "topics": "Teemad",
     "lobby": "Fuajee",
     "general": "#general",
     "login": "Logi sisse",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "tundmatu",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Ava teema",
+    "open_topic": "Ava teema",
     "replies": "{n} vastus | {n} vastust",
     "filter_label": "Filter:",
     "matches": "{count} vaste(t)",
@@ -399,7 +399,7 @@
     },
     "new_pill": "Uusi: {n}",
     "new_pill_label": "Mine uusimate sõnumite juurde",
-    "open_thread_hint": "Selle sõnumi teema avamiseks vajuta Enter.",
+    "open_topic_hint": "Selle sõnumi teema avamiseks vajuta Enter.",
     "edit": {
       "label": "Muuda sõnumit",
       "hint": "Enter salvestab · Shift+Enter lisab rea · Esc katkestab",
@@ -413,7 +413,7 @@
       "failed_too_large": "Liiga pikk, et salvestada. Lisa see failina."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Teema",
     "open": "Ava",
     "empty": "Tühi teema.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Muuda kanalite külgriba suurust",
-    "resize_thread": "Muuda teemapaneeli suurust",
+    "resize_topic": "Muuda teemapaneeli suurust",
     "resize_hint": "Lohista suuruse muutmiseks. Topeltklõps lähtestab."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "Inimesed",
       "channels": "Kanalid",
       "boxes": "Kastid",
-      "threads": "Teemad",
+      "topics": "Teemad",
       "files": "Failid",
       "messages": "Sõnumid"
     },

@@ -263,7 +263,7 @@ def imap_verify_token(rcpt, seen):
     return "", {"mail": "no verify mail to %s within %ds" % (rcpt, IMAP_TIMEOUT)}
 
 
-# ---- WebSocket client (TLS or plain), one reader thread ------------------------
+# ---- WebSocket client (TLS or plain), one reader topic ------------------------
 
 def mask_frame(payload, opcode=1):
     mask = os.urandom(4)
@@ -516,8 +516,8 @@ def view(path):
     return out
 
 
-def thread(task):
-    return view("/v1/view/threads/" + task).get("messages", [])
+def topic(task):
+    return view("/v1/view/topics/" + task).get("messages", [])
 
 
 # ---- fake hub: replays chosen envelopes to a real `spool hub-sync` -------------------
@@ -529,7 +529,7 @@ class FakeHub(socketserver.ThreadingMixIn, socketserver.TCPServer):
     (verify against its LOCAL pin) code; this is how a forged envelope reaches
     it, since the real hub refuses to store one."""
     allow_reuse_address = True
-    daemon_threads = True
+    daemon_topics = True
 
     def __init__(self, pins, envs):
         self.pins, self.envs = pins, envs
@@ -659,9 +659,9 @@ def run():
 
     # -- door: which view door the hub runs (an anonymous read answers 401 view_door
     # behind a token or session door; 200 only with the lde/dev door off)
-    st_anon, _, out_anon = http("GET", HUB + "/v1/view/threads")
+    st_anon, _, out_anon = http("GET", HUB + "/v1/view/topics")
     door_on = st_anon == 401
-    RESULTS.append({"step": "door", "result": "INFO", "evidence": {"anonymous_view_threads": st_anon,
+    RESULTS.append({"step": "door", "result": "INFO", "evidence": {"anonymous_view_topics": st_anon,
                     "error": (out_anon or {}).get("error") if isinstance(out_anon, dict) else None}})
     log("INFO door %s" % json.dumps(RESULTS[-1]["evidence"]))
 
@@ -688,11 +688,11 @@ def run():
     sa = json.loads(out) if rc == 0 else {"exit": rc, "err": err}
     rep = json.loads(must(BOX_B, "hub-sync"))
     got = next((m for m in inbox(BOX_B, AGENT_B) if m.get("msg_id") == sa.get("msg_id")), None)
-    listed = any(t["task_id"] == sa.get("task_id") for t in view("/v1/view/threads")["threads"]) if rc == 0 else False
-    msgs = thread(sa["task_id"]) if rc == 0 else []
+    listed = any(t["task_id"] == sa.get("task_id") for t in view("/v1/view/topics")["topics"]) if rc == 0 else False
+    msgs = topic(sa["task_id"]) if rc == 0 else []
     record("a-box-to-box", rc == 0 and got is not None and listed and len(msgs) == 1,
-           {"send": sa, "box_b_sync": rep, "box_b_inbox_has_it": got is not None, "view_threads_lists_task": listed,
-            "view_thread_messages": len(msgs), "delivery_state": msgs[0]["deliveries"] if msgs else None})
+           {"send": sa, "box_b_sync": rep, "box_b_inbox_has_it": got is not None, "view_topics_lists_task": listed,
+            "view_topic_messages": len(msgs), "delivery_state": msgs[0]["deliveries"] if msgs else None})
     t_sc001 = sa.get("task_id")
     # 028 SC-001: agent -> agent ACROSS boxes. box-b's hub-sync wrote it, so
     # box-b's hub-sync is what had to ring EZB-1.
@@ -754,7 +754,7 @@ def run():
         got_amb_a = wait_inbox(BOX_A, AGENT_A, lambda m: m.get("msg_id") == amb_id)
         time.sleep(3)
         ids_b = {m["msg_id"] for m in inbox(BOX_B, AGENT_B)}
-        amb_rows = thread(amb["task_id"])[0]["deliveries"] if amb and amb.get("type") == "ack" else None
+        amb_rows = topic(amb["task_id"])[0]["deliveries"] if amb and amb.get("type") == "ack" else None
         amb_boxes = sorted({r["to_box"] for r in amb_rows}) if amb_rows is not None else None
         # The browser audience's own row (to_box box-wui) is there as before; what is new is that
         # BOTH member boxes have one too, from ONE stored box-wui-signed envelope. A SUBSET, not
@@ -787,7 +787,7 @@ def run():
         task = send_wait({"type": "send", "task_id": t_task, "channel": "lobby", "kind": "task", "to": AGENT_B,
                           "body": "m3-e2e task: report the box id " + stamp})
         got_task = wait_inbox(BOX_B, AGENT_B, lambda m: m.get("msg_id") == (task or {}).get("msg_id"))
-        stored = thread(t_task)
+        stored = topic(t_task)
         env = stored[0]["env"] if stored else {}
         record("c-task-signed-and-verified", bool(task) and task.get("type") == "ack" and task.get("to_box") == BOX_B
                and got_task is not None and got_task.get("kind") == "task" and got_task.get("from") == hum
@@ -804,9 +804,9 @@ def run():
         res = json.loads(out) if rc == 0 else {"exit": rc, "err": err}
         frame = ws.wait(lambda f: f.get("type") == "message" and f.get("task_id") == t_task
                         and (f.get("envelope") or {}).get("kind") == "result", 20)
-        kinds = [m["env"]["msg"]["kind"] for m in thread(t_task)]
-        record("c-result-in-wui-thread", rc == 0 and frame is not None and kinds == ["task", "result"],
-               {"send": res, "wui_frame_msg_id": (frame or {}).get("envelope", {}).get("msg_id"), "thread_kinds": kinds})
+        kinds = [m["env"]["msg"]["kind"] for m in topic(t_task)]
+        record("c-result-in-wui-topic", rc == 0 and frame is not None and kinds == ["task", "result"],
+               {"send": res, "wui_frame_msg_id": (frame or {}).get("envelope", {}).get("msg_id"), "topic_kinds": kinds})
 
         # -- d. DM (no channel) human <-> agent -------------------------------------------------------------------
         t_dm = str(uuid.uuid4())
@@ -818,7 +818,7 @@ def run():
                           "--to-box", WUI, "--body", "m3-e2e dm reply " + stamp)
         dm_back = ws.wait(lambda f: f.get("type") == "message" and f.get("task_id") == t_dm
                           and (f.get("envelope") or {}).get("from") == AGENT_B, 20)
-        dm_list = view("/v1/view/threads?dm=true&peer=" + AGENT_B)["threads"]
+        dm_list = view("/v1/view/topics?dm=true&peer=" + AGENT_B)["topics"]
         dm_row = next((t for t in dm_list if t["task_id"] == t_dm), None)
         # 028 SC-002: a human's DM (no channel), kind=note.
         term["d-human-dm-note"] = wait_pane(AGENT_B, "m3-e2e dm " + stamp,
@@ -908,14 +908,14 @@ def run():
 
     # -- e3. CONTROL: the view door refuses anonymous and non-member readers ---------------------------------
     if door_on:
-        st_o, _, out_o = http("GET", HUB + "/v1/view/threads", headers={"Cookie": cookie_o} if cookie_o else None)
+        st_o, _, out_o = http("GET", HUB + "/v1/view/topics", headers={"Cookie": cookie_o} if cookie_o else None)
         err_a = (out_anon or {}).get("error") if isinstance(out_anon, dict) else None
         err_o = (out_o or {}).get("error") if isinstance(out_o, dict) else None
         record("e3-view-door", st_anon == 401 and err_a == "view_door" and st_o == 401 and err_o == "view_door" and bool(cookie_o),
                {"anonymous": [st_anon, err_a], "non_member_session": [st_o, err_o]})
     else:
         RESULTS.append({"step": "e3-view-door", "result": "OBSERVED",
-                        "evidence": {"door": "off", "anonymous_view_threads": st_anon}})
+                        "evidence": {"door": "off", "anonymous_view_topics": st_anon}})
         log("OBS  e3-view-door door off: anonymous read -> %s (the 401 control needs a token or session door)" % st_anon)
 
     # -- i. CONTROLS (specs/026): the tenant comes from the identity, never from a
@@ -937,9 +937,9 @@ def run():
         RESULTS.append({"step": "i-tenant-from-identity", "result": "OBSERVED",
                         "evidence": {"hub": "predates specs/026 (no active_tenant in the session)"}})
 
-    # -- the viewer thread of SC-001 for the WUI screenshot ----------------------------------------------------
-    RESULTS.append({"step": "info", "result": "INFO", "evidence": {"sc001_task_id": t_sc001, "task_thread": t_task,
-                                                                   "dm_thread": t_dm, "hum": hum, "tenant": tenant}})
+    # -- the viewer topic of SC-001 for the WUI screenshot ----------------------------------------------------
+    RESULTS.append({"step": "info", "result": "INFO", "evidence": {"sc001_task_id": t_sc001, "task_topic": t_task,
+                                                                   "dm_topic": t_dm, "hum": hum, "tenant": tenant}})
     write_results()
     return 0 if all(r["result"] in ("PASS", "OBSERVED", "INFO") for r in RESULTS) else 1
 

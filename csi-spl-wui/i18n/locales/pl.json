@@ -9,7 +9,7 @@
     "cancel": "Anuluj"
   },
   "nav": {
-    "threads": "Tematy",
+    "topics": "Tematy",
     "lobby": "Lobby",
     "general": "#general",
     "login": "Zaloguj się",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "nieznany",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Otwórz temat",
+    "open_topic": "Otwórz temat",
     "replies": "{n} odpowiedź | {n} odpowiedzi",
     "filter_label": "Filtr:",
     "matches": "Dopasowania: {count}",
@@ -399,7 +399,7 @@
     },
     "new_pill": "Nowe: {n}",
     "new_pill_label": "Przejdź do najnowszych wiadomości",
-    "open_thread_hint": "Naciśnij Enter, aby otworzyć temat tej wiadomości.",
+    "open_topic_hint": "Naciśnij Enter, aby otworzyć temat tej wiadomości.",
     "edit": {
       "label": "Edytuj wiadomość",
       "hint": "Enter zapisuje · Shift+Enter nowy wiersz · Esc anuluje",
@@ -413,7 +413,7 @@
       "failed_too_large": "Zbyt długa, aby ją zapisać. Dołącz ją jako plik."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Temat",
     "open": "Otwórz",
     "empty": "Pusty temat.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Zmień rozmiar paska kanałów",
-    "resize_thread": "Zmień rozmiar panelu tematu",
+    "resize_topic": "Zmień rozmiar panelu tematu",
     "resize_hint": "Przeciągnij, aby zmienić rozmiar. Kliknij dwukrotnie, aby przywrócić."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "Osoby",
       "channels": "Kanały",
       "boxes": "Skrzynki",
-      "threads": "Tematy",
+      "topics": "Tematy",
       "files": "Pliki",
       "messages": "Wiadomości"
     },

@@ -9,7 +9,7 @@
     "cancel": "Atšaukti"
   },
   "nav": {
-    "threads": "Temos",
+    "topics": "Temos",
     "lobby": "Fojė",
     "general": "#general",
     "login": "Prisijungti",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "nežinomas",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Atidaryti temą",
+    "open_topic": "Atidaryti temą",
     "replies": "{n} atsakymas | {n} atsakymai",
     "filter_label": "Filtras:",
     "matches": "Atitikmenų: {count}",
@@ -399,7 +399,7 @@
     },
     "new_pill": "Naujų: {n}",
     "new_pill_label": "Pereiti prie naujausių žinučių",
-    "open_thread_hint": "Paspauskite Enter, kad atidarytumėte šios žinutės temą.",
+    "open_topic_hint": "Paspauskite Enter, kad atidarytumėte šios žinutės temą.",
     "edit": {
       "label": "Redaguoti žinutę",
       "hint": "Enter išsaugo · Shift+Enter prideda eilutę · Esc atšaukia",
@@ -413,7 +413,7 @@
       "failed_too_large": "Per ilga, kad būtų išsaugota. Pridėkite ją kaip failą."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Tema",
     "open": "Atidaryti",
     "empty": "Tuščia tema.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Keisti kanalų šoninės juostos dydį",
-    "resize_thread": "Keisti temos skydelio dydį",
+    "resize_topic": "Keisti temos skydelio dydį",
     "resize_hint": "Vilkite, kad pakeistumėte dydį. Dukart spustelėkite, kad atkurtumėte."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "Žmonės",
       "channels": "Kanalai",
       "boxes": "Dėžės",
-      "threads": "Temos",
+      "topics": "Temos",
       "files": "Failai",
       "messages": "Žinutės"
     },

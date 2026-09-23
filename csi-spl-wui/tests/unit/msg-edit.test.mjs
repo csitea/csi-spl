@@ -371,9 +371,9 @@ describe('the wire body helper', () => {
 describe('CLE-3446 — an edit never rides across onto another row', () => {
   /* every host that pins a single root MessageCard, and the expression it pins */
   const ROOTS = [
-    ['ThreadPane', 'src/components/ThreadPane.vue', 'root'],
-    ['LiveThreadPane', 'src/components/LiveThreadPane.vue', 'root'],
-    ['t/[task_id]', 'src/pages/t/[task_id].vue', 'store.thread.root'],
+    ['TopicPane', 'src/components/TopicPane.vue', 'root'],
+    ['LiveTopicPane', 'src/components/LiveTopicPane.vue', 'root'],
+    ['t/[task_id]', 'src/pages/t/[task_id].vue', 'store.topic.root'],
   ]
 
   it('every pinned-root MessageCard is keyed by msg_id, so a re-root REPLACES the card', () => {

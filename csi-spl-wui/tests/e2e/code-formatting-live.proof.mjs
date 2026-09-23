@@ -5,7 +5,7 @@
 //
 // Signed in as a member it checks, on /dm/<peer>:
 //   1. the top Omnibox opens a block on ``` and GROWS to hold it
-//   2. the THREAD PANE composer does the same — it used to size itself from
+//   2. the TOPIC PANE composer does the same — it used to size itself from
 //      rows="2", so a four-line block was a two-line peephole with its own
 //      scrollbar (dev a212596: clientHeight 44, scrollHeight 64)
 //   3. an UNTAGGED ``` block comes back COLOURED — it used to come back plain,
@@ -63,7 +63,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let shiftEnter = async () => {}
 const nonce = 'cf' + Date.now().toString(36)
 const OMNI = '[data-test=top-bar-omnibox] textarea'
-const PANE = '.thread-pane form.composer textarea, aside form.composer textarea'
+const PANE = '.topic-pane form.composer textarea, aside form.composer textarea'
 
 /** the shell script every "is it coloured" question is asked about */
 const SH = ['#!/bin/bash', 'set -euo pipefail', 'for f in *.log; do', '  echo "$f"', 'done']
@@ -205,22 +205,22 @@ try {
   step('an agent-shaped body (prose + fence + tabs) renders as one code block', Boolean(cardD.hasCodeBlock), cardD)
   step('the tabs survive into the block', /\t/.test(cardD.text), { hasTab: /\t/.test(cardD.text) })
 
-  // ---- 5. the THREAD PANE composer: the peephole ---------------------------
+  // ---- 5. the TOPIC PANE composer: the peephole ---------------------------
   await p.goto(dm, { waitUntil: 'networkidle2' })
   await sleep(3000)
   const row = await p.$('.live-rows article, .live-rows [data-key]')
-  step('a feed row opens its thread', !!row)
+  step('a feed row opens its topic', !!row)
   if (row) {
     await row.click()
     await sleep(2500)
-    const tagE = `threadpane ${nonce}`
+    const tagE = `topicpane ${nonce}`
     const taE = await compose(PANE, tagE, ['```bash', ...SH])
     const growE = await grew(taE)
-    step('THREAD PANE: the box grew to hold the block (was a 2-line peephole)', !growE.clipped, growE)
-    await p.screenshot({ path: `${OUT}/2-thread-pane-composer.png` })
+    step('TOPIC PANE: the box grew to hold the block (was a 2-line peephole)', !growE.clipped, growE)
+    await p.screenshot({ path: `${OUT}/2-topic-pane-composer.png` })
     await shiftEnter(); await p.keyboard.type('```')
     const cardE = await sendAndRead(tagE)
-    step('THREAD PANE: the reply renders as a coloured code block', Boolean(cardE.hasCodeBlock && cardE.coloured > 0), cardE)
+    step('TOPIC PANE: the reply renders as a coloured code block', Boolean(cardE.hasCodeBlock && cardE.coloured > 0), cardE)
   }
 
   // ---- 6. CONTROLS ---------------------------------------------------------

@@ -9,7 +9,7 @@
     "cancel": "Annuleren"
   },
   "nav": {
-    "threads": "Onderwerpen",
+    "topics": "Onderwerpen",
     "lobby": "Lobby",
     "general": "#general",
     "login": "Inloggen",
@@ -356,7 +356,7 @@
   "feed": {
     "unknown_author": "onbekend",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Onderwerp openen",
+    "open_topic": "Onderwerp openen",
     "replies": "{n} reactie | {n} reacties",
     "filter_label": "Filter:",
     "matches": "{count} resultaat/resultaten",
@@ -399,7 +399,7 @@
     },
     "new_pill": "Nieuw: {n}",
     "new_pill_label": "Naar de nieuwste berichten",
-    "open_thread_hint": "Druk op Enter om het onderwerp van dit bericht te openen.",
+    "open_topic_hint": "Druk op Enter om het onderwerp van dit bericht te openen.",
     "edit": {
       "label": "Bericht bewerken",
       "hint": "Enter slaat op · Shift+Enter nieuwe regel · Esc annuleert",
@@ -413,7 +413,7 @@
       "failed_too_large": "Te lang om op te slaan. Voeg het als bestand toe."
     }
   },
-  "thread": {
+  "topic": {
     "title": "Onderwerp",
     "open": "Openen",
     "empty": "Leeg onderwerp.",
@@ -454,7 +454,7 @@
   },
   "pane": {
     "resize_sidebar": "Formaat van kanaalzijbalk wijzigen",
-    "resize_thread": "Formaat van onderwerppaneel wijzigen",
+    "resize_topic": "Formaat van onderwerppaneel wijzigen",
     "resize_hint": "Sleep om het formaat te wijzigen. Dubbelklik om te herstellen."
   },
   "pages": {
@@ -521,7 +521,7 @@
       "users": "Mensen",
       "channels": "Kanalen",
       "boxes": "Boxen",
-      "threads": "Onderwerpen",
+      "topics": "Onderwerpen",
       "files": "Bestanden",
       "messages": "Berichten"
     },

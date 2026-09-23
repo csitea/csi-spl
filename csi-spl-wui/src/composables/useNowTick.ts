@@ -1,12 +1,12 @@
 import { onUnmounted, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 
 /**
- * A 1 Hz clock, running only while `enabled` is true (an open thread pane).
+ * A 1 Hz clock, running only while `enabled` is true (an open topic pane).
  * `now` is Date.now() at each tick; the first tick is immediate on enable so
- * "seconds ago from opening this thread" is defined before the first interval.
+ * "seconds ago from opening this topic" is defined before the first interval.
  */
 /* CLE-3433: MaybeRefOrGetter, not MaybeRef. All three call sites pass a
- * GETTER - `() => thread.open`, `() => Boolean(pane.taskId)`,
+ * GETTER - `() => topic.open`, `() => Boolean(pane.taskId)`,
  * `() => Boolean(taskId.value)` - which typecheck refused (TS2345) and which
  * `unref` cannot read: unref(fn) hands back the function, and a function is
  * always truthy, so the watch source was a CONSTANT true. The 1 Hz interval

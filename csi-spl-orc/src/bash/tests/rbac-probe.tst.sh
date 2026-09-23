@@ -15,9 +15,9 @@ cat >"$T/stub.py" <<'PY'
 import json, os, sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 T = sys.argv[1]
-PERMS = {"developer": ["agents.command", "channels.manage", "notes.send", "threads.read"],
-         "tester": ["notes.send", "threads.read"],
-         "admin": ["channels.manage", "members.roles", "threads.read"]}
+PERMS = {"developer": ["agents.command", "channels.manage", "notes.send", "topics.read"],
+         "tester": ["notes.send", "topics.read"],
+         "admin": ["channels.manage", "members.roles", "topics.read"]}
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def reply(self, st, body, cookie=False):

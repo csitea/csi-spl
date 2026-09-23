@@ -5,13 +5,13 @@
 // those terminal to msg cases", "here and make it do all of the test ases",
 // "for te showing up of the messages ...". So this is not a headless assertion
 // that prints to a log — it signs in to the deployed WUI as its OWN dedicated
-// member, opens the thread it is given, and runs the cases there, announcing
+// member, opens the topic it is given, and runs the cases there, announcing
 // each one before it runs it and posting a PASS/FAIL line after it, so the run
-// reads as a transcript in the thread.
+// reads as a transcript in the topic.
 //
 // Both halves of every message case are asserted, because the owner's
 // complaint was about the half nobody was checking:
-//   the WUI half   — the row is in the thread, once, for the sender
+//   the WUI half   — the row is in the topic, once, for the sender
 //   the TERMINAL half — the same message is VISIBLE in the recipient agent's
 //                       pane, carrying the sender and the real msg_id
 // The terminal half is delegated to PANE_CMD (csi-spl-orc .../pane-seen.sh):
@@ -23,7 +23,7 @@
 // to answer. A single blended number would hide which leg is slow.
 //
 //   BASE=https://dev.<domain> EMAIL=<the bot's member> PW_FILE=<0600 file> \
-//     PEER=CLE-00@box-desk OWNER_THREAD=<uuid> OUT=<dir> \
+//     PEER=CLE-00@box-desk OWNER_TOPIC=<uuid> OUT=<dir> \
 //     [TENANT=t1] [PANE_CMD='<cmd; $AGENT $NEEDLE $TIMEOUT>'] \
 //     [REPLY_CMD='<cmd; $TASK $BODY>'] [CASE_PAUSE_MS=4000] [LIMIT_MS=1500] \
 //     [PANE_TIMEOUT=45] [POST_RESULTS=1] [CHROME_PATH=...] [PUPPETEER_CORE=...] \
@@ -52,7 +52,7 @@ const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const EMAIL = need('EMAIL')
 const PEER = need('PEER')
-const OWNER_THREAD = need('OWNER_THREAD')
+const OWNER_TOPIC = need('OWNER_TOPIC')
 const PW = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 't1'
 const PANE_CMD = process.env.PANE_CMD || ''
@@ -72,7 +72,7 @@ const puppeteer = await loadPuppeteer()
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const res = {
-  base: BASE, tenant: TENANT, peer: PEER, thread: OWNER_THREAD, run: RUN,
+  base: BASE, tenant: TENANT, peer: PEER, topic: OWNER_TOPIC, run: RUN,
   at: new Date().toISOString(), limit_ms: LIMIT_MS, pane_timeout_s: PANE_TIMEOUT,
   // Kept apart on purpose: adding a terminal-visible time to a model reply
   // time produces a number that is true of nothing (OA-14).
@@ -83,7 +83,7 @@ const res = {
 const TOTAL = 8
 let posted = 0
 
-/** Record a case, print it, and — when asked — post the verdict into the thread. */
+/** Record a case, print it, and — when asked — post the verdict into the topic. */
 async function verdict(page, n, id, title, ok, ev = {}) {
   res.cases.push({ n, id, title, ok, ...ev })
   console.log(`${ok ? 'PASS' : 'FAIL'} case ${n}/${TOTAL} ${id} — ${title} ${JSON.stringify(ev)}`)
@@ -96,7 +96,7 @@ async function verdict(page, n, id, title, ok, ev = {}) {
   return ok
 }
 
-/** Announce what is about to run, so the owner can read the thread as a script. */
+/** Announce what is about to run, so the owner can read the topic as a script. */
 async function announce(page, n, title, expect) {
   if (!POST_RESULTS || !page) return
   await post(page, `case ${n}/${TOTAL}: ${title} — expect: ${expect}`).catch(() => {})
@@ -117,8 +117,8 @@ async function post(page, text) {
 
 /** Resolves with the browser clock when a row carrying `text` is IN the feed.
  *
- * Deliberately NOT "is the top row". A thread reads oldest to newest, so in a
- * thread view the newest message is the LAST row, and an assert on the first
+ * Deliberately NOT "is the top row". A topic reads oldest to newest, so in a
+ * topic view the newest message is the LAST row, and an assert on the first
  * child reports a message that arrived on time as missing — measured
  * 2026-09-21, two cases red with the row present and copies === 1. Whether a
  * LISTING is newest-first is a different case with its own tests (OA-15..18);
@@ -170,7 +170,7 @@ let page = null
 try {
   res.build = await (await fetch(BASE + '/build.json')).json().catch(() => ({}))
 
-  // ── case 1 (OA-31) the bot is its OWN member, and the owner's thread opens ──
+  // ── case 1 (OA-31) the bot is its OWN member, and the owner's topic opens ──
   const ctx = await browser.createBrowserContext()
   page = await ctx.newPage()
   await page.setViewport({ width: 1280, height: 900 })
@@ -209,22 +209,22 @@ try {
   }
   res.sign_in_attempts = attempts
 
-  const threadUrl = `${BASE}/dm/${encodeURIComponent(PEER)}?thread=${encodeURIComponent(OWNER_THREAD)}`
+  const topicUrl = `${BASE}/dm/${encodeURIComponent(PEER)}?topic=${encodeURIComponent(OWNER_TOPIC)}`
   if (signedIn) {
-    await page.goto(threadUrl, { waitUntil: 'networkidle2' })
+    await page.goto(topicUrl, { waitUntil: 'networkidle2' })
     await page.waitForSelector('form.composer textarea', { timeout: 25000 }).catch(() => {})
     await sleep(2000)
   }
   const composer = signedIn && await page.$('form.composer textarea') !== null
-  await page.screenshot({ path: `${OUT}/01-thread-open.png` }).catch(() => {})
+  await page.screenshot({ path: `${OUT}/01-topic-open.png` }).catch(() => {})
   await verdict(signedIn ? page : null, 1, 'OA-31',
-    `the bot signed in as its own member and opened the owner's thread`,
+    `the bot signed in as its own member and opened the owner's topic`,
     signedIn && composer,
     { url: signedIn ? page.url() : '(not signed in)', email_is_not_the_owner: true, attempts })
-  if (!signedIn || !composer) throw new Error('the bot could not open the thread; nothing else can be asserted')
+  if (!signedIn || !composer) throw new Error('the bot could not open the topic; nothing else can be asserted')
 
   if (POST_RESULTS) {
-    await post(page, `owner acceptance run ${RUN} — ${TOTAL} cases, from the WUI, in this thread. Build ${res.build?.commit || '?'}.`)
+    await post(page, `owner acceptance run ${RUN} — ${TOTAL} cases, from the WUI, in this topic. Build ${res.build?.commit || '?'}.`)
     await sleep(CASE_PAUSE_MS)
   }
 
@@ -255,7 +255,7 @@ try {
   const rows2b = await rowsWith(page, n2)
   await page.screenshot({ path: `${OUT}/02-display.png` }).catch(() => {})
   const pos2 = await positionOf(page, n2)
-  await verdict(page, 2, 'OA-32', 'the message the bot sent shows in the thread at once, exactly once',
+  await verdict(page, 2, 'OA-32', 'the message the bot sent shows in the topic at once, exactly once',
     at2 !== null && wui2 <= LIMIT_MS && rows2b.length === 1,
     { wui_ms: wui2, copies: rows2b.length, position: pos2, msg_id: msgId, task_id: taskId })
   await verdict(page, 3, 'OA-33', `the message is visible in ${PEER_AGENT}'s pane, with its msg_id`,
@@ -263,24 +263,24 @@ try {
     { body_seen: bodySeen.rc === 0, msg_id_seen: idSeen.rc === 0, msg_id: msgId,
       pane_ms: res.timings.pane_ms.display, pane_cmd_ran: !bodySeen.skipped, evidence: bodySeen.out.trim().split('\n').pop() })
 
-  // ── case 4 (OA-34) the agent's reply comes back into the SAME thread ────────
+  // ── case 4 (OA-34) the agent's reply comes back into the SAME topic ────────
   // The task to answer is the one the bot's own message CREATED, read off its
-  // row — not OWNER_THREAD. A DM send starts a new task (see case 8), so
-  // answering OWNER_THREAD would put the reply in a conversation the bot is
+  // row — not OWNER_TOPIC. A DM send starts a new task (see case 8), so
+  // answering OWNER_TOPIC would put the reply in a conversation the bot is
   // not in, and this case would fail for a reason that is not the reply leg.
-  await announce(page, 4, 'the reply leg', `${PEER_AGENT}'s answer appearing in this thread`)
+  await announce(page, 4, 'the reply leg', `${PEER_AGENT}'s answer appearing in this topic`)
   const n4 = `oa ${RUN} reply`
   const seen4 = feedHas(page, n4, 90000)
   const t4 = Date.now()
-  const replied = await sh(REPLY_CMD, { TASK: taskId || OWNER_THREAD, BODY: n4 })
+  const replied = await sh(REPLY_CMD, { TASK: taskId || OWNER_TOPIC, BODY: n4 })
   const at4 = await seen4
   res.timings.reply_ms.desk = at4 && at4 - t4
   await page.screenshot({ path: `${OUT}/04-reply.png` }).catch(() => {})
   const pos4 = await positionOf(page, n4)
-  await verdict(page, 4, 'OA-34', `${PEER_AGENT}'s reply shows up in the same thread`,
+  await verdict(page, 4, 'OA-34', `${PEER_AGENT}'s reply shows up in the same topic`,
     replied.rc === 0 && at4 !== null,
     { reply_rc: replied.rc, reply_ms: res.timings.reply_ms.desk, reply_cmd_ran: !replied.skipped,
-      answered_task: taskId || OWNER_THREAD, position: pos4, tail: replied.out.slice(-300) })
+      answered_task: taskId || OWNER_TOPIC, position: pos4, tail: replied.out.slice(-300) })
 
   // ── case 5 (OA-19 in the DM composer) ``` opens a code block HERE ───────────
   await announce(page, 5, 'code blocks in the DM composer', `three backticks opening a monospace block, and Enter adding a line rather than sending`)
@@ -349,29 +349,29 @@ try {
     { drove: fail6.drove, why: fail6.why || '', outcome: landed ? 'landed' : visiblyFailed ? 'visibly failed' : 'DISAPPEARED',
       kept_text: !!kept && kept.text.includes(n6), error_shown: !!kept && kept.error.length > 0, retry_offered: !!kept && kept.retry })
 
-  // ── case 7 (OA-35) the run is readable in the thread ────────────────────────
-  // Asserted from the thread itself, not from this process's own bookkeeping:
+  // ── case 7 (OA-35) the run is readable in the topic ────────────────────────
+  // Asserted from the topic itself, not from this process's own bookkeeping:
   // a verdict line that failed to post is exactly the failure this case is for.
   await sleep(3000)
-  const inThread = await page.evaluate((run) => [...document.querySelectorAll('.live-rows > article.msg')]
+  const inTopic = await page.evaluate((run) => [...document.querySelectorAll('.live-rows > article.msg')]
     .filter((a) => a.textContent.includes('case ') && a.textContent.includes(run)).length, RUN)
   const labelled = await page.evaluate(() => [...document.querySelectorAll('.live-rows > article.msg')]
     .filter((a) => /case \d+\/\d+/.test(a.textContent)).length)
-  await page.screenshot({ path: `${OUT}/07-thread-transcript.png` }).catch(() => {})
-  // ── case 8 (OA-38) the owner's URL — does ?thread= actually bind? ──────────
-  // The owner's instruction was "make it communicate with you <a /dm/…?thread=
+  await page.screenshot({ path: `${OUT}/07-topic-transcript.png` }).catch(() => {})
+  // ── case 8 (OA-38) the owner's URL — does ?topic= actually bind? ──────────
+  // The owner's instruction was "make it communicate with you <a /dm/…?topic=
   // …> URL". This case asks whether that URL means what it looks like: a
   // message sent from it joining THAT conversation. It is asserted rather than
   // assumed, because every earlier case in this run silently got its own new
   // task instead.
-  const joined = taskId && taskId === OWNER_THREAD
-  await verdict(page, 8, 'OA-38', `a message sent from /dm/<peer>?thread=<id> joins THAT thread`,
-    !!joined, { requested_thread: OWNER_THREAD, task_the_send_actually_got: taskId || '(none)',
-      note: joined ? '' : 'the DM page starts a NEW task per send; ?thread= is not read by it' })
+  const joined = taskId && taskId === OWNER_TOPIC
+  await verdict(page, 8, 'OA-38', `a message sent from /dm/<peer>?topic=<id> joins THAT topic`,
+    !!joined, { requested_topic: OWNER_TOPIC, task_the_send_actually_got: taskId || '(none)',
+      note: joined ? '' : 'the DM page starts a NEW task per send; ?topic= is not read by it' })
 
-  await verdict(page, 7, 'OA-35', 'the run posted a labelled PASS/FAIL line per case into the thread',
+  await verdict(page, 7, 'OA-35', 'the run posted a labelled PASS/FAIL line per case into the topic',
     POST_RESULTS ? posted >= res.cases.length : true,
-    { verdict_lines_posted: posted, cases_so_far: res.cases.length, labelled_rows_in_thread: labelled, rows_tagged_with_this_run: inThread })
+    { verdict_lines_posted: posted, cases_so_far: res.cases.length, labelled_rows_in_topic: labelled, rows_tagged_with_this_run: inTopic })
 } catch (e) {
   res.error = String(e && e.message || e)
   console.error('FATAL', res.error)

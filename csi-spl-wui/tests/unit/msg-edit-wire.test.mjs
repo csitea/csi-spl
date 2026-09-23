@@ -194,7 +194,7 @@ describe('putting the edit back into a list (FR-ED-009: it does not move)', () =
     assert.equal(out.length, 3)
   })
 
-  it('leaves ts and cursor alone — a typo fix must not jump down the thread', () => {
+  it('leaves ts and cursor alone — a typo fix must not jump down the topic', () => {
     const out = applyEdit(rows(), { msg_id: 'm2', body: 'the new msg', ...EDITED })
     assert.equal(out[1].ts, 't2')
     assert.equal(out[1].cursor, 'c2')

@@ -1,6 +1,6 @@
 <template>
   <nav class="sidebar">
-    <!-- Top to bottom: direct messages, channels, threads, flow.
+    <!-- Top to bottom: direct messages, channels, topics, flow.
          Icons only; each name lives on aria-label and title. -->
     <div
       class="sidebar-rail"
@@ -227,27 +227,27 @@
     </UiDialog>
       </div>
       <div
-        v-show="tab === 'threads'"
-        id="sidebar-panel-threads"
+        v-show="tab === 'topics'"
+        id="sidebar-panel-topics"
         class="sidebar-panel"
         role="tabpanel"
-        aria-labelledby="sidebar-tab-threads"
-        data-testid="sidebar-panel-threads"
+        aria-labelledby="sidebar-tab-topics"
+        data-testid="sidebar-panel-topics"
       >
-        <h2>{{ t('nav.threads') }}</h2>
-        <p v-if="!viewer.loading && viewer.threads.length === 0" class="muted thread-empty">{{ t('pages.index.empty') }}</p>
+        <h2>{{ t('nav.topics') }}</h2>
+        <p v-if="!viewer.loading && viewer.topics.length === 0" class="muted topic-empty">{{ t('pages.index.empty') }}</p>
         <div
-          v-for="(row, threadIndex) in threadRows"
+          v-for="(row, topicIndex) in topicRows"
           :key="row.task_id"
           class="nav-row"
           :data-order="row.task_id"
-          :class="{ 'nav-row--pinned': threadOrder.includes(row.task_id), 'nav-row--drag': dragging('threads', row.task_id), 'nav-row--drop': dropping('threads', row.task_id, threadIndex), 'nav-row--drop-after': droppingAfter('threads', threadIndex, threadRows.length) }"
-          @pointerdown="rowPointerDown($event, 'threads', row.task_id)"
+          :class="{ 'nav-row--pinned': topicOrder.includes(row.task_id), 'nav-row--drag': dragging('topics', row.task_id), 'nav-row--drop': dropping('topics', row.task_id, topicIndex), 'nav-row--drop-after': droppingAfter('topics', topicIndex, topicRows.length) }"
+          @pointerdown="rowPointerDown($event, 'topics', row.task_id)"
           @click.capture="swallowDragClick"
         >
         <a
           class="nav-item"
-          :class="{ active: threadOpen === row.task_id }"
+          :class="{ active: topicOpen === row.task_id }"
           :data-key="row.task_id"
           :data-ts="row.last_ts || undefined"
           :href="localePath('/t/' + row.task_id)"
@@ -276,7 +276,7 @@
         data-testid="sidebar-panel-flow"
       >
         <h2>{{ t('sidebar.flow') }}</h2>
-        <p v-if="flow.length === 0" class="muted thread-empty">{{ t('feed.empty') }}</p>
+        <p v-if="flow.length === 0" class="muted topic-empty">{{ t('feed.empty') }}</p>
         <template v-for="row in flow" :key="row.key">
           <div v-if="row.kind === 'channel'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick">
           <NuxtLink
@@ -342,7 +342,7 @@
           <div v-else class="nav-row" :data-order="row.key" :class="{ 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick">
           <a
             class="nav-item"
-            :class="{ active: threadOpen === row.id }"
+            :class="{ active: topicOpen === row.id }"
             :data-key="row.id"
             :data-kind="row.kind"
             :data-ts="row.at || undefined"
@@ -397,13 +397,13 @@ import { flowRows, SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { dropIndex, moveKey, pinRows, rowMenuAdmin } from '~/utils/sidebar-row-menu.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
-type SideTab = 'dm' | 'channels' | 'threads' | 'flow'
-/* Direct messages, channels, threads, flow — top to bottom. A matching
+type SideTab = 'dm' | 'channels' | 'topics' | 'flow'
+/* Direct messages, channels, topics, flow — top to bottom. A matching
    route follows the page; search and settings keep the reader's choice. */
 const RAIL: { id: SideTab, icon: UiIconName, labelKey: string }[] = [
   { id: 'dm', icon: 'messages', labelKey: 'sidebar.direct_messages' },
   { id: 'channels', icon: 'hash', labelKey: 'sidebar.channels' },
-  { id: 'threads', icon: 'list', labelKey: 'nav.threads' },
+  { id: 'topics', icon: 'list', labelKey: 'nav.topics' },
   { id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' },
 ]
 const tab = ref<SideTab>('dm')
@@ -461,22 +461,22 @@ function tabUnread(id: SideTab) {
   if (id === 'flow') return flowUnread.value
   return false
 }
-const threadOpen = computed(() => {
+const topicOpen = computed(() => {
   if (pane.taskId) return pane.taskId
   const m = route.path.match(/\/t\/([^/]+)$/)
   return m ? decodeURIComponent(m[1]) : ''
 })
-/* Threads opens the thread index. Flow stays on this page and mixes the
+/* Topics opens the topic index. Flow stays on this page and mixes the
    three lists. Direct messages and channels only swap the sidebar. */
 async function selectTab(next: SideTab) {
   holdFlow.value = next === 'flow'
   tab.value = next
-  if (next === 'threads') {
-    if (viewer.threads.length === 0) void viewer.loadThreads()
-    if (tabForPath(route.path) !== 'threads') await navigateTo(localePath('/'))
+  if (next === 'topics') {
+    if (viewer.topics.length === 0) void viewer.loadTopics()
+    if (tabForPath(route.path) !== 'topics') await navigateTo(localePath('/'))
     return
   }
-  if (next === 'flow' && viewer.threads.length === 0) void viewer.loadThreads()
+  if (next === 'flow' && viewer.topics.length === 0) void viewer.loadTopics()
 }
 const sidePane = useSidePane()
 watch(() => sidePane.requested.value, (req) => {
@@ -484,7 +484,7 @@ watch(() => sidePane.requested.value, (req) => {
 })
 watch(tab, (id) => {
   rowMenu.value = ''
-  if ((id === 'threads' || id === 'flow') && viewer.threads.length === 0) void viewer.loadThreads()
+  if ((id === 'topics' || id === 'flow') && viewer.topics.length === 0) void viewer.loadTopics()
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
@@ -502,7 +502,7 @@ const mutedPeers = ref<Record<string, true>>({})
    and a person who appears later sorts after it, in the usual activity order. */
 const pinnedPeers = ref<string[]>([])
 const channelOrder = ref<string[]>([])
-const threadOrder = ref<string[]>([])
+const topicOrder = ref<string[]>([])
 const flowOrder = ref<string[]>([])
 const peerAdmin = computed(() => rowMenuAdmin(access.me))
 const peers = computed(() => pinRows(
@@ -514,9 +514,9 @@ const channelRows = computed(() => pinRows(
   channelOrder.value,
   (c) => String(c.channel_id || ''),
 ))
-const threadRows = computed(() => pinRows(
-  viewer.threads,
-  threadOrder.value,
+const topicRows = computed(() => pinRows(
+  viewer.topics,
+  topicOrder.value,
   (t) => String(t.task_id || ''),
 ))
 
@@ -559,24 +559,24 @@ async function removePeer(p: { id?: string, label: string }) {
 const flow = computed(() => pinRows(flowRows({
   channels: channel.ordered,
   peers: peers.value,
-  threads: viewer.threads,
+  topics: viewer.topics,
   liveAt: channel.liveAt,
   dmAt: channel.dmAt,
 }), flowOrder.value, (row) => String(row.key || '')))
 
-type DragList = 'peers' | 'channels' | 'threads' | 'flow'
+type DragList = 'peers' | 'channels' | 'topics' | 'flow'
 const drag = ref<{ list: DragList, key: string, overIndex: number, active: boolean } | null>(null)
 let suppressDragClick = false
 const dragPanel: Record<DragList, string> = {
   peers: 'sidebar-panel-dm',
   channels: 'sidebar-panel-channels',
-  threads: 'sidebar-panel-threads',
+  topics: 'sidebar-panel-topics',
   flow: 'sidebar-panel-flow',
 }
 function orderBag(list: DragList) {
   if (list === 'peers') return pinnedPeers
   if (list === 'channels') return channelOrder
-  if (list === 'threads') return threadOrder
+  if (list === 'topics') return topicOrder
   return flowOrder
 }
 function dragging(list: DragList, key: string) {
@@ -743,7 +743,7 @@ async function onCreate() {
   background: var(--color-accent);
   pointer-events: none;
 }
-.thread-empty { padding: 8px 16px; margin: 0; }
+.topic-empty { padding: 8px 16px; margin: 0; }
 .retention { font-size: 11px; flex-shrink: 0; }
 /* the reader's own row is a status line, not a destination: no pointer, no
    hover highlight, nothing that reads as "click me" (CLE-3448) */

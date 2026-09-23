@@ -13,7 +13,7 @@ import (
 )
 
 // Search (specs/003 contracts/search-v1.md, FR-029 – FR-032). Read-only,
-// tenant-scoped, in retention only. Messages, files and threads live here;
+// tenant-scoped, in retention only. Messages, files and topics live here;
 // robots, users, channels and boxes are small and the hub filters the rows
 // ViewBoxes / Humans / ViewChannelStats already return.
 
@@ -25,10 +25,10 @@ var ErrSearchBudget = errors.New("search: time budget exceeded")
 type SearchQuery struct {
 	Q      *search.Query
 	Now    time.Time
-	Viewer string // member HUM-*: DMs only when party of the thread; "" = no filter (door off)
+	Viewer string // member HUM-*: DMs only when party of the topic; "" = no filter (door off)
 	// ViewerChannels are the CREATED channels Viewer belongs to (rdb 0028).
 	// Without it a search hands back the text of every channel of the
-	// tenant, which is the same leak the thread read had.
+	// tenant, which is the same leak the topic read had.
 	ViewerChannels []string
 	Limit          int
 	Budget         time.Duration // Postgres statement_timeout; 0 = none
@@ -55,9 +55,9 @@ type SearchFileRow struct {
 	Mode   string
 }
 
-// SearchThreadRow is one matching thread.
-type SearchThreadRow struct {
-	ThreadRow
+// SearchTopicRow is one matching topic.
+type SearchTopicRow struct {
+	TopicRow
 	Title string
 }
 
@@ -72,13 +72,13 @@ type HumanEntry struct {
 type Searcher interface {
 	SearchMessages(ctx context.Context, tenant string, q SearchQuery) ([]SearchMsgRow, error)
 	SearchFiles(ctx context.Context, tenant string, q SearchQuery) ([]SearchFileRow, error)
-	SearchThreads(ctx context.Context, tenant string, q SearchQuery) ([]SearchThreadRow, error)
+	SearchTopics(ctx context.Context, tenant string, q SearchQuery) ([]SearchTopicRow, error)
 	// TenantHumans lists the tenant's member humans (disabled excluded),
 	// sorted by HUM-* id.
 	TenantHumans(ctx context.Context, tenant string) ([]HumanEntry, error)
 }
 
-// Title is a thread's title: the first line of its first body, trimmed, at
+// Title is a topic's title: the first line of its first body, trimmed, at
 // most 140 characters (view-v1 §4.3 subject).
 func Title(body string) string {
 	line, _, _ := strings.Cut(body, "\n")
@@ -214,16 +214,16 @@ func (s *Memory) SearchFiles(_ context.Context, tenant string, q SearchQuery) ([
 	return out, nil
 }
 
-func (s *Memory) SearchThreads(_ context.Context, tenant string, q SearchQuery) ([]SearchThreadRow, error) {
+func (s *Memory) SearchTopics(_ context.Context, tenant string, q SearchQuery) ([]SearchTopicRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	byTask := map[string]*SearchThreadRow{}
+	byTask := map[string]*SearchTopicRow{}
 	msgs := map[string][]search.Msg{}
 	var order []string
 	for _, m := range s.liveLocked(tenant, q.Now) { // oldest first
 		r := byTask[m.TaskID]
 		if r == nil {
-			r = &SearchThreadRow{ThreadRow: ThreadRow{TaskID: m.TaskID, Channel: m.Channel, Parent: m.ParentTaskID,
+			r = &SearchTopicRow{TopicRow: TopicRow{TaskID: m.TaskID, Channel: m.Channel, Parent: m.ParentTaskID,
 				FirstAt: m.ReceivedAt, FirstMsg: m.Msg}, Title: Title(m.Body)}
 			byTask[m.TaskID] = r
 			order = append(order, m.TaskID)
@@ -234,7 +234,7 @@ func (s *Memory) SearchThreads(_ context.Context, tenant string, q SearchQuery) 
 		r.Parties = append(r.Parties, m.FromID+"@"+m.FromBox, m.ToID+"@"+m.ToBox)
 		msgs[m.TaskID] = append(msgs[m.TaskID], searchMsg(m))
 	}
-	var out []SearchThreadRow
+	var out []SearchTopicRow
 	for _, id := range order {
 		r := byTask[id]
 		if q.Hides(r.Channel) {
@@ -249,8 +249,8 @@ func (s *Memory) SearchThreads(_ context.Context, tenant string, q SearchQuery) 
 				continue
 			}
 		}
-		th := search.Thread{TaskID: id, Parent: r.Parent, Channel: r.Channel, Title: r.Title, LastAt: r.LastAt, Msgs: msgs[id]}
-		if !search.MatchThread(q.Q.Root, th) || !q.older(r.LastAt, r.TaskID) {
+		th := search.Topic{TaskID: id, Parent: r.Parent, Channel: r.Channel, Title: r.Title, LastAt: r.LastAt, Msgs: msgs[id]}
+		if !search.MatchTopic(q.Q.Root, th) || !q.older(r.LastAt, r.TaskID) {
 			continue
 		}
 		out = append(out, *r)

@@ -62,7 +62,7 @@ type wuiConn struct {
 	subs   map[string]bool // task ids, guarded by srv.mu
 	chans  map[string]bool // channel ids (stored form), guarded by srv.mu
 	peers  map[string]bool // DM peers, "<id>" or "<id>@<box>" (v0.5), guarded by srv.mu
-	all    bool            // thread-list follow (v0.5), guarded by srv.mu
+	all    bool            // topic-list follow (v0.5), guarded by srv.mu
 	wmu    sync.Mutex
 	once   sync.Once
 }
@@ -278,15 +278,15 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 			}
 			// The read door (rdb 0028): subscribing by task_id used to be
 			// enough to follow another member's DM or a private channel
-			// live. An unknown thread is allowed - the lobby, and any new
-			// thread, has no message yet - and wants() vetoes per message.
+			// live. An unknown topic is allowed - the lobby, and any new
+			// topic, has no message yet - and wants() vetoes per message.
 			if f.Type == "subscribe" {
-				switch may, found, err := s.canReadThread(ctx, c.tenant, task, c.member); {
+				switch may, found, err := s.canReadTopic(ctx, c.tenant, task, c.member); {
 				case err != nil:
-					c.write(ctx, wuiErr{"error", "internal", http.StatusInternalServerError, "thread lookup failed", ""}) //nolint:errcheck
+					c.write(ctx, wuiErr{"error", "internal", http.StatusInternalServerError, "topic lookup failed", ""}) //nolint:errcheck
 					continue
 				case found && !may:
-					c.write(ctx, wuiErr{"error", "not_found", http.StatusNotFound, "no such thread", ""}) //nolint:errcheck
+					c.write(ctx, wuiErr{"error", "not_found", http.StatusNotFound, "no such topic", ""}) //nolint:errcheck
 					continue
 				}
 			}
@@ -351,7 +351,7 @@ func (s *Server) wuiSubscribeChannel(ctx context.Context, c *wuiConn, f wuiIn) {
 }
 
 // wuiSubscribeFollow (un)subscribes a socket to a DM peer or to the whole
-// tenant for the thread list (wui-live-ws.md v0.5 §3.1). Which DMs a socket
+// tenant for the topic list (wui-live-ws.md v0.5 §3.1). Which DMs a socket
 // then receives is decided per message in wants.
 func (s *Server) wuiSubscribeFollow(ctx context.Context, c *wuiConn, f wuiIn) {
 	if f.Peer != "" {
@@ -399,7 +399,7 @@ func (p parties) is(key string) bool {
 func (c *wuiConn) wants(taskID, channel string, p parties, members map[string]bool) bool {
 	party := p.is(c.from) || c.member != "" && p.is(c.member)
 	// The read door runs FIRST and only ever refuses. A socket may subscribe
-	// to a task_id while the thread is still empty (the lobby, a new thread),
+	// to a task_id while the topic is still empty (the lobby, a new topic),
 	// so a grant taken then must not carry a later post out of a channel this
 	// socket is not in.
 	switch {

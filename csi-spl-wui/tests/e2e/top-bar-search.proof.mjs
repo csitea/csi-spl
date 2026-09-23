@@ -142,10 +142,10 @@ try {
       pane: !!document.querySelector('.live-pane'),
       focusedMsg: document.querySelector('.live-pane .msg.search-focus')?.getAttribute('data-msg-id') || '',
     }))
-    // message / thread / file → the thread pane; robot / user / channel / box → another route or query
-    const opened = ['messages', 'threads', 'files'].includes(first.type) ? after.pane : after.url !== beforeUrl
-    step('Enter opens the first result (thread pane for a message/thread/file)', opened, { first, ...after })
-    if (first.type === 'messages') step('the thread pane scrolls to and marks that message', !!after.focusedMsg, { focusedMsg: after.focusedMsg })
+    // message / topic / file → the topic pane; robot / user / channel / box → another route or query
+    const opened = ['messages', 'topics', 'files'].includes(first.type) ? after.pane : after.url !== beforeUrl
+    step('Enter opens the first result (topic pane for a message/topic/file)', opened, { first, ...after })
+    if (first.type === 'messages') step('the topic pane scrolls to and marks that message', !!after.focusedMsg, { focusedMsg: after.focusedMsg })
     await p.screenshot({ path: `${OUT}/04-opened-result.png` })
   }
 

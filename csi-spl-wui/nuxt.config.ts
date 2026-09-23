@@ -15,7 +15,7 @@ import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mj
 // -> production) is the only reliable signal at this scope.
 const isDev = process.env.NODE_ENV !== "production"
 
-// Single source of truth is csi-spl-wui/.version (bare semver). CI may thread
+// Single source of truth is csi-spl-wui/.version (bare semver). CI may topic
 // NUXT_PUBLIC_APP_VERSION=v<version>; lde falls back to the file so the stamp
 // is never invented. Shape: vMAJOR.MINOR.PATCH.
 function wuiAppVersion(): string {

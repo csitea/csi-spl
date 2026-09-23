@@ -12,9 +12,9 @@
 #   4. spl_desk_pick: a box sender is never answered; ONE waiting human
 #      conversation is answered; SEVERAL are refused (exit 4) and listed rather
 #      than guessed - answering "the newest human" let a second person's
-#      messages steal the thread an answer was meant for; the answered
+#      messages steal the topic an answer was meant for; the answered
 #      watermark makes already-answered messages stop counting; DESK_TO /
-#      DESK_TASK override; both together open a thread we hold no message of
+#      DESK_TASK override; both together open a topic we hold no message of
 #   5. spl_desk_verdict tells "the sidecar is alive" apart from "the hub has a
 #      session for it" - the two facts whose gap is SILENT: a hub redeploy
 #      leaves the box blocked on a dead socket with a healthy-looking process
@@ -108,8 +108,8 @@ msgs=$(cat <<JSON
  {"msg_id":"m3","task_id":"$U1","ts":"2026-09-21T13:00:00Z","from":"EZB-1","body":"a box, never answered"}]
 JSON
 )
-# Two humans in two threads: a guess here is what put an answer meant for the
-# owner into a probe account's thread while the owner watched (2026-09-21).
+# Two humans in two topics: a guess here is what put an answer meant for the
+# owner into a probe account's topic while the owner watched (2026-09-21).
 out=$(SNIPPET="spl_desk_pick '$msgs' '' '' '' 0" in_orc 2>&1); rc=$?
 [[ $rc -eq 4 ]] && pass "two waiting conversations are REFUSED, not guessed (exit 4)" ||
   fail "two conversations did not exit 4 (rc=$rc): $out"
@@ -137,7 +137,7 @@ rm -f "$T/answered"
 out=$(SNIPPET="spl_desk_pick '$msgs' 'HUM-9' '' '' 0" in_orc 2>&1)
 [[ "$out" == "HUM-9	$U1	m1	first" ]] && pass "DESK_TO narrows it to that human" || fail "pick by to: $out"
 out=$(SNIPPET="spl_desk_pick '$msgs' '' '$U1' '' 0" in_orc 2>&1)
-[[ "$out" == HUM-9* ]] && pass "DESK_TASK narrows it to that thread" || fail "pick by task: $out"
+[[ "$out" == HUM-9* ]] && pass "DESK_TASK narrows it to that topic" || fail "pick by task: $out"
 boxonly='[{"msg_id":"m3","task_id":"'$U1'","ts":"2026-09-21T13:00:00Z","from":"EZB-1","body":"box"}]'
 SNIPPET="spl_desk_pick '$boxonly' '' '' '' 0" in_orc >/dev/null 2>&1
 [[ $? -eq 3 ]] && pass "a box-only inbox is nothing to answer (exit 3)" || fail "box-only inbox did not exit 3"
@@ -146,7 +146,7 @@ SNIPPET="spl_desk_pick '[]' '' '' '' 0" in_orc >/dev/null 2>&1
 SNIPPET="spl_desk_pick 'not json' '' '' '' 0" in_orc >/dev/null 2>&1
 [[ $? -eq 3 ]] && pass "unreadable recv output is nothing to answer (exit 3)" || fail "bad json did not exit 3"
 out=$(SNIPPET="spl_desk_pick '[]' 'HUM-9' '$U2' '' 0" in_orc 2>&1)
-[[ "$out" == "HUM-9	$U2		" ]] && pass "both overrides open a thread we hold no message of" ||
+[[ "$out" == "HUM-9	$U2		" ]] && pass "both overrides open a topic we hold no message of" ||
   fail "both overrides: $out"
 
 # --- 5. is the desk REACHABLE, or only apparently so? -------------------------------

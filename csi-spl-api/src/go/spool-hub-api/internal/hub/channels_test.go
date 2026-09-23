@@ -229,7 +229,7 @@ func TestChannelMembershipRouting(t *testing.T) {
 	if r := rb.next(wire.TRecv); len(r.Agents) != 2 {
 		t.Fatalf("lobby post: %+v", r.Agents)
 	}
-	rows, _ := e.st.ViewThreads(ctx, tid, store.ThreadQuery{Now: time.Now(), Channel: "lobby"})
+	rows, _ := e.st.ViewTopics(ctx, tid, store.TopicQuery{Now: time.Now(), Channel: "lobby"})
 	if len(rows) != 1 {
 		t.Fatalf("general alias not stored as lobby: %+v", rows)
 	}
@@ -277,7 +277,7 @@ func (e *env) rawBoxNoDrain(tenant string, b *box, agents, channels []string) *r
 }
 
 // A pre-M3 envelope (no tags) and a tagged one are stored with the right
-// columns; the child thread lists under /children and not in the root list.
+// columns; the child topic lists under /children and not in the root list.
 func TestChannelEnvelopeStored(t *testing.T) {
 	e := wuiEnv(t)
 	tid, _ := e.tenant()
@@ -311,40 +311,40 @@ func TestChannelEnvelopeStored(t *testing.T) {
 		json.NewDecoder(resp.Body).Decode(&v) //nolint:errcheck
 		return v
 	}
-	threads := func(v map[string]any) []map[string]any {
+	topics := func(v map[string]any) []map[string]any {
 		var out []map[string]any
-		for _, x := range v["threads"].([]any) {
+		for _, x := range v["topics"].([]any) {
 			out = append(out, x.(map[string]any))
 		}
 		return out
 	}
-	roots := threads(get("/v1/view/threads"))
+	roots := topics(get("/v1/view/topics"))
 	if len(roots) != 1 || roots[0]["task_id"] != root || roots[0]["channel"] != nil || roots[0]["parent_task_id"] != nil {
 		t.Fatalf("roots: %+v", roots)
 	}
-	kids := threads(get("/v1/view/threads/" + root + "/children"))
+	kids := topics(get("/v1/view/topics/" + root + "/children"))
 	if len(kids) != 1 || kids[0]["task_id"] != child || kids[0]["parent_task_id"] != root || kids[0]["channel"] != "tasks" {
 		t.Fatalf("children: %+v", kids)
 	}
-	if all := threads(get("/v1/view/threads?roots=false")); len(all) != 2 {
+	if all := topics(get("/v1/view/topics?roots=false")); len(all) != 2 {
 		t.Fatalf("roots=false: %+v", all)
 	}
-	dms := threads(get("/v1/view/threads?dm=true&peer=CLE-07@box-b"))
+	dms := topics(get("/v1/view/topics?dm=true&peer=CLE-07@box-b"))
 	if len(dms) != 1 || dms[0]["task_id"] != root {
 		t.Fatalf("dm peer: %+v", dms)
 	}
-	if dms := threads(get("/v1/view/threads?dm=true&peer=CLE-07@box-a")); len(dms) != 0 {
+	if dms := topics(get("/v1/view/topics?dm=true&peer=CLE-07@box-a")); len(dms) != 0 {
 		t.Fatalf("dm peer wrong box: %+v", dms)
 	}
 	for _, bad := range []string{"?dm=yes", "?roots=1", "?peer=nobody"} {
-		resp, _ := e.client.Get(e.url(tid) + "/v1/view/threads" + bad)
+		resp, _ := e.client.Get(e.url(tid) + "/v1/view/topics" + bad)
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Fatalf("%s: %d", bad, resp.StatusCode)
 		}
 		resp.Body.Close()
 	}
 	// The stored envelope keeps its signed tags byte-for-byte.
-	msgs, _ := e.st.ViewThread(ctx, tid, store.ThreadMsgQuery{TaskID: child, Now: time.Now()})
+	msgs, _ := e.st.ViewTopic(ctx, tid, store.TopicMsgQuery{TaskID: child, Now: time.Now()})
 	if len(msgs) != 1 || !bytes.Contains(msgs[0].Env, []byte(`"channel":"tasks"`)) || !bytes.Contains(msgs[0].Env, []byte(`"parent_task_id":"`+root+`"`)) {
 		t.Fatalf("stored env: %+v", msgs)
 	}

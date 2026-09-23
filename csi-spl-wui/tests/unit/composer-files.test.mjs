@@ -31,7 +31,7 @@ const OMNIBOX_PAGES = [
   'src/pages/index.vue',
   'src/pages/t/[task_id].vue',
 ]
-/* thread panes no longer have their own composer; the top bar sends the reply */
+/* topic panes no longer have their own composer; the top bar sends the reply */
 
 describe('cause 1: the handler has to ACCEPT the files (CLE-3433)', () => {
   for (const page of OMNIBOX_PAGES) {

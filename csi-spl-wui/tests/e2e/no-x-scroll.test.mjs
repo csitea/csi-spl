@@ -1,5 +1,5 @@
 // Runtime guard: document must not scroll horizontally.
-// Loads /login, / (threads), /t/<id>, /channel/lobby and /dm/<peer> at 390x844 (mobile) and 1280x800 (desktop)
+// Loads /login, / (topics), /t/<id>, /channel/lobby and /dm/<peer> at 390x844 (mobile) and 1280x800 (desktop)
 // and asserts document.scrollingElement.scrollWidth <= innerWidth.
 //
 // Run:
@@ -39,7 +39,7 @@ const PATHS = [
   { path: '/login', wait: '.login-card' },
   { path: '/', wait: '.spool-shell' },
   { path: '/lobby', wait: '.spool-shell' },
-  { path: '/?thread=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', wait: '.live-pane' },
+  { path: '/?topic=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', wait: '.live-pane' },
   { path: '/t/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', wait: '.spool-shell' },
   { path: '/channel/lobby', wait: '.spool-shell' },
   { path: '/dm/CLE-07%40box-a', wait: '.spool-shell' },

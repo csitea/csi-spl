@@ -93,7 +93,7 @@ type Message struct {
 	MsgID    string
 	TaskID   string
 	Channel  string // "" = NULL = a DM (channels-v1 §0); normalized (general → lobby)
-	// ParentTaskID is the hub-envelope parent task ("" = NULL = a root thread).
+	// ParentTaskID is the hub-envelope parent task ("" = NULL = a root topic).
 	ParentTaskID string
 	TS           time.Time
 	FromBox      string
@@ -175,8 +175,8 @@ type Store interface {
 
 	// Read-only viewer queries (view.go, contracts/view-v1.md). They never write.
 	ViewBoxes(ctx context.Context, tenantID string) ([]ViewBox, error)
-	ViewThreads(ctx context.Context, tenantID string, q ThreadQuery) ([]ThreadRow, error)
-	ViewThread(ctx context.Context, tenantID string, q ThreadMsgQuery) ([]ViewMsg, error)
+	ViewTopics(ctx context.Context, tenantID string, q TopicQuery) ([]TopicRow, error)
+	ViewTopic(ctx context.Context, tenantID string, q TopicMsgQuery) ([]ViewMsg, error)
 	ViewChannels(ctx context.Context, tenantID string, now time.Time) ([]ChannelRow, error)
 
 	// Sweep expires queued deliveries past TTL and deletes messages past retention.
@@ -196,7 +196,7 @@ type Store interface {
 	// Channels, subscriptions and channel stats (channels.go, channels-v1).
 	Channels
 
-	// Which HUMANS may read a channel, and the read door's thread lookup
+	// Which HUMANS may read a channel, and the read door's topic lookup
 	// (channel_humans.go, rdb 0028).
 	ChannelHumans
 

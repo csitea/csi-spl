@@ -8,7 +8,7 @@ import (
 )
 
 // In-process evaluation of a parsed query (search-v1 §3.2). The memory store
-// uses Match{Msg,File,Thread}; the hub uses MatchEntity for robots, users,
+// uses Match{Msg,File,Topic}; the hub uses MatchEntity for robots, users,
 // channels and boxes. The Postgres store compiles the same leaves to SQL
 // (store/search_postgres.go); the contract suite runs both.
 
@@ -32,8 +32,8 @@ type File struct {
 	HasBytes bool
 }
 
-// Thread is one task's aggregate: its title and every live message.
-type Thread struct {
+// Topic is one task's aggregate: its title and every live message.
+type Topic struct {
 	TaskID, Parent, Channel, Title string
 	LastAt                         time.Time
 	Msgs                           []Msg
@@ -96,7 +96,7 @@ func MatchMsg(n *Node, m Msg) bool {
 				return HasCode(m.Body)
 			}
 			return m.Files > 0
-		case OpThread:
+		case OpTopic:
 			return m.TaskID == t.Value
 		case OpBefore, OpAfter, OpOn:
 			return inRange(m.ReceivedAt, t)
@@ -125,7 +125,7 @@ func MatchFile(n *Node, f File) bool {
 			return f.Msg.FromBox == t.Box || f.Msg.ToBox == t.Box
 		case OpIn:
 			return inChannel(f.Msg.Channel, t)
-		case OpThread:
+		case OpTopic:
 			return f.Msg.TaskID == t.Value
 		case OpBefore, OpAfter, OpOn:
 			return inRange(f.Msg.ReceivedAt, t)
@@ -134,8 +134,8 @@ func MatchFile(n *Node, f File) bool {
 	})
 }
 
-// MatchThread reports whether th matches n.
-func MatchThread(n *Node, th Thread) bool {
+// MatchTopic reports whether th matches n.
+func MatchTopic(n *Node, th Topic) bool {
 	return Eval(n, func(t *Term) bool {
 		switch t.Op {
 		case OpText, OpTitle:
@@ -152,7 +152,7 @@ func MatchThread(n *Node, th Thread) bool {
 			return inChannel(th.Channel, t)
 		case OpIs:
 			return t.Enum == "root" && th.Parent == ""
-		case OpThread:
+		case OpTopic:
 			return th.TaskID == t.Value
 		case OpBefore, OpAfter, OpOn:
 			return inRange(th.LastAt, t)
@@ -296,7 +296,7 @@ func contains(s, sub string) bool {
 type Span [2]int
 
 // HighlightWords marks every word of text that is a positive lexeme (the
-// FTS types: message snippets, thread titles).
+// FTS types: message snippets, topic titles).
 func (q *Query) HighlightWords(text string) []Span {
 	set := map[string]bool{}
 	for _, l := range q.lexemes() {

@@ -41,7 +41,7 @@ describe('feed (013 reverse prepend)', () => {
     assert.equal(matchesSearch(m, 'red'), false)
   })
 
-  it('splits a thread into the oldest root and newest-first replies', () => {
+  it('splits a topic into the oldest root and newest-first replies', () => {
     const { root, replies } = rootAndReplies([M('b', '2'), M('a', '1'), M('c', '3')])
     assert.equal(root.msg_id, 'a')
     assert.deepEqual(replies.map((m) => m.msg_id), ['c', 'b'])

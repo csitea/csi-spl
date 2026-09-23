@@ -283,7 +283,7 @@ func TestUS3_TailOrdered(t *testing.T) {
 		t.Fatalf("tail: %v", err)
 	}
 	if len(msgs) != 2 {
-		t.Fatalf("want 2 messages on thread, got %d", len(msgs))
+		t.Fatalf("want 2 messages on topic, got %d", len(msgs))
 	}
 	if msgs[0].TS > msgs[1].TS {
 		t.Fatalf("tail not oldest-first")

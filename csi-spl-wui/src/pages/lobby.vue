@@ -8,7 +8,7 @@
       <p v-if="!lobbyId" class="muted">{{ t('pages.lobby.no_lobby', { env: 'NUXT_PUBLIC_LOBBY_TASK_ID' }) }}</p>
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="lobbyId && store.open(lobbyId)" />
       <ErrorNotice v-if="store.error" :message="store.error" source="lobby" test-id="lobby-error" />
-      <!-- Pane 2 is the thread starter only. Later messages of the lobby task are replies and stay in pane 3. -->
+      <!-- Pane 2 is the topic starter only. Later messages of the lobby task are replies and stay in pane 3. -->
       <LiveFeed
         :label="t('pages.feed_label', { target: '#lobby' })"
         :rows="store.lobbyRows"
@@ -20,7 +20,7 @@
         clickable
         @older="store.loadOlder('lobby')"
         @clear-search="store.setSearch('')"
-        @open-thread="openRow"
+        @open-topic="openRow"
         @edited="onEdited"
       />
     </div>
@@ -37,16 +37,16 @@ import { shouldOpenHubSocket, startHubSocket, stopHubSocket } from '~/utils/shel
 import { useNotificationStore } from '~/stores/notification'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
-import { sendsNewThread } from '~/utils/omnibox-thread.mjs'
-import { useThreadStore } from '~/stores/thread'
-import { useThreadRoute } from '~/composables/useThreadRoute'
+import { sendsNewTopic } from '~/utils/omnibox-topic.mjs'
+import { useTopicStore } from '~/stores/topic'
+import { useTopicRoute } from '~/composables/useTopicRoute'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 
 const store = useLiveFeed('main')
 const channel = useChannelStore()
 const pane = useLiveFeed('pane')
-const thread = useThreadStore()
+const topic = useTopicStore()
 const live = useLive()
 const api = useSpoolApi()
 const session = useSessionStore()
@@ -57,7 +57,7 @@ const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_sta
 const lobbyId = computed(() => live.lobbyTaskId.value)
 
 /* CLE-3445: an edit landed on a lobby row. That row is the main feed store's
-   AND the pinned root of the 3rd panel when its thread is open, so every
+   AND the pinned root of the 3rd panel when its topic is open, so every
    store that may hold it is told through the one helper. */
 const { applyEverywhere } = useMessageEdit()
 
@@ -71,25 +71,25 @@ function onEdited(row: SpoolMessage) {
  * shows them as replies. A message-rooted target (a deep link) still opens
  * the task it names.
  */
-const { openRow } = useThreadRoute({
+const { openRow } = useTopicRoute({
   currentTaskId: () => String(store.taskId || ''),
   rowFor: (msgId) => store.messages.find((m) => m.msg_id === msgId) as SpoolMessage | undefined,
   open: async (target, root) => {
     /* A row in this feed is a message of the lobby task. Opening it as a
-       message-rooted thread would load an empty child task and hide the
+       message-rooted topic would load an empty child task and hide the
        follow-ups. Open the task itself so pane 3 lists those follow-ups. */
     const feedTask = String(store.taskId || '')
     const rowTask = String((root && root.task_id) || '')
     if (root && rowTask && rowTask === feedTask) {
-      thread.setTarget({ taskId: rowTask, mode: 'task', rootMsgId: String(root.msg_id || ''), parentTaskId: '' }, root)
+      topic.setTarget({ taskId: rowTask, mode: 'task', rootMsgId: String(root.msg_id || ''), parentTaskId: '' }, root)
       await pane.open(rowTask)
       return
     }
-    thread.setTarget(target, root)
+    topic.setTarget(target, root)
     await pane.open(target.taskId)
   },
   close: () => {
-    thread.close()
+    topic.close()
     pane.close()
   },
 })
@@ -97,7 +97,7 @@ const { openRow } = useThreadRoute({
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
   placeholder: () => t('search.placeholder_target', { target: '#lobby' }),
-  send: (text: string, files: File[], threadId?: string, channelId?: string) => onSend(text, files, threadId, channelId),
+  send: (text: string, files: File[], topicId?: string, channelId?: string) => onSend(text, files, topicId, channelId),
   busy: () => store.sending,
 })
 
@@ -112,20 +112,20 @@ onMounted(() => {
 watch([lobbyId, () => session.state], ([id, st]) => {
   if (api.mock) {
     live.ensure()
-    if (id) void store.open(id).then(() => loadLobbyThreads())
+    if (id) void store.open(id).then(() => loadLobbyTopics())
     return
   }
   if (shouldOpenHubSocket(st)) {
     startHubSocket(live)
-    if (id) void store.open(id).then(() => loadLobbyThreads())
+    if (id) void store.open(id).then(() => loadLobbyTopics())
   } else {
     stopHubSocket(live)
   }
 }, { immediate: true })
 
-/* Threads posted into #lobby besides the room task, so a new thread is still
+/* Topics posted into #lobby besides the room task, so a new topic is still
    here after a reload. The room task itself is already loaded by store.open. */
-async function loadLobbyThreads() {
+async function loadLobbyTopics() {
   try {
     const page = await api.listMessages({ channel: 'lobby', limit: 50 })
     store.admit((page.messages || []) as SpoolMessage[])
@@ -134,17 +134,17 @@ async function loadLobbyThreads() {
   }
 }
 
-/* The right pane is closed and the line names no thread: one new thread,
+/* The right pane is closed and the line names no topic: one new topic,
    this message only. An open pane, or `in:` naming the lobby task, still
-   posts into the room. `in:` naming some other thread replies there. */
-async function onSend(text: string, files?: File[], threadId?: string, channelId?: string) {
+   posts into the room. `in:` naming some other topic replies there. */
+async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
   const here = String(store.taskId || '')
-  if (threadId && threadId !== here) {
-    await channel.send(text, threadId, files, channelId)
+  if (topicId && topicId !== here) {
+    await channel.send(text, topicId, files, channelId)
     return
   }
-  const paneOpen = thread.open || Boolean(pane.taskId)
-  if (sendsNewThread({ paneOpen, namedThreadId: threadId || '' })) {
+  const paneOpen = topic.open || Boolean(pane.taskId)
+  if (sendsNewTopic({ paneOpen, namedTopicId: topicId || '' })) {
     const sent = await channel.send(text, undefined, files, channelId || 'lobby')
     if (sent) store.admit([sent as SpoolMessage])
     return

@@ -523,8 +523,7 @@
     },
     "placeholder_target": "Порака до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за праќање · /search за пребарување насекаде",
     "unreachable": "Услугата за пребарување не е достапна. Обидете се повторно наскоро.",
-    "slash_shortcut": "Притиснете / за фокус на omnibox. Escape го враќа фокусот каде што беше.",
-    "slash_badge_title": "Притиснете / за фокус"
+    "slash_shortcut": "Притиснете / за фокус на omnibox. Escape го враќа фокусот каде што беше."
   },
   "role": {
     "biz_owner": "Бизнис сопственик",

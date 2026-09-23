@@ -85,7 +85,7 @@ try {
       aria: ta ? ta.getAttribute('aria-keyshortcuts') : null,
     }
   }, OMNI)
-  step('/ badge + aria note visible before the shortcut', before.badge && before.hint.length > 0 && before.aria === '/', before)
+  step('the visible / keycap is gone and the screen-reader note remains', !before.badge && before.hint.length > 0 && before.aria === '/', before)
   await p.screenshot({ path: `${OUT}/01-before-slash.png` })
 
   await p.keyboard.press('/')
@@ -218,15 +218,12 @@ try {
     return {
       shown,
       inOmni: document.activeElement === ta,
-      badgeDisplay: (() => {
-        const b = document.querySelector('[data-test=slash-badge]')
-        return b ? getComputedStyle(b).display : null
-      })(),
+      badge: !!document.querySelector('[data-test=slash-badge]'),
     }
   }, OMNI)
   const xsMob = await xscroll(p)
-  step('mobile: / does not expand/focus the Omnibox, badge hidden, no x-scroll',
-    !mobile.shown && !mobile.inOmni && mobile.badgeDisplay === 'none' && xsMob <= 0,
+  step('mobile: / does not expand/focus the Omnibox, no keycap, no x-scroll',
+    !mobile.shown && !mobile.inOmni && !mobile.badge && xsMob <= 0,
     { ...mobile, xscroll: xsMob })
   await p.screenshot({ path: `${OUT}/04-mobile.png` })
 } catch (e) {

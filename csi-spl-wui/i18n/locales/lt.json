@@ -523,8 +523,7 @@
     },
     "placeholder_target": "Žinutė: {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
     "unreachable": "Paieškos paslauga nepasiekiama. Netrukus bandykite dar kartą.",
-    "slash_shortcut": "Spauskite /, kad sufokusuotumėte omnibox. Escape grąžina fokusą ten, kur buvo.",
-    "slash_badge_title": "Spauskite /, kad sufokusuotumėte"
+    "slash_shortcut": "Spauskite /, kad sufokusuotumėte omnibox. Escape grąžina fokusą ten, kur buvo."
   },
   "role": {
     "biz_owner": "Verslo savininkas",

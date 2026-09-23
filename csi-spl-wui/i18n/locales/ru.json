@@ -523,8 +523,7 @@
     },
     "placeholder_target": "Сообщение для {target} — Enter для новой строки · Ctrl+Enter или Cmd+Enter отправляет · /search ищет везде",
     "unreachable": "Сервис поиска недоступен. Попробуйте чуть позже.",
-    "slash_shortcut": "Нажмите /, чтобы перейти в omnibox. Escape возвращает фокус туда, где он был.",
-    "slash_badge_title": "Нажмите /, чтобы перейти"
+    "slash_shortcut": "Нажмите /, чтобы перейти в omnibox. Escape возвращает фокус туда, где он был."
   },
   "role": {
     "biz_owner": "Владелец бизнеса",

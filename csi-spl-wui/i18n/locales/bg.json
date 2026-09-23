@@ -523,8 +523,7 @@
     },
     "placeholder_target": "Съобщение до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",
     "unreachable": "Услугата за търсене не е достъпна. Опитайте отново след малко.",
-    "slash_shortcut": "Натиснете /, за да фокусирате omnibox. Escape връща фокуса там, където беше.",
-    "slash_badge_title": "Натиснете / за фокус"
+    "slash_shortcut": "Натиснете /, за да фокусирате omnibox. Escape връща фокуса там, където беше."
   },
   "role": {
     "biz_owner": "Бизнес собственик",

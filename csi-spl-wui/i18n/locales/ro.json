@@ -523,8 +523,7 @@
     },
     "placeholder_target": "Mesaj către {target} — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru a căuta peste tot",
     "unreachable": "Serviciul de căutare nu poate fi contactat. Încercați din nou în curând.",
-    "slash_shortcut": "Apăsați / pentru a focaliza omnibox-ul. Escape readuce focusul unde era.",
-    "slash_badge_title": "Apăsați / pentru a focaliza"
+    "slash_shortcut": "Apăsați / pentru a focaliza omnibox-ul. Escape readuce focusul unde era."
   },
   "role": {
     "biz_owner": "Proprietar de business",

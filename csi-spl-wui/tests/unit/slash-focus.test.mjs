@@ -165,7 +165,7 @@ describe('slashFocusContext', () => {
 })
 
 describe('wiring: TopBar + MessageComposer + i18n', () => {
-  it('TopBar listens in capture, focuses the composer, restores on Escape, shows a / badge', () => {
+  it('TopBar listens in capture, focuses the composer, and restores on Escape', () => {
     const bar = read('src/components/TopBar.vue')
     assert.match(bar, /from '~\/utils\/slash-focus\.mjs'/)
     assert.match(bar, /slashFocusAction/)
@@ -173,24 +173,13 @@ describe('wiring: TopBar + MessageComposer + i18n', () => {
     assert.match(bar, /addEventListener\('keydown', onDocKey, true\)/)
     assert.match(bar, /removeEventListener\('keydown', onDocKey, true\)/)
     assert.match(bar, /composer\.value\?\.focus\(\)/)
-    assert.match(bar, /data-test="slash-badge"/)
     assert.match(bar, /data-test="slash-shortcut-hint"/)
     assert.match(bar, /t\('search\.slash_shortcut'\)/)
-    assert.match(bar, /t\('search\.slash_badge_title'\)/)
-    assert.match(bar, /@media \(max-width: 640px\)[\s\S]*\.slash-badge \{ display: none; \}/)
-    assert.match(bar, /\.top-bar__omnibox:focus-within \.slash-badge/)
+    assert.doesNotMatch(bar, /slash-badge/)
+    assert.doesNotMatch(bar, /slash_badge_title/)
   })
-  it('CLE-3433: the / keycap is laid out IN FLOW, so it cannot land on the Send button', () => {
+  it('the omnibox stays a flex row and the composer grows inside it', () => {
     const bar = read('src/components/TopBar.vue')
-    /* The defect this pins: `.slash-badge { position: absolute; inset-inline-end: … }`
-       resolved against `.top-bar__omnibox`, whose inline end is where the
-       composer's Send button sits — the keycap covered the word "Send" on the
-       first screen every visitor sees (dev build 28ec27b). A flex row cannot
-       overlap, so assert the row and the absence of the overlay. */
-    const badge = bar.slice(bar.indexOf('.slash-badge {'))
-    const block = badge.slice(0, badge.indexOf('}'))
-    assert.doesNotMatch(block, /position:\s*absolute/)
-    assert.doesNotMatch(block, /inset-inline-end/)
     const omni = bar.slice(bar.indexOf('.top-bar__omnibox {'))
     assert.match(omni.slice(0, omni.indexOf('}')), /display:\s*flex/)
     assert.match(bar, /\.top-bar__omnibox > \.composer \{[\s\S]*?flex: 1 1 auto/)
@@ -212,13 +201,12 @@ describe('wiring: TopBar + MessageComposer + i18n', () => {
     assert.equal(files.length, 19)
     const en = JSON.parse(read('i18n/locales/en.json'))
     assert.equal(en.search.slash_shortcut, 'Press / to focus the omnibox. Escape returns to where you were.')
-    assert.equal(en.search.slash_badge_title, 'Press / to focus')
+    assert.equal(en.search.slash_badge_title, undefined)
     for (const f of files) {
       const data = JSON.parse(read(`i18n/locales/${f}`))
       assert.equal(typeof data.search.slash_shortcut, 'string', f)
       assert.ok(data.search.slash_shortcut.trim().length > 0, f)
-      assert.equal(typeof data.search.slash_badge_title, 'string', f)
-      assert.ok(data.search.slash_badge_title.includes('/'), f)
+      assert.equal(data.search.slash_badge_title, undefined, f)
     }
   })
 })

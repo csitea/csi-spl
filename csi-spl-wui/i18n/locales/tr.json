@@ -523,8 +523,7 @@
     },
     "placeholder_target": "{target} için mesaj — Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",
     "unreachable": "Arama hizmetine ulaşılamadı. Birazdan tekrar deneyin.",
-    "slash_shortcut": "Omnibox'a geçmek için / tuşuna basın. Escape odağı önceki yere verir.",
-    "slash_badge_title": "Odaklamak için / tuşuna basın"
+    "slash_shortcut": "Omnibox'a geçmek için / tuşuna basın. Escape odağı önceki yere verir."
   },
   "role": {
     "biz_owner": "İşletme sahibi",

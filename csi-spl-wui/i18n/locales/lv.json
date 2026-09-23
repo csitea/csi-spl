@@ -523,8 +523,7 @@
     },
     "placeholder_target": "Ziņa: {target} — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter nosūta · /search meklē visur",
     "unreachable": "Meklēšanas pakalpojums nav sasniedzams. Drīz mēģiniet vēlreiz.",
-    "slash_shortcut": "Nospiediet /, lai fokusētu omnibox. Escape atgriež fokusu tur, kur tas bija.",
-    "slash_badge_title": "Nospiediet /, lai fokusētu"
+    "slash_shortcut": "Nospiediet /, lai fokusētu omnibox. Escape atgriež fokusu tur, kur tas bija."
   },
   "role": {
     "biz_owner": "Biznesa īpašnieks",

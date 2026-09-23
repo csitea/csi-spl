@@ -23,12 +23,6 @@
         @dismiss="onDismiss"
         @results="omnibox.focusResults++"
       />
-      <kbd
-        class="slash-badge"
-        data-test="slash-badge"
-        aria-hidden="true"
-        :title="t('search.slash_badge_title')"
-      >/</kbd>
       <p :id="slashHintId" class="sr-only" data-test="slash-shortcut-hint">{{ t('search.slash_shortcut') }}</p>
       <!-- CLE-3433: a send that did not land says so HERE, next to the box
            that still holds the text, and offers the one action that helps -->
@@ -238,13 +232,6 @@ onUnmounted(() => {
   max-width: 960px;
   margin-inline: auto;
   position: relative;
-  /* CLE-3433: a FLEX row, so the `/` keycap is a sibling of the composer
-     pill instead of an absolutely positioned overlay. Absolute placement
-     resolved against this box, whose inline end is also where the
-     composer's Send button sits — the keycap landed ON the word "Send"
-     and clipped it (measured on dev build 28ec27b at 1440x900: badge
-     x 1089..1110, Send x 1050..1112, rectangles intersecting). Laid out
-     in flow the two can never collide at any width. */
   display: flex;
   align-items: center;
   gap: 8px;
@@ -253,20 +240,6 @@ onUnmounted(() => {
   flex: 1 1 auto;
   min-width: 0;
 }
-.slash-badge {
-  flex: 0 0 auto;
-  pointer-events: none;
-  font-size: 11px;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  line-height: 1;
-  padding: 2px 6px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-muted, var(--color-fg));
-  background: var(--color-surface);
-  opacity: 0.85;
-}
-.top-bar__omnibox:focus-within .slash-badge { display: none; }
 .top-bar__send-error {
   position: absolute;
   top: 100%;
@@ -296,7 +269,6 @@ onUnmounted(() => {
 }
 /* FR-003: phone — the Omnibox folds into the icon; opened, it covers the bar */
 @media (max-width: 640px) {
-  .slash-badge { display: none; }
   .top-bar__omnibox { display: none; }
   .top-bar__search-toggle { display: inline-grid; place-items: center; }
   .top-bar--open .top-bar__omnibox {

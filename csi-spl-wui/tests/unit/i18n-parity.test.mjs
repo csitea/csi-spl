@@ -163,6 +163,7 @@ const REMOVED_KEYS = [
   'checkout.shipping.methodPickup',
   'product.gallery.full_in_modal',
   'product.gallery.open_multi',
+  'search.slash_badge_title',
 ]
 for (const f of codes) {
   const have = new Set(sets[f])

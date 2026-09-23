@@ -523,8 +523,7 @@
     },
     "placeholder_target": "Порука за {target} — Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
     "unreachable": "Услуга претраге није доступна. Покушајте ускоро поново.",
-    "slash_shortcut": "Притисните / да фокусирате omnibox. Escape враћа фокус тамо где је био.",
-    "slash_badge_title": "Притисните / за фокус"
+    "slash_shortcut": "Притисните / да фокусирате omnibox. Escape враћа фокус тамо где је био."
   },
   "role": {
     "biz_owner": "Пословни власник",

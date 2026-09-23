@@ -523,8 +523,7 @@
     },
     "placeholder_target": "Viesti: {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
     "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen.",
-    "slash_shortcut": "Paina / kohdistaaksesi omniboxin. Escape palauttaa kohdistuksen entiseen paikkaan.",
-    "slash_badge_title": "Paina / kohdistaaksesi"
+    "slash_shortcut": "Paina / kohdistaaksesi omniboxin. Escape palauttaa kohdistuksen entiseen paikkaan."
   },
   "role": {
     "biz_owner": "Liiketoiminnan omistaja",

@@ -523,8 +523,7 @@
     },
     "placeholder_target": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",
     "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund.",
-    "slash_shortcut": "Tryck / för att fokusera omnibox. Escape återställer fokuset dit det var.",
-    "slash_badge_title": "Tryck / för att fokusera"
+    "slash_shortcut": "Tryck / för att fokusera omnibox. Escape återställer fokuset dit det var."
   },
   "role": {
     "biz_owner": "Affärsägare",

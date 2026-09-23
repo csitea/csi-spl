@@ -73,6 +73,12 @@ onMounted(() => { void session.probe() })
   width: min(880px, 100%);
   padding-top: 0;
   overflow: hidden;
+  text-align: center;
+}
+/* A centered card still types from the start of the field. */
+.login-landing-card :deep(input),
+.login-landing-card :deep(textarea) {
+  text-align: start;
 }
 .login-landing {
   display: block;

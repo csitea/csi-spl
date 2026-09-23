@@ -17,8 +17,10 @@ import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 <style scoped>
 .login {
   position: relative;
-  /* room for the corner control so the card never slides under it */
+  /* Equal insets keep the card on the viewport centre. The top inset is
+     also the room the corner control needs so the card never slides under it. */
   padding-top: 64px;
+  padding-bottom: 64px;
 }
 .login-corner {
   position: absolute;

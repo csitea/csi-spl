@@ -99,11 +99,12 @@ describe('the composer offers attach on exactly the routes that can honour it', 
     assert.match(s, /ev\.ctrlKey \|\| ev\.metaKey/)
   })
 
-  it('tabbing attach or Send fills the button and flashes it, like a Drive search chip', () => {
+  it('attach and Send are grey and raised on hover, darker blue when focused or clicked', () => {
     const css = src('src/assets/css/main.css')
-    assert.match(css, /@keyframes composer-tab-flash/)
-    assert.match(css, /\.composer-row button:focus-visible\s*\{[^}]*background:\s*var\(--color-accent\)/)
-    assert.match(css, /\.composer-row button:focus-visible\s*\{[^}]*border-radius:\s*var\(--radius-pill\)/)
-    assert.match(css, /\.composer-row button:focus-visible\s*\{[^}]*animation:\s*composer-tab-flash/)
+    assert.match(css, /\.composer-row button:hover\s*\{[^}]*linear-gradient\(180deg, var\(--color-btn-grey-top\), var\(--color-btn-grey-bottom\)\)/)
+    assert.match(css, /\.composer-row button:focus,\s*\.composer-row button:active\s*\{[^}]*background:\s*var\(--color-btn-select\)/)
+    assert.equal(css.includes('composer-tab-flash'), false)
+    const vue = src('src/components/MessageComposer.vue')
+    assert.equal(/\.attach:active/.test(vue), false)
   })
 })

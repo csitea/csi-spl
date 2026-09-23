@@ -682,7 +682,6 @@ textarea.in-code {
   font-weight: 400;
   box-shadow: none;
 }
-.attach:active { background: transparent; }
 .composer-send[aria-disabled='true'] { opacity: 0.45; }
 .mention-list {
   list-style: none;

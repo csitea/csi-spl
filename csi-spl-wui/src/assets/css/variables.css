@@ -56,6 +56,14 @@
   --focus-3d: 0 4px 10px rgba(0, 0, 0, 0.5);
   --color-selected: #02040a;
   --color-accent-pressed: #1fb7d2;
+  /* Composer attach / Send. Hover is a raised grey button; keyboard focus
+     and a click are a darker blue. */
+  --color-btn-grey-top: #4b5362;
+  --color-btn-grey-bottom: #2a303a;
+  --color-btn-grey-shine: rgba(255, 255, 255, 0.38);
+  --color-btn-grey-edge: #12161c;
+  --color-btn-select: #0a3d78;
+  --color-btn-select-fg: #f4f8ff;
 
   --radius: 8px;
   --radius-sm: 8px;
@@ -125,6 +133,12 @@
   --focus-3d: 0 4px 10px rgba(12, 60, 110, 0.28);
   --color-selected: #c3d5ec;
   --color-accent-pressed: #0a7ea3;
+  --color-btn-grey-top: #f5f7fa;
+  --color-btn-grey-bottom: #b4bec9;
+  --color-btn-grey-shine: #ffffff;
+  --color-btn-grey-edge: #7c8794;
+  --color-btn-select: #08325f;
+  --color-btn-select-fg: #f4f8ff;
 }
 
 :root[data-theme="dark"] {
@@ -170,4 +184,10 @@
   --focus-3d: 0 4px 10px rgba(0, 0, 0, 0.5);
   --color-selected: #02040a;
   --color-accent-pressed: #1fb7d2;
+  --color-btn-grey-top: #4b5362;
+  --color-btn-grey-bottom: #2a303a;
+  --color-btn-grey-shine: rgba(255, 255, 255, 0.38);
+  --color-btn-grey-edge: #12161c;
+  --color-btn-select: #0a3d78;
+  --color-btn-select-fg: #f4f8ff;
 }

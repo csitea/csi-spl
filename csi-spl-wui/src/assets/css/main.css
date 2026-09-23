@@ -396,19 +396,23 @@ html.pane-dragging * {
   font-weight: 600;
   cursor: pointer;
 }
-/* Tabbing onto attach / send / search. Drive's search chips (AI overview,
-   Advanced Search) fill and pop once when the keyboard lands on them; a
-   thin ring on an already-filled Send button does not read as selected.
-   The ring itself stays the shared focus treatment. */
-@keyframes composer-tab-flash {
-  0% { transform: scale(1.08); }
-  100% { transform: scale(1); }
+/* Attach and Send. Hover lifts a grey button; keyboard focus and a click
+   press it into a darker blue. Focus wins over hover when both are true. */
+.composer-row button:hover {
+  background: linear-gradient(180deg, var(--color-btn-grey-top), var(--color-btn-grey-bottom));
+  color: var(--color-fg);
+  box-shadow:
+    inset 0 1px 0 var(--color-btn-grey-shine),
+    0 2px 0 var(--color-btn-grey-edge),
+    0 3px 6px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
 }
-.composer-row button:focus-visible {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-  border-radius: var(--radius-pill);
-  animation: composer-tab-flash 220ms ease-out;
+.composer-row button:focus,
+.composer-row button:active {
+  background: var(--color-btn-select);
+  color: var(--color-btn-select-fg);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  transform: translateY(1px);
 }
 .btn.ghost {
   background: transparent;
@@ -720,8 +724,7 @@ html.pane-dragging * {
 .btn.ghost:active {
   background: var(--color-selected);
 }
-.btn:active,
-.composer-row button:active {
+.btn:active {
   background: var(--color-accent-pressed);
 }
 

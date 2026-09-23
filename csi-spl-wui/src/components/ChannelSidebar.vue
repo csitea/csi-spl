@@ -248,6 +248,7 @@
         <a
           class="nav-item"
           :class="{ active: topicOpen === row.task_id }"
+          :aria-current="topicOpen === row.task_id ? 'true' : undefined"
           :data-key="row.task_id"
           :data-ts="row.last_ts || undefined"
           :href="localePath('/t/' + row.task_id)"
@@ -474,6 +475,16 @@ const topicOpen = computed(() => {
   if (topicStore.open && topicStore.parentTaskId) return topicStore.parentTaskId
   const m = route.path.match(/\/t\/([^/]+)$/)
   return m ? decodeURIComponent(m[1]) : ''
+})
+/* A replies click opens the topic on the right and shows this list. The
+   opened topic's title is the selected row, brought to the top. */
+watch([topicOpen, tab, () => viewer.topics.length], async ([id, which]) => {
+  if (which !== 'topics' || !id) return
+  await nextTick()
+  const panel = document.getElementById('sidebar-panel-topics')
+  if (!panel) return
+  const row = panel.querySelector(`[data-key="${CSS.escape(String(id))}"]`)
+  row?.scrollIntoView({ block: 'start', inline: 'nearest' })
 })
 /* Topics opens the topic index. Flow stays on this page and mixes the
    three lists. Direct messages and channels only swap the sidebar. */

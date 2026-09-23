@@ -10,7 +10,7 @@
     @click="onTopicPaneClick"
   >
     <header>
-      <strong>{{ t('topic.title') }}</strong>
+      <strong class="topic-heading__title" data-test="topic-heading">{{ heading }}</strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
         <button
           class="icon-btn"
@@ -50,6 +50,7 @@ import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { matchesSearch, mergeById, newestFirst } from '~/utils/feed.mjs'
+import { topicTitleFromRows } from '~/utils/view-api.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
@@ -80,6 +81,12 @@ const pendingHere = computed(() => channel.messages.filter((m) => m.pending && m
 const messages = computed(() => {
   const held = (api.mock ? topic.messages : mergeById(liveRows.value, pendingHere.value).rows) as SpoolMessage[]
   return newestFirst(held.filter((m) => matchesSearch(m, search.value))) as SpoolMessage[]
+})
+/* The open topic's own title, selected at the top of this pane. */
+const heading = computed(() => {
+  const rows = (api.mock ? topic.messages : liveRows.value) as SpoolMessage[]
+  const text = topicTitleFromRows(rows, topic.rootMsg)
+  return text ? t('topic.list_title', { text }) : t('topic.title')
 })
 
 /** 013 US7 FR-015: after a reconnect, re-read the topic and merge it by msg_id. */

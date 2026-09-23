@@ -41,6 +41,8 @@ describe('a new topic pops up at the top of the open right pane', () => {
       const born = s.indexOf('<BornTopics')
       const root = s.indexOf('pinned-root')
       assert.ok(born > 0 && born < root, rel)
+      assert.match(s, /data-test="topic-heading"/)
+      assert.match(s, /t\('topic\.list_title'/)
     }
   })
 

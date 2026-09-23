@@ -23,6 +23,23 @@ export function subjectOf(body) {
   return line.length > SUBJECT_MAX ? line.slice(0, SUBJECT_MAX) : line
 }
 
+/**
+ * The title of an open topic: the pinned root when the click was one
+ * message, otherwise the oldest row (the starter). Empty when there is
+ * no text yet.
+ */
+export function topicTitleFromRows(rows, pinnedRoot) {
+  const pinned = pinnedRoot && String(pinnedRoot.body || '').trim()
+  if (pinned) return topicOpening(pinnedRoot.body)
+  const list = Array.isArray(rows) ? rows : []
+  let root = null
+  for (const m of list) {
+    if (!m) continue
+    if (!root || String(m.ts || '') < String(root.ts || '')) root = m
+  }
+  return topicOpening(root && root.body)
+}
+
 /** First 100 characters of a topic's first message, whitespace collapsed. */
 export function topicOpening(text) {
   const flat = String(text || '').replace(/\s+/g, ' ').trim()

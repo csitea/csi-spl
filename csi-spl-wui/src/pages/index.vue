@@ -19,6 +19,8 @@
         v-for="t in viewer.topics"
         :key="t.task_id"
         class="topic-row"
+        :class="{ selected: openedTopicId === t.task_id }"
+        :aria-current="openedTopicId === t.task_id ? 'true' : undefined"
         :data-key="t.task_id"
         :data-ts="t.last_ts || undefined"
         :href="localePath('/t/' + t.task_id)"
@@ -71,6 +73,12 @@ const localePath = useLocalePath()
 /* 013 US3: a click opens the topic in the right pane; the link still works for new tabs */
 const pane = useLiveFeed('pane')
 const sidePane = useSidePane()
+/* The open topic's title row is the selected one. */
+const openedTopicId = computed(() => {
+  if (pane.taskId) return String(pane.taskId)
+  if (topicStore.open && topicStore.parentTaskId) return String(topicStore.parentTaskId)
+  return ''
+})
 /* deep link: /?topic=<task_id> opens the right pane. `/` is prerendered, so
    the query only exists once hydration settles (useSettledQuery). */
 const topic = useSettledQuery('topic')
@@ -81,6 +89,15 @@ onMounted(() => {
 })
 /* 013 US7: newest activity on top, live over the socket; a reader scrolled down keeps their place */
 const listTop = ref<HTMLElement | null>(null)
+/* Bring the selected topic title to the top of this list. */
+watch(openedTopicId, async (id) => {
+  if (!id) return
+  await nextTick()
+  const root = listTop.value
+  if (!root) return
+  const row = root.querySelector(`[data-key="${CSS.escape(id)}"]`)
+  row?.scrollIntoView({ block: 'start', inline: 'nearest' })
+})
 const { pill, jump } = useScrollAnchor(listTop, () => viewer.topics.map((r) => r.task_id))
 /* W5 (GRK-3377): `/` opened the hub socket while signed out - viewer.follow()
    calls live.ensure(), which constructs and connects a client, and the hub

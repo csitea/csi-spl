@@ -8,6 +8,7 @@ import {
   rosterFromView,
   topicMessages,
   topicOpening,
+  topicTitleFromRows,
   topicsFromMessages,
 } from '../../src/utils/view-api.mjs'
 import { createSpoolClient, sha256Hex } from '../../src/utils/spool-client.mjs'
@@ -63,6 +64,9 @@ describe('view-api helpers', () => {
     assert.equal(topicOpening('ä'.repeat(101)).length, 100)
     assert.equal(topicOpening('a'.repeat(100)), 'a'.repeat(100))
     assert.equal(topicOpening('a'.repeat(101)), 'a'.repeat(100))
+    assert.equal(topicTitleFromRows([], null), '')
+    assert.equal(topicTitleFromRows([{ ts: '2', body: 'later' }, { ts: '1', body: 'starter' }], null), 'starter')
+    assert.equal(topicTitleFromRows([{ ts: '1', body: 'starter' }], { body: 'the pinned root' }), 'the pinned root')
   })
 
   it('flattens a §4.4 envelope and drops sig', () => {

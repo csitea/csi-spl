@@ -496,6 +496,12 @@ html.pane-dragging * {
   border-bottom: 1px solid var(--color-border);
   min-width: 0;
 }
+.topic-heading__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+}
 .login {
   min-height: 100vh;
   max-width: 100%;
@@ -711,6 +717,7 @@ html.pane-dragging * {
 .msg.selected,
 .topic-row.selected,
 .topic.selected,
+.topic-heading__title,
 .search-row.active {
   background: var(--color-selected);
   box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring);

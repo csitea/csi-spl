@@ -37,8 +37,9 @@ function readTenant(fallback: string): string {
 }
 
 /**
- * Tenant reads go to the TENANT host (<tenant>.<fqdn>), never api.<fqdn>
- * (003 http-v1, cfe5a9b). NUXT_PUBLIC_API_BASE is a template with {tenant}.
+ * Hub origin for tenant reads comes from apiBaseFor. A fixed api host is
+ * used as-is (the normal case since specs/026). A {tenant} template is
+ * substituted only for lde.
  */
 export function useSpoolApi() {
   if (client) return client

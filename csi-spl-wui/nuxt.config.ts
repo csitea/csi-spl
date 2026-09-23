@@ -3,7 +3,7 @@
 // Shape follows the donor WUI: srcDir 'src/', '@' alias, CSP and
 // security headers as routeRules, long-lived vendor chunks, @nuxtjs/i18n.
 // The spool keeps its own runtimeConfig (tenant host template, mock mode,
-// lobby task id, poll interval) and the lde auth devProxy (spec 010).
+// lobby task id) and the lde auth devProxy (spec 010).
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -227,7 +227,6 @@ export default defineNuxtConfig({
         ? (isDev ? "1" : "0")
         : process.env.NUXT_PUBLIC_USE_MOCK,
       appVersion: wuiAppVersion(),
-      pollMs: process.env.NUXT_PUBLIC_POLL_MS || "4000",
       // Named env of this build (dev / prd); empty or lde = not deployed.
       envName: process.env.NUXT_PUBLIC_ENV_NAME || "",
       // Name of the locale preference cookie (see LOCALE_COOKIE).

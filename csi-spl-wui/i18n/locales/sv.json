@@ -55,7 +55,7 @@
     "language": {
       "label": "Önskat språk",
       "save": "Spara",
-      "hint": "Spool skickar e-post till dig på det här språket och öppnas på det när du har loggat in. Språkmenyn högst upp ändrar bara sidan du är på.",
+      "hint": "Spool skickar e-post till dig på det här språket och öppnas på det när du har loggat in. När du sparar byter gränssnittet till det direkt.",
       "saved": "Sparat.",
       "failed": "Kunde inte spara — försök igen."
     },

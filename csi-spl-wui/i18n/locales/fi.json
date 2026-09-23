@@ -55,7 +55,7 @@
     "language": {
       "label": "Ensisijainen kieli",
       "save": "Tallenna",
-      "hint": "Spool lähettää sinulle sähköpostit tällä kielellä ja avautuu sillä kirjautumisesi jälkeen. Yläreunan kielivalikko vaihtaa vain nykyisen sivun kielen.",
+      "hint": "Spool lähettää sinulle sähköpostit tällä kielellä ja avautuu sillä kirjautumisesi jälkeen. Tallennus vaihtaa käyttöliittymän siihen heti.",
       "saved": "Tallennettu.",
       "failed": "Tallennus epäonnistui — yritä uudelleen."
     },

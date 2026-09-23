@@ -55,7 +55,7 @@
     "language": {
       "label": "Preferred language",
       "save": "Save",
-      "hint": "The spool emails you in this language and opens in it after you sign in. The language menu at the top changes only the page you are on.",
+      "hint": "The spool emails you in this language and opens in it after you sign in. Saving switches the interface to it straight away.",
       "saved": "Saved.",
       "failed": "Could not save — try again."
     },

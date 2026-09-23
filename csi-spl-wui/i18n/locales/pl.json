@@ -55,7 +55,7 @@
     "language": {
       "label": "Preferowany język",
       "save": "Zapisz",
-      "hint": "Spool wysyła Ci e-maile w tym języku i otwiera się w nim po zalogowaniu. Menu języka u góry zmienia tylko bieżącą stronę.",
+      "hint": "Spool wysyła Ci e-maile w tym języku i otwiera się w nim po zalogowaniu. Zapisanie od razu przełącza na niego interfejs.",
       "saved": "Zapisano.",
       "failed": "Nie udało się zapisać — spróbuj ponownie."
     },

@@ -55,7 +55,7 @@
     "language": {
       "label": "Vēlamā valoda",
       "save": "Saglabāt",
-      "hint": "Spool sūta jums e-pastus šajā valodā un pēc pieteikšanās atveras tajā. Valodas izvēlne augšā maina tikai atvērto lapu.",
+      "hint": "Spool sūta jums e-pastus šajā valodā un pēc pieteikšanās atveras tajā. Saglabāšana uzreiz pārslēdz saskarni uz to.",
       "saved": "Saglabāts.",
       "failed": "Neizdevās saglabāt — mēģiniet vēlreiz."
     },

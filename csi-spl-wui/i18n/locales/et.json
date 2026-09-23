@@ -55,7 +55,7 @@
     "language": {
       "label": "Eelistatud keel",
       "save": "Salvesta",
-      "hint": "Spool saadab sulle e-kirju selles keeles ja avaneb pärast sisselogimist selles keeles. Ülal olev keelemenüü muudab ainult lehte, millel parajasti oled.",
+      "hint": "Spool saadab sulle e-kirju selles keeles ja avaneb pärast sisselogimist selles keeles. Salvestamine lülitab liidese kohe sellele keelele.",
       "saved": "Salvestatud.",
       "failed": "Salvestamine ebaõnnestus — proovi uuesti."
     },

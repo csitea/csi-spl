@@ -55,7 +55,7 @@
     "language": {
       "label": "Tercih edilen dil",
       "save": "Kaydet",
-      "hint": "Spool size bu dilde e-posta gönderir ve giriş yaptıktan sonra bu dilde açılır. Üstteki dil menüsü yalnızca bulunduğunuz sayfayı değiştirir.",
+      "hint": "Spool size bu dilde e-posta gönderir ve giriş yaptıktan sonra bu dilde açılır. Kaydettiğinizde arayüz hemen bu dile geçer.",
       "saved": "Kaydedildi.",
       "failed": "Kaydedilemedi — tekrar deneyin."
     },

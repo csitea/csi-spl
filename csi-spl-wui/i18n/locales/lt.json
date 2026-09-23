@@ -55,7 +55,7 @@
     "language": {
       "label": "Pageidaujama kalba",
       "save": "Išsaugoti",
-      "hint": "Spool siunčia jums laiškus šia kalba ir prisijungus atsidaro ja. Kalbos meniu viršuje keičia tik puslapį, kuriame esate.",
+      "hint": "Spool siunčia jums laiškus šia kalba ir prisijungus atsidaro ja. Įrašius sąsaja iškart perjungiama į ją.",
       "saved": "Išsaugota.",
       "failed": "Nepavyko išsaugoti — bandykite dar kartą."
     },

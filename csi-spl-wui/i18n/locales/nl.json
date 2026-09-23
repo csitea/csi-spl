@@ -55,7 +55,7 @@
     "language": {
       "label": "Voorkeurstaal",
       "save": "Opslaan",
-      "hint": "Spool mailt je in deze taal en opent in deze taal nadat je bent ingelogd. Het taalmenu bovenaan wijzigt alleen de pagina waarop je nu bent.",
+      "hint": "Spool mailt je in deze taal en opent in deze taal nadat je bent ingelogd. Bij opslaan schakelt de interface er meteen naartoe.",
       "saved": "Opgeslagen.",
       "failed": "Opslaan mislukt — probeer het opnieuw."
     },

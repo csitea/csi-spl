@@ -6,8 +6,10 @@
 //      refused, and a tenant sign-in can seat a test account as a zero-member
 //      tenant's bootstrap owner; tenant-less creates only the human);
 //   3. /<ui>/settings/language: pick `WANT` in LanguageSetting, Save →
-//      status line, GET /api/v1/auth/session answers preferred_locale=WANT,
-//      and the page did NOT switch language (the donor's account page rule);
+//      GET /api/v1/auth/session answers preferred_locale=WANT, AND the page
+//      switches into WANT on the spot — URL prefix and <html lang> both
+//      (owner 2026-09-23; until then Save stored the preference and left the
+//      page in the old language, which is the bug that was reported);
 //   4. sign out, sign in again at the default-locale /login → the WUI opens in
 //      WANT once (plugins/preferred-locale.client.ts);
 //   5. PUT preferences {"preferred_locale":"xx"} → 400 unsupported_locale.
@@ -90,15 +92,19 @@ try {
   await p.keyboard.type(WANT === 'fi' ? 'suo' : WANT, { delay: 40 })
   await p.waitForSelector(`[data-test=settings-preferred-locale-item-${WANT}]`, { visible: true, timeout: 5000 })
   await p.click(`[data-test=settings-preferred-locale-item-${WANT}]`)
-  await p.click('[data-test=settings-preferred-locale-save]')
-  await p.waitForSelector('[data-test=settings-preferred-locale-status]', { timeout: 15000 }).catch(() => null)
+  await Promise.all([
+    // The switch IS the confirmation, so wait for it rather than for a status
+    // line — the page remounts in WANT and the status ref goes with it.
+    p.waitForFunction((c) => document.documentElement.lang.startsWith(c), { timeout: 20000 }, WANT),
+    p.click('[data-test=settings-preferred-locale-save]'),
+  ])
   await settle()
-  const status = await p.$eval('[data-test=settings-preferred-locale-status]', (e) => e.textContent.trim()).catch(() => '')
   const lang = await p.evaluate(() => document.documentElement.lang)
+  const savedPath = new URL(p.url()).pathname
   const sess = await p.evaluate(async (api) => (await fetch(api + '/api/v1/auth/session', { credentials: 'include' })).json(), API)
-  step(`save ${WANT}: session preferred_locale, page stays ${UI}`,
-    sess.preferred_locale === WANT && lang.startsWith(UI) && status !== '' && !/[Ee]rror|failed/.test(status),
-    { preferred_locale: sess.preferred_locale, html_lang: lang, status })
+  step(`save ${WANT}: session preferred_locale AND the page switches to ${WANT}`,
+    sess.preferred_locale === WANT && lang.startsWith(WANT) && savedPath === pfx(WANT) + '/settings/language',
+    { preferred_locale: sess.preferred_locale, html_lang: lang, path: savedPath })
   await p.screenshot({ path: `${OUT}/settings-language-saved.png` })
 
   // 5. an unsupported code is refused (page context: cookie + CORS as the WUI)

@@ -111,10 +111,10 @@ if (!existsSync(swPath)) {
     'data-test="lang-switcher-input"',
     'data-test="lang-switcher-options"',
     'lang-item-${loc.code}',
-    'useSwitchLocalePath',
-    'navigateTo',
-    'csi-spl-lang',
-    'import.meta.client',
+    // The navigation itself moved to composables/useLocaleSwitch (shared with
+    // Settings -> Language); the markers for it are asserted on that file below.
+    'useLocaleSwitch',
+    'switchTo(loc.code)',
     'nav.lang_label',
     'nav.lang_note',
     'nav.lang_search_placeholder',
@@ -154,6 +154,13 @@ if (!existsSync(swPath)) {
     pass('LanguageSwitcher keeps the focus selection on click')
   } else {
     fail('LanguageSwitcher keeps the focus selection on click', 'mouseup guard missing')
+  }
+  // The header control must not carry its own copy of the navigation any
+  // more: two copies are how the two surfaces drifted apart in the first place.
+  if (!src.includes('useSwitchLocalePath') && !src.includes('navigateTo')) {
+    pass('LanguageSwitcher delegates the navigation to useLocaleSwitch')
+  } else {
+    fail('LanguageSwitcher delegates the navigation to useLocaleSwitch', 'inline switchLocalePath/navigateTo still present')
   }
   // Filtering is delegated to the shared, fold-aware matcher
   if (src.includes('filterLocales(availableLocales.value, query.value)')) {
@@ -368,6 +375,69 @@ for (const code of LOCALES) {
     fail(code + ' nav.lang_no_matches', JSON.stringify(nav.lang_no_matches))
   }
 }
+
+
+// --- useLocaleSwitch: the one place a locale switch navigates ---
+const lsPath = join(WUI, 'src/composables/useLocaleSwitch.ts')
+if (!existsSync(lsPath)) {
+  fail('useLocaleSwitch.ts exists', lsPath)
+} else {
+  pass('useLocaleSwitch.ts exists')
+  const src = readFileSync(lsPath, 'utf8')
+  for (const marker of [
+    'useSwitchLocalePath',
+    'navigateTo',
+    'csi-spl-lang',
+    'import.meta.client',
+    'localeTargetPath',
+    'isPathInLocale',
+    "query: { ...route.query }",
+  ]) {
+    src.includes(marker)
+      ? pass('useLocaleSwitch has ' + marker)
+      : fail('useLocaleSwitch has ' + marker, 'missing')
+  }
+  // The regression this file exists for: switchLocalePath's answer is only
+  // used when it actually lands in the target locale. Trusting it blind is
+  // what made the switcher a silent no-op.
+  if (/isPathInLocale\(offered/.test(src) && src.includes('localeTargetPath(route.path')) {
+    pass('useLocaleSwitch checks switchLocalePath before trusting it')
+  } else {
+    fail('useLocaleSwitch checks switchLocalePath before trusting it', 'unchecked fallback')
+  }
+}
+
+// --- Settings -> Language must switch the UI on save (owner 2026-09-23) ---
+const setPath = join(WUI, 'src/components/LanguageSetting.vue')
+if (!existsSync(setPath)) {
+  fail('LanguageSetting.vue exists', setPath)
+} else {
+  pass('LanguageSetting.vue exists')
+  const src = readFileSync(setPath, 'utf8')
+  if (src.includes('useLocaleSwitch') && /await switchTo\(want, true\)/.test(src)) {
+    pass('LanguageSetting switches the UI after a successful save')
+  } else {
+    fail('LanguageSetting switches the UI after a successful save', 'save does not switch')
+  }
+  // The hub write must be awaited first: never claim a preference it refused.
+  const saveIdx = src.indexOf('auth.savePreferences')
+  const switchIdx = src.indexOf('switchTo(want')
+  if (saveIdx > -1 && switchIdx > saveIdx) {
+    pass('LanguageSetting saves before it switches')
+  } else {
+    fail('LanguageSetting saves before it switches', 'switch is not after the hub write')
+  }
+}
+
+// --- the hint copy must not still promise the old behaviour ---
+for (const code of LOCALES) {
+  const msgs = JSON.parse(readFileSync(join(WUI, 'i18n/locales/' + code + '.json'), 'utf8'))
+  const hint = msgs?.settings?.language?.hint
+  typeof hint === 'string' && hint.length > 0
+    ? pass('settings.language.hint present for ' + code)
+    : fail('settings.language.hint present for ' + code, 'missing')
+}
+
 
 if (failed > 0) {
   console.error('\n' + failed + ' check(s) failed')

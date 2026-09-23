@@ -55,7 +55,7 @@
     "language": {
       "label": "Idioma preferido",
       "save": "Guardar",
-      "hint": "Spool te envía los correos en este idioma y se abre en él al iniciar sesión. El menú de idioma de arriba solo cambia la página en la que estás.",
+      "hint": "Spool te envía los correos en este idioma y se abre en él al iniciar sesión. Al guardar, la interfaz cambia a él al instante.",
       "saved": "Guardado.",
       "failed": "No se pudo guardar — inténtalo de nuevo."
     },

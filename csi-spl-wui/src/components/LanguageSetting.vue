@@ -1,9 +1,23 @@
 <!-- spec 021: the signed-in human's preferred language (Settings page,
-     CLE-3402's section#settings-language). The donor's account page shape:
-     the same searchable LocaleCombobox as the header switcher, a Save that
-     writes the hub-side preferred_locale, and NO UI switch here — the hub
-     mails in this language and plugins/preferred-locale.client.ts applies it
-     after the next sign-in; the header switcher changes the current page.
+     CLE-3402's section#settings-language). The same searchable LocaleCombobox
+     as the header switcher, and a Save that writes the hub-side
+     preferred_locale — the hub mails in this language and
+     plugins/preferred-locale.client.ts opens the WUI in it after the next
+     sign-in.
+
+     Save ALSO switches the interface on the spot (owner 2026-09-23). It did
+     not until then, copied from the donor's account page, and that is the bug
+     the owner reported: a control labelled "language", with a Save, that
+     leaves every string on the page in the old language is indistinguishable
+     from a broken one. The switch is the same navigation the header control
+     makes (useLocaleSwitch — the URL prefix stays the single source of truth),
+     so the two surfaces cannot disagree, and the page re-rendering in the
+     chosen language IS the confirmation.
+
+     Order matters: the hub write is awaited FIRST and a failure aborts the
+     switch, so the UI never claims a preference the hub did not accept (an
+     unsupported locale answers 400, auth-v1 preferences).
+
      No props: loads (session claims) and saves (PUT /api/v1/auth/preferences)
      by itself. -->
 <template>
@@ -47,11 +61,13 @@ import LocaleCombobox from '@/components/LocaleCombobox.vue'
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useAuthCopy } from '~/composables/useAuthCopy'
+import { useLocaleSwitch } from '~/composables/useLocaleSwitch'
 
 const { t, locale } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
 const auth = useAuthClient()
 const copy = useAuthCopy()
+const { switchTo } = useLocaleSwitch()
 
 const signedIn = computed(() => session.state === 'in')
 /** What the hub holds; '' = no preference stored yet (the UI locale is shown). */
@@ -67,12 +83,17 @@ async function savePreferredLocale() {
   if (!signedIn.value || saving.value) return
   saving.value = true
   status.value = ''
-  const out = await auth.savePreferences({ preferred_locale: preferredLocale.value })
+  const want = preferredLocale.value
+  const out = await auth.savePreferences({ preferred_locale: want })
   saving.value = false
   if (out.ok) {
-    session.setPreferredLocale(preferredLocale.value)
+    session.setPreferredLocale(want)
     statusError.value = false
     status.value = t('settings.language.saved')
+    // Show this page in the language just chosen. `replace` so Back returns
+    // to wherever the human came from rather than to this same page in the
+    // language they just moved away from.
+    await switchTo(want, true)
     return
   }
   statusError.value = true

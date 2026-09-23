@@ -55,7 +55,7 @@
     "language": {
       "label": "Limba preferată",
       "save": "Salvează",
-      "hint": "Spool vă trimite e-mailuri în această limbă și se deschide în ea după autentificare. Meniul de limbă din partea de sus schimbă doar pagina pe care vă aflați.",
+      "hint": "Spool vă trimite e-mailuri în această limbă și se deschide în ea după autentificare. Salvarea comută imediat interfața pe ea.",
       "saved": "Salvat.",
       "failed": "Salvarea a eșuat — încercați din nou."
     },

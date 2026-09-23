@@ -17,8 +17,10 @@
       from any locale and "se" finds Swedish.
 
       A signed-in human's stored preference (LanguageSetting.vue, Settings)
-      is applied once after sign-in by plugins/preferred-locale.client.ts;
-      this header control switches the UI only, like the donor's.
+      is applied once after sign-in by plugins/preferred-locale.client.ts.
+      Saving there ALSO switches the UI on the spot (owner 2026-09-23) — a
+      language control that leaves the page in the old language reads as
+      broken — so both surfaces now go through useLocaleSwitch.
     -->
     <Combobox
       as="div"
@@ -105,6 +107,7 @@ import {
   ComboboxOptions,
 } from '@headlessui/vue'
 import { filterLocales, normalizeLocaleQuery } from '@/utils/localeSearch'
+import { useLocaleSwitch } from '@/composables/useLocaleSwitch'
 
 type LocaleCode = 'bg' | 'fi' | 'ru' | 'en' | 'sv' | 'he' | 'tr' | 'mk' | 'el' | 'lt' | 'et' | 'lv' | 'sr' | 'ro' | 'uk' | 'sk' | 'pl' | 'es' | 'nl'
 
@@ -139,10 +142,8 @@ const LOCALE_FLAGS: Record<LocaleCode, string> = {
   nl: '🇳🇱',
 }
 
-const LS_KEY = 'csi-spl-lang'
-
 const { locales, locale: currentLocale, t } = useI18n({ useScope: 'global' })
-const switchLocalePath = useSwitchLocalePath()
+const { switchTo } = useLocaleSwitch()
 
 const query = ref('')
 /** True between focus and the click that would collapse the focus selection. */
@@ -216,35 +217,13 @@ function onBlur() {
   keepFocusSelection = false
 }
 
-function persistLocale(code: string) {
-  // SSR-safe: only touch localStorage on the client.
-  if (!import.meta.client) return
-  try {
-    localStorage.setItem(LS_KEY, code)
-  } catch {
-    // private mode / quota — cookie path still works
-  }
-}
-
 async function onSelect(loc: LocaleEntry | null) {
   query.value = ''
   if (!loc) return
-  const code = loc.code
-  if (!code || code === currentLocale.value) return
-  persistLocale(code)
-  // Navigate so URL prefix updates (prefix_except_default: bg has no prefix).
-  // ALWAYS re-apply current query/hash (e.g. a verify/reset token or a
-  // thread deep link must survive a language switch). switchLocalePath
-  // usually returns fullPath, but path-only or empty results have dropped
-  // the query — rebuild explicitly.
-  const route = useRoute()
-  const switched = switchLocalePath(code)
-  const pathOnly = (switched || route.path).split(/[?#]/)[0] || '/'
-  await navigateTo({
-    path: pathOnly,
-    query: { ...route.query },
-    hash: route.hash || undefined,
-  })
+  // The navigation, the localStorage mirror and the "switchLocalePath said
+  // nothing useful" fallback all live in useLocaleSwitch, shared with
+  // Settings -> Language so the two surfaces cannot drift apart.
+  await switchTo(loc.code)
 }
 </script>
 

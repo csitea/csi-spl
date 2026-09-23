@@ -55,7 +55,7 @@
     "language": {
       "label": "Željeni jezik",
       "save": "Sačuvaj",
-      "hint": "Spool vam šalje imejlove na ovom jeziku i otvara se na njemu posle prijave. Meni za jezik na vrhu menja samo stranicu na kojoj se nalazite.",
+      "hint": "Spool vam šalje imejlove na ovom jeziku i otvara se na njemu posle prijave. Čuvanje odmah prebacuje interfejs na njega.",
       "saved": "Sačuvano.",
       "failed": "Čuvanje nije uspelo — pokušajte ponovo."
     },

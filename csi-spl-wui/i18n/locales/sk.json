@@ -55,7 +55,7 @@
     "language": {
       "label": "Preferovaný jazyk",
       "save": "Uložiť",
-      "hint": "Spool vám v tomto jazyku posiela e-maily a po prihlásení sa v ňom otvorí. Jazyková ponuka hore mení len stránku, na ktorej práve ste.",
+      "hint": "Spool vám v tomto jazyku posiela e-maily a po prihlásení sa v ňom otvorí. Uloženie okamžite prepne rozhranie naň.",
       "saved": "Uložené.",
       "failed": "Nepodarilo sa uložiť — skúste to znova."
     },

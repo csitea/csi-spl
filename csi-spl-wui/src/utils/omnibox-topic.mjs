@@ -43,3 +43,16 @@ export function omniboxPlaceholderKey(parentTaskId) {
 export function sendsNewTopic({ paneOpen = false, namedTopicId = '' } = {}) {
   return !paneOpen && !namedTopicId
 }
+
+/**
+ * Send while the Topics tab is the selected left pane and a topic row
+ * is selected replies into that topic. `in: <title>` still wins. Any other
+ * tab, or Topics with nothing selected, starts a new message.
+ * @param {{ tab?: string, selectedTaskId?: string, namedTopicId?: string }} [opts]
+ */
+export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId = '' } = {}) {
+  const named = String(namedTopicId || '')
+  if (named) return named
+  if (tab === 'topics' && selectedTaskId) return String(selectedTaskId)
+  return ''
+}

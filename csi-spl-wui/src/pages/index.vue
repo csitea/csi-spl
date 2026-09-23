@@ -52,6 +52,8 @@ import { useScrollAnchor } from '~/composables/useScrollAnchor'
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
+import { useSidePane } from '~/composables/useSidePane'
+import { omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
 
 const viewer = useViewerStore()
 const channel = useChannelStore()
@@ -63,6 +65,7 @@ const { t: tr, locale } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 /* 013 US3: a click opens the topic in the right pane; the link still works for new tabs */
 const pane = useLiveFeed('pane')
+const sidePane = useSidePane()
 /* deep link: /?topic=<task_id> opens the right pane. `/` is prerendered, so
    the query only exists once hydration settles (useSettledQuery). */
 const topic = useSettledQuery('topic')
@@ -80,18 +83,36 @@ const { pill, jump } = useScrollAnchor(listTop, () => viewer.topics.map((r) => r
    (measured on both apexes, tree e52e250). The read and the follow now wait for
    a member session, on the same predicate as the rest of the shell; a sign-in
    flips the same store, so a human who signs in gets both with no reload. */
-/* The topics list has no feed of its own. The Omnibox still writes:
-   `in: <title>` replies into that topic, and anything else starts a new message. */
+/* Topics tab with a selected row: the omnibox replies in that topic.
+   `in: <title>` still names the topic. Anything else, or Topics with
+   nothing selected, starts a new message. */
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
-  const sent = await channel.send(text, topicId || undefined, files, channelId)
-  /* The list has no feed of its own. A send with the right pane closed is a
-     new topic of this one message, so the row has to appear here itself.
-     The same msg_id arriving on the socket does not count a second time. */
+  const target = omniboxReplyTaskId({
+    tab: sidePane.current.value,
+    selectedTaskId: pane.taskId || '',
+    namedTopicId: topicId || '',
+  })
+  if (target && pane.taskId && target === pane.taskId) {
+    const before = pane.messages.length
+    await pane.send(text, files || [])
+    const last = pane.messages[pane.messages.length - 1]
+    if (last && pane.messages.length > before) {
+      viewer.topics = bumpTopic(viewer.topics, last as unknown as Record<string, unknown>) as typeof viewer.topics
+    }
+    return
+  }
+  const sent = await channel.send(text, target || undefined, files, channelId)
+  /* A send with no topic is a new topic of this one message, so the row
+     has to appear here itself. The socket echo does not count a second time. */
   if (sent) viewer.topics = bumpTopic(viewer.topics, sent as unknown as Record<string, unknown>) as typeof viewer.topics
-  topicStore.noteBorn(topicStore.open || Boolean(pane.taskId), topicId, sent as SpoolMessage)
+  topicStore.noteBorn(topicStore.open || Boolean(pane.taskId), target, sent as SpoolMessage)
 }
 useOmniboxTarget({
-  placeholder: () => tr('search.placeholder_target', { target: tr('nav.topics') }),
+  placeholder: () => (omniboxReplyTaskId({
+    tab: sidePane.current.value,
+    selectedTaskId: pane.taskId || '',
+    namedTopicId: '',
+  }) ? tr('topic.reply_placeholder') : tr('search.placeholder_target', { target: tr('nav.topics') })),
   send: onSend,
 })
 

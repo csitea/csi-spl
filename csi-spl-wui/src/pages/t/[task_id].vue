@@ -36,6 +36,8 @@ import { useTopicStore } from '~/stores/topic'
 import { applyVerbosity } from '~/utils/verbosity.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
+import { useSidePane } from '~/composables/useSidePane'
+import { omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
 
 const route = useRoute()
 const store = useLiveFeed('main')
@@ -49,6 +51,7 @@ const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_sta
 const taskId = computed(() => String(route.params.task_id || ''))
 const shortId = computed(() => taskId.value.slice(0, 8))
 const topic = useTopicStore()
+const sidePane = useSidePane()
 const sinceMs = useNowTick(() => Boolean(taskId.value))
 /* 005 FR-013: the same verbosity filter as the topic pane */
 const replies = computed(() => applyVerbosity(store.topic.replies, topic.verbosity))
@@ -69,18 +72,27 @@ function onEdited(row: SpoolMessage) {
   applyEverywhere(row)
 }
 
-/* The open task does not capture the box. `in:` naming this task replies
-   here; `in:` naming another replies there; anything else is a new message. */
+/* Topics tab with this task selected: the omnibox replies here. `in:`
+   naming another topic still goes there. A different left tab starts a new message. */
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
-  if (topicId && topicId === taskId.value && store.taskId) {
+  const target = omniboxReplyTaskId({
+    tab: sidePane.current.value,
+    selectedTaskId: taskId.value,
+    namedTopicId: topicId || '',
+  })
+  if (target && target === taskId.value && store.taskId) {
     await store.send(text, files || [])
     return
   }
-  const sent = await channel.send(text, topicId || undefined, files, channelId)
-  topic.noteBorn(topic.open || Boolean(side.taskId), topicId, sent as SpoolMessage)
+  const sent = await channel.send(text, target || undefined, files, channelId)
+  topic.noteBorn(topic.open || Boolean(side.taskId), target, sent as SpoolMessage)
 }
 useOmniboxTarget({
-  placeholder: () => t('search.placeholder_target', { target: shortId.value }),
+  placeholder: () => (omniboxReplyTaskId({
+    tab: sidePane.current.value,
+    selectedTaskId: taskId.value,
+    namedTopicId: '',
+  }) ? t('topic.reply_placeholder') : t('search.placeholder_target', { target: shortId.value })),
   send: onSend,
   busy: () => store.sending,
 })

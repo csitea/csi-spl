@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { omniboxParentTaskId, omniboxPlaceholderKey, sendsNewTopic } from '../../src/utils/omnibox-topic.mjs'
+import { omniboxParentTaskId, omniboxPlaceholderKey, omniboxReplyTaskId, sendsNewTopic } from '../../src/utils/omnibox-topic.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -65,5 +65,19 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
 
   it('CONTROL: sendLive still mints a new task when there is no parent', () => {
     assert.match(src('src/stores/channel.ts'), /task_id: parentTaskId \|\| newId\(\)/)
+  })
+
+  it('Topics tab with a selected row replies there; in: wins; other tabs do not', () => {
+    assert.equal(omniboxReplyTaskId({ tab: 'topics', selectedTaskId: 'T-1', namedTopicId: '' }), 'T-1')
+    assert.equal(omniboxReplyTaskId({ tab: 'topics', selectedTaskId: 'T-1', namedTopicId: 'T-9' }), 'T-9')
+    assert.equal(omniboxReplyTaskId({ tab: 'topics', selectedTaskId: '', namedTopicId: '' }), '')
+    assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: 'T-1', namedTopicId: '' }), '')
+    assert.equal(omniboxReplyTaskId({ tab: 'dm', selectedTaskId: 'T-1' }), '')
+    assert.equal(omniboxReplyTaskId({}), '')
+    assert.match(src('src/pages/index.vue'), /omniboxReplyTaskId/)
+    assert.match(src('src/pages/t/[task_id].vue'), /omniboxReplyTaskId/)
+    assert.match(src('src/components/ChannelSidebar.vue'), /setCurrent\(id\)/)
+    assert.doesNotMatch(src('src/pages/dm/[peer].vue'), /omniboxReplyTaskId/)
+    assert.doesNotMatch(src('src/pages/channel/[name].vue'), /omniboxReplyTaskId/)
   })
 })

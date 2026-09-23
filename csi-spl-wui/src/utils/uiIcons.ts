@@ -79,6 +79,30 @@ export const UI_ICON_PATHS = {
     "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9",
     "M13.73 21a2 2 0 0 1-3.46 0",
   ],
+  // Row menu: mute is the bell with a slash; unmute is the plain bell.
+  "bell-off": [
+    "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9",
+    "M13.73 21a2 2 0 0 1-3.46 0",
+    "M2 2 22 22",
+  ],
+  // Row menu: block (a circle with a slash) and unblock (person plus a check).
+  ban: [
+    "M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z",
+    "M4.9 4.9 19.1 19.1",
+  ],
+  "user-check": [
+    "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2",
+    "M9 11a4 4 0 1 0 0-8 4 4 0 1 0 0 8z",
+    "m16 11 2 2 4-4",
+  ],
+  // Row menu: remove a person from the tenant.
+  trash: [
+    "M3 6h18",
+    "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6",
+    "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
+    "M10 11v6",
+    "M14 11v6",
+  ],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

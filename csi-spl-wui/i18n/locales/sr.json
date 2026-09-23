@@ -319,15 +319,15 @@
     "you": "(vi)",
     "flow": "Flow",
     "row_menu": {
-      "label": "Menu for {name}",
-      "open": "Open",
-      "copy_link": "Copy link",
-      "mark_read": "Mark as read",
-      "block": "Block",
-      "unblock": "Unblock",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "remove": "Remove"
+      "label": "Meni za {name}",
+      "open": "Otvori",
+      "copy_link": "Kopiraj vezu",
+      "mark_read": "Označi kao pročitano",
+      "block": "Blokiraj",
+      "unblock": "Deblokiraj",
+      "mute": "Utišaj",
+      "unmute": "Uključi zvuk",
+      "remove": "Ukloni"
     }
   },
   "composer": {

@@ -41,7 +41,10 @@
             class="sidebar-row-menu__item"
             :data-testid="'sidebar-row-menu-' + item.id"
             @click.stop="choose(item.id)"
-          >{{ t(item.labelKey) }}</button>
+          >
+            <UiIcon :name="item.icon" :size="16" />
+            <span>{{ t(item.labelKey) }}</span>
+          </button>
         </li>
       </ul>
     </div>
@@ -230,7 +233,10 @@ function choose(id: string) {
 .sidebar-row-menu__items { list-style: none; margin: 0; padding: 0; }
 .sidebar-row-menu__item {
   appearance: none;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
   width: 100%;
   text-align: start;
   background: transparent;
@@ -240,8 +246,9 @@ function choose(id: string) {
   font-size: 14px;
   padding: 8px 12px;
   cursor: pointer;
-  min-height: 32px;
+  min-height: 36px;
 }
+.sidebar-row-menu__item .ui-icon { flex: 0 0 auto; }
 .sidebar-row-menu__item:hover,
 .sidebar-row-menu__item:focus-visible {
   background: var(--color-surface-hover);

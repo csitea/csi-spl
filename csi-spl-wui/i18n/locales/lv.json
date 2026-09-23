@@ -319,15 +319,15 @@
     "you": "(jūs)",
     "flow": "Flow",
     "row_menu": {
-      "label": "Menu for {name}",
-      "open": "Open",
-      "copy_link": "Copy link",
-      "mark_read": "Mark as read",
-      "block": "Block",
-      "unblock": "Unblock",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "remove": "Remove"
+      "label": "Izvēlne: {name}",
+      "open": "Atvērt",
+      "copy_link": "Kopēt saiti",
+      "mark_read": "Atzīmēt kā lasītu",
+      "block": "Bloķēt",
+      "unblock": "Atbloķēt",
+      "mute": "Apklusināt",
+      "unmute": "Ieslēgt skaņu",
+      "remove": "Noņemt"
     }
   },
   "composer": {

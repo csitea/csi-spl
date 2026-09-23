@@ -319,15 +319,15 @@
     "you": "(jij)",
     "flow": "Flow",
     "row_menu": {
-      "label": "Menu for {name}",
-      "open": "Open",
-      "copy_link": "Copy link",
-      "mark_read": "Mark as read",
-      "block": "Block",
-      "unblock": "Unblock",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "remove": "Remove"
+      "label": "Menu voor {name}",
+      "open": "Openen",
+      "copy_link": "Link kopiëren",
+      "mark_read": "Markeer als gelezen",
+      "block": "Blokkeren",
+      "unblock": "Deblokkeren",
+      "mute": "Dempen",
+      "unmute": "Dempen opheffen",
+      "remove": "Verwijderen"
     }
   },
   "composer": {

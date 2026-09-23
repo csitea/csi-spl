@@ -319,15 +319,15 @@
     "you": "(вы)",
     "flow": "Flow",
     "row_menu": {
-      "label": "Menu for {name}",
-      "open": "Open",
-      "copy_link": "Copy link",
-      "mark_read": "Mark as read",
-      "block": "Block",
-      "unblock": "Unblock",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "remove": "Remove"
+      "label": "Меню для {name}",
+      "open": "Открыть",
+      "copy_link": "Копировать ссылку",
+      "mark_read": "Отметить как прочитанное",
+      "block": "Заблокировать",
+      "unblock": "Разблокировать",
+      "mute": "Без звука",
+      "unmute": "Со звуком",
+      "remove": "Удалить"
     }
   },
   "composer": {

@@ -319,15 +319,15 @@
     "you": "(sinä)",
     "flow": "Flow",
     "row_menu": {
-      "label": "Menu for {name}",
-      "open": "Open",
-      "copy_link": "Copy link",
-      "mark_read": "Mark as read",
-      "block": "Block",
-      "unblock": "Unblock",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "remove": "Remove"
+      "label": "Valikko: {name}",
+      "open": "Avaa",
+      "copy_link": "Kopioi linkki",
+      "mark_read": "Merkitse luetuksi",
+      "block": "Estä",
+      "unblock": "Poista esto",
+      "mute": "Mykistä",
+      "unmute": "Poista mykistys",
+      "remove": "Poista"
     }
   },
   "composer": {

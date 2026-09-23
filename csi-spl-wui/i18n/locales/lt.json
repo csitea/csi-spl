@@ -319,15 +319,15 @@
     "you": "(jūs)",
     "flow": "Flow",
     "row_menu": {
-      "label": "Menu for {name}",
-      "open": "Open",
-      "copy_link": "Copy link",
-      "mark_read": "Mark as read",
-      "block": "Block",
-      "unblock": "Unblock",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "remove": "Remove"
+      "label": "Meniu: {name}",
+      "open": "Atidaryti",
+      "copy_link": "Kopijuoti nuorodą",
+      "mark_read": "Žymėti kaip skaitytą",
+      "block": "Blokuoti",
+      "unblock": "Atblokuoti",
+      "mute": "Nutildyti",
+      "unmute": "Įjungti garsą",
+      "remove": "Pašalinti"
     }
   },
   "composer": {

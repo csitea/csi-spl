@@ -319,15 +319,15 @@
     "you": "(vy)",
     "flow": "Flow",
     "row_menu": {
-      "label": "Menu for {name}",
-      "open": "Open",
-      "copy_link": "Copy link",
-      "mark_read": "Mark as read",
-      "block": "Block",
-      "unblock": "Unblock",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "remove": "Remove"
+      "label": "Menu pre {name}",
+      "open": "Otvoriť",
+      "copy_link": "Kopírovať odkaz",
+      "mark_read": "Označiť ako prečítané",
+      "block": "Zablokovať",
+      "unblock": "Odblokovať",
+      "mute": "Stlmiť",
+      "unmute": "Zrušiť stlmenie",
+      "remove": "Odstrániť"
     }
   },
   "composer": {

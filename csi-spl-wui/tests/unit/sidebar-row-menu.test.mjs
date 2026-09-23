@@ -14,6 +14,7 @@ describe('rowMenuItems', () => {
   it('offers open and copy, and mark-as-read only when the row is unread', () => {
     assert.deepEqual(rowMenuItems(false).map((i) => i.id), ['open', 'copy'])
     assert.deepEqual(rowMenuItems(true).map((i) => i.id), ['open', 'copy', 'read'])
+    assert.deepEqual(rowMenuItems(true).map((i) => i.icon), ['open', 'copy', 'check'])
   })
 
   it('people and bots get block and mute, and remove only for an admin', () => {
@@ -31,6 +32,32 @@ describe('rowMenuItems', () => {
     assert.equal(rowMenuAdmin({ role: 'tester' }), false)
     assert.equal(rowMenuAdmin({ role: 'admin', tenantOwner: false }), true)
     assert.equal(rowMenuAdmin({ role: 'biz_owner', tenantOwner: true }), true)
+  })
+
+  it('every action has an icon and a catalogue name', () => {
+    const items = rowMenuItems(true, { person: true, admin: true, blocked: true, muted: true })
+    assert.deepEqual(items.map((i) => i.icon), ['open', 'copy', 'check', 'user-check', 'bell', 'trash'])
+    for (const item of items) {
+      assert.match(item.labelKey, /^sidebar\.row_menu\./)
+    }
+    const menu = src('src/components/SidebarRowMenu.vue')
+    assert.match(menu, /<UiIcon :name="item\.icon"/)
+    assert.match(menu, /\{\{ t\(item\.labelKey\) \}\}/)
+  })
+})
+
+describe('the language switcher changes the row-menu names', () => {
+  it('every locale translates the action names', () => {
+    const dir = join(WUI, 'i18n/locales')
+    const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8')).sidebar.row_menu
+    const codes = ['bg', 'el', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']
+    for (const code of codes) {
+      const row = JSON.parse(readFileSync(join(dir, code + '.json'), 'utf8')).sidebar.row_menu
+      for (const key of Object.keys(en)) {
+        assert.notEqual(row[key], en[key], code + ' ' + key)
+        assert.equal(row[key].includes('{name}'), en[key].includes('{name}'), code + ' ' + key)
+      }
+    }
   })
 })
 

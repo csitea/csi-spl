@@ -319,15 +319,15 @@
     "you": "(εσείς)",
     "flow": "Flow",
     "row_menu": {
-      "label": "Menu for {name}",
-      "open": "Open",
-      "copy_link": "Copy link",
-      "mark_read": "Mark as read",
-      "block": "Block",
-      "unblock": "Unblock",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "remove": "Remove"
+      "label": "Μενού για {name}",
+      "open": "Άνοιγμα",
+      "copy_link": "Αντιγραφή συνδέσμου",
+      "mark_read": "Σήμανση ως αναγνωσμένο",
+      "block": "Αποκλεισμός",
+      "unblock": "Άρση αποκλεισμού",
+      "mute": "Σίγαση",
+      "unmute": "Άρση σίγασης",
+      "remove": "Αφαίρεση"
     }
   },
   "composer": {

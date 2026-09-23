@@ -319,15 +319,15 @@
     "you": "(את/ה)",
     "flow": "Flow",
     "row_menu": {
-      "label": "Menu for {name}",
-      "open": "Open",
-      "copy_link": "Copy link",
-      "mark_read": "Mark as read",
-      "block": "Block",
-      "unblock": "Unblock",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "remove": "Remove"
+      "label": "תפריט עבור {name}",
+      "open": "פתיחה",
+      "copy_link": "העתקת קישור",
+      "mark_read": "סימון כנקרא",
+      "block": "חסימה",
+      "unblock": "ביטול חסימה",
+      "mute": "השתקה",
+      "unmute": "ביטול השתקה",
+      "remove": "הסרה"
     }
   },
   "composer": {

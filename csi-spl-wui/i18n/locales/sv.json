@@ -319,15 +319,15 @@
     "you": "(du)",
     "flow": "Flow",
     "row_menu": {
-      "label": "Menu for {name}",
-      "open": "Open",
-      "copy_link": "Copy link",
-      "mark_read": "Mark as read",
-      "block": "Block",
-      "unblock": "Unblock",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "remove": "Remove"
+      "label": "Meny för {name}",
+      "open": "Öppna",
+      "copy_link": "Kopiera länk",
+      "mark_read": "Markera som läst",
+      "block": "Blockera",
+      "unblock": "Häv blockering",
+      "mute": "Tysta",
+      "unmute": "Slå på ljud",
+      "remove": "Ta bort"
     }
   },
   "composer": {

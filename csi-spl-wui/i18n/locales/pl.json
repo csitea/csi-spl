@@ -319,15 +319,15 @@
     "you": "(Ty)",
     "flow": "Flow",
     "row_menu": {
-      "label": "Menu for {name}",
-      "open": "Open",
-      "copy_link": "Copy link",
-      "mark_read": "Mark as read",
-      "block": "Block",
-      "unblock": "Unblock",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "remove": "Remove"
+      "label": "Menu dla {name}",
+      "open": "Otwórz",
+      "copy_link": "Kopiuj link",
+      "mark_read": "Oznacz jako przeczytane",
+      "block": "Zablokuj",
+      "unblock": "Odblokuj",
+      "mute": "Wycisz",
+      "unmute": "Wyłącz wyciszenie",
+      "remove": "Usuń"
     }
   },
   "composer": {

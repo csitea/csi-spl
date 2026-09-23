@@ -10,20 +10,22 @@
 export function rowMenuItems(unread, opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
   const items = [
-    { id: 'open', labelKey: 'sidebar.row_menu.open' },
-    { id: 'copy', labelKey: 'sidebar.row_menu.copy_link' },
+    { id: 'open', icon: 'open', labelKey: 'sidebar.row_menu.open' },
+    { id: 'copy', icon: 'copy', labelKey: 'sidebar.row_menu.copy_link' },
   ]
-  if (unread) items.push({ id: 'read', labelKey: 'sidebar.row_menu.mark_read' })
+  if (unread) items.push({ id: 'read', icon: 'check', labelKey: 'sidebar.row_menu.mark_read' })
   if (o.person) {
     items.push({
       id: 'block',
+      icon: o.blocked ? 'user-check' : 'ban',
       labelKey: o.blocked ? 'sidebar.row_menu.unblock' : 'sidebar.row_menu.block',
     })
     items.push({
       id: 'mute',
+      icon: o.muted ? 'bell' : 'bell-off',
       labelKey: o.muted ? 'sidebar.row_menu.unmute' : 'sidebar.row_menu.mute',
     })
-    if (o.admin) items.push({ id: 'remove', labelKey: 'sidebar.row_menu.remove' })
+    if (o.admin) items.push({ id: 'remove', icon: 'trash', labelKey: 'sidebar.row_menu.remove' })
   }
   return items
 }

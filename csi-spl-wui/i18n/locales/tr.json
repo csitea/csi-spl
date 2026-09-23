@@ -319,15 +319,15 @@
     "you": "(siz)",
     "flow": "Flow",
     "row_menu": {
-      "label": "Menu for {name}",
-      "open": "Open",
-      "copy_link": "Copy link",
-      "mark_read": "Mark as read",
-      "block": "Block",
-      "unblock": "Unblock",
-      "mute": "Mute",
-      "unmute": "Unmute",
-      "remove": "Remove"
+      "label": "{name} menüsü",
+      "open": "Aç",
+      "copy_link": "Bağlantıyı kopyala",
+      "mark_read": "Okundu olarak işaretle",
+      "block": "Engelle",
+      "unblock": "Engeli kaldır",
+      "mute": "Sessize al",
+      "unmute": "Sesi aç",
+      "remove": "Kaldır"
     }
   },
   "composer": {

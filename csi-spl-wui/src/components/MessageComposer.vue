@@ -110,7 +110,9 @@
 import { useRosterStore } from '~/stores/roster'
 import { closeOpenFence, enterAction, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
 import { sendLimitError } from '~/utils/code-view.mjs'
+import { useSidePane } from '~/composables/useSidePane'
 import { parseOmnibox } from '~/utils/feed.mjs'
+import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { applyCompletion, completeOperators, omniboxMode, operatorTokenAt, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
 import {
   activeMentionQuery,
@@ -402,6 +404,20 @@ function onGlobalKey(ev: KeyboardEvent): boolean {
 }
 
 function onSend() {
+  /* `/switch-pane: messages|channels|threads|flow` changes the left pane
+     and is never sent. An unknown name stays in the box. */
+  if (props.global || props.omnibox) {
+    const pane = switchPaneOf(text.value)
+    if (pane !== null) {
+      if (pane) {
+        useSidePane().request(pane)
+        text.value = ''
+        picked.value = []
+        mentionQuery.value = null
+      }
+      return
+    }
+  }
   if (props.global && searchMode.value) {
     // the rest of the line goes to the hub verbatim (search-v1 §0)
     emit('search', searchQueryOf(text.value))

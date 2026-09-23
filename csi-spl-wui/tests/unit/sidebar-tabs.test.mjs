@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { flowRows, SIDE_TABS, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
+import { flowRows, SIDE_TABS, switchPaneOf, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -37,6 +37,34 @@ describe('tabForPath', () => {
   it('does not treat a lookalike path as a tab', () => {
     assert.equal(tabForPath('/dmail'), null)
     assert.equal(tabForPath('/channels'), null)
+  })
+})
+
+describe('/switch-pane:', () => {
+  it('messages, channels and threads open those panes', () => {
+    assert.equal(switchPaneOf('/switch-pane: messages'), 'dm')
+    assert.equal(switchPaneOf('/switch-pane: channels'), 'channels')
+    assert.equal(switchPaneOf('/switch-pane: threads'), 'threads')
+    assert.equal(switchPaneOf('/switch-pane: flow'), 'flow')
+    assert.equal(switchPaneOf('  /Switch-Pane: Messages  '), 'dm')
+    assert.equal(switchPaneOf('/switch-pane:channels'), 'channels')
+  })
+
+  it('an unknown name is the command but not a pane, and other lines are messages', () => {
+    assert.equal(switchPaneOf('/switch-pane:'), '')
+    assert.equal(switchPaneOf('/switch-pane: nope'), '')
+    assert.equal(switchPaneOf('/switch-pane: messages please'), '')
+    assert.equal(switchPaneOf('hello'), null)
+    assert.equal(switchPaneOf('/search messages'), null)
+  })
+
+  it('the omnibox runs the command before it can send the line', () => {
+    const composer = src('src/components/MessageComposer.vue')
+    const send = composer.indexOf("emit('send'")
+    const cmd = composer.indexOf('switchPaneOf(text.value)')
+    assert.ok(cmd > 0 && send > cmd)
+    assert.match(composer, /useSidePane\(\)\.request\(pane\)/)
+    assert.match(src('src/components/ChannelSidebar.vue'), /sidePane\.requested/)
   })
 })
 

@@ -275,6 +275,7 @@ import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
 import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
+import { useSidePane } from '~/composables/useSidePane'
 import { flowRows, SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
@@ -353,6 +354,10 @@ async function selectTab(next: SideTab) {
   }
   if (next === 'flow' && viewer.threads.length === 0) void viewer.loadThreads()
 }
+const sidePane = useSidePane()
+watch(() => sidePane.requested.value, (req) => {
+  if (req) void selectTab(req.id)
+})
 watch(tab, (id) => {
   if ((id === 'threads' || id === 'flow') && viewer.threads.length === 0) void viewer.loadThreads()
 }, { immediate: true })

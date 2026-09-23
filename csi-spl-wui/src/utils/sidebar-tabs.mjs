@@ -5,6 +5,14 @@ import { productPath } from './signed-out-redirect.mjs'
 
 export const SIDE_TABS = ['dm', 'channels', 'threads', 'flow']
 
+/** Names accepted after `/switch-pane:`. `messages` is the direct-message pane. */
+const SWITCH_PANE_NAMES = {
+  messages: 'dm',
+  channels: 'channels',
+  threads: 'threads',
+  flow: 'flow',
+}
+
 /**
  * The open route picks a tab when the page is one of the four lists.
  * Search and settings return null so the reader's own choice stays.
@@ -71,4 +79,21 @@ export function flowRows(src = {}) {
     return c !== 0 ? c : a.key.localeCompare(b.key)
   })
   return rows
+}
+
+/**
+ * Omnibox command `/switch-pane: <name>`.
+ * `null` — this line is not the command (send it as a message).
+ * `''` — it is the command, but the name is not a pane (do not send).
+ * Otherwise the pane id: messages → dm, channels, threads, flow.
+ * @param {string} text
+ * @returns {'dm' | 'channels' | 'threads' | 'flow' | '' | null}
+ */
+export function switchPaneOf(text) {
+  const s = String(text || '').trim()
+  const m = s.match(/^\/switch-pane:\s*(.*)$/i)
+  if (!m) return null
+  const name = m[1].trim().toLowerCase()
+  if (!name || /\s/.test(name)) return ''
+  return Object.prototype.hasOwnProperty.call(SWITCH_PANE_NAMES, name) ? SWITCH_PANE_NAMES[name] : ''
 }

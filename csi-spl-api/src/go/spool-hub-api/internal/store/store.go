@@ -200,6 +200,9 @@ type Store interface {
 	// (channel_humans.go, rdb 0028).
 	ChannelHumans
 
+	// The same door on a stored attachment (file_door.go, rdb 0028 + 0029).
+	FileDoor
+
 	// M2 checkouts and payment events (payments.go, checkout-v1).
 	Payments
 

@@ -286,6 +286,46 @@ in the tenant" — that would carry the leak forward under a new name. Each
 created channel admits its creator plus every human who posted in it or was
 addressed in it. Anyone else is out on the first deploy and has to be added.
 
+### 7.5 Attachments (rdb 0030)
+
+`GET /v1/files/{file_id}` was scoped to the TENANT and nothing else, so 0028
+left one way round itself: a signed-in member who knew a `file_id` could fetch
+an attachment out of a channel they were never in, or out of another member's
+DM. The id is a sha256 you can normally only learn by reading the message that
+carries it — but "they would have to know it" is an assumption about the
+attacker, not a control, and ids travel in links, logs and screenshots.
+
+A file is readable when **any** of:
+
+| | |
+|---|---|
+| a message carrying it is one this principal may read | the §7.1 rules, per message |
+| it is a member's `avatar_file_id` | `GET /v1/view/roster` already lists every member's avatar to every member, so the picture is exactly as private as the roster |
+| **no** message in retention carries it | an upload whose message has not been sent yet — a box uploads, then sends, and must be able to fetch back what it just produced |
+
+Principals: a **box**, by its upload token — a message with that box at either
+end, or delivered to it (a channel post is addressed to `box-wui` and reaches
+member boxes as delivery rows). **`box-wui` is not a principal here**: a
+browser holds a `box-wui` upload token from its `welcome` frame and downloads
+with its session cookie, never that token, so honouring it would hand every
+member a key that walks past the human door standing next to it. A **human
+session** gets the §7.1 rules. No session at all filters nothing (door-off
+lde), as everywhere else.
+
+404, never 403 — "not yours" and "no such file" must not be distinguishable.
+
+`messages.files` had no index, so this question would have scanned every
+message of the tenant on every download, avatars included. 0030 adds
+`gin (files jsonb_path_ops)`, which indexes exactly the one containment shape
+this asks (`files @> '[{"file_id": "..."}]'`).
+
+**Known limit.** The third rule is keyed on retention: once a message expires
+out of the window its attachment stops being "carried" by anything and becomes
+readable again to any member who has the id. Closing that means having the
+retention sweep delete the blob with the message; until then it is a real if
+slow re-opening, and it is written down here rather than left to be
+rediscovered.
+
 ## 8. Open questions (owner, via ORC)
 
 - **OQ-CH1** — who creates channels: (a) *recommended, implemented*: humans
@@ -297,4 +337,4 @@ addressed in it. Anyone else is out on the first deploy and has to be added.
 - **OQ-CH3** — `general` alias lifetime: (a) *recommended*: accepted until
   the next minor contract version, then `404 unknown_channel`; (b) forever.
 
-<!-- version: 1.4.0 · updated: 2026-09-23 · last-edit: 2026-09-23T15:05:00Z -->
+<!-- version: 1.5.0 · updated: 2026-09-23 · last-edit: 2026-09-23T18:40:00Z -->

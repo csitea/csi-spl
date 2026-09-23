@@ -1,0 +1,25 @@
+-- 0030_messages_files_index.sql — make "which messages reference this file?"
+-- an index lookup. Forward-only.
+--
+-- 0028 closed the read door on messages, and left one way round it:
+-- GET /v1/files/{file_id} was scoped to the TENANT and nothing else, so any
+-- signed-in member who knew a file_id could fetch an attachment out of a
+-- channel they are not in, or out of someone else's DM. A file_id is a
+-- sha256 you can normally only learn by reading the message that carries it,
+-- which is why this is the narrower half of the same defect - but "you would
+-- have to know the id" is an assumption about the attacker, not a control.
+--
+-- The door now asks whether some message this reader may read carries the
+-- file. That question had no index: messages.files is jsonb and nothing
+-- covered it, so the check would have scanned every message of the tenant on
+-- every download - including every avatar the WUI renders.
+--
+-- jsonb_path_ops rather than the default: it indexes only the containment
+-- operator @>, which is the single query shape here
+-- (files @> '[{"file_id": "..."}]'), and its index is markedly smaller and
+-- faster for it than the default operator class, which also carries key-exists
+-- operators nothing in this schema uses.
+--
+-- No RLS clause: an index inherits the table's policies.
+
+CREATE INDEX messages_files ON messages USING gin (files jsonb_path_ops);

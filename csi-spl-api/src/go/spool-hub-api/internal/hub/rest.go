@@ -133,7 +133,21 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	key, err := blob.Key(t.ID, r.PathValue("file_id"))
+	fileID := r.PathValue("file_id")
+	// The read door on the attachment (rdb 0028 + 0030, privacy.go). Until
+	// this, a file was scoped to the TENANT and nothing else, so a signed-in
+	// member who knew a file_id could fetch it out of a channel they were
+	// never in, or out of another member's DM. 404, as everywhere else in the
+	// door: "not yours" and "no such file" must not be distinguishable.
+	switch may, err := s.mayReadFile(r, t.ID, fileID); {
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "file lookup failed")
+		return
+	case !may:
+		writeErr(w, http.StatusNotFound, "not_found", "no such file")
+		return
+	}
+	key, err := blob.Key(t.ID, fileID)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "not_found", "no such file")
 		return
@@ -163,6 +177,83 @@ func (s *Server) fileReader(w http.ResponseWriter, r *http.Request) (store.Tenan
 	}
 	t, _, ok := s.humanTenant(w, r)
 	return t, ok
+}
+
+// mayReadFile: an attachment is exactly as private as the messages carrying
+// it (rdb 0028 + 0030). Which messages those are depends on who is asking.
+//
+//   - a BOX, by its upload token: a message with that box at either end, or
+//     one delivered to it (a channel post is addressed to box-wui and reaches
+//     member boxes as delivery rows).
+//   - box-wui, the virtual browser audience, is NOT a principal here. A
+//     browser holds a box-wui upload token from its `welcome` frame, and the
+//     WUI downloads with its session cookie, never that token - so honouring
+//     it would hand every member a key that walks straight past the human
+//     door it is standing next to.
+//   - a HUMAN session: the 0028 rule, through the channels it belongs to and
+//     the DMs it is an end of.
+//   - no human at all: the door-off lde rig, which filters nothing, exactly
+//     as the rest of privacy.go does.
+func (s *Server) mayReadFile(r *http.Request, tenant, fileID string) (bool, error) {
+	if fileID == "" {
+		return false, nil
+	}
+	ctx, now := r.Context(), s.o.Now()
+	// An AVATAR is not an attachment. GET /v1/view/roster already lists every
+	// member's avatar_file_id to every member, so the picture is exactly as
+	// private as the roster - refusing it here would only break the WUI.
+	switch avatar, err := s.isTenantAvatar(r, tenant, fileID); {
+	case err != nil:
+		return false, err
+	case avatar:
+		return true, nil
+	}
+	var may bool
+	var err error
+	if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+		_, box, ok := s.bearerAny(r)
+		if !ok || box == WUIBox {
+			return false, nil
+		}
+		may, err = s.o.Store.FileReadableByBox(ctx, tenant, fileID, box, now)
+	} else {
+		hum, _ := s.memberID(r, tenant)
+		if hum == "" {
+			return true, nil // door-off lde, as the rest of privacy.go
+		}
+		var mine []string
+		if mine, err = s.readerChannels(ctx, tenant, hum); err == nil {
+			may, err = s.o.Store.FileReadableByHuman(ctx, tenant, fileID, hum, mine, now)
+		}
+	}
+	if err != nil || may {
+		return may, err
+	}
+	// Nothing this principal may read carries it. That is a refusal ONLY if
+	// something else does: a blob no message references is an upload whose
+	// message has not been sent yet (a box uploads, then sends), and the box
+	// or browser that just produced it must be able to fetch it back.
+	attached, err := s.o.Store.FileAttached(ctx, tenant, fileID, now)
+	return !attached, err
+}
+
+// isTenantAvatar reports whether fileID is some member of tenant's stored
+// IdP picture. A store without the 010 tables has none.
+func (s *Server) isTenantAvatar(r *http.Request, tenant, fileID string) (bool, error) {
+	h, ok := s.o.Store.(store.Humans)
+	if !ok {
+		return false, nil
+	}
+	avatars, err := h.TenantAvatars(r.Context(), tenant)
+	if err != nil {
+		return false, err
+	}
+	for _, fid := range avatars {
+		if fid == fileID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // GET /v1/pins: the tenant's active box pubkeys (authorized_keys sync).

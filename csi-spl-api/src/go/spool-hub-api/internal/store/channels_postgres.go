@@ -282,3 +282,41 @@ func (s *Postgres) TopicAccess(ctx context.Context, tenant, task string, now tim
 	sort.Strings(a.DMParties)
 	return a, nil
 }
+
+// ---- the file read door (rdb 0028 + 0030, file_door.go) -------------------
+
+// fileCarrier is the indexable "this message carries file_id" predicate.
+// Containment against the 0030 gin (files jsonb_path_ops) index; sha256 is
+// checked too because a stored attachment may name the blob under either key
+// (wuiSend copies file_id into sha256 when the frame omits it).
+const fileCarrier = `(m.files @> jsonb_build_array(jsonb_build_object('file_id', $2::text))
+	OR m.files @> jsonb_build_array(jsonb_build_object('sha256', $2::text)))`
+
+func (s *Postgres) FileAttached(ctx context.Context, tenant, fileID string, now time.Time) (bool, error) {
+	var ok bool
+	err := s.queryRowTenant(ctx, tenant, `SELECT EXISTS (SELECT 1 FROM messages m
+		WHERE m.tenant_id = $1 AND m.expires_at > $3 AND `+fileCarrier+`)`,
+		[]any{tenant, fileID, now}, &ok)
+	return ok, err
+}
+
+func (s *Postgres) FileReadableByHuman(ctx context.Context, tenant, fileID, human string, channels []string, now time.Time) (bool, error) {
+	var ok bool
+	err := s.queryRowTenant(ctx, tenant, `SELECT EXISTS (SELECT 1 FROM messages m
+		WHERE m.tenant_id = $1 AND m.expires_at > $3 AND `+fileCarrier+` AND (
+			(m.channel IS NULL AND (m.from_id = $4 OR m.to_id = $4))
+			OR m.channel = ANY($5::text[]) OR m.channel = ANY($6::text[])))`,
+		[]any{tenant, fileID, now, human, DefaultChannels, channels}, &ok)
+	return ok, err
+}
+
+func (s *Postgres) FileReadableByBox(ctx context.Context, tenant, fileID, box string, now time.Time) (bool, error) {
+	var ok bool
+	err := s.queryRowTenant(ctx, tenant, `SELECT EXISTS (SELECT 1 FROM messages m
+		WHERE m.tenant_id = $1 AND m.expires_at > $3 AND `+fileCarrier+` AND (
+			m.from_box = $4 OR m.to_box = $4
+			OR EXISTS (SELECT 1 FROM deliveries d
+				WHERE d.tenant_id = m.tenant_id AND d.msg_id = m.msg_id AND d.to_box = $4)))`,
+		[]any{tenant, fileID, now, box}, &ok)
+	return ok, err
+}

@@ -3,8 +3,8 @@
     <img
       class="login-landing"
       src="/login-landing.png"
-      width="1344"
-      height="768"
+      width="1214"
+      height="490"
       :alt="t('auth.login.where_humans_meet')"
       data-test="login-landing"
     >

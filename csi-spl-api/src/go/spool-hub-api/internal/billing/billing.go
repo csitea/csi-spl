@@ -44,7 +44,8 @@ func MapEvent(event string) (string, error) {
 	case "paid":
 		return StatusActive, nil
 	case "unpaid", "failed":
-		// Recv stays up for the cnf grace window; send/pin are already 402.
+		// grace and unpaid refuse writes the same way. The timed grace
+		// window is not implemented.
 		return StatusGrace, nil
 	case "refund", "cancel":
 		return StatusUnpaid, nil

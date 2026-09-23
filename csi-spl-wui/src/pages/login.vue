@@ -1,13 +1,5 @@
 <template>
   <div class="login-card login-landing-card">
-    <img
-      class="login-landing"
-      src="/login-landing.png"
-      width="1214"
-      height="490"
-      :alt="t('auth.login.where_humans_meet')"
-      data-test="login-landing"
-    >
     <h1>{{ t('auth.login.where_humans_meet') }}</h1>
     <p v-if="error" class="login-error" role="alert">{{ error }}</p>
     <SocialAuthButtons class="idp" :redirect="redirect" :tenant="tenant" />
@@ -21,6 +13,14 @@
       <button class="btn ghost" type="button" @click="session.logout()">{{ t('auth.login.sign_out') }}</button>
     </p>
     <ChangePasswordForm v-if="session.state === 'in' && session.claims?.p === 'password'" @changed="changed = true" />
+    <img
+      class="login-landing"
+      src="/login-landing.png"
+      width="1214"
+      height="490"
+      :alt="t('auth.login.where_humans_meet')"
+      data-test="login-landing"
+    >
   </div>
 </template>
 
@@ -71,7 +71,7 @@ onMounted(() => { void session.probe() })
 <style scoped>
 .login-landing-card {
   width: min(880px, 100%);
-  padding-top: 0;
+  padding-bottom: 0;
   overflow: hidden;
   text-align: center;
 }
@@ -85,6 +85,6 @@ onMounted(() => { void session.probe() })
   width: calc(100% + 48px);
   max-width: none;
   height: auto;
-  margin: 0 -24px 16px;
+  margin: 16px -24px 0;
 }
 </style>

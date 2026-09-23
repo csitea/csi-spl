@@ -9,7 +9,7 @@
     "cancel": "Peruuta"
   },
   "nav": {
-    "threads": "Ketjut",
+    "threads": "Aiheet",
     "lobby": "Aula",
     "general": "#general",
     "login": "Kirjaudu sisään",
@@ -25,7 +25,7 @@
     "desc_other": "Tapahtui virhe ({status}). Yritä hetken kuluttua uudelleen.",
     "requested_path": "Pyydetty osoite",
     "suggestions_title": "Ehkä etsit tätä:",
-    "back_home": "Takaisin ketjuihin"
+    "back_home": "Takaisin aiheisiin"
   },
   "social_auth": {
     "continue_google": "Jatka Googlella",
@@ -155,7 +155,7 @@
       "signed_in_as": "Kirjautuneena: {who}",
       "sign_out": "Kirjaudu ulos",
       "where_humans_meet": "where people meet with ai",
-      "continue": "Jatka ketjuihin"
+      "continue": "Jatka aiheisiin"
     },
     "native": {
       "tab_login": "Kirjaudu sisään",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "tuntematon",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Avaa ketju",
+    "open_thread": "Avaa aihe",
     "replies": "{n} vastaus | {n} vastausta",
     "filter_label": "Suodatin:",
     "matches": "Osumia: {count}",
@@ -395,7 +395,7 @@
     },
     "new_pill": "Uusia: {n}",
     "new_pill_label": "Siirry uusimpiin viesteihin",
-    "open_thread_hint": "Avaa tämän viestin ketju painamalla Enter.",
+    "open_thread_hint": "Avaa tämän viestin aihe painamalla Enter.",
     "edit": {
       "label": "Muokkaa viestiä",
       "hint": "Enter tallentaa · Shift+Enter lisää rivin · Esc peruuttaa",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "Ketju",
+    "title": "Aihe",
     "open": "Avaa",
-    "empty": "Tyhjä ketju.",
+    "empty": "Tyhjä aihe.",
     "reply_placeholder": "Vastaa — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search suodattaa",
     "replies_label": "Vastaukset, uusimmat ensin",
-    "load_failed": "ketjun lataus epäonnistui",
+    "load_failed": "aiheen lataus epäonnistui",
     "no_replies": "Ei vielä vastauksia — kirjoita ensimmäinen."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Ketjun yksityiskohtaisuus",
+    "label": "Aiheen yksityiskohtaisuus",
     "level": {
       "minimal": "minimaalinen",
       "normal": "normaali",
@@ -442,15 +442,15 @@
     "dark": "Tumma"
   },
   "view_token": {
-    "need_member": "Tämän tenantin ketjut vaativat jäsenkirjautumisen.",
-    "need_member_or_token": "Tämän tenantin ketjut vaativat jäsenkirjautumisen tai katselutunnisteen.",
+    "need_member": "Tämän tenantin aiheet vaativat jäsenkirjautumisen.",
+    "need_member_or_token": "Tämän tenantin aiheet vaativat jäsenkirjautumisen tai katselutunnisteen.",
     "placeholder": "katselutunniste",
     "label": "Katselutunniste",
     "use": "Käytä"
   },
   "pane": {
     "resize_sidebar": "Muuta kanavasivupalkin kokoa",
-    "resize_thread": "Muuta ketjupaneelin kokoa",
+    "resize_thread": "Muuta aihepaneelin kokoa",
     "resize_hint": "Muuta kokoa vetämällä. Palauta kaksoisnapsautuksella."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, uusimmat ensin",
     "index": {
       "subtitle": "vain luku · tenanttikohtainen",
-      "empty": "Ei vielä ketjuja.",
+      "empty": "Ei vielä aiheita.",
       "messages": "{n} viesti | {n} viestiä",
       "older": "Vanhemmat"
     },
@@ -517,7 +517,7 @@
       "users": "Ihmiset",
       "channels": "Kanavat",
       "boxes": "Laatikot",
-      "threads": "Ketjut",
+      "threads": "Aiheet",
       "files": "Tiedostot",
       "messages": "Viestit"
     },

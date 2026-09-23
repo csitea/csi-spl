@@ -9,7 +9,7 @@
     "cancel": "Avbryt"
   },
   "nav": {
-    "threads": "Trådar",
+    "threads": "Ämnen",
     "lobby": "Lobby",
     "general": "#general",
     "login": "Logga in",
@@ -25,7 +25,7 @@
     "desc_other": "Ett fel uppstod ({status}). Försök igen om en stund.",
     "requested_path": "Begärd adress",
     "suggestions_title": "Kanske letade du efter:",
-    "back_home": "Tillbaka till trådarna"
+    "back_home": "Tillbaka till ämnena"
   },
   "social_auth": {
     "continue_google": "Fortsätt med Google",
@@ -155,7 +155,7 @@
       "signed_in_as": "Inloggad som {who}",
       "sign_out": "Logga ut",
       "where_humans_meet": "where people meet with ai",
-      "continue": "Fortsätt till trådarna"
+      "continue": "Fortsätt till ämnena"
     },
     "native": {
       "tab_login": "Logga in",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "okänd",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Öppna tråd",
+    "open_thread": "Öppna ämne",
     "replies": "{n} svar | {n} svar",
     "filter_label": "Filter:",
     "matches": "{count} träff(ar)",
@@ -395,7 +395,7 @@
     },
     "new_pill": "Nya: {n}",
     "new_pill_label": "Gå till de senaste meddelandena",
-    "open_thread_hint": "Tryck på Enter för att öppna meddelandets tråd.",
+    "open_thread_hint": "Tryck på Enter för att öppna meddelandets ämne.",
     "edit": {
       "label": "Redigera meddelandet",
       "hint": "Enter sparar · Shift+Enter ny rad · Esc avbryter",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "Tråd",
+    "title": "Ämne",
     "open": "Öppna",
-    "empty": "Tom tråd.",
+    "empty": "Tomt ämne.",
     "reply_placeholder": "Svara — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka · /search för att filtrera",
     "replies_label": "Svar, nyaste först",
-    "load_failed": "kunde inte läsa in tråden",
+    "load_failed": "kunde inte läsa in ämnet",
     "no_replies": "Inga svar än — skriv det första."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Detaljnivå i tråden",
+    "label": "Detaljnivå i ämnet",
     "level": {
       "minimal": "minimal",
       "normal": "normal",
@@ -442,15 +442,15 @@
     "dark": "Mörkt"
   },
   "view_token": {
-    "need_member": "Den här tenantens trådar kräver inloggning som medlem.",
-    "need_member_or_token": "Den här tenantens trådar kräver inloggning som medlem eller en visningstoken.",
+    "need_member": "Den här tenantens ämnen kräver inloggning som medlem.",
+    "need_member_or_token": "Den här tenantens ämnen kräver inloggning som medlem eller en visningstoken.",
     "placeholder": "visningstoken",
     "label": "Visningstoken",
     "use": "Använd"
   },
   "pane": {
     "resize_sidebar": "Ändra storlek på kanalsidofältet",
-    "resize_thread": "Ändra storlek på trådpanelen",
+    "resize_thread": "Ändra storlek på ämnespanelen",
     "resize_hint": "Dra för att ändra storlek. Dubbelklicka för att återställa."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, nyaste först",
     "index": {
       "subtitle": "skrivskyddad · per tenant",
-      "empty": "Inga trådar ännu.",
+      "empty": "Inga ämnen ännu.",
       "messages": "{n} meddelande | {n} meddelanden",
       "older": "Äldre"
     },
@@ -517,7 +517,7 @@
       "users": "Personer",
       "channels": "Kanaler",
       "boxes": "Boxar",
-      "threads": "Trådar",
+      "threads": "Ämnen",
       "files": "Filer",
       "messages": "Meddelanden"
     },

@@ -9,7 +9,7 @@
     "cancel": "ביטול"
   },
   "nav": {
-    "threads": "שרשורים",
+    "threads": "נושאים",
     "lobby": "לובי",
     "general": "#general",
     "login": "התחברות",
@@ -25,7 +25,7 @@
     "desc_other": "אירעה שגיאה ({status}). נסו שוב בעוד רגע.",
     "requested_path": "הכתובת המבוקשת",
     "suggestions_title": "אולי חיפשתם:",
-    "back_home": "חזרה לשרשורים"
+    "back_home": "חזרה לנושאים"
   },
   "social_auth": {
     "continue_google": "המשך עם Google",
@@ -155,7 +155,7 @@
       "signed_in_as": "מחוברים בתור {who}",
       "sign_out": "התנתקות",
       "where_humans_meet": "where people meet with ai",
-      "continue": "המשך לשרשורים"
+      "continue": "המשך לנושאים"
     },
     "native": {
       "tab_login": "התחברות",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "לא ידוע",
     "card_aria": "{who}, {kind}",
-    "open_thread": "פתיחת שרשור",
+    "open_thread": "פתיחת נושא",
     "replies": "תגובה אחת | {n} תגובות",
     "filter_label": "סינון:",
     "matches": "{count} תוצאות",
@@ -395,7 +395,7 @@
     },
     "new_pill": "חדשות: {n}",
     "new_pill_label": "מעבר להודעות החדשות ביותר",
-    "open_thread_hint": "הקישו Enter כדי לפתוח את השרשור של ההודעה הזו.",
+    "open_thread_hint": "הקישו Enter כדי לפתוח את הנושא של ההודעה הזו.",
     "edit": {
       "label": "עריכת ההודעה",
       "hint": "Enter שומר · Shift+Enter שורה חדשה · Esc מבטל",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "שרשור",
+    "title": "נושא",
     "open": "פתיחה",
-    "empty": "שרשור ריק.",
+    "empty": "נושא ריק.",
     "reply_placeholder": "תגובה — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · /search לסינון",
     "replies_label": "תגובות, החדשות ראשונות",
-    "load_failed": "טעינת השרשור נכשלה",
+    "load_failed": "טעינת הנושא נכשלה",
     "no_replies": "אין עדיין תגובות — כתבו את הראשונה."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "רמת פירוט השרשור",
+    "label": "רמת פירוט הנושא",
     "level": {
       "minimal": "מינימלית",
       "normal": "רגילה",
@@ -442,15 +442,15 @@
     "dark": "כהה"
   },
   "view_token": {
-    "need_member": "השרשורים של טננט זה דורשים התחברות כחבר.",
-    "need_member_or_token": "השרשורים של טננט זה דורשים התחברות כחבר או טוקן צפייה.",
+    "need_member": "הנושאים של טננט זה דורשים התחברות כחבר.",
+    "need_member_or_token": "הנושאים של טננט זה דורשים התחברות כחבר או טוקן צפייה.",
     "placeholder": "טוקן צפייה",
     "label": "טוקן צפייה",
     "use": "שימוש"
   },
   "pane": {
     "resize_sidebar": "שינוי גודל סרגל הערוצים",
-    "resize_thread": "שינוי גודל חלונית השרשור",
+    "resize_thread": "שינוי גודל חלונית הנושא",
     "resize_hint": "גררו כדי לשנות גודל. לחיצה כפולה לאיפוס."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, החדשות ראשונות",
     "index": {
       "subtitle": "קריאה בלבד · בתחום הטננט",
-      "empty": "אין עדיין שרשורים.",
+      "empty": "אין עדיין נושאים.",
       "messages": "הודעה אחת | {n} הודעות",
       "older": "ישנות יותר"
     },
@@ -517,7 +517,7 @@
       "users": "אנשים",
       "channels": "ערוצים",
       "boxes": "תיבות",
-      "threads": "שרשורים",
+      "threads": "נושאים",
       "files": "קבצים",
       "messages": "הודעות"
     },

@@ -9,7 +9,7 @@
     "cancel": "Atšaukti"
   },
   "nav": {
-    "threads": "Gijos",
+    "threads": "Temos",
     "lobby": "Fojė",
     "general": "#general",
     "login": "Prisijungti",
@@ -25,7 +25,7 @@
     "desc_other": "Įvyko klaida ({status}). Po akimirkos bandykite dar kartą.",
     "requested_path": "Užklaustas adresas",
     "suggestions_title": "Galbūt ieškojote:",
-    "back_home": "Atgal į gijas"
+    "back_home": "Atgal į temas"
   },
   "social_auth": {
     "continue_google": "Tęsti su Google",
@@ -155,7 +155,7 @@
       "signed_in_as": "Prisijungta kaip {who}",
       "sign_out": "Atsijungti",
       "where_humans_meet": "where people meet with ai",
-      "continue": "Tęsti į gijas"
+      "continue": "Tęsti į temas"
     },
     "native": {
       "tab_login": "Prisijungti",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "nežinomas",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Atidaryti giją",
+    "open_thread": "Atidaryti temą",
     "replies": "{n} atsakymas | {n} atsakymai",
     "filter_label": "Filtras:",
     "matches": "Atitikmenų: {count}",
@@ -395,7 +395,7 @@
     },
     "new_pill": "Naujų: {n}",
     "new_pill_label": "Pereiti prie naujausių žinučių",
-    "open_thread_hint": "Paspauskite Enter, kad atidarytumėte šios žinutės giją.",
+    "open_thread_hint": "Paspauskite Enter, kad atidarytumėte šios žinutės temą.",
     "edit": {
       "label": "Redaguoti žinutę",
       "hint": "Enter išsaugo · Shift+Enter prideda eilutę · Esc atšaukia",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "Gija",
+    "title": "Tema",
     "open": "Atidaryti",
-    "empty": "Tuščia gija.",
+    "empty": "Tuščia tema.",
     "reply_placeholder": "Atsakymas — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti · /search filtruoti",
     "replies_label": "Atsakymai, naujausi viršuje",
-    "load_failed": "gijos įkelti nepavyko",
+    "load_failed": "temos įkelti nepavyko",
     "no_replies": "Atsakymų kol kas nėra — parašykite pirmąjį."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Gijos detalumas",
+    "label": "Temos detalumas",
     "level": {
       "minimal": "minimalus",
       "normal": "įprastas",
@@ -442,15 +442,15 @@
     "dark": "Tamsi"
   },
   "view_token": {
-    "need_member": "Šio nuomininko gijoms reikia nario prisijungimo.",
-    "need_member_or_token": "Šio nuomininko gijoms reikia nario prisijungimo arba peržiūros žetono.",
+    "need_member": "Šio nuomininko temoms reikia nario prisijungimo.",
+    "need_member_or_token": "Šio nuomininko temoms reikia nario prisijungimo arba peržiūros žetono.",
     "placeholder": "peržiūros žetonas",
     "label": "Peržiūros žetonas",
     "use": "Naudoti"
   },
   "pane": {
     "resize_sidebar": "Keisti kanalų šoninės juostos dydį",
-    "resize_thread": "Keisti gijos skydelio dydį",
+    "resize_thread": "Keisti temos skydelio dydį",
     "resize_hint": "Vilkite, kad pakeistumėte dydį. Dukart spustelėkite, kad atkurtumėte."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, naujausi viršuje",
     "index": {
       "subtitle": "tik skaityti · pagal nuomininką",
-      "empty": "Gijų dar nėra.",
+      "empty": "Temų dar nėra.",
       "messages": "{n} žinutė | {n} žinutės",
       "older": "Senesni"
     },
@@ -517,7 +517,7 @@
       "users": "Žmonės",
       "channels": "Kanalai",
       "boxes": "Dėžės",
-      "threads": "Gijos",
+      "threads": "Temos",
       "files": "Failai",
       "messages": "Žinutės"
     },

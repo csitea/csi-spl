@@ -9,7 +9,7 @@
     "cancel": "Loobu"
   },
   "nav": {
-    "threads": "Lõimed",
+    "threads": "Teemad",
     "lobby": "Fuajee",
     "general": "#general",
     "login": "Logi sisse",
@@ -25,7 +25,7 @@
     "desc_other": "Tekkis viga ({status}). Proovige hetke pärast uuesti.",
     "requested_path": "Küsitud aadress",
     "suggestions_title": "Võib-olla otsisite:",
-    "back_home": "Tagasi lõimede juurde"
+    "back_home": "Tagasi teemade juurde"
   },
   "social_auth": {
     "continue_google": "Jätka Google'iga",
@@ -155,7 +155,7 @@
       "signed_in_as": "Sisse logitud kui {who}",
       "sign_out": "Logi välja",
       "where_humans_meet": "where people meet with ai",
-      "continue": "Jätka lõimede juurde"
+      "continue": "Jätka teemade juurde"
     },
     "native": {
       "tab_login": "Logi sisse",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "tundmatu",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Ava lõim",
+    "open_thread": "Ava teema",
     "replies": "{n} vastus | {n} vastust",
     "filter_label": "Filter:",
     "matches": "{count} vaste(t)",
@@ -395,7 +395,7 @@
     },
     "new_pill": "Uusi: {n}",
     "new_pill_label": "Mine uusimate sõnumite juurde",
-    "open_thread_hint": "Selle sõnumi lõime avamiseks vajuta Enter.",
+    "open_thread_hint": "Selle sõnumi teema avamiseks vajuta Enter.",
     "edit": {
       "label": "Muuda sõnumit",
       "hint": "Enter salvestab · Shift+Enter lisab rea · Esc katkestab",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "Lõim",
+    "title": "Teema",
     "open": "Ava",
-    "empty": "Tühi lõim.",
+    "empty": "Tühi teema.",
     "reply_placeholder": "Vastus — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search filtreerib",
     "replies_label": "Vastused, uusimad eespool",
-    "load_failed": "lõime laadimine ebaõnnestus",
+    "load_failed": "teema laadimine ebaõnnestus",
     "no_replies": "Vastuseid veel ei ole — kirjuta esimene."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Lõime detailsus",
+    "label": "Teema detailsus",
     "level": {
       "minimal": "minimaalne",
       "normal": "tavaline",
@@ -442,15 +442,15 @@
     "dark": "Tume"
   },
   "view_token": {
-    "need_member": "Selle rentniku lõimede nägemiseks on vaja liikmena sisse logida.",
-    "need_member_or_token": "Selle rentniku lõimede nägemiseks on vaja liikmena sisse logida või vaatamistokenit.",
+    "need_member": "Selle rentniku teemade nägemiseks on vaja liikmena sisse logida.",
+    "need_member_or_token": "Selle rentniku teemade nägemiseks on vaja liikmena sisse logida või vaatamistokenit.",
     "placeholder": "vaatamistoken",
     "label": "Vaatamistoken",
     "use": "Kasuta"
   },
   "pane": {
     "resize_sidebar": "Muuda kanalite külgriba suurust",
-    "resize_thread": "Muuda lõimepaani suurust",
+    "resize_thread": "Muuda teemapaneeli suurust",
     "resize_hint": "Lohista suuruse muutmiseks. Topeltklõps lähtestab."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, uusimad eespool",
     "index": {
       "subtitle": "ainult lugemiseks · rentniku piires",
-      "empty": "Lõimi veel pole.",
+      "empty": "Teemasid veel pole.",
       "messages": "{n} sõnum | {n} sõnumit",
       "older": "Vanemad"
     },
@@ -517,7 +517,7 @@
       "users": "Inimesed",
       "channels": "Kanalid",
       "boxes": "Kastid",
-      "threads": "Lõimed",
+      "threads": "Teemad",
       "files": "Failid",
       "messages": "Sõnumid"
     },

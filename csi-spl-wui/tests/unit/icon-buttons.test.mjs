@@ -66,7 +66,7 @@ describe('icon buttons (Close = x, Open = square-arrow-out-up-right)', () => {
     const en = JSON.parse(read('i18n/locales/en.json'))
     assert.equal(en.common.close, 'Close')
     assert.equal(en.thread.open, 'Open')
-    assert.equal(en.feed.open_thread, 'Open thread')
+    assert.equal(en.feed.open_thread, 'Open topic')
     assert.equal(typeof en.composer.remove_file, 'string')
   })
 })

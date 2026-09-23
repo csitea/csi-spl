@@ -548,8 +548,8 @@ function onGlobalKey(ev: KeyboardEvent): boolean {
 }
 
 function onSend() {
-  /* `/switch-pane: messages|channels|threads|flow` changes the left pane
-     and is never sent. An unknown name stays in the box. */
+  /* `/switch-pane: messages|channels|threads|topics|flow` changes the left pane
+     and is never sent. Topic and thread are the same pane. An unknown name stays in the box. */
   if (props.global || props.omnibox) {
     const pane = switchPaneOf(text.value)
     if (pane !== null) {

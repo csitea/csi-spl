@@ -9,7 +9,7 @@
     "cancel": "Atcelt"
   },
   "nav": {
-    "threads": "Pavedieni",
+    "threads": "Tēmas",
     "lobby": "Vestibils",
     "general": "#general",
     "login": "Pieteikties",
@@ -25,7 +25,7 @@
     "desc_other": "Radās kļūda ({status}). Pēc brīža mēģiniet vēlreiz.",
     "requested_path": "Pieprasītā adrese",
     "suggestions_title": "Varbūt meklējāt:",
-    "back_home": "Atpakaļ uz pavedieniem"
+    "back_home": "Atpakaļ uz tēmām"
   },
   "social_auth": {
     "continue_google": "Turpināt ar Google",
@@ -155,7 +155,7 @@
       "signed_in_as": "Pieteicies kā {who}",
       "sign_out": "Izrakstīties",
       "where_humans_meet": "where people meet with ai",
-      "continue": "Turpināt uz pavedieniem"
+      "continue": "Turpināt uz tēmām"
     },
     "native": {
       "tab_login": "Pieteikties",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "nezināms",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Atvērt pavedienu",
+    "open_thread": "Atvērt tēmu",
     "replies": "{n} atbilde | {n} atbildes",
     "filter_label": "Filtrs:",
     "matches": "Atbilstības: {count}",
@@ -395,7 +395,7 @@
     },
     "new_pill": "Jaunas: {n}",
     "new_pill_label": "Pāriet uz jaunākajām ziņām",
-    "open_thread_hint": "Nospiediet Enter, lai atvērtu šīs ziņas pavedienu.",
+    "open_thread_hint": "Nospiediet Enter, lai atvērtu šīs ziņas tēmu.",
     "edit": {
       "label": "Rediģēt ziņu",
       "hint": "Enter saglabā · Shift+Enter pievieno rindu · Esc atceļ",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "Pavediens",
+    "title": "Tēma",
     "open": "Atvērt",
-    "empty": "Tukšs pavediens.",
+    "empty": "Tukša tēma.",
     "reply_placeholder": "Atbilde — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter, lai sūtītu · /search filtrēšanai",
     "replies_label": "Atbildes, jaunākās vispirms",
-    "load_failed": "pavediena ielāde neizdevās",
+    "load_failed": "tēmas ielāde neizdevās",
     "no_replies": "Atbilžu vēl nav — uzrakstiet pirmo."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Pavediena detalizācija",
+    "label": "Tēmas detalizācija",
     "level": {
       "minimal": "minimāla",
       "normal": "parasta",
@@ -442,15 +442,15 @@
     "dark": "Tumšs"
   },
   "view_token": {
-    "need_member": "Šī nomnieka pavedieniem nepieciešama dalībnieka pieteikšanās.",
-    "need_member_or_token": "Šī nomnieka pavedieniem nepieciešama dalībnieka pieteikšanās vai skatīšanas marķieris.",
+    "need_member": "Šī nomnieka tēmām nepieciešama dalībnieka pieteikšanās.",
+    "need_member_or_token": "Šī nomnieka tēmām nepieciešama dalībnieka pieteikšanās vai skatīšanas marķieris.",
     "placeholder": "skatīšanas marķieris",
     "label": "Skatīšanas marķieris",
     "use": "Lietot"
   },
   "pane": {
     "resize_sidebar": "Mainīt kanālu sānjoslas izmēru",
-    "resize_thread": "Mainīt pavediena paneļa izmēru",
+    "resize_thread": "Mainīt tēmas paneļa izmēru",
     "resize_hint": "Velciet, lai mainītu izmēru. Veiciet dubultklikšķi, lai atiestatītu."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, jaunākās vispirms",
     "index": {
       "subtitle": "tikai lasīšanai · nomnieka tvērumā",
-      "empty": "Pavedienu vēl nav.",
+      "empty": "Tēmu vēl nav.",
       "messages": "{n} ziņa | {n} ziņas",
       "older": "Vecākas"
     },
@@ -517,7 +517,7 @@
       "users": "Cilvēki",
       "channels": "Kanāli",
       "boxes": "Kastes",
-      "threads": "Pavedieni",
+      "threads": "Tēmas",
       "files": "Faili",
       "messages": "Ziņas"
     },

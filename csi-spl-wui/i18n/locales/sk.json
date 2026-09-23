@@ -9,7 +9,7 @@
     "cancel": "Zrušiť"
   },
   "nav": {
-    "threads": "Vlákna",
+    "threads": "Témy",
     "lobby": "Lobby",
     "general": "#general",
     "login": "Prihlásiť sa",
@@ -25,7 +25,7 @@
     "desc_other": "Vyskytla sa chyba ({status}). Skúste to o chvíľu znova.",
     "requested_path": "Požadovaná adresa",
     "suggestions_title": "Možno ste hľadali:",
-    "back_home": "Späť na vlákna"
+    "back_home": "Späť na témy"
   },
   "social_auth": {
     "continue_google": "Pokračovať cez Google",
@@ -155,7 +155,7 @@
       "signed_in_as": "Prihlásený ako {who}",
       "sign_out": "Odhlásiť sa",
       "where_humans_meet": "where people meet with ai",
-      "continue": "Pokračovať na vlákna"
+      "continue": "Pokračovať na témy"
     },
     "native": {
       "tab_login": "Prihlásiť sa",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "neznámy",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Otvoriť vlákno",
+    "open_thread": "Otvoriť tému",
     "replies": "{n} odpoveď | Počet odpovedí: {n}",
     "filter_label": "Filter:",
     "matches": "Zhody: {count}",
@@ -395,7 +395,7 @@
     },
     "new_pill": "Nové: {n}",
     "new_pill_label": "Prejsť na najnovšie správy",
-    "open_thread_hint": "Stlačením Enter otvoríte vlákno tejto správy.",
+    "open_thread_hint": "Stlačením Enter otvoríte tému tejto správy.",
     "edit": {
       "label": "Upraviť správu",
       "hint": "Enter uloží · Shift+Enter nový riadok · Esc zruší",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "Vlákno",
+    "title": "Téma",
     "open": "Otvoriť",
-    "empty": "Prázdne vlákno.",
+    "empty": "Prázdna téma.",
     "reply_placeholder": "Odpoveď — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search na filtrovanie",
     "replies_label": "Odpovede, najnovšie prvé",
-    "load_failed": "načítanie vlákna zlyhalo",
+    "load_failed": "načítanie témy zlyhalo",
     "no_replies": "Zatiaľ žiadne odpovede — napíšte prvú."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Podrobnosť vlákna",
+    "label": "Podrobnosť témy",
     "level": {
       "minimal": "minimálna",
       "normal": "normálna",
@@ -442,15 +442,15 @@
     "dark": "Tmavý"
   },
   "view_token": {
-    "need_member": "Vlákna tohto nájomníka vyžadujú prihlásenie člena.",
-    "need_member_or_token": "Vlákna tohto nájomníka vyžadujú prihlásenie člena alebo token na zobrazenie.",
+    "need_member": "Témy tohto nájomníka vyžadujú prihlásenie člena.",
+    "need_member_or_token": "Témy tohto nájomníka vyžadujú prihlásenie člena alebo token na zobrazenie.",
     "placeholder": "token na zobrazenie",
     "label": "Token na zobrazenie",
     "use": "Použiť"
   },
   "pane": {
     "resize_sidebar": "Zmeniť šírku bočného panela kanálov",
-    "resize_thread": "Zmeniť šírku panela vlákna",
+    "resize_thread": "Zmeniť šírku panela témy",
     "resize_hint": "Potiahnutím zmeníte veľkosť. Dvojklikom obnovíte pôvodnú."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, najnovšie prvé",
     "index": {
       "subtitle": "len na čítanie · v rámci nájomníka",
-      "empty": "Zatiaľ žiadne vlákna.",
+      "empty": "Zatiaľ žiadne témy.",
       "messages": "{n} správa | Počet správ: {n}",
       "older": "Staršie"
     },
@@ -517,7 +517,7 @@
       "users": "Ľudia",
       "channels": "Kanály",
       "boxes": "Boxy",
-      "threads": "Vlákna",
+      "threads": "Témy",
       "files": "Súbory",
       "messages": "Správy"
     },

@@ -9,7 +9,7 @@
     "cancel": "Otkaži"
   },
   "nav": {
-    "threads": "Niti",
+    "threads": "Teme",
     "lobby": "Lobi",
     "general": "#general",
     "login": "Prijava",
@@ -25,7 +25,7 @@
     "desc_other": "Došlo je do greške ({status}). Pokušajte ponovo za koji trenutak.",
     "requested_path": "Tražena adresa",
     "suggestions_title": "Možda ste tražili:",
-    "back_home": "Nazad na niti"
+    "back_home": "Nazad na teme"
   },
   "social_auth": {
     "continue_google": "Настави са Google",
@@ -155,7 +155,7 @@
       "signed_in_as": "Prijavljeni ste kao {who}",
       "sign_out": "Odjavi se",
       "where_humans_meet": "where people meet with ai",
-      "continue": "Nastavi na niti"
+      "continue": "Nastavi na teme"
     },
     "native": {
       "tab_login": "Prijava",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "nepoznato",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Otvori nit",
+    "open_thread": "Otvori temu",
     "replies": "{n} odgovor | {n} odgovora",
     "filter_label": "Filter:",
     "matches": "Podudaranja: {count}",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "Nit",
+    "title": "Tema",
     "open": "Otvori",
-    "empty": "Prazna nit.",
+    "empty": "Prazna tema.",
     "reply_placeholder": "Odgovor — Enter za novi red · Ctrl+Enter ili Cmd+Enter za slanje · /search za filtriranje",
     "replies_label": "Odgovori, najnoviji prvi",
-    "load_failed": "učitavanje niti nije uspelo",
+    "load_failed": "učitavanje teme nije uspelo",
     "no_replies": "Још нема одговора — напишите први."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Detaljnost niti",
+    "label": "Detaljnost teme",
     "level": {
       "minimal": "minimalna",
       "normal": "uobičajena",
@@ -442,15 +442,15 @@
     "dark": "Tamna"
   },
   "view_token": {
-    "need_member": "Za niti ovog zakupca potrebna je prijava člana.",
-    "need_member_or_token": "Za niti ovog zakupca potrebna je prijava člana ili token za pregled.",
+    "need_member": "Za teme ovog zakupca potrebna je prijava člana.",
+    "need_member_or_token": "Za teme ovog zakupca potrebna je prijava člana ili token za pregled.",
     "placeholder": "token za pregled",
     "label": "Token za pregled",
     "use": "Koristi"
   },
   "pane": {
     "resize_sidebar": "Promeni veličinu bočne trake kanala",
-    "resize_thread": "Promeni veličinu okna niti",
+    "resize_thread": "Promeni veličinu okna teme",
     "resize_hint": "Prevucite za promenu veličine. Dvaput kliknite za vraćanje."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, najnovije prvo",
     "index": {
       "subtitle": "samo za čitanje · u okviru zakupca",
-      "empty": "Još nema niti.",
+      "empty": "Još nema tema.",
       "messages": "{n} poruka | {n} poruka",
       "older": "Starije"
     },
@@ -517,7 +517,7 @@
       "users": "Људи",
       "channels": "Канали",
       "boxes": "Кутије",
-      "threads": "Нити",
+      "threads": "Теме",
       "files": "Датотеке",
       "messages": "Поруке"
     },

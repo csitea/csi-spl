@@ -9,7 +9,7 @@
     "cancel": "Annuleren"
   },
   "nav": {
-    "threads": "Threads",
+    "threads": "Onderwerpen",
     "lobby": "Lobby",
     "general": "#general",
     "login": "Inloggen",
@@ -25,7 +25,7 @@
     "desc_other": "Er is een fout opgetreden ({status}). Probeer het zo meteen opnieuw.",
     "requested_path": "Opgevraagd adres",
     "suggestions_title": "Misschien zocht je:",
-    "back_home": "Terug naar de threads"
+    "back_home": "Terug naar de onderwerpen"
   },
   "social_auth": {
     "continue_google": "Doorgaan met Google",
@@ -155,7 +155,7 @@
       "signed_in_as": "Ingelogd als {who}",
       "sign_out": "Uitloggen",
       "where_humans_meet": "where people meet with ai",
-      "continue": "Verder naar de threads"
+      "continue": "Verder naar de onderwerpen"
     },
     "native": {
       "tab_login": "Inloggen",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "onbekend",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Thread openen",
+    "open_thread": "Onderwerp openen",
     "replies": "{n} reactie | {n} reacties",
     "filter_label": "Filter:",
     "matches": "{count} resultaat/resultaten",
@@ -395,7 +395,7 @@
     },
     "new_pill": "Nieuw: {n}",
     "new_pill_label": "Naar de nieuwste berichten",
-    "open_thread_hint": "Druk op Enter om de thread van dit bericht te openen.",
+    "open_thread_hint": "Druk op Enter om het onderwerp van dit bericht te openen.",
     "edit": {
       "label": "Bericht bewerken",
       "hint": "Enter slaat op · Shift+Enter nieuwe regel · Esc annuleert",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "Thread",
+    "title": "Onderwerp",
     "open": "Openen",
-    "empty": "Lege thread.",
+    "empty": "Leeg onderwerp.",
     "reply_placeholder": "Reageren — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen · /search om te filteren",
     "replies_label": "Reacties, nieuwste eerst",
-    "load_failed": "thread laden mislukt",
+    "load_failed": "onderwerp laden mislukt",
     "no_replies": "Nog geen antwoorden — schrijf het eerste."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Detailniveau van threads",
+    "label": "Detailniveau van onderwerpen",
     "level": {
       "minimal": "minimaal",
       "normal": "normaal",
@@ -442,15 +442,15 @@
     "dark": "Donker"
   },
   "view_token": {
-    "need_member": "Voor de threads van deze tenant moet een lid inloggen.",
-    "need_member_or_token": "Voor de threads van deze tenant moet een lid inloggen of is een leestoken nodig.",
+    "need_member": "Voor de onderwerpen van deze tenant moet een lid inloggen.",
+    "need_member_or_token": "Voor de onderwerpen van deze tenant moet een lid inloggen of is een leestoken nodig.",
     "placeholder": "leestoken",
     "label": "Leestoken",
     "use": "Gebruiken"
   },
   "pane": {
     "resize_sidebar": "Formaat van kanaalzijbalk wijzigen",
-    "resize_thread": "Formaat van threadpaneel wijzigen",
+    "resize_thread": "Formaat van onderwerppaneel wijzigen",
     "resize_hint": "Sleep om het formaat te wijzigen. Dubbelklik om te herstellen."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, nieuwste eerst",
     "index": {
       "subtitle": "alleen-lezen · binnen de tenant",
-      "empty": "Nog geen threads.",
+      "empty": "Nog geen onderwerpen.",
       "messages": "{n} bericht | {n} berichten",
       "older": "Ouder"
     },
@@ -517,7 +517,7 @@
       "users": "Mensen",
       "channels": "Kanalen",
       "boxes": "Boxen",
-      "threads": "Threads",
+      "threads": "Onderwerpen",
       "files": "Bestanden",
       "messages": "Berichten"
     },

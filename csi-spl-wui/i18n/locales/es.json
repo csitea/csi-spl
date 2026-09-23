@@ -9,7 +9,7 @@
     "cancel": "Cancelar"
   },
   "nav": {
-    "threads": "Hilos",
+    "threads": "Temas",
     "lobby": "Vestíbulo",
     "general": "#general",
     "login": "Iniciar sesión",
@@ -25,7 +25,7 @@
     "desc_other": "Se ha producido un error ({status}). Inténtalo de nuevo en un momento.",
     "requested_path": "Dirección solicitada",
     "suggestions_title": "Quizás buscabas:",
-    "back_home": "Volver a los hilos"
+    "back_home": "Volver a los temas"
   },
   "social_auth": {
     "continue_google": "Continuar con Google",
@@ -155,7 +155,7 @@
       "signed_in_as": "Sesión iniciada como {who}",
       "sign_out": "Cerrar sesión",
       "where_humans_meet": "where people meet with ai",
-      "continue": "Continuar a los hilos"
+      "continue": "Continuar a los temas"
     },
     "native": {
       "tab_login": "Iniciar sesión",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "desconocido",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Abrir hilo",
+    "open_thread": "Abrir tema",
     "replies": "{n} respuesta | {n} respuestas",
     "filter_label": "Filtro:",
     "matches": "{count} coincidencia(s)",
@@ -395,7 +395,7 @@
     },
     "new_pill": "Nuevos: {n}",
     "new_pill_label": "Ir a los mensajes más recientes",
-    "open_thread_hint": "Pulsa Intro para abrir el hilo de este mensaje.",
+    "open_thread_hint": "Pulsa Intro para abrir el tema de este mensaje.",
     "edit": {
       "label": "Editar mensaje",
       "hint": "Enter guarda · Shift+Enter añade una línea · Esc cancela",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "Hilo",
+    "title": "Tema",
     "open": "Abrir",
-    "empty": "Hilo vacío.",
+    "empty": "Tema vacío.",
     "reply_placeholder": "Responder — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para filtrar",
     "replies_label": "Respuestas, las más recientes primero",
-    "load_failed": "error al cargar el hilo",
+    "load_failed": "error al cargar el tema",
     "no_replies": "Aún no hay respuestas: escribe la primera."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Nivel de detalle del hilo",
+    "label": "Nivel de detalle del tema",
     "level": {
       "minimal": "mínimo",
       "normal": "normal",
@@ -442,15 +442,15 @@
     "dark": "Oscuro"
   },
   "view_token": {
-    "need_member": "Los hilos de este inquilino requieren que un miembro inicie sesión.",
-    "need_member_or_token": "Los hilos de este inquilino requieren que un miembro inicie sesión o un token de lectura.",
+    "need_member": "Los temas de este inquilino requieren que un miembro inicie sesión.",
+    "need_member_or_token": "Los temas de este inquilino requieren que un miembro inicie sesión o un token de lectura.",
     "placeholder": "token de lectura",
     "label": "Token de lectura",
     "use": "Usar"
   },
   "pane": {
     "resize_sidebar": "Redimensionar la barra de canales",
-    "resize_thread": "Redimensionar el panel del hilo",
+    "resize_thread": "Redimensionar el panel del tema",
     "resize_hint": "Arrastra para redimensionar. Doble clic para restablecer."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, los más recientes primero",
     "index": {
       "subtitle": "solo lectura · limitado al inquilino",
-      "empty": "Aún no hay hilos.",
+      "empty": "Aún no hay temas.",
       "messages": "{n} mensaje | {n} mensajes",
       "older": "Anteriores"
     },
@@ -517,7 +517,7 @@
       "users": "Personas",
       "channels": "Canales",
       "boxes": "Cajas",
-      "threads": "Hilos",
+      "threads": "Temas",
       "files": "Archivos",
       "messages": "Mensajes"
     },

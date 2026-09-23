@@ -9,7 +9,7 @@
     "cancel": "Cancel"
   },
   "nav": {
-    "threads": "Threads",
+    "threads": "Topics",
     "lobby": "Lobby",
     "general": "#general",
     "login": "Sign in",
@@ -25,7 +25,7 @@
     "desc_other": "An error occurred ({status}). Please try again in a moment.",
     "requested_path": "Requested address",
     "suggestions_title": "Maybe you were looking for:",
-    "back_home": "Back to the threads"
+    "back_home": "Back to the topics"
   },
   "social_auth": {
     "continue_google": "Continue with Google",
@@ -155,7 +155,7 @@
       "signed_in_as": "Signed in as {who}",
       "sign_out": "Sign out",
       "where_humans_meet": "where people meet with ai",
-      "continue": "Continue to threads"
+      "continue": "Continue to topics"
     },
     "native": {
       "tab_login": "Sign in",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "unknown",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Open thread",
+    "open_thread": "Open topic",
     "replies": "{n} reply | {n} replies",
     "filter_label": "Filter:",
     "matches": "{count} match(es)",
@@ -395,7 +395,7 @@
     },
     "new_pill": "New: {n}",
     "new_pill_label": "Jump to the newest messages",
-    "open_thread_hint": "Press Enter to open this message's thread.",
+    "open_thread_hint": "Press Enter to open this message's topic.",
     "edit": {
       "label": "Edit message",
       "hint": "Enter saves · Shift+Enter adds a line · Esc cancels",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "Thread",
+    "title": "Topic",
     "open": "Open",
-    "empty": "Empty thread.",
+    "empty": "Empty topic.",
     "reply_placeholder": "Reply — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to filter",
     "replies_label": "Replies, newest first",
-    "load_failed": "thread load failed",
+    "load_failed": "topic load failed",
     "no_replies": "No replies yet — write the first one."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Thread verbosity",
+    "label": "Topic verbosity",
     "level": {
       "minimal": "minimal",
       "normal": "normal",
@@ -442,15 +442,15 @@
     "dark": "Dark"
   },
   "view_token": {
-    "need_member": "This tenant's threads need a member sign-in.",
-    "need_member_or_token": "This tenant's threads need a member sign-in or a view token.",
+    "need_member": "This tenant's topics need a member sign-in.",
+    "need_member_or_token": "This tenant's topics need a member sign-in or a view token.",
     "placeholder": "view token",
     "label": "View token",
     "use": "Use"
   },
   "pane": {
     "resize_sidebar": "Resize channel sidebar",
-    "resize_thread": "Resize thread pane",
+    "resize_thread": "Resize topic pane",
     "resize_hint": "Drag to resize. Double-click to reset."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, newest first",
     "index": {
       "subtitle": "read-only · tenant-scoped",
-      "empty": "No threads yet.",
+      "empty": "No topics yet.",
       "messages": "{n} message | {n} messages",
       "older": "Older"
     },
@@ -517,7 +517,7 @@
       "users": "People",
       "channels": "Channels",
       "boxes": "Boxes",
-      "threads": "Threads",
+      "threads": "Topics",
       "files": "Files",
       "messages": "Messages"
     },

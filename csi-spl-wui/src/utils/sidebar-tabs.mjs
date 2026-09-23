@@ -5,11 +5,15 @@ import { productPath } from './signed-out-redirect.mjs'
 
 export const SIDE_TABS = ['dm', 'channels', 'threads', 'flow']
 
-/** Names accepted after `/switch-pane:`. `messages` is the direct-message pane. */
+/** Names accepted after `/switch-pane:`. `messages` is the direct-message pane.
+ *  `topic` and `thread` name the same pane. */
 const SWITCH_PANE_NAMES = {
   messages: 'dm',
   channels: 'channels',
   threads: 'threads',
+  thread: 'threads',
+  topics: 'threads',
+  topic: 'threads',
   flow: 'flow',
 }
 
@@ -85,7 +89,7 @@ export function flowRows(src = {}) {
  * Omnibox command `/switch-pane: <name>`.
  * `null` — this line is not the command (send it as a message).
  * `''` — it is the command, but the name is not a pane (do not send).
- * Otherwise the pane id: messages → dm, channels, threads, flow.
+ * Otherwise the pane id: messages → dm, channels, threads (also topic), flow.
  * @param {string} text
  * @returns {'dm' | 'channels' | 'threads' | 'flow' | '' | null}
  */

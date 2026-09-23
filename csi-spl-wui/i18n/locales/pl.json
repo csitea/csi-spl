@@ -9,7 +9,7 @@
     "cancel": "Anuluj"
   },
   "nav": {
-    "threads": "Wątki",
+    "threads": "Tematy",
     "lobby": "Lobby",
     "general": "#general",
     "login": "Zaloguj się",
@@ -25,7 +25,7 @@
     "desc_other": "Wystąpił błąd ({status}). Spróbuj ponownie za chwilę.",
     "requested_path": "Żądany adres",
     "suggestions_title": "Może szukasz:",
-    "back_home": "Wróć do wątków"
+    "back_home": "Wróć do tematów"
   },
   "social_auth": {
     "continue_google": "Kontynuuj z Google",
@@ -155,7 +155,7 @@
       "signed_in_as": "Zalogowano jako {who}",
       "sign_out": "Wyloguj się",
       "where_humans_meet": "where people meet with ai",
-      "continue": "Przejdź do wątków"
+      "continue": "Przejdź do tematów"
     },
     "native": {
       "tab_login": "Zaloguj się",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "nieznany",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Otwórz wątek",
+    "open_thread": "Otwórz temat",
     "replies": "{n} odpowiedź | {n} odpowiedzi",
     "filter_label": "Filtr:",
     "matches": "Dopasowania: {count}",
@@ -395,7 +395,7 @@
     },
     "new_pill": "Nowe: {n}",
     "new_pill_label": "Przejdź do najnowszych wiadomości",
-    "open_thread_hint": "Naciśnij Enter, aby otworzyć wątek tej wiadomości.",
+    "open_thread_hint": "Naciśnij Enter, aby otworzyć temat tej wiadomości.",
     "edit": {
       "label": "Edytuj wiadomość",
       "hint": "Enter zapisuje · Shift+Enter nowy wiersz · Esc anuluje",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "Wątek",
+    "title": "Temat",
     "open": "Otwórz",
-    "empty": "Pusty wątek.",
+    "empty": "Pusty temat.",
     "reply_placeholder": "Odpowiedz — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search, aby filtrować",
     "replies_label": "Odpowiedzi, od najnowszych",
-    "load_failed": "ładowanie wątku nie powiodło się",
+    "load_failed": "ładowanie tematu nie powiodło się",
     "no_replies": "Brak odpowiedzi — napisz pierwszą."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Szczegółowość wątku",
+    "label": "Szczegółowość tematu",
     "level": {
       "minimal": "minimalna",
       "normal": "normalna",
@@ -442,15 +442,15 @@
     "dark": "Ciemny"
   },
   "view_token": {
-    "need_member": "Wątki tej dzierżawy wymagają zalogowania członka.",
-    "need_member_or_token": "Wątki tej dzierżawy wymagają zalogowania członka lub tokenu podglądu.",
+    "need_member": "Tematy tej dzierżawy wymagają zalogowania członka.",
+    "need_member_or_token": "Tematy tej dzierżawy wymagają zalogowania członka lub tokenu podglądu.",
     "placeholder": "token podglądu",
     "label": "Token podglądu",
     "use": "Użyj"
   },
   "pane": {
     "resize_sidebar": "Zmień rozmiar paska kanałów",
-    "resize_thread": "Zmień rozmiar panelu wątku",
+    "resize_thread": "Zmień rozmiar panelu tematu",
     "resize_hint": "Przeciągnij, aby zmienić rozmiar. Kliknij dwukrotnie, aby przywrócić."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, od najnowszych",
     "index": {
       "subtitle": "tylko do odczytu · w obrębie dzierżawy",
-      "empty": "Brak wątków.",
+      "empty": "Brak tematów.",
       "messages": "{n} wiadomość | {n} wiadomości",
       "older": "Starsze"
     },
@@ -517,7 +517,7 @@
       "users": "Osoby",
       "channels": "Kanały",
       "boxes": "Skrzynki",
-      "threads": "Wątki",
+      "threads": "Tematy",
       "files": "Pliki",
       "messages": "Wiadomości"
     },

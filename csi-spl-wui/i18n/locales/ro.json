@@ -9,7 +9,7 @@
     "cancel": "Anulează"
   },
   "nav": {
-    "threads": "Fire",
+    "threads": "Teme",
     "lobby": "Hol",
     "general": "#general",
     "login": "Autentificare",
@@ -25,7 +25,7 @@
     "desc_other": "A apărut o eroare ({status}). Încercați din nou în scurt timp.",
     "requested_path": "Adresa solicitată",
     "suggestions_title": "Poate căutați:",
-    "back_home": "Înapoi la fire"
+    "back_home": "Înapoi la teme"
   },
   "social_auth": {
     "continue_google": "Continuă cu Google",
@@ -155,7 +155,7 @@
       "signed_in_as": "Autentificat ca {who}",
       "sign_out": "Deconectare",
       "where_humans_meet": "where people meet with ai",
-      "continue": "Continuă la fire"
+      "continue": "Continuă la teme"
     },
     "native": {
       "tab_login": "Autentificare",
@@ -352,7 +352,7 @@
   "feed": {
     "unknown_author": "necunoscut",
     "card_aria": "{who}, {kind}",
-    "open_thread": "Deschide firul",
+    "open_thread": "Deschide tema",
     "replies": "{n} răspuns | {n} răspunsuri",
     "filter_label": "Filtru:",
     "matches": "Potriviri: {count}",
@@ -395,7 +395,7 @@
     },
     "new_pill": "Noi: {n}",
     "new_pill_label": "Salt la cele mai noi mesaje",
-    "open_thread_hint": "Apasă Enter pentru a deschide firul acestui mesaj.",
+    "open_thread_hint": "Apasă Enter pentru a deschide tema acestui mesaj.",
     "edit": {
       "label": "Editează mesajul",
       "hint": "Enter salvează · Shift+Enter rând nou · Esc anulează",
@@ -410,12 +410,12 @@
     }
   },
   "thread": {
-    "title": "Fir",
+    "title": "Temă",
     "open": "Deschide",
-    "empty": "Fir gol.",
+    "empty": "Temă goală.",
     "reply_placeholder": "Răspuns — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru filtrare",
     "replies_label": "Răspunsuri, cele mai noi primele",
-    "load_failed": "încărcarea firului a eșuat",
+    "load_failed": "încărcarea temei a eșuat",
     "no_replies": "Încă nu există răspunsuri — scrie-l pe primul."
   },
   "notify": {
@@ -428,7 +428,7 @@
     "title_other": "{from}"
   },
   "verbosity": {
-    "label": "Nivel de detaliu al firului",
+    "label": "Nivel de detaliu al temei",
     "level": {
       "minimal": "minim",
       "normal": "normal",
@@ -442,15 +442,15 @@
     "dark": "Întunecată"
   },
   "view_token": {
-    "need_member": "Firele acestui chiriaș necesită autentificarea unui membru.",
-    "need_member_or_token": "Firele acestui chiriaș necesită autentificarea unui membru sau un token de vizualizare.",
+    "need_member": "Temele acestui chiriaș necesită autentificarea unui membru.",
+    "need_member_or_token": "Temele acestui chiriaș necesită autentificarea unui membru sau un token de vizualizare.",
     "placeholder": "token de vizualizare",
     "label": "Token de vizualizare",
     "use": "Folosește"
   },
   "pane": {
     "resize_sidebar": "Redimensionează bara laterală a canalelor",
-    "resize_thread": "Redimensionează panoul firului",
+    "resize_thread": "Redimensionează panoul temei",
     "resize_hint": "Trageți pentru a redimensiona. Dublu clic pentru resetare."
   },
   "pages": {
@@ -458,7 +458,7 @@
     "feed_label": "{target}, cele mai noi primele",
     "index": {
       "subtitle": "doar citire · limitat la chiriaș",
-      "empty": "Încă nu există fire.",
+      "empty": "Încă nu există teme.",
       "messages": "{n} mesaj | {n} mesaje",
       "older": "Mai vechi"
     },
@@ -517,7 +517,7 @@
       "users": "Persoane",
       "channels": "Canale",
       "boxes": "Cutii",
-      "threads": "Fire",
+      "threads": "Teme",
       "files": "Fișiere",
       "messages": "Mesaje"
     },

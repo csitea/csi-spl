@@ -38,7 +38,9 @@ export function filterRosterMentions(peers, query) {
 }
 
 /**
- * Replace the in-progress @token with `@ID ` (id only — parseMention routes on that).
+ * Replace the in-progress @token with the full tag. `id` is the roster label
+ * (`CLE-3994@box-desk`) or a bare id. Enter on `@3994` therefore writes the
+ * whole tag, not the fragment that was typed.
  */
 export function insertMention(text, cursor, id) {
   const s = String(text || '')

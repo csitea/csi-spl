@@ -72,6 +72,7 @@ describe('mention autocomplete', () => {
     assert.equal(src.includes('activeMentionQuery'), true)
     assert.equal(src.includes('insertMention'), true)
     assert.equal(src.includes('list.scrollTop'), true)
+    assert.equal(src.includes('peer.label || peer.id'), true)
     assert.equal(src.includes('parseMention'), false)
   })
 
@@ -102,5 +103,9 @@ describe('H5: a door-off guest GST-<n> is mentionable', () => {
     assert.deepEqual(filterRosterMentions(peers, '3994').map((p) => p.id), ['CLE-3994'])
     assert.deepEqual(filterRosterMentions(peers, '@3994').map((p) => p.id), ['CLE-3994'])
     assert.deepEqual(filterRosterMentions(peers, 'desk').map((p) => p.id), ['CLE-3994', 'CLE-3444', 'GRK-3492'])
+    const typed = '@3994'
+    const done = insertMention(typed, typed.length, filterRosterMentions(peers, '3994')[0].label)
+    assert.equal(done.text, '@CLE-3994@box-desk ')
+    assert.deepEqual(parseMention(done.text + 'please'), { to: 'CLE-3994', kind: 'task', body: 'please' })
   })
 })

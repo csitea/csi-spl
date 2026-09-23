@@ -12,12 +12,6 @@
       </div>
       <ErrorNotice v-if="viewer.error" :message="viewer.error" source="viewer" test-id="viewer-error" />
       <ViewTokenForm v-if="viewer.needsToken" :detail="viewer.doorDetail" @saved="viewer.loadThreads()" />
-      <!-- CLE-3433: "No threads yet." is the right words for a MEMBER with
-           an empty list and the wrong ones for a visitor who is simply not
-           signed in - it reads as an app with nothing in it. The view-door
-           branch above still wins, so an anonymous reader holding a token
-           is unaffected. -->
-      <SignedOutNotice v-else-if="signedOut && !viewer.loading && !viewer.error && viewer.threads.length === 0" />
       <p v-else-if="!viewer.loading && !viewer.error && viewer.threads.length === 0" class="muted">
         {{ tr('pages.index.empty') }}
       </p>
@@ -52,13 +46,11 @@ import { useSettledQuery } from '~/composables/useSettledQuery'
 import { useScrollAnchor } from '~/composables/useScrollAnchor'
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { isSignedOutVisitor, shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
+import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 
 const viewer = useViewerStore()
 const session = useSessionStore()
 const api = useSpoolApi()
-/* CLE-3433: a settled signed-out probe, so the notice never flashes at a human mid-probe */
-const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
 /* `tr`, not `t`: the thread rows below are iterated as `t` */
 const { t: tr, locale } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()

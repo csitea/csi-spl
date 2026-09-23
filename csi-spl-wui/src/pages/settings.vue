@@ -3,7 +3,8 @@
      the right; each section is its own child route (pages/settings/*.vue), so
      /settings/keys and /fi/settings/keys deep-link. /settings itself redirects
      to /settings/profile. Below 720px the nav becomes a wrapping row above the
-     content. The signed-out state renders here once, for every section. -->
+     content. A settled signed-out session never reaches this screen:
+     the shared redirect replaces it with /login. -->
 <template>
   <div class="feed-col">
     <header class="feed-header">
@@ -29,18 +30,6 @@
           <NuxtPage />
         </div>
       </div>
-      <template v-else>
-        <p v-if="changed" class="muted" role="status" data-test="settings-password-changed">
-          {{ t('auth.login.password_changed') }}
-        </p>
-        <p class="muted" data-test="settings-signed-out">
-          <i18n-t keypath="settings.signed_out" scope="global">
-            <template #link>
-              <NuxtLink :to="{ path: localePath('/login'), query: { redirect: route.fullPath } }">{{ t('nav.login') }}</NuxtLink>
-            </template>
-          </i18n-t>
-        </p>
-      </template>
     </div>
   </div>
 </template>
@@ -55,9 +44,6 @@ const localePath = useLocalePath()
 const { t } = useI18n({ useScope: 'global' })
 const signedIn = computed(() => session.state === 'in' && !!session.claims)
 const active = computed(() => settingsSectionOf(route.path))
-/* 015 §2 password/change 204 clears the cookie: say why the page went away
-   (set by pages/settings/security.vue) */
-const changed = useState('settings-password-changed', () => false)
 </script>
 
 <style scoped>

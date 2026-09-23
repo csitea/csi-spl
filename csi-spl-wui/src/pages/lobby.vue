@@ -8,9 +8,6 @@
       <p v-if="!lobbyId" class="muted">{{ t('pages.lobby.no_lobby', { env: 'NUXT_PUBLIC_LOBBY_TASK_ID' }) }}</p>
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="lobbyId && store.open(lobbyId)" />
       <ErrorNotice v-if="store.error" :message="store.error" source="lobby" test-id="lobby-error" />
-      <!-- CLE-3433: signed out this feed can only ever be empty and the
-           Omnibox can only 401 - say so instead of showing a dead room -->
-      <SignedOutNotice v-if="signedOut" />
       <LiveFeed
         :label="t('pages.feed_label', { target: '#lobby' })"
         :rows="store.newestFirst"
@@ -35,7 +32,7 @@ import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { isSignedOutVisitor, shouldOpenHubSocket, startHubSocket, stopHubSocket } from '~/utils/shell-bootstrap.mjs'
+import { shouldOpenHubSocket, startHubSocket, stopHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useNotificationStore } from '~/stores/notification'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useThreadStore } from '~/stores/thread'
@@ -49,8 +46,6 @@ const thread = useThreadStore()
 const live = useLive()
 const api = useSpoolApi()
 const session = useSessionStore()
-/* CLE-3433: a settled signed-out probe, so the notice never flashes at a human mid-probe */
-const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
 const notes = useNotificationStore()
 const { t, te } = useI18n({ useScope: 'global' })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */

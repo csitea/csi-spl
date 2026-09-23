@@ -1,19 +1,11 @@
-// CLE-3433 — a visitor who is not signed in used to get the full app shell in
-// a dead state: an empty feed, an empty channel list carrying a live "new
-// channel" field, and an Omnibox whose every send could only answer 401. The
-// owner read that as "the UI seems COMPLETELY broken" on 2026-09-21.
+// CLE-3433 pinned the predicate: only a SETTLED 'out' is a signed-out visitor.
+// 'loading' is a probe in flight and 'unknown' is an unreachable hub
+// (auth-v1 §4), NOT a signed-out human. The mock tenant has no sign-in.
 //
-// /settings already had the right shape — "{link} to see your settings." — so
-// the feed routes now share one SignedOutNotice instead of each inventing an
-// empty state. Two things are pinned here and neither is cosmetic:
-//
-//   1. only a SETTLED 'out' shows it. 'loading' is a probe in flight and
-//      'unknown' is an unreachable hub (auth-v1 §4), NOT a signed-out human —
-//      showing a sign-in prompt to a signed-in member because their hub
-//      blipped would be a worse bug than the one being fixed;
-//   2. it is a notice, never a redirect. `/`, `/lobby` and `/t/<id>` also
-//      serve anonymous readers holding a view-door token, and a blanket
-//      bounce to /login would break that flow.
+// The product screens no longer render SignedOutNotice. A settled 'out'
+// replaces those routes with /login (signed-out-redirect.test.mjs). This file
+// keeps the predicate, the sidebar gate, and the notice component's own copy
+// honest.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -40,14 +32,11 @@ describe('isSignedOutVisitor (CLE-3433)', () => {
   })
 })
 
-describe('the signed-out feed routes offer a way in (CLE-3433)', () => {
+describe('product feed pages do not paint the signed-out notice', () => {
   for (const page of FEED_PAGES) {
-    it(`${page}: renders SignedOutNotice off the shared predicate`, () => {
+    it(`${page}: no longer renders SignedOutNotice`, () => {
       const s = src(page)
-      assert.match(s, /<SignedOutNotice/)
-      assert.match(s, /isSignedOutVisitor\(session\.state, api\.mock\)/)
-      assert.match(s, /from '~\/utils\/shell-bootstrap\.mjs'/)
-      /* a redirect would break the view-door reader — see the header */
+      assert.doesNotMatch(s, /<SignedOutNotice/)
       assert.doesNotMatch(s, /navigateTo\(.*login/)
     })
   }

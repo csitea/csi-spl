@@ -1,6 +1,14 @@
 <template>
-  <div class="login-card">
-    <h1>Spool</h1>
+  <div class="login-card login-landing-card">
+    <img
+      class="login-landing"
+      src="/login-landing.png"
+      width="1344"
+      height="768"
+      :alt="t('auth.login.where_humans_meet')"
+      data-test="login-landing"
+    >
+    <h1>{{ t('auth.login.where_humans_meet') }}</h1>
     <p v-if="error" class="login-error" role="alert">{{ error }}</p>
     <SocialAuthButtons class="idp" :redirect="redirect" :tenant="tenant" />
     <NativeAuthForm v-if="session.state !== 'in'" :redirect="redirect" :tenant="tenant" />
@@ -8,10 +16,11 @@
     <p v-if="session.state === 'unknown'" class="muted">{{ t('auth.login.session_unavailable') }}</p>
     <p v-if="session.state === 'in'" class="muted">
       {{ t('auth.login.signed_in_as', { who: session.label }) }} ·
+      <NuxtLink :to="redirect">{{ t('auth.login.continue') }}</NuxtLink>
+      ·
       <button class="btn ghost" type="button" @click="session.logout()">{{ t('auth.login.sign_out') }}</button>
     </p>
     <ChangePasswordForm v-if="session.state === 'in' && session.claims?.p === 'password'" @changed="changed = true" />
-    <p><NuxtLink :to="redirect">{{ t('auth.login.continue') }}</NuxtLink></p>
   </div>
 </template>
 
@@ -35,8 +44,11 @@ const copy = useAuthCopy()
 /* the auth_error code, rendered in the active locale (spec 021) */
 const errorCode = ref('')
 const error = computed(() => copy.authError(errorCode.value))
-/* 015 §2 password/change 204 clears the cookie: say why the form went away */
-const changed = ref(false)
+/* 015 §2 password/change 204 clears the cookie: say why the form went away.
+   Settings sets the same flag, then this page replaces that screen. */
+const changedFromSettings = useState('settings-password-changed', () => false)
+const changed = ref(changedFromSettings.value)
+if (changedFromSettings.value) changedFromSettings.value = false
 /* /login is prerendered: its query only exists once hydration settles. */
 const redirectQ = useSettledQuery('redirect')
 const tenantQ = useSettledQuery('tenant')
@@ -55,3 +67,18 @@ watch(authError.value, (code) => {
 
 onMounted(() => { void session.probe() })
 </script>
+
+<style scoped>
+.login-landing-card {
+  width: min(880px, 100%);
+  padding-top: 0;
+  overflow: hidden;
+}
+.login-landing {
+  display: block;
+  width: calc(100% + 48px);
+  max-width: none;
+  height: auto;
+  margin: 0 -24px 16px;
+}
+</style>

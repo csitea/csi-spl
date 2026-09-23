@@ -7,15 +7,13 @@
       <span v-if="description" class="muted feed-header__about" :title="description" data-test="channel-description">{{ description }}</span>
       <span class="muted">{{ retention ? t('pages.channel.subtitle_retention', { retention }) : t('pages.channel.subtitle') }}</span>
     </header>
-    <SignedOutNotice v-if="signedOut" />
-    <MessageFeed v-else :label="t('pages.feed_label', { target: '#' + name })" />
+    <MessageFeed :label="t('pages.feed_label', { target: '#' + name })" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useChannelStore } from '~/stores/channel'
 import { useSessionStore } from '~/stores/session'
-import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 import { useSpoolEvents } from '~/composables/useSpoolEvents'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
@@ -34,8 +32,6 @@ const notes = useNotificationStore()
 const events = useSpoolEvents()
 const api = useSpoolApi()
 const session = useSessionStore()
-/* CLE-3433: a settled signed-out probe, so the notice never flashes at a human mid-probe */
-const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
 const name = computed(() => String(route.params.name || 'lobby'))
 const { t } = useI18n({ useScope: 'global' })
 const description = computed(() => String(channel.channels.find((c) => c.channel_id === name.value)?.description || ''))

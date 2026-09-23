@@ -5,10 +5,7 @@
       <h2>{{ peer }}</h2>
       <span class="muted">{{ online ? t('pages.dm.online') : t('pages.dm.offline_queued') }}</span>
     </header>
-    <!-- CLE-3433: the DM route is where a visitor is most likely to land
-         from a link, so the signed-out state matters most here -->
-    <SignedOutNotice v-if="signedOut" />
-    <MessageFeed v-else :label="t('pages.feed_label', { target: peer })" />
+    <MessageFeed :label="t('pages.feed_label', { target: peer })" />
   </div>
 </template>
 
@@ -16,7 +13,6 @@
 import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
-import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 import { useSpoolEvents } from '~/composables/useSpoolEvents'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOmniboxTarget } from '~/stores/omnibox'
@@ -32,8 +28,6 @@ const roster = useRosterStore()
 const events = useSpoolEvents()
 const api = useSpoolApi()
 const session = useSessionStore()
-/* CLE-3433: a settled signed-out probe, so the notice never flashes at a human mid-probe */
-const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
 const { t } = useI18n({ useScope: 'global' })
 const peer = computed(() => decodeURIComponent(String(route.params.peer || '')))
 const online = computed(() => {

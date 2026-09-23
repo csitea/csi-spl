@@ -13,6 +13,9 @@
 #                                           note|reject; task_id threads it
 #   tmux poke = doorbell                    the line CARRIES the message
 #                                           (specs/028, contracts/poke-line.md)
+#                                           and the sender's own notice STRIP
+#                                           gains an outbound record, so the
+#                                           column reads as a conversation
 #
 # The FILE is the source of truth; the pane line is the second leg (trust-modes
 # §2: local mode = file + poll). Every non-zero exit below 10 therefore still
@@ -42,6 +45,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-env.inc.sh"
 # shellcheck source=../lib/spool-notify.inc.sh
 . "$_here/../lib/spool-notify.inc.sh"
+# shellcheck source=../lib/spool-poke-queue.inc.sh
+. "$_here/../lib/spool-poke-queue.inc.sh"
 spool_env_resolve
 
 usage() {
@@ -93,6 +98,42 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   printf '%s\n' "$out"
   TASK="$(printf '%s' "$out" | sed -n 's/.*"task_id" *: *"\([^"]*\)".*/\1/p')"
   MSGID="$(printf '%s' "$out" | sed -n 's/.*"msg_id" *: *"\([^"]*\)".*/\1/p')"
+  DELIVERY="$(printf '%s' "$out" | sed -n 's/.*"delivery" *: *"\([^"]*\)".*/\1/p')"
+
+  # ---- the NOTICE STRIP, both directions (lib/spool-poke-queue.inc.sh) -----
+  #
+  # The strip used to be INBOUND ONLY, and on THIS path it was not written at
+  # all. Measured 2026-09-22 in the tests' own sandbox, n=1: one
+  # `spool-send.sh --from CLE-90 --to CLE-91` left NEITHER agent with a
+  # .pokes/notices.log. spool_poke_show is reached only through
+  # scripts/spool-notify.sh, which the binary runs on delivery - and the send
+  # above deliberately runs it with SPOOL_NOTIFY_CMD=off so this script can
+  # ring the pane itself and report the outcome as its exit code. So a peer
+  # message between two agents on one box rang a prompt and recorded nothing,
+  # and the owner's "post and replies" column stayed empty.
+  #
+  # EXACTLY ONE writer per side, so nothing is painted twice:
+  #   the SENDER's copy   - always; nothing else ever writes it
+  #   the RECIPIENT's copy - only on a "local" delivery, which is precisely the
+  #                          case where no notifier will run. A remote delivery
+  #                          is logged by the RECEIVING box's own sidecar, on
+  #                          its own log; writing it here as well would put the
+  #                          message in two places and in one of them twice.
+  #
+  # This runs BEFORE the --no-poke check on purpose. --no-poke means "do not
+  # type into the recipient's prompt"; the strip is the surface that injects
+  # nothing and is the one the safe-poke rule deliberately does not gate, so
+  # silencing it here would remove the record and keep none of the safety.
+  _nb="$(spool_notify_cut "$(spool_notify_clean "$BODY")" "${SPOOL_SHOW_BODY_MAX:-400}")"
+  [ -n "$_nb" ] || _nb='(no body)'
+  _nk="$(spool_notify_clean "$KIND")"; _nk="${_nk:-ping}"
+  _nf="$(spool_notify_clean "$FROM")"; _nf="${_nf:-?}"
+  spool_notice_record "$FROM" \
+    "$(spool_notice_head_out "$TO" "$_nk" "$TASK" "$MSGID")" "$_nb" || true
+  if [ "${DELIVERY:-}" = local ]; then
+    spool_notice_record "$TO" \
+      "$(spool_notice_head_in "$TO" "$_nk" "$_nf" "$TASK" "$MSGID")" "$_nb" || true
+  fi
 fi
 
 [ "$POKE" -eq 1 ] || { echo "poke: skipped (--no-poke); ${TO} finds it on its next 'spool recv'"; exit 0; }

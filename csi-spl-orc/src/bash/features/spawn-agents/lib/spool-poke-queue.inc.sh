@@ -209,7 +209,14 @@ spool_show_colour() {
 #                          purpose. A pane carrying no record version predates
 #                          the option and is treated as 1, which is what it is -
 #                          <head>TAB<body> has not changed since v4.
-SPOOL_NOTICE_PANE_V=6
+#
+# v7 adds the OUTBOUND treatment: a record whose head begins "SPOOL -> " is a
+# message this agent SENT, and the renderer paints it in a third colour. That
+# is a RENDERING change and nothing else - an outbound record is the same
+# <head>TAB<body> line an inbound one has always been - so PANE_V moves and
+# RECORD_V does NOT. Bumping RECORD_V here would have rotated every live log
+# aside to re-read records that were never in a different format.
+SPOOL_NOTICE_PANE_V=7
 SPOOL_NOTICE_RECORD_V=1
 
 spool_notice_pane_cmd() {  # LOG
@@ -302,6 +309,86 @@ spool_show_notice_pane() {  # ID AGENT_PANE
   printf '%s' "$pane"
 }
 
+# ── the RECORD: one writer, two directions ──────────────────────────────────
+# Until now the strip was INBOUND ONLY, and on the LOCAL send path it was not
+# written at all. Measured 2026-09-22 in the tests' own sandbox: one
+# `spool-send.sh --from CLE-90 --to CLE-91` left NEITHER agent with a
+# .pokes/notices.log (n=1). spool_poke_show is reached only through
+# scripts/spool-notify.sh, which the spool binary runs on delivery - and
+# spool-send.sh deliberately runs the binary with SPOOL_NOTIFY_CMD=off so it
+# can ring the pane itself and report the outcome as its exit code. So a peer
+# message between two agents on this box rang a prompt and recorded nothing.
+#
+# The owner asked (2026-09-22) for "all the post and replies" in the strip. A
+# column that shows what an agent was sent and never what it said is not a
+# conversation, so a send now records BOTH sides: the sender's own copy, and -
+# on a LOCAL delivery, where no notifier will ever run - the recipient's.
+#
+# EXACTLY ONE writer per side. The recipient's record is written by whichever
+# leg actually reached it and never by both: spool_poke_show on the notifier's
+# path, spool-send.sh on the local path (which it takes only when `spool send`
+# reported delivery "local").
+
+# The head of an INBOUND record: a message this agent was SENT.
+spool_notice_head_in() {  # TO KIND FROM TASK MSGID
+  printf 'SPOOL %s: %s from %s%s%s' \
+    "$1" "$2" "$3" "${4:+ task $4}" "${5:+ msg $5}"
+}
+
+# The head of an OUTBOUND record: a message this agent SENT to someone.
+#
+# The direction marker is the SEVENTH column, not a word buried mid-line: in a
+# 48-column strip a distinction that arrives after the ids is one a reader
+# scanning the column will miss. It is also the distinction that survives
+# NO_COLOR=1, which is the point - the colour in the renderer is the fast path,
+# the arrow is the one that always works.
+#
+# The sender's own id is not in the head. This record only ever lands in that
+# agent's OWN log, so naming it would spend two of the forty-eight columns
+# repeating whose column this is.
+spool_notice_head_out() {  # TO KIND TASK MSGID
+  printf 'SPOOL -> %s: %s%s%s' \
+    "$1" "$2" "${3:+ task $3}" "${4:+ msg $4}"
+}
+
+# 0 when a notice STRIP should be SPLIT for a pane in this state. An existing
+# strip is adopted whatever this says - the gate is about creating one, and a
+# pane that already has a strip has already answered the question.
+spool_strip_wanted() {  # PANE
+  local alt
+  case "${SPOOL_SHOW_PANE:-auto}" in
+    1) return 0 ;;
+    0) return 1 ;;
+  esac
+  alt="$("${SPOOL_TM[@]}" display-message -p -t "$1" '#{alternate_on}' 2>/dev/null)"
+  [ "$alt" = 1 ]
+}
+
+# Append one record to ID's notices log, ensuring ID's strip where it has a
+# live window. 0 when the record was written.
+#
+# The record is written even when no strip exists and even when none can be
+# made: the renderer reads the log from the beginning (not `-n 0`), so a strip
+# opened later paints everything that was missed. A record costs a line; the
+# alternative is a hole in the conversation.
+spool_notice_record() {  # ID HEAD BODY
+  local id="$1" head="$2" body="$3" pane log
+  [ "${SPOOL_SHOW:-1}" = 1 ] || return 1
+  [ -n "$id" ] && [ -n "$head" ] || return 1
+  spool_tmux_argv
+  log="$(spool_poke_queue_dir "$id")/notices.log"
+  mkdir -p "$(dirname "$log")" 2>/dev/null || return 1
+  pane="$(spool_pane_of "$id")"
+  if [ -n "$pane" ] && spool_strip_wanted "$pane"; then
+    spool_show_notice_pane "$id" "$pane" >/dev/null 2>&1
+  fi
+  # One RECORD per line, <head>TAB<body>: the renderer decides the order and
+  # the colour, so the newest can be put on top without re-parsing escapes.
+  # Both fields went through spool_notify_clean, which leaves no tab or newline
+  # in either, so a line is exactly one record.
+  printf '%s\t%s\n' "$head" "$body" >>"$log" 2>/dev/null
+}
+
 # Show the notice for ID. Prints one `show:` line. 0 shown somewhere, 5 no live
 # window, 1 nothing would take it. Never types, never touches the prompt.
 spool_poke_show() {  # TO KIND FROM TASK MSGID BODY
@@ -319,7 +406,7 @@ spool_poke_show() {  # TO KIND FROM TASK MSGID BODY
   task="$(spool_notify_clean "$task")"; msgid="$(spool_notify_clean "$msgid")"
   body="$(spool_notify_cut "$(spool_notify_clean "$body")" "${SPOOL_SHOW_BODY_MAX:-400}")"
   [ -n "$body" ] || body='(no body)'
-  head="SPOOL ${to}: ${kind} from ${from}${task:+ task ${task}}${msgid:+ msg ${msgid}}"
+  head="$(spool_notice_head_in "$to" "$kind" "$from" "$task" "$msgid")"
   plain="${head} :: ${body}"
   if spool_show_colour; then
     blue="${esc}[1;38;5;39m"; dim="${esc}[38;5;110m"; off="${esc}[0m"
@@ -337,10 +424,6 @@ spool_poke_show() {  # TO KIND FROM TASK MSGID BODY
     np="$(spool_show_notice_pane "$to" "$pane")"
     if [ -n "$np" ]; then
       log="$(spool_poke_queue_dir "$to")/notices.log"
-      # One RECORD per line, <head>TAB<body>: the renderer decides the order and
-      # the colour, so the newest can be put on top without re-parsing escapes.
-      # Both fields went through spool_notify_clean, which leaves no tab or
-      # newline in either, so a line is exactly one record.
       printf '%s\t%s\n' "$head" "$body" >>"$log" 2>/dev/null &&
         shown="notice pane ${np}"
     fi

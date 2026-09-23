@@ -66,11 +66,24 @@ drop_scrollback() {
   tmux clear-history -t "$TMUX_PANE" 2>/dev/null || true
 }
 
+# Three treatments, not two. Since 2026-09-22 the column carries both
+# directions (the owner asked for "the post and replies"), so a record that
+# this agent SENT must be told apart from one it was sent, in one glance, in
+# forty-eight columns.
+#
+# The colour is the fast path and it is NOT the distinction. NO_COLOR=1 blanks
+# every one of these, and a test asserts the pane still renders under it, so
+# the direction has to survive in the TEXT: an outbound head begins
+# "SPOOL -> ", which puts the marker in the seventh column where a reader
+# scanning the strip meets it before anything else. Green against blue is what
+# makes it free when colour is on; the arrow is what makes it right when it is
+# not.
 colour() { [ -z "${NO_COLOR:-}" ] && [ "${SPOOL_SHOW_COLOUR:-1}" = 1 ]; }
 if colour; then
-  BLUE="${esc}[1;38;5;39m"; DIM="${esc}[38;5;110m"; FAINT="${esc}[38;5;66m"; OFF="${esc}[0m"
+  BLUE="${esc}[1;38;5;39m"; DIM="${esc}[38;5;110m"; FAINT="${esc}[38;5;66m"
+  SENT="${esc}[1;38;5;114m"; SENTDIM="${esc}[38;5;108m"; OFF="${esc}[0m"
 else
-  BLUE="" DIM="" FAINT="" OFF=""
+  BLUE="" DIM="" FAINT="" SENT="" SENTDIM="" OFF=""
 fi
 
 # How tall AND how wide this pane is, into PANE_ROWS / PANE_COLS. A repaint
@@ -163,7 +176,7 @@ render() {
       *"$tab"*) rows+=("$line") ;;
     esac
   done < <(tail -n "$MAX" "$LOG" 2>/dev/null)
-  local budget i j head body
+  local budget i j head body hc bc
   pane_geom
   # One row short of the pane: each printed line ends in a newline, so filling
   # every row scrolls the pane by one - and the line that leaves is the FIRST,
@@ -171,18 +184,26 @@ render() {
   # on the newest BODY, its header one row above the top.
   budget=$(( PANE_ROWS - 1 )); (( budget < 1 )) && budget=1
   if [ "${#rows[@]}" -eq 0 ]; then
-    wrap_text "(no messages yet - a DM to this agent appears here, newest first)" "$PANE_COLS" 2
+    wrap_text "(no messages yet - what this agent is sent and what it sends appear here, newest first)" "$PANE_COLS" 2
     for (( j = 0; j < ${#WRAPPED[@]}; j++ )); do out+=("${FAINT}${WRAPPED[j]}${OFF}"); done
   else
     for (( i = ${#rows[@]} - 1; i >= 0; i-- )); do
       head="${rows[i]%%$'\t'*}"
       body="${rows[i]#*$'\t'}"
       [ "$body" = "${rows[i]}" ] && body=""
+      # Outbound records are the ones this agent SENT, written by spool-send.sh
+      # into the SENDER's own log (spool_notice_head_out). An inbound head is
+      # "SPOOL <id>: ..." and <id> matches ^[A-Z]{2,4}-[0-9]+$, so it can never
+      # collide with the arrow.
+      case "$head" in
+        'SPOOL -> '*) hc="$SENT"; bc="$SENTDIM" ;;
+        *)            hc="$BLUE"; bc="$DIM" ;;
+      esac
       wrap_text "$(shorten_ids "$head")" "$PANE_COLS" 2
-      for (( j = 0; j < ${#WRAPPED[@]}; j++ )); do out+=("${BLUE}${WRAPPED[j]}${OFF}"); done
+      for (( j = 0; j < ${#WRAPPED[@]}; j++ )); do out+=("${hc}${WRAPPED[j]}${OFF}"); done
       if [ -n "$body" ]; then
         wrap_text "$body" "$PANE_COLS" 2
-        for (( j = 0; j < ${#WRAPPED[@]}; j++ )); do out+=("${DIM}${WRAPPED[j]}${OFF}"); done
+        for (( j = 0; j < ${#WRAPPED[@]}; j++ )); do out+=("${bc}${WRAPPED[j]}${OFF}"); done
       fi
       out+=("")
       # Stop building as soon as the pane is full: the rest would scroll the

@@ -98,4 +98,12 @@ describe('the composer offers attach on exactly the routes that can honour it', 
     assert.equal(/:disabled\b|\sdisabled\b/.test(send), false, send)
     assert.match(s, /ev\.ctrlKey \|\| ev\.metaKey/)
   })
+
+  it('tabbing attach or Send fills the button and flashes it, like a Drive search chip', () => {
+    const css = src('src/assets/css/main.css')
+    assert.match(css, /@keyframes composer-tab-flash/)
+    assert.match(css, /\.composer-row button:focus-visible\s*\{[^}]*background:\s*var\(--color-accent\)/)
+    assert.match(css, /\.composer-row button:focus-visible\s*\{[^}]*border-radius:\s*var\(--radius-pill\)/)
+    assert.match(css, /\.composer-row button:focus-visible\s*\{[^}]*animation:\s*composer-tab-flash/)
+  })
 })

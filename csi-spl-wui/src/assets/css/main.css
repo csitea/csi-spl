@@ -396,6 +396,20 @@ html.pane-dragging * {
   font-weight: 600;
   cursor: pointer;
 }
+/* Tabbing onto attach / send / search. Drive's search chips (AI overview,
+   Advanced Search) fill and pop once when the keyboard lands on them; a
+   thin ring on an already-filled Send button does not read as selected.
+   The ring itself stays the shared focus treatment. */
+@keyframes composer-tab-flash {
+  0% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.composer-row button:focus-visible {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border-radius: var(--radius-pill);
+  animation: composer-tab-flash 220ms ease-out;
+}
 .btn.ghost {
   background: transparent;
   color: var(--color-fg);

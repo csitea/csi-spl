@@ -58,12 +58,15 @@ describe('pane-widths clamp', () => {
     assert.ok(THREAD_DEFAULT >= THREAD_MIN && THREAD_DEFAULT <= THREAD_MAX)
   })
 
-  it('the left pane drags out to 35% of the viewport', () => {
+  it('the left divider stops at 35% counted from the left edge of the screen', () => {
     for (const w of [1280, 1440, 1920]) {
-      assert.equal(sidebarMaxPx(w), Math.round(w * 0.35))
-      assert.equal(clampSidebar(9999, { viewportW: w, threadOpen: false }), Math.round(w * 0.35))
+      const mark = Math.round(w * 0.35)
+      assert.equal(sidebarMaxPx(w), mark)
+      assert.equal(clampSidebar(9999, { viewportW: w, threadOpen: false }), mark)
+      /* a fully stretched thread does not move that mark */
+      assert.equal(clampSidebar(9999, { viewportW: w, threadOpen: true, threadW: THREAD_MAX }), mark)
+      assert.equal(sidebarRange({ viewportW: w, threadOpen: true, threadW: THREAD_MAX }).max, mark)
     }
-    assert.equal(clampSidebar(9999, { viewportW: 1440, threadOpen: true, threadW: 380 }), Math.round(1440 * 0.35))
   })
 
   it('clamps sidebar below min and above max', () => {
@@ -80,14 +83,13 @@ describe('pane-widths clamp', () => {
     assert.equal(clampThread(380, ctx), 380)
   })
 
-  it('keeps the main feed at least MAIN_MIN when the thread is open', () => {
-    const ctx = { viewportW: 1280, threadOpen: true, threadW: THREAD_MAX }
-    const s = clampSidebar(sidebarMaxPx(1280), ctx)
-    const t = clampThread(THREAD_MAX, { viewportW: 1280, threadOpen: true, sidebarW: s })
-    const pair = clampPair(sidebarMaxPx(1280), THREAD_MAX, { viewportW: 1280, threadOpen: true })
+  it('a stretched thread yields so the left divider can sit at 35%', () => {
+    const w = 1280
+    const pair = clampPair(sidebarMaxPx(w), THREAD_MAX, { viewportW: w, threadOpen: true })
+    assert.equal(pair.sidebar, Math.round(w * 0.35))
     const used = pair.sidebar + pair.thread + 2 * DIVIDER_W
-    assert.ok(1280 - used >= MAIN_MIN, `main=${1280 - used}`)
-    assert.ok(1280 - (s + t + 2 * DIVIDER_W) >= MAIN_MIN)
+    assert.ok(w - used >= MAIN_MIN, `main=${w - used}`)
+    assert.ok(pair.thread < THREAD_MAX)
   })
 
   it('keeps the main feed at least MAIN_MIN when the thread is closed', () => {

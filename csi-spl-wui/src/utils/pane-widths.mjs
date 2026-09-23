@@ -1,4 +1,8 @@
-/** Draggable 3-pane widths: clamp so the main feed never collapses, persist. */
+/**
+ * Draggable 3-pane widths. The left divider's stop is 35% of the screen,
+ * counted from the left edge across the full horizontal width. The thread
+ * pane yields before that stop moves. Persist the dragged widths.
+ */
 
 import { storageGetJson, storageSetJson } from './prefs.mjs'
 
@@ -33,7 +37,11 @@ export function sidebarShown(viewportW) {
   return num(viewportW, 1280) > SIDEBAR_NARROW_MAX
 }
 
-/** Widest the left pane may be dragged: 35% of the viewport, and never under its minimum. */
+/**
+ * Where the left divider stops, in pixels from the left edge of the screen.
+ * 35% of the viewport's horizontal width. The thread pane is not part of
+ * this measurement.
+ */
 export function sidebarMaxPx(viewportW) {
   const px = Math.round(num(viewportW, 1280) * SIDEBAR_MAX_RATIO)
   return Math.max(SIDEBAR_MIN, px)
@@ -54,12 +62,9 @@ function dividersPx(ctx) {
 
 export function clampSidebar(width, ctx = {}) {
   const viewportW = num(ctx.viewportW, 1280)
-  const threadOpen = Boolean(ctx.threadOpen)
-  const threadW = threadShown(viewportW, threadOpen)
-    ? clamp(num(ctx.threadW, THREAD_DEFAULT), THREAD_MIN, THREAD_MAX)
-    : 0
-  const maxFit = viewportW - dividersPx(ctx) - threadW - MAIN_MIN
-  const max = Math.min(sidebarMaxPx(viewportW), Math.max(SIDEBAR_MIN, maxFit))
+  /* The stop is a mark on the screen, left to right. A wide thread does not
+     pull it back. */
+  const max = sidebarMaxPx(viewportW)
   return clamp(Math.round(num(width, SIDEBAR_DEFAULT)), SIDEBAR_MIN, max)
 }
 
@@ -83,14 +88,13 @@ export function clampPair(sidebar, thread, ctx = {}) {
   const sidebarCap = sidebarMaxPx(viewportW)
   let s = clamp(Math.round(num(sidebar, SIDEBAR_DEFAULT)), SIDEBAR_MIN, sidebarCap)
   let t = clamp(Math.round(num(thread, THREAD_DEFAULT)), THREAD_MIN, THREAD_MAX)
-  s = clampSidebar(s, { viewportW, threadW: t, threadOpen })
-  t = clampThread(t, { viewportW, sidebarW: s, threadOpen })
+  s = clampSidebar(s, { viewportW, threadOpen })
+  /* The left edge is already fixed. If both panes are wide, the thread
+     gives up width so the divider stays on its 35% mark. */
   if (threadShown(viewportW, threadOpen)) {
-    const budget = viewportW - dividersPx({ viewportW, threadOpen }) - MAIN_MIN
-    if (s + t > budget) {
-      t = clamp(budget - s, THREAD_MIN, THREAD_MAX)
-      s = clamp(budget - t, SIDEBAR_MIN, sidebarCap)
-    }
+    const roomForThread = viewportW - dividersPx({ viewportW, threadOpen }) - s - MAIN_MIN
+    const threadCap = Math.min(THREAD_MAX, Math.max(THREAD_MIN, roomForThread))
+    t = clamp(t, THREAD_MIN, threadCap)
   }
   return { sidebar: s, thread: t }
 }

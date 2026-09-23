@@ -463,7 +463,8 @@ declare module '~/utils/pane-widths.mjs' {
   export const SIDEBAR_MAX_RATIO: number
   export function sidebarMaxPx(viewportW: number): number
   export const TOPIC_MIN: number
-  export const TOPIC_MAX: number
+  export const TOPIC_MAX_RATIO: number
+  export function topicMaxPx(viewportW: number): number
   export const MAIN_MIN: number
   export const DIVIDER_W: number
   export const STEP: number

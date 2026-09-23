@@ -713,7 +713,6 @@ html.pane-dragging * {
 /* Selected / current: a step DARKER than the normal fill, plus a marker bar
    in the SAME one colour as the focus ring, 3px wide. */
 .nav-item.active,
-.sidebar-tab[aria-selected="true"],
 .msg.selected,
 .topic-row.selected,
 .topic.selected,
@@ -723,6 +722,12 @@ html.pane-dragging * {
   box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring);
 }
 .msg.selected { border-radius: var(--radius); }
+/* The selected rail tab is a button, not a row: the ring goes all the way
+   round it instead of a bar on one side. */
+.sidebar-tab[aria-selected="true"] {
+  background: var(--color-selected);
+  box-shadow: inset 0 0 0 var(--select-bar-w) var(--focus-ring);
+}
 /* Pressed: the same step down; an accent-filled control darkens its accent. */
 .nav-item:active,
 .sidebar-tab:active,

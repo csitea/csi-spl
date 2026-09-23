@@ -102,6 +102,12 @@ describe('focus + selection tokens (CLE-3427)', () => {
     }
   })
 
+  it('the selected rail tab is ringed all the way round, not barred on one side', () => {
+    const rule = MAIN.match(/\.sidebar-tab\[aria-selected="true"\]\s*\{([^}]*)\}/)
+    assert.ok(rule, 'a rule of its own for the selected rail tab')
+    assert.match(rule[1], /box-shadow:\s*inset 0 0 0 var\(--select-bar-w\) var\(--focus-ring\)/)
+  })
+
   it('the selected marker is the SAME colour as the focus ring, so a selected + focused row shows one', () => {
     assert.match(MAIN, /box-shadow:\s*inset var\(--select-bar-w\) 0 0 var\(--focus-ring\)/)
     /* and nothing in the shared treatment reaches for a second ring colour */

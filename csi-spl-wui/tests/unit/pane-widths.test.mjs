@@ -11,7 +11,8 @@ import {
   SIDEBAR_MAX_RATIO,
   sidebarMaxPx,
   TOPIC_MIN,
-  TOPIC_MAX,
+  TOPIC_MAX_RATIO,
+  topicMaxPx,
   MAIN_MIN,
   DIVIDER_W,
   STEP,
@@ -55,7 +56,7 @@ describe('pane-widths clamp', () => {
     assert.equal(TOPIC_DEFAULT, 380)
     assert.equal(SIDEBAR_MAX_RATIO, 0.35)
     assert.ok(SIDEBAR_DEFAULT >= SIDEBAR_MIN && SIDEBAR_DEFAULT <= sidebarMaxPx(1280))
-    assert.ok(TOPIC_DEFAULT >= TOPIC_MIN && TOPIC_DEFAULT <= TOPIC_MAX)
+    assert.ok(TOPIC_DEFAULT >= TOPIC_MIN && TOPIC_DEFAULT <= topicMaxPx(1280))
   })
 
   it('the left divider stops at 35% counted from the left edge of the screen', () => {
@@ -64,8 +65,8 @@ describe('pane-widths clamp', () => {
       assert.equal(sidebarMaxPx(w), mark)
       assert.equal(clampSidebar(9999, { viewportW: w, topicOpen: false }), mark)
       /* a fully stretched topic does not move that mark */
-      assert.equal(clampSidebar(9999, { viewportW: w, topicOpen: true, topicW: TOPIC_MAX }), mark)
-      assert.equal(sidebarRange({ viewportW: w, topicOpen: true, topicW: TOPIC_MAX }).max, mark)
+      assert.equal(clampSidebar(9999, { viewportW: w, topicOpen: true, topicW: topicMaxPx(w) }), mark)
+      assert.equal(sidebarRange({ viewportW: w, topicOpen: true, topicW: topicMaxPx(w) }).max, mark)
     }
   })
 
@@ -77,19 +78,20 @@ describe('pane-widths clamp', () => {
   })
 
   it('clamps topic below min and above max when the pane is in flow', () => {
-    const ctx = { viewportW: 1280, topicOpen: true, sidebarW: 260 }
+    const ctx = { viewportW: 1920, topicOpen: true, sidebarW: 260 }
     assert.equal(clampTopic(0, ctx), TOPIC_MIN)
-    assert.equal(clampTopic(9999, ctx), TOPIC_MAX)
+    assert.equal(clampTopic(9999, ctx), topicMaxPx(1920))
+    assert.equal(topicMaxPx(1920), Math.round(1920 * TOPIC_MAX_RATIO))
     assert.equal(clampTopic(380, ctx), 380)
   })
 
   it('a stretched topic yields so the left divider can sit at 35%', () => {
     const w = 1280
-    const pair = clampPair(sidebarMaxPx(w), TOPIC_MAX, { viewportW: w, topicOpen: true })
+    const pair = clampPair(sidebarMaxPx(w), topicMaxPx(w), { viewportW: w, topicOpen: true })
     assert.equal(pair.sidebar, Math.round(w * 0.35))
     const used = pair.sidebar + pair.topic + 2 * DIVIDER_W
     assert.ok(w - used >= MAIN_MIN, `main=${w - used}`)
-    assert.ok(pair.topic < TOPIC_MAX)
+    assert.ok(pair.topic < topicMaxPx(w))
   })
 
   it('keeps the main feed at least MAIN_MIN when the topic is closed', () => {
@@ -113,13 +115,13 @@ describe('pane-widths clamp', () => {
   })
 
   it('sidebarRange / topicRange report the live min/max', () => {
-    const ctx = { viewportW: 1280, topicOpen: true, topicW: 380, sidebarW: 260 }
+    const ctx = { viewportW: 1920, topicOpen: true, topicW: 380, sidebarW: 260 }
     const s = sidebarRange(ctx)
     const t = topicRange(ctx)
     assert.equal(s.min, SIDEBAR_MIN)
-    assert.equal(s.max, sidebarMaxPx(1280))
+    assert.equal(s.max, sidebarMaxPx(1920))
     assert.equal(t.min, TOPIC_MIN)
-    assert.equal(t.max, TOPIC_MAX)
+    assert.equal(t.max, topicMaxPx(1920))
   })
 })
 

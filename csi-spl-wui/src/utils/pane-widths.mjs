@@ -12,7 +12,8 @@ export const SIDEBAR_MIN = 180
 /** The left pane's divider stops at this fraction of the viewport. */
 export const SIDEBAR_MAX_RATIO = 0.35
 export const TOPIC_MIN = 280
-export const TOPIC_MAX = 560
+/** The right pane may take up to this fraction of the viewport. */
+export const TOPIC_MAX_RATIO = 0.65
 export const MAIN_MIN = 360
 export const DIVIDER_W = 6
 export const STEP = 16
@@ -47,6 +48,15 @@ export function sidebarMaxPx(viewportW) {
   return Math.max(SIDEBAR_MIN, px)
 }
 
+/**
+ * The widest the topic pane may get: 65% of the viewport. MAIN_MIN still
+ * wins when the screen is too narrow for that.
+ */
+export function topicMaxPx(viewportW) {
+  const px = Math.round(num(viewportW, 1280) * TOPIC_MAX_RATIO)
+  return Math.max(TOPIC_MIN, px)
+}
+
 export function topicShown(viewportW, topicOpen) {
   return Boolean(topicOpen) && num(viewportW, 1280) > TOPIC_NARROW_MAX
 }
@@ -72,13 +82,13 @@ export function clampTopic(width, ctx = {}) {
   const viewportW = num(ctx.viewportW, 1280)
   const topicOpen = Boolean(ctx.topicOpen)
   if (!topicShown(viewportW, topicOpen)) {
-    return clamp(Math.round(num(width, TOPIC_DEFAULT)), TOPIC_MIN, TOPIC_MAX)
+    return clamp(Math.round(num(width, TOPIC_DEFAULT)), TOPIC_MIN, topicMaxPx(viewportW))
   }
   const sidebarW = sidebarShown(viewportW)
     ? clamp(num(ctx.sidebarW, SIDEBAR_DEFAULT), SIDEBAR_MIN, sidebarMaxPx(viewportW))
     : 0
   const maxFit = viewportW - dividersPx(ctx) - sidebarW - MAIN_MIN
-  const max = Math.min(TOPIC_MAX, Math.max(TOPIC_MIN, maxFit))
+  const max = Math.min(topicMaxPx(viewportW), Math.max(TOPIC_MIN, maxFit))
   return clamp(Math.round(num(width, TOPIC_DEFAULT)), TOPIC_MIN, max)
 }
 
@@ -87,13 +97,13 @@ export function clampPair(sidebar, topic, ctx = {}) {
   const topicOpen = Boolean(ctx.topicOpen)
   const sidebarCap = sidebarMaxPx(viewportW)
   let s = clamp(Math.round(num(sidebar, SIDEBAR_DEFAULT)), SIDEBAR_MIN, sidebarCap)
-  let t = clamp(Math.round(num(topic, TOPIC_DEFAULT)), TOPIC_MIN, TOPIC_MAX)
+  let t = clamp(Math.round(num(topic, TOPIC_DEFAULT)), TOPIC_MIN, topicMaxPx(viewportW))
   s = clampSidebar(s, { viewportW, topicOpen })
   /* The left edge is already fixed. If both panes are wide, the topic
      gives up width so the divider stays on its 35% mark. */
   if (topicShown(viewportW, topicOpen)) {
     const roomForTopic = viewportW - dividersPx({ viewportW, topicOpen }) - s - MAIN_MIN
-    const topicCap = Math.min(TOPIC_MAX, Math.max(TOPIC_MIN, roomForTopic))
+    const topicCap = Math.min(topicMaxPx(viewportW), Math.max(TOPIC_MIN, roomForTopic))
     t = clamp(t, TOPIC_MIN, topicCap)
   }
   return { sidebar: s, topic: t }
@@ -108,7 +118,7 @@ export function sidebarRange(ctx = {}) {
 
 export function topicRange(ctx = {}) {
   const min = clampTopic(TOPIC_MIN, ctx)
-  const max = clampTopic(TOPIC_MAX, ctx)
+  const max = clampTopic(topicMaxPx(num(ctx.viewportW, 1280)), ctx)
   return { min: Math.min(min, max), max: Math.max(min, max) }
 }
 

@@ -46,15 +46,24 @@ const title = loginBarTitle(config.public.envName, import.meta.dev)
   flex-shrink: 0;
 }
 .login-bar__title {
+  flex: 0 0 auto;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-accent);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The title keeps its full name. The language control gives up width on a
+   phone so the two never collide or push the page sideways. */
+.login-bar :deep(.lang-switcher) {
+  flex: 0 1 16rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 16rem;
+}
+.login-bar :deep(.lang-switcher__combobox) {
+  width: 100%;
 }
 .login-body {
   flex: 1;

@@ -161,6 +161,8 @@ describe('login landing', () => {
     assert.match(frame, /<LanguageSwitcher/)
     assert.match(frame, /data-test="login-bar"/)
     assert.match(frame, /data-test="login-bar-title"/)
+    assert.match(frame, /\.login-bar__title\s*\{[^}]*flex:\s*0\s+0\s+auto/)
+    assert.match(frame, /\.login-bar :deep\(\.lang-switcher\)\s*\{[^}]*flex:\s*0\s+1\s+16rem/)
     assert.doesNotMatch(frame, /login-corner/)
   })
 

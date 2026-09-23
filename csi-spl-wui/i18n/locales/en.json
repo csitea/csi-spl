@@ -329,7 +329,7 @@
     "attach": "attach",
     "send": "Send",
     "sending": "Sending…",
-    "code_hint": "Code block: Enter adds a line, type ``` or press Esc to close, Ctrl+Enter sends",
+    "code_hint": "Code block: Enter adds a line, type ``` or press Esc to close, Ctrl+Enter or Cmd+Enter sends",
     "send_failed": "Not sent — the message did not reach the hub.",
     "send_failed_closed": "Not sent — the connection dropped. Your text is still here.",
     "send_failed_timeout": "Not sent — the hub did not answer in time. Your text is still here.",
@@ -400,7 +400,7 @@
     "title": "Thread",
     "open": "Open",
     "empty": "Empty thread.",
-    "reply_placeholder": "Reply — Enter to send · /search to filter",
+    "reply_placeholder": "Reply — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to filter",
     "replies_label": "Replies, newest first",
     "load_failed": "thread load failed",
     "no_replies": "No replies yet — write the first one."
@@ -441,7 +441,7 @@
     "resize_hint": "Drag to resize. Double-click to reset."
   },
   "pages": {
-    "message_placeholder": "Message {target} — Enter to send · /search to filter",
+    "message_placeholder": "Message {target} — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to filter",
     "feed_label": "{target}, newest first",
     "index": {
       "subtitle": "read-only · tenant-scoped",
@@ -508,7 +508,7 @@
       "files": "Files",
       "messages": "Messages"
     },
-    "placeholder_target": "Message {target} — Enter to send · /search to search everything",
+    "placeholder_target": "Message {target} — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to search everything",
     "unreachable": "The search service could not be reached. Try again shortly.",
     "slash_shortcut": "Press / to focus the omnibox. Escape returns to where you were.",
     "slash_badge_title": "Press / to focus"

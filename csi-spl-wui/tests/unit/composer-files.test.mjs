@@ -82,4 +82,20 @@ describe('the composer offers attach on exactly the routes that can honour it', 
        can reach, and should be deleted rather than left passing */
     assert.match(src('src/components/MessageComposer.vue'), /data-testid="attach"/)
   })
+
+  it('Tab reaches attach and Send: both are buttons, and Send is not disabled', () => {
+    /* A hidden file input is not a tab stop, and a disabled submit button
+       is removed from the tab order. The owner hit that skip on a DM page:
+       Tab has to land on attach, then on Send, even when the box is empty. */
+    const s = src('src/components/MessageComposer.vue')
+    assert.match(s, /type="button"[\s\S]{0,120}data-testid="attach"/)
+    assert.match(s, /tabindex="-1"[\s\S]{0,80}data-testid="attach-input"/)
+    const at = s.indexOf('data-testid="send"')
+    assert.ok(at > 0, 'send control missing')
+    const send = s.slice(s.lastIndexOf('<button', at), s.indexOf('>', at) + 1)
+    assert.match(send, /type="submit"/)
+    assert.match(send, /aria-disabled/)
+    assert.equal(/:disabled\b|\sdisabled\b/.test(send), false, send)
+    assert.match(s, /ev\.ctrlKey \|\| ev\.metaKey/)
+  })
 })

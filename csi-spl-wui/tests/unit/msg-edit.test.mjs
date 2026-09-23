@@ -171,21 +171,14 @@ describe('opening the editor — "the old msg should be shown there"', () => {
 })
 
 describe('Enter commits, Shift+Enter makes a newline (ORDERED: the owner named Enter)', () => {
-  it('answers exactly what the composer answers — the same function, not a second convention', () => {
-    /* MessageComposer.vue calls enterAction({inCode, shift, alt, mod}) from
-       code-blocks.mjs. So does editKeyAction. This asserts they cannot drift:
-       every combination is compared against enterAction itself. */
-    for (const inCode of [false, true]) {
-      for (const shift of [false, true]) {
-        for (const alt of [false, true]) {
-          for (const mod of [false, true]) {
-            const want = enterAction({ inCode, shift, alt, mod }) === 'send' ? 'commit' : 'newline'
-            const got = editKeyAction(key('Enter', { shiftKey: shift, altKey: alt, ctrlKey: mod }), { inCode })
-            assert.equal(got, want, JSON.stringify({ inCode, shift, alt, mod }))
-          }
-        }
-      }
-    }
+  it('does not follow the composer: a bare Enter still commits an edit', () => {
+    /* 2026-09-23 the composer’s bare Enter is a newline (enterAction).
+       2026-09-22 an edit commits on Enter. The two are different orders. */
+    assert.equal(enterAction({}), 'newline')
+    assert.equal(enterAction({ mod: true }), 'send')
+    assert.equal(editKeyAction(key('Enter')), 'commit')
+    assert.equal(editKeyAction(key('Enter', { ctrlKey: true })), 'commit')
+    assert.equal(editKeyAction(key('Enter', { metaKey: true })), 'commit')
   })
 
   it('a bare Enter commits and Shift+Enter does not', () => {

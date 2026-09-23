@@ -329,7 +329,7 @@
     "attach": "pridėti",
     "send": "Siųsti",
     "sending": "Siunčiama…",
-    "code_hint": "Kodo blokas: Enter prideda eilutę, uždarykite įvesdami ``` arba paspausdami Esc, Ctrl+Enter siunčia",
+    "code_hint": "Kodo blokas: Enter prideda eilutę, uždarykite įvesdami ``` arba paspausdami Esc, Ctrl+Enter arba Cmd+Enter siunčia",
     "send_failed": "Neišsiųsta — žinutė nepasiekė hub.",
     "send_failed_closed": "Neišsiųsta — ryšys nutrūko. Jūsų tekstas išsaugotas.",
     "send_failed_timeout": "Neišsiųsta — hub neatsakė laiku. Jūsų tekstas išsaugotas.",
@@ -400,7 +400,7 @@
     "title": "Gija",
     "open": "Atidaryti",
     "empty": "Tuščia gija.",
-    "reply_placeholder": "Atsakymas — Enter išsiųsti · /search filtruoti",
+    "reply_placeholder": "Atsakymas — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti · /search filtruoti",
     "replies_label": "Atsakymai, naujausi viršuje",
     "load_failed": "gijos įkelti nepavyko",
     "no_replies": "Atsakymų kol kas nėra — parašykite pirmąjį."
@@ -441,7 +441,7 @@
     "resize_hint": "Vilkite, kad pakeistumėte dydį. Dukart spustelėkite, kad atkurtumėte."
   },
   "pages": {
-    "message_placeholder": "Žinutė {target} — Enter išsiųsti · /search filtruoti",
+    "message_placeholder": "Žinutė {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti · /search filtruoti",
     "feed_label": "{target}, naujausi viršuje",
     "index": {
       "subtitle": "tik skaityti · pagal nuomininką",
@@ -508,7 +508,7 @@
       "files": "Failai",
       "messages": "Žinutės"
     },
-    "placeholder_target": "Žinutė: {target} — Enter siunčia · /search ieško visur",
+    "placeholder_target": "Žinutė: {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
     "unreachable": "Paieškos paslauga nepasiekiama. Netrukus bandykite dar kartą.",
     "slash_shortcut": "Spauskite /, kad sufokusuotumėte omnibox. Escape grąžina fokusą ten, kur buvo.",
     "slash_badge_title": "Spauskite /, kad sufokusuotumėte"

@@ -108,11 +108,9 @@ try {
   /**
    * Type `tag` then `lines` into the composer at `sel`, as a person would.
    *
-   * Line breaks are SHIFT+Enter throughout. Plain Enter is a newline only
-   * INSIDE a fence; outside one it sends, which is Slack's contract and this
-   * WUI's - so a prose line typed before the ``` would post itself as its own
-   * message and the rest would land in a second one. Shift+Enter is a newline
-   * in both states (enterAction), so one rule covers the whole body.
+   * Line breaks are SHIFT+Enter throughout. A bare Enter is also a newline
+   * now (owner, 2026-09-23); Ctrl+Enter or Cmd+Enter is what sends. Shift+Enter
+   * stays a newline in both states, so one rule still covers the whole body.
    *
    * A tab goes in with sendCharacter, which inserts the character; typing it
    * with keyboard.type presses the Tab KEY and moves focus out of the box.

@@ -2,7 +2,7 @@
 // native sign-in, then in the /lobby Omnibox type text + inline `code` + an
 // XSS payload, type ```js (monospace block, hint), Enter adds lines instead of
 // sending, a very long line, the payload again inside the block, ``` closes,
-// Enter sends. The sent card must show one code block (label "js", exact
+// Ctrl+Enter sends. The sent card must show one code block (label "js", exact
 // text, WRAPPED - no x-scroll in the block or the page, CLE-3423), the copy button must put exactly
 // the code on the clipboard, and the CONTROL: nothing executes (no dialog,
 // no <img>/<script> in the body) and 0 CSP violations. Desktop + mobile
@@ -91,10 +91,12 @@ try {
   const closed = await ta.evaluate((e) => e.className)
   step('typing ``` again closes the block', !/in-code/.test(closed), { cls: closed })
   await p.screenshot({ path: `${OUT}/composer-closed.png` })
+  await p.keyboard.down('Control')
   await p.keyboard.press('Enter')
+  await p.keyboard.up('Control')
 
   const card = await p.waitForFunction((n) => [...document.querySelectorAll('article.msg')].find((a) => a.textContent.includes(n)), { timeout: 20000 }, nonce).catch(() => null)
-  step('Enter sends; the card appears in the feed', !!card, {})
+  step('Ctrl+Enter sends; the card appears in the feed', !!card, {})
   if (!card) throw new Error('card not found')
   const el = card.asElement()
   await el.evaluate((a) => a.scrollIntoView({ block: 'center' }))

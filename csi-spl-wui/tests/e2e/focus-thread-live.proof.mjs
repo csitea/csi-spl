@@ -235,7 +235,9 @@ async function send(p, text) {
   const ta = await p.waitForSelector('form.composer textarea')
   await ta.focus()
   await p.keyboard.type(text)
+  await p.keyboard.down('Control')
   await p.keyboard.press('Enter')
+  await p.keyboard.up('Control')
 }
 
 /** Every selected item on the page obeys the owner's rule. */
@@ -356,7 +358,9 @@ try {
     if (ta) {
       await ta.focus()
       await page.keyboard.type(reply)
+      await page.keyboard.down('Control')
       await page.keyboard.press('Enter')
+      await page.keyboard.up('Control')
       const shown = await page.waitForFunction((t) => [...document.querySelectorAll('[data-test=thread-section] .live-rows > article.msg')].some((r) => r.textContent.includes(t)),
         { polling: 'mutation', timeout: 20000 }, reply).then(() => true, () => false)
       step(`${theme}: a reply in the message-rooted thread lands in that thread`, shown, { reply })

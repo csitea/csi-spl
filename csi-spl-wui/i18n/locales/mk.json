@@ -329,7 +329,7 @@
     "attach": "прикачи",
     "send": "Испрати",
     "sending": "Се испраќа…",
-    "code_hint": "Блок со код: Enter додава ред, напишете ``` или притиснете Esc за затворање, Ctrl+Enter испраќа",
+    "code_hint": "Блок со код: Enter додава ред, напишете ``` или притиснете Esc за затворање, Ctrl+Enter или Cmd+Enter испраќа",
     "send_failed": "Не е испратено — пораката не стигна до hub.",
     "send_failed_closed": "Не е испратено — врската прекина. Вашиот текст е зачуван.",
     "send_failed_timeout": "Не е испратено — hub не одговори навреме. Вашиот текст е зачуван.",
@@ -400,7 +400,7 @@
     "title": "Нишка",
     "open": "Отвори",
     "empty": "Празна нишка.",
-    "reply_placeholder": "Одговор — Enter за испраќање · /search за филтрирање",
+    "reply_placeholder": "Одговор — Enter за нов ред · Ctrl+Enter или Cmd+Enter за испраќање · /search за филтрирање",
     "replies_label": "Одговори, најновите први",
     "load_failed": "вчитувањето на нишката не успеа",
     "no_replies": "Сè уште нема одговори — напишете го првиот."
@@ -441,7 +441,7 @@
     "resize_hint": "Повлечете за да ја промените големината. Двоен клик за ресетирање."
   },
   "pages": {
-    "message_placeholder": "Порака до {target} — Enter за испраќање · /search за филтрирање",
+    "message_placeholder": "Порака до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за испраќање · /search за филтрирање",
     "feed_label": "{target}, најновите први",
     "index": {
       "subtitle": "само за читање · во рамки на закупецот",
@@ -508,7 +508,7 @@
       "files": "Датотеки",
       "messages": "Пораки"
     },
-    "placeholder_target": "Порака до {target} — Enter за праќање · /search за пребарување насекаде",
+    "placeholder_target": "Порака до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за праќање · /search за пребарување насекаде",
     "unreachable": "Услугата за пребарување не е достапна. Обидете се повторно наскоро.",
     "slash_shortcut": "Притиснете / за фокус на omnibox. Escape го враќа фокусот каде што беше.",
     "slash_badge_title": "Притиснете / за фокус"

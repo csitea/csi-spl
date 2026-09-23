@@ -117,12 +117,34 @@
         <span>{{ t(sizeError.key, sizeError.params) }}</span>
       </p>
       <div class="composer-row">
-        <label v-if="!searchMode" class="muted attach">
-          <input type="file" multiple hidden data-testid="attach" @change="onFiles">
-          📎 {{ t('composer.attach') }}
-        </label>
+        <!-- Both controls are real buttons so Tab lands on each of them.
+             A hidden file input is not a tab stop, and a disabled Send
+             button is taken out of the tab order — that is the skip. -->
+        <button
+          v-if="!searchMode"
+          type="button"
+          class="attach"
+          data-testid="attach"
+          @click="openFiles"
+        >📎 {{ t('composer.attach') }}</button>
+        <input
+          v-if="!searchMode"
+          ref="fileEl"
+          type="file"
+          multiple
+          hidden
+          tabindex="-1"
+          data-testid="attach-input"
+          @change="onFiles"
+        >
         <button v-if="searchMode" type="submit" data-test="omnibox-search" :disabled="!searchQueryOf(text)">{{ t('search.submit') }}</button>
-        <button v-else type="submit" :disabled="busy || sendBlocked || (!text.trim() && !picked.length)">{{ busy ? t('composer.sending') : t('composer.send') }}</button>
+        <button
+          v-else
+          type="submit"
+          class="composer-send"
+          data-testid="send"
+          :aria-disabled="cannotSend ? 'true' : 'false'"
+        >{{ busy ? t('composer.sending') : t('composer.send') }}</button>
       </div>
     </div>
   </form>
@@ -156,7 +178,7 @@ const props = defineProps<{
   placeholder?: string
   parentTaskId?: string
   busy?: boolean
-  /** 013 Top Omnibox: Enter sends; `/search <q>` filters instead; Esc clears the filter. */
+  /** 013 Top Omnibox: Ctrl or Cmd+Enter sends; Enter inserts a line; `/search <q>` still submits on Enter; Esc clears the filter. */
   omnibox?: boolean
   /**
    * 022 top-bar Omnibox: `/search <q>` is a GLOBAL search (emit search, keep the
@@ -182,6 +204,10 @@ const channelFeed = useChannelStore()
 const liveMain = useLiveFeed('main')
 const text = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)
+const fileEl = ref<HTMLInputElement | null>(null)
+/* Empty, busy, or with nowhere to send: the button stays in the tab order
+   (aria-disabled, not disabled) and onSend refuses the click. */
+const cannotSend = computed(() => Boolean(props.busy) || Boolean(props.sendBlocked) || (!text.value.trim() && !picked.value.length))
 const mentionQuery = ref<string | null>(null)
 const activeIdx = ref(0)
 const mentionListEl = ref<HTMLUListElement | null>(null)
@@ -589,6 +615,10 @@ function onSend() {
   inCode.value = false
 }
 
+function openFiles() {
+  fileEl.value?.click()
+}
+
 function onFiles(ev: Event) {
   const input = ev.target as HTMLInputElement
   if (!input.files || input.files.length === 0) return
@@ -644,7 +674,16 @@ textarea.in-code {
   overflow-wrap: anywhere;
   min-width: 0;
 }
-.attach { cursor: pointer; }
+.attach {
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-muted);
+  border: 0;
+  font-weight: 400;
+  box-shadow: none;
+}
+.attach:active { background: transparent; }
+.composer-send[aria-disabled='true'] { opacity: 0.45; }
 .mention-list {
   list-style: none;
   margin: 0 0 8px;

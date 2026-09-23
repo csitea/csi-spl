@@ -119,7 +119,9 @@ async function sendInto(p, text) {
   await ta.focus()
   await p.keyboard.type(text)
   const t0 = Date.now()
+  await p.keyboard.down('Control')
   await p.keyboard.press('Enter')
+  await p.keyboard.up('Control')
   return t0
 }
 

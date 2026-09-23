@@ -329,7 +329,7 @@
     "attach": "прикрепить",
     "send": "Отправить",
     "sending": "Отправка…",
-    "code_hint": "Блок кода: Enter добавляет строку, введите ``` или нажмите Esc, чтобы закрыть, Ctrl+Enter отправляет",
+    "code_hint": "Блок кода: Enter добавляет строку, введите ``` или нажмите Esc, чтобы закрыть, Ctrl+Enter или Cmd+Enter отправляет",
     "send_failed": "Не отправлено — сообщение не дошло до хаба.",
     "send_failed_closed": "Не отправлено — соединение прервалось. Ваш текст сохранён.",
     "send_failed_timeout": "Не отправлено — хаб не ответил вовремя. Ваш текст сохранён.",
@@ -400,7 +400,7 @@
     "title": "Тред",
     "open": "Открыть",
     "empty": "Пустой тред.",
-    "reply_placeholder": "Ответ — Enter для отправки · /search для фильтра",
+    "reply_placeholder": "Ответ — Enter для новой строки · Ctrl+Enter или Cmd+Enter для отправки · /search для фильтра",
     "replies_label": "Ответы, сначала новые",
     "load_failed": "не удалось загрузить тред",
     "no_replies": "Ответов пока нет — напишите первый."
@@ -441,7 +441,7 @@
     "resize_hint": "Перетащите, чтобы изменить размер. Двойной щелчок — сброс."
   },
   "pages": {
-    "message_placeholder": "Сообщение в {target} — Enter для отправки · /search для фильтра",
+    "message_placeholder": "Сообщение в {target} — Enter для новой строки · Ctrl+Enter или Cmd+Enter для отправки · /search для фильтра",
     "feed_label": "{target}, сначала новые",
     "index": {
       "subtitle": "только чтение · в пределах тенанта",
@@ -508,7 +508,7 @@
       "files": "Файлы",
       "messages": "Сообщения"
     },
-    "placeholder_target": "Сообщение для {target} — Enter отправляет · /search ищет везде",
+    "placeholder_target": "Сообщение для {target} — Enter для новой строки · Ctrl+Enter или Cmd+Enter отправляет · /search ищет везде",
     "unreachable": "Сервис поиска недоступен. Попробуйте чуть позже.",
     "slash_shortcut": "Нажмите /, чтобы перейти в omnibox. Escape возвращает фокус туда, где он был.",
     "slash_badge_title": "Нажмите /, чтобы перейти"

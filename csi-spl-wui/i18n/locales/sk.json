@@ -329,7 +329,7 @@
     "attach": "priložiť",
     "send": "Odoslať",
     "sending": "Odosiela sa…",
-    "code_hint": "Blok kódu: Enter pridá riadok, zatvorte napísaním ``` alebo klávesom Esc, Ctrl+Enter odošle",
+    "code_hint": "Blok kódu: Enter pridá riadok, zatvorte napísaním ``` alebo klávesom Esc, Ctrl+Enter alebo Cmd+Enter odošle",
     "send_failed": "Neodoslané — správa sa nedostala do hubu.",
     "send_failed_closed": "Neodoslané — spojenie sa prerušilo. Váš text tu zostal.",
     "send_failed_timeout": "Neodoslané — hub neodpovedal včas. Váš text tu zostal.",
@@ -400,7 +400,7 @@
     "title": "Vlákno",
     "open": "Otvoriť",
     "empty": "Prázdne vlákno.",
-    "reply_placeholder": "Odpoveď — Enter odošle · /search na filtrovanie",
+    "reply_placeholder": "Odpoveď — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search na filtrovanie",
     "replies_label": "Odpovede, najnovšie prvé",
     "load_failed": "načítanie vlákna zlyhalo",
     "no_replies": "Zatiaľ žiadne odpovede — napíšte prvú."
@@ -441,7 +441,7 @@
     "resize_hint": "Potiahnutím zmeníte veľkosť. Dvojklikom obnovíte pôvodnú."
   },
   "pages": {
-    "message_placeholder": "Správa pre {target} — Enter odošle · /search na filtrovanie",
+    "message_placeholder": "Správa pre {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search na filtrovanie",
     "feed_label": "{target}, najnovšie prvé",
     "index": {
       "subtitle": "len na čítanie · v rámci nájomníka",
@@ -508,7 +508,7 @@
       "files": "Súbory",
       "messages": "Správy"
     },
-    "placeholder_target": "Správa pre {target} — Enter odošle · /search hľadá všade",
+    "placeholder_target": "Správa pre {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",
     "unreachable": "Služba vyhľadávania nie je dostupná. Skúste to o chvíľu znova.",
     "slash_shortcut": "Stlačte /, aby ste zameriali omnibox. Escape vráti zameranie tam, kde bolo.",
     "slash_badge_title": "Stlačte / na zameranie"

@@ -329,7 +329,7 @@
     "attach": "załącz",
     "send": "Wyślij",
     "sending": "Wysyłanie…",
-    "code_hint": "Blok kodu: Enter dodaje wiersz, wpisz ``` lub naciśnij Esc, aby zamknąć, Ctrl+Enter wysyła",
+    "code_hint": "Blok kodu: Enter dodaje wiersz, wpisz ``` lub naciśnij Esc, aby zamknąć, Ctrl+Enter lub Cmd+Enter wysyła",
     "send_failed": "Nie wysłano — wiadomość nie dotarła do huba.",
     "send_failed_closed": "Nie wysłano — połączenie zostało przerwane. Twój tekst jest nadal tutaj.",
     "send_failed_timeout": "Nie wysłano — hub nie odpowiedział na czas. Twój tekst jest nadal tutaj.",
@@ -400,7 +400,7 @@
     "title": "Wątek",
     "open": "Otwórz",
     "empty": "Pusty wątek.",
-    "reply_placeholder": "Odpowiedz — Enter wysyła · /search, aby filtrować",
+    "reply_placeholder": "Odpowiedz — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search, aby filtrować",
     "replies_label": "Odpowiedzi, od najnowszych",
     "load_failed": "ładowanie wątku nie powiodło się",
     "no_replies": "Brak odpowiedzi — napisz pierwszą."
@@ -441,7 +441,7 @@
     "resize_hint": "Przeciągnij, aby zmienić rozmiar. Kliknij dwukrotnie, aby przywrócić."
   },
   "pages": {
-    "message_placeholder": "Wiadomość do {target} — Enter wysyła · /search, aby filtrować",
+    "message_placeholder": "Wiadomość do {target} — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search, aby filtrować",
     "feed_label": "{target}, od najnowszych",
     "index": {
       "subtitle": "tylko do odczytu · w obrębie dzierżawy",
@@ -508,7 +508,7 @@
       "files": "Pliki",
       "messages": "Wiadomości"
     },
-    "placeholder_target": "Wiadomość do {target} — Enter wysyła · /search szuka wszędzie",
+    "placeholder_target": "Wiadomość do {target} — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search szuka wszędzie",
     "unreachable": "Usługa wyszukiwania jest nieosiągalna. Spróbuj ponownie za chwilę.",
     "slash_shortcut": "Naciśnij /, aby ustawić focus na omnibox. Escape przywraca focus tam, gdzie był.",
     "slash_badge_title": "Naciśnij /, aby ustawić focus"

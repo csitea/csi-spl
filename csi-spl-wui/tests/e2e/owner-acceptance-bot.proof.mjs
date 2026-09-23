@@ -89,7 +89,7 @@ async function verdict(page, n, id, title, ok, ev = {}) {
   console.log(`${ok ? 'PASS' : 'FAIL'} case ${n}/${TOTAL} ${id} — ${title} ${JSON.stringify(ev)}`)
   if (!POST_RESULTS || !page) return ok
   // No backticks in a posted line: three of them open a code block in the
-  // composer and Enter would then add a line instead of sending.
+  // composer. Sending is Ctrl+Enter; a bare Enter only adds a line.
   const line = `case ${n}/${TOTAL} ${id}: ${ok ? 'PASS' : 'FAIL'} — ${title}`
   const sent = await post(page, line).then(() => true, () => false)
   if (sent) posted += 1
@@ -109,7 +109,9 @@ async function post(page, text) {
   await ta.focus()
   await page.keyboard.type(text)
   const t0 = Date.now()
+  await page.keyboard.down('Control')
   await page.keyboard.press('Enter')
+  await page.keyboard.up('Control')
   return t0
 }
 
@@ -295,7 +297,9 @@ try {
   await page.keyboard.type('```')
   const closed = await ta.evaluate((e) => !/in-code/.test(e.className))
   await page.screenshot({ path: `${OUT}/05-composer-code.png` }).catch(() => {})
+  await page.keyboard.down('Control')
   await page.keyboard.press('Enter')
+  await page.keyboard.up('Control')
   const card5 = await page.waitForFunction(
     (n) => [...document.querySelectorAll('article.msg')].some((a) => a.textContent.includes(n) && a.querySelector('.code-block')),
     { timeout: 25000 }, n5).then(() => true, () => false)

@@ -228,13 +228,18 @@ export function fenceStateAt(text, caret) {
 }
 
 /**
- * What Enter does. Outside a block Enter sends and Shift+Enter is a newline
- * (unchanged); inside a block Enter is a newline. Ctrl/Cmd+Enter always sends.
+ * What Enter does in the message composer.
+ *
+ * Owner, 2026-09-23: a bare Enter always inserts a newline, inside a ```
+ * block and outside it. Ctrl+Enter and Cmd+Enter send. Shift and Alt do not.
+ * `inCode`, `shift` and `alt` stay in the argument so a caller can still pass
+ * the key state; they do not change the answer.
+ *
+ * Message edit does not use this. Enter still commits an edit (msg-edit.mjs,
+ * the owner's order of 2026-09-22).
  */
-export function enterAction({ inCode = false, shift = false, alt = false, mod = false } = {}) {
-  if (mod) return 'send'
-  if (inCode || shift || alt) return 'newline'
-  return 'send'
+export function enterAction({ mod = false } = {}) {
+  return mod ? 'send' : 'newline'
 }
 
 /**

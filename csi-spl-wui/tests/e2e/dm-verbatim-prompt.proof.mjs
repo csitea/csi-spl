@@ -115,14 +115,16 @@ try {
   await sleep(2500)
   await p.screenshot({ path: `${OUT}/1-dm-open.png` })
 
-  // The omnibox IS the composer on a DM page: its placeholder says
-  // "Message <peer> — Enter to send".
+  // The omnibox IS the composer on a DM page. Ctrl+Enter sends; Enter
+  // only inserts a line.
   const OMNI = '[data-test=top-bar-omnibox] textarea, textarea'
   await p.waitForSelector(OMNI, { timeout: 20000 })
   await p.click(OMNI)
   await p.type(OMNI, BODY)
   const t0 = Date.now()
+  await p.keyboard.down('Control')
   await p.keyboard.press('Enter')
+  await p.keyboard.up('Control')
 
   // the sender's own row coming back
   const seen = await p.waitForFunction(

@@ -329,7 +329,7 @@
     "attach": "прикачи",
     "send": "Изпрати",
     "sending": "Изпращане…",
-    "code_hint": "Блок с код: Enter добавя ред, напишете ``` или натиснете Esc за затваряне, Ctrl+Enter изпраща",
+    "code_hint": "Блок с код: Enter добавя ред, напишете ``` или натиснете Esc за затваряне, Ctrl+Enter или Cmd+Enter изпраща",
     "send_failed": "Не е изпратено — съобщението не стигна до хъба.",
     "send_failed_closed": "Не е изпратено — връзката прекъсна. Текстът ви е запазен.",
     "send_failed_timeout": "Не е изпратено — хъбът не отговори навреме. Текстът ви е запазен.",
@@ -400,7 +400,7 @@
     "title": "Нишка",
     "open": "Отвори",
     "empty": "Празна нишка.",
-    "reply_placeholder": "Отговор — Enter за изпращане · /search за филтриране",
+    "reply_placeholder": "Отговор — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за филтриране",
     "replies_label": "Отговори, най-новите първи",
     "load_failed": "зареждането на нишката не успя",
     "no_replies": "Още няма отговори — напишете първия."
@@ -441,7 +441,7 @@
     "resize_hint": "Плъзнете, за да преоразмерите. Щракнете двукратно, за да нулирате."
   },
   "pages": {
-    "message_placeholder": "Съобщение до {target} — Enter за изпращане · /search за филтриране",
+    "message_placeholder": "Съобщение до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за филтриране",
     "feed_label": "{target}, най-новите първи",
     "index": {
       "subtitle": "само за четене · в рамките на тенанта",
@@ -508,7 +508,7 @@
       "files": "Файлове",
       "messages": "Съобщения"
     },
-    "placeholder_target": "Съобщение до {target} — Enter за изпращане · /search за търсене навсякъде",
+    "placeholder_target": "Съобщение до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",
     "unreachable": "Услугата за търсене не е достъпна. Опитайте отново след малко.",
     "slash_shortcut": "Натиснете /, за да фокусирате omnibox. Escape връща фокуса там, където беше.",
     "slash_badge_title": "Натиснете / за фокус"

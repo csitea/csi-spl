@@ -329,7 +329,7 @@
     "attach": "liitä",
     "send": "Lähetä",
     "sending": "Lähetetään…",
-    "code_hint": "Koodilohko: Enter lisää rivin, sulje kirjoittamalla ``` tai painamalla Esc, Ctrl+Enter lähettää",
+    "code_hint": "Koodilohko: Enter lisää rivin, sulje kirjoittamalla ``` tai painamalla Esc, Ctrl+Enter tai Cmd+Enter lähettää",
     "send_failed": "Ei lähetetty — viesti ei päässyt hubiin.",
     "send_failed_closed": "Ei lähetetty — yhteys katkesi. Tekstisi on yhä tallessa.",
     "send_failed_timeout": "Ei lähetetty — hub ei vastannut ajoissa. Tekstisi on yhä tallessa.",
@@ -400,7 +400,7 @@
     "title": "Ketju",
     "open": "Avaa",
     "empty": "Tyhjä ketju.",
-    "reply_placeholder": "Vastaa — Enter lähettää · /search suodattaa",
+    "reply_placeholder": "Vastaa — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search suodattaa",
     "replies_label": "Vastaukset, uusimmat ensin",
     "load_failed": "ketjun lataus epäonnistui",
     "no_replies": "Ei vielä vastauksia — kirjoita ensimmäinen."
@@ -441,7 +441,7 @@
     "resize_hint": "Muuta kokoa vetämällä. Palauta kaksoisnapsautuksella."
   },
   "pages": {
-    "message_placeholder": "Viesti kohteeseen {target} — Enter lähettää · /search suodattaa",
+    "message_placeholder": "Viesti kohteeseen {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search suodattaa",
     "feed_label": "{target}, uusimmat ensin",
     "index": {
       "subtitle": "vain luku · tenanttikohtainen",
@@ -508,7 +508,7 @@
       "files": "Tiedostot",
       "messages": "Viestit"
     },
-    "placeholder_target": "Viesti: {target} — Enter lähettää · /search hakee kaikkialta",
+    "placeholder_target": "Viesti: {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
     "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen.",
     "slash_shortcut": "Paina / kohdistaaksesi omniboxin. Escape palauttaa kohdistuksen entiseen paikkaan.",
     "slash_badge_title": "Paina / kohdistaaksesi"

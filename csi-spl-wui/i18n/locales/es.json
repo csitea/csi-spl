@@ -329,7 +329,7 @@
     "attach": "adjuntar",
     "send": "Enviar",
     "sending": "Enviando…",
-    "code_hint": "Bloque de código: Enter añade una línea, escribe ``` o pulsa Esc para cerrar, Ctrl+Enter envía",
+    "code_hint": "Bloque de código: Enter añade una línea, escribe ``` o pulsa Esc para cerrar, Ctrl+Enter o Cmd+Enter envía",
     "send_failed": "No enviado: el mensaje no llegó al hub.",
     "send_failed_closed": "No enviado: se cortó la conexión. Tu texto sigue aquí.",
     "send_failed_timeout": "No enviado: el hub no respondió a tiempo. Tu texto sigue aquí.",
@@ -400,7 +400,7 @@
     "title": "Hilo",
     "open": "Abrir",
     "empty": "Hilo vacío.",
-    "reply_placeholder": "Responder — Enter para enviar · /search para filtrar",
+    "reply_placeholder": "Responder — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para filtrar",
     "replies_label": "Respuestas, las más recientes primero",
     "load_failed": "error al cargar el hilo",
     "no_replies": "Aún no hay respuestas: escribe la primera."
@@ -441,7 +441,7 @@
     "resize_hint": "Arrastra para redimensionar. Doble clic para restablecer."
   },
   "pages": {
-    "message_placeholder": "Mensaje a {target} — Enter para enviar · /search para filtrar",
+    "message_placeholder": "Mensaje a {target} — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para filtrar",
     "feed_label": "{target}, los más recientes primero",
     "index": {
       "subtitle": "solo lectura · limitado al inquilino",
@@ -508,7 +508,7 @@
       "files": "Archivos",
       "messages": "Mensajes"
     },
-    "placeholder_target": "Mensaje a {target} — Enter para enviar · /search para buscar en todo",
+    "placeholder_target": "Mensaje a {target} — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para buscar en todo",
     "unreachable": "No se pudo contactar con el servicio de búsqueda. Inténtalo de nuevo en breve.",
     "slash_shortcut": "Pulse / para enfocar el omnibox. Escape devuelve el foco a donde estaba.",
     "slash_badge_title": "Pulse / para enfocar"

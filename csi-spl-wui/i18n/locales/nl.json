@@ -329,7 +329,7 @@
     "attach": "bijvoegen",
     "send": "Versturen",
     "sending": "Versturen…",
-    "code_hint": "Codeblok: Enter voegt een regel toe, typ ``` of druk op Esc om te sluiten, Ctrl+Enter verstuurt",
+    "code_hint": "Codeblok: Enter voegt een regel toe, typ ``` of druk op Esc om te sluiten, Ctrl+Enter of Cmd+Enter verstuurt",
     "send_failed": "Niet verzonden — het bericht bereikte de hub niet.",
     "send_failed_closed": "Niet verzonden — de verbinding viel weg. Je tekst staat er nog.",
     "send_failed_timeout": "Niet verzonden — de hub antwoordde niet op tijd. Je tekst staat er nog.",
@@ -400,7 +400,7 @@
     "title": "Thread",
     "open": "Openen",
     "empty": "Lege thread.",
-    "reply_placeholder": "Reageren — Enter om te versturen · /search om te filteren",
+    "reply_placeholder": "Reageren — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen · /search om te filteren",
     "replies_label": "Reacties, nieuwste eerst",
     "load_failed": "thread laden mislukt",
     "no_replies": "Nog geen antwoorden — schrijf het eerste."
@@ -441,7 +441,7 @@
     "resize_hint": "Sleep om het formaat te wijzigen. Dubbelklik om te herstellen."
   },
   "pages": {
-    "message_placeholder": "Bericht aan {target} — Enter om te versturen · /search om te filteren",
+    "message_placeholder": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen · /search om te filteren",
     "feed_label": "{target}, nieuwste eerst",
     "index": {
       "subtitle": "alleen-lezen · binnen de tenant",
@@ -508,7 +508,7 @@
       "files": "Bestanden",
       "messages": "Berichten"
     },
-    "placeholder_target": "Bericht aan {target} — Enter om te verzenden · /search om overal te zoeken",
+    "placeholder_target": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",
     "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw.",
     "slash_shortcut": "Druk op / om de omnibox te focussen. Escape zet de focus terug waar die was.",
     "slash_badge_title": "Druk op / om te focussen"

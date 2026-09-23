@@ -97,7 +97,9 @@ try {
   const ta = await p.waitForSelector('form.composer textarea')
   await ta.focus()
   await insert(p, `viewer proof ${nonce} ${evil}\n\`\`\`python\n${bigCode}\n\`\`\``)
+  await p.keyboard.down('Control')
   await p.keyboard.press('Enter')
+  await p.keyboard.up('Control')
 
   const card = await p.waitForFunction(
     (n) => [...document.querySelectorAll('article.msg')].find((a) => a.textContent.includes(n)),
@@ -216,7 +218,9 @@ try {
   const ta2 = await p.waitForSelector('form.composer textarea')
   await ta2.focus()
   await insert(p, '```\n' + overCode + '\n```')
+  await p.keyboard.down('Control')
   await p.keyboard.press('Enter')
+  await p.keyboard.up('Control')
   await sleep(1200)
   const refused = await p.evaluate(() => {
     const n = document.querySelector('[data-testid=composer-too-big]')

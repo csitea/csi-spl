@@ -83,7 +83,9 @@ try {
       ta.dispatchEvent(new Event('input', { bubbles: true }))
     })
     await page.type('[data-test=top-bar-omnibox] textarea', body)
+    await page.keyboard.down('Control')
     await page.keyboard.press('Enter')
+    await page.keyboard.up('Control')
     await new Promise((r) => setTimeout(r, 600))
   }
   const read = () => page.evaluate(() => {

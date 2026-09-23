@@ -195,12 +195,15 @@ describe('composer state', () => {
     assert.deepEqual(fenceStateAt('```py\nx', 7), { inCode: true, lang: 'py' })
   })
 
-  it('Enter: newline in a block, send outside, Ctrl/Cmd+Enter always sends', () => {
-    assert.equal(enterAction({}), 'send')
+  it('Enter is a newline; Ctrl/Cmd+Enter sends, in a block and outside it', () => {
+    assert.equal(enterAction({}), 'newline')
     assert.equal(enterAction({ shift: true }), 'newline')
+    assert.equal(enterAction({ alt: true }), 'newline')
     assert.equal(enterAction({ inCode: true }), 'newline')
+    assert.equal(enterAction({ inCode: true, shift: true }), 'newline')
     assert.equal(enterAction({ inCode: true, mod: true }), 'send')
     assert.equal(enterAction({ mod: true }), 'send')
+    assert.equal(enterAction({ mod: true, shift: true }), 'send')
   })
 
   it('Esc exits the block with a closing fence on its own line', () => {

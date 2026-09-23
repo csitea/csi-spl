@@ -329,7 +329,7 @@
     "attach": "bifoga",
     "send": "Skicka",
     "sending": "Skickar…",
-    "code_hint": "Kodblock: Enter lägger till en rad, skriv ``` eller tryck Esc för att stänga, Ctrl+Enter skickar",
+    "code_hint": "Kodblock: Enter lägger till en rad, skriv ``` eller tryck Esc för att stänga, Ctrl+Enter eller Cmd+Enter skickar",
     "send_failed": "Inte skickat — meddelandet nådde inte hubben.",
     "send_failed_closed": "Inte skickat — anslutningen bröts. Din text finns kvar.",
     "send_failed_timeout": "Inte skickat — hubben svarade inte i tid. Din text finns kvar.",
@@ -400,7 +400,7 @@
     "title": "Tråd",
     "open": "Öppna",
     "empty": "Tom tråd.",
-    "reply_placeholder": "Svara — Enter för att skicka · /search för att filtrera",
+    "reply_placeholder": "Svara — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka · /search för att filtrera",
     "replies_label": "Svar, nyaste först",
     "load_failed": "kunde inte läsa in tråden",
     "no_replies": "Inga svar än — skriv det första."
@@ -441,7 +441,7 @@
     "resize_hint": "Dra för att ändra storlek. Dubbelklicka för att återställa."
   },
   "pages": {
-    "message_placeholder": "Meddelande till {target} — Enter för att skicka · /search för att filtrera",
+    "message_placeholder": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka · /search för att filtrera",
     "feed_label": "{target}, nyaste först",
     "index": {
       "subtitle": "skrivskyddad · per tenant",
@@ -508,7 +508,7 @@
       "files": "Filer",
       "messages": "Meddelanden"
     },
-    "placeholder_target": "Meddelande till {target} — Enter skickar · /search söker överallt",
+    "placeholder_target": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",
     "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund.",
     "slash_shortcut": "Tryck / för att fokusera omnibox. Escape återställer fokuset dit det var.",
     "slash_badge_title": "Tryck / för att fokusera"

@@ -329,7 +329,7 @@
     "attach": "manusta",
     "send": "Saada",
     "sending": "Saatmine…",
-    "code_hint": "Koodiplokk: Enter lisab rea, sulgemiseks kirjuta ``` või vajuta Esc, Ctrl+Enter saadab",
+    "code_hint": "Koodiplokk: Enter lisab rea, sulgemiseks kirjuta ``` või vajuta Esc, Ctrl+Enter või Cmd+Enter saadab",
     "send_failed": "Saatmata — sõnum ei jõudnud hubi.",
     "send_failed_closed": "Saatmata — ühendus katkes. Sinu tekst on alles.",
     "send_failed_timeout": "Saatmata — hub ei vastanud õigeks ajaks. Sinu tekst on alles.",
@@ -400,7 +400,7 @@
     "title": "Lõim",
     "open": "Ava",
     "empty": "Tühi lõim.",
-    "reply_placeholder": "Vastus — Enter saadab · /search filtreerib",
+    "reply_placeholder": "Vastus — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search filtreerib",
     "replies_label": "Vastused, uusimad eespool",
     "load_failed": "lõime laadimine ebaõnnestus",
     "no_replies": "Vastuseid veel ei ole — kirjuta esimene."
@@ -441,7 +441,7 @@
     "resize_hint": "Lohista suuruse muutmiseks. Topeltklõps lähtestab."
   },
   "pages": {
-    "message_placeholder": "Sõnum: {target} — Enter saadab · /search filtreerib",
+    "message_placeholder": "Sõnum: {target} — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search filtreerib",
     "feed_label": "{target}, uusimad eespool",
     "index": {
       "subtitle": "ainult lugemiseks · rentniku piires",
@@ -508,7 +508,7 @@
       "files": "Failid",
       "messages": "Sõnumid"
     },
-    "placeholder_target": "Sõnum: {target} — Enter saadab · /search otsib kõikjalt",
+    "placeholder_target": "Sõnum: {target} — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search otsib kõikjalt",
     "unreachable": "Otsinguteenusega ei saanud ühendust. Proovi varsti uuesti.",
     "slash_shortcut": "Vajuta /, et fokuseerida omnibox. Escape viib fookuse tagasi.",
     "slash_badge_title": "Vajuta / fokuseerimiseks"

@@ -329,7 +329,7 @@
     "attach": "ekle",
     "send": "Gönder",
     "sending": "Gönderiliyor…",
-    "code_hint": "Kod bloğu: Enter satır ekler, kapatmak için ``` yazın veya Esc'e basın, Ctrl+Enter gönderir",
+    "code_hint": "Kod bloğu: Enter satır ekler, kapatmak için ``` yazın veya Esc'e basın, Ctrl+Enter veya Cmd+Enter gönderir",
     "send_failed": "Gönderilmedi — mesaj hub'a ulaşmadı.",
     "send_failed_closed": "Gönderilmedi — bağlantı koptu. Metniniz hâlâ burada.",
     "send_failed_timeout": "Gönderilmedi — hub zamanında yanıt vermedi. Metniniz hâlâ burada.",
@@ -400,7 +400,7 @@
     "title": "Konu",
     "open": "Aç",
     "empty": "Boş konu.",
-    "reply_placeholder": "Yanıt — göndermek için Enter · filtrelemek için /search",
+    "reply_placeholder": "Yanıt — yeni satır için Enter · göndermek için Ctrl+Enter veya Cmd+Enter · filtrelemek için /search",
     "replies_label": "Yanıtlar, en yeniler önce",
     "load_failed": "konu yüklenemedi",
     "no_replies": "Henüz yanıt yok — ilkini siz yazın."
@@ -441,7 +441,7 @@
     "resize_hint": "Boyutlandırmak için sürükleyin. Sıfırlamak için çift tıklayın."
   },
   "pages": {
-    "message_placeholder": "{target} için mesaj — göndermek için Enter · filtrelemek için /search",
+    "message_placeholder": "{target} için mesaj — yeni satır için Enter · göndermek için Ctrl+Enter veya Cmd+Enter · filtrelemek için /search",
     "feed_label": "{target}, en yeniler önce",
     "index": {
       "subtitle": "salt okunur · kiracıya özel",
@@ -508,7 +508,7 @@
       "files": "Dosyalar",
       "messages": "Mesajlar"
     },
-    "placeholder_target": "{target} için mesaj — Enter gönderir · /search her yerde arar",
+    "placeholder_target": "{target} için mesaj — Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",
     "unreachable": "Arama hizmetine ulaşılamadı. Birazdan tekrar deneyin.",
     "slash_shortcut": "Omnibox'a geçmek için / tuşuna basın. Escape odağı önceki yere verir.",
     "slash_badge_title": "Odaklamak için / tuşuna basın"

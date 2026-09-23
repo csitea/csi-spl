@@ -21,12 +21,13 @@
  *     `state.original` on a rejection. This repo already paid for the other
  *     shape once — see send-failure.mjs, which owns the failure vocabulary
  *     this one reuses rather than inventing a second.
- *  3. Enter / Shift+Enter mean here exactly what they mean in the composer.
- *     Read MessageComposer.vue: it calls `enterAction` from code-blocks.mjs
- *     with { inCode, shift, alt, mod }, which answers 'send' for a bare Enter
- *     and for Ctrl/Cmd+Enter, and 'newline' inside a ``` block or with
- *     Shift / Alt. This file calls the SAME function, so the two can never
- *     drift apart.
+ *  3. Enter commits an edit. That is the owner's order of 2026-09-22
+ *     ("hits the enter the msg is sent"). It is not the composer's rule.
+ *     On 2026-09-23 the owner changed the composer: a bare Enter inserts a
+ *     newline and only Ctrl+Enter or Cmd+Enter sends (`enterAction`). An
+ *     edit is a save, so `editKeyAction` keeps its own decision: a bare
+ *     Enter and Ctrl/Cmd+Enter commit; Shift, Alt, and a ``` block insert
+ *     a newline.
  *
  * OWNER-STATED, 2026-09-22 — author-only. This was recorded as OUR inference
  * until the owner stated it themselves, watching the feature live:
@@ -50,7 +51,7 @@
  * here invents a field name: `edited_at` / `edited_by` / `revision` and the
  * client-side author predicate are that document's, quoted where they are used.
  */
-import { closeOpenFence, enterAction } from './code-blocks.mjs'
+import { closeOpenFence } from './code-blocks.mjs'
 import { emptySendError, isEmptySend, sendFailureKey } from './send-failure.mjs'
 import { BROWSER_BOX } from './view-api.mjs'
 
@@ -163,8 +164,11 @@ export function editKeyAction(ev, { inCode = false } = {}) {
   if (!ev || ev.isComposing) return ''
   if (String(ev.key) === 'Escape') return 'cancel'
   if (String(ev.key) !== 'Enter') return ''
-  const act = enterAction({ inCode, shift: ev.shiftKey, alt: ev.altKey, mod: ev.ctrlKey || ev.metaKey })
-  return act === 'send' ? 'commit' : 'newline'
+  /* Not enterAction. The composer (2026-09-23) treats a bare Enter as a
+     newline; an edit still commits on Enter, per the 2026-09-22 order. */
+  if (ev.ctrlKey || ev.metaKey) return 'commit'
+  if (inCode || ev.shiftKey || ev.altKey) return 'newline'
+  return 'commit'
 }
 
 /**

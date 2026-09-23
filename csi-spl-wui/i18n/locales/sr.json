@@ -329,7 +329,7 @@
     "attach": "priloži",
     "send": "Pošalji",
     "sending": "Slanje…",
-    "code_hint": "Блок кода: Enter додаје ред, откуцајте ``` или притисните Esc за затварање, Ctrl+Enter шаље",
+    "code_hint": "Блок кода: Enter додаје ред, откуцајте ``` или притисните Esc за затварање, Ctrl+Enter или Cmd+Enter шаље",
     "send_failed": "Nije poslato — poruka nije stigla do huba.",
     "send_failed_closed": "Nije poslato — veza je prekinuta. Vaš tekst je i dalje tu.",
     "send_failed_timeout": "Nije poslato — hub nije odgovorio na vreme. Vaš tekst je i dalje tu.",
@@ -400,7 +400,7 @@
     "title": "Nit",
     "open": "Otvori",
     "empty": "Prazna nit.",
-    "reply_placeholder": "Odgovor — Enter za slanje · /search za filtriranje",
+    "reply_placeholder": "Odgovor — Enter za novi red · Ctrl+Enter ili Cmd+Enter za slanje · /search za filtriranje",
     "replies_label": "Odgovori, najnoviji prvi",
     "load_failed": "učitavanje niti nije uspelo",
     "no_replies": "Још нема одговора — напишите први."
@@ -441,7 +441,7 @@
     "resize_hint": "Prevucite za promenu veličine. Dvaput kliknite za vraćanje."
   },
   "pages": {
-    "message_placeholder": "Poruka za {target} — Enter za slanje · /search za filtriranje",
+    "message_placeholder": "Poruka za {target} — Enter za novi red · Ctrl+Enter ili Cmd+Enter za slanje · /search za filtriranje",
     "feed_label": "{target}, najnovije prvo",
     "index": {
       "subtitle": "samo za čitanje · u okviru zakupca",
@@ -508,7 +508,7 @@
       "files": "Датотеке",
       "messages": "Поруке"
     },
-    "placeholder_target": "Порука за {target} — Enter шаље · /search претражује свуда",
+    "placeholder_target": "Порука за {target} — Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
     "unreachable": "Услуга претраге није доступна. Покушајте ускоро поново.",
     "slash_shortcut": "Притисните / да фокусирате omnibox. Escape враћа фокус тамо где је био.",
     "slash_badge_title": "Притисните / за фокус"

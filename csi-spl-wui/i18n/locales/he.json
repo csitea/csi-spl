@@ -329,7 +329,7 @@
     "attach": "צירוף",
     "send": "שליחה",
     "sending": "שולח…",
-    "code_hint": "בלוק קוד: Enter מוסיף שורה, הקלידו ``` או לחצו Esc כדי לסגור, Ctrl+Enter שולח",
+    "code_hint": "בלוק קוד: Enter מוסיף שורה, הקלידו ``` או לחצו Esc כדי לסגור, Ctrl+Enter או Cmd+Enter שולח",
     "send_failed": "לא נשלח — ההודעה לא הגיעה ל-hub.",
     "send_failed_closed": "לא נשלח — החיבור נותק. הטקסט שלכם נשמר.",
     "send_failed_timeout": "לא נשלח — ה-hub לא הגיב בזמן. הטקסט שלכם נשמר.",
@@ -400,7 +400,7 @@
     "title": "שרשור",
     "open": "פתיחה",
     "empty": "שרשור ריק.",
-    "reply_placeholder": "תגובה — Enter לשליחה · /search לסינון",
+    "reply_placeholder": "תגובה — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · /search לסינון",
     "replies_label": "תגובות, החדשות ראשונות",
     "load_failed": "טעינת השרשור נכשלה",
     "no_replies": "אין עדיין תגובות — כתבו את הראשונה."
@@ -441,7 +441,7 @@
     "resize_hint": "גררו כדי לשנות גודל. לחיצה כפולה לאיפוס."
   },
   "pages": {
-    "message_placeholder": "הודעה אל {target} — Enter לשליחה · /search לסינון",
+    "message_placeholder": "הודעה אל {target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · /search לסינון",
     "feed_label": "{target}, החדשות ראשונות",
     "index": {
       "subtitle": "קריאה בלבד · בתחום הטננט",
@@ -508,7 +508,7 @@
       "files": "קבצים",
       "messages": "הודעות"
     },
-    "placeholder_target": "הודעה אל {target} — Enter לשליחה · ‎/search לחיפוש בכל מקום",
+    "placeholder_target": "הודעה אל {target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",
     "unreachable": "לא ניתן להגיע לשירות החיפוש. נסו שוב בעוד רגע.",
     "slash_shortcut": "לחצו / כדי למקד את ה-omnibox. Escape מחזיר את המיקוד למקום הקודם.",
     "slash_badge_title": "לחצו / למיקוד"

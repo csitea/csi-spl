@@ -1,11 +1,8 @@
 import { defineStore } from 'pinia'
 import { dismissBornTopic, noteBornTopic } from '~/utils/born-topics.mjs'
 import { topicOf } from '~/utils/channel-feed.mjs'
-import { applyVerbosity, loadVerbosity, saveVerbosity } from '~/utils/verbosity.mjs'
 import { useChannelStore } from '~/stores/channel'
 import type { SpoolMessage } from '~/types/spool'
-
-export type Verbosity = 'minimal' | 'normal' | 'verbose'
 
 /** Which topic the pane shows (utils/topic-open.mjs topicTargetFor). */
 export interface TopicTarget {
@@ -21,8 +18,6 @@ export interface TopicTarget {
 export const useTopicStore = defineStore('topic', () => {
   const open = ref(false)
   const parentTaskId = ref<string | null>(null)
-  const verbosity = ref<Verbosity>(loadVerbosity())
-  watch(verbosity, (v) => { saveVerbosity(v) })
 
   /*
    * CLE-3427. Both panes (TopicPane over the channel store, LiveTopicPane
@@ -51,10 +46,7 @@ export const useTopicStore = defineStore('topic', () => {
 
   const channel = useChannelStore()
 
-  const messages = computed(() => {
-    const all = topicOf(channel.messages, parentTaskId.value)
-    return applyVerbosity(all, verbosity.value)
-  })
+  const messages = computed(() => topicOf(channel.messages, parentTaskId.value))
 
   /** The channel / DM pane: open this target and show the pane. */
   function openTarget(next: TopicTarget, root: SpoolMessage | null = null) {
@@ -99,5 +91,5 @@ export const useTopicStore = defineStore('topic', () => {
     rootMsg.value = { ...rootMsg.value, ...(row as Partial<SpoolMessage>) }
   }
 
-  return { open, parentTaskId, verbosity, messages, target, rootMsg, born, noteBorn, dismissBorn, clearBorn, openTopic, openTarget, setTarget, applyEditedRoot, close }
+  return { open, parentTaskId, messages, target, rootMsg, born, noteBorn, dismissBorn, clearBorn, openTopic, openTarget, setTarget, applyEditedRoot, close }
 })

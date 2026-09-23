@@ -3,7 +3,6 @@
     <header class="feed-header">
       <h2><NuxtLink :to="localePath('/')">{{ t('nav.topics') }}</NuxtLink> / <code>{{ shortId }}</code></h2>
       <span class="muted">{{ t('pages.task.status', { n: store.messages.length, state: stateLabel(live.state.value) }) }}</span>
-      <VerbositySelector />
     </header>
     <div class="pinned-root" data-test="topic-root">
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="reopen" />
@@ -32,7 +31,6 @@ import { useOmniboxTarget } from '~/stores/omnibox'
 import { useLive } from '~/composables/useLive'
 import { useTopicStore } from '~/stores/topic'
 import { newestFirst } from '~/utils/feed.mjs'
-import { applyVerbosity } from '~/utils/verbosity.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 import { useSidePane } from '~/composables/useSidePane'
@@ -52,8 +50,7 @@ const shortId = computed(() => taskId.value.slice(0, 8))
 const topic = useTopicStore()
 const sidePane = useSidePane()
 const sinceMs = useNowTick(() => Boolean(taskId.value))
-/* 005 FR-013: the same verbosity filter as the topic pane */
-const messages = computed(() => applyVerbosity(newestFirst(store.newestFirst), topic.verbosity))
+const messages = computed(() => newestFirst(store.newestFirst))
 
 function reopen() {
   if (taskId.value) void store.open(taskId.value, { all: true })

@@ -3,7 +3,6 @@
     <header>
       <strong>{{ t('topic.title') }}</strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
-        <VerbositySelector />
         <button
           class="icon-btn"
           type="button"
@@ -42,7 +41,6 @@ import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { matchesSearch, mergeById, newestFirst } from '~/utils/feed.mjs'
-import { applyVerbosity } from '~/utils/verbosity.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
@@ -71,8 +69,7 @@ const pendingHere = computed(() => channel.messages.filter((m) => m.pending && m
 /* Newest first, so a message that just arrived is the first row. */
 const messages = computed(() => {
   const held = (api.mock ? topic.messages : mergeById(liveRows.value, pendingHere.value).rows) as SpoolMessage[]
-  const rows = newestFirst(held.filter((m) => matchesSearch(m, search.value)))
-  return (api.mock ? rows : applyVerbosity(rows, topic.verbosity)) as SpoolMessage[]
+  return newestFirst(held.filter((m) => matchesSearch(m, search.value))) as SpoolMessage[]
 })
 
 /** 013 US7 FR-015: after a reconnect, re-read the topic and merge it by msg_id. */

@@ -19,9 +19,8 @@ function walk(dir, acc = []) {
 }
 
 describe('verbosity + notify wiring', () => {
-  it('VerbositySelector and NotificationCenter do not import mock-data', () => {
+  it('NotificationCenter and the topic store do not import mock-data', () => {
     for (const rel of [
-      'src/components/VerbositySelector.vue',
       'src/components/NotificationCenter.vue',
       'src/stores/notification.ts',
       'src/stores/topic.ts',
@@ -38,10 +37,10 @@ describe('verbosity + notify wiring', () => {
     assert.equal(src.includes('channel.unread['), false)
   })
 
-  it('live topic pane hosts the verbosity selector', () => {
+  it('the live topic pane has no verbosity selector', () => {
     const src = readFileSync(join(WUI, 'src/components/LiveTopicPane.vue'), 'utf8')
-    assert.equal(src.includes('VerbositySelector'), true)
-    assert.equal(src.includes('applyVerbosity'), true)
+    assert.equal(src.includes('VerbositySelector'), false)
+    assert.equal(src.includes('applyVerbosity'), false)
   })
 
   it('channel page no longer pings on send', () => {

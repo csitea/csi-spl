@@ -255,10 +255,10 @@ describe('door UX (view-v1 §2: a 401 view_door is a prompt)', () => {
 })
 
 describe('verbosity on /t (005 FR-013)', () => {
-  it('/t/[task_id] has the selector and filters its replies', () => {
+  it('/t/[task_id] shows every message; the minimal/normal/verbose control is gone', () => {
     const page = src('src/pages/t/[task_id].vue')
-    assert.match(page, /<VerbositySelector/)
-    assert.match(page, /applyVerbosity\(/)
+    assert.doesNotMatch(page, /VerbositySelector/)
+    assert.doesNotMatch(page, /applyVerbosity\(/)
   })
 })
 

@@ -3,7 +3,6 @@
     <header>
       <strong>{{ t('topic.title') }} <code>{{ pane.taskId.slice(0, 8) }}</code></strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
-        <VerbositySelector />
         <NuxtLink
           v-if="!messageRooted"
           class="icon-btn icon-btn--accent"
@@ -52,7 +51,6 @@ import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
 import { newestFirst } from '~/utils/feed.mjs'
-import { applyVerbosity } from '~/utils/verbosity.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -84,7 +82,7 @@ const messages = computed(() => {
   const rows = messageRooted.value
     ? [topic.rootMsg, ...pane.newestFirst].filter((m): m is SpoolMessage => Boolean(m))
     : pane.newestFirst
-  return applyVerbosity(newestFirst(rows), topic.verbosity)
+  return newestFirst(rows)
 })
 
 /*

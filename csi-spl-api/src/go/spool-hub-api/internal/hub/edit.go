@@ -27,8 +27,9 @@ import (
 //
 // The edit marker (edited_at / edited_by / revision) is HUB metadata and rides
 // beside cursor and received_at on the view element. It is never a field of
-// the inner v:1/v:2 object, so no signature covers anything an edit changes
-// and specs/020's schema freeze is untouched.
+// the inner v:1/v:2 object, so specs/020's schema freeze is untouched. The
+// envelope signature does cover the body: rule 7 re-signs a box-wui envelope
+// with the key this process holds, and leaves every other signature alone.
 
 // bodyMax is the v:2 §1 body limit, in bytes.
 const bodyMax = 64 << 10
@@ -119,20 +120,37 @@ func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "not_author", "only the author may edit this message")
 		return
 	}
-	// Rule 7. Arithmetic, not policy: a box-signed envelope's signature covers
-	// the canonical inner bytes, and the hub holds no key that could re-sign
-	// for that box. Every row the WUI's `e` shortcut can reach is
-	// browser-authored, so this refuses nothing the owner asked for.
-	if m.EnvSig != "" || m.FromBox != WUIBox {
+	// Rule 7. A from_box other than box-wui is that box's envelope: the hub
+	// holds no key that could re-sign for it, so the body stays as signed.
+	// A box-wui envelope with a signature was signed by this hub — channel
+	// fan-out and agent dispatch both call dispatchEnvelope — and the author
+	// (rule 6) may edit it. The same signer re-signs the new bytes with the
+	// key this process already holds. An unsigned box-wui envelope, a lobby
+	// note that never fanned out, is edited with its empty sig left empty.
+	// A signed envelope and no key is the same 409: there is nothing to
+	// re-sign with.
+	pub := s.wuiPub()
+	if m.FromBox != WUIBox || (m.EnvSig != "" && pub == nil) {
 		writeErr(w, http.StatusConflict, "not_editable", "a box-signed message can only be edited by its box")
 		return
 	}
+	resign := m.EnvSig != ""
 
-	env, inner, err := reEnvelope(m, body.Body)
+	env, innerMsg, inner, err := reEnvelope(m, body.Body)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("edit re-encode")
 		writeErr(w, http.StatusInternalServerError, "internal", "edit not stored")
 		return
+	}
+	if resign {
+		signed, err := s.dispatchEnvelope(env.ToBox, env.Channel, env.ParentTaskID, pub, innerMsg)
+		if err != nil {
+			s.o.Log.Error().Err(err).Str("msg_id", id).Msg("edit re-sign")
+			writeErr(w, http.StatusInternalServerError, "internal", "edit not stored")
+			return
+		}
+		env = signed
+		inner = signed.Msg
 	}
 	canon, err := env.Marshal()
 	if err != nil {
@@ -178,25 +196,25 @@ func (s *Server) editorID(r *http.Request, tenant string) (string, bool) {
 // when its envelope had no channel tag): rebuilding from it would add a tag the
 // original envelope never had, and an edit must change the body and nothing
 // else.
-func reEnvelope(m store.EditableMessage, body string) (*wire.Envelope, []byte, error) {
+func reEnvelope(m store.EditableMessage, body string) (*wire.Envelope, *msg.Message, []byte, error) {
 	env, err := wire.ParseEnvelope(m.Env)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	inner, err := msg.Parse(env.Msg)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	inner.Body = body
 	if err := inner.Validate(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	canon, err := msg.Canonical(inner)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	env.Msg = canon
-	return env, canon, nil
+	return env, inner, canon, nil
 }
 
 // editedPayload is the §4.4 view element the WUI already normalises, plus

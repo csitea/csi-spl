@@ -3,6 +3,7 @@ package hub_test
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -256,10 +257,13 @@ func TestEditMessageEmptyBody(t *testing.T) {
 	}
 }
 
-// CONTROL — TestEditMessageNotEditable: rule 7, a box-signed message. Delete
-// the EnvSig / FromBox check and this goes red — and it would go red for a
-// reason that matters, because rewriting the body under a box's signature
-// leaves a stored envelope that no longer verifies against its own pin.
+// CONTROL — TestEditMessageNotEditable: rule 7 for a from_box other than
+// box-wui, on a hub that also has no box-wui key. Delete the whole refusal
+// and this goes red. The keyed twin (TestEditMessageOtherBoxWithKey) is what
+// goes red when only the FromBox half is deleted: a hub that holds a key
+// must still refuse a box it cannot re-sign for. Rewriting the body under
+// that box's signature would leave an envelope that no longer verifies
+// against its own pin.
 func TestEditMessageNotEditable(t *testing.T) {
 	e := followEnv(t)
 	tid, _ := e.tenant()
@@ -388,5 +392,230 @@ func TestEditMessageUnedited(t *testing.T) {
 		if _, present := row[k]; present {
 			t.Fatalf("an unedited message carries %q = %v; the key must be absent", k, row[k])
 		}
+	}
+}
+
+// insertEnvelope stores one message exactly as the box path stored it, so the
+// edit tests can name from_box and the signature without going through a send.
+func insertEnvelope(t *testing.T, e *env, tid string, m *msg.Message, env *wire.Envelope, channel, parent string, now time.Time) {
+	t.Helper()
+	canon, err := env.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := store.Message{
+		TenantID: tid, MsgID: m.MsgID, TaskID: m.TaskID, Channel: channel, ParentTaskID: parent, TS: now,
+		FromBox: env.FromBox, FromID: m.From, ToBox: env.ToBox, ToID: m.To, Kind: m.Kind,
+		Body: m.Body, Files: []byte(`[]`), Msg: env.Msg, EnvSig: env.Sig, Env: canon,
+		ReceivedAt: now, ExpiresAt: now.Add(24 * time.Hour),
+	}
+	if _, err := e.st.InsertMessage(context.Background(), row); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// storedEnvelope is the envelope the edit actually persisted.
+func storedEnvelope(t *testing.T, e *env, tid, msgID string) *wire.Envelope {
+	t.Helper()
+	got, err := e.st.GetEditable(context.Background(), tid, msgID, time.Now())
+	if err != nil {
+		t.Fatalf("GetEditable: %v", err)
+	}
+	env, err := wire.ParseEnvelope(got.Env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return env
+}
+
+// CONTROL — TestEditMessageBoxWUIResign: a browser post the hub signed with
+// its own box-wui key stays editable by its author, and the stored envelope
+// verifies against that same key afterwards. Delete the re-sign (or put the
+// old blanket `EnvSig != ""` refusal back) and this goes red: either the
+// status is 409, or the new body sits under a signature that does not verify.
+func TestEditMessageBoxWUIResign(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := dispatchEnv(t, false, priv) // key held, dispatch off: a plain lobby note stays unsigned
+	tid, _ := e.tenant()
+	now := time.Now().UTC().Truncate(time.Second)
+	parent := "44444444-5555-4666-8777-888888888888"
+
+	channelMsg := &msg.Message{V: 1, MsgID: "22222222-3333-4444-8555-666666666666", TaskID: lobby,
+		TS: now.Format(time.RFC3339), From: "HUM-1", To: "ALL-0", Kind: "note",
+		Body: "signed channel post", Files: []msg.Attachment{}}
+	channelEnv, err := wire.NewEnvelopeIn(priv, hub.WUIBox, hub.WUIBox, "lobby", parent, channelMsg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := channelEnv.Verify(pub); err != nil {
+		t.Fatal(err)
+	}
+	insertEnvelope(t, e, tid, channelMsg, channelEnv, "lobby", parent, now)
+
+	// Rule 6 is unchanged by a signature the hub could re-sign. Another member
+	// is 403, not 409, and the body is untouched.
+	code, out := patchEdit(t, e, tid, channelMsg.MsgID, "HUM-2", map[string]string{"body": "not yours"})
+	if code != http.StatusForbidden || out["error"] != "not_author" {
+		t.Fatalf("another member: %d %v (want 403 not_author)", code, out)
+	}
+	if got := storedBody(t, e, tid, channelMsg.MsgID); got != "signed channel post" {
+		t.Fatalf("the refusal changed the body: %q", got)
+	}
+
+	code, out = patchEdit(t, e, tid, channelMsg.MsgID, "HUM-1", map[string]string{"body": "edited channel post"})
+	if code != http.StatusOK {
+		t.Fatalf("author edit of a hub-signed post: %d %v", code, out)
+	}
+	if got := bodyOfEnv(t, out); got != "edited channel post" {
+		t.Fatalf("response body %q", got)
+	}
+	edited := storedEnvelope(t, e, tid, channelMsg.MsgID)
+	if err := edited.Verify(pub); err != nil {
+		t.Fatalf("edited envelope does not verify against the hub box-wui key: %v", err)
+	}
+	if edited.Sig == channelEnv.Sig {
+		t.Fatal("edit left the original signature on the new body")
+	}
+	if edited.FromBox != hub.WUIBox || edited.ToBox != hub.WUIBox || edited.Channel != "lobby" || edited.ParentTaskID != parent {
+		t.Fatalf("channel envelope tags: %+v", edited)
+	}
+	inner, err := edited.Inner()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inner.Body != "edited channel post" || inner.From != "HUM-1" || inner.MsgID != channelMsg.MsgID || inner.TS != channelMsg.TS {
+		t.Fatalf("inner after edit: %+v", inner)
+	}
+	// The signature the row was born with must not still cover the new body.
+	stale := *edited
+	stale.Sig = channelEnv.Sig
+	if err := stale.Verify(pub); err == nil {
+		t.Fatal("the original signature still verifies the edited envelope")
+	}
+
+	// A second edit still verifies. The store keeps the original env_sig, so
+	// the column staying non-empty must keep taking the re-sign path.
+	code, out = patchEdit(t, e, tid, channelMsg.MsgID, "HUM-1", map[string]string{"body": "edited again"})
+	if code != http.StatusOK {
+		t.Fatalf("second edit: %d %v", code, out)
+	}
+	again := storedEnvelope(t, e, tid, channelMsg.MsgID)
+	if err := again.Verify(pub); err != nil {
+		t.Fatalf("second edit does not verify: %v", err)
+	}
+	if again.Sig == edited.Sig {
+		t.Fatal("second edit reused the previous signature")
+	}
+
+	// A dispatch (from box-wui, to a real box) is the same key. Re-signing
+	// must keep that to_box: the post is not rewritten into a channel post.
+	dispatchMsg := &msg.Message{V: 1, MsgID: "33333333-4444-4555-8666-777777777777", TaskID: lobby,
+		TS: now.Format(time.RFC3339), From: "HUM-1", To: "CLE-07", Kind: "task",
+		Body: "signed dispatch", Files: []msg.Attachment{}}
+	dispatchEnvl, err := wire.NewEnvelopeIn(priv, hub.WUIBox, "box-a", "", "", dispatchMsg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	insertEnvelope(t, e, tid, dispatchMsg, dispatchEnvl, "", "", now)
+	code, out = patchEdit(t, e, tid, dispatchMsg.MsgID, "HUM-1", map[string]string{"body": "edited dispatch"})
+	if code != http.StatusOK {
+		t.Fatalf("author edit of a hub-signed dispatch: %d %v", code, out)
+	}
+	gotEnv := storedEnvelope(t, e, tid, dispatchMsg.MsgID)
+	if err := gotEnv.Verify(pub); err != nil {
+		t.Fatalf("edited dispatch does not verify: %v", err)
+	}
+	if gotEnv.FromBox != hub.WUIBox || gotEnv.ToBox != "box-a" || gotEnv.Channel != "" || gotEnv.ParentTaskID != "" {
+		t.Fatalf("dispatch envelope tags: %+v", gotEnv)
+	}
+
+	// An unsigned browser note on the same hub stays editable, and stays
+	// unsigned. Signing it here would turn a lobby note into a box envelope.
+	author := dialMember(t, e, tid, "HUM-1", "HUM-1")
+	id, _ := postNote(t, author, "lobby note")["msg_id"].(string)
+	code, out = patchEdit(t, e, tid, id, "HUM-1", map[string]string{"body": "lobby note edited"})
+	if code != http.StatusOK {
+		t.Fatalf("unsigned note: %d %v", code, out)
+	}
+	plain := storedEnvelope(t, e, tid, id)
+	if plain.Sig != "" {
+		t.Fatalf("unsigned edit gained a signature %q", plain.Sig)
+	}
+	if plain.FromBox != hub.WUIBox {
+		t.Fatalf("unsigned from_box %q", plain.FromBox)
+	}
+	if got := storedBody(t, e, tid, id); got != "lobby note edited" {
+		t.Fatalf("unsigned body %q", got)
+	}
+}
+
+// CONTROL — TestEditMessageSignedNoKey: a signed box-wui envelope on a hub
+// that holds no box-wui key stays 409. Delete the `pub == nil` half and this
+// either panics in the signer or stores an edit it cannot re-sign.
+func TestEditMessageSignedNoKey(t *testing.T) {
+	e := followEnv(t)
+	tid, _ := e.tenant()
+	_, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	m := &msg.Message{V: 1, MsgID: "55555555-6666-4777-8888-999999999999", TaskID: lobby,
+		TS: now.Format(time.RFC3339), From: "HUM-1", To: "ALL-0", Kind: "note",
+		Body: "signed, hub holds no key", Files: []msg.Attachment{}}
+	env, err := wire.NewEnvelopeIn(priv, hub.WUIBox, hub.WUIBox, "lobby", "", m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	insertEnvelope(t, e, tid, m, env, "lobby", "", now)
+
+	code, out := patchEdit(t, e, tid, m.MsgID, "HUM-1", map[string]string{"body": "rewritten"})
+	if code != http.StatusConflict || out["error"] != "not_editable" {
+		t.Fatalf("signed envelope, no hub key: %d %v (want 409 not_editable)", code, out)
+	}
+	if got := storedBody(t, e, tid, m.MsgID); got != "signed, hub holds no key" {
+		t.Fatalf("the refusal changed the body: %q", got)
+	}
+	if got := storedEnvelope(t, e, tid, m.MsgID); got.Sig != env.Sig {
+		t.Fatal("the refusal replaced the signature")
+	}
+}
+
+// CONTROL — TestEditMessageOtherBoxWithKey: holding the box-wui key must not
+// make some other box's envelope editable. Delete the FromBox check and this
+// goes red, because the hub would re-sign box-a's bytes with its own key.
+func TestEditMessageOtherBoxWithKey(t *testing.T) {
+	_, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := dispatchEnv(t, false, priv)
+	tid, _ := e.tenant()
+	_, boxKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	m := &msg.Message{V: 1, MsgID: "66666666-7777-4888-8999-aaaaaaaaaaaa", TaskID: lobby,
+		TS: now.Format(time.RFC3339), From: "HUM-1", To: "ALL-0", Kind: "note",
+		Body: "signed by box-a", Files: []msg.Attachment{}}
+	env, err := wire.NewEnvelopeIn(boxKey, "box-a", hub.WUIBox, "", "", m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	insertEnvelope(t, e, tid, m, env, "", "", now)
+
+	code, out := patchEdit(t, e, tid, m.MsgID, "HUM-1", map[string]string{"body": "rewritten by the hub"})
+	if code != http.StatusConflict || out["error"] != "not_editable" {
+		t.Fatalf("other box, hub holds a key: %d %v (want 409 not_editable)", code, out)
+	}
+	if got := storedBody(t, e, tid, m.MsgID); got != "signed by box-a" {
+		t.Fatalf("the refusal changed the body: %q", got)
+	}
+	if got := storedEnvelope(t, e, tid, m.MsgID); got.Sig != env.Sig || got.FromBox != "box-a" {
+		t.Fatalf("the refusal rewrote the envelope: %+v", got)
 	}
 }

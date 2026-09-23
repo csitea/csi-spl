@@ -61,9 +61,9 @@ describe('view-api helpers', () => {
   it('a topic title is the first 100 characters of the first message', () => {
     assert.equal(topicOpening(''), '')
     assert.equal(topicOpening('  hello\nworld  '), 'hello world')
-    assert.equal(topicOpening('ä'.repeat(101)).length, 100)
+    assert.equal(topicOpening('ä'.repeat(101)), 'ä'.repeat(100) + '...')
     assert.equal(topicOpening('a'.repeat(100)), 'a'.repeat(100))
-    assert.equal(topicOpening('a'.repeat(101)), 'a'.repeat(100))
+    assert.equal(topicOpening('a'.repeat(101)), 'a'.repeat(100) + '...')
     assert.equal(topicTitleFromRows([], null), '')
     assert.equal(topicTitleFromRows([{ ts: '2', body: 'later' }, { ts: '1', body: 'starter' }], null), 'starter')
     assert.equal(topicTitleFromRows([{ ts: '1', body: 'starter' }], { body: 'the pinned root' }), 'the pinned root')

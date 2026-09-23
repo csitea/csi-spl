@@ -40,11 +40,13 @@ export function topicTitleFromRows(rows, pinnedRoot) {
   return topicOpening(root && root.body)
 }
 
-/** First 100 characters of a topic's first message, whitespace collapsed. */
+/** First 100 characters of a topic's first message, whitespace collapsed.
+ *  A longer message keeps those 100 and ends with "...". */
 export function topicOpening(text) {
   const flat = String(text || '').replace(/\s+/g, ' ').trim()
   const chars = Array.from(flat)
-  return chars.length > TOPIC_TITLE_CHARS ? chars.slice(0, TOPIC_TITLE_CHARS).join('') : flat
+  if (chars.length <= TOPIC_TITLE_CHARS) return flat
+  return chars.slice(0, TOPIC_TITLE_CHARS).join('') + '...'
 }
 
 function label(id, box) {

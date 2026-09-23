@@ -316,7 +316,8 @@
     "create_channel_slug_rule": "Mažosios raidės, skaitmenys ir brūkšneliai.",
     "create_channel_submit": "Sukurti kanalą",
     "create_channel_busy": "Kuriama…",
-    "you": "(jūs)"
+    "you": "(jūs)",
+    "flow": "Flow"
   },
   "composer": {
     "mention_suggestions": "Paminėjimų pasiūlymai",

@@ -1,5 +1,5 @@
-// The left stripe is two icon tabs: direct messages first (top), channels
-// second. The stripe is at most 5% of the viewport.
+// The left stripe is four icon tabs, top to bottom: direct messages,
+// channels, threads, flow. The stripe is at most 5% of the viewport.
 //
 // Run: node tests/unit/sidebar-tabs.test.mjs
 import { describe, it } from 'node:test'
@@ -13,19 +13,25 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('tabForPath', () => {
-  it('direct messages are the first tab, channels the second', () => {
-    assert.deepEqual([...SIDE_TABS], ['dm', 'channels'])
+  it('the stripe order is direct messages, channels, threads, flow', () => {
+    assert.deepEqual([...SIDE_TABS], ['dm', 'channels', 'threads', 'flow'])
   })
 
-  it('a DM route opens direct messages and a channel route opens channels', () => {
+  it('a route opens its own tab', () => {
     assert.equal(tabForPath('/dm/HUM-1@box-wui'), 'dm')
     assert.equal(tabForPath('/fi/dm/CLE-07@box-a'), 'dm')
     assert.equal(tabForPath('/channel/tasks'), 'channels')
     assert.equal(tabForPath('/en/channel/lobby'), 'channels')
+    assert.equal(tabForPath('/'), 'threads')
+    assert.equal(tabForPath('/fi'), 'threads')
+    assert.equal(tabForPath('/t/abc'), 'threads')
+    assert.equal(tabForPath('/fi/t/abc'), 'threads')
+    assert.equal(tabForPath('/lobby'), 'flow')
+    assert.equal(tabForPath('/fi/lobby'), 'flow')
   })
 
-  it('home, lobby, search and settings keep the reader\'s current tab', () => {
-    for (const path of ['/', '/lobby', '/fi/lobby', '/search', '/settings', '/t/abc']) {
+  it('search and settings keep the reader\'s current tab', () => {
+    for (const path of ['/search', '/settings', '/fi/search']) {
       assert.equal(tabForPath(path), null, path)
     }
   })
@@ -36,32 +42,41 @@ describe('tabForPath', () => {
   })
 })
 
-describe('the stripe is icons, direct messages on top', () => {
+describe('the stripe is icons, in that order', () => {
   const vue = src('src/components/ChannelSidebar.vue')
   const css = src('src/assets/css/main.css')
-  const rail = vue.slice(vue.indexOf('class="sidebar-rail"'), vue.indexOf('class="sidebar-body"'))
 
-  it('the DM control is the first tab and the channels control is the second', () => {
-    const dm = vue.indexOf('data-testid="sidebar-tab-dm"')
-    const ch = vue.indexOf('data-testid="sidebar-tab-channels"')
-    assert.ok(dm > 0 && ch > dm)
-    const panelDm = vue.indexOf('data-testid="sidebar-panel-dm"')
-    const panelCh = vue.indexOf('data-testid="sidebar-panel-channels"')
-    assert.ok(panelDm > 0 && panelCh > panelDm)
+  it('the rail lists the four tabs in order, icons only', () => {
+    const ids = ["'dm'", "'channels'", "'threads'", "'flow'"]
+    let at = 0
+    for (const id of ids) {
+      const i = vue.indexOf(`id: ${id}`, at)
+      assert.ok(i > at, id)
+      at = i
+    }
+    assert.match(vue, /icon: 'messages'/)
+    assert.match(vue, /icon: 'hash'/)
+    assert.match(vue, /icon: 'list'/)
+    assert.match(vue, /icon: 'waves'/)
+    assert.match(vue, /v-for="item in RAIL"/)
+    assert.match(vue, /:aria-label="t\(item\.labelKey\)"/)
+    assert.match(vue, /:title="t\(item\.labelKey\)"/)
+    const rail = vue.slice(vue.indexOf('class="sidebar-rail"'), vue.indexOf('class="sidebar-body"'))
+    assert.doesNotMatch(rail, /\{\{\s*t\(/)
+  })
+
+  it('threads and flow are their own panels; threads is not a row inside channels', () => {
+    const ch = vue.indexOf('data-testid="sidebar-panel-channels"')
+    const threads = vue.indexOf('data-testid="sidebar-panel-threads"')
+    const flow = vue.indexOf('data-testid="sidebar-panel-flow"')
+    assert.ok(ch > 0 && threads > ch && flow > threads)
+    assert.match(vue, /v-for="row in viewer\.threads"/)
+    assert.match(vue, /localePath\('\/lobby'\)/)
+    assert.match(vue, /t\('sidebar\.flow'\)/)
   })
 
   it('starts on direct messages', () => {
     assert.match(vue, /ref<SideTab>\('dm'\)/)
-  })
-
-  it('the stripe shows glyphs only — the names are the accessible name', () => {
-    assert.match(rail, /<UiIcon name="messages"/)
-    assert.match(rail, /<UiIcon name="hash"/)
-    assert.match(rail, /:aria-label="t\('sidebar\.direct_messages'\)"/)
-    assert.match(rail, /:aria-label="t\('sidebar\.channels'\)"/)
-    assert.match(rail, /:title="t\('sidebar\.direct_messages'\)"/)
-    assert.match(rail, /:title="t\('sidebar\.channels'\)"/)
-    assert.doesNotMatch(rail, /\{\{\s*t\(/)
   })
 
   it('the stripe is at most 5% of the viewport and at most one icon wide', () => {
@@ -75,5 +90,13 @@ describe('the stripe is icons, direct messages on top', () => {
     const icons = src('src/utils/uiIcons.ts')
     assert.match(icons, /messages:\s*\[/)
     assert.match(icons, /hash:\s*\["M4 9h16", "M4 15h16", "M10 3 8 21", "M16 3 14 21"\]/)
+    assert.match(icons, /list:\s*\["M3 6h18", "M3 12h18", "M3 18h18"\]/)
+    assert.match(icons, /waves:\s*\[/)
+  })
+
+  it('every locale has a Flow name', () => {
+    const en = JSON.parse(src('i18n/locales/en.json'))
+    assert.equal(en.sidebar.flow, 'Flow')
+    assert.equal(en.nav.threads, 'Threads')
   })
 })

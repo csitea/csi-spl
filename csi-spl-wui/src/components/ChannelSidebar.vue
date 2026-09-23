@@ -1,7 +1,7 @@
 <template>
   <nav class="sidebar">
-    <!-- Direct messages sit on top: the first icon. Channels are the second.
-         The stripe is icons only; the names live on aria-label and title. -->
+    <!-- Top to bottom: direct messages, channels, threads, flow.
+         Icons only; each name lives on aria-label and title. -->
     <div
       class="sidebar-rail"
       role="tablist"
@@ -9,38 +9,23 @@
       :aria-label="railLabel"
     >
       <button
-        id="sidebar-tab-dm"
+        v-for="item in RAIL"
+        :id="'sidebar-tab-' + item.id"
+        :key="item.id"
         type="button"
         class="sidebar-tab"
         role="tab"
-        data-testid="sidebar-tab-dm"
-        :aria-selected="tab === 'dm' ? 'true' : 'false'"
-        aria-controls="sidebar-panel-dm"
-        :tabindex="tab === 'dm' ? 0 : -1"
-        :aria-label="t('sidebar.direct_messages')"
-        :title="t('sidebar.direct_messages')"
-        @click="selectTab('dm')"
+        :data-testid="'sidebar-tab-' + item.id"
+        :aria-selected="tab === item.id ? 'true' : 'false'"
+        :aria-controls="'sidebar-panel-' + item.id"
+        :tabindex="tab === item.id ? 0 : -1"
+        :aria-label="t(item.labelKey)"
+        :title="t(item.labelKey)"
+        @click="selectTab(item.id)"
         @keydown="onTabKey"
       >
-        <UiIcon name="messages" :size="20" />
-        <span v-if="dmUnread" class="sidebar-tab__pip" data-testid="sidebar-tab-dm-unread" aria-hidden="true" />
-      </button>
-      <button
-        id="sidebar-tab-channels"
-        type="button"
-        class="sidebar-tab"
-        role="tab"
-        data-testid="sidebar-tab-channels"
-        :aria-selected="tab === 'channels' ? 'true' : 'false'"
-        aria-controls="sidebar-panel-channels"
-        :tabindex="tab === 'channels' ? 0 : -1"
-        :aria-label="t('sidebar.channels')"
-        :title="t('sidebar.channels')"
-        @click="selectTab('channels')"
-        @keydown="onTabKey"
-      >
-        <UiIcon name="hash" :size="20" />
-        <span v-if="channelUnread" class="sidebar-tab__pip" data-testid="sidebar-tab-channels-unread" aria-hidden="true" />
+        <UiIcon :name="item.icon" :size="20" />
+        <span v-if="tabUnread(item.id)" class="sidebar-tab__pip" :data-testid="'sidebar-tab-' + item.id + '-unread'" aria-hidden="true" />
       </button>
     </div>
     <div class="sidebar-body">
@@ -96,13 +81,6 @@
         aria-labelledby="sidebar-tab-channels"
         data-testid="sidebar-panel-channels"
       >
-    <NuxtLink class="nav-item" :to="localePath('/lobby')" active-class="active">
-      <span class="hash">#</span><span class="label">lobby</span>
-      <span v-if="notes.unread['ch:lobby']" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:lobby']) }}</span>
-    </NuxtLink>
-    <NuxtLink class="nav-item" :to="localePath('/')" exact-active-class="active">
-      <span class="label">{{ t('nav.threads') }}</span>
-    </NuxtLink>
     <!-- CLE-00 (owner, 2026-09-22): the heading and the ONE control that adds
          a channel. A plain <button> next to the title, so Tab reaches it in
          document order and Enter / Space open the dialog - the old inline
@@ -194,6 +172,43 @@
       </template>
     </UiDialog>
       </div>
+      <div
+        v-show="tab === 'threads'"
+        id="sidebar-panel-threads"
+        class="sidebar-panel"
+        role="tabpanel"
+        aria-labelledby="sidebar-tab-threads"
+        data-testid="sidebar-panel-threads"
+      >
+        <h2>{{ t('nav.threads') }}</h2>
+        <p v-if="!viewer.loading && viewer.threads.length === 0" class="muted thread-empty">{{ t('pages.index.empty') }}</p>
+        <a
+          v-for="row in viewer.threads"
+          :key="row.task_id"
+          class="nav-item"
+          :class="{ active: threadOpen === row.task_id }"
+          :data-key="row.task_id"
+          :data-ts="row.last_ts || undefined"
+          :href="localePath('/t/' + row.task_id)"
+          @click.exact.prevent="pane.open(row.task_id)"
+        >
+          <span class="label">{{ row.subject || row.participants.join(', ') || row.task_id }}</span>
+        </a>
+      </div>
+      <div
+        v-show="tab === 'flow'"
+        id="sidebar-panel-flow"
+        class="sidebar-panel"
+        role="tabpanel"
+        aria-labelledby="sidebar-tab-flow"
+        data-testid="sidebar-panel-flow"
+      >
+        <h2>{{ t('sidebar.flow') }}</h2>
+        <NuxtLink class="nav-item" :to="localePath('/lobby')" active-class="active">
+          <span class="label">{{ t('nav.lobby') }}</span>
+          <span v-if="notes.unread['ch:lobby']" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:lobby']) }}</span>
+        </NuxtLink>
+      </div>
     <div class="sidebar-foot">
       <div class="nav-item health" data-testid="connection-health" :title="t('sidebar.health_title', { state: stateLabel(live.state.value) })">
         <span class="health-dot" :class="health" />
@@ -211,7 +226,9 @@
 
 <script setup lang="ts">
 import { useChannelStore } from '~/stores/channel'
+import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
+import { useViewerStore } from '~/stores/viewer'
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -221,19 +238,23 @@ import { useLive } from '~/composables/useLive'
 import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import type { UiIconName } from '~/utils/uiIcons'
 
-type SideTab = 'dm' | 'channels'
-/* Direct messages are the first tab. A channel or DM route follows the
-   page; every other route keeps whatever the reader last chose. */
+type SideTab = 'dm' | 'channels' | 'threads' | 'flow'
+/* Direct messages, channels, threads, flow — top to bottom. A matching
+   route follows the page; search and settings keep the reader's choice. */
+const RAIL: { id: SideTab, icon: UiIconName, labelKey: string }[] = [
+  { id: 'dm', icon: 'messages', labelKey: 'sidebar.direct_messages' },
+  { id: 'channels', icon: 'hash', labelKey: 'sidebar.channels' },
+  { id: 'threads', icon: 'list', labelKey: 'nav.threads' },
+  { id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' },
+]
 const tab = ref<SideTab>('dm')
 const route = useRoute()
 watch(() => route.path, (path) => {
   const next = tabForPath(path)
   if (next) tab.value = next
 }, { immediate: true })
-function selectTab(next: SideTab) {
-  tab.value = next
-}
 function onTabKey(e: KeyboardEvent) {
   const order = SIDE_TABS as readonly SideTab[]
   const i = order.indexOf(tab.value)
@@ -245,11 +266,13 @@ function onTabKey(e: KeyboardEvent) {
   else return
   e.preventDefault()
   const next = order[n]
-  selectTab(next)
-  document.getElementById(next === 'dm' ? 'sidebar-tab-dm' : 'sidebar-tab-channels')?.focus()
+  void selectTab(next)
+  document.getElementById('sidebar-tab-' + next)?.focus()
 }
 
 const channel = useChannelStore()
+const viewer = useViewerStore()
+const pane = useLiveFeed('pane')
 const roster = useRosterStore()
 const session = useSessionStore()
 const access = useAccessStore()
@@ -259,12 +282,38 @@ const notes = useNotificationStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
-const railLabel = computed(() => `${t('sidebar.direct_messages')}, ${t('sidebar.channels')}`)
+const railLabel = computed(() => RAIL.map((item) => t(item.labelKey)).join(', '))
 function sectionUnread(prefix: string) {
   return Object.entries(notes.unread).some(([k, n]) => k.startsWith(prefix) && Number(n) > 0)
 }
 const dmUnread = computed(() => sectionUnread('dm:'))
 const channelUnread = computed(() => sectionUnread('ch:'))
+const flowUnread = computed(() => Number(notes.unread['ch:lobby'] || 0) > 0)
+function tabUnread(id: SideTab) {
+  if (id === 'dm') return dmUnread.value
+  if (id === 'channels') return channelUnread.value
+  if (id === 'flow') return flowUnread.value
+  return false
+}
+const threadOpen = computed(() => {
+  if (pane.taskId) return pane.taskId
+  const m = route.path.match(/\/t\/([^/]+)$/)
+  return m ? decodeURIComponent(m[1]) : ''
+})
+/* Threads and flow are places, not only lists: the icon opens that page.
+   Direct messages and channels stay on the page you were reading. */
+async function selectTab(next: SideTab) {
+  tab.value = next
+  if (next === 'threads') {
+    if (viewer.threads.length === 0) void viewer.loadThreads()
+    if (tabForPath(route.path) !== 'threads') await navigateTo(localePath('/'))
+    return
+  }
+  if (next === 'flow' && tabForPath(route.path) !== 'flow') await navigateTo(localePath('/lobby'))
+}
+watch(tab, (id) => {
+  if (id === 'threads' && viewer.threads.length === 0) void viewer.loadThreads()
+}, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
 /** "7 d" for #alerts (spec 005 FR-012), in the active locale; '' for every other channel. */
@@ -379,6 +428,7 @@ async function onCreate() {
   background: var(--color-accent);
   pointer-events: none;
 }
+.thread-empty { padding: 8px 16px; margin: 0; }
 .retention { font-size: 11px; flex-shrink: 0; }
 /* the reader's own row is a status line, not a destination: no pointer, no
    hover highlight, nothing that reads as "click me" (CLE-3448) */

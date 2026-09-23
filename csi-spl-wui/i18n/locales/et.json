@@ -316,7 +316,8 @@
     "create_channel_slug_rule": "Väiketähed, numbrid ja sidekriipsud.",
     "create_channel_submit": "Loo kanal",
     "create_channel_busy": "Loon…",
-    "you": "(sina)"
+    "you": "(sina)",
+    "flow": "Flow"
   },
   "composer": {
     "mention_suggestions": "Mainimissoovitused",

@@ -316,7 +316,8 @@
     "create_channel_slug_rule": "Строчные латинские буквы, цифры и дефисы.",
     "create_channel_submit": "Создать канал",
     "create_channel_busy": "Создание…",
-    "you": "(вы)"
+    "you": "(вы)",
+    "flow": "Flow"
   },
   "composer": {
     "mention_suggestions": "Варианты упоминаний",

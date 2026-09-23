@@ -316,7 +316,8 @@
     "create_channel_slug_rule": "Letras minúsculas, dígitos y guiones.",
     "create_channel_submit": "Crear canal",
     "create_channel_busy": "Creando…",
-    "you": "(tú)"
+    "you": "(tú)",
+    "flow": "Flow"
   },
   "composer": {
     "mention_suggestions": "Sugerencias de menciones",

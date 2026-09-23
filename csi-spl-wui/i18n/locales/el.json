@@ -316,7 +316,8 @@
     "create_channel_slug_rule": "Πεζά λατινικά γράμματα, ψηφία και παύλες.",
     "create_channel_submit": "Δημιουργία καναλιού",
     "create_channel_busy": "Δημιουργία…",
-    "you": "(εσείς)"
+    "you": "(εσείς)",
+    "flow": "Flow"
   },
   "composer": {
     "mention_suggestions": "Προτάσεις αναφορών",

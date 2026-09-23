@@ -316,7 +316,8 @@
     "create_channel_slug_rule": "Малки латински букви, цифри и тирета.",
     "create_channel_submit": "Създаване на канал",
     "create_channel_busy": "Създаване…",
-    "you": "(вие)"
+    "you": "(вие)",
+    "flow": "Flow"
   },
   "composer": {
     "mention_suggestions": "Предложения за споменаване",

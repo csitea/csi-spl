@@ -316,7 +316,8 @@
     "create_channel_slug_rule": "אותיות לטיניות קטנות, ספרות ומקפים.",
     "create_channel_submit": "יצירת ערוץ",
     "create_channel_busy": "יוצר…",
-    "you": "(את/ה)"
+    "you": "(את/ה)",
+    "flow": "Flow"
   },
   "composer": {
     "mention_suggestions": "הצעות לאזכור",

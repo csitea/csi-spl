@@ -116,8 +116,8 @@ declare module '~/utils/live-ws.mjs' {
 }
 
 declare module '~/utils/sidebar-tabs.mjs' {
-  export const SIDE_TABS: readonly ['dm', 'channels']
-  export function tabForPath(path: string): 'dm' | 'channels' | null
+  export const SIDE_TABS: readonly ['dm', 'channels', 'threads', 'flow']
+  export function tabForPath(path: string): 'dm' | 'channels' | 'threads' | 'flow' | null
 }
 
 declare module '~/utils/channel-feed.mjs' {

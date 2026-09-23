@@ -316,7 +316,8 @@
     "create_channel_slug_rule": "Малі латинські літери, цифри й дефіси.",
     "create_channel_submit": "Створити канал",
     "create_channel_busy": "Створення…",
-    "you": "(ви)"
+    "you": "(ви)",
+    "flow": "Flow"
   },
   "composer": {
     "mention_suggestions": "Пропозиції згадок",

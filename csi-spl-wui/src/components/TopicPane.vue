@@ -18,19 +18,15 @@
     </header>
     <BornTopics />
     <div class="pinned-root" data-test="topic-root">
-      <MessageCard v-if="root" :key="String(root.msg_id || '')" :msg="root" :since-ms="sinceMs" :editable="canEdit(root)" @edited="onEdited" />
-      <p v-else-if="!loading && !loadError" class="muted">{{ t('topic.empty') }}</p>
-    </div>
-    <div class="feed-body">
       <ErrorNotice v-if="loadError" :message="loadError" source="topic" test-id="topic-error" />
       <LiveFeed
         :label="t('topic.replies_label')"
-        :rows="replies"
+        :rows="messages"
         :has-older="false"
         :loading="loading"
         :search="search"
         :last-live="lastLive"
-        :empty-text="t('topic.no_replies')"
+        :empty-text="t('topic.empty')"
         :since-ms="sinceMs"
         @clear-search="search = ''"
         @edited="onEdited"
@@ -45,7 +41,7 @@ import { useTopicStore } from '~/stores/topic'
 import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { matchesSearch, mergeById, rootAndReplies } from '~/utils/feed.mjs'
+import { matchesSearch, mergeById, newestFirst } from '~/utils/feed.mjs'
 import { applyVerbosity } from '~/utils/verbosity.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
@@ -61,8 +57,9 @@ const { t } = useI18n({ useScope: 'global' })
 /*
  * Live: a channel / DM feed row is a topic root only (view-v1 §4.3), so the
  * replies come from GET /v1/view/topics/{task_id} and then the WS frames.
- * 013 (X3): pinned root, replies newest first. The reply box is the top
- * Omnibox, not a second field in this pane.
+ * Messages prepend at the top: the newest is the first row, and a message
+ * that just arrived sorts above the ones already there. The reply box is
+ * the top Omnibox, not a second field in this pane.
  */
 const liveRows = ref<SpoolMessage[]>([])
 const loadError = ref('')
@@ -71,13 +68,10 @@ const search = ref('')
 const lastLive = ref<SpoolMessage | null>(null)
 /* 013 US7 FR-013: our own reply shows at once (the channel store holds it pending until the echo) */
 const pendingHere = computed(() => channel.messages.filter((m) => m.pending && m.task_id === topic.parentTaskId) as SpoolMessage[])
-const split = computed(() => rootAndReplies((api.mock ? topic.messages : mergeById(liveRows.value, pendingHere.value).rows) as SpoolMessage[]))
-/* CLE-3427: a topic opened on a message that is not the task's oldest (or
-   on a task the hub has no messages for yet) shows the row that was clicked
-   as its root — topic.rootMsg — instead of the empty line. */
-const root = computed(() => split.value.root || topic.rootMsg)
-const replies = computed(() => {
-  const rows = split.value.replies.filter((m: SpoolMessage) => matchesSearch(m, search.value))
+/* Newest first, so a message that just arrived is the first row. */
+const messages = computed(() => {
+  const held = (api.mock ? topic.messages : mergeById(liveRows.value, pendingHere.value).rows) as SpoolMessage[]
+  const rows = newestFirst(held.filter((m) => matchesSearch(m, search.value)))
   return (api.mock ? rows : applyVerbosity(rows, topic.verbosity)) as SpoolMessage[]
 })
 
@@ -130,7 +124,7 @@ if (import.meta.client && !api.mock) {
  * own copy; the channel store holds the same message in the feed behind the
  * pane and is told too, or closing the pane would show the old body again.
  */
-const { canEdit, applyEverywhere } = useMessageEdit()
+const { applyEverywhere } = useMessageEdit()
 
 function onEdited(row: SpoolMessage) {
   /* this pane reads its replies into a ref of its own, so it patches that

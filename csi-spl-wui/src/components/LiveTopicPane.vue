@@ -28,16 +28,13 @@
     </header>
     <BornTopics />
     <div class="pinned-root" data-test="topic-root">
-      <MessageCard v-if="root" :key="String(root.msg_id || '')" :msg="root" :since-ms="sinceMs" :editable="canEdit(root)" @edited="onEdited" />
-      <p v-else-if="!pane.loading" class="muted">{{ t('topic.empty') }}</p>
-    </div>
-    <div class="feed-body">
       <ViewTokenForm v-if="pane.door" :detail="pane.door.detail" @saved="pane.taskId && pane.open(pane.taskId)" />
       <ErrorNotice v-if="pane.error" :message="pane.error" source="live-pane" test-id="live-pane-error" />
       <LiveFeed
         :label="t('topic.replies_label')"
-        :rows="replies"
-        :has-older="false"
+        :rows="messages"
+        :has-older="pane.hasOlder"
+        @older="pane.loadOlder()"
         :loading="pane.loading"
         :search="pane.search"
         :last-live="pane.lastLive"
@@ -54,11 +51,12 @@
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
+import { newestFirst } from '~/utils/feed.mjs'
 import { applyVerbosity } from '~/utils/verbosity.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 
-/* 013 US3: pinned root (oldest of the task_id), reply Omnibox, newest-first replies, live. */
+/* Messages prepend at the top. The newest row is first; an older one sits below it. */
 const pane = useLiveFeed('pane')
 const { t } = useI18n({ useScope: 'global' })
 const sinceMs = useNowTick(() => Boolean(pane.taskId))
@@ -80,8 +78,14 @@ const topic = useTopicStore()
  */
 const target = computed(() => (topic.target && topic.target.taskId === pane.taskId ? topic.target : null))
 const messageRooted = computed(() => target.value?.mode === 'message')
-const root = computed<SpoolMessage | null>(() => (messageRooted.value ? topic.rootMsg : pane.topic.root))
-const replies = computed(() => applyVerbosity(messageRooted.value ? pane.newestFirst : pane.topic.replies, topic.verbosity))
+/* The clicked message is not in the task this pane reads. It joins the
+   same newest-first list, so it sits where its time puts it. */
+const messages = computed(() => {
+  const rows = messageRooted.value
+    ? [topic.rootMsg, ...pane.newestFirst].filter((m): m is SpoolMessage => Boolean(m))
+    : pane.newestFirst
+  return applyVerbosity(newestFirst(rows), topic.verbosity)
+})
 
 /*
  * CLE-3445 — an edit landed. Which stores hold this row depends on the
@@ -91,7 +95,7 @@ const replies = computed(() => applyVerbosity(messageRooted.value ? pane.newestF
  * all of them. See applyEverywhere — the first version of this told two
  * stores and left the lobby feed behind the panel on the OLD body.
  */
-const { canEdit, applyEverywhere } = useMessageEdit()
+const { applyEverywhere } = useMessageEdit()
 
 function onEdited(row: SpoolMessage) {
   applyEverywhere(row)

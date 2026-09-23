@@ -108,12 +108,13 @@ describe('X3 wiring: the lobby pattern on /channel, /dm and the channel TopicPan
     assert.doesNotMatch(s, /v-for=/)
   })
 
-  it('TopicPane: pinned root, then the replies, with no reply field of its own', () => {
+  it('TopicPane: one newest-first list, a new message at the top, no reply field of its own', () => {
     const s = read('components/TopicPane.vue')
-    const root = s.indexOf('pinned-root')
-    const feed = s.indexOf('<LiveFeed')
-    assert.ok(root > 0 && root < feed)
+    assert.match(s, /newestFirst/)
+    assert.doesNotMatch(s, /<MessageCard/)
     assert.doesNotMatch(s, /<MessageComposer/)
-    assert.match(s, /rootAndReplies/)
+    const born = s.indexOf('<BornTopics')
+    const feed = s.indexOf('<LiveFeed')
+    assert.ok(born > 0 && born < feed)
   })
 })

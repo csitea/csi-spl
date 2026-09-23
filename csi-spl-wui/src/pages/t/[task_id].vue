@@ -5,16 +5,14 @@
       <span class="muted">{{ t('pages.task.status', { n: store.messages.length, state: stateLabel(live.state.value) }) }}</span>
       <VerbositySelector />
     </header>
-    <div class="pinned-root">
-      <MessageCard v-if="store.topic.root" :key="String(store.topic.root.msg_id || '')" :msg="store.topic.root" :since-ms="sinceMs" :editable="canEdit(store.topic.root)" @edited="onEdited" />
-    </div>
-    <div class="feed-body">
+    <div class="pinned-root" data-test="topic-root">
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="reopen" />
       <ErrorNotice v-if="store.error" :message="store.error" source="topic" test-id="topic-error" />
       <LiveFeed
         :label="t('topic.replies_label')"
-        :rows="replies"
-        :has-older="false"
+        :rows="messages"
+        :has-older="store.hasOlder"
+        @older="store.loadOlder()"
         :loading="store.loading"
         :search="store.search"
         :last-live="store.lastLive"
@@ -33,6 +31,7 @@ import { useLiveFeed } from '~/stores/live'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useLive } from '~/composables/useLive'
 import { useTopicStore } from '~/stores/topic'
+import { newestFirst } from '~/utils/feed.mjs'
 import { applyVerbosity } from '~/utils/verbosity.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
@@ -54,7 +53,7 @@ const topic = useTopicStore()
 const sidePane = useSidePane()
 const sinceMs = useNowTick(() => Boolean(taskId.value))
 /* 005 FR-013: the same verbosity filter as the topic pane */
-const replies = computed(() => applyVerbosity(store.topic.replies, topic.verbosity))
+const messages = computed(() => applyVerbosity(newestFirst(store.newestFirst), topic.verbosity))
 
 function reopen() {
   if (taskId.value) void store.open(taskId.value, { all: true })
@@ -66,7 +65,7 @@ onMounted(() => {
 
 /* CLE-3445: an edit landed on this page's own feed store (the live store
    already applies a `message_edited` frame from another session itself). */
-const { canEdit, applyEverywhere } = useMessageEdit()
+const { applyEverywhere } = useMessageEdit()
 
 function onEdited(row: SpoolMessage) {
   applyEverywhere(row)

@@ -369,19 +369,22 @@ describe('the wire body helper', () => {
  * watcher from MessageCard.vue, and the matching case here goes red.
  */
 describe('CLE-3446 — an edit never rides across onto another row', () => {
-  /* every host that pins a single root MessageCard, and the expression it pins */
-  const ROOTS = [
-    ['TopicPane', 'src/components/TopicPane.vue', 'root'],
-    ['LiveTopicPane', 'src/components/LiveTopicPane.vue', 'root'],
-    ['t/[task_id]', 'src/pages/t/[task_id].vue', 'store.topic.root'],
+  /* A topic used to pin one MessageCard and swap its message in place, so an
+     open editor survived onto the next row. The list is now one feed, and
+     each card is keyed by msg_id. */
+  const PANES = [
+    'src/components/TopicPane.vue',
+    'src/components/LiveTopicPane.vue',
+    'src/pages/t/[task_id].vue',
   ]
 
-  it('every pinned-root MessageCard is keyed by msg_id, so a re-root REPLACES the card', () => {
-    for (const [name, rel, root] of ROOTS) {
+  it('topic messages render through LiveFeed, which keys every card by msg_id', () => {
+    const feed = src('src/components/LiveFeed.vue')
+    assert.match(feed, /:key="m\.msg_id"/)
+    for (const rel of PANES) {
       const tpl = src(rel)
-      const mount = tpl.split('\n').find((l) => l.includes('<MessageCard') && l.includes(`:msg="${root}"`))
-      assert.ok(mount, `${name}: no pinned-root <MessageCard :msg="${root}"> found`)
-      assert.match(mount, /:key="String\(.*\.msg_id \|\| ''\)"/, `${name} mounts the root card without a :key`)
+      assert.match(tpl, /<LiveFeed/, rel)
+      assert.doesNotMatch(tpl, /<MessageCard/, rel)
     }
   })
 

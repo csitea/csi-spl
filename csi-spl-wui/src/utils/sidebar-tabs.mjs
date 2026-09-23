@@ -1,4 +1,4 @@
-/** Left-stripe tabs, top to bottom. */
+/** Left-strip tabs, top to bottom. */
 
 import { channelActivity } from './channel-feed.mjs'
 import { productPath } from './signed-out-redirect.mjs'

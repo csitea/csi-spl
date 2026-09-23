@@ -444,7 +444,7 @@ async function onCreate() {
 </script>
 
 <style scoped>
-/* The stripe owns the width (main.css, at most 5vw). These buttons fill
+/* The strip owns the width (main.css, at most 5vw). These buttons fill
    that width and must not impose a 32px min that would push past the cap. */
 .sidebar-tab {
   appearance: none;

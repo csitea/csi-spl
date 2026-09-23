@@ -104,7 +104,7 @@ html.pane-dragging * {
 }
 /* Icon tabs for the two lists. 5vw is 5% of the viewport; 48px keeps one
    glyph from growing into a column on a wide screen. min-width: 0 stops a
-   child min-size from pushing the stripe past that cap. */
+   child min-size from pushing the strip past that cap. */
 .sidebar-rail {
   flex: 0 0 auto;
   width: min(5vw, 48px);
@@ -532,7 +532,7 @@ html.pane-dragging * {
   /* the rail keeps the + (the heading text is what does not fit, not the
      control): centre it where the heading was */
   .sidebar-head { justify-content: center; padding: 10px 0 4px; }
-  /* the icon stripe takes its 5% first; the list beside it has to centre
+  /* the icon strip takes its 5% first; the list beside it has to centre
      what is left (an avatar or a hash) instead of keeping 16px of padding */
   .sidebar .nav-item { padding-inline: 4px; justify-content: center; gap: 4px; }
   .pane-divider[data-pane="sidebar"] { display: none; }

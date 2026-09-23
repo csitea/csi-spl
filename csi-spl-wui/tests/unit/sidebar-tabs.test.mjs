@@ -1,5 +1,5 @@
-// The left stripe is four icon tabs, top to bottom: direct messages,
-// channels, threads, flow. The stripe is at most 5% of the viewport.
+// The left strip is four icon tabs, top to bottom: direct messages,
+// channels, threads, flow. The strip is at most 5% of the viewport.
 //
 // Run: node tests/unit/sidebar-tabs.test.mjs
 import { describe, it } from 'node:test'
@@ -13,7 +13,7 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('tabForPath', () => {
-  it('the stripe order is direct messages, channels, threads, flow', () => {
+  it('the strip order is direct messages, channels, threads, flow', () => {
     assert.deepEqual([...SIDE_TABS], ['dm', 'channels', 'threads', 'flow'])
   })
 
@@ -68,7 +68,7 @@ describe('/switch-pane:', () => {
   })
 })
 
-describe('the stripe is icons, in that order', () => {
+describe('the strip is icons, in that order', () => {
   const vue = src('src/components/ChannelSidebar.vue')
   const css = src('src/assets/css/main.css')
 
@@ -140,7 +140,7 @@ describe('the stripe is icons, in that order', () => {
     assert.match(vue, /ref<SideTab>\('dm'\)/)
   })
 
-  it('the stripe is at most 5% of the viewport and at most one icon wide', () => {
+  it('the strip is at most 5% of the viewport and at most one icon wide', () => {
     assert.match(css, /\.sidebar-rail\s*\{[^}]*width:\s*min\(5vw,\s*48px\)/)
     assert.match(css, /\.sidebar-rail\s*\{[^}]*max-width:\s*min\(5vw,\s*48px\)/)
     assert.match(css, /\.sidebar-rail\s*\{[^}]*min-width:\s*0/)

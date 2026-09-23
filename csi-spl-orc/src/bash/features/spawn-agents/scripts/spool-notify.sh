@@ -65,12 +65,9 @@ done
 [ -n "$TO" ] || { echo "ERROR: --to is required" >&2; usage; }
 spool_valid_id "$TO" || exit 2
 
-# 1. SHOW it. tmux's status line for the agent's window (and its tty where no
-#    TUI owns the screen) is a surface the prompt rule does not gate, so a busy
-#    pane still DISPLAYS the message. It injects nothing.
-spool_poke_show "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
-
-# 2. OFFER it to the prompt, under the safe-poke rules, unchanged.
+# 1. OFFER it to the prompt first, when poking is on. The body already arrived
+#    on the box websocket; the prompt is what the agent reads. The notice file
+#    is written after, so it is not on the way to the pane.
 #
 #    SPOOL_POKE=0 leaves the prompt alone entirely - no poke, and no queue
 #    either, so nothing can be re-offered later. That is a real trade, not a
@@ -80,6 +77,17 @@ spool_poke_show "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
 #    the pane and the prompt is theirs - the orchestrator's own seat, where a
 #    queue that had waited out a long busy prompt delivered a batch of
 #    already-answered notices in one burst (measured 2026-09-21).
+rc=0
+if [ "${SPOOL_POKE:-1}" != 0 ] && ! spool_poke_muted "$TO"; then
+  spool_notify_render _line "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
+  spool_notify_poke "$TO" "$_line" "$BODY" "$FROM"
+  rc=$?
+fi
+
+# 2. SHOW it. The status line and the notice column still get the message,
+#    including when the prompt was left alone. It injects nothing.
+spool_poke_show "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
+
 if [ "${SPOOL_POKE:-1}" = 0 ]; then
   echo "poke: off (SPOOL_POKE=0) - ${TO} was SHOWN the message; its prompt was not touched"
   exit 0
@@ -92,14 +100,6 @@ if spool_poke_muted "$TO"; then
   echo "poke: off (${SPOOL_ROOT}/${TO}/.no-poke) - ${TO} was SHOWN the message; its prompt was not touched"
   exit 0
 fi
-#    BODY and FROM are passed through so the prompt can be given the sender's
-#    words VERBATIM when the sender is a human and the pane is a TUI
-#    (SPOOL_POKE_STYLE, poke-line.md §1.1). spool_notify_poke leaves whatever
-#    it chose in SPOOL_POKE_LINE.
-spool_notify_render _line "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
-spool_notify_poke "$TO" "$_line" "$BODY" "$FROM"
-rc=$?
-
 # 3. A REFUSED line is queued, not dropped. The rule that a half-written line
 #    is never typed over is right; one-shot delivery on top of it is what made
 #    a refusal indistinguishable from a swallowed message for an agent whose

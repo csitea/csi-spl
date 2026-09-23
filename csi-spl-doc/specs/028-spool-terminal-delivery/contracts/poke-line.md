@@ -59,6 +59,11 @@ shell reported 0 (measured 2026-09-21, recorded in `spool-poke-queue.inc.sh`).
 So the verbatim body reaches a TUI input buffer, which parses nothing, and
 never a shell. Anything not on the alternate screen falls back to the §1 line.
 
+A verbatim body is one bracketed paste (`tmux paste-buffer -p`) and then Enter,
+with no debounce sleep. `send-keys -l` dribbles the characters and needed
+`${SPOOL_NOTIFY_ENTER_DELAY:-0.3}` so the CLI did not read a half line; a paste
+does not. The §1 poke line still uses `send-keys -l` and that delay.
+
 The body is still made single-line-safe (§2 steps 1, 2, 4 and a
 `SPOOL_NOTIFY_PROMPT_MAX` bound, default 4000). Step 3 — `'` becomes `"` —
 is **not** applied: it exists to keep the body inside a single-quoted shell

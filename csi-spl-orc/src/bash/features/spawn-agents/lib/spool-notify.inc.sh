@@ -235,17 +235,34 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
     return 6
   fi
 
-  # The line lands on the agent's SCREEN with this call: that is the instant
-  # the delivery+visible budget is measured to (CLE-3435). The gap that
-  # follows is the TUI's paste debounce, not visibility - submit too early
-  # and the CLI reads a half-typed line - so it is bounded and tunable
-  # rather than removed, and it is deliberately NOT part of the number.
-  "${SPOOL_TM[@]}" send-keys -t "$pane" -l "$line" \
-    && spool_notify_trace notify_visible \
-    && sleep "${SPOOL_NOTIFY_ENTER_DELAY:-0.3}" \
-    && "${SPOOL_TM[@]}" send-keys -t "$pane" Enter
+  # The message is already on the box websocket. A human body is pasted as
+  # one bracketed paste and Enter is sent immediately: there is no notice-file
+  # wait and no 0.3s debounce in front of it. send-keys -l dribbles characters
+  # and needed that sleep so the CLI did not read a half line; a paste does not.
+  # The shell poke line stays on send-keys, because it is one short inert line
+  # and the sleep is what the existing measurements were taken around.
+  if [ "${line#: \'SPOOL }" = "$line" ]; then
+    spool_notify_paste "$pane" "$line" \
+      && spool_notify_trace notify_visible \
+      && "${SPOOL_TM[@]}" send-keys -t "$pane" Enter
+  else
+    "${SPOOL_TM[@]}" send-keys -t "$pane" -l "$line" \
+      && spool_notify_trace notify_visible \
+      && sleep "${SPOOL_NOTIFY_ENTER_DELAY:-0.3}" \
+      && "${SPOOL_TM[@]}" send-keys -t "$pane" Enter
+  fi
   echo "poke: ${pane} (${to})"
   return 0
+}
+
+# Paste TEXT into PANE as one bracketed paste. 0 when tmux accepted it.
+spool_notify_paste() {  # PANE TEXT
+  local pane="$1" text="$2" buf="spool-poke-$$" rc
+  printf '%s' "$text" | "${SPOOL_TM[@]}" load-buffer -b "$buf" - || return 1
+  "${SPOOL_TM[@]}" paste-buffer -p -b "$buf" -t "$pane"
+  rc=$?
+  "${SPOOL_TM[@]}" delete-buffer -b "$buf" 2>/dev/null || true
+  return "$rc"
 }
 
 # Render and ring in one call. Same exit codes as spool_notify_poke.

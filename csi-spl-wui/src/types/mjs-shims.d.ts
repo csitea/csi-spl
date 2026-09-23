@@ -115,6 +115,11 @@ declare module '~/utils/live-ws.mjs' {
   }
 }
 
+declare module '~/utils/sidebar-tabs.mjs' {
+  export const SIDE_TABS: readonly ['dm', 'channels']
+  export function tabForPath(path: string): 'dm' | 'channels' | null
+}
+
 declare module '~/utils/channel-feed.mjs' {
   export function topLevel<T extends { parent_task_id?: string | null, ts?: string }>(messages: T[]): T[]
   export function threadOf<T extends { task_id?: string, parent_task_id?: string | null, ts?: string }>(

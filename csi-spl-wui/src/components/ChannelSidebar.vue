@@ -1,5 +1,101 @@
 <template>
   <nav class="sidebar">
+    <!-- Direct messages sit on top: the first icon. Channels are the second.
+         The stripe is icons only; the names live on aria-label and title. -->
+    <div
+      class="sidebar-rail"
+      role="tablist"
+      aria-orientation="vertical"
+      :aria-label="railLabel"
+    >
+      <button
+        id="sidebar-tab-dm"
+        type="button"
+        class="sidebar-tab"
+        role="tab"
+        data-testid="sidebar-tab-dm"
+        :aria-selected="tab === 'dm' ? 'true' : 'false'"
+        aria-controls="sidebar-panel-dm"
+        :tabindex="tab === 'dm' ? 0 : -1"
+        :aria-label="t('sidebar.direct_messages')"
+        :title="t('sidebar.direct_messages')"
+        @click="selectTab('dm')"
+        @keydown="onTabKey"
+      >
+        <UiIcon name="messages" :size="20" />
+        <span v-if="dmUnread" class="sidebar-tab__pip" data-testid="sidebar-tab-dm-unread" aria-hidden="true" />
+      </button>
+      <button
+        id="sidebar-tab-channels"
+        type="button"
+        class="sidebar-tab"
+        role="tab"
+        data-testid="sidebar-tab-channels"
+        :aria-selected="tab === 'channels' ? 'true' : 'false'"
+        aria-controls="sidebar-panel-channels"
+        :tabindex="tab === 'channels' ? 0 : -1"
+        :aria-label="t('sidebar.channels')"
+        :title="t('sidebar.channels')"
+        @click="selectTab('channels')"
+        @keydown="onTabKey"
+      >
+        <UiIcon name="hash" :size="20" />
+        <span v-if="channelUnread" class="sidebar-tab__pip" data-testid="sidebar-tab-channels-unread" aria-hidden="true" />
+      </button>
+    </div>
+    <div class="sidebar-body">
+      <div
+        v-show="tab === 'dm'"
+        id="sidebar-panel-dm"
+        class="sidebar-panel"
+        role="tabpanel"
+        aria-labelledby="sidebar-tab-dm"
+        data-testid="sidebar-panel-dm"
+      >
+    <h2>{{ t('sidebar.direct_messages') }}</h2>
+    <!-- CLE-3448: the reader's own row. A signed-in human is the one peer
+         guaranteed to be online, and was the only one the pane never drew -
+         so "am I connected?" had no answer here at all. It is not a link:
+         there is no DM with yourself, and the row exists to show presence. -->
+    <div
+      v-if="roster.self"
+      class="nav-item self-row"
+      data-testid="people-self"
+      :data-key="roster.self.label"
+      aria-current="true"
+      :title="t('auth.login.signed_in_as', { who: roster.self.label })"
+    >
+      <SpoolAvatar :id="roster.self.id" :box="roster.self.box" :size="22" />
+      <span class="dot" :class="{ on: roster.self.online }" />
+      <span class="label">{{ roster.self.label }}</span>
+      <!-- `sidebar.you` carries its own brackets: a bracket hard-coded here
+           lands on the wrong side of an RTL label (he), because the bidi
+           algorithm resolves neutral punctuation from its surroundings. -->
+      <span class="muted self-row__you">{{ t('sidebar.you') }}</span>
+    </div>
+    <NuxtLink
+      v-for="p in peers"
+      :key="p.label"
+      class="nav-item"
+      :class="{ active: channel.peer === p.label }"
+      :data-key="p.label"
+      :data-ts="channel.dmAt[p.label] || undefined"
+      :to="localePath('/dm/' + encodeURIComponent(p.label))"
+    >
+      <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
+      <span class="dot" :class="{ on: p.online }" />
+      <span class="label">{{ p.label }}</span>
+      <span v-if="notes.unread['dm:' + p.label]" class="badge-unread">{{ notes.previewUnread(notes.unread['dm:' + p.label]) }}</span>
+    </NuxtLink>
+      </div>
+      <div
+        v-show="tab === 'channels'"
+        id="sidebar-panel-channels"
+        class="sidebar-panel"
+        role="tabpanel"
+        aria-labelledby="sidebar-tab-channels"
+        data-testid="sidebar-panel-channels"
+      >
     <NuxtLink class="nav-item" :to="localePath('/lobby')" active-class="active">
       <span class="hash">#</span><span class="label">lobby</span>
       <span v-if="notes.unread['ch:lobby']" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:lobby']) }}</span>
@@ -97,42 +193,8 @@
         </div>
       </template>
     </UiDialog>
-    <h2>{{ t('sidebar.direct_messages') }}</h2>
-    <!-- CLE-3448: the reader's own row. A signed-in human is the one peer
-         guaranteed to be online, and was the only one the pane never drew -
-         so "am I connected?" had no answer here at all. It is not a link:
-         there is no DM with yourself, and the row exists to show presence. -->
-    <div
-      v-if="roster.self"
-      class="nav-item self-row"
-      data-testid="people-self"
-      :data-key="roster.self.label"
-      aria-current="true"
-      :title="t('auth.login.signed_in_as', { who: roster.self.label })"
-    >
-      <SpoolAvatar :id="roster.self.id" :box="roster.self.box" :size="22" />
-      <span class="dot" :class="{ on: roster.self.online }" />
-      <span class="label">{{ roster.self.label }}</span>
-      <!-- `sidebar.you` carries its own brackets: a bracket hard-coded here
-           lands on the wrong side of an RTL label (he), because the bidi
-           algorithm resolves neutral punctuation from its surroundings. -->
-      <span class="muted self-row__you">{{ t('sidebar.you') }}</span>
-    </div>
-    <NuxtLink
-      v-for="p in peers"
-      :key="p.label"
-      class="nav-item"
-      :class="{ active: channel.peer === p.label }"
-      :data-key="p.label"
-      :data-ts="channel.dmAt[p.label] || undefined"
-      :to="localePath('/dm/' + encodeURIComponent(p.label))"
-    >
-      <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
-      <span class="dot" :class="{ on: p.online }" />
-      <span class="label">{{ p.label }}</span>
-      <span v-if="notes.unread['dm:' + p.label]" class="badge-unread">{{ notes.previewUnread(notes.unread['dm:' + p.label]) }}</span>
-    </NuxtLink>
-    <div style="margin-top:auto">
+      </div>
+    <div class="sidebar-foot">
       <div class="nav-item health" data-testid="connection-health" :title="t('sidebar.health_title', { state: stateLabel(live.state.value) })">
         <span class="health-dot" :class="health" />
         <span class="label muted">{{ t('sidebar.health.' + health) }}</span>
@@ -142,6 +204,7 @@
       <!-- CLE-3433: the semver plus the deployed commit, so "did my fix
            ship?" is answerable from the page instead of from build.json -->
       <p id="app-version" class="version-stamp" :title="versionTitle || undefined" data-test="app-version">{{ versionText }}</p>
+    </div>
     </div>
   </nav>
 </template>
@@ -157,6 +220,34 @@ import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
 import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
+import { SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
+
+type SideTab = 'dm' | 'channels'
+/* Direct messages are the first tab. A channel or DM route follows the
+   page; every other route keeps whatever the reader last chose. */
+const tab = ref<SideTab>('dm')
+const route = useRoute()
+watch(() => route.path, (path) => {
+  const next = tabForPath(path)
+  if (next) tab.value = next
+}, { immediate: true })
+function selectTab(next: SideTab) {
+  tab.value = next
+}
+function onTabKey(e: KeyboardEvent) {
+  const order = SIDE_TABS as readonly SideTab[]
+  const i = order.indexOf(tab.value)
+  let n = -1
+  if (e.key === 'ArrowDown') n = (i + 1) % order.length
+  else if (e.key === 'ArrowUp') n = (i - 1 + order.length) % order.length
+  else if (e.key === 'Home') n = 0
+  else if (e.key === 'End') n = order.length - 1
+  else return
+  e.preventDefault()
+  const next = order[n]
+  selectTab(next)
+  document.getElementById(next === 'dm' ? 'sidebar-tab-dm' : 'sidebar-tab-channels')?.focus()
+}
 
 const channel = useChannelStore()
 const roster = useRosterStore()
@@ -168,6 +259,12 @@ const notes = useNotificationStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
+const railLabel = computed(() => `${t('sidebar.direct_messages')}, ${t('sidebar.channels')}`)
+function sectionUnread(prefix: string) {
+  return Object.entries(notes.unread).some(([k, n]) => k.startsWith(prefix) && Number(n) > 0)
+}
+const dmUnread = computed(() => sectionUnread('dm:'))
+const channelUnread = computed(() => sectionUnread('ch:'))
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
 /** "7 d" for #alerts (spec 005 FR-012), in the active locale; '' for every other channel. */
@@ -244,6 +341,44 @@ async function onCreate() {
 </script>
 
 <style scoped>
+/* The stripe owns the width (main.css, at most 5vw). These buttons fill
+   that width and must not impose a 32px min that would push past the cap. */
+.sidebar-tab {
+  appearance: none;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  aspect-ratio: 1;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  line-height: 0;
+  container-type: size;
+}
+.sidebar-tab:hover { background: var(--color-surface-hover); color: var(--color-fg); }
+.sidebar-tab[aria-selected="true"] { color: var(--color-fg); }
+.sidebar-tab :deep(svg) {
+  width: min(22px, 70cqi);
+  height: min(22px, 70cqi);
+}
+.sidebar-tab__pip {
+  position: absolute;
+  top: 2px;
+  inset-inline-end: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  pointer-events: none;
+}
 .retention { font-size: 11px; flex-shrink: 0; }
 /* the reader's own row is a status line, not a destination: no pointer, no
    hover highlight, nothing that reads as "click me" (CLE-3448) */

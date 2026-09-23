@@ -56,6 +56,13 @@ export const UI_ICON_PATHS = {
   ],
   // The sidebar's one "add a channel" control, next to the Channels heading.
   plus: ["M12 5v14", "M5 12h14"],
+  // Left-stripe tab: direct messages (lucide "messages", two bubbles).
+  messages: [
+    "M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z",
+    "M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1",
+  ],
+  // Left-stripe tab: channels (lucide hash).
+  hash: ["M4 9h16", "M4 15h16", "M10 3 8 21", "M16 3 14 21"],
   // CLE-3433: the notification control in the collapsed 72px sidebar rail,
   // where its label does not fit and must not be shown as wrapped text.
   bell: [

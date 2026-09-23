@@ -94,11 +94,47 @@ html.pane-dragging * {
   width: var(--sidebar-w);
   max-width: 100%;
   min-width: 0;
+  min-height: 0;
   background: var(--color-sidebar);
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  padding: 0;
+  flex-shrink: 0;
+}
+/* Icon tabs for the two lists. 5vw is 5% of the viewport; 48px keeps one
+   glyph from growing into a column on a wide screen. min-width: 0 stops a
+   child min-size from pushing the stripe past that cap. */
+.sidebar-rail {
+  flex: 0 0 auto;
+  width: min(5vw, 48px);
+  max-width: min(5vw, 48px);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  border-inline-end: 1px solid var(--color-border);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.sidebar-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 12px 0 16px;
-  flex-shrink: 0;
+}
+.sidebar-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sidebar-foot {
+  margin-top: auto;
+  min-width: 0;
 }
 .sidebar h2 {
   font-size: 11px;
@@ -496,6 +532,9 @@ html.pane-dragging * {
   /* the rail keeps the + (the heading text is what does not fit, not the
      control): centre it where the heading was */
   .sidebar-head { justify-content: center; padding: 10px 0 4px; }
+  /* the icon stripe takes its 5% first; the list beside it has to centre
+     what is left (an avatar or a hash) instead of keeping 16px of padding */
+  .sidebar .nav-item { padding-inline: 4px; justify-content: center; gap: 4px; }
   .pane-divider[data-pane="sidebar"] { display: none; }
   .thread {
     position: absolute;
@@ -632,6 +671,7 @@ html.pane-dragging * {
 }
 /* A tabbed ROW also steps a shade darker while it holds the focus. */
 .nav-item:focus-visible,
+.sidebar-tab:focus-visible,
 .msg:focus-visible,
 .thread-row:focus-visible,
 .search-row:focus-visible {
@@ -640,6 +680,7 @@ html.pane-dragging * {
 /* Selected / current: a step DARKER than the normal fill, plus a marker bar
    in the SAME one colour as the focus ring, 3px wide. */
 .nav-item.active,
+.sidebar-tab[aria-selected="true"],
 .msg.selected,
 .thread-row.selected,
 .search-row.active {
@@ -649,6 +690,7 @@ html.pane-dragging * {
 .msg.selected { border-radius: var(--radius); }
 /* Pressed: the same step down; an accent-filled control darkens its accent. */
 .nav-item:active,
+.sidebar-tab:active,
 .thread-row:active,
 .msg:active,
 .icon-btn:active,

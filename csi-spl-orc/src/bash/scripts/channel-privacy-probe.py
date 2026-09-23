@@ -17,9 +17,16 @@ sign-in.
 Env: PROBE_API (https://<api host>), PROBE_TENANT, PROBE_EMAIL, PROBE_PW_FILE,
 PROBE_TASK (the task_id to read), PROBE_ALLOW_MIN (int, default 1: at least
 this many messages must come back), PROBE_DENY_FROM (optional: a from id whose
-messages must NOT appear). Prints one JSON verdict; exit 0 = the door holds,
-1 = it does not, 2 = could not sign in. The password and cookie are never
-printed.
+messages must NOT appear).
+
+PROBE_FILE + PROBE_FILE_WANT check the ATTACHMENT door (rdb 0030) instead:
+GET /v1/files/{id} must answer PROBE_FILE_WANT (200 for a file this member may
+read, 404 for one it may not). Named separately from the message checks
+because a file and the message carrying it are two doors, and a green on one
+says nothing about the other.
+
+Prints one JSON verdict; exit 0 = the door holds, 1 = it does not, 2 = could
+not sign in. The password and cookie are never printed.
 """
 import json
 import os
@@ -34,6 +41,8 @@ PW_FILE = os.environ.get("PROBE_PW_FILE", "")
 TASK = os.environ.get("PROBE_TASK", "")
 ALLOW_MIN = int(os.environ.get("PROBE_ALLOW_MIN", "1"))
 DENY_FROM = os.environ.get("PROBE_DENY_FROM", "")
+FILE_ID = os.environ.get("PROBE_FILE", "")
+FILE_WANT = int(os.environ.get("PROBE_FILE_WANT", "0") or 0)
 
 
 def http(method, url, body=None, cookie=""):
@@ -89,6 +98,14 @@ def main():
         return 2
     st, _, me = http("GET", API + "/v1/view/me", cookie=cookie)
     who = me.get("human_id") if isinstance(me, dict) else ""
+    if FILE_ID:
+        # The attachment door (rdb 0030). A raw status is the whole verdict:
+        # the body is the file's bytes, which this probe never prints.
+        st, _, _ = http("GET", f"{API}/v1/files/{FILE_ID}", cookie=cookie)
+        v = {"human_id": who, "file_id": FILE_ID, "status": st, "want": FILE_WANT,
+             "ok": st == FILE_WANT}
+        print(json.dumps(v, sort_keys=True))
+        return 0 if v["ok"] else 1
     st, _, body = http("GET", f"{API}/v1/view/topics/{TASK}", cookie=cookie)
     v = {"human_id": who, "task_id": TASK, "status": st, "ok": True, "checks": {}}
     if st == 404:

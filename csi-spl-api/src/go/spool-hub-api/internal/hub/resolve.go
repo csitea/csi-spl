@@ -13,11 +13,14 @@ import (
 )
 
 // Tenant resolution (specs/026 §2): the tenant of a request comes from WHO is
-// calling, never from the Host. A human's is the session's active tenant; a
-// box's is the tenant it names (TenantHeader), proven by its pin, the tenant
-// root signature or an upload token. A Host of the tenant pattern
-// (<tenant>.<fqdn>) is a legacy tenant host: it must EQUAL the resolved tenant
-// (403 tenant_mismatch), and it never grants one.
+// calling. A human's is the session's active tenant; a box's is the tenant it
+// names (TenantHeader), proven by its pin, the tenant root signature or an
+// upload token. A Host of the tenant pattern (<tenant>.<fqdn>) is a legacy
+// tenant host. It never grants a tenant: a non-member still cannot get in.
+// When a credential already proves a tenant, the Host must EQUAL it (403
+// tenant_mismatch). When a human session has no live `t`, the Host picks
+// among several memberships that human already has. A member of two tenants,
+// with a stale `t`, is placed in the tenant the Host names.
 
 // TenantHeader names a box's tenant on the api host (specs/026 §4).
 const TenantHeader = "X-Spool-Tenant"

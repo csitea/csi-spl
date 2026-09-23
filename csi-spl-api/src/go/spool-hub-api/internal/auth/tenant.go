@@ -74,7 +74,12 @@ func (h *Handler) ActiveTenant(r *http.Request, hostTenant string) (Session, str
 	return s, active, nil
 }
 
-// fallbackTenant is the tenant of a session with no (or a stale) `t`.
+// fallbackTenant is the tenant of a session with no live `t` (none, or a
+// stale one). A legacy Host never grants a tenant: a non-member still cannot
+// get in. It picks among several memberships that human already has. A member
+// of two tenants, with a stale `t`, is placed in the tenant the Host names.
+// When the session already proves a tenant, the caller requires the Host to
+// EQUAL it.
 func (h *Handler) fallbackTenant(ctx context.Context, humanID, hostTenant string) (string, error) {
 	tl, _ := h.members.(TenantLister)
 	if tl == nil { // no lister: only a legacy Host can name the tenant

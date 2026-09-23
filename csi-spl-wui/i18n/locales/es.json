@@ -318,6 +318,10 @@
     "create_channel_busy": "Creando…",
     "you": "(tú)",
     "flow": "Flow",
+    "help": {
+      "channels": "Pulse un canal para abrirlo. El menú de la fila copia el enlace o lo marca como leído. Arrastre una fila para fijar el orden; un canal nuevo queda debajo de las filas que ordenó.",
+      "direct_messages": "Pulse una persona o un bot para abrir la conversación. El menú puede bloquear, silenciar o fijar, y un administrador también puede quitar. Arrastre una fila para fijar el orden; alguien nuevo queda debajo de las filas que ordenó."
+    },
     "row_menu": {
       "label": "Menú de {name}",
       "open": "Abrir",

@@ -318,6 +318,10 @@
     "create_channel_busy": "Creating…",
     "you": "(you)",
     "flow": "Flow",
+    "help": {
+      "channels": "Click a channel to open it. The menu on a row copies its link or marks it read. Drag a row to set the order; a new channel stays below the rows you arranged.",
+      "direct_messages": "Click a person or a bot to open the conversation. The menu can block, mute, or pin them, and an admin can remove them. Drag a row to set the order; someone new stays below the rows you arranged."
+    },
     "row_menu": {
       "label": "Menu for {name}",
       "open": "Open",

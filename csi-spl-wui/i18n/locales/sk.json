@@ -318,6 +318,10 @@
     "create_channel_busy": "Vytvára sa…",
     "you": "(vy)",
     "flow": "Flow",
+    "help": {
+      "channels": "Kliknite kanál, aby ste ho otvorili. Menu riadka skopíruje odkaz alebo ho označí ako prečítaný. Potiahnite riadok, aby ste nastavili poradie; nový kanál zostane pod usporiadanými riadkami.",
+      "direct_messages": "Kliknite osobu alebo bota, aby ste otvorili rozhovor. Menu môže blokovať, stíšiť alebo pripnúť a správca môže aj odstrániť. Potiahnite riadok, aby ste nastavili poradie; niekto nový zostane pod usporiadanými riadkami."
+    },
     "row_menu": {
       "label": "Menu pre {name}",
       "open": "Otvoriť",

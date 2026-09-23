@@ -61,6 +61,25 @@ describe('the language switcher changes the row-menu names', () => {
       }
     }
   })
+
+  it('the channel and direct-message headings explain the rows in every language', () => {
+    const dir = join(WUI, 'i18n/locales')
+    const vue = src('src/components/ChannelSidebar.vue')
+    assert.match(vue, /t\('sidebar\.help\.channels'\)/)
+    assert.match(vue, /t\('sidebar\.help\.direct_messages'\)/)
+    assert.match(vue, /data-testid="sidebar-help-channels"/)
+    assert.match(vue, /data-testid="sidebar-help-dm"/)
+    const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8')).sidebar.help
+    const codes = ['bg', 'el', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']
+    for (const code of codes) {
+      const help = JSON.parse(readFileSync(join(dir, code + '.json'), 'utf8')).sidebar.help
+      for (const key of ['channels', 'direct_messages']) {
+        assert.equal(typeof help[key], 'string', code + ' ' + key)
+        assert.ok(help[key].length > 20, code + ' ' + key)
+        assert.notEqual(help[key], en[key], code + ' ' + key)
+      }
+    }
+  })
 })
 
 describe('pinRows', () => {

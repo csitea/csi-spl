@@ -318,6 +318,10 @@
     "create_channel_busy": "Luodaan…",
     "you": "(sinä)",
     "flow": "Flow",
+    "help": {
+      "channels": "Avaa kanava napsauttamalla sitä. Rivin valikko kopioi linkin tai merkitsee kanavan luetuksi. Vedä riviä, niin järjestys säilyy; uusi kanava jää järjestämiesi rivien alle.",
+      "direct_messages": "Avaa keskustelu napsauttamalla henkilöä tai bottia. Valikko voi estää, mykistää tai kiinnittää, ja ylläpitäjä voi myös poistaa. Vedä riviä, niin järjestys säilyy; uusi tulokas jää järjestämiesi rivien alle."
+    },
     "row_menu": {
       "label": "Valikko: {name}",
       "open": "Avaa",

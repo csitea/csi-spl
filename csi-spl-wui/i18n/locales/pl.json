@@ -318,6 +318,10 @@
     "create_channel_busy": "Tworzenie…",
     "you": "(Ty)",
     "flow": "Flow",
+    "help": {
+      "channels": "Kliknij kanał, aby go otworzyć. Menu wiersza kopiuje łącze albo oznacza jako przeczytane. Przeciągnij wiersz, aby ustalić kolejność; nowy kanał zostaje pod ułożonymi wierszami.",
+      "direct_messages": "Kliknij osobę albo bota, aby otworzyć rozmowę. Menu może zablokować, wyciszyć albo przypiąć, a administrator może też usunąć. Przeciągnij wiersz, aby ustalić kolejność; ktoś nowy zostaje pod ułożonymi wierszami."
+    },
     "row_menu": {
       "label": "Menu dla {name}",
       "open": "Otwórz",

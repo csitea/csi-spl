@@ -318,6 +318,10 @@
     "create_channel_busy": "Veido…",
     "you": "(jūs)",
     "flow": "Flow",
+    "help": {
+      "channels": "Noklikšķiniet kanālu, lai to atvērtu. Rindas izvēlne kopē saiti vai atzīmē kā lasītu. Velciet rindu, lai iestatītu secību; jauns kanāls paliek zem sakārtotajām rindām.",
+      "direct_messages": "Noklikšķiniet personu vai botu, lai atvērtu sarunu. Izvēlne var bloķēt, apklusināt vai piespraust, un administrators var arī noņemt. Velciet rindu, lai iestatītu secību; jauns cilvēks paliek zem sakārtotajām rindām."
+    },
     "row_menu": {
       "label": "Izvēlne: {name}",
       "open": "Atvērt",

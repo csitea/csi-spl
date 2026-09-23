@@ -37,7 +37,10 @@
         aria-labelledby="sidebar-tab-dm"
         data-testid="sidebar-panel-dm"
       >
-    <h2>{{ t('sidebar.direct_messages') }}</h2>
+    <h2 class="sidebar-help" tabindex="0" data-testid="sidebar-help-dm" aria-describedby="sidebar-help-dm-tip">
+      {{ t('sidebar.direct_messages') }}
+      <span id="sidebar-help-dm-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.direct_messages') }}</span>
+    </h2>
     <!-- CLE-3448: the reader's own row. A signed-in human is the one peer
          guaranteed to be online, and was the only one the pane never drew -
          so "am I connected?" had no answer here at all. It is not a link:
@@ -117,7 +120,10 @@
          anyone had decided to create anything, and had nowhere to put what
          the channel is FOR. -->
     <div class="sidebar-head">
-      <h2>{{ t('sidebar.channels') }}</h2>
+      <h2 class="sidebar-help" tabindex="0" data-testid="sidebar-help-channels" aria-describedby="sidebar-help-channels-tip">
+        {{ t('sidebar.channels') }}
+        <span id="sidebar-help-channels-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.channels') }}</span>
+      </h2>
       <button
         v-if="canCreate"
         type="button"
@@ -825,6 +831,39 @@ async function onCreate() {
 .nav-row--muted { opacity: 0.55; }
 .nav-row--blocked .label { text-decoration: line-through; }
 .nav-row--pinned { box-shadow: inset 3px 0 0 var(--color-accent); }
+.sidebar-help { position: relative; }
+.sidebar-help__tip {
+  position: absolute;
+  z-index: 6;
+  inset-inline-start: 0;
+  top: calc(100% + 4px);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--color-bg-2, var(--color-surface));
+  border: 1px solid var(--color-border-strong, var(--color-border));
+  border-radius: var(--radius-sm);
+  color: var(--color-fg);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-shadow: 0 8px 24px rgb(0 0 0 / .28);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.sidebar-help:hover .sidebar-help__tip,
+.sidebar-help:focus .sidebar-help__tip,
+.sidebar-help:focus-visible .sidebar-help__tip {
+  opacity: 1;
+  visibility: visible;
+}
 .nav-row { cursor: grab; }
 .nav-row .nav-item { cursor: grab; }
 .nav-row--drag { opacity: 0.45; }

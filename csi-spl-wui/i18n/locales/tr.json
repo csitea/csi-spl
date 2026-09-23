@@ -318,6 +318,10 @@
     "create_channel_busy": "Oluşturuluyor…",
     "you": "(siz)",
     "flow": "Flow",
+    "help": {
+      "channels": "Bir kanalı açmak için tıklayın. Satır menüsü bağlantıyı kopyalar veya okundu işaretler. Sırayı belirlemek için bir satırı sürükleyin; yeni bir kanal düzenlediğiniz satırların altında kalır.",
+      "direct_messages": "Konuşmayı açmak için bir kişiye veya bota tıklayın. Menü engelleyebilir, sessize alabilir veya sabitleyebilir; bir yönetici kaldırabilir de. Sırayı belirlemek için bir satırı sürükleyin; yeni biri düzenlediğiniz satırların altında kalır."
+    },
     "row_menu": {
       "label": "{name} menüsü",
       "open": "Aç",

@@ -318,6 +318,10 @@
     "create_channel_busy": "Se creează…",
     "you": "(tu)",
     "flow": "Flow",
+    "help": {
+      "channels": "Faceți clic pe un canal ca să-l deschideți. Meniul rândului copiază legătura sau îl marchează ca citit. Trageți un rând ca să fixați ordinea; un canal nou rămâne sub rândurile aranjate.",
+      "direct_messages": "Faceți clic pe o persoană sau un bot ca să deschideți conversația. Meniul poate bloca, amuți sau fixa, iar un administrator poate și elimina. Trageți un rând ca să fixați ordinea; cineva nou rămâne sub rândurile aranjate."
+    },
     "row_menu": {
       "label": "Meniu pentru {name}",
       "open": "Deschide",

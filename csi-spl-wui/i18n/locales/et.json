@@ -318,6 +318,10 @@
     "create_channel_busy": "Loon…",
     "you": "(sina)",
     "flow": "Flow",
+    "help": {
+      "channels": "Klõpsake kanalit, et see avada. Rea menüü kopeerib lingi või märgib selle loetuks. Lohistage rida, et seada järjekord; uus kanal jääb seatud ridade alla.",
+      "direct_messages": "Klõpsake inimest või botti, et avada vestlus. Menüü saab blokeerida, vaigistada või kinnitada, ja administraator saab ka eemaldada. Lohistage rida, et seada järjekord; uus inimene jääb seatud ridade alla."
+    },
     "row_menu": {
       "label": "Menüü: {name}",
       "open": "Ava",

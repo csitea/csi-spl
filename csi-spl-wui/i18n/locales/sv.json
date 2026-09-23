@@ -318,6 +318,10 @@
     "create_channel_busy": "Skapar…",
     "you": "(du)",
     "flow": "Flow",
+    "help": {
+      "channels": "Klicka en kanal för att öppna den. Radens meny kopierar länken eller markerar den som läst. Dra en rad för att sätta ordningen; en ny kanal stannar under raderna du ordnade.",
+      "direct_messages": "Klicka en person eller en bot för att öppna samtalet. Menyn kan blockera, tysta eller fästa, och en administratör kan också ta bort. Dra en rad för att sätta ordningen; någon ny stannar under raderna du ordnade."
+    },
     "row_menu": {
       "label": "Meny för {name}",
       "open": "Öppna",

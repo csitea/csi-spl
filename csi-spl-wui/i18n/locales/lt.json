@@ -318,6 +318,10 @@
     "create_channel_busy": "Kuriama…",
     "you": "(jūs)",
     "flow": "Flow",
+    "help": {
+      "channels": "Spustelėkite kanalą, kad jį atidarytumėte. Eilutės meniu nukopijuoja nuorodą arba pažymi kaip perskaitytą. Vilkite eilutę, kad nustatytumėte tvarką; naujas kanalas lieka po sutvarkytomis eilutėmis.",
+      "direct_messages": "Spustelėkite asmenį arba botą, kad atidarytumėte pokalbį. Meniu gali užblokuoti, nutildyti arba prisegti, o administratorius gali ir pašalinti. Vilkite eilutę, kad nustatytumėte tvarką; naujas asmuo lieka po sutvarkytomis eilutėmis."
+    },
     "row_menu": {
       "label": "Meniu: {name}",
       "open": "Atidaryti",

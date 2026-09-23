@@ -318,6 +318,10 @@
     "create_channel_busy": "Aanmaken…",
     "you": "(jij)",
     "flow": "Flow",
+    "help": {
+      "channels": "Klik een kanaal om het te openen. Het rijmenu kopieert de link of markeert het als gelezen. Sleep een rij om de volgorde vast te zetten; een nieuw kanaal blijft onder de rijen die u ordende.",
+      "direct_messages": "Klik een persoon of een bot om het gesprek te openen. Het menu kan blokkeren, dempen of vastzetten, en een beheerder kan ook verwijderen. Sleep een rij om de volgorde vast te zetten; iemand nieuws blijft onder de rijen die u ordende."
+    },
     "row_menu": {
       "label": "Menu voor {name}",
       "open": "Openen",

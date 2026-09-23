@@ -84,15 +84,15 @@ describe('operator autocomplete', () => {
     assert.equal(operatorTokenAt('/search "fr', 11), null)
     assert.equal(operatorTokenAt('/search "a fr', 13), null)
   })
-  it('operator-name prefix lists operators', () => {
-    const got = completeOperators('f').map((c) => c.insert)
-    assert.deepEqual(got, ['from:', 'filename:'])
+  it('any part of an operator, example, or value matches', () => {
+    assert.deepEqual(completeOperators('f').map((c) => c.insert), ['from:', 'is:offline ', 'has:file ', 'type:file ', 'before:', 'after:', 'filename:', 'ext:'])
+    assert.deepEqual(completeOperators('task').map((c) => c.insert), ['is:task ', 'thread:'])
     assert.ok(completeOperators('Is').some((c) => c.insert === 'is:'))
   })
   it('closed values after the colon', () => {
     assert.deepEqual(completeOperators('is:r').map((c) => c.insert), ['is:result ', 'is:reject ', 'is:root ', 'is:revoked '])
-    assert.deepEqual(completeOperators('type:r').map((c) => c.insert), ['type:robot '])
-    assert.deepEqual(completeOperators('has:c').map((c) => c.insert), ['has:code '])
+    assert.deepEqual(completeOperators('type:r').map((c) => c.insert), ['type:thread ', 'type:robot ', 'type:user '])
+    assert.deepEqual(completeOperators('has:c').map((c) => c.insert), ['has:attachment ', 'has:code '])
   })
   it('CONTROL: open operators and a complete value offer nothing; unknown prefix nothing', () => {
     assert.deepEqual(completeOperators('from:'), [])

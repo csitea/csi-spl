@@ -130,23 +130,36 @@ export function operatorTokenAt(text, caret) {
 }
 
 /**
- * Completions for a token: an operator-name prefix → operators; `op:` + value
- * prefix → the operator's closed values. → [{ insert, label }]
+ * Completions for a token. The typed text matches any part of the operator,
+ * its example, or a closed value, so "task" finds is:task and "file" finds
+ * filename: and has:file. A finished value (`is:task`) offers nothing.
+ * → [{ insert, label }]
  */
 export function completeOperators(token, catalogue = SEARCH_OPERATORS) {
   const t = String(token || '').toLowerCase()
   if (!t) return []
   const colon = t.indexOf(':')
   if (colon === -1) {
-    return catalogue
-      .filter((o) => o.op.startsWith(t))
-      .map((o) => ({ insert: o.op, label: o.example || o.op + (o.values ? o.values.join('|') : '') }))
+    const out = []
+    for (const o of catalogue) {
+      const name = String(o.op || '').toLowerCase()
+      const example = String(o.example || '').toLowerCase()
+      const values = Array.isArray(o.values) ? o.values : []
+      if (name.includes(t) || example.includes(t)) {
+        out.push({ insert: o.op, label: o.example || o.op + (values.length ? values.join('|') : '') })
+        continue
+      }
+      for (const x of values) {
+        if (String(x).toLowerCase().includes(t)) out.push({ insert: o.op + x + ' ', label: o.op + x })
+      }
+    }
+    return out
   }
   const op = catalogue.find((o) => o.op === t.slice(0, colon + 1))
   if (!op || !op.values) return []
   const v = t.slice(colon + 1)
   return op.values
-    .filter((x) => x.startsWith(v) && x !== v)
+    .filter((x) => String(x).toLowerCase().includes(v) && x !== v)
     .map((x) => ({ insert: op.op + x + ' ', label: op.op + x }))
 }
 

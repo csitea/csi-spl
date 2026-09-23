@@ -4,6 +4,7 @@
       <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
       <ul
         v-if="opPickerOpen"
+        ref="opListEl"
         :id="opListId"
         class="mention-list op-list"
         role="listbox"
@@ -160,13 +161,57 @@ const hintId = useId()
 const slashHintId = useId()
 const opListId = useId()
 const opIdx = ref(0)
+const opListEl = ref<HTMLUListElement | null>(null)
 /** caret offset, kept in sync so the operator picker follows it */
 const caretAt = ref(0)
 const opClosed = ref(false)
-const searchMode = computed(() => Boolean(props.global) && omniboxMode(text.value) === 'search')
+const searchMode = computed(() => Boolean(props.omnibox || props.global) && omniboxMode(text.value) === 'search')
 const opTok = computed(() => (searchMode.value ? operatorTokenAt(text.value, caretAt.value) : null))
 const opCandidates = computed(() => (opTok.value ? completeOperators(opTok.value.token, props.operators).slice(0, 8) : []))
 const opPickerOpen = computed(() => !opClosed.value && opCandidates.value.length > 0)
+
+/** Same scroll as the mention list: arrows move this dropdown, not the page. */
+function scrollActiveOp() {
+  nextTick(() => {
+    const list = opListEl.value
+    if (!list) return
+    const row = list.querySelectorAll<HTMLElement>('.mention-item')[opIdx.value]
+    if (!row) return
+    const listRect = list.getBoundingClientRect()
+    const rowRect = row.getBoundingClientRect()
+    if (rowRect.top < listRect.top) list.scrollTop += rowRect.top - listRect.top
+    else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom
+  })
+}
+
+function onOperatorKey(ev: KeyboardEvent): boolean {
+  if (!opPickerOpen.value) return false
+  const n = opCandidates.value.length
+  if (ev.key === 'ArrowDown') {
+    ev.preventDefault()
+    opIdx.value = (opIdx.value + 1) % n
+    scrollActiveOp()
+    return true
+  }
+  if (ev.key === 'ArrowUp') {
+    ev.preventDefault()
+    opIdx.value = (opIdx.value - 1 + n) % n
+    scrollActiveOp()
+    return true
+  }
+  if (ev.key === 'Tab' || (ev.key === 'Enter' && !ev.shiftKey)) {
+    ev.preventDefault()
+    const c = opCandidates.value[opIdx.value]
+    if (c) pickOp(c.insert)
+    return true
+  }
+  if (ev.key === 'Escape') {
+    ev.preventDefault()
+    opClosed.value = true
+    return true
+  }
+  return false
+}
 
 function pickOp(insert: string) {
   const tok = opTok.value
@@ -223,6 +268,9 @@ function syncMention(ev?: Event) {
   if (ev && ev.type !== 'keyup' && opTok.value?.token !== prevTok) {
     opClosed.value = false
     opIdx.value = 0
+    nextTick(() => {
+      if (opListEl.value) opListEl.value.scrollTop = 0
+    })
   }
   if (searchMode.value) {
     // a search line is a query: no code block, no @-picker
@@ -278,6 +326,7 @@ function pick(peer: { id: string, label?: string }) {
 
 function onKeydown(ev: KeyboardEvent) {
   if (ev.isComposing) return
+  if (onOperatorKey(ev)) return
   if (props.global && onGlobalKey(ev)) return
   if (inCode.value && ev.key === 'Escape' && !pickerOpen.value) {
     // Slack's exit: close the block at the caret, keep typing below it
@@ -331,25 +380,6 @@ function onKeydown(ev: KeyboardEvent) {
 
 /** 022 top-bar keys; true = handled. */
 function onGlobalKey(ev: KeyboardEvent): boolean {
-  if (opPickerOpen.value) {
-    const n = opCandidates.value.length
-    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
-      ev.preventDefault()
-      opIdx.value = ev.key === 'ArrowDown' ? (opIdx.value + 1) % n : (opIdx.value - 1 + n) % n
-      return true
-    }
-    if (ev.key === 'Tab' || (ev.key === 'Enter' && !ev.shiftKey)) {
-      ev.preventDefault()
-      const c = opCandidates.value[opIdx.value]
-      if (c) pickOp(c.insert)
-      return true
-    }
-    if (ev.key === 'Escape') {
-      ev.preventDefault()
-      opClosed.value = true
-      return true
-    }
-  }
   if (searchMode.value) {
     if (ev.key === 'Enter' && !ev.shiftKey) {
       ev.preventDefault()

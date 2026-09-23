@@ -118,6 +118,21 @@ declare module '~/utils/live-ws.mjs' {
 declare module '~/utils/sidebar-tabs.mjs' {
   export const SIDE_TABS: readonly ['dm', 'channels', 'threads', 'flow']
   export function tabForPath(path: string): 'dm' | 'channels' | 'threads' | 'flow' | null
+  export function flowRows(src?: {
+    channels?: unknown[]
+    peers?: unknown[]
+    threads?: unknown[]
+    liveAt?: Record<string, string>
+    dmAt?: Record<string, string>
+  }): {
+    kind: 'channel' | 'dm' | 'thread'
+    key: string
+    id: string
+    at: string
+    label: string
+    box?: string
+    online?: boolean
+  }[]
 }
 
 declare module '~/utils/channel-feed.mjs' {

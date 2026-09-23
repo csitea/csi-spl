@@ -204,10 +204,48 @@
         data-testid="sidebar-panel-flow"
       >
         <h2>{{ t('sidebar.flow') }}</h2>
-        <NuxtLink class="nav-item" :to="localePath('/lobby')" active-class="active">
-          <span class="label">{{ t('nav.lobby') }}</span>
-          <span v-if="notes.unread['ch:lobby']" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:lobby']) }}</span>
-        </NuxtLink>
+        <p v-if="flow.length === 0" class="muted thread-empty">{{ t('feed.empty') }}</p>
+        <template v-for="row in flow" :key="row.key">
+          <NuxtLink
+            v-if="row.kind === 'channel'"
+            class="nav-item"
+            :class="{ active: channel.active === row.id }"
+            :data-key="row.id"
+            :data-kind="row.kind"
+            :data-ts="row.at || undefined"
+            :to="localePath('/channel/' + row.id)"
+          >
+            <span class="hash">#</span>
+            <span class="label">{{ row.label }}</span>
+            <span v-if="notes.unread['ch:' + row.id]" class="badge-unread">{{ notes.previewUnread(notes.unread['ch:' + row.id]) }}</span>
+          </NuxtLink>
+          <NuxtLink
+            v-else-if="row.kind === 'dm'"
+            class="nav-item"
+            :class="{ active: channel.peer === row.label }"
+            :data-key="row.label"
+            :data-kind="row.kind"
+            :data-ts="row.at || undefined"
+            :to="localePath('/dm/' + encodeURIComponent(row.label))"
+          >
+            <SpoolAvatar :id="row.id" :box="row.box" :size="22" />
+            <span class="dot" :class="{ on: row.online }" />
+            <span class="label">{{ row.label }}</span>
+            <span v-if="notes.unread['dm:' + row.label]" class="badge-unread">{{ notes.previewUnread(notes.unread['dm:' + row.label]) }}</span>
+          </NuxtLink>
+          <a
+            v-else
+            class="nav-item"
+            :class="{ active: threadOpen === row.id }"
+            :data-key="row.id"
+            :data-kind="row.kind"
+            :data-ts="row.at || undefined"
+            :href="localePath('/t/' + row.id)"
+            @click.exact.prevent="pane.open(row.id)"
+          >
+            <span class="label">{{ row.label }}</span>
+          </a>
+        </template>
       </div>
     <div class="sidebar-foot">
       <div class="nav-item health" data-testid="connection-health" :title="t('sidebar.health_title', { state: stateLabel(live.state.value) })">
@@ -237,7 +275,7 @@ import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
 import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
-import { SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { flowRows, SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'threads' | 'flow'
@@ -250,8 +288,11 @@ const RAIL: { id: SideTab, icon: UiIconName, labelKey: string }[] = [
   { id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' },
 ]
 const tab = ref<SideTab>('dm')
+/* The flow list stays up while a row from it is opened. Another icon clears it. */
+const holdFlow = ref(false)
 const route = useRoute()
 watch(() => route.path, (path) => {
+  if (holdFlow.value) return
   const next = tabForPath(path)
   if (next) tab.value = next
 }, { immediate: true })
@@ -288,7 +329,7 @@ function sectionUnread(prefix: string) {
 }
 const dmUnread = computed(() => sectionUnread('dm:'))
 const channelUnread = computed(() => sectionUnread('ch:'))
-const flowUnread = computed(() => Number(notes.unread['ch:lobby'] || 0) > 0)
+const flowUnread = computed(() => dmUnread.value || channelUnread.value)
 function tabUnread(id: SideTab) {
   if (id === 'dm') return dmUnread.value
   if (id === 'channels') return channelUnread.value
@@ -300,19 +341,20 @@ const threadOpen = computed(() => {
   const m = route.path.match(/\/t\/([^/]+)$/)
   return m ? decodeURIComponent(m[1]) : ''
 })
-/* Threads and flow are places, not only lists: the icon opens that page.
-   Direct messages and channels stay on the page you were reading. */
+/* Threads opens the thread index. Flow stays on this page and mixes the
+   three lists. Direct messages and channels only swap the sidebar. */
 async function selectTab(next: SideTab) {
+  holdFlow.value = next === 'flow'
   tab.value = next
   if (next === 'threads') {
     if (viewer.threads.length === 0) void viewer.loadThreads()
     if (tabForPath(route.path) !== 'threads') await navigateTo(localePath('/'))
     return
   }
-  if (next === 'flow' && tabForPath(route.path) !== 'flow') await navigateTo(localePath('/lobby'))
+  if (next === 'flow' && viewer.threads.length === 0) void viewer.loadThreads()
 }
 watch(tab, (id) => {
-  if (id === 'threads' && viewer.threads.length === 0) void viewer.loadThreads()
+  if ((id === 'threads' || id === 'flow') && viewer.threads.length === 0) void viewer.loadThreads()
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
@@ -324,6 +366,13 @@ function retentionLabel(c: { channel_id?: string, channel?: string, retention_da
 const health = computed(() => connectionHealth(live.state.value))
 /* CLE-3425: newest first here too - the peer we last exchanged a DM with on top */
 const peers = computed(() => orderPeers(roster.peers, channel.dmAt))
+const flow = computed(() => flowRows({
+  channels: channel.ordered,
+  peers: peers.value,
+  threads: viewer.threads,
+  liveAt: channel.liveAt,
+  dmAt: channel.dmAt,
+}))
 onMounted(() => session.probe())
 /* specs/025 FR-008: the role decides which actions are offered (the hub re-checks). */
 watch(() => session.state, (st) => { if (st === 'in') access.load() }, { immediate: true })

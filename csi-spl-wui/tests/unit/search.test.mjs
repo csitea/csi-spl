@@ -94,11 +94,75 @@ describe('operator autocomplete', () => {
     assert.deepEqual(completeOperators('type:r').map((c) => c.insert), ['type:thread ', 'type:robot ', 'type:user '])
     assert.deepEqual(completeOperators('has:c').map((c) => c.insert), ['has:attachment ', 'has:code '])
   })
-  it('CONTROL: open operators and a complete value offer nothing; unknown prefix nothing', () => {
-    assert.deepEqual(completeOperators('from:'), [])
+  it('CONTROL: a finished closed value and an unknown prefix offer nothing', () => {
     assert.deepEqual(completeOperators('is:task'), [])
+    assert.deepEqual(completeOperators('to:'), [])
     assert.deepEqual(completeOperators('zz'), [])
     assert.deepEqual(completeOperators(''), [])
+  })
+  it('from: lists roster ids by contains, and a miss invents nothing', () => {
+    const roster = [
+      { id: 'CLE-3994', label: 'CLE-3994@box-desk' },
+      { id: 'CLE-07', label: 'CLE-07@box-a' },
+      { id: 'CLE-07', label: 'CLE-07@box-b' },
+      { id: 'HUM-1', label: 'HUM-1@box-wui' },
+      { id: 'GRK-03', label: 'GRK-03@box-a' },
+      { id: 'AGY-02', label: 'AGY-02@box-b' },
+      { id: 'GST-3', label: 'GST-3@box-wui' },
+      { id: 'EZB-1', label: 'EZB-1@box-a' },
+      { id: 'ALL-0', label: 'ALL-0' },
+    ]
+    const inserts = (token) => completeOperators(token, SEARCH_OPERATORS, roster).map((c) => c.insert)
+    assert.deepEqual(completeOperators('from:'), [])
+    assert.deepEqual(inserts('from:'), [
+      'from:CLE-3994 ',
+      'from:CLE-07 ',
+      'from:HUM-1 ',
+      'from:GRK-03 ',
+      'from:AGY-02 ',
+      'from:GST-3 ',
+    ])
+    assert.deepEqual(inserts('from:cle'), ['from:CLE-3994 ', 'from:CLE-07 '])
+    assert.deepEqual(inserts('from:hum-1'), ['from:HUM-1 '])
+    assert.deepEqual(inserts('from:3994'), ['from:CLE-3994 '])
+    assert.equal(inserts('from:3994').includes('from:CLE-07 '), false)
+    assert.deepEqual(inserts('from:desk'), ['from:CLE-3994 '])
+    assert.deepEqual(inserts('from:nomatch'), [])
+    assert.deepEqual(inserts('from:ezb'), [])
+    assert.deepEqual(completeOperators('to:', SEARCH_OPERATORS, roster), [])
+    assert.deepEqual(completeOperators('to:hum', SEARCH_OPERATORS, roster), [])
+    assert.deepEqual(
+      completeOperators('is:r', SEARCH_OPERATORS, roster).map((c) => c.insert),
+      ['is:result ', 'is:reject ', 'is:root ', 'is:revoked '],
+    )
+    assert.deepEqual(
+      completeOperators('f', SEARCH_OPERATORS, roster).map((c) => c.insert),
+      ['from:', 'is:offline ', 'has:file ', 'type:file ', 'before:', 'after:', 'filename:', 'ext:'],
+    )
+    const many = Array.from({ length: 9 }, (_, n) => ({ id: `CLE-${n + 1}` }))
+    const capped = completeOperators('from:', SEARCH_OPERATORS, many)
+    assert.equal(capped.length, 8)
+    assert.deepEqual(capped.map((c) => c.insert), many.slice(0, 8).map((peer) => `from:${peer.id} `))
+    const line = '/search from:3994 is:task'
+    const tok = operatorTokenAt(line, '/search from:3994'.length)
+    assert.equal(tok.token, 'from:3994')
+    const hit = completeOperators(tok.token, SEARCH_OPERATORS, roster)[0]
+    assert.equal(hit.label, 'from:CLE-3994')
+    assert.deepEqual(applyCompletion(line, tok, hit.insert), {
+      text: '/search from:CLE-3994 is:task',
+      cursor: '/search from:CLE-3994'.length,
+    })
+    const endLine = '/s from:3994'
+    const endTok = operatorTokenAt(endLine, endLine.length)
+    assert.equal(endTok.token, 'from:3994')
+    assert.deepEqual(applyCompletion(endLine, endTok, hit.insert), {
+      text: '/s from:CLE-3994 ',
+      cursor: '/s from:CLE-3994 '.length,
+    })
+  })
+  it('the composer passes the roster into from: completions', () => {
+    const src = read('src/components/MessageComposer.vue')
+    assert.match(src, /completeOperators\(opTok\.value\.token, props\.operators, roster\.peers\)/)
   })
   it('the catalogue carries every operator the brief names', () => {
     const ops = SEARCH_OPERATORS.map((o) => o.op)

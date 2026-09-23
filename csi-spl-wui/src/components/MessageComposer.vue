@@ -236,7 +236,7 @@ const caretAt = ref(0)
 const opClosed = ref(false)
 const searchMode = computed(() => Boolean(props.omnibox || props.global) && omniboxMode(text.value) === 'search')
 const opTok = computed(() => (searchMode.value ? operatorTokenAt(text.value, caretAt.value) : null))
-const opCandidates = computed(() => (opTok.value ? completeOperators(opTok.value.token, props.operators).slice(0, 8) : []))
+const opCandidates = computed(() => (opTok.value ? completeOperators(opTok.value.token, props.operators, roster.peers).slice(0, 8) : []))
 const opPickerOpen = computed(() => !opClosed.value && opCandidates.value.length > 0)
 
 /** Same scroll as the mention list: arrows move this dropdown, not the page. */

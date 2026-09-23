@@ -8,6 +8,11 @@
  * hub's offsets into text segments and (d) normalise the grouped response.
  */
 
+import { filterRosterMentions } from './mention-autocomplete.mjs'
+
+/** from: offers at most this many roster ids, same cap as the operator list. */
+const FROM_ROSTER_CAP = 8
+
 /** `/search` or `/s`, then whitespace or end of line (case-insensitive). */
 const SEARCH_CMD_RE = /^\/(?:search|s)(?=\s|$)/i
 
@@ -132,10 +137,13 @@ export function operatorTokenAt(text, caret) {
 /**
  * Completions for a token. The typed text matches any part of the operator,
  * its example, or a closed value, so "task" finds is:task and "file" finds
- * filename: and has:file. A finished value (`is:task`) offers nothing.
+ * filename: and has:file. A finished closed value (`is:task`) offers nothing.
+ * `from:` is open: `roster` is the peer list, matched by filterRosterMentions
+ * (contains on the id and the label). Each hit inserts the bare id,
+ * `from:CLE-3994 `. A miss invents nothing. `to:` stays closed.
  * → [{ insert, label }]
  */
-export function completeOperators(token, catalogue = SEARCH_OPERATORS) {
+export function completeOperators(token, catalogue = SEARCH_OPERATORS, roster = []) {
   const t = String(token || '').toLowerCase()
   if (!t) return []
   const colon = t.indexOf(':')
@@ -156,6 +164,7 @@ export function completeOperators(token, catalogue = SEARCH_OPERATORS) {
     return out
   }
   const op = catalogue.find((o) => o.op === t.slice(0, colon + 1))
+  if (op && op.op === 'from:') return fromRosterCompletions(t.slice(colon + 1), roster)
   if (!op || !op.values) return []
   const v = t.slice(colon + 1)
   return op.values
@@ -163,11 +172,33 @@ export function completeOperators(token, catalogue = SEARCH_OPERATORS) {
     .map((x) => ({ insert: op.op + x + ' ', label: op.op + x }))
 }
 
-/** Replace the token span with the completion; caret after it. */
+/** Bare ids for an in-progress `from:` value. Same id on two boxes is one row. */
+function fromRosterCompletions(query, roster) {
+  const hits = filterRosterMentions(roster, query)
+  const out = []
+  const seen = new Set()
+  for (const peer of hits) {
+    const id = String((peer && peer.id) || '')
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    const insert = `from:${id} `
+    out.push({ insert, label: insert.trim() })
+    if (out.length >= FROM_ROSTER_CAP) break
+  }
+  return out
+}
+
+/**
+ * Replace the token span with the completion; caret after it.
+ * A completion that already ends in a space does not add a second one when
+ * the next character is whitespace. The rest of the line stays as written.
+ */
 export function applyCompletion(text, tok, insert) {
   const s = String(text || '')
-  const next = s.slice(0, tok.start) + insert + s.slice(tok.end)
-  return { text: next, cursor: tok.start + insert.length }
+  let put = String(insert || '')
+  if (put.endsWith(' ') && tok.end < s.length && /\s/.test(s[tok.end])) put = put.slice(0, -1)
+  const next = s.slice(0, tok.start) + put + s.slice(tok.end)
+  return { text: next, cursor: tok.start + put.length }
 }
 
 function pairOf(h) {

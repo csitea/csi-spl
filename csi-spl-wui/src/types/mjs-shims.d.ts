@@ -612,7 +612,7 @@ declare module '~/utils/search.mjs' {
   export function searchPath(q: string): string
   export function searchApiQuery(o: { q?: string, cursor?: string, limit?: number, sort?: string }): string
   export function operatorTokenAt(text: string, caret?: number): { token: string, start: number, end: number } | null
-  export function completeOperators(token: string, catalogue?: SearchOperator[]): { insert: string, label: string }[]
+  export function completeOperators(token: string, catalogue?: SearchOperator[], roster?: { id: string, label?: string }[]): { insert: string, label: string }[]
   export function applyCompletion(text: string, tok: { start: number, end: number }, insert: string): { text: string, cursor: number }
   export function highlightSegments(text: string, highlights: unknown): { text: string, mark: boolean }[]
   export function normalizeSearchResponse(data: unknown): SearchResult

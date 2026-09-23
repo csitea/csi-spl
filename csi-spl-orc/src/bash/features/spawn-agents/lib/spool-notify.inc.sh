@@ -253,8 +253,13 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
   # The shell poke line stays on send-keys, because it is one short inert line
   # and the sleep is what the existing measurements were taken around.
   if [ "${line#: \'SPOOL }" = "$line" ]; then
+    # Enter before the paste is in the composer leaves the body sitting there,
+    # and the next message is refused as unsent text. Wait until the words
+    # are visible, then Enter. While the agent is in a turn, that Enter queues
+    # the follow-up instead of sending it now.
     spool_notify_paste "$pane" "$line" \
       && spool_notify_trace notify_visible \
+      && spool_notify_wait_composer "$pane" "$line" \
       && "${SPOOL_TM[@]}" send-keys -t "$pane" Enter
   else
     "${SPOOL_TM[@]}" send-keys -t "$pane" -l "$line" \
@@ -263,6 +268,21 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
       && "${SPOOL_TM[@]}" send-keys -t "$pane" Enter
   fi
   echo "poke: ${pane} (${to})"
+  return 0
+}
+
+
+# Wait until PANE shows the start of TEXT. Capped at about 0.3s.
+# Always returns 0: Enter still happens if the TUI is slow to paint.
+spool_notify_wait_composer() {  # PANE TEXT
+  local pane="$1" text="$2" needle i shown
+  needle="${text:0:24}"
+  [ -n "$needle" ] || return 0
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    shown="$("${SPOOL_TM[@]}" capture-pane -p -t "$pane" 2>/dev/null || true)"
+    printf '%s' "$shown" | grep -qF -- "$needle" && return 0
+    sleep 0.02
+  done
   return 0
 }
 

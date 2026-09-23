@@ -20,14 +20,9 @@ import { useNotificationStore } from '~/stores/notification'
 import { normalizeChannel } from '~/utils/notify.mjs'
 import { retentionDays } from '~/utils/channel-feed.mjs'
 import { useOmniboxTarget } from '~/stores/omnibox'
-import { useThreadStore } from '~/stores/thread'
-import { omniboxParentTaskId, omniboxPlaceholderKey } from '~/utils/omnibox-thread.mjs'
 
 const route = useRoute()
 const channel = useChannelStore()
-const thread = useThreadStore()
-/* the task an Omnibox send hangs off: the open thread, or a new one */
-const replyTo = computed(() => omniboxParentTaskId(thread))
 const notes = useNotificationStore()
 const events = useSpoolEvents()
 const api = useSpoolApi()
@@ -60,18 +55,16 @@ onMounted(() => {
   events.start()
 })
 
-/* CLE-3433 / OA-38: while `?thread=` names a thread, the Omnibox writes into
-   THAT thread. Without this, channel.sendLive's `task_id: parentTaskId ||
-   newId()` minted a new task per send and the exchange scattered. */
-async function onSend(text: string, files?: File[]) {
-  await channel.send(text, replyTo.value || undefined, files)
+/* The line decides. `@receiver` (and any line that does not name a thread)
+   starts a new message here. `in: <title>` arrives as threadId and replies
+   into that thread. The open pane does not capture the box. */
+async function onSend(text: string, files?: File[], threadId?: string, channelId?: string) {
+  await channel.send(text, threadId || undefined, files, channelId)
 }
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
-  placeholder: () => (replyTo.value
-    ? t(omniboxPlaceholderKey(replyTo.value))
-    : t('search.placeholder_target', { target: '#' + name.value })),
+  placeholder: () => t('search.placeholder_target', { target: '#' + name.value }),
   send: onSend,
 })
 </script>

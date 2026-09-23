@@ -9,7 +9,7 @@ export interface OmniboxTarget {
   /** who registered it — an unregister from a stale page is ignored */
   owner: symbol
   placeholder: () => string
-  send: (text: string, files: File[]) => Promise<unknown> | unknown
+  send: (text: string, files: File[], threadId?: string, channelId?: string) => Promise<unknown> | unknown
   busy?: () => boolean
 }
 

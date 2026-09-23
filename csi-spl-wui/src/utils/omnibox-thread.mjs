@@ -1,20 +1,17 @@
 /**
- * CLE-3433 / OA-38 — which conversation the top-bar Omnibox is writing into.
+ * CLE-3433 / OA-38 — the open thread pane used to be where the Omnibox wrote.
  *
- * `layouts/default.vue` can have a thread pane open beside the feed, and
- * `?thread=<id>` in the URL says which thread that is. The Omnibox kept
- * sending to the FEED regardless, and `stores/channel.ts sendLive()` does
- * `task_id: parentTaskId || newId()` — so every send from a page whose URL
- * named a thread minted a NEW task. Measured by CLE-3438 on dev (tree
+ * That binding is no longer the rule. Measured by CLE-3438 on dev (tree
  * f76f648, n=1): 12 messages sent from one `/dm/<peer>?thread=<id>` page
- * produced 12 distinct task ids in the peer's inbox. The owner's exchange
- * scattered into twelve conversations, and an agent's reply into one of them
- * did not appear beside the others.
+ * produced 12 distinct task ids, because the page passed no parent and
+ * `sendLive` does `task_id: parentTaskId || newId()`. Binding every send to
+ * the open pane fixed the scatter and then made a new message impossible
+ * while a thread was open.
  *
- * The URL is the statement of intent: while it names a thread, that is where
- * the page's composer writes. Closing the pane clears `?thread=` and the
- * Omnibox goes back to starting new messages in the feed, so nothing is
- * trapped.
+ * The line decides now (`utils/thread-in.mjs`): `in: <thread title>` replies
+ * into that thread, and `@receiver` — or any line that does not name a thread
+ * — starts a new message. These helpers still describe the pane itself. The
+ * Omnibox does not read them.
  */
 
 /**

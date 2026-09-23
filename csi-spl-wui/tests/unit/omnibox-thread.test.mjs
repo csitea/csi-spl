@@ -1,15 +1,11 @@
-// CLE-3433 / OA-38 — `/dm/<peer>?thread=<id>` did not bind the Omnibox to
-// that thread. `stores/channel.ts sendLive()` does
-// `task_id: parentTaskId || newId()`, and the DM and channel pages passed no
-// parent, so every send from a page whose URL NAMED a thread minted a new
-// task. Measured by CLE-3438 on dev (tree f76f648, n=1): 12 messages from one
-// such page produced 12 distinct task ids in the peer's inbox — the owner's
-// exchange scattered into twelve conversations, and an agent reply into one
-// of them did not appear beside the others.
+// CLE-3433 / OA-38 — `sendLive` does `task_id: parentTaskId || newId()`.
+// Measured by CLE-3438 on dev (tree f76f648, n=1): 12 messages from one
+// `/dm/<peer>?thread=<id>` page produced 12 distinct task ids, because the
+// page passed no parent. Binding the Omnibox to the open pane stopped the
+// scatter and then trapped every following send inside that pane.
 //
-// The thread pane's OWN composer was always bound (`:parent-task-id`), which
-// is why this looked like it worked: the defect is the big box at the top
-// sending somewhere other than where the URL says you are.
+// The line decides now. These tests keep the pane helpers honest. The pages
+// must not call them — see tests/unit/thread-in.test.mjs.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -43,12 +39,11 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
   })
 
   for (const page of PAGES) {
-    it(`${page}: the send carries the open thread, and the placeholder follows it`, () => {
+    it(`${page}: the open thread does not capture the Omnibox`, () => {
       const s = src(page)
-      assert.match(s, /omniboxParentTaskId\(thread\)/)
-      assert.match(s, /channel\.send\(text, replyTo\.value \|\| undefined, files\)/)
-      assert.match(s, /omniboxPlaceholderKey\(replyTo\.value\)/)
-      assert.match(s, /from '~\/utils\/omnibox-thread\.mjs'/)
+      assert.doesNotMatch(s, /omniboxParentTaskId/)
+      assert.doesNotMatch(s, /omnibox-thread/)
+      assert.match(s, /channel\.send\(text, threadId \|\| undefined, files, channelId\)/)
     })
   }
 

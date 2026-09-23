@@ -28,6 +28,8 @@ const OMNIBOX_PAGES = [
   'src/pages/dm/[peer].vue',
   'src/pages/channel/[name].vue',
   'src/pages/lobby.vue',
+  'src/pages/index.vue',
+  'src/pages/t/[task_id].vue',
 ]
 /* thread panes no longer have their own composer; the top bar sends the reply */
 
@@ -41,7 +43,7 @@ describe('cause 1: the handler has to ACCEPT the files (CLE-3433)', () => {
       const block = s.slice(s.indexOf('useOmniboxTarget('), s.indexOf('useOmniboxTarget(') + 400)
       /* either `send: onSend` where onSend names files, or an inline adapter
          that passes them on — both are fine, silence is not */
-      const inlineAdapter = /send:\s*\(text: string, files: File\[\]\)\s*=>[^\n]*files/.test(block)
+      const inlineAdapter = /send:\s*\(text: string, files: File\[\][^)]*\)\s*=>[^\n]*files/.test(block)
       const named = /send:\s*onSend\b/.test(block) && /function onSend\([^)]*files\??:\s*File\[\]/.test(s)
       assert.ok(inlineAdapter || named, `${page}: the registered send drops its files argument`)
     })

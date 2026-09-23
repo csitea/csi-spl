@@ -48,6 +48,28 @@
           </button>
         </li>
       </ul>
+      <ul
+        v-if="inPickerOpen"
+        ref="inListEl"
+        class="mention-list"
+        role="listbox"
+        data-test="thread-in-suggestions"
+        :aria-label="t('nav.threads')"
+      >
+        <li v-for="(row, i) in inCandidates" :key="row.taskId">
+          <button
+            type="button"
+            role="option"
+            class="mention-item"
+            :class="{ active: i === inIdx }"
+            :aria-selected="i === inIdx"
+            @mousedown.prevent="pickIn(row)"
+          >
+            <span class="mention-label">{{ row.title }}</span>
+            <span v-if="row.channel" class="muted">#{{ row.channel }}</span>
+          </button>
+        </li>
+      </ul>
       <span v-if="searchMode" class="omnibox-mode" data-test="omnibox-mode">
         <UiIcon name="search" :size="14" />{{ t('search.mode_chip') }}
       </span>
@@ -107,7 +129,10 @@
 </template>
 
 <script setup lang="ts">
+import { useChannelStore } from '~/stores/channel'
+import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
+import { useViewerStore } from '~/stores/viewer'
 import { closeOpenFence, enterAction, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
 import { sendLimitError } from '~/utils/code-view.mjs'
 import { useSidePane } from '~/composables/useSidePane'
@@ -119,6 +144,13 @@ import {
   filterRosterMentions,
   insertMention,
 } from '~/utils/mention-autocomplete.mjs'
+import {
+  activeInQuery,
+  filterThreadTitles,
+  insertInClause,
+  resolveInClause,
+  threadChoices,
+} from '~/utils/thread-in.mjs'
 
 const props = defineProps<{
   placeholder?: string
@@ -138,18 +170,27 @@ const props = defineProps<{
   operators?: SearchOperator[]
 }>()
 const emit = defineEmits<{
-  send: [text: string, parentTaskId?: string, files?: File[]]
+  send: [text: string, parentTaskId?: string, files?: File[], channelId?: string]
   search: [q: string]
   dismiss: []
   results: []
 }>()
 const picked = ref<File[]>([])
 const roster = useRosterStore()
+const viewer = useViewerStore()
+const channelFeed = useChannelStore()
+const liveMain = useLiveFeed('main')
 const text = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)
 const mentionQuery = ref<string | null>(null)
 const activeIdx = ref(0)
 const mentionListEl = ref<HTMLUListElement | null>(null)
+const inQuery = ref<string | null>(null)
+const inIdx = ref(0)
+const inListEl = ref<HTMLUListElement | null>(null)
+/** The thread the reader picked, so two starters with one title stay distinct. */
+const pickedIn = ref<{ taskId: string, title: string, channel: string } | null>(null)
+const threadsAsked = ref(false)
 /** Slack's ``` composer: the caret sits inside an open code block. */
 const inCode = ref(false)
 /**
@@ -275,9 +316,10 @@ function syncMention(ev?: Event) {
     })
   }
   if (searchMode.value) {
-    // a search line is a query: no code block, no @-picker
+    // a search line is a query: no code block, no @-picker, no thread picker
     inCode.value = false
     mentionQuery.value = null
+    inQuery.value = null
     return
   }
   inCode.value = fenceStateAt(text.value, caret()).inCode
@@ -290,6 +332,15 @@ function syncMention(ev?: Event) {
     })
   }
   mentionQuery.value = q
+  /* `in:` is the thread-title picker. An @ token at the caret wins, same as a code fence. */
+  const nextIn = (inCode.value || q !== null) ? null : activeInQuery(text.value, caret())
+  if (nextIn !== inQuery.value) {
+    inIdx.value = 0
+    nextTick(() => {
+      if (inListEl.value) inListEl.value.scrollTop = 0
+    })
+  }
+  inQuery.value = nextIn
 }
 
 const candidates = computed(() => {
@@ -298,6 +349,21 @@ const candidates = computed(() => {
 })
 
 const pickerOpen = computed(() => mentionQuery.value !== null && candidates.value.length > 0)
+
+const threadCatalogue = computed(() => threadChoices({
+  threads: viewer.threads,
+  messages: [...channelFeed.messages, ...liveMain.messages],
+}))
+const inCandidates = computed(() => (
+  inQuery.value === null ? [] : filterThreadTitles(threadCatalogue.value, inQuery.value)
+))
+const inPickerOpen = computed(() => inQuery.value !== null && inCandidates.value.length > 0 && !pickerOpen.value)
+
+watch(inQuery, (q) => {
+  if (q === null || threadsAsked.value || viewer.threads.length > 0) return
+  threadsAsked.value = true
+  void viewer.loadThreads()
+})
 
 /** Arrow keys move the highlight. Scroll only this list: scrollIntoView also moves the page under the bar. */
 function scrollActiveMention() {
@@ -326,11 +392,37 @@ function pick(peer: { id: string, label?: string }) {
   })
 }
 
+function scrollActiveIn() {
+  nextTick(() => {
+    const list = inListEl.value
+    if (!list) return
+    const row = list.querySelectorAll<HTMLElement>('.mention-item')[inIdx.value]
+    if (!row) return
+    const listRect = list.getBoundingClientRect()
+    const rowRect = row.getBoundingClientRect()
+    if (rowRect.top < listRect.top) list.scrollTop += rowRect.top - listRect.top
+    else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom
+  })
+}
+
+function pickIn(row: { taskId: string, title: string, channel: string }) {
+  const next = insertInClause(text.value, caret(), row.title)
+  text.value = next.text
+  pickedIn.value = { taskId: row.taskId, title: row.title, channel: row.channel }
+  inQuery.value = null
+  nextTick(() => {
+    const el = inputEl.value
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(next.cursor, next.cursor)
+  })
+}
+
 function onKeydown(ev: KeyboardEvent) {
   if (ev.isComposing) return
   if (onOperatorKey(ev)) return
   if (props.global && onGlobalKey(ev)) return
-  if (inCode.value && ev.key === 'Escape' && !pickerOpen.value) {
+  if (inCode.value && ev.key === 'Escape' && !pickerOpen.value && !inPickerOpen.value) {
     // Slack's exit: close the block at the caret, keep typing below it
     ev.preventDefault()
     const next = exitFence(text.value, caret())
@@ -339,7 +431,7 @@ function onKeydown(ev: KeyboardEvent) {
     nextTick(() => inputEl.value?.setSelectionRange(next.cursor, next.cursor))
     return
   }
-  if (props.omnibox && ev.key === 'Escape' && !pickerOpen.value) {
+  if (props.omnibox && ev.key === 'Escape' && !pickerOpen.value && !inPickerOpen.value) {
     emit('search', '')
     return
   }
@@ -369,6 +461,32 @@ function onKeydown(ev: KeyboardEvent) {
       return
     }
   }
+  if (inPickerOpen.value) {
+    const n = inCandidates.value.length
+    if (ev.key === 'ArrowDown') {
+      ev.preventDefault()
+      inIdx.value = (inIdx.value + 1) % n
+      scrollActiveIn()
+      return
+    }
+    if (ev.key === 'ArrowUp') {
+      ev.preventDefault()
+      inIdx.value = (inIdx.value - 1 + n) % n
+      scrollActiveIn()
+      return
+    }
+    if (ev.key === 'Tab' || (ev.key === 'Enter' && !ev.shiftKey)) {
+      ev.preventDefault()
+      const row = inCandidates.value[inIdx.value]
+      if (row) pickIn(row)
+      return
+    }
+    if (ev.key === 'Escape') {
+      ev.preventDefault()
+      inQuery.value = null
+      return
+    }
+  }
   if (ev.key === 'Enter') {
     const state = fenceStateAt(text.value, caret())
     inCode.value = state.inCode
@@ -394,7 +512,7 @@ function onGlobalKey(ev: KeyboardEvent): boolean {
       return true
     }
   }
-  if (ev.key === 'Escape' && !inCode.value && !pickerOpen.value) {
+  if (ev.key === 'Escape' && !inCode.value && !pickerOpen.value && !inPickerOpen.value) {
     ev.preventDefault()
     if (text.value) text.value = ''
     else emit('dismiss')
@@ -414,6 +532,7 @@ function onSend() {
         text.value = ''
         picked.value = []
         mentionQuery.value = null
+        inQuery.value = null
       }
       return
     }
@@ -425,6 +544,13 @@ function onSend() {
     return
   }
   if (props.global && props.sendBlocked) return
+  /* Enter and the Send button both land here. An open title list picks;
+     it does not send the half-typed `in:`. */
+  if (inPickerOpen.value) {
+    const row = inCandidates.value[inIdx.value]
+    if (row) pickIn(row)
+    return
+  }
   if (props.omnibox && !props.global) {
     const parsed = parseOmnibox(text.value)
     if ('search' in parsed) {
@@ -433,7 +559,19 @@ function onSend() {
       return
     }
   }
-  const body = closeOpenFence(text.value).trim()
+  let body = closeOpenFence(text.value).trim()
+  let threadId = props.parentTaskId
+  let channelId: string | undefined
+  if ((props.global || props.omnibox) && body) {
+    const resolved = resolveInClause(body, threadCatalogue.value)
+    if (resolved.taskId) {
+      const chosen = pickedIn.value
+      const same = Boolean(chosen && resolved.title.toLowerCase() === chosen.title.toLowerCase())
+      body = resolved.body
+      threadId = same && chosen ? chosen.taskId : resolved.taskId
+      channelId = (same && chosen ? chosen.channel : resolved.channel) || undefined
+    }
+  }
   if ((!body && !picked.value.length) || props.busy) return
   const tooBig = sendLimitError(body)
   if (tooBig) {
@@ -442,10 +580,12 @@ function onSend() {
     sizeError.value = tooBig
     return
   }
-  emit('send', body, props.parentTaskId, picked.value.slice())
+  emit('send', body, threadId, picked.value.slice(), channelId)
   text.value = ''
   picked.value = []
   mentionQuery.value = null
+  inQuery.value = null
+  pickedIn.value = null
   inCode.value = false
 }
 

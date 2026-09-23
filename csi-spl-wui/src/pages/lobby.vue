@@ -35,6 +35,7 @@ import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket, startHubSocket, stopHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useNotificationStore } from '~/stores/notification'
+import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useThreadStore } from '~/stores/thread'
 import { useThreadRoute } from '~/composables/useThreadRoute'
@@ -42,6 +43,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 
 const store = useLiveFeed('main')
+const channel = useChannelStore()
 const pane = useLiveFeed('pane')
 const thread = useThreadStore()
 const live = useLive()
@@ -94,7 +96,7 @@ const { openRow } = useThreadRoute({
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
   placeholder: () => t('search.placeholder_target', { target: '#lobby' }),
-  send: (text: string, files: File[]) => onSend(text, undefined, files),
+  send: (text: string, files: File[], threadId?: string, channelId?: string) => onSend(text, files, threadId, channelId),
   busy: () => store.sending,
 })
 
@@ -120,7 +122,14 @@ watch([lobbyId, () => session.state], ([id, st]) => {
   }
 }, { immediate: true })
 
-async function onSend(text: string, _parent?: string, files?: File[]) {
+/* A line with no resolved `in:` is a new lobby message (this room's task).
+   `in:` naming some other thread replies there instead. */
+async function onSend(text: string, files?: File[], threadId?: string, channelId?: string) {
+  const here = String(store.taskId || '')
+  if (threadId && threadId !== here) {
+    await channel.send(text, threadId, files, channelId)
+    return
+  }
   await store.send(text, files || [])
 }
 </script>

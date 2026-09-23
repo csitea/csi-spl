@@ -28,7 +28,9 @@
 
 <script setup lang="ts">
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
+import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
+import { useOmniboxTarget } from '~/stores/omnibox'
 import { useLive } from '~/composables/useLive'
 import { useThreadStore } from '~/stores/thread'
 import { applyVerbosity } from '~/utils/verbosity.mjs'
@@ -37,6 +39,7 @@ import type { SpoolMessage } from '~/types/spool'
 
 const route = useRoute()
 const store = useLiveFeed('main')
+const channel = useChannelStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
@@ -64,4 +67,19 @@ const { canEdit, applyEverywhere } = useMessageEdit()
 function onEdited(row: SpoolMessage) {
   applyEverywhere(row)
 }
+
+/* The open task does not capture the box. `in:` naming this task replies
+   here; `in:` naming another replies there; anything else is a new message. */
+async function onSend(text: string, files?: File[], threadId?: string, channelId?: string) {
+  if (threadId && threadId === taskId.value && store.taskId) {
+    await store.send(text, files || [])
+    return
+  }
+  await channel.send(text, threadId || undefined, files, channelId)
+}
+useOmniboxTarget({
+  placeholder: () => t('search.placeholder_target', { target: shortId.value }),
+  send: onSend,
+  busy: () => store.sending,
+})
 </script>

@@ -89,7 +89,7 @@ describe('an empty send never reaches the hub (CLE-3433)', () => {
 describe('the send path cannot lose text silently any more (CLE-3433)', () => {
   it('TopBar catches the rejection instead of leaving it unhandled', () => {
     const s = src('src/components/TopBar.vue')
-    assert.match(s, /await target\.send\(text, sent\)/)
+    assert.match(s, /await target\.send\(text, sent, parent, channelId\)/)
     assert.match(s, /catch \(err\)/)
     assert.match(s, /sendFailureKey\(err\)/)
     /* the text goes back in the box - the human never has to retype it */

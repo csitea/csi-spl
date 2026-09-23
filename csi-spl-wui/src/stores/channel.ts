@@ -264,17 +264,18 @@ export const useChannelStore = defineStore('channel', () => {
     follow()
   }
 
-  async function send(text: string, parentTaskId?: string, files?: unknown[]) {
-    if (!api.mock) return sendLive(text, parentTaskId, files)
+  async function send(text: string, parentTaskId?: string, files?: unknown[], channelId?: string) {
+    if (!api.mock) return sendLive(text, parentTaskId, files, channelId)
     const body = await api.sendMessage({
-      channel: active.value,
-      peer: peer.value || undefined,
+      channel: channelId || active.value,
+      peer: channelId ? undefined : (peer.value || undefined),
       text,
       parent_task_id: parentTaskId,
       files,
     })
     const row = body as unknown as FeedMessage
-    messages.value = [...messages.value, row]
+    /* a reply into another channel must not appear in this feed */
+    if (!channelId || channelId === active.value) messages.value = [...messages.value, row]
     return row
   }
 
@@ -305,21 +306,28 @@ export const useChannelStore = defineStore('channel', () => {
     return refs
   }
 
-  /** Live send over the hub WUI socket (wui-live-ws §4); the echo frame lands via ingestLive. */
-  async function sendLive(text: string, parentTaskId?: string, files?: unknown[]) {
+  /**
+   * Live send over the hub WUI socket (wui-live-ws §4); the echo frame lands via ingestLive.
+   * `channelId` is the channel an `in:` clause named. It is a channel post even
+   * when this page is a DM, and the row stays out of this feed when that
+   * channel is not the one on screen.
+   */
+  async function sendLive(text: string, parentTaskId?: string, files?: unknown[], channelId?: string) {
     const live = useLive()
     const client = live.ensure()
     if (!client) throw new Error(`live socket unavailable (${api.configError || 'no base'})`)
     const [peerId] = String(peer.value || '').split('@')
     const parsed = parseMention(text)
+    const asDm = !channelId && Boolean(peer.value)
     const frame: SendFrame = {
       task_id: parentTaskId || newId(),
-      kind: peer.value ? 'note' : parsed.kind,
-      body: peer.value ? text : parsed.body,
+      kind: asDm ? 'note' : parsed.kind,
+      body: asDm ? text : parsed.body,
       files: await toFileRefs(files),
-      to: peer.value ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),
+      to: asDm ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),
     }
-    if (active.value) frame.channel = active.value
+    const channelNow = channelId || active.value
+    if (channelNow) frame.channel = channelNow
     /* CLE-3433: `@CLE-00` alone parses to a task frame with an EMPTY body.
        The composer cannot catch it - it only sees the text before the
        mention is stripped - so the refusal lives here, where the real
@@ -327,8 +335,8 @@ export const useChannelStore = defineStore('channel', () => {
     if (isEmptySend(frame.body, frame.files)) throw emptySendError()
     /* 013 US7 FR-013: our card shows at once under the msg_id we send; echo / ack replace it */
     frame.msg_id = newId() || undefined
-    const channelNow = active.value
-    if (frame.msg_id) {
+    const showHere = !channelId || channelId === active.value
+    if (frame.msg_id && showHere) {
       const own = pendingRow({
         msg_id: frame.msg_id, task_id: frame.task_id, from: live.identity.value, to: frame.to || '@channel',
         kind: frame.kind, body: frame.body, files: frame.files, channel: channelNow,
@@ -350,18 +358,18 @@ export const useChannelStore = defineStore('channel', () => {
       ack = await client.send(frame)
     } catch (first) {
       if (!shouldAutoResend(first)) {
-        if (frame.msg_id) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
+        if (frame.msg_id && showHere) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
         throw first
       }
       try {
         ack = await client.send(frame)
       } catch (second) {
-        if (frame.msg_id) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
+        if (frame.msg_id && showHere) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
         throw second
       }
     }
     const row = rowFromAck(ack, frame, { from: live.identity.value, channel: channelNow })
-    if (row.msg_id) {
+    if (row.msg_id && showHere) {
       messages.value = mergeLive(messages.value, row) as FeedMessage[]
       follow()
     }

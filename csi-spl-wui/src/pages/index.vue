@@ -38,6 +38,8 @@
 </template>
 
 <script setup lang="ts">
+import { useChannelStore } from '~/stores/channel'
+import { useOmniboxTarget } from '~/stores/omnibox'
 import { useViewerStore } from '~/stores/viewer'
 import { useLiveFeed } from '~/stores/live'
 import { formatTs } from '~/utils/channel-feed.mjs'
@@ -49,6 +51,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 
 const viewer = useViewerStore()
+const channel = useChannelStore()
 const session = useSessionStore()
 const api = useSpoolApi()
 /* `tr`, not `t`: the thread rows below are iterated as `t` */
@@ -73,6 +76,16 @@ const { pill, jump } = useScrollAnchor(listTop, () => viewer.threads.map((r) => 
    (measured on both apexes, tree e52e250). The read and the follow now wait for
    a member session, on the same predicate as the rest of the shell; a sign-in
    flips the same store, so a human who signs in gets both with no reload. */
+/* The threads list has no feed of its own. The Omnibox still writes:
+   `in: <title>` replies into that thread, and anything else starts a new message. */
+async function onSend(text: string, files?: File[], threadId?: string, channelId?: string) {
+  await channel.send(text, threadId || undefined, files, channelId)
+}
+useOmniboxTarget({
+  placeholder: () => tr('search.placeholder_target', { target: tr('nav.threads') }),
+  send: onSend,
+})
+
 let listStarted = false
 watch(() => api.mock || String(session.state) === 'in', (ready) => {
   if (!ready || listStarted) return

@@ -205,6 +205,20 @@ declare module '~/utils/mention-autocomplete.mjs' {
   ): { text: string, cursor: number }
 }
 
+declare module '~/utils/thread-in.mjs' {
+  export function activeInQuery(text: string, cursor?: number): string | null
+  export function filterThreadTitles<T extends { title?: string }>(threads: T[], query: string): T[]
+  export function insertInClause(text: string, cursor: number, title: string): { text: string, cursor: number }
+  export function threadChoices(src?: {
+    threads?: unknown[]
+    messages?: unknown[]
+  }): { taskId: string, title: string, channel: string }[]
+  export function resolveInClause(
+    text: string,
+    choices: { taskId?: string, title?: string, channel?: string }[],
+  ): { taskId: string, channel: string, title: string, body: string }
+}
+
 
 declare module '~/utils/auth-client.mjs' {
   export const AUTH_PREFIX: string

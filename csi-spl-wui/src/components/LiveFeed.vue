@@ -71,6 +71,8 @@ const props = defineProps<{
   emptyText?: string
   /** topic-pane clock (Date.now()); omitted on channel / lobby cards */
   sinceMs?: number
+  /** A thread. A new row must not move this list, and nothing scrolls it back. */
+  holdScroll?: boolean
 }>()
 const emit = defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
 
@@ -82,6 +84,7 @@ const { pill, jump } = useScrollAnchor(
   root,
   () => props.rows.map((m) => String(m.msg_id)),
   (id) => Boolean(props.rows.find((m) => m.msg_id === id)?.pending),
+  () => props.holdScroll !== true,
 )
 let io: IntersectionObserver | null = null
 onMounted(() => {

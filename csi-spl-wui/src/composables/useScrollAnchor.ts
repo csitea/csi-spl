@@ -4,17 +4,19 @@ import { anchorAfterPrepend, firstVisibleRow, layoutTop, NEAR_TOP_PX, prependedC
 /**
  * 013 US7 FR-012: a newest-first feed keeps the reader's place when rows are
  * prepended while they are scrolled down, and counts them in a "new" pill.
- * `root` sits inside the feed; the scroller is found each time (`.feed-body`,
- * or the page when the window is short). `keys` are the rendered row keys,
+ * `root` sits inside the feed; the scroller is the feed list (`.feed-body`),
+ * not the document. `keys` are the rendered row keys,
  * newest first, each row rendered with `data-key`; `isOwn(key)` marks our
- * own send, which jumps to the top.
+ * own send, which jumps to the top. `enabled` false is a thread: a new row
+ * does not move scrollTop, and nothing scrolls that pane back.
  */
-export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => string[], isOwn: (key: string) => boolean = () => false) {
+export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => string[], isOwn: (key: string) => boolean = () => false, enabled: () => boolean = () => true) {
   const pill = ref(0)
   let before: { el: HTMLElement, top: number, height: number, key: string, y: number | null } | null = null
   let listening = false
 
   function el(): HTMLElement | null {
+    if (!enabled()) return null
     const r = root.value
     if (!r || typeof document === 'undefined') return null
     const s = scrollerOf(r) as HTMLElement
@@ -44,6 +46,7 @@ export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => strin
   }
 
   function jump() {
+    if (!enabled()) return
     pill.value = 0
     const s = el()
     if (s) s.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' })
@@ -51,6 +54,10 @@ export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => strin
 
   /* before the DOM patch: where the reader is */
   watch(keys, () => {
+    if (!enabled()) {
+      before = null
+      return
+    }
     const s = el()
     if (!s) {
       before = null
@@ -62,6 +69,10 @@ export function useScrollAnchor(root: Ref<HTMLElement | null>, keys: () => strin
 
   /* after it: hold the visible rows in place, or jump for our own send */
   watch(keys, (next, prev) => {
+    if (!enabled()) {
+      before = null
+      return
+    }
     const b = before
     before = null
     if (!b) return

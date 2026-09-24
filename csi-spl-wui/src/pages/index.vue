@@ -57,6 +57,7 @@ import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
+import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 
 const viewer = useViewerStore()
 const channel = useChannelStore()
@@ -96,7 +97,7 @@ watch(openedTopicId, async (id) => {
   const root = listTop.value
   if (!root) return
   const row = root.querySelector(`[data-key="${CSS.escape(id)}"]`)
-  row?.scrollIntoView({ block: 'start', inline: 'nearest' })
+  if (row) scrollRowToTop(root, row)
 })
 const { pill, jump } = useScrollAnchor(listTop, () => viewer.topics.map((r) => r.task_id))
 /* W5 (GRK-3377): `/` opened the hub socket while signed out - viewer.follow()

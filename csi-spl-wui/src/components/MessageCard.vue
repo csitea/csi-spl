@@ -113,7 +113,6 @@ import {
   withDraft,
 } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
-import { useSidePane } from '~/composables/useSidePane'
 
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
@@ -134,11 +133,9 @@ const props = defineProps<{
   editable?: boolean
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
-const sidePane = useSidePane()
 
-/** The replies link opens this topic and selects the Topics list beside it. */
+/** The replies link opens this topic on the right. The left tab stays as it was. */
 function openReplies() {
-  sidePane.reveal('topics')
   emit('open-topic', props.msg)
 }
 
@@ -290,7 +287,7 @@ function closeEdit() {
   saving.value = false
   /* the textarea is gone by the next tick (v-if), so focus goes to the row —
      otherwise the focus falls to <body> and the next key press does nothing */
-  nextTick(() => rowEl.value?.focus())
+  nextTick(() => rowEl.value?.focus({ preventScroll: true }))
 }
 
 function onEditKey(ev: KeyboardEvent) {

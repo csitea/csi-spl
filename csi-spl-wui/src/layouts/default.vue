@@ -106,6 +106,10 @@ const {
 .layout {
   max-width: 100%;
   min-width: 0;
-  overflow-x: clip;
+  height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
 }
 </style>

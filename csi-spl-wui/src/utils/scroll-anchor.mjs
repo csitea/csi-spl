@@ -29,14 +29,14 @@ export function anchorAfterPrepend({ top = 0, prevHeight = 0, nextHeight = 0, an
 }
 
 /**
- * The element that actually scrolls a feed: itself or the nearest ancestor with
- * overflow-y auto/scroll and content taller than itself, else the document
- * (a short window lets the page scroll instead of `.feed-body`).
+ * The element that scrolls a feed: itself or the nearest ancestor with
+ * overflow-y auto or scroll. A short list is still that scroller.
+ * The document is only the fallback when nothing in the chain scrolls.
  */
 export function scrollerOf(el, doc = globalThis.document) {
   for (let n = el || null; n; n = n.parentElement) {
     const oy = doc.defaultView.getComputedStyle(n).overflowY
-    if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1) return n
+    if (oy === 'auto' || oy === 'scroll') return n
   }
   return doc.scrollingElement || doc.documentElement
 }

@@ -41,6 +41,7 @@
       {{ t('sidebar.direct_messages') }}
       <span id="sidebar-help-dm-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.direct_messages') }}</span>
     </h2>
+    <div class="sidebar-scroll">
     <!-- CLE-3448: the reader's own row. A signed-in human is the one peer
          guaranteed to be online, and was the only one the pane never drew -
          so "am I connected?" had no answer here at all. It is not a link:
@@ -104,6 +105,7 @@
       @mark-read="notes.markRead('dm:' + p.label)"
     />
     </div>
+    </div>
       </div>
       <div
         v-show="tab === 'channels'"
@@ -136,6 +138,7 @@
         <UiIcon name="plus" :size="18" />
       </button>
     </div>
+    <div class="sidebar-scroll">
     <div
       v-for="(c, channelIndex) in channelRows"
       :key="c.channel_id"
@@ -176,6 +179,7 @@
       @mute="toggleChannelMute(c.channel_id)"
       @properties="openProperties(c.channel_id)"
     />
+    </div>
     </div>
     <!-- The new-channel dialog: title + description, one place, nothing in the
          list until it is created (013 FR-017 - UiDialog owns focus trap,
@@ -241,6 +245,7 @@
         data-testid="sidebar-panel-topics"
       >
         <h2>{{ t('nav.topics') }}</h2>
+        <div class="sidebar-scroll">
         <p v-if="!viewer.loading && viewer.topics.length === 0" class="muted topic-empty">{{ t('pages.index.empty') }}</p>
         <div
           v-for="(row, topicIndex) in topicRows"
@@ -273,6 +278,7 @@
           @open="pane.open(row.task_id)"
         />
         </div>
+        </div>
       </div>
       <div
         v-show="tab === 'flow'"
@@ -283,6 +289,7 @@
         data-testid="sidebar-panel-flow"
       >
         <h2>{{ t('sidebar.flow') }}</h2>
+        <div class="sidebar-scroll">
         <p v-if="flow.length === 0" class="muted topic-empty">{{ t('feed.empty') }}</p>
         <template v-for="row in flow" :key="row.key">
           <div v-if="row.kind === 'channel'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': isChannelMuted(row.id), 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick" @contextmenu.prevent="openChannelMenu('flow:ch:' + row.id)">
@@ -375,6 +382,7 @@
           />
           </div>
         </template>
+        </div>
       </div>
     <div class="sidebar-foot">
       <div class="nav-item health" data-testid="connection-health" :title="t('sidebar.health_title', { state: stateLabel(live.state.value) })">
@@ -419,6 +427,7 @@ import { useSidePane } from '~/composables/useSidePane'
 import { flowRows, SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { dropIndex, moveKey, pinRows, rowMenuAdmin } from '~/utils/sidebar-row-menu.mjs'
+import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow'
@@ -506,7 +515,8 @@ watch([topicOpen, tab, () => viewer.topics.length], async ([id, which]) => {
   const panel = document.getElementById('sidebar-panel-topics')
   if (!panel) return
   const row = panel.querySelector(`[data-key="${CSS.escape(String(id))}"]`)
-  row?.scrollIntoView({ block: 'start', inline: 'nearest' })
+  const scroller = panel.querySelector<HTMLElement>('.sidebar-scroll')
+  if (row && scroller) scrollRowToTop(scroller, row)
 })
 /* Topics opens the topic index. Flow stays on this page and mixes the
    three lists. Direct messages and channels only swap the sidebar. */
@@ -842,6 +852,7 @@ async function onCreate() {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
   padding-inline-end: 10px;
   min-width: 0;
 }

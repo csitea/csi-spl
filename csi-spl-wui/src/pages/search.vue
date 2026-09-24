@@ -117,6 +117,7 @@ import { useSearchStore } from '~/stores/search'
 import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'
 import { flattenGroups, highlightSegments, moveIndex, searchPath, searchTarget, type SearchRow, rowAt } from '~/utils/search.mjs'
+import { openThreadRow, scrollRowToTop } from '~/utils/pane-scroll.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
@@ -212,14 +213,18 @@ watch(() => omnibox.focusResults, () => {
   const el = listEl.value
   if (!el) return
   if (active.value < 0 && rows.value.length) active.value = 0
-  el.focus()
+  el.focus({ preventScroll: true })
 })
 
 function onKey(ev: KeyboardEvent) {
   if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(ev.key)) {
     ev.preventDefault()
     active.value = moveIndex(active.value, rows.value.length, ev.key)
-    nextTick(() => document.getElementById(rowId(active.value))?.scrollIntoView({ block: 'nearest', inline: 'nearest' }))
+    nextTick(() => {
+      const el = document.getElementById(rowId(active.value))
+      const scroller = el?.closest<HTMLElement>('.feed-body')
+      if (el && scroller) scrollRowToTop(scroller, el)
+    })
     return
   }
   if (ev.key === 'Enter' && active.value >= 0) {
@@ -247,11 +252,9 @@ function focusMessage(msgId: string, tries = 30) {
     if (tries > 0) setTimeout(() => focusMessage(msgId, tries - 1), 100)
     return
   }
-  // scroll only the pane's own list — scrollIntoView would also move the document under the bar
-  const sc = el.closest<HTMLElement>('.feed-body')
-  if (sc) sc.scrollTop += el.getBoundingClientRect().top - sc.getBoundingClientRect().top - sc.clientHeight / 3
+  // The thread opens at the top. Focusing the hit does not move that pane or the document.
+  openThreadRow(el)
   el.classList.add('search-focus')
-  el.focus({ preventScroll: true })
   setTimeout(() => el.classList.remove('search-focus'), 2400)
 }
 

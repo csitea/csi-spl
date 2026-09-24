@@ -101,7 +101,7 @@ describe('scroll anchoring (FR-012)', () => {
     assert.deepEqual(anchorAfterPrepend({ top: 600, prevHeight: 3000, nextHeight: 3240, added: 2, pill: 1 }), { top: 840, pill: 3, moved: true })
   })
 
-  it('the scroller is the overflowing auto ancestor, else the page', () => {
+  it('the feed list is the scroller, and the document is not', () => {
     const node = (oy, sh, ch, parent = null) => ({ oy, scrollHeight: sh, clientHeight: ch, parentElement: parent })
     const html = { tag: 'html' }
     const doc = { scrollingElement: html, defaultView: { getComputedStyle: (n) => ({ overflowY: n.oy }) } }
@@ -110,7 +110,9 @@ describe('scroll anchoring (FR-012)', () => {
     assert.equal(scrollerOf(feed, doc), body)
     assert.equal(scrollerOf(body, doc), body, 'the element itself may be the scroller')
     const short = node('auto', 500, 600)
-    assert.equal(scrollerOf(node('visible', 500, 500, short), doc), html, 'a feed body that does not overflow: the page scrolls')
+    const list = node('visible', 500, 500, short)
+    assert.equal(scrollerOf(list, doc), short, 'a feed list that does not overflow is still the scroller; the document is not')
+    assert.notEqual(scrollerOf(list, doc), html)
   })
 
   it('with an anchor row: moves by how far that row was pushed, even when the window dropped a row at the bottom', () => {

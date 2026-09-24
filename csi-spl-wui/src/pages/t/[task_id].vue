@@ -4,10 +4,11 @@
       <h2><NuxtLink :to="localePath('/')">{{ t('nav.topics') }}</NuxtLink> / <code>{{ shortId }}</code></h2>
       <span class="muted">{{ t('pages.task.status', { n: store.messages.length, state: stateLabel(live.state.value) }) }}</span>
     </header>
-    <div class="pinned-root" data-test="topic-root">
+    <div class="pinned-root feed-body" data-test="topic-root">
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="reopen" />
       <ErrorNotice v-if="store.error" :message="store.error" source="topic" test-id="topic-error" />
       <LiveFeed
+        hold-scroll
         :label="t('topic.replies_label')"
         :rows="messages"
         :has-older="store.hasOlder"

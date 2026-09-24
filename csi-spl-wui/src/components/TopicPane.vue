@@ -26,9 +26,10 @@
       </div>
     </header>
     <BornTopics />
-    <div class="pinned-root" data-test="topic-root">
+    <div class="pinned-root feed-body" data-test="topic-root">
       <ErrorNotice v-if="loadError" :message="loadError" source="topic" test-id="topic-error" />
       <LiveFeed
+        hold-scroll
         :label="t('topic.replies_label')"
         :rows="messages"
         :has-older="false"

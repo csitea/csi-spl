@@ -360,6 +360,11 @@ declare module '~/utils/scroll-anchor.mjs' {
   export function scrollerOf(el: Element | null, doc?: Document): Element
 }
 
+declare module '~/utils/pane-scroll.mjs' {
+  export function scrollRowToTop(scroller: HTMLElement, row: Element): void
+  export function openThreadRow(row: HTMLElement | null | undefined): void
+}
+
 declare module '~/utils/topic-list.mjs' {
   export function bumpTopic<T>(topics: T[], m: Record<string, unknown>): T[]
   export function mergeTopicPage<T>(topics: T[], page: T[]): T[]

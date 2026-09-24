@@ -36,10 +36,11 @@
       </div>
     </header>
     <BornTopics />
-    <div class="pinned-root" data-test="topic-root">
+    <div class="pinned-root feed-body" data-test="topic-root">
       <ViewTokenForm v-if="pane.door" :detail="pane.door.detail" @saved="pane.taskId && pane.open(pane.taskId)" />
       <ErrorNotice v-if="pane.error" :message="pane.error" source="live-pane" test-id="live-pane-error" />
       <LiveFeed
+        hold-scroll
         :label="t('topic.replies_label')"
         :rows="messages"
         :has-older="pane.hasOlder"

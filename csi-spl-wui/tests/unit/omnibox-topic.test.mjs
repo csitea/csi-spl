@@ -78,7 +78,7 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
     assert.match(src('src/pages/t/[task_id].vue'), /omniboxReplyTaskId/)
     assert.match(src('src/components/ChannelSidebar.vue'), /setCurrent\(id\)/)
     assert.match(src('src/components/ChannelSidebar.vue'), /req\.stay/)
-    assert.match(src('src/components/MessageCard.vue'), /reveal\('topics'\)/)
+    assert.doesNotMatch(src('src/components/MessageCard.vue'), /reveal\('topics'\)/)
     assert.match(src('src/components/MessageCard.vue'), /data-test="topic-replies"/)
   })
 })

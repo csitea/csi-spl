@@ -25,6 +25,7 @@ import { retentionDays } from '~/utils/channel-feed.mjs'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useSidePane } from '~/composables/useSidePane'
 import { omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
+import { useTopicFeedClose } from '~/composables/useTopicRoute'
 import type { SpoolMessage } from '~/types/spool'
 
 const route = useRoute()
@@ -51,13 +52,26 @@ function markRead(n: string) {
   else notes.markRead('ch:' + normalizeChannel(n))
 }
 
+/* Same close as the DM page: a channel change must not keep a topic that is
+   not in this channel's messages. An empty list always closes. Ready stays
+   false until selectChannel returns so the check sees this channel's list. */
+const topicFeedReady = ref(false)
+const { releaseStaleTopic } = useTopicFeedClose({
+  ready: () => topicFeedReady.value,
+  messages: () => channel.messages,
+})
+
 /* the shell reads (channels + roster) belong to the plugin's createShellBootstrap
    (once per app). This page only selects the open feed: mock hydrates immediately,
    live waits for a member session — same predicate as onSession. */
 watch([name, () => session.state], async ([n, st]) => {
+  topicFeedReady.value = false
   if (!api.mock && String(st) !== 'in') return
   await channel.selectChannel(n)
   markRead(n)
+  if (name.value !== n) return
+  topicFeedReady.value = true
+  releaseStaleTopic()
 }, { immediate: true })
 
 onMounted(() => {

@@ -90,6 +90,59 @@ export function sameQuery(a, b) {
   return JSON.stringify(norm(a)) === JSON.stringify(norm(b))
 }
 
+/**
+ * Whether one feed row is the open topic.
+ * The pane's id is the card's task (openTarget stores target.taskId), or the
+ * message id when the topic is that message. A reply names it as parent_task_id.
+ *
+ * @param {unknown} row
+ * @param {string} id
+ * @returns {boolean}
+ */
+function rowNamesTopic(row, id) {
+  if (!row || typeof row !== 'object') return false
+  const m = /** @type {{ task_id?: unknown, msg_id?: unknown, parent_task_id?: unknown }} */ (row)
+  return String(m.task_id || '') === id
+    || String(m.msg_id || '') === id
+    || String(m.parent_task_id || '') === id
+}
+
+/**
+ * Whether the topic pane must close for the messages now on screen.
+ *
+ * An empty list always closes: that person or channel has no discussion, so
+ * the previous topic must not stay. An open task that is not one of these
+ * messages closes. A task that is among them may stay. Nothing open, over a
+ * list that has messages, does not close.
+ *
+ * @param {string|null|undefined} openTaskId
+ * @param {readonly unknown[]|null|undefined} messages
+ * @returns {boolean}
+ */
+export function topicClosesForMessages(openTaskId, messages) {
+  const list = Array.isArray(messages) ? messages : []
+  if (list.length === 0) return true
+  const id = String(openTaskId || '')
+  if (!id) return false
+  return !list.some((row) => rowNamesTopic(row, id))
+}
+
+/**
+ * What the page should do once this feed's messages are the ones on screen.
+ * `close` means topic.close(). `query` is the route query with ?topic= and
+ * ?in= removed, or null when the URL already has neither (no replace).
+ *
+ * @param {string|null|undefined} openTaskId
+ * @param {readonly unknown[]|null|undefined} messages
+ * @param {object|null|undefined} query
+ * @returns {{ close: boolean, query: Record<string, any>|null }}
+ */
+export function topicFeedRelease(openTaskId, messages, query) {
+  if (!topicClosesForMessages(openTaskId, messages)) return { close: false, query: null }
+  const next = queryWithTopic(query, null)
+  return { close: true, query: sameQuery(next, query) ? null : next }
+}
+
 /** Is this row the one the open topic is rooted at? */
 export function isSelectedRow(msg, target) {
   const m = msg || {}

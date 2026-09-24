@@ -21,6 +21,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useSidePane } from '~/composables/useSidePane'
 import { omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
+import { useTopicFeedClose } from '~/composables/useTopicRoute'
 import type { SpoolMessage } from '~/types/spool'
 
 const route = useRoute()
@@ -39,13 +40,30 @@ const online = computed(() => {
   return roster.isOnline(id, box)
 })
 
+/* The topic pane reads one task and does not notice a peer change. Once this
+   peer's messages have loaded, close that task when it is not one of them
+   (an empty list always closes) and drop ?topic= / ?in= so a reload cannot
+   reopen the previous person. Ready stays false until selectDm returns, so
+   the check sees this peer's list. A card still opens through MessageFeed
+   -> useTopicRoute.openRow -> topic.openTarget, and stays when that task is
+   in the list. */
+const topicFeedReady = ref(false)
+const { releaseStaleTopic } = useTopicFeedClose({
+  ready: () => topicFeedReady.value,
+  messages: () => channel.messages,
+})
+
 /* the shell reads (channels + roster) belong to the plugin's createShellBootstrap
    (once per app). This page only selects the open DM: mock hydrates immediately,
    live waits for a member session — same predicate as onSession. */
 watch([peer, () => session.state], async ([p, st]) => {
+  topicFeedReady.value = false
   if (!p) return
   if (!api.mock && String(st) !== 'in') return
   await channel.selectDm(p)
+  if (peer.value !== p) return
+  topicFeedReady.value = true
+  releaseStaleTopic()
 }, { immediate: true })
 
 /* read cursors follow channel.peer in plugins/notify.client.ts */

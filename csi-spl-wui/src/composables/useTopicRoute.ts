@@ -1,6 +1,6 @@
 import type { SpoolMessage } from '~/types/spool'
 import { useTopicStore, type TopicTarget } from '~/stores/topic'
-import { queryWithTopic, sameQuery, sameTarget, targetFromQuery, topicTargetFor } from '~/utils/topic-open.mjs'
+import { queryWithTopic, sameQuery, sameTarget, targetFromQuery, topicFeedRelease, topicTargetFor } from '~/utils/topic-open.mjs'
 
 /**
  * CLE-3427 — the open topic and the URL, kept as one fact.
@@ -47,4 +47,50 @@ export function useTopicRoute(opts: {
   }
 
   return { openRow }
+}
+
+/**
+ * Close the topic pane when the feed now on screen does not contain its task.
+ *
+ * `ready` stays false until that feed has loaded. Judging earlier would
+ * compare the new person or channel with the previous list and close a deep
+ * link that does belong here. A card click still opens through openRow;
+ * this only closes a task the loaded list does not name.
+ */
+export function useTopicFeedClose(opts: {
+  ready: () => boolean
+  messages: () => readonly unknown[]
+}) {
+  const route = useRoute()
+  const router = useRouter()
+  const topic = useTopicStore()
+  let releasing = false
+
+  /* The store's task, or the URL's ?topic= when the store is already clear,
+     so a stale deep link is dropped with the pane. */
+  function openTopicId(): string {
+    const fromStore = topic.parentTaskId || (topic.target ? topic.target.taskId : '')
+    const raw = route.query.topic
+    const fromUrl = Array.isArray(raw) ? raw[0] : raw
+    return String(fromStore || fromUrl || '')
+  }
+
+  function releaseStaleTopic() {
+    if (releasing || !opts.ready()) return
+    const plan = topicFeedRelease(openTopicId(), opts.messages(), route.query)
+    if (!plan.close) return
+    releasing = true
+    try {
+      topic.close()
+      if (plan.query) void router.replace({ query: plan.query })
+    } finally {
+      releasing = false
+    }
+  }
+
+  /* A stale ?topic= can reopen the pane after the feed loaded (the route
+     watcher applies the query). Close that task again before it paints. */
+  watch(() => topic.parentTaskId, () => releaseStaleTopic(), { flush: 'sync' })
+
+  return { releaseStaleTopic }
 }

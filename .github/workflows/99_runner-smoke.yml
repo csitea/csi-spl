@@ -9,7 +9,7 @@ on:
 jobs:
   smoke:
     name: "self-hosted runner answers"
-    runs-on: [self-hosted, tnk]
+    runs-on: [self-hosted, spool-ci]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4

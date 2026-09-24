@@ -3,7 +3,16 @@
     <!-- Full-bleed wallpaper. The drift layer is larger than the viewport and
          clipped here, so the slow pan cannot widen the page. -->
     <div class="login-wallpaper" aria-hidden="true">
-      <div class="login-wallpaper__drift" data-test="login-wallpaper"></div>
+      <div class="login-wallpaper__drift" data-test="login-wallpaper">
+        <!-- Short beads of light. Each path stays dark for most of its cycle. -->
+        <svg class="login-signals" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" data-test="login-signal">
+          <path class="login-signal" pathLength="100" d="M 4 78 C 18 52, 36 90, 58 48 S 90 22, 98 36" />
+          <path class="login-signal login-signal--late" pathLength="100" d="M 8 24 C 14 42, 6 60, 16 82" />
+          <path class="login-signal login-signal--side" pathLength="100" d="M 96 16 C 78 34, 94 58, 72 80" />
+          <path class="login-signal login-signal--warm" pathLength="100" d="M 10 94 C 32 68, 54 96, 92 70" />
+          <path class="login-signal login-signal--warm login-signal--late" pathLength="100" d="M 24 34 C 42 18, 64 46, 90 24" />
+        </svg>
+      </div>
       <div class="login-wallpaper__drift login-wallpaper__drift--chip" data-test="login-wallpaper-chip"></div>
       <div class="login-wallpaper__drift login-wallpaper__drift--robot" data-test="login-wallpaper-robot"></div>
     </div>
@@ -132,6 +141,49 @@ const title = loginBarTitle(config.public.envName, import.meta.dev)
   }
   .login-wallpaper__drift--chip,
   .login-wallpaper__drift--robot {
+    opacity: 0;
+  }
+  .login-signal {
+    animation: none;
+    opacity: 0;
+  }
+}
+.login-signals {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.login-signal {
+  fill: none;
+  stroke: #e7fbff;
+  stroke-width: 2px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 3px #7ef0ff) drop-shadow(0 0 8px rgba(70, 190, 255, 0.75));
+  stroke-dasharray: 5 95;
+  opacity: 0;
+  animation: login-signal 17s ease-in-out infinite;
+}
+.login-signal--late { animation-duration: 21s; animation-delay: 8s; }
+.login-signal--side { animation-duration: 19s; animation-delay: 4.5s; }
+.login-signal--warm {
+  stroke: #ffe3b0;
+  filter: drop-shadow(0 0 3px #ffc56a) drop-shadow(0 0 8px rgba(255, 170, 70, 0.6));
+  animation-duration: 23s;
+  animation-delay: 12s;
+}
+.login-signal--warm.login-signal--late { animation-delay: 3s; animation-duration: 18s; }
+@keyframes login-signal {
+  0%, 64% { opacity: 0; stroke-dashoffset: 6; }
+  70% { opacity: 0.92; }
+  86% { opacity: 0.55; stroke-dashoffset: -94; }
+  94%, 100% { opacity: 0; stroke-dashoffset: -100; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-signal {
+    animation: none;
     opacity: 0;
   }
 }

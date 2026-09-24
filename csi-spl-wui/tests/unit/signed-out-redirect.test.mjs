@@ -169,6 +169,9 @@ describe('login landing', () => {
     assert.match(frame, /@keyframes login-wallpaper-drift/)
     assert.match(frame, /@keyframes login-wallpaper-hold-b/)
     assert.match(frame, /@keyframes login-wallpaper-hold-c/)
+    assert.match(frame, /data-test="login-signal"/)
+    assert.match(frame, /@keyframes login-signal\s*\{\s*0%,\s*64%\s*\{\s*opacity:\s*0/)
+    assert.match(frame, /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*\.login-signal\s*\{[^}]*opacity:\s*0/)
     assert.match(frame, /animation:\s*login-wallpaper-drift\s+46s\s+ease-in-out\s+infinite\s+alternate/)
     assert.match(frame, /@media \(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.login-wallpaper__drift\s*\{[^}]*animation:\s*none/)
     for (const name of ['login-wallpaper.webp', 'login-wallpaper-chip.webp', 'login-wallpaper-robot.webp']) {

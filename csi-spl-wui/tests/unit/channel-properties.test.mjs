@@ -10,6 +10,7 @@ import {
   aboutChannelName,
   canAddChannelMember,
   canEditOpenInvite,
+  channelAgentCandidates,
   channelAgentRows,
   channelInviteCandidates,
   signedInHuman,
@@ -23,8 +24,9 @@ describe('who may add, and who may change the checkbox', () => {
     assert.equal(canAddChannelMember({ selfId: 'HUM-1', createdBy: 'HUM-1', membersOpenInvite: false }), true)
     assert.equal(canAddChannelMember({ selfId: 'HUM-2', createdBy: 'HUM-1', membersOpenInvite: false }), false)
     assert.equal(canAddChannelMember({ selfId: 'HUM-2', createdBy: 'HUM-1', membersOpenInvite: true }), true)
-    assert.equal(canAddChannelMember({ selfId: 'HUM-1', createdBy: 'hub', membersOpenInvite: false }), false)
-    assert.equal(canAddChannelMember({ selfId: 'HUM-1', createdBy: 'wui', membersOpenInvite: false }), false)
+    assert.equal(canAddChannelMember({ selfId: 'HUM-1', createdBy: 'hub', membersOpenInvite: false }), true)
+    assert.equal(canAddChannelMember({ selfId: 'HUM-1', createdBy: 'wui', membersOpenInvite: false }), true)
+    assert.equal(canAddChannelMember({ selfId: 'HUM-1', createdBy: '', membersOpenInvite: false }), false)
     assert.equal(canAddChannelMember({ selfId: '', createdBy: 'HUM-1', membersOpenInvite: true }), false)
   })
 
@@ -60,6 +62,17 @@ describe('People offers humans, Agents offers boxes', () => {
     ])
     assert.equal(rows.some((r) => r.id === 'HUM-1'), false)
     assert.deepEqual(channelAgentRows(undefined), [])
+  })
+
+  it('an announced agent who is not already in the channel can be invited', () => {
+    const open = channelAgentCandidates(
+      { 'box-desk': ['CLE-07', 'HUM-9'], 'box-wui': ['HUM-1'], 'box-a': ['GRK-03', 'CLE-07'] },
+      [{ id: 'CLE-07', box: 'box-a' }],
+    )
+    assert.deepEqual(open, [
+      { id: 'CLE-07', box: 'box-desk' },
+      { id: 'GRK-03', box: 'box-a' },
+    ])
   })
 })
 
@@ -114,6 +127,9 @@ describe('the Properties dialog', () => {
     assert.match(dialog, /:disabled="!canEdit \|\| busy"/)
     assert.match(dialog, /t\('channels\.properties\.everyone_can_invite'\)/)
     assert.match(dialog, /api\.setMembersOpenInvite\(props\.channelId, next\)/)
+    assert.match(dialog, /data-testid="channel-invite-person"/)
+    assert.match(dialog, /data-testid="channel-invite-agent"/)
+    assert.match(dialog, /api\.addChannelAgent\(props\.channelId, row\.id, row\.box\)/)
     const dir = join(WUI, 'i18n/locales')
     const files = readdirSync(dir).filter((f) => f.endsWith('.json'))
     assert.equal(files.length, 19)
@@ -130,6 +146,11 @@ describe('the Properties dialog', () => {
       assert.equal(p.agents_tab, 'Agents', f)
       assert.equal(p.agents_none, 'No agents', f)
       assert.equal(p.invite_empty, 'They have to be a member of the tenant first.', f)
+      assert.equal(p.invite, 'Invite', f)
+      assert.equal(p.invite_person, 'Invite a person', f)
+      assert.equal(p.invite_agent, 'Invite an agent', f)
+      assert.equal(p.invite_owner_only, 'Only the channel owner can invite someone in.', f)
+      assert.equal(p.agents_invite_empty, 'Every announced agent is already in this channel.', f)
       assert.equal(j.sidebar.row_menu.properties, 'Properties', f)
     }
   })

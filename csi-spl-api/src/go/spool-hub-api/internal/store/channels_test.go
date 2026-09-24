@@ -10,6 +10,35 @@ import (
 // channels-v1 on memory and, with SPOOL_TEST_PG_DSN, Postgres: seeded
 // defaults, create rules, subscriptions, members, stats with unread, and the
 // topic filters of view-v1 §4.3/§4.5 (roots, children, DMs, peer, viewer).
+func TestInviteChannelAgentSurvivesAnnounce(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			tid := newTenant(t, s)
+			if err := s.CreateChannel(ctx, Channel{TenantID: tid, ChannelID: "live-proof", Name: "live-proof", CreatedBy: "wui", CreatedAt: now}); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.SetRoster(ctx, tid, "box-desk", []string{"CLE-07"}, now); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.InviteChannelAgent(ctx, tid, "live-proof", "box-desk", "CLE-07", now); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.SetSubscriptions(ctx, tid, "box-desk", []string{"CLE-07"}, []string{"tasks"}, now); err != nil {
+				t.Fatal(err)
+			}
+			m, err := s.ChannelMembers(ctx, tid, "live-proof")
+			if err != nil || len(m["box-desk"]) != 1 || m["box-desk"][0] != "CLE-07" {
+				t.Fatalf("invite dropped by announce: %v %+v", err, m)
+			}
+			if err := s.InviteChannelAgent(ctx, tid, "lobby", "box-desk", "CLE-07", now); !errors.Is(err, ErrConflict) {
+				t.Fatalf("lobby invite: %v", err)
+			}
+		})
+	}
+}
+
 func TestStoreChannels(t *testing.T) {
 	for name, s := range drivers(t) {
 		t.Run(name, func(t *testing.T) {

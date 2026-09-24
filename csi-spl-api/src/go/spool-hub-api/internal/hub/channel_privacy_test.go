@@ -462,6 +462,71 @@ func TestChannelMembersAPI(t *testing.T) {
 	}
 }
 
+// A channel recorded as created_by "wui" has no human owner. A member of it
+// can still invite a person and an announced agent, and the agent stays
+// after the box announces a set that does not include the channel.
+func TestOwnerlessChannelCanInvitePersonAndAgent(t *testing.T) {
+	e := rbacEnv(t)
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	member := seat(t, e, tid, "developer")
+	other := seat(t, e, tid, "developer")
+	outsider := seat(t, e, tid, "developer")
+	if err := e.st.CreateChannel(ctx, store.Channel{TenantID: tid, ChannelID: "live-proof",
+		Name: "live-proof", CreatedBy: "wui", CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.AddChannelHumans(ctx, tid, "live-proof", []string{member}, "wui", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.SetRoster(ctx, tid, "box-desk", []string{"CLE-07"}, now); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := call(t, e, tid, http.MethodPost, "/v1/channels/live-proof/agents", outsider,
+		map[string]string{"id": "CLE-07", "box": "box-desk"}); code != http.StatusNotFound {
+		t.Errorf("non-member inviting an agent: %d, want 404", code)
+	}
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/live-proof/members", member,
+		map[string]string{"human_id": other}); code != http.StatusCreated {
+		t.Fatalf("ownerless member adds a person: %d %v", code, out)
+	}
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/live-proof/agents", member,
+		map[string]string{"id": "CLE-07", "box": "box-desk"}); code != http.StatusCreated {
+		t.Fatalf("ownerless member invites an agent: %d %v", code, out)
+	}
+	if err := e.st.SetSubscriptions(ctx, tid, "box-desk", []string{"CLE-07"}, nil, now); err != nil {
+		t.Fatal(err)
+	}
+	code, out := call(t, e, tid, http.MethodGet, "/v1/channels/live-proof/members", member, nil)
+	if code != http.StatusOK {
+		t.Fatalf("GET members: %d %v", code, out)
+	}
+	if out["created_by"] != "wui" {
+		t.Errorf("created_by: %v", out["created_by"])
+	}
+	found := false
+	if ags, ok := out["agents"].([]any); ok {
+		for _, a := range ags {
+			m, _ := a.(map[string]any)
+			if fmtAgent(m) == "CLE-07@box-desk" {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Errorf("invited agent dropped after announce: %v", out["agents"])
+	}
+	if code, _ = call(t, e, tid, http.MethodPost, "/v1/channels/live-proof/agents", member,
+		map[string]string{"id": "CLE-99", "box": "box-desk"}); code != http.StatusNotFound {
+		t.Errorf("unknown agent: %d, want 404", code)
+	}
+	if code, _ = call(t, e, tid, http.MethodPost, "/v1/channels/lobby/agents", member,
+		map[string]string{"id": "CLE-07", "box": "box-desk"}); code != http.StatusConflict {
+		t.Errorf("lobby agent invite: %d, want 409", code)
+	}
+}
+
 var _ = websocket.StatusNormalClosure
 
 // The shape of the topic the owner actually reported, taken from dev t1

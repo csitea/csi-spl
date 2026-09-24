@@ -112,12 +112,46 @@ export function signedInHuman(me, opts = {}) {
   return ''
 }
 
-/** Owner, or any current member when members_open_invite is on. */
+/**
+ * Owner, or any current member when members_open_invite is on.
+ * A channel recorded as hub or wui has no human owner, so a signed-in
+ * member may invite. An empty created_by is not that case.
+ */
 export function canAddChannelMember({ selfId, createdBy, membersOpenInvite } = {}) {
   const self = String(selfId || '')
+  const by = String(createdBy || '')
   if (!HUMAN_ID_RE.test(self)) return false
-  if (self === String(createdBy || '')) return true
-  return membersOpenInvite === true
+  if (self === by) return true
+  if (membersOpenInvite === true) return true
+  return by !== '' && !HUMAN_ID_RE.test(by)
+}
+
+const AGENT_ID_RE = /^[A-Z]{2,4}-[0-9]+$/
+
+/**
+ * Announced agents the channel can still invite. Humans and the browser
+ * box are not agents. An agent already in the channel is left out.
+ */
+export function channelAgentCandidates(roster, current) {
+  const have = new Set((current || []).map((row) => String(row && row.id) + '\0' + String(row && row.box)))
+  const out = []
+  const seen = new Set()
+  const boxes = roster && typeof roster === 'object' ? Object.keys(roster) : []
+  boxes.sort()
+  for (const box of boxes) {
+    if (box === 'box-wui') continue
+    const ids = Array.isArray(roster[box]) ? roster[box] : []
+    for (const raw of ids) {
+      const id = String(raw || '')
+      if (!AGENT_ID_RE.test(id) || id.startsWith('HUM-')) continue
+      const key = id + '\0' + box
+      if (have.has(key) || seen.has(key)) continue
+      seen.add(key)
+      out.push({ id, box })
+    }
+  }
+  out.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.box < b.box ? -1 : a.box > b.box ? 1 : 0))
+  return out
 }
 
 /** The Settings checkbox is enabled only for the channel owner. */
@@ -163,6 +197,7 @@ function parseMemberList(data, channel) {
     default: Boolean(data && data.default),
     members,
     members_open_invite: Boolean(data && data.members_open_invite),
+    created_by: String((data && data.created_by) || ''),
     agents,
   }
 }
@@ -193,6 +228,7 @@ export function createSpoolClient({
   if (state) {
     state.memberships = Object.create(null)
     state.openInvite = Object.create(null)
+    state.agentMembers = Object.create(null)
   }
   const mockBlobs = new Map()
   const root = String(base || '').replace(/\/+$/, '')
@@ -249,6 +285,7 @@ export function createSpoolClient({
     if (isPublicChannel(id)) {
       return { channel: id, default: true, members: [], members_open_invite: false, agents: [] }
     }
+    const row = state.channels.find((c) => c.channel_id === id)
     const members = (state.memberships[id] || []).slice()
     if (!members.includes(state.me.id)) {
       throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
@@ -258,8 +295,16 @@ export function createSpoolClient({
       default: false,
       members,
       members_open_invite: state.openInvite[id] === true,
-      agents: [],
+      created_by: String((row && row.created_by) || ''),
+      agents: (state.agentMembers[id] || []).slice(),
     }
+  }
+
+  function mockMayInvite(row) {
+    if (!row) return false
+    if (row.created_by === state.me.id) return true
+    if (state.openInvite[row.channel_id] === true) return true
+    return Boolean(row.created_by) && !HUMAN_ID_RE.test(row.created_by)
   }
 
   function mockAddMember(channel, humanId) {
@@ -275,13 +320,36 @@ export function createSpoolClient({
     if (!members || !members.includes(state.me.id)) {
       throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
     }
-    const owner = row.created_by === state.me.id
-    if (!owner && state.openInvite[id] !== true) throw memberError(403, 'forbidden', 'forbidden')
+    if (!mockMayInvite(row)) throw memberError(403, 'forbidden', 'forbidden')
     if (!HUMAN_ID_RE.test(hid) || !rosterHumanIds(state.roster).includes(hid)) {
       throw memberError(404, 'not_a_member', `${hid} is not a member of this tenant`)
     }
     if (!members.includes(hid)) members.push(hid)
     return { channel: id, human_id: hid, added_by: state.me.id }
+  }
+
+  function mockAddAgent(channel, agentId, box) {
+    const id = normalizeChannelId(channel)
+    const agent = String(agentId || '')
+    const boxId = String(box || '')
+    if (!agent || !boxId) throw memberError(400, 'bad_json', 'body must be {id, box}')
+    const row = state.channels.find((c) => c.channel_id === id)
+    if (!row) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    if (isPublicChannel(id)) {
+      throw memberError(409, 'channel_public', `#${id} is a default channel: every announced agent already reads it`)
+    }
+    const members = state.memberships[id]
+    if (!members || !members.includes(state.me.id)) {
+      throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    }
+    if (!mockMayInvite(row)) throw memberError(403, 'forbidden', 'forbidden')
+    const announced = (state.roster && state.roster[boxId]) || []
+    if (!announced.includes(agent)) {
+      throw memberError(404, 'not_a_member', `${agent} is not announced on ${boxId}`)
+    }
+    const list = state.agentMembers[id] || (state.agentMembers[id] = [])
+    if (!list.some((a) => a.id === agent && a.box === boxId)) list.push({ id: agent, box: boxId })
+    return { channel: id, id: agent, box: boxId }
   }
 
   function mockSetOpen(channel, flag) {
@@ -649,6 +717,21 @@ export function createSpoolClient({
         body: JSON.stringify({ human_id: id }),
       })
       return data || { channel: String(channel || ''), human_id: id }
+    },
+    /**
+     * Invite one announced agent into the channel. The row survives the
+     * box's next announce. 201 {channel, id, box}.
+     */
+    async addChannelAgent(channel, agentId, box) {
+      const id = String(agentId || '')
+      const boxId = String(box || '')
+      if (mock) return mockAddAgent(channel, id, boxId)
+      const data = await live(`/v1/channels/${encodeURIComponent(String(channel || ''))}/agents`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, box: boxId }),
+      })
+      return data || { channel: String(channel || ''), id, box: boxId }
     },
     /**
      * channels-v1 membership flag. Only the channel owner may change it.

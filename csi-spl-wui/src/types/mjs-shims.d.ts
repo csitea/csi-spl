@@ -10,6 +10,7 @@ declare module '~/utils/spool-client.mjs' {
   export function canAddChannelMember(opts: { selfId?: string, createdBy?: string, membersOpenInvite?: boolean }): boolean
   export function canEditOpenInvite(opts: { selfId?: string, createdBy?: string }): boolean
   export function channelAgentRows(agents: readonly { id?: string, box?: string }[] | null | undefined): { id: string, box: string }[]
+  export function channelAgentCandidates(roster: Record<string, readonly string[]> | null | undefined, current: readonly { id?: string, box?: string }[] | null | undefined): { id: string, box: string }[]
   export function aboutChannelName(row: { name?: string, channel_id?: string, channel?: string } | null | undefined): string
   export function aboutChannelDescription(row: { description?: string } | null | undefined): string
   export function createSpoolClient(opts?: {
@@ -78,8 +79,9 @@ declare module '~/utils/spool-client.mjs' {
       msg_id?: string
     }): Promise<import('./spool').SpoolMessage>
     createChannel(opts: { channel_id?: string, name?: string, description?: string }): Promise<import('./spool').ChannelRow>
-    listChannelMembers(channel: string): Promise<{ channel: string, default: boolean, members: string[], members_open_invite: boolean, agents: { id: string, box: string }[] }>
+    listChannelMembers(channel: string): Promise<{ channel: string, default: boolean, members: string[], members_open_invite: boolean, created_by: string, agents: { id: string, box: string }[] }>
     addChannelMember(channel: string, humanId: string): Promise<{ channel: string, human_id: string, added_by?: string }>
+    addChannelAgent(channel: string, agentId: string, box: string): Promise<{ channel: string, id: string, box: string }>
     setMembersOpenInvite(channel: string, open: boolean): Promise<{ channel: string, members_open_invite: boolean }>
     /** message-edit-v1 §1: PATCH /v1/messages/{msg_id} with { body }. */
     editMessage(msgId: string, body: string): Promise<import('./spool').SpoolMessage>

@@ -49,9 +49,11 @@
             <li v-for="id in localMembers" :key="id">{{ id }}</li>
           </ul>
           <template v-if="canAdd">
+            <p class="channel-properties__invite" data-testid="channel-invite-person">{{ t('channels.properties.invite_person') }}</p>
             <p v-if="candidates.length === 0" class="muted" data-testid="channel-invite-empty">{{ t('channels.properties.invite_empty') }}</p>
             <ul v-else class="invite-candidates" data-testid="channel-invite-candidates">
               <li v-for="(id, index) in candidates" :key="id">
+                <span>{{ id }}</span>
                 <button
                   type="button"
                   class="btn ghost"
@@ -59,10 +61,11 @@
                   :data-autofocus="index === 0 ? '' : undefined"
                   :data-testid="'channel-invite-pick-' + id"
                   @click="pick(id)"
-                >{{ id }}</button>
+                >{{ t('channels.properties.invite') }}</button>
               </li>
             </ul>
           </template>
+          <p v-else class="muted" data-testid="channel-invite-owner-only">{{ t('channels.properties.invite_owner_only') }}</p>
         </template>
       </div>
 
@@ -80,6 +83,23 @@
             <span class="muted">{{ row.box }}</span>
           </li>
         </ul>
+        <template v-if="canAdd">
+          <p class="channel-properties__invite" data-testid="channel-invite-agent">{{ t('channels.properties.invite_agent') }}</p>
+          <p v-if="agentCandidates.length === 0" class="muted" data-testid="channel-agent-invite-empty">{{ t('channels.properties.agents_invite_empty') }}</p>
+          <ul v-else class="invite-candidates" data-testid="channel-agent-candidates">
+            <li v-for="row in agentCandidates" :key="row.id + '@' + row.box">
+              <span>{{ row.id }}</span>
+              <span class="muted">{{ row.box }}</span>
+              <button
+                type="button"
+                class="btn ghost"
+                :disabled="busy"
+                :data-testid="'channel-agent-invite-' + row.id"
+                @click="pickAgent(row)"
+              >{{ t('channels.properties.invite') }}</button>
+            </li>
+          </ul>
+        </template>
       </div>
 
       <div
@@ -109,6 +129,7 @@ import {
   aboutChannelName,
   canAddChannelMember,
   canEditOpenInvite,
+  channelAgentCandidates,
   channelAgentRows,
   channelInviteCandidates,
   inviteErrorToken,
@@ -148,20 +169,24 @@ const error = ref('')
 const openInvite = ref(false)
 const localMembers = ref<string[]>([])
 const rosterIds = ref<string[]>([])
+const rosterBag = ref<Record<string, string[]>>({})
+const createdByLive = ref('')
 const agents = ref<{ id: string, box: string }[]>([])
 let ticket = 0
 
 const nameText = computed(() => aboutChannelName({ name: props.name, channel_id: props.channelId }))
 const descriptionText = computed(() => aboutChannelDescription({ description: props.description }))
 const selfId = computed(() => signedInHuman(access.me, { mock: api.mock, rosterMe: roster.me?.id || '' }))
-const canEdit = computed(() => canEditOpenInvite({ selfId: selfId.value, createdBy: props.createdBy }))
+const effectiveCreatedBy = computed(() => createdByLive.value || props.createdBy)
+const canEdit = computed(() => canEditOpenInvite({ selfId: selfId.value, createdBy: effectiveCreatedBy.value }))
 const canAdd = computed(() => canAddChannelMember({
   selfId: selfId.value,
-  createdBy: props.createdBy,
+  createdBy: effectiveCreatedBy.value,
   membersOpenInvite: openInvite.value,
 }))
 const candidates = computed(() => channelInviteCandidates(rosterIds.value, localMembers.value))
 const agentRows = computed(() => channelAgentRows(agents.value))
+const agentCandidates = computed(() => channelAgentCandidates(rosterBag.value, agentRows.value))
 
 function rosterOf(data: unknown): Record<string, string[]> | undefined {
   if (!data || typeof data !== 'object' || !('roster' in data)) return undefined
@@ -181,12 +206,14 @@ watch(() => props.open, async (isOpen) => {
   openInvite.value = false
   localMembers.value = []
   rosterIds.value = []
+  rosterBag.value = {}
+  createdByLive.value = ''
   agents.value = []
   try {
     const [mem, ros] = await Promise.all([
       withSessionRetry(api, () => api.listChannelMembers(props.channelId)),
       withSessionRetry(api, () => api.listRoster()),
-    ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, agents?: { id: string, box: string }[] }, unknown]
+    ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, created_by?: string, agents?: { id: string, box: string }[] }, unknown]
     if (my !== ticket) return
     if (mem.default) {
       error.value = 'channel_public'
@@ -195,8 +222,11 @@ watch(() => props.open, async (isOpen) => {
     }
     localMembers.value = Array.isArray(mem.members) ? mem.members.map((id) => String(id)) : []
     openInvite.value = mem.members_open_invite === true
+    createdByLive.value = String(mem.created_by || '')
     agents.value = Array.isArray(mem.agents) ? mem.agents : []
-    rosterIds.value = rosterHumanIds(rosterOf(ros))
+    const bag = rosterOf(ros) || {}
+    rosterBag.value = bag
+    rosterIds.value = rosterHumanIds(bag)
   } catch (e) {
     if (my !== ticket) return
     error.value = inviteErrorToken(e)
@@ -205,6 +235,22 @@ watch(() => props.open, async (isOpen) => {
     if (my === ticket) loaded.value = true
   }
 })
+
+async function pickAgent(row: { id: string, box: string }) {
+  if (busy.value || !canAdd.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    await withSessionRetry(api, () => api.addChannelAgent(props.channelId, row.id, row.box))
+    if (!agents.value.some((a) => a.id === row.id && a.box === row.box)) {
+      agents.value = [...agents.value, { id: row.id, box: row.box }]
+    }
+  } catch (e) {
+    error.value = inviteErrorToken(e)
+  } finally {
+    busy.value = false
+  }
+}
 
 async function pick(id: string) {
   if (busy.value || !canAdd.value) return
@@ -290,6 +336,18 @@ async function onToggle(ev: Event) {
   max-width: 100%;
 }
 .invite-members li { font-size: 13px; }
+.channel-properties__invite {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.invite-candidates li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
 .invite-candidates .btn {
   max-width: 100%;
   overflow-wrap: anywhere;

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -27,11 +28,28 @@ import (
 func (s *Server) routeChannelMembers(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/channels/{channel}/members", s.handleListChannelMembers)
 	mux.HandleFunc("POST /v1/channels/{channel}/members", s.handleAddChannelMember)
+	mux.HandleFunc("POST /v1/channels/{channel}/agents", s.handleAddChannelAgent)
 	mux.HandleFunc("DELETE /v1/channels/{channel}/members/{human_id}", s.handleRemoveChannelMember)
 	mux.HandleFunc("PATCH /v1/channels/{channel}", s.handlePatchChannelInvite)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/members", s.channelMembersPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/members/{human_id}", s.channelMembersPreflight)
+	mux.HandleFunc("OPTIONS /v1/channels/{channel}/agents", s.channelMembersPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}", s.channelInvitePreflight)
+}
+
+// agentIDRe is an agent id (CLE-07, GRK-03, AGY-02). A human is HUM-* and
+// is not invited on the agent door.
+var agentIDRe = regexp.MustCompile(`^[A-Z]{2,4}-[0-9]+$`)
+
+// mayInviteChannel is who may add a person or an agent. The owner may.
+// Any current member may when members_open_invite is on. A channel whose
+// created_by is not a HUM-* (hub, wui) has nobody who matches the owner
+// rule, so a current member may invite or the channel can never grow.
+func mayInviteChannel(createdBy, caller string, open bool) bool {
+	if channelOwner(createdBy, caller) || open {
+		return true
+	}
+	return caller != "" && !strings.HasPrefix(createdBy, "HUM-")
 }
 
 func (s *Server) channelMembersPreflight(w http.ResponseWriter, r *http.Request) {
@@ -137,6 +155,7 @@ func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]any{
 		"channel": ch, "default": store.ChannelPublic(ch), "members": ms,
 		"members_open_invite": row.MembersOpenInvite,
+		"created_by":          row.CreatedBy,
 		"agents":              channelAgentList(agents),
 	})
 }
@@ -188,7 +207,7 @@ func (s *Server) handleAddChannelMember(w http.ResponseWriter, r *http.Request) 
 		if !ok {
 			return
 		}
-		if !channelOwner(row.CreatedBy, hum) && !row.MembersOpenInvite {
+		if !mayInviteChannel(row.CreatedBy, hum, row.MembersOpenInvite) {
 			writeErr(w, http.StatusForbidden, "forbidden", "only the channel owner may add members")
 			return
 		}
@@ -232,6 +251,78 @@ func (s *Server) handleAddChannelMember(w http.ResponseWriter, r *http.Request) 
 	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("human", body.HumanID).
 		Str("by", hum).Msg("channel member added")
 	writeJSON(w, http.StatusCreated, map[string]any{"channel": ch, "human_id": body.HumanID, "added_by": hum})
+}
+
+// POST /v1/channels/{channel}/agents {"id","box"} — subscribe one announced
+// agent. The same people who may add a human may invite an agent. The row
+// is origin invite, so the box's next announce does not drop it.
+func (s *Server) handleAddChannelAgent(w http.ResponseWriter, r *http.Request) {
+	t, ch, hum, ok := s.channelDoor(w, r)
+	if !ok {
+		return
+	}
+	if !store.ChannelPublic(ch) {
+		row, ok := s.channelRecord(w, r, t.ID, ch)
+		if !ok {
+			return
+		}
+		if !mayInviteChannel(row.CreatedBy, hum, row.MembersOpenInvite) {
+			writeErr(w, http.StatusForbidden, "forbidden", "only the channel owner may add members")
+			return
+		}
+	}
+	if !billing.AllowsWrite(t.BillingStatus) {
+		writeUnpaid(w)
+		return
+	}
+	var body struct {
+		ID  string `json:"id"`
+		Box string `json:"box"`
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil || body.ID == "" || body.Box == "" {
+		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {id, box}")
+		return
+	}
+	if store.ChannelPublic(ch) {
+		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: every announced agent already reads it")
+		return
+	}
+	if !agentIDRe.MatchString(body.ID) || strings.HasPrefix(body.ID, "HUM-") || body.Box == "box-wui" || strings.ContainsAny(body.Box, " \t") {
+		writeErr(w, http.StatusBadRequest, "bad_json", "id must be an agent and box must not be box-wui")
+		return
+	}
+	roster, err := s.o.Store.Roster(r.Context(), t.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "roster unavailable")
+		return
+	}
+	known := false
+	for _, id := range roster[body.Box] {
+		if id == body.ID {
+			known = true
+			break
+		}
+	}
+	if !known {
+		writeErr(w, http.StatusNotFound, "not_a_member", body.ID+" is not announced on "+body.Box)
+		return
+	}
+	if err := s.o.Store.InviteChannelAgent(r.Context(), t.ID, ch, body.Box, body.ID, s.o.Now()); err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+ch+" in this tenant")
+		case errors.Is(err, store.ErrConflict):
+			writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: every announced agent already reads it")
+		default:
+			writeErr(w, http.StatusInternalServerError, "internal", "agent subscription not stored")
+		}
+		return
+	}
+	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("agent", body.ID).
+		Str("box", body.Box).Str("by", hum).Msg("channel agent invited")
+	writeJSON(w, http.StatusCreated, map[string]any{"channel": ch, "id": body.ID, "box": body.Box})
 }
 
 // PATCH /v1/channels/{channel} {"members_open_invite": true|false}.

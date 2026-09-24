@@ -13,12 +13,19 @@ type memChannels struct {
 	subs map[[2]string]map[string][]string // (tenant, box) → channel → agents
 	// humans is the 0028 half: (tenant, channel) → human → added_by.
 	humans map[[2]string]map[string]string
+	// invited is (tenant, channel, box, agent) added from Properties.
+	// SetSubscriptions replaces subs and does not touch this.
+	invited map[[4]string]struct{}
 }
 
 func (c *memChannels) init() {
 	if c.rows == nil {
 		c.rows = map[[2]string]Channel{}
 		c.subs = map[[2]string]map[string][]string{}
+		c.invited = map[[4]string]struct{}{}
+	}
+	if c.invited == nil {
+		c.invited = map[[4]string]struct{}{}
 	}
 }
 
@@ -114,6 +121,21 @@ func (s *Memory) SetSubscriptions(_ context.Context, tenant, box string, agents,
 	return nil
 }
 
+// InviteChannelAgent keeps the agent in the channel across later announces.
+func (s *Memory) InviteChannelAgent(_ context.Context, tenant, channel, box, agent string, _ time.Time) error {
+	if IsDefaultChannel(channel) || !ValidChannelID(channel) {
+		return ErrConflict
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ch.init()
+	if _, ok := s.ch.rows[[2]string{tenant, channel}]; !ok {
+		return ErrNotFound
+	}
+	s.ch.invited[[4]string{tenant, channel, box, agent}] = struct{}{}
+	return nil
+}
+
 func (s *Memory) ChannelMembers(_ context.Context, tenant, channel string) (map[string][]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -131,6 +153,26 @@ func (s *Memory) ChannelMembers(_ context.Context, tenant, channel string) (map[
 		if k[0] == tenant && len(m[channel]) > 0 {
 			out[k[1]] = append([]string(nil), m[channel]...)
 		}
+	}
+	for key := range s.ch.invited {
+		if key[0] != tenant || key[1] != channel {
+			continue
+		}
+		box, agent := key[2], key[3]
+		have := false
+		for _, id := range out[box] {
+			if id == agent {
+				have = true
+				break
+			}
+		}
+		if !have {
+			out[box] = append(out[box], agent)
+		}
+	}
+	for box, ids := range out {
+		sort.Strings(ids)
+		out[box] = ids
 	}
 	return out, nil
 }

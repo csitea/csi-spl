@@ -91,7 +91,10 @@ func (s *Postgres) SetSubscriptions(ctx context.Context, tenant, box string, age
 		}
 	}
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `DELETE FROM channel_subscriptions WHERE tenant_id = $1 AND box_id = $2`, tenant, box); err != nil {
+		// An invited agent stays. Only the set this box announced last time
+		// is replaced by the set it is announcing now.
+		if _, err := tx.Exec(ctx, `DELETE FROM channel_subscriptions
+			WHERE tenant_id = $1 AND box_id = $2 AND origin = 'announce'`, tenant, box); err != nil {
 			return err
 		}
 		if len(chs) == 0 || len(agents) == 0 {
@@ -106,6 +109,22 @@ func (s *Postgres) SetSubscriptions(ctx context.Context, tenant, box string, age
 			WHERE c.tenant_id = $1 AND c.channel_id = ANY($3::text[])
 			ON CONFLICT DO NOTHING`, tenant, box, chs, agents, now)
 		return err
+	})
+}
+
+// InviteChannelAgent records one agent the members asked for. A later
+// announce deletes origin 'announce' only, so this row stays.
+func (s *Postgres) InviteChannelAgent(ctx context.Context, tenant, channel, box, agent string, now time.Time) error {
+	if IsDefaultChannel(channel) || !ValidChannelID(channel) {
+		return ErrConflict
+	}
+	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO channel_subscriptions
+			(tenant_id, channel_id, agent_id, box_id, subscribed_at, origin)
+			VALUES ($1, $2, $3, $4, $5, 'invite')
+			ON CONFLICT (tenant_id, channel_id, agent_id, box_id)
+			DO UPDATE SET origin = 'invite'`, tenant, channel, agent, box, now)
+		return mapFK(err)
 	})
 }
 

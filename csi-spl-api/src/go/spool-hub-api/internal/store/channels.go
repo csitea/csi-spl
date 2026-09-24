@@ -121,11 +121,16 @@ type Channels interface {
 	SetMembersOpenInvite(ctx context.Context, tenantID, channelID string, open bool) error
 	// ChannelKnown: a default channel or a created one of the tenant.
 	ChannelKnown(ctx context.Context, tenantID, channelID string) (bool, error)
-	// SetSubscriptions replaces box's subscriptions: every agent × every known
-	// channel in channels (unknown ids and lobby are skipped; lobby is implicit).
+	// SetSubscriptions replaces the box's announce subscriptions: every agent
+	// × every known channel in channels (unknown ids and lobby are skipped;
+	// lobby is implicit). Rows a member invited (origin invite) stay.
 	SetSubscriptions(ctx context.Context, tenantID, boxID string, agents, channels []string, now time.Time) error
+	// InviteChannelAgent records one agent on one box as a member of the
+	// channel. ErrConflict on a default channel. ErrNotFound when the
+	// channel does not exist. A later announce does not remove the row.
+	InviteChannelAgent(ctx context.Context, tenantID, channelID, boxID, agentID string, now time.Time) error
 	// ChannelMembers returns box → sorted agent ids subscribed to channelID
-	// (lobby: the whole announced roster).
+	// (lobby: the whole announced roster). Invited agents are included.
 	ChannelMembers(ctx context.Context, tenantID, channelID string) (map[string][]string, error)
 	// ViewChannelStats lists defaults, created and seen channels with counts,
 	// unread (per reads) and member stats. Read-only (FR-019).

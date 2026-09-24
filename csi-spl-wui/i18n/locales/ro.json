@@ -552,7 +552,12 @@
       "agents_none": "No agents",
       "settings_tab": "Settings",
       "everyone_can_invite": "everyone can invite new members",
-      "invite_empty": "They have to be a member of the tenant first."
+      "invite_empty": "They have to be a member of the tenant first.",
+      "invite": "Invite",
+      "invite_person": "Invite a person",
+      "invite_agent": "Invite an agent",
+      "invite_owner_only": "Only the channel owner can invite someone in.",
+      "agents_invite_empty": "Every announced agent is already in this channel."
     }
   }
 }

@@ -275,9 +275,11 @@ tenant-scoped RLS in the 0021 fail-closed form.
 A created channel has `members_open_invite` (rdb 0031), a boolean that
 defaults to false. Off, only the channel owner may add a member. The owner
 is `channels.created_by` when that value matches `^HUM-`; `hub` and `wui`
-are not owners. On, every current member of the channel may add a tenant
-human. A member who holds `channels.manage` but is not the owner is refused
-while the flag is false.
+are not owners. When `created_by` is not a `HUM-*` there is no owner, and
+a current member may invite a person or an agent. On, every current member
+of the channel may add a tenant human or an announced agent. A member who
+holds `channels.manage` but is not the owner is refused while the flag is
+false and a human owner exists.
 
 - `GET /v1/channels/{channel}/members` — members only. The body carries
   `members_open_invite` next to `channel`, `default` and `members` (false
@@ -293,10 +295,18 @@ while the flag is false.
   `channels.manage`.
 - `POST /v1/channels/{channel}/members` `{human_id}` — allowed when the
   caller is the owner, or when `members_open_invite` is true and the caller
-  is already in the channel; otherwise 403 `forbidden`. The target must
-  already be a member of the tenant. The other refusals stay: 400
-  `bad_json`, 404 `not_a_member`, 409 `channel_public`, 404
-  `unknown_channel` for a non-member.
+  is already in the channel, or when `created_by` is not a `HUM-*` (a
+  channel recorded as `hub` or `wui` has no human owner, so a current
+  member may invite). Otherwise 403 `forbidden`. The target must already
+  be a member of the tenant. The other refusals stay: 400 `bad_json`,
+  404 `not_a_member`, 409 `channel_public`, 404 `unknown_channel` for a
+  non-member.
+- `POST /v1/channels/{channel}/agents` `{id, box}` — the same callers.
+  `id` matches `^[A-Z]{2,4}-[0-9]+$` and must already be announced on
+  `box` (not `box-wui`). The row is stored with origin `invite` (rdb
+  0032). A later hello replaces only origin `announce`, so the invited
+  agent stays. 201 `{channel, id, box}`. An agent who is not on that
+  box is 404 `not_a_member`. A default channel is 409 `channel_public`.
 - `DELETE /v1/channels/{channel}/members/{human_id}` — `channels.manage`, or
   yourself (leaving needs no permission).
 - Creating a channel puts its creator in it; a members-only channel born empty
@@ -360,4 +370,4 @@ rediscovered.
 - **OQ-CH3** — `general` alias lifetime: (a) *recommended*: accepted until
   the next minor contract version, then `404 unknown_channel`; (b) forever.
 
-<!-- version: 1.5.0 · updated: 2026-09-23 · last-edit: 2026-09-23T18:40:00Z -->
+<!-- version: 1.5.1 · updated: 2026-09-24 · last-edit: 2026-09-24T17:40:00Z — channel invite for a person and an agent -->

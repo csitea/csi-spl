@@ -53,6 +53,33 @@ describe('composer growth (CLE-3437)', () => {
     const omni = ruleBody(css, '.composer.omnibox--global textarea')
     assert.match(omni, /field-sizing:\s*content/)
     assert.match(omni, /max-height:\s*40vh/)
+    assert.match(omni, /overflow-y:\s*auto/, 'past the bound the block scrolls inside the box')
+  })
+
+  // The bar is a column flex item. height alone loses to min-height:auto
+  // (the content size), which also beats max-height. The omnibox is a
+  // one-line slot (min-height:0, max-height:100%) so a ``` block or file
+  // chips overflow it downward and the shell does not move.
+  it('the top bar stays --top-bar-h while the omnibox may overflow it', () => {
+    const vue = read('src/components/TopBar.vue')
+    const bar = ruleBody(vue, '.top-bar')
+    assert.match(bar, /height:\s*var\(--top-bar-h\)/)
+    assert.match(bar, /min-height:\s*var\(--top-bar-h\)/)
+    assert.match(bar, /max-height:\s*var\(--top-bar-h\)/)
+    assert.match(bar, /overflow:\s*visible/)
+    const slot = ruleBody(vue, '.top-bar__omnibox')
+    assert.match(slot, /max-height:\s*100%/)
+    assert.match(slot, /min-height:\s*0/)
+    assert.match(slot, /overflow:\s*visible/)
+    const child = ruleBody(vue, '.top-bar__omnibox > .composer')
+    assert.match(child, /flex:\s*1 1 auto/)
+    assert.match(child, /flex-shrink:\s*0/)
+    assert.match(child, /min-height:\s*0/)
+    const phone = vue.slice(vue.indexOf('.top-bar--open .top-bar__omnibox {'))
+    const phoneBody = phone.slice(0, phone.indexOf('}'))
+    assert.match(phoneBody, /position:\s*absolute/)
+    assert.match(phoneBody, /max-height:\s*none/)
+    assert.match(phoneBody, /flex-direction:\s*row/)
   })
 
   // The rule above is keyed on `.composer textarea`, so it reaches a message

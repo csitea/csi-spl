@@ -202,14 +202,23 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* This header is a column flex item of .app-frame. min-height:auto there
+     is the content size and beats both height and max-height, so a tall
+     omnibox would stretch the bar. Pin all three and do not grow. */
+  height: var(--top-bar-h);
   min-height: var(--top-bar-h);
-  padding: 4px 12px;
+  max-height: var(--top-bar-h);
+  flex: 0 0 var(--top-bar-h);
+  /* 2px leaves the one-line composer (and the 44px account control) inside
+     the fixed bar, centred with the brand. 4px made that line 46px against
+     a 43px content box, so it sat high. */
+  padding: 2px 12px;
   background: var(--color-sidebar);
   border-bottom: 1px solid var(--color-border);
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  flex-shrink: 0;
+  overflow: visible;
 }
 .top-bar__start {
   display: flex;
@@ -233,19 +242,29 @@ onUnmounted(() => {
   margin-inline: auto;
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  /* One-line slot, centred in the bar. min-height:0 stops the composer's
+     content minimum from beating max-height; the composer then overflows
+     this slot downward, over the page, and the bar stays put. */
+  max-height: 100%;
+  min-height: 0;
+  overflow: visible;
+  align-self: center;
 }
 .top-bar__omnibox > .composer {
   flex: 1 1 auto;
+  flex-shrink: 0;
   min-width: 0;
+  min-height: 0;
 }
 .top-bar__send-error {
-  position: absolute;
-  top: 100%;
-  inset-inline: 0;
+  position: static;
   margin-top: 4px;
   z-index: 60;
+  flex: 0 0 auto;
 }
 .top-bar__close { display: none; }
 .top-bar__search-toggle {
@@ -273,17 +292,25 @@ onUnmounted(() => {
   .top-bar__search-toggle { display: inline-grid; place-items: center; }
   .top-bar--open .top-bar__omnibox {
     display: flex;
+    flex-direction: row;
     align-items: flex-start;
     gap: 6px;
     position: absolute;
     z-index: 2;
     inset-inline: 0;
     top: 0;
+    height: auto;
+    max-height: none;
     max-width: 100%;
     padding: 4px 8px;
     background: var(--color-sidebar);
     border-bottom: 1px solid var(--color-border);
     box-sizing: border-box;
+  }
+  .top-bar--open .top-bar__send-error {
+    position: absolute;
+    top: 100%;
+    inset-inline: 0;
   }
   .top-bar--open .top-bar__omnibox > :first-child { flex: 1; min-width: 0; }
   .top-bar--open .top-bar__close {

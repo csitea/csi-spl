@@ -1,0 +1,27 @@
+# A one-job smoke test that PROVES a self-hosted job starts while the
+# GitHub-hosted spending limit is blocking every ubuntu-latest job.
+# workflow_dispatch only: it is a probe, not a gate.
+name: "99 ops: self-hosted runner smoke"
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    name: "self-hosted runner answers"
+    runs-on: [self-hosted, tnk]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Who and where
+        run: |
+          set -euo pipefail
+          echo "runner=$RUNNER_NAME os=$RUNNER_OS user=$(id -un) host=$(hostname)"
+          echo "workspace=$GITHUB_WORKSPACE"
+      - name: The toolchain the gates need
+        run: |
+          set -euo pipefail
+          for t in go node docker yq python3 terraform; do
+            if command -v "$t" >/dev/null; then echo "ok   - $t $("$t" --version 2>&1 | head -1)"
+            else echo "MISS - $t"; fi
+          done

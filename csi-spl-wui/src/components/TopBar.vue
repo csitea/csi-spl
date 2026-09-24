@@ -209,12 +209,11 @@ onUnmounted(() => {
   min-height: var(--top-bar-h);
   max-height: var(--top-bar-h);
   flex: 0 0 var(--top-bar-h);
-  /* 2px leaves the one-line composer (and the 44px account control) inside
-     the fixed bar, centred with the brand. 4px made that line 46px against
-     a 43px content box, so it sat high. */
-  padding: 2px 12px;
+  /* 2px of this bar shows above the omnibox and 2px below it. The bottom
+     1px of the bar is the border, so the bottom padding is 1px. */
+  padding: var(--top-bar-inset-top) 12px var(--top-bar-inset-bottom);
   background: var(--color-sidebar);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: var(--top-bar-border) solid var(--color-border);
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;

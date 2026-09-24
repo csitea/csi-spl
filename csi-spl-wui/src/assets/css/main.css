@@ -13,7 +13,16 @@ textarea {
   border-radius: var(--radius-sm);
 }
 
-:root { --top-bar-h: 52px; }
+:root {
+  --top-bar-h: 52px;
+  /* The resting omnibox, drag handle included, sits 2px inside the bar on
+     both edges. The bar's own border is the bottom 1px of --top-bar-h, so
+     the bottom padding is 1px and that 1px plus the border is the 2px. */
+  --top-bar-inset-top: 2px;
+  --top-bar-inset-bottom: 1px;
+  --top-bar-border: 1px;
+  --omnibox-rest: calc(var(--top-bar-h) - var(--top-bar-inset-top) - var(--top-bar-inset-bottom) - var(--top-bar-border));
+}
 /* 022: the top bar is sticky over the document; the shell fills the rest */
 .app-frame {
   display: flex;
@@ -667,18 +676,23 @@ html.pane-dragging * {
   background: transparent;
   border: 0;
 }
-/* The border belongs to the text field. The button row stays its own
-   height beside it and does not stretch when the field grows. */
+/* The border belongs to the text field. The resting field is exactly
+   --omnibox-rest (the bar minus 2px top and 2px bottom). The bottom
+   padding is the drag handle's lane, so the handle is inside that box
+   and not hanging below the bar. A taller field still grows downward. */
 .composer.omnibox--global .omnibox-field {
   display: block;
   position: relative;
   flex: 1 1 auto;
   align-self: flex-start;
   min-width: 0;
+  box-sizing: border-box;
+  min-height: var(--omnibox-rest);
   background: var(--color-composer);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: 2px 8px 12px;
+  /* 36px line + 10px handle lane + 2px border = --omnibox-rest (48px). */
+  padding: 0 8px 10px;
 }
 .omnibox-field { display: contents; }
 .composer.omnibox--global textarea {
@@ -697,12 +711,19 @@ html.pane-dragging * {
   flex-wrap: nowrap;
   height: auto;
 }
-.composer.omnibox--global .composer-row button { min-height: 36px; height: auto; padding: 6px 12px; align-self: flex-start; }
+/* Same resting height as the field, and no taller when the field grows. */
+.composer.omnibox--global .composer-row button {
+  box-sizing: border-box;
+  min-height: 0;
+  height: var(--omnibox-rest);
+  padding: 6px 12px;
+  align-self: flex-start;
+}
 .composer.omnibox--global .omnibox-resize {
   position: absolute;
   inset-inline: 8px;
   bottom: 1px;
-  height: 10px;
+  height: 8px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -716,8 +737,8 @@ html.pane-dragging * {
   display: block;
   width: 28px;
   height: 3px;
-  margin: 3px auto 0;
-  border-radius: 2px;
+  margin: 2px auto 0;
+  border-radius: var(--radius-pill);
   background: currentColor;
 }
 .composer.omnibox--global .code-hint:empty { display: none; }

@@ -52,6 +52,7 @@ describe('composer growth (CLE-3437)', () => {
   it('the top-bar Omnibox keeps its own bound too', () => {
     const omni = ruleBody(css, '.composer.omnibox--global textarea')
     assert.match(omni, /field-sizing:\s*content/)
+    assert.match(omni, /min-height:\s*36px/)
     assert.match(omni, /max-height:\s*calc\(100vh - var\(--top-bar-h\) - 8px\)/)
     assert.match(omni, /overflow-y:\s*auto/, 'past the bound the block scrolls inside the box')
     assert.match(css, /\.composer\.omnibox--global \.composer-row\s*\{[^}]*align-self:\s*flex-start/)
@@ -71,6 +72,29 @@ describe('composer growth (CLE-3437)', () => {
   // (the content size), which also beats max-height. The omnibox is a
   // one-line slot (min-height:0, max-height:100%) so a ``` block or file
   // chips overflow it downward and the shell does not move.
+  // The resting field, drag handle included, is the bar minus 2px at the
+  // top and 2px at the bottom. The bar's border is that bottom 1px, so the
+  // padding under the field is 1px. The handle lives in the field's bottom
+  // padding, and the buttons match the field instead of growing with it.
+  it('the resting omnibox fills the bar with 2px above and 2px below', () => {
+    assert.match(css, /--top-bar-inset-top:\s*2px/)
+    assert.match(css, /--top-bar-inset-bottom:\s*1px/)
+    assert.match(css, /--top-bar-border:\s*1px/)
+    assert.match(css, /--omnibox-rest:\s*calc\(var\(--top-bar-h\) - var\(--top-bar-inset-top\) - var\(--top-bar-inset-bottom\) - var\(--top-bar-border\)\)/)
+    const field = ruleBody(css, '.composer.omnibox--global .omnibox-field')
+    assert.match(field, /min-height:\s*var\(--omnibox-rest\)/)
+    assert.match(field, /padding:\s*0 8px 10px/)
+    const grip = ruleBody(css, '.composer.omnibox--global .omnibox-resize')
+    assert.match(grip, /position:\s*absolute/)
+    assert.match(grip, /height:\s*8px/)
+    const buttons = ruleBody(css, '.composer.omnibox--global .composer-row button')
+    assert.match(buttons, /height:\s*var\(--omnibox-rest\)/)
+    const vue = read('src/components/TopBar.vue')
+    const bar = ruleBody(vue, '.top-bar')
+    assert.match(bar, /padding:\s*var\(--top-bar-inset-top\) 12px var\(--top-bar-inset-bottom\)/)
+    assert.match(bar, /border-bottom:\s*var\(--top-bar-border\) solid/)
+  })
+
   it('the top bar stays --top-bar-h while the omnibox may overflow it', () => {
     const vue = read('src/components/TopBar.vue')
     const bar = ruleBody(vue, '.top-bar')

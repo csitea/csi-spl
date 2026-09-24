@@ -53,6 +53,124 @@ const CHANNEL_ERRORS = {
   bad_channel: (slug) => `"${slug}" is not a valid channel name (a-z, 0-9, "-", max 64)`,
 }
 
+/** store.ChannelPublic: the three default channels. `general` is the lobby alias. */
+const PUBLIC_CHANNELS = new Set(['lobby', 'tasks', 'alerts'])
+const HUMAN_ID_RE = /^HUM-[0-9]+$/
+
+export function normalizeChannelId(channel) {
+  const id = String(channel || '').replace(/^#/, '').trim().toLowerCase()
+  return id === 'general' ? 'lobby' : id
+}
+
+export function isPublicChannel(channel) {
+  return PUBLIC_CHANNELS.has(normalizeChannelId(channel))
+}
+
+/** Every id on the tenant roster, boxes in object order. */
+export function rosterHumanIds(roster) {
+  const out = []
+  if (!roster || typeof roster !== 'object') return out
+  for (const bag of Object.values(roster)) {
+    if (!Array.isArray(bag)) continue
+    for (const id of bag) out.push(String(id || ''))
+  }
+  return out
+}
+
+/**
+ * Who the invite picker offers: HUM-* already in the tenant, not already
+ * in the channel. Agents, guests and current members are left out.
+ */
+export function channelInviteCandidates(rosterIds, memberIds) {
+  const members = new Set((memberIds || []).map((id) => String(id)))
+  const seen = new Set()
+  const out = []
+  for (const raw of rosterIds || []) {
+    const id = String(raw || '')
+    if (!HUMAN_ID_RE.test(id) || members.has(id) || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
+/** Hub error token (`not_a_member`, `channel_public`, `forbidden`, `unknown_channel`). */
+export function inviteErrorToken(err) {
+  if (err && typeof err === 'object' && err.token) return String(err.token)
+  if (err instanceof Error && err.message) return err.message
+  return ''
+}
+
+/** Signed-in HUM-* . Live uses /v1/view/me. The mock has no me() and uses the roster. */
+export function signedInHuman(me, opts = {}) {
+  const id = me && typeof me.humanId === 'string' ? me.humanId : ''
+  if (HUMAN_ID_RE.test(id)) return id
+  if (opts && opts.mock) {
+    const rosterMe = String(opts.rosterMe || '')
+    return HUMAN_ID_RE.test(rosterMe) ? rosterMe : ''
+  }
+  return ''
+}
+
+/** Owner, or any current member when members_open_invite is on. */
+export function canAddChannelMember({ selfId, createdBy, membersOpenInvite } = {}) {
+  const self = String(selfId || '')
+  if (!HUMAN_ID_RE.test(self)) return false
+  if (self === String(createdBy || '')) return true
+  return membersOpenInvite === true
+}
+
+/** The Settings checkbox is enabled only for the channel owner. */
+export function canEditOpenInvite({ selfId, createdBy } = {}) {
+  const self = String(selfId || '')
+  return HUMAN_ID_RE.test(self) && self === String(createdBy || '')
+}
+
+/** Agents that receive the channel. People and the browser box are not agents. */
+export function channelAgentRows(agents) {
+  const rows = []
+  const seen = new Set()
+  for (const raw of agents || []) {
+    const id = String((raw && raw.id) || '')
+    const box = String((raw && raw.box) || '')
+    if (!id || /^HUM-/.test(id) || box === 'box-wui') continue
+    const key = id + '\0' + box
+    if (seen.has(key)) continue
+    seen.add(key)
+    rows.push({ id, box })
+  }
+  rows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.box < b.box ? -1 : a.box > b.box ? 1 : 0))
+  return rows
+}
+
+export function aboutChannelName(row) {
+  const name = String((row && row.name) || '').trim()
+  if (name) return name
+  return String((row && (row.channel_id || row.channel)) || '')
+}
+
+export function aboutChannelDescription(row) {
+  return String((row && row.description) || '').trim()
+}
+
+function parseMemberList(data, channel) {
+  const members = Array.isArray(data && data.members) ? data.members.map((id) => String(id)) : []
+  const agents = Array.isArray(data && data.agents)
+    ? data.agents.map((a) => ({ id: String((a && a.id) || ''), box: String((a && a.box) || '') })).filter((a) => a.id)
+    : []
+  return {
+    channel: String((data && data.channel) || channel || ''),
+    default: Boolean(data && data.default),
+    members,
+    members_open_invite: Boolean(data && data.members_open_invite),
+    agents,
+  }
+}
+
+function memberError(status, token, detail) {
+  return Object.assign(new Error(detail || token), { status, token, detail: detail || '' })
+}
+
 /**
  * Live mode talks to the tenant hub: the 003 viewer API (contracts/view-v1.md:
  * /v1/view/*, GET /v1/files/{file_id}, /v1/health — FR-023: Cloud Run shadows
@@ -72,6 +190,10 @@ export function createSpoolClient({
   sender = null,
 } = {}) {
   const state = mock ? cloneMock() : null
+  if (state) {
+    state.memberships = Object.create(null)
+    state.openInvite = Object.create(null)
+  }
   const mockBlobs = new Map()
   const root = String(base || '').replace(/\/+$/, '')
   let viewToken = String(token || '')
@@ -118,6 +240,64 @@ export function createSpoolClient({
     const ct = res.headers.get('content-type') || ''
     if (ct.includes('application/json')) return res.json()
     return res.arrayBuffer()
+  }
+
+  function mockMemberList(channel) {
+    const id = normalizeChannelId(channel)
+    const known = id && state.channels.some((c) => c.channel_id === id)
+    if (!known) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    if (isPublicChannel(id)) {
+      return { channel: id, default: true, members: [], members_open_invite: false, agents: [] }
+    }
+    const members = (state.memberships[id] || []).slice()
+    if (!members.includes(state.me.id)) {
+      throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    }
+    return {
+      channel: id,
+      default: false,
+      members,
+      members_open_invite: state.openInvite[id] === true,
+      agents: [],
+    }
+  }
+
+  function mockAddMember(channel, humanId) {
+    const id = normalizeChannelId(channel)
+    const hid = String(humanId || '')
+    if (!hid) throw memberError(400, 'bad_json', 'body must be {human_id}')
+    const row = state.channels.find((c) => c.channel_id === id)
+    if (!row) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    if (isPublicChannel(id)) {
+      throw memberError(409, 'channel_public', `#${id} is a default channel: every member of the tenant already reads it`)
+    }
+    const members = state.memberships[id]
+    if (!members || !members.includes(state.me.id)) {
+      throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    }
+    const owner = row.created_by === state.me.id
+    if (!owner && state.openInvite[id] !== true) throw memberError(403, 'forbidden', 'forbidden')
+    if (!HUMAN_ID_RE.test(hid) || !rosterHumanIds(state.roster).includes(hid)) {
+      throw memberError(404, 'not_a_member', `${hid} is not a member of this tenant`)
+    }
+    if (!members.includes(hid)) members.push(hid)
+    return { channel: id, human_id: hid, added_by: state.me.id }
+  }
+
+  function mockSetOpen(channel, flag) {
+    const id = normalizeChannelId(channel)
+    const row = state.channels.find((c) => c.channel_id === id)
+    if (!row) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    if (isPublicChannel(id)) {
+      throw memberError(409, 'channel_public', `#${id} is a default channel: every member of the tenant already reads it`)
+    }
+    const members = state.memberships[id] || []
+    if (!members.includes(state.me.id)) {
+      throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    }
+    if (row.created_by !== state.me.id) throw memberError(403, 'forbidden', 'forbidden')
+    state.openInvite[id] = flag === true
+    return { channel: id, members_open_invite: state.openInvite[id] === true }
   }
 
   const api = {
@@ -416,7 +596,14 @@ export function createSpoolClient({
       if (mock) {
         const row = { channel_id: slug, name: name || slug, created_by: state.me.id }
         if (about) row.description = about
-        if (!state.channels.some((c) => c.channel_id === slug)) state.channels.push(row)
+        if (!state.channels.some((c) => c.channel_id === slug)) {
+          state.channels.push(row)
+          // channels-v1 §7.4: creating a channel puts its creator in it.
+          if (!isPublicChannel(slug)) {
+            state.memberships[slug] = [state.me.id]
+            state.openInvite[slug] = false
+          }
+        }
         return row
       }
       let data
@@ -437,6 +624,50 @@ export function createSpoolClient({
       }
       const [row] = channelsFromView({ channels: [data || { channel: slug }] })
       return row
+    },
+    /**
+     * channels-v1 §7.4. A default channel answers `default: true` and
+     * `members: []`. A caller who is not in the channel gets the same 404
+     * as a missing channel (`unknown_channel`).
+     */
+    async listChannelMembers(channel) {
+      if (mock) return mockMemberList(channel)
+      const data = await live(`/v1/channels/${encodeURIComponent(String(channel || ''))}/members`)
+      return parseMemberList(data, channel)
+    },
+    /**
+     * channels-v1 §7.4: POST `{human_id}`. 201 on success. The caller must
+     * already be in the channel and hold `channels.manage`; the target must
+     * already be in the tenant. Mock records the id on that channel.
+     */
+    async addChannelMember(channel, humanId) {
+      const id = String(humanId || '')
+      if (mock) return mockAddMember(channel, id)
+      const data = await live(`/v1/channels/${encodeURIComponent(String(channel || ''))}/members`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ human_id: id }),
+      })
+      return data || { channel: String(channel || ''), human_id: id }
+    },
+    /**
+     * channels-v1 membership flag. Only the channel owner may change it.
+     * Absent on a read means false. 403 forbidden, 409 channel_public,
+     * 404 unknown_channel.
+     */
+    async setMembersOpenInvite(channel, open) {
+      const flag = open === true
+      if (mock) return mockSetOpen(channel, flag)
+      const data = await live(`/v1/channels/${encodeURIComponent(String(channel || ''))}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ members_open_invite: flag }),
+      })
+      const returned = data && typeof data.members_open_invite === 'boolean' ? data.members_open_invite : flag
+      return {
+        channel: String((data && (data.channel || data.channel_id)) || channel || ''),
+        members_open_invite: returned,
+      }
     },
     /**
      * Upload one browser File / Blob (003 http-v1 §3: raw bytes, Bearer upload

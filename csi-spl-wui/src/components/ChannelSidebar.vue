@@ -141,8 +141,9 @@
       :key="c.channel_id"
       class="nav-row"
       :data-order="c.channel_id"
-      :class="{ 'nav-row--pinned': channelOrder.includes(c.channel_id), 'nav-row--drag': dragging('channels', c.channel_id), 'nav-row--drop': dropping('channels', c.channel_id, channelIndex), 'nav-row--drop-after': droppingAfter('channels', channelIndex, channelRows.length) }"
+      :class="{ 'nav-row--muted': isChannelMuted(c.channel_id), 'nav-row--pinned': channelOrder.includes(c.channel_id), 'nav-row--drag': dragging('channels', c.channel_id), 'nav-row--drop': dropping('channels', c.channel_id, channelIndex), 'nav-row--drop-after': droppingAfter('channels', channelIndex, channelRows.length) }"
       @pointerdown="rowPointerDown($event, 'channels', c.channel_id)"
+      @contextmenu.prevent="openChannelMenu('ch:' + c.channel_id)"
       @click.capture="swallowDragClick"
     >
     <NuxtLink
@@ -164,11 +165,16 @@
       :name="c.name"
       :href="localePath('/channel/' + c.channel_id)"
       :unread="!!notes.unread['ch:' + c.channel_id]"
+      :channel="true"
+      :properties="showProperties(c.channel_id)"
+      :muted="isChannelMuted(c.channel_id)"
       :open="rowMenu === 'ch:' + c.channel_id"
       @toggle="toggleRowMenu('ch:' + c.channel_id)"
       @close="closeRowMenu()"
       @open="navigateTo(localePath('/channel/' + c.channel_id))"
       @mark-read="notes.markRead('ch:' + c.channel_id)"
+      @mute="toggleChannelMute(c.channel_id)"
+      @properties="openProperties(c.channel_id)"
     />
     </div>
     <!-- The new-channel dialog: title + description, one place, nothing in the
@@ -279,7 +285,7 @@
         <h2>{{ t('sidebar.flow') }}</h2>
         <p v-if="flow.length === 0" class="muted topic-empty">{{ t('feed.empty') }}</p>
         <template v-for="row in flow" :key="row.key">
-          <div v-if="row.kind === 'channel'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick">
+          <div v-if="row.kind === 'channel'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': isChannelMuted(row.id), 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick" @contextmenu.prevent="openChannelMenu('flow:ch:' + row.id)">
           <NuxtLink
             class="nav-item"
             :class="{ active: channel.active === row.id }"
@@ -297,11 +303,16 @@
             :name="row.label"
             :href="localePath('/channel/' + row.id)"
             :unread="!!notes.unread['ch:' + row.id]"
+            :channel="true"
+            :properties="showProperties(row.id)"
+            :muted="isChannelMuted(row.id)"
             :open="rowMenu === 'flow:ch:' + row.id"
             @toggle="toggleRowMenu('flow:ch:' + row.id)"
             @close="closeRowMenu()"
             @open="navigateTo(localePath('/channel/' + row.id))"
             @mark-read="notes.markRead('ch:' + row.id)"
+            @mute="toggleChannelMute(row.id)"
+            @properties="openProperties(row.id)"
           />
           </div>
           <div v-else-if="row.kind === 'dm'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': mutedPeers[row.label], 'nav-row--blocked': blockedPeers[row.label], 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick">
@@ -377,6 +388,13 @@
       <p id="app-version" class="version-stamp" :title="versionTitle || undefined" data-test="app-version">{{ versionText }}</p>
     </div>
     </div>
+    <ChannelPropertiesDialog
+      v-model:open="propertiesOpen"
+      :channel-id="propertiesChannel.channel_id"
+      :name="propertiesChannel.name"
+      :description="propertiesChannel.description"
+      :created-by="propertiesChannel.created_by"
+    />
   </nav>
 </template>
 
@@ -388,8 +406,11 @@ import { useViewerStore } from '~/stores/viewer'
 import { useTopicStore } from '~/stores/topic'
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
-import { useSpoolApi } from '~/composables/useSpoolApi'
+import { isPublicChannel } from '~/utils/spool-client.mjs'
 import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
+import { loadMutedChannels, normalizeChannel, saveMutedChannels, toggleMutedChannel } from '~/utils/notify.mjs'
+import ChannelPropertiesDialog from '~/components/ChannelPropertiesDialog.vue'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
 import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
@@ -420,6 +441,7 @@ function toggleRowMenu(id: string) {
   rowMenu.value = rowMenu.value === id ? '' : id
 }
 function closeRowMenu() { rowMenu.value = '' }
+function openChannelMenu(id: string) { rowMenu.value = id }
 /* The flow list stays up while a row from it is opened. Another icon clears it. */
 const holdFlow = ref(false)
 const route = useRoute()
@@ -528,6 +550,31 @@ const health = computed(() => connectionHealth(live.state.value))
 const hiddenPeers = ref<Record<string, true>>({})
 const blockedPeers = ref<Record<string, true>>({})
 const mutedPeers = ref<Record<string, true>>({})
+const mutedChannels = ref<string[]>([])
+const propertiesOpen = ref(false)
+const propertiesChannel = ref({ channel_id: '', name: '', description: '', created_by: '' })
+function isChannelMuted(id: string) {
+  return mutedChannels.value.includes(normalizeChannel(id))
+}
+function toggleChannelMute(id: string) {
+  mutedChannels.value = saveMutedChannels(toggleMutedChannel(mutedChannels.value, id))
+}
+function showProperties(id: string) {
+  if (isSignedOutVisitor(session.state, api.mock)) return false
+  const row = channel.channels.find((c) => c.channel_id === id)
+  if (isPublicChannel(id) || row?.default) return false
+  return true
+}
+function openProperties(id: string) {
+  const row = channel.channels.find((c) => c.channel_id === id)
+  propertiesChannel.value = {
+    channel_id: id,
+    name: String(row?.name || id),
+    description: String(row?.description || ''),
+    created_by: String(row?.created_by || ''),
+  }
+  propertiesOpen.value = true
+}
 /* index 0 is the top. A drag replaces the whole list: that order is pinned,
    and a person who appears later sorts after it, in the usual activity order. */
 const pinnedPeers = ref<string[]>([])
@@ -669,7 +716,10 @@ function swallowDragClick(e: MouseEvent) {
   e.preventDefault()
   e.stopPropagation()
 }
-onMounted(() => session.probe())
+onMounted(() => {
+  session.probe()
+  mutedChannels.value = loadMutedChannels()
+})
 /* specs/025 FR-008: the role decides which actions are offered (the hub re-checks). */
 watch(() => session.state, (st) => { if (st === 'in') access.load() }, { immediate: true })
 const newChannel = ref('')

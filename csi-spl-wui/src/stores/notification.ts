@@ -6,6 +6,8 @@ import {
   loadChime,
   saveChime,
   previewUnread,
+  shouldPing,
+  loadMutedChannels,
 } from '~/utils/notify.mjs'
 import {
   cursorFromChannel,
@@ -143,7 +145,7 @@ export const useNotificationStore = defineStore('notification', () => {
       }
       if (ctx.activeKey && ctx.activeKey === key) {
         markRead(key, m)
-        if (import.meta.client && typeof document !== 'undefined' && document.hidden) {
+        if (import.meta.client && typeof document !== 'undefined' && document.hidden && shouldPing(m, ctx, loadMutedChannels())) {
           const reason = escalateReason(m, ctx)
           if (reason) {
             const copy = copyFor(m, reason)
@@ -154,8 +156,8 @@ export const useNotificationStore = defineStore('notification', () => {
       }
       const reason = escalateReason(m, ctx)
       bump(key, reason)
-      if (reason) {
-        const copy = copyFor(m, reason)
+      if (shouldPing(m, ctx, loadMutedChannels())) {
+        const copy = copyFor(m, reason || '')
         ping(copy.title, copy.body)
       }
     }

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const REPO = join(WUI, '..')
-const ALLOWED = new Set(['spool-theme', 'spool.verbosity', 'spool.chime', 'spool.read-cursors', 'spool.pane-widths'])
+const ALLOWED = new Set(['spool-theme', 'spool.verbosity', 'spool.chime', 'spool.read-cursors', 'spool.pane-widths', 'spool.muted-channels'])
 
 function walk(dir, acc = []) {
   for (const name of readdirSync(dir, { withFileTypes: true })) {
@@ -62,7 +62,7 @@ describe('verbosity + notify wiring', () => {
       .concat(walk(join(WUI, 'src/pages')))
       .concat(walk(join(WUI, 'src/plugins')))
     const keys = new Set()
-    const keyRe = /['"](spool(?:-theme|\.verbosity|\.chime|\.read-cursors|\.pane-widths))['"]/g
+    const keyRe = /['"](spool(?:-theme|\.verbosity|\.chime|\.read-cursors|\.pane-widths|\.muted-channels))['"]/g
     for (const f of files) {
       const src = readFileSync(f, 'utf8')
       assert.equal(/localStorage\.setItem\([^)]*(token|Authorization|signed)/i.test(src), false, f)

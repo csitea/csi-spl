@@ -333,7 +333,8 @@
       "unmute": "Dempen opheffen",
       "pin": "Vastzetten",
       "unpin": "Losmaken",
-      "remove": "Verwijderen"
+      "remove": "Verwijderen",
+      "properties": "Properties"
     }
   },
   "composer": {
@@ -538,5 +539,19 @@
     "developer": "Ontwikkelaar",
     "tester": "Tester",
     "pure_agent": "Pure agent"
+  },
+  "channels": {
+    "properties": {
+      "about_tab": "About",
+      "about_name": "Name",
+      "about_description": "Description",
+      "about_no_description": "No description",
+      "people_tab": "People",
+      "agents_tab": "Agents",
+      "agents_none": "No agents",
+      "settings_tab": "Settings",
+      "everyone_can_invite": "everyone can invite new members",
+      "invite_empty": "They have to be a member of the tenant first."
+    }
   }
 }

@@ -5,9 +5,9 @@
  * only there when an admin (or the tenant owner) is signed in.
  *
  * @param {boolean} unread
- * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean }} [opts]
+ * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean, channel?: boolean, properties?: boolean }} [opts]
  */
-/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'trash', labelKey: string }[]} */
+/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'trash' | 'settings', labelKey: string }[]} */
 export function rowMenuItems(unread, opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
   const items = [
@@ -15,6 +15,14 @@ export function rowMenuItems(unread, opts = {}) {
     { id: 'copy', icon: 'copy', labelKey: 'sidebar.row_menu.copy_link' },
   ]
   if (unread) items.push({ id: 'read', icon: 'check', labelKey: 'sidebar.row_menu.mark_read' })
+  if (o.channel) {
+    items.push({
+      id: 'mute',
+      icon: o.muted ? 'bell' : 'bell-off',
+      labelKey: o.muted ? 'sidebar.row_menu.unmute' : 'sidebar.row_menu.mute',
+    })
+    if (o.properties) items.push({ id: 'properties', icon: 'settings', labelKey: 'sidebar.row_menu.properties' })
+  }
   if (o.person) {
     items.push({
       id: 'block',

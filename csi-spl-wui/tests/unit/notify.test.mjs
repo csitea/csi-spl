@@ -15,6 +15,11 @@ import {
   saveChime,
   previewUnread,
   CHIME_KEY,
+  shouldPing,
+  loadMutedChannels,
+  saveMutedChannels,
+  toggleMutedChannel,
+  MUTED_CHANNELS_KEY,
 } from '../../src/utils/notify.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
@@ -165,3 +170,32 @@ describe('live #alerts / DM escalation wiring (gap A2)', () => {
     assert.match(src('src/utils/uiIcons.ts'), /\n  bell: \[/)
   })
 })
+
+describe('muted channels do not ping', () => {
+  it('a mention on a muted channel does not ping, and the same mention on an open channel does', () => {
+    const mention = msg({ body: 'hey @HUM-1 please look', channel: 'releases' })
+    assert.equal(shouldPing(mention, { selfId: 'HUM-1' }, []), true)
+    assert.equal(shouldPing(mention, { selfId: 'HUM-1' }, ['releases']), false)
+    assert.equal(shouldPing(mention, { selfId: 'HUM-1' }, ['alerts']), true)
+    const alerts = msg({ channel: 'alerts', body: 'wake' })
+    assert.equal(shouldPing(alerts, { selfId: 'HUM-1' }, []), true)
+    assert.equal(shouldPing(alerts, { selfId: 'HUM-1' }, ['alerts']), false)
+    const dm = msg({ channel: null, from: 'CLE-07', to: 'HUM-1', body: 'hi' })
+    assert.equal(shouldPing(dm, { selfId: 'HUM-1' }, ['lobby', 'alerts', 'releases']), true)
+    assert.equal(shouldPing(msg({ channel: 'tasks', body: 'Applying patch' }), { selfId: 'HUM-1' }, []), false)
+  })
+
+  it('mute is remembered in this browser under spool.muted-channels', () => {
+    const store = memoryStore()
+    assert.deepEqual(loadMutedChannels(store), [])
+    const once = saveMutedChannels(toggleMutedChannel([], 'alerts'), store)
+    assert.deepEqual(once, ['alerts'])
+    assert.deepEqual(loadMutedChannels(store), ['alerts'])
+    assert.deepEqual(saveMutedChannels(toggleMutedChannel(once, '#alerts'), store), [])
+    assert.equal(MUTED_CHANNELS_KEY, 'spool.muted-channels')
+    const note = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
+    assert.match(note, /shouldPing\(m, ctx, loadMutedChannels\(\)\)/)
+    assert.match(note, /bump\(key, reason\)/)
+  })
+})
+

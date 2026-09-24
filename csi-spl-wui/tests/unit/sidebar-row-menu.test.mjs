@@ -56,6 +56,10 @@ describe('the language switcher changes the row-menu names', () => {
     for (const code of codes) {
       const row = JSON.parse(readFileSync(join(dir, code + '.json'), 'utf8')).sidebar.row_menu
       for (const key of Object.keys(en)) {
+        if (key === 'properties') {
+          assert.equal(row[key], 'Properties', code + ' ' + key)
+          continue
+        }
         assert.notEqual(row[key], en[key], code + ' ' + key)
         assert.equal(row[key].includes('{name}'), en[key].includes('{name}'), code + ' ' + key)
       }
@@ -145,3 +149,30 @@ describe('the menu sits on objects, not the tab rail', () => {
     assert.match(icons, /menu: \["M4 6h16", "M4 12h16", "M4 18h16"\]/)
   })
 })
+
+describe('channel rows', () => {
+  it('a channel menu includes mute and Properties, and a topic or person menu does not include Properties', () => {
+    const channel = rowMenuItems(false, { channel: true, properties: true }).map((i) => i.id)
+    assert.ok(channel.includes('mute'))
+    assert.ok(channel.includes('properties'))
+    assert.equal(rowMenuItems(false).some((i) => i.id === 'mute'), false)
+    assert.equal(rowMenuItems(false).some((i) => i.id === 'properties'), false)
+    assert.equal(rowMenuItems(true).some((i) => i.id === 'mute'), false)
+    assert.equal(rowMenuItems(false, { person: true }).some((i) => i.id === 'properties'), false)
+    assert.equal(rowMenuItems(false, { channel: true, muted: true }).find((i) => i.id === 'mute').labelKey, 'sidebar.row_menu.unmute')
+    assert.equal(rowMenuItems(false, { channel: true }).some((i) => i.id === 'properties'), false)
+    assert.equal(rowMenuItems(false, { channel: true, properties: true }).find((i) => i.id === 'properties').icon, 'settings')
+  })
+
+  it('right-click opens the same channel menu and a non-primary button does not drag', () => {
+    const vue = src('src/components/ChannelSidebar.vue')
+    assert.match(vue, /@contextmenu\.prevent="openChannelMenu\('ch:' \+ c\.channel_id\)"/)
+    assert.match(vue, /@contextmenu\.prevent="openChannelMenu\('flow:ch:' \+ row\.id\)"/)
+    assert.match(vue, /if \(e\.button !== 0\) return/)
+    assert.equal(vue.split(':channel="true"').length - 1, 2)
+    const topic = vue.slice(vue.indexOf('v-for="(row, topicIndex) in topicRows"'), vue.indexOf("row.kind === 'channel'"))
+    assert.doesNotMatch(topic, /openChannelMenu/)
+    assert.doesNotMatch(topic, /:channel="true"/)
+  })
+})
+

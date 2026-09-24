@@ -1,6 +1,17 @@
 declare module '~/utils/spool-client.mjs' {
   export function sha256Hex(buf: ArrayBuffer): Promise<string>
   export function credentialsFor(door: string): 'include' | 'omit'
+  export function normalizeChannelId(channel: string): string
+  export function isPublicChannel(channel: string): boolean
+  export function rosterHumanIds(roster: Record<string, readonly string[]> | null | undefined): string[]
+  export function channelInviteCandidates(rosterIds: readonly string[], memberIds: readonly string[]): string[]
+  export function inviteErrorToken(err: unknown): string
+  export function signedInHuman(me: { humanId?: string | null } | null | undefined, opts?: { mock?: boolean, rosterMe?: string }): string
+  export function canAddChannelMember(opts: { selfId?: string, createdBy?: string, membersOpenInvite?: boolean }): boolean
+  export function canEditOpenInvite(opts: { selfId?: string, createdBy?: string }): boolean
+  export function channelAgentRows(agents: readonly { id?: string, box?: string }[] | null | undefined): { id: string, box: string }[]
+  export function aboutChannelName(row: { name?: string, channel_id?: string, channel?: string } | null | undefined): string
+  export function aboutChannelDescription(row: { description?: string } | null | undefined): string
   export function createSpoolClient(opts?: {
     base?: string
     fetchFn?: typeof fetch
@@ -67,6 +78,9 @@ declare module '~/utils/spool-client.mjs' {
       msg_id?: string
     }): Promise<import('./spool').SpoolMessage>
     createChannel(opts: { channel_id?: string, name?: string, description?: string }): Promise<import('./spool').ChannelRow>
+    listChannelMembers(channel: string): Promise<{ channel: string, default: boolean, members: string[], members_open_invite: boolean, agents: { id: string, box: string }[] }>
+    addChannelMember(channel: string, humanId: string): Promise<{ channel: string, human_id: string, added_by?: string }>
+    setMembersOpenInvite(channel: string, open: boolean): Promise<{ channel: string, members_open_invite: boolean }>
     /** message-edit-v1 §1: PATCH /v1/messages/{msg_id} with { body }. */
     editMessage(msgId: string, body: string): Promise<import('./spool').SpoolMessage>
     fileUrl(fileId: string): string

@@ -3,7 +3,7 @@
  * Escalate only on HUM-* mention, DM received, or #alerts. Nothing else.
  */
 
-import { storageGet, storageSet } from './prefs.mjs'
+import { storageGet, storageGetJson, storageSet, storageSetJson } from './prefs.mjs'
 
 export const CHIME_KEY = 'spool.chime'
 export const MENTION_RE = /@([A-Z]{2,4}-\d+)(?:@[a-z0-9][a-z0-9-]{0,31})?\b/g
@@ -62,6 +62,42 @@ export function escalateReason(msg, ctx = {}) {
 
 export function shouldEscalate(msg, ctx = {}) {
   return escalateReason(msg, ctx) != null
+}
+
+/** This browser only. Not a hub field. */
+export const MUTED_CHANNELS_KEY = 'spool.muted-channels'
+
+export function loadMutedChannels(store) {
+  const raw = storageGetJson(MUTED_CHANNELS_KEY, [], store)
+  const ids = Array.isArray(raw) ? raw : []
+  return [...new Set(ids.map((id) => normalizeChannel(id)).filter(Boolean))]
+}
+
+export function saveMutedChannels(ids, store) {
+  const clean = [...new Set((ids || []).map((id) => normalizeChannel(id)).filter(Boolean))]
+  storageSetJson(MUTED_CHANNELS_KEY, clean, store)
+  return clean
+}
+
+export function toggleMutedChannel(ids, channel) {
+  const id = normalizeChannel(channel)
+  const next = new Set((ids || []).map((x) => normalizeChannel(x)).filter(Boolean))
+  if (!id) return [...next]
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  return [...next]
+}
+
+/**
+ * Ping only when the message would escalate and its channel is not muted.
+ * A DM has no channel, so a muted channel does not silence it.
+ */
+export function shouldPing(msg, ctx = {}, muted = []) {
+  if (!escalateReason(msg, ctx)) return false
+  const ch = normalizeChannel(msg && msg.channel) || normalizeChannel(ctx && ctx.channel)
+  if (!ch) return true
+  const set = new Set((muted || []).map((id) => normalizeChannel(id)))
+  return !set.has(ch)
 }
 
 export function notifyCopy(msg, reason) {

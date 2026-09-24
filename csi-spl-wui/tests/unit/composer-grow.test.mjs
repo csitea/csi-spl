@@ -60,6 +60,9 @@ describe('composer growth (CLE-3437)', () => {
     assert.match(box, /data-test="omnibox-resize"/)
     assert.match(box, /function startResize/)
     assert.match(box, /userHeight\.value != null/)
+    assert.match(box, /function collapseGlobalBox/)
+    assert.match(box, /@blur="onOmniboxBlur"/)
+    assert.match(box, /collapseGlobalBox\(false\)/)
   })
 
   // The bar is a column flex item. height alone loses to min-height:auto

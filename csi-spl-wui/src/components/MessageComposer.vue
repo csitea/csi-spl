@@ -91,6 +91,8 @@
           @input="syncMention"
           @click="syncMention"
           @keyup="syncMention"
+          @focus="onOmniboxFocus"
+          @blur="onOmniboxBlur"
         />
         <p :id="hintId" class="code-hint muted" aria-live="polite">{{ inCode ? t('composer.code_hint') : '' }}</p>
         <p v-if="global" :id="slashHintId" class="sr-only">{{ t('search.slash_shortcut') }}</p>
@@ -217,8 +219,29 @@ const inputEl = ref<HTMLTextAreaElement | null>(null)
 /* A drag on the grip. Null until the reader sets one, then typing does not
    snap the box back. */
 const userHeight = ref<number | null>(null)
+/* True after focus leaves, so a tall draft stays one line until the reader
+   comes back. Ctrl+Enter does not park: the caret is still in the box. */
+const parked = ref(false)
 function omniboxMax() {
   return Math.max(36, Math.floor(window.innerHeight - 52 - 8))
+}
+function collapseGlobalBox(park: boolean) {
+  const el = inputEl.value
+  if (!el || !props.global) return
+  userHeight.value = null
+  parked.value = park
+  el.style.height = '36px'
+}
+function onOmniboxFocus() {
+  if (!props.global) return
+  parked.value = false
+  void nextTick(fitGlobalBox)
+}
+function onOmniboxBlur(ev: FocusEvent) {
+  if (!props.global) return
+  const next = ev.relatedTarget
+  if (next instanceof Element && next.closest('[data-test="omnibox-resize"]')) return
+  collapseGlobalBox(true)
 }
 /* field-sizing is not enough inside the top-bar flex row: the used height
    stays one line. Measure the text and set the height. Only the field grows.
@@ -226,7 +249,7 @@ function omniboxMax() {
    bottom of the screen. The bar itself stays 52px. */
 function fitGlobalBox() {
   const el = inputEl.value
-  if (!el || !props.global) return
+  if (!el || !props.global || parked.value) return
   if (userHeight.value != null) {
     el.style.height = `${Math.min(omniboxMax(), Math.max(36, userHeight.value))}px`
     return
@@ -575,6 +598,7 @@ function onKeydown(ev: KeyboardEvent) {
     if (act === 'send') {
       ev.preventDefault()
       onSend()
+      collapseGlobalBox(false)
     }
   }
 }
@@ -582,9 +606,16 @@ function onKeydown(ev: KeyboardEvent) {
 /** 022 top-bar keys; true = handled. */
 function onGlobalKey(ev: KeyboardEvent): boolean {
   if (searchMode.value) {
+    if (ev.key === 'Enter' && !ev.shiftKey && (ev.ctrlKey || ev.metaKey)) {
+      ev.preventDefault()
+      onSend()
+      collapseGlobalBox(false)
+      return true
+    }
     if (ev.key === 'Enter' && !ev.shiftKey) {
       ev.preventDefault()
       onSend()
+      collapseGlobalBox(false)
       return true
     }
     if (ev.key === 'ArrowDown' && caret() === text.value.length) {

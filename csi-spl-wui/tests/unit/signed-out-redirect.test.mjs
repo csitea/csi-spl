@@ -163,12 +163,15 @@ describe('login landing', () => {
     assert.match(frame, /data-test="login-wallpaper"/)
     assert.match(frame, /url\('\/login-wallpaper\.webp'\)/)
     assert.match(frame, /url\('\/login-wallpaper-chip\.webp'\)/)
+    assert.match(frame, /url\('\/login-wallpaper-robot\.webp'\)/)
     assert.match(frame, /data-test="login-wallpaper-chip"/)
+    assert.match(frame, /data-test="login-wallpaper-robot"/)
     assert.match(frame, /@keyframes login-wallpaper-drift/)
     assert.match(frame, /@keyframes login-wallpaper-hold-b/)
+    assert.match(frame, /@keyframes login-wallpaper-hold-c/)
     assert.match(frame, /animation:\s*login-wallpaper-drift\s+46s\s+ease-in-out\s+infinite\s+alternate/)
     assert.match(frame, /@media \(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.login-wallpaper__drift\s*\{[^}]*animation:\s*none/)
-    for (const name of ['login-wallpaper.webp', 'login-wallpaper-chip.webp']) {
+    for (const name of ['login-wallpaper.webp', 'login-wallpaper-chip.webp', 'login-wallpaper-robot.webp']) {
       const buf = readFileSync(join(WUI, 'src/public', name))
       assert.ok(buf.length > 1000, name)
       assert.equal(buf.subarray(0, 4).toString('ascii'), 'RIFF', name)

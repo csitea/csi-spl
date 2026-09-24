@@ -3,7 +3,7 @@
 // trap someone whose cookie is still good. The mock tenant is never signed out.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -120,18 +120,12 @@ describe('the redirect lives in one middleware, not on each page', () => {
 })
 
 describe('login landing', () => {
-  it('the page shows the picture, the tagline, and no signed-out continue link', () => {
+  it('the page shows the tagline, and no poster or signed-out continue link', () => {
     const login = src('src/pages/login.vue')
-    assert.match(login, /src="\/login-landing\.webp"/)
-    assert.match(login, /srcset="\/login-landing\.avif"/)
-    assert.match(login, /type="image\/avif"/)
-    assert.match(login, /data-test="login-landing"/)
-    assert.match(login, /:alt="t\('auth\.login\.where_humans_meet'\)"/)
+    assert.doesNotMatch(login, /login-landing\.(png|webp|avif)/)
+    assert.doesNotMatch(login, /data-test="login-landing"/)
     assert.match(login, /<h1>\{\{ t\('auth\.login\.where_humans_meet'\) \}\}<\/h1>/)
     assert.match(login, /\.login-landing-card\s*\{[^}]*text-align:\s*center/)
-    const pictureAt = login.indexOf('src="/login-landing.webp"')
-    const lastBlockAt = login.indexOf('<ChangePasswordForm')
-    assert.ok(lastBlockAt >= 0 && pictureAt > lastBlockAt, 'the picture is last, after the heading and the sign-in')
     assert.match(login, /<SocialAuthButtons class="idp" :redirect="redirect" :tenant="tenant" \/>/)
     assert.match(login, /<NativeAuthForm v-if="session\.state !== 'in'"/)
     assert.match(login, /data-test="password-changed"/)
@@ -142,15 +136,10 @@ describe('login landing', () => {
     assert.ok(continueAt > signedInAt && signedInAt >= 0, 'continue stays inside the signed-in branch')
   })
 
-  it('the poster is a small AVIF with a WebP fallback', () => {
-    const avif = readFileSync(join(WUI, 'src/public/login-landing.avif'))
-    const webp = readFileSync(join(WUI, 'src/public/login-landing.webp'))
-    assert.ok(avif.length > 1000 && avif.length < 80_000)
-    assert.equal(avif.subarray(4, 8).toString('ascii'), 'ftyp')
-    assert.equal(avif.subarray(8, 12).toString('ascii'), 'avif')
-    assert.ok(webp.length > 1000 && webp.length < 80_000)
-    assert.equal(webp.subarray(0, 4).toString('ascii'), 'RIFF')
-    assert.equal(webp.subarray(8, 12).toString('ascii'), 'WEBP')
+  it('the login poster files are gone', () => {
+    for (const name of ['login-landing.png', 'login-landing.webp', 'login-landing.avif']) {
+      assert.equal(existsSync(join(WUI, 'src/public', name)), false, name)
+    }
   })
 
   it('every locale has the English tagline (no invented translation)', () => {

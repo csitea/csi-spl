@@ -13,14 +13,16 @@
       <button class="btn ghost" type="button" @click="session.logout()">{{ t('auth.login.sign_out') }}</button>
     </p>
     <ChangePasswordForm v-if="session.state === 'in' && session.claims?.p === 'password'" @changed="changed = true" />
-    <img
-      class="login-landing"
-      src="/login-landing.png"
-      width="1214"
-      height="490"
-      :alt="t('auth.login.where_humans_meet')"
-      data-test="login-landing"
-    >
+    <picture class="login-landing">
+      <source srcset="/login-landing.avif" type="image/avif">
+      <img
+        src="/login-landing.webp"
+        width="1214"
+        height="490"
+        :alt="t('auth.login.where_humans_meet')"
+        data-test="login-landing"
+      >
+    </picture>
   </div>
 </template>
 
@@ -84,7 +86,11 @@ onMounted(() => { void session.probe() })
   display: block;
   width: calc(100% + 48px);
   max-width: none;
-  height: auto;
   margin: 16px -24px 0;
+}
+.login-landing img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 </style>

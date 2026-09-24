@@ -104,14 +104,26 @@ const title = loginBarTitle(config.public.envName, import.meta.dev)
   position: absolute;
   inset: -8%;
   background: #060912 url('/login-wallpaper.webp') center / cover no-repeat;
+  background-image: image-set(
+    url('/login-wallpaper.avif') type('image/avif'),
+    url('/login-wallpaper.webp') type('image/webp')
+  );
   animation: login-wallpaper-drift 46s ease-in-out infinite alternate, login-wallpaper-hold 96s ease-in-out infinite;
 }
 .login-wallpaper__drift--chip {
   background-image: url('/login-wallpaper-chip.webp');
+  background-image: image-set(
+    url('/login-wallpaper-chip.avif') type('image/avif'),
+    url('/login-wallpaper-chip.webp') type('image/webp')
+  );
   animation: login-wallpaper-drift 54s ease-in-out infinite alternate-reverse, login-wallpaper-hold-b 96s ease-in-out infinite;
 }
 .login-wallpaper__drift--robot {
   background-image: url('/login-wallpaper-robot.webp');
+  background-image: image-set(
+    url('/login-wallpaper-robot.avif') type('image/avif'),
+    url('/login-wallpaper-robot.webp') type('image/webp')
+  );
   animation: login-wallpaper-drift 50s ease-in-out infinite alternate, login-wallpaper-hold-c 96s ease-in-out infinite;
 }
 @keyframes login-wallpaper-drift {

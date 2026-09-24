@@ -122,12 +122,14 @@ describe('the redirect lives in one middleware, not on each page', () => {
 describe('login landing', () => {
   it('the page shows the picture, the tagline, and no signed-out continue link', () => {
     const login = src('src/pages/login.vue')
-    assert.match(login, /src="\/login-landing\.png"/)
+    assert.match(login, /src="\/login-landing\.webp"/)
+    assert.match(login, /srcset="\/login-landing\.avif"/)
+    assert.match(login, /type="image\/avif"/)
     assert.match(login, /data-test="login-landing"/)
     assert.match(login, /:alt="t\('auth\.login\.where_humans_meet'\)"/)
     assert.match(login, /<h1>\{\{ t\('auth\.login\.where_humans_meet'\) \}\}<\/h1>/)
     assert.match(login, /\.login-landing-card\s*\{[^}]*text-align:\s*center/)
-    const pictureAt = login.indexOf('src="/login-landing.png"')
+    const pictureAt = login.indexOf('src="/login-landing.webp"')
     const lastBlockAt = login.indexOf('<ChangePasswordForm')
     assert.ok(lastBlockAt >= 0 && pictureAt > lastBlockAt, 'the picture is last, after the heading and the sign-in')
     assert.match(login, /<SocialAuthButtons class="idp" :redirect="redirect" :tenant="tenant" \/>/)
@@ -140,10 +142,15 @@ describe('login landing', () => {
     assert.ok(continueAt > signedInAt && signedInAt >= 0, 'continue stays inside the signed-in branch')
   })
 
-  it('the picture is the generated PNG in the WUI public dir', () => {
-    const buf = readFileSync(join(WUI, 'src/public/login-landing.png'))
-    assert.ok(buf.length > 1000)
-    assert.equal(buf.subarray(0, 8).toString('hex'), '89504e470d0a1a0a')
+  it('the poster is a small AVIF with a WebP fallback', () => {
+    const avif = readFileSync(join(WUI, 'src/public/login-landing.avif'))
+    const webp = readFileSync(join(WUI, 'src/public/login-landing.webp'))
+    assert.ok(avif.length > 1000 && avif.length < 80_000)
+    assert.equal(avif.subarray(4, 8).toString('ascii'), 'ftyp')
+    assert.equal(avif.subarray(8, 12).toString('ascii'), 'avif')
+    assert.ok(webp.length > 1000 && webp.length < 80_000)
+    assert.equal(webp.subarray(0, 4).toString('ascii'), 'RIFF')
+    assert.equal(webp.subarray(8, 12).toString('ascii'), 'WEBP')
   })
 
   it('every locale has the English tagline (no invented translation)', () => {
@@ -162,8 +169,11 @@ describe('login landing', () => {
     assert.match(frame, /aria-hidden="true"/)
     assert.match(frame, /data-test="login-wallpaper"/)
     assert.match(frame, /url\('\/login-wallpaper\.webp'\)/)
+    assert.match(frame, /url\('\/login-wallpaper\.avif'\) type\('image\/avif'\)/)
     assert.match(frame, /url\('\/login-wallpaper-chip\.webp'\)/)
+    assert.match(frame, /url\('\/login-wallpaper-chip\.avif'\) type\('image\/avif'\)/)
     assert.match(frame, /url\('\/login-wallpaper-robot\.webp'\)/)
+    assert.match(frame, /url\('\/login-wallpaper-robot\.avif'\) type\('image\/avif'\)/)
     assert.match(frame, /data-test="login-wallpaper-chip"/)
     assert.match(frame, /data-test="login-wallpaper-robot"/)
     assert.match(frame, /@keyframes login-wallpaper-drift/)
@@ -174,9 +184,15 @@ describe('login landing', () => {
     assert.match(frame, /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*\.login-signal\s*\{[^}]*opacity:\s*0/)
     assert.match(frame, /animation:\s*login-wallpaper-drift\s+46s\s+ease-in-out\s+infinite\s+alternate/)
     assert.match(frame, /@media \(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.login-wallpaper__drift\s*\{[^}]*animation:\s*none/)
+    for (const name of ['login-wallpaper.avif', 'login-wallpaper-chip.avif', 'login-wallpaper-robot.avif']) {
+      const buf = readFileSync(join(WUI, 'src/public', name))
+      assert.ok(buf.length > 1000 && buf.length < 80_000, name)
+      assert.equal(buf.subarray(4, 8).toString('ascii'), 'ftyp', name)
+      assert.equal(buf.subarray(8, 12).toString('ascii'), 'avif', name)
+    }
     for (const name of ['login-wallpaper.webp', 'login-wallpaper-chip.webp', 'login-wallpaper-robot.webp']) {
       const buf = readFileSync(join(WUI, 'src/public', name))
-      assert.ok(buf.length > 1000, name)
+      assert.ok(buf.length > 1000 && buf.length < 120_000, name)
       assert.equal(buf.subarray(0, 4).toString('ascii'), 'RIFF', name)
       assert.equal(buf.subarray(8, 12).toString('ascii'), 'WEBP', name)
     }

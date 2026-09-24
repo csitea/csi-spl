@@ -156,6 +156,21 @@ describe('login landing', () => {
     }
   })
 
+  it('the login frame drifts a full-bleed wallpaper and stops when motion is reduced', () => {
+    const frame = src('src/layouts/login.vue')
+    assert.match(frame, /class="login-wallpaper"/)
+    assert.match(frame, /aria-hidden="true"/)
+    assert.match(frame, /data-test="login-wallpaper"/)
+    assert.match(frame, /url\('\/login-wallpaper\.webp'\)/)
+    assert.match(frame, /@keyframes login-wallpaper-drift/)
+    assert.match(frame, /animation:\s*login-wallpaper-drift\s+46s\s+ease-in-out\s+infinite\s+alternate/)
+    assert.match(frame, /@media \(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.login-wallpaper__drift\s*\{[^}]*animation:\s*none/)
+    const buf = readFileSync(join(WUI, 'src/public/login-wallpaper.webp'))
+    assert.ok(buf.length > 1000)
+    assert.equal(buf.subarray(0, 4).toString('ascii'), 'RIFF')
+    assert.equal(buf.subarray(8, 12).toString('ascii'), 'WEBP')
+  })
+
   it('the language switcher stays on the login frame', () => {
     const frame = src('src/layouts/login.vue')
     assert.match(frame, /<LanguageSwitcher/)

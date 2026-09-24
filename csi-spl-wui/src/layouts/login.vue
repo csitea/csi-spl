@@ -1,5 +1,10 @@
 <template>
   <div class="login">
+    <!-- Full-bleed wallpaper. The drift layer is larger than the viewport and
+         clipped here, so the slow pan cannot widen the page. -->
+    <div class="login-wallpaper" aria-hidden="true">
+      <div class="login-wallpaper__drift" data-test="login-wallpaper"></div>
+    </div>
     <!-- spec 021: the language switcher lives in the frame's header, the
          same end of the bar the app shell uses. -->
     <header class="login-bar" data-test="login-bar">
@@ -66,6 +71,8 @@ const title = loginBarTitle(config.public.envName, import.meta.dev)
   width: 100%;
 }
 .login-body {
+  position: relative;
+  z-index: 1;
   flex: 1;
   display: grid;
   place-items: center;
@@ -73,5 +80,29 @@ const title = loginBarTitle(config.public.envName, import.meta.dev)
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
+}
+/* The bar stays a solid strip. The picture shows in the field around the card. */
+.login-wallpaper {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.login-wallpaper__drift {
+  position: absolute;
+  inset: -8%;
+  background: #060912 url('/login-wallpaper.webp') center / cover no-repeat;
+  animation: login-wallpaper-drift 46s ease-in-out infinite alternate;
+}
+@keyframes login-wallpaper-drift {
+  from { transform: translate3d(-1.25%, -0.8%, 0) scale(1.06); }
+  to { transform: translate3d(1.25%, 0.9%, 0) scale(1.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-wallpaper__drift {
+    animation: none;
+    transform: scale(1.06);
+  }
 }
 </style>

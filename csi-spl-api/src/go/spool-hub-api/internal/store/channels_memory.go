@@ -16,6 +16,9 @@ type memChannels struct {
 	// invited is (tenant, channel, box, agent) added from Properties.
 	// SetSubscriptions replaces subs and does not touch this.
 	invited map[[4]string]struct{}
+	// removed is the same key for an agent a member took out. Announce
+	// must not put that agent back into that channel.
+	removed map[[4]string]struct{}
 }
 
 func (c *memChannels) init() {
@@ -23,9 +26,13 @@ func (c *memChannels) init() {
 		c.rows = map[[2]string]Channel{}
 		c.subs = map[[2]string]map[string][]string{}
 		c.invited = map[[4]string]struct{}{}
+		c.removed = map[[4]string]struct{}{}
 	}
 	if c.invited == nil {
 		c.invited = map[[4]string]struct{}{}
+	}
+	if c.removed == nil {
+		c.removed = map[[4]string]struct{}{}
 	}
 }
 
@@ -113,7 +120,13 @@ func (s *Memory) SetSubscriptions(_ context.Context, tenant, box string, agents,
 		if _, ok := s.ch.rows[[2]string{tenant, c}]; !ok && !IsDefaultChannel(c) {
 			continue
 		}
-		a := append([]string(nil), agents...)
+		a := make([]string, 0, len(agents))
+		for _, agent := range agents {
+			if _, out := s.ch.removed[[4]string{tenant, c, box, agent}]; out {
+				continue
+			}
+			a = append(a, agent)
+		}
 		sort.Strings(a)
 		m[c] = a
 	}
@@ -132,7 +145,37 @@ func (s *Memory) InviteChannelAgent(_ context.Context, tenant, channel, box, age
 	if _, ok := s.ch.rows[[2]string{tenant, channel}]; !ok {
 		return ErrNotFound
 	}
-	s.ch.invited[[4]string{tenant, channel, box, agent}] = struct{}{}
+	key := [4]string{tenant, channel, box, agent}
+	delete(s.ch.removed, key)
+	s.ch.invited[key] = struct{}{}
+	return nil
+}
+
+// RemoveChannelAgent records that this agent must stay out, including
+// across a later announce of the same channel.
+func (s *Memory) RemoveChannelAgent(_ context.Context, tenant, channel, box, agent string, _ time.Time) error {
+	if IsDefaultChannel(channel) || !ValidChannelID(channel) {
+		return ErrConflict
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ch.init()
+	if _, ok := s.ch.rows[[2]string{tenant, channel}]; !ok {
+		return ErrNotFound
+	}
+	key := [4]string{tenant, channel, box, agent}
+	delete(s.ch.invited, key)
+	if bag := s.ch.subs[[2]string{tenant, box}]; bag != nil {
+		src := append([]string(nil), bag[channel]...)
+		kept := make([]string, 0, len(src))
+		for _, id := range src {
+			if id != agent {
+				kept = append(kept, id)
+			}
+		}
+		bag[channel] = kept
+	}
+	s.ch.removed[key] = struct{}{}
 	return nil
 }
 
@@ -150,8 +193,14 @@ func (s *Memory) ChannelMembers(_ context.Context, tenant, channel string) (map[
 		return out, nil
 	}
 	for k, m := range s.ch.subs {
-		if k[0] == tenant && len(m[channel]) > 0 {
-			out[k[1]] = append([]string(nil), m[channel]...)
+		if k[0] != tenant {
+			continue
+		}
+		for _, id := range m[channel] {
+			if _, gone := s.ch.removed[[4]string{tenant, channel, k[1], id}]; gone {
+				continue
+			}
+			out[k[1]] = append(out[k[1]], id)
 		}
 	}
 	for key := range s.ch.invited {
@@ -159,6 +208,9 @@ func (s *Memory) ChannelMembers(_ context.Context, tenant, channel string) (map[
 			continue
 		}
 		box, agent := key[2], key[3]
+		if _, out := s.ch.removed[[4]string{tenant, channel, box, agent}]; out {
+			continue
+		}
 		have := false
 		for _, id := range out[box] {
 			if id == agent {

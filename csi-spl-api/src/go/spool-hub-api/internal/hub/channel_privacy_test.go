@@ -525,6 +525,21 @@ func TestOwnerlessChannelCanInvitePersonAndAgent(t *testing.T) {
 		map[string]string{"id": "CLE-07", "box": "box-desk"}); code != http.StatusConflict {
 		t.Errorf("lobby agent invite: %d, want 409", code)
 	}
+
+	// Minus on an agent stays minus after the box announces the channel again.
+	if code, _ = call(t, e, tid, http.MethodDelete, "/v1/channels/live-proof/agents/box-desk/CLE-07", member, nil); code != http.StatusNoContent {
+		t.Fatalf("remove agent: %d, want 204", code)
+	}
+	if err := e.st.SetSubscriptions(ctx, tid, "box-desk", []string{"CLE-07"}, []string{"live-proof"}, now); err != nil {
+		t.Fatal(err)
+	}
+	code, out = call(t, e, tid, http.MethodGet, "/v1/channels/live-proof/members", member, nil)
+	if code != http.StatusOK {
+		t.Fatalf("GET after remove: %d %v", code, out)
+	}
+	if ags, ok := out["agents"].([]any); ok && len(ags) != 0 {
+		t.Errorf("removed agent came back on announce: %v", ags)
+	}
 }
 
 var _ = websocket.StatusNormalClosure

@@ -557,7 +557,11 @@
       "invite_person": "Invite a person",
       "invite_agent": "Invite an agent",
       "invite_owner_only": "Only the channel owner can invite someone in.",
-      "agents_invite_empty": "Every announced agent is already in this channel."
+      "agents_invite_empty": "Every announced agent is already in this channel.",
+      "add_person": "Add a person",
+      "add_agent": "Add an agent",
+      "remove_member": "Remove {id}",
+      "remove_agent": "Remove {id}"
     }
   }
 }

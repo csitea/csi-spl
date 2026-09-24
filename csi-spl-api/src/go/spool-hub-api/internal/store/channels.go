@@ -129,6 +129,10 @@ type Channels interface {
 	// channel. ErrConflict on a default channel. ErrNotFound when the
 	// channel does not exist. A later announce does not remove the row.
 	InviteChannelAgent(ctx context.Context, tenantID, channelID, boxID, agentID string, now time.Time) error
+	// RemoveChannelAgent keeps the agent out of the channel. A later
+	// announce does not put the row back. ErrConflict on a default channel.
+	// ErrNotFound when the channel does not exist.
+	RemoveChannelAgent(ctx context.Context, tenantID, channelID, boxID, agentID string, now time.Time) error
 	// ChannelMembers returns box → sorted agent ids subscribed to channelID
 	// (lobby: the whole announced roster). Invited agents are included.
 	ChannelMembers(ctx context.Context, tenantID, channelID string) (map[string][]string, error)

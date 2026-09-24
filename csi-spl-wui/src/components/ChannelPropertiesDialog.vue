@@ -45,27 +45,96 @@
       >
         <p v-if="!loaded" class="muted">{{ t('common.loading') }}</p>
         <template v-else-if="!failedLoad">
-          <ul v-if="localMembers.length" class="invite-members" data-testid="channel-invite-members">
-            <li v-for="id in localMembers" :key="id">{{ id }}</li>
+          <div class="channel-properties__head">
+            <span data-testid="channel-invite-person">{{ t('channels.properties.people_tab') }}</span>
+            <button
+              type="button"
+              class="icon-btn"
+              data-testid="channel-people-add"
+              :aria-label="t('channels.properties.add_person')"
+              :aria-expanded="addingPeople ? 'true' : 'false'"
+              :disabled="!canAdd || busy"
+              @click="addingPeople = !addingPeople"
+            >
+              <UiIcon name="plus" :size="16" />
+            </button>
+          </div>
+          <ul class="member-rows" data-testid="channel-invite-members">
+            <li v-for="id in localMembers" :key="id">
+              <span>{{ id }}</span>
+              <button
+                type="button"
+                class="icon-btn"
+                :data-testid="'channel-member-remove-' + id"
+                :aria-label="t('channels.properties.remove_member', { id })"
+                :disabled="busy || (!canAdd && id !== selfId)"
+                @click="removePerson(id)"
+              >
+                <UiIcon name="minus" :size="16" />
+              </button>
+            </li>
           </ul>
-          <template v-if="canAdd">
-            <p class="channel-properties__invite" data-testid="channel-invite-person">{{ t('channels.properties.invite_person') }}</p>
+          <template v-if="addingPeople && canAdd">
             <p v-if="candidates.length === 0" class="muted" data-testid="channel-invite-empty">{{ t('channels.properties.invite_empty') }}</p>
             <ul v-else class="invite-candidates" data-testid="channel-invite-candidates">
-              <li v-for="(id, index) in candidates" :key="id">
-                <span>{{ id }}</span>
+              <li v-for="id in candidates" :key="id">
                 <button
                   type="button"
                   class="btn ghost"
                   :disabled="busy"
-                  :data-autofocus="index === 0 ? '' : undefined"
                   :data-testid="'channel-invite-pick-' + id"
                   @click="pick(id)"
-                >{{ t('channels.properties.invite') }}</button>
+                >{{ id }}</button>
               </li>
             </ul>
           </template>
-          <p v-else class="muted" data-testid="channel-invite-owner-only">{{ t('channels.properties.invite_owner_only') }}</p>
+
+          <div class="channel-properties__head">
+            <span data-testid="channel-invite-agent">{{ t('channels.properties.agents_tab') }}</span>
+            <button
+              type="button"
+              class="icon-btn"
+              data-testid="channel-agent-add"
+              :aria-label="t('channels.properties.add_agent')"
+              :aria-expanded="addingAgents ? 'true' : 'false'"
+              :disabled="!canAdd || busy"
+              @click="addingAgents = !addingAgents"
+            >
+              <UiIcon name="plus" :size="16" />
+            </button>
+          </div>
+          <p v-if="agentRows.length === 0" class="muted" data-testid="channel-people-agents-none">{{ t('channels.properties.agents_none') }}</p>
+          <ul v-else class="member-rows" data-testid="channel-agents-list">
+            <li v-for="row in agentRows" :key="row.id + '@' + row.box" :data-testid="'channel-agent-' + row.id">
+              <span>{{ row.id }}</span>
+              <span class="muted">{{ row.box }}</span>
+              <button
+                type="button"
+                class="icon-btn"
+                :data-testid="'channel-agent-remove-' + row.id"
+                :aria-label="t('channels.properties.remove_agent', { id: row.id })"
+                :disabled="!canAdd || busy"
+                @click="removeAgent(row)"
+              >
+                <UiIcon name="minus" :size="16" />
+              </button>
+            </li>
+          </ul>
+          <template v-if="addingAgents && canAdd">
+            <p v-if="agentCandidates.length === 0" class="muted" data-testid="channel-agent-invite-empty">{{ t('channels.properties.agents_invite_empty') }}</p>
+            <ul v-else class="invite-candidates" data-testid="channel-agent-candidates">
+              <li v-for="row in agentCandidates" :key="row.id + '@' + row.box">
+                <button
+                  type="button"
+                  class="btn ghost"
+                  :disabled="busy"
+                  :data-testid="'channel-agent-invite-' + row.id"
+                  @click="pickAgent(row)"
+                >{{ row.id }} <span class="muted">{{ row.box }}</span></button>
+              </li>
+            </ul>
+          </template>
+          <p v-if="!canAdd" class="muted" data-testid="channel-invite-owner-only">{{ t('channels.properties.invite_owner_only') }}</p>
         </template>
       </div>
 
@@ -77,29 +146,12 @@
       >
         <p v-if="!loaded" class="muted">{{ t('common.loading') }}</p>
         <p v-else-if="agentRows.length === 0" class="muted" data-testid="channel-agents-none">{{ t('channels.properties.agents_none') }}</p>
-        <ul v-else class="invite-members" data-testid="channel-agents-list">
-          <li v-for="row in agentRows" :key="row.id + '@' + row.box" :data-testid="'channel-agent-' + row.id">
+        <ul v-else class="invite-members" data-testid="channel-agents-readonly">
+          <li v-for="row in agentRows" :key="row.id + '@' + row.box">
             <span>{{ row.id }}</span>
             <span class="muted">{{ row.box }}</span>
           </li>
         </ul>
-        <template v-if="canAdd">
-          <p class="channel-properties__invite" data-testid="channel-invite-agent">{{ t('channels.properties.invite_agent') }}</p>
-          <p v-if="agentCandidates.length === 0" class="muted" data-testid="channel-agent-invite-empty">{{ t('channels.properties.agents_invite_empty') }}</p>
-          <ul v-else class="invite-candidates" data-testid="channel-agent-candidates">
-            <li v-for="row in agentCandidates" :key="row.id + '@' + row.box">
-              <span>{{ row.id }}</span>
-              <span class="muted">{{ row.box }}</span>
-              <button
-                type="button"
-                class="btn ghost"
-                :disabled="busy"
-                :data-testid="'channel-agent-invite-' + row.id"
-                @click="pickAgent(row)"
-              >{{ t('channels.properties.invite') }}</button>
-            </li>
-          </ul>
-        </template>
       </div>
 
       <div
@@ -172,6 +224,8 @@ const rosterIds = ref<string[]>([])
 const rosterBag = ref<Record<string, string[]>>({})
 const createdByLive = ref('')
 const agents = ref<{ id: string, box: string }[]>([])
+const addingPeople = ref(false)
+const addingAgents = ref(false)
 let ticket = 0
 
 const nameText = computed(() => aboutChannelName({ name: props.name, channel_id: props.channelId }))
@@ -209,6 +263,8 @@ watch(() => props.open, async (isOpen) => {
   rosterBag.value = {}
   createdByLive.value = ''
   agents.value = []
+  addingPeople.value = false
+  addingAgents.value = false
   try {
     const [mem, ros] = await Promise.all([
       withSessionRetry(api, () => api.listChannelMembers(props.channelId)),
@@ -235,6 +291,34 @@ watch(() => props.open, async (isOpen) => {
     if (my === ticket) loaded.value = true
   }
 })
+
+async function removePerson(id: string) {
+  if (busy.value || (!canAdd.value && id !== selfId.value)) return
+  busy.value = true
+  error.value = ''
+  try {
+    await withSessionRetry(api, () => api.removeChannelMember(props.channelId, id))
+    localMembers.value = localMembers.value.filter((member) => member !== id)
+  } catch (e) {
+    error.value = inviteErrorToken(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function removeAgent(row: { id: string, box: string }) {
+  if (busy.value || !canAdd.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    await withSessionRetry(api, () => api.removeChannelAgent(props.channelId, row.id, row.box))
+    agents.value = agents.value.filter((a) => !(a.id === row.id && a.box === row.box))
+  } catch (e) {
+    error.value = inviteErrorToken(e)
+  } finally {
+    busy.value = false
+  }
+}
 
 async function pickAgent(row: { id: string, box: string }) {
   if (busy.value || !canAdd.value) return
@@ -336,11 +420,32 @@ async function onToggle(ev: Event) {
   max-width: 100%;
 }
 .invite-members li { font-size: 13px; }
-.channel-properties__invite {
-  margin: 4px 0 0;
+.channel-properties__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
   font-size: 13px;
   font-weight: 600;
 }
+.member-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+.member-rows li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.member-rows li span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.member-rows .icon-btn { margin-inline-start: auto; }
 .invite-candidates li {
   display: flex;
   align-items: center;

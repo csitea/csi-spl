@@ -307,6 +307,9 @@ false and a human owner exists.
   0032). A later hello replaces only origin `announce`, so the invited
   agent stays. 201 `{channel, id, box}`. An agent who is not on that
   box is 404 `not_a_member`. A default channel is 409 `channel_public`.
+- `DELETE /v1/channels/{channel}/agents/{box}/{id}` — the same callers.
+  The row is stored with origin `removed` (rdb 0033). A later hello does
+  not put that agent back. 204. A default channel is 409 `channel_public`.
 - `DELETE /v1/channels/{channel}/members/{human_id}` — `channels.manage`, or
   yourself (leaving needs no permission).
 - Creating a channel puts its creator in it; a members-only channel born empty

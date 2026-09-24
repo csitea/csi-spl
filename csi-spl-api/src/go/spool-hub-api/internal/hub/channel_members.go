@@ -29,11 +29,13 @@ func (s *Server) routeChannelMembers(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/channels/{channel}/members", s.handleListChannelMembers)
 	mux.HandleFunc("POST /v1/channels/{channel}/members", s.handleAddChannelMember)
 	mux.HandleFunc("POST /v1/channels/{channel}/agents", s.handleAddChannelAgent)
+	mux.HandleFunc("DELETE /v1/channels/{channel}/agents/{box}/{id}", s.handleRemoveChannelAgent)
 	mux.HandleFunc("DELETE /v1/channels/{channel}/members/{human_id}", s.handleRemoveChannelMember)
 	mux.HandleFunc("PATCH /v1/channels/{channel}", s.handlePatchChannelInvite)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/members", s.channelMembersPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/members/{human_id}", s.channelMembersPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}/agents", s.channelMembersPreflight)
+	mux.HandleFunc("OPTIONS /v1/channels/{channel}/agents/{box}/{id}", s.channelMembersPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels/{channel}", s.channelInvitePreflight)
 }
 
@@ -323,6 +325,48 @@ func (s *Server) handleAddChannelAgent(w http.ResponseWriter, r *http.Request) {
 	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("agent", body.ID).
 		Str("box", body.Box).Str("by", hum).Msg("channel agent invited")
 	writeJSON(w, http.StatusCreated, map[string]any{"channel": ch, "id": body.ID, "box": body.Box})
+}
+
+// DELETE /v1/channels/{channel}/agents/{box}/{id} — take one agent out.
+// The same people who may invite may remove. The row stays as origin
+// removed, so the box's next announce does not put the agent back.
+func (s *Server) handleRemoveChannelAgent(w http.ResponseWriter, r *http.Request) {
+	t, ch, hum, ok := s.channelDoor(w, r)
+	if !ok {
+		return
+	}
+	if store.ChannelPublic(ch) {
+		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: every announced agent already reads it")
+		return
+	}
+	row, ok := s.channelRecord(w, r, t.ID, ch)
+	if !ok {
+		return
+	}
+	if !mayInviteChannel(row.CreatedBy, hum, row.MembersOpenInvite) {
+		writeErr(w, http.StatusForbidden, "forbidden", "only the channel owner may remove members")
+		return
+	}
+	box := r.PathValue("box")
+	id := r.PathValue("id")
+	if !agentIDRe.MatchString(id) || strings.HasPrefix(id, "HUM-") || box == "" || box == "box-wui" {
+		writeErr(w, http.StatusBadRequest, "bad_json", "id must be an agent and box must not be box-wui")
+		return
+	}
+	if err := s.o.Store.RemoveChannelAgent(r.Context(), t.ID, ch, box, id, s.o.Now()); err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+ch+" in this tenant")
+		case errors.Is(err, store.ErrConflict):
+			writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: every announced agent already reads it")
+		default:
+			writeErr(w, http.StatusInternalServerError, "internal", "agent subscription not removed")
+		}
+		return
+	}
+	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("agent", id).
+		Str("box", box).Str("by", hum).Msg("channel agent removed")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // PATCH /v1/channels/{channel} {"members_open_invite": true|false}.

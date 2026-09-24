@@ -82,6 +82,8 @@ declare module '~/utils/spool-client.mjs' {
     listChannelMembers(channel: string): Promise<{ channel: string, default: boolean, members: string[], members_open_invite: boolean, created_by: string, agents: { id: string, box: string }[] }>
     addChannelMember(channel: string, humanId: string): Promise<{ channel: string, human_id: string, added_by?: string }>
     addChannelAgent(channel: string, agentId: string, box: string): Promise<{ channel: string, id: string, box: string }>
+    removeChannelMember(channel: string, humanId: string): Promise<null>
+    removeChannelAgent(channel: string, agentId: string, box: string): Promise<null>
     setMembersOpenInvite(channel: string, open: boolean): Promise<{ channel: string, members_open_invite: boolean }>
     /** message-edit-v1 §1: PATCH /v1/messages/{msg_id} with { body }. */
     editMessage(msgId: string, body: string): Promise<import('./spool').SpoolMessage>

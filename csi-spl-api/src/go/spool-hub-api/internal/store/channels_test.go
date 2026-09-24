@@ -35,6 +35,16 @@ func TestInviteChannelAgentSurvivesAnnounce(t *testing.T) {
 			if err := s.InviteChannelAgent(ctx, tid, "lobby", "box-desk", "CLE-07", now); !errors.Is(err, ErrConflict) {
 				t.Fatalf("lobby invite: %v", err)
 			}
+			if err := s.RemoveChannelAgent(ctx, tid, "live-proof", "box-desk", "CLE-07", now); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.SetSubscriptions(ctx, tid, "box-desk", []string{"CLE-07"}, []string{"live-proof", "tasks"}, now); err != nil {
+				t.Fatal(err)
+			}
+			m, err = s.ChannelMembers(ctx, tid, "live-proof")
+			if err != nil || len(m["box-desk"]) != 0 {
+				t.Fatalf("removed agent came back: %v %+v", err, m)
+			}
 		})
 	}
 }

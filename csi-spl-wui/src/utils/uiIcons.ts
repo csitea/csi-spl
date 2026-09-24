@@ -56,6 +56,8 @@ export const UI_ICON_PATHS = {
   ],
   // The sidebar's one "add a channel" control, next to the Channels heading.
   plus: ["M12 5v14", "M5 12h14"],
+  // Remove a person or an agent from a channel (Properties, People tab).
+  minus: ["M5 12h14"],
   // Left-strip tab: direct messages (lucide "messages", two bubbles).
   messages: [
     "M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z",

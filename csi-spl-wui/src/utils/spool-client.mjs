@@ -352,6 +352,38 @@ export function createSpoolClient({
     return { channel: id, id: agent, box: boxId }
   }
 
+  function mockRemoveMember(channel, humanId) {
+    const id = normalizeChannelId(channel)
+    const hid = String(humanId || '')
+    const row = state.channels.find((c) => c.channel_id === id)
+    if (!row) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    if (isPublicChannel(id)) throw memberError(409, 'channel_public', `#${id} has no membership to remove`)
+    const members = state.memberships[id]
+    if (!members || !members.includes(state.me.id)) {
+      throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    }
+    if (hid !== state.me.id && !mockMayInvite(row)) throw memberError(403, 'forbidden', 'forbidden')
+    state.memberships[id] = members.filter((m) => m !== hid)
+    return null
+  }
+
+  function mockRemoveAgent(channel, agentId, box) {
+    const id = normalizeChannelId(channel)
+    const agent = String(agentId || '')
+    const boxId = String(box || '')
+    const row = state.channels.find((c) => c.channel_id === id)
+    if (!row) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    if (isPublicChannel(id)) throw memberError(409, 'channel_public', `#${id} has no agent to remove`)
+    const members = state.memberships[id]
+    if (!members || !members.includes(state.me.id)) {
+      throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    }
+    if (!mockMayInvite(row)) throw memberError(403, 'forbidden', 'forbidden')
+    const list = state.agentMembers[id] || []
+    state.agentMembers[id] = list.filter((a) => !(a.id === agent && a.box === boxId))
+    return null
+  }
+
   function mockSetOpen(channel, flag) {
     const id = normalizeChannelId(channel)
     const row = state.channels.find((c) => c.channel_id === id)
@@ -732,6 +764,25 @@ export function createSpoolClient({
         body: JSON.stringify({ id, box: boxId }),
       })
       return data || { channel: String(channel || ''), id, box: boxId }
+    },
+    /** Take one human out of the channel. Leaving yourself needs no extra permission. */
+    async removeChannelMember(channel, humanId) {
+      const id = String(humanId || '')
+      if (mock) return mockRemoveMember(channel, id)
+      await live(`/v1/channels/${encodeURIComponent(String(channel || ''))}/members/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      return null
+    },
+    /** Take one agent out. A later announce does not put that agent back. */
+    async removeChannelAgent(channel, agentId, box) {
+      const id = String(agentId || '')
+      const boxId = String(box || '')
+      if (mock) return mockRemoveAgent(channel, id, boxId)
+      await live(`/v1/channels/${encodeURIComponent(String(channel || ''))}/agents/${encodeURIComponent(boxId)}/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      return null
     },
     /**
      * channels-v1 membership flag. Only the channel owner may change it.

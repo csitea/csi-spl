@@ -128,13 +128,30 @@ func (s *Postgres) InviteChannelAgent(ctx context.Context, tenant, channel, box,
 	})
 }
 
+// RemoveChannelAgent marks the agent removed. ON CONFLICT keeps that mark
+// when a later announce tries to insert the same row.
+func (s *Postgres) RemoveChannelAgent(ctx context.Context, tenant, channel, box, agent string, now time.Time) error {
+	if IsDefaultChannel(channel) || !ValidChannelID(channel) {
+		return ErrConflict
+	}
+	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO channel_subscriptions
+			(tenant_id, channel_id, agent_id, box_id, subscribed_at, origin)
+			VALUES ($1, $2, $3, $4, $5, 'removed')
+			ON CONFLICT (tenant_id, channel_id, agent_id, box_id)
+			DO UPDATE SET origin = 'removed'`, tenant, channel, agent, box, now)
+		return mapFK(err)
+	})
+}
+
 func (s *Postgres) ChannelMembers(ctx context.Context, tenant, channel string) (map[string][]string, error) {
 	if channel == ChannelLobby {
 		return s.Roster(ctx, tenant)
 	}
 	out := map[string][]string{}
 	err := s.queryTenant(ctx, tenant, `SELECT box_id, agent_id FROM channel_subscriptions
-		WHERE tenant_id = $1 AND channel_id = $2 ORDER BY box_id, agent_id`, []any{tenant, channel},
+		WHERE tenant_id = $1 AND channel_id = $2 AND origin <> 'removed'
+		ORDER BY box_id, agent_id`, []any{tenant, channel},
 		func(rows pgx.Rows) error {
 			var box, agent string
 			if err := rows.Scan(&box, &agent); err != nil {

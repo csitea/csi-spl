@@ -204,6 +204,18 @@ const channelFeed = useChannelStore()
 const liveMain = useLiveFeed('main')
 const text = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)
+/* field-sizing is not enough inside the top-bar flex row: the used height
+   stays one line. Measure the text and set the height. The bar itself is
+   fixed, so only this box grows, downward, up to 40vh. */
+function fitGlobalBox() {
+  const el = inputEl.value
+  if (!el || !props.global) return
+  el.style.height = 'auto'
+  const cap = Math.floor(window.innerHeight * 0.4)
+  el.style.height = `${Math.min(el.scrollHeight, cap)}px`
+}
+watch(text, () => { if (props.global) void nextTick(fitGlobalBox) })
+onMounted(() => { fitGlobalBox() })
 const fileEl = ref<HTMLInputElement | null>(null)
 /* Empty, busy, or with nowhere to send: the button stays in the tab order
    (aria-disabled, not disabled) and onSend refuses the click. */

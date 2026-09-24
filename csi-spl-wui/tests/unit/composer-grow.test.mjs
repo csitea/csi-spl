@@ -80,6 +80,10 @@ describe('composer growth (CLE-3437)', () => {
     assert.match(phoneBody, /position:\s*absolute/)
     assert.match(phoneBody, /max-height:\s*none/)
     assert.match(phoneBody, /flex-direction:\s*row/)
+    const box = read('src/components/MessageComposer.vue')
+    assert.match(box, /function fitGlobalBox\(\)/)
+    assert.match(box, /if \(!el \|\| !props\.global\) return/)
+    assert.match(box, /el\.style\.height = 'auto'/)
   })
 
   // The rule above is keyed on `.composer textarea`, so it reaches a message

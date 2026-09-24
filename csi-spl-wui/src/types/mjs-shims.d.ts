@@ -536,6 +536,21 @@ declare module '~/utils/code-blocks.mjs' {
   export function closeOpenFence(text: string): string
 }
 
+declare module '~/utils/omnibox-size.mjs' {
+  export const OMNIBOX_LINE_PX: 36
+  export function omniboxFocusHeight(
+    userHeight: number | null | undefined,
+    openHeight: number | null | undefined,
+    maxPx: number,
+  ): number | null
+  export function omniboxRememberHeight(s: {
+    userHeight?: number | null
+    openHeight?: number | null
+    measured: number
+    keep: boolean
+  }): number | null
+}
+
 declare module '~/utils/code-view.mjs' {
   /** one highlighted run: raw text plus the grammar's class names */
   export interface CodeToken { text: string, cls: string }

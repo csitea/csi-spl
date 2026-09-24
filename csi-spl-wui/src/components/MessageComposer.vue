@@ -168,6 +168,7 @@ import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
 import { useViewerStore } from '~/stores/viewer'
 import { closeOpenFence, enterAction, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
+import { omniboxFocusHeight, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
 import { sendLimitError } from '~/utils/code-view.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { parseOmnibox } from '~/utils/feed.mjs'
@@ -217,24 +218,50 @@ const liveMain = useLiveFeed('main')
 const text = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)
 /* A drag on the grip. Null until the reader sets one, then typing does not
-   snap the box back. */
+   snap the box back. Kept across a collapse so the next focus can reopen it. */
 const userHeight = ref<number | null>(null)
+/* Last open height when the reader did not drag. Null when it was one line. */
+const openHeight = ref<number | null>(null)
 /* True after focus leaves, so a tall draft stays one line until the reader
    comes back. Ctrl+Enter does not park: the caret is still in the box. */
 const parked = ref(false)
+/* Ctrl+Enter collapses while the caret stays. The next key sizes to the new
+   text; the saved height waits for the next focus. */
+const contentUntilFocus = ref(false)
+/* A fit queued by the send that clears the text must not reopen the box. */
+let fitSerial = 0
 function omniboxMax() {
   return Math.max(36, Math.floor(window.innerHeight - 52 - 8))
 }
 function collapseGlobalBox(park: boolean) {
   const el = inputEl.value
   if (!el || !props.global) return
-  userHeight.value = null
+  openHeight.value = omniboxRememberHeight({
+    userHeight: userHeight.value,
+    openHeight: openHeight.value,
+    measured: Math.round(el.getBoundingClientRect().height),
+    keep: parked.value || contentUntilFocus.value,
+  })
   parked.value = park
+  if (!park) {
+    contentUntilFocus.value = true
+    const serial = ++fitSerial
+    void nextTick(() => {
+      if (fitSerial === serial) fitSerial++
+    })
+  }
   el.style.height = '36px'
 }
 function onOmniboxFocus() {
   if (!props.global) return
   parked.value = false
+  contentUntilFocus.value = false
+  const px = omniboxFocusHeight(userHeight.value, openHeight.value, omniboxMax())
+  const el = inputEl.value
+  if (px != null && el) {
+    el.style.height = `${px}px`
+    return
+  }
   void nextTick(fitGlobalBox)
 }
 function onOmniboxBlur(ev: FocusEvent) {
@@ -250,9 +277,12 @@ function onOmniboxBlur(ev: FocusEvent) {
 function fitGlobalBox() {
   const el = inputEl.value
   if (!el || !props.global || parked.value) return
-  if (userHeight.value != null) {
-    el.style.height = `${Math.min(omniboxMax(), Math.max(36, userHeight.value))}px`
-    return
+  if (!contentUntilFocus.value && userHeight.value != null) {
+    const px = omniboxFocusHeight(userHeight.value, null, omniboxMax())
+    if (px != null) {
+      el.style.height = `${px}px`
+      return
+    }
   }
   el.style.height = 'auto'
   const cap = Math.min(omniboxMax(), Math.floor(window.innerHeight * 0.4))
@@ -280,7 +310,14 @@ function startResize(ev: PointerEvent) {
   handle.addEventListener('pointerup', end)
   handle.addEventListener('pointercancel', end)
 }
-watch(text, () => { if (props.global) void nextTick(fitGlobalBox) })
+watch(text, () => {
+  if (!props.global) return
+  const serial = fitSerial
+  void nextTick(() => {
+    if (serial !== fitSerial) return
+    fitGlobalBox()
+  })
+})
 onMounted(() => { fitGlobalBox() })
 const fileEl = ref<HTMLInputElement | null>(null)
 /* Empty, busy, or with nowhere to send: the button stays in the tab order

@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Eemalda {name}",
     "attach": "manusta",
+    "resize": "Muuda suurust",
     "send": "Saada",
     "sending": "Saatmine…",
     "code_hint": "Koodiplokk: Enter lisab rea, sulgemiseks kirjuta ``` või vajuta Esc, Ctrl+Enter või Cmd+Enter saadab",

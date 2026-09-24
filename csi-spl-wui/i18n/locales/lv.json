@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Noņemt {name}",
     "attach": "pievienot",
+    "resize": "Mainīt izmēru",
     "send": "Sūtīt",
     "sending": "Sūta…",
     "code_hint": "Koda bloks: Enter pievieno rindu, lai aizvērtu, ierakstiet ``` vai nospiediet Esc, Ctrl+Enter vai Cmd+Enter nosūta",

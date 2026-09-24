@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "הסרת {name}",
     "attach": "צירוף",
+    "resize": "שינוי גודל התיבה",
     "send": "שליחה",
     "sending": "שולח…",
     "code_hint": "בלוק קוד: Enter מוסיף שורה, הקלידו ``` או לחצו Esc כדי לסגור, Ctrl+Enter או Cmd+Enter שולח",

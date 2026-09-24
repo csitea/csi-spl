@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Odstrániť {name}",
     "attach": "priložiť",
+    "resize": "Zmeniť veľkosť",
     "send": "Odoslať",
     "sending": "Odosiela sa…",
     "code_hint": "Blok kódu: Enter pridá riadok, zatvorte napísaním ``` alebo klávesom Esc, Ctrl+Enter alebo Cmd+Enter odošle",

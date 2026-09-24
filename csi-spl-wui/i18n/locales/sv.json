@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Ta bort {name}",
     "attach": "bifoga",
+    "resize": "Ändra storlek på rutan",
     "send": "Skicka",
     "sending": "Skickar…",
     "code_hint": "Kodblock: Enter lägger till en rad, skriv ``` eller tryck Esc för att stänga, Ctrl+Enter eller Cmd+Enter skickar",

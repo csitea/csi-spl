@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "{name} öğesini kaldır",
     "attach": "ekle",
+    "resize": "Boyutu değiştir",
     "send": "Gönder",
     "sending": "Gönderiliyor…",
     "code_hint": "Kod bloğu: Enter satır ekler, kapatmak için ``` yazın veya Esc'e basın, Ctrl+Enter veya Cmd+Enter gönderir",

@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Elimină {name}",
     "attach": "atașează",
+    "resize": "Redimensionează",
     "send": "Trimite",
     "sending": "Se trimite…",
     "code_hint": "Bloc de cod: Enter adaugă un rând, tastați ``` sau apăsați Esc pentru a închide, Ctrl+Enter sau Cmd+Enter trimite",

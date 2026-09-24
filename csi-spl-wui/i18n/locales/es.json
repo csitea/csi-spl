@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Quitar {name}",
     "attach": "adjuntar",
+    "resize": "Cambiar el tamaño",
     "send": "Enviar",
     "sending": "Enviando…",
     "code_hint": "Bloque de código: Enter añade una línea, escribe ``` o pulsa Esc para cerrar, Ctrl+Enter o Cmd+Enter envía",

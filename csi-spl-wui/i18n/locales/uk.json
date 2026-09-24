@@ -345,6 +345,7 @@
     "file_bytes": "{n} Б",
     "remove_file": "Вилучити {name}",
     "attach": "прикріпити",
+    "resize": "Змінити розмір",
     "send": "Надіслати",
     "sending": "Надсилання…",
     "code_hint": "Блок коду: Enter додає рядок, введіть ``` або натисніть Esc, щоб закрити, Ctrl+Enter або Cmd+Enter надсилає",

@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Poista {name}",
     "attach": "liitä",
+    "resize": "Muuta kirjoituskentän kokoa",
     "send": "Lähetä",
     "sending": "Lähetetään…",
     "code_hint": "Koodilohko: Enter lisää rivin, sulje kirjoittamalla ``` tai painamalla Esc, Ctrl+Enter tai Cmd+Enter lähettää",

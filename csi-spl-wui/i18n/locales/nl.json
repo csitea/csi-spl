@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "{name} verwijderen",
     "attach": "bijvoegen",
+    "resize": "Grootte wijzigen",
     "send": "Versturen",
     "sending": "Versturen…",
     "code_hint": "Codeblok: Enter voegt een regel toe, typ ``` of druk op Esc om te sluiten, Ctrl+Enter of Cmd+Enter verstuurt",

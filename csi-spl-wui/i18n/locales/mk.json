@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Отстрани {name}",
     "attach": "прикачи",
+    "resize": "Промени ја големината",
     "send": "Испрати",
     "sending": "Се испраќа…",
     "code_hint": "Блок со код: Enter додава ред, напишете ``` или притиснете Esc за затворање, Ctrl+Enter или Cmd+Enter испраќа",

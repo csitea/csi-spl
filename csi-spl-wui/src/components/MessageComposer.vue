@@ -73,49 +73,59 @@
       <span v-if="searchMode" class="omnibox-mode" data-test="omnibox-mode">
         <UiIcon name="search" :size="14" />{{ t('search.mode_chip') }}
       </span>
-      <textarea
-        ref="inputEl"
-        :aria-label="global ? t('search.omnibox_label') : omnibox ? t('composer.omnibox_label') : t('composer.message_label')"
-        :aria-controls="opPickerOpen ? opListId : undefined"
-        :aria-activedescendant="opPickerOpen && opIdx >= 0 ? opListId + '-' + opIdx : undefined"
-        :aria-keyshortcuts="global ? '/' : undefined"
-        v-model="text"
-        :rows="global ? 1 : 2"
-        :class="{ 'in-code': inCode }"
-        :placeholder="placeholder"
-        :aria-describedby="global ? `${hintId} ${slashHintId}` : hintId"
-        autocomplete="off"
-        spellcheck="true"
-        @keydown="onKeydown"
-        @input="syncMention"
-        @click="syncMention"
-        @keyup="syncMention"
-      />
-      <p :id="hintId" class="code-hint muted" aria-live="polite">{{ inCode ? t('composer.code_hint') : '' }}</p>
-      <p v-if="global" :id="slashHintId" class="sr-only">{{ t('search.slash_shortcut') }}</p>
-      <ul v-if="picked.length" class="file-chips">
-        <li v-for="(f, i) in picked" :key="f.name + i">
-          📎 {{ f.name }} <small>{{ t('composer.file_bytes', { n: f.size }) }}</small>
-          <button
-            type="button"
-            class="icon-btn"
-            data-test="composer-remove-file"
-            :aria-label="t('composer.remove_file', { name: f.name })"
-            :title="t('composer.remove_file', { name: f.name })"
-            @click="picked.splice(i, 1)"
-          >
-            <UiIcon name="x" :size="14" />
-          </button>
-        </li>
-      </ul>
-      <!-- a size refusal is a validation message, not a failure with a
-           reference to quote, so it is NOT an ErrorNotice: minting an
-           ERR-CLIENT-… into the diagnostics journal for "this snippet is
-           long" would bury the failures that journal exists for -->
-      <p v-if="sizeError" class="composer-too-big" role="alert" data-testid="composer-too-big">
-        <UiIcon name="alert-triangle" :size="16" />
-        <span>{{ t(sizeError.key, sizeError.params) }}</span>
-      </p>
+      <div class="omnibox-field">
+        <textarea
+          ref="inputEl"
+          :aria-label="global ? t('search.omnibox_label') : omnibox ? t('composer.omnibox_label') : t('composer.message_label')"
+          :aria-controls="opPickerOpen ? opListId : undefined"
+          :aria-activedescendant="opPickerOpen && opIdx >= 0 ? opListId + '-' + opIdx : undefined"
+          :aria-keyshortcuts="global ? '/' : undefined"
+          v-model="text"
+          :rows="global ? 1 : 2"
+          :class="{ 'in-code': inCode }"
+          :placeholder="placeholder"
+          :aria-describedby="global ? `${hintId} ${slashHintId}` : hintId"
+          autocomplete="off"
+          spellcheck="true"
+          @keydown="onKeydown"
+          @input="syncMention"
+          @click="syncMention"
+          @keyup="syncMention"
+        />
+        <p :id="hintId" class="code-hint muted" aria-live="polite">{{ inCode ? t('composer.code_hint') : '' }}</p>
+        <p v-if="global" :id="slashHintId" class="sr-only">{{ t('search.slash_shortcut') }}</p>
+        <ul v-if="picked.length" class="file-chips">
+          <li v-for="(f, i) in picked" :key="f.name + i">
+            📎 {{ f.name }} <small>{{ t('composer.file_bytes', { n: f.size }) }}</small>
+            <button
+              type="button"
+              class="icon-btn"
+              data-test="composer-remove-file"
+              :aria-label="t('composer.remove_file', { name: f.name })"
+              :title="t('composer.remove_file', { name: f.name })"
+              @click="picked.splice(i, 1)"
+            >
+              <UiIcon name="x" :size="14" />
+            </button>
+          </li>
+        </ul>
+        <!-- a size refusal is a validation message, not a failure with a
+             reference to quote, so it is NOT an ErrorNotice: minting an
+             ERR-CLIENT-… into the diagnostics journal for "this snippet is
+             long" would bury the failures that journal exists for -->
+        <p v-if="sizeError" class="composer-too-big" role="alert" data-testid="composer-too-big">
+          <UiIcon name="alert-triangle" :size="16" />
+          <span>{{ t(sizeError.key, sizeError.params) }}</span>
+        </p>
+        <button
+          v-if="global"
+          type="button"
+          class="omnibox-resize"
+          data-test="omnibox-resize"
+          :aria-label="t('composer.resize')"
+          @pointerdown="startResize"
+        />
+      </div>
       <div class="composer-row">
         <!-- Both controls are real buttons so Tab lands on each of them.
              A hidden file input is not a tab stop, and a disabled Send
@@ -204,15 +214,48 @@ const channelFeed = useChannelStore()
 const liveMain = useLiveFeed('main')
 const text = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)
+/* A drag on the grip. Null until the reader sets one, then typing does not
+   snap the box back. */
+const userHeight = ref<number | null>(null)
+function omniboxMax() {
+  return Math.max(36, Math.floor(window.innerHeight - 52 - 8))
+}
 /* field-sizing is not enough inside the top-bar flex row: the used height
-   stays one line. Measure the text and set the height. The bar itself is
-   fixed, so only this box grows, downward, up to 40vh. */
+   stays one line. Measure the text and set the height. Only the field grows.
+   The automatic size stops at 40% of the window; the grip can go to the
+   bottom of the screen. The bar itself stays 52px. */
 function fitGlobalBox() {
   const el = inputEl.value
   if (!el || !props.global) return
+  if (userHeight.value != null) {
+    el.style.height = `${Math.min(omniboxMax(), Math.max(36, userHeight.value))}px`
+    return
+  }
   el.style.height = 'auto'
-  const cap = Math.floor(window.innerHeight * 0.4)
+  const cap = Math.min(omniboxMax(), Math.floor(window.innerHeight * 0.4))
   el.style.height = `${Math.min(el.scrollHeight, cap)}px`
+}
+function startResize(ev: PointerEvent) {
+  const el = inputEl.value
+  const handle = ev.currentTarget
+  if (!el || !(handle instanceof HTMLElement)) return
+  ev.preventDefault()
+  handle.setPointerCapture(ev.pointerId)
+  const startY = ev.clientY
+  const startH = el.getBoundingClientRect().height
+  const move = (e: PointerEvent) => {
+    const next = Math.min(omniboxMax(), Math.max(36, Math.round(startH + (e.clientY - startY))))
+    userHeight.value = next
+    el.style.height = `${next}px`
+  }
+  const end = () => {
+    handle.removeEventListener('pointermove', move)
+    handle.removeEventListener('pointerup', end)
+    handle.removeEventListener('pointercancel', end)
+  }
+  handle.addEventListener('pointermove', move)
+  handle.addEventListener('pointerup', end)
+  handle.addEventListener('pointercancel', end)
 }
 watch(text, () => { if (props.global) void nextTick(fitGlobalBox) })
 onMounted(() => { fitGlobalBox() })

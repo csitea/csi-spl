@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Remove {name}",
     "attach": "attach",
+    "resize": "Resize the omnibox",
     "send": "Send",
     "sending": "Sending…",
     "code_hint": "Code block: Enter adds a line, type ``` or press Esc to close, Ctrl+Enter or Cmd+Enter sends",

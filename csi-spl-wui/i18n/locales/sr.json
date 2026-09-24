@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Ukloni {name}",
     "attach": "priloži",
+    "resize": "Promeni veličinu",
     "send": "Pošalji",
     "sending": "Slanje…",
     "code_hint": "Блок кода: Enter додаје ред, откуцајте ``` или притисните Esc за затварање, Ctrl+Enter или Cmd+Enter шаље",

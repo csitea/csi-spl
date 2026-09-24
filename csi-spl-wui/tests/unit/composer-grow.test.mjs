@@ -52,8 +52,14 @@ describe('composer growth (CLE-3437)', () => {
   it('the top-bar Omnibox keeps its own bound too', () => {
     const omni = ruleBody(css, '.composer.omnibox--global textarea')
     assert.match(omni, /field-sizing:\s*content/)
-    assert.match(omni, /max-height:\s*40vh/)
+    assert.match(omni, /max-height:\s*calc\(100vh - var\(--top-bar-h\) - 8px\)/)
     assert.match(omni, /overflow-y:\s*auto/, 'past the bound the block scrolls inside the box')
+    assert.match(css, /\.composer\.omnibox--global \.composer-row\s*\{[^}]*align-self:\s*flex-start/)
+    assert.match(css, /\.composer\.omnibox--global \.composer-row\s*\{[^}]*flex:\s*0 0 auto/)
+    const box = read('src/components/MessageComposer.vue')
+    assert.match(box, /data-test="omnibox-resize"/)
+    assert.match(box, /function startResize/)
+    assert.match(box, /userHeight\.value != null/)
   })
 
   // The bar is a column flex item. height alone loses to min-height:auto

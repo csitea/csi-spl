@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Pašalinti {name}",
     "attach": "pridėti",
+    "resize": "Keisti dydį",
     "send": "Siųsti",
     "sending": "Siunčiama…",
     "code_hint": "Kodo blokas: Enter prideda eilutę, uždarykite įvesdami ``` arba paspausdami Esc, Ctrl+Enter arba Cmd+Enter siunčia",

@@ -661,21 +661,65 @@ html.pane-dragging * {
 .composer.omnibox--global .composer-box {
   display: flex;
   align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  padding: 4px 6px 4px 10px;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
+/* The border belongs to the text field. The button row stays its own
+   height beside it and does not stretch when the field grows. */
+.composer.omnibox--global .omnibox-field {
+  display: block;
+  position: relative;
+  flex: 1 1 auto;
+  align-self: flex-start;
+  min-width: 0;
+  background: var(--color-composer);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 2px 8px 12px;
+}
+.omnibox-field { display: contents; }
 .composer.omnibox--global textarea {
-  flex: 1 1 12rem;
-  width: auto;
+  display: block;
+  width: 100%;
   min-height: 36px;
-  max-height: 40vh;
+  max-height: calc(100vh - var(--top-bar-h) - 8px);
   field-sizing: content;
-  padding: 8px 0 0;
+  padding: 6px 0;
   overflow-y: auto;
+  resize: none;
 }
-.composer.omnibox--global .composer-row { flex-wrap: nowrap; }
-.composer.omnibox--global .composer-row button { min-height: 36px; padding: 6px 12px; }
+.composer.omnibox--global .composer-row {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  flex-wrap: nowrap;
+  height: auto;
+}
+.composer.omnibox--global .composer-row button { min-height: 36px; height: auto; padding: 6px 12px; align-self: flex-start; }
+.composer.omnibox--global .omnibox-resize {
+  position: absolute;
+  inset-inline: 8px;
+  bottom: 1px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: ns-resize;
+  touch-action: none;
+}
+.composer.omnibox--global .omnibox-resize::after {
+  content: "";
+  display: block;
+  width: 28px;
+  height: 3px;
+  margin: 3px auto 0;
+  border-radius: 2px;
+  background: currentColor;
+}
 .composer.omnibox--global .code-hint:empty { display: none; }
 .composer.omnibox--global .code-hint, .composer.omnibox--global .file-chips { flex-basis: 100%; }
 /* the search hit the pane scrolled to: the focus ring, held for a moment */

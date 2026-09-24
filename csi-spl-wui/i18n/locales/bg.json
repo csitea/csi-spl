@@ -345,6 +345,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Премахни {name}",
     "attach": "прикачи",
+    "resize": "Преоразмери полето",
     "send": "Изпрати",
     "sending": "Изпращане…",
     "code_hint": "Блок с код: Enter добавя ред, напишете ``` или натиснете Esc за затваряне, Ctrl+Enter или Cmd+Enter изпраща",

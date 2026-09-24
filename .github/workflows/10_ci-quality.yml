@@ -1,3 +1,23 @@
+# RUNNER: this gate runs on the SELF-HOSTED runner on tnk, not ubuntu-latest.
+#
+# Why: the org hit its GitHub Actions spending limit on 2026-09-23 and every
+# hosted job stopped starting ("The job was not started because recent account
+# payments have failed or your spending limit needs to be increased"). csi-spl
+# was the bulk of it - 76 runs of THIS workflow on 2026-09-23 alone, nine jobs
+# each, with the fleet pushing to master dozens of times a day. Self-hosted
+# minutes are free and are not subject to the spending limit, which is why a
+# self-hosted job starts while a hosted one will not.
+#
+# The box is DEBIAN 13, not the ubuntu-latest image, so nothing here may assume
+# a preinstalled toolchain. Every tool comes from its setup action
+# (actions/setup-go, actions/setup-node, pnpm/action-setup,
+# hashicorp/setup-terraform), which downloads at runtime and works on Debian.
+# A step that needs something else must install it explicitly.
+#
+# To go back to hosted runners (a dead box, or the limit raised):
+#   sed -i 's/runs-on: \[self-hosted, tnk\]/runs-on: ubuntu-latest/' this file
+# Jobs QUEUE rather than fail when the runner is offline, so a dead box looks
+# like a hung gate, not a red one.
 name: "10 ci: quality gate"
 
 # ONE hermetic quality gate for csi-spl, modelled on csi-rel's
@@ -32,7 +52,7 @@ jobs:
   # ===========================================================================
   hub-suite:
     name: "hub: gofmt, go vet, go test, smoke, Postgres + GCS gates"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, tnk]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -79,7 +99,7 @@ jobs:
   # ===========================================================================
   wui-suite:
     name: "wui: unit tests + typecheck"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, tnk]
     timeout-minutes: 15
     defaults:
       run:
@@ -126,7 +146,7 @@ jobs:
   # ===========================================================================
   wui-e2e:
     name: "wui: browser e2e (mock, generated)"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, tnk]
     timeout-minutes: 10
     defaults:
       run:
@@ -237,7 +257,7 @@ jobs:
   # ===========================================================================
   iac-suite:
     name: "iac: tfvars parity, step contracts, terraform validate"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, tnk]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -310,7 +330,7 @@ jobs:
   # ===========================================================================
   orc-suite:
     name: "orc: hermetic action tests (stubbed gcloud/curl/docker)"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, tnk]
     timeout-minutes: 20
     # orc derives ORG/APP from the PARENT dirs, <base>/<ORG>/<ORG>-<APP>
     # (csi-spl-orc/lib/bash/funcs/resolve-oap.func.sh), so the tree is checked
@@ -391,7 +411,7 @@ jobs:
   # ===========================================================================
   cnf-suite:
     name: "cnf: conf-validator exit codes"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, tnk]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -418,7 +438,7 @@ jobs:
   # ===========================================================================
   no-ysg-box-ref:
     name: "spool source carries no ysg-box reference"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, tnk]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -440,7 +460,7 @@ jobs:
     name: "gate health: what else has been failing"
     needs: [hub-suite, wui-suite, wui-e2e, iac-suite, orc-suite, cnf-suite, no-ysg-box-ref, distribution-hygiene]
     if: failure()
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, tnk]
     timeout-minutes: 5
     continue-on-error: true
     permissions:
@@ -482,7 +502,7 @@ jobs:
   # ===========================================================================
   distribution-hygiene:
     name: "distribution-hygiene sweep over the tree"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, tnk]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4

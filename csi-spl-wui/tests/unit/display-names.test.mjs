@@ -15,21 +15,21 @@ const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 describe('humanNamesFromView', () => {
   it('maps each member to the name they chose, and leaves out a member with none', () => {
     const data = { humans: [
-      { human_id: 'HUM-9', display_name: '  Yordan  ', avatar_file_id: null },
+      { human_id: 'HUM-9', display_name: '  FirstName  ', avatar_file_id: null },
       { human_id: 'HUM-4', display_name: null },
       { human_id: 'HUM-5', display_name: '' },
       { human_id: 'CLE-1', display_name: 'not a member' },
     ] }
-    assert.deepEqual(humanNamesFromView(data), { 'HUM-9': 'Yordan' })
+    assert.deepEqual(humanNamesFromView(data), { 'HUM-9': 'FirstName' })
     assert.deepEqual(humanNamesFromView(null), {})
   })
 })
 
 describe('personLabel', () => {
-  const names = { 'HUM-9': 'Yordan' }
+  const names = { 'HUM-9': 'FirstName' }
   it('is the chosen name for a human on the browser box, or with no box', () => {
-    assert.equal(personLabel('HUM-9', 'box-wui', names), 'Yordan')
-    assert.equal(personLabel('HUM-9', undefined, names), 'Yordan')
+    assert.equal(personLabel('HUM-9', 'box-wui', names), 'FirstName')
+    assert.equal(personLabel('HUM-9', undefined, names), 'FirstName')
   })
   it('is the id when there is no name, and always for an agent', () => {
     assert.equal(personLabel('HUM-4', 'box-wui', names), 'HUM-4@box-wui')

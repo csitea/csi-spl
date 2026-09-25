@@ -60,13 +60,13 @@ describe('mention autocomplete', () => {
       { id: 'HUM-11', box: 'box-wui', label: 'HUM-11@box-wui' },
       { id: 'CLE-120', box: 'box-desk', label: 'CLE-120@box-desk' },
     ]
-    const names = { 'HUM-9': 'Yordan Georgiev', 'HUM-11': 'Велико Великов' }
-    assert.deepEqual(filterRosterMentions(peers, 'geor', names).map((p) => p.id), ['HUM-9'])
-    assert.deepEqual(filterRosterMentions(peers, 'YORDAN', names).map((p) => p.id), ['HUM-9'])
-    assert.deepEqual(filterRosterMentions(peers, 'вели', names).map((p) => p.id), ['HUM-11'])
+    const names = { 'HUM-9': 'FirstName LastName', 'HUM-11': 'Име Фамилия' }
+    assert.deepEqual(filterRosterMentions(peers, 'last', names).map((p) => p.id), ['HUM-9'])
+    assert.deepEqual(filterRosterMentions(peers, 'FIRST', names).map((p) => p.id), ['HUM-9'])
+    assert.deepEqual(filterRosterMentions(peers, 'фами', names).map((p) => p.id), ['HUM-11'])
     assert.deepEqual(filterRosterMentions(peers, '120', names).map((p) => p.id), ['CLE-120'])
     // CONTROL: without names, a name does not match
-    assert.deepEqual(filterRosterMentions(peers, 'geor'), [])
+    assert.deepEqual(filterRosterMentions(peers, 'last'), [])
   })
 
   it('the @token at the caret may be a name in any script; the tag inserted is the id', () => {

@@ -3,7 +3,7 @@
 const AGENT_ID_RE = /^(CLE|GRK|AGY|HUM|GST)-\d+$/
 
 /* The @token at the caret: an id (CLE-07) or the start of a display name in
-   any script (@yor, @Велико), so a person is found by the name they chose. */
+   any script (@first, @име), so a person is found by the name they chose. */
 const MENTION_TOKEN_RE = /(^|[\s])@([\p{L}\p{N}._-]*)$/u
 
 export function isAgentId(id) {
@@ -29,7 +29,7 @@ export function activeMentionQuery(text, cursor) {
  * Query may be 'CLE-07' or '@CLE-07'; empty query returns every allowed peer.
  * The text matches any part of the id, the label, or the display name the
  * person chose (`names`, id -> name), case-insensitively: "3994" finds
- * CLE-3994, "geor" finds the human named "Yordan Georgiev".
+ * CLE-3994, "last" finds the human named "FirstName LastName".
  *
  * @param {unknown[]} peers
  * @param {string} query

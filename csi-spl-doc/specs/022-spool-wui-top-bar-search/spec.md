@@ -24,10 +24,12 @@
   Omnibox over the bar (Esc on an empty line collapses it again).
 - **FR-004** No document x-scroll at any width (the no-x-scroll gates stay green); no inline script
   (CSP SEC-06 stays green).
+- **FR-005** The bar's start cluster also holds the theme toggle (`TopBar.vue:10` `<ThemeToggle />`), and `/`
+  outside a text field focuses the Omnibox (`utils/slash-focus.mjs`). Recorded from the code, not from an owner ask.
 
 ## 3. Omnibox
 
-- **FR-010** The per-page Omnibox (lobby, `/channel/*`, `/dm/*`) moves into the bar. It is the same
+- **FR-010** The per-page Omnibox (lobby, `/`, `/channel/*`, `/dm/*`, `/t/*`) moves into the bar. It is the same
   `MessageComposer` (so the ``` code-block behaviour of the code-blocks lane works in it). The page on screen
   registers its **send target** (placeholder, `send(text, files)`, busy) with the `omnibox` store; normal text is
   sent to that target exactly as before. A page with no target (settings, checkout, search) disables plain send
@@ -45,11 +47,11 @@
 
 - **FR-020** Deep-linkable: loading `/search?q=…` runs the query.
 - **FR-021** Results render in **grouped sections** in this order, each only when non-empty: robots, users,
-  channels, boxes, threads, files, messages; each section has its own "Load more" (per-group cursor).
+  channels, boxes, topics, files, messages (group `threads` renamed `topics` in `57f8a670`; seam below); each section has its own "Load more" (per-group cursor).
 - **FR-022** Snippets show match highlights from **offsets** (never HTML from the server): the WUI splits the
   text into plain / `<mark>` segments rendered as text nodes.
 - **FR-023** Click (or Enter on the active row) opens: message → its thread in the right pane, scrolled to the
-  message; thread → the thread pane; robot / user → `/dm/<id>`; channel → `/channel/<id>`; box → `/search?q=box:<id>`;
+  message; topic → the topic pane; robot / user → `/dm/<id>`; channel → `/channel/<id>`; box → `/search?q=box:<id>`;
   file → the thread of the message that carries it.
 - **FR-024** Keyboard: ArrowUp/ArrowDown move the active row across all sections (wrapping), Home/End jump,
   Enter opens; the list is a `listbox` with `aria-activedescendant`.
@@ -66,7 +68,13 @@ cursor per group answers that group only → `mergeSearchPage`), display text in
 `{text, highlights:[[s,e)]}` in UTF-16 units (= `String.slice`), `warnings[{token,pos,detail}]`, `400 bad_query
 {detail,pos,token}`, `429 rate_limited`, `503 search_budget`; autocomplete from `GET /v1/view/search/operators`
 (`normalizeOperators`), with the built-in `SEARCH_OPERATORS` only as the offline / not-yet-deployed fallback.
-Section order in the WUI: robots, users, channels, boxes, threads, files, messages (entities first, as Slack).
+Section order in the WUI: robots, users, channels, boxes, topics, files, messages (entities first, as Slack).
+
+**Seam — topics vs threads: open, integrator/owner decision (asked in topic 582f7895).** `search-v1.md` still names the group `threads`, the type
+`thread` and the operator `thread:`. The code does not: `csi-spl-wui/src/utils/search.mjs:20`
+`SEARCH_GROUPS = [..., 'topics', ...]`; hub `internal/search/grammar.go:32` `TypeTopic Type = "topic"`, and
+`git show 57f8a670 -- .../internal/search/grammar.go` removes `"thread": TypeThread, "threads": TypeThread` and
+`OpThread = "thread"`. So `type:thread` / `thread:` from the contract no longer parse. Task T034.
 
 ## 6. Tests
 
@@ -75,4 +83,23 @@ highlight segmentation incl. CONTROLS (overlapping / out-of-range / reversed off
 stays text), grouped normalisation, keyboard index. E2E: no-x-scroll with the bar, CSP. Proof: headless Chrome
 on dev — type `/search from:EZB-1 is:task`, results, open one → `/var/tmp/CLE-3410-proof/`.
 
-<!-- last-edit: 2026-09-19T16:30:00Z -->
+## 7. Status (trunk `28442ef6`, n=1)
+
+| FR | status | evidence |
+|---|---|---|
+| FR-001, FR-002 | Implemented | T010; `TopBar.vue:7` `data-test="top-bar"`, `:64-66` switcher + user menu |
+| FR-003 | Implemented | T013; `TopBar.vue` `@media (max-width: 640px)` |
+| FR-004 | Implemented | T030 |
+| FR-005 | Implemented | `TopBar.vue:10`, `utils/slash-focus.mjs`, `tests/unit/slash-focus.test.mjs` |
+| FR-010 | Implemented | T011; `grep -rln omnibox src/pages` -> lobby, index, channel, dm, t, search |
+| FR-011, FR-012 | Implemented | T002, T012; `search.mjs:82` also accepts `/search:` |
+| FR-013 | Implemented | `TopicPane.vue:97` local `matchesSearch` filter |
+| FR-020, FR-022, FR-024, FR-025, FR-026 | Implemented | T002, T003, T006, T020; `node --test tests/unit/search.test.mjs` -> pass 43 |
+| FR-021, FR-023 | Partial | WUI side Implemented (T020, T021); missing: the contract still says `threads` (seam in §5, T034) |
+
+Also in the bar, outside this spec: the inline send error with Retry (CLE-3433, `TopBar.vue:29-41`), the resizable
+Omnibox (`utils/omnibox-size.mjs`), operators fetched only with a member session (`shouldLoadOperators`,
+`operators-session.proof.mjs`), the `/search` view door (`tests/unit/search-door.test.mjs`, 010 FR-009), and the
+800px sidebar rail (`tests/e2e/top-bar-rail-live.proof.mjs`).
+
+<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:33:59Z -->

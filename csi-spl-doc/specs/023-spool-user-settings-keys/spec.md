@@ -15,10 +15,10 @@
 | aspect | today | file |
 |---|---|---|
 | settings page | one page, four stacked cards: Profile, Language (CLE-3403 `<LanguageSetting/>`), Appearance, Sign-in and security (CLE-3402 `12ece07`) | `csi-spl-wui/src/pages/settings.vue` |
-| entry | the user menu's Settings item → `localePath('/settings')` | `csi-spl-wui/src/components/UserMenu.vue:55-60` |
+| entry | the user menu's Settings item → `localePath('/settings')` | `csi-spl-wui/src/components/UserMenu.vue:55-62` |
 | routing | `/settings` is not prerendered: Firebase serves the SPA fallback, so any `/settings/<x>` deep link hydrates client-side | `nuxt.config.ts` (`PRERENDER_PAGES = ["/", "/login"]`) |
 | box key format | private = base64(64-byte Ed25519 seed‖pub) + `\n`, file `box-<id>.key` 0600; public pin = base64(32 bytes) + `\n`, `box-<id>.pub` | `internal/sign/sign.go` (`GenerateKey`, `Pin`) |
-| tenant root key | the same private format (`spool root-keygen --out`) | `cmd/spool/hub.go:311` |
+| tenant root key | the same private format (`spool root-keygen --out`) | `cmd/spool/hub.go:447` (`cmdRootKeygen`) |
 | a human's key | none: a human (HUM-*, rdb 0006) authenticates only by the 010/015 session cookie; the hub verifies box signatures by pins (004), never a human's | `rdb 0006`, `internal/hub/rest.go` |
 | SEC-03 | private key material is shown once, never stored by the hub, never mailed (006 FR-014 as amended by 017 T008) | `specs/006-spool-hub-rental/spec.md` FR-014 |
 
@@ -97,9 +97,9 @@ section on the right. Each section is its own route and deep-linkable:
 | route | section | content (moved, not duplicated) |
 |---|---|---|
 | `/settings` | → redirects to `/settings/profile` | |
-| `/settings/profile` | Profile | the old Profile card |
+| `/settings/profile` | Profile | the old Profile card, plus Display name (`DisplayNameSetting`, `e3cc76b0`) |
 | `/settings/language` | Language | CLE-3403's `<LanguageSetting/>` |
-| `/settings/appearance` | Appearance | theme, font size (3.5) |
+| `/settings/appearance` | Appearance | theme, font size (3.5), Debug pane (`DebugPaneSetting`, `b8e376ba`, rdb 0038) |
 | `/settings/security` | Sign-in and security | method, password change, sign out |
 | `/settings/keys` | Keys | 3.1-3.3 |
 
@@ -156,7 +156,7 @@ renders once, in the parent, for every section.
   audited: a structured log line per add / revoke (human id, key id,
   fingerprint, source, reason) plus the durable history rows.
 - **FR-009** i18n: every string is a catalogue key in all 19 locales. Check
-  (GRK-3380, 2026-09-21): 19 locale files each carry all 58 `settings` leaves;
+  (GRK-3380, 2026-09-21): 19 locale files each carry all 58 `settings` leaves (71 on trunk `28442ef6`, python leaf walk: 71 in every locale, el 1/71 identical);
   identical-to-English is 0 for es/ru/tr/uk/he/sv/nl and 1/58 for el
   (`settings.email` = `Email`).
 - **FR-010** No document x-scroll at phone width; CSP unchanged (WebCrypto
@@ -165,6 +165,17 @@ renders once, in the parent, for every section.
   per step, stopping at 1 and 5; the body font-size grows strictly level to
   level; the default is one level above the old 16px root; the choice
   survives a reload. Strings in all 19 locales.
+
+### 4.1 Status (trunk `28442ef6`, n=1)
+
+| FR | status | evidence |
+|---|---|---|
+| FR-001 | Implemented | T020; `utils/settings-nav.mjs` 5 sections, `pages/settings.vue:78` 720px breakpoint |
+| FR-002, FR-003 | Implemented | T021, T030; `node tests/unit/human-keys.test.mjs` -> 7 passed |
+| FR-004..FR-008 | Implemented | T010-T013; `go test ./internal/hub -run Keys -v` -> 5 PASS; routes `keys.go:63-67`, audit `keys.go:235,263` |
+| FR-009 | Implemented | T022, T032 |
+| FR-010 | Implemented | T031 |
+| FR-011 | Partial | T040-T042; missing: px font sizes left in `MessageBody.vue` (1), `ChannelSidebar.vue` (7), `ChannelPropertiesDialog.vue` (2), still on the `font-size.test.mjs` allow-list -> T043 |
 
 ## 5. Open questions (owner)
 
@@ -179,4 +190,4 @@ renders once, in the parent, for every section.
   HUM-* signing CLI messages, or pinning a personal box from the WUI. Pick one
   before the key becomes load-bearing.
 
-<!-- last-edit: 2026-09-19T16:40:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:33:59Z -->

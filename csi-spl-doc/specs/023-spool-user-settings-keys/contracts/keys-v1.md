@@ -2,7 +2,7 @@
 
 Implemented: `internal/hub/keys.go`. Mounted by the hub under the auth prefix, so the credentialed CORS of
 `/api/v1/auth/*` (allow-list `SPOOL_HUB_VIEW_CORS_ORIGINS`, methods
-`GET, POST`, header `Content-Type`) covers it with no CORS change.
+`GET, POST, PUT`, headers `Content-Type, X-Locale` — `internal/hub/auth_cors.go`) covers it with no CORS change.
 
 Every route: a valid 010/015 session cookie whose claims carry a HUM-*
 (`hum`), else `401 {"error":"unauthenticated"}`. `Cache-Control: no-store`.
@@ -56,5 +56,6 @@ No route accepts or returns private key material.
 One zerolog line per write: `keys.added` / `keys.revoked` with `human_id`,
 `key_id`, `fingerprint`, `source` / `reason`. Never key bytes beyond the
 fingerprint. The rows themselves (rdb `human_keys`) are the durable history.
+Two warn lines also exist: `keys.rate_limited` and `keys.private_key_refused` (`keys.go:103`, `keys.go:213`).
 
-<!-- last-edit: 2026-09-19T16:40:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:33:59Z -->

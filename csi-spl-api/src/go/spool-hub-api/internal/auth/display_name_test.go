@@ -103,9 +103,35 @@ func TestValidDisplayName(t *testing.T) {
 			t.Fatalf("%q: %q %v", in, got, ok)
 		}
 	}
-	for _, in := range []string{"", " ", "a\rb", "\xff", "a\u009fb", "a b"} {
+	for _, in := range []string{"", " ", "a\rb", "\xff", "a\u009fb", "\u202enimda", "a\u2066b", "a\u200fb", "a\u061cb", "a b"} {
 		if got, ok := auth.ValidDisplayName(in); ok {
 			t.Fatalf("%q admitted as %q", in, got)
+		}
+	}
+}
+
+// CLE-34986: the seed rule for an IdP or register-form name drops what
+// ValidDisplayName refuses and cuts at 200 characters, never mid-rune.
+func TestCleanDisplayName(t *testing.T) {
+	long := strings.Repeat("\u00e4", 250) // 2 bytes each: a byte cut at 200 is 100 runes
+	for in, want := range map[string]string{
+		" Ann Lee ":          "Ann Lee",
+		"\u202enimda":        "nimda",
+		"a\u2066b\u2069c":    "abc",
+		"a\nb\x00c\u2028d":   "abcd",
+		"\xffok":             "ok",
+		"\u200f\u202e":       "",
+		long:                 strings.Repeat("\u00e4", 200),
+		"\u0634\u0627\u0647": "\u0634\u0627\u0647", // RTL letters are names, not controls
+	} {
+		got := auth.CleanDisplayName(in)
+		if got != want {
+			t.Errorf("CleanDisplayName(%q) = %q, want %q", in, got, want)
+		}
+		if got != "" {
+			if v, ok := auth.ValidDisplayName(got); !ok || v != got {
+				t.Errorf("CleanDisplayName(%q) = %q, which ValidDisplayName refuses", in, got)
+			}
 		}
 	}
 }

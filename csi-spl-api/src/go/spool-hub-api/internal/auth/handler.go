@@ -293,6 +293,7 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, p, st.Redirect, ErrCodeExchange, err.Error())
 		return
 	}
+	id.Name = CleanDisplayName(id.Name) // it seeds display_name (Admit)
 	sess := Session{V: 1, Provider: p, Subject: id.Subject, Email: id.Email, Name: id.Name,
 		Tenant: st.Tenant, IssuedAt: h.now().Unix(), Exp: h.now().Add(h.cfg.SessionTTL).Unix()}
 	if h.reg != nil {
@@ -416,19 +417,54 @@ func (h *Handler) shownName(ctx context.Context, s Session) string {
 const MaxDisplayNameLen = 200
 
 // ValidDisplayName trims raw and answers it when it is 1..200 characters of
-// valid UTF-8 with no control character (C0, DEL, C1) and no line or
-// paragraph separator: the name is one line wherever the WUI shows it.
+// valid UTF-8 with no control character (C0, DEL, C1), no line or paragraph
+// separator and no bidi control: the name is one line wherever the WUI
+// shows it, and "\u202enimda" cannot render as "admin" to a CLI or agent
+// reader (the WUI strips them too, 13b04912).
 func ValidDisplayName(raw string) (string, bool) {
 	name := strings.TrimSpace(raw)
 	if name == "" || !utf8.ValidString(name) || utf8.RuneCountInString(name) > MaxDisplayNameLen {
 		return "", false
 	}
 	for _, c := range name {
-		if unicode.IsControl(c) || c == '\u2028' || c == '\u2029' {
+		if !nameRune(c) {
 			return "", false
 		}
 	}
 	return name, true
+}
+
+// CleanDisplayName is the rule for a name the human did not type into the
+// preferences form - an IdP claim, the native register form - which seeds
+// display_name: the runes ValidDisplayName refuses are dropped, and it is
+// cut at 200 characters, never mid-rune. "" = no usable name.
+func CleanDisplayName(raw string) string {
+	var b strings.Builder
+	for _, c := range strings.ToValidUTF8(raw, "") {
+		if nameRune(c) {
+			b.WriteRune(c)
+		}
+	}
+	name := []rune(strings.TrimSpace(b.String()))
+	if len(name) > MaxDisplayNameLen {
+		name = name[:MaxDisplayNameLen]
+	}
+	return strings.TrimSpace(string(name))
+}
+
+// nameRune is false for what a one-line, left-to-right-safe name must not
+// hold: controls, U+2028/U+2029 and the bidi embedding, override, isolate
+// and mark characters (U+061C, U+200E/F, U+202A..E, U+2066..9).
+func nameRune(c rune) bool {
+	switch {
+	case unicode.IsControl(c), c == '\u2028', c == '\u2029':
+		return false
+	case c == '\u061c', c == '\u200e', c == '\u200f':
+		return false
+	case c >= '\u202a' && c <= '\u202e', c >= '\u2066' && c <= '\u2069':
+		return false
+	}
+	return true
 }
 
 // avatar answers the signed-in human's own stored IdP picture (CLE-3406):

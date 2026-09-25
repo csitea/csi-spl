@@ -259,10 +259,7 @@ func (n *native) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, ErrTokMailUnavailable, "email delivery unavailable")
 		return
 	}
-	name := strings.TrimSpace(req.Name)
-	if len(name) > 200 {
-		name = name[:200]
-	}
+	name := CleanDisplayName(req.Name) // it was cut at 200 BYTES, mid-rune
 	hash, err := HashPassword(req.Password, n.cfg.argon2())
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "hash")

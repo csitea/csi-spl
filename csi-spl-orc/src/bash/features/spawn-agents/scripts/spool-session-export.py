@@ -12,7 +12,7 @@ grok session files under $SPOOL_AGENT_HOME/.grok. A path that exists is taken
 as the transcript itself. SPOOL_AGENT_HOME defaults to $HOME.
 
 Writes <OUT_DIR>/session-<AGENT_ID>-<utc>.md (mode 0644), prints its path on
-stdout and the redaction counts on stderr. Exit 2 when zero or several
+stdout (OUT_DIR "-": the markdown itself goes to stdout) and the redaction counts on stderr. Exit 2 when zero or several
 transcripts match, 64 on usage.
 """
 import datetime
@@ -94,6 +94,10 @@ def main(argv):
         return 2
     now = datetime.datetime.now(datetime.timezone.utc)
     text, counts = redact("\n".join(render(agent, hits[0], now)))
+    if out_dir == "-":
+        sys.stdout.write(text)
+        print(json.dumps({"source": hits[0], "redactions": counts}, sort_keys=True), file=sys.stderr)
+        return 0
     os.makedirs(out_dir, exist_ok=True)
     out = os.path.join(out_dir, f"session-{agent}-{now.strftime('%Y%m%dT%H%M%SZ')}.md")
     with open(out, "w") as f:

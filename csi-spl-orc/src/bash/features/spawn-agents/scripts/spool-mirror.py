@@ -42,6 +42,8 @@ Opt out per seat: touch <seat>/spool/<agent>/.no-mirror.
 Usage:
   spool-mirror.py hook                     < hook JSON
   spool-mirror.py post --agent ID --event prompt|answer [--session S] < text
+  spool-mirror.py topic <seat>/spool/<agent>       -> "<human>\t<task>"
+  spool-mirror.py remember <seat>/spool/<agent> <human> <task>
 
 Environment (post):
   SPOOL_MIRROR_SEATS  glob of desk dirs, default
@@ -302,9 +304,7 @@ def post_one(seat, agent, event, text, session):
         sent = {}
     got_task = str(sent.get("task_id", "")) or task
     os.makedirs(os.path.join(adir, ".mirror"), exist_ok=True)
-    if UUID_RE.match(got_task):
-        with open(os.path.join(adir, ".mirror", "topic"), "w") as f:
-            json.dump({"to": human, "task": got_task}, f)
+    remember_topic(adir, human, got_task)
     if event == "answer":
         with open(os.path.join(adir, ".mirror", "last-answer"), "w") as f:
             f.write(h)
@@ -343,9 +343,25 @@ def post_main(args):
     return rc
 
 
+def remember_topic(agent_dir, human, task):
+    """Record the topic a post (or the backfill) landed in, when it is new."""
+    if not (HUM_RE.match(human) and UUID_RE.match(task)):
+        return
+    os.makedirs(os.path.join(agent_dir, ".mirror"), exist_ok=True)
+    with open(os.path.join(agent_dir, ".mirror", "topic"), "w") as f:
+        json.dump({"to": human, "task": task}, f)
+
+
 def main(argv):
     if len(argv) >= 2 and argv[1] == "hook":
         return hook_main()
+    if len(argv) == 3 and argv[1] == "topic":
+        # The DM a post from this agent dir would land in: "<human>\t<task>".
+        print("\t".join(pick_topic(argv[2])))
+        return 0
+    if len(argv) == 5 and argv[1] == "remember":
+        remember_topic(argv[2], argv[3], argv[4])
+        return 0
     if len(argv) >= 2 and argv[1] == "post":
         return post_main(argv[2:])
     print(__doc__, file=sys.stderr)

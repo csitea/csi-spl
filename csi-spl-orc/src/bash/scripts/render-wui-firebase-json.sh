@@ -92,9 +92,11 @@ if not pages:
 #     LB), plus any 031 extra_host_labels as <label>.<BASE_DOMAIN>.
 #     dev.api.<domain> is OUTSIDE *.dev.<domain>, so each is listed on its own.
 #     A missing api_fqdn is fatal: without it the WUI cannot reach auth.
-#   * the tenant hosts <tenant>.<fqdn>: env.dns.mapped_tenants when cnf
-#     enumerates them (each one has its own domain mapping), otherwise
-#     *.<fqdn> — the WUI reads and opens its WebSocket on the tenant host.
+#   * the tenant hosts <tenant>.<fqdn>: only what env.dns.mapped_tenants
+#     enumerates (each one has its own domain mapping). Empty = none: since
+#     spec 026 the WUI talks to the one api host (NUXT_PUBLIC_API_BASE =
+#     https://<api_fqdn>), so the old *.<fqdn> fallback only widened where an
+#     injected script could post (CLE-34987) — never a wildcard.
 # Never a bare scheme (`https:` would admit every host and make it a no-op).
 env = json.load(open(cnf))["env"]
 base = env["dns"]["BASE_DOMAIN"]
@@ -105,7 +107,7 @@ if not api_fqdn:
 labels = list(steps.get("031-gcp-hub-ingress", {}).get("extra_host_labels", []) or [])
 hosts = [api_fqdn] + [l + "." + base for l in labels if l]
 tenants = env["dns"].get("mapped_tenants")
-hosts += [t + "." + fqdn for t in tenants] if tenants else ["*." + fqdn]
+hosts += [t + "." + fqdn for t in (tenants or [])]
 connect = ["'self'"]
 for h in dict.fromkeys(hosts):
     connect += ["https://" + h, "wss://" + h]

@@ -14,7 +14,7 @@ Evolve the 005 live-chat MVP (`src/utils/live-ws.mjs`, `src/composables/useLive.
 | Omnibox | `MessageComposer.vue` gains `omnibox` mode: `/search` emits `search`, Esc clears |
 | Per-pane live feeds | `src/stores/live.ts` → `useLiveFeed(key)` (`main`, `pane`), same socket |
 | Prepend + windowed reveal + bottom sentinel | `src/components/LiveFeed.vue` (`TransitionGroup`, `IntersectionObserver`) |
-| Right pane | `src/components/LiveThreadPane.vue` live mode (pinned root, reply Omnibox, newest-first; `ls csi-spl-wui/src/components/LiveThreadPane.vue`) |
+| Right pane | `src/components/LiveTopicPane.vue` (was `LiveThreadPane.vue`, `57f8a670`) live mode (pinned root, newest-first; reply Omnibox removed `afcbcede`; `ls csi-spl-wui/src/components/LiveTopicPane.vue`) |
 | 3-pane geometry | `src/assets/css/main.css` per layout spec §1.1 |
 
 ## Decisions (logged to the orchestrator outbox)
@@ -29,4 +29,4 @@ Evolve the 005 live-chat MVP (`src/utils/live-ws.mjs`, `src/composables/useLive.
 Unit (feed, avatar), typecheck, e2e no-x-scroll incl. `/lobby` and `/` with the pane open;
 a live two-tab run against a trunk hub (lde), as in 005 T024.
 
-<!-- version: 0.1.1 · updated: 2026-09-19 · last-edit: 2026-09-19T09:05:00Z -->
+<!-- version: 0.1.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:32:11Z -->

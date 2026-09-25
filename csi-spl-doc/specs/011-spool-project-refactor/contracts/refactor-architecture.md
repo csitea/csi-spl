@@ -129,6 +129,7 @@ export interface SpoolClient {
 3. **Downward Historical Paging**:
    - Scrolling down triggers an intersection observer when reaching the bottom buffer (older messages).
    - The client fetches the next chunk: `listMessages({ channel, before: oldestTimestamp, limit: 50 })`.
+   - Current state (`4843828b`, 2026-09-25): no intersection observer; a Load more button under the last row reads the next 30 rows (`WINDOW = 30`, `csi-spl-wui/src/stores/live.ts:13`, `stores/channel.ts`), held rows first, then the hub with `before=<next>`.
    - Incoming chunk items are appended to the end of the array: `messages.push(...olderChunk)`.
 
 ---
@@ -146,6 +147,8 @@ Required top-level blocks:
 
 Execution invariant: `./run` aborts immediately with exit code 1 if configuration validation fails.
 
+Current state (`28442ef6`): no `csi-spl-cnf/schema/` exists and several keys above do not exist under these names (`project_id`, `region`, `zone`, `managed_zone`, `session_cookie_name`, `cookie_domain` → 0 hits in `all.env.yaml` + `dev.env.yaml`). Validation is the pydantic conf-validator (`9c576311`), run before tpl-gen, not before `./run`. Schema form: open, owner decision (asked in topic 582f7895).
+
 ---
 
-<!-- version: 1.0.1 · updated: 2026-09-19 · last-edit: 2026-09-19T09:05:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:32:11Z -->

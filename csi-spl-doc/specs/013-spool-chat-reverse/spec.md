@@ -28,6 +28,9 @@ narrative for it, and 005 is already the viewer + live-chat record. 012 is
 ## 1. User stories
 
 ### US1 — Top Omnibox (P1)
+
+Current state (022, `63e37dc`): the one Omnibox is in the persistent top bar, and `/search <q>` opens the grouped search page `/search?q=`. See FR-001.
+
 The middle pane has one input pinned at its top. Typing and Enter sends a
 `note` (a leading `@CLE-07` makes it a `task` for that agent). `/search <q>`
 does not send: it filters the feed to messages whose body, author or file
@@ -37,6 +40,9 @@ name contains `q`; `/search` alone or Esc clears the filter.
 `/search foo` → only matching rows show and nothing is sent.
 
 ### US2 — Reverse-prepend feed (P1)
+
+Current state (`0142445f`, `50646f1e`, 2026-09-23): the middle pane, including the lobby, lists only thread starters; replies show in the right pane. Accepting this as an amendment: open, owner decision (asked in topic 582f7895).
+
 Newest first, directly under the Omnibox. Own sends and live WS messages
 from others enter at the top with a short entrance transition (none under
 `prefers-reduced-motion`). Scrolling down reveals older history; reaching the
@@ -47,6 +53,9 @@ this one live; scrolling to the bottom of a thread longer than one window
 shows older rows.
 
 ### US3 — Right thread pane (P1)
+
+Current state (`afcbcede`, 2026-09-23): the pane has no reply Omnibox of its own; replies go through the TopBar Omnibox. See FR-004.
+
 Opening a thread shows, in the right pane: the **root** message (oldest of
 the `task_id`) pinned at the top, then the pane's own Omnibox (reply to that
 `task_id`), then replies newest-first. It is live over the same WS socket.
@@ -124,12 +133,12 @@ Function`, no WASM — so CSP needs neither `unsafe-eval` nor
 
 ## 2. Functional requirements
 
-- **FR-001** (Implemented, `ec3b91e`; tasks.md): Omnibox component (reuse `MessageComposer.vue`), send on Enter, `/search` filter, Esc clears.
-- **FR-002** (Implemented, `ec3b91e`; tasks.md): newest-first render with windowed reveal (default 50) and a bottom sentinel that loads the next older window.
+- **FR-001** (Partial — Enter send and Esc Implemented, `ec3b91e`; delta: the one Omnibox now sits in `components/TopBar.vue` (022, `63e37dc`), not the middle pane, and `/search <q>` opens the 022 search page (`TopBar.vue:160` `onSearch` → `router.push(searchPath(q))`) instead of filtering the feed; the in-feed filter is unreachable (`git grep -n "setSearch(" -- csi-spl-wui/src | grep -v "setSearch('')"` → only the two definitions, `28442ef6`); tasks.md T003): Omnibox component (reuse `MessageComposer.vue`), send on Enter, `/search` filter, Esc clears.
+- **FR-002** (Partial — newest-first render Implemented, `ec3b91e` + `de3d67c1`; delta: since `4843828b` (2026-09-25) the first page is 30 rows and a Load more button under the last row loads the next 30 (held rows first, then `before=<next>`), replacing the 50-row window and the auto-loading sentinel (`WINDOW = 30`, `csi-spl-wui/src/stores/live.ts:13`; `tests/unit/load-more-30.test.mjs` 12 pass); tasks.md T004, T008): newest-first render with windowed reveal (default 50) and a bottom sentinel that loads the next older window.
 - **FR-003** (Implemented, `ec3b91e`; tasks.md): entrance transition on prepend; disabled under `prefers-reduced-motion`.
-- **FR-004** (Implemented, `ec3b91e`; tasks.md): right pane for a `task_id`: pinned root, reply Omnibox, newest-first replies, live.
+- **FR-004** (Partial — pinned root, newest-first replies, live Implemented, `ec3b91e`; delta: the pane has no reply Omnibox since `afcbcede` (`git grep -c MessageComposer -- csi-spl-wui/src/components/LiveTopicPane.vue csi-spl-wui/src/components/TopicPane.vue` → 0 each); replies go through the TopBar Omnibox (`utils/omnibox-topic.mjs` `omniboxReplyTaskId`); the pane is `LiveTopicPane.vue` / `TopicPane.vue` after the rename `57f8a670`, deep link `/?topic=<id>`; accepting this as an amendment: open, owner decision (asked in topic 582f7895); tasks.md T005): right pane for a `task_id`: pinned root, reply Omnibox, newest-first replies, live.
 - **FR-005** (Implemented, `ec3b91e`; tasks.md): 3-pane geometry per `SPEC-spool-wui-layout.md` §1.1 on desktop (left 260px, middle flex, right 380px); on narrow screens the right pane overlays and nothing scrolls sideways (no-x-scroll invariant).
-- **FR-006** (Implemented — cards, roster, `@mention` list): deterministic avatars — robot SVG for agents (prefix tint), identicon for `HUM-*`; used on message cards, the roster, and mention suggestions.
+- **FR-006** (Implemented, `c4b3cca` + `ec3b91e` + `976d5930` — cards, roster, `@mention` list; tasks.md T002): deterministic avatars — robot SVG for agents (prefix tint), identicon for `HUM-*`; used on message cards, the roster, and mention suggestions.
 - **FR-007** (Implemented, `ec3b91e`; tasks.md): a11y order and semantics as US5.
 - **FR-008** (Implemented, `ec3b91e`; tasks.md): no `v:1` change; the live WS client and view reads are reused unchanged (005 T021–T023).
 - **FR-009** (Implemented, `76f66b5`; tasks.md T014): the two vertical seams of the 3-pane shell are draggable, keyboard-accessible separators; widths persist in `localStorage` `spool.pane-widths`; the main feed never collapses; no divider when a pane is hidden or overlaying. See `SPEC-spool-wui-layout.md` §1.2.
@@ -158,6 +167,6 @@ Function`, no WASM — so CSP needs neither `unsafe-eval` nor
 | # | Gap | Owner |
 |---|---|---|
 | D1 | ~~no newest-first window on view-v1 §4.4~~ **closed**: `order=desc&before=` (`1dca945`), used by the WUI (tasks T008) | 003 (CLE-3340) |
-| D2 | Custom avatars (`file_id` profile map) | later (avatars §3) |
+| D2 | Custom avatars (`file_id` profile map) — Partial: the IdP picture is stored as `humans.avatar_file_id` (010 T044; `internal/auth/avatar_flow_test.go`, `internal/hub/view.go:194`); a user-uploaded avatar is not built | later (avatars §3) |
 
-<!-- version: 0.7.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:25:00Z -->
+<!-- version: 0.8.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:32:11Z -->

@@ -1,0 +1,26 @@
+# Secret scan for this repo. Extends the gitleaks default rules.
+# Triage, gitleaks 8.30.1, 1171 commits on tree bbe04d26 (2026-09-25), n=1:
+# 25 hits, every one rule generic-api-key, every one a false positive.
+#   - Stripe publishable keys (pk_test_ / pk_live_) in cnf. Publishable by
+#     Stripe's design. No sk_ secret key and no whsec_ webhook secret.
+#   - Unit-test fixtures whose plaintext is a non-credential
+#     (foobarbaz…, "not-a-key", "secret-key-bytes-not-a-real-key",
+#     "Key-not-real-but-64-bytes-long-for-the-test-only").
+# A real credential still fails the scan. The control plants an AKIA key in
+# a throwaway git repo and requires gitleaks to exit 1 on it.
+title = "csi-spl secret scan"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Triaged false positives. regexTarget secret, unanchored."
+regexTarget = "secret"
+regexes = [
+    '''pk_(?:test|live)_[0-9A-Za-z]+''',
+    '''Zm9vYmFyYmF6cXV4cXV1eGZvbw''',
+    '''ct_7f3a9b2c5d8e1f4a6b9c2d5e8f1a4b7c''',
+    '''S2V5LW5vdC1yZWFsLWJ1dC02NC1ieXRlcy1sb25nLWZvci10aGUtdGVzdC1vbmx5IQ==''',
+    '''c2VjcmV0LWtleS1ieXRlcy1ub3QtYS1yZWFsLWtleQ==''',
+    '''bm90LWEta2V5''',
+]

@@ -13,8 +13,8 @@ import { filterRosterMentions } from './mention-autocomplete.mjs'
 /** from: offers at most this many roster ids, same cap as the operator list. */
 const FROM_ROSTER_CAP = 8
 
-/** `/search` or `/s`, then whitespace or end of line (case-insensitive). */
-const SEARCH_CMD_RE = /^\/(?:search|s)(?=\s|$)/i
+/** `/search` or `/s`, then a colon, whitespace, or end of line (case-insensitive). */
+const SEARCH_CMD_RE = /^\/(?:search|s)(?::|\s|$)/i
 
 /** Result sections in render order (spec 022 FR-021; group keys of search-v1 §4). */
 export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'topics', 'files', 'messages']
@@ -79,7 +79,7 @@ export function shouldLoadOperators({ mock, sessionState } = {}) {
   return Boolean(mock) || String(sessionState) === 'in'
 }
 
-/** Omnibox mode of a line: 'search' for `/search …` / `/s …`, else 'send'. */
+/** Omnibox mode of a line: 'search' for `/search …`, `/search:…`, `/s …`, else 'send'. */
 export function omniboxMode(text) {
   return SEARCH_CMD_RE.test(String(text || '')) ? 'search' : 'send'
 }
@@ -123,7 +123,9 @@ export function operatorTokenAt(text, caret) {
   const before = s.slice(0, i)
   const w = before.match(/[^\s]*$/)
   let start = i - (w ? w[0].length : 0)
-  if (start < m[0].length) return null
+  // `/search:from` has no space, so the word includes the command.
+  if (start < m[0].length) start = m[0].length
+  if (start >= i) return null
   while (start < i && (s[start] === '-' || s[start] === '(')) start++
   let end = i
   while (end < s.length && !/\s/.test(s[end]) && s[end] !== ')') end++

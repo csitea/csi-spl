@@ -30,7 +30,7 @@ const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('omnibox mode switch', () => {
   it('/search and /s switch to search, with or without a query', () => {
-    for (const s of ['/search', '/search ', '/search from:EZB-1 is:task', '/s foo', '/SEARCH x', '/search\nx']) {
+    for (const s of ['/search', '/search ', '/search from:EZB-1 is:task', '/s foo', '/SEARCH x', '/search\nx', '/search:test', '/s:foo', '/SEARCH:x']) {
       assert.equal(omniboxMode(s), 'search', s)
     }
   })
@@ -43,6 +43,9 @@ describe('omnibox mode switch', () => {
     assert.equal(searchQueryOf('/search from:EZB-1 is:task'), 'from:EZB-1 is:task')
     assert.equal(searchQueryOf('/s   "exact  phrase" -foo OR (a b)  '), '"exact  phrase" -foo OR (a b)')
     assert.equal(searchQueryOf('/search'), '')
+    assert.equal(searchQueryOf('/search:test'), 'test')
+    assert.equal(searchQueryOf('/search:from:EZB-1 is:task'), 'from:EZB-1 is:task')
+    assert.equal(searchQueryOf('/search:'), '')
     assert.equal(searchQueryOf('hello'), '')
   })
 })
@@ -70,6 +73,7 @@ describe('query building', () => {
 describe('operator autocomplete', () => {
   it('token at caret, only past the /search command', () => {
     assert.deepEqual(operatorTokenAt('/search fr', 10), { token: 'fr', start: 8, end: 10 })
+    assert.deepEqual(operatorTokenAt('/search:fr', 10), { token: 'fr', start: 8, end: 10 })
     assert.equal(operatorTokenAt('/search', 7), null)
     assert.equal(operatorTokenAt('hello fr', 8), null)
   })

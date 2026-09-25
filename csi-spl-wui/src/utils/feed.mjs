@@ -40,10 +40,10 @@ export function windowed(rows, count) {
   return { rows: rows.slice(0, n), hasOlder: rows.length > n }
 }
 
-/** Omnibox: `/search <q>` (or `/s <q>`) → { search: q }; `/search` alone → { search: '' }; else { send: text }. */
+/** Omnibox: `/search <q>` or `/search:<q>` (or `/s`) → { search: q }; `/search` alone → { search: '' }; else { send: text }. */
 export function parseOmnibox(text) {
   const t = String(text || '')
-  const m = t.match(/^\/(?:search|s)(?:\s+([\s\S]*))?$/i)
+  const m = t.match(/^\/(?:search|s)(?::|\s|$)([\s\S]*)$/i)
   if (m) return { search: (m[1] || '').trim() }
   return { send: t.trim() }
 }

@@ -31,6 +31,8 @@ describe('feed (013 reverse prepend)', () => {
     assert.deepEqual(parseOmnibox('/search build green'), { search: 'build green' })
     assert.deepEqual(parseOmnibox('/s x'), { search: 'x' })
     assert.deepEqual(parseOmnibox('/search'), { search: '' })
+    assert.deepEqual(parseOmnibox('/search:test'), { search: 'test' })
+    assert.deepEqual(parseOmnibox('/s:foo'), { search: 'foo' })
     assert.deepEqual(parseOmnibox('  hello  '), { send: 'hello' })
     assert.deepEqual(parseOmnibox('/searching is fun'), { send: '/searching is fun' })
   })

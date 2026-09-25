@@ -51,10 +51,10 @@ func TestViewChannelsNewestActivityFirst(t *testing.T) {
 	e := wuiEnv(t)
 	tid, _ := e.tenant()
 
-	// Before any post: the three default channels were all seeded with the
+	// Before any post: the four default channels were all seeded with the
 	// tenant, so they tie and keep the stable a-z tail (CONTROL for the order
 	// asserted below - nothing here is sorted by name).
-	if got := channelOrder(channelRows(t, e, tid)); strings.Join(got, ",") != "alerts,lobby,tasks" {
+	if got := channelOrder(channelRows(t, e, tid)); strings.Join(got, ",") != "alerts,feedback,lobby,tasks" {
 		t.Fatalf("idle defaults: %v", got)
 	}
 
@@ -78,9 +78,9 @@ func TestViewChannelsNewestActivityFirst(t *testing.T) {
 	w.send(map[string]any{"type": "send", "task_id": "lobby", "body": "hello lobby"})
 	w.read("ack")
 
-	// #lobby posted LAST, so it leads; #releases next; the two idle defaults a-z.
+	// #lobby posted LAST, so it leads; #releases next; the three idle defaults a-z.
 	rows := channelRows(t, e, tid)
-	if got := channelOrder(rows); strings.Join(got, ",") != "lobby,releases,alerts,tasks" {
+	if got := channelOrder(rows); strings.Join(got, ",") != "lobby,releases,alerts,feedback,tasks" {
 		t.Fatalf("newest activity first: %v", got)
 	}
 
@@ -104,10 +104,10 @@ func TestViewChannelsNewestActivityFirst(t *testing.T) {
 		t.Fatalf("created_at %v: %v", fresh["created_at"], err)
 	}
 	// CONTROL: an idle channel never outranks one with a message, however it
-	// was created - the two defaults seeded with the tenant stay at the tail.
+	// was created - the three idle defaults seeded with the tenant stay at the tail.
 	got := channelOrder(rows)
-	tail := strings.Join(got[len(got)-2:], ",")
-	if tail != "alerts,tasks" {
+	tail := strings.Join(got[len(got)-3:], ",")
+	if tail != "alerts,feedback,tasks" {
 		t.Fatalf("idle channels must stay at the tail: %v", got)
 	}
 }

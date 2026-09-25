@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -198,6 +199,10 @@ type viewHuman struct {
 	// DisplayName is the name the human chose (humans.display_name, set in
 	// Settings > Profile); null = none, and the WUI shows the member id.
 	DisplayName *string `json:"display_name"`
+	// Owner marks a business owner (role biz_owner): the member the WUI
+	// always offers in the #feedback @ picker, online or not (owner,
+	// 2026-09-25). Omitted for everyone else; never exposes any other role.
+	Owner bool `json:"owner,omitempty"`
 }
 
 // viewHumans lists the tenant's member HUM-* with the stored IdP picture
@@ -215,6 +220,7 @@ func (s *Server) viewHumans(r *http.Request, tenant string) ([]viewHuman, error)
 		return nil, err
 	}
 	names := map[string]string{}
+	owners := map[string]bool{}
 	if md, ok := s.o.Store.(store.MemberDirectory); ok {
 		members, err := md.ListMembers(r.Context(), tenant)
 		if err != nil {
@@ -222,6 +228,9 @@ func (s *Server) viewHumans(r *http.Request, tenant string) ([]viewHuman, error)
 		}
 		for _, m := range members {
 			names[m.HumanID] = strings.TrimSpace(m.DisplayName)
+			if m.Role == rbac.BizOwner && !m.Disabled {
+				owners[m.HumanID] = true
+			}
 		}
 	}
 	for id, fid := range avatars {
@@ -233,6 +242,7 @@ func (s *Server) viewHumans(r *http.Request, tenant string) ([]viewHuman, error)
 		if n := names[id]; n != "" {
 			v.DisplayName = &n
 		}
+		v.Owner = owners[id]
 		out = append(out, v)
 	}
 	/* CLE-3425: newest member first, by the HUM-<n> the hub hands out in order

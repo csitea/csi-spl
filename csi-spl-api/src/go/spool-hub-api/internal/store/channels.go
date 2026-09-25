@@ -16,12 +16,15 @@ const (
 	ChannelLobby  = "lobby"
 	ChannelTasks  = "tasks"
 	ChannelAlerts = "alerts"
+	// ChannelFeedback is where any member tags the business owner(s) with
+	// feedback (owner, 2026-09-25; channels-v1 §1).
+	ChannelFeedback = "feedback"
 	// ChannelGeneralAlias is the pre-M3 lobby name: an input alias only (C3).
 	ChannelGeneralAlias = "general"
 )
 
 // DefaultChannels in display order.
-var DefaultChannels = []string{ChannelLobby, ChannelTasks, ChannelAlerts}
+var DefaultChannels = []string{ChannelLobby, ChannelTasks, ChannelAlerts, ChannelFeedback}
 
 var channelRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 

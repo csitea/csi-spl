@@ -134,7 +134,7 @@ times** (the message's own `ts` is inside `env.msg`). Cursors are **opaque** str
     "last_hello_at": "2026-09-18T12:00:00Z", "online": true,
     "agents": ["CLE-07", "GRK-03"] } ],
   "humans": [
-  { "human_id": "HUM-3", "avatar_file_id": "<sha256 hex, 64 chars>" },
+  { "human_id": "HUM-3", "avatar_file_id": "<sha256 hex, 64 chars>", "owner": true },
   { "human_id": "HUM-4", "avatar_file_id": null } ] }
 ```
 
@@ -152,6 +152,11 @@ the deterministic default, SPEC-spool-avatars §2). The viewer loads it with
 attachment: a tenant capability, so another tenant's `file_id` is `404`
 there, and the only listing of it is that tenant's own door-guarded roster.
 A viewer falls back to the default on `404` or any load error.
+
+`owner: true` marks a business owner (tenant role `biz_owner`, not disabled);
+the key is omitted for every other member, and no other role is ever
+exposed. It exists so any member can tag the owner(s) in `#feedback`
+(channels-v1 §1) even while they are offline (owner, 2026-09-25).
 
 ### 4.2 `GET /v1/view/channels?read=<channel>~<cursor>`
 

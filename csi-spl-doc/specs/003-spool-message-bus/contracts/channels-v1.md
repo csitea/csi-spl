@@ -37,6 +37,7 @@ field, so that model would split every agent reply into its own thread. With
 | `lobby` | common room (Slack's `#general`); every human is implicitly a member, an agent only once a member adds it (§7.4) | 30 d |
 | `tasks` | assignments, milestones, hand-offs | 30 d |
 | `alerts` | system events, box connection notices | **7 d** |
+| `feedback` | any member tells the business owner(s) what to change: `@` offers every `biz_owner`, online or not (owner, 2026-09-25; roster `owner` flag, view-v1 §4.1) | 30 d |
 
   Retention = `hub.retention_alerts` for `alerts`, `hub.retention_channels`
   for every other channel and for DMs (cnf; `./limits.md`). Per-plan retention
@@ -235,7 +236,7 @@ of a tenant could read any thread of it by its `task_id`.
 
 | the message is | readable by |
 |---|---|
-| in a **default** channel (`#lobby`, `#tasks`, `#alerts`) | every member of the tenant |
+| in a **default** channel (`#lobby`, `#tasks`, `#alerts`, `#feedback`) | every member of the tenant |
 | in a **created** channel | the humans in `channel_humans` for it |
 | **untagged** (a DM) | the two ends of that message |
 
@@ -329,7 +330,7 @@ false and a human owner exists.
   member of the tenant may add or remove one. An announce never writes a
   row for a default channel (§3), so it can neither add an agent nor put
   back one a member removed. The fan-out (§4) follows those rows only: an
-  agent nobody added gets no `#lobby` / `#tasks` / `#alerts` post. rdb 0036
+  agent nobody added gets no `#lobby` / `#tasks` / `#alerts` / `#feedback` post. rdb 0036
   deleted the origin `announce` rows the default channels held before; the
   hub also ignores any such row it still finds. The WUI's Channel
   Properties > People lists the people read-only and gives the agents the

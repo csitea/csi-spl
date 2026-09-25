@@ -520,6 +520,69 @@ func TestViewRosterHumanDisplayName(t *testing.T) {
 	}
 }
 
+// Owner, 2026-09-25 (#feedback): every member can see which members are the
+// business owners, so the @ picker can offer them offline too. Only
+// biz_owner is flagged; the field never exposes any other role (CONTROL: a
+// default-role member carries no flag).
+func TestViewRosterHumanOwnerFlag(t *testing.T) {
+	r := newDoorRig(t)
+	mine, _ := r.e.tenant()
+	ctx := context.Background()
+	h := r.e.st.(store.Humans)
+	if landed := r.signIn(t, mine); strings.Contains(landed, "auth_error") {
+		t.Fatalf("sign-in landed on %s", landed)
+	}
+	reader := r.session(t).HumanID
+	admit := func(email, sub, role string) string {
+		t.Helper()
+		if err := h.PutInvite(ctx, store.Invite{TenantID: mine, Email: email, Role: role,
+			InvitedBy: store.AdmittedOperator, ExpiresAt: time.Now().Add(time.Hour)}, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		id, err := h.Admit(ctx, store.Identity{Provider: "google", Subject: sub, Email: email}, mine, store.AdmitPolicy{}, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	boss := admit("boss@example.com", "boss-sub", store.RoleTenantOwner)
+	dev := admit("dev@example.com", "dev-sub", store.RoleDefault)
+	code, _, body := r.get(t, mine, "/v1/view/roster")
+	var roster struct {
+		Humans []map[string]any `json:"humans"`
+	}
+	if err := json.Unmarshal([]byte(body), &roster); err != nil || code != http.StatusOK {
+		t.Fatalf("roster %d %s", code, body)
+	}
+	byID := map[string]map[string]any{}
+	for _, x := range roster.Humans {
+		byID[x["human_id"].(string)] = x
+	}
+	if byID[boss] == nil || byID[boss]["owner"] != true {
+		t.Fatalf("biz_owner not flagged: %s", body)
+	}
+	x, listed := byID[dev]
+	if !listed {
+		t.Fatalf("%s not listed: %s", dev, body)
+	}
+	if _, has := x["owner"]; has {
+		t.Fatalf("%s is not a biz_owner but carries owner: %s", dev, body)
+	}
+	// The reader's flag follows its STORED role, whatever the rig made it.
+	role, err := h.MemberRole(ctx, reader, mine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := byID[reader]["owner"] == true; got != (role == store.RoleTenantOwner) {
+		t.Fatalf("reader %s role %s: owner=%v: %s", reader, role, got, body)
+	}
+	for _, y := range roster.Humans {
+		if _, has := y["role"]; has {
+			t.Fatalf("roster leaks a role field: %s", body)
+		}
+	}
+}
+
 func sha256Hex(b []byte) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])

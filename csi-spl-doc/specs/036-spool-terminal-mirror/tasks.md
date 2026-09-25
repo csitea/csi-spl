@@ -51,11 +51,14 @@ named) · `[ ]` Planned (`../README.md` §2.3).
 - [x] T051 Done (4336d9f) — hub: frame `typed_by`; FR-010 (roster, membership, binding) refuses with `typed_by_not_bound` (403) and stores nothing; stored, in the view API and the WUI frame, never to a box. Test `internal/hub/typed_by_test.go` (memory + postgres).
 - [x] T052 Done (4336d9f, b079601) — `spool send --typed-by HUM-n` on the dial, submit-socket and pending paths (`<pending>.json.typed_by`); `do_spl_box_operator_{grant,revoke,list}` (owner / admin or `operator` grants a member).
 - [x] T053 Done (19daf4a, shipped in 0.5.5) — web UI: the row renders as the human + "via terminal <agent>" badge; e2e `tests/e2e/typed-by.test.mjs` in the 10 ci wui-e2e job.
-- [~] T054 Partial — mirror: `--typed-by <operator>` on prompts (no prefix),
-  re-post the old way on `typed_by_not_bound` / an old binary; `operator`
-  subcommand; `spool-agent --operator`. Check: `test-spool-mirror.sh` -> 62,
-  `test-spool-agent.sh` -> 29. Missing: the live proof once the hub side is
-  deployed (CLE-34976: migration 0040 + grant action + version bump).
+- [x] T054 Implemented (`348fe5d`, `bedcd7f`) — mirror: `--typed-by <operator>`
+  on prompts (no prefix), re-post the old way on `typed_by_not_bound` / an old
+  binary; `operator` subcommand; `spool-agent --operator`. Live on dev
+  2026-09-25 16:53-16:56Z (release 0.5.5, desk sidecar rebuilt, desk operator
+  HUM-17 bound by CLE-34976): DB rows `from_id=CLE-3496, typed_by=HUM-17`, n=2
+  in topic `0eabdd04-…`. `bedcd7f` fixes a box-wide silent outage (16:43-16:58Z):
+  the hook took the script's file owner for the box user. Check:
+  `test-spool-mirror.sh` -> 65; fleet posting again from 16:58:05Z.
 
 ## Phase 4 — Rollout
 
@@ -79,4 +82,4 @@ named) · `[ ]` Planned (`../README.md` §2.3).
   (as the box user). A seat with no backfill yet runs
   `do_spl_desk_session_upload`, which lands in the mirror's topic by itself.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:45:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T17:00:00Z -->

@@ -50,6 +50,7 @@ in_orc() {
 
 SEAT="$T/state/dev/desk/t1/box-desk"
 mkdir -p "$SEAT/spool/CLE-7/inbox" "$SEAT/spool/CLE-8" "$SEAT/spool/.hub" "$SEAT/keys"
+echo HUM-9 >"$SEAT/mirror-to"   # the desk's human (spec 036: no literal default id)
 
 # --- 1. dry run and refusals --------------------------------------------------------
 : >"$T/calls.log"
@@ -85,6 +86,13 @@ grep -q "\"task_id\": \"$T3\"" "$T/o" && pass "2. the JSON line names the topic"
 SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=CLE-7 SESSION_TOKEN=UNIQ-TOKEN-7 \
   SPOOL_AGENT_HOME="$T/home" HOME="$T/home" DRY_RUN=0 >"$T/o" 2>&1
 grep -q -- "--task $T3" "$T/calls.log" && pass "2. a second upload lands in the same topic" || fail "2. second: $(cat "$T/calls.log")"
+
+rm "$SEAT/mirror-to"; : >"$T/calls.log"; rm -f "$SEAT/spool/CLE-7/.mirror/topic" "$SEAT/spool/CLE-7/.mirror/peer"
+SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=CLE-7 SESSION_TOKEN=UNIQ-TOKEN-7 \
+  SPOOL_AGENT_HOME="$T/home" HOME="$T/home" DRY_RUN=0 >"$T/o" 2>&1 &&
+  fail "2. no human named anywhere was accepted" || pass "2. no human named anywhere: refused"
+[[ ! -s "$T/calls.log" ]] && grep -q 'no human to send' "$T/o" && pass "2. ... before any send, and it says why" || fail "2. no-human: $(cat "$T/o" "$T/calls.log")"
+echo HUM-9 >"$SEAT/mirror-to"
 
 # --- 3. the hooks settings ------------------------------------------------------------------
 SNIPPET=do_spl_desk_mirror_settings in_orc SETTINGS_OUT="$T/hooks.json" >"$T/o" 2>&1

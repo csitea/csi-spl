@@ -24,7 +24,9 @@
 # @param   (its brief path, one of its own inbox message paths), or the
 # @param   transcript's path
 # @param DESK_BOX (optional) - default box-desk
-# @param DESK_TO (optional) - the human; default: the mirror's topic human, else HUM-9
+# @param DESK_TO (optional) - the human; default: the mirror's human (the DM
+# @param   peer, else <desk>/mirror-to, else SPOOL_MIRROR_TO). None -> FATAL:
+# @param   a human id is per env, so nothing is guessed
 # @param SESSION_AGENT_USER (optional) - the user the agent CLI runs as,
 # @param   default $SPOOL_AGENT_USER, else the current user
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -69,6 +71,7 @@ do_spl_desk_session_upload() {
   pick="$(python3 "$feat/spool-mirror.py" topic "$adir")" || { do_log "FATAL cannot read the mirror topic of $agent"; return 1; }
   IFS=$'\t' read -r human task <<<"$pick"
   if [[ -n "$to" && "$to" != "$human" ]]; then human="$to"; task=""; fi
+  [[ -n "$human" ]] || { do_log "FATAL no human to send $agent's session to: pass DESK_TO=HUM-n, or name the desk's human in $d/mirror-to"; rm -f "$md"; return 1; }
 
   local sent
   local -a args=(send --from "$agent" --to "$human" --to-box box-wui --kind note

@@ -116,8 +116,16 @@ Your seat dir exists and the box's shared sidecar runs. If a message has
 reached you lately (the lobby broadcast counts), you are delivering:
 
 ```
-sudo -u "$BOX_USER" bash -c 'd=~/.local/share/csi-spl/cloud/dev/desk/t1/box-desk/spool; ls -d $d/<AGENT_ID> && ls -t $d/<AGENT_ID>/inbox | head -1 && pgrep -u "$USER" -f "spool hub-run" | head -1'
+sudo -u "$BOX_USER" bash -c 'd=~/.local/share/csi-spl/cloud/dev/desk/t1/box-desk/spool; ls -d $d/<AGENT_ID> && ls -t $d/<AGENT_ID>/inbox | head -1 && ps -o pid=,lstart= -p "$(cat $d/.hub/hub-run.pid)"'
 ```
+
+Read the sidecar pid from its pid file, never with `pgrep -f "spool hub-run"`:
+that pattern also matches your own `bash -c` line and prints a pid that is gone
+a moment later (measured 2026-09-25, n=1).
+
+Since csi-spl `c7f2767` the sidecar reconnects by itself after a hub redeploy.
+The first live one: 15:01:26Z, the log line `hub no longer knows this session`,
+back up 2 s later with no repair.
 
 Run 5.1 only when messages seem to stop, not as a routine step. When many
 agents run it at the same moment it fails for reasons that say nothing about
@@ -232,4 +240,4 @@ the window or rename it first):
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<AGENT_ID> DRY_RUN=0 ./run -a do_spl_desk_down'
 ```
 
-<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T15:20:00Z -->
+<!-- version: 1.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T15:24:00Z -->

@@ -218,6 +218,14 @@ jobs:
           NUXT_PUBLIC_DEFAULT_LOCALE: "en"
         run: pnpm run generate
 
+      - name: Initial JS gzip stays within the performance budget
+        run: |
+          set -euo pipefail
+          command -v python3 >/dev/null
+          python3 ../csi-spl-orc/src/bash/scripts/perf-budget.py bundle \
+            --pub .output/public \
+            --budgets ../csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json
+
       - name: Browser e2e (no-x-scroll, console-errors, topic-pane, msg-edit, dm-remove, display-name, typed-by)
         env:
           CI: "1"

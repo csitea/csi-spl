@@ -1,0 +1,36 @@
+{
+  "policy": "A ceiling is a maximum. The check fails when a measured value is greater than its ceiling, or when a required value was not measured. ci_initial_gzip_kb is the mock nuxt generate initial JS gzip from perf-budget.py (the chunks 200.html names, the same set as csi-spl-wui/src/node/test/bundle-size.mjs). Its ceiling is 210 KB so a regression of about 17 KB fails. dev_initial_gzip_kb is 1.10 times the live measurement, rounded up to 0.1 KB. The other ceilings are transfer p95 of the document plus its initial JS, and p95 of GET /v1/view/me, /v1/view/channels and /v1/view/roster. Each view sample and each chunk opens its own connection. Millisecond ceilings are the greater of twice the p95 and 1.25 times the slowest sample, rounded up to a whole millisecond.",
+  "ceilings": {
+    "ci_initial_gzip_kb": 210.0,
+    "dev_initial_gzip_kb": 241.5,
+    "first_load_p95_ms": 30330,
+    "view_me_p95_ms": 7544,
+    "view_channels_p95_ms": 1855,
+    "view_roster_p95_ms": 1577
+  },
+  "basis": {
+    "measured_utc": "2026-09-25T18:38:45Z",
+    "harness_tree": "bbe04d263a6d580ee99c604aca709357728d3a63",
+    "wui_commit": "f65d9e108b9573ebad94b47f3e03eef9d45c9813",
+    "hub_commit": "019d9e88ec9f6b8af2e049857cd95e98378d1aba",
+    "hub_version": "0.5.7",
+    "n": 12,
+    "warmup": 1,
+    "ci_chunks": 21,
+    "ci_bundle_size_mjs_gzip_kb": 199.2,
+    "headroom": "gzip: 1.10 times the measurement this commit's tree produces, rounded up to 0.1 KB. The 218.8 KB figure is the mock generate at bbe04d26, before the WUI commits this change rebases onto. milliseconds: the greater of twice the p95 and 1.25 times the slowest sample, rounded up. CLE-34984 asked for about 210 KB so a 17 KB regression of the initial set fails; 1.10x of 198.6 would have been 218.5.",
+    "metrics": {
+      "ci_initial_gzip_kb": 198.6,
+      "dev_initial_gzip_kb": 219.5,
+      "first_load_p50_ms": 4131.3,
+      "first_load_p95_ms": 15165.0,
+      "view_me_p50_ms": 768.5,
+      "view_me_p95_ms": 3751.9,
+      "view_channels_p50_ms": 279.8,
+      "view_channels_p95_ms": 927.4,
+      "view_roster_p50_ms": 330.4,
+      "view_roster_p95_ms": 788.1
+    },
+    "ci_gzip_kb_before_rebase": 218.8
+  }
+}

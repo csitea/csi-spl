@@ -46,6 +46,7 @@ None of the audit's items is already fixed on trunk.
 - **FR-002** Behaviour does not change. The existing module tests stay green, and every lane adds CONTROLS: what must still be refused is still refused (RLS tenant isolation, pin revoke takes effect at once, quota, sha mismatch, size limit).
 - **FR-003** csi-rel is canon. Firebase Hosting WUI + Cloud Run hub on domain mappings, no load balancer. Config goes cnf -> tpl-gen -> tfvars; infra runs as named actions / make in tf-runner; GCP only as the per-env SA.
 - **FR-004** A change is done when it is deployed to dev and then prd and the deployed sha is verified (`/version`, `build.json`), not when CI is green. Hub rolls go through the deploy lane (CLE-3355).
+- **FR-005** Implemented: `do_spl_perf_budget` records initial JS gzip, first-load transfer p50/p95, and p50/p95 of `GET /v1/view/me`, `/v1/view/channels` and `/v1/view/roster`. A value over its ceiling in `contracts/perf-budgets.json` exits 1. Workflow 10 job `wui-e2e` applies the initial-gzip ceiling to the mock `nuxt generate`. Check: `bash csi-spl-orc/src/bash/tests/perf-budget.tst.sh` (0.1 over the ceiling exits 1). Numbers and the headroom rule: `contracts/perf-budgets.md`.
 
 ## 5. Owner decisions (routed via CLE-00)
 
@@ -95,4 +96,4 @@ Owner, 2026-09-25 (prd #spool-hub-devel): "performance improvement - do perfroma
 
 prd (tenant `e2e`, 7 lobby rows; prd had be12078d before it was measured): f65d9e10 cold first message 1396 ms, FCP 796, 21 API reads, 2 preflights, session + roster read 2x each. The prd AFTER runs of 5ec01cf1 died on `ERR_NETWORK_CHANGED` from this box; the preflight count read 0 on the one run that completed (`waterfall` has no OPTIONS row, same as dev).
 
-<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:25:50Z -->
+<!-- version: 0.3.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:33:30Z -->

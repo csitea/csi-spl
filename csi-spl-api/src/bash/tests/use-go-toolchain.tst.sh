@@ -32,9 +32,10 @@ spl_export_go_path "$T" || { echo "FAIL: selector returned non-zero on a root th
 first=${PATH%%:*}
 [[ "$first" == "$T/go1.25.14/bin" ]] && pass "a newer sibling toolchain wins" \
   || fail "wanted the 1.25.14 sibling first, got $first"
-PATH=$old_path
-
+# Stay on the older PATH go. Restoring the runner go (newer than 1.25.1)
+# made this case pick /home/runner/go/bin (hub deploy run 36184828848).
 rm -rf "$T/go1.25.14"
+PATH="$T/older/bin:/usr/bin:/bin"
 if spl_export_go_path "$T"; then
   first=${PATH%%:*}
   [[ "$first" == "$T/go/bin" ]] && pass "with no sibling, the default tree wins" \

@@ -408,7 +408,14 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	email := normEmail(req.Email)
-	if email != "" && !n.limit(w, "login-email:"+email, n.cfg.LoginPerEmail) {
+	// CLE-34986: the per-email ceiling is per (email, client IP), so a
+	// stranger's wrong guesses from their address no longer lock the owner
+	// out from theirs (it was spent before the password check, keyed on the
+	// email alone: ten posts locked any known address for 15 minutes). A
+	// tenfold per-email ceiling across ALL addresses still bounds a guess
+	// spread over many IPs.
+	if email != "" && (!n.limit(w, "login-email:"+email+"|"+n.ip(r), n.cfg.LoginPerEmail) ||
+		!n.limit(w, "login-email-all:"+email, 10*n.cfg.LoginPerEmail)) {
 		return
 	}
 	ctx, cancel := n.ctx(r)

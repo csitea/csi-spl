@@ -179,6 +179,14 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 	defer rc.Close()
 	h := w.Header()
 	h.Set("Content-Type", "application/octet-stream")
+	// Bytes a member uploaded, served from the API origin that holds the
+	// session cookie (CLE-34986): never sniffed into HTML or script, never
+	// rendered as a page when opened directly - a download, in a sandbox.
+	// None of the three touches an <img> or a fetch(), which is how the WUI
+	// reads them.
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Content-Disposition", "attachment")
+	h.Set("Content-Security-Policy", "sandbox; default-src 'none'")
 	// The file_id IS the sha256 of the bytes, so they never change under this
 	// URL: the browser keeps them instead of re-downloading an attached
 	// picture on every page (CLE-34985, 100-650 ms each, up to 8x a page on

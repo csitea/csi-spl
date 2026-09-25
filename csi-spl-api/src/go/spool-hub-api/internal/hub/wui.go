@@ -303,7 +303,10 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 				c.write(ctx, map[string]string{"type": "subscribed", "task_id": task}) //nolint:errcheck
 			}
 		case "send":
-			s.wuiSend(ctx, c, f)
+			// One frame, one membership lookup (store.WithMemo): the channel
+			// door and both permission checks share it, and the next frame
+			// reads it again, so a demotion still bites on an open socket.
+			s.wuiSend(store.WithMemo(ctx), c, f)
 		case "token":
 			tok, exp := s.mintToken(t.ID, WUIBox)
 			c.write(ctx, map[string]string{"type": "token", "upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339)}) //nolint:errcheck

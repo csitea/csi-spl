@@ -98,6 +98,41 @@ func (s *Postgres) queryTenant(ctx context.Context, tenant, sql string, args []a
 	})
 }
 
+// tenantRead is one statement of a queryTenantBatch.
+type tenantRead struct {
+	sql  string
+	args []any
+	each func(pgx.Rows) error // once per row
+}
+
+// queryTenantBatch sends the tenant scope and several reads as ONE batch: one
+// round trip, where inTenant paid BEGIN + scope + one per read + COMMIT
+// (CLE-34985). The batch is one implicit transaction, like inTenant's, so the
+// scope ends with it. Results are read in queue order, so a read's each may
+// depend on what an earlier read's each stored.
+func (s *Postgres) queryTenantBatch(ctx context.Context, tenant string, reads ...tenantRead) error {
+	if err := checkTenant(tenant); err != nil {
+		return err
+	}
+	b := &pgx.Batch{}
+	b.Queue(pgScopeTenant, tenant)
+	for _, r := range reads {
+		b.Queue(r.sql, r.args...)
+	}
+	br := s.pool.SendBatch(ctx, b)
+	_, err := br.Exec()
+	for i := 0; err == nil && i < len(reads); i++ {
+		var rows pgx.Rows
+		if rows, err = br.Query(); err == nil {
+			err = scanRows(rows, reads[i].each)
+		}
+	}
+	if cerr := br.Close(); err == nil {
+		err = cerr
+	}
+	return err
+}
+
 // eachRow runs sql on tx and calls each once per row.
 func eachRow(ctx context.Context, tx pgx.Tx, sql string, args []any, each func(pgx.Rows) error) error {
 	rows, err := tx.Query(ctx, sql, args...)

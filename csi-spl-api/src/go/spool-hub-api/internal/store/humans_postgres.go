@@ -176,16 +176,20 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 	return ErrNotAdmitted
 }
 
+// MemberRole reads the human's role in tenant, once per request when ctx
+// carries a request memo (memo.go).
 func (s *Postgres) MemberRole(ctx context.Context, humanID, tenant string) (string, error) {
-	var role string
-	err := s.queryRowTenant(ctx, tenant, `SELECT m.role FROM tenant_memberships m
-		JOIN humans h ON h.human_id = m.human_id
-		WHERE m.tenant_id = $1 AND m.human_id = $2 AND h.disabled_at IS NULL`,
-		[]any{tenant, humanID}, &role)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNotFound
-	}
-	return role, err
+	return memberRole(ctx, humanID, tenant, func() (string, error) {
+		var role string
+		err := s.queryRowTenant(ctx, tenant, `SELECT m.role FROM tenant_memberships m
+			JOIN humans h ON h.human_id = m.human_id
+			WHERE m.tenant_id = $1 AND m.human_id = $2 AND h.disabled_at IS NULL`,
+			[]any{tenant, humanID}, &role)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return role, err
+	})
 }
 
 func (s *Postgres) PutInvite(ctx context.Context, in Invite, now time.Time) error {

@@ -85,6 +85,7 @@ type meBody struct {
 }
 
 func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
+	r = r.WithContext(store.WithMemo(r.Context())) // a read: one membership lookup
 	s.allowOrigin(w, r)
 	w.Header().Set("Cache-Control", "no-store")
 	t, hum, ok := s.humanTenant(w, r)

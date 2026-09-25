@@ -195,11 +195,11 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 	for _, d := range DefaultChannels {
 		get(d)
 	}
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		scan := func(q string, args []any, fn func(pgx.Rows) error) error {
-			return eachRow(ctx, tx, q, args, fn)
-		}
-		if err := scan(`SELECT channel_id, name, description, created_by, created_at, members_open_invite FROM channels WHERE tenant_id = $1`,
+	// One batch, one round trip (CLE-34985; it was a BEGIN .. COMMIT
+	// transaction of 5 + len(reads) round trips). Results come back in queue
+	// order, so the unread counts see the counts the stats read stored.
+	reqs := []tenantRead{
+		{`SELECT channel_id, name, description, created_by, created_at, members_open_invite FROM channels WHERE tenant_id = $1`,
 			[]any{tenant}, func(r pgx.Rows) error {
 				var c Channel
 				if err := r.Scan(&c.ChannelID, &c.Name, &c.Description, &c.CreatedBy, &c.CreatedAt, &c.MembersOpenInvite); err != nil {
@@ -208,10 +208,8 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 				st := get(c.ChannelID)
 				st.Name, st.Description, st.CreatedBy, st.CreatedAt, st.MembersOpenInvite = c.Name, c.Description, c.CreatedBy, c.CreatedAt, c.MembersOpenInvite
 				return nil
-			}); err != nil {
-			return err
-		}
-		if err := scan(`SELECT channel, count(*)::int, max(received_at),
+			}},
+		{`SELECT channel, count(*)::int, max(received_at),
 				(array_agg(msg_id::text ORDER BY received_at DESC, msg_id::text DESC))[1], count(DISTINCT from_id)::int
 			FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2 GROUP BY channel`,
 			[]any{tenant, now}, func(r pgx.Rows) error {
@@ -225,37 +223,45 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 				st := get(id)
 				st.Count, st.LastAt, st.LastMsgID, st.Posters, st.Unread = n, last, lastID, posters, n
 				return nil
-			}); err != nil {
-			return err
-		}
-		for id, mark := range reads {
-			st, ok := by[id]
-			if !ok || st.Count == 0 {
-				continue
-			}
-			if err := tx.QueryRow(ctx, `SELECT count(*)::int FROM messages
+			}},
+	}
+	// A read mark only matters for a channel with messages, which is known
+	// only once the stats read is scanned: every mark is queued, and one for
+	// a channel without messages is scanned and dropped.
+	ids := make([]string, 0, len(reads))
+	for id := range reads {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		mark := reads[id]
+		reqs = append(reqs, tenantRead{`SELECT count(*)::int FROM messages
 				WHERE tenant_id = $1 AND channel = $2 AND expires_at > $3 AND (received_at, msg_id::text) > ($4::timestamptz, $5::text)`,
-				tenant, id, now, mark.At, mark.MsgID).Scan(&st.Unread); err != nil {
-				return err
-			}
-		}
-		if err := scan(`SELECT channel_id, count(*)::int, count(DISTINCT box_id)::int FROM channel_subscriptions
+			[]any{tenant, id, now, mark.At, mark.MsgID}, func(r pgx.Rows) error {
+				var unread int
+				if err := r.Scan(&unread); err != nil {
+					return err
+				}
+				if st, ok := by[id]; ok && st.Count > 0 {
+					st.Unread = unread
+				}
+				return nil
+			}})
+	}
+	reqs = append(reqs, tenantRead{`SELECT channel_id, count(*)::int, count(DISTINCT box_id)::int FROM channel_subscriptions
 			WHERE tenant_id = $1 AND origin <> 'removed' AND NOT (origin = 'announce' AND channel_id = ANY($2::text[]))
 			GROUP BY channel_id`, []any{tenant, DefaultChannels}, func(r pgx.Rows) error {
-			var id string
-			var agents, boxes int
-			if err := r.Scan(&id, &agents, &boxes); err != nil {
-				return err
-			}
-			if st, ok := by[id]; ok {
-				st.Agents, st.Boxes = agents, boxes
-			}
-			return nil
-		}); err != nil {
+		var id string
+		var agents, boxes int
+		if err := r.Scan(&id, &agents, &boxes); err != nil {
 			return err
 		}
+		if st, ok := by[id]; ok {
+			st.Agents, st.Boxes = agents, boxes
+		}
 		return nil
-	})
+	}})
+	err := s.queryTenantBatch(ctx, tenant, reqs...)
 	if err != nil {
 		return nil, err
 	}

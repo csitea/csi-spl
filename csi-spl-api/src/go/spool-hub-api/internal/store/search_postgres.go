@@ -171,17 +171,37 @@ func (c *sqlc) topicLeaf(t *search.Term) string {
 	return "false"
 }
 
-// search runs one statement in the tenant scope under the time budget.
+// pgScopeTenantBudget is pgScopeTenant plus a transaction-local
+// statement_timeout, in one statement.
+const pgScopeTenantBudget = `SELECT set_config('app.tenant_id', $1, true), set_config('statement_timeout', $2, true)`
+
+// search runs one statement in the tenant scope under the time budget: the
+// scope, the budget and the statement go as ONE batch, so one round trip
+// (CLE-34985; it was inTenant's BEGIN / scope / budget / statement / COMMIT,
+// five). A batch is one implicit transaction, so both settings end with it,
+// exactly as they ended at inTenant's COMMIT.
 func (s *Postgres) search(ctx context.Context, tenant string, q SearchQuery, sql string, args []any, each func(pgx.Rows) error) error {
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		if q.Budget > 0 {
-			if _, err := tx.Exec(ctx, `SELECT set_config('statement_timeout', $1, true)`,
-				strconv.FormatInt(max(q.Budget.Milliseconds(), 1), 10)); err != nil {
-				return err
-			}
+	if err := checkTenant(tenant); err != nil {
+		return err
+	}
+	b := &pgx.Batch{}
+	if q.Budget > 0 {
+		b.Queue(pgScopeTenantBudget, tenant, strconv.FormatInt(max(q.Budget.Milliseconds(), 1), 10))
+	} else {
+		b.Queue(pgScopeTenant, tenant)
+	}
+	b.Queue(sql, args...)
+	br := s.pool.SendBatch(ctx, b)
+	_, err := br.Exec()
+	if err == nil {
+		var rows pgx.Rows
+		if rows, err = br.Query(); err == nil {
+			err = scanRows(rows, each)
 		}
-		return eachRow(ctx, tx, sql, args, each)
-	})
+	}
+	if cerr := br.Close(); err == nil {
+		err = cerr
+	}
 	var pe *pgconn.PgError
 	if errors.As(err, &pe) && pe.Code == "57014" { // query_canceled: statement_timeout
 		return ErrSearchBudget

@@ -234,11 +234,14 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 			OR channel = ANY($10::text[]) OR channel = ANY($11::text[]))`
 		doorArgs = []any{q.Reader, DefaultChannels, q.ReaderChannels}
 	}
+	// Two single-statement batches, two round trips (CLE-34985; it was a
+	// BEGIN .. COMMIT transaction, five). Under READ COMMITTED each statement
+	// of that transaction already took its own snapshot, so the answer is the
+	// same: a delivery row is read at least as late as its message.
 	var out []ViewMsg
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		idx := map[string]int{}
-		var ids []string
-		err := eachRow(ctx, tx, `SELECT msg_id::text, received_at, env, edited_at, edited_by,
+	idx := map[string]int{}
+	var ids []string
+	err := s.queryTenant(ctx, tenant, `SELECT msg_id::text, received_at, env, edited_at, edited_by,
 				CASE WHEN edited_at IS NULL THEN 0 ELSE COALESCE((SELECT MAX(revision)
 					FROM message_revisions r WHERE r.tenant_id = messages.tenant_id AND r.msg_id = messages.msg_id), 0) END,
 				is_parent, typed_by
@@ -249,43 +252,45 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 				AND `+door+`
 			`+order+`
 			LIMIT $6`, append([]any{tenant, q.TaskID, q.Now, optTime(q.AfterAt), q.AfterID, pgLimit(q.Limit), optTime(q.BeforeAt), q.BeforeID}, doorArgs...),
-			func(rows pgx.Rows) error {
-				v := ViewMsg{Deliveries: []ViewDelivery{}}
-				var editedBy, typedBy *string
-				var editedAt *time.Time
-				if err := rows.Scan(&v.MsgID, &v.ReceivedAt, &v.Env, &editedAt, &editedBy, &v.Revision, &v.IsParent, &typedBy); err != nil {
-					return err
-				}
-				v.TypedBy = deref(typedBy)
-				// The register probe is paid only by an edited row: an
-				// unedited one (the overwhelming majority) short-circuits on
-				// the NULL and costs nothing.
-				v.EditedBy = deref(editedBy)
-				if editedAt != nil {
-					v.EditedAt = *editedAt
-				}
-				idx[v.MsgID] = len(out)
-				ids = append(ids, v.MsgID)
-				out = append(out, v)
-				return nil
-			})
-		if err != nil || len(ids) == 0 {
-			return err
-		}
-		return eachRow(ctx, tx, `SELECT msg_id::text, to_box, state FROM deliveries
-			WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[]) ORDER BY msg_id, to_box`, []any{tenant, ids},
-			func(rows pgx.Rows) error {
-				var id string
-				var d ViewDelivery
-				if err := rows.Scan(&id, &d.ToBox, &d.State); err != nil {
-					return err
-				}
-				if i, ok := idx[id]; ok {
-					out[i].Deliveries = append(out[i].Deliveries, d)
-				}
-				return nil
-			})
-	})
+		func(rows pgx.Rows) error {
+			v := ViewMsg{Deliveries: []ViewDelivery{}}
+			var editedBy, typedBy *string
+			var editedAt *time.Time
+			if err := rows.Scan(&v.MsgID, &v.ReceivedAt, &v.Env, &editedAt, &editedBy, &v.Revision, &v.IsParent, &typedBy); err != nil {
+				return err
+			}
+			v.TypedBy = deref(typedBy)
+			// The register probe is paid only by an edited row: an
+			// unedited one (the overwhelming majority) short-circuits on
+			// the NULL and costs nothing.
+			v.EditedBy = deref(editedBy)
+			if editedAt != nil {
+				v.EditedAt = *editedAt
+			}
+			idx[v.MsgID] = len(out)
+			ids = append(ids, v.MsgID)
+			out = append(out, v)
+			return nil
+		})
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	err = s.queryTenant(ctx, tenant, `SELECT msg_id::text, to_box, state FROM deliveries
+		WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[]) ORDER BY msg_id, to_box`, []any{tenant, ids},
+		func(rows pgx.Rows) error {
+			var id string
+			var d ViewDelivery
+			if err := rows.Scan(&id, &d.ToBox, &d.State); err != nil {
+				return err
+			}
+			if i, ok := idx[id]; ok {
+				out[i].Deliveries = append(out[i].Deliveries, d)
+			}
+			return nil
+		})
 	if err != nil {
 		return nil, err
 	}

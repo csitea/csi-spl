@@ -17,6 +17,7 @@
 #      a bare re-run uses the saved config, an option / the env win over it
 #   7. a re-run: agy present -> `agy update`, no installer fetched; the
 #      toolchain found in tools is not downloaded again
+#   7b. --update: one pull, then the pulled installer runs (no loop)
 #   8. a foreign ~/.local/bin/spool-agent is never overwritten (exit 7)
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -192,6 +193,21 @@ ARGS=(--cli agy --no-seat); inst; rc=$?
 [[ $rc -eq 0 ]] && grep -qx 'agy update' "$T/vendor.log" && ! grep -q 'vendor.test/agy' "$T/net.log" &&
   pass "7. agy present: its own update, no installer fetched" || fail "7. agy: rc $rc $(cat "$T/vendor.log" "$T/net.log")"
 ! grep -qE 'go.test|yq.test' "$T/net.log" && pass "7. the tools Go and yq are not downloaded again" || fail "7. redownload: $(cat "$T/net.log")"
+
+# --- 7b. --update pulls once, then the updated installer runs without it --------------------------
+cat >"$T/stub/git" <<EOF
+#!/bin/bash
+case "\$*" in
+  *" pull "*) echo "git \$*" >>"$T/git.log"; exit 0 ;;
+  *" status --porcelain"*) exit 0 ;;
+esac
+exec /usr/bin/git "\$@"
+EOF
+chmod +x "$T/stub/git"
+ARGS=(--update --cli none --no-seat); inst; rc=$?
+[[ $rc -eq 0 && "$(grep -c ' pull ' "$T/git.log")" == 1 ]] && grep -q 'running the updated installer' "$T/o" && grep -q 'spool-agent: ' "$T/o" &&
+  pass "7b. --update pulls once, then the re-exec-ed installer finishes the run" || fail "7b. update: rc $rc $(cat "$T/git.log" "$T/o")"
+rm -f "$T/stub/git"
 
 # --- 8. a foreign spool-agent ------------------------------------------------------------------------------------
 printf '#!/bin/sh\necho mine\n' >"$H/.local/bin/spool-agent"

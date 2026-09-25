@@ -66,6 +66,7 @@ SEAT=1 HOOKS=1 UPDATE=0 DRY=0
 say()  { echo "spool-install: $*" >&2; }
 die()  { local rc="$1"; shift; say "FATAL $*"; exit "$rc"; }
 usage() { sed -n '/^#   install.sh/,/^# Exit codes/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+ORIG_ARGS=("$@")
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --cli)      [ "$#" -ge 2 ] || usage; CLIS="$2"; shift 2 ;;
@@ -80,6 +81,19 @@ while [ "$#" -gt 0 ]; do
     *) say "unknown option $1"; usage ;;
   esac
 done
+
+# --update goes FIRST, before any check: the file bash is running is the old
+# one, so after the pull the updated installer is exec-ed (without --update,
+# so it runs once) and it does every other step.
+if [ "$UPDATE" = 1 ] && [ "$DRY" = 0 ]; then
+  if [ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]; then say "WARN $ROOT has local changes: not updated"
+  else
+    git -C "$ROOT" pull -q --ff-only || die 6 "git pull --ff-only failed in $ROOT"
+    say "updated $ROOT to $(git -C "$ROOT" rev-parse --short HEAD); running the updated installer"
+    rest=(); for a in "${ORIG_ARGS[@]}"; do [ "$a" = --update ] || rest+=("$a"); done
+    exec bash "${BASH_SOURCE[0]}" ${rest[@]+"${rest[@]}"}
+  fi
+fi
 
 # ── 0. arguments and base tools ──────────────────────────────────────────────
 [[ "$ENVN" =~ ^(dev|prd)$ ]] || die 2 "--env must be dev or prd, got '$ENVN'"
@@ -131,13 +145,8 @@ fetch() {  # URL OUT
 }
 plan() { [ "$DRY" = 1 ] && echo "would: $*"; }
 
-# ── 1. this checkout ──────────────────────────────────────────────────────────
-if [ "$UPDATE" = 1 ]; then
-  if [ "$DRY" = 1 ]; then plan "git -C $ROOT pull --ff-only"
-  elif [ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]; then say "WARN $ROOT has local changes: not updated"
-  else git -C "$ROOT" pull -q --ff-only || die 6 "git pull --ff-only failed in $ROOT"; say "updated $ROOT to $(git -C "$ROOT" rev-parse --short HEAD)"
-  fi
-fi
+# ── 1. this checkout (a real --update ran and re-exec-ed above) ──────────────
+[ "$UPDATE" = 1 ] && plan "git -C $ROOT pull --ff-only, then run the updated installer"
 
 # ── 2. the agent CLIs ─────────────────────────────────────────────────────────
 cli_url() {

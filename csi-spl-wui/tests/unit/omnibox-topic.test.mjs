@@ -43,7 +43,7 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
       const s = src(page)
       assert.doesNotMatch(s, /omniboxParentTaskId/)
       assert.match(s, /omniboxReplyTaskId/)
-      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId, parentBit\(\)\)/)
+      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId, isParentFlag\(\{ paneVisible: paneOpen\(\) \}\)\)/)
     })
   }
 
@@ -67,10 +67,11 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
     assert.match(src('src/stores/channel.ts'), /task_id: parentTaskId \|\| newId\(\)/)
   })
 
-  it('Topics tab with a selected row replies there; in: wins; other tabs do not', () => {
+  it('an open right pane replies there; a closed pane on another tab does not', () => {
     assert.equal(omniboxReplyTaskId({ tab: 'topics', selectedTaskId: 'T-1', namedTopicId: '' }), 'T-1')
     assert.equal(omniboxReplyTaskId({ tab: 'topics', selectedTaskId: 'T-1', namedTopicId: 'T-9' }), 'T-9')
     assert.equal(omniboxReplyTaskId({ tab: 'topics', selectedTaskId: '', namedTopicId: '' }), '')
+    assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: 'T-1', paneVisible: true }), 'T-1')
     assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: 'T-1', namedTopicId: '' }), '')
     assert.equal(omniboxReplyTaskId({ tab: 'dm', selectedTaskId: 'T-1' }), '')
     assert.equal(omniboxReplyTaskId({}), '')
@@ -82,12 +83,9 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
     assert.match(src('src/components/MessageCard.vue'), /data-test="topic-replies"/)
   })
 
-  it('is_parent is 0 only while the topics tab is selected and the topic pane is visible', () => {
-    assert.equal(isParentFlag({ tab: 'topics', paneVisible: true }), 0)
-    assert.equal(isParentFlag({ tab: 'topics', paneVisible: false }), 1)
-    assert.equal(isParentFlag({ tab: 'channels', paneVisible: true }), 1)
-    assert.equal(isParentFlag({ tab: 'dm', paneVisible: false }), 1)
-    assert.equal(isParentFlag({ tab: 'flow', paneVisible: true }), 1)
+  it('is_parent is 0 whenever the right pane is open, whichever left tab is selected', () => {
+    assert.equal(isParentFlag({ paneVisible: true }), 0)
+    assert.equal(isParentFlag({ paneVisible: false }), 1)
     assert.equal(isParentFlag({}), 1)
     for (const page of ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/index.vue', 'src/pages/lobby.vue', 'src/pages/t/[task_id].vue']) {
       assert.match(src(page), /isParentFlag/, page)

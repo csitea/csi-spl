@@ -78,24 +78,25 @@ onMounted(() => {
   events.start()
 })
 
-/* The line decides, unless the Topics list is the selected left pane and
-   a topic is open: then the omnibox replies in that topic. `in: <title>`
-   still names the topic. Any other left tab starts a new message. */
-function parentBit() {
-  return isParentFlag({
-    tab: sidePane.current.value,
-    paneVisible: Boolean(topic.open || livePane.taskId),
-  })
+/* An open right pane takes the line. `in: <title>` still names a topic.
+   A closed pane starts a new middle card. */
+function paneOpen() {
+  return Boolean(topic.open || livePane.taskId)
+}
+
+function openTaskId() {
+  return topic.open ? String(topic.parentTaskId || livePane.taskId || '') : String(livePane.taskId || '')
 }
 
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
   const reply = omniboxReplyTaskId({
     tab: sidePane.current.value,
-    selectedTaskId: topic.open ? String(topic.parentTaskId || livePane.taskId || '') : String(livePane.taskId || ''),
+    selectedTaskId: openTaskId(),
     namedTopicId: topicId || '',
+    paneVisible: paneOpen(),
   })
   if (reply) topicId = reply
-  const sent = await channel.send(text, topicId || undefined, files, channelId, parentBit())
+  const sent = await channel.send(text, topicId || undefined, files, channelId, isParentFlag({ paneVisible: paneOpen() }))
   if (sent && sent.is_parent === 0 && livePane.taskId && (sent.task_id === livePane.taskId || sent.parent_task_id === livePane.taskId)) {
     livePane.admit([sent as SpoolMessage])
   }
@@ -105,8 +106,9 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
 function replyTarget() {
   return omniboxReplyTaskId({
     tab: sidePane.current.value,
-    selectedTaskId: topic.open ? String(topic.parentTaskId || livePane.taskId || '') : String(livePane.taskId || ''),
+    selectedTaskId: openTaskId(),
     namedTopicId: '',
+    paneVisible: paneOpen(),
   })
 }
 

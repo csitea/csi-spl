@@ -45,26 +45,28 @@ export function sendsNewTopic({ paneOpen = false, namedTopicId = '' } = {}) {
 }
 
 /**
- * Send while the Topics tab is the selected left pane and a topic row
- * is selected replies into that topic. `in: <title>` still wins. Any other
- * tab, or Topics with nothing selected, starts a new message.
- * @param {{ tab?: string, selectedTaskId?: string, namedTopicId?: string }} [opts]
+ * `in: <title>` replies into that topic. An open right pane does too: that
+ * is the pane a replies click shows, and the left tab stays where it was.
+ * Topics with a selected row replies there when the pane is not what decided.
+ * Anything else starts a new message.
+ * @param {{ tab?: string, selectedTaskId?: string, namedTopicId?: string, paneVisible?: boolean }} [opts]
  */
-export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId = '' } = {}) {
+export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId = '', paneVisible = false } = {}) {
   const named = String(namedTopicId || '')
   if (named) return named
-  if (tab === 'topics' && selectedTaskId) return String(selectedTaskId)
+  const selected = String(selectedTaskId || '')
+  if (paneVisible && selected) return selected
+  if (tab === 'topics' && selected) return selected
   return ''
 }
 
 /**
  * messages.is_parent for a browser send.
- * 0 when the topics tab is selected and the topic pane is visible
- * (the state after clicking replies, once that tab is the selected one).
- * 1 when the tab is not selected or the pane is not visible.
- * @param {{ tab?: string, paneVisible?: boolean }} [opts]
+ * 0 while the right topic pane is open (the replies click). That message
+ * stays in the pane. 1 when the pane is closed: the send is a new middle card.
+ * @param {{ paneVisible?: boolean }} [opts]
  * @returns {0 | 1}
  */
-export function isParentFlag({ tab = '', paneVisible = false } = {}) {
-  return tab === 'topics' && paneVisible ? 0 : 1
+export function isParentFlag({ paneVisible = false } = {}) {
+  return paneVisible ? 0 : 1
 }

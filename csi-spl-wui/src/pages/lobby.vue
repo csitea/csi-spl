@@ -98,11 +98,16 @@ const { openRow } = useTopicRoute({
 })
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
+function lobbyPaneOpen() {
+  return Boolean(topic.open || pane.taskId)
+}
+
 function lobbyReplyId() {
   return omniboxReplyTaskId({
     tab: sidePane.current.value,
     selectedTaskId: String(pane.taskId || ''),
     namedTopicId: '',
+    paneVisible: lobbyPaneOpen(),
   })
 }
 
@@ -149,10 +154,7 @@ async function loadLobbyTopics() {
    this message only. An open pane, or `in:` naming the lobby task, still
    posts into the room. `in:` naming some other topic replies there. */
 function parentBit() {
-  return isParentFlag({
-    tab: sidePane.current.value,
-    paneVisible: Boolean(topic.open || pane.taskId),
-  })
+  return isParentFlag({ paneVisible: lobbyPaneOpen() })
 }
 
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
@@ -165,6 +167,7 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     tab: sidePane.current.value,
     selectedTaskId: String(pane.taskId || ''),
     namedTopicId: '',
+    paneVisible: lobbyPaneOpen(),
   })
   if (replyHere && pane.taskId && replyHere === pane.taskId) {
     await pane.send(text, files || [], { isParent: parentBit() })

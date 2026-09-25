@@ -71,24 +71,18 @@ function onEdited(row: SpoolMessage) {
 
 /* Topics tab with this task selected: the omnibox replies here. `in:`
    naming another topic still goes there. A different left tab starts a new message. */
-function parentBit() {
-  return isParentFlag({
-    tab: sidePane.current.value,
-    paneVisible: true,
-  })
-}
-
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
   const target = omniboxReplyTaskId({
     tab: sidePane.current.value,
     selectedTaskId: taskId.value,
     namedTopicId: topicId || '',
+    paneVisible: true,
   })
   if (target && target === taskId.value && store.taskId) {
-    await store.send(text, files || [], { isParent: parentBit() })
+    await store.send(text, files || [], { isParent: isParentFlag({ paneVisible: true }) })
     return
   }
-  const sent = await channel.send(text, target || undefined, files, channelId, parentBit())
+  const sent = await channel.send(text, target || undefined, files, channelId, isParentFlag({ paneVisible: Boolean(target) }))
   topic.noteBorn(topic.open || Boolean(side.taskId), target, sent as SpoolMessage)
 }
 useOmniboxTarget({
@@ -96,6 +90,7 @@ useOmniboxTarget({
     tab: sidePane.current.value,
     selectedTaskId: taskId.value,
     namedTopicId: '',
+    paneVisible: true,
   }) ? t('topic.reply_placeholder') : t('search.placeholder_target', { target: shortId.value })),
   send: onSend,
   busy: () => store.sending,

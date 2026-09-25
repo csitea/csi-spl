@@ -109,11 +109,8 @@ const { pill, jump } = useScrollAnchor(listTop, () => viewer.topics.map((r) => r
 /* Topics tab with a selected row: the omnibox replies in that topic.
    `in: <title>` still names the topic. Anything else, or Topics with
    nothing selected, starts a new message. */
-function parentBit() {
-  return isParentFlag({
-    tab: sidePane.current.value,
-    paneVisible: Boolean(topicStore.open || pane.taskId),
-  })
+function paneOpen() {
+  return Boolean(topicStore.open || pane.taskId)
 }
 
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
@@ -121,17 +118,18 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     tab: sidePane.current.value,
     selectedTaskId: pane.taskId || '',
     namedTopicId: topicId || '',
+    paneVisible: paneOpen(),
   })
   if (target && pane.taskId && target === pane.taskId) {
     const before = pane.messages.length
-    await pane.send(text, files || [], { isParent: parentBit() })
+    await pane.send(text, files || [], { isParent: isParentFlag({ paneVisible: paneOpen() }) })
     const last = pane.messages[pane.messages.length - 1]
     if (last && pane.messages.length > before) {
       viewer.topics = bumpTopic(viewer.topics, last as unknown as Record<string, unknown>) as typeof viewer.topics
     }
     return
   }
-  const sent = await channel.send(text, target || undefined, files, channelId, parentBit())
+  const sent = await channel.send(text, target || undefined, files, channelId, isParentFlag({ paneVisible: paneOpen() }))
   /* A send with no topic is a new topic of this one message, so the row
      has to appear here itself. The socket echo does not count a second time. */
   if (sent) viewer.topics = bumpTopic(viewer.topics, sent as unknown as Record<string, unknown>) as typeof viewer.topics
@@ -142,6 +140,7 @@ useOmniboxTarget({
     tab: sidePane.current.value,
     selectedTaskId: pane.taskId || '',
     namedTopicId: '',
+    paneVisible: paneOpen(),
   }) ? tr('topic.reply_placeholder') : tr('search.placeholder_target', { target: tr('nav.topics') })),
   send: onSend,
 })

@@ -132,7 +132,7 @@ describe('the box follows the line, not the open pane', () => {
     for (const page of pages.slice(0, 2)) {
       const s = src(page)
       assert.doesNotMatch(s, /omniboxParentTaskId/)
-      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId, parentBit\(\)\)/)
+      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId, isParentFlag\(\{ paneVisible: paneOpen\(\) \}\)\)/)
     }
   })
 

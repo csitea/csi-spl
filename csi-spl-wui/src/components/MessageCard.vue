@@ -14,6 +14,7 @@
     :aria-label="t('feed.card_aria', { who: (msg.from || t('feed.unknown_author')) + (msg.from_box ? '@' + msg.from_box : ''), kind: kindLabel(String(msg.kind || 'note')) })"
     :aria-describedby="clickable ? 'feed-open-hint' : undefined"
     @click="onClick"
+    @dblclick="onDblClick"
     @keydown="onKey"
   >
     <SpoolAvatar class="avatar" :id="String(msg.from || '')" :box="msg.from_box ? String(msg.from_box) : ''" />
@@ -109,6 +110,7 @@ import {
   editFailureKey,
   editKeyAction,
   isEdited,
+  wantsDblClickEdit,
   wantsEdit,
   withDraft,
 } from '~/utils/msg-edit.mjs'
@@ -189,6 +191,19 @@ function onClick(ev: MouseEvent) {
   if (el && el.closest && el.closest(INTERACTIVE)) return
   if (selecting()) return
   emit('open-topic', props.msg)
+}
+
+/** A double-click on a thread row opens the same editor as `e`. */
+function onDblClick(ev: MouseEvent) {
+  const el = ev.target as HTMLElement | null
+  const interactive = Boolean(el && el.closest && el.closest(INTERACTIVE))
+  if (!wantsDblClickEdit(ev, {
+    editable: Boolean(props.editable) && !editing.value,
+    clickable: Boolean(props.clickable),
+    interactive,
+  })) return
+  ev.preventDefault()
+  startEdit()
 }
 
 function onKey(ev: KeyboardEvent) {

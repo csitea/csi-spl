@@ -122,6 +122,24 @@ export function wantsEdit(ev, { editable = false } = {}) {
 }
 
 /**
+ * Does this double-click mean "edit the row"? Same open as `e`.
+ *
+ * A thread row is not clickable: a click there does not open another topic,
+ * so the second click is the mouse form of selecting that row and pressing
+ * `e`. A clickable row (the middle list) still opens its topic on the first
+ * click; `e` remains how that row is edited once it has keyboard focus.
+ *
+ * `interactive` is the caller's check that the event target sits in a link,
+ * a button, or the editor itself. The click lands on the message text, not
+ * on the row element, so this does not reuse wantsEdit's target check.
+ */
+export function wantsDblClickEdit(ev, { editable = false, clickable = false, interactive = false } = {}) {
+  if (!editable || clickable || interactive || !ev) return false
+  if (ev.button != null && ev.button !== 0) return false
+  return true
+}
+
+/**
  * Open the editor on a message: the draft STARTS as the stored body.
  *
  * `original` is kept beside the draft for the whole life of the edit — it is

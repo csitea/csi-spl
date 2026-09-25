@@ -293,6 +293,22 @@ try {
   ok('Escape gives the keyboard back to the row', seen.focusedIsRow, { focusedIsRow: seen.focusedIsRow })
   if (OUT) await page.screenshot({ path: `${OUT}/2-after-escape.png` })
 
+  /* ---- 4b. a double-click is the same open as `e` ---------------------- */
+  const threadBody = await page.$(`${PANE} article.msg[data-msg-id="${OWN_MSG}"] .msg-body`)
+  ok('the thread row is on screen to double-click', Boolean(threadBody))
+  if (threadBody) await threadBody.click({ count: 2 })
+  await sleep(400)
+  seen = await readRow(page, OWN_MSG, PANE)
+  ok('double-clicking the thread message turns it into a textbox', seen.editing, { editing: seen.editing })
+  ok('the caret is IN the box after a double-click, the same as after e', seen.focusedIsBox, { focusedIsBox: seen.focusedIsBox })
+  ok('a double-click pre-fills the old message, the same as e',
+    seen.boxValue === ORIGINAL,
+    { expected: ORIGINAL.slice(0, 60), got: String(seen.boxValue).slice(0, 60) })
+  await page.keyboard.press('Escape')
+  await sleep(400)
+  seen = await readRow(page, OWN_MSG, PANE)
+  ok('Escape after a double-click edit closes the editor', !seen.editing, { editing: seen.editing })
+
   /* ---- 5. type a new message and press Enter --------------------------- */
   const NEW = `edited by CLE-3445 ${Date.now().toString(36)}`
   await focusRow(page, OWN_MSG, PANE)
@@ -366,6 +382,15 @@ try {
     ok("pressing e on somebody else's message does NOT open an editor", !theirs.editing, { editing: theirs.editing })
   } else {
     ok("pressing e on somebody else's message does NOT open an editor", false, { reason: 'their row was not on screen to focus' })
+  }
+  const theirBody = await page.$(`[data-test=topic-section] article.msg[data-msg-id="${THEIR_MSG}"] .msg-body`)
+  if (theirBody) {
+    await theirBody.click({ count: 2 })
+    await sleep(400)
+    const doubleClicked = await readRow(page, THEIR_MSG, '[data-test=topic-section]')
+    ok("double-clicking somebody else's message does NOT open an editor", !doubleClicked.editing, { editing: doubleClicked.editing })
+  } else {
+    ok("double-clicking somebody else's message does NOT open an editor", false, { reason: 'their row was not on screen to click' })
   }
 
   /* ---- 8.1 CLE-3446: an OPEN editor must not survive a root swap ------- */

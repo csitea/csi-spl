@@ -314,6 +314,7 @@ declare module '~/utils/msg-edit.mjs' {
   export function isOwnMessage(msg: unknown, viewer: { id?: string, box?: string } | null): boolean
   export function canEditMessage(msg: unknown, viewer: { id?: string, box?: string } | null): boolean
   export function wantsEdit(ev: KeyboardEvent, opts?: { editable?: boolean }): boolean
+  export function wantsDblClickEdit(ev: MouseEvent, opts?: { editable?: boolean, clickable?: boolean, interactive?: boolean }): boolean
   export function beginEdit(msg: unknown): MsgEditState | null
   export function withDraft(state: MsgEditState | null, draft: string): MsgEditState | null
   export function editWireBody(draft: string): string

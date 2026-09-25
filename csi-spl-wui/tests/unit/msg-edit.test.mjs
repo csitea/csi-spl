@@ -51,6 +51,7 @@ import {
   isEdited,
   isOwnMessage,
   revisionOf,
+  wantsDblClickEdit,
   wantsEdit,
   withDraft,
 } from '../../src/utils/msg-edit.mjs'
@@ -135,6 +136,40 @@ describe('the `e` shortcut', () => {
       assert.equal(wantsEdit(key(k), { editable: true }), false, k)
     }
     assert.equal(wantsEdit(key('e', { isComposing: true }), { editable: true }), false)
+  })
+})
+
+describe('a double-click on a thread row is the same open as `e`', () => {
+  const dbl = (over = {}) => ({ button: 0, ...over })
+
+  it('opens the editor on an editable thread row', () => {
+    assert.equal(wantsDblClickEdit(dbl(), { editable: true }), true)
+  })
+
+  it('is refused on a row that is not editable, and with no event', () => {
+    assert.equal(wantsDblClickEdit(dbl(), { editable: false }), false)
+    assert.equal(wantsDblClickEdit(dbl()), false)
+    assert.equal(wantsDblClickEdit(null, { editable: true }), false)
+  })
+
+  it('does not edit a clickable middle-list row — that click opens the topic', () => {
+    assert.equal(wantsDblClickEdit(dbl(), { editable: true, clickable: true }), false)
+  })
+
+  it('does not steal a double-click on a link, a button, or the editor', () => {
+    assert.equal(wantsDblClickEdit(dbl(), { editable: true, interactive: true }), false)
+  })
+
+  it('ignores a non-primary button', () => {
+    assert.equal(wantsDblClickEdit(dbl({ button: 2 }), { editable: true }), false)
+  })
+
+  it('MessageCard wires the double-click to the same startEdit as `e`', () => {
+    const card = src('src/components/MessageCard.vue')
+    assert.match(card, /@dblclick="onDblClick"/)
+    assert.match(card, /wantsDblClickEdit\(ev,\s*\{[\s\S]*?startEdit\(\)/)
+    assert.match(card, /clickable: Boolean\(props\.clickable\)/)
+    assert.match(card, /interactive/)
   })
 })
 

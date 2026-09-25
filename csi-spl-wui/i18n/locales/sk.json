@@ -430,6 +430,14 @@
       "delete": "Odstrániť",
       "merge_prev": "Zlúčiť s predchádzajúcou správou",
       "merge_next": "Zlúčiť s nasledujúcou správou"
+    },
+    "emoji": {
+      "add": "Pridať emoji",
+      "picker": "Vyberte emoji",
+      "recent": "Nedávne",
+      "chip": "{emoji}, {n}",
+      "mine": "Odstrániť vaše {emoji}",
+      "failed": "Emoji sa nepodarilo uložiť."
     }
   },
   "topic": {

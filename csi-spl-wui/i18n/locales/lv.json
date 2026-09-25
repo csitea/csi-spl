@@ -430,6 +430,14 @@
       "delete": "Dzēst",
       "merge_prev": "Apvienot ar iepriekšējo ziņu",
       "merge_next": "Apvienot ar nākamo ziņu"
+    },
+    "emoji": {
+      "add": "Pievienot emoji",
+      "picker": "Izvēlieties emoji",
+      "recent": "Nesenie",
+      "chip": "{emoji}, {n}",
+      "mine": "Noņemt savu {emoji}",
+      "failed": "Emoji neizdevās saglabāt."
     }
   },
   "topic": {

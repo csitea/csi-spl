@@ -430,6 +430,14 @@
       "delete": "Sil",
       "merge_prev": "Önceki mesajla birleştir",
       "merge_next": "Sonraki mesajla birleştir"
+    },
+    "emoji": {
+      "add": "Emoji ekle",
+      "picker": "Bir emoji seç",
+      "recent": "Son kullanılanlar",
+      "chip": "{emoji}, {n}",
+      "mine": "{emoji} emojini kaldır",
+      "failed": "Emoji kaydedilemedi."
     }
   },
   "topic": {

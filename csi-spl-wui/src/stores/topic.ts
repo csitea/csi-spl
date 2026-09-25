@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { dismissBornTopic, noteBornTopic } from '~/utils/born-topics.mjs'
+import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import { topicOf } from '~/utils/channel-feed.mjs'
 import { useChannelStore } from '~/stores/channel'
 import { usePaneFocus } from '~/stores/pane-focus'
@@ -107,6 +108,19 @@ export const useTopicStore = defineStore('topic', () => {
     rootMsg.value = { ...rootMsg.value, ...(row as Partial<SpoolMessage>) }
   }
 
+  /** An emoji on the pinned root, or on a born card, which neither feed owns. */
+  function applyReactionsUpdate(update: { msg_id?: string, reactions?: SpoolMessage['reactions'] } | null) {
+    const id = String((update && update.msg_id) || '')
+    if (!id) return
+    const reactions = Array.isArray(update?.reactions) ? update.reactions : []
+    if (rootMsg.value && String(rootMsg.value.msg_id || '') === id) {
+      rootMsg.value = { ...rootMsg.value, reactions }
+    }
+    if (born.value.some((m) => String(m.msg_id || '') === id)) {
+      born.value = patchReactions(born.value, update) as SpoolMessage[]
+    }
+  }
+
   /** The deleted message is no longer the pinned root, and no longer a born card. */
   function dropRoot(msgId: string) {
     const id = String(msgId || '')
@@ -115,5 +129,5 @@ export const useTopicStore = defineStore('topic', () => {
     dismissBorn(id)
   }
 
-  return { open, parentTaskId, messages, target, rootMsg, born, paneSelected, noteBorn, dismissBorn, clearBorn, openTopic, openTarget, setTarget, selectPane, applyEditedRoot, dropRoot, close }
+  return { open, parentTaskId, messages, target, rootMsg, born, paneSelected, noteBorn, dismissBorn, clearBorn, openTopic, openTarget, setTarget, selectPane, applyEditedRoot, applyReactionsUpdate, dropRoot, close }
 })

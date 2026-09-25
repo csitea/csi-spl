@@ -93,6 +93,8 @@ declare module '~/utils/spool-client.mjs' {
     /** message-edit-v1 §1: PATCH /v1/messages/{msg_id} with { body }. */
     editMessage(msgId: string, body: string): Promise<import('./spool').SpoolMessage>
     deleteMessage(msgId: string): Promise<null>
+    /** Add (`op` add) or remove the viewer's emoji. Same call for is_parent 0 and 1. */
+    setReaction(msgId: string, emoji: string, op: 'add' | 'remove', current?: { emoji: string, actors: string[] }[]): Promise<import('./spool').ReactionUpdate>
     fileUrl(fileId: string): string
   }
 }
@@ -121,6 +123,8 @@ declare module '~/utils/live-ws.mjs' {
     onEdited?: (m: Record<string, unknown>, raw: unknown) => void
     /** `message_deleted`: drop a row. */
     onDeleted?: (m: Record<string, unknown>, raw: unknown) => void
+    /** `message_reaction`: replace the emoji list on a held row. */
+    onReaction?: (m: Record<string, unknown>, raw: unknown) => void
     onReconnected?: (welcome: Record<string, unknown>, info: { cursors: Record<string, string> }) => void
     ackTimeoutMs?: number
   }): {
@@ -348,6 +352,17 @@ declare module '~/utils/msg-edit.mjs' {
   export function revisionOf(msg: unknown): number
   export function applyEdit<T>(rows: T[], edited: unknown): T[]
   export function editFailureKey(err: unknown): string
+}
+
+declare module '~/utils/emoji.mjs' {
+  export const EMOJI_CHOICES: string[]
+  export function validEmoji(s: string): boolean
+  export function normalizeReactions(list: unknown): { emoji: string, actors: string[] }[]
+  export function reactionChips(list: unknown, me?: string): { emoji: string, count: number, mine: boolean }[]
+  export function reactionOp(list: unknown, emoji: string, me?: string): 'add' | 'remove'
+  export function applyReactions<T>(list: T[], update: unknown): T[]
+  export function readRecent(storage?: Storage | null): string[]
+  export function rememberEmoji(emoji: string, storage?: Storage | null): string[]
 }
 
 declare module '~/utils/feed.mjs' {

@@ -430,6 +430,14 @@
       "delete": "Eliminar",
       "merge_prev": "Fusionar con el mensaje anterior",
       "merge_next": "Fusionar con el mensaje siguiente"
+    },
+    "emoji": {
+      "add": "Añadir emoji",
+      "picker": "Elige un emoji",
+      "recent": "Recientes",
+      "chip": "{emoji}, {n}",
+      "mine": "Quitar tu {emoji}",
+      "failed": "No se pudo guardar el emoji."
     }
   },
   "topic": {

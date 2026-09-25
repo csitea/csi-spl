@@ -39,6 +39,7 @@
         @open-topic="(row: SpoolMessage) => $emit('open-topic', row)"
         @edited="(row: SpoolMessage) => $emit('edited', row)"
         @deleted="(row: SpoolMessage) => $emit('deleted', row)"
+        @reacted="(update: ReactionUpdate) => $emit('reacted', update)"
       />
     </TransitionGroup>
     <p v-if="!loading && !rows.length" class="muted empty">{{ search ? t('feed.no_matches') : (emptyText || t('feed.empty')) }}</p>
@@ -59,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SpoolMessage } from '~/types/spool'
+import type { ReactionUpdate, SpoolMessage } from '~/types/spool'
 import { useScrollAnchor } from '~/composables/useScrollAnchor'
 import { useTopicStore } from '~/stores/topic'
 import { isSelectedRow } from '~/utils/topic-open.mjs'
@@ -97,7 +98,7 @@ const props = defineProps<{
       open the topic". A thread pane never passes it. */
   openButton?: boolean
 }>()
-defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage] }>()
+defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const topic = useTopicStore()

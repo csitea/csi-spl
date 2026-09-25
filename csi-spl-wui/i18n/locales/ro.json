@@ -430,6 +430,14 @@
       "delete": "Șterge",
       "merge_prev": "Unește cu mesajul anterior",
       "merge_next": "Unește cu mesajul următor"
+    },
+    "emoji": {
+      "add": "Adaugă emoji",
+      "picker": "Alege un emoji",
+      "recent": "Recente",
+      "chip": "{emoji}, {n}",
+      "mine": "Elimină {emoji} al tău",
+      "failed": "Emoji-ul nu a putut fi salvat."
     }
   },
   "topic": {

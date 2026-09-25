@@ -9,6 +9,8 @@
  * grouping folds a reply into its root task.
  */
 
+import { normalizeReactions } from './emoji.mjs'
+
 /** channels-v1 §2: absent, null and "" all mean absent → null. */
 export function hubField(v) {
   return typeof v === 'string' && v ? v : null
@@ -143,11 +145,13 @@ export function normalizeViewMessage(el) {
     if (Array.isArray(e.deliveries)) out.deliveries = e.deliveries
     copyEditFields(e, out)
     if (e.is_parent === 0 || e.is_parent === 1) out.is_parent = e.is_parent
+    if (Array.isArray(e.reactions)) out.reactions = normalizeReactions(e.reactions)
     delete out.sig
     return out
   }
   const out = { ...e }
   delete out.sig
+  if (Array.isArray(out.reactions)) out.reactions = normalizeReactions(out.reactions)
   return out
 }
 

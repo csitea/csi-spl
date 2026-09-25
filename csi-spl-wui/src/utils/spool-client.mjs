@@ -790,6 +790,48 @@ export function createSpoolClient({
       return null
     },
     /**
+     * PUT adds the viewer's emoji; DELETE removes it. Body is {emoji} either
+     * way. The same call for an opening message and a reply — the hub does
+     * not look at is_parent. Returns { msg_id, task_id, reactions }.
+     */
+    async setReaction(msgId, emoji, op, current) {
+      const id = String(msgId || '')
+      const glyph = String(emoji || '')
+      if (!id || !glyph) throw Object.assign(new Error('emoji required'), { status: 400, token: 'bad_json' })
+      if (mock) {
+        /* A mock send from the live store keeps the row in that store and
+           does not push it here. The card still has the message, so the
+           first emoji on it starts the row from the list the card holds. */
+        let row = state.messages.find((m) => m.msg_id === id)
+        if (!row) {
+          row = { msg_id: id, task_id: '', reactions: Array.isArray(current) ? current.map((r) => ({ emoji: r.emoji, actors: Array.isArray(r.actors) ? r.actors.slice() : [] })) : [] }
+          state.messages.push(row)
+        }
+        const me = state.me.id
+        const list = Array.isArray(row.reactions)
+          ? row.reactions.map((r) => ({ emoji: r.emoji, actors: Array.isArray(r.actors) ? r.actors.slice() : [] }))
+          : []
+        const at = list.findIndex((r) => r.emoji === glyph)
+        if (op === 'remove') {
+          if (at >= 0) {
+            list[at].actors = list[at].actors.filter((a) => a !== me)
+            if (!list[at].actors.length) list.splice(at, 1)
+          }
+        } else if (at < 0) {
+          list.push({ emoji: glyph, actors: [me] })
+        } else if (!list[at].actors.includes(me)) {
+          list[at].actors.push(me)
+        }
+        row.reactions = list.map((r) => ({ emoji: r.emoji, actors: r.actors.slice() }))
+        return { msg_id: id, task_id: row.task_id, reactions: row.reactions.map((r) => ({ emoji: r.emoji, actors: r.actors.slice() })) }
+      }
+      return live(`/v1/messages/${encodeURIComponent(id)}/reactions`, {
+        method: op === 'remove' ? 'DELETE' : 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ emoji: glyph }),
+      })
+    },
+    /**
      * channels-v1 §5.1: POST /v1/channels; 409 channel_exists / 400 bad_channel
      * keep their token. `description` (§5.1, 1.2.0) is what the new-channel
      * dialog collected next to the title, and is sent ONLY when there is one:

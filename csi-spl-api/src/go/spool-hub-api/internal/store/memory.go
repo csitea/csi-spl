@@ -23,7 +23,9 @@ type Memory struct {
 	roster   map[[2]string][]string
 	messages map[[2]string]*Message
 	// specs/032: every body a message has had, oldest first, per (tenant, msg).
-	revisions  map[[2]string][]MessageRevision
+	revisions map[[2]string][]MessageRevision
+	// rdb 0037: emoji rows per (tenant, msg), in the order they were added.
+	reactions  map[[2]string][]memReaction
 	deliveries map[[3]string]*memDelivery
 	seq        int
 	hum        memHumans             // humans_memory.go, guarded by mu

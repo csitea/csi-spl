@@ -495,6 +495,9 @@ type viewMsg struct {
 	Revision int    `json:"revision,omitempty"`
 	// rdb 0034. Always present: 0 and 1 are both real values.
 	IsParent int `json:"is_parent"`
+	// rdb 0037. Always present, [] when nobody has added an emoji. The same
+	// field is on an is_parent 0 reply and an is_parent 1 opening message.
+	Reactions []viewReaction `json:"reactions"`
 }
 
 func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store.Tenant) {
@@ -578,10 +581,25 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		c := encCursor(rows[len(rows)-1].ReceivedAt, rows[len(rows)-1].MsgID)
 		next = &c
 	}
+	react := map[string][]store.StoredReaction{}
+	if len(rows) > 0 {
+		ids := make([]string, len(rows))
+		for i := range rows {
+			ids[i] = rows[i].MsgID
+		}
+		var rerr error
+		react, rerr = s.o.Store.ReactionsFor(r.Context(), t.ID, ids)
+		if rerr != nil {
+			s.o.Log.Error().Err(rerr).Str("task", task).Msg("reactions")
+			writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+			return
+		}
+	}
 	out := []viewMsg{}
 	for _, m := range rows {
 		v := viewMsg{Cursor: encCursor(m.ReceivedAt, m.MsgID), ReceivedAt: rfc(m.ReceivedAt),
-			Env: json.RawMessage(m.Env), Deliveries: []viewDelivery{}, IsParent: m.IsParent}
+			Env: json.RawMessage(m.Env), Deliveries: []viewDelivery{}, IsParent: m.IsParent,
+			Reactions: groupReactions(react[m.MsgID])}
 		if !m.EditedAt.IsZero() {
 			v.EditedAt, v.EditedBy, v.Revision = rfc(m.EditedAt), m.EditedBy, m.Revision
 		}

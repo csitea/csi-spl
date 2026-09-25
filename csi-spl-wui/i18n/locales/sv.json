@@ -430,6 +430,14 @@
       "delete": "Ta bort",
       "merge_prev": "Slå ihop med föregående meddelande",
       "merge_next": "Slå ihop med nästa meddelande"
+    },
+    "emoji": {
+      "add": "Lägg till emoji",
+      "picker": "Välj en emoji",
+      "recent": "Senaste",
+      "chip": "{emoji}, {n}",
+      "mine": "Ta bort din {emoji}",
+      "failed": "Emojin kunde inte sparas."
     }
   },
   "topic": {

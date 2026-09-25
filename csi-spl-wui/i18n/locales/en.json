@@ -430,6 +430,14 @@
       "delete": "Delete",
       "merge_prev": "Merge with previous message",
       "merge_next": "Merge with next message"
+    },
+    "emoji": {
+      "add": "Add emoji",
+      "picker": "Choose an emoji",
+      "recent": "Recent",
+      "chip": "{emoji}, {n}",
+      "mine": "Remove your {emoji}",
+      "failed": "Could not save that emoji."
     }
   },
   "topic": {

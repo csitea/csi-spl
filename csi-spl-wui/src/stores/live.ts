@@ -6,6 +6,7 @@ import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, wind
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { channelView, parseMention } from '~/utils/channel-feed.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
+import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
 /** One page of a feed: the first paint and every Load more. */
@@ -79,6 +80,11 @@ function setup(key: 'main' | 'pane') {
     messages.value = applyEdit(messages.value, row) as SpoolMessage[]
   }
 
+  /** An emoji was added or removed on a row this feed holds. */
+  function applyReactions(update: unknown) {
+    messages.value = patchReactions(messages.value, update) as SpoolMessage[]
+  }
+
   /** A deleted message leaves this feed. A msg_id it does not hold is a no-op. */
   function drop(msgId: string) {
     const id = String(msgId || '')
@@ -113,6 +119,7 @@ function setup(key: 'main' | 'pane') {
   let off: (() => void) | null = null
   let offReconnect: (() => void) | null = null
   let offEdited: (() => void) | null = null
+  let offReaction: (() => void) | null = null
   /** `all`: also page to the oldest row (a pinned root needs it); the pane always does. */
   async function open(id: string, opts: { all?: boolean } = {}) {
     if (!id) return
@@ -136,6 +143,7 @@ function setup(key: 'main' | 'pane') {
     }
     /* CLE-3445: another session edited a row this pane is showing */
     if (!offEdited) offEdited = live.onEdited((m) => applyEdited(m))
+    if (!offReaction) offReaction = live.onReaction((m) => applyReactions(m))
     if (!offReconnect) offReconnect = live.onReconnected(() => { void catchUpAfterReconnect() })
     // wui-live-ws: subscribe first, then catch up over view-v1
     if (client) client.subscribe(id)
@@ -254,7 +262,7 @@ function setup(key: 'main' | 'pane') {
   return {
     taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, door, sending, loading,
     search, liveCount, lastLive, open, close, send, admit, loadOlder, loadAll, setSearch, catchUpAfterReconnect,
-    applyEdited, loadingOlder, drop,
+    applyEdited, loadingOlder, drop, applyReactions,
   }
 }
 

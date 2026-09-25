@@ -430,6 +430,14 @@
       "delete": "Usuń",
       "merge_prev": "Scal z poprzednią wiadomością",
       "merge_next": "Scal z następną wiadomością"
+    },
+    "emoji": {
+      "add": "Dodaj emoji",
+      "picker": "Wybierz emoji",
+      "recent": "Ostatnie",
+      "chip": "{emoji}, {n}",
+      "mine": "Usuń swoje {emoji}",
+      "failed": "Nie udało się zapisać emoji."
     }
   },
   "topic": {

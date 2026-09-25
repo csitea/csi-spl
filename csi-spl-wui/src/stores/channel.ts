@@ -25,6 +25,7 @@ import {
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
 import { pendingRow, withoutMsg } from '~/utils/feed.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
+import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { ChannelRow, FileRef, SendFrame, SpoolMessage } from '~/types/spool'
 
@@ -256,6 +257,11 @@ export const useChannelStore = defineStore('channel', () => {
     messages.value = applyEdit(messages.value, row) as FeedMessage[]
   }
 
+  /** An emoji was added or removed on a row this feed holds. */
+  function applyReactions(update: unknown) {
+    messages.value = patchReactions(messages.value, update) as FeedMessage[]
+  }
+
   /** A deleted message leaves this feed. A msg_id it does not hold is a no-op. */
   function drop(msgId: string) {
     const id = String(msgId || '')
@@ -434,6 +440,7 @@ export const useChannelStore = defineStore('channel', () => {
     refresh,
     ingestLive,
     applyEdited,
+    applyReactions,
     drop,
     catchUp,
     send,

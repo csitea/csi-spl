@@ -41,6 +41,8 @@ const channelListeners = new Set<Listener>()
 const editedListeners = new Set<Listener>()
 /** `message_deleted` frames: drop a row the screen is showing. */
 const deletedListeners = new Set<Listener>()
+/** `message_reaction` frames: replace the emoji list on a row already held. */
+const reactionListeners = new Set<Listener>()
 const state = ref('idle')
 const identity = ref('')
 const uploadToken = ref('')
@@ -108,6 +110,9 @@ export function useLive() {
       onDeleted: (m: Record<string, unknown>) => {
         for (const fn of deletedListeners) fn(m)
       },
+      onReaction: (m: Record<string, unknown>) => {
+        for (const fn of reactionListeners) fn(m)
+      },
     })
     live.connect()
     return live
@@ -158,5 +163,10 @@ export function useLive() {
     return () => deletedListeners.delete(fn)
   }
 
-  return { ensure, onMessage, onEdited, onDeleted, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
+  function onReaction(fn: Listener) {
+    reactionListeners.add(fn)
+    return () => reactionListeners.delete(fn)
+  }
+
+  return { ensure, onMessage, onEdited, onDeleted, onReaction, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
 }

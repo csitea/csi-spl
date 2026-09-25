@@ -42,6 +42,24 @@ export interface SpoolMessage {
   edited_at?: string
   edited_by?: string
   revision?: number
+  /**
+   * Emoji added to this message (rdb 0037). Present on an opening message
+   * (is_parent 1) and on a reply (is_parent 0). Empty when nobody has added one.
+   */
+  reactions?: MessageReaction[]
+}
+
+/** One emoji and the members who added it. */
+export interface MessageReaction {
+  emoji: string
+  actors: string[]
+}
+
+/** PUT/DELETE /v1/messages/{msg_id}/reactions, and the live message_reaction frame. */
+export interface ReactionUpdate {
+  msg_id: string
+  task_id?: string
+  reactions: MessageReaction[]
 }
 
 /** One topic list row (003 view-v1 §4.3, normalised by utils/view-api.mjs). */

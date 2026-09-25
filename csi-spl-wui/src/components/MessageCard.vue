@@ -41,18 +41,34 @@
           data-test="msg-edited"
           :title="t('feed.edit.marker_title', { at: String(msg.edited_at) })"
         >{{ t('feed.edit.marker') }}</span>
-        <button
-          type="button"
-          class="icon-btn msg-menu-btn"
-          data-testid="msg-menu-btn"
-          :aria-label="t('feed.msg_menu.label')"
-          :title="t('feed.msg_menu.label')"
-          :aria-expanded="menuOpen ? 'true' : 'false'"
-          @click.stop="openMenuFromButton"
-          @contextmenu.stop.prevent="openMenuFromButton"
-        >
-          <UiIcon name="menu" :size="16" />
-        </button>
+        <!-- Opening messages (is_parent 1) and replies (is_parent 0) are both
+             this card. The emoji control is not gated on that flag. -->
+        <span class="msg-actions">
+          <button
+            type="button"
+            class="icon-btn"
+            data-testid="msg-emoji-btn"
+            :aria-label="t('feed.emoji.add')"
+            :title="t('feed.emoji.add')"
+            :aria-expanded="pickerOpen ? 'true' : 'false'"
+            :disabled="!msg.msg_id || !!msg.pending"
+            @click.stop="openPickerFromButton"
+          >
+            <UiIcon name="smile" :size="16" />
+          </button>
+          <button
+            type="button"
+            class="icon-btn msg-menu-btn"
+            data-testid="msg-menu-btn"
+            :aria-label="t('feed.msg_menu.label')"
+            :title="t('feed.msg_menu.label')"
+            :aria-expanded="menuOpen ? 'true' : 'false'"
+            @click.stop="openMenuFromButton"
+            @contextmenu.stop.prevent="openMenuFromButton"
+          >
+            <UiIcon name="menu" :size="16" />
+          </button>
+        </span>
       </div>
       <!--
         CLE-3445: the row BECOMES the box ("the msg becomes once again a
@@ -83,6 +99,27 @@
       <p v-if="editError" class="msg-edit-error" role="alert" data-test="msg-edit-error">
         <UiIcon name="alert-triangle" :size="14" />
         <span>{{ t(editError) }}</span>
+      </p>
+      <div v-if="chips.length" class="msg-reactions" data-testid="msg-reactions">
+        <button
+          v-for="chip in chips"
+          :key="chip.emoji"
+          type="button"
+          class="msg-reaction"
+          data-testid="msg-reaction"
+          :data-emoji="chip.emoji"
+          :data-mine="chip.mine ? 'true' : undefined"
+          :aria-label="chip.mine ? t('feed.emoji.mine', { emoji: chip.emoji }) : t('feed.emoji.chip', { emoji: chip.emoji, n: chip.count })"
+          :disabled="busy || !msg.msg_id || !!msg.pending"
+          @click.stop="onReact(chip.emoji)"
+        >
+          <span aria-hidden="true">{{ chip.emoji }}</span>
+          <span class="msg-reaction__n">{{ chip.count }}</span>
+        </button>
+      </div>
+      <p v-if="reactError" class="msg-edit-error" role="alert" data-testid="msg-emoji-error">
+        <UiIcon name="alert-triangle" :size="14" />
+        <span>{{ reactError }}</span>
       </p>
       <FileAttachment
         v-for="(f, i) in files"
@@ -126,6 +163,13 @@
       @merge-next="onMerge('next')"
       @delete="onMenuDelete"
     />
+    <EmojiPicker
+      :open="pickerOpen"
+      :x="pickerAt.x"
+      :y="pickerAt.y"
+      @close="pickerOpen = false"
+      @choose="onReact"
+    />
   </article>
 </template>
 
@@ -148,8 +192,10 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
 import { joinBodies, threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
+import { reactionChips } from '~/utils/emoji.mjs'
+import { useMessageEmoji } from '~/composables/useMessageEmoji'
 
-import type { FileRef, SpoolMessage } from '~/types/spool'
+import type { FileRef, ReactionUpdate, SpoolMessage } from '~/types/spool'
 
 const props = defineProps<{
   msg: SpoolMessage
@@ -173,7 +219,7 @@ const props = defineProps<{
   /** The task the list itself shows (#lobby), so a card's link names the right topic. */
   currentTaskId?: string | null
 }>()
-const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage] }>()
+const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
 /** The replies link opens this topic on the right. The left tab stays as it was. */
 function openReplies() {
@@ -251,6 +297,7 @@ function onContextMenu(ev: MouseEvent) {
 function openMenuFromButton(ev: MouseEvent) {
   const btn = ev.currentTarget
   if (!(btn instanceof HTMLElement)) return
+  pickerOpen.value = false
   if (menuOpen.value) {
     closeMenu()
     return
@@ -418,6 +465,42 @@ const menuKey = useId()
 const { open: menuOpen, point: menuPoint, openAt: openMenuAt, close: closeMenu } = useMessageMenu(
   () => menuKey,
 )
+const { viewerId, setReaction, applyEverywhere } = useMessageEmoji()
+const pickerOpen = ref(false)
+const pickerAt = ref({ x: 0, y: 0 })
+const busy = ref(false)
+const reactError = ref('')
+const chips = computed(() => reactionChips(props.msg.reactions, viewerId.value))
+
+function openPickerFromButton(ev: MouseEvent) {
+  const btn = ev.currentTarget
+  if (!(btn instanceof HTMLElement)) return
+  closeMenu()
+  if (pickerOpen.value) {
+    pickerOpen.value = false
+    return
+  }
+  const r = btn.getBoundingClientRect()
+  rowEl.value?.focus({ preventScroll: true })
+  pickerAt.value = { x: r.left, y: r.bottom + 4 }
+  pickerOpen.value = true
+}
+
+/** Add the glyph, or remove it when this member already added it. */
+async function onReact(emoji: string) {
+  if (busy.value || !props.msg.msg_id || props.msg.pending) return
+  busy.value = true
+  reactError.value = ''
+  try {
+    const update = await setReaction(props.msg, emoji)
+    applyEverywhere(update)
+    emit('reacted', update)
+  } catch {
+    reactError.value = t('feed.emoji.failed')
+  } finally {
+    busy.value = false
+  }
+}
 
 const draft = computed({
   get: () => edit.value?.draft ?? '',
@@ -451,6 +534,9 @@ watch(() => String(props.msg?.msg_id || ''), (now, before) => {
   edit.value = null
   saving.value = false
   editError.value = ''
+  reactError.value = ''
+  pickerOpen.value = false
+  busy.value = false
 })
 
 async function remove() {
@@ -570,8 +656,43 @@ async function save() {
   font-size: 0.75rem;
   line-height: 1;
 }
-.msg-menu-btn {
+.msg-actions {
   margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
   align-self: center;
+  gap: 2px;
 }
+.msg-menu-btn { align-self: center; }
+.msg-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.msg-reaction {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-fg);
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.msg-reaction[data-mine="true"] {
+  background: var(--color-selected);
+  border-color: var(--color-border-strong, var(--color-border));
+}
+.msg-reaction:hover,
+.msg-reaction:focus-visible {
+  background: var(--color-surface-hover);
+}
+.msg-reaction__n { font-variant-numeric: tabular-nums; font-size: 0.75rem; }
 </style>

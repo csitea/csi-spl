@@ -89,6 +89,11 @@ export function mergeById(rows, incoming) {
     } else if (list[i].pending && !m.pending) {
       list[i] = m
       confirmed++
+    } else if (Array.isArray(m.reactions)) {
+      /* A reload of a topic carries the emoji list. A live `message` frame
+         does not, so a repeat of a confirmed row must not wipe a reaction
+         that arrived on its own frame. */
+      list[i] = { ...list[i], reactions: m.reactions }
     }
   }
   return { rows: list, added, confirmed }

@@ -43,6 +43,7 @@
         @clear-search="search = ''"
         @edited="onEdited"
         @deleted="onDeleted"
+        @reacted="onReacted"
       />
     </div>
   </aside>
@@ -59,8 +60,9 @@ import { rowsForRightPane } from '~/utils/channel-feed.mjs'
 import { topicTitleFromRows } from '~/utils/view-api.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
+import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
-import type { SpoolMessage } from '~/types/spool'
+import type { ReactionUpdate, SpoolMessage } from '~/types/spool'
 
 const topic = useTopicStore()
 const { onTopicPaneClick } = useTopicPaneClick()
@@ -191,6 +193,11 @@ function onEdited(row: SpoolMessage) {
   applyEverywhere(row)
 }
 
+/** This pane's own copy. The card already told the stores. */
+function onReacted(update: ReactionUpdate) {
+  liveRows.value = patchReactions(liveRows.value, update) as SpoolMessage[]
+}
+
 /** This pane's own copy of the thread. The stores are dropped separately. */
 function onDeleted(row: { msg_id?: string }) {
   liveRows.value = withoutMsg(liveRows.value, String(row?.msg_id || '')) as SpoolMessage[]
@@ -200,6 +207,7 @@ if (import.meta.client && !api.mock) {
   const liveEdits = useLive()
   const offEdited = liveEdits.onEdited((m) => onEdited(m as unknown as SpoolMessage))
   const offDeleted = liveEdits.onDeleted((m) => onDeleted(m as { msg_id?: string }))
-  onUnmounted(() => { offEdited(); offDeleted() })
+  const offReaction = liveEdits.onReaction((m) => onReacted(m as unknown as ReactionUpdate))
+  onUnmounted(() => { offEdited(); offDeleted(); offReaction() })
 }
 </script>

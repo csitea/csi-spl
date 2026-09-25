@@ -430,6 +430,14 @@
       "delete": "Ištrinti",
       "merge_prev": "Sujungti su ankstesne žinute",
       "merge_next": "Sujungti su kita žinute"
+    },
+    "emoji": {
+      "add": "Pridėti emoji",
+      "picker": "Pasirinkite emoji",
+      "recent": "Naujausi",
+      "chip": "{emoji}, {n}",
+      "mine": "Pašalinti jūsų {emoji}",
+      "failed": "Jaustuko išsaugoti nepavyko."
     }
   },
   "topic": {

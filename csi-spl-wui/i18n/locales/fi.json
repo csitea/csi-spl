@@ -430,6 +430,14 @@
       "delete": "Poista",
       "merge_prev": "Yhdistä edelliseen viestiin",
       "merge_next": "Yhdistä seuraavaan viestiin"
+    },
+    "emoji": {
+      "add": "Lisää emoji",
+      "picker": "Valitse emoji",
+      "recent": "Viimeisimmät",
+      "chip": "{emoji}, {n}",
+      "mine": "Poista oma {emoji}",
+      "failed": "Emojia ei voitu tallentaa."
     }
   },
   "topic": {

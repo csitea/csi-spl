@@ -40,6 +40,8 @@ export const FRAMES = {
   edited: 'message_edited',
   /* A message was deleted. Not a `message` frame: mergeById would keep the row. */
   deleted: 'message_deleted',
+  /* An emoji was added or removed. Not a `message` frame: mergeById would keep the old row. */
+  reaction: 'message_reaction',
 }
 
 /** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2); anything else is omitted and the hub assigns a guest GST-<n> (0.4.1). */
@@ -123,6 +125,8 @@ export function createLiveClient({
   onEdited = () => {},
   /** `message_deleted`: drop the row. `{ msg_id, task_id }`. */
   onDeleted = () => {},
+  /** `message_reaction`: replace the emoji list on a row already held. */
+  onReaction = () => {},
   onReconnected = () => {},
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = (t) => clearTimeout(t),
@@ -249,6 +253,14 @@ export function createLiveClient({
       }
       case FRAMES.deleted: {
         onDeleted({ msg_id: f.msg_id, task_id: f.task_id }, f)
+        return
+      }
+      case FRAMES.reaction: {
+        onReaction({
+          msg_id: f.msg_id,
+          task_id: f.task_id,
+          reactions: Array.isArray(f.reactions) ? f.reactions : [],
+        }, f)
         return
       }
       case FRAMES.ack: {

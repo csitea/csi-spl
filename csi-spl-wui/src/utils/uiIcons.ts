@@ -109,6 +109,13 @@ export const UI_ICON_PATHS = {
     "M8 10h8",
     "M12 10v10",
   ],
+  // Add an emoji to a message (lucide smile). Path-only, like the rest.
+  smile: [
+    "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z",
+    "M8 14s1.5 2 4 2 4-2 4-2",
+    { d: "M9 9.1a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 1 1 0-2.2z", fill: true },
+    { d: "M15 9.1a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 1 1 0-2.2z", fill: true },
+  ],
   // Message menu: edit this message (lucide pencil). Path-only.
   pencil: [
     "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",

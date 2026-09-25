@@ -130,8 +130,9 @@ func (s *Postgres) MessageRevisions(ctx context.Context, tenant, msgID string) (
 	return out, err
 }
 
-// DeleteMessage removes the row. message_revisions and deliveries reference
-// it ON DELETE CASCADE, so the register and the queue go with it.
+// DeleteMessage removes the row. message_revisions, message_reactions and
+// deliveries reference it ON DELETE CASCADE, so the register, the emoji and
+// the queue go with it.
 func (s *Postgres) DeleteMessage(ctx context.Context, tenant, msgID string) error {
 	if !canonUUIDRe.MatchString(msgID) {
 		return ErrNotFound

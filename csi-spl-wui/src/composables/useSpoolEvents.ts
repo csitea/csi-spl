@@ -4,6 +4,8 @@ import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { createShellBootstrap, shouldOpenHubSocket, startHubSocket, stopHubSocket } from '~/utils/shell-bootstrap.mjs'
+import { useMessageEmoji } from '~/composables/useMessageEmoji'
+import type { ReactionUpdate } from '~/types/spool'
 
 /**
  * Channel / DM tail. Live mode rides the hub WUI socket (003 wui-live-ws):
@@ -24,6 +26,7 @@ export function useSpoolEvents() {
   const roster = useRosterStore()
   const api = useSpoolApi()
   const session = useSessionStore()
+  const emoji = useMessageEmoji()
   const boot = createShellBootstrap({
     loadChannels: () => channel.loadChannels(),
     refreshRoster: () => roster.refresh(),
@@ -31,6 +34,7 @@ export function useSpoolEvents() {
   let timer: ReturnType<typeof setInterval> | null = null
   let off: (() => unknown) | null = null
   let offEdited: (() => unknown) | null = null
+  let offReaction: (() => unknown) | null = null
   let offReconnect: (() => unknown) | null = null
   let offSession: (() => void) | null = null
 
@@ -43,6 +47,8 @@ export function useSpoolEvents() {
     off = null
     if (offEdited) offEdited()
     offEdited = null
+    if (offReaction) offReaction()
+    offReaction = null
     if (offReconnect) offReconnect()
     offReconnect = null
     if (offSession) offSession()
@@ -67,6 +73,9 @@ export function useSpoolEvents() {
       /* CLE-3445: an edit is a REPLACEMENT, so it takes its own frame and its
          own path — ingestLive merges, and a merge drops a row already held */
       if (!offEdited) offEdited = live.onEdited((m) => channel.applyEdited(m))
+      /* An emoji lands on every store that can be showing the message, the
+         middle card and the topic pane included. */
+      if (!offReaction) offReaction = live.onReaction((m) => emoji.applyEverywhere(m as unknown as ReactionUpdate))
       if (!offReconnect) offReconnect = live.onReconnected(() => {
         void channel.catchUp()
         void boot.onSession(String(session.state))
@@ -77,6 +86,8 @@ export function useSpoolEvents() {
       off = null
       if (offEdited) offEdited()
       offEdited = null
+      if (offReaction) offReaction()
+      offReaction = null
       if (offReconnect) offReconnect()
       offReconnect = null
       stopHubSocket(live)

@@ -205,6 +205,10 @@ type Store interface {
 	// Editing a sent message and its append-only revision register (specs/032).
 	MessageEdits
 
+	// Emoji reactions on a stored message (rdb 0037). The message may be
+	// is_parent 0 or 1; the reaction does not care which.
+	MessageReactions
+
 	// Channels, subscriptions and channel stats (channels.go, channels-v1).
 	Channels
 

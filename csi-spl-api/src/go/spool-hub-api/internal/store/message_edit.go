@@ -160,6 +160,7 @@ func (s *Memory) DeleteMessage(_ context.Context, tenant, msgID string) error {
 	}
 	delete(s.messages, k)
 	delete(s.revisions, k)
+	delete(s.reactions, k)
 	for dk := range s.deliveries {
 		if dk[0] == tenant && dk[1] == msgID {
 			delete(s.deliveries, dk)

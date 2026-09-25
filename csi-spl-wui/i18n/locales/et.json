@@ -430,6 +430,14 @@
       "delete": "Kustuta",
       "merge_prev": "Ühenda eelmise sõnumiga",
       "merge_next": "Ühenda järgmise sõnumiga"
+    },
+    "emoji": {
+      "add": "Lisa emoji",
+      "picker": "Vali emoji",
+      "recent": "Hiljutised",
+      "chip": "{emoji}, {n}",
+      "mine": "Eemalda oma {emoji}",
+      "failed": "Emojit ei õnnestunud salvestada."
     }
   },
   "topic": {

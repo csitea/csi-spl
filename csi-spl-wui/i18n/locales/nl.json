@@ -430,6 +430,14 @@
       "delete": "Verwijderen",
       "merge_prev": "Samenvoegen met vorige bericht",
       "merge_next": "Samenvoegen met volgende bericht"
+    },
+    "emoji": {
+      "add": "Emoji toevoegen",
+      "picker": "Kies een emoji",
+      "recent": "Recent",
+      "chip": "{emoji}, {n}",
+      "mine": "Verwijder je {emoji}",
+      "failed": "De emoji kon niet worden opgeslagen."
     }
   },
   "topic": {

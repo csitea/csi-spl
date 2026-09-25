@@ -4,7 +4,15 @@
 
 **Created**: 2026-09-18
 
-**Status**: Draft — **M4**. Does **not** change M2.
+**Status**: **Implemented in code, not sold** — **M4**. Does **not** change M2.
+Every task T001–T007 is Implemented (`tasks.md`); the caps and prices are `0`
+in cnf (`all.env.yaml` `SPOOL_HUB_PAYMENT_SEAT_USER_CENTS "0"`,
+`SPOOL_HUB_PAYMENT_SEAT_BOT_CENTS "0"`), so M4 is off everywhere until the owner
+prices it. Synced 2026-09-25 (trunk `bbe04d26`): `go test ./internal/{payments,store,hub} -run 'Seat|M4|M2Sku|LineItemShape|CheckoutPaid'`
+→ ok ×3 (n=1, memory store; the Postgres path was not run); prd has rdb
+`0012` + `0016` applied (`spool_schema_migrations` newest row `0043`,
+`information_schema` shows `tenant_seat_periods` and the `tenants` seat /
+project columns, n=1); dev not re-measured (the DB proxy timed out).
 
 **Narrative**: `csi-spl-doc/doc/md/SPEC-spool-m4-seats.md`  
 **Related**: `SPEC-spool-byo-gcp.md` (dedicated billing is still later; **this**
@@ -24,8 +32,9 @@ GCP project, the id is:
 
 Example: **`csi-spl-dev-202609171743`** (buy at 17:43 UTC on 2026-09-17).
 
-`org` and `app` **need not be unique**. **DNS tenant id** (`<tenant>.spool-hub.ai`)
-**must** be unique. Same org+app+env **same UTC minute** → retry (next minute
+`org` and `app` **need not be unique**. The **tenant id (slug)** **must** be
+unique. (It was written as a DNS host `<tenant>.<domain>`; per-tenant hosts
+were retired by 024/026 — one API host, tenant from identity.) Same org+app+env **same UTC minute** → retry (next minute
 or 2-char nonce).
 
 Stamp is the **minute they bought**, not hour.
@@ -37,9 +46,16 @@ Stamp is the **minute they bought**, not hour.
 - **FR-003**: Dedicated `project_id` = `{org}-{app}-{env}-{YYYYMMDDHHmm}` at
   buy (UTC). Length 24; GCP max 30.
 - **FR-004**: Persist `tenant_id`, `org`, `app`, `project_id`, `bought_at`
-  separately. **Slug is pretty and unique** (`acme` → `https://acme.spool-hub.ai`).
+  separately. **Slug is pretty and unique** (`acme`; no per-tenant host since 026).
   It is **not** the project id and **not** `{org}-{app}`.
-- **FR-005**: Duplicate DNS slug → 409. Duplicate project id → retry stamp.
+- **FR-005**: Duplicate tenant slug → 409. Duplicate project id → retry stamp.
+
+## Open owner questions (sync 2026-09-25)
+
+1. **Seat prices.** Every seat price is `"0"` (not sold). M4 stays off until
+   the owner sets `SPOOL_HUB_PAYMENT_SEAT_USER_CENTS` / `SPOOL_HUB_PAYMENT_SEAT_BOT_CENTS`.
+2. **D-6.** Is a distinct `seat_quota` auth_error wanted (an auth-lane
+   change), or does `not_allowed` stay?
 
 ## Decisions (2026-09-19, lane M4-SEATS-STORE)
 
@@ -84,4 +100,4 @@ Stamp is the **minute they bought**, not hour.
 
 M2 hosted (no per-customer project). Changing M3. Shop tables.
 
-<!-- version: 0.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:30:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:30:53Z -->

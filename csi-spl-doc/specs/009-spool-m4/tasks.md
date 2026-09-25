@@ -3,7 +3,9 @@
 **Spec**: `./spec.md` · **Ground rules**: `../README.md` (status vocabulary, seams §5)
 
 **Status**: T001-T007 **Implemented** in code (T002/T004/T005 by CLE-3405,
-2026-09-19; live once rdb 0016 is applied and the hub image carrying them rolls). M4 starts only after M3 (`005`) ships and
+2026-09-19). 2026-09-25: the hub image carrying them runs on both envs
+(`/version` 0.5.7); rdb `0016` is applied on prd (`tenant_seat_periods`
+present, n=1), dev not re-measured. M4 starts only after M3 (`005`) ships and
 M2 (`006` payment) sells; the schema and gate are in place with caps at
 `0` (= M4 off) until then:
 `grep -c 'seats_users\|project_id' csi-spl-rdb/src/sql/postgres/spool-hub/0012_m4_seats_buy_stamp.sql -> 8`.
@@ -83,4 +85,4 @@ M2 (`006` payment) sells; the schema and gate are in place with caps at
 | FR-004 | T006 | Implemented |
 | FR-005 | T007 | Implemented |
 
-<!-- version: 0.4.0 · updated: 2026-09-19 · last-edit: 2026-09-19T16:25:00Z -->
+<!-- version: 0.4.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:30:53Z -->

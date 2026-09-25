@@ -2,13 +2,13 @@
 
 Status: **binding for 004**; subordinate to
 `../../002-box-agent-messaging/contracts/trust-modes.md`. Checked against
-trunk `bbc41e7`.
+trunk `bbc41e7`; line citations and tenant source synced 2026-09-25 at `bbe04d26`.
 
 ## 1. Identifiers
 
 | Identifier | Format | Unique within | Source | Appears in |
 |---|---|---|---|---|
-| Tenant id | `^[a-z0-9][a-z0-9-]{0,31}$` | the hub | request Host (006) | never in a message |
+| Tenant id | `^[a-z0-9][a-z0-9-]{0,31}$` | the hub | identity-derived (026): the session, or `$SPOOL_TENANT` sent as `X-Spool-Tenant` and proven by the box pin | never in a message |
 | Box id | `^[a-z0-9][a-z0-9-]{0,31}$` | one tenant (its pin) | `$SPOOL_BOX_ID`, renter-chosen, no default | envelope `from_box` / `to_box`, hello, pins |
 | Agent id | `^[A-Z]{2,4}-[0-9]+$`, prefix `BOX-` forbidden | one box (`$SPOOL_ROOT/<id>/`) | harness allocator | inner `v:1` `from` / `to` |
 | Hub address | `(box_id, agent_id)`, shown `CLE-07@box-a` | one tenant | derived | WUI, logs |
@@ -33,9 +33,9 @@ Validation points — each MUST reject `BOX-`:
 
 | Point | Where | Status |
 |---|---|---|
-| message `from` / `to` | `internal/msg/msg.go:130,133` | Implemented |
-| send / recv `--as`, dir scan | `internal/spool/spool.go:62,131,206` | Implemented |
-| hub roster | `internal/hub/ws.go:478` → `roster_duplicate` | Implemented |
+| message `from` / `to` | `internal/msg/msg.go:162,165` | Implemented |
+| send / recv `--as`, dir scan | `internal/spool/spool.go:65,162,246` | Implemented |
+| hub roster | `internal/hub/ws.go:747` `validRoster` → `roster_duplicate` (`ws.go:202,338`) | Implemented |
 | SQL `roster.agent_id` CHECK | `csi-spl-rdb/…/0005_pin_identity.sql` | Implemented (`4f611d6`, `TestRosterIsPerBox/postgres`) |
 
 ## 3. Keys
@@ -57,4 +57,4 @@ the WUI, a pin body or a message.
 - Same `box_id`, different pubkey, no `force` → 409 `pin_conflict`.
 - Same `box_id`, same pubkey → 200, no change.
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:23:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:23:33Z -->

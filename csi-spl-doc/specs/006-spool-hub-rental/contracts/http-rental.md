@@ -8,7 +8,15 @@ shapes, error envelope — is **003's** and is not restated here:
 (409, `--force`, revoke, sync) are **004's**. Trust:
 `../../002-box-agent-messaging/contracts/trust-modes.md`.
 
-## 1. Tenant resolution — **Implemented** (`internal/hub/server.go` `tenantOf`)
+## 1. Tenant resolution — **Superseded** by 026 (was `internal/hub/server.go` `tenantOf`, removed in `6c66ac01`)
+
+Now (026, synced 2026-09-25 at `bbe04d26`): the tenant is identity-derived on
+the API host — `internal/hub/resolve.go` `humanTenant` (session),
+`boxTenant` (`X-Spool-Tenant`, proven by the pin), `tokenTenant` (upload
+token). Unknown id → `404 unknown_tenant`; no tenant named → `tenant_required`;
+a legacy Host or header naming another tenant → `403 tenant_mismatch`. The
+Host rule below is kept as history.
+
 
 - Every request (REST and the WS upgrade) resolves its tenant from the
   **Host** header against `$SPOOL_HUB_TENANT_HOST_PATTERN` = `{tenant}.<fqdn>`
@@ -16,9 +24,9 @@ shapes, error envelope — is **003's** and is not restated here:
 - The label before the suffix must match `^[a-z0-9][a-z0-9-]{0,31}$`; a host
   outside the suffix, a dotted label, or an unknown id → `404 unknown_tenant`.
 - There is **no** path-prefix (`/t/<tenant>/`) routing and **no** `tenant_id`
-  in `v:1` or in the envelope: the URL is the namespace.
+  in `v:1` or in the envelope: the resolved tenant is the namespace.
 - Reserved labels (env names such as `dev`, infra hosts) are refused at tenant
-  create — **Planned** (T016).
+  create — **Implemented** (T016; `msg.ValidTenantID`, `internal/msg/msg.go:232`).
 
 ## 2. Root-signed pin authority — **Implemented** (`TestPinRESTRootSigned`)
 
@@ -47,4 +55,4 @@ cnf retention its data may be deleted — **Planned** (T013a).
 Recv is never quota-gated. Per-plan values (keyed by `tenants.plan_id`) are
 **Planned** (T012a, OQ-006-1).
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:05:25Z -->
+<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:23:33Z -->

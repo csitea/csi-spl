@@ -2,11 +2,14 @@
 
 **Feature ID**: `004-spool-identity-routing` · **Milestone**: M1
 
-**Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo; verified on trunk `bbc41e7`, code unchanged since `9f8f492`)
+**Created**: 2026-09-18 · **Redone**: 2026-09-18 (git-spec redo; verified on trunk `bbc41e7`, code unchanged since `9f8f492`) · **Synced**: 2026-09-25 (line citations re-verified on trunk `bbe04d26`, n=1)
 
 **Status**: **Partial** — implemented in code and tests (in-memory testhub and
-a temp Postgres); not yet exercised against a live hub (dev hub has no ingress; prd has
-no Cloud Run). See "Verified status".
+a temp Postgres). Live hubs serve on dev and prd (`curl https://api.spool-hub.ai/version`
+and `curl https://dev.api.spool-hub.ai/version` -> `0.5.7`, commit `019d9e8`, 2026-09-25);
+pin, cross-box send and pin sync are live-proven by `do_spl_m3_e2e`. Missing: a live
+proof of `409 pin_conflict`, `ambiguous_to_box`, revoke and `stale_pin_op` (T021).
+See "Verified status".
 
 **Input**: The bus uses `CLE-07` as if it were unique and trusted everywhere. It
 is not. Specify the identifiers (tenant, tenant root, box, box key, agent),
@@ -23,8 +26,10 @@ The REST **shape** of `/v1/pins` and the WS hello / roster / envelope frames are
 003's: `../003-spool-message-bus/contracts/http-v1.md` §2, §4 — cited, not restated.
 
 **Seams** (`../README.md` §5): 004 owns pin semantics and identifiers. 003 owns
-the wire. 006 owns tenant host resolution, tenant root key issuance, quota
-(429) and unpaid (402). 007 owns the estate that makes a hub reachable.
+the wire. 006 owns the tenant row, tenant root key issuance, quota (429) and
+unpaid (402). 026 owns tenant resolution (identity-derived: the session, or the
+pinned box key that names its tenant in `X-Spool-Tenant`). 007 owns the estate
+that makes a hub reachable.
 
 **Depends on**: 002 (local folders, unsigned local mode, `spool keygen`, pin
 files). **Used by**: 003 (hello / envelope verify), 005 (shows `from@from_box`),
@@ -130,23 +135,32 @@ box's live session. `force` re-pins a new key; only the new key verifies.
 - Sub-agents never inherit a parent id and never use dotted ids (`AGY-01.1`
   fails the regex); each gets its own top-level id and directory.
 - Pin writes on an unpaid tenant (402) or over quota (429) → 006.
-- Tenant resolved from the request Host; unknown host → `unknown_tenant` (006). (Amended by 026: tenant is resolved from identity, session, or pinned box key; one API host api.<domain>, per-tenant Host routing retired).
+- Tenant is identity-derived (026): a box names it with `$SPOOL_TENANT`, sent
+  as `X-Spool-Tenant` (`internal/config/config.go:49`, `internal/hub/resolve.go:26`)
+  and proven by its pin. On the API host with no tenant named → `400
+  tenant_required`; a tenant other than the credential's → `403 tenant_mismatch`;
+  an unknown id → `404 unknown_tenant` (`resolve.go:46,120,123`). Per-tenant Host
+  routing is retired (024, 026).
 
 ## Requirements
 
-Status per `../README.md` §2.3. Code citations are at trunk `bbc41e7`.
+Status per `../README.md` §2.3. Code line citations re-verified at trunk
+`bbe04d26` (2026-09-25); paths are relative to `csi-spl-api/src/go/spool-hub-api/`,
+and a proof command is given where a line moved.
 
 - **FR-001** — Identifiers, formats and scopes are exactly
   `contracts/identifiers.md`: agent id `^[A-Z]{2,4}-[0-9]+$` minus `BOX-`,
   unique per box; box id `^[a-z0-9][a-z0-9-]{0,31}$`, unique per tenant.
-  **Implemented** — `grep -n 'idRe\|boxRe =' internal/msg/msg.go` -> lines 32, 35.
+  **Implemented** — `grep -n 'idRe =\|boxRe =' internal/msg/msg.go` -> lines 49, 58.
 - **FR-002** — `$SPOOL_BOX_ID` required and validated when `$SPOOL_HUB_URL` is
-  set; local mode never reads it; no default. **Implemented** —
-  `internal/config/config.go:79`.
+  set; local mode never reads it; no default. A box on the API host also needs
+  `$SPOOL_TENANT` (026), else the hub answers `400 tenant_required`
+  (`config.go:145-147`). **Implemented** — `internal/config/config.go:139`
+  (`grep -n 'SPOOL_BOX_ID must' internal/config/config.go`).
 - **FR-003** — Pin and revoke carry a **tenant-root** signature over the
   canonical payloads in `contracts/pin-semantics.md` §1; the pin list is
   box-authenticated (WS-issued token), not root-signed. **Implemented** —
-  `internal/hub/rest.go:99-205`; `TestPinRESTRootSigned` PASS.
+  `internal/hub/rest.go:290-425` (`handleListPins` 290, `handlePin` 308, `handleRevoke` 374; `grep -n '^func (s \*Server) handle' internal/hub/rest.go`); `TestPinRESTRootSigned` PASS.
 - **FR-004** — Box private key `$HOME/.spool/keys/box-<box_id>.key` `0600`;
   local pins `$SPOOL_ROOT/pins/box-<box_id>.pub` `0644`; private keys never
   leave the box. **Implemented** — `internal/sign/sign.go:26-27`;
@@ -156,10 +170,10 @@ Status per `../README.md` §2.3. Code citations are at trunk `bbc41e7`.
   **Implemented** — `TestTamperedAndAmbiguousAndMissingPin`, `TestRecvVerifiesAfterPinSync` PASS.
 - **FR-006** — Pin sync installs missing pins, is a no-op on the same key, and
   never clobbers a differing local pin (78). **Implemented** —
-  `internal/hubclient/hubclient.go:508-540`; `TestPinSyncWritesAndConflictNoClobber` PASS.
+  `internal/hubclient/hubclient.go:732-760` (`SyncPins`; `grep -n 'func (s \*Session) SyncPins' internal/hubclient/hubclient.go`); `TestPinSyncWritesAndConflictNoClobber` PASS.
 - **FR-007** — Unicast; the sender signs `to_box`; unresolved and ambiguous →
   409 `ambiguous_to_box`; the hub fills no signed field. **Implemented** —
-  `internal/hub/ws.go:332`.
+  `internal/hub/ws.go:441` (`grep -n ambiguous_to_box internal/hub/ws.go`).
 - **FR-008** — pin / force / revoke each append a `pins_history` row
   (`reason ∈ {pin, force, revoke}`); only the active key verifies; a same-key
   re-pin writes nothing; re-activating a revoked box needs `force`
@@ -168,7 +182,7 @@ Status per `../README.md` §2.3. Code citations are at trunk `bbc41e7`.
 - **FR-009** — The box daemon (`spool hub-run` / `hub-sync`) scans
   `$SPOOL_ROOT/*/` and announces the roster on `role=box` hello and on change;
   duplicate or invalid id → 409 `roster_duplicate`. **Implemented** —
-  `internal/hubclient/flush.go:228`, `internal/hub/ws.go:268,478`.
+  `internal/hubclient/flush.go:335`, `internal/hub/ws.go:202,338` (`roster_duplicate`), `ws.go:747` (`validRoster`).
 - **FR-010** — Agent-id **allocation** is the harness's (the box harness's
   `next-agent-id.sh` or the renter's own), not spool's; the harness prepares
   the directories and ensures the box key exists before the AI CLI starts.
@@ -179,7 +193,7 @@ Status per `../README.md` §2.3. Code citations are at trunk `bbc41e7`.
 - **FR-011** — Sub-agents get independent top-level ids. **Implemented** by the
   regex (FR-001); allocation is FR-010.
 - **FR-012** — `BOX-` rejected at every validation point
-  (`contracts/identifiers.md` §2). **Implemented** — Go `msg.go:180`
+  (`contracts/identifiers.md` §2). **Implemented** — Go `msg.go:213`
   (`TestValidID` PASS); SQL `roster` CHECK in `0005_pin_identity.sql`
   (`4f611d6`, `TestRosterIsPerBox/postgres` PASS).
 - **FR-013** — A replayed pin / revoke cannot change a pin: each state change
@@ -187,21 +201,26 @@ Status per `../README.md` §2.3. Code citations are at trunk `bbc41e7`.
   `stale_pin_op`. **Implemented** — `4f611d6`; `TestPinRevokeAndForce`
   (replayed revoke after force → 409) PASS.
 - **FR-014** — The M1 proof exercises pins and cross-box routing against the
-  live dev hub on the product domain. **Planned** — blocked on 007 ingress → T021.
+  live hubs. **Partial** — live on dev and prd: root-pinned boxes, pin sync and
+  a cross-box `task` / `result` (`do_spl_m3_e2e`, records
+  `../014-spool-wui-dispatch/acceptance-dev.md`, `acceptance-prd.md`). Missing
+  live: `409 pin_conflict`, `ambiguous_to_box`, revoke, `stale_pin_op`
+  (`grep -n 'ambiguous\|revoke\|409' csi-spl-orc/src/bash/run/spl-m3-e2e.func.sh`
+  -> no match) → T021.
 
-## Verified status (2026-09-18)
+## Verified status (2026-09-18; line citations synced 2026-09-25 at `bbe04d26`)
 
 | Area | Status | Evidence |
 |---|---|---|
-| Id regex + `BOX-` rejection (Go) | Implemented | `msg.go:180`; `TestValidID` PASS |
+| Id regex + `BOX-` rejection (Go) | Implemented | `msg.go:213`; `TestValidID` PASS |
 | `BOX-` rejection (SQL CHECK) | Implemented | `0005_pin_identity.sql` (`4f611d6`) |
-| Schema `tenants / boxes / pins / pins_history / roster` | Implemented | `0001_hub_core.sql`, `0005_pin_identity.sql`; `TestPinSQLLivesInRDB` PASS |
+| Schema `tenants / boxes / pins / pins_history / roster` | Implemented | `0001_hub_core.sql` (tables), `0005_pin_identity.sql` (`pins.last_op_ts`, roster `BOX-` CHECK); `TestPinSQLLivesInRDB` PASS |
 | Pin / revoke / list | Implemented | `rest.go`; pin tests PASS |
-| Pin sync, no-clobber | Implemented | `hubclient.go:508` |
-| Roster, ambiguous `to_box`, last-hello-wins | Implemented | `ws.go:158,268,332` |
+| Pin sync, no-clobber | Implemented | `hubclient.go:732` |
+| Roster, ambiguous `to_box`, last-hello-wins | Implemented | `ws.go:144` (hello), `202,338` (roster), `248` (last hello wins), `441` (ambiguous) |
 | Pin replay guard, same-key no-op, revoke needs force to undo | Implemented | `4f611d6` (pin-semantics §2, §5) |
-| Live dev hub | Partial | Cloud Run `csi-spl-hub-dev` Ready, `spool-hub:0.1.0`, ingress `internal-and-cloud-load-balancing`, no LB → `curl …a.run.app/version` -> 404 from the Google front end; no live pin exercised |
-| Live prd hub | Planned | `gcloud run services list --project=csi-spl-prd --account=$GCP_ACCOUNT` -> `SERVICE_DISABLED` |
+| Live dev hub | Partial | `curl https://dev.api.spool-hub.ai/version` -> `0.5.7` (`019d9e8`, 2026-09-25); pin + sync + cross-box send live via `do_spl_m3_e2e` (014 `acceptance-dev.md`); negative paths not live-proven (T021). The earlier "no LB → 404" row is Superseded (031 LB removed; `ingress: all`, `csi-spl-cnf/csi-spl/all.env.yaml:76`) |
+| Live prd hub | Partial | `curl https://api.spool-hub.ai/version` -> `0.5.7` (`019d9e8`, 2026-09-25); same positive paths live via `ENV=prd do_spl_m3_e2e` (014 `acceptance-prd.md`); negative paths not live-proven (T021). The earlier `SERVICE_DISABLED` row is Superseded |
 
 Test runs (tree: this lane's worktree at `4f611d6`; n=1 each):
 - `go test -count=1 ./...` in `csi-spl-api/src/go/spool-hub-api` -> all packages ok (in-memory store).
@@ -210,12 +229,16 @@ Test runs (tree: this lane's worktree at `4f611d6`; n=1 each):
 - `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` -> 6/6 (one earlier run read
   5/6, rerun 6/6 unchanged — flaky, not this change).
 
+Re-run 2026-09-25 (tree `bbe04d26`, n=1, in-memory store only):
+`go test -count=1 ./internal/{msg,hub,store,billing,payments,spool} -run '<every test cited here and in 006>'`
+-> all six packages `ok`.
+
 ## Success Criteria
 
 - **SC-001**: Different-key pin → 409 in a two-box test. **Implemented** (testhub).
 - **SC-002**: Cross-box recv verifies after pin sync; 78 without it. **Implemented** (testhub).
 - **SC-003**: Hub-down same-box round trip; flush idempotent on `msg_id`. **Implemented** (testhub).
-- **SC-004**: SC-001..003 pass against the live dev hub on the product domain. **Planned** (T021).
+- **SC-004**: SC-001..003 pass against the live hubs. **Partial** — cross-box recv after pin sync is live on dev + prd (`do_spl_m3_e2e`); the live different-key 409 and the hub-down flush are not (T021).
 
 ## Assumptions
 
@@ -223,10 +246,18 @@ Test runs (tree: this lane's worktree at `4f611d6`; n=1 each):
 - M1 tenants are owner-made (`spool hub-tenant`); self-service is 006 / M2.
 - No pin UI in M1; pins are CLI (`spool pin`, `spool hub-pin`).
 
+## Open owner questions (sync 2026-09-25)
+
+- **OQ-004-1** Is a live proof of the negative paths (`409 pin_conflict`,
+  `ambiguous_to_box`, revoke, `stale_pin_op`) still required for M1, or does
+  the positive-path `do_spl_m3_e2e` run on dev + prd close T021 / FR-014 /
+  SC-004? Recommendation: add the negative steps to `do_spl_m3_e2e` against the
+  lde hub and one throwaway dev tenant, then close.
+
 ## Out of Scope
 
 - Changing box-harness allocators or the 002 local model.
 - Per-agent keys or IAM; the private-deploy IAM door (003 OQ-06, not M1).
 - Multi-recipient / box-wide fanout; cross-tenant uniqueness.
 
-<!-- version: 1.3.0 · updated: 2026-09-20 · last-edit: 2026-09-20T06:40:00Z -->
+<!-- version: 1.4.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:23:33Z -->

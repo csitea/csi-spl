@@ -3,8 +3,8 @@
 Status: **binding for 004** (seam owner of pin semantics, `../../README.md` §5).
 The REST shape (paths, bodies, auth header) is
 `../../003-spool-message-bus/contracts/http-v1.md` §4; the error envelope is
-`../../003-spool-message-bus/contracts/error-envelope.md`; 402 / 429 and tenant
-host resolution are 006's. Checked against trunk `bbc41e7`
+`../../003-spool-message-bus/contracts/error-envelope.md`; 402 / 429 are 006's; tenant
+resolution is 026's (identity-derived, `internal/hub/resolve.go`). Checked against trunk `bbc41e7`
 (`internal/hub/rest.go`, `internal/wire/wire.go`, `internal/hubclient/hubclient.go`).
 
 ## 1. Signed payloads (tenant root key)
@@ -125,4 +125,4 @@ whole statement rolls back; and every statement runs under
 `SET LOCAL app.tenant_id`, so the rdb 0014 row-level-security policy — not the
 script — is what makes another tenant's box invisible.
 
-<!-- version: 1.2.0 · updated: 2026-09-21 · last-edit: 2026-09-21T13:25:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:23:33Z -->

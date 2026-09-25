@@ -330,11 +330,16 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   native-auth-v1 0.1.2). *Status:* Implemented (`5c6da073`, live since 0.6.2).
 - **FR-SEC-043 (Trusted proxy hops measured):** `SPOOL_HUB_TRUSTED_PROXY_HOPS` = 1 on dev and prd
   (`do_spl_probe_client_ip`, n=3 per env: peer `169.254.169.126` for every caller, so "0" made each native
-  per-IP limit one bucket per env). *Status:* Implemented (`1600b494`, 0.6.6). **Open (Planned, owner):** the edge
+  per-IP limit one bucket per env). *Status:* **Partial** - committed in cnf and rendered into the 030 tfvars
+  (`1600b494`), NOT live: after the 0.6.7 roll the hub still reports `trusted_proxy_hops: 0` on dev and prd
+  (`do_spl_probe_client_ip`, n=3 per env, 2026-09-25 ~21:30Z) - an image roll does not change Cloud Run env; it
+  needs `ENV=<env> STEP=<030 step> make do-tf-plan` then `make do-provision` with the owner's go. Until then
+  FR-SEC-044's per-address bucket is keyed on the front end, i.e. per email as before. **Open (Planned, owner):** the edge
   per-IP limits (`EDGE_WS_CONNS_PER_IP`, `EDGE_WS_HANDSHAKES_PER_IP`, `EDGE_AUTH_PER_IP`) stay 0 until the owner
   picks numbers (one box NAT carries many agents); `POST /api/v1/checkout` has no limit.
 - **FR-SEC-044 (Login lockout per address):** the per-email login bucket is per (email, client IP) with a tenfold
-  per-email ceiling across addresses. *Status:* Implemented (`da3f8074`, 0.6.7).
+  per-email ceiling across addresses. *Status:* Implemented (`da3f8074`, live 0.6.7); effective per address once
+  FR-SEC-043's hops are applied.
 - **FR-SEC-045 (Downloads never render):** `GET /v1/files/{id}` sends `nosniff`, `Content-Disposition:
   attachment` and a sandbox CSP. *Status:* Implemented (`da3f8074`, 0.6.7). Also: `safeRedirect` refuses TAB / C0 /
   space / DEL (`c09b75e7`); display names refuse bidi controls, IdP and register names are cleaned (`323c76e5`).
@@ -353,4 +358,4 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 - **NFR-SEC-003 (Minimal Distroless Attack Surface):** Production containers MUST execute as non-root users on
   distroless base images with read-only root filesystems where possible.
 
-<!-- version: 1.4.0 · updated: 2026-09-25 · last-edit: 2026-09-25T21:18:45Z -->
+<!-- version: 1.4.1 · updated: 2026-09-25 · last-edit: 2026-09-25T21:27:59Z -->

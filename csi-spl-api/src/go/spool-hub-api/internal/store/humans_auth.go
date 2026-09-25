@@ -207,6 +207,25 @@ func (a AuthHooks) SetDiagnosticsEnabled(ctx context.Context, humanID string, on
 	return err
 }
 
+// DisplayName is the human's shown name (CLE-34968); an unknown human is
+// auth.ErrNoHuman.
+func (a AuthHooks) DisplayName(ctx context.Context, humanID string) (string, error) {
+	name, err := a.H.DisplayName(ctx, humanID)
+	if errors.Is(err, ErrNotFound) {
+		return "", auth.ErrNoHuman
+	}
+	return name, err
+}
+
+// SetDisplayName stores it; an unknown human is auth.ErrNoHuman.
+func (a AuthHooks) SetDisplayName(ctx context.Context, humanID, name string) error {
+	err := a.H.SetDisplayName(ctx, humanID, name)
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrNoHuman
+	}
+	return err
+}
+
 // IdentityLocale is the picked locale of the human behind one sign-in.
 func (a AuthHooks) IdentityLocale(ctx context.Context, provider, subject string) (string, error) {
 	return a.H.IdentityLocale(ctx, provider, subject)

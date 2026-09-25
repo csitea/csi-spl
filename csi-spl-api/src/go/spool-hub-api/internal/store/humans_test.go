@@ -309,3 +309,51 @@ func TestHumansDiagnosticsEnabled(t *testing.T) {
 		})
 	}
 }
+
+// CLE-34968: a human's own display name. The IdP name seeds it at the first
+// sign-in; a name set in Settings survives the next sign-in (which, before,
+// replaced it with the IdP's), belongs to one human only, and an unknown
+// human is ErrNotFound.
+func TestHumansDisplayName(t *testing.T) {
+	ctx := context.Background()
+	for name, s := range drivers(t) {
+		h := s.(Humans)
+		t.Run(name, func(t *testing.T) {
+			id := Identity{Provider: "google", Subject: uid("dn-"), Name: "Idp Name"}
+			hum, err := h.Admit(ctx, id, "", AdmitPolicy{}, time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			other, err := h.Admit(ctx, Identity{Provider: "google", Subject: uid("dn-"), Name: "Other Idp"}, "", AdmitPolicy{}, time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, err := h.DisplayName(ctx, hum); err != nil || got != "Idp Name" {
+				t.Fatalf("seeded from the IdP: %q %v", got, err)
+			}
+			if err := h.SetDisplayName(ctx, hum, "Chosen Name"); err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := h.DisplayName(ctx, hum); got != "Chosen Name" {
+				t.Fatalf("after set: %q", got)
+			}
+			// The next sign-in carries the IdP name again: it must not win.
+			if again, err := h.Admit(ctx, id, "", AdmitPolicy{}, time.Now().UTC()); err != nil || again != hum {
+				t.Fatalf("re-sign-in: %s %v", again, err)
+			}
+			if got, _ := h.DisplayName(ctx, hum); got != "Chosen Name" {
+				t.Fatalf("a sign-in replaced the chosen name: %q", got)
+			}
+			// CONTROL: the other human keeps its own.
+			if got, _ := h.DisplayName(ctx, other); got != "Other Idp" {
+				t.Fatalf("set leaked to another human: %q", got)
+			}
+			if err := h.SetDisplayName(ctx, "HUM-999999999", "x"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human: %v", err)
+			}
+			if _, err := h.DisplayName(ctx, "HUM-999999999"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human read: %v", err)
+			}
+		})
+	}
+}

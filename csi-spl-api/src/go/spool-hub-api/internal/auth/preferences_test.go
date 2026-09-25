@@ -24,8 +24,9 @@ type fakePrefs struct {
 	mu   sync.Mutex
 	reg  *recReg
 	loc  map[string]string
-	diag map[string]bool // CLE-34963 "Debug pane", nil until first set
-	fail error           // non-nil: DiagnosticsEnabled answers it
+	diag map[string]bool   // CLE-34963 "Debug pane", nil until first set
+	name map[string]string // CLE-34968 display name, nil until first set
+	fail error             // non-nil: DiagnosticsEnabled answers it
 }
 
 func (p *fakePrefs) known(hum string) bool {
@@ -80,6 +81,28 @@ func (p *fakePrefs) SetDiagnosticsEnabled(_ context.Context, hum string, on bool
 		p.diag = map[string]bool{}
 	}
 	p.diag[hum] = on
+	return nil
+}
+
+func (p *fakePrefs) DisplayName(_ context.Context, hum string) (string, error) {
+	if !p.known(hum) {
+		return "", auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.name[hum], nil
+}
+
+func (p *fakePrefs) SetDisplayName(_ context.Context, hum, name string) error {
+	if !p.known(hum) {
+		return auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.name == nil {
+		p.name = map[string]string{}
+	}
+	p.name[hum] = name
 	return nil
 }
 

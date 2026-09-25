@@ -65,6 +65,12 @@ Cookie `spool_session` (cnf `SPOOL_HUB_AUTH_COOKIE_NAME`; dev: `spool_session_de
 `hum` appears once the hub's Registrar is wired (T012). `t` is the tenant the
 sign-in **started** from; it is not an authorisation (spec SEC-001).
 
+`name` — CLE-34968. The display name the human set in WUI Settings → Profile
+(`humans.display_name`), read from the store on every call; the cookie's name
+(the IdP's, or the one given at native registration) only while none is
+stored. The native `POST /login` answer carries the same. The IdP name seeds
+`humans.display_name` at the first sign-in and never replaces a stored one.
+
 The last four are **not** cookie claims: they are read per call and answered
 alongside the signed ones. `preferred_locale` (spec 021), `active_tenant` +
 `tenants` (specs/026 §3), and:
@@ -91,8 +97,11 @@ It is written by `PUT /api/v1/auth/preferences` (signed session cookie,
 ```
 
 Each key of that body is optional but one is required: `preferred_locale` (a
-supported code, or `null` to clear) and `diagnostics_enabled` (the JSON
-literal `true` or `false` — `"true"`, `1` and `null` are `400 bad_request`).
+supported code, or `null` to clear), `diagnostics_enabled` (the JSON
+literal `true` or `false` — `"true"`, `1` and `null` are `400 bad_request`)
+and `display_name` (CLE-34968: a JSON string, trimmed, 1..200 characters, no
+control character and no line/paragraph separator; anything else, `null`
+included, is `400 invalid_display_name` — a name cannot be cleared).
 The whole body is validated before anything is stored, and the `200` answer
 echoes exactly the keys that were stored. `401` without a session, `409
 no_human` for a session with no registered human, `503` when the store is not

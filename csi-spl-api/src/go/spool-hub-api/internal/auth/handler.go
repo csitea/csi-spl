@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/rs/zerolog"
 
@@ -35,6 +37,9 @@ const (
 	ErrCodeUnverified  = "email_unverified"
 	ErrCodeNotAllowed  = "not_allowed"
 	ErrCodeUnavailable = "unavailable"
+	// ErrCodeInvalidDisplayName: PUT preferences display_name is not a name
+	// ValidDisplayName admits (CLE-34968).
+	ErrCodeInvalidDisplayName = "invalid_display_name"
 )
 
 // Registrar is the hub's hook into a successful callback (spec 004 owns HUM-*
@@ -84,6 +89,12 @@ type Preferences interface {
 	DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error)
 	// SetDiagnosticsEnabled stores it. Unknown human = ErrNoHuman.
 	SetDiagnosticsEnabled(ctx context.Context, humanID string, on bool) error
+	// DisplayName is the human's shown name (humans.display_name, CLE-34968),
+	// "" when none. An unknown human is ErrNoHuman.
+	DisplayName(ctx context.Context, humanID string) (string, error)
+	// SetDisplayName stores name, already admitted by ValidDisplayName.
+	// Unknown human = ErrNoHuman.
+	SetDisplayName(ctx context.Context, humanID, name string) error
 }
 
 // FederatedLookup tells the forgot-password route that an address it holds no
@@ -333,6 +344,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := sessionResp{Session: s, DiagnosticsEnabled: h.diagnosticsGrant(r.Context(), s)}
+	out.Name = h.shownName(r.Context(), s)
 	h.sessionTenants(r, &out)
 	if s.HumanID != "" && h.prefs != nil {
 		// A settings lookup never fails the session: the WUI then follows the browser.
@@ -375,6 +387,47 @@ func (h *Handler) diagnosticsGrant(ctx context.Context, s Session) bool {
 		return false
 	}
 	return on
+}
+
+// shownName is the `name` claim the WUI renders for the signed-in human
+// (CLE-34968): the display name they set in Settings (humans.display_name),
+// read from the store on every call, else the cookie's IdP name. The cookie
+// carries the name as it was at sign-in, so a rename would otherwise show
+// only at the next sign-in. A lookup error never fails the session.
+func (h *Handler) shownName(ctx context.Context, s Session) string {
+	if s.HumanID == "" || h.prefs == nil {
+		return s.Name
+	}
+	name, err := h.prefs.DisplayName(ctx, s.HumanID)
+	if err != nil {
+		if !errors.Is(err, ErrNoHuman) {
+			h.log.Warn().Err(err).Msg("auth.session display_name lookup")
+		}
+		return s.Name
+	}
+	if name == "" {
+		return s.Name
+	}
+	return name
+}
+
+// MaxDisplayNameLen is humans.display_name's CHECK (rdb 0006), in characters.
+const MaxDisplayNameLen = 200
+
+// ValidDisplayName trims raw and answers it when it is 1..200 characters of
+// valid UTF-8 with no control character (C0, DEL, C1) and no line or
+// paragraph separator: the name is one line wherever the WUI shows it.
+func ValidDisplayName(raw string) (string, bool) {
+	name := strings.TrimSpace(raw)
+	if name == "" || !utf8.ValidString(name) || utf8.RuneCountInString(name) > MaxDisplayNameLen {
+		return "", false
+	}
+	for _, c := range name {
+		if unicode.IsControl(c) || c == '\u2028' || c == '\u2029' {
+			return "", false
+		}
+	}
+	return name, true
 }
 
 // avatar answers the signed-in human's own stored IdP picture (CLE-3406):
@@ -423,10 +476,12 @@ func (h *Handler) avatar(w http.ResponseWriter, r *http.Request) {
 // preferencesReq is PUT preferences' body. Each key is optional, but at
 // least one must be present: preferred_locale is one of the 19
 // i18n.Supported codes exactly, or null to clear it; diagnostics_enabled
-// (CLE-34963) is a JSON boolean, nothing else.
+// (CLE-34963) is a JSON boolean, nothing else; display_name (CLE-34968) is a
+// JSON string ValidDisplayName admits, and cannot be cleared (null is refused).
 type preferencesReq struct {
 	PreferredLocale    json.RawMessage `json:"preferred_locale"`
 	DiagnosticsEnabled json.RawMessage `json:"diagnostics_enabled"`
+	DisplayName        json.RawMessage `json:"display_name"`
 }
 
 // putPreferences stores the signed-in human's settings (CLE-3403, CLE-34963).
@@ -447,9 +502,10 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 	}
 	rawLoc := strings.TrimSpace(string(req.PreferredLocale))
 	rawDiag := strings.TrimSpace(string(req.DiagnosticsEnabled))
-	if rawLoc == "" && rawDiag == "" {
+	rawName := strings.TrimSpace(string(req.DisplayName))
+	if rawLoc == "" && rawDiag == "" && rawName == "" {
 		writeErr(w, http.StatusBadRequest, "bad_request",
-			"preferred_locale (a locale code or null) or diagnostics_enabled (true or false) is required")
+			"preferred_locale (a locale code or null), diagnostics_enabled (true or false) or display_name is required")
 		return
 	}
 	loc := ""
@@ -468,6 +524,19 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 	if rawDiag != "" && rawDiag != "true" && rawDiag != "false" {
 		writeErr(w, http.StatusBadRequest, "bad_request", "diagnostics_enabled must be true or false")
 		return
+	}
+	name := ""
+	if rawName != "" {
+		var raw string
+		ok := rawName != "null" && json.Unmarshal(req.DisplayName, &raw) == nil
+		if ok {
+			name, ok = ValidDisplayName(raw)
+		}
+		if !ok {
+			writeErr(w, http.StatusBadRequest, ErrCodeInvalidDisplayName,
+				"display_name must be 1 to 200 characters on one line, without control characters")
+			return
+		}
 	}
 	if s.HumanID == "" {
 		writeErr(w, http.StatusConflict, "no_human", "this session has no registered human to keep settings on")
@@ -494,6 +563,14 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 		}
 		h.log.Info().Str("human_id", s.HumanID).Bool("diagnostics_enabled", diag).Msg("auth.preferences_set")
 		out["diagnostics_enabled"] = diag
+	}
+	if rawName != "" {
+		if !h.storePref(w, h.prefs.SetDisplayName(r.Context(), s.HumanID, name)) {
+			return
+		}
+		h.log.Info().Str("human_id", s.HumanID).Int("display_name_len", utf8.RuneCountInString(name)).
+			Msg("auth.preferences_set")
+		out["display_name"] = name
 	}
 	writeJSON(w, http.StatusOK, out)
 }

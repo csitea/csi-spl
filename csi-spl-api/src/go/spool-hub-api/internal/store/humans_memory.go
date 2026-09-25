@@ -145,7 +145,9 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 	if id.Email != "" {
 		h.humans[hum].email = id.Email
 	}
-	if id.Name != "" {
+	// The IdP name only seeds an empty name: once the human has one (their
+	// own, set in Settings, CLE-34968) a sign-in never replaces it.
+	if id.Name != "" && h.humans[hum].name == "" {
 		h.humans[hum].name = id.Name
 	}
 	if grant != nil {
@@ -251,6 +253,29 @@ func (s *Memory) PreferredLocale(_ context.Context, humanID string) (string, err
 		return "", ErrNotFound
 	}
 	return hm.locale, nil
+}
+
+func (s *Memory) SetDisplayName(_ context.Context, humanID, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return ErrNotFound
+	}
+	hm.name = name
+	return nil
+}
+
+func (s *Memory) DisplayName(_ context.Context, humanID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return "", ErrNotFound
+	}
+	return hm.name, nil
 }
 
 func (s *Memory) SetDiagnosticsEnabled(_ context.Context, humanID string, on bool) error {

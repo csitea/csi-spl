@@ -463,7 +463,11 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, n.h.sessionCookie(tok, int(n.h.cfg.SessionTTL.Seconds())))
 	n.log.Info().Str("email", digest(email)).Str("tenant", sess.Tenant).Msg("auth.login_ok")
-	writeJSON(w, http.StatusOK, loginResp{Session: sess, Redirect: safeRedirect(req.Redirect),
+	// The answer names the human as the session read does (CLE-34968); the
+	// cookie keeps the credential's name, as every other claim of it.
+	claims := sess
+	claims.Name = n.h.shownName(ctx, sess)
+	writeJSON(w, http.StatusOK, loginResp{Session: claims, Redirect: safeRedirect(req.Redirect),
 		DiagnosticsEnabled: n.h.diagnosticsGrant(ctx, sess)})
 }
 

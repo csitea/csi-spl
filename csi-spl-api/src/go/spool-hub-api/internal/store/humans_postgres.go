@@ -98,8 +98,10 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 		}
 	}
 	if known || linked {
+		// The IdP name only seeds an empty display_name: once the human has
+		// one (their own, set in Settings, CLE-34968) a sign-in keeps it.
 		if _, err := tx.Exec(ctx, `UPDATE humans SET email = COALESCE(NULLIF($2, ''), email),
-			display_name = COALESCE(NULLIF($3, ''), display_name) WHERE human_id = $1`,
+			display_name = COALESCE(display_name, NULLIF($3, '')) WHERE human_id = $1`,
 			hum, id.Email, id.Name); err != nil {
 			return "", err
 		}
@@ -261,6 +263,27 @@ func (s *Postgres) PreferredLocale(ctx context.Context, humanID string) (string,
 		return "", ErrNotFound
 	}
 	return loc, err
+}
+
+// humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.
+func (s *Postgres) SetDisplayName(ctx context.Context, humanID, name string) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE humans SET display_name = $2 WHERE human_id = $1`, humanID, name)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) DisplayName(ctx context.Context, humanID string) (string, error) {
+	var name string
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(display_name, '') FROM humans WHERE human_id = $1`, humanID).Scan(&name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return name, err
 }
 
 // humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.

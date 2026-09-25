@@ -26,6 +26,8 @@
 #      the script's file owner (an agent-side git op makes that the agent)
 #  14. no literal human id: nobody named -> skipped + logged
 #  15. agy: prompt/answer read from the transcript the hook names; prints {}
+#  16. CLI-injected content (system-reminder, task-notification, restart
+#      notices) is stripped; injection-only prompts post nothing
 #  11. two hook configs reaching one session (shared settings + a wrapper's
 #      --settings) post one prompt once
 set -uo pipefail
@@ -275,5 +277,23 @@ eq "15. agy pre, a later invocation of the same turn: nothing" 'null' "$(ax '{"c
 eq "15. agy stop: the answer after the newest USER_INPUT" '["answer", "new answer", "C1"]' "$(ax '{"conversationId":"C1","terminationReason":"NO_TOOL_CALL","error":"","transcriptPath":"'"$TR"'"}' stop)"
 eq "15. agy stop on an error: nothing" 'null' "$(ax '{"conversationId":"C1","error":"boom","transcriptPath":"'"$TR"'"}' stop)"
 eq "15. the agy hook prints {} for agy's loop" '{}' "$(printf '{}' | python3 "$MIRROR" hook --agy stop)"
+
+# --- 16. CLI-injected content is never posted as the human (CLE-100, 19:15Z) -----------------------
+rm -f "$SEAT/operator"; n7=$(nsends)
+post prompt $'<system-reminder>\nmemory index, tool list\n</system-reminder>' inj1 >/dev/null
+post prompt $'<task-notification>\n<task-id>x</task-id>\n</task-notification>' inj2 >/dev/null
+post prompt "CLI RESTARTED IN PLACE: this session was stopped and resumed" inj3 >/dev/null
+post prompt $'<system-reminder>\ncut off, no closing tag' inj4 >/dev/null
+eq "16. injection-only prompts (reminder, task-notification, restart, cut-off block) post nothing" "$n7" "$(nsends)"
+has "16. ... and the log says why" "only CLI-injected content" "$(cat "$A/.mirror/mirror.log")"
+post prompt $'please ship it\n<system-reminder>\nsecret-ish memory index\n</system-reminder>' inj5 >/dev/null
+eq "16. a real prompt keeps only the typed words" "[terminal] please ship it" "$(body_of_last)"
+hasnt "16. ... the injected block never reaches spool send" "memory index" "$(last_send)"
+post prompt "why does the system-reminder tag leak?" inj6 >/dev/null
+eq "16. CONTROL: a typed mention of the word (no tag) is posted" "[terminal] why does the system-reminder tag leak?" "$(body_of_last)"
+hx16() { python3 -c 'import importlib.util,json,sys
+s=importlib.util.spec_from_file_location("m",sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+print(json.dumps(m.hook_extract(json.loads(sys.argv[2]))))' "$MIRROR" "$1"; }
+eq "16. the hook drops an injection-only UserPromptSubmit" 'null' "$(hx16 '{"hook_event_name":"UserPromptSubmit","session_id":"S","prompt":"<task-notification>done</task-notification>"}')"
 
 t_done

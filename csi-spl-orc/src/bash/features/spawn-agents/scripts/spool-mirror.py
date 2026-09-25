@@ -114,6 +114,28 @@ def log(seat_agent_dir, line):
 
 
 # ── hook half (agent user) ──────────────────────────────────────────────────
+# What the CLI INJECTS into a user turn is not what a person typed, and it
+# must never be posted as the human (FR-001 is "every prompt the human types").
+# Measured 2026-09-25 19:15Z (CLE-100): 160 of 391 typed_by rows on dev, and
+# 18 (agent, human) pairs on prd, carried <system-reminder> memory/tool lists
+# and <task-notification> results as if the owner had typed them.
+INJECTED_BLOCKS = re.compile(
+    r"<(system-reminder|task-notification|local-command-[a-z-]+|command-[a-z-]+|"
+    r"user-prompt-submit-hook|bash-(?:input|stdout|stderr))\b[^>]*>.*?(?:</\1>|\Z)", re.S)
+INJECTED_LINES = re.compile(r"^(?:CLI RESTARTED IN PLACE\b|\[SYSTEM NOTIFICATION\b|Caveat: The messages below were generated\b)")
+
+
+def human_text(text):
+    """The part of a prompt a person typed: every injected block removed
+    (closed or cut off), then nothing at all if what is left is only an
+    injected line. '' = nothing to mirror."""
+    t = INJECTED_BLOCKS.sub("", str(text or ""))
+    t = t.strip()
+    if not t or INJECTED_LINES.match(t):
+        return ""
+    return t
+
+
 def hook_extract(ev):
     """hook JSON -> (event, text, session) or None when nothing is mirrored."""
     if not isinstance(ev, dict):
@@ -126,7 +148,8 @@ def hook_extract(ev):
         text = ev.get("prompt")
         if text is None:
             text = ev.get("userPrompt") or ev.get("message") or ""
-        return ("prompt", str(text), session) if str(text).strip() else None
+        text = human_text(text)
+        return ("prompt", text, session) if text else None
     if name in ("Stop", "stop"):
         if ev.get("reason") not in (None, "", "end_turn"):
             return None  # grok's session-end Stop carries no new answer
@@ -480,6 +503,10 @@ def post_one(seat, agent, event, text, session):
     adir = os.path.join(seat, "spool", agent)
     now = time.time()
     if event == "prompt":
+        text = human_text(text)
+        if not text:
+            log(adir, "skip prompt: only CLI-injected content (system-reminder, task-notification, ...)")
+            return "skipped"
         agent_lines = []
         text, dropped = prompt_keep(adir, text, now, agent_lines)
         if agent_lines:

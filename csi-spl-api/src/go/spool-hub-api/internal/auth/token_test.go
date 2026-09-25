@@ -53,6 +53,11 @@ func TestSafeRedirect(t *testing.T) {
 		"/\\evil.example":      "/",
 		"c/general":            "/",
 		"/x\r\nSet-Cookie: a":  "/",
+		"/\t/evil.example":     "/",
+		"/\x00/evil.example":   "/",
+		"/\x7f/evil.example":   "/",
+		"/ /evil.example":      "/",
+		"/c/a%20b?x=1#y":       "/c/a%20b?x=1#y",
 	} {
 		if got := safeRedirect(in); got != want {
 			t.Errorf("safeRedirect(%q) = %q, want %q", in, got, want)

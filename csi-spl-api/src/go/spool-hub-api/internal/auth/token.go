@@ -102,11 +102,18 @@ func newNonce() (string, error) {
 }
 
 // safeRedirect keeps the post-login landing a same-site path: absolute URLs,
-// protocol-relative "//host" and backslash tricks collapse to "/".
+// protocol-relative "//host" and backslash tricks collapse to "/". So does any
+// byte <= 0x20 or DEL: the WHATWG URL parser drops TAB/CR/LF, so "/\t/evil.com"
+// resolves to host evil.com in the browser the native /login JSON hands it to
+// (the WUI's rule, f0a9ce0a).
 func safeRedirect(raw string) string {
-	if raw == "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") ||
-		strings.ContainsAny(raw, "\\\r\n") {
+	if raw == "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
 		return "/"
+	}
+	for i := 0; i < len(raw); i++ {
+		if c := raw[i]; c <= 0x20 || c == 0x7f || c == '\\' {
+			return "/"
+		}
 	}
 	return raw
 }

@@ -7,6 +7,7 @@
            line; the retention note is never dropped, it just moves along -->
       <span v-if="description" class="muted feed-header__about" :title="description" data-test="channel-description">{{ description }}</span>
       <span class="muted">{{ retention ? t('pages.channel.subtitle_retention', { retention }) : t('pages.channel.subtitle') }}</span>
+      <CardClipControl />
     </header>
     <MessageFeed :label="t('pages.feed_label', { target: '#' + name })" />
   </div>

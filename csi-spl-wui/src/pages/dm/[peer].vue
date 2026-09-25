@@ -5,6 +5,7 @@
       <h2>{{ t('pane.msgs') }}</h2>
       <span class="muted" :title="peer">{{ peerName }}</span>
       <span class="muted">{{ online ? t('pages.dm.online') : t('pages.dm.offline_queued') }}</span>
+      <CardClipControl />
     </header>
     <MessageFeed :label="t('pages.feed_label', { target: peer })" />
   </div>

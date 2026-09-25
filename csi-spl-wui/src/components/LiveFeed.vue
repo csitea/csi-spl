@@ -33,6 +33,7 @@
         :merge-prev="mergeTarget(m, 'previous')"
         :merge-next="mergeTarget(m, 'next')"
         :current-task-id="currentTaskId"
+        :clip-mode="clip ? clipMode : undefined"
         :class="{ pending: m.pending }"
         :data-key="m.msg_id"
         :data-pending="m.pending ? 'true' : undefined"
@@ -67,6 +68,7 @@ import { isSelectedRow } from '~/utils/topic-open.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { threadNeighbor } from '~/utils/msg-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { useCardClip } from '~/composables/useCardClip'
 
 /* 013: newest first under the Omnibox; entering rows animate. The first page is 30 rows; a Load more
    button under the last row asks for the next 30 (held rows first, then the hub, before=<cursor>).
@@ -97,11 +99,15 @@ const props = defineProps<{
       be displayed only on the middle pane and it should work so that it will
       open the topic". A thread pane never passes it. */
   openButton?: boolean
+  /** CLE-34989: a middle-pane feed of level-1 cards takes the pane's height
+      mode (titles / 5 rows / full). A thread pane never passes it. */
+  clip?: boolean
 }>()
 defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const topic = useTopicStore()
+const { mode: clipMode } = useCardClip()
 const root = ref<HTMLElement | null>(null)
 const { pill, jump } = useScrollAnchor(
   root,

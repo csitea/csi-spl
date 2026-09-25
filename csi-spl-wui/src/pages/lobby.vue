@@ -4,6 +4,7 @@
       <h2>{{ t('pane.msgs') }}</h2>
       <span class="muted"># lobby</span>
       <span class="muted">{{ t('pages.lobby.status', { state: stateLabel(live.state.value), who: live.identity.value || '…' }) }}</span>
+      <CardClipControl />
     </header>
     <div class="feed-body">
       <p v-if="!lobbyId" class="muted">{{ t('pages.lobby.no_lobby', { env: 'NUXT_PUBLIC_LOBBY_TASK_ID' }) }}</p>
@@ -20,6 +21,7 @@
         :current-task-id="store.taskId"
         clickable
         open-button
+        clip
         :loading-older="store.loadingOlder"
         @older="store.loadOlder('lobby')"
         @clear-search="store.setSearch('')"

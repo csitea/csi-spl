@@ -86,22 +86,65 @@
         reaches the screen only when the hub's answer arrives and the row
         itself changes underneath us (message-edit-v1 §5).
       -->
-      <textarea
-        v-if="editing"
-        ref="editEl"
-        class="msg-edit-box"
-        data-test="msg-edit-box"
-        :value="draft"
-        :rows="2"
-        :disabled="saving"
-        :aria-label="t('feed.edit.label')"
-        :aria-describedby="editHintId"
-        autocomplete="off"
-        spellcheck="true"
-        @input="draft = ($event.target as HTMLTextAreaElement).value"
-        @keydown="onEditKey"
+      <!--
+        CLE-34989 (specs/033 FR-020..FR-026): a level-1 card in the middle pane
+        takes the pane's height mode. `titles` is the first 90 characters on one
+        line; `rows` clips the body and its attachments at 5 text rows, or at
+        30% of the window when a picture is on the card, and a grip under it
+        drags it taller (the omnibox's grip, re-drawn here, not shared); `full`
+        and every host that passes no mode (the thread pane) show all of it.
+      -->
+      <p
+        v-if="titleOnly"
+        class="msg-title"
+        data-testid="card-title"
+        :title="title"
+      >{{ title }}</p>
+      <div
+        v-else
+        ref="clipEl"
+        class="card-body"
+        :class="{ 'card-clip': clipOn, 'card-clip--picture': clipOn && picture, 'card-clip--cut': clipOn && clipped }"
+        :style="clipStyle"
+        :data-clip="clipOn ? (clipped ? 'cut' : 'fits') : undefined"
+        data-testid="card-body"
+      >
+        <div ref="clipInner" class="card-body__inner">
+          <textarea
+            v-if="editing"
+            ref="editEl"
+            class="msg-edit-box"
+            data-test="msg-edit-box"
+            :value="draft"
+            :rows="2"
+            :disabled="saving"
+            :aria-label="t('feed.edit.label')"
+            :aria-describedby="editHintId"
+            autocomplete="off"
+            spellcheck="true"
+            @input="draft = ($event.target as HTMLTextAreaElement).value"
+            @keydown="onEditKey"
+          />
+          <MessageBody v-else :body="String(msg.body || '')" />
+          <FileAttachment
+            v-for="(f, i) in files"
+            :key="String(f.file_id || f.path || i)"
+            :file="f"
+          />
+        </div>
+      </div>
+      <button
+        v-if="clipOn && (clipped || userPx != null)"
+        type="button"
+        class="card-grip"
+        data-testid="card-grip"
+        :aria-label="t(clipped ? 'feed.clip.grip_more' : 'feed.clip.grip_less')"
+        :title="t('feed.clip.grip_hint')"
+        :aria-expanded="clipped ? 'false' : 'true'"
+        @pointerdown="startGrip"
+        @click.stop="onGripClick"
+        @keydown="onGripKey"
       />
-      <MessageBody v-else :body="String(msg.body || '')" />
       <p v-if="editing" :id="editHintId" class="muted msg-edit-hint">
         {{ saving ? t('feed.edit.saving') : t('feed.edit.hint') }}
       </p>
@@ -130,11 +173,6 @@
         <UiIcon name="alert-triangle" :size="14" />
         <span>{{ reactError }}</span>
       </p>
-      <FileAttachment
-        v-for="(f, i) in files"
-        :key="String(f.file_id || f.path || i)"
-        :file="f"
-      />
       <button
         v-if="topicLink"
         class="icon-btn icon-btn--accent"
@@ -204,6 +242,15 @@ import { joinBodies, threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
 import { reactionChips } from '~/utils/emoji.mjs'
 import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { typedByAuthor } from '~/utils/typed-by.mjs'
+import {
+  CARD_GRIP_STEP_ROWS,
+  cardClipPx,
+  cardDragPx,
+  cardHasPicture,
+  cardIsClipped,
+  cardTitle,
+} from '~/utils/card-clip.mjs'
+import type { CardClipMode } from '~/composables/useCardClip'
 
 import type { FileRef, ReactionUpdate, SpoolMessage } from '~/types/spool'
 
@@ -228,6 +275,8 @@ const props = defineProps<{
   mergeNext?: SpoolMessage | null
   /** The task the list itself shows (#lobby), so a card's link names the right topic. */
   currentTaskId?: string | null
+  /** CLE-34989: the middle pane's height mode. Omitted = never clipped (the thread pane). */
+  clipMode?: CardClipMode
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
@@ -514,6 +563,124 @@ async function onReact(emoji: string) {
   }
 }
 
+/*
+ * CLE-34989 — the card's height in the middle pane (utils/card-clip.mjs holds
+ * the rule and its tests). The box is measured, not guessed: the line height
+ * is read from the rendered body, so the 5 rows follow the font-size setting
+ * (rem), and "clipped" is the content being taller than the box, so a short
+ * card never shows a grip. Editing lifts the clip: the textarea sizes itself.
+ */
+const clipEl = ref<HTMLElement | null>(null)
+const clipInner = ref<HTMLElement | null>(null)
+const picture = computed(() => cardHasPicture(files.value))
+const titleOnly = computed(() => props.clipMode === 'titles' && !editing.value)
+const clipOn = computed(() => props.clipMode === 'rows' && !editing.value)
+const title = computed(() => {
+  const own = cardTitle(String(props.msg.body || ''))
+  if (own) return own
+  return cardTitle(files.value.map((f) => String(f.name || '')).filter(Boolean).join(', '))
+})
+/** A grip drag on this card, px; null = the automatic height. Never stored. */
+const userPx = ref<number | null>(null)
+const lineHeightPx = ref(0)
+const viewportPx = ref(0)
+const contentPx = ref(0)
+const clipPx = computed(() => {
+  if (!clipOn.value || !lineHeightPx.value) return null
+  return cardClipPx({
+    mode: 'rows',
+    picture: picture.value,
+    lineHeightPx: lineHeightPx.value,
+    viewportPx: viewportPx.value,
+    userPx: userPx.value,
+  })
+})
+const clipped = computed(() => clipPx.value != null && cardIsClipped(contentPx.value, clipPx.value))
+/* Before the first measurement the stylesheet's own rows / 30vh cap holds. */
+const clipStyle = computed(() => (clipPx.value != null ? { maxHeight: `${clipPx.value}px` } : undefined))
+
+function measure() {
+  if (typeof window === 'undefined') return
+  const inner = clipInner.value
+  if (!inner) return
+  const body = inner.querySelector<HTMLElement>('.msg-body') || inner
+  const lh = parseFloat(getComputedStyle(body).lineHeight)
+  const fs = parseFloat(getComputedStyle(body).fontSize) || 14
+  lineHeightPx.value = Number.isFinite(lh) && lh > 0 ? lh : fs * 1.45
+  viewportPx.value = window.innerHeight
+  contentPx.value = Math.ceil(inner.scrollHeight)
+}
+
+let clipObserver: ResizeObserver | null = null
+function stopObserving() {
+  clipObserver?.disconnect()
+  clipObserver = null
+  if (typeof window !== 'undefined') window.removeEventListener('resize', measure)
+}
+function startObserving() {
+  stopObserving()
+  if (typeof window === 'undefined' || !clipOn.value || !clipInner.value) return
+  measure()
+  if (typeof ResizeObserver !== 'undefined') {
+    clipObserver = new ResizeObserver(() => measure())
+    clipObserver.observe(clipInner.value)
+  }
+  window.addEventListener('resize', measure)
+}
+watch([clipOn, clipInner], () => { void nextTick(startObserving) })
+onMounted(() => startObserving())
+onBeforeUnmount(stopObserving)
+/* Another mode, or another message under this card: back to the automatic height. */
+watch(() => [props.clipMode, String(props.msg?.msg_id || '')], () => { userPx.value = null })
+
+let gripDragged = false
+function startGrip(ev: PointerEvent) {
+  const box = clipEl.value
+  const handle = ev.currentTarget
+  if (!box || !(handle instanceof HTMLElement)) return
+  ev.preventDefault()
+  measure()
+  handle.setPointerCapture(ev.pointerId)
+  gripDragged = false
+  const startY = ev.clientY
+  const startH = box.getBoundingClientRect().height
+  const move = (e: PointerEvent) => {
+    const dy = e.clientY - startY
+    if (!gripDragged && Math.abs(dy) < 3) return
+    gripDragged = true
+    userPx.value = cardDragPx(startH, dy, lineHeightPx.value, contentPx.value)
+  }
+  const end = () => {
+    handle.removeEventListener('pointermove', move)
+    handle.removeEventListener('pointerup', end)
+    handle.removeEventListener('pointercancel', end)
+  }
+  handle.addEventListener('pointermove', move)
+  handle.addEventListener('pointerup', end)
+  handle.addEventListener('pointercancel', end)
+}
+
+/** A click (or Enter / Space) on the grip: all of it, or back to the automatic height. */
+function onGripClick() {
+  if (gripDragged) {
+    gripDragged = false
+    return
+  }
+  measure()
+  userPx.value = clipped.value ? contentPx.value : null
+}
+
+/** Arrow Down / Up: two rows more or less, from one row to the whole card. */
+function onGripKey(ev: KeyboardEvent) {
+  if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return
+  ev.preventDefault()
+  ev.stopPropagation()
+  measure()
+  const now = clipEl.value?.getBoundingClientRect().height || clipPx.value || 0
+  const step = lineHeightPx.value * CARD_GRIP_STEP_ROWS * (ev.key === 'ArrowDown' ? 1 : -1)
+  userPx.value = cardDragPx(now, step, lineHeightPx.value, contentPx.value)
+}
+
 const draft = computed({
   get: () => edit.value?.draft ?? '',
   set: (v: string) => { edit.value = withDraft(edit.value, v) },
@@ -707,4 +874,54 @@ async function save() {
   background: var(--color-surface-hover);
 }
 .msg-reaction__n { font-variant-numeric: tabular-nums; font-size: 0.75rem; }
+/*
+ * CLE-34989 — the middle pane's clipped card. The fallback cap is the same
+ * rule as utils/card-clip.mjs (5 rows of the body's 0.875rem x 1.45, or 30%
+ * of the window with a picture) so the card is already tight before the first
+ * measurement; once measured, the inline max-height takes over. rem, so the
+ * font-size setting moves it.
+ */
+.card-clip {
+  max-height: calc(5 * 1.45 * 0.875rem);
+  overflow: hidden;
+}
+.card-clip--picture { max-height: max(calc(5 * 1.45 * 0.875rem), 30vh); }
+/* clipped: the last line fades out, and the grip under it says there is more */
+.card-clip--cut {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent);
+}
+/* the omnibox grip (main.css .omnibox-resize), drawn under a card */
+.card-grip {
+  display: block;
+  width: 100%;
+  height: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: ns-resize;
+  touch-action: none;
+}
+.card-grip::after {
+  content: "";
+  display: block;
+  width: 28px;
+  height: 3px;
+  margin: 4px auto 0;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+.card-grip:hover { color: var(--color-fg); }
+.msg-title {
+  margin: 2px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 </style>

@@ -234,6 +234,9 @@ html.pane-dragging * {
   min-width: 0;
   max-width: 100%;
 }
+/* CLE-34989: a middle-pane header carries the card height control; on a
+   narrow pane it drops to its own line instead of widening the document. */
+.feed-header:has(.card-clip-ctl) { flex-wrap: wrap; row-gap: 6px; }
 .feed-header h2 {
   margin: 0;
   font-size: 1rem;

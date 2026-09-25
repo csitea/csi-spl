@@ -12,6 +12,7 @@
       always-topic
       clickable
       open-button
+      clip
       :loading-older="channel.loadingOlder"
       @older="channel.loadOlder()"
       @clear-search="channel.setSearch('')"

@@ -159,7 +159,7 @@ async function nav(p, url) {
   for (let i = 0; i < 4; i++) {
     try {
       if (url) await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
-      else await nav(p)
+      else await p.reload({ waitUntil: 'domcontentloaded', timeout: 60000 })
       return
     } catch (e) {
       last = e

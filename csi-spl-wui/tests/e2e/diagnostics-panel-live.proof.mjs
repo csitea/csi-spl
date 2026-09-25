@@ -1,5 +1,5 @@
-// 005 T035 live: the diagnostics panel appears for a human the operator
-// granted, and for nobody else. One signed-in browser, one hub, the grant the
+// 005 T035 live: the diagnostics panel appears for a human who ticked
+// "Debug pane", and for nobody else. One signed-in browser, one hub, the grant the
 // only thing that differs between the two runs.
 //
 //   BASE=http://localhost:3141 OUT=/var/tmp/<id>/diag \
@@ -16,7 +16,8 @@
 //     EMAIL=<member> PW_FILE=<0600 file> [TENANT=t1] EXPECT=off OUT=<dir> \
 //     node tests/e2e/diagnostics-panel-live.proof.mjs
 //
-// The hub behind BASE decides the grant (SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS);
+// The hub behind BASE decides it from the member's own "Debug pane" setting
+// (CLE-34963; debug-pane-toggle-live.proof.mjs flips it);
 // EXPECT says which answer this run is asserting, so a run that proves
 // nothing cannot read green.
 import { createRequire } from 'node:module'

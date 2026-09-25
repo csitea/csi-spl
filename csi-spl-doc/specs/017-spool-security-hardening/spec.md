@@ -112,6 +112,17 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   every other line an agent's prompt is given carries its provenance, unless it is the desk's own human writing
   to that agent directly.
 
+### 1.9 Hub API Authorization Gaps (X1 audit, 2026-09-25, CLE-34986)
+- **Condition:** A read-only audit of every REST route and WS frame of the hub (per-role authz, the rdb 0028 read
+  door, input and rate limits, error bodies), trunk `323c76e5`, found that the envelope signature proves the BOX,
+  never the agent or the reader; several read paths decided per TOPIC or dropped a lookup error; a `file_id` worked
+  as a capability; and native sign-up let the registrant choose the password a victim's click verified.
+- **Threat:** Cross-box agent impersonation; a pinned box seating itself in any private channel; any box reading
+  any task by `task_id` (WS `tail`); DM halves of mixed topics leaking through lists and search; one-click account
+  takeover through `email/verify`; one global login/form rate bucket per env; a token-frame loop stalling every
+  tenant.
+- **Remediation Requirement:** FR-SEC-033 … FR-SEC-045 below; each fix carries a test that is red on the old code.
+
 ---
 
 ## 2. Functional Requirements (FR-SEC)
@@ -287,6 +298,52 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   URL, prose after a cut key); against the previous pass 38 of its 68 checks are red.
   *Status:* Implemented (this commit; live on the desks at the next mirror hook, which execs the shared tree).
 
+- **FR-SEC-033 (A box sends only as an agent it announced) — amendment 2026-09-25, CLE-34986:** `onSend` refuses
+  (403 `from_not_announced`, nothing stored) a `msg.from` that is not in the SENDING box's seated roster, and any
+  `HUM-*` / `GST-*` from a box. A box client re-announces and resends once when it hosts the agent; a role=cli
+  send stays pending for the sidecar's flush. Test `TestSendFromMustBeAnnouncedBySendingBox`.
+  *Status:* Implemented (`f65d9e10`, live since 0.5.8). **Open (Planned, owner decision):** a box may still
+  ANNOUNCE any agent id and then send as it - now visible in the roster (one agent on two boxes), not prevented;
+  closing it needs per-tenant agent-id ownership (e.g. first seat wins, admin transfer).
+- **FR-SEC-034 (Announce seats nobody):** hello / announce `channels` no longer create `channel_subscriptions`;
+  agents join a created channel by invite only (spec 038). 0 `origin='announce'` rows existed on dev / prd before.
+  *Status:* Implemented (`0966c4d2`, 0.6.3).
+- **FR-SEC-035 (WS tail reads what the box holds):** `tail` and its follow return only unexpired envelopes the box
+  sent, was addressed or was delivered (`store.BoxTaskEnvelopes`). *Status:* Implemented (`85be9cd5`, 0.6.3).
+- **FR-SEC-036 (Per-message door in lists and search):** the Postgres topic-list summary, `SearchTopics`,
+  `SearchMessages` and `SearchFiles` apply the per-message rule (a DM by its two ends), as `ViewTopic` does; the
+  memory store agrees. *Status:* Implemented (`3a377549`, 0.6.4).
+- **FR-SEC-037 (Read doors fail closed):** in the session door a membership-lookup error or an empty reader is a
+  refusal (`readerID`), never "filter nothing"; the browser socket speaks as the human `humanTenant` proved, never
+  `hello.as`. *Status:* Implemented (`85099a13`, 0.6.4).
+- **FR-SEC-038 (Message door before the author gate):** edit, delete and reactions ask the per-message door first
+  and answer a hidden message 404, never 403 `not_author`. *Status:* Implemented (`85099a13`, 0.6.4).
+- **FR-SEC-039 (JSON-only member writes):** `POST /v1/members/invites` and `PUT /v1/members/{id}/role` require
+  `application/json` (415). *Status:* Implemented (`85099a13`, 0.6.4).
+- **FR-SEC-040 (A file_id is not a capability):** `DELETE /v1/files/{id}` needs the download's read door (box-wui
+  is judged as the signed-in human); box and browser sends attach only blobs the sender may already read.
+  *Status:* Implemented (`49552892`, 0.6.5).
+- **FR-SEC-041 (One upload token per socket):** a `token` frame returns the socket's current token while more than
+  half its TTL remains; the token-map sweep runs at most once a minute. *Status:* Implemented (`49552892`, 0.6.5).
+- **FR-SEC-042 (Verify needs the registered password):** `POST /api/v1/auth/email/verify` carries the password the
+  link was issued for (401 `invalid_credentials`, nothing consumed); the WUI verify page asks for it (spec 015
+  native-auth-v1 0.1.2). *Status:* Implemented (`5c6da073`, live since 0.6.2).
+- **FR-SEC-043 (Trusted proxy hops measured):** `SPOOL_HUB_TRUSTED_PROXY_HOPS` = 1 on dev and prd
+  (`do_spl_probe_client_ip`, n=3 per env: peer `169.254.169.126` for every caller, so "0" made each native
+  per-IP limit one bucket per env). *Status:* Implemented (`1600b494`, 0.6.6). **Open (Planned, owner):** the edge
+  per-IP limits (`EDGE_WS_CONNS_PER_IP`, `EDGE_WS_HANDSHAKES_PER_IP`, `EDGE_AUTH_PER_IP`) stay 0 until the owner
+  picks numbers (one box NAT carries many agents); `POST /api/v1/checkout` has no limit.
+- **FR-SEC-044 (Login lockout per address):** the per-email login bucket is per (email, client IP) with a tenfold
+  per-email ceiling across addresses. *Status:* Implemented (`da3f8074`, 0.6.7).
+- **FR-SEC-045 (Downloads never render):** `GET /v1/files/{id}` sends `nosniff`, `Content-Disposition:
+  attachment` and a sandbox CSP. *Status:* Implemented (`da3f8074`, 0.6.7). Also: `safeRedirect` refuses TAB / C0 /
+  space / DEL (`c09b75e7`); display names refuse bidi controls, IdP and register names are cleaned (`323c76e5`).
+- **Open from the X1 audit (Planned):** (a) forgot / register answer in different time for a known address (the SMTP
+  send is synchronous) - send mail off the request path; (b) the role-change coverage check reads the target role
+  outside the write transaction (`rbac.go` `targetRole`) - pass it as the expected `from` role; (c) `POST
+  /api/v1/auth/logout` takes no Origin check (cross-site sign-out); (d) no per-member rate limit on message edit /
+  delete / reactions / channel create; (e) password change and reset do not revoke other sessions (known OQ-N2).
+
 ## 3. Non-Functional Requirements (NFR-SEC)
 
 - **NFR-SEC-001 (Audit Trail Integrity):** Administrative actions (tenant creation, box pinning, key revocation,
@@ -296,4 +353,4 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 - **NFR-SEC-003 (Minimal Distroless Attack Surface):** Production containers MUST execute as non-root users on
   distroless base images with read-only root filesystems where possible.
 
-<!-- version: 1.3.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:37:42Z -->
+<!-- version: 1.4.0 · updated: 2026-09-25 · last-edit: 2026-09-25T21:18:45Z -->

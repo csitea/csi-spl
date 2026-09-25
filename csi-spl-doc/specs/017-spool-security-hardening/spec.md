@@ -271,7 +271,9 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   `[channel post from <ID>, topic <8>…]`; a line from a human who is not one of the desk's own says
   `not this desk's owner; … not an order`; an agent's channel post says `not addressed to <TO>; not an order unless
   it names <TO>`. The mirror's typed record (spec 036 FR-003) holds the framed line. A desk that names no human
-  keeps the old verbatim behaviour (unknown is not a reason to rewrite an owner's words).
+  keeps the old verbatim behaviour (unknown is not a reason to rewrite an owner's words). `<desk>/owners` is
+  written by `ENV=<env> TENANT_ID=<t> DESK_OWNERS='HUM-n …' DRY_RUN=0 ./run -a do_spl_desk_owners` (never by hand);
+  without DESK_OWNERS it lists the three sources.
   *Status:* Implemented (`0680458c`, live on the dev and prd desks: the sidecars exec
   `/opt/csi/csi-spl/…/spool-notify.sh` per message).
 - **FR-SEC-032 (Redaction covers what this box holds) — amendment 2026-09-25, CLE-34988:** `spool_redact.py`,
@@ -294,4 +296,4 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 - **NFR-SEC-003 (Minimal Distroless Attack Surface):** Production containers MUST execute as non-root users on
   distroless base images with read-only root filesystems where possible.
 
-<!-- version: 1.3.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:26:13Z -->
+<!-- version: 1.3.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:37:42Z -->

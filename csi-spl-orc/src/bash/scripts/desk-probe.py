@@ -169,7 +169,10 @@ def main():
         if not v:
             sys.exit("%s is required" % name)
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    ask = "desk-probe kysymys %s" % stamp          # Finnish in, Finnish out
+    # The probe marker (specs/017 FR-SEC-030): the desk SHOWS this line in the
+    # agent's notice strip and never types it into the agent's prompt, so a
+    # probe cannot be read as an order. The reply leg below answers for it.
+    ask = "[spool-probe] desk-probe kysymys %s" % stamp   # Finnish in, Finnish out
     answer = "desk-probe vastaus %s" % stamp
 
     st, body, cookie = m3.native_login(m3.HUMAN, m3.TENANT, "human")
@@ -231,7 +234,10 @@ def main():
                 # pane alone on purpose, so ask the notifier - its exit code is
                 # the contract - instead of re-deciding the rule here.
                 rc, line = notifier_verdict(hum, mid, task, ask)
-                if rc == 0:
+                if rc == 0 and "poke: probe line" in line:
+                    observe("p-dm-in-pane", {"pane": pane, "notify": line,
+                                             "note": "delivered; a probe line is shown in the strip and never typed"})
+                elif rc == 0:
                     record("p-dm-in-pane", True, {"pane": pane, "needle": ask,
                                                   "via": "notifier re-poke", "notify": line})
                 elif rc in (5, 6, 7):

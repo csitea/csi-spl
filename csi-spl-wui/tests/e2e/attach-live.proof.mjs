@@ -53,6 +53,11 @@ const step = (name, ok, ev = {}) => {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const run = Date.now().toString(36)
+/* Every line this proof posts starts with the probe marker: the desk shows it
+   in an agent's notice strip and never types it into a prompt (specs/017
+   FR-SEC-030). Unmarked, 'attach L1 lobby <id>' was obeyed as an order by an
+   agent on prd 2026-09-25. */
+const PROBE_MARK = '[spool-probe]'
 
 /* Two files per send: a real 1x1 PNG (previews) and a tiny PDF (icon only).
    The run id is inside both, so every send uploads new bytes and the hub
@@ -235,7 +240,7 @@ async function surfaceRun(p, surface) {
   step(tag('an empty file dialog shows the no-file notice'), !!empty && notice, {})
 
   /* L1: pane closed */
-  const t1 = `attach L1 ${surface} ${run}`
+  const t1 = `${PROBE_MARK} attach L1 ${surface} ${run}`
   const f1 = filesFor(`${surface}-l1`)
   const posts1 = await sendWithFiles(p, t1, f1, tag('L1'))
   step(tag('L1 Send uploads both files (POST /v1/files 201)'), posts1.length === 2 && posts1.every((s) => s === 201), { posts: posts1 })
@@ -265,7 +270,7 @@ async function surfaceRun(p, surface) {
   if (!open) return
   await p.click('aside.live-pane header').catch(() => {})
   await sleep(400)
-  const t2 = `attach L2 ${surface} ${run}`
+  const t2 = `${PROBE_MARK} attach L2 ${surface} ${run}`
   const f2 = filesFor(`${surface}-l2`)
   const posts2 = await sendWithFiles(p, t2, f2, tag('L2'))
   step(tag('L2 Send uploads both files (POST /v1/files 201)'), posts2.length === 2 && posts2.every((s) => s === 201), { posts: posts2 })

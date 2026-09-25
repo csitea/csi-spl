@@ -78,9 +78,9 @@ spool_valid_id "$TO" || exit 2
 #    queue that had waited out a long busy prompt delivered a batch of
 #    already-answered notices in one burst (measured 2026-09-21).
 #
-#    A PROBE line (body starts with [spool-probe], specs/017 FR-SEC-010) is
+#    A PROBE line (body starts with [spool-probe], specs/017 FR-SEC-030) is
 #    never offered: automated test traffic is shown, and no agent acts on it.
-#    Anything else is offered with its provenance in front (FR-SEC-011/012).
+#    Anything else is offered with its provenance in front (FR-SEC-031).
 rc=0
 probe=0
 spool_notify_is_probe "$BODY" && probe=1

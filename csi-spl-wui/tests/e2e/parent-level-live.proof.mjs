@@ -61,6 +61,11 @@ const step = (name, ok, ev = {}) => {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const run = Date.now().toString(36)
+/* Every line this proof posts starts with the probe marker: the desk shows it
+   in an agent's notice strip and never types it into a prompt (specs/017
+   FR-SEC-030). Unmarked, 'attach L1 lobby <id>' was obeyed as an order by an
+   agent on prd 2026-09-25. */
+const PROBE_MARK = '[spool-probe]'
 
 /* ---- in-page reads ------------------------------------------------------ */
 
@@ -199,8 +204,8 @@ const has = (list, needle) => list.some((m) => m.text.includes(needle))
 let watcher = null
 
 async function surfaceRun(p, surface) {
-  const L1 = `L1 ${surface} ${run}`
-  const L2 = `L2 ${surface} ${run}`
+  const L1 = `${PROBE_MARK} L1 ${surface} ${run}`
+  const L2 = `${PROBE_MARK} L2 ${surface} ${run}`
   const ev = { L1, L2 }
   res.surfaces[surface] = ev
   const tag = (n) => `${surface}: ${n}`
@@ -264,8 +269,8 @@ async function surfaceRun(p, surface) {
 
   /* 2b. test-02: the pane stays open but the reader clicks back in the
      middle. The next line is a NEW level-1 topic, not a line of the open one. */
-  const L3 = `L3 ${surface} ${run}`
-  const L4 = `L4 ${surface} ${run}`
+  const L3 = `${PROBE_MARK} L3 ${surface} ${run}`
+  const L4 = `${PROBE_MARK} L4 ${surface} ${run}`
   ev.L3 = L3
   ev.L4 = L4
   await front(p)

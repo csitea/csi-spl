@@ -183,7 +183,7 @@ sleep 0.6
 screen="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PT")"
 has "SPOOL_POKE_STYLE=line restores the poke line for a human too" ": 'SPOOL CLE-81:" "$screen"
 
-# ---- provenance: probe lines and who wrote it (specs/017 FR-SEC-010..012) --
+# ---- provenance: probe lines and who wrote it (specs/017 FR-SEC-030..031) --
 # prd 2026-09-25: a test member's "attach L1 lobby <id>" was typed into an
 # agent's prompt as bare words and the agent obeyed it.
 spool_notify_is_probe '[spool-probe] attach L1 lobby x' && ok "a marked body is a probe" || nok "a marked body is a probe"

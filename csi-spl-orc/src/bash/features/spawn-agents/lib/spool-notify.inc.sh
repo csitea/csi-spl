@@ -104,7 +104,7 @@ spool_notify_is_human() {  # ID
 }
 
 # ── provenance: what an agent's prompt is told about WHO wrote a line ───────
-# specs/017 FR-SEC-010..012 (CLE-34988). Measured on prd 2026-09-25: a WUI
+# specs/017 FR-SEC-030..031 (CLE-34988). Measured on prd 2026-09-25: a WUI
 # proof signed in as a test member posted "attach L1 lobby <id>"; the desk
 # typed it into GRK-3508's prompt as bare words, GRK-3508 obeyed it and
 # posted "L1 lobby <id>" to a channel, and that post was typed into five more

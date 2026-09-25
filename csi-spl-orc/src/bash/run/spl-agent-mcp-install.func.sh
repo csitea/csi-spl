@@ -96,7 +96,8 @@ do_spl_agent_mcp_install() {
   local rc=0 have
   for c in $clis; do
     local cli="$ahome/.local/bin/$c"
-    [[ -x "$cli" ]] || { do_log "INFO $c is not installed for $agent ($cli): skipped"; continue; }
+    # asked AS the agent: its CLIs are often links into dirs the box user cannot read
+    as_agent test -x "$cli" || { do_log "INFO $c is not installed for $agent ($cli): skipped"; continue; }
     for e in $envs; do
       have="$(spl_agent_mcp_registered "$c" "$cli" "$ahome" "spool-$e" "$bin" "$e")"
       if [[ "$have" == yes ]]; then do_log "INFO $c: spool-$e already runs $bin $e"; continue; fi

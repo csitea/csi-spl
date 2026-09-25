@@ -365,6 +365,7 @@
     "clear": "Išvalyti",
     "no_matches": "Atitinkančių žinučių nėra.",
     "empty": "Žinučių dar nėra.",
+    "load_more": "Įkelti daugiau",
     "loading_older": "Įkeliamos senesnės…",
     "announce_new": "Nauja žinutė nuo {who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "Fojė nesukonfigūruota ({env} arba centro pasveikinimas)."
     },
     "channel": {
-      "subtitle": "paskutinės 50 · pagal nuomininką",
-      "subtitle_retention": "paskutinės 50 · pagal nuomininką · saugojimas {retention}"
+      "subtitle": "paskutinės 30 · pagal nuomininką",
+      "subtitle_retention": "paskutinės 30 · pagal nuomininką · saugojimas {retention}"
     },
     "dm": {
       "online": "prisijungęs",

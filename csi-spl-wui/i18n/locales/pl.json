@@ -365,6 +365,7 @@
     "clear": "Wyczyść",
     "no_matches": "Brak pasujących wiadomości.",
     "empty": "Brak wiadomości.",
+    "load_more": "Wczytaj więcej",
     "loading_older": "Ładowanie starszych…",
     "announce_new": "Nowa wiadomość od {who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "Nie skonfigurowano lobby ({env} lub powitanie huba)."
     },
     "channel": {
-      "subtitle": "ostatnie 50 · w obrębie dzierżawy",
-      "subtitle_retention": "ostatnie 50 · w obrębie dzierżawy · przechowywanie {retention}"
+      "subtitle": "ostatnie 30 · w obrębie dzierżawy",
+      "subtitle_retention": "ostatnie 30 · w obrębie dzierżawy · przechowywanie {retention}"
     },
     "dm": {
       "online": "online",

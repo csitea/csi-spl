@@ -365,6 +365,7 @@
     "clear": "Borrar",
     "no_matches": "Ningún mensaje coincide.",
     "empty": "Aún no hay mensajes.",
+    "load_more": "Cargar más",
     "loading_older": "Cargando anteriores…",
     "announce_new": "Nuevo mensaje de {who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "No hay vestíbulo configurado ({env}, o la bienvenida del hub)."
     },
     "channel": {
-      "subtitle": "últimos 50 · limitado al inquilino",
-      "subtitle_retention": "últimos 50 · limitado al inquilino · retención de {retention}"
+      "subtitle": "últimos 30 · limitado al inquilino",
+      "subtitle_retention": "últimos 30 · limitado al inquilino · retención de {retention}"
     },
     "dm": {
       "online": "en línea",

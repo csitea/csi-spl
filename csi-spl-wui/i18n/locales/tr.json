@@ -365,6 +365,7 @@
     "clear": "Temizle",
     "no_matches": "Eşleşen mesaj yok.",
     "empty": "Henüz mesaj yok.",
+    "load_more": "Daha fazla yükle",
     "loading_older": "Eskiler yükleniyor…",
     "announce_new": "{who} kişisinden yeni mesaj",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "Lobi yapılandırılmamış ({env} veya hub karşılaması)."
     },
     "channel": {
-      "subtitle": "son 50 · kiracıya özel",
-      "subtitle_retention": "son 50 · kiracıya özel · {retention} saklama"
+      "subtitle": "son 30 · kiracıya özel",
+      "subtitle_retention": "son 30 · kiracıya özel · {retention} saklama"
     },
     "dm": {
       "online": "çevrimiçi",

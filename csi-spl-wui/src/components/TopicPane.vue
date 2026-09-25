@@ -32,12 +32,14 @@
         hold-scroll
         :label="t('topic.replies_label')"
         :rows="messages"
-        :has-older="false"
+        :has-older="hasOlder"
         :loading="loading"
+        :loading-older="loadingOlder"
         :search="search"
         :last-live="lastLive"
         :empty-text="t('topic.empty')"
         :since-ms="sinceMs"
+        @older="loadOlder"
         @clear-search="search = ''"
         @edited="onEdited"
       />
@@ -48,7 +50,7 @@
 <script setup lang="ts">
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useTopicStore } from '~/stores/topic'
-import { useChannelStore } from '~/stores/channel'
+import { WINDOW, useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { matchesSearch, mergeById, newestFirst } from '~/utils/feed.mjs'
@@ -72,12 +74,19 @@ const { t } = useI18n({ useScope: 'global' })
  * Messages prepend at the top: the newest is the first row, and a message
  * that just arrived sorts above the ones already there. The reply box is
  * the top Omnibox, not a second field in this pane.
+ * The newest WINDOW (30) replies come first (order=desc); Load more reads the
+ * next 30 older ones with before=<next>, so a long topic is never cut off.
  */
 const liveRows = ref<SpoolMessage[]>([])
 const loadError = ref('')
 const loading = ref(false)
 const search = ref('')
 const lastLive = ref<SpoolMessage | null>(null)
+const olderCursor = ref<string | null>(null)
+const loadingOlder = ref(false)
+/* The topic's first message, for the heading, when the newest page does not reach it. */
+const oldestRow = ref<SpoolMessage | null>(null)
+const hasOlder = computed(() => !api.mock && Boolean(olderCursor.value))
 /* A reply with is_parent 0 lives in the channel store as well as here.
    Keep it on this pane after the send stops being pending. */
 const messages = computed(() => {
@@ -87,7 +96,7 @@ const messages = computed(() => {
 /* The open topic's own title, selected at the top of this pane. */
 const heading = computed(() => {
   const rows = (api.mock ? topic.messages : liveRows.value) as SpoolMessage[]
-  const text = topicTitleFromRows(rows, topic.rootMsg)
+  const text = topicTitleFromRows(oldestRow.value ? [oldestRow.value, ...rows] : rows, topic.rootMsg)
   return text ? t('topic.list_title', { text }) : t('topic.title')
 })
 
@@ -96,7 +105,7 @@ async function catchUp() {
   const id = topic.parentTaskId
   if (api.mock || !topic.open || !id) return
   try {
-    const data = await withSessionRetry(api, () => api.getTopic(id)) as { messages?: SpoolMessage[] }
+    const data = await withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: 50 })) as { messages?: SpoolMessage[] }
     if (topic.parentTaskId === id) liveRows.value = mergeById(liveRows.value, data.messages || []).rows as SpoolMessage[]
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : t('topic.load_failed')
@@ -108,17 +117,49 @@ watch(() => [topic.open, topic.parentTaskId] as const, async ([open, id]) => {
   loadError.value = ''
   search.value = ''
   lastLive.value = null
+  olderCursor.value = null
+  oldestRow.value = null
   if (api.mock || !open || !id) return
   loading.value = true
   try {
-    const data = await withSessionRetry(api, () => api.getTopic(id)) as { messages?: SpoolMessage[] }
-    if (topic.parentTaskId === id) liveRows.value = data.messages || []
+    const data = await withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: WINDOW })) as { messages?: SpoolMessage[], next?: string | null }
+    if (topic.parentTaskId !== id) return
+    liveRows.value = data.messages || []
+    olderCursor.value = data.next || null
+    if (olderCursor.value && !topic.rootMsg) void loadOldestRow(id)
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : t('topic.load_failed')
   } finally {
     loading.value = false
   }
 }, { immediate: true })
+
+/** Load more: the next WINDOW older replies (before=<next>), merged by msg_id. */
+async function loadOlder() {
+  const id = topic.parentTaskId
+  if (api.mock || !id || !olderCursor.value || loadingOlder.value) return
+  loadingOlder.value = true
+  try {
+    const data = await withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: WINDOW, before: olderCursor.value || undefined })) as { messages?: SpoolMessage[], next?: string | null }
+    if (topic.parentTaskId !== id) return
+    liveRows.value = mergeById(liveRows.value, data.messages || []).rows as SpoolMessage[]
+    olderCursor.value = data.next || null
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : t('feed.error.load_older_failed')
+    olderCursor.value = null
+  } finally {
+    loadingOlder.value = false
+  }
+}
+
+async function loadOldestRow(id: string) {
+  try {
+    const data = await withSessionRetry(api, () => api.getTopic(id, { limit: 1 })) as { messages?: SpoolMessage[] }
+    if (topic.parentTaskId === id) oldestRow.value = (data.messages || [])[0] || null
+  } catch {
+    /* the heading falls back to the oldest row held */
+  }
+}
 
 if (import.meta.client && !api.mock) {
   const live = useLive()

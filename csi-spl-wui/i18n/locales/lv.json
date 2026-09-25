@@ -365,6 +365,7 @@
     "clear": "Notīrīt",
     "no_matches": "Nav atbilstošu ziņu.",
     "empty": "Ziņu vēl nav.",
+    "load_more": "Ielādēt vairāk",
     "loading_older": "Ielādē vecākas…",
     "announce_new": "Jauna ziņa no {who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "Vestibils nav konfigurēts ({env} vai centra sveiciens)."
     },
     "channel": {
-      "subtitle": "pēdējās 50 · nomnieka tvērumā",
-      "subtitle_retention": "pēdējās 50 · nomnieka tvērumā · glabāšana {retention}"
+      "subtitle": "pēdējās 30 · nomnieka tvērumā",
+      "subtitle_retention": "pēdējās 30 · nomnieka tvērumā · glabāšana {retention}"
     },
     "dm": {
       "online": "tiešsaistē",

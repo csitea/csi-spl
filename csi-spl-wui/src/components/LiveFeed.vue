@@ -38,8 +38,17 @@
       />
     </TransitionGroup>
     <p v-if="!loading && !rows.length" class="muted empty">{{ search ? t('feed.no_matches') : (emptyText || t('feed.empty')) }}</p>
-    <div ref="sentinel" class="older-sentinel" aria-hidden="true">
-      <span v-if="hasOlder" class="muted">{{ t('feed.loading_older') }}</span>
+    <div v-if="hasOlder" class="older-sentinel">
+      <button
+        class="btn ghost load-more"
+        type="button"
+        data-testid="load-more"
+        :disabled="loadingOlder"
+        :aria-busy="loadingOlder ? 'true' : 'false'"
+        @click="$emit('older')"
+      >
+        {{ loadingOlder ? t('feed.loading_older') : t('feed.load_more') }}
+      </button>
     </div>
     <p class="sr-only" aria-live="polite">{{ announce }}</p>
   </section>
@@ -52,12 +61,15 @@ import { useTopicStore } from '~/stores/topic'
 import { isSelectedRow } from '~/utils/topic-open.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 
-/* 013: newest first under the Omnibox; entering rows animate; the bottom sentinel loads older windows.
+/* 013: newest first under the Omnibox; entering rows animate. The first page is 30 rows; a Load more
+   button under the last row asks for the next 30 (held rows first, then the hub, before=<cursor>).
    US7: a reader scrolled down keeps their place when rows arrive on top, and gets a "new" pill. */
 const props = defineProps<{
   rows: SpoolMessage[]
   hasOlder: boolean
   loading?: boolean
+  /** the next older page is in flight — the button waits for it */
+  loadingOlder?: boolean
   search?: string
   label: string
   lastLive?: SpoolMessage | null
@@ -74,11 +86,10 @@ const props = defineProps<{
   /** A thread. A new row must not move this list, and nothing scrolls it back. */
   holdScroll?: boolean
 }>()
-const emit = defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
+defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const topic = useTopicStore()
-const sentinel = ref<HTMLElement | null>(null)
 const root = ref<HTMLElement | null>(null)
 const { pill, jump } = useScrollAnchor(
   root,
@@ -86,15 +97,6 @@ const { pill, jump } = useScrollAnchor(
   (id) => Boolean(props.rows.find((m) => m.msg_id === id)?.pending),
   () => props.holdScroll !== true,
 )
-let io: IntersectionObserver | null = null
-onMounted(() => {
-  if (typeof IntersectionObserver === 'undefined' || !sentinel.value) return
-  io = new IntersectionObserver((entries) => {
-    if (entries.some((e) => e.isIntersecting) && props.hasOlder) emit('older')
-  }, { rootMargin: '200px' })
-  io.observe(sentinel.value)
-})
-onUnmounted(() => io?.disconnect())
 
 const announce = computed(() => {
   const m = props.lastLive

@@ -12,6 +12,7 @@
         :label="t('topic.replies_label')"
         :rows="messages"
         :has-older="store.hasOlder"
+        :loading-older="store.loadingOlder"
         @older="store.loadOlder()"
         :loading="store.loading"
         :search="store.search"

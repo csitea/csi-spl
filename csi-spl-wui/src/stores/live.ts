@@ -8,8 +8,12 @@ import { channelView, parseMention } from '~/utils/channel-feed.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
-export const WINDOW = 50
-const MAX_PAGES = 40
+/** One page of a feed: the first paint and every Load more. */
+export const WINDOW = 30
+/* loadAll reaches back ~1000 rows whatever the page size. Every other turn
+   only reveals rows already held, so a turn is half a hub read. */
+const MAX_ALL_ROWS = 1000
+const MAX_PAGES = 2 * Math.ceil(MAX_ALL_ROWS / WINDOW)
 
 /**
  * A live feed for one task_id (005 T022, 013 reverse prepend). History from
@@ -130,7 +134,7 @@ function setup(key: 'main' | 'pane') {
     if (client) client.subscribe(id)
     loading.value = true
     try {
-      // 013: newest window first; older windows on scroll (loadOlder)
+      // 013: newest window first; older windows on Load more (loadOlder)
       const data = await withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: WINDOW }))
       merge(data.messages)
       olderCursor.value = data.next
@@ -157,7 +161,7 @@ function setup(key: 'main' | 'pane') {
   }
 
   /**
-   * Scrolling down reached the bottom: reveal the next older window. Rows
+   * Load more was pressed: reveal the next older window. Rows
    * already held are shown first; then the next server window (before=).
    */
   async function loadOlder(which?: 'lobby') {
@@ -243,7 +247,7 @@ function setup(key: 'main' | 'pane') {
   return {
     taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, door, sending, loading,
     search, liveCount, lastLive, open, close, send, admit, loadOlder, loadAll, setSearch, catchUpAfterReconnect,
-    applyEdited,
+    applyEdited, loadingOlder,
   }
 }
 

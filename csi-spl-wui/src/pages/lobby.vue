@@ -19,6 +19,7 @@
         :last-live="store.lastLive"
         :current-task-id="store.taskId"
         clickable
+        :loading-older="store.loadingOlder"
         @older="store.loadOlder('lobby')"
         @clear-search="store.setSearch('')"
         @open-topic="openRow"

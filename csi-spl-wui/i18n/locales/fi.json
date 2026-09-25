@@ -365,6 +365,7 @@
     "clear": "Tyhjennä",
     "no_matches": "Ei vastaavia viestejä.",
     "empty": "Ei vielä viestejä.",
+    "load_more": "Lataa lisää",
     "loading_older": "Ladataan vanhempia…",
     "announce_new": "Uusi viesti lähettäjältä {who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "Aulaa ei ole määritetty ({env} tai hubin tervetuloviesti)."
     },
     "channel": {
-      "subtitle": "viimeiset 50 · tenanttikohtainen",
-      "subtitle_retention": "viimeiset 50 · tenanttikohtainen · säilytys {retention}"
+      "subtitle": "viimeiset 30 · tenanttikohtainen",
+      "subtitle_retention": "viimeiset 30 · tenanttikohtainen · säilytys {retention}"
     },
     "dm": {
       "online": "paikalla",

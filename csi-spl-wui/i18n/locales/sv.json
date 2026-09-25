@@ -365,6 +365,7 @@
     "clear": "Rensa",
     "no_matches": "Inga meddelanden matchar.",
     "empty": "Inga meddelanden ännu.",
+    "load_more": "Ladda fler",
     "loading_older": "Laddar äldre…",
     "announce_new": "Nytt meddelande från {who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "Ingen lobby konfigurerad ({env} eller hubbens välkomstmeddelande)."
     },
     "channel": {
-      "subtitle": "senaste 50 · per tenant",
-      "subtitle_retention": "senaste 50 · per tenant · lagring {retention}"
+      "subtitle": "senaste 30 · per tenant",
+      "subtitle_retention": "senaste 30 · per tenant · lagring {retention}"
     },
     "dm": {
       "online": "online",

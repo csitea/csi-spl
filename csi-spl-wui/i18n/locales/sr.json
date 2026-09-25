@@ -365,6 +365,7 @@
     "clear": "Obriši",
     "no_matches": "Nijedna poruka se ne podudara.",
     "empty": "Još nema poruka.",
+    "load_more": "Učitaj još",
     "loading_older": "Učitavanje starijih…",
     "announce_new": "Nova poruka od {who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "Lobi nije podešen ({env} ili dobrodošlica haba)."
     },
     "channel": {
-      "subtitle": "poslednjih 50 · u okviru zakupca",
-      "subtitle_retention": "poslednjih 50 · u okviru zakupca · čuvanje {retention}"
+      "subtitle": "poslednjih 30 · u okviru zakupca",
+      "subtitle_retention": "poslednjih 30 · u okviru zakupca · čuvanje {retention}"
     },
     "dm": {
       "online": "na mreži",

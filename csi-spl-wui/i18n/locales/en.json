@@ -365,6 +365,7 @@
     "clear": "Clear",
     "no_matches": "No messages match.",
     "empty": "No messages yet.",
+    "load_more": "Load more",
     "loading_older": "Loading older…",
     "announce_new": "New message from {who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "No lobby configured ({env}, or the hub welcome)."
     },
     "channel": {
-      "subtitle": "last 50 · tenant-scoped",
-      "subtitle_retention": "last 50 · tenant-scoped · {retention} retention"
+      "subtitle": "last 30 · tenant-scoped",
+      "subtitle_retention": "last 30 · tenant-scoped · {retention} retention"
     },
     "dm": {
       "online": "online",

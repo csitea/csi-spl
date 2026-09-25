@@ -365,6 +365,7 @@
     "clear": "Wissen",
     "no_matches": "Geen berichten gevonden.",
     "empty": "Nog geen berichten.",
+    "load_more": "Meer laden",
     "loading_older": "Oudere laden…",
     "announce_new": "Nieuw bericht van {who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "Geen lobby ingesteld ({env}, of het welkomstbericht van de hub)."
     },
     "channel": {
-      "subtitle": "laatste 50 · binnen de tenant",
-      "subtitle_retention": "laatste 50 · binnen de tenant · bewaartermijn {retention}"
+      "subtitle": "laatste 30 · binnen de tenant",
+      "subtitle_retention": "laatste 30 · binnen de tenant · bewaartermijn {retention}"
     },
     "dm": {
       "online": "online",

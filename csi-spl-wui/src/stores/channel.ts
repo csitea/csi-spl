@@ -40,7 +40,8 @@ export type ChannelInfo = ChannelRow & {
 
 type FeedMessage = SpoolMessage & { count?: number, topic_row?: boolean }
 
-const WINDOW = 50
+/** One page of the Msgs list: the first paint and every Load more. */
+export const WINDOW = 30
 
 function newId() {
   return globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : ''
@@ -75,7 +76,7 @@ export const useChannelStore = defineStore('channel', () => {
   const lastLive = ref<FeedMessage | null>(null)
   /** view-v1 §4.3 cursor for the next older topic page; null = none left. */
   const olderCursor = ref<string | null>(null)
-  let loadingOlder = false
+  const loadingOlder = ref(false)
   const view = computed(() => channelView(messages.value, { search: search.value, visible: visible.value }))
   const newestFirst = computed(() => view.value.rows as FeedMessage[])
   const hasOlder = computed(() => view.value.hasOlder || Boolean(olderCursor.value))
@@ -154,7 +155,7 @@ export const useChannelStore = defineStore('channel', () => {
   }
 
   /**
-   * Bottom sentinel: reveal the next older window of rows already held, then
+   * Load more: reveal the next older window of rows already held, then
    * fetch the next §4.3 topic page (`before=<next>`), append older rows at
    * the BOTTOM (storage stays oldest-first; channelView sorts newest-first),
    * de-duplicated by msg_id. Stops when `next` is null.
@@ -164,13 +165,13 @@ export const useChannelStore = defineStore('channel', () => {
       visible.value += WINDOW
       return
     }
-    if (!olderCursor.value || loadingOlder) return
-    loadingOlder = true
+    if (!olderCursor.value || loadingOlder.value) return
+    loadingOlder.value = true
     try {
       const page = await withSessionRetry(api, () => api.listMessages({
         channel: active.value || undefined,
         peer: peer.value || undefined,
-        limit: 50,
+        limit: WINDOW,
         before: olderCursor.value || undefined,
       }))
       const incoming = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
@@ -184,7 +185,7 @@ export const useChannelStore = defineStore('channel', () => {
       error.value = e instanceof Error ? e.message : i18n.t('feed.error.load_older_failed')
       olderCursor.value = null
     } finally {
-      loadingOlder = false
+      loadingOlder.value = false
     }
   }
 
@@ -216,7 +217,7 @@ export const useChannelStore = defineStore('channel', () => {
       const page = await withSessionRetry(api, () => api.listMessages({
         channel: active.value || undefined,
         peer: peer.value || undefined,
-        limit: 50,
+        limit: WINDOW,
       }))
       messages.value = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
       olderCursor.value = page.next || null
@@ -412,6 +413,7 @@ export const useChannelStore = defineStore('channel', () => {
     feed,
     newestFirst,
     hasOlder,
+    loadingOlder,
     search,
     lastLive,
     loadOlder,

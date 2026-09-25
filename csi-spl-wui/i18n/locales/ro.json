@@ -365,6 +365,7 @@
     "clear": "Golește",
     "no_matches": "Niciun mesaj nu se potrivește.",
     "empty": "Încă nu există mesaje.",
+    "load_more": "Încarcă mai multe",
     "loading_older": "Se încarcă mesajele mai vechi…",
     "announce_new": "Mesaj nou de la {who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "Niciun hol configurat ({env} sau mesajul de bun venit al hubului)."
     },
     "channel": {
-      "subtitle": "ultimele 50 · limitat la chiriaș",
-      "subtitle_retention": "ultimele 50 · limitat la chiriaș · păstrare {retention}"
+      "subtitle": "ultimele 30 · limitat la chiriaș",
+      "subtitle_retention": "ultimele 30 · limitat la chiriaș · păstrare {retention}"
     },
     "dm": {
       "online": "online",

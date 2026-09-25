@@ -365,6 +365,7 @@
     "clear": "Vymazať",
     "no_matches": "Žiadne zodpovedajúce správy.",
     "empty": "Zatiaľ žiadne správy.",
+    "load_more": "Načítať viac",
     "loading_older": "Načítavajú sa staršie…",
     "announce_new": "Nová správa od {who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "Nie je nastavené žiadne lobby ({env} alebo uvítanie hubu)."
     },
     "channel": {
-      "subtitle": "posledných 50 · v rámci nájomníka",
-      "subtitle_retention": "posledných 50 · v rámci nájomníka · uchovávanie {retention}"
+      "subtitle": "posledných 30 · v rámci nájomníka",
+      "subtitle_retention": "posledných 30 · v rámci nájomníka · uchovávanie {retention}"
     },
     "dm": {
       "online": "online",

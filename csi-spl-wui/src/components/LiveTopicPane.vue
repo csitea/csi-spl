@@ -44,6 +44,7 @@
         :label="t('topic.replies_label')"
         :rows="messages"
         :has-older="pane.hasOlder"
+        :loading-older="pane.loadingOlder"
         @older="pane.loadOlder()"
         :loading="pane.loading"
         :search="pane.search"

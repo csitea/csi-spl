@@ -365,6 +365,7 @@
     "clear": "ניקוי",
     "no_matches": "אין הודעות תואמות.",
     "empty": "אין עדיין הודעות.",
+    "load_more": "טען עוד",
     "loading_older": "טוען הודעות ישנות יותר…",
     "announce_new": "הודעה חדשה מ-{who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "לא הוגדר לובי ({env}, או הודעת הפתיחה של ה-hub)."
     },
     "channel": {
-      "subtitle": "50 האחרונות · בתחום הטננט",
-      "subtitle_retention": "50 האחרונות · בתחום הטננט · שמירה {retention}"
+      "subtitle": "30 האחרונות · בתחום הטננט",
+      "subtitle_retention": "30 האחרונות · בתחום הטננט · שמירה {retention}"
     },
     "dm": {
       "online": "מקוון",

@@ -11,6 +11,7 @@
       :count-for="channel.repliesFor"
       always-topic
       clickable
+      :loading-older="channel.loadingOlder"
       @older="channel.loadOlder()"
       @clear-search="channel.setSearch('')"
       @open-topic="openRow"

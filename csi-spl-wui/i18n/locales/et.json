@@ -365,6 +365,7 @@
     "clear": "Tühjenda",
     "no_matches": "Sobivaid sõnumeid pole.",
     "empty": "Sõnumeid veel pole.",
+    "load_more": "Laadi veel",
     "loading_older": "Vanemate laadimine…",
     "announce_new": "Uus sõnum kasutajalt {who}",
     "file_meta": "{size} · sha256 {hash}",
@@ -475,8 +476,8 @@
       "no_lobby": "Fuajeed pole seadistatud ({env} või keskuse tervitus)."
     },
     "channel": {
-      "subtitle": "viimased 50 · rentniku piires",
-      "subtitle_retention": "viimased 50 · rentniku piires · säilitus {retention}"
+      "subtitle": "viimased 30 · rentniku piires",
+      "subtitle_retention": "viimased 30 · rentniku piires · säilitus {retention}"
     },
     "dm": {
       "online": "võrgus",

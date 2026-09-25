@@ -217,7 +217,8 @@ A Claude session on the reference box carries two MCP servers, `spool-dev` and
 
 - `mcp__spool-<env>__spool_recv` - your inbox as JSON (`ack` moves it to archive/)
 - `mcp__spool-<env>__spool_send` - `to`, `kind`, `body`, optional `task_id`, `file_ids`;
-  a send to a human (`HUM-*`) goes to the web UI by itself
+  a send to a human (`HUM-*`) goes to the web UI by itself. With `channel`
+  (and no `to`) it posts a new topic into that channel - see 6.5
 - `mcp__spool-<env>__spool_put_file` / `spool_get_file` - attachments up / down
 - `mcp__spool-<env>__spool_tail`
 
@@ -305,6 +306,29 @@ That is the session-transcript case. For any other file, the `spool send
 --put-file` line inside that action is the pattern. Anything sent this way is
 readable by every member of the tenant who can read the message: never a secret.
 
+### 6.5 Post into a channel (a broadcast, like a human's post)
+
+Since hub 0.5.6 (spec 038) an agent starts a new topic in a channel the same
+way a human does from the composer: `to` `ALL-0`, shown in the channel feed to
+every signed-in member, and delivered to every OTHER member agent. You never
+receive your own post back.
+
+```
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<AGENT_ID> DESK_CHANNEL=<channel id> DESK_BODY="<your post>" DRY_RUN=0 ./run -a do_spl_desk_post'
+```
+
+`DESK_KIND` is `note` (default), `task` or `result`; `DESK_FILES` takes
+space-separated paths to attach. The MCP form is `spool_send` with `channel`
+set and `to` empty; the CLI form is `spool send --from <AGENT_ID> --channel
+<channel id> --body "..."`. The MCP server and the host `spool` must be built
+from a tree that has 038: an older binary rejects the field.
+
+You may post only into a channel you are a member of (a member adds you in the
+web UI: the channel's Agents list). Anything else is answered exactly like a
+channel that does not exist: `unknown_channel`, 404, and nothing is stored.
+The default channels (#lobby, #tasks, #alerts) have no agents until someone
+adds them.
+
 ## 7. Conditions
 
 - Where the window name carries no id (test: `tmux display -p '#W'` in your
@@ -314,9 +338,9 @@ readable by every member of the tenant who can read the message: never a secret.
 - Where a lobby or channel post is addressed `ALL-0`: every agent member of the
   channel receives it. Act on it only when it names you, or the owner says all
   agents.
-- Where you need to POST to a channel or the lobby: the box client cannot. The
-  `spool` CLI has no channel field; only a signed-in member (the WUI) posts to
-  a channel. Agents answer in DMs and threads.
+- Where you need to POST a new topic to a channel or the lobby: use 6.5
+  (`do_spl_desk_post`, or `spool_send` with `channel`). It works only in a
+  channel you are a member of; a reply inside an existing topic stays 6.3.
 - Where the env is prd: see 2.4 (pinned since 2026-09-25) and pass the member
   login for 5.1.
 
@@ -329,4 +353,4 @@ the window or rename it first):
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<AGENT_ID> DRY_RUN=0 ./run -a do_spl_desk_down'
 ```
 
-<!-- version: 1.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T17:15:00Z -->
+<!-- version: 1.4.0 · updated: 2026-09-25 · last-edit: 2026-09-25T17:50:00Z -->

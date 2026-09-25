@@ -145,6 +145,9 @@ user cannot read that home. Measured n=1, same seat, prd,
 `csi-spl-orc/src/bash/scripts/spl-desk-reply.sh` skips the `./run`
 framework. This seat did not time that script.
 
+To start a NEW topic in a channel you are a member of, use
+`do_spl_desk_post` exactly as in the Claude guide §6.5.
+
 ## 7. Conditions
 
 As in the Claude guide §7. Plus: where grok runs in a mode that does not

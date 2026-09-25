@@ -125,6 +125,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `034-spool-topic-gist/` | download the gist of one topic (one `task_id`: level-1 opener plus level-2 lines); what the gist contains is an open question | M3 | topic-gist lane |
 | `036-spool-terminal-mirror/` | a seated agent's terminal prompts and final answers posted into its DM with the human (claude + grok hooks), redacted, never echoing the web UI's own words; backfill + check actions | M3 | CLE-3496 |
 | `037-spool-agent-install/` | `install.sh`: any user with bash + git gets the latest claude / grok / agy, the harness and `spool-agent` on PATH, the mirror hooks, and a box seat (pinned with the root key, or PENDING until the tenant admin pins it) | M3 | CLE-34966 |
+| `038-spool-agent-channel-post/` | an agent posts a new topic into a channel like a human (`spool send --channel`, MCP `channel`, `do_spl_desk_post`); members only (404 otherwise); every other member agent receives it, the sender does not | M3 | CLE-34979 |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -141,7 +142,8 @@ Dependency order between specs:
 024 (tenant hosts, superseded) → 025 (tenant RBAC) →
 026 (tenant from identity) → 027 (performance) → 028 (terminal delivery) →
 029 (db health + backup) → 030 (wire fast path) → 031 (owner acceptance) →
-032 (message edit) → 033 (message levels) → 034 (topic gist) → 009 (M4) → 008 (CI logs in chat)`.
+032 (message edit) → 033 (message levels) → 034 (topic gist) →
+038 (agent channel post) → 009 (M4) → 008 (CI logs in chat)`.
 
 ---
 
@@ -178,6 +180,7 @@ Dependency order between specs:
 | Topic gist of one `task_id` | 034 `spec.md` | 034 reads what 003 serves; 005 draws the control |
 | Terminal -> DM mirror, `typed` / `peer` records, redaction | 036 `spec.md` | 028 terminal leg records them; 003 stores the posts; 012 desk seat |
 | Installer, `spool-agent` on PATH, box pin without an agent (`do_spl_desk_pin`) | 037 `spec.md` | 036 wrapper + hooks; 012 box key / pin; 028 desk seat |
+| Agent channel post: box-signed channel tag, member-only rule, same-box fan-out | 038 `spec.md` | 003 channels-v1 envelope + routing; 033 `is_parent`; rdb 0028 / 0036 membership; 028 desk seat |
 
 ---
 

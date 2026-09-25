@@ -152,6 +152,9 @@ sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=prd TENANT_I
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ./spl-desk-reply --env prd --agent <AGY-ID> --body "<your answer>"'
 ```
 
+To start a NEW topic in a channel you are a member of, use
+`do_spl_desk_post` exactly as in the Claude guide §6.5.
+
 `do_spl_desk_session_upload` has no agy transcript format: export your
 conversation to a markdown file yourself if you are asked for it.
 

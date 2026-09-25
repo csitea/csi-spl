@@ -164,5 +164,26 @@ in_orc AGENT_USER="$ME" MCP_CLIS="claude grok agy" DRY_RUN=0; rc=$?
 [[ $rc -eq 0 && ! -s "$T/cli.log" ]] && grep -q 'agy is not installed' "$T/out" &&
   pass "5. a re-run registers nothing twice and skips a missing CLI" || fail "5. re-run: rc $rc $(cat "$T/cli.log" "$T/out")"
 
+# ── 6. the probe action: refusals, and a send is a dry run by default ───────
+probe() {
+  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" "$@" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*"; }
+    do_require_bin() { return 0; }
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    python3() { echo "PYTHON-RAN" >>"'"$T"'/py.log"; }
+    do_spl_agent_mcp_probe' >"$T/out" 2>&1
+}
+for bad in "ENV=stg" "MCP_AS=" "MCP_AS=CLE-07 MCP_CONTROL_AS=CLE-07" "MCP_N=51" "MCP_TO=EZA-1" "MCP_TO=nobody MCP_TO_BOX=box-x" "MCP_FILE=2"; do
+  # shellcheck disable=SC2086
+  probe ENV=dev AGENT_USER="$ME" MCP_AS=CLE-07 $bad; rc=$?
+  [[ $rc -ne 0 && ! -e "$T/py.log" ]] && pass "6. '$bad' is refused before the probe runs" || fail "6. '$bad': rc $rc $(cat "$T/out")"
+done
+probe ENV=dev AGENT_USER="$ME" MCP_AS=CLE-07 MCP_TO=EZA-1 MCP_TO_BOX=box-e2e-a MCP_FILE=1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/py.log" ]] && grep -q 'OK DRY_RUN nothing was sent' "$T/out" &&
+  pass "6. a probe that sends is a dry run unless DRY_RUN=0" || fail "6. send dry run: rc $rc $(cat "$T/out")"
+probe ENV=dev AGENT_USER="$ME" MCP_AS=CLE-07 MCP_CONTROL_AS=CLE-08; rc=$?
+[[ -s "$T/py.log" ]] && pass "6. the read-only probe runs with no DRY_RUN" || fail "6. read-only probe did not run: $(cat "$T/out")"
+
 echo "agent-mcp: $fails failure(s)"
 exit $(( fails > 0 ))

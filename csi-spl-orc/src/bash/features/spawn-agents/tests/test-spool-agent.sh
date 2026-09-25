@@ -14,6 +14,7 @@
 #   4. the window is renamed to carry the id (keeping the box tag), the desk
 #      action is called with that id, and the CLI runs with MCP_BOT_AGENT_ID
 #   5. a window that already carries the id is not renamed
+#   8. --operator HUM-n writes the seat's .mirror/operator
 #   7. hooks already in ~/.claude/settings.json are not added a second time
 #   6. the CLI binary is found in ~/.local/bin when a sudo hop reset PATH
 set -uo pipefail
@@ -108,5 +109,10 @@ hasnt "7. user settings carry the hook: claude gets no --settings" "--settings" 
 TMUX_PANE="$P1" bash "$AGENT" --as GRK-951 grok >/dev/null 2>&1
 check "7. ... and grok gets no ~/.grok/hooks file" test ! -e "$HOME/.grok/hooks/spool-mirror.json"
 rm -f "$HOME/.claude/settings.json"
+
+# --- 8. --operator ------------------------------------------------------------------------------------
+bash "$AGENT" --dry-run --operator CLE-5 --as CLE-60 claude >/dev/null 2>&1; eq "8. --operator must be a HUM id" 2 "$?"
+TMUX_PANE="$P2" bash "$AGENT" --as CLE-60 --operator HUM-7 claude >/dev/null 2>&1
+eq "8. --operator records the seat's operator" "HUM-7" "$(cat "$SPOOL_AGENT_DESK_ROOT/spool/CLE-60/.mirror/operator" 2>/dev/null)"
 
 t_done

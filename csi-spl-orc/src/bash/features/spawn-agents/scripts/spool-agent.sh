@@ -25,6 +25,8 @@
 #   --tenant <slug>    default t1
 #   --box <box>        default box-desk
 #   --no-mirror        seat the agent but post nothing (<seat>/.no-mirror)
+#   --operator HUM-n   the human typing at this terminal: its prompts are posted
+#                      AS that human (typed_by, hub-verified; spec 036 FR-012)
 #   --no-seat          skip the desk seat (the mirror then has no seat to post
 #                      from, so this is for a session that is seated already)
 #   --backfill         claude only: when the CLI exits, attach the session's
@@ -51,7 +53,7 @@ ORC="$(cd "$FEAT/../../../.." && pwd)"
 RUN="${SPOOL_AGENT_RUN:-$ORC/run}"
 MIRROR_PY="$_here/spool-mirror.py"
 
-AS="" ENVN="dev" TENANT="t1" BOX="box-desk" MIRROR=1 SEAT=1 BACKFILL=0 DRY=0
+OPERATOR="" AS="" ENVN="dev" TENANT="t1" BOX="box-desk" MIRROR=1 SEAT=1 BACKFILL=0 DRY=0
 usage() { sed -n '/^#   spool-agent.sh/,/^# Exit codes/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -60,6 +62,7 @@ while [ "$#" -gt 0 ]; do
     --tenant)    [ "$#" -ge 2 ] || usage; TENANT="$2"; shift 2 ;;
     --box)       [ "$#" -ge 2 ] || usage; BOX="$2"; shift 2 ;;
     --no-mirror) MIRROR=0; shift ;;
+    --operator)  [ "$#" -ge 2 ] || usage; OPERATOR="$2"; shift 2 ;;
     --no-seat)   SEAT=0; shift ;;
     --backfill)  BACKFILL=1; shift ;;
     --dry-run)   DRY=1; shift ;;
@@ -76,6 +79,7 @@ case "$CLI" in
   grok)   PREFIX=GRK; KIND=grok ;;
   *) echo "spool-agent: the CLI must be claude or grok, got '$CLI'" >&2; exit 2 ;;
 esac
+[ -z "$OPERATOR" ] || [[ "$OPERATOR" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { echo "spool-agent: --operator must be a HUM-n id" >&2; exit 2; }
 [[ "$ENVN" =~ ^(dev|prd)$ ]] || { echo "spool-agent: --env must be dev or prd" >&2; exit 2; }
 [[ "$TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "spool-agent: bad --tenant '$TENANT'" >&2; exit 2; }
 [[ "$BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$BOX" != box-wui ]] || { echo "spool-agent: bad --box '$BOX'" >&2; exit 2; }
@@ -189,7 +193,7 @@ if [ "$DRY" = 1 ]; then
   echo "id: $ID"
   echo "window: ${PANE:-none} '${WNAME}'${NEWNAME:+ -> rename to '$NEWNAME'}"
   if [ "$SEAT" = 1 ]; then echo "seat: $RUN -a do_spl_desk_up ENV=$ENVN TENANT_ID=$TENANT DESK_BOX=$BOX DESK_AGENT=$ID (as $BOX_USER)"; else echo "seat: skipped"; fi
-  echo "mirror: $([ "$MIRROR" = 1 ] && echo on || echo off)"
+  echo "mirror: $([ "$MIRROR" = 1 ] && echo on || echo off)${OPERATOR:+ (prompts typed by $OPERATOR)}"
   if [ "$MIRROR" = 1 ] && [ "$USER_HOOKS" = 1 ]; then echo "hooks: already in ~/.claude/settings.json (not added again)"
   elif [ "$MIRROR" = 1 ] && [ "$KIND" = claude ]; then echo "hooks: $HOOKS_JSON"
   elif [ "$MIRROR" = 1 ]; then echo "hooks: $GROK_HOOK"; fi
@@ -207,6 +211,10 @@ if [ "$SEAT" = 1 ]; then
     say "the desk seat failed (rc $rc):"; printf '%s\n' "$out" | grep -E 'FATAL|FAIL' | tail -3 >&2; exit 5
   fi
   [ "$rc" -eq 0 ] && say "$ID is seated on $BOX in $TENANT ($ENVN)" || say "WARN $ID has a seat but the roster did not confirm it yet (rc $rc)"
+fi
+if [ -n "$OPERATOR" ]; then
+  as_box python3 "$MIRROR_PY" operator "$SEAT_ROOT/spool/$ID" "$OPERATOR" >/dev/null ||
+    say "WARN could not record $OPERATOR as the operator of $ID"
 fi
 if [ "$MIRROR" = 0 ]; then
   as_box touch "$SEAT_ROOT/spool/$ID/.no-mirror" 2>/dev/null || say "WARN could not write $ID's .no-mirror"

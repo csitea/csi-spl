@@ -51,7 +51,11 @@ named) · `[ ]` Planned (`../README.md` §2.3).
 - [ ] T051 Planned — hub: frame `typed_by`, the FR-010 checks, store/view/WUI frame.
 - [ ] T052 Planned — `spool send --typed-by`; the grant action.
 - [ ] T053 Planned — web UI: the human row + "via terminal <agent>" badge.
-- [ ] T054 Planned — mirror: typed_by on prompts, fallback on refusal; live proof dev + prd.
+- [~] T054 Partial — mirror: `--typed-by <operator>` on prompts (no prefix),
+  re-post the old way on `typed_by_not_bound` / an old binary; `operator`
+  subcommand; `spool-agent --operator`. Check: `test-spool-mirror.sh` -> 62,
+  `test-spool-agent.sh` -> 29. Missing: the live proof once the hub side is
+  deployed (CLE-34976: migration 0040 + grant action + version bump).
 
 ## Phase 4 — Rollout
 
@@ -75,4 +79,4 @@ named) · `[ ]` Planned (`../README.md` §2.3).
   (as the box user). A seat with no backfill yet runs
   `do_spl_desk_session_upload`, which lands in the mirror's topic by itself.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:20:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:45:00Z -->

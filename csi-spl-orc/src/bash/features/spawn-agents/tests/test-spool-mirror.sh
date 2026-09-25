@@ -18,6 +18,8 @@
 #   9. the notifier's records: a HUMAN's DIRECT message sets the peer; a
 #      channel broadcast (to ALL-0) and an agent's message do not
 #  10. hook -> post end to end, through SPOOL_MIRROR_POST
+#  12. typed_by: the operator's prompt is posted AS the human (no prefix);
+#      refused / an old binary / no operator -> the old [terminal] line
 #  11. two hook configs reaching one session (shared settings + a wrapper's
 #      --settings) post one prompt once
 set -uo pipefail
@@ -47,6 +49,10 @@ n=\$(ls "$SENDS" | wc -l)
 { printf '%s\n' "\$@"; echo "HUB=\$SPOOL_HUB_URL ROOT=\$SPOOL_ROOT"; } >"$SENDS/\$n"
 task=$T3
 prev=""; for a in "\$@"; do [ "\$prev" = --task ] && task="\$a"; prev="\$a"; done
+case " \$* " in *" --typed-by "*)
+  [ "\${STUB_TYPED:-}" = unbound ] && { echo "spool: hub refused: typed_by_not_bound (403)" >&2; exit 1; }
+  [ "\${STUB_TYPED:-}" = oldbin ] && { echo "flag provided but not defined: -typed-by" >&2; exit 2; } ;;
+esac
 printf '{"msg_id":"m-%s","task_id":"%s"}\n' "\$n" "\$task"
 EOF
 chmod +x "$T_TMP/cloud/dev/bin/spool"
@@ -186,5 +192,31 @@ eq "11. the same prompt of one session, fired by two hooks, is posted once" "$((
 has "11. the second is logged as a duplicate hook" "a second hook fired" "$(cat "$A/.mirror/mirror.log")"
 post prompt "said once, heard twice" dup2 >/dev/null
 eq "11. CONTROL: another session posts the same words" "$((n4 + 2))" "$(nsends)"
+
+# --- 12. typed_by: a prompt the operator typed goes out AS that human -------------------------------
+MIR="$T_SCRIPTS/spool-mirror.py"
+python3 "$MIR" operator "$SEAT" HUM-5 >/dev/null
+eq "12. operator <desk> writes the desk operator" "HUM-5" "$(cat "$SEAT/operator")"
+post prompt "typed by the operator" op1 >/dev/null
+has "12. accepted: --typed-by the desk operator" $'--typed-by\nHUM-5' "$(last_send)"
+eq "12. accepted: no [terminal] prefix" "typed by the operator" "$(body_of_last)"
+has "12. the log names the claim" "typed_by HUM-5" "$(tail -1 "$A/.mirror/mirror.log")"
+python3 "$MIR" operator "$A" HUM-6 >/dev/null
+post prompt "the seat operator wins" op2 >/dev/null
+has "12. a seat operator overrides the desk's" $'--typed-by\nHUM-6' "$(last_send)"
+post answer "answers never carry it" op3 >/dev/null
+hasnt "12. an answer never carries --typed-by" "--typed-by" "$(last_send)"
+n5=$(nsends)
+STUB_TYPED=unbound post prompt "refused by the hub" op4 >/dev/null
+eq "12. refused: the refused call and one re-post" "$((n5 + 2))" "$(nsends)"
+hasnt "12. refused: the re-post has no --typed-by" "--typed-by" "$(last_send)"
+eq "12. refused: the re-post is the old [terminal] line" "[terminal] refused by the hub" "$(body_of_last)"
+has "12. refused: the log says why" "not bound on the hub" "$(cat "$A/.mirror/mirror.log")"
+STUB_TYPED=oldbin post prompt "old spool binary" op5 >/dev/null
+eq "12. an old spool binary: the old [terminal] line" "[terminal] old spool binary" "$(body_of_last)"
+python3 "$MIR" operator "$A" --clear >/dev/null; python3 "$MIR" operator "$SEAT" --clear >/dev/null
+post prompt "no operator at all" op6 >/dev/null
+eq "12. CONTROL: no operator -> no claim, the old line" "[terminal] no operator at all" "$(body_of_last)"
+python3 "$MIR" operator "$SEAT" CLE-1 >/dev/null 2>&1; eq "12. an agent id is refused as operator" 64 "$?"
 
 t_done

@@ -127,9 +127,13 @@ agent and the attribution is a separate, hub-VERIFIED claim:
   view API and the web UI live frame carry it; the web UI renders such a row
   as the HUMAN (avatar and name) with a small badge "via terminal <agent>".
   The `[terminal] ` body prefix is dropped when the claim is accepted.
-- **FR-012 who is typing**: the seat's operator (`.mirror/operator`, set by
-  `spool-agent --operator HUM-n` or the grant action), else the human the
-  mirror posts to. A wrong guess is refused by FR-010, never displayed.
+- **FR-012 who is typing**: EXPLICIT only - the seat's `.mirror/operator`,
+  else the desk's `<desk>/operator` (`spool-mirror.py operator <desk>[/spool/<agent>] HUM-n`,
+  or `spool-agent --operator HUM-n`). No operator -> no claim. Not guessed
+  from the DM peer, because a refused claim on a QUEUED send (hub down at the
+  time) is moved to `rejected/` by the sidecar and never re-posted: a guess
+  would lose a line silently. A synchronous refusal (`typed_by_not_bound`, or
+  a spool binary without `--typed-by`) is re-posted the old way and logged.
 - Per env the human differs (e.g. prd and dev ids of one person); nothing
   hard-codes an id - the binding and the seat file carry it.
 
@@ -189,4 +193,4 @@ tree's notifier), so the live `box-desk` and its seats were not restarted.
   n=2 rows — the `[terminal]` prompt and the answer; the session-end `Stop`
   posted nothing.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:20:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:45:00Z -->

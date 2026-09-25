@@ -44,6 +44,9 @@ Usage:
   spool-mirror.py post --agent ID --event prompt|answer [--session S] < text
   spool-mirror.py topic <seat>/spool/<agent>       -> "<human>\t<task>"
   spool-mirror.py remember <seat>/spool/<agent> <human> <task>
+  spool-mirror.py operator <seat>[/spool/<agent>] HUM-n|--clear
+                      who types at this desk (or this one seat): its prompts
+                      are posted AS that human (typed_by, hub-verified)
 
 Environment (post):
   SPOOL_MIRROR_SEATS  glob of desk dirs, default
@@ -285,6 +288,40 @@ def pick_topic(agent_dir):
     return human, ""
 
 
+def operator_of(seat, adir):
+    """The human at this terminal (FR-012): the seat's .mirror/operator, else
+    the desk's <seat>/operator. Explicit only - never guessed, because a
+    refused claim on a QUEUED send is dropped by the hub, not re-posted."""
+    for p in (os.path.join(adir, ".mirror", "operator"), os.path.join(seat, "operator")):
+        try:
+            v = open(p).read().strip()
+        except OSError:
+            continue
+        if HUM_RE.match(v):
+            return v
+    return ""
+
+
+def set_operator(path, human):
+    """operator <seat>|<seat>/spool/<agent> HUM-n|--clear"""
+    f = (os.path.join(path, ".mirror", "operator") if os.path.basename(os.path.dirname(path.rstrip("/"))) == "spool"
+         else os.path.join(path, "operator"))
+    if human == "--clear":
+        try:
+            os.unlink(f)
+        except OSError:
+            pass
+        return 0
+    if not HUM_RE.match(human):
+        print(f"not a human id: {human!r}", file=sys.stderr)
+        return 64
+    os.makedirs(os.path.dirname(f), exist_ok=True)
+    with open(f, "w") as fh:
+        fh.write(human + "\n")
+    print(f)
+    return 0
+
+
 def seat_env(seat):
     """The spool env of a desk seat: from its live sidecar when there is one
     (the values it actually runs under), else from the path."""
@@ -347,7 +384,7 @@ def post_one(seat, agent, event, text, session):
         if not text.strip():
             log(adir, f"skip prompt: every line came from the web UI or is a doorbell ({dropped})")
             return "skipped"
-        body = PROMPT_PREFIX + text
+        body = text
     else:
         h = hashlib.sha256((session + "\0" + norm(text)).encode()).hexdigest()
         last = os.path.join(adir, ".mirror", "last-answer")
@@ -370,16 +407,33 @@ def post_one(seat, agent, event, text, session):
         return "failed"
     spool = os.environ.get("SPOOL_MIRROR_SPOOL") or os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(seat.rstrip("/")))), "bin", "spool")
-    argv = [spool, "send", "--from", agent, "--to", human, "--to-box", "box-wui",
-            "--kind", "note", "--body", body]
-    if task:
-        argv += ["--task", task]
+    # FR-009..FR-012: a prompt the operator typed goes out AS that human
+    # (typed_by, hub-verified) with no [terminal] prefix. Refused, or a spool
+    # binary that predates the flag: re-post the old way, prefixed.
+    op = operator_of(seat, adir) if event == "prompt" else ""
+
+    def argv_for(typed_by):
+        b = body if typed_by or event != "prompt" else PROMPT_PREFIX + body
+        a = [spool, "send", "--from", agent, "--to", human, "--to-box", "box-wui",
+             "--kind", "note", "--body", b]
+        if task:
+            a += ["--task", task]
+        if typed_by:
+            a += ["--typed-by", typed_by]
+        return a
+    argv = argv_for(op)
     if os.environ.get("SPOOL_MIRROR_DRY") == "1":
         # A dry run writes no state: no topic, no watermark, no log line.
         print(json.dumps({"seat": seat, "argv": argv, "env": env, "redactions": counts}, sort_keys=True))
         return "dry"
     r = subprocess.run(argv, env={**os.environ, **env}, capture_output=True, text=True, timeout=60)
-    rc, out = r.returncode, (r.stdout or r.stderr).strip()
+    rc, out = r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
+    if rc != 0 and op and ("typed_by_not_bound" in out or "typed-by" in out):
+        why = "not bound on the hub" if "typed_by_not_bound" in out else "this spool binary has no --typed-by"
+        log(adir, f"typed_by {op} refused ({why}): re-posting as {agent}")
+        op = ""
+        r = subprocess.run(argv_for(""), env={**os.environ, **env}, capture_output=True, text=True, timeout=60)
+        rc, out = r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
     if rc != 0:
         log(adir, f"FAIL {event} -> {human}: rc {rc}: {out[:300]}")
         return "failed"
@@ -394,7 +448,7 @@ def post_one(seat, agent, event, text, session):
         with open(os.path.join(adir, ".mirror", "last-answer"), "w") as f:
             f.write(h)
     log(adir, f"OK {event} -> {human} task {got_task} msg {sent.get('msg_id', '?')} "
-              f"({len(body)} chars, redactions {counts or 'none'})")
+              f"({len(body)} chars, redactions {counts or 'none'}){' typed_by ' + op if op else ''}")
     return "posted"
 
 
@@ -444,6 +498,8 @@ def main(argv):
         # The DM a post from this agent dir would land in: "<human>\t<task>".
         print("\t".join(pick_topic(argv[2])))
         return 0
+    if len(argv) == 4 and argv[1] == "operator":
+        return set_operator(argv[2], argv[3])
     if len(argv) == 5 and argv[1] == "remember":
         remember_topic(argv[2], argv[3], argv[4])
         return 0

@@ -299,11 +299,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The download from the HashiCorp releases host fails now and then
-      # ("AggregateError", run 36166317069 attempt 1); the runner has no
-      # terraform of its own. Up to three tries; only the last one can fail.
+      # The box is on Wi-Fi and busy: terraform (27 MB) and the google
+      # providers timed out on every iac job (AggregateError on all 3 attempts,
+      # run 36171540592; ~9 KB/s from releases.hashicorp.com, measured
+      # 2026-09-25). The runner box keeps terraform 1.9.8 and a read-only
+      # provider mirror under /opt/tf; the download below is only a fallback
+      # for a runner without it.
+      - name: Use the box's terraform 1.9.8 + provider mirror (/opt/tf)
+        id: localtf
+        run: |
+          set -euo pipefail
+          tf=/opt/tf/bin/terraform-1.9.8
+          if [[ -x "$tf" && -r /opt/tf/terraformrc ]] && "$tf" version | head -1 | grep -qx 'Terraform v1.9.8'; then
+            mkdir -p "$RUNNER_TEMP/tf-bin" && ln -sf "$tf" "$RUNNER_TEMP/tf-bin/terraform"
+            echo "$RUNNER_TEMP/tf-bin" >>"$GITHUB_PATH"
+            { echo "TF_BIN=$tf"; echo "TF_CLI_CONFIG_FILE=/opt/tf/terraformrc"; } >>"$GITHUB_ENV"
+            echo "found=true" >>"$GITHUB_OUTPUT"; echo "ok - using $tf and /opt/tf/mirror"
+          else
+            echo "found=false" >>"$GITHUB_OUTPUT"; echo "::warning::no /opt/tf on this runner - downloading terraform"
+          fi
+
       - name: Set up terraform 1.9.8 (attempt 1)
         id: tf1
+        if: steps.localtf.outputs.found != 'true'
         continue-on-error: true
         uses: hashicorp/setup-terraform@v3
         with:
@@ -312,7 +330,7 @@ jobs:
 
       - name: Set up terraform 1.9.8 (attempt 2)
         id: tf2
-        if: steps.tf1.outcome == 'failure'
+        if: steps.localtf.outputs.found != 'true' && steps.tf1.outcome == 'failure'
         continue-on-error: true
         uses: hashicorp/setup-terraform@v3
         with:
@@ -321,7 +339,7 @@ jobs:
 
       - name: Set up terraform 1.9.8 (attempt 3)
         id: tf3
-        if: steps.tf1.outcome == 'failure' && steps.tf2.outcome == 'failure'
+        if: steps.localtf.outputs.found != 'true' && steps.tf1.outcome == 'failure' && steps.tf2.outcome == 'failure'
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.8

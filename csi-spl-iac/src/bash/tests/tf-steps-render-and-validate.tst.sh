@@ -181,26 +181,42 @@ if [[ -n "$TF" && -x "$TF" ]]; then
   # operator's apply, and passed alone).
   tf_cache="$HOME/.terraform.d/plugin-cache/csi/spl/test-$$"
   mkdir -p "$tf_cache"
+  # init downloads providers, and that download fails now and then (gate run
+  # 36169958635: 019 and 020 failed with csi-spl-iac unchanged since the
+  # green run before it). Up to three inits; the output of the last one is
+  # kept so a real failure explains itself instead of vanishing into /dev/null.
+  tf_init() {
+    local dir=$1 log=$2 i
+    for i in 1 2 3; do
+      TF_PLUGIN_CACHE_DIR="$tf_cache" "$TF" -chdir="$dir" init -backend=false -input=false -no-color >"$log" 2>&1 && return 0
+      sleep $((i * 5))
+    done
+    return 1
+  }
   for step in "$PROJ_ROOT"/src/terraform/*/; do
     tmp=$(mktemp -d); cp -r "$step." "$tmp/"
-    if TF_PLUGIN_CACHE_DIR="$tf_cache" "$TF" -chdir="$tmp" init -backend=false -input=false >/dev/null 2>&1 \
-       && "$TF" -chdir="$tmp" validate -no-color >/dev/null 2>&1; then
+    if ! tf_init "$tmp" "$tmp.init.log"; then
+      fail "validate $(basename "$step") (init failed 3x)"; tail -5 "$tmp.init.log" | sed 's/^/      /'
+    elif "$TF" -chdir="$tmp" validate -no-color >"$tmp.validate.log" 2>&1; then
       pass "validate $(basename "$step")"
     else
-      fail "validate $(basename "$step")"
+      fail "validate $(basename "$step")"; tail -8 "$tmp.validate.log" | sed 's/^/      /'
     fi
-    rm -rf "$tmp"
+    rm -rf "$tmp" "$tmp.init.log" "$tmp.validate.log"
   done
   # Control (T070): a step with a planted undeclared reference must NOT validate.
   tmp=$(mktemp -d); cp -r "$PROJ_ROOT/src/terraform/016-firebase-deploy-iam/." "$tmp/"
   printf '%s\n' 'output "t070_control" {' '  value = var.t070_planted_undeclared' '}' >"$tmp/99-t070-control.tf"
-  if TF_PLUGIN_CACHE_DIR="$tf_cache" "$TF" -chdir="$tmp" init -backend=false -input=false >/dev/null 2>&1 \
+  if tf_init "$tmp" "$tmp.init.log" \
      && ! "$TF" -chdir="$tmp" validate -no-color >/dev/null 2>&1; then
     pass "control: validate rejects a planted undeclared reference"
   else
     fail "control: validate accepted (or could not init) a planted broken step, so every validate PASS above proves nothing"
   fi
-  rm -rf "$tmp"
+  rm -rf "$tmp" "$tmp.init.log"
+  # the per-run cache is private to this run; left behind it leaked ~230 MB a
+  # run (26 GB / 112 dirs under the CI runner by 2026-09-25)
+  rm -rf "$tf_cache"
 else
   skip "no terraform (TF_BIN, \$HOME/.local/share/csi-spl/bin/terraform-*, PATH)"
 fi

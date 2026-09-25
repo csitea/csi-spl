@@ -51,6 +51,30 @@ migration):
   per member" is not built), so "add the role of Admin as well" is served by
   changing the owner's second account's role, not by a second role.
 
+### 1.2 Owner orders (verbatim, 2026-09-25 ~15:08Z, CLE-34969)
+
+> "ok , the admin role owning user should see besides direct messages
+> channels , topics and flow the users" · "to be able to CRUD users to the
+> system"
+
+> "and the users should work similarly to the messages ... each of the users
+> should be listed and when clicking on it , on the left most pane the user
+> edit form should appear"
+
+Decisions taken (FR-011, FR-012):
+
+- The Users entry follows `members.invite`, the admin's only permission
+  (§1.1), so the entry, the list and the writes go together. Role change
+  stays `members.roles` (FR-007), so a `biz_owner` keeps re-roling from the
+  operator side; it sees no Users entry.
+- Self-removal is refused (`409 self`): another admin removes you, so nobody
+  locks themselves out by a misclick. A self role change stays allowed (a
+  `biz_owner` stepping down, FR-007), because the last-owner and the new
+  last-admin guards already keep the tenant manageable.
+- "left most pane": the pane opens where a message opens its topic pane
+  (right) until the owner confirms the side; `USER_PANE_SIDE` in
+  `csi-spl-wui/src/utils/tenant-users.mjs` is the one switch.
+
 ## 2. What existed before this spec (measured on `aa8ac96`)
 
 | aspect | before | where |
@@ -201,6 +225,23 @@ seat like any other membership (009 D-3). Moving it to a bot seat is OQ-6.
   FROM_ROLE=` accept the six ids (and the two legacy names).
 - **FR-010** In-tenant billing (M4 seat purchase, plan changes) gates on
   `billing.manage` through the same authorizer (M4 lane).
+- **FR-011** Last admin (§1.2): a change that would leave the tenant with no
+  enabled member whose role grants `members.invite` is refused
+  (`409 last_admin`, store-level under the tenant row lock, like
+  `last_owner`). `DELETE /v1/members/{self}` is `409 self`.
+- **FR-012** The admin's Users page (§1.2). Hub, each route `members.invite`
+  checked per request, rows scoped to the session's tenant (RLS):
+  `GET /v1/members` → `{tenant_id, you, members[{human_id, display_name,
+  email, role, since, disabled, you, manageable}], invites[{email, role,
+  invited_by, created_at, expires_at, expired, mail_count}],
+  roles[{id, grantable}]}`; `DELETE /v1/members/invites?email=` → 204 /
+  404 `not_found`; `POST /v1/members/invites` also mails the invitation
+  (`invitemail.Send`, the `spool hub-invite` path; answer field `mail`).
+  WUI: a Users icon after Flow ONLY when `/v1/view/me` lists
+  `members.invite` (this gate does not fail open, unlike FR-008); `/users`
+  lists one row per member and per pending invite, a click opens the edit
+  pane (role, remove, revoke - destructive ones confirmed; invite by email +
+  role). Strings in all 19 locales.
 
 Per-FR status lives in `tasks.md`.
 

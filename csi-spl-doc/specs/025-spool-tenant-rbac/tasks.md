@@ -37,4 +37,10 @@
 - [x] T051 0039 applied dev 14:54Z then prd 14:55Z (`do_spl_db_bootstrap` DRY_RUN=0, env SAs); `rbac_roles` on both reads 8 roles, members.invite on admin only, biz_customer = regular_user = developer (n=1 query per env). Hub 0.5.0 (0bf7bdd) on dev + prd (`/version`, 20 run 36150599840); WUI 0bf7bdd dev + prd (30 run 36150599381).
 - [x] T052 prd t1 (named actions only, 14:56-14:58Z, as the prd SA): `do_spl_tenant_member_role` HUM-23 developer -> biz_customer, HUM-13 developer -> regular_user, HUM-5 developer -> admin (one role per membership, §1.1: the owner's second account; HUM-10 stays biz_owner). `do_spl_hub_invite` six invites (one biz_customer, five regular_user), each mailed once (`delivered:true`, mail_count 1); one accepted at 14:58Z as regular_user.
 
+## Phase 7: the admin's Users page (spec §1.2, CLE-34969)
+
+- [x] T060 hub: `GET /v1/members`, `DELETE /v1/members/invites?email=`, the invitation mail on `POST /v1/members/invites`, `409 last_admin` (memory + Postgres) and `409 self` (FR-011, FR-012). 151915b. Check: `TestMembersAdminAPI` (CONTROL: every role but admin 403 `members.invite` on list, invite, revoke, remove; anonymous and another tenant's admin 403), `TestMemberDirectory` (CONTROL: another tenant's rows never listed nor revocable, a revoked invite no longer admits), `TestTenantRolesAndLastOwner` last-admin controls - memory and Postgres (local postgres:16, n=1).
+- [x] T061 WUI: Users icon + `/users` + `UserEditPane`, 19 locales (FR-012). 71ffc23. Check: `tests/unit/tenant-users.test.mjs` (CONTROL: no `/v1/view/me` answer shows NO Users entry), `tests/e2e/users-admin.test.mjs` 12/12 on the mock bundle (`PROVE_RED=no-remove` -> check 8 FAILs), in `test:e2e`.
+- [ ] T062 live: hub 0.5.2 (e7453c6, contains 151915b) and WUI 71ffc23 on dev + prd; dev e2e with a throwaway address (admin sees Users, invites + re-roles + removes; HUM-4 no entry + 403); prd read-only list + the 403 control.
+
 <!-- version: 1.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T15:10:00Z -->

@@ -463,6 +463,17 @@
     "typed_by": {
       "badge": "preko terminala {agent}",
       "title": "Otkucao {who} u terminalu {agent}"
+    },
+    "clip": {
+      "label": "Висина картице",
+      "mode": {
+        "titles": "Наслови",
+        "rows": "5 редова",
+        "full": "Пуна"
+      },
+      "grip_more": "Превуците или притисните Enter да видите више",
+      "grip_less": "Превуците или притисните Enter да видите мање",
+      "grip_hint": "Превуците за промену величине; стрелице горе и доле корачају, Enter пребацује"
     }
   },
   "topic": {

@@ -463,6 +463,17 @@
     "typed_by": {
       "badge": "{agent} terminali üzerinden",
       "title": "{who} tarafından {agent} terminalinde yazıldı"
+    },
+    "clip": {
+      "label": "Kart yüksekliği",
+      "mode": {
+        "titles": "Başlıklar",
+        "rows": "5 satır",
+        "full": "Tam"
+      },
+      "grip_more": "Daha fazlasını göstermek için sürükleyin veya Enter tuşuna basın",
+      "grip_less": "Daha azını göstermek için sürükleyin veya Enter tuşuna basın",
+      "grip_hint": "Yeniden boyutlandırmak için sürükleyin; yukarı ve aşağı ok adım atar, Enter değiştirir"
     }
   },
   "topic": {

@@ -463,6 +463,17 @@
     "typed_by": {
       "badge": "per {agent} terminalą",
       "title": "{who} parašė tai {agent} terminale"
+    },
+    "clip": {
+      "label": "Kortelės aukštis",
+      "mode": {
+        "titles": "Pavadinimai",
+        "rows": "5 eilutės",
+        "full": "Visas"
+      },
+      "grip_more": "Tempkite arba paspauskite Enter, kad rodytumėte daugiau",
+      "grip_less": "Tempkite arba paspauskite Enter, kad rodytumėte mažiau",
+      "grip_hint": "Tempkite dydžiui keisti; rodyklės aukštyn ir žemyn žingsniuoja, Enter perjungia"
     }
   },
   "topic": {

@@ -463,6 +463,17 @@
     "typed_by": {
       "badge": "przez terminal {agent}",
       "title": "Wpisane przez {who} w terminalu {agent}"
+    },
+    "clip": {
+      "label": "Wysokość karty",
+      "mode": {
+        "titles": "Tytuły",
+        "rows": "5 wierszy",
+        "full": "Pełny"
+      },
+      "grip_more": "Przeciągnij lub naciśnij Enter, aby pokazać więcej",
+      "grip_less": "Przeciągnij lub naciśnij Enter, aby pokazać mniej",
+      "grip_hint": "Przeciągnij, aby zmienić rozmiar; strzałki góra i dół przesuwają, Enter przełącza"
     }
   },
   "topic": {

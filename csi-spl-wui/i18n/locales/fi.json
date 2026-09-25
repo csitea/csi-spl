@@ -463,6 +463,17 @@
     "typed_by": {
       "badge": "{agent}-päätteen kautta",
       "title": "{who} kirjoitti tämän {agent}-päätteessä"
+    },
+    "clip": {
+      "label": "Kortin korkeus",
+      "mode": {
+        "titles": "Otsikot",
+        "rows": "5 riviä",
+        "full": "Koko"
+      },
+      "grip_more": "Vedä tai paina Enter näyttääksesi lisää",
+      "grip_less": "Vedä tai paina Enter näyttääksesi vähemmän",
+      "grip_hint": "Vedä koon muuttamiseksi; nuoli ylös tai alas siirtää, Enter vaihtaa"
     }
   },
   "topic": {

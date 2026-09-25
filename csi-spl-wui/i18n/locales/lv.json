@@ -463,6 +463,17 @@
     "typed_by": {
       "badge": "caur {agent} termināli",
       "title": "{who} to ierakstīja {agent} terminālī"
+    },
+    "clip": {
+      "label": "Kartītes augstums",
+      "mode": {
+        "titles": "Virsraksti",
+        "rows": "5 rindas",
+        "full": "Pilns"
+      },
+      "grip_more": "Velciet vai nospiediet Enter, lai rādītu vairāk",
+      "grip_less": "Velciet vai nospiediet Enter, lai rādītu mazāk",
+      "grip_hint": "Velciet, lai mainītu izmēru; augšup un lejup bultiņas soļo, Enter pārslēdz"
     }
   },
   "topic": {

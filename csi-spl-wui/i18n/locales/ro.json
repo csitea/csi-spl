@@ -463,6 +463,17 @@
     "typed_by": {
       "badge": "prin terminalul {agent}",
       "title": "Tastat de {who} în terminalul {agent}"
+    },
+    "clip": {
+      "label": "Înălțimea cardului",
+      "mode": {
+        "titles": "Titluri",
+        "rows": "5 rânduri",
+        "full": "Complet"
+      },
+      "grip_more": "Trageți sau apăsați Enter ca să vedeți mai mult",
+      "grip_less": "Trageți sau apăsați Enter ca să vedeți mai puțin",
+      "grip_hint": "Trageți pentru redimensionare; săgețile sus și jos pășesc, Enter comută"
     }
   },
   "topic": {

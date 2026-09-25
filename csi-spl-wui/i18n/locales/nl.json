@@ -463,6 +463,17 @@
     "typed_by": {
       "badge": "via terminal van {agent}",
       "title": "Getypt door {who} in de terminal van {agent}"
+    },
+    "clip": {
+      "label": "Kaarthoogte",
+      "mode": {
+        "titles": "Titels",
+        "rows": "5 rijen",
+        "full": "Volledig"
+      },
+      "grip_more": "Sleep of druk op Enter om meer te tonen",
+      "grip_less": "Sleep of druk op Enter om minder te tonen",
+      "grip_hint": "Sleep om de grootte te wijzigen; pijl omhoog of omlaag stapt, Enter wisselt"
     }
   },
   "topic": {

@@ -463,6 +463,17 @@
     "typed_by": {
       "badge": "vía terminal de {agent}",
       "title": "Escrito por {who} en el terminal de {agent}"
+    },
+    "clip": {
+      "label": "Altura de la tarjeta",
+      "mode": {
+        "titles": "Títulos",
+        "rows": "5 filas",
+        "full": "Completo"
+      },
+      "grip_more": "Arrastre o pulse Intro para ver más",
+      "grip_less": "Arrastre o pulse Intro para ver menos",
+      "grip_hint": "Arrastre para cambiar el tamaño; las flechas arriba y abajo avanzan, Intro alterna"
     }
   },
   "topic": {

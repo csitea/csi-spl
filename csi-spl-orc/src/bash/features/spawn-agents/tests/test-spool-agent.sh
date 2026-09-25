@@ -29,6 +29,9 @@ t_sandbox
 AGENT="$T_SCRIPTS/spool-agent.sh"
 
 export HOME="$T_TMP/home"; mkdir -p "$HOME"
+# Hermetic: an agent session running this suite carries its OWN pane ids,
+# agent id and CLI paths (measured: CLAUDE_BIN set in a claude session of the agent user).
+unset CLE_TMUX_PANE GRK_TMUX_PANE AGY_TMUX_PANE MCP_BOT_AGENT_ID SPOOL_AGENT_ID CLAUDE_BIN GROK_BIN AGY_BIN
 export SPOOL_BOX_USER="$(id -un)"
 export SPOOL_AGENT_DESK_ROOT="$T_TMP/desk"
 export SPOOL_AGENT_REGISTRY_DIR="$T_TMP/reg"
@@ -162,6 +165,10 @@ has "9. a non-JSON hooks.json is replaced by a loadable one" "hook --agy stop" "
 eq "9. ... and kept aside, never deleted" "not json" "$(cat "$HOME/.gemini/config/hooks.json.bad."* 2>/dev/null)"
 : >"$T_TMP/envs/run.log"
 agy_run --env dev --as AGY-61 agy >/dev/null 2>&1
+# a parent claude session's CLE_TMUX_PANE must not steal the agy pane
+env -u TMUX_PANE CLE_TMUX_PANE="$P1" AGY_TMUX_PANE="$P3" SPOOL_AGENT_RUN="$T_TMP/run-env" SPOOL_AGENT_DESK_ROOT="$T_TMP/envs/%ENV%" \
+  bash "$AGENT" --dry-run --as AGY-61 agy >"$T_TMP/pane.out" 2>&1
+has "9. AGY_TMUX_PANE wins over an inherited CLE_TMUX_PANE" "window: $P3 " "$(cat "$T_TMP/pane.out")"
 hasnt "9. CONTROL: --env dev does not seat prd" "ENV=prd" "$(cat "$T_TMP/envs/run.log")"
 
 t_done

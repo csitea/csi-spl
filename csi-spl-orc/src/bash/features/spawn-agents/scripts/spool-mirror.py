@@ -331,7 +331,13 @@ def prompt_keep(agent_dir, text, now, agent_lines=None):
             _unlink(typed.pop(n))
             dropped += 1
         elif n and MACHINE_LINE.match(n):
-            if agent_lines is None:
+            # A doorbell naming a HUMAN sender is the desk announcing that
+            # human's own message (a pane not on the alternate screen gets the
+            # poke line, not the words): it is already in the DM, and a human
+            # never types a doorbell. Measured 2026-09-25 18:55Z (CLE-34973):
+            # AGY-3493 posted "[typed by HUM-10] : 'SPOOL AGY-3493: task from
+            # HUM-10 ..." back to the owner.
+            if agent_lines is None or line_sender(n).startswith(("HUM-", "GST-")):
                 dropped += 1
             else:
                 agent_lines.append(n)

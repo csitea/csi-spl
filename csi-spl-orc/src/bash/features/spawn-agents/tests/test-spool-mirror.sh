@@ -10,7 +10,8 @@
 #      same words typed later by a person ARE posted. CONTROL: a prompt with no
 #      marker is posted, prefixed [terminal]
 #   4. a line another agent typed (: 'SPOOL …, : 'INBOX …, INBOX <ID>:) is
-#      posted AS typed by that agent, never with a human's --typed-by
+#      posted AS typed by that agent, never with a human's --typed-by; one
+#      naming a HUMAN sender is the desk echoing that human's message: dropped
 #   5. an answer is posted once per session: the same text again is skipped
 #   6. the topic: the peer file (the human's last DM) wins; else the mirror's
 #      own topic; else none, and the minted one is remembered
@@ -135,6 +136,9 @@ hasnt "4. ... with no human --typed-by" "--typed-by" "$(last_send)"
 post prompt ": 'INBOX CLE-7: read and act on /var/tmp/m/CLE-7/inbox/20260101T000000Z--CLE-001--brief.md'" d2 >/dev/null
 eq "4. the shell-inert INBOX doorbell names its sender (file name)" "[typed by CLE-001] : 'INBOX CLE-7: read and act on /var/tmp/m/CLE-7/inbox/20260101T000000Z--CLE-001--brief.md'" "$(body_of_last)"
 hasnt "4. ... with no human --typed-by" "--typed-by" "$(last_send)"
+n4b=$(nsends)
+post prompt ": 'SPOOL CLE-7: task from HUM-10 task 4335f075 msg x :: do the thing :: run: spool recv --as CLE-7'" d2b >/dev/null
+eq "4. a doorbell announcing a HUMAN's message is not echoed back (it is in the DM)" "$n4b" "$(nsends)"
 post prompt "INBOX CLE-7: new message" d3 >/dev/null
 eq "4. an unattributable doorbell reads 'typed by an agent'" "[typed by an agent] INBOX CLE-7: new message" "$(body_of_last)"
 rm -f "$SEAT/operator"

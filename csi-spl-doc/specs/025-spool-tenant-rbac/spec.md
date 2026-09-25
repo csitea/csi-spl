@@ -113,10 +113,10 @@ point, through one small cached authorizer (`internal/rbac`).
 
 | id | allows | enforced at (today) |
 |---|---|---|
-| `threads.read` | read roster, channels, threads; open the WUI socket | view door (`/v1/view/*`), `GET /v1/wui/ws` upgrade, channel-create door |
-| `notes.send` | post a note from the WUI (no agent named) | WUI socket `send` |
-| `agents.command` | command an agent: a `kind=task`/`note` send that dispatches through `box-wui` (014) | WUI socket `send` with an agent `to` / `@AGENT` |
-| `channels.manage` | create channels | `POST /v1/channels` |
+| `topics.read` (rdb 0029; seeded as `threads.read` by 0021) | read roster, channels, threads; open the WUI socket | every `humanTenant` door: view (`/v1/view/*`), `GET /v1/wui/ws` upgrade, search, session `GET /v1/files/{id}`, channels, members |
+| `notes.send` | post a note from the WUI (no agent named); edit, delete and react | WUI socket `send`; `PATCH`/`DELETE /v1/messages/{msg_id}` (`hub/edit.go`); `PUT`/`DELETE /v1/messages/{msg_id}/reactions` (`hub/reactions.go`) |
+| `agents.command` | command an agent: a `kind=task`/`note` send that dispatches through `box-wui` (014) | WUI socket `send` with an agent `to` / `@AGENT`; the fan-out of a plain channel post to the channel's agent members (`hub/wui.go`, 64bc9fe) |
+| `channels.manage` | create channels; remove another member from a channel | `POST /v1/channels`; `DELETE /v1/channels/{channel}/members/{human_id}` when the target is not the caller (`hub/channel_members.go`) |
 | `members.invite` | invite and remove members | `POST /v1/members/invites`, `DELETE /v1/members/{human_id}` |
 | `members.roles` | change a member's role | `PUT /v1/members/{human_id}/role` |
 | `billing.manage` | billing, checkout and seats of the tenant | no in-tenant endpoint yet (006 checkout is pre-tenant); M4 seat purchase inside a tenant MUST gate on it (T030, M4 lane) |
@@ -201,18 +201,22 @@ seat like any other membership (009 D-3). Moving it to a bot seat is OQ-6.
   Any lookup error denies (fail closed).
 - **FR-005** Enforcement (a denied check answers `403 forbidden` with the
   missing `permission`, or a socket `error` frame with the same token):
-  view door and WUI socket upgrade `threads.read`; WUI note `notes.send`;
-  WUI dispatch `agents.command`; channel create `channels.manage`; invite and
-  remove `members.invite`; role change `members.roles`; plus §3.4.
+  view door and WUI socket upgrade `topics.read`; WUI note, edit, delete and
+  reaction `notes.send`; WUI dispatch and channel agent fan-out
+  `agents.command`; channel create and removing another channel member
+  `channels.manage`; invite and remove `members.invite`; role change
+  `members.roles`; plus §3.4. The §3.4 escalation refusals answer
+  `403 forbidden` WITHOUT a `permission` field (`hub/rbac.go`
+  `writeForbidden(w, "", …)`): no single permission would lift them.
   With `SPOOL_HUB_VIEW_DOOR=off` (lde only) a request without a session keeps
   today's guest behaviour; a request WITH a member session is still checked.
-- **FR-006** `GET /v1/view/me` answers the caller's `{human_id, role,
-  tenant_owner, permissions[]}` for the Host tenant (door-off guest: all
+- **FR-006** `GET /v1/view/me` answers the caller's `{human_id, tenant_id,
+  role, tenant_owner, permissions[]}` for the Host tenant (door-off guest: all
   `null`). The WUI reads it.
 - **FR-007** Members API (session, Host tenant, JSON, CORS like channels):
   `POST /v1/members/invites {email, role?, ttl_hours?}` → 201;
   `PUT /v1/members/{human_id}/role {role, from_role?}` → 200;
-  `DELETE /v1/members/{human_id}` → 204. Errors: 400 `bad_role` / `bad_json`,
+  `DELETE /v1/members/{human_id}` → 204. Errors: 400 `bad_role` / `bad_json` / `bad_email`,
   403 `forbidden`, 404 `not_found`, 409 `last_owner` / `role_changed`.
 - **FR-008** The WUI shows the signed-in member's role in the user menu and
   hides what the role may not do: the channel "+" without `channels.manage`.
@@ -222,7 +226,8 @@ seat like any other membership (009 D-3). Moving it to a bot seat is OQ-6.
   the hub check is the control.
 - **FR-009** Operator tooling carries the roles: `spool hub-invite --role`,
   `do_spl_hub_invite INVITE_ROLE=`, `do_spl_tenant_member_role MEMBER_ROLE= /
-  FROM_ROLE=` accept the six ids (and the two legacy names).
+  FROM_ROLE=` accept the eight ids of §3.2 (`rbac.RoleIDs`, orc `SPL_ROLE_IDS`) and the two
+  legacy names.
 - **FR-010** In-tenant billing (M4 seat purchase, plan changes) gates on
   `billing.manage` through the same authorizer (M4 lane).
 - **FR-011** Last admin (§1.2): a change that would leave the tenant with no
@@ -304,10 +309,11 @@ for the personal account after 0021. Evidence: `tasks.md` T040-T041.
 - **Several roles per member**: a `tenant_member_roles (tenant_id, human_id,
   role_id)` table; the authorizer takes the union. `tenant_memberships.role`
   becomes the primary role.
-- **Role editor in the WUI** (members page, invite dialog with a role
-  picker) on top of FR-007.
+- **Custom-role editor in the WUI**. The per-member role picker and the
+  invite dialog's role picker already shipped (FR-012, 71ffc23,
+  `UserEditPane.vue`).
 - **Scoped grants** (per channel / per box), and an **audit trail** table the
   `audit.read` permission reads.
 - **Agent-side permissions** (a box agent's allowed kinds / targets).
 
-<!-- version: 1.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T15:05:00Z -->
+<!-- version: 1.2.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:30:00Z -->

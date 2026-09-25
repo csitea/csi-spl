@@ -100,7 +100,8 @@ function summarise(list) {
   const dupes = [...seen].filter(([, n]) => n > 1).map(([k, n]) => ({ req: k.replace(/^(\w+ )https?:\/\/[^/]+/, '$1'), n }))
   const api = list.filter((r) => kindOf(r) === 'api' && r.method !== 'OPTIONS').map((r) => `${r.at}..${r.end ?? '?'}ms ${r.method} ${strip(r.url)} ${r.status}`)
   const preflights = list.filter((r) => r.method === 'OPTIONS').length
-  return { requests: list.length, totalKB: Math.round(list.reduce((a, r) => a + r.bytes, 0) / 102.4) / 10, by, preflights, dupes, api }
+  const waterfall = list.map((r) => `${r.at}..${r.end ?? '?'}ms ${kindOf(r)}${r.cached ? '(cache)' : ''} ${r.method} ${strip(r.url)} ${r.status}`)
+  return { requests: list.length, totalKB: Math.round(list.reduce((a, r) => a + r.bytes, 0) / 102.4) / 10, by, preflights, dupes, api, waterfall }
 }
 const vitals = (p) => p.evaluate(() => new Promise((resolve) => {
   const nav = performance.getEntriesByType('navigation')[0] || {}
@@ -135,7 +136,11 @@ try {
 
   // sign in (not measured)
   await p.goto(BASE + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=' + encodeURIComponent('/lobby'), { waitUntil: 'domcontentloaded', timeout: 60000 })
-  await p.waitForSelector('[data-test=native-auth-email]')
+  const form = await p.waitForSelector('[data-test=native-auth-email]', { timeout: 45000 }).catch(() => null)
+  if (!form) {
+    await p.screenshot({ path: `${OUT}/login-missing.png` }).catch(() => {})
+    throw new Error('no sign-in form at ' + p.url())
+  }
   await p.type('[data-test=native-auth-email]', email)
   await p.type('[data-test=native-auth-password]', pw)
   await p.click('[data-test=native-auth-submit]')

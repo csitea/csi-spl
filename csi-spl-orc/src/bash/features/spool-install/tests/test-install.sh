@@ -13,7 +13,8 @@
 #   5. the hooks: merged into ~/.claude/settings.json, other keys kept, an
 #      older spool-mirror entry replaced (one per event), a backup, idempotent
 #   6. the seat: pinned -> seated; pending -> exit 0 and the one hub-pin line;
-#      a failure -> exit 5; the action gets ENV/TENANT/BOX/HUB/ROOT_KEY_JSON
+#      a failure -> exit 5; the action gets ENV/TENANT/BOX/HUB/ROOT_KEY_JSON;
+#      a bare re-run uses the saved config, an option / the env win over it
 #   7. a re-run: agy present -> `agy update`, no installer fetched; the
 #      toolchain found in tools is not downloaded again
 #   8. a foreign ~/.local/bin/spool-agent is never overwritten (exit 7)
@@ -154,6 +155,7 @@ cat >"$S" <<'EOF'
 EOF
 rm -f "$S.bak-spool-install"
 ARGS=(--cli none --no-seat); inst; inst; rc=$?
+grep -q 'WARN clone this repo' "$T/o" && fail "5. this checkout (or its main tree) read as a misplaced clone" || pass "5. no clone-path warning for this checkout"
 [[ $rc -eq 0 && "$(n_mirror Stop)" == 1 && "$(n_mirror UserPromptSubmit)" == 1 ]] && ! grep -q /old/clone "$S" &&
   pass "5. an older spool-mirror entry is replaced, one per event after two runs" || fail "5. merge: rc $rc $(cat "$S")"
 grep -q 'keep-me' "$S" && grep -q 'echo other-hook' "$S" && pass "5. other keys and hooks are kept" || fail "5. lost keys: $(cat "$S")"
@@ -166,7 +168,7 @@ cmp -s "$S" "$T/s.before" && pass "5. --no-hooks leaves settings.json alone" || 
 
 # --- 6. the seat ------------------------------------------------------------------------------------------
 : >"$T/net.log"
-ARGS=(--cli none --tenant t1 --box box-ext); inst SPOOL_HUB_URL=$HUB ROOT_KEY_JSON=/k/t1.json; rc=$?
+ARGS=(--cli none --env dev --tenant t1 --box box-ext); inst SPOOL_HUB_URL=$HUB ROOT_KEY_JSON=/k/t1.json; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'seated: box-ext is pinned in t1 (dev)' "$T/o" && pass "6. a pinned box reads seated" || fail "6. pinned: rc $rc $(cat "$T/o")"
 grep -q "^pin ENV=dev TENANT_ID=t1 DESK_BOX=box-ext SPOOL_HUB_URL=$HUB ROOT_KEY_JSON=/k/t1.json DRY_RUN=0 yq=$TOOLS/bin/yq" "$T/seat.log" &&
   pass "6. do_spl_desk_pin gets env/tenant/box/hub/root key and the tools PATH" || fail "6. seat env: $(cat "$T/seat.log")"
@@ -177,6 +179,12 @@ inst SPOOL_HUB_URL=$HUB STUB_SEAT=pending; rc=$?
 inst SPOOL_HUB_URL=$HUB STUB_SEAT=down; rc=$?
 [[ $rc -eq 5 ]] && grep -q 'hub down' "$T/o" && pass "6. a failed seat exits 5 with the reason" || fail "6. failure: rc $rc $(cat "$T/o")"
 grep -qx "SPOOL_HUB_URL=$HUB" "$CFG" && pass "6. the config records the hub" || fail "6. hub not in config"
+: >"$T/seat.log"
+ARGS=(--cli none); inst; rc=$?
+[[ $rc -eq 0 ]] && grep -q "^pin ENV=dev TENANT_ID=t1 DESK_BOX=box-ext SPOOL_HUB_URL=$HUB " "$T/seat.log" && grep -q 'seated: box-ext' "$T/o" &&
+  pass "6. a bare re-run seats with the saved tenant / box / hub" || fail "6. bare re-run: rc $rc $(cat "$T/o" "$T/seat.log")"
+ARGS=(--cli none --tenant t2); inst SPOOL_BOX=box-env; grep -q "TENANT_ID=t2 DESK_BOX=box-env " "$T/seat.log" &&
+  pass "6. an option and the environment win over the saved config" || fail "6. precedence: $(tail -1 "$T/seat.log")"
 
 # --- 7. re-run -------------------------------------------------------------------------------------------------
 : >"$T/net.log"; : >"$T/vendor.log"

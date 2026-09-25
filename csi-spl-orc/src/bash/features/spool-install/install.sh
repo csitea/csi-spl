@@ -32,7 +32,8 @@
 #   --update          `git pull --ff-only` this checkout first (clean checkouts only)
 #   --dry-run         print the plan; change nothing
 #
-# Env: SPOOL_HUB_URL - required unless --no-seat; the hub URL, no default
+# Env: SPOOL_HUB_URL - required unless --no-seat; the hub URL, no default.
+#      A re-run takes env / tenant / box / hub from ~/.config/spool-agent/env
 #      ROOT_KEY_JSON - the tenant's 0600 create JSON: pin the box yourself
 #      SPOOL_INSTALL_PREFIX - default $HOME/.local (bin/ and share/ under it)
 #      SPOOL_INSTALL_URL_CLAUDE / _GROK / _AGY / _GO / _YQ - a download mirror
@@ -52,7 +53,15 @@ MOD="$ROOT/$(basename "$ORC" | sed 's/-orc$//')-api/src/go/spool-hub-api"
 BUILD_SH="${SPOOL_INSTALL_BUILD:-$MOD/../../bash/build.sh}"
 MARK="# spool-agent shim, written by spool-install (specs/037)"
 
-CLIS="claude" ENVN="${SPOOL_ENV:-dev}" TENANT="${SPOOL_TENANT:-}" BOX="${SPOOL_BOX:-}"
+# A re-run needs no arguments: what the last run saved in the config is the
+# default (an option, then the environment, win over it) - so "re-run
+# install.sh" after the admin pinned the box is literally that.
+CFG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/spool-agent/env"
+cfg_get() { [ -r "$CFG_FILE" ] && ( . "$CFG_FILE" >/dev/null 2>&1; eval "printf '%s' \"\${$1:-}\"" ); }
+CLIS="claude" ENVN="${SPOOL_ENV:-$(cfg_get SPOOL_ENV)}" TENANT="${SPOOL_TENANT:-$(cfg_get SPOOL_TENANT)}" BOX="${SPOOL_BOX:-$(cfg_get SPOOL_BOX)}"
+ENVN="${ENVN:-dev}"
+[ -n "${SPOOL_HUB_URL:-}" ] || SPOOL_HUB_URL="$(cfg_get SPOOL_HUB_URL)"
+[ -n "$SPOOL_HUB_URL" ] || unset SPOOL_HUB_URL
 SEAT=1 HOOKS=1 UPDATE=0 DRY=0
 say()  { echo "spool-install: $*" >&2; }
 die()  { local rc="$1"; shift; say "FATAL $*"; exit "$rc"; }
@@ -95,7 +104,7 @@ PREFIX="${SPOOL_INSTALL_PREFIX:-$HOME/.local}"
 BIN="$PREFIX/bin"
 DATA="$PREFIX/share/spool-agent"
 TOOLS="$DATA/tools"
-CFG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/spool-agent"
+CFG_DIR="${CFG_FILE%/*}"
 case "$(uname -m)" in
   x86_64|amd64) ARCH=amd64 ;; aarch64|arm64) ARCH=arm64 ;; *) ARCH="$(uname -m)" ;;
 esac
@@ -110,9 +119,11 @@ if [ "${#missing[@]}" -gt 0 ]; then
 fi
 # ./run derives ORG from the clone's parent dir (<base>/<org>/<org>-<app>):
 # a clone at ~/src/csi-spl reads ORG=src and its actions mis-resolve.
-_app="$(basename "$ROOT")"
-[ "$(basename "$(dirname "$ROOT")")" = "${_app%%-*}" ] ||
-  say "WARN clone this repo as <dir>/${_app%%-*}/$_app (it is at $ROOT): ./run takes the org from the parent dir"
+# A linked worktree counts as its main checkout, as resolve-oap reads it.
+_main="$(cd "$ROOT" && cd "$(git rev-parse --git-common-dir 2>/dev/null || echo .git)/.." 2>/dev/null && pwd)"
+_main="${_main:-$ROOT}" _app="$(basename "${_main:-$ROOT}")"
+[ "$(basename "$(dirname "$_main")")" = "${_app%%-*}" ] ||
+  say "WARN clone this repo as <dir>/${_app%%-*}/$_app (it is at $_main): ./run takes the org from the parent dir"
 command -v tmux >/dev/null 2>&1 || say "WARN tmux is missing: spool-agent seats an agent only inside tmux (sudo apt-get install -y tmux)"
 
 fetch() {  # URL OUT
@@ -216,7 +227,7 @@ else
 fi
 
 # ── 4. the spool-agent command and its config ────────────────────────────────
-SHIM="$BIN/spool-agent" CFG="$CFG_DIR/env"
+SHIM="$BIN/spool-agent" CFG="$CFG_FILE"
 if [ -e "$SHIM" ] && ! grep -qF "$MARK" "$SHIM" 2>/dev/null; then
   die 7 "$SHIM exists and is not a spool-install shim: move it away and re-run"
 fi

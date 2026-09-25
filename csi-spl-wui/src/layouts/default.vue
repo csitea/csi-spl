@@ -58,6 +58,9 @@
          Appearance (session claim `diagnostics_enabled`); for everyone else the v-if inside contributes
          no markup at all. <ClientOnly> keeps it out of the prerendered bundle. -->
     <ClientOnly>
+      <ErrorSnackbar />
+    </ClientOnly>
+    <ClientOnly>
       <DebugPanel />
     </ClientOnly>
   </div>
@@ -68,6 +71,7 @@ import { usePaneFocus } from '~/stores/pane-focus'
 /* which pane the reader selected last decides where the Omnibox line goes */
 const paneFocus = usePaneFocus()
 import DebugPanel from '@/components/common/DebugPanel.vue'
+import ErrorSnackbar from '@/components/common/ErrorSnackbar.vue'
 import TopBar from '@/components/TopBar.vue'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'

@@ -854,3 +854,86 @@ declare module '~/utils/file-preview.mjs' {
   export function sharedPreview(fileId: string, load: () => Promise<string>): Promise<string>
   export function resetSharedPreviews(): void
 }
+
+declare module '~/utils/error-snackbar.mjs' {
+  export const SNACKBAR_MAX: number
+  export const SNACKBAR_TTL_MS: number
+  export const SNACKBAR_COALESCE_MS: number
+  export const SNACKBAR_TICK_MS: number
+  export const SNACKBAR_REPLAY_MS: number
+  export const SNACKBAR_TEXT_CHARS: number
+  export function snackbarText(rec: unknown): string
+  export interface SnackbarItem {
+    id: string
+    errorId: string
+    text: string
+    source: string
+    status: number
+    count: number
+    at: string
+    expiresAt: number
+    held: boolean
+  }
+  export function createSnackbarQueue(opts?: {
+    now?: () => number
+    max?: number
+    ttlMs?: number
+    coalesceMs?: number
+  }): {
+    push(rec: unknown): string
+    dismiss(id: string): void
+    hold(id: string, on: boolean): void
+    tick(): boolean
+    clear(): void
+    subscribe(fn: (items: SnackbarItem[]) => void): () => void
+    items(): SnackbarItem[]
+  }
+  export function bindSnackbarToJournal(
+    queue: ReturnType<typeof createSnackbarQueue>,
+    journal: {
+      getErrors: () => unknown[]
+      subscribeErrors: (fn: (r: unknown[]) => void) => () => void
+      now?: () => number
+    },
+  ): () => void
+}
+
+declare module '~/utils/event-log.mjs' {
+  export const EVENT_FIELDS: Readonly<Record<string, string>>
+  export const EVENT_CAPS: Readonly<Record<string, number>>
+  export const EVENT_BATCH_MAX: number
+  export const EVENT_QUEUE_MAX: number
+  export const EVENT_FLUSH_DELAY_MS: number
+  export const EVENT_RETRY_MAX: number
+  export function toEventPayload(rec: unknown): Record<string, unknown> | null
+  export interface EventsClientResult {
+    ok: boolean
+    status: number
+    data: unknown
+    error: string
+    retryAfter: number
+  }
+  export function createEventsClient(opts?: { fetchFn?: typeof fetch, base?: string }): {
+    list(opts?: { limit?: number, before?: number }): Promise<EventsClientResult>
+    add(events: unknown[]): Promise<EventsClientResult>
+    clear(): Promise<EventsClientResult>
+  }
+  export function createEventShipper(opts: {
+    client: ReturnType<typeof createEventsClient>
+    session: () => string
+    setTimer?: (fn: () => void, ms: number) => unknown
+    clearTimer?: (h: unknown) => void
+    delayMs?: number
+  }): {
+    note(rec: unknown): void
+    flush(): Promise<number>
+    sessionChanged(): void
+    stop(): void
+    size(): number
+  }
+  export function bindShipperToJournal(
+    shipper: { note: (r: unknown) => void },
+    journal: { getErrors: () => unknown[], subscribeErrors: (fn: (r: unknown[]) => void) => () => void },
+  ): () => void
+  export function eventsErrorKey(error: string): string
+}

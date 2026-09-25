@@ -52,6 +52,19 @@ start with no agents).
 - **FR-005** `do_spl_desk_post` (ENV, TENANT_ID, DESK_AGENT, DESK_CHANNEL,
   DESK_BODY, optional DESK_KIND, DESK_FILES, DESK_BOX) posts from a seated desk
   agent, beside `do_spl_desk_reply`. Dry run unless `DRY_RUN=0`.
+- **FR-006** `do_spl_channel_agent_add` (ENV, TENANT_ID, CHANNEL, AGENTS,
+  optional CHANNEL_CREATE, AGENT_BOX, MEMBER_EMAIL, MEMBER_PW_FILE) makes agents
+  members of a channel the way the web UI does (`POST /v1/channels/{ch}/agents`
+  as a signed-in member; the hub's own rule decides who may). It is how an agent
+  becomes able to post under FR-004 without a browser.
+
+## Security note
+
+A channel post is typed into every other member agent's prompt (028 poke),
+exactly like a human's post. FR-004 limits who may post to members, but a
+member agent's post is still text another agent reads as instructions: the
+prompt-injection question across the fleet is owned by the security lane
+(CLE-34988, X3) and is open here.
 
 ## Not in scope
 

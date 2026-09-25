@@ -31,7 +31,7 @@
 
 - [x] T040 `utils/font-size.mjs` + `composables/useFontSize.ts` + `plugins/font-size.client.ts` + `components/FontSizeSetting.vue` on `/settings/appearance`; `--font-root` in `assets/css/base.css`; 67 `font-size: Npx` converted to rem. Check: `node --test tests/unit/font-size.test.mjs` (clamp at 1 and 5, ± steps, default, persistence, CSS contract, px audit); `nuxi typecheck` exit 0 (a planted TS2322 in `FontSizeSetting.vue` -> exit 2, reverted).
 - [x] T041 i18n: `settings.font_size.*` (5 keys) in all 19 locales; `i18n-parity` green.
-- [ ] T042 Live proof `tests/e2e/font-size-live.proof.mjs` on dev and prd after the deploy.
+- [x] T042 Live proof `tests/e2e/font-size-live.proof.mjs` on dev and prd (2026-09-25 ~12:25Z, WUI build `9b66287` ⊇ `7f08678`, n=1 per env; dev t1 member, prd tenant `e2e`): 22/22 PASS each — fresh browser opens at level 3 (body 18px, was 16px), radios 1..5 give body 14/16/18/20/22 px, − and + move one level and are disabled at 1 and 5, level 2 survives a reload and holds on /lobby.
 - [ ] T043 Convert the px font sizes left in other lanes' files (`MessageBody.vue` 1, `ChannelSidebar.vue` 7, `ChannelPropertiesDialog.vue` 2) once those lanes land; drop them from the allow-list in `font-size.test.mjs`.
 
 <!-- last-edit: 2026-09-19T16:40:00Z -->

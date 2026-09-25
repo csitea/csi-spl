@@ -247,6 +247,6 @@ describe('wiring (no view polls in live mode)', () => {
   it('every store send is optimistic under the msg_id it sends', () => {
     assert.match(read('stores/live.ts'), /msg_id: msgId/)
     assert.match(read('stores/channel.ts'), /frame\.msg_id = newId\(\)/)
-    assert.match(read('components/TopicPane.vue'), /pendingHere/)
+    assert.match(read('components/TopicPane.vue'), /rowsForRightPane/)
   })
 })

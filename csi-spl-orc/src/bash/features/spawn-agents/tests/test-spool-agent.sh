@@ -14,6 +14,8 @@
 #   4. the window is renamed to carry the id (keeping the box tag), the desk
 #      action is called with that id, and the CLI runs with MCP_BOT_AGENT_ID
 #   5. a window that already carries the id is not renamed
+#   7. hooks already in ~/.claude/settings.json are not added a second time
+#   6. the CLI binary is found in ~/.local/bin when a sudo hop reset PATH
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
 t_sandbox
@@ -88,5 +90,23 @@ hasnt "3. --no-mirror: no --settings" "--settings" "$(tail -1 "$T_TMP/cli.log")"
 check "3. --no-mirror writes the seat's .no-mirror" test -e "$SPOOL_AGENT_DESK_ROOT/spool/CLE-60/.no-mirror"
 TMUX_PANE="$P2" bash "$AGENT" --as CLE-60 claude >/dev/null 2>&1
 check "3. mirroring again removes .no-mirror" test ! -e "$SPOOL_AGENT_DESK_ROOT/spool/CLE-60/.no-mirror"
+
+# --- 6. the binary is found without PATH ----------------------------------------------------------
+mkdir -p "$HOME/.local/bin"; cp "$T_TMP/bin/claude" "$HOME/.local/bin/claude"
+: >"$T_TMP/cli.log"
+TMUX_PANE="$P2" PATH="/usr/bin:/bin" bash "$AGENT" --as CLE-60 claude >/dev/null 2>&1
+has "6. with claude off PATH, ~/.local/bin/claude runs" "claude id=CLE-60" "$(cat "$T_TMP/cli.log")"
+rm -f "$HOME/.local/bin/claude"
+TMUX_PANE="$P2" PATH="/usr/bin:/bin" bash "$AGENT" --as CLE-60 claude >/dev/null 2>&1
+eq "6. no binary anywhere: exit 2 before any seat" 2 "$?"
+
+# --- 7. hooks already in the user's settings are not doubled --------------------------------------
+mkdir -p "$HOME/.claude"; printf '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"python3 /x/spool-mirror.py hook"}]}]}}' >"$HOME/.claude/settings.json"
+rm -f "$HOME/.grok/hooks/spool-mirror.json"; : >"$T_TMP/cli.log"
+TMUX_PANE="$P2" bash "$AGENT" --as CLE-60 claude >/dev/null 2>&1
+hasnt "7. user settings carry the hook: claude gets no --settings" "--settings" "$(cat "$T_TMP/cli.log")"
+TMUX_PANE="$P1" bash "$AGENT" --as GRK-951 grok >/dev/null 2>&1
+check "7. ... and grok gets no ~/.grok/hooks file" test ! -e "$HOME/.grok/hooks/spool-mirror.json"
+rm -f "$HOME/.claude/settings.json"
 
 t_done

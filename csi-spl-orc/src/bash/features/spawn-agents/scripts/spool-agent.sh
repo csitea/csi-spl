@@ -13,6 +13,8 @@
 #   4. the mirror hooks for THIS session: claude gets `--settings <file>`, so
 #      it does not depend on anyone's ~/.claude/settings.json; grok has no
 #      such flag and reads ~/.grok/hooks/, which gets one idempotent file.
+#      Neither is added when ~/.claude/settings.json already carries the
+#      mirror hook (both CLIs read that file): one copy per session.
 #      Every prompt typed here and every final answer is posted into the id's
 #      DM with the human (spool-mirror.py); the web UI's own words never echo
 #   5. MCP_BOT_AGENT_ID / SPOOL_AGENT_ID exported, then the CLI
@@ -39,7 +41,7 @@
 # window is retired by the desk reconcile, and the web UI leg types into the
 # pane. Outside tmux it refuses (exit 3) unless --no-seat.
 #
-# Exit codes before the CLI starts: 2 usage, 3 not in tmux, 4 no id, 5 seat
+# Exit codes before the CLI starts: 2 usage or no CLI binary, 3 not in tmux, 4 no id, 5 seat
 # failed. Afterwards: the CLI's own (exec), or with --backfill its exit code.
 set -uo pipefail
 
@@ -158,10 +160,24 @@ EOF_PY
 
 SESSION_ID=""
 [ "$BACKFILL" = 1 ] && SESSION_ID="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+# Hooks already in the user's ~/.claude/settings.json (claude AND grok read
+# it) are not added a second time: two copies fire twice per prompt, and when
+# they run different checkouts of spool-mirror.py the dedup of one cannot see
+# the other (measured: two posts per prompt, in two topics).
+USER_HOOKS=0
+grep -q 'spool-mirror\.py' "${SPOOL_AGENT_USER_SETTINGS:-$HOME/.claude/settings.json}" 2>/dev/null && USER_HOOKS=1
 USE_SETTINGS=0
-[ "$MIRROR" = 1 ] && [ "$KIND" = claude ] && USE_SETTINGS=1
+[ "$MIRROR" = 1 ] && [ "$KIND" = claude ] && [ "$USER_HOOKS" = 0 ] && USE_SETTINGS=1
+# The CLI binary: CLAUDE_BIN / GROK_BIN, else PATH, else ~/.local/bin/<cli>
+# (where both installers put it; a sudo hop resets PATH and loses it).
+bin_var="$(printf '%s_BIN' "$KIND" | tr '[:lower:]' '[:upper:]')"
+CLI_BIN="${!bin_var:-}"
+[ -n "$CLI_BIN" ] || CLI_BIN="$(command -v "$CLI" 2>/dev/null || true)"
+[ -n "$CLI_BIN" ] || { [ -x "$HOME/.local/bin/$CLI" ] && CLI_BIN="$HOME/.local/bin/$CLI"; }
+if [ -z "$CLI_BIN" ] && [ "$DRY" = 0 ]; then say "cannot find the $CLI binary (set $bin_var)"; exit 2; fi
+CLI_BIN="${CLI_BIN:-$CLI}"
 build_argv() {
-  ARGV=("$CLI")
+  ARGV=("$CLI_BIN")
   [ "$USE_SETTINGS" = 1 ] && ARGV+=(--settings "$HOOKS_JSON")
   [ -n "$SESSION_ID" ] && ARGV+=(--session-id "$SESSION_ID")
   ARGV+=("$@")
@@ -174,8 +190,9 @@ if [ "$DRY" = 1 ]; then
   echo "window: ${PANE:-none} '${WNAME}'${NEWNAME:+ -> rename to '$NEWNAME'}"
   if [ "$SEAT" = 1 ]; then echo "seat: $RUN -a do_spl_desk_up ENV=$ENVN TENANT_ID=$TENANT DESK_BOX=$BOX DESK_AGENT=$ID (as $BOX_USER)"; else echo "seat: skipped"; fi
   echo "mirror: $([ "$MIRROR" = 1 ] && echo on || echo off)"
-  [ "$MIRROR" = 1 ] && [ "$KIND" = claude ] && echo "hooks: $HOOKS_JSON"
-  [ "$MIRROR" = 1 ] && [ "$KIND" = grok ] && echo "hooks: $GROK_HOOK"
+  if [ "$MIRROR" = 1 ] && [ "$USER_HOOKS" = 1 ]; then echo "hooks: already in ~/.claude/settings.json (not added again)"
+  elif [ "$MIRROR" = 1 ] && [ "$KIND" = claude ]; then echo "hooks: $HOOKS_JSON"
+  elif [ "$MIRROR" = 1 ]; then echo "hooks: $GROK_HOOK"; fi
   [ "$BACKFILL" = 1 ] && echo "backfill: session $SESSION_ID on exit"
   printf 'argv:'; printf ' %q' "${ARGV[@]}"; echo
   exit 0
@@ -197,7 +214,7 @@ elif as_box test -e "$SEAT_ROOT/spool/$ID/.no-mirror"; then
   as_box rm -f "$SEAT_ROOT/spool/$ID/.no-mirror" 2>/dev/null
 fi
 
-if [ "$MIRROR" = 1 ]; then
+if [ "$MIRROR" = 1 ] && [ "$USER_HOOKS" = 0 ]; then
   if [ "$KIND" = claude ]; then
     mkdir -p "$HOOKS_DIR" && hooks_json >"$HOOKS_JSON.tmp.$$" && mv -f "$HOOKS_JSON.tmp.$$" "$HOOKS_JSON" ||
       { say "WARN cannot write $HOOKS_JSON: this session is not mirrored"; USE_SETTINGS=0; build_argv "$@"; }

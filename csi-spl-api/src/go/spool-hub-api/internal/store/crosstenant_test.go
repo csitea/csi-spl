@@ -81,7 +81,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.CreateChannel(ctx, Channel{TenantID: s.tenant, ChannelID: s.channelID, Name: "c" + s.marker[:12], CreatedBy: "CLE-01", CreatedAt: now}); err != nil { // channels
 		t.Fatal(err)
 	}
-	if err := pg.SetSubscriptions(ctx, s.tenant, "box-a", []string{"CLE-01"}, []string{s.channelID}, now); err != nil { // channel_subscriptions
+	if err := pg.InviteChannelAgent(ctx, s.tenant, s.channelID, "box-a", "CLE-01", now); err != nil { // channel_subscriptions
 		t.Fatal(err)
 	}
 	hum, err := pg.Admit(ctx, Identity{Provider: "google", Subject: "sub-" + s.tenant, Email: s.tenant + "@example.com", Name: "FirstName LastName"},

@@ -163,8 +163,9 @@ func TestStoreChannels(t *testing.T) {
 			if m, err := s.ChannelMembers(ctx, tid, "tasks"); err != nil || len(m) != 0 {
 				t.Fatalf("tasks members after announce: %v %+v", err, m)
 			}
-			if m, err := s.ChannelMembers(ctx, tid, "releases"); err != nil || len(m["box-b"]) != 2 {
-				t.Fatalf("releases members: %v %+v", err, m)
+			// CLE-34986: nor a created one - naming a channel seats nobody.
+			if m, err := s.ChannelMembers(ctx, tid, "releases"); err != nil || len(m) != 0 {
+				t.Fatalf("releases members after announce: %v %+v", err, m)
 			}
 			if err := s.InviteChannelAgent(ctx, tid, "tasks", "box-b", "CLE-07", now); err != nil {
 				t.Fatal(err)
@@ -179,12 +180,12 @@ func TestStoreChannels(t *testing.T) {
 			if m, _ := s.ChannelMembers(ctx, tid, "lobby"); len(m) != 0 {
 				t.Fatalf("lobby members = roster, want none: %+v", m)
 			}
-			// replace: box-b drops releases
-			if err := s.SetSubscriptions(ctx, tid, "box-b", []string{"CLE-07"}, []string{"tasks"}, now); err != nil {
+			// a second announce still seats nobody
+			if err := s.SetSubscriptions(ctx, tid, "box-b", []string{"CLE-07"}, []string{"releases"}, now); err != nil {
 				t.Fatal(err)
 			}
 			if m, _ := s.ChannelMembers(ctx, tid, "releases"); len(m) != 0 {
-				t.Fatalf("subscriptions not replaced: %+v", m)
+				t.Fatalf("announce seated an agent: %+v", m)
 			}
 
 			// messages: two #tasks posts, one DM topic, a child topic, an expired #alerts

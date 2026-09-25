@@ -108,29 +108,15 @@ func (s *Memory) ChannelKnown(_ context.Context, tenant, id string) (bool, error
 	return ok, nil
 }
 
-func (s *Memory) SetSubscriptions(_ context.Context, tenant, box string, agents, channels []string, _ time.Time) error {
+// SetSubscriptions records one box announce.
+//
+// CLE-34986: an announce seats nobody (see the Postgres store); it only
+// clears what an older announce seated.
+func (s *Memory) SetSubscriptions(_ context.Context, tenant, box string, _, _ []string, _ time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ch.init()
-	m := map[string][]string{}
-	for _, c := range channels {
-		if IsDefaultChannel(c) {
-			continue
-		}
-		if _, ok := s.ch.rows[[2]string{tenant, c}]; !ok {
-			continue
-		}
-		a := make([]string, 0, len(agents))
-		for _, agent := range agents {
-			if _, out := s.ch.removed[[4]string{tenant, c, box, agent}]; out {
-				continue
-			}
-			a = append(a, agent)
-		}
-		sort.Strings(a)
-		m[c] = a
-	}
-	s.ch.subs[[2]string{tenant, box}] = m
+	delete(s.ch.subs, [2]string{tenant, box})
 	return nil
 }
 

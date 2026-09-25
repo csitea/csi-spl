@@ -124,11 +124,12 @@ type Channels interface {
 	SetMembersOpenInvite(ctx context.Context, tenantID, channelID string, open bool) error
 	// ChannelKnown: a default channel or a created one of the tenant.
 	ChannelKnown(ctx context.Context, tenantID, channelID string) (bool, error)
-	// SetSubscriptions replaces the box's announce subscriptions: every agent
-	// × every known created channel in channels. Unknown ids and the default
-	// channels are skipped: an announce never puts an agent in #lobby, #tasks
-	// or #alerts (owner decision 2026-09-25, channels-v1 §7.4). Rows a member
-	// invited (origin invite) or removed (origin removed) stay.
+	// SetSubscriptions takes one box announce. It seats NO agent in any
+	// channel (CLE-34986): the default ones never took announce seats (owner
+	// decision 2026-09-25, channels-v1 §7.4) and every created channel is
+	// members-only, joined by invite alone, so a box cannot name its way into
+	// a private channel. It clears the rows an older hub seated by announce;
+	// rows a member invited (origin invite) or removed (origin removed) stay.
 	SetSubscriptions(ctx context.Context, tenantID, boxID string, agents, channels []string, now time.Time) error
 	// InviteChannelAgent records one agent on one box as a member of the
 	// channel, a default channel included. ErrConflict on an invalid id.

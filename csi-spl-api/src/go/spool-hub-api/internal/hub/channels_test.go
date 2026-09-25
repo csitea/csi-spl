@@ -544,11 +544,12 @@ func TestWUIPresence(t *testing.T) {
 	}
 }
 
-// The real box client: SPOOL_CHANNELS reaches the hub in hello, and a post in
-// #releases lands in the inbox of EVERY member the box hosts (owner rule
-// 2026-09-22), v:1 unchanged. Control: a channel this box did not join
-// reaches nobody - the fan-out follows membership, not the body. A default
-// channel in SPOOL_CHANNELS joins nothing (owner decision 2026-09-25).
+// The real box client: a post in #releases lands in the inbox of EVERY member
+// the box hosts (owner rule 2026-09-22), v:1 unchanged. Control: a channel
+// this box did not join reaches nobody - the fan-out follows membership, not
+// the body. SPOOL_CHANNELS in the hello joins NOTHING: not a default channel
+// (owner decision 2026-09-25) and not a created one either (CLE-34986 - it
+// let any pinned box seat itself in any private channel); members invite.
 func TestHubclientChannelRecv(t *testing.T) {
 	e := newEnv(t)
 	tid, _ := e.tenant()
@@ -566,8 +567,13 @@ func TestHubclientChannelRecv(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sb.Close()
-	if m, _ := e.st.ChannelMembers(ctx, tid, "releases"); len(m["box-b"]) != 2 {
-		t.Fatalf("SPOOL_CHANNELS not announced: %+v", m)
+	if m, _ := e.st.ChannelMembers(ctx, tid, "releases"); len(m) != 0 {
+		t.Fatalf("SPOOL_CHANNELS seated agents in #releases: %+v", m)
+	}
+	for _, ag := range []string{"CLE-07", "CLE-08"} {
+		if err := e.st.InviteChannelAgent(ctx, tid, "releases", "box-b", ag, time.Now()); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if m, _ := e.st.ChannelMembers(ctx, tid, "tasks"); len(m) != 0 {
 		t.Fatalf("SPOOL_CHANNELS put agents in #tasks: %+v", m)

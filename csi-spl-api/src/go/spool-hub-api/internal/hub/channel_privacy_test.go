@@ -327,11 +327,10 @@ func TestChannelMembersAPI(t *testing.T) {
 	// The channel's agents come from its subscriptions. A HUM-* id is a
 	// human, and box-wui is the browser, so neither is listed. A non-member
 	// still gets 404 and does not see the list.
-	if err := e.st.SetSubscriptions(ctx, tid, "box-a", []string{"CLE-07", "HUM-9"}, []string{"live-proof"}, now); err != nil {
-		t.Fatal(err)
-	}
-	if err := e.st.SetSubscriptions(ctx, tid, "box-wui", []string{"CLE-08"}, []string{"live-proof"}, now); err != nil {
-		t.Fatal(err)
+	for _, x := range [][2]string{{"box-a", "CLE-07"}, {"box-a", "HUM-9"}, {"box-wui", "CLE-08"}} {
+		if err := e.st.InviteChannelAgent(ctx, tid, "live-proof", x[0], x[1], now); err != nil {
+			t.Fatal(err)
+		}
 	}
 	code, out = call(t, e, tid, http.MethodGet, "/v1/channels/live-proof/members", owner, nil)
 	if code != http.StatusOK {

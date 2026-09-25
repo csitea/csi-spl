@@ -83,28 +83,21 @@ func (s *Postgres) ChannelKnown(ctx context.Context, tenant, id string) (bool, e
 	return ok, err
 }
 
-func (s *Postgres) SetSubscriptions(ctx context.Context, tenant, box string, agents, channels []string, now time.Time) error {
-	var chs []string
-	for _, c := range channels {
-		if !IsDefaultChannel(c) && ValidChannelID(c) {
-			chs = append(chs, c)
-		}
-	}
+// SetSubscriptions records one box announce against channel_subscriptions.
+//
+// CLE-34986: an announce no longer SEATS anyone. Every created channel is
+// members-only (rdb 0028) and the box names its own channel list, so seating
+// by announce let any pinned box put an agent into any private channel it
+// could guess the slug of - and from then on receive every post there and
+// post into it. Agents join a created channel only by invite
+// (InviteChannelAgent, specs/038 do_spl_channel_agent_add); the announced
+// list is ignored, and only the rows an older hub seated this way are
+// cleared. Measured before the change: 0 origin='announce' rows on dev and
+// prd (do_spl_db_query, 2026-09-25).
+func (s *Postgres) SetSubscriptions(ctx context.Context, tenant, box string, _, _ []string, _ time.Time) error {
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		// An invited agent stays. Only the set this box announced last time
-		// is replaced by the set it is announcing now.
-		if _, err := tx.Exec(ctx, `DELETE FROM channel_subscriptions
-			WHERE tenant_id = $1 AND box_id = $2 AND origin = 'announce'`, tenant, box); err != nil {
-			return err
-		}
-		if len(chs) == 0 || len(agents) == 0 {
-			return nil
-		}
-		_, err := tx.Exec(ctx, `INSERT INTO channel_subscriptions (tenant_id, channel_id, agent_id, box_id, subscribed_at)
-			SELECT $1, c.channel_id, a, $2, $5
-			FROM channels c CROSS JOIN unnest($4::text[]) AS a
-			WHERE c.tenant_id = $1 AND c.channel_id = ANY($3::text[])
-			ON CONFLICT DO NOTHING`, tenant, box, chs, agents, now)
+		_, err := tx.Exec(ctx, `DELETE FROM channel_subscriptions
+			WHERE tenant_id = $1 AND box_id = $2 AND origin = 'announce'`, tenant, box)
 		return err
 	})
 }

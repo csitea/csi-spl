@@ -20,8 +20,8 @@ import (
 
 // rbacEnv: the store-backed authorizer (no rbac.Fixed), humans named by the
 // SessionID seam but seated as real memberships with real roles.
-func rbacEnv(t *testing.T) *env {
-	return newEnv(t, func(o *hub.Options) {
+func rbacEnv(t *testing.T, mut ...func(*hub.Options)) *env {
+	return newEnv(t, append([]func(*hub.Options){func(o *hub.Options) {
 		o.ViewDoor = hub.ViewDoorOff
 		o.LobbyTaskID = lobby
 		o.ViewCORSOrigins = []string{wuiOrigin}
@@ -33,7 +33,7 @@ func rbacEnv(t *testing.T) *env {
 			}
 			return "", errors.New("no session")
 		}
-	})
+	}}, mut...)...)
 }
 
 // seat admits a fresh human to tid with role through an operator invite.

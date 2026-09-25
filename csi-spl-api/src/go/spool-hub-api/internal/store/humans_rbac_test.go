@@ -89,12 +89,33 @@ func TestTenantRolesAndLastOwner(t *testing.T) {
 			if r, _ := h.MemberRole(ctx, own, tid); r != rbac.BizOwner {
 				t.Fatalf("last owner changed anyway: %q", r)
 			}
-			// A second owner frees the first.
+			// Last admin (CLE-34969): dev is the only members.invite holder, so
+			// it cannot move to a role without it (CONTROL: nothing changed).
+			if err := h.SetMemberRole(ctx, tid, dev, rbac.BizOwner, ""); !errors.Is(err, ErrLastAdmin) {
+				t.Fatalf("last admin demoted: %v", err)
+			}
+			if err := h.RemoveMember(ctx, tid, dev); !errors.Is(err, ErrLastAdmin) {
+				t.Fatalf("last admin removed: %v", err)
+			}
+			if r, _ := h.MemberRole(ctx, dev, tid); r != rbac.Admin {
+				t.Fatalf("last admin changed anyway: %q", r)
+			}
+			// A second admin frees the first; a second owner frees the first owner.
+			if err := h.SetMemberRole(ctx, tid, tst, rbac.Admin, ""); err != nil {
+				t.Fatal(err)
+			}
 			if err := h.SetMemberRole(ctx, tid, dev, rbac.BizOwner, ""); err != nil {
 				t.Fatal(err)
 			}
 			if err := h.SetMemberRole(ctx, tid, own, rbac.Developer, ""); err != nil {
 				t.Fatalf("demote with a second owner: %v", err)
+			}
+			// tst is now the last admin: removal waits for another.
+			if err := h.RemoveMember(ctx, tid, tst); !errors.Is(err, ErrLastAdmin) {
+				t.Fatalf("last admin removed: %v", err)
+			}
+			if err := h.SetMemberRole(ctx, tid, own, rbac.Admin, ""); err != nil {
+				t.Fatal(err)
 			}
 			if err := h.RemoveMember(ctx, tid, tst); err != nil {
 				t.Fatal(err)

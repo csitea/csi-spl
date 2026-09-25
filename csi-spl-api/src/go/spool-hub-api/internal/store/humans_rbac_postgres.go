@@ -58,6 +58,49 @@ func ownersLeftTx(ctx context.Context, tx pgx.Tx, tenant, humanID string) (int, 
 	return n, err
 }
 
+// grantsTx reports whether role grants perm.
+func grantsTx(ctx context.Context, tx pgx.Tx, role, perm string) (bool, error) {
+	var ok bool
+	err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM rbac_role_permissions
+		WHERE role_id = $1 AND permission_id = $2)`, role, perm).Scan(&ok)
+	return ok, err
+}
+
+// adminsLeftTx counts the other enabled members whose role grants
+// members.invite (the last-admin guard; memberTx holds the tenant lock).
+func adminsLeftTx(ctx context.Context, tx pgx.Tx, tenant, humanID string) (int, error) {
+	var n int
+	err := tx.QueryRow(ctx, `SELECT count(*) FROM tenant_memberships m
+		JOIN rbac_role_permissions g ON g.role_id = m.role AND g.permission_id = $3
+		JOIN humans h ON h.human_id = m.human_id
+		WHERE m.tenant_id = $1 AND m.human_id <> $2 AND h.disabled_at IS NULL`,
+		tenant, humanID, rbac.MembersInvite).Scan(&n)
+	return n, err
+}
+
+// lastAdminTx is ErrLastAdmin when the member's role cur grants
+// members.invite, next (the new role, "" = removal) does not, and no other
+// enabled member keeps it.
+func lastAdminTx(ctx context.Context, tx pgx.Tx, tenant, humanID, cur, next string) error {
+	was, err := grantsTx(ctx, tx, cur, rbac.MembersInvite)
+	if err != nil || !was {
+		return err
+	}
+	if next != "" {
+		if still, err := grantsTx(ctx, tx, next, rbac.MembersInvite); err != nil || still {
+			return err
+		}
+	}
+	n, err := adminsLeftTx(ctx, tx, tenant, humanID)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrLastAdmin
+	}
+	return nil
+}
+
 func (s *Postgres) SetMemberRole(ctx context.Context, tenant, humanID, role, from string) error {
 	role, err := normalizeRole(role, "")
 	if err != nil {
@@ -87,6 +130,9 @@ func (s *Postgres) SetMemberRole(ctx context.Context, tenant, humanID, role, fro
 				return ErrLastOwner
 			}
 		}
+		if err := lastAdminTx(ctx, tx, tenant, humanID, cur, role); err != nil {
+			return err
+		}
 		_, err = tx.Exec(ctx, `UPDATE tenant_memberships SET role = $3 WHERE tenant_id = $1 AND human_id = $2`,
 			tenant, humanID, role)
 		return err
@@ -95,7 +141,7 @@ func (s *Postgres) SetMemberRole(ctx context.Context, tenant, humanID, role, fro
 
 func (s *Postgres) RemoveMember(ctx context.Context, tenant, humanID string) error {
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		_, owner, err := memberTx(ctx, tx, tenant, humanID)
+		cur, owner, err := memberTx(ctx, tx, tenant, humanID)
 		if err != nil {
 			return err
 		}
@@ -105,6 +151,9 @@ func (s *Postgres) RemoveMember(ctx context.Context, tenant, humanID string) err
 			} else if n == 0 {
 				return ErrLastOwner
 			}
+		}
+		if err := lastAdminTx(ctx, tx, tenant, humanID, cur, ""); err != nil {
+			return err
 		}
 		_, err = tx.Exec(ctx, `DELETE FROM tenant_memberships WHERE tenant_id = $1 AND human_id = $2`, tenant, humanID)
 		return err

@@ -16,7 +16,10 @@ type memHuman struct {
 	disabled    bool
 }
 
-type memMember struct{ role, admittedBy string }
+type memMember struct {
+	role, admittedBy string
+	since            time.Time // tenant_memberships.created_at
+}
 
 // memIdent is one human_identities row: which human the (provider, subject)
 // belongs to, and the address the provider asserted. verified mirrors the
@@ -32,6 +35,7 @@ type memInvite struct {
 	accepted  bool
 	mailedAt  *time.Time // rdb 0019 (FR-016)
 	mailCount int
+	createdAt time.Time // tenant_invites.created_at
 }
 
 // memHumans is Memory's copy of the 0006 tables; zero value is empty.
@@ -119,9 +123,9 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 		default:
 			if i, ok := h.invites[[2]string{tenant, id.Email}]; ok && id.Email != "" && !i.accepted && now.Before(i.ExpiresAt) {
 				inv = i
-				grant = &memMember{role: i.Role, admittedBy: i.InvitedBy}
+				grant = &memMember{role: i.Role, admittedBy: i.InvitedBy, since: now}
 			} else if p.BootstrapOwner && h.memberCount(tenant) == 0 {
-				grant = &memMember{role: RoleTenantOwner, admittedBy: AdmittedBootstrap}
+				grant = &memMember{role: RoleTenantOwner, admittedBy: AdmittedBootstrap, since: now}
 			} else {
 				return "", ErrNotAdmitted
 			}
@@ -173,7 +177,7 @@ func (s *Memory) MemberRole(_ context.Context, humanID, tenant string) (string, 
 	return m.role, nil
 }
 
-func (s *Memory) PutInvite(_ context.Context, in Invite, _ time.Time) error {
+func (s *Memory) PutInvite(_ context.Context, in Invite, now time.Time) error {
 	if err := normalizeInvite(&in); err != nil {
 		return err
 	}
@@ -187,7 +191,7 @@ func (s *Memory) PutInvite(_ context.Context, in Invite, _ time.Time) error {
 		return ErrNotFound
 	}
 	// A re-invite resets the mail count, never mailed_at (rdb 0019).
-	ni := &memInvite{Invite: in}
+	ni := &memInvite{Invite: in, createdAt: now}
 	if old, ok := s.hum.invites[[2]string{in.TenantID, in.Email}]; ok {
 		ni.mailedAt = old.mailedAt
 	}

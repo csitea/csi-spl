@@ -55,6 +55,30 @@ func (s *Memory) memOwnersLeft(tenant, except string) int {
 	return n
 }
 
+// memAdminsLeft counts the other enabled members of tenant whose role grants
+// members.invite (the last-admin guard). Caller holds s.mu.
+func (s *Memory) memAdminsLeft(tenant, except string) int {
+	roles, n := memRoles(), 0
+	for k, m := range s.hum.members {
+		if k[0] != tenant || k[1] == except || !grants(roles[m.role], rbac.MembersInvite) {
+			continue
+		}
+		if hm, ok := s.hum.humans[k[1]]; ok && !hm.disabled {
+			n++
+		}
+	}
+	return n
+}
+
+func grants(r rbac.Role, perm string) bool {
+	for _, p := range r.Perms {
+		if p == perm {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Memory) SetMemberRole(_ context.Context, tenant, humanID, role, from string) error {
 	role, err := normalizeRole(role, "")
 	if err != nil {
@@ -78,6 +102,9 @@ func (s *Memory) SetMemberRole(_ context.Context, tenant, humanID, role, from st
 	if roles[m.role].TenantOwner && !roles[role].TenantOwner && s.memOwnersLeft(tenant, humanID) == 0 {
 		return ErrLastOwner
 	}
+	if grants(roles[m.role], rbac.MembersInvite) && !grants(roles[role], rbac.MembersInvite) && s.memAdminsLeft(tenant, humanID) == 0 {
+		return ErrLastAdmin
+	}
 	m.role = role
 	s.hum.members[k] = m
 	return nil
@@ -94,6 +121,9 @@ func (s *Memory) RemoveMember(_ context.Context, tenant, humanID string) error {
 	}
 	if memRoles()[m.role].TenantOwner && s.memOwnersLeft(tenant, humanID) == 0 {
 		return ErrLastOwner
+	}
+	if grants(memRoles()[m.role], rbac.MembersInvite) && s.memAdminsLeft(tenant, humanID) == 0 {
+		return ErrLastAdmin
 	}
 	delete(s.hum.members, k)
 	return nil

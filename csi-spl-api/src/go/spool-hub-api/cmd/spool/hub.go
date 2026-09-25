@@ -195,6 +195,19 @@ func cmdServe() int {
 	log.Info().Str("rail", pc.Rail()).Strs("methods", pc.Methods()).Bool("fake_pay", pc.FakePayMounted()).
 		Str("card_key_mode", pc.CardKeyMode()).Str("plan_id", pc.PlanID).
 		Int("plan_cents", pc.PlanCents).Str("mail_transport", pmc.Transport).Msg("payment rail")
+	// CLE-34969: the admin's in-app invite mails through the same relay and
+	// invitemail.Send as `spool hub-invite` (010 FR-016).
+	if im, ok := st.(store.InviteMails); ok && pmc.Transport != mail.TransportNone && ac.AppURL != "" {
+		ilog := log.With().Str("component", "invitemail").Logger()
+		sender, delivers := pmc.Sender(log), pmc.Delivers()
+		opts.InviteMail = func(ctx context.Context, tenant, email, locale string) (string, error) {
+			res, err := invitemail.Send(ctx, invitemail.Deps{Store: im, Sender: sender, Delivers: delivers, Log: ilog,
+				AppURL: ac.AppURL, Locale: locale, DefaultLocale: hc.DefaultLocale,
+				Limits: store.InviteMailLimits{MinGap: invitemail.DefaultMinGap, MaxSends: invitemail.DefaultMaxSends}}, tenant, email)
+			return res.Outcome, err
+		}
+	}
+	log.Info().Bool("invite_mail", opts.InviteMail != nil).Msg("members api")
 	srv, err := hub.New(opts)
 	if err != nil {
 		return fail(err)

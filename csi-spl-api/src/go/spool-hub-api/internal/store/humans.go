@@ -51,6 +51,11 @@ var (
 	ErrLastOwner = errors.New("the tenant's last owner cannot be removed or demoted")
 	// ErrRoleChanged: the member no longer holds the expected from-role.
 	ErrRoleChanged = errors.New("the member's role changed")
+	// ErrLastAdmin: the change would leave the tenant with no enabled member
+	// whose role grants members.invite (owner 2026-09-25: only the admin adds
+	// users, so an admin-less tenant could never add one again). Nothing was
+	// written.
+	ErrLastAdmin = errors.New("the tenant's last admin cannot be removed or demoted")
 )
 
 var roleRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)

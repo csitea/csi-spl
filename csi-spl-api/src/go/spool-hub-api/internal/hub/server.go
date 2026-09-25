@@ -104,6 +104,9 @@ type Options struct {
 	// FileUsageTTL: how long a tenant's listed file bytes are trusted by the
 	// upload quota (fileusage.go); 0 = defaultFileUsageTTL. Code only.
 	FileUsageTTL time.Duration
+	// InviteMail mails the invitation after POST /v1/members/invites stored
+	// it (010 FR-016 via invitemail.Send); nil = the invite is stored, no mail.
+	InviteMail InviteMailer
 }
 
 // Server is one hub process.

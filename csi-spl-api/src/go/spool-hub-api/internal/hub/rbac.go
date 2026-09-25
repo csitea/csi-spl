@@ -197,6 +197,8 @@ func writeMemberErr(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not_found", "no such member")
+	case errors.Is(err, store.ErrLastAdmin):
+		writeErr(w, http.StatusConflict, "last_admin", "the tenant's last admin cannot be removed or demoted")
 	case errors.Is(err, store.ErrLastOwner):
 		writeErr(w, http.StatusConflict, "last_owner", "the tenant's last owner cannot be removed or demoted")
 	case errors.Is(err, store.ErrRoleChanged):
@@ -244,9 +246,11 @@ func (s *Server) handleMemberInvite(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "invite not stored")
 	default:
-		s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("role", role).Msg("member.invited")
-		writeJSON(w, http.StatusCreated, map[string]any{"tenant_id": t.ID, "email": strings.ToLower(strings.TrimSpace(body.Email)),
-			"role": role, "invited_by": a.HumanID, "expires_at": rfc(in.ExpiresAt)})
+		email := strings.ToLower(strings.TrimSpace(body.Email))
+		mailed := s.mailInvite(r, t.ID, email)
+		s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("role", role).Str("mail", mailed).Msg("member.invited")
+		writeJSON(w, http.StatusCreated, map[string]any{"tenant_id": t.ID, "email": email,
+			"role": role, "invited_by": a.HumanID, "expires_at": rfc(in.ExpiresAt), "mail": mailed})
 	}
 }
 
@@ -290,7 +294,7 @@ func (s *Server) handleMemberRemove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	target, _, ok := s.targetRole(w, r, h, t, a, roles)
-	if !ok {
+	if !ok || !notSelf(w, a, target) {
 		return
 	}
 	if err := h.RemoveMember(r.Context(), t.ID, target); err != nil {
@@ -313,9 +317,12 @@ func (s *Server) membersPreflight(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) routeMembers(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/me", s.handleViewMe)
+	mux.HandleFunc("GET /v1/members", s.handleMemberList)
 	mux.HandleFunc("POST /v1/members/invites", s.handleMemberInvite)
+	mux.HandleFunc("DELETE /v1/members/invites", s.handleInviteRevoke)
 	mux.HandleFunc("PUT /v1/members/{human_id}/role", s.handleMemberRole)
 	mux.HandleFunc("DELETE /v1/members/{human_id}", s.handleMemberRemove)
+	mux.HandleFunc("OPTIONS /v1/members", s.membersPreflight)
 	mux.HandleFunc("OPTIONS /v1/members/invites", s.membersPreflight)
 	mux.HandleFunc("OPTIONS /v1/members/{human_id}", s.membersPreflight)
 	mux.HandleFunc("OPTIONS /v1/members/{human_id}/role", s.membersPreflight)

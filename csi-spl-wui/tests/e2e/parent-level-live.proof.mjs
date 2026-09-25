@@ -9,19 +9,23 @@
 //            where it was). is_parent = 0. It is drawn only inside the open
 //            topic on the right - never a middle card, never a new topic.
 //
-// Per surface (channel, DM, lobby, topics home), n = 1 each:
+// Per surface (channel, DM, lobby, topics home, t), n = 1 each:
 //   1. pane closed, send L1  -> one new middle card, hub is_parent 1, pane stays closed
 //   2. open the card's topic (replies / row click), send L2 with the left tab
 //      untouched -> hub is_parent 0 on the SAME task_id, L2 in the right pane
 //      only, the middle still shows exactly one card for the task and it reads L1
 //   3. reload -> L2 still absent from the middle, the card still reads L1, and
 //      L2 is present once that topic is opened on the right
+// Surface `t` (T014, FR-ML-011): L1 on the channel, then /t/<task> with the
+// pane closed, send L2 -> it shows in the main column (the topic itself), not
+// in the right pane, hub is_parent 0 on the same task, and back on the channel
+// there is still one card for the task and it reads L1.
 //
 // The middle pane is `.feed-col` outside the right `aside.live-pane`; the
 // right pane's own messages exclude the born-topics stack.
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
-//     [TENANT=t1] [CHANNEL=tasks] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home] \
+//     [TENANT=t1] [CHANNEL=tasks] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home,t] \
 //     [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/parent-level-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -49,7 +53,7 @@ const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 't1'
 const CHANNEL = process.env.CHANNEL || 'tasks'
 const PEER = process.env.PEER || ''
-const SURFACES = (process.env.SURFACES || 'channel,dm,lobby,home').split(',').map((s) => s.trim()).filter(Boolean)
+const SURFACES = (process.env.SURFACES || 'channel,dm,lobby,home,t').split(',').map((s) => s.trim()).filter(Boolean)
 mkdirSync(OUT, { recursive: true })
 
 const res = { base: BASE, at: new Date().toISOString(), tenant: TENANT, steps: [], surfaces: {}, console: [] }
@@ -348,6 +352,53 @@ async function surfaceRun(p, surface) {
   await closePane(p)
 }
 
+/* T014: /t/<task> is the topic in the main column; a line sent there is
+   level 2 of that topic and adds no card on the channel feed. */
+async function topicPageRun(p) {
+  const L1 = `L1 t ${run}`
+  const L2 = `L2 t ${run}`
+  const ev = { L1, L2 }
+  res.surfaces.t = ev
+  const tag = (n) => `t: ${n}`
+
+  await p.goto(BASE + pathFor('channel'), { waitUntil: 'networkidle2' })
+  await sleep(1500)
+  await closePane(p)
+  await send(p, L1)
+  let s = await waitFor(p, (x) => has(x.middle, L1))
+  const l1 = s.middle.filter((m) => m.text.includes(L1))
+  const task = l1.length ? l1[0].task : ''
+  ev.task = task
+  step(tag('1 L1 is one channel card'), l1.length === 1 && !!task, { cards: l1.length, task })
+  if (!task) return
+
+  await p.goto(BASE + '/t/' + encodeURIComponent(task), { waitUntil: 'networkidle2' })
+  await sleep(1500)
+  await closePane(p)
+  await send(p, L2)
+  s = await waitFor(p, (x) => has(x.middle, L2))
+  await sleep(2500) /* let the echo and any re-read land before judging */
+  s = await snap(p)
+  step(tag('2 L2 is in the main column'), has(s.middle, L2), { middle: s.middle.length })
+  step(tag('2 L2 is not in the right pane'), !has(s.right, L2), { paneOpen: s.paneOpen })
+  const hub = res.apiRoot ? await hubRows(p, res.apiRoot, task) : { status: 0 }
+  const h2 = (hub.rows || []).find((r) => r.body.includes(L2))
+  step(tag('2 hub stores L2 on the same task with is_parent 0'), !!h2 && h2.is_parent === 0,
+    { status: hub.status, is_parent: h2 && h2.is_parent, rows: (hub.rows || []).length })
+  await p.screenshot({ path: `${OUT}/t-2-after-L2.png` })
+
+  await p.goto(BASE + pathFor('channel'), { waitUntil: 'networkidle2' })
+  await sleep(2500)
+  await closePane(p)
+  s = await waitFor(p, (x) => cardsFor(x, task).length > 0, 10000)
+  const cards3 = cardsFor(s, task)
+  step(tag('3 channel: L2 is not in the middle'), !has(s.middle, L2), {})
+  step(tag('3 channel: one card for the topic and it reads L1'),
+    cards3.length === 1 && cards3[0].text.includes(L1) && !cards3[0].text.includes(L2),
+    { cards: cards3.map((c) => c.text.slice(0, 120)) })
+  await p.screenshot({ path: `${OUT}/t-3-channel.png` })
+}
+
 const puppeteer = await loadPuppeteer()
 const browser = await puppeteer.launch({
   executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
@@ -368,7 +419,8 @@ try {
   for (const surface of SURFACES) {
     if (surface === 'dm' && !PEER) { step('dm: PEER is set', false, { hint: 'PEER=<agent>@<box>' }); continue }
     try {
-      await surfaceRun(p, surface)
+      if (surface === 't') await topicPageRun(p)
+      else await surfaceRun(p, surface)
     } catch (e) {
       step(`${surface}: ran to the end`, false, { error: String(e).slice(0, 300) })
       await p.screenshot({ path: `${OUT}/${surface}-error.png` }).catch(() => {})

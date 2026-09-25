@@ -173,6 +173,7 @@ describe('topic list live (FR-011)', () => {
     assert.equal(next[0].subject, 'hello')
     assert.equal(next[0].count, 1)
     assert.equal(bumpTopic(rows, { msg_id: 'x', task_id: 'kid', parent_task_id: 'a', received_at: '2026-09-19T10:05:00Z' }), rows)
+    assert.equal(bumpTopic(rows, { msg_id: 'z', task_id: 'new', is_parent: 0, body: 'reply', received_at: '2026-09-19T10:06:00Z' }), rows)
     /* the send and its echo are one message */
     const again = bumpTopic(next, { msg_id: 'n', task_id: 'c', body: 'hello', received_at: '2026-09-19T10:04:00Z' })
     assert.equal(again[0].count, 1)

@@ -437,11 +437,13 @@ func (c *wuiConn) wants(taskID, channel string, p parties, members map[string]bo
 	return false
 }
 
-// uiParent reads the browser is_parent flag. Absent is 0 (a box send never
-// sets it; a reply in the open topics pane sends 0). Any other number is refused.
+// uiParent reads the browser is_parent flag. Absent is 1: a box send and an
+// older browser are not replies, and is_parent 0 is hidden from the middle
+// pane. An explicit 0 is a reply written with the topics pane open. Any other
+// number is refused.
 func uiParent(v *int) (int, bool) {
 	if v == nil {
-		return 0, true
+		return 1, true
 	}
 	if *v != 0 && *v != 1 {
 		return 0, false

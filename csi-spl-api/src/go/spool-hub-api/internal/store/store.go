@@ -95,9 +95,9 @@ type Message struct {
 	Channel  string // "" = NULL = a DM (channels-v1 §0); normalized (general → lobby)
 	// ParentTaskID is the hub-envelope parent task ("" = NULL = a root topic).
 	ParentTaskID string
-	// IsParent is the browser's panel flag (rdb 0034). 1 when the UI sent
-	// the message with the topics tab unselected or the topic pane closed.
-	// 0 when both were true, and for every send that did not set the flag.
+	// IsParent is the browser's panel flag (rdb 0034, 0035). 0 is a reply
+	// written while the topics pane was open; the middle pane never shows it.
+	// 1 is every other message, including a box or agent send.
 	IsParent   int
 	TS         time.Time
 	FromBox    string

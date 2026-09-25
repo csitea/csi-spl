@@ -11,7 +11,7 @@ func TestUIParent(t *testing.T) {
 		want int
 		ok   bool
 	}{
-		{"absent", nil, 0, true},
+		{"absent", nil, 1, true},
 		{"reply", &zero, 0, true},
 		{"parent", &one, 1, true},
 		{"other", &two, 0, false},

@@ -391,19 +391,25 @@ function earlierByTs(a, b) {
   return String(a.msg_id || '').localeCompare(String(b.msg_id || '')) <= 0 ? a : b
 }
 
+/** A reply written with the topics pane open. It stays in that pane. */
+function hiddenFromMiddle(m) {
+  return !!m && m.is_parent === 0
+}
+
 /**
  * Channel / DM pane 2: one card per task_id. The card is the earliest message
  * by ts with no parent_task_id. A later message with that task_id is a reply
  * even with no parent_task_id. A message with parent_task_id is a reply of
- * that parent and is never its own card. Replies only move last_ts and count,
- * so the card's author and body stay the starter's.
+ * that parent and is never its own card. A message with is_parent 0 is a
+ * reply from the open topics pane and is never a card. Replies only move
+ * last_ts and count, so the card's author and body stay the starter's.
  */
 function topicStarterCards(messages) {
   const list = []
   for (const m of messages || []) if (m) list.push(m)
   const starterOf = new Map()
   for (const m of list) {
-    if (m.parent_task_id || !m.task_id) continue
+    if (hiddenFromMiddle(m) || m.parent_task_id || !m.task_id) continue
     const prev = starterOf.get(m.task_id)
     starterOf.set(m.task_id, prev ? earlierByTs(prev, m) : m)
   }
@@ -431,6 +437,7 @@ function topicStarterCards(messages) {
     out.push(card)
   }
   for (const m of list) {
+    if (hiddenFromMiddle(m)) continue
     if (!m.task_id && !m.parent_task_id) out.push(m)
   }
   return out

@@ -553,7 +553,7 @@ func (s *Server) missingFile(ctx context.Context, tenant string, files []msg.Att
 
 // commit stores the envelope and queues or pushes it. Caller has validated.
 func (s *Server) commit(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message) (string, error) {
-	r, err := s.commitRow(ctx, tenant, env, m, 0)
+	r, err := s.commitRow(ctx, tenant, env, m, 1)
 	return r.delivery, err
 }
 

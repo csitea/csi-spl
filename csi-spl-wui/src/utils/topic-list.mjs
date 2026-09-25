@@ -27,6 +27,9 @@ export function bumpTopic(topics, m) {
   const ts = String(m.received_at || m.ts || '')
   const who = [party(m, 'from', 'from_box'), party(m, 'to', 'to_box')].filter((p) => p && !/^ALL-0\b/.test(p))
   const i = list.findIndex((t) => t.task_id === id)
+  /* is_parent 0 is a reply from the open topics pane. It may bump a topic
+     already on the list. It never starts a row of its own. */
+  if (m.is_parent === 0 && i < 0) return list
   let row
   if (i >= 0) {
     const t = list[i]

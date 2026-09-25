@@ -98,6 +98,16 @@ describe('channelView: pane 2 is the topic starter (owner 2026-09-23)', () => {
     const v = channelView(mergeLive([msg('t1', 1), msg('t2', 2)], msg('t9', 40)))
     assert.deepEqual(ids(v.rows), ['t9-40', 't2-2', 't1-1'])
   })
+
+  it('is_parent 0 never becomes a middle-pane row', () => {
+    const starter = msg('t1', 1, { is_parent: 1 })
+    const reply = msg('t1', 20, { is_parent: 0 })
+    const alone = msg('t9', 30, { is_parent: 0 })
+    const v = channelView([starter, reply, alone, msg('t2', 10)]).rows
+    assert.deepEqual(ids(v), ['t1-1', 't2-10'])
+    assert.equal(v.find((r) => r.task_id === 't1').body, 't1 1')
+    assert.equal(v.some((r) => r.is_parent === 0), false)
+  })
 })
 
 describe('orderChannels: the sidebar channel list, newest first', () => {

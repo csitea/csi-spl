@@ -3,7 +3,7 @@
      UiDialog owns focus, Escape and the backdrop. -->
 <template>
   <UiDialog :open="open" :title="t('sidebar.row_menu.properties')" size="md" @update:open="emit('update:open', $event)">
-    <div class="channel-properties" data-testid="channel-properties">
+    <div ref="root" class="channel-properties" data-testid="channel-properties">
       <div class="channel-properties__tabs" role="tablist">
         <button
           v-for="item in tabs"
@@ -226,7 +226,33 @@ const createdByLive = ref('')
 const agents = ref<{ id: string, box: string }[]>([])
 const addingPeople = ref(false)
 const addingAgents = ref(false)
+const root = ref<HTMLElement | null>(null)
 let ticket = 0
+let sizedFor = 0
+
+// The dialog otherwise hugs its content. The floor is twice that height,
+// and never more than the backdrop leaves after its padding.
+function applyDialogMinHeight() {
+  const panel = root.value?.closest('.ui-dialog')
+  if (!(panel instanceof HTMLElement)) return
+  panel.style.minHeight = ''
+  const natural = panel.getBoundingClientRect().height
+  const backdrop = panel.parentElement
+  const available = backdrop ? backdrop.clientHeight - 32 : 0
+  const min = available > 0 ? Math.min(natural * 2, available) : natural * 2
+  panel.style.minHeight = `${Math.round(min)}px`
+}
+
+watch(() => props.open, (isOpen) => {
+  if (!isOpen) sizedFor = 0
+})
+
+watch(loaded, async (isLoaded) => {
+  if (!props.open || !isLoaded || sizedFor === ticket) return
+  sizedFor = ticket
+  await nextTick()
+  applyDialogMinHeight()
+})
 
 const nameText = computed(() => aboutChannelName({ name: props.name, channel_id: props.channelId }))
 const descriptionText = computed(() => aboutChannelDescription({ description: props.description }))

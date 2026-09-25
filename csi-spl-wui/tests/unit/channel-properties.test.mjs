@@ -139,6 +139,8 @@ describe('the Properties dialog', () => {
     assert.match(peoplePanel, /data-testid="channel-people-add"/)
     assert.match(peoplePanel, /data-testid="channel-agent-add"/)
     assert.match(peoplePanel, /name="minus"/)
+    assert.match(dialog, /natural \* 2/)
+    assert.match(dialog, /minHeight/)
     const dir = join(WUI, 'i18n/locales')
     const files = readdirSync(dir).filter((f) => f.endsWith('.json'))
     assert.equal(files.length, 19)

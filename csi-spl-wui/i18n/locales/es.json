@@ -414,6 +414,12 @@
       "failed_not_editable": "Este mensaje se envió desde un box y no se puede editar.",
       "failed_not_found": "Ese mensaje ya no existe.",
       "failed_too_large": "Demasiado largo para guardarlo. Adjúntalo como archivo."
+    },
+    "msg_menu": {
+      "label": "Menú del mensaje",
+      "edit": "Editar",
+      "copy_link": "Copiar enlace",
+      "delete": "Eliminar"
     }
   },
   "topic": {

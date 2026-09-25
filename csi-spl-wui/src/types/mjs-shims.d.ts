@@ -316,6 +316,11 @@ declare module '~/utils/pane-focus.mjs' {
   export function paneTakesLine(opts?: { paneOpen?: boolean, lastPane?: string }): boolean
 }
 
+declare module '~/utils/msg-menu.mjs' {
+  export function msgMenuItems(opts?: { editable?: boolean }): { id: 'edit' | 'copy' | 'delete', icon: 'pencil' | 'copy' | 'trash', labelKey: string }[]
+  export function messageLink(msg: unknown, pathFor: (path: string) => string): string
+}
+
 declare module '~/utils/msg-edit.mjs' {
   import type { SpoolMessage } from './spool'
   /** what the editor holds while it is open: the draft, and what Escape restores */

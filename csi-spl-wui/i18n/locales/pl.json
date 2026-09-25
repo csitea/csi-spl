@@ -414,6 +414,12 @@
       "failed_not_editable": "Ta wiadomość została wysłana z box i nie można jej edytować.",
       "failed_not_found": "Tej wiadomości już nie ma.",
       "failed_too_large": "Zbyt długa, aby ją zapisać. Dołącz ją jako plik."
+    },
+    "msg_menu": {
+      "label": "Menu wiadomości",
+      "edit": "Edytuj",
+      "copy_link": "Kopiuj link",
+      "delete": "Usuń"
     }
   },
   "topic": {

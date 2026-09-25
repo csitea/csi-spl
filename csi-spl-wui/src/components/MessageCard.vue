@@ -16,6 +16,7 @@
     @click="onClick"
     @dblclick="onDblClick"
     @keydown="onKey"
+    @contextmenu="onContextMenu"
   >
     <SpoolAvatar class="avatar" :id="String(msg.from || '')" :box="msg.from_box ? String(msg.from_box) : ''" />
     <div>
@@ -97,6 +98,17 @@
         {{ t('feed.replies', { n: count }, count) }}
       </button>
     </div>
+    <MessageMenu
+      :open="menuOpen"
+      :x="menuPoint.x"
+      :y="menuPoint.y"
+      :editable="!!editable && !editing"
+      @close="closeMenu()"
+      @escape="rowEl?.focus({ preventScroll: true })"
+      @edit="onMenuEdit"
+      @copy="copyMessageLink"
+      @delete="onMenuDelete"
+    />
   </article>
 </template>
 
@@ -116,6 +128,8 @@ import {
   withDraft,
 } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
+import { useMessageMenu } from '~/composables/useMessageMenu'
+import { messageLink } from '~/utils/msg-menu.mjs'
 
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
@@ -199,10 +213,53 @@ function onClick(ev: MouseEvent) {
   emit('open-topic', props.msg)
 }
 
+const MENU_PASS = 'a, button, input, textarea, select'
+
+function onContextMenu(ev: MouseEvent) {
+  const el = ev.target as HTMLElement | null
+  if (el && el.closest && el.closest(MENU_PASS)) return
+  ev.preventDefault()
+  rowEl.value?.focus({ preventScroll: true })
+  openMenuAt(ev.clientX, ev.clientY)
+}
+
+function onMenuEdit() {
+  closeMenu()
+  startEdit()
+}
+
+function onMenuDelete() {
+  closeMenu()
+  void remove()
+}
+
+async function copyMessageLink() {
+  const path = messageLink(props.msg, localePath)
+  if (!path || typeof window === 'undefined') return
+  const url = new URL(path, window.location.origin).href
+  try {
+    await navigator.clipboard.writeText(url)
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = url
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.left = '0'
+    ta.style.top = '0'
+    ta.style.width = '1px'
+    ta.style.height = '1px'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    ta.remove()
+  }
+}
+
 /** A double-click on a row opens the same editor as `e`: a thread line on
-    the right, and (owner, 2026-09-25) a level-1 card in the middle too. The
-    browser has just selected the word under the pointer; that selection is
-    not the human's, so it is cleared before the editor takes the caret. */
+    the right, and a level-1 card in the middle too. The browser has just
+    selected the word under the pointer; that selection is cleared before
+    the editor takes the caret. */
 function onDblClick(ev: MouseEvent) {
   const el = ev.target as HTMLElement | null
   const interactive = Boolean(el && el.closest && el.closest(INTERACTIVE))
@@ -264,6 +321,13 @@ const editHintId = useId()
 const edited = computed(() => isEdited(props.msg))
 const { canEdit, commit, removeMessage } = useMessageEdit()
 const removing = ref(false)
+const localePath = useLocalePath()
+/* The same message can sit in the middle list and the topic pane at once.
+   The menu id has to be this card, not the msg_id, or both menus open. */
+const menuKey = useId()
+const { open: menuOpen, point: menuPoint, openAt: openMenuAt, close: closeMenu } = useMessageMenu(
+  () => menuKey,
+)
 
 const draft = computed({
   get: () => edit.value?.draft ?? '',
@@ -314,6 +378,12 @@ async function remove() {
     editError.value = editFailureKey(e)
   }
 }
+
+onMounted(() => {
+  if (typeof window === 'undefined') return
+  const hash = decodeURIComponent(window.location.hash.replace(/^#/, ''))
+  if (hash && hash === String(props.msg?.msg_id || '')) rowEl.value?.focus({ preventScroll: true })
+})
 
 function startEdit() {
   if (!canEdit(props.msg)) return

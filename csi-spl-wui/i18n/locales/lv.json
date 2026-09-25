@@ -414,6 +414,12 @@
       "failed_not_editable": "Šī ziņa nosūtīta no box, un to nevar rediģēt.",
       "failed_not_found": "Šādas ziņas vairs nav.",
       "failed_too_large": "Pārāk gara, lai saglabātu. Pievienojiet to kā failu."
+    },
+    "msg_menu": {
+      "label": "Ziņas izvēlne",
+      "edit": "Rediģēt",
+      "copy_link": "Kopēt saiti",
+      "delete": "Dzēst"
     }
   },
   "topic": {

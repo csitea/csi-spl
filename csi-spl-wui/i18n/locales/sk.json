@@ -414,6 +414,12 @@
       "failed_not_editable": "Táto správa bola odoslaná z box a nedá sa upraviť.",
       "failed_not_found": "Táto správa už neexistuje.",
       "failed_too_large": "Príliš dlhá na uloženie. Priložte ju ako súbor."
+    },
+    "msg_menu": {
+      "label": "Ponuka správy",
+      "edit": "Upraviť",
+      "copy_link": "Kopírovať odkaz",
+      "delete": "Odstrániť"
     }
   },
   "topic": {

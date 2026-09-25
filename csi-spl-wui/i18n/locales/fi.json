@@ -414,6 +414,12 @@
       "failed_not_editable": "Tämä viesti lähetettiin box'ista, eikä sitä voi muokata.",
       "failed_not_found": "Viestiä ei enää ole.",
       "failed_too_large": "Liian pitkä tallennettavaksi. Liitä se tiedostona."
+    },
+    "msg_menu": {
+      "label": "Viestin valikko",
+      "edit": "Muokkaa",
+      "copy_link": "Kopioi linkki",
+      "delete": "Poista"
     }
   },
   "topic": {

@@ -366,7 +366,22 @@ try {
     reread.ok && reread.body === NEW && Boolean(reread.edited_at),
     { body: reread.body && reread.body.slice(0, 60), edited_at: reread.edited_at, why: reread.why })
 
-  /* ---- 7b. Delete on the focused thread row removes that message ------ */
+  /* ---- 7b. a right-click opens the same kind of menu as a channel row -- */
+  const threadRow = await page.$(`${PANE} article.msg[data-msg-id="${OWN_MSG}"] .msg-body`)
+  if (threadRow) await threadRow.click({ button: 'right' })
+  await sleep(300)
+  const menuIds = await page.$$eval('[data-testid=msg-menu] [role=menuitem]', (els) => els.map((el) => el.getAttribute('data-testid')))
+  ok('right-click opens a menu with edit, copy link, and delete',
+    menuIds.join(',') === 'msg-menu-edit,msg-menu-copy,msg-menu-delete',
+    { menuIds })
+  await page.click('[data-testid=msg-menu-edit]')
+  await sleep(400)
+  seen = await readRow(page, OWN_MSG, PANE)
+  ok('Edit in the right-click menu opens the thread message', seen.editing, { editing: seen.editing })
+  await page.keyboard.press('Escape')
+  await sleep(300)
+
+  /* ---- 7c. Delete on the focused thread row removes that message ------ */
   const deleteFocused = await focusRow(page, OWN_MSG, PANE)
   ok('the edited thread row takes focus for Delete', deleteFocused)
   await page.keyboard.press('Delete')

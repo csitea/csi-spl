@@ -414,6 +414,12 @@
       "failed_not_editable": "This message was sent from a box and cannot be edited.",
       "failed_not_found": "That message is no longer there.",
       "failed_too_large": "Too long to save. Attach it as a file instead."
+    },
+    "msg_menu": {
+      "label": "Message menu",
+      "edit": "Edit",
+      "copy_link": "Copy link",
+      "delete": "Delete"
     }
   },
   "topic": {

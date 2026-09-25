@@ -414,6 +414,12 @@
       "failed_not_editable": "ההודעה נשלחה מ-box ולא ניתן לערוך אותה.",
       "failed_not_found": "ההודעה אינה קיימת עוד.",
       "failed_too_large": "ארוך מדי לשמירה. צרפו אותה כקובץ."
+    },
+    "msg_menu": {
+      "label": "תפריט הודעה",
+      "edit": "עריכה",
+      "copy_link": "העתקת קישור",
+      "delete": "מחיקה"
     }
   },
   "topic": {

@@ -414,6 +414,12 @@
       "failed_not_editable": "Det här meddelandet skickades från en box och kan inte redigeras.",
       "failed_not_found": "Meddelandet finns inte längre.",
       "failed_too_large": "För långt för att sparas. Bifoga det som en fil."
+    },
+    "msg_menu": {
+      "label": "Meddelandemeny",
+      "edit": "Redigera",
+      "copy_link": "Kopiera länk",
+      "delete": "Ta bort"
     }
   },
   "topic": {

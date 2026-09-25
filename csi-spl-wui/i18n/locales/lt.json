@@ -414,6 +414,12 @@
       "failed_not_editable": "Ši žinutė išsiųsta iš box ir jos redaguoti negalima.",
       "failed_not_found": "Tokios žinutės nebėra.",
       "failed_too_large": "Per ilga, kad būtų išsaugota. Pridėkite ją kaip failą."
+    },
+    "msg_menu": {
+      "label": "Žinutės meniu",
+      "edit": "Redaguoti",
+      "copy_link": "Kopijuoti nuorodą",
+      "delete": "Ištrinti"
     }
   },
   "topic": {

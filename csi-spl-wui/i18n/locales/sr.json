@@ -414,6 +414,12 @@
       "failed_not_editable": "Ova poruka je poslata iz box-a i ne može da se izmeni.",
       "failed_not_found": "Te poruke više nema.",
       "failed_too_large": "Predugačka za čuvanje. Priložite je kao datoteku."
+    },
+    "msg_menu": {
+      "label": "Мени поруке",
+      "edit": "Измени",
+      "copy_link": "Копирај везу",
+      "delete": "Обриши"
     }
   },
   "topic": {

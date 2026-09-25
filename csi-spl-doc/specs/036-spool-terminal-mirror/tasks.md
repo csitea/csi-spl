@@ -40,10 +40,9 @@ named) · `[ ]` Planned (`../README.md` §2.3).
 - [x] T041 Implemented (engine `2946445`, overlay `d68b8c0`) — the box
   spawner starts claude / grok through `BOX_AGENT_WRAPPER`.
   Check: engine `tests/test-spawn-wrapper.sh` -> `8 passed, 0 failed`.
-- [~] T042 Partial — takes effect for new spawns once `/opt/csi/csi-spl`
-  carries `spool-agent.sh` (on 2026-09-25 14:25Z that checkout was 24 behind
-  with 22 files of another lane's uncommitted edits; until then the spawner
-  falls back to the plain CLI). An installer for other users: CLE-34966.
+- [x] T042 Implemented (2026-09-25 ~16:50Z) — `/opt/csi/csi-spl` carries
+  `spool-agent.sh`, so the spawner starts claude / grok through it
+  (`BOX_AGENT_WRAPPER`, overlay `d68b8c0`). An installer for other users: 037.
 - [x] T043 Implemented (csi-spl `963234d2`, `50009c82`; engine `f25fe4f`,
   CLE-34980) — agy (antigravity) gets the wrapper: `spool-agent.sh ... agy`
   seats it on every env with the desk (dev,prd), splits the notice strip
@@ -81,6 +80,16 @@ named) · `[ ]` Planned (`../README.md` §2.3).
   the hook took the script's file owner for the box user. Check:
   `test-spool-mirror.sh` -> 65; fleet posting again from 16:58:05Z.
 
+## Phase 3d — Recipient, authorship, agy, speed (FR-013..FR-016)
+
+- [x] T060 Implemented (`680a6211`, `ea35f7c4`) — FR-013 per-env human (desk
+  `mirror-to`: dev HUM-9, prd HUM-10), FR-014 `[typed by <agent>]`, FR-015
+  `hook --agy`, FR-016 parallel seats. Proof dev + prd (tree 680a6211, n=5
+  per env, DB): prompts `typed_by` = the env owner, answers unclaimed, the
+  CLE-001 doorbell `[typed by CLE-001]`. Check: `test-spool-mirror.sh` -> 78,
+  `desk-mirror-actions.tst.sh` PASS.
+- [x] T061 Implemented (`bedcd7f`) — FR-016 box user from the checkout root.
+
 ## Phase 4 — Rollout
 
 - [~] T030 Partial (2026-09-25 13:02Z, owner go "well go than") — the
@@ -97,10 +106,12 @@ named) · `[ ]` Planned (`../README.md` §2.3).
   seat CLE-3496; the other seats kept their state and mute flags). Check:
   `do_spl_desk_mirror_check` -> `sidecar_notify: /opt/csi/csi-spl/…`, `warn: []`,
   12 seats mirroring.
-- [ ] T032 Planned — the ad hoc backfill of 2026-09-25 12:16Z put each
+- [x] T032 Superseded (2026-09-25) — the mirror now follows the DM peer or the
+  desk human per env (FR-013), so adopting the 12:16Z backfill topics is moot.
+  Was: the ad hoc backfill of 2026-09-25 12:16Z put each
   transcript in a new DM topic. Adopt that topic for the mirror without
   re-uploading: `spool-mirror.py remember <seat>/spool/<agent> HUM-9 <task>`
   (as the box user). A seat with no backfill yet runs
   `do_spl_desk_session_upload`, which lands in the mirror's topic by itself.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T17:00:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:05:00Z -->

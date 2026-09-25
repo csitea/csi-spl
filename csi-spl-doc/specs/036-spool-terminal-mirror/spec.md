@@ -141,6 +141,26 @@ Found while mapping this (reported, not fixed here): the hub's `onSend` never
 checks that `m.From` is an agent of the sending box, so any pinned box can
 post as any agent id. FR-010 checks it for `typed_by` sends only.
 
+## Recipient, authorship, agy, speed (2026-09-25, P0 from CLE-001 + owner)
+
+- **FR-013 the human is per env, never a literal.** The mirror posts to the
+  DM peer on THAT env (`.mirror/peer`), else the desk's `<desk>/mirror-to`,
+  else `SPOOL_MIRROR_TO`, else nothing (skipped and logged). Measured before
+  the fix: a hard-coded dev id sent 177 prd posts to a human that does not
+  exist on prd (left in place: deleting hub rows needs the owner).
+- **FR-014 a line another agent typed is the agent's.** The inbox doorbell
+  (`INBOX <ID>:` and the shell-inert `: 'INBOX …'`) and the desk's
+  `: 'SPOOL …'` poke line are posted from the seat as `[typed by <sender>] <line>`
+  (sender from the inbox file name or `from <ID>`), never with `typed_by`.
+- **FR-015 agy.** agy 1.2.11 hooks (`~/.gemini/config/hooks.json`, named hook
+  `spool-mirror`, `PreInvocation` + `Stop`) carry no text; `spool-mirror.py hook
+  --agy pre|stop` reads the transcript the payload names (the prompt at the
+  first invocation of a turn, the answer at a clean Stop) and prints `{}`.
+- **FR-016 speed and robustness.** Every seat (dev, prd) is posted in parallel;
+  the hook finds the box user from the checkout root, not the file owner (a
+  file rewritten by an agent-side git op stopped every post on the box,
+  16:43-16:58Z).
+
 ## The wrapper: `spool-agent.sh` (2026-09-25, owner: "wgo")
 
 One command starts claude or grok as a seated, mirrored agent:
@@ -193,4 +213,4 @@ tree's notifier), so the live `box-desk` and its seats were not restarted.
   n=2 rows — the `[terminal]` prompt and the answer; the session-end `Stop`
   posted nothing.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:45:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:05:00Z -->

@@ -12,6 +12,7 @@ package hub_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,7 +22,9 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
 // ageBlob backdates the stored object, as if it had been uploaded at `at`.
@@ -131,7 +134,8 @@ func TestFileBoxNotAnEndIs404(t *testing.T) {
 	for _, x := range []*box{a, b, c} {
 		e.pin(tid, x)
 	}
-	id := strings.Repeat("5", 64)
+	data := []byte("between a and b")
+	id := sha256Hex(data)
 	files := `[{"mode":"blob","kind":"file","file_id":"` + id + `","name":"x.pdf","sha256":"` + id + `"}]`
 	m := store.Message{TenantID: tid, MsgID: uuidV4(), TaskID: uuidV4(), TS: now,
 		FromBox: "box-a", FromID: "GRK-03", ToBox: "box-b", ToID: "CLE-07", Kind: "note", Body: "b",
@@ -140,7 +144,7 @@ func TestFileBoxNotAnEndIs404(t *testing.T) {
 		t.Fatal(err)
 	}
 	key, _ := blob.Key(tid, id)
-	if err := (blob.Dir{Root: e.blobs}).Put(ctx, key, []byte("between a and b")); err != nil {
+	if err := (blob.Dir{Root: e.blobs}).Put(ctx, key, data); err != nil {
 		t.Fatal(err)
 	}
 	ageBlob(t, e, tid, id, now.Add(-2*hub.FileUploadGrace))
@@ -150,6 +154,26 @@ func TestFileBoxNotAnEndIs404(t *testing.T) {
 	}{{a, http.StatusOK}, {b, http.StatusOK}, {c, http.StatusNotFound}} {
 		if got, _ := e.getFile(tid, id, e.uploadToken(tid, tc.b)); got != tc.want {
 			t.Errorf("%s: got %d, want %d", tc.b.id, got, tc.want)
+		}
+	}
+	// The same door through the box client (spool hub-get-file, the live
+	// probe's path): the end fetches, the stranger is not_found.
+	for _, tc := range []struct {
+		b  *box
+		ok bool
+	}{{a, true}, {c, false}} {
+		sess, err := tc.b.c.Dial(ctx, wire.RoleCLI)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = sess.FetchFile(ctx, id)
+		sess.Close()
+		var he *hubclient.HubError
+		if tc.ok && err != nil {
+			t.Errorf("%s FetchFile: %v", tc.b.id, err)
+		}
+		if !tc.ok && (!errors.As(err, &he) || he.Token != "not_found") {
+			t.Errorf("%s FetchFile: %v, want not_found", tc.b.id, err)
 		}
 	}
 }

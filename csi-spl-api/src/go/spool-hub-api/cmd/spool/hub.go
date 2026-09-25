@@ -519,6 +519,38 @@ func cmdHubRun(cfg *config.Config) int {
 	return 0
 }
 
+// cmdHubGetFile downloads one file by id from the hub into the local blob
+// store, even when it is already held: a live proof of the file read door
+// (do_spl_file_door_probe). Prints {"file_id","fetched"}; a refusal fails
+// with the hub's not_found.
+func cmdHubGetFile(cfg *config.Config, args []string) int {
+	fs := flag.NewFlagSet("hub-get-file", flag.ContinueOnError)
+	id := fs.String("file-id", "", "sha256 file id")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if *id == "" {
+		return fail(fmt.Errorf("--file-id is required"))
+	}
+	c, err := boxClient(cfg)
+	if err != nil {
+		return fail(err)
+	}
+	c.Log = zerolog.Nop()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	sess, err := c.Dial(ctx, wire.RoleCLI)
+	if err != nil {
+		return fail(err)
+	}
+	defer sess.Close()
+	if err := sess.FetchFile(ctx, *id); err != nil {
+		return fail(err)
+	}
+	fmt.Println(action.JSON(map[string]any{"file_id": *id, "fetched": true}))
+	return 0
+}
+
 // cmdHubTail prints a task's hub topic (human lines, or --json NDJSON of the
 // inner v:1); --follow keeps printing new messages until signalled.
 func cmdHubTail(cfg *config.Config, args []string) int {

@@ -34,6 +34,7 @@
 //	hub-sync                   one role=box session: hello, pins, drain queue, flush
 //	hub-run                    box daemon: hold the session, reconnect with backoff
 //	hub-tail --task <uuid> [--follow] [--json]
+//	hub-get-file --file-id <sha256>   download one file from the hub (read door proof)
 //	version
 //
 // Local mode (no hub) is unsigned: send/recv need no key and no pin; keygen and
@@ -131,6 +132,8 @@ func run(args []string) int {
 		return cmdHubRun(cfg)
 	case "hub-tail":
 		return cmdHubTail(cfg, rest)
+	case "hub-get-file":
+		return cmdHubGetFile(cfg, rest)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1

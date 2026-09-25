@@ -758,6 +758,14 @@ func (s *Session) fetchFile(ctx context.Context, fileID string) error {
 	if _, err := os.Stat(dst); err == nil {
 		return nil
 	}
+	return s.FetchFile(ctx, fileID)
+}
+
+// FetchFile always downloads file_id from the hub (GET /v1/files/{id}, the
+// file read door) into the local blob store, re-hashing before it is kept.
+// A refusal is the hub's 404 not_found, whether the file is absent or not
+// this box's to read (spool hub-get-file).
+func (s *Session) FetchFile(ctx context.Context, fileID string) error {
 	if err := os.MkdirAll(s.c.Cfg.FilesDir(), 0o775); err != nil {
 		return err
 	}

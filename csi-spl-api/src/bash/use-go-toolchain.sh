@@ -13,7 +13,9 @@ spl_export_go_path() {
   local best="" bestn=-1 g ver a b c num
   local nullglob_was=0
   local -a cands=()
-  shopt -q nullglob && nullglob_was=1
+  # shopt -q returns 1 when the option is off. Under set -e that line
+  # aborts the caller (run-all-tests.sh) before it prints anything.
+  if shopt -q nullglob; then nullglob_was=1; fi
   shopt -s nullglob
   cands=("$root"/go/bin/go "$root"/go[0-9].*/bin/go)
   if (( nullglob_was )); then

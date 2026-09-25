@@ -3,7 +3,7 @@
 # A missing toolchain is a failure rather than a quiet empty PATH.
 # CONTROLS: a planted newer sibling wins; with the sibling removed the older
 # one wins; a root with no go returns 1.
-set -uo pipefail
+set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../use-go-toolchain.sh
 source "$HERE/../use-go-toolchain.sh"

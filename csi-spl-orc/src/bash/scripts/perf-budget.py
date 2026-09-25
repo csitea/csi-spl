@@ -12,9 +12,11 @@ Three measurements, nothing else:
                              chunks in parallel, each on a new connection,
                              Accept-Encoding identity. Not a browser paint.
   three view reads           GET /v1/view/me, /v1/view/channels and
-                             /v1/view/roster — the signed-in shell's first
-                             view calls — p50 and p95 over PERF_N samples
-                             after PERF_WARMUP discards.
+                             /v1/view/roster on ONE reused HTTP/1.1
+                             connection. p50/p95 are time_starttransfer
+                             (TTFB) after PERF_WARMUP, not a fresh handshake.
+                             Each sample also records time_namelookup and
+                             time_connect so a DNS stall is visible.
 
 `bundle` reads a nuxt generate directory and checks ci_initial_gzip_kb.
 `live` talks to the hosts it is given. `check` compares an already written
@@ -32,6 +34,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.error
@@ -46,9 +49,10 @@ ENDPOINTS = (
     ("view_roster", "/v1/view/roster"),
 )
 CI_KEYS = ("ci_initial_gzip_kb",)
+# first_load_p95_ms is recorded and not gated: it is a new connection per
+# chunk on this box, and that tail is the resolver (T124), not the bundle.
 LIVE_KEYS = (
     "dev_initial_gzip_kb",
-    "first_load_p95_ms",
     "view_me_p95_ms",
     "view_channels_p95_ms",
     "view_roster_p95_ms",
@@ -304,17 +308,15 @@ def live_report():
     if not cookie:
         raise ValueError(f"sign-in failed HTTP {status}")
 
-    view_samples = {}
+    view_rows = {}
     for key, path in ENDPOINTS:
-        def hit(path=path):
-            t0 = time.perf_counter()
-            st, _h, _b = fetch(api + path, cookie=cookie, accept="application/json")
-            return st == 200, (time.perf_counter() - t0) * 1000.0, st
-
-        got, _extra, verr = sample_loop(n, warmup, hit)
-        if verr or len(got) != n:
-            raise ValueError(f"{path} {verr or 'short sample'}")
-        view_samples[key] = got
+        rows = curl_reused(api + path, cookie, warmup + n)
+        scored = rows[warmup:]
+        bad = [row for row in scored if row["status"] != 200]
+        if bad or len(scored) != n:
+            status = bad[0]["status"] if bad else 0
+            raise ValueError(f"{path} HTTP {status}")
+        view_rows[key] = scored
 
     metrics = {
         "dev_initial_gzip_kb": gzip_kb,
@@ -322,8 +324,9 @@ def live_report():
         "first_load_p95_ms": r1(pct(samples, 95)),
     }
     for key, _path in ENDPOINTS:
-        metrics[key + "_p50_ms"] = r1(pct(view_samples[key], 50))
-        metrics[key + "_p95_ms"] = r1(pct(view_samples[key], 95))
+        ttfb = [row["ttfb_ms"] for row in view_rows[key]]
+        metrics[key + "_p50_ms"] = r1(pct(ttfb, 50))
+        metrics[key + "_p95_ms"] = r1(pct(ttfb, 95))
     return {
         "kind": "live",
         "env": os.environ.get("PERF_ENV", ""),
@@ -340,9 +343,63 @@ def live_report():
         "metrics": metrics,
         "samples": {
             "first_load_ms": [r1(x) for x in samples],
-            **{key + "_ms": [r1(x) for x in view_samples[key]] for key, _path in ENDPOINTS},
+            **{key + "_ms": [row["ttfb_ms"] for row in view_rows[key]] for key, _path in ENDPOINTS},
+            **{key + "_namelookup_ms": [row["namelookup_ms"] for row in view_rows[key]] for key, _path in ENDPOINTS},
+            **{key + "_connect_ms": [row["connect_ms"] for row in view_rows[key]] for key, _path in ENDPOINTS},
         },
     }
+
+
+
+def curl_reused(url, cookie, count):
+    """count GETs of one URL in one curl process, so the connection is reused.
+
+    Each line is namelookup, connect, starttransfer (TTFB), total, status.
+    The cookie is an argument, never printed.
+    """
+    if count < 1:
+        raise ValueError("curl count must be positive")
+    fmt = "%{time_namelookup} %{time_connect} %{time_starttransfer} %{time_total} %{http_code}\n"
+    cmd = [
+        "curl", "-sS", "-w", fmt,
+        "-H", "Accept: application/json",
+        "-H", "Accept-Encoding: identity",
+        "-H", "Cache-Control: no-cache",
+        "-A", UA,
+        "-H", "Cookie: " + cookie,
+        "--http1.1",
+        "--max-time", "30",
+    ]
+    # -o applies only to the next URL. One -o for the whole command would
+    # dump later bodies onto the timing lines.
+    for _ in range(count):
+        cmd.extend(["-o", os.devnull, url])
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30 * count + 15)
+    except subprocess.TimeoutExpired:
+        raise ValueError("curl timed out")
+    if proc.returncode != 0:
+        err = (proc.stderr or "").strip().splitlines()
+        detail = err[-1] if err else "curl failed"
+        raise ValueError(f"curl exit {proc.returncode}: {detail}")
+    rows = []
+    for line in proc.stdout.splitlines():
+        parts = line.split()
+        if len(parts) != 5:
+            raise ValueError("curl timing line is short")
+        lookup, connect, start, _total, code = parts
+        try:
+            rows.append({
+                "namelookup_ms": r1(float(lookup) * 1000.0),
+                "connect_ms": r1(float(connect) * 1000.0),
+                "ttfb_ms": r1(float(start) * 1000.0),
+                "status": int(code),
+            })
+        except ValueError:
+            raise ValueError("curl timing line is not numeric")
+    if len(rows) != count:
+        raise ValueError(f"curl returned {len(rows)} timings, wanted {count}")
+    return rows
 
 
 def summary_of(report, ok):

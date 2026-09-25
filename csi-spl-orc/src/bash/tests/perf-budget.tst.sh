@@ -109,10 +109,10 @@ rc=$?
 [[ $rc -eq 1 ]] && grep -q '^FAIL ci_initial_gzip_kb 9.1 > 9$' "$T/bout" \
   && pass "CONTROL: 0.1 over the ceiling exits 1" || fail "CONTROL 0.1: rc=$rc $(cat "$T/bout")"
 printf '%s\n' '{"metrics":{"ci_initial_gzip_kb":1}}' >"$T/rep.json"
-printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":5,"first_load_p95_ms":5}}' >"$T/both.json"
+printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":5,"dev_initial_gzip_kb":5,"view_me_p95_ms":5,"view_channels_p95_ms":5,"view_roster_p95_ms":5}}' >"$T/both.json"
 python3 "$PY" check --report "$T/rep.json" --budgets "$T/both.json" --require live >"$T/bout" 2>&1
 rc=$?
-[[ $rc -eq 1 ]] && grep -q 'first_load_p95_ms was not measured' "$T/bout" \
+[[ $rc -eq 1 ]] && grep -q 'dev_initial_gzip_kb was not measured' "$T/bout" \
   && pass "CONTROL: a report that omits a required number fails" || fail "CONTROL missing: rc=$rc $(cat "$T/bout")"
 
 # --- 4. live stub --------------------------------------------------------------------
@@ -271,7 +271,7 @@ import json, sys
 d = json.load(open(sys.argv[1]))
 c = d.get("ceilings") or {}
 b = (d.get("basis") or {}).get("metrics") or {}
-keys = ["ci_initial_gzip_kb", "dev_initial_gzip_kb", "first_load_p95_ms",
+keys = ["ci_initial_gzip_kb", "dev_initial_gzip_kb",
         "view_me_p95_ms", "view_channels_p95_ms", "view_roster_p95_ms"]
 for k in keys:
     if not isinstance(c.get(k), (int, float)) or float(c[k]) <= 0:

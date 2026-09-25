@@ -32,7 +32,7 @@
 # @example ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_perf_budget
 #------------------------------------------------------------------------------
 do_spl_perf_budget() {
-  do_require_bin python3 yq || return 1
+  do_require_bin python3 yq curl || return 1
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
@@ -59,7 +59,7 @@ do_spl_perf_budget() {
       do_log "FATAL PERF_POST_TASK must be a lowercase task UUID, got: '$ptask'"; return 1; }
   fi
   if (( dry )); then
-    do_log "INFO DRY_RUN would: on $wui_url and $api_url tenant $tenant, n=$n warmup=$warm require=$req, record initial JS gzip, first-load transfer p50/p95, and p50/p95 of GET /v1/view/me /v1/view/channels /v1/view/roster, then compare to $budgets"
+    do_log "INFO DRY_RUN would: on $wui_url and $api_url tenant $tenant, n=$n warmup=$warm require=$req, record initial JS gzip, first-load transfer p50/p95, and reused-connection TTFB p50/p95 of GET /v1/view/me /v1/view/channels /v1/view/roster, then compare to $budgets"
     do_log "OK DRY_RUN nothing was fetched."
     return 0
   fi

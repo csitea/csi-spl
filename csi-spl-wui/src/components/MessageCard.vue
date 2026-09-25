@@ -104,7 +104,7 @@
         v-else
         ref="clipEl"
         class="card-body"
-        :class="{ 'card-clip': clipOn, 'card-clip--picture': clipOn && picture, 'card-clip--cut': clipOn && clipped }"
+        :class="{ 'card-clip': clipOn, 'card-clip--picture': clipOn && picture, 'card-clip--pic-text': clipOn && picture && userPx == null, 'card-clip--cut': clipOn && clipped }"
         :style="clipStyle"
         :data-clip="clipOn ? (clipped ? 'cut' : 'fits') : undefined"
         data-testid="card-body"
@@ -608,7 +608,10 @@ function measure() {
   const fs = parseFloat(getComputedStyle(body).fontSize) || 14
   lineHeightPx.value = Number.isFinite(lh) && lh > 0 ? lh : fs * 1.45
   viewportPx.value = window.innerHeight
-  contentPx.value = Math.ceil(inner.scrollHeight)
+  /* a picture card caps its text at 5 rows inside the 30% box, so the
+     picture shows under it; the text cut counts toward "clipped" too */
+  const textCut = body !== inner ? Math.max(0, body.scrollHeight - body.clientHeight) : 0
+  contentPx.value = Math.ceil(inner.scrollHeight + textCut)
 }
 
 let clipObserver: ResizeObserver | null = null
@@ -886,6 +889,12 @@ async function save() {
   overflow: hidden;
 }
 .card-clip--picture { max-height: max(calc(5 * 1.45 * 0.875rem), 30vh); }
+/* with a picture the text keeps its own 5 rows, so the picture is in view;
+   a grip drag or Enter lifts it with the rest */
+.card-clip--pic-text :deep(.msg-body) {
+  max-height: calc(5 * 1.45 * 0.875rem);
+  overflow: hidden;
+}
 /* clipped: the last line fades out, and the grip under it says there is more */
 .card-clip--cut {
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent);

@@ -15,6 +15,9 @@
 //   THROW_EMAIL=<throwaway address> OUT=<dir> \
 //     node tests/e2e/users-admin-live.proof.mjs
 //
+// CONTROL_ONLY=1 runs session B alone and writes nothing (prd: a test
+// tenant's non-admin; ADMIN_* and THROW_EMAIL are then not needed).
+//
 // Passwords are read from the files and never printed. Exit 0 = every step PASS.
 import { createRequire } from 'node:module'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
@@ -36,9 +39,10 @@ const BASE = need('BASE').replace(/\/+$/, '')
 const API = need('API').replace(/\/+$/, '')
 const OUT = need('OUT')
 const TENANT = process.env.TENANT || 't1'
-const ADMIN = need('ADMIN_EMAIL')
+const CONTROL_ONLY = process.env.CONTROL_ONLY === '1'
+const ADMIN = CONTROL_ONLY ? '' : need('ADMIN_EMAIL')
 const MEMBER = need('MEMBER_EMAIL').toLowerCase()
-const THROW = need('THROW_EMAIL').toLowerCase()
+const THROW = CONTROL_ONLY ? '' : need('THROW_EMAIL').toLowerCase()
 const pwOf = (k) => readFileSync(need(k), 'utf8').trim()
 mkdirSync(OUT, { recursive: true })
 
@@ -78,10 +82,12 @@ const apiStatus = (p) => p.evaluate(async (api) => {
 const puppeteer = await loadPuppeteer()
 const browser = await puppeteer.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] })
 try {
-  res.build = await (await fetch(BASE + '/build.json')).json()
-  res.version = await (await fetch(API + '/version')).json()
+  // Metadata only: a node fetch that cannot dial (IPv6 on some boxes) must not stop the proof.
+  res.build = await fetch(BASE + '/build.json').then((r) => r.json()).catch((e) => ({ error: String(e) }))
+  res.version = await fetch(API + '/version').then((r) => r.json()).catch((e) => ({ error: String(e) }))
 
   // ---- A: the admin -------------------------------------------------------
+  if (!CONTROL_ONLY) {
   const a = await signIn(await browser.createBrowserContext(), ADMIN, 'ADMIN_PW_FILE')
   step('A1 admin signs in', a.ok, { url: a.p.url() })
   const p = a.p
@@ -151,9 +157,11 @@ try {
     }
   }
 
+  }
+
   // ---- B: the non-admin (CONTROL) ----------------------------------------
   const b = await signIn(await browser.createBrowserContext(), MEMBER, 'MEMBER_PW_FILE')
-  step('B1 the member signs in again (the re-invite admitted it)', b.ok, { url: b.p.url() })
+  step(CONTROL_ONLY ? 'B1 the member signs in' : 'B1 the member signs in again (the re-invite admitted it)', b.ok, { url: b.p.url() })
   if (b.ok) {
     const noIcon = !(await b.p.$('[data-testid=sidebar-tab-users]'))
     const api = await apiStatus(b.p)

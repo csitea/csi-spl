@@ -32,7 +32,7 @@ existing stateless `spool_session` cookie (010 `auth-v1.md` §3), with `p="passw
 | Fiber, JWT + revocation list, `users` table with `password_hash`, roles, locales, orders | `net/http` on the hub mux, the 010 HMAC session cookie, a separate `password_credentials` table; no roles, no locale, no business columns | spl humans are `HUM-*` with tenant membership (004, HUMANS). A credential is not a human: admission happens at the Registrar on first login. |
 | `/register` answers `409 email_taken` | always `202 {"status":"verification_required"}` | enumeration-safe (FR-005). The donor leaks account existence there. |
 | `method_policy.go` (staff Google-first, per-user method list) | not ported | spl has no staff role. Which methods a deployment offers is `SPOOL_HUB_AUTH_NATIVE_ENABLED` + the 010 provider list. |
-| `debug_token` in the body in `lde` | in `lde` and `dev` only, behind `SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS`; **refused in prd** at boot | dev has no mail relay yet (FR-011). |
+| `debug_token` in the body in `lde` | in `lde` and `dev` only, behind `SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS`; **refused in prd** at boot | dev had no mail relay when this was written (FR-011); dev and prd now mail through the relay (`SPOOL_HUB_MAIL_TRANSPORT: smtp`, OQ-N5). |
 | Reset TTL 24 h | 1 h (cnf) | a reset link is a bearer credential; 1 h is the OWASP default. |
 | JWT revoked on password change | cookie cleared on the changing browser; other sessions live until their TTL | the session is stateless (OQ-N2). |
 | argon2 params `0` → code default | env defaults `m=19456 KiB, t=2, p=1` (OWASP 2023 minimum); dev/prd refuse anything lower | Cloud Run memory; params from config (owner brief). |
@@ -42,7 +42,7 @@ existing stateless `spool_session` cookie (010 `auth-v1.md` §3), with `p="passw
 ### US1 — Register (P1)
 **Given** the login page, **when** a person submits email + password
 (≥ `SPOOL_HUB_AUTH_NATIVE_PASSWORD_MIN_LEN`, default 12), **then** the hub
-answers `202` and mails a confirmation link to `<APP_URL>/verify-email?token=…`.
+answers `202` and mails a confirmation link to `<APP_URL>[/<locale>]/verify-email?token=…`.
 The same `202` comes back whether or not the address already has a credential.
 
 ### US2 — Confirm email (P1)
@@ -65,7 +65,7 @@ A right password on an unverified credential answers `403 email_unverified`
 ### US4 — Forgot / reset password (P1)
 `POST …/password/forgot` always answers `204`. When the address has a
 credential and the per-account floor allows it, a link to
-`<APP_URL>/reset-password?token=…` is mailed. `POST …/password/reset` with a
+`<APP_URL>[/<locale>]/reset-password?token=…` is mailed. `POST …/password/reset` with a
 live token sets the new hash, consumes **every** live reset token of that
 credential, marks the email verified (the link proved the inbox), and answers
 `204`. A reused, expired or unknown token is `401 reset_token_invalid`.
@@ -105,8 +105,10 @@ Already built: `POST /api/v1/auth/logout` (010).
   (b) **per client IP and per email, in process**, decided **before** any lookup,
   answering `429 rate_limited` with `Retry-After`: login 10/15 min per email and
   30/15 min per IP; register/forgot/reset/verify 10/15 min per IP. The client
-  IP is the `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS`-th `X-Forwarded-For`
-  entry from the right (0 = TCP peer; OQ-N6).
+  IP is the `SPOOL_HUB_TRUSTED_PROXY_HOPS`-th `X-Forwarded-For` entry from
+  the right (0 = TCP peer; OQ-N6). One value for every per-IP limit (017
+  FR-SEC-006); the native-only `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` is
+  retired and the hub refuses to boot when it disagrees (`cmd/spool/hub.go`).
 - **FR-007** Admission is the Registrar's (HUMANS, OQ-A3): the login hands it
   `Identity{Provider:"password", Subject:<lower-cased email>, Email}` plus the optional
   `tenant` from the body (HUMANS' key for a native account, rdb `0006` header,
@@ -130,7 +132,8 @@ Already built: `POST /api/v1/auth/logout` (010).
   the link (transport `none`, and no debug tokens) `register` answers
   `503 email_delivery_unavailable` instead of creating an unusable credential.
 - **FR-013** Native sign-in is **off** unless `SPOOL_HUB_AUTH_NATIVE_ENABLED=true`;
-  off → the native routes are not mounted (404). **prd stays off** until the owner answers OQ-N1.
+  off → the native routes are not mounted (404). ON in dev and prd
+  (`SPOOL_HUB_AUTH_NATIVE_ENABLED: "true"`; prd `097e228`, T015; OQ-N1).
 - **FR-014** No password, hash, token or full email in any log line; emails are
   logged as the 010 `digest()`.
 - **FR-015** Pre-account takeover is closed (found while porting; the donor
@@ -165,9 +168,9 @@ Already built: `POST /api/v1/auth/logout` (010).
 
 ## 5. Open questions (owner)
 
-- **OQ-N1 — native sign-in on prd.** (a) **recommended**: ON in dev now, OFF in
-  prd until a mail relay secret exists on prd and the owner says go;
-  (b) ON in both at once. Implemented: (a) — `SPOOL_HUB_AUTH_NATIVE_ENABLED` unset on prd.
+- **OQ-N1 — native sign-in on prd. Answered (b): prd ON** (`097e228`, owner
+  go, T015). Was: (a) ON in dev now, OFF in prd until a mail relay secret
+  exists on prd and the owner says go; (b) ON in both at once.
 - **OQ-N2 — sessions after a password change/reset.** (a) **recommended**:
   accept the stateless-session limit — other browsers keep their session until
   `SPOOL_HUB_AUTH_SESSION_TTL` (12 h); (b) add a per-credential `session_epoch`
@@ -180,15 +183,23 @@ Already built: `POST /api/v1/auth/logout` (010).
   new identity to an existing human by email alone (OQ-A3), it becomes a
   separate `HUM-*` unless an invite admits it; (b) a dedicated "add password"
   route behind a signed-in social session that links the identity to the same
-  human. Implemented: (a) (nothing extra built); (b) is a follow-up if the owner wants one human.
-- **OQ-N5 — prd mail relay.** csi-rel relays through Google Workspace SMTP with
-  an app password. (a) **recommended**: the same relay, a per-env Secret
-  Manager slot `csi-spl-hub-mail-smtp-password`; (b) a transactional provider.
-  **prd cannot send mail yet**: no relay secret version exists.
+  human. **(a) superseded by CLE-3451** (`5ebca8fb`, `internal/store/humans.go`
+  `Admit`): a new identity joins the existing human when BOTH addresses are
+  provider-verified, so a verified password credential on a verified social
+  address is the same `HUM-*`; no (b) route was built.
+- **OQ-N5 — prd mail relay. Answered (a): the relay**, per-env Secret
+  Manager slot `csi-spl-hub-mail-smtp-password`; `SPOOL_HUB_MAIL_TRANSPORT:
+  smtp` in dev and prd (prd `097e228`, T015; dev 010 T065). csi-rel relays
+  through Google Workspace SMTP with an app password; (b) was a
+  transactional provider.
 - **OQ-N6 — client IP behind Cloud Run.** The per-IP limiter needs the real
   client address; behind Cloud Run (and a Hosting rewrite) the TCP peer is
   Google's front end, which would put every caller in one bucket.
-  (a) **recommended**: measure the `X-Forwarded-For` shape on dev
-  (T014) and set `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` per env in cnf;
+  (a) **recommended**: measure the `X-Forwarded-For` shape
+  (`do_spl_probe_client_ip`) and set `SPOOL_HUB_TRUSTED_PROXY_HOPS` (017
+  FR-SEC-006; the native-only key is retired) per env in cnf;
   (b) drop the per-IP layer and keep only per-email + the DB floor.
-  Implemented: the knob, default `0`.
+  Partial: the knob, `SPOOL_HUB_TRUSTED_PROXY_HOPS: "0"` in `all.env.yaml`;
+  missing: the measured per-env value.
+
+<!-- version: 0.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:00:00Z -->

@@ -14,9 +14,10 @@ base** = the hub's API origin (`NUXT_PUBLIC_AUTH_BASE`: prd
 **cross-origin** from the WUI host, with `credentials: 'include'`. The hub
 answers them with credentialed CORS for the WUI origin (T050). `''` =
 same-origin, used only in lde, where the Nitro devProxy serves the routes.
-FR-010's Hosting rewrite is superseded (spec Phase 7): Firebase Hosting
-forwards no request cookie but `__session` to Cloud Run, so neither
-`spool_oauth_state` nor the session would survive it. Start is a link, not
+The Hosting rewrite (`/api/v1/auth/**`, FR-010) now carries only what the
+IdP sends to the WUI host, `/{p}/callback`: Firebase Hosting forwards no
+request cookie but `__session` to Cloud Run, so dev/prd name the OAuth state
+cookie `__session` (T056). Every other auth route is called cross-origin. Start is a link, not
 `fetch`: `<auth base>/api/v1/auth/<p>/start?redirect=<WUI path>`. The hub lands
 on `<APP_URL><redirect>`, and APP_URL is the WUI origin. Code:
 `csi-spl-wui/src/utils/auth-client.mjs` + `src/composables/useAuthClient.ts`
@@ -121,8 +122,9 @@ second probe. Code: `internal/auth/handler.go` (`diagnosticsGrant`,
 
 - Page `/login`: on mount `GET /api/v1/auth/providers`; render one large
   primary button per provider ("Continue with Google", "Continue with
-  Facebook"), first on the page (narrative §0). No password form.
-- Button = plain link `href="/api/v1/auth/<p>/start?redirect=<encoded current target>"`
+  Facebook"), first on the page (narrative §0). The native email + password
+  form shows when `/providers` answers `"native": true` (015).
+- Button = plain link `href="<auth base>/api/v1/auth/<p>/start?redirect=<encoded current target>"`
   (plus `&tenant=<id>` when the page knows it). No provider SDK or script.
 - Empty list → a neutral "Sign-in is not available yet" (auth off in that env).
 - `?auth_error=` present → §2 message above the buttons, keep `redirect`.
@@ -138,16 +140,20 @@ second probe. Code: `internal/auth/handler.go` (`diagnosticsGrant`,
 registers it before the middleware, so `/api/v1/auth/*` answers on any Host
 (`TestAuthMountedWithoutTenant`).
 
-## 6. Tenant-scoped door (003 T033b) — seam Implemented `5e8ecb1`
+## 6. Tenant-scoped door (003 T033b; 026) — Implemented
 
 ```go
-s, err := ah.SessionForTenant(r, hostTenant)   // nil error = may read hostTenant
+s, tenant, err := ah.ActiveTenant(r, hostTenant)   // internal/auth/tenant.go
 ```
 
-Requires a valid session, a `HUM-*` in it (Registrar, T012) and
-`Options.Membership.Member(ctx, hum, hostTenant) == true` (T013). Errors:
-`ErrNoSession`, `ErrNoHuman`, `ErrNoMembership` (none configured — the
-default, so today every call refuses), `ErrNotMember`, or the lookup error;
-the view door maps all of them to `401 view_door`. `session.t` is never read.
+The human door (`internal/hub/resolve.go`) reads the session's active tenant
+`t` and re-checks it against `Options.Membership` on every request (T013;
+wired in `cmd/spool/hub.go` as `auth.Options{…Membership: hooks}`). It needs
+a valid session and a `HUM-*` in it (Registrar, T012). Refusals: no or
+non-member session → `401 view_door`; the host or `X-Spool-Tenant` names
+another tenant → `403 tenant_mismatch`; several tenants and none selected →
+`409 tenant_required`; the role lacks the permission (025) → `403 forbidden`
+with `permission`. `SessionForTenant(r, tenant)` (seam `5e8ecb1`) is the
+legacy helper.
 
-<!-- version: 0.4.0 · updated: 2026-09-21 -->
+<!-- version: 0.5.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:00:00Z -->

@@ -17,7 +17,10 @@ is on, the answer carries `"native": true` next to the social list.
 - Emails are trimmed and lower-cased server-side.
 - A body over 8 KiB is `400 bad_request`.
 - `429 rate_limited` + `Retry-After: <seconds>` can come from any route **before**
-  anything is looked up (per IP; per email on `login`). Render "Too many attempts —
+  anything is looked up (per IP; per email on `login`). The client IP is the
+  `SPOOL_HUB_TRUSTED_PROXY_HOPS`-th `X-Forwarded-For` entry from the right (017
+  FR-SEC-006; the native-only `SPOOL_HUB_AUTH_NATIVE_TRUSTED_PROXY_HOPS` is
+  retired, spec OQ-N6). Render "Too many attempts —
   try again in N minutes."
 - Responses carry `Cache-Control: no-store`.
 - **Resend = register again.** There is no separate resend route: posting
@@ -79,8 +82,8 @@ takeover. The WUI needs no change for this; the mail is the whole signal.
 
 | template | link |
 |---|---|
-| `email_verification` | `<SPOOL_HUB_AUTH_APP_URL>/verify-email?token=<hex64>` |
-| `password_reset` | `<SPOOL_HUB_AUTH_APP_URL>/reset-password?token=<hex64>` |
+| `email_verification` | `<SPOOL_HUB_AUTH_APP_URL>[/<locale>]/verify-email?token=<hex64>` |
+| `password_reset` | `<SPOOL_HUB_AUTH_APP_URL>[/<locale>]/reset-password?token=<hex64>` |
 | `federated_signin` | `<SPOOL_HUB_AUTH_APP_URL>[/<locale>]/login` — no token, no tenant |
 
 The WUI pages read `token` from the query and POST it; they must drop it from
@@ -98,3 +101,5 @@ the URL (`history.replaceState`) once posted.
 | `reset_token_invalid` | "That reset link is not valid any more — ask for a new one." |
 | `email_delivery_unavailable` | "We cannot send email right now — try again later." |
 | `rate_limited` | "Too many attempts — try again later." |
+
+<!-- version: 0.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:00:00Z -->

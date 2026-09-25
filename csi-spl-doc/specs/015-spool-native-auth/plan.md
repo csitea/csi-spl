@@ -23,7 +23,7 @@ One new module import: `golang.org/x/crypto/argon2` (x/crypto is already in
 | `internal/auth/native_config.go` | `SPOOL_HUB_AUTH_NATIVE_*` → `NativeConfig`, fail-fast |
 | `internal/auth/native_store.go` | `CredStore` interface + in-memory implementation (tests, lde `memory:`) |
 | `internal/auth/native_store_postgres.go` | `CredStore` on pgx against rdb `0009` |
-| `internal/auth/native.go` | the seven routes, enumeration-safe answers, Registrar hand-off |
+| `internal/auth/native.go` | the six routes (+ 010's `logout`), enumeration-safe answers, Registrar hand-off |
 | `internal/auth/ratelimit.go` | in-process sliding-window limiter (per IP / per email) |
 | `internal/auth/handler.go` | +`native` field, `Register` mounts it, `providers` reports it (3 small hunks) |
 | `internal/mail/` | `Sender` (SMTP with required STARTTLS, `Log`, `Recorder`, `None`), config, two text templates |
@@ -49,3 +49,5 @@ One new module import: `golang.org/x/crypto/argon2` (x/crypto is already in
   is the donor's split (spec 100 T023/T024).
 - Login on an unknown email hashes a fixed dummy password with the configured
   params, so its latency matches a wrong password.
+
+<!-- version: 0.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:00:00Z -->

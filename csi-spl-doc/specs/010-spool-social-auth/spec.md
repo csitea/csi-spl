@@ -13,9 +13,11 @@ Status words follow `../README.md` §2.3: **Implemented** (cited), **Partial**
 
 The hub has a self-contained sign-in package, `internal/auth`, on trunk at
 `9be4b71`, and its configuration block in cnf at `b5d0a9d`. The hub mounts
-it since `bc6a6a1` (003, `tasks.md` T010) with auth **off** in every env:
-**no provider app is registered** yet (`tasks.md` T030–T034). What exists and
-is verified:
+it since `bc6a6a1` (003, `tasks.md` T010). **Google is on in dev and prd**
+(`a7b7d1ca`, cnf `SPOOL_HUB_AUTH_PROVIDERS: google`; live checks `tasks.md`
+T053–T055). Facebook, Microsoft, LinkedIn and xAI are coded but have no
+registered app (`PLACEHOLDER-*` client ids in `all.env.yaml`, `tasks.md`
+T030–T034). What exists and is verified:
 
 | Piece | Where | Check |
 |---|---|---|
@@ -23,8 +25,8 @@ is verified:
 | Signed `state` bound to a browser cookie (CSRF) | `internal/auth/token.go`, `handler.go` | `TestStateCSRF` (5 cases) |
 | Stateless signed session cookie, `/session`, `/logout` | `internal/auth/handler.go` | `TestSignInEachProvider` |
 | Fail-fast config, PLACEHOLDER refusal | `internal/auth/config.go` | `TestConfigFailFast` (8 vars × unset/placeholder) |
-| Fake Google + Facebook for a local run | `internal/auth/fakeidp`, `internal/auth/cmd/auth-demo` | `go run ./internal/auth/cmd/auth-demo` → `OK - both providers signed in` |
-| cnf names, placeholders, secret slot ids | `csi-spl-cnf/csi-spl/all.env.yaml` `env.auth.social` | `yq '.env.auth.social.env \| keys \| length' csi-spl-cnf/csi-spl/all.env.yaml` → 13 |
+| Fake IdP for every provider, for a local run | `internal/auth/fakeidp`, `internal/auth/cmd/auth-demo` | `go run ./internal/auth/cmd/auth-demo` → `OK - all N providers signed in against the fake IdP` (N = the enabled providers, 5 today) |
+| cnf names, placeholders, secret slot ids | `csi-spl-cnf/csi-spl/all.env.yaml` `env.auth.social` | `yq '.env.auth.social.env \| keys \| length' csi-spl-cnf/csi-spl/all.env.yaml` → 28 (re-measured 2026-09-25; 13 at `b5d0a9d`) |
 
 Deliberate differences from the csi-rel donor:
 
@@ -32,7 +34,7 @@ Deliberate differences from the csi-rel donor:
 |---|---|---|
 | Fiber, JWT, `users` table with `google_sub` / `facebook_sub` | `net/http` ServeMux (the hub's), an HMAC-signed session cookie, **no table in this package** | The hub is `net/http`; the human row is `HUM-*` (004) and is created through a `Registrar` hook the hub implements (T012), so this package never touches the store. |
 | State: HMAC-signed only, 30 min | HMAC-signed **and** bound to an HttpOnly nonce cookie, single use, 15 min (cnf) | A state lifted from another browser, or replayed, is refused (`TestStateCSRF`). |
-| Facebook avatar fetch, deauthorize callback | deauthorize + data-deletion Implemented (T043, stateless confirmation code); avatar Implemented (`5d7be9c`, hub wiring `e23fae5`; T044 `[x]` in `585faaa`) | Avatar → `file_id` is narrative §3.4. Check: `command grep -c fetchAvatar csi-spl-api/src/go/spool-hub-api/internal/auth/idp.go` → 5; `command grep -n 'func fetchAvatar' csi-spl-api/src/go/spool-hub-api/internal/auth/idp.go` → `305`. |
+| Facebook avatar fetch, deauthorize callback | deauthorize + data-deletion Implemented (T043, stateless confirmation code); avatar Implemented (`5d7be9c`, hub wiring `e23fae5`; T044 `[x]` in `585faaa`) | Avatar → `file_id` is narrative §3.4. Code: `fetchAvatar` in `csi-spl-api/src/go/spool-hub-api/internal/auth/idp.go`. |
 | Provider "omitted when unconfigured" in prd | a listed provider that is unset or PLACEHOLDER **fails the boot** | Owner brief 2026-09-18: fail-fast env vars. The provider list itself is the switch: `""` = off. |
 
 ---
@@ -68,8 +70,9 @@ unverified email or a refused registration lands on
 
 ### US5 — Microsoft, LinkedIn, xAI on the same rails (P3)
 Narrative §1. One generic OIDC client (`internal/auth/oidc.go`, donor csi-rel
-`oidc_idp.go`) serves all three: code → token → userinfo, the same state /
-cookie checks, the same session. *(Implemented against the fake IdP: T040–T042;
+`oidc_idp.go`) serves LinkedIn and xAI: code → token → userinfo, the same state /
+cookie checks, the same session. Microsoft is spec 018's own client since
+`4dc854e5` (FR-012). *(Implemented against the fake IdP: T040–T042;
 live only after the owner registers each app, `idp-registration-runbook.md`.)*
 
 ### US6 — Meta's deauthorize + data-deletion callbacks (P1 for a live Meta app)
@@ -115,8 +118,15 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   `auth_error=not_allowed` and nothing is written. `password` (NATIVE-AUTH,
   spec 015) is a provider slug like any other.
 - **FR-009** — Implemented: the session is the M3 door for `/v1/view/*` and
-  `/v1/wui/ws` (003 `contracts/view-v1.md` §2) through
-  `Handler.SessionForTenant`, backed by the store `Membership` (T013). Door
+  `/v1/wui/ws` (003 `contracts/view-v1.md` §2). Since 026 the human door is
+  `Handler.ActiveTenant` (`internal/auth/tenant.go`, called from
+  `internal/hub/resolve.go`): it reads the session's active tenant `t` and
+  re-checks it against the store `Membership` (T013; wired in
+  `cmd/spool/hub.go` as `auth.Options{…Membership: hooks}`) on every request.
+  Refusals: `403 tenant_mismatch` (the host or `X-Spool-Tenant` names another
+  tenant), `409 tenant_required` (several tenants, none selected), and 025's
+  `403 forbidden` naming the missing `permission` (`internal/hub/rbac.go`
+  `permit`). `SessionForTenant` is the legacy helper. Door
   mode `SPOOL_HUB_VIEW_DOOR=session` admits member sessions only and turns on
   credentialed CORS (`Access-Control-Allow-Credentials: true` for the exact
   allow-listed origins only, never reflected, never `*`; OQ-A1 (a)). It needs
@@ -129,7 +139,8 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   `/api/v1/auth/{providers,session,logout,login,...}` CROSS-ORIGIN on the API
   host with `credentials: 'include'`; the hub answers credentialed CORS for
   the `SPOOL_HUB_VIEW_CORS_ORIGINS` allow-list on every auth route, with a 204
-  preflight (GET, POST; Content-Type). The OAuth callback stays on the WUI
+  preflight (GET, POST, PUT; Content-Type, X-Locale — `internal/hub/auth_cors.go`,
+  `e586002d`). The OAuth callback stays on the WUI
   host (`https://<fqdn>/api/v1/auth/<p>/callback`, what the IdP clients
   authorise, measured 2026-09-19: the API-host URI gets
   `redirect_uri_mismatch`), and Firebase Hosting rewrites `/api/v1/auth/**`
@@ -142,18 +153,23 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   `auth.login_ok` / `auth.callback_fail` carry provider, reason and a 12-hex
   digest of the subject.
 
-- **FR-012** — Implemented (T040–T042): `microsoft`, `linkedin` and `xai`
-  are generic OIDC authorization-code clients (`oidc.go`). Each has the block
+- **FR-012** — Implemented (T040–T042): `linkedin` and `xai` are generic
+  OIDC authorization-code clients (`oidc.go`); `microsoft` is spec 018's own
+  client (`microsoft.go`, `idtoken.go`, `4dc854e5`: PKCE S256, an RS256
+  id_token checked against the tenant's JWKS, the `xms_edov` email rule).
+  Each has the block
   `SPOOL_HUB_AUTH_<P>_{CLIENT_ID,CLIENT_SECRET,REDIRECT_URI,SCOPES}` under the
   same FR-007 fail-fast rules. Identity = the userinfo `sub` + email;
-  `email_verified=true` is required (bool or `"true"`), except Microsoft,
-  where no such claim exists and trust comes from OQ-I1. Endpoints:
+  `email_verified=true` is required (bool or `"true"`); Microsoft's email
+  trust is 018 OQ-M1/M2 (tenant default `common`,
+  `SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL=true` refused in prd). Endpoints:
   Microsoft = `login.microsoftonline.com/<SPOOL_HUB_AUTH_MICROSOFT_TENANT>/oauth2/v2.0/{authorize,token}`
-  + `graph.microsoft.com/oidc/userinfo`; LinkedIn = its published OIDC
+  + `…/discovery/v2.0/keys` (018); LinkedIn = its published OIDC
   endpoints (`www.linkedin.com/oauth/.well-known/openid-configuration`);
   xAI = **cnf only** (`SPOOL_HUB_AUTH_XAI_{AUTH_URL,TOKEN_URL,USERINFO_URL}`,
   narrative §1 "never baked"), no Go default, required when `xai` is listed.
-  The fake IdP serves all three at `/oidc/<p>/{authorize,token,userinfo}`.
+  The fake IdP serves LinkedIn and xAI at `/oidc/<p>/{authorize,token,userinfo}`
+  and Microsoft-shaped endpoints (`AddMicrosoft`).
 - **FR-013** — Implemented (T043): `POST /api/v1/auth/facebook/deauthorize`
   and `POST /api/v1/auth/facebook/data-deletion` (form field
   `signed_request`) verify `HMAC-SHA256(app secret, <raw payload segment>)`
@@ -170,28 +186,31 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
 - **FR-014** — Implemented (the OQ-A5 default): tenant admission. A human is
   admitted to tenant T when (1) they are already a member; else (2) an
   unexpired, unaccepted invite for T matches their verified email, and they
-  become a member with the invite's role and the invite is marked accepted;
+  become a member with the invite's role (a 025 rbac role id; an invite that
+  names none gets `developer`) and the invite is marked accepted;
   else (3) bootstrap (`SPOOL_HUB_AUTH_BOOTSTRAP_OWNER=true`) is on **and** T
-  has zero members, and they become owner. Otherwise they are refused.
+  has zero members, and they become `biz_owner`
+  (`internal/store/humans.go` `RoleTenantOwner`). Otherwise they are refused.
   Bootstrap is a trust change: it is `true` on dev and `false` (the default)
   on prd until the owner decides OQ-A5. On prd the first owner comes from an
-  operator invite (`spool hub-invite`).
+  operator invite (`spool hub-invite`; `--role` defaults to `biz_owner`, and
+  the legacy `owner|member` map to `biz_owner|developer`, `cmd/spool/hub.go`).
 - **FR-015** — Implemented: on `/v1/wui/ws`, a member session's `HUM-*`
   **overrides** the browser-asserted `hello.as` / `?as=` (gap F8), so a
   signed-in human cannot post as someone else. With the door `off`
   (lde/dev only) the asserted id is used as before.
 - **FR-016** — Implemented (CLE-3411, tasks T060–T066; owner 2026-09-19 "send him an email
   invite", "to both the environments"): **the invitation email.** Creating an
-  invite (`spool hub-invite`, operator; and any later in-app owner invite,
-  which calls the same `invitemail.Send`) sends ONE mail through the existing
+  invite (`spool hub-invite`, operator; and the in-app `POST /v1/members/invites`
+  (025, `3ab2dd68`, `internal/hub/rbac.go`), which calls the same
+  `invitemail.Send` through `hub.Options.InviteMail`) sends ONE mail through the existing
   relay (`internal/mail`, cnf `env.mail`; prd and dev = the csi-rel Gmail
-  relay, From name `SPOOL-HUB.AI NO-REPLY`). No in-app owner-invite endpoint
-  exists in the hub today (measured: `grep -rln PutInvite --include=*.go`
-  outside tests names only `cmd/spool/hub.go` and the auth demo), so the
-  operator path is the only caller until one is built.
+  relay, From name `SPOOL-HUB.AI NO-REPLY`). Both callers are wired
+  (`cmd/spool/hub.go` sets `opts.InviteMail` when the transport can deliver).
   - **Content** (template `tenant_invite`, all 19 locales): the tenant that
     invites (its id is the tenant name today), the role, the address to sign
-    in with, the sign-in URL `https://<env fqdn>/login?tenant=<tenant>`, how
+    in with, the sign-in URL `https://<env fqdn>[/<locale>]/login?tenant=<tenant>`
+    (`invitemail.SignInURL`), how
     to accept (Google, or native sign-up + verify with THAT address;
     admission is FR-014's verified-email match), and the expiry (UTC).
   - **No bearer secret.** The invite is matched on the provider-verified
@@ -199,7 +218,7 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
     mail grants nothing. No token is minted, stored or mailed.
   - **Locale.** The invitee has no stored locale and tenants have none, so
     the mail renders in the hub default `env.i18n.default_locale`
-    (`SPOOL_HUB_DEFAULT_LOCALE`; `bg` today) unless the operator passes
+    (`SPOOL_HUB_DEFAULT_LOCALE`; `en` today, `f2c024a7`) unless the operator passes
     `--locale`; `en` is the fallback for a missing variant (`mail.Render`).
   - **Only an open invite is mailed.** Accepted or expired → no mail
     (`skipped_accepted` / `skipped_expired`); unknown → `not_found`.
@@ -253,9 +272,11 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
 - **OQ-A3 (004) — default implemented (rdb `0006`).** (a) **Recommended,
   implemented:** `HUM-<n>` is an opaque hub-wide sequence (`humans_seq`),
   keyed by `(provider, subject)` in `human_identities`. One human may hold
-  several identities. Email is an attribute, never a key, and a new identity
-  is never auto-linked to an existing human by email (otherwise an IdP that
-  lets a user change their email could take over an account). The id is
+  several identities. Email is an attribute, never a key. Since CLE-3451 (`5ebca8fb`,
+  `internal/store/humans.go` `Admit`) a new identity joins an existing human
+  when BOTH addresses are provider-verified; an unverified address on either
+  side never links (otherwise an IdP that lets a user change their email
+  could take over an account). The id is
   unique hub-wide, not per tenant; tenancy lives in `tenant_memberships`.
   (b) Derive the id from the verified email — not the default, because email
   changes and provider email reuse break a stable id.
@@ -273,7 +294,11 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
   non-browser readers. Until this is decided, `token` mode admits member
   sessions and accepts no token.
 
-- **OQ-I1 (owner) — Microsoft email trust.** Entra's userinfo carries no
+- **OQ-I1 (owner) — Microsoft email trust. Superseded by 018 OQ-M1/M2**
+  (`4dc854e5`): Microsoft is its own client; the tenant default is `common`
+  (`internal/auth/config.go` envDefault, `all.env.yaml`), a work account's
+  email is trusted only with `xms_edov`, and
+  `SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL=true` is refused in prd. Was: Entra's userinfo carries no
   `email_verified`, and in a work/school tenant the `email` is set by that
   tenant's admin, unverified (the "nOAuth" class): trusting it lets another
   tenant claim a person's address. (a) **Recommended, implemented default:**
@@ -293,10 +318,14 @@ by Meta's HMAC `signed_request` (FR-013). *(Implemented: T043.)*
 
 ## 5. Success criteria
 
-- **SC-001** — Implemented (fake IdP): both providers complete
-  start → callback → `/session` = 200 (`go run ./internal/auth/cmd/auth-demo`).
+- **SC-001** — Implemented (fake IdP): every enabled provider (5 today)
+  completes start → callback → `/session` = 200
+  (`go run ./internal/auth/cmd/auth-demo` → `OK - all N providers signed in
+  against the fake IdP`).
 - **SC-002** — Implemented: 100 % of callbacks verify state + cookie
   (`TestStateCSRF`).
-- **SC-003** — Planned: the same on dev against the registered apps (T034).
+- **SC-003** — Partial: Google live on dev + prd (`a7b7d1ca`; T053–T055, up
+  to the human sign-in). Missing: Facebook, which has no registered Meta app
+  (`SPOOL_HUB_AUTH_FACEBOOK_CLIENT_ID: PLACEHOLDER-facebook-app-id`) (T034).
 
-<!-- version: 0.4.0 · updated: 2026-09-19 · last-edit: 2026-09-19T16:55:00Z -->
+<!-- version: 0.5.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:00:00Z -->

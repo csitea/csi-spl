@@ -123,6 +123,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `032-spool-message-edit/` | edit a sent message; append-only `message_revisions` | M3 | CLE-3443 / CLE-3445 |
 | `033-spool-message-levels/` | level 1 (topic opener, middle card, `is_parent = 1`) vs level 2 (thread line, right pane only, `is_parent = 0`); the pane selected last decides | M3 | message-levels lane |
 | `034-spool-topic-gist/` | download the gist of one topic (one `task_id`: level-1 opener plus level-2 lines); what the gist contains is an open question | M3 | topic-gist lane |
+| `036-spool-terminal-mirror/` | a seated agent's terminal prompts and final answers posted into its DM with the human (claude + grok hooks), redacted, never echoing the web UI's own words; backfill + check actions | M3 | CLE-3496 |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -174,6 +175,7 @@ Dependency order between specs:
 | Message edit request, frame, register | 032 `contracts/message-edit-v1.md` | 003 stores it; 005 browser shortcut |
 | `messages.is_parent`, browser send field, level rule | 033 `spec.md` | 003 stores and returns it; 005 decides it from the pane selected last; 032 double-click edit at both levels |
 | Topic gist of one `task_id` | 034 `spec.md` | 034 reads what 003 serves; 005 draws the control |
+| Terminal -> DM mirror, `typed` / `peer` records, redaction | 036 `spec.md` | 028 terminal leg records them; 003 stores the posts; 012 desk seat |
 
 ---
 

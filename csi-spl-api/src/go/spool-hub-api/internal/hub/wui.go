@@ -63,6 +63,7 @@ type wuiConn struct {
 	chans  map[string]bool // channel ids (stored form), guarded by srv.mu
 	peers  map[string]bool // DM peers, "<id>" or "<id>@<box>" (v0.5), guarded by srv.mu
 	all    bool            // topic-list follow (v0.5), guarded by srv.mu
+	upload tokenSlot       // CLE-34986: one live upload token per socket
 	wmu    sync.Mutex
 	once   sync.Once
 }
@@ -240,7 +241,7 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 		c.close(websocket.StatusNormalClosure, "")
 	}()
 
-	tok, exp := s.mintToken(t.ID, WUIBox)
+	tok, exp := s.slotToken(&c.upload, t.ID, WUIBox)
 	welcome := map[string]any{"type": "welcome", "as": c.from, "name": c.as,
 		"upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339)}
 	if s.o.LobbyTaskID != "" {
@@ -316,7 +317,7 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 			// reads it again, so a demotion still bites on an open socket.
 			s.wuiSend(store.WithMemo(ctx), c, f)
 		case "token":
-			tok, exp := s.mintToken(t.ID, WUIBox)
+			tok, exp := s.slotToken(&c.upload, t.ID, WUIBox)
 			c.write(ctx, map[string]string{"type": "token", "upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339)}) //nolint:errcheck
 		default:
 			c.write(ctx, wuiErr{"error", "bad_frame", http.StatusBadRequest, "unknown frame type", ""}) //nolint:errcheck
@@ -585,7 +586,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 			return
 		}
 	}
-	if tok, status, detail := s.admit(ctx, c.tenant, m); tok != "" {
+	if tok, status, detail := s.admit(ctx, c.tenant, c.member, m); tok != "" {
 		fail(tok, status, detail)
 		return
 	}
@@ -650,7 +651,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 
 // admit applies the 006 billing / quota rules and the OQ-11 file rule to a
 // hub-built message (the box path runs the same checks inline in onSend).
-func (s *Server) admit(ctx context.Context, tenant string, m *msg.Message) (string, int, string) {
+func (s *Server) admit(ctx context.Context, tenant, member string, m *msg.Message) (string, int, string) {
 	trow, err := s.o.Store.GetTenant(ctx, tenant)
 	if err != nil {
 		return "internal", http.StatusInternalServerError, "tenant unavailable"
@@ -663,6 +664,14 @@ func (s *Server) admit(ctx context.Context, tenant string, m *msg.Message) (stri
 	}
 	if missing := s.missingFile(ctx, tenant, m.Files); missing != "" {
 		return "missing_file", http.StatusBadRequest, "file_id " + missing + " is not held by the hub"
+	}
+	if member != "" { // "" = the door-off anonymous rig, which reads everything
+		switch f, err := s.unreadableFile(ctx, tenant, m.Files, "", member); { // CLE-34986
+		case err != nil:
+			return "internal", http.StatusInternalServerError, "file lookup failed"
+		case f != "":
+			return "missing_file", http.StatusBadRequest, "file_id " + f + " is not held by the hub"
+		}
 	}
 	return "", 0, ""
 }
@@ -739,15 +748,31 @@ func (s *Server) fanoutChannel(ctx context.Context, tenant string, c store.Chann
 }
 
 // DELETE /v1/files/{file_id}: owner-requested; needs a valid upload token of
-// the tenant (box or box-wui). 204, or 404 when absent / another tenant's.
+// the tenant. 204, or 404 when absent / another tenant's / not the caller's.
+//
+// CLE-34986: any upload token of the tenant deleted any blob of it - the
+// box-wui token every signed-in browser gets in its welcome included - so a
+// member outside #hr could delete an #hr attachment or another member's DM
+// file, and 204 vs 404 told them whether a known sha256 existed. The delete
+// now needs the READ door the download has (mayDeleteFile), and answers a
+// refusal exactly as a missing file.
 func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
 	t, _, ok := s.tokenTenant(w, r) // specs/026: the token's tenant
 	if !ok {
 		return
 	}
-	key, err := blob.Key(t.ID, r.PathValue("file_id"))
+	fileID := r.PathValue("file_id")
+	key, err := blob.Key(t.ID, fileID)
 	if err != nil {
+		writeErr(w, http.StatusNotFound, "not_found", "no such file")
+		return
+	}
+	switch may, err := s.mayDeleteFile(r, t.ID, fileID); {
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "delete failed")
+		return
+	case !may:
 		writeErr(w, http.StatusNotFound, "not_found", "no such file")
 		return
 	}
@@ -760,6 +785,20 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 		s.fileUsage.forget(t.ID) // the next upload lists the prefix afresh
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// mayDeleteFile is mayReadFile for a delete. A box token is judged as the
+// box (the files it may read); the box-wui token names no one - every
+// signed-in browser holds it - so the browser's delete is judged as the
+// SIGNED-IN HUMAN whose session cookie rides with it, by the same door their
+// download passes. No session in the session door = refused.
+func (s *Server) mayDeleteFile(r *http.Request, tenant, fileID string) (bool, error) {
+	if _, box, ok := s.bearerAny(r); ok && box == WUIBox {
+		asHuman := r.Clone(r.Context())
+		asHuman.Header.Del("Authorization")
+		return s.mayReadFile(asHuman, tenant, fileID)
+	}
+	return s.mayReadFile(r, tenant, fileID)
 }
 
 // filesPreflight answers CORS preflight for POST /v1/files and

@@ -121,14 +121,17 @@ type Server struct {
 	boxes    map[[2]string]*session // (tenant, box) → the role=box session
 	sessions map[*session]struct{}  // every live socket (both roles)
 	tokens   map[string]uploadToken
-	wui      map[*wuiConn]struct{} // browser live sockets (wui.go)
-	humans   humanIDs
-	online   map[[2]string]int // (tenant, HUM-*) → open browser sockets (presence)
-	closing  bool
-	cicd     *cicdlogs.Service
-	edge     *edge.Guard
-	keysLim  *edge.Window // keys.go, per-human writes
-	evLim    *edge.Window // events.go, per-human writes
+	// tokenSweptAt: when mintToken last dropped expired tokens (CLE-34986:
+	// it walked the whole map on EVERY mint, under mu).
+	tokenSweptAt time.Time
+	wui          map[*wuiConn]struct{} // browser live sockets (wui.go)
+	humans       humanIDs
+	online       map[[2]string]int // (tenant, HUM-*) → open browser sockets (presence)
+	closing      bool
+	cicd         *cicdlogs.Service
+	edge         *edge.Guard
+	keysLim      *edge.Window // keys.go, per-human writes
+	evLim        *edge.Window // events.go, per-human writes
 
 	searchRate *edge.Window // search.go, per (tenant, reader)
 	fileUsage  *fileUsage   // fileusage.go, per-tenant stored file bytes
@@ -360,13 +363,43 @@ func (s *Server) mintToken(tenant, box string) (string, time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := s.o.Now()
-	for k, v := range s.tokens { // lazy cleanup
-		if now.After(v.expires) {
-			delete(s.tokens, k)
+	if now.Sub(s.tokenSweptAt) >= tokenSweepEvery { // lazy cleanup, at most once a sweep period
+		s.tokenSweptAt = now
+		for k, v := range s.tokens {
+			if now.After(v.expires) {
+				delete(s.tokens, k)
+			}
 		}
 	}
 	s.tokens[tok] = uploadToken{tenant: tenant, box: box, expires: exp}
 	return tok, exp
+}
+
+// tokenSweepEvery bounds how often a mint walks the token map.
+const tokenSweepEvery = time.Minute
+
+// tokenSlot is one connection's current upload token (CLE-34986). A `token`
+// frame minted a NEW token every time and each mint walked the whole map
+// under the hub-wide mutex, so one socket looping {"type":"token"} grew the
+// map without bound and stalled routing for every tenant. A connection now
+// gets its current token back while more than half its TTL remains; only
+// then is a new one minted.
+type tokenSlot struct {
+	mu  sync.Mutex
+	tok string
+	exp time.Time
+}
+
+// slotToken answers slot's token, minting one when none is left or it is in
+// the second half of its life.
+func (s *Server) slotToken(slot *tokenSlot, tenant, box string) (string, time.Time) {
+	slot.mu.Lock()
+	defer slot.mu.Unlock()
+	if slot.tok != "" && slot.exp.Sub(s.o.Now()) > s.o.UploadTokenTTL/2 {
+		return slot.tok, slot.exp
+	}
+	slot.tok, slot.exp = s.mintToken(tenant, box)
+	return slot.tok, slot.exp
 }
 
 func (s *Server) retention(channel string) time.Duration {

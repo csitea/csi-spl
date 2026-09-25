@@ -228,11 +228,38 @@ func (s *Server) mayReadFile(r *http.Request, tenant, fileID string) (bool, erro
 	if fileID == "" {
 		return false, nil
 	}
-	ctx, now := r.Context(), s.o.Now()
+	if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+		_, box, ok := s.bearerAny(r)
+		if !ok || box == WUIBox {
+			return false, nil
+		}
+		return s.fileReadableBy(r.Context(), tenant, fileID, box, "")
+	}
+	hum, ok := s.readerID(r, tenant) // fails closed (CLE-34986): an error read as "door off"
+	if !ok {
+		return false, nil
+	}
+	if hum == "" {
+		return true, nil // door-off lde, as the rest of privacy.go
+	}
+	return s.fileReadableBy(r.Context(), tenant, fileID, "", hum)
+}
+
+// fileReadableBy is mayReadFile's rule for a principal already resolved: a
+// box (box != "") or a human. The send paths ask it too (CLE-34986): an
+// attachment is a capability to READ the blob, so a sender may attach only a
+// file it may already read - else anyone who knew a file_id (a member
+// removed from #hr, a log line) re-attached it to their own DM and then
+// downloaded it through that message.
+func (s *Server) fileReadableBy(ctx context.Context, tenant, fileID, box, hum string) (bool, error) {
+	if fileID == "" {
+		return false, nil
+	}
+	now := s.o.Now()
 	// An AVATAR is not an attachment. GET /v1/view/roster already lists every
 	// member's avatar_file_id to every member, so the picture is exactly as
 	// private as the roster - refusing it here would only break the WUI.
-	switch avatar, err := s.isTenantAvatar(r, tenant, fileID); {
+	switch avatar, err := s.isTenantAvatar(ctx, tenant, fileID); {
 	case err != nil:
 		return false, err
 	case avatar:
@@ -240,20 +267,9 @@ func (s *Server) mayReadFile(r *http.Request, tenant, fileID string) (bool, erro
 	}
 	var may bool
 	var err error
-	if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
-		_, box, ok := s.bearerAny(r)
-		if !ok || box == WUIBox {
-			return false, nil
-		}
+	if box != "" {
 		may, err = s.o.Store.FileReadableByBox(ctx, tenant, fileID, box, now)
 	} else {
-		hum, ok := s.readerID(r, tenant) // fails closed (CLE-34986): an error read as "door off"
-		if !ok {
-			return false, nil
-		}
-		if hum == "" {
-			return true, nil // door-off lde, as the rest of privacy.go
-		}
 		var mine []string
 		if mine, err = s.readerChannels(ctx, tenant, hum); err == nil {
 			may, err = s.o.Store.FileReadableByHuman(ctx, tenant, fileID, hum, mine, now)
@@ -288,12 +304,12 @@ func (s *Server) mayReadFile(r *http.Request, tenant, fileID string) (bool, erro
 
 // isTenantAvatar reports whether fileID is some member of tenant's stored
 // IdP picture. A store without the 010 tables has none.
-func (s *Server) isTenantAvatar(r *http.Request, tenant, fileID string) (bool, error) {
+func (s *Server) isTenantAvatar(ctx context.Context, tenant, fileID string) (bool, error) {
 	h, ok := s.o.Store.(store.Humans)
 	if !ok {
 		return false, nil
 	}
-	avatars, err := h.TenantAvatars(r.Context(), tenant)
+	avatars, err := h.TenantAvatars(ctx, tenant)
 	if err != nil {
 		return false, err
 	}

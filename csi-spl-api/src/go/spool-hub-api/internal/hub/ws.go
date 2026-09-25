@@ -40,6 +40,7 @@ type session struct {
 	// msgVersions: the inner versions this box's reader accepts (hello
 	// msg_versions, specs/020); a pre-020 box sends none and gets v:1 only.
 	msgVersions []int
+	upload      tokenSlot // CLE-34986: one live upload token per socket
 	// agents is this box's seated roster, sorted: what onSend checks a
 	// sender against. It is read from the welcome's roster at hello and
 	// replaced by a stored announce, both on this session's read goroutine,
@@ -138,7 +139,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		case wire.TTail:
 			s.onTail(ctx, x, f)
 		case wire.TToken:
-			tok, exp := s.mintToken(x.tenant, x.box)
+			tok, exp := s.slotToken(&x.upload, x.tenant, x.box)
 			x.write(ctx, wire.Frame{Type: wire.TToken, UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)}) //nolint:errcheck
 		default:
 			x.fail(ctx, f.MsgID, "bad_frame", http.StatusBadRequest, "unknown frame type")
@@ -235,7 +236,7 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 
 	roster, _ := s.o.Store.Roster(ctx, t.ID)
 	x.agents = roster[f.BoxID] // Roster sorts each box's list
-	tok, exp := s.mintToken(t.ID, f.BoxID)
+	tok, exp := s.slotToken(&x.upload, t.ID, f.BoxID)
 	err = x.write(ctx, wire.Frame{Type: wire.TWelcome, BoxID: f.BoxID, Roster: roster,
 		UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)})
 	x.markWelcomed()
@@ -482,6 +483,14 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, "missing_file", http.StatusBadRequest, "file_id "+missing+" is not held by the hub")
 		return
 	}
+	switch f, err := s.unreadableFile(ctx, x.tenant, m.Files, x.box, ""); { // CLE-34986
+	case err != nil:
+		x.fail(ctx, id, "internal", http.StatusInternalServerError, "file lookup failed")
+		return
+	case f != "": // answered as a missing file: no oracle for what the box may not read
+		x.fail(ctx, id, "missing_file", http.StatusBadRequest, "file_id "+f+" is not held by the hub")
+		return
+	}
 	if _, err := time.Parse(time.RFC3339, m.TS); err != nil {
 		x.fail(ctx, id, "bad_json", http.StatusBadRequest, "ts is not RFC3339")
 		return
@@ -627,6 +636,29 @@ func (s *Server) missingFile(ctx context.Context, tenant string, files []msg.Att
 		}
 	}
 	return ""
+}
+
+// unreadableFile is the first blob attachment the sender may NOT read - a
+// box (box != "") or a human - or "" (CLE-34986). An attachment is a read
+// capability: a file_id the sender cannot already read would become readable
+// to them through their own message. Text-only mode holds no blobs.
+func (s *Server) unreadableFile(ctx context.Context, tenant string, files []msg.Attachment, box, hum string) (string, error) {
+	if s.o.AllowTextOnly {
+		return "", nil
+	}
+	for _, a := range files {
+		if a.Mode != "blob" {
+			continue
+		}
+		ok, err := s.fileReadableBy(ctx, tenant, a.FileID, box, hum)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			return a.FileID, nil
+		}
+	}
+	return "", nil
 }
 
 // commit stores the envelope and queues or pushes it. Caller has validated.

@@ -52,7 +52,7 @@ const HALVES = {
     chevron: 'channel-people-search-button',
     add: 'channel-people-add',
     empty: 'channel-invite-empty',
-    rows: '[data-testid="channel-invite-members"] > li > span:first-child',
+    rows: '[data-testid="channel-invite-members"] > li > .member-rows__name',
     remove: 'channel-member-remove-',
     api: /\/v1\/channels\/[^/]+\/members/,
   },
@@ -63,7 +63,7 @@ const HALVES = {
     chevron: 'channel-agent-search-button',
     add: 'channel-agent-add',
     empty: 'channel-agent-invite-empty',
-    rows: '[data-testid="channel-agents-list"] > li > span:first-child',
+    rows: '[data-testid="channel-agents-list"] > li > .member-rows__name',
     remove: 'channel-agent-remove-',
     api: /\/v1\/channels\/[^/]+\/agents/,
   },
@@ -100,6 +100,32 @@ const readOptions = (p, h) => p.evaluate((h) => {
   }
   return { options: out, empty: empty ? empty.textContent.trim() : null, placed }
 }, { pick: h.pick, empty: h.empty, options: h.options, search: h.search })
+/**
+ * Every visible people/agent list in the dialog (and an open dropdown): one
+ * row per line - each row's top at or below the previous row's bottom - and
+ * each row led by its own avatar image.
+ */
+const readLayout = (p) => p.evaluate(() => {
+  const dlg = document.querySelector('[data-testid="channel-properties"]')
+  const lists = [...dlg.querySelectorAll('ul.member-rows, [data-testid$="-options"]')].filter((ul) => ul.offsetParent !== null)
+  const out = []
+  for (const ul of lists) {
+    const lis = [...ul.children].filter((li) => li.tagName === 'LI' && !li.matches('.invite-add__empty'))
+    let stacked = true
+    let avatars = 0
+    let prev = null
+    for (const li of lis) {
+      const r = li.getBoundingClientRect()
+      if (prev && r.top < prev.bottom - 1) stacked = false
+      prev = r
+      const first = li.firstElementChild
+      if (first && first.matches('img.spool-avatar') && first.getBoundingClientRect().width > 0) avatars++
+    }
+    out.push({ list: ul.getAttribute('data-testid'), rows: lis.length, stacked, avatars })
+  }
+  return out
+})
+const layoutOk = (lay) => lay.length > 0 && lay.every((l) => l.stacked && l.avatars === l.rows)
 const rowsOf = (p, h) => p.$$eval(h.rows, (els) => els.map((s) => s.textContent.trim()))
 
 /** (a) full list, (b) narrow + control, (c) pick + Add, then undo. */
@@ -118,6 +144,8 @@ async function runHalf(p, kind, hub) {
   step(tag('(a) empty query lists every candidate, none clipped'), ids.length > 0 && hidden.length === 0,
     { n: ids.length, ids, hidden, empty: all.empty })
   step(tag('(a) the list opens right under its input, inside the dialog'), !!all.placed?.ok, { placed: all.placed })
+  const layA = await readLayout(p)
+  step(tag('(a) every list is vertical, one avatar per row'), layoutOk(layA), { lists: layA })
   await p.keyboard.press('Escape')
   await sleep(300)
   const stillOpen = !!(await p.$('[data-testid="channel-properties"]'))
@@ -161,6 +189,8 @@ async function runHalf(p, kind, hub) {
   step(tag('(c) Add makes them a member'), after.includes(target) && !err && (EMAIL ? posts.length > 0 && posts.every((s) => s >= 200 && s < 300) : true),
     { target, rows: after, error: err, hub_post: posts })
   await p.screenshot({ path: `${OUT}/${kind}-c-added.png` })
+  const layC = await readLayout(p)
+  step(tag('(c) the member list is vertical, one avatar per row'), layoutOk(layC) && layC.some((l) => l.rows > 0), { lists: layC })
   if (after.includes(target) && !before.includes(target)) {
     await p.click(`[data-testid="${h.remove}${target}"]`)
     await sleep(1500)
@@ -236,8 +266,8 @@ try {
         const txt = (sel) => [...dlg.querySelectorAll(sel)].map((e) => e.textContent.trim())
         return {
           note: !!dlg.querySelector('[data-testid="channel-default-note"]'),
-          people: txt('[data-testid="channel-default-people"] > li > span:first-child'),
-          agents: txt('[data-testid="channel-default-agents"] > li > span:first-child'),
+          people: txt('[data-testid="channel-default-people"] > li > .member-rows__name'),
+          agents: txt('[data-testid="channel-default-agents"] > li > .member-rows__name'),
           removes: dlg.querySelectorAll('[data-testid^="channel-member-remove-"], [data-testid^="channel-agent-remove-"]').length,
           pickers: dlg.querySelectorAll('[data-testid="channel-people-search"], [data-testid="channel-agent-search"]').length,
           error: dlg.querySelector('[data-testid="channel-invite-error"]')?.textContent.trim() || '',
@@ -245,6 +275,15 @@ try {
       })
       res.lobby = lobby
       await p.screenshot({ path: `${OUT}/lobby-default.png` })
+      const layL = await readLayout(p)
+      step('lobby: people and agents are vertical, one avatar per row', layoutOk(layL) && layL.length >= 2, { lists: layL })
+      // The Agents tab has its own list; it used to wrap several agents per line.
+      await p.$eval('[data-testid="channel-properties-tab-agents"]', (b) => b.click())
+      await sleep(400)
+      const layT = await readLayout(p)
+      await p.screenshot({ path: `${OUT}/lobby-agents-tab.png` })
+      step('lobby: the Agents tab is vertical, one avatar per row', layoutOk(layT) && layT.some((l) => l.list === 'channel-agents-readonly' && l.rows > 1), { lists: layT })
+      await p.$eval('[data-testid="channel-properties-tab-people"]', (b) => b.click())
       step('lobby: lists every person and at least one agent, with the note', lobby.note && lobby.people.length > 0 && lobby.agents.length > 0 && !lobby.error,
         { n_people: lobby.people.length, people: lobby.people, n_agents: lobby.agents.length, agents: lobby.agents, error: lobby.error })
       step('lobby: nobody can be removed and nobody added (0 minus, 0 pickers)', lobby.removes === 0 && lobby.pickers === 0, { removes: lobby.removes, pickers: lobby.pickers })

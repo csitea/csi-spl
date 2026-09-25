@@ -50,13 +50,15 @@
           <p class="muted" data-testid="channel-default-note">{{ t('channels.properties.default_everyone') }}</p>
           <ul class="member-rows" data-testid="channel-default-people">
             <li v-for="id in localMembers" :key="id" :data-testid="'channel-default-person-' + id">
-              <span>{{ id }}</span>
+              <SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" />
+              <span class="member-rows__name">{{ id }}</span>
             </li>
           </ul>
           <p v-if="agentRows.length === 0" class="muted" data-testid="channel-people-agents-none">{{ t('channels.properties.agents_none') }}</p>
           <ul v-else class="member-rows" data-testid="channel-default-agents">
             <li v-for="row in agentRows" :key="row.id + '@' + row.box" :data-testid="'channel-default-agent-' + row.id">
-              <span>{{ row.id }}</span>
+              <SpoolAvatar :id="row.id" :box="row.box" :size="22" />
+              <span class="member-rows__name">{{ row.id }}</span>
               <span class="muted">{{ row.box }}</span>
             </li>
           </ul>
@@ -107,7 +109,7 @@
                       class="invite-add__option"
                       :class="{ 'is-active': active, 'is-selected': selected }"
                       :data-testid="'channel-invite-pick-' + id"
-                    >{{ id }}</li>
+                    ><SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" /> <span class="member-rows__name">{{ id }}</span></li>
                   </ComboboxOption>
                 </ComboboxOptions>
               </Combobox>
@@ -122,7 +124,8 @@
           </div>
           <ul class="member-rows" data-testid="channel-invite-members">
             <li v-for="id in localMembers" :key="id">
-              <span>{{ id }}</span>
+              <SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" />
+              <span class="member-rows__name">{{ id }}</span>
               <button
                 type="button"
                 class="icon-btn"
@@ -182,7 +185,7 @@
                       class="invite-add__option"
                       :class="{ 'is-active': active, 'is-selected': selected }"
                       :data-testid="'channel-agent-invite-' + row.id"
-                    >{{ row.id }} <span class="muted">{{ row.box }}</span></li>
+                    ><SpoolAvatar :id="row.id" :box="row.box" :size="22" /> <span class="member-rows__name">{{ row.id }}</span> <span class="muted">{{ row.box }}</span></li>
                   </ComboboxOption>
                 </ComboboxOptions>
               </Combobox>
@@ -198,7 +201,8 @@
           <p v-if="agentRows.length === 0" class="muted" data-testid="channel-people-agents-none">{{ t('channels.properties.agents_none') }}</p>
           <ul v-else class="member-rows" data-testid="channel-agents-list">
             <li v-for="row in agentRows" :key="row.id + '@' + row.box" :data-testid="'channel-agent-' + row.id">
-              <span>{{ row.id }}</span>
+              <SpoolAvatar :id="row.id" :box="row.box" :size="22" />
+              <span class="member-rows__name">{{ row.id }}</span>
               <span class="muted">{{ row.box }}</span>
               <button
                 type="button"
@@ -224,9 +228,10 @@
       >
         <p v-if="!loaded" class="muted">{{ t('common.loading') }}</p>
         <p v-else-if="agentRows.length === 0" class="muted" data-testid="channel-agents-none">{{ t('channels.properties.agents_none') }}</p>
-        <ul v-else class="invite-members" data-testid="channel-agents-readonly">
+        <ul v-else class="member-rows" data-testid="channel-agents-readonly">
           <li v-for="row in agentRows" :key="row.id + '@' + row.box">
-            <span>{{ row.id }}</span>
+            <SpoolAvatar :id="row.id" :box="row.box" :size="22" />
+            <span class="member-rows__name">{{ row.id }}</span>
             <span class="muted">{{ row.box }}</span>
           </li>
         </ul>
@@ -290,6 +295,9 @@ const props = defineProps<{
   createdBy: string
 }>()
 const emit = defineEmits<{ 'update:open': [boolean] }>()
+
+// A person's avatar is keyed on the browser box, as in the feed and the sidebar.
+const HUMAN_BOX = 'box-wui'
 
 const tabs = [
   { id: 'about' as const, label: 'channels.properties.about_tab' },
@@ -588,18 +596,6 @@ async function onToggle(ev: Event) {
   max-width: 100%;
   overflow-wrap: anywhere;
 }
-.invite-members,
-.invite-candidates {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  min-width: 0;
-  max-width: 100%;
-}
-.invite-members li { font-size: 13px; }
 .channel-properties__head {
   display: flex;
   align-items: center;
@@ -624,7 +620,7 @@ async function onToggle(ev: Event) {
   gap: 8px;
   min-width: 0;
 }
-.member-rows li span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.member-rows__name { min-width: 0; overflow-wrap: anywhere; }
 .member-rows .icon-btn { margin-inline-start: auto; }
 .channel-properties__head .icon-btn:disabled {
   opacity: 0.4;
@@ -696,7 +692,12 @@ async function onToggle(ev: Event) {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.invite-add__option { cursor: pointer; }
+.invite-add__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
 .invite-add__option.is-active { background: var(--color-surface-hover); }
 .invite-add__option.is-selected { font-weight: 600; }
 .invite-add > .btn { flex: 0 0 auto; min-height: 40px; }
@@ -705,17 +706,6 @@ async function onToggle(ev: Event) {
 .invite-add > .btn:disabled {
   opacity: 0.4;
   cursor: default;
-}
-.invite-candidates li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  max-width: 100%;
-}
-.invite-candidates .btn {
-  max-width: 100%;
-  overflow-wrap: anywhere;
 }
 .invite-error {
   margin: 0;

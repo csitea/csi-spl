@@ -293,3 +293,28 @@ describe('a default channel lists everyone, read-only (CLE-3493)', () => {
     assert.doesNotMatch(fn, /isPublicChannel|default/)
   })
 })
+
+describe('every people and agent list is vertical, one avatar per row (CLE-3493)', () => {
+  const dialog = src('src/components/ChannelPropertiesDialog.vue')
+  const template = dialog.slice(0, dialog.indexOf('<script'))
+  const style = dialog.slice(dialog.indexOf('<style'))
+
+  it('each row of every list and every dropdown option starts with its own SpoolAvatar', () => {
+    const rows = template.match(/<li\s[^>]*v-for="[^"]*"[^>]*>\s*<SpoolAvatar\s/g) || []
+    assert.equal(rows.length, 5, 'default people, default agents, members, agents, Agents tab')
+    const bare = (template.match(/<li\s[^>]*v-for="[^"]*"[^>]*>\s*<(?!SpoolAvatar\s)/g) || [])
+    assert.deepEqual(bare, [])
+    const options = template.match(/data-testid="'channel-(invite-pick|agent-invite)-' \+ (id|row\.id)"\s*><SpoolAvatar\s/g) || []
+    assert.equal(options.length, 2)
+    assert.match(template, /<SpoolAvatar :id="id" :box="HUMAN_BOX"/)
+    assert.match(template, /<SpoolAvatar :id="row\.id" :box="row\.box"/)
+  })
+
+  it('the lists stack: one class, a column, and no wrapping list class is left', () => {
+    const lists = template.match(/<ul\s[^>]*class="[^"]*"/g) || []
+    assert.ok(lists.length >= 5)
+    for (const ul of lists) assert.match(ul, /class="member-rows"/, ul)
+    assert.match(style, /\.member-rows\s*\{[^}]*flex-direction:\s*column/)
+    assert.doesNotMatch(style, /\.invite-members|flex-wrap:\s*wrap;[^}]*list-style/)
+  })
+})

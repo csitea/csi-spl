@@ -30,6 +30,10 @@ describe('fixedTenantOption', () => {
     )
     assert.deepEqual(fixedTenantOption({ t: 'acme' }), { id: 'acme', label: 'acme' })
     assert.deepEqual(fixedTenantOption({ active_tenant: '  acme  ' }), { id: 'acme', label: 'acme' })
+    assert.deepEqual(
+      fixedTenantOption({ active_tenant: 't1', tenants: [{ tenant_id: 't1', role: 'admin', display_name: 'csitea' }] }),
+      { id: 't1', label: 'csitea' },
+    )
   })
 
   it('prefers active_tenant over t, and a display_name over name', () => {

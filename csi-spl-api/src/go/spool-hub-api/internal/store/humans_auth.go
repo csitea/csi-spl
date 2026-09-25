@@ -159,7 +159,7 @@ func (a AuthHooks) Tenants(ctx context.Context, humanID string) ([]auth.TenantRo
 	}
 	out := make([]auth.TenantRole, 0, len(ms))
 	for _, m := range ms {
-		out = append(out, auth.TenantRole{TenantID: m.TenantID, Role: m.Role})
+		out = append(out, auth.TenantRole{TenantID: m.TenantID, Role: m.Role, DisplayName: m.DisplayName})
 	}
 	return out, nil
 }

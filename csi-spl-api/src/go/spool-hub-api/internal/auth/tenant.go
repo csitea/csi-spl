@@ -13,8 +13,9 @@ import (
 
 // TenantRole is one of a human's memberships.
 type TenantRole struct {
-	TenantID string `json:"tenant_id"`
-	Role     string `json:"role"`
+	TenantID    string `json:"tenant_id"`
+	Role        string `json:"role"`
+	DisplayName string `json:"display_name,omitempty"`
 }
 
 // TenantLister lists every tenant a human belongs to. Optional: a Membership

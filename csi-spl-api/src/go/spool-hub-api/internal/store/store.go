@@ -58,6 +58,8 @@ type Tenant struct {
 	// M4 paid seats; 0 = M4 off (unlimited) for that kind.
 	SeatsUsers int
 	SeatsBots  int
+	// Shown in the WUI tenant drop box. Empty means the tenant id.
+	DisplayName string
 }
 
 func normalizeTenant(t *Tenant) error {

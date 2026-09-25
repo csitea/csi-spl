@@ -65,6 +65,7 @@ async function readBox(p) {
       aboveIcon: er.height > 0 && dr.height > 0 && er.bottom <= dr.top + 1,
       aboveHeading: !hr || hr.height < 1 || er.bottom <= hr.top + 1,
       selectWidth: er.width,
+      selectHeight: er.height,
       sidebarWidth: sw,
       docOverflow: (document.scrollingElement ? document.scrollingElement.scrollWidth : 0) - window.innerWidth,
       innerWidth: window.innerWidth,
@@ -93,6 +94,9 @@ try {
     ok(tag + ' above the direct-messages heading when that heading is shown', box.aboveHeading === true, box)
     ok(tag + ' keyboard reachable and not disabled', box.focused === true && box.disabled === false && box.tabIndex >= 0, box)
     ok(tag + ' fits the sidebar without page scroll', box.selectWidth > 8 && box.selectWidth <= box.sidebarWidth + 1 && box.docOverflow <= 1, box)
+    ok(tag + ' the drop box is compact', box.selectHeight >= 18 && box.selectHeight <= 36 && box.selectWidth <= 160, box)
+    const want = process.env.ASSERT_TENANT_LABEL || ''
+    if (want) ok(tag + ' option text is ' + want, box.options[0].text === want, box.options)
     const url = p.url()
     const value = box.options[0].value
     await p.focus('[data-testid=tenant-switcher-select]')

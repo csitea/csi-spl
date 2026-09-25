@@ -158,6 +158,23 @@ for bad in 'MEMBER_ROLE=Dev!' 'FROM_ROLE=a b'; do
   [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. member-role $bad refused before any call" || fail "2. member-role $bad: rc=$rc"
 done
 
+# --- 2b. tenant display name ---------------------------------------------------
+in_orc 'do_spl_tenant_display_name' TENANT_ID=t1 DISPLAY_NAME=csitea; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would set the display name of t1 to csitea' "$T/out" \
+  && pass "2b. display-name DRY_RUN: no cloud call" || fail "2b. dry: rc=$rc $(cat "$T/out")"
+in_orc 'do_spl_tenant_display_name' TENANT_ID=T_1 DISPLAY_NAME=csitea DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2b. a bad tenant slug is refused before any call" || fail "2b. bad slug: rc=$rc"
+in_orc 'do_spl_tenant_display_name' TENANT_ID=t1 DISPLAY_NAME= DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2b. an empty display name is refused before any call" || fail "2b. empty name: rc=$rc"
+in_orc 'do_spl_tenant_display_name' TENANT_ID=t1 DISPLAY_NAME=$'csitea\nnext' DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2b. a two-line display name is refused before any call" || fail "2b. newline: rc=$rc"
+in_orc 'do_spl_tenant_display_name' TENANT_ID=t1 DISPLAY_NAME=csitea DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q "display_name = :'name'" "$T/stdin" && ! grep -q 'csitea' "$T/stdin" \
+  && grep -qx "SET LOCAL app.tenant_id = :'tenant';" "$T/stdin" \
+  && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
+  && pass "2b. display-name DRY_RUN=0: value is a psql variable, tenant RLS, as $DEV_SA" \
+  || fail "2b. real: rc=$rc $(cat "$T/out") $(cat "$T/stdin")"
+
 # --- 3. read-only query ----------------------------------------------------------------
 for q in "select 1; delete from tenants" "\\! id" ""; do
   in_orc 'do_spl_db_query' SQL="$q"; rc=$?

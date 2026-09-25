@@ -9,8 +9,9 @@ import (
 
 // Membership is one tenant a human belongs to (rdb 0006 tenant_memberships).
 type Membership struct {
-	TenantID string `json:"tenant_id"`
-	Role     string `json:"role"`
+	TenantID    string `json:"tenant_id"`
+	Role        string `json:"role"`
+	DisplayName string `json:"display_name,omitempty"`
 }
 
 // MembershipLister lists every tenant a human belongs to (specs/026 §3: the
@@ -36,7 +37,11 @@ func (s *Memory) Memberships(_ context.Context, humanID string) ([]Membership, e
 	var out []Membership
 	for k, m := range s.hum.members {
 		if k[1] == humanID {
-			out = append(out, Membership{TenantID: k[0], Role: m.role})
+			name := ""
+			if t, ok := s.tenants[k[0]]; ok {
+				name = t.DisplayName
+			}
+			out = append(out, Membership{TenantID: k[0], Role: m.role, DisplayName: name})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].TenantID < out[j].TenantID })
@@ -48,8 +53,10 @@ func (s *Memory) Memberships(_ context.Context, humanID string) ([]Membership, e
 func (s *Postgres) Memberships(ctx context.Context, humanID string) ([]Membership, error) {
 	var out []Membership
 	err := s.asOperator(ctx, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT m.tenant_id, m.role FROM tenant_memberships m
+		rows, err := tx.Query(ctx, `SELECT m.tenant_id, m.role, COALESCE(tn.display_name, '')
+			FROM tenant_memberships m
 			JOIN humans h ON h.human_id = m.human_id
+			JOIN tenants tn ON tn.tenant_id = m.tenant_id
 			WHERE m.human_id = $1 AND h.disabled_at IS NULL ORDER BY m.tenant_id`, humanID)
 		if err != nil {
 			return err
@@ -57,7 +64,7 @@ func (s *Postgres) Memberships(ctx context.Context, humanID string) ([]Membershi
 		defer rows.Close()
 		for rows.Next() {
 			var m Membership
-			if err := rows.Scan(&m.TenantID, &m.Role); err != nil {
+			if err := rows.Scan(&m.TenantID, &m.Role, &m.DisplayName); err != nil {
 				return err
 			}
 			out = append(out, m)

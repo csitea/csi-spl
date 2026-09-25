@@ -89,6 +89,18 @@ named) · `[ ]` Planned (`../README.md` §2.3).
   CLE-001 doorbell `[typed by CLE-001]`. Check: `test-spool-mirror.sh` -> 78,
   `desk-mirror-actions.tst.sh` PASS.
 - [x] T061 Implemented (`bedcd7f`) — FR-016 box user from the checkout root.
+- [x] T062 Implemented (`ff5880c1`) — FR-014: a doorbell naming a HUMAN sender
+  (the desk announcing that human's own message to a pane not on the
+  alternate screen, e.g. agy) is dropped, never posted back as
+  `[typed by HUM-n]` (prd topic 4335f075, reported by CLE-34973).
+  Check: `test-spool-mirror.sh` section 4.
+- [x] T063 Implemented (`fb5ecb44`) — FR-001: `human_text()` strips CLI-injected
+  blocks (`<system-reminder>`, `<task-notification>`, `<local-command-*>`,
+  `<command-*>`, `<bash-*>`, closed or cut off) and drops injection-only
+  prompts, in the hook and before every post. Live leak measured by CLE-100
+  (dev 166 rows, prd 18 agent/human pairs); after 19:25:05Z 0 on both envs
+  (DB, n=1 probe pair per env). Check: `test-spool-mirror.sh` section 16
+  (85 passed). Open: purge of the leaked rows - owner decision.
 
 ## Phase 4 — Rollout
 
@@ -114,4 +126,4 @@ named) · `[ ]` Planned (`../README.md` §2.3).
   (as the box user). A seat with no backfill yet runs
   `do_spl_desk_session_upload`, which lands in the mirror's topic by itself.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:05:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:55:00Z -->

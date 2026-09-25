@@ -607,6 +607,10 @@
     "regular_user": "Regular user"
   },
   "channels": {
+    "feedback": {
+      "name": "feedback",
+      "description": "Tag the business owner to give feedback."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

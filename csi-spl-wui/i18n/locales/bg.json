@@ -607,6 +607,10 @@
     "regular_user": "Обикновен потребител"
   },
   "channels": {
+    "feedback": {
+      "name": "обратна връзка",
+      "description": "Отбележете собственика на бизнеса, за да дадете обратна връзка."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

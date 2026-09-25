@@ -72,7 +72,7 @@ const CHANNEL_ERRORS = {
   bad_channel: (slug) => `"${slug}" is not a valid channel name (a-z, 0-9, "-", max 64)`,
 }
 
-/** store.ChannelPublic: the three default channels. `general` is the lobby alias. */
+/** store.ChannelPublic: the default channels. `general` is the lobby alias. */
 const PUBLIC_CHANNELS = new Set(['lobby', 'tasks', 'alerts', 'feedback'])
 const HUMAN_ID_RE = /^HUM-[0-9]+$/
 

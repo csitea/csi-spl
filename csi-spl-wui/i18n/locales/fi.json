@@ -607,6 +607,10 @@
     "regular_user": "Tavallinen käyttäjä"
   },
   "channels": {
+    "feedback": {
+      "name": "palaute",
+      "description": "Merkitse yrityksen omistaja antaaksesi palautetta."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

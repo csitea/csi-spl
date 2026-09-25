@@ -607,6 +607,10 @@
     "regular_user": "Обычный пользователь"
   },
   "channels": {
+    "feedback": {
+      "name": "отзывы",
+      "description": "Отметьте владельца бизнеса, чтобы оставить отзыв."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

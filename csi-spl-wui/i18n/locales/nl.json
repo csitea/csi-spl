@@ -607,6 +607,10 @@
     "regular_user": "Gewone gebruiker"
   },
   "channels": {
+    "feedback": {
+      "name": "feedback",
+      "description": "Tag de bedrijfseigenaar om feedback te geven."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

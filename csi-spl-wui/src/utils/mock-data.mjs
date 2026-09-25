@@ -11,6 +11,7 @@ export const MOCK_CHANNELS = [
   { channel_id: 'lobby', name: 'lobby', created_by: 'HUM-1' },
   { channel_id: 'tasks', name: 'tasks', created_by: 'HUM-1' },
   { channel_id: 'alerts', name: 'alerts', created_by: 'HUM-1' },
+  { channel_id: 'feedback', name: 'feedback', created_by: 'hub' },
 ]
 
 export const MOCK_ROSTER = {

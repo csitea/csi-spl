@@ -261,7 +261,7 @@ try {
     await sleep(500)
   }
   const rows = await p.$$eval('[data-testid="sidebar-panel-channels"] .nav-row', (els) => els.map((e) => e.getAttribute('data-order')))
-  const DEFAULTS = ['lobby', 'tasks', 'alerts']
+  const DEFAULTS = ['lobby', 'tasks', 'alerts', 'feedback']
 
   // A default channel: every person read-only, nobody removable; its agents
   // are picked with the created channel's picker and minus (2026-09-25).

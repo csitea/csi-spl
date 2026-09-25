@@ -607,6 +607,10 @@
     "regular_user": "Звичайний користувач"
   },
   "channels": {
+    "feedback": {
+      "name": "відгуки",
+      "description": "Позначте власника бізнесу, щоб залишити відгук."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

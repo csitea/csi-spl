@@ -607,6 +607,10 @@
     "regular_user": "Įprastas naudotojas"
   },
   "channels": {
+    "feedback": {
+      "name": "atsiliepimai",
+      "description": "Pažymėkite verslo savininką, kad pateiktumėte atsiliepimą."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

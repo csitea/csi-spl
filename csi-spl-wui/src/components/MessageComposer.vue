@@ -192,6 +192,7 @@ import { fileKind, isPreviewableImage, readDataUrl } from '~/utils/file-preview.
 import { carriesFiles, filesOf, pasteAttaches } from '~/utils/transfer-files.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { useHumanNames } from '~/composables/useHumanNames'
+import { feedbackChannelFromPath, isFeedbackChannel } from '~/utils/feedback-channel.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { applyCompletion, completeOperators, omniboxMode, operatorTokenAt, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
@@ -526,7 +527,7 @@ function syncMention(ev?: Event) {
 const people = useHumanNames()
 /** #feedback (owner, 2026-09-25): the business owner(s) come first in @, online or not. */
 const route = useRoute()
-const inFeedback = computed(() => route.path === '/channel/feedback')
+const inFeedback = computed(() => isFeedbackChannel(feedbackChannelFromPath(route.path)))
 const candidates = computed(() => {
   if (mentionQuery.value === null) return []
   const agents = filterRosterMentions(roster.peers, mentionQuery.value, people.names.value)

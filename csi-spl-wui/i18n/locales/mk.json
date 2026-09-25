@@ -607,6 +607,10 @@
     "regular_user": "Обичен корисник"
   },
   "channels": {
+    "feedback": {
+      "name": "повратни информации",
+      "description": "Означете го сопственикот на бизнисот за да дадете повратни информации."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

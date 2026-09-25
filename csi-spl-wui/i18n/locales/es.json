@@ -607,6 +607,10 @@
     "regular_user": "Usuario habitual"
   },
   "channels": {
+    "feedback": {
+      "name": "comentarios",
+      "description": "Etiqueta al propietario del negocio para dar comentarios."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

@@ -607,6 +607,10 @@
     "regular_user": "Parasts lietotājs"
   },
   "channels": {
+    "feedback": {
+      "name": "atsauksmes",
+      "description": "Atzīmējiet uzņēmuma īpašnieku, lai sniegtu atsauksmi."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

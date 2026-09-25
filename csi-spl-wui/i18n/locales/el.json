@@ -607,6 +607,10 @@
     "regular_user": "Απλός χρήστης"
   },
   "channels": {
+    "feedback": {
+      "name": "σχόλια",
+      "description": "Επισημάνετε τον ιδιοκτήτη της επιχείρησης για να δώσετε σχόλια."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

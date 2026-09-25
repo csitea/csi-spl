@@ -2,7 +2,7 @@
   <div class="feed-col" data-pane="msgs">
     <header class="feed-header">
       <h2>{{ t('pane.msgs') }}</h2>
-      <span class="muted">#{{ name }}</span>
+      <span class="muted">#{{ titleName }}</span>
       <!-- what its creator said it is for (channels-v1 §5.1), else the generic
            line; the retention note is never dropped, it just moves along -->
       <span v-if="description" class="muted feed-header__about" :title="description" data-test="channel-description">{{ description }}</span>
@@ -22,6 +22,7 @@ import { useSpoolEvents } from '~/composables/useSpoolEvents'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { normalizeChannel } from '~/utils/notify.mjs'
+import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
 import { retentionDays } from '~/utils/channel-feed.mjs'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useSidePane } from '~/composables/useSidePane'
@@ -42,7 +43,13 @@ const api = useSpoolApi()
 const session = useSessionStore()
 const name = computed(() => String(route.params.name || 'lobby'))
 const { t } = useI18n({ useScope: 'global' })
-const description = computed(() => String(channel.channels.find((c) => c.channel_id === name.value)?.description || ''))
+const storedDescription = computed(() => String(channel.channels.find((c) => c.channel_id === name.value)?.description || ''))
+const feedbackCopy = computed(() => feedbackChannelCopy(name.value, {
+  name: t('channels.feedback.name'),
+  description: t('channels.feedback.description'),
+}, storedDescription.value))
+const titleName = computed(() => feedbackCopy.value ? feedbackCopy.value.name : name.value)
+const description = computed(() => feedbackCopy.value ? feedbackCopy.value.description : storedDescription.value)
 const retention = computed(() => {
   const n = retentionDays(channel.channels.find((c) => c.channel_id === name.value) || { channel_id: name.value })
   return n ? t('sidebar.retention_days', { n }) : ''

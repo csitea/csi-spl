@@ -607,6 +607,10 @@
     "regular_user": "Tavakasutaja"
   },
   "channels": {
+    "feedback": {
+      "name": "tagasiside",
+      "description": "Märgi ettevõtte omanik, et anda tagasisidet."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

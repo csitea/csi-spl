@@ -607,6 +607,10 @@
     "regular_user": "Zwykły użytkownik"
   },
   "channels": {
+    "feedback": {
+      "name": "opinie",
+      "description": "Oznacz właściciela firmy, aby przekazać opinię."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

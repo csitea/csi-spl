@@ -257,6 +257,18 @@ declare module '~/utils/mention-autocomplete.mjs' {
   ): { id: string, box: string, label: string, owner: true, online: boolean }[]
 }
 
+
+declare module '~/utils/feedback-channel.mjs' {
+  export const FEEDBACK_CHANNEL_ID: string
+  export function isFeedbackChannel(id: string | null | undefined): boolean
+  export function feedbackChannelFromPath(path: string | null | undefined): string
+  export function feedbackChannelCopy(
+    channelId: string | null | undefined,
+    copy: { name?: string, description?: string } | null | undefined,
+    storedDescription?: string,
+  ): { name: string, description: string } | null
+}
+
 declare module '~/utils/topic-in.mjs' {
   export function activeInQuery(text: string, cursor?: number): string | null
   export function filterTopicTitles<T extends { title?: string }>(topics: T[], query: string): T[]

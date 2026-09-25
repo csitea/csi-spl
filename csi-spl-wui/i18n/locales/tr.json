@@ -607,6 +607,10 @@
     "regular_user": "Normal kullanıcı"
   },
   "channels": {
+    "feedback": {
+      "name": "geri bildirim",
+      "description": "Geri bildirim vermek için işletme sahibini etiketleyin."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

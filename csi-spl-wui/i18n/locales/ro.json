@@ -607,6 +607,10 @@
     "regular_user": "Utilizator obișnuit"
   },
   "channels": {
+    "feedback": {
+      "name": "feedback",
+      "description": "Marcați proprietarul afacerii pentru a oferi feedback."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

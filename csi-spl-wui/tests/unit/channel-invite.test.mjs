@@ -132,7 +132,7 @@ describe('mock membership', () => {
 
   it('a default channel has no invite list and refuses the write', async () => {
     const c = createSpoolClient({ mock: true })
-    for (const name of ['lobby', 'tasks', 'alerts', 'general']) {
+    for (const name of ['lobby', 'tasks', 'alerts', 'feedback', 'general']) {
       assert.equal(isPublicChannel(name), true)
     }
     const lobby = await c.listChannelMembers('lobby')
@@ -145,7 +145,7 @@ describe('mock membership', () => {
 
   it('a default channel starts with no agents; a member adds and removes one (2026-09-25)', async () => {
     const c = createSpoolClient({ mock: true })
-    for (const name of ['lobby', 'tasks', 'alerts']) {
+    for (const name of ['lobby', 'tasks', 'alerts', 'feedback']) {
       const row = await c.listChannelMembers(name)
       assert.equal(row.default, true)
       assert.deepEqual(row.agents, [], `#${name} has no agent until someone adds one`)

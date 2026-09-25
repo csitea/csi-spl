@@ -6,7 +6,7 @@ describe('spool-client mock', () => {
   it('lists default channels and catch-up of 50', async () => {
     const c = createSpoolClient({ mock: true })
     const channels = await c.listChannels()
-    assert.deepEqual(channels.map((x) => x.channel_id), ['lobby', 'tasks', 'alerts'])
+    assert.deepEqual(channels.map((x) => x.channel_id), ['lobby', 'tasks', 'alerts', 'feedback'])
     const { messages: feed, next } = await c.listMessages({ channel: 'lobby', limit: 50 })
     assert.ok(feed.length >= 1)
     assert.equal(feed.every((m) => m.channel === 'lobby'), true)

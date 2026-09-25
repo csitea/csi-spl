@@ -607,6 +607,10 @@
     "regular_user": "Vanlig användare"
   },
   "channels": {
+    "feedback": {
+      "name": "feedback",
+      "description": "Tagga företagsägaren för att ge feedback."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

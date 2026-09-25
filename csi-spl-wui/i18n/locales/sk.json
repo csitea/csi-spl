@@ -607,6 +607,10 @@
     "regular_user": "Bežný používateľ"
   },
   "channels": {
+    "feedback": {
+      "name": "spätná väzba",
+      "description": "Označte vlastníka firmy, aby ste poskytli spätnú väzbu."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

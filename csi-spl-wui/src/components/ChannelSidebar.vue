@@ -477,6 +477,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
 import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
+import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { EVENTS_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
@@ -671,7 +672,7 @@ function showProperties(_id: string) {
   return !isSignedOutVisitor(session.state, api.mock)
 }
 function openProperties(id: string) {
-  const row = channel.channels.find((c) => c.channel_id === id)
+  const row = shownChannels.value.find((c) => c.channel_id === id)
   propertiesChannel.value = {
     channel_id: id,
     name: String(row?.name || id),
@@ -694,8 +695,17 @@ const peers = computed(() => pinRows(
     .filter((p) => !hiddenPeers.value[p.label] && !peerHidden(listHidden.value, p.label, channel.dmAt[p.label])),
   pinnedPeers.value,
 ))
+/** #feedback shows its locale name and description; a stored description wins. */
+const shownChannels = computed(() => channel.ordered.map((c) => {
+  const copy = feedbackChannelCopy(c.channel_id, {
+    name: t('channels.feedback.name'),
+    description: t('channels.feedback.description'),
+  }, c.description)
+  if (!copy) return c
+  return { ...c, name: copy.name, description: copy.description }
+}))
 const channelRows = computed(() => pinRows(
-  channel.ordered,
+  shownChannels.value,
   channelOrder.value,
   (c) => String(c.channel_id || ''),
 ))
@@ -747,7 +757,7 @@ function hideFromList(p: { label: string }) {
   flowOrder.value = flowOrder.value.filter((l) => l !== 'dm:' + p.label)
 }
 const flow = computed(() => pinRows(flowRows({
-  channels: channel.ordered,
+  channels: shownChannels.value,
   peers: peers.value,
   topics: viewer.topics,
   liveAt: channel.liveAt,

@@ -607,6 +607,10 @@
     "regular_user": "משתמש רגיל"
   },
   "channels": {
+    "feedback": {
+      "name": "משוב",
+      "description": "סמנו את בעל העסק כדי לתת משוב."
+    },
     "properties": {
       "about_tab": "About",
       "about_name": "Name",

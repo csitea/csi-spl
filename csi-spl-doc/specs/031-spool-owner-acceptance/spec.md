@@ -68,7 +68,7 @@ The gate keeps the two in step.
 | a real IdP sign-in | OA-37 | `MANUAL`, §5 |
 | the owner's own thread URL | OA-38 | the bot — **PASS** since `7044c2e0`, §3.1 |
 | attachments survive a send | OA-39 | **PASS** on `713d6a8` — §3.2 |
-| an attached file round trips | OA-40 | the half OA-39 does NOT prove — **UNVERIFIED**, API round trip only, §3.2 |
+| an attached file round trips | OA-40 | the half OA-39 does NOT prove — **UNVERIFIED**, composer proof `attach-live.proof.mjs`, §3.2 |
 
 ### 2.1 Why the terminal cases are `orc-e2e` and not CI
 
@@ -183,13 +183,17 @@ on the wire and not that the hub stores and serves it. That second half is
 sent" and "the file arrived" are different claims, and this register exists to
 stop exactly that kind of merge.
 
-**OA-40 is UNVERIFIED** (re-read 2026-09-25, tree `4ae33835`, n=1).
-`csi-spl-wui/tests/e2e/live-interop.test.mjs` uploads a file, sends its ref,
-and has the other session download identical bytes. That is the API round
-trip. It runs only when `HUB_URL` is set, and this lane has not run it against
-a live hub, so the row is not PASS. The step the owner sees — attaching in
-the WUI composer — still has no test. The register has no Partial status;
-UNVERIFIED means the named test is in the tree and has not been run live here.
+**OA-40 is UNVERIFIED** (re-read 2026-09-25, tree `6eba06ca`, n=1).
+The composer step the owner sees is `csi-spl-wui/tests/e2e/attach-live.proof.mjs`:
+it clicks Attach, picks the file, and clicks Send, then checks `POST /v1/files`,
+the hub row, the preview and the download.
+`grep -cE 'v1/files|download' csi-spl-wui/tests/e2e/attach-live.proof.mjs` → 10.
+The unit file `csi-spl-wui/tests/unit/composer-files.test.mjs` has 7 `it(` blocks
+(`grep -cE '^[[:space:]]*it\('` → 7). The API socket half is
+`csi-spl-wui/tests/e2e/live-interop.test.mjs`. Neither live proof has a recorded
+run from this lane, so the row stays UNVERIFIED. CLE-34982 reported the same
+on tree `443b67c3`: a live run from this box was dying on docker veth churn
+(`net::ERR_NETWORK_CHANGED`), and they had not recorded a pass.
 
 ## 4. Success criteria
 
@@ -337,4 +341,4 @@ control is the consent screen itself.
   every bot message is labelled as a case and the agent-to-agent cases use
   throwaway ids that touch no live lane.
 
-<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->
+<!-- version: 1.0.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:40:44Z -->

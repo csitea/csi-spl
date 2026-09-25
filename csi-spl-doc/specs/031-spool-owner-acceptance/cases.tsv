@@ -54,5 +54,5 @@ OA-36	bot	the whole run is ONE named action with per-case PASS/FAIL and evidence
 OA-37	manual	a REAL human Google / Microsoft / LinkedIn sign-in reaches the WUI	010	manual	csi-spl-doc/specs/031-spool-owner-acceptance/spec.md	MANUAL	CLE-3438
 OA-38	bot	a message sent from /dm/<peer>?thread=<id> joins THAT thread — the owner's own URL	013	node-e2e	csi-spl-wui/tests/e2e/owner-acceptance-bot.proof.mjs	PASS	CLE-3433
 OA-39	send	a message with an ATTACHMENT puts the file on the wire — the composer never shows it sent when it was dropped	013	node-e2e	csi-spl-wui/tests/e2e/send-failure.proof.mjs	PASS	CLE-3433
-# OA-40: live-interop.test.mjs is the API round trip (upload, send, download). The WUI composer step has no test. UNVERIFIED means that file is in the tree and this lane has not run it live.
-OA-40	send	an attached file ROUND TRIPS: the hub stores it and the recipient can read it back	013	node-e2e	csi-spl-wui/tests/e2e/live-interop.test.mjs	UNVERIFIED	CLE-3438
+# OA-40: the composer proof is attach-live.proof.mjs (click Attach, pick a file, Send, hub row, download). live-interop.test.mjs is the API half. UNVERIFIED: no live run is recorded here.
+OA-40	send	an attached file ROUND TRIPS: the hub stores it and the recipient can read it back	013	node-e2e	csi-spl-wui/tests/e2e/attach-live.proof.mjs	UNVERIFIED	CLE-3438

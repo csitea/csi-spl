@@ -183,8 +183,13 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
   // header is non-simple, so a cross-origin call preflights, and a hub whose
   // CORS allow-list lacks X-Locale refuses EVERY auth call (2e2c601 broke
   // sign-in on dev + prd exactly so). Turn it on only where the hub admits it.
+  // Even then it rides only a write (CLE-34984): the hub reads it in the native
+  // POST handlers that mail, never on a GET, and on GET /session it made the
+  // probe every cold load waits for preflight first (one extra round trip,
+  // ~380 ms on dev).
   const call = (path, opts) => {
-    const loc = sendLocale ? String((typeof locale === 'function' ? locale() : locale) || '') : ''
+    const write = String((opts && opts.method) || 'GET').toUpperCase() !== 'GET'
+    const loc = sendLocale && write ? String((typeof locale === 'function' ? locale() : locale) || '') : ''
     return fetchFn(`${root}${AUTH_PREFIX}${path}`, {
       credentials: 'include',
       ...opts,

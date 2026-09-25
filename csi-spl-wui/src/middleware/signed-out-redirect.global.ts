@@ -48,6 +48,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const session = useSessionStore()
   if (session.state === 'loading' && isProductScreen(to.fullPath)) {
     suppress = true
+    /* CLE-34984: the route resolves only after the probe, so its page chunks
+       used to start downloading only then (after ~1-2 s of session probe on
+       dev). Fetch them alongside the probe; a signed-out visitor who is
+       redirected just leaves them in the cache. */
+    void preloadRouteComponents(to.fullPath).catch(() => {})
     try {
       await session.probe()
     } finally {

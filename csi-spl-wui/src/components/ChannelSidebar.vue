@@ -451,7 +451,9 @@ import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 import { loadMutedChannels, normalizeChannel, saveMutedChannels, toggleMutedChannel } from '~/utils/notify.mjs'
-import ChannelPropertiesDialog from '~/components/ChannelPropertiesDialog.vue'
+/* Async (CLE-34984): it carries @headlessui/vue + @tanstack/virtual-core
+   (~17 KB gzip) that no first paint needs; it loads right after the shell. */
+const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/ChannelPropertiesDialog.vue'))
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
@@ -784,7 +786,9 @@ function swallowDragClick(e: MouseEvent) {
   e.stopPropagation()
 }
 onMounted(() => {
-  session.probe()
+  /* the route middleware has usually probed already; a second probe on every
+     page load was one more session read for nothing (CLE-34984) */
+  if (session.state === 'loading' || session.state === 'unknown') void session.probe()
   mutedChannels.value = loadMutedChannels()
   listHidden.value = loadHiddenPeers()
 })

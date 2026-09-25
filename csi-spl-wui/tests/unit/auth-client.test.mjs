@@ -92,8 +92,19 @@ describe('auth client', () => {
     await createAuthClient({ fetchFn: off.fn, locale: () => 'fi' }).session()
     for (const c of off.calls) assert.equal(c.opts.headers['x-locale'], undefined, c.url)
     const on = stub(200, { providers: [] })
-    await createAuthClient({ fetchFn: on.fn, locale: () => 'fi', sendLocale: true }).providers()
+    await createAuthClient({ fetchFn: on.fn, locale: () => 'fi', sendLocale: true }).register({ email: 'a@example.com', password: 'x' })
     assert.equal(on.calls[0].opts.headers['x-locale'], 'fi')
+  })
+  it('CLE-34984: x-locale rides only writes, so GET /session and /providers need no CORS preflight', async () => {
+    const on = stub(200, { providers: [] })
+    const c = createAuthClient({ fetchFn: on.fn, locale: () => 'fi', sendLocale: true })
+    await c.session()
+    await c.providers()
+    for (const call of on.calls) {
+      assert.equal(call.opts.headers['x-locale'], undefined, call.url)
+      /* a simple request: only CORS-safelisted headers */
+      assert.deepEqual(Object.keys(call.opts.headers).filter((h) => !['accept', 'accept-language', 'content-language'].includes(h.toLowerCase())), [], call.url)
+    }
   })
   it('loadProviders tells auth-off apart from an unreachable registry', async () => {
     const load = (st, body, o) => createAuthClient({ fetchFn: stub(st, body, o).fn }).loadProviders()

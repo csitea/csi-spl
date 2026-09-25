@@ -69,7 +69,9 @@
 </template>
 
 <script setup lang="ts">
-import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+/* Async (CLE-34984): its Combobox pulls @headlessui/vue + @tanstack/virtual-core
+   (~17 KB gzip) into the first download of every page; it loads right after. */
+const LanguageSwitcher = defineAsyncComponent(() => import('@/components/LanguageSwitcher.vue'))
 import MessageComposer from '@/components/MessageComposer.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useOmniboxStore } from '~/stores/omnibox'

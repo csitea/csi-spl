@@ -29,7 +29,8 @@
 </template>
 
 <script setup lang="ts">
-import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+/* Async (CLE-34984): keeps @headlessui/vue out of the first download (TopBar.vue). */
+const LanguageSwitcher = defineAsyncComponent(() => import('@/components/LanguageSwitcher.vue'))
 import { loginBarTitle } from '~/utils/login-title.mjs'
 
 const config = useRuntimeConfig()

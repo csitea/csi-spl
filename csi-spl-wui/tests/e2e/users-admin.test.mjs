@@ -119,6 +119,8 @@ try {
   await p.click('[data-test=users-invite-send]')
   await p.waitForSelector(row('i:e2e-invitee@example.com'), { visible: true, timeout: 5000 }).catch(() => null)
   ok('10 invite adds a pending row with its role', /regular/i.test(await rowRole(p, 'i:e2e-invitee@example.com')), await rowKeys(p))
+  const notice = await text(p, '[data-test=users-pane-notice]')
+  ok('10b the pane moves to the new invite and keeps the notice', notice.includes('e2e-invitee@example.com') && (await text(p, '[data-test=users-pane-email]')) === 'e2e-invitee@example.com', { notice })
 
   // 7. revoke, confirmed
   await p.click(row('i:e2e-invitee@example.com'))

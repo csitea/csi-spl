@@ -180,10 +180,13 @@ const error = ref('')
 const notice = ref('')
 const confirmOpen = ref(false)
 const emailEl = ref<HTMLInputElement | null>(null)
+/* A sent invite reopens the pane on its new row; the notice survives that switch. */
+let carry = ''
 
 watch(() => [props.row?.key, props.creating], () => {
   error.value = ''
-  notice.value = ''
+  notice.value = carry
+  carry = ''
   confirmOpen.value = false
   memberRole.value = member.value?.role || ''
   if (props.creating) {
@@ -240,8 +243,9 @@ function sendInvite() {
   void run(async () => {
     const res = await api.inviteTenantUser({ email: addr, role: inviteRole.value, locale: String(locale.value) })
     const sent = addr.toLowerCase()
+    carry = res?.mail === 'sent' ? t('users.invited', { email: sent }) : t('users.invite_saved_no_mail', { email: sent })
+    notice.value = carry
     emit('changed', 'i:' + sent)
-    notice.value = res?.mail === 'sent' ? t('users.invited', { email: sent }) : t('users.invite_saved_no_mail', { email: sent })
   })
 }
 

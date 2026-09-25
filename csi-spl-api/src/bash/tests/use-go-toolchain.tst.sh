@@ -42,10 +42,22 @@ fi
 PATH=$old_path
 
 empty=$(mktemp -d)
-if spl_export_go_path "$empty"; then
-  fail "CONTROL: an empty root was accepted"
+# a GitHub-hosted runner: no toolchain under the root, but setup-go put a go
+# on PATH - accepted, and PATH is left as it was (run 36177121067 died here)
+fake "$T/onpath" go1.25.0
+PATH="$T/onpath/bin:$old_path"
+before=$PATH
+if spl_export_go_path "$empty" && [[ "$PATH" == "$before" ]]; then
+  pass "no toolchain under the root: the go on PATH is kept"
 else
-  pass "CONTROL: a root with no go is refused"
+  fail "no toolchain under the root but go on PATH: refused, or PATH changed"
+fi
+PATH=$old_path
+# CONTROL: nothing under the root AND no go on PATH -> refused
+if PATH="$empty" spl_export_go_path "$empty"; then
+  fail "CONTROL: an empty root with no go on PATH was accepted"
+else
+  pass "CONTROL: a root with no go and no go on PATH is refused"
 fi
 rm -rf "$empty"
 

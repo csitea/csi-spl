@@ -7,7 +7,9 @@
 # (/usr/local/go1.25.14 next to /usr/local/go) and this selector uses it.
 #
 # spl_export_go_path [root]
-#   Prints nothing. Returns 1 when no executable go is found.
+#   Prints nothing. With no toolchain under the root, the go already on PATH
+#   is kept (a GitHub-hosted runner has no /usr/local/go*, and setup-go put its
+#   go on PATH). Returns 1 only when neither exists.
 spl_export_go_path() {
   local root="${1:-/usr/local}"
   local best="" bestn=-1 g ver a b c num
@@ -36,6 +38,9 @@ spl_export_go_path() {
       best=$(dirname "$g")
     fi
   done
-  [[ -n "$best" ]] || return 1
+  if [[ -z "$best" ]]; then
+    command -v go >/dev/null 2>&1 && return 0
+    return 1
+  fi
   export PATH="$best:$PATH"
 }

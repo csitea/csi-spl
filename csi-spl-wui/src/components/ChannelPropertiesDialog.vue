@@ -46,54 +46,55 @@
         <p v-if="!loaded" class="muted">{{ t('common.loading') }}</p>
         <template v-else-if="!failedLoad">
           <div class="invite-add" data-testid="channel-people-picker">
-            <Combobox
-              as="div"
-              class="invite-add__combo"
-              :model-value="chosenPerson"
-              nullable
-              :disabled="!canAdd || busy"
-              @update:model-value="onChoosePerson"
-            >
-              <div class="invite-add__control">
-                <ComboboxInput
-                  class="invite-add__input"
-                  data-testid="channel-people-search"
-                  :aria-label="t('channels.properties.add_person')"
-                  :placeholder="t('channels.properties.people_search')"
-                  :display-value="personLabel"
-                  autocomplete="off"
-                  :disabled="!canAdd || busy"
-                  @change="onPersonQuery"
-                />
-                <ComboboxButton
-                  type="button"
-                  class="invite-add__chevron"
-                  data-testid="channel-people-search-button"
-                  :aria-label="t('channels.properties.add_person')"
-                  :disabled="!canAdd || busy"
-                >▾</ComboboxButton>
-              </div>
-              <ComboboxOptions class="invite-add__options" data-testid="channel-people-options">
-                <li
-                  v-if="peopleChoices.length === 0"
-                  class="invite-add__empty muted"
-                  data-testid="channel-invite-empty"
-                >{{ personQuery.trim() ? t('channels.properties.people_no_matches') : t('channels.properties.invite_empty') }}</li>
-                <ComboboxOption
-                  v-for="id in peopleChoices"
-                  :key="id"
-                  :value="id"
-                  as="template"
-                  v-slot="{ active, selected }"
-                >
+            <div class="invite-add__combo">
+              <Combobox
+                as="div"
+                :model-value="chosenPerson"
+                nullable
+                :disabled="!canAdd || busy"
+                @update:model-value="onChoosePerson"
+              >
+                <div class="invite-add__control">
+                  <ComboboxInput
+                    class="invite-add__input"
+                    data-testid="channel-people-search"
+                    :aria-label="t('channels.properties.add_person')"
+                    :placeholder="t('channels.properties.people_search')"
+                    :display-value="personLabel"
+                    autocomplete="off"
+                    :disabled="!canAdd || busy"
+                    @change="onPersonQuery"
+                  />
+                  <ComboboxButton
+                    type="button"
+                    class="invite-add__chevron"
+                    data-testid="channel-people-search-button"
+                    :aria-label="t('channels.properties.add_person')"
+                    :disabled="!canAdd || busy"
+                  >▾</ComboboxButton>
+                </div>
+                <ComboboxOptions class="invite-add__options" data-testid="channel-people-options">
                   <li
-                    class="invite-add__option"
-                    :class="{ 'is-active': active, 'is-selected': selected }"
-                    :data-testid="'channel-invite-pick-' + id"
-                  >{{ id }}</li>
-                </ComboboxOption>
-              </ComboboxOptions>
-            </Combobox>
+                    v-if="peopleChoices.length === 0"
+                    class="invite-add__empty muted"
+                    data-testid="channel-invite-empty"
+                  >{{ personQuery.trim() ? t('channels.properties.people_no_matches') : t('channels.properties.invite_empty') }}</li>
+                  <ComboboxOption
+                    v-for="id in peopleChoices"
+                    :key="id"
+                    :value="id"
+                    as="template"
+                    v-slot="{ active, selected }"
+                  >
+                    <li
+                      class="invite-add__option"
+                      :class="{ 'is-active': active, 'is-selected': selected }"
+                      :data-testid="'channel-invite-pick-' + id"
+                    >{{ id }}</li>
+                  </ComboboxOption>
+                </ComboboxOptions>
+              </Combobox>
+            </div>
             <button
               type="button"
               class="btn"
@@ -119,55 +120,56 @@
           </ul>
 
           <div class="invite-add" data-testid="channel-agent-picker">
-            <Combobox
-              as="div"
-              class="invite-add__combo"
-              :model-value="chosenAgent"
-              by="key"
-              nullable
-              :disabled="!canAdd || busy"
-              @update:model-value="onChooseAgent"
-            >
-              <div class="invite-add__control">
-                <ComboboxInput
-                  class="invite-add__input"
-                  data-testid="channel-agent-search"
-                  :aria-label="t('channels.properties.add_agent')"
-                  :placeholder="t('channels.properties.agents_search')"
-                  :display-value="agentLabel"
-                  autocomplete="off"
-                  :disabled="!canAdd || busy"
-                  @change="onAgentQuery"
-                />
-                <ComboboxButton
-                  type="button"
-                  class="invite-add__chevron"
-                  data-testid="channel-agent-search-button"
-                  :aria-label="t('channels.properties.add_agent')"
-                  :disabled="!canAdd || busy"
-                >▾</ComboboxButton>
-              </div>
-              <ComboboxOptions class="invite-add__options" data-testid="channel-agent-options">
-                <li
-                  v-if="agentChoices.length === 0"
-                  class="invite-add__empty muted"
-                  data-testid="channel-agent-invite-empty"
-                >{{ agentQuery.trim() ? t('channels.properties.agents_no_matches') : t('channels.properties.agents_invite_empty') }}</li>
-                <ComboboxOption
-                  v-for="row in agentChoices"
-                  :key="row.key"
-                  :value="row"
-                  as="template"
-                  v-slot="{ active, selected }"
-                >
+            <div class="invite-add__combo">
+              <Combobox
+                as="div"
+                :model-value="chosenAgent"
+                by="key"
+                nullable
+                :disabled="!canAdd || busy"
+                @update:model-value="onChooseAgent"
+              >
+                <div class="invite-add__control">
+                  <ComboboxInput
+                    class="invite-add__input"
+                    data-testid="channel-agent-search"
+                    :aria-label="t('channels.properties.add_agent')"
+                    :placeholder="t('channels.properties.agents_search')"
+                    :display-value="agentLabel"
+                    autocomplete="off"
+                    :disabled="!canAdd || busy"
+                    @change="onAgentQuery"
+                  />
+                  <ComboboxButton
+                    type="button"
+                    class="invite-add__chevron"
+                    data-testid="channel-agent-search-button"
+                    :aria-label="t('channels.properties.add_agent')"
+                    :disabled="!canAdd || busy"
+                  >▾</ComboboxButton>
+                </div>
+                <ComboboxOptions class="invite-add__options" data-testid="channel-agent-options">
                   <li
-                    class="invite-add__option"
-                    :class="{ 'is-active': active, 'is-selected': selected }"
-                    :data-testid="'channel-agent-invite-' + row.id"
-                  >{{ row.id }} <span class="muted">{{ row.box }}</span></li>
-                </ComboboxOption>
-              </ComboboxOptions>
-            </Combobox>
+                    v-if="agentChoices.length === 0"
+                    class="invite-add__empty muted"
+                    data-testid="channel-agent-invite-empty"
+                  >{{ agentQuery.trim() ? t('channels.properties.agents_no_matches') : t('channels.properties.agents_invite_empty') }}</li>
+                  <ComboboxOption
+                    v-for="row in agentChoices"
+                    :key="row.key"
+                    :value="row"
+                    as="template"
+                    v-slot="{ active, selected }"
+                  >
+                    <li
+                      class="invite-add__option"
+                      :class="{ 'is-active': active, 'is-selected': selected }"
+                      :data-testid="'channel-agent-invite-' + row.id"
+                    >{{ row.id }} <span class="muted">{{ row.box }}</span></li>
+                  </ComboboxOption>
+                </ComboboxOptions>
+              </Combobox>
+            </div>
             <button
               type="button"
               class="btn"
@@ -613,6 +615,10 @@ async function onToggle(ev: Event) {
   min-width: 0;
   max-width: 100%;
 }
+/* A plain div, not the Combobox: headlessui's Combobox renders a fragment,
+   which never gets this component's scoped attribute, so a rule on it does not
+   apply and the list anchored to the dialog backdrop - off the bottom of the
+   page (CLE-3493). */
 .invite-add__combo {
   position: relative;
   flex: 1 1 auto;

@@ -230,3 +230,25 @@ describe('the Properties dialog', () => {
     }
   })
 })
+
+describe('the dropdown list opens under its own input (CLE-3493)', () => {
+  const dialog = src('src/components/ChannelPropertiesDialog.vue')
+  const template = dialog.slice(0, dialog.indexOf('<script'))
+  const style = dialog.slice(dialog.indexOf('<style'))
+
+  it('no scoped class sits on a headlessui Combobox, whose fragment root drops it', () => {
+    // headlessui's <Combobox> renders a fragment, so Vue never gives it the
+    // scoped data-v attribute: a scoped rule on its class matches nothing,
+    // and the absolute list anchored to the dialog backdrop instead.
+    const tags = template.match(/<Combobox\s[^>]*>/g) || []
+    assert.equal(tags.length, 2)
+    for (const tag of tags) assert.doesNotMatch(tag, /\sclass=/, tag)
+  })
+
+  it('each list is inside a plain positioned element', () => {
+    const wrapped = template.match(/<div class="invite-add__combo">\s*<Combobox\s/g) || []
+    assert.equal(wrapped.length, 2)
+    assert.match(style, /\.invite-add__combo\s*\{[^}]*position:\s*relative/)
+    assert.match(style, /\.invite-add__options\s*\{[^}]*position:\s*absolute/)
+  })
+})

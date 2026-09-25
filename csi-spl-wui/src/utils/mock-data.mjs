@@ -16,7 +16,8 @@ export const MOCK_CHANNELS = [
 export const MOCK_ROSTER = {
   'box-a': ['CLE-07', 'GRK-03'],
   'box-b': ['CLE-07', 'AGY-02'],
-  'box-wui': ['HUM-1'],
+  // HUM-1 is the viewer; the others are tenant members to invite (CLE-3493).
+  'box-wui': ['HUM-1', 'HUM-2', 'HUM-12', 'HUM-3'],
 }
 
 export const MOCK_ONLINE = ['CLE-07@box-a', 'GRK-03@box-a', 'HUM-1@box-wui']

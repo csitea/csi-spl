@@ -38,6 +38,7 @@ func newKeysRig(t *testing.T, limit int) *keysRig {
 	e := newEnv(t, func(o *hub.Options) {
 		o.Auth = auth.New(cfg, zerolog.Nop(), auth.Options{})
 		o.KeysWriteLimit = limit
+		o.EventsWriteLimit = limit // events_test.go shares this rig
 		o.SessionID = func(r *http.Request, _ string) (string, error) {
 			if v := r.Header.Get(memberHeader); v != "" {
 				return v, nil

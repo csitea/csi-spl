@@ -101,6 +101,9 @@ type Options struct {
 	// KeysWriteLimit is the per-human hourly ceiling on key writes (specs/023
 	// FR-008); 0 = keysWritesPerHour.
 	KeysWriteLimit int
+	// EventsWriteLimit is the per-human hourly ceiling on event-log writes
+	// (specs/005 events-v1); 0 = eventsWritesPerHour.
+	EventsWriteLimit int
 	// FileUsageTTL: how long a tenant's listed file bytes are trusted by the
 	// upload quota (fileusage.go); 0 = defaultFileUsageTTL. Code only.
 	FileUsageTTL time.Duration
@@ -125,6 +128,7 @@ type Server struct {
 	cicd     *cicdlogs.Service
 	edge     *edge.Guard
 	keysLim  *edge.Window // keys.go, per-human writes
+	evLim    *edge.Window // events.go, per-human writes
 
 	searchRate *edge.Window // search.go, per (tenant, reader)
 	fileUsage  *fileUsage   // fileusage.go, per-tenant stored file bytes
@@ -236,6 +240,7 @@ func (s *Server) Handler() http.Handler {
 	if s.o.Auth != nil {
 		s.o.Auth.Register(mux)
 		s.registerKeys(mux)
+		s.registerEvents(mux)
 	}
 	if s.o.Payments != nil {
 		s.o.Payments.Register(mux)

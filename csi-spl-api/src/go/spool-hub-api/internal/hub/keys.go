@@ -106,11 +106,17 @@ func (s *Server) keysWrite(w http.ResponseWriter, hum string) bool {
 
 // readKeysJSON: application/json, capped, no unknown field; false = answered.
 func readKeysJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	return readJSONStrict(w, r, v, keysMaxBody, "invalid JSON body (only public_key, source, label)")
+}
+
+// readJSONStrict is readKeysJSON with the cap and the refusal text as
+// arguments (events.go shares it).
+func readJSONStrict(w http.ResponseWriter, r *http.Request, v any, maxBody int64, refusal string) bool {
 	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
 		writeErr(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json")
 		return false
 	}
-	raw, err := readAllCapped(w, r, keysMaxBody)
+	raw, err := readAllCapped(w, r, maxBody)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_request", "body too large or unreadable")
 		return false
@@ -121,7 +127,7 @@ func readKeysJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
-		writeErr(w, http.StatusBadRequest, "bad_request", "invalid JSON body (only public_key, source, label)")
+		writeErr(w, http.StatusBadRequest, "bad_request", refusal)
 		return false
 	}
 	return true

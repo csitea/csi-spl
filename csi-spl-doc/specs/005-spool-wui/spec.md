@@ -227,6 +227,22 @@ opening it.
   `localStorage` (`spool.read-cursors`). Hub-synced cursors are OQ-W5 (b) /
   003 OQ-CH2 (b), later. US7, OQ-W5 (a).
 
+- **FR-016** — Implemented (CLE-34990, `./contracts/events-v1.md`): every error the WUI shows
+  also slides in as a **snackbar from the top** (`src/utils/error-snackbar.mjs`,
+  `components/common/ErrorSnackbar.vue`), fed from the ONE error journal
+  (`src/composables/errorJournal.mjs`) — no second error channel. Newest first, at most 3, an
+  identical error within 5 s bumps a ×N count, 8 s on screen (paused while hovered/focused),
+  close button, `role="alert"`. Owner, 2026-09-25, topic 4335f075: *"implement the feature for
+  all of the errors to occur via a cool sliding snackbar from the top"*.
+- **FR-017** — Implemented (CLE-34990, `./contracts/events-v1.md`, rdb `0045_human_events.sql`):
+  every journal record of a signed-in human is saved to their **personal event log** in the hub
+  DB (`POST /api/v1/auth/events`, newest 500 kept per human, hub-wide like `human_keys`), and
+  read back on `/events`, opened by the left rail's **Event log** icon directly after Flow.
+  Only the fields the journal already redacted are stored; the hub refuses any other field.
+  Owner, same message: *"all of the errors should get saved into a personal per user event-log
+  entry in the db, which sould be accessible from event log, button after the flow icon on the
+  left most pane"*.
+
 ## 3. Success criteria
 
 - **SC-001**: on dev, a thread sent box-a → box-b with `spool send` appears in the
@@ -299,4 +315,4 @@ Named here, not specified.
   `localStorage` (aligns with 003 OQ-CH2 (a) client-held); **(b)** hub-synced
   per-human cursors (needs HUMANS 0006; later).
 
-<!-- version: 1.10.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:35:51Z -->
+<!-- version: 1.11.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:45:00Z -->

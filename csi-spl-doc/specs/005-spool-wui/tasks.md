@@ -333,4 +333,25 @@ mechanism; they are not, and saying so early would have been wrong.
   and `spool.hidden-dm-peers` are written unchecked. Collect every `storageSet` /
   `localStorage.setItem` key and diff it against the allow-list. Size S.
 
-<!-- version: 1.10.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:35:51Z -->
+### Error snackbar + personal event log (CLE-34990, FR-016 / FR-017, `contracts/events-v1.md`)
+
+Owner, 2026-09-25, topic 4335f075: *"implement the feature for all of the errors to occur via a
+cool sliding snackbar from the top , which is about the same size ... Also all of the errors should
+get saved into a personal per user event-log entry in the db , which sould be accessible from event
+log , button after the flow icon on the left most pane"*.
+
+- [x] T046 (FR-016) `src/utils/error-snackbar.mjs` — queue fed from the error journal; unit
+  `tests/unit/error-snackbar.test.mjs` (CLE-34990).
+- [x] T047 (FR-017) rdb `0045_human_events.sql` + store `human_events*.go` + hub `events.go`
+  (GET / POST / clear under `/api/v1/auth/events`); Go tests `store/human_events_test.go`
+  (memory + Postgres) and `hub/events_test.go` (CLE-34990).
+- [x] T048 (FR-017) `src/utils/event-log.mjs` (events-v1 client + signed-in batch shipper that never
+  journals itself) + `src/plugins/event-log.client.ts`; unit `tests/unit/event-log.test.mjs` (CLE-34990).
+- [ ] T049 (FR-016) `components/common/ErrorSnackbar.vue` mounted in `layouts/default.vue`, all 19
+  locales (GRK-3514).
+- [ ] T050 (FR-017) `pages/events.vue` + the rail's Event log icon after Flow (GRK-3514 page,
+  CLE-34990 rail).
+- [ ] T051 live proof on dev AND prd, signed in: snackbar slides in, dismisses, the row is on
+  `/events` and in `human_events` (AGY-3493).
+
+<!-- version: 1.11.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:45:00Z -->

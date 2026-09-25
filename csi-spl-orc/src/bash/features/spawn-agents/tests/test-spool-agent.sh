@@ -171,4 +171,18 @@ env -u TMUX_PANE CLE_TMUX_PANE="$P1" AGY_TMUX_PANE="$P3" SPOOL_AGENT_RUN="$T_TMP
 has "9. AGY_TMUX_PANE wins over an inherited CLE_TMUX_PANE" "window: $P3 " "$(cat "$T_TMP/pane.out")"
 hasnt "9. CONTROL: --env dev does not seat prd" "ENV=prd" "$(cat "$T_TMP/envs/run.log")"
 
+# --- 10. a live seat skips do_spl_desk_up (reconnect, no hub pin) ------------
+mkdir -p "$SPOOL_AGENT_DESK_ROOT/spool/GRK-951/inbox" "$SPOOL_AGENT_DESK_ROOT/spool/.hub"
+echo $$ >"$SPOOL_AGENT_DESK_ROOT/spool/.hub/hub-run.pid"
+printf '%s\n' '{"box-desk":["GRK-951"]}' >"$SPOOL_AGENT_DESK_ROOT/spool/.hub/roster.json"
+: >"$SPOOL_AGENT_DESK_ROOT/run.log"
+out="$(TMUX_PANE="$P1" bash "$AGENT" --dry-run --as GRK-951 grok 2>&1)"
+has "10. a live seat skips do_spl_desk_up" "seat: already live on dev, skip do_spl_desk_up" "$out"
+TMUX_PANE="$P1" bash "$AGENT" --as GRK-951 grok >/dev/null 2>&1
+hasnt "10. reconnect does not call do_spl_desk_up" "do_spl_desk_up" "$(cat "$SPOOL_AGENT_DESK_ROOT/run.log")"
+echo 999999999 >"$SPOOL_AGENT_DESK_ROOT/spool/.hub/hub-run.pid"
+: >"$SPOOL_AGENT_DESK_ROOT/run.log"
+TMUX_PANE="$P1" bash "$AGENT" --as GRK-951 grok >/dev/null 2>&1
+has "10. a dead sidecar still calls do_spl_desk_up" "do_spl_desk_up" "$(cat "$SPOOL_AGENT_DESK_ROOT/run.log")"
+
 t_done

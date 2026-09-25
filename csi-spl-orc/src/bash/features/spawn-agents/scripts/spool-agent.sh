@@ -115,6 +115,21 @@ say() { echo "spool-agent: $*" >&2; }
 as_box() {  # CMD... as the box user, env passed explicitly (sudo drops it)
   if [ "$ME" = "$BOX_USER" ]; then "$@"; else sudo -n -u "$BOX_USER" "$@"; fi
 }
+# The seat dir exists, the box sidecar is alive, and the roster already
+# names this agent. Reconnecting then skips do_spl_desk_up, which is the
+# hub pin and the roster wait. A missing piece falls through to the full seat.
+seat_is_live() {
+  local root="$1" id="$2" pidf roster pid
+  pidf="$root/spool/.hub/hub-run.pid"
+  roster="$root/spool/.hub/roster.json"
+  as_box test -d "$root/spool/$id/inbox" || return 1
+  as_box test -r "$pidf" || return 1
+  as_box test -r "$roster" || return 1
+  pid="$(as_box cat "$pidf" 2>/dev/null | tr -cd '0-9')"
+  [ -n "$pid" ] || return 1
+  as_box kill -0 "$pid" 2>/dev/null || return 1
+  as_box grep -q "\"$id\"" "$roster" || return 1
+}
 tm() { as_box tmux -S "$TMUX_SOCK" "$@"; }
 
 # ── 1. the id ────────────────────────────────────────────────────────────────
@@ -244,7 +259,13 @@ if [ "$DRY" = 1 ]; then
   say "DRY RUN - nothing changed"
   echo "id: $ID"
   echo "window: ${PANE:-none} '${WNAME}'${NEWNAME:+ -> rename to '$NEWNAME'}"
-  if [ "$SEAT" = 1 ]; then for e in "${ENVS[@]}"; do echo "seat: $RUN -a do_spl_desk_up ENV=$e TENANT_ID=$TENANT DESK_BOX=$BOX DESK_AGENT=$ID (as $BOX_USER)"; done; echo "strip: the notice strip is split before $CLI paints"; else echo "seat: skipped"; fi
+  if [ "$SEAT" = 1 ]; then
+    for e in "${ENVS[@]}"; do
+      if seat_is_live "$(seat_root_of "$e")" "$ID"; then echo "seat: already live on $e, skip do_spl_desk_up"
+      else echo "seat: $RUN -a do_spl_desk_up ENV=$e TENANT_ID=$TENANT DESK_BOX=$BOX DESK_AGENT=$ID (as $BOX_USER)"; fi
+    done
+    echo "strip: the notice strip is split before $CLI paints"
+  else echo "seat: skipped"; fi
   echo "mirror: $([ "$MIRROR" = 1 ] && echo on || echo off)${OPERATOR:+ (prompts typed by $OPERATOR)}"
   if [ "$MIRROR" = 1 ] && [ "$USER_HOOKS" = 1 ]; then echo "hooks: already in ~/.claude/settings.json (not added again)"
   elif [ "$MIRROR" = 1 ] && [ "$KIND" = claude ]; then echo "hooks: $HOOKS_JSON"
@@ -261,6 +282,11 @@ fi
 if [ "$SEAT" = 1 ]; then
   seated=0
   for e in "${ENVS[@]}"; do
+    if seat_is_live "$(seat_root_of "$e")" "$ID"; then
+      say "$ID is already seated on $BOX in $TENANT ($e); skipping do_spl_desk_up"
+      seated=$((seated + 1))
+      continue
+    fi
     out="$(as_box env ENV="$e" TENANT_ID="$TENANT" DESK_BOX="$BOX" DESK_AGENT="$ID" DRY_RUN=0 "$RUN" -a do_spl_desk_up 2>&1)"; rc=$?
     if [ "$rc" -ne 0 ] && ! as_box test -d "$(seat_root_of "$e")/spool/$ID"; then
       say "WARN the $e desk seat failed (rc $rc):"; printf '%s\n' "$out" | grep -E 'FATAL|FAIL' | tail -3 >&2; continue

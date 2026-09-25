@@ -92,6 +92,16 @@ was not run again while section 5 was returning 429. `GRK-3508` on
 2026-09-25 found the same: the seat directory was already present on dev
 and on prd, and the answer in section 6 went out with no install step.
 
+A new instance of an id that is already seated does not call
+`do_spl_desk_up`. `spool-agent.sh` skips it when the seat directory
+exists, the box sidecar pid is alive, and the roster already names the
+id. That skips the hub pin and the roster wait. The notice strip is
+still opened. A dead sidecar, or a seat the roster does not name yet,
+still runs the full seat. The wrapper test calls this case 10.
+Measured n=1, 2026-09-25, `spool-agent.sh --dry-run --as GRK-3508
+--env dev,prd grok`: both envs printed `already live`, `skip
+do_spl_desk_up`, in 0.068s. Dry run: nothing was changed.
+
 ## 5. Verify
 
 ```
@@ -202,4 +212,4 @@ thread the human is reading, and the channel-membership refusal, from
 `GRK-3508` on 2026-09-25. Still open: SIGWINCH on a grok with tty `?`,
 and the spool MCP tools inside a live grok session.
 
-<!-- version: 0.2.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:06:00Z -->
+<!-- version: 0.2.3 · updated: 2026-09-25 · last-edit: 2026-09-25T18:10:00Z -->

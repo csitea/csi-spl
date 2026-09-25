@@ -10,10 +10,12 @@
 # Usage: bash csi-spl-api/src/bash/tests/hub-pg.tst.sh
 set -euo pipefail
 
-export PATH=/usr/local/go/bin:$PATH
 export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../use-go-toolchain.sh
+source "$HERE/../use-go-toolchain.sh"
+spl_export_go_path
 MOD="$HERE/../../go/spool-hub-api"
 SQL_DIR="$(cd "$HERE/../../../../csi-spl-rdb/src/sql/postgres/spool-hub" && pwd)"
 PG_IMAGE="${SPOOL_TEST_PG_IMAGE:-postgres:16-alpine}"

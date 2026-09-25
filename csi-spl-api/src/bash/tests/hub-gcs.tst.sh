@@ -6,10 +6,12 @@
 # Usage: bash csi-spl-api/src/bash/tests/hub-gcs.tst.sh
 set -euo pipefail
 
-export PATH=/usr/local/go/bin:$PATH
 export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../use-go-toolchain.sh
+source "$HERE/../use-go-toolchain.sh"
+spl_export_go_path
 MOD="$HERE/../../go/spool-hub-api"
 GCS_IMAGE="${SPOOL_TEST_GCS_IMAGE:-fsouza/fake-gcs-server:1.52.2}"
 BUCKET="${SPOOL_HUB_FILES_BUCKET:-csi-spl-test-files}"

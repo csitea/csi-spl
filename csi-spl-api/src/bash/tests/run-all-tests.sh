@@ -5,11 +5,16 @@
 # Usage: bash csi-spl-api/src/bash/tests/run-all-tests.sh
 set -euo pipefail
 
-export PATH=/usr/local/go/bin:$PATH
 export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MOD="$HERE/../../go/spool-hub-api"
+# shellcheck source=../use-go-toolchain.sh
+source "$HERE/../use-go-toolchain.sh"
+spl_export_go_path
+
+echo "== go toolchain selector =="
+bash "$HERE/use-go-toolchain.tst.sh"
 
 echo "== gofmt =="
 unformatted="$(cd "$MOD" && gofmt -l .)"

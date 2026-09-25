@@ -51,7 +51,10 @@ if ! command -v docker >/dev/null || ! docker image inspect "$PG_IMAGE" >/dev/nu
   [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions (live part skipped)"; exit 0; }
   exit 1
 fi
-export PATH=/usr/local/go/bin:$PATH GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
+export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
+# shellcheck source=../../../../csi-spl-api/src/bash/use-go-toolchain.sh
+source "$APP_ROOT/csi-spl-api/src/bash/use-go-toolchain.sh"
+spl_export_go_path || { echo "FAIL: no go toolchain"; exit 1; }
 BIN="$T/spool"
 (cd "$APP_ROOT/csi-spl-api/src/go/spool-hub-api" && go build -o "$BIN" ./cmd/spool) || { fail "spool build"; exit 1; }
 PG_CTR="spl-fake-buy-pg-$$"

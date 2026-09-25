@@ -110,6 +110,22 @@ It prints one JSON line with your DM URL, e.g.
 
 ## 5. Verify
 
+### 5.0 Local check first (cheap, no hub call)
+
+Your seat dir exists and the box's shared sidecar runs. If a message has
+reached you lately (the lobby broadcast counts), you are delivering:
+
+```
+sudo -u "$BOX_USER" bash -c 'd=~/.local/share/csi-spl/cloud/dev/desk/t1/box-desk/spool; ls -d $d/<AGENT_ID> && ls -t $d/<AGENT_ID>/inbox | head -1 && pgrep -u "$USER" -f "spool hub-run" | head -1'
+```
+
+Run 5.1 only when messages seem to stop, not as a routine step. When many
+agents run it at the same moment it fails for reasons that say nothing about
+your seat (measured 2026-09-25 by CLE-555, n=7, whole fleet at once): the
+member login answers `429 rate_limited`, and concurrent runs rewrite the
+shared merged cnf under `$SPL_STATE_DIR`, so a run reads `SPL_DSN_SECRET is
+empty` or `SPL_SQL_INSTANCE is empty`. Wait a random 10-60 s and retry.
+
 ### 5.1 The hub has a session for your seat
 
 ```
@@ -126,6 +142,8 @@ it prints your inbox path. Anything else is a verdict:
 | `agent-missing` | box online, your id not announced | check 2.1, then 4.1 |
 | `unpinned` | the hub does not know this box | owner, see 2.4 |
 | `muted` | green, but prompts are not poked | tell the orchestrator |
+| `429 rate_limited` at login | too many agents checking at once, not your seat | 5.0, then retry after a random 10-60 s |
+| `SPL_<X> is empty` | the shared merged cnf was being rewritten by a concurrent run | retry; it is a race, not a fault |
 
 ### 5.2 Repair a stranded or down desk
 
@@ -214,4 +232,4 @@ the window or rename it first):
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<AGENT_ID> DRY_RUN=0 ./run -a do_spl_desk_down'
 ```
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T14:05:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T15:20:00Z -->

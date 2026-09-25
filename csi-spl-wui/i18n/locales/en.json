@@ -340,6 +340,7 @@
       "unmute": "Unmute",
       "pin": "Pin",
       "unpin": "Unpin",
+      "hide": "Remove from list",
       "remove": "Remove",
       "properties": "Properties"
     }

@@ -340,6 +340,7 @@
       "unmute": "Dejar de silenciar",
       "pin": "Fijar",
       "unpin": "Quitar fijación",
+      "hide": "Quitar de la lista",
       "remove": "Quitar",
       "properties": "Properties"
     }

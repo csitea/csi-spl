@@ -5,7 +5,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { dropIndex, moveKey, pinRows, rowMenuAdmin, rowMenuItems } from '../../src/utils/sidebar-row-menu.mjs'
+import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, rowMenuItems, saveHiddenPeers } from '../../src/utils/sidebar-row-menu.mjs'
+import { memoryStore } from '../../src/utils/prefs.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -19,9 +20,9 @@ describe('rowMenuItems', () => {
 
   it('people and bots get block and mute, and remove only for an admin', () => {
     const person = rowMenuItems(false, { person: true }).map((i) => i.id)
-    assert.deepEqual(person, ['open', 'copy', 'block', 'mute', 'pin'])
+    assert.deepEqual(person, ['open', 'copy', 'block', 'mute', 'pin', 'hide'])
     const admin = rowMenuItems(true, { person: true, admin: true }).map((i) => i.id)
-    assert.deepEqual(admin, ['open', 'copy', 'read', 'block', 'mute', 'pin', 'remove'])
+    assert.deepEqual(admin, ['open', 'copy', 'read', 'block', 'mute', 'pin', 'hide', 'remove'])
     assert.equal(rowMenuItems(false, { person: true, blocked: true })[2].labelKey, 'sidebar.row_menu.unblock')
     assert.equal(rowMenuItems(false, { person: true, muted: true })[3].labelKey, 'sidebar.row_menu.unmute')
     assert.equal(rowMenuItems(false, { person: true, pinned: true })[4].labelKey, 'sidebar.row_menu.unpin')
@@ -38,13 +39,50 @@ describe('rowMenuItems', () => {
 
   it('every action has an icon and a catalogue name', () => {
     const items = rowMenuItems(true, { person: true, admin: true, blocked: true, muted: true })
-    assert.deepEqual(items.map((i) => i.icon), ['open', 'copy', 'check', 'user-check', 'bell', 'pin', 'trash'])
+    assert.deepEqual(items.map((i) => i.icon), ['open', 'copy', 'check', 'user-check', 'bell', 'pin', 'x', 'trash'])
     for (const item of items) {
       assert.match(item.labelKey, /^sidebar\.row_menu\./)
     }
     const menu = src('src/components/SidebarRowMenu.vue')
     assert.match(menu, /<UiIcon :name="item\.icon"/)
     assert.match(menu, /\{\{ t\(item\.labelKey\) \}\}/)
+  })
+})
+
+describe('Remove from list: a DM row leaves this browser\'s list until a newer DM', () => {
+  it('every user gets it on a person row, not only an admin, and never on a channel', () => {
+    assert.ok(rowMenuItems(false, { person: true }).some((i) => i.id === 'hide'))
+    assert.equal(rowMenuItems(false, { channel: true }).some((i) => i.id === 'hide'), false)
+  })
+
+  it('a hidden peer stays hidden while its last DM is the one it was hidden at', () => {
+    const m = hidePeer({}, 'EZA-1@box-a', '2026-09-25T10:00:00Z')
+    assert.equal(peerHidden(m, 'EZA-1@box-a', '2026-09-25T10:00:00Z'), true)
+    assert.equal(peerHidden(m, 'EZB-1@box-b', '2026-09-25T10:00:00Z'), false)
+  })
+
+  it('a newer DM brings the row back; hidden with no DM, any DM brings it back', () => {
+    const m = hidePeer(hidePeer({}, 'EZA-1@box-a', '2026-09-25T10:00:00Z'), 'EZC-1@box-c', '')
+    assert.equal(peerHidden(m, 'EZA-1@box-a', '2026-09-25T10:00:01Z'), false)
+    assert.equal(peerHidden(m, 'EZC-1@box-c', ''), true)
+    assert.equal(peerHidden(m, 'EZC-1@box-c', '2026-09-25T09:00:00Z'), false)
+  })
+
+  it('the list survives a reload, and junk in storage reads as nothing hidden', () => {
+    const store = memoryStore()
+    saveHiddenPeers(hidePeer({}, 'EZA-1@box-a', '2026-09-25T10:00:00Z'), store)
+    assert.deepEqual(loadHiddenPeers(store), { 'EZA-1@box-a': '2026-09-25T10:00:00Z' })
+    store.setItem('spool.hidden-dm-peers', '[1,2]')
+    assert.deepEqual(loadHiddenPeers(store), {})
+    store.setItem('spool.hidden-dm-peers', 'not json')
+    assert.deepEqual(loadHiddenPeers(store), {})
+  })
+
+  it('both DM lists wire it, and the sidebar filters on it', () => {
+    const vue = src('src/components/ChannelSidebar.vue')
+    assert.equal((vue.match(/@hide="hideFromList\((p|row)\)"/g) || []).length, 2)
+    assert.match(vue, /peerHidden\(listHidden\.value, p\.label, channel\.dmAt\[p\.label\]\)/)
+    assert.match(src('src/components/SidebarRowMenu.vue'), /emit\('hide'\)/)
   })
 })
 

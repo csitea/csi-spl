@@ -78,6 +78,7 @@ const emit = defineEmits<{
   block: []
   mute: []
   remove: []
+  hide: []
   pin: []
   properties: []
 }>()
@@ -200,6 +201,8 @@ function choose(id: string) {
     emit('mute')
   } else if (id === 'remove') {
     emit('remove')
+  } else if (id === 'hide') {
+    emit('hide')
   } else if (id === 'pin') {
     emit('pin')
   } else if (id === 'properties') {

@@ -1,13 +1,16 @@
+import { storageGetJson, storageSetJson } from './prefs.mjs'
+
 /**
  * Items in the left-pane row menu. The icon rail (the tab switcher) is not a
  * row. A row with unread notes offers Mark as read; every row can open and
- * copy its link. A person or a bot also offers Block and Mute. Remove is
- * only there when an admin (or the tenant owner) is signed in.
+ * copy its link. A person or a bot also offers Block, Mute, Pin and Remove
+ * from list (this browser's DM list only, for everyone). Remove (the tenant
+ * membership) is only there when an admin (or the tenant owner) is signed in.
  *
  * @param {boolean} unread
  * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean, channel?: boolean, properties?: boolean }} [opts]
  */
-/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'trash' | 'settings', labelKey: string }[]} */
+/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'x' | 'trash' | 'settings', labelKey: string }[]} */
 export function rowMenuItems(unread, opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
   const items = [
@@ -39,6 +42,7 @@ export function rowMenuItems(unread, opts = {}) {
       icon: 'pin',
       labelKey: o.pinned ? 'sidebar.row_menu.unpin' : 'sidebar.row_menu.pin',
     })
+    items.push({ id: 'hide', icon: 'x', labelKey: 'sidebar.row_menu.hide' })
     if (o.admin) items.push({ id: 'remove', icon: 'trash', labelKey: 'sidebar.row_menu.remove' })
   }
   return items
@@ -52,6 +56,58 @@ export function rowMenuItems(unread, opts = {}) {
 export function rowMenuAdmin(me) {
   if (!me || typeof me !== 'object') return false
   return me.role === 'admin' || me.tenantOwner === true
+}
+
+/**
+ * "Remove from list" on a DM row (owner 2026-09-25): hides the peer from THIS
+ * browser's DM list. Nothing is sent to the hub; the peer stays a member and
+ * can still write. The mark is the peer's last DM moment as the hub stamped it
+ * when the row was hidden ('' = no DM yet), so a newer DM either way brings the
+ * row back - compared hub clock to hub clock, never to this device's clock.
+ */
+export const HIDDEN_PEERS_KEY = 'spool.hidden-dm-peers'
+
+/** @returns {Record<string, string>} label -> last DM moment at hide time */
+export function loadHiddenPeers(store) {
+  const raw = storageGetJson(HIDDEN_PEERS_KEY, {}, store)
+  /** @type {Record<string, string>} */
+  const out = {}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out
+  for (const [label, at] of Object.entries(raw)) {
+    if (label && typeof at === 'string') out[label] = at
+  }
+  return out
+}
+
+/**
+ * @param {Record<string, string>} map
+ * @param {Storage | { getItem: Function, setItem: Function }} [store]
+ * @returns {Record<string, string>}
+ */
+export function saveHiddenPeers(map, store) {
+  const clean = { ...(map || {}) }
+  storageSetJson(HIDDEN_PEERS_KEY, clean, store)
+  return clean
+}
+
+/** @param {Record<string, string>} map @param {string} label @param {string} [lastDm] */
+export function hidePeer(map, label, lastDm = '') {
+  const key = String(label || '')
+  if (!key) return { ...(map || {}) }
+  return { ...(map || {}), [key]: String(lastDm || '') }
+}
+
+/** True while the row stays out of the list: hidden, and no newer DM since. */
+export function peerHidden(map, label, lastDm = '') {
+  const key = String(label || '')
+  if (!map || !Object.prototype.hasOwnProperty.call(map, key)) return false
+  const mark = String(map[key] || '')
+  const now = String(lastDm || '')
+  if (!now) return true
+  if (!mark) return false
+  const a = Date.parse(now)
+  const b = Date.parse(mark)
+  return Number.isNaN(a) || Number.isNaN(b) ? !(now > mark) : !(a > b)
 }
 
 /**

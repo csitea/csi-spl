@@ -261,6 +261,7 @@ jobs:
           pnpm run test:e2e:console-errors
           pnpm run test:e2e:topic-pane
           pnpm run test:e2e:msg-edit
+          pnpm run test:e2e:dm-remove
 
   # ===========================================================================
   # The IAC suite (016 T003): csi-spl-iac/src/bash/tests/run-all-tests.sh --

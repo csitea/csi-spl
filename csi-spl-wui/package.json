@@ -22,6 +22,7 @@
     "test:e2e:scroll-anchor": "node tests/e2e/scroll-anchor.test.mjs",
     "test:e2e:topic-pane": "node tests/e2e/topic-pane-single.test.mjs",
     "test:e2e:msg-edit": "node tests/e2e/msg-edit.test.mjs",
+    "test:e2e:dm-remove": "node tests/e2e/dm-remove-from-list.test.mjs",
     "test:live": "node --experimental-websocket tests/e2e/live-interop.test.mjs"
   },
   "dependencies": {

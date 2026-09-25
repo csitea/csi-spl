@@ -69,6 +69,7 @@
       :data-order="p.label"
       :class="{ 'nav-row--muted': mutedPeers[p.label], 'nav-row--blocked': blockedPeers[p.label], 'nav-row--pinned': pinnedPeers.includes(p.label), 'nav-row--drag': dragging('peers', p.label), 'nav-row--drop': dropping('peers', p.label, peerIndex), 'nav-row--drop-after': droppingAfter('peers', peerIndex, peers.length) }"
       @pointerdown="rowPointerDown($event, 'peers', p.label)"
+      @contextmenu.prevent="openChannelMenu('dm:' + p.label)"
       @click.capture="swallowDragClick"
     >
     <NuxtLink
@@ -99,6 +100,7 @@
       @mute="togglePeer('mute', p.label)"
       @pin="togglePin(p.label)"
       @remove="removePeer(p)"
+      @hide="hideFromList(p)"
       :open="rowMenu === 'dm:' + p.label"
       @toggle="toggleRowMenu('dm:' + p.label)"
       @close="closeRowMenu()"
@@ -323,7 +325,7 @@
             @properties="openProperties(row.id)"
           />
           </div>
-          <div v-else-if="row.kind === 'dm'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': mutedPeers[row.label], 'nav-row--blocked': blockedPeers[row.label], 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick">
+          <div v-else-if="row.kind === 'dm'" class="nav-row" :data-order="row.key" :class="{ 'nav-row--muted': mutedPeers[row.label], 'nav-row--blocked': blockedPeers[row.label], 'nav-row--pinned': flowOrder.includes(row.key), 'nav-row--drag': dragging('flow', row.key), 'nav-row--drop': dropping('flow', row.key, flow.indexOf(row)), 'nav-row--drop-after': droppingAfter('flow', flow.indexOf(row), flow.length) }" @pointerdown="rowPointerDown($event, 'flow', row.key)" @click.capture="swallowDragClick" @contextmenu.prevent="openChannelMenu('flow:dm:' + row.label)">
           <NuxtLink
             class="nav-item"
             :class="{ active: channel.peer === row.label }"
@@ -352,6 +354,7 @@
       @mute="togglePeer('mute', row.label)"
       @pin="toggleFlowPin(row)"
       @remove="removePeer(row)"
+      @hide="hideFromList(row)"
             :open="rowMenu === 'flow:dm:' + row.label"
             @toggle="toggleRowMenu('flow:dm:' + row.label)"
             @close="closeRowMenu()"
@@ -426,7 +429,7 @@ import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-s
 import { useSidePane } from '~/composables/useSidePane'
 import { flowRows, SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
-import { dropIndex, moveKey, pinRows, rowMenuAdmin } from '~/utils/sidebar-row-menu.mjs'
+import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
@@ -558,6 +561,8 @@ function retentionLabel(c: { channel_id?: string, channel?: string, retention_da
 const health = computed(() => connectionHealth(live.state.value))
 /* CLE-3425: newest first here too - the peer we last exchanged a DM with on top */
 const hiddenPeers = ref<Record<string, true>>({})
+/* "Remove from list": this browser only, until a newer DM (sidebar-row-menu.mjs) */
+const listHidden = ref<Record<string, string>>({})
 const blockedPeers = ref<Record<string, true>>({})
 const mutedPeers = ref<Record<string, true>>({})
 const mutedChannels = ref<string[]>([])
@@ -591,7 +596,8 @@ const topicOrder = ref<string[]>([])
 const flowOrder = ref<string[]>([])
 const peerAdmin = computed(() => rowMenuAdmin(access.me))
 const peers = computed(() => pinRows(
-  orderPeers(roster.peers, channel.dmAt).filter((p) => !hiddenPeers.value[p.label]),
+  orderPeers(roster.peers, channel.dmAt)
+    .filter((p) => !hiddenPeers.value[p.label] && !peerHidden(listHidden.value, p.label, channel.dmAt[p.label])),
   pinnedPeers.value,
 ))
 const channelRows = computed(() => pinRows(
@@ -638,6 +644,11 @@ async function removePeer(p: { id?: string, label: string }) {
     void roster.refresh()
   }
   hiddenPeers.value = { ...hiddenPeers.value, [p.label]: true }
+  pinnedPeers.value = pinnedPeers.value.filter((l) => l !== p.label)
+  flowOrder.value = flowOrder.value.filter((l) => l !== 'dm:' + p.label)
+}
+function hideFromList(p: { label: string }) {
+  listHidden.value = saveHiddenPeers(hidePeer(listHidden.value, p.label, channel.dmAt[p.label] || ''))
   pinnedPeers.value = pinnedPeers.value.filter((l) => l !== p.label)
   flowOrder.value = flowOrder.value.filter((l) => l !== 'dm:' + p.label)
 }
@@ -727,6 +738,7 @@ function swallowDragClick(e: MouseEvent) {
 onMounted(() => {
   session.probe()
   mutedChannels.value = loadMutedChannels()
+  listHidden.value = loadHiddenPeers()
 })
 /* specs/025 FR-008: the role decides which actions are offered (the hub re-checks). */
 watch(() => session.state, (st) => { if (st === 'in') access.load() }, { immediate: true })

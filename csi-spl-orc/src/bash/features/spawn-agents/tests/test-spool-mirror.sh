@@ -30,6 +30,11 @@
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
 t_sandbox
+# The test names every id and mirror knob it uses. A session started through
+# spool-agent exports SPOOL_AGENT_ID (it wins over MCP_BOT_AGENT_ID in the
+# hook), so ambient values made case 10 post as the CALLER's agent (measured by
+# CLE-34980, tree 591a893f, run as the agent user).
+unset SPOOL_AGENT_ID MCP_BOT_AGENT_ID SPOOL_MIRROR_TO SPOOL_MIRROR_POST SPOOL_MIRROR_SYNC SPOOL_MIRROR_DRY SPOOL_MIRROR_SPOOL
 
 MIRROR="$T_SCRIPTS/spool-mirror.py"
 REDACT="$T_FEAT/lib/spool_redact.py"

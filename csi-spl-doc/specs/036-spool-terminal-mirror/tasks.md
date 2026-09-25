@@ -31,6 +31,20 @@ named) · `[ ]` Planned (`../README.md` §2.3).
 - [x] T020 Implemented (tree `5add6fb`) — live on dev, claude + grok, hub DB
   counts in `spec.md` §Proof.
 
+## Phase 3b — The wrapper
+
+- [x] T040 Implemented (`02d709a`, `2205be3`) — `scripts/spool-agent.sh`;
+  one-post-per-(session, event, text) in `spool-mirror.py`.
+  Check: `bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-agent.sh`
+  -> `27 passed, 0 failed`; `test-spool-mirror.sh` -> `48 passed`.
+- [x] T041 Implemented (engine `2946445`, overlay `d68b8c0`) — the box
+  spawner starts claude / grok through `BOX_AGENT_WRAPPER`.
+  Check: engine `tests/test-spawn-wrapper.sh` -> `8 passed, 0 failed`.
+- [~] T042 Partial — takes effect for new spawns once `/opt/csi/csi-spl`
+  carries `spool-agent.sh` (on 2026-09-25 14:25Z that checkout was 24 behind
+  with 22 files of another lane's uncommitted edits; until then the spawner
+  falls back to the plain CLI). An installer for other users: CLE-34966.
+
 ## Phase 4 — Rollout
 
 - [~] T030 Partial (2026-09-25 13:02Z, owner go "well go than") — the
@@ -53,4 +67,4 @@ named) · `[ ]` Planned (`../README.md` §2.3).
   (as the box user). A seat with no backfill yet runs
   `do_spl_desk_session_upload`, which lands in the mirror's topic by itself.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T13:27:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T14:30:00Z -->

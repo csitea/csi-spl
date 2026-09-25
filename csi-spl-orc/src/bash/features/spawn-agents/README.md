@@ -37,6 +37,8 @@ the reference does it:
 | `scripts/spawn-window.sh` | creates the detached window and starts the launcher in it. Prints `<ID> <PANE>` |
 | `scripts/spawn-{claude,grok,agy}.sh` | the per-CLI adapters |
 | `scripts/spawn-core.inc.sh` | the shared launcher core |
+| `scripts/spool-agent.sh` | start claude or grok SEATED and MIRRORED (`specs/036-spool-terminal-mirror`): claims an id, names the window, seats a desk, gives the session the mirror hooks, then runs the CLI |
+| `scripts/spool-mirror.py` | the terminal -> web UI DM mirror: the CLIs' `UserPromptSubmit` / `Stop` hook and its post (redacted, never echoing the web UI's own words) |
 | `scripts/spool-harness.sh` | the standard box launcher (`specs/012-spool-box-api`): prepares an agent's spool dirs, checks the box identity, starts the hub sidecar in hub mode, injects `SPOOL_*`, then exec-s the agent CLI |
 | `scripts/spool-send.sh` | runs `spool send` and then shows the message in the recipient's tmux pane. It replaces `inbox-send.sh` |
 | `scripts/spool-notify.sh` | shows a message that is ALREADY in an inbox. This is what `SPOOL_NOTIFY_CMD` points at, so the hub sidecar (cross-box, and a human's WUI task) reaches the terminal too |
@@ -86,6 +88,23 @@ steps.
 
 ```bash
 SPOOL_AGENT_USER=<AGENT_USER> bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh grok GRK-4442 /var/tmp/spool-work /path/to/brief.md
+```
+
+### 3.3.1 Start claude or grok seated and mirrored
+
+Run it in a tmux pane on the box user's server. The id comes from `--as`, else
+`MCP_BOT_AGENT_ID`, else the next free one; the web UI then reaches this
+terminal as `<ID>@box-desk`, and every prompt and answer here is posted into
+that DM.
+
+```bash
+bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent.sh claude
+```
+
+### 3.3.2 See the plan without changing anything
+
+```bash
+bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent.sh --dry-run --as CLE-4441 grok
 ```
 
 ### 3.4 Send a task and show it in the peer's pane

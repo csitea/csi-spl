@@ -100,6 +100,36 @@ tree at or after `f8da6b4`; `do_spl_desk_mirror_check` WARNs when it does not,
 and when the sidecar runs a worktree's notifier (which disappears with that
 worktree).
 
+## The wrapper: `spool-agent.sh` (2026-09-25, owner: "wgo")
+
+One command starts claude or grok as a seated, mirrored agent:
+`spool-agent.sh [--as ID] [--env dev|prd] [--no-mirror] [--no-seat] [--backfill] [--dry-run] claude|grok [args]`.
+
+1. **id**: `--as`, else `MCP_BOT_AGENT_ID` (the box spawner's), else the next
+   free `CLE-n` / `GRK-n`, CLAIMED on the desk (`next-agent-id.sh`), and above
+   a spawner registry named in `SPOOL_AGENT_REGISTRY_DIR` so a spent id is never
+   reissued.
+2. **window**: renamed to carry the id (the box tag kept), because the desk
+   finds the pane by window name; outside tmux a seat is refused.
+3. **seat**: `do_spl_desk_up`, as the box user (`sudo -n -u` when needed).
+4. **hooks**: claude `--settings <file>`, grok `~/.grok/hooks/spool-mirror.json`
+   - and NEITHER when `~/.claude/settings.json` already carries the hook (both
+   CLIs read it; two copies of different checkouts posted every line twice,
+   measured). `spool-mirror.py` also posts one (session, event, text) once.
+5. **CLI**: found via `CLAUDE_BIN` / `GROK_BIN`, PATH, then `~/.local/bin`.
+
+The box spawner starts every claude / grok agent through it when the box env
+sets `BOX_AGENT_WRAPPER` (engine `2946445`; this box: overlay `d68b8c0`). An
+unreadable wrapper falls back to the plain CLI.
+
+Proof, dev t1, tree `2205be3`: CLE-34965 started by the wrapper with no id
+(claimed, window renamed `tnk: CLE-34965`, seated). Terminal prompt + answer:
+one `OK prompt` + one `OK answer` in `.mirror/mirror.log` (n=1 each; the
+earlier double post is the measurement behind step 4). Web UI -> terminal:
+`do_spl_desk_probe` DM typed once in the pane, `skip prompt ... web UI (1)`,
+answer posted to HUM-4's topic `743ebae2-…` (after the desk was repaired
+from STRANDED - `do_spl_desk_check DESK_REPAIR=1`; lane CLE-34964).
+
 ## Proof (2026-09-25, dev, tenant t1, tree `5add6fb`)
 
 Test agents seated on a dedicated desk `box-mirror` (its sidecar running this
@@ -122,4 +152,4 @@ tree's notifier), so the live `box-desk` and its seats were not restarted.
   n=2 rows — the `[terminal]` prompt and the answer; the session-end `Stop`
   posted nothing.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T13:27:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T14:30:00Z -->

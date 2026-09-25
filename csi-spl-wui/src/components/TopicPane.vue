@@ -81,7 +81,7 @@ const lastLive = ref<SpoolMessage | null>(null)
 /* A reply with is_parent 0 lives in the channel store as well as here.
    Keep it on this pane after the send stops being pending. */
 const messages = computed(() => {
-  const base = (api.mock ? topic.messages : rowsForRightPane(liveRows.value, channel.messages, topic.parentTaskId)) as SpoolMessage[]
+  const base = (api.mock ? topic.messages : rowsForRightPane(liveRows.value, channel.messages, topic.parentTaskId || '')) as SpoolMessage[]
   return newestFirst(base.filter((m) => matchesSearch(m, search.value))) as SpoolMessage[]
 })
 /* The open topic's own title, selected at the top of this pane. */

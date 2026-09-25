@@ -15,7 +15,8 @@ export const useAccessStore = defineStore('access', () => {
 
   function load(force = false) {
     if (pending && !force) return pending
-    const run = (async () => {
+    let run!: Promise<void>
+    run = (async () => {
       try {
         // The first reads go out before the view door is the session cookie.
         // A bare me() 401 used to stick, and the invite plus stayed disabled.

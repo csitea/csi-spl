@@ -318,8 +318,10 @@ declare module '~/utils/pane-focus.mjs' {
 }
 
 declare module '~/utils/msg-menu.mjs' {
-  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean }): { id: 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete', icon: 'pencil' | 'copy' | 'merge' | 'trash', labelKey: string }[]
+  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean }): { id: 'open' | 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete', icon: 'open' | 'pencil' | 'copy' | 'merge' | 'trash', labelKey: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string
+  export function topicPaneLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, currentTaskId?: string }): string
+  export function threadLineLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, pathFor?: (path: string) => string }): string
   export function threadNeighbor(rows: unknown[], msg: unknown, which: 'previous' | 'next'): Record<string, unknown> | null
   export function joinBodies(older: unknown, newer: unknown): string
 }

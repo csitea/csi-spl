@@ -417,6 +417,7 @@
     },
     "msg_menu": {
       "label": "Ponuka správy",
+      "open": "Otvoriť",
       "edit": "Upraviť",
       "copy_link": "Kopírovať odkaz",
       "delete": "Odstrániť",

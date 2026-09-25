@@ -417,6 +417,7 @@
     },
     "msg_menu": {
       "label": "Viestin valikko",
+      "open": "Avaa",
       "edit": "Muokkaa",
       "copy_link": "Kopioi linkki",
       "delete": "Poista",

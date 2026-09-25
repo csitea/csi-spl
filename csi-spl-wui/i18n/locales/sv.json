@@ -417,6 +417,7 @@
     },
     "msg_menu": {
       "label": "Meddelandemeny",
+      "open": "Öppna",
       "edit": "Redigera",
       "copy_link": "Kopiera länk",
       "delete": "Ta bort",

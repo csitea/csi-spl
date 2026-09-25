@@ -417,6 +417,7 @@
     },
     "msg_menu": {
       "label": "Mesaj menüsü",
+      "open": "Aç",
       "edit": "Düzenle",
       "copy_link": "Bağlantıyı kopyala",
       "delete": "Sil",

@@ -107,6 +107,7 @@
       :merge-next="!!mergeNext"
       @close="closeMenu()"
       @escape="rowEl?.focus({ preventScroll: true })"
+      @open="onMenuOpen"
       @edit="onMenuEdit"
       @copy="copyMessageLink"
       @merge-prev="onMerge('previous')"
@@ -133,7 +134,8 @@ import {
 } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMessageMenu } from '~/composables/useMessageMenu'
-import { joinBodies, messageLink } from '~/utils/msg-menu.mjs'
+import { openThreadRow } from '~/utils/pane-scroll.mjs'
+import { joinBodies, threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
 
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
@@ -156,6 +158,8 @@ const props = defineProps<{
   mergePrev?: SpoolMessage | null
   /** The newer message in this same thread, when this row may be folded into it. */
   mergeNext?: SpoolMessage | null
+  /** The task the list itself shows (#lobby), so a card's link names the right topic. */
+  currentTaskId?: string | null
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage] }>()
 
@@ -271,8 +275,30 @@ async function onMerge(which: 'previous' | 'next') {
   }
 }
 
+/* Open on a topic card opens its topic on the right, as the replies button
+   does. A thread line is already in the open topic: it is selected instead,
+   and the thread does not scroll. */
+function onMenuOpen() {
+  if (props.clickable) {
+    openReplies()
+    return
+  }
+  if (rowEl.value) openThreadRow(rowEl.value)
+}
+
+/* A topic card in the middle links to this page with its topic open on the
+   right. A thread line links to the same, with its own id as the hash. */
+function linkPath() {
+  if (!props.clickable) return threadLineLink(props.msg, { path: route.path, query: route.query, pathFor: localePath })
+  return topicPaneLink(props.msg, {
+    path: route.path,
+    query: route.query,
+    currentTaskId: String(props.currentTaskId || ''),
+  })
+}
+
 async function copyMessageLink() {
-  const path = messageLink(props.msg, localePath)
+  const path = linkPath()
   if (!path || typeof window === 'undefined') return
   const url = new URL(path, window.location.origin).href
   try {
@@ -360,6 +386,7 @@ const edited = computed(() => isEdited(props.msg))
 const { canEdit, commit, removeMessage } = useMessageEdit()
 const removing = ref(false)
 const localePath = useLocalePath()
+const route = useRoute()
 /* The same message can sit in the middle list and the topic pane at once.
    The menu id has to be this card, not the msg_id, or both menus open. */
 const menuKey = useId()

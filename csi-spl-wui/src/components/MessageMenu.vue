@@ -46,6 +46,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   escape: []
+  open: []
   edit: []
   copy: []
   'merge-prev': []
@@ -124,7 +125,8 @@ function onMenuKey(e: KeyboardEvent) {
 }
 
 function choose(id: string) {
-  if (id === 'edit') emit('edit')
+  if (id === 'open') emit('open')
+  else if (id === 'edit') emit('edit')
   else if (id === 'copy') emit('copy')
   else if (id === 'merge-prev') emit('merge-prev')
   else if (id === 'merge-next') emit('merge-next')

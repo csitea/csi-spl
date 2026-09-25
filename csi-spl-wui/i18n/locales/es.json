@@ -417,6 +417,7 @@
     },
     "msg_menu": {
       "label": "Menú del mensaje",
+      "open": "Abrir",
       "edit": "Editar",
       "copy_link": "Copiar enlace",
       "delete": "Eliminar",

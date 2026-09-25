@@ -32,6 +32,7 @@
         :editable="canEdit(m)"
         :merge-prev="mergeTarget(m, 'previous')"
         :merge-next="mergeTarget(m, 'next')"
+        :current-task-id="currentTaskId"
         :class="{ pending: m.pending }"
         :data-key="m.msg_id"
         :data-pending="m.pending ? 'true' : undefined"
@@ -64,6 +65,7 @@ import { useTopicStore } from '~/stores/topic'
 import { isSelectedRow } from '~/utils/topic-open.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { threadNeighbor } from '~/utils/msg-menu.mjs'
+import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 
 /* 013: newest first under the Omnibox; entering rows animate. The first page is 30 rows; a Load more
    button under the last row asks for the next 30 (held rows first, then the hub, before=<cursor>).
@@ -123,6 +125,24 @@ function mergeTarget(m: SpoolMessage, which: 'previous' | 'next') {
   if (!other || !canEdit(m) || !canEdit(other)) return null
   return other
 }
+
+/* A pasted link to a thread line (#<msg_id>) moves that line to the top of
+   its list once it has loaded, and selects it. Only a thread feed does this,
+   and only once per hash, so later rows do not pull the reader back. The
+   document itself does not scroll. */
+const route = useRoute()
+let hashDone = ''
+watch(() => [route.hash, props.rows.length] as const, async ([hash]) => {
+  const id = String(hash || '').replace(/^#/, '')
+  if (!props.holdScroll || !id || id === hashDone) return
+  if (!props.rows.some((m) => String(m.msg_id) === id)) return
+  hashDone = id
+  await nextTick()
+  const el = root.value?.querySelector<HTMLElement>(`[data-msg-id="${CSS.escape(id)}"]`)
+  const scroller = el?.closest<HTMLElement>('.feed-body')
+  if (el && scroller) scrollRowToTop(scroller, el)
+  el?.focus({ preventScroll: true })
+}, { immediate: true })
 
 function openable(m: SpoolMessage) {
   if (props.openButton) return Boolean(m.task_id)

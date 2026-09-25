@@ -417,6 +417,7 @@
     },
     "msg_menu": {
       "label": "Message menu",
+      "open": "Open",
       "edit": "Edit",
       "copy_link": "Copy link",
       "delete": "Delete",

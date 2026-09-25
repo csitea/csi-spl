@@ -5,28 +5,28 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { joinBodies, messageLink, msgMenuItems, threadNeighbor } from '../../src/utils/msg-menu.mjs'
+import { joinBodies, messageLink, msgMenuItems, threadLineLink, threadNeighbor, topicPaneLink } from '../../src/utils/msg-menu.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
 const pathFor = (p) => '/fi' + p
 
 describe('msgMenuItems', () => {
-  it('offers edit, copy link, and delete on the author\'s own message', () => {
-    assert.deepEqual(msgMenuItems({ editable: true }).map((i) => i.id), ['edit', 'copy', 'delete'])
-    assert.deepEqual(msgMenuItems({ editable: true }).map((i) => i.icon), ['pencil', 'copy', 'trash'])
+  it('offers open, copy link, edit, and delete on the author\'s own message', () => {
+    assert.deepEqual(msgMenuItems({ editable: true }).map((i) => i.id), ['open', 'copy', 'edit', 'delete'])
+    assert.deepEqual(msgMenuItems({ editable: true }).map((i) => i.icon), ['open', 'copy', 'pencil', 'trash'])
   })
 
   it('adds merge with the previous or next message only when that neighbor exists', () => {
     const both = msgMenuItems({ editable: true, mergePrev: true, mergeNext: true }).map((i) => i.id)
-    assert.deepEqual(both, ['edit', 'copy', 'merge-prev', 'merge-next', 'delete'])
-    assert.deepEqual(msgMenuItems({ editable: true, mergePrev: true }).map((i) => i.id), ['edit', 'copy', 'merge-prev', 'delete'])
-    assert.deepEqual(msgMenuItems({ editable: false, mergePrev: true, mergeNext: true }).map((i) => i.id), ['copy'])
+    assert.deepEqual(both, ['open', 'copy', 'edit', 'merge-prev', 'merge-next', 'delete'])
+    assert.deepEqual(msgMenuItems({ editable: true, mergePrev: true }).map((i) => i.id), ['open', 'copy', 'edit', 'merge-prev', 'delete'])
+    assert.deepEqual(msgMenuItems({ editable: false, mergePrev: true, mergeNext: true }).map((i) => i.id), ['open', 'copy'])
   })
 
-  it('offers only copy link when the viewer cannot edit', () => {
-    assert.deepEqual(msgMenuItems({ editable: false }).map((i) => i.id), ['copy'])
-    assert.deepEqual(msgMenuItems().map((i) => i.id), ['copy'])
+  it('offers only open and copy link when the viewer cannot edit', () => {
+    assert.deepEqual(msgMenuItems({ editable: false }).map((i) => i.id), ['open', 'copy'])
+    assert.deepEqual(msgMenuItems().map((i) => i.id), ['open', 'copy'])
   })
 
   it('names each action from the catalogue', () => {
@@ -53,6 +53,54 @@ describe('messageLink', () => {
   it('is empty when the message names no topic', () => {
     assert.equal(messageLink({ msg_id: 'm' }, pathFor), '')
     assert.equal(messageLink(msg, null), '')
+  })
+})
+
+describe('topicPaneLink', () => {
+  const card = { task_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', msg_id: '11111111-1111-4111-8111-111111111111' }
+
+  it('is this page with the card\'s topic open on the right', () => {
+    assert.equal(
+      topicPaneLink(card, { path: '/fi/channel/ops', query: { tenant: 'csi' } }),
+      '/fi/channel/ops?tenant=csi&topic=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    )
+  })
+
+  it('replaces a topic already open in the URL', () => {
+    assert.equal(
+      topicPaneLink(card, { path: '/channel/ops', query: { topic: 'old', in: 'x' } }),
+      '/channel/ops?topic=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    )
+  })
+
+  it('names the message and its task for a #lobby card', () => {
+    assert.equal(
+      topicPaneLink(card, { path: '/lobby', query: {}, currentTaskId: card.task_id }),
+      '/lobby?topic=11111111-1111-4111-8111-111111111111&in=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    )
+  })
+
+  it('is empty without a page or an id', () => {
+    assert.equal(topicPaneLink(card, {}), '')
+    assert.equal(topicPaneLink({}, { path: '/lobby' }), '')
+  })
+})
+
+describe('threadLineLink', () => {
+  const line = { task_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', msg_id: 'm9' }
+
+  it('keeps the open topic and adds the line as the hash', () => {
+    assert.equal(
+      threadLineLink(line, { path: '/dm/bob', query: { topic: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } }),
+      '/dm/bob?topic=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa#m9',
+    )
+  })
+
+  it('falls back to the topic page when no topic is in the URL', () => {
+    assert.equal(
+      threadLineLink(line, { path: '/t/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', query: {}, pathFor: (p) => p }),
+      '/t/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa#m9',
+    )
   })
 })
 
@@ -93,6 +141,9 @@ describe('the card opens the menu on a right-click', () => {
     assert.match(menu, /<UiIcon :name="item\.icon"/)
     assert.match(menu, /\{\{ t\(item\.labelKey\) \}\}/)
     assert.match(menu, /data-testid="msg-menu"/)
+    assert.match(card, /@open="onMenuOpen"/)
+    assert.match(card, /topicPaneLink\(/)
+    assert.match(card, /threadLineLink\(/)
   })
 })
 
@@ -100,7 +151,7 @@ describe('every locale names the message actions', () => {
   it('translates edit and delete, and keeps the same keys', () => {
     const dir = join(WUI, 'i18n/locales')
     const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8')).feed.msg_menu
-    assert.deepEqual(Object.keys(en).sort(), ['copy_link', 'delete', 'edit', 'label', 'merge_next', 'merge_prev'])
+    assert.deepEqual(Object.keys(en).sort(), ['copy_link', 'delete', 'edit', 'label', 'merge_next', 'merge_prev', 'open'])
     const codes = readdirSync(dir).filter((f) => f.endsWith('.json') && f !== 'en.json').map((f) => f.replace(/\.json$/, ''))
     assert.ok(codes.length >= 18)
     for (const code of codes) {
@@ -109,6 +160,7 @@ describe('every locale names the message actions', () => {
       assert.notEqual(row.edit, en.edit, code)
       assert.notEqual(row.delete, en.delete, code)
       assert.notEqual(row.copy_link, en.copy_link, code)
+      assert.notEqual(row.open, en.open, code)
       assert.notEqual(row.merge_prev, en.merge_prev, code)
       assert.notEqual(row.merge_next, en.merge_next, code)
     }

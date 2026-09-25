@@ -417,6 +417,7 @@
     },
     "msg_menu": {
       "label": "Ziņas izvēlne",
+      "open": "Atvērt",
       "edit": "Rediģēt",
       "copy_link": "Kopēt saiti",
       "delete": "Dzēst",

@@ -35,8 +35,9 @@ Out of scope:
   (`SPEC-spool-message-bus.md` §"git-rel"). Do not conflate the two.
 - **The hub files bucket** `csi-spl-<env>-files` (step `050`, spec 007). It is
   a separate bucket with the same hygiene but no lifecycle.
-- **Every hub step** (DNS zone, `040`, `050`, `028`, `030`, `031`) and the
-  hub-era services added to `001` later. All of that is spec 007 (README §5
+- **Every hub step** (`005`, `016`, `017`, `019`, `025`, `028`, `030`, `032`,
+  `040`, `045`, `050`, `120`; the `031` load balancer was removed in
+  `70b84824`) and the hub-era services added to `001` later. All of that is spec 007 (README §5
   and §6). Terraform **apply** for any step is the 007 apply owner's; this
   lane proposes, it never applies.
 
@@ -107,7 +108,10 @@ anonymous GET after the clean).
 Status vocabulary per README: **Implemented** (verified, cited) / **Partial** /
 **Planned**. Live evidence was measured on 2026-09-18 at about 19:00Z, n=1 per
 env, operator identity `--account=$GCP_ACCOUNT`, read-only calls only. Repo
-evidence is at trunk `bbc41e7`.
+evidence is at trunk `bbc41e7`; the 2026-09-25 sync (trunk `bbe04d26`, repo
+only, no GCP call) re-checked NFR-004, SC-004 and the hub step list. Since the
+2026-09-19 owner rule, `$GCP_ACCOUNT` is the per-env project service account
+from `key-csi-spl-<env>.json` (`do_gcp_pin_account`), never the owner login.
 
 ### Functional requirements
 
@@ -132,7 +136,7 @@ evidence is at trunk `bbc41e7`.
 | NFR-001 | Terraform version pinned (1.9.8). | Implemented | `env.versions.terraform_version: 1.9.8` in `<env>.env.yaml`, used by `do_tf_plan`. `required_version >= 1.5.0` is a floor, not the pin. |
 | NFR-002 | No key in git, in terraform state or in a log. | Implemented | FR-005 state check. `git grep google_service_account_key` → comments only. |
 | NFR-003 | Every `gcloud` call carries `--account` or a throwaway `CLOUDSDK_CONFIG`; the shared `~/.config/gcloud` is never mutated. | Implemented | Every `gcloud` in `gcp-001-create-project.func.sh` carries `--account`; git-rel runs under a throwaway `CLOUDSDK_CONFIG`. |
-| NFR-004 | Nothing mutates GCP without the owner's explicit go. | Implemented | `csi-spl-iac` has no apply action. Create-project is dry-run by default. This redo issued no mutating call. |
+| NFR-004 | Nothing mutates GCP without the owner's explicit go. | Implemented | Apply exists (`ls csi-spl-iac/src/bash/run \| grep -E 'tf-apply\|provision'` → `provision`, `tf-apply`, `tf-apply-target`, `tf-apply-local-step-bucket`) but runs only through `make do-provision` in the tf-runner container with the owner's go (repo `CLAUDE.md`). Create-project is dry-run by default. This redo issued no mutating call. |
 
 ## Success criteria
 
@@ -141,15 +145,15 @@ evidence is at trunk `bbc41e7`.
 | SC-001 | §6.4 verification passes on `csi-spl-dev-rel` and `csi-spl-prd-rel`. | Partial (procedure text) | The settings/IAM half and the 403 half were re-measured live 2026-09-18 (FR-002..004). The signed PUT/GET round-trip was not repeated (it mutates); it last passed 2026-09-17 (operator narrative §7). §6.4 step 1 still says "describe with the relay SA", which FR-003 makes impossible → T016. |
 | SC-002 | A git-rel round trip against `gs://csi-spl-prd-rel` passes. | Implemented (2026-09-17) | Measured 48 passed / 1 known F3 leak; control against a non-existent bucket 22/27 (`csi-spl.feature.md` §7). Not re-run (it mutates). |
 | SC-003 | An operator `buckets describe` shows the 1-day lifecycle rule on both buckets. | Implemented | FR-002 evidence. |
-| SC-004 | The FQDN is confined to `csi-spl-cnf/` + `csi-spl-doc/`. | Implemented | FR-006. `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` → `6/6 test files passed`. |
+| SC-004 | The FQDN is confined to `csi-spl-cnf/` + `csi-spl-doc/`. | Implemented | FR-006. `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` green (36 test files at `bbe04d26`: `ls csi-spl-iac/src/bash/tests/*.tst.sh \| wc -l` → 36; 6 at `bbc41e7`). |
 
 ## Assumptions
 
-- The operator has an interactive GCP login. The org's reauth policy has at
-  times refused the cached human credential for non-interactive calls; on
-  2026-09-18 it was accepted for read-only calls.
+- The operator runs as the per-env project service account (owner rule
+  2026-09-19). The 2026-09-18 measurements predate that rule and used a human
+  login for read-only calls; re-measuring uses the service-account key.
 - git-rel v2 (`nea-nfs-orc`) is the sole consumer of the relay bucket.
 - `bnc-cpt`'s own owner identity is not a relay identity and was left alone
   deliberately. Retiring it is a `bnc-cpt` decision.
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:21:11Z -->
+<!-- version: 1.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:09:09Z -->

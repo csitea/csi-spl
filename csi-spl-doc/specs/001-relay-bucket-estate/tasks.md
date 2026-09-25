@@ -87,14 +87,18 @@ Implemented task cites a sha or a `command → result`. Live checks are
       rc 2, `Plan: 10 to add` (the hub-era services plus `orgpolicy`), which is
       spec 007's pending prd `001` apply. Run by hand because `./run` cannot
       plan from a `csi-spl-wt/<ID>` worktree (it derives ORG/APP from the path
-      → `csi-spl-wt-3339-cnf`), which was reported, not fixed here.
+      → `csi-spl-wt-3339-cnf`), which was reported, not fixed here. Since
+      fixed by `8dded98e` (`do_resolve_oap` derives ORG/APP from the project
+      dir name; gate `resolve-oap-worktree.tst.sh`).
 - [ ] T020 prd `001` state lacks `orgpolicy.googleapis.com` although it is
       enabled live. The prd `001` plan already includes it as an
       (idempotent) create, so **no import is needed**: the prd `001` apply
       that the hub needs anyway closes it. Proposed to the 007 apply owner.
-      **Planned**; this lane never applies.
+      **Planned**; this lane never applies. 2026-09-25: 007 T050 records a
+      prd `make do-provision`, so this is probably closed; confirming needs a
+      `terraform state list` of prd `001` (read-only, not run in this sync).
 - [ ] T021 `nea-nfs-orc` `git-rel.lib.sh` header still says "hub → box:
       public-read object"; the sender uploads private and signs a GET. That is
       another repo, so it is reported to its owner, not edited here. **Planned**.
 
-<!-- version: 1.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:21:11Z -->
+<!-- version: 1.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:09:09Z -->

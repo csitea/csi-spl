@@ -29,10 +29,11 @@ sibling clone) that renders tfvars from the cnf YAML.
 
 **Storage**: GCS only: the tfstate buckets and the relay bucket.
 
-**Testing**: `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` → `6/6 test
-files passed` at `bbc41e7`. That covers dead-credential, domain-single-source,
-tf-plan-keeps-local-state, tf-steps-render-and-validate, plus 007's `028` and
-`031` tests. git-rel has its own roundtrip suite in `nea-nfs-orc`.
+**Testing**: `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` (6 test files
+at `bbc41e7`, 36 at `bbe04d26`). The 001-relevant ones are dead-credential,
+domain-single-source, tf-plan-keeps-local-state and
+tf-steps-render-and-validate; the `031` test went with the step
+(`70b84824`). git-rel has its own roundtrip suite in `nea-nfs-orc`.
 
 **Target platform**: GCP `europe-north1`.
 
@@ -77,7 +78,7 @@ csi-spl-cnf/csi-spl/
 ## Provisioning position (README §6)
 
 Rows 1 (`000`) and 2 (`001`) belong to this spec. `020` is an independent
-branch after row 2. The hub chain (DNS zone → `040` → … → `031`) neither needs
+branch after row 2. The hub chain (DNS zone → `040` → … → `032`) neither needs
 it nor is needed by it. Dev first, then prd.
 
 ## Execution plan (as built)
@@ -103,4 +104,4 @@ Drift is tracked as T016–T021:
 - one prd state drift, proposed to the apply owner;
 - one cross-repo comment, reported to its owner.
 
-<!-- version: 1.0.0 · updated: 2026-09-18 · last-edit: 2026-09-18T19:01:26Z -->
+<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:09:09Z -->

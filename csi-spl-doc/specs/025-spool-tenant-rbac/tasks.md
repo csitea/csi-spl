@@ -34,7 +34,7 @@
 ## Phase 6: owner orders 2026-09-25 (spec §1.1, CLE-34967)
 
 - [x] T050 roles `biz_customer`, `regular_user` (= developer's grants) and `members.invite` admin-only: rdb 0039 + `rbac.Defaults`/`RoleIDs` + CLI help + orc `SPL_ROLE_IDS` + WUI `ROLE_IDS`, `role.*` in 19 locales, DM-row "Remove" gated on members.invite. Check: `TestDefaultsMatrix` (only admin holds members.invite; both new roles = developer), `TestRBACMembersAPI` (biz_owner cannot invite, remove or make an admin; admin invites both new roles), `hub-pg.tst.sh` (`TestRBACSeedMatchesDefaults` against 0039), `sidebar-row-menu.test.mjs`.
-- [ ] T051 0039 applied dev + prd (`do_spl_db_bootstrap`), hub + WUI rolled on both.
-- [ ] T052 prd t1 memberships (named actions only): invites as biz_customer / regular_user, a developer -> biz_customer, the owner's second account developer -> admin.
+- [x] T051 0039 applied dev 14:54Z then prd 14:55Z (`do_spl_db_bootstrap` DRY_RUN=0, env SAs); `rbac_roles` on both reads 8 roles, members.invite on admin only, biz_customer = regular_user = developer (n=1 query per env). Hub 0.5.0 (0bf7bdd) on dev + prd (`/version`, 20 run 36150599840); WUI 0bf7bdd dev + prd (30 run 36150599381).
+- [x] T052 prd t1 (named actions only, 14:56-14:58Z, as the prd SA): `do_spl_tenant_member_role` HUM-23 developer -> biz_customer, HUM-13 developer -> regular_user, HUM-5 developer -> admin (one role per membership, §1.1: the owner's second account; HUM-10 stays biz_owner). `do_spl_hub_invite` six invites (one biz_customer, five regular_user), each mailed once (`delivered:true`, mail_count 1); one accepted at 14:58Z as regular_user.
 
-<!-- version: 1.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T15:05:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T15:10:00Z -->

@@ -122,6 +122,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `031-spool-owner-acceptance/` | owner acceptance register `cases.tsv` plus the gate that the named test exists | M3 | CLE-3438 |
 | `032-spool-message-edit/` | edit a sent message; append-only `message_revisions` | M3 | CLE-3443 / CLE-3445 |
 | `033-spool-message-levels/` | level 1 (topic opener, middle card, `is_parent = 1`) vs level 2 (thread line, right pane only, `is_parent = 0`); the pane selected last decides | M3 | message-levels lane |
+| `034-spool-topic-gist/` | download the gist of one topic (one `task_id`: level-1 opener plus level-2 lines); what the gist contains is an open question | M3 | topic-gist lane |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -138,7 +139,7 @@ Dependency order between specs:
 024 (tenant hosts, superseded) → 025 (tenant RBAC) →
 026 (tenant from identity) → 027 (performance) → 028 (terminal delivery) →
 029 (db health + backup) → 030 (wire fast path) → 031 (owner acceptance) →
-032 (message edit) → 033 (message levels) → 009 (M4) → 008 (CI logs in chat)`.
+032 (message edit) → 033 (message levels) → 034 (topic gist) → 009 (M4) → 008 (CI logs in chat)`.
 
 ---
 
@@ -172,6 +173,7 @@ Dependency order between specs:
 | Owner acceptance rows | 031 `cases.tsv` | each row names the spec that owns the behaviour |
 | Message edit request, frame, register | 032 `contracts/message-edit-v1.md` | 003 stores it; 005 browser shortcut |
 | `messages.is_parent`, browser send field, level rule | 033 `spec.md` | 003 stores and returns it; 005 decides it from the pane selected last; 032 double-click edit at both levels |
+| Topic gist of one `task_id` | 034 `spec.md` | 034 reads what 003 serves; 005 draws the control |
 
 ---
 
@@ -349,4 +351,4 @@ Code prevails. Live GCP was not re-queried. Citations are `git grep` / file read
 | 030 | no `tasks.md`; status lived only in `spec.md` §0.5–0.7 | `030/tasks.md` added as the status list |
 | 031 | no `tasks.md`; `cases.tsv` is the register (OA-10..14 and OA-40 are PENDING) | indexed; no tasks file invented |
 
-<!-- version: 1.11.0 · updated: 2026-09-25 · last-edit: 2026-09-25T11:23:32Z -->
+<!-- version: 1.12.0 · updated: 2026-09-25 · last-edit: 2026-09-25T12:11:33Z -->

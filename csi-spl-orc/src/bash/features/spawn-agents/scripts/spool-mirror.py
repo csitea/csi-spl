@@ -257,6 +257,30 @@ def clip_body(s):
     return cut + f"\n… [{len(b) - BODY_MAX} more bytes: the full text is in the terminal]"
 
 
+SEEN_TTL = 60  # seconds a (session, event, text) post is remembered
+
+
+def first_sighting(adir, session, event, text, now):
+    """True once per (session, event, text) within SEEN_TTL. Two hook configs
+    that both reach one session (the shared ~/.claude/settings.json and a
+    wrapper's --settings, at different script paths) fire twice for one
+    prompt; the O_EXCL create lets exactly one of them post."""
+    d = os.path.join(adir, ".mirror", "seen")
+    os.makedirs(d, exist_ok=True)
+    for p in glob.glob(os.path.join(d, "*")):
+        try:
+            if now - os.path.getmtime(p) > SEEN_TTL:
+                os.unlink(p)
+        except OSError:
+            pass
+    h = hashlib.sha256("\0".join((session, event, norm(text))).encode()).hexdigest()[:32]
+    try:
+        os.close(os.open(os.path.join(d, h), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+        return True
+    except FileExistsError:
+        return False
+
+
 def post_one(seat, agent, event, text, session):
     adir = os.path.join(seat, "spool", agent)
     now = time.time()
@@ -276,6 +300,9 @@ def post_one(seat, agent, event, text, session):
         except OSError:
             pass
         body = text
+    if session and not first_sighting(adir, session, event, body, now):
+        log(adir, f"skip {event}: a second hook fired for the same {event} of this session")
+        return "skipped"
     body, counts = redact(body)
     body = clip_body(body)
     human, task = pick_topic(adir)

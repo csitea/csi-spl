@@ -18,6 +18,8 @@
 #   9. the notifier's records: a HUMAN's DIRECT message sets the peer; a
 #      channel broadcast (to ALL-0) and an agent's message do not
 #  10. hook -> post end to end, through SPOOL_MIRROR_POST
+#  11. two hook configs reaching one session (shared settings + a wrapper's
+#      --settings) post one prompt once
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
 t_sandbox
@@ -166,5 +168,14 @@ printf '{"hook_event_name":"Stop","session_id":"E","last_assistant_message":"all
 eq "10. hook: the answer is posted" "all done" "$(body_of_last)"
 has "10. ... into the peer's topic" $'--task\n'"$T1" "$(last_send)"
 has "10. the seat log records it" "OK answer -> HUM-3 task $T1" "$(cat "$A/.mirror/mirror.log")"
+
+# --- 11. two hook configs, one session ---------------------------------------------------------
+n4=$(nsends)
+post prompt "said once, heard twice" dup1 >/dev/null
+post prompt "said once, heard twice" dup1 >/dev/null
+eq "11. the same prompt of one session, fired by two hooks, is posted once" "$((n4 + 1))" "$(nsends)"
+has "11. the second is logged as a duplicate hook" "a second hook fired" "$(cat "$A/.mirror/mirror.log")"
+post prompt "said once, heard twice" dup2 >/dev/null
+eq "11. CONTROL: another session posts the same words" "$((n4 + 2))" "$(nsends)"
 
 t_done

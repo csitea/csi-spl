@@ -24,8 +24,8 @@ do_validate_params() {
     [[ -z "$param_def" ]] && continue
 
     # Extract variable name (first word)
-    local var_name
-    var_name=$(echo "$param_def" | awk '{print $1}')
+    local var_name _rest
+    read -r var_name _rest <<<"$param_def"
 
     # Auto-resolve *_PAT vars from their *_PAT_FILE before checking required.
     # Delegates to do_load_pat, which handles both raw-token and shell-export
@@ -36,7 +36,7 @@ do_validate_params() {
     fi
 
     # Check if marked as required
-    if echo "$param_def" | grep -qi '(required)'; then
+    if [[ "${param_def,,}" == *"(required)"* ]]; then
       # Check if the env var has a value
       local var_val="${!var_name:-}"
       if [[ -z "$var_val" ]]; then

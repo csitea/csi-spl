@@ -181,17 +181,43 @@ export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', f
   if (hit && now() - hit.at < ttlMs) return hit.promise
   const headers = { accept: 'application/json' }
   if (token) headers.authorization = `Bearer ${token}`
-  const promise = (async () => {
+  const json = (async () => {
     try {
-      if (typeof fetchFn !== 'function') return {}
+      if (typeof fetchFn !== 'function') return null
       const res = await fetchFn(`${root}/v1/view/roster`, { credentials, headers })
-      return res && res.ok ? avatarFilesFromView(await res.json()) : {}
+      return res && res.ok ? await res.json() : null
     } catch {
-      return {}
+      return null
     }
   })()
-  avatarLoads.set(key, { at: now(), promise })
+  const promise = json.then(avatarFilesFromView)
+  const names = json.then(humanNamesFromView)
+  avatarLoads.set(key, { at: now(), promise, names })
   return promise
+}
+
+/**
+ * view-v1 §4.1 roster → { 'HUM-3': 'Alice Example' }: the name each member
+ * chose in Settings > Profile. A member with none is left out (the WUI shows
+ * the id).
+ */
+export function humanNamesFromView(data) {
+  const out = {}
+  for (const h of (data && Array.isArray(data.humans) ? data.humans : [])) {
+    const id = h && String(h.human_id || '')
+    const name = h && typeof h.display_name === 'string' ? h.display_name.trim() : ''
+    if (isMember(id) && name) out[id] = name
+  }
+  return out
+}
+
+/** The display names from the same roster read as the pictures (one fetch, same cache). */
+export function loadHumanNames(opts = {}) {
+  const o = opts && typeof opts === 'object' ? opts : {}
+  const root = String(o.base || '').replace(/\/+$/, '')
+  loadAvatarFiles(o)
+  const hit = avatarLoads.get(`${root}\n${o.token || ''}`)
+  return hit && hit.names ? hit.names : Promise.resolve({})
 }
 
 /** png / jpeg / gif / webp from the magic bytes (the hub serves octet-stream), else ''. */
@@ -240,6 +266,11 @@ export function loadAvatarImageUrl(url, { credentials = 'omit', fetchFn = global
   })()
   avatarImages.set(url, promise)
   return promise
+}
+
+/** Forget the cached roster read only (names and picture ids), not the pictures. */
+export function forgetRosterRead() {
+  avatarLoads.clear()
 }
 
 /** Test seam: forget every cached roster read and picture. */

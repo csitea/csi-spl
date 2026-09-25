@@ -71,7 +71,7 @@
     >
       <SpoolAvatar :id="roster.self.id" :box="roster.self.box" :size="22" />
       <span class="dot" :class="{ on: roster.self.online }" />
-      <span class="label">{{ roster.self.label }}</span>
+      <span class="label" :title="roster.self.label">{{ people.label(roster.self.id, roster.self.box) }}</span>
       <!-- `sidebar.you` carries its own brackets: a bracket hard-coded here
            lands on the wrong side of an RTL label (he), because the bidi
            algorithm resolves neutral punctuation from its surroundings. -->
@@ -97,7 +97,7 @@
     >
       <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
       <span class="dot" :class="{ on: p.online }" />
-      <span class="label">{{ p.label }}</span>
+      <span class="label" :title="p.label">{{ people.label(p.id, p.box) }}</span>
       <span v-if="notes.unread['dm:' + p.label]" class="badge-unread">{{ notes.previewUnread(notes.unread['dm:' + p.label]) }}</span>
     </NuxtLink>
     <SidebarRowMenu
@@ -445,6 +445,7 @@ import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-s
 import { useSidePane } from '~/composables/useSidePane'
 import { flowRows, SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
+import { useHumanNames } from '~/composables/useHumanNames'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { fixedTenantOption } from '~/utils/tenant-switcher.mjs'
@@ -618,6 +619,8 @@ const channelOrder = ref<string[]>([])
 const topicOrder = ref<string[]>([])
 const flowOrder = ref<string[]>([])
 const peerAdmin = computed(() => rowMenuAdmin(access.me))
+/* A person's chosen display name; the id@box stays the key and the tooltip. */
+const people = useHumanNames()
 const peers = computed(() => pinRows(
   orderPeers(roster.peers, channel.dmAt)
     .filter((p) => !hiddenPeers.value[p.label] && !peerHidden(listHidden.value, p.label, channel.dmAt[p.label])),

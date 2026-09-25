@@ -177,6 +177,7 @@ declare module '~/utils/channel-feed.mjs' {
   export function applyVerbosity<T extends { kind?: string, body?: string }>(messages: T[], level: string): T[]
   export function parseMention(text: string): { to: string, kind: string, body: string }
   export function displayName(id: string, box?: string): string
+  export function personLabel(id: string, box: string | undefined, names: Record<string, string> | null | undefined): string
   export function initials(id: string): string
   export function hueFor(id: string): number
   export function formatBytes(n: number | undefined, locale?: string): string
@@ -434,6 +435,8 @@ declare module '~/utils/avatar.mjs' {
   export function avatarSvg(id: string, box?: string): string
   export function avatarDataUri(id: string, box?: string): string
   export function avatarFilesFromView(data: unknown): Record<string, string>
+  export function humanNamesFromView(data: unknown): Record<string, string>
+  export function loadHumanNames(o?: { base?: string, token?: string, credentials?: RequestCredentials }): Promise<Record<string, string>>
   export function avatarImageUrl(base: string, id: string, box: string | undefined, files: Record<string, string>): string
   export function avatarAlt(id: string, box?: string): string
   export function avatarAltKey(id: string, box?: string): { key: string, params: Record<string, string> }
@@ -453,6 +456,7 @@ declare module '~/utils/avatar.mjs' {
     fetchFn?: typeof fetch
   }): Promise<string>
   export function resetAvatarFiles(): void
+  export function forgetRosterRead(): void
 }
 
 declare module '~/utils/checkout-client.mjs' {

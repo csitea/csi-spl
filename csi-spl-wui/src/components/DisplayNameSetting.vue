@@ -46,10 +46,12 @@
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { applyDisplayName, validDisplayName } from '~/utils/display-name.mjs'
+import { useHumanNames } from '~/composables/useHumanNames'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
 const auth = useAuthClient()
+const people = useHumanNames()
 
 const signedIn = computed(() => session.state === 'in')
 const current = computed(() => String(session.claims?.name || ''))
@@ -77,6 +79,8 @@ async function save() {
   if (res.ok) {
     draft.value = res.name
     status.value = t('settings.display_name.saved')
+    /* the lists and cards show the new name without a reload */
+    void people.refresh()
     return
   }
   const code = (res.out as { error?: string } | undefined)?.error

@@ -475,6 +475,51 @@ func TestViewRosterHumanAvatar(t *testing.T) {
 	}
 }
 
+// TestViewRosterHumanDisplayName: the roster carries each member's chosen
+// display name, so the WUI shows it instead of the HUM-* id. CONTROL: a
+// member who never chose one is null.
+func TestViewRosterHumanDisplayName(t *testing.T) {
+	r := newDoorRig(t)
+	mine, _ := r.e.tenant()
+	ctx := context.Background()
+	h := r.e.st.(store.Humans)
+	if landed := r.signIn(t, mine); strings.Contains(landed, "auth_error") {
+		t.Fatalf("sign-in landed on %s", landed)
+	}
+	alice := r.session(t).HumanID
+	if err := h.SetDisplayName(ctx, alice, "Alice Example"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.PutInvite(ctx, store.Invite{TenantID: mine, Email: "carol@example.com", Role: store.RoleDefault,
+		InvitedBy: store.AdmittedOperator, ExpiresAt: time.Now().Add(time.Hour)}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	carol, err := h.Admit(ctx, store.Identity{Provider: "google", Subject: "carol-sub", Email: "carol@example.com"}, mine, store.AdmitPolicy{}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, _, body := r.get(t, mine, "/v1/view/roster")
+	var roster struct {
+		Humans []struct {
+			HumanID     string  `json:"human_id"`
+			DisplayName *string `json:"display_name"`
+		} `json:"humans"`
+	}
+	if err := json.Unmarshal([]byte(body), &roster); err != nil || code != http.StatusOK {
+		t.Fatalf("roster %d %s", code, body)
+	}
+	byID := map[string]*string{}
+	for _, x := range roster.Humans {
+		byID[x.HumanID] = x.DisplayName
+	}
+	if byID[alice] == nil || *byID[alice] != "Alice Example" {
+		t.Fatalf("alice's display name missing: %s", body)
+	}
+	if n, listed := byID[carol]; !listed || n != nil {
+		t.Fatalf("carol chose no name, want null: %s", body)
+	}
+}
+
 func sha256Hex(b []byte) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])

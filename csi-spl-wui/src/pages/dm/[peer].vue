@@ -3,7 +3,7 @@
     <header class="feed-header">
       <span class="dot" :class="{ on: online }" />
       <h2>{{ t('pane.msgs') }}</h2>
-      <span class="muted">{{ peer }}</span>
+      <span class="muted" :title="peer">{{ peerName }}</span>
       <span class="muted">{{ online ? t('pages.dm.online') : t('pages.dm.offline_queued') }}</span>
     </header>
     <MessageFeed :label="t('pages.feed_label', { target: peer })" />
@@ -11,6 +11,7 @@
 </template>
 
 <script setup lang="ts">
+import { useHumanNames } from '~/composables/useHumanNames'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
@@ -37,6 +38,12 @@ const api = useSpoolApi()
 const session = useSessionStore()
 const { t } = useI18n({ useScope: 'global' })
 const peer = computed(() => decodeURIComponent(String(route.params.peer || '')))
+/* The person's chosen display name in the header; the URL keeps id@box. */
+const people = useHumanNames()
+const peerName = computed(() => {
+  const [id, box] = peer.value.split('@')
+  return people.label(String(id || ''), box || undefined)
+})
 const online = computed(() => {
   const [id, box] = peer.value.split('@')
   return roster.isOnline(id, box)

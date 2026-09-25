@@ -192,6 +192,9 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 type viewHuman struct {
 	HumanID      string  `json:"human_id"`
 	AvatarFileID *string `json:"avatar_file_id"`
+	// DisplayName is the name the human chose (humans.display_name, set in
+	// Settings > Profile); null = none, and the WUI shows the member id.
+	DisplayName *string `json:"display_name"`
 }
 
 // viewHumans lists the tenant's member HUM-* with the stored IdP picture
@@ -208,11 +211,24 @@ func (s *Server) viewHumans(r *http.Request, tenant string) ([]viewHuman, error)
 	if err != nil {
 		return nil, err
 	}
+	names := map[string]string{}
+	if md, ok := s.o.Store.(store.MemberDirectory); ok {
+		members, err := md.ListMembers(r.Context(), tenant)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range members {
+			names[m.HumanID] = strings.TrimSpace(m.DisplayName)
+		}
+	}
 	for id, fid := range avatars {
 		v := viewHuman{HumanID: id}
 		if fid != "" {
 			f := fid
 			v.AvatarFileID = &f
+		}
+		if n := names[id]; n != "" {
+			v.DisplayName = &n
 		}
 		out = append(out, v)
 	}

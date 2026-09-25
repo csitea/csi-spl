@@ -34,6 +34,21 @@ export function displayName(id, box) {
   return box ? `${id}@${box}` : id
 }
 
+/**
+ * What a person is called on screen: the display name they chose, else the
+ * id (displayName). Only a human on the browser box (or with no box) has one;
+ * an agent is always its id.
+ *
+ * @param {string} id
+ * @param {string | undefined} box
+ * @param {Record<string, string> | null | undefined} names humanNamesFromView
+ */
+export function personLabel(id, box, names) {
+  const n = names && typeof names === 'object' && Object.prototype.hasOwnProperty.call(names, id) ? String(names[id] || '').trim() : ''
+  if (n && /^HUM-/.test(String(id || '')) && (!box || box === 'box-wui')) return n
+  return displayName(id, box)
+}
+
 export function initials(id) {
   const s = String(id || '?')
   const m = s.match(/^([A-Z]{2,4})-(\d+)$/)

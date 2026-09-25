@@ -73,6 +73,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		Msg: m.Msg, Env: m.Env, EditedBy: "CLE-01", EditedAt: now.Add(time.Second)}); err != nil {
 		t.Fatal(err)
 	}
+	// message_reactions (rdb 0037): one emoji on the message, so the table
+	// holds a row for both tenants. The glyph is not the search marker.
+	if err := pg.AddReaction(ctx, s.tenant, m.MsgID, "HUM-1", "👍", now.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
 	if err := pg.CreateChannel(ctx, Channel{TenantID: s.tenant, ChannelID: s.channelID, Name: "c" + s.marker[:12], CreatedBy: "CLE-01", CreatedAt: now}); err != nil { // channels
 		t.Fatal(err)
 	}
@@ -243,6 +248,12 @@ func TestCrossTenantStoreAPI(t *testing.T) {
 	}
 	if msgs, err := pg.ViewTopic(ctx, a.tenant, TopicMsgQuery{TaskID: b.taskID, Limit: 50, Now: now}); err != nil || len(msgs) != 0 {
 		t.Errorf("ViewTopic(A, B's task) = %d %v", len(msgs), err)
+	}
+	if got, err := pg.ReactionsFor(ctx, a.tenant, []string{b.msgID}); err != nil || len(got) != 0 {
+		t.Errorf("ReactionsFor(A, B's msg) = %v %v", got, err)
+	}
+	if got, err := pg.ReactionsFor(ctx, b.tenant, []string{b.msgID}); err != nil || len(got[b.msgID]) != 1 {
+		t.Errorf("control: ReactionsFor(B, B's msg) = %v %v", got, err)
 	}
 	if st, err := pg.DeliveryState(ctx, a.tenant, b.msgID, "box-a"); err == nil && st != "" {
 		t.Errorf("DeliveryState(A, B's msg) = %q", st)

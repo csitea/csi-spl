@@ -440,14 +440,23 @@ func followEnv(t *testing.T) *env {
 	})
 }
 
-// quiet asserts that no frame arrives on c within 300 ms.
+// quiet asserts that no frame other than presence arrives on c within 300 ms.
+// Presence is an async broadcast when any member connects: a peer dialled just
+// before the check can land its "online" inside the window, and that is not
+// the leak any caller asks about (run 36168101099, TestWUIPeerSubscribeDM got
+// HUM-3's presence). Every other frame still fails.
 func quiet(t *testing.T, c *websocket.Conn, why string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
-	var f map[string]any
-	if err := wsjson.Read(ctx, c, &f); err == nil {
-		t.Fatalf("%s: unexpected frame %v", why, f)
+	for {
+		var f map[string]any
+		if err := wsjson.Read(ctx, c, &f); err != nil {
+			return
+		}
+		if f["type"] != "presence" {
+			t.Fatalf("%s: unexpected frame %v", why, f)
+		}
 	}
 }
 

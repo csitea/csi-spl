@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { accessAllows, normalizeMe, roleLabelKey } from '~/utils/access.mjs'
 
 /**
@@ -14,15 +15,20 @@ export const useAccessStore = defineStore('access', () => {
 
   function load(force = false) {
     if (pending && !force) return pending
-    pending = (async () => {
+    const run = (async () => {
       try {
-        const body = await api.me()
+        // The first reads go out before the view door is the session cookie.
+        // A bare me() 401 used to stick, and the invite plus stayed disabled.
+        const body = await withSessionRetry(api, () => api.me())
         me.value = body ? normalizeMe(body) : null
       } catch {
         me.value = null
+      } finally {
+        if (pending === run) pending = null
       }
     })()
-    return pending
+    pending = run
+    return run
   }
 
   const can = (perm: string) => accessAllows(me.value, perm)

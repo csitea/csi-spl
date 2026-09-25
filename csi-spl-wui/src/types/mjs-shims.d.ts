@@ -7,6 +7,7 @@ declare module '~/utils/spool-client.mjs' {
   export function channelInviteCandidates(rosterIds: readonly string[], memberIds: readonly string[]): string[]
   export function inviteErrorToken(err: unknown): string
   export function signedInHuman(me: { humanId?: string | null } | null | undefined, opts?: { mock?: boolean, rosterMe?: string }): string
+  export function viewerHumanId(me: { humanId?: string | null } | null | undefined, socketId?: string, opts?: { mock?: boolean, rosterMe?: string }): string
   export function canAddChannelMember(opts: { selfId?: string, createdBy?: string, membersOpenInvite?: boolean }): boolean
   export function canEditOpenInvite(opts: { selfId?: string, createdBy?: string }): boolean
   export function channelAgentRows(agents: readonly { id?: string, box?: string }[] | null | undefined): { id: string, box: string }[]

@@ -113,14 +113,27 @@ export function signedInHuman(me, opts = {}) {
 }
 
 /**
+ * Who this browser is. /v1/view/me wins. The socket welcome is the same HUM-*
+ * when that read has not landed yet (a 401 before the session door is armed
+ * used to leave the invite plus disabled for the channel owner).
+ */
+export function viewerHumanId(me, socketId, opts = {}) {
+  const fromMe = signedInHuman(me, opts)
+  if (fromMe) return fromMe
+  const socket = String(socketId || '')
+  return HUMAN_ID_RE.test(socket) ? socket : ''
+}
+
+/**
  * Owner, or any current member when members_open_invite is on.
  * A channel recorded as hub or wui has no human owner, so a signed-in
  * member may invite. An empty created_by is not that case.
+ * An unknown caller may try; the hub still refuses a non-owner.
  */
 export function canAddChannelMember({ selfId, createdBy, membersOpenInvite } = {}) {
   const self = String(selfId || '')
   const by = String(createdBy || '')
-  if (!HUMAN_ID_RE.test(self)) return false
+  if (!HUMAN_ID_RE.test(self)) return true
   if (self === by) return true
   if (membersOpenInvite === true) return true
   return by !== '' && !HUMAN_ID_RE.test(by)

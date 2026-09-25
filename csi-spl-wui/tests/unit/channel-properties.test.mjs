@@ -14,6 +14,7 @@ import {
   channelAgentRows,
   channelInviteCandidates,
   signedInHuman,
+  viewerHumanId,
 } from '../../src/utils/spool-client.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -27,7 +28,9 @@ describe('who may add, and who may change the checkbox', () => {
     assert.equal(canAddChannelMember({ selfId: 'HUM-1', createdBy: 'hub', membersOpenInvite: false }), true)
     assert.equal(canAddChannelMember({ selfId: 'HUM-1', createdBy: 'wui', membersOpenInvite: false }), true)
     assert.equal(canAddChannelMember({ selfId: 'HUM-1', createdBy: '', membersOpenInvite: false }), false)
-    assert.equal(canAddChannelMember({ selfId: '', createdBy: 'HUM-1', membersOpenInvite: true }), false)
+    // No HUM-* yet: the plus stays clickable. The hub still refuses a non-owner.
+    assert.equal(canAddChannelMember({ selfId: '', createdBy: 'HUM-1', membersOpenInvite: false }), true)
+    assert.equal(canAddChannelMember({ selfId: '', createdBy: 'HUM-1', membersOpenInvite: true }), true)
   })
 
   it('a non-owner does not get an enabled checkbox', () => {
@@ -37,6 +40,10 @@ describe('who may add, and who may change the checkbox', () => {
     assert.equal(signedInHuman({ humanId: 'HUM-4' }, { mock: false, rosterMe: 'HUM-1' }), 'HUM-4')
     assert.equal(signedInHuman(null, { mock: true, rosterMe: 'HUM-1' }), 'HUM-1')
     assert.equal(signedInHuman(null, { mock: false, rosterMe: 'HUM-1' }), '')
+    assert.equal(viewerHumanId({ humanId: 'HUM-9' }, 'HUM-4'), 'HUM-9')
+    assert.equal(viewerHumanId(null, 'HUM-4'), 'HUM-4')
+    assert.equal(viewerHumanId(null, 'GST-1'), '')
+    assert.equal(viewerHumanId(null, '', { mock: true, rosterMe: 'HUM-1' }), 'HUM-1')
   })
 })
 
@@ -139,6 +146,13 @@ describe('the Properties dialog', () => {
     assert.match(peoplePanel, /data-testid="channel-people-add"/)
     assert.match(peoplePanel, /data-testid="channel-agent-add"/)
     assert.match(peoplePanel, /name="minus"/)
+    const addAt = peoplePanel.indexOf('data-testid="channel-people-add"')
+    const picksAt = peoplePanel.indexOf('data-testid="channel-invite-candidates"')
+    const membersAt = peoplePanel.indexOf('data-testid="channel-invite-members"')
+    assert.ok(addAt > 0 && addAt < picksAt && picksAt < membersAt)
+    assert.match(dialog, /viewerHumanId\(access\.me, live\.identity\.value/)
+    assert.match(dialog, /function togglePeople/)
+    assert.match(src('src/stores/access.ts'), /withSessionRetry\(api, \(\) => api\.me\(\)\)/)
     assert.match(dialog, /natural \* 2/)
     assert.match(dialog, /minHeight/)
     const dir = join(WUI, 'i18n/locales')

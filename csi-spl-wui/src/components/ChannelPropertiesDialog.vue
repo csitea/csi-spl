@@ -50,15 +50,31 @@
             <button
               type="button"
               class="icon-btn"
+              :class="{ 'is-open': addingPeople }"
               data-testid="channel-people-add"
               :aria-label="t('channels.properties.add_person')"
+              :title="canAdd ? t('channels.properties.add_person') : t('channels.properties.invite_owner_only')"
               :aria-expanded="addingPeople ? 'true' : 'false'"
               :disabled="!canAdd || busy"
-              @click="addingPeople = !addingPeople"
+              @click="togglePeople"
             >
-              <UiIcon name="plus" :size="16" />
+              <UiIcon :name="addingPeople ? 'x' : 'plus'" :size="16" />
             </button>
           </div>
+          <template v-if="addingPeople && canAdd">
+            <p v-if="candidates.length === 0" class="muted" data-testid="channel-invite-empty">{{ t('channels.properties.invite_empty') }}</p>
+            <ul v-else class="invite-candidates" data-testid="channel-invite-candidates">
+              <li v-for="id in candidates" :key="id">
+                <button
+                  type="button"
+                  class="btn ghost"
+                  :disabled="busy"
+                  :data-testid="'channel-invite-pick-' + id"
+                  @click="pick(id)"
+                >{{ id }}</button>
+              </li>
+            </ul>
+          </template>
           <ul class="member-rows" data-testid="channel-invite-members">
             <li v-for="id in localMembers" :key="id">
               <span>{{ id }}</span>
@@ -74,20 +90,6 @@
               </button>
             </li>
           </ul>
-          <template v-if="addingPeople && canAdd">
-            <p v-if="candidates.length === 0" class="muted" data-testid="channel-invite-empty">{{ t('channels.properties.invite_empty') }}</p>
-            <ul v-else class="invite-candidates" data-testid="channel-invite-candidates">
-              <li v-for="id in candidates" :key="id">
-                <button
-                  type="button"
-                  class="btn ghost"
-                  :disabled="busy"
-                  :data-testid="'channel-invite-pick-' + id"
-                  @click="pick(id)"
-                >{{ id }}</button>
-              </li>
-            </ul>
-          </template>
 
           <div class="channel-properties__head">
             <span data-testid="channel-invite-agent">{{ t('channels.properties.agents_tab') }}</span>
@@ -186,9 +188,10 @@ import {
   channelInviteCandidates,
   inviteErrorToken,
   rosterHumanIds,
-  signedInHuman,
+  viewerHumanId,
 } from '~/utils/spool-client.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { useLive } from '~/composables/useLive'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
@@ -210,6 +213,7 @@ const tabs = [
 ]
 
 const api = useSpoolApi()
+const live = useLive()
 const access = useAccessStore()
 const roster = useRosterStore()
 const { t } = useI18n({ useScope: 'global' })
@@ -256,7 +260,7 @@ watch(loaded, async (isLoaded) => {
 
 const nameText = computed(() => aboutChannelName({ name: props.name, channel_id: props.channelId }))
 const descriptionText = computed(() => aboutChannelDescription({ description: props.description }))
-const selfId = computed(() => signedInHuman(access.me, { mock: api.mock, rosterMe: roster.me?.id || '' }))
+const selfId = computed(() => viewerHumanId(access.me, live.identity.value, { mock: api.mock, rosterMe: roster.me?.id || '' }))
 const effectiveCreatedBy = computed(() => createdByLive.value || props.createdBy)
 const canEdit = computed(() => canEditOpenInvite({ selfId: selfId.value, createdBy: effectiveCreatedBy.value }))
 const canAdd = computed(() => canAddChannelMember({
@@ -317,6 +321,21 @@ watch(() => props.open, async (isOpen) => {
     if (my === ticket) loaded.value = true
   }
 })
+
+async function revealPicker(testId: string) {
+  await nextTick()
+  const list = root.value?.querySelector(`[data-testid="${testId}"]`)
+  const scroller = root.value?.closest('[data-testid="ui-dialog-body"]')
+  if (!(list instanceof HTMLElement) || !(scroller instanceof HTMLElement)) return
+  const top = list.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+  if (top < 0 || top > scroller.clientHeight - 40) scroller.scrollTop += top - 8
+}
+
+async function togglePeople() {
+  if (!canAdd.value || busy.value) return
+  addingPeople.value = !addingPeople.value
+  if (addingPeople.value) await revealPicker(candidates.value.length ? 'channel-invite-candidates' : 'channel-invite-empty')
+}
 
 async function removePerson(id: string) {
   if (busy.value || (!canAdd.value && id !== selfId.value)) return
@@ -472,6 +491,14 @@ async function onToggle(ev: Event) {
 }
 .member-rows li span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .member-rows .icon-btn { margin-inline-start: auto; }
+.channel-properties__head .icon-btn.is-open {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border);
+}
+.channel-properties__head .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 .invite-candidates li {
   display: flex;
   align-items: center;

@@ -433,6 +433,23 @@ func (s *Postgres) TaskEnvelopes(ctx context.Context, tenant, taskID string) ([]
 	return out, err
 }
 
+func (s *Postgres) BoxTaskEnvelopes(ctx context.Context, tenant, taskID, box string, now time.Time) ([][]byte, error) {
+	var out [][]byte
+	err := s.queryTenant(ctx, tenant, `SELECT m.env FROM messages m
+		WHERE m.tenant_id = $1 AND m.task_id = $2 AND m.expires_at > $4
+		  AND (m.from_box = $3 OR m.to_box = $3 OR EXISTS (SELECT 1 FROM deliveries d
+		       WHERE d.tenant_id = m.tenant_id AND d.msg_id = m.msg_id AND d.to_box = $3))
+		ORDER BY m.ts, m.msg_id`, []any{tenant, taskID, box, now}, func(rows pgx.Rows) error {
+		var e []byte
+		if err := rows.Scan(&e); err != nil {
+			return err
+		}
+		out = append(out, e)
+		return nil
+	})
+	return out, err
+}
+
 // sweepChunk bounds one retention transaction (027 T010): a backlog of
 // expired rows is removed sweepChunk rows at a time, each chunk committing on
 // its own, never in one long transaction.

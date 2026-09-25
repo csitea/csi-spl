@@ -349,6 +349,31 @@ func (s *Memory) TaskEnvelopes(_ context.Context, tenant, taskID string) ([][]by
 	return out, nil
 }
 
+func (s *Memory) BoxTaskEnvelopes(_ context.Context, tenant, taskID, box string, now time.Time) ([][]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var ms []*Message
+	for k, m := range s.messages {
+		if k[0] != tenant || m.TaskID != taskID || !m.ExpiresAt.After(now) {
+			continue
+		}
+		if _, got := s.deliveries[[3]string{tenant, m.MsgID, box}]; m.FromBox == box || m.ToBox == box || got {
+			ms = append(ms, m)
+		}
+	}
+	sort.Slice(ms, func(i, j int) bool {
+		if !ms[i].TS.Equal(ms[j].TS) {
+			return ms[i].TS.Before(ms[j].TS)
+		}
+		return ms[i].MsgID < ms[j].MsgID
+	})
+	out := make([][]byte, len(ms))
+	for i, m := range ms {
+		out[i] = m.Env
+	}
+	return out, nil
+}
+
 func (s *Memory) Sweep(_ context.Context, now time.Time) (SweepResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -688,7 +688,6 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 		return c, err
 	}
 	if inserted {
-		s.notifyTail(ctx, tenant, m.TaskID, canon)
 		s.fanoutWUI(ctx, tenant, m.TaskID, channel, m.MsgID, parties{m.From, env.FromBox, m.To, env.ToBox}, now, canon, isParent, typedBy)
 	}
 	// Box fan-out goes by what the SIGNED envelope claims: a box-signed reply
@@ -696,6 +695,9 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 	// refuses a channel delivery without one (channels-v1 §4.5). A browser
 	// reply signs the inherited channel (wuiSend), so it routes as tagged.
 	s.routeChannel(ctx, tenant, s.tagChannel(env.Channel, m.TaskID), env, m, canon)
+	if inserted { // after routing: a channel post's deliveries rows now exist
+		s.notifyTail(ctx, tenant, m.TaskID, m.MsgID, env.FromBox, env.ToBox, canon)
+	}
 	if env.ToBox == WUIBox {
 		if _, err := s.o.Store.ClaimSent(ctx, tenant, m.MsgID, WUIBox, now); err != nil {
 			return c, err
@@ -748,7 +750,7 @@ func (s *Server) onTail(ctx context.Context, x *session, f wire.Frame) {
 		x.follows[f.TaskID] = true
 		s.mu.Unlock()
 	}
-	envs, err := s.o.Store.TaskEnvelopes(ctx, x.tenant, f.TaskID)
+	envs, err := s.o.Store.BoxTaskEnvelopes(ctx, x.tenant, f.TaskID, x.box, s.o.Now())
 	if err != nil {
 		x.fail(ctx, "", "internal", http.StatusInternalServerError, "tail read failed")
 		return
@@ -762,8 +764,11 @@ func (s *Server) onTail(ctx context.Context, x *session, f wire.Frame) {
 }
 
 // notifyTail sends a newly stored envelope to every follower of its task in
-// the same tenant (no cross-tenant delivery, FR-011).
-func (s *Server) notifyTail(ctx context.Context, tenant, taskID string, env []byte) {
+// the same tenant (no cross-tenant delivery, FR-011) that may read it: the
+// box sent it, it is addressed to the box, or the hub delivered it there -
+// BoxTaskEnvelopes' rule, so a follow never streams what a tail would not
+// return (CLE-34986).
+func (s *Server) notifyTail(ctx context.Context, tenant, taskID, msgID, fromBox, toBox string, env []byte) {
 	s.mu.Lock()
 	var targets []*session
 	for x := range s.sessions {
@@ -773,6 +778,11 @@ func (s *Server) notifyTail(ctx context.Context, tenant, taskID string, env []by
 	}
 	s.mu.Unlock()
 	for _, x := range targets {
+		if x.box != fromBox && x.box != toBox {
+			if st, err := s.o.Store.DeliveryState(ctx, tenant, msgID, x.box); err != nil || st == "" {
+				continue
+			}
+		}
 		x.write(ctx, wire.Frame{Type: wire.TTailMsg, Env: env}) //nolint:errcheck
 	}
 }

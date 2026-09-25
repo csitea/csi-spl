@@ -190,6 +190,12 @@ type Store interface {
 	QueuedFor(ctx context.Context, tenantID, toBox string, now time.Time) ([]Queued, error)
 	// TaskEnvelopes returns the stored envelopes of a task, oldest first.
 	TaskEnvelopes(ctx context.Context, tenantID, taskID string) ([][]byte, error)
+	// BoxTaskEnvelopes is TaskEnvelopes as box may read it (the WS tail,
+	// CLE-34986): only unexpired envelopes the box sent (from_box), was
+	// addressed (to_box) or was delivered (a deliveries row) - what it
+	// already holds. A task with none of those reads as an empty tail, the
+	// same answer as an unknown task_id.
+	BoxTaskEnvelopes(ctx context.Context, tenantID, taskID, box string, now time.Time) ([][]byte, error)
 
 	// Read-only viewer queries (view.go, contracts/view-v1.md). They never write.
 	ViewBoxes(ctx context.Context, tenantID string) ([]ViewBox, error)

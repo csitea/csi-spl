@@ -349,7 +349,15 @@ type viewTopic struct {
 	Kinds        map[string]int `json:"kinds"`
 	Participants []string       `json:"participants"`
 	Subject      string         `json:"subject"`
+	// per_topic=N only (CLE-34985): the topic's newest N messages, exactly
+	// GET /v1/view/topics/{task_id}?order=desc&limit=N, and that read's next.
+	Messages     *[]viewMsg `json:"messages,omitempty"`
+	MessagesNext *string    `json:"messages_next,omitempty"`
 }
+
+// perTopicMax caps per_topic: a page of viewLimitMax topics at this many
+// messages each is the most one read returns.
+const perTopicMax = 50
 
 func (s *Server) handleViewTopics(w http.ResponseWriter, r *http.Request, t store.Tenant) {
 	q := r.URL.Query()
@@ -430,6 +438,15 @@ func (s *Server) readerScope(w http.ResponseWriter, r *http.Request, tenant, hum
 
 // listTopics pages one topic-list query (§4.3 shape) with the before= cursor.
 func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.TopicQuery) {
+	per := 0
+	if v := r.URL.Query().Get("per_topic"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > perTopicMax {
+			writeErr(w, http.StatusBadRequest, "bad_json", "per_topic must be 1.."+strconv.Itoa(perTopicMax))
+			return
+		}
+		per = n
+	}
 	if c := r.URL.Query().Get("before"); c != "" {
 		at, id, err := decCursor(c)
 		if err != nil {
@@ -453,7 +470,65 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 	for _, row := range rows {
 		out = append(out, topicView(row))
 	}
+	if per > 0 && !s.inlineMessages(w, r, t, sq, per, out) {
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"topics": out, "next": next})
+}
+
+// inlineMessages fills each topic's newest per messages (per_topic=,
+// CLE-34985): one read for the whole page where the WUI made one request per
+// topic. The reader door is sq's, applied per message as ViewTopic applies
+// it. false = it answered with an error.
+func (s *Server) inlineMessages(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.TopicQuery, per int, out []viewTopic) bool {
+	ids := make([]string, len(out))
+	for i := range out {
+		ids[i] = out[i].TaskID
+	}
+	var msgs map[string][]store.ViewMsg
+	var react map[string][]store.StoredReaction
+	var err error
+	if b, ok := s.o.Store.(store.TopicsMessager); ok {
+		msgs, react, err = b.ViewTopicsMessages(r.Context(), t.ID, store.TopicsMsgQuery{TaskIDs: ids, PerTopic: per + 1,
+			Reader: sq.Reader, ReaderChannels: sq.ReaderChannels, Now: sq.Now})
+	} else {
+		msgs, react = map[string][]store.ViewMsg{}, map[string][]store.StoredReaction{}
+		for _, id := range ids {
+			var rows []store.ViewMsg
+			if rows, err = s.o.Store.ViewTopic(r.Context(), t.ID, store.TopicMsgQuery{TaskID: id, Desc: true, Limit: per + 1,
+				Reader: sq.Reader, ReaderChannels: sq.ReaderChannels, Now: sq.Now}); err != nil {
+				break
+			}
+			msgs[id] = rows
+			mids := make([]string, len(rows))
+			for i := range rows {
+				mids[i] = rows[i].MsgID
+			}
+			var rr map[string][]store.StoredReaction
+			if rr, err = s.o.Store.ReactionsFor(r.Context(), t.ID, mids); err != nil {
+				break
+			}
+			for k, v := range rr {
+				react[k] = v
+			}
+		}
+	}
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("topics per_topic")
+		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
+		return false
+	}
+	for i := range out {
+		rows := msgs[out[i].TaskID]
+		if len(rows) > per {
+			rows = rows[:per]
+			c := encCursor(rows[per-1].ReceivedAt, rows[per-1].MsgID)
+			out[i].MessagesNext = &c
+		}
+		vs := viewMsgs(rows, react)
+		out[i].Messages = &vs
+	}
+	return true
 }
 
 func topicView(row store.TopicRow) viewTopic {
@@ -617,6 +692,11 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 			return
 		}
 	}
+	writeJSON(w, http.StatusOK, map[string]any{"task_id": task, "messages": viewMsgs(rows, react), "next": next})
+}
+
+// viewMsgs is the §4.4 message list of rows, with their reactions.
+func viewMsgs(rows []store.ViewMsg, react map[string][]store.StoredReaction) []viewMsg {
 	out := []viewMsg{}
 	for _, m := range rows {
 		v := viewMsg{Cursor: encCursor(m.ReceivedAt, m.MsgID), ReceivedAt: rfc(m.ReceivedAt),
@@ -630,5 +710,5 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		}
 		out = append(out, v)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"task_id": task, "messages": out, "next": next})
+	return out
 }

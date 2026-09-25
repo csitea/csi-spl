@@ -36,6 +36,7 @@ tenant, error and file rules).
 GET  /v1/view/roster                      boxes, pins, agents, online; member humans + avatar FR-019
 GET  /v1/view/channels                    defaults + created + seen channels, unread, members FR-019, FR-025
 GET  /v1/view/topics                     root threads (or DMs), newest activity first, paged FR-019, FR-026
+                                          (+ per_topic=N: each topic's newest N messages inline, §4.3)
 GET  /v1/view/topics/{task_id}           one thread's envelopes, oldest first, paged        FR-019
 GET  /v1/view/topics/{task_id}/children  child threads of a task (parent_task_id), paged    FR-026
 GET  /v1/files/{file_id}                  ./http-v1.md §3: upload token or member session     FR-007
@@ -198,6 +199,18 @@ Ordered by `last_ts` descending; `before` pages to older threads.
   no such filter (lde/dev only). `dm` must be `true` or `false`, else
   `400 bad_json`.
 
+- **`per_topic=N`** (1..50, v0.6.1, CLE-34985 - Implemented, hub
+  `internal/hub/view.go` `inlineMessages`, store `ViewTopicsMessages`): every
+  listed topic also carries `"messages"` and, when there are more,
+  `"messages_next"` - byte-identical to that topic's
+  `GET /v1/view/topics/{task_id}?order=desc&limit=N` `messages` / `next`
+  (§4.4, same reader door, reactions and deliveries included). A channel page
+  is then ONE request: before it the WUI made one §4.4 read per topic (7
+  requests / 39 DB round trips for 6 topics; now 1 / 5, TestRoundTripsPerRequest).
+  Without `per_topic` the shape is unchanged; `0`, `>50` or a non-number →
+  `400 bad_json`. Oracle: `TestViewTopicsPerTopicMatchesTopicReads` (memory and
+  Postgres). Also accepted on §4.5 `/children`.
+
 ### 4.4 `GET /v1/view/topics/{task_id}?limit=&after=` | `?order=desc&limit=&before=`
 
 ```json
@@ -260,4 +273,4 @@ Live reads go to `/v1/view/*`. Live send / channel-create still throw
 `ReadOnlyError` (005 phase-3 / A1). The pre-`src/` path
 `csi-spl-wui/utils/spool-client.mjs` does not exist.
 
-<!-- version: 0.6.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:26:14Z -->
+<!-- version: 0.6.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:40:39Z -->

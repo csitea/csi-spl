@@ -61,6 +61,12 @@ func TestRoundTripsPerRequest(t *testing.T) {
 	for i := 0; i < 5; i++ { // a lobby with history, and a warm statement cache
 		send(fmt.Sprintf("seed %d", i))
 	}
+	for i := 0; i < 6; i++ { // a #tasks page: 6 topics of 3 messages
+		task := uuid4()
+		for j := 0; j < 3; j++ {
+			channelFrame(t, c, uuid4(), task, "tasks", fmt.Sprintf("task %d line %d", i, j))
+		}
+	}
 
 	get := func(path string) func() error {
 		return func() error {
@@ -85,6 +91,9 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		{"GET /v1/view/topics", 3, get("/v1/view/topics")},
 		{"GET /v1/view/topics/{lobby}", 6, get("/v1/view/topics/" + lobby)},
 		{"GET /v1/view/search?q=seed", 9, get("/v1/view/search?q=seed")},
+		// A channel page in ONE read (per_topic, 6 topics x 3 messages); the
+		// WUI used to add one topics/{id} read (6 round trips) per topic.
+		{"GET topics?channel&per_topic=30", 5, get("/v1/view/topics?channel=tasks&limit=20&per_topic=30")},
 		{"WS wui send (lobby) -> ack", 5, func() error { send("probe"); return nil }},
 	}
 	const n = 5

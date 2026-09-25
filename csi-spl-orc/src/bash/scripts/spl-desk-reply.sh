@@ -117,11 +117,17 @@ if [[ -z "$spool_bin" || ! -x "$spool_bin" ]]; then
   exit 1
 fi
 
-# Determine Hub URL
-if [[ "$ENV" == "dev" ]]; then
-  hub="${SPOOL_HUB_URL:-https://api.dev.spool-hub.ai}"
-else
-  hub="${SPOOL_HUB_URL:-https://api.spool-hub.ai}"
+# Determine Hub URL: SPOOL_HUB_URL, else the env's api_fqdn from cnf. No
+# baked-in host - the domain lives only in csi-spl-cnf (domain-single-source).
+hub="${SPOOL_HUB_URL:-}"
+if [[ -z "$hub" ]]; then
+  cnf_json="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)/csi-spl-cnf/csi-spl/$ENV.env.json"
+  api_fqdn="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["env"]["dns"]["api_fqdn"])' "$cnf_json" 2>/dev/null || true)"
+  if [[ -z "$api_fqdn" ]]; then
+    echo "FATAL: no SPOOL_HUB_URL and no env.dns.api_fqdn in $cnf_json" >&2
+    exit 1
+  fi
+  hub="https://$api_fqdn"
 fi
 
 # Dry run inspection

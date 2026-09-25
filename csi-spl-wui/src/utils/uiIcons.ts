@@ -82,6 +82,17 @@ export const UI_ICON_PATHS = {
     "M22 21v-2a4 4 0 0 0-3-3.87",
     "M16 3.13a4 4 0 0 1 0 7.75",
   ],
+  // CLE-34991: the tenant drop box's glyph (lucide building-2), in place of
+  // the visible "Tenant" caption.
+  building: [
+    "M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18z",
+    "M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2",
+    "M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2",
+    "M10 6h4",
+    "M10 10h4",
+    "M10 14h4",
+    "M10 18h4",
+  ],
   // CLE-3433: the notification control in the collapsed 72px sidebar rail,
   // where its label does not fit and must not be shown as wrapped text.
   bell: [

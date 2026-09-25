@@ -14,6 +14,7 @@
 | T060 | tenant `csitea` dev + prd, owner invited as owner | done: created (no DNS), invited biz_owner (025 live) on both |
 | P2-1 | phase 2 hub: `POST /api/v1/auth/tenant` switch + `last_active_at` (rdb 0044) | Implemented: 6eba06c, shipped as hub 0.5.9 (7da1b2f; `/version` dev + prd commit 7da1b2f, n=1; POST without a session 401 `unauthenticated` on both api hosts, CONTROL unknown route 404); 0044 applied dev + prd 2026-09-25 (`do_spl_db_bootstrap`, env SAs, `information_schema` shows the column on both, n=1). Check `TestWorkspaceSwitch` |
 | P2-2 | phase 2 WUI: the tenant drop box lists every membership and switches | Implemented (CLE-34983, spec §6); live multi-tenant proof pending a test account with two memberships. Before: `csi-spl-wui/src/utils/tenant-switcher.mjs` (be3e3f0e) is a fixed one-row drop box, choosing it changes nothing |
+| P2-3 | the drop box as one slim row (no caption, glyph) + the hover explanation, spec §6.1 FR-011 | Implemented (CLE-34991): WUI `ChannelSidebar.vue`, `tenantHint` in `tenant-switcher.mjs`; locales by GRK-3508; live proof dev + prd by AGY-3498 pending |
 
 ## Left for other lanes (not 026 scope)
 
@@ -21,4 +22,4 @@
   `do_spl_tenant_host_{provision,deprovision,reconcile}` - obsolete now that `mapped_tenants` is `[]`.
 - WUI `withSessionRetry` race (pre-existing): a concurrent read can stay 401 until its next poll; reported to CLE-55 / CLE-3412.
 
-<!-- version: 0.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:05:00Z -->
+<!-- version: 0.3.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:50:00Z -->

@@ -3,6 +3,8 @@
 // It sits above the Direct messages icon, holds exactly one option, takes
 // keyboard focus, and choosing that option does not navigate. Checked at
 // 1280x800 and at phone width (390x844), where the sidebar is the 72px rail.
+// CLE-34991: one slim row with no visible caption; hovering it shows the
+// explanation (the wrapper's title), which names the tenant.
 //
 // Run:
 //   pnpm run test:e2e:tenant-switcher
@@ -55,9 +57,17 @@ async function readBox(p) {
     const hr = heading instanceof HTMLElement ? heading.getBoundingClientRect() : null
     const sidebar = document.querySelector('.sidebar')
     const sw = sidebar instanceof HTMLElement ? sidebar.getBoundingClientRect().width : 0
+    const wrap = document.querySelector('[data-testid=tenant-switcher]')
+    const wr = wrap instanceof HTMLElement ? wrap.getBoundingClientRect() : null
+    const label = sel.options[sel.selectedIndex] ? (sel.options[sel.selectedIndex].textContent || '').trim() : ''
     sel.focus()
     return {
       missing: false,
+      wrapHeight: wr ? wr.height : 0,
+      captionText: wrap instanceof HTMLElement ? [...wrap.childNodes].filter((n) => n !== sel && !(n instanceof Element && n.classList.contains('sr-only'))).map((n) => (n.textContent || '').trim()).join('') : '?',
+      hint: wrap instanceof HTMLElement ? wrap.title : '',
+      label,
+      ariaLabel: sel.getAttribute('aria-label') || '',
       options: [...sel.options].map((o) => ({ value: o.value, text: (o.textContent || '').trim() })),
       disabled: sel.disabled,
       tabIndex: sel.tabIndex,
@@ -95,6 +105,8 @@ try {
     ok(tag + ' keyboard reachable and not disabled', box.focused === true && box.disabled === false && box.tabIndex >= 0, box)
     ok(tag + ' fits the sidebar without page scroll', box.selectWidth > 8 && box.selectWidth <= box.sidebarWidth + 1 && box.docOverflow <= 1, box)
     ok(tag + ' the drop box is compact', box.selectHeight >= 18 && box.selectHeight <= 36 && box.selectWidth <= 160, box)
+    ok(tag + ' no visible caption, one slim row', box.captionText === '' && box.wrapHeight > 0 && box.wrapHeight <= 28 && box.ariaLabel.length > 0, box)
+    ok(tag + ' hovering explains the tenant, naming it', box.hint.length > 40 && !box.hint.includes('sidebar.') && (!box.label || box.hint.includes(box.label)), box)
     const want = process.env.ASSERT_TENANT_LABEL || ''
     if (want) ok(tag + ' option text is ' + want, box.options[0].text === want, box.options)
     const url = p.url()

@@ -133,6 +133,27 @@ check* during the transition (§5).
   `tenant-switcher.test.mjs` 12/12 (single-membership box unchanged at
   1280 and 390).
 
+### 6.1 The drop box's look and its hover explanation (FR-011, CLE-34991)
+
+> "change the outlook of th tenant dropbox differnetly , now it is clumzy and
+> it takes too much space probably the label tenant is too big . it sould be
+> possible to to get a n explanation on what this is when one hovers on the
+> control" — owner, 2026-09-25, topic adfe1421
+
+- **FR-011a** One slim row: a building glyph and a borderless select, no
+  visible "Tenant" caption and no bordered card; the row is at most 28 px
+  high and never wider than the sidebar (the glyph is dropped on the 72 px
+  rail). The caption stays the select's accessible name (`aria-label`).
+- **FR-011b** Hovering the row shows the explanation (`title` on the row,
+  the same text on `aria-describedby` for screen readers): `tenantHint` =
+  `sidebar.tenant_hint` ({name} = the selected tenant's label, else the
+  caption), then `sidebar.tenant_hint_switch` when the box can switch, else
+  `sidebar.tenant_hint_one`. All three keys in the 19 locales.
+- Checks: `tests/unit/tenant-switcher.test.mjs` (`tenantHint` rows, the
+  markup/CSS contract; reverting the component turns it red), e2e
+  `tenant-switcher.test.mjs` (no visible caption, row <= 28 px, the hover
+  text names the tenant, at 1280 and 390), `tests/unit/tenant-hint-i18n.test.mjs`.
+
 ## 7. RLS and RBAC (FR-008)
 
 - RLS (017, rdb 0014) is unchanged: every tenant statement runs under
@@ -170,4 +191,4 @@ check* during the transition (§5).
 - Each control first proves the positive path on the same fixture, so a
   refusal is not an unrelated failure.
 
-<!-- version: 0.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:05:00Z -->
+<!-- version: 0.3.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:50:00Z -->

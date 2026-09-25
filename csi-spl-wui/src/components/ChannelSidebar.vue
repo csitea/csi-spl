@@ -2,20 +2,24 @@
   <nav class="sidebar">
     <!-- Tenant drop box, above the direct-messages icon (specs/026 §6). One
          membership: one row, choosing it changes nothing. Several: every
-         membership, and choosing one switches the session's tenant. -->
-    <label class="tenant-switcher" data-testid="tenant-switcher">
-      <span class="tenant-switcher__label">{{ t('sidebar.tenant') }}</span>
+         membership, and choosing one switches the session's tenant.
+         CLE-34991: one slim row, a glyph instead of a visible caption; the
+         caption is the select's name and hovering explains what a tenant is. -->
+    <div class="tenant-switcher" data-testid="tenant-switcher" :title="tenantHintText">
+      <UiIcon name="building" :size="14" class="tenant-switcher__icon" />
       <select
         class="tenant-switcher__select"
         data-testid="tenant-switcher-select"
         :value="tenantBox.selected"
-        :title="tenantOptionText"
+        :aria-label="t('sidebar.tenant')"
+        aria-describedby="tenant-switcher-hint"
         :aria-busy="switching ? 'true' : undefined"
         @change="onTenantChange"
       >
         <option v-for="o in tenantBox.options" :key="o.id" :value="o.id">{{ o.label }}</option>
       </select>
-    </label>
+      <span id="tenant-switcher-hint" class="sr-only" data-testid="tenant-switcher-hint">{{ tenantHintText }}</span>
+    </div>
     <p v-if="switchFailed" class="tenant-switcher__error" role="alert" data-testid="tenant-switch-error">{{ t('sidebar.tenant_switch_failed') }}</p>
     <div class="sidebar-main">
     <!-- Top to bottom: direct messages, channels, topics, flow.
@@ -469,7 +473,7 @@ import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
-import { tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
+import { tenantHint, tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'users'
@@ -530,8 +534,7 @@ const notes = useNotificationStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
 const tenantBox = computed(() => tenantSwitchOptions(session.claims, api.tenant))
-const tenantOptionText = computed(() =>
-  tenantBox.value.options.find((o) => o.id === tenantBox.value.selected)?.label || t('sidebar.tenant'))
+const tenantHintText = computed(() => tenantHint(tenantBox.value, t))
 const authClient = useAuthClient()
 const switching = ref(false)
 const switchFailed = ref(false)
@@ -1053,48 +1056,38 @@ async function onCreate() {
 @media (max-width: 800px) {
   .nav-row > .nav-item { padding-inline-end: 28px; }
 }
-/* Compact drop box above the icon strip. On a wide sidebar it stays a
-   short control; on the 72px rail it shrinks to the rail instead of
-   pushing the page sideways. */
+/* Compact drop box above the icon strip (CLE-34991): one slim row, a glyph
+   and a borderless select, no caption and no card. On the 72px rail it
+   shrinks to the rail instead of pushing the page sideways. */
 .tenant-switcher {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  gap: 4px;
   flex: 0 0 auto;
   align-self: flex-start;
-  width: min(8.5rem, 100%);
-  max-width: 100%;
+  width: min(9rem, calc(100% - 12px));
   min-width: 0;
   box-sizing: border-box;
-  margin: 6px 8px 2px;
-  padding: 3px 6px 4px;
-  border: 1px solid var(--color-border);
+  margin: 4px 6px 0;
+  padding: 0 4px;
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  color: var(--color-muted);
 }
+.tenant-switcher:hover { background: var(--color-surface); color: var(--color-fg); }
+.tenant-switcher__icon { flex: 0 0 auto; }
 .tenant-switcher__error {
   margin: 0.125rem 0.5rem 0;
   font-size: 0.6875rem;
   color: var(--color-danger);
 }
-.tenant-switcher__label {
-  font-size: 0.625rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-muted);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .tenant-switcher__select {
-  width: 100%;
-  max-width: 100%;
+  flex: 1 1 auto;
+  width: 0;
   min-width: 0;
   box-sizing: border-box;
-  min-height: 26px;
-  height: 26px;
-  padding: 0 4px;
+  min-height: 24px;
+  height: 24px;
+  padding: 0 2px;
   background: transparent;
   color: var(--color-fg);
   border: 0;
@@ -1106,9 +1099,10 @@ async function onCreate() {
 @media (max-width: 800px) {
   .tenant-switcher {
     width: calc(100% - 8px);
-    margin: 4px;
-    padding: 2px 4px;
+    margin: 4px 4px 0;
+    padding: 0 2px;
   }
   .tenant-switcher__select { font-size: 0.6875rem; }
+  .tenant-switcher__icon { display: none; }
 }
 </style>

@@ -57,3 +57,23 @@ export function tenantSwitchOptions(claims, configured = '') {
   const selected = seen.has(active) ? active : ''
   return { selected, canSwitch: true, options: selected ? rows : [{ id: '', label: '' }, ...rows] }
 }
+
+/**
+ * The drop box's hover explanation (CLE-34991): which tenant this is, what a
+ * tenant is, and whether picking another one switches. `t` is the i18n
+ * translate function; keys sidebar.tenant_hint ({name}), then
+ * sidebar.tenant_hint_switch when the box can switch, else
+ * sidebar.tenant_hint_one. With no tenant named, {name} is the "Tenant"
+ * caption itself rather than an empty slot.
+ *
+ * @param {{ selected: string, canSwitch: boolean, options: { id: string, label: string }[] }} box
+ * @param {(key: string, params?: Record<string, string>) => string} t
+ * @returns {string}
+ */
+export function tenantHint(box, t) {
+  const opts = box && Array.isArray(box.options) ? box.options : []
+  const row = opts.find((o) => o && o.id === (box && box.selected))
+  const name = (row && (row.label || row.id)) || t('sidebar.tenant')
+  const tail = box && box.canSwitch ? t('sidebar.tenant_hint_switch') : t('sidebar.tenant_hint_one')
+  return t('sidebar.tenant_hint', { name }) + ' ' + tail
+}

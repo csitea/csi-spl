@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fixedTenantOption, tenantSwitchOptions } from '../../src/utils/tenant-switcher.mjs'
+import { fixedTenantOption, tenantHint, tenantSwitchOptions } from '../../src/utils/tenant-switcher.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -118,6 +118,27 @@ describe('tenantSwitchOptions (specs/026 §6)', () => {
   })
 })
 
+describe('tenantHint (CLE-34991, the hover explanation)', () => {
+  const t = (key, p) => (p ? key + '(' + JSON.stringify(p) + ')' : key)
+
+  it('names the selected tenant, then says it is the only one', () => {
+    const box = tenantSwitchOptions({ active_tenant: 'acme', tenants: [{ tenant_id: 'acme', display_name: 'Acme Co' }] })
+    assert.equal(tenantHint(box, t), 'sidebar.tenant_hint({"name":"Acme Co"}) sidebar.tenant_hint_one')
+  })
+
+  it('several memberships: the tail says picking another one switches', () => {
+    const box = tenantSwitchOptions({ active_tenant: 'bb', tenants: [{ tenant_id: 'aa' }, { tenant_id: 'bb', name: 'Bb' }] })
+    assert.equal(tenantHint(box, t), 'sidebar.tenant_hint({"name":"Bb"}) sidebar.tenant_hint_switch')
+  })
+
+  it('nothing selected (blank row, or no tenant at all): the caption stands in for the name, never an empty slot', () => {
+    const blank = tenantSwitchOptions({ tenants: [{ tenant_id: 'aa' }, { tenant_id: 'bb' }] })
+    assert.equal(tenantHint(blank, t), 'sidebar.tenant_hint({"name":"sidebar.tenant"}) sidebar.tenant_hint_switch')
+    assert.equal(tenantHint(tenantSwitchOptions(null), t), 'sidebar.tenant_hint({"name":"sidebar.tenant"}) sidebar.tenant_hint_one')
+    assert.equal(tenantHint(null, t), 'sidebar.tenant_hint({"name":"sidebar.tenant"}) sidebar.tenant_hint_one')
+  })
+})
+
 describe('the drop box sits above the direct-messages icon', () => {
   const vue = src('src/components/ChannelSidebar.vue')
   const css = src('src/assets/css/main.css')
@@ -141,6 +162,26 @@ describe('the drop box sits above the direct-messages icon', () => {
     assert.doesNotMatch(body, /fetch\(/)
     assert.equal(src('src/utils/tenant-switcher.mjs').includes("'t1'"), false)
     assert.equal(vue.includes('t1'), false)
+  })
+
+  it('CLE-34991: one slim row - no visible caption, the caption names the select, hover explains', () => {
+    const box = vue.slice(vue.indexOf('data-testid="tenant-switcher"') - 60, vue.indexOf('class="sidebar-rail"'))
+    assert.doesNotMatch(box, /tenant-switcher__label/)
+    assert.doesNotMatch(box, /<label/)
+    assert.match(box, /<UiIcon name="building"/)
+    assert.match(box, /:aria-label="t\('sidebar\.tenant'\)"/)
+    assert.match(box, /class="tenant-switcher" data-testid="tenant-switcher" :title="tenantHintText"/)
+    assert.match(box, /aria-describedby="tenant-switcher-hint"/)
+    assert.match(box, /id="tenant-switcher-hint" class="sr-only"[^>]*>\{\{ tenantHintText \}\}/)
+    assert.match(vue, /const tenantHintText = computed\(\(\) => tenantHint\(tenantBox\.value, t\)\)/)
+    const style = vue.slice(vue.indexOf('<style'))
+    assert.doesNotMatch(style, /\.tenant-switcher__label/)
+    const rule = style.slice(style.indexOf('.tenant-switcher {'), style.indexOf('}', style.indexOf('.tenant-switcher {')))
+    assert.match(rule, /align-items:\s*center/)
+    assert.doesNotMatch(rule, /flex-direction:\s*column|border:/)
+    const sel = style.slice(style.indexOf('.tenant-switcher__select {'), style.indexOf('}', style.indexOf('.tenant-switcher__select {')))
+    assert.match(sel, /height:\s*24px/)
+    assert.match(src('src/utils/uiIcons.ts'), /building:\s*\[/)
   })
 
   it('the strip stays a row under a full-width switcher', () => {

@@ -214,4 +214,35 @@ Measured `08cfef4`: dev 93/93; prd 78/79 — the DM surface aborted once on
 `Failed to fetch` in the proof's own hub read, then passed on 2 of 2
 re-runs (n=3; transient, not the UI).
 
-<!-- version: 0.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T11:55:00Z -->
+## T017 — a reply lives in its topic's channel
+
+**Status**: Partial — hub `7b6e0ae` (CLE-34977, 0.5.4) served on dev and prd
+(`do_check_deploy_lag`: served `9c24bad5`, 2026-09-25 17:16Z); backfill
+`0042_messages_reply_channel_backfill.sql` (CLE-34978) written, not yet
+applied.
+
+Owner, 2026-09-25: "Lobby replies with no channel: a thread reply under a
+lobby topic is saved with no channel, so other members may not see it."
+
+Why here and not 003: the defect is defined by this spec's levels - a
+level-2 row (`is_parent` 0) against its level-1 root - and the root the fix
+reads is the earliest `is_parent` 1 row, which only exists since T001. 003
+owns what a channel tag means on the wire; that is unchanged.
+
+Every send path stores through `channelOf` (`wui.go` browser send, `ws.go`
+`storedChannel` for box, CLI and MCP sends): an untagged reply inherits
+`store.TopicChannel`; an explicit tag still wins. Box fan-out still goes by
+the tag the signed envelope carries (`tagChannel`), so an untagged agent
+reply is stored in the channel but is not pushed to other member boxes.
+
+Measured before the backfill, `do_spl_db_query`, 2026-09-25 17:18Z, n=1 per
+env (replies whose root names a channel, NULL of total): dev lobby 14/31,
+first-channel 37/40, tasks 0/26; prd lobby 5/9, tasks 0/5, orange 0/1. The
+newest NULL row is 13:02Z dev / 12:16Z prd, before 0.5.4 rolled; later
+replies carry the channel (newest 17:12Z dev / 17:09Z prd).
+
+`0042` sets each NULL reply's channel from the same root `TopicChannel`
+picks; DM roots stay NULL. Test: `TestReplyChannelBackfill` (6 cases + 2
+agreement checks with `TopicChannel`); goes red with the UPDATE neutered.
+
+<!-- version: 0.2.1 · updated: 2026-09-25 · last-edit: 2026-09-25T17:40:00Z -->

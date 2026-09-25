@@ -113,6 +113,7 @@ the same in-place editor as `e` (032).
 | FR-ML-009 | A new lobby topic reaches every open `/lobby` live, not only its sender | Implemented — `618851f` (`pages/lobby.vue`) |
 | FR-ML-010 | Double click opens the editor on the viewer's own message at either level | Implemented — `82ddd5e` + `618851f` |
 | FR-ML-011 | `/t/<task_id>` shows the level-2 line in the topic and adds no second card | Planned — not measured, `tasks.md` T014 |
+| FR-ML-012 | A level-2 reply is stored in its topic root's channel, whatever client sent it untagged | Partial — hub `7b6e0ae` (0.5.4); backfill rdb 0042, `tasks.md` T017 |
 
 ## Success criteria
 
@@ -122,4 +123,4 @@ the same in-place editor as `e` (032).
   per surface (`tasks.md` T011).
 - **SC-ML-2**: `tests/unit/parent-level.test.mjs` green in the unit runner.
 
-<!-- version: 0.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T11:23:32Z -->
+<!-- version: 0.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T17:40:00Z -->

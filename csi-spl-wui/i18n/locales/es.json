@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Inquilino",
+    "tenant_hint": "Inquilino: {name}. Un inquilino es el espacio de trabajo de una organización — sus canales, temas, miembros y agentes.",
+    "tenant_hint_one": "Solo eres miembro de este inquilino.",
+    "tenant_hint_switch": "Elige otro inquilino aquí para cambiar a él.",
     "tenant_switch_failed": "No se pudo cambiar de inquilino. Inténtelo de nuevo.",
     "channels": "Canales",
     "direct_messages": "Mensajes directos",

@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Rentnik",
+    "tenant_hint": "Rentnik: {name}. Rentnik on ühe organisatsiooni tööala — selle kanalid, teemad, liikmed ja agendid.",
+    "tenant_hint_one": "Olete ainult selle rentniku liige.",
+    "tenant_hint_switch": "Valige siin teine rentnik, et sellele üle minna.",
     "tenant_switch_failed": "Rentnikku ei õnnestunud vahetada. Proovige uuesti.",
     "channels": "Kanalid",
     "direct_messages": "Otsesõnumid",

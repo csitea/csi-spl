@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Nájomník",
+    "tenant_hint": "Nájomník: {name}. Nájomník je pracovný priestor jednej organizácie — jej kanály, témy, členovia a agenti.",
+    "tenant_hint_one": "Ste členom len tohto nájomníka.",
+    "tenant_hint_switch": "Tu vyberte iného nájomníka a prepnite sa naň.",
     "tenant_switch_failed": "Nájomníka sa nepodarilo zmeniť. Skúste to znova.",
     "channels": "Kanály",
     "direct_messages": "Priame správy",

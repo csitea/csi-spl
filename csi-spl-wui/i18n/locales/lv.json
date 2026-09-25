@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Nomnieks",
+    "tenant_hint": "Nomnieks: {name}. Nomnieks ir vienas organizācijas darbvieta — tās kanāli, tēmas, dalībnieki un aģenti.",
+    "tenant_hint_one": "Jūs esat tikai šī nomnieka dalībnieks.",
+    "tenant_hint_switch": "Izvēlieties šeit citu nomnieku, lai pārslēgtos uz to.",
     "tenant_switch_failed": "Neizdevās nomainīt nomnieku. Mēģiniet vēlreiz.",
     "channels": "Kanāli",
     "direct_messages": "Tiešās ziņas",

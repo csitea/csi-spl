@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Huurder",
+    "tenant_hint": "Huurder: {name}. Een huurder is de werkruimte van één organisatie — de eigen kanalen, onderwerpen, leden en agenten.",
+    "tenant_hint_one": "Je bent alleen lid van deze huurder.",
+    "tenant_hint_switch": "Kies hier een andere huurder om daarnaar te wisselen.",
     "tenant_switch_failed": "Wisselen van huurder is mislukt. Probeer het opnieuw.",
     "channels": "Kanalen",
     "direct_messages": "Directe berichten",

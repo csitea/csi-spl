@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Kiracı",
+    "tenant_hint": "Kiracı: {name}. Kiracı, bir kuruluşun çalışma alanıdır — kendi kanalları, konuları, üyeleri ve aracıları.",
+    "tenant_hint_one": "Yalnızca bu kiracının üyesisiniz.",
+    "tenant_hint_switch": "Buradan başka bir kiracı seçerek ona geçin.",
     "tenant_switch_failed": "Kiracı değiştirilemedi. Tekrar deneyin.",
     "channels": "Kanallar",
     "direct_messages": "Doğrudan mesajlar",

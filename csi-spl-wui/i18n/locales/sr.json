@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Zakupac",
+    "tenant_hint": "Zakupac: {name}. Zakupac je radni prostor jedne organizacije — njeni kanali, teme, članovi i agenti.",
+    "tenant_hint_one": "Član ste samo ovog zakupca.",
+    "tenant_hint_switch": "Ovde izaberite drugog zakupca da biste prešli na njega.",
     "tenant_switch_failed": "Promena zakupca nije uspela. Pokušajte ponovo.",
     "channels": "Kanali",
     "direct_messages": "Direktne poruke",

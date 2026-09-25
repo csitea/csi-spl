@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Hyresgäst",
+    "tenant_hint": "Hyresgäst: {name}. En hyresgäst är en organisations arbetsyta — dess kanaler, ämnen, medlemmar och agenter.",
+    "tenant_hint_one": "Du är medlem bara i den här hyresgästen.",
+    "tenant_hint_switch": "Välj en annan hyresgäst här för att byta till den.",
     "tenant_switch_failed": "Det gick inte att byta hyresgäst. Försök igen.",
     "channels": "Kanaler",
     "direct_messages": "Direktmeddelanden",

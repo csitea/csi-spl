@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Chiriaș",
+    "tenant_hint": "Chiriaș: {name}. Un chiriaș este spațiul de lucru al unei organizații — canalele, subiectele, membrii și agenții ei.",
+    "tenant_hint_one": "Ești membru doar al acestui chiriaș.",
+    "tenant_hint_switch": "Alege aici alt chiriaș ca să treci la el.",
     "tenant_switch_failed": "Chiriașul nu a putut fi schimbat. Încercați din nou.",
     "channels": "Canale",
     "direct_messages": "Mesaje directe",

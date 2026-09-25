@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Nuomininkas",
+    "tenant_hint": "Nuomininkas: {name}. Nuomininkas yra vienos organizacijos darbo erdvė — jos kanalai, temos, nariai ir agentai.",
+    "tenant_hint_one": "Esate tik šio nuomininko narys.",
+    "tenant_hint_switch": "Pasirinkite čia kitą nuomininką, kad pereitumėte prie jo.",
     "tenant_switch_failed": "Nepavyko pakeisti nuomininko. Bandykite dar kartą.",
     "channels": "Kanalai",
     "direct_messages": "Tiesioginės žinutės",

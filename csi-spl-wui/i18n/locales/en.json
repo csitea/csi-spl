@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Tenant",
+    "tenant_hint": "Tenant: {name}. A tenant is one organisation's workspace — its own channels, topics, members and agents.",
+    "tenant_hint_one": "You are a member of this tenant only.",
+    "tenant_hint_switch": "Pick another tenant here to switch to it.",
     "tenant_switch_failed": "Could not switch the tenant. Try again.",
     "channels": "Channels",
     "direct_messages": "Direct messages",

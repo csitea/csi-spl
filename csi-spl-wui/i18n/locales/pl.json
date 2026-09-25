@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Dzierżawa",
+    "tenant_hint": "Dzierżawa: {name}. Dzierżawa to przestrzeń robocza jednej organizacji — jej kanały, tematy, członkowie i agenci.",
+    "tenant_hint_one": "Jesteś członkiem tylko tej dzierżawy.",
+    "tenant_hint_switch": "Wybierz tutaj inną dzierżawę, aby się na nią przełączyć.",
     "tenant_switch_failed": "Nie udało się zmienić dzierżawy. Spróbuj ponownie.",
     "channels": "Kanały",
     "direct_messages": "Wiadomości bezpośrednie",

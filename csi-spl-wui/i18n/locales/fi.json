@@ -308,6 +308,9 @@
   },
   "sidebar": {
     "tenant": "Vuokralainen",
+    "tenant_hint": "Vuokralainen: {name}. Vuokralainen on yhden organisaation työtila — sen kanavat, aiheet, jäsenet ja agentit.",
+    "tenant_hint_one": "Olet vain tämän vuokralaisen jäsen.",
+    "tenant_hint_switch": "Valitse tästä toinen vuokralainen vaihtaaksesi siihen.",
     "tenant_switch_failed": "Vuokralaisen vaihto epäonnistui. Yritä uudelleen.",
     "channels": "Kanavat",
     "direct_messages": "Yksityisviestit",

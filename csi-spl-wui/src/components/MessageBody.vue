@@ -7,6 +7,16 @@
           <code v-if="p.type === 'inline'" class="code-inline">{{ p.text }}</code>
           <strong v-else-if="p.type === 'strong'">{{ p.text }}</strong>
           <span v-else-if="p.type === 'mention'" class="mention">{{ p.text }}</span>
+          <a
+            v-else-if="p.type === 'link'"
+            class="msg-link"
+            :href="p.href"
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            @click.stop
+            @dblclick.stop
+            @keydown.enter.stop
+          >{{ p.text }}</a>
           <template v-else>{{ p.text }}</template>
         </template>
       </p>
@@ -19,7 +29,10 @@ import { parseBody } from '~/utils/code-blocks.mjs'
 
 /* Slack-style ``` blocks and `inline code`; every string is text-interpolated,
    never markup. A fenced block is CodeBlock.vue (preview, highlighting, the
-   open control and the dialog); inline spans stay here, where they belong. */
+   open control and the dialog); inline spans stay here, where they belong.
+   A link part (CLE-3494) is http, https or mailto only (parseBody's rule);
+   its click, double-click and Enter stop here, so the link opens and the row
+   under it does not also open its topic, select, or start an edit. */
 const props = defineProps<{ body: string }>()
 const blocks = computed(() => parseBody(props.body))
 </script>
@@ -33,6 +46,13 @@ const blocks = computed(() => parseBody(props.body))
 /* CodeBlock's root carries this scope id too, so the gap after a block stays */
 .msg-para + .msg-para,
 .code-block + .msg-para { margin-top: 4px; }
+.msg-link {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+.msg-link:hover { color: var(--color-accent-pressed); }
 .code-inline {
   font-family: var(--font-mono);
   background: var(--color-bg-2);

@@ -136,21 +136,84 @@ export function tokenize(src, { openAnywhere = false } = {}) {
   return out
 }
 
-const RICH_RE = /\*\*([^*\n]+)\*\*|@([A-Z]{2,4}-\d+(?:@[a-z0-9][a-z0-9-]{0,31})?)/g
+/*
+ * Links (CLE-3494). Only plain text is scanned: ``` blocks and `inline code`
+ * never reach here, and a mention or **bold** that starts first wins its run.
+ * Three shapes, three schemes, nothing else:
+ *   http:// https://   -> the text as written
+ *   www.<host>         -> https://<text>
+ *   a bare email       -> mailto:<text>
+ * javascript:, data:, vbscript:, file: and the rest have no shape here, so
+ * they stay text. A URL may not start glued to a word, a slash, a dot, a
+ * colon or an @, so `javascript:https://…` and `x//www.…` stay text too.
+ */
+const URL_SRC = String.raw`(?<![\w/.:@-])(?:[Hh][Tt][Tt][Pp][Ss]?:\/\/|[Ww][Ww][Ww]\.)[^\s<>\x60]+`
+const EMAIL_SRC = String.raw`(?<![\w.%+/:@-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}`
+const LINK_RE = new RegExp(`(${URL_SRC})|(${EMAIL_SRC})`, 'g')
+const RICH_RE = new RegExp(
+  String.raw`\*\*([^*\n]+)\*\*|@([A-Z]{2,4}-\d+(?:@[a-z0-9][a-z0-9-]{0,31})?)|(${URL_SRC})|(${EMAIL_SRC})`,
+  'g',
+)
 
-/** Split plain text into text / strong / mention parts. */
-export function richParts(text) {
-  const s = String(text)
+const count = (s, c) => s.split(c).length - 1
+
+/** Sentence punctuation after a URL is not part of it; a balanced ( ) is. */
+function trimUrl(u) {
+  for (;;) {
+    const c = u[u.length - 1]
+    if ('.,;:!?*'.includes(c)) u = u.slice(0, -1)
+    else if (c === ')' && count(u, '(') < count(u, ')')) u = u.slice(0, -1)
+    else if (c === ']' && count(u, '[') < count(u, ']')) u = u.slice(0, -1)
+    else if (c === '}' && count(u, '{') < count(u, '}')) u = u.slice(0, -1)
+    else if ((c === "'" || c === '"') && count(u, c) % 2 === 1) u = u.slice(0, -1)
+    else return u
+  }
+}
+
+const SCHEMES = new Set(['http:', 'https:', 'mailto:'])
+
+/** The link part of a URL / www / email match, or null when it is not one. */
+function toLink(url, email) {
+  if (email !== undefined) return { type: 'link', text: email, href: 'mailto:' + email }
+  const text = trimUrl(url)
+  const www = /^www\./i.test(text)
+  if (!/^(?:https?:\/\/|www\.)[A-Za-z0-9]/i.test(text)) return null
+  const href = www ? 'https://' + text : text
+  try {
+    const u = new URL(href)
+    if (!SCHEMES.has(u.protocol) || !u.hostname) return null
+  } catch {
+    return null
+  }
+  return { type: 'link', text, href }
+}
+
+function splitRuns(s, re, part) {
   const parts = []
   let last = 0
-  for (const m of s.matchAll(RICH_RE)) {
+  for (const m of s.matchAll(re)) {
+    const p = part(m)
+    if (!p) continue
     if (m.index > last) parts.push({ type: 'text', text: s.slice(last, m.index) })
-    if (m[1] !== undefined) parts.push({ type: 'strong', text: m[1] })
-    else parts.push({ type: 'mention', text: '@' + m[2] })
-    last = m.index + m[0].length
+    parts.push(p)
+    last = m.index + (p.type === 'link' ? p.text.length : m[0].length)
   }
   if (last < s.length) parts.push({ type: 'text', text: s.slice(last) })
   return parts
+}
+
+/** Split plain text into text / link parts. */
+export function linkParts(text) {
+  return splitRuns(String(text), LINK_RE, (m) => toLink(m[1], m[2]))
+}
+
+/** Split plain text into text / strong / mention / link parts. */
+export function richParts(text) {
+  return splitRuns(String(text), RICH_RE, (m) => {
+    if (m[1] !== undefined) return { type: 'strong', text: m[1] }
+    if (m[2] !== undefined) return { type: 'mention', text: '@' + m[2] }
+    return toLink(m[3], m[4])
+  })
 }
 
 function trimPara(p) {
@@ -164,7 +227,8 @@ function trimPara(p) {
 /**
  * The render tree of a body: blocks of
  *   { type: 'code', text, lang, closed }
- *   { type: 'para', parts: [{ type: 'text'|'strong'|'mention'|'inline', text }] }
+ *   { type: 'para', parts: [{ type: 'text'|'strong'|'mention'|'inline', text }
+ *                            | { type: 'link', text, href }] }
  * Every `text` is a raw string for text interpolation — never HTML.
  */
 export function parseBody(src) {
@@ -207,6 +271,9 @@ export function bodyToHtml(src) {
       if (p.type === 'inline') return `<code>${esc(p.text)}</code>`
       if (p.type === 'strong') return `<strong>${esc(p.text)}</strong>`
       if (p.type === 'mention') return `<span class="mention">${esc(p.text)}</span>`
+      if (p.type === 'link') {
+        return `<a class="msg-link" href="${esc(p.href)}" target="_blank" rel="noopener noreferrer nofollow">${esc(p.text)}</a>`
+      }
       return esc(p.text).replace(/\n/g, '<br>')
     }).join('')
   }).join('')

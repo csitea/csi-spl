@@ -514,6 +514,9 @@ type viewMsg struct {
 	// rdb 0037. Always present, [] when nobody has added an emoji. The same
 	// field is on an is_parent 0 reply and an is_parent 1 opening message.
 	Reactions []viewReaction `json:"reactions"`
+	// rdb 0040 / specs/036 FR-011: the HUM-* the hub verified typed this
+	// line at the agent's terminal. Omitted when the agent wrote it.
+	TypedBy string `json:"typed_by,omitempty"`
 }
 
 func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store.Tenant) {
@@ -615,7 +618,7 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 	for _, m := range rows {
 		v := viewMsg{Cursor: encCursor(m.ReceivedAt, m.MsgID), ReceivedAt: rfc(m.ReceivedAt),
 			Env: json.RawMessage(m.Env), Deliveries: []viewDelivery{}, IsParent: m.IsParent,
-			Reactions: groupReactions(react[m.MsgID])}
+			Reactions: groupReactions(react[m.MsgID]), TypedBy: m.TypedBy}
 		if !m.EditedAt.IsZero() {
 			v.EditedAt, v.EditedBy, v.Revision = rfc(m.EditedAt), m.EditedBy, m.Revision
 		}

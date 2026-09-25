@@ -48,9 +48,14 @@ const submitReplyTimeout = 30 * time.Second
 
 // submitRequest is one line in: the signed envelope, exactly as the CLI would
 // have written it on its own socket.
+//
+// TypedBy is the send frame's typed_by claim (specs/036 FR-009). A sidecar
+// older than it decodes leniently and drops it, so the line is posted as the
+// agent: the same fallback as an older hub.
 type submitRequest struct {
-	V   int             `json:"v"`
-	Env json.RawMessage `json:"env"`
+	V       int             `json:"v"`
+	Env     json.RawMessage `json:"env"`
+	TypedBy string          `json:"typed_by,omitempty"`
 }
 
 // submitResponse is one line out. Delivery is the hub's `sent` frame value on
@@ -69,7 +74,7 @@ var errNoSidecar = errors.New("no submit listener")
 // submit hands raw to a local sidecar and returns the hub's delivery. It
 // returns errNoSidecar when there is nothing to hand it to, which is not a
 // failure: it is the pre-030 path.
-func (c *Client) submit(ctx context.Context, raw []byte) (string, error) {
+func (c *Client) submit(ctx context.Context, raw []byte, typedBy string) (string, error) {
 	path := c.Cfg.SubmitPath()
 	if path == "" {
 		return "", errNoSidecar
@@ -83,7 +88,7 @@ func (c *Client) submit(ctx context.Context, raw []byte) (string, error) {
 	}
 	defer conn.Close()
 
-	line, err := json.Marshal(submitRequest{V: 1, Env: raw})
+	line, err := json.Marshal(submitRequest{V: 1, Env: raw, TypedBy: typedBy})
 	if err != nil {
 		return "", err
 	}
@@ -203,7 +208,7 @@ func (s *SubmitServer) handle(ctx context.Context, sess *Session, conn net.Conn)
 		return
 	}
 	s.mu.Lock()
-	f, err := sess.Send(ctx, env)
+	f, err := sess.SendTyped(ctx, env, req.TypedBy)
 	s.mu.Unlock()
 	var he *HubError
 	switch {

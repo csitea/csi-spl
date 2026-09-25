@@ -51,11 +51,11 @@ func TestPendingOldestFirstAndReject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p1, err := c.writePending(m1, env1)
+	p1, err := c.writePending(m1, env1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	p2, err := c.writePending(m2, env2)
+	p2, err := c.writePending(m2, env2, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -658,7 +658,7 @@ func (s *Server) admit(ctx context.Context, tenant string, m *msg.Message) (stri
 
 // fanoutWUI pushes one stored message to every browser subscribed to its task,
 // its stored channel, one of its DM ends, or the whole tenant (once per socket).
-func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID string, p parties, receivedAt time.Time, env []byte, isParent int) {
+func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID string, p parties, receivedAt time.Time, env []byte, isParent int, typedBy string) {
 	// One membership lookup per stored message, outside the lock: wants()
 	// runs under srv.mu and cannot go to the store, and a set cached on the
 	// socket would keep delivering to someone removed from the channel
@@ -687,6 +687,9 @@ func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID s
 	}
 	if e.ParentTaskID != "" {
 		frame["parent_task_id"] = e.ParentTaskID
+	}
+	if typedBy != "" { // specs/036 FR-011: top level, like edited_by
+		frame["typed_by"] = typedBy
 	}
 	for _, c := range targets {
 		c.write(ctx, frame) //nolint:errcheck

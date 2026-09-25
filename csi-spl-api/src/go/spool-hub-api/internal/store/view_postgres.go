@@ -241,7 +241,7 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 		err := eachRow(ctx, tx, `SELECT msg_id::text, received_at, env, edited_at, edited_by,
 				CASE WHEN edited_at IS NULL THEN 0 ELSE COALESCE((SELECT MAX(revision)
 					FROM message_revisions r WHERE r.tenant_id = messages.tenant_id AND r.msg_id = messages.msg_id), 0) END,
-				is_parent
+				is_parent, typed_by
 			FROM messages
 			WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3
 				AND ($4::timestamptz IS NULL OR (received_at, msg_id::text) > ($4::timestamptz, $5::text))
@@ -251,11 +251,12 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 			LIMIT $6`, append([]any{tenant, q.TaskID, q.Now, optTime(q.AfterAt), q.AfterID, pgLimit(q.Limit), optTime(q.BeforeAt), q.BeforeID}, doorArgs...),
 			func(rows pgx.Rows) error {
 				v := ViewMsg{Deliveries: []ViewDelivery{}}
-				var editedBy *string
+				var editedBy, typedBy *string
 				var editedAt *time.Time
-				if err := rows.Scan(&v.MsgID, &v.ReceivedAt, &v.Env, &editedAt, &editedBy, &v.Revision, &v.IsParent); err != nil {
+				if err := rows.Scan(&v.MsgID, &v.ReceivedAt, &v.Env, &editedAt, &editedBy, &v.Revision, &v.IsParent, &typedBy); err != nil {
 					return err
 				}
+				v.TypedBy = deref(typedBy)
 				// The register probe is paid only by an edited row: an
 				// unedited one (the overwhelming majority) short-circuits on
 				// the NULL and costs nothing.

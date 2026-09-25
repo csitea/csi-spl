@@ -117,6 +117,10 @@ type Message struct {
 	// MessageEdits.ApplyEdit ever writes them.
 	EditedAt time.Time
 	EditedBy string
+	// TypedBy is the HUM-* the hub VERIFIED typed this line at the agent's
+	// terminal (rdb 0040, specs/036 FR-010); "" = NULL = the agent wrote it.
+	// Hub metadata: never in the signed envelope, never in a frame to a box.
+	TypedBy string
 }
 
 // parentBit keeps is_parent inside the column check (0 or 1).

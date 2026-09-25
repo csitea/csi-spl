@@ -50,6 +50,7 @@ type wuiFrame struct {
 	Error       string          `json:"error"`
 	Envelope    json.RawMessage `json:"envelope"`
 	Env         json.RawMessage `json:"env"`
+	TypedBy     string          `json:"typed_by"` // specs/036 FR-011
 }
 
 type wuiClient struct {

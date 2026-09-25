@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
@@ -17,6 +18,9 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/spool"
 )
+
+// typedByRe is rdb 0006 humans.human_id: a typed_by claim names a human.
+var typedByRe = regexp.MustCompile(`^HUM-[0-9]+$`)
 
 // PutResult is what put-file / put-dir return. Fields are in key order so the
 // JSON matches the map the CLI printed before this layer existed.
@@ -37,6 +41,10 @@ type SendArgs struct {
 	FileIDs, FileRefs            []string
 	DirBlobs, DirRefs            []string
 	PutFile                      string
+	// TypedBy is the HUM-* who typed this line at the agent's terminal
+	// (specs/036 FR-009, `spool send --typed-by`). Hub mode only: it rides on
+	// the send frame and the hub accepts it only for a bound box operator.
+	TypedBy string
 	// Hub overrides the hub client (tests inject one with their transport).
 	Hub *hubclient.Client
 }
@@ -81,6 +89,14 @@ func Send(cfg *config.Config, in SendArgs) (SendResult, error) {
 func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, error) {
 	if in.ToBox != "" && cfg.HubURL == "" {
 		return SendResult{}, fmt.Errorf("--to-box / to_box needs hub mode ($SPOOL_HUB_URL)")
+	}
+	if in.TypedBy != "" {
+		if cfg.HubURL == "" {
+			return SendResult{}, fmt.Errorf("--typed-by needs hub mode ($SPOOL_HUB_URL)")
+		}
+		if !typedByRe.MatchString(in.TypedBy) {
+			return SendResult{}, fmt.Errorf("--typed-by must be a HUM-<n> id, got %q", in.TypedBy)
+		}
 	}
 	var atts []msg.Attachment
 	for _, id := range in.FileIDs {
@@ -129,7 +145,7 @@ func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, 
 	if hc == nil {
 		hc = hubclient.New(cfg)
 	}
-	d, err := hc.SendMessage(ctx, m, in.ToBox)
+	d, err := hc.SendMessageTyped(ctx, m, in.ToBox, in.TypedBy)
 	if err != nil {
 		return SendResult{}, err
 	}

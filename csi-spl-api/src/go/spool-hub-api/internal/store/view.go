@@ -94,6 +94,8 @@ type ViewMsg struct {
 	Revision int
 	// IsParent is messages.is_parent (rdb 0034). 0 when the column is 0.
 	IsParent int
+	// TypedBy is messages.typed_by (rdb 0040); "" = the agent wrote it.
+	TypedBy string
 }
 
 // ViewDelivery is a deliveries row as the viewer sees it (never changed).
@@ -223,7 +225,7 @@ func (s *Memory) ViewTopic(_ context.Context, tenant string, q TopicMsgQuery) ([
 			continue
 		}
 		v := ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{},
-			EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent)}
+			EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy}
 		if revs := s.revisions[[2]string{tenant, m.MsgID}]; len(revs) > 0 {
 			v.Revision = revs[len(revs)-1].Revision
 		}

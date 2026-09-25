@@ -86,6 +86,13 @@ type Frame struct {
 	// send / recv / tail_msg
 	Env json.RawMessage `json:"env,omitempty"`
 
+	// send (specs/036 FR-009): the HUM-* who typed this line at the sending
+	// agent's terminal. A claim the hub verifies (FR-010), deliberately
+	// OUTSIDE the box-signed envelope and the inner msg, which boxes decode
+	// strictly; a frame is decoded leniently, so an older hub ignores it.
+	// The hub never puts it on a frame to a box.
+	TypedBy string `json:"typed_by,omitempty"`
+
 	// sent
 	MsgID    string `json:"msg_id,omitempty"`
 	TaskID   string `json:"task_id,omitempty"`

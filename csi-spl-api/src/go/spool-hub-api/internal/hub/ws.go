@@ -477,7 +477,14 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, tok, status, detail)
 		return
 	}
-	delivery, err := s.commit(ctx, x.tenant, env, m)
+	if f.TypedBy != "" {
+		if detail := s.typedByRefusal(ctx, x, m.From, f.TypedBy); detail != "" {
+			x.fail(ctx, id, "typed_by_not_bound", http.StatusForbidden, detail)
+			return
+		}
+	}
+	r, err := s.commitRowTyped(ctx, x.tenant, env, m, 1, f.TypedBy)
+	delivery := r.delivery
 	if errors.Is(err, store.ErrConflict) {
 		x.fail(ctx, id, "conflict_msg", http.StatusConflict, "msg_id exists with a different envelope")
 		return
@@ -488,6 +495,34 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		return
 	}
 	x.write(ctx, wire.Frame{Type: wire.TSent, MsgID: id, TaskID: m.TaskID, TS: m.TS, ToBox: env.ToBox, Delivery: delivery}) //nolint:errcheck
+}
+
+// typedByRefusal is specs/036 FR-010: a send frame's typed_by is accepted
+// only when the sending agent is one this box announced (roster), the human
+// is a member of the tenant, and a box_operators binding (rdb 0040, granted
+// by a tenant owner / admin, never by a box) says that human operates this
+// box. "" = accepted; otherwise why not. Every refusal is the one token
+// typed_by_not_bound, so the mirror re-posts without the claim.
+func (s *Server) typedByRefusal(ctx context.Context, x *session, from, human string) string {
+	if !humanIDRe.MatchString(human) {
+		return "typed_by must be a HUM-* id"
+	}
+	roster, err := s.o.Store.Roster(ctx, x.tenant)
+	if err != nil || !contains(roster[x.box], from) {
+		return from + " is not an agent announced by " + x.box
+	}
+	h, hasHumans := s.o.Store.(store.Humans)
+	ops, hasOps := s.o.Store.(store.BoxOperators)
+	if !hasHumans || !hasOps {
+		return "box operators are not available on this hub"
+	}
+	if _, err := h.MemberRole(ctx, human, x.tenant); err != nil {
+		return human + " is not a member of this tenant"
+	}
+	if ok, err := ops.BoxOperatorBound(ctx, x.tenant, x.box, human); err != nil || !ok {
+		return human + " is not bound as an operator of " + x.box
+	}
+	return ""
 }
 
 // messageQuota is the 006 month quota for one new message (onSend, admit).
@@ -568,6 +603,13 @@ type committed struct {
 // envelopes and browser sends (wui.go). A to_box of box-wui is delivered by the
 // browser fan-out, so its deliveries row is marked sent at once.
 func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message, isParent int) (committed, error) {
+	return s.commitRowTyped(ctx, tenant, env, m, isParent, "")
+}
+
+// commitRowTyped is commitRow with a VERIFIED typed_by (onSend's FR-010
+// checks); "" = the agent wrote it. It is stored and fanned out to browsers
+// only: the envelope pushed to boxes is the signed one, unchanged.
+func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message, isParent int, typedBy string) (committed, error) {
 	if isParent != 1 {
 		isParent = 0
 	}
@@ -592,7 +634,7 @@ func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelop
 		TenantID: tenant, MsgID: m.MsgID, TaskID: m.TaskID, TS: ts,
 		FromBox: env.FromBox, FromID: m.From, ToBox: env.ToBox, ToID: m.To, Kind: m.Kind, Body: m.Body,
 		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel, ParentTaskID: env.ParentTaskID,
-		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)), IsParent: isParent,
+		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)), IsParent: isParent, TypedBy: typedBy,
 	}
 	inserted, err := s.o.Store.InsertMessage(ctx, row)
 	if err != nil {
@@ -604,7 +646,7 @@ func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelop
 	}
 	if inserted {
 		s.notifyTail(ctx, tenant, m.TaskID, canon)
-		s.fanoutWUI(ctx, tenant, m.TaskID, channel, m.MsgID, parties{m.From, env.FromBox, m.To, env.ToBox}, now, canon, isParent)
+		s.fanoutWUI(ctx, tenant, m.TaskID, channel, m.MsgID, parties{m.From, env.FromBox, m.To, env.ToBox}, now, canon, isParent, typedBy)
 	}
 	s.routeChannel(ctx, tenant, channel, env, m, canon)
 	if env.ToBox == WUIBox {

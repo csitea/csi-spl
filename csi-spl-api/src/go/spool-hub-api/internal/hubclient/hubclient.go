@@ -497,6 +497,12 @@ func (s *Session) request(ctx context.Context, f wire.Frame, want string, match 
 
 // Send sends one signed envelope and returns the hub's sent frame.
 func (s *Session) Send(ctx context.Context, env *wire.Envelope) (wire.Frame, error) {
+	return s.SendTyped(ctx, env, "")
+}
+
+// SendTyped is Send with a typed_by claim on the frame (specs/036 FR-009),
+// outside the signed envelope; "" sends the plain frame.
+func (s *Session) SendTyped(ctx context.Context, env *wire.Envelope, typedBy string) (wire.Frame, error) {
 	raw, err := env.Marshal()
 	if err != nil {
 		return wire.Frame{}, err
@@ -506,7 +512,7 @@ func (s *Session) Send(ctx context.Context, env *wire.Envelope) (wire.Frame, err
 		return wire.Frame{}, err
 	}
 	id := m.MsgID
-	return s.request(ctx, wire.Frame{Type: wire.TSend, Env: raw}, wire.TSent,
+	return s.request(ctx, wire.Frame{Type: wire.TSend, Env: raw, TypedBy: typedBy}, wire.TSent,
 		func(r wire.Frame) bool { return r.MsgID == id || (r.Type == wire.TError && r.MsgID == "") })
 }
 

@@ -90,6 +90,9 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		t.Fatal(err)
 	}
 	s.humanID = hum
+	if err := pg.GrantBoxOperator(ctx, s.tenant, "box-a", hum, hum, now); err != nil { // box_operators (rdb 0040)
+		t.Fatal(err)
+	}
 	if err := pg.AddChannelHumans(ctx, s.tenant, s.channelID, []string{hum}, hum, now); err != nil { // channel_humans
 		t.Fatal(err)
 	}

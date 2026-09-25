@@ -87,13 +87,10 @@ type section struct {
 }
 
 // searchReader is who is asking: the member HUM-* (also the DM filter), or
-// "" with the door off.
-func (s *Server) searchReader(r *http.Request, tenant string) string {
-	id, err := s.wuiSession(r, tenant)
-	if err != nil {
-		return ""
-	}
-	return id
+// "" with the door off. ok=false fails closed (CLE-34986): it returned ""
+// on a lookup error, and "" searched the whole tenant, DMs included.
+func (s *Server) searchReader(r *http.Request, tenant string) (string, bool) {
+	return s.readerID(r, tenant)
 }
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Tenant) {
@@ -107,7 +104,11 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 		writeJSON(w, http.StatusBadRequest, badQuery{"bad_query", "sort must be newest or relevance", 0, sortBy})
 		return
 	}
-	reader := s.searchReader(r, t.ID)
+	reader, ok := s.searchReader(r, t.ID)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "internal", "search unavailable")
+		return
+	}
 	key := t.ID + "|"
 	if reader != "" {
 		key += reader

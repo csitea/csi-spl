@@ -178,7 +178,7 @@ func (s *Server) lobbyAlias(task string) (string, bool) {
 }
 
 func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
-	t, _, ok := s.humanTenant(w, r) // specs/026: the session's active tenant
+	t, hum, ok := s.humanTenant(w, r) // specs/026: the session's active tenant
 	if !ok {
 		return
 	}
@@ -210,12 +210,20 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 	default:
 		c.from = s.humans.id(t.ID, strings.TrimSpace(h.As))
 	}
-	if sess, err := s.wuiSession(r, t.ID); err == nil && sess != "" {
-		// A member sign-in session is authoritative (spec 010); hello.as never is.
-		c.member, c.from = sess, sess
-		if !msg.ValidID(sess) {
-			c.from = s.humans.session(t.ID, sess)
+	// The member humanTenant PROVED is authoritative (spec 010); hello.as
+	// never is. CLE-34986: this re-read the session through a second
+	// membership query and dropped its error, so a failed or racing lookup
+	// left c.member "" and c.from = the client's own hello.as ("HUM-3"):
+	// the socket then spoke as that human and every read door was off.
+	switch {
+	case hum != "":
+		c.member, c.from = hum, hum
+		if !msg.ValidID(hum) {
+			c.from = s.humans.session(t.ID, hum)
 		}
+	case s.o.ViewDoor != ViewDoorOff:
+		conn.Close(wire.CloseUnauthorized, "view_door") //nolint:errcheck
+		return
 	}
 	s.mu.Lock()
 	if s.closing {

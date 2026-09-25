@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -26,6 +27,30 @@ import (
 // A reader of "" filters nothing. That is the door-off rig (ViewDoorOff, lde
 // only - config refuses it elsewhere), and it is the rule the topic LIST has
 // always used for DMs; in the session door humanTenant guarantees a human.
+
+// readerID is the reader a read door filters for: the member HUM-* of the
+// session, or "" on the door-off lde rig (which filters nothing). It FAILS
+// CLOSED (CLE-34986): a lookup error, or no human while the door is on,
+// answers ok=false and the caller refuses. The sites it replaced dropped
+// memberID's error, and "" is "filter nothing" - so a transient membership
+// error, or a member removed mid-request, turned the door off for that
+// request (the channel list, the topic list, a topic, search, a file).
+//
+// With the door OFF (lde only) no session is the normal anonymous reader, and
+// its lookup error means exactly that: "" as before.
+func (s *Server) readerID(r *http.Request, tenant string) (string, bool) {
+	hum, err := s.memberID(r, tenant)
+	if s.o.ViewDoor == ViewDoorOff {
+		if err != nil {
+			return "", true
+		}
+		return hum, true
+	}
+	if err != nil || hum == "" {
+		return "", false
+	}
+	return hum, true
+}
 
 // readerChannels is the set of created channels human belongs to. The result
 // is used as an allow-list, so a lookup error must fail CLOSED - an empty set
@@ -53,6 +78,44 @@ func (s *Server) canReadChannel(ctx context.Context, tenant, channel, human stri
 		}
 	}
 	return false, nil
+}
+
+// canReadMessage applies the per-message rule to one stored message: a DM by
+// its two ends, a channel message by canReadChannel. "" reads all (door
+// off). Edit, delete and reactions ask it BEFORE anything that tells the
+// caller the message exists (CLE-34986): they answered 403 not_author to a
+// non-member, which a missing id answers 404, and reactions checked only the
+// topic, so a mixed topic let a member react to (and read the reaction list
+// of) a DM they are not an end of.
+func (s *Server) canReadMessage(ctx context.Context, tenant string, m store.EditableMessage, human string) (bool, error) {
+	if human == "" {
+		return true, nil
+	}
+	if m.Channel == "" {
+		return m.FromID == human || m.ToID == human, nil
+	}
+	return s.canReadChannel(ctx, tenant, m.Channel, human)
+}
+
+// messageDoor answers the per-message door for a browser request, writing
+// the refusal (404 as for a missing id, 500 on a lookup error). ok=true =
+// the caller may go on and learn the message exists.
+func (s *Server) messageDoor(w http.ResponseWriter, r *http.Request, tenant string, m store.EditableMessage) bool {
+	reader, ok := s.readerID(r, tenant)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
+		return false
+	}
+	switch may, err := s.canReadMessage(r.Context(), tenant, m, reader); {
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("msg_id", m.MsgID).Msg("message door")
+		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
+		return false
+	case !may:
+		writeErr(w, http.StatusNotFound, "not_found", "no such message")
+		return false
+	}
+	return true
 }
 
 // canReadTopic applies both rules to one task_id. found=false when the

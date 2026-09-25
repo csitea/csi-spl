@@ -101,15 +101,10 @@ func (s *Server) changeReaction(w http.ResponseWriter, r *http.Request, add bool
 		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
 		return
 	}
-	// The same door as reading the topic. A message you cannot see is a 404,
-	// so the refusal does not confirm that the message exists.
-	switch ok, found, err := s.canReadTopic(r.Context(), t.ID, m.TaskID, actor); {
-	case err != nil:
-		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("reaction door")
-		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
-		return
-	case !found || !ok:
-		writeErr(w, http.StatusNotFound, "not_found", "no such message")
+	// The door on THIS message (CLE-34986; it was the topic's, so a mixed
+	// topic let a member react to a DM they are not an end of). A message you
+	// cannot see is a 404, so the refusal does not confirm that it exists.
+	if !s.messageDoor(w, r, t.ID, m) {
 		return
 	}
 	if add {

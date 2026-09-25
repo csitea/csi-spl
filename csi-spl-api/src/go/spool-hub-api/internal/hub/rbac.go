@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -185,6 +186,14 @@ func (s *Server) targetRole(w http.ResponseWriter, r *http.Request, h store.Huma
 }
 
 func decodeMembers(w http.ResponseWriter, r *http.Request, v any) bool {
+	// application/json only, like keys and native auth (CLE-34986): a
+	// text/plain body is a "simple" cross-site form post that needs no
+	// preflight, and it can carry valid JSON - so without this gate only the
+	// session cookie's SameSite=Lax stood between another site and an invite.
+	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
+		writeErr(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json")
+		return false
+	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, membersMaxBody))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {

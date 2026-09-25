@@ -247,7 +247,10 @@ func (s *Server) mayReadFile(r *http.Request, tenant, fileID string) (bool, erro
 		}
 		may, err = s.o.Store.FileReadableByBox(ctx, tenant, fileID, box, now)
 	} else {
-		hum, _ := s.memberID(r, tenant)
+		hum, ok := s.readerID(r, tenant) // fails closed (CLE-34986): an error read as "door off"
+		if !ok {
+			return false, nil
+		}
 		if hum == "" {
 			return true, nil // door-off lde, as the rest of privacy.go
 		}

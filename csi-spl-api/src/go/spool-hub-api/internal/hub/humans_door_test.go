@@ -38,7 +38,7 @@ const (
 	wuiHost   = "wui.test"
 )
 
-func newDoorRig(t *testing.T) *doorRig {
+func newDoorRig(t *testing.T, mut ...func(*hub.Options)) *doorRig {
 	t.Helper()
 	g := fakeidp.Client{ID: "gid", Secret: "gsecret", RedirectURI: "http://" + loginHost + "/api/v1/auth/google/callback"}
 	f := fakeidp.Client{ID: "fid", Secret: "fsecret", RedirectURI: "http://" + loginHost + "/api/v1/auth/facebook/callback"}
@@ -86,6 +86,9 @@ func newDoorRig(t *testing.T) *doorRig {
 		o.ViewDoor = hub.ViewDoorSession
 		o.ViewCORSOrigins = []string{wuiOrigin}
 		o.LobbyTaskID = lobby
+		for _, m := range mut {
+			m(o)
+		}
 	})
 	hubAddr = e.ts.Listener.Addr().String()
 	jar, _ := cookiejar.New(nil)

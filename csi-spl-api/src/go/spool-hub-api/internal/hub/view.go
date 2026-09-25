@@ -290,7 +290,12 @@ func (s *Server) handleViewChannels(w http.ResponseWriter, r *http.Request, t st
 	// The read door (rdb 0028): a created channel the reader is not in is
 	// omitted entirely - not greyed out, not listed as joinable. Its name and
 	// description are as private as its messages.
-	if hum, _ := s.memberID(r, t.ID); hum != "" {
+	hum, ok := s.readerID(r, t.ID)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "internal", "channels unavailable")
+		return
+	}
+	if hum != "" {
 		mine, err := s.readerChannels(r.Context(), t.ID, hum)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, "internal", "channels unavailable")
@@ -397,7 +402,11 @@ func (s *Server) handleViewTopics(w http.ResponseWriter, r *http.Request, t stor
 	// channels it is in plus the DMs it is an end of, and nothing else. This
 	// used to run only under dm=true, so an unfiltered list handed every
 	// topic of the tenant - DMs included - to any member.
-	hum, _ := s.memberID(r, t.ID)
+	hum, ok := s.readerID(r, t.ID)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
+		return
+	}
 	if sq.DM { // dm=true is the explicit "only my DMs" filter, on top of it
 		sq.Viewer = hum
 	}
@@ -414,7 +423,11 @@ func (s *Server) handleViewChildren(w http.ResponseWriter, r *http.Request, t st
 		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
 		return
 	}
-	hum, _ := s.memberID(r, t.ID)
+	hum, ok := s.readerID(r, t.ID)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
+		return
+	}
 	// A parent you cannot read does not exist, so neither do its children -
 	// listing them would leak the subjects of a private channel by uuid.
 	switch ok, found, err := s.canReadTopic(r.Context(), t.ID, task, hum); {
@@ -616,7 +629,11 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 	// The read door (rdb 0028, privacy.go). Only rbac.TopicsRead - a
 	// TENANT-wide role - stood here before, so knowing a task_id was enough
 	// to read another member's DM or a channel you were never in.
-	hum, _ := s.memberID(r, t.ID)
+	hum, ok := s.readerID(r, t.ID)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return
+	}
 	switch ok, found, err := s.canReadTopic(r.Context(), t.ID, task, hum); {
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")

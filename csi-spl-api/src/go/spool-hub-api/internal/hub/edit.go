@@ -116,6 +116,9 @@ func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
 		return
 	}
+	if !s.messageDoor(w, r, t.ID, m) { // the read door before rule 6 (CLE-34986)
+		return
+	}
 	if m.FromID != from { // rule 6
 		writeErr(w, http.StatusForbidden, "not_author", "only the author may edit this message")
 		return
@@ -312,6 +315,9 @@ func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("delete lookup")
 		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
+		return
+	}
+	if !s.messageDoor(w, r, t.ID, m) { // the read door before the author gate (CLE-34986)
 		return
 	}
 	if m.FromID != from {

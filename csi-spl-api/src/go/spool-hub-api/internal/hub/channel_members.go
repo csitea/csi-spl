@@ -99,12 +99,15 @@ func (s *Server) channelRecord(w http.ResponseWriter, r *http.Request, tenant, c
 // applying the read door. ok=false means it already answered.
 func (s *Server) channelDoor(w http.ResponseWriter, r *http.Request) (store.Tenant, string, string, bool) {
 	s.allowOrigin(w, r)
-	t, _, ok := s.humanTenant(w, r)
+	t, hum, ok := s.humanTenant(w, r) // the PROVEN human (CLE-34986: not a second, error-dropping lookup)
 	if !ok {
 		return t, "", "", false
 	}
 	ch := store.NormalizeChannel(r.PathValue("channel"))
-	hum, _ := s.memberID(r, t.ID)
+	if hum == "" && s.o.ViewDoor != ViewDoorOff {
+		writeErr(w, http.StatusUnauthorized, "view_door", "a member session is required")
+		return t, "", "", false
+	}
 	notFound := func() (store.Tenant, string, string, bool) {
 		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+r.PathValue("channel")+" in this tenant")
 		return t, "", "", false

@@ -297,4 +297,21 @@ neutered).
 
 FR-ML-013.
 
-<!-- version: 0.2.4 · updated: 2026-09-25 · last-edit: 2026-09-25T18:28:47Z -->
+## T019 — level-1 cards in the middle pane: clip, grip, 3 height modes (CLE-34989)
+
+Owner quote: spec.md "Level-1 card presentation in the middle pane".
+Team (owner: one of each kind): CLAUDE CLE-34989 lead, GROK GRK-3512, AGY AGY-3496 verifier.
+
+- [x] T019a `utils/card-clip.mjs` — modes, `cardTitle` (90 code points), `cardHasPicture`,
+      `cardClipPx`, `cardDragPx`, storage (CLE-34989, `5734604`).
+- [x] T019b (`ab56aff`) `MessageCard.vue` clip box + grip, `LiveFeed` `clip`, `CardClipControl.vue` in
+      the lobby / channel / DM headers, `useCardClip.ts` (CLE-34989).
+- [ ] T019c `feed.clip.*` in all 19 locales (GRK-3512).
+- [ ] T019d `tests/unit/card-clip.test.mjs` (GRK-3512).
+- [ ] T019e live proof dev + prd, signed in: heights per mode, grip grows a card, thread
+      pane unclipped, mode survives reload, screenshots (CLE-34989 proof script; AGY-3496
+      PASS/FAIL in topic `db0f9d71`).
+
+FR-ML-020..FR-ML-026.
+
+<!-- version: 0.2.5 · updated: 2026-09-25 · last-edit: 2026-09-25T19:30:00Z -->

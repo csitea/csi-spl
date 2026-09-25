@@ -119,6 +119,22 @@ the same in-place editor as `e` (032).
 | FR-ML-012 | A level-2 reply is stored in its topic root's channel, whatever client sent it untagged | Implemented — hub `7b6e0ae` (0.5.4); backfill rdb 0042 applied dev + prd, `tasks.md` T017 |
 | FR-ML-013 | An agent's line on a channel topic's task is a level-2 reply, as the same line from the WUI reply pane is | Partial — hub 0.5.7 `boxLevel` built; rdb 0043 backfill applied on dev/prd is not recorded, `tasks.md` T018 |
 
+## Level-1 card presentation in the middle pane (CLE-34989)
+
+The owner, 2026-09-25 18:48:43Z, PRD #spool-hub-devel topic `db0f9d71`, verbatim:
+
+> implement the feagture to clip the size of the msg with is_parent=1 to max 5 rows of text or max 30% of the screen if picture is involved ... the rest should be expandable via the similar expandable graggable handle which exists in the ommibox ... so that the middle topics pane where the is_parent=1 msgs are displayed will stay by default tighty. There should be a control which sets the height of those posts to 3 different ways - only titles ( where title is the first 90 chars , this default of 5 rows max and all size
+
+| id | requirement | status |
+|---|---|---|
+| FR-ML-020 | A level-1 card in the MIDDLE pane (lobby, channel, DM) is clipped by default at 5 text rows of its body; the thread pane and the new-topic cards above it are never clipped | Implemented — `utils/card-clip.mjs` `cardClipPx`, `LiveFeed` `clip` (middle hosts only) |
+| FR-ML-021 | A card carrying an inline picture is clipped at 30% of the window height instead (never below 5 rows) | Implemented — `cardHasPicture` + `cardClipPx` |
+| FR-ML-022 | A clipped card shows it (the last line fades) and carries a grip like the omnibox's: a drag sets its height, from one row to all of it; Enter / Space shows all or goes back; Arrow Up / Down step two rows. The drag is per card and not stored | Implemented — `MessageCard.vue` `.card-grip` |
+| FR-ML-023 | A 3-way control in every middle-pane header: `titles` (first 90 characters of the body on one line), `5 rows` (default), `full`; a keyboard radiogroup | Implemented — `CardClipControl.vue` |
+| FR-ML-024 | The mode is one per browser and survives a reload (localStorage `spool-card-clip`, try/catch; a bad value reads as the default) | Implemented — `useCardClip.ts` |
+| FR-ML-025 | The row cap follows the font-size setting (measured line height; rem fallback) | Implemented — `measure()` reads the rendered line height |
+| FR-ML-026 | Every new string in all 19 locales (i18n parity) | Assigned — GRK-3512, `tasks.md` T019 |
+
 ## Success criteria
 
 - **SC-ML-1**: the live proof `csi-spl-wui/tests/e2e/parent-level-live.proof.mjs` passes
@@ -126,5 +142,8 @@ the same in-place editor as `e` (032).
   reload; test-02; test-03; double click). Measured `618851f`: dev 80/80, prd 80/80, n=1
   per surface (`tasks.md` T011).
 - **SC-ML-2**: `tests/unit/parent-level.test.mjs` green in the unit runner.
+- **SC-ML-3** (CLE-34989): signed in on dev and prd, the computed card heights per mode
+  match FR-ML-020..FR-ML-023, a grip drag grows a card, the thread pane stays unclipped,
+  and the mode survives a reload (`tasks.md` T019).
 
-<!-- version: 0.1.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:25:00Z -->
+<!-- version: 0.1.3 · updated: 2026-09-25 · last-edit: 2026-09-25T19:30:00Z -->

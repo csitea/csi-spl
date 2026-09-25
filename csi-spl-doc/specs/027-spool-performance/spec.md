@@ -60,4 +60,39 @@ None of the audit's items is already fixed on trunk.
 - **Accepted T030 trade-off**: at 5k messages the dm+viewer first page went 4.29 -> 8.03 ms p50 (8.74 -> 12.33 p95, n=30), in exchange for 200k/80k-thread pages at 600 -> 2.5 ms.
 - **D2 (P3b)**: multi-instance fanout. Recommendation: not now. Revisit only once a measured single-instance ceiling is reached.
 
-<!-- last-edit: 2026-09-25T18:30:00Z -->
+## 6. P1 - WUI client (2026-09-25, lane CLE-34984, workstream topic 907042c0)
+
+Owner, 2026-09-25 (prd #spool-hub-devel): "performance improvement - do perfromance improvement on all levels without including more hardware resources - , both on the client side and on the server side".
+
+**Harness**: `csi-spl-wui/tests/e2e/perf-live.proof.mjs` (operator-run, one headless Chrome 1440x900, native sign-in; dev tenant t1 test member, prd tenant `e2e` test member). Phases: cold `/lobby` with the HTTP cache cleared, warm reload, client-side route changes; it records FCP / LCP / time to the first `article.msg`, and every request with its start..end ms (`perf.json` `waterfall`). Bundle: `node src/node/test/bundle-size.mjs` on a local `nuxt generate`.
+
+**Caveat on the numbers**: this box's connects to the Google frontend flap (`ERR_NETWORK_CHANGED`, TTFB 224..4325 ms for the same build within the hour). A run is quoted only when its TTFB is < 400 ms; every n below is 1 per state. Request COUNTS and the shape of the waterfall are stable across runs; the milliseconds are indicative.
+
+| # | finding (evidence: dev build 947635e7 unless noted) | fix | status |
+|---|---|---|---|
+| 1 | 7 view reads went out with no credentials before the view door was known: 7x 401 `view_door`, all sent again once armed | session store guesses the door `session` when a probe / native sign-in says `in`; `withSessionRetry` takes a wrong guess back on a status-less failure | **Implemented** be12078d |
+| 2 | `/v1/view/roster` read 6x per cold load; channels / me / operators / DM list 2x | identical GET reads in flight join one request (`spool-client.mjs` `live`, clone per joiner, writes never join); avatars + names read via `rosterView`, only once the session is `in` | **Implemented** be12078d |
+| 3 | one attached picture downloaded + sha256-checked per card and per visit: 5-8x per page, 100-650 ms each | `sharedPreview` (file-preview.mjs): one verified data: URL per file per page, LRU 48 | **Implemented** be12078d; `/v1/files/{id}` privately cacheable for a day on the hub side, P2 CLE-34985 (24941899, T121) |
+| 4 | #lobby read its topics only after the room task answered (~560 ms), and every lobby row comes from those topics | both reads start together; topics admitted after `open` | **Implemented** be12078d |
+| 5 | per-topic reads of a channel page 6 at a time: 20 topics = 4 serial waves; the api host is HTTP/2 | `TOPIC_READS_IN_FLIGHT` 10 | **Implemented** be12078d; one batch read instead of N+1: hub side **Implemented, not live yet** (T122, P2 CLE-34985); WUI switch **Planned** once it is live |
+| 6 | GET `/api/v1/auth/session` (the probe every cold load waits on) carried `X-Locale`, so it preflighted (OPTIONS 769..1147 ms on dev) | X-Locale rides writes only (the hub reads it only in native POST handlers) | **Implemented** 5ec01cf1 |
+| 7 | page + layout chunks started downloading only after the probe answered (the middleware awaits it) | `preloadRouteComponents(to)` alongside the probe | **Implemented** 5ec01cf1 |
+| 8 | the sidebar probed the session again on every load | probe only while `loading` / `unknown`; the probe is single-flight | **Implemented** be12078d + 5ec01cf1 |
+| 9 | `@headlessui/vue` + `@tanstack/virtual-core` in the first download of every page, only for the language combobox and the channel-properties dialog | both async components | **Implemented** 5ec01cf1 |
+| 10 | Firebase Hosting headers | measured, no change: `/_nuxt/**` `max-age=31536000, immutable` (warm reload JS = 0 bytes), html `max-age=0, must-revalidate` + ETag, brotli | **Implemented** (nothing to do) |
+| 11 | the i18n route table (20 pages x 19 locales, `prefix_except_default`) is 58 KB raw of the entry chunk | would need a routing-strategy change | **Planned**, not started - owner call, it trades URL shape for ~58 KB raw |
+
+**Before -> after** (dev, tenant t1, 20 lobby rows):
+
+| metric | before 947635e7 | after be12078d | after d71f91be (contains 5ec01cf1) |
+|---|---|---|---|
+| cold first message | 5840 ms | 3572 ms | 2345 ms |
+| cold FCP / LCP | 2472 / 6132 ms | 2856 / 3928 ms | 1472 / 2660 ms |
+| cold API requests (401s) | 49 (7) | 37 (0) | 35 (0) |
+| cold CORS preflights | 2 | 2 | 0 |
+| same picture fetched per page | 5-8x | 1x | 1x |
+| initial JS (bundle-size.mjs, gzip) | 23 chunks, 220.2 KB | same | 21 chunks, 199.1 KB |
+
+prd (tenant `e2e`, 7 lobby rows; prd had be12078d before it was measured): f65d9e10 cold first message 1396 ms, FCP 796, 21 API reads, 2 preflights, session + roster read 2x each. The prd AFTER runs of 5ec01cf1 died on `ERR_NETWORK_CHANGED` from this box; the preflight count read 0 on the one run that completed (`waterfall` has no OPTIONS row, same as dev).
+
+<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:25:50Z -->

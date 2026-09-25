@@ -9,8 +9,8 @@
  * Node tests import this file.
  */
 
-/** 025 §3.2 role ids, in the spec's order. */
-export const ROLE_IDS = ['biz_owner', 'product_owner', 'admin', 'developer', 'tester', 'pure_agent']
+/** 025 §3.2 role ids, in the spec's order (hub internal/rbac RoleIDs). */
+export const ROLE_IDS = ['biz_owner', 'product_owner', 'admin', 'developer', 'tester', 'pure_agent', 'biz_customer', 'regular_user']
 
 /** A /v1/view/me body → { humanId, role, tenantOwner, permissions } (permissions null = unrestricted). */
 export function normalizeMe(body) {

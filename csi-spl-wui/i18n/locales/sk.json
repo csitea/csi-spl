@@ -569,7 +569,9 @@
     "admin": "Administrátor",
     "developer": "Vývojár",
     "tester": "Tester",
-    "pure_agent": "Čistý agent"
+    "pure_agent": "Čistý agent",
+    "biz_customer": "Obchodný zákazník",
+    "regular_user": "Bežný používateľ"
   },
   "channels": {
     "properties": {

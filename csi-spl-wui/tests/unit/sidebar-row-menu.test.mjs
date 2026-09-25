@@ -34,7 +34,10 @@ describe('rowMenuItems', () => {
     assert.equal(rowMenuAdmin({ role: 'developer', tenantOwner: false }), false)
     assert.equal(rowMenuAdmin({ role: 'tester' }), false)
     assert.equal(rowMenuAdmin({ role: 'admin', tenantOwner: false }), true)
-    assert.equal(rowMenuAdmin({ role: 'biz_owner', tenantOwner: true }), true)
+    assert.equal(rowMenuAdmin({ role: 'biz_owner', tenantOwner: true }), false)
+    assert.equal(rowMenuAdmin({ role: 'biz_owner', tenantOwner: true, permissions: ['members.roles', 'billing.manage'] }), false)
+    assert.equal(rowMenuAdmin({ role: 'admin', permissions: ['members.invite'] }), true)
+    assert.equal(rowMenuAdmin({ role: 'regular_user', permissions: ['notes.send'] }), false)
   })
 
   it('every action has an icon and a catalogue name', () => {

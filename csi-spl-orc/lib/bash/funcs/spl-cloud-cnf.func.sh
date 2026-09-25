@@ -171,6 +171,10 @@ spl_via_proxy() {
   return $rc
 }
 
+# The 025 system role ids (hub internal/rbac RoleIDs, rdb 0021 + 0039), for
+# messages and @param lines; the hub DB (rbac_roles FK) is the authority.
+SPL_ROLE_IDS='biz_owner|product_owner|admin|developer|tester|pure_agent|biz_customer|regular_user'
+
 # spl_role_id <role>: prints the 025 role id (legacy owner|member mapped),
 # or fails on a malformed id. Existence is the hub DB's call (rbac_roles FK).
 spl_role_id() {

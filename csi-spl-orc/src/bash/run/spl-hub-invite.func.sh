@@ -17,7 +17,7 @@
 # @param INVITE_EMAIL - required: the human's email
 # @param INVITE_ROLE (optional) - a role id (specs/025): biz_owner (the tenant
 # @param   owner), product_owner, admin, developer (default), tester,
-# @param   pure_agent; legacy owner|member map to biz_owner|developer. The hub
+# @param   pure_agent, biz_customer, regular_user; legacy owner|member map to biz_owner|developer. The hub
 # @param   DB decides (rbac_roles FK): an unknown id fails the invite.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
@@ -27,7 +27,7 @@ do_spl_hub_invite() {
   do_require_bin yq || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" email="${INVITE_EMAIL:-}" role dry=1
-  role="$(spl_role_id "${INVITE_ROLE:-developer}")" || { do_log "FATAL INVITE_ROLE must be a role id (biz_owner|product_owner|admin|developer|tester|pure_agent), got: '${INVITE_ROLE:-}'"; return 1; }
+  role="$(spl_role_id "${INVITE_ROLE:-developer}")" || { do_log "FATAL INVITE_ROLE must be a role id ($SPL_ROLE_IDS), got: '${INVITE_ROLE:-}'"; return 1; }
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
   [[ "$email" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || { do_log "FATAL INVITE_EMAIL is not an email: '$email'"; return 1; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi

@@ -569,7 +569,9 @@
     "admin": "Beheerder",
     "developer": "Ontwikkelaar",
     "tester": "Tester",
-    "pure_agent": "Pure agent"
+    "pure_agent": "Pure agent",
+    "biz_customer": "Zakelijke klant",
+    "regular_user": "Gewone gebruiker"
   },
   "channels": {
     "properties": {

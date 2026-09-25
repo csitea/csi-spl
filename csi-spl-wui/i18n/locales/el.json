@@ -569,7 +569,9 @@
     "admin": "Διαχειριστής",
     "developer": "Προγραμματιστής",
     "tester": "Ελεγκτής",
-    "pure_agent": "Αμιγής πράκτορας"
+    "pure_agent": "Αμιγής πράκτορας",
+    "biz_customer": "Επιχειρηματικός πελάτης",
+    "regular_user": "Απλός χρήστης"
   },
   "channels": {
     "properties": {

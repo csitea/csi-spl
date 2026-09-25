@@ -569,7 +569,9 @@
     "admin": "מנהל מערכת",
     "developer": "מפתח",
     "tester": "בודק",
-    "pure_agent": "סוכן טהור"
+    "pure_agent": "סוכן טהור",
+    "biz_customer": "לקוח עסקי",
+    "regular_user": "משתמש רגיל"
   },
   "channels": {
     "properties": {

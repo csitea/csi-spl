@@ -21,6 +21,36 @@ Status words follow `../README.md` §2.3.
 The owner also asked for one human as the tenant owner of `t1` and another as
 its developer (§8).
 
+### 1.1 Owner orders (verbatim, 2026-09-25)
+
+> "but figrure out a new role BizCustomer" · "which for now will have the same
+> permissions as the Developer role"
+
+> "so only the admin will be able to add users to the tenant"
+
+> "add the role for regular user as sell , which should be the same as
+> Developer" · "... as a new role User"
+
+Implemented in rdb `0039_rbac_customer_and_user_roles.sql` and
+`internal/rbac` Defaults in the same commit (§7: a changed answer is a new
+migration):
+
+- `biz_customer` ("Biz customer") and `regular_user` ("Regular user"): new
+  system roles, grants copied from `developer` at apply time.
+- `members.invite` (invite AND remove, `POST /v1/members/invites`,
+  `DELETE /v1/members/{human_id}`) is held by `admin` ONLY. Measured before
+  the change on dev and prd (`rbac_role_permissions`, 2026-09-25 14:45Z):
+  `admin` and `biz_owner`. **`biz_owner` lost it**; it keeps every other
+  permission and stays the tenant owner. Taken literally, so by the
+  no-escalation rule (§3.4) a `biz_owner` can no longer grant, change or
+  remove the `admin` role either (admin's grants include members.invite),
+  nor remove itself. The owner keeps inviting through an `admin` membership.
+  Operator actions (`do_spl_hub_invite`, `do_spl_tenant_member_role`) are
+  outside the hub's RBAC and unaffected.
+- A membership holds ONE role (`tenant_memberships.role`; §9 "several roles
+  per member" is not built), so "add the role of Admin as well" is served by
+  changing the owner's second account's role, not by a second role.
+
 ## 2. What existed before this spec (measured on `aa8ac96`)
 
 | aspect | before | where |
@@ -78,20 +108,21 @@ needs it gates on data that already exists.
 Y = granted by the seed. Every cell that is a judgement is an OQ in §7 with
 this table as its recommended default.
 
-| permission | biz_owner (tenant owner) | product_owner | admin | developer | tester | pure_agent |
-|---|---|---|---|---|---|---|
-| threads.read | Y | Y | Y | Y | Y | Y |
-| notes.send | Y | Y | Y | Y | Y | Y |
-| agents.command | Y | Y | Y | Y | — (OQ-1) | Y |
-| channels.manage | Y | Y | Y | Y | — (OQ-5) | — (OQ-5) |
-| members.invite | Y | — (OQ-2) | Y | — | — | — |
-| members.roles | Y | — | Y | — | — | — |
-| billing.manage | Y | — | — | — | — | — |
-| tenant.settings | Y | — | Y | — | — | — |
-| keys.manage | Y | — | Y | — (OQ-3) | — | — |
-| audit.read | Y | Y (OQ-4) | Y | — | — | — |
+| permission | biz_owner (tenant owner) | product_owner | admin | developer | tester | pure_agent | biz_customer | regular_user |
+|---|---|---|---|---|---|---|---|---|
+| topics.read (0029; was threads.read) | Y | Y | Y | Y | Y | Y | Y | Y |
+| notes.send | Y | Y | Y | Y | Y | Y | Y | Y |
+| agents.command | Y | Y | Y | Y | — (OQ-1) | Y | Y | Y |
+| channels.manage | Y | Y | Y | Y | — (OQ-5) | — (OQ-5) | Y | Y |
+| members.invite | — (§1.1, 2026-09-25) | — (OQ-2) | Y | — | — | — | — | — |
+| members.roles | Y | — | Y | — | — | — | — | — |
+| billing.manage | Y | — | — | — | — | — | — | — |
+| tenant.settings | Y | — | Y | — | — | — | — | — |
+| keys.manage | Y | — | Y | — (OQ-3) | — | — | — | — |
+| audit.read | Y | Y (OQ-4) | Y | — | — | — | — | — |
 
-- **biz_owner** holds every permission. It is the tenant owner.
+- **biz_owner** holds every permission but `members.invite` (admin only
+  since 2026-09-25, §1.1). It is the tenant owner.
 - **product_owner** steers the work: reads, writes, tasks agents, makes
   channels, sees audit; no member, billing or key administration.
 - **admin** runs the tenant for the owner: members, roles, settings, keys,
@@ -99,6 +130,8 @@ this table as its recommended default.
 - **developer** does the work: read, write, command agents, make channels.
 - **tester** reads and reports: read and notes, no agent commands by default.
 - **pure_agent** — see §3.3.
+- **biz_customer**, **regular_user** — for now exactly developer's grants
+  (§1.1); each is its own row so a later change to one is a row edit.
 
 ### 3.3 `pure_agent`
 
@@ -236,4 +269,4 @@ for the personal account after 0021. Evidence: `tasks.md` T040-T041.
   `audit.read` permission reads.
 - **Agent-side permissions** (a box agent's allowed kinds / targets).
 
-<!-- version: 1.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:10:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T15:05:00Z -->

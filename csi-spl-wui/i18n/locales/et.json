@@ -569,7 +569,9 @@
     "admin": "Administraator",
     "developer": "Arendaja",
     "tester": "Testija",
-    "pure_agent": "Puhas agent"
+    "pure_agent": "Puhas agent",
+    "biz_customer": "Ärikliient",
+    "regular_user": "Tavakasutaja"
   },
   "channels": {
     "properties": {

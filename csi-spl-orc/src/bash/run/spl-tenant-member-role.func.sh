@@ -12,7 +12,7 @@
 # @param TENANT_ID - required: the tenant slug
 # @param HUMAN_ID - required: e.g. HUM-4
 # @param MEMBER_ROLE - required: a role id (biz_owner|product_owner|admin|
-# @param   developer|tester|pure_agent; legacy owner|member map); an unknown id
+# @param   developer|tester|pure_agent|biz_customer|regular_user; legacy owner|member map); an unknown id
 # @param   fails on the rbac_roles FK and nothing changes
 # @param FROM_ROLE (optional) - only change the row while it holds this role
 # @description This is the OPERATOR path: it is outside the hub's RBAC checks
@@ -26,7 +26,7 @@ do_spl_tenant_member_role() {
   local tenant="${TENANT_ID:-}" human="${HUMAN_ID:-}" role from="" dry=1
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
   [[ "$human" =~ ^[A-Z]+-[0-9]+$ ]] || { do_log "FATAL HUMAN_ID must look like HUM-4, got: '$human'"; return 1; }
-  role="$(spl_role_id "${MEMBER_ROLE:-}")" || { do_log "FATAL MEMBER_ROLE must be a role id (biz_owner|product_owner|admin|developer|tester|pure_agent), got: '${MEMBER_ROLE:-}'"; return 1; }
+  role="$(spl_role_id "${MEMBER_ROLE:-}")" || { do_log "FATAL MEMBER_ROLE must be a role id ($SPL_ROLE_IDS), got: '${MEMBER_ROLE:-}'"; return 1; }
   if [[ -n "${FROM_ROLE:-}" ]]; then
     from="$(spl_role_id "$FROM_ROLE")" || { do_log "FATAL FROM_ROLE must be a role id, got: '$FROM_ROLE'"; return 1; }
   fi

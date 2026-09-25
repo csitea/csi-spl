@@ -49,13 +49,16 @@ export function rowMenuItems(unread, opts = {}) {
 }
 
 /**
- * Remove is an admin action. The role `admin` and the tenant owner
- * (biz_owner, `tenant_owner`) both hold members.invite. A missing /view/me
- * answer stays closed: this item must not appear for everyone.
+ * Remove is DELETE /v1/members, gated by members.invite, which only the role
+ * `admin` holds (owner 2026-09-25: "so only the admin will be able to add
+ * users to the tenant"; the tenant owner biz_owner lost it). The permission
+ * list decides; without one, only the role `admin`. A missing /view/me answer
+ * stays closed: this item must not appear for everyone.
  */
 export function rowMenuAdmin(me) {
   if (!me || typeof me !== 'object') return false
-  return me.role === 'admin' || me.tenantOwner === true
+  if (Array.isArray(me.permissions)) return me.permissions.includes('members.invite')
+  return me.role === 'admin'
 }
 
 /**

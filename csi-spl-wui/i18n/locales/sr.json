@@ -569,7 +569,9 @@
     "admin": "Администратор",
     "developer": "Програмер",
     "tester": "Тестер",
-    "pure_agent": "Чист агент"
+    "pure_agent": "Чист агент",
+    "biz_customer": "Пословни клијент",
+    "regular_user": "Обичан корисник"
   },
   "channels": {
     "properties": {

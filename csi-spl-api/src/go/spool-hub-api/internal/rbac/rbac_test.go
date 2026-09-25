@@ -3,6 +3,7 @@ package rbac
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -27,10 +28,19 @@ func (f *fakeSrc) TenantRoles(context.Context, string) (map[string]Role, error) 
 }
 
 // 025 §3.2: the matrix as the spec states it, cell by cell for the cells the
-// OQs defaulted, plus biz_owner = every permission and the one tenant owner.
+// OQs defaulted, plus the one tenant owner: biz_owner holds every permission
+// but members.invite, which is the admin's only (owner 2026-09-25).
 func TestDefaultsMatrix(t *testing.T) {
 	roles := DefaultRoles()
-	if len(roles) != 6 {
+	has := func(role, perm string) bool {
+		for _, p := range roles[role].Perms {
+			if p == perm {
+				return true
+			}
+		}
+		return false
+	}
+	if len(roles) != 8 || len(RoleIDs) != len(roles) {
 		t.Fatalf("roles: %d", len(roles))
 	}
 	all := map[string]bool{}
@@ -48,16 +58,23 @@ func TestDefaultsMatrix(t *testing.T) {
 			}
 		}
 	}
-	if owners != 1 || !roles[BizOwner].TenantOwner || len(roles[BizOwner].Perms) != len(Permissions) {
-		t.Fatalf("biz_owner must be the one tenant owner with every permission: %+v", roles[BizOwner])
+	if owners != 1 || !roles[BizOwner].TenantOwner || len(roles[BizOwner].Perms) != len(Permissions)-1 {
+		t.Fatalf("biz_owner must be the one tenant owner with every permission but members.invite: %+v", roles[BizOwner])
 	}
-	has := func(role, perm string) bool {
-		for _, p := range roles[role].Perms {
-			if p == perm {
-				return true
-			}
+	for _, id := range RoleIDs {
+		if _, ok := roles[id]; !ok {
+			t.Fatalf("RoleIDs names %s, Defaults lacks it", id)
 		}
-		return false
+	}
+	for _, r := range roles {
+		if r.ID != Admin && has(r.ID, MembersInvite) {
+			t.Errorf("%s holds members.invite: only admin may (owner 2026-09-25)", r.ID)
+		}
+	}
+	for _, id := range []string{BizCustomer, RegularUser} {
+		if !reflect.DeepEqual(roles[id].Perms, roles[Developer].Perms) {
+			t.Errorf("%s %v, want developer's %v", id, roles[id].Perms, roles[Developer].Perms)
+		}
 	}
 	for _, c := range []struct {
 		role, perm string

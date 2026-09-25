@@ -17,7 +17,7 @@ const guest = normalizeMe({ human_id: null, tenant_id: 't1', role: null, tenant_
 ok('door-off guest: unrestricted, no role', guest.permissions === null && guest.role === null && accessAllows(guest, 'channels.manage'))
 ok('no answer (old hub / error): fails open', accessAllows(null, 'channels.manage') && accessAllows(normalizeMe(undefined), 'x'))
 ok('junk permissions are dropped', normalizeMe({ permissions: ['a', 3, null] }).permissions.length === 1)
-ok('role keys for the six roles', ROLE_IDS.length === 6 && ROLE_IDS.every((r) => roleLabelKey(r) === `role.${r}`))
+ok('role keys for the eight roles', ROLE_IDS.length === 8 && ROLE_IDS.every((r) => roleLabelKey(r) === `role.${r}`))
 ok('unknown / empty role has no key', roleLabelKey('custom_x') === '' && roleLabelKey(null) === '')
 const s = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', s.ok, s.why)

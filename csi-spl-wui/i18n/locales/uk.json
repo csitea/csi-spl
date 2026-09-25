@@ -569,7 +569,9 @@
     "admin": "Адміністратор",
     "developer": "Розробник",
     "tester": "Тестувальник",
-    "pure_agent": "Чистий агент"
+    "pure_agent": "Чистий агент",
+    "biz_customer": "Бізнес-клієнт",
+    "regular_user": "Звичайний користувач"
   },
   "channels": {
     "properties": {

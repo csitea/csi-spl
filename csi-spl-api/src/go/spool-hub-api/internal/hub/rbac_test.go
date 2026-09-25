@@ -94,7 +94,7 @@ func TestRBACPerRoleEntryPoints(t *testing.T) {
 	e := rbacEnv(t)
 	tid, _ := e.tenant()
 	who := map[string]string{}
-	for _, r := range []string{rbac.BizOwner, rbac.ProductOwner, rbac.Admin, rbac.Developer, rbac.Tester, rbac.PureAgent} {
+	for _, r := range rbac.RoleIDs {
 		who[r] = seat(t, e, tid, r)
 	}
 	for role, hum := range who {
@@ -158,6 +158,7 @@ func TestRBACMembersAPI(t *testing.T) {
 	dev := seat(t, e, tid, rbac.Developer)
 	tester := seat(t, e, tid, rbac.Tester)
 	po := seat(t, e, tid, rbac.ProductOwner)
+	cust := seat(t, e, tid, rbac.Developer)
 
 	type c struct {
 		name, method, path, as string
@@ -170,10 +171,18 @@ func TestRBACMembersAPI(t *testing.T) {
 		{"product_owner cannot invite (OQ-2)", http.MethodPost, "/v1/members/invites", po, map[string]string{"email": "a@example.com"}, 403, "forbidden"},
 		{"admin invites a tester", http.MethodPost, "/v1/members/invites", admin, map[string]string{"email": "T@Example.com", "role": rbac.Tester}, 201, ""},
 		{"admin invite defaults to developer", http.MethodPost, "/v1/members/invites", admin, map[string]string{"email": "d@example.com"}, 201, ""},
+		{"biz_owner cannot invite (owner 2026-09-25: only the admin)", http.MethodPost, "/v1/members/invites", owner, map[string]string{"email": "o@example.com"}, 403, "forbidden"},
+		{"biz_owner cannot remove (members.invite)", http.MethodDelete, "/v1/members/" + dev, owner, nil, 403, "forbidden"},
+		{"biz_owner cannot make an admin (no escalation)", http.MethodPut, "/v1/members/" + dev + "/role", owner, map[string]string{"role": rbac.Admin}, 403, "forbidden"},
+		{"biz_customer cannot invite", http.MethodPost, "/v1/members/invites", cust, map[string]string{"email": "c@example.com"}, 403, "forbidden"},
+		{"admin invites a regular_user", http.MethodPost, "/v1/members/invites", admin, map[string]string{"email": "z@example.com", "role": rbac.RegularUser}, 201, ""},
+		{"admin invites a biz_customer", http.MethodPost, "/v1/members/invites", admin, map[string]string{"email": "k@example.com", "role": rbac.BizCustomer}, 201, ""},
+		{"owner makes a developer a biz_customer", http.MethodPut, "/v1/members/" + cust + "/role", owner, map[string]string{"role": rbac.BizCustomer, "from_role": rbac.Developer}, 200, ""},
+		{"biz_customer cannot invite either", http.MethodPost, "/v1/members/invites", cust, map[string]string{"email": "c@example.com"}, 403, "forbidden"},
 		{"admin cannot invite a biz_owner", http.MethodPost, "/v1/members/invites", admin, map[string]string{"email": "b@example.com", "role": rbac.BizOwner}, 403, "forbidden"},
-		{"unknown role", http.MethodPost, "/v1/members/invites", owner, map[string]string{"email": "x@example.com", "role": "superuser"}, 400, "bad_role"},
-		{"bad email", http.MethodPost, "/v1/members/invites", owner, map[string]string{"email": "nope"}, 400, "bad_email"},
-		{"unknown field", http.MethodPost, "/v1/members/invites", owner, map[string]string{"email": "x@example.com", "admin": "1"}, 400, "bad_json"},
+		{"unknown role", http.MethodPost, "/v1/members/invites", admin, map[string]string{"email": "x@example.com", "role": "superuser"}, 400, "bad_role"},
+		{"bad email", http.MethodPost, "/v1/members/invites", admin, map[string]string{"email": "nope"}, 400, "bad_email"},
+		{"unknown field", http.MethodPost, "/v1/members/invites", admin, map[string]string{"email": "x@example.com", "admin": "1"}, 400, "bad_json"},
 		{"developer cannot change roles", http.MethodPut, "/v1/members/" + tester + "/role", dev, map[string]string{"role": rbac.Developer}, 403, "forbidden"},
 		{"developer cannot promote itself", http.MethodPut, "/v1/members/" + dev + "/role", dev, map[string]string{"role": rbac.Admin}, 403, "forbidden"},
 		{"admin cannot demote the owner", http.MethodPut, "/v1/members/" + owner + "/role", admin, map[string]string{"role": rbac.Developer}, 403, "forbidden"},
@@ -183,7 +192,10 @@ func TestRBACMembersAPI(t *testing.T) {
 		{"admin promotes tester to developer", http.MethodPut, "/v1/members/" + tester + "/role", admin, map[string]string{"role": rbac.Developer, "from_role": rbac.Tester}, 200, ""},
 		{"not a member", http.MethodPut, "/v1/members/HUM-999999/role", admin, map[string]string{"role": rbac.Tester}, 404, "not_found"},
 		{"the last owner cannot demote itself", http.MethodPut, "/v1/members/" + owner + "/role", owner, map[string]string{"role": rbac.Developer}, 409, "last_owner"},
-		{"the last owner cannot leave", http.MethodDelete, "/v1/members/" + owner, owner, nil, 409, "last_owner"},
+		// Removal is members.invite, the admin's only (owner 2026-09-25): a
+		// biz_owner cannot remove anyone, itself included; the store's
+		// last-owner guard stays (store TestTenantRolesAndLastOwner).
+		{"the owner cannot leave (no members.invite)", http.MethodDelete, "/v1/members/" + owner, owner, nil, 403, "forbidden"},
 		{"developer cannot remove", http.MethodDelete, "/v1/members/" + tester, dev, nil, 403, "forbidden"},
 		{"admin removes the (now developer) tester", http.MethodDelete, "/v1/members/" + tester, admin, nil, 204, ""},
 	} {
@@ -205,8 +217,8 @@ func TestRBACMembersAPI(t *testing.T) {
 	if r, _ := h.MemberRole(context.Background(), hum, tid); r != rbac.Tester {
 		t.Fatalf("invited role %q", r)
 	}
-	// A second owner frees the first (owner promotes admin), then the first may step down.
-	if code, body := call(t, e, tid, http.MethodPut, "/v1/members/"+admin+"/role", owner, map[string]string{"role": rbac.BizOwner}); code != 200 {
+	// A second owner frees the first (owner promotes the product_owner), then the first may step down.
+	if code, body := call(t, e, tid, http.MethodPut, "/v1/members/"+po+"/role", owner, map[string]string{"role": rbac.BizOwner}); code != 200 {
 		t.Fatalf("owner makes a second owner: %d %v", code, body)
 	}
 	if code, body := call(t, e, tid, http.MethodPut, "/v1/members/"+owner+"/role", owner, map[string]string{"role": rbac.Developer}); code != 200 {

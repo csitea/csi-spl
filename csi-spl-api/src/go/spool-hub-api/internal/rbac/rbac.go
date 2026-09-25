@@ -30,7 +30,8 @@ const (
 )
 
 // System role ids (025 §3.2). BizOwner is the tenant owner (owner decision
-// 2026-09-19: "tenant owner = biz-owner").
+// 2026-09-19: "tenant owner = biz-owner"). BizCustomer and RegularUser: owner
+// 2026-09-25, "for now will have the same permissions as the Developer role".
 const (
 	BizOwner     = "biz_owner"
 	ProductOwner = "product_owner"
@@ -38,7 +39,12 @@ const (
 	Developer    = "developer"
 	Tester       = "tester"
 	PureAgent    = "pure_agent"
+	BizCustomer  = "biz_customer"
+	RegularUser  = "regular_user"
 )
+
+// RoleIDs is every system role id, in the spec's order.
+var RoleIDs = []string{BizOwner, ProductOwner, Admin, Developer, Tester, PureAgent, BizCustomer, RegularUser}
 
 // ErrNotMember: the human holds no role in the tenant (or is disabled).
 var ErrNotMember = errors.New("rbac: not a member of the tenant")
@@ -67,16 +73,21 @@ var Permissions = []PermissionDoc{
 	{AuditRead, "see the tenant audit trail"},
 }
 
-// Defaults is the phase-1 system role seed (025 §3.2, OQ-1..8 defaults).
+// Defaults is the system role seed (025 §3.2, OQ-1..8 defaults; rdb 0021,
+// 0029, 0039). members.invite is the admin's ONLY (owner 2026-09-25: "so only
+// the admin will be able to add users to the tenant"): biz_owner holds every
+// permission but that one.
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
-		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead)},
+		MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead)},
 	{ID: ProductOwner, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead)},
 	{ID: Admin, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead)},
 	{ID: Developer, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage)},
 	{ID: Tester, Perms: sorted(TopicsRead, NotesSend)},
 	{ID: PureAgent, Perms: sorted(TopicsRead, NotesSend, AgentsCommand)},
+	{ID: BizCustomer, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage)},
+	{ID: RegularUser, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage)},
 }
 
 // DefaultRoles is Defaults keyed by id (a fresh map each call).

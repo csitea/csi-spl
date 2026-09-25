@@ -569,7 +569,9 @@
     "admin": "Administrator",
     "developer": "Dezvoltator",
     "tester": "Tester",
-    "pure_agent": "Agent pur"
+    "pure_agent": "Agent pur",
+    "biz_customer": "Client de business",
+    "regular_user": "Utilizator obișnuit"
   },
   "channels": {
     "properties": {

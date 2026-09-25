@@ -569,7 +569,9 @@
     "admin": "Administratör",
     "developer": "Utvecklare",
     "tester": "Testare",
-    "pure_agent": "Ren agent"
+    "pure_agent": "Ren agent",
+    "biz_customer": "Affärskund",
+    "regular_user": "Vanlig användare"
   },
   "channels": {
     "properties": {

@@ -569,7 +569,9 @@
     "admin": "Administrators",
     "developer": "Izstrādātājs",
     "tester": "Testētājs",
-    "pure_agent": "Tīrs aģents"
+    "pure_agent": "Tīrs aģents",
+    "biz_customer": "Biznesa klients",
+    "regular_user": "Parasts lietotājs"
   },
   "channels": {
     "properties": {

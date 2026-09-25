@@ -569,7 +569,9 @@
     "admin": "Ylläpitäjä",
     "developer": "Kehittäjä",
     "tester": "Testaaja",
-    "pure_agent": "Puhdas agentti"
+    "pure_agent": "Puhdas agentti",
+    "biz_customer": "Liiketoiminnan asiakas",
+    "regular_user": "Tavallinen käyttäjä"
   },
   "channels": {
     "properties": {

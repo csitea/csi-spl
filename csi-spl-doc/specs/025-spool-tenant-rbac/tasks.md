@@ -31,4 +31,10 @@
 - [x] T042 `do_spl_rbac_probe` (aaff4db): dev t1 live, 17:17Z, n=1: HUM-4 role developer, channels.manage gate passes (400 bad_channel on an invalid name), members.roles gate 403 forbidden - agrees with `/v1/view/me`. prd: anonymous only (t1 is a real tenant): `/v1/view/me` and `PUT /v1/members/HUM-0/role` 401 on both api hosts.
 - [~] T041 t1 seating (§8): tenant-owner invite sent dev + prd with `do_spl_hub_invite INVITE_ROLE=owner` (env SAs, 16:38Z; now `biz_owner` via 0021); personal account set to developer dev + prd with `do_spl_tenant_member_role MEMBER_ROLE=developer FROM_ROLE=biz_owner` (16:57Z). Open: the tenant owner accepts by signing in (until then t1 has no biz_owner member).
 
-<!-- version: 1.2.0 · updated: 2026-09-19 · last-edit: 2026-09-19T17:20:00Z -->
+## Phase 6: owner orders 2026-09-25 (spec §1.1, CLE-34967)
+
+- [x] T050 roles `biz_customer`, `regular_user` (= developer's grants) and `members.invite` admin-only: rdb 0039 + `rbac.Defaults`/`RoleIDs` + CLI help + orc `SPL_ROLE_IDS` + WUI `ROLE_IDS`, `role.*` in 19 locales, DM-row "Remove" gated on members.invite. Check: `TestDefaultsMatrix` (only admin holds members.invite; both new roles = developer), `TestRBACMembersAPI` (biz_owner cannot invite, remove or make an admin; admin invites both new roles), `hub-pg.tst.sh` (`TestRBACSeedMatchesDefaults` against 0039), `sidebar-row-menu.test.mjs`.
+- [ ] T051 0039 applied dev + prd (`do_spl_db_bootstrap`), hub + WUI rolled on both.
+- [ ] T052 prd t1 memberships (named actions only): invites as biz_customer / regular_user, a developer -> biz_customer, the owner's second account developer -> admin.
+
+<!-- version: 1.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T15:05:00Z -->

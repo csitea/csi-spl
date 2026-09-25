@@ -569,7 +569,9 @@
     "admin": "Administratorius",
     "developer": "Kūrėjas",
     "tester": "Testuotojas",
-    "pure_agent": "Grynas agentas"
+    "pure_agent": "Grynas agentas",
+    "biz_customer": "Verslo klientas",
+    "regular_user": "Įprastas naudotojas"
   },
   "channels": {
     "properties": {

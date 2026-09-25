@@ -218,8 +218,10 @@ func (s *Postgres) SearchMessages(ctx context.Context, tenant string, q SearchQu
 		// rdb 0028: a channel message is NOT automatically visible any more -
 		// it must be a public default or one this reader belongs to.
 		pub, mine := c.arg(DefaultChannels), c.arg(q.ViewerChannels)
-		priv = `((m.channel IS NULL AND EXISTS (SELECT 1 FROM messages p WHERE p.tenant_id = m.tenant_id
-			AND p.task_id = m.task_id AND p.expires_at > ` + now + ` AND (p.from_id = ` + v + ` OR p.to_id = ` + v + `)))
+		// A DM row is readable by ITS two ends (CLE-34986; it was: by an
+		// end of any message of the task, so a search handed over another
+		// member's DM that shared a task with one of yours).
+		priv = `((m.channel IS NULL AND (m.from_id = ` + v + ` OR m.to_id = ` + v + `))
 			OR m.channel = ANY(` + pub + `::text[]) OR m.channel = ANY(` + mine + `::text[]))`
 	}
 	where := c.cond(q.Q.Root, c.messageLeaf)
@@ -266,8 +268,10 @@ func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery
 		// rdb 0028: a channel message is NOT automatically visible any more -
 		// it must be a public default or one this reader belongs to.
 		pub, mine := c.arg(DefaultChannels), c.arg(q.ViewerChannels)
-		priv = `((m.channel IS NULL AND EXISTS (SELECT 1 FROM messages p WHERE p.tenant_id = m.tenant_id
-			AND p.task_id = m.task_id AND p.expires_at > ` + now + ` AND (p.from_id = ` + v + ` OR p.to_id = ` + v + `)))
+		// A DM row is readable by ITS two ends (CLE-34986; it was: by an
+		// end of any message of the task, so a search handed over another
+		// member's DM that shared a task with one of yours).
+		priv = `((m.channel IS NULL AND (m.from_id = ` + v + ` OR m.to_id = ` + v + `))
 			OR m.channel = ANY(` + pub + `::text[]) OR m.channel = ANY(` + mine + `::text[]))`
 	}
 	where := c.cond(q.Q.Root, c.fileLeaf)
@@ -310,12 +314,16 @@ func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery
 func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuery) ([]SearchTopicRow, error) {
 	c := &sqlc{}
 	t, now := c.arg(tenant), c.arg(q.Now)
-	priv := "true"
+	// The read door per MESSAGE, before the aggregate (CLE-34986): a topic's
+	// title, parties, kinds and count come only from rows the viewer may read,
+	// and a topic with none of them is not there. It was decided on the whole
+	// topic, so a #lobby topic carrying a DM listed the DM's ends and count.
+	door := ""
 	if q.Viewer != "" {
 		v := c.arg(q.Viewer)
 		pub, mine := c.arg(DefaultChannels), c.arg(q.ViewerChannels)
-		priv = "((t.channel = '' AND EXISTS (SELECT 1 FROM live x WHERE x.task_id = t.task_id AND (x.from_id = " + v +
-			" OR x.to_id = " + v + "))) OR t.channel = ANY(" + pub + "::text[]) OR t.channel = ANY(" + mine + "::text[]))"
+		door = " AND ((channel IS NULL AND (from_id = " + v + " OR to_id = " + v + "))" +
+			" OR channel = ANY(" + pub + "::text[]) OR channel = ANY(" + mine + "::text[]))"
 	}
 	where := c.cond(q.Q.Root, c.topicLeaf)
 	page := ""
@@ -326,7 +334,7 @@ func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuer
 	sql := `WITH live AS (
 			SELECT task_id::text AS task_id, msg_id::text AS msg_id, received_at, kind, from_id, from_box, to_id, to_box,
 				COALESCE(channel, '') AS channel, COALESCE(parent_task_id::text, '') AS parent, body, msg
-			FROM messages WHERE tenant_id = ` + t + ` AND expires_at > ` + now + `
+			FROM messages WHERE tenant_id = ` + t + ` AND expires_at > ` + now + door + `
 		), t AS (
 			SELECT task_id,
 				(array_agg(channel` + first + `)[1] AS channel,
@@ -339,7 +347,7 @@ func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuer
 			FROM live GROUP BY task_id
 		)
 		SELECT task_id, channel, parent, title, first_at, last_at, n, kinds, parties, first_msg FROM t
-		WHERE ` + priv + ` AND ` + where + page + `
+		WHERE ` + where + page + `
 		ORDER BY last_at DESC, task_id DESC
 		LIMIT ` + c.arg(pgLimit(q.Limit))
 	var out []SearchTopicRow

@@ -118,19 +118,8 @@ func (q SearchQuery) older(at time.Time, id string) bool {
 
 // ---- memory -----------------------------------------------------------------------
 
-// viewerTasksLocked: the live tasks the viewer is party of (DM privacy).
-func (s *Memory) viewerTasksLocked(live []*Message, viewer string) map[string]bool {
-	out := map[string]bool{}
-	for _, m := range live {
-		if m.FromID == viewer || m.ToID == viewer {
-			out[m.TaskID] = true
-		}
-	}
-	return out
-}
-
-// hides reports whether this reader must not see a message in channel. A DM
-// (channel "") is decided by party, which the callers test with mine[task].
+// Hides reports whether this reader must not see a message in channel. A DM
+// (channel "") is decided by party, per message: readable.
 func (q SearchQuery) Hides(channel string) bool {
 	if q.Viewer == "" || channel == "" || ChannelPublic(channel) {
 		return false
@@ -143,15 +132,26 @@ func (q SearchQuery) Hides(channel string) bool {
 	return true
 }
 
+// readable is the per-message read door (rdb 0028, CLE-34986): a DM row by
+// its two ends, a channel row by what Hides allows. "" viewer reads all.
+func (q SearchQuery) readable(m *Message) bool {
+	if q.Viewer == "" {
+		return true
+	}
+	if m.Channel == "" {
+		return m.FromID == q.Viewer || m.ToID == q.Viewer
+	}
+	return !q.Hides(m.Channel)
+}
+
 func (s *Memory) SearchMessages(_ context.Context, tenant string, q SearchQuery) ([]SearchMsgRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	live := s.liveLocked(tenant, q.Now)
-	mine := s.viewerTasksLocked(live, q.Viewer)
 	var out []SearchMsgRow
 	for i := len(live) - 1; i >= 0; i-- { // newest first
 		m := live[i]
-		if q.Viewer != "" && m.Channel == "" && !mine[m.TaskID] || q.Hides(m.Channel) {
+		if !q.readable(m) {
 			continue
 		}
 		sm := searchMsg(m)
@@ -184,11 +184,10 @@ func (s *Memory) SearchFiles(_ context.Context, tenant string, q SearchQuery) ([
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	live := s.liveLocked(tenant, q.Now)
-	mine := s.viewerTasksLocked(live, q.Viewer)
 	var out []SearchFileRow
 	for i := len(live) - 1; i >= 0; i-- {
 		m := live[i]
-		if q.Viewer != "" && m.Channel == "" && !mine[m.TaskID] || q.Hides(m.Channel) {
+		if !q.readable(m) {
 			continue
 		}
 		sm := searchMsg(m)
@@ -221,6 +220,9 @@ func (s *Memory) SearchTopics(_ context.Context, tenant string, q SearchQuery) (
 	msgs := map[string][]search.Msg{}
 	var order []string
 	for _, m := range s.liveLocked(tenant, q.Now) { // oldest first
+		if !q.readable(m) { // per message, before the aggregate (CLE-34986)
+			continue
+		}
 		r := byTask[m.TaskID]
 		if r == nil {
 			r = &SearchTopicRow{TopicRow: TopicRow{TaskID: m.TaskID, Channel: m.Channel, Parent: m.ParentTaskID,
@@ -237,18 +239,6 @@ func (s *Memory) SearchTopics(_ context.Context, tenant string, q SearchQuery) (
 	var out []SearchTopicRow
 	for _, id := range order {
 		r := byTask[id]
-		if q.Hides(r.Channel) {
-			continue
-		}
-		if q.Viewer != "" && r.Channel == "" {
-			party := false
-			for _, m := range msgs[id] {
-				party = party || m.FromID == q.Viewer || m.ToID == q.Viewer
-			}
-			if !party {
-				continue
-			}
-		}
 		th := search.Topic{TaskID: id, Parent: r.Parent, Channel: r.Channel, Title: r.Title, LastAt: r.LastAt, Msgs: msgs[id]}
 		if !search.MatchTopic(q.Q.Root, th) || !q.older(r.LastAt, r.TaskID) {
 			continue

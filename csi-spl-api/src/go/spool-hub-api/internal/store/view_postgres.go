@@ -167,11 +167,18 @@ func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
 	// this reader may see - one in a public channel, one in a channel they
 	// belong to, or a DM they are an end of. Same probe shape as Viewer, so
 	// it stays a LIMIT 1 index step inside the walk rather than a join.
+	// aggDoor is the same rule PER MESSAGE for the summary below (CLE-34986):
+	// the door above only decides whether a topic is listed, so without it a
+	// topic mixing a DM with a #lobby reply was listed with the DM's first
+	// line as its subject and the DM's ends among its parties.
+	aggDoor := ""
 	if q.Reader != "" {
 		rd, pub, mine := c.arg(q.Reader), c.arg(DefaultChannels), c.arg(q.ReaderChannels)
 		walk += " AND (SELECT true FROM messages d WHERE " + topic("d") + " AND (" +
 			"d.channel = ANY(" + pub + "::text[]) OR d.channel = ANY(" + mine + "::text[]) OR " +
 			"(d.channel IS NULL AND (d.from_id = " + rd + " OR d.to_id = " + rd + "))) LIMIT 1)"
+		aggDoor = " AND (m.channel = ANY(" + pub + "::text[]) OR m.channel = ANY(" + mine + "::text[]) OR " +
+			"(m.channel IS NULL AND (m.from_id = " + rd + " OR m.to_id = " + rd + ")))"
 	}
 	first := func(test string) string { // the topic's first message's parent passes test
 		return " AND (SELECT f.parent_task_id " + test + " FROM messages f WHERE " + topic("f") +
@@ -207,7 +214,7 @@ func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
 					|| array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties,
 				(array_agg(m.msg ORDER BY m.received_at, m.msg_id::text))[1] AS first_msg
 			FROM messages m
-			WHERE ` + msgs("m") + ` AND m.task_id = w.task_id
+			WHERE ` + msgs("m") + ` AND m.task_id = w.task_id` + aggDoor + `
 		) a
 		ORDER BY w.received_at DESC, w.task_id::text DESC`
 	return sql, c.args

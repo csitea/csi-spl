@@ -1,3 +1,5 @@
+import { noteError } from '../composables/errorJournal.mjs'
+import { isAbortError } from '../composables/apiHealth.mjs'
 import { cloneMock } from './mock-data.mjs'
 import { createMockDirectory } from './tenant-users.mjs'
 import { channelSlug, parseMention } from './channel-feed.mjs'
@@ -296,6 +298,36 @@ export function createSpoolClient({
   let viewDoor = String(door || '')
   let send = sender
 
+  /* Owner, 2026-09-25, prd v0.5.5: four "Failed to fetch" in the diagnostics
+     (routes /dm/CLE-001, /dm/CLE-100, /channel/spool-hub-devel) and not one
+     matching failure in the hub request log - every /v1/view read at those
+     seconds answered 200. The browser's TypeError names no request, so the
+     report could not be matched to anything. Now a transport failure is
+     journaled with its method and path (errorJournal redacts both), and an
+     idempotent GET gets ONE retry after a short pause: a dropped connection
+     on a read never reaches the reader. A write is never retried - it may
+     have landed. An abort is not a failure and is rethrown untouched. */
+  async function fetchOnce(fn, url, init) {
+    const method = String((init && init.method) || 'GET').toUpperCase()
+    try {
+      return await fn(url, init)
+    } catch (err) {
+      if (isAbortError(err)) throw err
+      if (method === 'GET') {
+        await new Promise((r) => setTimeout(r, 400))
+        try {
+          return await fn(url, init)
+        } catch (again) {
+          if (isAbortError(again)) throw again
+          noteError({ source: 'api', method, url, error: again })
+          throw again
+        }
+      }
+      noteError({ source: 'api', method, url, error: err })
+      throw err
+    }
+  }
+
   async function live(path, opts) {
     const fn = fetchFn
     if (typeof fn !== 'function') throw new Error('no fetch')
@@ -307,7 +339,7 @@ export function createSpoolClient({
     }
     const headers = { accept: 'application/json', ...(opts && opts.headers) }
     if (viewToken) headers.authorization = `Bearer ${viewToken}`
-    const res = await fn(`${root}${path}`, { credentials: credentialsFor(viewDoor), ...opts, headers })
+    const res = await fetchOnce(fn, `${root}${path}`, { credentials: credentialsFor(viewDoor), ...opts, headers })
     if (!res.ok) {
       let token = ''
       let detail = ''

@@ -129,13 +129,26 @@ export function providerLabel(p) {
   return `Continue with ${providerName(p)}`
 }
 
-/** A same-site path to land on after sign-in; anything else → '/' (the hub enforces the same). */
+/**
+ * A same-site path to land on after sign-in; anything else → '/' (the hub enforces the same).
+ * Whitespace, a C0 control or DEL anywhere, or any backslash, is refused: the URL parser
+ * drops tab / CR / LF and reads a backslash as '/', so "/<TAB>/evil.example"
+ * is "//evil.example" to the browser, and NuxtLink (ufo hasProtocol) renders
+ * it as an external link (CLE-34987); ufo reads any whitespace there the same
+ * way. The URL check is the backstop: whatever
+ * survives must still resolve on this origin.
+ */
 export function safeRedirect(path) {
   const p = String(path || '')
-  if (!p.startsWith('/') || p.startsWith('//') || p.startsWith('/\\')) return '/'
+  if (!p.startsWith('/') || p.startsWith('//') || /[\s\u0000-\u001f\u007f\\]/.test(p)) return '/'
   if (p.startsWith('/login')) return '/'
   // spec 021: the locale-prefixed sign-in page (/fi/login, /he/login?x) is /login too
   if (/^\/[a-z]{2}\/login(?:[/?#]|$)/i.test(p)) return '/'
+  try {
+    if (new URL(p, 'https://wui.invalid').origin !== 'https://wui.invalid') return '/'
+  } catch {
+    return '/'
+  }
   return p
 }
 

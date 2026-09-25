@@ -244,6 +244,9 @@ describe('door UX (view-v1 §2: a 401 view_door is a prompt)', () => {
     assert.equal(signInHref('/lobby', ''), '/login?redirect=%2Flobby')
     assert.equal(signInHref('//evil.example.com', 't1'), '/login?redirect=%2F&tenant=t1')
     assert.equal(signInHref('/login?x=1', 'Bad Tenant'), '/login?redirect=%2F')
+    // CLE-34987: the same guard as sign-in (safeRedirect), so a TAB cannot make it //host
+    assert.equal(signInHref('/\t/evil.example.com', 't1'), '/login?redirect=%2F&tenant=t1')
+    assert.equal(signInHref('/fi/login', ''), '/login?redirect=%2F')
   })
 
   it('/t, /lobby, / and the topic pane render the door prompt', () => {

@@ -14,6 +14,7 @@ import {
   safeRedirect,
   startHref,
 } from '../../src/utils/auth-client.mjs'
+import { hasProtocol } from 'ufo'
 
 function stub(status, body, { throws = false, badJson = false, headers = {} } = {}) {
   const calls = []
@@ -56,6 +57,26 @@ describe('auth-v1 helpers (spec 010)', () => {
     // a locale-prefixed page that merely starts with "login" is a real page
     assert.equal(safeRedirect('/fi/loginx'), '/fi/loginx')
     assert.equal(safeRedirect('/fi/t/abc'), '/fi/t/abc')
+  })
+
+  it('CLE-34987: a control character or backslash anywhere cannot turn the redirect into another host', () => {
+    // the URL parser drops TAB/CR/LF and reads a backslash as '/': each of these
+    // was "//evil.example" to the browser, and ufo (NuxtLink) called it external
+    const bad = ['/\t/evil.example', '/\n/evil.example', '/\r/evil.example', '/\t\\evil.example',
+      '/x/\\..\\', '/\u0000/evil.example', '/\u007f/x', '/\u001f/evil.example']
+    for (const b of bad) assert.equal(safeRedirect(b), '/', JSON.stringify(b))
+    // every one-control-char splice into "//evil.example" stays on this origin
+    const splice = [...Array(0x21).keys(), 0x7f, 0xa0, 0x2028, 0x3000, 0xfeff]
+    for (const c of splice) {
+      for (const probe of [`/${String.fromCharCode(c)}/evil.example`, `${String.fromCharCode(c)}//evil.example`]) {
+        const out = safeRedirect(probe)
+        assert.equal(hasProtocol(out, { acceptRelative: true }), false, JSON.stringify(probe))
+        assert.equal(new URL(out, 'https://wui.example').host, 'wui.example', JSON.stringify(probe))
+      }
+    }
+    // a percent-encoded tab is data in a path, not a separator: kept as a real page
+    assert.equal(safeRedirect('/t/%09x'), '/t/%09x')
+    assert.equal(safeRedirect('/channel/c1?thread=m1#x'), '/channel/c1?thread=m1#x')
   })
 
   it('builds a plain start link with redirect and an optional DNS-label tenant', () => {

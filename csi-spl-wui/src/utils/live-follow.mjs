@@ -11,6 +11,7 @@
  */
 import { displayName } from './channel-feed.mjs'
 import { BROWSER_BOX } from './view-api.mjs'
+import { safeRedirect } from './auth-client.mjs'
 
 /**
  * The cursor of the newest stored row (view-v1 §4.4: cursors are opaque, the
@@ -170,15 +171,13 @@ export async function withSessionRetry(api, read) {
 
 /**
  * The sign-in link a door prompt shows: /login?redirect=<here>&tenant=<t>.
- * redirect stays a same-site path; tenant only when it is a DNS label.
+ * redirect goes through safeRedirect; tenant only when it is a DNS label.
  * @param {string} path
  * @param {string} [tenant]
  * @returns {string}
  */
 export function signInHref(path, tenant) {
-  let p = String(path || '/')
-  if (!p.startsWith('/') || p.startsWith('//') || p.startsWith('/\\') || p.startsWith('/login')) p = '/'
-  const q = new URLSearchParams({ redirect: p })
+  const q = new URLSearchParams({ redirect: safeRedirect(path || '/') })
   const t = String(tenant || '')
   if (/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(t)) q.set('tenant', t)
   return `/login?${q}`

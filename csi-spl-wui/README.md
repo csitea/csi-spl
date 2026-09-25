@@ -264,11 +264,16 @@ From `csi-spl-orc`:
 
 Environment:
 
-- `NUXT_PUBLIC_API_BASE` — hub origin template: `{tenant}` becomes the tenant label
-  (lde default `http://{tenant}.localhost:58080`; deployed
-  `https://{tenant}.<fqdn>`). Tenant reads must go to the **tenant host** — the
-  API host (`api.<fqdn>`, `dev.api.<fqdn>`, any reserved first label) answers
-  `404 unknown_tenant` on every tenant route, and the WUI refuses it up front.
+- `NUXT_PUBLIC_API_BASE` — hub origin. dev / prd: the single api host
+  (`https://api.<fqdn>`). Since spec 026 the hub takes the tenant from the
+  caller's identity, not the Host (`internal/hub/resolve.go`: `humanTenant` =
+  the session's active tenant, `boxTenant` = the `X-Spool-Tenant` header,
+  `tokenTenant` = the upload token's tenant). A template holding `{tenant}`
+  (lde default `http://{tenant}.localhost:58080`) still reads from the legacy
+  tenant host `<tenant>.<fqdn>`; a legacy Host must equal the credential's
+  tenant (`403 tenant_mismatch`). The WUI refuses a template that substitutes
+  a reserved label (`api_host`, `src/utils/tenant.mjs`). `404 unknown_tenant`
+  now means only that the resolved tenant does not exist.
 - `NUXT_PUBLIC_TENANT` — default tenant (lde `t1`). `?tenant=<id>` overrides it
   and is remembered for the tab.
 - `NUXT_PUBLIC_USE_MOCK` — `1` (default in `pnpm dev`) uses the in-memory

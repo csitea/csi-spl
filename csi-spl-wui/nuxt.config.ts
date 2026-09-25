@@ -33,8 +33,9 @@ function wuiAppVersion(): string {
   return "v0.1.0-dev"
 }
 
-// Template: {tenant} is replaced at runtime. Tenant reads go to the tenant
-// host, never api.<fqdn> (003 http-v1, reserved labels).
+// dev / prd: the api host (https://api.<fqdn>); the hub resolves the tenant
+// from identity (specs/026, internal/hub/resolve.go). lde / legacy: a template
+// whose {tenant} is replaced at runtime (src/utils/tenant.mjs apiBaseFor).
 const apiBase = (process.env.NUXT_PUBLIC_API_BASE || "http://{tenant}.localhost:58080").replace(/\/+$/, "")
 
 /**

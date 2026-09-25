@@ -82,7 +82,9 @@ FR-ED-007.
 
 **Status**: Implemented — `d8ecb2a`, `internal/hub/edit_test.go`.
 
-Nine tests. The three guards CLE-00 named were each deleted and the test
+Nine tests at `d8ecb2a`; `grep -c '^func Test' internal/hub/edit_test.go` -> 13
+today (added since: `TestEditMessageBoxWUIResign`, `TestEditMessageSignedNoKey`,
+`TestEditMessageOtherBoxWithKey`, `TestDeleteMessage`). The three guards CLE-00 named were each deleted and the test
 watched to go red, rather than asserted to exist:
 
 | guard removed | what the endpoint then did |
@@ -127,6 +129,18 @@ safe at every intermediate moment, because the running image reads and writes
 neither the new table nor the new columns.
 
 SC-003.
+
+## T010 — the browser half
+
+**Status**: Implemented — in `../005-spool-wui` (lane CLE-3445), not in this
+lane: `csi-spl-wui/src/utils/msg-edit.mjs` (the state machine, 005 T036
+`ada3bed`), `csi-spl-wui/src/composables/useMessageEdit.ts` (the author-only
+predicate), `csi-spl-wui/tests/e2e/msg-edit.test.mjs` (the browser e2e, 005
+T039). Scope: the selection
+model, the `e` binding, the inline editor pre-filled with the current body,
+Enter to save and Escape to cancel, the `(edited)` marker and its i18n string,
+the three normaliser pass-throughs and the `message_edited` handler
+(contract §6), and the browser e2e.
 
 ## T011 — the live proof action, and its RUN
 
@@ -250,18 +264,10 @@ next bump cannot land six of seven files. **Writing this row is authorised;
 running a build or a roll to fix the current drift is not, and is CLE-00's to
 release.**
 
-## T010 — the browser half
-
-**Status**: Not this lane's. `../005-spool-wui`, lane CLE-3445: the selection
-model, the `e` binding, the inline editor pre-filled with the current body,
-Enter to save and Escape to cancel, the `(edited)` marker and its i18n string,
-the three normaliser pass-throughs and the `message_edited` handler
-(contract §6), and the browser e2e.
-
 ## Not a task here
 
 **The compare feature.** The owner named it as the reason for the register, not
 as part of this request. The rows it will read exist; its endpoint is
 deliberately unspecified (contract §7, last paragraph).
 
-<!-- version: 0.3.1 · updated: 2026-09-22 · last-edit: 2026-09-22T09:16:00Z -->
+<!-- version: 0.3.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:20:00Z -->

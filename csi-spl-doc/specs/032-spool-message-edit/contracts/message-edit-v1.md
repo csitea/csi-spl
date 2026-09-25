@@ -312,6 +312,8 @@ The first edit inserts **two** rows in one transaction: revision 1 (the original
 captured before it is replaced) and revision 2 (the new body). Every later edit inserts
 one. Nothing in this table is ever UPDATEd or DELETEd except by the retention sweep, which
 removes revisions with their message.
+(Open: `DELETE /v1/messages/{msg_id}` now also removes them with their message;
+see `../spec.md` OQ-ED-1.)
 
 `revision` in §2 / §3 is the highest `revision` for that message, so an unedited message
 has no register rows at all and `revision` starts at 2 the moment it has any.
@@ -353,4 +355,4 @@ This contract remains compatible with 020's freeze, which is the reason it *coul
 lived there: it adds no field to the message object (§0), because the edit marker is hub
 metadata beside `cursor` and `received_at`. `020` carries a one-line pointer here.
 
-<!-- version: 0.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T11:42:31Z -->
+<!-- version: 0.2.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:20:00Z -->

@@ -60,7 +60,10 @@ Refined the same day, after trying the build:
   **INFERRED**: it is the newest thing on screen.
 - **`in: <title>` still names the topic**, whatever pane was selected. **OWNER-STATED**.
 - **A box or agent send is always level 1.** The hub stores `is_parent = 1` for it; only a
-  browser chooses. Decided with the hub change (`69cdf97`).
+  browser chooses. Decided with the hub change (`69cdf97`). **Amended in 0.5.7
+  (FR-ML-013):** except a line on a channel topic's task, which is stored level 2
+  (`internal/hub/channels.go` `boxLevel`); a new task, a DM topic and the legacy lobby
+  task stay level 1.
 - **`is_parent` is hub metadata, not part of the signed envelope** — same reason as 032's
   edit marker: no signature covers a field the browser chooses.
 - **Double-click edits a level-1 card too.** **OWNER-STATED**. `82ddd5e` (another lane)
@@ -103,7 +106,7 @@ the same in-place editor as `e` (032).
 | id | requirement | status |
 |---|---|---|
 | FR-ML-001 | `messages.is_parent smallint NOT NULL`, 0 or 1; existing topic openers backfilled to 1 | Implemented — rdb `0034`, `0035` |
-| FR-ML-002 | Browser send frame carries `is_parent`; absent = 1, other values rejected; box sends stored as 1 | Implemented — `internal/hub/wui.go` `uiParent` |
+| FR-ML-002 | Browser send frame carries `is_parent`; absent = 1, other values rejected; box sends stored as 1 (except FR-ML-013) | Implemented — `internal/hub/wui.go` `uiParent` |
 | FR-ML-003 | The topic read and the live `message` frame return `is_parent` | Implemented — `69cdf97` |
 | FR-ML-004 | A send is level 2 into the open topic iff the right pane is open **and** was selected last; otherwise level 1 on a new task; `in:` wins | Implemented — `618851f` (`utils/pane-focus.mjs`, `utils/omnibox-topic.mjs`) |
 | FR-ML-005 | The middle list never shows an `is_parent = 0` line as a card; one card per topic, reading the opening line | Implemented — `66de3bc`, `778cf49` |
@@ -112,9 +115,9 @@ the same in-place editor as `e` (032).
 | FR-ML-008 | After a reload a topic keeps its card even when its newest page is all level 2 | Implemented — `618851f` (`listMessages`) |
 | FR-ML-009 | A new lobby topic reaches every open `/lobby` live, not only its sender | Implemented — `618851f` (`pages/lobby.vue`) |
 | FR-ML-010 | Double click opens the editor on the viewer's own message at either level | Implemented — `82ddd5e` + `618851f` |
-| FR-ML-011 | `/t/<task_id>` shows the level-2 line in the topic and adds no second card | Planned — not measured, `tasks.md` T014 |
+| FR-ML-011 | `/t/<task_id>` shows the level-2 line in the topic and adds no second card | Partial — code: `pages/t/[task_id].vue` sends level 2 (`isParentFlag({ paneVisible: true })`); the proof surface is missing, `tasks.md` T014 |
 | FR-ML-012 | A level-2 reply is stored in its topic root's channel, whatever client sent it untagged | Implemented — hub `7b6e0ae` (0.5.4); backfill rdb 0042 applied dev + prd, `tasks.md` T017 |
-| FR-ML-013 | An agent's line on a channel topic's task is a level-2 reply, as the same line from the WUI reply pane is | Implemented — hub 0.5.7 `boxLevel`; backfill rdb 0043, `tasks.md` T018 |
+| FR-ML-013 | An agent's line on a channel topic's task is a level-2 reply, as the same line from the WUI reply pane is | Partial — hub 0.5.7 `boxLevel` built; rdb 0043 backfill applied on dev/prd is not recorded, `tasks.md` T018 |
 
 ## Success criteria
 
@@ -124,4 +127,4 @@ the same in-place editor as `e` (032).
   per surface (`tasks.md` T011).
 - **SC-ML-2**: `tests/unit/parent-level.test.mjs` green in the unit runner.
 
-<!-- version: 0.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T17:40:00Z -->
+<!-- version: 0.1.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:25:00Z -->

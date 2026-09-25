@@ -121,6 +121,21 @@ spec correction.
   (lane CLE-3445), which consumes `./contracts/message-edit-v1.md` and invents no field
   names.
 
+## Open question (owner decision)
+
+- **OQ-ED-1 — deleting a message exists in code, against this spec.**
+  `DELETE /v1/messages/{msg_id}` is registered (`internal/hub/server.go:227`)
+  and handled by `internal/hub/edit.go` `handleDeleteMessage` (commit
+  `6109909d`, hub 0.3.13; test `TestDeleteMessage`): the author removes one of
+  their own browser-sent messages, the row is deleted rather than blanked, and
+  its deliveries and its `message_revisions` rows cascade with it
+  (`0026_message_revisions.sql`: `REFERENCES messages ... ON DELETE CASCADE`).
+  That conflicts with the Non-goal "Deleting a message. Not asked for." above
+  and with contract §7 ("Nothing in this table is ever UPDATEd or DELETEd
+  except by the retention sweep"). Either the owner accepts delete (then the
+  Non-goal, contract §7 and a new FR with tasks change), or the route is
+  withdrawn. Not decided here.
+
 ## Success criteria
 
 - SC-001: after an edit, the old body is readable from the database and the new body is
@@ -131,4 +146,4 @@ spec correction.
   (contract §8), and the intermediate state is safe because the old image reads and
   writes neither the new table nor the new columns.
 
-<!-- version: 0.2.1 · updated: 2026-09-23 · last-edit: 2026-09-23T07:23:09Z -->
+<!-- version: 0.2.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:20:00Z -->

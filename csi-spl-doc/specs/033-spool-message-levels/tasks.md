@@ -115,7 +115,8 @@ FR-ML-010.
 
 **Status**: Implemented — `618851f`,
 `csi-spl-wui/tests/unit/parent-level.test.mjs`: 41 cases (`node --test` →
-`# pass 41`), covering the send rule per tab, every wire leg (optimistic row,
+`# pass 41` at `618851f`; statically `grep -cE '\b(test|it)\(' tests/unit/parent-level.test.mjs`
+-> 30 call sites, 4 of them inside `for` loops of 4/3/4/4 tabs or pages, so 41 at runtime), covering the send rule per tab, every wire leg (optimistic row,
 ack, live frame, view read), the middle list, the right pane, topics home,
 the reload read, test-02/test-03, the shell listener, and the lobby follow.
 Unit runner at `618851f`: all 73 files pass; `nuxt typecheck` exit 0 (control:
@@ -178,6 +179,8 @@ ad hoc" forbids. Add `csi-spl-orc/src/bash/run/spl-msg-wipe.func.sh`
 rolled-back transaction, backup required first, `TENANT_ID` optional) plus its
 test.
 
+SC-ML-1 (clean data for the proof round).
+
 ## T014 — `/t/<task_id>`
 
 **Status**: Planned.
@@ -194,6 +197,8 @@ the channel feed. FR-ML-011.
 T010 needs a member password, so it runs by hand today. Wire it into the
 deploy workflow with the m3-e2e member's secret, so a regression on either
 env is caught by the deploy, not by the owner.
+
+SC-ML-1.
 
 ## T016 — the Open button: middle cards only, opens the thread pane
 
@@ -214,6 +219,8 @@ unchanged. Tests: `icon-buttons.test.mjs` (4 cases); live proof step 2e.
 Measured `08cfef4`: dev 93/93; prd 78/79 — the DM surface aborted once on
 `Failed to fetch` in the proof's own hub read, then passed on 2 of 2
 re-runs (n=3; transient, not the UI).
+
+Needs FR: no FR-ML covers the Open button.
 
 ## T017 — a reply lives in its topic's channel
 
@@ -251,10 +258,14 @@ it - dev lobby 0/31, first-channel 0/40, tasks 0/26; prd lobby 0/9, tasks
 0/5, orange 0/1, spool-hub-devel 0/5. Only DM-rooted replies stay NULL (dev
 51, prd 89), by design.
 
+FR-ML-012.
+
 ## T018 — an agent's thread answer is a reply, not a new post
 
-**Status**: Implemented — hub 0.5.7 (CLE-34978); backfill
-`0043_messages_box_reply_level_backfill.sql`.
+**Status**: Partial — hub 0.5.7 (CLE-34978) `boxLevel` is built; backfill
+`0043_messages_box_reply_level_backfill.sql` is in the tree, but no
+`do_spl_db_bootstrap DRY_RUN=0` run on dev or prd is recorded (deploys do not
+migrate). Implemented once that run is recorded here.
 
 Measured by CLE-100 on prd (17:29Z, thread `cbad4f2a` in #spool-hub-devel):
 every agent reply there was stored `is_parent` 1, the owner's WUI replies 0.
@@ -272,4 +283,6 @@ controls; red on both cases with the old constant 1),
 `TestBoxReplyLevelBackfill` (1 case + 5 controls; red with the UPDATE
 neutered).
 
-<!-- version: 0.2.2 · updated: 2026-09-25 · last-edit: 2026-09-25T17:45:00Z -->
+FR-ML-013.
+
+<!-- version: 0.2.3 · updated: 2026-09-25 · last-edit: 2026-09-25T18:25:00Z -->

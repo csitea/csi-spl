@@ -367,6 +367,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Elimină {name}",
     "attach": "atașează",
+    "attach_nothing": "Niciun fișier atașat: fereastra de fișiere s-a închis fără fișier. Selectați fișierul și apăsați Deschide (dublu clic îl poate pierde) sau trageți fișierul pe pagină.",
     "resize": "Redimensionează",
     "send": "Trimite",
     "sending": "Se trimite…",

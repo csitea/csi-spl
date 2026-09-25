@@ -367,6 +367,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Noņemt {name}",
     "attach": "pievienot",
+    "attach_nothing": "Fails nav pievienots: failu logs aizvērās bez faila. Atlasiet failu un nospiediet “Atvērt” (dubultklikšķis to var pazaudēt) vai velciet failu uz lapu.",
     "resize": "Mainīt izmēru",
     "send": "Sūtīt",
     "sending": "Sūta…",

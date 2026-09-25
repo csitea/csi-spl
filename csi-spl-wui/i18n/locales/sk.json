@@ -367,6 +367,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Odstrániť {name}",
     "attach": "priložiť",
+    "attach_nothing": "Nepripojil sa žiadny súbor: okno so súbormi sa zavrelo bez súboru. Označte súbor a stlačte Otvoriť (dvojklik ho môže stratiť) alebo súbor presuňte na stránku.",
     "resize": "Zmeniť veľkosť",
     "send": "Odoslať",
     "sending": "Odosiela sa…",

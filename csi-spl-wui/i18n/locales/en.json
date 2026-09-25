@@ -367,6 +367,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Remove {name}",
     "attach": "attach",
+    "attach_nothing": "No file attached: the file dialog closed without one. Select the file and press Open (a double-click can lose it), or drag the file onto the page.",
     "resize": "Resize the omnibox",
     "send": "Send",
     "sending": "Sending…",

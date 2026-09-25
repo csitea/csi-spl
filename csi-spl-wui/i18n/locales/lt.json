@@ -367,6 +367,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Pašalinti {name}",
     "attach": "pridėti",
+    "attach_nothing": "Failas nepridėtas: failų langas užsidarė be failo. Pažymėkite failą ir spauskite „Atidaryti“ (dvigubas spustelėjimas gali jį prarasti) arba nutempkite failą į puslapį.",
     "resize": "Keisti dydį",
     "send": "Siųsti",
     "sending": "Siunčiama…",

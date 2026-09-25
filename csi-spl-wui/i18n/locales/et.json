@@ -367,6 +367,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Eemalda {name}",
     "attach": "manusta",
+    "attach_nothing": "Faili ei lisatud: failiaken sulgus ilma failita. Vali fail ja vajuta Ava (topeltklõps võib selle kaotada) või lohista fail lehele.",
     "resize": "Muuda suurust",
     "send": "Saada",
     "sending": "Saatmine…",

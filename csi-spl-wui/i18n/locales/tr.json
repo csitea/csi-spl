@@ -367,6 +367,7 @@
     "file_bytes": "{n} B",
     "remove_file": "{name} öğesini kaldır",
     "attach": "ekle",
+    "attach_nothing": "Dosya eklenmedi: dosya penceresi dosya olmadan kapandı. Dosyayı seçip Aç'a basın (çift tıklama onu kaybedebilir) ya da dosyayı sayfaya sürükleyin.",
     "resize": "Boyutu değiştir",
     "send": "Gönder",
     "sending": "Gönderiliyor…",

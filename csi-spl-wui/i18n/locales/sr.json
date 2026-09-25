@@ -367,6 +367,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Ukloni {name}",
     "attach": "priloži",
+    "attach_nothing": "Није приложена датотека: прозор за датотеке се затворио без датотеке. Изаберите датотеку и притисните „Отвори“ (двоклик може да је изгуби) или превуците датотеку на страницу.",
     "resize": "Promeni veličinu",
     "send": "Pošalji",
     "sending": "Slanje…",

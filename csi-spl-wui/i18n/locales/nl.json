@@ -367,6 +367,7 @@
     "file_bytes": "{n} B",
     "remove_file": "{name} verwijderen",
     "attach": "bijvoegen",
+    "attach_nothing": "Geen bestand bijgevoegd: het bestandsvenster sloot zonder bestand. Selecteer het bestand en klik op Openen (een dubbelklik kan het kwijtraken), of sleep het bestand naar de pagina.",
     "resize": "Grootte wijzigen",
     "send": "Versturen",
     "sending": "Versturen…",

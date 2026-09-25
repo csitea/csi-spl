@@ -367,6 +367,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Poista {name}",
     "attach": "liitä",
+    "attach_nothing": "Tiedostoa ei liitetty: tiedostoikkuna sulkeutui ilman tiedostoa. Valitse tiedosto ja paina Avaa (kaksoisnapsautus voi hukata sen) tai vedä tiedosto sivulle.",
     "resize": "Muuta kirjoituskentän kokoa",
     "send": "Lähetä",
     "sending": "Lähetetään…",

@@ -10,6 +10,7 @@
 //                       hub stores the line with both refs, the picture card
 //                       previews, the PDF card shows its type icon, both download
 //   L2  topic open on the right, the reader clicked in that pane -> the same
+//   and first, a file dialog closed with nothing shows the no-file notice
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
 //     [TENANT=t1] [CHANNEL=tasks] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home] \
@@ -159,6 +160,7 @@ async function sendWithFiles(p, text, files, tag) {
   step(`${tag} both picked files show as chips`, files.names.every((n) => chips.some((c) => c.includes(n))), { chips })
   const thumb = await p.$('.file-chips img[data-test=composer-file-thumb]')
   step(`${tag} the picture chip has a thumbnail`, !!thumb, {})
+  step(`${tag} a pick clears the no-file notice`, !(await p.$('[data-testid=attach-nothing]')), {})
   await p.click('[data-testid=send]')
   const end = Date.now() + 15000
   while (posts.length < 2 && Date.now() < end) await sleep(250)
@@ -219,6 +221,17 @@ async function surfaceRun(p, surface) {
   await p.goto(BASE + pathFor(surface), { waitUntil: 'networkidle2' })
   await sleep(1500)
   await closePane(p)
+
+  /* the dialog closed with nothing (owner 2026-09-25: a double-click in the
+     GTK dialog lost the pick): the composer says so instead of staying silent */
+  await front(p)
+  const [empty] = await Promise.all([
+    p.waitForFileChooser({ timeout: 8000 }).catch(() => null),
+    p.click('[data-testid=attach]'),
+  ])
+  if (empty) await empty.cancel()
+  const notice = await p.waitForSelector('[data-testid=attach-nothing]', { timeout: 4000 }).then(() => true, () => false)
+  step(tag('an empty file dialog shows the no-file notice'), !!empty && notice, {})
 
   /* L1: pane closed */
   const t1 = `attach L1 ${surface} ${run}`

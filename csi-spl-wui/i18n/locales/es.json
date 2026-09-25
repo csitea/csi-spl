@@ -367,6 +367,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Quitar {name}",
     "attach": "adjuntar",
+    "attach_nothing": "No se adjuntó ningún archivo: el diálogo de archivos se cerró sin ninguno. Selecciona el archivo y pulsa Abrir (un doble clic puede perderlo), o arrastra el archivo a la página.",
     "resize": "Cambiar el tamaño",
     "send": "Enviar",
     "sending": "Enviando…",

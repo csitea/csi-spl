@@ -367,6 +367,7 @@
     "file_bytes": "{n} B",
     "remove_file": "Usuń {name}",
     "attach": "załącz",
+    "attach_nothing": "Nie dołączono pliku: okno wyboru pliku zamknęło się bez pliku. Zaznacz plik i kliknij Otwórz (dwukrotne kliknięcie może go zgubić) albo przeciągnij plik na stronę.",
     "resize": "Zmień rozmiar",
     "send": "Wyślij",
     "sending": "Wysyłanie…",

@@ -299,6 +299,7 @@
     "loading": "Зареждане на Spool…"
   },
   "sidebar": {
+    "tenant": "Тенант",
     "channels": "Канали",
     "direct_messages": "Лични съобщения",
     "new_channel_placeholder": "нов канал",

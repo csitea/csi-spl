@@ -299,6 +299,7 @@
     "loading": "Učitavanje Spool…"
   },
   "sidebar": {
+    "tenant": "Zakupac",
     "channels": "Kanali",
     "direct_messages": "Direktne poruke",
     "new_channel_placeholder": "novi kanal",

@@ -299,6 +299,7 @@
     "loading": "Ielādē Spool…"
   },
   "sidebar": {
+    "tenant": "Nomnieks",
     "channels": "Kanāli",
     "direct_messages": "Tiešās ziņas",
     "new_channel_placeholder": "jauns kanāls",

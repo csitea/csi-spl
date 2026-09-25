@@ -113,11 +113,20 @@ html.pane-dragging * {
   min-height: 0;
   background: var(--color-sidebar);
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: stretch;
   padding: 0;
   flex-shrink: 0;
   overflow: clip;
+}
+/* The icon strip and the list stay a row. The tenant drop box sits above them. */
+.sidebar-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
 }
 /* Icon tabs for the two lists. 5vw is 5% of the viewport; 48px keeps one
    glyph from growing into a column on a wide screen. min-width: 0 stops a

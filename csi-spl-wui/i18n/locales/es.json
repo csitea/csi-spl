@@ -299,6 +299,7 @@
     "loading": "Cargando Spool…"
   },
   "sidebar": {
+    "tenant": "Inquilino",
     "channels": "Canales",
     "direct_messages": "Mensajes directos",
     "new_channel_placeholder": "nuevo canal",

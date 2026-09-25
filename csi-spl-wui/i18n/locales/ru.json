@@ -299,6 +299,7 @@
     "loading": "Загрузка Spool…"
   },
   "sidebar": {
+    "tenant": "Тенант",
     "channels": "Каналы",
     "direct_messages": "Личные сообщения",
     "new_channel_placeholder": "новый канал",

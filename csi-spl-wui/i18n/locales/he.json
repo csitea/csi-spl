@@ -299,6 +299,7 @@
     "loading": "טוען את Spool…"
   },
   "sidebar": {
+    "tenant": "טננט",
     "channels": "ערוצים",
     "direct_messages": "הודעות ישירות",
     "new_channel_placeholder": "ערוץ חדש",

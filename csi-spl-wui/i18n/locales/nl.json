@@ -299,6 +299,7 @@
     "loading": "Spool laden…"
   },
   "sidebar": {
+    "tenant": "Huurder",
     "channels": "Kanalen",
     "direct_messages": "Directe berichten",
     "new_channel_placeholder": "nieuw kanaal",

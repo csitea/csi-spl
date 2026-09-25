@@ -299,6 +299,7 @@
     "loading": "Spool yükleniyor…"
   },
   "sidebar": {
+    "tenant": "Kiracı",
     "channels": "Kanallar",
     "direct_messages": "Doğrudan mesajlar",
     "new_channel_placeholder": "yeni kanal",

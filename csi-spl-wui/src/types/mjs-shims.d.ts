@@ -302,6 +302,10 @@ declare module '~/utils/tenant.mjs' {
   export function apiBaseFor(template: string, tenant: string): { base: string, error: string }
 }
 
+declare module '~/utils/tenant-switcher.mjs' {
+  export function fixedTenantOption(claims: unknown, configured?: unknown): { id: string, label: string }
+}
+
 declare module '~/utils/view-api.mjs' {
   export const BROWSER_BOX: string
   export function rosterFromView(data: unknown): { roster: Record<string, string[]>, online: string[] }

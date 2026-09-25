@@ -299,6 +299,7 @@
     "loading": "Načítava sa Spool…"
   },
   "sidebar": {
+    "tenant": "Nájomník",
     "channels": "Kanály",
     "direct_messages": "Priame správy",
     "new_channel_placeholder": "nový kanál",

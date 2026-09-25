@@ -1,5 +1,20 @@
 <template>
   <nav class="sidebar">
+    <!-- Fixed tenant drop box, above the direct-messages icon. One option:
+         the signed-in session's tenant. Choosing it changes nothing. -->
+    <label class="tenant-switcher" data-testid="tenant-switcher">
+      <span class="tenant-switcher__label">{{ t('sidebar.tenant') }}</span>
+      <select
+        class="tenant-switcher__select"
+        data-testid="tenant-switcher-select"
+        :value="tenantOption.id"
+        :title="tenantOptionText"
+        @change="keepTenant"
+      >
+        <option :value="tenantOption.id">{{ tenantOptionText }}</option>
+      </select>
+    </label>
+    <div class="sidebar-main">
     <!-- Top to bottom: direct messages, channels, topics, flow.
          Icons only; each name lives on aria-label and title. -->
     <div
@@ -400,6 +415,7 @@
       <p id="app-version" class="version-stamp" :title="versionTitle || undefined" data-test="app-version">{{ versionText }}</p>
     </div>
     </div>
+    </div>
     <ChannelPropertiesDialog
       v-model:open="propertiesOpen"
       :channel-id="propertiesChannel.channel_id"
@@ -431,6 +447,7 @@ import { flowRows, SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { fixedTenantOption } from '~/utils/tenant-switcher.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow'
@@ -490,6 +507,12 @@ const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
 const notes = useNotificationStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
+const tenantOption = computed(() => fixedTenantOption(session.claims, api.tenant))
+const tenantOptionText = computed(() => tenantOption.value.label || t('sidebar.tenant'))
+function keepTenant(ev: Event) {
+  const el = ev.target
+  if (el instanceof HTMLSelectElement) el.value = tenantOption.value.id
+}
 const localePath = useLocalePath()
 const railLabel = computed(() => RAIL.map((item) => t(item.labelKey)).join(', '))
 function sectionUnread(prefix: string) {
@@ -974,5 +997,46 @@ async function onCreate() {
 .nav-row--drop-after { box-shadow: inset 0 -2px 0 var(--color-accent); }
 @media (max-width: 800px) {
   .nav-row > .nav-item { padding-inline-end: 28px; }
+}
+/* Full-width drop box above the icon strip. min-width: 0 lets the select
+   shrink inside the 72px rail instead of pushing the page sideways. */
+.tenant-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid var(--color-border);
+}
+.tenant-switcher__label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tenant-switcher__select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: var(--tap);
+  padding: 4px 6px;
+  background: var(--color-surface);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+@media (max-width: 800px) {
+  .tenant-switcher { padding: 4px; }
 }
 </style>

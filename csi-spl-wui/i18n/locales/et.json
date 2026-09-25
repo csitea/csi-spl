@@ -299,6 +299,7 @@
     "loading": "Spooli laadimine…"
   },
   "sidebar": {
+    "tenant": "Rentnik",
     "channels": "Kanalid",
     "direct_messages": "Otsesõnumid",
     "new_channel_placeholder": "uus kanal",

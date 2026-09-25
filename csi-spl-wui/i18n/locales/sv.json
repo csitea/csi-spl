@@ -299,6 +299,7 @@
     "loading": "Laddar Spool…"
   },
   "sidebar": {
+    "tenant": "Hyresgäst",
     "channels": "Kanaler",
     "direct_messages": "Direktmeddelanden",
     "new_channel_placeholder": "ny kanal",

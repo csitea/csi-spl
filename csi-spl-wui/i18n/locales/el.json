@@ -299,6 +299,7 @@
     "loading": "Φόρτωση του Spool…"
   },
   "sidebar": {
+    "tenant": "Μισθωτής",
     "channels": "Κανάλια",
     "direct_messages": "Άμεσα μηνύματα",
     "new_channel_placeholder": "νέο κανάλι",

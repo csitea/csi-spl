@@ -299,6 +299,7 @@
     "loading": "Ładowanie Spool…"
   },
   "sidebar": {
+    "tenant": "Dzierżawa",
     "channels": "Kanały",
     "direct_messages": "Wiadomości bezpośrednie",
     "new_channel_placeholder": "nowy kanał",

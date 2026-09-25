@@ -299,6 +299,7 @@
     "loading": "Завантаження Spool…"
   },
   "sidebar": {
+    "tenant": "Орендар",
     "channels": "Канали",
     "direct_messages": "Особисті повідомлення",
     "new_channel_placeholder": "новий канал",

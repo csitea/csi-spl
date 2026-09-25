@@ -299,6 +299,7 @@
     "loading": "Loading Spool…"
   },
   "sidebar": {
+    "tenant": "Tenant",
     "channels": "Channels",
     "direct_messages": "Direct messages",
     "new_channel_placeholder": "new channel",

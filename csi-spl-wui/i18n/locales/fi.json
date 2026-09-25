@@ -299,6 +299,7 @@
     "loading": "Ladataan Spoolia…"
   },
   "sidebar": {
+    "tenant": "Vuokralainen",
     "channels": "Kanavat",
     "direct_messages": "Yksityisviestit",
     "new_channel_placeholder": "uusi kanava",

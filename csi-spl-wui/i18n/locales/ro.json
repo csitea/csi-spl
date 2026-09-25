@@ -299,6 +299,7 @@
     "loading": "Se încarcă Spool…"
   },
   "sidebar": {
+    "tenant": "Chiriaș",
     "channels": "Canale",
     "direct_messages": "Mesaje directe",
     "new_channel_placeholder": "canal nou",

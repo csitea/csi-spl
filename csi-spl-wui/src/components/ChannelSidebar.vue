@@ -16,7 +16,7 @@
         :aria-busy="switching ? 'true' : undefined"
         @change="onTenantChange"
       >
-        <option v-for="o in tenantBox.options" :key="o.id" :value="o.id">{{ o.label }}</option>
+        <option v-for="o in tenantBox.options" :key="o.id" :value="o.id">{{ o.label || t('sidebar.tenant') }}</option>
       </select>
       <span id="tenant-switcher-hint" class="sr-only" data-testid="tenant-switcher-hint">{{ tenantHintText }}</span>
     </div>

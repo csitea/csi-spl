@@ -150,6 +150,10 @@ describe('the drop box sits above the direct-messages icon', () => {
     assert.ok(box > 0 && rail > box && heading > rail)
     assert.equal(vue.split('<option').length - 1, 1)
     assert.match(vue, /tenantSwitchOptions\(session\.claims, api\.tenant\)/)
+    // CLE-555 red on e443566: with no session and no configured tenant (the CI
+    // mock bundle) the one row had an empty label and rendered as a blank
+    // option. The row text falls back to the caption, as before e443566.
+    assert.match(vue, /<option v-for="o in tenantBox\.options"[^>]*>\{\{ o\.label \|\| t\('sidebar\.tenant'\) \}\}<\/option>/)
     assert.match(vue, /data-testid="tenant-switcher-select"/)
     assert.doesNotMatch(vue.slice(box, rail), /disabled/)
     const fn = vue.slice(vue.indexOf('async function onTenantChange'))

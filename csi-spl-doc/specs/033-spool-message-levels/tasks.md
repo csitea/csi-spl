@@ -26,7 +26,8 @@ FR-ML-001.
 on dev and prd, 2026-09-25).
 
 `internal/hub/wui.go` `uiParent`: an absent field is 1, 0 and 1 are stored,
-any other number answers `bad_json`. A box send is stored as 1. The topic read
+any other number answers `bad_json`. A box send is stored as 1 (since
+0.5.7: 0 on a channel topic's task, T018). The topic read
 (`internal/hub/view.go` `viewMsg.IsParent`) and the live frame carry it; the
 signed envelope does not.
 
@@ -216,10 +217,10 @@ re-runs (n=3; transient, not the UI).
 
 ## T017 — a reply lives in its topic's channel
 
-**Status**: Partial — hub `7b6e0ae` (CLE-34977, 0.5.4) served on dev and prd
-(`do_check_deploy_lag`: served `9c24bad5`, 2026-09-25 17:16Z); backfill
-`0042_messages_reply_channel_backfill.sql` (CLE-34978) written, not yet
-applied.
+**Status**: Implemented — hub `7b6e0ae` (CLE-34977, 0.5.4) served on dev and
+prd (`do_check_deploy_lag`: served `9c24bad5`, 2026-09-25 17:16Z); backfill
+`0042_messages_reply_channel_backfill.sql` (`8cb1096`) applied with
+`do_spl_db_bootstrap DRY_RUN=0` on dev 17:27Z and prd 17:28Z.
 
 Owner, 2026-09-25: "Lobby replies with no channel: a thread reply under a
 lobby topic is saved with no channel, so other members may not see it."
@@ -245,4 +246,30 @@ replies carry the channel (newest 17:12Z dev / 17:09Z prd).
 picks; DM roots stay NULL. Test: `TestReplyChannelBackfill` (6 cases + 2
 agreement checks with `TopicChannel`); goes red with the UPDATE neutered.
 
-<!-- version: 0.2.1 · updated: 2026-09-25 · last-edit: 2026-09-25T17:40:00Z -->
+After, same query, n=1 per env: every reply under a channel root carries
+it - dev lobby 0/31, first-channel 0/40, tasks 0/26; prd lobby 0/9, tasks
+0/5, orange 0/1, spool-hub-devel 0/5. Only DM-rooted replies stay NULL (dev
+51, prd 89), by design.
+
+## T018 — an agent's thread answer is a reply, not a new post
+
+**Status**: Implemented — hub 0.5.7 (CLE-34978); backfill
+`0043_messages_box_reply_level_backfill.sql`.
+
+Measured by CLE-100 on prd (17:29Z, thread `cbad4f2a` in #spool-hub-devel):
+every agent reply there was stored `is_parent` 1, the owner's WUI replies 0.
+Measured again 17:35Z, non-root rows under a channel topic, n=1 per env: box
+dev 8 / prd 23, all 1; browser dev 97 / prd 20, all 0. Cause: a box frame
+carries no level and `onSend` stored every box line as 1 (T002).
+
+`internal/hub/channels.go` `boxLevel`: a box line on a task whose topic root
+(`TopicChannel`) is in a channel is stored 0; a new task, a DM topic and the
+legacy lobby task stay 1. So a 038 channel post (a fresh task) is still a
+new level-1 topic, and `do_spl_desk_reply` into a channel thread is a reply.
+`0043` moves the stored box rows the same way (root, DM topics, browser rows
+and the lobby task untouched). Tests: `TestBoxReplyLevel` (2 cases + 3
+controls; red on both cases with the old constant 1),
+`TestBoxReplyLevelBackfill` (1 case + 5 controls; red with the UPDATE
+neutered).
+
+<!-- version: 0.2.2 · updated: 2026-09-25 · last-edit: 2026-09-25T17:45:00Z -->

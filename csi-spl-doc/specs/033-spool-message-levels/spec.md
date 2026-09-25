@@ -113,7 +113,8 @@ the same in-place editor as `e` (032).
 | FR-ML-009 | A new lobby topic reaches every open `/lobby` live, not only its sender | Implemented — `618851f` (`pages/lobby.vue`) |
 | FR-ML-010 | Double click opens the editor on the viewer's own message at either level | Implemented — `82ddd5e` + `618851f` |
 | FR-ML-011 | `/t/<task_id>` shows the level-2 line in the topic and adds no second card | Planned — not measured, `tasks.md` T014 |
-| FR-ML-012 | A level-2 reply is stored in its topic root's channel, whatever client sent it untagged | Partial — hub `7b6e0ae` (0.5.4); backfill rdb 0042, `tasks.md` T017 |
+| FR-ML-012 | A level-2 reply is stored in its topic root's channel, whatever client sent it untagged | Implemented — hub `7b6e0ae` (0.5.4); backfill rdb 0042 applied dev + prd, `tasks.md` T017 |
+| FR-ML-013 | An agent's line on a channel topic's task is a level-2 reply, as the same line from the WUI reply pane is | Implemented — hub 0.5.7 `boxLevel`; backfill rdb 0043, `tasks.md` T018 |
 
 ## Success criteria
 

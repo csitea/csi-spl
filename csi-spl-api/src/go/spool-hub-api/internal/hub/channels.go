@@ -78,6 +78,29 @@ func (s *Server) channelOf(ctx context.Context, tenant, channel, taskID string) 
 	return c
 }
 
+// boxLevel is the is_parent a box send is stored with. A box frame carries
+// no level, so every agent line used to be stored as 1 - an agent's answer in
+// a channel thread then sat in the channel feed as a new post, while the
+// same answer typed in the WUI reply pane was a reply (CLE-34978, measured
+// 2026-09-25: every non-root box row under a channel topic was 1, dev 8 prd
+// 23; every browser one 0). A line on a task whose topic root is in a channel
+// is a reply; a new task, a DM and the legacy lobby task stay 1. A lookup
+// error keeps the old answer rather than failing the send.
+func (s *Server) boxLevel(ctx context.Context, tenant, taskID string) int {
+	if s.o.LobbyTaskID != "" && taskID == s.o.LobbyTaskID {
+		return 1
+	}
+	c, err := s.o.Store.TopicChannel(ctx, tenant, taskID)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("task_id", taskID).Msg("topic channel")
+		return 1
+	}
+	if c == "" {
+		return 1
+	}
+	return 0
+}
+
 // storedChannel is the messages.channel of an envelope.
 func (s *Server) storedChannel(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message) string {
 	return s.channelOf(ctx, tenant, env.Channel, m.TaskID)

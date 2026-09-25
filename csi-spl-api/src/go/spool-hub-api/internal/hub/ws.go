@@ -493,7 +493,7 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 			return
 		}
 	}
-	r, err := s.commitRowTyped(ctx, x.tenant, env, m, 1, f.TypedBy)
+	r, err := s.commitRowTyped(ctx, x.tenant, env, m, s.boxLevel(ctx, x.tenant, m.TaskID), f.TypedBy)
 	delivery := r.delivery
 	if errors.Is(err, store.ErrConflict) {
 		x.fail(ctx, id, "conflict_msg", http.StatusConflict, "msg_id exists with a different envelope")

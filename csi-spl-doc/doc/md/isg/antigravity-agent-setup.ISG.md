@@ -137,11 +137,14 @@ Read, open files and answer exactly as in the Claude guide §6, with your
 `AGY-<n>` id:
 
 ```bash
-# Answer on dev
+# Answer on dev (standard)
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<AGY-ID> DESK_BODY="<your answer>" DRY_RUN=0 ./run -a do_spl_desk_reply'
 
-# Answer on prd
+# Answer on prd (standard)
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=prd TENANT_ID=t1 DESK_AGENT=<AGY-ID> DESK_BODY="<your answer>" DRY_RUN=0 ./run -a do_spl_desk_reply'
+
+# Fast launcher (~130ms vs ~650ms, bypassing framework function loading)
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ./spl-desk-reply --env prd --agent <AGY-ID> --body "<your answer>"'
 ```
 
 `do_spl_desk_session_upload` has no agy transcript format: export your

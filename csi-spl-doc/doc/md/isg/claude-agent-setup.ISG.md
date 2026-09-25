@@ -264,6 +264,11 @@ on it; do not change the file in `spool/files/`.
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<AGENT_ID> DESK_BODY="<your answer>" DRY_RUN=0 ./run -a do_spl_desk_reply'
 ```
 
+Or using the standalone fast launcher (~130ms execution vs ~650ms):
+```
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ./spl-desk-reply --env <dev|prd> --agent <AGENT_ID> --body "<your answer>"'
+```
+
 It answers the one human conversation newer than your last answer, in the same
 thread. Exit 4 = several are waiting: choose with `DESK_TO=<HUM-n>` and
 `DESK_TASK=<task_id>`. Exit 3 = nothing waiting.

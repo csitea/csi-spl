@@ -205,7 +205,8 @@
       "pending": "Onaylanıyor…",
       "ok": "E-postanız onaylandı — giriş yapın.",
       "missing": "Bu bağlantıda belirteç yok — e-postadaki bağlantıyı yeniden açın.",
-      "expired_hint": "Yeni bir bağlantı almak için e-posta ve parolanızla yeniden giriş yapın."
+      "expired_hint": "Yeni bir bağlantı almak için e-posta ve parolanızla yeniden giriş yapın.",
+      "password": "Kayıt olurken belirlediğiniz parola"
     },
     "reset": {
       "title": "Yeni parola",

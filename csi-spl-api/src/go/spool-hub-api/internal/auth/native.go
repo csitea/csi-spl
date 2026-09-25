@@ -150,13 +150,17 @@ func normEmail(s string) string {
 	return s
 }
 
+// maxPasswordLen bounds every password the hub hashes or checks: argon2 on
+// an unbounded input is a CPU lever.
+const maxPasswordLen = 1024
+
 func (n *native) passwordOK(w http.ResponseWriter, pw string) bool {
 	if len(pw) < n.cfg.PasswordMinLen {
 		writeErr(w, http.StatusBadRequest, "bad_request", "password_too_short: min "+strconv.Itoa(n.cfg.PasswordMinLen))
 		return false
 	}
-	if len(pw) > 1024 {
-		writeErr(w, http.StatusBadRequest, "bad_request", "password_too_long: max 1024")
+	if len(pw) > maxPasswordLen {
+		writeErr(w, http.StatusBadRequest, "bad_request", "password_too_long: max "+strconv.Itoa(maxPasswordLen))
 		return false
 	}
 	return true
@@ -355,11 +359,21 @@ func (n *native) handleVerify(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, ErrTokVerifyInvalid, "token")
 		return
 	}
+	// The clicker confirms the password the link was issued for: the mail
+	// proves the mailbox, not who chose the password (CLE-34986).
+	if req.Password == "" || len(req.Password) > maxPasswordLen {
+		writeErr(w, http.StatusUnauthorized, ErrTokInvalidCredentials, "password required")
+		return
+	}
 	ctx, cancel := n.ctx(r)
 	defer cancel()
-	switch err := n.store.ConsumeVerification(ctx, tokenHash(t), n.h.now()); {
+	accept := func(pwHash string) bool { return VerifyPassword(pwHash, req.Password) == nil }
+	switch err := n.store.ConsumeVerification(ctx, tokenHash(t), n.h.now(), accept); {
 	case err == nil:
 		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, ErrVerifyPasswordMismatch):
+		n.log.Info().Msg("auth.native_verify password mismatch")
+		writeErr(w, http.StatusUnauthorized, ErrTokInvalidCredentials, "password does not match")
 	case errors.Is(err, ErrTokenExpired):
 		writeErr(w, http.StatusGone, ErrTokVerifyExpired, "token expired")
 	case errors.Is(err, ErrTokenInvalid):

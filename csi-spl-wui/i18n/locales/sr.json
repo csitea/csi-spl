@@ -205,7 +205,8 @@
       "pending": "Potvrđivanje…",
       "ok": "Vaš imejl je potvrđen — prijavite se.",
       "missing": "Ovaj link nema token — ponovo otvorite link iz imejla.",
-      "expired_hint": "Prijavite se ponovo imejlom i lozinkom da biste dobili novi link."
+      "expired_hint": "Prijavite se ponovo imejlom i lozinkom da biste dobili novi link.",
+      "password": "Lozinka kojom ste se registrovali"
     },
     "reset": {
       "title": "Nova lozinka",

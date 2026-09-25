@@ -205,7 +205,8 @@
       "pending": "Confirmando…",
       "ok": "Tu correo está confirmado — inicia sesión.",
       "missing": "Este enlace no incluye ningún token — vuelve a abrir el enlace del correo.",
-      "expired_hint": "Vuelve a iniciar sesión con tu correo y contraseña para recibir un enlace nuevo."
+      "expired_hint": "Vuelve a iniciar sesión con tu correo y contraseña para recibir un enlace nuevo.",
+      "password": "La contraseña con la que te registraste"
     },
     "reset": {
       "title": "Nueva contraseña",

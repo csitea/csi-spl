@@ -205,7 +205,8 @@
       "pending": "Kinnitamine…",
       "ok": "Sinu e-post on kinnitatud — logi sisse.",
       "missing": "Selles lingis pole tokenit — ava link e-kirjast uuesti.",
-      "expired_hint": "Uue lingi saamiseks logi uuesti sisse oma e-posti ja parooliga."
+      "expired_hint": "Uue lingi saamiseks logi uuesti sisse oma e-posti ja parooliga.",
+      "password": "Parool, millega registreerusid"
     },
     "reset": {
       "title": "Uus parool",

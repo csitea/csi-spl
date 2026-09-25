@@ -205,7 +205,8 @@
       "pending": "Vahvistetaan…",
       "ok": "Sähköpostiosoitteesi on vahvistettu — kirjaudu sisään.",
       "missing": "Linkissä ei ole tunnistetta — avaa sähköpostin linkki uudelleen.",
-      "expired_hint": "Kirjaudu uudelleen sähköpostillasi ja salasanallasi saadaksesi uuden linkin."
+      "expired_hint": "Kirjaudu uudelleen sähköpostillasi ja salasanallasi saadaksesi uuden linkin.",
+      "password": "Salasana, jolla rekisteröidyit"
     },
     "reset": {
       "title": "Uusi salasana",

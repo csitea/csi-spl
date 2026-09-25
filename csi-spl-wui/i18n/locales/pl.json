@@ -205,7 +205,8 @@
       "pending": "Potwierdzanie…",
       "ok": "Twój e-mail jest potwierdzony — zaloguj się.",
       "missing": "Ten link nie zawiera tokenu — otwórz ponownie link z e-maila.",
-      "expired_hint": "Zaloguj się ponownie e-mailem i hasłem, aby otrzymać nowy link."
+      "expired_hint": "Zaloguj się ponownie e-mailem i hasłem, aby otrzymać nowy link.",
+      "password": "Hasło podane przy rejestracji"
     },
     "reset": {
       "title": "Nowe hasło",

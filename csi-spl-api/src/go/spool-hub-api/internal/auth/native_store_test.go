@@ -64,6 +64,7 @@ func TestCredStoreContract(t *testing.T) {
 			if err != nil || c.PasswordHash != h1 || c.Verified() || c.Locale != "fi" {
 				t.Fatalf("get: %+v %v", c, err)
 			}
+			yes := func(string) bool { return true }
 			base := int(now.UnixNano()%1e6) * 100
 			if name == "postgres" {
 				base = int(time.Now().UnixNano() % 1e12)
@@ -81,10 +82,10 @@ func TestCredStoreContract(t *testing.T) {
 			if ok, err := st.IssueToken(ctx, auth.TokenVerify, subj, th(base+3), h2, t2, t2.Add(time.Hour), floor); !ok || err != nil {
 				t.Fatalf("issue 3: %v %v", ok, err)
 			}
-			if err := st.ConsumeVerification(ctx, th(base+1), t2); !errors.Is(err, auth.ErrTokenInvalid) {
+			if err := st.ConsumeVerification(ctx, th(base+1), t2, yes); !errors.Is(err, auth.ErrTokenInvalid) {
 				t.Fatalf("older link after a newer one: %v", err)
 			}
-			if err := st.ConsumeVerification(ctx, th(base+3), t2.Add(2*time.Hour)); !errors.Is(err, auth.ErrTokenExpired) {
+			if err := st.ConsumeVerification(ctx, th(base+3), t2.Add(2*time.Hour), yes); !errors.Is(err, auth.ErrTokenExpired) {
 				t.Fatalf("expired: %v", err)
 			}
 			t4 := now.Add(4 * time.Minute)
@@ -95,13 +96,22 @@ func TestCredStoreContract(t *testing.T) {
 			if ok, _ := st.IssueToken(ctx, auth.TokenVerify, subj, th(base+5), h2, t6, t6.Add(time.Hour), floor); ok {
 				t.Fatal("daily cap (3) not enforced")
 			}
-			if err := st.ConsumeVerification(ctx, th(base+4), t4); err != nil {
+			// CLE-34986: accept sees the link's hash; a refusal writes nothing.
+			var seen string
+			no := func(h string) bool { seen = h; return false }
+			if err := st.ConsumeVerification(ctx, th(base+4), t4, no); !errors.Is(err, auth.ErrVerifyPasswordMismatch) || seen != h2 {
+				t.Fatalf("mismatch: %v (accept saw the link hash: %v)", err, seen == h2)
+			}
+			if c, _ := st.GetCredential(ctx, subj); c.Verified() || c.PasswordHash != h1 {
+				t.Fatalf("a refused click wrote the credential: %+v", c)
+			}
+			if err := st.ConsumeVerification(ctx, th(base+4), t4, yes); err != nil {
 				t.Fatal(err)
 			}
 			if c, _ := st.GetCredential(ctx, subj); !c.Verified() || c.PasswordHash != h2 {
 				t.Fatalf("verify must install the token's hash: %+v", c)
 			}
-			if err := st.ConsumeVerification(ctx, th(base+4), t4); err != nil {
+			if err := st.ConsumeVerification(ctx, th(base+4), t4, yes); err != nil {
 				t.Fatalf("repeat click: %v", err)
 			}
 			// Reset: single use, consumes every live reset token.

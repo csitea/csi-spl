@@ -167,7 +167,7 @@ describe('cross-origin auth base (A7: the WUI host is not the hub host)', () => 
     await c.loadProviders()
     await c.session()
     await c.login({ email: 'a@b.c', password: 'pw' })
-    await c.verifyEmail('t')
+    await c.verifyEmail({ token: 't', password: 'p' })
     await c.resetPassword({ token: 't', password: 'p' })
     await c.logout()
     assert.deepEqual(s.calls.map((x) => x.url), [
@@ -208,7 +208,7 @@ describe('native-auth-v1 client (spec 015)', () => {
     const cases = [
       [(c) => c.register({ email: 'a@b.c', password: 'pw', name: 'N' }), '/register', { email: 'a@b.c', password: 'pw', name: 'N' }],
       [(c) => c.register({ email: 'a@b.c', password: 'pw' }), '/register', { email: 'a@b.c', password: 'pw' }],
-      [(c) => c.verifyEmail('ab12'), '/email/verify', { token: 'ab12' }],
+      [(c) => c.verifyEmail({ token: 'ab12', password: 'pw' }), '/email/verify', { token: 'ab12', password: 'pw' }],
       [(c) => c.login({ email: 'a@b.c', password: 'pw', tenant: 't1', redirect: '/t/x' }), '/login', { email: 'a@b.c', password: 'pw', redirect: '/t/x', tenant: 't1' }],
       [(c) => c.login({ email: 'a@b.c', password: 'pw', tenant: 'Bad_T', redirect: 'https://evil' }), '/login', { email: 'a@b.c', password: 'pw', redirect: '/' }],
       [(c) => c.forgotPassword('a@b.c'), '/password/forgot', { email: 'a@b.c' }],
@@ -247,7 +247,7 @@ describe('native-auth-v1 client (spec 015)', () => {
     const rlBare = await client(429, null, { badJson: true }).c.forgotPassword('a')
     assert.equal(rlBare.error, 'rate_limited')
     assert.equal(rlBare.retryAfter, 0)
-    assert.equal((await client(502, null, { badJson: true }).c.verifyEmail('t')).error, 'unavailable')
+    assert.equal((await client(502, null, { badJson: true }).c.verifyEmail({ token: 't', password: 'p' })).error, 'unavailable')
     assert.equal((await client(0, null, { throws: true }).c.resetPassword({ token: 't', password: 'p' })).error, 'network')
   })
 

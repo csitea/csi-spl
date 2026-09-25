@@ -205,7 +205,8 @@
       "pending": "Confirming…",
       "ok": "Your email is confirmed — sign in.",
       "missing": "This link carries no token — open the link from the email again.",
-      "expired_hint": "Sign in again with your email and password to get a new link."
+      "expired_hint": "Sign in again with your email and password to get a new link.",
+      "password": "Password you signed up with"
     },
     "reset": {
       "title": "New password",

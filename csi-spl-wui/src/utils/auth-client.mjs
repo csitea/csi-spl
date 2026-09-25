@@ -285,8 +285,9 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       if (name) b.name = String(name)
       return post('/register', b)
     },
-    verifyEmail(token) {
-      return post('/email/verify', { token: String(token || '') })
+    /** CLE-34986: the password the link was issued for rides with the token. */
+    verifyEmail({ token, password } = {}) {
+      return post('/email/verify', { token: String(token || ''), password: String(password || '') })
     },
     /** 200 → `data` is the session claims plus the guarded `redirect`. */
     login({ email, password, tenant, redirect } = {}) {

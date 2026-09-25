@@ -205,7 +205,8 @@
       "pending": "Bekräftar…",
       "ok": "Din e-postadress är bekräftad — logga in.",
       "missing": "Länken saknar token — öppna länken i e-postmeddelandet igen.",
-      "expired_hint": "Logga in igen med din e-postadress och ditt lösenord för att få en ny länk."
+      "expired_hint": "Logga in igen med din e-postadress och ditt lösenord för att få en ny länk.",
+      "password": "Lösenordet du registrerade dig med"
     },
     "reset": {
       "title": "Nytt lösenord",

@@ -185,7 +185,7 @@ func (r *nrig) registerVerified(t *testing.T, email, pw string) {
 	if got := r.post(t, nil, "register", map[string]string{"email": email, "password": pw}); got.code != http.StatusAccepted {
 		t.Fatalf("register: %d %s", got.code, got.raw)
 	}
-	if got := r.post(t, nil, "email/verify", map[string]string{"token": r.lastToken(t, mail.TemplateEmailVerification)}); got.code != http.StatusNoContent {
+	if got := r.post(t, nil, "email/verify", map[string]string{"token": r.lastToken(t, mail.TemplateEmailVerification), "password": pw}); got.code != http.StatusNoContent {
 		t.Fatalf("verify: %d %s", got.code, got.raw)
 	}
 }
@@ -202,7 +202,7 @@ func TestNativeRegisterVerifyLoginFlow(t *testing.T) {
 		!strings.Contains(msgs[0].TextBody, "http://app.example.test/verify-email?token=") {
 		t.Fatalf("mail: %+v", msgs)
 	}
-	if got := r.post(t, c, "email/verify", map[string]string{"token": r.lastToken(t, mail.TemplateEmailVerification)}); got.code != http.StatusNoContent {
+	if got := r.post(t, c, "email/verify", map[string]string{"token": r.lastToken(t, mail.TemplateEmailVerification), "password": pwA}); got.code != http.StatusNoContent {
 		t.Fatalf("verify: %d %s", got.code, got.raw)
 	}
 	got = r.post(t, c, "login", map[string]string{"email": "PERSON@example.com", "password": pwA, "tenant": "acme", "redirect": "//evil.example"})
@@ -370,10 +370,10 @@ func TestNativePreAccountTakeover(t *testing.T) {
 	r.advance(2 * time.Minute)
 	r.post(t, nil, "register", map[string]string{"email": "victim@example.com", "password": pwB}) // owner
 	ownerLink := r.lastToken(t, mail.TemplateEmailVerification)
-	if g := r.post(t, nil, "email/verify", map[string]string{"token": squatterLink}); g.code != http.StatusUnauthorized {
+	if g := r.post(t, nil, "email/verify", map[string]string{"token": squatterLink, "password": pwA}); g.code != http.StatusUnauthorized {
 		t.Fatalf("retired squatter link: %d %s", g.code, g.raw)
 	}
-	if g := r.post(t, nil, "email/verify", map[string]string{"token": ownerLink}); g.code != http.StatusNoContent {
+	if g := r.post(t, nil, "email/verify", map[string]string{"token": ownerLink, "password": pwB}); g.code != http.StatusNoContent {
 		t.Fatalf("owner link: %d %s", g.code, g.raw)
 	}
 	if g := r.post(t, nil, "login", map[string]string{"email": "victim@example.com", "password": pwA}); g.code != http.StatusUnauthorized {
@@ -384,22 +384,50 @@ func TestNativePreAccountTakeover(t *testing.T) {
 	}
 }
 
+// CLE-34986: the ONE-CLICK takeover. The squatter registers the victim's
+// address with the squatter's password and the victim - who never
+// registered - clicks the genuine mail. The click proves the mailbox, not
+// who chose the password: without the password the link was issued for it
+// verifies nothing, a wrong one consumes nothing, and the squatter's
+// password never becomes a verified sign-in.
+func TestNativeVerifyNeedsTheRegisteredPassword(t *testing.T) {
+	r := newNRig(t, nil, nil, true)
+	r.post(t, nil, "register", map[string]string{"email": "victim@example.com", "password": pwA}) // squatter
+	link := r.lastToken(t, mail.TemplateEmailVerification)
+	for what, body := range map[string]map[string]string{
+		"no password":    {"token": link},
+		"victim's own":   {"token": link, "password": pwB},
+		"over the bound": {"token": link, "password": strings.Repeat("x", 1025)},
+	} {
+		if g := r.post(t, nil, "email/verify", body); g.code != http.StatusUnauthorized || g.body["error"] != "invalid_credentials" {
+			t.Fatalf("%s: %d %s", what, g.code, g.raw)
+		}
+	}
+	if g := r.post(t, nil, "login", map[string]string{"email": "victim@example.com", "password": pwA}); g.code == http.StatusOK {
+		t.Fatalf("squatter signed in after the victim's click: %s", g.raw)
+	}
+	// Control: nothing was consumed; the person who chose pwA verifies.
+	if g := r.post(t, nil, "email/verify", map[string]string{"token": link, "password": pwA}); g.code != http.StatusNoContent {
+		t.Fatalf("matching password: %d %s", g.code, g.raw)
+	}
+}
+
 func TestNativeVerifyExpiredAndRepeat(t *testing.T) {
 	r := newNRig(t, nil, nil, true)
 	r.post(t, nil, "register", map[string]string{"email": "late@example.com", "password": pwA})
 	tok := r.lastToken(t, mail.TemplateEmailVerification)
 	r.advance(25 * time.Hour)
-	if g := r.post(t, nil, "email/verify", map[string]string{"token": tok}); g.code != http.StatusGone || g.body["error"] != "verification_token_expired" {
+	if g := r.post(t, nil, "email/verify", map[string]string{"token": tok, "password": pwA}); g.code != http.StatusGone || g.body["error"] != "verification_token_expired" {
 		t.Fatalf("expired: %d %s", g.code, g.raw)
 	}
 	r.post(t, nil, "register", map[string]string{"email": "late@example.com", "password": pwA})
 	tok = r.lastToken(t, mail.TemplateEmailVerification)
 	for i := 0; i < 2; i++ {
-		if g := r.post(t, nil, "email/verify", map[string]string{"token": tok}); g.code != http.StatusNoContent {
+		if g := r.post(t, nil, "email/verify", map[string]string{"token": tok, "password": pwA}); g.code != http.StatusNoContent {
 			t.Fatalf("click %d: %d %s", i, g.code, g.raw)
 		}
 	}
-	if g := r.post(t, nil, "email/verify", map[string]string{"token": strings.Repeat("0", 64)}); g.code != http.StatusUnauthorized {
+	if g := r.post(t, nil, "email/verify", map[string]string{"token": strings.Repeat("0", 64), "password": pwA}); g.code != http.StatusUnauthorized {
 		t.Fatalf("unknown token: %d", g.code)
 	}
 }
@@ -576,7 +604,7 @@ func TestNativeRegisterFailsClosedWithoutMail(t *testing.T) {
 	if g.code != http.StatusAccepted || len(tok) != 64 {
 		t.Fatalf("debug register: %d %s", g.code, g.raw)
 	}
-	if g := d.post(t, nil, "email/verify", map[string]string{"token": tok}); g.code != http.StatusNoContent {
+	if g := d.post(t, nil, "email/verify", map[string]string{"token": tok, "password": pwA}); g.code != http.StatusNoContent {
 		t.Fatalf("debug verify: %d", g.code)
 	}
 }

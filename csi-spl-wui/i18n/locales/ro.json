@@ -205,7 +205,8 @@
       "pending": "Se confirmă…",
       "ok": "E-mailul dvs. este confirmat — autentificați-vă.",
       "missing": "Acest link nu conține niciun token — deschideți din nou linkul din e-mail.",
-      "expired_hint": "Autentificați-vă din nou cu e-mailul și parola pentru a primi un link nou."
+      "expired_hint": "Autentificați-vă din nou cu e-mailul și parola pentru a primi un link nou.",
+      "password": "Parola cu care v-ați înregistrat"
     },
     "reset": {
       "title": "Parolă nouă",

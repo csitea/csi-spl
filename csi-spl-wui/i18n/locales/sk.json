@@ -205,7 +205,8 @@
       "pending": "Potvrdzuje sa…",
       "ok": "Váš e-mail je potvrdený — prihláste sa.",
       "missing": "Tento odkaz neobsahuje token — otvorte znova odkaz z e-mailu.",
-      "expired_hint": "Prihláste sa znova e-mailom a heslom a dostanete nový odkaz."
+      "expired_hint": "Prihláste sa znova e-mailom a heslom a dostanete nový odkaz.",
+      "password": "Heslo, ktoré ste zadali pri registrácii"
     },
     "reset": {
       "title": "Nové heslo",

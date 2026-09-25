@@ -24,6 +24,9 @@ var (
 	ErrTokenInvalid = errors.New("auth: token invalid")
 	// ErrTokenExpired: a verification token that exists but is past its expiry.
 	ErrTokenExpired = errors.New("auth: token expired")
+	// ErrVerifyPasswordMismatch: the verify click did not carry the password the
+	// link was issued for. Nothing is written or consumed (CLE-34986).
+	ErrVerifyPasswordMismatch = errors.New("auth: password does not match the link")
 )
 
 // Credential is one password_credentials row (rdb 0009). Subject is the
@@ -66,7 +69,13 @@ type CredStore interface {
 	// credential verified and consumes every live verification token of it. A
 	// token of an already-verified credential is a success that changes
 	// nothing (repeat click). ErrTokenInvalid / ErrTokenExpired otherwise.
-	ConsumeVerification(ctx context.Context, tokenHash string, now time.Time) error
+	//
+	// accept is asked with the token's password hash before anything is
+	// written: false = ErrVerifyPasswordMismatch, nothing consumed. The click proves
+	// the MAILBOX; accept proves the clicker is also the person who chose
+	// that password, else anyone could register a victim's address with
+	// their own password and have the victim's click verify it (CLE-34986).
+	ConsumeVerification(ctx context.Context, tokenHash string, now time.Time, accept func(pwHash string) bool) error
 	// ConsumeReset sets newHash, marks the email verified and consumes every
 	// live reset token of the credential. Returns the subject.
 	ConsumeReset(ctx context.Context, tokenHash, newHash string, now time.Time) (subject string, err error)
@@ -156,7 +165,7 @@ func (m *MemoryCredStore) consumeAll(kind, subject string) {
 	}
 }
 
-func (m *MemoryCredStore) ConsumeVerification(_ context.Context, tokenHash string, now time.Time) error {
+func (m *MemoryCredStore) ConsumeVerification(_ context.Context, tokenHash string, now time.Time, accept func(pwHash string) bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	t, ok := m.tokens[tokenHash]
@@ -172,6 +181,9 @@ func (m *MemoryCredStore) ConsumeVerification(_ context.Context, tokenHash strin
 	}
 	if !t.expires.After(now) {
 		return ErrTokenExpired
+	}
+	if !accept(t.pwHash) {
+		return ErrVerifyPasswordMismatch
 	}
 	c.EmailVerifiedAt = &now
 	c.PasswordHash = t.pwHash

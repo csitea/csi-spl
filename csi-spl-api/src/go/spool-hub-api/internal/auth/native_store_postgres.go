@@ -106,7 +106,7 @@ func (p PgCredStore) IssueToken(ctx context.Context, kind, subject, tokenHash, p
 	return true, tx.Commit(ctx)
 }
 
-func (p PgCredStore) ConsumeVerification(ctx context.Context, tokenHash string, now time.Time) error {
+func (p PgCredStore) ConsumeVerification(ctx context.Context, tokenHash string, now time.Time, accept func(pwHash string) bool) error {
 	tx, err := p.Pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -135,6 +135,9 @@ func (p PgCredStore) ConsumeVerification(ctx context.Context, tokenHash string, 
 	}
 	if !expires.After(now) {
 		return ErrTokenExpired
+	}
+	if !accept(pwHash) {
+		return ErrVerifyPasswordMismatch
 	}
 	if _, err := tx.Exec(ctx, `UPDATE password_credentials SET email_verified_at = $2, password_hash = $3, updated_at = $2
 		WHERE provider = 'password' AND subject = $1`, subject, now, pwHash); err != nil {

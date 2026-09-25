@@ -65,7 +65,7 @@ try {
   const reg = await post('/register', { email, password: pw })
   const regBody = await reg.json().catch(() => ({}))
   step('register answers a debug token (dev)', reg.ok && !!regBody.debug_token, { status: reg.status })
-  const ver = await post('/email/verify', { token: String(regBody.debug_token || '') })
+  const ver = await post('/email/verify', { token: String(regBody.debug_token || ''), password: pw })
   step('verify', ver.ok, { status: ver.status })
 
   // 2. sign in, no tenant (see the header)

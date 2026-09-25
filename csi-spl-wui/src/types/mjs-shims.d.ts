@@ -294,7 +294,7 @@ declare module '~/utils/auth-client.mjs' {
   export function createAuthClient(opts?: { fetchFn?: typeof fetch, base?: string, locale?: string | (() => string), sendLocale?: boolean }): {
     loadProviders(): Promise<{ status: 'ok' | 'unavailable', reason: string, providers: string[], native: boolean }>
     register(b: { email: string, password: string, name?: string }): Promise<NativeResult>
-    verifyEmail(token: string): Promise<NativeResult>
+    verifyEmail(a: { token: string; password: string }): Promise<NativeResult>
     login(b: { email: string, password: string, tenant?: string, redirect?: string }): Promise<NativeResult>
     forgotPassword(email: string): Promise<NativeResult>
     resetPassword(b: { token: string, password: string }): Promise<NativeResult>

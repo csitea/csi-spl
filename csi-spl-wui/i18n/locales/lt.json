@@ -205,7 +205,8 @@
       "pending": "Tvirtinama…",
       "ok": "Jūsų el. paštas patvirtintas — prisijunkite.",
       "missing": "Šioje nuorodoje nėra žetono — dar kartą atidarykite nuorodą iš laiško.",
-      "expired_hint": "Prisijunkite iš naujo su el. paštu ir slaptažodžiu, kad gautumėte naują nuorodą."
+      "expired_hint": "Prisijunkite iš naujo su el. paštu ir slaptažodžiu, kad gautumėte naują nuorodą.",
+      "password": "Slaptažodis, kurį nurodėte registruodamiesi"
     },
     "reset": {
       "title": "Naujas slaptažodis",

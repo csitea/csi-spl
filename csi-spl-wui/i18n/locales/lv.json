@@ -205,7 +205,8 @@
       "pending": "Apstiprina…",
       "ok": "Jūsu e-pasts ir apstiprināts — piesakieties.",
       "missing": "Šajā saitē nav marķiera — vēlreiz atveriet saiti no e-pasta.",
-      "expired_hint": "Piesakieties vēlreiz ar savu e-pastu un paroli, lai saņemtu jaunu saiti."
+      "expired_hint": "Piesakieties vēlreiz ar savu e-pastu un paroli, lai saņemtu jaunu saiti.",
+      "password": "Parole, ar kuru reģistrējāties"
     },
     "reset": {
       "title": "Jauna parole",

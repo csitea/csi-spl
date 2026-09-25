@@ -185,7 +185,7 @@ def native_login(email, tenant, tag):
     if not token:
         write_json("verify-%s.json" % tag, ev)
         return st, {"step": "register", "body": out, "mail": ev}, ""
-    st, _, out = http("POST", AUTH + "/api/v1/auth/email/verify", {"token": token})
+    st, _, out = http("POST", AUTH + "/api/v1/auth/email/verify", {"token": token, "password": pw})
     ev["hub_verify_api"] = st
     write_json("verify-%s.json" % tag, ev)
     if st != 204:

@@ -205,7 +205,8 @@
       "pending": "Bevestigen…",
       "ok": "Je e-mailadres is bevestigd — log in.",
       "missing": "Deze link bevat geen token — open de link uit de e-mail opnieuw.",
-      "expired_hint": "Log opnieuw in met je e-mailadres en wachtwoord om een nieuwe link te krijgen."
+      "expired_hint": "Log opnieuw in met je e-mailadres en wachtwoord om een nieuwe link te krijgen.",
+      "password": "Het wachtwoord waarmee je je hebt aangemeld"
     },
     "reset": {
       "title": "Nieuw wachtwoord",

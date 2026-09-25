@@ -194,4 +194,24 @@ T010 needs a member password, so it runs by hand today. Wire it into the
 deploy workflow with the m3-e2e member's secret, so a regression on either
 env is caught by the deploy, not by the owner.
 
-<!-- version: 0.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T11:23:32Z -->
+## T016 — the Open button: middle cards only, opens the thread pane
+
+**Status**: Implemented — `320d6af`, `08cfef4`; served on dev and prd
+(`build.json` `08cfef4`, 2026-09-25).
+
+Owner, 2026-09-25, on the pane-header link to `/t/<task_id>`: "is obsolet",
+"remove the whole button", then: "the button should be displayed only on the
+middle pane and it should work so that it will open the topic ( aka the
+threads in the right most pane".
+
+`320d6af` removes `data-test="live-topic-open"` from `LiveTopicPane.vue`.
+`08cfef4` adds `LiveFeed` `openButton`, passed by the channel / DM feed and
+the lobby, so every middle card carries Open (before: only lobby cards, via
+`currentTaskId`); its click is the same `open-topic` as a row or replies
+click. No thread pane passes it. Topics home rows are links already and are
+unchanged. Tests: `icon-buttons.test.mjs` (4 cases); live proof step 2e.
+Measured `08cfef4`: dev 93/93; prd 78/79 — the DM surface aborted once on
+`Failed to fetch` in the proof's own hub read, then passed on 2 of 2
+re-runs (n=3; transient, not the UI).
+
+<!-- version: 0.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T11:55:00Z -->

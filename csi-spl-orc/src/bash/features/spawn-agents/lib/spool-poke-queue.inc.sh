@@ -414,17 +414,39 @@ spool_notice_head_out() {  # TO KIND TASK MSGID
     "$1" "$2" "${3:+ task $3}" "${4:+ msg $4}"
 }
 
+# Prints 1 when PANE holds a full-screen UI, 0 when it is a bare terminal.
+#
+# A TUI is normally recognised by the alternate screen (#{alternate_on} = 1),
+# but not every agent CLI uses it: the agy CLI paints its UI on the NORMAL
+# screen. Measured 2026-09-25 on this box (CLE-222, master afd104f, n=16
+# windows): AGY-3493's pane reported alternate_on 0, every CLE/GRK pane 1. So
+# the agy window never got a strip, and step 3 of spool_poke_show wrote each
+# notice into its tty - over agy's own UI. The pane option @spool_strip is the
+# per-pane answer, set by the launcher that knows what it started:
+#   @spool_strip 1  a TUI whatever alternate_on says (strip, never the tty)
+#   @spool_strip 0  a bare terminal whatever alternate_on says (no strip)
+#   unset           an AGY-* agent id is a TUI (panes spawned before the
+#                   mark existed, e.g. AGY-3493); otherwise alternate_on decides
+spool_pane_is_tui() {  # PANE [ID]
+  local v
+  v="$("${SPOOL_TM[@]}" display-message -p -t "$1" '#{@spool_strip}/#{alternate_on}' 2>/dev/null)"
+  case "$v" in
+    1/*) echo 1 ;;
+    0/*) echo 0 ;;
+    */1) echo 1 ;;
+    *)   case "${2:-}" in AGY-*) echo 1 ;; *) echo 0 ;; esac ;;
+  esac
+}
+
 # 0 when a notice STRIP should be SPLIT for a pane in this state. An existing
 # strip is adopted whatever this says - the gate is about creating one, and a
 # pane that already has a strip has already answered the question.
-spool_strip_wanted() {  # PANE
-  local alt
+spool_strip_wanted() {  # PANE [ID]
   case "${SPOOL_SHOW_PANE:-auto}" in
     1) return 0 ;;
     0) return 1 ;;
   esac
-  alt="$("${SPOOL_TM[@]}" display-message -p -t "$1" '#{alternate_on}' 2>/dev/null)"
-  [ "$alt" = 1 ]
+  [ "$(spool_pane_is_tui "$1" "${2:-}")" = 1 ]
 }
 
 # Append one record to ID's notices log, ensuring ID's strip where it has a
@@ -442,7 +464,7 @@ spool_notice_record() {  # ID HEAD BODY
   log="$(spool_poke_queue_dir "$id")/notices.log"
   mkdir -p "$(dirname "$log")" 2>/dev/null || return 1
   pane="$(spool_pane_of "$id")"
-  if [ -n "$pane" ] && spool_strip_wanted "$pane"; then
+  if [ -n "$pane" ] && spool_strip_wanted "$pane" "$id"; then
     spool_show_notice_pane "$id" "$pane" >/dev/null 2>&1
   fi
   # One RECORD per line, <head>TAB<body>TAB<epoch>: the renderer decides the order and
@@ -476,7 +498,9 @@ spool_poke_show() {  # TO KIND FROM TASK MSGID BODY
   if spool_show_colour; then
     blue="${esc}[1;38;5;39m"; dim="${esc}[38;5;110m"; off="${esc}[0m"
   fi
-  alt="$("${SPOOL_TM[@]}" display-message -p -t "$pane" '#{alternate_on}' 2>/dev/null)"
+  # "alt" here means "a UI owns this pane's screen": the alternate screen, or
+  # the launcher's @spool_strip opt-in (spool_pane_is_tui, the agy case).
+  alt="$(spool_pane_is_tui "$pane" "$to")"
 
   # 1. the notice pane - the persistent surface
   case "${SPOOL_SHOW_PANE:-auto}" in

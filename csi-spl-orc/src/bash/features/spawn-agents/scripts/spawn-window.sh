@@ -94,6 +94,14 @@ pane="$(printf '%s\n' "$out" | grep -m1 -xE '%[0-9]+')"
 # Never fatal: a window with no strip is still a window, the notifier will
 # split one on the first message, and a spawn that failed for this would be a
 # far worse outcome than a missing strip.
+#
+# The agy CLI paints on the NORMAL screen (alternate_on 0), so without a mark
+# the notifier would read its pane as a bare shell: no strip, and every notice
+# written into the tty over agy's UI. The launcher knows what it started, so
+# it says so on the pane (@spool_strip, lib/spool-poke-queue.inc.sh).
+if [ "$KIND" = agy ]; then
+  "${SPOOL_TM[@]}" set-option -p -t "$pane" @spool_strip 1 2>/dev/null || true
+fi
 if [ "${SPOOL_SHOW_PANE:-auto}" != 0 ]; then
   # shellcheck source=../lib/spool-notify.inc.sh
   if . "$HERE/../lib/spool-notify.inc.sh" 2>/dev/null &&

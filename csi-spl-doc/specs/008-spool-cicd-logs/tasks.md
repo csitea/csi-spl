@@ -94,7 +94,7 @@ its deploy check; terraform and applies stay 007's / the owner's.
 - [~] T105 [US2] dev + prd: 017 applied 2026-09-19 (make, project key, 7 added each). The export is superseded
       by the owner's key auth: tf 120 published `GCP_KEY_CSI_SPL_{DEV,PRD}` (`gh secret list -R csitea/csi-spl` -> both,
       09:58Z), and 20/00/30 authenticate with it first, WIF second (f8721dd).
-- [ ] T106 [US2] First live dev deploy: bump dev `hub.image.tag`, push;
+- [x] T106 [US2] First live dev deploy: bump dev `hub.image.tag`, push;
       record the run id; require the deploy job `success` (not `skipped`),
       image == cnf ref, Ready, latest revision ready. Closes FR-P05/P06/P08
       for dev.
@@ -104,11 +104,14 @@ its deploy check; terraform and applies stay 007's / the owner's.
       sweep script under `bash -e` prints five `ok -` lines and exits 0 on
       trunk, and a planted hit exits 1. (`.github/workflows/10_ci-quality.yml`)
 - [ ] T108 [US2] [007] After T106: `030-cloud-run-hub` plan in dev shows **no
-      diff**. 030 has no `lifecycle.ignore_changes`
+      diff**. (Correction 2026-09-25: 030 has always had
+      `lifecycle.ignore_changes = [client, client_version]`,
+      `04-cloud-run-service.tf:136-139`, since `a65bd1d4`; the "→ 0" below
+      was wrong when written.) Original text: 030 has no `lifecycle.ignore_changes`
       (`grep -c ignore_changes csi-spl-iac/src/terraform/030-cloud-run-hub/*.tf`
       → 0 each), and `gcloud run services update` may stamp client
       annotations; if the plan shows them, 030 ignores exactly those.
-- [ ] T109 [US2] [owner go] prd, after prd provisioning steps 1–9
+- [x] T109 [US2] [owner go] prd, after prd provisioning steps 1–9
       (`specs/README.md` §6): apply 017 prd, export `…_PRD`, first prd deploy
       as in T106.
 - [x] T110 [P] [US2] [008] FR-P09 deployed-state check `do_check_hub_deploy`: an orc action
@@ -132,21 +135,23 @@ its deploy check; terraform and applies stay 007's / the owner's.
 - [ ] T111 [P] [US2] (later) Pin third-party actions (`actions/*`,
       `google-github-actions/*`) by commit sha instead of major tag.
 
-## Status (verified 2026-09-18, trunk `bbc41e7`)
+## Status (verified 2026-09-18, trunk `bbc41e7`; rows marked **2026-09-25** re-verified at `bbe04d26`)
 
 | Task | Status | Evidence |
 |---|---|---|
 | T001 | Implemented | `ls contracts/fetch-deliver.md` → present |
-| T002 | Partial | the code default is off (`envDefault:"false"` in `internal/config`), so unset = off everywhere. Writing the key into cnf is held back on purpose: hub env renders into the 030 tfvars (`grep -l SPOOL_HUB_ENABLE_FAKE_PAY csi-spl-cnf/csi-spl/*/tf/*` → both envs), so it would mean a re-render plus an owner-gated 030 apply mid-provisioning. It rides the next 030 re-render. |
+| T002 | Partial (**2026-09-25**: still not in cnf, `git grep -c CICD_LOGS -- csi-spl-cnf` → 0; owner question in spec) | the code default is off (`envDefault:"false"` in `internal/config`), so unset = off everywhere. Writing the key into cnf is held back on purpose: hub env renders into the 030 tfvars (`grep -l SPOOL_HUB_ENABLE_FAKE_PAY csi-spl-cnf/csi-spl/*/tf/*` → both envs), so it would mean a re-render plus an owner-gated 030 apply mid-provisioning. It rides the next 030 re-render. |
 | T003–T010 | Implemented (M1 stub, flag off) | this commit: GRK-3354's `c9ed24e` re-applied on trunk (one test conflict resolved, one `PutPin` call updated to trunk's signature); `go vet ./...` → 0, `go test ./...` → all ok, `bash csi-spl-api/src/bash/tests/run-all-tests.sh` → ALL PASSED, no gate skipped; `grep -c 'gh' …/Dockerfile` → 0 |
 | T011–T015 | Planned (later) | — |
 | T101 | Implemented | `git log --format=%h -- .github/workflows` → `3596991` |
 | T102 | Implemented | this commit |
 | T103, T104 | Implemented (code; not applied) | `2a7888c`: `git grep -c 'google_service_account" "deploy"\|deploy_writer\|deploy_developer\|deploy_acts_as_hub' origin/master -- csi-spl-iac/src/terraform/017-github-wif-deploy` → `03-github-wif.tf:4` (the SA + three grants). `artifactregistry.writer` includes read. Applying is 007 T050 (owner go). |
-| T105, T109 | Planned (blocked: operator re-login) | 2026-09-19T05:45Z (trunk `de3d67c`, n=1): `gh variable list -R csitea/csi-spl` → empty; `gcloud … --account=$GCP_ACCOUNT` → `Reauthentication failed. cannot prompt during non-interactive execution` (ADC the same), so 017 cannot be planned or applied from the box until the owner re-logs in. `curl -s https://{dev.,}spool-hub.ai/version` → `c972f24` both, 36 commits behind trunk (4 in `csi-spl-api`). Earlier: 2026-09-18T19:40Z: `gh variable list -R csitea/csi-spl` → empty; `gcloud iam workload-identity-pools list --location=global --project=csi-spl-{dev,prd} --account=$GCP_ACCOUNT` → 0 in both; blocked on 007 T050 |
-| T106 | Planned | deploy job `skipped` in 8 of 8 runs of `20 ci-cd` |
+| T105 | Superseded (**2026-09-25**) | 017 applied dev + prd 2026-09-19; the variable export is superseded by the key secrets `GCP_KEY_CSI_SPL_{DEV,PRD}` (tf 120) and `f8721dde` (key first, WIF second). |
+| T109 | Implemented (**2026-09-25**) | prd deploys from the pipeline: first roll `77e071fb`; run `36170413419` → "Deploy hub to prd" `success`. Earlier blocked history: 2026-09-19T05:45Z (trunk `de3d67c`, n=1): `gh variable list -R csitea/csi-spl` → empty; `gcloud … --account=$GCP_ACCOUNT` → `Reauthentication failed. cannot prompt during non-interactive execution` (ADC the same), so 017 cannot be planned or applied from the box until the owner re-logs in. `curl -s https://{dev.,}spool-hub.ai/version` → `c972f24` both, 36 commits behind trunk (4 in `csi-spl-api`). Earlier: 2026-09-18T19:40Z: `gh variable list -R csitea/csi-spl` → empty; `gcloud iam workload-identity-pools list --location=global --project=csi-spl-{dev,prd} --account=$GCP_ACCOUNT` → 0 in both; blocked on 007 T050 |
+| T106 | Implemented (**2026-09-25**) | `77e071fb` (hub 0.1.3, the first deploy built and rolled by the pipeline, on the project key); run `36170413419` on `ea35f7c4` → "Deploy hub to dev" `success`. (2026-09-18: `skipped` in 8 of 8 runs.) |
 | T107 | Implemented | `4839514`; run `35385087709` → `distribution-hygiene` success (first green gate since `3596991`) |
-| T108, T111 | Planned | — |
+| T108 | Partial (**2026-09-25**) | code half present (`ignore_changes = [client, client_version]`); missing: a recorded dev `030` plan with no diff after a pipeline roll |
+| T111 | Planned | owner question in spec (sha pinning) |
 | T112 | Implemented | `18a19dc`; run `35386487700` → wui job success, 30/30 |
 | T113 | Implemented | `0d2155d` + `6d1643e` (called by 20) + `dce1a5b` (no cancel group) + `869e6d9` (paths); run `35390460157` → both envs, 4/4 probes 200 |
 | T116 | Implemented | `9a34a0a`; dispatched run `35388871662` → success (both envs skipped: no WIF variables yet) |
@@ -161,7 +166,7 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | FR-P01 two workflows, push + dispatch, no PR | T101 |
 | FR-P02 gate unfiltered, deploy allow-list | T101, T102 |
 | FR-P03 suite, skip = fail | T101 |
-| FR-P04 WIF only, repo variables | T103, T104, T105, T109 |
+| FR-P04 key first, WIF alternative | T103, T104, T105, T109 |
 | FR-P05 terraform owns the image | T101, T106, T108 |
 | FR-P06 dev + prd matrix, guard, concurrency | T101, T106, T109 |
 | FR-P07 hygiene sweep passes clean | T107 |
@@ -171,5 +176,6 @@ its deploy check; terraform and applies stay 007's / the owner's.
 | FR-P11 WUI tests in the gate | T112 |
 | FR-P12 post-deploy HTTPS smoke | T113, T114, T115 |
 | FR-P09 deployed-state check (hourly) | T110, T116 |
+| FR-P13 gate suites + gate-health + CI report | (built by 016 / iac lanes; no 008 task) |
 
-<!-- version: 0.2.7 · updated: 2026-09-18 · last-edit: 2026-09-18T20:17:52Z -->
+<!-- version: 0.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:30:11Z -->

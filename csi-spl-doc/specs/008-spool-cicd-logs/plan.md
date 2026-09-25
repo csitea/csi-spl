@@ -4,7 +4,14 @@
 
 ## 1. Summary
 
-The pipeline code is on trunk (`3596991`), but has **never deployed**: every
+**2026-09-25**: the pipeline deploys dev and prd on the project SA key (first
+roll `77e071fb`, 2026-09-19; run `36170413419` both envs `success`). Left: T108
+(no-diff 030 plan proof), T111 (sha-pinned actions, owner question), T115. The
+M1 CI-logs stub is on trunk (`internal/hub/server.go` `POST /v1/cicd-logs`,
+flag off). The rest of this plan is the 2026-09-18 critical path, kept as
+history.
+
+*2026-09-18:* The pipeline code is on trunk (`3596991`), but has **never deployed**: every
 deploy job so far was skipped because WIF does not exist yet. The work left is
 mostly **other lanes' prerequisites** (007's `017`), **owner-gated applies**,
 one **broken gate** (the hygiene sweep) and one read-only **deployed-state
@@ -57,7 +64,7 @@ Dev goes all the way through before prd, as README §6 says.
 ## 5. US1 — CI logs in chat
 
 Unchanged: `contracts/fetch-deliver.md`, tasks T001–T015. After M3 in the
-dependency order (`specs/README.md` §4). The M1 flagged-off stub is being
-built on branch `GRK-3354-008-cicd-logs-stub`.
+dependency order (`specs/README.md` §4). The M1 flagged-off stub is on trunk
+(landed from `c9ed24e`).
 
-<!-- version: 1.0.5 · updated: 2026-09-18 · last-edit: 2026-09-18T20:17:52Z -->
+<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:30:11Z -->

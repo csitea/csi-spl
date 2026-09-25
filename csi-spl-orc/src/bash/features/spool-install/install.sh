@@ -108,6 +108,11 @@ if [ "${#missing[@]}" -gt 0 ]; then
   pk="${missing[*]}"; pk="${pk//flock/util-linux}"; pk="${pk//setsid/util-linux}"
   die 3 "missing: ${missing[*]} - install them first (this needs root, so it is yours to run), e.g.: sudo apt-get install -y $pk"
 fi
+# ./run derives ORG from the clone's parent dir (<base>/<org>/<org>-<app>):
+# a clone at ~/src/csi-spl reads ORG=src and its actions mis-resolve.
+_app="$(basename "$ROOT")"
+[ "$(basename "$(dirname "$ROOT")")" = "${_app%%-*}" ] ||
+  say "WARN clone this repo as <dir>/${_app%%-*}/$_app (it is at $ROOT): ./run takes the org from the parent dir"
 command -v tmux >/dev/null 2>&1 || say "WARN tmux is missing: spool-agent seats an agent only inside tmux (sudo apt-get install -y tmux)"
 
 fetch() {  # URL OUT

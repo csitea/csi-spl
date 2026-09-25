@@ -21,8 +21,8 @@ describe('emoji reactions', () => {
     assert.equal(validEmoji('hello'), false)
     assert.equal(validEmoji('👍👍'), false)
     assert.equal(new Set(EMOJI_CHOICES).size, EMOJI_CHOICES.length)
-    assert.ok(EMOJI_CHOICES.length <= 33)
-    assert.equal(EMOJI_CHOICES.length, 32)
+    assert.equal(EMOJI_CHOICES.length, 39)
+    assert.equal(validEmoji('🥳'), true)
   })
 
   it('groups actors and marks the viewer, for either is_parent', () => {

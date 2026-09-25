@@ -5,12 +5,13 @@
  * the same.
  */
 
-/** A basic set. Eight across, four rows. Not more than 33. */
+/** Eight across. Thirty-nine glyphs. */
 export const EMOJI_CHOICES = [
   '😀', '😁', '😂', '🙂', '😉', '😊', '😍', '😎',
   '🤔', '😐', '😢', '😭', '😡', '🙄', '😴', '🤗',
   '👍', '👎', '👏', '🙏', '👋', '💪', '👀', '🔥',
   '❤️', '🎉', '✅', '❌', '⭐', '💯', '🚀', '💡',
+  '🤣', '😅', '😇', '😜', '😱', '🤯', '🥳',
 ]
 
 const CHOICE = new Set(EMOJI_CHOICES)

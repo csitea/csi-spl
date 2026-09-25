@@ -3,8 +3,8 @@ package hub
 import "testing"
 
 func TestValidEmoji(t *testing.T) {
-	if n := len(emojiChoices); n > 33 || n != 32 {
-		t.Fatalf("picker offers %d glyphs, want 32 and at most 33", n)
+	if n := len(emojiChoices); n != 39 {
+		t.Fatalf("picker offers %d glyphs, want 39", n)
 	}
 	for _, e := range emojiChoices {
 		if !validEmoji(e) {

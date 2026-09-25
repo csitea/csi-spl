@@ -80,6 +80,7 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 	exists, _ := s.o.Blob.Exists(r.Context(), key)
 	if exists {
 		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
+		s.touchUpload(bg, key)
 		writeJSON(w, http.StatusCreated, wire.FileResult{FileID: id, SHA256: id, Bytes: n})
 		return
 	}
@@ -99,6 +100,9 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 	if err != nil || existed {
 		s.fileUsage.release(t.ID, n)
 	}
+	if err == nil && existed {
+		s.touchUpload(bg, key)
+	}
 	if err != nil {
 		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
 		s.o.Log.Error().Err(err).Msg("blob promote")
@@ -106,6 +110,16 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, wire.FileResult{FileID: id, SHA256: id, Bytes: n})
+}
+
+// touchUpload restarts the upload grace of bytes the store already held
+// (content-addressed: the object was not rewritten). Best effort: without it
+// the uploader cannot fetch back a blob no message carries any more, which is
+// no leak, and the send itself does not need it.
+func (s *Server) touchUpload(ctx context.Context, key string) {
+	if err := s.o.Blob.Touch(ctx, key); err != nil {
+		s.o.Log.Warn().Err(err).Msg("blob touch")
+	}
 }
 
 // readErr remembers the body's read error, so a failed PutReader can tell a
@@ -229,12 +243,28 @@ func (s *Server) mayReadFile(r *http.Request, tenant, fileID string) (bool, erro
 	if err != nil || may {
 		return may, err
 	}
-	// Nothing this principal may read carries it. That is a refusal ONLY if
-	// something else does: a blob no message references is an upload whose
-	// message has not been sent yet (a box uploads, then sends), and the box
-	// or browser that just produced it must be able to fetch it back.
+	// Nothing this principal may read carries it. A blob no message in
+	// retention references is either an upload whose message has not been
+	// sent yet (a box uploads, then sends, and must be able to fetch back
+	// what it just produced) or the leftover of messages that EXPIRED. The
+	// second must not become readable by the whole tenant (CLE-34962): only
+	// a fresh upload passes, and retention deletes the rest (sweepFiles).
 	attached, err := s.o.Store.FileAttached(ctx, tenant, fileID, now)
-	return !attached, err
+	if err != nil || attached {
+		return false, err
+	}
+	key, err := blob.Key(tenant, fileID)
+	if err != nil {
+		return false, nil
+	}
+	up, err := s.o.Blob.Uploaded(ctx, key)
+	if errors.Is(err, blob.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return now.Sub(up) < FileUploadGrace, nil
 }
 
 // isTenantAvatar reports whether fileID is some member of tenant's stored
@@ -406,6 +436,7 @@ func (s *Server) PutFile(ctx context.Context, tenant, name string, data []byte) 
 	if err := s.o.Blob.Put(ctx, key, data); err != nil {
 		return msg.Attachment{}, err
 	}
+	s.touchUpload(ctx, key)    // Put of bytes already held writes nothing
 	s.fileUsage.forget(tenant) // unquota'd writer: the next upload lists afresh
 	if name == "" {
 		name = id

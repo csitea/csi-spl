@@ -99,9 +99,10 @@ func TestFilePrivacy(t *testing.T) {
 	}
 }
 
-// A blob no message references is an upload whose message has not been sent:
-// the door lets it through, or a box could not fetch back what it just
+// A FRESH blob no message references is an upload whose message has not been
+// sent: the door lets it through, or a box could not fetch back what it just
 // uploaded. The CONTROL is that attaching it to a private message closes it.
+// Past hub.FileUploadGrace it is closed anyway (file_retention_test.go).
 func TestUnattachedFileStaysReadableUntilItIsSent(t *testing.T) {
 	e := followEnv(t)
 	tid, _ := e.tenant()

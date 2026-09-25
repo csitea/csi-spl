@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/googleapi"
@@ -28,10 +29,67 @@ func TestKey(t *testing.T) {
 
 func TestDir(t *testing.T) {
 	testStore(t, Dir{Root: t.TempDir()})
+	testUploaded(t, Dir{Root: t.TempDir()})
 }
 
 func TestGCS(t *testing.T) {
 	testStore(t, openTestGCS(t))
+	testUploaded(t, openTestGCS(t))
+}
+
+// testUploaded is the Uploaded / Touch / List contract the file retention
+// (CLE-34962) rests on: an absent key is ErrNotFound, Touch moves Uploaded
+// forward, and List names every object under a prefix with that time.
+func testUploaded(t *testing.T, s Store) {
+	t.Helper()
+	ctx := context.Background()
+	tenant := "t-" + uid()
+	data := []byte("uploaded " + tenant)
+	sum := sha256.Sum256(data)
+	key, _ := Key(tenant, hex.EncodeToString(sum[:]))
+	if _, err := s.Uploaded(ctx, key); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Uploaded of an absent key: %v", err)
+	}
+	if err := s.Touch(ctx, key); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Touch of an absent key: %v", err)
+	}
+	before := time.Now().Add(-time.Minute)
+	if err := s.Put(ctx, key, data); err != nil {
+		t.Fatal(err)
+	}
+	up, err := s.Uploaded(ctx, key)
+	if err != nil || up.Before(before) {
+		t.Fatalf("Uploaded after Put: %v %v", up, err)
+	}
+	if d, ok := s.(Dir); ok { // backdate, so Touch has something to move
+		old := time.Now().Add(-48 * time.Hour)
+		os.Chtimes(d.path(key), old, old) //nolint:errcheck
+		if up, _ = s.Uploaded(ctx, key); up.After(before) {
+			t.Fatalf("backdate did not stick: %v", up)
+		}
+	}
+	time.Sleep(10 * time.Millisecond)
+	if err := s.Touch(ctx, key); err != nil {
+		t.Fatalf("Touch: %v", err)
+	}
+	touched, err := s.Uploaded(ctx, key)
+	if err != nil || !touched.After(up) {
+		t.Fatalf("Uploaded after Touch: %v (was %v) %v", touched, up, err)
+	}
+	var seen []string
+	if err := s.List(ctx, "t/"+tenant+"/", func(k string, at time.Time) error {
+		seen = append(seen, k)
+		if !at.Equal(touched) {
+			t.Errorf("List time %v, Uploaded %v", at, touched)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 1 || seen[0] != key {
+		t.Fatalf("List = %v, want [%s]", seen, key)
+	}
+	s.Delete(ctx, key) //nolint:errcheck
 }
 
 // CONTROL for the aborted-upload cleanup (027 T020): what a finalize racing

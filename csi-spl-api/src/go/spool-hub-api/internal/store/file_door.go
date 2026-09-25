@@ -26,11 +26,12 @@ import (
 type FileDoor interface {
 	// FileAttached: some message in retention carries fileID, whoever may
 	// read it. false means the blob is not (yet) an attachment - an upload
-	// whose message has not been sent, or an orphan - and the door lets it
-	// through: a file_id is the sha256 of the bytes, so producing one you
-	// were never shown means you already hold the content. Nothing that was
-	// ever SENT to anyone rides on this: the moment a message carries the
-	// file, the two checks below govern it.
+	// whose message has not been sent, or the leftover of messages that
+	// expired. The door lets it through only within the hub's upload grace
+	// of its upload, and retention deletes it after the orphan grace
+	// (CLE-34962, hub/file_retention.go): an expired private attachment
+	// must not turn tenant-readable. While a message carries the file, the
+	// two checks below govern it.
 	FileAttached(ctx context.Context, tenantID, fileID string, now time.Time) (bool, error)
 	// FileReadableByHuman: some message in retention that carries fileID is
 	// one this human may read - in a public default channel, in a channel

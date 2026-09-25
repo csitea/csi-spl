@@ -306,14 +306,26 @@ func (s *Server) keepalive(ctx context.Context, conn *websocket.Conn) {
 	}()
 }
 
-// RunSweeper applies retention every interval until ctx ends.
+// RunSweeper applies retention every interval until ctx ends, and deletes
+// the blobs no retained message carries every fileSweepEvery (SweepFiles).
 func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
+	ft := time.NewTicker(fileSweepEvery)
+	defer ft.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-ft.C:
+			r, err := s.SweepFiles(ctx, s.o.Now())
+			if err != nil {
+				s.o.Log.Error().Err(err).Int("deleted", r.Deleted).Msg("file retention sweep")
+				continue
+			}
+			if r.Deleted > 0 {
+				s.o.Log.Info().Int("scanned", r.Scanned).Int("deleted", r.Deleted).Msg("file retention sweep")
+			}
 		case <-t.C:
 			r, err := s.o.Store.Sweep(ctx, s.o.Now())
 			if err != nil {

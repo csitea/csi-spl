@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/storage"
@@ -66,6 +67,16 @@ type Store interface {
 	Delete(ctx context.Context, key string) error
 	// PrefixBytes sums object sizes under prefix (tenant file quota, 006).
 	PrefixBytes(ctx context.Context, prefix string) (int64, error)
+	// Uploaded is when key was last uploaded: its creation, or the latest
+	// Touch. ErrNotFound when it is absent. The file read door lets an
+	// attachment no message carries through only this soon after an upload,
+	// and retention deletes such a blob only once it is older (CLE-34962).
+	Uploaded(ctx context.Context, key string) (time.Time, error)
+	// Touch marks key uploaded now: a re-upload of bytes the store already
+	// holds (content-addressed) is a fresh upload for Uploaded.
+	Touch(ctx context.Context, key string) error
+	// List calls fn with every key under prefix and its Uploaded time.
+	List(ctx context.Context, prefix string, fn func(key string, uploaded time.Time) error) error
 	Close() error
 }
 
@@ -183,6 +194,51 @@ func (d Dir) PrefixBytes(_ context.Context, prefix string) (int64, error) {
 		return nil
 	})
 	return n, err
+}
+
+// Uploaded is the file's mtime: Put and PutReader write a fresh file, a
+// Promote hard link keeps the tmp file's, and Touch moves it.
+func (d Dir) Uploaded(_ context.Context, key string) (time.Time, error) {
+	fi, err := os.Stat(d.path(key))
+	if os.IsNotExist(err) {
+		return time.Time{}, ErrNotFound
+	}
+	if err != nil {
+		return time.Time{}, err
+	}
+	return fi.ModTime(), nil
+}
+
+func (d Dir) Touch(_ context.Context, key string) error {
+	now := time.Now()
+	err := os.Chtimes(d.path(key), now, now)
+	if os.IsNotExist(err) {
+		return ErrNotFound
+	}
+	return err
+}
+
+func (d Dir) List(_ context.Context, prefix string, fn func(string, time.Time) error) error {
+	root := d.path(prefix)
+	if _, err := os.Stat(root); os.IsNotExist(err) {
+		return nil
+	}
+	return filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) { // deleted while we walk
+				return nil
+			}
+			return err
+		}
+		if info.IsDir() || strings.HasPrefix(info.Name(), ".tmp-") {
+			return nil
+		}
+		rel, err := filepath.Rel(d.Root, p)
+		if err != nil {
+			return err
+		}
+		return fn(filepath.ToSlash(rel), info.ModTime())
+	})
 }
 
 func (d Dir) Close() error { return nil }
@@ -328,6 +384,55 @@ func (g *GCS) PrefixBytes(ctx context.Context, prefix string) (int64, error) {
 			return 0, err
 		}
 		n += attrs.Size
+	}
+}
+
+// uploadedMeta is the object metadata key Touch writes: a re-upload of
+// bytes already held rewrites nothing, so the object's Created stays old.
+const uploadedMeta = "spool-uploaded"
+
+func uploadedAt(a *storage.ObjectAttrs) time.Time {
+	if v, ok := a.Metadata[uploadedMeta]; ok {
+		if t, err := time.Parse(time.RFC3339Nano, v); err == nil && t.After(a.Created) {
+			return t
+		}
+	}
+	return a.Created
+}
+
+func (g *GCS) Uploaded(ctx context.Context, key string) (time.Time, error) {
+	a, err := g.bucket.Object(key).Attrs(ctx)
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		return time.Time{}, ErrNotFound
+	}
+	if err != nil {
+		return time.Time{}, err
+	}
+	return uploadedAt(a), nil
+}
+
+func (g *GCS) Touch(ctx context.Context, key string) error {
+	_, err := g.bucket.Object(key).Update(ctx, storage.ObjectAttrsToUpdate{
+		Metadata: map[string]string{uploadedMeta: time.Now().UTC().Format(time.RFC3339Nano)}})
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		return ErrNotFound
+	}
+	return err
+}
+
+func (g *GCS) List(ctx context.Context, prefix string, fn func(string, time.Time) error) error {
+	it := g.bucket.Objects(ctx, &storage.Query{Prefix: prefix})
+	for {
+		a, err := it.Next()
+		if err == iterator.Done {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := fn(a.Name, uploadedAt(a)); err != nil {
+			return err
+		}
 	}
 }
 

@@ -1,0 +1,38 @@
+// The Event log rail button (005 FR-017, CLE-34990): directly after Flow,
+// /events selects it, and the shipper plugin is wired to the journal.
+import { describe, it } from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { EVENTS_TAB, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
+
+const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
+
+describe('Event log rail tab', () => {
+  it('/events selects the events tab', () => {
+    assert.equal(EVENTS_TAB, 'events')
+    assert.equal(tabForPath('/events'), 'events')
+    assert.equal(tabForPath('/fi/events'), 'events')
+  })
+
+  it('sits directly after flow in the rail, with its own icon and label', () => {
+    const src = read('src/components/ChannelSidebar.vue')
+    const flow = src.indexOf("{ id: 'flow', icon: 'waves'")
+    const events = src.indexOf("{ id: EVENTS_TAB, icon: 'history', labelKey: 'sidebar.events' }")
+    assert.ok(flow > 0 && events > flow, 'events entry follows flow')
+    const between = src.slice(flow, events)
+    assert.equal(/\{ id: '/.test(between.slice(1)), false, 'nothing between flow and events')
+    assert.match(src, /navigateTo\(localePath\('\/events'\)\)/)
+  })
+
+  it('the shipper plugin feeds from the journal and follows the session', () => {
+    const src = read('src/plugins/event-log.client.ts')
+    assert.match(src, /bindShipperToJournal\(shipper, \{ getErrors, subscribeErrors \}\)/)
+    assert.match(src, /session: \(\) => session\.state/)
+    assert.match(src, /shipper\.sessionChanged\(\)/)
+    assert.equal(/noteError/.test(src.replace(/^\s*\/\/.*$/gm, '')), false, 'the plugin never writes the journal')
+  })
+})

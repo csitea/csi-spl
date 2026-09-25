@@ -9,6 +9,11 @@ export const SIDE_TABS = ['dm', 'channels', 'topics', 'flow']
  *  (tenant-users.mjs usersEntryVisible), so it is not in SIDE_TABS. */
 export const USERS_TAB = 'users'
 
+/** The personal Event log (CLE-34990, 005 FR-017): directly after flow, for
+ *  everyone; the list lives on /events. Not in SIDE_TABS for the same reason
+ *  as USERS_TAB: it is a page, not a sidebar list. */
+export const EVENTS_TAB = 'events'
+
 /** Names accepted after `/switch-pane:`. `messages` is the direct-message pane.
  *  `topic` and `topics` are the same pane. */
 const SWITCH_PANE_NAMES = {
@@ -24,7 +29,7 @@ const SWITCH_PANE_NAMES = {
  * Search and settings return null so the reader's own choice stays.
  * The call site starts on direct messages.
  * @param {string} path vue-router path, no query
- * @returns {'dm' | 'channels' | 'topics' | 'flow' | 'users' | null}
+ * @returns {'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | null}
  */
 export function tabForPath(path) {
   const p = productPath(path)
@@ -32,6 +37,7 @@ export function tabForPath(path) {
   if (p === '/channel' || p.startsWith('/channel/')) return 'channels'
   if (p === '/' || p === '/t' || p.startsWith('/t/')) return 'topics'
   if (p === '/users') return USERS_TAB
+  if (p === '/events') return EVENTS_TAB
   return null
 }
 

@@ -210,24 +210,46 @@ process, not the hub session. Run 5.1 whenever messages seem to stop.
 
 ## 6. Use
 
-### 6.0 Preferred: the spool MCP tools (as of 2026-09-25, partial)
+### 6.0 Preferred: the spool MCP tools
 
-Your Claude session may already carry the MCP servers `spool-dev` and
-`spool-prd` (check: `claude mcp list` shows them `Connected`). They expose five
-tools: `spool_recv`, `spool_send`, `spool_get_file`, `spool_put_file`,
-`spool_tail`. A tool call answers in milliseconds; no `./run`, no build, no
-`sudo cat` of JSON files. The prompt poke stays the doorbell: when a message is
-typed into your prompt, read it with `spool_recv`.
+A Claude session on the reference box carries two MCP servers, `spool-dev` and
+`spool-prd` (check: `claude mcp list` shows them `Connected`). Their tools:
 
-**Always pass your OWN id** (`as` for `spool_recv`, `from` for `spool_send`).
-Measured 2026-09-25 (n=1 per env): the servers on the reference box were NOT
-yet scoped to one seat - a `spool_recv` naming another agent returned that
-agent's inbox. Never read or send as another seat. The fix is `spool mcp
---as <ID>` (csi-spl `779bbab`) plus a wrapper that passes it (spec 028 T074);
-until that lands, prefer 6.1 - 6.4 when in doubt.
+- `mcp__spool-<env>__spool_recv` - your inbox as JSON (`ack` moves it to archive/)
+- `mcp__spool-<env>__spool_send` - `to`, `kind`, `body`, optional `task_id`, `file_ids`;
+  a send to a human (`HUM-*`) goes to the web UI by itself
+- `mcp__spool-<env>__spool_put_file` / `spool_get_file` - attachments up / down
+- `mcp__spool-<env>__spool_tail`
 
-If your session has no spool servers (new servers appear only after a restart),
-use 6.1 - 6.4.
+Each server is **seated**: it acts for your seat only. `from` and `as` default
+to your id, and naming another agent is refused (exit 78). Measured 2026-09-25
+by CLE-34975 (`db63e2c`, `9c24bad`): control `as=<another agent>` REFUSED on dev
+(n=4) and prd (n=2) and in a fresh session; `recv` 0.4-0.9 ms, `put_file`
+1.5 ms, `get_file` 1.0 ms, `send` p50 90-400 ms (the hub's ack; about 1 s while
+the hub redeploys), server start 42-75 ms. The seat comes from
+`MCP_BOT_AGENT_ID`, else `SPOOL_AGENT_ID`, else your tmux window name.
+
+The prompt poke stays the doorbell: when a message is typed into your prompt,
+read it with `spool_recv` and answer with `spool_send` in the same `task_id`.
+
+A session started before 2026-09-25T16:36Z still runs the old, unseated server
+until the CLI restarts - restart it before relying on this.
+
+Install or repair the wiring for the agent user (box user runs it):
+
+```
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && AGENT_USER=<agent user> DRY_RUN=0 ./run -a do_spl_agent_mcp_install'
+```
+
+Prove it (a seated probe plus the refused control; nothing is sent without
+`MCP_TO`). Expect `control_other_inbox_refused` ok and `own_recv` ok - measured
+for CLE-100 on dev and prd, 2026-09-25T17:07Z, n=1 each:
+
+```
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev AGENT_USER=<agent user> MCP_AS=<AGENT_ID> MCP_CONTROL_AS=<another agent id> ./run -a do_spl_agent_mcp_probe'
+```
+
+If your session has no spool servers, use 6.1 - 6.4.
 
 ### 6.1 Read your inbox
 
@@ -307,4 +329,4 @@ the window or rename it first):
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<AGENT_ID> DRY_RUN=0 ./run -a do_spl_desk_down'
 ```
 
-<!-- version: 1.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:25:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T17:15:00Z -->

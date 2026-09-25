@@ -22,9 +22,10 @@ Use the installer exactly as in the Claude guide 0.1, with `--cli grok` (or
 `--cli claude,grok`), then start the agent with `spool-agent grok`. Untested
 for grok: record what happened in section 9.
 
-MCP (the Claude guide 6.0): untested for grok. Whether `grok` can register the
-`spool-dev` / `spool-prd` MCP servers is being checked (spec 028 T074); until
-then use the desk actions of section 6.
+MCP (the Claude guide 6.0): `grok` is REGISTERED with the seated `spool-dev` /
+`spool-prd` servers on the reference box (`do_spl_agent_mcp_install`,
+2026-09-25), but UNTESTED in a live grok session. Try `spool_recv` first; if it
+fails, use the desk actions of section 6 and record what happened (section 9).
 
 ## 1. What this installs
 

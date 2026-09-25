@@ -1,7 +1,7 @@
 // Middle-pane card height (owner 2026-09-25, specs/033). Live proof, signed
 // in, against a deployed WUI. A fresh browser, so the stored mode starts empty.
 //
-//   BASE=https://dev.spool-hub.ai EMAIL=m3-e2e-human@example.com \
+//   BASE=https://<wui-host> EMAIL=m3-e2e-human@example.com \
 //     PW_FILE=<0600 file> OUT=<dir> [TENANT=t1] [CHROME_PATH=...] \
 //     node tests/e2e/card-clip-modes-live.proof.mjs
 //

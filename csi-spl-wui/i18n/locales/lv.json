@@ -69,6 +69,13 @@
     "language_title": "Valoda",
     "appearance": "Izskats",
     "theme": "Motīvs",
+    "font_size": {
+      "label": "Fonta lielums",
+      "smaller": "Mazāks teksts",
+      "bigger": "Lielāks teksts",
+      "level": "Lielums {n} no {total}",
+      "level_default": "Lielums {n} no {total} (noklusējums)"
+    },
     "signin_security": "Pieteikšanās un drošība",
     "signed_in_with": "Pieteicies ar",
     "password_managed_by": "Jūsu paroli pārvalda {method}.",

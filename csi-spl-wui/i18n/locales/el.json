@@ -69,6 +69,13 @@
     "language_title": "Γλώσσα",
     "appearance": "Εμφάνιση",
     "theme": "Θέμα",
+    "font_size": {
+      "label": "Μέγεθος γραμματοσειράς",
+      "smaller": "Μικρότερο κείμενο",
+      "bigger": "Μεγαλύτερο κείμενο",
+      "level": "Μέγεθος {n} από {total}",
+      "level_default": "Μέγεθος {n} από {total} (προεπιλογή)"
+    },
     "signin_security": "Σύνδεση και ασφάλεια",
     "signed_in_with": "Συνδεδεμένοι με",
     "password_managed_by": "Τον κωδικό σας τον διαχειρίζεται το {method}.",

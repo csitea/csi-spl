@@ -76,7 +76,7 @@ const initials = computed(() => userInitials(session.claims))
   min-width: 0;
   flex: 1;
 }
-.settings__facts dt { color: var(--color-muted); font-size: 13px; }
+.settings__facts dt { color: var(--color-muted); font-size: 0.8125rem; }
 .settings__facts dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
-.settings__hint { font-size: 13px; margin: 10px 0 0; }
+.settings__hint { font-size: 0.8125rem; margin: 10px 0 0; }
 </style>

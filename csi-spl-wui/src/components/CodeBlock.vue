@@ -103,13 +103,13 @@ const copied = computed(() => copiedId.value === 'block')
 }
 .code-lang {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--color-muted);
   overflow-wrap: anywhere;
   min-width: 0;
 }
 .code-cut {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--color-muted);
   margin-inline-start: auto;
   overflow-wrap: anywhere;
@@ -150,7 +150,7 @@ const copied = computed(() => copiedId.value === 'block')
   border-top: 1px solid var(--color-border);
   background: var(--color-bg-3);
   color: var(--color-accent);
-  font-size: 12px;
+  font-size: 0.75rem;
   cursor: pointer;
   min-width: 0;
 }

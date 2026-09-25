@@ -20,5 +20,5 @@ defineProps<{ id: string, title: string }>()
   min-width: 0;
   max-width: 720px;
 }
-.settings__card h3 { margin: 0 0 10px; font-size: 15px; }
+.settings__card h3 { margin: 0 0 10px; font-size: 0.9375rem; }
 </style>

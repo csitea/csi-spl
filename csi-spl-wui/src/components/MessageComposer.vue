@@ -789,7 +789,7 @@ function onFiles(ev: Event) {
   border-radius: var(--radius);
   background: var(--color-bg-2);
   color: var(--color-danger);
-  font-size: 12px;
+  font-size: 0.75rem;
   max-width: 100%;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -797,13 +797,13 @@ function onFiles(ev: Event) {
 .composer-too-big span { min-width: 0; }
 textarea.in-code {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 0.8125rem;
   background: var(--color-bg-2);
 }
 /* kept in the tree while empty so the live region announces entering a block */
 .code-hint {
   margin: 0;
-  font-size: 11px;
+  font-size: 0.6875rem;
   overflow-wrap: anywhere;
 }
 .file-chips {
@@ -835,7 +835,7 @@ textarea.in-code {
   margin-right: 4px;
 }
 .file-chips li {
-  font-size: 12px;
+  font-size: 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 2px 6px;
@@ -887,7 +887,7 @@ textarea.in-code {
   color: var(--color-fg);
   cursor: pointer;
   text-align: left;
-  font-size: 13px;
+  font-size: 0.8125rem;
   box-sizing: border-box;
 }
 .mention-item:hover {
@@ -907,7 +907,7 @@ textarea.in-code {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   padding: 1px 8px;
   margin: 0 0 4px;
   border-radius: var(--radius-pill);
@@ -917,7 +917,7 @@ textarea.in-code {
 }
 .op-list code { font-family: var(--font-mono); }
 .op-example {
-  font-size: 12px;
+  font-size: 0.75rem;
   min-width: 0;
   overflow-wrap: anywhere;
 }

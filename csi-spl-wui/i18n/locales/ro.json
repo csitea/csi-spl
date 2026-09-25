@@ -69,6 +69,13 @@
     "language_title": "Limbă",
     "appearance": "Aspect",
     "theme": "Temă",
+    "font_size": {
+      "label": "Mărimea fontului",
+      "smaller": "Text mai mic",
+      "bigger": "Text mai mare",
+      "level": "Mărimea {n} din {total}",
+      "level_default": "Mărimea {n} din {total} (implicită)"
+    },
     "signin_security": "Autentificare și securitate",
     "signed_in_with": "Autentificat cu",
     "password_managed_by": "Parola dvs. este gestionată de {method}.",

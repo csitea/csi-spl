@@ -69,6 +69,13 @@
     "language_title": "Idioma",
     "appearance": "Apariencia",
     "theme": "Tema",
+    "font_size": {
+      "label": "Tamaño de letra",
+      "smaller": "Texto más pequeño",
+      "bigger": "Texto más grande",
+      "level": "Tamaño {n} de {total}",
+      "level_default": "Tamaño {n} de {total} (predeterminado)"
+    },
     "signin_security": "Inicio de sesión y seguridad",
     "signed_in_with": "Sesión iniciada con",
     "password_managed_by": "Tu contraseña la gestiona {method}.",

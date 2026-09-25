@@ -245,14 +245,14 @@ onMounted(async () => {
 
 <style scoped>
 .keys { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.keys h4 { margin: 8px 0 0; font-size: 14px; }
-.keys__hint { font-size: 13px; margin: 0; }
+.keys h4 { margin: 8px 0 0; font-size: 0.875rem; }
+.keys__hint { font-size: 0.8125rem; margin: 0; }
 .keys__active, .keys__upload, .keys__private { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .keys__facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0; min-width: 0; }
-.keys__facts dt { color: var(--color-muted); font-size: 13px; }
+.keys__facts dt { color: var(--color-muted); font-size: 0.8125rem; }
 .keys__facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .keys__pub, .keys__facts code { overflow-wrap: anywhere; word-break: break-all; }
-.keys__meta { font-size: 13px; margin: 0; }
+.keys__meta { font-size: 0.8125rem; margin: 0; }
 .keys__actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .keys__private {
   border: 1px solid var(--color-border-strong);
@@ -262,12 +262,12 @@ onMounted(async () => {
 }
 .keys__private p { margin: 0; }
 .keys__regen { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.keys__label { font-size: 13px; color: var(--color-muted); }
+.keys__label { font-size: 0.8125rem; color: var(--color-muted); }
 .keys__text {
   width: 100%;
   box-sizing: border-box;
   font-family: var(--font-mono, monospace);
-  font-size: 13px;
+  font-size: 0.8125rem;
   resize: vertical;
   min-width: 0;
 }
@@ -276,6 +276,6 @@ onMounted(async () => {
 .keys__history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .keys__history li { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; min-width: 0; }
 .keys__history code { overflow-wrap: anywhere; word-break: break-all; min-width: 0; }
-.keys__state { font-size: 12px; padding: 1px 6px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); }
+.keys__state { font-size: 0.75rem; padding: 1px 6px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); }
 .keys__state--active { color: var(--color-accent); border-color: var(--color-accent); }
 </style>

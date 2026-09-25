@@ -69,6 +69,13 @@
     "language_title": "Kalba",
     "appearance": "Išvaizda",
     "theme": "Tema",
+    "font_size": {
+      "label": "Šrifto dydis",
+      "smaller": "Mažesnis tekstas",
+      "bigger": "Didesnis tekstas",
+      "level": "Dydis {n} iš {total}",
+      "level_default": "Dydis {n} iš {total} (numatytasis)"
+    },
     "signin_security": "Prisijungimas ir sauga",
     "signed_in_with": "Prisijungta per",
     "password_managed_by": "Jūsų slaptažodį tvarko {method}.",

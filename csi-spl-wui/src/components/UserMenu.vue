@@ -233,7 +233,7 @@ watch(signedIn, (v) => { if (!v) close(false) })
   color: var(--color-fg);
   cursor: pointer;
   text-decoration: none;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .user-menu__trigger:hover .user-menu__avatar,
 .user-menu__trigger[aria-expanded='true'] .user-menu__avatar,
@@ -293,8 +293,8 @@ watch(signedIn, (v) => { if (!v) close(false) })
 }
 .user-menu__names { display: flex; flex-direction: column; min-width: 0; }
 .user-menu__primary, .user-menu__secondary { overflow-wrap: anywhere; min-width: 0; }
-.user-menu__primary { font-size: 14px; }
-.user-menu__secondary { font-size: 12px; color: var(--color-muted); }
+.user-menu__primary { font-size: 0.875rem; }
+.user-menu__secondary { font-size: 0.75rem; color: var(--color-muted); }
 .user-menu__items { list-style: none; margin: 6px 0 0; padding: 0; }
 .user-menu__item {
   border-radius: var(--radius-sm);
@@ -308,7 +308,7 @@ watch(signedIn, (v) => { if (!v) close(false) })
   border: 0;
   background: transparent;
   color: var(--color-fg);
-  font-size: 14px;
+  font-size: 0.875rem;
   text-align: left;
   text-decoration: none;
   cursor: pointer;

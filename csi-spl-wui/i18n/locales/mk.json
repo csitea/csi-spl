@@ -69,6 +69,13 @@
     "language_title": "Јазик",
     "appearance": "Изглед",
     "theme": "Тема",
+    "font_size": {
+      "label": "Големина на фонтот",
+      "smaller": "Помал текст",
+      "bigger": "Поголем текст",
+      "level": "Големина {n} од {total}",
+      "level_default": "Големина {n} од {total} (стандардно)"
+    },
     "signin_security": "Најава и безбедност",
     "signed_in_with": "Најавени со",
     "password_managed_by": "Вашата лозинка ја управува {method}.",

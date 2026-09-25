@@ -2,6 +2,21 @@
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /*
+ * Font size (Settings -> Appearance, utils/font-size.mjs): ONE root variable.
+ * Every text size in the app is rem, so the whole UI follows
+ * data-font-size on <html>. Percent of the browser default (16px ->
+ * 14/16/18/20/22). No attribute = level 3, a step above the old 100%
+ * (owner 2026-09-25: "make the default font a bit bigger").
+ */
+:root { --font-root: 112.5%; }
+:root[data-font-size="1"] { --font-root: 87.5%; }
+:root[data-font-size="2"] { --font-root: 100%; }
+:root[data-font-size="3"] { --font-root: 112.5%; }
+:root[data-font-size="4"] { --font-root: 125%; }
+:root[data-font-size="5"] { --font-root: 137.5%; }
+html { font-size: var(--font-root); }
+
+/*
  * Document horizontal scroll on mobile is FORBIDDEN (portrait and landscape).
  * The donor WUI's `base.css` guard: `overflow-x: clip` on html and body.
  * Nested regions may use overflow-x: auto only when max-width: 100% of

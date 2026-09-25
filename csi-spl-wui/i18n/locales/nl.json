@@ -69,6 +69,13 @@
     "language_title": "Taal",
     "appearance": "Weergave",
     "theme": "Thema",
+    "font_size": {
+      "label": "Lettergrootte",
+      "smaller": "Kleinere tekst",
+      "bigger": "Grotere tekst",
+      "level": "Grootte {n} van {total}",
+      "level_default": "Grootte {n} van {total} (standaard)"
+    },
     "signin_security": "Inloggen en beveiliging",
     "signed_in_with": "Ingelogd met",
     "password_managed_by": "Je wachtwoord wordt beheerd door {method}.",

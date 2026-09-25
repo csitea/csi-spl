@@ -69,6 +69,13 @@
     "language_title": "Keel",
     "appearance": "Välimus",
     "theme": "Teema",
+    "font_size": {
+      "label": "Fondi suurus",
+      "smaller": "Väiksem tekst",
+      "bigger": "Suurem tekst",
+      "level": "Suurus {n}/{total}",
+      "level_default": "Suurus {n}/{total} (vaikimisi)"
+    },
     "signin_security": "Sisselogimine ja turvalisus",
     "signed_in_with": "Sisse logitud teenusega",
     "password_managed_by": "Sinu parooli haldab {method}.",

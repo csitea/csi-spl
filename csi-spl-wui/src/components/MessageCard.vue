@@ -567,7 +567,7 @@ async function save() {
 .msg-to-arrow {
   align-self: center;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1;
 }
 .msg-menu-btn {

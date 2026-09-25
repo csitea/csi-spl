@@ -227,7 +227,7 @@ onUnmounted(() => {
   min-width: 0;
 }
 .top-bar__brand {
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;

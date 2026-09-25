@@ -63,7 +63,7 @@ const title = loginBarTitle(config.public.envName, import.meta.dev)
 }
 .login-bar__title {
   flex: 0 0 auto;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;

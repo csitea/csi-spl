@@ -69,6 +69,13 @@
     "language_title": "Язык",
     "appearance": "Оформление",
     "theme": "Тема",
+    "font_size": {
+      "label": "Размер шрифта",
+      "smaller": "Мельче",
+      "bigger": "Крупнее",
+      "level": "Размер {n} из {total}",
+      "level_default": "Размер {n} из {total} (по умолчанию)"
+    },
     "signin_security": "Вход и безопасность",
     "signed_in_with": "Способ входа",
     "password_managed_by": "Вашим паролем управляет {method}.",

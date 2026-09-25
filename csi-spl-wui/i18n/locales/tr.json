@@ -69,6 +69,13 @@
     "language_title": "Dil",
     "appearance": "Görünüm",
     "theme": "Tema",
+    "font_size": {
+      "label": "Yazı tipi boyutu",
+      "smaller": "Daha küçük metin",
+      "bigger": "Daha büyük metin",
+      "level": "Boyut {n} / {total}",
+      "level_default": "Boyut {n} / {total} (varsayılan)"
+    },
     "signin_security": "Giriş ve güvenlik",
     "signed_in_with": "Giriş yöntemi",
     "password_managed_by": "Parolanız {method} tarafından yönetiliyor.",

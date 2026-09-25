@@ -198,7 +198,7 @@ onUnmounted(() => {
 }
 .ui-dialog__title {
   margin: 0;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-heading);
   min-width: 0;

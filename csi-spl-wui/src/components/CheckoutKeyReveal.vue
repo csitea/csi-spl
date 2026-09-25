@@ -62,7 +62,7 @@ function downloadKey() {
   color: var(--color-fg);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 12px;
+  font-size: 0.75rem;
   user-select: all;
 }
 .checkout-key__actions { display: flex; gap: 8px; flex-wrap: wrap; }

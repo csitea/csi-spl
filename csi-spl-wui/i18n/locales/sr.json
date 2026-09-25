@@ -69,6 +69,13 @@
     "language_title": "Jezik",
     "appearance": "Izgled",
     "theme": "Tema",
+    "font_size": {
+      "label": "Veličina fonta",
+      "smaller": "Manji tekst",
+      "bigger": "Veći tekst",
+      "level": "Veličina {n} od {total}",
+      "level_default": "Veličina {n} od {total} (podrazumevano)"
+    },
     "signin_security": "Prijava i bezbednost",
     "signed_in_with": "Prijavljeni preko",
     "password_managed_by": "Vašom lozinkom upravlja {method}.",

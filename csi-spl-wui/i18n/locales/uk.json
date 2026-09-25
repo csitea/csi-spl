@@ -69,6 +69,13 @@
     "language_title": "Мова",
     "appearance": "Вигляд",
     "theme": "Тема",
+    "font_size": {
+      "label": "Розмір шрифту",
+      "smaller": "Дрібніший текст",
+      "bigger": "Більший текст",
+      "level": "Розмір {n} з {total}",
+      "level_default": "Розмір {n} з {total} (типово)"
+    },
     "signin_security": "Вхід і безпека",
     "signed_in_with": "Вхід через",
     "password_managed_by": "Вашим паролем керує {method}.",

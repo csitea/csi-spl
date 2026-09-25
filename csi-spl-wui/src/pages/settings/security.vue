@@ -44,6 +44,6 @@ const changed = useState('settings-password-changed', () => false)
   flex-wrap: wrap;
   min-height: var(--tap, 44px);
 }
-.settings__hint { font-size: 13px; margin: 10px 0 0; }
+.settings__hint { font-size: 0.8125rem; margin: 10px 0 0; }
 .settings__actions { margin-top: 12px; }
 </style>

@@ -111,7 +111,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `020-spool-message-v2/` | message schema `v:2`, canonical JSON, version negotiation (`wire.Frame.MsgVersions`), dual-version readers | M3 consolidation | message-v2 lane |
 | `021-spool-wui-i18n/` | WUI + hub i18n: 19 locales, donor language switcher, cookie/browser redirect, default locale `en`, `humans.preferred_locale` | M3 | CLE-3403 |
 | `022-spool-wui-top-bar-search/` | WUI persistent top bar, global search omnibox (`/search`), operator picker, grouped results | M3 | wui-topbar-search lane |
-| `023-spool-user-settings-keys/` | GitHub-style user settings navigation, `/settings/keys`, in-browser Ed25519 keypair generation, public key upload / private download | M3 | CLE-3408 |
+| `023-spool-user-settings-keys/` | GitHub-style user settings navigation, `/settings/keys`, in-browser Ed25519 keypair generation, public key upload / private download; Appearance font size, 5 levels (3.5) | M3 | CLE-3408, CLE-3495 |
 | `024-spool-tenant-hosts/` | per-tenant hosts, automated DNS reconcile (**SUPERSEDED** by 026: paused, mappings retired) | M1/M2 | CLE-3404 (**superseded**) |
 | `025-spool-tenant-rbac/` | tenant roles and permissions in DB (`0021_tenant_rbac.sql`: product owner, biz owner, admin, developer, tester, pure agent) replacing binary owner/member | M3/M4 | CLE-3414 |
 | `026-spool-tenant-from-identity/` | tenant from identity, not Host: single API host `api.<domain>`, `X-Spool-Tenant`, session `t`, per-tenant CNAMEs destroyed | M2/M3 | CLE-3415 |

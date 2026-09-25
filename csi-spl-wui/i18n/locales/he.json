@@ -69,6 +69,13 @@
     "language_title": "שפה",
     "appearance": "מראה",
     "theme": "ערכת נושא",
+    "font_size": {
+      "label": "גודל גופן",
+      "smaller": "טקסט קטן יותר",
+      "bigger": "טקסט גדול יותר",
+      "level": "גודל {n} מתוך {total}",
+      "level_default": "גודל {n} מתוך {total} (ברירת מחדל)"
+    },
     "signin_security": "התחברות ואבטחה",
     "signed_in_with": "מחוברים באמצעות",
     "password_managed_by": "הסיסמה שלכם מנוהלת על ידי {method}.",

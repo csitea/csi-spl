@@ -27,4 +27,11 @@
 - [x] T031 `tests/e2e/no-x-scroll.test.mjs` 52/52 (lde mock, incl. /settings/keys); `BASE_URL=https://dev.spool-hub.ai node tests/e2e/csp-violations.test.mjs` -> 0 violations on 8 routes incl. /settings/keys, control blocked; `build.json` on dev.spool-hub.ai and spool-hub.ai -> `2e7170b` after run 35455674920 (deploy dev + prd success).
 - [x] T032 Implemented (GRK-3380, 2026-09-21) — all 19 locales carry all 58 `settings` leaves; identical-to-English is 0 for es/ru/tr/uk/he/sv/nl (and bg/et/fi/lt/lv/mk/pl/ro/sk/sr) and 1/58 for el (`settings.email` = `Email`). Check: python walk of `csi-spl-wui/i18n/locales/*.json` settings leaves (n=1). 021 T011 / T040.
 
+## Phase 5 — Font size (CLE-3495, 3.5)
+
+- [x] T040 `utils/font-size.mjs` + `composables/useFontSize.ts` + `plugins/font-size.client.ts` + `components/FontSizeSetting.vue` on `/settings/appearance`; `--font-root` in `assets/css/base.css`; 67 `font-size: Npx` converted to rem. Check: `node --test tests/unit/font-size.test.mjs` (clamp at 1 and 5, ± steps, default, persistence, CSS contract, px audit); `nuxi typecheck` exit 0 (a planted TS2322 in `FontSizeSetting.vue` -> exit 2, reverted).
+- [x] T041 i18n: `settings.font_size.*` (5 keys) in all 19 locales; `i18n-parity` green.
+- [ ] T042 Live proof `tests/e2e/font-size-live.proof.mjs` on dev and prd after the deploy.
+- [ ] T043 Convert the px font sizes left in other lanes' files (`MessageBody.vue` 1, `ChannelSidebar.vue` 7, `ChannelPropertiesDialog.vue` 2) once those lanes land; drop them from the allow-list in `font-size.test.mjs`.
+
 <!-- last-edit: 2026-09-19T16:40:00Z -->

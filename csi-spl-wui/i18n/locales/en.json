@@ -69,6 +69,13 @@
     "language_title": "Language",
     "appearance": "Appearance",
     "theme": "Theme",
+    "font_size": {
+      "label": "Font size",
+      "smaller": "Smaller text",
+      "bigger": "Bigger text",
+      "level": "Size {n} of {total}",
+      "level_default": "Size {n} of {total} (default)"
+    },
     "signin_security": "Sign-in and security",
     "signed_in_with": "Signed in with",
     "password_managed_by": "Your password is managed by {method}.",

@@ -69,6 +69,13 @@
     "language_title": "Kieli",
     "appearance": "Ulkoasu",
     "theme": "Teema",
+    "font_size": {
+      "label": "Fonttikoko",
+      "smaller": "Pienempi teksti",
+      "bigger": "Suurempi teksti",
+      "level": "Koko {n}/{total}",
+      "level_default": "Koko {n}/{total} (oletus)"
+    },
     "signin_security": "Kirjautuminen ja tietoturva",
     "signed_in_with": "Kirjautumistapa",
     "password_managed_by": "Salasanaasi hallinnoi {method}.",

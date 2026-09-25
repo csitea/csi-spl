@@ -741,6 +741,22 @@ declare module '~/utils/theme.mjs' {
   export function applyThemeAttr(theme: unknown, el?: { setAttribute?(k: string, v: string): void } | null): SpoolTheme
 }
 
+declare module '~/utils/font-size.mjs' {
+  export const FONT_SIZE_KEY: 'spool-font-size'
+  export const FONT_SIZE_MIN: 1
+  export const FONT_SIZE_MAX: 5
+  export const FONT_SIZE_DEFAULT: 3
+  export const FONT_SIZE_PERCENT: Readonly<Record<1 | 2 | 3 | 4 | 5, number>>
+  export const FONT_SIZE_LEVELS: readonly number[]
+  export function parseFontSize(raw: unknown, fallback?: number): number
+  export function stepFontSize(level: unknown, delta: number): number
+  export function canShrinkFont(level: unknown): boolean
+  export function canGrowFont(level: unknown): boolean
+  export function readStoredFontSize(store?: unknown, fallback?: number): number
+  export function writeStoredFontSize(level: unknown, store?: unknown): boolean
+  export function applyFontSizeAttr(level: unknown, el?: { setAttribute?(k: string, v: string): void } | null): number
+}
+
 
 declare module '~/utils/file-preview.mjs' {
   export const PREVIEW_MAX_BYTES: number

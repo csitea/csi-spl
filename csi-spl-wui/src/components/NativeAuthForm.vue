@@ -206,7 +206,7 @@ async function resend() {
   cursor: pointer;
 }
 .native-auth__tab.is-active { color: var(--color-fg); background: var(--color-surface-hover); font-weight: 600; }
-.native-auth__field { display: grid; gap: 4px; font-size: 13px; color: var(--color-muted); min-width: 0; }
+.native-auth__field { display: grid; gap: 4px; font-size: 0.8125rem; color: var(--color-muted); min-width: 0; }
 .native-auth__field input {
   min-width: 0;
   max-width: 100%;

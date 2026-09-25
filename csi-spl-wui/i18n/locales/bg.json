@@ -69,6 +69,13 @@
     "language_title": "Език",
     "appearance": "Външен вид",
     "theme": "Тема",
+    "font_size": {
+      "label": "Размер на шрифта",
+      "smaller": "По-малък текст",
+      "bigger": "По-голям текст",
+      "level": "Размер {n} от {total}",
+      "level_default": "Размер {n} от {total} (по подразбиране)"
+    },
     "signin_security": "Вход и сигурност",
     "signed_in_with": "Вход чрез",
     "password_managed_by": "Паролата ви се управлява от {method}.",

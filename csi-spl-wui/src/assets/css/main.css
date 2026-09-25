@@ -166,7 +166,7 @@ html.pane-dragging * {
 }
 .sidebar h2 {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-muted);
@@ -187,7 +187,7 @@ html.pane-dragging * {
   max-width: 100%;
   min-width: 0;
   text-align: left;
-  font-size: 14px;
+  font-size: 0.875rem;
   box-sizing: border-box;
 }
 .nav-item:hover, .nav-item.active { background: var(--color-surface-hover); }
@@ -201,7 +201,7 @@ html.pane-dragging * {
   background: var(--color-accent);
   color: var(--color-on-accent);
   border-radius: var(--radius-pill);
-  font-size: 11px;
+  font-size: 0.6875rem;
   padding: 0 6px;
   min-width: 18px;
   text-align: center;
@@ -227,7 +227,7 @@ html.pane-dragging * {
 }
 .feed-header h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 600;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -275,10 +275,10 @@ html.pane-dragging * {
 }
 .spool-avatar { display: block; border-radius: var(--radius-sm); flex-shrink: 0; }
 .msg-meta { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
-.msg-author { font-weight: 600; font-size: 14px; }
-.msg-time { color: var(--color-muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.msg-author { font-weight: 600; font-size: 0.875rem; }
+.msg-time { color: var(--color-muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .msg-body {
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.45;
   margin-top: 2px;
   overflow-wrap: anywhere;
@@ -304,7 +304,7 @@ html.pane-dragging * {
   margin-top: 2px;
   padding: 6px 8px;
   font: inherit;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.45;
   color: var(--color-fg);
   background: var(--color-bg-2);
@@ -317,7 +317,7 @@ html.pane-dragging * {
   resize: none;
 }
 .msg-edit-box:disabled { opacity: .7; cursor: progress; }
-.msg-edit-hint { margin: 2px 0 0; font-size: 11px; }
+.msg-edit-hint { margin: 2px 0 0; font-size: 0.6875rem; }
 .msg-edit-error {
   display: flex;
   align-items: flex-start;
@@ -328,7 +328,7 @@ html.pane-dragging * {
   border-radius: var(--radius-sm);
   background: var(--color-bg-2);
   color: var(--color-danger);
-  font-size: 12px;
+  font-size: 0.75rem;
   max-width: 100%;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -336,17 +336,17 @@ html.pane-dragging * {
 .msg-edit-error span { min-width: 0; }
 /* the marker sits with the time, in the same muted voice — it is metadata,
    not a badge, and must not compete with the author or the kind */
-.msg-edited { color: var(--color-muted); font-size: 12px; white-space: nowrap; }
+.msg-edited { color: var(--color-muted); font-size: 0.75rem; white-space: nowrap; }
 .msg-body code {
   font-family: var(--font-mono);
   background: var(--color-bg-2);
   padding: 1px 4px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .mention { color: var(--color-accent); font-weight: 600; }
 .kind {
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   border-radius: var(--radius-pill);
@@ -359,7 +359,7 @@ html.pane-dragging * {
 .kind-reject { color: var(--color-danger); border-color: var(--color-danger); }
 .replies {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--color-accent);
   background: none;
   border: 0;
@@ -392,7 +392,7 @@ html.pane-dragging * {
   resize: none;
   min-height: var(--tap);
   outline: none;
-  font-size: 14px;
+  font-size: 0.875rem;
   overflow-wrap: anywhere;
   /* CLE-3437: a ``` block is many lines, so the box that holds it has to be
      many lines. The top-bar Omnibox got this in 022; the IN-PAGE composers
@@ -491,7 +491,7 @@ html.pane-dragging * {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  font-size: 13px;
+  font-size: 0.8125rem;
   background: var(--color-surface);
   max-width: 100%;
   min-width: 0;
@@ -500,7 +500,7 @@ html.pane-dragging * {
   color: var(--color-muted);
   display: block;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 0.6875rem;
   overflow-wrap: anywhere;
 }
 
@@ -575,10 +575,10 @@ html.pane-dragging * {
   cursor: pointer;
   text-align: left;
 }
-.muted { color: var(--color-muted); font-size: 13px; }
+.muted { color: var(--color-muted); font-size: 0.8125rem; }
 .version-stamp {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--color-muted);
   padding: 4px 16px;
   overflow-wrap: anywhere;
@@ -615,7 +615,7 @@ html.pane-dragging * {
 }
 .topic-row:hover { background: var(--color-surface-hover); }
 .topic-subject {
-  font-size: 14px;
+  font-size: 0.875rem;
   margin: 2px 0;
   overflow-wrap: anywhere;
 }
@@ -645,7 +645,7 @@ html.pane-dragging * {
 .new-pill { border-radius: var(--radius-pill); box-shadow: 0 2px 8px rgba(0, 0, 0, .18); }
 .live-rows > .pending { opacity: .6; }
 .older-sentinel { min-height: 24px; padding: 8px 0; text-align: center; }
-.search-chip { font-size: 13px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }
+.search-chip { font-size: 0.8125rem; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }
 .pinned-root { border-bottom: 1px solid var(--color-border); padding: 8px 16px; min-width: 0; max-width: 100%; }
 /* Omnibox topics started while this pane is open: newest at the top. */
 .born-topics {

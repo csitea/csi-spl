@@ -69,6 +69,13 @@
     "language_title": "Jazyk",
     "appearance": "Vzhľad",
     "theme": "Motív",
+    "font_size": {
+      "label": "Veľkosť písma",
+      "smaller": "Menší text",
+      "bigger": "Väčší text",
+      "level": "Veľkosť {n} z {total}",
+      "level_default": "Veľkosť {n} z {total} (predvolená)"
+    },
     "signin_security": "Prihlásenie a zabezpečenie",
     "signed_in_with": "Prihlásený cez",
     "password_managed_by": "Vaše heslo spravuje {method}.",

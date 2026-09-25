@@ -59,8 +59,8 @@ async function submit() {
 
 <style scoped>
 .change-password { display: grid; gap: 10px; margin-top: 18px; min-width: 0; }
-.change-password__title { font-size: 15px; margin: 0; }
-.native-auth__field { display: grid; gap: 4px; font-size: 13px; color: var(--color-muted); min-width: 0; }
+.change-password__title { font-size: 0.9375rem; margin: 0; }
+.native-auth__field { display: grid; gap: 4px; font-size: 0.8125rem; color: var(--color-muted); min-width: 0; }
 .native-auth__field input {
   min-width: 0;
   max-width: 100%;

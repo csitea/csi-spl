@@ -264,7 +264,7 @@ useHead(() => ({ title: query.value ? `${t('search.title')}: ${query.value}` : t
 <style scoped>
 .search-query {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 0.8125rem;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -274,7 +274,7 @@ useHead(() => ({ title: query.value ? `${t('search.title')}: ${query.value}` : t
 .search-results:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: var(--radius); }
 .search-group { margin: 0 0 16px; min-width: 0; }
 .search-group__title {
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-muted);
@@ -290,11 +290,11 @@ useHead(() => ({ title: query.value ? `${t('search.title')}: ${query.value}` : t
 /* CLE-3427: a chosen row is a SELECTED item — the darker fill and the one
    3px marker bar of the shared treatment, not a lighter hover fill. */
 .search-row.active { background: var(--color-selected); box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }
-.search-row__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; font-size: 14px; }
+.search-row__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; font-size: 0.875rem; }
 .search-row__who { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .search-row__text { min-width: 0; overflow-wrap: anywhere; }
-.search-row__meta { font-size: 12px; min-width: 0; overflow-wrap: anywhere; }
-.search-row__snippet { margin: 4px 0 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; min-width: 0; }
+.search-row__meta { font-size: 0.75rem; min-width: 0; overflow-wrap: anywhere; }
+.search-row__snippet { margin: 4px 0 0; font-size: 0.875rem; line-height: 1.45; overflow-wrap: anywhere; min-width: 0; }
 .search-results mark, .search-bad mark {
   background: var(--color-glow);
   color: inherit;

@@ -133,7 +133,7 @@ async function onDownload() {
 .file-kind[data-kind="slides"] { color: #e8710a; }
 .file-kind__ext {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   line-height: 1;
   text-transform: uppercase;
 }

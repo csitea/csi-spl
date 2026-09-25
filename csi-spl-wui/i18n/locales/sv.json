@@ -69,6 +69,13 @@
     "language_title": "Språk",
     "appearance": "Utseende",
     "theme": "Tema",
+    "font_size": {
+      "label": "Teckenstorlek",
+      "smaller": "Mindre text",
+      "bigger": "Större text",
+      "level": "Storlek {n} av {total}",
+      "level_default": "Storlek {n} av {total} (standard)"
+    },
     "signin_security": "Inloggning och säkerhet",
     "signed_in_with": "Inloggad med",
     "password_managed_by": "Ditt lösenord hanteras av {method}.",

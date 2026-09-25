@@ -160,7 +160,7 @@ function choose(id: string) {
   border: 0;
   color: var(--color-fg);
   font: inherit;
-  font-size: 14px;
+  font-size: 0.875rem;
   padding: 8px 12px;
   cursor: pointer;
   min-height: 36px;

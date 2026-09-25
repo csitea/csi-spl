@@ -194,7 +194,7 @@ async function fakePay() {
 
 <style scoped>
 .checkout__form { display: grid; gap: 10px; margin-top: 12px; min-width: 0; }
-.checkout__field { display: grid; gap: 4px; font-size: 13px; color: var(--color-muted); min-width: 0; }
+.checkout__field { display: grid; gap: 4px; font-size: 0.8125rem; color: var(--color-muted); min-width: 0; }
 .checkout__field input {
   min-width: 0;
   max-width: 100%;

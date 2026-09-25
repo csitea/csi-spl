@@ -87,7 +87,7 @@ const copied = computed(() => copiedId.value === 'full')
   min-width: 0;
 }
 .code-viewer__meta {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--color-muted);
   font-family: var(--font-mono);
   margin-inline-end: auto;
@@ -98,7 +98,7 @@ const copied = computed(() => copiedId.value === 'full')
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 3px 9px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);

@@ -63,7 +63,7 @@ withDefaults(
   margin: 0;
   padding: 4px 10px 8px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.5;
   tab-size: 4;
   /* the rows carry the whitespace rules; the box itself must never be the

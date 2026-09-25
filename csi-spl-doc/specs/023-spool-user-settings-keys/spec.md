@@ -99,13 +99,37 @@ section on the right. Each section is its own route and deep-linkable:
 | `/settings` | → redirects to `/settings/profile` | |
 | `/settings/profile` | Profile | the old Profile card |
 | `/settings/language` | Language | CLE-3403's `<LanguageSetting/>` |
-| `/settings/appearance` | Appearance | theme |
+| `/settings/appearance` | Appearance | theme, font size (3.5) |
 | `/settings/security` | Sign-in and security | method, password change, sign out |
 | `/settings/keys` | Keys | 3.1-3.3 |
 
 Locale prefixes apply (`/fi/settings/keys`). Below 720px the nav collapses to
 a wrapping row of links above the content (no x-scroll). The signed-out state
 renders once, in the parent, for every section.
+
+### 3.5 Font size (CLE-3495, owner 2026-09-25) — Implemented
+
+> "also make the default font a big bigger , actually we need a setting in the
+> personal settings to regulate the size of the default onts , with + for
+> getting bigger fornts and - for getting smaller - 5 levels with radio buttons"
+
+- **Five levels**, a native radiogroup on `/settings/appearance`, with a `−`
+  (one level smaller) and a `+` (one level bigger) each disabled at its end.
+- **One root variable.** `html { font-size: var(--font-root) }`, set per level
+  by `data-font-size` on `<html>`: 87.5 / 100 / 112.5 / 125 / 137.5 % of the
+  browser default (16px → 14 / 16 / 18 / 20 / 22 px). Every text size in the
+  WUI is rem so it follows; the exceptions are avatar initials (fixed-px
+  circles) and the five "A" samples in the control. Gate:
+  `tests/unit/font-size.test.mjs`.
+- **Default is level 3 (18px).** Measured before the change on dev and prd
+  (`/login`, headless Chrome, n=1 each): `html` and `body` computed 16px — that
+  is level 2 now.
+- **Persistence: per browser** (`localStorage` `spool-font-size`, like the
+  theme — `utils/prefs.mjs`), not hub-side like `preferred_locale`. The locale
+  is on the hub because the hub mails in it; nothing on the hub reads a font
+  size, and a hub field would cost a migration, a hub roll and a preferences
+  contract change for a purely visual choice. A reader on a phone and on a
+  desktop may also want different sizes.
 
 ## 4. Requirements
 
@@ -137,6 +161,10 @@ renders once, in the parent, for every section.
   (`settings.email` = `Email`).
 - **FR-010** No document x-scroll at phone width; CSP unchanged (WebCrypto
   and `blob:` downloads need no new directive).
+- **FR-011** Font size (3.5): five levels as radios plus `−` / `+`, one level
+  per step, stopping at 1 and 5; the body font-size grows strictly level to
+  level; the default is one level above the old 16px root; the choice
+  survives a reload. Strings in all 19 locales.
 
 ## 5. Open questions (owner)
 

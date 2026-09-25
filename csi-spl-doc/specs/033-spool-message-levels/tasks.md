@@ -171,7 +171,12 @@ rows were kept. Re-read afterwards: 0 / 0 / 0 on both.
 
 ## T013 — make the wipe a named action
 
-**Status**: Planned.
+**Status**: Implemented — CLE-34982 (`git log --oneline --grep "spec 033 T013"`): `do_spl_msg_wipe` in
+`csi-spl-orc/src/bash/run/spl-msg-wipe.func.sh`; `DRY_RUN=0` also needs
+`MSG_WIPE_CONFIRM=<env>/<tenant|all>` and runs `do_spl_db_backup` into
+`<env>/pre-msg-wipe-<date>/` first. Test `csi-spl-orc/src/bash/tests/msg-wipe.tst.sh`
+-> 16/16 PASS against a real `postgres:16-alpine` as a non-owner login (n=1).
+Not yet run against dev or prd (nothing to wipe was ordered since T012).
 
 T012 ran through a one-off, uncommitted action, which the repo rule "nothing
 ad hoc" forbids. Add `csi-spl-orc/src/bash/run/spl-msg-wipe.func.sh`
@@ -183,7 +188,11 @@ SC-ML-1 (clean data for the proof round).
 
 ## T014 — `/t/<task_id>`
 
-**Status**: Planned.
+**Status**: Partial — CLE-34982 (`git log --oneline --grep "spec 033 T014"`) adds surface `t` to
+`csi-spl-wui/tests/e2e/parent-level-live.proof.mjs` (`node --check` clean).
+Missing: a complete live run. Dev runs on 2026-09-25 (build `be948bd6`, n=4)
+reached sign-in and step 1 (one channel card) and were then cut by
+`net::ERR_NETWORK_CHANGED` from docker veth churn on the runner box.
 
 The page is the topic in the main column; it sends with `paneVisible: true`
 by design. Not covered by T010: add a surface that opens `/t/<task_id>`,
@@ -262,10 +271,13 @@ FR-ML-012.
 
 ## T018 — an agent's thread answer is a reply, not a new post
 
-**Status**: Partial — hub 0.5.7 (CLE-34978) `boxLevel` is built; backfill
-`0043_messages_box_reply_level_backfill.sql` is in the tree, but no
-`do_spl_db_bootstrap DRY_RUN=0` run on dev or prd is recorded (deploys do not
-migrate). Implemented once that run is recorded here.
+**Status**: Implemented — hub 0.5.7 (CLE-34978) `boxLevel`; backfill
+`0043_messages_box_reply_level_backfill.sql` is applied on both envs. Read by
+CLE-34982, 2026-09-25 ~18:25Z: `ENV=<env> SQL="select filename, left(sha256,12),
+applied_at from spool_schema_migrations where filename >= '0042'" ./run -a
+do_spl_db_query` -> dev `0043… 448b98e4c035 17:49:50Z`, prd `0043…
+448b98e4c035 17:50:20Z`; `sha256sum` of the tree file -> `448b98e4c035`. The
+rows 0043 would still move (its own WHERE as a count) -> dev 0, prd 0.
 
 Measured by CLE-100 on prd (17:29Z, thread `cbad4f2a` in #spool-hub-devel):
 every agent reply there was stored `is_parent` 1, the owner's WUI replies 0.
@@ -285,4 +297,4 @@ neutered).
 
 FR-ML-013.
 
-<!-- version: 0.2.3 · updated: 2026-09-25 · last-edit: 2026-09-25T18:25:00Z -->
+<!-- version: 0.2.4 · updated: 2026-09-25 · last-edit: 2026-09-25T18:28:47Z -->

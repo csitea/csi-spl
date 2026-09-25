@@ -93,6 +93,7 @@
           @keyup="syncMention"
           @focus="onOmniboxFocus"
           @blur="onOmniboxBlur"
+          @paste="onPaste"
         />
         <p :id="hintId" class="code-hint muted" aria-live="polite">{{ inCode ? t('composer.code_hint') : '' }}</p>
         <p v-if="global" :id="slashHintId" class="sr-only">{{ t('search.slash_shortcut') }}</p>
@@ -181,6 +182,7 @@ import { closeOpenFence, enterAction, exitFence, fenceStateAt } from '~/utils/co
 import { omniboxFocusHeight, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
 import { sendLimitError } from '~/utils/code-view.mjs'
 import { fileKind, isPreviewableImage, readDataUrl } from '~/utils/file-preview.mjs'
+import { carriesFiles, filesOf, pasteAttaches } from '~/utils/transfer-files.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
@@ -776,6 +778,42 @@ function onFiles(ev: Event) {
   picked.value = [...picked.value, ...input.files]
   input.value = ''
 }
+
+/* A pasted screenshot or copied file is attached, as if picked with Attach.
+   A paste with no files, or rich text from a document, stays a text paste. */
+function onPaste(ev: ClipboardEvent) {
+  if (!pasteAttaches(ev.clipboardData)) return
+  ev.preventDefault()
+  picked.value = [...picked.value, ...filesOf(ev.clipboardData)]
+}
+
+/* A file dropped anywhere on the page is attached to the Omnibox. Without
+   this the browser opens the dropped file and leaves the app. Only the one
+   global Omnibox listens, so a drop is attached once. */
+function onWindowDragOver(ev: DragEvent) {
+  if (!carriesFiles(ev.dataTransfer)) return
+  ev.preventDefault()
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy'
+}
+
+function onWindowDrop(ev: DragEvent) {
+  if (!carriesFiles(ev.dataTransfer)) return
+  ev.preventDefault()
+  const files = filesOf(ev.dataTransfer)
+  if (!files.length) return
+  picked.value = [...picked.value, ...files]
+  focusInput()
+}
+
+onMounted(() => {
+  if (!props.global) return
+  window.addEventListener('dragover', onWindowDragOver)
+  window.addEventListener('drop', onWindowDrop)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('dragover', onWindowDragOver)
+  window.removeEventListener('drop', onWindowDrop)
+})
 </script>
 
 <style scoped>

@@ -758,6 +758,12 @@ declare module '~/utils/font-size.mjs' {
 }
 
 
+declare module '~/utils/transfer-files.mjs' {
+  export function carriesFiles(dt: DataTransfer | null | undefined): boolean
+  export function filesOf(dt: DataTransfer | null | undefined): File[]
+  export function pasteAttaches(dt: DataTransfer | null | undefined): boolean
+}
+
 declare module '~/utils/file-preview.mjs' {
   export const PREVIEW_MAX_BYTES: number
   export function isPreviewableImage(name: string | null | undefined, bytes?: number | null): boolean

@@ -12,6 +12,7 @@ package files
 
 import (
 	"archive/tar"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -279,7 +280,11 @@ func writeBlob(filesDir string, r io.Reader) (string, int64, error) {
 }
 
 // copyVerify copies src to dest via a temp file, checking the sha256 equals
-// want before the final rename (never leaves a partial at dest).
+// want before the final rename (never leaves a partial at dest). dest gets the
+// mode a plain create would (0666 less the umask), not os.CreateTemp's 0600: a
+// seated MCP server runs as the box user and writes the file for an agent user
+// to read, and under its umask 022 that is 0644; a caller with umask 077 still
+// gets 0600.
 func copyVerify(src, dest, want string) error {
 	in, err := os.Open(src)
 	if err != nil {
@@ -292,7 +297,7 @@ func copyVerify(src, dest, want string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(dest), ".get-*")
+	tmp, err := createTemp(filepath.Dir(dest), ".get-")
 	if err != nil {
 		return err
 	}
@@ -310,6 +315,21 @@ func copyVerify(src, dest, want string) error {
 		return ErrHashMismatch
 	}
 	return os.Rename(tmpName, dest)
+}
+
+// createTemp is os.CreateTemp with the umask-honouring 0666 of os.Create.
+func createTemp(dir, prefix string) (*os.File, error) {
+	for i := 0; i < 16; i++ {
+		b := make([]byte, 8)
+		if _, err := rand.Read(b); err != nil {
+			return nil, err
+		}
+		f, err := os.OpenFile(filepath.Join(dir, prefix+hex.EncodeToString(b)), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o666)
+		if !os.IsExist(err) {
+			return f, err
+		}
+	}
+	return nil, fmt.Errorf("no free temp name in %s", dir)
 }
 
 // writeDeterministicTar writes a tar of root with cleared mtime/uid/gid and

@@ -13,6 +13,16 @@ What is known on the reference box (2026-09-25, csi-spl `2463b73`, dev / t1):
 - none was in the reseat cron's seated list at 13:50:35Z: no window named
   `AGY-<n>` was live
 
+## 0. A person joining with a agy agent on their own machine
+
+Use the installer exactly as in the Claude guide 0.1, with `--cli agy` (or
+`--cli claude,agy`), then start the agent with `spool-agent agy`. Untested
+for agy: record what happened in section 9.
+
+MCP (the Claude guide 6.0): untested for agy. Whether `agy` can register the
+`spool-dev` / `spool-prd` MCP servers is being checked (spec 028 T074); until
+then use the desk actions of section 6.
+
 ## 1. What this installs
 
 The same as for Claude: a seat in the box's desk, a notice strip, a prompt
@@ -49,7 +59,8 @@ sudo -n -u "$BOX_USER" true && echo ok
 
 ### 2.4 Pinned desk
 
-dev / t1 only on the reference box. No prd desk yet (owner step).
+dev / t1 and prd / t1 on the reference box (prd since 2026-09-25T15:41:30Z).
+A NEW box needs the tenant admin's pin: see the Claude guide 0.1.
 
 ## 3. Credentials
 

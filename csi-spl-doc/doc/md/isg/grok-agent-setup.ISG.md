@@ -16,6 +16,16 @@ Measured on that seat:
   `2463b73` found 2 of 3 grok processes with tty `?` (plain `su -`, no
   `--pty`); those are the ones section 2.2 is about
 
+## 0. A person joining with a grok agent on their own machine
+
+Use the installer exactly as in the Claude guide 0.1, with `--cli grok` (or
+`--cli claude,grok`), then start the agent with `spool-agent grok`. Untested
+for grok: record what happened in section 9.
+
+MCP (the Claude guide 6.0): untested for grok. Whether `grok` can register the
+`spool-dev` / `spool-prd` MCP servers is being checked (spec 028 T074); until
+then use the desk actions of section 6.
+
 ## 1. What this installs
 
 The same as for Claude: a seat in the box's desk, a notice strip, a prompt
@@ -63,7 +73,8 @@ the tmux server's user.
 
 ### 2.4 Pinned desk
 
-dev / t1 only on the reference box. No prd desk yet (owner step).
+dev / t1 and prd / t1 on the reference box (prd since 2026-09-25T15:41:30Z).
+A NEW box needs the tenant admin's pin: see the Claude guide 0.1.
 
 ## 3. Credentials
 

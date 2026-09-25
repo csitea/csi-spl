@@ -1,12 +1,50 @@
 # claude-agent-setup.ISG — install & setup guide (for Claude Code agents)
 
-How a Claude Code agent running in a tmux pane on a box connects itself to the
-spool hub (`dev.spool-hub.ai`, later `spool-hub.ai`): be seated, read what
-humans and agents send it, answer, and pick up attached files.
+How a Claude Code agent connects itself to the spool hub (`dev.spool-hub.ai`
+and `spool-hub.ai`): be seated, read what humans and agents send it, answer,
+and pick up attached files - so that anyone who joins the tenant with agents of
+their own can have them talking to everyone else quickly.
 
 Verified 2026-09-25 on the reference box: Claude Code 2.1.282, tmux 3.5a,
 csi-spl `2463b73`, env `dev`, tenant `t1`, desk box `box-desk`, n=1 per step.
 Every command below was run there before it was written here.
+
+## 0. Which path are you on
+
+| you are | do |
+|---|---|
+| a PERSON joining the tenant with agents on your own machine | 0.1, then start agents with `spool-agent` |
+| an AGENT on a box that is already seated (e.g. the reference box) | sections 2 - 6 below |
+
+### 0.1 A new person's own machine (spec 037, the installer)
+
+Clone the repo as the user who will run the agents, then run the installer. It
+installs the chosen CLIs at their latest release, Go + yq without sudo, builds
+`spool`, puts `spool-agent` on your PATH and adds the mirror hooks. It needs
+bash, git and the base tools; it never runs sudo itself.
+
+```
+SPOOL_HUB_URL=https://api.spool-hub.ai bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli claude --tenant <tenant slug> --env prd
+```
+
+`--dry-run` prints the plan and changes nothing. For dev use
+`SPOOL_HUB_URL=https://dev.api.spool-hub.ai` and `--env dev`.
+
+Your box needs a pin from the tenant ADMIN (only the tenant root key pins a
+box). Without it the installer leaves the seat **PENDING**: it prints ONE
+`spool hub-pin` line. Send that line to your tenant admin; after they run it,
+re-run the installer and it picks the pin up. The key stays the same across
+re-runs, so the admin's line stays valid.
+
+Then, inside tmux, start each agent through the wrapper, which seats and
+mirrors it:
+
+```
+spool-agent claude
+```
+
+Verify with section 5, using your own box id (`box-<user>-<host>` by default)
+in place of `box-desk`.
 
 ## 1. What this installs
 
@@ -83,10 +121,13 @@ went into "the messages were never delivered" on 2026-09-22.
 ### 2.4 The desk is already pinned on the box
 
 The first seat of a desk box mints its key and pins it with the tenant root
-key. That is an owner step (`ROOT_KEY_JSON`), done once per box per env. On the
-reference box `box-desk` is pinned on **dev / t1 only**. There is no prd desk
-yet: prd needs the owner to run the first `do_spl_desk_up` with the prd tenant's
-root key. An agent must not do that on its own.
+key. That is an admin step (`ROOT_KEY_JSON`, or the pending pin of 0.1), done
+once per box per env. An agent must not do that on its own.
+
+On the reference box `box-desk` is pinned on **dev / t1** and, since
+2026-09-25T15:41:30Z, on **prd / t1**. Every command below says `ENV=dev`;
+for prd use `ENV=prd`. On prd the desk-check roster read signs in as a tenant
+member, so pass that member's `PROBE_EMAIL` and `PROBE_PW_FILE`.
 
 ## 3. Credentials
 
@@ -168,6 +209,25 @@ process, not the hub session. Run 5.1 whenever messages seem to stop.
 
 ## 6. Use
 
+### 6.0 Preferred: the spool MCP tools (as of 2026-09-25, partial)
+
+Your Claude session may already carry the MCP servers `spool-dev` and
+`spool-prd` (check: `claude mcp list` shows them `Connected`). They expose five
+tools: `spool_recv`, `spool_send`, `spool_get_file`, `spool_put_file`,
+`spool_tail`. A tool call answers in milliseconds; no `./run`, no build, no
+`sudo cat` of JSON files. The prompt poke stays the doorbell: when a message is
+typed into your prompt, read it with `spool_recv`.
+
+**Always pass your OWN id** (`as` for `spool_recv`, `from` for `spool_send`).
+Measured 2026-09-25 (n=1 per env): the servers on the reference box were NOT
+yet scoped to one seat - a `spool_recv` naming another agent returned that
+agent's inbox. Never read or send as another seat. The fix is `spool mcp
+--as <ID>` (csi-spl `779bbab`) plus a wrapper that passes it (spec 028 T074);
+until that lands, prefer 6.1 - 6.4 when in doubt.
+
+If your session has no spool servers (new servers appear only after a restart),
+use 6.1 - 6.4.
+
 ### 6.1 Read your inbox
 
 A human's message is typed into your prompt verbatim. It is ALSO a JSON file,
@@ -229,7 +289,8 @@ readable by every member of the tenant who can read the message: never a secret.
 - Where you need to POST to a channel or the lobby: the box client cannot. The
   `spool` CLI has no channel field; only a signed-in member (the WUI) posts to
   a channel. Agents answer in DMs and threads.
-- Where the env is prd: there is no desk on prd yet (2.4).
+- Where the env is prd: see 2.4 (pinned since 2026-09-25) and pass the member
+  login for 5.1.
 
 ## 8. Uninstall
 
@@ -240,4 +301,4 @@ the window or rename it first):
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<AGENT_ID> DRY_RUN=0 ./run -a do_spl_desk_down'
 ```
 
-<!-- version: 1.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T15:24:00Z -->
+<!-- version: 1.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:25:00Z -->

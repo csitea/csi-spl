@@ -34,11 +34,15 @@ do_spl_desk_mirror_settings() {
 
 # spl_desk_mirror_settings_json <spool-mirror.py>: the hooks object. The
 # timeout is short on purpose: the hook forks the post and returns at once,
-# and a hook that hangs must never hold a prompt or a turn.
+# and a hook that hangs must never hold a prompt or a turn. The command is a
+# no-op when the script is absent (a checkout mid-move, a box without the
+# repo): every CLI on the box reads this file, and a missing path must not
+# print a hook error on every prompt of every agent.
 spl_desk_mirror_settings_json() {
   python3 - "$1" <<'EOF_PY'
 import json, shlex, sys
-cmd = "python3 " + shlex.quote(sys.argv[1]) + " hook"
+p = shlex.quote(sys.argv[1])
+cmd = f"[ -r {p} ] && exec python3 {p} hook; exit 0"
 h = [{"hooks": [{"type": "command", "command": cmd, "timeout": 10}]}]
 print(json.dumps({"hooks": {"UserPromptSubmit": h, "Stop": h}}, indent=2, sort_keys=True))
 EOF_PY

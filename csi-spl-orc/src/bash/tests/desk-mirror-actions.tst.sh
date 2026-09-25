@@ -94,10 +94,15 @@ h = json.load(open(sys.argv[1]))["hooks"]
 for ev in ("UserPromptSubmit", "Stop"):
     cmd = h[ev][0]["hooks"][0]["command"]
     argv = shlex.split(cmd)
-    assert argv[0] == "python3" and argv[-1] == "hook", cmd
-    assert os.path.isfile(argv[1]) and argv[1].startswith(os.path.realpath(sys.argv[2])), cmd
+    assert argv[:2] == ["[", "-r"] and argv[4:7] == ["&&", "exec", "python3"] and argv[8] == "hook;", cmd
+    assert argv[2] == argv[7] and os.path.isfile(argv[7]) and argv[7].startswith(os.path.realpath(sys.argv[2])), cmd
 EOF_PY
 then pass "3. both events call spool-mirror.py hook of this checkout"; else fail "3. settings: $(cat "$T/o")"; fi
+SNIPPET=do_spl_desk_mirror_settings in_orc MIRROR_PY="$T/absent.py" >"$T/o" 2>&1 &&
+  fail "3. an absent MIRROR_PY was accepted" || pass "3. an absent MIRROR_PY is refused"
+cmd="$(SNIPPET='spl_desk_mirror_settings_json "$T/absent.py"' in_orc T="$T" | python3 -c 'import json,sys; print(json.load(sys.stdin)["hooks"]["Stop"][0]["hooks"][0]["command"])')"
+printf '{}' | bash -c "$cmd" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -s "$T/o" ]] && pass "3. the hook is a silent no-op when the script is absent" || fail "3. absent script: rc $rc $(cat "$T/o")"
 
 # --- 4. the check ------------------------------------------------------------------------------
 env SPOOL_NOTIFY_CMD=/opt/x/app-wt/AGT-1/orc/spool-notify.sh sleep 300 &

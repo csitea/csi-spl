@@ -161,7 +161,14 @@ spl_host_spool_tree_state() {
 # prints neither. <vcs.modified> is "unknown" when Go did not stamp vcs, which
 # it does not in a git worktree. Empty when the binary carries no commit.
 spl_host_spool_bin_rev() {
-  PATH="/usr/local/go/bin:$PATH" go version -m "$1" 2>/dev/null | awk '
+  local sel
+  sel="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)/csi-spl-api/src/bash/use-go-toolchain.sh"
+  if [[ -f "$sel" ]]; then
+    # shellcheck source=../../../../csi-spl-api/src/bash/use-go-toolchain.sh
+    source "$sel"
+    spl_export_go_path || true
+  fi
+  go version -m "$1" 2>/dev/null | awk '
     $1 == "build" && match($0, /main\.commit=[0-9a-f]+/) { c = substr($0, RSTART + 12, RLENGTH - 12) }
     $2 ~ /^vcs\.revision=/ { sub(/^vcs\.revision=/, "", $2); r = $2 }
     $2 ~ /^vcs\.modified=/ { sub(/^vcs\.modified=/, "", $2); m = $2 }

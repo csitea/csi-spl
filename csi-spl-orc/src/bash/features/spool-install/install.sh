@@ -194,9 +194,20 @@ if ! yq_ok; then
   fi
 fi
 GO_NEED="$(sed -n 's/^go \([0-9.]*\).*/\1/p' "$MOD/go.mod" 2>/dev/null)"
-go_ok() {  # the first go on PATH (or in a known root) that is new enough
+go_ok() {  # the first go on PATH (or in an override root) that is new enough
   local g v
-  for g in "$(command -v go 2>/dev/null)" ${SPOOL_INSTALL_GO_ROOTS-/usr/local/go/bin}; do
+  local -a cands=()
+  if [ -n "${SPOOL_INSTALL_GO_ROOTS+x}" ]; then
+    # SPOOL_INSTALL_GO_ROOTS is the override. Empty means PATH only.
+    # shellcheck disable=SC2206
+    cands=("$(command -v go 2>/dev/null)" ${SPOOL_INSTALL_GO_ROOTS})
+  else
+    # shellcheck source=../../../../../csi-spl-api/src/bash/use-go-toolchain.sh
+    source "$ROOT/csi-spl-api/src/bash/use-go-toolchain.sh"
+    spl_export_go_path || true
+    cands=("$(command -v go 2>/dev/null)")
+  fi
+  for g in "${cands[@]}"; do
     [ -d "$g" ] && g="$g/go"; [ -x "$g" ] || continue
     v="$("$g" version 2>/dev/null | sed -n 's/.* go\([0-9.]*\).*/\1/p')"
     [ -n "$v" ] && [ "$(printf '%s\n%s\n' "$GO_NEED" "$v" | sort -V | head -1)" = "$GO_NEED" ] && { GO_BIN="$g"; return 0; }

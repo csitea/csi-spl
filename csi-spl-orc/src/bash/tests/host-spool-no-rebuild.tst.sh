@@ -125,7 +125,10 @@ eq "6 a binary from an unknown commit is not replaced" 8 "$(builds)"
 grep -q 'does not know' <<<"$out" && pass "6 …and the WARN names it" || fail "6 no WARN: $out"
 
 # --- 7. the real reader, on a real Go binary -------------------------------------
-GO=/usr/local/go/bin/go; [[ -x "$GO" ]] || GO="$(command -v go || true)"
+# shellcheck source=../../../../csi-spl-api/src/bash/use-go-toolchain.sh
+source "$APP_ROOT/csi-spl-api/src/bash/use-go-toolchain.sh"
+spl_export_go_path || true
+GO="$(command -v go || true)"
 if [[ -n "$GO" ]]; then
   mkdir -p "$T/gobin"
   printf 'module x\n\ngo 1.21\n' >"$T/gobin/go.mod"

@@ -55,11 +55,11 @@ set -uo pipefail
 # itself in the log instead of surfacing as a failed reconcile.
 # DESK_CRON_PATH_EXTRA covers a toolchain installed outside the standard
 # directories. `go` is the one that bites here: do_spl_desk_up builds the spool
-# binary (spl_host_spool), and Go's own documented install location is
-# /usr/local/go/bin, which is on nobody's PATH unless a profile put it there -
-# and a cron job reads no profile.
+# binary (spl_host_spool). A cron job reads no profile, so once ROOT is known
+# this script sources the Go selector and prepends the newest toolchain.
+# DESK_CRON_PATH_EXTRA, when set, is put on PATH first so the selector
+# keeps whichever of that go and the trees under the default root is newer.
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
-PATH="${PATH}:${DESK_CRON_PATH_EXTRA:-/usr/local/go/bin}"
 export PATH
 
 # The tools do_spl_desk_up_all and the actions under it require. `go` is in the
@@ -89,6 +89,15 @@ SELF="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/$(basename 
 # <repo>/csi-spl-orc/src/bash/scripts -> <repo>
 ORC="$(cd "$(dirname "$SELF")/../../.." && pwd)"
 ROOT="$(cd "$ORC/.." && pwd)"
+if [ -n "${DESK_CRON_PATH_EXTRA:-}" ]; then
+  PATH="${DESK_CRON_PATH_EXTRA}:${PATH}"
+  export PATH
+fi
+# shellcheck source=../../../../csi-spl-api/src/bash/use-go-toolchain.sh
+if [ -f "$ROOT/csi-spl-api/src/bash/use-go-toolchain.sh" ]; then
+  source "$ROOT/csi-spl-api/src/bash/use-go-toolchain.sh"
+  spl_export_go_path || true
+fi
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 
 # 0 when every tool this needs resolves on the PATH; otherwise it NAMES the
@@ -103,8 +112,8 @@ check_tools() {
   say "FATAL these tools are not on the PATH:${missing}"
   say "FATAL PATH=$PATH"
   say "FATAL A cron job does not read a login profile, so a tool outside the"
-  say "FATAL standard directories has to be reachable from the PATH set at the"
-  say "FATAL top of this script."
+  say "FATAL standard directories has to be reachable from the PATH this script"
+  say "FATAL sets before this check (DESK_CRON_PATH_EXTRA, then the Go selector)."
   return 3
 }
 

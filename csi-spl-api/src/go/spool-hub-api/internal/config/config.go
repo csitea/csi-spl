@@ -65,6 +65,12 @@ type Config struct {
 	// NotifyTimeout bounds that command. It can never fail a delivery: the
 	// file is already written when it runs (002).
 	NotifyTimeout time.Duration `env:"SPOOL_NOTIFY_TIMEOUT" envDefault:"10s"`
+	// NotifyAsync is the rollback for the queued terminal leg (specs/030
+	// FP-1, FR-007). Unset/"1" = hub-run queues each poke on a per-recipient
+	// lane off the read loop; "0"/"false"/"off" = every poke runs synchronously
+	// on the delivering goroutine, exactly as before 030. It never turns the
+	// terminal leg itself off - that is SPOOL_NOTIFY_CMD=off.
+	NotifyAsync string `env:"SPOOL_NOTIFY_ASYNC"`
 	// SubmitSocket is the box-local listener the hub-run sidecar opens so a
 	// `spool send` hands its signed envelope to the sidecar's ALREADY-WARM hub
 	// session instead of dialling a new one (specs/030 FP-2). Measured
@@ -188,6 +194,15 @@ func (c *Config) Mirror() (bool, error) {
 // HubDir is the box's private hub state: roster cache, pending and rejected
 // envelopes. Hidden, so the $SPOOL_ROOT/*/ agent scan never sees it.
 func (c *Config) HubDir() string { return filepath.Join(c.SpoolRoot, ".hub") }
+
+// NotifyAsyncOff reports that the 030 queued terminal leg is rolled back.
+func (c *Config) NotifyAsyncOff() bool {
+	switch strings.ToLower(strings.TrimSpace(c.NotifyAsync)) {
+	case "0", "false", "off":
+		return true
+	}
+	return false
+}
 
 // SubmitOff reports that the 030 submit path is disabled by cnf.
 func (c *Config) SubmitOff() bool { return strings.EqualFold(strings.TrimSpace(c.SubmitSocket), "off") }

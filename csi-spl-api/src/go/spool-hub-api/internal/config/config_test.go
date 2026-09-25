@@ -347,3 +347,16 @@ func TestLoadHubDBPool(t *testing.T) {
 		})
 	}
 }
+
+// specs/030 FR-007: SPOOL_NOTIFY_ASYNC rolls the queued terminal leg back.
+func TestNotifyAsyncOff(t *testing.T) {
+	for v, want := range map[string]bool{
+		"": false, "1": false, "true": false, "on": false,
+		"0": true, "false": true, "OFF": true, " off ": true,
+	} {
+		c := &Config{NotifyAsync: v}
+		if got := c.NotifyAsyncOff(); got != want {
+			t.Errorf("NotifyAsync=%q: NotifyAsyncOff()=%v, want %v", v, got, want)
+		}
+	}
+}

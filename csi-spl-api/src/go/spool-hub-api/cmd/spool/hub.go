@@ -522,7 +522,12 @@ func cmdHubRun(cfg *config.Config) int {
 	// The daemon is the one caller that outlives its deliveries, so it is the
 	// one that can take the terminal leg off the read loop (CLE-3435). Stop
 	// drains what is queued before the process leaves.
-	q := notify.Start(cfg)
+	// SPOOL_NOTIFY_ASYNC=0 is the rollback (specs/030 FR-007): no queue, so
+	// notify.Deliver falls back to the synchronous path. Stop takes a nil.
+	var q *notify.Queue
+	if !cfg.NotifyAsyncOff() {
+		q = notify.Start(cfg)
+	}
 	defer q.Stop()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

@@ -169,6 +169,13 @@ func TestChannelMembershipRouting(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// specs/038 FR-004: only a member agent posts into a channel, so the
+	// poster is seated in every channel it writes to below.
+	for _, ch := range []string{"tasks", "alerts", "lobby"} {
+		if err := e.st.InviteChannelAgent(ctx, tid, ch, "box-a", "GRK-03", time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
 	cli, err := a.c.Dial(ctx, wire.RoleCLI)
 	if err != nil {
 		t.Fatal(err)
@@ -308,6 +315,9 @@ func TestChannelEnvelopeStored(t *testing.T) {
 	b := e.box(tid, "box-b", "CLE-07")
 	e.pin(tid, a)
 	e.pin(tid, b)
+	if err := e.st.InviteChannelAgent(ctx, tid, "tasks", "box-a", "GRK-03", time.Now()); err != nil { // specs/038
+		t.Fatal(err)
+	}
 	cli, err := a.c.Dial(ctx, wire.RoleCLI)
 	if err != nil {
 		t.Fatal(err)
@@ -561,6 +571,11 @@ func TestHubclientChannelRecv(t *testing.T) {
 	}
 	if m, _ := e.st.ChannelMembers(ctx, tid, "tasks"); len(m) != 0 {
 		t.Fatalf("SPOOL_CHANNELS put agents in #tasks: %+v", m)
+	}
+	for _, ch := range []string{"releases", "alerts"} { // specs/038: the poster is a member
+		if err := e.st.InviteChannelAgent(ctx, tid, ch, "box-a", "GRK-03", time.Now()); err != nil {
+			t.Fatal(err)
+		}
 	}
 	cli, err := a.c.Dial(ctx, wire.RoleCLI)
 	if err != nil {

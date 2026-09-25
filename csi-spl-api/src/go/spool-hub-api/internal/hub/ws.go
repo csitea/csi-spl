@@ -477,6 +477,16 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, tok, status, detail)
 		return
 	}
+	if env.Channel != "" { // specs/038 FR-004: members post, others see no channel
+		switch in, err := s.agentInChannel(ctx, x.tenant, env.Channel, env.FromBox, m.From); {
+		case err != nil:
+			x.fail(ctx, id, "internal", http.StatusInternalServerError, "channel lookup failed")
+			return
+		case !in:
+			x.fail(ctx, id, "unknown_channel", http.StatusNotFound, "no channel "+env.Channel+" in this tenant")
+			return
+		}
+	}
 	if f.TypedBy != "" {
 		if detail := s.typedByRefusal(ctx, x, m.From, f.TypedBy); detail != "" {
 			x.fail(ctx, id, "typed_by_not_bound", http.StatusForbidden, detail)

@@ -22,6 +22,19 @@ import (
 // typedByRe is rdb 0006 humans.human_id: a typed_by claim names a human.
 var typedByRe = regexp.MustCompile(`^HUM-[0-9]+$`)
 
+// channelRe is the hub's channel id (store.ValidChannelID, channels-v1 §1).
+var channelRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
+
+// Broadcast is the v:1 `to` of a channel post: no single recipient, every
+// member of the channel reads it - the same `to` a human's post carries.
+const Broadcast = "ALL-0"
+
+// ChannelID normalizes a --channel value: trimmed, lower case, an optional
+// leading '#' dropped (agents write "#spool-hub-devel" the way the WUI shows it).
+func ChannelID(c string) string {
+	return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(c)), "#")
+}
+
 // PutResult is what put-file / put-dir return. Fields are in key order so the
 // JSON matches the map the CLI printed before this layer existed.
 type PutResult struct {
@@ -45,6 +58,11 @@ type SendArgs struct {
 	// (specs/036 FR-009, `spool send --typed-by`). Hub mode only: it rides on
 	// the send frame and the hub accepts it only for a bound box operator.
 	TypedBy string
+	// Channel makes the send a POST INTO that channel (specs/038): a new
+	// topic every member of the channel reads, exactly like a human's post -
+	// to ALL-0, to_box box-wui, the channel signed into the envelope. Hub mode
+	// only; the hub refuses it (unknown_channel, 404) unless From is a member.
+	Channel string
 	// Hub overrides the hub client (tests inject one with their transport).
 	Hub *hubclient.Client
 }
@@ -89,6 +107,23 @@ func Send(cfg *config.Config, in SendArgs) (SendResult, error) {
 func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, error) {
 	if in.ToBox != "" && cfg.HubURL == "" {
 		return SendResult{}, fmt.Errorf("--to-box / to_box needs hub mode ($SPOOL_HUB_URL)")
+	}
+	if in.Channel != "" {
+		in.Channel = ChannelID(in.Channel)
+		switch {
+		case cfg.HubURL == "":
+			return SendResult{}, fmt.Errorf("--channel needs hub mode ($SPOOL_HUB_URL)")
+		case !channelRe.MatchString(in.Channel):
+			return SendResult{}, fmt.Errorf("--channel must match ^[a-z0-9][a-z0-9-]{0,63}$, got %q", in.Channel)
+		case in.ToBox != "":
+			return SendResult{}, fmt.Errorf("--channel posts to every member of the channel: drop --to-box")
+		case in.To != "" && in.To != Broadcast:
+			return SendResult{}, fmt.Errorf("--channel posts to every member of the channel: --to must be empty or %s, got %q", Broadcast, in.To)
+		}
+		in.To = Broadcast
+		if in.Kind == "" {
+			in.Kind = "note"
+		}
 	}
 	if in.TypedBy != "" {
 		if cfg.HubURL == "" {
@@ -145,7 +180,12 @@ func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, 
 	if hc == nil {
 		hc = hubclient.New(cfg)
 	}
-	d, err := hc.SendMessageTyped(ctx, m, in.ToBox, in.TypedBy)
+	var d string
+	if in.Channel != "" {
+		d, err = hc.SendChannelTyped(ctx, m, in.Channel, in.TypedBy)
+	} else {
+		d, err = hc.SendMessageTyped(ctx, m, in.ToBox, in.TypedBy)
+	}
 	if err != nil {
 		return SendResult{}, err
 	}

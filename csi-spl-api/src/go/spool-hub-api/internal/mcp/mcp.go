@@ -34,12 +34,13 @@ type PutFileIn struct {
 // SendIn is the input of spool_send.
 type SendIn struct {
 	From    string   `json:"from,omitempty" jsonschema:"sender agent id, e.g. GRK-03; a seated server defaults it to its seat and refuses any other"`
-	To      string   `json:"to" jsonschema:"recipient agent id, e.g. CLE-07"`
+	To      string   `json:"to,omitempty" jsonschema:"recipient agent id, e.g. CLE-07; empty for a channel post"`
 	TaskID  string   `json:"task_id,omitempty" jsonschema:"topic uuid; a new one is minted when empty"`
 	Kind    string   `json:"kind" jsonschema:"one of task, result, note, reject"`
 	Body    string   `json:"body" jsonschema:"message text"`
 	FileIDs []string `json:"file_ids,omitempty" jsonschema:"file_ids from spool_put_file to attach"`
 	ToBox   string   `json:"to_box,omitempty" jsonschema:"hub mode only: the recipient's box id when the agent id exists on several boxes (a seated server sends HUM-* to box-wui by default)"`
+	Channel string   `json:"channel,omitempty" jsonschema:"hub mode only: post into this channel id (e.g. spool-hub-devel) as a new topic every member reads, like a human's post; leave to empty (or ALL-0) and to_box empty; refused unless the sender is a member"`
 }
 
 // RecvIn is the input of spool_recv.
@@ -105,18 +106,18 @@ func NewServerOpts(cfg *config.Config, version string, o Options) *sdk.Server {
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "spool_send",
-		Description: "Send a v:1 message to another agent, on this box or (hub mode) another box (== spool send).",
+		Description: "Send a v:1 message to another agent, on this box or (hub mode) another box; with channel, post a new topic into that channel for every member (== spool send [--channel]).",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in SendIn) (*sdk.CallToolResult, action.SendResult, error) {
 		from, err := o.who("from", in.From)
 		if err != nil {
 			return nil, action.SendResult{}, err
 		}
-		if o.Seat != "" && in.ToBox == "" && cfg.HubURL != "" && strings.HasPrefix(in.To, "HUM-") {
+		if o.Seat != "" && in.ToBox == "" && in.Channel == "" && cfg.HubURL != "" && strings.HasPrefix(in.To, "HUM-") {
 			in.ToBox = wuiBox
 		}
 		out, err := action.SendCtx(ctx, cfg, action.SendArgs{
 			From: from, To: in.To, TaskID: in.TaskID, Kind: in.Kind, Body: in.Body, FileIDs: in.FileIDs,
-			ToBox: in.ToBox,
+			ToBox: in.ToBox, Channel: in.Channel,
 		})
 		if err != nil {
 			return nil, out, toolErr(err)

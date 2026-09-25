@@ -200,6 +200,7 @@ func cmdSend(cfg *config.Config, args []string) int {
 	fs.Var(&dirRefs, "dir-ref", "attach a dir by on-box path reference (repeatable)")
 	putFile := fs.String("put-file", "", "convenience: blob this file then attach it")
 	toBox := fs.String("to-box", "", "hub mode: recipient box id (needed when --to exists on several boxes)")
+	channel := fs.String("channel", "", "hub mode: post into this channel (a new topic every member reads, to ALL-0), like a human's post; the hub refuses it unless --from is a member")
 	typedBy := fs.String("typed-by", "", "hub mode: the HUM-<n> who typed this line at --from's terminal; the hub refuses it (typed_by_not_bound) unless that human is bound as this box's operator")
 	if err := fs.Parse(args); err != nil {
 		return 1
@@ -209,7 +210,7 @@ func cmdSend(cfg *config.Config, args []string) int {
 	out, err := action.SendCtx(ctx, cfg, action.SendArgs{
 		From: *from, To: *to, TaskID: *task, Kind: *kind, Body: *body,
 		FileIDs: fileIDs, FileRefs: fileRefs, DirBlobs: dirBlobs, DirRefs: dirRefs,
-		PutFile: *putFile, ToBox: *toBox, TypedBy: *typedBy,
+		PutFile: *putFile, ToBox: *toBox, TypedBy: *typedBy, Channel: *channel,
 	})
 	if err != nil {
 		return fail(err)

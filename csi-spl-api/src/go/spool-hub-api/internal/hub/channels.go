@@ -101,6 +101,32 @@ func (s *Server) checkTags(ctx context.Context, tenant, channel, parent, taskID 
 	return "", 0, ""
 }
 
+// agentInChannel is specs/038 FR-004: a box-signed envelope that CLAIMS a
+// channel is a post into that channel, and only a member agent may post one -
+// the sending agent itself must be a member on the box that signed it
+// (channel_subscriptions, invited agents included). A default channel is no
+// exception: since rdb 0036 #lobby / #tasks / #alerts have no agents until a
+// member picks them. A non-member is answered like a channel that does not
+// exist (unknown_channel, 404 - never 403, the read door's rule, rdb 0028).
+func (s *Server) agentInChannel(ctx context.Context, tenant, channel, box, agent string) (bool, error) {
+	members, err := s.o.Store.ChannelMembers(ctx, tenant, store.NormalizeChannel(channel))
+	if err != nil {
+		return false, err
+	}
+	return contains(members[box], agent), nil
+}
+
+// withoutAgent is agents minus id (a fresh slice; the input is not touched).
+func withoutAgent(agents []string, id string) []string {
+	var out []string
+	for _, a := range agents {
+		if a != id {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 // routeChannel adds a delivery for every box that hosts a member of the
 // message's channel; ambient chat in a DM routes nowhere. Unsigned (browser)
 // envelopes are not box-routed: a box would refuse them (channels-v1 §4.6,
@@ -108,7 +134,11 @@ func (s *Server) checkTags(ctx context.Context, tenant, channel, parent, taskID 
 // it gets here (wuiSend), so the unsigned case is one the fan-out is OFF for.
 //
 // Skips: box-wui (the browser audience, delivered by fanoutWUI) and from_box
-// (its own agents wrote the post). An AGENT-origin envelope also skips its
+// (its own agents wrote the post) - EXCEPT for an agent's own channel post
+// (specs/038: a box-signed channel tag), where the other members on the
+// sender's box are members like any other and only the sender itself is left
+// out (recvAgents drops it from the frame, so it never reads its own post).
+// An AGENT-origin envelope also skips its
 // to_box, which the shared commit path already delivered. A BROWSER-origin one
 // does not: box-wui owns no agent, so a dispatch's to_box is just another
 // member box, and the other members sitting on it are exactly what the owner
@@ -124,10 +154,17 @@ func (s *Server) routeChannel(ctx context.Context, tenant, channel string, env *
 		return
 	}
 	fromBrowser := env.FromBox == WUIBox
+	agentPost := !fromBrowser && env.Channel != ""
 	now := s.o.Now()
 	for box, agents := range members {
-		if box == WUIBox || box == env.FromBox || (!fromBrowser && box == env.ToBox) {
+		if box == WUIBox || (!fromBrowser && box == env.ToBox) {
 			continue
+		}
+		if box == env.FromBox {
+			if !agentPost {
+				continue
+			}
+			agents = withoutAgent(agents, m.From)
 		}
 		if len(channelTargets(agents)) == 0 {
 			continue
@@ -157,7 +194,13 @@ func (s *Server) recvAgents(ctx context.Context, x *session, raw []byte) ([]stri
 	if err != nil {
 		return nil, own
 	}
-	a := channelTargets(members[x.box])
+	mine := members[x.box]
+	if e.FromBox == x.box { // specs/038: an agent never receives its own post
+		if m, err := e.Inner(); err == nil {
+			mine = withoutAgent(mine, m.From)
+		}
+	}
+	a := channelTargets(mine)
 	return a, own || len(a) > 0
 }
 

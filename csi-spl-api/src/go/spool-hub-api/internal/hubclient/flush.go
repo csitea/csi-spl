@@ -75,6 +75,32 @@ func (c *Client) SendMessageTyped(ctx context.Context, m *msg.Message, explicitT
 	return delivery, err
 }
 
+// SendChannelTyped posts m into channel (specs/038): the agent's broadcast,
+// the same shape a human's post has - msg.to ALL-0, to_box box-wui (no box
+// owns a channel post; the hub builds one delivery per member box and shows
+// it in the channel feed), the channel tag signed into the envelope. Nothing
+// is written to a local inbox: the sender does not read its own post, and the
+// other members on THIS box receive it back from the hub like any member.
+// Queued and flushed like any cross-box send.
+func (c *Client) SendChannelTyped(ctx context.Context, m *msg.Message, channel, typedBy string) (string, error) {
+	own, priv, err := c.box()
+	if err != nil {
+		return "", err
+	}
+	if err := spool.New(c.Cfg).WriteOutbox(m); err != nil {
+		return "", err
+	}
+	env, err := wire.NewEnvelopeIn(priv, own, wuiBox, channel, "", m)
+	if err != nil {
+		return "", err
+	}
+	pending, err := c.writePending(m, env, typedBy)
+	if err != nil {
+		return "", err
+	}
+	return c.sendNow(ctx, env, m, pending, typedBy)
+}
+
 // sendNow delivers one already-signed, already-pending envelope.
 //
 // specs/030 FP-2: it first offers the envelope to a LOCAL hub-run sidecar,

@@ -47,10 +47,10 @@ named) · `[ ]` Planned (`../README.md` §2.3).
 
 ## Phase 3c — Attribution (FR-009..FR-012)
 
-- [ ] T050 Planned — migration: `messages.typed_by`, `box_operators` (RLS as 0037).
-- [ ] T051 Planned — hub: frame `typed_by`, the FR-010 checks, store/view/WUI frame.
-- [ ] T052 Planned — `spool send --typed-by`; the grant action.
-- [ ] T053 Planned — web UI: the human row + "via terminal <agent>" badge.
+- [x] T050 Done (1e438b7) — migration 0040: `messages.typed_by`, `box_operators` (RLS as 0037). Applied on dev AND prd with `do_spl_db_bootstrap` before the 0.5.5 bump; `do_spl_db_query` shows the column + table on both (6 rows each).
+- [x] T051 Done (4336d9f) — hub: frame `typed_by`; FR-010 (roster, membership, binding) refuses with `typed_by_not_bound` (403) and stores nothing; stored, in the view API and the WUI frame, never to a box. Test `internal/hub/typed_by_test.go` (memory + postgres).
+- [x] T052 Done (4336d9f, b079601) — `spool send --typed-by HUM-n` on the dial, submit-socket and pending paths (`<pending>.json.typed_by`); `do_spl_box_operator_{grant,revoke,list}` (owner / admin or `operator` grants a member).
+- [x] T053 Done (19daf4a, shipped in 0.5.5) — web UI: the row renders as the human + "via terminal <agent>" badge; e2e `tests/e2e/typed-by.test.mjs` in the 10 ci wui-e2e job.
 - [~] T054 Partial — mirror: `--typed-by <operator>` on prompts (no prefix),
   re-post the old way on `typed_by_not_bound` / an old binary; `operator`
   subcommand; `spool-agent --operator`. Check: `test-spool-mirror.sh` -> 62,

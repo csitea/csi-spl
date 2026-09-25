@@ -123,9 +123,8 @@ never be burdened with key generation or pin setup (identity-routing §2).
   **Implemented** — `cmdMCP` (`cmd/spool/main.go:281`) serves stdin/stdout and
   exits when stdin closes.
 - **FR-006** — Hyphenated names `spool-put-file` … `spool-tail` as shims over
-  `spool <verb>`. **Planned** — `grep -rln spool-put-file --include=*.sh .` ->
-  none. The narrative allows `spool <verb>` instead (§2), which ships; shims
-  are packaging for a box image, task T012.
+  `spool <verb>`. **Implemented** (T012) — `spawn-agents/scripts/spool-verb-shims.sh`
+  writes them; `spool <verb>` (§2) ships as well.
 - **FR-007** — `put-dir` / `get-dir` over MCP. **Out of scope** — narrative §3
   names five tools and §4 maps five verbs; adding tools would break FR-002.
 - **FR-010** — `spool-harness --as <id> [--to-box <box>] [--] <cmd...>`
@@ -206,4 +205,4 @@ Runs (tree: `c619d5d` = trunk after this lane's first push; n=1 each):
 - **D-05** The harness never mints a key or installs a pin (no TOFU; keys are
   an operator step, trust-modes §7).
 
-<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->
+<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:45:00Z -->

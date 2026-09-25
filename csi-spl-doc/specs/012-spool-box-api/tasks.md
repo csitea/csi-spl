@@ -39,10 +39,16 @@ Status vocabulary follows `../README.md` §2.3: `[x]` Implemented (cited) ·
       `spool-harness --as CLE-<n> --to-box <box> -- true` against the dev hub
       and read `"<box>":[…"CLE-<n>"…]` in `$SPOOL_ROOT/.hub/roster.json`.
       Blocked on a reachable dev hub (007). SC-003.
-- [ ] T012 Planned — Box-image packaging: `spool-harness` and the hyphenated
-      `spool-<verb>` shims on `PATH` (symlink / 2-line wrappers). FR-006.
-- [ ] T013 Planned — Spawn adapters (`spawn-core.inc.sh`) launch the CLI
-      through `spool-harness --as <ID>` instead of preparing env inline.
+- [x] T012 Implemented (CLE-3496) — `spawn-agents/scripts/spool-verb-shims.sh
+      [--bin DIR] [--spool PATH] [--dry-run]` writes the five `spool-<verb>`
+      shims (put-file, get-file, send, recv, tail: two lines, `exec spool <verb>
+      "$@"`), idempotent, never over a foreign file. FR-006. Check:
+      `bash …/spawn-agents/tests/test-spool-verb-shims.sh` -> `13 passed, 0 failed`.
+- [x] T013 Implemented (CLE-3496) — `spawn-core.inc.sh` launches the CLI through
+      `spool-harness.sh --as <ID> -- <cli> <args>` (dirs, identity, SPOOL_* env).
+      Check: `test-spawn-dry-run.sh` -> "the CLI starts through spool-harness
+      --as" for claude, grok, agy (64 passed); a live harness run executes
+      the CLI as the id with an argument holding `" $` unchanged (n=1).
 - [x] T014 Implemented — Cross-spec seams. On tree `4ae33835`:
       `grep -n 012-spool-box-api csi-spl-doc/specs/README.md` → the §4 index row;
       `grep -n spool-harness csi-spl-doc/specs/004-spool-identity-routing/spec.md`
@@ -50,4 +56,4 @@ Status vocabulary follows `../README.md` §2.3: `[x]` Implemented (cited) ·
       "no spool-harness" under `csi-spl-doc` hits only the previous wording
       of this task. 004 itself is another lane's spec and was not edited here.
 
-<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->
+<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:45:00Z -->

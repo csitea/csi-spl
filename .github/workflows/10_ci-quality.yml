@@ -44,6 +44,15 @@ on:
 permissions:
   contents: read
 
+
+# One running + one pending gate per ref; a newer push replaces the pending
+# one. A gate on the newest sha covers every commit before it. Without this,
+# a busy fleet (a push every few minutes, ~9 jobs a gate, 4 runners) queued
+# 16+ gates for 35+ minutes on 2026-09-25 and a red gate surfaced hours late.
+concurrency:
+  group: quality-gate-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # ===========================================================================
   # The hub suite: csi-spl-api/src/bash/tests/run-all-tests.sh -- gofmt,

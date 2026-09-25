@@ -33,6 +33,29 @@ Re-checked 2026-09-25, tree `4ae33835`, n=1. `40_tenant-host-reconcile.yml`
 tenant was mapped from this lane. Retiring the mappings already in cnf belongs
 to spec 026.
 
+Re-checked again 2026-09-25, origin/master `885e144e` (ancestor of the report
+tree `6dd55c68`, exit 0), n=1. Spec 026 T050 has retired the mappings:
+`git grep -n -A1 mapped_tenants: origin/master -- csi-spl-cnf/csi-spl/dev.env.yaml csi-spl-cnf/csi-spl/prd.env.yaml`
+→ `mapped_tenants: []` in both files. `getent hosts t1.spool-hub.ai` prints
+nothing. The emitters are still in the tree and this lane is not deleting
+them in the same commit as that measurement:
+
+- checkout status and claim still send `tenant_host` and `host_status`
+  (`internal/payments/handler.go` lines 418, 421, and 468-469 on `885e144e`).
+- `SPOOL_HUB_TENANT_HOST_PATTERN` is `internal/config/config.go` line 241, and
+  the fail-fast is line 351. A cite of `config.go:335` or `server.go:143` does
+  not match `6dd55c68` or `885e144e` (`git grep` of that name in `server.go` is
+  empty).
+- `CheckoutHostStatus.vue` is not mounted: `git grep CheckoutHostStatus -- csi-spl-wui/src/pages` → 0.
+  `pollHostReady` is used by that component and by its unit test.
+- workflow 40 is still the paused dispatch-only file.
+
+026 `tasks.md` lists these as leftovers and says they are not 026's scope.
+024 §5 still holds: a drop of rdb 0015, workflow 40, the three actions, and
+the checkout fields is one change, and the 006 checkout contract's legacy
+paragraph has to go with it. That paragraph is 006's file. This note records
+the state. It does not delete the code.
+
 
 > Numbering note: the commits of this lane before this spec landed, and the
 > header of `csi-spl-rdb/.../0015_tenant_hosts.sql`, say "specs/022". Two other
@@ -181,4 +204,4 @@ being up; (3) a human go per tenant, where latency is a human.
 - The M2 claim mail still says "Tenant URL" with no "being prepared" note
   (the mail lane can add one; the page covers the buyer meanwhile).
 
-<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->
+<!-- version: 1.0.2 · updated: 2026-09-25 · last-edit: 2026-09-25T19:39:29Z -->

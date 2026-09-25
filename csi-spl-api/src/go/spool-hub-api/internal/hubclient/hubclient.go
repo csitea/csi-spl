@@ -96,6 +96,23 @@ type Client struct {
 	// lost; the box simply stopped listening and could not tell.
 	KeepAlive        time.Duration
 	KeepAliveTimeout time.Duration
+	// SessionProbe is how often `spool hub-run` asks the hub, over REST with
+	// the session's upload token, whether the process answering REST is still
+	// the one holding its socket. 0 = defaultSessionProbe; negative = off.
+	//
+	// A ping cannot answer that. The hub keeps its live-socket map and upload
+	// tokens in process memory (hub package doc, max-instances=1), and a Cloud
+	// Run redeploy does not end the old revision's sockets: a WS is an
+	// in-flight request, so the old instance lives on for up to the request
+	// timeout (3600 s) and keeps ponging, while every NEW request - the
+	// browser's post, another box's send, this box's pin refresh - lands on
+	// the new revision, which has never seen this box. Measured on the dev
+	// desk 2026-09-25: `hub session up` and then nothing, the hub roster
+	// saying offline, ~50 min of accepted messages never delivered, and
+	// `pin refresh ... door` every 5 min - the new process refusing a token
+	// only the old one had minted. That refusal is the signal this probe
+	// reads.
+	SessionProbe time.Duration
 	// Warn receives the operator warnings (a private key loaded from inside
 	// SPOOL_ROOT). nil = os.Stderr.
 	Warn io.Writer
@@ -312,6 +329,25 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 	}
 	return s, nil
 }
+
+// orphaned reports a REST refusal that proves this session's socket is held by
+// a hub process that no longer serves the tenant: the upload token the socket
+// was given is unknown to the process answering REST. Only a hub redeploy (or
+// restart) makes that happen while the socket still pongs.
+func orphaned(err error) bool {
+	var he *HubError
+	return errors.As(err, &he) && he.Status == http.StatusUnauthorized && he.Token == "door"
+}
+
+// Probe makes one token-authenticated REST call (GET /v1/pins, discarded). A
+// nil error means the process answering REST knows this session's token.
+func (s *Session) Probe(ctx context.Context) error {
+	return s.rest(ctx, http.MethodGet, "/v1/pins", nil, io.Discard)
+}
+
+// defaultSessionProbe bounds how long a redeploy can strand a box: the probe
+// period plus one redial.
+const defaultSessionProbe = 30 * time.Second
 
 // defaultKeepAlive / defaultKeepAliveTimeout: often enough that a dead socket
 // costs a box well under a minute of silence, rarely enough to be free.

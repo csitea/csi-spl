@@ -1,0 +1,123 @@
+package hub_test
+
+import (
+	"context"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/rs/zerolog"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+)
+
+// redeploy is a Cloud Run revision swap in miniature: two hub processes that
+// share one store, behind one URL. flip() sends every NEW request to the second
+// process while a socket already upgraded on the first stays there and keeps
+// ponging - which is exactly what a redeploy does to a box's WS, because a WS
+// is an in-flight request and the old revision lives until the request timeout.
+type redeploy struct {
+	cur    atomic.Pointer[http.Handler]
+	next   http.Handler
+	client *http.Client
+}
+
+func newRedeploy(t *testing.T, e *env) *redeploy {
+	t.Helper()
+	o := hub.Options{
+		Store: e.st, Blob: blob.Dir{Root: e.blobs}, Log: zerolog.Nop(),
+		TenantHostPattern: "{tenant}" + domain, HelloSkew: 300 * time.Second, HelloTimeout: 2 * time.Second,
+		UploadTokenTTL: 5 * time.Minute, QueueTTL: 7 * 24 * time.Hour, QueueMaxPerBox: 1000,
+		RetentionAlerts: 7 * 24 * time.Hour, RetentionChannels: 30 * 24 * time.Hour, Version: "test-next",
+	}
+	next, err := hub.New(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &redeploy{next: next.Handler()}
+	first := e.srv.Handler()
+	r.cur.Store(&first)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, q *http.Request) {
+		(*r.cur.Load()).ServeHTTP(w, q)
+	}))
+	t.Cleanup(func() { next.Shutdown(); ts.Close() })
+	addr := ts.Listener.Addr().String()
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, addr)
+	}
+	r.client = &http.Client{Transport: tr}
+	return r
+}
+
+func (r *redeploy) flip() { r.cur.Store(&r.next) }
+
+// The box-desk strand of 2026-09-25 (CLE-100): after a dev hub redeploy the
+// sidecar logged `hub session up` and then nothing, the hub said the box was
+// offline, and for ~50 min every accepted message queued for a box that never
+// came back - the 030 ping kept passing, because the OLD process answered it.
+//
+// With the session probe the box notices that the process answering REST does
+// not know its upload token (401 door), redials onto the new process, and that
+// hello drains the queue: the message sent during the strand arrives. Without
+// it (SessionProbe < 0, the pre-fix binary) the box stays on the old process
+// and the message never arrives.
+func TestBoxRedialsAfterHubRedeploy(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		probe time.Duration
+		want  bool
+	}{
+		{"old binary stays stranded", -1, false},
+		{"probe redials and drains", 200 * time.Millisecond, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newEnv(t)
+			tid, _ := e.tenant()
+			rd := newRedeploy(t, e)
+			a := e.box(tid, "box-a", "GRK-03")
+			b := e.box(tid, "box-b", "CLE-07")
+			a.c.HTTP, b.c.HTTP = rd.client, rd.client
+			a.cfg.SubmitSocket, b.cfg.SubmitSocket = "off", "off"
+			e.pin(tid, a)
+			e.pin(tid, b)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if _, err := a.c.Sync(ctx); err != nil {
+				t.Fatal(err)
+			}
+
+			b.c.SessionProbe = tc.probe
+			done := make(chan error, 1)
+			go func() { done <- b.c.Run(ctx) }()
+			send(t, a, "GRK-03", "CLE-07", "task", "before the redeploy", "box-b")
+			eventually(t, "the pre-redeploy message", func() bool { return len(inbox(t, b, "CLE-07")) == 1 })
+
+			rd.flip()
+			start := time.Now()
+			out := send(t, a, "GRK-03", "CLE-07", "task", "during the strand", "box-b")
+			if out.Delivery != "queued" {
+				t.Fatalf("the new hub process should not know box-b yet: delivery %q, want queued", out.Delivery)
+			}
+			got := false
+			for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+				if len(inbox(t, b, "CLE-07")) == 2 {
+					got = true
+					break
+				}
+			}
+			if got != tc.want {
+				t.Fatalf("message sent during the strand delivered=%v, want %v", got, tc.want)
+			}
+			if got {
+				t.Logf("redialled and drained %v after the redeploy", time.Since(start).Round(time.Millisecond))
+			}
+			cancel()
+			<-done
+		})
+	}
+}

@@ -324,6 +324,28 @@ func (c *Client) hold(ctx context.Context, sess *Session) error {
 	defer pins.Stop()
 	scan := time.NewTicker(10 * time.Second)
 	defer scan.Stop()
+	var probeC <-chan time.Time
+	if every := c.SessionProbe; every >= 0 {
+		if every == 0 {
+			every = defaultSessionProbe
+		}
+		probe := time.NewTicker(every)
+		defer probe.Stop()
+		probeC = probe.C
+	}
+	// stranded logs why this session is being given up and returns true when
+	// err proves the socket belongs to a hub process that no longer serves
+	// REST (see Client.SessionProbe). hold then returns, its deferred Close
+	// ends the socket, and Run redials - onto the process that does serve,
+	// whose hello drains everything queued for this box meanwhile.
+	stranded := func(what string, err error) bool {
+		if !orphaned(err) {
+			return false
+		}
+		c.Log.Warn().Err(err).Str("check", what).
+			Msg("hub no longer knows this session (a hub redeploy or restart); closing it so the session reconnects")
+		return true
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -335,7 +357,17 @@ func (c *Client) hold(ctx context.Context, sess *Session) error {
 			return nil
 		case <-pins.C:
 			if err := sess.SyncPins(ctx); err != nil {
+				if stranded("pin refresh", err) {
+					return nil
+				}
 				c.Log.Warn().Err(err).Msg("pin refresh")
+			}
+		case <-probeC:
+			if err := sess.Probe(ctx); err != nil {
+				if stranded("session probe", err) {
+					return nil
+				}
+				c.Log.Debug().Err(err).Msg("session probe")
 			}
 		case <-scan.C:
 			if a, err := c.scanAgents(); err == nil && strings.Join(a, ",") != last {

@@ -216,12 +216,59 @@ spool_show_colour() {
 # <head>TAB<body> line an inbound one has always been - so PANE_V moves and
 # RECORD_V does NOT. Bumping RECORD_V here would have rotated every live log
 # aside to re-read records that were never in a different format.
-SPOOL_NOTICE_PANE_V=7
+#
+# v8 (2026-09-25) paints SEVERAL logs in one strip, each record tagged with its
+# env: one agent seated on the dev AND the prd desk has two notices logs, one
+# per env's spool root, and a v7 strip showed whichever it was split for. The
+# records gained an optional third field, the write time, which only orders
+# records across logs; a v7 renderer would print it after the body, which is
+# why PANE_V moves. RECORD_V does NOT: every existing <head>TAB<body> line
+# still reads correctly, and rotating would blank the strip for nothing.
+SPOOL_NOTICE_PANE_V=8
 SPOOL_NOTICE_RECORD_V=1
 
-spool_notice_pane_cmd() {  # LOG
-  printf 'exec %q --log %q --max %s' \
-    "$SPOOL_FEATURE_DIR/scripts/spool-notice-pane.sh" "$1" "${SPOOL_SHOW_PANE_MAX:-50}"
+spool_notice_pane_cmd() {  # LOG [LOG ...]
+  local l a=""
+  for l in "$@"; do a+=" --log $(printf '%q' "$l")"; done
+  printf 'exec %q%s --max %s' \
+    "$SPOOL_FEATURE_DIR/scripts/spool-notice-pane.sh" "$a" "${SPOOL_SHOW_PANE_MAX:-50}"
+}
+
+# One notices-log RECORD line: <head>TAB<body>TAB<epoch>. The epoch orders
+# records ACROSS the logs one strip merges (dev + prd); the renderer never
+# paints it. $EPOCHREALTIME costs no process; a comma locale is normalised.
+spool_notice_line() {  # HEAD BODY
+  local ts="${EPOCHREALTIME:-}"
+  ts="${ts/,/.}"
+  [ -n "$ts" ] || ts="$(date +%s)"
+  printf '%s\t%s\t%s\n' "$1" "$2" "$ts"
+}
+
+# The log SET a strip should tail, ':'-joined, given the log this delivery
+# writes (LOG), the set the pane is marked with (@spool_notices_logs) and, for
+# a strip older than that option, its start command (whose --log words are the
+# set it was started with). Kept in order, missing files dropped, LOG added
+# last when absent. One strip per agent whatever the number of envs: a second
+# split would re-run the specs/028 resize of the agent's alternate screen.
+spool_notice_log_set() {  # LOG MARKED START
+  local log="$1" marked="$2" start="$3" w prev="" out=""
+  local -a have=() words=()
+  if [ -n "$marked" ]; then
+    IFS=':' read -r -a have <<<"$marked"
+  elif [ -n "$start" ]; then
+    start="${start#\"}"; start="${start%\"}"
+    read -r -a words <<<"$start"
+    for w in "${words[@]}"; do
+      [ "$prev" = --log ] && have+=("$w")
+      prev="$w"
+    done
+  fi
+  for w in "${have[@]}"; do
+    [ -n "$w" ] && [ -f "$w" ] && [ "$w" != "$log" ] || continue
+    case ":$out:" in *":$w:"*) continue ;; esac
+    out="${out:+$out:}$w"
+  done
+  printf '%s' "${out:+$out:}$log"
 }
 
 # The WIDTH of the notice strip, in columns, given the window it goes into.
@@ -258,15 +305,25 @@ spool_strip_is_right() {  # PANE
 
 # The notice strip of ID: an existing one, or a new split of ID's own window.
 # Prints the pane id, or nothing when one cannot be made.
+#
+# The strip tails EVERY env's log this agent has been delivered on (v8): a
+# strip whose set lacks this delivery's log is respawned in place with the
+# union, so the second env's first message is what switches it over.
 spool_show_notice_pane() {  # ID AGENT_PANE
-  local id="$1" agent_pane="$2" p mark ver rver pane cols win log cmd
+  local id="$1" agent_pane="$2" p mark ver rver marked start pane cols win log cmd lset=""
+  local -a logs=()
   spool_tmux_argv
   log="$(spool_poke_queue_dir "$id")/notices.log"
   mkdir -p "$(dirname "$log")" 2>/dev/null || return 1
   : >>"$log" || return 1
-  cmd="$(spool_notice_pane_cmd "$log")"
-  while IFS=' ' read -r p mark ver rver; do
+  lset="$log"
+  while IFS=$'\t' read -r p mark ver rver marked start; do
+    # Every option field is printed behind a "=" (below): a TAB is IFS
+    # whitespace, so an EMPTY field would collapse into its neighbour and shift
+    # every later one left. (#{?x,...} is no help: it reads "0" as unset.)
+    mark="${mark#=}"; ver="${ver#=}"; rver="${rver#=}"; marked="${marked#=}"
     [ "$mark" = "$id" ] || continue
+    lset="$(spool_notice_log_set "$log" "$marked" "$start")"
     # A BOTTOM BAR left behind by an older version of this feature cannot be
     # respawned into the right shape: respawn-pane replaces the process, never
     # the geometry. It is killed here and re-split below, so one delivery is
@@ -279,7 +336,7 @@ spool_show_notice_pane() {  # ID AGENT_PANE
     fi
     # An older renderer (or none) in a pane we own: replace it in place, so the
     # agent's window keeps the same layout and the same pane id.
-    if [ "$ver" != "$SPOOL_NOTICE_PANE_V" ]; then
+    if [ "$ver" != "$SPOOL_NOTICE_PANE_V" ] || [ "$lset" != "$marked" ]; then
       # A log in an OLDER RECORD FORMAT would repaint as nonsense, so it is
       # kept beside the new one rather than deleted: this is a delivery hint,
       # the inbox is the record. A pane that is merely running an older
@@ -289,12 +346,17 @@ spool_show_notice_pane() {  # ID AGENT_PANE
         [ -s "$log" ] && mv -f "$log" "$log.v${ver:-0}" 2>/dev/null
         : >>"$log" 2>/dev/null
       fi
-      "${SPOOL_TM[@]}" respawn-pane -k -t "$p" "$cmd" 2>/dev/null &&
+      IFS=':' read -r -a logs <<<"$lset"
+      "${SPOOL_TM[@]}" respawn-pane -k -t "$p" "$(spool_notice_pane_cmd "${logs[@]}")" 2>/dev/null &&
         "${SPOOL_TM[@]}" set-option -p -t "$p" @spool_notices_v "$SPOOL_NOTICE_PANE_V" 2>/dev/null &&
-        "${SPOOL_TM[@]}" set-option -p -t "$p" @spool_notices_rv "$SPOOL_NOTICE_RECORD_V" 2>/dev/null
+        "${SPOOL_TM[@]}" set-option -p -t "$p" @spool_notices_rv "$SPOOL_NOTICE_RECORD_V" 2>/dev/null &&
+        "${SPOOL_TM[@]}" set-option -p -t "$p" @spool_notices_logs "$lset" 2>/dev/null
     fi
     printf '%s' "$p"; return 0
-  done < <("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id} #{@spool_notices} #{@spool_notices_v} #{@spool_notices_rv}' 2>/dev/null)
+  done < <("${SPOOL_TM[@]}" list-panes -a -F \
+             $'#{pane_id}\t=#{@spool_notices}\t=#{@spool_notices_v}\t=#{@spool_notices_rv}\t=#{@spool_notices_logs}\t#{pane_start_command}' 2>/dev/null)
+  IFS=':' read -r -a logs <<<"$lset"
+  cmd="$(spool_notice_pane_cmd "${logs[@]}")"
   win="$("${SPOOL_TM[@]}" display-message -p -t "$agent_pane" '#{window_width}' 2>/dev/null)"
   cols="$(spool_strip_cols "$win")"
   # -h puts the new pane to the RIGHT of the target (owner, 2026-09-22), and
@@ -305,6 +367,7 @@ spool_show_notice_pane() {  # ID AGENT_PANE
   "${SPOOL_TM[@]}" set-option -p -t "$pane" @spool_notices "$id" 2>/dev/null
   "${SPOOL_TM[@]}" set-option -p -t "$pane" @spool_notices_v "$SPOOL_NOTICE_PANE_V" 2>/dev/null
   "${SPOOL_TM[@]}" set-option -p -t "$pane" @spool_notices_rv "$SPOOL_NOTICE_RECORD_V" 2>/dev/null
+  "${SPOOL_TM[@]}" set-option -p -t "$pane" @spool_notices_logs "$lset" 2>/dev/null
   "${SPOOL_TM[@]}" set-option -p -t "$pane" remain-on-exit off 2>/dev/null
   printf '%s' "$pane"
 }
@@ -382,11 +445,11 @@ spool_notice_record() {  # ID HEAD BODY
   if [ -n "$pane" ] && spool_strip_wanted "$pane"; then
     spool_show_notice_pane "$id" "$pane" >/dev/null 2>&1
   fi
-  # One RECORD per line, <head>TAB<body>: the renderer decides the order and
+  # One RECORD per line, <head>TAB<body>TAB<epoch>: the renderer decides the order and
   # the colour, so the newest can be put on top without re-parsing escapes.
   # Both fields went through spool_notify_clean, which leaves no tab or newline
   # in either, so a line is exactly one record.
-  printf '%s\t%s\n' "$head" "$body" >>"$log" 2>/dev/null
+  spool_notice_line "$head" "$body" >>"$log" 2>/dev/null
 }
 
 # Show the notice for ID. Prints one `show:` line. 0 shown somewhere, 5 no live
@@ -426,7 +489,7 @@ spool_poke_show() {  # TO KIND FROM TASK MSGID BODY
     np="$(spool_show_notice_pane "$to" "$pane")"
     if [ -n "$np" ]; then
       log="$(spool_poke_queue_dir "$to")/notices.log"
-      printf '%s\t%s\n' "$head" "$body" >>"$log" 2>/dev/null &&
+      spool_notice_line "$head" "$body" >>"$log" 2>/dev/null &&
         shown="notice pane ${np}"
     fi
   fi

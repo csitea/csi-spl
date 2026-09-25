@@ -6,14 +6,26 @@
 # owner's rule for every listing is newest-first (013/CLE-3425), so the pane is
 # REPAINTED on each new notice with the newest record at the top.
 #
-#   spool-notice-pane.sh --log <file> [--max 50]
+#   spool-notice-pane.sh --log <file> [--log <file> ...] [--max 50]
+#
+# SEVERAL logs, one strip (2026-09-25). One agent can be seated on the dev AND
+# the prd desk at once; each env's sidecar writes its own
+# <state>/cloud/<env>/desk/.../<id>/.pokes/notices.log. A strip that tails ONE
+# of them looks frozen while the other env talks - measured on the owner's own
+# window that day: the strip tailed dev, two prd records landed and were never
+# painted. With more than one --log, every record is tagged with its source
+# ([dev] / [prd], read from the /cloud/<env>/ path segment, else [log<n>]) and
+# the logs are merged newest-first on the record's own timestamp.
 #
 # The wake-up is `tail -F` on the log: it blocks in the kernel until a line is
 # written, so this costs nothing while nothing arrives. Bursts are coalesced -
 # several notices in the same instant repaint once.
 #
-# The log is one record per line, TAB-separated: <head>\t<body>. Bodies are
-# already squeezed to one line by spool_notify_clean, so a line IS a record.
+# The log is one record per line, TAB-separated: <head>\t<body>[\t<epoch>].
+# Bodies are already squeezed to one line by spool_notify_clean, so a line IS
+# a record. The optional third field is the write time ($EPOCHREALTIME); it
+# orders records ACROSS logs and is never painted. A record without it (written
+# before 2026-09-25) sorts as the oldest.
 # Only the last --max records are kept in the file, and only as many as the
 # pane is TALL are painted - printing more would scroll the newest record,
 # which is printed first, straight off the top.
@@ -31,19 +43,32 @@
 #      two, which is what makes it read as a chat column.
 set -uo pipefail
 
-LOG="" MAX=50
+USAGE="usage: spool-notice-pane.sh --log <file> [--log <file> ...] [--max N]"
+LOGS=() MAX=50
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --log) [ "$#" -ge 2 ] || { echo "usage: spool-notice-pane.sh --log <file> [--max N]" >&2; exit 2; }; LOG="$2"; shift 2 ;;
+    --log) [ "$#" -ge 2 ] || { echo "$USAGE" >&2; exit 2; }; LOGS+=("$2"); shift 2 ;;
     --max) [ "$#" -ge 2 ] || exit 2; MAX="$2"; shift 2 ;;
-    -h|--help) echo "usage: spool-notice-pane.sh --log <file> [--max N]" >&2; exit 2 ;;
+    -h|--help) echo "$USAGE" >&2; exit 2 ;;
     *) echo "spool-notice-pane: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-[ -n "$LOG" ] || { echo "spool-notice-pane: --log is required" >&2; exit 2; }
+[ "${#LOGS[@]}" -gt 0 ] || { echo "spool-notice-pane: --log is required" >&2; exit 2; }
 [[ "$MAX" =~ ^[0-9]+$ ]] && [ "$MAX" -gt 0 ] || MAX=50
-mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
-: >>"$LOG" || { echo "spool-notice-pane: cannot write $LOG" >&2; exit 73; }
+for LOG in "${LOGS[@]}"; do
+  mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
+  : >>"$LOG" || { echo "spool-notice-pane: cannot write $LOG" >&2; exit 73; }
+done
+
+# The tag each log's records carry on screen; empty for a single log, whose
+# strip looks exactly as it always has.
+TAGS=()
+for (( i = 0; i < ${#LOGS[@]}; i++ )); do
+  if [ "${#LOGS[@]}" -eq 1 ]; then TAGS+=("")
+  elif [[ "${LOGS[i]}" =~ /cloud/([A-Za-z0-9_-]+)/ ]]; then TAGS+=("[${BASH_REMATCH[1]}] ")
+  else TAGS+=("[log$(( i + 1 ))] ")
+  fi
+done
 
 esc=$'\033'
 tab=$'\t'
@@ -162,21 +187,46 @@ shorten_ids() {  # HEAD
   printf '%s' "$1" | sed -E 's/\b([0-9a-fA-F]{8})-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/\1/g'
 }
 
+# RECS: the last MAX records of every log, oldest first, each as
+# <tag-index>TAB<head>TAB<body>[TAB<epoch>]. One log keeps its file order; several
+# are merged on the epoch (a stable sort, so equal or missing times keep their
+# order within a log).
+RECS=()
+read_records() {
+  local i line
+  local -a all=()
+  RECS=()
+  for (( i = 0; i < ${#LOGS[@]}; i++ )); do
+    # A record is <head>TAB<body> and carries no control characters: this
+    # renderer writes the colour, the log never does. Anything else was written
+    # by an OLDER or FOREIGN writer - a second checkout of this feature pointed
+    # at the same spool root, which happened on this box 2026-09-21 - and is
+    # skipped rather than painted. Painting it produced body-above-header
+    # nonsense, because an older writer put one record on three lines.
+    while IFS= read -r line; do
+      case "$line" in
+        *"$esc"*) continue ;;
+        *"$tab"*) all+=("$i$tab$line") ;;
+      esac
+    done < <(tail -n "$MAX" "${LOGS[i]}" 2>/dev/null)
+  done
+  if [ "${#LOGS[@]}" -eq 1 ]; then RECS=("${all[@]}"); return 0; fi
+  [ "${#all[@]}" -gt 0 ] || return 0
+  # epoch<TAB>record, sorted numerically, then the key dropped again.
+  mapfile -t RECS < <(
+    for line in "${all[@]}"; do
+      local b="${line#*$tab}" ts=0
+      b="${b#*$tab}"
+      case "$b" in *"$tab"*) [[ "${b#*$tab}" =~ ^[0-9]+([.][0-9]+)?$ ]] && ts="${b#*$tab}" ;; esac
+      printf '%s\t%s\n' "$ts" "$line"
+    done | sort -s -t "$tab" -k1,1g | cut -f2- | tail -n "$MAX")
+}
+
 render() {
   local -a rows=() out=()
-  # A record is <head>TAB<body> and carries no control characters: this
-  # renderer writes the colour, the log never does. Anything else was written
-  # by an OLDER or FOREIGN writer - a second checkout of this feature pointed
-  # at the same spool root, which happened on this box 2026-09-21 - and is
-  # skipped rather than painted. Painting it produced body-above-header
-  # nonsense, because an older writer put one record on three lines.
-  while IFS= read -r line; do
-    case "$line" in
-      *"$esc"*) continue ;;
-      *"$tab"*) rows+=("$line") ;;
-    esac
-  done < <(tail -n "$MAX" "$LOG" 2>/dev/null)
-  local budget i j head body hc bc
+  read_records
+  rows=("${RECS[@]}")
+  local budget i j k head body hc bc
   pane_geom
   # One row short of the pane: each printed line ends in a newline, so filling
   # every row scrolls the pane by one - and the line that leaves is the FIRST,
@@ -188,9 +238,11 @@ render() {
     for (( j = 0; j < ${#WRAPPED[@]}; j++ )); do out+=("${FAINT}${WRAPPED[j]}${OFF}"); done
   else
     for (( i = ${#rows[@]} - 1; i >= 0; i-- )); do
-      head="${rows[i]%%$'\t'*}"
-      body="${rows[i]#*$'\t'}"
-      [ "$body" = "${rows[i]}" ] && body=""
+      k="${rows[i]%%$'\t'*}"
+      head="${rows[i]#*$'\t'}"
+      body="${head#*$'\t'}"
+      head="${head%%$'\t'*}"
+      body="${body%%$'\t'*}"
       # Outbound records are the ones this agent SENT, written by spool-send.sh
       # into the SENDER's own log (spool_notice_head_out). An inbound head is
       # "SPOOL <id>: ..." and <id> matches ^[A-Z]{2,4}-[0-9]+$, so it can never
@@ -199,7 +251,7 @@ render() {
         'SPOOL -> '*) hc="$SENT"; bc="$SENTDIM" ;;
         *)            hc="$BLUE"; bc="$DIM" ;;
       esac
-      wrap_text "$(shorten_ids "$head")" "$PANE_COLS" 2
+      wrap_text "${TAGS[k]:-}$(shorten_ids "$head")" "$PANE_COLS" 2
       for (( j = 0; j < ${#WRAPPED[@]}; j++ )); do out+=("${hc}${WRAPPED[j]}${OFF}"); done
       if [ -n "$body" ]; then
         wrap_text "$body" "$PANE_COLS" 2
@@ -222,11 +274,13 @@ render() {
 
 # Keep the file at the bound too, so a pane that runs for days stays cheap.
 trim() {
-  local n
-  n="$(wc -l <"$LOG" 2>/dev/null)" || return 0
-  [ "${n:-0}" -gt $(( MAX * 2 )) ] || return 0
-  local tmp="$LOG.trim.$$"
-  tail -n "$MAX" "$LOG" >"$tmp" 2>/dev/null && mv "$tmp" "$LOG" 2>/dev/null || rm -f "$tmp"
+  local n LOG tmp
+  for LOG in "${LOGS[@]}"; do
+    n="$(wc -l <"$LOG" 2>/dev/null)" || continue
+    [ "${n:-0}" -gt $(( MAX * 2 )) ] || continue
+    tmp="$LOG.trim.$$"
+    tail -n "$MAX" "$LOG" >"$tmp" 2>/dev/null && mv "$tmp" "$LOG" 2>/dev/null || rm -f "$tmp"
+  done
 }
 
 # A resize changes what fits, so repaint on SIGWINCH too.
@@ -242,7 +296,10 @@ render
 # that matters most. What the wake-up carries is irrelevant: render re-reads
 # the log, so replaying the existing lines at startup costs a few repaints and
 # removes the race.
-tail -n +1 -F "$LOG" 2>/dev/null | while IFS= read -r _; do
+#
+# Several logs: one tail on all of them. Its "==> file <==" headers are just
+# more wake-ups; render re-reads every log either way.
+tail -n +1 -F "${LOGS[@]}" 2>/dev/null | while IFS= read -r _; do
   # Coalesce a burst: drain whatever else is already queued, then repaint once.
   while IFS= read -r -t 0.05 _; do :; done
   trim

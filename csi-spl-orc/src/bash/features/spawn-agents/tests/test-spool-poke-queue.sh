@@ -58,7 +58,7 @@ notice="$(cat "$log")"
 has "it names the recipient, kind and sender" "SPOOL CLE-91: note from CLE-90" "$notice"
 has "it names the task and the msg"           "task T-7 msg M-7"               "$notice"
 has "it CARRIES the body"                     "hello from the hub"             "$notice"
-eq "a record is head TAB body" 2 "$(awk -F'\t' '{print NF}' "$log")"
+eq "a record is head TAB body TAB epoch" 3 "$(awk -F'\t' '{print NF}' "$log")"
 hasnt "the log itself carries no escapes"     "$(printf '\033')"                "$notice"
 
 # The pane really was split into CLE-91's own window, and marked as ours.

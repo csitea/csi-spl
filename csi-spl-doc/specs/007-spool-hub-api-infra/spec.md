@@ -13,7 +13,7 @@ csi-rel: no load balancer") is: the hub on Cloud Run `030` with
 FQDN as its custom domain and a `/api/v1/auth/**` rewrite to the hub; edge
 limits in the hub, not in Cloud Armor. The `031` load balancer was
 deprovisioned in both envs and removed (`70b84824`). Still missing:
-`003-gcp-iam-users`; the 031-era `do_wait_for_cert` is still on trunk (T090).
+`003-gcp-iam-users` (the 031-era `do_wait_for_cert` was retired in `dd3c9f59`, T090).
 
 **Superseded 2026-09-19: LB removed.** Everything this spec wrote about the
 `031-gcp-hub-ingress` load balancer (serverless NEG, Cloud Armor stages,
@@ -234,7 +234,7 @@ re-measured in this sync.
 | FR-014 | Secret Manager slots (auth session key + IdP client secrets; no captcha / BIN; payment slots empty) | Implemented — in `030/06-auth-secret-slots.tf` (`19914c18`), empty slots, no version resource; no separate `029-create-gcp-secrets` step |
 | FR-015 | `005-gcp-domain-verification`; `003-gcp-iam-users` | Partial — `005` Implemented (`510c0b2d`, needed by `032`); `003-gcp-iam-users` missing (no dir: `ls csi-spl-iac/src/terraform`) |
 | FR-016 | lde: `make do-setup-app-inf` / teardown, compose api + rdb + infra + tf-infra, no GCP | Implemented |
-| FR-017 | DNS ops: `do_export_all_dns_settings`, `do_flush_dns`, `do_gandi_*`, `do_spl_wait_for_mapping_cert` | Partial — all on trunk; the 031-era `do_wait_for_cert` still waits on the removed Certificate Manager cert (`grep -c certificate-manager csi-spl-orc/src/bash/run/wait-for-cert.func.sh` -> 2) → T090 |
+| FR-017 | DNS ops: `do_export_all_dns_settings`, `do_flush_dns`, `do_gandi_*`, `do_spl_wait_for_mapping_cert` | Implemented — all on trunk; the 031-era `do_wait_for_cert` is retired (`dd3c9f59`, T090) |
 | FR-018 | Nothing mutates GCP without the owner; `--account` on every gcloud call; no key in git, tf state or log | Implemented — gates `no-keys-in-tf`, `no-key-material-in-tree`, `gcloud-account-pinned`, `rdb-no-store-entities` |
 | FR-019 | The domain lives only in `env.dns.BASE_DOMAIN` | Implemented (`domain-single-source.tst.sh`) |
 | FR-020 | `016` Hosting deploy SA per env; WIF binding behind `bind_github_wif` | Implemented (code); dev applied (T074); prd = T075 |
@@ -287,4 +287,4 @@ payment drivers, the WUI app itself (spec `005`; its hosting is §3 here), hub
 CI job design (spec `008`), wire and tenancy semantics (`003` / `006` /
 `026`).
 
-<!-- version: 1.7.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:24:52Z -->
+<!-- version: 1.7.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:33:34Z -->

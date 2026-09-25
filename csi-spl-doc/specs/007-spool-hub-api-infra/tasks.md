@@ -255,11 +255,13 @@ Every apply here waits on an owner GCP re-auth (2026-09-19: `gcloud …
 - [x] T089 R7 ordered teardown `do_tf_deprovision_steps`
       (`csi-spl-orc/src/bash/run/tf-deprovision-steps.func.sh`); R9 harvest
       (`adhoc-harvest-gcp-actions.tst.sh`) — FR-031, FR-033
-- [ ] T090 Retire or rewrite the 031-era `do_wait_for_cert`: it still polls
-      the removed Certificate Manager cert (`grep -c certificate-manager
-      csi-spl-orc/src/bash/run/wait-for-cert.func.sh` -> 2);
-      `do_spl_wait_for_mapping_cert` is its `032` replacement. orc code
-      change, owner of `csi-spl-orc` — FR-017. **Planned**
+- [x] T090 Retire or rewrite the 031-era `do_wait_for_cert` (it polled the
+      removed Certificate Manager cert); `do_spl_wait_for_mapping_cert` is its
+      `032` replacement — FR-017. **Implemented** `dd3c9f59`: action + its
+      stub test removed, `dns-ops.tst.sh` asserts it stays retired (control:
+      planting the file back -> 1 FAIL), references repointed;
+      `git grep -c do_wait_for_cert -- csi-spl-orc/src` -> only the
+      retirement assertion.
 - [ ] T091 Re-measure per-step state on dev + prd as the env SA
       (`make do-tf-plan` per step -> "No changes") — SC-003. **Planned**
 
@@ -267,4 +269,4 @@ Every apply here waits on an owner GCP re-auth (2026-09-19: `gcloud …
 
 M2 payment drivers, the WUI app (`005`; its hosting is Phase 10), hub pipeline job design (`008`).
 
-<!-- version: 1.7.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:24:52Z -->
+<!-- version: 1.7.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:33:34Z -->

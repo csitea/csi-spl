@@ -199,7 +199,7 @@ describe('login landing', () => {
 
   it('the top-bar title is spool plus the build env', () => {
     assert.equal(loginBarTitle('dev', false), 'spool-dev')
-    assert.equal(loginBarTitle('prd', false), 'spool-prd')
+    assert.equal(loginBarTitle('prd', false), 'spool-hub')
     assert.equal(loginBarTitle('', true), 'spool-dev')
     assert.equal(loginBarTitle('  ', true), 'spool-dev')
     assert.equal(loginBarTitle('', false), 'spool')

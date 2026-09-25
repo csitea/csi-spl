@@ -75,7 +75,14 @@ jobs:
       # runner has PostgreSQL server binaries; the emulator image is pulled
       # here, and the skip check below turns a skip into a failure.
       - name: Cache the fake-gcs emulator image
-        run: docker pull -q fsouza/fake-gcs-server:1.52.2
+        # Docker Hub resets the connection now and then (run 36148403827):
+        # retry, then fall back to the runner's cached copy with a warning.
+        run: |
+          img=fsouza/fake-gcs-server:1.52.2
+          for i in 1 2 3; do docker pull -q "$img" && exit 0; sleep $((i * 10)); done
+          docker image inspect "$img" >/dev/null 2>&1 \
+            && { echo "::warning::docker pull $img failed 3x; using the cached image"; exit 0; }
+          exit 1
 
       - name: run-all-tests.sh
         run: |
@@ -379,7 +386,14 @@ jobs:
 
       # checkout-fake-buy SKIPs its live part without a CACHED image.
       - name: Cache the Postgres image
-        run: docker pull -q postgres:16-alpine
+        # Docker Hub resets the connection now and then (run 36148403827):
+        # retry, then fall back to the runner's cached copy with a warning.
+        run: |
+          img=postgres:16-alpine
+          for i in 1 2 3; do docker pull -q "$img" && exit 0; sleep $((i * 10)); done
+          docker image inspect "$img" >/dev/null 2>&1 \
+            && { echo "::warning::docker pull $img failed 3x; using the cached image"; exit 0; }
+          exit 1
 
       # Proof that the suite reaches no GCP: gcloud / gsutil / bq on PATH are
       # traps that log their argv and fail, there is no key, no ADC and an

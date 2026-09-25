@@ -46,10 +46,22 @@ class H(BaseHTTPRequestHandler):
         self.reply(404, {"error": "not_found"})
 HTTPServer(("127.0.0.1", int(sys.argv[2])), H).serve_forever()
 PY
-port=$(( 20000 + RANDOM % 20000 ))
+# A free port from the OS, and a stub that must be up before any check runs:
+# a random port with a silent 5 s wait flaked the gate on a busy runner
+# (run 36190882811: ConnectionRefusedError, the stub never answered).
+port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
 printf 'pw-ok' >"$T/pw"; printf 'pw-bad' >"$T/pwbad"
-python3 "$T/stub.py" "$T" "$port" & SRV=$!
-for _ in $(seq 1 50); do curl -s -o /dev/null "http://127.0.0.1:$port/" && break; sleep 0.1; done
+python3 "$T/stub.py" "$T" "$port" >"$T/stub.log" 2>&1 & SRV=$!
+up=0
+for _ in $(seq 1 200); do
+  kill -0 "$SRV" 2>/dev/null || break
+  curl -s -o /dev/null "http://127.0.0.1:$port/" && { up=1; break; }
+  sleep 0.1
+done
+if [[ $up -ne 1 ]]; then
+  echo "FAIL: the stub hub is not answering on 127.0.0.1:$port (pid $SRV alive: $(kill -0 "$SRV" 2>/dev/null && echo yes || echo no))"
+  sed 's/^/  /' "$T/stub.log"; exit 1
+fi
 
 run() { # run <pw file> <create> <agents>
   SEAT_API="http://127.0.0.1:$port" SEAT_TENANT=t1 SEAT_EMAIL=e@example.com SEAT_PW_FILE="$1" \

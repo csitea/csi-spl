@@ -111,6 +111,9 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           package_json_file: csi-spl-wui/package.json
+          # per job, not the shared ~/setup-pnpm: 4 runners share one home and
+          # raced on it (ENOTEMPTY, then "pnpm: command not found", run 36138615567)
+          dest: ${{ runner.temp }}/setup-pnpm
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -158,6 +161,9 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           package_json_file: csi-spl-wui/package.json
+          # per job, not the shared ~/setup-pnpm: 4 runners share one home and
+          # raced on it (ENOTEMPTY, then "pnpm: command not found", run 36138615567)
+          dest: ${{ runner.temp }}/setup-pnpm
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -406,14 +412,49 @@ jobs:
           fi
           echo "ok - no gcloud / gsutil / bq call reached the runner's CLI"
 
+      # ghrunner has no sudo (a CI user with root on the box is not worth it),
+      # so the root-only sections of spool-permissions (1-3) and lde-stack (5)
+      # SKIP on the host. They run here instead, in a throwaway container whose
+      # user has passwordless sudo, setfacl and a `nobody`; yq is the runner's.
+      # The container has no docker compose, so lde-stack's compose check
+      # SKIPs there -- the host run above covers it.
+      - name: Root-only sections in a container (sudo, setfacl, nobody)
+        run: |
+          set -euo pipefail
+          docker build -q -t spl-orc-sudo:ci - <<'DOCKERFILE'
+          FROM debian:13-slim
+          RUN apt-get update -qq \
+           && apt-get install -y -qq --no-install-recommends sudo acl bash coreutils procps python3 jq git curl ca-certificates gettext-base >/dev/null \
+           && rm -rf /var/lib/apt/lists/* \
+           && useradd -m -s /bin/bash ci && echo 'ci ALL=(ALL) NOPASSWD:ALL' >/etc/sudoers.d/ci
+          USER ci
+          DOCKERFILE
+          docker run --rm -v "$(command -v yq)":/usr/local/bin/yq:ro \
+            -v "$PWD":/w/csi/csi-spl:ro -w /w/csi/csi-spl spl-orc-sudo:ci bash -c '
+              set -uo pipefail; rc=0
+              for t in spool-permissions lde-stack; do
+                echo "=== $t.tst.sh"; bash csi-spl-orc/src/bash/tests/$t.tst.sh || rc=1
+              done; exit $rc' 2>&1 | tee "$RUNNER_TEMP/orc-sudo.log"
+          if grep -E '^SKIP:' "$RUNNER_TEMP/orc-sudo.log" | grep -vx 'SKIP: no docker compose'; then
+            echo "::error::a root-only orc section skipped in the container too"; exit 1
+          fi
+          for want in 'PASS: an outsider cannot inject a message' 'PASS: sticky cleared, setgid set'; do
+            grep -qxF "$want" "$RUNNER_TEMP/orc-sudo.log" || { echo "::error::container run lacks: $want"; exit 1; }
+          done
+          echo "ok - the root-only sections ran and passed in the container"
+
       - name: Nothing skipped (a skip is a failure in CI)
         run: |
           set -euo pipefail
-          if grep -E '^SKIP:' "$RUNNER_TEMP/orc-suite.log"; then
+          # The two root-only SKIPs are allowed ONLY because the step above ran
+          # those exact sections with sudo and passed; any other SKIP fails.
+          if grep -E '^SKIP:' "$RUNNER_TEMP/orc-suite.log" \
+             | grep -vxF -e 'SKIP: no passwordless sudo / setfacl' \
+                         -e 'SKIP: no passwordless sudo / setfacl / nobody (or nobody is in ghrunner): sections 1-3'; then
             echo "::error::an orc check skipped in CI -- it proved nothing. Fix the runner setup above."
             exit 1
           fi
-          echo "ok - no orc check skipped"
+          echo "ok - no orc check skipped outside the container-proven sections"
 
   # ===========================================================================
   # The CNF suite (016 T005): the conf-validator exit-code contract

@@ -69,6 +69,9 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           package_json_file: csi-spl-wui/package.json
+          # per job, not the shared ~/setup-pnpm: 4 runners share one home and
+          # raced on it (ENOTEMPTY, then "pnpm: command not found", run 36138615567)
+          dest: ${{ runner.temp }}/setup-pnpm
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -189,6 +192,9 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           package_json_file: csi-spl-wui/package.json
+          # per job, not the shared ~/setup-pnpm: 4 runners share one home and
+          # raced on it (ENOTEMPTY, then "pnpm: command not found", run 36138615567)
+          dest: ${{ runner.temp }}/setup-pnpm
       - uses: actions/setup-node@v4
         with:
           node-version: 20

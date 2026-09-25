@@ -30,25 +30,55 @@ do_spl_cloud_cnf() {
 
   SPL_STATE_DIR="${SPL_STATE_DIR:-$HOME/.local/share/$SPL_ORG_APP/cloud/$ENV}"
   mkdir -p "$SPL_STATE_DIR" && chmod 700 "$SPL_STATE_DIR" || return 1
+  # The merge is CACHED, content-addressed (2026-09-25): the cache file's name
+  # carries a hash of the two cnf files and of the merge code, so an unchanged
+  # cnf is merged once. Measured on the reply path that day: the merge plus a
+  # yq per value was ~1.1 s of a 7 s reply, on every call, for a result that
+  # had not changed since the last one. SPL_CNF_CACHE=0 forces a fresh merge.
+  #
+  # SPL_CNF itself stays $SPL_STATE_DIR/<env>.env.yaml and is now REPLACED by a
+  # rename, never rewritten in place: that one path is shared by every
+  # concurrent action (the orc state-dir race), and a rename means a reader
+  # sees a whole file. The cache is only ever copied FROM, so a caller that
+  # edits its SPL_CNF (a test's `yq -i`) cannot poison the next action.
+  local key cache tmp
+  key="$(cat "$cnf_dir/all.env.yaml" "$cnf_dir/$ENV.env.yaml" "$iac_lib/spl-merged-cnf.func.sh" 2>/dev/null | sha256sum)" ||
+    { do_log "FATAL cannot hash the $ENV cnf ($cnf_dir)"; return 1; }
+  cache="$SPL_STATE_DIR/cnf/$ENV.${key:0:16}.env.yaml"
+  if [[ ! -s "$cache" || "${SPL_CNF_CACHE:-1}" == 0 ]]; then
+    mkdir -p "$SPL_STATE_DIR/cnf" || return 1
+    tmp="$cache.tmp.$$"
+    do_spl_merged_cnf "$cnf_dir" "$ENV" "$tmp" && mv -f "$tmp" "$cache" ||
+      { rm -f "$tmp"; do_log "FATAL cannot merge the $ENV cnf"; return 1; }
+    # A day-old merge of an older cnf is nobody's any more.
+    find "$SPL_STATE_DIR/cnf" -maxdepth 1 -name "$ENV.*.env.yaml" -mmin +1440 -delete 2>/dev/null || true
+  fi
   SPL_CNF="$SPL_STATE_DIR/$ENV.env.yaml"
-  do_spl_merged_cnf "$cnf_dir" "$ENV" "$SPL_CNF" || { do_log "FATAL cannot merge the $ENV cnf"; return 1; }
+  tmp="$SPL_CNF.tmp.$$"
+  cp "$cache" "$tmp" && mv -f "$tmp" "$SPL_CNF" || { rm -f "$tmp"; do_log "FATAL cannot write $SPL_CNF"; return 1; }
 
-  _spl_get() { yq -r "$1 // \"\"" "$SPL_CNF"; }
-  SPL_PROJECT="$(_spl_get .env.gcp.gcp_project)"
-  SPL_REGION="$(_spl_get .env.gcp.gcp_region)"
-  SPL_FQDN="$(_spl_get .env.dns.fqdn)"
-  SPL_IMAGE_REF="$(_spl_get .env.hub.image.ref)"
-  SPL_IMAGE_SQL_SRC="$APP_PATH/$(_spl_get .env.hub.image.sql_src)"
-  SPL_MIGRATIONS_DIR="$(_spl_get .env.hub.env.SPOOL_HUB_MIGRATIONS_DIR)"
-  SPL_SQL_INSTANCE="$(_spl_get '.env.steps."040-cloud-sql-postgres".instance_name')"
-  SPL_DB_NAME="$(_spl_get '.env.steps."040-cloud-sql-postgres".database_name')"
-  SPL_DB_USER="$(_spl_get .env.hub.db_user)"
-  SPL_DSN_SECRET="$(_spl_get .env.hub.secret_env.SPOOL_HUB_DB_DSN)"
+  # Every value in ONE yq call: a yq process per value was ~50 ms each.
+  local -a vals=()
+  mapfile -t vals < <(yq -r '[.env.gcp.gcp_project, .env.gcp.gcp_region, .env.dns.fqdn, .env.hub.image.ref,
+      .env.hub.image.sql_src, .env.hub.env.SPOOL_HUB_MIGRATIONS_DIR,
+      .env.steps."040-cloud-sql-postgres".instance_name, .env.steps."040-cloud-sql-postgres".database_name,
+      .env.hub.db_user, .env.hub.secret_env.SPOOL_HUB_DB_DSN, .env.hub.db_owner_user,
+      .env.hub.db_owner_dsn_secret, .env.hub.cloud_sql_proxy_image] | .[] | (. // "")' "$SPL_CNF")
+  [[ ${#vals[@]} -eq 13 ]] || { do_log "FATAL cannot read the $ENV values out of $SPL_CNF (got ${#vals[@]} of 13)"; return 1; }
+  SPL_PROJECT="${vals[0]}"
+  SPL_REGION="${vals[1]}"
+  SPL_FQDN="${vals[2]}"
+  SPL_IMAGE_REF="${vals[3]}"
+  SPL_IMAGE_SQL_SRC="$APP_PATH/${vals[4]}"
+  SPL_MIGRATIONS_DIR="${vals[5]}"
+  SPL_SQL_INSTANCE="${vals[6]}"
+  SPL_DB_NAME="${vals[7]}"
+  SPL_DB_USER="${vals[8]}"
+  SPL_DSN_SECRET="${vals[9]}"
   # 017 T029: the schema owner's login and its own, never-injected DSN slot
-  SPL_DB_OWNER_USER="$(_spl_get .env.hub.db_owner_user)"
-  SPL_OWNER_DSN_SECRET="$(_spl_get .env.hub.db_owner_dsn_secret)"
-  SPL_SQL_PROXY_IMAGE="$(_spl_get .env.hub.cloud_sql_proxy_image)"
-  unset -f _spl_get
+  SPL_DB_OWNER_USER="${vals[10]}"
+  SPL_OWNER_DSN_SECRET="${vals[11]}"
+  SPL_SQL_PROXY_IMAGE="${vals[12]}"
   SPL_SQL_CONN="$SPL_PROJECT:$SPL_REGION:$SPL_SQL_INSTANCE"
   SPL_REGISTRY_HOST="${SPL_IMAGE_REF%%/*}"
   SPL_DB_ROLES_SQL="$APP_PATH/$SPL_ORG_APP-rdb/src/sql/postgres/spool-hub-roles"
@@ -73,13 +103,108 @@ spl_dry_run() {
   [[ "$d" == 1 ]]
 }
 
-# spl_host_spool -> builds the host `spool` CLI into the state dir (local only)
-# and sets SPL_SPOOL to it
+# spl_host_spool -> the host `spool` CLI in the state dir (local only), built
+# only when this tree has something NEWER to put there; sets SPL_SPOOL to it.
+#
+# It used to run build.sh on EVERY call (2026-09-25, measured on the desk reply
+# path: ~2.2 s of it, n=3). build.sh stamps -X main.builtAt with the current
+# second, so the link flags differ on every call and Go re-links the 57 MB
+# binary each time. And it overwrote $SPL_STATE_DIR/bin/spool - the file the
+# running box-desk sidecar was started from - with whatever tree the action
+# ran in: from a checkout 40 commits behind, a silent DOWNGRADE for the next
+# sidecar restart. The live prd binary read vcs.revision=773c26d that day.
+#
+# So (spl_host_spool_verdict): keep the binary when it was built from this
+# tree's HEAD with a clean module; build when the tree is newer; and REFUSE -
+# keep the binary, log why - when the tree is older than the binary. The build
+# goes to a private tmp and is renamed into place, so a sidecar that execs the
+# path meanwhile gets the old file or the new one, never half of one.
+# SPL_SPOOL_REBUILD=1 builds regardless (and may downgrade: the operator asked).
 spl_host_spool() {
-  local build="$APP_PATH/$SPL_ORG_APP-api/src/bash/build.sh"
+  local build="$APP_PATH/$SPL_ORG_APP-api/src/bash/build.sh" verdict why tmp head
   SPL_SPOOL="$SPL_STATE_DIR/bin/spool"
-  mkdir -p "$SPL_STATE_DIR/bin" && bash "$build" "$SPL_SPOOL" >/dev/null ||
-    { do_log "FATAL spool build failed ($build)"; return 1; }
+  verdict="$(spl_host_spool_verdict "$SPL_SPOOL")"
+  why="${verdict#* }"; verdict="${verdict%% *}"
+  case "$verdict" in
+    keep) return 0 ;;
+    refuse) do_log "WARN keeping $SPL_SPOOL: $why (SPL_SPOOL_REBUILD=1 overrides)"; return 0 ;;
+  esac
+  mkdir -p "$SPL_STATE_DIR/bin" || return 1
+  tmp="$SPL_SPOOL.build.$$"
+  bash "$build" "$tmp" >/dev/null && mv -f "$tmp" "$SPL_SPOOL" ||
+    { rm -f "$tmp"; do_log "FATAL spool build failed ($build)"; return 1; }
+  head="$(git -C "$APP_PATH" rev-parse HEAD 2>/dev/null)"
+  printf '%s %s\n' "${head:-unknown}" "$(spl_host_spool_tree_state)" >"$SPL_SPOOL.src" 2>/dev/null || true
+}
+
+# The Go module's paths, relative to $APP_PATH: what the binary is built from.
+spl_host_spool_paths() {
+  printf '%s\n' "$SPL_ORG_APP-api/src/go/spool-hub-api" "$SPL_ORG_APP-api/src/bash/build.sh" .version
+}
+
+# clean | dirty: whether the module's paths differ from HEAD in this tree.
+# Scoped to the module on purpose - the shared checkout is routinely dirty in
+# unrelated files, and that is no reason to rebuild.
+spl_host_spool_tree_state() {
+  local -a paths=()
+  mapfile -t paths < <(spl_host_spool_paths)
+  if [[ -n "$(git -C "$APP_PATH" status --porcelain -- "${paths[@]}" 2>/dev/null)" ]]; then
+    echo dirty
+  else
+    echo clean
+  fi
+}
+
+# spl_host_spool_bin_rev <bin> -> "<commit> <vcs.modified>" of a spool binary,
+# read from the build info Go embeds in it: build.sh's -X main.commit=<sha>
+# (in the recorded -ldflags), else Go's own vcs.revision. `spool version`
+# prints neither. <vcs.modified> is "unknown" when Go did not stamp vcs, which
+# it does not in a git worktree. Empty when the binary carries no commit.
+spl_host_spool_bin_rev() {
+  PATH="/usr/local/go/bin:$PATH" go version -m "$1" 2>/dev/null | awk '
+    $1 == "build" && match($0, /main\.commit=[0-9a-f]+/) { c = substr($0, RSTART + 12, RLENGTH - 12) }
+    $2 ~ /^vcs\.revision=/ { sub(/^vcs\.revision=/, "", $2); r = $2 }
+    $2 ~ /^vcs\.modified=/ { sub(/^vcs\.modified=/, "", $2); m = $2 }
+    END { if (c == "") c = r; if (c != "") print c, (m == "" ? "unknown" : m) }'
+}
+
+# spl_host_spool_verdict <bin> -> "build|keep|refuse <why>"
+spl_host_spool_verdict() {
+  local bin="$1" head state rev mod stamp
+  [[ "${SPL_SPOOL_REBUILD:-0}" == 1 ]] && { echo "build SPL_SPOOL_REBUILD=1"; return 0; }
+  [[ -x "$bin" ]] || { echo "build no binary yet"; return 0; }
+  head="$(git -C "$APP_PATH" rev-parse HEAD 2>/dev/null)"
+  [[ -n "$head" ]] || { echo "build $APP_PATH is not a git tree"; return 0; }
+  read -r rev mod < <(spl_host_spool_bin_rev "$bin") || true
+  [[ -n "${rev:-}" ]] || { echo "build the binary carries no vcs.revision"; return 0; }
+  if [[ "$rev" == "$head" ]]; then
+    state="$(spl_host_spool_tree_state)"
+    [[ "$state" == clean ]] || { echo "build the module is modified in $APP_PATH"; return 0; }
+    # Same commit and a clean module: current, if it was built CLEAN. Ours
+    # say so in the .src stamp; a binary from a wholly clean tree says so too.
+    stamp="$(cat "$bin.src" 2>/dev/null)"
+    if [[ "$stamp" == "$head clean" || "$mod" == false ]]; then
+      echo "keep built from $head"; return 0
+    fi
+    echo "build built from $head with local changes"; return 0
+  fi
+  if ! git -C "$APP_PATH" cat-file -e "$rev^{commit}" 2>/dev/null; then
+    echo "refuse it was built from ${rev:0:12}, a commit this tree does not know, so it cannot be shown to be older than ${head:0:12}"
+    return 0
+  fi
+  if git -C "$APP_PATH" merge-base --is-ancestor "$rev" "$head" 2>/dev/null; then
+    echo "build the tree (${head:0:12}) is newer than the binary (${rev:0:12})"; return 0
+  fi
+  if git -C "$APP_PATH" merge-base --is-ancestor "$head" "$rev" 2>/dev/null; then
+    echo "refuse it was built from ${rev:0:12}, NEWER than this tree's ${head:0:12} ($APP_PATH): a rebuild here would downgrade it"
+    return 0
+  fi
+  # Diverged: the newer commit wins, by commit time.
+  if (( $(git -C "$APP_PATH" show -s --format=%ct "$head") >= $(git -C "$APP_PATH" show -s --format=%ct "$rev") )); then
+    echo "build the tree (${head:0:12}) diverged from the binary (${rev:0:12}) and is newer"
+  else
+    echo "refuse it was built from ${rev:0:12}, which diverged from this tree's ${head:0:12} and is newer"
+  fi
 }
 
 # spl_read_dsn -> prints the latest version of the DSN secret. The value is

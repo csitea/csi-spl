@@ -111,6 +111,15 @@ without reading the DB or a log line.
 `host_status` (specs/024, only once `paid`): `pending` while the tenant's own
 host (Cloud Run domain mapping + DNS record + certificate) is being provisioned
 by the reconcile, `ready` once it answers, `unknown` when the hub cannot tell.
+**Legacy (sync 2026-09-25):** per-tenant hosts were retired by 024/026
+(`mapped_tenants: []` in dev + prd; one API host, tenant from identity). The
+hub still emits both fields (`internal/payments/handler.go:418-421`, `:469`:
+`tenant_host` from `SPOOL_HUB_TENANT_HOST_PATTERN`, `host_status` from rdb
+`0015` rows), but `tenant_host` names an address that does not resolve and
+no page renders it (`csi-spl-wui/src/components/CheckoutHostStatus.vue`
+would, but no page mounts it: `grep -rn CheckoutHostStatus csi-spl-wui/src/pages`
+-> 0); the buyer's link is `tenant_url` (§1.8a, WUI sign-in). Removing the two
+fields is 024's retirement work (reported to that spec's owner).
 `404 not_found` for an unknown id. Carries no secret.
 
 ### 1.4 `POST /api/v1/checkout/claim`
@@ -226,9 +235,10 @@ Only when cnf prices a seat kind (`SPOOL_HUB_PAYMENT_SEAT_USER_CENTS` /
 3. Success page: poll `GET …/{checkout_id}` until `paid`, then `POST …/claim` once.
 4. Show tenant URL + root private key with copy/download and a clear "this is
    the only time it is shown; it is not emailed and the hub does not keep it"
-   warning, then drop the `claim_token` from storage. While `host_status` is
-   `pending`, say "your address <tenant_host> is being prepared" (specs/024:
-   typically 15-30 min) and keep polling §1.3 until it reads `ready`.
+   warning, then drop the `claim_token` from storage. (Legacy, see §1.3:
+   while `host_status` is `pending`, say "your address <tenant_host> is being
+   prepared" and keep polling §1.3 until it reads `ready`; with no tenant hosts
+   it reads `unknown` and no notice shows.)
 5. Claim page (`/checkout/claim`, §1.8): same render as step 4 from the link;
    `410 claimed` → "already collected (on the success page or from this link)".
 
@@ -250,4 +260,4 @@ Only when cnf prices a seat kind (`SPOOL_HUB_PAYMENT_SEAT_USER_CENTS` /
 | `SPOOL_HUB_PAYPAL_CLIENT_ID` / `_MODE` / `_API_BASE` / `_WEBHOOK_ID` | PayPal (sandbox) |
 | `SPOOL_HUB_PAYPAL_CLIENT_SECRET` | **secret** (slot `csi-spl-hub-paypal-client-secret`) |
 
-<!-- version: 1.4.0 · updated: 2026-09-19 (§1.8a tenant_url = WUI sign-in, tenant_url_pattern dropped) -->
+<!-- version: 1.4.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:35:58Z -->

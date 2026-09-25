@@ -260,8 +260,9 @@ Every apply here waits on an owner GCP re-auth (2026-09-19: `gcloud …
       `032` replacement — FR-017. **Implemented** `dd3c9f59`: action + its
       stub test removed, `dns-ops.tst.sh` asserts it stays retired (control:
       planting the file back -> 1 FAIL), references repointed;
-      `git grep -c do_wait_for_cert -- csi-spl-orc/src` -> only the
-      retirement assertion.
+      `git grep -l do_wait_for_cert -- csi-spl-orc/src` -> the retirement
+      assertion (`dns-ops.tst.sh`) and the history note in
+      `spl-wait-for-mapping-cert.func.sh` only.
 - [ ] T091 Re-measure per-step state on dev + prd as the env SA
       (`make do-tf-plan` per step -> "No changes") — SC-003. **Planned**
 

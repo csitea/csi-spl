@@ -9,6 +9,10 @@
 #      curl, docker or spool call. CONTROL: the stub log records one when made
 #   3. do_spl_desk_reply refuses a bad kind, a non-HUM DESK_TO and a non-uuid
 #      DESK_TASK before it reads anything
+#   8. do_spl_desk_post (specs/038) refuses a bad channel / kind / body / file
+#      before it reads anything, sends `spool send --channel` with the
+#      normalized channel and the put files' ids, and names a non-member
+#      refusal (unknown_channel) as such
 #   4. spl_desk_pick: a box sender is never answered; ONE waiting human
 #      conversation is answered; SEVERAL are refused (exit 4) and listed rather
 #      than guessed - answering "the newest human" let a second person's
@@ -76,8 +80,8 @@ ROWS
 
 # --- 2. the dry runs are offline ---------------------------------------------------
 : >"$T/calls.log"
-for a in do_spl_desk_up do_spl_desk_reply do_spl_desk_down do_spl_desk_probe; do
-  SNIPPET="$a" in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='hello' \
+for a in do_spl_desk_up do_spl_desk_reply do_spl_desk_post do_spl_desk_down do_spl_desk_probe; do
+  SNIPPET="$a" in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='hello' DESK_CHANNEL=spool-hub-devel \
     ROOT_KEY_JSON=/nonexistent.json >"$T/o" 2>&1
   grep -q 'DRY_RUN' "$T/o" && pass "$a: the dry run says what it would do" ||
     fail "$a: no DRY_RUN line: $(cat "$T/o")"
@@ -269,6 +273,48 @@ fi
 kid=${out#started }
 [[ "$kid" =~ ^[0-9]+$ ]] && { kill "$kid" 2>/dev/null; kill $(pgrep -P "$kid" 2>/dev/null) 2>/dev/null; } || true
 pkill -f 'sleep 30' >/dev/null 2>&1 || true
+
+# --- 8. the post leg (specs/038) ----------------------------------------------------
+for bad in "DESK_CHANNEL=" "DESK_CHANNEL=no spaces" "DESK_CHANNEL=x;rm" "DESK_KIND=reject" "DESK_BODY=" \
+           "DESK_FILES=$T/no-such-file"; do
+  if SNIPPET=do_spl_desk_post in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='hi' DESK_CHANNEL=ops DRY_RUN=0 "$bad" \
+       >"$T/o" 2>&1; then
+    fail "do_spl_desk_post refuses $bad: $(cat "$T/o")"
+  else
+    grep -q FATAL "$T/o" && pass "do_spl_desk_post refuses $bad" ||
+      fail "do_spl_desk_post refuses $bad without saying why: $(cat "$T/o")"
+  fi
+done
+# A fake spool that records its arguments: put-file answers a file_id, send
+# answers a delivery - or, with FAKE_REFUSE, the hub's non-member refusal.
+mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
+cat >"$T/fakespool" <<'FAKE'
+#!/bin/sh
+echo "$*" >>"$FAKE_LOG"
+case "$1" in
+  put-file) echo '{"bytes":1,"file_id":"f00d","kind":"file","name":"a","sha256":"f00d"}' ;;
+  send) [ -n "${FAKE_REFUSE:-}" ] && { echo 'spool: hub refused: unknown_channel (no channel ops in this tenant)' >&2; exit 78; }
+        echo '{"delivery":"sent","msg_id":"m1","task_id":"t1","ts":"2026-09-25T00:00:00Z"}' ;;
+esac
+FAKE
+chmod +x "$T/fakespool"; echo x >"$T/att.txt"; : >"$T/fake.log"
+POST='spl_host_spool() { SPL_SPOOL="$FAKE"; }; do_spl_desk_post'
+out=$(SNIPPET="$POST" in_orc FAKE="$T/fakespool" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  DESK_CHANNEL='#Spool-Hub-Devel' DESK_BODY='0.5.6 is out' DESK_FILES="$T/att.txt" DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && pass "do_spl_desk_post posts through the desk's spool" || fail "do_spl_desk_post (rc=$rc): $out"
+grep -qx -- "send --from CLE-00 --channel spool-hub-devel --kind note --body 0.5.6 is out --file-id f00d" "$T/fake.log" &&
+  pass "…as spool send --channel with the normalized channel and the file id" ||
+  fail "the send was not a channel post: $(cat "$T/fake.log")"
+[[ "$out" == *'"channel": "spool-hub-devel"'* && "$out" == *'"delivery": "sent"'* ]] &&
+  pass "…and prints the channel and the hub's delivery" || fail "post output: $out"
+# CONTROL: nothing in the post leg adds a --to or --to-box (a broadcast has
+# no single recipient; the hub would route a to_box instead of the channel).
+! grep -qE -- '--to(-box)? ' "$T/fake.log" && pass "CONTROL no --to / --to-box on a channel post" ||
+  fail "a channel post named a recipient: $(cat "$T/fake.log")"
+out=$(SNIPPET="$POST" in_orc FAKE="$T/fakespool" FAKE_LOG="$T/fake.log" FAKE_REFUSE=1 TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  DESK_CHANNEL=ops DESK_BODY='let me in' DRY_RUN=0 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *"not a member of #ops"* ]] && pass "a non-member refusal is named as one" ||
+  fail "non-member refusal (rc=$rc): $out"
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-actions.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

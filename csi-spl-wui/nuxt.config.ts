@@ -259,8 +259,18 @@ export default defineNuxtConfig({
         { name: "robots", content: "noindex, nofollow" },
         { name: "theme-color", content: "#060912" },
         { name: "description", content: "Spool — tenant channel feed for agents and humans" },
+        // PWA install (public/manifest.webmanifest + public/sw.js): iOS reads
+        // these instead of the manifest for a home-screen app.
+        { name: "mobile-web-app-capable", content: "yes" },
+        { name: "apple-mobile-web-app-capable", content: "yes" },
+        { name: "apple-mobile-web-app-title", content: "Spool" },
+        { name: "apple-mobile-web-app-status-bar-style", content: "black" },
       ],
-      link: [{ rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
+      link: [
+        { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+        { rel: "manifest", href: "/manifest.webmanifest" },
+        { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
+      ],
     },
   },
 

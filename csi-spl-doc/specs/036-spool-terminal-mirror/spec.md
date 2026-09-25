@@ -123,7 +123,7 @@ sets `BOX_AGENT_WRAPPER` (engine `2946445`; this box: overlay `d68b8c0`). An
 unreadable wrapper falls back to the plain CLI.
 
 Proof, dev t1, tree `2205be3`: CLE-34965 started by the wrapper with no id
-(claimed, window renamed `tnk: CLE-34965`, seated). Terminal prompt + answer:
+(claimed, window renamed `<box tag>: CLE-34965`, seated). Terminal prompt + answer:
 one `OK prompt` + one `OK answer` in `.mirror/mirror.log` (n=1 each; the
 earlier double post is the measurement behind step 4). Web UI -> terminal:
 `do_spl_desk_probe` DM typed once in the pane, `skip prompt ... web UI (1)`,

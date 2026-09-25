@@ -45,6 +45,15 @@
 # @param   tick that creates several dirs can push one agent announce past its
 # @param   window; re-reading the roster costs nothing and keeps a race out of
 # @param   the failure list, where it would teach everyone to ignore it
+# @param DESK_HUB_CHECK (optional) - 1 (default) or 0. After seating, ask the
+# @param   HUB whether it has a session for the box, and restart a sidecar that
+# @param   is alive while the hub says the box is offline (do_spl_desk_check's
+# @param   `stranded`). Seating only ever looked at the local process and the
+# @param   local roster cache, so on 2026-09-25 a tick reported "13 seated, none
+# @param   failed" at 13:50:35Z while the box had been stranded since a hub
+# @param   redeploy ~45 min earlier. Reads the roster like do_spl_desk_check
+# @param   (DESK_ROSTER_JSON / PROBE_EMAIL / PROBE_PW_FILE); a roster read that
+# @param   fails is logged as a WARN and repairs nothing
 # @param ROOT_KEY_JSON (optional) - only for the FIRST run of a desk box
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 ./run -a do_spl_desk_up_all
@@ -60,6 +69,8 @@ do_spl_desk_up_all() {
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'"; return 1; }
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
   [[ "$retire" == 0 || "$retire" == 1 ]] || { do_log "FATAL DESK_RETIRE must be 0 or 1, got: '$retire'"; return 1; }
+  local hubcheck="${DESK_HUB_CHECK:-1}"
+  [[ "$hubcheck" == 0 || "$hubcheck" == 1 ]] || { do_log "FATAL DESK_HUB_CHECK must be 0 or 1, got: '$hubcheck'"; return 1; }
 
   local d="$SPL_STATE_DIR/desk/$tenant/$box"
   local -a live=() seat=() seated=() failed=() retired=()
@@ -87,6 +98,7 @@ do_spl_desk_up_all() {
     else
       do_log "INFO DRY_RUN would NOT retire (DESK_RETIRE=0); ${#dead[@]} agent(s) have no window: ${dead[*]:-none}"
     fi
+    [[ "$hubcheck" == 1 ]] && do_log "INFO DRY_RUN would: ask the hub whether $box has a session, and restart its sidecar if it is stranded"
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
     return 0
   fi
@@ -144,16 +156,36 @@ do_spl_desk_up_all() {
     done
   fi
 
+  # The HUB's side of the seat. Everything above is local: a live pid and the
+  # roster cache the sidecar wrote at its last welcome. A sidecar whose socket
+  # sits on a hub process that no longer serves (a redeploy) passes all of it.
+  local hub="skipped" hrc=0 ha="" a2
+  if [[ "$hubcheck" == 1 && ${#seated[@]} -gt 0 ]]; then
+    # Measure with a seat that takes the poke, so the restart below does not
+    # re-seat a DESK_MUTE agent with its prompt switched back on.
+    for a2 in "${seated[@]}"; do [[ "$mute" == *" $a2 "* ]] || { ha="$a2"; break; }; done
+    local hpoke="$poke"
+    [[ -z "$ha" ]] && { ha="${seated[0]}"; hpoke=0; }
+    SPL_DESK_HUB="skipped"
+    spl_desk_heal_stranded "$d" "$tenant" "$box" "$ha" "$hpoke" || hrc=$?
+    hub="$SPL_DESK_HUB"
+  fi
+
   flock -u 8; exec 8>&-
-  python3 - "$ENV" "$tenant" "$box" "$d" "${#live[@]}" "${seated[*]:-}" "${retired[*]:-}" "${failed[*]:-}" <<'EOF_PY'
+  python3 - "$ENV" "$tenant" "$box" "$d" "${#live[@]}" "${seated[*]:-}" "${retired[*]:-}" "${failed[*]:-}" "$hub" <<'EOF_PY'
 import json, sys
-env, tenant, box, state, nlive, seated, retired, failed = sys.argv[1:]
+env, tenant, box, state, nlive, seated, retired, failed, hub = sys.argv[1:]
 print(json.dumps({"env": env, "tenant": tenant, "box": box, "state_dir": state,
                   "live_agents": int(nlive), "seated": seated.split(),
-                  "retired": retired.split(), "failed": failed.split()}, sort_keys=True))
+                  "retired": retired.split(), "failed": failed.split(),
+                  "hub_session": hub}, sort_keys=True))
 EOF_PY
   if [[ ${#failed[@]} -gt 0 ]]; then
     do_log "FAIL ${#failed[@]} of ${#seat[@]} agent(s) were not seated on $box: ${failed[*]}"
+    return 1
+  fi
+  if (( hrc )); then
+    do_log "FAIL $box was stranded and the restart did not bring its hub session back: see $d/spool/.hub/hub-run.log"
     return 1
   fi
   if [[ ${#retired[@]} -gt 0 ]]; then
@@ -161,6 +193,45 @@ EOF_PY
   else
     do_log "OK ${#seated[@]} agent(s) seated on $box in $tenant ($ENV), none retired"
   fi
+}
+
+# spl_desk_heal_stranded <state dir> <tenant> <box> <agent> <agent poke>: read
+# the hub's roster and, when the box's sidecar is alive but the hub says the box
+# is OFFLINE (do_spl_desk_check's `stranded`), restart the sidecar: down, then
+# do_spl_desk_up for <agent>, whose hello drains what the hub queued meanwhile.
+# Sets SPL_DESK_HUB to online | stranded-repaired | stranded-repair-failed |
+# skipped | <other verdict>. Returns 1 only when a repair was needed and failed.
+#
+# Only `stranded` is acted on: down is what seating just fixed, and unpinned or
+# agent-missing are not things a restart fixes (spl_desk_repair says the same).
+# A roster read that fails repairs NOTHING - restarting 13 seats because the
+# member login hit a 429 would be a self-inflicted outage.
+spl_desk_heal_stranded() {
+  local d="$1" tenant="$2" box="$3" agent="$4" apoke="$5" roster rrc=0 verdict v
+  SPL_DESK_HUB="skipped"
+  spl_desk_alive "$d/spool/.hub/hub-run.pid" || { do_log "WARN hub-side check of $box skipped: no live sidecar after seating"; return 0; }
+  roster="$(spl_desk_roster "$tenant" 2>&1)" || rrc=$?
+  if (( rrc )); then
+    do_log "WARN hub-side check of $box skipped: the roster read failed (exit $rrc): $(printf '%s' "${roster:-<nothing>}" | tail -n 1)"
+    return 0
+  fi
+  verdict="$(spl_desk_verdict "$roster" "$box" "$agent" 1)" || { do_log "WARN hub-side check of $box skipped: the roster is not JSON"; return 0; }
+  v="${verdict%%$'\t'*}"
+  case "$v" in
+    ok|muted) SPL_DESK_HUB="online"; do_log "INFO the hub has a session for $box in $tenant"; return 0 ;;
+    stranded) ;;
+    *) SPL_DESK_HUB="$v"; do_log "WARN hub-side check of $box: '$v' - not something a sidecar restart fixes"; return 0 ;;
+  esac
+  do_log "FAIL $box is STRANDED in $tenant ($ENV): its sidecar is alive and the hub says the box is OFFLINE, so messages the hub accepts reach nobody here. Restarting the sidecar."
+  if TENANT_ID="$tenant" DESK_BOX="$box" DESK_AGENT="" DRY_RUN=0 do_spl_desk_down &&
+     TENANT_ID="$tenant" DESK_BOX="$box" DESK_AGENT="$agent" DESK_POKE="$apoke" \
+       DESK_WAIT_SECS="${DESK_WAIT_SECS:-30}" DRY_RUN=0 do_spl_desk_up; then
+    SPL_DESK_HUB="stranded-repaired"
+    do_log "OK repaired a stranded $box: a fresh sidecar re-helloed, and that hello drains what the hub queued for the box"
+    return 0
+  fi
+  SPL_DESK_HUB="stranded-repair-failed"
+  return 1
 }
 
 # spl_desk_live_agents: every agent id a live tmux window on this box carries,

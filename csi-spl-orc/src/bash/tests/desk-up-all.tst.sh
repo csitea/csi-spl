@@ -310,5 +310,45 @@ out=$(bash "$CO/$(basename "$PROJ_ROOT")/src/bash/scripts/desk-reconcile-cron.sh
 [[ "$out" == *"# $TAG"* && "$out" == *"desk-reconcile-cron.sh"* ]] &&
   pass "--print-crontab from the checkout prints the tagged line" || fail "--print-crontab: $out"
 
+# --- 8. the reconcile asks the HUB, and restarts a STRANDED sidecar -----------------
+# 2026-09-25: a tick said "13 seated, none failed" while the box had been
+# stranded ~45 min by a hub redeploy - seating only looks at the local pid and
+# the local roster cache. spl_desk_heal_stranded reads the hub's roster.
+# do_spl_desk_down/up are stubbed: this proves the DECISION, not a real restart.
+H="$T/state/dev/desk/t1/box-heal"
+mkdir -p "$H/spool/.hub"
+# A process whose cmdline carries " hub-run", which is what spl_desk_alive reads.
+# The trailing ':' keeps bash from exec'ing sleep, which would drop that argv.
+bash -c 'sleep 60; :' _ hub-run & HPID=$!
+echo "$HPID" >"$H/spool/.hub/hub-run.pid"
+roster() { printf '{"boxes":[{"box_id":"box-heal","online":%s,"agents":["%s"]}]}\n' "$1" "$2" >"$T/hub-roster.json"; }
+HEAL='do_spl_desk_down() { echo "CALL down agent=[$DESK_AGENT]"; }
+      do_spl_desk_up() { echo "CALL up $DESK_AGENT poke=$DESK_POKE"; }
+      spl_desk_heal_stranded "$SPL_STATE_DIR/desk/t1/box-heal" t1 box-heal CLE-00 1; echo "rc=$? HUB=$SPL_DESK_HUB"'
+roster false CLE-00
+out=$(SNIPPET="$HEAL" in_orc DESK_ROSTER_JSON="$T/hub-roster.json" 2>&1)
+[[ "$out" == *"STRANDED"* && "$out" == *"CALL down agent=[]"* && "$out" == *"CALL up CLE-00 poke=1"* && "$out" == *"rc=0 HUB=stranded-repaired"* ]] &&
+  pass "a live sidecar the hub calls offline is STRANDED and gets restarted" || fail "stranded heal: $out"
+roster true CLE-00
+out=$(SNIPPET="$HEAL" in_orc DESK_ROSTER_JSON="$T/hub-roster.json" 2>&1)
+[[ "$out" != *"CALL "* && "$out" == *"rc=0 HUB=online"* ]] &&
+  pass "CONTROL a box the hub has a session for is left alone" || fail "online box was touched: $out"
+roster true CLE-9
+out=$(SNIPPET="$HEAL" in_orc DESK_ROSTER_JSON="$T/hub-roster.json" 2>&1)
+[[ "$out" != *"CALL "* && "$out" == *"HUB=agent-missing"* ]] &&
+  pass "CONTROL agent-missing is not something a restart fixes, so none is made" || fail "agent-missing restarted: $out"
+out=$(SNIPPET="$HEAL" in_orc DESK_ROSTER_JSON="$T/no-such-roster.json" 2>&1)
+[[ "$out" != *"CALL "* && "$out" == *"WARN"* && "$out" == *"rc=0 HUB=skipped"* ]] &&
+  pass "CONTROL a roster read that fails restarts NOTHING (a 429 must not bounce every seat)" || fail "failed read restarted: $out"
+pkill -P "$HPID" 2>/dev/null; kill "$HPID" 2>/dev/null; wait "$HPID" 2>/dev/null
+roster false CLE-00
+out=$(SNIPPET="$HEAL" in_orc DESK_ROSTER_JSON="$T/hub-roster.json" 2>&1)
+[[ "$out" != *"CALL "* && "$out" == *"HUB=skipped"* ]] &&
+  pass "CONTROL with no live sidecar it is down, not stranded: seating owns that" || fail "dead sidecar healed: $out"
+out=$(SNIPPET=do_spl_desk_up_all in_orc TENANT_ID=t1 STUB_TMUX_WINDOWS="$T/windows.txt" 2>&1)
+[[ "$out" == *"DRY_RUN would: ask the hub whether"* ]] && pass "the dry run names the hub-side check" || fail "dry run: $out"
+out=$(SNIPPET=do_spl_desk_up_all in_orc TENANT_ID=t1 DESK_HUB_CHECK=2 STUB_TMUX_WINDOWS="$T/windows.txt" 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *"DESK_HUB_CHECK must be 0 or 1"* ]] && pass "a bad DESK_HUB_CHECK is refused" || fail "DESK_HUB_CHECK=2: $out"
+
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-up-all.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

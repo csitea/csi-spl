@@ -81,8 +81,17 @@ eq "2. grok session-end Stop is skipped" 'null' "$(hx '{"hook_event_name":"Stop"
 eq "2. a subagent's Stop is skipped" 'null' "$(hx '{"hook_event_name":"Stop","lastAssistantMessage":"ok","subagentType":"explore"}')"
 eq "2. an empty prompt is skipped" 'null' "$(hx '{"hook_event_name":"UserPromptSubmit","prompt":"   "}')"
 printf 'not json' | MCP_BOT_AGENT_ID=CLE-7 python3 "$MIRROR" hook; eq "2. garbage on stdin still exits 0" 0 "$?"
-printf '{"hook_event_name":"UserPromptSubmit","prompt":"x"}' | env -u MCP_BOT_AGENT_ID python3 "$MIRROR" hook
+printf '{"hook_event_name":"UserPromptSubmit","prompt":"x"}' | env -u MCP_BOT_AGENT_ID -u SPOOL_AGENT_ID SPOOL_MIRROR_DISCOVER=0 python3 "$MIRROR" hook
 eq "2. no agent id: exit 0, nothing sent" "0 0" "$? $(nsends)"
+python3 -c '
+import importlib.util, sys
+s = importlib.util.spec_from_file_location("m", sys.argv[1])
+m = importlib.util.module_from_spec(s); s.loader.exec_module(m)
+rows = ["2712855 pane: GRK-333 ! title", "9 pane: CLE-1 x"]
+assert m.agent_from_window_rows([1, 2712855], rows) == "GRK-333"
+assert m.agent_from_window_rows([1, 2], rows) == ""
+' "$MIRROR"
+eq "2. a window name yields its agent id" 0 $?
 
 # --- 3. the web UI's own words are not echoed ---------------------------------
 mkdir -p "$A/.mirror/typed"

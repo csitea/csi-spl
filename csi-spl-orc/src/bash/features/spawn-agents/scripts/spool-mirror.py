@@ -52,7 +52,10 @@ Environment (post):
   SPOOL_MIRROR_SPOOL  the spool binary, default <env dir>/bin/spool
   SPOOL_MIRROR_DRY    1 = print the send argv instead of running it
 Environment (hook):
-  MCP_BOT_AGENT_ID    the agent id (set by the spawner); SPOOL_AGENT_ID wins
+  MCP_BOT_AGENT_ID    the agent id (set by the spawner); SPOOL_AGENT_ID wins.
+                      When both are unset, the hook takes the id from the
+                      tmux window that owns this process, so a hand-started
+                      grok still mirrors. SPOOL_MIRROR_DISCOVER=0 turns that off.
   SPOOL_MIRROR_POST   the argv prefix that runs `post` as the box user,
                       default: sudo -n -u <owner of this script> <this script>
   SPOOL_MIRROR_SYNC   1 = run post in the foreground (tests)
@@ -117,11 +120,66 @@ def hook_extract(ev):
     return None
 
 
+def ancestor_pids(start):
+    """Pids from start up to, but not including, pid 1."""
+    pids, pid, seen = [], start, set()
+    while pid and pid not in seen and pid != 1:
+        seen.add(pid)
+        pids.append(pid)
+        try:
+            with open("/proc/%d/stat" % pid) as f:
+                stat = f.read()
+            pid = int(stat[stat.rfind(")") + 2:].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+    return pids
+
+
+def agent_from_window_rows(pids, rows):
+    """The agent id in the tmux window whose pane pid is one of pids."""
+    want = {str(p) for p in pids}
+    for row in rows:
+        pid, _, name = row.partition(" ")
+        if pid not in want or not name:
+            continue
+        m = re.search(r"[A-Z]{2,4}-[0-9]+", name)
+        if m and ID_RE.match(m.group(0)):
+            return m.group(0)
+    return ""
+
+
+def tmux_pane_rows():
+    """`pane_pid window_name` lines, or [] when tmux cannot be asked."""
+    if os.environ.get("SPOOL_MIRROR_DISCOVER", "1") == "0":
+        return []
+    try:
+        owner = pwd.getpwuid(os.stat(os.path.realpath(__file__)).st_uid)
+    except OSError:
+        return []
+    sock = os.environ.get("SPOOL_TMUX_SOCKET") or "/tmp/tmux-%d/default" % owner.pw_uid
+    cmd = ["tmux", "-S", sock, "list-panes", "-a", "-F", "#{pane_pid} #{window_name}"]
+    if owner.pw_uid != os.getuid():
+        cmd = ["sudo", "-n", "-u", owner.pw_name] + cmd
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    return out.stdout.splitlines() if out.returncode == 0 else []
+
+
+def resolve_agent():
+    """The spawner env, else the id painted on this process's tmux window."""
+    agent = os.environ.get("SPOOL_AGENT_ID") or os.environ.get("MCP_BOT_AGENT_ID") or ""
+    if ID_RE.match(agent):
+        return agent
+    return agent_from_window_rows(ancestor_pids(os.getppid()), tmux_pane_rows())
+
+
 def hook_main():
     try:
         raw = sys.stdin.read()
         got = hook_extract(json.loads(raw) if raw.strip() else {})
-        agent = os.environ.get("SPOOL_AGENT_ID") or os.environ.get("MCP_BOT_AGENT_ID") or ""
+        agent = resolve_agent()
         if not got or not ID_RE.match(agent):
             return 0
         event, text, session = got

@@ -597,7 +597,16 @@ export function createSpoolClient({
       }
       const filter = channel ? { channel } : peer ? { dm: true, peer: String(peer) } : {}
       const list = await api.listTopics({ limit: topics, before, ...filter })
-      const pages = await pool(list.topics, 6, (t) => api.getTopic(t.task_id, { order: 'desc', limit }))
+      /* A topic is read newest first, so one with more messages than `limit`
+         loses its opening line - and with it the middle card, because every
+         later line may be is_parent 0. The oldest message is read on its own
+         then. A page that already holds the whole topic costs nothing more. */
+      const pages = await pool(list.topics, 6, async (t) => {
+        const page = await api.getTopic(t.task_id, { order: 'desc', limit })
+        if (!(Number(t.count) > page.messages.length)) return page
+        const first = await api.getTopic(t.task_id, { limit: 1 })
+        return { ...page, messages: [...page.messages, ...first.messages] }
+      })
       const seen = new Set()
       const out = []
       for (const page of pages) {
@@ -609,7 +618,17 @@ export function createSpoolClient({
         }
       }
       out.sort((a, b) => String(a.received_at || a.ts).localeCompare(String(b.received_at || b.ts)))
-      return { messages: out.slice(-limit), next: list.next || null }
+      /* The cap keeps the newest `limit` lines, but never drops a topic's
+         opening line: that line is the topic's middle card. */
+      const opener = new Set()
+      const seenTask = new Set()
+      for (const m of out) {
+        if (!m.task_id || seenTask.has(m.task_id)) continue
+        seenTask.add(m.task_id)
+        opener.add(m)
+      }
+      const cut = out.length - limit
+      return { messages: out.filter((m, i) => i >= cut || opener.has(m)), next: list.next || null }
     },
     /**
      * 022 global search: `GET /v1/view/search?q=<raw>` (search-v1.md, the hub

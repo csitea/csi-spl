@@ -45,15 +45,18 @@ export function sendsNewTopic({ paneOpen = false, namedTopicId = '' } = {}) {
 }
 
 /**
- * `in: <title>` replies into that topic. An open right pane does too: that
- * is the pane a replies click shows, and the left tab stays where it was.
- * Topics with a selected row replies there when the pane is not what decided.
- * Anything else starts a new message.
- * @param {{ tab?: string, selectedTaskId?: string, namedTopicId?: string, paneVisible?: boolean }} [opts]
+ * `in: <title>` replies into that topic. An open right pane does too while it
+ * is the pane the reader selected last (utils/pane-focus.mjs): that is the
+ * pane a replies click shows, and the left tab stays where it was. Topics
+ * with a selected row replies there when the pane is not what decided.
+ * `lastPane: 'middle'` means the reader went back to the middle list: the
+ * line starts a new topic whatever is open or selected.
+ * @param {{ tab?: string, selectedTaskId?: string, namedTopicId?: string, paneVisible?: boolean, lastPane?: string }} [opts]
  */
-export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId = '', paneVisible = false } = {}) {
+export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId = '', paneVisible = false, lastPane = '' } = {}) {
   const named = String(namedTopicId || '')
   if (named) return named
+  if (lastPane === 'middle') return ''
   const selected = String(selectedTaskId || '')
   if (paneVisible && selected) return selected
   if (tab === 'topics' && selected) return selected
@@ -62,11 +65,12 @@ export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId
 
 /**
  * messages.is_parent for a browser send.
- * 0 while the right topic pane is open (the replies click). That message
- * stays in the pane. 1 when the pane is closed: the send is a new middle card.
- * @param {{ paneVisible?: boolean }} [opts]
+ * 0 while the right topic pane is open and was selected last (the replies
+ * click). That message stays in the pane. 1 when the pane is closed, or the
+ * reader went back to the middle: the send is a new middle card.
+ * @param {{ paneVisible?: boolean, lastPane?: string }} [opts]
  * @returns {0 | 1}
  */
-export function isParentFlag({ paneVisible = false } = {}) {
-  return paneVisible ? 0 : 1
+export function isParentFlag({ paneVisible = false, lastPane = '' } = {}) {
+  return paneVisible && lastPane !== 'middle' ? 0 : 1
 }

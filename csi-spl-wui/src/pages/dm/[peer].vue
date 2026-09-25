@@ -21,6 +21,8 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useSidePane } from '~/composables/useSidePane'
 import { isParentFlag, omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
+import { usePaneFocus } from '~/stores/pane-focus'
+import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { useTopicFeedClose } from '~/composables/useTopicRoute'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -73,8 +75,11 @@ onMounted(() => {
 
 /* An open right pane takes the line. `in: <title>` still names a topic.
    A closed pane starts a new middle card. */
+/* The open right pane takes the line only while it was the pane selected
+   last; a click back in the middle makes the next line a new topic. */
+const paneFocus = usePaneFocus()
 function paneOpen() {
-  return Boolean(topic.open || livePane.taskId)
+  return paneTakesLine({ paneOpen: Boolean(topic.open || livePane.taskId), lastPane: paneFocus.last })
 }
 
 function openTaskId() {
@@ -87,6 +92,7 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     selectedTaskId: openTaskId(),
     namedTopicId: topicId || '',
     paneVisible: paneOpen(),
+    lastPane: paneFocus.last,
   })
   if (reply) topicId = reply
   const sent = await channel.send(text, topicId || undefined, files, channelId, isParentFlag({ paneVisible: paneOpen() }))
@@ -102,6 +108,7 @@ function replyTarget() {
     selectedTaskId: openTaskId(),
     namedTopicId: '',
     paneVisible: paneOpen(),
+    lastPane: paneFocus.last,
   })
 }
 

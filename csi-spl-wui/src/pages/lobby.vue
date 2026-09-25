@@ -39,6 +39,8 @@ import { useNotificationStore } from '~/stores/notification'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { isParentFlag, omniboxReplyTaskId, sendsNewTopic } from '~/utils/omnibox-topic.mjs'
+import { usePaneFocus } from '~/stores/pane-focus'
+import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'
@@ -98,8 +100,11 @@ const { openRow } = useTopicRoute({
 })
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
+/* The open right pane takes the line only while it was the pane selected
+   last; a click back in the middle makes the next line a new topic. */
+const paneFocus = usePaneFocus()
 function lobbyPaneOpen() {
-  return Boolean(topic.open || pane.taskId)
+  return paneTakesLine({ paneOpen: Boolean(topic.open || pane.taskId), lastPane: paneFocus.last })
 }
 
 function lobbyReplyId() {
@@ -108,6 +113,7 @@ function lobbyReplyId() {
     selectedTaskId: String(pane.taskId || ''),
     namedTopicId: '',
     paneVisible: lobbyPaneOpen(),
+    lastPane: paneFocus.last,
   })
 }
 
@@ -119,6 +125,31 @@ useOmniboxTarget({
 
 onMounted(() => {
   notes.markRead('ch:lobby')
+})
+
+/* Declared above the immediate watch below, which calls followLobbyChannel()
+   on the first tick: a `let` below it is still in its dead zone then
+   ("Cannot access before initialization", dev 57a7d4a).
+
+   A new lobby topic is a NEW task in channel lobby, and the main store only
+   merges live frames of the room task. So another reader's new topic reached
+   nobody but its sender until a reload (measured 2026-09-25 on dev 5b16c0f,
+   a second tab, n=1). The page follows the channel and admits its frames;
+   channelView keeps a level-2 line (is_parent 0) out of the middle. The
+   channel subscription is left in place on leave: it is idempotent, and the
+   channel store may be following #lobby too. */
+let offLobbyChannel: (() => void) | null = null
+function followLobbyChannel() {
+  const client = live.ensure()
+  if (client) client.subscribeChannel('lobby')
+  if (offLobbyChannel) return
+  offLobbyChannel = live.onMessage((m) => {
+    if (m.channel === 'lobby' && m.task_id !== store.taskId) store.admit([m as unknown as SpoolMessage])
+  })
+}
+onBeforeUnmount(() => {
+  if (offLobbyChannel) offLobbyChannel()
+  offLobbyChannel = null
 })
 
 /* W5: same watch shape as spool-live.client.ts (cbac1cd). Mock has no socket
@@ -133,6 +164,7 @@ watch([lobbyId, () => session.state], ([id, st]) => {
   }
   if (shouldOpenHubSocket(st)) {
     startHubSocket(live)
+    followLobbyChannel()
     if (id) void store.open(id).then(() => loadLobbyTopics())
   } else {
     stopHubSocket(live)
@@ -168,13 +200,13 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     selectedTaskId: String(pane.taskId || ''),
     namedTopicId: '',
     paneVisible: lobbyPaneOpen(),
+    lastPane: paneFocus.last,
   })
   if (replyHere && pane.taskId && replyHere === pane.taskId) {
     await pane.send(text, files || [], { isParent: parentBit() })
     return
   }
-  const paneOpen = topic.open || Boolean(pane.taskId)
-  if (sendsNewTopic({ paneOpen, namedTopicId: topicId || '' })) {
+  if (sendsNewTopic({ paneOpen: lobbyPaneOpen(), namedTopicId: topicId || '' })) {
     const sent = await channel.send(text, undefined, files, channelId || 'lobby', parentBit())
     if (sent) store.admit([sent as SpoolMessage])
     return

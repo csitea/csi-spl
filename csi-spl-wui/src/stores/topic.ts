@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { dismissBornTopic, noteBornTopic } from '~/utils/born-topics.mjs'
 import { topicOf } from '~/utils/channel-feed.mjs'
 import { useChannelStore } from '~/stores/channel'
+import { usePaneFocus } from '~/stores/pane-focus'
 import type { SpoolMessage } from '~/types/spool'
 
 /** Which topic the pane shows (utils/topic-open.mjs topicTargetFor). */
@@ -65,6 +66,7 @@ export const useTopicStore = defineStore('topic', () => {
     parentTaskId.value = next.taskId
     open.value = true
     paneSelected.value = false
+    usePaneFocus().openedTopic()
   }
 
   /** The channel / DM pane by task id (the pre-CLE-3427 entry point). */

@@ -56,6 +56,8 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { isParentFlag, omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
+import { usePaneFocus } from '~/stores/pane-focus'
+import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 
@@ -109,8 +111,11 @@ const { pill, jump } = useScrollAnchor(listTop, () => viewer.topics.map((r) => r
 /* Topics tab with a selected row: the omnibox replies in that topic.
    `in: <title>` still names the topic. Anything else, or Topics with
    nothing selected, starts a new message. */
+/* The open right pane takes the line only while it was the pane selected
+   last; a click back in the middle makes the next line a new topic. */
+const paneFocus = usePaneFocus()
 function paneOpen() {
-  return Boolean(topicStore.open || pane.taskId)
+  return paneTakesLine({ paneOpen: Boolean(topicStore.open || pane.taskId), lastPane: paneFocus.last })
 }
 
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
@@ -119,6 +124,7 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     selectedTaskId: pane.taskId || '',
     namedTopicId: topicId || '',
     paneVisible: paneOpen(),
+    lastPane: paneFocus.last,
   })
   if (target && pane.taskId && target === pane.taskId) {
     const before = pane.messages.length
@@ -141,6 +147,7 @@ useOmniboxTarget({
     selectedTaskId: pane.taskId || '',
     namedTopicId: '',
     paneVisible: paneOpen(),
+    lastPane: paneFocus.last,
   }) ? tr('topic.reply_placeholder') : tr('search.placeholder_target', { target: tr('nav.topics') })),
   send: onSend,
 })

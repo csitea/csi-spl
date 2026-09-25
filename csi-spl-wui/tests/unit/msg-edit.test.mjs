@@ -152,8 +152,8 @@ describe('a double-click on a thread row is the same open as `e`', () => {
     assert.equal(wantsDblClickEdit(null, { editable: true }), false)
   })
 
-  it('does not edit a clickable middle-list row — that click opens the topic', () => {
-    assert.equal(wantsDblClickEdit(dbl(), { editable: true, clickable: true }), false)
+  it('edits a level-1 middle-list card too (owner, 2026-09-25: "also edit the is_topic=1 msgs by double clicking them")', () => {
+    assert.equal(wantsDblClickEdit(dbl(), { editable: true }), true)
   })
 
   it('does not steal a double-click on a link, a button, or the editor', () => {
@@ -168,7 +168,7 @@ describe('a double-click on a thread row is the same open as `e`', () => {
     const card = src('src/components/MessageCard.vue')
     assert.match(card, /@dblclick="onDblClick"/)
     assert.match(card, /wantsDblClickEdit\(ev,\s*\{[\s\S]*?startEdit\(\)/)
-    assert.match(card, /clickable: Boolean\(props\.clickable\)/)
+    assert.doesNotMatch(card, /clickable: Boolean\(props\.clickable\)/)
     assert.match(card, /interactive/)
   })
 })

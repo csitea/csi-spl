@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
+import { usePaneFocus } from '~/stores/pane-focus'
 import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, windowed, withoutMsg } from '~/utils/feed.mjs'
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { channelView, parseMention } from '~/utils/channel-feed.mjs'
@@ -104,6 +105,8 @@ function setup(key: 'main' | 'pane') {
   /** `all`: also page to the oldest row (a pinned root needs it); the pane always does. */
   async function open(id: string, opts: { all?: boolean } = {}) {
     if (!id) return
+    /* the lobby's room task is opened by the page, not by the reader: only the right pane's store moves the reader */
+    if (key === 'pane') usePaneFocus().openedTopic()
     const client = live.ensure()
     if (taskId.value && taskId.value !== id && client) client.unsubscribe(taskId.value)
     if (taskId.value !== id) {

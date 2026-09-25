@@ -306,6 +306,13 @@ declare module '~/utils/view-api.mjs' {
   export function copyEditFields<T extends Record<string, unknown>>(src: unknown, out: T): T
 }
 
+declare module '~/utils/pane-focus.mjs' {
+  export const MIDDLE: 'middle'
+  export const RIGHT: 'right'
+  export function paneOfTarget(el: unknown): '' | 'middle' | 'right'
+  export function paneTakesLine(opts?: { paneOpen?: boolean, lastPane?: string }): boolean
+}
+
 declare module '~/utils/msg-edit.mjs' {
   import type { SpoolMessage } from './spool'
   /** what the editor holds while it is open: the draft, and what Escape restores */
@@ -314,7 +321,7 @@ declare module '~/utils/msg-edit.mjs' {
   export function isOwnMessage(msg: unknown, viewer: { id?: string, box?: string } | null): boolean
   export function canEditMessage(msg: unknown, viewer: { id?: string, box?: string } | null): boolean
   export function wantsEdit(ev: KeyboardEvent, opts?: { editable?: boolean }): boolean
-  export function wantsDblClickEdit(ev: MouseEvent, opts?: { editable?: boolean, clickable?: boolean, interactive?: boolean }): boolean
+  export function wantsDblClickEdit(ev: MouseEvent, opts?: { editable?: boolean, interactive?: boolean }): boolean
   export function beginEdit(msg: unknown): MsgEditState | null
   export function withDraft(state: MsgEditState | null, draft: string): MsgEditState | null
   export function editWireBody(draft: string): string

@@ -193,16 +193,19 @@ function onClick(ev: MouseEvent) {
   emit('open-topic', props.msg)
 }
 
-/** A double-click on a thread row opens the same editor as `e`. */
+/** A double-click on a row opens the same editor as `e`: a thread line on
+    the right, and (owner, 2026-09-25) a level-1 card in the middle too. The
+    browser has just selected the word under the pointer; that selection is
+    not the human's, so it is cleared before the editor takes the caret. */
 function onDblClick(ev: MouseEvent) {
   const el = ev.target as HTMLElement | null
   const interactive = Boolean(el && el.closest && el.closest(INTERACTIVE))
   if (!wantsDblClickEdit(ev, {
     editable: Boolean(props.editable) && !editing.value,
-    clickable: Boolean(props.clickable),
     interactive,
   })) return
   ev.preventDefault()
+  if (typeof window !== 'undefined') window.getSelection()?.removeAllRanges()
   startEdit()
 }
 

@@ -16,6 +16,8 @@
         class="spool-shell"
         style="max-width:100%;min-width:0"
         :style="shellStyle"
+        @pointerdown.capture="paneFocus.noteEvent"
+        @focusin="paneFocus.noteEvent"
       >
         <ChannelSidebar />
         <PaneDivider
@@ -62,6 +64,9 @@
 </template>
 
 <script setup lang="ts">
+import { usePaneFocus } from '~/stores/pane-focus'
+/* which pane the reader selected last decides where the Omnibox line goes */
+const paneFocus = usePaneFocus()
 import DebugPanel from '@/components/common/DebugPanel.vue'
 import TopBar from '@/components/TopBar.vue'
 import { useTopicStore } from '~/stores/topic'

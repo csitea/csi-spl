@@ -8,7 +8,7 @@
 //       live tenant ends as it started).
 //
 //   BASE=<wui> OUT=<dir> [EMAIL=<member> PW_FILE=<0600 file>] [TENANT=t1] \
-//     [CHANNEL=<channel id>] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
+//     [CHANNEL=<channel id>] [CREATE=1] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/channel-people-live.proof.mjs
 //
 // Without EMAIL the page is used as served (the mock dev server). The password
@@ -96,8 +96,9 @@ try {
   await sleep(2000)
   await p.$eval('[data-testid="sidebar-tab-channels"]', (b) => b.click())
   await sleep(500)
-  // The mock's channels are all default ones: make a private one to inspect.
-  if (!EMAIL && !WANT) {
+  // The mock's channels are all default ones: make a private one to inspect
+  // (CREATE=1 does the same on a live TEST tenant that has none).
+  if ((!EMAIL && !WANT) || process.env.CREATE === '1') {
     await p.$eval('[data-testid="create-channel"]', (b) => b.click())
     await p.waitForSelector('[data-testid="create-channel-name"]', { timeout: 5000 })
     await p.type('[data-testid="create-channel-name"]', 'people-proof')

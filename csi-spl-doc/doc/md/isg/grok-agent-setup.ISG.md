@@ -105,6 +105,12 @@ is already there. On 2026-09-25 a box-wide burst of checks held the hub
 login at 429. `GRK-3508` skipped the check and answered prd in the same
 second (section 6).
 
+One check per env, after that burst, did run. `GRK-3508`,
+2026-09-25T17:35Z, n=1 each, `ENV=dev` and `ENV=prd`, `TENANT_ID=t1`:
+both printed `verdict ok` (the hub listed the agent, the sidecar was
+alive, the terminal poke was on). Both also said `sidecar_stale_build`
+true. `do_spl_desk_up` was not run: it rebuilds the box sidecar.
+
 A 429 is not one of those verdicts. Measured n=4, 18:06:06 through
 18:11:45 EEST, each run exited 1 with
 `{"step": "login", "status": 429, "error": "rate_limited"}` because every
@@ -148,6 +154,35 @@ framework. This seat did not time that script.
 To start a NEW topic in a channel you are a member of, use
 `do_spl_desk_post` exactly as in the Claude guide §6.5.
 
+The `task_id` on the inbox file is the thread the human is reading.
+Set `DESK_TO` to that file's `from` (a `HUM-*`) and `DESK_TASK` to
+that `task_id`. An answer in a different topic does not show there.
+Measured `GRK-3508`, `ENV=prd`, 2026-09-25T17:48:30Z, n=1:
+`DESK_TO=HUM-5`, `DESK_TASK=1e632ae5-f4b3-4882-91a4-e293b85804b6`,
+`msg_id` `46534333-1348-49e9-ab2b-8738526eb2a4`, `delivery: sent` in
+that topic. This live grok session had no spool MCP call that
+answered. The desk action did. MCP in a live grok session stays
+untested.
+
+A line that is only a probe marker is not an order. The shape is
+`attach L1` or `attach L2`, a channel name, and a short token, or
+`L1` / `L2` / `L3` / `L4`, a surface name, and a token. Proof runs
+type those lines into the prompt. Posting one into a real channel
+sends it to `ALL-0` and pokes every member. `GRK-3508` did that on
+prd at 17:53:47Z and 17:57:34Z. Ignore the line. Post nothing.
+
+`do_spl_desk_post` works only in a channel this seat belongs to.
+Measured n=1, prd, 17:57:34Z: `spool send --channel lobby` returned
+`unknown_channel`. The only subscription row for this seat on prd
+`t1` was `spool-hub-devel` on `box-desk`. Do not repost the same text
+into another channel. A member adds the agent from the channel's
+Agents list, or with `do_spl_channel_agent_add`. This seat did not
+run that action. A send into an existing `task_id` is a level-2 line
+(`is_parent` 0). A `--channel` send with no task is a new level-1
+card (`is_parent` 1). Measured on prd task
+`5a3f6369-260a-4008-9ae4-fa452f303d1c` in `spool-hub-devel`: the
+opener is `is_parent` 1, the follow-up in that task is `is_parent` 0.
+
 ## 7. Conditions
 
 As in the Claude guide §7. Plus: where grok runs in a mode that does not
@@ -162,7 +197,9 @@ As in the Claude guide §8.
 ## 9. Update this document
 
 The measurements above are from `GRK-333`, grok 1.0.41, csi-spl `db92f2a`,
-and, for the answer and the transcript upload, from `GRK-3508` on
-2026-09-25. Still open: SIGWINCH on a grok with tty `?`.
+and, for the answer, the transcript upload, the per-env check, the
+thread the human is reading, and the channel-membership refusal, from
+`GRK-3508` on 2026-09-25. Still open: SIGWINCH on a grok with tty `?`,
+and the spool MCP tools inside a live grok session.
 
-<!-- version: 0.2.1 · updated: 2026-09-25 · last-edit: 2026-09-25T17:16:00Z -->
+<!-- version: 0.2.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:06:00Z -->

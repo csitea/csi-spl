@@ -584,7 +584,7 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
-      "default_everyone": "Varsayılan kanalda herkes vardır ve kimse ondan çıkarılamaz."
+      "default_everyone": "Varsayılan kanalda tüm kişiler vardır ve kimse ondan çıkarılamaz. Bir ajan, ancak biri onu eklediğinde kanalda olur."
     }
   }
 }

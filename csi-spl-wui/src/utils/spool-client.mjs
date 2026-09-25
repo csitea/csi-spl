@@ -225,12 +225,12 @@ export function channelAgentRows(agents) {
 
 /**
  * Who a default channel (lobby, tasks, alerts) lists: every person of the
- * tenant and every announced agent, plus any agent subscribed to it. Nobody
- * joins or leaves a default channel, so the dialog shows these read-only.
+ * tenant, read-only, and only the agents someone added (owner decision
+ * 2026-09-25). An announced agent is NOT in it until a member picks it.
  */
 export function defaultChannelRows(roster, subscribed) {
   const people = channelInviteCandidates(rosterHumanIds(roster), [])
-  const agents = channelAgentRows([...channelAgentCandidates(roster, []), ...(subscribed || [])])
+  const agents = channelAgentRows(subscribed || [])
   return { people, agents }
 }
 
@@ -340,7 +340,14 @@ export function createSpoolClient({
     const known = id && state.channels.some((c) => c.channel_id === id)
     if (!known) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
     if (isPublicChannel(id)) {
-      return { channel: id, default: true, members: [], members_open_invite: false, agents: [] }
+      return {
+        channel: id,
+        default: true,
+        members: [],
+        members_open_invite: false,
+        created_by: 'hub',
+        agents: (state.agentMembers[id] || []).slice(),
+      }
     }
     const row = state.channels.find((c) => c.channel_id === id)
     const members = (state.memberships[id] || []).slice()
@@ -392,14 +399,14 @@ export function createSpoolClient({
     if (!agent || !boxId) throw memberError(400, 'bad_json', 'body must be {id, box}')
     const row = state.channels.find((c) => c.channel_id === id)
     if (!row) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
-    if (isPublicChannel(id)) {
-      throw memberError(409, 'channel_public', `#${id} is a default channel: every announced agent already reads it`)
+    // A default channel takes agents too; any member picks them (created_by hub).
+    if (!isPublicChannel(id)) {
+      const members = state.memberships[id]
+      if (!members || !members.includes(state.me.id)) {
+        throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+      }
+      if (!mockMayInvite(row)) throw memberError(403, 'forbidden', 'forbidden')
     }
-    const members = state.memberships[id]
-    if (!members || !members.includes(state.me.id)) {
-      throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
-    }
-    if (!mockMayInvite(row)) throw memberError(403, 'forbidden', 'forbidden')
     const announced = (state.roster && state.roster[boxId]) || []
     if (!announced.includes(agent)) {
       throw memberError(404, 'not_a_member', `${agent} is not announced on ${boxId}`)
@@ -430,12 +437,13 @@ export function createSpoolClient({
     const boxId = String(box || '')
     const row = state.channels.find((c) => c.channel_id === id)
     if (!row) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
-    if (isPublicChannel(id)) throw memberError(409, 'channel_public', `#${id} has no agent to remove`)
-    const members = state.memberships[id]
-    if (!members || !members.includes(state.me.id)) {
-      throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    if (!isPublicChannel(id)) {
+      const members = state.memberships[id]
+      if (!members || !members.includes(state.me.id)) {
+        throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+      }
+      if (!mockMayInvite(row)) throw memberError(403, 'forbidden', 'forbidden')
     }
-    if (!mockMayInvite(row)) throw memberError(403, 'forbidden', 'forbidden')
     const list = state.agentMembers[id] || []
     state.agentMembers[id] = list.filter((a) => !(a.id === agent && a.box === boxId))
     return null
@@ -825,8 +833,8 @@ export function createSpoolClient({
       return row
     },
     /**
-     * channels-v1 §7.4. A default channel answers `default: true` and
-     * `members: []`. A caller who is not in the channel gets the same 404
+     * channels-v1 §7.4. A default channel answers `default: true`,
+     * `members: []` (people: everyone) and the agents someone added. A caller who is not in the channel gets the same 404
      * as a missing channel (`unknown_channel`).
      */
     async listChannelMembers(channel) {

@@ -254,38 +254,48 @@ describe('the dropdown list opens under its own input (CLE-3493)', () => {
   })
 })
 
-describe('a default channel lists everyone, read-only (CLE-3493)', () => {
+describe('a default channel lists every person read-only and picks its agents (CLE-3493, 2026-09-25)', () => {
   const dialog = src('src/components/ChannelPropertiesDialog.vue')
   const sidebar = src('src/components/ChannelSidebar.vue')
 
-  it('every person and every announced agent, plus any subscribed agent', () => {
+  it('every person, and only the agents someone added - never the whole roster', () => {
     const roster = {
       'box-wui': ['HUM-17', 'HUM-4', 'HUM-4', 'GST-2'],
       'box-a': ['CLE-07', 'GRK-03'],
       'box-b': ['CLE-07'],
     }
-    const rows = defaultChannelRows(roster, [{ id: 'AGY-02', box: 'box-c' }, { id: 'CLE-07', box: 'box-a' }])
+    const rows = defaultChannelRows(roster, [{ id: 'CLE-07', box: 'box-a' }, { id: 'AGY-02', box: 'box-c' }])
     assert.deepEqual(rows.people, ['HUM-17', 'HUM-4'])
     assert.deepEqual(rows.agents, [
       { id: 'AGY-02', box: 'box-c' },
       { id: 'CLE-07', box: 'box-a' },
-      { id: 'CLE-07', box: 'box-b' },
-      { id: 'GRK-03', box: 'box-a' },
     ])
+    assert.deepEqual(defaultChannelRows(roster, []).agents, [], 'an announced agent is not in #lobby until added')
     assert.deepEqual(defaultChannelRows(undefined, undefined), { people: [], agents: [] })
   })
 
-  it('the default branch has no picker and no minus, and is not an error', () => {
-    const start = dialog.indexOf('<template v-else-if="isDefault">')
-    const end = dialog.indexOf('<template v-else-if="!failedLoad">')
-    assert.ok(start > 0 && end > start, 'the isDefault branch comes before the editable one')
+  it('the default people list has no picker and no minus; the agent picker is shared', () => {
+    const start = dialog.indexOf('<template v-if="isDefault">')
+    const end = dialog.indexOf('<template v-else>', start)
+    assert.ok(start > 0 && end > start, 'the isDefault people branch comes before the editable one')
     const branch = dialog.slice(start, end)
     assert.match(branch, /channel-default-note/)
     assert.match(branch, /v-for="id in localMembers"/)
-    assert.match(branch, /v-for="row in agentRows"/)
-    assert.doesNotMatch(branch, /<button|Combobox|remove/)
+    assert.doesNotMatch(branch, /<button|Combobox|remove|agentRows/)
+    // The agent picker and its minus sit AFTER both people branches, so a
+    // default channel gets exactly the created channel's agent controls.
+    const picker = dialog.indexOf('data-testid="channel-agent-picker"')
+    const closePeople = dialog.indexOf('</template>', end)
+    assert.ok(picker > closePeople, 'agent picker is outside the people branches')
+    assert.match(dialog, /data-testid="'channel-agent-remove-' \+ row\.id"/)
     assert.doesNotMatch(dialog, /error\.value = 'channel_public'/)
     assert.match(dialog, /defaultChannelRows\(bag, mem\.agents\)/)
+    assert.match(dialog, /createdByLive\.value = String\(mem\.created_by \|\| 'hub'\)/)
+    assert.match(dialog, /v-if="!canAdd && !isDefault"/)
+  })
+
+  it('any signed-in member may pick the agents of a default channel (created_by hub)', () => {
+    assert.equal(canAddChannelMember({ selfId: 'HUM-4', createdBy: 'hub', membersOpenInvite: false }), true)
   })
 
   it('the sidebar offers Properties on a default channel too', () => {
@@ -301,7 +311,7 @@ describe('every people and agent list is vertical, one avatar per row (CLE-3493)
 
   it('each row of every list and every dropdown option starts with its own SpoolAvatar', () => {
     const rows = template.match(/<li\s[^>]*v-for="[^"]*"[^>]*>\s*<SpoolAvatar\s/g) || []
-    assert.equal(rows.length, 5, 'default people, default agents, members, agents, Agents tab')
+    assert.equal(rows.length, 4, 'default people, members, agents, Agents tab')
     const bare = (template.match(/<li\s[^>]*v-for="[^"]*"[^>]*>\s*<(?!SpoolAvatar\s)/g) || [])
     assert.deepEqual(bare, [])
     const options = template.match(/data-testid="'channel-(invite-pick|agent-invite)-' \+ (id|row\.id)"\s*><SpoolAvatar\s/g) || []
@@ -312,7 +322,7 @@ describe('every people and agent list is vertical, one avatar per row (CLE-3493)
 
   it('the lists stack: one class, a column, and no wrapping list class is left', () => {
     const lists = template.match(/<ul\s[^>]*class="[^"]*"/g) || []
-    assert.ok(lists.length >= 5)
+    assert.ok(lists.length >= 4)
     for (const ul of lists) assert.match(ul, /class="member-rows"/, ul)
     assert.match(style, /\.member-rows\s*\{[^}]*flex-direction:\s*column/)
     assert.doesNotMatch(style, /\.invite-members|flex-wrap:\s*wrap;[^}]*list-style/)

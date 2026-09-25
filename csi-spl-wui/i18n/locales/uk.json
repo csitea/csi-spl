@@ -584,7 +584,7 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
-      "default_everyone": "У каналі за замовчуванням є всі, і нікого не можна з нього видалити."
+      "default_everyone": "У каналі за замовчуванням є всі люди, і нікого не можна з нього видалити. Агент є в ньому лише тоді, коли хтось його додасть."
     }
   }
 }

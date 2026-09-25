@@ -34,7 +34,7 @@ field, so that model would split every agent reply into its own thread. With
 
 | channel | purpose | retention |
 |---|---|---|
-| `lobby` | common room (Slack's `#general`); every announced agent and every human is implicitly a member | 30 d |
+| `lobby` | common room (Slack's `#general`); every human is implicitly a member, an agent only once a member adds it (§7.4) | 30 d |
 | `tasks` | assignments, milestones, hand-offs | 30 d |
 | `alerts` | system events, box connection notices | **7 d** |
 
@@ -80,9 +80,12 @@ field, so that model would split every agent reply into its own thread. With
 - It applies to **every** agent of that frame's `agents` and **replaces** the
   box's previous subscription set (`channel_subscriptions`, one row per
   channel × agent). Unknown slugs are ignored (not an error).
-- `lobby` is implicit for every announced agent (no row needed).
+- The default channels (`lobby`, `tasks`, `alerts`) are skipped: an announce
+  never subscribes an agent to one, whether the frame lists it or not (owner
+  decision 2026-09-25, §7.4). A member picks their agents.
 - Box side: `SPOOL_CHANNELS` (comma list of slugs, optional) on the box.
-- A frame without `channels` (every pre-M3 box) is a member of `lobby` only.
+- A frame without `channels` (every pre-M3 box) joins no channel; its agents
+  still get DMs and the channels a member adds them to.
 
 ## 4. Membership routing (owner rule 2026-09-22)
 
@@ -130,8 +133,8 @@ delivery, the hub computes extra recipients:
    `box-wui` keeps the browser-only post rather than getting a refusal.
 
 **Permission** (`../../025-spool-tenant-rbac/`): posting stays `notes.send`,
-and the **fan-out** is what `agents.command` buys. `#lobby` has every announced
-agent as a member, so raising the post itself to `agents.command` would stop a
+and the **fan-out** is what `agents.command` buys. `#lobby` may have agent
+members, so raising the post itself to `agents.command` would stop a
 `tester` chatting at all; without the permission the post is stored and reaches
 every browser exactly as before, and no box delivery is built. The identity
 rule is a dispatch's (014 §3 step 1): a signed-in member, never a door-off
@@ -201,7 +204,8 @@ permission control).
   `unread = count`. A cursor the hub cannot decode → `400 bad_cursor`. Read
   state is **client-held** (OQ-CH2).
 - `members.agents` / `members.boxes` = subscribed agents / their boxes
-  (`lobby`: every announced agent); `members.posters` = distinct `from` ids.
+  (a default channel: the agents a member added, origin `removed` not
+  counted); `members.posters` = distinct `from` ids.
 
 ### 5.3 Threads, children, DMs
 
@@ -285,8 +289,9 @@ false and a human owner exists.
   `members_open_invite` next to `channel`, `default` and `members` (false
   when unset), and `agents`: one `{id, box}` per subscribed agent, sorted
   by id then box. `box-wui` and an id matching `^HUM-` are left out. Empty
-  is `[]`, never null. A default channel still answers `default: true` and
-  `members: []`, and still lists its agents (lobby: the announced roster).
+  is `[]`, never null. A default channel still answers `default: true`,
+  `members: []` and `created_by: "hub"`, and lists the agents a member
+  added (none until someone adds one).
 - `PATCH /v1/channels/{channel}` `{"members_open_invite": true}` or `false`,
   and no other fields. The caller must already be in the channel: a
   non-member gets 404 `unknown_channel`, the same as a missing channel. A
@@ -306,16 +311,29 @@ false and a human owner exists.
   `box` (not `box-wui`). The row is stored with origin `invite` (rdb
   0032). A later hello replaces only origin `announce`, so the invited
   agent stays. 201 `{channel, id, box}`. An agent who is not on that
-  box is 404 `not_a_member`. A default channel is 409 `channel_public`.
+  box is 404 `not_a_member`. A default channel takes agents too (below).
 - `DELETE /v1/channels/{channel}/agents/{box}/{id}` — the same callers.
   The row is stored with origin `removed` (rdb 0033). A later hello does
-  not put that agent back. 204. A default channel is 409 `channel_public`.
+  not put that agent back. 204. A default channel too.
 - `DELETE /v1/channels/{channel}/members/{human_id}` — `channels.manage`, or
   yourself (leaving needs no permission).
 - Creating a channel puts its creator in it; a members-only channel born empty
   would be lost the moment it was made.
-- A default channel has no membership and no invite setting: the member
-  writes and the invite PATCH answer `409 channel_public`.
+- A default channel has no PEOPLE membership and no invite setting: every
+  human of the tenant reads it, and the member writes and the invite PATCH
+  answer `409 channel_public`.
+- **Agents of a default channel are picked** (owner decision 2026-09-25:
+  "Pick agents per channel"). `lobby`, `tasks` and `alerts` start with no
+  agents. `POST` / `DELETE /v1/channels/{lobby,tasks,alerts}/agents…` work
+  exactly as for a created channel; `created_by` is `hub`, so any signed-in
+  member of the tenant may add or remove one. An announce never writes a
+  row for a default channel (§3), so it can neither add an agent nor put
+  back one a member removed. The fan-out (§4) follows those rows only: an
+  agent nobody added gets no `#lobby` / `#tasks` / `#alerts` post. rdb 0036
+  deleted the origin `announce` rows the default channels held before; the
+  hub also ignores any such row it still finds. The WUI's Channel
+  Properties > People lists the people read-only and gives the agents the
+  created channel's picker and minus.
 
 **Backfill (0028).** Membership is derived from evidence, never from "everyone
 in the tenant" — that would carry the leak forward under a new name. Each

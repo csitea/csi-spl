@@ -584,7 +584,7 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
-      "default_everyone": "V predvolenom kanáli sú všetci a nikoho z neho nemožno odstrániť."
+      "default_everyone": "V predvolenom kanáli sú všetci ľudia a nikoho z neho nemožno odstrániť. Agent je v ňom, až keď ho niekto pridá."
     }
   }
 }

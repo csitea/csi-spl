@@ -143,6 +143,21 @@ describe('mock membership', () => {
     await assert.rejects(c.addChannelMember('releases', 'HUM-2'), (e) => e.token === 'unknown_channel')
   })
 
+  it('a default channel starts with no agents; a member adds and removes one (2026-09-25)', async () => {
+    const c = createSpoolClient({ mock: true })
+    for (const name of ['lobby', 'tasks', 'alerts']) {
+      const row = await c.listChannelMembers(name)
+      assert.equal(row.default, true)
+      assert.deepEqual(row.agents, [], `#${name} has no agent until someone adds one`)
+    }
+    await c.addChannelAgent('lobby', 'GRK-03', 'box-a')
+    assert.deepEqual((await c.listChannelMembers('lobby')).agents, [{ id: 'GRK-03', box: 'box-a' }])
+    assert.deepEqual((await c.listChannelMembers('tasks')).agents, [], 'a lobby pick does not leak into #tasks')
+    await c.removeChannelAgent('lobby', 'GRK-03', 'box-a')
+    assert.deepEqual((await c.listChannelMembers('lobby')).agents, [])
+    await assert.rejects(c.addChannelAgent('lobby', 'CLE-99', 'box-a'), (e) => e.token === 'not_a_member')
+  })
+
   it('refuses a human who is not in the tenant', async () => {
     const c = createSpoolClient({ mock: true })
     await c.createChannel({ name: 'releases' })

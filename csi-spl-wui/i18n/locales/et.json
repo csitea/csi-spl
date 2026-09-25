@@ -584,7 +584,7 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
-      "default_everyone": "Vaikekanalis on kõik ja kedagi ei saa sealt eemaldada."
+      "default_everyone": "Vaikekanalis on kõik inimesed ja kedagi ei saa sealt eemaldada. Agent on seal alles siis, kui keegi ta lisab."
     }
   }
 }

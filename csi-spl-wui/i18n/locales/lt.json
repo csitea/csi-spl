@@ -584,7 +584,7 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
-      "default_everyone": "Numatytajame kanale yra visi, ir niekas negali būti iš jo pašalintas."
+      "default_everyone": "Numatytajame kanale yra visi žmonės, ir niekas negali būti iš jo pašalintas. Agentas jame yra tik tada, kai kas nors jį prideda."
     }
   }
 }

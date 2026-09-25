@@ -44,100 +44,97 @@
         data-testid="channel-people"
       >
         <p v-if="!loaded" class="muted">{{ t('common.loading') }}</p>
-        <!-- A default channel: everyone is in it and nobody can be taken out,
-             so it lists every person and agent with no picker and no minus. -->
-        <template v-else-if="isDefault">
-          <p class="muted" data-testid="channel-default-note">{{ t('channels.properties.default_everyone') }}</p>
-          <ul class="member-rows" data-testid="channel-default-people">
-            <li v-for="id in localMembers" :key="id" :data-testid="'channel-default-person-' + id">
-              <SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" />
-              <span class="member-rows__name">{{ id }}</span>
-            </li>
-          </ul>
-          <p v-if="agentRows.length === 0" class="muted" data-testid="channel-people-agents-none">{{ t('channels.properties.agents_none') }}</p>
-          <ul v-else class="member-rows" data-testid="channel-default-agents">
-            <li v-for="row in agentRows" :key="row.id + '@' + row.box" :data-testid="'channel-default-agent-' + row.id">
-              <SpoolAvatar :id="row.id" :box="row.box" :size="22" />
-              <span class="member-rows__name">{{ row.id }}</span>
-              <span class="muted">{{ row.box }}</span>
-            </li>
-          </ul>
-        </template>
         <template v-else-if="!failedLoad">
-          <div class="invite-add" data-testid="channel-people-picker">
-            <div class="invite-add__combo">
-              <Combobox
-                as="div"
-                :model-value="chosenPerson"
-                nullable
-                :disabled="!canAdd || busy"
-                @update:model-value="onChoosePerson"
-              >
-                <div class="invite-add__control">
-                  <ComboboxInput
-                    class="invite-add__input"
-                    data-testid="channel-people-search"
-                    :aria-label="t('channels.properties.add_person')"
-                    :placeholder="t('channels.properties.people_search')"
-                    :display-value="personLabel"
-                    autocomplete="off"
-                    :disabled="!canAdd || busy"
-                    @change="onPersonQuery"
-                  />
-                  <ComboboxButton
-                    type="button"
-                    class="invite-add__chevron"
-                    data-testid="channel-people-search-button"
-                    :aria-label="t('channels.properties.add_person')"
-                    :disabled="!canAdd || busy"
-                  >▾</ComboboxButton>
-                </div>
-                <ComboboxOptions class="invite-add__options" data-testid="channel-people-options">
-                  <li
-                    v-if="peopleChoices.length === 0"
-                    class="invite-add__empty muted"
-                    data-testid="channel-invite-empty"
-                  >{{ personQuery.trim() ? t('channels.properties.people_no_matches') : t('channels.properties.invite_empty') }}</li>
-                  <ComboboxOption
-                    v-for="id in peopleChoices"
-                    :key="id"
-                    :value="id"
-                    as="template"
-                    v-slot="{ active, selected }"
-                  >
+          <!-- A default channel: every person is in it and nobody can be taken
+               out, so its people are listed with no picker and no minus. Its
+               agents are picked below like in any channel (owner decision
+               2026-09-25): none until someone adds one. -->
+          <template v-if="isDefault">
+            <p class="muted" data-testid="channel-default-note">{{ t('channels.properties.default_everyone') }}</p>
+            <ul class="member-rows" data-testid="channel-default-people">
+              <li v-for="id in localMembers" :key="id" :data-testid="'channel-default-person-' + id">
+                <SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" />
+                <span class="member-rows__name">{{ id }}</span>
+              </li>
+            </ul>
+          </template>
+          <template v-else>
+            <div class="invite-add" data-testid="channel-people-picker">
+              <div class="invite-add__combo">
+                <Combobox
+                  as="div"
+                  :model-value="chosenPerson"
+                  nullable
+                  :disabled="!canAdd || busy"
+                  @update:model-value="onChoosePerson"
+                >
+                  <div class="invite-add__control">
+                    <ComboboxInput
+                      class="invite-add__input"
+                      data-testid="channel-people-search"
+                      :aria-label="t('channels.properties.add_person')"
+                      :placeholder="t('channels.properties.people_search')"
+                      :display-value="personLabel"
+                      autocomplete="off"
+                      :disabled="!canAdd || busy"
+                      @change="onPersonQuery"
+                    />
+                    <ComboboxButton
+                      type="button"
+                      class="invite-add__chevron"
+                      data-testid="channel-people-search-button"
+                      :aria-label="t('channels.properties.add_person')"
+                      :disabled="!canAdd || busy"
+                    >▾</ComboboxButton>
+                  </div>
+                  <ComboboxOptions class="invite-add__options" data-testid="channel-people-options">
                     <li
-                      class="invite-add__option"
-                      :class="{ 'is-active': active, 'is-selected': selected }"
-                      :data-testid="'channel-invite-pick-' + id"
-                    ><SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" /> <span class="member-rows__name">{{ id }}</span></li>
-                  </ComboboxOption>
-                </ComboboxOptions>
-              </Combobox>
-            </div>
-            <button
-              type="button"
-              class="btn"
-              data-testid="channel-people-add"
-              :disabled="!canAdd || busy || !chosenPerson"
-              @click="addChosen"
-            >{{ t('channels.properties.add') }}</button>
-          </div>
-          <ul class="member-rows" data-testid="channel-invite-members">
-            <li v-for="id in localMembers" :key="id">
-              <SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" />
-              <span class="member-rows__name">{{ id }}</span>
+                      v-if="peopleChoices.length === 0"
+                      class="invite-add__empty muted"
+                      data-testid="channel-invite-empty"
+                    >{{ personQuery.trim() ? t('channels.properties.people_no_matches') : t('channels.properties.invite_empty') }}</li>
+                    <ComboboxOption
+                      v-for="id in peopleChoices"
+                      :key="id"
+                      :value="id"
+                      as="template"
+                      v-slot="{ active, selected }"
+                    >
+                      <li
+                        class="invite-add__option"
+                        :class="{ 'is-active': active, 'is-selected': selected }"
+                        :data-testid="'channel-invite-pick-' + id"
+                      ><SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" /> <span class="member-rows__name">{{ id }}</span></li>
+                    </ComboboxOption>
+                  </ComboboxOptions>
+                </Combobox>
+              </div>
               <button
                 type="button"
-                class="icon-btn"
-                :data-testid="'channel-member-remove-' + id"
-                :aria-label="t('channels.properties.remove_member', { id })"
-                :disabled="busy || (!canAdd && id !== selfId)"
-                @click="removePerson(id)"
-              >
-                <UiIcon name="minus" :size="16" />
-              </button>
-            </li>
-          </ul>
+                class="btn"
+                data-testid="channel-people-add"
+                :disabled="!canAdd || busy || !chosenPerson"
+                @click="addChosen"
+              >{{ t('channels.properties.add') }}</button>
+            </div>
+            <ul class="member-rows" data-testid="channel-invite-members">
+              <li v-for="id in localMembers" :key="id">
+                <SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" />
+                <span class="member-rows__name">{{ id }}</span>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  :data-testid="'channel-member-remove-' + id"
+                  :aria-label="t('channels.properties.remove_member', { id })"
+                  :disabled="busy || (!canAdd && id !== selfId)"
+                  @click="removePerson(id)"
+                >
+                  <UiIcon name="minus" :size="16" />
+                </button>
+              </li>
+            </ul>
+
+          </template>
 
           <div class="invite-add" data-testid="channel-agent-picker">
             <div class="invite-add__combo">
@@ -216,7 +213,7 @@
               </button>
             </li>
           </ul>
-          <p v-if="!canAdd" class="muted" data-testid="channel-invite-owner-only">{{ t('channels.properties.invite_owner_only') }}</p>
+          <p v-if="!canAdd && !isDefault" class="muted" data-testid="channel-invite-owner-only">{{ t('channels.properties.invite_owner_only') }}</p>
         </template>
       </div>
 
@@ -407,18 +404,19 @@ watch(() => props.open, async (isOpen) => {
     ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, created_by?: string, agents?: { id: string, box: string }[] }, unknown]
     if (my !== ticket) return
     const bag = rosterOf(ros) || {}
+    rosterBag.value = bag
     if (mem.default) {
       const everyone = defaultChannelRows(bag, mem.agents)
       isDefault.value = true
       localMembers.value = everyone.people
       agents.value = everyone.agents
+      createdByLive.value = String(mem.created_by || 'hub')
       return
     }
     localMembers.value = Array.isArray(mem.members) ? mem.members.map((id) => String(id)) : []
     openInvite.value = mem.members_open_invite === true
     createdByLive.value = String(mem.created_by || '')
     agents.value = Array.isArray(mem.agents) ? mem.agents : []
-    rosterBag.value = bag
     rosterIds.value = rosterHumanIds(bag)
   } catch (e) {
     if (my !== ticket) return

@@ -584,7 +584,7 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
-      "default_everyone": "Alla är med i en standardkanal, och ingen kan tas bort från den."
+      "default_everyone": "Alla personer är med i en standardkanal, och ingen kan tas bort från den. En agent är med först när någon lägger till den."
     }
   }
 }

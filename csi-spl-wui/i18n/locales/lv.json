@@ -584,7 +584,7 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
-      "default_everyone": "Noklusējuma kanālā ir visi, un nevienu no tā nevar noņemt."
+      "default_everyone": "Noklusējuma kanālā ir visi cilvēki, un nevienu no tā nevar noņemt. Aģents tajā ir tikai tad, kad kāds to pievieno."
     }
   }
 }

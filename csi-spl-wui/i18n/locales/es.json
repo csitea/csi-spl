@@ -584,7 +584,7 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
-      "default_everyone": "Todos están en un canal predeterminado y nadie puede ser eliminado de él."
+      "default_everyone": "Todas las personas están en un canal predeterminado y nadie puede ser eliminado de él. Un agente está en él solo cuando alguien lo añade."
     }
   }
 }

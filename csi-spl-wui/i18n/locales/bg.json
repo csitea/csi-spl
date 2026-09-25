@@ -584,7 +584,7 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
-      "default_everyone": "Всички са в канал по подразбиране и никой не може да бъде премахнат от него."
+      "default_everyone": "Всички хора са в канал по подразбиране и никой не може да бъде премахнат от него. Агент е в него само след като някой го добави."
     }
   }
 }

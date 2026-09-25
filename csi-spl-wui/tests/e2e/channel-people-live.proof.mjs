@@ -7,10 +7,13 @@
 //       matches nobody shows 0 options;
 //   (c) picking one makes them a member (then they are removed again, so a
 //       live tenant ends as it started).
-// And #lobby, a default channel, lists every person and agent read-only.
+// And #lobby, a default channel, lists every person read-only, and its
+// agents are picked like in any channel (owner decision 2026-09-25): the
+// agents half runs there too, adding one agent and taking it out again with
+// the minus, so the proof leaves #lobby with no agent it invited.
 //
 //   BASE=<wui> OUT=<dir> [EMAIL=<member> PW_FILE=<0600 file>] [TENANT=t1] \
-//     [CHANNEL=<channel id>] [CREATE=1] [ONLY=people|agents] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
+//     [CHANNEL=<channel id>] [CREATE=1] [ONLY=people|agents|lobby] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/channel-people-live.proof.mjs
 //
 // Without EMAIL the page is used as served (the mock dev server). The password
@@ -128,12 +131,13 @@ const readLayout = (p) => p.evaluate(() => {
 const layoutOk = (lay) => lay.length > 0 && lay.every((l) => l.stacked && l.avatars === l.rows)
 const rowsOf = (p, h) => p.$$eval(h.rows, (els) => els.map((s) => s.textContent.trim()))
 
-/** (a) full list, (b) narrow + control, (c) pick + Add, then undo. */
-async function runHalf(p, kind, hub) {
+/** (a) full list, (b) narrow + control, (c) pick + Add, (d) minus undoes it. */
+async function runHalf(p, kind, hub, where = '') {
   const h = HALVES[kind]
-  const tag = (x) => `${kind} ${x}`
+  const tag = (x) => `${where ? where + ': ' : ''}${kind} ${x}`
+  const key = where ? `${where}_${kind}` : kind
   const before = await rowsOf(p, h)
-  res[kind] = { before }
+  res[key] = { before }
 
   await p.click(`[data-testid="${h.chevron}"]`)
   await sleep(500)
@@ -192,9 +196,14 @@ async function runHalf(p, kind, hub) {
   const layC = await readLayout(p)
   step(tag('(c) the member list is vertical, one avatar per row'), layoutOk(layC) && layC.some((l) => l.rows > 0), { lists: layC })
   if (after.includes(target) && !before.includes(target)) {
+    hub.length = 0
     await p.click(`[data-testid="${h.remove}${target}"]`)
     await sleep(1500)
-    res[kind].restored = !(await rowsOf(p, h)).includes(target)
+    const left = await rowsOf(p, h)
+    const dels = hub.filter((r) => r.method === 'DELETE' && h.api.test(r.url)).map((r) => r.status)
+    res[key].restored = !left.includes(target)
+    step(tag('(d) the minus takes them out again'), !left.includes(target) && (EMAIL ? dels.length > 0 && dels.every((s) => s >= 200 && s < 300) : true),
+      { target, rows: left, hub_delete: dels })
   }
 }
 
@@ -254,8 +263,9 @@ try {
   const rows = await p.$$eval('[data-testid="sidebar-panel-channels"] .nav-row', (els) => els.map((e) => e.getAttribute('data-order')))
   const DEFAULTS = ['lobby', 'tasks', 'alerts']
 
-  // A default channel: every person and agent, read-only, nobody removable.
-  if (!ONLY) {
+  // A default channel: every person read-only, nobody removable; its agents
+  // are picked with the created channel's picker and minus (2026-09-25).
+  if (!ONLY || ONLY === 'lobby') {
     const openedLobby = await openProps('lobby')
     step('lobby: Properties opens', openedLobby, { rows })
     if (openedLobby) {
@@ -267,40 +277,48 @@ try {
         return {
           note: !!dlg.querySelector('[data-testid="channel-default-note"]'),
           people: txt('[data-testid="channel-default-people"] > li > .member-rows__name'),
-          agents: txt('[data-testid="channel-default-agents"] > li > .member-rows__name'),
-          removes: dlg.querySelectorAll('[data-testid^="channel-member-remove-"], [data-testid^="channel-agent-remove-"]').length,
-          pickers: dlg.querySelectorAll('[data-testid="channel-people-search"], [data-testid="channel-agent-search"]').length,
+          agents: txt('[data-testid="channel-agents-list"] > li > .member-rows__name'),
+          personRemoves: dlg.querySelectorAll('[data-testid^="channel-member-remove-"]').length,
+          personPickers: dlg.querySelectorAll('[data-testid="channel-people-search"]').length,
+          agentPickers: dlg.querySelectorAll('[data-testid="channel-agent-search"]').length,
           error: dlg.querySelector('[data-testid="channel-invite-error"]')?.textContent.trim() || '',
         }
       })
       res.lobby = lobby
       await p.screenshot({ path: `${OUT}/lobby-default.png` })
       const layL = await readLayout(p)
-      step('lobby: people and agents are vertical, one avatar per row', layoutOk(layL) && layL.length >= 2, { lists: layL })
-      // The Agents tab has its own list; it used to wrap several agents per line.
+      step('lobby: people and agents are vertical, one avatar per row', layoutOk(layL) && layL.length >= 1, { lists: layL })
+      step('lobby: lists every person, with the note', lobby.note && lobby.people.length > 0 && !lobby.error,
+        { n_people: lobby.people.length, people: lobby.people, n_agents: lobby.agents.length, agents: lobby.agents, error: lobby.error })
+      step('lobby: people stay read-only (0 person minus, 0 person picker)', lobby.personRemoves === 0 && lobby.personPickers === 0,
+        { removes: lobby.personRemoves, pickers: lobby.personPickers })
+      step('lobby: agents have the picker', lobby.agentPickers === 1, { pickers: lobby.agentPickers })
+      if (lobby.agentPickers === 1) await runHalf(p, 'agents', hub, 'lobby')
+      // The Agents tab mirrors the same list.
       await p.$eval('[data-testid="channel-properties-tab-agents"]', (b) => b.click())
       await sleep(400)
       const layT = await readLayout(p)
       await p.screenshot({ path: `${OUT}/lobby-agents-tab.png` })
-      step('lobby: the Agents tab is vertical, one avatar per row', layoutOk(layT) && layT.some((l) => l.list === 'channel-agents-readonly' && l.rows > 1), { lists: layT })
+      const tabNone = !!(await p.$('[data-testid="channel-agents-none"]'))
+      const tabList = layT.some((l) => l.list === 'channel-agents-readonly')
+      step('lobby: the Agents tab is vertical, one avatar per row (or says No agents)', (tabList || tabNone) && layT.every((l) => l.stacked && l.avatars === l.rows),
+        { lists: layT, none: tabNone })
       await p.$eval('[data-testid="channel-properties-tab-people"]', (b) => b.click())
-      step('lobby: lists every person and at least one agent, with the note', lobby.note && lobby.people.length > 0 && lobby.agents.length > 0 && !lobby.error,
-        { n_people: lobby.people.length, people: lobby.people, n_agents: lobby.agents.length, agents: lobby.agents, error: lobby.error })
-      step('lobby: nobody can be removed and nobody added (0 minus, 0 pickers)', lobby.removes === 0 && lobby.pickers === 0, { removes: lobby.removes, pickers: lobby.pickers })
       await closeDialog()
     }
   }
-
   // A private channel for the add flows: CHANNEL, else the first non-default one.
-  let opened = ''
-  for (const id of WANT ? [WANT] : rows.filter((r) => !DEFAULTS.includes(r))) {
-    if (await openProps(id)) { opened = id; break }
+  if (ONLY !== 'lobby') {
+    let opened = ''
+    for (const id of WANT ? [WANT] : rows.filter((r) => !DEFAULTS.includes(r))) {
+      if (await openProps(id)) { opened = id; break }
+    }
+    step('channel properties dialog opens', !!opened, { channel: opened, rows })
+    if (!opened) throw new Error('no private channel with properties')
+    await p.waitForSelector('[data-testid="channel-people-search"]', { timeout: 15000 })
+    await sleep(1000)
+    for (const kind of ONLY ? [ONLY] : ['people', 'agents']) await runHalf(p, kind, hub)
   }
-  step('channel properties dialog opens', !!opened, { channel: opened, rows })
-  if (!opened) throw new Error('no private channel with properties')
-  await p.waitForSelector('[data-testid="channel-people-search"]', { timeout: 15000 })
-  await sleep(1000)
-  for (const kind of ONLY ? [ONLY] : ['people', 'agents']) await runHalf(p, kind, hub)
   code = res.steps.every((s) => s.ok) ? 0 : 1
 } catch (e) {
   step('run', false, { error: String((e && e.message) || e) })

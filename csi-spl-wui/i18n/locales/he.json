@@ -584,7 +584,7 @@
       "people_no_matches": "No matches",
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
-      "default_everyone": "כולם נמצאים בערוץ ברירת מחדל, ואי אפשר להסיר ממנו אף אחד."
+      "default_everyone": "כל האנשים נמצאים בערוץ ברירת מחדל, ואי אפשר להסיר ממנו אף אחד. סוכן נמצא בו רק אחרי שמישהו מוסיף אותו."
     }
   }
 }

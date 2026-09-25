@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Орендар",
+    "tenant_switch_failed": "Не вдалося змінити орендаря. Спробуйте ще раз.",
     "channels": "Канали",
     "direct_messages": "Особисті повідомлення",
     "new_channel_placeholder": "новий канал",

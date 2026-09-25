@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Tenant",
+    "tenant_switch_failed": "Could not switch the tenant. Try again.",
     "channels": "Channels",
     "direct_messages": "Direct messages",
     "new_channel_placeholder": "new channel",

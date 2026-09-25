@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Dzierżawa",
+    "tenant_switch_failed": "Nie udało się zmienić dzierżawy. Spróbuj ponownie.",
     "channels": "Kanały",
     "direct_messages": "Wiadomości bezpośrednie",
     "new_channel_placeholder": "nowy kanał",

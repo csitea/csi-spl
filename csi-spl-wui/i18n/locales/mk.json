@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Закупец",
+    "tenant_switch_failed": "Промената на закупецот не успеа. Обидете се повторно.",
     "channels": "Канали",
     "direct_messages": "Директни пораки",
     "new_channel_placeholder": "нов канал",

@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Μισθωτής",
+    "tenant_switch_failed": "Η αλλαγή μισθωτή απέτυχε. Δοκιμάστε ξανά.",
     "channels": "Κανάλια",
     "direct_messages": "Άμεσα μηνύματα",
     "new_channel_placeholder": "νέο κανάλι",

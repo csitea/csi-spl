@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Rentnik",
+    "tenant_switch_failed": "Rentnikku ei õnnestunud vahetada. Proovige uuesti.",
     "channels": "Kanalid",
     "direct_messages": "Otsesõnumid",
     "new_channel_placeholder": "uus kanal",

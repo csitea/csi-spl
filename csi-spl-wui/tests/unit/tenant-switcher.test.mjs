@@ -1,6 +1,8 @@
-// The sidebar tenant drop box is fixed: one option, the signed-in session's
-// tenant (display name when the session has one, else the id). Choosing it
-// does nothing. No tenant id is hard-coded.
+// The sidebar tenant drop box: with one membership one option, the signed-in
+// session's tenant (display name when the session has one, else the id), and
+// choosing it does nothing. With several (specs/026 §6) every membership is a
+// row and choosing one switches the session (POST /api/v1/auth/tenant). No
+// tenant id is hard-coded.
 //
 // Run: node tests/unit/tenant-switcher.test.mjs
 import { describe, it } from 'node:test'
@@ -8,7 +10,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fixedTenantOption } from '../../src/utils/tenant-switcher.mjs'
+import { fixedTenantOption, tenantSwitchOptions } from '../../src/utils/tenant-switcher.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -83,22 +85,60 @@ describe('fixedTenantOption', () => {
   })
 })
 
+describe('tenantSwitchOptions (specs/026 §6)', () => {
+  it('one membership (or none): the single fixed row, no switching', () => {
+    assert.deepEqual(
+      tenantSwitchOptions({ active_tenant: 't1', tenants: [{ tenant_id: 't1', display_name: 'csitea' }] }),
+      { selected: 't1', canSwitch: false, options: [{ id: 't1', label: 'csitea' }] },
+    )
+    assert.deepEqual(tenantSwitchOptions(null, 'beta'), { selected: 'beta', canSwitch: false, options: [{ id: 'beta', label: 'beta' }] })
+    // a duplicated row is still one membership
+    assert.equal(tenantSwitchOptions({ tenants: [{ tenant_id: 'aa' }, { tenant_id: 'aa' }] }).canSwitch, false)
+  })
+
+  it('several memberships: every one listed, the active one selected', () => {
+    const claims = {
+      active_tenant: 'bb',
+      t: 'aa',
+      tenants: [{ tenant_id: 'aa', display_name: 'Aa Co' }, { tenant_id: 'bb', name: 'Bb' }, { tenant_id: 'cc' }, 'junk', null],
+    }
+    assert.deepEqual(tenantSwitchOptions(claims, 'configured'), {
+      selected: 'bb',
+      canSwitch: true,
+      options: [{ id: 'aa', label: 'Aa Co' }, { id: 'bb', label: 'Bb' }, { id: 'cc', label: 'cc' }],
+    })
+  })
+
+  it('several memberships and none active (or a stale one): a blank first row, nothing chosen for the human', () => {
+    const many = { t: 'gone', tenants: [{ tenant_id: 'aa' }, { tenant_id: 'bb' }] }
+    const box = tenantSwitchOptions(many, 'configured')
+    assert.equal(box.selected, '')
+    assert.equal(box.canSwitch, true)
+    assert.deepEqual(box.options.map((o) => o.id), ['', 'aa', 'bb'])
+  })
+})
+
 describe('the drop box sits above the direct-messages icon', () => {
   const vue = src('src/components/ChannelSidebar.vue')
   const css = src('src/assets/css/main.css')
 
-  it('one select, wired to the session, and choosing it does not navigate', () => {
+  it('one select, wired to the session; only a real switch calls the hub', () => {
     const box = vue.indexOf('data-testid="tenant-switcher"')
     const rail = vue.indexOf('class="sidebar-rail"')
     const heading = vue.indexOf('data-testid="sidebar-help-dm"')
     assert.ok(box > 0 && rail > box && heading > rail)
     assert.equal(vue.split('<option').length - 1, 1)
-    assert.match(vue, /fixedTenantOption\(session\.claims, api\.tenant\)/)
+    assert.match(vue, /tenantSwitchOptions\(session\.claims, api\.tenant\)/)
     assert.match(vue, /data-testid="tenant-switcher-select"/)
     assert.doesNotMatch(vue.slice(box, rail), /disabled/)
-    const fn = vue.slice(vue.indexOf('function keepTenant'))
-    assert.match(fn, /HTMLSelectElement/)
-    assert.doesNotMatch(fn.slice(0, fn.indexOf('\n}')), /navigateTo|fetch\(|api\./)
+    const fn = vue.slice(vue.indexOf('async function onTenantChange'))
+    const body = fn.slice(0, fn.indexOf('\n}'))
+    assert.match(body, /HTMLSelectElement/)
+    // the guard (single row, mock, busy, same tenant) returns before the call
+    const guard = body.indexOf('!box.canSwitch || api.mock')
+    const callAt = body.indexOf('authClient.switchTenant(want)')
+    assert.ok(guard > 0 && callAt > guard, 'guard before the switch call')
+    assert.doesNotMatch(body, /fetch\(/)
     assert.equal(src('src/utils/tenant-switcher.mjs').includes("'t1'"), false)
     assert.equal(vue.includes('t1'), false)
   })
@@ -124,5 +164,34 @@ describe('sidebar.tenant is translated in every locale', () => {
       assert.ok(value.trim().length > 0, code)
       if (code !== 'en') assert.notEqual(value, en, code)
     }
+  })
+})
+
+describe('switchTenant (auth-client, specs/026 §6)', () => {
+  it('POSTs only {tenant} to /api/v1/auth/tenant with credentials and CORS-allowed headers', async () => {
+    const { createAuthClient } = await import('../../src/utils/auth-client.mjs')
+    const calls = []
+    const fetchFn = async (url, opts) => {
+      calls.push({ url, opts })
+      return { ok: true, status: 200, json: async () => ({ t: 'bb', active_tenant: 'bb' }) }
+    }
+    const out = await createAuthClient({ fetchFn, base: 'https://api.example.com', locale: () => 'fi', sendLocale: true }).switchTenant('bb')
+    assert.equal(out.ok, true)
+    assert.equal(out.data.active_tenant, 'bb')
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].url, 'https://api.example.com/api/v1/auth/tenant')
+    assert.equal(calls[0].opts.method, 'POST')
+    assert.equal(calls[0].opts.credentials, 'include')
+    assert.deepEqual(JSON.parse(calls[0].opts.body), { tenant: 'bb' })
+    const sent = Object.keys(calls[0].opts.headers).map((h) => h.toLowerCase())
+    assert.deepEqual(sent.filter((h) => !['accept', 'content-type', 'x-locale'].includes(h)), [], sent.join(','))
+  })
+
+  it('CONTROL: a 403 not_member resolves to ok:false with the token, never throws', async () => {
+    const { createAuthClient } = await import('../../src/utils/auth-client.mjs')
+    const fetchFn = async () => ({ ok: false, status: 403, headers: { get: () => null }, json: async () => ({ error: 'not_member' }) })
+    const out = await createAuthClient({ fetchFn }).switchTenant('zz')
+    assert.equal(out.ok, false)
+    assert.equal(out.error, 'not_member')
   })
 })

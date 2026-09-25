@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Huurder",
+    "tenant_switch_failed": "Wisselen van huurder is mislukt. Probeer het opnieuw.",
     "channels": "Kanalen",
     "direct_messages": "Directe berichten",
     "new_channel_placeholder": "nieuw kanaal",

@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Kiracı",
+    "tenant_switch_failed": "Kiracı değiştirilemedi. Tekrar deneyin.",
     "channels": "Kanallar",
     "direct_messages": "Doğrudan mesajlar",
     "new_channel_placeholder": "yeni kanal",

@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Inquilino",
+    "tenant_switch_failed": "No se pudo cambiar de inquilino. Inténtelo de nuevo.",
     "channels": "Canales",
     "direct_messages": "Mensajes directos",
     "new_channel_placeholder": "nuevo canal",

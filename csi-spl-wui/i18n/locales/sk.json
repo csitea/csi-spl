@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Nájomník",
+    "tenant_switch_failed": "Nájomníka sa nepodarilo zmeniť. Skúste to znova.",
     "channels": "Kanály",
     "direct_messages": "Priame správy",
     "new_channel_placeholder": "nový kanál",

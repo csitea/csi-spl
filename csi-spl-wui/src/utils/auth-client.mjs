@@ -328,6 +328,14 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     saveDisplayName(name) {
       return post('/preferences', { display_name: String(name ?? '') }, 'PUT')
     },
+    /**
+     * specs/026 §6: make `tenant` the session's active tenant (the hub
+     * re-issues the cookie). 200 → `data` is the new session; 403
+     * not_member; 401 = no session.
+     */
+    switchTenant(tenant) {
+      return post('/tenant', { tenant: String(tenant || '') })
+    },
     async logout() {
       const res = await call('/logout', { method: 'POST' })
       return res.status === 204 || res.ok

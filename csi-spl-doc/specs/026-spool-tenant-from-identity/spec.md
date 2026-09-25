@@ -103,7 +103,7 @@ check* during the transition (§5).
 - Retirement (§8): once the measured traffic on the tenant hosts is zero,
   the mappings are removed through terraform via make.
 
-## 6. Phase 2: the workspace switcher (hub Implemented 0.5.8; WUI Planned)
+## 6. Phase 2: the workspace switcher (Implemented: hub 0.5.9, WUI drop box)
 
 - `POST /api/v1/auth/tenant {"tenant": "<id>"}` re-issues the session cookie
   with `t=<id>` when the human is a member of `<id>` (else 403); logs
@@ -121,9 +121,17 @@ check* during the transition (§5).
   the fallback disabled turns `TestWorkspaceSwitch` red.
 - WUI: the left-most vertical strip lists `tenants` from the session (one
   icon per workspace); a click calls the switch endpoint and reloads the
-  feeds. **Planned** (CLE-34983, next): the sidebar tenant drop box
-  (`tenant-switcher.mjs`, be3e3f0e) lists every membership and calls the
-  switch; with one membership it stays the fixed one-row box.
+  feeds. **Implemented** as the sidebar tenant drop box, not a separate
+  strip (the owner's box, be3e3f0e, sits where that strip would):
+  `tenantSwitchOptions` lists every membership when there are two or more
+  (a blank first row when none is active), a pick calls
+  `authClient.switchTenant` and then loads `/` of the new tenant; a refusal
+  keeps the old tenant and shows `sidebar.tenant_switch_failed` (19
+  locales). One membership = the fixed one-row box, choosing it does
+  nothing. Checks: `tests/unit/tenant-switcher.test.mjs` (options, guard
+  before the call, client body + headers, CONTROL 403), e2e
+  `tenant-switcher.test.mjs` 12/12 (single-membership box unchanged at
+  1280 and 390).
 
 ## 7. RLS and RBAC (FR-008)
 
@@ -162,4 +170,4 @@ check* during the transition (§5).
 - Each control first proves the positive path on the same fixture, so a
   refusal is not an unrelated failure.
 
-<!-- version: 0.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:45:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:05:00Z -->

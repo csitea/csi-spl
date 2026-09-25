@@ -301,6 +301,7 @@ declare module '~/utils/auth-client.mjs' {
     savePreferences(b: { preferred_locale: string }): Promise<NativeResult>
     saveDiagnostics(on: boolean): Promise<NativeResult>
     saveDisplayName(name: string): Promise<NativeResult>
+    switchTenant(tenant: string): Promise<NativeResult>
     providers(): Promise<string[]>
     session(): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
     logout(): Promise<boolean>
@@ -316,6 +317,7 @@ declare module '~/utils/tenant.mjs' {
 
 declare module '~/utils/tenant-switcher.mjs' {
   export function fixedTenantOption(claims: unknown, configured?: unknown): { id: string, label: string }
+  export function tenantSwitchOptions(claims: unknown, configured?: unknown): { selected: string, canSwitch: boolean, options: { id: string, label: string }[] }
 }
 
 declare module '~/utils/view-api.mjs' {

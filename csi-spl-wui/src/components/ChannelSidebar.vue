@@ -1,19 +1,22 @@
 <template>
   <nav class="sidebar">
-    <!-- Fixed tenant drop box, above the direct-messages icon. One option:
-         the signed-in session's tenant. Choosing it changes nothing. -->
+    <!-- Tenant drop box, above the direct-messages icon (specs/026 §6). One
+         membership: one row, choosing it changes nothing. Several: every
+         membership, and choosing one switches the session's tenant. -->
     <label class="tenant-switcher" data-testid="tenant-switcher">
       <span class="tenant-switcher__label">{{ t('sidebar.tenant') }}</span>
       <select
         class="tenant-switcher__select"
         data-testid="tenant-switcher-select"
-        :value="tenantOption.id"
+        :value="tenantBox.selected"
         :title="tenantOptionText"
-        @change="keepTenant"
+        :aria-busy="switching ? 'true' : undefined"
+        @change="onTenantChange"
       >
-        <option :value="tenantOption.id">{{ tenantOptionText }}</option>
+        <option v-for="o in tenantBox.options" :key="o.id" :value="o.id">{{ o.label }}</option>
       </select>
     </label>
+    <p v-if="switchFailed" class="tenant-switcher__error" role="alert" data-testid="tenant-switch-error">{{ t('sidebar.tenant_switch_failed') }}</p>
     <div class="sidebar-main">
     <!-- Top to bottom: direct messages, channels, topics, flow.
          Icons only; each name lives on aria-label and title. -->
@@ -466,7 +469,7 @@ import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
-import { fixedTenantOption } from '~/utils/tenant-switcher.mjs'
+import { tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'users'
@@ -526,11 +529,34 @@ const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
 const notes = useNotificationStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
-const tenantOption = computed(() => fixedTenantOption(session.claims, api.tenant))
-const tenantOptionText = computed(() => tenantOption.value.label || t('sidebar.tenant'))
-function keepTenant(ev: Event) {
+const tenantBox = computed(() => tenantSwitchOptions(session.claims, api.tenant))
+const tenantOptionText = computed(() =>
+  tenantBox.value.options.find((o) => o.id === tenantBox.value.selected)?.label || t('sidebar.tenant'))
+const authClient = useAuthClient()
+const switching = ref(false)
+const switchFailed = ref(false)
+/* specs/026 §6: a member of several tenants switches here. The hub re-issues
+   the session cookie; a full load then reads every feed of the new tenant
+   (no store keeps the old tenant's rows). A refusal keeps the old tenant. */
+async function onTenantChange(ev: Event) {
   const el = ev.target
-  if (el instanceof HTMLSelectElement) el.value = tenantOption.value.id
+  if (!(el instanceof HTMLSelectElement)) return
+  const want = el.value
+  const box = tenantBox.value
+  if (!box.canSwitch || api.mock || switching.value || !want || want === box.selected) {
+    el.value = box.selected
+    return
+  }
+  switching.value = true
+  switchFailed.value = false
+  const out = await authClient.switchTenant(want)
+  if (out.ok) {
+    window.location.assign(localePath('/'))
+    return
+  }
+  switching.value = false
+  switchFailed.value = true
+  el.value = box.selected
 }
 const localePath = useLocalePath()
 /* CLE-34969: Users after flow, only when the hub lists members.invite. */
@@ -1045,6 +1071,11 @@ async function onCreate() {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
+}
+.tenant-switcher__error {
+  margin: 0.125rem 0.5rem 0;
+  font-size: 0.6875rem;
+  color: var(--color-danger);
 }
 .tenant-switcher__label {
   font-size: 0.625rem;

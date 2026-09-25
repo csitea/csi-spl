@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Тенант",
+    "tenant_switch_failed": "Смяната на тенанта не бе успешна. Опитайте отново.",
     "channels": "Канали",
     "direct_messages": "Лични съобщения",
     "new_channel_placeholder": "нов канал",

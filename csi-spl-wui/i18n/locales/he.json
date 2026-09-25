@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "טננט",
+    "tenant_switch_failed": "לא ניתן היה להחליף טננט. נסו שוב.",
     "channels": "ערוצים",
     "direct_messages": "הודעות ישירות",
     "new_channel_placeholder": "ערוץ חדש",

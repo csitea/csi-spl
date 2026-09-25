@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Zakupac",
+    "tenant_switch_failed": "Promena zakupca nije uspela. Pokušajte ponovo.",
     "channels": "Kanali",
     "direct_messages": "Direktne poruke",
     "new_channel_placeholder": "novi kanal",

@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Chiriaș",
+    "tenant_switch_failed": "Chiriașul nu a putut fi schimbat. Încercați din nou.",
     "channels": "Canale",
     "direct_messages": "Mesaje directe",
     "new_channel_placeholder": "canal nou",

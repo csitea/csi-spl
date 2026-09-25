@@ -308,6 +308,7 @@
   },
   "sidebar": {
     "tenant": "Nuomininkas",
+    "tenant_switch_failed": "Nepavyko pakeisti nuomininko. Bandykite dar kartą.",
     "channels": "Kanalai",
     "direct_messages": "Tiesioginės žinutės",
     "new_channel_placeholder": "naujas kanalas",

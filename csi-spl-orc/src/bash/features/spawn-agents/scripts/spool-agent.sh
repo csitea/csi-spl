@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# spool-agent.sh — start claude or grok as a SEATED, MIRRORED spool agent
+# spool-agent.sh — start claude, grok or agy as a SEATED, MIRRORED spool agent
 # (specs/036-spool-terminal-mirror, "the wrapper").
 #
-#   spool-agent.sh [options] [--] claude|grok [cli args...]
+#   spool-agent.sh [options] [--] claude|grok|agy [cli args...]
 #
 # What a session started through it gets, before the CLI starts:
 #   1. an agent id: --as, else $MCP_BOT_AGENT_ID (the box spawner sets it),
@@ -21,7 +21,7 @@
 #
 # Options:
 #   --as <ID>          the agent id (^[A-Z]{2,4}-[0-9]+$)
-#   --env dev|prd      default dev
+#   --env dev|prd|dev,prd  default: every env with this desk on the box
 #   --tenant <slug>    default t1
 #   --box <box>        default box-desk
 #   --no-mirror        seat the agent but post nothing (<seat>/.no-mirror)
@@ -53,7 +53,7 @@ ORC="$(cd "$FEAT/../../../.." && pwd)"
 RUN="${SPOOL_AGENT_RUN:-$ORC/run}"
 MIRROR_PY="$_here/spool-mirror.py"
 
-OPERATOR="" AS="" ENVN="dev" TENANT="t1" BOX="box-desk" MIRROR=1 SEAT=1 BACKFILL=0 DRY=0
+OPERATOR="" AS="" ENVN="${SPOOL_AGENT_ENVS:-}" TENANT="t1" BOX="box-desk" MIRROR=1 SEAT=1 BACKFILL=0 DRY=0
 usage() { sed -n '/^#   spool-agent.sh/,/^# Exit codes/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -77,10 +77,11 @@ CLI="$1"; shift
 case "$CLI" in
   claude) PREFIX=CLE; KIND=claude ;;
   grok)   PREFIX=GRK; KIND=grok ;;
-  *) echo "spool-agent: the CLI must be claude or grok, got '$CLI'" >&2; exit 2 ;;
+  agy)    PREFIX=AGY; KIND=agy ;;
+  *) echo "spool-agent: the CLI must be claude, grok or agy, got '$CLI'" >&2; exit 2 ;;
 esac
 [ -z "$OPERATOR" ] || [[ "$OPERATOR" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { echo "spool-agent: --operator must be a HUM-n id" >&2; exit 2; }
-[[ "$ENVN" =~ ^(dev|prd)$ ]] || { echo "spool-agent: --env must be dev or prd" >&2; exit 2; }
+[ -z "$ENVN" ] || [[ "$ENVN" =~ ^(dev|prd|dev,prd|prd,dev)$ ]] || { echo "spool-agent: --env must be dev, prd or dev,prd" >&2; exit 2; }
 [[ "$TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "spool-agent: bad --tenant '$TENANT'" >&2; exit 2; }
 [[ "$BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$BOX" != box-wui ]] || { echo "spool-agent: bad --box '$BOX'" >&2; exit 2; }
 if [ "$BACKFILL" = 1 ] && [ "$KIND" != claude ]; then
@@ -90,7 +91,25 @@ fi
 BOX_USER="${SPOOL_BOX_USER:-$(stat -c %U "$ORC")}"
 ME="$(id -un)"
 BOX_HOME="$(getent passwd "$BOX_USER" | cut -d: -f6)"
-SEAT_ROOT="${SPOOL_AGENT_DESK_ROOT:-$BOX_HOME/.local/share/csi-spl/cloud/$ENVN/desk/$TENANT/$BOX}"
+# The envs to seat on: --env, else every env that has this desk on the box
+# (the agent is then online wherever the humans are), else dev.
+# SPOOL_AGENT_DESK_ROOT (tests) may name the env as %ENV%; without it there is
+# one root, so only dev is discovered.
+seat_root_of() {
+  if [ -n "${SPOOL_AGENT_DESK_ROOT:-}" ]; then printf '%s' "${SPOOL_AGENT_DESK_ROOT//%ENV%/$1}"
+  else printf '%s' "$BOX_HOME/.local/share/csi-spl/cloud/$1/desk/$TENANT/$BOX"; fi
+}
+if [ -z "$ENVN" ]; then
+  _envs="dev prd"
+  [ -n "${SPOOL_AGENT_DESK_ROOT:-}" ] && [[ "$SPOOL_AGENT_DESK_ROOT" != *%ENV%* ]] && _envs=dev
+  for e in $_envs; do
+    if [ "$(id -un)" = "$BOX_USER" ]; then test -d "$(seat_root_of $e)" && ENVN="${ENVN:+$ENVN,}$e"
+    else sudo -n -u "$BOX_USER" test -d "$(seat_root_of $e)" 2>/dev/null && ENVN="${ENVN:+$ENVN,}$e"; fi
+  done
+  ENVN="${ENVN:-dev}"
+fi
+ENVS=(${ENVN//,/ })
+SEAT_ROOT="$(seat_root_of "${ENVS[0]}")"
 TMUX_SOCK="${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u "$BOX_USER")/default}"
 say() { echo "spool-agent: $*" >&2; }
 as_box() {  # CMD... as the box user, env passed explicitly (sudo drops it)
@@ -152,6 +171,35 @@ fi
 HOOKS_DIR="${SPOOL_AGENT_HOOKS_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/spool-agent}"
 HOOKS_JSON="$HOOKS_DIR/mirror-hooks.json"
 GROK_HOOK="$HOME/.grok/hooks/spool-mirror.json"
+# agy (antigravity) reads ~/.gemini/config/hooks.json: named hooks, each with
+# its event lists (measured, agy 1.2.11). Its payloads carry no text and no
+# event name, so the command names the event; spool-mirror.py reads the
+# transcript. Merged as the one named hook "spool-mirror": others are kept.
+AGY_HOOK="${SPOOL_AGENT_AGY_HOOKS:-$HOME/.gemini/config/hooks.json}"
+agy_hooks_merge() {
+  mkdir -p "$(dirname "$AGY_HOOK")" && python3 - "$AGY_HOOK" "$MIRROR_PY" <<'EOF_PY'
+import json, os, shlex, sys
+path, py = sys.argv[1], shlex.quote(sys.argv[2])
+import time
+try:
+    d = json.load(open(path))
+    if not isinstance(d, dict):
+        raise ValueError
+except FileNotFoundError:
+    d = {}
+except ValueError:
+    # Not a hooks file agy can load, so it holds no hook to keep: moved aside
+    # (never deleted), and the file is written fresh.
+    os.replace(path, path + ".bad." + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
+    d = {}
+def h(ev):
+    return [{"type": "command", "command": f"[ -r {py} ] && exec python3 {py} hook --agy {ev}; echo '{{}}'", "timeout": 10}]
+d["spool-mirror"] = {"PreInvocation": h("pre"), "Stop": h("stop")}
+tmp = path + ".tmp.%d" % os.getpid()
+open(tmp, "w").write(json.dumps(d, indent=2) + "\n")
+os.replace(tmp, path)
+EOF_PY
+}
 hooks_json() {
   python3 - "$MIRROR_PY" <<'EOF_PY'
 import json, shlex, sys
@@ -169,7 +217,7 @@ SESSION_ID=""
 # they run different checkouts of spool-mirror.py the dedup of one cannot see
 # the other (measured: two posts per prompt, in two topics).
 USER_HOOKS=0
-grep -q 'spool-mirror\.py' "${SPOOL_AGENT_USER_SETTINGS:-$HOME/.claude/settings.json}" 2>/dev/null && USER_HOOKS=1
+[ "$KIND" != agy ] && grep -q 'spool-mirror\.py' "${SPOOL_AGENT_USER_SETTINGS:-$HOME/.claude/settings.json}" 2>/dev/null && USER_HOOKS=1
 USE_SETTINGS=0
 [ "$MIRROR" = 1 ] && [ "$KIND" = claude ] && [ "$USER_HOOKS" = 0 ] && USE_SETTINGS=1
 # The CLI binary: CLAUDE_BIN / GROK_BIN, else PATH, else ~/.local/bin/<cli>
@@ -192,11 +240,12 @@ if [ "$DRY" = 1 ]; then
   say "DRY RUN - nothing changed"
   echo "id: $ID"
   echo "window: ${PANE:-none} '${WNAME}'${NEWNAME:+ -> rename to '$NEWNAME'}"
-  if [ "$SEAT" = 1 ]; then echo "seat: $RUN -a do_spl_desk_up ENV=$ENVN TENANT_ID=$TENANT DESK_BOX=$BOX DESK_AGENT=$ID (as $BOX_USER)"; else echo "seat: skipped"; fi
+  if [ "$SEAT" = 1 ]; then for e in "${ENVS[@]}"; do echo "seat: $RUN -a do_spl_desk_up ENV=$e TENANT_ID=$TENANT DESK_BOX=$BOX DESK_AGENT=$ID (as $BOX_USER)"; done; echo "strip: the notice strip is split before $CLI paints"; else echo "seat: skipped"; fi
   echo "mirror: $([ "$MIRROR" = 1 ] && echo on || echo off)${OPERATOR:+ (prompts typed by $OPERATOR)}"
   if [ "$MIRROR" = 1 ] && [ "$USER_HOOKS" = 1 ]; then echo "hooks: already in ~/.claude/settings.json (not added again)"
   elif [ "$MIRROR" = 1 ] && [ "$KIND" = claude ]; then echo "hooks: $HOOKS_JSON"
-  elif [ "$MIRROR" = 1 ]; then echo "hooks: $GROK_HOOK"; fi
+  elif [ "$MIRROR" = 1 ] && [ "$KIND" = grok ]; then echo "hooks: $GROK_HOOK"
+  elif [ "$MIRROR" = 1 ]; then echo "hooks: $AGY_HOOK (named hook spool-mirror)"; fi
   [ "$BACKFILL" = 1 ] && echo "backfill: session $SESSION_ID on exit"
   printf 'argv:'; printf ' %q' "${ARGV[@]}"; echo
   exit 0
@@ -206,30 +255,57 @@ fi
 
 # ── 3. the seat ──────────────────────────────────────────────────────────────
 if [ "$SEAT" = 1 ]; then
-  out="$(as_box env ENV="$ENVN" TENANT_ID="$TENANT" DESK_BOX="$BOX" DESK_AGENT="$ID" DRY_RUN=0 "$RUN" -a do_spl_desk_up 2>&1)"; rc=$?
-  if [ "$rc" -ne 0 ] && ! as_box test -d "$SEAT_ROOT/spool/$ID"; then
-    say "the desk seat failed (rc $rc):"; printf '%s\n' "$out" | grep -E 'FATAL|FAIL' | tail -3 >&2; exit 5
+  seated=0
+  for e in "${ENVS[@]}"; do
+    out="$(as_box env ENV="$e" TENANT_ID="$TENANT" DESK_BOX="$BOX" DESK_AGENT="$ID" DRY_RUN=0 "$RUN" -a do_spl_desk_up 2>&1)"; rc=$?
+    if [ "$rc" -ne 0 ] && ! as_box test -d "$(seat_root_of "$e")/spool/$ID"; then
+      say "WARN the $e desk seat failed (rc $rc):"; printf '%s\n' "$out" | grep -E 'FATAL|FAIL' | tail -3 >&2; continue
+    fi
+    seated=$((seated + 1))
+    [ "$rc" -eq 0 ] && say "$ID is seated on $BOX in $TENANT ($e)" || say "WARN $ID has a $e seat but the roster did not confirm it yet (rc $rc)"
+  done
+  [ "$seated" -gt 0 ] || { say "no desk seat could be made"; exit 5; }
+  # The strip, split NOW - before the CLI paints, so no live TUI is resized -
+  # and for every CLI: the desk adds it only to a pane on the alternate
+  # screen, and at this moment the pane is still a shell (agy never is).
+  # agy paints on the NORMAL screen: the pane says it is a TUI (@spool_strip),
+  # so the notifier never writes a notice into its tty. One call per env: the
+  # second finds the strip and respawns it tailing both envs' logs.
+  [ "$KIND" = agy ] && tm set-option -p -t "$PANE" @spool_strip 1 2>/dev/null
+  strip=""
+  for e in "${ENVS[@]}"; do
+    as_box test -d "$(seat_root_of "$e")/spool/$ID" || continue
+    strip="$(as_box env SPOOL_ROOT="$(seat_root_of "$e")/spool" SPOOL_TMUX_SOCKET="$TMUX_SOCK" bash -c '
+      F="$1"; . "$F/lib/spool-env.inc.sh" && . "$F/lib/spool-notify.inc.sh" && . "$F/lib/spool-poke-queue.inc.sh" &&
+      spool_env_resolve && spool_show_notice_pane "$2" "$3"' _ "$FEAT" "$ID" "$PANE" 2>/dev/null)"
+  done
+  [ -n "$strip" ] || say "WARN no notice strip for $ID (the desk cron retries)"
+fi
+for e in "${ENVS[@]}"; do
+  sr="$(seat_root_of "$e")"
+  as_box test -d "$sr/spool/$ID" || continue
+  if [ -n "$OPERATOR" ]; then
+    as_box python3 "$MIRROR_PY" operator "$sr/spool/$ID" "$OPERATOR" >/dev/null ||
+      say "WARN could not record $OPERATOR as the operator of $ID ($e)"
   fi
-  [ "$rc" -eq 0 ] && say "$ID is seated on $BOX in $TENANT ($ENVN)" || say "WARN $ID has a seat but the roster did not confirm it yet (rc $rc)"
-fi
-if [ -n "$OPERATOR" ]; then
-  as_box python3 "$MIRROR_PY" operator "$SEAT_ROOT/spool/$ID" "$OPERATOR" >/dev/null ||
-    say "WARN could not record $OPERATOR as the operator of $ID"
-fi
-if [ "$MIRROR" = 0 ]; then
-  as_box touch "$SEAT_ROOT/spool/$ID/.no-mirror" 2>/dev/null || say "WARN could not write $ID's .no-mirror"
-elif as_box test -e "$SEAT_ROOT/spool/$ID/.no-mirror"; then
-  as_box rm -f "$SEAT_ROOT/spool/$ID/.no-mirror" 2>/dev/null
-fi
+  if [ "$MIRROR" = 0 ]; then
+    as_box touch "$sr/spool/$ID/.no-mirror" 2>/dev/null || say "WARN could not write $ID's .no-mirror ($e)"
+  elif as_box test -e "$sr/spool/$ID/.no-mirror"; then
+    as_box rm -f "$sr/spool/$ID/.no-mirror" 2>/dev/null
+  fi
+done
 
 if [ "$MIRROR" = 1 ] && [ "$USER_HOOKS" = 0 ]; then
   if [ "$KIND" = claude ]; then
     mkdir -p "$HOOKS_DIR" && hooks_json >"$HOOKS_JSON.tmp.$$" && mv -f "$HOOKS_JSON.tmp.$$" "$HOOKS_JSON" ||
       { say "WARN cannot write $HOOKS_JSON: this session is not mirrored"; USE_SETTINGS=0; build_argv "$@"; }
-  else
+  elif [ "$KIND" = grok ]; then
     mkdir -p "${GROK_HOOK%/*}" && hooks_json >"$GROK_HOOK.tmp.$$" && mv -f "$GROK_HOOK.tmp.$$" "$GROK_HOOK" ||
       say "WARN cannot write $GROK_HOOK: this session is not mirrored"
   fi
+fi
+if [ "$MIRROR" = 1 ] && [ "$KIND" = agy ]; then
+  agy_hooks_merge || say "WARN cannot write $AGY_HOOK: this session is not mirrored"
 fi
 
 # ── 5. the CLI ───────────────────────────────────────────────────────────────
@@ -237,6 +313,6 @@ export MCP_BOT_AGENT_ID="$ID" SPOOL_AGENT_ID="$ID"
 say "$ID: starting $CLI (mirror $([ "$MIRROR" = 1 ] && echo on || echo off); DM it at the web UI as $ID@$BOX)"
 if [ "$BACKFILL" = 0 ]; then exec "${ARGV[@]}"; fi
 "${ARGV[@]}"; rc=$?
-as_box env ENV="$ENVN" TENANT_ID="$TENANT" DESK_BOX="$BOX" DESK_AGENT="$ID" SESSION_TOKEN="$SESSION_ID" \
+as_box env ENV="${ENVS[0]}" TENANT_ID="$TENANT" DESK_BOX="$BOX" DESK_AGENT="$ID" SESSION_TOKEN="$SESSION_ID" \
   SESSION_AGENT_USER="$ME" DRY_RUN=0 "$RUN" -a do_spl_desk_session_upload 2>&1 | grep -E '^\{|FATAL' >&2
 exit "$rc"

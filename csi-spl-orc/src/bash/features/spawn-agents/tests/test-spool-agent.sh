@@ -17,6 +17,12 @@
 #   8. --operator HUM-n writes the seat's .mirror/operator
 #   7. hooks already in ~/.claude/settings.json are not added a second time
 #   6. the CLI binary is found in ~/.local/bin when a sudo hop reset PATH
+#   9. agy (antigravity): an AGY id, seated on EVERY env that has the desk,
+#      the notice strip split BEFORE the CLI starts (the stub CLI counts it),
+#      the pane marked @spool_strip 1 (agy paints on the normal screen), and
+#      the named hook "spool-mirror" merged into ~/.gemini/config/hooks.json
+#      without dropping another named hook; a non-JSON hooks file is moved
+#      aside and replaced. CONTROL: --env dev seats dev only
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
 t_sandbox
@@ -114,5 +120,46 @@ rm -f "$HOME/.claude/settings.json"
 bash "$AGENT" --dry-run --operator CLE-5 --as CLE-60 claude >/dev/null 2>&1; eq "8. --operator must be a HUM id" 2 "$?"
 TMUX_PANE="$P2" bash "$AGENT" --as CLE-60 --operator HUM-7 claude >/dev/null 2>&1
 eq "8. --operator records the seat's operator" "HUM-7" "$(cat "$SPOOL_AGENT_DESK_ROOT/spool/CLE-60/.mirror/operator" 2>/dev/null)"
+
+# --- 9. agy: seated on every env, strip before the CLI, hooks merged ------------------------------
+# The stub agy records how many strips its id had when it started.
+printf '#!/usr/bin/env bash\necho "agy id=$MCP_BOT_AGENT_ID args=$* strips=$(tmux -S %q list-panes -a -F "#{@spool_notices}" | grep -cx "$MCP_BOT_AGENT_ID")" >>"%s/cli.log"\n' \
+  "$SPOOL_TMUX_SOCKET" "$T_TMP" >"$T_TMP/bin/agy"
+chmod +x "$T_TMP/bin/agy"
+out="$(bash "$AGENT" --dry-run --as AGY-61 agy 2>&1)"
+has "9. agy dry-run names the gemini hooks file" "$HOME/.gemini/config/hooks.json" "$out"
+mkdir -p "$T_TMP/envs/dev/spool" "$T_TMP/envs/prd/spool" "$HOME/.gemini/config"
+printf '{"other":{"Stop":[{"type":"command","command":"true"}]}}\n' >"$HOME/.gemini/config/hooks.json"
+# the desk action stub for per-env roots: seats <envs>/<ENV>/spool/<id>
+printf '#!/usr/bin/env bash\necho "RUN $* ENV=$ENV DESK_AGENT=$DESK_AGENT" >>"%s/envs/run.log"\nmkdir -p "%s/envs/$ENV/spool/$DESK_AGENT/inbox"\n' \
+  "$T_TMP" "$T_TMP" >"$T_TMP/run-env"
+chmod +x "$T_TMP/run-env"
+P3="$(t_window 'tbox: AGY-61' 'sleep 600')"
+agy_run() { TMUX_PANE="$P3" SPOOL_AGENT_RUN="$T_TMP/run-env" SPOOL_AGENT_DESK_ROOT="$T_TMP/envs/%ENV%" bash "$AGENT" "$@"; }
+: >"$T_TMP/cli.log"
+agy_run --as AGY-61 agy --prompt-interactive hi >/dev/null 2>&1; eq "9. the agy run exits 0" 0 "$?"
+has "9. seated on dev" "ENV=dev DESK_AGENT=AGY-61" "$(cat "$T_TMP/envs/run.log")"
+has "9. seated on prd" "ENV=prd DESK_AGENT=AGY-61" "$(cat "$T_TMP/envs/run.log")"
+has "9. the strip exists when agy starts" "agy id=AGY-61 args=--prompt-interactive hi strips=1" "$(cat "$T_TMP/cli.log")"
+eq "9. the agy pane is marked a TUI" 1 "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$P3" '#{@spool_strip}')"
+eq "9. the strip sits in the agy window" "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$P3" '#{window_id}')" \
+  "$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{@spool_notices} #{window_id}' | sed -n 's/^AGY-61 //p')"
+has "9. the strip tails the prd log too" "envs/prd/spool/AGY-61/.pokes/notices.log" \
+  "$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{@spool_notices}|#{@spool_notices_logs}' | sed -n 's/^AGY-61|//p')"
+hj="$(cat "$HOME/.gemini/config/hooks.json")"
+has "9. hooks.json carries the spool-mirror hook (pre)" "hook --agy pre" "$hj"
+has "9. hooks.json carries the spool-mirror hook (stop)" "hook --agy stop" "$hj"
+has "9. CONTROL: the hook calls this checkout's spool-mirror.py" "$T_SCRIPTS/spool-mirror.py" "$hj"
+has "9. another named hook is kept" '"other"' "$hj"
+agy_run --as AGY-61 agy >/dev/null 2>&1
+eq "9. a second run keeps one strip" 1 "$(tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{@spool_notices}' | grep -cx AGY-61)"
+eq "9. ... and one spool-mirror hook" 1 "$(grep -o '"spool-mirror"' "$HOME/.gemini/config/hooks.json" | wc -l)"
+printf 'not json' >"$HOME/.gemini/config/hooks.json"
+agy_run --as AGY-61 agy >/dev/null 2>&1
+has "9. a non-JSON hooks.json is replaced by a loadable one" "hook --agy stop" "$(cat "$HOME/.gemini/config/hooks.json")"
+eq "9. ... and kept aside, never deleted" "not json" "$(cat "$HOME/.gemini/config/hooks.json.bad."* 2>/dev/null)"
+: >"$T_TMP/envs/run.log"
+agy_run --env dev --as AGY-61 agy >/dev/null 2>&1
+hasnt "9. CONTROL: --env dev does not seat prd" "ENV=prd" "$(cat "$T_TMP/envs/run.log")"
 
 t_done

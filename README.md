@@ -7,3 +7,7 @@ relay bucket. Read `csi-spl-doc/doc/md/csi-spl.feature.md`.
 git clone git@github.com:csitea/tpl-gen.git tpl-gen
 cd csi-spl-iac && ./run --help
 ```
+
+## License
+
+GNU Affero General Public License v3.0 — see [LICENSE](LICENSE).

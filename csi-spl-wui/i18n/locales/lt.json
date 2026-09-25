@@ -366,6 +366,7 @@
     "events": "Įvykių žurnalas"
   },
   "composer": {
+    "biz_owner": "verslo savininkas",
     "mention_suggestions": "Paminėjimų pasiūlymai",
     "omnibox_label": "Omnibox: žinutė arba /search filtruoti",
     "message_label": "Žinutė",

@@ -50,6 +50,29 @@ export function filterRosterMentions(peers, query, names = null) {
 }
 
 /**
+ * #feedback (owner, 2026-09-25): the business owner(s) a member can tag,
+ * online or not. `owners` are the roster's owner:true HUM-* ids (view-v1
+ * §4.1). The reader never gets themself; the query filters like the agent
+ * picker (id or chosen display name). Each row inserts the bare `HUM-n`,
+ * which is what MENTION_RE / mentionsSelf notify on.
+ */
+export function ownerMentions(owners, query, names = null, selfId = '', isOnline = null) {
+  const q = String(query || '').replace(/^@+/, '').trim().toLocaleLowerCase()
+  const nameOf = (id) => (names && typeof names === 'object' && Object.prototype.hasOwnProperty.call(names, id) ? String(names[id] || '') : '')
+  const seen = new Set()
+  const out = []
+  for (const raw of Array.isArray(owners) ? owners : []) {
+    const id = String(raw || '')
+    if (!/^HUM-\d+$/.test(id) || id === selfId || seen.has(id)) continue
+    seen.add(id)
+    const name = nameOf(id).toLocaleLowerCase()
+    if (q && !id.toLocaleLowerCase().includes(q) && !(name !== '' && name.includes(q))) continue
+    out.push({ id, box: 'box-wui', label: id, owner: true, online: typeof isOnline === 'function' ? Boolean(isOnline(id)) : false })
+  }
+  return out
+}
+
+/**
  * Replace the in-progress @token with the full tag. `id` is the roster label
  * (`CLE-3994@box-desk`) or a bare id. Enter on `@3994` therefore writes the
  * whole tag, not the fragment that was typed.

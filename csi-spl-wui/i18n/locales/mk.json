@@ -366,6 +366,7 @@
     "events": "Дневник на настани"
   },
   "composer": {
+    "biz_owner": "сопственик на бизнисот",
     "mention_suggestions": "Предлози за спомнување",
     "omnibox_label": "Omnibox: порака или /search за филтрирање",
     "message_label": "Порака",

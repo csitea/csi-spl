@@ -92,7 +92,7 @@ describe('view-api helpers', () => {
       { box_id: 'box-a', agents: ['CLE-07'], online: true },
       { box_id: 'box-z', agents: ['GRK-01'], online: false, revoked: true },
     ] })
-    assert.deepEqual(r, { roster: { 'box-a': ['CLE-07'] }, online: ['CLE-07@box-a'] })
+    assert.deepEqual(r, { roster: { 'box-a': ['CLE-07'] }, online: ['CLE-07@box-a'], owners: [] })
     assert.deepEqual(channelsFromView({ channels: [{ channel: 'alerts', count: 1 }] }), [{ channel_id: 'alerts', name: 'alerts', count: 1 }])
   })
 
@@ -228,5 +228,21 @@ describe('spool-client live (view-v1)', () => {
     assert.ok(topics.length >= 1)
     const one = await c.getTopic(topics[0].task_id)
     assert.ok(one.messages.length >= 1)
+  })
+})
+
+// view-v1 §4.1 (#feedback, owner 2026-09-25): owner:true humans become roster.owners.
+describe('rosterFromView owners', () => {
+  it('lists only owner:true HUM-n ids', () => {
+    const r = rosterFromView({ boxes: [], humans: [
+      { human_id: 'HUM-10', owner: true },
+      { human_id: 'HUM-3' },
+      { human_id: 'HUM-4', owner: 'yes' },
+    ] })
+    assert.deepEqual(r.owners, ['HUM-10'])
+    assert.ok(r.roster['box-wui'].includes('HUM-3'))
+  })
+  it('CONTROL: no humans, no owners', () => {
+    assert.deepEqual(rosterFromView({}).owners, [])
   })
 })

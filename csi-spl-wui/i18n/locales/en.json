@@ -366,6 +366,7 @@
     "events": "Event log"
   },
   "composer": {
+    "biz_owner": "business owner",
     "mention_suggestions": "Mention suggestions",
     "omnibox_label": "Omnibox: message, or /search to filter",
     "message_label": "Message",

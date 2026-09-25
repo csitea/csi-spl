@@ -366,6 +366,7 @@
     "events": "Dziennik zdarzeń"
   },
   "composer": {
+    "biz_owner": "właściciel firmy",
     "mention_suggestions": "Sugestie wzmianek",
     "omnibox_label": "Omnibox: wiadomość lub /search, aby filtrować",
     "message_label": "Wiadomość",

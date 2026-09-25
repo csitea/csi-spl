@@ -366,6 +366,7 @@
     "events": "Denník udalostí"
   },
   "composer": {
+    "biz_owner": "majiteľ firmy",
     "mention_suggestions": "Návrhy zmienok",
     "omnibox_label": "Omnibox: správa alebo /search na filtrovanie",
     "message_label": "Správa",

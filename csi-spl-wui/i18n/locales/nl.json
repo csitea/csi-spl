@@ -366,6 +366,7 @@
     "events": "Gebeurtenissenlogboek"
   },
   "composer": {
+    "biz_owner": "bedrijfseigenaar",
     "mention_suggestions": "Suggesties voor vermeldingen",
     "omnibox_label": "Omnibox: bericht, of /search om te filteren",
     "message_label": "Bericht",

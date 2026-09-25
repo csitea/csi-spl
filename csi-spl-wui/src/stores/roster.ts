@@ -9,6 +9,8 @@ export const useRosterStore = defineStore('roster', () => {
   const live = useLive()
   const roster = ref<Record<string, string[]>>({})
   const online = ref<string[]>([])
+  /** view-v1 §4.1 owner:true - the business owner(s) #feedback offers to @. */
+  const owners = ref<string[]>([])
   /** The mock tenant answers with its own `me`; live, the socket's welcome does. */
   const me = ref({ id: '', box: BROWSER_BOX })
 
@@ -41,10 +43,12 @@ export const useRosterStore = defineStore('roster', () => {
       roster?: Record<string, string[]>
       online?: string[]
       me?: { id: string, box: string }
+      owners?: string[]
     }
     if (data.roster) roster.value = data.roster
     if (data.online) online.value = mergeSnapshotOnline(online.value, data.online, roster.value)
     if (data.me) me.value = data.me
+    if (Array.isArray(data.owners)) owners.value = data.owners
   }
 
   function isOnline(id: string, box?: string) {
@@ -52,5 +56,5 @@ export const useRosterStore = defineStore('roster', () => {
     return online.value.includes(label) || online.value.includes(id)
   }
 
-  return { roster, online, me, self, people, peers, refresh, isOnline, applyFrame }
+  return { roster, online, owners, me, self, people, peers, refresh, isOnline, applyFrame }
 })

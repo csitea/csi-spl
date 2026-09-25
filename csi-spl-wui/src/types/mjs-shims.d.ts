@@ -241,12 +241,19 @@ declare module '~/utils/mention-autocomplete.mjs' {
     peers: { id: string, box?: string, label?: string, online?: boolean }[],
     query: string,
     names?: Record<string, string> | null,
-  ): { id: string, box?: string, label?: string, online?: boolean }[]
+  ): { id: string, box?: string, label?: string, online?: boolean, owner?: boolean }[]
   export function insertMention(
     text: string,
     cursor: number,
     id: string,
   ): { text: string, cursor: number }
+  export function ownerMentions(
+    owners: string[] | undefined,
+    query: string,
+    names?: Record<string, string> | null,
+    selfId?: string,
+    isOnline?: ((id: string) => boolean) | null,
+  ): { id: string, box: string, label: string, owner: true, online: boolean }[]
 }
 
 declare module '~/utils/topic-in.mjs' {
@@ -324,7 +331,7 @@ declare module '~/utils/tenant-switcher.mjs' {
 
 declare module '~/utils/view-api.mjs' {
   export const BROWSER_BOX: string
-  export function rosterFromView(data: unknown): { roster: Record<string, string[]>, online: string[] }
+  export function rosterFromView(data: unknown): { roster: Record<string, string[]>, online: string[], owners: string[] }
   export function subjectOf(body: string): string
   export function topicOpening(text: string): string
   export function topicTitleFromRows(rows: unknown, pinnedRoot?: { body?: string, ts?: string } | null): string

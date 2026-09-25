@@ -366,6 +366,7 @@
     "events": "Журнал подій"
   },
   "composer": {
+    "biz_owner": "власник бізнесу",
     "mention_suggestions": "Пропозиції згадок",
     "omnibox_label": "Omnibox: повідомлення або /search для фільтрування",
     "message_label": "Повідомлення",

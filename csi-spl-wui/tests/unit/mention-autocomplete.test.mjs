@@ -10,6 +10,7 @@ import {
   filterRosterMentions,
   insertMention,
   isAgentId,
+  ownerMentions,
 } from '../../src/utils/mention-autocomplete.mjs'
 
 function peersFrom(roster) {
@@ -131,5 +132,25 @@ describe('H5: a door-off guest GST-<n> is mentionable', () => {
     const done = insertMention(typed, typed.length, filterRosterMentions(peers, '3994')[0].label)
     assert.equal(done.text, '@CLE-3994@box-desk ')
     assert.deepEqual(parseMention(done.text + 'please'), { to: 'CLE-3994', kind: 'task', body: 'please' })
+  })
+})
+
+// #feedback (owner, 2026-09-25): the business owner(s) are offered to @.
+describe('ownerMentions', () => {
+  it('offers every owner, bare HUM-n, never the reader, online or not', () => {
+    const rows = ownerMentions(['HUM-10', 'HUM-3', 'HUM-10'], '', null, 'HUM-3', (id) => id === 'HUM-10')
+    assert.deepEqual(rows.map((r) => r.label), ['HUM-10'])
+    assert.equal(rows[0].owner, true)
+    assert.equal(rows[0].online, true)
+  })
+  it('filters by id or chosen display name', () => {
+    const names = { 'HUM-10': 'Pat Owner', 'HUM-11': 'Sam' }
+    assert.deepEqual(ownerMentions(['HUM-10', 'HUM-11'], 'pat', names).map((r) => r.id), ['HUM-10'])
+    assert.deepEqual(ownerMentions(['HUM-10', 'HUM-11'], '@hum-11', names).map((r) => r.id), ['HUM-11'])
+    assert.deepEqual(ownerMentions(['HUM-10'], 'zzz', names), [])
+  })
+  it('CONTROL: ignores anything that is not a HUM-n id', () => {
+    assert.deepEqual(ownerMentions(['CLE-7', '', null, 'HUM-x'], ''), [])
+    assert.deepEqual(ownerMentions(undefined, ''), [])
   })
 })

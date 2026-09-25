@@ -366,6 +366,7 @@
     "events": "Журнал событий"
   },
   "composer": {
+    "biz_owner": "владелец бизнеса",
     "mention_suggestions": "Варианты упоминаний",
     "omnibox_label": "Omnibox: сообщение или /search для фильтра",
     "message_label": "Сообщение",

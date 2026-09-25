@@ -214,7 +214,12 @@ export function rosterFromView(data) {
     .map((h) => String((h && h.human_id) || ''))
     .filter((id) => MEMBER_ID_RE.test(id))
   if (humans.length) roster[BROWSER_BOX] = [...new Set([...(roster[BROWSER_BOX] || []), ...humans])]
-  return { roster, online }
+  // view-v1 §4.1: owner:true marks a biz_owner - #feedback offers them to @.
+  const owners = ((data && data.humans) || [])
+    .filter((h) => h && h.owner === true)
+    .map((h) => String(h.human_id || ''))
+    .filter((id) => MEMBER_ID_RE.test(id))
+  return { roster, online, owners }
 }
 
 /**

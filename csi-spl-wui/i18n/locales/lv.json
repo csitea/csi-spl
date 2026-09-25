@@ -366,6 +366,7 @@
     "events": "Notikumu žurnāls"
   },
   "composer": {
+    "biz_owner": "uzņēmuma īpašnieks",
     "mention_suggestions": "Pieminēšanas ieteikumi",
     "omnibox_label": "Omnibox: ziņa vai /search filtrēšanai",
     "message_label": "Ziņa",

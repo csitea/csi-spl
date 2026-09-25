@@ -45,7 +45,8 @@
             <SpoolAvatar :id="p.id" :box="p.box" :size="20" />
             <span class="dot" :class="{ on: p.online }" />
             <span class="mention-label">{{ people.label(p.id, p.box) }}</span>
-            <span v-if="people.label(p.id, p.box) !== p.label" class="muted">{{ p.label }}</span>
+            <span v-if="p.owner" class="muted" data-testid="mention-owner">{{ t('composer.biz_owner') }}</span>
+            <span v-else-if="people.label(p.id, p.box) !== p.label" class="muted">{{ p.label }}</span>
           </button>
         </li>
       </ul>
@@ -198,6 +199,7 @@ import {
   activeMentionQuery,
   filterRosterMentions,
   insertMention,
+  ownerMentions,
 } from '~/utils/mention-autocomplete.mjs'
 import {
   activeInQuery,
@@ -522,9 +524,15 @@ function syncMention(ev?: Event) {
 
 /* @ finds a person by id or by the display name they chose; the tag inserted is still the id. */
 const people = useHumanNames()
+/** #feedback (owner, 2026-09-25): the business owner(s) come first in @, online or not. */
+const route = useRoute()
+const inFeedback = computed(() => route.path === '/channel/feedback')
 const candidates = computed(() => {
   if (mentionQuery.value === null) return []
-  return filterRosterMentions(roster.peers, mentionQuery.value, people.names.value)
+  const agents = filterRosterMentions(roster.peers, mentionQuery.value, people.names.value)
+  if (!inFeedback.value) return agents
+  const selfId = roster.self ? roster.self.id : ''
+  return [...ownerMentions(roster.owners, mentionQuery.value, people.names.value, selfId, (id: string) => roster.isOnline(id, 'box-wui')), ...agents]
 })
 
 const pickerOpen = computed(() => mentionQuery.value !== null && candidates.value.length > 0)

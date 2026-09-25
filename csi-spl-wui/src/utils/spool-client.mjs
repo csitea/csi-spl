@@ -73,7 +73,7 @@ const CHANNEL_ERRORS = {
 }
 
 /** store.ChannelPublic: the three default channels. `general` is the lobby alias. */
-const PUBLIC_CHANNELS = new Set(['lobby', 'tasks', 'alerts'])
+const PUBLIC_CHANNELS = new Set(['lobby', 'tasks', 'alerts', 'feedback'])
 const HUMAN_ID_RE = /^HUM-[0-9]+$/
 
 export function normalizeChannelId(channel) {

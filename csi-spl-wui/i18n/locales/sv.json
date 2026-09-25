@@ -366,6 +366,7 @@
     "events": "Händelselogg"
   },
   "composer": {
+    "biz_owner": "företagsägare",
     "mention_suggestions": "Förslag på omnämnanden",
     "omnibox_label": "Omnibox: meddelande, eller /search för att filtrera",
     "message_label": "Meddelande",

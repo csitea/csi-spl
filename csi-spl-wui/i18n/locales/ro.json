@@ -366,6 +366,7 @@
     "events": "Jurnal de evenimente"
   },
   "composer": {
+    "biz_owner": "proprietarul afacerii",
     "mention_suggestions": "Sugestii de mențiuni",
     "omnibox_label": "Omnibox: mesaj sau /search pentru filtrare",
     "message_label": "Mesaj",

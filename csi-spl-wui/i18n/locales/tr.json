@@ -366,6 +366,7 @@
     "events": "Olay günlüğü"
   },
   "composer": {
+    "biz_owner": "işletme sahibi",
     "mention_suggestions": "Bahsetme önerileri",
     "omnibox_label": "Omnibox: mesaj yazın veya filtrelemek için /search",
     "message_label": "Mesaj",

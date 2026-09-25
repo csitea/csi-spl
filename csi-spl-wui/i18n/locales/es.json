@@ -366,6 +366,7 @@
     "events": "Registro de eventos"
   },
   "composer": {
+    "biz_owner": "propietario del negocio",
     "mention_suggestions": "Sugerencias de menciones",
     "omnibox_label": "Omnibox: mensaje, o /search para filtrar",
     "message_label": "Mensaje",

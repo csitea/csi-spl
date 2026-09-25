@@ -366,6 +366,7 @@
     "events": "Αρχείο συμβάντων"
   },
   "composer": {
+    "biz_owner": "ιδιοκτήτης επιχείρησης",
     "mention_suggestions": "Προτάσεις αναφορών",
     "omnibox_label": "Omnibox: μήνυμα ή /search για φιλτράρισμα",
     "message_label": "Μήνυμα",

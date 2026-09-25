@@ -366,6 +366,7 @@
     "events": "Tapahtumaloki"
   },
   "composer": {
+    "biz_owner": "yrityksen omistaja",
     "mention_suggestions": "Mainintaehdotukset",
     "omnibox_label": "Omnibox: viesti tai /search suodattamiseen",
     "message_label": "Viesti",

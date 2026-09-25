@@ -366,6 +366,7 @@
     "events": "Дневник на събитията"
   },
   "composer": {
+    "biz_owner": "собственик на бизнеса",
     "mention_suggestions": "Предложения за споменаване",
     "omnibox_label": "Omnibox: съобщение или /search за филтриране",
     "message_label": "Съобщение",

@@ -366,6 +366,7 @@
     "events": "יומן אירועים"
   },
   "composer": {
+    "biz_owner": "בעל העסק",
     "mention_suggestions": "הצעות לאזכור",
     "omnibox_label": "Omnibox: הודעה, או /search לסינון",
     "message_label": "הודעה",

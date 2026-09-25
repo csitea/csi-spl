@@ -366,6 +366,7 @@
     "events": "Sündmuste logi"
   },
   "composer": {
+    "biz_owner": "ettevõtte omanik",
     "mention_suggestions": "Mainimissoovitused",
     "omnibox_label": "Omnibox: sõnum või /search filtreerimiseks",
     "message_label": "Sõnum",

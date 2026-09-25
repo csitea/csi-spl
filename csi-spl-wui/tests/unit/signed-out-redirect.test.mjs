@@ -161,14 +161,17 @@ describe('login landing', () => {
     }
   })
 
-  it('every locale has the English tagline (no invented translation)', () => {
+  it('every locale has its translated landing tagline', () => {
     const dir = join(WUI, 'i18n/locales')
     const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
     assert.equal(files.length, 19)
     for (const f of files) {
       const j = JSON.parse(readFileSync(join(dir, f), 'utf8'))
-      assert.equal(j.auth.login.where_humans_meet, 'where people meet with ai', f)
+      assert.ok(j.auth?.login?.where_humans_meet, f)
+      assert.ok(j.auth.login.where_humans_meet.length > 5, f)
     }
+    const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8'))
+    assert.equal(en.auth.login.where_humans_meet, 'where people meet with ai')
   })
 
   it('the login frame drifts a full-bleed wallpaper and stops when motion is reduced', () => {

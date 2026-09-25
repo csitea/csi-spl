@@ -31,8 +31,8 @@ import { formatBytes } from '~/utils/channel-feed.mjs'
 import { isDownloadable } from '~/utils/view-api.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { sha256Hex } from '~/utils/spool-client.mjs'
-import { fileKind, isPreviewableImage } from '~/utils/file-preview.mjs'
-import { avatarImageMime, bytesToDataUri } from '~/utils/avatar.mjs'
+import { fileKind, isPreviewableImage, previewImageMime } from '~/utils/file-preview.mjs'
+import { bytesToDataUri } from '~/utils/avatar.mjs'
 import type { FileRef } from '~/types/spool'
 
 const props = defineProps<{ file: FileRef }>()
@@ -70,14 +70,14 @@ async function loadPreview() {
     if (typeof Blob !== 'undefined' && f instanceof Blob) {
       if (isPreviewableImage((f as File).name, f.size)) {
         const buf = await f.arrayBuffer()
-        const type = avatarImageMime(buf)
+        const type = previewImageMime(buf)
         if (type) url = bytesToDataUri(buf, type)
       }
     } else if (linkable.value && isPreviewableImage(props.file.name, props.file.bytes)) {
       const buf = await api.downloadFile(props.file.file_id || props.file.sha256 || '')
       const want = String(props.file.sha256 || props.file.file_id || '')
       if (!want || (await sha256Hex(buf)) === want) {
-        const type = avatarImageMime(buf)
+        const type = previewImageMime(buf)
         if (type) url = bytesToDataUri(buf, type)
       }
     }
@@ -150,12 +150,18 @@ async function onDownload() {
   cursor: zoom-in;
   text-align: left;
 }
+/* A frame at least 64px square on a checkerboard, so a tiny or transparent
+   picture still reads as a picture (a 1x1 png drew nothing at all). */
 .file-preview img {
   display: block;
+  min-width: 64px;
+  min-height: 64px;
   max-width: min(100%, 360px);
   max-height: 240px;
   object-fit: contain;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
+  background: repeating-conic-gradient(var(--color-bg-2) 0 25%, var(--color-surface) 0 50%) 0 0 / 16px 16px;
 }
 /* the picture at its own size, or shrunk to fit the 90% box; never grown */
 .file-viewer {

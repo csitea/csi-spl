@@ -868,8 +868,10 @@ textarea.in-code {
   vertical-align: middle;
   width: 32px;
   height: 32px;
-  object-fit: cover;
+  object-fit: contain;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
+  background: repeating-conic-gradient(var(--color-bg-2) 0 25%, var(--color-surface) 0 50%) 0 0 / 8px 8px;
   margin-right: 4px;
 }
 .file-chips li {

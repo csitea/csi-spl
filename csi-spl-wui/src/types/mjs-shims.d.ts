@@ -790,6 +790,7 @@ declare module '~/utils/transfer-files.mjs' {
 declare module '~/utils/file-preview.mjs' {
   export const PREVIEW_MAX_BYTES: number
   export function isPreviewableImage(name: string | null | undefined, bytes?: number | null): boolean
+  export function previewImageMime(bytes: ArrayBuffer | Uint8Array | null | undefined): string
   export type FileKind = 'pdf' | 'doc' | 'sheet' | 'slides' | 'image' | 'archive' | 'code' | 'media' | 'other'
   export function fileExt(name: string | null | undefined): string
   export function fileKind(name: string | null | undefined): {

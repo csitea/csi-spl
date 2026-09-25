@@ -13,6 +13,7 @@ import {
   channelAgentCandidates,
   channelAgentRows,
   channelInviteCandidates,
+  defaultChannelRows,
   filterAgentsContains,
   filterPeopleContains,
   signedInHuman,
@@ -250,5 +251,45 @@ describe('the dropdown list opens under its own input (CLE-3493)', () => {
     assert.equal(wrapped.length, 2)
     assert.match(style, /\.invite-add__combo\s*\{[^}]*position:\s*relative/)
     assert.match(style, /\.invite-add__options\s*\{[^}]*position:\s*absolute/)
+  })
+})
+
+describe('a default channel lists everyone, read-only (CLE-3493)', () => {
+  const dialog = src('src/components/ChannelPropertiesDialog.vue')
+  const sidebar = src('src/components/ChannelSidebar.vue')
+
+  it('every person and every announced agent, plus any subscribed agent', () => {
+    const roster = {
+      'box-wui': ['HUM-17', 'HUM-4', 'HUM-4', 'GST-2'],
+      'box-a': ['CLE-07', 'GRK-03'],
+      'box-b': ['CLE-07'],
+    }
+    const rows = defaultChannelRows(roster, [{ id: 'AGY-02', box: 'box-c' }, { id: 'CLE-07', box: 'box-a' }])
+    assert.deepEqual(rows.people, ['HUM-17', 'HUM-4'])
+    assert.deepEqual(rows.agents, [
+      { id: 'AGY-02', box: 'box-c' },
+      { id: 'CLE-07', box: 'box-a' },
+      { id: 'CLE-07', box: 'box-b' },
+      { id: 'GRK-03', box: 'box-a' },
+    ])
+    assert.deepEqual(defaultChannelRows(undefined, undefined), { people: [], agents: [] })
+  })
+
+  it('the default branch has no picker and no minus, and is not an error', () => {
+    const start = dialog.indexOf('<template v-else-if="isDefault">')
+    const end = dialog.indexOf('<template v-else-if="!failedLoad">')
+    assert.ok(start > 0 && end > start, 'the isDefault branch comes before the editable one')
+    const branch = dialog.slice(start, end)
+    assert.match(branch, /channel-default-note/)
+    assert.match(branch, /v-for="id in localMembers"/)
+    assert.match(branch, /v-for="row in agentRows"/)
+    assert.doesNotMatch(branch, /<button|Combobox|remove/)
+    assert.doesNotMatch(dialog, /error\.value = 'channel_public'/)
+    assert.match(dialog, /defaultChannelRows\(bag, mem\.agents\)/)
+  })
+
+  it('the sidebar offers Properties on a default channel too', () => {
+    const fn = sidebar.slice(sidebar.indexOf('function showProperties'), sidebar.indexOf('function openProperties'))
+    assert.doesNotMatch(fn, /isPublicChannel|default/)
   })
 })

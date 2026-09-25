@@ -1,14 +1,16 @@
-// CLE-3493 proof of the channel properties People dropdown, against the mock
-// dev server or a deployed WUI:
+// CLE-3493 proof of the channel properties People AND Agents dropdowns,
+// against the mock dev server or a deployed WUI. Both halves run the same
+// steps, because adding an agent has to work the way adding a person does:
 //   (a) with the query empty the dropdown lists EVERY candidate, and every
 //       option is really painted (not clipped by the dialog's scroll box);
 //   (b) a partial id narrows the list to the matches; a control query that
 //       matches nobody shows 0 options;
 //   (c) picking one makes them a member (then they are removed again, so a
 //       live tenant ends as it started).
+// And #lobby, a default channel, lists every person and agent read-only.
 //
 //   BASE=<wui> OUT=<dir> [EMAIL=<member> PW_FILE=<0600 file>] [TENANT=t1] \
-//     [CHANNEL=<channel id>] [CREATE=1] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
+//     [CHANNEL=<channel id>] [CREATE=1] [ONLY=people|agents] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/channel-people-live.proof.mjs
 //
 // Without EMAIL the page is used as served (the mock dev server). The password
@@ -34,27 +36,54 @@ const OUT = need('OUT')
 const EMAIL = process.env.EMAIL || ''
 const TENANT = process.env.TENANT || 't1'
 const WANT = process.env.CHANNEL || ''
+const ONLY = process.env.ONLY || ''
 mkdirSync(OUT, { recursive: true })
 const puppeteer = await loadPuppeteer()
 const res = { base: BASE, at: new Date().toISOString(), steps: [] }
 const step = (name, ok, ev = {}) => { res.steps.push({ name, ok, ...ev }); console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev)) }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/** The two pickers: same steps, their own test ids and row shapes. */
+const HALVES = {
+  people: {
+    pick: 'channel-invite-pick-',
+    options: 'channel-people-options',
+    search: 'channel-people-search',
+    chevron: 'channel-people-search-button',
+    add: 'channel-people-add',
+    empty: 'channel-invite-empty',
+    rows: '[data-testid="channel-invite-members"] > li > span:first-child',
+    remove: 'channel-member-remove-',
+    api: /\/v1\/channels\/[^/]+\/members/,
+  },
+  agents: {
+    pick: 'channel-agent-invite-',
+    options: 'channel-agent-options',
+    search: 'channel-agent-search',
+    chevron: 'channel-agent-search-button',
+    add: 'channel-agent-add',
+    empty: 'channel-agent-invite-empty',
+    rows: '[data-testid="channel-agents-list"] > li > span:first-child',
+    remove: 'channel-agent-remove-',
+    api: /\/v1\/channels\/[^/]+\/agents/,
+  },
+}
+
 /** Option ids, and whether the browser really paints each one on top. */
-const readOptions = (p) => p.evaluate(() => {
+const readOptions = (p, h) => p.evaluate((h) => {
   const out = []
-  for (const li of document.querySelectorAll('[data-testid^="channel-invite-pick-"]')) {
-    const id = li.getAttribute('data-testid').slice('channel-invite-pick-'.length)
+  for (const li of document.querySelectorAll(`[data-testid^="${h.pick}"]:not([data-testid="${h.empty}"])`)) {
+    const id = li.getAttribute('data-testid').slice(h.pick.length)
     li.scrollIntoView({ block: 'nearest' })
     const r = li.getBoundingClientRect()
     const hit = document.elementFromPoint(r.left + Math.min(20, r.width / 2), r.top + r.height / 2)
     out.push({ id, visible: r.height > 0 && !!hit && (hit === li || li.contains(hit)) })
   }
-  const empty = document.querySelector('[data-testid="channel-invite-empty"]')
+  const empty = document.querySelector(`[data-testid="${h.empty}"]`)
   // Where the list sits: right under its input, as wide as the field, inside
   // the dialog (the CLE-3493 defect painted it full width at the page bottom).
-  const list = document.querySelector('[data-testid="channel-people-options"]')
-  const field = document.querySelector('[data-testid="channel-people-search"]')?.closest('.invite-add__control')
+  const list = document.querySelector(`[data-testid="${h.options}"]`)
+  const field = document.querySelector(`[data-testid="${h.search}"]`)?.closest('.invite-add__control')
   const dialog = document.querySelector('[data-testid="ui-dialog"]')
   let placed = null
   if (list && field && dialog) {
@@ -70,14 +99,82 @@ const readOptions = (p) => p.evaluate(() => {
     placed.ok = placed.gap >= 0 && placed.gap <= 12 && Math.abs(placed.dx) <= 2 && Math.abs(placed.dw) <= 2 && placed.inDialog
   }
   return { options: out, empty: empty ? empty.textContent.trim() : null, placed }
-})
-const members = (p) => p.$$eval('[data-testid="channel-invite-members"] > li > span:first-child', (els) => els.map((s) => s.textContent.trim()))
+}, { pick: h.pick, empty: h.empty, options: h.options, search: h.search })
+const rowsOf = (p, h) => p.$$eval(h.rows, (els) => els.map((s) => s.textContent.trim()))
+
+/** (a) full list, (b) narrow + control, (c) pick + Add, then undo. */
+async function runHalf(p, kind, hub) {
+  const h = HALVES[kind]
+  const tag = (x) => `${kind} ${x}`
+  const before = await rowsOf(p, h)
+  res[kind] = { before }
+
+  await p.click(`[data-testid="${h.chevron}"]`)
+  await sleep(500)
+  const all = await readOptions(p, h)
+  await p.screenshot({ path: `${OUT}/${kind}-a-full-list.png` })
+  const ids = all.options.map((o) => o.id)
+  const hidden = all.options.filter((o) => !o.visible).map((o) => o.id)
+  step(tag('(a) empty query lists every candidate, none clipped'), ids.length > 0 && hidden.length === 0,
+    { n: ids.length, ids, hidden, empty: all.empty })
+  step(tag('(a) the list opens right under its input, inside the dialog'), !!all.placed?.ok, { placed: all.placed })
+  await p.keyboard.press('Escape')
+  await sleep(300)
+  const stillOpen = !!(await p.$('[data-testid="channel-properties"]'))
+  step(tag('Escape in the dropdown keeps the dialog open'), stillOpen)
+  if (!stillOpen || ids.length === 0) return
+
+  // (b) partial query narrows; control query matches nobody
+  const target = ids[ids.length - 1]
+  const partial = target.replace(/^[A-Z]+-/, '')
+  const input = await p.$(`[data-testid="${h.search}"]`)
+  const retype = async (text) => {
+    await input.evaluate((el) => el.select())
+    await p.keyboard.press('Backspace')
+    await input.type(text, { delay: 30 })
+    await sleep(400)
+  }
+  await retype(partial)
+  const narrowed = await readOptions(p, h)
+  const nIds = narrowed.options.map((o) => o.id)
+  step(tag('(b) a partial id narrows to the matches'), nIds.includes(target) && nIds.length <= ids.length && narrowed.options.every((o) => o.visible),
+    { query: partial, n: nIds.length, ids: nIds })
+  await retype('zz-no-such-one')
+  const none = await readOptions(p, h)
+  step(tag('(b) control: a query matching nobody shows 0 options'), none.options.length === 0 && !!none.empty, { n: none.options.length, empty: none.empty })
+
+  // (c) pick + Add makes them a member; the hub answers 2xx
+  await retype(partial)
+  await p.click(`[data-testid="${h.pick}${target}"]`)
+  await sleep(300)
+  const shown = await input.evaluate((el) => el.value)
+  const addBtn = await p.$(`[data-testid="${h.add}"]`)
+  const addEnabled = addBtn ? await addBtn.evaluate((b) => !b.disabled) : false
+  step(tag('(c) the pick fills the input and enables Add'), addEnabled && shown.startsWith(target), { shown, addEnabled })
+  hub.length = 0
+  if (addEnabled) await addBtn.click()
+  await p.waitForSelector(`[data-testid="${h.remove}${target}"]`, { timeout: 10000 }).catch(() => null)
+  await sleep(300)
+  const after = await rowsOf(p, h)
+  const err = await p.$eval('[data-testid="channel-invite-error"]', (e) => e.textContent.trim()).catch(() => '')
+  const posts = hub.filter((r) => r.method === 'POST' && h.api.test(r.url)).map((r) => r.status)
+  step(tag('(c) Add makes them a member'), after.includes(target) && !err && (EMAIL ? posts.length > 0 && posts.every((s) => s >= 200 && s < 300) : true),
+    { target, rows: after, error: err, hub_post: posts })
+  await p.screenshot({ path: `${OUT}/${kind}-c-added.png` })
+  if (after.includes(target) && !before.includes(target)) {
+    await p.click(`[data-testid="${h.remove}${target}"]`)
+    await sleep(1500)
+    res[kind].restored = !(await rowsOf(p, h)).includes(target)
+  }
+}
 
 const browser = await puppeteer.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] })
 let code = 1
 try {
   res.build = await fetch(BASE + '/build.json').then((r) => r.json()).catch(() => null)
   const p = await browser.newPage()
+  const hub = []
+  p.on('response', (r) => { const q = r.request(); if (q.method() !== 'GET' && q.method() !== 'OPTIONS') hub.push({ method: q.method(), url: r.url(), status: r.status() }) })
   await p.setViewport({ width: 1280, height: 800 })
   if (EMAIL) {
     const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
@@ -105,87 +202,66 @@ try {
     await p.$eval('[data-testid="create-channel-submit"]', (b) => b.click())
     await sleep(1000)
   }
-  // The first channel row whose menu offers Properties (or CHANNEL).
-  const rows = await p.$$eval('[data-testid="sidebar-panel-channels"] .nav-row', (els) => els.map((e) => e.getAttribute('data-order')))
-  let opened = ''
-  for (const id of WANT ? [WANT] : rows) {
-    const hit = await p.evaluate((key) => {
+  // Properties of one channel, through ITS row menu: every row's panel is in
+  // the DOM (v-show), so the item is looked up inside the row, never globally.
+  const openProps = async (id) => {
+    const ok = await p.evaluate((key) => {
       const row = document.querySelector(`[data-testid="sidebar-panel-channels"] .nav-row[data-order="${key}"]`)
       if (!row) return false
       row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+      const item = row.querySelector('[data-testid="sidebar-row-menu-properties"]')
+      if (!item) return false
+      item.click()
       return true
     }, id)
-    if (!hit) continue
-    const item = await p.waitForSelector('[data-testid="sidebar-row-menu-properties"]', { timeout: 1500 }).catch(() => null)
-    if (item) { await item.evaluate((b) => b.click()); opened = id; break }
-    await p.keyboard.press('Escape')
+    if (!ok) { await p.keyboard.press('Escape'); return false }
+    return !!(await p.waitForSelector('[data-testid="channel-properties"]', { timeout: 10000 }).catch(() => null))
+  }
+  const closeDialog = async () => {
+    await p.$eval('[data-testid="ui-dialog-close"]', (b) => b.click()).catch(() => {})
+    await sleep(500)
+  }
+  const rows = await p.$$eval('[data-testid="sidebar-panel-channels"] .nav-row', (els) => els.map((e) => e.getAttribute('data-order')))
+  const DEFAULTS = ['lobby', 'tasks', 'alerts']
+
+  // A default channel: every person and agent, read-only, nobody removable.
+  if (!ONLY) {
+    const openedLobby = await openProps('lobby')
+    step('lobby: Properties opens', openedLobby, { rows })
+    if (openedLobby) {
+      await p.waitForSelector('[data-testid="channel-default-note"], [data-testid="channel-invite-error"]', { timeout: 15000 }).catch(() => null)
+      await sleep(500)
+      const lobby = await p.evaluate(() => {
+        const dlg = document.querySelector('[data-testid="channel-properties"]')
+        const txt = (sel) => [...dlg.querySelectorAll(sel)].map((e) => e.textContent.trim())
+        return {
+          note: !!dlg.querySelector('[data-testid="channel-default-note"]'),
+          people: txt('[data-testid="channel-default-people"] > li > span:first-child'),
+          agents: txt('[data-testid="channel-default-agents"] > li > span:first-child'),
+          removes: dlg.querySelectorAll('[data-testid^="channel-member-remove-"], [data-testid^="channel-agent-remove-"]').length,
+          pickers: dlg.querySelectorAll('[data-testid="channel-people-search"], [data-testid="channel-agent-search"]').length,
+          error: dlg.querySelector('[data-testid="channel-invite-error"]')?.textContent.trim() || '',
+        }
+      })
+      res.lobby = lobby
+      await p.screenshot({ path: `${OUT}/lobby-default.png` })
+      step('lobby: lists every person and at least one agent, with the note', lobby.note && lobby.people.length > 0 && lobby.agents.length > 0 && !lobby.error,
+        { n_people: lobby.people.length, people: lobby.people, n_agents: lobby.agents.length, agents: lobby.agents, error: lobby.error })
+      step('lobby: nobody can be removed and nobody added (0 minus, 0 pickers)', lobby.removes === 0 && lobby.pickers === 0, { removes: lobby.removes, pickers: lobby.pickers })
+      await closeDialog()
+    }
+  }
+
+  // A private channel for the add flows: CHANNEL, else the first non-default one.
+  let opened = ''
+  for (const id of WANT ? [WANT] : rows.filter((r) => !DEFAULTS.includes(r))) {
+    if (await openProps(id)) { opened = id; break }
   }
   step('channel properties dialog opens', !!opened, { channel: opened, rows })
-  if (!opened) throw new Error('no channel with properties')
+  if (!opened) throw new Error('no private channel with properties')
   await p.waitForSelector('[data-testid="channel-people-search"]', { timeout: 15000 })
   await sleep(1000)
-  const before = await members(p)
-  res.members = before
-
-  // (a) empty query: the chevron opens the full list
-  await p.click('[data-testid="channel-people-search-button"]')
-  await sleep(500)
-  const all = await readOptions(p)
-  await p.screenshot({ path: `${OUT}/a-full-list.png` })
-  const ids = all.options.map((o) => o.id)
-  const hidden = all.options.filter((o) => !o.visible).map((o) => o.id)
-  step('(a) empty query lists every candidate, none clipped', ids.length > 0 && hidden.length === 0 && !ids.some((id) => before.includes(id)),
-    { n: ids.length, ids, hidden, empty: all.empty })
-  step('(a) the list opens right under its input, inside the dialog', !!all.placed?.ok, { placed: all.placed })
-  await p.keyboard.press('Escape')
-  await sleep(300)
-  step('Escape in the dropdown keeps the dialog open', !!(await p.$('[data-testid="channel-properties"]')))
-  if (!(await p.$('[data-testid="channel-properties"]'))) throw new Error('dialog closed')
-
-  // (b) partial query narrows; control query matches nobody
-  const target = ids[ids.length - 1] || ''
-  const partial = target.replace(/^HUM-/, '')
-  const input = await p.$('[data-testid="channel-people-search"]')
-  const retype = async (text) => {
-    await input.evaluate((el) => el.select())
-    await p.keyboard.press('Backspace')
-    await input.type(text, { delay: 30 })
-    await sleep(400)
-  }
-  await retype(partial)
-  const narrowed = await readOptions(p)
-  const nIds = narrowed.options.map((o) => o.id)
-  step('(b) a partial id narrows to the matches', nIds.length > 0 && nIds.includes(target) && nIds.every((id) => id.includes(partial)) && narrowed.options.every((o) => o.visible),
-    { query: partial, n: nIds.length, ids: nIds })
-  await p.screenshot({ path: `${OUT}/b-narrowed.png` })
-  await retype('zz-no-such-person')
-  const none = await readOptions(p)
-  step('(b) control: a query matching nobody shows 0 options', none.options.length === 0 && !!none.empty, { n: none.options.length, empty: none.empty })
-
-  // (c) picking one makes them a member
-  await retype(partial)
-  const again = await readOptions(p)
-  step('(b) typing again after a miss lists the matches again', again.options.some((o) => o.id === target), { query: partial, ids: again.options.map((o) => o.id), empty: again.empty })
-  if (!again.options.some((o) => o.id === target)) {
-    await p.screenshot({ path: `${OUT}/b-again.png` })
-    await p.click('[data-testid="channel-people-search-button"]')
-    await sleep(400)
-  }
-  await p.click(`[data-testid="channel-invite-pick-${target}"]`)
-  await sleep(300)
-  const addBtn = await p.$('[data-testid="channel-people-add"]')
-  const addEnabled = addBtn ? await addBtn.evaluate((b) => !b.disabled) : false
-  if (addEnabled) await addBtn.click()
-  await p.waitForSelector(`[data-testid="channel-member-remove-${target}"]`, { timeout: 10000 }).catch(() => null)
-  const after = await members(p)
-  const err = await p.$eval('[data-testid="channel-invite-error"]', (e) => e.textContent.trim()).catch(() => '')
-  step('(c) picking one adds them as a member', !!target && after.includes(target), { target, members: after, error: err, needed_add_button: addEnabled })
-  await p.screenshot({ path: `${OUT}/c-added.png` })
-  if (after.includes(target) && !before.includes(target)) {
-    await p.click(`[data-testid="channel-member-remove-${target}"]`)
-    await sleep(1500)
-    res.restored = !(await members(p)).includes(target)
-  }
+  for (const kind of ONLY ? [ONLY] : ['people', 'agents']) await runHalf(p, kind, hub)
   code = res.steps.every((s) => s.ok) ? 0 : 1
 } catch (e) {
   step('run', false, { error: String((e && e.message) || e) })

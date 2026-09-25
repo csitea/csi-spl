@@ -414,7 +414,6 @@ import { useViewerStore } from '~/stores/viewer'
 import { useTopicStore } from '~/stores/topic'
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
-import { isPublicChannel } from '~/utils/spool-client.mjs'
 import { isSignedOutVisitor } from '~/utils/shell-bootstrap.mjs'
 import { loadMutedChannels, normalizeChannel, saveMutedChannels, toggleMutedChannel } from '~/utils/notify.mjs'
 import ChannelPropertiesDialog from '~/components/ChannelPropertiesDialog.vue'
@@ -569,11 +568,9 @@ function isChannelMuted(id: string) {
 function toggleChannelMute(id: string) {
   mutedChannels.value = saveMutedChannels(toggleMutedChannel(mutedChannels.value, id))
 }
-function showProperties(id: string) {
-  if (isSignedOutVisitor(session.state, api.mock)) return false
-  const row = channel.channels.find((c) => c.channel_id === id)
-  if (isPublicChannel(id) || row?.default) return false
-  return true
+// A default channel has Properties too: it lists everyone, read-only (CLE-3493).
+function showProperties(_id: string) {
+  return !isSignedOutVisitor(session.state, api.mock)
 }
 function openProperties(id: string) {
   const row = channel.channels.find((c) => c.channel_id === id)

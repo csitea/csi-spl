@@ -223,6 +223,17 @@ export function channelAgentRows(agents) {
   return rows
 }
 
+/**
+ * Who a default channel (lobby, tasks, alerts) lists: every person of the
+ * tenant and every announced agent, plus any agent subscribed to it. Nobody
+ * joins or leaves a default channel, so the dialog shows these read-only.
+ */
+export function defaultChannelRows(roster, subscribed) {
+  const people = channelInviteCandidates(rosterHumanIds(roster), [])
+  const agents = channelAgentRows([...channelAgentCandidates(roster, []), ...(subscribed || [])])
+  return { people, agents }
+}
+
 export function aboutChannelName(row) {
   const name = String((row && row.name) || '').trim()
   if (name) return name

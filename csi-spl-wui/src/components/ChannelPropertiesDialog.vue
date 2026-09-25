@@ -44,6 +44,23 @@
         data-testid="channel-people"
       >
         <p v-if="!loaded" class="muted">{{ t('common.loading') }}</p>
+        <!-- A default channel: everyone is in it and nobody can be taken out,
+             so it lists every person and agent with no picker and no minus. -->
+        <template v-else-if="isDefault">
+          <p class="muted" data-testid="channel-default-note">{{ t('channels.properties.default_everyone') }}</p>
+          <ul class="member-rows" data-testid="channel-default-people">
+            <li v-for="id in localMembers" :key="id" :data-testid="'channel-default-person-' + id">
+              <span>{{ id }}</span>
+            </li>
+          </ul>
+          <p v-if="agentRows.length === 0" class="muted" data-testid="channel-people-agents-none">{{ t('channels.properties.agents_none') }}</p>
+          <ul v-else class="member-rows" data-testid="channel-default-agents">
+            <li v-for="row in agentRows" :key="row.id + '@' + row.box" :data-testid="'channel-default-agent-' + row.id">
+              <span>{{ row.id }}</span>
+              <span class="muted">{{ row.box }}</span>
+            </li>
+          </ul>
+        </template>
         <template v-else-if="!failedLoad">
           <div class="invite-add" data-testid="channel-people-picker">
             <div class="invite-add__combo">
@@ -252,6 +269,7 @@ import {
   channelAgentCandidates,
   channelAgentRows,
   channelInviteCandidates,
+  defaultChannelRows,
   filterAgentsContains,
   filterPeopleContains,
   inviteErrorToken,
@@ -289,6 +307,7 @@ const tab = ref<(typeof tabs)[number]['id']>('people')
 const busy = ref(false)
 const loaded = ref(false)
 const failedLoad = ref(false)
+const isDefault = ref(false)
 const error = ref('')
 const openInvite = ref(false)
 const localMembers = ref<string[]>([])
@@ -361,6 +380,7 @@ watch(() => props.open, async (isOpen) => {
   error.value = ''
   loaded.value = false
   failedLoad.value = false
+  isDefault.value = false
   busy.value = false
   openInvite.value = false
   localMembers.value = []
@@ -378,16 +398,18 @@ watch(() => props.open, async (isOpen) => {
       withSessionRetry(api, () => api.listRoster()),
     ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, created_by?: string, agents?: { id: string, box: string }[] }, unknown]
     if (my !== ticket) return
+    const bag = rosterOf(ros) || {}
     if (mem.default) {
-      error.value = 'channel_public'
-      failedLoad.value = true
+      const everyone = defaultChannelRows(bag, mem.agents)
+      isDefault.value = true
+      localMembers.value = everyone.people
+      agents.value = everyone.agents
       return
     }
     localMembers.value = Array.isArray(mem.members) ? mem.members.map((id) => String(id)) : []
     openInvite.value = mem.members_open_invite === true
     createdByLive.value = String(mem.created_by || '')
     agents.value = Array.isArray(mem.agents) ? mem.agents : []
-    const bag = rosterOf(ros) || {}
     rosterBag.value = bag
     rosterIds.value = rosterHumanIds(bag)
   } catch (e) {

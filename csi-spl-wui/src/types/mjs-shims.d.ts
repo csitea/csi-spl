@@ -14,6 +14,7 @@ declare module '~/utils/spool-client.mjs' {
   export function canEditOpenInvite(opts: { selfId?: string, createdBy?: string }): boolean
   export function channelAgentRows(agents: readonly { id?: string, box?: string }[] | null | undefined): { id: string, box: string }[]
   export function channelAgentCandidates(roster: Record<string, readonly string[]> | null | undefined, current: readonly { id?: string, box?: string }[] | null | undefined): { id: string, box: string }[]
+  export function defaultChannelRows(roster: Record<string, readonly string[]> | null | undefined, subscribed: readonly { id?: string, box?: string }[] | null | undefined): { people: string[], agents: { id: string, box: string }[] }
   export function aboutChannelName(row: { name?: string, channel_id?: string, channel?: string } | null | undefined): string
   export function aboutChannelDescription(row: { description?: string } | null | undefined): string
   export function createSpoolClient(opts?: {

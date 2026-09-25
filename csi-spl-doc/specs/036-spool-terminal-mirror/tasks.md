@@ -31,19 +31,26 @@ named) · `[ ]` Planned (`../README.md` §2.3).
 - [x] T020 Implemented (tree `5add6fb`) — live on dev, claude + grok, hub DB
   counts in `spec.md` §Proof.
 
-## Phase 4 — Rollout (owner actions)
+## Phase 4 — Rollout
 
-- [ ] T030 Planned — the hooks in the agent user's `~/.claude/settings.json`
-  through the org overlay's claude-config settings fragment, applied with the
-  owner's go. Live sessions take them on their next restore / spawn.
-- [ ] T031 Planned — restart the `box-desk` sidecar from the main checkout
-  (`do_spl_desk_up`), so its notifier records `typed` / `peer`. Until then a
-  web UI message typed into a mirrored agent's prompt echoes back into the DM
-  once. `do_spl_desk_mirror_check` names both conditions.
+- [~] T030 Partial (2026-09-25 13:02Z, owner go "well go than") — the
+  `hooks` key of `30-spool-mirror.agent.json` merged into the agent user's
+  `~/.claude/settings.json` (backup `settings.json.bak.20260925T130215Z`, no
+  other key changed). Missing: claude-config still HOLDS that file (edited
+  locally since the last apply: `switchModelsOnFlag`, `hooks`) until those
+  edits are carried into the overlay. A CLI reads hooks when it starts, so a
+  live session mirrors from its next restore / spawn.
+  Check: `do_spl_desk_mirror_check` -> `hooks_in_settings: true`; the
+  configured command as CLE-3496 -> `OK answer -> HUM-9 task f3b889a8-…`.
+- [x] T031 Implemented (2026-09-25 13:01Z) — the `box-desk` sidecar
+  restarted from the main checkout (`do_spl_desk_down` + `do_spl_desk_up`,
+  seat CLE-3496; the other seats kept their state and mute flags). Check:
+  `do_spl_desk_mirror_check` -> `sidecar_notify: /opt/csi/csi-spl/…`, `warn: []`,
+  12 seats mirroring.
 - [ ] T032 Planned — the ad hoc backfill of 2026-09-25 12:16Z put each
   transcript in a new DM topic. Adopt that topic for the mirror without
   re-uploading: `spool-mirror.py remember <seat>/spool/<agent> HUM-9 <task>`
   (as the box user). A seat with no backfill yet runs
   `do_spl_desk_session_upload`, which lands in the mirror's topic by itself.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T12:45:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T13:03:00Z -->

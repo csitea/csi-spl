@@ -58,6 +58,8 @@ const step = (name, ok, ev = {}) => {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const run = Date.now().toString(36)
+/* Page loads wait for the DOM, then for the element each step needs:
+   networkidle never settles while the box's docker network churns. */
 /* the desk never types a probe-marked line into a prompt (specs/017 FR-SEC-030) */
 const PROBE_MARK = '[spool-probe]'
 
@@ -150,6 +152,24 @@ const PANE_ROOT = (needle) => {
   return { open: true, missing: true }
 }
 
+/** goto / reload that retries a navigation the box's network churn killed
+    (net::ERR_NETWORK_CHANGED, a timeout) - up to 4 tries. */
+async function nav(p, url) {
+  let last
+  for (let i = 0; i < 4; i++) {
+    try {
+      if (url) await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
+      else await nav(p)
+      return
+    } catch (e) {
+      last = e
+      if (!/ERR_NETWORK_CHANGED|Timeout|ERR_INTERNET_DISCONNECTED/.test(String(e))) throw e
+      await sleep(3000)
+    }
+  }
+  throw last
+}
+
 async function waitCard(p, needle, pred = (c) => !c.missing, ms = 20000) {
   const end = Date.now() + ms
   let c
@@ -171,8 +191,8 @@ async function signIn(ctx) {
   await p.setViewport({ width: 1440, height: 900 })
   p.on('console', (m) => { if (m.type() === 'error') res.console.push(m.text().slice(0, 300)) })
   p.on('pageerror', (e) => res.console.push('pageerror: ' + String(e).slice(0, 300)))
-  await p.goto(BASE + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=%2Flobby', { waitUntil: 'networkidle2' })
-  await p.waitForSelector('[data-test=native-auth-email]')
+  await nav(p, BASE + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=%2Flobby')
+  await p.waitForSelector('[data-test=native-auth-email]', { timeout: 60000 })
   await p.type('[data-test=native-auth-email]', email)
   await p.type('[data-test=native-auth-password]', pw)
   await p.click('[data-test=native-auth-submit]')
@@ -220,7 +240,8 @@ const within = (a, b, tol) => Math.abs(a - b) <= tol
 
 async function proof(p) {
   const path = '/channel/' + encodeURIComponent(CHANNEL)
-  await p.goto(BASE + path, { waitUntil: 'networkidle2' })
+  await nav(p, BASE + path)
+  await p.waitForSelector('[data-testid=card-clip-control]', { timeout: 30000 }).catch(() => {})
   await sleep(1500)
   await closePane(p)
   step('the middle header carries the height control', !!(await p.$('[data-testid=card-clip-control]')), {})
@@ -293,12 +314,12 @@ async function proof(p) {
   await p.screenshot({ path: `${OUT}/5-full.png` })
 
   /* 6. the mode survives a reload */
-  await p.reload({ waitUntil: 'networkidle2' })
+  await nav(p)
   await sleep(2000)
   c = await waitCard(p, LONG, (x) => !x.missing && x.mode === 'full')
   step('6 reload keeps full', c.mode === 'full' && c.clip == null, { mode: c.mode, clip: c.clip })
   await setMode(p, 'rows')
-  await p.reload({ waitUntil: 'networkidle2' })
+  await nav(p)
   await sleep(2000)
   c = await waitCard(p, LONG, (x) => !x.missing && x.mode === 'rows' && x.clip === 'cut')
   step('6 reload keeps rows', c.mode === 'rows' && c.clip === 'cut', { mode: c.mode, clip: c.clip })

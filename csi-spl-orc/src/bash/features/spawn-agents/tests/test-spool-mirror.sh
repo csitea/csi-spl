@@ -9,7 +9,8 @@
 #      or as one line of a merged queue - and its marker is consumed, so the
 #      same words typed later by a person ARE posted. CONTROL: a prompt with no
 #      marker is posted, prefixed [terminal]
-#   4. doorbell lines (: 'SPOOL …, INBOX <ID>:) are machine text, never posted
+#   4. a line another agent typed (: 'SPOOL …, : 'INBOX …, INBOX <ID>:) is
+#      posted AS typed by that agent, never with a human's --typed-by
 #   5. an answer is posted once per session: the same text again is skipped
 #   6. the topic: the peer file (the human's last DM) wins; else the mirror's
 #      own topic; else none, and the minted one is remembered
@@ -22,6 +23,8 @@
 #      refused / an old binary / no operator -> the old [terminal] line
 #  13. the hook's box user comes from SPOOL_BOX_USER / the checkout root, not
 #      the script's file owner (an agent-side git op makes that the agent)
+#  14. no literal human id: nobody named -> skipped + logged
+#  15. agy: prompt/answer read from the transcript the hook names; prints {}
 #  11. two hook configs reaching one session (shared settings + a wrapper's
 #      --settings) post one prompt once
 set -uo pipefail
@@ -33,6 +36,7 @@ REDACT="$T_FEAT/lib/spool_redact.py"
 SEAT="$T_TMP/cloud/dev/desk/t1/box-desk"
 A="$SEAT/spool/CLE-7"
 mkdir -p "$A/inbox" "$SEAT/spool/.hub" "$SEAT/keys" "$T_TMP/cloud/dev/bin"
+echo HUM-9 >"$SEAT/mirror-to"   # the desk's human: ids are per env, never a literal default
 T1=11111111-1111-4111-8111-111111111111
 T2=22222222-2222-4222-8222-222222222222
 T3=33333333-3333-4333-8333-333333333333
@@ -117,10 +121,18 @@ post prompt "stale words" >/dev/null
 eq "3. an expired marker no longer suppresses" "[terminal] stale words" "$(body_of_last)"
 
 # --- 4. doorbells ---------------------------------------------------------------
-n0=$(nsends)
-post prompt ": 'SPOOL CLE-7: task from CLE-1 :: ping :: run: spool recv --as CLE-7'" >/dev/null
-post prompt "INBOX CLE-7: new message /var/tmp/x.md" >/dev/null
-eq "4. doorbell lines are not posted" "$n0" "$(nsends)"
+# A line another AGENT typed (the doorbell forms) is mirrored, attributed to
+# that agent, and never carries a human's --typed-by.
+echo HUM-5 >"$SEAT/operator"
+post prompt ": 'SPOOL CLE-7: task from CLE-1 :: ping :: run: spool recv --as CLE-7'" d1 >/dev/null
+eq "4. a SPOOL poke line is posted as typed by its sender" "[typed by CLE-1] : 'SPOOL CLE-7: task from CLE-1 :: ping :: run: spool recv --as CLE-7'" "$(body_of_last)"
+hasnt "4. ... with no human --typed-by" "--typed-by" "$(last_send)"
+post prompt ": 'INBOX CLE-7: read and act on /var/tmp/m/CLE-7/inbox/20260101T000000Z--CLE-001--brief.md'" d2 >/dev/null
+eq "4. the shell-inert INBOX doorbell names its sender (file name)" "[typed by CLE-001] : 'INBOX CLE-7: read and act on /var/tmp/m/CLE-7/inbox/20260101T000000Z--CLE-001--brief.md'" "$(body_of_last)"
+hasnt "4. ... with no human --typed-by" "--typed-by" "$(last_send)"
+post prompt "INBOX CLE-7: new message" d3 >/dev/null
+eq "4. an unattributable doorbell reads 'typed by an agent'" "[typed by an agent] INBOX CLE-7: new message" "$(body_of_last)"
+rm -f "$SEAT/operator"
 
 # --- 5. an answer once per session ------------------------------------------------
 post answer "the answer" s9 >/dev/null; n1=$(nsends)
@@ -134,7 +146,7 @@ eq "5. an answer is posted verbatim" "the answer" "$(body_of_last)"
 rm -f "$A/.mirror/topic" "$A/.mirror/peer"
 post answer "a1" s20 >/dev/null
 hasnt "6. no peer, no topic: no --task (the hub mints one)" "--task" "$(last_send)"
-has "6. ... to the default human" $'--to\nHUM-9' "$(last_send)"
+has "6. ... to the desk's human (<desk>/mirror-to)" $'--to\nHUM-9' "$(last_send)"
 has "6. the minted topic is remembered" "$T3" "$(cat "$A/.mirror/topic")"
 post answer "a2" s20 >/dev/null
 has "6. the next post reuses it" $'--task\n'"$T3" "$(last_send)"
@@ -229,5 +241,30 @@ mkdir -p "$T_TMP/co/.git" "$T_TMP/co/a/b"; : >"$T_TMP/co/a/b/x.py"
 eq "13. SPOOL_BOX_USER wins" "someone" "$(SPOOL_BOX_USER=someone bu "$T_TMP/co/a/b/x.py")"
 eq "13. else the owner of the checkout root (.git)" "$(stat -c %U "$T_TMP/co")" "$(env -u SPOOL_BOX_USER bash -c "$(declare -f bu); MIR='$MIR' bu '$T_TMP/co/a/b/x.py'")"
 has "13. CONTROL: the resolver looks for .git, not the file owner" "os.path.join(d, \".git\")" "$(cat "$MIR")"
+
+# --- 14. no literal human: nobody named -> skipped, never a guessed id ---------------------------------
+mv "$SEAT/mirror-to" "$SEAT/mirror-to.off"; rm -f "$A/.mirror/peer" "$A/.mirror/topic"; n6=$(nsends)
+env -u SPOOL_MIRROR_TO bash -c "$(declare -f post); MIRROR='$MIRROR'; post answer 'nobody to tell' s99" >/dev/null
+eq "14. no peer, no desk mirror-to, no SPOOL_MIRROR_TO: nothing is sent" "$n6" "$(nsends)"
+has "14. ... and the log says why" "no human to post to" "$(tail -1 "$A/.mirror/mirror.log")"
+SPOOL_MIRROR_TO=HUM-8 post answer "env names one" s98 >/dev/null
+has "14. SPOOL_MIRROR_TO names the human when the desk does not" $'--to\nHUM-8' "$(last_send)"
+mv "$SEAT/mirror-to.off" "$SEAT/mirror-to"
+has "14. CONTROL: the mirror carries no literal human id" "0" "$(grep -c '\"HUM-9\"' "$MIRROR")"
+
+# --- 15. agy: the hook payload carries no text; the transcript does ---------------------------------------
+TR="$T_TMP/agy-transcript.jsonl"
+printf '%s\n' '{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"<USER_REQUEST>\nold question\n</USER_REQUEST>"}' \
+  '{"type":"PLANNER_RESPONSE","source":"MODEL","content":"old answer"}' \
+  '{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"<USER_REQUEST>\nnew question\n</USER_REQUEST>\n<ADDITIONAL_METADATA>x</ADDITIONAL_METADATA>"}' \
+  '{"type":"PLANNER_RESPONSE","source":"MODEL","content":"new answer"}' >"$TR"
+ax() { python3 -c 'import importlib.util,json,sys
+s=importlib.util.spec_from_file_location("m",sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+print(json.dumps(m.agy_extract(json.loads(sys.argv[2]), sys.argv[3])))' "$MIRROR" "$1" "$2"; }
+eq "15. agy pre (invocation 0): the newest USER_REQUEST" '["prompt", "new question", "C1"]' "$(ax '{"conversationId":"C1","invocationNum":0,"transcriptPath":"'"$TR"'"}' pre)"
+eq "15. agy pre, a later invocation of the same turn: nothing" 'null' "$(ax '{"conversationId":"C1","invocationNum":2,"transcriptPath":"'"$TR"'"}' pre)"
+eq "15. agy stop: the answer after the newest USER_INPUT" '["answer", "new answer", "C1"]' "$(ax '{"conversationId":"C1","terminationReason":"NO_TOOL_CALL","error":"","transcriptPath":"'"$TR"'"}' stop)"
+eq "15. agy stop on an error: nothing" 'null' "$(ax '{"conversationId":"C1","error":"boom","transcriptPath":"'"$TR"'"}' stop)"
+eq "15. the agy hook prints {} for agy's loop" '{}' "$(printf '{}' | python3 "$MIRROR" hook --agy stop)"
 
 t_done

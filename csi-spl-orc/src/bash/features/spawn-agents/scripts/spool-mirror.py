@@ -35,12 +35,13 @@ The topic: the DM topic the human last wrote to this agent in
 (<seat>/spool/<agent>/.mirror/peer, written by the notifier); else the topic
 this mirror used before (.mirror/topic); else a new topic is minted on the
 first post and remembered. The human: that peer; else SPOOL_MIRROR_TO
-(default HUM-9).
+(no default: a human id is per env).
 
 Opt out per seat: touch <seat>/spool/<agent>/.no-mirror.
 
 Usage:
-  spool-mirror.py hook                     < hook JSON
+  spool-mirror.py hook                     < hook JSON (claude, grok)
+  spool-mirror.py hook --agy pre|stop      < agy hook JSON (PreInvocation, Stop)
   spool-mirror.py post --agent ID --event prompt|answer [--session S] < text
   spool-mirror.py topic <seat>/spool/<agent>       -> "<human>\t<task>"
   spool-mirror.py remember <seat>/spool/<agent> <human> <task>
@@ -51,7 +52,8 @@ Usage:
 Environment (post):
   SPOOL_MIRROR_SEATS  glob of desk dirs, default
                       $HOME/.local/share/csi-spl/cloud/*/desk/*/*
-  SPOOL_MIRROR_TO     default human id, default HUM-9
+  SPOOL_MIRROR_TO     the human when the desk names none (<desk>/mirror-to);
+                      unset + no peer + no desk file = the post is skipped
   SPOOL_MIRROR_SPOOL  the spool binary, default <env dir>/bin/spool
   SPOOL_MIRROR_DRY    1 = print the send argv instead of running it
 Environment (hook):
@@ -80,7 +82,19 @@ from spool_redact import redact  # noqa: E402
 ID_RE = re.compile(r"^[A-Z]{2,4}-[0-9]+$")
 HUM_RE = re.compile(r"^HUM-[A-Za-z0-9_-]{1,64}$")
 UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-MACHINE_LINE = re.compile(r"^(: 'SPOOL |INBOX [A-Z]{2,4}-[0-9]+:)")
+# A line another AGENT typed into this pane: the inbox doorbell (bare, or the
+# shell-inert `: 'INBOX ...'` form inbox-send.sh types) and the desk's
+# `: 'SPOOL ...'` poke line. Mirrored as typed by that agent, never as a human.
+MACHINE_LINE = re.compile(r"^(?::\s*')?(?:INBOX|SPOOL) [A-Z]{2,4}-[0-9]+\b")
+LINE_SENDER = (re.compile(r"--([A-Z]{2,4}-[0-9]+)--"), re.compile(r"\bfrom ([A-Z]{2,4}-[0-9]+)\b"))
+
+
+def line_sender(line):
+    for pat in LINE_SENDER:
+        m = pat.search(line)
+        if m:
+            return m.group(1)
+    return ""
 BODY_MAX = 60000          # the hub's MaxBodyBytes is 64 KiB
 TYPED_TTL = 3600          # a typed marker older than this no longer matches
 PROMPT_PREFIX = "[terminal] "
@@ -199,10 +213,54 @@ def box_user(script):
     return pwd.getpwuid(os.stat(script).st_uid).pw_name
 
 
-def hook_main():
+AGY_REQ = re.compile(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", re.S)
+
+
+def agy_extract(ev, which):
+    """agy (antigravity) hooks carry no text, only transcriptPath (measured,
+    agy 1.2.11): the prompt is the newest USER_INPUT step (its <USER_REQUEST>
+    block) at the FIRST PreInvocation of a turn (invocationNum 0); the answer
+    is the PLANNER_RESPONSE text after that USER_INPUT, at Stop."""
+    if not isinstance(ev, dict):
+        return None
+    path, session = ev.get("transcriptPath") or "", str(ev.get("conversationId") or "")
+    if which == "pre" and int(ev.get("invocationNum") or 0) != 0:
+        return None
+    if which == "stop" and (ev.get("error") or "").strip():
+        return None
+    steps = []
+    try:
+        with open(path, errors="replace") as f:
+            for line in f:
+                try:
+                    steps.append(json.loads(line))
+                except ValueError:
+                    pass
+    except OSError:
+        return None
+    last_user = max((i for i, st in enumerate(steps) if st.get("type") == "USER_INPUT"
+                     and st.get("source") == "USER_EXPLICIT"), default=-1)
+    if last_user < 0:
+        return None
+    if which == "pre":
+        c = str(steps[last_user].get("content") or "")
+        m = AGY_REQ.search(c)
+        text = (m.group(1) if m else c).strip()
+        return ("prompt", text, session) if text else None
+    texts = [str(st.get("content") or "").strip() for st in steps[last_user + 1:]
+             if st.get("type") == "PLANNER_RESPONSE" and st.get("source") == "MODEL"]
+    text = "\n\n".join(t for t in texts if t)
+    return ("answer", text, session) if text else None
+
+
+def hook_main(agy=""):
     try:
         raw = sys.stdin.read()
-        got = hook_extract(json.loads(raw) if raw.strip() else {})
+        if agy:
+            # agy blocks its loop on a hook and reads JSON from stdout
+            print("{}", flush=True)
+        ev = json.loads(raw) if raw.strip() else {}
+        got = agy_extract(ev, agy) if agy else hook_extract(ev)
         agent = resolve_agent()
         if not got or not ID_RE.match(agent):
             return 0
@@ -256,8 +314,9 @@ def typed_lines(agent_dir, now):
     return out
 
 
-def prompt_keep(agent_dir, text, now):
-    """Drop the lines that came from the web UI or are machine doorbells.
+def prompt_keep(agent_dir, text, now, agent_lines=None):
+    """Drop the lines that came from the web UI; set aside the lines another
+    agent typed (into agent_lines, when given - else they are dropped).
     -> (kept text, dropped count). A consumed typed marker is removed, so the
     SAME words typed by the human in the terminal later are mirrored."""
     typed = typed_lines(agent_dir, now)
@@ -272,7 +331,10 @@ def prompt_keep(agent_dir, text, now):
             _unlink(typed.pop(n))
             dropped += 1
         elif n and MACHINE_LINE.match(n):
-            dropped += 1
+            if agent_lines is None:
+                dropped += 1
+            else:
+                agent_lines.append(n)
         else:
             kept.append(line)
     return "\n".join(kept).strip("\n"), dropped
@@ -300,10 +362,21 @@ def pick_topic(agent_dir):
     human, task = str(peer.get("to", "")), str(peer.get("task", ""))
     if HUM_RE.match(human) and UUID_RE.match(task):
         return human, task
+    # No literal id: a human id is per env (the owner is one id on dev and
+    # another on prd), so the default is the DESK's (<seat>/mirror-to, beside
+    # spool/), else SPOOL_MIRROR_TO, else nobody - the post is skipped.
+    # Measured 2026-09-25: a hard-coded dev id sent 177 prd posts to a human
+    # that does not exist on prd.
     mine = _read_json(os.path.join(agent_dir, ".mirror", "topic"))
-    human = os.environ.get("SPOOL_MIRROR_TO") or "HUM-9"
+    human = ""
+    try:
+        human = open(os.path.join(os.path.dirname(os.path.dirname(agent_dir.rstrip("/"))), "mirror-to")).read().strip()
+    except OSError:
+        pass
     if not HUM_RE.match(human):
-        human = "HUM-9"
+        human = os.environ.get("SPOOL_MIRROR_TO", "")
+    if not HUM_RE.match(human):
+        return "", ""
     if mine.get("to") == human and UUID_RE.match(str(mine.get("task", ""))):
         return human, mine["task"]
     return human, ""
@@ -401,10 +474,19 @@ def post_one(seat, agent, event, text, session):
     adir = os.path.join(seat, "spool", agent)
     now = time.time()
     if event == "prompt":
-        text, dropped = prompt_keep(adir, text, now)
+        agent_lines = []
+        text, dropped = prompt_keep(adir, text, now, agent_lines)
+        if agent_lines:
+            # Typed by another agent: posted from THIS agent's seat, marked
+            # with the typing agent, never with a human's typed_by.
+            by = line_sender(agent_lines[0]) or "an agent"
+            post_one(seat, agent, "agent-typed", f"[typed by {by}] " + "\n".join(agent_lines), session)
         if not text.strip():
-            log(adir, f"skip prompt: every line came from the web UI or is a doorbell ({dropped})")
+            if not agent_lines:
+                log(adir, f"skip prompt: every line came from the web UI ({dropped})")
             return "skipped"
+        body = text
+    elif event == "agent-typed":
         body = text
     else:
         h = hashlib.sha256((session + "\0" + norm(text)).encode()).hexdigest()
@@ -422,6 +504,9 @@ def post_one(seat, agent, event, text, session):
     body, counts = redact(body)
     body = clip_body(body)
     human, task = pick_topic(adir)
+    if not human:
+        log(adir, f"skip {event}: no human to post to on this desk (no DM peer, no {seat}/mirror-to, no SPOOL_MIRROR_TO)")
+        return "skipped"
     env = seat_env(seat)
     if "SPOOL_HUB_URL" not in env:
         log(adir, f"FAIL {event}: no live sidecar to read the hub url from")
@@ -495,11 +580,15 @@ def post_main(args):
     text = sys.stdin.read()
     if not text.strip():
         return 0
+    # Every seat (dev, prd, ...) in parallel: one spool send is ~80-100 ms and
+    # they were serial (measured 2026-09-25: 2 seats 198-257 ms).
+    import concurrent.futures
+    ss = seats(agent)
     rc = 0
-    for seat in seats(agent):
-        res = post_one(seat, agent, event, text, session)
-        print(f"{res} {seat}")
-        rc = rc or (1 if res == "failed" else 0)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(ss))) as ex:
+        for seat, res in zip(ss, ex.map(lambda st: post_one(st, agent, event, text, session), ss)):
+            print(f"{res} {seat}")
+            rc = rc or (1 if res == "failed" else 0)
     return rc
 
 
@@ -514,7 +603,8 @@ def remember_topic(agent_dir, human, task):
 
 def main(argv):
     if len(argv) >= 2 and argv[1] == "hook":
-        return hook_main()
+        # `hook --agy pre|stop`: agy's payloads name no event, so the config does
+        return hook_main(argv[3] if len(argv) >= 4 and argv[2] == "--agy" else "")
     if len(argv) == 3 and argv[1] == "topic":
         # The DM a post from this agent dir would land in: "<human>\t<task>".
         print("\t".join(pick_topic(argv[2])))

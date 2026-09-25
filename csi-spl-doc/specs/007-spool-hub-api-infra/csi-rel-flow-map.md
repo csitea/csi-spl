@@ -160,3 +160,5 @@ GCP-ACCOUNT-PIN).
 | mechanism | composite `./.github/actions/gcp-auth`: WIF when the env is in `WIF_ENVS`, else the `GCP_SA_KEY_<ENV>` secret (`credentials_json`) | the project key secret `GCP_KEY_CSI_SPL_<ENV>` (published by tf 120) first, WIF (`GCP_WIF_PROVIDER_<ENV>` + `GCP_DEPLOY_SA_EMAIL_<ENV>`, tf 017) as the alternative; an env with neither is skipped with a notice |
 | identity | the deploy SA, or the key's SA | the project IaC SA `csi-spl-<env>@csi-spl-<env>.iam.gserviceaccount.com` (key) or the 017 deploy SA (WIF) |
 | owner | — | CLE-3355 / CLE-3354 (not changed by this port) |
+
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:24:52Z -->

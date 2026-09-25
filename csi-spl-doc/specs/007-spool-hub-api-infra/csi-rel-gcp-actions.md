@@ -155,3 +155,5 @@ come from the environment.
 - `csi-spl-cnf`
 - `.github/workflows`
 - `--account` pinning of gcp-000..004 / the pin helper (gcloud-account-pin lane)
+
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:24:52Z -->

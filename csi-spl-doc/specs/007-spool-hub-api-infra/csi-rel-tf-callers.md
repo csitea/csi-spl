@@ -25,7 +25,10 @@ Two files return 1 on that check: `check-credential-drift` (line 319) and
 `do_log` or `printf` message, not a command.
 
 The csi-spl steps it was checked against are `ls csi-spl-iac/src/terraform`:
-000 001 016 017 019 020 025 028 030-cloud-run-hub 031-gcp-hub-ingress 040 050 120.
+000 001 016 017 019 020 025 028 030-cloud-run-hub 031-gcp-hub-ingress 040 050 120
+(at the time). Today (2026-09-25) `ls csi-spl-iac/src/terraform` -> 000 001
+005 016 017 019 020 025 028 030 032 040 045 050 120: `031` was removed
+(`70b84824`) and csi-rel's domain-mapping step landed as `032` (`510c0b2d`).
 
 ## 2. The 55 files
 
@@ -134,7 +137,7 @@ the summary line, and exit 0.
 | `cloud_run_aiplatform_user[0]` | removed | csi-spl's 030 declares no Vertex binding |
 | `google_cloud_run_v2_service.api` | `google_cloud_run_v2_service.hub` | resource name. The tfvars key is `service_name`, not `cloud_run_service_name` |
 | `allow_unauthenticated[0]` | `public_invoker[0]`, gated on `allow_unauthenticated` | resource name and tfvars key |
-| domain mappings (primary and additional) | removed | csi-spl's domain is the 031 load balancer, not a Cloud Run domain mapping |
+| domain mappings (primary and additional) | not in 030 | csi-spl's mappings are their own step, `032-gcp-cloud-run-domain-mapping` (`510c0b2d`); the 031 LB this row once cited was removed (`70b84824`) |
 | (none) | `google_secret_manager_secret.auth["<sid>"]` for each `auth_secret_ids` | csi-spl's 030 creates the auth secret slots |
 | (none) | `list_items`, `map_values` helpers | parse the one-line list and map tfvars that tpl-gen renders |
 | header: history of a csi-rel-specific incident | header: why the table differs | hygiene rule: no csi-rel business history |
@@ -153,12 +156,12 @@ names changed:
 
 | | csi-rel | csi-spl (GRK-3346) |
 |---|---|---|
-| waits on | a Cloud Run domain mapping, `CertificateProvisioned == True` | the 031 Certificate Manager wildcard cert, `managed.state == ACTIVE` |
+| waits on | a Cloud Run domain mapping, `CertificateProvisioned == True` | the (removed) 031 Certificate Manager wildcard cert, `managed.state == ACTIVE` |
 | inputs | `DOMAIN`, `GCP_PROJECT`, `REGION` | `ENV` (from cnf), `DOMAIN`, `GCP_PROJECT`, `GCP_ACCOUNT` (required, passed as `--account` on every call), `CERT_NAME`, `CERT_LOCATION` |
-| why | csi-rel's 031 is a domain mapping | csi-spl's 031 is an HTTPS load balancer with Certificate Manager. There is no domain mapping to wait on |
+| why | csi-rel's 031 is a domain mapping | written when csi-spl's 031 was an HTTPS load balancer. **Superseded 2026-09-19**: the LB is gone; `do_spl_wait_for_mapping_cert` (`510c0b2d`) is the csi-rel wait for the `032` mappings, and retiring this file is 007 T090 |
 
-The csi-rel version cannot work in csi-spl, because csi-spl has no domain
-mapping. Keeping the csi-spl version needs ORC's confirmation, which has been
+At the time the csi-rel version could not work in csi-spl, because csi-spl
+had no domain mapping; since `510c0b2d` it has, as `do_spl_wait_for_mapping_cert`. Keeping the csi-spl version needs ORC's confirmation, which has been
 asked for.
 
 ## 5. Recovery use (destroy and re-apply)
@@ -225,3 +228,5 @@ ENV=dev STEP=040-cloud-sql-postgres DRY_RUN=1 ./run -a do_tf_import_existing
 ```
 
 Run it from `csi-spl-orc`. Drop `DRY_RUN=1` to import.
+
+<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:24:52Z -->

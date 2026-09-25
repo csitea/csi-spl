@@ -163,3 +163,5 @@ These were proposed but never run: the dev 019 site delete + `state rm`
   the SA identity of the DB actions, do_spl_hub_invite,
   do_spl_tenant_member_role, do_spl_db_query, do_tf_sweep_steps and
   do_tf_deprovision_steps. gcloud, psql, spool and make are stubbed.
+
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:24:52Z -->

@@ -130,8 +130,9 @@ func (s *Server) channelDoor(w http.ResponseWriter, r *http.Request) (store.Tena
 }
 
 // GET /v1/channels/{channel}/members — who is in it. A default channel is
-// public and carries no rows: it answers members:[] with default:true, so a
-// client can tell "everyone" from "nobody" without a second call.
+// public to people and carries no human rows: it answers members:[] with
+// default:true, so a client can tell "everyone" from "nobody" without a
+// second call. Its agents are real rows, like any channel's.
 func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request) {
 	t, ch, _, ok := s.channelDoor(w, r)
 	if !ok {
@@ -258,20 +259,23 @@ func (s *Server) handleAddChannelMember(w http.ResponseWriter, r *http.Request) 
 // POST /v1/channels/{channel}/agents {"id","box"} — subscribe one announced
 // agent. The same people who may add a human may invite an agent. The row
 // is origin invite, so the box's next announce does not drop it.
+//
+// A default channel (#lobby, #tasks, #alerts) takes agents the same way
+// (owner decision 2026-09-25): it starts with none, and an announce never
+// adds one. Its created_by is "hub", so mayInviteChannel lets any signed-in
+// member of the tenant pick its agents. Its PEOPLE stay everyone.
 func (s *Server) handleAddChannelAgent(w http.ResponseWriter, r *http.Request) {
 	t, ch, hum, ok := s.channelDoor(w, r)
 	if !ok {
 		return
 	}
-	if !store.ChannelPublic(ch) {
-		row, ok := s.channelRecord(w, r, t.ID, ch)
-		if !ok {
-			return
-		}
-		if !mayInviteChannel(row.CreatedBy, hum, row.MembersOpenInvite) {
-			writeErr(w, http.StatusForbidden, "forbidden", "only the channel owner may add members")
-			return
-		}
+	row, ok := s.channelRecord(w, r, t.ID, ch)
+	if !ok {
+		return
+	}
+	if !mayInviteChannel(row.CreatedBy, hum, row.MembersOpenInvite) {
+		writeErr(w, http.StatusForbidden, "forbidden", "only the channel owner may add members")
+		return
 	}
 	if !billing.AllowsWrite(t.BillingStatus) {
 		writeUnpaid(w)
@@ -285,10 +289,6 @@ func (s *Server) handleAddChannelAgent(w http.ResponseWriter, r *http.Request) {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&body); err != nil || body.ID == "" || body.Box == "" {
 		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {id, box}")
-		return
-	}
-	if store.ChannelPublic(ch) {
-		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: every announced agent already reads it")
 		return
 	}
 	if !agentIDRe.MatchString(body.ID) || strings.HasPrefix(body.ID, "HUM-") || body.Box == "box-wui" || strings.ContainsAny(body.Box, " \t") {
@@ -313,10 +313,8 @@ func (s *Server) handleAddChannelAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.o.Store.InviteChannelAgent(r.Context(), t.ID, ch, body.Box, body.ID, s.o.Now()); err != nil {
 		switch {
-		case errors.Is(err, store.ErrNotFound):
+		case errors.Is(err, store.ErrNotFound), errors.Is(err, store.ErrConflict):
 			writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+ch+" in this tenant")
-		case errors.Is(err, store.ErrConflict):
-			writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: every announced agent already reads it")
 		default:
 			writeErr(w, http.StatusInternalServerError, "internal", "agent subscription not stored")
 		}
@@ -328,15 +326,12 @@ func (s *Server) handleAddChannelAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 // DELETE /v1/channels/{channel}/agents/{box}/{id} — take one agent out.
-// The same people who may invite may remove. The row stays as origin
-// removed, so the box's next announce does not put the agent back.
+// The same people who may invite may remove, in a default channel too. The
+// row stays as origin removed, so the box's next announce does not put the
+// agent back.
 func (s *Server) handleRemoveChannelAgent(w http.ResponseWriter, r *http.Request) {
 	t, ch, hum, ok := s.channelDoor(w, r)
 	if !ok {
-		return
-	}
-	if store.ChannelPublic(ch) {
-		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: every announced agent already reads it")
 		return
 	}
 	row, ok := s.channelRecord(w, r, t.ID, ch)
@@ -355,10 +350,8 @@ func (s *Server) handleRemoveChannelAgent(w http.ResponseWriter, r *http.Request
 	}
 	if err := s.o.Store.RemoveChannelAgent(r.Context(), t.ID, ch, box, id, s.o.Now()); err != nil {
 		switch {
-		case errors.Is(err, store.ErrNotFound):
+		case errors.Is(err, store.ErrNotFound), errors.Is(err, store.ErrConflict):
 			writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+ch+" in this tenant")
-		case errors.Is(err, store.ErrConflict):
-			writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: every announced agent already reads it")
 		default:
 			writeErr(w, http.StatusInternalServerError, "internal", "agent subscription not removed")
 		}

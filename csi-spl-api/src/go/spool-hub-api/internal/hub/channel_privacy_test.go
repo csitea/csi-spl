@@ -521,9 +521,30 @@ func TestOwnerlessChannelCanInvitePersonAndAgent(t *testing.T) {
 		map[string]string{"id": "CLE-99", "box": "box-desk"}); code != http.StatusNotFound {
 		t.Errorf("unknown agent: %d, want 404", code)
 	}
-	if code, _ = call(t, e, tid, http.MethodPost, "/v1/channels/lobby/agents", member,
-		map[string]string{"id": "CLE-07", "box": "box-desk"}); code != http.StatusConflict {
-		t.Errorf("lobby agent invite: %d, want 409", code)
+	// Owner decision 2026-09-25: #lobby takes agents like any channel, and
+	// any signed-in member picks them (created_by is "hub"). People stay
+	// everyone: adding a human is still 409.
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/lobby/agents", member,
+		map[string]string{"id": "CLE-07", "box": "box-desk"}); code != http.StatusCreated {
+		t.Errorf("lobby agent invite: %d %v, want 201", code, out)
+	}
+	if code, out = call(t, e, tid, http.MethodGet, "/v1/channels/lobby/members", member, nil); code != http.StatusOK ||
+		out["default"] != true || len(out["agents"].([]any)) != 1 {
+		t.Errorf("lobby members after invite: %d %v", code, out)
+	}
+	if code, _ = call(t, e, tid, http.MethodPost, "/v1/channels/lobby/members", member,
+		map[string]string{"human_id": other}); code != http.StatusConflict {
+		t.Errorf("lobby human add: %d, want 409", code)
+	}
+	if code, _ = call(t, e, tid, http.MethodDelete, "/v1/channels/lobby/agents/box-desk/CLE-07", member, nil); code != http.StatusNoContent {
+		t.Errorf("lobby agent remove: %d, want 204", code)
+	}
+	if err := e.st.SetSubscriptions(ctx, tid, "box-desk", []string{"CLE-07"}, []string{"lobby"}, now); err != nil {
+		t.Fatal(err)
+	}
+	if code, out = call(t, e, tid, http.MethodGet, "/v1/channels/lobby/members", member, nil); code != http.StatusOK ||
+		len(out["agents"].([]any)) != 0 {
+		t.Errorf("lobby agent came back on announce: %d %v", code, out)
 	}
 
 	// Minus on an agent stays minus after the box announces the channel again.

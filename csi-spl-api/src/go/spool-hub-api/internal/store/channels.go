@@ -77,7 +77,7 @@ type ChannelStat struct {
 	LastAt    time.Time // zero: empty channel
 	LastMsgID string
 	Unread    int // messages after the reader's ReadMark (all when none)
-	Agents    int // subscribed (agent, box) pairs; lobby: every announced agent
+	Agents    int // subscribed (agent, box) pairs; a default channel: invited ones only
 	Boxes     int // distinct boxes of those agents
 	Posters   int // distinct from ids in retention
 }
@@ -122,19 +122,23 @@ type Channels interface {
 	// ChannelKnown: a default channel or a created one of the tenant.
 	ChannelKnown(ctx context.Context, tenantID, channelID string) (bool, error)
 	// SetSubscriptions replaces the box's announce subscriptions: every agent
-	// × every known channel in channels (unknown ids and lobby are skipped;
-	// lobby is implicit). Rows a member invited (origin invite) stay.
+	// × every known created channel in channels. Unknown ids and the default
+	// channels are skipped: an announce never puts an agent in #lobby, #tasks
+	// or #alerts (owner decision 2026-09-25, channels-v1 §7.4). Rows a member
+	// invited (origin invite) or removed (origin removed) stay.
 	SetSubscriptions(ctx context.Context, tenantID, boxID string, agents, channels []string, now time.Time) error
 	// InviteChannelAgent records one agent on one box as a member of the
-	// channel. ErrConflict on a default channel. ErrNotFound when the
-	// channel does not exist. A later announce does not remove the row.
+	// channel, a default channel included. ErrConflict on an invalid id.
+	// ErrNotFound when the channel does not exist. A later announce does not
+	// remove the row.
 	InviteChannelAgent(ctx context.Context, tenantID, channelID, boxID, agentID string, now time.Time) error
 	// RemoveChannelAgent keeps the agent out of the channel. A later
-	// announce does not put the row back. ErrConflict on a default channel.
+	// announce does not put the row back. ErrConflict on an invalid id.
 	// ErrNotFound when the channel does not exist.
 	RemoveChannelAgent(ctx context.Context, tenantID, channelID, boxID, agentID string, now time.Time) error
-	// ChannelMembers returns box → sorted agent ids subscribed to channelID
-	// (lobby: the whole announced roster). Invited agents are included.
+	// ChannelMembers returns box → sorted agent ids subscribed to channelID.
+	// Invited agents are included. A default channel has only the agents a
+	// member invited: none until someone adds one.
 	ChannelMembers(ctx context.Context, tenantID, channelID string) (map[string][]string, error)
 	// ViewChannelStats lists defaults, created and seen channels with counts,
 	// unread (per reads) and member stats. Read-only (FR-019).

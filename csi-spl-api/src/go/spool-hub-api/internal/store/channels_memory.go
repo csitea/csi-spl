@@ -114,10 +114,10 @@ func (s *Memory) SetSubscriptions(_ context.Context, tenant, box string, agents,
 	s.ch.init()
 	m := map[string][]string{}
 	for _, c := range channels {
-		if c == ChannelLobby {
+		if IsDefaultChannel(c) {
 			continue
 		}
-		if _, ok := s.ch.rows[[2]string{tenant, c}]; !ok && !IsDefaultChannel(c) {
+		if _, ok := s.ch.rows[[2]string{tenant, c}]; !ok {
 			continue
 		}
 		a := make([]string, 0, len(agents))
@@ -136,13 +136,13 @@ func (s *Memory) SetSubscriptions(_ context.Context, tenant, box string, agents,
 
 // InviteChannelAgent keeps the agent in the channel across later announces.
 func (s *Memory) InviteChannelAgent(_ context.Context, tenant, channel, box, agent string, _ time.Time) error {
-	if IsDefaultChannel(channel) || !ValidChannelID(channel) {
+	if !ValidChannelID(channel) {
 		return ErrConflict
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ch.init()
-	if _, ok := s.ch.rows[[2]string{tenant, channel}]; !ok {
+	if _, ok := s.ch.rows[[2]string{tenant, channel}]; !ok && !IsDefaultChannel(channel) {
 		return ErrNotFound
 	}
 	key := [4]string{tenant, channel, box, agent}
@@ -154,13 +154,13 @@ func (s *Memory) InviteChannelAgent(_ context.Context, tenant, channel, box, age
 // RemoveChannelAgent records that this agent must stay out, including
 // across a later announce of the same channel.
 func (s *Memory) RemoveChannelAgent(_ context.Context, tenant, channel, box, agent string, _ time.Time) error {
-	if IsDefaultChannel(channel) || !ValidChannelID(channel) {
+	if !ValidChannelID(channel) {
 		return ErrConflict
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ch.init()
-	if _, ok := s.ch.rows[[2]string{tenant, channel}]; !ok {
+	if _, ok := s.ch.rows[[2]string{tenant, channel}]; !ok && !IsDefaultChannel(channel) {
 		return ErrNotFound
 	}
 	key := [4]string{tenant, channel, box, agent}
@@ -184,14 +184,6 @@ func (s *Memory) ChannelMembers(_ context.Context, tenant, channel string) (map[
 	defer s.mu.Unlock()
 	s.ch.init()
 	out := map[string][]string{}
-	if channel == ChannelLobby {
-		for k, a := range s.roster {
-			if k[0] == tenant && len(a) > 0 {
-				out[k[1]] = append([]string(nil), a...)
-			}
-		}
-		return out, nil
-	}
 	for k, m := range s.ch.subs {
 		if k[0] != tenant {
 			continue
@@ -273,19 +265,26 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 	for id, st := range by {
 		st.Posters = len(posters[id])
 		boxes := map[string]bool{}
-		if id == ChannelLobby {
-			for k, a := range s.roster {
-				if k[0] == tenant && len(a) > 0 {
-					st.Agents += len(a)
-					boxes[k[1]] = true
-				}
+		for k, m := range s.ch.subs {
+			if k[0] == tenant && len(m[id]) > 0 {
+				st.Agents += len(m[id])
+				boxes[k[1]] = true
 			}
-		} else {
-			for k, m := range s.ch.subs {
-				if k[0] == tenant && len(m[id]) > 0 {
-					st.Agents += len(m[id])
-					boxes[k[1]] = true
-				}
+		}
+		for k := range s.ch.invited {
+			if k[0] != tenant || k[1] != id {
+				continue
+			}
+			if _, gone := s.ch.removed[k]; gone {
+				continue
+			}
+			announced := false
+			for _, a := range s.ch.subs[[2]string{tenant, k[2]}][id] {
+				announced = announced || a == k[3]
+			}
+			if !announced {
+				st.Agents++
+				boxes[k[2]] = true
 			}
 		}
 		st.Boxes = len(boxes)

@@ -159,6 +159,16 @@ func TestChannelMembershipRouting(t *testing.T) {
 	e.pin(tid, a)
 	e.pin(tid, b)
 	rb := e.rawBox(tid, b, []string{"CLE-07", "CLE-08"}, []string{"tasks"})
+	// Owner decision 2026-09-25: announcing a default channel joins nobody;
+	// a member picks its agents (POST /v1/channels/tasks/agents).
+	if m, _ := e.st.ChannelMembers(ctx, tid, "tasks"); len(m) != 0 {
+		t.Fatalf("announce put agents in #tasks: %+v", m)
+	}
+	for _, id := range []string{"CLE-07", "CLE-08"} {
+		if err := e.st.InviteChannelAgent(ctx, tid, "tasks", "box-b", id, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
 	cli, err := a.c.Dial(ctx, wire.RoleCLI)
 	if err != nil {
 		t.Fatal(err)
@@ -224,13 +234,25 @@ func TestChannelMembershipRouting(t *testing.T) {
 		t.Fatalf("DM channel-routed to box-b: %v", err)
 	}
 
-	// #lobby is implicit for every announced agent, under the general alias.
+	// CONTROL (owner decision 2026-09-25): #lobby is no longer implicit for
+	// every announced agent. Nobody picked one, so a lobby post reaches no box.
+	m5, _, _ := post("lobby", "ALL-0", "nobody picked an agent yet")
+	if _, err := e.st.DeliveryState(ctx, tid, m5.MsgID, "box-b"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("lobby post reached an agent nobody added: %v", err)
+	}
+	// Once a member adds them, #lobby routes like any channel, under the
+	// general alias too.
+	for _, id := range []string{"CLE-07", "CLE-08"} {
+		if err := e.st.InviteChannelAgent(ctx, tid, "lobby", "box-b", id, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
 	m4, _, _ := post("general", "ALL-0", "hi from the lobby alias")
 	if r := rb.next(wire.TRecv); len(r.Agents) != 2 {
 		t.Fatalf("lobby post: %+v", r.Agents)
 	}
 	rows, _ := e.st.ViewTopics(ctx, tid, store.TopicQuery{Now: time.Now(), Channel: "lobby"})
-	if len(rows) != 1 {
+	if len(rows) != 1 || rows[0].Count != 2 {
 		t.Fatalf("general alias not stored as lobby: %+v", rows)
 	}
 	_ = m4
@@ -513,16 +535,20 @@ func TestWUIPresence(t *testing.T) {
 }
 
 // The real box client: SPOOL_CHANNELS reaches the hub in hello, and a post in
-// #tasks lands in the inbox of EVERY member the box hosts (owner rule
+// #releases lands in the inbox of EVERY member the box hosts (owner rule
 // 2026-09-22), v:1 unchanged. Control: a channel this box did not join
-// reaches nobody - the fan-out follows membership, not the body.
+// reaches nobody - the fan-out follows membership, not the body. A default
+// channel in SPOOL_CHANNELS joins nothing (owner decision 2026-09-25).
 func TestHubclientChannelRecv(t *testing.T) {
 	e := newEnv(t)
 	tid, _ := e.tenant()
 	ctx := context.Background()
 	a := e.box(tid, "box-a", "GRK-03")
 	b := e.box(tid, "box-b", "CLE-07", "CLE-08")
-	b.cfg.Channels = " Tasks , releases,"
+	b.cfg.Channels = " Tasks , Releases,"
+	if err := e.st.CreateChannel(ctx, store.Channel{TenantID: tid, ChannelID: "releases", Name: "releases", CreatedBy: "wui", CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
 	e.pin(tid, a)
 	e.pin(tid, b)
 	sb, err := b.c.Dial(ctx, wire.RoleBox)
@@ -530,8 +556,11 @@ func TestHubclientChannelRecv(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sb.Close()
-	if m, _ := e.st.ChannelMembers(ctx, tid, "tasks"); len(m["box-b"]) != 2 {
+	if m, _ := e.st.ChannelMembers(ctx, tid, "releases"); len(m["box-b"]) != 2 {
 		t.Fatalf("SPOOL_CHANNELS not announced: %+v", m)
+	}
+	if m, _ := e.st.ChannelMembers(ctx, tid, "tasks"); len(m) != 0 {
+		t.Fatalf("SPOOL_CHANNELS put agents in #tasks: %+v", m)
 	}
 	cli, err := a.c.Dial(ctx, wire.RoleCLI)
 	if err != nil {
@@ -539,7 +568,7 @@ func TestHubclientChannelRecv(t *testing.T) {
 	}
 	defer cli.Close()
 	plain := chanMsg(uuidV4(), "ALL-0", "note", "nothing for anyone in particular")
-	if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "tasks", "", plain)); err != nil {
+	if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "releases", "", plain)); err != nil {
 		t.Fatal(err)
 	}
 	// CONTROL: #alerts is not one of the channels box-b joined, and this one

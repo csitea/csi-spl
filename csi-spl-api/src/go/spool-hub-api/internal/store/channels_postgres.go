@@ -86,7 +86,7 @@ func (s *Postgres) ChannelKnown(ctx context.Context, tenant, id string) (bool, e
 func (s *Postgres) SetSubscriptions(ctx context.Context, tenant, box string, agents, channels []string, now time.Time) error {
 	var chs []string
 	for _, c := range channels {
-		if c != ChannelLobby && ValidChannelID(c) {
+		if !IsDefaultChannel(c) && ValidChannelID(c) {
 			chs = append(chs, c)
 		}
 	}
@@ -100,9 +100,6 @@ func (s *Postgres) SetSubscriptions(ctx context.Context, tenant, box string, age
 		if len(chs) == 0 || len(agents) == 0 {
 			return nil
 		}
-		if _, err := tx.Exec(ctx, pgSeedDefaults, tenant, DefaultChannels); err != nil {
-			return mapFK(err)
-		}
 		_, err := tx.Exec(ctx, `INSERT INTO channel_subscriptions (tenant_id, channel_id, agent_id, box_id, subscribed_at)
 			SELECT $1, c.channel_id, a, $2, $5
 			FROM channels c CROSS JOIN unnest($4::text[]) AS a
@@ -115,10 +112,13 @@ func (s *Postgres) SetSubscriptions(ctx context.Context, tenant, box string, age
 // InviteChannelAgent records one agent the members asked for. A later
 // announce deletes origin 'announce' only, so this row stays.
 func (s *Postgres) InviteChannelAgent(ctx context.Context, tenant, channel, box, agent string, now time.Time) error {
-	if IsDefaultChannel(channel) || !ValidChannelID(channel) {
+	if !ValidChannelID(channel) {
 		return ErrConflict
 	}
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		if err := seedDefault(ctx, tx, tenant, channel); err != nil {
+			return err
+		}
 		_, err := tx.Exec(ctx, `INSERT INTO channel_subscriptions
 			(tenant_id, channel_id, agent_id, box_id, subscribed_at, origin)
 			VALUES ($1, $2, $3, $4, $5, 'invite')
@@ -131,10 +131,13 @@ func (s *Postgres) InviteChannelAgent(ctx context.Context, tenant, channel, box,
 // RemoveChannelAgent marks the agent removed. ON CONFLICT keeps that mark
 // when a later announce tries to insert the same row.
 func (s *Postgres) RemoveChannelAgent(ctx context.Context, tenant, channel, box, agent string, now time.Time) error {
-	if IsDefaultChannel(channel) || !ValidChannelID(channel) {
+	if !ValidChannelID(channel) {
 		return ErrConflict
 	}
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		if err := seedDefault(ctx, tx, tenant, channel); err != nil {
+			return err
+		}
 		_, err := tx.Exec(ctx, `INSERT INTO channel_subscriptions
 			(tenant_id, channel_id, agent_id, box_id, subscribed_at, origin)
 			VALUES ($1, $2, $3, $4, $5, 'removed')
@@ -144,14 +147,24 @@ func (s *Postgres) RemoveChannelAgent(ctx context.Context, tenant, channel, box,
 	})
 }
 
-func (s *Postgres) ChannelMembers(ctx context.Context, tenant, channel string) (map[string][]string, error) {
-	if channel == ChannelLobby {
-		return s.Roster(ctx, tenant)
+// seedDefault gives a default channel its channels row, which the
+// channel_subscriptions FK needs. Idempotent; a created channel is untouched.
+func seedDefault(ctx context.Context, tx pgx.Tx, tenant, channel string) error {
+	if !IsDefaultChannel(channel) {
+		return nil
 	}
+	_, err := tx.Exec(ctx, pgSeedDefaults, tenant, DefaultChannels)
+	return mapFK(err)
+}
+
+func (s *Postgres) ChannelMembers(ctx context.Context, tenant, channel string) (map[string][]string, error) {
 	out := map[string][]string{}
+	// An announce row on a default channel predates rdb 0036 (which deletes
+	// them) and grants nothing: a default channel's agents are invited ones.
 	err := s.queryTenant(ctx, tenant, `SELECT box_id, agent_id FROM channel_subscriptions
 		WHERE tenant_id = $1 AND channel_id = $2 AND origin <> 'removed'
-		ORDER BY box_id, agent_id`, []any{tenant, channel},
+		AND NOT (origin = 'announce' AND channel_id = ANY($3::text[]))
+		ORDER BY box_id, agent_id`, []any{tenant, channel, DefaultChannels},
 		func(rows pgx.Rows) error {
 			var box, agent string
 			if err := rows.Scan(&box, &agent); err != nil {
@@ -227,22 +240,18 @@ func (s *Postgres) ViewChannelStats(ctx context.Context, tenant string, now time
 			}
 		}
 		if err := scan(`SELECT channel_id, count(*)::int, count(DISTINCT box_id)::int FROM channel_subscriptions
-			WHERE tenant_id = $1 GROUP BY channel_id`, []any{tenant}, func(r pgx.Rows) error {
+			WHERE tenant_id = $1 AND origin <> 'removed' AND NOT (origin = 'announce' AND channel_id = ANY($2::text[]))
+			GROUP BY channel_id`, []any{tenant, DefaultChannels}, func(r pgx.Rows) error {
 			var id string
 			var agents, boxes int
 			if err := r.Scan(&id, &agents, &boxes); err != nil {
 				return err
 			}
-			if st, ok := by[id]; ok && id != ChannelLobby {
+			if st, ok := by[id]; ok {
 				st.Agents, st.Boxes = agents, boxes
 			}
 			return nil
 		}); err != nil {
-			return err
-		}
-		lobby := by[ChannelLobby]
-		if err := tx.QueryRow(ctx, `SELECT count(*)::int, count(DISTINCT box_id)::int FROM roster WHERE tenant_id = $1`,
-			tenant).Scan(&lobby.Agents, &lobby.Boxes); err != nil {
 			return err
 		}
 		return nil

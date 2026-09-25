@@ -554,7 +554,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	// channel, @mention or not - so a plain post now lands in agent inboxes,
 	// which is what agents.command guards (025 §3.1, "command an agent through
 	// box-wui dispatch"). POSTING stays notes.send: a tester must still be able
-	// to chat in #lobby, and #lobby has every announced agent as a member, so
+	// to chat in #lobby, and #lobby may have agent members, so
 	// raising the post itself to agents.command would silence the role
 	// altogether. The FAN-OUT is what the stronger permission buys - without
 	// it the post is stored and shown in every browser (fanoutWUI) and no box

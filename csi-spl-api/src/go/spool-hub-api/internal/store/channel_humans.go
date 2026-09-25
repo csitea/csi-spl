@@ -16,9 +16,9 @@ import (
 
 // ChannelPublic reports whether channelID is readable by every member of the
 // tenant without a membership row. The three default channels are (owner's
-// call, 2026-09-23: lobby is the channel every tester needs and the agent
-// fan-out already treats it as the whole announced roster); every created
-// channel is members-only.
+// call, 2026-09-23: lobby is the channel every tester needs); every created
+// channel is members-only. Public is about PEOPLE only: the agents of a
+// default channel are the ones a member invited (owner decision 2026-09-25).
 func ChannelPublic(channelID string) bool { return IsDefaultChannel(NormalizeChannel(channelID)) }
 
 // TopicAccess is what a read door needs to know about one topic without

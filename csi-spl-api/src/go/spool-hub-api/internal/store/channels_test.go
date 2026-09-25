@@ -32,8 +32,8 @@ func TestInviteChannelAgentSurvivesAnnounce(t *testing.T) {
 			if err != nil || len(m["box-desk"]) != 1 || m["box-desk"][0] != "CLE-07" {
 				t.Fatalf("invite dropped by announce: %v %+v", err, m)
 			}
-			if err := s.InviteChannelAgent(ctx, tid, "lobby", "box-desk", "CLE-07", now); !errors.Is(err, ErrConflict) {
-				t.Fatalf("lobby invite: %v", err)
+			if err := s.InviteChannelAgent(ctx, tid, "nosuch", "box-desk", "CLE-07", now); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown channel invite: %v", err)
 			}
 			if err := s.RemoveChannelAgent(ctx, tid, "live-proof", "box-desk", "CLE-07", now); err != nil {
 				t.Fatal(err)
@@ -44,6 +44,67 @@ func TestInviteChannelAgentSurvivesAnnounce(t *testing.T) {
 			m, err = s.ChannelMembers(ctx, tid, "live-proof")
 			if err != nil || len(m["box-desk"]) != 0 {
 				t.Fatalf("removed agent came back: %v %+v", err, m)
+			}
+		})
+	}
+}
+
+// Owner decision 2026-09-25: a default channel starts with no agents, an
+// announce never adds one, and a member picks them like in a created one.
+func TestDefaultChannelAgentsArePicked(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			tid := newTenant(t, s)
+			if err := s.SetRoster(ctx, tid, "box-desk", []string{"CLE-07", "CLE-08"}, now); err != nil {
+				t.Fatal(err)
+			}
+			announce := func() {
+				t.Helper()
+				if err := s.SetSubscriptions(ctx, tid, "box-desk", []string{"CLE-07", "CLE-08"}, DefaultChannels, now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			members := func(ch string) []string {
+				t.Helper()
+				m, err := s.ChannelMembers(ctx, tid, ch)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return m["box-desk"]
+			}
+			announce()
+			for _, d := range DefaultChannels {
+				if got := members(d); len(got) != 0 {
+					t.Fatalf("#%s has agents before anyone added one: %v", d, got)
+				}
+			}
+			if err := s.InviteChannelAgent(ctx, tid, "lobby", "box-desk", "CLE-07", now); err != nil {
+				t.Fatal(err)
+			}
+			announce()
+			if got := members("lobby"); len(got) != 1 || got[0] != "CLE-07" {
+				t.Fatalf("lobby after invite + announce: %v", got)
+			}
+			if got := members("tasks"); len(got) != 0 {
+				t.Fatalf("a lobby invite leaked into #tasks: %v", got)
+			}
+			if err := s.RemoveChannelAgent(ctx, tid, "lobby", "box-desk", "CLE-07", now); err != nil {
+				t.Fatal(err)
+			}
+			announce()
+			if got := members("lobby"); len(got) != 0 {
+				t.Fatalf("removed lobby agent came back on announce: %v", got)
+			}
+			stats, err := s.ViewChannelStats(ctx, tid, now, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, st := range stats {
+				if st.Default && (st.Agents != 0 || st.Boxes != 0) {
+					t.Fatalf("#%s stat counts agents nobody added: %+v", st.ChannelID, st)
+				}
 			}
 		})
 	}
@@ -98,15 +159,25 @@ func TestStoreChannels(t *testing.T) {
 			if err := s.SetSubscriptions(ctx, tid, "box-b", []string{"CLE-07", "CLE-08"}, []string{"tasks", "releases", "nosuch", "lobby"}, now); err != nil {
 				t.Fatal(err)
 			}
+			// An announce never subscribes a default channel; a member does.
+			if m, err := s.ChannelMembers(ctx, tid, "tasks"); err != nil || len(m) != 0 {
+				t.Fatalf("tasks members after announce: %v %+v", err, m)
+			}
+			if m, err := s.ChannelMembers(ctx, tid, "releases"); err != nil || len(m["box-b"]) != 2 {
+				t.Fatalf("releases members: %v %+v", err, m)
+			}
+			if err := s.InviteChannelAgent(ctx, tid, "tasks", "box-b", "CLE-07", now); err != nil {
+				t.Fatal(err)
+			}
 			m, err := s.ChannelMembers(ctx, tid, "tasks")
-			if err != nil || len(m) != 1 || len(m["box-b"]) != 2 || m["box-b"][0] != "CLE-07" {
+			if err != nil || len(m) != 1 || len(m["box-b"]) != 1 || m["box-b"][0] != "CLE-07" {
 				t.Fatalf("tasks members: %v %+v", err, m)
 			}
 			if m, _ := s.ChannelMembers(ctx, tid, "nosuch"); len(m) != 0 {
 				t.Fatalf("unknown channel got members: %+v", m)
 			}
-			if m, _ := s.ChannelMembers(ctx, tid, "lobby"); len(m) != 2 || len(m["box-a"]) != 1 {
-				t.Fatalf("lobby members = roster: %+v", m)
+			if m, _ := s.ChannelMembers(ctx, tid, "lobby"); len(m) != 0 {
+				t.Fatalf("lobby members = roster, want none: %+v", m)
 			}
 			// replace: box-b drops releases
 			if err := s.SetSubscriptions(ctx, tid, "box-b", []string{"CLE-07"}, []string{"tasks"}, now); err != nil {
@@ -149,7 +220,7 @@ func TestStoreChannels(t *testing.T) {
 			if st := byID["alerts"]; st.Count != 0 || st.Unread != 0 || !st.LastAt.IsZero() {
 				t.Fatalf("alerts stat (expired only): %+v", st)
 			}
-			if st := byID["lobby"]; st.Agents != 3 || st.Boxes != 2 {
+			if st := byID["lobby"]; st.Agents != 0 || st.Boxes != 0 {
 				t.Fatalf("lobby stat: %+v", st)
 			}
 			if st := byID["releases"]; st.Default || st.Name != "Releases" || st.CreatedBy != "HUM-1" {

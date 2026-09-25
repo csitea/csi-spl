@@ -52,7 +52,16 @@ Human lines by default; `json: true` → raw `v:1` NDJSON objects.
   `spool_get_file`. `spool_recv` with a malformed inbox file returns the good
   array and that error text (`exit 1`), flagged `IsError`, as the CLI prints
   the array and exits `1`.
+- **Seated server** (`spool mcp --as <ID>`, or `$SPOOL_MCP_AS`; added
+  2026-09-25): the server acts for that one agent. `spool_send.from` and
+  `spool_recv.as` are then optional and default to the seat; any OTHER value
+  is refused as `spool: from "<x>": this server is seated as <ID> ... (exit 78)`
+  before a file is read or written. In hub mode a seated `spool_send` to a
+  human (`HUM-*`) with no `to_box` goes to `box-wui`. It is how a desk agent
+  gets the tools without a key of its own: the box user runs the server once
+  per session, the server holds the box key, and the agent names no inbox but
+  its own. The five tool names and their unseated behaviour are unchanged.
 - **Library:** `github.com/modelcontextprotocol/go-sdk` (official, v1.7.0+),
   stdio via `mcp.StdioTransport`. See `../research.md`. Not `mark3labs/mcp-go`.
 
-<!-- version: 0.1.0 · updated: 2026-09-18 · last-edit: 2026-09-18T16:30:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:10:00Z -->

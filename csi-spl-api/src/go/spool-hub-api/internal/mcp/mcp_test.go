@@ -315,3 +315,98 @@ func keys(m map[string]string) []string {
 	sort.Strings(k)
 	return k
 }
+
+// seated connects a client to a server seated as seat over a fresh local root.
+func seated(t *testing.T, seat string) (*sdk.ClientSession, *config.Config) {
+	t.Helper()
+	cfg := testkit.NewConfig(t)
+	ctx := context.Background()
+	ct, st := sdk.NewInMemoryTransports()
+	if _, err := NewServerOpts(cfg, "test", Options{Seat: seat}).Connect(ctx, st, nil); err != nil {
+		t.Fatalf("server connect: %v", err)
+	}
+	cs, err := sdk.NewClient(&sdk.Implementation{Name: "seat", Version: "test"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatalf("client connect: %v", err)
+	}
+	t.Cleanup(func() { cs.Close() })
+	return cs, cfg
+}
+
+func callText(t *testing.T, cs *sdk.ClientSession, name string, args map[string]any) (string, bool) {
+	t.Helper()
+	res, err := cs.CallTool(context.Background(), &sdk.CallToolParams{Name: name, Arguments: args})
+	if err != nil {
+		t.Fatalf("call %s: protocol error %v", name, err)
+	}
+	var b strings.Builder
+	for _, c := range res.Content {
+		if tc, ok := c.(*sdk.TextContent); ok {
+			b.WriteString(tc.Text)
+		}
+	}
+	return b.String(), res.IsError
+}
+
+// TestSeatedServerActsForItsSeatOnly: a seated server defaults from/as to its
+// seat, and refuses (exit 78) a send from, or a recv of, any other agent before
+// it touches a file - so an agent's tool calls reach its own inbox only.
+func TestSeatedServerActsForItsSeatOnly(t *testing.T) {
+	cs, cfg := seated(t, "CLE-07")
+
+	// the seat writes to itself and to a neighbour (local mode)
+	for _, to := range []string{"CLE-07", "CLE-08"} {
+		if out, isErr := callText(t, cs, "spool_send", map[string]any{"to": to, "task_id": task, "kind": "note", "body": "to " + to}); isErr {
+			t.Fatalf("seated send to %s: %s", to, out)
+		}
+	}
+	// from defaulted to the seat
+	ob, _ := filepath.Glob(filepath.Join(cfg.SpoolRoot, "CLE-07", "outbox", "*.json"))
+	if len(ob) != 2 {
+		t.Fatalf("seat outbox holds %d messages, want 2", len(ob))
+	}
+
+	// refusals: from / as naming another agent
+	for _, c := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"spool_send", map[string]any{"from": "CLE-08", "to": "CLE-07", "task_id": task, "kind": "note", "body": "forged"}},
+		{"spool_recv", map[string]any{"as": "CLE-08", "ack": true}},
+	} {
+		out, isErr := callText(t, cs, c.tool, c.args)
+		if !isErr || !strings.Contains(out, "seated as CLE-07") || !strings.Contains(out, "(exit 78)") {
+			t.Errorf("%s for another agent: isErr=%v %q, want a seat refusal with exit 78", c.tool, isErr, out)
+		}
+	}
+	if n, _ := filepath.Glob(filepath.Join(cfg.SpoolRoot, "CLE-08", "outbox", "*.json")); len(n) != 0 {
+		t.Errorf("a refused send from CLE-08 wrote %d CLE-08 outbox messages", len(n))
+	}
+	if n, _ := filepath.Glob(filepath.Join(cfg.SpoolRoot, "CLE-08", "inbox", "*.json")); len(n) != 1 {
+		t.Errorf("a refused recv --ack of CLE-08 moved its inbox: %d left, want 1", len(n))
+	}
+
+	// recv with no as reads the seat; naming the seat itself is allowed
+	for _, args := range []map[string]any{{}, {"as": "CLE-07"}} {
+		out, isErr := callText(t, cs, "spool_recv", args)
+		var msgs []map[string]any
+		if isErr || json.Unmarshal([]byte(out), &msgs) != nil || len(msgs) != 1 || msgs[0]["to"] != "CLE-07" {
+			t.Errorf("seated recv %v: isErr=%v %s, want CLE-07's one message", args, isErr, out)
+		}
+	}
+}
+
+// TestUnseatedServerKeepsSpec002: without a seat, from and as are still the
+// caller's to name (spec 002 behaviour).
+func TestUnseatedServerKeepsSpec002(t *testing.T) {
+	cs, cfg := seated(t, "")
+	if out, isErr := callText(t, cs, "spool_send", map[string]any{"from": "GRK-03", "to": "CLE-08", "task_id": task, "kind": "note", "body": "hi"}); isErr {
+		t.Fatalf("unseated send: %s", out)
+	}
+	if out, isErr := callText(t, cs, "spool_recv", map[string]any{"as": "CLE-08"}); isErr || !strings.Contains(out, `"from":"GRK-03"`) {
+		t.Errorf("unseated recv: isErr=%v %s", isErr, out)
+	}
+	if _, err := os.Stat(filepath.Join(cfg.SpoolRoot, "GRK-03", "outbox")); err != nil {
+		t.Errorf("unseated send wrote no GRK-03 outbox: %v", err)
+	}
+}

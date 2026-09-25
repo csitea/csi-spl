@@ -16,7 +16,8 @@
 //	put-file <path>            put-dir <path>
 //	get-file <file_id> <dest>  get-dir <file_id> <dest>
 //	tail    [--task <uuid>] [--json]
-//	mcp                        stdio MCP server exposing the verbs as tools
+//	mcp [--as <id>]            stdio MCP server exposing the verbs as tools; --as
+//	                           (or $SPOOL_MCP_AS) seats it: it acts for that agent only
 //
 // Hub (spec 003; operator / box-daemon verbs, never called by agents):
 //
@@ -123,7 +124,7 @@ func run(args []string) int {
 	case "tail":
 		return cmdTail(cfg, rest)
 	case "mcp":
-		return cmdMCP(cfg)
+		return cmdMCP(cfg, rest)
 	case "hub-pin":
 		return cmdHubPin(cfg, rest)
 	case "hub-sync":
@@ -275,10 +276,19 @@ func cmdTail(cfg *config.Config, args []string) int {
 
 // cmdMCP serves the verbs as MCP tools over stdio until stdin closes or the
 // process is signalled. One server per agent session, never per tmux window.
-func cmdMCP(cfg *config.Config) int {
+func cmdMCP(cfg *config.Config, args []string) int {
+	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
+	as := fs.String("as", os.Getenv("SPOOL_MCP_AS"), "the one agent id this server acts for")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if *as != "" && !msg.ValidID(*as) {
+		fmt.Fprintf(os.Stderr, "spool: mcp --as %q is not an agent id\n", *as)
+		return 1
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := mcp.Run(ctx, cfg, version); err != nil && ctx.Err() == nil {
+	if err := mcp.Run(ctx, cfg, version, mcp.Options{Seat: *as}); err != nil && ctx.Err() == nil {
 		return fail(err)
 	}
 	return 0

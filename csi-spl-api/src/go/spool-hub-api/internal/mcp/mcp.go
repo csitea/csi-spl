@@ -3,11 +3,22 @@
 // internal/action verb the CLI calls, so a tool and its verb return the same
 // text (contracts/mcp-tools.md). A verb's CLI failure surfaces as a tool error
 // carrying the same reason and exit code (78 = verify/refuse).
+//
+// A SEATED server (`spool mcp --as <ID>`, Options.Seat) acts for that one agent
+// only: spool_send's from and spool_recv's as default to the seat, and any
+// other value is refused with exit 78 before anything is read or written. It is
+// how a desk agent gets direct tool calls without a key of its own: the box
+// user runs the server (one sudo at session start, never per call), the server
+// holds the box key, and the agent can name no inbox but its own. A seated
+// send to a human (HUM-*) with no to_box goes to box-wui, where every human
+// lives.
 package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -22,18 +33,18 @@ type PutFileIn struct {
 
 // SendIn is the input of spool_send.
 type SendIn struct {
-	From    string   `json:"from" jsonschema:"sender agent id, e.g. GRK-03"`
+	From    string   `json:"from,omitempty" jsonschema:"sender agent id, e.g. GRK-03; a seated server defaults it to its seat and refuses any other"`
 	To      string   `json:"to" jsonschema:"recipient agent id, e.g. CLE-07"`
 	TaskID  string   `json:"task_id,omitempty" jsonschema:"topic uuid; a new one is minted when empty"`
 	Kind    string   `json:"kind" jsonschema:"one of task, result, note, reject"`
 	Body    string   `json:"body" jsonschema:"message text"`
 	FileIDs []string `json:"file_ids,omitempty" jsonschema:"file_ids from spool_put_file to attach"`
-	ToBox   string   `json:"to_box,omitempty" jsonschema:"hub mode only: the recipient's box id when the agent id exists on several boxes"`
+	ToBox   string   `json:"to_box,omitempty" jsonschema:"hub mode only: the recipient's box id when the agent id exists on several boxes (a seated server sends HUM-* to box-wui by default)"`
 }
 
 // RecvIn is the input of spool_recv.
 type RecvIn struct {
-	As  string `json:"as" jsonschema:"receiving agent id"`
+	As  string `json:"as,omitempty" jsonschema:"receiving agent id; a seated server defaults it to its seat and refuses any other"`
 	Ack bool   `json:"ack,omitempty" jsonschema:"move the returned messages to archive/"`
 }
 
@@ -49,8 +60,36 @@ type TailIn struct {
 	JSON   bool   `json:"json,omitempty" jsonschema:"emit raw v:1 NDJSON instead of human lines"`
 }
 
-// NewServer returns the spool MCP server with its five tools registered.
+// Options shape a server. The zero value is the unseated server of spec 002.
+type Options struct {
+	// Seat is the one agent id this server acts for ("" = any, as before).
+	Seat string
+}
+
+// wuiBox is the hub-held browser signer: every human (HUM-*) lives there.
+const wuiBox = "box-wui"
+
+// errNotSeat refuses a seated server's call for another agent.
+var errNotSeat = errors.New("not this server's seat")
+
+// who resolves a seated id field: empty or the seat itself -> the seat.
+func (o Options) who(field, v string) (string, error) {
+	if o.Seat == "" || v == o.Seat {
+		return v, nil
+	}
+	if v == "" {
+		return o.Seat, nil
+	}
+	return "", fmt.Errorf("spool: %s %q: this server is seated as %s and acts for no other agent: %w (exit 78)", field, v, o.Seat, errNotSeat)
+}
+
+// NewServer returns the unseated spool MCP server with its five tools registered.
 func NewServer(cfg *config.Config, version string) *sdk.Server {
+	return NewServerOpts(cfg, version, Options{})
+}
+
+// NewServerOpts returns the spool MCP server shaped by o.
+func NewServerOpts(cfg *config.Config, version string, o Options) *sdk.Server {
 	s := sdk.NewServer(&sdk.Implementation{Name: "spool", Version: version}, nil)
 
 	sdk.AddTool(s, &sdk.Tool{
@@ -68,8 +107,15 @@ func NewServer(cfg *config.Config, version string) *sdk.Server {
 		Name:        "spool_send",
 		Description: "Send a v:1 message to another agent, on this box or (hub mode) another box (== spool send).",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in SendIn) (*sdk.CallToolResult, action.SendResult, error) {
+		from, err := o.who("from", in.From)
+		if err != nil {
+			return nil, action.SendResult{}, err
+		}
+		if o.Seat != "" && in.ToBox == "" && cfg.HubURL != "" && strings.HasPrefix(in.To, "HUM-") {
+			in.ToBox = wuiBox
+		}
 		out, err := action.SendCtx(ctx, cfg, action.SendArgs{
-			From: in.From, To: in.To, TaskID: in.TaskID, Kind: in.Kind, Body: in.Body, FileIDs: in.FileIDs,
+			From: from, To: in.To, TaskID: in.TaskID, Kind: in.Kind, Body: in.Body, FileIDs: in.FileIDs,
 			ToBox: in.ToBox,
 		})
 		if err != nil {
@@ -82,7 +128,11 @@ func NewServer(cfg *config.Config, version string) *sdk.Server {
 		Name:        "spool_recv",
 		Description: "Return the v:1 messages in an agent's inbox as a JSON array (== spool recv).",
 	}, func(_ context.Context, _ *sdk.CallToolRequest, in RecvIn) (*sdk.CallToolResult, any, error) {
-		msgs, err := action.Recv(cfg, in.As, in.Ack)
+		as, err := o.who("as", in.As)
+		if err != nil {
+			return nil, nil, err
+		}
+		msgs, err := action.Recv(cfg, as, in.Ack)
 		if err == nil {
 			return text(action.JSON(msgs)), nil, nil
 		}
@@ -124,8 +174,8 @@ func NewServer(cfg *config.Config, version string) *sdk.Server {
 
 // Run serves the tools over stdin/stdout until the client disconnects or ctx
 // ends. One process per agent session; stdout carries only the protocol.
-func Run(ctx context.Context, cfg *config.Config, version string) error {
-	return NewServer(cfg, version).Run(ctx, &sdk.StdioTransport{})
+func Run(ctx context.Context, cfg *config.Config, version string, o Options) error {
+	return NewServerOpts(cfg, version, o).Run(ctx, &sdk.StdioTransport{})
 }
 
 func text(s string) *sdk.CallToolResult {

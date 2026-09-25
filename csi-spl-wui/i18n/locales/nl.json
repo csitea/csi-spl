@@ -62,6 +62,14 @@
     "title": "Instellingen",
     "profile": "Profiel",
     "name": "Naam",
+    "display_name": {
+      "label": "Weergavenaam",
+      "hint": "Hoe anderen je in de spool zien: de naam in je gebruikersmenu en bij het zoeken naar personen. Eén regel, maximaal 200 tekens.",
+      "save": "Opslaan",
+      "saved": "Opgeslagen.",
+      "invalid": "Voer een naam in van 1 tot 200 tekens op één regel.",
+      "failed": "Opslaan mislukt — probeer het opnieuw."
+    },
     "email": "E-mail",
     "member_id": "Lid-id",
     "workspace": "Werkruimte",

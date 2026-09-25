@@ -289,6 +289,7 @@ declare module '~/utils/auth-client.mjs' {
     changePassword(b: { current: string, next: string }): Promise<NativeResult>
     savePreferences(b: { preferred_locale: string }): Promise<NativeResult>
     saveDiagnostics(on: boolean): Promise<NativeResult>
+    saveDisplayName(name: string): Promise<NativeResult>
     providers(): Promise<string[]>
     session(): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
     logout(): Promise<boolean>
@@ -759,6 +760,15 @@ declare module '~/utils/theme.mjs' {
   export function readStoredTheme(store?: unknown, fallback?: SpoolTheme): SpoolTheme
   export function writeStoredTheme(theme: unknown, store?: unknown): boolean
   export function applyThemeAttr(theme: unknown, el?: { setAttribute?(k: string, v: string): void } | null): SpoolTheme
+}
+
+declare module '~/utils/display-name.mjs' {
+  export const MAX_DISPLAY_NAME: number
+  export function validDisplayName(raw: unknown): { ok: boolean, name: string }
+  export function applyDisplayName(
+    raw: unknown,
+    io: { current: unknown, save: (name: string) => Promise<{ ok: boolean, data?: unknown }>, apply: (name: string) => void },
+  ): Promise<{ ok: boolean, name: string, reason?: 'invalid' | 'unchanged' | 'refused', out?: unknown }>
 }
 
 declare module '~/utils/debug-pane.mjs' {

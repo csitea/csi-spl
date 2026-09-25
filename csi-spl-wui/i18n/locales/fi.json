@@ -62,6 +62,14 @@
     "title": "Asetukset",
     "profile": "Profiili",
     "name": "Nimi",
+    "display_name": {
+      "label": "Näyttönimi",
+      "hint": "Miten muut näkevät sinut spoolissa: nimi käyttäjävalikossasi ja henkilöhaussa. Yksi rivi, enintään 200 merkkiä.",
+      "save": "Tallenna",
+      "saved": "Tallennettu.",
+      "invalid": "Kirjoita nimi, jossa on 1–200 merkkiä yhdellä rivillä.",
+      "failed": "Tallennus epäonnistui — yritä uudelleen."
+    },
     "email": "Sähköposti",
     "member_id": "Jäsentunnus",
     "workspace": "Työtila",

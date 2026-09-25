@@ -62,6 +62,14 @@
     "title": "Ustawienia",
     "profile": "Profil",
     "name": "Imię i nazwisko",
+    "display_name": {
+      "label": "Wyświetlana nazwa",
+      "hint": "Jak widzą cię inni w spool: nazwa w menu użytkownika i w wyszukiwaniu osób. Jeden wiersz, do 200 znaków.",
+      "save": "Zapisz",
+      "saved": "Zapisano.",
+      "invalid": "Wpisz nazwę o długości od 1 do 200 znaków w jednym wierszu.",
+      "failed": "Nie udało się zapisać — spróbuj ponownie."
+    },
     "email": "E-mail",
     "member_id": "ID członka",
     "workspace": "Obszar roboczy",

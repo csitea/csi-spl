@@ -62,6 +62,14 @@
     "title": "Ajustes",
     "profile": "Perfil",
     "name": "Nombre",
+    "display_name": {
+      "label": "Nombre visible",
+      "hint": "Cómo te ven los demás en el spool: el nombre de tu menú de usuario y de la búsqueda de personas. Una línea, hasta 200 caracteres.",
+      "save": "Guardar",
+      "saved": "Guardado.",
+      "invalid": "Escribe un nombre de 1 a 200 caracteres en una sola línea.",
+      "failed": "No se pudo guardar — inténtalo de nuevo."
+    },
     "email": "Correo electrónico",
     "member_id": "ID de miembro",
     "workspace": "Espacio de trabajo",

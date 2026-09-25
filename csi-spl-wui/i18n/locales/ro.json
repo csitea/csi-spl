@@ -62,6 +62,14 @@
     "title": "Setări",
     "profile": "Profil",
     "name": "Nume",
+    "display_name": {
+      "label": "Nume afișat",
+      "hint": "Cum te văd ceilalți în spool: numele din meniul tău de utilizator și din căutarea de persoane. Un singur rând, până la 200 de caractere.",
+      "save": "Salvează",
+      "saved": "Salvat.",
+      "invalid": "Introdu un nume de 1 până la 200 de caractere, pe un singur rând.",
+      "failed": "Salvarea a eșuat — încercați din nou."
+    },
     "email": "E-mail",
     "member_id": "ID membru",
     "workspace": "Spațiu de lucru",

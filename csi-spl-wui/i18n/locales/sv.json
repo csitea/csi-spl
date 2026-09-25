@@ -62,6 +62,14 @@
     "title": "Inställningar",
     "profile": "Profil",
     "name": "Namn",
+    "display_name": {
+      "label": "Visningsnamn",
+      "hint": "Hur andra ser dig i spoolen: namnet i din användarmeny och i personsökningen. En rad, högst 200 tecken.",
+      "save": "Spara",
+      "saved": "Sparat.",
+      "invalid": "Ange ett namn på 1 till 200 tecken på en rad.",
+      "failed": "Kunde inte spara — försök igen."
+    },
     "email": "E-post",
     "member_id": "Medlems-id",
     "workspace": "Arbetsyta",

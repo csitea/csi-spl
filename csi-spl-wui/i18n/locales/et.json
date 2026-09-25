@@ -62,6 +62,14 @@
     "title": "Seaded",
     "profile": "Profiil",
     "name": "Nimi",
+    "display_name": {
+      "label": "Kuvatav nimi",
+      "hint": "Kuidas teised sind spoolis näevad: nimi sinu kasutajamenüüs ja inimeste otsingus. Üks rida, kuni 200 märki.",
+      "save": "Salvesta",
+      "saved": "Salvestatud.",
+      "invalid": "Sisesta nimi, mis on 1 kuni 200 märki pikk ja ühel real.",
+      "failed": "Salvestamine ebaõnnestus — proovi uuesti."
+    },
     "email": "E-post",
     "member_id": "Liikme ID",
     "workspace": "Tööruum",

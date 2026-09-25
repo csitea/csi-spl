@@ -1,6 +1,7 @@
 <!-- Settings → Profile (CLE-3402's card, moved here by specs/023 §3.4).
-     Read-only: the hub has no profile PATCH; the picture is the member's
-     stored IdP picture or identicon. -->
+     The display name is the one editable field (CLE-34968,
+     DisplayNameSetting); the picture is the member's stored IdP picture or
+     identicon. -->
 <template>
   <SettingsSection id="settings-profile" :title="t('settings.profile')" data-test="settings-profile">
     <div class="settings__profile">
@@ -31,11 +32,13 @@
     <p class="muted settings__hint">
       {{ t('settings.picture_hint') }}
     </p>
+    <DisplayNameSetting />
   </SettingsSection>
 </template>
 
 <script setup lang="ts">
 import SettingsSection from '~/components/SettingsSection.vue'
+import DisplayNameSetting from '~/components/DisplayNameSetting.vue'
 import { useSessionStore } from '~/stores/session'
 import { avatarMode, userIdentity, userInitials } from '~/utils/user-menu.mjs'
 

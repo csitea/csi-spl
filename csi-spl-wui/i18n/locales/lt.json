@@ -62,6 +62,14 @@
     "title": "Nustatymai",
     "profile": "Profilis",
     "name": "Vardas",
+    "display_name": {
+      "label": "Rodomas vardas",
+      "hint": "Kaip kiti jus mato spool: vardas jūsų naudotojo meniu ir žmonių paieškoje. Viena eilutė, iki 200 simbolių.",
+      "save": "Išsaugoti",
+      "saved": "Išsaugota.",
+      "invalid": "Įveskite vardą nuo 1 iki 200 simbolių vienoje eilutėje.",
+      "failed": "Nepavyko išsaugoti — bandykite dar kartą."
+    },
     "email": "El. paštas",
     "member_id": "Nario ID",
     "workspace": "Darbo sritis",

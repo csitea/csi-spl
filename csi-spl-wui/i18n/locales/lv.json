@@ -62,6 +62,14 @@
     "title": "Iestatījumi",
     "profile": "Profils",
     "name": "Vārds",
+    "display_name": {
+      "label": "Parādāmais vārds",
+      "hint": "Kā citi jūs redz spool: vārds jūsu lietotāja izvēlnē un cilvēku meklēšanā. Viena rinda, līdz 200 rakstzīmēm.",
+      "save": "Saglabāt",
+      "saved": "Saglabāts.",
+      "invalid": "Ievadiet vārdu no 1 līdz 200 rakstzīmēm vienā rindā.",
+      "failed": "Neizdevās saglabāt — mēģiniet vēlreiz."
+    },
     "email": "E-pasts",
     "member_id": "Dalībnieka ID",
     "workspace": "Darbvieta",

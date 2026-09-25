@@ -62,6 +62,14 @@
     "title": "Nastavenia",
     "profile": "Profil",
     "name": "Meno",
+    "display_name": {
+      "label": "Zobrazované meno",
+      "hint": "Ako vás vidia ostatní v spool: meno vo vašej používateľskej ponuke a vo vyhľadávaní ľudí. Jeden riadok, najviac 200 znakov.",
+      "save": "Uložiť",
+      "saved": "Uložené.",
+      "invalid": "Zadajte meno s dĺžkou 1 až 200 znakov na jednom riadku.",
+      "failed": "Nepodarilo sa uložiť — skúste to znova."
+    },
     "email": "E-mail",
     "member_id": "ID člena",
     "workspace": "Pracovný priestor",

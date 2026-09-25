@@ -62,6 +62,14 @@
     "title": "Ayarlar",
     "profile": "Profil",
     "name": "Ad",
+    "display_name": {
+      "label": "Görünen ad",
+      "hint": "Başkalarının sizi spool'da nasıl gördüğü: kullanıcı menünüzdeki ve kişi aramasındaki ad. Tek satır, en fazla 200 karakter.",
+      "save": "Kaydet",
+      "saved": "Kaydedildi.",
+      "invalid": "Tek satırda 1 ile 200 karakter arasında bir ad girin.",
+      "failed": "Kaydedilemedi — tekrar deneyin."
+    },
     "email": "E-posta",
     "member_id": "Üye kimliği",
     "workspace": "Çalışma alanı",

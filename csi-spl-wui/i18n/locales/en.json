@@ -62,6 +62,14 @@
     "title": "Settings",
     "profile": "Profile",
     "name": "Name",
+    "display_name": {
+      "label": "Display name",
+      "hint": "How others see you in the spool: the name in your user menu and in people search. One line, up to 200 characters.",
+      "save": "Save",
+      "saved": "Saved.",
+      "invalid": "Enter a name of 1 to 200 characters on one line.",
+      "failed": "Could not save — try again."
+    },
     "email": "Email",
     "member_id": "Member id",
     "workspace": "Workspace",

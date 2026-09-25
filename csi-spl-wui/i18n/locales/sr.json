@@ -62,6 +62,14 @@
     "title": "Podešavanja",
     "profile": "Profil",
     "name": "Ime",
+    "display_name": {
+      "label": "Ime za prikaz",
+      "hint": "Kako vas drugi vide u spool-u: ime u vašem korisničkom meniju i u pretrazi ljudi. Jedan red, do 200 znakova.",
+      "save": "Sačuvaj",
+      "saved": "Sačuvano.",
+      "invalid": "Unesite ime od 1 do 200 znakova u jednom redu.",
+      "failed": "Čuvanje nije uspelo — pokušajte ponovo."
+    },
     "email": "Imejl",
     "member_id": "ID člana",
     "workspace": "Radni prostor",

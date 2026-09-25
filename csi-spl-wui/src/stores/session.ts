@@ -64,6 +64,11 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, diagnostics_enabled: on === true }
   }
 
+  /** CLE-34968: mirror a saved display name (the hub answers it as `name`). */
+  function setName(name: string) {
+    if (claims.value) claims.value = { ...claims.value, name }
+  }
+
   async function logout() {
     await auth.logout()
     state.value = 'out'
@@ -71,5 +76,5 @@ export const useSessionStore = defineStore('session', () => {
     await navigateTo(useNuxtApp().$localePath('/login'))
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, logout }
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, logout }
 })

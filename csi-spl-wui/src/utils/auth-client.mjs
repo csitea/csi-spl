@@ -302,6 +302,14 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     saveDiagnostics(on) {
       return post('/preferences', { diagnostics_enabled: on === true }, 'PUT')
     },
+    /**
+     * CLE-34968: store the signed-in human's display name. Sends ONLY that
+     * key. 200 → `data.display_name` is the stored (trimmed) name; 400
+     * invalid_display_name; 401 = no session; 409 = no human.
+     */
+    saveDisplayName(name) {
+      return post('/preferences', { display_name: String(name ?? '') }, 'PUT')
+    },
     async logout() {
       const res = await call('/logout', { method: 'POST' })
       return res.status === 204 || res.ok

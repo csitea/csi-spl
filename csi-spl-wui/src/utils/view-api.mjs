@@ -142,6 +142,7 @@ export function normalizeViewMessage(el) {
     if (e.received_at !== undefined) out.received_at = e.received_at
     if (Array.isArray(e.deliveries)) out.deliveries = e.deliveries
     copyEditFields(e, out)
+    if (e.is_parent === 0 || e.is_parent === 1) out.is_parent = e.is_parent
     delete out.sig
     return out
   }

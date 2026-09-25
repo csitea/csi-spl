@@ -98,6 +98,7 @@ export function messageFromFrame(f) {
   }
   if (x.cursor !== undefined) out.cursor = x.cursor
   if (x.received_at !== undefined) out.received_at = x.received_at
+  if (x.is_parent === 0 || x.is_parent === 1) out.is_parent = x.is_parent
   /* message-edit-v1 §6: edited_at / edited_by / revision sit on the FRAME,
      beside cursor, not inside env.msg — same allow-list gap as view-api's */
   copyEditFields(x, out)
@@ -344,12 +345,13 @@ export function createLiveClient({
      * `parent_task_id` are hub-envelope fields (wui-live-ws §4), sent only when set;
      * a caller `msg_id` makes a resend idempotent.
      */
-    send({ task_id, kind = 'note', body = '', files = [], to, channel, parent_task_id, msg_id: givenId } = {}) {
+    send({ task_id, kind = 'note', body = '', files = [], to, channel, parent_task_id, is_parent, msg_id: givenId } = {}) {
       const msg_id = givenId ? String(givenId) : newId()
       const frame = { type: FRAMES.send, msg_id, task_id: String(task_id || ''), kind, body: String(body), files }
       if (to) frame.to = to
       if (channel) frame.channel = String(channel)
       if (parent_task_id) frame.parent_task_id = String(parent_task_id)
+      if (is_parent === 0 || is_parent === 1) frame.is_parent = is_parent
       return new Promise((resolve, reject) => {
         const timer = setTimer(() => {
           pending.delete(msg_id)

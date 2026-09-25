@@ -20,7 +20,7 @@ import { useSpoolEvents } from '~/composables/useSpoolEvents'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useSidePane } from '~/composables/useSidePane'
-import { omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
+import { isParentFlag, omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
 import { useTopicFeedClose } from '~/composables/useTopicRoute'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -74,6 +74,13 @@ onMounted(() => {
 /* The line decides, unless the Topics list is the selected left pane and
    a topic is open: then the omnibox replies in that topic. `in: <title>`
    still names the topic. Any other left tab starts a new message. */
+function parentBit() {
+  return isParentFlag({
+    tab: sidePane.current.value,
+    paneVisible: Boolean(topic.open || livePane.taskId),
+  })
+}
+
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
   const reply = omniboxReplyTaskId({
     tab: sidePane.current.value,
@@ -81,7 +88,7 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     namedTopicId: topicId || '',
   })
   if (reply) topicId = reply
-  const sent = await channel.send(text, topicId || undefined, files, channelId)
+  const sent = await channel.send(text, topicId || undefined, files, channelId, parentBit())
   topic.noteBorn(topic.open || Boolean(livePane.taskId), topicId, sent as SpoolMessage)
 }
 

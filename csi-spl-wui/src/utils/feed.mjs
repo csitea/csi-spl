@@ -95,11 +95,13 @@ export function mergeById(rows, incoming) {
 }
 
 /** The optimistic card for our own send (FR-013): shown at once, replaced by the pushed echo. */
-export function pendingRow({ msg_id, task_id, from = '', to = '', kind = 'note', body = '', files = [], channel = null, parent_task_id = null, now = new Date() }) {
-  return {
+export function pendingRow({ msg_id, task_id, from = '', to = '', kind = 'note', body = '', files = [], channel = null, parent_task_id = null, is_parent, now = new Date() }) {
+  const row = {
     v: 1, msg_id, task_id, ts: now.toISOString(), received_at: now.toISOString(),
     from, from_box: 'box-wui', to: to || 'ALL-0', kind, body, files, channel, parent_task_id, pending: true,
   }
+  if (is_parent === 0 || is_parent === 1) row.is_parent = is_parent
+  return row
 }
 
 /** Drop one msg_id (a failed optimistic send). */

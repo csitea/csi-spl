@@ -101,6 +101,8 @@ type wuiIn struct {
 	// Hub-envelope tags (wui-live-ws.md §4, channels-v1 §2).
 	Channel      string `json:"channel,omitempty"`
 	ParentTaskID string `json:"parent_task_id,omitempty"`
+	// rdb 0034. Absent on a box or agent send. 0 or 1 from the browser.
+	IsParent *int `json:"is_parent,omitempty"`
 	// Subscription targets beyond task_id / channel (wui-live-ws.md v0.5).
 	Peer string `json:"peer,omitempty"`
 	All  bool   `json:"all,omitempty"`
@@ -435,6 +437,18 @@ func (c *wuiConn) wants(taskID, channel string, p parties, members map[string]bo
 	return false
 }
 
+// uiParent reads the browser is_parent flag. Absent is 0 (a box send never
+// sets it; a reply in the open topics pane sends 0). Any other number is refused.
+func uiParent(v *int) (int, bool) {
+	if v == nil {
+		return 0, true
+	}
+	if *v != 0 && *v != 1 {
+		return 0, false
+	}
+	return *v, true
+}
+
 // wuiSend builds the v:1 object for a browser send and stores it through the
 // shared commit path (messages + deliveries rows).
 func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
@@ -455,6 +469,11 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		id = newUUID()
 	} else if !uuidRe.MatchString(id) {
 		fail("bad_json", http.StatusBadRequest, "msg_id must be a UUID")
+		return
+	}
+	isParent, okParent := uiParent(f.IsParent)
+	if !okParent {
+		fail("bad_json", http.StatusBadRequest, "is_parent must be 0 or 1")
 		return
 	}
 	f.MsgID = id
@@ -588,7 +607,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		env = &wire.Envelope{FromBox: WUIBox, ToBox: WUIBox, Channel: channel,
 			ParentTaskID: f.ParentTaskID, Msg: inner, Sig: ""}
 	}
-	r, err := s.commitRow(ctx, c.tenant, env, m)
+	r, err := s.commitRow(ctx, c.tenant, env, m, isParent)
 	if errors.Is(err, store.ErrConflict) {
 		fail("conflict_msg", http.StatusConflict, "msg_id exists with a different message")
 		return
@@ -637,7 +656,7 @@ func (s *Server) admit(ctx context.Context, tenant string, m *msg.Message) (stri
 
 // fanoutWUI pushes one stored message to every browser subscribed to its task,
 // its stored channel, one of its DM ends, or the whole tenant (once per socket).
-func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID string, p parties, receivedAt time.Time, env []byte) {
+func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID string, p parties, receivedAt time.Time, env []byte, isParent int) {
 	// One membership lookup per stored message, outside the lock: wants()
 	// runs under srv.mu and cannot go to the store, and a set cached on the
 	// socket would keep delivering to someone removed from the channel
@@ -659,7 +678,8 @@ func (s *Server) fanoutWUI(ctx context.Context, tenant, taskID, channel, msgID s
 		return
 	}
 	frame := map[string]any{"type": "message", "task_id": taskID, "cursor": encCursor(receivedAt, msgID),
-		"received_at": rfc(receivedAt), "envelope": e.Msg, "env": json.RawMessage(env)}
+		"received_at": rfc(receivedAt), "envelope": e.Msg, "env": json.RawMessage(env),
+		"is_parent": isParent}
 	if channel != "" {
 		frame["channel"] = channel
 	}

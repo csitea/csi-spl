@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { omniboxParentTaskId, omniboxPlaceholderKey, omniboxReplyTaskId, sendsNewTopic } from '../../src/utils/omnibox-topic.mjs'
+import { isParentFlag, omniboxParentTaskId, omniboxPlaceholderKey, omniboxReplyTaskId, sendsNewTopic } from '../../src/utils/omnibox-topic.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -43,7 +43,7 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
       const s = src(page)
       assert.doesNotMatch(s, /omniboxParentTaskId/)
       assert.match(s, /omniboxReplyTaskId/)
-      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId\)/)
+      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId, parentBit\(\)\)/)
     })
   }
 
@@ -80,5 +80,17 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
     assert.match(src('src/components/ChannelSidebar.vue'), /req\.stay/)
     assert.doesNotMatch(src('src/components/MessageCard.vue'), /reveal\('topics'\)/)
     assert.match(src('src/components/MessageCard.vue'), /data-test="topic-replies"/)
+  })
+
+  it('is_parent is 0 only while the topics tab is selected and the topic pane is visible', () => {
+    assert.equal(isParentFlag({ tab: 'topics', paneVisible: true }), 0)
+    assert.equal(isParentFlag({ tab: 'topics', paneVisible: false }), 1)
+    assert.equal(isParentFlag({ tab: 'channels', paneVisible: true }), 1)
+    assert.equal(isParentFlag({ tab: 'dm', paneVisible: false }), 1)
+    assert.equal(isParentFlag({ tab: 'flow', paneVisible: true }), 1)
+    assert.equal(isParentFlag({}), 1)
+    for (const page of ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/index.vue', 'src/pages/lobby.vue', 'src/pages/t/[task_id].vue']) {
+      assert.match(src(page), /isParentFlag/, page)
+    }
   })
 })

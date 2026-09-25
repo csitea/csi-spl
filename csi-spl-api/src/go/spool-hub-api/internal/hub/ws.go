@@ -553,7 +553,7 @@ func (s *Server) missingFile(ctx context.Context, tenant string, files []msg.Att
 
 // commit stores the envelope and queues or pushes it. Caller has validated.
 func (s *Server) commit(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message) (string, error) {
-	r, err := s.commitRow(ctx, tenant, env, m)
+	r, err := s.commitRow(ctx, tenant, env, m, 0)
 	return r.delivery, err
 }
 
@@ -567,7 +567,10 @@ type committed struct {
 // commitRow is the one store path for every message: box sends, hub-originated
 // envelopes and browser sends (wui.go). A to_box of box-wui is delivered by the
 // browser fan-out, so its deliveries row is marked sent at once.
-func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message) (committed, error) {
+func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message, isParent int) (committed, error) {
+	if isParent != 1 {
+		isParent = 0
+	}
 	var c committed
 	ts, err := time.Parse(time.RFC3339, m.TS)
 	if err != nil {
@@ -589,7 +592,7 @@ func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelop
 		TenantID: tenant, MsgID: m.MsgID, TaskID: m.TaskID, TS: ts,
 		FromBox: env.FromBox, FromID: m.From, ToBox: env.ToBox, ToID: m.To, Kind: m.Kind, Body: m.Body,
 		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel, ParentTaskID: env.ParentTaskID,
-		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)),
+		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)), IsParent: isParent,
 	}
 	inserted, err := s.o.Store.InsertMessage(ctx, row)
 	if err != nil {
@@ -601,7 +604,7 @@ func (s *Server) commitRow(ctx context.Context, tenant string, env *wire.Envelop
 	}
 	if inserted {
 		s.notifyTail(ctx, tenant, m.TaskID, canon)
-		s.fanoutWUI(ctx, tenant, m.TaskID, channel, m.MsgID, parties{m.From, env.FromBox, m.To, env.ToBox}, now, canon)
+		s.fanoutWUI(ctx, tenant, m.TaskID, channel, m.MsgID, parties{m.From, env.FromBox, m.To, env.ToBox}, now, canon, isParent)
 	}
 	s.routeChannel(ctx, tenant, channel, env, m, canon)
 	if env.ToBox == WUIBox {

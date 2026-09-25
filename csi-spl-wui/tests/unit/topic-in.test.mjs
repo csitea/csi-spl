@@ -132,7 +132,7 @@ describe('the box follows the line, not the open pane', () => {
     for (const page of pages.slice(0, 2)) {
       const s = src(page)
       assert.doesNotMatch(s, /omniboxParentTaskId/)
-      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId\)/)
+      assert.match(s, /channel\.send\(text, topicId \|\| undefined, files, channelId, parentBit\(\)\)/)
     }
   })
 
@@ -164,8 +164,8 @@ describe('the box follows the line, not the open pane', () => {
     const s = src('src/pages/lobby.vue')
     assert.match(s, /sendsNewTopic/)
     assert.match(s, /topicId !== here/)
-    assert.match(s, /channel\.send\(text, topicId, files, channelId\)/)
+    assert.match(s, /channel\.send\(text, topicId, files, channelId, parentBit\(\)\)/)
     assert.match(s, /channelId \|\| 'lobby'/)
-    assert.match(s, /store\.send\(text, files \|\| \[\]\)/)
+    assert.match(s, /store\.send\(text, files \|\| \[\], \{ isParent: parentBit\(\) \}\)/)
   })
 })

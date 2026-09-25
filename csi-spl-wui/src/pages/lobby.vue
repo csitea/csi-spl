@@ -38,7 +38,7 @@ import { shouldOpenHubSocket, startHubSocket, stopHubSocket } from '~/utils/shel
 import { useNotificationStore } from '~/stores/notification'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
-import { omniboxReplyTaskId, sendsNewTopic } from '~/utils/omnibox-topic.mjs'
+import { isParentFlag, omniboxReplyTaskId, sendsNewTopic } from '~/utils/omnibox-topic.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'
@@ -148,10 +148,17 @@ async function loadLobbyTopics() {
 /* The right pane is closed and the line names no topic: one new topic,
    this message only. An open pane, or `in:` naming the lobby task, still
    posts into the room. `in:` naming some other topic replies there. */
+function parentBit() {
+  return isParentFlag({
+    tab: sidePane.current.value,
+    paneVisible: Boolean(topic.open || pane.taskId),
+  })
+}
+
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
   const here = String(store.taskId || '')
   if (topicId && topicId !== here) {
-    await channel.send(text, topicId, files, channelId)
+    await channel.send(text, topicId, files, channelId, parentBit())
     return
   }
   const replyHere = omniboxReplyTaskId({
@@ -160,15 +167,15 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     namedTopicId: '',
   })
   if (replyHere && pane.taskId && replyHere === pane.taskId) {
-    await pane.send(text, files || [])
+    await pane.send(text, files || [], { isParent: parentBit() })
     return
   }
   const paneOpen = topic.open || Boolean(pane.taskId)
   if (sendsNewTopic({ paneOpen, namedTopicId: topicId || '' })) {
-    const sent = await channel.send(text, undefined, files, channelId || 'lobby')
+    const sent = await channel.send(text, undefined, files, channelId || 'lobby', parentBit())
     if (sent) store.admit([sent as SpoolMessage])
     return
   }
-  await store.send(text, files || [])
+  await store.send(text, files || [], { isParent: parentBit() })
 }
 </script>

@@ -177,6 +177,23 @@ describe('live-ws A1: channels, presence, reconnect (wui-live-ws 0.3 §3.2, §4,
     assert.equal(a.msg_id, 'mid-1')
     assert.equal('channel' in b, false)
     assert.equal('parent_task_id' in b, false)
+    assert.equal('is_parent' in b, false)
+  })
+
+  it('sends is_parent 0 and 1, and keeps 0', async () => {
+    const { FakeWS, sockets } = fakeWs()
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS })
+    c.connect(); sockets[0].open(); sockets[0].recv({ type: 'welcome' })
+    const p0 = c.send({ task_id: 'T', body: 'reply', is_parent: 0 })
+    const p1 = c.send({ task_id: 'T', body: 'root', is_parent: 1 })
+    const [a, b] = sockets[0].sent.filter((f) => f.type === 'send')
+    sockets[0].recv({ type: 'ack', msg_id: a.msg_id })
+    sockets[0].recv({ type: 'ack', msg_id: b.msg_id })
+    await Promise.all([p0, p1])
+    assert.equal(a.is_parent, 0)
+    assert.equal(b.is_parent, 1)
+    const echoed = messageFromFrame({ type: 'message', task_id: 'T', is_parent: 0, env: { from_box: 'box-wui', to_box: 'box-wui', msg: { v: 1, msg_id: 'm', task_id: 'T' } } })
+    assert.equal(echoed.is_parent, 0)
   })
 
   it('emits presence frames to onPresence', () => {

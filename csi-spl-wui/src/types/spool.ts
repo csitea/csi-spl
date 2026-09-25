@@ -23,6 +23,8 @@ export interface SpoolMessage {
   files?: FileRef[]
   channel?: string | null
   parent_task_id?: string | null
+  /** rdb 0034. 1 when sent outside the open topics pane. 0 when that pane is open and the topics tab is selected. */
+  is_parent?: 0 | 1
   from_box?: string
   to_box?: string
   cursor?: string
@@ -112,5 +114,6 @@ export interface SendFrame {
   to?: string
   channel?: string
   parent_task_id?: string
+  is_parent?: 0 | 1
   msg_id?: string
 }

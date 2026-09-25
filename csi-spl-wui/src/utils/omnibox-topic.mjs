@@ -56,3 +56,15 @@ export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId
   if (tab === 'topics' && selectedTaskId) return String(selectedTaskId)
   return ''
 }
+
+/**
+ * messages.is_parent for a browser send.
+ * 0 when the topics tab is selected and the topic pane is visible
+ * (the state after clicking replies, once that tab is the selected one).
+ * 1 when the tab is not selected or the pane is not visible.
+ * @param {{ tab?: string, paneVisible?: boolean }} [opts]
+ * @returns {0 | 1}
+ */
+export function isParentFlag({ tab = '', paneVisible = false } = {}) {
+  return tab === 'topics' && paneVisible ? 0 : 1
+}

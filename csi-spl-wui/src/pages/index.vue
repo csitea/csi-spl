@@ -55,7 +55,7 @@ import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useSidePane } from '~/composables/useSidePane'
-import { omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
+import { isParentFlag, omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 
@@ -109,6 +109,13 @@ const { pill, jump } = useScrollAnchor(listTop, () => viewer.topics.map((r) => r
 /* Topics tab with a selected row: the omnibox replies in that topic.
    `in: <title>` still names the topic. Anything else, or Topics with
    nothing selected, starts a new message. */
+function parentBit() {
+  return isParentFlag({
+    tab: sidePane.current.value,
+    paneVisible: Boolean(topicStore.open || pane.taskId),
+  })
+}
+
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
   const target = omniboxReplyTaskId({
     tab: sidePane.current.value,
@@ -117,14 +124,14 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
   })
   if (target && pane.taskId && target === pane.taskId) {
     const before = pane.messages.length
-    await pane.send(text, files || [])
+    await pane.send(text, files || [], { isParent: parentBit() })
     const last = pane.messages[pane.messages.length - 1]
     if (last && pane.messages.length > before) {
       viewer.topics = bumpTopic(viewer.topics, last as unknown as Record<string, unknown>) as typeof viewer.topics
     }
     return
   }
-  const sent = await channel.send(text, target || undefined, files, channelId)
+  const sent = await channel.send(text, target || undefined, files, channelId, parentBit())
   /* A send with no topic is a new topic of this one message, so the row
      has to appear here itself. The socket echo does not count a second time. */
   if (sent) viewer.topics = bumpTopic(viewer.topics, sent as unknown as Record<string, unknown>) as typeof viewer.topics

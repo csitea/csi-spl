@@ -196,7 +196,7 @@ function setup(key: 'main' | 'pane') {
    * is then reachable from the channel it was started in. Both are omitted for
    * an ordinary reply, which changes nothing about the frame.
    */
-  async function send(body: string, files: File[] = [], opts: { parentTaskId?: string, channel?: string | null } = {}) {
+  async function send(body: string, files: File[] = [], opts: { parentTaskId?: string, channel?: string | null, isParent?: number } = {}) {
     if (!taskId.value) return
     let msgId = ''
     sending.value = true
@@ -217,9 +217,10 @@ function setup(key: 'main' | 'pane') {
       const task = taskId.value
       const parent = opts.parentTaskId && opts.parentTaskId !== task ? opts.parentTaskId : undefined
       const channel = opts.channel || undefined
-      merge([pendingRow({ msg_id: msgId, task_id: task, from: live.identity.value, to, kind, body: text, files: refs, channel: channel || null, parent_task_id: parent || null }) as SpoolMessage])
+      const parentBit: 0 | 1 = opts.isParent === 0 ? 0 : 1
+      merge([pendingRow({ msg_id: msgId, task_id: task, from: live.identity.value, to, kind, body: text, files: refs, channel: channel || null, parent_task_id: parent || null, is_parent: parentBit }) as SpoolMessage])
       if (client) {
-        const ack = await client.send({ task_id: task, kind, body: text, files: refs, to, msg_id: msgId, parent_task_id: parent, channel }) as { cursor?: string, received_at?: string }
+        const ack = await client.send({ task_id: task, kind, body: text, files: refs, to, msg_id: msgId, parent_task_id: parent, channel, is_parent: parentBit }) as { cursor?: string, received_at?: string }
         const own = messages.value.find((m) => m.msg_id === msgId)
         if (own && own.pending && taskId.value === task) {
           merge([{ ...own, pending: false, cursor: ack.cursor, received_at: ack.received_at || own.received_at }])

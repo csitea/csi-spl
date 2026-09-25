@@ -493,6 +493,8 @@ type viewMsg struct {
 	EditedAt string `json:"edited_at,omitempty"`
 	EditedBy string `json:"edited_by,omitempty"`
 	Revision int    `json:"revision,omitempty"`
+	// rdb 0034. Always present: 0 and 1 are both real values.
+	IsParent int `json:"is_parent"`
 }
 
 func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store.Tenant) {
@@ -579,7 +581,7 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 	out := []viewMsg{}
 	for _, m := range rows {
 		v := viewMsg{Cursor: encCursor(m.ReceivedAt, m.MsgID), ReceivedAt: rfc(m.ReceivedAt),
-			Env: json.RawMessage(m.Env), Deliveries: []viewDelivery{}}
+			Env: json.RawMessage(m.Env), Deliveries: []viewDelivery{}, IsParent: m.IsParent}
 		if !m.EditedAt.IsZero() {
 			v.EditedAt, v.EditedBy, v.Revision = rfc(m.EditedAt), m.EditedBy, m.Revision
 		}

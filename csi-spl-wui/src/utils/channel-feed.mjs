@@ -346,6 +346,7 @@ export function rowFromAck(ack, frame, { from = '', channel = null } = {}) {
     files: f.files || [],
     channel,
     parent_task_id: (typeof f.parent_task_id === 'string' && f.parent_task_id) ? f.parent_task_id : null,
+    ...(f.is_parent === 0 || f.is_parent === 1 ? { is_parent: f.is_parent } : {}),
   }
 }
 

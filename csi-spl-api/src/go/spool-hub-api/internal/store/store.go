@@ -95,24 +95,36 @@ type Message struct {
 	Channel  string // "" = NULL = a DM (channels-v1 §0); normalized (general → lobby)
 	// ParentTaskID is the hub-envelope parent task ("" = NULL = a root topic).
 	ParentTaskID string
-	TS           time.Time
-	FromBox      string
-	FromID       string
-	ToBox        string
-	ToID         string
-	Kind         string
-	Body         string
-	Files        []byte // v:1 files[] JSON
-	Msg          []byte // full inner v:1 JSON
-	EnvSig       string
-	Env          []byte // canonical envelope bytes, forwarded unchanged
-	ReceivedAt   time.Time
-	ExpiresAt    time.Time
+	// IsParent is the browser's panel flag (rdb 0034). 1 when the UI sent
+	// the message with the topics tab unselected or the topic pane closed.
+	// 0 when both were true, and for every send that did not set the flag.
+	IsParent   int
+	TS         time.Time
+	FromBox    string
+	FromID     string
+	ToBox      string
+	ToID       string
+	Kind       string
+	Body       string
+	Files      []byte // v:1 files[] JSON
+	Msg        []byte // full inner v:1 JSON
+	EnvSig     string
+	Env        []byte // canonical envelope bytes, forwarded unchanged
+	ReceivedAt time.Time
+	ExpiresAt  time.Time
 	// The latest edit (specs/032, rdb 0026); zero / "" = never edited. The
 	// insert path never sets them: a message is born unedited, and only
 	// MessageEdits.ApplyEdit ever writes them.
 	EditedAt time.Time
 	EditedBy string
+}
+
+// parentBit keeps is_parent inside the column check (0 or 1).
+func parentBit(n int) int {
+	if n == 1 {
+		return 1
+	}
+	return 0
 }
 
 // Queued is one queued delivery ready to push to a box.

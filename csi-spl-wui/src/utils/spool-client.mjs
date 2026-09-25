@@ -589,7 +589,7 @@ export function createSpoolClient({
      * wui-live-ws §4 `send` frame via the injected sender; resolves with the
      * flat message plus the ack's cursor / received_at.
      */
-    async sendMessage({ channel, peer, text, task_id, parent_task_id, files, from, msg_id } = {}) {
+    async sendMessage({ channel, peer, text, task_id, parent_task_id, is_parent, files, from, msg_id } = {}) {
       const parsed = parseMention(text)
       const peerId = peer ? String(peer).split('@')[0] : ''
       const to = peer ? peerId : parsed.to
@@ -610,6 +610,7 @@ export function createSpoolClient({
           files: files || [],
           channel: channel || null,
           parent_task_id: parent_task_id || null,
+          ...(is_parent === 0 || is_parent === 1 ? { is_parent } : {}),
         }
         state.messages.push(row)
         return row
@@ -622,6 +623,7 @@ export function createSpoolClient({
       if (to && to !== '@channel') frame.to = to
       if (channel) frame.channel = String(channel)
       if (parent_task_id) frame.parent_task_id = String(parent_task_id)
+      if (is_parent === 0 || is_parent === 1) frame.is_parent = is_parent
       const ack = (await send(frame)) || {}
       return {
         v: 1,
@@ -637,6 +639,7 @@ export function createSpoolClient({
         files: frame.files,
         channel: frame.channel || null,
         parent_task_id: frame.parent_task_id || null,
+        ...(frame.is_parent === 0 || frame.is_parent === 1 ? { is_parent: frame.is_parent } : {}),
         cursor: ack.cursor,
         received_at: ack.received_at,
       }

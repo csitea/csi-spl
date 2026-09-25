@@ -35,7 +35,7 @@ import { newestFirst } from '~/utils/feed.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 import { useSidePane } from '~/composables/useSidePane'
-import { omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
+import { isParentFlag, omniboxReplyTaskId } from '~/utils/omnibox-topic.mjs'
 
 const route = useRoute()
 const store = useLiveFeed('main')
@@ -71,6 +71,13 @@ function onEdited(row: SpoolMessage) {
 
 /* Topics tab with this task selected: the omnibox replies here. `in:`
    naming another topic still goes there. A different left tab starts a new message. */
+function parentBit() {
+  return isParentFlag({
+    tab: sidePane.current.value,
+    paneVisible: true,
+  })
+}
+
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
   const target = omniboxReplyTaskId({
     tab: sidePane.current.value,
@@ -78,10 +85,10 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
     namedTopicId: topicId || '',
   })
   if (target && target === taskId.value && store.taskId) {
-    await store.send(text, files || [])
+    await store.send(text, files || [], { isParent: parentBit() })
     return
   }
-  const sent = await channel.send(text, target || undefined, files, channelId)
+  const sent = await channel.send(text, target || undefined, files, channelId, parentBit())
   topic.noteBorn(topic.open || Boolean(side.taskId), target, sent as SpoolMessage)
 }
 useOmniboxTarget({

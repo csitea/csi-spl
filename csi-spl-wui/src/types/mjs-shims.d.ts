@@ -74,6 +74,7 @@ declare module '~/utils/spool-client.mjs' {
       text: string
       task_id?: string
       parent_task_id?: string
+      is_parent?: 0 | 1
       files?: unknown[]
       from?: string
       msg_id?: string
@@ -341,6 +342,7 @@ declare module '~/utils/feed.mjs' {
     files?: unknown[]
     channel?: string | null
     parent_task_id?: string | null
+    is_parent?: 0 | 1
     now?: Date
   }): import('./spool').SpoolMessage
   export function withoutMsg<T>(rows: T[], msgId: string): T[]

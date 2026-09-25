@@ -252,18 +252,18 @@ page it is on, so a DM thread picks up a channel-tagged message the moment
 someone answers it from a channel view (dev `t1`
 `57e6f191-582e-45b1-a08e-389c0b034803` is exactly that, and is the thread the
 defect was reported from). Access is therefore **not** a property of the
-thread. `GET /v1/view/threads/{task_id}` opens when at least one message in it
+thread. `GET /v1/view/topics/{task_id}` opens when at least one message in it
 is readable, and then returns **only** the readable ones — filtered in the
 statement, so `limit` counts what comes back. Were it per thread, appending
 one message to a DM would buy the whole private history before it.
-Test: `TestMixedThreadHidesTheDMHalf`.
+Test: `TestMixedTopicHidesTheDMHalf`.
 
 ### 7.3 Where it is applied
 
-`GET /v1/view/threads/{task_id}` and `/children`, `GET /v1/view/threads`,
-`GET /v1/view/channels`, `GET /v1/search`, and on the browser socket:
+`GET /v1/view/topics/{task_id}` and `/children`, `GET /v1/view/topics`,
+`GET /v1/view/channels`, `GET /v1/view/search`, and on the browser socket:
 `subscribe` (by channel and by `task_id`), `send`, the message fan-out, the
-edit fan-out and the `channel` created-frame. Posting into a channel you are
+edit fan-out, the reaction fan-out (`message_reaction`, FR-033) and the `channel` created-frame. Posting into a channel you are
 not in is refused for the same reason reading it is.
 
 A socket or request with **no** member session filters nothing: that is the
@@ -382,13 +382,20 @@ rediscovered.
 
 ## 8. Open questions (owner, via ORC)
 
+Sync 2026-09-25: all three run their recommended default; each awaits owner
+ratification (`../spec.md` → **Open owner questions (sync 2026-09-25)**, Q2).
+
 - **OQ-CH1** — who creates channels: (a) *recommended, implemented*: humans
   through the view door only; box agents later via a signed frame; (b) boxes
   too, now (needs a signed `channel_create` frame and its replay rule).
+  Evidence: creation also needs RBAC `channels.manage` (`internal/hub/channels.go:325`,
+  spec 025); `grep -rn channel_create csi-spl-api/src/go/spool-hub-api --include=*.go` → 0.
 - **OQ-CH2** — read state: (a) *recommended, implemented*: client-held
   cursors passed as `read=`; (b) hub-stored per-human cursors (needs the
   humans table, HUMANS 0006).
+  Evidence: `internal/hub/view.go:259` computes unread from `read=`; no hub read-state column.
 - **OQ-CH3** — `general` alias lifetime: (a) *recommended*: accepted until
   the next minor contract version, then `404 unknown_channel`; (b) forever.
+  Evidence: still accepted (`internal/store/channels.go:20` `ChannelGeneralAlias`); no end release is set.
 
-<!-- version: 1.5.1 · updated: 2026-09-24 · last-edit: 2026-09-24T17:40:00Z — channel invite for a person and an agent -->
+<!-- version: 1.5.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:26:14Z -->

@@ -3,12 +3,13 @@
 Feature: `003-spool-message-bus`, User Story 7. Consumer: `../../005-spool-wui/`
 (it cites this file and does not restate it; seam in `../../README.md` §5).
 
-**Status: Implemented except the view token (§2, OQ-16).** v0.5 (M3 WIRE): channel list with unread + members (§4.2), roots / DMs (§4.3), children (§4.5) — `TestChannelEnvelopeStored`, `TestStoreChannels`. Routes in
+**Status: Implemented** (session door; OQ-16 resolved 2026-09-19 — the view token of §2 was superseded and never built, T033). Routes renamed `threads` -> `topics` in `57f8a670` (2026-09-23): `grep -c 'HandleFunc("GET /v1/view/topics' csi-spl-api/src/go/spool-hub-api/internal/hub/view.go` -> 3; `/v1/view/threads` now answers `404`. v0.5 (M3 WIRE): channel list with unread + members (§4.2), roots / DMs (§4.3), children (§4.5) — `TestChannelEnvelopeStored`, `TestStoreChannels`. Routes in
 `csi-spl-api/src/go/spool-hub-api/internal/hub/view.go`, store queries in
 `internal/store/view.go` / `view_postgres.go`; tests `TestViewAPI`,
-`TestViewDoorTokenFailsClosed`, `TestViewReads` (memory + Postgres).
-Until OQ-16 is decided the `token` door **fails closed** (every request
-`401 view_door`); lde runs with the door `off`.
+`TestViewDoorTokenFailsClosed`, `TestSessionDoorMemberReadsNonMemberRefused`,
+`TestViewReads` (memory + Postgres). Dev and prd run `session`; the `token`
+mode admits only a member session (no token parser exists; keep or remove is
+owner question Q1 in `../spec.md`); lde runs with the door `off`.
 
 Normative order: `../../002-box-agent-messaging/contracts/trust-modes.md`, then
 `../spec.md` (FR-018 – FR-022), then this file, then `./http-v1.md` (shared
@@ -34,30 +35,36 @@ tenant, error and file rules).
 ```
 GET  /v1/view/roster                      boxes, pins, agents, online; member humans + avatar FR-019
 GET  /v1/view/channels                    defaults + created + seen channels, unread, members FR-019, FR-025
-GET  /v1/view/threads                     root threads (or DMs), newest activity first, paged FR-019, FR-026
-GET  /v1/view/threads/{task_id}           one thread's envelopes, oldest first, paged        FR-019
-GET  /v1/view/threads/{task_id}/children  child threads of a task (parent_task_id), paged    FR-026
+GET  /v1/view/topics                     root threads (or DMs), newest activity first, paged FR-019, FR-026
+GET  /v1/view/topics/{task_id}           one thread's envelopes, oldest first, paged        FR-019
+GET  /v1/view/topics/{task_id}/children  child threads of a task (parent_task_id), paged    FR-026
 GET  /v1/files/{file_id}                  ./http-v1.md §3: upload token or member session     FR-007
 GET  /v1/view/search                      ./search-v1.md: one Gmail-style grammar, grouped     FR-029
 GET  /v1/view/search/operators            ./search-v1.md §6: the grammar as data              FR-031
+GET  /v1/view/me                          the reader's roles and permissions                  025
 ```
 
-Every other method on `/v1/view/*` → `405 method_not_allowed`. Tenant = request
-**Host**, exactly as `./http-v1.md` (006 owns the resolution; unknown →
-`404 unknown_tenant`).
+Every other method on `/v1/view/*` → `405 method_not_allowed`; an unknown GET
+path → `404 not_found`. Tenant = the member session's tenant (026,
+`./http-v1.md` header note); unknown → `404 unknown_tenant`.
 
-## 2. Door: the view token (FR-020)
+## 2. Door (FR-020): the member session; the view token is superseded
 
-Door mode is cnf `SPOOL_HUB_VIEW_DOOR`: `token` (default) or `off`. The hub
+**Resolved (OQ-16, owner 2026-09-19):** dev and prd run `session` — member
+sessions only, credentialed CORS for exact allow-listed origins (010 FR-009,
+003 T033b). `yq -r '.env.hub.env.SPOOL_HUB_VIEW_DOOR' csi-spl-cnf/csi-spl/prd.env.yaml`
+→ `session`. The token text below was never built and is kept for the record.
+
+Door mode is cnf `SPOOL_HUB_VIEW_DOOR`: `token` (default), `session` or `off`
+(`internal/config/config.go:254`, validated at `:362`–`:370`). The hub
 **refuses to start** with `off` unless `SPOOL_HUB_ENV` is `lde` or `dev`
 (ORC decision 2026-09-18: dev reads are open so the WUI renders now); **prd
-never runs without a door**, and the prd token format (OQ-16) is a pre-M3
-owner decision. With `off`, no `Authorization` is checked.
+never runs without a door**; prd runs `session` (OQ-16 resolved 2026-09-19). With `off`, no `Authorization` is checked.
 
 `Authorization: Bearer <view_token>` on every `/v1/view/*` request. Missing,
 malformed, expired, wrong scope or wrong tenant → `401 view_door`.
 
-**PROPOSED — owner to confirm** (`../spec.md` OQ-16, raised 2026-09-18):
+**SUPERSEDED — kept for the record** (was PROPOSED, `../spec.md` OQ-16, raised 2026-09-18):
 
 ```
 view_token = b64url(payload_json) "." b64url(sig)
@@ -103,11 +110,11 @@ The WUI is served from Firebase Hosting, a different origin from the hub.
   never answer CORS. `OPTIONS /v1/files` and `OPTIONS /v1/files/{file_id}`
   → `204` with `Access-Control-Allow-Methods: GET, POST, DELETE`
   (`filesPreflight`; `command grep -n 'Allow-Methods", "GET, POST, DELETE"'
-  csi-spl-api/src/go/spool-hub-api/internal/hub/wui.go` → `wui.go:494`;
+  csi-spl-api/src/go/spool-hub-api/internal/hub/wui.go` → `wui.go:759`;
   `command grep -n 'OPTIONS /v1/files' csi-spl-api/src/go/spool-hub-api/internal/hub/server.go`
   → `mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)`).
 - View preflight `OPTIONS /v1/view/*` → `204` with `Access-Control-Allow-Methods: GET`,
-  `Access-Control-Allow-Headers: Authorization`, `Access-Control-Max-Age: 600`,
+  `Access-Control-Allow-Headers: Authorization, X-Locale` (`internal/hub/view.go:87`), `Access-Control-Max-Age: 600`,
   `Vary: Origin`. No credentials mode on the token door (the token is a header,
   not a cookie). Session-door credentialed CORS is 003 T033b.
 
@@ -162,7 +169,7 @@ for an empty channel). `description` is `""` for a default channel and for
 every channel created before rdb 0027. `read` (repeatable), `unread` and
 `members`: `./channels-v1.md` §5.2.
 
-### 4.3 `GET /v1/view/threads?limit=&before=&channel=&agent=&roots=&dm=&peer=`
+### 4.3 `GET /v1/view/topics?limit=&before=&channel=&agent=&roots=&dm=&peer=`
 
 ```json
 { "threads": [
@@ -185,13 +192,13 @@ Ordered by `last_ts` descending; `before` pages to older threads.
   parent, so the default list is unchanged for existing data.
 - **DMs**: `dm=true` keeps only messages with no channel (`channel IS NULL`);
   `peer=<id>` or `peer=<id>@<box>` keeps threads with a message from or to that
-  peer (`GET /v1/view/threads?dm=true&peer=CLE-07`). When the reader holds a
+  peer (`GET /v1/view/topics?dm=true&peer=CLE-07`). When the reader holds a
   member session (`HUM-*`), `dm=true` also requires the reader to be a party
   of the thread (private delivery); with door `off` there is no reader id and
   no such filter (lde/dev only). `dm` must be `true` or `false`, else
   `400 bad_json`.
 
-### 4.4 `GET /v1/view/threads/{task_id}?limit=&after=` | `?order=desc&limit=&before=`
+### 4.4 `GET /v1/view/topics/{task_id}?limit=&after=` | `?order=desc&limit=&before=`
 
 ```json
 { "task_id": "…",
@@ -214,13 +221,13 @@ Ordered by `last_ts` descending; `before` pages to older threads.
   older window, until `next` is `null`. `order` is `asc` (default) or `desc`,
   else `400 bad_json`. `after=` is **asc only** (reconnect catch-up) and
   `before=` is **desc only**; the wrong pairing is `400 bad_json`
-  (`TestViewThreadDescWindows`, `TestViewReads`).
+  (`TestViewTopicDescWindows`, `TestViewReads`).
 - **Live updates**: the browser socket is `/v1/wui/ws` (`./wui-live-ws.md`;
   `command grep -n "WS_PATH" csi-spl-wui/src/utils/live-ws.mjs` →
   `export const WS_PATH = '/v1/wui/ws'`). Reconnect catch-up may poll this
   section with `after=<last cursor>`.
 
-### 4.5 `GET /v1/view/threads/{task_id}/children?limit=&before=`
+### 4.5 `GET /v1/view/topics/{task_id}/children?limit=&before=`
 
 Same shape and paging as §4.3 (`threads`, `next`), listing the threads whose
 `parent_task_id` is `{task_id}`, newest activity first. Replies **within** a
@@ -253,4 +260,4 @@ Live reads go to `/v1/view/*`. Live send / channel-create still throw
 `ReadOnlyError` (005 phase-3 / A1). The pre-`src/` path
 `csi-spl-wui/utils/spool-client.mjs` does not exist.
 
-<!-- version: 0.5.2 · updated: 2026-09-22 · last-edit: 2026-09-22T12:10:30Z -->
+<!-- version: 0.6.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:26:14Z -->

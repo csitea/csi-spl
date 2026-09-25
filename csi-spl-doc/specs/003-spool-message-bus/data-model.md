@@ -16,8 +16,8 @@ hub-wide catalogues. The tenant is resolved from the caller (specs/026,
 keys `t/<tenant>/files/<sha256>`. The `tenants` table is owned by 006; pins and
 boxes are owned by 004. Their shapes are repeated here only so that the hub
 schema reads as one piece. Tables added after 0003 are not all redrawn below;
-the DDL directory is the catalogue (27 `*.sql` files on tree `324a071`,
-including two files numbered `0021`).
+the DDL directory is the catalogue (`ls csi-spl-rdb/src/sql/postgres/spool-hub/*.sql | wc -l` -> 43 on tree `bbe04d26`,
+including two files numbered `0021`; 27 on `324a071`).
 
 ## 1. GCS
 
@@ -119,6 +119,9 @@ session; the sender resolves `to_box` from it **before** signing (OQ-03).
 | `expires_at` | timestamptz | retention (§5): `received_at` + 7 days for channel `alerts`, else + 30 days (cnf per plan tier) |
 | `edited_at` | timestamptz NULL | 0026: set on the latest edit; NULL = never edited |
 | `edited_by` | text NULL | 0026: v:1 id of the latest editor |
+| `search_tsv` | tsvector | 0020: `GENERATED ALWAYS AS (to_tsvector('simple', body)) STORED`, GIN index `messages_search` (FR-032) |
+| `is_parent` | smallint NOT NULL default 0 | 0034/0035: UI parent flag (opening message 1, reply 0); box sends are 0 (033, 038) |
+| `typed_by` | text NULL | 0040: the verified HUM-* who typed a terminal line; the hub checks it against `box_operators` (036) |
 
 PK `(tenant_id, msg_id)`. The 0.1.0 draft had `msg_id` as a global PK. That
 contradicts per-tenant isolation (two tenants may mint colliding ids through a
@@ -137,6 +140,7 @@ different canonical returns 409 `conflict_msg` (FR-010).
 | `created_at` | timestamptz | |
 | `is_private` | boolean | default false. **Stored only.** `git grep -l is_private -- '*.go'` → 0 on `324a071`. The hub does not read it. Every channel is tenant-visible until a later change actually consults the column. |
 | `description` | text NOT NULL default `''` | 0027. The create-channel dialog stores it. |
+| `members_open_invite` | boolean NOT NULL default false | 0031: any member may invite (`PATCH /v1/channels/{channel}`, `contracts/channels-v1.md` §7.4) |
 
 PK `(tenant_id, channel_id)`. Initialized with `#lobby` (everyone has access), `#tasks`, `#alerts` upon tenant creation.
 
@@ -167,8 +171,64 @@ Box/agent subscriptions for channel routing:
 | `agent_id` | text | `CLE-07` |
 | `box_id` | text | `box-a` |
 | `subscribed_at` | timestamptz | |
+| `origin` | text NOT NULL default `'announce'` | 0032/0033: `announce` \| `invite` \| `removed`; a `removed` row is an exclusion the next announce does not put back |
 
 PK `(tenant_id, channel_id, agent_id, box_id)`.
+
+### `channel_humans` (rdb 0028)
+
+Human members of a channel; the read door of `contracts/channels-v1.md` §7.
+
+| column | type | notes |
+|---|---|---|
+| `tenant_id` | text | |
+| `channel_id` | text | |
+| `human_id` | text | `HUM-*` |
+| `joined_at` | timestamptz | default now() |
+| `added_by` | text | default `'hub'` |
+
+PK `(tenant_id, channel_id, human_id)`. RLS in the 0021 `NULLIF` form.
+
+### `message_reactions` (FR-033, rdb 0037)
+
+One member's one emoji on one message (opening message or reply). Hub metadata, not part of the signed `v:1` body.
+
+| column | type | notes |
+|---|---|---|
+| `tenant_id` | text | FK with `msg_id` to `messages`, `ON DELETE CASCADE` |
+| `msg_id` | uuid | |
+| `actor` | text | v:1 id of the member (`HUM-*`) |
+| `emoji` | text | one offered glyph |
+| `created_at` | timestamptz | default now(); chip order |
+
+PK `(tenant_id, msg_id, actor, emoji)`; re-adding is a no-op. RLS `tenant_scope` (0021 `NULLIF` form) + `operator_scope`.
+
+### `box_operators` (036, rdb 0040)
+
+Which humans may type on a box; the hub verifies `messages.typed_by` against it.
+
+| column | type | notes |
+|---|---|---|
+| `tenant_id` | text | |
+| `box_id` | text | CHECK `^[a-z0-9][a-z0-9-]{0,31}$` |
+| `human_id` | text | |
+| `granted_by` | text | |
+| `granted_at` | timestamptz | default now() |
+
+PK `(tenant_id, box_id, human_id)`.
+
+### `message_period_counts` (rdb 0023)
+
+Per-tenant message counter for the quota period, striped over 16 slots so concurrent sends do not contend (027 / 033).
+
+| column | type | notes |
+|---|---|---|
+| `tenant_id` | text | FK `tenants`, `ON DELETE CASCADE` |
+| `period_start` | timestamptz | |
+| `slot` | smallint | 0..15 |
+| `messages` | bigint | |
+
+PK `(tenant_id, period_start, slot)`.
 
 ### `deliveries` (hub queue)
 
@@ -239,8 +299,10 @@ The read-only viewer API adds no table of its own. It reads `pins`,
 `boxes`, `roster`, `messages` (including the stored `env` bytes) and
 `deliveries.state`, and a viewer read writes nothing (FR-019). Dev and prd
 authenticate that read with a member session (`SPOOL_HUB_VIEW_DOOR=session`),
-not with a stateless token checked against `tenants.root_pubkey`. The token
-format is still 003 OQ-16. `off` is lde only.
+not with a stateless token checked against `tenants.root_pubkey`. OQ-16 is
+resolved: the session door superseded the token (T033 superseded). `off` is lde/dev only.
+Since M3 the reads also consult `channel_subscriptions` / `channel_humans` (the
+read door) and `message_reactions` (topic rows carry `reactions`, FR-033).
 
 ## 5. Retention (hub sweep)
 
@@ -259,12 +321,12 @@ Per `contracts/limits.md` (owner `43b1050`):
   (Constitution II / VI) require it from cnf. The value is the owner's call.
 - Resolved: OQ-05 (roster persisted), OQ-06 (`iam_principal` reserved), OQ-08
   (`acks` dropped), OQ-13 (7-day queue TTL).
-- The 2026-09-18 catalogue (`0001`–`0003` only) is stale. On tree `324a071`,
-  `ls csi-spl-rdb/src/sql/postgres/spool-hub/*.sql | wc -l` → 27. There is no
+- The 2026-09-18 catalogue (`0001`–`0003` only) is stale. On tree `bbe04d26`,
+  `ls csi-spl-rdb/src/sql/postgres/spool-hub/*.sql | wc -l` → 43 (27 on `324a071`). There is no
   `0007`. Two files share the number `0021` (`0021_rls_fail_closed.sql` and
   `0021_tenant_rbac.sql`). `spool migrate` keys the ledger on the filename
   (`internal/store/migrate.go`), so both apply, in `sort.Strings` order
   (the RLS rewrite runs first). A later table must include the `NULLIF`
   policy itself; the rewrite does not see files that sort after it.
 
-<!-- version: 0.6.0 · updated: 2026-09-23 · last-edit: 2026-09-23T07:23:09Z -->
+<!-- version: 0.7.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:26:14Z -->

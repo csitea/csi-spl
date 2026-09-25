@@ -225,7 +225,7 @@ ids), which are compared as given. An operator value may be a phrase:
 the body around the first highlighted term (the whole body when shorter; `…`
 marks a cut; newlines become spaces). Highlights mark each positive text term
 (not negated, not operator values) wherever it occurs in the snippet as a
-whole word, case-insensitively. To open it: `GET /v1/view/threads/{task_id}`.
+whole word, case-insensitively. To open it: `GET /v1/view/topics/{task_id}`.
 
 ### 4.2 `thread`
 
@@ -365,4 +365,4 @@ Saved searches, search inside file **contents**, per-language stemming,
 fuzzy / prefix matching (`deplo*`), `label:`, total counts, cross-tenant
 search (never).
 
-<!-- version: 1.0.0 · updated: 2026-09-19 · last-edit: 2026-09-19T16:45:00Z -->
+<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:26:14Z -->

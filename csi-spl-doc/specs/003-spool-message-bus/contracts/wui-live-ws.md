@@ -13,7 +13,9 @@ Related: `./view-v1.md` (history / catch-up, same door, same CORS list),
 `TestWUIBoxAgentToLobby`, `TestWUIFilesUploadDownloadDelete`,
 `TestWUIDoorAndReservedBox`, `TestWUIResendAcrossSecond`, `TestWUIChannelSubscribeNewRoot`,
 `TestWUIPeerSubscribeDM`, `TestWUIAllSubscribe`
-(`internal/hub/wui_test.go`, also under `-race`).
+(`internal/hub/wui_test.go`, also under `-race`). v0.8 (sync 2026-09-25) adds the
+`message_edited` / `message_deleted` (032) and `message_reaction` (FR-033) rows to
+§3.2; they were live before this file named them.
 
 **Tolerant parsing (0.2.0)**, so the ORC-described shape and 0.1.0 both work:
 `hello.as` may be a display name (mapped to a stable guest id `GST-<n>` per
@@ -47,7 +49,7 @@ to browser subscribers only.
 `LOBBY_TASK_ID` is a valid v:1 `task_id` (UUIDv4 shape: version nibble 4,
 variant 8). It is the same in every env and tenant; each tenant has its own
 lobby thread because every row is tenant-scoped. The thread needs no seed: it
-exists from its first message, and `GET /v1/view/threads/{LOBBY_TASK_ID}`
+exists from its first message, and `GET /v1/view/topics/{LOBBY_TASK_ID}`
 answers `200` with `messages: []` before that (not 404). When the hub runs
 without `SPOOL_HUB_LOBBY_TASK_ID`, the lobby is off: `welcome.lobby_task_id`
 is absent and `subscribe`/`send` naming `LOBBY` fail with `lobby_disabled`.
@@ -75,7 +77,7 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 
 | `type` | Fields | Rule |
 |---|---|---|
-| `hello` | `as?`, `token?` | **first frame**, within 10 s (else close `4408`). `as` = a v:1 agent id (`^[A-Z]{2,4}-[0-9]+$`, e.g. `HUM-1`) used as `from`; absent -> the hub assigns a guest id `GST-<n>`. A display name that is not an id (`AgentA`) is mapped to a stable `GST-<n>` per (tenant, name) — `welcome.as` is the id, `welcome.name` echoes the name (0.2.0). **Guest ids (v0.4.1, gap H5)** are disjoint from member ids: members are `HUM-<n>` (rdb 0006 CHECK `^HUM-[0-9]+$`), so a door-off guest never renders with a member's identity or picture, and a `GST-*` is never a dispatch target. A `hello.as` that already is a v:1 id (`HUM-2`) is still taken as asserted (§0; door off only). Live: `TestWUITwoSessionsLobbyLive` dials `as:"AgentA"` and asserts `welcome.as == "GST-1"`; `TestWUIAnonymousIDDisjointFromMembers` admits member `HUM-1` first, then asserts an anonymous hello never gets a `^HUM-[0-9]+$` id. Close `4400 bad_frame` only when the first frame is not a well-formed `hello` (or `as` > 64 chars). `token` is reserved for the prd view token (OQ-16) and ignored today |
+| `hello` | `as?`, `token?` | **first frame**, within 10 s (else close `4408`). `as` = a v:1 agent id (`^[A-Z]{2,4}-[0-9]+$`, e.g. `HUM-1`) used as `from`; absent -> the hub assigns a guest id `GST-<n>`. A display name that is not an id (`AgentA`) is mapped to a stable `GST-<n>` per (tenant, name) — `welcome.as` is the id, `welcome.name` echoes the name (0.2.0). **Guest ids (v0.4.1, gap H5)** are disjoint from member ids: members are `HUM-<n>` (rdb 0006 CHECK `^HUM-[0-9]+$`), so a door-off guest never renders with a member's identity or picture, and a `GST-*` is never a dispatch target. A `hello.as` that already is a v:1 id (`HUM-2`) is still taken as asserted (§0; door off only). Live: `TestWUITwoSessionsLobbyLive` dials `as:"AgentA"` and asserts `welcome.as == "GST-1"`; `TestWUIAnonymousIDDisjointFromMembers` admits member `HUM-1` first, then asserts an anonymous hello never gets a `^HUM-[0-9]+$` id. Close `4400 bad_frame` only when the first frame is not a well-formed `hello` (or `as` > 64 chars). `token` is reserved and ignored (the OQ-16 view token was superseded by the session door) |
 | `subscribe` | `task_id` \| `channel` | `task_id`: a UUID, or the literal `"LOBBY"` (= `LOBBY_TASK_ID`). `channel` (v0.4): a channel slug known to the tenant (`general` = `lobby`), else `404 unknown_channel`; the socket then gets **every** message stored in that channel, including a new root thread (a new `task_id`) someone else starts there. When `channel` is set, `task_id` is ignored. Idempotent. Reply `subscribed` |
 | `subscribe` | `peer` (v0.5) | DM follow: `peer` = `<agent-id>` or `<agent-id>@<box-id>` (else `400 bad_frame`). The socket gets every message stored **with no channel** whose `from` or `to` is that peer (and its box, when given) — new DM roots included. A socket with a member session gets only the ones it is party to (`from` or `to` is its own id), the same rule as `view-v1` §4.3 `dm=true`. Reply `subscribed {peer}` |
 | `subscribe` | `all: true` (v0.5) | thread-list follow: every message stored in the tenant; a DM (no channel) only when the socket's own id is its `from` or `to`. Reply `subscribed {all:true}` |
@@ -93,6 +95,9 @@ WS  ws(s)://<tenant>.<fqdn>/v1/wui/ws        lde: ws://t1.localhost:58080/v1/wui
 | `ack` | `msg_id`, `task_id`, `cursor`, `received_at` | after a `send` is stored |
 | `presence` | `peer`, `status` | `peer` = `<agent>@<box>` (`CLE-07@box-a`) or `<HUM-n>@box-wui`; `status` ∈ `online`, `offline`. Pushed to every browser socket of the tenant when a `role=box` session is accepted (each announced agent `online`), closes (`offline`; a superseded socket emits nothing), or re-announces (the difference), and when a human's **first** browser socket opens / **last** one closes. Right after `welcome` the hub sends one `online` frame per peer online at that moment (snapshot; a live frame of another socket may interleave, so treat presence as last-writer-wins per peer) (`./channels-v1.md` §6) |
 | `channel` | `channel`, `name`, `description`, `created_by`, `created_at` | **v0.6** (CLE-3425; `description` v0.7): a channel was created in this tenant (`POST /v1/channels`, `./channels-v1.md` §5.1). Pushed to **every** browser socket of the tenant — no subscription, because a fresh channel holds no message, so the `message` fan-out cannot carry it and a sidebar would otherwise learn of it only on a reload or a reconnect. It says nothing a member cannot read from `GET /v1/view/channels`. Test: `TestWUIChannelFrameOnCreate` (with the CONTROL that a socket of another tenant gets nothing) |
+| `message_edited` | `task_id`, `msg_id`, `cursor`, `received_at`, `envelope`, `env`, `channel?`, `parent_task_id?`, `edited_at`, `edited_by`, `revision?` | a stored message was edited (`PATCH /v1/messages/{msg_id}`, 032 `contracts/message-edit-v1.md`); a separate type because a second `message` frame for a held `msg_id` is dropped. `internal/hub/edit.go:42` |
+| `message_deleted` | `task_id`, `msg_id`, `channel?` | a stored message was deleted (`DELETE /v1/messages/{msg_id}`, 032); every open topic drops the row. `internal/hub/edit.go:278` |
+| `message_reaction` | `task_id`, `msg_id`, `reactions` (`[{emoji, actors[]}]`, `[]` when none), `channel?` | a member added or removed an emoji (FR-033, `./http-v1.md` §1a); sent to every socket shown the message, the actor's other tabs included. `internal/hub/reactions.go:19`; `TestReactionOnOpeningAndReply` |
 | `error` | `error`, `status`, `detail`, `msg_id?` | stable token (`./error-envelope.md`); socket stays open |
 
 Browser -> hub `{"type":"token"}` asks for a fresh upload token.
@@ -164,10 +169,10 @@ subscribed to the lobby. Boxes do not receive lobby traffic in this MVP.
 
 ## 7. Catch-up
 
-Subscribe first, then read history with `GET /v1/view/threads/{task_id}`
+Subscribe first, then read history with `GET /v1/view/topics/{task_id}`
 (`after=<last cursor>` after a reconnect); de-duplicate by `msg.msg_id`. On
 reconnect the browser sends `hello` again and re-subscribes. For a channel,
-DM or `all` subscription the catch-up is the matching `GET /v1/view/threads`
+DM or `all` subscription the catch-up is the matching `GET /v1/view/topics`
 list (first page), merged by `task_id` (v0.5).
 
 ## 8. Errors (new tokens)
@@ -176,4 +181,4 @@ list (first page), merged by `task_id` (v0.5).
 `missing_file`, `conflict_msg`, `unpaid`, `quota`, `view_door`,
 `unknown_tenant`.
 
-<!-- version: 0.7.0 · updated: 2026-09-22 · last-edit: 2026-09-22T12:10:30Z -->
+<!-- version: 0.8.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:26:14Z -->

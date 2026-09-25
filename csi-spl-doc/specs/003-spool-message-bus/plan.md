@@ -1,17 +1,17 @@
 # Implementation Plan: Spool message bus (hub)
 
-**Feature ID**: `003-spool-message-bus` · **Status**: M1 hub Implemented (verified 2026-09-18, `spec.md` → Verification); viewer API (US7) Planned · **Date**: 2026-09-18 · **Ground rules**: `../README.md`
+**Feature ID**: `003-spool-message-bus` · **Status**: M1 hub Implemented (verified 2026-09-18, `spec.md` → Verification); viewer API (US7), channels (US8), search (US9) and reactions (FR-033) Implemented (`tasks.md`, sync 2026-09-25) · **Date**: 2026-09-18 · **Ground rules**: `../README.md`
 
 **Spec**: `./spec.md` · **Architecture**: `../../doc/md/SPEC-spool-message-bus.md` · **Binding trust/transport**: `../002-box-agent-messaging/contracts/trust-modes.md` · **Milestones**: `../../doc/md/SPEC-spool-milestones.md` · **Box API**: `../../doc/md/SPEC-spool-box-api.md`  
 **Prerequisite**: `../002-box-agent-messaging/` (local folder + CLI/MCP)
 
 ## Summary
 
-Put a **stateless Cloud Run** process (HTTPS + WebSocket) behind the 002 box API. Boxes hold one Ed25519 key each, pinned by the tenant root. A box authenticates with a signed WS hello and sends box-signed envelopes around the unchanged inner `v:1` object. Persist messages, the hub queue, pins and the roster in **Postgres** (no `acks`, OQ-08), and file bytes in **GCS** (`t/<tenant>/files/<sha256>`, one bucket). Keep `$SPOOL_ROOT` as the local mail store and hub-down queue. M1 runs **`max-instances=1`** (OQ-05), so live dispatch is an in-process socket map; cross-instance dispatch via Postgres `LISTEN/NOTIFY` is **post-M1**. Agents still only call spool CLI/MCP. For M3 the hub adds a **read-only viewer API** (`contracts/view-v1.md`) that the WUI (005) reads with a view token; it never drains or mutates.
+Put a **stateless Cloud Run** process (HTTPS + WebSocket) behind the 002 box API. Boxes hold one Ed25519 key each, pinned by the tenant root. A box authenticates with a signed WS hello and sends box-signed envelopes around the unchanged inner `v:1` object. Persist messages, the hub queue, pins and the roster in **Postgres** (no `acks`, OQ-08), and file bytes in **GCS** (`t/<tenant>/files/<sha256>`, one bucket). Keep `$SPOOL_ROOT` as the local mail store and hub-down queue. M1 runs **`max-instances=1`** (OQ-05), so live dispatch is an in-process socket map; cross-instance dispatch via Postgres `LISTEN/NOTIFY` is **post-M1**. Agents still only call spool CLI/MCP. For M3 the hub adds a **read-only viewer API** (`contracts/view-v1.md`) that the WUI (005) reads with a member session (OQ-16 resolved: the session door superseded the view token); it never drains or mutates.
 
 ## Technical Context
 
-**Language/Version**: Go 1.22+ (same module as 002: `csi-spl-api/src/go/spool-hub-api`).
+**Language/Version**: Go 1.25 (`grep '^go ' csi-spl-api/src/go/spool-hub-api/go.mod` -> `go 1.25.0`; same module as 002: `csi-spl-api/src/go/spool-hub-api`).
 
 **Primary Dependencies**: 002 internal packages (`msg` for the inner object and canonical JSON, `sign` for Ed25519); HTTP server harness on `net/http` (pas-psf lifecycle pattern; Fiber dropped because the WebSocket library `github.com/coder/websocket` is `net/http`-native); structured logging (`github.com/rs/zerolog`); Postgres (`pgx/v5`); GCS client. No notify client in M1.
 
@@ -67,7 +67,10 @@ specs/003-spool-message-bus/
     ├── flush.md            # dual-write, box-side flush
     ├── limits.md
     ├── error-envelope.md
-    ├── view-v1.md          # read-only viewer API for the WUI (US7, Planned)
+    ├── view-v1.md          # read-only viewer API for the WUI (US7, Implemented)
+    ├── channels-v1.md      # channels, topics, DMs, presence (US8, Implemented)
+    ├── wui-live-ws.md      # browser live WebSocket (Implemented)
+    ├── search-v1.md        # search (US9, Implemented)
     └── nats-subjects.md    # DEFERRED post-M1 notify rules
 
 csi-spl-api/src/go/spool-hub-api/   # same module as 002
@@ -77,7 +80,7 @@ csi-spl-api/src/go/spool-hub-api/   # same module as 002
 ├── internal/logging/               # exists (002)
 ├── internal/testkit/               # exists (002); hub helpers added
 ├── internal/wire/                  # NEW: frames + envelope/hello signing payloads (both sides)
-├── internal/hub/                   # NEW: server harness, WS hello/roster/send/recv/tail, REST files + pins (+ /v1/view, Planned); no disk
+├── internal/hub/                   # NEW: server harness, WS hello/roster/send/recv/tail, REST files + pins, /v1/view, /v1/wui/ws, browser/admin REST (Implemented); no disk
 ├── internal/store/                 # NEW: memory (tests) + Postgres; migrator for csi-spl-rdb DDL
 ├── internal/blob/                  # NEW: GCS (+ local dir for tests)
 └── internal/hubclient/             # NEW (box side): WS client, envelope sign, pin sync, flush (OQ-15)
@@ -99,9 +102,9 @@ csi-spl-iac/                        # Cloud Run, Cloud SQL, GCS: apply only with
 | 3 | WS hello + roster + envelope send/recv between two boxes | US1 | M1 |
 | 4 | REST files with box proof, GCS in prod / local dir in tests | US2 | M1 |
 | 5 | Hub queue for offline `to_box` (`delivery=queued`) + box-side flush when the hub is down | US3 | M1 |
-| 6 | Postgres + GCS in integration/prod; Cloud Run rollout is 007's (dev live, prd not) | US1–US3 | M1 |
+| 6 | Postgres + GCS in integration/prod; Cloud Run rollout is 007's (dev + prd live, T023 2026-09-23) | US1–US3 | M1 |
 | 7 | Tail frames on the existing WS (OQ-04) | US4 | M1 |
-| 7a | Read-only viewer API `/v1/view/*` + view token + CORS (Planned) | US7 | before M3 |
+| 7a | Read-only viewer API `/v1/view/*` + session door + CORS (Implemented; the view token was superseded, OQ-16) | US7 | before M3 |
 | 8 | IAM front for private deploys (OQ-06: not in M1) | US5 | after M1 |
 | 9 | ysg-box adapter (other repo) | US6 | after M1 |
 
@@ -111,4 +114,4 @@ Pins (004/006) are a hard dependency of step 3: a hello cannot verify without a 
 
 *No constitutional violations are intended.* OQ-01 allows the additive `to_box` / `delivery` change to the box API. OQ-05 pins M1 to `max-instances=1`; a cross-instance channel is post-M1.
 
-<!-- version: 0.4.0 · updated: 2026-09-18 · last-edit: 2026-09-18T20:10:00Z -->
+<!-- version: 0.5.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:26:14Z -->

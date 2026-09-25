@@ -266,3 +266,49 @@ describe('lobby: the room task and the #lobby topics are read in parallel', () =
     assert.doesNotMatch(s, /store\.open\(id\)\.then\(\(\) => loadLobbyTopics\(\)\)/)
   })
 })
+
+describe('a channel page is one read when the hub inlines per_topic (027 T122)', () => {
+  const T = (i) => ({ task_id: `t${i}`, first_ts: '1', last_ts: '1', count: 1, subject: 's' })
+  const M = (i) => ({ cursor: `c${i}`, received_at: `2026-09-25T00:00:0${i}Z`, env: { from_box: 'box-a', msg: { v: 1, msg_id: `m${i}`, task_id: `t${i}`, ts: `2026-09-25T00:00:0${i}Z`, from: 'CLE-01', body: 'b', kind: 'note' } }, deliveries: [] })
+  function hub({ inline }) {
+    const calls = []
+    const fn = async (url) => {
+      calls.push(url)
+      const u = new URL(url)
+      let body
+      if (u.pathname === '/v1/view/topics') {
+        body = { topics: [0, 1, 2].map((i) => ({ ...T(i), ...(inline && u.searchParams.get('per_topic') ? { messages: [M(i)], messages_next: null } : {}) })), next: null }
+      } else {
+        const i = Number(u.pathname.split('/t').pop())
+        body = { task_id: `t${i}`, messages: [M(i)], next: null }
+      }
+      return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => body }
+    }
+    return { fn, calls }
+  }
+
+  it('asks for per_topic=<limit> and reads no topic on its own', async () => {
+    const h = hub({ inline: true })
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: h.fn })
+    const page = await c.listMessages({ channel: 'lobby', limit: 30 })
+    assert.equal(h.calls.length, 1)
+    assert.equal(new URL(h.calls[0]).searchParams.get('per_topic'), '30')
+    assert.deepEqual(page.messages.map((m) => m.msg_id), ['m0', 'm1', 'm2'])
+  })
+
+  it('control: a hub without per_topic gets the old N+1 and the SAME rows', async () => {
+    const h = hub({ inline: false })
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: h.fn })
+    const page = await c.listMessages({ channel: 'lobby', limit: 30 })
+    assert.equal(h.calls.length, 4)
+    assert.deepEqual(page.messages.map((m) => m.msg_id), ['m0', 'm1', 'm2'])
+  })
+
+  it('a limit above the hub cap never sends per_topic', async () => {
+    const h = hub({ inline: true })
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: h.fn })
+    await c.listMessages({ channel: 'lobby', limit: 51 })
+    assert.equal(new URL(h.calls[0]).searchParams.get('per_topic'), null)
+    assert.equal(h.calls.length, 4)
+  })
+})

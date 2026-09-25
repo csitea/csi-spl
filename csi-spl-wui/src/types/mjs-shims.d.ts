@@ -54,8 +54,9 @@ declare module '~/utils/spool-client.mjs' {
       peer?: string
       agent?: string
       roots?: boolean
+      perTopic?: number
     }): Promise<{
-      topics: import('./spool').TopicRow[]
+      topics: Array<import('./spool').TopicRow & { inline?: { task_id: string, messages: import('./spool').SpoolMessage[], next: string | null } }>
       next: string | null
     }>
     getTopic(taskId: string, opts?: { limit?: number, after?: string, order?: 'desc', before?: string }): Promise<{

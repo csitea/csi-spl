@@ -212,7 +212,7 @@ describe('A6 wiring in channel.ts and spool-client', () => {
   it('listMessages accepts before and returns next', () => {
     const src = read('utils/spool-client.mjs')
     assert.match(src, /async listMessages\(\{ channel, peer, limit = 50, since, topics = 20, before \}/)
-    assert.match(src, /listTopics\(\{ limit: topics, before, \.\.\.filter \}\)/)
+    assert.match(src, /listTopics\(\{ limit: topics, before, perTopic: [^}]*\.\.\.filter \}\)/)
     assert.match(src, /next: list\.next \|\| null/)
     const shim = read('types/mjs-shims.d.ts')
     assert.match(shim, /before\?: string/)

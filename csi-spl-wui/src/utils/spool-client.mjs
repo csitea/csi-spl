@@ -44,6 +44,9 @@ export function credentialsFor(door) {
  */
 export const TOPIC_READS_IN_FLIGHT = 10
 
+/** view-v1 §4.3 v0.6.1: the largest `per_topic` the hub accepts (hub/view.go perTopicMax). */
+export const PER_TOPIC_MAX = 50
+
 /** A joiner's copy of a shared read (live): JSON-shaped bodies are cloned, the rest passed as is. */
 function cloneBody(v) {
   if (v === null || typeof v !== 'object' || v instanceof ArrayBuffer) return v
@@ -589,7 +592,14 @@ export function createSpoolClient({
       if (mock) return { ok: true, mock: true }
       return live('/v1/health')
     },
-    async listTopics({ limit = 50, before, channel, dm, peer, agent, roots } = {}) {
+    /**
+     * view-v1 §4.3. `perTopic` (1..PER_TOPIC_MAX) asks the hub to inline each
+     * topic's newest N messages (v0.6.1); a row then carries `inline` =
+     * { messages, next }, exactly what getTopic(id, { order: 'desc', limit: N })
+     * returns. A hub without it ignores the parameter and rows carry no
+     * `inline` (callers read those topics one by one, as before).
+     */
+    async listTopics({ limit = 50, before, channel, dm, peer, agent, roots, perTopic = 0 } = {}) {
       if (mock) {
         let rows = state.messages.slice()
         if (channel) rows = rows.filter((m) => m.channel === channel)
@@ -608,9 +618,20 @@ export function createSpoolClient({
       if (peer) q.set('peer', peer)
       if (agent) q.set('agent', agent)
       if (roots === false) q.set('roots', 'false')
+      const inlineN = Number(perTopic) || 0
+      if (inlineN >= 1 && inlineN <= PER_TOPIC_MAX) q.set('per_topic', String(inlineN))
       const data = await live(`/v1/view/topics?${q}`)
       const rows = (data && data.topics) || []
-      return { topics: rows.map(normalizeTopicRow), next: (data && data.next) || null }
+      return {
+        topics: rows.map((raw) => {
+          const row = normalizeTopicRow(raw)
+          if (inlineN && raw && Array.isArray(raw.messages)) {
+            row.inline = { task_id: row.task_id, messages: raw.messages.map(normalizeViewMessage), next: raw.messages_next || null }
+          }
+          return row
+        }),
+        next: (data && data.next) || null,
+      }
     },
     /**
      * view-v1 §4.4. Default: oldest first, `after=` for catch-up. With
@@ -747,13 +768,16 @@ export function createSpoolClient({
         return { messages: rows.slice(-limit), next: null }
       }
       const filter = channel ? { channel } : peer ? { dm: true, peer: String(peer) } : {}
-      const list = await api.listTopics({ limit: topics, before, ...filter })
+      /* CLE-34984 / T122: one request for the whole page where the hub
+         inlines each topic's newest `limit` messages; a topic the answer
+         carries no messages for is read on its own, as before. */
+      const list = await api.listTopics({ limit: topics, before, perTopic: limit <= PER_TOPIC_MAX ? limit : 0, ...filter })
       /* A topic is read newest first, so one with more messages than `limit`
          loses its opening line - and with it the middle card, because every
          later line may be is_parent 0. The oldest message is read on its own
          then. A page that already holds the whole topic costs nothing more. */
       const pages = await pool(list.topics, TOPIC_READS_IN_FLIGHT, async (t) => {
-        const page = await api.getTopic(t.task_id, { order: 'desc', limit })
+        const page = t.inline || await api.getTopic(t.task_id, { order: 'desc', limit })
         if (!(Number(t.count) > page.messages.length)) return page
         const first = await api.getTopic(t.task_id, { limit: 1 })
         return { ...page, messages: [...page.messages, ...first.messages] }

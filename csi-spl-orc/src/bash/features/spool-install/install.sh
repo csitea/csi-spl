@@ -1,0 +1,299 @@
+#!/usr/bin/env bash
+# install.sh — install the spool agent harness for THIS user (specs/037).
+#
+#   install.sh [options]
+#
+# Run it from a git clone of this repo, as the user who will run the agents.
+# It needs bash and git, plus a few base tools every Linux / macOS box has
+# (curl or wget, tar, python3, perl, flock, setsid; tmux to seat an agent) -
+# a missing one is NAMED with the package line to install it, never installed
+# with sudo. Everything else goes under your home, no sudo anywhere:
+#   1. the agent CLIs you pick, each through its vendor's own documented
+#      installer, which installs or updates to the LATEST release
+#   2. the toolchain the harness runs on: yq (v4) and Go, when not present,
+#      into <data>/tools, and the `spool` binary built from this checkout
+#   3. the `spool-agent` command in <prefix>/bin, a shim that runs this
+#      checkout's spool-agent.sh with your env / tenant / box
+#   4. the terminal mirror hooks in ~/.claude/settings.json (claude and grok
+#      both read it; the hook does nothing in a session that has no agent id)
+#   5. your box on a tenant: its key, and its pin at the hub. The hub pins a
+#      box only with the tenant root key: with ROOT_KEY_JSON you pin it
+#      yourself; without, the seat is PENDING - this prints the one line your
+#      tenant admin runs, and exits 0; re-running install.sh picks the pin up
+# Re-running it is safe: every step checks before it changes anything.
+#
+# Options:
+#   --cli <list>      comma list of claude,grok,agy, or none (default claude)
+#   --env dev|prd     the hub environment (default $SPOOL_ENV, else dev)
+#   --tenant <slug>   the tenant (default $SPOOL_TENANT)
+#   --box <box>       your box id (default $SPOOL_BOX, else box-<user>-<host>)
+#   --no-seat         skip step 5 (no hub needed)
+#   --no-hooks        skip step 4 (spool-agent then passes the hooks per session)
+#   --update          `git pull --ff-only` this checkout first (clean checkouts only)
+#   --dry-run         print the plan; change nothing
+#
+# Env: SPOOL_HUB_URL - required unless --no-seat; the hub URL, no default
+#      ROOT_KEY_JSON - the tenant's 0600 create JSON: pin the box yourself
+#      SPOOL_INSTALL_PREFIX - default $HOME/.local (bin/ and share/ under it)
+#      SPOOL_INSTALL_URL_CLAUDE / _GROK / _AGY / _GO / _YQ - a download mirror
+#      SPOOL_INSTALL_BUILD / SPOOL_INSTALL_RUN - the spool build and ./run (tests)
+#
+# Exit codes: 0 done (a PENDING seat included), 2 usage, 3 a base tool is
+# missing, 4 an agent CLI did not install, 5 the seat failed, 6 the toolchain
+# or the spool build failed, 7 a file in the way is not ours.
+set -uo pipefail
+
+_here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+ORC="$(cd "$_here/../../../.." && pwd)"
+ROOT="$(cd "$ORC/.." && pwd)"
+RUN="${SPOOL_INSTALL_RUN:-$ORC/run}"
+AGENT_SH="$ORC/src/bash/features/spawn-agents/scripts/spool-agent.sh"
+MOD="$ROOT/$(basename "$ORC" | sed 's/-orc$//')-api/src/go/spool-hub-api"
+BUILD_SH="${SPOOL_INSTALL_BUILD:-$MOD/../../bash/build.sh}"
+MARK="# spool-agent shim, written by spool-install (specs/037)"
+
+CLIS="claude" ENVN="${SPOOL_ENV:-dev}" TENANT="${SPOOL_TENANT:-}" BOX="${SPOOL_BOX:-}"
+SEAT=1 HOOKS=1 UPDATE=0 DRY=0
+say()  { echo "spool-install: $*" >&2; }
+die()  { local rc="$1"; shift; say "FATAL $*"; exit "$rc"; }
+usage() { sed -n '/^#   install.sh/,/^# Exit codes/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --cli)      [ "$#" -ge 2 ] || usage; CLIS="$2"; shift 2 ;;
+    --env)      [ "$#" -ge 2 ] || usage; ENVN="$2"; shift 2 ;;
+    --tenant)   [ "$#" -ge 2 ] || usage; TENANT="$2"; shift 2 ;;
+    --box)      [ "$#" -ge 2 ] || usage; BOX="$2"; shift 2 ;;
+    --no-seat)  SEAT=0; shift ;;
+    --no-hooks) HOOKS=0; shift ;;
+    --update)   UPDATE=1; shift ;;
+    --dry-run)  DRY=1; shift ;;
+    -h|--help)  usage ;;
+    *) say "unknown option $1"; usage ;;
+  esac
+done
+
+# ── 0. arguments and base tools ──────────────────────────────────────────────
+[[ "$ENVN" =~ ^(dev|prd)$ ]] || die 2 "--env must be dev or prd, got '$ENVN'"
+[ "$CLIS" = none ] && CLIS=""
+IFS=, read -r -a CLI_LIST <<<"$CLIS"
+for c in "${CLI_LIST[@]}"; do
+  case "$c" in claude|grok|agy) ;; *) die 2 "--cli takes claude,grok,agy or none, got '$c'" ;; esac
+done
+if [ -z "$BOX" ]; then
+  BOX="$(printf 'box-%s-%s' "$(id -un)" "$(hostname -s 2>/dev/null || echo host)" | tr '[:upper:]_.' '[:lower:]--' |
+    tr -cd 'a-z0-9-' | cut -c1-32 | sed 's/-*$//')"
+fi
+if [ "$SEAT" = 1 ]; then
+  : "${SPOOL_HUB_URL:?SPOOL_HUB_URL must be set (no default) - e.g. https://api.example.com; or pass --no-seat}"
+  [ -n "$TENANT" ] || die 2 "a seat needs the tenant: --tenant <slug> or SPOOL_TENANT (or pass --no-seat)"
+  [[ "$TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || die 2 "bad tenant '$TENANT'"
+  [[ "$BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$BOX" != box-wui ]] || die 2 "bad box '$BOX' (pass --box)"
+fi
+(( BASH_VERSINFO[0] >= 4 )) || die 3 "bash 4 or newer is needed (this is $BASH_VERSION)"
+
+PREFIX="${SPOOL_INSTALL_PREFIX:-$HOME/.local}"
+BIN="$PREFIX/bin"
+DATA="$PREFIX/share/spool-agent"
+TOOLS="$DATA/tools"
+CFG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/spool-agent"
+case "$(uname -m)" in
+  x86_64|amd64) ARCH=amd64 ;; aarch64|arm64) ARCH=arm64 ;; *) ARCH="$(uname -m)" ;;
+esac
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+
+missing=()
+for b in git python3 tar perl flock setsid; do command -v "$b" >/dev/null 2>&1 || missing+=("$b"); done
+command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || missing+=(curl)
+if [ "${#missing[@]}" -gt 0 ]; then
+  pk="${missing[*]}"; pk="${pk//flock/util-linux}"; pk="${pk//setsid/util-linux}"
+  die 3 "missing: ${missing[*]} - install them first (this needs root, so it is yours to run), e.g.: sudo apt-get install -y $pk"
+fi
+command -v tmux >/dev/null 2>&1 || say "WARN tmux is missing: spool-agent seats an agent only inside tmux (sudo apt-get install -y tmux)"
+
+fetch() {  # URL OUT
+  if command -v curl >/dev/null 2>&1; then curl -fsSL --retry 2 -o "$2" "$1"; else wget -q -O "$2" "$1"; fi
+}
+plan() { [ "$DRY" = 1 ] && echo "would: $*"; }
+
+# ── 1. this checkout ──────────────────────────────────────────────────────────
+if [ "$UPDATE" = 1 ]; then
+  if [ "$DRY" = 1 ]; then plan "git -C $ROOT pull --ff-only"
+  elif [ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]; then say "WARN $ROOT has local changes: not updated"
+  else git -C "$ROOT" pull -q --ff-only || die 6 "git pull --ff-only failed in $ROOT"; say "updated $ROOT to $(git -C "$ROOT" rev-parse --short HEAD)"
+  fi
+fi
+
+# ── 2. the agent CLIs ─────────────────────────────────────────────────────────
+cli_url() {
+  case "$1" in
+    claude) echo "${SPOOL_INSTALL_URL_CLAUDE:-https://claude.ai/install.sh}" ;;
+    grok)   echo "${SPOOL_INSTALL_URL_GROK:-https://x.ai/cli/install.sh}" ;;
+    agy)    echo "${SPOOL_INSTALL_URL_AGY:-https://antigravity.google/cli/install.sh}" ;;
+  esac
+}
+cli_path() {  # the installed binary, or nothing
+  local p; p="$(command -v "$1" 2>/dev/null)"; [ -n "$p" ] && { echo "$p"; return; }
+  for p in "$BIN/$1" "$HOME/.local/bin/$1" "$HOME/.grok/bin/$1"; do [ -x "$p" ] && { echo "$p"; return; }; done
+}
+for c in "${CLI_LIST[@]}"; do
+  url="$(cli_url "$c")"; have="$(cli_path "$c")"
+  # agy's installer stops at "already installed"; its own `update` is the
+  # documented way to the latest. claude's and grok's installers update in place.
+  if [ "$c" = agy ] && [ -n "$have" ]; then
+    if [ "$DRY" = 1 ]; then plan "$have update"; continue; fi
+    "$have" update >&2 || say "WARN '$have update' failed; keeping $("$have" --version 2>/dev/null | head -1)"
+    continue
+  fi
+  if [ "$DRY" = 1 ]; then plan "install the latest $c: bash <($url)${have:+ (have $have)}"; continue; fi
+  tmp="$(mktemp)"
+  fetch "$url" "$tmp" || { rm -f "$tmp"; die 4 "cannot download the $c installer from $url"; }
+  say "installing the latest $c ($url)"
+  if [ "$c" = grok ]; then mkdir -p "$BIN"; GROK_BIN_DIR="$BIN" bash "$tmp" >&2; rc=$?; else bash "$tmp" >&2; rc=$?; fi
+  rm -f "$tmp"
+  [ "$rc" -eq 0 ] || die 4 "the $c installer failed (rc $rc)"
+  have="$(cli_path "$c")"; [ -n "$have" ] || die 4 "the $c installer ran but no $c binary is on PATH or in $BIN"
+  say "$c: $have ($("$have" --version 2>/dev/null | head -1))"
+done
+
+# ── 3. toolchain: yq, Go, spool ───────────────────────────────────────────────
+TPATH="$TOOLS/bin:$TOOLS/go/bin"
+export PATH="$TPATH:$PATH"
+yq_ok() { yq --version 2>/dev/null | grep -qE 'mikefarah|version v?4\.'; }
+if ! yq_ok; then
+  url="${SPOOL_INSTALL_URL_YQ:-https://github.com/mikefarah/yq/releases/latest/download}/yq_${OS}_${ARCH}"
+  if [ "$DRY" = 1 ]; then plan "download yq v4 into $TOOLS/bin/yq ($url)"
+  else
+    mkdir -p "$TOOLS/bin" && fetch "$url" "$TOOLS/bin/yq.tmp" && chmod 755 "$TOOLS/bin/yq.tmp" &&
+      mv -f "$TOOLS/bin/yq.tmp" "$TOOLS/bin/yq" || die 6 "cannot download yq from $url"
+    yq_ok || die 6 "$TOOLS/bin/yq is not yq v4"
+  fi
+fi
+GO_NEED="$(sed -n 's/^go \([0-9.]*\).*/\1/p' "$MOD/go.mod" 2>/dev/null)"
+go_ok() {  # the first go on PATH (or in a known root) that is new enough
+  local g v
+  for g in "$(command -v go 2>/dev/null)" ${SPOOL_INSTALL_GO_ROOTS-/usr/local/go/bin}; do
+    [ -d "$g" ] && g="$g/go"; [ -x "$g" ] || continue
+    v="$("$g" version 2>/dev/null | sed -n 's/.* go\([0-9.]*\).*/\1/p')"
+    [ -n "$v" ] && [ "$(printf '%s\n%s\n' "$GO_NEED" "$v" | sort -V | head -1)" = "$GO_NEED" ] && { GO_BIN="$g"; return 0; }
+  done
+  return 1
+}
+GO_BIN=""
+if ! go_ok; then
+  base="${SPOOL_INSTALL_URL_GO:-https://go.dev}"
+  if [ "$DRY" = 1 ]; then plan "download the latest Go (>= $GO_NEED) into $TOOLS/go ($base/dl/)"; GO_BIN="$TOOLS/go/bin/go"
+  else
+    tmp="$(mktemp -d)"
+    fetch "$base/VERSION?m=text" "$tmp/v" || die 6 "cannot read the latest Go version from $base"
+    ver="$(head -1 "$tmp/v")"; [[ "$ver" =~ ^go[0-9.]+$ ]] || die 6 "unexpected Go version '$ver' from $base"
+    say "installing $ver into $TOOLS/go"
+    fetch "$base/dl/$ver.$OS-$ARCH.tar.gz" "$tmp/go.tgz" || die 6 "cannot download $ver"
+    rm -rf "$TOOLS/go.new" && mkdir -p "$TOOLS/go.new" && tar -xzf "$tmp/go.tgz" -C "$TOOLS/go.new" --strip-components=1 ||
+      die 6 "cannot unpack $ver"
+    rm -rf "$TOOLS/go" "$tmp" && mv "$TOOLS/go.new" "$TOOLS/go"
+    go_ok || die 6 "$TOOLS/go/bin/go does not run or is older than $GO_NEED"
+  fi
+fi
+[ -n "$GO_BIN" ] && TPATH="$TPATH:$(dirname "$GO_BIN")" && export PATH="$(dirname "$GO_BIN"):$PATH"
+SPOOL="$TOOLS/bin/spool"
+if [ "$DRY" = 1 ]; then plan "build spool from $MOD into $SPOOL"
+else
+  mkdir -p "$TOOLS/bin"
+  # build.sh is offline (GOPROXY=off): a fresh machine fetches the modules
+  # once, through Go's own default proxy, then builds offline ever after -
+  # which is what every later do_spl_desk_up rebuild relies on.
+  if ! bash "$BUILD_SH" "$SPOOL" >/dev/null 2>&1; then
+    say "fetching the Go modules of $MOD (first build on this machine)"
+    ( cd "$MOD" && GOFLAGS=-mod=mod "${GO_BIN:-go}" mod download ) >&2 || die 6 "go mod download failed in $MOD"
+    bash "$BUILD_SH" "$SPOOL" >&2 || die 6 "the spool build failed ($BUILD_SH)"
+  fi
+  say "spool: $SPOOL ($("$SPOOL" version 2>/dev/null | head -1))"
+fi
+
+# ── 4. the spool-agent command and its config ────────────────────────────────
+SHIM="$BIN/spool-agent" CFG="$CFG_DIR/env"
+if [ -e "$SHIM" ] && ! grep -qF "$MARK" "$SHIM" 2>/dev/null; then
+  die 7 "$SHIM exists and is not a spool-install shim: move it away and re-run"
+fi
+if [ "$DRY" = 1 ]; then plan "write $SHIM -> $AGENT_SH, and $CFG (SPOOL_ENV=$ENVN SPOOL_TENANT=$TENANT SPOOL_BOX=$BOX)"
+else
+  mkdir -p "$BIN" "$CFG_DIR" && chmod 700 "$CFG_DIR" || die 7 "cannot create $BIN / $CFG_DIR"
+  ( umask 077
+    { echo "# spool-agent defaults, written by spool-install; edit freely"
+      printf 'SPOOL_ENV=%q\nSPOOL_TENANT=%q\nSPOOL_BOX=%q\n' "$ENVN" "$TENANT" "$BOX"
+      if [ -n "${SPOOL_HUB_URL:-}" ]; then printf 'SPOOL_HUB_URL=%q\n' "$SPOOL_HUB_URL"; fi
+    } >"$CFG.tmp" && mv -f "$CFG.tmp" "$CFG" ) || die 7 "cannot write $CFG"
+  cat >"$SHIM.tmp" <<EOF
+#!/usr/bin/env bash
+$MARK
+# Runs spool-agent.sh of $ROOT with the defaults in $CFG;
+# an option given here wins over them. Re-run install.sh to rewrite this file.
+export PATH="$TPATH:\$PATH"
+[ -r "$CFG" ] && . "$CFG"
+pre=()
+[ -n "\${SPOOL_ENV:-}" ] && pre+=(--env "\$SPOOL_ENV")
+[ -n "\${SPOOL_TENANT:-}" ] && pre+=(--tenant "\$SPOOL_TENANT")
+[ -n "\${SPOOL_BOX:-}" ] && pre+=(--box "\$SPOOL_BOX")
+exec bash "$AGENT_SH" "\${pre[@]}" "\$@"
+EOF
+  chmod 755 "$SHIM.tmp" && mv -f "$SHIM.tmp" "$SHIM" || die 7 "cannot write $SHIM"
+  say "spool-agent: $SHIM"
+  case ":$PATH:" in *":$BIN:"*) ;; *) say "WARN $BIN is not on your PATH: add  export PATH=\"$BIN:\$PATH\"  to your shell rc" ;; esac
+fi
+
+# ── 5. the mirror hooks ───────────────────────────────────────────────────────
+SETTINGS="$HOME/.claude/settings.json"
+if [ "$HOOKS" = 1 ]; then
+  if [ "$DRY" = 1 ]; then plan "merge the mirror hooks (./run -a do_spl_desk_mirror_settings) into $SETTINGS"
+  else
+    hooks="$("$RUN" -a do_spl_desk_mirror_settings 2>/dev/null | sed -n '/^{/,/^}/p')"
+    [ -n "$hooks" ] || die 6 "do_spl_desk_mirror_settings printed no hooks"
+    mkdir -p "${SETTINGS%/*}"
+    # Every older spool-mirror entry (a moved checkout, a second clone) is
+    # replaced, never added to: two copies post every prompt twice.
+    printf '%s' "$hooks" | python3 -c '
+import json, os, sys
+path = sys.argv[1]
+new = json.load(sys.stdin)["hooks"]
+cur = {}
+if os.path.exists(path) and os.path.getsize(path) > 0:
+    with open(path) as f: cur = json.load(f)
+    bak = path + ".bak-spool-install"
+    if not os.path.exists(bak):
+        with open(bak, "w") as f: json.dump(cur, f, indent=2)
+hk = cur.setdefault("hooks", {})
+for ev, entries in new.items():
+    keep = [e for e in hk.get(ev, []) if "spool-mirror.py" not in json.dumps(e)]
+    hk[ev] = keep + entries
+tmp = path + ".tmp"
+with open(tmp, "w") as f: json.dump(cur, f, indent=2); f.write("\n")
+os.replace(tmp, path)
+' "$SETTINGS" || die 6 "cannot merge the hooks into $SETTINGS (is it valid JSON?)"
+    say "mirror hooks: $SETTINGS"
+  fi
+fi
+
+# ── 6. the seat ───────────────────────────────────────────────────────────────
+if [ "$SEAT" = 1 ]; then
+  if [ "$DRY" = 1 ]; then plan "key + pin $BOX in $TENANT at $SPOOL_HUB_URL ($ENVN; ./run -a do_spl_desk_pin${ROOT_KEY_JSON:+, with ROOT_KEY_JSON})"
+  else
+    out="$(PATH="$TPATH:$PATH" env ENV="$ENVN" TENANT_ID="$TENANT" DESK_BOX="$BOX" SPOOL_HUB_URL="$SPOOL_HUB_URL" \
+      ROOT_KEY_JSON="${ROOT_KEY_JSON:-}" DRY_RUN=0 "$RUN" -a do_spl_desk_pin 2>&1)"; rc=$?
+    json="$(printf '%s\n' "$out" | grep -m1 '^{')"
+    if [ "$rc" -eq 0 ] && printf '%s' "$json" | grep -q '"pinned": true'; then
+      say "seated: $BOX is pinned in $TENANT ($ENVN) - start an agent with:  spool-agent claude"
+    elif printf '%s' "$json" | grep -q '"pinned": false'; then
+      admin="$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["admin_cmd"])')"
+      pub="$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["box_pubkey"])')"
+      say "seat PENDING: $BOX is not pinned in $TENANT yet. Send your tenant admin this ONE line:"
+      echo "SPOOL_HUB_URL=$SPOOL_HUB_URL SPOOL_TENANT=$TENANT spool hub-pin --box $BOX --pubkey $pub --root-key <root private key file>"
+      say "(or, from their clone of this repo: $admin)"
+      say "then re-run install.sh: it picks the pin up."
+    else
+      printf '%s\n' "$out" | grep -E 'FATAL|FAIL|WARN' | tail -3 >&2
+      die 5 "the seat failed (rc $rc)"
+    fi
+  fi
+fi
+[ "$DRY" = 1 ] && say "DRY RUN - nothing changed"
+exit 0

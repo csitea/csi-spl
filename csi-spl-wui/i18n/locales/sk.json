@@ -356,7 +356,8 @@
       "hide": "Odstrániť zo zoznamu",
       "remove": "Odstrániť",
       "properties": "Properties"
-    }
+    },
+    "users": "Používatelia"
   },
   "composer": {
     "mention_suggestions": "Návrhy zmienok",
@@ -609,6 +610,55 @@
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
       "default_everyone": "V predvolenom kanáli sú všetci ľudia a nikoho z neho nemožno odstrániť. Agent je v ňom, až keď ho niekto pridá."
+    }
+  },
+  "users": {
+    "title": "Používatelia",
+    "sidebar_hint": "Pozvite ľudí do tohto nájomníka, zmeňte ich rolu alebo ich odstráňte.",
+    "members": "Členovia ({n})",
+    "invites": "Čakajúce pozvánky ({n})",
+    "no_invites": "Žiadne čakajúce pozvánky.",
+    "loading": "Načítavajú sa používatelia…",
+    "forbidden": "Používateľov môže spravovať iba správca tohto nájomníka.",
+    "invite": "Pozvať",
+    "invite_title": "Pozvať používateľa",
+    "email": "E-mail",
+    "role": "Rola",
+    "send_invite": "Odoslať pozvánku",
+    "invited": "Pozvánka odoslaná na {email}.",
+    "invite_saved_no_mail": "Pozvánka uložená pre {email}. Žiadny e-mail s pozvánkou sa neodoslal.",
+    "you": "vy",
+    "disabled": "zakázaný",
+    "name": "Meno",
+    "member_id": "ID člena",
+    "since": "Členom od",
+    "save_role": "Uložiť rolu",
+    "role_saved": "Rola zmenená.",
+    "remove": "Odstrániť z nájomníka",
+    "remove_confirm_title": "Odstrániť tohto používateľa?",
+    "remove_confirm": "{name} okamžite stratí prístup k tomuto nájomníkovi. Správy zostanú.",
+    "revoke": "Zrušiť pozvánku",
+    "revoke_confirm_title": "Zrušiť túto pozvánku?",
+    "revoke_confirm": "Pozvánka pre {email} prestane fungovať. Adresu môžete neskôr pozvať znova.",
+    "invited_by": "Pozval",
+    "expires": "Platí do",
+    "expired": "vypršaná",
+    "pending": "čaká",
+    "not_manageable_self": "Toto ste vy. Vaše členstvo môže zmeniť alebo odstrániť iný správca.",
+    "not_manageable_role": "Vaša rola nemôže spravovať člena s touto rolou.",
+    "select_hint": "Vyberte používateľa na úpravu.",
+    "edit_title_member": "Upraviť používateľa",
+    "edit_title_invite": "Čakajúca pozvánka",
+    "error": {
+      "forbidden": "Vaša rola to nepovoľuje.",
+      "last_admin": "Toto je posledný správca nájomníka. Najprv urobte správcom niekoho iného.",
+      "last_owner": "Toto je posledný obchodný vlastník nájomníka.",
+      "self": "Nemôžete odstrániť sami seba. Požiadajte iného správcu.",
+      "bad_email": "Zadajte platnú e-mailovú adresu.",
+      "bad_role": "Táto rola v tomto nájomníkovi neexistuje.",
+      "role_changed": "Niekto medzitým zmenil tohto používateľa. Zoznam sa znova načítal; skúste to znova.",
+      "not_found": "Tento používateľ alebo pozvánka už neexistuje. Zoznam sa znova načítal.",
+      "generic": "Nepodarilo sa. Skúste to znova."
     }
   }
 }

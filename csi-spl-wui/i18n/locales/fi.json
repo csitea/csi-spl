@@ -356,7 +356,8 @@
       "hide": "Poista listalta",
       "remove": "Poista",
       "properties": "Properties"
-    }
+    },
+    "users": "Käyttäjät"
   },
   "composer": {
     "mention_suggestions": "Mainintaehdotukset",
@@ -609,6 +610,55 @@
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
       "default_everyone": "Oletuskanavalla ovat kaikki ihmiset, eikä ketään voi poistaa sieltä. Agentti on kanavalla vasta, kun joku lisää sen."
+    }
+  },
+  "users": {
+    "title": "Käyttäjät",
+    "sidebar_hint": "Kutsu ihmisiä tähän vuokralaiseen, vaihda heidän roolinsa tai poista heidät.",
+    "members": "Jäsenet ({n})",
+    "invites": "Avoimet kutsut ({n})",
+    "no_invites": "Ei avoimia kutsuja.",
+    "loading": "Ladataan käyttäjiä…",
+    "forbidden": "Vain tämän vuokralaisen ylläpitäjä voi hallita käyttäjiä.",
+    "invite": "Kutsu",
+    "invite_title": "Kutsu käyttäjä",
+    "email": "Sähköposti",
+    "role": "Rooli",
+    "send_invite": "Lähetä kutsu",
+    "invited": "Kutsu lähetetty osoitteeseen {email}.",
+    "invite_saved_no_mail": "Kutsu tallennettu osoitteelle {email}. Kutsusähköpostia ei lähetetty.",
+    "you": "sinä",
+    "disabled": "poistettu käytöstä",
+    "name": "Nimi",
+    "member_id": "Jäsentunnus",
+    "since": "Jäsen alkaen",
+    "save_role": "Tallenna rooli",
+    "role_saved": "Rooli vaihdettu.",
+    "remove": "Poista vuokralaisesta",
+    "remove_confirm_title": "Poistetaanko tämä käyttäjä?",
+    "remove_confirm": "{name} menettää pääsyn tähän vuokralaiseen heti. Viestit säilyvät.",
+    "revoke": "Peru kutsu",
+    "revoke_confirm_title": "Perutaanko tämä kutsu?",
+    "revoke_confirm": "Kutsu osoitteelle {email} lakkaa toimimasta. Voit kutsua osoitteen myöhemmin uudelleen.",
+    "invited_by": "Kutsuja",
+    "expires": "Vanhenee",
+    "expired": "vanhentunut",
+    "pending": "odottaa",
+    "not_manageable_self": "Tämä olet sinä. Toinen ylläpitäjä voi muuttaa tai poistaa jäsenyytesi.",
+    "not_manageable_role": "Roolisi ei voi hallita jäsentä, jolla on tämä rooli.",
+    "select_hint": "Valitse käyttäjä muokataksesi.",
+    "edit_title_member": "Muokkaa käyttäjää",
+    "edit_title_invite": "Avoin kutsu",
+    "error": {
+      "forbidden": "Roolisi ei salli tätä.",
+      "last_admin": "Tämä on vuokralaisen viimeinen ylläpitäjä. Tee ensin joku toinen ylläpitäjäksi.",
+      "last_owner": "Tämä on vuokralaisen viimeinen liiketoiminnan omistaja.",
+      "self": "Et voi poistaa itseäsi. Pyydä toista ylläpitäjää.",
+      "bad_email": "Anna kelvollinen sähköpostiosoite.",
+      "bad_role": "Tätä roolia ei ole tässä vuokralaisessa.",
+      "role_changed": "Joku muutti tätä käyttäjää sillä välin. Lista ladattiin uudelleen; yritä uudelleen.",
+      "not_found": "Tätä käyttäjää tai kutsua ei enää ole. Lista ladattiin uudelleen.",
+      "generic": "Se ei onnistunut. Yritä uudelleen."
     }
   }
 }

@@ -356,7 +356,8 @@
       "hide": "Verwijderen uit lijst",
       "remove": "Verwijderen",
       "properties": "Properties"
-    }
+    },
+    "users": "Gebruikers"
   },
   "composer": {
     "mention_suggestions": "Suggesties voor vermeldingen",
@@ -609,6 +610,55 @@
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
       "default_everyone": "Iedereen zit in een standaardkanaal en niemand kan eruit worden verwijderd. Een agent zit er pas in als iemand hem toevoegt."
+    }
+  },
+  "users": {
+    "title": "Gebruikers",
+    "sidebar_hint": "Nodig mensen uit voor deze tenant, wijzig hun rol of verwijder ze.",
+    "members": "Leden ({n})",
+    "invites": "Openstaande uitnodigingen ({n})",
+    "no_invites": "Geen openstaande uitnodigingen.",
+    "loading": "Gebruikers laden…",
+    "forbidden": "Alleen een beheerder van deze tenant kan gebruikers beheren.",
+    "invite": "Uitnodigen",
+    "invite_title": "Gebruiker uitnodigen",
+    "email": "E-mail",
+    "role": "Rol",
+    "send_invite": "Uitnodiging versturen",
+    "invited": "Uitnodiging verstuurd naar {email}.",
+    "invite_saved_no_mail": "Uitnodiging opgeslagen voor {email}. Er is geen uitnodigingsmail verstuurd.",
+    "you": "jij",
+    "disabled": "uitgeschakeld",
+    "name": "Naam",
+    "member_id": "Lid-ID",
+    "since": "Lid sinds",
+    "save_role": "Rol opslaan",
+    "role_saved": "Rol gewijzigd.",
+    "remove": "Uit tenant verwijderen",
+    "remove_confirm_title": "Deze gebruiker verwijderen?",
+    "remove_confirm": "{name} verliest direct de toegang tot deze tenant. Berichten blijven bestaan.",
+    "revoke": "Uitnodiging intrekken",
+    "revoke_confirm_title": "Deze uitnodiging intrekken?",
+    "revoke_confirm": "De uitnodiging voor {email} werkt niet meer. Je kunt het adres later opnieuw uitnodigen.",
+    "invited_by": "Uitgenodigd door",
+    "expires": "Verloopt",
+    "expired": "verlopen",
+    "pending": "openstaand",
+    "not_manageable_self": "Dit ben jij. Een andere beheerder kan je lidmaatschap wijzigen of verwijderen.",
+    "not_manageable_role": "Jouw rol kan geen lid met deze rol beheren.",
+    "select_hint": "Kies een gebruiker om te bewerken.",
+    "edit_title_member": "Gebruiker bewerken",
+    "edit_title_invite": "Openstaande uitnodiging",
+    "error": {
+      "forbidden": "Je rol staat dit niet toe.",
+      "last_admin": "Dit is de laatste beheerder van de tenant. Maak eerst iemand anders beheerder.",
+      "last_owner": "Dit is de laatste bedrijfseigenaar van de tenant.",
+      "self": "Je kunt jezelf niet verwijderen. Vraag een andere beheerder.",
+      "bad_email": "Voer een geldig e-mailadres in.",
+      "bad_role": "Die rol bestaat niet in deze tenant.",
+      "role_changed": "Iemand heeft deze gebruiker intussen gewijzigd. De lijst is opnieuw geladen; probeer het nog eens.",
+      "not_found": "Deze gebruiker of uitnodiging bestaat niet meer. De lijst is opnieuw geladen.",
+      "generic": "Dat lukte niet. Probeer het opnieuw."
     }
   }
 }

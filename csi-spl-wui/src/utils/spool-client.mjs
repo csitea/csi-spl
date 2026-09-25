@@ -1,4 +1,5 @@
 import { cloneMock } from './mock-data.mjs'
+import { createMockDirectory } from './tenant-users.mjs'
 import { channelSlug, parseMention } from './channel-feed.mjs'
 import {
   channelReadQuery,
@@ -288,6 +289,8 @@ export function createSpoolClient({
     state.agentMembers = Object.create(null)
   }
   const mockBlobs = new Map()
+  let mockDir = null
+  const dir = () => (mockDir ||= createMockDirectory())
   const root = String(base || '').replace(/\/+$/, '')
   let viewToken = String(token || '')
   let viewDoor = String(door || '')
@@ -583,6 +586,46 @@ export function createSpoolClient({
       }
       if (mock) return null
       return live(`/v1/members/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    },
+    /**
+     * GET /v1/members (CLE-34969): the tenant's members, pending invites and
+     * the roles the caller may grant. members.invite (admin) only.
+     */
+    async listTenantUsers() {
+      if (mock) return dir().list()
+      return live('/v1/members')
+    },
+    /** POST /v1/members/invites: invite + invitation mail. `locale` rides as X-Locale for the mail. */
+    async inviteTenantUser({ email, role, locale } = {}) {
+      const body = { email: String(email || '').trim(), ...(role ? { role: String(role) } : {}) }
+      if (mock) return dir().invite(body.email, body.role)
+      return live('/v1/members/invites', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(locale ? { 'x-locale': String(locale) } : {}) },
+        body: JSON.stringify(body),
+      })
+    },
+    /** PUT /v1/members/{id}/role; `fromRole` makes a stale page answer 409 role_changed. */
+    async setTenantUserRole(humanId, role, fromRole = '') {
+      const id = String(humanId || '')
+      if (mock) return dir().setRole(id, String(role || ''))
+      return live(`/v1/members/${encodeURIComponent(id)}/role`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ role: String(role || ''), ...(fromRole ? { from_role: String(fromRole) } : {}) }),
+      })
+    },
+    /** DELETE /v1/members/{id}: remove a member from the tenant. */
+    async removeTenantUser(humanId) {
+      const id = String(humanId || '')
+      if (mock) return dir().remove(id)
+      return live(`/v1/members/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    },
+    /** DELETE /v1/members/invites?email=: revoke a pending invite. */
+    async revokeTenantInvite(email) {
+      const e = String(email || '').trim()
+      if (mock) return dir().revoke(e)
+      return live(`/v1/members/invites?email=${encodeURIComponent(e)}`, { method: 'DELETE' })
     },
     /**
      * channels-v1 §5.2. `read` = { channel: last-read cursor } (client-held,

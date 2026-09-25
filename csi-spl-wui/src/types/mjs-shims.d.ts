@@ -62,6 +62,11 @@ declare module '~/utils/spool-client.mjs' {
     }>
     me(): Promise<Record<string, unknown> | null>
     removeMember(humanId: string): Promise<null>
+    listTenantUsers(): Promise<unknown>
+    inviteTenantUser(opts: { email: string, role?: string, locale?: string }): Promise<{ email?: string, role?: string, mail?: string } | null>
+    setTenantUserRole(humanId: string, role: string, fromRole?: string): Promise<unknown>
+    removeTenantUser(humanId: string): Promise<null>
+    revokeTenantInvite(email: string): Promise<null>
     listChannels(opts?: { read?: Record<string, string> }): Promise<import('./spool').ChannelRow[]>
     listMessages(opts?: {
       channel?: string
@@ -148,7 +153,8 @@ declare module '~/utils/live-ws.mjs' {
 
 declare module '~/utils/sidebar-tabs.mjs' {
   export const SIDE_TABS: readonly ['dm', 'channels', 'topics', 'flow']
-  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | null
+  export const USERS_TAB: 'users'
+  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | null
   export function switchPaneOf(text: string): 'dm' | 'channels' | 'topics' | 'flow' | '' | null
   export function flowRows(src?: {
     channels?: unknown[]
@@ -751,6 +757,20 @@ declare module '~/utils/access.mjs' {
   export function normalizeMe(body: unknown): { humanId: string | null, role: string | null, tenantOwner: boolean, permissions: string[] | null }
   export function accessAllows(me: { permissions: string[] | null } | null | undefined, perm: string): boolean
   export function roleLabelKey(role: string | null | undefined): string
+}
+
+declare module '~/utils/tenant-users.mjs' {
+  export type UserMember = { kind: 'member', key: string, humanId: string, displayName: string, email: string, role: string, since: string, disabled: boolean, you: boolean, manageable: boolean }
+  export type UserInvite = { kind: 'invite', key: string, email: string, role: string, invitedBy: string, createdAt: string, expiresAt: string, expired: boolean }
+  export type UserRow = UserMember | UserInvite
+  export const USERS_PERMISSION: string
+  export const USER_PANE_SIDE: 'left' | 'right'
+  export function usersEntryVisible(me: { permissions: string[] | null } | null | undefined, opts?: { mock?: boolean }): boolean
+  export function normalizeDirectory(body: unknown): { you: string, members: UserMember[], invites: UserInvite[], roles: { id: string, grantable: boolean }[] }
+  export function memberLabel(row: UserRow | null | undefined): string
+  export function userErrorKey(err: unknown): string
+  export function looksLikeEmail(s: unknown): boolean
+  export function createMockDirectory(now?: () => Date): unknown
 }
 
 declare module '~/utils/theme.mjs' {

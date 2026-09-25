@@ -356,7 +356,8 @@
       "hide": "Noņemt no saraksta",
       "remove": "Noņemt",
       "properties": "Properties"
-    }
+    },
+    "users": "Lietotāji"
   },
   "composer": {
     "mention_suggestions": "Pieminēšanas ieteikumi",
@@ -609,6 +610,55 @@
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
       "default_everyone": "Noklusējuma kanālā ir visi cilvēki, un nevienu no tā nevar noņemt. Aģents tajā ir tikai tad, kad kāds to pievieno."
+    }
+  },
+  "users": {
+    "title": "Lietotāji",
+    "sidebar_hint": "Uzaiciniet cilvēkus šajā nomniekā, mainiet viņu lomu vai noņemiet viņus.",
+    "members": "Dalībnieki ({n})",
+    "invites": "Gaidošie uzaicinājumi ({n})",
+    "no_invites": "Nav gaidošu uzaicinājumu.",
+    "loading": "Ielādē lietotājus…",
+    "forbidden": "Lietotājus var pārvaldīt tikai šī nomnieka administrators.",
+    "invite": "Uzaicināt",
+    "invite_title": "Uzaicināt lietotāju",
+    "email": "E-pasts",
+    "role": "Loma",
+    "send_invite": "Sūtīt uzaicinājumu",
+    "invited": "Uzaicinājums nosūtīts uz {email}.",
+    "invite_saved_no_mail": "Uzaicinājums saglabāts adresei {email}. Uzaicinājuma e-pasts netika nosūtīts.",
+    "you": "jūs",
+    "disabled": "atspējots",
+    "name": "Vārds",
+    "member_id": "Dalībnieka ID",
+    "since": "Dalībnieks kopš",
+    "save_role": "Saglabāt lomu",
+    "role_saved": "Loma mainīta.",
+    "remove": "Noņemt no nomnieka",
+    "remove_confirm_title": "Noņemt šo lietotāju?",
+    "remove_confirm": "{name} nekavējoties zaudē piekļuvi šim nomniekam. Ziņojumi paliek.",
+    "revoke": "Atsaukt uzaicinājumu",
+    "revoke_confirm_title": "Atsaukt šo uzaicinājumu?",
+    "revoke_confirm": "Uzaicinājums adresei {email} vairs nedarbosies. Adresi vēlāk var uzaicināt atkārtoti.",
+    "invited_by": "Uzaicināja",
+    "expires": "Beidzas",
+    "expired": "beidzies",
+    "pending": "gaida",
+    "not_manageable_self": "Tas esat jūs. Jūsu dalību var mainīt vai noņemt cits administrators.",
+    "not_manageable_role": "Jūsu loma nevar pārvaldīt dalībnieku ar šo lomu.",
+    "select_hint": "Izvēlieties lietotāju, lai to rediģētu.",
+    "edit_title_member": "Rediģēt lietotāju",
+    "edit_title_invite": "Gaidošs uzaicinājums",
+    "error": {
+      "forbidden": "Jūsu loma to neatļauj.",
+      "last_admin": "Šis ir pēdējais nomnieka administrators. Vispirms padariet kādu citu par administratoru.",
+      "last_owner": "Šis ir pēdējais nomnieka biznesa īpašnieks.",
+      "self": "Jūs nevarat noņemt sevi. Palūdziet citam administratoram.",
+      "bad_email": "Ievadiet derīgu e-pasta adresi.",
+      "bad_role": "Šādas lomas šajā nomniekā nav.",
+      "role_changed": "Kāds pa to laiku mainīja šo lietotāju. Saraksts tika ielādēts no jauna; mēģiniet vēlreiz.",
+      "not_found": "Šis lietotājs vai uzaicinājums vairs nepastāv. Saraksts tika ielādēts no jauna.",
+      "generic": "Neizdevās. Mēģiniet vēlreiz."
     }
   }
 }

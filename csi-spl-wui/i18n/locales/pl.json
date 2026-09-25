@@ -356,7 +356,8 @@
       "hide": "Usuń z listy",
       "remove": "Usuń",
       "properties": "Properties"
-    }
+    },
+    "users": "Użytkownicy"
   },
   "composer": {
     "mention_suggestions": "Sugestie wzmianek",
@@ -609,6 +610,55 @@
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
       "default_everyone": "Wszyscy ludzie są w kanale domyślnym i nikogo nie można z niego usunąć. Agent jest w nim dopiero wtedy, gdy ktoś go doda."
+    }
+  },
+  "users": {
+    "title": "Użytkownicy",
+    "sidebar_hint": "Zapraszaj osoby do tego najemcy, zmieniaj ich rolę lub je usuwaj.",
+    "members": "Członkowie ({n})",
+    "invites": "Oczekujące zaproszenia ({n})",
+    "no_invites": "Brak oczekujących zaproszeń.",
+    "loading": "Wczytywanie użytkowników…",
+    "forbidden": "Tylko administrator tego najemcy może zarządzać użytkownikami.",
+    "invite": "Zaproś",
+    "invite_title": "Zaproś użytkownika",
+    "email": "E-mail",
+    "role": "Rola",
+    "send_invite": "Wyślij zaproszenie",
+    "invited": "Zaproszenie wysłane na {email}.",
+    "invite_saved_no_mail": "Zaproszenie zapisane dla {email}. Nie wysłano e-maila z zaproszeniem.",
+    "you": "ty",
+    "disabled": "wyłączony",
+    "name": "Nazwa",
+    "member_id": "ID członka",
+    "since": "Członek od",
+    "save_role": "Zapisz rolę",
+    "role_saved": "Rola zmieniona.",
+    "remove": "Usuń z najemcy",
+    "remove_confirm_title": "Usunąć tego użytkownika?",
+    "remove_confirm": "{name} natychmiast traci dostęp do tego najemcy. Wiadomości zostają.",
+    "revoke": "Cofnij zaproszenie",
+    "revoke_confirm_title": "Cofnąć to zaproszenie?",
+    "revoke_confirm": "Zaproszenie dla {email} przestanie działać. Możesz później zaprosić ten adres ponownie.",
+    "invited_by": "Zaproszony przez",
+    "expires": "Wygasa",
+    "expired": "wygasłe",
+    "pending": "oczekuje",
+    "not_manageable_self": "To ty. Twoje członkostwo może zmienić lub usunąć inny administrator.",
+    "not_manageable_role": "Twoja rola nie może zarządzać członkiem z tą rolą.",
+    "select_hint": "Wybierz użytkownika, aby go edytować.",
+    "edit_title_member": "Edytuj użytkownika",
+    "edit_title_invite": "Oczekujące zaproszenie",
+    "error": {
+      "forbidden": "Twoja rola na to nie pozwala.",
+      "last_admin": "To ostatni administrator najemcy. Najpierw nadaj komuś innemu rolę administratora.",
+      "last_owner": "To ostatni właściciel biznesowy najemcy.",
+      "self": "Nie możesz usunąć samego siebie. Poproś innego administratora.",
+      "bad_email": "Podaj prawidłowy adres e-mail.",
+      "bad_role": "Ta rola nie istnieje w tym najemcy.",
+      "role_changed": "Ktoś w międzyczasie zmienił tego użytkownika. Lista została wczytana ponownie; spróbuj jeszcze raz.",
+      "not_found": "Ten użytkownik lub zaproszenie już nie istnieje. Lista została wczytana ponownie.",
+      "generic": "Nie udało się. Spróbuj ponownie."
     }
   }
 }

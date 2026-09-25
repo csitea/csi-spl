@@ -356,7 +356,8 @@
       "hide": "Quitar de la lista",
       "remove": "Quitar",
       "properties": "Properties"
-    }
+    },
+    "users": "Usuarios"
   },
   "composer": {
     "mention_suggestions": "Sugerencias de menciones",
@@ -609,6 +610,55 @@
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
       "default_everyone": "Todas las personas están en un canal predeterminado y nadie puede ser eliminado de él. Un agente está en él solo cuando alguien lo añade."
+    }
+  },
+  "users": {
+    "title": "Usuarios",
+    "sidebar_hint": "Invita a personas a este inquilino, cambia su rol o elimínalas.",
+    "members": "Miembros ({n})",
+    "invites": "Invitaciones pendientes ({n})",
+    "no_invites": "No hay invitaciones pendientes.",
+    "loading": "Cargando usuarios…",
+    "forbidden": "Solo un administrador de este inquilino puede gestionar usuarios.",
+    "invite": "Invitar",
+    "invite_title": "Invitar a un usuario",
+    "email": "Correo electrónico",
+    "role": "Rol",
+    "send_invite": "Enviar invitación",
+    "invited": "Invitación enviada a {email}.",
+    "invite_saved_no_mail": "Invitación guardada para {email}. No se envió ningún correo de invitación.",
+    "you": "tú",
+    "disabled": "desactivado",
+    "name": "Nombre",
+    "member_id": "ID de miembro",
+    "since": "Miembro desde",
+    "save_role": "Guardar rol",
+    "role_saved": "Rol cambiado.",
+    "remove": "Quitar del inquilino",
+    "remove_confirm_title": "¿Quitar a este usuario?",
+    "remove_confirm": "{name} pierde el acceso a este inquilino de inmediato. Sus mensajes se conservan.",
+    "revoke": "Revocar invitación",
+    "revoke_confirm_title": "¿Revocar esta invitación?",
+    "revoke_confirm": "La invitación para {email} deja de funcionar. Puedes volver a invitar a esa dirección más tarde.",
+    "invited_by": "Invitado por",
+    "expires": "Caduca",
+    "expired": "caducada",
+    "pending": "pendiente",
+    "not_manageable_self": "Eres tú. Otro administrador puede cambiar o quitar tu membresía.",
+    "not_manageable_role": "Tu rol no puede gestionar a un miembro con este rol.",
+    "select_hint": "Selecciona un usuario para editarlo.",
+    "edit_title_member": "Editar usuario",
+    "edit_title_invite": "Invitación pendiente",
+    "error": {
+      "forbidden": "Tu rol no lo permite.",
+      "last_admin": "Es el último administrador del inquilino. Primero haz administrador a otra persona.",
+      "last_owner": "Es el último propietario de negocio del inquilino.",
+      "self": "No puedes quitarte a ti mismo. Pide ayuda a otro administrador.",
+      "bad_email": "Introduce una dirección de correo válida.",
+      "bad_role": "Ese rol no existe en este inquilino.",
+      "role_changed": "Alguien cambió este usuario mientras tanto. La lista se ha recargado; inténtalo de nuevo.",
+      "not_found": "Este usuario o invitación ya no existe. La lista se ha recargado.",
+      "generic": "No ha funcionado. Inténtalo de nuevo."
     }
   }
 }

@@ -356,7 +356,8 @@
       "hide": "Pašalinti iš sąrašo",
       "remove": "Pašalinti",
       "properties": "Properties"
-    }
+    },
+    "users": "Naudotojai"
   },
   "composer": {
     "mention_suggestions": "Paminėjimų pasiūlymai",
@@ -609,6 +610,55 @@
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
       "default_everyone": "Numatytajame kanale yra visi žmonės, ir niekas negali būti iš jo pašalintas. Agentas jame yra tik tada, kai kas nors jį prideda."
+    }
+  },
+  "users": {
+    "title": "Naudotojai",
+    "sidebar_hint": "Pakvieskite žmones į šį nuomininką, keiskite jų vaidmenį arba pašalinkite juos.",
+    "members": "Nariai ({n})",
+    "invites": "Laukiantys kvietimai ({n})",
+    "no_invites": "Laukiančių kvietimų nėra.",
+    "loading": "Įkeliami naudotojai…",
+    "forbidden": "Naudotojus gali tvarkyti tik šio nuomininko administratorius.",
+    "invite": "Pakviesti",
+    "invite_title": "Pakviesti naudotoją",
+    "email": "El. paštas",
+    "role": "Vaidmuo",
+    "send_invite": "Siųsti kvietimą",
+    "invited": "Kvietimas išsiųstas adresu {email}.",
+    "invite_saved_no_mail": "Kvietimas išsaugotas adresui {email}. Kvietimo laiškas neišsiųstas.",
+    "you": "jūs",
+    "disabled": "išjungtas",
+    "name": "Vardas",
+    "member_id": "Nario ID",
+    "since": "Narys nuo",
+    "save_role": "Išsaugoti vaidmenį",
+    "role_saved": "Vaidmuo pakeistas.",
+    "remove": "Pašalinti iš nuomininko",
+    "remove_confirm_title": "Pašalinti šį naudotoją?",
+    "remove_confirm": "{name} iš karto netenka prieigos prie šio nuomininko. Žinutės lieka.",
+    "revoke": "Atšaukti kvietimą",
+    "revoke_confirm_title": "Atšaukti šį kvietimą?",
+    "revoke_confirm": "Kvietimas adresui {email} nustos galioti. Adresą vėliau galėsite pakviesti iš naujo.",
+    "invited_by": "Pakvietė",
+    "expires": "Galioja iki",
+    "expired": "nebegalioja",
+    "pending": "laukiama",
+    "not_manageable_self": "Tai jūs. Jūsų narystę gali pakeisti arba pašalinti kitas administratorius.",
+    "not_manageable_role": "Jūsų vaidmuo negali tvarkyti nario su šiuo vaidmeniu.",
+    "select_hint": "Pasirinkite naudotoją, kad jį redaguotumėte.",
+    "edit_title_member": "Redaguoti naudotoją",
+    "edit_title_invite": "Laukiantis kvietimas",
+    "error": {
+      "forbidden": "Jūsų vaidmuo to neleidžia.",
+      "last_admin": "Tai paskutinis nuomininko administratorius. Pirmiausia paskirkite kitą administratorių.",
+      "last_owner": "Tai paskutinis nuomininko verslo savininkas.",
+      "self": "Negalite pašalinti savęs. Paprašykite kito administratoriaus.",
+      "bad_email": "Įveskite galiojantį el. pašto adresą.",
+      "bad_role": "Tokio vaidmens šiame nuomininke nėra.",
+      "role_changed": "Kažkas tuo metu pakeitė šį naudotoją. Sąrašas įkeltas iš naujo; bandykite dar kartą.",
+      "not_found": "Šio naudotojo ar kvietimo nebėra. Sąrašas įkeltas iš naujo.",
+      "generic": "Nepavyko. Bandykite dar kartą."
     }
   }
 }

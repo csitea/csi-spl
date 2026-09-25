@@ -356,7 +356,8 @@
       "hide": "Elimină din listă",
       "remove": "Elimină",
       "properties": "Properties"
-    }
+    },
+    "users": "Utilizatori"
   },
   "composer": {
     "mention_suggestions": "Sugestii de mențiuni",
@@ -609,6 +610,55 @@
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
       "default_everyone": "Toți oamenii sunt într-un canal implicit și nimeni nu poate fi eliminat din el. Un agent este în el doar după ce cineva îl adaugă."
+    }
+  },
+  "users": {
+    "title": "Utilizatori",
+    "sidebar_hint": "Invită persoane în acest chiriaș, schimbă-le rolul sau elimină-le.",
+    "members": "Membri ({n})",
+    "invites": "Invitații în așteptare ({n})",
+    "no_invites": "Nicio invitație în așteptare.",
+    "loading": "Se încarcă utilizatorii…",
+    "forbidden": "Doar un administrator al acestui chiriaș poate gestiona utilizatorii.",
+    "invite": "Invită",
+    "invite_title": "Invită un utilizator",
+    "email": "E-mail",
+    "role": "Rol",
+    "send_invite": "Trimite invitația",
+    "invited": "Invitație trimisă la {email}.",
+    "invite_saved_no_mail": "Invitație salvată pentru {email}. Nu s-a trimis niciun e-mail de invitație.",
+    "you": "tu",
+    "disabled": "dezactivat",
+    "name": "Nume",
+    "member_id": "ID membru",
+    "since": "Membru din",
+    "save_role": "Salvează rolul",
+    "role_saved": "Rol schimbat.",
+    "remove": "Elimină din chiriaș",
+    "remove_confirm_title": "Elimini acest utilizator?",
+    "remove_confirm": "{name} pierde imediat accesul la acest chiriaș. Mesajele rămân.",
+    "revoke": "Revocă invitația",
+    "revoke_confirm_title": "Revoci această invitație?",
+    "revoke_confirm": "Invitația pentru {email} nu va mai funcționa. Poți invita adresa din nou mai târziu.",
+    "invited_by": "Invitat de",
+    "expires": "Expiră",
+    "expired": "expirată",
+    "pending": "în așteptare",
+    "not_manageable_self": "Acesta ești tu. Un alt administrator îți poate schimba sau elimina calitatea de membru.",
+    "not_manageable_role": "Rolul tău nu poate gestiona un membru cu acest rol.",
+    "select_hint": "Selectează un utilizator pentru a-l edita.",
+    "edit_title_member": "Editează utilizatorul",
+    "edit_title_invite": "Invitație în așteptare",
+    "error": {
+      "forbidden": "Rolul tău nu permite acest lucru.",
+      "last_admin": "Acesta este ultimul administrator al chiriașului. Fă mai întâi pe altcineva administrator.",
+      "last_owner": "Acesta este ultimul proprietar de afacere al chiriașului.",
+      "self": "Nu te poți elimina singur. Cere ajutorul altui administrator.",
+      "bad_email": "Introdu o adresă de e-mail validă.",
+      "bad_role": "Acest rol nu există în acest chiriaș.",
+      "role_changed": "Cineva a modificat între timp acest utilizator. Lista a fost reîncărcată; încearcă din nou.",
+      "not_found": "Acest utilizator sau invitație nu mai există. Lista a fost reîncărcată.",
+      "generic": "Nu a funcționat. Încearcă din nou."
     }
   }
 }

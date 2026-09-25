@@ -24,7 +24,7 @@
       :aria-label="railLabel"
     >
       <button
-        v-for="item in RAIL"
+        v-for="item in rail"
         :id="'sidebar-tab-' + item.id"
         :key="item.id"
         type="button"
@@ -403,6 +403,21 @@
         </template>
         </div>
       </div>
+      <!-- CLE-34969: the admin's Users (members.invite only); the list and
+           the edit form live on /users -->
+      <div
+        v-if="usersVisible"
+        v-show="tab === 'users'"
+        id="sidebar-panel-users"
+        class="sidebar-panel"
+        role="tabpanel"
+        aria-labelledby="sidebar-tab-users"
+        data-testid="sidebar-panel-users"
+      >
+        <h2>{{ t('sidebar.users') }}</h2>
+        <p class="muted sidebar-users-hint">{{ t('users.sidebar_hint') }}</p>
+        <NuxtLink class="nav-row" data-testid="sidebar-users-open" :to="localePath('/users')">{{ t('users.title') }}</NuxtLink>
+      </div>
     <div class="sidebar-foot">
       <div class="nav-item health" data-testid="connection-health" :title="t('sidebar.health_title', { state: stateLabel(live.state.value) })">
         <span class="health-dot" :class="health" />
@@ -443,7 +458,8 @@ import { useLive } from '~/composables/useLive'
 import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
-import { flowRows, SIDE_TABS, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { usersEntryVisible } from '~/utils/tenant-users.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
@@ -451,7 +467,7 @@ import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { fixedTenantOption } from '~/utils/tenant-switcher.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
-type SideTab = 'dm' | 'channels' | 'topics' | 'flow'
+type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'users'
 /* Direct messages, channels, topics, flow — top to bottom. A matching
    route follows the page; search and settings keep the reader's choice. */
 const RAIL: { id: SideTab, icon: UiIconName, labelKey: string }[] = [
@@ -482,7 +498,7 @@ watch(() => route.path, (path) => {
   if (next) tab.value = next
 }, { immediate: true })
 function onTabKey(e: KeyboardEvent) {
-  const order = SIDE_TABS as readonly SideTab[]
+  const order = rail.value.map((item) => item.id)
   const i = order.indexOf(tab.value)
   let n = -1
   if (e.key === 'ArrowDown') n = (i + 1) % order.length
@@ -515,7 +531,12 @@ function keepTenant(ev: Event) {
   if (el instanceof HTMLSelectElement) el.value = tenantOption.value.id
 }
 const localePath = useLocalePath()
-const railLabel = computed(() => RAIL.map((item) => t(item.labelKey)).join(', '))
+/* CLE-34969: Users after flow, only when the hub lists members.invite. */
+const usersVisible = computed(() => usersEntryVisible(access.me, { mock: api.mock }))
+const rail = computed(() => (usersVisible.value
+  ? [...RAIL, { id: USERS_TAB as SideTab, icon: 'users' as UiIconName, labelKey: 'sidebar.users' }]
+  : RAIL))
+const railLabel = computed(() => rail.value.map((item) => t(item.labelKey)).join(', '))
 function sectionUnread(prefix: string) {
   return Object.entries(notes.unread).some(([k, n]) => k.startsWith(prefix) && Number(n) > 0)
 }
@@ -556,6 +577,7 @@ async function selectTab(next: SideTab) {
     return
   }
   if (next === 'flow' && viewer.topics.length === 0) void viewer.loadTopics()
+  if (next === USERS_TAB && tabForPath(route.path) !== USERS_TAB) await navigateTo(localePath('/users'))
 }
 const sidePane = useSidePane()
 watch(() => sidePane.requested.value, (req) => {
@@ -572,7 +594,7 @@ watch(() => sidePane.requested.value, (req) => {
 })
 watch(tab, (id) => {
   rowMenu.value = ''
-  sidePane.setCurrent(id)
+  if (id !== USERS_TAB) sidePane.setCurrent(id)
   if ((id === 'topics' || id === 'flow') && viewer.topics.length === 0) void viewer.loadTopics()
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */

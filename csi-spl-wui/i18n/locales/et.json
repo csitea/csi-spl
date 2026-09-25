@@ -356,7 +356,8 @@
       "hide": "Eemalda loendist",
       "remove": "Eemalda",
       "properties": "Properties"
-    }
+    },
+    "users": "Kasutajad"
   },
   "composer": {
     "mention_suggestions": "Mainimissoovitused",
@@ -609,6 +610,55 @@
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
       "default_everyone": "Vaikekanalis on kõik inimesed ja kedagi ei saa sealt eemaldada. Agent on seal alles siis, kui keegi ta lisab."
+    }
+  },
+  "users": {
+    "title": "Kasutajad",
+    "sidebar_hint": "Kutsu inimesi sellesse rentnikku, muuda nende rolli või eemalda nad.",
+    "members": "Liikmed ({n})",
+    "invites": "Ootel kutsed ({n})",
+    "no_invites": "Ootel kutseid pole.",
+    "loading": "Kasutajate laadimine…",
+    "forbidden": "Kasutajaid saab hallata ainult selle rentniku administraator.",
+    "invite": "Kutsu",
+    "invite_title": "Kutsu kasutaja",
+    "email": "E-post",
+    "role": "Roll",
+    "send_invite": "Saada kutse",
+    "invited": "Kutse saadeti aadressile {email}.",
+    "invite_saved_no_mail": "Kutse salvestati aadressile {email}. Kutsekirja ei saadetud.",
+    "you": "sina",
+    "disabled": "keelatud",
+    "name": "Nimi",
+    "member_id": "Liikme ID",
+    "since": "Liige alates",
+    "save_role": "Salvesta roll",
+    "role_saved": "Roll muudetud.",
+    "remove": "Eemalda rentnikust",
+    "remove_confirm_title": "Kas eemaldada see kasutaja?",
+    "remove_confirm": "{name} kaotab kohe ligipääsu sellele rentnikule. Sõnumid jäävad alles.",
+    "revoke": "Tühista kutse",
+    "revoke_confirm_title": "Kas tühistada see kutse?",
+    "revoke_confirm": "Kutse aadressile {email} lakkab kehtimast. Saad aadressi hiljem uuesti kutsuda.",
+    "invited_by": "Kutsuja",
+    "expires": "Aegub",
+    "expired": "aegunud",
+    "pending": "ootel",
+    "not_manageable_self": "See oled sina. Sinu liikmesust saab muuta või eemaldada teine administraator.",
+    "not_manageable_role": "Sinu roll ei saa hallata selle rolliga liiget.",
+    "select_hint": "Vali muutmiseks kasutaja.",
+    "edit_title_member": "Muuda kasutajat",
+    "edit_title_invite": "Ootel kutse",
+    "error": {
+      "forbidden": "Sinu roll ei luba seda.",
+      "last_admin": "See on rentniku viimane administraator. Tee kõigepealt keegi teine administraatoriks.",
+      "last_owner": "See on rentniku viimane äriomanik.",
+      "self": "Sa ei saa ennast eemaldada. Palu teist administraatorit.",
+      "bad_email": "Sisesta kehtiv e-posti aadress.",
+      "bad_role": "Sellist rolli selles rentnikus pole.",
+      "role_changed": "Keegi muutis vahepeal seda kasutajat. Loend laaditi uuesti; proovi uuesti.",
+      "not_found": "Seda kasutajat või kutset enam pole. Loend laaditi uuesti.",
+      "generic": "See ei õnnestunud. Proovi uuesti."
     }
   }
 }

@@ -356,7 +356,8 @@
       "hide": "Listeden kaldır",
       "remove": "Kaldır",
       "properties": "Properties"
-    }
+    },
+    "users": "Kullanıcılar"
   },
   "composer": {
     "mention_suggestions": "Bahsetme önerileri",
@@ -609,6 +610,55 @@
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
       "default_everyone": "Varsayılan kanalda tüm kişiler vardır ve kimse ondan çıkarılamaz. Bir ajan, ancak biri onu eklediğinde kanalda olur."
+    }
+  },
+  "users": {
+    "title": "Kullanıcılar",
+    "sidebar_hint": "Bu kiracıya kişi davet edin, rollerini değiştirin veya onları kaldırın.",
+    "members": "Üyeler ({n})",
+    "invites": "Bekleyen davetler ({n})",
+    "no_invites": "Bekleyen davet yok.",
+    "loading": "Kullanıcılar yükleniyor…",
+    "forbidden": "Kullanıcıları yalnızca bu kiracının yöneticisi yönetebilir.",
+    "invite": "Davet et",
+    "invite_title": "Kullanıcı davet et",
+    "email": "E-posta",
+    "role": "Rol",
+    "send_invite": "Davet gönder",
+    "invited": "Davet {email} adresine gönderildi.",
+    "invite_saved_no_mail": "Davet {email} için kaydedildi. Davet e-postası gönderilmedi.",
+    "you": "siz",
+    "disabled": "devre dışı",
+    "name": "Ad",
+    "member_id": "Üye kimliği",
+    "since": "Üyelik başlangıcı",
+    "save_role": "Rolü kaydet",
+    "role_saved": "Rol değiştirildi.",
+    "remove": "Kiracıdan kaldır",
+    "remove_confirm_title": "Bu kullanıcı kaldırılsın mı?",
+    "remove_confirm": "{name} bu kiracıya erişimini hemen kaybeder. Mesajları kalır.",
+    "revoke": "Daveti geri al",
+    "revoke_confirm_title": "Bu davet geri alınsın mı?",
+    "revoke_confirm": "{email} için davet artık çalışmaz. Adresi daha sonra yeniden davet edebilirsiniz.",
+    "invited_by": "Davet eden",
+    "expires": "Sona eriyor",
+    "expired": "süresi doldu",
+    "pending": "bekliyor",
+    "not_manageable_self": "Bu sizsiniz. Üyeliğinizi başka bir yönetici değiştirebilir veya kaldırabilir.",
+    "not_manageable_role": "Rolünüz bu roldeki bir üyeyi yönetemez.",
+    "select_hint": "Düzenlemek için bir kullanıcı seçin.",
+    "edit_title_member": "Kullanıcıyı düzenle",
+    "edit_title_invite": "Bekleyen davet",
+    "error": {
+      "forbidden": "Rolünüz buna izin vermiyor.",
+      "last_admin": "Bu, kiracının son yöneticisi. Önce başka birini yönetici yapın.",
+      "last_owner": "Bu, kiracının son iş sahibi.",
+      "self": "Kendinizi kaldıramazsınız. Başka bir yöneticiden isteyin.",
+      "bad_email": "Geçerli bir e-posta adresi girin.",
+      "bad_role": "Bu rol bu kiracıda yok.",
+      "role_changed": "Bu arada biri bu kullanıcıyı değiştirdi. Liste yeniden yüklendi; tekrar deneyin.",
+      "not_found": "Bu kullanıcı veya davet artık yok. Liste yeniden yüklendi.",
+      "generic": "Olmadı. Tekrar deneyin."
     }
   }
 }

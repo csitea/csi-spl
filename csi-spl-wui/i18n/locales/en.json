@@ -356,7 +356,8 @@
       "hide": "Remove from list",
       "remove": "Remove",
       "properties": "Properties"
-    }
+    },
+    "users": "Users"
   },
   "composer": {
     "mention_suggestions": "Mention suggestions",
@@ -609,6 +610,55 @@
       "agents_search": "Search agents",
       "agents_no_matches": "No matches",
       "default_everyone": "Every person is in a default channel, and nobody can be removed from it. An agent is in it only once someone adds it."
+    }
+  },
+  "users": {
+    "title": "Users",
+    "sidebar_hint": "Invite people to this tenant, change their role or remove them.",
+    "members": "Members ({n})",
+    "invites": "Pending invites ({n})",
+    "no_invites": "No pending invites.",
+    "loading": "Loading users…",
+    "forbidden": "Only an admin of this tenant can manage users.",
+    "invite": "Invite",
+    "invite_title": "Invite a user",
+    "email": "Email",
+    "role": "Role",
+    "send_invite": "Send invite",
+    "invited": "Invitation sent to {email}.",
+    "invite_saved_no_mail": "Invite saved for {email}. No invitation email was sent.",
+    "you": "you",
+    "disabled": "disabled",
+    "name": "Name",
+    "member_id": "Member ID",
+    "since": "Member since",
+    "save_role": "Save role",
+    "role_saved": "Role changed.",
+    "remove": "Remove from tenant",
+    "remove_confirm_title": "Remove this user?",
+    "remove_confirm": "{name} loses access to this tenant at once. Their messages stay.",
+    "revoke": "Revoke invite",
+    "revoke_confirm_title": "Revoke this invite?",
+    "revoke_confirm": "The invite for {email} stops working. You can invite the address again later.",
+    "invited_by": "Invited by",
+    "expires": "Expires",
+    "expired": "expired",
+    "pending": "pending",
+    "not_manageable_self": "This is you. Another admin can change or remove your membership.",
+    "not_manageable_role": "Your role cannot manage a member with this role.",
+    "select_hint": "Select a user to edit them.",
+    "edit_title_member": "Edit user",
+    "edit_title_invite": "Pending invite",
+    "error": {
+      "forbidden": "Your role does not allow this.",
+      "last_admin": "This is the tenant's last admin. Make someone else an admin first.",
+      "last_owner": "This is the tenant's last business owner.",
+      "self": "You cannot remove yourself. Ask another admin.",
+      "bad_email": "Enter a valid email address.",
+      "bad_role": "That role does not exist in this tenant.",
+      "role_changed": "Someone changed this user meanwhile. The list was reloaded; try again.",
+      "not_found": "This user or invite no longer exists. The list was reloaded.",
+      "generic": "That did not work. Try again."
     }
   }
 }

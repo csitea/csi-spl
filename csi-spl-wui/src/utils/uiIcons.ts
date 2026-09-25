@@ -75,6 +75,13 @@ export const UI_ICON_PATHS = {
     "M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1",
     "M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1",
   ],
+  // Left-strip tab: the admin's Users (lucide users), CLE-34969.
+  users: [
+    "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2",
+    "M9 3a4 4 0 1 1 0 8 4 4 0 1 1 0-8z",
+    "M22 21v-2a4 4 0 0 0-3-3.87",
+    "M16 3.13a4 4 0 0 1 0 7.75",
+  ],
   // CLE-3433: the notification control in the collapsed 72px sidebar rail,
   // where its label does not fit and must not be shown as wrapped text.
   bell: [

@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
@@ -116,7 +117,13 @@ func TestGetFileMemberSession(t *testing.T) {
 		hdr.Get("Access-Control-Allow-Credentials") != "true" {
 		t.Fatalf("member GET: %d %v %q", code, hdr, body)
 	}
-	if code, _, body := r.get(t, mine, "/v1/files/"+theirFID); code != http.StatusNotFound {
+	// CLE-34985: content-addressed, so cacheable - but only privately, and
+	// only for the credentials that passed the door.
+	if cc, vary := hdr.Get("Cache-Control"), strings.Join(hdr.Values("Vary"), ","); cc != "private, max-age=86400, immutable" ||
+		!strings.Contains(vary, "Cookie") || !strings.Contains(vary, "Authorization") {
+		t.Fatalf("member GET cache headers: Cache-Control %q Vary %q", cc, vary)
+	}
+	if code, hdr, body := r.get(t, mine, "/v1/files/"+theirFID); code != http.StatusNotFound || hdr.Get("Cache-Control") != "" {
 		t.Fatalf("their id via my host: %d %s", code, body)
 	}
 	if code, _, body := r.get(t, theirs, "/v1/files/"+theirFID); code != http.StatusForbidden || errToken([]byte(body)) != "tenant_mismatch" {

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -176,10 +177,25 @@ func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rc.Close()
-	w.Header().Set("Content-Type", "application/octet-stream")
+	h := w.Header()
+	h.Set("Content-Type", "application/octet-stream")
+	// The file_id IS the sha256 of the bytes, so they never change under this
+	// URL: the browser keeps them instead of re-downloading an attached
+	// picture on every page (CLE-34985, 100-650 ms each, up to 8x a page on
+	// dev). private: never a shared cache. Vary on the credentials: a cached
+	// copy answers only the same session that passed the read door above, so
+	// a sign-out or another member on the same browser goes back through it.
+	// A member removed from the channel keeps what this browser already
+	// holds for at most fileCacheMaxAge - bytes they had already downloaded.
+	h.Set("Cache-Control", "private, max-age="+strconv.Itoa(int(fileCacheMaxAge.Seconds()))+", immutable")
+	h.Add("Vary", "Cookie")
+	h.Add("Vary", "Authorization")
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, rc) //nolint:errcheck
 }
+
+// fileCacheMaxAge bounds how long a browser keeps a downloaded attachment.
+const fileCacheMaxAge = 24 * time.Hour
 
 // fileReader resolves a file read (specs/026 §2): an upload token reads its
 // own tenant (a pinned box or box-wui), anything else is a browser read of

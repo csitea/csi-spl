@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { bodyToHtml, linkParts, parseBody } from '../../src/utils/code-blocks.mjs'
+import { bodyToHtml, linkParts, parseBody, stripBidiControls } from '../../src/utils/code-blocks.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const para = (...parts) => ({ type: 'para', parts })
@@ -151,5 +151,42 @@ describe('MessageBody.vue renders a link part', () => {
 
   it('no v-html', () => {
     assert.doesNotMatch(src, /v-html/)
+  })
+
+  it('CLE-34987: link text is bidi-isolated', () => {
+    assert.match(src, /\.msg-link \{[^}]*unicode-bidi: isolate/)
+  })
+})
+
+describe('bidi controls (CLE-34987)', () => {
+  // built from code points: a literal override in this file would itself be the trojan-source shape
+  const BIDI = [0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069].map((c) => String.fromCharCode(c))
+  const RLO = String.fromCharCode(0x202e)
+
+  it('a link ends before a bidi control, so the control is never inside link text or href', () => {
+    for (const b of BIDI) {
+      const parts = linkParts(`https://evil.example/${b}gpj.doog x`)
+      const l = parts.find((p) => p.type === 'link')
+      assert.ok(l, JSON.stringify(b))
+      assert.equal(l.text, 'https://evil.example/')
+      assert.equal(l.href.includes(b), false)
+    }
+  })
+
+  it('an ordinary link is unchanged (control: the class is not over-broad)', () => {
+    assert.deepEqual(linkParts('https://example.com/a-b_c~d?e=f'), [link('https://example.com/a-b_c~d?e=f')])
+  })
+
+  it('stripBidiControls drops every one and nothing else', () => {
+    assert.equal(stripBidiControls(`Ada${BIDI.join('')} Lovelace`), 'Ada Lovelace')
+    assert.equal(stripBidiControls(`${RLO}nimda`), 'nimda')
+    const he = String.fromCharCode(0x05e9, 0x05dc, 0x05d5, 0x05dd)
+    assert.equal(stripBidiControls(`${he} Z`), `${he} Z`)
+    assert.equal(stripBidiControls(undefined), '')
+  })
+
+  it('the source carries no literal bidi control (escapes only)', () => {
+    const code = readFileSync(join(WUI, 'src/utils/code-blocks.mjs'), 'utf8')
+    for (const b of BIDI) assert.equal(code.includes(b), false, b.charCodeAt(0).toString(16))
   })
 })

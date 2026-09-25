@@ -51,6 +51,8 @@ const blocks = computed(() => parseBody(props.body))
   text-decoration: underline;
   text-underline-offset: 2px;
   overflow-wrap: anywhere;
+  /* its text cannot be reordered by bidi controls around it (CLE-34987) */
+  unicode-bidi: isolate;
 }
 .msg-link:hover { color: var(--color-accent-pressed); }
 .code-inline {

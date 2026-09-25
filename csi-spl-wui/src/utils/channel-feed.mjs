@@ -1,6 +1,6 @@
 /** Pure feed helpers. Node tests import this file; Vue stores wrap it. */
 
-import { bodyToHtml } from './code-blocks.mjs'
+import { bodyToHtml, stripBidiControls } from './code-blocks.mjs'
 import { activityOf, matchesSearch, mergeById, newestActivityFirst, newestFirst, windowed } from './feed.mjs'
 
 export function topLevel(messages) {
@@ -44,7 +44,8 @@ export function displayName(id, box) {
  * @param {Record<string, string> | null | undefined} names humanNamesFromView
  */
 export function personLabel(id, box, names) {
-  const n = names && typeof names === 'object' && Object.prototype.hasOwnProperty.call(names, id) ? String(names[id] || '').trim() : ''
+  // bidi controls dropped: a chosen name must not reorder the row around it (CLE-34987)
+  const n = names && typeof names === 'object' && Object.prototype.hasOwnProperty.call(names, id) ? stripBidiControls(names[id] || '').trim() : ''
   if (n && /^HUM-/.test(String(id || '')) && (!box || box === 'box-wui')) return n
   return displayName(id, box)
 }

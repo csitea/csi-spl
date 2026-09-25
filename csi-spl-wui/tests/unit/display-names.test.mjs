@@ -26,6 +26,14 @@ describe('humanNamesFromView', () => {
 })
 
 describe('personLabel', () => {
+  it('CLE-34987: a chosen name loses its bidi controls, so it cannot reorder the row', () => {
+    const RLO = String.fromCharCode(0x202e)
+    const PDI = String.fromCharCode(0x2069)
+    assert.equal(personLabel('HUM-7', 'box-wui', { 'HUM-7': `${RLO}nimda${PDI}` }), 'nimda')
+    // only controls: nothing left -> the id, never an empty label
+    assert.equal(personLabel('HUM-7', 'box-wui', { 'HUM-7': `${RLO}${PDI}` }), 'HUM-7@box-wui')
+  })
+
   const names = { 'HUM-9': 'FirstName' }
   it('is the chosen name for a human on the browser box, or with no box', () => {
     assert.equal(personLabel('HUM-9', 'box-wui', names), 'FirstName')

@@ -147,7 +147,21 @@ export function tokenize(src, { openAnywhere = false } = {}) {
  * they stay text. A URL may not start glued to a word, a slash, a dot, a
  * colon or an @, so `javascript:https://…` and `x//www.…` stay text too.
  */
-const URL_SRC = String.raw`(?<![\w/.:@-])(?:[Hh][Tt][Tt][Pp][Ss]?:\/\/|[Ww][Ww][Ww]\.)[^\s<>\x60]+`
+/**
+ * Bidi embedding / override / isolate controls (U+202A..U+202E, U+2066..U+2069)
+ * and the LRM/RLM marks. They are invisible and reorder the text around them,
+ * so "evil.example/\u202egpj.doog" reads as another address (CLE-34987): a link
+ * ends before one, and a display name drops them (stripBidiControls).
+ */
+const BIDI_CLASS = String.raw`\u200e\u200f\u202a-\u202e\u2066-\u2069`
+const BIDI_RE = new RegExp(`[${BIDI_CLASS}]`, 'g')
+
+/** The string without bidi controls: for one-line labels such as display names. */
+export function stripBidiControls(s) {
+  return String(s ?? '').replace(BIDI_RE, '')
+}
+
+const URL_SRC = String.raw`(?<![\w/.:@-])(?:[Hh][Tt][Tt][Pp][Ss]?:\/\/|[Ww][Ww][Ww]\.)[^\s<>\x60${BIDI_CLASS}]+`
 const EMAIL_SRC = String.raw`(?<![\w.%+/:@-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}`
 const LINK_RE = new RegExp(`(${URL_SRC})|(${EMAIL_SRC})`, 'g')
 const RICH_RE = new RegExp(

@@ -234,6 +234,9 @@ async function surfaceRun(p, surface) {
   s = await waitFor(p, (x) => x.paneOpen, 10000)
   step(tag('2 replies opens the right pane'), opened && s.paneOpen, { opened, paneOpen: s.paneOpen })
   step(tag('2 left tab unchanged'), s.tab === tabBefore, { before: tabBefore, after: s.tab })
+  /* owner, 2026-09-25: the pane's Open button is obsolete and removed */
+  const openBtn = await p.$('aside.live-pane [data-test=live-topic-open]')
+  step(tag('2 the right pane has no Open button'), !openBtn, {})
   await sleep(800)
   await send(p, L2)
   s = await waitFor(p, (x) => has(x.right, L2))

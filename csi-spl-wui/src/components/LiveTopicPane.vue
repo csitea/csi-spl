@@ -13,16 +13,6 @@
     <header>
       <strong class="topic-heading__title" data-test="topic-heading" data-selected="true" aria-current="true">{{ heading }}</strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
-        <NuxtLink
-          v-if="!messageRooted"
-          class="icon-btn icon-btn--accent"
-          data-test="live-topic-open"
-          :to="localePath('/t/' + pane.taskId)"
-          :aria-label="t('topic.open')"
-          :title="t('topic.open')"
-        >
-          <UiIcon name="open" :size="18" />
-        </NuxtLink>
         <button
           class="icon-btn"
           type="button"
@@ -71,7 +61,6 @@ import type { SpoolMessage } from '~/types/spool'
 const pane = useLiveFeed('pane')
 const { t } = useI18n({ useScope: 'global' })
 const sinceMs = useNowTick(() => Boolean(pane.taskId))
-const localePath = useLocalePath()
 const topic = useTopicStore()
 const { onTopicPaneClick } = useTopicPaneClick()
 

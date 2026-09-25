@@ -47,10 +47,10 @@ describe('icon buttons (Close = x, Open = square-arrow-out-up-right)', () => {
       assert.equal(/\>\{\{\s*t\('common\.close'\)\s*\}\}</.test(src), false, name + ' visible Close')
     }
 
-    assert.match(live, /name="open"/)
-    assert.match(live, /:aria-label="t\('topic\.open'\)"/)
-    assert.match(live, /:title="t\('topic\.open'\)"/)
-    assert.equal(/\>\{\{\s*t\('topic\.open'\)\s*\}\}</.test(live), false, 'visible Open')
+    /* Owner, 2026-09-25: the pane's Open button (to /t/<task_id>) "is obsolet
+       ... remove the whole button". The pane is the topic; nothing opens it again. */
+    assert.equal(live.includes('data-test="live-topic-open"'), false, 'the pane Open button is gone')
+    assert.equal(/name="open"/.test(live), false, 'no open icon in the pane header')
 
     assert.match(card, /name="open"/)
     assert.match(card, /:aria-label="t\('feed\.open_topic'\)"/)

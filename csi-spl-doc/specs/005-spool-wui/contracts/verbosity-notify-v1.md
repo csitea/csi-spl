@@ -1,7 +1,9 @@
 # Contract: thread verbosity + in-browser notifications (M3 client)
 
-Feature: `005-spool-wui` · Lane: WUI-UX (GRK-3358) · Status: Implemented
-(`7e3f9af` modules, `6618f03` wiring). Ticks: `../tasks.md` P4 / P5 / T025–T028.
+Feature: `005-spool-wui` · Lane: WUI-UX (GRK-3358) · Status: Partial
+(`7e3f9af` modules, `6618f03` wiring). §2 and §3 are Implemented. §1's selector was
+removed in `d1648dd0` (2026-09-23); `src/utils/verbosity.mjs` is kept with no caller.
+Retire or restore §1: open, owner decision (asked in topic 582f7895). Ticks: `../tasks.md` P4 / P5 / T025–T028.
 
 This is a **client** contract. It adds no hub field and does not reopen frozen
 `v:1` (`../../002-box-agent-messaging/contracts/message-schema.md`). Inner
@@ -66,8 +68,8 @@ receiving a message while that key is the active route, advances the cursor.
 Hub-stored per-human cursors are OQ-W5 (b) / OQ-CH2 (b), later. Passing
 `read=` into `GET /v1/view/channels` is phase-3 WUI wiring (not this slice).
 
-Tokens stay out of `localStorage` (005 FR-003, view-v1 §2). Allowed
-`localStorage` keys: `spool-theme`, `spool.verbosity`, `spool.chime`,
-`spool.read-cursors`, `spool.pane-widths`.
+Tokens stay out of `localStorage` (005 FR-003, view-v1 §2). The key list is
+005 spec FR-003 (it grew past this contract: font size, locale, mute, emoji,
+hidden DM rows); `spool.verbosity` has no writer since `d1648dd0`.
 
-<!-- version: 1.0.2 · updated: 2026-09-19 · last-edit: 2026-09-19T15:30:00Z -->
+<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:35:51Z -->

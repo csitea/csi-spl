@@ -1,6 +1,6 @@
 # Feature Specification: Spool WUI dispatch — the box-wui key and cross-box commands from a browser
 
-**Feature ID**: `014-spool-wui-dispatch` · **Milestone**: M3 · **Status**: Partial — code Implemented (`9f4f0b9`), cnf done (`70780f1`, T021); deploy handoffs T020/T022/T023 open (see `./tasks.md`)
+**Feature ID**: `014-spool-wui-dispatch` · **Milestone**: M3 · **Status**: Partial — code Implemented (`9f4f0b9`), dispatch on in dev (`70780f1`) and prd (`27ed5027`); T023 Partial (providers other than Google, 010 T031–T034; see `./tasks.md`)
 **Created**: 2026-09-19 · **Lane**: DISPATCH (CLE-3349)
 **Narrative**: `../../doc/md/SPEC-spool-wui.md` lines 101-102 (the hub signs a
 signed-in human's send with a server-side `box-wui` key; pinned boxes
@@ -42,8 +42,11 @@ process (not by a box), its pin is signed by the tenant root key like any
 other, and a receiving box refuses a `box-wui` envelope whose kind is not
 `task|note` (verify class, exit 78). Nothing else in trust-modes changes.
 
-Rollout: dispatch is behind `SPOOL_HUB_WUI_DISPATCH` (default `false`). ORC
-decision for M3: **on for dev, off for prd** until the owner answers OQ-014-1.
+Rollout: dispatch is behind `SPOOL_HUB_WUI_DISPATCH` (default `false`). Measured on
+`28442ef6`: on in dev (`csi-spl-cnf/csi-spl/dev.env.yaml:245`, `70780f1`) and prd
+(`prd.env.yaml:267`, `27ed5027`, whose commit message says owner go after the dev e2e
+PASS); `curl -s https://api.spool-hub.ai/v1/wui/pubkey` → `"dispatch":true` (2026-09-25).
+OQ-014-1 stays open, owner decision (asked in topic 582f7895).
 
 ## 1. User stories
 
@@ -82,40 +85,47 @@ the operator re-pins `box-wui` with `force` (contract §2.3).
 
 ## 2. Functional requirements
 
-- **FR-001** The hub loads one `box-wui` Ed25519 private key at start from
+- **FR-001** — Implemented (`internal/config/config.go:279-281`; `TestLoadHubWUIDispatch`). The hub loads one `box-wui` Ed25519 private key at start from
   `SPOOL_HUB_WUI_KEY` (base64 of the 64-byte private key), or generates an
   ephemeral one when `SPOOL_HUB_WUI_KEY_EPHEMERAL=true` (refused unless
   `SPOOL_HUB_ENV` is `lde` or `dev`). `SPOOL_HUB_WUI_DISPATCH=true` without a
   key fails fast. The private key is never logged, stored, or returned.
-- **FR-002** `GET /v1/wui/pubkey` returns the hub's `box-wui` public key and
+- **FR-002** — Implemented (`internal/hub/dispatch.go:30`). `GET /v1/wui/pubkey` returns the hub's `box-wui` public key and
   whether dispatch is on; `404 not_found` when the hub has no key.
-- **FR-003** `POST /v1/pins` with `box_id = box-wui` is accepted only when
+- **FR-003** — Implemented (`internal/hub/rest.go:318-325`). `POST /v1/pins` with `box_id = box-wui` is accepted only when
   the hub has a key and `pubkey` equals it (else `400 wui_key_mismatch`, or
   the old `400 bad_json` refusal when the hub has no key). Everything else is
   004 pin-semantics unchanged (root sig, ts replay guard, force, quota).
-- **FR-004** A box hello as `box-wui` is refused (`4401 unauthorized`).
-- **FR-005** Dispatch identity is the **session**: only a browser whose socket
+- **FR-004** — Implemented (`internal/hub/ws.go:182`). A box hello as `box-wui` is refused (`4401 unauthorized`).
+- **FR-005** — Implemented (`internal/hub/dispatch.go:83`, `wui.go:61`). Dispatch identity is the **session**: only a browser whose socket
   carries a 010 member session for the Host tenant may dispatch. `hello.as`
   is never the `from` of a dispatched message.
-- **FR-006** Recipient: the frame `to` when it is an agent id (not `ALL-0`,
+- **FR-006** — Implemented (`internal/hub/dispatch.go:94-110`). Recipient: the frame `to` when it is an agent id (not `ALL-0`,
   not `HUM-*`), else a **leading** `@<AGENT-ID>` mention in the body.
   Resolved to exactly one box through the tenant roster.
-- **FR-007** The hub signs with `wire.NewEnvelope`, then verifies the result
+- **FR-007** — Implemented (`internal/hub/dispatch.go:136`, `:140`; the code uses
+  `wire.NewEnvelopeIn`, which also signs the channel / parent tags). The hub signs with `wire.NewEnvelope`, then verifies the result
   against the stored `box-wui` pin with `wire.Envelope.Verify` before storing
   (a hub key the tenant has not pinned is `wui_unpinned`, never a silently
   unverifiable envelope).
-- **FR-008** The dispatched envelope goes through the shared commit path
+- **FR-008** — Implemented (`TestWUIDispatchSignedDeliveryVerifiesAgainstPin`). The dispatched envelope goes through the shared commit path
   (`messages` + `deliveries` for the target box, live push when the box is
   connected), fans out to subscribed browsers like any message, and billing /
   quota / file rules apply as for a browser send.
-- **FR-009** A receiving box accepts a `box-wui` envelope only for
+- **FR-009** — Implemented (`internal/hubclient/hubclient.go:655`; `TestBoxRefusesBoxWUIResult`). A receiving box accepts a `box-wui` envelope only for
   `kind ∈ {task, note}`.
-- **FR-010** With `SPOOL_HUB_WUI_DISPATCH=false` every browser send behaves
+- **FR-010** — Implemented (`TestWUIDispatchFlagOff`). With `SPOOL_HUB_WUI_DISPATCH=false` every browser send behaves
   exactly as 003 `wui-live-ws.md` §4 (browser-only, `box-wui -> box-wui`).
+- **FR-011** — Implemented (contract §3.1, owner rule 2026-09-22). A browser `channel`
+  send that names no agent is signed as `box-wui` and fanned out to every member box
+  when the sender holds `agents.command` and the tenant has pinned `box-wui`; otherwise
+  it stays browser-only and is never refused for that reason (`internal/hub/wui.go:546-561`;
+  `TestWUIChannelPostReachesEveryMemberBox`, `TestWUIChannelPostWithoutAgentsCommandStaysBrowserOnly`).
 
 ## 3. Open questions (owner)
 
-- **OQ-014-1** Trust model — §0. Default (a) implemented; prd flag off.
+- **OQ-014-1** Trust model — §0. Default (a) implemented; prd on (`27ed5027`, commit
+  says owner go after dev e2e PASS). Recording (a) as decided: open, owner decision (asked in topic 582f7895).
 - **OQ-014-2** May a browser without a session dispatch in lde/dev (asserted
   `HUM-*`)? (a) **No — recommended, implemented**: the session always wins, so
   dev dispatch works once 010 membership is wired (HUMANS lane, 010 T012/T013);
@@ -126,7 +136,9 @@ the operator re-pins `box-wui` with `force` (contract §2.3).
   HUMANS lands a durable v:1 human id (rdb 0006, 010 T012) use it and drop
   the per-process map; (b) keep the map. HUMANS landed the store-backed
   Registrar (`a74640b`): its `HUM-<n>` ids are v:1 ids and are used as-is; the
-  per-process map now only covers a session id that is not a v:1 id.
+  per-process map now only covers a session id that is not a v:1 id. Measured on
+  `28442ef6`: `grep -rn "per-process\|humMap" internal/hub/*.go` (non-test) → only
+  `server.go:6`, which is about the socket map, not human ids.
 - **OQ-014-4** Who may command whom: (a) **recommended, implemented**: any
   member of the tenant may task any agent of that tenant (tenant scope only,
   never cross-tenant); (b) a per-agent allow-list.
@@ -146,10 +158,10 @@ the operator re-pins `box-wui` with `force` (contract §2.3).
   (`parseMention` in `csi-spl-wui/src/utils/channel-feed.mjs`:
   `command grep -n -A4 'export function parseMention' csi-spl-wui/src/utils/channel-feed.mjs`
   → `to: m[1], kind: 'task', body: m[2]`; live send in
-  `csi-spl-wui/src/stores/live.ts` does the same
-  `body.match(/^@([A-Z]{2,4}-\d+)\b/)`). The hub still accepts a leading
+  `csi-spl-wui/src/stores/live.ts:232` calls the same `parseMention(body)`, whose
+  regex also accepts `@ID@box` (`channel-feed.mjs:27`)). The hub still accepts a leading
   mention as a fallback (FR-006).
 - rdb migration 0007 (reserved for this lane): not needed — the restricted
   role keys off the reserved box id, and no new table is written.
 
-<!-- version: 0.2.2 · updated: 2026-09-19 · last-edit: 2026-09-19T13:00:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:35:51Z -->

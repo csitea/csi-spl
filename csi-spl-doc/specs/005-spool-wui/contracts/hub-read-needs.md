@@ -9,22 +9,22 @@ parameters, shapes or error tokens; on any doubt view-v1 wins.
 
 | 005 | view-v1 | Note |
 |---|---|---|
-| US1 thread list | §4.3 `GET /v1/view/threads` | `before` paging; `channel` / `parent_task_id` are null in M1 and the viewer does not rely on them (FR-005) |
-| US2 thread view | §4.4 `GET /v1/view/threads/{task_id}` | render `env.msg`; show `env.from_box` / `env.to_box`; `deliveries[]` shown read-only |
+| US1 thread list | §4.3 `GET /v1/view/topics` (was `/threads` until `57f8a670`) | `before` paging; `channel` / `parent_task_id` are null in M1 and the viewer does not rely on them (FR-005) |
+| US2 thread view | §4.4 `GET /v1/view/topics/{task_id}` | render `env.msg`; show `env.from_box` / `env.to_box`; `deliveries[]` shown read-only |
 | US3 download | §1 `GET /v1/files/{file_id}` (http-v1 §3) | `mode:"blob"` only |
-| US4 live follow | §4.4 poll with `after=`, ≥ 2 s | no browser WS in the first cut |
+| US4 live follow | §4.4 `after=` catch-up after a WS reconnect | live over `/v1/wui/ws` (013 US7) |
 | US5 door | §2 view token (PROPOSED, 003 OQ-16); social session as the M3 successor door | token held in memory / `sessionStorage`, never `localStorage`, never in a URL |
-| roster / DMs (later) | §4.1 `GET /v1/view/roster` | closes spec §5 G4 when implemented |
+| roster / DMs | §4.1 `GET /v1/view/roster` | Implemented (`view.go:40`); spec §5 G4 closed |
 | channels (later) | §4.2 `GET /v1/view/channels` | empty in M1 (no `channel` in `v:1`, spec §5 G3) |
-| cross-origin | §3 CORS from cnf `hub.view_cors_origins`, no credentials mode | the WUI calls with a bearer header, not cookies |
+| cross-origin | §3 CORS from cnf `hub.view_cors_origins` | bearer header for a view token; `credentials: 'include'` for the session door (`credentialsFor` in `spool-client.mjs`) |
 
 ## 2. Status (measured 2026-09-18)
 
-- view-v1: on trunk `ec3d593` (`grep -c 'HandleFunc("GET /v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/view.go -> 4`); the token door waits on 003 OQ-16. The WUI read it live locally with `SPOOL_HUB_VIEW_DOOR=off` (005 tasks T012).
+- view-v1: on trunk `ec3d593` (`grep -c 'HandleFunc("GET /v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/view.go -> 4` then; `-> 5` on `28442ef6`); the token door waits on 003 OQ-16. The WUI read it live locally with `SPOOL_HUB_VIEW_DOOR=off` (005 tasks T012).
 - A different, earlier read API exists **on a branch only**:
   `GRK-3349-hub-wui-read-api` (`2ecf59f`) adds `GET /v1/threads`,
   `GET /v1/messages?task_id=` and credentialed, Origin-reflecting CORS. It does
   not match view-v1 (paths, door, CORS mode). Which one lands is 003's call;
   005 codes against view-v1 as the contract of record.
 
-<!-- version: 1.2.0 · updated: 2026-09-18 · last-edit: 2026-09-18T21:10:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:35:51Z -->

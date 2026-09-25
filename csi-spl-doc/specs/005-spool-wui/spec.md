@@ -21,7 +21,8 @@ DNS, ingress). Dependency order: 005 comes after the M1 demo and M2 (README §4)
 
 005 ships **one slice first**: a **read-only thread viewer** in `csi-spl-wui`
 (Nuxt 3) over the **read-only hub viewer API that 003 owns**
-(`../003-spool-message-bus/contracts/view-v1.md`, Planned). A human opens the tenant,
+(`../003-spool-message-bus/contracts/view-v1.md`, Implemented `ec3d593`; routes renamed
+`/v1/view/topics` in `57f8a670`). A human opens the tenant,
 sees its threads (one per `task_id`), opens one, reads its messages
 newest-first on `/lobby` and `/t` (013; `/channel/*` still oldest-first)
 and downloads attached blobs. **No send, no signing, no key in the browser.**
@@ -41,9 +42,9 @@ reopening 002 or the trust model.
 
 ## 1. User scenarios
 
-### US1 — Thread list (P1) 🎯 MVP — Partial
+### US1 — Thread list (P1) 🎯 MVP — Implemented (tasks T005, T012 dev)
 
-A human opens `https://<tenant>.<product-domain>` (tenant from Host, 006) and
+A human opens the WUI (tenant from the signed-in session, 026) and
 sees the tenant's threads, newest activity first: first message's `from`, `to`,
 `kind`, a body preview, message count and last-activity time.
 
@@ -51,13 +52,13 @@ sees the tenant's threads, newest activity first: first message's `from`, `to`,
 the list shows 3 rows by last activity; an empty tenant shows an empty state; an
 unknown Host shows "unknown tenant" (hub 404, error token per 003).
 
-### US2 — Thread view (P1) 🎯 MVP — Partial
+### US2 — Thread view (P1) 🎯 MVP — Implemented
 
 Selecting a thread on `/lobby` and `/t/[task_id]` shows stored messages
-**newest-first** (013 reverse prepend: `LiveFeed.vue`, `LiveThreadPane.vue`;
-`command grep -n "newest first" csi-spl-wui/src/pages/t/[task_id].vue
-csi-spl-wui/src/pages/lobby.vue` → 3). `/channel/<name>` still renders
-oldest-first via `MessageFeed.vue` (owner X3). view-v1 default remains
+**newest-first** (013: `LiveFeed.vue`, `LiveTopicPane.vue`;
+`grep -c newestFirst csi-spl-wui/src/pages/t/[task_id].vue` → 2). `/channel` and
+`/dm` are newest-first too (`MessageFeed.vue:6` `:rows="channel.newestFirst"`,
+`816d229`). view-v1 default remains
 oldest-first (`order=asc`). Author as `<id>@<box>` (004 addressing;
 `from_box` / `to_box` are hub-envelope fields the viewer shows and never
 sets), `kind` badge (`task | result | note | reject`), `ts`, body as text /
@@ -66,7 +67,7 @@ sanitised markdown.
 **Acceptance**: task → note → result renders 3 cards newest-first on `/t` (result, then note, then task); a body
 containing `<script>` renders as text.
 
-### US3 — Attachment download (P1) — Partial
+### US3 — Attachment download (P1) — Implemented (tasks T006, T023; `view-api.mjs:181`)
 
 Each `files[]` entry with `mode: "blob"` renders name, bytes and sha256 with a
 Download link to `GET /v1/files/{file_id}` (003, tenant-scoped capability).
@@ -86,14 +87,23 @@ with `after=` while the tab is visible (runtime config, default 4 s, never under
 `/v1/ws` is Ed25519-hello only and is **not** a browser transport (OQ-04,
 trust-modes); a browser push channel is a later 003 decision.
 
-### US5 — Human sign-in gate (P1 before prd) — Planned
+### US5 — Human sign-in gate (P1 before prd) — Partial
+
+The session door is live on dev and prd (`SPOOL_HUB_VIEW_DOOR: "session"`,
+`csi-spl-cnf/csi-spl/dev.env.yaml:239`, `prd.env.yaml:247`); a 401 `view_door`
+shows the sign-in prompt (`src/utils/live-follow.mjs:75`). Missing: the view-token
+format (003 OQ-16), open, owner decision (asked in topic 582f7895).
 
 The viewer sends a door credential on every read: first the view token
 (view-v1 §2, PROPOSED, 003 OQ-16) pasted by the tenant owner, later the social
 session (`SPEC-spool-social-auth.md`, 006) as view-v1's successor door. No door, no
 data (`401 view_door`).
 
-### US6 — Thread verbosity (P5) — Implemented (`7e3f9af`, `6618f03`)
+### US6 — Thread verbosity (P5) — Partial
+
+The selector was removed in `d1648dd0` (2026-09-23); `src/utils/verbosity.mjs` is kept
+with no caller (`git grep -n applyVerbosity -- csi-spl-wui/src` → the util and the type
+shim only). Retire or restore: open, owner decision (asked in topic 582f7895). The design record follows.
 
 An open thread pane exposes a `minimal | normal | verbose` selector. Visibility
 is inferred from `kind` only (`./contracts/verbosity-notify-v1.md` §1, OQ-W3 (a)):
@@ -122,12 +132,12 @@ opening it.
 
 | Story (from `SPEC-spool-wui.md`) | Blocked by |
 |---|---|
-| Send / reply as `HUM-*` from the browser | G1, G2 |
-| `@mention` command (`kind=task`) | G2 |
-| Channels (`#lobby`, `#tasks`, `#alerts`, custom) + channel creation | hub side done (003 `channels-v1.md`); WUI wiring off the mocks = phase 3 |
-| DMs sidebar with online status | hub side done (`view-v1` §4.3 `dm=true&peer=`, `presence` frames); human roster waits on HUMANS 0006; WUI wiring = phase 3 |
-| Notifications, unread badges | US7 / FR-014: WUI-UX this slice (local cursors). Hub `read=` unread = 003 OQ-CH2, consumed by phase-3 wiring |
-| Thread verbosity (`minimal / normal / verbose`) | US6 / FR-013: WUI-UX this slice; inferred from `kind`, no envelope field |
+| Send / reply as `HUM-*` from the browser | Implemented — tasks T021–T024, 014 |
+| `@mention` command (`kind=task`) | Implemented — tasks P3, 014 |
+| Channels (`#lobby`, `#tasks`, `#alerts`, custom) + channel creation | Implemented — tasks P1, P6 |
+| DMs sidebar with online status | Implemented — task P2; roster `view.go:40` |
+| Notifications, unread badges | Implemented — US7 / FR-014, task P4 (hub `read=` unread) |
+| Thread verbosity (`minimal / normal / verbose`) | Partial — selector removed `d1648dd0`; open, owner decision (asked in topic 582f7895) |
 | Per-channel retention (`#alerts` 7 d) | Implemented in the hub (`messages.expires_at` per channel); per-plan tiers = 006 OQ-006-1 |
 
 ## 2. Functional requirements
@@ -141,11 +151,19 @@ opening it.
   locally (tasks T012). Missing: the token door (003 OQ-16).
 - **FR-003** — Implemented: the browser stores no private key or signed URL,
   never puts a token in `localStorage` or a URL (view-v1 §2), and never opens `/v1/ws`.
-  Allowed `localStorage` keys (try/catch): `spool-theme` (theme), `spool.verbosity`
-  (FR-013), `spool.chime` (FR-014), `spool.read-cursors` (FR-015). Check: every
-  `localStorage` write in `csi-spl-wui/src/{components,composables,stores,utils,pages,plugins}`
-  is one of those keys; no `token` / `Authorization` / signed-URL value is stored.
-- **FR-004** — Implemented (`67f6ff6`): tenant = request Host (006); the WUI sends no
+  `localStorage` keys written (try/catch): `spool-theme`, `spool-font-size`
+  (`font-size.mjs:16`), `csi-spl-lang` (`useLocaleSwitch.ts:17`), `spool.chime` (FR-014),
+  `spool.read-cursors` (FR-015), `spool.pane-widths`, `spool.muted-channels`,
+  `spool.emoji-recent`, `spool.hidden-dm-peers` (`sidebar-row-menu.mjs:71`);
+  `spool.verbosity` has no writer since `d1648dd0`. No `token` / `Authorization` /
+  signed-URL value is stored. Guard: `tests/unit/verbosity-notify-wire.test.mjs`; its
+  `keyRe` (line 65) matches only the keys it already allows, so `spool-font-size`,
+  `csi-spl-lang` and `spool.hidden-dm-peers` are not checked (task T045).
+- **FR-004** — Implemented (`67f6ff6`), superseded by 026 for dev and prd: deployed
+  builds call one api host (`.github/workflows/30_wui-build-deploy.yml:211`
+  `NUXT_PUBLIC_API_BASE: https://<api_fqdn>`) and the hub takes the tenant from the
+  session (`src/utils/tenant.mjs:1-9`). The design record below holds for lde only
+  (a `{tenant}` template). Original text: tenant = request Host (006); the WUI sends no
   tenant id. Tenant reads go to the **tenant host** `<tenant>.<fqdn>` (lde
   `<tenant>.localhost`), never the API host (`api.<fqdn>`, `dev.api.<fqdn>`: reserved
   labels, `404 unknown_tenant` on every tenant route — 003 http-v1, `cfe5a9b`).
@@ -154,9 +172,9 @@ opening it.
   any request (`src/utils/tenant.mjs`, `tests/unit/tenant.test.mjs`). Verified live
   locally, n=1: default `t1` lists the seeded thread; `?tenant=nosuch` shows
   "Unknown tenant".
-- **FR-005** — Partial (restamped 2026-09-19): a thread is a `task_id`. `channel` and
+- **FR-005** — Implemented (`src/stores/live.ts:221`, `:245`): a thread is a `task_id`. `channel` and
   `parent_task_id` are **hub-envelope** fields (003 `contracts/channels-v1.md`,
-  OQ-W1), never `v:1` fields; the viewer reads them from `GET /v1/view/threads`
+  OQ-W1), never `v:1` fields; the viewer reads them from `GET /v1/view/topics`
   (`channel`, `parent_task_id`) and sends them on the `/v1/wui/ws` `send` frame.
   Replies share the thread's `task_id`; `parent_task_id` links child tasks. The
   live client sends both on the `/v1/wui/ws` `send` frame (`stores/live.ts`
@@ -167,15 +185,16 @@ opening it.
 - **FR-007** — Implemented (GRK-3380, 2026-09-21): `nuxt generate` → Firebase
   Hosting via 007 steps `016` / `019`; hub stays on Cloud Run. Live:
   `curl -s https://dev.spool-hub.ai/build.json` and `https://spool-hub.ai/build.json`
-  both return commit `44e94470cb90a1bce16db55d0fa23c0c4b6b1ba2` run `35602385949`;
-  `csi-spl-{dev,prd}-site.web.app/build.json` 200, same sha.
+  both returned commit `44e94470cb90a1bce16db55d0fa23c0c4b6b1ba2` run `35602385949`
+  on 2026-09-21; re-measured 2026-09-25: both return `f0a9ce0a31b16c345f3b52003c9bb6884273ee54`
+  run `36171540579`.
 - **FR-008** — Implemented: lde `pnpm dev` (port 3000), `NUXT_PUBLIC_API_BASE`,
   `NUXT_PUBLIC_USE_MOCK`; orc `do_wui_dev` / `do_wui_test` / `do_wui_build`
   (`ls csi-spl-orc/src/bash/run/wui-*.func.sh -> 5 files`:
   `wui-{dev,test,build,up,down}.func.sh`).
 - **FR-009** — Implemented: no horizontal page scroll at 390×844 and 1280×800
   (`csi-spl-wui/tests/e2e/no-x-scroll.test.mjs`, `tests/unit/no-x-scroll.test.mjs`;
-  `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → `# pass 123 # fail 0` on `8ffb93c`).
+  `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → `# pass 1141 # fail 0` on `28442ef6`).
 - **FR-010** — Partial, and the door sentence below was wrong against cnf.
   Tree `324a071`: `lde.env.yaml` runs `SPOOL_HUB_VIEW_DOOR=off`; `dev.env.yaml`
   and `prd.env.yaml` both run `session`. Dev reads are not open. The view-token
@@ -185,9 +204,9 @@ opening it.
 - **FR-011** — Implemented by 013 (`../013-spool-chat-reverse/tasks.md` T001–T008, C6); the
   text below is kept as the design record. 3-Vertical-Pane Workspace Layout (`SPEC-spool-wui-layout.md`). The desktop shell renders three dedicated vertical panes without horizontal page scroll:
   1. Left Pane (`ChannelSidebar.vue`, 260px): workspace brand, global thread navigation, public channels list, direct messages directory with presence awareness, and authenticated user profile.
-  2. Middle Pane (`MessageFeed.vue`, flexible width): pinned **Top Omnibox** (default main input box where users type and hit Enter; search explicitly triggered via `/search`), top-level message feed flowing in reverse order (**newest messages prepended at the top**, older history scrolling downward), and thread expansion trigger.
-  3. Right Pane (`ThreadPane.vue`, 380px): collapsible side panel rendering pinned root message card, prepended replies feed for active `parent_task_id`, verbosity level selector (`minimal`, `normal`, `verbose`), and thread reply composer.
-- **FR-012** — Partial (C6), and the mock sentence is stale for a deployed
+  2. Middle Pane (`MessageFeed.vue`, flexible width; the Omnibox now lives in `TopBar.vue`): pinned **Top Omnibox** (default main input box where users type and hit Enter; search explicitly triggered via `/search`), top-level message feed flowing in reverse order (**newest messages prepended at the top**, older history scrolling downward), and thread expansion trigger.
+  3. Right Pane (`TopicPane.vue`, renamed `57f8a670`; default 380px, `pane-widths.mjs:10`): collapsible side panel rendering the replies feed for the active `parent_task_id` and the reply composer. The verbosity selector was removed in `d1648dd0`.
+- **FR-012** — Implemented (tasks P1, P2; `nuxt.config.ts:227`), and the mock sentence is stale for a deployed
   build. `nuxt.config.ts` sets `useMock` to `0` when `NUXT_PUBLIC_USE_MOCK` is
   unset and the build is not `isDev`; `useSpoolApi` then constructs
   `createSpoolClient({ mock: false })`, which calls `/v1/view/*`. `nuxi dev`
@@ -196,7 +215,8 @@ opening it.
   - Channels list displays default pinned channels (`#lobby`, `#tasks`, `#alerts` with 7-day retention) and custom channels, with unread badge counters and high-priority mention indicators. `#lobby` is the universal public common room (Slack's `#general` equivalent) that all tenant humans and bots/agents have access to by default.
   - Direct Messages & People section displays humans (`HUM-*`) with presence indicators, and autonomous AI agents (`CLE-*`, `GRK-*`, `AGY-*`) with deterministic robot avatars (`SPEC-spool-avatars.md`), `<id>@<box>` provenance labels, and connection status (solid green for active WebSocket session, hollow grey for offline queued).
   - Footer provides active session identity, connection health indicator, and theme switcher.
-- **FR-013** — Implemented (`7e3f9af`, `6618f03`): thread verbosity selector filters by `kind` per
+- **FR-013** — Partial: the selector was removed in `d1648dd0`; `src/utils/verbosity.mjs` has no
+  caller. open, owner decision (asked in topic 582f7895). Design record: thread verbosity selector filters by `kind` per
   `./contracts/verbosity-notify-v1.md` §1. Check: table-driven unit test covers
   every kind in `internal/msg/msg.go` `validKinds`. US6, OQ-W3 (a).
 - **FR-014** — Implemented (`7e3f9af`, `6618f03`): in-browser notifications escalate only on a
@@ -214,27 +234,47 @@ opening it.
 - **SC-002**: `pnpm test:unit` and `pnpm test:e2e` green, with unit tests on the live
   (non-mock) client paths.
 - **SC-003**: FR-003 stays clean (no token in `localStorage`).
-- **SC-004**: `node --test tests/unit/*.test.mjs` stays green (`# pass 123 # fail 0` on `8ffb93c`; was 17 then 29 then 94 then 122); verbosity covers every v:1 kind;
+- **SC-004**: `node --test tests/unit/*.test.mjs` stays green (`# pass 1141 # fail 0` on `28442ef6`; was 17 then 29 then 94 then 122 then 123); verbosity covers every v:1 kind;
   notify tests cover mention / DM / `#alerts` / negatives; the no-x-scroll
   unit guard stays green.
 
 ## 4. Out of scope
 
-Send and sign (G2); phase-3 live wiring of channels / DMs / roster off the
-mocks; hub `read=` unread (003, phase-3); hub-stored per-human cursors
-(OQ-W5 (b)); a diagnostic-note kind or verbosity envelope field (OQ-W3 (b),
+Hub-stored per-human cursors (OQ-W5 (b)). (Send and sign, live channels / DMs /
+roster and hub `read=` unread were here and are now Implemented: tasks T021–T024,
+P1–P4.) a diagnostic-note kind or verbosity envelope field (OQ-W3 (b),
 rejected for M3); anything in M1/M2; CI logs in chat (008).
 
 ## 5. Gaps (measured 2026-09-18) and owners
 
 | # | Gap | Evidence | Owner |
 |---|---|---|---|
-| G1 | ~~No door for humans on the view API~~ **partial**: member session door Implemented (003 T033b / 010 T013, `SPOOL_HUB_VIEW_DOOR=session`); view-token door still OQ-16 | `command grep -rniE 'cookie\|oauth\|view_door' csi-spl-api/src/go/spool-hub-api/internal/hub/*.go \| wc -l` → 22 | 003 (token) / 010 (session) |
-| G2 | ~~No `box-wui` signer~~ **closed** by 014 (`9f4f0b9`): hub-held `box-wui` key + dispatch. Browser live send is `/v1/wui/ws`; spool-client live channel/DM send still `ReadOnlyError` (005 phase-3 / A1) | `command grep -rn box-wui csi-spl-api/src/go \| wc -l` → 53 | 014 |
+| G1 | ~~No door for humans on the view API~~ **partial**: member session door Implemented (003 T033b / 010 T013, `SPOOL_HUB_VIEW_DOOR=session`); view-token door still OQ-16 | `command grep -rniE 'cookie\|oauth\|view_door' csi-spl-api/src/go/spool-hub-api/internal/hub/*.go \| wc -l` → 33 (`28442ef6`); view-token door open, owner decision (asked in topic 582f7895) | 003 (token) / 010 (session) |
+| G2 | ~~No `box-wui` signer~~ **closed** by 014 (`9f4f0b9`): hub-held `box-wui` key + dispatch. Browser live send is `/v1/wui/ws`; spool-client live channel/DM send still `ReadOnlyError` (005 phase-3 / A1) | `command grep -rn box-wui csi-spl-api/src/go \| wc -l` → 115 (`28442ef6`) | 014 |
 | G3 | ~~`channel` / `parent_task_id` are not `v:1` fields~~ **closed** 2026-09-19: hub-envelope fields (OQ-W1 (a)), v:1 untouched | `grep -c 'ParentTaskID\|Channel' csi-spl-api/src/go/spool-hub-api/internal/wire/wire.go` -> non-zero; `grep -cE 'channel\|parent_task' ../002-box-agent-messaging/contracts/message-schema.md -> 0` | 003 (`contracts/channels-v1.md`) |
-| G4 | No read-only roster for humans yet | specified as view-v1 §4.1, Planned | 003 |
-| G5 | ~~view-v1 not implemented~~ **closed** `ec3d593` | `grep -c 'HandleFunc("GET /v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/view.go -> 4` | 003 |
-| G6 | ~~WUI live client calls routes that will not exist~~ **closed** `9eafd8c` | `grep -c '/v1/messages\|/v1/channels' csi-spl-wui/src/utils/spool-client.mjs -> 0` | 005 (T004) |
+| G4 | ~~No read-only roster for humans yet~~ **closed** | `view.go:40` `GET /v1/view/roster`; `humans` at `view.go:192` | 003 |
+| G5 | ~~view-v1 not implemented~~ **closed** `ec3d593` | `grep -c 'HandleFunc("GET /v1/view' csi-spl-api/src/go/spool-hub-api/internal/hub/view.go -> 5` (routes `/v1/view/topics` since `57f8a670`) | 003 |
+| G6 | ~~WUI live client calls routes that will not exist~~ **closed** `9eafd8c` | `grep -c '/v1/messages\|/v1/channels' csi-spl-wui/src/utils/spool-client.mjs -> 14` (`28442ef6`: PATCH / DELETE messages, reactions, channel members — routes that now exist) | 005 (T004) |
+
+## 5.1 Code not yet covered by a spec
+
+Measured on `28442ef6`: `grep -rliE <term> csi-spl-doc/specs` → no spec dir for each.
+Named here, not specified.
+
+| Feature | Code / sha |
+|---|---|
+| Emoji reactions | `PUT` / `DELETE /v1/messages/{msg_id}/reactions` (`internal/hub/server.go:229-231`); `374a36e0`, `4efd1ee8` |
+| Message delete | `DELETE /v1/messages/{msg_id}` (`server.go:227`, `edit.go:284`); `6109909d`, `b3d7c6b3`. `edit.go` says the revision register cascades with the row: delete vs revisions is open, owner decision (asked in topic 582f7895) |
+| Message merge (previous / next) | `cf33a5f0` |
+| Right-click message menu | `MessageMenu.vue`, `useMessageMenu.ts`; `b3d7c6b3`, `bcb954ea` |
+| PWA install | `src/plugins/pwa.client.ts`; `2d425bc5` |
+| Login wallpaper / crossfade | `d9daaa08`, `a79b74ee`, `74a1c40b` |
+| Picture preview | `src/utils/file-preview.mjs`; `4eab6fc6` |
+| Clickable links in bodies | `src/utils/code-blocks.mjs`; `2b0f356c` |
+| Paste / drop to attach | `7267e602` |
+| Hide a DM row | `src/utils/sidebar-row-menu.mjs:71`; `6da1eaf9` |
+| Tenant drop box | `ChannelSidebar.vue:5`; `be3e3f0e` |
+| Middle-pane Load more (30 rows) | `4843828b` |
 
 ## 6. Open questions (to the owner via CLE-00)
 
@@ -243,8 +283,8 @@ rejected for M3); anything in M1/M2; CI logs in chat (008).
   when present — chosen; (b) a 002 amendment — rejected (v:1 frozen); (c) drop
   channels from M3 — rejected. `contracts/channels-v1.md`.
 - **OQ-W2** — *answered for lde/dev* (ORC, 2026-09-18): open reads on lde + dev,
-  prd fail-closed. Still open for **prd**: view token (003 OQ-16) or social session
-  (010 OQ-A1) as the door.
+  prd fail-closed. Measured `28442ef6`: dev and prd both run the session door
+  (`SPOOL_HUB_VIEW_DOOR: "session"`). The view-token door (003 OQ-16) is open, owner decision (asked in topic 582f7895).
 - **OQ-W3** — how a thread knows which notes are milestone vs diagnostic when
   frozen `v:1` has a single `note` kind: **(a) chosen** — infer from `kind`
   only (`task`/`result`/`reject` = `minimal`, `note` = `normal`, any other
@@ -259,4 +299,4 @@ rejected for M3); anything in M1/M2; CI logs in chat (008).
   `localStorage` (aligns with 003 OQ-CH2 (a) client-held); **(b)** hub-synced
   per-human cursors (needs HUMANS 0006; later).
 
-<!-- version: 1.9.1 · updated: 2026-09-23 · last-edit: 2026-09-23T07:23:09Z -->
+<!-- version: 1.10.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:35:51Z -->

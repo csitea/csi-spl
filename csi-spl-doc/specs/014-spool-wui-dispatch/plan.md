@@ -14,7 +14,7 @@ No new crypto, no new wire fields, no migration.
 |---|---|
 | env + fail-fast (`SPOOL_HUB_WUI_*`) | `internal/config/config.go` (`Hub`) |
 | key decode / ephemeral generate, pubkey log | `cmd/spool/hub.go` -> `hub.Options.WUIKey`, `WUIDispatch` |
-| `GET /v1/wui/pubkey`, dispatch resolve/sign/verify/commit | `internal/hub/dispatch.go` (new) |
+| `GET /v1/wui/pubkey`, dispatch resolve/sign/verify/commit | `internal/hub/dispatch.go` (signs with `wire.NewEnvelopeIn`, `dispatch.go:136`) |
 | send -> dispatch branch, session identity on the socket | `internal/hub/wui.go` (DISPATCH owns the send -> deliveries path) |
 | `box-wui` pin only for the hub key | `internal/hub/rest.go` `handlePin` |
 | hello as `box-wui` refused | `internal/hub/ws.go` `hello` |
@@ -33,9 +33,11 @@ It is set by code only (no env var).
 1. OQ-014-1 (a): tenant-root-signed `box-wui` pin, restricted role (spec §0).
 2. OQ-014-2 (a): the session always wins; no anonymous dispatch.
 3. OQ-014-3: per-process `HUM-<n>` map keyed by the session human id, in its
-   own namespace so a browser display name can never collide with it.
+   own namespace so a browser display name can never collide with it. Superseded:
+   the store-backed Registrar (`a74640b`) gives a durable `HUM-<n>` (spec OQ-014-3).
 4. No rdb 0007: nothing new is persisted.
-5. Flag `SPOOL_HUB_WUI_DISPATCH` off by default; ORC: on for dev, off for prd.
+5. Flag `SPOOL_HUB_WUI_DISPATCH` off by default; on in dev (`70780f1`) and prd
+   (`27ed5027`). OQ-014-1 is open, owner decision (asked in topic 582f7895).
 
 ## Verification
 
@@ -47,4 +49,4 @@ It is set by code only (no env var).
   pinned one fails; unpinned `box-wui` -> `wui_unpinned`; no session ->
   `dispatch_unauthenticated`; flag off -> browser-only.
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T06:10:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:35:51Z -->

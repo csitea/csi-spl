@@ -9,29 +9,29 @@ named) · `[ ]` Planned. Live work is gated on D1.
 ## Phase 1 — Scaffold & lde
 
 - [x] T001 Implemented — Nuxt 3 + TS strict + Pinia + pnpm scaffold (`csi-spl-wui/package.json`, `nuxt.config.ts`, `tsconfig.json`). FR-001.
-- [x] T002 Implemented — lde `pnpm dev` (3000), `NUXT_PUBLIC_API_BASE`, `NUXT_PUBLIC_USE_MOCK`; orc `do_wui_dev` / `do_wui_test` / `do_wui_build` (`ls csi-spl-orc/src/bash/run/wui-*.func.sh -> 3`). FR-008.
+- [x] T002 Implemented — lde `pnpm dev` (3000), `NUXT_PUBLIC_API_BASE`, `NUXT_PUBLIC_USE_MOCK`; orc `do_wui_dev` / `do_wui_test` / `do_wui_build` (`ls csi-spl-orc/src/bash/run/wui-*.func.sh -> 5` on `28442ef6`). FR-008.
 - [x] T003 Implemented — `pnpm test:unit -> 17 pass, 0 fail`; e2e no-x-scroll for `/login`, `/channel/lobby` at 390×844 / 1280×800 (file present; not re-run in the redo). FR-009.
 
 ## Phase 2 — Viewer MVP (US1–US3, P1) 🎯
 
-- [x] T004 Implemented (`9eafd8c`) — `utils/spool-client.mjs` live mode reads `/v1/view/threads`, `/v1/view/threads/{task_id}`, `/v1/view/channels`, `/v1/view/roster` with `Authorization: Bearer` and `credentials: 'omit'`; normalisers in `utils/view-api.mjs`. **Superseded by A1 (`2b74ce3`, CLE-3362 2026-09-19):** `ReadOnlyError` is gone. The live client does the following: `listMessages({channel})` → `/v1/view/threads?channel=` and DMs → `?dm=true&peer=`; `createChannel` → `POST /v1/channels` (`409 channel_exists` / `400 bad_channel` kept); `listChannels({read})` → `read=<ch>~<cursor>`, keeping `unread` / `last_cursor` / `retention_days`; `sendMessage` goes over the WUI socket with `channel` / `parent_task_id`; view rows, envelopes and WS frames keep `channel` / `parent_task_id`. Check: `command grep -c "ReadOnlyError('a channel" csi-spl-wui/src/utils/spool-client.mjs -> 0`; `cd csi-spl-wui && node --test tests/unit/*.test.mjs -> 176 pass, 0 fail` (on `69cbe65`). FR-002, FR-005.
-- [x] T005 Implemented (`9eafd8c`, mock) — `pages/index.vue` thread list via `stores/viewer.ts`: empty state, `unknown_tenant` message, `Older` paging on `next`. Rendered against the mock tenant (headless Chrome screenshot, 4 threads). Live render waits on D1. US1.
-- [x] T006 Implemented (`9eafd8c`, mock) — `pages/t/[task_id].vue` reuses `MessageCard.vue` / `KindBadge.vue` / `AgentBadge.vue`; `FileAttachment.vue` links only downloadable blobs (`isDownloadable`), `mode:"path"` shows the on-box path. Rendered against the mock tenant (4 messages oldest first, 1 attachment). US2, US3, FR-006.
+- [x] T004 Implemented (`9eafd8c`) — `utils/spool-client.mjs` live mode reads `/v1/view/threads`, `/v1/view/threads/{task_id}` (renamed `/v1/view/topics` in `57f8a670`), `/v1/view/channels`, `/v1/view/roster` with `Authorization: Bearer` and `credentials: 'omit'`; normalisers in `utils/view-api.mjs`. **Superseded by A1 (`2b74ce3`, CLE-3362 2026-09-19):** `ReadOnlyError` is gone. The live client does the following: `listMessages({channel})` → `/v1/view/topics?channel=` and DMs → `?dm=true&peer=`; `createChannel` → `POST /v1/channels` (`409 channel_exists` / `400 bad_channel` kept); `listChannels({read})` → `read=<ch>~<cursor>`, keeping `unread` / `last_cursor` / `retention_days`; `sendMessage` goes over the WUI socket with `channel` / `parent_task_id`; view rows, envelopes and WS frames keep `channel` / `parent_task_id`. Check: `command grep -c "ReadOnlyError('a channel" csi-spl-wui/src/utils/spool-client.mjs -> 0`; `cd csi-spl-wui && node --test tests/unit/*.test.mjs -> 176 pass, 0 fail` (on `69cbe65`). FR-002, FR-005.
+- [x] T005 Implemented (`9eafd8c`, mock) — `pages/index.vue` thread list via `stores/viewer.ts`: empty state, `unknown_tenant` message, `Older` paging on `next`. Rendered against the mock tenant (headless Chrome screenshot, 4 threads). Live render: T012. US1, FR-002.
+- [x] T006 Implemented (`9eafd8c`, mock) — `pages/t/[task_id].vue` reuses `MessageCard.vue` / `KindBadge.vue` / `AgentBadge.vue`; `FileAttachment.vue` links only downloadable blobs (`isDownloadable`), `mode:"path"` shows the on-box path. Rendered against the mock tenant (4 messages oldest first, 1 attachment; newest-first since 013). US2, US3, FR-006.
 - [x] T008 Implemented (`9eafd8c`) — `tests/unit/view-api.test.mjs` (12 tests: normalisers, stub-`fetch` live client, 401 token surfacing, read-only refusals, XSS-as-text); `node --test tests/unit/*.test.mjs -> 29 pass, 0 fail`; `node tests/e2e/no-x-scroll.test.mjs -> 8/8` (adds `/` and `/t/<id>`); `nuxi typecheck -> exit 0`. SC-002, FR-006.
-- [x] T012 Implemented — SC-001 locally: the WUI in live mode (`NUXT_PUBLIC_USE_MOCK=0`) against a trunk `spool serve` (`ec3d593`+, `SPOOL_HUB_VIEW_DOOR=off`, lde Postgres holding tenant t1) lists the seeded thread `33330000-…-9001` (3 messages) and opens it oldest-first; CORS preflight from the WUI origin → `204` with the exact origin (headless Chrome screenshot + `curl`, n=1, 2026-09-18). **dev (D3), 2026-09-19 (CLE-3372, n=2):** `box-e2e-a` → `box-e2e-b` `spool send` on hub `0.1.4` (`b067cfd`) tenant t1 is listed by the dev WUI (`csi-spl-dev-site.web.app`, Chrome) and opens on `/t/<id>` "newest first". Check: `./run -a do_spl_m3_e2e` step `a-box-to-box` PASS (`../014-spool-wui-dispatch/acceptance-dev.md`).
+- [x] T012 Implemented — SC-001 locally: the WUI in live mode (`NUXT_PUBLIC_USE_MOCK=0`) against a trunk `spool serve` (`ec3d593`+, `SPOOL_HUB_VIEW_DOOR=off`, lde Postgres holding tenant t1) lists the seeded thread `33330000-…-9001` (3 messages) and opens it oldest-first; CORS preflight from the WUI origin → `204` with the exact origin (headless Chrome screenshot + `curl`, n=1, 2026-09-18). **dev (D3), 2026-09-19 (CLE-3372, n=2):** `box-e2e-a` → `box-e2e-b` `spool send` on hub `0.1.4` (`b067cfd`) tenant t1 is listed by the dev WUI (`csi-spl-dev-site.web.app`, Chrome) and opens on `/t/<id>` "newest first". Check: `./run -a do_spl_m3_e2e` step `a-box-to-box` PASS (`../014-spool-wui-dispatch/acceptance-dev.md`). SC-001, FR-002.
 
 ## Phase 3 — Follow & ship (US4, US5)
 
-- [x] T007 Partial — `/t/[task_id]` polls while visible (`NUXT_PUBLIC_POLL_MS`, default 4000, floor 2000); after the first read it passes the last message `cursor` as `after=` and appends new messages, de-duplicated by `msg_id` (`stores/viewer.ts`); client test asserts `after=`; live hub returns `[]` for the last cursor (`curl`, n=1). The legacy `useSpoolEvents.ts` channel poll remains only for the mock channel pages. US4. — **Audit CLE-3358 2026-09-19 (tree c777a2f): not as written.** `command grep -rn pollMs csi-spl-wui/src` → 0; `/t/[task_id]` follows over the WS (`useLiveFeed('main')`), `viewer.refreshThread` has no caller, and there is no `after=` catch-up after a WS reconnect (gap list: G-A). — **Done by A3 (CLE-3368, `ccc8117`, `4c9619e`, `901ea06`):** after a WS reconnect (live-ws `onReconnected`) the live store does one `getThread(id,{after:<last cursor>})` deduped by `msg_id` (`utils/live-follow.mjs` `catchUp`); a 401 `view_door` on `/t`, `/lobby`, `/` and the thread pane shows the door prompt (sign-in link `/login?redirect=&tenant=` and/or view token); `/t` has the verbosity selector; roster `online` follows `presence` frames. Check: `cd csi-spl-wui && node --test tests/unit/live-follow.test.mjs` → 18 pass; lde hub `t1.localhost:58081`: forced WS drop recovered the missed row, 0 dups (n=2), presence HUM-32 on→off (n=1).
+- [x] T007 Partial — `/t/[task_id]` polls while visible (`NUXT_PUBLIC_POLL_MS`, default 4000, floor 2000); after the first read it passes the last message `cursor` as `after=` and appends new messages, de-duplicated by `msg_id` (`stores/viewer.ts`); client test asserts `after=`; live hub returns `[]` for the last cursor (`curl`, n=1). The legacy `useSpoolEvents.ts` channel poll remains only for the mock channel pages. US4. — **Audit CLE-3358 2026-09-19 (tree c777a2f): not as written.** `command grep -rn pollMs csi-spl-wui/src` → 0; `/t/[task_id]` follows over the WS (`useLiveFeed('main')`), `viewer.refreshThread` has no caller, and there is no `after=` catch-up after a WS reconnect (gap list: G-A). — **Done by A3 (CLE-3368, `ccc8117`, `4c9619e`, `901ea06`):** after a WS reconnect (live-ws `onReconnected`) the live store does one `getThread(id,{after:<last cursor>})` deduped by `msg_id` (`utils/live-follow.mjs` `catchUp`); a 401 `view_door` on `/t`, `/lobby`, `/` and the thread pane shows the door prompt (sign-in link `/login?redirect=&tenant=` and/or view token); `/t` had the verbosity selector (removed `d1648dd0`); roster `online` follows `presence` frames. Check: `cd csi-spl-wui && node --test tests/unit/live-follow.test.mjs` → 18 pass; lde hub `t1.localhost:58081`: forced WS drop recovered the missed row, 0 dups (n=2), presence HUM-32 on→off (n=1). Test count on `28442ef6`: `node --test tests/unit/live-follow.test.mjs` → 22 pass. The verbosity selector on `/t` was removed in `d1648dd0`. FR-002.
 - [x] T009 Implemented (GRK-3380, 2026-09-21) — dev Hosting live: `curl -s https://dev.spool-hub.ai/build.json` → `{"commit":"44e94470cb90a1bce16db55d0fa23c0c4b6b1ba2","built_at":"2026-09-21T12:57:19Z","run":"35602385949"}`; `https://csi-spl-dev-site.web.app/build.json` 200, same commit+run. FR-007, FR-004.
 - [~] T010 Partial — view token: `ViewTokenForm.vue` on `401`, token kept in `sessionStorage` (`9eafd8c`). Social sign-in wired per spec 010 `contracts/auth-v1.md` §1–§4 (`1c4e1a6`: `/login` buttons from `GET /api/v1/auth/providers`, `auth_error` copy, session probe 401 vs unknown, sign out; Hosting rewrite `/api/v1/auth/**`; lde `NUXT_DEV_AUTH_PROXY`) — that is 010 T014–T016. lde browser round trip (010 T017) verified 2026-09-18 in Chrome, n=1 per provider: `auth-demo -addr 127.0.0.1:58181 -app-url/-public-url http://localhost:3044` + `NUXT_DEV_AUTH_PROXY` → `/login?redirect=/t/<id>` → Google / Facebook → fake IdP → lands on `/t/<id>`, `GET /api/v1/auth/session` 200 (`p` = google / facebook), cookie not readable from JS, sidebar shows the name; Sign out → 401 + `/login`; `?auth_error=invalid_state` shows its copy and is dropped from the URL with `redirect` kept. Missing: the hub view door (003 T033, after OQ-16) and how the session reaches `/v1/view/*` (010 OQ-A1). US5, FR-010.
 - [x] T011 Implemented (GRK-3380, 2026-09-21) — prd Hosting live: `curl -s https://spool-hub.ai/build.json` → `{"commit":"44e94470cb90a1bce16db55d0fa23c0c4b6b1ba2","built_at":"2026-09-21T12:57:26Z","run":"35602385949"}` (same commit+run as dev). `https://csi-spl-prd-site.web.app/build.json` 200, same. FR-007, FR-010.
 
 ## Phase 4 — Live chat MVP (owner goal 2026-09-18; 003 `contracts/wui-live-ws.md`)
 
-- [x] T021 Implemented (`580688e`, `5531927`) — browser WS client `utils/live-ws.mjs` to `ws(s)://<tenant>.<fqdn>/v1/wui/ws`: hello (`as` only when a v:1 agent id, else hub-assigned), welcome (`as`, `lobby_task_id`, upload token), subscribe, send (`kind` default `note`), ack/error, `token` refresh, capped reconnect + re-subscribe. 12 unit tests (fake WebSocket).
-- [x] T022 Implemented (`b0bf6ab`) — `/lobby` and `/t/[task_id]` live: history via view-v1 §4.4, then live `message` frames appended (dedupe by `msg_id`); composer on top, newest first (`SPEC-spool-wui-layout.md`); `?as=HUM-n` identity.
-- [x] T023 Implemented (`b0bf6ab`, `5531927`) — attach → `POST /v1/files` (Bearer upload token, refreshed when stale) → `files[]` refs in the send; Download fetches `GET /v1/files/{id}`, checks sha256, saves.
+- [x] T021 Implemented (`580688e`, `5531927`) — browser WS client `utils/live-ws.mjs` to `ws(s)://<tenant>.<fqdn>/v1/wui/ws`: hello (`as` only when a v:1 agent id, else hub-assigned), welcome (`as`, `lobby_task_id`, upload token), subscribe, send (`kind` default `note`), ack/error, `token` refresh, capped reconnect + re-subscribe. 12 unit tests (fake WebSocket). FR-002.
+- [x] T022 Implemented (`b0bf6ab`) — `/lobby` and `/t/[task_id]` live: history via view-v1 §4.4, then live `message` frames appended (dedupe by `msg_id`); composer on top, newest first (`SPEC-spool-wui-layout.md`); `?as=HUM-n` identity. FR-002, FR-005.
+- [x] T023 Implemented (`b0bf6ab`, `5531927`) — attach → `POST /v1/files` (Bearer upload token, refreshed when stale) → `files[]` refs in the send; Download fetches `GET /v1/files/{id}`, checks sha256, saves. US3, FR-002.
 - [x] T024 Implemented — acceptance proven, n=1 each, 2026-09-18:
   - `pnpm test:live` (`tests/e2e/live-interop.test.mjs`, `6e07627`) against CLE-3340's lde hub at `c15cd64` (`/version` commit) → **12/12**: two sockets welcomed, lobby id from welcome, A→B and B→A live, `from`=HUM-801 `from_box`=box-wui, both persist via view-v1, upload content-addressed, B downloads identical bytes, and a **box agent post** (`spool send --from CLE-07 --to ALL-0 --to-box box-wui --task <lobby> --kind note`, `delivery: sent`) arrives live as `CLE-07@box-smoke`. Same suite 11/11 (no box step) against a trunk `spool serve` on the main lde database.
   - Chrome, two tabs on the real pages (WUI `NUXT_PUBLIC_USE_MOCK=0`, trunk hub, lde): `/lobby?as=HUM-12` posts text + `two.txt` (`sha256sum` → `78d26359…`) → appears **live** in the `HUM-11` tab (card `sha256 78d26359fa23`), HUM-11 Download → "Downloaded ✓" (in-browser sha256 matched); HUM-11 replies → appears live in the HUM-12 tab; reload → both messages present exactly once, identity kept.
@@ -51,7 +51,7 @@ the spec §5 gap named.
 - [x] P2 Implemented (`69cbe65`, `1899368`) — DMs `/dm/[peer]` live: A1 `?dm=true&peer=` feed, WS send with `to=<peer>`, frames routed by `belongsTo`. Presence frames: `stores/roster.ts` `live.onPresence` (A1/A3 lane). Check: `cd csi-spl-wui && node --test tests/unit/channel-feed.test.mjs` → pass; lde `/dm/GRK-03%40box-smoke` renders the hub thread (Gap lane A2, 2026-09-19).
 - [x] P3 Implemented (GRK-3380, 2026-09-21) — composer + `@mention` (`MessageComposer.vue`, `utils/mention-autocomplete.mjs`); live send is channel-scoped. Check: `command grep -n channel csi-spl-wui/src/stores/live.ts` → `send(body, files, opts:{parentTaskId?, channel?})` (line 166) and `const channel = opts.channel || undefined` (line 186); `client.send` carries `channel`.
 - [x] P4 Implemented (`6618f03`, `1f7329d`, `69cbe65`) — notifications. Unread survives reload: stored cursors on hydrate (`isUnread`), hub `unread` via `listChannels({ read })` with the stored hub cursor (`read-cursor.mjs readMap`, `markChannelRead`); per-key mention count; a live frame is keyed by its own channel (A1 keeps `env.channel`), so `#alerts` escalates as alerts while a DM is open. Sidebar: `#alerts` `7 d` retention, mention badge, footer connection-health dot. Check: `cd csi-spl-wui && node --test tests/unit/notify.test.mjs tests/unit/read-cursor.test.mjs tests/unit/verbosity-notify-wire.test.mjs` → pass; `command grep -rn "isUnread" csi-spl-wui/src/stores` → 2; lde reload: `#lobby` badge 1 = hub `unread` 1 for the same `read=` cursor (Gap lane A2, 2026-09-19).
-- [x] P5 Implemented (`7e3f9af`, `6618f03`) — verbosity toggle (`VerbositySelector.vue`) inferred from `kind`. Check: `node --test tests/unit/verbosity.test.mjs` → pass.
+- [~] P5 Partial — the verbosity toggle (`VerbositySelector.vue`, `7e3f9af`, `6618f03`) was removed in `d1648dd0`; `src/utils/verbosity.mjs` is kept with no caller (`node --test tests/unit/verbosity.test.mjs` → 5 pass on the util). Retire or restore: open, owner decision (asked in topic 582f7895). FR-013.
 - [x] P6 Implemented (`69cbe65`; A1 `createChannel` `2b74ce3`) — channel creation in live mode: the sidebar form is no longer `v-if="api.mock"`; the name is slugged (`channelSlug`), `409 channel_exists` / `400 bad_channel` shown in words. Check: `command grep -c 'v-if="api.mock"' csi-spl-wui/src/components/ChannelSidebar.vue` → 0; lde: `A2 Proof 0919` → `#a2-proof-0919` created, a second create → "That channel already exists" (Gap lane A2, 2026-09-19).
 
 ## Phase 5 — Verbosity + in-browser notifications (WUI-UX, Gaps 6–7)
@@ -64,14 +64,15 @@ channel/DM/roster stores, `wui-live-ws.md`, or `view-v1.md`.
 - [x] T026 Implemented (`7e3f9af`) — `csi-spl-wui/utils/verbosity.mjs`: `verbosityOf` / `applyVerbosity`
   from `kind` only; persist selector in `localStorage` `spool.verbosity` (try/catch).
   Table-driven unit test covers every v:1 kind from `internal/msg/msg.go` `validKinds`.
-  `channel-feed.mjs` `applyVerbosity` delegates here. Check: `cd csi-spl-wui && node --test tests/unit/verbosity.test.mjs` → pass. FR-013, US6, P5.
+  (`channel-feed.mjs` no longer delegates here: `git grep -n verbosity -- csi-spl-wui/src/utils/channel-feed.mjs` → 0; the selector was removed in `d1648dd0`.) Check: `cd csi-spl-wui && node --test tests/unit/verbosity.test.mjs` → 5 pass. FR-013, US6, P5.
 - [x] T027 Implemented (`7e3f9af`) — `csi-spl-wui/utils/notify.mjs` + `utils/read-cursor.mjs`:
   escalate only on mention of signed-in `HUM-*` / DM / `#alerts`; unread per
   `ch:<slug>` / `dm:<peer>` from local cursors; chime opt-in default off.
   Check: `cd csi-spl-wui && node --test tests/unit/notify.test.mjs tests/unit/read-cursor.test.mjs` → pass. FR-014, FR-015, US7, P4.
-- [x] T028 Implemented (`6618f03`) — wire `VerbositySelector.vue`, `ThreadPane.vue` /
-  `LiveThreadPane.vue`, `NotificationCenter.vue`, `stores/notification.ts`,
-  `stores/thread.ts`, sidebar unread badges; drop mock `[verbose]` body filter
+- [~] T028 Partial (`6618f03`) — the notification half stands; the verbosity half was removed in `d1648dd0`
+  (open, owner decision (asked in topic 582f7895)). Wired `VerbositySelector.vue` (deleted), `ThreadPane.vue` /
+  `LiveThreadPane.vue` (now `TopicPane.vue` / `LiveTopicPane.vue`, `57f8a670`), `NotificationCenter.vue`, `stores/notification.ts`,
+  `stores/thread.ts` (now `stores/topic.ts`), sidebar unread badges; drop mock `[verbose]` body filter
   and the "task sent" ping. No mock-data import in those files. Check: `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → 94 pass, 0 fail; `node tests/e2e/no-x-scroll.test.mjs` → 12/12. FR-013..015.
 
 ## Phase 6 — Donor WUI structure port (owner order 2026-09-19)
@@ -82,13 +83,13 @@ same vue app structure". Sources move under `csi-spl-wui/src/` (Nuxt
 reads `csi-spl-wui/src/<dir>/…`. Package root, `firebase.json`,
 `.output/public`, `tests/` and the orc/CI path consumers are unchanged.
 
-- [x] T029 Implemented (`fff663d`) — `srcDir: 'src/'` layout, `@` alias, discovery unit runner `src/node/test/run-unit-tests.mjs` (`pnpm test:unit`). Check: `cd csi-spl-wui && pnpm test:unit` → all files pass; `pnpm typecheck` → 0.
-- [x] T030 Implemented (`9fa748d`) — `nuxt.config.ts` donor shape: CSP_DEV/CSP_PROD + security headers as routeRules, vendor chunks, `@nuxtjs/i18n` (en only, `i18n/locales/en.json`). `tests/unit/csp-policy.test.mjs` pins CSP_PROD to `render-wui-firebase-json.sh`.
-- [x] T031 Implemented (`37b453f`) — error stack: `errorJournal.mjs`, `ErrorNotice.vue` on every viewer/thread/lobby/channel/live-pane error, gated `DebugPanel.vue` (session claim `diagnostics_enabled === true`, fails shut), `error-journal.client.ts`, `error.vue`, `useSettledQuery` on the prerendered `/login` and `/`. Check: `node tests/unit/error-journal.test.mjs` → 19 pass.
-- [x] T032 Implemented (`1f30c25`) — `SocialAuthButtons.vue` on `/login`, auth-v1 §4 endpoints and labels kept; `loadProviders()` tells auth-off from unreachable. Check: `node tests/unit/auth-client.test.mjs` → 12 pass.
-- [x] T033 Implemented (`d1225e7`) — donor token scale + base rules on the spool palette. Check: `node tests/unit/theme-tokens.test.mjs` → pass.
-- [x] T034 Implemented (`e300d5c`) — e2e: `console-errors` gate, shared `tests/e2e/lib/server.mjs`, `serve-generated.mjs`, `puppeteer-core`. Check: `pnpm test:e2e:console-errors` → 7/7; `pnpm test:e2e` → 12/12.
-- [x] T035 Implemented (`2af5fab` hub, `25649ab` cnf, `bb20552` + `12f5b52` wui, CLE-3440) — `diagnostics_enabled` in the hub's session claims (010 auth-v1 §3): cnf `SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS` grants it per human, empty in every env so it is still shown to nobody until an operator names someone. Read per call, never a cookie claim, so a browser cannot assert it and a removal revokes at the next probe. Check: `go test ./internal/auth/ -run Diagnostics -v` → 4 tests / 12 subtests pass; `node --test tests/unit/diagnostics-claim.test.mjs` → 13 pass; live `EXPECT=on|off node tests/e2e/diagnostics-panel-live.proof.mjs` → on: claim true + panel in the DOM, off: claim false + no panel in the rendered body.
+- [x] T029 Implemented (`fff663d`) — `srcDir: 'src/'` layout, `@` alias, discovery unit runner `src/node/test/run-unit-tests.mjs` (`pnpm test:unit`). Check: `cd csi-spl-wui && pnpm test:unit` → all files pass; `pnpm typecheck` → 0. FR-001.
+- [x] T030 Implemented (`9fa748d`) — `nuxt.config.ts` donor shape: CSP_DEV/CSP_PROD + security headers as routeRules, vendor chunks, `@nuxtjs/i18n` (en only, `i18n/locales/en.json`). `tests/unit/csp-policy.test.mjs` pins CSP_PROD to `render-wui-firebase-json.sh`. FR-001, FR-007.
+- [x] T031 Implemented (`37b453f`) — error stack: `composables/errorJournal.mjs`, `components/common/ErrorNotice.vue` on every viewer/thread/lobby/channel/live-pane error, gated `components/common/DebugPanel.vue` (session claim `diagnostics_enabled === true`, fails shut), `error-journal.client.ts`, `error.vue`, `useSettledQuery` on the prerendered `/login` and `/`. Check: `node tests/unit/error-journal.test.mjs` → 19 pass. FR-001.
+- [x] T032 Implemented (`1f30c25`) — `SocialAuthButtons.vue` on `/login`, auth-v1 §4 endpoints and labels kept; `loadProviders()` tells auth-off from unreachable. Check: `node tests/unit/auth-client.test.mjs` → 12 pass (28 on `28442ef6`). US5, FR-010.
+- [x] T033 Implemented (`d1225e7`) — donor token scale + base rules on the spool palette. Check: `node tests/unit/theme-tokens.test.mjs` → pass. FR-001.
+- [x] T034 Implemented (`e300d5c`) — e2e: `console-errors` gate, shared `tests/e2e/lib/server.mjs`, `serve-generated.mjs`, `puppeteer-core`. Check: `pnpm test:e2e:console-errors` → 7/7; `pnpm test:e2e` → 12/12. FR-009.
+- [x] T035 Implemented (`2af5fab` hub, `25649ab` cnf, `bb20552` + `12f5b52` wui, CLE-3440) — `diagnostics_enabled` in the hub's session claims (010 auth-v1 §3): cnf `SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS` grants it per human, empty in every env so it is still shown to nobody until an operator names someone. Read per call, never a cookie claim, so a browser cannot assert it and a removal revokes at the next probe. Check: `go test ./internal/auth/ -run Diagnostics -v` → 4 tests / 12 subtests pass; `node --test tests/unit/diagnostics-claim.test.mjs` → 13 pass (22 on `28442ef6`); live `EXPECT=on|off node tests/e2e/diagnostics-panel-live.proof.mjs` → on: claim true + panel in the DOM, off: claim false + no panel in the rendered body. FR-010.
 
 ## Phase 7 — Editing a sent message, browser half (owner order 2026-09-22, CLE-3445)
 
@@ -137,7 +138,7 @@ upgrade above.
   asserts every `{inCode, shift, alt, mod}` combination against `enterAction` itself, so
   the two cannot drift. `feed.edit.*` translated in all 19 catalogues (not English
   placeholders), checked for the `<x` and bare-`@` shapes that break `nuxt generate` → 0.
-  Check: `cd csi-spl-wui && node --test tests/unit/msg-edit.test.mjs` → 38 pass, 0 fail.
+  Check: `cd csi-spl-wui && node --test tests/unit/msg-edit.test.mjs` → 38 pass, 0 fail (50 on `28442ef6`). FR-006.
 - [x] T037 Implemented (`a14bc84`) — the wire half. Three keys that were being dropped
   silently: `normalizeViewMessage()` and `messageFromFrame()` both allow-list onto the flat
   row, and `edited_at` / `edited_by` / `revision` ride at the element's TOP level, not
@@ -150,7 +151,7 @@ upgrade above.
   `editMessage()` = `PATCH /v1/messages/{msg_id}` `{ body }`, `/v1/` not `/api/v1/`, and
   `content-type` is the only header — a NEW request header is a new CORS preflight, which
   has broken sign-in here before, and the test asserts the header set rather than trusting
-  the reading. Check: `cd csi-spl-wui && node --test tests/unit/msg-edit-wire.test.mjs` → 26 pass, 0 fail.
+  the reading. Check: `cd csi-spl-wui && node --test tests/unit/msg-edit-wire.test.mjs` → 26 pass, 0 fail. FR-002.
 - [x] T038 Implemented (`2ba496d`) — the editor itself: `MessageCard.vue` takes `e` on
   the focused row (same `target === currentTarget` guard as its existing Enter / Space),
   becomes a textarea pre-filled with the OLD body, Escape restores and returns focus to the
@@ -161,8 +162,8 @@ upgrade above.
   every store that may hold the row: the first version told two stores and the browser
   proof caught the lobby feed behind the 3rd panel still showing the OLD body.
   Check: `cd csi-spl-wui && node --test tests/unit/*.test.mjs` → 730 pass, 0 fail;
-  `./node_modules/.bin/nuxi typecheck` → exit 0.
-- [x] T039 Implemented (`2ba496d`, wired into CI by `<ci sha>`) — `tests/e2e/msg-edit.test.mjs`, in real Chrome:
+  `./node_modules/.bin/nuxi typecheck` → exit 0. FR-006.
+- [x] T039 Implemented (`2ba496d`, wired into CI by `d6ca9218`; FR-009) — `tests/e2e/msg-edit.test.mjs`, in real Chrome:
   focus a row → `e` → the textarea holds the OLD body **as source, not as rendered
   markdown** → type → Enter → the row shows the new body and the marker; a second pass for
   Escape; the same row in the feed behind the panel; a fresh API read; and `e` on somebody
@@ -240,7 +241,7 @@ and, minutes later:
 **Two bugs, not one.** They were reported in one breath and it was tempting to treat them as one
 mechanism; they are not, and saying so early would have been wrong.
 
-- [x] T039 Implemented (`025b8e6`) — **B: an open editor rode onto the next row.**
+- [x] T042 Implemented (`025b8e6`; renumbered from a duplicate T039; FR-006) — **B: an open editor rode onto the next row.**
   MEASURED FIRST, before any fix: `PATCH /v1/messages/{id}` on dev (t1, viewer `HUM-4`, live sha
   `6026c59`), n=2, against `HUM-17`'s row and `ORC-1`'s row → **403 `not_author`** both times,
   body unchanged and `revision` / `edited_at` null on re-read. The hub half was correct, so this
@@ -254,6 +255,10 @@ mechanism; they are not, and saying so early would have been wrong.
   correctly; `edit` / `saving` / `editError` are local refs and did not. Fix: key the three mounts
   by `msg_id` AND watch `props.msg.msg_id` in the card (the half that does not depend on every
   future host remembering the key).
+
+  **Re-measured on `28442ef6`:** the keyed mounts are gone — `be836386` replaced the pinned
+  root card with `LiveFeed` (`grep -n ":key" TopicPane.vue LiveTopicPane.vue pages/t/[task_id].vue`
+  → 0). The watcher half stands: `MessageCard.vue:544`, guard `tests/unit/msg-edit.test.mjs:462`.
 
   Check: `cd csi-spl-wui && node tests/e2e/msg-edit.test.mjs` → **26/26**. The gate was a
   **NATURAL red on the unfixed tree** — 24/26, exit 1, on
@@ -269,11 +274,11 @@ mechanism; they are not, and saying so early would have been wrong.
 
 - [x] T040 Implemented (`70b367d`) — **author-only upgraded from INFERRED to OWNER-STATED**, quoting
   the owner, in this file's ORDERED-vs-INFERRED block, the `utils/msg-edit.mjs` header and
-  `useMessageEdit.ts`. **Escape-cancels stays INFERRED and each place says so explicitly** rather
+  `useMessageEdit.ts` (FR-006). **Escape-cancels stays INFERRED and each place says so explicitly** rather
   than leaving it to be read out of what is missing. The no-time-window half stays CLE-00's ruling.
   032 §4 was CLE-00's in `89564da`. Check: `node --test tests/unit/msg-edit.test.mjs` → 40 pass.
 
-- [x] T041 Implemented (`816d229`, `e284552`) — **A: a channel row is ONE MESSAGE, sender → recipient.**
+- [x] T041 Implemented (`816d229`, `e284552`; FR-012) — **A: a channel row is ONE MESSAGE, sender → recipient.**
   No data defect. `threadCards` spread the FIRST message of a task and thereafter updated only
   `last_ts` / `count`, so the row kept the ROOT's `from` / `from_box` / `body` beside the NEWEST
   message's clock. In a two-party conversation the root is always the human, so every row rendered
@@ -309,7 +314,7 @@ mechanism; they are not, and saying so early would have been wrong.
 
 ### Open, filed rather than chased (CLE-3446)
 
-- [ ] `SpoolAvatar` holds `shown` as a local ref updated only from `watch(picture)`. For every id
+- [ ] T043 Planned (FR-012) — `SpoolAvatar` holds `shown` as a local ref updated only from `watch(picture)`. For every id
   with no stored IdP picture `picture` is `''` on both sides of a swap, so the watcher never fires
   and a reused card could keep the previous face under the new name. **Not the owner's symptom A**
   — that was row identity, above — and much harder to reach now the root mounts are keyed, but the
@@ -317,10 +322,15 @@ mechanism; they are not, and saying so early would have been wrong.
   stored IdP picture to reproduce; no dev test account has one (they sign in natively, so no
   `avatar_file_id`), and the lde mock forces `api.mock`, which makes `picture` `''` for everyone.
 
-- [ ] Trap for whoever adds the next export to a `.mjs`: it is a **TWO-file change**.
+- [ ] T044 Planned (FR-001) — Trap for whoever adds the next export to a `.mjs`: it is a **TWO-file change**.
   `src/types/mjs-shims.d.ts` carries an ambient `declare module '~/utils/<x>.mjs'` that ENUMERATES
   the exports, and TS believes it over the real file for the aliased specifier. A new export is
   then invisible as `has no exported member 'X'` while resolving fine via a relative path —
   measured both ways on the same file in the same run.
 
-<!-- version: 1.9.0 · updated: 2026-09-22 · last-edit: 2026-09-22T12:30:00Z -->
+- [ ] T045 Planned (FR-003) — the FR-003 guard in `tests/unit/verbosity-notify-wire.test.mjs`
+  (`keyRe`, line 65) only matches keys it already allows, so `spool-font-size`, `csi-spl-lang`
+  and `spool.hidden-dm-peers` are written unchecked. Collect every `storageSet` /
+  `localStorage.setItem` key and diff it against the allow-list. Size S.
+
+<!-- version: 1.10.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:35:51Z -->

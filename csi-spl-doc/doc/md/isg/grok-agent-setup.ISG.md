@@ -1,20 +1,20 @@
 # grok-agent-setup.ISG — install & setup guide (for grok agents)
 
-> **NOT TESTED end to end.** Written 2026-09-25 from the Claude Code guide
-> (`claude-agent-setup.ISG.md`, verified on the reference box) and from what the
-> box shows for grok, n=1. Nobody has yet run every step below from inside a
-> grok session. **Set yourself up on your own, and update this document** with
-> what actually happened (section 9).
+> **Partly verified.** Run from inside `GRK-333` on 2026-09-25: grok 1.0.41
+> (`4220f3b224a6`), tmux 3.5a, csi-spl `db92f2a`, env `dev`, tenant `t1`, desk
+> box `box-desk`. n=1 unless a step says otherwise. Still untested: a grok
+> with no controlling tty receiving SIGWINCH, and `do_spl_desk_session_upload`
+> finding a grok transcript (section 6).
 
-What is known on the reference box (2026-09-25, csi-spl `2463b73`, dev / t1):
+Measured on that seat:
 
-- a grok window carrying an id (`GRK-333`) WAS seated by the 5-minute reseat
-  cron (`do_spl_desk_up_all` output at 13:50:35Z lists it)
-- its pane is on the alternate screen (`#{alternate_on}` = 1), so a human's
-  message is typed into its prompt verbatim, as for Claude
-- 2 of the 3 grok processes on the box had no controlling tty (`ps` tty `?`):
-  they were launched with plain `su -` and will garble when the notice strip
-  splits in (2.2 below)
+- the window name carries `GRK-333`, and the seat directory was already there
+  (the 5-minute reseat). `#{alternate_on}` was 1, so a human's message is
+  typed into the prompt verbatim
+- the notice pane was 48 columns and the agent pane 140x51
+- `ps -o tty=` for that grok printed a pts, not `?`. An earlier look at
+  `2463b73` found 2 of 3 grok processes with tty `?` (plain `su -`, no
+  `--pty`); those are the ones section 2.2 is about
 
 ## 1. What this installs
 
@@ -34,8 +34,15 @@ renamed to carry the id, or it is never seated.
 sudo su --pty - <AGENT_USER> -c 'cd /opt; grok'
 ```
 
-Untested for grok: whether grok repaints correctly on SIGWINCH once it does
-receive it. Check yours after the strip arrives, and record it (section 9).
+The measured process was `su - <AGENT_USER> --pty` (a login shell, plus a
+pty) and its argv included `--dangerously-skip-permissions`. Its tty was a
+pts, `alternate_on` was 1, and no `kill -WINCH` was sent: the pane stayed
+usable with the 48-column strip, n=1. A login shell does not keep the
+spawner's environment, so `MCP_BOT_AGENT_ID` is unset unless the `-c`
+command exports it. The terminal mirror then has no agent id unless it
+reads one from the window name.
+
+Whether a grok whose tty is `?` repaints on SIGWINCH is still untested.
 
 ### 2.3 Sudo to the box user
 
@@ -49,6 +56,10 @@ BOX_USER=$(ps -eo user=,comm= | awk '$2 ~ /^tmux/ {print $1; exit}')
 ```
 sudo -n -u "$BOX_USER" true && echo ok
 ```
+
+Measured n=1: that printed `ok`. `ls` of the desk directory as the agent
+user printed `Permission denied`. The directory mode was `700`, owned by
+the tmux server's user.
 
 ### 2.4 Pinned desk
 
@@ -64,6 +75,9 @@ None held by the agent.
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<GRK-ID> DRY_RUN=0 ./run -a do_spl_desk_up'
 ```
 
+Measured: `GRK-333`'s seat directory was already present, so `do_spl_desk_up`
+was not run again while section 5 was returning 429.
+
 ## 5. Verify
 
 ```
@@ -72,12 +86,25 @@ sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_I
 
 Verdicts and the repair (`DESK_REPAIR=1 DRY_RUN=0`) as in the Claude guide §5.
 
+A 429 is not one of those verdicts. Measured n=4, 18:06:06 through
+18:11:45 EEST, each run exited 1 with
+`{"step": "login", "status": 429, "error": "rate_limited"}` because every
+seat ran this step at once. The local sidecar stayed up the whole time
+(`hub session up` at 18:01:28 EEST). Do not run `DESK_REPAIR` for a 429.
+Retry, or pass `DESK_ROSTER_JSON` as the action's own message says. An
+earlier run the same day, 17:12:57 EEST, n=1, printed `verdict ok` for
+`GRK-333` (hub listed the agent, prompt poke on, not muted) on a sidecar
+process that has since been replaced.
+
 ## 6. Use
 
 Read, open files and answer exactly as in the Claude guide §6, with your
-`GRK-<n>` id. Untested for grok: `do_spl_desk_session_upload` locates grok
-transcripts through its export script. If it does not find yours, export your
-conversation to a markdown file yourself and send that.
+`GRK-<n>` id. `do_spl_desk_reply` from this seat has delivered to the dev
+hub (several notes the same day). `do_spl_desk_session_upload` locating a
+grok transcript is still untested: a dry run sends nothing and does not
+export, and a real run would publish the transcript to the tenant, so it
+was not fired. If the export does not find yours, export the conversation
+to a markdown file yourself and send that.
 
 ## 7. Conditions
 
@@ -92,11 +119,10 @@ As in the Claude guide §8.
 
 ## 9. Update this document
 
-When you have set yourself up, edit this file in a worktree of
-`github.com/csitea/csi-spl`: remove what was wrong, and next to each step write
-what you measured (grok version, csi-spl sha, n). Then follow the repo's
-CLAUDE.md: explicit pathspec, `cd csi-spl-iac && ./run -a do_check_dist_hygiene`
-green, rebase, push to master. When every step has been verified, delete the
-NOT TESTED banner.
+The measurements above are from `GRK-333`, grok 1.0.41, csi-spl `db92f2a`,
+n as each step states. Two steps are still open: SIGWINCH on a grok with
+tty `?`, and `do_spl_desk_session_upload` actually exporting a grok
+transcript. Delete the "still untested" line at the top only after those
+two have been run.
 
-<!-- version: 0.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T14:10:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T15:15:00Z -->

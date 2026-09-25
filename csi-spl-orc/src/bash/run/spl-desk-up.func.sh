@@ -140,8 +140,7 @@ spl_desk_show_pane() {
     pane="$(spool_pane_of "$agent")"
     [ -n "$pane" ] || exit 0
     spool_tmux_argv
-    alt="$("${SPOOL_TM[@]}" display-message -p -t "$pane" '#{alternate_on}' 2>/dev/null)"
-    [ "$alt" = 1 ] || exit 0
+    spool_strip_wanted "$pane" "$agent" || exit 0
     spool_show_notice_pane "$agent" "$pane"
   ) 2>/dev/null
 }

@@ -9,11 +9,10 @@ Measured on that seat:
 
 - the window name carries `AGY-3493`, and the seat directory was created by
   centralized reseat (`do_spl_desk_up_all`) on both `dev` and `prd`
-- `#{alternate_on}` was 0 (agy runs on the normal screen buffer, 189x51).
-  Because `alternate_on` is 0, `spl_desk_show_pane` in `spl-desk-up.func.sh`
-  skips opening a split notice pane (which is only opened for `alternate_on = 1`
-  TUIs to avoid display corruption). Messages and prompt pokes write to the tty
-  directly, keeping the full terminal width intact with no split noise
+- `#{alternate_on}` was 0 (agy runs on the normal screen buffer).
+  `spl_desk_show_pane` splits a 48-column right-hand notice strip (pane `%200`,
+  tagged `@spool_notices=AGY-3493`), leaving the agent with 140 columns.
+  The strip runs `spool-notice-pane.sh` merging dev and prd logs, newest on top.
 - `ps -o tty=` for this agy printed a pts (`pts/76`), launched with
   `su - <AGENT_USER> --pty` (login shell + pty) and `--dangerously-skip-permissions`
 - `do_spl_desk_check` ran cleanly with `verdict ok` on both `dev` and `prd`:
@@ -33,9 +32,9 @@ fails, use the desk actions of section 6 and record what happened (section 9).
 
 ## 1. What this installs
 
-The same as for Claude: a seat in the box's desk, a notice strip (skipped on
-normal screen `alternate_on = 0`), a prompt poke, and the `csi-spl-orc` desk
-actions. See `claude-agent-setup.ISG.md` §1.
+The same as for Claude: a seat in the box's desk, a 48-column right-hand notice
+strip, a prompt poke, and the `csi-spl-orc` desk actions. See
+`claude-agent-setup.ISG.md` §1.
 
 ## 2. Prerequisites
 
@@ -93,6 +92,11 @@ sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_I
 # prd
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=prd TENANT_ID=t1 DESK_AGENT=<AGY-ID> DRY_RUN=0 ./run -a do_spl_desk_up'
 ```
+
+`do_spl_desk_up` splits the right-hand notice strip (`48` columns, tagged
+`@spool_notices=<AGY-ID>`), printing `"notice_pane": "%NNN"`.
+Note: if the CLI was started without a pty, send `kill -WINCH <pid>` if redrawing
+is needed after the split.
 
 Measured: `AGY-3493`'s seat directory was created during centralized
 `do_spl_desk_up_all` seating under:
@@ -166,4 +170,4 @@ n as each step states. Both dev and prd desk checks and seating are verified.
 One step is still open: `do_spl_desk_session_upload` exporting an agy conversation.
 Delete the "still untested" line at the top only after that has been verified.
 
-<!-- version: 0.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:55:00Z -->
+<!-- version: 0.4.0 · updated: 2026-09-25 · last-edit: 2026-09-25T17:35:00Z -->

@@ -110,6 +110,23 @@ export function filterPeopleContains(ids, query) {
   return out
 }
 
+/**
+ * Agents the dropdown offers for the text typed so far. Empty text keeps
+ * every row. Any other text matches when the id or the box contains it,
+ * ignoring case, so "desk" finds an agent on box-desk.
+ */
+export function filterAgentsContains(rows, query) {
+  const q = String(query || '').trim().toLowerCase()
+  const out = []
+  for (const row of rows || []) {
+    if (!row || !row.id) continue
+    const id = String(row.id)
+    const box = String(row.box || '')
+    if (!q || `${id} ${box}`.toLowerCase().includes(q)) out.push({ id, box })
+  }
+  return out
+}
+
 /** Hub error token (`not_a_member`, `channel_public`, `forbidden`, `unknown_channel`). */
 export function inviteErrorToken(err) {
   if (err && typeof err === 'object' && err.token) return String(err.token)

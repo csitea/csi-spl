@@ -13,6 +13,7 @@ import {
   channelAgentCandidates,
   channelAgentRows,
   channelInviteCandidates,
+  filterAgentsContains,
   filterPeopleContains,
   signedInHuman,
   viewerHumanId,
@@ -63,6 +64,26 @@ describe('People offers humans, Agents offers boxes', () => {
     assert.deepEqual(filterPeopleContains(ids, 'hum-1'), ['HUM-17', 'HUM-11'])
     assert.deepEqual(filterPeopleContains(ids, 'nope'), [])
     assert.deepEqual(filterPeopleContains(undefined, '1'), [])
+  })
+
+  it('the agent dropdown matches any part of the id or the box', () => {
+    const rows = [
+      { id: 'GRK-3503', box: 'box-desk' },
+      { id: 'CLE-07', box: 'box-a' },
+      { id: 'CLE-07', box: 'box-desk' },
+    ]
+    assert.deepEqual(filterAgentsContains(rows, ''), rows)
+    assert.deepEqual(filterAgentsContains(rows, '3503'), [{ id: 'GRK-3503', box: 'box-desk' }])
+    assert.deepEqual(filterAgentsContains(rows, 'desk'), [
+      { id: 'GRK-3503', box: 'box-desk' },
+      { id: 'CLE-07', box: 'box-desk' },
+    ])
+    assert.deepEqual(filterAgentsContains(rows, 'cle'), [
+      { id: 'CLE-07', box: 'box-a' },
+      { id: 'CLE-07', box: 'box-desk' },
+    ])
+    assert.deepEqual(filterAgentsContains(rows, 'nope'), [])
+    assert.deepEqual(filterAgentsContains(undefined, 'a'), [])
   })
 
   it('Agents shows CLE-07 with its box and does not show HUM-1', () => {
@@ -148,7 +169,7 @@ describe('the Properties dialog', () => {
     assert.match(dialog, /api\.setMembersOpenInvite\(props\.channelId, next\)/)
     assert.match(dialog, /data-testid="channel-people-add"/)
     assert.match(dialog, /data-testid="channel-agent-add"/)
-    assert.match(dialog, /name="plus"/)
+    assert.match(dialog, /data-testid="channel-agent-search"/)
     assert.match(dialog, /name="minus"/)
     assert.match(dialog, /api\.addChannelAgent\(props\.channelId, row\.id, row\.box\)/)
     assert.match(dialog, /api\.removeChannelMember\(props\.channelId, id\)/)
@@ -157,15 +178,19 @@ describe('the Properties dialog', () => {
     assert.match(peoplePanel, /data-testid="channel-people-search"/)
     assert.match(peoplePanel, /data-testid="channel-people-add"/)
     assert.match(peoplePanel, /data-testid="channel-agent-add"/)
+    assert.match(peoplePanel, /data-testid="channel-agent-search"/)
     assert.match(peoplePanel, /name="minus"/)
     assert.match(peoplePanel, /t\('channels\.properties\.add'\)/)
     assert.match(peoplePanel, /t\('channels\.properties\.people_search'\)/)
+    assert.match(peoplePanel, /t\('channels\.properties\.agents_search'\)/)
     const searchAt = peoplePanel.indexOf('data-testid="channel-people-search"')
     const addAt = peoplePanel.indexOf('data-testid="channel-people-add"')
     const membersAt = peoplePanel.indexOf('data-testid="channel-invite-members"')
     assert.ok(searchAt > 0 && searchAt < addAt && addAt < membersAt)
     assert.match(dialog, /filterPeopleContains\(candidates\.value, personQuery\.value\)/)
+    assert.match(dialog, /filterAgentsContains\(agentCandidates\.value, agentQuery\.value\)/)
     assert.match(dialog, /function addChosen/)
+    assert.match(dialog, /function addChosenAgent/)
     assert.match(dialog, /viewerHumanId\(access\.me, live\.identity\.value/)
     assert.doesNotMatch(dialog, /function togglePeople/)
     assert.match(src('src/stores/access.ts'), /withSessionRetry\(api, \(\) => api\.me\(\)\)/)
@@ -196,6 +221,8 @@ describe('the Properties dialog', () => {
       assert.equal(p.add, 'Add', f)
       assert.equal(p.people_search, 'Search people', f)
       assert.equal(p.people_no_matches, 'No matches', f)
+      assert.equal(p.agents_search, 'Search agents', f)
+      assert.equal(p.agents_no_matches, 'No matches', f)
       assert.equal(p.add_agent, 'Add an agent', f)
       assert.equal(p.remove_member, 'Remove {id}', f)
       assert.equal(p.remove_agent, 'Remove {id}', f)

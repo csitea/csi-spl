@@ -81,8 +81,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
-          cache: true
-          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
+          cache: false
 
       - name: Download Go modules (the suite runs with GOPROXY=off)
         working-directory: csi-spl-api/src/go/spool-hub-api
@@ -292,8 +291,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
-          cache: true
-          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
+          cache: false
 
       - name: Build + push the hub image (do_build_push_hub_image)
         if: steps.guard.outputs.ok == 'true' && steps.img.outputs.exists == 'false'

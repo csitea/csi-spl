@@ -72,11 +72,15 @@ jobs:
           # per job, not the shared ~/setup-pnpm: 4 runners share one home and
           # raced on it (ENOTEMPTY, then "pnpm: command not found", run 36138615567)
           dest: ${{ runner.temp }}/setup-pnpm
+
+      # pnpm's default store sat inside the per-job PNPM_HOME, so every job
+      # re-downloaded all ~720 packages over the box's slow link (ETIMEDOUT,
+      # job 108199695609). Keep it in the runner's tool cache, which persists.
+      - name: pnpm store in the runner tool cache (persists across jobs)
+        run: echo "npm_config_store_dir=$RUNNER_TOOL_CACHE/pnpm-store" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-          cache-dependency-path: csi-spl-wui/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test:unit
       - run: pnpm run typecheck
@@ -195,11 +199,15 @@ jobs:
           # per job, not the shared ~/setup-pnpm: 4 runners share one home and
           # raced on it (ENOTEMPTY, then "pnpm: command not found", run 36138615567)
           dest: ${{ runner.temp }}/setup-pnpm
+
+      # pnpm's default store sat inside the per-job PNPM_HOME, so every job
+      # re-downloaded all ~720 packages over the box's slow link (ETIMEDOUT,
+      # job 108199695609). Keep it in the runner's tool cache, which persists.
+      - name: pnpm store in the runner tool cache (persists across jobs)
+        run: echo "npm_config_store_dir=$RUNNER_TOOL_CACHE/pnpm-store" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-          cache-dependency-path: csi-spl-wui/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
         working-directory: csi-spl-wui
 

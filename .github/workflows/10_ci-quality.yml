@@ -70,8 +70,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
-          cache: true
-          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
+          cache: false
 
       # run-all-tests.sh and build.sh are offline by design (GOPROXY=off), so
       # the module cache has to be filled before they run.
@@ -131,12 +130,16 @@ jobs:
           # raced on it (ENOTEMPTY, then "pnpm: command not found", run 36138615567)
           dest: ${{ runner.temp }}/setup-pnpm
 
+      # pnpm's default store sat inside the per-job PNPM_HOME, so every job
+      # re-downloaded all ~720 packages over the box's slow link (ETIMEDOUT,
+      # job 108199695609). Keep it in the runner's tool cache, which persists.
+      - name: pnpm store in the runner tool cache (persists across jobs)
+        run: echo "npm_config_store_dir=$RUNNER_TOOL_CACHE/pnpm-store" >> "$GITHUB_ENV"
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-          cache-dependency-path: csi-spl-wui/pnpm-lock.yaml
 
       - name: pnpm install (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -181,12 +184,16 @@ jobs:
           # raced on it (ENOTEMPTY, then "pnpm: command not found", run 36138615567)
           dest: ${{ runner.temp }}/setup-pnpm
 
+      # pnpm's default store sat inside the per-job PNPM_HOME, so every job
+      # re-downloaded all ~720 packages over the box's slow link (ETIMEDOUT,
+      # job 108199695609). Keep it in the runner's tool cache, which persists.
+      - name: pnpm store in the runner tool cache (persists across jobs)
+        run: echo "npm_config_store_dir=$RUNNER_TOOL_CACHE/pnpm-store" >> "$GITHUB_ENV"
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-          cache-dependency-path: csi-spl-wui/pnpm-lock.yaml
 
       - name: pnpm install (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -426,8 +433,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: csi/csi-spl/csi-spl-api/src/go/spool-hub-api/go.mod
-          cache: true
-          cache-dependency-path: csi/csi-spl/csi-spl-api/src/go/spool-hub-api/go.sum
+          cache: false
 
       # checkout-fake-buy builds spool offline (GOPROXY=off).
       - name: Download Go modules

@@ -299,7 +299,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up terraform 1.9.8
+      # The download from the HashiCorp releases host fails now and then
+      # ("AggregateError", run 36166317069 attempt 1); the runner has no
+      # terraform of its own. Up to three tries; only the last one can fail.
+      - name: Set up terraform 1.9.8 (attempt 1)
+        id: tf1
+        continue-on-error: true
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: Set up terraform 1.9.8 (attempt 2)
+        id: tf2
+        if: steps.tf1.outcome == 'failure'
+        continue-on-error: true
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: Set up terraform 1.9.8 (attempt 3)
+        id: tf3
+        if: steps.tf1.outcome == 'failure' && steps.tf2.outcome == 'failure'
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.8

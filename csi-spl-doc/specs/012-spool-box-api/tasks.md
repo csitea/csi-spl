@@ -15,7 +15,7 @@ Status vocabulary follows `../README.md` §2.3: `[x]` Implemented (cited) ·
 - [x] T002 Implemented — Confirm exactly five canonical tool names.
       `TestToolNamesAreCanonical` PASS. FR-002.
 - [x] T003 Implemented — Confirm exit 78 on verify/refuse, CLI and MCP.
-      `action.go:199`, `spool.go:311`; SC-004 test asserts `(exit 78)`. FR-004.
+      `action.go:255`, `spool.go:353` on tree `4ae33835`; SC-004 test asserts `(exit 78)`. FR-004.
 - [x] T004 Implemented — Mismatch sweep: no rename or code change needed;
       results are supersets of narrative §3 (003 OQ-01 additive fields). FR-003.
 
@@ -27,8 +27,11 @@ Status vocabulary follows `../README.md` §2.3: `[x]` Implemented (cited) ·
 - [x] T008 Implemented — Step 3 sidecar: one `hub-run` per root under flock,
       roster wait, strict mode 69. FR-013.
 - [x] T009 Implemented — Steps 4-5 env + exec. FR-014, FR-015.
-- [x] T010 Implemented — `tests/test-spool-harness.sh`, 44 assertions, in
-      `run-all-tests.sh` -> `ALL spawn-agents TESTS PASSED`.
+- [x] T010 Implemented — `tests/test-spool-harness.sh`, in
+      `run-all-tests.sh`. On tree `4ae33835`,
+      `grep -cE '(has|eq|check) ' csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-harness.sh`
+      → 42 source lines (one line loops six directories). The old "44 assertions"
+      figure is stale.
 
 ## Phase 3 — Follow-ups
 
@@ -40,9 +43,11 @@ Status vocabulary follows `../README.md` §2.3: `[x]` Implemented (cited) ·
       `spool-<verb>` shims on `PATH` (symlink / 2-line wrappers). FR-006.
 - [ ] T013 Planned — Spawn adapters (`spawn-core.inc.sh`) launch the CLI
       through `spool-harness --as <ID>` instead of preparing env inline.
-- [ ] T014 Planned — Cross-spec seams, integrator's: `../README.md` §4 index
-      row for 012; 004 FR-010 / T023 and narrative identity-routing §2 still
-      say "no `spool-harness`" — now answered by this spec (harness in orc,
-      not a `spool` verb).
+- [x] T014 Implemented — Cross-spec seams. On tree `4ae33835`:
+      `grep -n 012-spool-box-api csi-spl-doc/specs/README.md` → the §4 index row;
+      `grep -n spool-harness csi-spl-doc/specs/004-spool-identity-routing/spec.md`
+      names `spool-harness.sh` (spec 012). A search for the old phrase
+      "no spool-harness" under `csi-spl-doc` hits only the previous wording
+      of this task. 004 itself is another lane's spec and was not edited here.
 
-<!-- version: 1.0.0 · updated: 2026-09-19 · last-edit: 2026-09-19T01:55:00Z -->
+<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->

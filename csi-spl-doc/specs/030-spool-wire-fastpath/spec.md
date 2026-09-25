@@ -129,7 +129,9 @@ ORC's reading and the measurement supports it:
    there. A working implementation built here before that was known (a
    per-recipient `notify.Queue` plus `spool.Store.WithNotifier`) was handed to
    CLE-3435 rather than landed, so the two lanes do not collide. This spec
-   keeps FR-002/FR-003 as the requirement it must satisfy.
+   keeps FR-002/FR-003 as the requirement it must satisfy. The queue has since
+   landed: `internal/notify/queue.go`, started by `cmd/spool/hub.go`
+   `cmdHubRun` (tasks T004).
 2. **FP-2 — a box reply goes out over the sidecar's ALREADY-WARM socket**
    instead of dialling a new one. The CLI hands the signed envelope to the
    local sidecar over a unix socket; the sidecar writes it on the hub session it
@@ -145,7 +147,7 @@ ORC's reading and the measurement supports it:
 | | FP-1 (async terminal leg, CLE-3435) | FP-2 (local submit socket, this lane) |
 |---|---|---|
 | wins | ~80-94 ms on every delivery | ~220 ms on every reply |
-| risk | a notifier now runs after `writeBox` returns; a crash in the gap loses the *poke*, never the message (the file is already written) | a new local IPC surface on the box; needs a fallback path and a permissions story (0700, owner-only) |
+| risk | a notifier now runs after `writeBox` returns; a crash in the gap loses the *poke*, never the message (the file is already written) | a new local IPC surface on the box; needs a fallback path and a permissions story. Shipped as directory `0700` and socket `0600` (`submit.go` `MkdirAll` `0o700`, `os.Chmod(path, 0o600)`) |
 | size | small, contained in `internal/notify` + the sidecar | larger: new listener, new frame, capability negotiation |
 | reversible | yes — one cnf flag back to synchronous | yes — remove the socket and the CLI dials as today |
 
@@ -276,21 +278,28 @@ notices". `KeepAlive` / `KeepAliveTimeout` on `hubclient.Client` are the knobs.
   does not ship.
 - **FR-002** — The terminal leg (028) MUST NOT block the sidecar's socket read
   loop. Deliveries to one agent keep their order; a slow or hanging notifier
-  delays no other message and no other agent.
+  delays no other message and no other agent. **Implemented** (tasks T004).
 - **FR-003** — The terminal leg keeps every guarantee 028 gives it: it never
   fails a delivery, it never rings a message that was not written (FR-003
   there), and `SPOOL_NOTIFY_CMD` unset still means "behave exactly as before".
+  **Implemented** (`TestAQueueDoesNotResurrectADisabledTerminalLeg`).
 - **FR-004** — A box reply SHOULD reuse a warm hub connection when the box runs
   a sidecar, and MUST fall back to today's `role=cli` dial when it does not.
   No message is lost or duplicated by either path or by a reconnect across it.
+  **Implemented** (tasks T001; `SPOOL_SUBMIT_SOCKET=off` is the fallback).
 - **FR-005** — Capability negotiation: a peer announces what it can do in the
   `hello`; an old client against a new hub, and a new client against an old hub,
-  both keep working unchanged (the 020 mixed-fleet rule).
+  both keep working unchanged (the 020 mixed-fleet rule). **Planned** (tasks
+  T003). No `caps` field is in the Go frame yet, and FR-001 does not allow
+  adding one without a measurement that a hub fast path needs it. FP-2 does
+  not: the hub cannot tell the two paths apart.
 - **FR-006** — Signatures and canonical bytes are unchanged. `v:1` stays frozen.
   A message that crosses a fast path MUST be byte-identical to the same message
   across the slow one.
 - **FR-007** — Rollback is a cnf flag per fast path, no redeploy of a peer
-  required, and no stored data migrated.
+  required, and no stored data migrated. **Implemented** (tasks T006,
+  `c850098d` for the notifier flag). Neither flag is set in `csi-spl-cnf`
+  today, so both fast paths stay on.
 
 ## 2. Capability negotiation
 
@@ -321,11 +330,15 @@ Tokens defined by this spec live in `contracts/fastpath-v1.md`.
 
 - **FP-1** ships in the box binary. No peer coordination: it changes when a
   local process runs, not what crosses the wire. Rollback: `SPOOL_NOTIFY_ASYNC=0`
-  restores the synchronous call.
+  (also `false` / `off`) skips `notify.Start`, so `notify.Deliver` runs
+  synchronously. Unset stays queued. `SPOOL_NOTIFY_CMD=off` is a different
+  switch: it turns the terminal leg off altogether. `c850098d`,
+  `TestNotifyAsyncOff`.
 - **FP-2** ships in the box binary too; the hub is unaffected, because the
   envelope the sidecar writes on its warm socket is the same envelope the CLI
-  would have written on a cold one. Rollback: stop the sidecar listener
-  (`SPOOL_SUBMIT_SOCKET` unset) and every CLI falls back to the `role=cli` dial.
+  would have written on a cold one. Rollback: `SPOOL_SUBMIT_SOCKET=off`
+  (`Config.SubmitOff`). Unset means the default socket under the hub dir, so
+  the fast path stays on. `submit_test.go` pins the `off` rollback.
 - No stored row, no envelope and no signature changes, so there is nothing to
   migrate and nothing to undo in the database.
 
@@ -348,3 +361,5 @@ Tokens defined by this spec live in `contracts/fastpath-v1.md`.
 - The hub's internal DB ordering (027, and CLE-3435's hop table).
 - The browser leg's render cost (CLE-3434).
 - The separate fleet-tooling repo, including its 2-second `outbox-watch.sh` scan.
+
+<!-- version: 0.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->

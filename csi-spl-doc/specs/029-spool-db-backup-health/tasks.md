@@ -14,7 +14,7 @@ says otherwise.
 | T011 | cnf 045 block for dev + prd, tpl templates, rendered tfvars | **done** | rendered by `do_tpl_gen` at the pinned tpl-gen; the render-sync test is part of the 87 |
 | T020 | `do_spl_db_backup` — Cloud SQL export to the 045 bucket, `DRY_RUN=1` default, busy-instance retry, size floor | **done** | spec §4.2 for why export and not a proxied `pg_dump` |
 | T021 | `do_spl_db_backup_verify` — restore into a throwaway container, compare every table against the live DB read-only | **done** | spec §4.4 for why the test is not "counts are equal" |
-| T022 | their offline test | **done** | `spl-db-backup.tst.sh`, 29 checks (`grep -c '^PASS'`), with controls (DRY_RUN=0 *does* reach gcloud; a 999999-byte object *does* pass) |
+| T022 | their offline test | **done** | `spl-db-backup.tst.sh`. On tree `4ae33835`, `grep -cE '(^|[;&| ])pass ' csi-spl-orc/src/bash/tests/spl-db-backup.tst.sh` → 28 source lines; one sits in `for e in dev prd`, so a full run prints 29 PASS lines. Controls: DRY_RUN=0 does reach gcloud; a 999999-byte object does pass |
 | T030 | workflow **45 ops: hub db daily backup**, `17 5 * * *`, dev then prd, per-env concurrency, key from `GCP_KEY_CSI_SPL_<ENV>` | **done** | spec §4.5 (red run = the alert), §4.6 (why not near 01:00) |
 | T040 | spec 029 + these tasks | **done** | this file |
 | T050 | apply 045 on dev and prd (`make do-provision`, step 045) | **done, both envs** | ORC gave the go 2026-09-21T08:07Z. Plan was `2 to add, 0 to change, 0 to destroy` on each; apply `2 added, 0 changed, 0 destroyed` on each. Buckets `csi-spl-dev-db-backups` / `csi-spl-prd-db-backups`; the IAM grant went to the instance service agent `p436311356630-pavt4a@` (dev) / `p351721145894-firmcx@` (prd) |
@@ -77,4 +77,4 @@ envs. What remains is not mine to take:
   report SELECTs columns called `vacuum_count` and `last_analyze`, and an
   anchor without the boundary reads those as a `VACUUM`. Measured.
 
-<!-- last-edit: 2026-09-21T08:10:00Z -->
+<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->

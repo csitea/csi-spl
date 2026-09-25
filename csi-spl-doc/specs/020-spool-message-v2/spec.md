@@ -1,6 +1,6 @@
 # Feature Specification: Spool Message Schema `v:2`
 
-**Feature ID**: `020-spool-message-v2` · **Milestone**: M3 consolidation · **Status**: Partial (readers on trunk; deploy + writer switch open)
+**Feature ID**: `020-spool-message-v2` · **Milestone**: M3 consolidation · **Status**: Partial (readers and the WUI type are on trunk; box rebuild T012 and writer switch T014–T016 are open, and the switch needs the owner's go)
 **Created**: 2026-09-19 · **Lane**: MESSAGE-V2
 **Builds on**: `002-box-agent-messaging` (frozen `v:1`), `003-spool-message-bus` (hub envelope, WS frames), `014-spool-wui-dispatch`, `008-spool-cicd-logs`.
 **Authority**: `./contracts/message-schema-v2.md`, `./contracts/canonical-json-v2.md`, `./contracts/migration.md`
@@ -66,8 +66,10 @@ through one hub.
   `recv` frame whose inner `v` the session did not advertise; the row stays
   `queued` (`migration.md` §3). **Implemented** in code (`internal/hub/ws.go` `session.accepts` + `push`; `internal/hubclient/hubclient.go` hello; `wire.Frame.MsgVersions`, `wire.InnerVersion`); `TestV2HeldForV1OnlySession` with CONTROL; mutation (guard off) → `delivery "sent", want queued`. Live on dev + prd since hub 0.1.9 (`71a87eb`, T011).
 - **FR-005** The legacy `.md` bridge keeps synthesising `v:1`. **Implemented**: `internal/spool/spool.go` legacy bridge `V: msg.V1`; `TestLegacyMDBridge` green.
-- **FR-006** The WUI type admits `v: 1 | 2`. The WUI gates on no `v`
-  (`grep -rn "\.v ==\|\.v !=" csi-spl-wui/src` → 0). **Planned**: CLE-55 (UI lane).
+- **FR-006** The WUI type admits `v: 1 | 2`. The WUI gates on no `v`.
+  **Implemented** (T013, `b3a8026`). Re-measured 2026-09-25, tree `4ae33835`:
+  `csi-spl-wui/src/types/spool.ts` has `v: 1 | 2`, and
+  `grep -R "\.v ==\|\.v !=" csi-spl-wui/src` finds no comparison.
 - **FR-007** Writers switch to `v:2` only after the gates in `migration.md` §2
   are met, each switch with the owner's go. **Planned**.
 
@@ -82,4 +84,4 @@ through one hub.
   `recv` frame; after reconnecting with `[1,2]` it is delivered.
 - **SC-005** After P2, 0 rows stuck `queued` by the guard for 24 h on dev.
 
-<!-- version: 0.2.1 · updated: 2026-09-22 · last-edit: 2026-09-22T07:48:00Z -->
+<!-- version: 0.2.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->

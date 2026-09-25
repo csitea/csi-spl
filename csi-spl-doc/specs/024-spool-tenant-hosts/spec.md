@@ -27,6 +27,13 @@ Live state at the pause (measured 16:45Z, `do_spl_db_query`, n=1 per env):
 Everything below is the design as built. It is kept as the record, and it is
 not the plan any more.
 
+Re-checked 2026-09-25, tree `4ae33835`, n=1. `40_tenant-host-reconcile.yml`
+`on:` is `workflow_dispatch` only (`grep -c '^  schedule:'` → 0).
+`tenant-host-workflow-40.tst.sh` still rejects a planted `schedule`. No new
+tenant was mapped from this lane. Retiring the mappings already in cnf belongs
+to spec 026.
+
+
 > Numbering note: the commits of this lane before this spec landed, and the
 > header of `csi-spl-rdb/.../0015_tenant_hosts.sql`, say "specs/022". Two other
 > lanes took 022 (WUI top bar search) and 023 (user settings keys) at the same
@@ -173,3 +180,5 @@ being up; (3) a human go per tenant, where latency is a human.
   deprovision twin are ready for it.
 - The M2 claim mail still says "Tenant URL" with no "being prepared" note
   (the mail lane can add one; the page covers the buyer meanwhile).
+
+<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->

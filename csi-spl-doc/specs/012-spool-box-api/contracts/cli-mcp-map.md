@@ -10,9 +10,9 @@ and `mcp-tools.md`; this table is the 1:1 check, not a restatement.
 |---|---|---|---|
 | `spool put-file <path>` | `spool_put_file` | `path` | `file_id`, `sha256`, `bytes`, `name` (+ `kind`) |
 | `spool send --from --to [--task] --kind --body [--file-id …] [--to-box]` | `spool_send` | `from`, `to`, `task_id`, `kind`, `body`, `file_ids`, `to_box` | `msg_id`, `task_id`, `ts` (+ `delivery`) |
-| `spool recv --as [--ack]` | `spool_recv` | `as`, `ack` | array of `v:1` messages |
+| `spool recv --as [--ack]` | `spool_recv` | `as`, `ack` | array of messages. Readers accept `v:1` and `v:2` (020 FR-001). The MCP description string still says `v:1` |
 | `spool get-file <file_id> <dest>` | `spool_get_file` | `file_id`, `dest` | `path`, `bytes`, `sha256` (+ `file_id`) |
-| `spool tail [--task] [--json]` | `spool_tail` | `task_id`, `json` | human lines, or `v:1` NDJSON |
+| `spool tail [--task] [--json]` | `spool_tail` | `task_id`, `json` | human lines, or NDJSON of the stored object (`v:1` or `v:2`) |
 
 `(+ …)` marks additive fields (003 OQ-01): allowed, never renamed.
 `--to-box` / `to_box` are hub-mode only.
@@ -38,4 +38,4 @@ names five tools; a sixth would break the canonical-names check.
 | 78 on the CLI and as a tool error | `TestSC004MCPEqualsCLI` (corrupted blob) |
 | partial recv output + error | `TestRecvMalformedIsToolError` |
 
-<!-- version: 1.0.0 · updated: 2026-09-19 · last-edit: 2026-09-19T01:55:00Z -->
+<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->

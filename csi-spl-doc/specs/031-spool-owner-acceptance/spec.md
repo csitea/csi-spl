@@ -68,7 +68,7 @@ The gate keeps the two in step.
 | a real IdP sign-in | OA-37 | `MANUAL`, §5 |
 | the owner's own thread URL | OA-38 | the bot — **PASS** since `7044c2e0`, §3.1 |
 | attachments survive a send | OA-39 | **PASS** on `713d6a8` — §3.2 |
-| an attached file round trips | OA-40 | the half OA-39 does NOT prove — `PENDING`, §3.2 |
+| an attached file round trips | OA-40 | the half OA-39 does NOT prove — **UNVERIFIED**, API round trip only, §3.2 |
 
 ### 2.1 Why the terminal cases are `orc-e2e` and not CI
 
@@ -179,9 +179,17 @@ them would overstate it**: n=1 per route with one 27-byte text file, so it
 proves the ref reaches the frame and not that a large or binary upload
 survives; and the frame was HELD BACK, so it proves the CLIENT puts the file
 on the wire and not that the hub stores and serves it. That second half is
-**OA-40**, and it is `PENDING` rather than folded into OA-39 — "the file was
+**OA-40**, and it stays a separate row rather than folded into OA-39 — "the file was
 sent" and "the file arrived" are different claims, and this register exists to
 stop exactly that kind of merge.
+
+**OA-40 is UNVERIFIED** (re-read 2026-09-25, tree `4ae33835`, n=1).
+`csi-spl-wui/tests/e2e/live-interop.test.mjs` uploads a file, sends its ref,
+and has the other session download identical bytes. That is the API round
+trip. It runs only when `HUB_URL` is set, and this lane has not run it against
+a live hub, so the row is not PASS. The step the owner sees — attaching in
+the WUI composer — still has no test. The register has no Partial status;
+UNVERIFIED means the named test is in the tree and has not been run live here.
 
 ## 4. Success criteria
 
@@ -329,4 +337,4 @@ control is the consent screen itself.
   every bot message is labelled as a case and the agent-to-agent cases use
   throwaway ids that touch no live lane.
 
-<!-- version: 1.0.0 · updated: 2026-09-21 · last-edit: 2026-09-21T13:20:00Z -->
+<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->

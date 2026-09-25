@@ -104,8 +104,10 @@ never be burdened with key generation or pin setup (identity-routing §2).
   `get-file`, `tail` (plus `put-dir`, `get-dir`, `keygen`, `pin`) and the MCP
   tools `spool_put_file`, `spool_send`, `spool_recv`, `spool_get_file`,
   `spool_tail` call the same `internal/action` code. **Implemented** —
-  `cmd/spool/main.go:100-114`, `internal/mcp/mcp.go:57-112`;
-  `TestSC004MCPEqualsCLI` PASS.
+  `cmd/spool/main.go` verb switch at line 107, `internal/mcp/mcp.go`
+  `NewServerOpts` from line 96; `TestSC004MCPEqualsCLI` PASS.
+  Re-measured 2026-09-25, tree `4ae33835` (the 2026-09-19 cites
+  `main.go:100-114` and `mcp.go:57-112` had moved).
 - **FR-002** — The five canonical tool names and no others.
   **Implemented** — `TestToolNamesAreCanonical` PASS.
 - **FR-003** — CLI ↔ MCP fields map 1:1 (`contracts/cli-mcp-map.md`).
@@ -114,11 +116,11 @@ never be burdened with key generation or pin setup (identity-routing §2).
   `file_id` are the additive 003 OQ-01 fields).
 - **FR-004** — Verify/refuse exits 78 on the CLI and is a tool error carrying
   `(exit 78)` over MCP: hash mismatch, unpinned box, bad signature.
-  **Implemented** — `action.ExitCode` (`internal/action/action.go:199`),
-  `spool.ExitCode` (`internal/spool/spool.go:311`); asserted in
-  `TestSC004MCPEqualsCLI`.
+  **Implemented** — `action.ExitCode` (`internal/action/action.go:255`),
+  `spool.ExitCode` (`internal/spool/spool.go:353`); asserted in
+  `TestSC004MCPEqualsCLI`. Re-measured 2026-09-25, tree `4ae33835`.
 - **FR-005** — `spool mcp` is a stdio child per agent session, not a daemon.
-  **Implemented** — `cmdMCP` (`cmd/spool/main.go`) serves stdin/stdout and
+  **Implemented** — `cmdMCP` (`cmd/spool/main.go:281`) serves stdin/stdout and
   exits when stdin closes.
 - **FR-006** — Hyphenated names `spool-put-file` … `spool-tail` as shims over
   `spool <verb>`. **Planned** — `grep -rln spool-put-file --include=*.sh .` ->
@@ -154,13 +156,13 @@ never be burdened with key generation or pin setup (identity-routing §2).
 |---|---|---|
 | CLI verbs = MCP tools, same code | Implemented | `TestSC004MCPEqualsCLI` PASS |
 | Five canonical tool names | Implemented | `TestToolNamesAreCanonical` PASS |
-| Exit 78 on verify/refuse, CLI and MCP | Implemented | `action.go:199`, `spool.go:311`; SC-004 test |
+| Exit 78 on verify/refuse, CLI and MCP | Implemented | `action.go:255`, `spool.go:353`; SC-004 test. Tree `4ae33835` |
 | Hyphenated `spool-<verb>` shims | Planned | `grep -rln spool-put-file --include=*.sh .` -> none |
-| `spool-harness` local mode | Implemented | `c619d5d`; test-spool-harness.sh 44/44 |
+| `spool-harness` local mode | Implemented | `c619d5d`. On `4ae33835`, `grep -cE '(has|eq|check) ' csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-harness.sh` → 42 source lines (one line is a 6-directory loop). The old "44 assertions" count is stale |
 | `spool-harness` hub mode, fake sidecar | Implemented | same test, "hub: …" rows |
 | `spool-harness` hub mode, real `spool hub-run`, hub unreachable | Implemented | manual run below |
 | `spool-harness` hub mode, live hub announce | Planned | T011 |
-| Spawn adapters launch through the harness | Planned | T013 |
+| Spawn adapters launch through the harness | Planned | T013. `grep -n spool-harness csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh` → no hit on `4ae33835`. The spawn scripts are another lane's files |
 
 Runs (tree: `c619d5d` = trunk after this lane's first push; n=1 each):
 - `go test ./internal/mcp/ ./internal/spool/` in `csi-spl-api/src/go/spool-hub-api` -> ok, ok.
@@ -204,4 +206,4 @@ Runs (tree: `c619d5d` = trunk after this lane's first push; n=1 each):
 - **D-05** The harness never mints a key or installs a pin (no TOFU; keys are
   an operator step, trust-modes §7).
 
-<!-- version: 1.0.0 · updated: 2026-09-19 · last-edit: 2026-09-19T01:55:00Z -->
+<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->

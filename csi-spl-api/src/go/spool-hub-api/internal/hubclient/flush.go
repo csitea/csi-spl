@@ -165,6 +165,10 @@ func (s *Session) sendPending(ctx context.Context, env *wire.Envelope, m *msg.Me
 	switch {
 	case errors.Is(err, ErrUnreachable):
 		return wire.DeliveryPending, nil
+	case s.role == wire.RoleCLI && errors.As(err, &he) && he.Token == wire.TokenFromNotAnnounced:
+		// A cli session cannot announce. The box session's flush will: it
+		// re-announces and resends, or rejects if the agent is not hosted.
+		return wire.DeliveryPending, nil
 	case errors.As(err, &he) && he.clientError():
 		s.c.reject(pending)
 		return "", err

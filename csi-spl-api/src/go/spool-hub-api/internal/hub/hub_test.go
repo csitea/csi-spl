@@ -144,11 +144,26 @@ func (e *env) box(tenant, id string, agents ...string) *box {
 	return &box{id: id, cfg: cfg, c: c, pub: pub}
 }
 
+// pin pins b and seats the agents its spool root holds, as the box's
+// sidecar hello would: onSend accepts msg.from only from the box that
+// announced it (CLE-34986), and most rigs send over role=cli alone.
 func (e *env) pin(tenant string, b *box) {
 	e.t.Helper()
 	raw, _ := base64.StdEncoding.DecodeString(b.pub)
 	if err := e.st.PutPin(context.Background(), tenant, b.id, ed25519.PublicKey(raw), false, time.Now(), time.Now()); err != nil {
 		e.t.Fatal(err)
+	}
+	ents, _ := os.ReadDir(b.cfg.SpoolRoot)
+	var agents []string
+	for _, d := range ents {
+		if d.IsDir() && msg.ValidID(d.Name()) {
+			agents = append(agents, d.Name())
+		}
+	}
+	if len(agents) > 0 {
+		if err := e.st.SetRoster(context.Background(), tenant, b.id, agents, time.Now()); err != nil {
+			e.t.Fatal(err)
+		}
 	}
 }
 

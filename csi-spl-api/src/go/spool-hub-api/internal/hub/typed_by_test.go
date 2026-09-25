@@ -87,7 +87,18 @@ func TestTypedByVerifiedStoredAndShownToBrowsersOnly(t *testing.T) {
 	}
 	refused("a member with no binding", "CLE-01", unbound)
 	refused("not a member of the tenant", "CLE-01", "HUM-999999")
-	refused("an agent box-a never announced", "GRK-99", bound)
+	// An agent box-a never announced is refused before typed_by is read:
+	// onSend's sender check (CLE-34986), with or without a claim. A role=cli
+	// send keeps it pending for the box session to announce; nothing stored.
+	for _, claim := range []string{bound, ""} {
+		out, err := sendAs("GRK-99", claim, "never announced")
+		if err != nil || out.Delivery != wire.DeliveryPending {
+			t.Fatalf("an agent box-a never announced (typed_by %q): want pending, got %+v %v", claim, out, err)
+		}
+		if has, _ := e.st.HasMessage(ctx, tid, out.MsgID); has {
+			t.Fatalf("an agent box-a never announced (typed_by %q): stored", claim)
+		}
+	}
 	if _, err := sendAs("CLE-01", "bob", "malformed"); err == nil {
 		t.Fatal("a non HUM-* typed_by was sent")
 	}

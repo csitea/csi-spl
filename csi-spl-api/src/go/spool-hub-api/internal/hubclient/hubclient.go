@@ -512,8 +512,31 @@ func (s *Session) SendTyped(ctx context.Context, env *wire.Envelope, typedBy str
 		return wire.Frame{}, err
 	}
 	id := m.MsgID
-	return s.request(ctx, wire.Frame{Type: wire.TSend, Env: raw, TypedBy: typedBy}, wire.TSent,
-		func(r wire.Frame) bool { return r.MsgID == id || (r.Type == wire.TError && r.MsgID == "") })
+	send := func() (wire.Frame, error) {
+		return s.request(ctx, wire.Frame{Type: wire.TSend, Env: raw, TypedBy: typedBy}, wire.TSent,
+			func(r wire.Frame) bool { return r.MsgID == id || (r.Type == wire.TError && r.MsgID == "") })
+	}
+	f, err := send()
+	if s.fromNotYetAnnounced(err, m.From) {
+		// A new agent's first line beat the 10 s announce scan: announce
+		// the dir scan (it holds m.From: the outbox was written first) and
+		// resend once. The hub reads the two frames in order.
+		if aerr := s.Announce(ctx); aerr == nil {
+			f, err = send()
+		}
+	}
+	return f, err
+}
+
+// fromNotYetAnnounced reports whether err is the hub's from_not_announced for
+// an agent THIS box hosts, on a session that may announce (role=box).
+func (s *Session) fromNotYetAnnounced(err error, from string) bool {
+	var he *HubError
+	if s.role != wire.RoleBox || !errors.As(err, &he) || he.Token != wire.TokenFromNotAnnounced {
+		return false
+	}
+	local, serr := s.c.scanAgents()
+	return serr == nil && slices.Contains(local, from)
 }
 
 // Tail streams a task's stored envelopes to fn, oldest first; with follow it

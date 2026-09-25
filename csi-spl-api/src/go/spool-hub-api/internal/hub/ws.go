@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,6 +40,11 @@ type session struct {
 	// msgVersions: the inner versions this box's reader accepts (hello
 	// msg_versions, specs/020); a pre-020 box sends none and gets v:1 only.
 	msgVersions []int
+	// agents is this box's seated roster, sorted: what onSend checks a
+	// sender against. It is read from the welcome's roster at hello and
+	// replaced by a stored announce, both on this session's read goroutine,
+	// which is also the only one that reads it (onSend).
+	agents []string
 
 	wmu     sync.Mutex
 	follows map[string]bool // task ids tailed with follow=true; guarded by srv.mu
@@ -228,6 +234,7 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 	}
 
 	roster, _ := s.o.Store.Roster(ctx, t.ID)
+	x.agents = roster[f.BoxID] // Roster sorts each box's list
 	tok, exp := s.mintToken(t.ID, f.BoxID)
 	err = x.write(ctx, wire.Frame{Type: wire.TWelcome, BoxID: f.BoxID, Roster: roster,
 		UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)})
@@ -347,6 +354,8 @@ func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []
 		x.fail(ctx, "", "internal", http.StatusInternalServerError, "roster not stored")
 		return
 	}
+	x.agents = append([]string(nil), agents...)
+	sort.Strings(x.agents)
 	if err := s.o.Store.SetSubscriptions(ctx, x.tenant, x.box, agents, channels, s.o.Now()); err != nil {
 		x.fail(ctx, "", "internal", http.StatusInternalServerError, "subscriptions not stored")
 		return
@@ -429,6 +438,10 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, "bad_sig", http.StatusBadRequest, "envelope sig does not verify against the from_box pin")
 		return
 	}
+	if detail := senderRefusal(x, m.From); detail != "" {
+		x.fail(ctx, id, TokenFromNotAnnounced, http.StatusForbidden, detail)
+		return
+	}
 	if env.ToBox == "" {
 		roster, _ := s.o.Store.Roster(ctx, x.tenant)
 		n := 0
@@ -507,6 +520,27 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 	x.write(ctx, wire.Frame{Type: wire.TSent, MsgID: id, TaskID: m.TaskID, TS: m.TS, ToBox: env.ToBox, Delivery: delivery}) //nolint:errcheck
 }
 
+// TokenFromNotAnnounced refuses a box send whose msg.from is not an agent
+// that box announced. The box key signs the envelope, not the agent, so
+// without it any pinned box could post as another box's agent (or as a
+// human): the recipient would read, and answer, the wrong author.
+const TokenFromNotAnnounced = wire.TokenFromNotAnnounced
+
+// senderRefusal is the sender half of onSend's authz: msg.from must be in
+// the sending box's seated roster, and never a human or guest id, which only
+// the hub itself writes (browser sends, box-wui). "" = accepted. A new
+// agent's first line can beat its box's next announce; the box client
+// re-announces and resends on this token (hubclient.SendTyped).
+func senderRefusal(x *session, from string) string {
+	if strings.HasPrefix(from, "HUM-") || strings.HasPrefix(from, GuestPrefix) {
+		return "a box cannot send as " + from
+	}
+	if !contains(x.agents, from) {
+		return from + " is not an agent announced by " + x.box
+	}
+	return ""
+}
+
 // typedByRefusal is specs/036 FR-010: a send frame's typed_by is accepted
 // only when the sending agent is one this box announced (roster), the human
 // is a member of the tenant, and a box_operators binding (rdb 0040, granted
@@ -517,8 +551,7 @@ func (s *Server) typedByRefusal(ctx context.Context, x *session, from, human str
 	if !humanIDRe.MatchString(human) {
 		return "typed_by must be a HUM-* id"
 	}
-	roster, err := s.o.Store.Roster(ctx, x.tenant)
-	if err != nil || !contains(roster[x.box], from) {
+	if senderRefusal(x, from) != "" { // onSend refused it already; kept for any other caller
 		return from + " is not an agent announced by " + x.box
 	}
 	h, hasHumans := s.o.Store.(store.Humans)

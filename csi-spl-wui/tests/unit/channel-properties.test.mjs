@@ -13,6 +13,7 @@ import {
   channelAgentCandidates,
   channelAgentRows,
   channelInviteCandidates,
+  filterPeopleContains,
   signedInHuman,
   viewerHumanId,
 } from '../../src/utils/spool-client.mjs'
@@ -52,6 +53,16 @@ describe('People offers humans, Agents offers boxes', () => {
     const people = channelInviteCandidates(['HUM-1', 'HUM-2', 'CLE-07', 'GRK-03'], ['HUM-1'])
     assert.deepEqual(people, ['HUM-2'])
     assert.equal(people.includes('CLE-07'), false)
+  })
+
+  it('the people dropdown matches any part of the id', () => {
+    const ids = ['HUM-17', 'HUM-11', 'HUM-9', 'HUM-4']
+    assert.deepEqual(filterPeopleContains(ids, ''), ids)
+    assert.deepEqual(filterPeopleContains(ids, '  '), ids)
+    assert.deepEqual(filterPeopleContains(ids, '17'), ['HUM-17'])
+    assert.deepEqual(filterPeopleContains(ids, 'hum-1'), ['HUM-17', 'HUM-11'])
+    assert.deepEqual(filterPeopleContains(ids, 'nope'), [])
+    assert.deepEqual(filterPeopleContains(undefined, '1'), [])
   })
 
   it('Agents shows CLE-07 with its box and does not show HUM-1', () => {
@@ -143,15 +154,20 @@ describe('the Properties dialog', () => {
     assert.match(dialog, /api\.removeChannelMember\(props\.channelId, id\)/)
     assert.match(dialog, /api\.removeChannelAgent\(props\.channelId, row\.id, row\.box\)/)
     const peoplePanel = dialog.slice(dialog.indexOf('data-testid="channel-people"'), dialog.indexOf('data-testid="channel-agents"'))
+    assert.match(peoplePanel, /data-testid="channel-people-search"/)
     assert.match(peoplePanel, /data-testid="channel-people-add"/)
     assert.match(peoplePanel, /data-testid="channel-agent-add"/)
     assert.match(peoplePanel, /name="minus"/)
+    assert.match(peoplePanel, /t\('channels\.properties\.add'\)/)
+    assert.match(peoplePanel, /t\('channels\.properties\.people_search'\)/)
+    const searchAt = peoplePanel.indexOf('data-testid="channel-people-search"')
     const addAt = peoplePanel.indexOf('data-testid="channel-people-add"')
-    const picksAt = peoplePanel.indexOf('data-testid="channel-invite-candidates"')
     const membersAt = peoplePanel.indexOf('data-testid="channel-invite-members"')
-    assert.ok(addAt > 0 && addAt < picksAt && picksAt < membersAt)
+    assert.ok(searchAt > 0 && searchAt < addAt && addAt < membersAt)
+    assert.match(dialog, /filterPeopleContains\(candidates\.value, personQuery\.value\)/)
+    assert.match(dialog, /function addChosen/)
     assert.match(dialog, /viewerHumanId\(access\.me, live\.identity\.value/)
-    assert.match(dialog, /function togglePeople/)
+    assert.doesNotMatch(dialog, /function togglePeople/)
     assert.match(src('src/stores/access.ts'), /withSessionRetry\(api, \(\) => api\.me\(\)\)/)
     assert.match(dialog, /natural \* 2/)
     assert.match(dialog, /minHeight/)
@@ -177,6 +193,9 @@ describe('the Properties dialog', () => {
       assert.equal(p.invite_owner_only, 'Only the channel owner can invite someone in.', f)
       assert.equal(p.agents_invite_empty, 'Every announced agent is already in this channel.', f)
       assert.equal(p.add_person, 'Add a person', f)
+      assert.equal(p.add, 'Add', f)
+      assert.equal(p.people_search, 'Search people', f)
+      assert.equal(p.people_no_matches, 'No matches', f)
       assert.equal(p.add_agent, 'Add an agent', f)
       assert.equal(p.remove_member, 'Remove {id}', f)
       assert.equal(p.remove_agent, 'Remove {id}', f)

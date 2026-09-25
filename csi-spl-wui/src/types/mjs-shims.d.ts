@@ -5,6 +5,7 @@ declare module '~/utils/spool-client.mjs' {
   export function isPublicChannel(channel: string): boolean
   export function rosterHumanIds(roster: Record<string, readonly string[]> | null | undefined): string[]
   export function channelInviteCandidates(rosterIds: readonly string[], memberIds: readonly string[]): string[]
+  export function filterPeopleContains(ids: readonly string[] | null | undefined, query?: string): string[]
   export function inviteErrorToken(err: unknown): string
   export function signedInHuman(me: { humanId?: string | null } | null | undefined, opts?: { mock?: boolean, rosterMe?: string }): string
   export function viewerHumanId(me: { humanId?: string | null } | null | undefined, socketId?: string, opts?: { mock?: boolean, rosterMe?: string }): string

@@ -561,7 +561,10 @@
       "add_person": "Add a person",
       "add_agent": "Add an agent",
       "remove_member": "Remove {id}",
-      "remove_agent": "Remove {id}"
+      "remove_agent": "Remove {id}",
+      "add": "Add",
+      "people_search": "Search people",
+      "people_no_matches": "No matches"
     }
   }
 }

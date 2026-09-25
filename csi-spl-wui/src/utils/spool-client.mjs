@@ -94,6 +94,22 @@ export function channelInviteCandidates(rosterIds, memberIds) {
   return out
 }
 
+/**
+ * People the dropdown offers for the text typed so far. Empty text keeps
+ * every id. Any other text matches when the id contains it, ignoring case,
+ * so "17" finds HUM-17.
+ */
+export function filterPeopleContains(ids, query) {
+  const q = String(query || '').trim().toLowerCase()
+  const out = []
+  for (const raw of ids || []) {
+    const id = String(raw || '')
+    if (!id) continue
+    if (!q || id.toLowerCase().includes(q)) out.push(id)
+  }
+  return out
+}
+
 /** Hub error token (`not_a_member`, `channel_public`, `forbidden`, `unknown_channel`). */
 export function inviteErrorToken(err) {
   if (err && typeof err === 'object' && err.token) return String(err.token)

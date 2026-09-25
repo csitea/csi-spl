@@ -45,36 +45,63 @@
       >
         <p v-if="!loaded" class="muted">{{ t('common.loading') }}</p>
         <template v-else-if="!failedLoad">
-          <div class="channel-properties__head">
-            <span data-testid="channel-invite-person">{{ t('channels.properties.people_tab') }}</span>
+          <div class="people-add" data-testid="channel-people-picker">
+            <Combobox
+              as="div"
+              class="people-add__combo"
+              :model-value="chosenPerson"
+              nullable
+              :disabled="!canAdd || busy"
+              @update:model-value="onChoosePerson"
+            >
+              <div class="people-add__control">
+                <ComboboxInput
+                  class="people-add__input"
+                  data-testid="channel-people-search"
+                  :aria-label="t('channels.properties.add_person')"
+                  :placeholder="t('channels.properties.people_search')"
+                  :display-value="personLabel"
+                  autocomplete="off"
+                  :disabled="!canAdd || busy"
+                  @change="onPersonQuery"
+                />
+                <ComboboxButton
+                  type="button"
+                  class="people-add__chevron"
+                  data-testid="channel-people-search-button"
+                  :aria-label="t('channels.properties.add_person')"
+                  :disabled="!canAdd || busy"
+                >▾</ComboboxButton>
+              </div>
+              <ComboboxOptions class="people-add__options" data-testid="channel-people-options">
+                <li
+                  v-if="peopleChoices.length === 0"
+                  class="people-add__empty muted"
+                  data-testid="channel-invite-empty"
+                >{{ personQuery.trim() ? t('channels.properties.people_no_matches') : t('channels.properties.invite_empty') }}</li>
+                <ComboboxOption
+                  v-for="id in peopleChoices"
+                  :key="id"
+                  :value="id"
+                  as="template"
+                  v-slot="{ active, selected }"
+                >
+                  <li
+                    class="people-add__option"
+                    :class="{ 'is-active': active, 'is-selected': selected }"
+                    :data-testid="'channel-invite-pick-' + id"
+                  >{{ id }}</li>
+                </ComboboxOption>
+              </ComboboxOptions>
+            </Combobox>
             <button
               type="button"
-              class="icon-btn"
-              :class="{ 'is-open': addingPeople }"
+              class="btn"
               data-testid="channel-people-add"
-              :aria-label="t('channels.properties.add_person')"
-              :title="canAdd ? t('channels.properties.add_person') : t('channels.properties.invite_owner_only')"
-              :aria-expanded="addingPeople ? 'true' : 'false'"
-              :disabled="!canAdd || busy"
-              @click="togglePeople"
-            >
-              <UiIcon :name="addingPeople ? 'x' : 'plus'" :size="16" />
-            </button>
+              :disabled="!canAdd || busy || !chosenPerson"
+              @click="addChosen"
+            >{{ t('channels.properties.add') }}</button>
           </div>
-          <template v-if="addingPeople && canAdd">
-            <p v-if="candidates.length === 0" class="muted" data-testid="channel-invite-empty">{{ t('channels.properties.invite_empty') }}</p>
-            <ul v-else class="invite-candidates" data-testid="channel-invite-candidates">
-              <li v-for="id in candidates" :key="id">
-                <button
-                  type="button"
-                  class="btn ghost"
-                  :disabled="busy"
-                  :data-testid="'channel-invite-pick-' + id"
-                  @click="pick(id)"
-                >{{ id }}</button>
-              </li>
-            </ul>
-          </template>
           <ul class="member-rows" data-testid="channel-invite-members">
             <li v-for="id in localMembers" :key="id">
               <span>{{ id }}</span>
@@ -179,6 +206,13 @@
 
 <script setup lang="ts">
 import {
+  Combobox,
+  ComboboxButton,
+  ComboboxInput,
+  ComboboxOption,
+  ComboboxOptions,
+} from '@headlessui/vue'
+import {
   aboutChannelDescription,
   aboutChannelName,
   canAddChannelMember,
@@ -186,6 +220,7 @@ import {
   channelAgentCandidates,
   channelAgentRows,
   channelInviteCandidates,
+  filterPeopleContains,
   inviteErrorToken,
   rosterHumanIds,
   viewerHumanId,
@@ -228,8 +263,9 @@ const rosterIds = ref<string[]>([])
 const rosterBag = ref<Record<string, string[]>>({})
 const createdByLive = ref('')
 const agents = ref<{ id: string, box: string }[]>([])
-const addingPeople = ref(false)
 const addingAgents = ref(false)
+const chosenPerson = ref<string | null>(null)
+const personQuery = ref('')
 const root = ref<HTMLElement | null>(null)
 let ticket = 0
 let sizedFor = 0
@@ -269,6 +305,7 @@ const canAdd = computed(() => canAddChannelMember({
   membersOpenInvite: openInvite.value,
 }))
 const candidates = computed(() => channelInviteCandidates(rosterIds.value, localMembers.value))
+const peopleChoices = computed(() => filterPeopleContains(candidates.value, personQuery.value))
 const agentRows = computed(() => channelAgentRows(agents.value))
 const agentCandidates = computed(() => channelAgentCandidates(rosterBag.value, agentRows.value))
 
@@ -293,8 +330,9 @@ watch(() => props.open, async (isOpen) => {
   rosterBag.value = {}
   createdByLive.value = ''
   agents.value = []
-  addingPeople.value = false
   addingAgents.value = false
+  chosenPerson.value = null
+  personQuery.value = ''
   try {
     const [mem, ros] = await Promise.all([
       withSessionRetry(api, () => api.listChannelMembers(props.channelId)),
@@ -322,19 +360,28 @@ watch(() => props.open, async (isOpen) => {
   }
 })
 
-async function revealPicker(testId: string) {
-  await nextTick()
-  const list = root.value?.querySelector(`[data-testid="${testId}"]`)
-  const scroller = root.value?.closest('[data-testid="ui-dialog-body"]')
-  if (!(list instanceof HTMLElement) || !(scroller instanceof HTMLElement)) return
-  const top = list.getBoundingClientRect().top - scroller.getBoundingClientRect().top
-  if (top < 0 || top > scroller.clientHeight - 40) scroller.scrollTop += top - 8
+function personLabel(id: unknown) {
+  return typeof id === 'string' ? id : ''
 }
 
-async function togglePeople() {
-  if (!canAdd.value || busy.value) return
-  addingPeople.value = !addingPeople.value
-  if (addingPeople.value) await revealPicker(candidates.value.length ? 'channel-invite-candidates' : 'channel-invite-empty')
+function onPersonQuery(ev: Event) {
+  const el = ev.target
+  personQuery.value = el instanceof HTMLInputElement ? el.value : ''
+}
+
+function onChoosePerson(id: string | null) {
+  chosenPerson.value = id
+  personQuery.value = ''
+}
+
+async function addChosen() {
+  const id = String(chosenPerson.value || '')
+  if (!id || busy.value || !canAdd.value) return
+  await pick(id)
+  if (localMembers.value.includes(id)) {
+    chosenPerson.value = null
+    personQuery.value = ''
+  }
 }
 
 async function removePerson(id: string) {
@@ -491,11 +538,79 @@ async function onToggle(ev: Event) {
 }
 .member-rows li span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .member-rows .icon-btn { margin-inline-start: auto; }
-.channel-properties__head .icon-btn.is-open {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border);
-}
 .channel-properties__head .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.people-add {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+.people-add__combo {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.people-add__control {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-composer);
+}
+.people-add__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--color-fg);
+  font: inherit;
+}
+.people-add__chevron {
+  flex: 0 0 auto;
+  min-width: 40px;
+  min-height: 40px;
+  border: 0;
+  border-inline-start: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.people-add__options {
+  position: absolute;
+  z-index: 2;
+  inset-inline-start: 0;
+  top: calc(100% + 4px);
+  width: 100%;
+  max-height: 16rem;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  overflow: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.28);
+}
+.people-add__option,
+.people-add__empty {
+  padding: 8px 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.people-add__option { cursor: pointer; }
+.people-add__option.is-active { background: var(--color-surface-hover); }
+.people-add__option.is-selected { font-weight: 600; }
+.people-add > .btn { flex: 0 0 auto; min-height: 40px; }
+.people-add__input:disabled,
+.people-add__chevron:disabled,
+.people-add > .btn:disabled {
   opacity: 0.4;
   cursor: default;
 }

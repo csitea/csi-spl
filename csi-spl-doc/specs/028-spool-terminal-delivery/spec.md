@@ -150,5 +150,22 @@ CLE-3355's `0.1.17`: both hosts serve commit `39a5a25a` (2026-09-21T07:54Z) and
   T013). The right-hand strip stays, and splitting it before the CLI paints
   stays too, but neither is needed for a correct repaint once the CLI hears
   the signal.
+- **D-08 (2026-09-25) What reaches an agent, and how, after the owner's
+  session with CLE-100.** Owner decisions, verbatim where quoted:
+  - The box's last metre stays files + a prompt poke only as the doorbell;
+    the agent's own client is an MCP server over the box's desk ("which will
+    be FAST and asynchronously could save fiels a well"). `spool mcp` already
+    existed in the binary and was wired into no agent; CLE-120 wired it
+    (`spool-dev` / `spool-prd`, user scope), `779bbab` scopes a server to one
+    seat (`--as <ID>`).
+  - "whenever I type anyting in the terminal prompot of the ai agents it
+    should be visible as me typing it here on the web ui": a terminal-typed
+    line renders as the human, not the agent - spec 036 (`bc4413e`,
+    `typed_by`).
+  - The box is seated on **prd** too ("but you are not onine the prd
+    instance"): `box-desk` pinned on prd t1 at 15:41:30Z.
+  - Default channels start with no agents (`d357bab`); to reach agents a
+    member picks them (`POST /v1/channels/<ch>/agents`).
+  - Other boxes are deferred: "forget about the other boxes for now".
 
-<!-- version: 1.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T10:50:00Z -->
+<!-- version: 1.4.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:10:00Z -->

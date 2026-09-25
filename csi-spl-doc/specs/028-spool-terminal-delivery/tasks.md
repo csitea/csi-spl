@@ -115,5 +115,53 @@ the owner.
   subject receive SIGWINCH the way a `su --pty` agent does, so the gate
   measures the real case [unowned]
 
-<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T10:50:00Z -->
+## Phase 7 — Every agent reachable, on dev AND prd (D-08)
 
+Measured by CLE-100 on box-desk, 2026-09-25, trunk as named per line.
+
+- [x] T070 Implemented — setup guides for agents,
+  `csi-spl-doc/doc/md/isg/{claude,grok,antigravity}-agent-setup.ISG.md`
+  (`dabd51a`, `d708f8c`, `ef7d902`; grok updated by GRK-333 `71e5c63`). Claude
+  verified step by step; grok/agy carry a NOT TESTED banner. Confirmed by
+  CLE-3494 (all steps), CLE-120 and CLE-555 (local seat ok, 5.1 hit the
+  fleet-wide login 429 -> section 5.0).
+- [x] T071 Implemented — a stranded desk heals itself: `c7f2767` (hubclient
+  redials when the hub no longer knows the session), `8bc66ab` (reconcile
+  restarts a stranded sidecar) [lane CLE-34964]. First live self-heal:
+  15:01:26Z, back up in 2 s, no repair (n=1).
+- [x] T072 Implemented — box-desk seated on **prd** t1 (first pin 15:41:30Z,
+  `do_spl_desk_up` from origin/master `5a4fecb`, `do_spl_desk_check ENV=prd` ->
+  reachable, n=1). CLE-001 seats the rest box-wide.
+- [x] T073 Implemented — all 18 box-desk agents picked into dev #lobby (201
+  x18); the how-to post reached 18/18 inboxes (`51e7e8cc`). prd lobby post
+  `1c4e58e5` (is_parent 1) + reply `4abecaee` with the three guides attached,
+  because the GitHub links 404 for anyone outside the private repo; member GET
+  200 x3 with sha256 == file_id, anonymous 401 (dev reply `43e9a33c` the same).
+- [~] T074 Partial — agents talk to the hub through MCP instead of files +
+  `do_spl_desk_reply`: `spool mcp` registered for the Claude agents by CLE-120
+  (`~<agent-user>/.local/bin/spool-mcp`, NOT yet in git), `779bbab` `--as <ID>`
+  scoping [CLE-34975, stood down after the collision]. Missing: the wrapper as
+  a tracked script + action + test, grok/agy registration, latency (tool call
+  -> hub received_at, n), and the guide's section 6 switched to MCP
+  [lane CLE-120; guide CLE-100].
+- [ ] T075 Planned — one notice strip that shows BOTH envs: the strip tails
+  only the dev log, prd notices go to their own log and are never shown;
+  `spool_show_notice_pane` adopts a pane by `@spool_notices=<id>` without
+  checking its log [lane CLE-34974].
+- [ ] T076 Planned — `do_spl_desk_reply` spends ~3.3 s before it sends:
+  run.sh 0.5 s, `do_spl_cloud_cnf` 1.1 s, `spl_host_spool` 2.2 s (a Go re-link
+  every call: `build.sh` stamps `-X main.builtAt=$(date)`), recv 0.02 s; the
+  hub received the reply within 1 s of the send (n=2-3 each). The re-link also
+  overwrites the sidecar's binary from whatever tree runs the action - from the
+  stale shared checkout that drops `c7f2767` [lane CLE-34974].
+- [ ] T077 Planned — a terminal-typed line shows as the human (spec 036
+  `typed_by`) [lane CLE-3496].
+- [ ] T078 Planned — the shared checkout /opt/csi/csi-spl is 40+ commits
+  behind and dirty (24 files of other lanes), and the 5-minute reconcile cron
+  runs from it, so the cron runs neither T071 fix [owner decision: who
+  cleans it].
+- [ ] T079 Planned — a prd reconcile cron (the crontab carries ENV=dev only)
+  and picking prd agents into prd #lobby once CLE-001 has seated them.
+
+
+<!-- version: 1.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:10:00Z -->

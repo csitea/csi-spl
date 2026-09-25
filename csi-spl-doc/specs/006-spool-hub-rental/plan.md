@@ -28,7 +28,7 @@ prefix `t/<tenant>/files/<sha256>` from day one (003 data model).
   `0025_checkout_buyer_locale.sql`, `0041_tenants_display_name.sql`.
 - **cnf**: `csi-spl-cnf/csi-spl/all.env.yaml` hub env — `SPOOL_HUB_TENANT_HOST_PATTERN`
   (from `env.dns.fqdn`; legacy since 026 but still required at boot,
-  `internal/config/config.go:335` — spec OQ-006-5), `SPOOL_HUB_QUOTA_*`, `SPOOL_HUB_BILLING_GRACE`,
+  `internal/config/config.go:241` field, fail-fast `:350-351` — spec OQ-006-5), `SPOOL_HUB_QUOTA_*`, `SPOOL_HUB_BILLING_GRACE`,
   `SPOOL_HUB_PAYMENT_*`. Binaries bake no host and no vendor.
 - **Routing (026)**: one API host per env, cnf `env.dns.api_fqdn`
   (`api.spool-hub.ai`, `dev.api.spool-hub.ai`); the tenant comes from the
@@ -42,7 +42,7 @@ prefix `t/<tenant>/files/<sha256>` from day one (003 data model).
 
 ## Constitution Check
 
-- [x] II — no baked hub host: API host and legacy pattern from cnf (`server.go:143` rejects a pattern not starting `{tenant}.`).
+- [x] II — no baked hub host: API host and legacy pattern from cnf (`internal/config/config.go:350-351` rejects a pattern not starting `{tenant}.`).
 - [x] V — no payment-vendor name in source: Go (`no-baked-host.tst.sh`) + WUI gates (T015).
 - [x] VII — no root private key in DB: `tenants.root_pubkey` is a 32-byte CHECK; `0003` stores the public half only.
 - [x] VIII — same verbs: 002/003, not this lane.
@@ -73,4 +73,4 @@ FR-006 is dropped or re-targeted is spec OQ-006-4.
 `3690211` without its per-tenant quota columns, which nothing enforced;
 per-plan quotas wait on OQ-006-1.
 
-<!-- version: 1.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:23:33Z -->
+<!-- version: 1.3.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:43:36Z -->

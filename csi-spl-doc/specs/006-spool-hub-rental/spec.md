@@ -254,7 +254,7 @@ queue, file upload token — 003 `contracts/http-v1.md` and trust-modes §4–§
   prd is public (`ingress: all`). Drop FR-006, or re-target it at the in-app
   edge limits (017 T010)?
 - **OQ-006-5** Retire `SPOOL_HUB_TENANT_HOST_PATTERN` (still required at boot,
-  `internal/config/config.go:335`; rendered in `dev.env.json` / `prd.env.json`)
+  `internal/config/config.go:241` field, fail-fast `:350-351`; rendered in `dev.env.json` / `prd.env.json`)
   and the legacy `url` output of `do_spl_tenant_create`
   (`spl-tenant-create.func.sh:22`), now that `mapped_tenants: []` in both envs?
 - **OQ-006-6** Tenant display name (FR-018) is recorded here because 006 owns
@@ -267,4 +267,4 @@ queue, file upload token — 003 `contracts/http-v1.md` and trust-modes §4–§
 NATS, Kafka, git-rel, ysg-box, customer GCP accounts, card storage, custom
 domains, seats (M4), WUI (005).
 
-<!-- version: 1.4.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:23:33Z -->
+<!-- version: 1.4.1 · updated: 2026-09-25 · last-edit: 2026-09-25T19:43:36Z -->

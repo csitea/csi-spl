@@ -67,8 +67,8 @@ const props = withDefaults(
   defineProps<{
     open: boolean
     title: string
-    /** `lg` fills most of the viewport (source, previews); `md` is a plain dialog. */
-    size?: 'md' | 'lg'
+    /** `lg` fills most of the viewport (source); `xl` is 90% of it both ways (a picture); `md` is a plain dialog. */
+    size?: 'md' | 'lg' | 'xl'
   }>(),
   { size: 'lg' },
 )
@@ -184,6 +184,7 @@ onUnmounted(() => {
 }
 .ui-dialog.md { max-width: 560px; }
 .ui-dialog.lg { max-width: 1100px; height: 100%; }
+.ui-dialog.xl { width: 90vw; max-width: 90vw; height: 90vh; max-height: 90vh; }
 .ui-dialog:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .ui-dialog__head {
   display: flex;

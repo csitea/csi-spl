@@ -280,7 +280,9 @@ export const useChannelStore = defineStore('channel', () => {
       text,
       parent_task_id: parentTaskId,
       is_parent: isParent === 0 ? 0 : 1,
-      files,
+      /* refs, as on the live path: a raw File on the row renders a card with no
+         file_id, so the mock could show neither Download nor a preview */
+      files: await toFileRefs(files),
     })
     const row = body as unknown as FeedMessage
     /* a reply into another channel must not appear in this feed */

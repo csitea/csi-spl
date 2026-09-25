@@ -738,3 +738,16 @@ declare module '~/utils/theme.mjs' {
   export function applyThemeAttr(theme: unknown, el?: { setAttribute?(k: string, v: string): void } | null): SpoolTheme
 }
 
+
+declare module '~/utils/file-preview.mjs' {
+  export const PREVIEW_MAX_BYTES: number
+  export function isPreviewableImage(name: string | null | undefined, bytes?: number | null): boolean
+  export type FileKind = 'pdf' | 'doc' | 'sheet' | 'slides' | 'image' | 'archive' | 'code' | 'media' | 'other'
+  export function fileExt(name: string | null | undefined): string
+  export function fileKind(name: string | null | undefined): {
+    kind: FileKind
+    icon: 'file' | 'file-text' | 'file-spreadsheet' | 'file-slides' | 'file-image' | 'file-archive' | 'file-code' | 'file-media'
+    ext: string
+  }
+  export function readDataUrl(file: Blob): Promise<string>
+}

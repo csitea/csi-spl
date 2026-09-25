@@ -98,7 +98,15 @@
         <p v-if="global" :id="slashHintId" class="sr-only">{{ t('search.slash_shortcut') }}</p>
         <ul v-if="picked.length" class="file-chips">
           <li v-for="(f, i) in picked" :key="f.name + i">
-            📎 {{ f.name }} <small>{{ t('composer.file_bytes', { n: f.size }) }}</small>
+            <img
+              v-if="thumbs.get(f)"
+              class="file-chip-thumb"
+              data-test="composer-file-thumb"
+              :src="thumbs.get(f)"
+              :alt="f.name"
+            >
+            <UiIcon v-else :name="fileKind(f.name).icon" :size="16" class="file-kind-icon" :data-kind="fileKind(f.name).kind" />
+            {{ f.name }} <small>{{ t('composer.file_bytes', { n: f.size }) }}</small>
             <button
               type="button"
               class="icon-btn"
@@ -137,6 +145,7 @@
           type="button"
           class="attach"
           data-testid="attach"
+          @mousedown.prevent
           @click="openFiles"
         >📎 {{ t('composer.attach') }}</button>
         <input
@@ -155,6 +164,7 @@
           type="submit"
           class="composer-send"
           data-testid="send"
+          @mousedown.prevent
           :aria-disabled="cannotSend ? 'true' : 'false'"
         >{{ busy ? t('composer.sending') : t('composer.send') }}</button>
       </div>
@@ -170,6 +180,7 @@ import { useViewerStore } from '~/stores/viewer'
 import { closeOpenFence, enterAction, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
 import { omniboxFocusHeight, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
 import { sendLimitError } from '~/utils/code-view.mjs'
+import { fileKind, isPreviewableImage, readDataUrl } from '~/utils/file-preview.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
@@ -211,6 +222,18 @@ const emit = defineEmits<{
   results: []
 }>()
 const picked = ref<File[]>([])
+/* a picked picture shows a thumbnail before it is sent (a data: URL: the
+   deployed CSP admits no blob:); every other file shows its type icon */
+const thumbs = shallowRef(new Map<File, string>())
+watch(picked, async (files) => {
+  const next = new Map<File, string>()
+  for (const f of files) {
+    const had = thumbs.value.get(f)
+    if (had) next.set(f, had)
+    else if (isPreviewableImage(f.name, f.size)) next.set(f, await readDataUrl(f))
+  }
+  thumbs.value = next
+}, { deep: true })
 const roster = useRosterStore()
 const viewer = useViewerStore()
 const channelFeed = useChannelStore()
@@ -270,6 +293,10 @@ function onOmniboxBlur(ev: FocusEvent) {
   if (next instanceof Element && next.closest('[data-test="omnibox-resize"]')) return
   collapseGlobalBox(true)
 }
+/* Attach and Send swallow their mousedown (@mousedown.prevent): the focus
+   stays in the box, so the blur above does not snap a tall draft to one line
+   the moment the reader reaches for Attach (measured 126px -> 36px on the
+   mock, 2026-09-25). The click itself fired either way in Chromium. */
 /* field-sizing is not enough inside the top-bar flex row: the used height
    stays one line. Measure the text and set the height. Only the field grows.
    The automatic size stops at 40% of the window; the grip can go to the
@@ -788,6 +815,24 @@ textarea.in-code {
   gap: 6px;
   max-width: 100%;
   min-width: 0;
+}
+.file-kind-icon {
+  vertical-align: middle;
+  margin-right: 4px;
+  color: var(--color-muted);
+}
+.file-kind-icon[data-kind="pdf"] { color: #d93025; }
+.file-kind-icon[data-kind="doc"] { color: #2b6cd4; }
+.file-kind-icon[data-kind="sheet"] { color: #1e8e3e; }
+.file-kind-icon[data-kind="slides"] { color: #e8710a; }
+.file-chip-thumb {
+  display: inline-block;
+  vertical-align: middle;
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  margin-right: 4px;
 }
 .file-chips li {
   font-size: 12px;

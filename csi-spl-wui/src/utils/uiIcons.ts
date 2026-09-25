@@ -122,6 +122,62 @@ export const UI_ICON_PATHS = {
     "M10 11v6",
     "M14 11v6",
   ],
+  // Attachment of no known type (lucide file).
+  "file": [
+    "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
+    "M14 2v4a2 2 0 0 0 2 2h4",
+  ],
+  // Attachment: a document or a PDF (lucide file-text).
+  "file-text": [
+    "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
+    "M14 2v4a2 2 0 0 0 2 2h4",
+    "M10 9H8",
+    "M16 13H8",
+    "M16 17H8",
+  ],
+  // Attachment: a spreadsheet (lucide file-spreadsheet).
+  "file-spreadsheet": [
+    "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
+    "M14 2v4a2 2 0 0 0 2 2h4",
+    "M8 13h2",
+    "M14 13h2",
+    "M8 17h2",
+    "M14 17h2",
+  ],
+  // Attachment: a slide deck.
+  "file-slides": [
+    "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
+    "M14 2v4a2 2 0 0 0 2 2h4",
+    "M8 12h8v5H8z",
+  ],
+  // Attachment: a picture that does not preview.
+  "file-image": [
+    "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
+    "M14 2v4a2 2 0 0 0 2 2h4",
+    "M10 10a1.5 1.5 0 1 1 0 3 1.5 1.5 0 1 1 0-3z",
+    "m20 17-3-3-8 8",
+  ],
+  // Attachment: an archive (zip, tar, ...).
+  "file-archive": [
+    "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
+    "M14 2v4a2 2 0 0 0 2 2h4",
+    "M10 7V6",
+    "M10 12v-2",
+    "M10 17v-2",
+  ],
+  // Attachment: source code or structured text (lucide file-code).
+  "file-code": [
+    "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
+    "M14 2v4a2 2 0 0 0 2 2h4",
+    "m10 12-2 2 2 2",
+    "m14 16 2-2-2-2",
+  ],
+  // Attachment: audio or video.
+  "file-media": [
+    "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
+    "M14 2v4a2 2 0 0 0 2 2h4",
+    "m10 11 5 3-5 3z",
+  ],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

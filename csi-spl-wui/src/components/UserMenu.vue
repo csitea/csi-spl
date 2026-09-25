@@ -273,7 +273,7 @@ watch(signedIn, (v) => { if (!v) close(false) })
 .user-menu__panel {
   position: absolute;
   top: calc(100% + 6px);
-  right: 0;
+  inset-inline-end: 0;
   width: 272px;
   max-width: 272px;
   background: var(--color-bg-2);
@@ -309,7 +309,7 @@ watch(signedIn, (v) => { if (!v) close(false) })
   background: transparent;
   color: var(--color-fg);
   font-size: 0.875rem;
-  text-align: left;
+  text-align: start;
   text-decoration: none;
   cursor: pointer;
 }

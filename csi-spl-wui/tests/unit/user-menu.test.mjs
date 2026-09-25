@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   avatarMode, menuButtonLabel, ownAvatarUrl, menuButtonLabelKey, methodLabel, methodLabelKey, nextMenuIndex, signInRedirect, userIdentity, userInitials,
 } from '../../src/utils/user-menu.mjs'
@@ -122,5 +123,17 @@ describe('CLE-3406: the corner shows the person\'s own IdP picture', () => {
   it('CONTROL: signed out -> no request (the sign-in entry shows)', () => {
     assert.equal(ownAvatarUrl('https://h', null), '')
     assert.equal(ownAvatarUrl('https://h', undefined), '')
+  })
+})
+
+describe('user menu panel is RTL-safe (spec 021 FR-004: logical properties)', () => {
+  const css = readFileSync(new URL('../../src/components/UserMenu.vue', import.meta.url), 'utf8').split('<style')[1] || ''
+  it('anchors the panel to the inline end and aligns items to the start', () => {
+    assert.match(css, /\.user-menu__panel \{[^}]*inset-inline-end: 0;/)
+    assert.match(css, /\.user-menu__item \{[^}]*text-align: start;/)
+  })
+  it('CONTROL: no physical left/right offset or left/right text-align in the menu styles', () => {
+    assert.doesNotMatch(css, /(^|[\s;{])(left|right): /m)
+    assert.doesNotMatch(css, /text-align: (left|right)/)
   })
 })

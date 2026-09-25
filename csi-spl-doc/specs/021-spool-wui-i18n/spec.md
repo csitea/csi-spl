@@ -20,7 +20,7 @@
 | URL scheme | `prefix_except_default` (`nuxt.config.ts:360`): default unprefixed, others `/<code>/…` | same |
 | detection | module detection OFF (`nuxt.config.ts:392`); a blocking `<head>` script on `/` only: cookie → `navigator.languages` → default, crawlers exempt (`src/utils/rootLocaleRedirect.mjs`) | copied verbatim |
 | persistence | cookie `i18n_redirected` (1 y, `SameSite=Lax`) written on every switch (`src/plugins/locale-cookie.client.ts`); localStorage mirror `csi-rel-lang` (`src/components/LanguageSwitcher.vue`) | same; mirror key `csi-spl-lang` |
-| switcher | `LanguageSwitcher.vue`: searchable combobox (flag + endonym + code; matches endonym, English exonym, code, IETF tag, region; fold-insensitive; filter from 2 chars; `src/utils/localeSearch.ts`), in `AppHeader` top-right and `MobileMenu`; switching = `navigateTo(switchLocalePath(code))` keeping query + hash | same component; sits top-right in the app corner (before the user menu, CLE-3402) and in the sign-in frame's corner (the spool has no header bar) |
+| switcher | `LanguageSwitcher.vue`: searchable combobox (flag + endonym + code; matches endonym, English exonym, code, IETF tag, region; fold-insensitive; filter from 2 chars; `src/utils/localeSearch.ts`), in `AppHeader` top-right and `MobileMenu`; switching = `navigateTo(switchLocalePath(code))` keeping query + hash | same component; sits in the 022 top bar's end cluster before the user menu (`TopBar.vue:65`) and in the sign-in frame's corner (`layouts/login.vue:23`) |
 | SEO | `useLocaleHead({dir,lang,seo})` → `<html lang dir>`, hreflang alternates; `he` = `dir: 'rtl'` (`src/app.vue`) | same (the WUI is noindex; hreflang kept for parity) |
 | preferred language | `users.preferred_locale`, set at register from the UI locale, edited on `/account` with `LocaleCombobox` that does NOT switch the UI (`src/pages/account/index.vue:50-61`, `tests/unit/locale-combobox.test.mjs`) | `humans.preferred_locale`, edited on `/settings` with `LanguageSetting.vue` (`LocaleCombobox`, no UI switch); owner addition: applied once after sign-in (`plugins/preferred-locale.client.ts`) |
 | API locale | `X-Locale` header wins over `Accept-Language` (`csi-rel-api/src/internal/i18n/i18n.go:60-72`) | same header, sent by the auth client |
@@ -45,6 +45,21 @@
 - FR-008 The default locale is one cnf value (`env.i18n.default_locale`)
   shared by the WUI build and the hub.
 
+### 3.1 Status (trunk `28442ef6`, n=1, `git grep` / unit runs)
+
+| FR | status | evidence |
+|---|---|---|
+| FR-001 | Implemented | T010, T011, T040; `node tests/unit/i18n-parity.test.mjs` -> all checks passed; no literal `aria-label`/`title`/`placeholder` text in `src/**/*.vue` |
+| FR-002 | Implemented | T003, T030 (`locale-switch.proof.mjs` 43/43) |
+| FR-003 | Implemented | T002, T003 (`root-locale-redirect.test.mjs`) |
+| FR-004 | Partial | `lang`/`dir`/hreflang Implemented (T003, T031); the user-menu panel now uses `inset-inline-end` / `text-align: start` (T042, unit guard); missing: a browser proof of the opened menu at `he` |
+| FR-005 | Implemented | T005, T020, T021, T022, T032 |
+| FR-006 | Implemented | T005a, T021, T022 (`auth/handler.go` `RequestLocale`: X-Locale > Accept-Language > default) |
+| FR-007 | Implemented | T031 (`no-x-scroll.test.mjs`, 19 locales) |
+| FR-008 | Implemented | T006; WUI via `30_wui-build-deploy.yml:187-215`, hub via `csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh:42-43` (env.i18n.default_locale -> `SPOOL_HUB_DEFAULT_LOCALE`) |
+
+Beyond this spec, in the same code (no FR here): the `federated_signin` and `tenant_invite` mails are localized too (`internal/mail/templates/*` -> 38 files each = 19 x subject+txt); `members_admin.go:165` mails invites in the request's `X-Locale`; `X-Locale` is also in the CORS allow-lists of `channel_members.go`, `channels.go`, `edit.go`, `rbac.go`; `PUT /api/v1/auth/preferences` also carries `diagnostics_enabled` (rdb 0038); WUI helpers `utils/localeTargetPath.mjs`, `composables/useLocaleSwitch.ts`, `python/i18n/find_dead_keys.py`.
+
 ## 4. Open questions (owner)
 
 - **OQ-1 default locale.** Answered by the owner 2026-09-19: **`en`**.
@@ -56,3 +71,5 @@
   Effect of `en`: every unprefixed URL (`/login`, `/channel/general`, mailed
   links for a person with no preference) renders English; browsers asking
   for another shipped language are redirected from `/` only.
+
+<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:33:59Z -->

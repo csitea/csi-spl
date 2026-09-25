@@ -38,8 +38,8 @@ named) · `[ ]` Planned (`../README.md` §2.3).
   `~/.claude/settings.json` (backup `settings.json.bak.20260925T130215Z`, no
   other key changed). Missing: claude-config still HOLDS that file (edited
   locally since the last apply: `switchModelsOnFlag`, `hooks`) until those
-  edits are carried into the overlay. A CLI reads hooks when it starts, so a
-  live session mirrors from its next restore / spawn.
+  edits are carried into the overlay. Running Claude sessions picked the
+  hooks up without a restart: 6 seats posted by 13:25Z (`.mirror/mirror.log`).
   Check: `do_spl_desk_mirror_check` -> `hooks_in_settings: true`; the
   configured command as CLE-3496 -> `OK answer -> HUM-9 task f3b889a8-…`.
 - [x] T031 Implemented (2026-09-25 13:01Z) — the `box-desk` sidecar
@@ -53,4 +53,4 @@ named) · `[ ]` Planned (`../README.md` §2.3).
   (as the box user). A seat with no backfill yet runs
   `do_spl_desk_session_upload`, which lands in the mirror's topic by itself.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T13:03:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T13:27:00Z -->

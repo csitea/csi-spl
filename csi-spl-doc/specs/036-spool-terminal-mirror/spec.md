@@ -88,8 +88,11 @@ The hooks JSON is printed by `do_spl_desk_mirror_settings`:
 
 ## Rollout
 
-A CLI reads its hooks when it starts. Live sessions pick the mirror up on
-their next restore or spawn, once the hooks are in the agent user's
+Running sessions pick the mirror up WITHOUT a restart (measured 2026-09-25:
+the hooks were merged into the agent user's `~/.claude/settings.json` at
+13:02Z and, within 30 minutes, six running Claude sessions - CLE-001,
+CLE-3493, CLE-3494, CLE-3495, CLE-34961, CLE-3496 - had posted `OK prompt` /
+`OK answer` lines in their seat's `.mirror/mirror.log`), once the hooks are in the agent user's
 `~/.claude/settings.json` (the box's claude-config fragment, owned by the
 org overlay; applying it is an owner action). The web UI → terminal leg
 records `typed` / `peer` only when the desk's sidecar runs a notifier from a
@@ -119,4 +122,4 @@ tree's notifier), so the live `box-desk` and its seats were not restarted.
   n=2 rows — the `[terminal]` prompt and the answer; the session-end `Stop`
   posted nothing.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T12:45:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T13:27:00Z -->

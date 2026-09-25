@@ -77,10 +77,17 @@ spool_valid_id "$TO" || exit 2
 #    the pane and the prompt is theirs - the orchestrator's own seat, where a
 #    queue that had waited out a long busy prompt delivered a batch of
 #    already-answered notices in one burst (measured 2026-09-21).
+#
+#    A PROBE line (body starts with [spool-probe], specs/017 FR-SEC-010) is
+#    never offered: automated test traffic is shown, and no agent acts on it.
+#    Anything else is offered with its provenance in front (FR-SEC-011/012).
 rc=0
-if [ "${SPOOL_POKE:-1}" != 0 ] && ! spool_poke_muted "$TO"; then
-  spool_notify_render _line "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
-  spool_notify_poke "$TO" "$_line" "$BODY" "$FROM"
+probe=0
+spool_notify_is_probe "$BODY" && probe=1
+if [ "$probe" = 0 ] && [ "${SPOOL_POKE:-1}" != 0 ] && ! spool_poke_muted "$TO"; then
+  spool_notify_frame _frame "$TO" "$FROM" "$TASK" "$MSGID"
+  spool_notify_render _line "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "${_frame}${BODY}"
+  spool_notify_poke "$TO" "$_line" "${_frame}${BODY}" "$FROM"
   rc=$?
 fi
 
@@ -90,6 +97,10 @@ spool_poke_show "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
 #    And remember which human DM this was, for the terminal mirror (036).
 spool_notify_mark_peer "$TO" "$FROM" "$TASK" "$MSGID"
 
+if [ "$probe" = 1 ]; then
+  echo "poke: probe line (${SPOOL_PROBE_MARK}) - ${TO} was SHOWN it; its prompt was not touched"
+  exit 0
+fi
 if [ "${SPOOL_POKE:-1}" = 0 ]; then
   echo "poke: off (SPOOL_POKE=0) - ${TO} was SHOWN the message; its prompt was not touched"
   exit 0

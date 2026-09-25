@@ -10,6 +10,7 @@ import {
   SIGNED_OUT_LOCALE_CODES,
   isProductScreen,
   productPath,
+  signedOutLoginHref,
   signedOutLoginTarget,
 } from '../../src/utils/signed-out-redirect.mjs'
 import { loginBarTitle } from '../../src/utils/login-title.mjs'
@@ -107,6 +108,24 @@ describe('the redirect lives in one middleware, not on each page', () => {
     assert.match(s, /isProductScreen/)
     assert.match(s, /session\.probe\(\)/)
     assert.match(s, /localePath\('\/login'\)/)
+    // First paint of a prerendered product page must load the login document.
+    // A client-side layout swap during hydration leaves the shell on screen.
+    const hydratingAt = s.indexOf('nuxtApp.isHydrating')
+    const externalAt = s.indexOf('external: true')
+    const spaAt = s.lastIndexOf("navigateTo({ path: localePath('/login')")
+    assert.ok(hydratingAt >= 0 && externalAt > hydratingAt && spaAt > externalAt)
+    assert.match(s, /signedOutLoginHref/)
+  })
+
+  it('the login document address encodes the path the visitor asked for', () => {
+    assert.equal(signedOutLoginHref('/login', '/'), '/login?redirect=%2F')
+    assert.equal(signedOutLoginHref('/fi/login', '/fi'), '/fi/login?redirect=%2Ffi')
+    assert.equal(
+      signedOutLoginHref('/login', '/search?q=from%3Aalice'),
+      '/login?redirect=%2Fsearch%3Fq%3Dfrom%253Aalice',
+    )
+    assert.equal(signedOutLoginHref('/login', ''), '/login')
+    assert.equal(signedOutLoginHref('/he/login', '/he/lobby'), '/he/login?redirect=%2Fhe%2Flobby')
   })
 
   for (const page of pages) {

@@ -74,3 +74,21 @@ export function signedOutLoginTarget(fullPath, sessionState, mock = false) {
   if (!isProductScreen(fullPath)) return null
   return { path: '/login', query: { redirect: safeRedirect(String(fullPath || '/')) } }
 }
+
+/**
+ * Address of the prerendered login document. `loginPath` is the locale-aware
+ * path (`/login`, `/fi/login`). The redirect query is encoded once.
+ * @param {string} loginPath
+ * @param {string} redirect
+ * @returns {string}
+ */
+export function signedOutLoginHref(loginPath, redirect) {
+  const path = String(loginPath || '/login')
+  const value = String(redirect || '')
+  if (!value) return path
+  const hashAt = path.indexOf('#')
+  const hash = hashAt >= 0 ? path.slice(hashAt) : ''
+  const before = hashAt >= 0 ? path.slice(0, hashAt) : path
+  const joiner = before.includes('?') ? '&' : '?'
+  return `${before}${joiner}${new URLSearchParams({ redirect: value }).toString()}${hash}`
+}

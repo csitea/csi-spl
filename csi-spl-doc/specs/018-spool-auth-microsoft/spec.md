@@ -92,7 +92,9 @@ What "all auth with Microsoft Azure" adds on top:
   the optional claim `xms_edov` ("email domain owner verified") is true (JSON
   `true`, `"true"` or `1`). Otherwise the result is `auth_error=email_unverified`.
   `SPOOL_HUB_AUTH_MICROSOFT_TRUST_EMAIL=true` is the owner's override that
-  skips the `xms_edov` requirement. It is refused in `prd`. **Implemented** (T010, T012).
+  skips the `xms_edov` requirement. It is refused in `prd` whenever `microsoft`
+  is an enabled provider (`config.go` checks it in `validateProvider`, which runs
+  only for listed providers). **Implemented** (T010, T012).
 - **FR-006 — Avatar.** None from Microsoft in this feature. The Graph photo
   needs `User.Read` and an authenticated fetch, so the WUI shows initials.
   **Planned** (T030, only if the owner asks).
@@ -127,7 +129,8 @@ What "all auth with Microsoft Azure" adds on top:
   Microsoft's four-square mark, following Microsoft's sign-in branding (light
   theme: white `#FFFFFF`, 1px `#8C8C8C` border, text `#5E5E5E`). It shows only
   when `/api/v1/auth/providers` lists `microsoft`. The WUI lane owns the code
-  (CLE-55). This spec only writes down the change (T025).
+  (CLE-55). **Implemented** (e8c2f75, T025: `social-logo-microsoft` in
+  `SocialAuthButtons.vue`, `continue_microsoft` in 19/19 locales).
 - **FR-012 — Rollout.** dev first, then prd. A provider is listed only after
   (1) its app exists, (2) the client id is in cnf, (3) the secret has a
   version. The hub image must carry this feature's code (deploy lane). See
@@ -144,12 +147,13 @@ yq -r '.env.auth.social.env.SPOOL_HUB_AUTH_MICROSOFT_REDIRECT_URI' csi-spl-cnf/c
 ```
 
 On 2026-09-19 that is `https://dev.spool-hub.ai/api/v1/auth/microsoft/callback`
-(dev) and `https://spool-hub.ai/api/v1/auth/microsoft/callback` (prd). The API
-is moving to its own Cloud Run hosts (`dev.api.spool-hub.ai`,
-`api.spool-hub.ai`, CLE-3382), and the WUI will call the hub cross-origin
-(CLE-3354, CLE-3380). Whichever host ends up carrying the callback, the
-registration must already hold it. So register **both** per env (Entra
-allows up to 256 per app):
+(dev) and `https://spool-hub.ai/api/v1/auth/microsoft/callback` (prd).
+**Decided** (010 OQ-A2, 019 FR-L5): the callback stays on the WUI apex, which
+Firebase Hosting rewrites to the hub (`csi-spl-wui/firebase.json`:
+`"source": "/api/v1/auth/**"`); `csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh`
+derives `<APP_URL>/api/v1/auth/<p>/callback`. Register the apex URI. The
+api-host URI below is optional: the hub never sends it (Entra allows up to
+256 per app):
 
 | env | redirect URIs on that env's app |
 |---|---|
@@ -211,4 +215,4 @@ Graph API access beyond sign-in, Entra app roles or groups as privilege (an IdP
 never mints privilege, 010), Azure AD B2C / External ID customer tenants, the
 device-code flow for the CLI, and single sign-out.
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:40:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:40:00Z -->

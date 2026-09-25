@@ -51,7 +51,7 @@ If you choose another OQ-M1 answer, the account type and cnf must match:
 ### 2.2 Authentication — the second redirect URI
 
 *Authentication* → *Web* → *Add URI*: `https://dev.api.spool-hub.ai/api/v1/auth/microsoft/callback`
-(the API host being moved in by CLE-3382; spec §3). Leave these alone:
+(optional; the hub sends only the apex URI, spec §3). Leave these alone:
 - *Access tokens* and *ID tokens* under *Implicit grant and hybrid flows*: **unchecked**
   (the hub uses the authorization-code flow with PKCE)
 - *Front-channel logout URL*: empty
@@ -208,4 +208,4 @@ the hub refuses `true` in prd.
 | "Need admin approval" | publisher not verified (OQ-M5) | §5, or that tenant's admin consents |
 | the hub does not start after the flip | a `SPOOL_HUB_AUTH_MICROSOFT_*` value is unset or `PLACEHOLDER-*` | the boot log names the variable |
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:40:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:40:00Z -->

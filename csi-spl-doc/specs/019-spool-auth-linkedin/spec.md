@@ -97,7 +97,7 @@ Consequences:
   dev `https://dev.spool-hub.ai/api/v1/auth/linkedin/callback`,
   prd `https://spool-hub.ai/api/v1/auth/linkedin/callback`.
   An API-host callback URI is declined (`redirect_uri_mismatch` measured 2026-09-19).
-- **FR-L6** — Owned by CLE-55 (WUI): the login page shows a LinkedIn brand mark next to
+- **FR-L6** — **Implemented** (e8c2f75, T031; CLE-55 owns the WUI): the login page shows a LinkedIn brand mark next to
   "Continue with LinkedIn" (the button itself already appears when the hub lists
   `linkedin`: the list is registry-driven).
 - **FR-L7** — Planned (T051/T052, blocked on the owner): `linkedin` is listed in
@@ -140,7 +140,7 @@ Console steps: `owner-runbook.md`.
 - **SC-L3** (per env, after the owner's file) — `curl -s https://<api host>/api/v1/auth/providers`
   lists `linkedin`; `curl -s -i https://<api host>/api/v1/auth/linkedin/start | grep -i ^location`
   shows `www.linkedin.com/oauth/v2/authorization` with the cnf client id and the
-  registered redirect URI; a browser sign-in logs `auth.login_ok` with `p=linkedin`.
+  registered redirect URI; a browser sign-in logs `auth.login_ok provider=linkedin`.
 
 ## 7. Open questions (owner) — each with the recommended default
 
@@ -160,9 +160,9 @@ Console steps: `owner-runbook.md`.
   userinfo only**, like Google here: the identity comes server-to-server over TLS with
   the token just issued to our confidential client. (b) Also verify the `id_token`
   (issuer `https://www.linkedin.com/oauth`, `aud` = client id, JWKS) and its `nonce`,
-  reusing 018's `idtoken.go` once it lands. Not needed for correctness; revisit if an
+  reusing 018's `idtoken.go` (`verifyRS256`, `jwksCache`; landed 4dc854e). Not needed for correctness; revisit if an
   auditor asks.
 - **OQ-L5 — prd rollout timing.** Recommended: prd only after one owner sign-in on dev
   succeeds end to end (T051). T030 apex callbacks are already the rendered cnf on both envs.
 
-<!-- version: 0.1.0 · updated: 2026-09-19 -->
+<!-- version: 0.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:40:00Z -->

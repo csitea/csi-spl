@@ -11,12 +11,12 @@
 
 ## Phase 2 — Hub (internal/auth)
 
-- [x] T010 Implemented (this commit, see `git log -1 -- csi-spl-api/src/go/spool-hub-api/internal/auth/oidc_linkedin_test.go`) — FR-L2: `validateProvider` case `linkedin` refuses scopes without `openid` + `email`. Check: `go test -run TestConfigLinkedInScopes ./internal/auth/` → ok (4 refused, default + reordered superset admitted).
+- [x] T010 Implemented (e9815b8) — FR-L2: `validateProvider` case `linkedin` refuses scopes without `openid` + `email`. Check: `go test -run TestConfigLinkedInScopes ./internal/auth/` → ok (4 refused, default + reordered superset admitted).
 - [x] T011 Implemented (same commit as T010) — FR-L1/FR-L3: `oidc_linkedin_test.go` pins the real endpoints + scopes and runs `Exchange` against a LinkedIn-shaped stub (client_secret_post checked, id_token in the token body, §1 claims): `email_verified` true / `"true"` admitted with name + avatar; `false`, `"false"`, missing, no email → `errEmailUnverified`; wrong secret → `errExchange`. Check: `go test -race -count=1 ./internal/auth/...` → ok. CONTROL (mutation, n=1): with the `email_verified` guard in `oidc.go` removed, 4 subtests FAIL.
 
 ## Phase 3 — Named action
 
-- [x] T020 Implemented (see `git log -1 -- csi-spl-orc/src/bash/run/spl-auth-idp-secret-seed.func.sh`) — FR-L4: `IDP=<facebook|microsoft|linkedin|xai> ENV=<env> [DRY_RUN=0] ./run -a do_spl_auth_idp_secret_seed`: owner file `$HOME/.gcp/.csi/.spl/<idp>-client-<env>.json` (0600, client_id == cnf), project SA in a throwaway `CLOUDSDK_CONFIG`, `--account` on every secrets call, version only when sha256 differs, verified after the add; a bare-GUID Microsoft secret (Azure "Secret ID") refused (018's request). Check: `bash csi-spl-orc/src/bash/tests/auth-idp-secret-seed.tst.sh` → `ALL PASS` (20 assertions); `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` → `17/17 test files passed`. CONTROL (mutation, n=1): client_id compare + dry-run gate removed → 2 FAIL.
+- [x] T020 Implemented (3c388d9) — FR-L4: `IDP=<facebook|microsoft|linkedin|xai> ENV=<env> [DRY_RUN=0] ./run -a do_spl_auth_idp_secret_seed`: owner file `$HOME/.gcp/.csi/.spl/<idp>-client-<env>.json` (0600, client_id == cnf), project SA in a throwaway `CLOUDSDK_CONFIG`, `--account` on every secrets call, version only when sha256 differs, verified after the add; a bare-GUID Microsoft secret (Azure "Secret ID") refused (018's request). Check: `bash csi-spl-orc/src/bash/tests/auth-idp-secret-seed.tst.sh` → `ALL PASS` (20 assertions); `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` → `17/17 test files passed`. CONTROL (mutation, n=1): client_id compare + dry-run gate removed → 2 FAIL.
 
 ## Phase 4 — Other lanes
 
@@ -26,7 +26,10 @@
 ## Phase 5 — Live (blocked on the owner: `~/.gcp/.csi/.spl/linkedin-client-{dev,prd}.json`)
 
 - [ ] T050 Owner: `owner-runbook.md` §2–§3 for dev and prd.
-- [ ] T051 dev: client id in `dev.env.yaml`, seed (`IDP=linkedin ENV=dev DRY_RUN=0`), list `linkedin`, deploy, SC-L3. The running hub image must be built from a tree containing `e9815b8` (T010): on 2026-09-19 both envs run `spool-hub:0.1.4` (`do_check_hub_deploy` → `current`, CI run 35445875372), a tag built before it, so the listing waits for the next `env.hub.image.tag` bump (deploy lane).
+- [ ] T051 dev: client id in `dev.env.yaml`, seed (`IDP=linkedin ENV=dev DRY_RUN=0`), list `linkedin`, deploy, SC-L3. The running hub image must be built from a tree containing `e9815b8` (T010): image blocker cleared by edf0991 (hub 0.1.6 = 4dc854e, which contains e9815b8; cnf tag 0.5.7 on 2026-09-25). Only the owner's LinkedIn app files remain (`linkedin` unlisted, client id `PLACEHOLDER-*` in dev and prd cnf).
 - [ ] T052 prd: the same, after T051 and T030 are live in prd (OQ-L5).
 
-<!-- version: 0.1.0 · updated: 2026-09-19 -->
+## Spec sync 2026-09-25 (CLE-34983, tree bbe04d26)
+
+- [x] T060 spec <-> code audit, n = every FR, SC and task row of 018 + 019. Implemented claims with no code: none (`go test -run 'Microsoft|LinkedIn|OIDC' ./internal/auth/` ok; `auth-demo` 5/5 providers; `auth-idp-secret-seed.tst.sh` ALL PASS). Fixed: status words on FR-011 / FR-L6 (e8c2f75), the callback host is decided (apex, Firebase rewrite), `auth.login_ok provider=` log field, shas for "this commit", the seed action's identity path, the cleared LinkedIn image blocker. Rollout rows stay **Planned** on the owner's app files: cnf lists only `google` in dev and prd (`yq -r '.env.auth.social.env.SPOOL_HUB_AUTH_PROVIDERS' csi-spl-cnf/csi-spl/{dev,prd}.env.json` -> google, google).
+<!-- version: 0.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:40:00Z -->

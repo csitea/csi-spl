@@ -12,7 +12,7 @@ and email trust depend on the account's tenant. LinkedIn and xAI stay on `oidc.g
 |---|---|
 | `internal/auth/microsoft.go` (new) | `Microsoft` IdP: AuthCodeURL with PKCE S256, `ExchangeNonce` (token → id_token → Identity), tenant rule, `xms_edov` rule |
 | `internal/auth/idtoken.go` (new) | stdlib RS256 JWT verifier + JWKS cache (no new module dependency; `go.mod` untouched) |
-| `internal/auth/idp.go` | `nonceExchanger` optional interface; `newIdP` routes `microsoft` to `newMicrosoft` |
+| `internal/auth/idp.go` | `newIdP` routes `microsoft` to `newMicrosoft` |
 | `internal/auth/handler.go` | callback calls `ExchangeNonce(ctx, code, st.Nonce)` when the IdP implements it (additive) |
 | `internal/auth/config.go` | Microsoft block only: tenant default `common`, tenant syntax, scopes must hold `openid`+`email`, `TRUST_EMAIL` refused in prd |
 | `internal/auth/oidc.go` | drop the `ProviderMicrosoft` case and its endpoint consts (nothing else) |
@@ -82,4 +82,4 @@ The fake IdP issues real RS256 tokens, so the validation runs end to end:
    → commit → 030 apply by the deploy path.
 5. Verify (spec SC-003) on dev, then repeat 2-5 for prd.
 
-<!-- version: 0.1.0 · updated: 2026-09-19 · last-edit: 2026-09-19T13:40:00Z -->
+<!-- version: 0.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:40:00Z -->

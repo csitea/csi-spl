@@ -24,7 +24,7 @@ adds guards and proofs around it, one shared seed action, and the owner inputs.
 IDP=linkedin ENV=dev [DRY_RUN=0] ./run -a do_spl_auth_idp_secret_seed     (from csi-spl-orc)
 ```
 
-1. `do_spl_cloud_cnf` → `$SPL_CNF`, `$SPL_PROJECT`; `do_gcp_pin_account` (per-env SA, `--account` on every call).
+1. `do_spl_cloud_cnf` → `$SPL_CNF`, `$SPL_PROJECT`; the per-env SA key `${SPL_SA_KEY:-$HOME/.gcp/.<org>/key-<project>.json}` is activated in a throwaway `CLOUDSDK_CONFIG`; `do_gcp_isolated_active_account` gives `--account` on every call.
 2. Slot = `.env.auth.social.secret_env.SPOOL_HUB_AUTH_<IDP>_CLIENT_SECRET`; cnf id =
    `.env.auth.social.env.SPOOL_HUB_AUTH_<IDP>_CLIENT_ID` (refused when unset / `PLACEHOLDER-*`).
 3. File `$HOME/.gcp/.<org>/.<app>/<idp>-client-<env>.json`: must exist, mode `600`, JSON
@@ -49,4 +49,4 @@ It never mints the session key (that stays `do_spl_auth_secrets_seed`).
   and `https://spool-hub.ai/api/v1/auth/linkedin/callback`. An API-host URI is declined.
 - Pairwise `sub`: replacing an app orphans identities (spec OQ-L2).
 
-<!-- version: 0.1.0 · updated: 2026-09-19 -->
+<!-- version: 0.1.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:40:00Z -->

@@ -110,6 +110,8 @@ const CARD = (needle) => {
       return {
         mode,
         task: el.getAttribute('data-task-id') || '',
+        /* the optimistic row: the hub's echo replaces it with a new card */
+        pending: el.getAttribute('data-pending') === 'true' || !el.getAttribute('data-msg-id'),
         clip: box ? box.getAttribute('data-clip') : null,
         boxH: box ? Math.round(box.getBoundingClientRect().height) : null,
         contentH: inner ? Math.round(inner.scrollHeight) : null,
@@ -252,7 +254,7 @@ async function proof(p) {
   const lines = [LONG + ' — the first line of a fourteen line level-1 card, long enough that its title is cut at ninety characters']
   for (let i = 2; i <= 14; i++) lines.push(`line ${i} of the clip proof ${run}`)
   await send(p, lines)
-  let c = await waitCard(p, LONG, (x) => !x.missing && x.clip === 'cut' && x.lh > 0)
+  let c = await waitCard(p, LONG, (x) => !x.missing && !x.pending && x.clip === 'cut' && x.lh > 0)
   const rows5 = c.lh * 5
   step('1 rows: the long card is clipped', c.clip === 'cut' && c.grip, { clip: c.clip, grip: c.grip })
   step('1 rows: box <= 5 text rows', c.boxH != null && c.boxH <= Math.ceil(rows5) + 2 && c.boxH >= Math.floor(rows5) - 2,
@@ -260,7 +262,11 @@ async function proof(p) {
   res.long = c
   await p.screenshot({ path: `${OUT}/1-rows.png` })
 
-  /* 2. the grip drags the card taller */
+  /* 2. the grip drags the card taller. Step 1 waited for the hub's row (a
+     drag on the optimistic row is lost when the echo replaces that card);
+     the pause lets the prepend transition settle under the pointer. */
+  await sleep(1500)
+  c = await p.evaluate(CARD, LONG)
   const before = c.boxH
   const card = await p.evaluateHandle((needle) => {
     for (const el of document.querySelectorAll('.feed-col article.msg')) if ((el.innerText || '').includes(needle)) return el.querySelector('[data-testid=card-grip]')

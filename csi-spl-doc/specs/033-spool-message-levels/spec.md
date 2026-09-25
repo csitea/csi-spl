@@ -133,7 +133,7 @@ The owner, 2026-09-25 18:48:43Z, PRD #spool-hub-devel topic `db0f9d71`, verbatim
 | FR-ML-023 | A 3-way control in every middle-pane header: `titles` (first 90 characters of the body on one line), `5 rows` (default), `full`; a keyboard radiogroup | Implemented — `CardClipControl.vue` |
 | FR-ML-024 | The mode is one per browser and survives a reload (localStorage `spool-card-clip`, try/catch; a bad value reads as the default) | Implemented — `useCardClip.ts` |
 | FR-ML-025 | The row cap follows the font-size setting (measured line height; rem fallback) | Implemented — `measure()` reads the rendered line height |
-| FR-ML-026 | Every new string in all 19 locales (i18n parity) | Assigned — GRK-3512, `tasks.md` T019 |
+| FR-ML-026 | Every new string in all 19 locales (i18n parity) | Implemented — GRK-3512 `885e144` |
 
 ## Success criteria
 
@@ -146,4 +146,4 @@ The owner, 2026-09-25 18:48:43Z, PRD #spool-hub-devel topic `db0f9d71`, verbatim
   match FR-ML-020..FR-ML-023, a grip drag grows a card, the thread pane stays unclipped,
   and the mode survives a reload (`tasks.md` T019).
 
-<!-- version: 0.1.4 · updated: 2026-09-25 · last-edit: 2026-09-25T19:45:28Z -->
+<!-- version: 0.1.5 · updated: 2026-09-25 · last-edit: 2026-09-25T20:49:54Z -->

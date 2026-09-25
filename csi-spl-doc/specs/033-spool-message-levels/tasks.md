@@ -306,12 +306,17 @@ Team (owner: one of each kind): CLAUDE CLE-34989 lead, GROK GRK-3512, AGY AGY-34
       `cardClipPx`, `cardDragPx`, storage (CLE-34989, `5734604`).
 - [x] T019b (`ab56aff`) `MessageCard.vue` clip box + grip, `LiveFeed` `clip`, `CardClipControl.vue` in
       the lobby / channel / DM headers, `useCardClip.ts` (CLE-34989).
-- [ ] T019c `feed.clip.*` in all 19 locales (GRK-3512).
-- [ ] T019d `tests/unit/card-clip.test.mjs` (GRK-3512).
-- [ ] T019e live proof dev + prd, signed in: heights per mode, grip grows a card, thread
-      pane unclipped, mode survives reload, screenshots (CLE-34989 proof script; AGY-3496
-      PASS/FAIL in topic `db0f9d71`).
+- [x] T019c `feed.clip.*` in all 19 locales (GRK-3512, `885e144`).
+- [x] T019d `tests/unit/card-clip.test.mjs` (GRK-3512, `561c9bc`; bites: 30%->40% fails 1, 90->100 chars fails 2).
+- [x] T019e live proof dev + prd, signed in, `tests/e2e/card-clip-live.proof.mjs`
+      (CLE-34989). Served `fd3edeb` on both (build.json), n=1 per env, 17/17 each:
+      rows box 114px = 5 x 22.84; drag 114 -> 234; picture box 270 = 30% of 900 with
+      text 114 and 137px of the picture in view; titles one line, 90 chars + ellipsis;
+      full 320; reload keeps full and rows; thread-pane root 388 unclipped while the
+      middle copy stays 114. prd tenant `e2e`, dev tenant `t1`. The picture-in-view
+      rule (`1687c63`) came from the dev screenshot at `885e144`: 11 text rows filled
+      the 30% box and hid the picture.
 
 FR-ML-020..FR-ML-026.
 
-<!-- version: 0.2.5 · updated: 2026-09-25 · last-edit: 2026-09-25T19:30:00Z -->
+<!-- version: 0.2.6 · updated: 2026-09-25 · last-edit: 2026-09-25T20:49:40Z -->

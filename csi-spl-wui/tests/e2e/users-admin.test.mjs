@@ -70,9 +70,10 @@ try {
   p.on('pageerror', (e) => errors.push(String(e && e.message)))
   await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
 
-  // 1. the entry, after flow
+  // 1. the entry, last: flow, then the Event log (CLE-34990, owner: "button
+  // after the flow icon"), then Users
   const rail = await p.$$eval('.sidebar-rail [role=tab]', (els) => els.map((e) => e.getAttribute('data-testid')))
-  ok('1 the rail shows Users after Flow', rail.at(-1) === 'sidebar-tab-users' && rail.indexOf('sidebar-tab-flow') === rail.length - 2, rail)
+  ok('1 the rail shows Users last, after Flow and the Event log', rail.at(-1) === 'sidebar-tab-users' && rail.indexOf('sidebar-tab-flow') === rail.length - 3 && rail.indexOf('sidebar-tab-events') === rail.length - 2, rail)
   await p.click('[data-testid=sidebar-tab-users]')
   await p.waitForSelector('[data-test=users-page] [data-test=users-row]', { visible: true, timeout: NAV_TIMEOUT })
   ok('2 Users opens /users', new URL(p.url()).pathname.endsWith('/users'), p.url())

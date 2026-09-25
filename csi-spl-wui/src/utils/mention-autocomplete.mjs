@@ -2,6 +2,10 @@
 
 const AGENT_ID_RE = /^(CLE|GRK|AGY|HUM|GST)-\d+$/
 
+/* The @token at the caret: an id (CLE-07) or the start of a display name in
+   any script (@yor, @Велико), so a person is found by the name they chose. */
+const MENTION_TOKEN_RE = /(^|[\s])@([\p{L}\p{N}._-]*)$/u
+
 export function isAgentId(id) {
   return AGENT_ID_RE.test(String(id || ''))
 }
@@ -15,7 +19,7 @@ export function activeMentionQuery(text, cursor) {
   const n = Number(cursor)
   const i = Number.isFinite(n) ? Math.max(0, Math.min(s.length, n)) : s.length
   const before = s.slice(0, i)
-  const m = before.match(/(^|[\s])@([A-Za-z0-9-]*)$/)
+  const m = before.match(MENTION_TOKEN_RE)
   if (!m) return null
   return m[2]
 }
@@ -23,17 +27,25 @@ export function activeMentionQuery(text, cursor) {
 /**
  * Filter roster peers to CLE/GRK/AGY/HUM/GST ids matching the in-progress query.
  * Query may be 'CLE-07' or '@CLE-07'; empty query returns every allowed peer.
- * The text matches any part of the id or the label, so "3994" finds CLE-3994.
+ * The text matches any part of the id, the label, or the display name the
+ * person chose (`names`, id -> name), case-insensitively: "3994" finds
+ * CLE-3994, "geor" finds the human named "Yordan Georgiev".
+ *
+ * @param {unknown[]} peers
+ * @param {string} query
+ * @param {Record<string, string> | null} [names]
  */
-export function filterRosterMentions(peers, query) {
+export function filterRosterMentions(peers, query, names = null) {
   const rows = Array.isArray(peers) ? peers : []
   const allowed = rows.filter((p) => p && isAgentId(p.id))
-  const q = String(query || '').replace(/^@+/, '').trim().toUpperCase()
+  const q = String(query || '').replace(/^@+/, '').trim().toLocaleLowerCase()
   if (!q) return allowed.slice()
+  const nameOf = (id) => (names && typeof names === 'object' && Object.prototype.hasOwnProperty.call(names, id) ? String(names[id] || '') : '')
   return allowed.filter((p) => {
-    const id = String(p.id || '').toUpperCase()
-    const label = String(p.label || '').toUpperCase()
-    return id.includes(q) || label.includes(q)
+    const id = String(p.id || '').toLocaleLowerCase()
+    const label = String(p.label || '').toLocaleLowerCase()
+    const name = nameOf(String(p.id || '')).toLocaleLowerCase()
+    return id.includes(q) || label.includes(q) || (name !== '' && name.includes(q))
   })
 }
 
@@ -48,7 +60,7 @@ export function insertMention(text, cursor, id) {
   const i = Number.isFinite(n) ? Math.max(0, Math.min(s.length, n)) : s.length
   const before = s.slice(0, i)
   const after = s.slice(i)
-  const m = before.match(/(^|[\s])@([A-Za-z0-9-]*)$/)
+  const m = before.match(MENTION_TOKEN_RE)
   const start = m ? before.length - m[2].length - 1 : i
   const inserted = `@${id} `
   return { text: s.slice(0, start) + inserted + after, cursor: start + inserted.length }

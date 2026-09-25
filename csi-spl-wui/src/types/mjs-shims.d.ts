@@ -236,6 +236,7 @@ declare module '~/utils/mention-autocomplete.mjs' {
   export function filterRosterMentions(
     peers: { id: string, box?: string, label?: string, online?: boolean }[],
     query: string,
+    names?: Record<string, string> | null,
   ): { id: string, box?: string, label?: string, online?: boolean }[]
   export function insertMention(
     text: string,

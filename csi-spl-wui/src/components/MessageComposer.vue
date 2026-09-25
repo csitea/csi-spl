@@ -44,7 +44,8 @@
           >
             <SpoolAvatar :id="p.id" :box="p.box" :size="20" />
             <span class="dot" :class="{ on: p.online }" />
-            <span class="mention-label">{{ p.label }}</span>
+            <span class="mention-label">{{ people.label(p.id, p.box) }}</span>
+            <span v-if="people.label(p.id, p.box) !== p.label" class="muted">{{ p.label }}</span>
           </button>
         </li>
       </ul>
@@ -184,6 +185,7 @@ import { sendLimitError } from '~/utils/code-view.mjs'
 import { fileKind, isPreviewableImage, readDataUrl } from '~/utils/file-preview.mjs'
 import { carriesFiles, filesOf, pasteAttaches } from '~/utils/transfer-files.mjs'
 import { useSidePane } from '~/composables/useSidePane'
+import { useHumanNames } from '~/composables/useHumanNames'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { applyCompletion, completeOperators, omniboxMode, operatorTokenAt, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
@@ -513,9 +515,11 @@ function syncMention(ev?: Event) {
   inQuery.value = nextIn
 }
 
+/* @ finds a person by id or by the display name they chose; the tag inserted is still the id. */
+const people = useHumanNames()
 const candidates = computed(() => {
   if (mentionQuery.value === null) return []
-  return filterRosterMentions(roster.peers, mentionQuery.value)
+  return filterRosterMentions(roster.peers, mentionQuery.value, people.names.value)
 })
 
 const pickerOpen = computed(() => mentionQuery.value !== null && candidates.value.length > 0)

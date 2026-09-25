@@ -54,6 +54,30 @@ describe('mention autocomplete', () => {
     }
   })
 
+  it('@ finds a person by the display name they chose, and still by id', () => {
+    const peers = [
+      { id: 'HUM-9', box: 'box-wui', label: 'HUM-9@box-wui' },
+      { id: 'HUM-11', box: 'box-wui', label: 'HUM-11@box-wui' },
+      { id: 'CLE-120', box: 'box-desk', label: 'CLE-120@box-desk' },
+    ]
+    const names = { 'HUM-9': 'Yordan Georgiev', 'HUM-11': 'Велико Великов' }
+    assert.deepEqual(filterRosterMentions(peers, 'geor', names).map((p) => p.id), ['HUM-9'])
+    assert.deepEqual(filterRosterMentions(peers, 'YORDAN', names).map((p) => p.id), ['HUM-9'])
+    assert.deepEqual(filterRosterMentions(peers, 'вели', names).map((p) => p.id), ['HUM-11'])
+    assert.deepEqual(filterRosterMentions(peers, '120', names).map((p) => p.id), ['CLE-120'])
+    // CONTROL: without names, a name does not match
+    assert.deepEqual(filterRosterMentions(peers, 'geor'), [])
+  })
+
+  it('the @token at the caret may be a name in any script; the tag inserted is the id', () => {
+    assert.equal(activeMentionQuery('hi @yor', 7), 'yor')
+    assert.equal(activeMentionQuery('@Вели', 5), 'Вели')
+    assert.equal(insertMention('hi @yor', 7, 'HUM-9@box-wui').text, 'hi @HUM-9@box-wui ')
+    assert.equal(insertMention('@Вели', 5, 'HUM-11@box-wui').text, '@HUM-11@box-wui ')
+    const c = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageComposer.vue'), 'utf8')
+    assert.match(c, /filterRosterMentions\(roster\.peers, mentionQuery\.value, people\.names\.value\)/)
+  })
+
   it('activeMentionQuery reads the @token at the caret', () => {
     assert.equal(activeMentionQuery('@CLE-07', 7), 'CLE-07')
     assert.equal(activeMentionQuery('hi @CLE', 7), 'CLE')

@@ -361,7 +361,8 @@
       "remove": "Usuń",
       "properties": "Properties"
     },
-    "users": "Użytkownicy"
+    "users": "Użytkownicy",
+    "events": "Dziennik zdarzeń"
   },
   "composer": {
     "mention_suggestions": "Sugestie wzmianek",
@@ -669,5 +670,24 @@
       "not_found": "Ten użytkownik lub zaproszenie już nie istnieje. Lista została wczytana ponownie.",
       "generic": "Nie udało się. Spróbuj ponownie."
     }
+  },
+  "events": {
+    "title": "Dziennik zdarzeń",
+    "empty": "Brak zapisanych błędów.",
+    "clear": "Wyczyść dziennik",
+    "load_more": "Wczytaj starsze",
+    "col_when": "Kiedy",
+    "col_source": "Źródło",
+    "col_status": "Status",
+    "col_message": "Komunikat",
+    "col_id": "Id. błędu",
+    "col_route": "Strona",
+    "signed_out": "Zaloguj się, aby zobaczyć swój dziennik zdarzeń.",
+    "load_failed": "Nie można odczytać dziennika zdarzeń."
+  },
+  "snackbar": {
+    "dismiss": "Zamknij",
+    "region": "Błędy",
+    "repeat": "x{n}"
   }
 }

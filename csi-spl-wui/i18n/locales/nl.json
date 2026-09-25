@@ -361,7 +361,8 @@
       "remove": "Verwijderen",
       "properties": "Properties"
     },
-    "users": "Gebruikers"
+    "users": "Gebruikers",
+    "events": "Gebeurtenissenlogboek"
   },
   "composer": {
     "mention_suggestions": "Suggesties voor vermeldingen",
@@ -669,5 +670,24 @@
       "not_found": "Deze gebruiker of uitnodiging bestaat niet meer. De lijst is opnieuw geladen.",
       "generic": "Dat lukte niet. Probeer het opnieuw."
     }
+  },
+  "events": {
+    "title": "Gebeurtenissenlogboek",
+    "empty": "Geen fouten vastgelegd.",
+    "clear": "Logboek wissen",
+    "load_more": "Oudere laden",
+    "col_when": "Wanneer",
+    "col_source": "Bron",
+    "col_status": "Status",
+    "col_message": "Bericht",
+    "col_id": "Fout-id",
+    "col_route": "Pagina",
+    "signed_out": "Meld je aan om je gebeurtenissenlogboek te zien.",
+    "load_failed": "Het gebeurtenissenlogboek kon niet worden gelezen."
+  },
+  "snackbar": {
+    "dismiss": "Sluiten",
+    "region": "Fouten",
+    "repeat": "x{n}"
   }
 }

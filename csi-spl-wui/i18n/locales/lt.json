@@ -361,7 +361,8 @@
       "remove": "Pašalinti",
       "properties": "Properties"
     },
-    "users": "Naudotojai"
+    "users": "Naudotojai",
+    "events": "Įvykių žurnalas"
   },
   "composer": {
     "mention_suggestions": "Paminėjimų pasiūlymai",
@@ -669,5 +670,24 @@
       "not_found": "Šio naudotojo ar kvietimo nebėra. Sąrašas įkeltas iš naujo.",
       "generic": "Nepavyko. Bandykite dar kartą."
     }
+  },
+  "events": {
+    "title": "Įvykių žurnalas",
+    "empty": "Klaidų neįrašyta.",
+    "clear": "Išvalyti žurnalą",
+    "load_more": "Įkelti senesnius",
+    "col_when": "Kada",
+    "col_source": "Šaltinis",
+    "col_status": "Būsena",
+    "col_message": "Žinutė",
+    "col_id": "Klaidos id",
+    "col_route": "Puslapis",
+    "signed_out": "Prisijunkite, kad pamatytumėte savo įvykių žurnalą.",
+    "load_failed": "Įvykių žurnalo nepavyko perskaityti."
+  },
+  "snackbar": {
+    "dismiss": "Atmesti",
+    "region": "Klaidos",
+    "repeat": "x{n}"
   }
 }

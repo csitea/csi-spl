@@ -361,7 +361,8 @@
       "remove": "Eemalda",
       "properties": "Properties"
     },
-    "users": "Kasutajad"
+    "users": "Kasutajad",
+    "events": "Sündmuste logi"
   },
   "composer": {
     "mention_suggestions": "Mainimissoovitused",
@@ -669,5 +670,24 @@
       "not_found": "Seda kasutajat või kutset enam pole. Loend laaditi uuesti.",
       "generic": "See ei õnnestunud. Proovi uuesti."
     }
+  },
+  "events": {
+    "title": "Sündmuste logi",
+    "empty": "Vigu pole salvestatud.",
+    "clear": "Tühjenda logi",
+    "load_more": "Laadi vanemad",
+    "col_when": "Millal",
+    "col_source": "Allikas",
+    "col_status": "Olek",
+    "col_message": "Sõnum",
+    "col_id": "Veakood",
+    "col_route": "Leht",
+    "signed_out": "Logi sisse, et näha oma sündmuste logi.",
+    "load_failed": "Sündmuste logi ei õnnestunud lugeda."
+  },
+  "snackbar": {
+    "dismiss": "Sulge",
+    "region": "Vead",
+    "repeat": "x{n}"
   }
 }

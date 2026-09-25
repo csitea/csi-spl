@@ -361,7 +361,8 @@
       "remove": "Kaldır",
       "properties": "Properties"
     },
-    "users": "Kullanıcılar"
+    "users": "Kullanıcılar",
+    "events": "Olay günlüğü"
   },
   "composer": {
     "mention_suggestions": "Bahsetme önerileri",
@@ -669,5 +670,24 @@
       "not_found": "Bu kullanıcı veya davet artık yok. Liste yeniden yüklendi.",
       "generic": "Olmadı. Tekrar deneyin."
     }
+  },
+  "events": {
+    "title": "Olay günlüğü",
+    "empty": "Kaydedilmiş hata yok.",
+    "clear": "Günlüğü temizle",
+    "load_more": "Daha eskileri yükle",
+    "col_when": "Ne zaman",
+    "col_source": "Kaynak",
+    "col_status": "Durum",
+    "col_message": "İleti",
+    "col_id": "Hata kimliği",
+    "col_route": "Sayfa",
+    "signed_out": "Olay günlüğünüzü görmek için oturum açın.",
+    "load_failed": "Olay günlüğü okunamadı."
+  },
+  "snackbar": {
+    "dismiss": "Kapat",
+    "region": "Hatalar",
+    "repeat": "x{n}"
   }
 }

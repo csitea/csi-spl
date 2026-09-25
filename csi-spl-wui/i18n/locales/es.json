@@ -361,7 +361,8 @@
       "remove": "Quitar",
       "properties": "Properties"
     },
-    "users": "Usuarios"
+    "users": "Usuarios",
+    "events": "Registro de eventos"
   },
   "composer": {
     "mention_suggestions": "Sugerencias de menciones",
@@ -669,5 +670,24 @@
       "not_found": "Este usuario o invitación ya no existe. La lista se ha recargado.",
       "generic": "No ha funcionado. Inténtalo de nuevo."
     }
+  },
+  "events": {
+    "title": "Registro de eventos",
+    "empty": "No hay errores registrados.",
+    "clear": "Borrar registro",
+    "load_more": "Cargar anteriores",
+    "col_when": "Cuándo",
+    "col_source": "Origen",
+    "col_status": "Estado",
+    "col_message": "Mensaje",
+    "col_id": "Id. de error",
+    "col_route": "Página",
+    "signed_out": "Inicia sesión para ver tu registro de eventos.",
+    "load_failed": "No se pudo leer el registro de eventos."
+  },
+  "snackbar": {
+    "dismiss": "Cerrar",
+    "region": "Errores",
+    "repeat": "x{n}"
   }
 }

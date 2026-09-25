@@ -361,7 +361,8 @@
       "remove": "הסרה",
       "properties": "Properties"
     },
-    "users": "משתמשים"
+    "users": "משתמשים",
+    "events": "יומן אירועים"
   },
   "composer": {
     "mention_suggestions": "הצעות לאזכור",
@@ -669,5 +670,24 @@
       "not_found": "המשתמש או ההזמנה כבר לא קיימים. הרשימה נטענה מחדש.",
       "generic": "זה לא הצליח. נסו שוב."
     }
+  },
+  "events": {
+    "title": "יומן אירועים",
+    "empty": "לא נרשמו שגיאות.",
+    "clear": "נקה יומן",
+    "load_more": "טען ישנים יותר",
+    "col_when": "מתי",
+    "col_source": "מקור",
+    "col_status": "סטטוס",
+    "col_message": "הודעה",
+    "col_id": "מזהה שגיאה",
+    "col_route": "עמוד",
+    "signed_out": "היכנס כדי לראות את יומן האירועים שלך.",
+    "load_failed": "לא ניתן היה לקרוא את יומן האירועים."
+  },
+  "snackbar": {
+    "dismiss": "סגור",
+    "region": "שגיאות",
+    "repeat": "x{n}"
   }
 }

@@ -361,7 +361,8 @@
       "remove": "Ukloni",
       "properties": "Properties"
     },
-    "users": "Корисници"
+    "users": "Корисници",
+    "events": "Дневник догађаја"
   },
   "composer": {
     "mention_suggestions": "Predlozi za pominjanje",
@@ -669,5 +670,24 @@
       "not_found": "Овај корисник или позивница више не постоји. Списак је поново учитан.",
       "generic": "Није успело. Покушајте поново."
     }
+  },
+  "events": {
+    "title": "Дневник догађаја",
+    "empty": "Нема забележених грешака.",
+    "clear": "Обриши дневник",
+    "load_more": "Учитај старије",
+    "col_when": "Када",
+    "col_source": "Извор",
+    "col_status": "Статус",
+    "col_message": "Порука",
+    "col_id": "Ид. грешке",
+    "col_route": "Страница",
+    "signed_out": "Пријавите се да бисте видели дневник догађаја.",
+    "load_failed": "Дневник догађаја није могуће прочитати."
+  },
+  "snackbar": {
+    "dismiss": "Затвори",
+    "region": "Грешке",
+    "repeat": "x{n}"
   }
 }

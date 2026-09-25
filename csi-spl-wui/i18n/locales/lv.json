@@ -361,7 +361,8 @@
       "remove": "Noņemt",
       "properties": "Properties"
     },
-    "users": "Lietotāji"
+    "users": "Lietotāji",
+    "events": "Notikumu žurnāls"
   },
   "composer": {
     "mention_suggestions": "Pieminēšanas ieteikumi",
@@ -669,5 +670,24 @@
       "not_found": "Šis lietotājs vai uzaicinājums vairs nepastāv. Saraksts tika ielādēts no jauna.",
       "generic": "Neizdevās. Mēģiniet vēlreiz."
     }
+  },
+  "events": {
+    "title": "Notikumu žurnāls",
+    "empty": "Kļūdas nav reģistrētas.",
+    "clear": "Notīrīt žurnālu",
+    "load_more": "Ielādēt vecākus",
+    "col_when": "Kad",
+    "col_source": "Avots",
+    "col_status": "Statuss",
+    "col_message": "Ziņojums",
+    "col_id": "Kļūdas id",
+    "col_route": "Lapa",
+    "signed_out": "Pierakstieties, lai skatītu savu notikumu žurnālu.",
+    "load_failed": "Notikumu žurnālu neizdevās nolasīt."
+  },
+  "snackbar": {
+    "dismiss": "Aizvērt",
+    "region": "Kļūdas",
+    "repeat": "x{n}"
   }
 }

@@ -361,7 +361,8 @@
       "remove": "Elimină",
       "properties": "Properties"
     },
-    "users": "Utilizatori"
+    "users": "Utilizatori",
+    "events": "Jurnal de evenimente"
   },
   "composer": {
     "mention_suggestions": "Sugestii de mențiuni",
@@ -669,5 +670,24 @@
       "not_found": "Acest utilizator sau invitație nu mai există. Lista a fost reîncărcată.",
       "generic": "Nu a funcționat. Încearcă din nou."
     }
+  },
+  "events": {
+    "title": "Jurnal de evenimente",
+    "empty": "Nicio eroare înregistrată.",
+    "clear": "Golește jurnalul",
+    "load_more": "Încarcă mai vechi",
+    "col_when": "Când",
+    "col_source": "Sursă",
+    "col_status": "Stare",
+    "col_message": "Mesaj",
+    "col_id": "Id. eroare",
+    "col_route": "Pagină",
+    "signed_out": "Autentifică-te pentru a-ți vedea jurnalul de evenimente.",
+    "load_failed": "Jurnalul de evenimente nu a putut fi citit."
+  },
+  "snackbar": {
+    "dismiss": "Închide",
+    "region": "Erori",
+    "repeat": "x{n}"
   }
 }

@@ -361,7 +361,8 @@
       "remove": "Odstrániť",
       "properties": "Properties"
     },
-    "users": "Používatelia"
+    "users": "Používatelia",
+    "events": "Denník udalostí"
   },
   "composer": {
     "mention_suggestions": "Návrhy zmienok",
@@ -669,5 +670,24 @@
       "not_found": "Tento používateľ alebo pozvánka už neexistuje. Zoznam sa znova načítal.",
       "generic": "Nepodarilo sa. Skúste to znova."
     }
+  },
+  "events": {
+    "title": "Denník udalostí",
+    "empty": "Nie sú zaznamenané žiadne chyby.",
+    "clear": "Vymazať denník",
+    "load_more": "Načítať staršie",
+    "col_when": "Kedy",
+    "col_source": "Zdroj",
+    "col_status": "Stav",
+    "col_message": "Správa",
+    "col_id": "Id. chyby",
+    "col_route": "Stránka",
+    "signed_out": "Prihláste sa, aby ste videli svoj denník udalostí.",
+    "load_failed": "Denník udalostí sa nepodarilo načítať."
+  },
+  "snackbar": {
+    "dismiss": "Zavrieť",
+    "region": "Chyby",
+    "repeat": "x{n}"
   }
 }

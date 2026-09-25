@@ -361,7 +361,8 @@
       "remove": "Remove",
       "properties": "Properties"
     },
-    "users": "Users"
+    "users": "Users",
+    "events": "Event log"
   },
   "composer": {
     "mention_suggestions": "Mention suggestions",
@@ -669,5 +670,24 @@
       "not_found": "This user or invite no longer exists. The list was reloaded.",
       "generic": "That did not work. Try again."
     }
+  },
+  "events": {
+    "title": "Event log",
+    "empty": "No errors recorded.",
+    "clear": "Clear log",
+    "load_more": "Load older",
+    "col_when": "When",
+    "col_source": "Source",
+    "col_status": "Status",
+    "col_message": "Message",
+    "col_id": "Error id",
+    "col_route": "Page",
+    "signed_out": "Sign in to see your event log.",
+    "load_failed": "The event log could not be read."
+  },
+  "snackbar": {
+    "dismiss": "Dismiss",
+    "region": "Errors",
+    "repeat": "x{n}"
   }
 }

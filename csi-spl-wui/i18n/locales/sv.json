@@ -361,7 +361,8 @@
       "remove": "Ta bort",
       "properties": "Properties"
     },
-    "users": "Användare"
+    "users": "Användare",
+    "events": "Händelselogg"
   },
   "composer": {
     "mention_suggestions": "Förslag på omnämnanden",
@@ -669,5 +670,24 @@
       "not_found": "Användaren eller inbjudan finns inte längre. Listan lästes in igen.",
       "generic": "Det gick inte. Försök igen."
     }
+  },
+  "events": {
+    "title": "Händelselogg",
+    "empty": "Inga fel har sparats.",
+    "clear": "Rensa loggen",
+    "load_more": "Ladda äldre",
+    "col_when": "När",
+    "col_source": "Källa",
+    "col_status": "Status",
+    "col_message": "Meddelande",
+    "col_id": "Fel-id",
+    "col_route": "Sida",
+    "signed_out": "Logga in för att se din händelselogg.",
+    "load_failed": "Händelseloggen kunde inte läsas."
+  },
+  "snackbar": {
+    "dismiss": "Stäng",
+    "region": "Fel",
+    "repeat": "x{n}"
   }
 }

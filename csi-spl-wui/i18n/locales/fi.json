@@ -361,7 +361,8 @@
       "remove": "Poista",
       "properties": "Properties"
     },
-    "users": "Käyttäjät"
+    "users": "Käyttäjät",
+    "events": "Tapahtumaloki"
   },
   "composer": {
     "mention_suggestions": "Mainintaehdotukset",
@@ -669,5 +670,24 @@
       "not_found": "Tätä käyttäjää tai kutsua ei enää ole. Lista ladattiin uudelleen.",
       "generic": "Se ei onnistunut. Yritä uudelleen."
     }
+  },
+  "events": {
+    "title": "Tapahtumaloki",
+    "empty": "Virheitä ei ole tallennettu.",
+    "clear": "Tyhjennä loki",
+    "load_more": "Lataa vanhempia",
+    "col_when": "Milloin",
+    "col_source": "Lähde",
+    "col_status": "Tila",
+    "col_message": "Viesti",
+    "col_id": "Virhetunnus",
+    "col_route": "Sivu",
+    "signed_out": "Kirjaudu sisään nähdäksesi tapahtumalokisi.",
+    "load_failed": "Tapahtumalokia ei voitu lukea."
+  },
+  "snackbar": {
+    "dismiss": "Sulje",
+    "region": "Virheet",
+    "repeat": "x{n}"
   }
 }

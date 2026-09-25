@@ -263,6 +263,10 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
   # The shell poke line stays on send-keys, because it is one short inert line
   # and the sleep is what the existing measurements were taken around.
   if [ "${line#: \'SPOOL }" = "$line" ]; then
+    # The terminal mirror (specs/036) posts every prompt of this pane into the
+    # human's DM. These words came FROM that DM, so they are recorded before
+    # the paste, and the mirror's prompt hook drops them instead of echoing.
+    spool_notify_mark_typed "$to" "$line"
     # Enter before the paste is in the composer leaves the body sitting there,
     # and the next message is refused as unsent text. Wait until the words
     # are visible, then Enter. While the agent is in a turn, that Enter queues
@@ -281,6 +285,40 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
   return 0
 }
 
+
+# ── the terminal mirror's two records (specs/036) ──────────────────────────
+# Record TEXT as typed into TO's prompt by the desk: spool-mirror.py drops a
+# prompt line that matches one, so a web UI message is never posted back into
+# the DM it came from. One small file per paste; the mirror expires them.
+# Never fails the poke.
+spool_notify_mark_typed() {  # TO TEXT
+  local d="${SPOOL_ROOT:-}/${1:-}/.mirror/typed"
+  [ -n "${SPOOL_ROOT:-}" ] && [ -n "${1:-}" ] && [ -n "${2:-}" ] || return 0
+  mkdir -p "$d" 2>/dev/null && printf '%s' "$2" >"$d/$(date +%s%N)-$$" 2>/dev/null
+  return 0
+}
+
+# Remember the human and the DM topic TO was last written in, so the mirror
+# answers in the conversation the human is looking at. Only a human's DIRECT
+# message counts: a channel broadcast (to ALL-0) that fans out into this inbox
+# is not a DM, and mirroring into it would post the agent's whole session into
+# a channel. Never fails the notice.
+spool_notify_mark_peer() {  # TO FROM TASK MSGID
+  local to="${1:-}" from="${2:-}" task="${3:-}" msgid="${4:-}" f d
+  case "$from" in HUM-*) ;; *) return 0 ;; esac
+  [ -n "${SPOOL_ROOT:-}" ] && [ -n "$to" ] && [ -n "$msgid" ] || return 0
+  printf '%s' "$task" | grep -qE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' || return 0
+  for f in "$SPOOL_ROOT/$to/inbox/"*"-${msgid:0:8}.json"; do
+    [ -r "$f" ] || continue
+    grep -qE "\"to\": ?\"${to}\"" "$f" 2>/dev/null || return 0
+    d="$SPOOL_ROOT/$to/.mirror"
+    mkdir -p "$d" 2>/dev/null &&
+      printf '{"to":"%s","task":"%s","ts":"%s"}\n' "$from" "$task" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$d/peer.tmp.$$" 2>/dev/null &&
+      mv -f "$d/peer.tmp.$$" "$d/peer" 2>/dev/null
+    return 0
+  done
+  return 0
+}
 
 # Wait until PANE shows the start of TEXT. Capped at about 0.3s.
 # Always returns 0: Enter still happens if the TUI is slow to paint.

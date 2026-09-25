@@ -87,6 +87,8 @@ fi
 # 2. SHOW it. The status line and the notice column still get the message,
 #    including when the prompt was left alone. It injects nothing.
 spool_poke_show "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
+#    And remember which human DM this was, for the terminal mirror (036).
+spool_notify_mark_peer "$TO" "$FROM" "$TASK" "$MSGID"
 
 if [ "${SPOOL_POKE:-1}" = 0 ]; then
   echo "poke: off (SPOOL_POKE=0) - ${TO} was SHOWN the message; its prompt was not touched"

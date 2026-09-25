@@ -24,11 +24,9 @@ var (
 	errUnknownKid = errors.New("auth: id_token kid not in the JWKS")
 )
 
-// JWKS fetch limits: a key set is a few KiB; keys under 2048 bits are refused.
-const (
-	jwksMaxBytes   = 1 << 20
-	jwksMinRSABits = 2048
-)
+// Keys under 2048 bits are refused. A JWKS body is capped at 1 MiB by
+// readJSON (idp.go), like every IdP answer.
+const jwksMinRSABits = 2048
 
 // jwksCache holds one JWKS URL's RSA keys by kid. A known kid is served from
 // the cache for ttl; an unknown kid (the provider rolled its keys) triggers a

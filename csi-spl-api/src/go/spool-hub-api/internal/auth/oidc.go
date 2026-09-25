@@ -22,11 +22,9 @@ type OIDC struct {
 	ClientID, ClientSecret, RedirectURI string
 	Scopes                              string
 	AuthURL, TokenURL, UserinfoURL      string
-	// EmailTrusted: the provider has no email_verified claim and its email is
-	// verified by construction (Microsoft consumers, OQ-I1). false = a truthy
-	// email_verified claim is required.
-	EmailTrusted bool
-	HTTP         *http.Client
+	// A truthy email_verified claim is always required (Microsoft, which
+	// could lack one, has its own client since spec 018).
+	HTTP *http.Client
 	// AvatarHTTPBase: see Google.AvatarHTTPBase.
 	AvatarHTTPBase string
 }
@@ -94,7 +92,7 @@ func (o *OIDC) Exchange(ctx context.Context, code string) (Identity, error) {
 		return Identity{}, fmt.Errorf("%w: userinfo status %d", errExchange, uresp.StatusCode)
 	}
 	email := strings.ToLower(strings.TrimSpace(info.Email))
-	if email == "" || (!o.EmailTrusted && !jsonTruthy(info.EmailVerified)) {
+	if email == "" || !jsonTruthy(info.EmailVerified) {
 		return Identity{}, errEmailUnverified
 	}
 	id := Identity{Provider: o.Provider, Subject: info.Sub, Email: email, Name: strings.TrimSpace(info.Name)}

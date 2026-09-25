@@ -19,6 +19,7 @@ type memHuman struct {
 type memMember struct {
 	role, admittedBy string
 	since            time.Time // tenant_memberships.created_at
+	lastActive       time.Time // last_active_at (rdb 0044); zero = never switched into
 }
 
 // memIdent is one human_identities row: which human the (provider, subject)

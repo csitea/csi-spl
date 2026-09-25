@@ -4,7 +4,8 @@
 // exchange with the provider's client secret, and a stateless HMAC-signed
 // session cookie.
 //
-// Modeled on csi-rel spec 052: a confidential server-side client (no PKCE),
+// Modeled on csi-rel spec 052: a confidential server-side client (PKCE only
+// for Microsoft, spec 018),
 // the verified email is the identity, an IdP response never mints privilege.
 // Registering the human (HUM-*, spec 004) and deciding which tenant a session
 // may read are the hub's calls, made through the Registrar hook and

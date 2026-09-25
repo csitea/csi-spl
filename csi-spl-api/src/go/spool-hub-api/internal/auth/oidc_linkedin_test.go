@@ -92,7 +92,7 @@ func TestLinkedInUserinfoContract(t *testing.T) {
 	li := newIdP(c, ProviderLinkedIn, nil).(*OIDC)
 	if li.AuthURL != "https://www.linkedin.com/oauth/v2/authorization" ||
 		li.TokenURL != "https://www.linkedin.com/oauth/v2/accessToken" ||
-		li.UserinfoURL != "https://api.linkedin.com/v2/userinfo" || li.Scopes != "openid profile email" || li.EmailTrusted {
+		li.UserinfoURL != "https://api.linkedin.com/v2/userinfo" || li.Scopes != "openid profile email" {
 		t.Fatalf("linkedin client %+v", li)
 	}
 	au, _ := url.Parse(li.AuthCodeURL("st", "nn"))

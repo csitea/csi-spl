@@ -150,10 +150,10 @@ func TestConfigOIDCProviders(t *testing.T) {
 	if !strings.HasPrefix(ms.AuthCodeURL("s", "n"), "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?") || ms.TrustEmail {
 		t.Fatalf("microsoft client %+v", ms)
 	}
-	if li := newIdP(c, ProviderLinkedIn, nil).(*OIDC); li.EmailTrusted {
-		t.Fatal("linkedin must require email_verified")
+	if _, ok := newIdP(c, ProviderLinkedIn, nil).(*OIDC); !ok {
+		t.Fatal("linkedin must be the generic OIDC client (email_verified required)")
 	}
-	if x := newIdP(c, ProviderXAI, nil).(*OIDC); x.TokenURL != "https://idp.example.com/oauth2/token" || x.EmailTrusted {
+	if x := newIdP(c, ProviderXAI, nil).(*OIDC); x.TokenURL != "https://idp.example.com/oauth2/token" {
 		t.Fatalf("xai client %+v", x)
 	}
 }

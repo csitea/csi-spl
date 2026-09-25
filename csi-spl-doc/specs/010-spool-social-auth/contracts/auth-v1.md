@@ -31,6 +31,7 @@ on `<APP_URL><redirect>`, and APP_URL is the WUI origin. Code:
 | `GET /api/v1/auth/session` | `200` session claims (§3) or `401 unauthenticated`. `Cache-Control: no-store`. |
 | `GET /api/v1/auth/avatar` | CLE-3406: the signed-in human's own stored IdP picture (010 T044), membership NOT required. `200` image bytes (`Content-Type` sniffed: png/jpeg/gif/webp), `ETag` = sha256, `Cache-Control: private, no-cache`, `304` on a matching `If-None-Match`; `401 unauthenticated` without a session; `404 not_found` when there is none (the WUI then draws the identicon). The picture is re-fetched and stored hub-wide (`avatars/<sha256>`) on every sign-in, with or without a tenant; a tenant sign-in also puts the tenant file the roster names. |
 | `POST /api/v1/auth/logout` | `204`, `spool_session` cleared. |
+| `POST /api/v1/auth/tenant` `{"tenant":"<id>"}` | 026 §6 workspace switch (hub 0.5.8): the session cookie is re-issued with `t=<id>` (same expiry) when the human is a member of `<id>`, and the membership's `last_active_at` (rdb 0044) is stamped; `200` = the GET session answer for the new cookie. `401 unauthenticated`, `400 bad_tenant` / `bad_request`, `415` without JSON, `409 no_human`, `403 not_member` (also for an unknown tenant), `503 unavailable`. Idempotent. |
 | `POST /api/v1/auth/facebook/deauthorize` (Meta only) | form `signed_request`; valid → `200`, the Facebook identity is unlinked (`Options.Unlinker`); bad/missing signature → `400 bad_request`; Facebook not enabled → `404`. |
 | `POST /api/v1/auth/facebook/data-deletion` (Meta only) | same verification; `200 {"url":"<APP_URL>/api/v1/auth/facebook/data-deletion?code=<c>","confirmation_code":"<c>"}`. |
 | `GET /api/v1/auth/facebook/data-deletion?code=<c>` | `200 {"confirmation_code":"<c>","status":"completed"}` for a code this hub issued, else `404`. |
@@ -156,4 +157,4 @@ another tenant → `403 tenant_mismatch`; several tenants and none selected →
 with `permission`. `SessionForTenant(r, tenant)` (seam `5e8ecb1`) is the
 legacy helper.
 
-<!-- version: 0.5.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:00:00Z -->
+<!-- version: 0.5.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:45:00Z -->

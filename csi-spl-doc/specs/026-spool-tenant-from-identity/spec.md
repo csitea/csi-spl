@@ -103,17 +103,27 @@ check* during the transition (§5).
 - Retirement (§8): once the measured traffic on the tenant hosts is zero,
   the mappings are removed through terraform via make.
 
-## 6. Phase 2 (specified, not built): the workspace switcher
+## 6. Phase 2: the workspace switcher (hub Implemented 0.5.8; WUI Planned)
 
 - `POST /api/v1/auth/tenant {"tenant": "<id>"}` re-issues the session cookie
   with `t=<id>` when the human is a member of `<id>` (else 403); logs
   `auth.tenant_switch`. Idempotent. The same CORS as the other auth routes.
+  **Implemented** (hub 0.5.8, CLE-34983): `internal/auth/tenant.go`
+  `switchTenant`; answers the GET session body for the new cookie; the cookie
+  keeps its expiry; an unknown tenant is `403 not_member` like a foreign one.
+  Check: `TestWorkspaceSwitch` (memory + `hub-pg.tst.sh`).
 - "Last used": the hub records `last_active_at` per membership on the
   switch; a session without `t` and with several memberships then gets the
-  most recent one instead of 409.
+  most recent one instead of 409. **Implemented**: rdb 0044
+  `tenant_memberships.last_active_at` (applied dev + prd 2026-09-25 via
+  `do_spl_db_bootstrap`), `fallbackTenant` -> `lastActive`. A legacy Host
+  that names one of the memberships still wins over "last used". CONTROL:
+  the fallback disabled turns `TestWorkspaceSwitch` red.
 - WUI: the left-most vertical strip lists `tenants` from the session (one
   icon per workspace); a click calls the switch endpoint and reloads the
-  feeds. Not built now.
+  feeds. **Planned** (CLE-34983, next): the sidebar tenant drop box
+  (`tenant-switcher.mjs`, be3e3f0e) lists every membership and calls the
+  switch; with one membership it stays the fixed one-row box.
 
 ## 7. RLS and RBAC (FR-008)
 
@@ -151,3 +161,5 @@ check* during the transition (§5).
   with `t` → only `t`.
 - Each control first proves the positive path on the same fixture, so a
   refusal is not an unrelated failure.
+
+<!-- version: 0.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:45:00Z -->

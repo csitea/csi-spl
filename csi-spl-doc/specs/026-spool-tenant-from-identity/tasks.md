@@ -12,7 +12,8 @@
 | T040 | deploy dev then prd (deploy lane), `do_spl_m3_e2e` on the api host dev + prd | done: hub 0.1.12 (253d5d0) dev+prd; m3 e2e api host dev/t1 14 PASS, prd/e2e 15 PASS (before and after T050); live WUI proof dev + prd |
 | T050 | measure tenant-host traffic; retire mappings via cnf + make 032/025 (dev, prd) | done: 0e09b33 cnf; make do-provision dev 032 -8, dev 025 -8, prd 032 -2, prd 025 -2 (api records kept) |
 | T060 | tenant `csitea` dev + prd, owner invited as owner | done: created (no DNS), invited biz_owner (025 live) on both |
-| P2-1 | phase 2: `POST /api/v1/auth/tenant` switch + `last_active_at` + WUI rail | not now (Planned). Not this: `csi-spl-wui/src/utils/tenant-switcher.mjs` (be3e3f0e) is a fixed one-row drop box, choosing it changes nothing |
+| P2-1 | phase 2 hub: `POST /api/v1/auth/tenant` switch + `last_active_at` (rdb 0044) | Implemented: hub 0.5.8 (CLE-34983); 0044 applied dev + prd 2026-09-25 (`do_spl_db_bootstrap`, env SAs, `information_schema` shows the column on both, n=1). Check `TestWorkspaceSwitch` |
+| P2-2 | phase 2 WUI: the tenant drop box lists every membership and switches | Planned (CLE-34983). Today: `csi-spl-wui/src/utils/tenant-switcher.mjs` (be3e3f0e) is a fixed one-row drop box, choosing it changes nothing |
 
 ## Left for other lanes (not 026 scope)
 
@@ -20,4 +21,4 @@
   `do_spl_tenant_host_{provision,deprovision,reconcile}` - obsolete now that `mapped_tenants` is `[]`.
 - WUI `withSessionRetry` race (pre-existing): a concurrent read can stay 401 until its next poll; reported to CLE-55 / CLE-3412.
 
-<!-- version: 0.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:30:00Z -->
+<!-- version: 0.2.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:45:00Z -->

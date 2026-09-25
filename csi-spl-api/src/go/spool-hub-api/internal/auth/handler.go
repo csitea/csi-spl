@@ -189,6 +189,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+RoutePrefix+"avatar", h.avatar)
 	mux.HandleFunc("POST "+RoutePrefix+"logout", h.logout)
 	mux.HandleFunc("PUT "+RoutePrefix+"preferences", h.putPreferences)
+	mux.HandleFunc("POST "+RoutePrefix+"tenant", h.switchTenant) // specs/026 §6
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/start", h.start)
 	mux.HandleFunc("GET "+RoutePrefix+"{provider}/callback", h.callback)
 	h.registerFacebookCallbacks(mux)

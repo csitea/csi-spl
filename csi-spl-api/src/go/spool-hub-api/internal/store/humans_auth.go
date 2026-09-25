@@ -159,9 +159,28 @@ func (a AuthHooks) Tenants(ctx context.Context, humanID string) ([]auth.TenantRo
 	}
 	out := make([]auth.TenantRole, 0, len(ms))
 	for _, m := range ms {
-		out = append(out, auth.TenantRole{TenantID: m.TenantID, Role: m.Role, DisplayName: m.DisplayName})
+		out = append(out, auth.TenantRole{TenantID: m.TenantID, Role: m.Role, DisplayName: m.DisplayName,
+			LastActiveAt: m.LastActiveAt})
 	}
 	return out, nil
+}
+
+// TouchTenant stamps the membership the human just switched into (specs/026
+// §6); a non-member is auth.ErrNotMember.
+func (a AuthHooks) TouchTenant(ctx context.Context, humanID, tenant string) error {
+	mt, ok := a.H.(MembershipToucher)
+	if !ok {
+		return errors.New("store: memberships cannot be touched")
+	}
+	now := time.Now
+	if a.Now != nil {
+		now = a.Now
+	}
+	err := mt.TouchMembership(ctx, humanID, tenant, now())
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrNotMember
+	}
+	return err
 }
 
 // Unlink removes one identity (Meta deauthorize / data deletion, 010 FR-013).

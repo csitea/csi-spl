@@ -347,11 +347,13 @@ log , button after the flow icon on the left most pane"*.
   (memory + Postgres) and `hub/events_test.go` (CLE-34990).
 - [x] T048 (FR-017) `src/utils/event-log.mjs` (events-v1 client + signed-in batch shipper that never
   journals itself) + `src/plugins/event-log.client.ts`; unit `tests/unit/event-log.test.mjs` (CLE-34990).
-- [ ] T049 (FR-016) `components/common/ErrorSnackbar.vue` mounted in `layouts/default.vue`, all 19
-  locales (GRK-3514).
-- [ ] T050 (FR-017) `pages/events.vue` + the rail's Event log icon after Flow (GRK-3514 page,
-  CLE-34990 rail).
-- [ ] T051 live proof on dev AND prd, signed in: snackbar slides in, dismisses, the row is on
-  `/events` and in `human_events` (AGY-3493).
+- [x] T049 (FR-016) `components/common/ErrorSnackbar.vue` mounted in `layouts/default.vue`, all 19
+  locales (GRK-3514: 716af006, 857b5d52).
+- [x] T050 (FR-017) `pages/events.vue` + the rail's Event log icon after Flow (GRK-3514 page
+  857b5d52, CLE-34990 rail 999d5ba3).
+- [x] T051 live proof on dev AND prd, signed in: snackbar slides in, dismisses, the row is on
+  `/events` and in `human_events` (GRK-3514 after AGY-3493 left: A1-A6 PASS on dev + prd,
+  /tmp/grk3514-proof/{dev,prd}; `human_events` 5 rows each on dev and prd; WUI bf4757fa, hub
+  0.6.2 6b055c62 served on both).
 
-<!-- version: 1.11.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:45:00Z -->
+<!-- version: 1.11.1 · updated: 2026-09-25 · last-edit: 2026-09-25T20:55:00Z -->

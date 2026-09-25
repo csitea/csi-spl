@@ -454,6 +454,10 @@
       "chip": "{emoji}, {n}",
       "mine": "הסר את {emoji} שלך",
       "failed": "לא ניתן לשמור את האימוג'י."
+    },
+    "typed_by": {
+      "badge": "דרך הטרמינל של {agent}",
+      "title": "הוקלד על ידי {who} בטרמינל של {agent}"
     }
   },
   "topic": {

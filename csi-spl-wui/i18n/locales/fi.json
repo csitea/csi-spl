@@ -454,6 +454,10 @@
       "chip": "{emoji}, {n}",
       "mine": "Poista oma {emoji}",
       "failed": "Emojia ei voitu tallentaa."
+    },
+    "typed_by": {
+      "badge": "{agent}-päätteen kautta",
+      "title": "{who} kirjoitti tämän {agent}-päätteessä"
     }
   },
   "topic": {

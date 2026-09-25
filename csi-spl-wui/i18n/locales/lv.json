@@ -454,6 +454,10 @@
       "chip": "{emoji}, {n}",
       "mine": "Noņemt savu {emoji}",
       "failed": "Emoji neizdevās saglabāt."
+    },
+    "typed_by": {
+      "badge": "caur {agent} termināli",
+      "title": "{who} to ierakstīja {agent} terminālī"
     }
   },
   "topic": {

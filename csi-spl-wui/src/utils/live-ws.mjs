@@ -106,6 +106,8 @@ export function messageFromFrame(f) {
   /* message-edit-v1 §6: edited_at / edited_by / revision sit on the FRAME,
      beside cursor, not inside env.msg — same allow-list gap as view-api's */
   copyEditFields(x, out)
+  /* specs/036 FR-011: the verified typist rides on the frame, like edited_by */
+  if (typeof x.typed_by === 'string' && x.typed_by) out.typed_by = x.typed_by
   return out
 }
 

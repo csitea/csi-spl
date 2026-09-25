@@ -454,6 +454,10 @@
       "chip": "{emoji}, {n}",
       "mine": "Verwijder je {emoji}",
       "failed": "De emoji kon niet worden opgeslagen."
+    },
+    "typed_by": {
+      "badge": "via terminal van {agent}",
+      "title": "Getypt door {who} in de terminal van {agent}"
     }
   },
   "topic": {

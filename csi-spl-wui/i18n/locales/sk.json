@@ -454,6 +454,10 @@
       "chip": "{emoji}, {n}",
       "mine": "Odstrániť vaše {emoji}",
       "failed": "Emoji sa nepodarilo uložiť."
+    },
+    "typed_by": {
+      "badge": "cez terminál {agent}",
+      "title": "Napísané používateľom {who} v termináli {agent}"
     }
   },
   "topic": {

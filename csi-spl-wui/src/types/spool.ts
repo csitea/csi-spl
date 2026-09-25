@@ -43,6 +43,12 @@ export interface SpoolMessage {
   edited_by?: string
   revision?: number
   /**
+   * specs/036 FR-011 (rdb 0040): the HUM-* the hub VERIFIED typed this line
+   * at the `from` agent's terminal. Omitted for every other row. The card
+   * then shows the human, with a "via terminal <agent>" badge.
+   */
+  typed_by?: string
+  /**
    * Emoji added to this message (rdb 0037). Present on an opening message
    * (is_parent 1) and on a reply (is_parent 0). Empty when nobody has added one.
    */

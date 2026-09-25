@@ -454,6 +454,10 @@
       "chip": "{emoji}, {n}",
       "mine": "Elimină {emoji} al tău",
       "failed": "Emoji-ul nu a putut fi salvat."
+    },
+    "typed_by": {
+      "badge": "prin terminalul {agent}",
+      "title": "Tastat de {who} în terminalul {agent}"
     }
   },
   "topic": {

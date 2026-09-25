@@ -120,6 +120,19 @@ export const MOCK_MESSAGES = [
     channel: null,
     to_box: 'box-a',
   }),
+  /* specs/036 FR-011: HUM-1 typed this at CLE-07's terminal; the hub verified
+     it, so the lobby shows HUM-1 with a "via terminal CLE-07" badge. */
+  msg({
+    msg_id: '88888888-8888-4888-8888-888888888888',
+    task_id: 'abababab-abab-4bab-8bab-abababababab',
+    ts: '2026-09-18T10:07:00Z',
+    from: 'CLE-07',
+    to: '@channel',
+    kind: 'note',
+    body: 'Typed at the terminal: run the e2e again.',
+    channel: 'lobby',
+    typed_by: 'HUM-1',
+  }),
 ]
 
 export function cloneMock() {

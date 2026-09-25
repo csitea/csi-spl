@@ -265,13 +265,16 @@ describe('pane 2 row is the starter and carries the starter sender', () => {
     assert.equal(rows[0].body, 'ping')
   })
 
-  it('the avatar cannot disagree with the sender, because both read msg.from', () => {
+  it('the avatar cannot disagree with the sender, because both read the same author', () => {
     /* the mechanism, pinned: MessageCard feeds SpoolAvatar and AgentBadge from
        the SAME field, so a row that carries the right `from` cannot show the
-       wrong face. The defect was upstream, in what the row carried. */
+       wrong face. The defect was upstream, in what the row carried. Since
+       specs/036 FR-011 that field is `author` = typedByAuthor(msg): msg.from,
+       or the verified typed_by of a line typed at the agent's terminal. */
     const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
-    assert.match(vue, /<SpoolAvatar class="avatar" :id="String\(msg\.from \|\| ''\)"/)
-    assert.match(vue, /<AgentBadge :id="String\(msg\.from\)"/)
+    assert.match(vue, /<SpoolAvatar class="avatar" :id="author\.id" :box="author\.box"/)
+    assert.match(vue, /<AgentBadge :id="author\.id"/)
+    assert.match(vue, /const author = computed\(\(\) => typedByAuthor\(props\.msg\)\)/)
   })
 
   it('the pane-2 arrow is the starter recipient; the reply keeps its own', () => {

@@ -454,6 +454,10 @@
       "chip": "{emoji}, {n}",
       "mine": "Quitar tu {emoji}",
       "failed": "No se pudo guardar el emoji."
+    },
+    "typed_by": {
+      "badge": "vía terminal de {agent}",
+      "title": "Escrito por {who} en el terminal de {agent}"
     }
   },
   "topic": {

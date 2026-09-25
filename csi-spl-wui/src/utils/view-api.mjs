@@ -144,6 +144,8 @@ export function normalizeViewMessage(el) {
     if (e.received_at !== undefined) out.received_at = e.received_at
     if (Array.isArray(e.deliveries)) out.deliveries = e.deliveries
     copyEditFields(e, out)
+    /* specs/036 FR-011: hub metadata beside the envelope, omitted when absent */
+    if (typeof e.typed_by === 'string' && e.typed_by) out.typed_by = e.typed_by
     if (e.is_parent === 0 || e.is_parent === 1) out.is_parent = e.is_parent
     if (Array.isArray(e.reactions)) out.reactions = normalizeReactions(e.reactions)
     delete out.sig

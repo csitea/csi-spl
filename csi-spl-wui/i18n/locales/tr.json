@@ -454,6 +454,10 @@
       "chip": "{emoji}, {n}",
       "mine": "{emoji} emojini kaldır",
       "failed": "Emoji kaydedilemedi."
+    },
+    "typed_by": {
+      "badge": "{agent} terminali üzerinden",
+      "title": "{who} tarafından {agent} terminalinde yazıldı"
     }
   },
   "topic": {

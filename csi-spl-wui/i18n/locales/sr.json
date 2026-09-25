@@ -454,6 +454,10 @@
       "chip": "{emoji}, {n}",
       "mine": "Уклони свој {emoji}",
       "failed": "Емоџи није сачуван."
+    },
+    "typed_by": {
+      "badge": "preko terminala {agent}",
+      "title": "Otkucao {who} u terminalu {agent}"
     }
   },
   "topic": {

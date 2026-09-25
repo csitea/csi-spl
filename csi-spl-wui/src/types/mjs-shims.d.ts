@@ -335,6 +335,10 @@ declare module '~/utils/pane-focus.mjs' {
   export function paneTakesLine(opts?: { paneOpen?: boolean, lastPane?: string }): boolean
 }
 
+declare module '~/utils/typed-by.mjs' {
+  export function typedByAuthor(msg: { from?: string, from_box?: string, typed_by?: string } | null | undefined): { id: string, box: string, via: string, viaBox: string }
+}
+
 declare module '~/utils/msg-menu.mjs' {
   export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean }): { id: 'open' | 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete', icon: 'open' | 'pencil' | 'copy' | 'merge' | 'trash', labelKey: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string

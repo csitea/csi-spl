@@ -454,6 +454,10 @@
       "chip": "{emoji}, {n}",
       "mine": "Eemalda oma {emoji}",
       "failed": "Emojit ei õnnestunud salvestada."
+    },
+    "typed_by": {
+      "badge": "{agent} terminali kaudu",
+      "title": "{who} kirjutas selle {agent} terminalis"
     }
   },
   "topic": {

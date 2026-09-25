@@ -11,14 +11,14 @@
     :aria-current="selected ? 'true' : undefined"
     :aria-posinset="posinset || undefined"
     :aria-setsize="setsize || undefined"
-    :aria-label="t('feed.card_aria', { who: (msg.from || t('feed.unknown_author')) + (msg.from_box ? '@' + msg.from_box : ''), kind: kindLabel(String(msg.kind || 'note')) })"
+    :aria-label="t('feed.card_aria', { who: (author.id || t('feed.unknown_author')) + (author.box ? '@' + author.box : ''), kind: kindLabel(String(msg.kind || 'note')) })"
     :aria-describedby="clickable ? 'feed-open-hint' : undefined"
     @click="onClick"
     @dblclick="onDblClick"
     @keydown="onKey"
     @contextmenu="onContextMenu"
   >
-    <SpoolAvatar class="avatar" :id="String(msg.from || '')" :box="msg.from_box ? String(msg.from_box) : ''" />
+    <SpoolAvatar class="avatar" :id="author.id" :box="author.box" />
     <div>
       <!--
         CLE-3446 — the owner's settled row format, 2026-09-22: per message,
@@ -27,7 +27,16 @@
         the sender alone.
       -->
       <div class="msg-meta">
-        <AgentBadge :id="String(msg.from)" :box="msg.from_box ? String(msg.from_box) : undefined" />
+        <AgentBadge :id="author.id" :box="author.box || undefined" />
+        <!-- specs/036 FR-011: the human typed this at the agent's terminal -->
+        <span
+          v-if="author.via"
+          class="msg-via-terminal"
+          data-testid="msg-typed-by"
+          :data-typed-by="author.id"
+          :data-via="author.via"
+          :title="t('feed.typed_by.title', { who: author.id, agent: author.via })"
+        >{{ t('feed.typed_by.badge', { agent: author.via }) }}</span>
         <template v-if="recipient">
           <span class="msg-to-arrow" aria-hidden="true">→</span>
           <SpoolAvatar class="avatar--to" :id="recipient.id" :box="recipient.box" :size="20" />
@@ -194,6 +203,7 @@ import { openThreadRow } from '~/utils/pane-scroll.mjs'
 import { joinBodies, threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
 import { reactionChips } from '~/utils/emoji.mjs'
 import { useMessageEmoji } from '~/composables/useMessageEmoji'
+import { typedByAuthor } from '~/utils/typed-by.mjs'
 
 import type { FileRef, ReactionUpdate, SpoolMessage } from '~/types/spool'
 
@@ -227,6 +237,8 @@ function openReplies() {
 }
 
 const { t, te } = useI18n({ useScope: 'global' })
+/** specs/036 FR-011: who the row is shown as (the typist, for a terminal line). */
+const author = computed(() => typedByAuthor(props.msg))
 /** v:1 kind in words (feed.kind.*); an unknown kind shows as sent. */
 const kindLabel = (k: string) => (te('feed.kind.' + k) ? t('feed.kind.' + k) : k)
 /* CLE-3425: a topic card is ordered by its LAST activity, so it shows that

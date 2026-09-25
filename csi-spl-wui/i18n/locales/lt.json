@@ -454,6 +454,10 @@
       "chip": "{emoji}, {n}",
       "mine": "Pašalinti jūsų {emoji}",
       "failed": "Jaustuko išsaugoti nepavyko."
+    },
+    "typed_by": {
+      "badge": "per {agent} terminalą",
+      "title": "{who} parašė tai {agent} terminale"
     }
   },
   "topic": {

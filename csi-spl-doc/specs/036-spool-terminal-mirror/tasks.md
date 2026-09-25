@@ -44,6 +44,27 @@ named) · `[ ]` Planned (`../README.md` §2.3).
   carries `spool-agent.sh` (on 2026-09-25 14:25Z that checkout was 24 behind
   with 22 files of another lane's uncommitted edits; until then the spawner
   falls back to the plain CLI). An installer for other users: CLE-34966.
+- [x] T043 Implemented (csi-spl `963234d2`, `50009c82`; engine `f25fe4f`,
+  CLE-34980) — agy (antigravity) gets the wrapper: `spool-agent.sh ... agy`
+  seats it on every env with the desk (dev,prd), splits the notice strip
+  right after seating and before the CLI paints (for claude and grok too),
+  marks the pane `@spool_strip 1`, and merges the named hook `spool-mirror`
+  (PreInvocation + Stop -> `spool-mirror.py hook --agy pre|stop`, CLE-3496's
+  reader, `680a6211`) into `~/.gemini/config/hooks.json`, keeping other named
+  hooks; a non-JSON file is moved to `hooks.json.bad.<ts>`. The engine's
+  spawn-agy and restore-agy start agy through `BOX_AGENT_WRAPPER`.
+  Check: `test-spool-agent.sh` -> `46 passed, 0 failed`; engine
+  `test-spawn-wrapper.sh` -> `11 passed, 0 failed`. Live (n=1, 2026-09-25
+  17:49-17:55Z, test window AGY-34980): strip `%213` present when agy
+  started, tailing the dev AND prd logs; seated dev + prd (prd sidecar
+  roster lists it); `ENV=dev do_spl_desk_probe DRY_RUN=0` every step PASS
+  (DM shown in the strip, typed into agy); `do_spl_desk_mirror_check` ->
+  `OK agent-typed -> HUM-4` then `OK answer -> HUM-4` (242 chars). Not proven on
+  prd: no web UI DM was sent there.
+- [ ] T044 Planned — agy windows spawned BEFORE engine `f25fe4f` (AGY-3493..
+  3497) run plain agy: they pick up the hook file (it is global) but have no
+  wrapper-made strip (unchecked: the desk should add one on the next delivery, 8c8e1530).
+  Restore them through `restore-agy.sh` to get the full harness.
 
 ## Phase 3c — Attribution (FR-009..FR-012)
 

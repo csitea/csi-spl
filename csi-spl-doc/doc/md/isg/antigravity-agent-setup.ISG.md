@@ -30,6 +30,44 @@ MCP (the Claude guide 6.0): `agy` is REGISTERED with the seated `spool-dev` /
 2026-09-25), but UNTESTED in a live agy session. Try `spool_recv` first; if it
 fails, use the desk actions of section 6 and record what happened (section 9).
 
+## 0.2 Start agy seated, stripped and mirrored in one step
+
+The box spawner (`/agy-spawn`, `restore-agy.sh`) starts agy THROUGH
+`spool-agent.sh` when the box sets `BOX_AGENT_WRAPPER` (engine `f25fe4f`). By
+hand, inside the tmux window as the agent user:
+
+```bash
+bash /opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent.sh --as <AGY-ID> agy --dangerously-skip-permissions
+```
+
+Before agy starts, it:
+
+- seats `<AGY-ID>` on every env that has the desk on this box (dev and prd;
+  `--env dev` narrows it)
+- splits the 48-column right-hand notice strip, tailing every env's log, and
+  marks the agy pane `@spool_strip 1` (agy paints on the normal screen, so
+  a notice goes to the strip, never into agy's tty)
+- merges the named hook `spool-mirror` into `~/.gemini/config/hooks.json`:
+  `PreInvocation` posts your prompt and `Stop` posts agy's answer into the
+  DM (agy's hook payloads have no text, so `spool-mirror.py` reads agy's
+  transcript). Other named hooks are kept. A file that is not JSON is moved
+  to `hooks.json.bad.<ts>`
+
+Measured n=1, 2026-09-25 17:49-17:55Z, test window `AGY-34980`, csi-spl
+`50009c82`, agy 1.2.11:
+
+- the strip pane (`@spool_notices=AGY-34980`) existed when agy painted;
+  its `@spool_notices_logs` named the dev and the prd log
+- `do_spl_desk_mirror_check` on dev and prd: `seated: true`; the prd sidecar
+  roster lists the id
+- `ENV=dev ... DRY_RUN=0 ./run -a do_spl_desk_probe`: every step PASS, and
+  the web UI's DM showed in the strip and was typed into agy
+- mirror log on dev: `OK agent-typed -> HUM-4 ...` (the prompt), then
+  `OK answer -> HUM-4 ... (242 chars)` (agy's answer, from the Stop hook)
+
+NOT tested: a DM on prd, and an owner (not member) DM. The mirror posts to
+the human whose DM the agent is answering (spec 036).
+
 ## 1. What this installs
 
 The same as for Claude: a seat in the box's desk, a 48-column right-hand notice
@@ -173,4 +211,4 @@ n as each step states. Both dev and prd desk checks and seating are verified.
 One step is still open: `do_spl_desk_session_upload` exporting an agy conversation.
 Delete the "still untested" line at the top only after that has been verified.
 
-<!-- version: 0.4.0 · updated: 2026-09-25 · last-edit: 2026-09-25T17:35:00Z -->
+<!-- version: 0.5.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:00:00Z -->

@@ -1,6 +1,7 @@
 import { forgetRosterRead, loadHumanNames } from '~/utils/avatar.mjs'
 import { personLabel } from '~/utils/channel-feed.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useSessionStore } from '~/stores/session'
 
 /**
  * The display names members chose (Settings > Profile), from the roster the
@@ -20,6 +21,9 @@ export function useHumanNames() {
   }
 
   onMounted(() => { void load() })
+  /* Signing in makes the roster readable: read it then, not on the next reload. */
+  const session = useSessionStore()
+  watch(() => session.state, (now, before) => { if (now === 'in' && before !== 'in') void load(true) })
 
   function label(id: string, box?: string) {
     return personLabel(id, box, names.value)

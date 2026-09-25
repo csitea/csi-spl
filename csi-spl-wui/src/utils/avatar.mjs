@@ -192,7 +192,12 @@ export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', f
   })()
   const promise = json.then(avatarFilesFromView)
   const names = json.then(humanNamesFromView)
-  avatarLoads.set(key, { at: now(), promise, names })
+  const entry = { at: now(), promise, names }
+  avatarLoads.set(key, entry)
+  /* A failed read is not kept: the first one runs on the login page, before
+     the session exists, and its 401 would otherwise blank every name and
+     picture for the whole TTL after sign-in. */
+  json.then((data) => { if (data === null && avatarLoads.get(key) === entry) avatarLoads.delete(key) })
   return promise
 }
 

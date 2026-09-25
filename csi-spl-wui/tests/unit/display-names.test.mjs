@@ -63,6 +63,26 @@ describe('loadHumanNames', () => {
   })
 })
 
+describe('a failed roster read is not cached', () => {
+  it('a 401 before sign-in is retried by the next read, not kept for the TTL', async () => {
+    resetAvatarFiles()
+    let signedIn = false
+    const fetchFn = async () => (signedIn
+      ? { ok: true, json: async () => ({ humans: [{ human_id: 'HUM-3', display_name: 'Alice' }] }) }
+      : { ok: false, status: 401 })
+    const o = { base: 'http://t1.test', fetchFn, now: () => 1000 }
+    assert.deepEqual(await loadHumanNames(o), {})
+    await new Promise((r) => setTimeout(r, 0))
+    signedIn = true
+    assert.deepEqual(await loadHumanNames(o), { 'HUM-3': 'Alice' })
+    resetAvatarFiles()
+  })
+
+  it('the names are re-read when the session signs in', () => {
+    assert.match(read('src/composables/useHumanNames.ts'), /now === 'in' && before !== 'in'\) void load\(true\)/)
+  })
+})
+
 describe('the name is shown where the id was', () => {
   it('message cards, the DM list, the self row, and the DM header use it; the id stays the tooltip', () => {
     const badge = read('src/components/AgentBadge.vue')

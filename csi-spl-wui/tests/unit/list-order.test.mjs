@@ -15,6 +15,7 @@ import {
   addChannelRow,
   channelActivity,
   channelView,
+  rowsForRightPane,
   dmActivity,
   dmPeerOf,
   noteActivity,
@@ -107,6 +108,14 @@ describe('channelView: pane 2 is the topic starter (owner 2026-09-23)', () => {
     assert.deepEqual(ids(v), ['t1-1', 't2-10'])
     assert.equal(v.find((r) => r.task_id === 't1').body, 't1 1')
     assert.equal(v.some((r) => r.is_parent === 0), false)
+  })
+
+  it('is_parent 0 is on the right pane, including after it is no longer pending', () => {
+    const root = msg('t1', 1, { is_parent: 1 })
+    const reply = msg('t1', 20, { is_parent: 0, pending: false })
+    const other = msg('t2', 5, { is_parent: 0 })
+    const rows = rowsForRightPane([root], [reply, other], 't1')
+    assert.deepEqual(ids(rows), ['t1-1', 't1-20'])
   })
 })
 

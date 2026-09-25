@@ -52,6 +52,7 @@ import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { matchesSearch, mergeById, newestFirst } from '~/utils/feed.mjs'
+import { rowsForRightPane } from '~/utils/channel-feed.mjs'
 import { topicTitleFromRows } from '~/utils/view-api.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
@@ -77,12 +78,11 @@ const loadError = ref('')
 const loading = ref(false)
 const search = ref('')
 const lastLive = ref<SpoolMessage | null>(null)
-/* 013 US7 FR-013: our own reply shows at once (the channel store holds it pending until the echo) */
-const pendingHere = computed(() => channel.messages.filter((m) => m.pending && m.task_id === topic.parentTaskId) as SpoolMessage[])
-/* Newest first, so a message that just arrived is the first row. */
+/* A reply with is_parent 0 lives in the channel store as well as here.
+   Keep it on this pane after the send stops being pending. */
 const messages = computed(() => {
-  const held = (api.mock ? topic.messages : mergeById(liveRows.value, pendingHere.value).rows) as SpoolMessage[]
-  return newestFirst(held.filter((m) => matchesSearch(m, search.value))) as SpoolMessage[]
+  const base = (api.mock ? topic.messages : rowsForRightPane(liveRows.value, channel.messages, topic.parentTaskId)) as SpoolMessage[]
+  return newestFirst(base.filter((m) => matchesSearch(m, search.value))) as SpoolMessage[]
 })
 /* The open topic's own title, selected at the top of this pane. */
 const heading = computed(() => {

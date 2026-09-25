@@ -89,6 +89,9 @@ async function onSend(text: string, files?: File[], topicId?: string, channelId?
   })
   if (reply) topicId = reply
   const sent = await channel.send(text, topicId || undefined, files, channelId, parentBit())
+  if (sent && sent.is_parent === 0 && livePane.taskId && (sent.task_id === livePane.taskId || sent.parent_task_id === livePane.taskId)) {
+    livePane.admit([sent as SpoolMessage])
+  }
   topic.noteBorn(topic.open || Boolean(livePane.taskId), topicId, sent as SpoolMessage)
 }
 

@@ -1,7 +1,7 @@
 /** Pure feed helpers. Node tests import this file; Vue stores wrap it. */
 
 import { bodyToHtml } from './code-blocks.mjs'
-import { activityOf, matchesSearch, newestActivityFirst, newestFirst, windowed } from './feed.mjs'
+import { activityOf, matchesSearch, mergeById, newestActivityFirst, newestFirst, windowed } from './feed.mjs'
 
 export function topLevel(messages) {
   return messages
@@ -394,6 +394,23 @@ function earlierByTs(a, b) {
 /** A reply written with the topics pane open. It stays in that pane. */
 function hiddenFromMiddle(m) {
   return !!m && m.is_parent === 0
+}
+
+/**
+ * Rows the right pane shows for one open topic. The topic read is the base.
+ * A reply held by the channel feed (optimistic, or confirmed before the
+ * topic read catches up) joins that list when it is still pending or when
+ * is_parent is 0. Anything else in the channel feed stays in the middle.
+ */
+export function rowsForRightPane(topicRows, held, topicId) {
+  const id = String(topicId || '')
+  const extra = []
+  for (const m of held || []) {
+    if (!m || !id) continue
+    if (m.task_id !== id && m.parent_task_id !== id) continue
+    if (m.pending || m.is_parent === 0) extra.push(m)
+  }
+  return mergeById(topicRows || [], extra).rows
 }
 
 /**

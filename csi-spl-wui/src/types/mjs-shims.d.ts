@@ -191,6 +191,7 @@ declare module '~/utils/channel-feed.mjs' {
   export function rootsByTask<T extends { task_id?: string }>(messages: T[]): T[]
   export function topicReplies(messages: { task_id?: string, parent_task_id?: string | null }[], taskId: string): number
   export function channelView<T>(messages: T[], opts?: { search?: string, visible?: number, lobby?: boolean }): { rows: T[], hasOlder: boolean }
+  export function rowsForRightPane<T>(topicRows: T[], held: T[], topicId: string): T[]
   export function topicCards<T extends { task_id?: string }>(messages: T[]): T[]
   export function channelActivity(row: unknown, liveAt?: Record<string, string>): string
   export function orderChannels<T extends { channel_id?: string }>(rows: T[], liveAt?: Record<string, string>): T[]

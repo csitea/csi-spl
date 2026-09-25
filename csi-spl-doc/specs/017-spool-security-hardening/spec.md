@@ -274,6 +274,16 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
   keeps the old verbatim behaviour (unknown is not a reason to rewrite an owner's words).
   *Status:* Implemented (`0680458c`, live on the dev and prd desks: the sidecars exec
   `/opt/csi/csi-spl/…/spool-notify.sh` per message).
+- **FR-SEC-032 (Redaction covers what this box holds) — amendment 2026-09-25, CLE-34988:** `spool_redact.py`,
+  the one pass in front of every mirror post and session export (spec 036), MUST replace every credential class the
+  box holds or handles. Added: xAI / GitLab / npm / Stripe (`sk_|rk_live|test_`, `whsec_`) / Google OAuth client
+  secret (`GOCSPX-`), access (`ya29.`) and refresh (`1//0`) tokens; PGP private key blocks and a key cut short
+  (no END line); the raw base64 ed25519 private key a spool box or root key file holds (86 + `==`, a public key
+  stays); credentials in any `scheme://user:pass@`; signed-URL signatures (`X-Goog-Signature=`, git-rel relay);
+  `Bearer`; `Cookie:`; JSON `"…token|secret|password|api_key|access_key": "…"`; `*_ACCESS_KEY=`.
+  `test-spool-redact.sh` holds one row per class plus look-alike controls (sha, sha256, uuid, public key, plain
+  URL, prose after a cut key); against the previous pass 38 of its 68 checks are red.
+  *Status:* Implemented (this commit; live on the desks at the next mirror hook, which execs the shared tree).
 
 ## 3. Non-Functional Requirements (NFR-SEC)
 
@@ -284,4 +294,4 @@ estate, establishing actionable hardening requirements to elevate `csi-spl` to a
 - **NFR-SEC-003 (Minimal Distroless Attack Surface):** Production containers MUST execute as non-root users on
   distroless base images with read-only root filesystems where possible.
 
-<!-- version: 1.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:19:59Z -->
+<!-- version: 1.3.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:26:13Z -->

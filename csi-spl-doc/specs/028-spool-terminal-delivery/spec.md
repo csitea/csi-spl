@@ -136,5 +136,19 @@ CLE-3355's `0.1.17`: both hosts serve commit `39a5a25a` (2026-09-21T07:54Z) and
   notice strip and no prompt at all. The owner's call the same day was to run
   the box with the prompt leg ON for every agent, CLE-00 included, rather than
   make the switch per-agent.
+- **D-07 (2026-09-25) The garbled pane after a notice strip splits in was a
+  missing SIGWINCH, not a limit of the TUI.** `8994a91` put the damage down to
+  an Ink-style renderer that "holds no copy of the transcript" and so cannot
+  repaint after a width change. That was measured on a synthetic painter, not
+  on an agent CLI. The real cause: agents launched with `sudo su - <agent> -c`
+  run in their own session with no controlling tty (`ps` TT `?`, TPGID -1), so
+  tmux's resize never reaches them and an idle CLI keeps painting at the old
+  width. Measured with Claude Code 2.1.282 on tmux 3.5a, 189x51 split
+  `-h -l 48`, n=1 each: plain `su -` idle -> garbled; `su --pty` idle -> clean
+  at 140 and back at 189; plain `su -` mid-turn -> clean (a busy renderer
+  recovers). The launcher fix is ysg-box `d938aaa` / `5ed638c` (spec 001
+  T013). The right-hand strip stays, and splitting it before the CLI paints
+  stays too, but neither is needed for a correct repaint once the CLI hears
+  the signal.
 
-<!-- version: 1.2.0 · updated: 2026-09-22 · last-edit: 2026-09-22T13:10:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-25 · last-edit: 2026-09-25T10:50:00Z -->

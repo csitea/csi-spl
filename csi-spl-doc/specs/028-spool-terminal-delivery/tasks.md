@@ -97,4 +97,23 @@ the owner.
   (3m41s, run `35575064998`), `20 ci-cd: spool hub build + deploy` success
   (5m22s, run `35575065210`).
 
-<!-- version: 1.0.0 · updated: 2026-09-21 · last-edit: 2026-09-21T08:00:00Z -->
+## Phase 6 — The strip garbles a live pane (D-07)
+
+- [x] T060 Implemented (diagnosis, no code in this repo) — the owner's report
+  "the window gets distorted as soon as the right strip is added" traced to
+  agents started with plain `su - <agent> -c`, which never get SIGWINCH (D-07).
+  Evidence, 2026-09-25, tmux 3.5a, Claude Code 2.1.282, csi-spl `cf33a5f`,
+  ysg-box `5ed638c`, n=1 each: private-server plain `su -` idle garbled,
+  `su --pty` clean; live CLE-010 (`su --pty`, TT `pts/34`) clean on split and
+  unsplit; a lobby broadcast at 10:28:58Z split a strip into CLE-100 (plain
+  `su -`, TT `?`) and `kill -WINCH <cli pid>` repaired it. The fix landed in
+  the ysg-box launchers [lane CLE-3492].
+- [ ] T061 Planned — correct the comments that still blame the renderer:
+  `spawn-agents/scripts/spawn-window.sh` ("a WIDTH split … clips every
+  transcript line … permanently"), `lib/spool-poke-queue.inc.sh` and
+  `scripts/spool-strip-resize-proof.sh`. Make the proof script's Ink-style
+  subject receive SIGWINCH the way a `su --pty` agent does, so the gate
+  measures the real case [unowned]
+
+<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T10:50:00Z -->
+

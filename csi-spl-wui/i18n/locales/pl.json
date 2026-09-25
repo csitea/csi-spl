@@ -419,7 +419,9 @@
       "label": "Menu wiadomości",
       "edit": "Edytuj",
       "copy_link": "Kopiuj link",
-      "delete": "Usuń"
+      "delete": "Usuń",
+      "merge_prev": "Scal z poprzednią wiadomością",
+      "merge_next": "Scal z następną wiadomością"
     }
   },
   "topic": {

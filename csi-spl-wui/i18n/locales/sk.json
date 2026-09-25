@@ -419,7 +419,9 @@
       "label": "Ponuka správy",
       "edit": "Upraviť",
       "copy_link": "Kopírovať odkaz",
-      "delete": "Odstrániť"
+      "delete": "Odstrániť",
+      "merge_prev": "Zlúčiť s predchádzajúcou správou",
+      "merge_next": "Zlúčiť s nasledujúcou správou"
     }
   },
   "topic": {

@@ -419,7 +419,9 @@
       "label": "Žinutės meniu",
       "edit": "Redaguoti",
       "copy_link": "Kopijuoti nuorodą",
-      "delete": "Ištrinti"
+      "delete": "Ištrinti",
+      "merge_prev": "Sujungti su ankstesne žinute",
+      "merge_next": "Sujungti su kita žinute"
     }
   },
   "topic": {

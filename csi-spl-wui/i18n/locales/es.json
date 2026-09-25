@@ -419,7 +419,9 @@
       "label": "Menú del mensaje",
       "edit": "Editar",
       "copy_link": "Copiar enlace",
-      "delete": "Eliminar"
+      "delete": "Eliminar",
+      "merge_prev": "Fusionar con el mensaje anterior",
+      "merge_next": "Fusionar con el mensaje siguiente"
     }
   },
   "topic": {

@@ -419,7 +419,9 @@
       "label": "Ziņas izvēlne",
       "edit": "Rediģēt",
       "copy_link": "Kopēt saiti",
-      "delete": "Dzēst"
+      "delete": "Dzēst",
+      "merge_prev": "Apvienot ar iepriekšējo ziņu",
+      "merge_next": "Apvienot ar nākamo ziņu"
     }
   },
   "topic": {

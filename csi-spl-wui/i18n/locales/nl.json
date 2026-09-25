@@ -419,7 +419,9 @@
       "label": "Berichtmenu",
       "edit": "Bewerken",
       "copy_link": "Link kopiëren",
-      "delete": "Verwijderen"
+      "delete": "Verwijderen",
+      "merge_prev": "Samenvoegen met vorige bericht",
+      "merge_next": "Samenvoegen met volgende bericht"
     }
   },
   "topic": {

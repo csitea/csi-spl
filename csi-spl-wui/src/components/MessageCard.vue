@@ -103,10 +103,14 @@
       :x="menuPoint.x"
       :y="menuPoint.y"
       :editable="!!editable && !editing"
+      :merge-prev="!!mergePrev"
+      :merge-next="!!mergeNext"
       @close="closeMenu()"
       @escape="rowEl?.focus({ preventScroll: true })"
       @edit="onMenuEdit"
       @copy="copyMessageLink"
+      @merge-prev="onMerge('previous')"
+      @merge-next="onMerge('next')"
       @delete="onMenuDelete"
     />
   </article>
@@ -129,7 +133,7 @@ import {
 } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMessageMenu } from '~/composables/useMessageMenu'
-import { messageLink } from '~/utils/msg-menu.mjs'
+import { joinBodies, messageLink } from '~/utils/msg-menu.mjs'
 
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
@@ -148,6 +152,10 @@ const props = defineProps<{
   sinceMs?: number
   /** CLE-3445: offer the `e` shortcut on this row (author-only; the host decides). */
   editable?: boolean
+  /** The older message in this same thread, when this row may be folded into it. */
+  mergePrev?: SpoolMessage | null
+  /** The newer message in this same thread, when this row may be folded into it. */
+  mergeNext?: SpoolMessage | null
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage] }>()
 
@@ -231,6 +239,36 @@ function onMenuEdit() {
 function onMenuDelete() {
   closeMenu()
   void remove()
+}
+
+/**
+ * Fold this message into the neighbor. The neighbor keeps both bodies, older
+ * first, and only then is this row removed — a failed edit leaves both rows.
+ */
+async function onMerge(which: 'previous' | 'next') {
+  const other = which === 'previous' ? props.mergePrev : props.mergeNext
+  if (!other || removing.value || editing.value) return
+  if (!canEdit(props.msg) || !canEdit(other)) return
+  const older = which === 'previous' ? String(other.body || '') : String(props.msg.body || '')
+  const newer = which === 'previous' ? String(props.msg.body || '') : String(other.body || '')
+  const body = joinBodies(older, newer)
+  const keepId = String(other.msg_id || '')
+  const dropId = String(props.msg.msg_id || '')
+  if (!keepId || !dropId || keepId === dropId) return
+  closeMenu()
+  removing.value = true
+  editError.value = ''
+  try {
+    if (body !== String(other.body || '')) {
+      const row = await commit(keepId, body)
+      emit('edited', row)
+    }
+    await removeMessage(dropId)
+    emit('deleted', props.msg)
+  } catch (e) {
+    removing.value = false
+    editError.value = editFailureKey(e)
+  }
 }
 
 async function copyMessageLink() {

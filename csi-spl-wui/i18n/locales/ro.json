@@ -419,7 +419,9 @@
       "label": "Meniu mesaj",
       "edit": "Editează",
       "copy_link": "Copiază linkul",
-      "delete": "Șterge"
+      "delete": "Șterge",
+      "merge_prev": "Unește cu mesajul anterior",
+      "merge_next": "Unește cu mesajul următor"
     }
   },
   "topic": {

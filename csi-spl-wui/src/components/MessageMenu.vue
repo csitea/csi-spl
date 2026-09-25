@@ -39,6 +39,8 @@ const props = defineProps<{
   x: number
   y: number
   editable?: boolean
+  mergePrev?: boolean
+  mergeNext?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -46,6 +48,8 @@ const emit = defineEmits<{
   escape: []
   edit: []
   copy: []
+  'merge-prev': []
+  'merge-next': []
   delete: []
 }>()
 
@@ -54,7 +58,11 @@ const root = ref<HTMLElement | null>(null)
 const focused = ref(-1)
 const left = ref(0)
 const top = ref(0)
-const items = computed(() => msgMenuItems({ editable: props.editable }))
+const items = computed(() => msgMenuItems({
+  editable: props.editable,
+  mergePrev: props.mergePrev,
+  mergeNext: props.mergeNext,
+}))
 
 function itemEls(): HTMLElement[] {
   return [...(root.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
@@ -118,6 +126,8 @@ function onMenuKey(e: KeyboardEvent) {
 function choose(id: string) {
   if (id === 'edit') emit('edit')
   else if (id === 'copy') emit('copy')
+  else if (id === 'merge-prev') emit('merge-prev')
+  else if (id === 'merge-next') emit('merge-next')
   else if (id === 'delete') emit('delete')
   emit('close')
 }

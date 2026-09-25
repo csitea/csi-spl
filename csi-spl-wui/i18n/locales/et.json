@@ -419,7 +419,9 @@
       "label": "Sõnumi menüü",
       "edit": "Muuda",
       "copy_link": "Kopeeri link",
-      "delete": "Kustuta"
+      "delete": "Kustuta",
+      "merge_prev": "Ühenda eelmise sõnumiga",
+      "merge_next": "Ühenda järgmise sõnumiga"
     }
   },
   "topic": {

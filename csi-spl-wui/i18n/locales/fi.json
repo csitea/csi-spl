@@ -419,7 +419,9 @@
       "label": "Viestin valikko",
       "edit": "Muokkaa",
       "copy_link": "Kopioi linkki",
-      "delete": "Poista"
+      "delete": "Poista",
+      "merge_prev": "Yhdistä edelliseen viestiin",
+      "merge_next": "Yhdistä seuraavaan viestiin"
     }
   },
   "topic": {

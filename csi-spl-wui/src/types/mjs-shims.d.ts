@@ -317,8 +317,10 @@ declare module '~/utils/pane-focus.mjs' {
 }
 
 declare module '~/utils/msg-menu.mjs' {
-  export function msgMenuItems(opts?: { editable?: boolean }): { id: 'edit' | 'copy' | 'delete', icon: 'pencil' | 'copy' | 'trash', labelKey: string }[]
+  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean }): { id: 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete', icon: 'pencil' | 'copy' | 'merge' | 'trash', labelKey: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string
+  export function threadNeighbor(rows: unknown[], msg: unknown, which: 'previous' | 'next'): Record<string, unknown> | null
+  export function joinBodies(older: unknown, newer: unknown): string
 }
 
 declare module '~/utils/msg-edit.mjs' {

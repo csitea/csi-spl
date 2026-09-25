@@ -30,6 +30,8 @@
         :selected="isSelected(m)"
         :since-ms="sinceMs"
         :editable="canEdit(m)"
+        :merge-prev="mergeTarget(m, 'previous')"
+        :merge-next="mergeTarget(m, 'next')"
         :class="{ pending: m.pending }"
         :data-key="m.msg_id"
         :data-pending="m.pending ? 'true' : undefined"
@@ -61,6 +63,7 @@ import { useScrollAnchor } from '~/composables/useScrollAnchor'
 import { useTopicStore } from '~/stores/topic'
 import { isSelectedRow } from '~/utils/topic-open.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
+import { threadNeighbor } from '~/utils/msg-menu.mjs'
 
 /* 013: newest first under the Omnibox; entering rows animate. The first page is 30 rows; a Load more
    button under the last row asks for the next 30 (held rows first, then the hub, before=<cursor>).
@@ -108,6 +111,13 @@ const announce = computed(() => {
    the hub refuses anything else, and a shortcut that opens an editor the
    server will 403 is a defect. The predicate lives in utils/msg-edit.mjs. */
 const { canEdit } = useMessageEdit()
+
+/** The neighbor in this thread the viewer can both edit and, by deleting this row, fold into. */
+function mergeTarget(m: SpoolMessage, which: 'previous' | 'next') {
+  const other = threadNeighbor(props.rows, m, which) as SpoolMessage | null
+  if (!other || !canEdit(m) || !canEdit(other)) return null
+  return other
+}
 
 function openable(m: SpoolMessage) {
   return Boolean(m.task_id && props.currentTaskId && m.task_id !== props.currentTaskId)

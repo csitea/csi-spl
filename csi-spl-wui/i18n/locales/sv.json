@@ -419,7 +419,9 @@
       "label": "Meddelandemeny",
       "edit": "Redigera",
       "copy_link": "Kopiera länk",
-      "delete": "Ta bort"
+      "delete": "Ta bort",
+      "merge_prev": "Slå ihop med föregående meddelande",
+      "merge_next": "Slå ihop med nästa meddelande"
     }
   },
   "topic": {

@@ -419,7 +419,9 @@
       "label": "Mesaj menüsü",
       "edit": "Düzenle",
       "copy_link": "Bağlantıyı kopyala",
-      "delete": "Sil"
+      "delete": "Sil",
+      "merge_prev": "Önceki mesajla birleştir",
+      "merge_next": "Sonraki mesajla birleştir"
     }
   },
   "topic": {

@@ -43,13 +43,13 @@ func channelTargets(agents []string) []string {
 	return out
 }
 
-// channelOf is the channel a message belongs to: its (normalized) channel
-// tag, else lobby on the lobby task, else "" (a DM). A browser send signs
-// THIS, not the raw tag: a lobby post whose frame carried no tag would
-// otherwise be stored under lobby and routed to lobby members with an
-// envelope that claims no channel - which every receiving box refuses
+// tagChannel is the channel an envelope itself claims: its (normalized)
+// channel tag, else lobby on the lobby task, else "". A browser send signs
+// what channelOf returns, not the raw tag: a lobby post whose frame carried no
+// tag would otherwise be stored under lobby and routed to lobby members with
+// an envelope that claims no channel - which every receiving box refuses
 // (hubclient.receive, channels-v1 §4.5).
-func (s *Server) channelOf(channel, taskID string) string {
+func (s *Server) tagChannel(channel, taskID string) string {
 	if c := store.NormalizeChannel(channel); c != "" {
 		return c
 	}
@@ -59,9 +59,28 @@ func (s *Server) channelOf(channel, taskID string) string {
 	return ""
 }
 
+// channelOf is the channel a message belongs to: tagChannel, else the channel
+// of its task's topic root, else "" (a DM). A thread reply lives on its
+// topic's task and the WUI reply pane sends no tag, so without the inherit a
+// #lobby reply was stored with channel NULL while its topic said lobby
+// (CLE-34977) - and the per-message read door (rdb 0028) then judged the
+// reply as a DM. A lookup error keeps the old answer rather than failing the
+// send.
+func (s *Server) channelOf(ctx context.Context, tenant, channel, taskID string) string {
+	if c := s.tagChannel(channel, taskID); c != "" {
+		return c
+	}
+	c, err := s.o.Store.TopicChannel(ctx, tenant, taskID)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("task_id", taskID).Msg("topic channel")
+		return ""
+	}
+	return c
+}
+
 // storedChannel is the messages.channel of an envelope.
-func (s *Server) storedChannel(env *wire.Envelope, m *msg.Message) string {
-	return s.channelOf(env.Channel, m.TaskID)
+func (s *Server) storedChannel(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message) string {
+	return s.channelOf(ctx, tenant, env.Channel, m.TaskID)
 }
 
 // checkTags validates the optional hub-envelope fields (channels-v1 §2).

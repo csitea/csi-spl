@@ -622,7 +622,7 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 	if err != nil {
 		return c, err
 	}
-	channel := s.storedChannel(env, m)
+	channel := s.storedChannel(ctx, tenant, env, m)
 	filesJSON, _ := json.Marshal(m.Files)
 	if m.Files == nil {
 		filesJSON = []byte(`[]`)
@@ -648,7 +648,11 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 		s.notifyTail(ctx, tenant, m.TaskID, canon)
 		s.fanoutWUI(ctx, tenant, m.TaskID, channel, m.MsgID, parties{m.From, env.FromBox, m.To, env.ToBox}, now, canon, isParent, typedBy)
 	}
-	s.routeChannel(ctx, tenant, channel, env, m, canon)
+	// Box fan-out goes by what the SIGNED envelope claims: a box-signed reply
+	// that only inherited its topic's channel carries no tag, and a member box
+	// refuses a channel delivery without one (channels-v1 §4.5). A browser
+	// reply signs the inherited channel (wuiSend), so it routes as tagged.
+	s.routeChannel(ctx, tenant, s.tagChannel(env.Channel, m.TaskID), env, m, canon)
 	if env.ToBox == WUIBox {
 		if _, err := s.o.Store.ClaimSent(ctx, tenant, m.MsgID, WUIBox, now); err != nil {
 			return c, err

@@ -508,6 +508,18 @@ func (s *Postgres) MessageTimes(ctx context.Context, tenant, msgID string) (ts, 
 	return ts, receivedAt, err
 }
 
+// TopicChannel: see Store. Walks messages_task_received for one row.
+func (s *Postgres) TopicChannel(ctx context.Context, tenant, taskID string) (string, error) {
+	var channel string
+	err := s.queryRowTenant(ctx, tenant, `SELECT COALESCE(channel, '') FROM messages
+		WHERE tenant_id = $1 AND task_id = $2 AND is_parent = 1
+		ORDER BY received_at, msg_id LIMIT 1`, []any{tenant, taskID}, &channel)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return channel, err
+}
+
 // mapFK turns a foreign-key violation (unknown tenant) into ErrNotFound.
 func mapFK(err error) error {
 	if err == nil {

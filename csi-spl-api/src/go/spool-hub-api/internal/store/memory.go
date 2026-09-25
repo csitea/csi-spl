@@ -401,6 +401,25 @@ func (s *Memory) MessageTimes(_ context.Context, tenant, msgID string) (time.Tim
 	return m.TS, m.ReceivedAt, nil
 }
 
+func (s *Memory) TopicChannel(_ context.Context, tenant, taskID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var root *Message
+	for k, m := range s.messages {
+		if k[0] != tenant || m.TaskID != taskID || m.IsParent != 1 {
+			continue
+		}
+		if root == nil || m.ReceivedAt.Before(root.ReceivedAt) ||
+			(m.ReceivedAt.Equal(root.ReceivedAt) && m.MsgID < root.MsgID) {
+			root = m
+		}
+	}
+	if root == nil {
+		return "", nil
+	}
+	return root.Channel, nil
+}
+
 func (s *Memory) Close() {}
 
 // ---- M4 seats (seats.go) ------------------------------------------------------

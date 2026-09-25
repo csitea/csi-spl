@@ -528,7 +528,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		fail(tok, status, detail)
 		return
 	}
-	channel := s.channelOf(f.Channel, task)
+	channel := s.channelOf(ctx, c.tenant, f.Channel, task)
 	// rdb 0028: posting into a channel you are not in would both leak the
 	// post to its members and place you in a conversation you cannot read
 	// back. Same unknown_channel token as a channel that does not exist.

@@ -17,13 +17,23 @@ import (
 // applied file would look like a new migration.
 var migrationPrefix = regexp.MustCompile(`^(\d{4})[_.]`)
 
-// knownSharedMigrationPrefixes is the one pair the ledger already has.
-// Both names stay; do not add another file under 0021, and do not add a
-// second file under any other number.
+// knownSharedMigrationPrefixes are the pairs the ledger already has.
+// Both names of each pair stay; do not add another file under 0021 or 0040,
+// and do not add a second file under any other number.
+//
+// 0040 collided on 2026-09-25 (1e438b7 and 1482b0c landed ten minutes apart).
+// Both files were already in spool_schema_migrations on dev AND prd before
+// the collision was caught (typed_by 16:29Z/16:32Z, display_name
+// 16:21Z/16:22Z), so renaming either would re-run an ALTER TABLE ADD COLUMN
+// and break the next do_spl_db_bootstrap. The next migration is 0041.
 var knownSharedMigrationPrefixes = map[string][]string{
 	"0021": {
 		"0021_rls_fail_closed.sql",
 		"0021_tenant_rbac.sql",
+	},
+	"0040": {
+		"0040_messages_typed_by_box_operators.sql",
+		"0040_tenants_display_name.sql",
 	},
 }
 
@@ -135,7 +145,12 @@ func TestMigrationPrefixGuardRejectsANewPair(t *testing.T) {
 			}
 		}
 	}
-	known := []string{"0021_rls_fail_closed.sql", "0021_tenant_rbac.sql"}
+	// every file of every excused pair, read from the map so a new
+	// exception is covered here without editing this fixture
+	var known []string
+	for _, names := range knownSharedMigrationPrefixes {
+		known = append(known, names...)
+	}
 
 	t.Run("known pair is the only excused collision", func(t *testing.T) {
 		dir := t.TempDir()

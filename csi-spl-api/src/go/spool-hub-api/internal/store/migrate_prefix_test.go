@@ -17,23 +17,18 @@ import (
 // applied file would look like a new migration.
 var migrationPrefix = regexp.MustCompile(`^(\d{4})[_.]`)
 
-// knownSharedMigrationPrefixes are the pairs the ledger already has.
-// Both names of each pair stay; do not add another file under 0021 or 0040,
-// and do not add a second file under any other number.
+// knownSharedMigrationPrefixes is the one pair the ledger already has.
+// Both names stay; do not add another file under 0021, and do not add a
+// second file under any other number.
 //
-// 0040 collided on 2026-09-25 (1e438b7 and 1482b0c landed ten minutes apart).
-// Both files were already in spool_schema_migrations on dev AND prd before
-// the collision was caught (typed_by 16:29Z/16:32Z, display_name
-// 16:21Z/16:22Z), so renaming either would re-run an ALTER TABLE ADD COLUMN
-// and break the next do_spl_db_bootstrap. The next migration is 0041.
+// 0040 collided on 2026-09-25 and was resolved forward: b4ef063 moved the
+// display_name file to 0041 with ADD COLUMN IF NOT EXISTS, so its re-run on
+// dev/prd (where the column already exists) is a no-op. The migrator only
+// checks the hash of files still present, so the old 0040 ledger row is inert.
 var knownSharedMigrationPrefixes = map[string][]string{
 	"0021": {
 		"0021_rls_fail_closed.sql",
 		"0021_tenant_rbac.sql",
-	},
-	"0040": {
-		"0040_messages_typed_by_box_operators.sql",
-		"0040_tenants_display_name.sql",
 	},
 }
 

@@ -96,7 +96,18 @@ const hubGet = (p, api, path) => p.evaluate(async (root, q) => {
 const rowsOf = (p, sel) => p.$$eval(sel, (els) => els.map((e) => ({
   key: e.getAttribute('data-key') || e.textContent.trim().slice(0, 40),
   ts: e.getAttribute('data-ts') || '',
+  online: e.getAttribute('data-online') === '1',
 })))
+
+/** The DM list: every online peer above every offline one, each group newest DM first. */
+function onlineThenDescending(rows) {
+  const firstOff = rows.findIndex((r) => !r.online)
+  const lateOn = firstOff < 0 ? -1 : rows.findIndex((r, i) => i > firstOff && r.online)
+  if (lateOn >= 0) return { ok: false, at: lateOn, why: 'online peer below an offline one', row: rows[lateOn] }
+  const on = descending(rows.filter((r) => r.online))
+  const off = descending(rows.filter((r) => !r.online))
+  return { ok: (on.ok || !on.n) && (off.ok || !off.n) && rows.some((r) => r.ts), online: on, offline: off }
+}
 
 /** Newest first = data-ts never increases as you go down. */
 function descending(rows) {
@@ -178,8 +189,8 @@ try {
 
   // 1.5 sidebar DM list
   const sideDm = await rowsOf(a, SIDE_DM)
-  const d5 = descending(sideDm)
-  step('order: sidebar DM list is newest DM activity first', d5.ok, { ...d5, peers: sideDm.length })
+  const d5 = onlineThenDescending(sideDm)
+  step('order: sidebar DM list is online first, then newest DM activity', d5.ok, { ...d5, peers: sideDm.length })
   res.detail.dm_sidebar = sideDm
 
   // 1.6 search results — per group: the hub answers each group newest first

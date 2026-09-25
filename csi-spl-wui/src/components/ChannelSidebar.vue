@@ -76,6 +76,7 @@
       :class="{ active: channel.peer === p.label }"
       :data-key="p.label"
       :data-ts="channel.dmAt[p.label] || undefined"
+      :data-online="p.online ? '1' : '0'"
       :to="localePath('/dm/' + encodeURIComponent(p.label))"
     >
       <SpoolAvatar :id="p.id" :box="p.box" :size="22" />

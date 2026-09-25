@@ -533,16 +533,18 @@ export function orderChannels(rows, liveAt = {}) {
 }
 
 /**
- * CLE-3425 — the sidebar DM list, newest first: peers ranked by the last DM
- * either way (`lastAt` keyed by "<id>@<box>"). Peers with no DM yet keep the
- * old tail — online first, then a-z — so the list is stable for a fresh tenant.
+ * The sidebar DM list (owner 2026-09-25, replacing CLE-3425's newest-first):
+ * the peers that are ONLINE come first, whatever their history, so a
+ * disconnected agent never sits above one you can reach. Inside each group,
+ * the peers you have DMs with come next, newest last DM first (`lastAt` keyed
+ * by "<id>@<box>"), then the ones with no DM yet, a-z.
  */
 export function orderPeers(rows, lastAt = {}) {
   const at = (p) => String((lastAt || {})[String((p && p.label) || '')] || '')
   return (rows || []).slice().sort((a, b) => {
+    if (Boolean(a.online) !== Boolean(b.online)) return a.online ? -1 : 1
     const c = at(b).localeCompare(at(a))
     if (c !== 0) return c
-    if (Boolean(a.online) !== Boolean(b.online)) return a.online ? -1 : 1
     return String(a.label || '').localeCompare(String(b.label || ''))
   })
 }

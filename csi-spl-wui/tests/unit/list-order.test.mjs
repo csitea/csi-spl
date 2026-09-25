@@ -151,22 +151,33 @@ describe('orderChannels: the sidebar channel list, newest first', () => {
   })
 })
 
-describe('orderPeers / dmActivity: the sidebar DM list, newest first', () => {
+describe('orderPeers / dmActivity: the sidebar DM list, online first, then DM history', () => {
   const peers = [
     { id: 'EZA-1', box: 'box-e2e-a', label: 'EZA-1@box-e2e-a', online: false },
     { id: 'EZB-1', box: 'box-e2e-b', label: 'EZB-1@box-e2e-b', online: false },
     { id: 'ORC-1', box: 'box-live-probe', label: 'ORC-1@box-live-probe', online: true },
+    { id: 'ORC-2', box: 'box-live-probe', label: 'ORC-2@box-live-probe', online: true },
   ]
 
-  it('a peer we just talked to comes first, before online-and-silent ones', () => {
+  it('an online peer comes first even when an offline one was talked to later', () => {
     const at = { 'EZB-1@box-e2e-b': '2026-09-19T18:56:38Z' }
     assert.deepEqual(orderPeers(peers, at).map((p) => p.label),
-      ['EZB-1@box-e2e-b', 'ORC-1@box-live-probe', 'EZA-1@box-e2e-a'])
+      ['ORC-1@box-live-probe', 'ORC-2@box-live-probe', 'EZB-1@box-e2e-b', 'EZA-1@box-e2e-a'])
   })
 
-  it('with no DM at all the tail stays online-first then a-z (CONTROL)', () => {
+  it('inside each group a peer with DMs beats one without, newest DM first', () => {
+    const at = {
+      'ORC-2@box-live-probe': '2026-09-19T10:00:00Z',
+      'EZA-1@box-e2e-a': '2026-09-19T09:00:00Z',
+      'EZB-1@box-e2e-b': '2026-09-19T11:00:00Z',
+    }
+    assert.deepEqual(orderPeers(peers, at).map((p) => p.label),
+      ['ORC-2@box-live-probe', 'ORC-1@box-live-probe', 'EZB-1@box-e2e-b', 'EZA-1@box-e2e-a'])
+  })
+
+  it('with no DM at all it is online first then a-z (CONTROL)', () => {
     assert.deepEqual(orderPeers(peers).map((p) => p.label),
-      ['ORC-1@box-live-probe', 'EZA-1@box-e2e-a', 'EZB-1@box-e2e-b'])
+      ['ORC-1@box-live-probe', 'ORC-2@box-live-probe', 'EZA-1@box-e2e-a', 'EZB-1@box-e2e-b'])
   })
 
   it('dmActivity takes the newest moment per participant and drops our own label', () => {

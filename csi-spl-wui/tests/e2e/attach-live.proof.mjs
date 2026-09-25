@@ -225,6 +225,7 @@ async function surfaceRun(p, surface) {
   /* the dialog closed with nothing (owner 2026-09-25: a double-click in the
      GTK dialog lost the pick): the composer says so instead of staying silent */
   await front(p)
+  await p.waitForSelector('[data-testid=attach]', { timeout: 20000 })
   const [empty] = await Promise.all([
     p.waitForFileChooser({ timeout: 8000 }).catch(() => null),
     p.click('[data-testid=attach]'),

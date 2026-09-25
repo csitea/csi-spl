@@ -11,7 +11,7 @@
 #   -> 005-gcp-domain-verification (per-project ownership)
 #   -> 030-cloud-run-hub        (service exists)
 #   -> 032-gcp-cloud-run-domain-mapping  (this step)
-#   -> ./run -a do_wait_for_cert (async cert wait)
+#   -> ./run -a do_spl_wait_for_mapping_cert (async cert wait)
 
 variable "cloud_run_service_name" {
   type        = string

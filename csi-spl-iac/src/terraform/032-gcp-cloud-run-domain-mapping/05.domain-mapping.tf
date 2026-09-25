@@ -2,7 +2,7 @@
 #
 # Cert state (spec[0].certificate_mode, force_override) is left to Google's
 # managed-cert flow and ignored by terraform so `apply` returns immediately;
-# csi-spl-orc's `./run -a do_wait_for_cert` polls until the cert is ACTIVE.
+# csi-spl-orc's `./run -a do_spl_wait_for_mapping_cert` polls until the cert is provisioned.
 
 locals {
   default_labels = {

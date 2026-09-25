@@ -3,8 +3,8 @@
 # @description Poll a 032 Cloud Run domain mapping until its Google-managed
 # @description cert is provisioned (condition CertificateProvisioned == True).
 # @description csi-rel-orc do_wait_for_cert, for the domain mapping it was
-# @description written for; the 031-era do_wait_for_cert here waits on the
-# @description Certificate Manager cert and stays until 031 is gone.
+# @description written for. It replaces this repo's 031-era do_wait_for_cert
+# @description (Certificate Manager cert), retired with 031 (007 T090).
 # @description
 # @description One change from the donor, not a new behaviour: its
 # @description --format='value(status.conditions[?type=...].status)' is always

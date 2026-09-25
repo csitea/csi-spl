@@ -22,13 +22,13 @@ name from the effective cnf (`do_spl_cloud_cnf`: the same merge tpl-gen
 renders from), and need `GCP_ACCOUNT` (a fail-fast env var, never committed)
 only for a real run. Every gcloud call carries `--account`; nothing writes
 the shared gcloud or docker config. Nothing here runs terraform: that is
-`csi-spl-iac`. `do_wait_for_cert` is the exception: it is the wait, so it
-polls (read-only) until the cert is ACTIVE.
+`csi-spl-iac`. `do_spl_wait_for_mapping_cert` is the exception: it is the
+wait, so it polls (read-only) until the 032 mapping cert is provisioned.
 
 | action | what |
 |---|---|
 | `ENV=dev ./run -a do_build_push_hub_image` | build the hub image as cnf `hub.image.ref` (the image 030 runs); `DRY_RUN=0` pushes it to the 028 registry |
-| `ENV=dev ./run -a do_wait_for_cert` | poll 031's Certificate Manager wildcard cert until `managed.state=ACTIVE` (not a dry-run: this IS the wait). Names from cnf; `GCP_ACCOUNT` required |
+| `ENV=dev DOMAIN=<host> ./run -a do_spl_wait_for_mapping_cert` | poll a 032 Cloud Run domain mapping until `CertificateProvisioned=True` (not a dry-run: this IS the wait). Runs as the env SA from its key. Replaces the 031-era `do_wait_for_cert` (retired with the load balancer, 007 T090) |
 | `ENV=dev ./run -a do_export_all_dns_settings` | snapshot Cloud DNS zones + record-sets to JSON under the env's cloud state dir; `DRY_RUN=1` default |
 | `TEST_DOMAIN=example.test ./run -a do_flush_dns` | flush the operator host resolver cache; `DRY_RUN=1` default (the real run sudo-mutates the host) |
 

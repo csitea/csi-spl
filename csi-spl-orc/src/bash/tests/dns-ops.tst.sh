@@ -3,7 +3,9 @@
 # Purpose: DNS ops actions (007 T014) exist, are syntactically valid, read
 #          names from cnf, dry-run without touching cloud or the host
 #          resolver, and a stubbed real export writes JSON per project/zone.
-#   1. bash -n on wait-for-cert / export-all-dns-settings / flush-dns
+#   1. bash -n on export-all-dns-settings / flush-dns (the 031-era
+#      wait-for-cert was retired, 007 T090: the cert wait is
+#      do_spl_wait_for_mapping_cert, tested by wait-for-mapping-cert.tst.sh)
 #   2. no baked product domain, no key-file, no gcloud config set
 #   3. do_export_all_dns_settings DRY_RUN (default) makes no gcloud call
 #   4. DRY_RUN=0 with stubbed gcloud writes zones + records JSON, --account
@@ -21,7 +23,7 @@ fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 RUN="$PROJ_ROOT/src/bash/run"
-for f in wait-for-cert export-all-dns-settings flush-dns; do
+for f in export-all-dns-settings flush-dns; do
   p="$RUN/${f}.func.sh"
   [[ -f "$p" ]] || { fail "missing $p"; continue; }
   bash -n "$p" && pass "bash -n $f.func.sh" || fail "bash -n $f.func.sh"
@@ -31,7 +33,7 @@ CNF_ALL="$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"
 dom=$(yq -r '.env.dns.BASE_DOMAIN // ""' "$CNF_ALL")
 [[ -n "$dom" && "$dom" != null && "$dom" == *.* ]] || { echo "FAIL: missing env.dns.BASE_DOMAIN in $CNF_ALL"; exit 1; }
 for banned in 'gcloud config set' 'activate-service-account' 'key-file' "$dom"; do
-  if grep -nF "$banned" "$RUN/wait-for-cert.func.sh" "$RUN/export-all-dns-settings.func.sh" "$RUN/flush-dns.func.sh"; then
+  if grep -nF "$banned" "$RUN/export-all-dns-settings.func.sh" "$RUN/flush-dns.func.sh"; then
     fail "banned token in DNS ops funcs: $banned"
   else
     pass "no banned token in DNS ops funcs (product domain from cnf)"
@@ -49,7 +51,6 @@ case " $* " in
   *" dns managed-zones list "*"--format=json"*) printf '[{"name":"zone-a"}]\n'; exit 0 ;;
   *" dns managed-zones list "*) printf 'zone-a\n'; exit 0 ;;
   *" dns record-sets list "*) printf '[{"name":"example.test.","type":"A"}]\n'; exit 0 ;;
-  *" certificate-manager certificates describe "*) printf 'ACTIVE\n'; exit 0 ;;
 esac
 echo "gcloud unexpected: $*" >&2
 exit 1
@@ -110,18 +111,11 @@ else
   fail "--account on $n_acct of $n_gcloud gcloud calls: $(tr '\n' ';' <"$STUB_LOG")"
 fi
 
-# ENV=dev wait-for-cert against the stub (cnf fills DOMAIN/PROJECT/CERT_NAME)
-: >"$STUB_LOG"
-out=$(SNIPPET='do_wait_for_cert' in_orc ENV=dev GCP_ACCOUNT=op@example.com TIMEOUT_SECONDS=5 POLL_SECONDS=1 2>&1); rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'certificate-manager certificates describe' "$STUB_LOG"; then
-  pass "ENV=dev wait-for-cert describes the Certificate Manager cert"
+# The 031-era do_wait_for_cert is retired (007 T090); it must not come back.
+if [[ -e "$RUN/wait-for-cert.func.sh" ]]; then
+  fail "wait-for-cert.func.sh is back (031 Certificate Manager wait; use do_spl_wait_for_mapping_cert)"
 else
-  fail "ENV=dev wait-for-cert rc=$rc: $(tail -3 <<<"$out" | tr '\n' ' ') log=$(tr '\n' ';' <"$STUB_LOG")"
-fi
-if grep -q 'domain-mappings' "$STUB_LOG"; then
-  fail "wait-for-cert still polls Cloud Run domain-mappings"
-else
-  pass "wait-for-cert does not poll domain-mappings"
+  pass "031-era wait-for-cert.func.sh stays retired"
 fi
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }

@@ -100,6 +100,43 @@ tree at or after `f8da6b4`; `do_spl_desk_mirror_check` WARNs when it does not,
 and when the sidecar runs a worktree's notifier (which disappears with that
 worktree).
 
+## Attribution: a terminal-typed line shows as the HUMAN (decided 2026-09-25)
+
+Owner, ~15:57Z, verbatim: "also when I type on the terminal and you send the
+msg in the thread it looks like you send it and that is a bug" / "whenever I
+type anyting in the terminal prompot of the ai agents it should be visible as
+me typing it here on the web ui".
+
+Until this, a terminal prompt was posted `from=<agent>` with the body prefix
+`[terminal] ` (measured by CLE-100 on dev and prd, n=3 each). The box signs
+with its box key and can never mint a human's identity, so `from` stays the
+agent and the attribution is a separate, hub-VERIFIED claim:
+
+- **FR-009 `typed_by` on the send frame.** The mirror sends a terminal prompt
+  with `typed_by=<HUM-n>` on the WS `send` frame, outside the box-signed
+  envelope and the inner message: boxes decode those strictly (020), and
+  neither changes. Frames are decoded leniently, so an older hub ignores the
+  field and the post stays attributed to the agent, as before.
+- **FR-010 the hub accepts it only when it can verify it**: the sending box's
+  session is authenticated; `from` is an agent this box announced (roster);
+  `typed_by` is a member of the tenant; and a BINDING says that human operates
+  that box (`box_operators(tenant_id, box_id, human_id)`, granted by a tenant
+  owner/admin - never by the box). Otherwise the send is refused with
+  `typed_by_not_bound` and the mirror re-posts it without the claim.
+- **FR-011 storage and rendering**: the hub stores `messages.typed_by`; the
+  view API and the web UI live frame carry it; the web UI renders such a row
+  as the HUMAN (avatar and name) with a small badge "via terminal <agent>".
+  The `[terminal] ` body prefix is dropped when the claim is accepted.
+- **FR-012 who is typing**: the seat's operator (`.mirror/operator`, set by
+  `spool-agent --operator HUM-n` or the grant action), else the human the
+  mirror posts to. A wrong guess is refused by FR-010, never displayed.
+- Per env the human differs (e.g. prd and dev ids of one person); nothing
+  hard-codes an id - the binding and the seat file carry it.
+
+Found while mapping this (reported, not fixed here): the hub's `onSend` never
+checks that `m.From` is an agent of the sending box, so any pinned box can
+post as any agent id. FR-010 checks it for `typed_by` sends only.
+
 ## The wrapper: `spool-agent.sh` (2026-09-25, owner: "wgo")
 
 One command starts claude or grok as a seated, mirrored agent:
@@ -152,4 +189,4 @@ tree's notifier), so the live `box-desk` and its seats were not restarted.
   n=2 rows — the `[terminal]` prompt and the answer; the session-end `Stop`
   posted nothing.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T14:30:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:20:00Z -->

@@ -45,6 +45,14 @@ named) · `[ ]` Planned (`../README.md` §2.3).
   with 22 files of another lane's uncommitted edits; until then the spawner
   falls back to the plain CLI). An installer for other users: CLE-34966.
 
+## Phase 3c — Attribution (FR-009..FR-012)
+
+- [ ] T050 Planned — migration: `messages.typed_by`, `box_operators` (RLS as 0037).
+- [ ] T051 Planned — hub: frame `typed_by`, the FR-010 checks, store/view/WUI frame.
+- [ ] T052 Planned — `spool send --typed-by`; the grant action.
+- [ ] T053 Planned — web UI: the human row + "via terminal <agent>" badge.
+- [ ] T054 Planned — mirror: typed_by on prompts, fallback on refusal; live proof dev + prd.
+
 ## Phase 4 — Rollout
 
 - [~] T030 Partial (2026-09-25 13:02Z, owner go "well go than") — the
@@ -67,4 +75,4 @@ named) · `[ ]` Planned (`../README.md` §2.3).
   (as the box user). A seat with no backfill yet runs
   `do_spl_desk_session_upload`, which lands in the mirror's topic by itself.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T14:30:00Z -->
+<!-- version: 1.0.0 · updated: 2026-09-25 · last-edit: 2026-09-25T16:20:00Z -->

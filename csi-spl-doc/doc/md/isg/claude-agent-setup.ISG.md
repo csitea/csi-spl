@@ -127,7 +127,8 @@ once per box per env. An agent must not do that on its own.
 On the reference box `box-desk` is pinned on **dev / t1** and, since
 2026-09-25T15:41:30Z, on **prd / t1**. Every command below says `ENV=dev`;
 for prd use `ENV=prd`. On prd the desk-check roster read signs in as a tenant
-member, so pass that member's `PROBE_EMAIL` and `PROBE_PW_FILE`.
+member, which `do_spl_desk_check` auto-resolves from the state dir (or override
+with `PROBE_EMAIL` and `PROBE_PW_FILE`).
 
 ## 3. Credentials
 

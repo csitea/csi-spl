@@ -166,10 +166,26 @@ spl_desk_roster() {
   fi
   api="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
   [[ -n "$api" ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
-  pw="${PROBE_PW_FILE:-$SPL_STATE_DIR/m3-e2e/$tenant/pw-human}"
+  pw="${PROBE_PW_FILE:-}"
+  if [[ -z "$pw" ]]; then
+    if [[ -r "$SPL_STATE_DIR/m3-e2e/$tenant/pw-human" ]]; then
+      pw="$SPL_STATE_DIR/m3-e2e/$tenant/pw-human"
+    elif [[ -r "$SPL_STATE_DIR/m3-e2e/e2e/pw-human" ]]; then
+      pw="$SPL_STATE_DIR/m3-e2e/e2e/pw-human"
+    fi
+  fi
   [[ -r "$pw" ]] || { do_log "FATAL no readable password file $pw (set PROBE_PW_FILE, or DESK_ROSTER_JSON)"; return 1; }
+  local email="${PROBE_EMAIL:-}"
+  if [[ -z "$email" ]]; then
+    if [[ -r "$SPL_STATE_DIR/m3-e2e/$tenant/human-email" ]]; then
+      email="$(cat "$SPL_STATE_DIR/m3-e2e/$tenant/human-email" 2>/dev/null | tr -d '[:space:]')"
+    elif [[ -r "$SPL_STATE_DIR/m3-e2e/e2e/human-email" ]]; then
+      email="$(cat "$SPL_STATE_DIR/m3-e2e/e2e/human-email" 2>/dev/null | tr -d '[:space:]')"
+    fi
+  fi
+  email="${email:-m3-e2e-human@example.com}"
   PROBE_API="${PROBE_API:-https://$api}" PROBE_TENANT="$tenant" \
-    PROBE_EMAIL="${PROBE_EMAIL:-m3-e2e-human@example.com}" PROBE_PW_FILE="$pw" \
+    PROBE_EMAIL="$email" PROBE_PW_FILE="$pw" \
     python3 "$APP_PATH/$SPL_ORG_APP-orc/src/bash/scripts/roster-show.py"
 }
 

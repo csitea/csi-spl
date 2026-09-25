@@ -52,9 +52,9 @@ export SPOOL_AGENT_RUN="$T_TMP/run" PATH="$T_TMP/bin:$PATH"
 bash "$AGENT" --dry-run vim >/dev/null 2>&1; eq "1. an unknown CLI is refused" 2 "$?"
 bash "$AGENT" --dry-run --env stg claude >/dev/null 2>&1; eq "1. a bad --env is refused" 2 "$?"
 bash "$AGENT" --dry-run --backfill grok >/dev/null 2>&1; eq "1. --backfill with grok is refused" 2 "$?"
-env -u TMUX_PANE -u CLE_TMUX_PANE -u GRK_TMUX_PANE bash "$AGENT" --as CLE-5 claude >/dev/null 2>&1
+env -u TMUX_PANE -u CLE_TMUX_PANE -u GRK_TMUX_PANE -u AGY_TMUX_PANE bash "$AGENT" --as CLE-5 claude >/dev/null 2>&1
 eq "1. outside tmux a seat is refused" 3 "$?"
-out="$(env -u TMUX_PANE -u CLE_TMUX_PANE -u GRK_TMUX_PANE bash "$AGENT" --dry-run --no-seat --as CLE-5 claude 2>&1)"
+out="$(env -u TMUX_PANE -u CLE_TMUX_PANE -u GRK_TMUX_PANE -u AGY_TMUX_PANE bash "$AGENT" --dry-run --no-seat --as CLE-5 claude 2>&1)"
 has "1. --no-seat runs outside tmux" "seat: skipped" "$out"
 
 # --- 2..5 in a private tmux server ---------------------------------------------------------
@@ -137,7 +137,9 @@ chmod +x "$T_TMP/run-env"
 P3="$(t_window 'tbox: AGY-61' 'sleep 600')"
 agy_run() { TMUX_PANE="$P3" SPOOL_AGENT_RUN="$T_TMP/run-env" SPOOL_AGENT_DESK_ROOT="$T_TMP/envs/%ENV%" bash "$AGENT" "$@"; }
 : >"$T_TMP/cli.log"
-agy_run --as AGY-61 agy --prompt-interactive hi >/dev/null 2>&1; eq "9. the agy run exits 0" 0 "$?"
+# the box spawner's agy launch: `su -` dropped TMUX_PANE, AGY_TMUX_PANE names it
+env -u TMUX_PANE AGY_TMUX_PANE="$P3" SPOOL_AGENT_RUN="$T_TMP/run-env" SPOOL_AGENT_DESK_ROOT="$T_TMP/envs/%ENV%" \
+  bash "$AGENT" --as AGY-61 agy --prompt-interactive hi >/dev/null 2>&1; eq "9. the agy run (pane from AGY_TMUX_PANE) exits 0" 0 "$?"
 has "9. seated on dev" "ENV=dev DESK_AGENT=AGY-61" "$(cat "$T_TMP/envs/run.log")"
 has "9. seated on prd" "ENV=prd DESK_AGENT=AGY-61" "$(cat "$T_TMP/envs/run.log")"
 has "9. the strip exists when agy starts" "agy id=AGY-61 args=--prompt-interactive hi strips=1" "$(cat "$T_TMP/cli.log")"

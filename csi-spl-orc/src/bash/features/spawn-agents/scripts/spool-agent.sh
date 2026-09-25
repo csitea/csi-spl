@@ -152,7 +152,8 @@ else
 fi
 
 # ── 2. the window ────────────────────────────────────────────────────────────
-PANE="${TMUX_PANE:-${CLE_TMUX_PANE:-${GRK_TMUX_PANE:-}}}"
+# The box spawner exports <PREFIX>_TMUX_PANE: `su -` to the agent user drops TMUX_PANE.
+PANE="${TMUX_PANE:-${CLE_TMUX_PANE:-${GRK_TMUX_PANE:-${AGY_TMUX_PANE:-}}}}"
 if [ "$SEAT" = 1 ] && [ -z "$PANE" ]; then
   say "not inside tmux: a desk seat needs a live window (run it in a tmux pane, or pass --no-seat)"; exit 3
 fi

@@ -312,6 +312,19 @@ async function surfaceRun(p, surface) {
     if (editing) { await p.keyboard.press('Escape'); await sleep(400) }
   }
 
+  /* 2e. the Open button: on middle cards only, and it opens the topic on the right */
+  if (surface !== 'home') {
+    await closePane(p)
+    await front(p)
+    const btn = await p.$(`.spool-main article.msg[data-task-id="${task}"] [data-test=open-topic]`)
+    step(tag('2e the L1 card carries the Open button'), !!btn, {})
+    if (btn) await btn.click()
+    s = await waitFor(p, (x) => x.paneOpen && has(x.right, L2), 10000)
+    step(tag('2e Open opens that topic in the right pane'), s.paneOpen && has(s.right, L2), { paneOpen: s.paneOpen })
+    const inPane = await p.$$('aside.live-pane [data-test=open-topic], aside.live-pane [data-test=live-topic-open]')
+    step(tag('2e the right pane has no Open button'), inPane.length === 0, { n: inPane.length })
+  }
+
   /* 3. reload */
   await front(p)
   await p.reload({ waitUntil: 'networkidle2' })

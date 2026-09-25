@@ -70,3 +70,27 @@ describe('icon buttons (Close = x, Open = square-arrow-out-up-right)', () => {
     assert.equal(typeof en.composer.remove_file, 'string')
   })
 })
+
+/* Owner, 2026-09-25: "the button should be displayed only on the middle pane
+   and it should work so that it will open the topic ( aka the threads in the
+   right most pane". */
+describe('the Open button lives on middle-pane cards only', () => {
+  it('LiveFeed shows it on every card when the host asks for it', () => {
+    const feed = read('src/components/LiveFeed.vue')
+    assert.match(feed, /openButton\?: boolean/)
+    assert.match(feed, /function openable\(m: SpoolMessage\) \{\s*if \(props\.openButton\) return Boolean\(m\.task_id\)/)
+  })
+  it('the channel / DM feed and the lobby ask for it', () => {
+    assert.match(read('src/components/MessageFeed.vue'), /<LiveFeed[\s\S]*?\bopen-button\b/)
+    assert.match(read('src/pages/lobby.vue'), /<LiveFeed[\s\S]*?\bopen-button\b/)
+  })
+  it('no thread pane asks for it, and the pane header has none', () => {
+    for (const rel of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue', 'src/pages/t/[task_id].vue']) {
+      assert.equal(/\bopen-button\b/.test(read(rel)), false, rel)
+    }
+  })
+  it('its click is the same open-topic the row and replies use', () => {
+    assert.match(read('src/components/MessageCard.vue'), /data-test="open-topic"[\s\S]*?@click="\$emit\('open-topic', msg\)"/)
+  })
+})
+

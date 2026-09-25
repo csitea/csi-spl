@@ -89,6 +89,11 @@ const props = defineProps<{
   sinceMs?: number
   /** A thread. A new row must not move this list, and nothing scrolls it back. */
   holdScroll?: boolean
+  /** The middle pane: every card carries the Open button, which opens its
+      topic in the right (threads) pane. Owner, 2026-09-25: "the button should
+      be displayed only on the middle pane and it should work so that it will
+      open the topic". A thread pane never passes it. */
+  openButton?: boolean
 }>()
 defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage] }>()
 
@@ -120,6 +125,7 @@ function mergeTarget(m: SpoolMessage, which: 'previous' | 'next') {
 }
 
 function openable(m: SpoolMessage) {
+  if (props.openButton) return Boolean(m.task_id)
   return Boolean(m.task_id && props.currentTaskId && m.task_id !== props.currentTaskId)
 }
 

@@ -41,6 +41,18 @@
           data-test="msg-edited"
           :title="t('feed.edit.marker_title', { at: String(msg.edited_at) })"
         >{{ t('feed.edit.marker') }}</span>
+        <button
+          type="button"
+          class="icon-btn msg-menu-btn"
+          data-testid="msg-menu-btn"
+          :aria-label="t('feed.msg_menu.label')"
+          :title="t('feed.msg_menu.label')"
+          :aria-expanded="menuOpen ? 'true' : 'false'"
+          @click.stop="openMenuFromButton"
+          @contextmenu.stop.prevent="openMenuFromButton"
+        >
+          <UiIcon name="menu" :size="16" />
+        </button>
       </div>
       <!--
         CLE-3445: the row BECOMES the box ("the msg becomes once again a
@@ -229,10 +241,23 @@ const MENU_PASS = 'a, button, input, textarea, select'
 
 function onContextMenu(ev: MouseEvent) {
   const el = ev.target as HTMLElement | null
-  if (el && el.closest && el.closest(MENU_PASS)) return
+  if (el && el.closest && el.closest(MENU_PASS) && !el.closest('[data-testid="msg-menu-btn"]')) return
   ev.preventDefault()
   rowEl.value?.focus({ preventScroll: true })
   openMenuAt(ev.clientX, ev.clientY)
+}
+
+/** The same menu as a right-click, opened from the button on the row. */
+function openMenuFromButton(ev: MouseEvent) {
+  const btn = ev.currentTarget
+  if (!(btn instanceof HTMLElement)) return
+  if (menuOpen.value) {
+    closeMenu()
+    return
+  }
+  const r = btn.getBoundingClientRect()
+  rowEl.value?.focus({ preventScroll: true })
+  openMenuAt(r.left, r.bottom + 4)
 }
 
 function onMenuEdit() {
@@ -544,5 +569,9 @@ async function save() {
   color: var(--color-muted);
   font-size: 12px;
   line-height: 1;
+}
+.msg-menu-btn {
+  margin-inline-start: auto;
+  align-self: center;
 }
 </style>

@@ -136,6 +136,7 @@ describe('the card opens the menu on a right-click', () => {
     const card = src('src/components/MessageCard.vue')
     const menu = src('src/components/MessageMenu.vue')
     assert.match(card, /@contextmenu="onContextMenu"/)
+    assert.match(card, /data-testid="msg-menu-btn"/)
     assert.match(card, /<MessageMenu/)
     assert.match(menu, /role="menu"/)
     assert.match(menu, /<UiIcon :name="item\.icon"/)

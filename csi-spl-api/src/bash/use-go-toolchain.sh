@@ -7,9 +7,8 @@
 # (/usr/local/go1.25.14 next to /usr/local/go) and this selector uses it.
 #
 # spl_export_go_path [root]
-#   Prints nothing. With no toolchain under the root, the go already on PATH
-#   is kept (a GitHub-hosted runner has no /usr/local/go*, and setup-go put its
-#   go on PATH). Returns 1 only when neither exists.
+#   Prints nothing. The winner is the newest of the trees under the root and
+#   the go already on PATH. Returns 1 only when neither exists.
 spl_export_go_path() {
   local root="${1:-/usr/local}"
   local best="" bestn=-1 g ver a b c num
@@ -38,9 +37,29 @@ spl_export_go_path() {
       best=$(dirname "$g")
     fi
   done
-  if [[ -z "$best" ]]; then
-    command -v go >/dev/null 2>&1 && return 0
-    return 1
+  # A go already on PATH counts too. CI's setup-go is 1.25.14 while
+  # /usr/local/go on the runner is 1.25.1; prepending the older tree is how
+  # msg-wipe.tst.sh failed (run 36180632878). An equal or newer PATH go wins
+  # so we do not downgrade.
+  local pathgo=""
+  pathgo=$(command -v go 2>/dev/null || true)
+  if [[ -n "$pathgo" && -x "$pathgo" ]]; then
+    ver=$("$pathgo" env GOVERSION 2>/dev/null) || ver=""
+    if [[ -n "$ver" ]]; then
+      ver=${ver#go}
+      ver=${ver%% *}
+      IFS=. read -r a b c <<<"$ver"
+      c=${c%%[^0-9]*}
+      num=$((10#${a:-0} * 1000000 + 10#${b:-0} * 1000 + 10#${c:-0}))
+      if (( num >= bestn && num > 0 )); then
+        bestn=$num
+        best=$(dirname "$pathgo")
+      fi
+    fi
+  fi
+  [[ -n "$best" ]] || return 1
+  if [[ -n "$pathgo" && "$(dirname "$pathgo")" == "$best" ]]; then
+    return 0
   fi
   export PATH="$best:$PATH"
 }

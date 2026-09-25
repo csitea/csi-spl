@@ -21,27 +21,47 @@ t_tmux
 dlog="$T_TMP/cloud/dev/spool/CLE-80/.pokes/notices.log"
 plog="$T_TMP/cloud/prd/spool/CLE-80/.pokes/notices.log"
 mkdir -p "$(dirname "$dlog")" "$(dirname "$plog")"
-# An OLD record (no time field) sorts oldest; then dev, prd, dev interleaved.
-printf 'SPOOL CLE-80: note from HUM-1\tancient dev line\n'        >"$dlog"
-printf 'SPOOL CLE-80: note from HUM-1\tdev first\t100.5\n'        >>"$dlog"
-printf 'SPOOL CLE-80: note from HUM-2\tprd second\t200.25\n'      >"$plog"
-printf 'SPOOL CLE-80: note from HUM-1\tdev third newest\t300\n'   >>"$dlog"
+# An OLD record (no time field) first; then dev, prd, dev interleaved in time.
+T0=$(( $(date +%s) - 1000 ))
+printf 'SPOOL CLE-80: note from HUM-1\tancient dev line\n'                    >"$dlog"
+printf 'SPOOL CLE-80: note from HUM-1\tdev first\t%s.5\n' $(( T0 + 10 ))        >>"$dlog"
+printf 'SPOOL CLE-80: note from HUM-2\tprd second\t%s.25\n' $(( T0 + 20 ))      >"$plog"
+printf 'SPOOL CLE-80: note from HUM-1\tdev third newest\t%s\n' $(( T0 + 30 ))   >>"$dlog"
 PR="$(t_window merge "NO_COLOR=1 exec $T_SCRIPTS/spool-notice-pane.sh --log $dlog --log $plog")"
 sleep 1
 scr="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PR")"
 has "a dev record is tagged [dev]" "[dev] SPOOL CLE-80: note from HUM-1" "$scr"
 has "a prd record is tagged [prd]" "[prd] SPOOL CLE-80: note from HUM-2" "$scr"
-hasnt "the time field is never painted" "200.25" "$scr"
+hasnt "the time field is never painted" "$(( T0 + 20 )).25" "$scr"
 order="$(printf '%s\n' "$scr" | grep -oE 'dev third newest|prd second|dev first|ancient dev line' | tr '\n' ',')"
-eq "newest first ACROSS logs, an untimed record last" \
+eq "newest first ACROSS logs; an untimed line never jumps a timed one in its log" \
   "dev third newest,prd second,dev first,ancient dev line," "$order"
 
 # A new prd record repaints: the tail wakes on EITHER log.
-printf 'SPOOL CLE-80: note from HUM-2\tprd live one\t400\n' >>"$plog"
+printf 'SPOOL CLE-80: note from HUM-2\tprd live one\t%s\n' $(( T0 + 50 )) >>"$plog"
 sleep 1
 scr="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PR")"
 eq "a record appended to the SECOND log is painted on top" "prd live one" \
   "$(printf '%s\n' "$scr" | grep -oE 'prd live one|dev third newest' | head -n 1)"
+
+# A log written ONLY by an older, untimed writer - the stale checkout's
+# notifier, live when this shipped - is dated from its mtime: its last line
+# is its last write, so a fresh untimed record still lands on top.
+olog="$T_TMP/cloud/prd/spool/CLE-81/.pokes/notices.log"
+mkdir -p "$(dirname "$olog")"
+printf 'SPOOL CLE-81: note from HUM-2\tuntimed older\nSPOOL CLE-81: note from HUM-2\tuntimed newest\n' >"$olog"
+touch -d "@$(( T0 + 60 ))" "$olog"
+PO="$(t_window untimed "NO_COLOR=1 exec $T_SCRIPTS/spool-notice-pane.sh --log $dlog --log $olog")"
+sleep 1
+scr="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PO")"
+eq "an untimed log's newest record sorts by the log's mtime" "untimed newest,untimed older,dev third newest," \
+  "$(printf '%s\n' "$scr" | grep -oE 'untimed newest|untimed older|dev third newest' | tr '\n' ',')"
+touch -d "@$(( T0 + 5 ))" "$olog"
+# (an OLD timed dev record is the wake-up: it repaints and cannot top the list)
+printf 'SPOOL CLE-80: note from HUM-1\tdev wake-up\t%s\n' $(( T0 + 1 )) >>"$dlog"; sleep 1
+scr="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PO")"
+eq "CONTROL …and below the timed records when its mtime is older" "dev third newest," \
+  "$(printf '%s\n' "$scr" | grep -oE 'untimed newest|untimed older|dev third newest' | head -n 1 | tr '\n' ',')"
 
 # CONTROL: one log paints exactly as before - no tag.
 P1="$(t_window single "NO_COLOR=1 exec $T_SCRIPTS/spool-notice-pane.sh --log $dlog")"

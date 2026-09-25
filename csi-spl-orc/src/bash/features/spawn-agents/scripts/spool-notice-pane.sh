@@ -24,8 +24,8 @@
 # The log is one record per line, TAB-separated: <head>\t<body>[\t<epoch>].
 # Bodies are already squeezed to one line by spool_notify_clean, so a line IS
 # a record. The optional third field is the write time ($EPOCHREALTIME); it
-# orders records ACROSS logs and is never painted. A record without it (written
-# before 2026-09-25) sorts as the oldest.
+# orders records ACROSS logs and is never painted. A record without it (an
+# older writer) is dated from its log's mtime, see read_records.
 # Only the last --max records are kept in the file, and only as many as the
 # pane is TALL are painted - printing more would scroll the newest record,
 # which is printed first, straight off the top.
@@ -193,8 +193,8 @@ shorten_ids() {  # HEAD
 # order within a log).
 RECS=()
 read_records() {
-  local i line
-  local -a all=()
+  local i mt line
+  local -a lines=()
   RECS=()
   for (( i = 0; i < ${#LOGS[@]}; i++ )); do
     # A record is <head>TAB<body> and carries no control characters: this
@@ -203,23 +203,42 @@ read_records() {
     # at the same spool root, which happened on this box 2026-09-21 - and is
     # skipped rather than painted. Painting it produced body-above-header
     # nonsense, because an older writer put one record on three lines.
+    mt="$(stat -c %Y "${LOGS[i]}" 2>/dev/null)"; [[ "$mt" =~ ^[0-9]+$ ]] || mt=0
+    lines+=("L$tab$i$tab$mt")
     while IFS= read -r line; do
       case "$line" in
         *"$esc"*) continue ;;
-        *"$tab"*) all+=("$i$tab$line") ;;
+        *"$tab"*) lines+=("R$tab$i$tab$line") ;;
       esac
     done < <(tail -n "$MAX" "${LOGS[i]}" 2>/dev/null)
   done
-  if [ "${#LOGS[@]}" -eq 1 ]; then RECS=("${all[@]}"); return 0; fi
-  [ "${#all[@]}" -gt 0 ] || return 0
-  # epoch<TAB>record, sorted numerically, then the key dropped again.
-  mapfile -t RECS < <(
-    for line in "${all[@]}"; do
-      local b="${line#*$tab}" ts=0
-      b="${b#*$tab}"
-      case "$b" in *"$tab"*) [[ "${b#*$tab}" =~ ^[0-9]+([.][0-9]+)?$ ]] && ts="${b#*$tab}" ;; esac
-      printf '%s\t%s\n' "$ts" "$line"
-    done | sort -s -t "$tab" -k1,1g | cut -f2- | tail -n "$MAX")
+  if [ "${#LOGS[@]}" -eq 1 ]; then
+    for line in "${lines[@]}"; do [ "${line%%$tab*}" = R ] && RECS+=("${line#R$tab}"); done
+    return 0
+  fi
+  # epoch<TAB>index<TAB>record, sorted on the epoch (stable), key dropped.
+  #
+  # A record with no time field (a writer older than 2026-09-25 - e.g. a
+  # stale checkout's notifier, still live when this shipped) is DATED from
+  # the next later record of its own log, or for the last line from the log's
+  # mtime - the last line IS the last write - less a millisecond per step.
+  # So the newest record of every log sorts where it belongs, which is the one
+  # the strip exists to show, and an untimed line never jumps a timed one in
+  # its own log.
+  mapfile -t RECS < <(printf '%s\n' "${lines[@]}" | awk -F '\t' '
+    $1 == "L" { mt[$2] = $3; n[$2] = 0; ord[++logs] = $2; next }
+    $1 == "R" { k = $2; rec[k, ++n[k]] = substr($0, length($1) + length($2) + 3)
+                t[k, n[k]] = ($5 ~ /^[0-9]+([.][0-9]+)?$/) ? $5 : "" }
+    END {
+      for (l = 1; l <= logs; l++) {
+        k = ord[l]; ceil = mt[k] + 0.999
+        for (j = n[k]; j >= 1; j--) {
+          ts = (t[k, j] != "") ? t[k, j] + 0 : ceil - 0.001
+          if (ts < ceil) ceil = ts
+          printf "%.6f\t%s\t%s\n", ts, k, rec[k, j]
+        }
+      }
+    }' | sort -s -t "$tab" -k1,1g | cut -f2- | tail -n "$MAX")
 }
 
 render() {

@@ -20,6 +20,8 @@
 #  10. hook -> post end to end, through SPOOL_MIRROR_POST
 #  12. typed_by: the operator's prompt is posted AS the human (no prefix);
 #      refused / an old binary / no operator -> the old [terminal] line
+#  13. the hook's box user comes from SPOOL_BOX_USER / the checkout root, not
+#      the script's file owner (an agent-side git op makes that the agent)
 #  11. two hook configs reaching one session (shared settings + a wrapper's
 #      --settings) post one prompt once
 set -uo pipefail
@@ -218,5 +220,14 @@ python3 "$MIR" operator "$A" --clear >/dev/null; python3 "$MIR" operator "$SEAT"
 post prompt "no operator at all" op6 >/dev/null
 eq "12. CONTROL: no operator -> no claim, the old line" "[terminal] no operator at all" "$(body_of_last)"
 python3 "$MIR" operator "$SEAT" CLE-1 >/dev/null 2>&1; eq "12. an agent id is refused as operator" 64 "$?"
+
+# --- 13. the box user is not taken from the script file's owner -------------------------------------
+bu() { python3 -c 'import importlib.util,sys
+s=importlib.util.spec_from_file_location("m",sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+print(m.box_user(sys.argv[2]))' "$MIR" "$1"; }
+mkdir -p "$T_TMP/co/.git" "$T_TMP/co/a/b"; : >"$T_TMP/co/a/b/x.py"
+eq "13. SPOOL_BOX_USER wins" "someone" "$(SPOOL_BOX_USER=someone bu "$T_TMP/co/a/b/x.py")"
+eq "13. else the owner of the checkout root (.git)" "$(stat -c %U "$T_TMP/co")" "$(env -u SPOOL_BOX_USER bash -c "$(declare -f bu); MIR='$MIR' bu '$T_TMP/co/a/b/x.py'")"
+has "13. CONTROL: the resolver looks for .git, not the file owner" "os.path.join(d, \".git\")" "$(cat "$MIR")"
 
 t_done

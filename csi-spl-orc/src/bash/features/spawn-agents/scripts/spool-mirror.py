@@ -178,6 +178,27 @@ def resolve_agent():
     return agent_from_window_rows(ancestor_pids(os.getppid()), tmux_pane_rows())
 
 
+def box_user(script):
+    """The box user, who owns the desk state the post writes: SPOOL_BOX_USER,
+    else the owner of the git checkout root this script lives in, else the
+    script's own owner. NOT the file owner first: an agent-side git operation
+    rewrites a tracked file as the agent user, and then the hook took itself
+    for the box user, skipped the sudo hop, found no desk (0700) and posted
+    nothing, silently - measured 2026-09-25 16:43Z, every seat of the box."""
+    u = os.environ.get("SPOOL_BOX_USER", "")
+    if u:
+        return u
+    d = os.path.dirname(script)
+    while d and d != os.path.dirname(d):
+        if os.path.exists(os.path.join(d, ".git")):
+            try:
+                return pwd.getpwuid(os.stat(d).st_uid).pw_name
+            except (OSError, KeyError):
+                break
+        d = os.path.dirname(d)
+    return pwd.getpwuid(os.stat(script).st_uid).pw_name
+
+
 def hook_main():
     try:
         raw = sys.stdin.read()
@@ -188,7 +209,7 @@ def hook_main():
         event, text, session = got
         argv = os.environ.get("SPOOL_MIRROR_POST", "").split()
         if not argv:
-            owner = pwd.getpwuid(os.stat(os.path.realpath(__file__)).st_uid).pw_name
+            owner = box_user(os.path.realpath(__file__))
             me = pwd.getpwuid(os.getuid()).pw_name
             argv = [sys.executable, os.path.realpath(__file__)]
             if owner != me:

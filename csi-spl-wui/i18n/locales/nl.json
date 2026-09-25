@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Diagnostiek",
-    "granted_only": "Aan jou toegekend",
+    "only_you": "Alleen jij ziet dit",
     "clean": "geen fouten in deze sessie",
     "recorded": "geregistreerde fouten: {count}",
     "no_errors": "Er zijn geen fouten geregistreerd in deze sessie.",
@@ -75,6 +75,10 @@
       "bigger": "Grotere tekst",
       "level": "Grootte {n} van {total}",
       "level_default": "Grootte {n} van {total} (standaard)"
+    },
+    "debug_pane": {
+      "label": "Debugpaneel",
+      "hint": "Toont onderaan de app een diagnosepaneel met de fouten die in deze browser zijn vastgelegd. Alleen jij ziet het."
     },
     "signin_security": "Inloggen en beveiliging",
     "signed_in_with": "Ingelogd met",

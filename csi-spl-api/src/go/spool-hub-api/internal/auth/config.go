@@ -106,22 +106,10 @@ type Config struct {
 	XAITokenURL     string `env:"SPOOL_HUB_AUTH_XAI_TOKEN_URL"`
 	XAIUserinfoURL  string `env:"SPOOL_HUB_AUTH_XAI_USERINFO_URL"`
 
-	// DiagnosticsEmails is the operator's grant for the WUI diagnostics panel
-	// (005 T035, 010 auth-v1 section 3): a comma list of the verified email
-	// addresses that may see it, one real address per entry. Empty — the
-	// default every env ships — grants NOBODY, which is the fail-shut state
-	// the WUI already assumes. Not a secret and not a role: the panel shows
-	// already-redacted client-side error records, so who reads them is one
-	// operator decision per human, made in cnf and revoked by editing one
-	// value.
-	DiagnosticsEmails string `env:"SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS"`
-
 	// Env is SPOOL_HUB_ENV (lde|dev|prd), passed in by the caller.
 	Env string `env:"-"`
 
 	enabled []string
-	// diagnostics is DiagnosticsEmails parsed once at Load; nil = nobody.
-	diagnostics map[string]bool
 }
 
 // minSessionKeyLen is 256 bits of key material.
@@ -151,12 +139,6 @@ func load(hubEnv string, o env.Options) (*Config, error) {
 func (c *Config) Enabled() []string { return append([]string(nil), c.enabled...) }
 
 func (c *Config) validate() error {
-	// Before the providers: the diagnostics grant is read by the session call,
-	// which native sign-in (015) serves with no social provider listed, so a
-	// typo in it must fail the boot even when "auth off" returns early below.
-	if err := c.parseDiagnostics(); err != nil {
-		return err
-	}
 	seen := map[string]bool{}
 	for _, p := range strings.Split(c.Providers, ",") {
 		p = strings.ToLower(strings.TrimSpace(p))
@@ -218,46 +200,6 @@ func (c *Config) validate() error {
 		}
 	}
 	return nil
-}
-
-// parseDiagnostics resolves DiagnosticsEmails into the set the session read
-// consults. Every entry must be ONE real address: a wildcard, a bare domain
-// and a malformed address are refused at boot. The wildcard is the costly
-// typo — kept as a literal it looks configured and grants nobody, read as a
-// pattern it would grant everybody; neither is what was meant, so it is an
-// error rather than a guess.
-func (c *Config) parseDiagnostics() error {
-	c.diagnostics = nil
-	for _, e := range strings.Split(c.DiagnosticsEmails, ",") {
-		e = strings.TrimSpace(e)
-		if e == "" {
-			continue
-		}
-		addr := normEmail(e)
-		if addr == "" || strings.ContainsAny(e, "*?") {
-			return fmt.Errorf("SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS: %q is not an email address "+
-				"(one address per entry, comma separated; no wildcard, no bare domain)", e)
-		}
-		if c.diagnostics == nil {
-			c.diagnostics = map[string]bool{}
-		}
-		c.diagnostics[addr] = true
-	}
-	return nil
-}
-
-// DiagnosticsGranted reports whether the operator granted this signed-in
-// address the WUI diagnostics panel (005 T035). It is answered from cnf on
-// every session read and is never a claim of the signed cookie, so the grant
-// cannot be asserted by anything the browser sends, and dropping an address
-// revokes the panel at the reader's next probe rather than at the end of a
-// 12h session. Fails shut: no list, an unparsable address and an empty email
-// are all "no".
-func (c *Config) DiagnosticsGranted(email string) bool {
-	if len(c.diagnostics) == 0 {
-		return false
-	}
-	return c.diagnostics[normEmail(email)]
 }
 
 // validateProvider holds the per-provider rules beyond id/secret/redirect.

@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Dijagnostika",
-    "granted_only": "Додељено вама",
+    "only_you": "Ovo vidite samo vi",
     "clean": "nema grešaka u ovoj sesiji",
     "recorded": "zabeležene greške: {count}",
     "no_errors": "U ovoj sesiji nema zabeleženih grešaka.",
@@ -75,6 +75,10 @@
       "bigger": "Veći tekst",
       "level": "Veličina {n} od {total}",
       "level_default": "Veličina {n} od {total} (podrazumevano)"
+    },
+    "debug_pane": {
+      "label": "Panel za otklanjanje grešaka",
+      "hint": "Prikazuje dijagnostički panel na dnu aplikacije sa greškama zabeleženim u ovom pregledaču. Vidite ga samo vi."
     },
     "signin_security": "Prijava i bezbednost",
     "signed_in_with": "Prijavljeni preko",

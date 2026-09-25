@@ -21,9 +21,11 @@ import (
 // fakePrefs keeps preferred_locale per HUM-*, resolving identities through
 // the rig's recording Registrar (store.AuthHooks in the hub).
 type fakePrefs struct {
-	mu  sync.Mutex
-	reg *recReg
-	loc map[string]string
+	mu   sync.Mutex
+	reg  *recReg
+	loc  map[string]string
+	diag map[string]bool // CLE-34963 "Debug pane", nil until first set
+	fail error           // non-nil: DiagnosticsEnabled answers it
 }
 
 func (p *fakePrefs) known(hum string) bool {
@@ -53,6 +55,31 @@ func (p *fakePrefs) SetPreferredLocale(_ context.Context, hum, loc string) error
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.loc[hum] = loc
+	return nil
+}
+
+func (p *fakePrefs) DiagnosticsEnabled(_ context.Context, hum string) (bool, error) {
+	if !p.known(hum) {
+		return false, auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.fail != nil {
+		return true, p.fail
+	}
+	return p.diag[hum], nil
+}
+
+func (p *fakePrefs) SetDiagnosticsEnabled(_ context.Context, hum string, on bool) error {
+	if !p.known(hum) {
+		return auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.diag == nil {
+		p.diag = map[string]bool{}
+	}
+	p.diag[hum] = on
 	return nil
 }
 

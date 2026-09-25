@@ -188,6 +188,25 @@ func (a AuthHooks) SetPreferredLocale(ctx context.Context, humanID, locale strin
 	return err
 }
 
+// DiagnosticsEnabled is the human's "Debug pane" setting (CLE-34963); an
+// unknown human is auth.ErrNoHuman.
+func (a AuthHooks) DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error) {
+	on, err := a.H.DiagnosticsEnabled(ctx, humanID)
+	if errors.Is(err, ErrNotFound) {
+		return false, auth.ErrNoHuman
+	}
+	return on, err
+}
+
+// SetDiagnosticsEnabled stores it; an unknown human is auth.ErrNoHuman.
+func (a AuthHooks) SetDiagnosticsEnabled(ctx context.Context, humanID string, on bool) error {
+	err := a.H.SetDiagnosticsEnabled(ctx, humanID, on)
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrNoHuman
+	}
+	return err
+}
+
 // IdentityLocale is the picked locale of the human behind one sign-in.
 func (a AuthHooks) IdentityLocale(ctx context.Context, provider, subject string) (string, error) {
 	return a.H.IdentityLocale(ctx, provider, subject)

@@ -67,8 +67,9 @@ type AvatarSource interface {
 var ErrNoAvatar = errors.New("auth: no stored picture")
 
 // Preferences is the hub's store of a person's settings (CLE-3403: the
-// language). Store-backed like Membership; nil = the session answers
-// preferred_locale null and PUT preferences is 503.
+// language; CLE-34963: the "Debug pane" checkbox). Store-backed like
+// Membership; nil = the session answers preferred_locale null and
+// diagnostics_enabled false, and PUT preferences is 503.
 type Preferences interface {
 	// PreferredLocale is the human's picked locale, "" when never picked.
 	// An unknown human is ErrNoHuman.
@@ -78,6 +79,11 @@ type Preferences interface {
 	// IdentityLocale is the picked locale of the human a (provider, subject)
 	// sign-in belongs to; "" when there is no such human or nothing is picked.
 	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
+	// DiagnosticsEnabled is the human's own "Debug pane" setting, false when
+	// never set. An unknown human is ErrNoHuman.
+	DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error)
+	// SetDiagnosticsEnabled stores it. Unknown human = ErrNoHuman.
+	SetDiagnosticsEnabled(ctx context.Context, humanID string, on bool) error
 }
 
 // FederatedLookup tells the forgot-password route that an address it holds no
@@ -307,10 +313,11 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 type sessionResp struct {
 	Session
 	PreferredLocale *string `json:"preferred_locale"`
-	// DiagnosticsEnabled is the operator's grant for the WUI diagnostics
-	// panel (005 T035). It sits HERE and not in Session on purpose: Session is
-	// what gets signed into the cookie, and a grant that rode the cookie would
-	// outlive its revocation by a whole session TTL. See diagnosticsGrant.
+	// DiagnosticsEnabled is the human's own "Debug pane" setting (CLE-34963),
+	// which shows the WUI diagnostics panel (005 T035). It sits HERE and not
+	// in Session on purpose: Session is what gets signed into the cookie, and
+	// a setting that rode the cookie would outlive its unticking by a whole
+	// session TTL. See diagnosticsGrant.
 	DiagnosticsEnabled bool `json:"diagnostics_enabled"`
 	// specs/026 §3: the tenant this session works in (null when none
 	// resolves) and every membership (the phase 2 switcher's list).
@@ -325,7 +332,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "unauthenticated", "no valid session")
 		return
 	}
-	out := sessionResp{Session: s, DiagnosticsEnabled: h.diagnosticsGrant(s)}
+	out := sessionResp{Session: s, DiagnosticsEnabled: h.diagnosticsGrant(r.Context(), s)}
 	h.sessionTenants(r, &out)
 	if s.HumanID != "" && h.prefs != nil {
 		// A settings lookup never fails the session: the WUI then follows the browser.
@@ -340,25 +347,34 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 }
 
 // diagnosticsGrant answers the WUI's `diagnostics_enabled` claim (005 T035,
-// 010 auth-v1 section 3): may THIS signed-in human see the diagnostics panel?
+// 010 auth-v1 section 3): did THIS signed-in human tick "Debug pane" in their
+// settings (rdb 0038 humans.diagnostics_enabled, CLE-34963)?
+//
+// The setting is the SOLE gate. It replaced the operator list
+// SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS: under "list OR setting" unticking the box
+// would change nothing for a listed address (the donor's section 2.7 lesson).
 //
 // Two properties it exists to hold:
 //
-//  1. The answer comes from cnf on EVERY session read and is never a field of
-//     the signed session cookie. There is no such key in Session to carry, so
-//     nothing the browser sends can assert the grant — a cookie whose payload
-//     names it included — and removing an address revokes the panel at the
-//     reader's next probe, not at the end of a 12h session.
-//  2. The address must have been PROVEN. A social sign-in only ever reaches
-//     here with an IdP-verified email; a native one (015) can carry an
-//     unverified address only where SPOOL_HUB_AUTH_NATIVE_VERIFY_REQUIRED is
-//     false, which native_config refuses outside lde. That one case is denied
-//     here rather than trusting an address its owner never confirmed.
-func (h *Handler) diagnosticsGrant(s Session) bool {
-	if s.Provider == ProviderPassword && h.native != nil && !h.native.cfg.VerifyRequired {
+//  1. The answer is read from the store on EVERY session read and is never a
+//     field of the signed session cookie. There is no such key in Session to
+//     carry, so nothing the browser sends can assert it — a cookie whose
+//     payload names it included — and unticking hides the panel at the next
+//     probe, not at the end of a 12h session.
+//  2. It FAILS SHUT: no registered human, no store wired, an unknown human
+//     and a store error are all "no".
+func (h *Handler) diagnosticsGrant(ctx context.Context, s Session) bool {
+	if s.HumanID == "" || h.prefs == nil {
 		return false
 	}
-	return h.cfg.DiagnosticsGranted(s.Email)
+	on, err := h.prefs.DiagnosticsEnabled(ctx, s.HumanID)
+	if err != nil {
+		if !errors.Is(err, ErrNoHuman) {
+			h.log.Warn().Err(err).Msg("auth.session diagnostics_enabled lookup")
+		}
+		return false
+	}
+	return on
 }
 
 // avatar answers the signed-in human's own stored IdP picture (CLE-3406):
@@ -404,16 +420,21 @@ func (h *Handler) avatar(w http.ResponseWriter, r *http.Request) {
 	w.Write(pic) //nolint:errcheck
 }
 
-// preferencesReq is PUT preferences' body. preferred_locale is required: one
-// of the 19 i18n.Supported codes exactly, or null to clear it.
+// preferencesReq is PUT preferences' body. Each key is optional, but at
+// least one must be present: preferred_locale is one of the 19
+// i18n.Supported codes exactly, or null to clear it; diagnostics_enabled
+// (CLE-34963) is a JSON boolean, nothing else.
 type preferencesReq struct {
-	PreferredLocale json.RawMessage `json:"preferred_locale"`
+	PreferredLocale    json.RawMessage `json:"preferred_locale"`
+	DiagnosticsEnabled json.RawMessage `json:"diagnostics_enabled"`
 }
 
-// putPreferences stores the signed-in human's settings (CLE-3403). Same
-// door as the session read (the signed session cookie) and the same CSRF
+// putPreferences stores the signed-in human's settings (CLE-3403, CLE-34963).
+// Same door as the session read (the signed session cookie) and the same CSRF
 // posture as the native POSTs: application/json only, so a browser always
-// preflights it and authCORS's origin allow-list gates it.
+// preflights it and authCORS's origin allow-list gates it. The whole body is
+// validated before anything is written, and the answer echoes exactly the
+// keys that were stored.
 func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 	s, ok := h.SessionFromRequest(r)
 	if !ok {
@@ -424,18 +445,29 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 	if !readNativeJSON(w, r, &req) {
 		return
 	}
-	loc := ""
-	switch raw := strings.TrimSpace(string(req.PreferredLocale)); {
-	case raw == "":
-		writeErr(w, http.StatusBadRequest, "bad_request", "preferred_locale is required (a locale code or null)")
+	rawLoc := strings.TrimSpace(string(req.PreferredLocale))
+	rawDiag := strings.TrimSpace(string(req.DiagnosticsEnabled))
+	if rawLoc == "" && rawDiag == "" {
+		writeErr(w, http.StatusBadRequest, "bad_request",
+			"preferred_locale (a locale code or null) or diagnostics_enabled (true or false) is required")
 		return
-	case raw == "null":
+	}
+	loc := ""
+	switch {
+	case rawLoc == "" || rawLoc == "null":
 	default:
 		if json.Unmarshal(req.PreferredLocale, &loc) != nil || !i18n.IsSupported(loc) {
 			writeErr(w, http.StatusBadRequest, "unsupported_locale",
 				"preferred_locale must be one of "+strings.Join(i18n.Supported, ","))
 			return
 		}
+	}
+	// Only the literal true/false: "true", 1 and null are refused rather than
+	// coerced, the same strictness the WUI's gate applies to the claim.
+	diag := rawDiag == "true"
+	if rawDiag != "" && rawDiag != "true" && rawDiag != "false" {
+		writeErr(w, http.StatusBadRequest, "bad_request", "diagnostics_enabled must be true or false")
+		return
 	}
 	if s.HumanID == "" {
 		writeErr(w, http.StatusConflict, "no_human", "this session has no registered human to keep settings on")
@@ -445,21 +477,39 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "preferences are not configured")
 		return
 	}
-	switch err := h.prefs.SetPreferredLocale(r.Context(), s.HumanID, loc); {
+	out := map[string]any{}
+	if rawLoc != "" {
+		if !h.storePref(w, h.prefs.SetPreferredLocale(r.Context(), s.HumanID, loc)) {
+			return
+		}
+		h.log.Info().Str("human_id", s.HumanID).Str("preferred_locale", loc).Msg("auth.preferences_set")
+		out["preferred_locale"] = nil
+		if loc != "" {
+			out["preferred_locale"] = loc
+		}
+	}
+	if rawDiag != "" {
+		if !h.storePref(w, h.prefs.SetDiagnosticsEnabled(r.Context(), s.HumanID, diag)) {
+			return
+		}
+		h.log.Info().Str("human_id", s.HumanID).Bool("diagnostics_enabled", diag).Msg("auth.preferences_set")
+		out["diagnostics_enabled"] = diag
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// storePref maps one Preferences write error onto the answer; true = stored.
+func (h *Handler) storePref(w http.ResponseWriter, err error) bool {
+	switch {
 	case errors.Is(err, ErrNoHuman):
 		writeErr(w, http.StatusConflict, "no_human", "the session's human no longer exists")
-		return
+		return false
 	case err != nil:
 		h.log.Error().Err(err).Msg("auth.preferences store")
 		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "store")
-		return
+		return false
 	}
-	h.log.Info().Str("human_id", s.HumanID).Str("preferred_locale", loc).Msg("auth.preferences_set")
-	out := map[string]any{"preferred_locale": nil}
-	if loc != "" {
-		out["preferred_locale"] = loc
-	}
-	writeJSON(w, http.StatusOK, out)
+	return true
 }
 
 // RequestLocale is the locale of r: X-Locale > Accept-Language > the default.

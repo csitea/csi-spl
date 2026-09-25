@@ -1,10 +1,12 @@
 <!-- Diagnostics panel (ported from the donor WUI's common/DebugPanel.vue).
 
      In an error situation nobody can tell what the error actually was; this
-     is the answer for the people entitled to see it — and only for them.
+     is the answer for the human who asked to see it — and only for them.
 
-     WHO SEES IT: a signed-in identity whose session claims carry the
-     operator's grant (debugAudience.mjs). The gate is a `v-if`, never a
+     WHO SEES IT: a signed-in human who ticked "Debug pane" in Settings →
+     Appearance (CLE-34963), carried as the `diagnostics_enabled` session
+     claim (debugAudience.mjs). The badge says "Only you see this": the
+     records are this browser's own. The gate is a `v-if`, never a
      `v-show` and never CSS: a hidden element is still in the DOM, still in
      view-source and still in the accessibility tree.
 
@@ -44,7 +46,7 @@
           {{ countLabel }}
         </span>
       </button>
-      <span class="debug-panel__staff">{{ t('debug_panel.granted_only') }}</span>
+      <span class="debug-panel__staff">{{ t('debug_panel.only_you') }}</span>
     </div>
 
     <div v-if="open" id="debug-panel-body" class="debug-panel__body">

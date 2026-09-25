@@ -294,6 +294,14 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     savePreferences({ preferred_locale } = {}) {
       return post('/preferences', { preferred_locale: String(preferred_locale || '') }, 'PUT')
     },
+    /**
+     * CLE-34963: store the signed-in human's "Debug pane" checkbox. Sends
+     * ONLY that key (the language is left as it is) and only a real boolean.
+     * 200 → ok; 400 = not a boolean; 401 = no session; 409 = no human.
+     */
+    saveDiagnostics(on) {
+      return post('/preferences', { diagnostics_enabled: on === true }, 'PUT')
+    },
     async logout() {
       const res = await call('/logout', { method: 'POST' })
       return res.status === 204 || res.ok

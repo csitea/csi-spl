@@ -6,9 +6,11 @@
 //
 // The gate lives here rather than in the component so it can be read in one
 // place: `visible` is true only when the component is mounted AND the session
-// claims (GET /api/v1/auth/session, spec 010 auth-v1 §3) carry the operator's
-// grant. Anonymous, signed-out and "the probe could not answer" all resolve to
-// no panel (fail shut).
+// claims (GET /api/v1/auth/session, spec 010 auth-v1 §3) carry the human's own
+// "Debug pane" setting (Settings → Appearance, CLE-34963). Anonymous,
+// signed-out and "the probe could not answer" all resolve to no panel (fail
+// shut). The claim is reactive, so ticking or unticking the box shows or hides
+// the panel without a reload.
 import { computed, onBeforeUnmount, onMounted, readonly, ref, shallowRef } from 'vue'
 import {
   clearErrors,
@@ -47,7 +49,7 @@ export function useErrorJournal() {
 
   const session = useSessionStore()
 
-  // The ONE gate: the per-user grant in the session claims, nothing else.
+  // The ONE gate: the human's own "Debug pane" setting in the session claims, nothing else.
   const privileged = computed(() =>
     session.state === 'in' && debugPanelVisibleFor(session.claims ?? null),
   )

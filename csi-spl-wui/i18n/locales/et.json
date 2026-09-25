@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Diagnostika",
-    "granted_only": "Antud teile",
+    "only_you": "Seda näete ainult teie",
     "clean": "selles seansis vigu ei ole",
     "recorded": "salvestatud vigu: {count}",
     "no_errors": "Selles seansis ei ole vigu salvestatud.",
@@ -75,6 +75,10 @@
       "bigger": "Suurem tekst",
       "level": "Suurus {n}/{total}",
       "level_default": "Suurus {n}/{total} (vaikimisi)"
+    },
+    "debug_pane": {
+      "label": "Silumispaan",
+      "hint": "Näita rakenduse allosas diagnostikapaani selles brauseris salvestatud vigadega. Seda näete ainult teie."
     },
     "signin_security": "Sisselogimine ja turvalisus",
     "signed_in_with": "Sisse logitud teenusega",

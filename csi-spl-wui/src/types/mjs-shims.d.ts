@@ -288,6 +288,7 @@ declare module '~/utils/auth-client.mjs' {
     resetPassword(b: { token: string, password: string }): Promise<NativeResult>
     changePassword(b: { current: string, next: string }): Promise<NativeResult>
     savePreferences(b: { preferred_locale: string }): Promise<NativeResult>
+    saveDiagnostics(on: boolean): Promise<NativeResult>
     providers(): Promise<string[]>
     session(): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
     logout(): Promise<boolean>
@@ -754,6 +755,13 @@ declare module '~/utils/theme.mjs' {
   export function readStoredTheme(store?: unknown, fallback?: SpoolTheme): SpoolTheme
   export function writeStoredTheme(theme: unknown, store?: unknown): boolean
   export function applyThemeAttr(theme: unknown, el?: { setAttribute?(k: string, v: string): void } | null): SpoolTheme
+}
+
+declare module '~/utils/debug-pane.mjs' {
+  export function applyDebugPaneSetting(
+    want: unknown,
+    io: { current: unknown, apply: (on: boolean) => void, save: (on: boolean) => Promise<{ ok: boolean }> },
+  ): Promise<{ ok: boolean, value: boolean, out?: unknown }>
 }
 
 declare module '~/utils/font-size.mjs' {

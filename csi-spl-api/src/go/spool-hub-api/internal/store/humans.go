@@ -135,6 +135,12 @@ type Humans interface {
 	// subject) sign-in belongs to; "" (nil error) when there is no such
 	// identity or nothing is picked.
 	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
+	// SetDiagnosticsEnabled records the human's "Debug pane" setting (rdb
+	// 0038, CLE-34963). Unknown human = ErrNotFound.
+	SetDiagnosticsEnabled(ctx context.Context, humanID string, on bool) error
+	// DiagnosticsEnabled returns that setting, false when never set, or
+	// ErrNotFound.
+	DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error)
 	// FederatedAccount lists the providers, other than ProviderNative, whose
 	// VERIFIED identity carries email on a human that is not disabled, sorted,
 	// plus that human's picked locale ("" when none). An address nobody signs

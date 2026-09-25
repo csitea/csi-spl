@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Diagnostyka",
-    "granted_only": "Przyznane tobie",
+    "only_you": "Widzisz to tylko ty",
     "clean": "brak błędów w tej sesji",
     "recorded": "zarejestrowane błędy: {count}",
     "no_errors": "W tej sesji nie zarejestrowano błędów.",
@@ -75,6 +75,10 @@
       "bigger": "Większy tekst",
       "level": "Rozmiar {n} z {total}",
       "level_default": "Rozmiar {n} z {total} (domyślny)"
+    },
+    "debug_pane": {
+      "label": "Panel debugowania",
+      "hint": "Pokazuje u dołu aplikacji panel diagnostyczny z błędami zarejestrowanymi w tej przeglądarce. Widzisz go tylko ty."
     },
     "signin_security": "Logowanie i bezpieczeństwo",
     "signed_in_with": "Zalogowano przez",

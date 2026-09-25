@@ -263,6 +263,27 @@ func (s *Postgres) PreferredLocale(ctx context.Context, humanID string) (string,
 	return loc, err
 }
 
+// humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.
+func (s *Postgres) SetDiagnosticsEnabled(ctx context.Context, humanID string, on bool) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE humans SET diagnostics_enabled = $2 WHERE human_id = $1`, humanID, on)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error) {
+	var on bool
+	err := s.pool.QueryRow(ctx, `SELECT diagnostics_enabled FROM humans WHERE human_id = $1`, humanID).Scan(&on)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, ErrNotFound
+	}
+	return on, err
+}
+
 func (s *Postgres) IdentityLocale(ctx context.Context, provider, subject string) (string, error) {
 	var loc string
 	err := s.pool.QueryRow(ctx, `SELECT COALESCE(h.preferred_locale, '') FROM human_identities i

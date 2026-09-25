@@ -265,3 +265,47 @@ func TestHumansPreferredLocale(t *testing.T) {
 		})
 	}
 }
+
+// CLE-34963 (rdb 0038): a human's own "Debug pane" setting. It starts off,
+// flips both ways, belongs to one human only, and an unknown human is ErrNotFound.
+func TestHumansDiagnosticsEnabled(t *testing.T) {
+	ctx := context.Background()
+	for name, s := range drivers(t) {
+		h := s.(Humans)
+		t.Run(name, func(t *testing.T) {
+			hum, err := h.Admit(ctx, Identity{Provider: "password", Subject: uid("diag-")}, "", AdmitPolicy{}, time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			other, err := h.Admit(ctx, Identity{Provider: "password", Subject: uid("diag-")}, "", AdmitPolicy{}, time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if on, err := h.DiagnosticsEnabled(ctx, hum); err != nil || on {
+				t.Fatalf("new human has the panel: %v %v", on, err)
+			}
+			if err := h.SetDiagnosticsEnabled(ctx, hum, true); err != nil {
+				t.Fatal(err)
+			}
+			if on, err := h.DiagnosticsEnabled(ctx, hum); err != nil || !on {
+				t.Fatalf("after tick: %v %v", on, err)
+			}
+			// CONTROL: the other human is untouched.
+			if on, err := h.DiagnosticsEnabled(ctx, other); err != nil || on {
+				t.Fatalf("tick leaked to another human: %v %v", on, err)
+			}
+			if err := h.SetDiagnosticsEnabled(ctx, hum, false); err != nil {
+				t.Fatal(err)
+			}
+			if on, _ := h.DiagnosticsEnabled(ctx, hum); on {
+				t.Fatal("untick did not stick")
+			}
+			if err := h.SetDiagnosticsEnabled(ctx, "HUM-999999999", true); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human: %v", err)
+			}
+			if _, err := h.DiagnosticsEnabled(ctx, "HUM-999999999"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human read: %v", err)
+			}
+		})
+	}
+}

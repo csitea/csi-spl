@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Diagnostik",
-    "granted_only": "Beviljat till dig",
+    "only_you": "Bara du ser detta",
     "clean": "inga fel i den här sessionen",
     "recorded": "registrerade fel: {count}",
     "no_errors": "Inga fel har registrerats i den här sessionen.",
@@ -75,6 +75,10 @@
       "bigger": "Större text",
       "level": "Storlek {n} av {total}",
       "level_default": "Storlek {n} av {total} (standard)"
+    },
+    "debug_pane": {
+      "label": "Felsökningspanel",
+      "hint": "Visa en diagnostikpanel längst ned i appen med de fel som registrerats i den här webbläsaren. Bara du ser den."
     },
     "signin_security": "Inloggning och säkerhet",
     "signed_in_with": "Inloggad med",

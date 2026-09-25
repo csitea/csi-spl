@@ -12,6 +12,7 @@ type memHuman struct {
 	name, email string
 	avatar      string // file_id
 	locale      string // preferred_locale (rdb 0017)
+	diagnostics bool   // diagnostics_enabled (rdb 0038)
 	disabled    bool
 }
 
@@ -250,6 +251,29 @@ func (s *Memory) PreferredLocale(_ context.Context, humanID string) (string, err
 		return "", ErrNotFound
 	}
 	return hm.locale, nil
+}
+
+func (s *Memory) SetDiagnosticsEnabled(_ context.Context, humanID string, on bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return ErrNotFound
+	}
+	hm.diagnostics = on
+	return nil
+}
+
+func (s *Memory) DiagnosticsEnabled(_ context.Context, humanID string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return false, ErrNotFound
+	}
+	return hm.diagnostics, nil
 }
 
 func (s *Memory) IdentityLocale(_ context.Context, provider, subject string) (string, error) {

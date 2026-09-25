@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Diagnostika",
-    "granted_only": "Udelené vám",
+    "only_you": "Toto vidíte iba vy",
     "clean": "v tejto relácii nie sú žiadne chyby",
     "recorded": "zaznamenané chyby: {count}",
     "no_errors": "V tejto relácii neboli zaznamenané žiadne chyby.",
@@ -75,6 +75,10 @@
       "bigger": "Väčší text",
       "level": "Veľkosť {n} z {total}",
       "level_default": "Veľkosť {n} z {total} (predvolená)"
+    },
+    "debug_pane": {
+      "label": "Ladiaci panel",
+      "hint": "Zobrazí v spodnej časti aplikácie diagnostický panel s chybami zaznamenanými v tomto prehliadači. Vidíte ho iba vy."
     },
     "signin_security": "Prihlásenie a zabezpečenie",
     "signed_in_with": "Prihlásený cez",

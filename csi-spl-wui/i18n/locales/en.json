@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Diagnostics",
-    "granted_only": "Granted to you",
+    "only_you": "Only you see this",
     "clean": "no errors this session",
     "recorded": "{count} error(s) recorded",
     "no_errors": "No errors recorded in this session.",
@@ -75,6 +75,10 @@
       "bigger": "Bigger text",
       "level": "Size {n} of {total}",
       "level_default": "Size {n} of {total} (default)"
+    },
+    "debug_pane": {
+      "label": "Debug pane",
+      "hint": "Show a diagnostics panel at the bottom of the app listing the errors recorded in this browser. Only you see it."
     },
     "signin_security": "Sign-in and security",
     "signed_in_with": "Signed in with",

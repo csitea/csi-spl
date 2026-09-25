@@ -1,6 +1,8 @@
-// The diagnostics panel is granted by the HUB, to a named human, and to nobody
-// by default (005 T035, 010 auth-v1 §3; hub side: internal/auth/config.go
-// SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS + handler.go diagnosticsGrant).
+// The diagnostics panel is the signed-in human's own choice: the "Debug pane"
+// checkbox in Settings → Appearance (CLE-34963), kept by the HUB per human
+// (rdb 0038 humans.diagnostics_enabled, default false = nobody) and answered
+// as the session claim (005 T035, 010 auth-v1 §3; hub side: handler.go
+// diagnosticsGrant + putPreferences). The checkbox is the SOLE gate.
 //
 // error-journal.test.mjs already executes the gate's own truth table. This
 // suite runs the WHOLE WUI half of the decision against the body the hub
@@ -19,6 +21,7 @@ import { fileURLToPath } from 'node:url'
 
 import { createAuthClient } from '../../src/utils/auth-client.mjs'
 import { debugPanelVisibleFor, diagnosticsGranted } from '../../src/composables/debugAudience.mjs'
+import { applyDebugPaneSetting } from '../../src/utils/debug-pane.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SRC = join(__dirname, '../../src')
@@ -144,7 +147,8 @@ describe('CONTROL: the claim is not settable from the browser', () => {
     'URLSearchParams', 'useRoute().query', 'import.meta.env', 'process.env',
   ]
 
-  for (const rel of ['composables/debugAudience.mjs', 'composables/useErrorJournal.ts']) {
+  for (const rel of ['composables/debugAudience.mjs', 'composables/useErrorJournal.ts',
+    'utils/debug-pane.mjs', 'components/DebugPaneSetting.vue']) {
     it(`${rel} reads none of them`, () => {
       const code = codeOf(readFileSync(join(SRC, rel), 'utf8'))
       for (const s of BROWSER_SOURCES) {
@@ -153,10 +157,12 @@ describe('CONTROL: the claim is not settable from the browser', () => {
     })
   }
 
-  it('nothing in src/ writes the claim — it is only ever read', () => {
+  it('only the session store mirrors the claim, and only as a real boolean', () => {
     // A `diagnostics_enabled =` or a `diagnostics_enabled:` OUTSIDE a type
     // declaration would be the WUI minting its own grant. The claims arrive
-    // from the hub and are never assembled here.
+    // from the hub; the ONE writer is the session store's mirror of the
+    // checkbox while its save is in flight (CLE-34963), and the hub body
+    // written by saveDiagnostics — both coercing to a strict boolean.
     const offenders = []
     for (const f of srcFiles()) {
       if (!/\.(mjs|ts|vue)$/.test(f)) continue
@@ -165,6 +171,8 @@ describe('CONTROL: the claim is not settable from the browser', () => {
         if (!code.includes('diagnostics_enabled')) continue
         if (/^diagnostics_enabled\?:\s*boolean$/.test(code)) continue      // the type
         if (/^return user\.diagnostics_enabled === true$/.test(code)) continue // the gate
+        if (code === 'if (claims.value) claims.value = { ...claims.value, diagnostics_enabled: on === true }') continue // session.ts mirror
+        if (code === "return post('/preferences', { diagnostics_enabled: on === true }, 'PUT')") continue // auth-client save
         offenders.push(`${relative(SRC, f)}: ${code}`)
       }
     }
@@ -200,5 +208,91 @@ describe('CONTROL: with the panel off there is nothing else to reach', () => {
     const src = readFileSync(join(SRC, 'composables/useErrorJournal.ts'), 'utf8')
     assert.match(src, /debugPanelVisibleFor/)
     assert.match(src, /session\.state === 'in'/)
+  })
+})
+
+describe('the "Debug pane" checkbox (CLE-34963)', () => {
+  it('saves ONLY the boolean, to PUT /preferences', async () => {
+    for (const [arg, sent] of [[true, true], [false, false], ['true', false], [1, false], [undefined, false]]) {
+      const s = stub(200, { diagnostics_enabled: sent })
+      const out = await createAuthClient({ fetchFn: s.fn }).saveDiagnostics(arg)
+      assert.equal(out.ok, true)
+      assert.equal(s.calls.length, 1)
+      assert.match(s.calls[0].url, /\/api\/v1\/auth\/preferences$/)
+      assert.equal(s.calls[0].opts.method, 'PUT')
+      // No preferred_locale: a checkbox save must not touch the language.
+      assert.deepEqual(JSON.parse(s.calls[0].opts.body), { diagnostics_enabled: sent }, JSON.stringify(arg))
+    }
+  })
+
+  /** A claims holder shaped like the session store's mirror. */
+  function rig(start, saveOut) {
+    const claims = { diagnostics_enabled: start }
+    const saved = []
+    return {
+      claims,
+      saved,
+      io: {
+        current: claims.diagnostics_enabled,
+        apply: (on) => { claims.diagnostics_enabled = on },
+        save: async (on) => { saved.push(on); if (saveOut instanceof Error) throw saveOut; return saveOut },
+      },
+    }
+  }
+
+  it('ticking shows the panel at once and keeps it when the hub agrees', async () => {
+    const r = rig(false, { ok: true })
+    const p = applyDebugPaneSetting(true, r.io)
+    // Before the save answers the panel is already visible: no reload, no wait.
+    assert.equal(debugPanelVisibleFor(r.claims), true)
+    const out = await p
+    assert.deepEqual([out.ok, out.value, r.saved], [true, true, [true]])
+    assert.equal(debugPanelVisibleFor(r.claims), true)
+  })
+
+  it('unticking hides it at once', async () => {
+    const r = rig(true, { ok: true })
+    const p = applyDebugPaneSetting(false, r.io)
+    assert.equal(debugPanelVisibleFor(r.claims), false)
+    assert.equal((await p).ok, true)
+    assert.equal(debugPanelVisibleFor(r.claims), false)
+  })
+
+  it('a refused or failed save puts the old state back', async () => {
+    for (const saveOut of [{ ok: false, status: 503 }, { ok: false, status: 401 }, null, new Error('network')]) {
+      for (const start of [false, true]) {
+        const r = rig(start, saveOut)
+        const out = await applyDebugPaneSetting(!start, r.io)
+        assert.equal(out.ok, false)
+        assert.equal(r.claims.diagnostics_enabled, start, String(saveOut))
+        assert.equal(debugPanelVisibleFor(r.claims), start)
+      }
+    }
+  })
+
+  it('no change is no save', async () => {
+    const r = rig(true, { ok: true })
+    assert.equal((await applyDebugPaneSetting(true, r.io)).ok, true)
+    assert.deepEqual(r.saved, [])
+  })
+
+  it('only the literal true ticks', async () => {
+    for (const want of ['true', 1, {}, null]) {
+      const r = rig(false, { ok: true })
+      await applyDebugPaneSetting(want, r.io)
+      assert.equal(debugPanelVisibleFor(r.claims), false, JSON.stringify(want))
+    }
+  })
+
+  it('the checkbox lives only in Settings → Appearance', () => {
+    const mounts = srcFiles()
+      .filter((f) => f.endsWith('.vue') && !f.endsWith('DebugPaneSetting.vue'))
+      .filter((f) => /<DebugPaneSetting\b/.test(readFileSync(f, 'utf8')))
+      .map((f) => relative(SRC, f))
+    assert.deepEqual(mounts, ['pages/settings/appearance.vue'])
+    const src = readFileSync(join(SRC, 'components/DebugPaneSetting.vue'), 'utf8')
+    assert.match(src, /data-test="settings-debug-pane"/)
+    assert.match(src, /session\.setDiagnosticsEnabled/)
+    assert.match(src, /auth\.saveDiagnostics/)
   })
 })

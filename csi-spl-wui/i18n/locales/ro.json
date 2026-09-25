@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Diagnosticare",
-    "granted_only": "Acordat dvs.",
+    "only_you": "Doar dumneavoastră vedeți asta",
     "clean": "nicio eroare în această sesiune",
     "recorded": "erori înregistrate: {count}",
     "no_errors": "Nu s-au înregistrat erori în această sesiune.",
@@ -75,6 +75,10 @@
       "bigger": "Text mai mare",
       "level": "Mărimea {n} din {total}",
       "level_default": "Mărimea {n} din {total} (implicită)"
+    },
+    "debug_pane": {
+      "label": "Panou de depanare",
+      "hint": "Afișează un panou de diagnosticare în partea de jos a aplicației cu erorile înregistrate în acest browser. Doar dumneavoastră îl vedeți."
     },
     "signin_security": "Autentificare și securitate",
     "signed_in_with": "Autentificat cu",

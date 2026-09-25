@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Diagnostiikka",
-    "granted_only": "Myönnetty sinulle",
+    "only_you": "Vain sinä näet tämän",
     "clean": "ei virheitä tässä istunnossa",
     "recorded": "virheitä kirjattu: {count}",
     "no_errors": "Tässä istunnossa ei ole kirjattu virheitä.",
@@ -75,6 +75,10 @@
       "bigger": "Suurempi teksti",
       "level": "Koko {n}/{total}",
       "level_default": "Koko {n}/{total} (oletus)"
+    },
+    "debug_pane": {
+      "label": "Vianetsintäpaneeli",
+      "hint": "Näytä sovelluksen alareunassa diagnostiikkapaneeli, jossa on tässä selaimessa tallennetut virheet. Vain sinä näet sen."
     },
     "signin_security": "Kirjautuminen ja tietoturva",
     "signed_in_with": "Kirjautumistapa",

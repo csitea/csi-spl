@@ -54,8 +54,8 @@
         <div class="login"><p class="muted">{{ $t('app.loading') }}</p></div>
       </template>
     </ClientOnly>
-    <!-- Renders only for an identity the operator granted (session claim
-         `diagnostics_enabled`); for everyone else the v-if inside contributes
+    <!-- Renders only for a human who ticked "Debug pane" in Settings →
+         Appearance (session claim `diagnostics_enabled`); for everyone else the v-if inside contributes
          no markup at all. <ClientOnly> keeps it out of the prerendered bundle. -->
     <ClientOnly>
       <DebugPanel />

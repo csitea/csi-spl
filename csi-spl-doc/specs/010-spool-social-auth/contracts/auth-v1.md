@@ -69,22 +69,44 @@ The last four are **not** cookie claims: they are read per call and answered
 alongside the signed ones. `preferred_locale` (spec 021), `active_tenant` +
 `tenants` (specs/026 §3), and:
 
-`diagnostics_enabled` — 005 T035, CLE-3440. The operator's grant for the WUI
-diagnostics panel, decided per human from cnf
-`SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS` (a comma list of verified addresses; empty
-in every env, which grants **nobody**; an entry that is not one real address
-fails the hub's boot). Always present, always a boolean, and the WUI admits
-only the literal `true` (`csi-spl-wui/src/composables/debugAudience.mjs`).
+`diagnostics_enabled` — 005 T035, CLE-3440, CLE-34963. The signed-in
+human's OWN "Debug pane" checkbox (WUI Settings → Appearance), which shows the
+diagnostics panel at the bottom of the app. Stored per human in
+`humans.diagnostics_enabled` (rdb 0038, `NOT NULL DEFAULT false`, so nobody
+has it until they tick it). Always present, always a boolean, and the WUI
+admits only the literal `true` (`csi-spl-wui/src/composables/debugAudience.mjs`).
+It is `false` for a session with no registered human, when no preferences
+store is wired, and when the store read fails (fail shut).
+
+The checkbox is the **sole** gate. The operator list
+`SPOOL_HUB_AUTH_DIAGNOSTICS_EMAILS` it replaced is retired (removed from cnf;
+the hub no longer reads it): under "list OR checkbox" unticking the box would
+change nothing for a listed address.
+
+It is written by `PUT /api/v1/auth/preferences` (signed session cookie,
+`application/json` only, like the native POSTs):
+
+```json
+{ "diagnostics_enabled": true }
+```
+
+Each key of that body is optional but one is required: `preferred_locale` (a
+supported code, or `null` to clear) and `diagnostics_enabled` (the JSON
+literal `true` or `false` — `"true"`, `1` and `null` are `400 bad_request`).
+The whole body is validated before anything is stored, and the `200` answer
+echoes exactly the keys that were stored. `401` without a session, `409
+no_human` for a session with no registered human, `503` when the store is not
+wired or fails.
 
 Why it is not in the cookie: `Session` has no such field, so **a browser
 cannot assert it** — a cookie whose payload names it and whose MAC verifies is
-still read back as `false` — and dropping an address revokes the panel at that
-reader's next probe rather than at the end of a 12h session. A native sign-in
-(015) carrying an unverified email is refused the grant regardless of the
-list. The native `POST /login` answer carries the same field, because the WUI
-adopts those claims with no second probe. Code:
-`internal/auth/config.go` (`DiagnosticsGranted`) + `handler.go`
-(`diagnosticsGrant`); tests `internal/auth/diagnostics_test.go`.
+still read back as the stored value — and unticking hides the panel at the
+next probe rather than at the end of a 12h session. The native `POST /login`
+answer carries the same field, because the WUI adopts those claims with no
+second probe. Code: `internal/auth/handler.go` (`diagnosticsGrant`,
+`putPreferences`), `internal/store/humans_postgres.go`; tests
+`internal/auth/diagnostics_test.go`, `internal/store/humans_test.go`
+(`TestHumansDiagnosticsEnabled`), `csi-spl-wui/tests/unit/diagnostics-claim.test.mjs`.
 
 ## 4. Login component (for 005)
 

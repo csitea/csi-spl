@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Diagnóstico",
-    "granted_only": "Concedido a ti",
+    "only_you": "Solo tú ves esto",
     "clean": "sin errores en esta sesión",
     "recorded": "errores registrados: {count}",
     "no_errors": "No se han registrado errores en esta sesión.",
@@ -75,6 +75,10 @@
       "bigger": "Texto más grande",
       "level": "Tamaño {n} de {total}",
       "level_default": "Tamaño {n} de {total} (predeterminado)"
+    },
+    "debug_pane": {
+      "label": "Panel de depuración",
+      "hint": "Muestra un panel de diagnóstico en la parte inferior de la aplicación con los errores registrados en este navegador. Solo tú lo ves."
     },
     "signin_security": "Inicio de sesión y seguridad",
     "signed_in_with": "Sesión iniciada con",

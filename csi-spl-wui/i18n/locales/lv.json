@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Diagnostika",
-    "granted_only": "Piešķirts jums",
+    "only_you": "To redzat tikai jūs",
     "clean": "šajā sesijā kļūdu nav",
     "recorded": "reģistrētas kļūdas: {count}",
     "no_errors": "Šajā sesijā kļūdas nav reģistrētas.",
@@ -75,6 +75,10 @@
       "bigger": "Lielāks teksts",
       "level": "Lielums {n} no {total}",
       "level_default": "Lielums {n} no {total} (noklusējums)"
+    },
+    "debug_pane": {
+      "label": "Atkļūdošanas panelis",
+      "hint": "Rādīt diagnostikas paneli lietotnes apakšā ar šajā pārlūkā reģistrētajām kļūdām. To redzat tikai jūs."
     },
     "signin_security": "Pieteikšanās un drošība",
     "signed_in_with": "Pieteicies ar",

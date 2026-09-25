@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Diagnostika",
-    "granted_only": "Suteikta jums",
+    "only_you": "Tai matote tik jūs",
     "clean": "šioje sesijoje klaidų nėra",
     "recorded": "užfiksuota klaidų: {count}",
     "no_errors": "Šioje sesijoje klaidų neužfiksuota.",
@@ -75,6 +75,10 @@
       "bigger": "Didesnis tekstas",
       "level": "Dydis {n} iš {total}",
       "level_default": "Dydis {n} iš {total} (numatytasis)"
+    },
+    "debug_pane": {
+      "label": "Derinimo skydelis",
+      "hint": "Rodyti diagnostikos skydelį programos apačioje su šioje naršyklėje užfiksuotomis klaidomis. Jį matote tik jūs."
     },
     "signin_security": "Prisijungimas ir sauga",
     "signed_in_with": "Prisijungta per",

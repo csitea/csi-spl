@@ -12,9 +12,11 @@ export interface SessionClaims {
   iat?: number
   exp?: number
   /**
-   * Operator grant for the diagnostics panel (005 T035): the hub answers it
-   * per human from cnf on every session read, and only the literal `true`
-   * admits (debugAudience.mjs). Never set here — it arrives with the claims.
+   * The human's own "Debug pane" setting (CLE-34963), which shows the
+   * diagnostics panel (005 T035): the hub answers it from the store on every
+   * session read, and only the literal `true` admits (debugAudience.mjs).
+   * The WUI writes it only through setDiagnosticsEnabled, mirroring the
+   * checkbox while its save is in flight; the next probe is the authority.
    */
   diagnostics_enabled?: boolean
   /** spec 021: the human's stored UI + mail language; null/absent = none. */
@@ -57,6 +59,11 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, preferred_locale: code }
   }
 
+  /** CLE-34963: mirror the "Debug pane" checkbox (optimistic; reverted on a failed save). */
+  function setDiagnosticsEnabled(on: boolean) {
+    if (claims.value) claims.value = { ...claims.value, diagnostics_enabled: on === true }
+  }
+
   async function logout() {
     await auth.logout()
     state.value = 'out'
@@ -64,5 +71,5 @@ export const useSessionStore = defineStore('session', () => {
     await navigateTo(useNuxtApp().$localePath('/login'))
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, logout }
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, logout }
 })

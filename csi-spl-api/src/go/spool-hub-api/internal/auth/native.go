@@ -464,7 +464,7 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, n.h.sessionCookie(tok, int(n.h.cfg.SessionTTL.Seconds())))
 	n.log.Info().Str("email", digest(email)).Str("tenant", sess.Tenant).Msg("auth.login_ok")
 	writeJSON(w, http.StatusOK, loginResp{Session: sess, Redirect: safeRedirect(req.Redirect),
-		DiagnosticsEnabled: n.h.diagnosticsGrant(sess)})
+		DiagnosticsEnabled: n.h.diagnosticsGrant(ctx, sess)})
 }
 
 type emailReq struct {

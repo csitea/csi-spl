@@ -37,7 +37,7 @@
   },
   "debug_panel": {
     "title": "Tanılama",
-    "granted_only": "Size verildi",
+    "only_you": "Bunu yalnızca siz görüyorsunuz",
     "clean": "bu oturumda hata yok",
     "recorded": "kaydedilen hata: {count}",
     "no_errors": "Bu oturumda hata kaydedilmedi.",
@@ -75,6 +75,10 @@
       "bigger": "Daha büyük metin",
       "level": "Boyut {n} / {total}",
       "level_default": "Boyut {n} / {total} (varsayılan)"
+    },
+    "debug_pane": {
+      "label": "Hata ayıklama paneli",
+      "hint": "Uygulamanın altında, bu tarayıcıda kaydedilen hataları listeleyen bir tanılama paneli gösterir. Yalnızca siz görürsünüz."
     },
     "signin_security": "Giriş ve güvenlik",
     "signed_in_with": "Giriş yöntemi",

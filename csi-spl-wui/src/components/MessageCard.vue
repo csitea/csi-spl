@@ -111,6 +111,7 @@ import {
   editKeyAction,
   isEdited,
   wantsDblClickEdit,
+  wantsDelete,
   wantsEdit,
   withDraft,
 } from '~/utils/msg-edit.mjs'
@@ -134,7 +135,7 @@ const props = defineProps<{
   /** CLE-3445: offer the `e` shortcut on this row (author-only; the host decides). */
   editable?: boolean
 }>()
-const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
+const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage] }>()
 
 /** The replies link opens this topic on the right. The left tab stays as it was. */
 function openReplies() {
@@ -186,10 +187,15 @@ function selecting() {
 }
 
 function onClick(ev: MouseEvent) {
-  if (!props.clickable) return
   const el = ev.target as HTMLElement | null
   if (el && el.closest && el.closest(INTERACTIVE)) return
   if (selecting()) return
+  /* A thread row is not clickable. The click selects it, so Delete and e
+     apply to this message. A clickable row still opens its topic. */
+  if (!props.clickable) {
+    rowEl.value?.focus({ preventScroll: true })
+    return
+  }
   emit('open-topic', props.msg)
 }
 
@@ -216,6 +222,13 @@ function onKey(ev: KeyboardEvent) {
   if (wantsEdit(ev, { editable: props.editable && !editing.value })) {
     ev.preventDefault()
     startEdit()
+    return
+  }
+  /* Delete / Backspace on the focused thread row removes that message.
+     preventDefault stops Backspace from walking the browser history. */
+  if (wantsDelete(ev, { deletable: props.editable && !editing.value && !props.clickable })) {
+    ev.preventDefault()
+    void remove()
     return
   }
   if (!props.clickable) return
@@ -249,7 +262,8 @@ const editEl = ref<HTMLTextAreaElement | null>(null)
 const rowEl = ref<HTMLElement | null>(null)
 const editHintId = useId()
 const edited = computed(() => isEdited(props.msg))
-const { canEdit, commit } = useMessageEdit()
+const { canEdit, commit, removeMessage } = useMessageEdit()
+const removing = ref(false)
 
 const draft = computed({
   get: () => edit.value?.draft ?? '',
@@ -284,6 +298,22 @@ watch(() => String(props.msg?.msg_id || ''), (now, before) => {
   saving.value = false
   editError.value = ''
 })
+
+async function remove() {
+  if (removing.value || editing.value) return
+  if (!canEdit(props.msg)) return
+  const id = String(props.msg.msg_id || '')
+  if (!id) return
+  removing.value = true
+  editError.value = ''
+  try {
+    await removeMessage(id)
+    emit('deleted', props.msg)
+  } catch (e) {
+    removing.value = false
+    editError.value = editFailureKey(e)
+  }
+}
 
 function startEdit() {
   if (!canEdit(props.msg)) return

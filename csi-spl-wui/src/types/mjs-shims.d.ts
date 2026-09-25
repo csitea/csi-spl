@@ -91,6 +91,7 @@ declare module '~/utils/spool-client.mjs' {
     setMembersOpenInvite(channel: string, open: boolean): Promise<{ channel: string, members_open_invite: boolean }>
     /** message-edit-v1 §1: PATCH /v1/messages/{msg_id} with { body }. */
     editMessage(msgId: string, body: string): Promise<import('./spool').SpoolMessage>
+    deleteMessage(msgId: string): Promise<null>
     fileUrl(fileId: string): string
   }
 }
@@ -117,6 +118,8 @@ declare module '~/utils/live-ws.mjs' {
     onChannel?: (f: Record<string, unknown>) => void
     /** CLE-3445 `message_edited`: a replacement for a row already held. */
     onEdited?: (m: Record<string, unknown>, raw: unknown) => void
+    /** `message_deleted`: drop a row. */
+    onDeleted?: (m: Record<string, unknown>, raw: unknown) => void
     onReconnected?: (welcome: Record<string, unknown>, info: { cursors: Record<string, string> }) => void
     ackTimeoutMs?: number
   }): {
@@ -322,6 +325,8 @@ declare module '~/utils/msg-edit.mjs' {
   export function canEditMessage(msg: unknown, viewer: { id?: string, box?: string } | null): boolean
   export function wantsEdit(ev: KeyboardEvent, opts?: { editable?: boolean }): boolean
   export function wantsDblClickEdit(ev: MouseEvent, opts?: { editable?: boolean, interactive?: boolean }): boolean
+  export const DELETE_KEYS: string[]
+  export function wantsDelete(ev: KeyboardEvent, opts?: { deletable?: boolean }): boolean
   export function beginEdit(msg: unknown): MsgEditState | null
   export function withDraft(state: MsgEditState | null, draft: string): MsgEditState | null
   export function editWireBody(draft: string): string

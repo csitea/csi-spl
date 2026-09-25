@@ -38,6 +38,8 @@ export const FRAMES = {
    * matters. Hence its own type and its own replace-by-msg_id handler.
    */
   edited: 'message_edited',
+  /* A message was deleted. Not a `message` frame: mergeById would keep the row. */
+  deleted: 'message_deleted',
 }
 
 /** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2); anything else is omitted and the hub assigns a guest GST-<n> (0.4.1). */
@@ -119,6 +121,8 @@ export function createLiveClient({
   onChannel = () => {},
   /** CLE-3445: a `message_edited` frame — a REPLACEMENT for a row already held. */
   onEdited = () => {},
+  /** `message_deleted`: drop the row. `{ msg_id, task_id }`. */
+  onDeleted = () => {},
   onReconnected = () => {},
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = (t) => clearTimeout(t),
@@ -241,6 +245,10 @@ export function createLiveClient({
         const m = messageFromFrame(f)
         if (f.msg_id && !m.msg_id) m.msg_id = f.msg_id
         onEdited(m, f)
+        return
+      }
+      case FRAMES.deleted: {
+        onDeleted({ msg_id: f.msg_id, task_id: f.task_id }, f)
         return
       }
       case FRAMES.ack: {

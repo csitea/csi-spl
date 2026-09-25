@@ -362,7 +362,7 @@ func TestEditMessagePreflight(t *testing.T) {
 	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != wuiOrigin {
 		t.Fatalf("allow-origin %q", got)
 	}
-	if got := resp.Header.Get("Access-Control-Allow-Methods"); got != "PATCH" {
+	if got := resp.Header.Get("Access-Control-Allow-Methods"); got != "PATCH, DELETE" {
 		t.Fatalf("allow-methods %q", got)
 	}
 	if got := resp.Header.Get("Access-Control-Allow-Headers"); got != "Authorization, Content-Type, X-Locale" {
@@ -617,5 +617,77 @@ func TestEditMessageOtherBoxWithKey(t *testing.T) {
 	}
 	if got := storedEnvelope(t, e, tid, m.MsgID); got.Sig != env.Sig || got.FromBox != "box-a" {
 		t.Fatalf("the refusal rewrote the envelope: %+v", got)
+	}
+}
+
+func deleteMsg(t *testing.T, e *env, tid, msgID, as string) (int, map[string]any) {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodDelete, e.url(tid)+"/v1/messages/"+msgID, nil)
+	if as != "" {
+		req.Header.Set(memberHeader, as)
+	}
+	resp, err := e.client.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE: %v", err)
+	}
+	defer resp.Body.Close()
+	out := map[string]any{}
+	if resp.StatusCode != http.StatusNoContent {
+		json.NewDecoder(resp.Body).Decode(&out) //nolint:errcheck
+	}
+	return resp.StatusCode, out
+}
+
+// TestDeleteMessage: the author can delete their own browser message. Another
+// member cannot. A later read of the topic no longer has the row, and the
+// other session is told with message_deleted.
+func TestDeleteMessage(t *testing.T) {
+	e := followEnv(t)
+	tid, _ := e.tenant()
+	author := dialMember(t, e, tid, "HUM-1", "HUM-1")
+	watcher := dialMember(t, e, tid, "HUM-2", "HUM-2")
+	for _, c := range []*websocket.Conn{author, watcher} {
+		wsjson.Write(context.Background(), c, map[string]string{"type": "subscribe", "task_id": lobby}) //nolint:errcheck
+		readType(t, c, "subscribed")
+	}
+	id, _ := postNote(t, author, "gone soon")["msg_id"].(string)
+	readType(t, watcher, "message")
+
+	code, out := deleteMsg(t, e, tid, id, "HUM-2")
+	if code != http.StatusForbidden || out["error"] != "not_author" {
+		t.Fatalf("another member: %d %v (want 403 not_author)", code, out)
+	}
+	if got := storedBody(t, e, tid, id); got != "gone soon" {
+		t.Fatalf("the refusal changed the body: %q", got)
+	}
+
+	code, out = deleteMsg(t, e, tid, id, "HUM-1")
+	if code != http.StatusNoContent {
+		t.Fatalf("author delete: %d %v", code, out)
+	}
+	if _, err := e.st.GetEditable(context.Background(), tid, id, time.Now()); err == nil {
+		t.Fatal("deleted message is still readable")
+	}
+
+	f := readType(t, watcher, "message_deleted")
+	if f["msg_id"] != id || f["task_id"] != lobby {
+		t.Fatalf("watcher frame: %v", f)
+	}
+	if g := readType(t, author, "message_deleted"); g["msg_id"] != id {
+		t.Fatalf("author frame: %v", g)
+	}
+
+	code, topic := call(t, e, tid, http.MethodGet, "/v1/view/topics/"+lobby, "HUM-1", nil)
+	if code != http.StatusOK {
+		t.Fatalf("view topic: %d %v", code, topic)
+	}
+	rows, _ := topic["messages"].([]any)
+	for _, raw := range rows {
+		row, _ := raw.(map[string]any)
+		env, _ := row["env"].(map[string]any)
+		inner, _ := env["msg"].(map[string]any)
+		if inner["msg_id"] == id {
+			t.Fatalf("deleted message still in the topic: %v", row)
+		}
 	}
 }

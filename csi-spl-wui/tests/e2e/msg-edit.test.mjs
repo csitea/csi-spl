@@ -366,6 +366,27 @@ try {
     reread.ok && reread.body === NEW && Boolean(reread.edited_at),
     { body: reread.body && reread.body.slice(0, 60), edited_at: reread.edited_at, why: reread.why })
 
+  /* ---- 7b. Delete on the focused thread row removes that message ------ */
+  const deleteFocused = await focusRow(page, OWN_MSG, PANE)
+  ok('the edited thread row takes focus for Delete', deleteFocused)
+  await page.keyboard.press('Delete')
+  await page.waitForFunction((id) => {
+    return !document.querySelector(`[data-test=topic-section] [data-test=topic-root] article.msg[data-msg-id="${id}"]`)
+  }, { timeout: 5000 }, OWN_MSG).catch(() => {})
+  await sleep(300)
+  seen = await readRow(page, OWN_MSG, PANE)
+  ok('Delete removes the selected thread message', !seen.found, { found: seen.found })
+  const feedAfterDelete = await readRow(page, OWN_MSG, '.feed-col')
+  ok('the same message is gone from the feed behind the pane', !feedAfterDelete.found, { found: feedAfterDelete.found })
+  const broughtBack = await page.evaluate(async (id) => {
+    const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
+    const main = pinia?._s.get('live-main')
+    if (!main) return true
+    await main.catchUpAfterReconnect()
+    return Boolean(main.messages.find((x) => x.msg_id === id))
+  }, OWN_MSG)
+  ok('a fresh read does not bring the deleted message back', broughtBack === false, { broughtBack })
+
   /* ---- 8. `e` is NOT offered on somebody else's message ---------------- */
   /* author-only, no time window (message-edit-v1 §4): the hub answers 403
      not_author / 409 not_editable for one of these, so offering the shortcut
@@ -391,6 +412,14 @@ try {
     ok("double-clicking somebody else's message does NOT open an editor", !doubleClicked.editing, { editing: doubleClicked.editing })
   } else {
     ok("double-clicking somebody else's message does NOT open an editor", false, { reason: 'their row was not on screen to click' })
+  }
+  if (theirFocused) {
+    await page.keyboard.press('Delete')
+    await sleep(300)
+    const afterDelete = await readRow(page, THEIR_MSG, '[data-test=topic-section]')
+    ok("Delete on somebody else's message does NOT remove it", afterDelete.found && !afterDelete.editing, { found: afterDelete.found, editing: afterDelete.editing })
+  } else {
+    ok("Delete on somebody else's message does NOT remove it", false, { reason: 'their row was not on screen to focus' })
   }
 
   /* ---- 8.1 CLE-3446: an OPEN editor must not survive a root swap ------- */

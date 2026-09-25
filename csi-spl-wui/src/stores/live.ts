@@ -79,6 +79,13 @@ function setup(key: 'main' | 'pane') {
     messages.value = applyEdit(messages.value, row) as SpoolMessage[]
   }
 
+  /** A deleted message leaves this feed. A msg_id it does not hold is a no-op. */
+  function drop(msgId: string) {
+    const id = String(msgId || '')
+    if (!id || !messages.value.some((m) => m.msg_id === id)) return
+    messages.value = withoutMsg(messages.value, id) as SpoolMessage[]
+  }
+
   /** A read failed: the door is a prompt, anything else an error line. 404 = empty topic. */
   function fail(e: unknown, fallback: string) {
     const err = e as { status?: number, message?: string, detail?: string }
@@ -247,7 +254,7 @@ function setup(key: 'main' | 'pane') {
   return {
     taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, door, sending, loading,
     search, liveCount, lastLive, open, close, send, admit, loadOlder, loadAll, setSearch, catchUpAfterReconnect,
-    applyEdited, loadingOlder,
+    applyEdited, loadingOlder, drop,
   }
 }
 

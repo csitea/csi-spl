@@ -51,7 +51,9 @@ import {
   isEdited,
   isOwnMessage,
   revisionOf,
+  DELETE_KEYS,
   wantsDblClickEdit,
+  wantsDelete,
   wantsEdit,
   withDraft,
 } from '../../src/utils/msg-edit.mjs'
@@ -170,6 +172,36 @@ describe('a double-click on a thread row is the same open as `e`', () => {
     assert.match(card, /wantsDblClickEdit\(ev,\s*\{[\s\S]*?startEdit\(\)/)
     assert.doesNotMatch(card, /clickable: Boolean\(props\.clickable\)/)
     assert.match(card, /interactive/)
+  })
+})
+
+describe('Delete on a focused thread row removes that message', () => {
+  it('is Delete or Backspace on the row itself', () => {
+    assert.deepEqual(DELETE_KEYS, ['Delete', 'Backspace'])
+    assert.equal(wantsDelete(key('Delete'), { deletable: true }), true)
+    assert.equal(wantsDelete(key('Backspace'), { deletable: true }), true)
+  })
+
+  it('is refused when the row is not deletable, and inside a child control', () => {
+    assert.equal(wantsDelete(key('Delete'), { deletable: false }), false)
+    assert.equal(wantsDelete(key('Delete')), false)
+    assert.equal(wantsDelete(key('Delete', { target: {} }), { deletable: true }), false)
+  })
+
+  it('leaves modified deletes and every other key alone', () => {
+    for (const mod of ['ctrlKey', 'metaKey', 'altKey', 'shiftKey']) {
+      assert.equal(wantsDelete(key('Delete', { [mod]: true }), { deletable: true }), false, mod)
+    }
+    for (const k of ['e', 'Enter', 'Escape']) {
+      assert.equal(wantsDelete(key(k), { deletable: true }), false, k)
+    }
+  })
+
+  it('MessageCard deletes only a non-clickable editable row, through removeMessage', () => {
+    const card = src('src/components/MessageCard.vue')
+    assert.match(card, /wantsDelete\(ev, \{ deletable: props\.editable && !editing\.value && !props\.clickable \}\)/)
+    assert.match(card, /removeMessage\(/)
+    assert.match(card, /ev\.preventDefault\(\)/)
   })
 })
 

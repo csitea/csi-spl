@@ -751,6 +751,26 @@ export function createSpoolClient({
       return normalizeViewMessage(data)
     },
     /**
+     * DELETE /v1/messages/{msg_id}. 204 on success. The same refusals as an
+     * edit: not_author, not_editable, not_found. The mock removes the row
+     * from its store so a later read does not bring it back.
+     */
+    async deleteMessage(msgId) {
+      const id = String(msgId || '')
+      if (!id) throw Object.assign(new Error('msg_id required'), { status: 400, token: 'bad_json' })
+      if (mock) {
+        const at = state.messages.findIndex((m) => m.msg_id === id)
+        if (at < 0) throw Object.assign(new Error('no such message'), { status: 404, token: 'not_found' })
+        const row = state.messages[at]
+        if (row.from !== state.me.id) throw Object.assign(new Error('only the author may delete this message'), { status: 403, token: 'not_author' })
+        if (row.from_box !== state.me.box) throw Object.assign(new Error('box-signed envelope'), { status: 409, token: 'not_editable' })
+        state.messages.splice(at, 1)
+        return null
+      }
+      await live(`/v1/messages/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      return null
+    },
+    /**
      * channels-v1 §5.1: POST /v1/channels; 409 channel_exists / 400 bad_channel
      * keep their token. `description` (§5.1, 1.2.0) is what the new-channel
      * dialog collected next to the title, and is sent ONLY when there is one:

@@ -130,6 +130,30 @@ func (s *Postgres) MessageRevisions(ctx context.Context, tenant, msgID string) (
 	return out, err
 }
 
+// DeleteMessage removes the row. message_revisions and deliveries reference
+// it ON DELETE CASCADE, so the register and the queue go with it.
+func (s *Postgres) DeleteMessage(ctx context.Context, tenant, msgID string) error {
+	if !canonUUIDRe.MatchString(msgID) {
+		return ErrNotFound
+	}
+	n := int64(0)
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `DELETE FROM messages WHERE tenant_id = $1 AND msg_id = $2`, tenant, msgID)
+		if err != nil {
+			return err
+		}
+		n = tag.RowsAffected()
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // deref is "" for a NULL text column.
 func deref(p *string) string {
 	if p == nil {

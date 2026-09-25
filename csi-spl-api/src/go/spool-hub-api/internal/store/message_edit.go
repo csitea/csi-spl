@@ -89,6 +89,10 @@ type MessageEdits interface {
 	// MessageRevisions lists every revision of a message, oldest first. Empty
 	// for a message that was never edited.
 	MessageRevisions(ctx context.Context, tenantID, msgID string) ([]MessageRevision, error)
+
+	// DeleteMessage removes one message. Deliveries and the revision register
+	// go with it. ErrNotFound when that tenant has no such row.
+	DeleteMessage(ctx context.Context, tenantID, msgID string) error
 }
 
 // ---- Memory driver -----------------------------------------------------------
@@ -145,4 +149,21 @@ func (s *Memory) MessageRevisions(_ context.Context, tenant, msgID string) ([]Me
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]MessageRevision{}, s.revisions[[2]string{tenant, msgID}]...), nil
+}
+
+func (s *Memory) DeleteMessage(_ context.Context, tenant, msgID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := [2]string{tenant, msgID}
+	if _, ok := s.messages[k]; !ok {
+		return ErrNotFound
+	}
+	delete(s.messages, k)
+	delete(s.revisions, k)
+	for dk := range s.deliveries {
+		if dk[0] == tenant && dk[1] == msgID {
+			delete(s.deliveries, dk)
+		}
+	}
+	return nil
 }

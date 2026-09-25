@@ -35,6 +35,7 @@
         :data-pending="m.pending ? 'true' : undefined"
         @open-topic="(row: SpoolMessage) => $emit('open-topic', row)"
         @edited="(row: SpoolMessage) => $emit('edited', row)"
+        @deleted="(row: SpoolMessage) => $emit('deleted', row)"
       />
     </TransitionGroup>
     <p v-if="!loading && !rows.length" class="muted empty">{{ search ? t('feed.no_matches') : (emptyText || t('feed.empty')) }}</p>
@@ -86,7 +87,7 @@ const props = defineProps<{
   /** A thread. A new row must not move this list, and nothing scrolls it back. */
   holdScroll?: boolean
 }>()
-defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage] }>()
+defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const topic = useTopicStore()

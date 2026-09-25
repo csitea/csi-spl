@@ -107,5 +107,13 @@ export const useTopicStore = defineStore('topic', () => {
     rootMsg.value = { ...rootMsg.value, ...(row as Partial<SpoolMessage>) }
   }
 
-  return { open, parentTaskId, messages, target, rootMsg, born, paneSelected, noteBorn, dismissBorn, clearBorn, openTopic, openTarget, setTarget, selectPane, applyEditedRoot, close }
+  /** The deleted message is no longer the pinned root, and no longer a born card. */
+  function dropRoot(msgId: string) {
+    const id = String(msgId || '')
+    if (!id) return
+    if (rootMsg.value && String(rootMsg.value.msg_id || '') === id) rootMsg.value = null
+    dismissBorn(id)
+  }
+
+  return { open, parentTaskId, messages, target, rootMsg, born, paneSelected, noteBorn, dismissBorn, clearBorn, openTopic, openTarget, setTarget, selectPane, applyEditedRoot, dropRoot, close }
 })

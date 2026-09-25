@@ -73,9 +73,19 @@ import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { usePaneWidths } from '~/composables/usePaneWidths'
 import { CHANNEL, LIVE, NONE, closes, topicSection } from '~/utils/topic-pane.mjs'
+import { useLive } from '~/composables/useLive'
+import { useMessageEdit } from '~/composables/useMessageEdit'
 
 const topic = useTopicStore()
 const livePane = useLiveFeed('pane')
+/* A delete from another tab drops the row from every store this shell holds. */
+const live = useLive()
+const { dropEverywhere } = useMessageEdit()
+let offDeleted = () => {}
+onMounted(() => {
+  offDeleted = live.onDeleted((m) => dropEverywhere(String(m.msg_id || '')))
+})
+onUnmounted(() => offDeleted())
 /* CLE-3429: the single source of truth for which topic section is on screen. */
 const section = computed(() => topicSection({ paneTaskId: livePane.taskId, topicOpen: topic.open }))
 const topicPaneOpen = computed(() => section.value !== NONE)

@@ -139,6 +139,25 @@ export function wantsDblClickEdit(ev, { editable = false, interactive = false } 
   return true
 }
 
+/** Keys that delete the focused thread row. Backspace is the key a Mac labels Delete. */
+export const DELETE_KEYS = ['Delete', 'Backspace']
+
+/**
+ * Does this keydown mean "delete the focused thread row"?
+ *
+ * Same row guard as `e`: only the row itself, so Delete inside the editor
+ * or the omnibox still deletes a character. A clickable middle-list row
+ * opens its topic; Delete there is not a delete. The author gate is the
+ * caller's `deletable` (the same predicate as an edit).
+ */
+export function wantsDelete(ev, { deletable = false } = {}) {
+  if (!deletable || !ev) return false
+  if (ev.isComposing) return false
+  if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey) return false
+  if (!DELETE_KEYS.includes(String(ev.key))) return false
+  return ev.target === ev.currentTarget
+}
+
 /**
  * Open the editor on a message: the draft STARTS as the stored body.
  *

@@ -273,13 +273,103 @@ func (s *Server) fanoutEdited(ctx context.Context, tenant string, m store.Editab
 	}
 }
 
-// editPreflight answers CORS preflight for PATCH /v1/messages/{msg_id}. It
-// introduces no new request header: a new header is a new preflight, and this
-// repo has already broken sign-in that way once.
+// deletedFrame tells every open thread to drop the row. It is not a second
+// `message` frame: mergeById ignores a msg_id it already holds.
+const deletedFrame = "message_deleted"
+
+// DELETE /v1/messages/{msg_id} — the author removes one of their own
+// browser-sent messages. Same member, billing and notes.send checks as an
+// edit. The row is deleted, not blanked: deliveries and the revision register
+// cascade with it, and a later read of the topic no longer returns it.
+func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
+	s.allowOrigin(w, r)
+	t, hum, ok := s.humanTenant(w, r)
+	if !ok {
+		return
+	}
+	from, ok := s.editorID(r, t.ID)
+	if !ok {
+		writeForbidden(w, rbac.NotesSend, "deleting a message needs a signed-in member session")
+		return
+	}
+	if !billing.AllowsWrite(t.BillingStatus) {
+		writeUnpaid(w)
+		return
+	}
+	if !s.permit(w, r, t.ID, hum, rbac.NotesSend) {
+		return
+	}
+	id := strings.ToLower(r.PathValue("msg_id"))
+	if !uuidRe.MatchString(id) {
+		writeErr(w, http.StatusBadRequest, "bad_json", "msg_id must be a UUID")
+		return
+	}
+	m, err := s.o.Store.GetEditable(r.Context(), t.ID, id, s.o.Now())
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "not_found", "no such message")
+		return
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("delete lookup")
+		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
+		return
+	}
+	if m.FromID != from {
+		writeErr(w, http.StatusForbidden, "not_author", "only the author may delete this message")
+		return
+	}
+	// Same author gate as an edit: a box-signed envelope is that box's, and
+	// the browser must not offer a delete the hub will refuse.
+	if m.FromBox != WUIBox {
+		writeErr(w, http.StatusConflict, "not_editable", "a box-signed message can only be deleted by its box")
+		return
+	}
+	if err := s.o.Store.DeleteMessage(r.Context(), t.ID, id); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, "not_found", "no such message")
+			return
+		}
+		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("delete store")
+		writeErr(w, http.StatusInternalServerError, "internal", "delete not stored")
+		return
+	}
+	s.o.Log.Info().Str("tenant", t.ID).Str("msg_id", id).Str("by", from).Msg("message deleted")
+	s.fanoutDeleted(r.Context(), t.ID, m)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// fanoutDeleted tells every browser socket that was shown this message to
+// drop it, including the author's other tabs.
+func (s *Server) fanoutDeleted(ctx context.Context, tenant string, m store.EditableMessage) {
+	p := parties{m.FromID, m.FromBox, m.ToID, m.ToBox}
+	members := s.channelMemberSet(ctx, tenant, m.Channel)
+	s.mu.Lock()
+	var targets []*wuiConn
+	for c := range s.wui {
+		if c.tenant == tenant && c.wants(m.TaskID, m.Channel, p, members) {
+			targets = append(targets, c)
+		}
+	}
+	s.mu.Unlock()
+	if len(targets) == 0 {
+		return
+	}
+	frame := map[string]any{"type": deletedFrame, "task_id": m.TaskID, "msg_id": m.MsgID}
+	if m.Channel != "" {
+		frame["channel"] = m.Channel
+	}
+	for _, c := range targets {
+		c.write(ctx, frame) //nolint:errcheck
+	}
+}
+
+// editPreflight answers CORS preflight for PATCH and DELETE
+// /v1/messages/{msg_id}. It introduces no new request header: a new header
+// is a new preflight, and this repo has already broken sign-in that way once.
 func (s *Server) editPreflight(w http.ResponseWriter, r *http.Request) {
 	if s.allowOrigin(w, r) {
 		h := w.Header()
-		h.Set("Access-Control-Allow-Methods", "PATCH")
+		h.Set("Access-Control-Allow-Methods", "PATCH, DELETE")
 		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
 		h.Set("Access-Control-Max-Age", "600")
 	}

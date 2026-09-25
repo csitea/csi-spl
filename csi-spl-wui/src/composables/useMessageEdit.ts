@@ -93,5 +93,26 @@ export function useMessageEdit() {
     useTopicStore().applyEditedRoot(row)
   }
 
-  return { viewer, viewerId, canEdit, commit, applyEverywhere }
+  /**
+   * Drop one message from every store that can be showing it. A delete in the
+   * thread pane is also the middle-list card when that row is the opening
+   * message, and the pinned root when the topic is message-rooted.
+   */
+  function dropEverywhere(msgId: string) {
+    const id = String(msgId || '')
+    if (!id) return
+    useChannelStore().drop(id)
+    useLiveFeed('main').drop(id)
+    useLiveFeed('pane').drop(id)
+    useTopicStore().dropRoot(id)
+  }
+
+  /** DELETE /v1/messages/{msg_id}, then drop the row. Rejects with the hub token. */
+  async function removeMessage(msgId: string) {
+    const id = String(msgId || '')
+    await api.deleteMessage(id)
+    dropEverywhere(id)
+  }
+
+  return { viewer, viewerId, canEdit, commit, applyEverywhere, dropEverywhere, removeMessage }
 }

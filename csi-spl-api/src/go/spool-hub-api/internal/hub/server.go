@@ -221,6 +221,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/files/{file_id}", s.handleDeleteFile)
 	mux.HandleFunc("POST /v1/channels", s.handleCreateChannel)
 	mux.HandleFunc("PATCH /v1/messages/{msg_id}", s.handleEditMessage) // specs/032
+	mux.HandleFunc("DELETE /v1/messages/{msg_id}", s.handleDeleteMessage)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}", s.editPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels", s.channelsPreflight)
 	s.routeChannelMembers(mux)

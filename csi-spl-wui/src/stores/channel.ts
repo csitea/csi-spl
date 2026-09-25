@@ -256,6 +256,13 @@ export const useChannelStore = defineStore('channel', () => {
     messages.value = applyEdit(messages.value, row) as FeedMessage[]
   }
 
+  /** A deleted message leaves this feed. A msg_id it does not hold is a no-op. */
+  function drop(msgId: string) {
+    const id = String(msgId || '')
+    if (!id || !messages.value.some((m) => m.msg_id === id)) return
+    messages.value = withoutMsg(messages.value, id) as FeedMessage[]
+  }
+
   /** One live WS message (useSpoolEvents): no poll in live mode. */
   function ingestLive(m: Record<string, unknown>) {
     if (!belongsTo(m, { channel: active.value, peer: peer.value })) return
@@ -425,6 +432,7 @@ export const useChannelStore = defineStore('channel', () => {
     refresh,
     ingestLive,
     applyEdited,
+    drop,
     catchUp,
     send,
     createChannel,

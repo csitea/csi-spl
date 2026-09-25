@@ -42,6 +42,7 @@
         @older="loadOlder"
         @clear-search="search = ''"
         @edited="onEdited"
+        @deleted="onDeleted"
       />
     </div>
   </aside>
@@ -53,7 +54,7 @@ import { useTopicStore } from '~/stores/topic'
 import { WINDOW, useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { matchesSearch, mergeById, newestFirst } from '~/utils/feed.mjs'
+import { matchesSearch, mergeById, newestFirst, withoutMsg } from '~/utils/feed.mjs'
 import { rowsForRightPane } from '~/utils/channel-feed.mjs'
 import { topicTitleFromRows } from '~/utils/view-api.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
@@ -190,9 +191,15 @@ function onEdited(row: SpoolMessage) {
   applyEverywhere(row)
 }
 
+/** This pane's own copy of the thread. The stores are dropped separately. */
+function onDeleted(row: { msg_id?: string }) {
+  liveRows.value = withoutMsg(liveRows.value, String(row?.msg_id || '')) as SpoolMessage[]
+}
+
 if (import.meta.client && !api.mock) {
   const liveEdits = useLive()
   const offEdited = liveEdits.onEdited((m) => onEdited(m as unknown as SpoolMessage))
-  onUnmounted(() => { offEdited() })
+  const offDeleted = liveEdits.onDeleted((m) => onDeleted(m as { msg_id?: string }))
+  onUnmounted(() => { offEdited(); offDeleted() })
 }
 </script>

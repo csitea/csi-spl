@@ -39,6 +39,8 @@ const presenceListeners = new Set<Listener>()
 const channelListeners = new Set<Listener>()
 /** CLE-3445 `message_edited` frames: a REPLACEMENT for a row the screen already holds. */
 const editedListeners = new Set<Listener>()
+/** `message_deleted` frames: drop a row the screen is showing. */
+const deletedListeners = new Set<Listener>()
 const state = ref('idle')
 const identity = ref('')
 const uploadToken = ref('')
@@ -103,6 +105,9 @@ export function useLive() {
       onEdited: (m: Record<string, unknown>) => {
         for (const fn of editedListeners) fn(m)
       },
+      onDeleted: (m: Record<string, unknown>) => {
+        for (const fn of deletedListeners) fn(m)
+      },
     })
     live.connect()
     return live
@@ -148,5 +153,10 @@ export function useLive() {
     return () => editedListeners.delete(fn)
   }
 
-  return { ensure, onMessage, onEdited, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
+  function onDeleted(fn: Listener) {
+    deletedListeners.add(fn)
+    return () => deletedListeners.delete(fn)
+  }
+
+  return { ensure, onMessage, onEdited, onDeleted, onReconnected, onPresence, onChannel, freshUploadToken, state, identity, uploadToken, lobbyTaskId }
 }

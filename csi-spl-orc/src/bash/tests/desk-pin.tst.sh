@@ -10,6 +10,7 @@
 #   5. self mode (ROOT_KEY_JSON): hub-pin with the same key, the root key
 #      never reaches argv of anything but a 0600 scratch path
 #   6. admin mode (BOX_PUBKEY): pins the given key, writes no local state
+#   6b. PIN_REVOKE=1 revokes; with a pubkey or a bad value it is refused
 #   7. SPOOL_HUB_URL that is not the cnf hub is refused
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -114,6 +115,19 @@ in_orc TENANT_ID=t1 DESK_BOX=box-peer DRY_RUN=0 ROOT_KEY_JSON="$T/root.json" BOX
 [[ $rc -eq 0 ]] && grep -q "^spool hub-pin --box box-peer --pubkey $PUB --root-key " "$T/calls.log" &&
   ! grep -q '^spool keygen' "$T/calls.log" && [[ ! -e "$T/state/dev/desk/t1/box-peer" ]] &&
   pass "6. admin mode pins the given key and writes no local seat" || fail "6. rc $rc: $(cat "$T/o" "$T/calls.log")"
+
+# --- 6b. revoke ---------------------------------------------------------------------------------------
+: >"$T/calls.log"
+in_orc TENANT_ID=t1 DESK_BOX=box-peer DRY_RUN=0 ROOT_KEY_JSON="$T/root.json" PIN_REVOKE=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q "^spool hub-pin --box box-peer --revoke --root-key " "$T/calls.log" && grep -q 'OK revoked the pin of box-peer' "$T/o" &&
+  pass "6b. PIN_REVOKE=1 revokes the box's pin" || fail "6b. revoke rc $rc: $(cat "$T/o" "$T/calls.log")"
+for bad in "PIN_REVOKE=1 BOX_PUBKEY=$PUB" "PIN_REVOKE=yes"; do
+  : >"$T/calls.log"
+  # shellcheck disable=SC2086
+  in_orc TENANT_ID=t1 DESK_BOX=box-peer DRY_RUN=0 ROOT_KEY_JSON="$T/root.json" $bad >"$T/o" 2>&1 && fail "6b. '$bad' was accepted" ||
+    { [[ ! -s "$T/calls.log" ]] && pass "6b. '$bad' is refused before any call" || fail "6b. '$bad' called spool"; }
+done
+in_orc TENANT_ID=t1 DESK_BOX=box-peer DRY_RUN=0 PIN_REVOKE=1 >"$T/o" 2>&1 && fail "6b. a revoke without a root key was accepted" || pass "6b. a revoke needs ROOT_KEY_JSON"
 
 # --- 7. a foreign hub URL ---------------------------------------------------------------------
 in_orc TENANT_ID=t1 DESK_BOX=box-ext DRY_RUN=0 SPOOL_HUB_URL=https://hub.example.com >"$T/o" 2>&1 &&

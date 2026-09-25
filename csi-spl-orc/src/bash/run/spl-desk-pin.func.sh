@@ -9,7 +9,8 @@
 # @description            the only pin path the hub has)
 # @description   admin  - BOX_PUBKEY + ROOT_KEY_JSON set: pin SOMEONE ELSE's
 # @description            box key, the line a pending user hands their admin;
-# @description            nothing is written locally
+# @description            nothing is written locally. With PIN_REVOKE=1 (and
+# @description            no BOX_PUBKEY) the box's pin is REVOKED instead
 # @description   check  - neither: mint (or reuse) the box key, then ask the
 # @description            hub (`spool hub-sync`) whether it is pinned yet. Not
 # @description            pinned -> exit 3 and print the admin line
@@ -23,6 +24,8 @@
 # @param DESK_BOX (optional) - default box-desk
 # @param ROOT_KEY_JSON (optional) - the tenant's 0600 create JSON (root_private_key)
 # @param BOX_PUBKEY (optional) - admin mode: the base64 box public key to pin
+# @param PIN_REVOKE (optional) - 1: admin mode revokes DESK_BOX's pin (needs
+# @param   ROOT_KEY_JSON; the box's owner re-runs the installer to be pinned again)
 # @param SPOOL_HUB_URL (optional) - when set it must equal the cnf hub
 # @param   (https://<env.dns.api_fqdn>): a mismatch is refused, because the
 # @param   desk would run against the cnf hub anyway
@@ -36,6 +39,8 @@ do_spl_desk_pin() {
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" rkj="${ROOT_KEY_JSON:-}" other="${BOX_PUBKEY:-}"
+  local revoke="${PIN_REVOKE:-0}"
+  [[ "$revoke" == 0 || "$revoke" == 1 ]] || { do_log "FATAL PIN_REVOKE must be 0 or 1, got: '$revoke'"; return 1; }
   spl_desk_validate "$tenant" "$box" CLE-0 || return 1
   local hub d
   hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
@@ -47,13 +52,19 @@ do_spl_desk_pin() {
     [[ "$other" =~ ^[A-Za-z0-9+/]{43}=$ ]] || { do_log "FATAL BOX_PUBKEY is not a base64 ed25519 public key"; return 1; }
     [[ -n "$rkj" ]] || { do_log "FATAL BOX_PUBKEY (admin mode) needs ROOT_KEY_JSON"; return 1; }
   fi
+  if (( revoke )); then
+    [[ -z "$other" ]] || { do_log "FATAL PIN_REVOKE=1 takes no BOX_PUBKEY"; return 1; }
+    [[ -n "$rkj" ]] || { do_log "FATAL PIN_REVOKE=1 needs ROOT_KEY_JSON"; return 1; }
+  fi
   [[ -z "$rkj" || -s "$rkj" ]] || { do_log "FATAL ROOT_KEY_JSON $rkj is missing or empty"; return 1; }
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   local mode=check
   [[ -n "$rkj" ]] && mode=self
   [[ -n "$other" ]] && mode=admin
+  (( revoke )) && mode=revoke
   if (( dry )); then
     case "$mode" in
+      revoke) do_log "INFO DRY_RUN would: REVOKE the pin of $box under $tenant at $hub (tenant root key)" ;;
       admin) do_log "INFO DRY_RUN would: hub-pin $box to the given key under $tenant at $hub (tenant root key)" ;;
       self)  do_log "INFO DRY_RUN would: mint or reuse the key of $box in $d/keys, then hub-pin it under $tenant at $hub" ;;
       check) do_log "INFO DRY_RUN would: mint or reuse the key of $box in $d/keys, then ask $hub whether it is pinned" ;;
@@ -62,11 +73,16 @@ do_spl_desk_pin() {
     return 0
   fi
   spl_host_spool || return 1
-  if [[ "$mode" == admin ]]; then
+  if [[ "$mode" == admin || "$mode" == revoke ]]; then
     local ad; ad="$(umask 077 && mktemp -d)" || return 1
     spl_desk_pin_hub "$ad" "$box" "$tenant" "$hub" "$other" "$rkj"; local rc=$?
     rm -rf "$ad"
     (( rc == 0 )) || return 1
+    if [[ "$mode" == revoke ]]; then
+      spl_desk_pin_json "$ENV" "$tenant" "$hub" "$box" "" "" 0 ""
+      do_log "OK revoked the pin of $box under $tenant at $hub"
+      return 0
+    fi
     spl_desk_pin_json "$ENV" "$tenant" "$hub" "$box" "$other" "" 1 ""
     do_log "OK pinned $box ($other) under $tenant at $hub: its owner re-runs the installer to seat it"
     return 0
@@ -116,17 +132,18 @@ spl_desk_box_pub() {
 
 # spl_desk_pin_hub <spool dir> <box> <tenant> <hub> <pubkey> <root key json>:
 # POST /v1/pins signed with the root key, which only ever sits in a 0600
-# scratch file.
+# scratch file. An EMPTY pubkey revokes the pin (DELETE /v1/pins/<box>).
 spl_desk_pin_hub() {
   local d="$1" box="$2" tenant="$3" hub="$4" pub="$5" rkj="$6" key out rc=0
   [[ "$(stat -c %a "$rkj")" == 600 ]] || { do_log "FATAL $rkj must be mode 0600"; return 1; }
   key="$(umask 077 && mktemp)" || return 1
   python3 -c 'import json,sys; open(sys.argv[2],"w").write(json.load(open(sys.argv[1]))["root_private_key"].strip()+"\n")' \
     "$rkj" "$key" 2>/dev/null || { rm -f "$key"; do_log "FATAL no root_private_key in $rkj"; return 1; }
-  out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-pin --box "$box" --pubkey "$pub" --root-key "$key" 2>&1)" || rc=$?
+  local -a what=(--pubkey "$pub"); [[ -n "$pub" ]] || what=(--revoke)
+  out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-pin --box "$box" "${what[@]}" --root-key "$key" 2>&1)" || rc=$?
   rm -f "$key"
   (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant: $out"; return 1; }
-  do_log "INFO pinned $box ($pub) under $tenant at $hub"
+  [[ -z "$pub" ]] || do_log "INFO pinned $box ($pub) under $tenant at $hub"
 }
 
 spl_desk_pin_json() {

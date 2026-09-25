@@ -14,6 +14,8 @@ FUNC="$PROJ_ROOT/src/bash/run/sec-scan.func.sh"
 WF="$APP_ROOT/.github/workflows/15_sec-deps-secrets.yml"
 
 fails=0
+# CI tidies the control module. The stub must not download one.
+export SEC_SCAN_GO_TIDY=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 

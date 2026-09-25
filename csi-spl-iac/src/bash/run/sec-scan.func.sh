@@ -89,6 +89,19 @@ _sec_scan_go() {
   [[ -f "$mod/go.mod" ]] || { do_log "FATAL no go.mod at $mod"; return 1; }
 
   ctl=$(_sec_go_control_module) || return 1
+  # The control module is generated without a go.sum. govulncheck refuses
+  # that (CI run 36180443797: "missing go.sum entry"). tidy fills it.
+  # SEC_SCAN_GO_TIDY=0 is the hermetic test, whose stub never loads the module.
+  if [[ "${SEC_SCAN_GO_TIDY:-1}" != 0 ]]; then
+    command -v go >/dev/null 2>&1 || { do_log "FATAL control: go is not on PATH, cannot tidy the control module"; rm -rf "$ctl"; return 1; }
+    rc=0
+    ( cd "$ctl" && go mod tidy ) || rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+      do_log "FATAL control: go mod tidy failed (exit $rc) -- govulncheck would prove nothing"
+      rm -rf "$ctl"
+      return 1
+    fi
+  fi
   do_log "INFO govulncheck control (want exit 3) $_SEC_SCAN_GOVULNCHECK_MOD"
   rc=0
   ( cd "$ctl" && SEC_SCAN_PHASE=control "$bin" ./... ) || rc=$?

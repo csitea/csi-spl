@@ -90,3 +90,41 @@ export function previewImageMime(bytes) {
   if ((head.startsWith('<svg') || head.startsWith('<?xml') || head.startsWith('<!--')) && /<svg[\s>]/.test(head)) return 'image/svg+xml'
   return ''
 }
+
+/** Verified previews the page keeps, newest last (sharedPreview). */
+export const PREVIEW_CACHE_MAX = 48
+const previews = new Map()
+
+/**
+ * One download + sha256 check per file for the life of the page (CLE-34984).
+ * The same picture posted into several messages, or a channel opened twice,
+ * used to download it once per card and per visit: 5-8 identical
+ * /v1/files/<id> reads per page on dev, 100-650 ms each. The file id IS the
+ * sha256 of the bytes, so a verified preview never goes stale. A load that
+ * yields '' (a failure, a mismatch, not a picture) is not kept, so the next
+ * card may try again. At most PREVIEW_CACHE_MAX previews are held; the
+ * least recently used goes first.
+ * @param {string} fileId
+ * @param {() => Promise<string>} load
+ * @returns {Promise<string>}
+ */
+export function sharedPreview(fileId, load) {
+  const id = String(fileId || '')
+  if (!id) return load()
+  const hit = previews.get(id)
+  if (hit) {
+    previews.delete(id)
+    previews.set(id, hit)
+    return hit
+  }
+  const run = Promise.resolve().then(load).catch(() => '')
+  previews.set(id, run)
+  run.then((url) => { if (!url && previews.get(id) === run) previews.delete(id) })
+  while (previews.size > PREVIEW_CACHE_MAX) previews.delete(previews.keys().next().value)
+  return run
+}
+
+/** Test seam: forget every shared preview. */
+export function resetSharedPreviews() {
+  previews.clear()
+}

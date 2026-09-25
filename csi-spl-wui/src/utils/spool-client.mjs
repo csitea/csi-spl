@@ -37,6 +37,19 @@ export function credentialsFor(door) {
   return door === 'session' ? 'include' : 'omit'
 }
 
+/**
+ * Per-topic reads listMessages keeps in flight. The api host speaks HTTP/2,
+ * so this is the client's own cap, not the browser's: at 6 a 20-topic page
+ * went out in four serial waves (~70-100 ms each on dev, CLE-34984).
+ */
+export const TOPIC_READS_IN_FLIGHT = 10
+
+/** A joiner's copy of a shared read (live): JSON-shaped bodies are cloned, the rest passed as is. */
+function cloneBody(v) {
+  if (v === null || typeof v !== 'object' || v instanceof ArrayBuffer) return v
+  return typeof structuredClone === 'function' ? structuredClone(v) : JSON.parse(JSON.stringify(v))
+}
+
 /** Up to `n` async jobs at a time, results in input order. */
 async function pool(items, n, job) {
   const out = new Array(items.length)
@@ -296,7 +309,12 @@ export function createSpoolClient({
   const root = String(base || '').replace(/\/+$/, '')
   let viewToken = String(token || '')
   let viewDoor = String(door || '')
+  /* CLE-34984: a door set from a signed-in session probe, not yet proven by a
+     read. withSessionRetry takes it back if the hub refuses credentials. */
+  let doorGuessed = false
   let send = sender
+  /** GET reads in flight, by what makes them identical (see live). */
+  const inflight = new Map()
 
   /* Owner, 2026-09-25, prd v0.5.5: four "Failed to fetch" in the diagnostics
      (routes /dm/CLE-001, /dm/CLE-100, /channel/spool-hub-devel) and not one
@@ -328,7 +346,30 @@ export function createSpoolClient({
     }
   }
 
-  async function live(path, opts) {
+  /*
+   * CLE-34984 (perf P1, measured on dev 947635e7): one cold /lobby asked for
+   * /v1/view/roster six times and channels / me / operators / the DM list
+   * twice each, because the shell, the plugins and the page each read what
+   * they need at the same moment. A GET that is identical to one already in
+   * flight (same path, headers, door and token) now joins it instead of going
+   * out again. The first caller gets the parsed body; every joiner gets its
+   * own structured clone, so no caller can mutate another one's rows. A read
+   * with an AbortSignal, and every write, always goes out on its own.
+   */
+  function live(path, opts) {
+    const method = String((opts && opts.method) || 'GET').toUpperCase()
+    if (method !== 'GET' || (opts && opts.signal)) return liveOnce(path, opts)
+    const key = [viewDoor, viewToken, path, JSON.stringify((opts && opts.headers) || {})].join('\n')
+    const hit = inflight.get(key)
+    if (hit) return hit.then(cloneBody)
+    const run = liveOnce(path, opts)
+    inflight.set(key, run)
+    const done = () => { if (inflight.get(key) === run) inflight.delete(key) }
+    run.then(done, done)
+    return run
+  }
+
+  async function liveOnce(path, opts) {
     const fn = fetchFn
     if (typeof fn !== 'function') throw new Error('no fetch')
     if (configError) {
@@ -517,6 +558,22 @@ export function createSpoolClient({
     /** view door (`off` | `token` | `session`); `session` → credentials 'include'. */
     setDoor(d) {
       viewDoor = String(d || '')
+      doorGuessed = false
+    },
+    /**
+     * CLE-34984: set the door BEFORE the first read, from a signed-in session
+     * probe, so a cold load does not spend one 401 per shell read discovering
+     * it. Only an unset door is guessed; withSessionRetry takes the guess back
+     * when a read under it fails without an HTTP status (a token door's CORS
+     * refusing credentials) and falls back to discovering the door.
+     */
+    guessDoor(d) {
+      if (viewDoor) return
+      viewDoor = String(d || '')
+      doorGuessed = Boolean(viewDoor)
+    },
+    get doorGuessed() {
+      return doorGuessed
     },
     get credentials() {
       return credentialsFor(viewDoor)
@@ -695,7 +752,7 @@ export function createSpoolClient({
          loses its opening line - and with it the middle card, because every
          later line may be is_parent 0. The oldest message is read on its own
          then. A page that already holds the whole topic costs nothing more. */
-      const pages = await pool(list.topics, 6, async (t) => {
+      const pages = await pool(list.topics, TOPIC_READS_IN_FLIGHT, async (t) => {
         const page = await api.getTopic(t.task_id, { order: 'desc', limit })
         if (!(Number(t.count) > page.messages.length)) return page
         const first = await api.getTopic(t.task_id, { limit: 1 })
@@ -740,6 +797,15 @@ export function createSpoolClient({
     async listRoster() {
       if (mock) return { roster: state.roster, online: state.online, me: state.me }
       return rosterFromView(await live('/v1/view/roster'))
+    },
+    /**
+     * The view-v1 §4.1 roster body as the hub sent it (`humans` included):
+     * what the avatars and display names read. Same request as listRoster,
+     * so the two join one read when they overlap (live).
+     */
+    async rosterView() {
+      if (mock) return null
+      return live('/v1/view/roster')
     },
     /**
      * Post into a channel (`channel`), a DM (`peer`, no channel) or an existing

@@ -35,6 +35,9 @@ declare module '~/utils/spool-client.mjs' {
     readonly door: string
     readonly credentials: 'include' | 'omit'
     setDoor(door: import('./spool').ViewDoor | string): void
+    guessDoor(door: import('./spool').ViewDoor | string): void
+    readonly doorGuessed: boolean
+    rosterView(): Promise<unknown>
     setSender(fn: ((frame: import('./spool').SendFrame) => Promise<unknown>) | null): void
     uploadFile(file: Blob, uploadToken?: string): Promise<{ file_id: string, sha256: string, bytes: number }>
     downloadFile(fileId: string): Promise<ArrayBuffer>
@@ -447,7 +450,7 @@ declare module '~/utils/avatar.mjs' {
   export function avatarDataUri(id: string, box?: string): string
   export function avatarFilesFromView(data: unknown): Record<string, string>
   export function humanNamesFromView(data: unknown): Record<string, string>
-  export function loadHumanNames(o?: { base?: string, token?: string, credentials?: RequestCredentials }): Promise<Record<string, string>>
+  export function loadHumanNames(o?: { base?: string, token?: string, credentials?: RequestCredentials, read?: (() => Promise<unknown>) | null }): Promise<Record<string, string>>
   export function avatarImageUrl(base: string, id: string, box: string | undefined, files: Record<string, string>): string
   export function avatarAlt(id: string, box?: string): string
   export function avatarAltKey(id: string, box?: string): { key: string, params: Record<string, string> }
@@ -457,6 +460,7 @@ declare module '~/utils/avatar.mjs' {
     token?: string
     credentials?: RequestCredentials
     fetchFn?: typeof fetch
+    read?: (() => Promise<unknown>) | null
     now?: () => number
     ttlMs?: number
   }): Promise<Record<string, string>>
@@ -842,4 +846,7 @@ declare module '~/utils/file-preview.mjs' {
     ext: string
   }
   export function readDataUrl(file: Blob): Promise<string>
+  export const PREVIEW_CACHE_MAX: number
+  export function sharedPreview(fileId: string, load: () => Promise<string>): Promise<string>
+  export function resetSharedPreviews(): void
 }

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { useAuthClient } from '~/composables/useAuthClient'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 
 export type SessionState = 'in' | 'out' | 'unknown' | 'loading'
 
@@ -31,19 +32,42 @@ export const useSessionStore = defineStore('session', () => {
 
   const label = computed(() => claims.value?.hum || claims.value?.name || claims.value?.email || '')
 
-  async function probe() {
+  /*
+   * CLE-34984: a member session means the view reads ride the cookie, so the
+   * client's door is guessed as `session` BEFORE the state flips and every
+   * watcher of 'in' fires its reads. Without it a cold load sent each shell
+   * read once with no credentials, took a 401 for each (7 on dev), and only
+   * then armed the door. withSessionRetry takes a wrong guess back.
+   */
+  function signedIn() {
+    const api = useSpoolApi()
+    if (!api.mock) api.guessDoor('session')
+  }
+
+  /* The route middleware and the shell both probe on arrival; one request serves both. */
+  let probing: Promise<void> | null = null
+  function probe() {
+    if (!probing) {
+      probing = probeOnce().finally(() => { probing = null })
+    }
+    return probing
+  }
+
+  async function probeOnce() {
     const out = await auth.session()
     // 'unknown' keeps what we had (auth-v1 §4: the csi-rel 052 incident case)
     if (out.state === 'unknown') {
       if (state.value === 'loading') state.value = 'unknown'
       return
     }
+    if (out.state === 'in') signedIn()
     state.value = out.state
     claims.value = (out.claims as SessionClaims | null) || null
   }
 
   /** Native login (015 native-auth-v1 §2) answers 200 with the claims: adopt them, no second probe. */
   function adopt(c: SessionClaims | null) {
+    if (c) signedIn()
     state.value = c ? 'in' : 'out'
     claims.value = c
   }

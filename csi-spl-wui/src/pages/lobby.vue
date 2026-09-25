@@ -48,6 +48,7 @@ import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 
 const store = useLiveFeed('main')
 const channel = useChannelStore()
@@ -161,23 +162,32 @@ onBeforeUnmount(() => {
 watch([lobbyId, () => session.state], ([id, st]) => {
   if (api.mock) {
     live.ensure()
-    if (id) void store.open(id).then(() => loadLobbyTopics())
+    if (id) openLobby(id)
     return
   }
   if (shouldOpenHubSocket(st)) {
     startHubSocket(live)
     followLobbyChannel()
-    if (id) void store.open(id).then(() => loadLobbyTopics())
+    if (id) openLobby(id)
   } else {
     stopHubSocket(live)
   }
 }, { immediate: true })
 
-/* Topics posted into #lobby besides the room task, so a new topic is still
-   here after a reload. The room task itself is already loaded by store.open. */
-async function loadLobbyTopics() {
+/* The room task (store.open) and the topics posted into #lobby besides it
+   (so a new topic is still here after a reload) are independent reads: both
+   go out now. The topics are admitted only once the room task is open,
+   because opening resets the rows. They used to be read only AFTER the room
+   task answered, and every lobby row comes from them: first message ~560 ms
+   later on dev (CLE-34984). */
+function openLobby(id: string) {
+  const topics = withSessionRetry(api, () => api.listMessages({ channel: 'lobby', limit: 50 }))
+  topics.catch(() => { /* handled below */ })
+  void store.open(id).then(() => loadLobbyTopics(topics))
+}
+async function loadLobbyTopics(pending: ReturnType<typeof api.listMessages>) {
   try {
-    const page = await api.listMessages({ channel: 'lobby', limit: 50 })
+    const page = await pending
     store.admit((page.messages || []) as SpoolMessage[])
   } catch {
     /* the lobby task is already on screen */

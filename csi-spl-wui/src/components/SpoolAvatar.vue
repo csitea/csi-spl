@@ -14,6 +14,7 @@
 <script setup lang="ts">
 import { avatarAltKey, avatarDataUri, avatarImageUrl, isHuman, loadAvatarImageUrl, loadAvatarFiles } from '~/utils/avatar.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useSessionStore } from '~/stores/session'
 
 /*
  * SPEC-spool-avatars §2: robot for agents, identicon for HUM-*; deterministic,
@@ -45,10 +46,19 @@ watch(picture, async (url) => {
   if (url === picture.value) shown.value = got
 }, { immediate: true })
 
-onMounted(async () => {
+/* The roster needs a member session: read it once the probe says 'in', never
+   before (a signed-out read is a 401, and it used to go out on every page,
+   /login included). It joins the roster store's read in flight (CLE-34984). */
+const session = useSessionStore()
+let asked = false
+onMounted(() => {
   if (api.mock || !isHuman(props.id)) return
-  const got = await loadAvatarFiles({ base: api.base, token: api.token, credentials: api.credentials })
-  if (JSON.stringify(got) !== JSON.stringify(files.value)) files.value = got
+  watch(() => session.state, async (st) => {
+    if (st !== 'in' || asked) return
+    asked = true
+    const got = await loadAvatarFiles({ base: api.base, token: api.token, credentials: api.credentials, read: () => api.rosterView() })
+    if (JSON.stringify(got) !== JSON.stringify(files.value)) files.value = got
+  }, { immediate: true })
 })
 </script>
 

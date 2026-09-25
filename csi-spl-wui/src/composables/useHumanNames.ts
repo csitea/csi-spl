@@ -16,13 +16,15 @@ export function useHumanNames() {
   async function load(force = false) {
     if (api.mock) return
     if (force) forgetRosterRead()
-    const got = await loadHumanNames({ base: api.base, token: api.token, credentials: api.credentials })
+    const got = await loadHumanNames({ base: api.base, token: api.token, credentials: api.credentials, read: () => api.rosterView() })
     if (JSON.stringify(got) !== JSON.stringify(names.value)) names.value = got
   }
 
-  onMounted(() => { void load() })
-  /* Signing in makes the roster readable: read it then, not on the next reload. */
+  /* The roster needs a member session: signed in already, read on mount;
+     signing in makes it readable, so read it then, not on the next reload.
+     Before either, a read is only a 401 (CLE-34984). */
   const session = useSessionStore()
+  onMounted(() => { if (session.state === 'in') void load() })
   watch(() => session.state, (now, before) => { if (now === 'in' && before !== 'in') void load(true) })
 
   function label(id: string, box?: string) {

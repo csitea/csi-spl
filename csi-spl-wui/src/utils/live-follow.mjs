@@ -138,16 +138,26 @@ async function armSessionDoor(api, prev, read) {
  * retry, the others wait for that verdict and re-issue their own read, which is
  * a different URL for each of them and cannot be shared.
  * @template T
- * @param {{ door: string, setDoor: (d: string) => void }} api
+ * @param {{ door: string, setDoor: (d: string) => void, doorGuessed?: boolean }} api
  * @param {() => Promise<T>} read
  * @returns {Promise<T>}
  */
 export async function withSessionRetry(api, read) {
   const door = api.door
+  const guessed = door === 'session' && api.doorGuessed === true
   try {
     return await read()
   } catch (e) {
     const err = /** @type {{ status?: number, detail?: string }} */ (e || {})
+    /* CLE-34984: the door was guessed from a signed-in probe (guessDoor), not
+       proven. A read under it that fails WITHOUT an HTTP status is a token
+       door's CORS refusing credentials: take the guess back and discover the
+       door the old way (a 401 detail, then arming). The first caller to see
+       it resets the door; later ones find it already reset. */
+    if (guessed && !err.status) {
+      if (api.door === 'session' && api.doorGuessed === true) api.setDoor('')
+      return withSessionRetry(api, read)
+    }
     if (!isDoor(err) || door === 'session' || !doorModes(err.detail).session) throw e
     const pending = arming.get(api)
     if (pending) {

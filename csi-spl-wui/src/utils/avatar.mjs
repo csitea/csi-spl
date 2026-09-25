@@ -173,8 +173,11 @@ const avatarLoads = new Map()
 /**
  * One roster read per (base, token) per TTL, shared by every avatar on the
  * page. Resolves {} on any failure (the default is drawn), never rejects.
+ * `read` (the spool client's rosterView) replaces the raw fetch: the read
+ * then joins the roster store's identical one in flight instead of being a
+ * second request (CLE-34984).
  */
-export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', fetchFn = globalThis.fetch, now = Date.now, ttlMs = AVATAR_FILES_TTL_MS } = {}) {
+export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', fetchFn = globalThis.fetch, read = null, now = Date.now, ttlMs = AVATAR_FILES_TTL_MS } = {}) {
   const root = String(base || '').replace(/\/+$/, '')
   const key = `${root}\n${token}`
   const hit = avatarLoads.get(key)
@@ -183,6 +186,7 @@ export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', f
   if (token) headers.authorization = `Bearer ${token}`
   const json = (async () => {
     try {
+      if (typeof read === 'function') return (await read()) || null
       if (typeof fetchFn !== 'function') return null
       const res = await fetchFn(`${root}/v1/view/roster`, { credentials, headers })
       return res && res.ok ? await res.json() : null

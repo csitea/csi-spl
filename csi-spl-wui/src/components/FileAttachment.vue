@@ -31,7 +31,7 @@ import { formatBytes } from '~/utils/channel-feed.mjs'
 import { isDownloadable } from '~/utils/view-api.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { sha256Hex } from '~/utils/spool-client.mjs'
-import { fileKind, isPreviewableImage, previewImageMime } from '~/utils/file-preview.mjs'
+import { fileKind, isPreviewableImage, previewImageMime, sharedPreview } from '~/utils/file-preview.mjs'
 import { bytesToDataUri } from '~/utils/avatar.mjs'
 import type { FileRef } from '~/types/spool'
 
@@ -74,12 +74,15 @@ async function loadPreview() {
         if (type) url = bytesToDataUri(buf, type)
       }
     } else if (linkable.value && isPreviewableImage(props.file.name, props.file.bytes)) {
-      const buf = await api.downloadFile(props.file.file_id || props.file.sha256 || '')
+      const id = String(props.file.file_id || props.file.sha256 || '')
       const want = String(props.file.sha256 || props.file.file_id || '')
-      if (!want || (await sha256Hex(buf)) === want) {
+      /* one verified download per file for the page, shared by every card (CLE-34984) */
+      url = await sharedPreview(want ? id + '\n' + want : '', async () => {
+        const buf = await api.downloadFile(id)
+        if (want && (await sha256Hex(buf)) !== want) return ''
         const type = previewImageMime(buf)
-        if (type) url = bytesToDataUri(buf, type)
-      }
+        return type ? bytesToDataUri(buf, type) : ''
+      })
     }
   } catch { /* no preview; Download still offers the file */ }
   if (serial !== loadSerial) return

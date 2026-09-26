@@ -197,7 +197,7 @@ spl_th_finish() {
     do_log "INFO $host does not answer yet (edge propagation); retrying in ${PROBE_POLL_SECONDS:-30}s"
     sleep "${PROBE_POLL_SECONDS:-30}"
   done
-  spl_th_mark_one "$t" ready "https://$host firebase $SPL_ORG_APP-$ENV-site cert active, WUI probe ok $(date -u +%FT%TZ)"
+  spl_th_mark_one "$t" ready "https://$host firebase $SPL_ORG_APP-$ENV-site cert issued, WUI probe verified TLS $(date -u +%FT%TZ)"
   do_log "OK tenant host $host is served (custom domain, records, cert, WUI probe)"
 }
 

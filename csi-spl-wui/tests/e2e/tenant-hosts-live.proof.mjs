@@ -6,7 +6,7 @@
 //
 //   SITE=https://dev.<domain> API=https://dev.api.<domain> EMAIL=<member> PW_FILE=<0600 file> \
 //     MEMBER_TENANT=<a 2nd tenant the member is in> FOREIGN_TENANT=<a tenant it is not in> \
-//     OUT=<dir> [APEX_TENANT=t1] [OLD_TOPIC=<uuid of a MEMBER_TENANT topic>] [CHROME_PATH=...] \
+//     OUT=<dir> [APEX_TENANT=t1] [OLD_TOPIC=<uuid of a MEMBER_TENANT topic>] [APEX_MEMBER=0] [CHROME_PATH=...] \
 //     node tests/e2e/tenant-hosts-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -35,6 +35,9 @@ const MEMBER = need('MEMBER_TENANT')
 const FOREIGN = need('FOREIGN_TENANT')
 const APEX = process.env.APEX_TENANT || 't1'
 const OLD_TOPIC = process.env.OLD_TOPIC || ''
+/* APEX_MEMBER=0: the account is NOT in the apex tenant (prd's test account is
+   in e2e only): the apex must send it to MEMBER's host, the hub refuses t1. */
+const APEX_MEMBER = process.env.APEX_MEMBER !== '0'
 const siteHost = new URL(SITE).hostname
 const host = (t) => (t === APEX ? SITE : `https://${t}.${siteHost}`)
 mkdirSync(OUT, { recursive: true })
@@ -83,10 +86,20 @@ try {
   const trig = await p.waitForSelector('[data-test=user-menu-trigger]', { timeout: 30000 }).catch(() => null)
   step('native sign-in on the apex', !!trig, { url: p.url() })
   await sleep(1500)
-  const sApex = await hubGet(p, '/api/v1/auth/session')
-  const rApex = await hubGet(p, '/v1/view/roster')
-  step(`the apex is ${APEX}`, new URL(p.url()).origin === SITE && sApex.body?.active_tenant === APEX && rApex.status === 200,
-    { url: p.url(), active_tenant: sApex.body?.active_tenant, roster: rApex.status, boxes: who(rApex.body) })
+  if (APEX_MEMBER) {
+    const sApex = await hubGet(p, '/api/v1/auth/session')
+    const rApex = await hubGet(p, '/v1/view/roster')
+    step(`the apex is ${APEX}`, new URL(p.url()).origin === SITE && sApex.body?.active_tenant === APEX && rApex.status === 200,
+      { url: p.url(), active_tenant: sApex.body?.active_tenant, roster: rApex.status, boxes: who(rApex.body) })
+  } else {
+    await p.waitForFunction((h) => location.origin === h, { timeout: 20000 }, host(MEMBER)).catch(() => null)
+    step(`not in ${APEX}: the apex sends the account to ${MEMBER}'s host`, new URL(p.url()).origin === host(MEMBER), { url: p.url() })
+    /* the apex page hops away at once, so ask as it would: its Origin, this cookie */
+    const jar = (await p.cookies(API)).map((c) => `${c.name}=${c.value}`).join('; ')
+    const ar = await fetch(API + '/v1/view/roster', { headers: { Origin: SITE, Cookie: jar } })
+    const rApex = { status: ar.status, body: await ar.json().catch(() => null) }
+    step(`the hub refuses ${APEX} to a non-member (403 not_member)`, rApex.status === 403 && rApex.body?.error === 'not_member', { status: rApex.status, error: rApex.body?.error })
+  }
   await p.screenshot({ path: `${OUT}/apex.png` })
 
   // 2. Same browser, the member tenant's host: no second sign-in, that tenant's data.
@@ -99,9 +112,11 @@ try {
   await p.screenshot({ path: `${OUT}/member-host.png` })
 
   // 3. Back on the apex: still the apex tenant (the host, not the last visit, decides).
-  await p.goto(SITE + '/lobby', { waitUntil: 'networkidle2' })
-  const sBack = await hubGet(p, '/api/v1/auth/session')
-  step(`back on the apex: ${APEX} again`, sBack.body?.active_tenant === APEX, { active_tenant: sBack.body?.active_tenant })
+  if (APEX_MEMBER) {
+    await p.goto(SITE + '/lobby', { waitUntil: 'networkidle2' })
+    const sBack = await hubGet(p, '/api/v1/auth/session')
+    step(`back on the apex: ${APEX} again`, sBack.body?.active_tenant === APEX, { active_tenant: sBack.body?.active_tenant })
+  }
 
   // 4. A tenant the member is NOT in: "not a member", and the hub refuses every read.
   await p.goto(host(FOREIGN) + '/issues', { waitUntil: 'networkidle2' })
@@ -117,7 +132,8 @@ try {
   await p.waitForFunction((h) => location.origin === h, { timeout: 15000 }, host(MEMBER)).catch(() => null)
   step(`apex ?tenant=${MEMBER} lands on ${MEMBER}'s host`, new URL(p.url()).origin === host(MEMBER) && !new URL(p.url()).searchParams.has('tenant'), { url: p.url() })
 
-  // 6. The switcher changes host, same path.
+  // 6. The switcher changes host, same path (needs two memberships).
+  if (APEX_MEMBER) {
   await p.goto(SITE + '/lobby', { waitUntil: 'networkidle2' })
   const sel = await p.waitForSelector('[data-testid=tenant-switcher-select]', { timeout: 20000 }).catch(() => null)
   if (sel) {
@@ -125,6 +141,7 @@ try {
     await sleep(1000)
   }
   step(`the switcher goes to ${MEMBER}'s host, same path`, !!sel && new URL(p.url()).origin === host(MEMBER) && new URL(p.url()).pathname.endsWith('/lobby'), { url: p.url() })
+  }
 
   // 7. An old apex link to a topic of the member tenant lands on its host.
   if (OLD_TOPIC) {

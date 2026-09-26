@@ -15,8 +15,9 @@ create some indexes?!"*
   list) is **64 % of all database time on prd** and answers in **1.0-1.6 s**
   for the owner's t1 feed. The planner walks every older message of the tenant
   at every step instead of stopping at the first hit. An index alone does NOT
-  fix it (measured); one session setting in the walk's existing scope batch
-  does: **13x to 90x** faster in the lab (§4).
+  fix it (measured); one planner setting in the walk's existing scope batch
+  does: **1 130-1 436 ms -> 55-59 ms on the live prd DB** (§4.1), shipped in
+  hub 0.9.7.
 - **dev is 95 % bloat** (437 MB for ~17 MB of rows, left by the 400k-row
   search seed and purge of spec 022 §9). prd is not bloated.
 - **Still blind to per-statement stats without Query Insights**:
@@ -217,6 +218,40 @@ tenant scope with `do_spl_db_hot_measure`'s own script, jit off, n=5 each,
   `messages` pays for it (13 indexes today), and walk_dm did not improve.
   **Not proposed now**; revisit above ~50k messages per tenant.
 
+### 4.1 Proven on the live DBs before shipping, and a trap on the way
+
+The lab is not prd, so the change was measured read-only on both live DBs
+with `MEASURE_BITMAPSCAN` (the hub's new scope, reproduced in the session).
+
+**The first reading was wrong, and it looked decisive.** A single session ran
+bitmap ON then OFF through the SAME prepared statements (21:08-21:24Z, n=10):
+OFF read **15.8 s** on prd and timed out on dev, so the already-pushed store
+change was reverted (`8106619b`) before any roll could ship it. Then the
+cause: after five executions Postgres switches a prepared statement to a
+cached **generic plan**, and that plan had been built while bitmap scans were
+ON; the OFF samples reused it. `enable_*` settings do not invalidate a cached
+plan. pgx (`QueryExecModeCacheStatement`) caches statements per connection,
+so the generic plan is also what the hub meets from the sixth call on.
+
+Measured clean, one session per case, prd t1 as the owner feed (`READER` =
+the owner, jit off, 2026-09-26T21:27-21:28Z, n=5 each):
+
+| | custom plan | generic plan |
+|---|---|---|
+| bitmap ON (hub 0.9.6) | walk_all 1 130 ms, walk_dm 792 ms | walk_all 1 436 ms, walk_dm 1 012 ms |
+| **bitmap OFF (hub 0.9.7)** | **walk_all 55 ms, walk_dm 35 ms** | **walk_all 59 ms, walk_dm 57 ms** |
+
+The first OFF execution's plan (21:27Z) is exactly the intended shape: an
+ordered `Index Scan Backward using messages_received` per step, **1 409 probe
+loops instead of 171 832**, 43.8 ms. dev after the compaction (§7), auto plan
+cache, n=10: walk_all **21 184 ms** (5 timeouts) ON vs **22 ms** OFF.
+
+A second finding from the same runs: **prd readings swing 10x within
+minutes** (walk_all ON 1.4 s at 21:24Z, 12.0 s at 21:28Z, n=10). The
+measurements themselves were sustained load, and `db-f1-micro` is a
+shared-core machine with no CPU guarantee. The walk fix removes the load that
+made it visible in normal use; the tier stays 029 D5.
+
 ## 5. Best practice for this app's shape (append-heavy chat + RLS per tenant)
 
 | practice | applies? | why, with the number |
@@ -238,7 +273,7 @@ tenant scope with `do_spl_db_hot_measure`'s own script, jit off, n=5 each,
 
 | # | change | why (evidence) | risk | rollback |
 |---|---|---|---|---|
-| P1 | The topic walk's scope batch sets `enable_bitmapscan=off` (next to its `jit=off`), hub store code + a plan-shape test | 64 % of prd DB time; `/view/topics` p95 1.78 s; lab 1 977 → 21.5 ms at 5x | a different plan for ONE statement; measured faster at 1x and 5x on both shapes | revert the one line; hub redeploy |
+| P1 | The topic walk's scope batch sets `enable_bitmapscan=off` (next to its `jit=off`), hub store code + a plan-shape test | 64 % of prd DB time; `/view/topics` p95 1.78 s; live prd 1 130-1 436 → 55-59 ms (§4.1) | a different plan for ONE statement; measured faster at 1x and 5x on both shapes | revert the one line; hub redeploy |
 | P2 | `ALTER ROLE spool_hub_rt SET statement_timeout = '30s'`, `idle_in_transaction_session_timeout = '60s'` in `runtime-grants.sql` (re-applied after every migrate) | both 0 today (029 D3); hub's longest statement in 7 d 2.6 s | a legit >30 s statement as the runtime login fails; seed/purge already `SET statement_timeout = 0` | `ALTER ROLE ... RESET` both; re-run bootstrap |
 | P3 | dev only: compact `messages` (`VACUUM FULL` + `ANALYZE`) as the owner login, via a named orc action | dev 425 MB for ~17 MB of rows; walk 3.0 s on dev vs 1.5 s prd | an ACCESS EXCLUSIVE lock on dev `messages` for the duration (seconds at this size) | none needed: the operation only removes dead space |
 | P4 | Keep Query Insights as the statement-stats source; `pg_stat_statements` stays deferred (029 D2) | Insights gives calls + mean per statement (§3.4) without a restart | none | n/a |
@@ -248,6 +283,17 @@ tenant scope with `do_spl_db_hot_measure`'s own script, jit off, n=5 each,
 
 ## 7. Applied
 
-Filled in as each change lands (dev first, then prd, with before/after).
+| # | where | when (UTC) | before | after | how | rollback |
+|---|---|---|---|---|---|---|
+| P3 | dev `messages` | 2026-09-26T21:37Z, 5 s lock | 425 MB (heap 133 MB, indexes 280 MB, toast 13 MB), 6 112 live rows | **23 MB** (heap 6.1 MB, indexes 4.0 MB, toast 14 MB), 4 067 live / 0 dead | `ENV=dev DRY_RUN=0 ./run -a do_spl_db_compact` (`5bc2019b`) | none needed |
+| P2 | dev `spool_hub_rt` | 21:21:56Z | `rolconfig` empty | `{statement_timeout=30s,idle_in_transaction_session_timeout=60s}` | `ENV=dev DRY_RUN=0 ./run -a do_spl_db_bootstrap` (`97d7661d`; grants only, no password mint on a split env) | `ALTER ROLE spool_hub_rt RESET ...` |
+| P2 | prd `spool_hub_rt` | 21:44:55Z | `rolconfig` empty | same as dev | same, `ENV=prd` | same |
+| P1 | hub dev + prd | roll `31020c4d` (0.9.6 → 0.9.7), code `a495c54f`; run 36273960369 ROLLED: true on both, 21:51-21:52Z | walk 1 130-1 436 ms (prd, §4.1) | walk 55-59 ms (§4.1); `/version` on both hubs = `31020c4d` 0.9.7; `/` and `/login` 200 on both apexes | 20 hub build + deploy | revert `a495c54f`, roll |
 
-<!-- last-edit: 2026-09-26T21:05:00Z -->
+`live_rows` before is the statistics estimate (`n_live_tup` read 6 112); the
+count after the rewrite is exact (4 067).
+
+P2 applies to new sessions only: the hub pool picks it up as connections
+recycle (idle 5 min).
+
+<!-- last-edit: 2026-09-26T21:50:00Z -->

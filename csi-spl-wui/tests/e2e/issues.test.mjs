@@ -76,17 +76,17 @@ try {
 
   /* owner, topic e65c0f60: the default is ONE flat list, newest update first */
   const view = await p.evaluate(() => ({
-    group: document.querySelector('[data-test=issues-group-by]').value,
-    sort: document.querySelector('[data-test=issues-sort]').value,
+    sortControls: document.querySelectorAll('[data-test=issues-sort], [data-test=issues-group-by]').length,
+    ariaSort: [...document.querySelectorAll('[data-test=issues-table] thead th[aria-sort]')].map((th) => th.getAttribute('aria-sort')),
+    marks: [...document.querySelectorAll('.issues-sort-mark')].map((m) => m.textContent).join(''),
     headers: document.querySelectorAll('.issues-group__h').length,
     rowStatus: document.querySelectorAll('[data-test=issues-row-status]').length,
     rows: document.querySelectorAll('[data-test=issues-row]').length,
   }))
-  ok('2f the default view is one flat list sorted by updated, each row with its status',
-    view.group === 'none' && view.sort === 'updated' && view.headers === 0 && view.rowStatus === view.rows, view)
+  ok('2f the default view is one flat list: no Sort / Group controls, no triangle, no status sections',
+    view.sortControls === 0 && view.ariaSort.length === 9 && view.ariaSort.every((a) => a === 'none') && view.marks === '' && view.headers === 0 && view.rowStatus === view.rows, view)
 
   /* owner, topic e00da93b: a sheet - names row, a filter row under each column, one issue per row */
-  await p.select('[data-test=issues-sort]', 'level')
   const sheet = await p.evaluate(() => {
     const table = document.querySelector('[data-test=issues-table]')
     const [names, filters] = table.tHead.rows
@@ -125,7 +125,6 @@ try {
   ok('2e the Assignee control shows the value alone; Assignee is its name (topic e00da93b)', who.text === 'All' && who.aria === 'Assignee', who)
   ok('2d the closed Assignee control is no wider than 13em, near prio / level, the full text on hover',
     widths.assignee <= widths.capPx + 1 && widths.assignee < widths.controlOldWay && widths.assignee <= Math.max(widths.prio, widths.level) * 1.5 && widths.title === 'Assignee: All', widths)
-  await p.select('[data-test=issues-sort]', 'priority')
 
   await p.click('[data-test=issues-filter-status-btn]')
   await p.waitForSelector('[data-test=issues-filter-status-opt][data-value="wip"]', { visible: true, timeout: 5000 })
@@ -152,9 +151,27 @@ try {
   })
   ok('3a each issue is one row in the same 9 columns; the title ellipsizes with the full text on hover',
     rowCols.cells === 9 && rowCols.under && rowCols.titleHover && rowCols.ellipsis === 'ellipsis', rowCols)
+  /* owner, topic e00da93b: a header click sorts ▲, then ▼, then back to the default */
+  const sortState = () => p.evaluate(() => {
+    const th = document.querySelector('[data-test=issues-sort-title]').closest('th')
+    const titles = [...document.querySelectorAll('[data-test=issues-row] .issues-title')].map((e) => e.textContent.trim())
+    const u = new URL(location.href)
+    return { aria: th.getAttribute('aria-sort'), mark: th.querySelector('.issues-sort-mark').textContent, sort: u.searchParams.get('sort'), dir: u.searchParams.get('dir'), titles, others: [...document.querySelectorAll('.issues-sort-mark')].filter((m) => m.textContent).length }
+  })
+  await p.click('[data-test=issues-sort-title]')
+  const up = await sortState()
+  await p.click('[data-test=issues-sort-title]')
+  const down = await sortState()
+  await p.click('[data-test=issues-sort-title]')
+  const back = await sortState()
+  const byTitle = (l) => [...l].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+  ok('3b a header click sorts ▲ then ▼ then back; only that column shows a triangle; the URL keeps it',
+    up.aria === 'ascending' && up.mark === '▲' && up.sort === 'title' && up.dir === 'asc' && up.others === 1 && JSON.stringify(up.titles) === JSON.stringify(byTitle(up.titles)) &&
+      down.aria === 'descending' && down.mark === '▼' && down.dir === 'desc' && JSON.stringify(down.titles) === JSON.stringify(byTitle(down.titles).reverse()) &&
+      back.aria === 'none' && back.mark === '' && back.sort === null && back.others === 0, { up, down, back })
   ok('3 the list shows the key and not the description', listText.includes('SPL-2') && listText.includes('The first read drops') && !listText.includes('Only in the detail'), listText.slice(0, 280))
 
-  await p.click('[data-test=issues-row][data-key="SPL-2"]')
+  await p.click('[data-test=issues-row][data-key="SPL-2"] .issues-c-key')
   await p.waitForSelector('[data-test=issues-detail]', { visible: true, timeout: 5000 })
   const body = await p.$eval('[data-test=issues-detail-body]', (el) => el.value)
   const deadlineType = await p.$eval('[data-test=issues-deadline]', (el) => el.getAttribute('type'))
@@ -216,22 +233,17 @@ try {
   })
   ok('5b hovering 03-diss pops up discard', menuTip.code === '03-diss' && menuTip.text === 'discard' && menuTip.display === 'block' && menuTip.w > 8 && menuTip.h > 4, menuTip)
   await p.click('[data-test=issues-menu-option][data-value="wip"]')
-  await p.select('[data-test=issues-group-by]', 'status')
-  await p.waitForFunction(() => {
-    const group = document.querySelector('tbody[data-status="wip"]')
-    return Boolean(group && group.querySelector('[data-key="SPL-2"]'))
-  }, { timeout: 5000 }).catch(() => null)
-  ok('5 changing status moves the row into that group', Boolean(await p.$('tbody[data-status="wip"] [data-key="SPL-2"]')))
-  await p.select('[data-test=issues-group-by]', 'none')
   await p.waitForSelector('[data-test=issues-row][data-key="SPL-2"] [data-test=issues-row-status]', { timeout: 5000 }).catch(() => {})
   const flatStatus = await p.$eval('[data-test=issues-row][data-key="SPL-2"] [data-test=issues-row-status]', (el) => ({ status: el.getAttribute('data-status'), text: el.textContent.trim() })).catch(() => null)
   ok('5c back in the flat list the row shows its new status', flatStatus && flatStatus.status === 'wip' && flatStatus.text === '03-wip', flatStatus)
 
-  await p.click('[data-test=issues-row][data-key="SPL-3"]')
-  await p.waitForFunction(() => {
+  /* start on the first row of the sheet, so J has a row below it */
+  const firstKey = await p.$eval('[data-test=issues-row]', (el) => el.getAttribute('data-key'))
+  await p.click(`[data-test=issues-row][data-key="${firstKey}"] .issues-c-key`)
+  await p.waitForFunction((k) => {
     const el = document.querySelector('[data-test=issues-row][data-selected="true"]')
-    return el && el.getAttribute('data-key') === 'SPL-3' && new URL(location.href).searchParams.get('issue') === 'SPL-3'
-  }, { timeout: 5000 })
+    return el && el.getAttribute('data-key') === k && new URL(location.href).searchParams.get('issue') === k
+  }, { timeout: 5000 }, firstKey)
   const before = await p.$eval('[data-test=issues-row][data-selected="true"]', (el) => el.getAttribute('data-key'))
   await p.keyboard.press('KeyJ')
   await p.waitForFunction((prev) => {

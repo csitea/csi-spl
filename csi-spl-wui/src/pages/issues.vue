@@ -13,42 +13,31 @@
       <!-- owner, topic e00da93b: "it should look like a gsheet with columns and a
            table". The list is a table: row 1 the column names, row 2 each
            column's filter (sticky, like a sheet's filter row), then one issue
-           per row in the same columns. Sort and grouping have no column and sit
-           above it. On a phone the table scrolls sideways inside its pane. -->
+           per row in the same columns. A header click sorts by that column
+           (▲, ▼, then back to Updated newest first). On a phone the table
+           scrolls sideways inside its pane. -->
       <div class="issues-tools" data-test="issues-tools">
-        <div class="issues-fcell">
-          <span class="issues-fcell__name">{{ t('issues.sort') }}</span>
-          <select v-model="sortF" class="issues-sort" data-test="issues-sort" :aria-label="t('issues.sort')">
-            <option value="updated">{{ t('issues.sort_updated') }}</option>
-            <option value="created">{{ t('issues.sort_created') }}</option>
-            <option value="priority">{{ t('issues.sort_priority') }}</option>
-            <option value="level">{{ t('issues.sort_level') }}</option>
-            <option value="deadline">{{ t('issues.sort_deadline') }}</option>
-          </select>
-        </div>
-        <!-- owner, topic e65c0f60: the default view is one flat list; by status is a choice -->
-        <div class="issues-fcell">
-          <span class="issues-fcell__name">{{ t('issues_view.group') }}</span>
-          <select v-model="groupF" data-test="issues-group-by" :aria-label="t('issues_view.group')">
-            <option value="none">{{ t('issues_view.group_none') }}</option>
-            <option value="status">{{ t('issues.filter_status') }}</option>
-          </select>
-        </div>
         <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
       </div>
       <div ref="scrollerEl" class="issues-scroll">
         <table class="issues-table" data-test="issues-table">
           <thead ref="theadEl" class="issues-filters" data-test="issues-filters">
             <tr class="issues-names">
-              <th scope="col" class="issues-c-key">{{ t('issues_view.col_key') }}</th>
-              <th scope="col" class="issues-c-title">{{ t('issues_view.col_title') }}</th>
-              <th scope="col">{{ t('issues.filter_status') }}</th>
-              <th scope="col">{{ t('issues.filter_priority') }}</th>
-              <th scope="col">{{ t('issues.filter_level') }}</th>
-              <th scope="col">{{ t('issues.filter_assignee') }}</th>
-              <th scope="col">{{ t('issues.filter_label') }}</th>
-              <th scope="col">{{ t('issues.field_deadline') }}</th>
-              <th scope="col">{{ t('issues.sort_updated') }}</th>
+              <th
+                v-for="c in sheetColumns"
+                :key="c.col"
+                scope="col"
+                :class="c.cls"
+                :aria-sort="sheetSort.col === c.col ? (sheetSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'"
+              >
+                <button
+                  type="button"
+                  class="issues-sort-h"
+                  :data-test="'issues-sort-' + c.col"
+                  :data-sorted="sheetSort.col === c.col ? sheetSort.dir : undefined"
+                  @click="toggleSort(c.col)"
+                >{{ c.name }}<span class="issues-sort-mark" aria-hidden="true">{{ sheetSort.col === c.col ? (sheetSort.dir === 'asc' ? '▲' : '▼') : '' }}</span></button>
+              </th>
             </tr>
             <tr class="issues-frow">
               <th class="issues-c-key" />
@@ -128,24 +117,6 @@
             </tr>
           </tbody>
           <tbody v-for="g in shownGroups" :key="g.status || 'all'" class="issues-group" :data-status="g.status">
-            <tr v-if="g.status">
-              <td colspan="9" class="issues-group__cell">
-                <button
-                  type="button"
-                  class="issues-group__h"
-                  :aria-expanded="isCollapsed(g.status) ? 'false' : 'true'"
-                  @click="toggleGroup(g.status)"
-                >
-                  <IssueGlyph :name="statusIcon(g.status)" :size="16" :class="'issues-st issues-st--' + g.status" />
-                  <span class="issues-status-host" :title="t(statusHintKey(g.status))">
-                    <span class="issues-status-code">{{ statusLabel(g.status) }}</span>
-                    <span class="issues-status-tip" role="tooltip">{{ t(statusHintKey(g.status)) }}</span>
-                  </span>
-                  <span class="issues-count" data-test="issues-group-count">{{ g.count }}</span>
-                </button>
-              </td>
-            </tr>
-            <template v-if="!g.status || !isCollapsed(g.status)">
               <tr
                 v-for="issue in g.issues"
                 :key="issue.key"
@@ -196,7 +167,6 @@
                 <td><time v-if="issue.deadline" class="issues-when" :datetime="issue.deadline">{{ when(issue.deadline) }}</time></td>
                 <td><time v-if="issue.updated_at" class="issues-when issues-updated" :datetime="issue.updated_at">{{ when(issue.updated_at) }}</time></td>
               </tr>
-            </template>
           </tbody>
         </table>
       </div>
@@ -391,6 +361,10 @@ import {
   clampIssuePane,
   deadlineToLocalInput,
   groupIssues,
+  hubSort,
+  nextSort,
+  sortFromQuery,
+  sortSheet,
   levelKey,
   loadIssuePane,
   localInputToDeadline,
@@ -399,7 +373,6 @@ import {
   statusHintKey,
   statusLabel,
   stepKey,
-  visibleOrder,
 } from '~/utils/issues-view.mjs'
 
 type Note = { msg_id: string, from: string, from_box: string, body: string, ts: string }
@@ -434,9 +407,9 @@ const loading = ref(false)
 const busy = ref(false)
 const loadError = ref('')
 const saveError = ref('')
-const sortF = ref('updated')
-/* owner, topic e65c0f60: one flat list by default; 'status' groups as before */
-const groupF = ref<'none' | 'status'>('none')
+/* owner, topics e65c0f60 + e00da93b: one flat list, sorted by a header click;
+   the default is Updated, newest first. The sort lives in ?sort=&dir=. */
+const sheetSort = ref(sortFromQuery(route.query as Record<string, unknown>))
 const statusF = ref('')
 const statusOpen = ref(false)
 const priorityF = ref('')
@@ -444,7 +417,6 @@ const levelF = ref('')
 const assigneeF = ref('')
 const labelF = ref('')
 const dueF = ref('')
-const collapsed = ref<Record<string, boolean>>({ done: true, diss: true })
 const cursorKey = ref('')
 const openKey = ref('')
 const creating = ref(false)
@@ -549,10 +521,6 @@ function levelShort(n: number) {
 function meId() {
   return roster.self?.id || live.identity.value || ''
 }
-function isCollapsed(status: string) {
-  if (statusF.value === status) return false
-  return Boolean(collapsed.value[status])
-}
 function serverFilter(): IssueFilter {
   const f: IssueFilter = { kind: 'issue' }
   if (epicF.value) f.epic = [epicF.value]
@@ -595,13 +563,38 @@ const assigneeOptions = computed(() => {
   }
   return out
 })
-const groups = computed(() => groupIssues(issues.value, { sort: sortF.value, filter: serverFilter(), me: meId(), hideEmpty: false, by: groupF.value }))
+const groups = computed(() => {
+  const kept = groupIssues(issues.value, { sort: 'updated', filter: serverFilter(), me: meId(), by: 'none' })[0].issues
+  const rows = sortSheet(kept, sheetSort.value, { name: person, labelName: labelText })
+  return [{ status: '', count: rows.length, issues: rows }]
+})
+const sheetColumns = computed(() => [
+  { col: 'key', name: t('issues_view.col_key'), cls: 'issues-c-key' },
+  { col: 'title', name: t('issues_view.col_title'), cls: 'issues-c-title' },
+  { col: 'status', name: t('issues.filter_status'), cls: '' },
+  { col: 'priority', name: t('issues.filter_priority'), cls: '' },
+  { col: 'level', name: t('issues.filter_level'), cls: '' },
+  { col: 'assignee', name: t('issues.filter_assignee'), cls: '' },
+  { col: 'label', name: t('issues.filter_label'), cls: '' },
+  { col: 'deadline', name: t('issues.field_deadline'), cls: '' },
+  { col: 'updated', name: t('issues.sort_updated'), cls: '' },
+])
+const serverSort = computed(() => hubSort(sheetSort.value))
+function toggleSort(col: string) {
+  sheetSort.value = nextSort(col, sheetSort.value)
+}
+watch(sheetSort, (v) => {
+  if (!import.meta.client) return
+  const url = new URL(window.location.href)
+  if (v.col) { url.searchParams.set('sort', v.col); url.searchParams.set('dir', v.dir) }
+  else { url.searchParams.delete('sort'); url.searchParams.delete('dir') }
+  window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+})
 const rowCount = computed(() => groups.value.reduce((n, g) => n + g.count, 0))
 /* the table keeps its header and filter row when nothing matches; the note says so */
 const shownGroups = computed(() => (rowCount.value ? groups.value : []))
-const flat = computed(() => visibleOrder(groups.value, Object.fromEntries(
-  ISSUE_STATUSES.map((s) => [s, isCollapsed(s)]),
-)))
+/* J / K walk the rows in the order the sheet shows them */
+const flat = computed(() => groups.value[0].issues)
 const activeAssignee = computed(() => creating.value ? draft.assignee : (detail.value?.assignee || ''))
 const activeLabels = computed(() => creating.value ? draft.labels : (detail.value?.labels || []))
 const detailShown = computed(() => clampIssuePane(detailW.value, detailRoom.value))
@@ -645,7 +638,7 @@ async function load() {
   loading.value = true
   loadError.value = ''
   try {
-    const data = await withSessionRetry(api, () => api.listIssues({ filter: serverFilter(), sort: sortF.value }))
+    const data = await withSessionRetry(api, () => api.listIssues({ filter: serverFilter(), sort: serverSort.value }))
     issues.value = (data.issues || []).map((row) => normalizeIssue(row))
     labels.value = (data.labels || []).map((row) => normalizeLabel(row))
     epics.value = data.epics || []
@@ -663,8 +656,7 @@ function pickStatus(s: string) {
   statusOpen.value = false
 }
 function clearFilters() {
-  sortF.value = 'updated'
-  groupF.value = 'none'
+  sheetSort.value = { col: '', dir: '' }
   statusF.value = ''
   statusOpen.value = false
   priorityF.value = ''
@@ -672,9 +664,6 @@ function clearFilters() {
   assigneeF.value = ''
   labelF.value = ''
   dueF.value = ''
-}
-function toggleGroup(status: string) {
-  collapsed.value = { ...collapsed.value, [status]: !collapsed.value[status] }
 }
 function issueLinkKey(): string {
   if (import.meta.client) {
@@ -698,7 +687,6 @@ function choose(issue: Issue) {
   openKey.value = issue.key
   detail.value = issue
   menu.value = null
-  if (collapsed.value[issue.status]) collapsed.value = { ...collapsed.value, [issue.status]: false }
   writeIssueQuery(issue.key)
 }
 function closeDetail() {
@@ -1004,7 +992,7 @@ function onDocKey(ev: KeyboardEvent) {
   if (kind && issue) { openMenu(kind, issue); ev.preventDefault() }
 }
 
-watch([statusF, priorityF, levelF, assigneeF, labelF, dueF, sortF, epicF], () => { void load() })
+watch([statusF, priorityF, levelF, assigneeF, labelF, dueF, serverSort, epicF], () => { void load() })
 watch(() => session.state, () => { void load() }, { immediate: true })
 async function openLinkedIssue() {
   const key = issueLinkKey()
@@ -1160,6 +1148,15 @@ onUnmounted(() => {
 .issues-row-status { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; white-space: nowrap; }
 .issues-status-dd { position: relative; }
 .issues-status-dd__btn { cursor: pointer; text-align: start; }
+/* the Status filter reads as the same control as the selects beside it (topic e00da93b) */
+.issues-frow .issues-status-dd__btn {
+  appearance: none;
+  padding-inline-end: 22px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 12px) 55%, calc(100% - 8px) 55%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
 .issues-status-dd__list {
   position: absolute;
   z-index: 25;
@@ -1260,8 +1257,32 @@ onUnmounted(() => {
 /* a sheet's frozen first column: the key stays in view when the table scrolls sideways */
 .issues-table .issues-c-key { position: sticky; inset-inline-start: 0; z-index: 1; background: var(--color-bg); }
 .issues-table thead .issues-c-key { z-index: 3; }
-.issues-c-title { min-width: 14rem; max-width: 28rem; }
-.issues-title-cell { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 28rem; }
+.issues-table { width: 100%; }
+/* the Title column takes what is left and gives it up first (owner screenshot,
+   topic e00da93b): the cell asks for 100% of the table, and its grid's
+   minmax(0, 1fr) makes its smallest width the 10rem floor, not the whole
+   title - so Label / Deadline / Updated stay in view beside an open issue */
+.issues-table td.issues-c-title { width: 100%; }
+.issues-title-cell { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; min-width: 10rem; }
+.issues-title-cell .issues-epic-tag { max-width: 8rem; }
+.issues-table .issues-person { max-width: 10rem; }
+.issues-table .issues-pill { max-width: 7rem; }
+.issues-frow .dlp__text { width: 9.5rem; }
+/* owner, topic e00da93b: sort by a header click; only the sorted column shows its triangle */
+.issues-sort-h {
+  display: inline-block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.issues-sort-h::first-letter { text-transform: uppercase; }
+.issues-sort-mark { display: inline-block; min-width: 0.75em; margin-inline-start: 4px; font-size: 0.625rem; color: var(--color-fg); }
+.issues-sort-h:not([data-sorted]):hover .issues-sort-mark::before,
+.issues-sort-h:not([data-sorted]):focus-visible .issues-sort-mark::before { content: '▲'; opacity: 0.35; }
 .issues-note { white-space: normal; }
 .issues-note p { margin: 4px 0; }
 .issues-group__cell { padding: 0; background: var(--color-bg); }

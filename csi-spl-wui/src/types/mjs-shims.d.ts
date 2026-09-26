@@ -1218,6 +1218,11 @@ declare module '~/utils/issues-view.mjs' {
   export function splitLocal(local: string): { date: string, time: string }
   export function joinLocal(date: string, time?: string): string
   export function deadlineText(local: string): string
+  export const SHEET_COLUMNS: string[]
+  export function nextSort(col: string, cur?: { col: string, dir: string }): { col: string, dir: '' | 'asc' | 'desc' }
+  export function sortFromQuery(q?: Record<string, unknown>): { col: string, dir: '' | 'asc' | 'desc' }
+  export function hubSort(s: { col: string, dir: string }): string
+  export function sortSheet(list: import('~/utils/issues.mjs').Issue[], s?: { col: string, dir: string }, opts?: { name?: (id: string) => string, labelName?: (id: string) => string }): import('~/utils/issues.mjs').Issue[]
   export function parseDeadlineText(text: string, defaultTime?: string): string | null
   export function monthOf(local: string, today?: string): string
   export function shiftMonth(ym: string, delta: number): string

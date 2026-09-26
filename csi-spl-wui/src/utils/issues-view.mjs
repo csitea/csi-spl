@@ -53,6 +53,73 @@ export function groupIssues(list, { sort = 'priority', filter = {}, me = '', hid
   return hideEmpty ? groups.filter((g) => g.count > 0) : groups
 }
 
+/**
+ * owner, topic e00da93b: "just each column should have the up or down
+ * triangle to show whether or not the sort is applied on this column".
+ * The sheet's sortable columns; '' is the default order (Updated, newest first).
+ */
+export const SHEET_COLUMNS = ['key', 'title', 'status', 'priority', 'level', 'assignee', 'label', 'deadline', 'updated']
+/** The sorts the hub itself answers (issues-v1 `sort=`); the rest sort here. */
+const HUB_SORTS = new Set(['priority', 'level', 'deadline', 'updated', 'created'])
+
+/** A header click: none -> ascending -> descending -> back to the default. */
+export function nextSort(col, cur = { col: '', dir: '' }) {
+  if (!SHEET_COLUMNS.includes(col)) return { col: '', dir: '' }
+  if (cur.col !== col) return { col, dir: 'asc' }
+  if (cur.dir === 'asc') return { col, dir: 'desc' }
+  return { col: '', dir: '' }
+}
+
+/** ?sort=&dir= from a route query; anything unknown is the default. */
+export function sortFromQuery(q = {}) {
+  const one = (v) => (Array.isArray(v) ? v[0] : v)
+  const col = String(one(q.sort) || '')
+  const dir = String(one(q.dir) || '')
+  return SHEET_COLUMNS.includes(col) && (dir === 'asc' || dir === 'desc') ? { col, dir } : { col: '', dir: '' }
+}
+
+/** The `sort=` sent to the hub for a sheet sort (the hub orders what it can). */
+export function hubSort(s) {
+  return s && HUB_SORTS.has(s.col) ? s.col : 'updated'
+}
+
+const keyNum = (k) => Number(String(k || '').replace(/^\D+-/, '')) || 0
+
+/**
+ * The sheet's rows in a column's order. `name(id)` reads an assignee's shown
+ * name, `labelName(id)` a label's. An empty cell sorts last either way; ties
+ * keep the newest key first. No column = the default order.
+ */
+export function sortSheet(list, s = { col: '', dir: '' }, { name = (x) => x, labelName = (x) => x } = {}) {
+  const rows = (list || []).slice()
+  if (!s || !s.col) return sortIssues(rows, 'updated')
+  const sign = s.dir === 'desc' ? -1 : 1
+  const text = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+  const cell = (i) => {
+    switch (s.col) {
+      case 'key': return keyNum(i.key)
+      case 'title': return i.title || ''
+      case 'status': return ISSUE_STATUSES.indexOf(i.status)
+      case 'priority': return Number(i.priority) || ''
+      case 'level': return Number(i.level) || ''
+      case 'assignee': return i.assignee ? name(i.assignee) : ''
+      case 'label': return (i.labels || []).map(labelName).sort(text)[0] || ''
+      case 'deadline': return Date.parse(i.deadline || '') || ''
+      case 'updated': return Date.parse(i.updated_at || '') || ''
+    }
+    return ''
+  }
+  return rows.sort((x, y) => {
+    const a = cell(x)
+    const b = cell(y)
+    if (a === '' && b !== '') return 1
+    if (b === '' && a !== '') return -1
+    let c = 0
+    if (a !== '' && b !== '') c = typeof a === 'number' && typeof b === 'number' ? a - b : text(a, b)
+    return c !== 0 ? c * sign : keyNum(y.key) - keyNum(x.key)
+  })
+}
+
 /** The rows in on-screen order (for J / K), collapsed groups skipped. */
 export function visibleOrder(groups, collapsed = {}) {
   const out = []

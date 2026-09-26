@@ -303,8 +303,11 @@ describe('filter row labels', () => {
     const src = readFileSync(new URL('../../src/pages/issues.vue', import.meta.url), 'utf8')
     const head = src.slice(src.indexOf('data-test="issues-filters"'), src.indexOf('</thead>'))
     const names = head.slice(0, head.indexOf('issues-frow'))
+    assert.match(names, /v-for="c in sheetColumns"/)
+    assert.match(names, /:aria-sort=/)
+    const cols = src.slice(src.indexOf('const sheetColumns = computed'), src.indexOf('])', src.indexOf('const sheetColumns = computed')))
     for (const k of ['issues_view.col_key', 'issues_view.col_title', 'issues.filter_status', 'issues.filter_priority', 'issues.filter_level', 'issues.filter_assignee', 'issues.filter_label', 'issues.field_deadline', 'issues.sort_updated']) {
-      assert.ok(names.includes(`{{ t('${k}') }}</th>`), k)
+      assert.ok(cols.includes(`t('${k}')`), k)
     }
     const filters = head.slice(head.indexOf('issues-frow'))
     for (const d of ['issues-filter-status-btn', 'issues-filter-priority', 'issues-filter-level', 'issues-filter-assignee', 'issues-filter-label', 'issues-filter-deadline-date']) {

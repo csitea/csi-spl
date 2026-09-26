@@ -127,8 +127,8 @@ func (p *parser) operator(t *token, name, val string, phrase, neg bool) (*Node, 
 		term.Enum = lv
 	case OpPriority:
 		n, err := strconv.Atoi(lv)
-		if err != nil || n < 0 || n > IssuePriorityMax {
-			return bad("priority: must be 0.." + strconv.Itoa(IssuePriorityMax))
+		if err != nil || n < IssuePriorityMin || n > IssuePriorityMax {
+			return bad("prio: must be a number " + strconv.Itoa(IssuePriorityMin) + ".." + strconv.Itoa(IssuePriorityMax))
 		}
 		term.Size = int64(n)
 	case OpAssignee:

@@ -15,7 +15,7 @@ import (
 )
 
 // Version is the grammar version published by the operators endpoint.
-const Version = "1.2"
+const Version = "1.3"
 
 // Limits (search-v1 §1, §2.1).
 const (
@@ -119,6 +119,7 @@ const (
 // no copy. Unset, status: and priority: refuse every value.
 var (
 	IssueStatuses    []string
+	IssuePriorityMin = 0
 	IssuePriorityMax = -1
 )
 
@@ -165,7 +166,7 @@ var Operators = []Operator{
 	{Name: OpLarger, Values: "size", Applies: []Type{TypeFile}, Example: "larger:1M", Doc: "attachment larger than (bytes, K, M, G)"},
 	{Name: OpSmaller, Values: "size", Applies: []Type{TypeFile}, Example: "smaller:10K", Doc: "attachment smaller than (bytes, K, M, G)"},
 	{Name: OpStatus, Values: "status", Applies: []Type{TypeIssue}, Example: "status:in_progress", Doc: "issue status: backlog, todo, in_progress, in_review, done, canceled"},
-	{Name: OpPriority, Values: "priority", Applies: []Type{TypeIssue}, Example: "priority:1", Doc: "issue priority: 0 none, 1 urgent, 2 high, 3 medium, 4 low"},
+	{Name: OpPriority, Aliases: []string{"prio"}, Values: "priority", Applies: []Type{TypeIssue}, Example: "prio:1", Doc: "issue priority, a number (prio=1 works too)"},
 	{Name: OpAssignee, Values: "id", Applies: []Type{TypeIssue}, Example: "assignee:me", Doc: "issue assignee: a member or agent id, me, or none"},
 	{Name: OpLabel, Values: "text", Applies: []Type{TypeIssue}, Example: "label:bug", Doc: "issue label"},
 }
@@ -329,8 +330,9 @@ func tokenize(q string) ([]token, error) {
 				i++
 			}
 			w := string(rs[start:i])
-			// name:"value" is one operator term.
-			if strings.HasSuffix(w, ":") && i < len(rs) && rs[i] == '"' && opNameRe.MatchString(strings.TrimSuffix(w, ":")) {
+			// name:"value" is one operator term; so is name="value" for a
+			// known operator (1.3).
+			if opQuoteStart(w) && i < len(rs) && rs[i] == '"' {
 				vs := i
 				pos++
 				i++
@@ -341,7 +343,7 @@ func tokenize(q string) ([]token, error) {
 				if i >= len(rs) {
 					return nil, &Error{Pos: sp, Token: string(rs[start:]), Detail: "unterminated \""}
 				}
-				out = append(out, token{kind: tOpPhrase, text: strings.TrimSuffix(w, ":"), val: string(rs[vs+1 : i]), pos: sp, raw: string(rs[start : i+1])})
+				out = append(out, token{kind: tOpPhrase, text: w[:len(w)-1], val: string(rs[vs+1 : i]), pos: sp, raw: string(rs[start : i+1])})
 				pos++
 				i++
 				continue
@@ -358,6 +360,19 @@ func startOfToken(rs []rune, i int) bool {
 }
 
 var opNameRe = regexp.MustCompile(`^[A-Za-z]+$`)
+
+// opQuoteStart: w is name: (any operator-shaped name, as before) or name=
+// (a known operator only) right before an opening quote.
+func opQuoteStart(w string) bool {
+	if n, ok := strings.CutSuffix(w, ":"); ok {
+		return opNameRe.MatchString(n)
+	}
+	if n, ok := strings.CutSuffix(w, "="); ok && opNameRe.MatchString(n) {
+		_, known := opByName[strings.ToLower(n)]
+		return known
+	}
+	return false
+}
 
 // ---- parser ---------------------------------------------------------------------
 
@@ -515,6 +530,13 @@ func (p *parser) atom(depth int, neg bool) (*Node, error) {
 	case tOpPhrase:
 		return p.operator(t, strings.ToLower(t.text), t.val, true, neg)
 	case tWord:
+		// 1.3 (owner 2026-09-26: "/search type:issue prio=1"): op=value is
+		// op:value, for a KNOWN operator only; any other a=b stays text.
+		if name, val, ok := strings.Cut(t.text, "="); ok && opNameRe.MatchString(name) && !strings.Contains(name, ":") {
+			if _, known := opByName[strings.ToLower(name)]; known {
+				return p.operator(t, strings.ToLower(name), val, false, neg)
+			}
+		}
 		if name, val, ok := strings.Cut(t.text, ":"); ok && opNameRe.MatchString(name) {
 			if _, known := opByName[strings.ToLower(name)]; known {
 				return p.operator(t, strings.ToLower(name), val, false, neg)

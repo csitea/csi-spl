@@ -51,7 +51,7 @@ describe('Issues rail tab', () => {
     assert.match(send, /sock\.send\(/)
     assert.match(send, /api\.sendMessage\(/)
     assert.match(src, /route\.query\.issue/)
-    assert.match(src, /router\.replace\(\{ query \}\)/)
+    assert.match(src, /history\.replaceState/)
     assert.match(src, /api\.getIssue\(/)
   })
 })

@@ -251,7 +251,6 @@ function priorityIcon(priority: number): string {
 
 const { t, locale } = useI18n({ useScope: 'global' })
 const route = useRoute()
-const router = useRouter()
 const session = useSessionStore()
 const roster = useRosterStore()
 const people = useHumanNames()
@@ -403,6 +402,7 @@ async function load() {
     issues.value = (data.issues || []).map((row) => normalizeIssue(row))
     labels.value = (data.labels || []).map((row) => normalizeLabel(row))
     if (cursorKey.value && !flat.value.some((i) => i.key === cursorKey.value)) cursorKey.value = flat.value[0]?.key || ''
+    void openLinkedIssue()
   } catch (e) {
     loadError.value = errorKey(e as { status?: number, token?: string }, 'list')
   } finally {
@@ -425,19 +425,20 @@ function toggleGroup(status: string) {
   collapsed.value = { ...collapsed.value, [status]: !collapsed.value[status] }
 }
 function issueLinkKey(): string {
+  if (import.meta.client) {
+    try { return new URL(window.location.href).searchParams.get('issue')?.trim() || '' } catch { /* use the route */ }
+  }
   const q = route.query.issue
   const raw = Array.isArray(q) ? q[0] : q
   return typeof raw === 'string' ? raw.trim() : ''
 }
 function writeIssueQuery(key: string) {
-  if (issueLinkKey() === key) return
-  const query: Record<string, string | string[]> = {}
-  for (const [k, v] of Object.entries(route.query)) {
-    if (v == null || k === 'issue') continue
-    query[k] = v as string | string[]
-  }
-  if (key) query.issue = key
-  void router.replace({ query })
+  if (!import.meta.client) return
+  const url = new URL(window.location.href)
+  if ((url.searchParams.get('issue') || '') === key) return
+  if (key) url.searchParams.set('issue', key)
+  else url.searchParams.delete('issue')
+  window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
 }
 function choose(issue: Issue) {
   cursorKey.value = issue.key
@@ -524,6 +525,7 @@ function move(delta: number) {
   if (issue && openKey.value && !creating.value) {
     openKey.value = issue.key
     detail.value = issue
+    writeIssueQuery(issue.key)
   }
   void nextTick(scrollSelected)
 }
@@ -758,7 +760,11 @@ async function openLinkedIssue() {
   choose(issue)
 }
 watch(detail, (issue) => { if (!creating.value) void loadComments(issue) })
-watch([() => issueLinkKey(), issues], () => { void openLinkedIssue() })
+watch(() => {
+  const q = route.query.issue
+  const raw = Array.isArray(q) ? q[0] : q
+  return typeof raw === 'string' ? raw.trim() : ''
+}, () => { void openLinkedIssue() })
 watch(creating, (on) => { if (on) comments.value = [] })
 
 let offIssue = () => {}

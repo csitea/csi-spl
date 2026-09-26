@@ -104,6 +104,18 @@ for bad in "DESK_KIND=shout" "DESK_TO=CLE-00" "DESK_TO=HUM-1'--" "DESK_TASK=not-
   fi
 done
 
+# SPL-950: the probe's channel mode names the channel in its dry run, and a
+# bad channel id is a FATAL before anything is sent.
+SNIPPET=do_spl_desk_probe in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_CHANNEL=spool-hub-devel >"$T/o" 2>&1
+grep -q 'thread reply' "$T/o" && pass "do_spl_desk_probe DESK_CHANNEL: the dry run posts a thread reply" ||
+  fail "do_spl_desk_probe DESK_CHANNEL: no thread-reply dry run: $(cat "$T/o")"
+if SNIPPET=do_spl_desk_probe in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_CHANNEL="Dev'--" >"$T/o" 2>&1; then
+  fail "do_spl_desk_probe accepts a bad DESK_CHANNEL: $(cat "$T/o")"
+else
+  grep -q 'DESK_CHANNEL must' "$T/o" && pass "do_spl_desk_probe refuses a bad DESK_CHANNEL" ||
+    fail "do_spl_desk_probe refuses a bad DESK_CHANNEL without saying why: $(cat "$T/o")"
+fi
+
 # SPL-952: blocker and msg pass the kind check (the dry run then stops later).
 for good in blocker msg; do
   SNIPPET=do_spl_desk_reply in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='hi' DESK_KIND=$good >"$T/o" 2>&1 || true

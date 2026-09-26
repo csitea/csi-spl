@@ -31,16 +31,21 @@
 # @param   poke-line.md section 3). Default the orc feature's spool-notify.sh
 # @param DESK_TMUX_SOCK (optional) - the tmux socket the panes live on,
 # @param   default /tmp/tmux-<uid>/default
+# @param DESK_CHANNEL (optional) - SPL-950: post a topic into this channel and a
+# @param   thread reply under it (no channel tag, to ALL-0) instead of a DM; the
+# @param   reply must reach DESK_AGENT, which must be a member of the channel
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 DRY_RUN=0 ./run -a do_spl_desk_probe
+# @example ENV=prd TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_CHANNEL=spl-950-probe DRY_RUN=0 ./run -a do_spl_desk_probe
 #------------------------------------------------------------------------------
 do_spl_desk_probe() {
   do_require_bin python3 yq tmux || return 1
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}"
+  local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-desk}" agent="${DESK_AGENT:-}" ch="${DESK_CHANNEL:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
+  [[ -z "$ch" || "$ch" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL DESK_CHANNEL must be a channel id, got: '$ch'"; return 1; }
 
   local api_fqdn hub d
   api_fqdn="$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
@@ -48,7 +53,11 @@ do_spl_desk_probe() {
   hub="https://$api_fqdn"
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   if (( dry )); then
-    do_log "INFO DRY_RUN would: sign a member in, DM $agent@$box on $hub, assert its inbox and its pane, and answer with do_spl_desk_reply"
+    if [[ -n "$ch" ]]; then
+      do_log "INFO DRY_RUN would: sign a member in, post a topic into #$ch on $hub and a thread reply under it, assert the reply in $agent@$box's inbox and pane, and answer with do_spl_desk_reply"
+    else
+      do_log "INFO DRY_RUN would: sign a member in, DM $agent@$box on $hub, assert its inbox and its pane, and answer with do_spl_desk_reply"
+    fi
     do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0 to probe."
     return 0
   fi
@@ -63,7 +72,7 @@ do_spl_desk_probe() {
   local reply_cmd
   reply_cmd="$(python3 -c 'import json,sys; print(json.dumps([sys.argv[1], "-a", "do_spl_desk_reply"]))' "$orc/run")"
   local out="$d/probe-results.json" rc=0
-  DESK_AGENT="$agent" DESK_BOX="$box" DESK_ROOT="$d/spool" DESK_OUT="$out" \
+  DESK_AGENT="$agent" DESK_BOX="$box" DESK_ROOT="$d/spool" DESK_OUT="$out" DESK_CHANNEL="$ch" \
   DESK_REPLY_CMD="$reply_cmd" DESK_REPLY_CWD="$orc" \
   DESK_NOTIFY_CMD="${DESK_NOTIFY_CMD-$orc/src/bash/features/spawn-agents/scripts/spool-notify.sh}" \
   DESK_TMUX_SOCK="${DESK_TMUX_SOCK:-/tmp/tmux-$(id -u)/default}" \

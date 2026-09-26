@@ -18,6 +18,10 @@ Env (all set by the action):
   DESK_NOTIFY_CMD the box's terminal-leg renderer, asked for its verdict when
                   the pane shows nothing (its exit code is poke-line.md §3)
   DESK_OUT        where to write results.json
+  DESK_CHANNEL    (optional) SPL-950: instead of a DM, post a topic into this
+                  channel and then a thread reply (is_parent 0, no channel
+                  tag, to ALL-0 - what the WUI reply pane sends); the REPLY is
+                  what has to reach the agent. The agent must be a member.
 """
 import importlib.util
 import json
@@ -39,6 +43,7 @@ REPLY_CMD = json.loads(os.environ.get("DESK_REPLY_CMD", "[]"))
 TMUX_SOCK = os.environ.get("DESK_TMUX_SOCK", "/tmp/tmux-%d/default" % os.getuid())
 OUT = os.environ.get("DESK_OUT", "")
 NOTIFY_CMD = os.environ.get("DESK_NOTIFY_CMD", "")
+CHANNEL = os.environ.get("DESK_CHANNEL", "")
 WUI_BOX = "box-wui"
 
 RESULTS = []
@@ -210,11 +215,26 @@ def main():
         ws.send({"type": "subscribe", "task_id": task})
         ws.wait(lambda f: f.get("type") == "subscribed" and f.get("task_id") == task)
         mid = str(uuid.uuid4())
-        ws.send({"type": "send", "task_id": task, "kind": "note", "to": AGENT, "body": ask, "msg_id": mid})
-        ack = ws.wait(lambda f: f.get("msg_id") == mid and f.get("type") in ("ack", "error"), 25)
-        if not record("p-dm-accepted", bool(ack) and ack.get("type") == "ack" and ack.get("to_box") == BOX,
-                      {"ack": ack, "task_id": task}):
-            return finish(1)
+        if CHANNEL:
+            # SPL-950: the channel topic, then the untagged thread reply.
+            top = str(uuid.uuid4())
+            ws.send({"type": "send", "task_id": task, "kind": "note", "channel": CHANNEL, "is_parent": 1,
+                     "body": "SPL-950 delivery probe %s" % stamp, "msg_id": top})
+            ack = ws.wait(lambda f: f.get("msg_id") == top and f.get("type") in ("ack", "error"), 25)
+            if not record("p-channel-topic", bool(ack) and ack.get("type") == "ack",
+                          {"ack": ack, "task_id": task, "channel": CHANNEL}):
+                return finish(1)
+            ws.send({"type": "send", "task_id": task, "kind": "note", "is_parent": 0, "body": ask, "msg_id": mid})
+            ack = ws.wait(lambda f: f.get("msg_id") == mid and f.get("type") in ("ack", "error"), 25)
+            if not record("p-thread-reply-accepted", bool(ack) and ack.get("type") == "ack",
+                          {"ack": ack, "task_id": task, "topic_msg_id": top}):
+                return finish(1)
+        else:
+            ws.send({"type": "send", "task_id": task, "kind": "note", "to": AGENT, "body": ask, "msg_id": mid})
+            ack = ws.wait(lambda f: f.get("msg_id") == mid and f.get("type") in ("ack", "error"), 25)
+            if not record("p-dm-accepted", bool(ack) and ack.get("type") == "ack" and ack.get("to_box") == BOX,
+                          {"ack": ack, "task_id": task}):
+                return finish(1)
 
         got = wait_inbox(mid)
         if not record("p-dm-in-inbox", got is not None and got.get("from") == hum and got.get("body") == ask,

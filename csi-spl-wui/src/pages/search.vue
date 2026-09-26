@@ -121,6 +121,7 @@
 </template>
 
 <script setup lang="ts">
+import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useOmniboxStore } from '~/stores/omnibox'
@@ -196,11 +197,18 @@ function userShown(row: SearchRow) {
   return label(r.id, r.box)
 }
 
+/** Where a hit lives: #channel, the Issues label for an issue's discussion (SPL-68: `issues` is not a channel), or a DM. */
+function place(channel: unknown): string {
+  const c = String(channel || '')
+  if (!c) return t('search.in_dm')
+  return c === ISSUE_CHANNEL ? t('search.group.issues') : '#' + c
+}
+
 function meta(row: SearchRow): string {
   const r = row as Record<string, any>
   switch (row.type) {
-    case 'messages': return [r.channel ? '#' + r.channel : t('search.in_dm'), when(r.received_at || r.created_at)].filter(Boolean).join(' · ')
-    case 'topics': return [r.channel ? '#' + r.channel : t('search.in_dm'), t('search.count_messages', { n: Number(r.count) || 0 }, Number(r.count) || 0), when(r.last_ts)].filter(Boolean).join(' · ')
+    case 'messages': return [place(r.channel), when(r.received_at || r.created_at)].filter(Boolean).join(' · ')
+    case 'topics': return [place(r.channel), t('search.count_messages', { n: Number(r.count) || 0 }, Number(r.count) || 0), when(r.last_ts)].filter(Boolean).join(' · ')
     case 'files': return [label(r.from, r.from_box), r.bytes != null ? t('composer.file_bytes', { n: r.bytes }) : '', when(r.received_at)].filter(Boolean).join(' · ')
     case 'robots': return r.revoked ? t('search.revoked') : ''
     case 'users': return ''

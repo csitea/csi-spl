@@ -7,7 +7,10 @@
     <div class="issues-list" data-test="issues-list">
       <header class="feed-header issues-head">
         <h2 data-test="issues-heading">{{ epicTitle || t('issues.title') }}</h2>
-        <button type="button" class="btn" data-test="issues-new" @click="startCreate">{{ t('issues.new') }}</button>
+        <!-- SPL-978: "just a button with + the google way": a round accent button, the plus only -->
+        <button type="button" class="issues-fab" data-test="issues-new" :aria-label="t('issues.new')" :title="t('issues.new')" @click="startCreate">
+          <UiIcon name="plus" :size="22" :stroke-width="2.5" />
+        </button>
       </header>
       <p class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues.shortcuts') }}</p>
       <!-- owner, topic e00da93b: "it should look like a gsheet with columns and a
@@ -1185,6 +1188,46 @@ onUnmounted(() => {
   overflow: clip;
 }
 .issues-head { gap: 8px; }
+/* SPL-978: Material-style round + (accent fill, elevation, hover lift, press ripple) */
+.issues-fab {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: box-shadow 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+.issues-fab:hover {
+  background: var(--color-accent-pressed);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.22);
+}
+.issues-fab:active { transform: scale(0.96); }
+.issues-fab::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  transform: scale(0);
+  transition: transform 0.3s ease, opacity 0.45s ease;
+  pointer-events: none;
+}
+.issues-fab:active::after { opacity: 0.2; transform: scale(1); transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .issues-fab, .issues-fab::after { transition: none; }
+  .issues-fab:active { transform: none; }
+}
 .issues-shortcuts {
   margin: 0;
   padding: 0 12px 6px;

@@ -120,6 +120,25 @@ then moved every issue topic's messages (task or parent task = an issue's
 them were live-proof artefacts, measured per env before writing it), dropped
 `tasks` from the tenant seed trigger and deleted every tenant's `#tasks` row.
 
+Live proof, 2026-09-26 (hub 0.7.2 d33f8a0d, WUI d33f8a0d, rdb 0050 applied
+dev 09:28Z / prd 09:30Z; n = 1 per env):
+
+| check | dev t1 | prd e2e |
+|---|---|---|
+| `tasks-gone-live.proof.mjs`: hub channel list and sidebar show neither `tasks` nor `issues` | PASS | PASS |
+| an issue commented BEFORE the move shows every comment (dev SPL-7, 2; prd SPL-2, 1) | PASS | PASS |
+| a new comment from the right pane is signed into `issues` | PASS | PASS |
+| stored `messages.channel` of those comments (do_spl_db_query by msg_id) | `issues` x3 | `issues` x2 |
+| `issues-live.proof.mjs` (create in the UI, edit, live second tab, comment, reload, deep link) | 12/12 (SPL-11) | 12/12 (SPL-6) |
+| a new tenant is seeded lobby, alerts, feedback only (`do_spl_tenant_create`, throwaway `spl68-093728`) | PASS | - |
+| `tasks` rows left in `channels` / `messages`, any tenant | 0 / 0 | 0 / 0 |
+
+prd t1 is the owner's tenant and gets no scripted sign-in; its data checks are
+the SQL rows above (0 `tasks`, 22 messages under `issues`). A signed envelope
+keeps the channel it was signed with, so a comment from before the move still
+reads `tasks` in the topic read's `env`; the stored channel, which the read
+door uses, is `issues`, and the WUI treats both as the issue channel.
+
 ## Data
 
 rdb `0047_issues.sql`: `issue_counters`, `issue_labels`, `issues`; RLS in the

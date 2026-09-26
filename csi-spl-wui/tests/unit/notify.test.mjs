@@ -164,6 +164,9 @@ describe('live #alerts / DM escalation wiring (gap A2)', () => {
     // owner 2026-09-26: the note is struck through when the chime is off, like the bell
     assert.match(vue, /notes\.chime \? 'music' : 'music-off'/)
     assert.match(src('src/utils/uiIcons.ts'), /"music-off": \[/)
+    const icons = src('src/utils/uiIcons.ts')
+    const off = icons.slice(icons.indexOf('"music-off"'), icons.indexOf('"music-off"') + 400)
+    assert.match(off, /fill: true/, 'the chime strike is a filled slash, not a hairline')
     assert.match(vue, /notify\.chime_on/)
     assert.match(vue, /notify\.chime_off/)
     assert.match(vue, /:aria-pressed="notes\.chime"/)

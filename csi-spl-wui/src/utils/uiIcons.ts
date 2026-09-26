@@ -100,12 +100,13 @@ export const UI_ICON_PATHS = {
     "M6 15a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
     "M18 13a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
   ],
-  // chime off: the note struck through, like bell-off (owner, 2026-09-26)
+  // chime off: the same two notes, with a slash as heavy as the bell's.
+  // A hairline stroke sat on the beams and did not read as a strike.
   "music-off": [
     "M9 18V5l12-2v13",
     "M6 15a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
     "M18 13a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
-    "M2 2 22 22",
+    { d: "M0.8 4.4 5.2 0.6 23.2 19.6 18.8 23.4Z", fill: true },
   ],
   bell: [
     "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9",

@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "אינך חבר בטננט {tenant}.",
     "open_mine": "פתח את הטננט שלי"
+  },
+  "picker": {
+    "open": "פתיחת לוח השנה",
+    "prev_month": "החודש הקודם",
+    "next_month": "החודש הבא",
+    "time": "שעה",
+    "today": "היום",
+    "clear": "ניקוי",
+    "done": "סיום",
+    "invalid": "יש להשתמש ב־YYYY-MM-DD HH:MM",
+    "weekdays": "ב׳ ג׳ ד׳ ה׳ ו׳ ש׳ א׳"
   }
 }

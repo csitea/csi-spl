@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "Nie ste členom nájomníka {tenant}.",
     "open_mine": "Otvoriť môjho nájomníka"
+  },
+  "picker": {
+    "open": "Otvoriť kalendár",
+    "prev_month": "Predchádzajúci mesiac",
+    "next_month": "Nasledujúci mesiac",
+    "time": "Čas",
+    "today": "Dnes",
+    "clear": "Vymazať",
+    "done": "Hotovo",
+    "invalid": "Použite YYYY-MM-DD HH:MM",
+    "weekdays": "Po Ut St Št Pi So Ne"
   }
 }

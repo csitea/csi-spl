@@ -6,10 +6,12 @@
 // dates in the ui MUST be yyyy-mm-dd - USE ONLY this format".
 //
 // Steps, once per UI locale in LOCALES (default en,bg):
-//   1. /issues: ONE Deadline filter, a text box with placeholder YYYY-MM-DD
-//      (never a native date input), and no All issues row (SPL-955)
-//   2. typing 2026-09-30 into it keeps 2026-09-30; every issue row deadline
-//      and the open issue's deadline box read YYYY-MM-DD (SPL-962)
+//   1. /issues: ONE Deadline filter, the calendar control's text box with
+//      placeholder YYYY-MM-DD HH:MM (never a native date input), and no All
+//      issues row (SPL-955, topic 778ad161)
+//   2. typing 2026-09-30 into it reads 2026-09-30 23:59; every issue row
+//      deadline and the open issue's deadline box read YYYY-MM-DD HH:MM, and
+//      its calendar opens on a YYYY-MM month grid (SPL-962, topic 778ad161)
 //   3. /lobby, /events, /settings/keys, /users: every absolute date on the
 //      page is YYYY-MM-DD[ HH:MM]; no d/m/y, m/d/y or month-name date (SPL-962)
 //   4. no visible member id (HUM-n) of a member who chose a name (SPL-6); a
@@ -142,14 +144,15 @@ async function issuesChecks(p, loc) {
     }
   })
   step(`${loc} 1 issues: one Deadline filter, text YYYY-MM-DD, no native date input, no All issues row (SPL-955)`,
-    f.n === 1 && f.type === 'text' && f.placeholder === 'YYYY-MM-DD' && f.nativeDate === 0 && !f.allIssuesRow, f)
+    f.n === 1 && f.type === 'text' && f.placeholder === 'YYYY-MM-DD HH:MM' && f.nativeDate === 0 && !f.allIssuesRow, f)
 
-  await p.click('[data-test=issues-filter-deadline-date]', { clickCount: 3 })
+  const selectAll = (sel) => p.$eval(sel, (el) => { el.focus(); el.select() })
+  await selectAll('[data-test=issues-filter-deadline-date]')
   await p.type('[data-test=issues-filter-deadline-date]', '2026-09-30')
   await p.keyboard.press('Tab')
   await sleep(800)
   const typed = await p.$eval('[data-test=issues-filter-deadline-date]', (e) => e.value)
-  await p.click('[data-test=issues-filter-deadline-date]', { clickCount: 3 })
+  await selectAll('[data-test=issues-filter-deadline-date]')
   await p.keyboard.press('Backspace')
   await p.keyboard.press('Tab')
   await sleep(800)
@@ -171,11 +174,25 @@ async function issuesChecks(p, loc) {
       const d = document.querySelector('[data-test=issues-deadline]')
       return d ? { type: d.type, placeholder: d.placeholder, value: d.value } : null
     })
+    if (detail) {
+      await p.click('[data-test=issues-deadline-open]')
+      await p.waitForSelector('[data-test=deadline-picker]', { visible: true, timeout: 5000 }).catch(() => {})
+      detail.calendar = await p.evaluate(() => ({
+        month: document.querySelector('[data-test=deadline-picker-month]')?.textContent.trim() || '',
+        days: document.querySelectorAll('[data-test=deadline-picker-day]').length,
+        head: [...document.querySelectorAll('.dlp__wd')].map((e) => e.textContent.trim()).join(' '),
+        selected: document.querySelector('.dlp__day--on')?.getAttribute('data-date') || '',
+      }))
+      await shot(p, `${loc}-deadline-calendar`)
+      await p.keyboard.press('Escape')
+    }
   }
   const isoRe = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/
-  step(`${loc} 2 issues: the typed deadline stays ISO; rows and the open issue's deadline are YYYY-MM-DD (SPL-962)`,
-    typed === '2026-09-30' && rows.every((s) => isoRe.test(s)) &&
-      (!detail || (detail.type === 'text' && detail.placeholder === 'YYYY-MM-DD' && (detail.value === '' || isoRe.test(detail.value)))),
+  step(`${loc} 2 issues: the typed deadline reads YYYY-MM-DD HH:MM; rows, the open issue's deadline and its calendar are ISO (SPL-962)`,
+    typed === '2026-09-30 23:59' && rows.every((s) => isoRe.test(s)) &&
+      (!detail || (detail.type === 'text' && detail.placeholder === 'YYYY-MM-DD HH:MM' && (detail.value === '' || isoRe.test(detail.value)) &&
+        /^\d{4}-\d{2}$/.test(detail.calendar.month) && detail.calendar.days === 42 && detail.calendar.head.split(' ').length === 7 &&
+        (detail.value === '' || detail.calendar.selected === detail.value.slice(0, 10)))),
     { typed, rows, opened, detail })
   const scan = await p.evaluate(SCAN)
   step(`${loc} 3 /issues: no non-ISO date`, scan.bad.length === 0, scan)

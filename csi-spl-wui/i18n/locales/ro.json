@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "Nu sunteți membru al chiriașului {tenant}.",
     "open_mine": "Deschide chiriașul meu"
+  },
+  "picker": {
+    "open": "Deschide calendarul",
+    "prev_month": "Luna anterioară",
+    "next_month": "Luna următoare",
+    "time": "Ora",
+    "today": "Azi",
+    "clear": "Șterge",
+    "done": "Gata",
+    "invalid": "Folosiți YYYY-MM-DD HH:MM",
+    "weekdays": "Lu Ma Mi Jo Vi Sâ Du"
   }
 }

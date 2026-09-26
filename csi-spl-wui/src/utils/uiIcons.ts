@@ -49,6 +49,13 @@ export const UI_ICON_PATHS = {
   ],
   // The sidebar's one "add a channel" control, next to the Channels heading.
   plus: ["M12 5v14", "M5 12h14"],
+  // Deadline picker (owner, topic 778ad161): opens the month grid.
+  calendar: [
+    "M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
+    "M16 2v4",
+    "M8 2v4",
+    "M3 10h18",
+  ],
   // Remove a person or an agent from a channel (Properties, People tab).
   minus: ["M5 12h14"],
   // Left-strip tab: direct messages (lucide "messages", two bubbles).

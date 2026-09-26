@@ -205,6 +205,69 @@ export function splitLocal(local) {
   return m ? { date: m[1], time: m[2] } : { date: '', time: '' }
 }
 
+/**
+ * owner, topic 778ad161: the deadline is a calendar control that shows and
+ * takes YYYY-MM-DD HH:MM, whatever the browser locale. The field's text for a
+ * local 'YYYY-MM-DDTHH:MM' value; '' when unset.
+ */
+export function deadlineText(local) {
+  const { date, time } = splitLocal(local)
+  return date ? `${date} ${time}` : ''
+}
+
+/**
+ * What a person typed into the deadline field -> local 'YYYY-MM-DDTHH:MM'.
+ * Takes 'YYYY-MM-DD HH:MM', 'YYYY-MM-DDTHH:MM', a one-digit hour, or a bare
+ * day (then `defaultTime`). '' clears; null when it is not a real day and a
+ * 24-hour time.
+ */
+export function parseDeadlineText(text, defaultTime = DEADLINE_DEFAULT_TIME) {
+  const v = String(text || '').trim()
+  if (!v) return ''
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T]+(\d{1,2}):(\d{2}))?$/)
+  if (!m) return null
+  const [, y, mo, d, h, mi] = m
+  const day = new Date(Date.UTC(+y, +mo - 1, +d))
+  if (+mo < 1 || +mo > 12 || day.getUTCFullYear() !== +y || day.getUTCMonth() !== +mo - 1 || day.getUTCDate() !== +d) return null
+  if (h === undefined) return joinLocal(`${y}-${mo}-${d}`, defaultTime)
+  if (+h > 23 || +mi > 59) return null
+  return `${y}-${mo}-${d}T${String(h).padStart(2, '0')}:${mi}`
+}
+
+/** 'YYYY-MM' of a local 'YYYY-MM-DD...' value, else of `today` ('YYYY-MM-DD'). */
+export function monthOf(local, today) {
+  const m = String(local || '').match(/^(\d{4}-\d{2})/) || String(today || '').match(/^(\d{4}-\d{2})/)
+  return m ? m[1] : ''
+}
+
+/** 'YYYY-MM' moved by `delta` months. */
+export function shiftMonth(ym, delta) {
+  const [y, m] = String(ym).split('-').map(Number)
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1))
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+/**
+ * The calendar's month: 6 weeks of 7 days, Monday first, so the grid never
+ * changes height. Each day is { date: 'YYYY-MM-DD', day: n, inMonth }.
+ */
+export function monthGrid(ym) {
+  const [y, m] = String(ym).split('-').map(Number)
+  const first = new Date(Date.UTC(y, m - 1, 1))
+  const lead = (first.getUTCDay() + 6) % 7
+  const weeks = []
+  for (let w = 0; w < 6; w++) {
+    const row = []
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(Date.UTC(y, m - 1, 1 - lead + w * 7 + i))
+      const date = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+      row.push({ date, day: d.getUTCDate(), inMonth: d.getUTCMonth() === m - 1 })
+    }
+    weeks.push(row)
+  }
+  return weeks
+}
+
 /** date + time -> 'YYYY-MM-DDTHH:MM' (local); no date -> '' (clears). */
 export function joinLocal(date, time) {
   const d = String(date || '').trim()

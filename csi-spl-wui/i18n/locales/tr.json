@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "{tenant} kiracısının üyesi değilsiniz.",
     "open_mine": "Kiracımı aç"
+  },
+  "picker": {
+    "open": "Takvimi aç",
+    "prev_month": "Önceki ay",
+    "next_month": "Sonraki ay",
+    "time": "Saat",
+    "today": "Bugün",
+    "clear": "Temizle",
+    "done": "Tamam",
+    "invalid": "YYYY-MM-DD HH:MM kullanın",
+    "weekdays": "Pt Sa Ça Pe Cu Ct Pz"
   }
 }

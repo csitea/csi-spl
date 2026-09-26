@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "Jūs neesat nomnieka {tenant} dalībnieks.",
     "open_mine": "Atvērt manu nomnieku"
+  },
+  "picker": {
+    "open": "Atvērt kalendāru",
+    "prev_month": "Iepriekšējais mēnesis",
+    "next_month": "Nākamais mēnesis",
+    "time": "Laiks",
+    "today": "Šodien",
+    "clear": "Notīrīt",
+    "done": "Gatavs",
+    "invalid": "Izmantojiet YYYY-MM-DD HH:MM",
+    "weekdays": "P O T C Pk S Sv"
   }
 }

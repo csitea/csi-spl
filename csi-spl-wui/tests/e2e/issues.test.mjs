@@ -85,7 +85,7 @@ try {
     }
     const span = (sel) => {
       const el = root.querySelector(sel)
-      const label = el && el.closest('label')
+      const label = el && el.closest('label, [role=group]')
       const s = label && label.querySelector('span')
       return s ? s.textContent.trim() : ''
     }
@@ -125,14 +125,44 @@ try {
   const body = await p.$eval('[data-test=issues-detail-body]', (el) => el.value)
   const deadlineType = await p.$eval('[data-test=issues-deadline]', (el) => el.getAttribute('type'))
   const deadlineHint = await p.$eval('[data-test=issues-deadline]', (el) => el.getAttribute('placeholder'))
-  /* owner 2026-09-26: a 24-hour time, 07:00-22:00, no AM/PM */
+  /* owner, topic 778ad161: a click opens a calendar (month grid) with a 24-hour time, 07:00-22:00, no AM/PM */
+  await p.click('[data-test=issues-deadline-open]')
+  await p.waitForSelector('[data-test=deadline-picker]', { visible: true, timeout: 5000 })
   const times = await p.$$eval('[data-test=issues-deadline-time] option', (els) => els.map((e) => e.textContent.trim()))
+  const grid = await p.evaluate(() => ({
+    month: document.querySelector('[data-test=deadline-picker-month]').textContent.trim(),
+    days: document.querySelectorAll('[data-test=deadline-picker-day]').length,
+    head: [...document.querySelectorAll('.dlp__wd')].map((e) => e.textContent.trim()).join(' '),
+    native: document.querySelectorAll('input[type=date], input[type=datetime-local]').length,
+  }))
+  ok('4a the calendar is a YYYY-MM month grid, Monday first, never a native date input',
+    /^\d{4}-\d{2}$/.test(grid.month) && grid.days === 42 && grid.head === 'Mo Tu We Th Fr Sa Su' && grid.native === 0, grid)
+  const day15 = `${grid.month}-15`
+  await p.click(`[data-test=deadline-picker-day][data-date="${day15}"]`)
+  await p.select('[data-test=issues-deadline-time]', '15:30')
+  await p.click('[data-test=deadline-picker-done]')
+  await p.waitForFunction((want) => document.querySelector('[data-test=issues-deadline]').value === want, { timeout: 5000 }, `${day15} 15:30`).catch(() => {})
+  const picked = await p.$eval('[data-test=issues-deadline]', (el) => el.value)
+  const popGone = !(await p.$('[data-test=deadline-picker]'))
+  ok('4c a day and a time picked in the calendar read back as YYYY-MM-DD HH:MM', picked === `${day15} 15:30` && popGone, { picked, popGone })
+  /* typing stays possible: the shown form, and a refusal for a locale form */
+  const selectAll = (sel) => p.$eval(sel, (el) => { el.focus(); el.select() })
+  await selectAll('[data-test=issues-deadline]')
+  await p.type('[data-test=issues-deadline]', '10/02/2026')
+  await p.keyboard.press('Enter')
+  const refused = await p.$eval('[data-test=issues-deadline]', (el) => el.getAttribute('aria-invalid'))
+  await selectAll('[data-test=issues-deadline]')
+  await p.type('[data-test=issues-deadline]', '2026-10-02 07:45')
+  await p.keyboard.press('Enter')
+  await p.waitForFunction(() => document.querySelector('[data-test=issues-deadline]').getAttribute('aria-invalid') === null, { timeout: 5000 }).catch(() => {})
+  const typed = await p.$eval('[data-test=issues-deadline]', (el) => ({ v: el.value, inv: el.getAttribute('aria-invalid') }))
+  ok('4d typing YYYY-MM-DD HH:MM is kept, mm/dd/yyyy is refused', refused === 'true' && typed.v === '2026-10-02 07:45' && typed.inv === null, { refused, typed })
   const side = await p.evaluate(() => {
     const list = document.querySelector('[data-test=issues-list]').getBoundingClientRect()
     const pane = document.querySelector('[data-test=issues-detail]').getBoundingClientRect()
     return { paneRight: pane.left >= list.right - 2 }
   })
-  ok('4 the right pane shows the description and a calendar with a 24-hour time (07:00-22:00)', body === 'Only in the detail' && deadlineType === 'text' && deadlineHint === 'YYYY-MM-DD' &&
+  ok('4 the right pane shows the description and a calendar with a 24-hour time (07:00-22:00)', body === 'Only in the detail' && deadlineType === 'text' && deadlineHint === 'YYYY-MM-DD HH:MM' &&
     times[0] === '07:00' && times[times.length - 1] === '22:00' && !times.some((x) => /am|pm/i.test(x)) && side.paneRight,
     { body, deadlineType, deadlineHint, first: times[0], last: times[times.length - 1], n: times.length, side })
 

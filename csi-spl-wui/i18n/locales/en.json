@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "You are not a member of the tenant {tenant}.",
     "open_mine": "Open my tenant"
+  },
+  "picker": {
+    "open": "Open the calendar",
+    "prev_month": "Previous month",
+    "next_month": "Next month",
+    "time": "Time",
+    "today": "Today",
+    "clear": "Clear",
+    "done": "Done",
+    "invalid": "Use YYYY-MM-DD HH:MM",
+    "weekdays": "Mo Tu We Th Fr Sa Su"
   }
 }

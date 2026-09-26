@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "Niste član zakupca {tenant}.",
     "open_mine": "Otvori mog zakupca"
+  },
+  "picker": {
+    "open": "Otvori kalendar",
+    "prev_month": "Prethodni mesec",
+    "next_month": "Sledeći mesec",
+    "time": "Vreme",
+    "today": "Danas",
+    "clear": "Obriši",
+    "done": "Gotovo",
+    "invalid": "Koristite YYYY-MM-DD HH:MM",
+    "weekdays": "Po Ut Sr Če Pe Su Ne"
   }
 }

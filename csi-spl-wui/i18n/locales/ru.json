@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "Вы не участник тенанта {tenant}.",
     "open_mine": "Открыть мой тенант"
+  },
+  "picker": {
+    "open": "Открыть календарь",
+    "prev_month": "Предыдущий месяц",
+    "next_month": "Следующий месяц",
+    "time": "Время",
+    "today": "Сегодня",
+    "clear": "Очистить",
+    "done": "Готово",
+    "invalid": "Используйте YYYY-MM-DD HH:MM",
+    "weekdays": "Пн Вт Ср Чт Пт Сб Вс"
   }
 }

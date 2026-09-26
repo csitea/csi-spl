@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "Jūs nesate nuomininko {tenant} narys.",
     "open_mine": "Atidaryti mano nuomininką"
+  },
+  "picker": {
+    "open": "Atverti kalendorių",
+    "prev_month": "Ankstesnis mėnuo",
+    "next_month": "Kitas mėnuo",
+    "time": "Laikas",
+    "today": "Šiandien",
+    "clear": "Išvalyti",
+    "done": "Atlikta",
+    "invalid": "Naudokite YYYY-MM-DD HH:MM",
+    "weekdays": "Pr An Tr Ke Pn Še Se"
   }
 }

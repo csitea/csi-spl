@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "Te ei ole rentniku {tenant} liige.",
     "open_mine": "Ava minu rentnik"
+  },
+  "picker": {
+    "open": "Ava kalender",
+    "prev_month": "Eelmine kuu",
+    "next_month": "Järgmine kuu",
+    "time": "Kellaaeg",
+    "today": "Täna",
+    "clear": "Tühjenda",
+    "done": "Valmis",
+    "invalid": "Kasutage YYYY-MM-DD HH:MM",
+    "weekdays": "E T K N R L P"
   }
 }

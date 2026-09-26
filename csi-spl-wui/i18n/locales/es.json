@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "No eres miembro del inquilino {tenant}.",
     "open_mine": "Abrir mi inquilino"
+  },
+  "picker": {
+    "open": "Abrir el calendario",
+    "prev_month": "Mes anterior",
+    "next_month": "Mes siguiente",
+    "time": "Hora",
+    "today": "Hoy",
+    "clear": "Borrar",
+    "done": "Listo",
+    "invalid": "Use YYYY-MM-DD HH:MM",
+    "weekdays": "Lu Ma Mi Ju Vi Sá Do"
   }
 }

@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "Du är inte medlem i hyresgästen {tenant}.",
     "open_mine": "Öppna min hyresgäst"
+  },
+  "picker": {
+    "open": "Öppna kalendern",
+    "prev_month": "Föregående månad",
+    "next_month": "Nästa månad",
+    "time": "Tid",
+    "today": "Idag",
+    "clear": "Rensa",
+    "done": "Klar",
+    "invalid": "Använd YYYY-MM-DD HH:MM",
+    "weekdays": "Må Ti On To Fr Lö Sö"
   }
 }

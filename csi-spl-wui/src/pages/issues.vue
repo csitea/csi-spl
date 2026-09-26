@@ -66,10 +66,11 @@
           <option value="">{{ t('issues.filter_label') }}: {{ t('issues.filter_all') }}</option>
           <option v-for="l in labels" :key="l.id" :value="l.id">{{ controlLabel(t('issues.filter_label'), l.name) }}</option>
         </select>
-        <label class="issues-filter-when" data-test="issues-filter-deadline">
+        <!-- owner, topic 778ad161: the calendar control, YYYY-MM-DD HH:MM; due on or before that minute -->
+        <div class="issues-filter-when" role="group" :aria-label="t('issues.field_deadline')" data-test="issues-filter-deadline">
           <span>{{ t('issues.field_deadline') }}:</span>
-          <input v-model="dueF" type="text" inputmode="numeric" maxlength="10" spellcheck="false" placeholder="YYYY-MM-DD" autocomplete="off" data-test="issues-filter-deadline-date" :aria-label="t('issues.field_deadline')" @change="onDue">
-        </label>
+          <DeadlinePicker v-model="dueF" :label="t('issues.field_deadline')" test-id="issues-filter-deadline-date" time-test-id="issues-filter-deadline-time" default-time="23:59" />
+        </div>
         <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
       </div>
       <div ref="scrollerEl" class="issues-scroll">
@@ -204,32 +205,18 @@
         <button type="button" class="issues-prop" data-test="issues-labels" @click="openMenu('label', detailOrDraft(), $event)">
           <span>{{ activeLabels.length ? activeLabels.map(labelText).join(', ') : t('issues.field_labels') }}</span>
         </button>
-        <!-- owner 2026-09-26: a date plus a 24-hour time, 07:00-22:00 -->
-        <div class="issues-field">
+        <!-- owner, topic 778ad161: a calendar (month grid) plus a 24-hour time,
+             shown and typed as YYYY-MM-DD HH:MM in every locale -->
+        <div class="issues-field" role="group" :aria-label="t('issues.field_deadline')">
           <span>{{ t('issues.field_deadline') }}</span>
-          <div class="issues-deadline">
-            <input
-              type="text"
-              inputmode="numeric"
-              maxlength="10"
-              spellcheck="false"
-              placeholder="YYYY-MM-DD"
-              autocomplete="off"
-              data-test="issues-deadline"
-              :aria-label="t('issues.field_deadline')"
-              :value="splitLocal(form.deadline).date"
-              @change="onDeadlineDate"
-            >
-            <select
-              data-test="issues-deadline-time"
-              :aria-label="t('issues.field_deadline')"
-              :value="splitLocal(form.deadline).time || DEADLINE_DEFAULT_TIME"
-              :disabled="!splitLocal(form.deadline).date"
-              @change="onDeadlineTime"
-            >
-              <option v-for="tm in deadlineTimes(splitLocal(form.deadline).time)" :key="tm" :value="tm">{{ tm }}</option>
-            </select>
-          </div>
+          <DeadlinePicker
+            class="issues-deadline"
+            :model-value="form.deadline"
+            :label="t('issues.field_deadline')"
+            test-id="issues-deadline"
+            time-test-id="issues-deadline-time"
+            @update:model-value="applyDeadline"
+          />
         </div>
       </div>
       <p v-if="!creating && form.created_by" class="muted issues-meta">{{ t('issues.created_by', { name: person(form.created_by) }) }}</p>
@@ -314,7 +301,7 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { useLive } from '~/composables/useLive'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
-import { isoDateTime, parseIsoDate } from '~/utils/date-iso.mjs'
+import { isoDateTime } from '~/utils/date-iso.mjs'
 import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import { tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
@@ -330,11 +317,7 @@ import {
   applyIssueFrame,
   applyLabelFrame,
   clampIssuePane,
-  DEADLINE_DEFAULT_TIME,
-  deadlineTimes,
   deadlineToLocalInput,
-  joinLocal,
-  splitLocal,
   groupIssues,
   levelKey,
   loadIssuePane,
@@ -502,7 +485,7 @@ function serverFilter(): IssueFilter {
   if (assigneeF.value) f.assignee = [assigneeF.value]
   if (labelF.value) f.label = [labelF.value]
   /* one day: issues due on or before its last minute */
-  const before = dueF.value ? localInputToDeadline(`${dueF.value}T23:59:59`) : ''
+  const before = dueF.value ? localInputToDeadline(`${dueF.value}:59`) : ''
   if (before) f.deadlineBefore = before
   return f
 }
@@ -755,20 +738,6 @@ function applyDeadline(local: string) {
   const deadline = localInputToDeadline(local)
   if (deadline === null) return
   void save(detail.value.key, { deadline })
-}
-function onDue(ev: Event) {
-  const raw = (ev.target as HTMLInputElement).value.trim()
-  dueF.value = raw ? parseIsoDate(raw) : ''
-}
-function onDeadlineDate(ev: Event) {
-  const raw = (ev.target as HTMLInputElement).value.trim()
-  const date = raw ? parseIsoDate(raw) : ''
-  if (raw && !date) return
-  applyDeadline(joinLocal(date, splitLocal(form.value?.deadline || '').time))
-}
-function onDeadlineTime(ev: Event) {
-  const time = (ev.target as HTMLSelectElement).value
-  applyDeadline(joinLocal(splitLocal(form.value?.deadline || '').date, time))
 }
 async function applyMenu(value: string) {
   const kind = menu.value?.kind || ''

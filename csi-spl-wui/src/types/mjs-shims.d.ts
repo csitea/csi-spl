@@ -1217,6 +1217,11 @@ declare module '~/utils/issues-view.mjs' {
   export function deadlineTimes(keep?: string): string[]
   export function splitLocal(local: string): { date: string, time: string }
   export function joinLocal(date: string, time?: string): string
+  export function deadlineText(local: string): string
+  export function parseDeadlineText(text: string, defaultTime?: string): string | null
+  export function monthOf(local: string, today?: string): string
+  export function shiftMonth(ym: string, delta: number): string
+  export function monthGrid(ym: string): { date: string, day: number, inMonth: boolean }[][]
 }
 
 declare module '~/utils/chunk-reload.mjs' {

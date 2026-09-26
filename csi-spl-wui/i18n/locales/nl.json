@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "U bent geen lid van de huurder {tenant}.",
     "open_mine": "Mijn huurder openen"
+  },
+  "picker": {
+    "open": "Kalender openen",
+    "prev_month": "Vorige maand",
+    "next_month": "Volgende maand",
+    "time": "Tijd",
+    "today": "Vandaag",
+    "clear": "Wissen",
+    "done": "Klaar",
+    "invalid": "Gebruik YYYY-MM-DD HH:MM",
+    "weekdays": "Ma Di Wo Do Vr Za Zo"
   }
 }

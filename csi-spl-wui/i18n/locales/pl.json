@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "Nie jesteś członkiem dzierżawy {tenant}.",
     "open_mine": "Otwórz moją dzierżawę"
+  },
+  "picker": {
+    "open": "Otwórz kalendarz",
+    "prev_month": "Poprzedni miesiąc",
+    "next_month": "Następny miesiąc",
+    "time": "Godzina",
+    "today": "Dziś",
+    "clear": "Wyczyść",
+    "done": "Gotowe",
+    "invalid": "Użyj YYYY-MM-DD HH:MM",
+    "weekdays": "Pn Wt Śr Cz Pt So Nd"
   }
 }

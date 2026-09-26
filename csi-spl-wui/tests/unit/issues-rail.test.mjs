@@ -46,9 +46,9 @@ describe('Issues rail tab', () => {
     const list = src.slice(listAt, detailAt)
     assert.equal(list.includes('description'), false)
     assert.match(src.slice(detailAt), /data-test="issues-detail-body"/)
-    // owner 2026-09-26 (topic 32a56460): a date plus a 24-hour time select, no datetime-local (AM/PM)
-    assert.match(src, /type="text"[\s\S]*placeholder="YYYY-MM-DD"[\s\S]*data-test="issues-deadline"/)
-    assert.match(src, /data-test="issues-deadline-time"/)
+    // owner 2026-09-26 (topics 32a56460, 778ad161): a calendar plus a 24-hour time,
+    // YYYY-MM-DD HH:MM, no datetime-local (AM/PM); the picker is DeadlinePicker.vue
+    assert.match(src, /<DeadlinePicker[\s\S]*test-id="issues-deadline"[\s\S]*time-test-id="issues-deadline-time"/)
     assert.equal(/type="datetime-local"/.test(src), false)
     assert.equal(src.includes('issues-search'), false)
     assert.match(src, /HumanName/)

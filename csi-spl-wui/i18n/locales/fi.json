@@ -864,5 +864,16 @@
   "tenant_host": {
     "not_member": "Et ole vuokralaisen {tenant} jäsen.",
     "open_mine": "Avaa oma vuokralainen"
+  },
+  "picker": {
+    "open": "Avaa kalenteri",
+    "prev_month": "Edellinen kuukausi",
+    "next_month": "Seuraava kuukausi",
+    "time": "Aika",
+    "today": "Tänään",
+    "clear": "Tyhjennä",
+    "done": "Valmis",
+    "invalid": "Käytä muotoa YYYY-MM-DD HH:MM",
+    "weekdays": "Ma Ti Ke To Pe La Su"
   }
 }

@@ -131,6 +131,10 @@ type Message struct {
 	// was sent with.
 	KindSetAt time.Time
 	KindSetBy string
+	// SPL-983 (rdb 0065): the soft-delete flag on a topic card; zero / ""
+	// = not archived. Only TopicArchive.SetArchived writes them.
+	ArchivedAt time.Time
+	ArchivedBy string
 }
 
 // parentBit keeps is_parent inside the column check (0 or 1).
@@ -231,6 +235,9 @@ type Store interface {
 	// Editing a sent message and its append-only revision register (specs/032).
 	MessageEdits
 	MessageKinds
+
+	// Archive / delete a topic card (specs/041, rdb 0065).
+	TopicArchive
 
 	// Emoji reactions on a stored message (rdb 0037). The message may be
 	// is_parent 0 or 1; the reaction does not care which.

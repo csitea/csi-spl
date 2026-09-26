@@ -195,6 +195,7 @@ func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
 		walk += " AND l.task_id IN (SELECT p.task_id FROM messages p WHERE p.tenant_id = " + tn +
 			" AND p.parent_task_id = " + p + "::uuid)" + first("IS NOT DISTINCT FROM "+p+"::uuid")
 	}
+	walk += archivedTopicHideSQL("l", tn, c.arg(q.Lobby)) // specs/041
 	lim := c.arg(pgLimit(q.Limit))
 	order := " ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1"
 	sql := `WITH RECURSIVE w (task_id, received_at, n) AS (
@@ -244,6 +245,10 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 			OR channel = ANY($10::text[]) OR channel = ANY($11::text[]))`
 		doorArgs = []any{q.Reader, PublicChannels, q.ReaderChannels}
 	}
+	archived := ""
+	if q.HideArchived { // specs/041: the lobby feed
+		archived = " AND archived_at IS NULL"
+	}
 	// Two single-statement batches, two round trips (CLE-34985; it was a
 	// BEGIN .. COMMIT transaction, five). Under READ COMMITTED each statement
 	// of that transaction already took its own snapshot, so the answer is the
@@ -259,7 +264,7 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 			WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3
 				AND ($4::timestamptz IS NULL OR (received_at, msg_id::text) > ($4::timestamptz, $5::text))
 				AND ($7::timestamptz IS NULL OR (received_at, msg_id::text) < ($7::timestamptz, $8::text))
-				AND `+door+`
+				AND `+door+archived+`
 			`+order+`
 			LIMIT $6`, append([]any{tenant, q.TaskID, q.Now, optTime(q.AfterAt), q.AfterID, pgLimit(q.Limit), optTime(q.BeforeAt), q.BeforeID}, doorArgs...),
 		func(rows pgx.Rows) error {

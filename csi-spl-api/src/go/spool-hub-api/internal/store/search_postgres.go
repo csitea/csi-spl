@@ -244,7 +244,7 @@ func (s *Postgres) SearchMessages(ctx context.Context, tenant string, q SearchQu
 		priv = `((m.channel IS NULL AND (m.from_id = ` + v + ` OR m.to_id = ` + v + `))
 			OR m.channel = ANY(` + pub + `::text[]) OR m.channel = ANY(` + mine + `::text[]))`
 	}
-	where := c.cond(q.Q.Root, c.messageLeaf)
+	where := "(" + c.cond(q.Q.Root, c.messageLeaf) + ")" + archivedHideSQL("m", t, c.arg(q.Lobby))
 	order, page := "ORDER BY m.received_at DESC, m.msg_id::text DESC", ""
 	if q.Relevance {
 		var tq []string
@@ -294,7 +294,7 @@ func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery
 		priv = `((m.channel IS NULL AND (m.from_id = ` + v + ` OR m.to_id = ` + v + `))
 			OR m.channel = ANY(` + pub + `::text[]) OR m.channel = ANY(` + mine + `::text[]))`
 	}
-	where := c.cond(q.Q.Root, c.fileLeaf)
+	where := "(" + c.cond(q.Q.Root, c.fileLeaf) + ")" + archivedHideSQL("m", t, c.arg(q.Lobby))
 	page := ""
 	if !q.AfterAt.IsZero() {
 		at, id := c.arg(q.AfterAt), c.arg(q.AfterID)
@@ -345,6 +345,7 @@ func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuer
 		door = " AND ((channel IS NULL AND (from_id = " + v + " OR to_id = " + v + "))" +
 			" OR channel = ANY(" + pub + "::text[]) OR channel = ANY(" + mine + "::text[]))"
 	}
+	door += archivedHideSQL("messages", t, c.arg(q.Lobby)) // specs/041
 	door += c.topicCandidates(q.Q.Root, t, now)
 	where := c.cond(q.Q.Root, c.topicLeaf)
 	page := ""

@@ -34,6 +34,10 @@ type TopicQuery struct {
 	// NoIssues drops the discussion topic of every issue (rdb 0047, specs/039):
 	// an issue's comments live in its right pane, never as a topic of a list.
 	NoIssues bool
+	// Lobby is the shared lobby task (SPL-983): an archived card there hides
+	// its own row and thread, never the lobby. Archived topics are left out
+	// of every list (specs/041 §3.1).
+	Lobby string
 	// Reader is the member the list is FOR (rdb 0028, the read door): it
 	// keeps only topics in a channel that member may read, plus DMs it is
 	// an end of. "" = no door (the door-off rig). Unlike Viewer, which is
@@ -73,13 +77,16 @@ type TopicMsgQuery struct {
 	Reader         string
 	ReaderChannels []string
 	TaskID         string
-	AfterAt        time.Time
-	AfterID        string
-	Desc           bool
-	BeforeAt       time.Time
-	BeforeID       string
-	Limit          int
-	Now            time.Time
+	// HideArchived leaves archived rows out (specs/041): the lobby feed,
+	// whose archived cards are rows of this one task.
+	HideArchived bool
+	AfterAt      time.Time
+	AfterID      string
+	Desc         bool
+	BeforeAt     time.Time
+	BeforeID     string
+	Limit        int
+	Now          time.Time
 }
 
 // ViewMsg is one stored envelope with its hub-side delivery rows.
@@ -200,6 +207,9 @@ func (s *Memory) ViewTopics(_ context.Context, tenant string, q TopicQuery) ([]T
 		if q.NoIssues && s.iss.isTask(tenant, id) {
 			continue
 		}
+		if s.topicArchivedLocked(tenant, id, q.Lobby) {
+			continue
+		}
 		if !q.BeforeAt.IsZero() && !newer(q.BeforeAt, q.BeforeTask, r.LastAt, r.TaskID) {
 			continue
 		}
@@ -223,7 +233,7 @@ func (s *Memory) ViewTopic(_ context.Context, tenant string, q TopicMsgQuery) ([
 		}
 	}
 	for _, m := range ms {
-		if m.TaskID != q.TaskID {
+		if m.TaskID != q.TaskID || (q.HideArchived && !m.ArchivedAt.IsZero()) {
 			continue
 		}
 		if !q.AfterAt.IsZero() && !newer(m.ReceivedAt, m.MsgID, q.AfterAt, q.AfterID) {

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -16,6 +17,9 @@ type TopicsMsgQuery struct {
 	PerTopic       int
 	Reader         string // "" = no door (the door-off rig), as TopicMsgQuery
 	ReaderChannels []string
+	// HideArchivedIn is a task whose archived rows are left out (the
+	// lobby's, specs/041); "" = none.
+	HideArchivedIn string
 	Now            time.Time
 }
 
@@ -49,6 +53,10 @@ func (s *Postgres) ViewTopicsMessages(ctx context.Context, tenant string, q Topi
 		door = `((m.channel IS NULL AND (m.from_id = $5 OR m.to_id = $5))
 			OR m.channel = ANY($6::text[]) OR m.channel = ANY($7::text[]))`
 		args = append(args, q.Reader, PublicChannels, q.ReaderChannels)
+	}
+	if canonUUIDRe.MatchString(q.HideArchivedIn) {
+		args = append(args, q.HideArchivedIn)
+		door += " AND (m.archived_at IS NULL OR m.task_id <> $" + strconv.Itoa(len(args)) + "::uuid)"
 	}
 	where := map[string]*ViewMsg{}
 	var ids []string

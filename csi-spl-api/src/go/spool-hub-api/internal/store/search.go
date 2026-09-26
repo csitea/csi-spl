@@ -39,8 +39,11 @@ type SearchQuery struct {
 	// Without it a search hands back the text of every channel of the
 	// tenant, which is the same leak the topic read had.
 	ViewerChannels []string
-	Limit          int
-	Budget         time.Duration // Postgres statement_timeout; 0 = none
+	// Lobby is the shared lobby task: archived topics are never searched
+	// (specs/041), and an archived lobby card hides itself, not the lobby.
+	Lobby  string
+	Limit  int
+	Budget time.Duration // Postgres statement_timeout; 0 = none
 
 	Relevance bool // messages: rank, paged by Offset
 	Offset    int
@@ -160,7 +163,7 @@ func (s *Memory) SearchMessages(_ context.Context, tenant string, q SearchQuery)
 	var out []SearchMsgRow
 	for i := len(live) - 1; i >= 0; i-- { // newest first
 		m := live[i]
-		if !q.readable(m) {
+		if !q.readable(m) || s.archivedHiddenLocked(tenant, m, q.Lobby) {
 			continue
 		}
 		sm := searchMsg(m)
@@ -196,7 +199,7 @@ func (s *Memory) SearchFiles(_ context.Context, tenant string, q SearchQuery) ([
 	var out []SearchFileRow
 	for i := len(live) - 1; i >= 0; i-- {
 		m := live[i]
-		if !q.readable(m) {
+		if !q.readable(m) || s.archivedHiddenLocked(tenant, m, q.Lobby) {
 			continue
 		}
 		sm := searchMsg(m)
@@ -229,7 +232,7 @@ func (s *Memory) SearchTopics(_ context.Context, tenant string, q SearchQuery) (
 	msgs := map[string][]search.Msg{}
 	var order []string
 	for _, m := range s.liveLocked(tenant, q.Now) { // oldest first
-		if !q.readable(m) { // per message, before the aggregate (CLE-34986)
+		if !q.readable(m) || s.archivedHiddenLocked(tenant, m, q.Lobby) { // per message, before the aggregate (CLE-34986); specs/041
 			continue
 		}
 		r := byTask[m.TaskID]

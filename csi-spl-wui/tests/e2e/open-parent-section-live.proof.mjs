@@ -217,6 +217,13 @@ async function issueProof(p) {
   await p.waitForSelector('[data-test=issues-detail-title]', { visible: true, timeout: 5000 })
   await p.click('[data-test=issues-detail-title]', { clickCount: 3 })
   await p.type('[data-test=issues-detail-title]', TITLE)
+  /* SPL-18: an issue needs an epic - take the first one the tenant has */
+  if (await p.$eval('[data-test=issues-create]', (el) => el.disabled)) {
+    await p.click('[data-test=issues-epic]')
+    const first = await p.waitForSelector('[data-test=issues-menu-option]', { visible: true, timeout: 5000 }).catch(() => null)
+    if (first) await first.click()
+    await sleep(400)
+  }
   await p.click('[data-test=issues-create]')
   const key = await until(() => p.evaluate((t) => {
     const el = document.querySelector('[data-test=issues-detail-title]')

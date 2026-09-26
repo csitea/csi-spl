@@ -391,6 +391,7 @@
     "attach_nothing": "Tiedostoa ei liitetty: tiedostoikkuna sulkeutui ilman tiedostoa. Valitse tiedosto ja paina Avaa (kaksoisnapsautus voi hukata sen) tai vedä tiedosto sivulle.",
     "resize": "Muuta kirjoituskentän kokoa",
     "send": "Lähetä",
+    "go": "Mene / Lähetä",
     "sending": "Lähetetään…",
     "code_hint": "Koodilohko: Enter lisää rivin, sulje kirjoittamalla ``` tai painamalla Esc, Ctrl+Enter tai Cmd+Enter lähettää",
     "send_failed": "Ei lähetetty — viesti ei päässyt hubiin.",

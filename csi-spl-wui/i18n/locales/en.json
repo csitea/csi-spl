@@ -391,6 +391,7 @@
     "attach_nothing": "No file attached: the file dialog closed without one. Select the file and press Open (a double-click can lose it), or drag the file onto the page.",
     "resize": "Resize the omnibox",
     "send": "Send",
+    "go": "Go / Send",
     "sending": "Sending…",
     "code_hint": "Code block: Enter adds a line, type ``` or press Esc to close, Ctrl+Enter or Cmd+Enter sends",
     "send_failed": "Not sent — the message did not reach the hub.",

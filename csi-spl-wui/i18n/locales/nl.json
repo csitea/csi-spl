@@ -391,6 +391,7 @@
     "attach_nothing": "Geen bestand bijgevoegd: het bestandsvenster sloot zonder bestand. Selecteer het bestand en klik op Openen (een dubbelklik kan het kwijtraken), of sleep het bestand naar de pagina.",
     "resize": "Grootte wijzigen",
     "send": "Versturen",
+    "go": "Ga / Verzenden",
     "sending": "Versturen…",
     "code_hint": "Codeblok: Enter voegt een regel toe, typ ``` of druk op Esc om te sluiten, Ctrl+Enter of Cmd+Enter verstuurt",
     "send_failed": "Niet verzonden — het bericht bereikte de hub niet.",

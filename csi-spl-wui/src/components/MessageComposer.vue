@@ -202,15 +202,26 @@
           @change="onFiles"
           @cancel="onPickCancel"
         >
-        <button v-if="searchMode" type="submit" data-test="omnibox-search" :disabled="!searchQueryOf(text)">{{ t('search.submit') }}</button>
+        <!-- SPL-977: one GO icon sends, or runs the /search; its tooltip is
+             drawn on top of everything, under the button (the bar is at the
+             window's top edge, so there is no room above it) -->
+        <button
+          v-if="searchMode"
+          type="submit"
+          class="composer-go"
+          data-test="omnibox-search"
+          :disabled="!searchQueryOf(text)"
+          :aria-label="t('composer.go')"
+        ><UiIcon name="go" :size="20" /><span class="composer-go__tip" data-test="go-tip" aria-hidden="true">{{ t('composer.go') }}</span></button>
         <button
           v-else
           type="submit"
-          class="composer-send"
+          class="composer-send composer-go"
           data-testid="send"
           @mousedown.prevent
           :aria-disabled="cannotSend ? 'true' : 'false'"
-        >{{ busy ? t('composer.sending') : t('composer.send') }}</button>
+          :aria-label="busy ? t('composer.sending') : t('composer.go')"
+        ><UiIcon name="go" :size="20" /><span class="composer-go__tip" data-test="go-tip" aria-hidden="true">{{ busy ? t('composer.sending') : t('composer.go') }}</span></button>
       </div>
     </div>
   </form>
@@ -303,7 +314,7 @@ const contentUntilFocus = ref(false)
 /* A fit queued by the send that clears the text must not reopen the box. */
 let fitSerial = 0
 function omniboxMax() {
-  return Math.max(36, Math.floor(window.innerHeight - 52 - 8))
+  return Math.max(36, Math.floor(window.innerHeight - 58 - 8))
 }
 function collapseGlobalBox(park: boolean) {
   const el = inputEl.value
@@ -349,7 +360,7 @@ function onOmniboxBlur(ev: FocusEvent) {
 /* field-sizing is not enough inside the top-bar flex row: the used height
    stays one line. Measure the text and set the height. Only the field grows.
    The automatic size stops at 40% of the window; the grip can go to the
-   bottom of the screen. The bar itself stays 52px. */
+   bottom of the screen. The bar itself stays 58px (SPL-977). */
 function fitGlobalBox() {
   const el = inputEl.value
   if (!el || !props.global || parked.value) return
@@ -1035,7 +1046,30 @@ textarea.in-code {
   align-items: center;
   justify-content: center;
 }
-.composer-send[aria-disabled='true'] { opacity: 0.45; }
+.composer-send[aria-disabled='true'],
+.composer-go:disabled { opacity: 0.45; cursor: not-allowed; }
+/* SPL-977: the tooltip, on top of everything, shown on hover and keyboard focus */
+.composer-go { position: relative; }
+.composer-go__tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-modal);
+  padding: 4px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-fg);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+}
+.composer-go:hover .composer-go__tip,
+.composer-go:focus-visible .composer-go__tip { visibility: visible; opacity: 1; }
 .mention-list {
   list-style: none;
   margin: 0 0 8px;

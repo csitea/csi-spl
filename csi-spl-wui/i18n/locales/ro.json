@@ -391,6 +391,7 @@
     "attach_nothing": "Niciun fișier atașat: fereastra de fișiere s-a închis fără fișier. Selectați fișierul și apăsați Deschide (dublu clic îl poate pierde) sau trageți fișierul pe pagină.",
     "resize": "Redimensionează",
     "send": "Trimite",
+    "go": "Start / Trimite",
     "sending": "Se trimite…",
     "code_hint": "Bloc de cod: Enter adaugă un rând, tastați ``` sau apăsați Esc pentru a închide, Ctrl+Enter sau Cmd+Enter trimite",
     "send_failed": "Netrimis — mesajul nu a ajuns la hub.",

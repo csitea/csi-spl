@@ -391,6 +391,7 @@
     "attach_nothing": "Није приложена датотека: прозор за датотеке се затворио без датотеке. Изаберите датотеку и притисните „Отвори“ (двоклик може да је изгуби) или превуците датотеку на страницу.",
     "resize": "Promeni veličinu",
     "send": "Pošalji",
+    "go": "Иди / Пошаљи",
     "sending": "Slanje…",
     "code_hint": "Блок кода: Enter додаје ред, откуцајте ``` или притисните Esc за затварање, Ctrl+Enter или Cmd+Enter шаље",
     "send_failed": "Nije poslato — poruka nije stigla do huba.",

@@ -14,7 +14,7 @@ textarea {
 }
 
 :root {
-  --top-bar-h: 52px;
+  --top-bar-h: 58px; /* SPL-977: +6 px */
   /* The resting omnibox, drag handle included, sits 2px inside the bar on
      both edges. The bar's own border is the bottom 1px of --top-bar-h, so
      the bottom padding is 1px and that 1px plus the border is the 2px. */
@@ -22,6 +22,7 @@ textarea {
   --top-bar-inset-bottom: 1px;
   --top-bar-border: 1px;
   --omnibox-rest: calc(var(--top-bar-h) - var(--top-bar-inset-top) - var(--top-bar-inset-bottom) - var(--top-bar-border));
+  --omnibox-go: 42px;
 }
 /* 022: the top bar is sticky over the document; the shell fills the rest */
 .app-frame {
@@ -784,6 +785,17 @@ html.pane-dragging * {
   height: var(--omnibox-rest);
   padding: 6px 12px;
   align-self: flex-start;
+}
+/* SPL-977: GO is 6 px smaller than the 48 px Send was, square, and centred
+   on the resting field */
+.composer.omnibox--global .composer-row .composer-go {
+  width: var(--omnibox-go);
+  height: var(--omnibox-go);
+  padding: 0;
+  margin-top: calc((var(--omnibox-rest) - var(--omnibox-go)) / 2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .composer.omnibox--global .omnibox-resize {
   position: absolute;

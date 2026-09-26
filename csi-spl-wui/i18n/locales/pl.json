@@ -391,6 +391,7 @@
     "attach_nothing": "Nie dołączono pliku: okno wyboru pliku zamknęło się bez pliku. Zaznacz plik i kliknij Otwórz (dwukrotne kliknięcie może go zgubić) albo przeciągnij plik na stronę.",
     "resize": "Zmień rozmiar",
     "send": "Wyślij",
+    "go": "Idź / Wyślij",
     "sending": "Wysyłanie…",
     "code_hint": "Blok kodu: Enter dodaje wiersz, wpisz ``` lub naciśnij Esc, aby zamknąć, Ctrl+Enter lub Cmd+Enter wysyła",
     "send_failed": "Nie wysłano — wiadomość nie dotarła do huba.",

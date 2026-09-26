@@ -804,6 +804,7 @@
     "no_deadline": "Ei määräaikaa",
     "field_description": "Kuvaus",
     "description_empty": "Lisää kuvaus",
+    "description_edit_hint": "Muokkaa napsauttamalla tai painamalla E",
     "title_placeholder": "Otsikko",
     "create": "Luo asia",
     "creating": "Luodaan…",

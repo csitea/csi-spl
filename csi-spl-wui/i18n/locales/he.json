@@ -804,6 +804,7 @@
     "no_deadline": "אין מועד יעד",
     "field_description": "תיאור",
     "description_empty": "הוסף תיאור",
+    "description_edit_hint": "לחצו או הקישו E כדי לערוך",
     "title_placeholder": "כותרת",
     "create": "צור סוגיה",
     "creating": "יוצר…",

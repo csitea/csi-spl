@@ -804,6 +804,7 @@
     "no_deadline": "No deadline",
     "field_description": "Description",
     "description_empty": "Add a description",
+    "description_edit_hint": "Click or press E to edit",
     "title_placeholder": "Issue title",
     "create": "Create issue",
     "creating": "Creating…",

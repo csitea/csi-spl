@@ -804,6 +804,7 @@
     "no_deadline": "Sin fecha límite",
     "field_description": "Descripción",
     "description_empty": "Añade una descripción",
+    "description_edit_hint": "Haz clic o pulsa E para editar",
     "title_placeholder": "Título",
     "create": "Crear incidencia",
     "creating": "Creando…",

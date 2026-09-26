@@ -718,6 +718,9 @@ declare module '~/utils/code-blocks.mjs' {
   export function bodyToHtml(src: string, origin?: string): string
   export function isMarkdownLang(lang: string | null | undefined): boolean
   export function hasMarkdownBlock(src: string): boolean
+  export function looksLikeMarkdown(src: string): boolean
+  export function markdownSource(src: string): string
+  export function mentionParts(text: string): BodyPart[]
   export function linkParts(text: string): BodyPart[]
   export function fenceStateAt(text: string, caret?: number): { inCode: boolean, lang: string }
   export function enterAction(o: { inCode?: boolean, shift?: boolean, alt?: boolean, mod?: boolean }): 'send' | 'newline'
@@ -818,9 +821,11 @@ declare module '~/utils/markdown.mjs' {
   export const TAGS: Set<string>
   export const ATTRS: Record<string, Set<string>>
   export function safeHref(raw: string): string
-  export function markdownTree(src: string): MdNode[]
+  export interface MdOptions { breaks?: boolean, html?: boolean }
+  export function markdownTree(src: string, opts?: MdOptions): MdNode[]
+  export function htmlTableNodes(html: string): MdNode[]
   export function treeToHtml(nodes: MdNode[], origin?: string): string
-  export function markdownToHtml(src: string, origin?: string): string
+  export function markdownToHtml(src: string, origin?: string, opts?: MdOptions): string
   export function renderMarkdown(src: string, origin?: string): string
 }
 

@@ -804,6 +804,7 @@
     "no_deadline": "Без краен срок",
     "field_description": "Описание",
     "description_empty": "Добавете описание",
+    "description_edit_hint": "Щракнете или натиснете E, за да редактирате",
     "title_placeholder": "Заглавие",
     "create": "Създай проблем",
     "creating": "Създаване…",

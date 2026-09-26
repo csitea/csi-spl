@@ -804,6 +804,7 @@
     "no_deadline": "Tähtaega pole",
     "field_description": "Kirjeldus",
     "description_empty": "Lisa kirjeldus",
+    "description_edit_hint": "Muutmiseks klõpsa või vajuta E",
     "title_placeholder": "Pealkiri",
     "create": "Loo probleem",
     "creating": "Loomine…",

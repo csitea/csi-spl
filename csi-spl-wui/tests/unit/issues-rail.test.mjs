@@ -45,7 +45,9 @@ describe('Issues rail tab', () => {
     assert.ok(listAt > 0 && detailAt > listAt)
     const list = src.slice(listAt, detailAt)
     assert.equal(list.includes('description'), false)
-    assert.match(src.slice(detailAt), /data-test="issues-detail-body"/)
+    // SPL-975: the description is IssueDescription (rendered markdown, click or e edits)
+    assert.match(src.slice(detailAt), /<IssueDescription\b/)
+    assert.match(read('src/components/IssueDescription.vue'), /data-test="issues-detail-body"/)
     // owner 2026-09-26 (topics 32a56460, 778ad161): a calendar plus a 24-hour time,
     // YYYY-MM-DD HH:MM, no datetime-local (AM/PM); the picker is DeadlinePicker.vue
     assert.match(src, /<DeadlinePicker[\s\S]*test-id="issues-deadline"[\s\S]*time-test-id="issues-deadline-time"/)

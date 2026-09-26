@@ -196,7 +196,9 @@ describe('the component', () => {
   it('the issue pane renders comments and the description through MessageBody', () => {
     const issues = read('src/pages/issues.vue')
     assert.match(issues, /<MessageBody (v-else )?class="issues-comment__body" :body="c\.body" \/>/)
-    assert.match(issues, /v-if="hasMarkdownBlock\(form\.description\)"/)
+    // SPL-975: the whole description renders as markdown, fenced or not
+    assert.match(issues, /<IssueDescription\b/)
+    assert.match(read('src/components/IssueDescription.vue'), /<MessageBody v-if="text\.trim\(\)" :body="text" markdown \/>/)
   })
 })
 

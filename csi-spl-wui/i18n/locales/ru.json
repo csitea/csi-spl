@@ -804,6 +804,7 @@
     "no_deadline": "Без срока",
     "field_description": "Описание",
     "description_empty": "Добавьте описание",
+    "description_edit_hint": "Щёлкните или нажмите E, чтобы изменить",
     "title_placeholder": "Заголовок",
     "create": "Создать заявку",
     "creating": "Создание…",

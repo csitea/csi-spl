@@ -804,6 +804,7 @@
     "no_deadline": "Son tarih yok",
     "field_description": "Açıklama",
     "description_empty": "Bir açıklama ekleyin",
+    "description_edit_hint": "Düzenlemek için tıklayın veya E tuşuna basın",
     "title_placeholder": "Başlık",
     "create": "Konu oluştur",
     "creating": "Oluşturuluyor…",

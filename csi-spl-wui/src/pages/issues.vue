@@ -221,23 +221,14 @@
         @input="onDraftInput($event, 'title')"
         @change="onTitle"
       >
-      <label class="issues-field">
-        <span>{{ t('issues.field_description') }}</span>
-        <textarea
-          data-test="issues-detail-body"
-          rows="5"
-          :value="form.description"
-          :placeholder="t('issues.description_empty')"
-          @input="onDraftInput($event, 'description')"
-          @change="onBody"
-        />
-      </label>
-      <!-- the description's markdown blocks, rendered (SPL-73); the textarea stays the source -->
-      <MessageBody
-        v-if="hasMarkdownBlock(form.description)"
-        class="issues-detail__rendered"
-        data-test="issues-detail-rendered"
-        :body="form.description"
+      <!-- SPL-975: rendered markdown; a click or `e` edits, a click elsewhere saves -->
+      <IssueDescription
+        ref="descEl"
+        :key="form.key || 'new'"
+        :text="form.description"
+        :save="saveDescription"
+        :keep-open="creating"
+        @draft="onDescriptionDraft"
       />
       <div class="issues-props">
         <button v-if="creating" type="button" class="issues-prop" data-test="issues-kind" :data-kind="draft.kind" @click="toggleKind">
@@ -379,7 +370,6 @@
 
 <script setup lang="ts">
 import type { EpicSummary, Issue, IssueFilter, IssueLabel } from '~/utils/issues.mjs'
-import { hasMarkdownBlock } from '~/utils/code-blocks.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useRosterStore } from '~/stores/roster'
 import { useTopicStore } from '~/stores/topic'
@@ -474,6 +464,7 @@ const menuIndex = ref(0)
 const menuPos = ref({ top: 80, left: 80 })
 const labelName = ref('')
 const titleEl = ref<HTMLInputElement | null>(null)
+const descEl = ref<{ edit: () => Promise<void> } | null>(null)
 const scrollerEl = ref<HTMLElement | null>(null)
 const theadEl = ref<HTMLElement | null>(null)
 const pageEl = ref<HTMLElement | null>(null)
@@ -834,7 +825,7 @@ async function save(key: string, body: Record<string, unknown>) {
     busy.value = false
   }
 }
-function onDraftInput(ev: Event, field: 'title' | 'description') {
+function onDraftInput(ev: Event, field: 'title') {
   if (!creating.value) return
   draft[field] = (ev.target as HTMLInputElement).value
 }
@@ -844,11 +835,16 @@ function onTitle(ev: Event) {
   if (!detail.value || value === detail.value.title) return
   void save(detail.value.key, { title: value })
 }
-function onBody(ev: Event) {
-  const value = (ev.target as HTMLTextAreaElement).value
-  if (creating.value) { draft.description = value; return }
-  if (!detail.value || value === detail.value.description) return
-  void save(detail.value.key, { description: value })
+function onDescriptionDraft(value: string) {
+  if (creating.value) draft.description = value
+}
+/* IssueDescription's save: true when stored, so a failure keeps its editor */
+async function saveDescription(value: string) {
+  if (creating.value) { draft.description = value; return true }
+  if (!detail.value) return false
+  if (value === detail.value.description) return true
+  await save(detail.value.key, { description: value })
+  return !saveError.value
 }
 function applyDeadline(local: string) {
   if (creating.value) { draft.deadlineLocal = local; return }
@@ -1065,6 +1061,7 @@ function onDocKey(ev: KeyboardEvent) {
   if (k === 'k' || key === 'ArrowUp') { move(-1); ev.preventDefault(); return }
   if (key === 'Enter') { const issue = flat.value.find((i) => i.key === cursorKey.value) || flat.value[0]; if (issue) choose(issue); ev.preventDefault(); return }
   if (k === 'c') { startCreate(); ev.preventDefault(); return }
+  if (k === 'e' && form.value) { void descEl.value?.edit(); ev.preventDefault(); return }
   const kind = { s: 'status', p: 'priority', a: 'assign', l: 'label' }[k]
   const issue = creating.value ? detailOrDraft() : (detail.value || flat.value.find((i) => i.key === cursorKey.value) || flat.value[0])
   if (kind && issue) { openMenu(kind, issue); ev.preventDefault() }
@@ -1507,13 +1504,6 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .list-clip--rows .issues-comment__body { max-height: calc(5 * 1.45em); overflow: hidden; }
 .issues-comment { min-width: 0; }
 .issues-comment__body { margin-top: 2px; min-width: 0; }
-.issues-detail__rendered {
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-}
 .issues-error { color: var(--color-danger); margin: 0; }
 .issues-menu {
   position: fixed;

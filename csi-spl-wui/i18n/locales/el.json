@@ -804,6 +804,7 @@
     "no_deadline": "Χωρίς προθεσμία",
     "field_description": "Περιγραφή",
     "description_empty": "Προσθέστε περιγραφή",
+    "description_edit_hint": "Κάντε κλικ ή πατήστε E για επεξεργασία",
     "title_placeholder": "Τίτλος",
     "create": "Δημιουργία θέματος",
     "creating": "Δημιουργία…",

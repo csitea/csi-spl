@@ -549,3 +549,89 @@ export function closeOpenFence(text) {
   if (!s.slice(opener).includes('\n')) return s + '```'
   return s + (s.endsWith('\n') ? '' : '\n') + '```'
 }
+
+/* ---------- markdown without a fence (SPL-975) ---------- */
+
+/*
+ * Owner, 2026-09-26 (topic 467d6325): markdown renders WITHOUT a fence, all
+ * of the major syntax plus GFM and HTML tables. A body whose text outside
+ * ``` blocks holds block or emphasis markdown renders whole as markdown
+ * (markdownSource -> markdown.mjs, lazily); every other body keeps parseBody,
+ * so a plain line, a **bold** word, a link or a code block renders as before.
+ */
+const MD_LINE_RES = [
+  /^ {0,3}#{1,6}[ \t]+\S/m, // heading
+  /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+\S/m, // bulleted / numbered list
+  /^ {0,3}>/m, // quote
+]
+const MD_SPAN_RES = [
+  /(?<![\w*\\])\*(?![\s*])[^*\n]*[^\s*\\]\*(?![\w*])|(?<![\w*\\])\*[^\s*]\*(?![\w*])/, // *em*
+  /(?<![\w_\\])_(?![\s_])[^_\n]*[^\s_\\]_(?![\w_])|(?<![\w_\\])_[^\s_]_(?![\w_])/, // _em_
+  /~~[^~\n]+~~/, // strike
+  /\[[^\]\n]+\]\([^)\s]+\)/, // [link](url)
+  /<table[\s>]/i, // HTML table
+]
+const CELL_SEP = String.raw`[ \t]*:?-+:?[ \t]*`
+/* a GFM delimiter row: |---|:-:| or ---|--- or a one-column |---| */
+const TABLE_SEP_RE = new RegExp(String.raw`^[ \t]*(?:\|?${CELL_SEP}(?:\|${CELL_SEP})+\|?|\|${CELL_SEP}\|)[ \t]*$`)
+
+function hasPipeTable(s) {
+  const lines = s.split('\n')
+  return lines.some((l, i) => i > 0 && lines[i - 1].includes('|') && TABLE_SEP_RE.test(l))
+}
+
+/** The body's text outside code, `inline code` as a placeholder word. */
+function proseOf(src) {
+  return tokenize(src).map((t) => (t.type === 'text' ? t.text : t.type === 'inline' ? 'x' : '\n')).join('')
+}
+
+/** Does the text outside ``` blocks hold markdown that parseBody would show raw? */
+export function looksLikeMarkdown(src) {
+  const s = proseOf(src)
+  if (MD_LINE_RES.some((re) => re.test(s)) || MD_SPAN_RES.some((re) => re.test(s))) return true
+  return hasPipeTable(s)
+}
+
+function longestRun(s) {
+  let best = 0
+  for (const m of String(s).matchAll(/`+/g)) best = Math.max(best, m[0].length)
+  return best
+}
+
+/**
+ * The body as one CommonMark source. The body's own fences stay Slack's
+ * (tokenize): a code block is re-fenced on its own lines with a fence longer
+ * than any backtick run inside it, a ```md / ```markdown block is unwrapped
+ * (its text IS the markdown), and a {{wiki}} / {{/wiki}} line is dropped.
+ */
+export function markdownSource(src) {
+  let out = ''
+  const block = (s) => {
+    if (out && !out.endsWith('\n')) out += '\n'
+    if (out && !out.endsWith('\n\n')) out += '\n'
+    out += s + '\n\n'
+  }
+  for (const region of wikiRegions(src)) {
+    if (region.type === 'wiki') { block(region.text); continue }
+    for (const t of tokenize(region.text)) {
+      if (t.type === 'text') out += t.text
+      else if (t.type === 'inline') {
+        const fence = '`'.repeat(longestRun(t.text) + 1)
+        const pad = t.text.startsWith('`') || t.text.endsWith('`') ? ' ' : ''
+        out += fence + pad + t.text + pad + fence
+      } else if (isMarkdownLang(t.lang)) block(t.text)
+      else {
+        const fence = '`'.repeat(Math.max(3, longestRun(t.text) + 1))
+        block(fence + (t.lang || '') + '\n' + t.text + '\n' + fence)
+      }
+    }
+  }
+  return out.replace(/\n+$/, '')
+}
+
+const MENTION_RE = /(?<![\w@])@([A-Z]{2,4}-\d+(?:@[a-z0-9][a-z0-9-]{0,31})?)/g
+
+/** Split rendered markdown text into text / mention parts (MessageRuns). */
+export function mentionParts(text) {
+  return splitRuns(String(text), MENTION_RE, (m) => ({ type: 'mention', text: '@' + m[1] }))
+}

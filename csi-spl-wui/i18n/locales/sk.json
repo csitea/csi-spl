@@ -804,6 +804,7 @@
     "no_deadline": "Bez termínu",
     "field_description": "Opis",
     "description_empty": "Pridajte opis",
+    "description_edit_hint": "Kliknite alebo stlačte E na úpravu",
     "title_placeholder": "Názov",
     "create": "Vytvoriť úlohu",
     "creating": "Vytvára sa…",

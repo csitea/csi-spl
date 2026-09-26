@@ -804,6 +804,7 @@
     "no_deadline": "Ingen deadline",
     "field_description": "Beskrivning",
     "description_empty": "Lägg till en beskrivning",
+    "description_edit_hint": "Klicka eller tryck på E för att redigera",
     "title_placeholder": "Titel",
     "create": "Skapa ärende",
     "creating": "Skapar…",

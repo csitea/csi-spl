@@ -6,10 +6,17 @@
      become markup. The engine is a lazy chunk: the first render (and the
      server's) is the source as plain text, which is also what stays when the
      chunk fails to load. Tables scroll inside the block, never the page.
-     Show source flips to the text as written (spec 040 FR-MD-004). -->
+     Show source flips to the text as written (spec 040 FR-MD-004).
+     `bare` (SPL-975) is a whole message or description rendered as markdown:
+     no Show source control (the editor shows the source), a single newline is
+     a line break, an HTML table passes the allow-list, a ``` block is a
+     CodeBlock and an @CLE-1 mention stays a mention. Until the tree exists it
+     renders nothing and emits rendered=false, so its parent keeps showing the
+     plain body. -->
 <template>
-  <div class="md-block" data-testid="md-block" :data-rendered="tree ? 'true' : 'false'">
+  <div class="md-block" :class="{ 'md-block--bare': bare }" data-testid="md-block" :data-rendered="tree ? 'true' : 'false'">
     <button
+      v-if="!bare"
       type="button"
       class="md-block__toggle"
       data-testid="md-block-toggle"
@@ -17,7 +24,7 @@
       @click.stop="showSource = !showSource"
     >{{ showSource ? t('markdown.show_rendered') : t('markdown.show_source') }}</button>
     <MdNodes v-if="tree && !showSource" :nodes="tree" />
-    <p v-else class="md-src" dir="auto">{{ text }}</p>
+    <p v-else-if="!bare" class="md-src" dir="auto">{{ text }}</p>
   </div>
 </template>
 
@@ -25,8 +32,12 @@
 import { h, type FunctionalComponent, type VNodeChild } from 'vue'
 import type { MdNode } from '~/utils/markdown.mjs'
 import { followSameTabLink, linkOpen } from '~/utils/link-target.mjs'
+import { mentionParts } from '~/utils/code-blocks.mjs'
+import CodeBlock from '~/components/CodeBlock.vue'
+import MessageRuns from '~/components/MessageRuns.vue'
 
-const props = defineProps<{ text: string }>()
+const props = defineProps<{ text: string, bare?: boolean }>()
+const emit = defineEmits<{ rendered: [on: boolean] }>()
 const { t } = useI18n({ useScope: 'global' })
 const router = useRouter()
 const showSource = ref(false)
@@ -41,12 +52,14 @@ watch(
   async (src) => {
     const mine = ++seq
     tree.value = null
+    emit('rendered', false)
     if (!import.meta.client) return
     try {
       const { markdownTree, TAGS } = await import('~/utils/markdown.mjs')
       if (mine !== seq) return
       tags = TAGS
-      tree.value = markdownTree(src)
+      tree.value = markdownTree(src, props.bare ? { breaks: true, html: true } : {})
+      emit('rendered', true)
     } catch {
       /* the source stays readable */
     }
@@ -66,9 +79,20 @@ function onLink(e: MouseEvent, href: string) {
   followSameTabLink(e, href, window.location.href, (path) => { void router.push(path) })
 }
 
-function node(n: MdNode): VNodeChild {
-  if (typeof n === 'string') return n
-  const kids = n.children.map(node)
+function text(s: string, inCode: boolean): VNodeChild {
+  if (!props.bare || inCode) return s
+  const parts = mentionParts(s)
+  return parts.length === 1 && parts[0].type === 'text' ? s : h(MessageRuns, { parts })
+}
+
+function node(n: MdNode, inCode = false): VNodeChild {
+  if (typeof n === 'string') return text(n, inCode)
+  if (props.bare && n.tag === 'pre') {
+    const code = n.children[0]
+    const src = typeof code === 'string' ? code : (code?.children || []).filter((c) => typeof c === 'string').join('')
+    return h(CodeBlock, { text: src, lang: n.attrs['data-lang'] || '' })
+  }
+  const kids = n.children.map((k) => node(k, inCode || n.tag === 'code'))
   // the tree is allow-listed already; the check here keeps it that way
   if (!tags.has(n.tag)) return kids
   if (n.tag === 'a') {
@@ -91,11 +115,11 @@ function node(n: MdNode): VNodeChild {
   }
   if (n.tag === 'table') return h('div', { class: 'md-table' }, [h('table', null, kids)])
   const attrs: Record<string, string> = {}
-  for (const k of ['start', 'data-align', 'data-lang']) if (n.attrs[k]) attrs[k] = n.attrs[k]
+  for (const k of ['start', 'data-align', 'data-lang', 'colspan', 'rowspan']) if (n.attrs[k]) attrs[k] = n.attrs[k]
   return h(n.tag, attrs, kids)
 }
 
-const MdNodes: FunctionalComponent<{ nodes: MdNode[] }> = (p) => p.nodes.map(node)
+const MdNodes: FunctionalComponent<{ nodes: MdNode[] }> = (p) => p.nodes.map((n) => node(n))
 MdNodes.props = ['nodes']
 </script>
 

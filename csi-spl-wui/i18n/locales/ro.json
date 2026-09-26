@@ -804,6 +804,7 @@
     "no_deadline": "Fără termen",
     "field_description": "Descriere",
     "description_empty": "Adaugă o descriere",
+    "description_edit_hint": "Faceți clic sau apăsați E pentru a edita",
     "title_placeholder": "Titlu",
     "create": "Creează problema",
     "creating": "Se creează…",

@@ -804,6 +804,7 @@
     "no_deadline": "Geen deadline",
     "field_description": "Beschrijving",
     "description_empty": "Voeg een beschrijving toe",
+    "description_edit_hint": "Klik of druk op E om te bewerken",
     "title_placeholder": "Titel",
     "create": "Kwestie maken",
     "creating": "Maken…",

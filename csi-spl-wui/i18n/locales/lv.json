@@ -804,6 +804,7 @@
     "no_deadline": "Nav termiņa",
     "field_description": "Apraksts",
     "description_empty": "Pievienojiet aprakstu",
+    "description_edit_hint": "Noklikšķiniet vai nospiediet E, lai rediģētu",
     "title_placeholder": "Nosaukums",
     "create": "Izveidot problēmu",
     "creating": "Izveido…",

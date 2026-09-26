@@ -40,7 +40,7 @@ export const TAGS = new Set([
   'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
   'ul', 'ol', 'li', 'blockquote', 'hr', 'br',
   'pre', 'code', 'strong', 'em', 's',
-  'table', 'thead', 'tbody', 'tr', 'th', 'td',
+  'table', 'thead', 'tbody', 'tfoot', 'caption', 'tr', 'th', 'td',
   'a',
 ])
 
@@ -48,8 +48,8 @@ export const TAGS = new Set([
 export const ATTRS = {
   a: new Set(['href', 'title']),
   ol: new Set(['start']),
-  th: new Set(['data-align']),
-  td: new Set(['data-align']),
+  th: new Set(['data-align', 'colspan', 'rowspan']),
+  td: new Set(['data-align', 'colspan', 'rowspan']),
   pre: new Set(['data-lang']),
 }
 
@@ -70,12 +70,16 @@ export function safeHref(raw) {
   return u.href
 }
 
-let engine = null
+const engines = new Map()
 
-function md() {
+/* html: true only for a whole message or description (SPL-975): an HTML
+   <table> block then reaches htmlTableNodes' allow-list; every other raw tag
+   still arrives as text. A ```md fence keeps html: false. */
+function md(html = false) {
+  let engine = engines.get(html)
   if (engine) return engine
   engine = new MarkdownIt('default', {
-    html: false,
+    html,
     linkify: true,
     typographer: false,
     breaks: false,
@@ -86,6 +90,7 @@ function md() {
   // safeHref decides; markdown-it must not drop a link silently, so an
   // unsafe one still shows its text
   engine.validateLink = () => true
+  engines.set(html, engine)
   return engine
 }
 
@@ -100,8 +105,8 @@ function textOf(children) {
   return (children || []).map((c) => (c.type === 'image' ? textOf(c.children) : c.content || '')).join('')
 }
 
-/** One inline token list -> nodes. */
-function inline(tokens) {
+/** One inline token list -> nodes. `breaks`: a single newline is a <br>. */
+function inline(tokens, breaks = false) {
   const root = el(null)
   const stack = [root]
   const top = () => stack[stack.length - 1]
@@ -124,7 +129,7 @@ function inline(tokens) {
     }
     switch (tok.type) {
       case 'softbreak':
-        top().children.push('\n')
+        top().children.push(breaks ? el('br') : '\n')
         break
       case 'hardbreak':
         top().children.push(el('br'))
@@ -166,12 +171,100 @@ function tidy(nodes) {
   return out
 }
 
+/*
+ * HTML tables (owner, SPL-975: "html tables as well"). An html_block that
+ * holds a <table> is read by this allow-list, never handed to the browser as
+ * markup: table elements plus a few inline ones become tree nodes, every other
+ * tag is dropped (its text stays text), script-like elements are dropped with
+ * their content, and no attribute is copied except align / text-align
+ * (as data-align) and a small numeric colspan / rowspan.
+ */
+const HTML_MAP = {
+  table: 'table', thead: 'thead', tbody: 'tbody', tfoot: 'tfoot', caption: 'caption',
+  tr: 'tr', th: 'th', td: 'td',
+  b: 'strong', strong: 'strong', i: 'em', em: 'em', s: 's', del: 's', strike: 's',
+  code: 'code', br: 'br', p: 'p', ul: 'ul', ol: 'ol', li: 'li',
+}
+const HTML_DROP = new Set(['script', 'style', 'template', 'iframe', 'object', 'embed', 'noscript',
+  'textarea', 'title', 'svg', 'math', 'select', 'xmp', 'noembed', 'noframes', 'plaintext'])
+const TABLE_PARTS = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr'])
+const HTML_TAG_RE = /<!--[\s\S]*?(?:-->|$)|<(\/?)([A-Za-z][A-Za-z0-9-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' }
+
+function decodeEntities(s) {
+  return s.replace(/&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z]{2,8});/gi, (m, e) => {
+    if (e[0] !== '#') return ENTITIES[e.toLowerCase()] ?? m
+    const cp = e[1] === 'x' || e[1] === 'X' ? Number.parseInt(e.slice(2), 16) : Number.parseInt(e.slice(1), 10)
+    if (!(cp > 0 && cp <= 0x10ffff) || (cp >= 0xd800 && cp <= 0xdfff)) return '\ufffd'
+    return String.fromCodePoint(cp)
+  })
+}
+
+function attrOf(attrs, name) {
+  const m = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`, 'i').exec(attrs)
+  return m ? (m[1] ?? m[2] ?? m[3] ?? '') : ''
+}
+
+function cellAttrs(attrs) {
+  const out = {}
+  const style = /text-align\s*:\s*(left|right|center)/i.exec(attrOf(attrs, 'style'))
+  const align = [attrOf(attrs, 'align').trim().toLowerCase(), style ? style[1].toLowerCase() : '']
+    .find((v) => v === 'left' || v === 'right' || v === 'center')
+  if (align) out['data-align'] = align
+  for (const k of ['colspan', 'rowspan']) {
+    const v = attrOf(attrs, k).trim()
+    if (/^\d{1,2}$/.test(v) && Number(v) >= 1 && Number(v) <= 50) out[k] = String(Number(v))
+  }
+  return out
+}
+
+/** The allow-listed nodes of an HTML fragment (see HTML_MAP). */
+export function htmlTableNodes(html) {
+  const s = String(html ?? '')
+  const root = el(null)
+  const stack = [root]
+  const top = () => stack[stack.length - 1]
+  const text = (t) => {
+    if (!t) return
+    if (TABLE_PARTS.has(top().tag) && !t.trim()) return
+    top().children.push(decodeEntities(t))
+  }
+  const re = new RegExp(HTML_TAG_RE.source, 'g')
+  let last = 0
+  for (let m = re.exec(s); m; m = re.exec(s)) {
+    text(s.slice(last, m.index))
+    last = re.lastIndex
+    if (m[2] === undefined) continue
+    const name = m[2].toLowerCase()
+    if (!m[1] && HTML_DROP.has(name)) {
+      const c = new RegExp(`</${name}\\s*>`, 'i').exec(s.slice(last))
+      last = c ? last + c.index + c[0].length : s.length
+      re.lastIndex = last
+      continue
+    }
+    const tag = HTML_MAP[name]
+    if (!tag) continue
+    if (m[1]) {
+      const at = stack.map((n) => n.tag).lastIndexOf(tag)
+      if (at > 0) stack.length = at
+      continue
+    }
+    const node = el(tag, tag === 'th' || tag === 'td' ? cellAttrs(m[3]) : {})
+    top().children.push(node)
+    if (tag !== 'br' && !/\/\s*$/.test(m[3])) stack.push(node)
+  }
+  text(s.slice(last))
+  return tidy(root.children)
+}
+
 /**
  * The node tree of one markdown source. Always an array; an empty source is
- * an empty array.
+ * an empty array. `breaks` makes a single newline a <br> and `html` lets an
+ * HTML table through htmlTableNodes: both are for a whole message or
+ * description (SPL-975); a ```md fence uses neither.
  */
-export function markdownTree(src) {
-  const tokens = md().parse(String(src ?? ''), {})
+export function markdownTree(src, { breaks = false, html = false } = {}) {
+  const tokens = md(html).parse(String(src ?? ''), {})
   const root = el(null)
   const stack = [root]
   const top = () => stack[stack.length - 1]
@@ -196,13 +289,15 @@ export function markdownTree(src) {
       continue
     }
     if (tok.type === 'inline') {
-      top().children.push(...inline(tok.children))
+      top().children.push(...inline(tok.children, breaks))
     } else if (tok.type === 'fence' || tok.type === 'code_block') {
       const lang = String(tok.info || '').trim().split(/\s+/)[0].slice(0, 24)
       const text = tok.content.endsWith('\n') ? tok.content.slice(0, -1) : tok.content
       top().children.push(el('pre', lang ? { 'data-lang': lang } : {}, [el('code', {}, [text])]))
     } else if (tok.type === 'hr') {
       top().children.push(el('hr'))
+    } else if (tok.type === 'html_block' && html && /<table[\s>]/i.test(tok.content)) {
+      top().children.push(...htmlTableNodes(tok.content))
     } else if (tok.content) {
       // html_block and anything unknown: its source, as text
       top().children.push(tok.content)
@@ -244,8 +339,8 @@ export function treeToHtml(nodes, origin) {
 }
 
 /** Markdown source -> escaped, allow-listed HTML. */
-export function markdownToHtml(src, origin) {
-  return treeToHtml(markdownTree(src), origin)
+export function markdownToHtml(src, origin, opts) {
+  return treeToHtml(markdownTree(src, opts), origin)
 }
 
 /** spec 040's first name for markdownToHtml (1c099b52). */

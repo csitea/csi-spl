@@ -804,6 +804,7 @@
     "no_deadline": "Bez terminu",
     "field_description": "Opis",
     "description_empty": "Dodaj opis",
+    "description_edit_hint": "Kliknij lub naciśnij E, aby edytować",
     "title_placeholder": "Tytuł",
     "create": "Utwórz zgłoszenie",
     "creating": "Tworzenie…",

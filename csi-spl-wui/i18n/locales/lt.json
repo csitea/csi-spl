@@ -804,6 +804,7 @@
     "no_deadline": "Be termino",
     "field_description": "Aprašas",
     "description_empty": "Pridėkite aprašą",
+    "description_edit_hint": "Spustelėkite arba paspauskite E, kad redaguotumėte",
     "title_placeholder": "Pavadinimas",
     "create": "Sukurti problemą",
     "creating": "Kuriama…",

@@ -1,6 +1,7 @@
 <template>
   <div class="msg-body">
-    <template v-for="(b, i) in blocks" :key="i">
+    <MarkdownBlock v-if="mdSource !== null" v-show="mdOn" :text="mdSource" bare @rendered="mdOn = $event" />
+    <template v-for="(b, i) in (mdOn ? [] : blocks)" :key="i">
       <MarkdownBlock v-if="b.type === 'code' && isMarkdownLang(b.lang)" :text="b.text" />
       <CodeBlock v-else-if="b.type === 'code'" :text="b.text" :lang="b.lang" />
       <h2 v-else-if="b.type === 'heading' && b.level === 1" class="msg-h"><MessageRuns :parts="b.parts" /></h2>
@@ -19,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { isMarkdownLang, parseBody } from '~/utils/code-blocks.mjs'
+import { isMarkdownLang, looksLikeMarkdown, markdownSource, parseBody } from '~/utils/code-blocks.mjs'
 import MessageRuns from '~/components/MessageRuns.vue'
 
 /* Slack-style ``` blocks and `inline code`; every string is text-interpolated,
@@ -32,9 +33,17 @@ import MessageRuns from '~/components/MessageRuns.vue'
    start an edit.
    A fence tagged md / markdown is the markdown start/stop marker (SPL-73):
    MarkdownBlock renders it, and loads markdown-it itself, lazily, so
-   isMarkdownLang comes from code-blocks.mjs, never from markdown.mjs. */
-const props = defineProps<{ body: string }>()
+   isMarkdownLang comes from code-blocks.mjs, never from markdown.mjs.
+   SPL-975 (owner, 2026-09-26): markdown renders WITHOUT a fence too. A body
+   whose text outside ``` blocks holds markdown (looksLikeMarkdown), or any
+   body when `markdown` is set (an issue description), renders whole through
+   MarkdownBlock's bare mode; until that lazy chunk has rendered, and when it
+   fails, the blocks below stay on screen. A plain body never loads it. */
+const props = defineProps<{ body: string, markdown?: boolean }>()
 const blocks = computed(() => parseBody(props.body))
+const mdSource = computed(() => (props.markdown || looksLikeMarkdown(props.body) ? markdownSource(props.body) : null))
+const mdOn = ref(false)
+watch(mdSource, (v) => { if (v === null) mdOn.value = false })
 </script>
 
 <style scoped>

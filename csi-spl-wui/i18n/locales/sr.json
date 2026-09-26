@@ -804,6 +804,7 @@
     "no_deadline": "Без рока",
     "field_description": "Опис",
     "description_empty": "Додајте опис",
+    "description_edit_hint": "Кликните или притисните E за измену",
     "title_placeholder": "Наслов",
     "create": "Направи проблем",
     "creating": "Прављење…",

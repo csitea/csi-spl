@@ -173,7 +173,7 @@ try {
 
   await p.click('[data-test=issues-row][data-key="SPL-2"] .issues-c-key')
   await p.waitForSelector('[data-test=issues-detail]', { visible: true, timeout: 5000 })
-  const body = await p.$eval('[data-test=issues-detail-body]', (el) => el.value)
+  const body = await p.$eval('[data-test=issues-detail-rendered]', (el) => el.textContent.trim())
   const deadlineType = await p.$eval('[data-test=issues-deadline]', (el) => el.getAttribute('type'))
   const deadlineHint = await p.$eval('[data-test=issues-deadline]', (el) => el.getAttribute('placeholder'))
   /* owner, topic 778ad161: a click opens a calendar (month grid) with a 24-hour time, 07:00-22:00, no AM/PM */

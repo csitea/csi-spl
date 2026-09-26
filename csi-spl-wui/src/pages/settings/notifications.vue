@@ -11,11 +11,11 @@
         type="button"
         class="btn"
         data-test="settings-notify-alerts"
-        :aria-pressed="alertsOn"
+        :aria-pressed="alertsWanted"
         @click="notes.toggleAlerts()"
       >
-        <UiIcon :name="alertsOn ? 'bell' : 'bell-off'" :size="18" />
-        {{ alertsOn ? t('notify.alerts_on') : t('notify.enable_alerts') }}
+        <UiIcon :name="alertsWanted ? 'bell' : 'bell-off'" :size="18" />
+        {{ alertsWanted ? t('notify.alerts_on') : t('notify.enable_alerts') }}
       </button>
     </div>
     <div class="settings__row">
@@ -31,7 +31,7 @@ import { useNotificationStore } from '~/stores/notification'
 
 const { t } = useI18n({ useScope: 'global' })
 const notes = useNotificationStore()
-const alertsOn = computed(() => notes.alertsOn)
+const alertsWanted = computed(() => notes.alertsEnabled)
 </script>
 
 <style scoped>

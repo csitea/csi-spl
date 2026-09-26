@@ -84,14 +84,11 @@ export const useNotificationStore = defineStore('notification', () => {
     if (import.meta.client) saveAlerts(Boolean(v))
   })
 
-  /** The bell: ask the browser the first time; after that switch alerts on/off. */
+  /** The bell glyph follows the reader's switch. Messages popping do not
+   *  move it. Turning it on also asks the browser, once, for permission. */
   async function toggleAlerts() {
-    if (permission.value !== 'granted') {
-      await requestPush()
-      if (permission.value === 'granted') alertsEnabled.value = true
-      return
-    }
     alertsEnabled.value = !alertsEnabled.value
+    if (alertsEnabled.value && permission.value !== 'granted') await requestPush()
   }
 
   async function requestPush() {

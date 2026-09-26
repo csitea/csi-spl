@@ -6,12 +6,12 @@
       class="icon-btn notify-alerts"
       type="button"
       data-testid="notify-alerts"
-      :class="{ on: alertsOn }"
+      :class="{ on: alertsWanted }"
       :aria-label="alertsLabel"
       :title="alertsLabel"
       @click="notes.toggleAlerts()"
     >
-      <UiIcon class="notify-glyph" :name="alertsOn ? 'bell' : 'bell-off'" :size="18" />
+      <UiIcon class="notify-glyph" :name="alertsWanted ? 'bell' : 'bell-off'" :size="18" />
     </button>
     <button
       class="icon-btn notify-chime"
@@ -33,8 +33,8 @@ import { useNotificationStore } from '~/stores/notification'
 
 const notes = useNotificationStore()
 const { t } = useI18n({ useScope: 'global' })
-const alertsOn = computed(() => notes.alertsOn)
-const alertsLabel = computed(() => (alertsOn.value ? t('notify.alerts_on') : t('notify.enable_alerts')))
+const alertsWanted = computed(() => notes.alertsEnabled)
+const alertsLabel = computed(() => (alertsWanted.value ? t('notify.alerts_on') : t('notify.enable_alerts')))
 </script>
 
 <style scoped>

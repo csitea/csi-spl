@@ -220,13 +220,18 @@ describe('alerts on/off (the bell)', () => {
     saveAlerts(true, store)
     assert.equal(loadAlerts(store), true)
   })
-  it('the bell and the settings button TOGGLE (not only request permission)', () => {
+  it('the bell glyph follows the reader switch, not whether messages are popping', () => {
     const center = readFileSync(join(WUI, 'src/components/NotificationCenter.vue'), 'utf8')
+    const settings = readFileSync(join(WUI, 'src/pages/settings/notifications.vue'), 'utf8')
     assert.match(center, /notes\.toggleAlerts\(\)/)
-    assert.match(center, /notes\.alertsOn/)
+    assert.match(center, /notes\.alertsEnabled/)
+    assert.match(settings, /notes\.alertsEnabled/)
+    assert.doesNotMatch(center, /alertsOn \? 'bell'/)
     const store = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
+    const flip = store.indexOf('alertsEnabled.value = !alertsEnabled.value')
+    const ask = store.indexOf('await requestPush()')
+    assert.ok(flip > 0 && ask > flip)
     assert.match(store, /if \(alertsOn\.value && typeof Notification/)
-    // CONTROL: the old permission-only check is gone from the pop-up path
-    assert.doesNotMatch(store, /if \(permission\.value === 'granted' && typeof Notification/)
+    assert.doesNotMatch(store, /if \(permission\.value !== 'granted'\)/)
   })
 })

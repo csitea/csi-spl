@@ -26,8 +26,14 @@ billing refusal every write gets.
  "created_at":"…","updated_by":"CLE-07","updated_at":"…","completed_at":"","canceled_at":""}
 ```
 
-- `status`: `backlog | todo | in_progress | in_review | done | canceled`
-- `priority`: 0 none, 1 urgent, 2 high, 3 medium, 4 low
+- `status` (rdb 0055, owner topic f2c32da2): `eval | todo | wip | diss | qas | done`,
+  shown as `01-eval, 02-todo, 03-wip, 03-diss, 07-qas, 09-done` (evaluation,
+  to do, work in progress, discard, quality assurance, done). A write may
+  still send a first-set name; it maps backlog -> eval, in_progress -> wip,
+  in_review -> qas, canceled -> diss. `done` stamps `completed_at`, `diss`
+  `canceled_at`
+- `priority` - "prio" in the WUI (rdb 0054 + 0055, owner topic d81cbf47): 1 (highest)
+  .. 5 (lowest, the default for a new issue); "no priority" is gone (it became 5)
 - `level`: 0 none, 1 XS, 2 S, 3 M, 4 L, 5 XL
 - `kind`: `epic` (carries the reserved label `epic`) or `issue`; `epic`: the
   parent epic's key on an issue, `""` on an epic (`parent` is the same key)

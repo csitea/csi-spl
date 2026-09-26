@@ -13,8 +13,8 @@
 # @param ISSUE_PARENT (optional) - a level-2 issue's key: the new issue is its subtask (level 3)
 # @param ISSUE_KIND (optional) - issue (default) | epic | feature (epics and features are level 1)
 # @param ISSUE_DESCRIPTION (optional) - markdown; or ISSUE_DESCRIPTION_FILE
-# @param ISSUE_STATUS (optional) - backlog (default) | todo | in_progress | in_review | done | canceled
-# @param ISSUE_PRIORITY (optional) - 0 none, 1 urgent, 2 high, 3 medium, 4 low
+# @param ISSUE_STATUS (optional) - eval (default) | todo | wip | diss | qas | done  (01-eval .. 09-done)
+# @param ISSUE_PRIORITY (optional) - prio 1 (highest) .. 5 (lowest, the default)
 # @param ISSUE_LEVEL (optional) - 0 none, 1 XS, 2 S, 3 M, 4 L, 5 XL
 # @param ISSUE_ASSIGNEE (optional) - a member HUM-* or an agent id
 # @param ISSUE_LABELS (optional) - label ids, comma separated

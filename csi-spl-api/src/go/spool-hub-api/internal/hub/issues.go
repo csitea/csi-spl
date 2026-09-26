@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -460,6 +461,12 @@ func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr)
 		return v[k][0]
 	}
 	f := issueFilter{status: csvSet(get("status")), label: csvSet(get("label")), assignee: map[string]bool{}}
+	for st := range f.status { // a first-set name (in_progress, ...) still filters
+		if n := store.NormalizeIssueStatus(st); n != st {
+			delete(f.status, st)
+			f.status[n] = true
+		}
+	}
 	for s := range f.status {
 		if !store.ValidIssueStatus(s) {
 			return f, badIssue("status must be one of " + strings.Join(store.IssueStatuses, ", "))
@@ -476,8 +483,8 @@ func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr)
 		}
 	}
 	var ok bool
-	if f.priority, ok = intSet(get("priority"), store.IssuePriorityMax); !ok {
-		return f, badIssue("priority must be 0..5")
+	if f.priority, ok = intSet(get("priority"), store.IssuePriorityMax); !ok || f.priority[0] {
+		return f, badIssue(fmt.Sprintf("prio must be %d..%d", store.IssuePriorityMin, store.IssuePriorityMax))
 	}
 	if f.level, ok = intSet(get("level"), store.IssueLevelMax); !ok {
 		return f, badIssue("level must be 0..5")

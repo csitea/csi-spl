@@ -66,10 +66,11 @@ spl_issue_field_args() {
 # spl_issue_check_fields: the shape checks the hub would refuse anyway, so a
 # typo fails here with the variable's name.
 spl_issue_check_fields() {
-  [[ -z "${ISSUE_STATUS:-}" || "$ISSUE_STATUS" =~ ^(backlog|todo|in_progress|in_review|done|canceled)$ ]] ||
-    { do_log "FATAL ISSUE_STATUS must be backlog, todo, in_progress, in_review, done or canceled, got: '$ISSUE_STATUS'"; return 1; }
-  [[ -z "${ISSUE_PRIORITY:-}" || "$ISSUE_PRIORITY" =~ ^[0-4]$ ]] ||
-    { do_log "FATAL ISSUE_PRIORITY must be 0 (none), 1 urgent, 2 high, 3 medium or 4 low, got: '$ISSUE_PRIORITY'"; return 1; }
+  # rdb 0055: the owner's statuses; the first set's names still map (backlog -> eval, ...)
+  [[ -z "${ISSUE_STATUS:-}" || "$ISSUE_STATUS" =~ ^(eval|todo|wip|diss|qas|done|backlog|in_progress|in_review|canceled)$ ]] ||
+    { do_log "FATAL ISSUE_STATUS must be eval, todo, wip, diss, qas or done (01-eval .. 09-done), got: '$ISSUE_STATUS'"; return 1; }
+  [[ -z "${ISSUE_PRIORITY:-}" || "$ISSUE_PRIORITY" =~ ^[1-5]$ ]] ||
+    { do_log "FATAL ISSUE_PRIORITY (prio) must be 1 (highest) .. 5 (lowest), got: '$ISSUE_PRIORITY'"; return 1; }
   [[ -z "${ISSUE_LEVEL:-}" || "$ISSUE_LEVEL" =~ ^[0-5]$ ]] ||
     { do_log "FATAL ISSUE_LEVEL must be 0 (none) .. 5 (XL), got: '$ISSUE_LEVEL'"; return 1; }
   [[ -z "${ISSUE_KIND:-}" || "$ISSUE_KIND" =~ ^(epic|feature|issue)$ ]] ||

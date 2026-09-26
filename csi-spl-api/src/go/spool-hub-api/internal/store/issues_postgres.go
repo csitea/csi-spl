@@ -22,6 +22,10 @@ func scanIssue(row pgx.Row, tenant, prefix string) (Issue, error) {
 	if i.Labels == nil {
 		i.Labels = []string{}
 	}
+	i.Status = NormalizeIssueStatus(i.Status) // a first-set status from the roll window
+	if i.Priority == 0 {                      // written by a hub older than rdb 0055
+		i.Priority = IssuePriorityDefault
+	}
 	return i, err
 }
 

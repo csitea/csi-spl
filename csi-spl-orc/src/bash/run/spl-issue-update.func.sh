@@ -3,7 +3,7 @@
 # @description Advance an issue from a desk agent's pane (specs/039 FR-008):
 # @description `spool issue update --as <agent> --ref <key>` with every ISSUE_*
 # @description variable that is SET - an empty value clears (assignee,
-# @description deadline, parent, labels). Typical: ISSUE_STATUS=in_progress
+# @description deadline, parent, labels). Typical: ISSUE_STATUS=wip
 # @description when work starts, in_review / done when it lands. Prints one
 # @description JSON line with the issue. Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd
@@ -13,7 +13,7 @@
 # @param ISSUE_TITLE ISSUE_DESCRIPTION ISSUE_DESCRIPTION_FILE ISSUE_STATUS ISSUE_PRIORITY ISSUE_LEVEL ISSUE_ASSIGNEE ISSUE_LABELS ISSUE_DEADLINE ISSUE_EPIC ISSUE_KIND (optional) - as for do_spl_issue_create (ISSUE_EPIC moves it to another epic)
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_REF=SPL-12 ISSUE_STATUS=in_progress DRY_RUN=0 ./run -a do_spl_issue_update
+# @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_REF=SPL-12 ISSUE_STATUS=wip DRY_RUN=0 ./run -a do_spl_issue_update
 #------------------------------------------------------------------------------
 do_spl_issue_update() {
   spl_issue_check_ref || return 1

@@ -17,22 +17,45 @@ import (
 // the key is <prefix>-<number> (SPL-12). The discussion is an ordinary topic
 // on the issue's task_id. The hub never deletes an issue: Canceled is a status.
 
-// Issue statuses in Linear's workflow order (the list groups by it).
+// Issue statuses, the owner's set (rdb 0055, topic f2c32da2), in the order
+// of their numbered labels: 01-eval, 02-todo, 03-wip, 03-diss, 07-qas,
+// 09-done. The older Go names stay as aliases so callers keep compiling.
 const (
-	IssueBacklog    = "backlog"
-	IssueTodo       = "todo"
-	IssueInProgress = "in_progress"
-	IssueInReview   = "in_review"
-	IssueDone       = "done"
-	IssueCanceled   = "canceled"
+	IssueEval = "eval" // 01-eval: evaluation
+	IssueTodo = "todo" // 02-todo
+	IssueWIP  = "wip"  // 03-wip: work in progress
+	IssueDiss = "diss" // 03-diss: discard (stamps canceled_at)
+	IssueQAS  = "qas"  // 07-qas: quality assurance
+	IssueDone = "done" // 09-done (stamps completed_at)
+
+	IssueBacklog    = IssueEval
+	IssueInProgress = IssueWIP
+	IssueInReview   = IssueQAS
+	IssueCanceled   = IssueDiss
 )
 
 // IssueStatuses is the workflow, in order.
-var IssueStatuses = []string{IssueBacklog, IssueTodo, IssueInProgress, IssueInReview, IssueDone, IssueCanceled}
+var IssueStatuses = []string{IssueEval, IssueTodo, IssueWIP, IssueDiss, IssueQAS, IssueDone}
+
+// legacyStatus maps a status of the first set (rdb 0047) to its successor:
+// an agent or an older hub may still send one; rdb 0055 moved the rows.
+var legacyStatus = map[string]string{"backlog": IssueEval, "in_progress": IssueWIP, "in_review": IssueQAS, "canceled": IssueDiss}
+
+// NormalizeIssueStatus is s, or its successor when s is a first-set status.
+func NormalizeIssueStatus(s string) string {
+	if n, ok := legacyStatus[s]; ok {
+		return n
+	}
+	return s
+}
 
 const (
-	// IssuePriorityMax: prio is a number 1..5. 0 is a row that never picked one.
-	IssuePriorityMax = 5
+	// "prio" (rdb 0054 + 0055, owner 2026-09-26): a plain number, 1 the highest,
+	// 5 the lowest; a new issue starts at IssuePriorityDefault. The column
+	// still admits 0 for the roll window; the store reads a 0 as 5.
+	IssuePriorityMin     = 1
+	IssuePriorityMax     = 5
+	IssuePriorityDefault = 5
 	// IssueLevelMax: the owner's "level", Linear's t-shirt estimate, 0 none,
 	// 1 XS, 2 S, 3 M, 4 L, 5 XL.
 	IssueLevelMax       = 5
@@ -256,6 +279,10 @@ func LabelSlug(name string) string {
 // checkIssue validates the stored fields both drivers write (rdb 0047's
 // checks, answered before the database has to).
 func checkIssue(i *Issue) error {
+	i.Status = NormalizeIssueStatus(i.Status)
+	if i.Priority == 0 { // unset, or a row written before rdb 0055
+		i.Priority = IssuePriorityDefault
+	}
 	i.Title = strings.TrimSpace(i.Title)
 	switch {
 	case i.Title == "" || utf8.RuneCountInString(i.Title) > IssueTitleMax:
@@ -266,8 +293,8 @@ func checkIssue(i *Issue) error {
 		return invalidIssue("description must be at most %d characters", IssueDescriptionMax)
 	case !ValidIssueStatus(i.Status):
 		return invalidIssue("status must be one of %s", strings.Join(IssueStatuses, ", "))
-	case i.Priority < 0 || i.Priority > IssuePriorityMax:
-		return invalidIssue("priority must be 0..%d", IssuePriorityMax)
+	case i.Priority < IssuePriorityMin || i.Priority > IssuePriorityMax:
+		return invalidIssue("prio must be %d..%d", IssuePriorityMin, IssuePriorityMax)
 	case i.Level < 0 || i.Level > IssueLevelMax:
 		return invalidIssue("level must be 0..%d", IssueLevelMax)
 	case i.Assignee != "" && !issueAssigneeRe.MatchString(i.Assignee):
@@ -359,6 +386,10 @@ func ApplyIssuePatch(i *Issue, p IssuePatch) {
 
 // applyPatch writes p onto i and restamps the status clocks.
 func applyPatch(i *Issue, p IssuePatch, by string, now time.Time) {
+	if p.Status != nil {
+		st := NormalizeIssueStatus(*p.Status)
+		p.Status = &st
+	}
 	changed := p.Status != nil && *p.Status != i.Status
 	ApplyIssuePatch(i, p)
 	if changed {

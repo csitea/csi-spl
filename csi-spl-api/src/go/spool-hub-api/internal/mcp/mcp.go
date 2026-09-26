@@ -67,8 +67,8 @@ type IssueIn struct {
 	Op    string         `json:"op" jsonschema:"one of list, get, create, update, comment, label"`
 	As    string         `json:"as,omitempty" jsonschema:"the acting agent id; a seated server defaults it to its seat and refuses any other"`
 	Ref   string         `json:"ref,omitempty" jsonschema:"issue key, e.g. SPL-12 (get, update, comment)"`
-	Issue map[string]any `json:"issue,omitempty" jsonschema:"create/update fields: title, description (markdown), status (backlog|todo|in_progress|in_review|done|canceled), priority (0 none,1 urgent,2 high,3 medium,4 low), level (0 none,1 XS..5 XL), assignee, labels, deadline (RFC 3339), epic (the epic / feature above it), parent (a level-2 issue: makes a subtask), kind (epic|feature|issue); for label: name, color"`
-	Query string         `json:"query,omitempty" jsonschema:"list filters in URL query form, e.g. status=todo,in_progress&assignee=me&epic=SPL-17&kind=issue&sort=priority"`
+	Issue map[string]any `json:"issue,omitempty" jsonschema:"create/update fields: title, description (markdown), status (eval|todo|wip|diss|qas|done = 01-eval..09-done), priority (prio 1 highest .. 5 lowest), level (0 none,1 XS..5 XL), assignee, labels, deadline (RFC 3339), epic (the epic / feature above it), parent (a level-2 issue: makes a subtask), kind (epic|feature|issue); for label: name, color"`
+	Query string         `json:"query,omitempty" jsonschema:"list filters in URL query form, e.g. status=todo,wip&assignee=me&epic=SPL-17&kind=issue&sort=priority"`
 	Body  string         `json:"body,omitempty" jsonschema:"comment text: your progress on the issue"`
 }
 

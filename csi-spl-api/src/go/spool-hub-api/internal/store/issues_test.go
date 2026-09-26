@@ -41,7 +41,7 @@ func TestIssues(t *testing.T) {
 				t.Fatalf("unknown tenant: %v", err)
 			}
 			for _, bad := range []Issue{
-				{Title: " "}, {Title: strings.Repeat("t", 256)}, {Title: "x", Status: "doing"}, {Title: "x", Priority: 6},
+				{Title: " "}, {Title: strings.Repeat("t", 256)}, {Title: "x", Status: "doing"}, {Title: "x", Priority: 6}, {Title: "x", Priority: -1},
 				{Title: "x", Level: 6}, {Title: "x", Assignee: "bob"}, {Title: "x", Labels: []string{"Bad Label"}},
 				{Title: "x", Description: strings.Repeat("d", IssueDescriptionMax+1)},
 			} {
@@ -111,7 +111,7 @@ func TestIssues(t *testing.T) {
 			later := now.Add(time.Minute)
 			up, err := is.UpdateIssue(ctx, a, one.Number, IssuePatch{Status: ptr(IssueCanceled), Priority: ptrInt(0), Assignee: ptr(""),
 				Labels: &[]string{}, DeadlineSet: true}, "HUM-3", later)
-			if err != nil || up.Status != IssueCanceled || up.CanceledAt == nil || !up.CanceledAt.Equal(later) || up.Priority != 0 ||
+			if err != nil || up.Status != IssueCanceled || up.CanceledAt == nil || !up.CanceledAt.Equal(later) || up.Priority != IssuePriorityDefault ||
 				up.Assignee != "" || len(up.Labels) != 0 || up.Deadline != nil || up.UpdatedBy != "HUM-3" || !up.UpdatedAt.Equal(later) ||
 				up.Title != "First" || up.Level != 3 || up.Parent != ea {
 				t.Fatalf("update: %+v %v", up, err)

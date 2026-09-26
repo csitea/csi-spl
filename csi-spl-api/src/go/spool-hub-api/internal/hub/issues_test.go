@@ -79,7 +79,7 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 		t.Fatalf("create: %d %v", code, out)
 	}
 	one := issueOf(t, out)
-	if one["key"] != "SPL-2" || one["status"] != "backlog" || one["deadline"] != "2026-10-01T12:30:00Z" || one["created_by"] != dev ||
+	if one["key"] != "SPL-2" || one["status"] != "eval" || one["deadline"] != "2026-10-01T12:30:00Z" || one["created_by"] != dev ||
 		one["channel"] != store.ChannelIssues || one["task_id"] == "" || one["assignee"] != "CLE-07" {
 		t.Fatalf("created %v", one)
 	}
@@ -136,7 +136,7 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	if code != http.StatusOK || !sameKeys(issueKeys(out), "SPL-3", "SPL-2", "SPL-4") || out["prefix"] != "SPL" {
 		t.Fatalf("list: %d %v", code, issueKeys(out))
 	}
-	if c := out["counts"].(map[string]any); c["backlog"] != float64(2) || c["todo"] != float64(1) || c["done"] != float64(0) {
+	if c := out["counts"].(map[string]any); c["eval"] != float64(2) || c["todo"] != float64(1) || c["done"] != float64(0) {
 		t.Fatalf("counts %v", c)
 	}
 	if ls := out["labels"].([]any); len(ls) != 1 { // bug; kind is a column (rdb 0053), not a label
@@ -146,7 +146,7 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 		"?sort=level":                           {"SPL-4", "SPL-2", "SPL-3"},
 		"?sort=deadline":                        {"SPL-2", "SPL-4", "SPL-3"},
 		"?status=todo":                          {"SPL-3"},
-		"?priority=0":                           {"SPL-4"},
+		"?priority=5":                           {"SPL-4"},
 		"?level=1,3&sort=level":                 {"SPL-2", "SPL-3"},
 		"?assignee=none":                        {"SPL-4"},
 		"?assignee=me":                          {"SPL-3"},

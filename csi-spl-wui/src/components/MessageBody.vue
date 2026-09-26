@@ -1,7 +1,8 @@
 <template>
   <div class="msg-body">
     <template v-for="(b, i) in blocks" :key="i">
-      <CodeBlock v-if="b.type === 'code'" :text="b.text" :lang="b.lang" />
+      <MarkdownBlock v-if="b.type === 'code' && isMarkdownLang(b.lang)" :text="b.text" />
+      <CodeBlock v-else-if="b.type === 'code'" :text="b.text" :lang="b.lang" />
       <p v-else class="msg-para">
         <template v-for="(p, j) in b.parts" :key="j">
           <code v-if="p.type === 'inline'" class="code-inline">{{ p.text }}</code>
@@ -26,6 +27,7 @@
 
 <script setup lang="ts">
 import { parseBody } from '~/utils/code-blocks.mjs'
+import { isMarkdownLang } from '~/utils/markdown.mjs'
 import { mentionDisplay } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 

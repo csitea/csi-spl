@@ -818,5 +818,9 @@
       "4": "L",
       "5": "XL"
     }
+  },
+  "markdown": {
+    "show_source": "Visa källa",
+    "show_rendered": "Visa formaterat"
   }
 }

@@ -595,7 +595,8 @@
       "topics": "Témy",
       "files": "Súbory",
       "messages": "Správy",
-      "tenants": "Nájomníci",      "events": "Denník udalostí",
+      "tenants": "Nájomníci",
+      "events": "Denník udalostí",
       "issues": "Úlohy"
     },
     "placeholder_target": "Správa pre {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",
@@ -817,5 +818,9 @@
       "4": "L",
       "5": "XL"
     }
+  },
+  "markdown": {
+    "show_source": "Zobraziť zdroj",
+    "show_rendered": "Zobraziť formátované"
   }
 }

@@ -595,7 +595,8 @@
       "topics": "Темы",
       "files": "Файлы",
       "messages": "Сообщения",
-      "tenants": "Тенанты",      "events": "Журнал событий",
+      "tenants": "Тенанты",
+      "events": "Журнал событий",
       "issues": "Заявки"
     },
     "placeholder_target": "Сообщение для {target} — Enter для новой строки · Ctrl+Enter или Cmd+Enter отправляет · /search ищет везде",
@@ -817,5 +818,9 @@
       "4": "L",
       "5": "XL"
     }
+  },
+  "markdown": {
+    "show_source": "Показать исходник",
+    "show_rendered": "Показать форматированным"
   }
 }

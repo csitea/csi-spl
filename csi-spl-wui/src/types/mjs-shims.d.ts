@@ -1099,3 +1099,8 @@ declare module '~/utils/issues-view.mjs' {
   export function localInputToDeadline(value: string, offsetMin?: number): string | null
   export function isOverdue(issue: import('~/utils/issues.mjs').Issue, now?: number): boolean
 }
+
+declare module '~/utils/markdown.mjs' {
+  export function isMarkdownLang(lang: string | null | undefined): boolean
+  export function renderMarkdown(src: string): string
+}

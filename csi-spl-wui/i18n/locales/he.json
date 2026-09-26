@@ -595,7 +595,8 @@
       "topics": "נושאים",
       "files": "קבצים",
       "messages": "הודעות",
-      "tenants": "טננטים",      "events": "יומן אירועים",
+      "tenants": "טננטים",
+      "events": "יומן אירועים",
       "issues": "סוגיות"
     },
     "placeholder_target": "הודעה אל {target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",
@@ -817,5 +818,9 @@
       "4": "L",
       "5": "XL"
     }
+  },
+  "markdown": {
+    "show_source": "הצג מקור",
+    "show_rendered": "הצג מעוצב"
   }
 }

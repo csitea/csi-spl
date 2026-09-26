@@ -595,7 +595,8 @@
       "topics": "Теми",
       "files": "Файлове",
       "messages": "Съобщения",
-      "tenants": "Тенанти",      "events": "Дневник на събитията",
+      "tenants": "Тенанти",
+      "events": "Дневник на събитията",
       "issues": "Проблеми"
     },
     "placeholder_target": "Съобщение до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",
@@ -817,5 +818,9 @@
       "4": "L",
       "5": "XL"
     }
+  },
+  "markdown": {
+    "show_source": "Покажи изходния текст",
+    "show_rendered": "Покажи форматирано"
   }
 }

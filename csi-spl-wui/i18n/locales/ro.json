@@ -818,5 +818,9 @@
       "4": "L",
       "5": "XL"
     }
+  },
+  "markdown": {
+    "show_source": "Arată sursa",
+    "show_rendered": "Arată formatat"
   }
 }

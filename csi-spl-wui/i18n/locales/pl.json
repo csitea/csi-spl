@@ -595,7 +595,8 @@
       "topics": "Tematy",
       "files": "Pliki",
       "messages": "Wiadomości",
-      "tenants": "Dzierżawy",      "events": "Dziennik zdarzeń",
+      "tenants": "Dzierżawy",
+      "events": "Dziennik zdarzeń",
       "issues": "Zgłoszenia"
     },
     "placeholder_target": "Wiadomość do {target} — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search szuka wszędzie",
@@ -817,5 +818,9 @@
       "4": "L",
       "5": "XL"
     }
+  },
+  "markdown": {
+    "show_source": "Pokaż źródło",
+    "show_rendered": "Pokaż sformatowane"
   }
 }

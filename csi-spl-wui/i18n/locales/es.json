@@ -818,5 +818,9 @@
       "4": "L",
       "5": "XL"
     }
+  },
+  "markdown": {
+    "show_source": "Ver fuente",
+    "show_rendered": "Ver con formato"
   }
 }

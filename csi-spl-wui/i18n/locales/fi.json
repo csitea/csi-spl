@@ -818,5 +818,9 @@
       "4": "L",
       "5": "XL"
     }
+  },
+  "markdown": {
+    "show_source": "Näytä lähdeteksti",
+    "show_rendered": "Näytä muotoiltuna"
   }
 }

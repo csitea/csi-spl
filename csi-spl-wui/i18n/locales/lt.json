@@ -818,5 +818,9 @@
       "4": "L",
       "5": "XL"
     }
+  },
+  "markdown": {
+    "show_source": "Rodyti šaltinį",
+    "show_rendered": "Rodyti suformatuotą"
   }
 }

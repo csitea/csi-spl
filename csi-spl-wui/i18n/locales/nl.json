@@ -818,5 +818,9 @@
       "4": "L",
       "5": "XL"
     }
+  },
+  "markdown": {
+    "show_source": "Bron tonen",
+    "show_rendered": "Opgemaakt tonen"
   }
 }

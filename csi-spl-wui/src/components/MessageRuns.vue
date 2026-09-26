@@ -42,7 +42,7 @@ const people = useHumanNames()
   background: var(--color-bg-2);
   padding: 1px 4px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: 0.75rem;
   white-space: pre-wrap;
 }
 em { font-style: italic; }

@@ -114,6 +114,14 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// issue_labels, issues, issue_counters (rdb 0047): one labelled issue.
+	if _, err := pg.CreateIssueLabel(ctx, IssueLabel{TenantID: s.tenant, Name: "bug", CreatedBy: hum}, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pg.CreateIssue(ctx, Issue{TenantID: s.tenant, Title: "issue " + s.tenant, Labels: []string{"bug"},
+		TaskID: uuid4(), CreatedBy: hum}, now); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

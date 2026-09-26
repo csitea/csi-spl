@@ -35,6 +35,7 @@ type Memory struct {
 	keys       memKeys                 // human_keys_memory.go, guarded by mu
 	events     memEvents               // human_events_memory.go, guarded by mu
 	operators  map[[3]string]time.Time // box_operators.go (rdb 0040), guarded by mu
+	iss        memIssues               // issues.go (rdb 0047), guarded by mu
 }
 
 type memPin struct {

@@ -93,7 +93,16 @@ func (s *Postgres) ViewTopics(ctx context.Context, tenant string, q TopicQuery) 
 // planner cannot see that LIMIT stops the walk early), which is above
 // jit_above_cost: measured on pg 16.14 at 200k messages, JIT compiled for
 // 311 ms around a 22 ms execution.
-const pgScopeTenantNoJIT = `SELECT set_config('app.tenant_id', $1, true), set_config('jit', 'off', true)`
+//
+// Bitmap scans are off for the same reason (SPL-984): each recursive step is
+// ORDER BY .. LIMIT 1 behind boolean probes rated rows=1, so the planner took
+// a Bitmap Heap Scan of every older message per step plus a top-N sort. prd
+// t1 2026-09-26: 3 488 rows and ~3 400 probe runs per step, 1.0-1.6 s per
+// page. Without bitmap scans each step is an ordered index scan that stops
+// at its first passing row (lab: 1 977 -> 21.5 ms at 11.7k messages). Local
+// to this batch's implicit transaction: no other statement sees it.
+const pgScopeTenantNoJIT = `SELECT set_config('app.tenant_id', $1, true), set_config('jit', 'off', true),
+	set_config('enable_bitmapscan', 'off', true)`
 
 // queryTenantNoJIT is queryTenant (one round trip, rls.go) with JIT off.
 func (s *Postgres) queryTenantNoJIT(ctx context.Context, tenant, sql string, args []any, each func(pgx.Rows) error) error {

@@ -113,7 +113,7 @@ err=r[4]["content"][0]["text"]
 print(r[1]["serverInfo"]["name"], tools, r[3].get("isError", False), sent, r[4]["isError"], err.endswith("(exit 78)"))
 PY
 )"
-[ "$MCP" = "spool spool_get_file,spool_put_file,spool_recv,spool_send,spool_tail False local True True" ] \
-  && pass "spool mcp over stdio: 5 canonical tools, unsigned send, hash mismatch is a tool error (exit 78)" || fail "spool mcp stdio: $MCP"
+[ "$MCP" = "spool spool_get_file,spool_issue,spool_put_file,spool_recv,spool_send,spool_tail False local True True" ] \
+  && pass "spool mcp over stdio: 5 canonical tools + spool_issue, unsigned send, hash mismatch is a tool error (exit 78)" || fail "spool mcp stdio: $MCP"
 
 echo "ALL SMOKE CHECKS PASSED"

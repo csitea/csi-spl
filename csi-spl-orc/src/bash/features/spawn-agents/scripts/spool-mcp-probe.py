@@ -31,7 +31,7 @@ import sys
 import tempfile
 import time
 
-TOOLS = ["spool_get_file", "spool_put_file", "spool_recv", "spool_send", "spool_tail"]
+TOOLS = ["spool_get_file", "spool_issue", "spool_put_file", "spool_recv", "spool_send", "spool_tail"]  # spool_issue: specs/039
 
 
 class Server:

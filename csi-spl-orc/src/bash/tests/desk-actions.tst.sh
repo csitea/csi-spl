@@ -10,6 +10,7 @@
 #   3. do_spl_desk_reply refuses a bad kind, a non-HUM DESK_TO and a non-uuid
 #      DESK_TASK before it reads anything
 #   8. do_spl_desk_post (specs/038) refuses a bad channel / kind / body / file
+#   9. do_spl_issue_* (specs/039) refuse bad fields, send only the set ones
 #      before it reads anything, sends `spool send --channel` with the
 #      normalized channel and the put files' ids, and names a non-member
 #      refusal (unknown_channel) as such
@@ -315,6 +316,56 @@ out=$(SNIPPET="$POST" in_orc FAKE="$T/fakespool" FAKE_LOG="$T/fake.log" FAKE_REF
   DESK_CHANNEL=ops DESK_BODY='let me in' DRY_RUN=0 2>&1); rc=$?
 [[ $rc -ne 0 && "$out" == *"not a member of #ops"* ]] && pass "a non-member refusal is named as one" ||
   fail "non-member refusal (rc=$rc): $out"
+
+# --- 9. the issue leg (specs/039 FR-008) -------------------------------------------
+cat >"$T/fakeissue" <<'FAKE'
+#!/bin/sh
+printf '%s|' "$@" >>"$FAKE_LOG"; echo >>"$FAKE_LOG"
+[ -n "${FAKE_REFUSE:-}" ] && { echo 'spool: hub refused: from_not_announced (CLE-00 is not an agent announced by box-desk)' >&2; exit 78; }
+echo '{"issue":{"key":"SPL-7","status":"todo"}}'
+FAKE
+chmod +x "$T/fakeissue"; : >"$T/issue.log"
+ISS='spl_host_spool() { SPL_SPOOL="$FAKE"; }; '
+for a in do_spl_issue_create do_spl_issue_update do_spl_issue_comment do_spl_issue_list; do
+  SNIPPET="$a" in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE=t ISSUE_REF=SPL-7 ISSUE_BODY=b ISSUE_STATUS=todo >"$T/o" 2>&1
+  grep -q 'DRY_RUN' "$T/o" && pass "$a: the dry run says what it would do" || fail "$a: no DRY_RUN line: $(cat "$T/o")"
+done
+for bad in "do_spl_issue_create ISSUE_TITLE=" "do_spl_issue_create ISSUE_PRIORITY=9" "do_spl_issue_create ISSUE_LEVEL=6" \
+           "do_spl_issue_create ISSUE_STATUS=doing" "do_spl_issue_update ISSUE_REF=nope" "do_spl_issue_update ISSUE_REF=SPL-7" \
+           "do_spl_issue_comment ISSUE_BODY=" "do_spl_issue_comment ISSUE_REF=SPL-0"; do
+  read -r a kv <<<"$bad"
+  title=ISSUE_NONE=1; [[ $a == do_spl_issue_create ]] && title=ISSUE_TITLE=t # an update with no field set is a refusal too
+  if SNIPPET="$ISS$a" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 "$title" \
+       ISSUE_REF=SPL-7 ISSUE_BODY=b DRY_RUN=0 "$kv" >"$T/o" 2>&1; then
+    fail "$a refuses $kv: $(cat "$T/o")"
+  else
+    grep -q FATAL "$T/o" && pass "$a refuses $kv" || fail "$a refuses $kv without saying why: $(cat "$T/o")"
+  fi
+done
+[[ ! -s "$T/issue.log" ]] && pass "CONTROL no refused call reached spool" || fail "a refused call ran spool: $(cat "$T/issue.log")"
+mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
+out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_TITLE='Rotate the key' ISSUE_PRIORITY=2 ISSUE_LEVEL=3 ISSUE_DEADLINE=2026-10-01T15:00:00Z DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *'"key": "SPL-7"'* && "$out" == *'"op": "create"'* ]] && pass "do_spl_issue_create files through the desk's spool" ||
+  fail "do_spl_issue_create (rc=$rc): $out"
+tail -1 "$T/issue.log" | grep -q '^issue|create|--as|CLE-00|' && tail -1 "$T/issue.log" | grep -q '|--title|Rotate the key|' &&
+  tail -1 "$T/issue.log" | grep -q '|--priority|2|' && tail -1 "$T/issue.log" | grep -q '|--level|3|' &&
+  tail -1 "$T/issue.log" | grep -q '|--deadline|2026-10-01T15:00:00Z|' && pass "…as spool issue create --as with each set field" ||
+  fail "create args: $(tail -1 "$T/issue.log")"
+out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_REF=SPL-7 ISSUE_STATUS=in_progress ISSUE_ASSIGNEE= DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -qx 'issue|update|--as|CLE-00|--ref|SPL-7|--status|in_progress|--assignee||' &&
+  pass "do_spl_issue_update sends only the SET fields; an empty one clears" || fail "update (rc=$rc): $out / $(tail -1 "$T/issue.log")"
+out=$(SNIPPET="${ISS}do_spl_issue_comment" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_REF=SPL-7 ISSUE_BODY='dev done; prd next' DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -qx 'issue|comment|--as|CLE-00|--ref|SPL-7|--body|dev done; prd next|' &&
+  pass "do_spl_issue_comment posts the progress" || fail "comment (rc=$rc): $out / $(tail -1 "$T/issue.log")"
+out=$(SNIPPET="${ISS}do_spl_issue_list" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -qx 'issue|list|--as|CLE-00|--assignee|me|--status|backlog,todo,in_progress,in_review|' &&
+  pass "do_spl_issue_list defaults to my open issues" || fail "list (rc=$rc): $out / $(tail -1 "$T/issue.log")"
+out=$(SNIPPET="${ISS}do_spl_issue_comment" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" FAKE_REFUSE=1 TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  ISSUE_REF=SPL-7 ISSUE_BODY=x DRY_RUN=0 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *FATAL*from_not_announced* ]] && pass "a hub refusal is a FATAL with the hub's token" || fail "refusal (rc=$rc): $out"
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-actions.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

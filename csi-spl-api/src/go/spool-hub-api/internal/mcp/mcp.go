@@ -1,5 +1,5 @@
 // Package mcp is the spool's stdio MCP server (`spool mcp`, spec 002 US4). It
-// exposes five canonical, kind-agnostic tools, each a thin wrapper over the same
+// exposes five canonical, kind-agnostic tools (plus spool_issue, specs/039), each a thin wrapper over the same
 // internal/action verb the CLI calls, so a tool and its verb return the same
 // text (contracts/mcp-tools.md). A verb's CLI failure surfaces as a tool error
 // carrying the same reason and exit code (78 = verify/refuse).
@@ -16,6 +16,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -59,6 +60,16 @@ type GetFileIn struct {
 type TailIn struct {
 	TaskID string `json:"task_id" jsonschema:"topic uuid"`
 	JSON   bool   `json:"json,omitempty" jsonschema:"emit raw v:1 NDJSON instead of human lines"`
+}
+
+// IssueIn is the input of spool_issue (specs/039 issues-v1 §6).
+type IssueIn struct {
+	Op    string         `json:"op" jsonschema:"one of list, get, create, update, comment, label"`
+	As    string         `json:"as,omitempty" jsonschema:"the acting agent id; a seated server defaults it to its seat and refuses any other"`
+	Ref   string         `json:"ref,omitempty" jsonschema:"issue key, e.g. SPL-12 (get, update, comment)"`
+	Issue map[string]any `json:"issue,omitempty" jsonschema:"create/update fields: title, description (markdown), status (backlog|todo|in_progress|in_review|done|canceled), priority (0 none,1 urgent,2 high,3 medium,4 low), level (0 none,1 XS..5 XL), assignee, labels, deadline (RFC 3339), parent; for label: name, color"`
+	Query string         `json:"query,omitempty" jsonschema:"list filters in URL query form, e.g. status=todo,in_progress&assignee=me&sort=priority"`
+	Body  string         `json:"body,omitempty" jsonschema:"comment text: your progress on the issue"`
 }
 
 // Options shape a server. The zero value is the unseated server of spec 002.
@@ -168,6 +179,28 @@ func NewServerOpts(cfg *config.Config, version string, o Options) *sdk.Server {
 			return nil, nil, toolErr(err)
 		}
 		return text(out), nil, nil
+	})
+
+	sdk.AddTool(s, &sdk.Tool{
+		Name: "spool_issue",
+		Description: "Issues, the way Linear keeps them (hub mode): file concrete, specced work as an issue and post your progress on it; " +
+			"talk stays in messages (== spool issue <op> --as).",
+	}, func(ctx context.Context, _ *sdk.CallToolRequest, in IssueIn) (*sdk.CallToolResult, any, error) {
+		as, err := o.who("as", in.As)
+		if err != nil {
+			return nil, nil, err
+		}
+		var raw json.RawMessage
+		if in.Issue != nil {
+			if raw, err = json.Marshal(in.Issue); err != nil {
+				return nil, nil, toolErr(err)
+			}
+		}
+		out, err := action.Issue(ctx, cfg, action.IssueArgs{Op: in.Op, As: as, Ref: in.Ref, Issue: raw, Query: in.Query, Body: in.Body})
+		if err != nil {
+			return nil, nil, toolErr(err)
+		}
+		return text(string(out)), nil, nil
 	})
 
 	return s

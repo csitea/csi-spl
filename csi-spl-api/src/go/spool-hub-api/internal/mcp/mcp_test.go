@@ -288,8 +288,9 @@ func TestRecvMalformedIsToolError(t *testing.T) {
 	}
 }
 
-// TestToolNamesAreCanonical: exactly the five kind-agnostic tools, no
-// per-kind variants (Constitution VIII, contracts/mcp-tools.md).
+// TestToolNamesAreCanonical: exactly the five kind-agnostic tools plus
+// spool_issue (specs/039 FR-008), no per-kind variants (Constitution VIII,
+// contracts/mcp-tools.md).
 func TestToolNamesAreCanonical(t *testing.T) {
 	h := newHarness(t)
 	res, err := h.cs.ListTools(context.Background(), nil)
@@ -301,7 +302,7 @@ func TestToolNamesAreCanonical(t *testing.T) {
 		got = append(got, tl.Name)
 	}
 	sort.Strings(got)
-	want := "spool_get_file,spool_put_file,spool_recv,spool_send,spool_tail"
+	want := "spool_get_file,spool_issue,spool_put_file,spool_recv,spool_send,spool_tail"
 	if strings.Join(got, ",") != want {
 		t.Errorf("tools = %v, want %s", got, want)
 	}
@@ -408,5 +409,17 @@ func TestUnseatedServerKeepsSpec002(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(cfg.SpoolRoot, "GRK-03", "outbox")); err != nil {
 		t.Errorf("unseated send wrote no GRK-03 outbox: %v", err)
+	}
+}
+
+// TestSeatedIssueTool (specs/039 FR-008): spool_issue acts as the seat only,
+// and issues are hub-only - a folder-mode box gets a tool error, not a file.
+func TestSeatedIssueTool(t *testing.T) {
+	cs, _ := seated(t, "CLE-07")
+	if out, isErr := callText(t, cs, "spool_issue", map[string]any{"op": "list", "as": "CLE-08"}); !isErr || !strings.Contains(out, "seated as CLE-07") {
+		t.Fatalf("other agent: %v %q", isErr, out)
+	}
+	if out, isErr := callText(t, cs, "spool_issue", map[string]any{"op": "list"}); !isErr || !strings.Contains(out, "hub mode") {
+		t.Fatalf("folder mode: %v %q", isErr, out)
 	}
 }

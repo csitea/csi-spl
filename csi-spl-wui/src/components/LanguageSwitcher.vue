@@ -1,5 +1,5 @@
 <template>
-  <div class="lang-switcher" data-test="lang-switcher">
+  <div ref="root" class="lang-switcher" data-test="lang-switcher">
     <!--
       Preference persistence (donor WUI parity, Nuxt-native):
       - Primary: cookie `i18n_redirected`, written by plugins/locale-cookie.client.ts
@@ -97,7 +97,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   Combobox,
   ComboboxButton,
@@ -108,6 +108,7 @@ import {
 } from '@headlessui/vue'
 import { filterLocales, normalizeLocaleQuery } from '@/utils/localeSearch'
 import { useLocaleSwitch } from '@/composables/useLocaleSwitch'
+import { observePopover } from '~/utils/place-popover.mjs'
 
 type LocaleCode = 'bg' | 'fi' | 'ru' | 'en' | 'sv' | 'he' | 'tr' | 'mk' | 'el' | 'lt' | 'et' | 'lv' | 'sr' | 'ro' | 'uk' | 'sk' | 'pl' | 'es' | 'nl'
 
@@ -146,6 +147,16 @@ const { locales, locale: currentLocale, t } = useI18n({ useScope: 'global' })
 const { switchTo } = useLocaleSwitch()
 
 const query = ref('')
+const root = ref<HTMLElement | null>(null)
+let stopPopover = () => {}
+onMounted(() => {
+  stopPopover = observePopover(root.value, {
+    panel: '.lang-switcher__options',
+    anchor: '.lang-switcher__control',
+    align: 'end',
+  })
+})
+onBeforeUnmount(() => stopPopover())
 /** True between focus and the click that would collapse the focus selection. */
 let keepFocusSelection = false
 

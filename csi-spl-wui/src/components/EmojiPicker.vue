@@ -9,7 +9,6 @@
       data-testid="emoji-picker"
       role="dialog"
       :aria-label="t('feed.emoji.picker')"
-      :style="{ left: left + 'px', top: top + 'px' }"
       @keydown="onKey"
       @contextmenu.prevent
     >
@@ -42,14 +41,13 @@
 
 <script setup lang="ts">
 import { EMOJI_CHOICES, readRecent, rememberEmoji } from '~/utils/emoji.mjs'
+import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
 
 const props = defineProps<{ open: boolean, x: number, y: number }>()
 const emit = defineEmits<{ close: [], choose: [emoji: string] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const root = ref<HTMLElement | null>(null)
-const left = ref(0)
-const top = ref(0)
 const recent = ref<string[]>([])
 const choices = EMOJI_CHOICES
 
@@ -59,16 +57,7 @@ function glyphs(): HTMLElement[] {
 
 async function place() {
   await nextTick()
-  const panel = root.value
-  if (!panel) return
-  const w = panel.offsetWidth
-  const h = panel.offsetHeight
-  let x = props.x
-  let y = props.y
-  if (x + w > window.innerWidth - 8) x = Math.max(8, window.innerWidth - w - 8)
-  if (y + h > window.innerHeight - 8) y = Math.max(8, props.y - h)
-  left.value = x
-  top.value = y
+  applyPopoverAtPoint(root.value, props.x, props.y)
 }
 
 function onDocPointer(e: PointerEvent) {
@@ -78,14 +67,14 @@ function onDocPointer(e: PointerEvent) {
   emit('close')
 }
 
-watch(() => props.open, (v) => {
+watch(() => props.open, async (v) => {
   if (v) {
     recent.value = readRecent()
-    left.value = props.x
-    top.value = props.y
     document.addEventListener('pointerdown', onDocPointer, true)
-    void place()
-    void nextTick(() => glyphs()[0]?.focus())
+    await place()
+    if (!props.open) return
+    await nextTick()
+    focusWithoutScroll(glyphs()[0])
   } else {
     document.removeEventListener('pointerdown', onDocPointer, true)
   }
@@ -113,7 +102,7 @@ function onKey(e: KeyboardEvent) {
   else if (e.key === 'End') next = n - 1
   else return
   e.preventDefault()
-  items[next]?.focus()
+  focusWithoutScroll(items[next])
 }
 
 function choose(emoji: string) {
@@ -126,6 +115,9 @@ function choose(emoji: string) {
 <style scoped>
 .emoji-picker {
   position: fixed;
+  top: 0;
+  left: 0;
+  visibility: hidden;
   z-index: var(--z-overlay);
   width: min(18.5rem, calc(100vw - 16px));
   max-height: min(22rem, calc(100vh - 16px));

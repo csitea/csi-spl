@@ -410,6 +410,34 @@ declare module '~/utils/msg-menu.mjs' {
   export function joinBodies(older: unknown, newer: unknown): string
 }
 
+declare module '~/utils/place-popover.mjs' {
+  export const POPOVER_MARGIN: number
+  export function placePopover(
+    anchor: { x?: number, y?: number, flipFrom?: number },
+    size: { width?: number, height?: number },
+    viewport: { width?: number, height?: number },
+    margin?: number,
+  ): { left: number, top: number, flipped: boolean, maxWidth: number, maxHeight: number }
+  export function readViewport(): { width: number, height: number }
+  export function applyPopover(
+    el: HTMLElement | null | undefined,
+    anchor: { left: number, right: number, top: number, bottom: number, align?: 'start' | 'end', gap?: number, lockWidth?: boolean },
+    viewport?: { width: number, height: number },
+    margin?: number,
+  ): { left: number, top: number, flipped: boolean, maxWidth: number, maxHeight: number } | null
+  export function applyPopoverAtPoint(
+    el: HTMLElement | null | undefined,
+    x: number,
+    y: number,
+    viewport?: { width: number, height: number },
+  ): { left: number, top: number, flipped: boolean, maxWidth: number, maxHeight: number } | null
+  export function focusWithoutScroll(el?: { focus?: (opts?: { preventScroll?: boolean }) => void } | null): void
+  export function observePopover(
+    host: HTMLElement | null | undefined,
+    opts: { panel: string, anchor: string, align?: 'start' | 'end', gap?: number },
+  ): () => void
+}
+
 declare module '~/utils/parent-section.mjs' {
   export const ISSUE_CHANNEL: 'issues'
   export interface ParentSection { path: string, query: Record<string, string>, hash: string, kind: 'channel' | 'dm' | 'issue' }

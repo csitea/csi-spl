@@ -2,7 +2,7 @@
      matching as LanguageSwitcher (endonym, English exonym, code, IETF tag).
      v-model is the locale code string (e.g. "bg"). Used by admin user forms. -->
 <template>
-  <div class="locale-cbx" :data-test="`${testPrefix}-wrap`">
+  <div ref="root" class="locale-cbx" :data-test="`${testPrefix}-wrap`">
     <Combobox
       as="div"
       class="locale-cbx__combobox"
@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import {
   Combobox,
   ComboboxButton,
@@ -85,6 +85,7 @@ import {
   ComboboxOptions,
 } from "@headlessui/vue"
 import { filterLocales, normalizeLocaleQuery } from "@/utils/localeSearch"
+import { observePopover } from "~/utils/place-popover.mjs"
 
 type LocaleCode =
   | "bg" | "fi" | "ru" | "en" | "sv" | "he" | "tr" | "mk" | "el"
@@ -136,6 +137,16 @@ const emit = defineEmits<{
 const { locales, t } = useI18n({ useScope: "global" })
 
 const query = ref("")
+const root = ref<HTMLElement | null>(null)
+let stopPopover = () => {}
+onMounted(() => {
+  stopPopover = observePopover(root.value, {
+    panel: ".locale-cbx__options",
+    anchor: ".locale-cbx__control",
+    align: "start",
+  })
+})
+onBeforeUnmount(() => stopPopover())
 let keepFocusSelection = false
 
 const available = computed<LocaleEntry[]>(() => {

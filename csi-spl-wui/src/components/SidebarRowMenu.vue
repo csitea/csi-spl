@@ -1,7 +1,8 @@
 <!-- Per-object menu on a left-pane row (not the icon tab rail).
      Three horizontal lines, which become an X while the menu is open.
      Click or Enter on the focused button toggles it. A click outside,
-     Escape, or the X closes it. -->
+     Escape, or the X closes it. The panel is portalled to the body and
+     kept inside the viewport, so it cannot scroll the page. -->
 <template>
   <div
     ref="root"
@@ -25,35 +26,39 @@
     >
       <UiIcon :name="open ? 'x' : 'menu'" :size="16" />
     </button>
-    <div
-      v-show="open"
-      :id="panelId"
-      class="sidebar-row-menu__panel"
-      data-testid="sidebar-row-menu-panel"
-      @keydown="onMenuKey"
-    >
-      <ul role="menu" class="sidebar-row-menu__items" :aria-label="buttonLabel">
-        <li v-for="item in items" :key="item.id" role="none">
-          <button
-            type="button"
-            role="menuitem"
-            tabindex="-1"
-            class="sidebar-row-menu__item"
-            :data-testid="'sidebar-row-menu-' + item.id"
-            @click.stop="choose(item.id)"
-          >
-            <UiIcon :name="item.icon" :size="16" />
-            <span>{{ t(item.labelKey) }}</span>
-          </button>
-        </li>
-      </ul>
-    </div>
+    <Teleport to="body">
+      <div
+        v-show="open"
+        :id="panelId"
+        ref="panel"
+        class="sidebar-row-menu__panel"
+        data-testid="sidebar-row-menu-panel"
+        @keydown="onMenuKey"
+      >
+        <ul role="menu" class="sidebar-row-menu__items" :aria-label="buttonLabel">
+          <li v-for="item in items" :key="item.id" role="none">
+            <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              class="sidebar-row-menu__item"
+              :data-testid="'sidebar-row-menu-' + item.id"
+              @click.stop="choose(item.id)"
+            >
+              <UiIcon :name="item.icon" :size="16" />
+              <span>{{ t(item.labelKey) }}</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { rowMenuItems } from '~/utils/sidebar-row-menu.mjs'
 import { nextMenuIndex } from '~/utils/user-menu.mjs'
+import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
 
 const props = defineProps<{
   menuId: string
@@ -88,6 +93,7 @@ const emit = defineEmits<{
 const { t } = useI18n({ useScope: 'global' })
 const root = ref<HTMLElement | null>(null)
 const trigger = ref<HTMLButtonElement | null>(null)
+const panel = ref<HTMLElement | null>(null)
 const focused = ref(-1)
 
 const panelId = computed(() => 'sidebar-row-menu-' + props.menuId.replace(/[^A-Za-z0-9_-]/g, '-'))
@@ -104,29 +110,36 @@ const items = computed(() => rowMenuItems(!!props.unread, {
 }))
 
 function itemEls(): HTMLElement[] {
-  return [...(root.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
+  const host = panel.value || root.value
+  return [...(host?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
+}
+
+function place() {
+  const el = panel.value
+  const btn = trigger.value
+  if (!el || !btn) return
+  const r = btn.getBoundingClientRect()
+  applyPopover(el, {
+    left: r.left,
+    right: r.right,
+    top: r.top,
+    bottom: r.bottom,
+    align: 'end',
+    gap: 4,
+  }, readViewport())
 }
 
 async function focusItem(i: number) {
   focused.value = i
   await nextTick()
-  itemEls()[i]?.focus()
-}
-
-async function place() {
-  await nextTick()
-  const panel = root.value?.querySelector<HTMLElement>('.sidebar-row-menu__panel')
-  const btn = trigger.value
-  if (!panel || !btn) return
-  const r = btn.getBoundingClientRect()
-  const h = panel.offsetHeight
-  const up = r.bottom + 8 + h > window.innerHeight && r.top > h + 8
-  panel.classList.toggle('sidebar-row-menu__panel--up', up)
+  place()
+  focusWithoutScroll(itemEls()[i])
 }
 
 function onDocPointer(e: PointerEvent) {
   const target = e.target
-  if (!(target instanceof Node) || root.value?.contains(target)) return
+  if (!(target instanceof Node)) return
+  if (root.value?.contains(target) || panel.value?.contains(target)) return
   emit('close')
 }
 
@@ -134,7 +147,6 @@ watch(() => props.open, (v) => {
   if (v) {
     document.addEventListener('pointerdown', onDocPointer, true)
     void focusItem(0)
-    void place()
   } else {
     document.removeEventListener('pointerdown', onDocPointer, true)
     focused.value = -1
@@ -154,7 +166,7 @@ function onTriggerKey(e: KeyboardEvent) {
   } else if (e.key === 'Escape' && props.open) {
     e.preventDefault()
     emit('close')
-    trigger.value?.focus()
+    focusWithoutScroll(trigger.value)
   }
 }
 
@@ -164,7 +176,7 @@ function onMenuKey(e: KeyboardEvent) {
   if (next === -1) {
     if (e.key === 'Escape') e.preventDefault()
     emit('close')
-    if (e.key === 'Escape') trigger.value?.focus()
+    if (e.key === 'Escape') focusWithoutScroll(trigger.value)
     return
   }
   if (next !== focused.value) {
@@ -216,7 +228,7 @@ function choose(id: string) {
     emit('open')
   }
   emit('close')
-  trigger.value?.focus()
+  focusWithoutScroll(trigger.value)
 }
 </script>
 
@@ -234,21 +246,21 @@ function choose(id: string) {
   border-color: var(--color-border);
 }
 .sidebar-row-menu__panel {
-  position: absolute;
-  inset-inline-end: 0;
-  top: calc(100% + 4px);
+  position: fixed;
+  top: 0;
+  left: 0;
+  visibility: hidden;
   min-width: 10rem;
   max-width: min(16rem, 70vw);
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--color-bg-2, var(--color-surface));
   border: 1px solid var(--color-border-strong, var(--color-border));
   border-radius: var(--radius-md, 12px);
   box-shadow: 0 12px 32px rgb(0 0 0 / .35);
   padding: 4px 0;
   z-index: var(--z-overlay, 1000);
-}
-.sidebar-row-menu__panel--up {
-  top: auto;
-  bottom: calc(100% + 4px);
 }
 .sidebar-row-menu__items { list-style: none; margin: 0; padding: 0; }
 .sidebar-row-menu__item {

@@ -7,7 +7,6 @@
       ref="root"
       class="msg-menu"
       data-testid="msg-menu"
-      :style="{ left: left + 'px', top: top + 'px' }"
       @keydown="onMenuKey"
       @contextmenu.prevent
     >
@@ -33,6 +32,7 @@
 <script setup lang="ts">
 import { msgMenuItems } from '~/utils/msg-menu.mjs'
 import { nextMenuIndex } from '~/utils/user-menu.mjs'
+import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
 
 const props = defineProps<{
   open: boolean
@@ -60,8 +60,6 @@ const emit = defineEmits<{
 const { t } = useI18n({ useScope: 'global' })
 const root = ref<HTMLElement | null>(null)
 const focused = ref(-1)
-const left = ref(0)
-const top = ref(0)
 const items = computed(() => msgMenuItems({
   editable: props.editable,
   mergePrev: props.mergePrev,
@@ -76,21 +74,12 @@ function itemEls(): HTMLElement[] {
 async function focusItem(i: number) {
   focused.value = i
   await nextTick()
-  itemEls()[i]?.focus()
+  focusWithoutScroll(itemEls()[i])
 }
 
 async function place() {
   await nextTick()
-  const panel = root.value
-  if (!panel) return
-  const w = panel.offsetWidth
-  const h = panel.offsetHeight
-  let x = props.x
-  let y = props.y
-  if (x + w > window.innerWidth - 8) x = Math.max(8, window.innerWidth - w - 8)
-  if (y + h > window.innerHeight - 8) y = Math.max(8, props.y - h)
-  left.value = x
-  top.value = y
+  applyPopoverAtPoint(root.value, props.x, props.y)
 }
 
 function onDocPointer(e: PointerEvent) {
@@ -99,12 +88,11 @@ function onDocPointer(e: PointerEvent) {
   emit('close')
 }
 
-function onOpen() {
-  left.value = props.x
-  top.value = props.y
+async function onOpen() {
   document.addEventListener('pointerdown', onDocPointer, true)
-  void focusItem(0)
-  void place()
+  await place()
+  if (!props.open) return
+  await focusItem(0)
 }
 
 watch(() => props.open, (v) => {
@@ -151,6 +139,12 @@ function choose(id: string) {
 <style scoped>
 .msg-menu {
   position: fixed;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   z-index: var(--z-overlay);
   min-width: 10rem;
   max-width: min(16rem, 70vw);

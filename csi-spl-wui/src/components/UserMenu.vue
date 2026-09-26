@@ -102,6 +102,7 @@
 import { useSessionStore } from '~/stores/session'
 import { useAccessStore } from '~/stores/access'
 import { avatarMode, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
+import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
 import { loadAvatarImageUrl } from '~/utils/avatar.mjs'
 import { useAuthBase } from '~/composables/useAuthClient'
 
@@ -144,10 +145,26 @@ function items(): HTMLElement[] {
   return [item0.value?.$el, item1.value].filter((el): el is HTMLElement => !!el)
 }
 
+function placePanel() {
+  const panel = root.value?.querySelector<HTMLElement>('.user-menu__panel')
+  const btn = trigger.value
+  if (!panel || !btn) return
+  const r = btn.getBoundingClientRect()
+  applyPopover(panel, {
+    left: r.left,
+    right: r.right,
+    top: r.top,
+    bottom: r.bottom,
+    align: 'end',
+    gap: 6,
+  }, readViewport())
+}
+
 async function focusItem(i: number) {
   focused.value = i
   await nextTick()
-  items()[i]?.focus()
+  placePanel()
+  focusWithoutScroll(items()[i])
 }
 
 function openAt(i: number) {
@@ -158,7 +175,7 @@ function openAt(i: number) {
 function close(refocus: boolean) {
   open.value = false
   focused.value = -1
-  if (refocus) trigger.value?.focus()
+  if (refocus) focusWithoutScroll(trigger.value)
 }
 
 function toggle() {

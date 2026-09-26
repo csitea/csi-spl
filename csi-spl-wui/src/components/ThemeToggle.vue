@@ -58,6 +58,7 @@
 import { useTheme } from '~/composables/useTheme'
 import { THEMES, themeIndex, type SpoolTheme } from '~/utils/theme.mjs'
 import { nextMenuIndex } from '~/utils/user-menu.mjs'
+import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
 
 // 'end': the list opens leftwards from the button's end edge (a picker at
 // the right of a row, Settings → Appearance), so it stays on a phone screen.
@@ -75,10 +76,26 @@ const root = ref<HTMLElement | null>(null)
 const trigger = ref<HTMLButtonElement | null>(null)
 const options: (HTMLElement | null)[] = []
 
+function placeList() {
+  const panel = root.value?.querySelector<HTMLElement>('.theme-picker__list')
+  const btn = trigger.value
+  if (!panel || !btn) return
+  const r = btn.getBoundingClientRect()
+  applyPopover(panel, {
+    left: r.left,
+    right: r.right,
+    top: r.top,
+    bottom: r.bottom,
+    align: align.value === 'end' ? 'end' : 'start',
+    gap: 6,
+  }, readViewport())
+}
+
 async function focusOption(i: number) {
   focused.value = i
   await nextTick()
-  options[i]?.focus()
+  placeList()
+  focusWithoutScroll(options[i])
 }
 
 function openAt(i: number) {
@@ -89,7 +106,7 @@ function openAt(i: number) {
 function close(refocus: boolean) {
   open.value = false
   focused.value = -1
-  if (refocus) trigger.value?.focus()
+  if (refocus) focusWithoutScroll(trigger.value)
 }
 
 function toggleOpen() {

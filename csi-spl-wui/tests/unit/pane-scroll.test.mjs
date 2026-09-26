@@ -81,7 +81,7 @@ describe('the four views do not call scrollIntoView', () => {
     assert.match(feed, /overflow-y:\s*auto/)
     assert.doesNotMatch(feed, /overflow-y:\s*visible/)
     assert.match(css, /\.new-pill-wrap\s*\{[^}]*top:\s*8px/)
-    assert.match(layout, /overflow:\s*clip/)
+    assert.match(layout, /overflow:\s*hidden/)
     assert.match(css, /\.spool-shell\s*\{[^}]*overflow:\s*clip/)
     assert.match(css, /\.sidebar-scroll\s*\{[^}]*overflow-y:\s*auto/)
     assert.match(feed, /overflow-anchor:\s*none/)

@@ -10,7 +10,6 @@
       data-testid="kind-picker"
       role="menu"
       :aria-label="t('feed.kind_set.menu')"
-      :style="{ left: left + 'px', top: top + 'px' }"
       @keydown="onKey"
       @contextmenu.prevent
     >
@@ -33,14 +32,13 @@
 
 <script setup lang="ts">
 import { MSG_KINDS } from '~/utils/msg-kind.mjs'
+import { applyPopoverAtPoint, focusWithoutScroll } from '~/utils/place-popover.mjs'
 
 const props = defineProps<{ open: boolean, x: number, y: number, current: string }>()
 const emit = defineEmits<{ close: [], choose: [kind: string] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const root = ref<HTMLElement | null>(null)
-const left = ref(0)
-const top = ref(0)
 
 function items(): HTMLElement[] {
   return [...(root.value?.querySelectorAll<HTMLElement>('.kind-picker__item') ?? [])]
@@ -48,14 +46,7 @@ function items(): HTMLElement[] {
 
 async function place() {
   await nextTick()
-  const panel = root.value
-  if (!panel) return
-  let x = props.x
-  let y = props.y
-  if (x + panel.offsetWidth > window.innerWidth - 8) x = Math.max(8, window.innerWidth - panel.offsetWidth - 8)
-  if (y + panel.offsetHeight > window.innerHeight - 8) y = Math.max(8, props.y - panel.offsetHeight)
-  left.value = x
-  top.value = y
+  applyPopoverAtPoint(root.value, props.x, props.y)
 }
 
 function onDocPointer(e: PointerEvent) {
@@ -65,16 +56,14 @@ function onDocPointer(e: PointerEvent) {
   emit('close')
 }
 
-watch(() => props.open, (v) => {
+watch(() => props.open, async (v) => {
   if (v) {
-    left.value = props.x
-    top.value = props.y
     document.addEventListener('pointerdown', onDocPointer, true)
-    void place()
-    void nextTick(() => {
-      const list = items()
-      ;(list.find((el) => el.dataset.kind === props.current) || list[0])?.focus()
-    })
+    await place()
+    if (!props.open) return
+    await nextTick()
+    const list = items()
+    focusWithoutScroll(list.find((el) => el.dataset.kind === props.current) || list[0])
   } else {
     document.removeEventListener('pointerdown', onDocPointer, true)
   }
@@ -100,7 +89,7 @@ function onKey(e: KeyboardEvent) {
   else return
   e.preventDefault()
   e.stopPropagation()
-  list[next]?.focus()
+  focusWithoutScroll(list[next])
 }
 
 function choose(kind: string) {
@@ -112,6 +101,12 @@ function choose(kind: string) {
 <style scoped>
 .kind-picker {
   position: fixed;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   z-index: var(--z-overlay);
   min-width: 10rem;
   background: var(--color-bg-2, var(--color-surface));

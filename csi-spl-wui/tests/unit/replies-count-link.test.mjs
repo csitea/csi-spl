@@ -36,7 +36,10 @@ describe('SPL-982 the reactions sit in the header, 3px after the Add-emoji icon'
     assert.equal(vue.split('data-testid="msg-reactions"').length - 1, 1)
   })
   it('paints emoji, chips, (edited), spacer, then the right-hand controls', () => {
-    assert.match(vue, /\.msg-meta > \.msg-reactions \{ order: 1; margin-inline-start: -13px; flex: 0 1 auto; min-width: 0; align-self: center; \}/)
+    assert.match(vue, /\.msg-meta > \.msg-reactions \{ order: 1; margin-inline-start: -13px; flex: 0 1 auto; align-self: center; \}/)
+    // one header line (a narrow pane keeps the chips beside the emoji); a phone may wrap
+    assert.match(vue, /\.msg-meta \{ align-items: center; flex-wrap: nowrap; \}/)
+    assert.match(vue, /@media \(max-width: 30rem\) \{\s*\.msg-meta \{ flex-wrap: wrap; \}/)
     assert.match(vue, /\.msg-meta > \.msg-edited \{ order: 2; \}/)
     assert.match(vue, /\.msg-reactions \{\s*display: inline-flex;\s*flex-wrap: wrap;/)
   })

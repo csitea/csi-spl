@@ -893,15 +893,24 @@ async function save() {
    8px gap: -11px puts the glyph 5px after the time. */
 /* the row's text and its 32px buttons share one centre line in a card, so
    the emoji beside the time sits level with it (the shared .msg-meta rule in
-   main.css stays baseline for every other row) */
-.msg-meta { align-items: center; }
+   main.css stays baseline for every other row).
+   SPL-982: the header is ONE line, so the chips stay beside the emoji in a
+   narrow pane (the issue discussion is ~355px): the names give way first
+   (ellipsis, full text on hover), and many chips wrap inside their own box */
+.msg-meta { align-items: center; flex-wrap: nowrap; }
+.msg-meta > :deep(.msg-author) { flex: 0 1 auto; min-width: 2.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-meta > .msg-time { flex: 0 0 auto; }
+/* a phone keeps the old wrap: the header may take two lines, never the page */
+@media (max-width: 30rem) {
+  .msg-meta { flex-wrap: wrap; }
+}
 .msg-actions { display: contents; }
 .msg-actions > * { align-self: center; }
 .msg-actions .icon-btn[data-testid="msg-emoji-btn"] { order: 1; margin-inline-start: -11px; }
 /* the reactions follow the emoji (same order, later in the DOM): the chips
    start 3px after its glyph (8px button padding + 8px row gap - 13px) and
    wrap inside themselves, so many chips never widen the card */
-.msg-meta > .msg-reactions { order: 1; margin-inline-start: -13px; flex: 0 1 auto; min-width: 0; align-self: center; }
+.msg-meta > .msg-reactions { order: 1; margin-inline-start: -13px; flex: 0 1 auto; align-self: center; }
 /* "(edited)" follows them; the spacer then pushes Open topic, the replies
    link and the menu to the right */
 .msg-meta > .msg-edited { order: 2; }

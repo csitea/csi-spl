@@ -14,9 +14,12 @@ fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 [[ -f "$PY" ]] && pass "parser script is present" || fail "parser script missing"
 bash -n "$PROJ_ROOT/src/bash/run/spl-spec-import-issues.func.sh" && pass "action parses" || fail "action syntax"
 
+FIX_TMP=$(mktemp -d)
+export FIX_TMP
+trap 'rm -rf "$FIX_TMP"' EXIT
 out=$(python3 "$PY" parse --specs "$FIX") || { echo "$out"; fail "parse fixtures"; exit 1; }
 python3 - "$out" <<'PY'
-import json, sys
+import json, os, sys
 doc = json.loads(sys.argv[1])
 items = {(i["dir"], i["id"]): i for i in doc["items"]}
 
@@ -81,20 +84,20 @@ listed = {"result": {"issues": [
 import pathlib, tempfile, os
 sys.path.insert(0, os.path.dirname(os.path.realpath(os.environ.get("PYFILE", ""))))
 # call reconcile via the loaded module path passed as argv later — done below if rc else
-open("/tmp/spec-import-fixture-plan.json","w").write(json.dumps(doc))
-open("/tmp/spec-import-fixture-list.json","w").write(json.dumps(listed))
+open(os.environ["FIX_TMP"]+"/plan.json","w").write(json.dumps(doc))
+open(os.environ["FIX_TMP"]+"/list.json","w").write(json.dumps(listed))
 sys.exit(rc)
 PY
 rc_py=$?
 [[ $rc_py -eq 0 ]] && pass "fixture assertions" || fail "fixture assertions (rc=$rc_py)"
 
 python3 - <<PY
-import importlib.util, json
+import importlib.util, json, os
 spec = importlib.util.spec_from_file_location("imp", "$PY")
 mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
-plan = json.load(open("/tmp/spec-import-fixture-plan.json"))
-listed = json.load(open("/tmp/spec-import-fixture-list.json"))
-doc = mod.reconcile(plan, listed, __import__("pathlib").Path("/tmp/spec-import-fixture-desc"))
+plan = json.load(open(os.environ["FIX_TMP"]+"/plan.json"))
+listed = json.load(open(os.environ["FIX_TMP"]+"/list.json"))
+doc = mod.reconcile(plan, listed, __import__("pathlib").Path(os.environ["FIX_TMP"]+"/desc"))
 ops = {(o["spec"], o["id"]): o for o in doc["ops"]}
 ok = True
 if ops[("001", "T001")]["action"] != "skip":
@@ -122,7 +125,7 @@ for op in list(doc["ops"]):
         "key": "SPL-200", "title": op["title"], "labels": op["labels"], "parent": op["parent_key"] or "SPL-19",
         "status": op["status"], "description": open(op["description_path"], encoding="utf-8").read(),
     })
-doc2 = mod.reconcile(plan, listed, __import__("pathlib").Path("/tmp/spec-import-fixture-desc"))
+doc2 = mod.reconcile(plan, listed, __import__("pathlib").Path(os.environ["FIX_TMP"]+"/desc"))
 creates = [o for o in doc2["ops"] if o["action"] == "create"]
 if creates:
     print("FAIL: second run created", [(c["spec"], c["id"]) for c in creates]); ok = False

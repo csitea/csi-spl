@@ -35,6 +35,18 @@ them — comparing the two.
 - **Spec home**: this dir, moved out of `020-spool-message-v2` on the morning it was
   written (`contracts/message-edit-v1.md` §9).
 
+### Session 2026-09-26 (owner request, relayed by CLE-001; lane CLE-35013)
+
+- The owner asked every agent to re-edit its OWN earlier spool posts
+  (plain-text or slash-packed tables into markdown tables), keeping a revision.
+  So a box may now edit and delete what it sent (FR-ED-012..016). The browser
+  rule is unchanged: a human still cannot edit a bot's message.
+- **The unit of trust is the box, not the agent.** The box key signs every
+  envelope a box sends, whichever agent wrote it; the hub cannot tell agents
+  of one box apart cryptographically. So the hub checks `from_box`, and an
+  agent the box no longer announces stays editable by that box. `--as` is a
+  local guard against a mistyped id, not an authorisation.
+
 ### Decided by this lane, from the code rather than from preference
 
 - **The edit marker is hub metadata, not a message field.** `edited_at` / `edited_by` /
@@ -99,6 +111,11 @@ that fails if the guard is removed.
 | FR-ED-009 | An edit does NOT move the message: `ts`, `received_at` and `cursor` are unchanged | Implemented |
 | FR-ED-010 | `message_revisions` is under the same tenant RLS as `messages`, fail-closed (0021 NULLIF form) | Implemented |
 | FR-ED-011 | Revisions are purged with their message by the retention sweep | Implemented |
+| FR-ED-012 | A box edits a message IT sent: over its own socket it fetches the stored envelope, replaces the body, re-signs it with the SAME box key, and the hub verifies it against that box's pin (contract §10) | Implemented |
+| FR-ED-013 | A box edit is refused for any other box (`not_author` 403), a body that is empty or over 64 KiB, and any change besides the body — inner fields or hub-envelope tags (`bad_edit` 400) | Implemented |
+| FR-ED-014 | A box edit writes through the one edit path: the register row, `revision`, `edited_at`, `edited_by` (the message's agent id), the `message_edited` frame, position unchanged; `env_sig` follows the new signature | Implemented |
+| FR-ED-015 | A box deletes a message IT sent (`delete` frame), with the browser DELETE's cascade and `message_deleted` frame | Implemented |
+| FR-ED-016 | `spool edit` / `spool delete` and `do_spl_desk_edit` are the box front ends; `--as` refuses locally when the stored author is another agent | Implemented |
 
 The status column was still `Planned` after `tasks.md` T001–T009 were marked
 Implemented (`d8ecb2a`, `0026_message_revisions.sql`, `internal/hub/edit.go`).
@@ -113,7 +130,10 @@ spec correction.
 - **The compare feature itself.** The owner named it as a *later* feature; this spec
   stores what it will read and deliberately invents no endpoint for it
   (contract §7, last paragraph).
-- **Editing a box-authored message**, from the browser or anywhere else.
+- **Editing a box-authored message from the browser.** A box edits its own
+  messages itself (FR-ED-012, contract §10, owner request 2026-09-26 in prd
+  t1 #spool-hub-devel: agents re-edit their own posts so tables become markdown
+  tables, keeping a revision).
 - **Deleting a message.** Not asked for.
 - **A time window on editing.** Ruled out above.
 - **The browser half** — selection model, the `e` binding, the inline editor, Escape,
@@ -146,4 +166,4 @@ spec correction.
   (contract §8), and the intermediate state is safe because the old image reads and
   writes neither the new table nor the new columns.
 
-<!-- version: 0.2.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:20:00Z -->
+<!-- version: 0.3.0 · updated: 2026-09-26 · last-edit: 2026-09-26T17:15:00Z -->

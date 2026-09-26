@@ -264,10 +264,25 @@ next bump cannot land six of seven files. **Writing this row is authorised;
 running a build or a roll to fix the current drift is not, and is CLE-00's to
 release.**
 
+## T013 — a box edits and deletes its own message (FR-ED-012..016, contract §10)
+
+**Status**: Partial — code, tests and front ends in `d010b5f4` (CLE-35013); the
+roll and the live e2e proof are recorded below as they land.
+
+- hub `internal/hub/box_edit.go` (`edit` / `delete` frames), store `Edit.EnvSig`,
+  client `internal/hubclient/edit.go`, `spool edit` / `spool delete`,
+  `csi-spl-orc` `do_spl_desk_edit`.
+- Tests: `internal/hub/box_edit_test.go` (own edit to revision 2 and 3, position
+  unchanged, envelope verifies against the box pin, register, `message_edited`;
+  refusals: other box, `--as` mismatch, unknown id, empty body, moved ts, new
+  addressee, new kind, new `to_box`, new channel tag, foreign key, msg_id
+  mismatch; box delete). Each guard was removed once and its test went red.
+  `csi-spl-orc/src/bash/tests/desk-actions.tst.sh` §10.
+
 ## Not a task here
 
 **The compare feature.** The owner named it as the reason for the register, not
 as part of this request. The rows it will read exist; its endpoint is
 deliberately unspecified (contract §7, last paragraph).
 
-<!-- version: 0.3.2 · updated: 2026-09-25 · last-edit: 2026-09-25T18:20:00Z -->
+<!-- version: 0.4.0 · updated: 2026-09-26 · last-edit: 2026-09-26T17:15:00Z -->

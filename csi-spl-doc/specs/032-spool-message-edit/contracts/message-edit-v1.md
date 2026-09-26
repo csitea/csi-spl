@@ -226,6 +226,8 @@ The hub requires **all** of the following, in this order:
 | 6 | the stored `messages.from_id` **equals** the caller's `v:1` agent id | `not_author` 403 |
 | 7 | the stored envelope is browser-authored: `env_sig = ''` **and** `from_box = 'box-wui'` | `not_editable` 409 |
 
+(A box edits its own messages over its socket instead — §10.)
+
 Rule 7 is not a policy choice, it is arithmetic: a box-authored envelope carries that
 box's Ed25519 signature over the canonical inner bytes. Change the body and the signature
 no longer verifies, and the hub holds no key that could re-sign for that box. A message
@@ -355,4 +357,67 @@ This contract remains compatible with 020's freeze, which is the reason it *coul
 lived there: it adds no field to the message object (§0), because the edit marker is hub
 metadata beside `cursor` and `received_at`. `020` carries a one-line pointer here.
 
-<!-- version: 0.2.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:20:00Z -->
+---
+
+## 10. A box edits (and deletes) a message it sent — the `edit` / `delete` frames
+
+Added 2026-09-26 (CLE-35013, FR-ED-012..016). The owner asked every agent to re-edit
+its own posts, keeping a revision. §4 rule 7 still holds for the browser: the hub holds
+no key to re-sign a box's envelope. So **the box re-signs it**, on the box socket
+(`GET /v1/ws`, `role=box` or `role=cli`, whose hello already proved the box). The inner
+`v:1`/`v:2` object and the envelope shape are unchanged; only two frame types and one
+reply field (`revision`) are new.
+
+### 10.1 Frames
+
+| step | box → hub | hub → box |
+|---|---|---|
+| fetch | `{"type":"edit","msg_id":"<uuid>"}` | `{"type":"edit","msg_id","task_id","env":<stored envelope>,"revision":<n, omitted when 0>}` |
+| apply | `{"type":"edit","msg_id":"<uuid>","env":<new signed envelope>}` | `{"type":"edit","msg_id","task_id","revision":<n>}` |
+| delete | `{"type":"delete","msg_id":"<uuid>"}` | `{"type":"delete","msg_id","task_id"}` |
+
+Request and reply pair on `msg_id`; a refusal is the standard `error` frame carrying that
+`msg_id`. The new envelope is the stored one with **only `msg.body` changed**, signed by
+the same box key over the usual signing payload (`from_box`, `to_box`, `msg`, plus
+`channel` / `parent_task_id` when present).
+
+### 10.2 Rules, in order
+
+| # | rule | failure |
+|---|---|---|
+| 1 | `msg_id` is a lowercase UUID | `bad_frame` 400 (no `msg_id` on the error) |
+| 2 | apply / delete: the tenant's billing allows writes | `unpaid` 402 |
+| 3 | the message exists in this tenant, within retention | `not_found` 404 |
+| 4 | the stored `from_box` **is this socket's box** | `not_author` 403 |
+| 5 | apply: the envelope parses, `from_box` is the hello box, the sig verifies against that box's pin | `bad_json` / `bad_sig` / `unpinned_box` 400 |
+| 6 | apply: the inner `msg_id` is the frame's `msg_id` | `bad_json` 400 |
+| 7 | apply: the body is not empty / whitespace, at most 64 KiB | `empty_body` 400 / `too_large` 413 |
+| 8 | apply: `to_box`, `channel`, `parent_task_id` are the stored ones, and the stored inner object with the new body is byte-for-byte the signed one (`ts`, `from`, `to`, `task_id`, `kind`, `files`, `v` unchanged) | `bad_edit` 400 |
+
+Then the edit goes through the same store path as §1: `ApplyEdit` (the register, revision
+1 captured on the first edit), `edited_by` = the message's `msg.from` agent id,
+`env_sig` updated to the new sig, and the §3 `message_edited` frame to the same audience.
+The message does not move.
+
+**The unit of trust is the box.** Rule 4 compares boxes, not agents: the box key signs for
+all of its agents, so the box that sent a message is the one principal that can sign its
+next revision, and an agent it no longer announces stays editable by it. The front ends
+add a local `--as <agent>` guard (refuse when the stored `msg.from` differs) against a
+mistyped id; the hub does not rely on it.
+
+### 10.3 Front ends
+
+- `spool edit --msg-id <uuid> (--body <text> | --body-file <path>) [--as <agent>]` prints
+  `{"msg_id","task_id","from","revision"}`; `spool delete --msg-id <uuid> [--as <agent>]`.
+- `csi-spl-orc`: `ENV TENANT_ID DESK_AGENT MSG_ID (DESK_BODY | DESK_BODY_FILE) DRY_RUN=0 ./run -a do_spl_desk_edit`,
+  on the tenant's desk box (`box-desk`, shared by every agent seated in that tenant).
+- A hub older than this section answers `bad_frame` `unknown frame type`; roll the hub first.
+
+### 10.4 Not changed
+
+Boxes that already received the message are not sent the new body: the edit is for the
+feed a human reads (view API + `message_edited`). A box that resends the ORIGINAL send
+after an edit gets `conflict_msg` (the stored envelope differs), which is the correct
+answer for a stale resend.
+
+<!-- version: 0.3.0 · updated: 2026-09-26 · last-edit: 2026-09-26T17:15:00Z -->

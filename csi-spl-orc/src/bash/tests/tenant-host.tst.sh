@@ -201,6 +201,16 @@ out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STU
 [[ $rc == 0 ]] && ! spl_has=$(yq -e '.env.dns.mapped_tenants | any_c(. == "t1")' "$CNF" 2>/dev/null) && grep -q 'MARK t1 removed' "$T/mark.log" &&
   pass "deprovision: t1 out of cnf, only its own destroy admitted, marked removed" || fail "deprovision rc=$rc: $out"
 
+# --- 7a. MARK_ONLY runs no make at all (SPL-959 infra freeze) ----------------------
+reset
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=t1 DRY_RUN=0 MARK_ONLY=1 2>&1); rc=$?
+[[ $rc == 0 && ! -s "$STUB_LOG" ]] && cmp -s "$ORIG" "$CNF" && grep -q 'MARK t1 ready' "$T/mark.log" &&
+  pass "MARK_ONLY: no make call, cnf untouched, domain + probe -> ready" || fail "MARK_ONLY rc=$rc: $(cat "$STUB_LOG") :: $out"
+reset
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 MARK_ONLY=1 2>&1); rc=$?
+[[ $rc != 0 && ! -s "$STUB_LOG" ]] && cmp -s "$ORIG" "$CNF" && ! grep -q 'MARK newt' "$T/mark.log" &&
+  pass "MARK_ONLY CONTROL: an unmapped tenant is refused, nothing marked" || fail "MARK_ONLY unmapped rc=$rc: $out"
+
 # --- 7b. the apex tenant maps nothing (SPL-959) -----------------------------------
 reset
 out=$(SNIPPET='do_spl_probe_wui_host() { echo "PROBE $HOST" >>'"$T"'/mark.log; }; do_spl_tenant_host_provision' in_orc TENANT_ID=apex0 DRY_RUN=0 2>&1); rc=$?

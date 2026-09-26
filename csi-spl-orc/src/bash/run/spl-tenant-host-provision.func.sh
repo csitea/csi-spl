@@ -27,6 +27,8 @@
 # @param TENANT_ID - the tenant slug (^[a-z0-9][a-z0-9-]{0,31}$, not reserved)
 # @param ENV - dev or prd
 # @param DRY_RUN (optional) - 1 (default) or 0
+# @param MARK_ONLY (optional) - 1: no cnf edit, no render, no terraform: check
+# @param   an already-mapped host (custom domain + WUI probe) and record it
 # @param MARK_DB (optional) - 1 (default): write tenant_hosts. 0: skip the DB
 # @param CERT_TIMEOUT_SECONDS (optional) - cert wait, default 3600
 # @param PROBE_TIMEOUT_SECONDS (optional) - probe retry window, default 1200
@@ -66,6 +68,13 @@ do_spl_tenant_host_provision() {
     return 0
   fi
 
+  # MARK_ONLY=1: no cnf, no render, no terraform at all (an infra freeze):
+  # a host already mapped in cnf is only checked (domain, probe) and recorded
+  if [[ "${MARK_ONLY:-0}" == 1 ]]; then
+    spl_th_cnf_has "$cnf" "$tenant" || { do_log "FATAL MARK_ONLY: $tenant is not in env.dns.mapped_tenants ($cnf)"; return 1; }
+    spl_th_finish "$tenant"
+    return
+  fi
   spl_th_lock || return 1
   spl_th_cnf_set "$cnf" add "$tenant" || return 1
   spl_th_render || { spl_th_mark_one "$tenant" failed "render failed"; return 1; }

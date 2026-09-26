@@ -554,10 +554,6 @@
       "status": "tiešsaistē · {state} · jūs esat {who}",
       "no_lobby": "Vestibils nav konfigurēts ({env} vai centra sveiciens)."
     },
-    "channel": {
-      "subtitle": "pēdējās 30 · nomnieka tvērumā",
-      "subtitle_retention": "pēdējās 30 · nomnieka tvērumā · glabāšana {retention}"
-    },
     "dm": {
       "online": "tiešsaistē",
       "offline_queued": "bezsaistē · rindā"

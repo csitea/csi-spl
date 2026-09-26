@@ -554,10 +554,6 @@
       "status": "live · {state} · du är {who}",
       "no_lobby": "Ingen lobby konfigurerad ({env} eller hubbens välkomstmeddelande)."
     },
-    "channel": {
-      "subtitle": "senaste 30 · per tenant",
-      "subtitle_retention": "senaste 30 · per tenant · lagring {retention}"
-    },
     "dm": {
       "online": "online",
       "offline_queued": "offline · i kö"

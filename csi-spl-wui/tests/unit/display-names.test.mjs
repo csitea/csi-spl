@@ -103,7 +103,7 @@ describe('the name is shown where the id was', () => {
     assert.match(name, /personTitle/)
     assert.match(name, /shownPerson/)
     assert.match(name, /scrollWidth > node\.clientWidth/)
-    assert.match(read('src/pages/dm/[peer].vue'), /\{\{ peerName \}\}/)
+    assert.match(read('src/pages/dm/[peer].vue'), /<FeedHeader[\s\S]*?:title="peerName"/)
     assert.match(read('src/components/ChannelPropertiesDialog.vue'), /remove_member', \{ id: personLabel\(id\) \}/)
     assert.match(read('src/components/MessageComposer.vue'), /<HumanName class="mention-label"/)
     assert.doesNotMatch(read('src/components/MessageComposer.vue'), /people\.label\(p\.id, p\.box\) !== p\.label/)

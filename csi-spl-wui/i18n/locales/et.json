@@ -554,10 +554,6 @@
       "status": "otse · {state} · sina oled {who}",
       "no_lobby": "Fuajeed pole seadistatud ({env} või keskuse tervitus)."
     },
-    "channel": {
-      "subtitle": "viimased 30 · rentniku piires",
-      "subtitle_retention": "viimased 30 · rentniku piires · säilitus {retention}"
-    },
     "dm": {
       "online": "võrgus",
       "offline_queued": "võrguühenduseta · järjekorras"

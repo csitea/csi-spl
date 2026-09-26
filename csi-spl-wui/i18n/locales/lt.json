@@ -554,10 +554,6 @@
       "status": "tiesiogiai · {state} · jūs esate {who}",
       "no_lobby": "Fojė nesukonfigūruota ({env} arba centro pasveikinimas)."
     },
-    "channel": {
-      "subtitle": "paskutinės 30 · pagal nuomininką",
-      "subtitle_retention": "paskutinės 30 · pagal nuomininką · saugojimas {retention}"
-    },
     "dm": {
       "online": "prisijungęs",
       "offline_queued": "neprisijungęs · eilėje"

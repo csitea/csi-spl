@@ -554,10 +554,6 @@
       "status": "live · {state} · you are {who}",
       "no_lobby": "No lobby configured ({env}, or the hub welcome)."
     },
-    "channel": {
-      "subtitle": "last 30 · tenant-scoped",
-      "subtitle_retention": "last 30 · tenant-scoped · {retention} retention"
-    },
     "dm": {
       "online": "online",
       "offline_queued": "offline · queued"

@@ -554,10 +554,6 @@
       "status": "en directo · {state} · eres {who}",
       "no_lobby": "No hay vestíbulo configurado ({env}, o la bienvenida del hub)."
     },
-    "channel": {
-      "subtitle": "últimos 30 · limitado al inquilino",
-      "subtitle_retention": "últimos 30 · limitado al inquilino · retención de {retention}"
-    },
     "dm": {
       "online": "en línea",
       "offline_queued": "sin conexión · en cola"

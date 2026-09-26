@@ -1,12 +1,11 @@
 <template>
   <div class="feed-col" data-pane="msgs">
-    <header class="feed-header">
-      <span class="dot" :class="{ on: online }" />
-      <h2>{{ t('pane.msgs') }}</h2>
-      <span class="muted" :title="peer">{{ peerName }}</span>
-      <span class="muted">{{ online ? t('pages.dm.online') : t('pages.dm.offline_queued') }}</span>
-      <CardClipControl />
-    </header>
+    <FeedHeader
+      :title="peerName"
+      :title-tip="peer"
+      :status="online ? 'on' : 'off'"
+      :status-text="online ? t('pages.dm.online') : t('pages.dm.offline_queued')"
+    />
     <MessageFeed :label="t('pages.feed_label', { target: peer })" />
   </div>
 </template>

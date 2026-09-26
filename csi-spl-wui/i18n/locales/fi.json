@@ -554,10 +554,6 @@
       "status": "live · {state} · olet {who}",
       "no_lobby": "Aulaa ei ole määritetty ({env} tai hubin tervetuloviesti)."
     },
-    "channel": {
-      "subtitle": "viimeiset 30 · tenanttikohtainen",
-      "subtitle_retention": "viimeiset 30 · tenanttikohtainen · säilytys {retention}"
-    },
     "dm": {
       "online": "paikalla",
       "offline_queued": "offline · jonossa"

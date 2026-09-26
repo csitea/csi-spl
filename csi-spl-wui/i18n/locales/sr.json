@@ -554,10 +554,6 @@
       "status": "uživo · {state} · vi ste {who}",
       "no_lobby": "Lobi nije podešen ({env} ili dobrodošlica haba)."
     },
-    "channel": {
-      "subtitle": "poslednjih 30 · u okviru zakupca",
-      "subtitle_retention": "poslednjih 30 · u okviru zakupca · čuvanje {retention}"
-    },
     "dm": {
       "online": "na mreži",
       "offline_queued": "van mreže · u redu čekanja"

@@ -45,15 +45,6 @@ describe('the page is 30 rows', () => {
     assert.equal(third.rows.length, 70)
     assert.equal(third.hasOlder, false)
   })
-
-  it('the subtitle says 30 in every locale', () => {
-    for (const f of readdirSync(join(WUI, 'i18n/locales'))) {
-      const channel = JSON.parse(read(`i18n/locales/${f}`)).pages.channel
-      assert.match(channel.subtitle, /\b30\b/, f)
-      assert.doesNotMatch(channel.subtitle, /\b50\b/, f)
-      assert.match(channel.subtitle_retention, /\b30\b/, f)
-    }
-  })
 })
 
 describe('LiveFeed: a Load more button, not a scroll sentinel', () => {

@@ -554,10 +554,6 @@
       "status": "naživo · {state} · ste {who}",
       "no_lobby": "Nie je nastavené žiadne lobby ({env} alebo uvítanie hubu)."
     },
-    "channel": {
-      "subtitle": "posledných 30 · v rámci nájomníka",
-      "subtitle_retention": "posledných 30 · v rámci nájomníka · uchovávanie {retention}"
-    },
     "dm": {
       "online": "online",
       "offline_queued": "offline · vo fronte"

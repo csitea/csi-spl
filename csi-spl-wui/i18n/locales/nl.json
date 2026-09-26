@@ -554,10 +554,6 @@
       "status": "live · {state} · je bent {who}",
       "no_lobby": "Geen lobby ingesteld ({env}, of het welkomstbericht van de hub)."
     },
-    "channel": {
-      "subtitle": "laatste 30 · binnen de tenant",
-      "subtitle_retention": "laatste 30 · binnen de tenant · bewaartermijn {retention}"
-    },
     "dm": {
       "online": "online",
       "offline_queued": "offline · in wachtrij"

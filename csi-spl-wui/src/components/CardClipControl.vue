@@ -2,7 +2,9 @@
      titles (the first 90 characters) / 5 rows (default) / full. Native radios
      in one named group, so Tab lands on the group and the arrow keys move
      between the three; the label around each radio is the visible segment.
-     One mode per browser for every middle-pane surface (useCardClip). -->
+     One mode per browser for every middle-pane surface (useCardClip).
+     SPL-941: each segment is an icon; its words are the tooltip and the
+     radio's accessible name. -->
 <template>
   <div
     class="card-clip-ctl"
@@ -17,6 +19,7 @@
       :key="m"
       class="card-clip-ctl__opt"
       :class="{ 'card-clip-ctl__opt--on': mode === m }"
+      :title="t('feed.clip.mode.' + m)"
     >
       <input
         type="radio"
@@ -26,7 +29,8 @@
         :data-testid="`card-clip-${m}`"
         @change="setMode(m)"
       />
-      <span>{{ t('feed.clip.mode.' + m) }}</span>
+      <UiIcon :name="ICON[m]" size="1em" />
+      <span class="sr-only">{{ t('feed.clip.mode.' + m) }}</span>
     </label>
   </div>
 </template>
@@ -34,6 +38,9 @@
 <script setup lang="ts">
 import { useCardClip } from '~/composables/useCardClip'
 import { CARD_CLIP_MODES } from '~/utils/card-clip.mjs'
+import type { UiIconName } from '~/utils/uiIcons'
+
+const ICON: Record<string, UiIconName> = { titles: 'clip-titles', rows: 'clip-rows', full: 'clip-full' }
 
 const { t } = useI18n({ useScope: 'global' })
 const { mode, setMode } = useCardClip()
@@ -54,9 +61,9 @@ const name = `card-clip-${useId()}`
   position: relative;
   display: inline-flex;
   align-items: center;
-  padding: 2px 10px;
-  font-size: 0.75rem;
-  line-height: 1.6;
+  padding: 4px 8px;
+  /* the icon is 1em, so it follows the font size setting */
+  font-size: 0.875rem;
   color: var(--color-muted);
   cursor: pointer;
   white-space: nowrap;

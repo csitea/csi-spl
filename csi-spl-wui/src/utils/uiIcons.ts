@@ -213,6 +213,11 @@ export const UI_ICON_PATHS = {
     "M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18z",
     { d: "M12 9.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 1 1 0-5.6z", fill: true },
   ],
+  // Card height modes (CardClipControl, SPL-941): one line / a clipped
+  // paragraph / the whole card.
+  "clip-titles": ["M4 12h16"],
+  "clip-rows": ["M4 5h16", "M4 9.5h16", "M4 14h16", "M4 18.5h10"],
+  "clip-full": ["M12 3v18", "m8 7 4-4 4 4", "m8 17 4 4 4-4"],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

@@ -554,10 +554,6 @@
       "status": "na żywo · {state} · jesteś {who}",
       "no_lobby": "Nie skonfigurowano lobby ({env} lub powitanie huba)."
     },
-    "channel": {
-      "subtitle": "ostatnie 30 · w obrębie dzierżawy",
-      "subtitle_retention": "ostatnie 30 · w obrębie dzierżawy · przechowywanie {retention}"
-    },
     "dm": {
       "online": "online",
       "offline_queued": "offline · w kolejce"

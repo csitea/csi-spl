@@ -554,10 +554,6 @@
       "status": "live · {state} · sunteți {who}",
       "no_lobby": "Niciun hol configurat ({env} sau mesajul de bun venit al hubului)."
     },
-    "channel": {
-      "subtitle": "ultimele 30 · limitat la chiriaș",
-      "subtitle_retention": "ultimele 30 · limitat la chiriaș · păstrare {retention}"
-    },
     "dm": {
       "online": "online",
       "offline_queued": "offline · în coadă"

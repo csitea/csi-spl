@@ -554,10 +554,6 @@
       "status": "canlı · {state} · siz {who}",
       "no_lobby": "Lobi yapılandırılmamış ({env} veya hub karşılaması)."
     },
-    "channel": {
-      "subtitle": "son 30 · kiracıya özel",
-      "subtitle_retention": "son 30 · kiracıya özel · {retention} saklama"
-    },
     "dm": {
       "online": "çevrimiçi",
       "offline_queued": "çevrimdışı · kuyrukta"

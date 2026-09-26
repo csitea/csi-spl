@@ -1,12 +1,6 @@
 <template>
   <div class="feed-col" data-pane="msgs">
-    <header class="feed-header feed-header--stack">
-      <div class="feed-header__row">
-        <h2>{{ t('pane.msgs') }}</h2>
-        <span class="muted feed-header__name">#{{ titleName }}</span>
-        <CardClipControl />
-      </div>
-    </header>
+    <FeedHeader :title="'#' + titleName" />
     <MessageFeed :label="t('pages.feed_label', { target: '#' + name })" />
   </div>
 </template>

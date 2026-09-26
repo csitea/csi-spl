@@ -1,11 +1,10 @@
 <template>
   <div class="feed-col" data-pane="msgs">
-    <header class="feed-header">
-      <h2>{{ t('pane.msgs') }}</h2>
-      <span class="muted"># lobby</span>
-      <span class="muted">{{ t('pages.lobby.status', { state: stateLabel(live.state.value), who: live.identity.value || '…' }) }}</span>
-      <CardClipControl />
-    </header>
+    <FeedHeader
+      title="#lobby"
+      :status="live.state.value === 'open' ? 'on' : 'off'"
+      :status-text="t('pages.lobby.status', { state: stateLabel(live.state.value), who: live.identity.value || '…' })"
+    />
     <div class="feed-body">
       <p v-if="!lobbyId" class="muted">{{ t('pages.lobby.no_lobby', { env: 'NUXT_PUBLIC_LOBBY_TASK_ID' }) }}</p>
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="lobbyId && store.open(lobbyId)" />

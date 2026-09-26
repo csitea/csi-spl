@@ -14,16 +14,14 @@ describe('pane names', () => {
     it(`${rel} is the msgs page`, () => {
       const src = read(rel)
       assert.match(src, /data-pane="msgs"/)
-      assert.match(src, /<h2>\{\{ t\('pane\.msgs'\) \}\}<\/h2>/)
+      assert.match(src, /<FeedHeader\b/)
     })
   }
 
-  it('the channel header is one line: name and clip, no description and no last-30 note', () => {
-    const src = read('src/pages/channel/[name].vue')
-    assert.match(src, /feed-header__row[\s\S]*<h2>\{\{ t\('pane\.msgs'\) \}\}<\/h2>[\s\S]*CardClipControl/)
-    assert.doesNotMatch(src, /headerSub/)
-    assert.doesNotMatch(src, /pages\.channel\.subtitle/)
-    assert.doesNotMatch(src, /channel-description/)
+  /* SPL-941: the header's title is the channel / peer; "Msgs" names the pane
+     for screen readers */
+  it('FeedHeader carries the msgs pane name as its aria-label', () => {
+    assert.match(read('src/components/FeedHeader.vue'), /:aria-label="t\('pane\.msgs'\)"/)
   })
 
   for (const rel of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue']) {

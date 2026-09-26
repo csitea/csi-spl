@@ -554,10 +554,6 @@
       "status": "חי · {state} · אתם {who}",
       "no_lobby": "לא הוגדר לובי ({env}, או הודעת הפתיחה של ה-hub)."
     },
-    "channel": {
-      "subtitle": "30 האחרונות · בתחום הטננט",
-      "subtitle_retention": "30 האחרונות · בתחום הטננט · שמירה {retention}"
-    },
     "dm": {
       "online": "מקוון",
       "offline_queued": "לא מקוון · בתור"

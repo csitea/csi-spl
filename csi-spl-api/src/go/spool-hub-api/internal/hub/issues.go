@@ -477,7 +477,7 @@ func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr)
 	}
 	var ok bool
 	if f.priority, ok = intSet(get("priority"), store.IssuePriorityMax); !ok {
-		return f, badIssue("priority must be 0..4")
+		return f, badIssue("priority must be 0..5")
 	}
 	if f.level, ok = intSet(get("level"), store.IssueLevelMax); !ok {
 		return f, badIssue("level must be 0..5")

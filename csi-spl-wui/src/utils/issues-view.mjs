@@ -7,8 +7,8 @@ import { ISSUE_STATUSES, matchIssue, normalizeIssue, normalizeLabel, sortIssues 
 import { storageGetJson, storageSetJson } from './prefs.mjs'
 import { PANE_WIDTHS_KEY } from './pane-widths.mjs'
 
-/** 0 no priority, 1 urgent, 2 high, 3 medium, 4 low (Linear's scale). */
-export const ISSUE_PRIORITIES = [0, 1, 2, 3, 4]
+/** Prio is the number 1..5. 0 is a row that never picked one. */
+export const ISSUE_PRIORITIES = [1, 2, 3, 4, 5]
 
 /** The owner's "level": Linear's t-shirt estimate. 0 none, 1 XS .. 5 XL. */
 export const ISSUE_LEVELS = [0, 1, 2, 3, 4, 5]

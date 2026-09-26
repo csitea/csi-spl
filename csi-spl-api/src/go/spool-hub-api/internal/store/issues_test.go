@@ -41,7 +41,7 @@ func TestIssues(t *testing.T) {
 				t.Fatalf("unknown tenant: %v", err)
 			}
 			for _, bad := range []Issue{
-				{Title: " "}, {Title: strings.Repeat("t", 256)}, {Title: "x", Status: "doing"}, {Title: "x", Priority: 5},
+				{Title: " "}, {Title: strings.Repeat("t", 256)}, {Title: "x", Status: "doing"}, {Title: "x", Priority: 6},
 				{Title: "x", Level: 6}, {Title: "x", Assignee: "bob"}, {Title: "x", Labels: []string{"Bad Label"}},
 				{Title: "x", Description: strings.Repeat("d", IssueDescriptionMax+1)},
 			} {

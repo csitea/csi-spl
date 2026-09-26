@@ -25,7 +25,7 @@
         </select>
         <select v-model="priorityF" data-test="issues-filter-priority" :aria-label="t('issues.filter_priority')">
           <option value="">{{ t('issues.filter_priority') }}: {{ t('issues.filter_all') }}</option>
-          <option v-for="n in ISSUE_PRIORITIES" :key="n" :value="String(n)">{{ t(priorityKey(n)) }}</option>
+          <option v-for="n in ISSUE_PRIORITIES" :key="n" :value="String(n)">{{ n }}</option>
         </select>
         <select v-model="levelF" data-test="issues-filter-level" :aria-label="t('issues.filter_level')">
           <option value="">{{ t('issues.filter_level') }}: {{ t('issues.filter_all') }}</option>
@@ -76,7 +76,7 @@
               @keydown.enter.prevent="choose(issue)"
             >
               <button type="button" class="issues-iconbtn" data-test="issues-row-priority" :aria-label="t('issues.field_priority')" @click.stop="openMenu('priority', issue, $event)">
-                <IssueGlyph :name="priorityIcon(issue.priority)" :size="16" :class="'issues-pri issues-pri--' + issue.priority" />
+                <span class="issues-pri-num">{{ issue.priority >= 1 && issue.priority <= 5 ? issue.priority : '–' }}</span>
               </button>
               <span class="issues-key">{{ issue.key }}</span>
               <span class="issues-title">{{ issue.title }}</span>
@@ -157,8 +157,7 @@
           <span>{{ t(statusKey(form.status)) }}</span>
         </button>
         <button type="button" class="issues-prop" data-test="issues-priority" @click="openMenu('priority', detailOrDraft(), $event)">
-          <IssueGlyph :name="priorityIcon(form.priority)" :size="16" />
-          <span>{{ t(priorityKey(form.priority)) }}</span>
+          <span>{{ t('issues.field_priority') }} {{ form.priority >= 1 && form.priority <= 5 ? form.priority : '–' }}</span>
         </button>
         <button type="button" class="issues-prop" data-test="issues-level" @click="openMenu('level', detailOrDraft(), $event)">
           <span class="issues-level">{{ levelShort(form.level) || t('issues.level_none') }}</span>
@@ -289,7 +288,6 @@ import {
   levelKey,
   loadIssuePane,
   localInputToDeadline,
-  priorityKey,
   saveIssuePane,
   statusKey,
   stepKey,
@@ -306,19 +304,8 @@ const STATUS_ICON: Record<string, string> = {
   done: 'status-done',
   canceled: 'status-canceled',
 }
-const PRIORITY_ICON: Record<number, string> = {
-  0: 'priority-none',
-  1: 'priority-urgent',
-  2: 'priority-high',
-  3: 'priority-medium',
-  4: 'priority-low',
-}
-
 function statusIcon(status: string): string {
   return STATUS_ICON[status] || 'status-backlog'
-}
-function priorityIcon(priority: number): string {
-  return PRIORITY_ICON[priority] || 'priority-none'
 }
 
 const { t, locale } = useI18n({ useScope: 'global' })
@@ -362,7 +349,7 @@ const pageEl = ref<HTMLElement | null>(null)
 const detailW = ref(ISSUE_PANE_DEFAULT)
 const detailRoom = ref(720)
 const draft = reactive({
-  title: '', description: '', status: 'todo', priority: 0, level: 0,
+  title: '', description: '', status: 'todo', priority: 1, level: 0,
   assignee: '', labels: [] as string[], deadlineLocal: '',
   epic: '', kind: 'issue' as 'issue' | 'epic' | 'feature',
 })
@@ -620,7 +607,7 @@ function startCreate() {
   draft.title = ''
   draft.description = ''
   draft.status = 'todo'
-  draft.priority = 0
+  draft.priority = 1
   draft.level = 0
   draft.assignee = ''
   draft.labels = []
@@ -650,7 +637,7 @@ function detailOrDraft(): Issue {
 const menuOptions = computed(() => {
   const kind = menu.value?.kind || ''
   if (kind === 'status') return ISSUE_STATUSES.map((s) => ({ value: s, label: t(statusKey(s)) }))
-  if (kind === 'priority') return ISSUE_PRIORITIES.map((n) => ({ value: String(n), label: t(priorityKey(n)) }))
+  if (kind === 'priority') return ISSUE_PRIORITIES.map((n) => ({ value: String(n), label: String(n) }))
   if (kind === 'level') return ISSUE_LEVELS.map((n) => ({ value: String(n), label: LEVEL_SHORT[n] || t(levelKey(n)) }))
   if (kind === 'assign') return [{ value: '', label: t('issues.no_assignee') }, ...assigneeOptions.value.map((p) => ({ value: p.id, label: p.label }))]
   if (kind === 'label') return labels.value.filter((l) => l.id !== 'epic').map((l) => ({ value: l.id, label: l.name }))

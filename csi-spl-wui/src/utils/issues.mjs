@@ -52,7 +52,7 @@ export function normalizeLabel(raw) {
   return { id: String(r.id || ''), name: String(r.name || r.id || ''), color: String(r.color || '#6b7280') }
 }
 
-const prioRank = (p) => (Number(p) === 0 ? 5 : Number(p))
+const prioRank = (p) => (Number(p) === 0 ? 6 : Number(p))
 const ms = (s) => {
   const t = Date.parse(String(s || ''))
   return Number.isFinite(t) ? t : NaN

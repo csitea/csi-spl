@@ -31,8 +31,8 @@ const (
 var IssueStatuses = []string{IssueBacklog, IssueTodo, IssueInProgress, IssueInReview, IssueDone, IssueCanceled}
 
 const (
-	// IssuePriorityMax: 0 no priority, 1 urgent, 2 high, 3 medium, 4 low.
-	IssuePriorityMax = 4
+	// IssuePriorityMax: prio is a number 1..5. 0 is a row that never picked one.
+	IssuePriorityMax = 5
 	// IssueLevelMax: the owner's "level", Linear's t-shirt estimate, 0 none,
 	// 1 XS, 2 S, 3 M, 4 L, 5 XL.
 	IssueLevelMax       = 5

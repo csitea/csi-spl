@@ -22,6 +22,8 @@ export interface SessionClaims {
   diagnostics_enabled?: boolean
   /** spec 021: the human's stored UI + mail language; null/absent = none. */
   preferred_locale?: string | null
+  /** The human's colour theme. 'light' is the light-blue palette. null = none. */
+  preferred_theme?: string | null
 }
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */

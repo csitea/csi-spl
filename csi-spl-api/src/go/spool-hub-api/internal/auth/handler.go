@@ -81,6 +81,9 @@ type Preferences interface {
 	PreferredLocale(ctx context.Context, humanID string) (string, error)
 	// SetPreferredLocale stores locale ("" clears it). Unknown human = ErrNoHuman.
 	SetPreferredLocale(ctx context.Context, humanID, locale string) error
+	// PreferredTheme is the human's colour theme, "" when never picked.
+	// 'light' is the light-blue palette. An unknown human is ErrNoHuman.
+	PreferredTheme(ctx context.Context, humanID string) (string, error)
 	// IdentityLocale is the picked locale of the human a (provider, subject)
 	// sign-in belongs to; "" when there is no such human or nothing is picked.
 	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
@@ -326,6 +329,9 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 type sessionResp struct {
 	Session
 	PreferredLocale *string `json:"preferred_locale"`
+	// PreferredTheme is the colour theme, null when unset. 'light' is the
+	// light-blue palette. Read on every session call, like the locale.
+	PreferredTheme *string `json:"preferred_theme"`
 	// DiagnosticsEnabled is the human's own "Debug pane" setting (CLE-34963),
 	// which shows the WUI diagnostics panel (005 T035). It sits HERE and not
 	// in Session on purpose: Session is what gets signed into the cookie, and
@@ -354,6 +360,11 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 			h.log.Warn().Err(err).Msg("auth.session preferred_locale lookup")
 		} else if i18n.IsSupported(loc) {
 			out.PreferredLocale = &loc
+		}
+		if theme, err := h.prefs.PreferredTheme(r.Context(), s.HumanID); err != nil {
+			h.log.Warn().Err(err).Msg("auth.session preferred_theme lookup")
+		} else if theme != "" {
+			out.PreferredTheme = &theme
 		}
 	}
 	w.Header().Set("Cache-Control", "no-store")

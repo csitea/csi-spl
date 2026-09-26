@@ -136,6 +136,11 @@ type Humans interface {
 	// PreferredLocale returns the human's picked locale, "" when none, or
 	// ErrNotFound.
 	PreferredLocale(ctx context.Context, humanID string) (string, error)
+	// SetPreferredTheme records the human's colour theme, one of the palette
+	// ids, or "" to clear it. Unknown human = ErrNotFound.
+	SetPreferredTheme(ctx context.Context, humanID, theme string) error
+	// PreferredTheme returns the human's theme, "" when none, or ErrNotFound.
+	PreferredTheme(ctx context.Context, humanID string) (string, error)
 	// IdentityLocale returns the picked locale of the human the (provider,
 	// subject) sign-in belongs to; "" (nil error) when there is no such
 	// identity or nothing is picked.
@@ -178,6 +183,21 @@ func checkLocale(loc string) error {
 		return errors.New("locale must be one of the supported locales")
 	}
 	return nil
+}
+
+// palette themes, in picker order. 'light' is the light-blue one.
+var themeIDs = []string{"dark", "light", "light-violet", "light-green", "light-yellow"}
+
+func checkTheme(theme string) error {
+	if theme == "" {
+		return nil
+	}
+	for _, id := range themeIDs {
+		if theme == id {
+			return nil
+		}
+	}
+	return errors.New("theme must be one of the palette themes")
 }
 
 var fileIDRe = regexp.MustCompile(`^[0-9a-f]{64}$`)

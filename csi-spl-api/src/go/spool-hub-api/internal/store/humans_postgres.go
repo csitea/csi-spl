@@ -269,6 +269,29 @@ func (s *Postgres) PreferredLocale(ctx context.Context, humanID string) (string,
 	return loc, err
 }
 
+func (s *Postgres) SetPreferredTheme(ctx context.Context, humanID, theme string) error {
+	if err := checkTheme(theme); err != nil {
+		return err
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE humans SET preferred_theme = NULLIF($2, '') WHERE human_id = $1`, humanID, theme)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) PreferredTheme(ctx context.Context, humanID string) (string, error) {
+	var theme string
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(preferred_theme, '') FROM humans WHERE human_id = $1`, humanID).Scan(&theme)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return theme, err
+}
+
 // humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.
 func (s *Postgres) SetDisplayName(ctx context.Context, humanID, name string) error {
 	tag, err := s.pool.Exec(ctx, `UPDATE humans SET display_name = $2 WHERE human_id = $1`, humanID, name)

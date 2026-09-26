@@ -12,6 +12,7 @@ type memHuman struct {
 	name, email string
 	avatar      string // file_id
 	locale      string // preferred_locale (rdb 0017)
+	theme       string // preferred_theme (rdb 0057); light is the light-blue palette
 	diagnostics bool   // diagnostics_enabled (rdb 0038)
 	disabled    bool
 }
@@ -258,6 +259,32 @@ func (s *Memory) PreferredLocale(_ context.Context, humanID string) (string, err
 		return "", ErrNotFound
 	}
 	return hm.locale, nil
+}
+
+func (s *Memory) SetPreferredTheme(_ context.Context, humanID, theme string) error {
+	if err := checkTheme(theme); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return ErrNotFound
+	}
+	hm.theme = theme
+	return nil
+}
+
+func (s *Memory) PreferredTheme(_ context.Context, humanID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return "", ErrNotFound
+	}
+	return hm.theme, nil
 }
 
 func (s *Memory) SetDisplayName(_ context.Context, humanID, name string) error {

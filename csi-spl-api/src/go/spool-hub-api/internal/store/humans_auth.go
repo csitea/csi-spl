@@ -207,6 +207,15 @@ func (a AuthHooks) SetPreferredLocale(ctx context.Context, humanID, locale strin
 	return err
 }
 
+// PreferredTheme is the human's colour theme; an unknown human is auth.ErrNoHuman.
+func (a AuthHooks) PreferredTheme(ctx context.Context, humanID string) (string, error) {
+	theme, err := a.H.PreferredTheme(ctx, humanID)
+	if errors.Is(err, ErrNotFound) {
+		return "", auth.ErrNoHuman
+	}
+	return theme, err
+}
+
 // DiagnosticsEnabled is the human's "Debug pane" setting (CLE-34963); an
 // unknown human is auth.ErrNoHuman.
 func (a AuthHooks) DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error) {

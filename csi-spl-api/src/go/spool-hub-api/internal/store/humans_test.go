@@ -262,6 +262,21 @@ func TestHumansPreferredLocale(t *testing.T) {
 			if _, err := h.PreferredLocale(ctx, "HUM-999999999"); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("unknown human locale: %v", err)
 			}
+			if err := h.SetPreferredTheme(ctx, hum, "navy"); err == nil {
+				t.Fatal("SetPreferredTheme accepted navy")
+			}
+			if err := h.SetPreferredTheme(ctx, hum, "light"); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := h.PreferredTheme(ctx, hum); err != nil || got != "light" {
+				t.Fatalf("theme %q %v", got, err)
+			}
+			if err := h.SetPreferredTheme(ctx, hum, ""); err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := h.PreferredTheme(ctx, hum); got != "" {
+				t.Fatalf("cleared theme %q", got)
+			}
 		})
 	}
 }

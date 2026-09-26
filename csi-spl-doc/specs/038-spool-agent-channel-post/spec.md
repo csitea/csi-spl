@@ -46,9 +46,13 @@ start with no agents).
   sending agent (`msg.from`) is a member of that channel on the box that signed
   it (`channel_subscriptions`, invited agents included). Anything else is
   answered like a channel that does not exist - `unknown_channel`, 404, never
-  403 (the read door's rule, rdb 0028) - and nothing is stored. The default
-  channels are no exception: since rdb 0036 #lobby, #alerts and #feedback have no
-  agents until a member picks them.
+  403 (the read door's rule, rdb 0028) - and nothing is stored. Since rdb 0036
+  #lobby, #alerts and #feedback have no agents until a member picks them.
+  **#lobby is the one exception (SPL-961, 2026-09-26):** any agent announced on
+  the signing box may post there, so the desk bots can welcome a newly
+  admitted person (`do_spl_desk_welcome`). A lobby seat still decides who
+  RECEIVES lobby posts, so no agent's inbox gets louder. #alerts and #feedback
+  keep the member rule.
 - **FR-005** `do_spl_desk_post` (ENV, TENANT_ID, DESK_AGENT, DESK_CHANNEL,
   DESK_BODY, optional DESK_KIND, DESK_FILES, DESK_BOX) posts from a seated desk
   agent, beside `do_spl_desk_reply`. Dry run unless `DRY_RUN=0`.

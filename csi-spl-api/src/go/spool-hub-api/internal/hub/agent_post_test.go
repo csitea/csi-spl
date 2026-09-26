@@ -124,3 +124,39 @@ func TestAgentChannelPostArgs(t *testing.T) {
 		t.Fatalf("local channel post: %v", err)
 	}
 }
+
+// SPL-961: #lobby (and its #general alias) takes a new topic from any agent
+// announced on the signing box, without a lobby seat, so the desk bots can
+// welcome a new person. Nobody was picked as a lobby member, so no agent
+// inbox is poked, and every other default channel keeps the FR-004 member
+// rule. (The announced-sender rule runs first, senderRefusal, for any channel.)
+func TestAgentLobbyPostNeedsNoSeat(t *testing.T) {
+	e := newEnv(t)
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	b := e.box(tid, "box-b", "CLE-07", "CLE-08")
+	e.pin(tid, b)
+	sb, err := b.c.Dial(ctx, wire.RoleBox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sb.Close()
+
+	for i, ch := range []string{"lobby", "#General"} {
+		out, err := action.SendCtx(ctx, b.cfg, action.SendArgs{From: "CLE-07", Channel: ch, Body: "Welcome aboard!", Hub: b.c})
+		if err != nil || out.Delivery != wire.DeliverySent {
+			t.Fatalf("#%s post: %v %+v", ch, err, out)
+		}
+		rows, _ := e.st.ViewTopics(ctx, tid, store.TopicQuery{Now: time.Now(), Channel: store.ChannelLobby})
+		if len(rows) != i+1 {
+			t.Fatalf("#%s: lobby feed holds %d topics, want %d", ch, len(rows), i+1)
+		}
+	}
+	if n := len(inbox(t, b, "CLE-08")); n != 0 {
+		t.Fatalf("CLE-08 is no lobby member and read %d post(s)", n)
+	}
+	if _, err := action.SendCtx(ctx, b.cfg, action.SendArgs{From: "CLE-07", Channel: "alerts", Body: "hi", Hub: b.c}); err == nil ||
+		!strings.Contains(err.Error(), "unknown_channel") {
+		t.Fatalf("CLE-07 into #alerts: %v (want unknown_channel)", err)
+	}
+}

@@ -127,11 +127,22 @@ func (s *Server) checkTags(ctx context.Context, tenant, channel, parent, taskID 
 // agentInChannel is specs/038 FR-004: a box-signed envelope that CLAIMS a
 // channel is a post into that channel, and only a member agent may post one -
 // the sending agent itself must be a member on the box that signed it
-// (channel_subscriptions, invited agents included). A default channel is no
-// exception: since rdb 0036 the default channels have no agents until a
-// member picks them. A non-member is answered like a channel that does not
-// exist (unknown_channel, 404 - never 403, the read door's rule, rdb 0028).
+// (channel_subscriptions, invited agents included). Since rdb 0036 the
+// default channels have no agents until a member picks them.
+//
+// #lobby is the one exception (SPL-961): it is the room every person of the
+// tenant reads and writes, and the desk bots greet a newly admitted person
+// there without being picked as members. A lobby seat only decides who
+// RECEIVES lobby posts (routeChannel), so posting is open while the agents
+// keep a quiet inbox. The sender is still an agent announced on the box that
+// signed the envelope: senderRefusal ran before this.
+//
+// A non-member is answered like a channel that does not exist
+// (unknown_channel, 404 - never 403, the read door's rule, rdb 0028).
 func (s *Server) agentInChannel(ctx context.Context, tenant, channel, box, agent string) (bool, error) {
+	if store.NormalizeChannel(channel) == store.ChannelLobby {
+		return true, nil
+	}
 	members, err := s.o.Store.ChannelMembers(ctx, tenant, store.NormalizeChannel(channel))
 	if err != nil {
 		return false, err

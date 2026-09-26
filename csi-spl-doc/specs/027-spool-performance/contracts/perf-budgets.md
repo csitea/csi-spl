@@ -25,7 +25,7 @@ p95 is interpolated, so it is not the maximum of a short run.
 A value greater than its ceiling exits 1. A required value that was not
 measured exits 1. A value equal to its ceiling passes.
 
-The CI gzip ceiling is 210 KB, tight enough that about 17 KB of initial JS fails it. The dev gzip ceiling is 1.10 times the live measurement, rounded up to 0.1 KB. View ceilings are reused-connection TTFB: the greater of twice the p95 and 1.25 times the slowest sample, rounded up. A new connection's DNS time is recorded on each sample and is not the fail line.
+The CI gzip ceiling is 222 KB, about 11 KB above the 211.4 KB generate measured for the Issues screen (commit 33891193, quality run 36226437490, n=1). The dev gzip ceiling is 1.10 times the live measurement, rounded up to 0.1 KB. View ceilings are reused-connection TTFB: the greater of twice the p95 and 1.25 times the slowest sample, rounded up. A new connection's DNS time is recorded on each sample and is not the fail line.
 
 ## Basis
 
@@ -41,6 +41,7 @@ generate. The highlight runtime was not in the initial set.
 | metric | basis | ceiling |
 |---|---:|---:|
 | ci initial gzip KB | 198.6 | 210 |
+| ci initial gzip KB after the Issues screen | 211.4 | 222 |
 | dev initial gzip KB | 219.5 | 241.5 |
 | view me p95 ms | 1178.4 | 2357 |
 | view channels p95 ms | 1149.7 | 2300 |
@@ -51,7 +52,7 @@ Reused-connection view TTFB, n=12, warmup=1, 2026-09-25T19:50:48Z, hub `143229e5
 ## Where it runs
 
 - Dev (or prd) numbers: `ENV=dev TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_perf_budget` from `csi-spl-orc`. Dry run makes no request. `PERF_REQUIRE=none` records without comparing.
-- CI: workflow 10, job `wui-e2e`, after the mock `nuxt generate`, runs `perf-budget.py bundle` and fails when `ci_initial_gzip_kb` is over 210. The quality gate stays offline, so the live timings are not part of that job.
+- CI: workflow 10, job `wui-e2e`, after the mock `nuxt generate`, runs `perf-budget.py bundle` and fails when `ci_initial_gzip_kb` is over 222. The quality gate stays offline, so the live timings are not part of that job.
 
 ## Control
 

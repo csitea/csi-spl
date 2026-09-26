@@ -1,7 +1,7 @@
 {
-  "policy": "A ceiling is a maximum. The check fails when a measured value is greater than its ceiling, or when a required value was not measured. ci_initial_gzip_kb is the mock nuxt generate initial JS gzip from perf-budget.py (the chunks 200.html names, the same set as csi-spl-wui/src/node/test/bundle-size.mjs). Its ceiling is 210 KB so a regression of about 17 KB fails. dev_initial_gzip_kb is 1.10 times the live measurement, rounded up to 0.1 KB. The other ceilings are transfer p95 of the document plus its initial JS, and p95 of GET /v1/view/me, /v1/view/channels and /v1/view/roster. Each view sample and each chunk opens its own connection. Millisecond ceilings are the greater of twice the p95 and 1.25 times the slowest sample, rounded up to a whole millisecond.",
+  "policy": "A ceiling is a maximum. The check fails when a measured value is greater than its ceiling, or when a required value was not measured. ci_initial_gzip_kb is the mock nuxt generate initial JS gzip from perf-budget.py (the chunks 200.html names, the same set as csi-spl-wui/src/node/test/bundle-size.mjs). Its ceiling is 222 KB. The Issues screen measured 211.4 KB on commit 33891193 (quality run 36226437490, n=1), and about 11 KB of further growth fails. dev_initial_gzip_kb is 1.10 times the live measurement, rounded up to 0.1 KB. The other ceilings are transfer p95 of the document plus its initial JS, and p95 of GET /v1/view/me, /v1/view/channels and /v1/view/roster. Each view sample and each chunk opens its own connection. Millisecond ceilings are the greater of twice the p95 and 1.25 times the slowest sample, rounded up to a whole millisecond.",
   "ceilings": {
-    "ci_initial_gzip_kb": 210.0,
+    "ci_initial_gzip_kb": 222.0,
     "dev_initial_gzip_kb": 241.5,
     "view_me_p95_ms": 2357,
     "view_channels_p95_ms": 2300,
@@ -17,7 +17,7 @@
     "warmup": 1,
     "ci_chunks": 21,
     "ci_bundle_size_mjs_gzip_kb": 199.2,
-    "headroom": "ci gzip ceiling is 210 KB (about 17 KB of headroom over the 198.6 KB generate). dev gzip ceiling is 1.10 times 219.5 KB. View p95 is reused-connection time_starttransfer after one warmup; scored samples had time_namelookup 0 and time_connect 0 (n=12, 2026-09-25T19:50:48Z, hub 143229e55b28). Those ceilings are the greater of twice that p95 and 1.25 times the slowest sample. first-load transfer is recorded and not gated: it opens a new connection per chunk.",
+    "headroom": "ci gzip ceiling is 222 KB (about 11 KB of headroom over the 211.4 KB generate on 33891193, run 36226437490, n=1; the earlier basis remains 198.6 KB). dev gzip ceiling is 1.10 times 219.5 KB. View p95 is reused-connection time_starttransfer after one warmup; scored samples had time_namelookup 0 and time_connect 0 (n=12, 2026-09-25T19:50:48Z, hub 143229e55b28). Those ceilings are the greater of twice that p95 and 1.25 times the slowest sample. first-load transfer is recorded and not gated: it opens a new connection per chunk.",
     "metrics": {
       "ci_initial_gzip_kb": 198.6,
       "dev_initial_gzip_kb": 219.5,

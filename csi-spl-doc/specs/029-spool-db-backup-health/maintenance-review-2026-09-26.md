@@ -293,7 +293,16 @@ made it visible in normal use; the tier stays 029 D5.
 `live_rows` before is the statistics estimate (`n_live_tup` read 6 112); the
 count after the rewrite is exact (4 067).
 
+Real traffic after the roll (Cloud Run request logs, prd, 21:53-22:08Z):
+only **n=6** `/v1/view/topics*` requests (late evening): list 327 ms, DM list
+p50 25 / max 294 ms, per_topic 71 ms, thread 67 ms. The baseline window
+(14:42-20:42Z, §3.5) had list p95 1 782 / max 2 554 ms, DM p95 1 038 /
+max 2 364 ms. Six samples **suggest** the tail is gone; they do not
+demonstrate it. Re-read with the same filter after a working day
+(`do_gcp_tail_logs`, §2) and `do_spl_db_insights` (the walk's share of DB
+time was 64 %).
+
 P2 applies to new sessions only: the hub pool picks it up as connections
 recycle (idle 5 min).
 
-<!-- last-edit: 2026-09-26T21:50:00Z -->
+<!-- last-edit: 2026-09-26T22:10:00Z -->

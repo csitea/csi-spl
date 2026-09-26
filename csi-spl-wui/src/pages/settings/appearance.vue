@@ -4,7 +4,7 @@
   <SettingsSection id="settings-appearance" :title="t('settings.appearance')" data-test="settings-appearance">
     <div class="settings__row">
       <span>{{ t('settings.theme') }}</span>
-      <ThemeToggle />
+      <ThemeToggle align="end" />
     </div>
     <FontSizeSetting />
     <DebugPaneSetting />

@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Vaihda vaaleaan teemaan",
-    "to_dark": "Vaihda tummaan teemaan",
     "light": "Vaalea",
     "dark": "Tumma",
     "picker": "Valitse teema",

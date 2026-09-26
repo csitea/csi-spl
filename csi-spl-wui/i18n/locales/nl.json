@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Overschakelen naar licht thema",
-    "to_dark": "Overschakelen naar donker thema",
     "light": "Licht",
     "dark": "Donker",
     "picker": "Kies een thema",

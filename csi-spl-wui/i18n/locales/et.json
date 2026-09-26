@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Lülitu heledale teemale",
-    "to_dark": "Lülitu tumedale teemale",
     "light": "Hele",
     "dark": "Tume",
     "picker": "Vali teema",

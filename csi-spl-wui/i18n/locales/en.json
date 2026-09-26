@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Switch to light theme",
-    "to_dark": "Switch to dark theme",
     "light": "Light",
     "dark": "Dark",
     "picker": "Choose a theme",

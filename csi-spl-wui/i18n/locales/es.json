@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Cambiar al tema claro",
-    "to_dark": "Cambiar al tema oscuro",
     "light": "Claro",
     "dark": "Oscuro",
     "picker": "Elige un tema",

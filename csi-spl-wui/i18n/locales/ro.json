@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Comută la tema deschisă",
-    "to_dark": "Comută la tema întunecată",
     "light": "Deschisă",
     "dark": "Întunecată",
     "picker": "Alegeți o temă",

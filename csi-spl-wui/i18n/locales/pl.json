@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Przełącz na jasny motyw",
-    "to_dark": "Przełącz na ciemny motyw",
     "light": "Jasny",
     "dark": "Ciemny",
     "picker": "Wybierz motyw",

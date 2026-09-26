@@ -813,13 +813,15 @@ declare module '~/utils/tenant-users.mjs' {
 }
 
 declare module '~/utils/theme.mjs' {
-  export type SpoolTheme = 'dark' | 'light'
+  export type SpoolTheme = 'dark' | 'light' | 'light-violet' | 'light-green' | 'light-yellow'
+  export type SpoolThemeOption = { id: SpoolTheme, labelKey: string, swatch: [string, string] }
   export const THEME_KEY: 'spool-theme'
   export const THEME_DEFAULT: 'dark'
+  export const THEMES: SpoolThemeOption[]
+  export const THEME_IDS: SpoolTheme[]
   export function parseTheme(raw: unknown, fallback?: SpoolTheme): SpoolTheme
-  export function nextTheme(current: unknown): SpoolTheme
-  export function iconForTheme(current: unknown): 'sun' | 'moon'
-  export function labelKeyForTheme(current: unknown): 'theme.to_light' | 'theme.to_dark'
+  export function labelKeyForTheme(theme: unknown): string
+  export function themeIndex(theme: unknown): number
   export function readStoredTheme(store?: unknown, fallback?: SpoolTheme): SpoolTheme
   export function writeStoredTheme(theme: unknown, store?: unknown): boolean
   export function applyThemeAttr(theme: unknown, el?: { setAttribute?(k: string, v: string): void } | null): SpoolTheme

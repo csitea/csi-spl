@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Pređi na svetlu temu",
-    "to_dark": "Pređi na tamnu temu",
     "light": "Svetla",
     "dark": "Tamna",
     "picker": "Izaberite temu",

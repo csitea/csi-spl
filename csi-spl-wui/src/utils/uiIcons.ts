@@ -38,21 +38,14 @@ export const UI_ICON_PATHS = {
     "m21 3-9 9",
     "M15 3h6v6",
   ],
-  // Theme toggle: destination glyph. lucide sun (circle as a path) and
-  // lucide moon (crescent / half-moon). Path-only — never a circle or rect element.
-  sun: [
-    "M12 8a4 4 0 1 0 0 8 4 4 0 1 0 0-8z",
-    "M12 2v2",
-    "M12 20v2",
-    "m4.93 4.93 1.41 1.41",
-    "m17.66 17.66 1.41 1.41",
-    "M2 12h2",
-    "M20 12h2",
-    "m6.34 17.66-1.41 1.41",
-    "m19.07 4.93-1.41 1.41",
-  ],
-  moon: [
-    "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z",
+  // CLE-34994: the theme picker's button (lucide palette). The paint dots
+  // are filled path discs, never <circle>, so they survive at 18px.
+  palette: [
+    "M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z",
+    { d: "M13.5 5.4a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 1 1 0-2.2z", fill: true },
+    { d: "M17.5 9.4a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 1 1 0-2.2z", fill: true },
+    { d: "M6.5 10.4a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 1 1 0-2.2z", fill: true },
+    { d: "M8.5 5.4a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 1 1 0-2.2z", fill: true },
   ],
   // The sidebar's one "add a channel" control, next to the Channels heading.
   plus: ["M12 5v14", "M5 12h14"],

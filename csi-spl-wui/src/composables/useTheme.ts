@@ -1,6 +1,5 @@
 import {
   applyThemeAttr,
-  nextTheme,
   parseTheme,
   readStoredTheme,
   writeStoredTheme,
@@ -24,14 +23,10 @@ export function useTheme() {
     apply(t)
   }
 
-  function toggle() {
-    setTheme(nextTheme(theme.value))
-  }
-
   function hydrate() {
     if (!import.meta.client) return
     setTheme(readStoredTheme())
   }
 
-  return { theme, setTheme, toggle, hydrate }
+  return { theme, setTheme, hydrate }
 }

@@ -1,7 +1,6 @@
 // Theme names for the palette picker, all 19 locales.
 // EN is the lead's exact string. Every other locale differs.
-// The old toggle's switch-to strings may leave with the picker commit.
-// This suite does not lock them.
+// theme.to_light / theme.to_dark went with the sun/moon toggle (CLE-34994).
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,6 +9,7 @@ import { runsInUnitSuite } from './lib/in-suite.mjs'
 const dir = join(dirname(fileURLToPath(import.meta.url)), '../../i18n/locales')
 const KEYS = ['theme.picker', 'theme.light_violet', 'theme.light_green', 'theme.light_yellow']
 const KEPT = ['theme.light', 'theme.dark']
+const GONE = ['theme.to_light', 'theme.to_dark']
 const EN = {
   'theme.picker': 'Choose a theme',
   'theme.light_violet': 'Light violet',
@@ -74,6 +74,9 @@ for (const code of codes) {
     if (typeof v === 'string' && (v.includes('@') || v.includes('<') || v.includes('|'))) {
       fail(code + ' ' + key + ' syntax', v)
     }
+  }
+  for (const key of GONE) {
+    flat[key] === undefined ? pass(code + ' no ' + key) : fail(code + ' no ' + key, 'still there')
   }
   for (const leaf of ['picker', 'light_violet', 'light_green', 'light_yellow']) {
     const got = flat['theme.' + leaf]

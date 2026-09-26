@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Perjungti į šviesią temą",
-    "to_dark": "Perjungti į tamsią temą",
     "light": "Šviesi",
     "dark": "Tamsi",
     "picker": "Pasirinkite temą",

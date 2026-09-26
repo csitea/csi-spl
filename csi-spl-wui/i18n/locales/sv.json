@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Byt till ljust tema",
-    "to_dark": "Byt till mörkt tema",
     "light": "Ljust",
     "dark": "Mörkt",
     "picker": "Välj ett tema",

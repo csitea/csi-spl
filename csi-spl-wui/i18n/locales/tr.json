@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Açık temaya geç",
-    "to_dark": "Koyu temaya geç",
     "light": "Açık",
     "dark": "Koyu",
     "picker": "Bir tema seçin",

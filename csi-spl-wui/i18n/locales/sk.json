@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Prepnúť na svetlý motív",
-    "to_dark": "Prepnúť na tmavý motív",
     "light": "Svetlý",
     "dark": "Tmavý",
     "picker": "Vyberte motív",

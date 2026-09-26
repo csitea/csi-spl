@@ -506,8 +506,6 @@
     }
   },
   "theme": {
-    "to_light": "Pārslēgt uz gaišo motīvu",
-    "to_dark": "Pārslēgt uz tumšo motīvu",
     "light": "Gaišs",
     "dark": "Tumšs",
     "picker": "Izvēlieties motīvu",

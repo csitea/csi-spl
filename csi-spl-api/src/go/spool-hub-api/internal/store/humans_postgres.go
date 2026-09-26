@@ -315,6 +315,29 @@ func (s *Postgres) SubmitKey(ctx context.Context, humanID string) (string, error
 	return key, err
 }
 
+func (s *Postgres) SetRailOrder(ctx context.Context, humanID string, order []string) error {
+	if err := checkRailOrder(order); err != nil {
+		return err
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE humans SET rail_order = $2 WHERE human_id = $1`, humanID, order)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Postgres) RailOrder(ctx context.Context, humanID string) ([]string, error) {
+	var order []string
+	err := s.pool.QueryRow(ctx, `SELECT rail_order FROM humans WHERE human_id = $1`, humanID).Scan(&order)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return order, err
+}
+
 // humans is hub-wide (outside rdb 0014's RLS): no tenant scope, like SetAvatar.
 func (s *Postgres) SetDisplayName(ctx context.Context, humanID, name string) error {
 	tag, err := s.pool.Exec(ctx, `UPDATE humans SET display_name = $2 WHERE human_id = $1`, humanID, name)

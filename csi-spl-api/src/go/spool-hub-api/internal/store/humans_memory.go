@@ -10,11 +10,12 @@ import (
 
 type memHuman struct {
 	name, email string
-	avatar      string // file_id
-	locale      string // preferred_locale (rdb 0017)
-	theme       string // preferred_theme (rdb 0057); light is the light-blue palette
-	submitKey   string // submit_key (rdb 0062, SPL-976); "" = never picked
-	diagnostics bool   // diagnostics_enabled (rdb 0038)
+	avatar      string   // file_id
+	locale      string   // preferred_locale (rdb 0017)
+	theme       string   // preferred_theme (rdb 0057); light is the light-blue palette
+	submitKey   string   // submit_key (rdb 0062, SPL-976); "" = never picked
+	railOrder   []string // rail_order (rdb 0063, SPL-979); nil = never reordered
+	diagnostics bool     // diagnostics_enabled (rdb 0038)
 	disabled    bool
 }
 
@@ -312,6 +313,38 @@ func (s *Memory) SubmitKey(_ context.Context, humanID string) (string, error) {
 		return "", ErrNotFound
 	}
 	return hm.submitKey, nil
+}
+
+func (s *Memory) SetRailOrder(_ context.Context, humanID string, order []string) error {
+	if err := checkRailOrder(order); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return ErrNotFound
+	}
+	hm.railOrder = append([]string(nil), order...)
+	if order == nil {
+		hm.railOrder = nil
+	}
+	return nil
+}
+
+func (s *Memory) RailOrder(_ context.Context, humanID string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hum.init()
+	hm, ok := s.hum.humans[humanID]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	if hm.railOrder == nil {
+		return nil, nil
+	}
+	return append([]string(nil), hm.railOrder...), nil
 }
 
 func (s *Memory) SetDisplayName(_ context.Context, humanID, name string) error {

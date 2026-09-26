@@ -401,6 +401,8 @@ type loginResp struct {
 	PreferredTheme *string `json:"preferred_theme"`
 	// SubmitKey as GET /session answers it (SPL-976), null when unset.
 	SubmitKey *string `json:"submit_key"`
+	// RailOrder as GET /session answers it (SPL-979), null when unset.
+	RailOrder []string `json:"rail_order"`
 }
 
 func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -491,7 +493,7 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	claims.Name = n.h.shownName(ctx, sess)
 	writeJSON(w, http.StatusOK, loginResp{Session: claims, Redirect: safeRedirect(req.Redirect),
 		DiagnosticsEnabled: n.h.diagnosticsGrant(ctx, sess), PreferredTheme: n.h.preferredTheme(ctx, sess),
-		SubmitKey: n.h.submitKey(ctx, sess)})
+		SubmitKey: n.h.submitKey(ctx, sess), RailOrder: n.h.railOrder(ctx, sess)})
 }
 
 type emailReq struct {

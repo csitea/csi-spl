@@ -147,6 +147,12 @@ type Humans interface {
 	SetSubmitKey(ctx context.Context, humanID, key string) error
 	// SubmitKey returns it, "" when none, or ErrNotFound.
 	SubmitKey(ctx context.Context, humanID string) (string, error)
+	// SetRailOrder records the human's left-rail order (rdb 0063, SPL-979), a
+	// permutation of auth.RailTabs, or nil to clear it. Unknown human =
+	// ErrNotFound.
+	SetRailOrder(ctx context.Context, humanID string, order []string) error
+	// RailOrder returns it, nil when none, or ErrNotFound.
+	RailOrder(ctx context.Context, humanID string) ([]string, error)
 	// IdentityLocale returns the picked locale of the human the (provider,
 	// subject) sign-in belongs to; "" (nil error) when there is no such
 	// identity or nothing is picked.
@@ -207,6 +213,15 @@ func checkSubmitKey(key string) error {
 		return nil
 	}
 	return errors.New("submit key must be enter or ctrl-enter")
+}
+
+// checkRailOrder admits nil (never reordered) or a permutation of
+// auth.RailTabs, what humans_rail_order_check (rdb 0063) admits.
+func checkRailOrder(order []string) error {
+	if order == nil || auth.IsRailOrder(order) {
+		return nil
+	}
+	return errors.New("rail order must hold each rail tab exactly once")
 }
 
 var fileIDRe = regexp.MustCompile(`^[0-9a-f]{64}$`)

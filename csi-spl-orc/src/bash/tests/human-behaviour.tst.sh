@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: do_spl_human_behaviour (SPL-976) stays offline on DRY_RUN and on bad
-#          input, and a real run updates humans.submit_key with psql variables.
+# Purpose: do_spl_human_behaviour (SPL-976, SPL-979) stays offline on DRY_RUN and
+#          on bad input, and a real run updates humans.submit_key and/or
+#          humans.rail_order with psql variables.
 #          Exactly one row, or the script rolls back. gcloud and psql are
 #          stubbed.
 #------------------------------------------------------------------------------
@@ -38,7 +39,7 @@ printf 'psql' >>"$STUB_LOG"; printf ' [%s]' "$@" >>"$STUB_LOG"; echo >>"$STUB_LO
 if [[ -n "${STUB_PSQL_OUT+x}" ]]; then
   printf '%s\n' "$STUB_PSQL_OUT"
 else
-  printf '%s\n' 'HUM-4 | ctrl-enter'
+  printf '%s\n' 'HUM-4 | ctrl-enter | '
 fi
 exit "${STUB_PSQL_RC:-0}"
 EOF
@@ -47,7 +48,7 @@ chmod +x "$T/stub/"*
 in_orc() {
   local snip="$1"; shift
   : >"$T/calls.log"; : >"$T/stdin"
-  env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT -u DRY_RUN -u HUMAN_ID -u SUBMIT_KEY \
+  env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT -u DRY_RUN -u HUMAN_ID -u SUBMIT_KEY -u RAIL_ORDER \
     -u STUB_PSQL_OUT -u STUB_PSQL_RC \
     HOME="$T/home" PATH="$T/stub:$PATH" STUB_LOG="$T/calls.log" T_STDIN="$T/stdin" \
     PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" \
@@ -76,7 +77,7 @@ print("|".join(codes))
 # --- 1. DRY_RUN ----------------------------------------------------------------
 in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 SUBMIT_KEY=CTRL-ENTER; rc=$?
 [[ $rc -eq 0 && ! -s "$T/calls.log" ]] \
-  && grep -q 'DRY_RUN would set submit_key of HUM-4 to ctrl-enter on csi-spl-dev:' "$T/out" \
+  && grep -q 'DRY_RUN would set submit_key=ctrl-enter of HUM-4 on csi-spl-dev:' "$T/out" \
   && ! grep -q 'SUBMIT_KEY=CTRL-ENTER' "$T/out" \
   && pass "1. DRY_RUN (default): lower-cased plan, no cloud" \
   || fail "1. dry: rc=$rc $(cat "$T/out") $(cat "$T/calls.log")"
@@ -93,13 +94,24 @@ refuse() {
 }
 refuse "missing HUMAN_ID" SUBMIT_KEY=ctrl-enter DRY_RUN=0
 refuse "injected HUMAN_ID" "HUMAN_ID=HUM-4' or '1'='1" SUBMIT_KEY=ctrl-enter DRY_RUN=0
-refuse "missing SUBMIT_KEY" HUMAN_ID=HUM-4 DRY_RUN=0
+refuse "neither SUBMIT_KEY nor RAIL_ORDER" HUMAN_ID=HUM-4 DRY_RUN=0
 refuse "unknown SUBMIT_KEY" HUMAN_ID=HUM-4 SUBMIT_KEY=shift-enter DRY_RUN=0
 refuse "near-miss SUBMIT_KEY" HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl DRY_RUN=0
 refuse "injected SUBMIT_KEY" HUMAN_ID=HUM-4 "SUBMIT_KEY=enter'; drop table humans" DRY_RUN=0
 refuse "DRY_RUN=2" HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=2
 in_orc 'do_spl_human_behaviour' ENV=stg HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=0; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. ENV=stg refused before any call" || fail "2. ENV=stg: rc=$rc $(cat "$T/out")"
+
+refuse "RAIL_ORDER missing a tab" HUMAN_ID=HUM-4 RAIL_ORDER=dm,channels,issues,topics,flow DRY_RUN=0
+refuse "RAIL_ORDER with a duplicate" HUMAN_ID=HUM-4 RAIL_ORDER=dm,dm,issues,topics,flow,events DRY_RUN=0
+refuse "RAIL_ORDER with users" HUMAN_ID=HUM-4 RAIL_ORDER=dm,channels,issues,topics,flow,users DRY_RUN=0
+refuse "injected RAIL_ORDER" HUMAN_ID=HUM-4 "RAIL_ORDER=dm,channels,issues,topics,flow,events'}; drop table humans" DRY_RUN=0
+python3 - "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub/0063_human_rail_order.sql" "$FUNC" <<'PY' && pass "0. the rail list is rdb 0063's CHECK, in that order" || fail "0. rail list drifted from 0063"
+import re,sys
+t=open(sys.argv[1]).read(); f=open(sys.argv[2]).read()
+ids=re.findall(r"'([a-z]+)'", re.search(r"<@ ARRAY\[([^\]]*)\]", t).group(1))
+sys.exit(0 if "rail_ids='" + ",".join(ids) + "'" in f else 1)
+PY
 
 # --- 3. no key ----------------------------------------------------------------
 in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=0 GCP_SA_KEY_FILE="$T/nokey.json"; rc=$?
@@ -110,7 +122,9 @@ in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=0 G
 in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] \
   && grep -qx 'BEGIN;' "$T/stdin" && grep -qx 'COMMIT;' "$T/stdin" && grep -qx 'ROLLBACK;' "$T/stdin" \
-  && grep -q "submit_key = :'submit_key'" "$T/stdin" \
+  && grep -q "submit_key = COALESCE(NULLIF(:'submit_key', ''), submit_key)" "$T/stdin" \
+  && grep -q "rail_order = COALESCE(NULLIF(:'rail', '')::text\[\], rail_order)" "$T/stdin" \
+  && grep -q '\[rail=\]' "$T/calls.log" \
   && grep -q "human_id = :'human'" "$T/stdin" \
   && grep -q 'UPDATE humans SET' "$T/stdin" \
   && ! grep -q 'app.tenant_id' "$T/stdin" \
@@ -118,10 +132,23 @@ in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=0; 
   && grep -q '\[human=HUM-4\]' "$T/calls.log" && grep -q '\[submit_key=ctrl-enter\]' "$T/calls.log" \
   && ! grep -q 'HUM-4' "$T/stdin" && ! grep -q 'ctrl-enter' "$T/stdin" \
   && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
-  && grep -q "OK HUM-4 submit_key is now ctrl-enter ($DEV_SA):" "$T/out" \
+  && grep -q "OK HUM-4 now has submit_key=ctrl-enter ($DEV_SA):" "$T/out" \
   && pass "4. DRY_RUN=0: one row, values as -v, no tenant scope, as $DEV_SA" \
   || fail "4. real: rc=$rc $(cat "$T/calls.log") $(cat "$T/out") --- $(cat "$T/stdin")"
 grep -qF "$DSN_PW" "$T/out" "$T/calls.log" "$T/stdin" && fail "4. the DSN password leaked" || pass "4. the DSN password is in neither output, argv nor SQL"
+
+# --- 4b. the rail order alone ------------------------------------------------
+in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 RAIL_ORDER=Topics,dm,channels,issues,flow,events DRY_RUN=0 STUB_PSQL_OUT='HUM-4 |  | topics,dm,channels,issues,flow,events'; rc=$?
+[[ $rc -eq 0 ]] \
+  && grep -q '\[rail={topics,dm,channels,issues,flow,events}\]' "$T/calls.log" \
+  && grep -q '\[submit_key=\]' "$T/calls.log" \
+  && ! grep -q 'topics,dm' "$T/stdin" \
+  && grep -q "OK HUM-4 now has rail_order=topics,dm,channels,issues,flow,events ($DEV_SA):" "$T/out" \
+  && pass "4b. RAIL_ORDER alone: lower-cased array literal as -v, submit_key kept" \
+  || fail "4b. rail: rc=$rc $(cat "$T/calls.log") $(cat "$T/out")"
+in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 RAIL_ORDER=flow,dm,channels,issues,topics,events SUBMIT_KEY=enter; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would set submit_key=enter rail_order=flow,dm,channels,issues,topics,events of HUM-4' "$T/out" \
+  && pass "4b. both keys: one DRY_RUN plan, no cloud" || fail "4b. both dry: rc=$rc $(cat "$T/out")"
 
 # --- 5. zero rows -------------------------------------------------------------
 in_orc 'do_spl_human_behaviour' HUMAN_ID=HUM-4 SUBMIT_KEY=ctrl-enter DRY_RUN=0 STUB_PSQL_OUT=''; rc=$?

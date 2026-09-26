@@ -244,6 +244,25 @@ func (a AuthHooks) SetSubmitKey(ctx context.Context, humanID, key string) error 
 	return err
 }
 
+// RailOrder is the human's left-rail order (SPL-979); an unknown human is
+// auth.ErrNoHuman.
+func (a AuthHooks) RailOrder(ctx context.Context, humanID string) ([]string, error) {
+	order, err := a.H.RailOrder(ctx, humanID)
+	if errors.Is(err, ErrNotFound) {
+		return nil, auth.ErrNoHuman
+	}
+	return order, err
+}
+
+// SetRailOrder stores it (nil clears); an unknown human is auth.ErrNoHuman.
+func (a AuthHooks) SetRailOrder(ctx context.Context, humanID string, order []string) error {
+	err := a.H.SetRailOrder(ctx, humanID, order)
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrNoHuman
+	}
+	return err
+}
+
 // DiagnosticsEnabled is the human's "Debug pane" setting (CLE-34963); an
 // unknown human is auth.ErrNoHuman.
 func (a AuthHooks) DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error) {

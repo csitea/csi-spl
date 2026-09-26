@@ -25,10 +25,11 @@ type fakePrefs struct {
 	reg   *recReg
 	loc   map[string]string
 	theme map[string]string
-	key   map[string]string // SPL-976 submit_key, nil until first set
-	diag  map[string]bool   // CLE-34963 "Debug pane", nil until first set
-	name  map[string]string // CLE-34968 display name, nil until first set
-	fail  error             // non-nil: DiagnosticsEnabled answers it
+	key   map[string]string   // SPL-976 submit_key, nil until first set
+	rail  map[string][]string // SPL-979 rail_order, nil until first set
+	diag  map[string]bool     // CLE-34963 "Debug pane", nil until first set
+	name  map[string]string   // CLE-34968 display name, nil until first set
+	fail  error               // non-nil: DiagnosticsEnabled answers it
 }
 
 func (p *fakePrefs) known(hum string) bool {
@@ -102,6 +103,28 @@ func (p *fakePrefs) SetSubmitKey(_ context.Context, hum, key string) error {
 		p.key = map[string]string{}
 	}
 	p.key[hum] = key
+	return nil
+}
+
+func (p *fakePrefs) RailOrder(_ context.Context, hum string) ([]string, error) {
+	if !p.known(hum) {
+		return nil, auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.rail[hum], nil
+}
+
+func (p *fakePrefs) SetRailOrder(_ context.Context, hum string, order []string) error {
+	if !p.known(hum) {
+		return auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.rail == nil {
+		p.rail = map[string][]string{}
+	}
+	p.rail[hum] = order
 	return nil
 }
 
@@ -373,6 +396,60 @@ func TestPreferencesSubmitKey(t *testing.T) {
 		t.Fatalf("a refused PUT stored a key: %s", got.raw)
 	}
 	if got := r.call(t, nil, http.MethodPut, "preferences", `{"submit_key":"enter"}`); got.code != http.StatusUnauthorized {
+		t.Fatalf("no session: %d %s", got.code, got.raw)
+	}
+}
+
+// SPL-979: the left-rail order is kept on the account; only a permutation of
+// auth.RailTabs is admitted, null clears it, and both answers carry it.
+func TestPreferencesRailOrder(t *testing.T) {
+	r, _ := newPRig(t, "", true)
+	c := browser(t)
+	r.signedIn(t, c, "person@example.com")
+	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["rail_order"] != nil {
+		t.Fatalf("session before: %s", got.raw)
+	}
+	want := `["events","flow","topics","issues","channels","dm"]`
+	got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+want+`}`)
+	if got.code != http.StatusOK || len(got.body) != 1 {
+		t.Fatalf("put: %d %s", got.code, got.raw)
+	}
+	if b, _ := json.Marshal(got.body["rail_order"]); string(b) != want {
+		t.Fatalf("put echo %s", b)
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); true {
+		if b, _ := json.Marshal(got.body["rail_order"]); string(b) != want {
+			t.Fatalf("session after: %s", got.raw)
+		}
+	}
+	if got := r.post(t, browser(t), "login", map[string]string{"email": "person@example.com", "password": pwA, "tenant": "acme"}); got.code != http.StatusOK {
+		t.Fatalf("login: %d %s", got.code, got.raw)
+	} else if b, _ := json.Marshal(got.body["rail_order"]); string(b) != want {
+		t.Fatalf("login answer: %s", got.raw)
+	}
+	for _, body := range []string{
+		`{"rail_order":["dm","channels","issues","topics","flow"]}`,
+		`{"rail_order":["dm","dm","issues","topics","flow","events"]}`,
+		`{"rail_order":["dm","channels","issues","topics","flow","users"]}`,
+		`{"rail_order":["dm","channels","issues","topics","flow","events","events"]}`,
+		`{"rail_order":"dm,channels"}`, `{"rail_order":[]}`, `{"rail_order":7}`,
+	} {
+		if got := r.call(t, c, http.MethodPut, "preferences", body); got.code != http.StatusBadRequest || got.body["error"] != "unsupported_rail_order" {
+			t.Errorf("%s: %d %s", body, got.code, got.raw)
+		}
+	}
+	if got := r.call(t, c, http.MethodGet, "session", ""); true {
+		if b, _ := json.Marshal(got.body["rail_order"]); string(b) != want {
+			t.Fatalf("a refused PUT changed the order: %s", got.raw)
+		}
+	}
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":null}`); got.code != http.StatusOK || got.body["rail_order"] != nil {
+		t.Fatalf("clear: %d %s", got.code, got.raw)
+	}
+	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["rail_order"] != nil {
+		t.Fatalf("session after clear: %s", got.raw)
+	}
+	if got := r.call(t, nil, http.MethodPut, "preferences", `{"rail_order":null}`); got.code != http.StatusUnauthorized {
 		t.Fatalf("no session: %d %s", got.code, got.raw)
 	}
 }

@@ -93,6 +93,12 @@ type Preferences interface {
 	// SetSubmitKey stores it ("" clears), already admitted by IsSubmitKey.
 	// Unknown human = ErrNoHuman.
 	SetSubmitKey(ctx context.Context, humanID, key string) error
+	// RailOrder is the human's left-rail order (SPL-979), a permutation of
+	// RailTabs, nil when never reordered. Unknown human = ErrNoHuman.
+	RailOrder(ctx context.Context, humanID string) ([]string, error)
+	// SetRailOrder stores it (nil clears), already admitted by IsRailOrder.
+	// Unknown human = ErrNoHuman.
+	SetRailOrder(ctx context.Context, humanID string, order []string) error
 	// IdentityLocale is the picked locale of the human a (provider, subject)
 	// sign-in belongs to; "" when there is no such human or nothing is picked.
 	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
@@ -348,6 +354,9 @@ type sessionResp struct {
 	// SubmitKey is Settings -> Behaviour "Text fields" (SPL-976), null when
 	// unset (the WUI then applies its default, spec 023 3.7).
 	SubmitKey *string `json:"submit_key"`
+	// RailOrder is Settings -> Behaviour "Left panel order" (SPL-979), null
+	// when never reordered (the WUI then draws its default order).
+	RailOrder []string `json:"rail_order"`
 	// DiagnosticsEnabled is the human's own "Debug pane" setting (CLE-34963),
 	// which shows the WUI diagnostics panel (005 T035). It sits HERE and not
 	// in Session on purpose: Session is what gets signed into the cookie, and
@@ -379,6 +388,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		}
 		out.PreferredTheme = h.preferredTheme(r.Context(), s)
 		out.SubmitKey = h.submitKey(r.Context(), s)
+		out.RailOrder = h.railOrder(r.Context(), s)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
@@ -420,6 +430,21 @@ func (h *Handler) submitKey(ctx context.Context, s Session) *string {
 		return nil
 	}
 	return &key
+}
+
+// railOrder is the session human's stored left-rail order (SPL-979), nil
+// when unset, with no human or store, or when the read fails. It rides GET
+// /session and the native POST /login answer, like submitKey.
+func (h *Handler) railOrder(ctx context.Context, s Session) []string {
+	if s.HumanID == "" || h.prefs == nil {
+		return nil
+	}
+	order, err := h.prefs.RailOrder(ctx, s.HumanID)
+	if err != nil {
+		h.log.Warn().Err(err).Msg("auth rail_order lookup")
+		return nil
+	}
+	return order
 }
 
 // diagnosticsGrant answers the WUI's `diagnostics_enabled` claim (005 T035,
@@ -603,19 +628,47 @@ func IsSubmitKey(key string) bool {
 	return false
 }
 
+// RailTabs are the reorderable left-rail entries (SPL-979) in their default
+// order: direct messages, channels, issues, topics, flow, event log (the
+// admin-only Users tab stays last and is not one of them). The DB check
+// humans_rail_order_check (rdb 0063) admits exactly their permutations.
+var RailTabs = []string{"dm", "channels", "issues", "topics", "flow", "events"}
+
+// IsRailOrder reports whether order holds every RailTabs id exactly once.
+func IsRailOrder(order []string) bool {
+	if len(order) != len(RailTabs) {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, id := range order {
+		if seen[id] {
+			return false
+		}
+		seen[id] = true
+	}
+	for _, id := range RailTabs {
+		if !seen[id] {
+			return false
+		}
+	}
+	return true
+}
+
 // preferencesReq is PUT preferences' body. Each key is optional, but at
 // least one must be present: preferred_locale is one of the 19
 // i18n.Supported codes exactly, or null to clear it; diagnostics_enabled
 // (CLE-34963) is a JSON boolean, nothing else; display_name (CLE-34968) is a
 // JSON string ValidDisplayName admits, and cannot be cleared (null is refused);
 // preferred_theme (CLE-34994) is one of ThemeIDs exactly, or null to clear it;
-// submit_key (SPL-976) is one of SubmitKeys exactly, or null to clear it.
+// submit_key (SPL-976) is one of SubmitKeys exactly, or null to clear it;
+// rail_order (SPL-979) is an array holding every RailTabs id once, or null.
 type preferencesReq struct {
 	PreferredLocale    json.RawMessage `json:"preferred_locale"`
 	PreferredTheme     json.RawMessage `json:"preferred_theme"`
 	DiagnosticsEnabled json.RawMessage `json:"diagnostics_enabled"`
 	DisplayName        json.RawMessage `json:"display_name"`
 	SubmitKey          json.RawMessage `json:"submit_key"`
+	RailOrder          json.RawMessage `json:"rail_order"`
 }
 
 // putPreferences stores the signed-in human's settings (CLE-3403, CLE-34963).
@@ -639,9 +692,10 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 	rawName := strings.TrimSpace(string(req.DisplayName))
 	rawTheme := strings.TrimSpace(string(req.PreferredTheme))
 	rawKey := strings.TrimSpace(string(req.SubmitKey))
-	if rawLoc == "" && rawDiag == "" && rawName == "" && rawTheme == "" && rawKey == "" {
+	rawRail := strings.TrimSpace(string(req.RailOrder))
+	if rawLoc == "" && rawDiag == "" && rawName == "" && rawTheme == "" && rawKey == "" && rawRail == "" {
 		writeErr(w, http.StatusBadRequest, "bad_request",
-			"preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null) or submit_key (enter, ctrl-enter or null) is required")
+			"preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null) or rail_order (the rail ids or null) is required")
 		return
 	}
 	loc := ""
@@ -687,6 +741,14 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 		if json.Unmarshal(req.SubmitKey, &key) != nil || !IsSubmitKey(key) {
 			writeErr(w, http.StatusBadRequest, "unsupported_submit_key",
 				"submit_key must be one of "+strings.Join(SubmitKeys, ","))
+			return
+		}
+	}
+	var rail []string
+	if rawRail != "" && rawRail != "null" {
+		if json.Unmarshal(req.RailOrder, &rail) != nil || !IsRailOrder(rail) {
+			writeErr(w, http.StatusBadRequest, "unsupported_rail_order",
+				"rail_order must hold each of "+strings.Join(RailTabs, ",")+" exactly once")
 			return
 		}
 	}
@@ -743,6 +805,13 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 		if key != "" {
 			out["submit_key"] = key
 		}
+	}
+	if rawRail != "" {
+		if !h.storePref(w, h.prefs.SetRailOrder(r.Context(), s.HumanID, rail)) {
+			return
+		}
+		h.log.Info().Str("human_id", s.HumanID).Strs("rail_order", rail).Msg("auth.preferences_set")
+		out["rail_order"] = rail
 	}
 	writeJSON(w, http.StatusOK, out)
 }

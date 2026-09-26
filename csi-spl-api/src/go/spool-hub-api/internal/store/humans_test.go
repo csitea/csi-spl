@@ -297,6 +297,29 @@ func TestHumansPreferredLocale(t *testing.T) {
 			if err := h.SetSubmitKey(ctx, "HUM-999999999", "enter"); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("unknown human submit key: %v", err)
 			}
+			// SPL-979 rail_order (rdb 0063)
+			if got, err := h.RailOrder(ctx, hum); err != nil || got != nil {
+				t.Fatalf("unset rail order %v %v", got, err)
+			}
+			if err := h.SetRailOrder(ctx, hum, []string{"dm", "dm", "issues", "topics", "flow", "events"}); err == nil {
+				t.Fatal("SetRailOrder accepted a duplicate")
+			}
+			rev := []string{"events", "flow", "topics", "issues", "channels", "dm"}
+			if err := h.SetRailOrder(ctx, hum, rev); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := h.RailOrder(ctx, hum); err != nil || strings.Join(got, ",") != strings.Join(rev, ",") {
+				t.Fatalf("rail order got %v %v", got, err)
+			}
+			if err := h.SetRailOrder(ctx, hum, nil); err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := h.RailOrder(ctx, hum); got != nil {
+				t.Fatalf("cleared rail order %v", got)
+			}
+			if err := h.SetRailOrder(ctx, "HUM-999999999", rev); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human rail order: %v", err)
+			}
 		})
 	}
 }

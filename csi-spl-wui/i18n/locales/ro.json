@@ -76,6 +76,7 @@
     "picture_hint": "Imaginea dvs. este cea partajată de furnizorul de autentificare; în lipsa ei, spool vă desenează identiconul.",
     "language_title": "Limbă",
     "appearance": "Aspect",
+    "behaviour": "Comportament",
     "theme": "Temă",
     "font_size": {
       "label": "Mărimea fontului",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Panou de depanare",
       "hint": "Afișează un panou de diagnosticare în partea de jos a aplicației cu erorile înregistrate în acest browser. Doar dumneavoastră îl vedeți."
+    },
+    "submit_key": {
+      "label": "Câmpuri de text",
+      "enter": "Enter trimite, Shift+Enter adaugă un rând",
+      "ctrl_enter": "Enter pentru un rând nou, Ctrl+Enter sau Cmd+Enter pentru a trimite",
+      "hint": "Pentru mesaje, răspunsuri, comentarii și descrieri de tichete. Se păstrează în contul tău, deci se aplică pe orice dispozitiv."
     },
     "signin_security": "Autentificare și securitate",
     "signed_in_with": "Autentificat cu",
@@ -506,6 +513,7 @@
     "open": "Deschide",
     "empty": "Temă goală.",
     "reply_placeholder": "Răspuns — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru filtrare",
+    "reply_placeholder_enter": "Răspuns — Enter trimite · Shift+Enter adaugă un rând · /search pentru filtrare",
     "replies_label": "Răspunsuri, cele mai noi primele",
     "load_failed": "încărcarea temei a eșuat",
     "no_replies": "Încă nu există răspunsuri — scrie-l pe primul.",
@@ -622,6 +630,7 @@
       "issues": "Probleme"
     },
     "placeholder_target": "Mesaj către {target} — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru a căuta peste tot",
+    "placeholder_target_enter": "Mesaj către {target} — Enter trimite · Shift+Enter adaugă un rând · /search pentru a căuta peste tot",
     "unreachable": "Serviciul de căutare nu poate fi contactat. Încercați din nou în curând.",
     "help_button": "Sintaxa căutării",
     "help_title": "Sintaxa căutării",
@@ -887,6 +896,7 @@
     "group_none": "Niciuna",
     "col_key": "Cheie",
     "col_title": "Titlu",
-    "comment_hint": "Enter trimite, Shift+Enter adaugă un rând"
+    "comment_hint": "Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite",
+    "comment_hint_enter": "Enter trimite, Shift+Enter adaugă un rând"
   }
 }

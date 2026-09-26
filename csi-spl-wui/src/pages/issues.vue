@@ -232,6 +232,7 @@
         :save="saveDescription"
         :keep-open="creating"
         @draft="onDescriptionDraft"
+        @submit="onDescriptionSubmit"
       />
       <div class="issues-props">
         <button v-if="creating" type="button" class="issues-prop" data-test="issues-kind" :data-kind="draft.kind" @click="toggleKind">
@@ -337,14 +338,15 @@
         </article>
         <label class="issues-field">
           <span class="sr-only">{{ t('issues.comment_placeholder') }}</span>
-          <!-- owner, topic 593a804a (SPL-973): no Comment button; Enter sends, Shift+Enter is a new line -->
+          <!-- owner, topic 593a804a (SPL-973): no Comment button. Which key
+               sends is Settings -> Behaviour -> "Text fields" (SPL-976) -->
           <textarea
             v-model="commentText"
             data-test="issues-comment-input"
             rows="2"
-            :placeholder="t('issues_view.comment_hint')"
+            :placeholder="t(sk('issues_view.comment_hint'))"
             :disabled="busy"
-            @keydown.enter.exact.prevent="sendComment"
+            @keydown="onSubmitKey($event, sendComment)"
           />
         </label>
       </section>
@@ -374,6 +376,7 @@
 </template>
 
 <script setup lang="ts">
+import { useSubmitKey } from '~/composables/useSubmitKey'
 import type { EpicSummary, Issue, IssueFilter, IssueLabel } from '~/utils/issues.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useRosterStore } from '~/stores/roster'
@@ -433,6 +436,8 @@ function statusIcon(status: string): string {
 }
 
 const { t } = useI18n({ useScope: 'global' })
+/* SPL-976: every text field's Enter follows Settings -> Behaviour -> "Text fields" */
+const { onKeydown: onSubmitKey, hintFor: sk } = useSubmitKey()
 const { mode: clipMode } = useCardClip('thread')
 const route = useRoute()
 const session = useSessionStore()
@@ -839,6 +844,11 @@ function onTitle(ev: Event) {
   if (creating.value) { draft.title = value; return }
   if (!detail.value || value === detail.value.title) return
   void save(detail.value.key, { title: value })
+}
+/* the submit key in the description: a new issue is created, an existing
+   one's text is already saved by IssueDescription */
+function onDescriptionSubmit() {
+  if (creating.value && !busy.value && draft.title.trim() && (isTopKind(draft.kind) || draft.epic)) void createIssue()
 }
 function onDescriptionDraft(value: string) {
   if (creating.value) draft.description = value

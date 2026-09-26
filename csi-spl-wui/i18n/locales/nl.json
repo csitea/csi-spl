@@ -76,6 +76,7 @@
     "picture_hint": "Je afbeelding is de afbeelding die je inlogprovider deelt; zonder afbeelding tekent spool je identicon.",
     "language_title": "Taal",
     "appearance": "Weergave",
+    "behaviour": "Gedrag",
     "theme": "Thema",
     "font_size": {
       "label": "Lettergrootte",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Debugpaneel",
       "hint": "Toont onderaan de app een diagnosepaneel met de fouten die in deze browser zijn vastgelegd. Alleen jij ziet het."
+    },
+    "submit_key": {
+      "label": "Tekstvelden",
+      "enter": "Enter verstuurt, Shift+Enter voegt een regel toe",
+      "ctrl_enter": "Enter voor een nieuwe regel, Ctrl+Enter of Cmd+Enter om te versturen",
+      "hint": "Voor berichten, reacties, opmerkingen en beschrijvingen van issues. Bewaard in je account, dus elk apparaat volgt het."
     },
     "signin_security": "Inloggen en beveiliging",
     "signed_in_with": "Ingelogd met",
@@ -506,6 +513,7 @@
     "open": "Openen",
     "empty": "Leeg onderwerp.",
     "reply_placeholder": "Reageren — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen · /search om te filteren",
+    "reply_placeholder_enter": "Reageren — Enter verstuurt · Shift+Enter voegt een regel toe · /search om te filteren",
     "replies_label": "Reacties, nieuwste eerst",
     "load_failed": "onderwerp laden mislukt",
     "no_replies": "Nog geen antwoorden — schrijf het eerste.",
@@ -622,6 +630,7 @@
       "issues": "Kwesties"
     },
     "placeholder_target": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",
+    "placeholder_target_enter": "Bericht aan {target} — Enter verstuurt · Shift+Enter voegt een regel toe · /search om overal te zoeken",
     "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw.",
     "help_button": "Zoeksyntaxis",
     "help_title": "Zoeksyntaxis",
@@ -887,6 +896,7 @@
     "group_none": "Geen",
     "col_key": "Sleutel",
     "col_title": "Titel",
-    "comment_hint": "Enter verstuurt, Shift+Enter voegt een regel toe"
+    "comment_hint": "Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen",
+    "comment_hint_enter": "Enter verstuurt, Shift+Enter voegt een regel toe"
   }
 }

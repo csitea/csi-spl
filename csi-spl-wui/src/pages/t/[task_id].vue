@@ -30,6 +30,7 @@
 </template>
 
 <script setup lang="ts">
+import { useSubmitKey } from '~/composables/useSubmitKey'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
@@ -48,6 +49,8 @@ const side = useLiveFeed('pane')
 const channel = useChannelStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
+/* SPL-976: the placeholder names the keys of the person's Behaviour setting */
+const { hintFor: sk } = useSubmitKey()
 const localePath = useLocalePath()
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
@@ -96,7 +99,7 @@ useOmniboxTarget({
     selectedTaskId: taskId.value,
     namedTopicId: '',
     paneVisible: true,
-  }) ? t('topic.reply_placeholder') : t('search.placeholder_target', { target: shortId.value })),
+  }) ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: shortId.value })),
   send: onSend,
   busy: () => store.sending,
 })

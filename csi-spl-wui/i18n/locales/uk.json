@@ -76,6 +76,7 @@
     "picture_hint": "Ваше зображення — те, яким ділиться ваш постачальник входу; без нього spool малює ваш ідентикон.",
     "language_title": "Мова",
     "appearance": "Вигляд",
+    "behaviour": "Поведінка",
     "theme": "Тема",
     "font_size": {
       "label": "Розмір шрифту",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Панель налагодження",
       "hint": "Показувати внизу застосунку діагностичну панель із помилками, записаними в цьому браузері. Її бачите лише ви."
+    },
+    "submit_key": {
+      "label": "Текстові поля",
+      "enter": "Enter надсилає, Shift+Enter додає рядок",
+      "ctrl_enter": "Enter для нового рядка, Ctrl+Enter або Cmd+Enter, щоб надіслати",
+      "hint": "Для повідомлень, відповідей, коментарів та описів задач. Зберігається у вашому обліковому записі, тож діє на всіх пристроях."
     },
     "signin_security": "Вхід і безпека",
     "signed_in_with": "Вхід через",
@@ -506,6 +513,7 @@
     "open": "Відкрити",
     "empty": "Порожня тема.",
     "reply_placeholder": "Відповідь — Enter для нового рядка · Ctrl+Enter або Cmd+Enter, щоб надіслати · /search для фільтрування",
+    "reply_placeholder_enter": "Відповідь — Enter надсилає · Shift+Enter додає рядок · /search для фільтрування",
     "replies_label": "Відповіді, спершу новіші",
     "load_failed": "не вдалося завантажити тему",
     "no_replies": "Відповідей ще немає — напишіть першу.",
@@ -622,6 +630,7 @@
       "issues": "Заявки"
     },
     "placeholder_target": "Повідомлення для {target} — Enter для нового рядка · Ctrl+Enter або Cmd+Enter надсилає · /search шукає всюди",
+    "placeholder_target_enter": "Повідомлення для {target} — Enter надсилає · Shift+Enter додає рядок · /search шукає всюди",
     "unreachable": "Сервіс пошуку недоступний. Спробуйте трохи пізніше.",
     "help_button": "Синтаксис пошуку",
     "help_title": "Синтаксис пошуку",
@@ -887,6 +896,7 @@
     "group_none": "Немає",
     "col_key": "Ключ",
     "col_title": "Назва",
-    "comment_hint": "Enter надсилає, Shift+Enter додає рядок"
+    "comment_hint": "Enter для нового рядка · Ctrl+Enter або Cmd+Enter, щоб надіслати",
+    "comment_hint_enter": "Enter надсилає, Shift+Enter додає рядок"
   }
 }

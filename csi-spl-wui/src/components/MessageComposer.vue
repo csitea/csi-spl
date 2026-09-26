@@ -232,7 +232,8 @@ import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
 import { useViewerStore } from '~/stores/viewer'
-import { closeOpenFence, enterAction, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
+import { closeOpenFence, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
+import { useSubmitKey } from '~/composables/useSubmitKey'
 import { omniboxFocusHeight, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
 import { sendLimitError } from '~/utils/code-view.mjs'
 import { fileKind, isPreviewableImage, readDataUrl } from '~/utils/file-preview.mjs'
@@ -529,6 +530,8 @@ function leaveSearch() {
 defineExpose({ setText, focus: focusInput, restore, leaveSearch })
 
 const { t, te } = useI18n({ useScope: 'global' })
+/* SPL-976: Enter follows Settings -> Behaviour -> "Text fields" */
+const { keyAction } = useSubmitKey()
 const syntaxOpen = ref(false)
 const syntaxId = useId()
 const fieldEl = ref<HTMLElement | null>(null)
@@ -767,8 +770,7 @@ function onKeydown(ev: KeyboardEvent) {
   if (ev.key === 'Enter') {
     const state = fenceStateAt(text.value, caret())
     inCode.value = state.inCode
-    const act = enterAction({ inCode: state.inCode, shift: ev.shiftKey, alt: ev.altKey, mod: ev.ctrlKey || ev.metaKey })
-    if (act === 'send') {
+    if (keyAction(ev, { inCode: state.inCode }) === 'submit') {
       ev.preventDefault()
       onSend()
       collapseGlobalBox(false)

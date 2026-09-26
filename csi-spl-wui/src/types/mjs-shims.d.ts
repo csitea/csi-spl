@@ -344,6 +344,7 @@ declare module '~/utils/auth-client.mjs' {
     saveDiagnostics(on: boolean): Promise<NativeResult>
     saveDisplayName(name: string): Promise<NativeResult>
     saveTheme(theme: string): Promise<NativeResult>
+    saveSubmitKey(key: string): Promise<NativeResult>
     switchTenant(tenant: string): Promise<NativeResult>
     providers(): Promise<string[]>
     session(): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
@@ -954,6 +955,22 @@ declare module '~/utils/display-name.mjs' {
     raw: unknown,
     io: { current: unknown, save: (name: string) => Promise<{ ok: boolean, data?: unknown }>, apply: (name: string) => void },
   ): Promise<{ ok: boolean, name: string, reason?: 'invalid' | 'unchanged' | 'refused', out?: unknown }>
+}
+
+declare module '~/utils/submit-key.mjs' {
+  export type SubmitKey = 'enter' | 'ctrl-enter'
+  export const SUBMIT_KEYS: readonly SubmitKey[]
+  export const DEFAULT_SUBMIT_KEY: SubmitKey
+  export function parseSubmitKey(raw: unknown): SubmitKey
+  export function submitKeyAction(
+    ev: { key?: string, shiftKey?: boolean, altKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, isComposing?: boolean, keyCode?: number } | null | undefined,
+    opts?: { mode?: unknown, inCode?: boolean },
+  ): 'submit' | 'newline' | ''
+  export function submitHintKey(mode: unknown, byMode: Record<string, string>): string
+  export function applySubmitKeySetting(
+    want: unknown,
+    io: { current: unknown, apply: (k: string) => void, save: (k: string) => Promise<{ ok: boolean }> },
+  ): Promise<{ ok: boolean, value: SubmitKey, out?: unknown }>
 }
 
 declare module '~/utils/debug-pane.mjs' {

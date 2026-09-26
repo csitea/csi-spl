@@ -76,6 +76,7 @@
     "picture_hint": "Vaša slika je ona koju deli vaš dobavljač prijave; bez nje spool crta vaš identikon.",
     "language_title": "Jezik",
     "appearance": "Izgled",
+    "behaviour": "Понашање",
     "theme": "Tema",
     "font_size": {
       "label": "Veličina fonta",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Panel za otklanjanje grešaka",
       "hint": "Prikazuje dijagnostički panel na dnu aplikacije sa greškama zabeleženim u ovom pregledaču. Vidite ga samo vi."
+    },
+    "submit_key": {
+      "label": "Текстуална поља",
+      "enter": "Enter šalje, Shift+Enter dodaje red",
+      "ctrl_enter": "Enter za novi red, Ctrl+Enter ili Cmd+Enter za slanje",
+      "hint": "За поруке, одговоре, коментаре и описе задатака. Чува се на вашем налогу, па важи на сваком уређају."
     },
     "signin_security": "Prijava i bezbednost",
     "signed_in_with": "Prijavljeni preko",
@@ -506,6 +513,7 @@
     "open": "Otvori",
     "empty": "Prazna tema.",
     "reply_placeholder": "Odgovor — Enter za novi red · Ctrl+Enter ili Cmd+Enter za slanje · /search za filtriranje",
+    "reply_placeholder_enter": "Odgovor — Enter šalje · Shift+Enter dodaje red · /search za filtriranje",
     "replies_label": "Odgovori, najnoviji prvi",
     "load_failed": "učitavanje teme nije uspelo",
     "no_replies": "Још нема одговора — напишите први.",
@@ -622,6 +630,7 @@
       "issues": "Проблеми"
     },
     "placeholder_target": "Порука за {target} — Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
+    "placeholder_target_enter": "Порука за {target} — Enter šalje · Shift+Enter dodaje red · /search претражује свуда",
     "unreachable": "Услуга претраге није доступна. Покушајте ускоро поново.",
     "help_button": "Sintaksa pretrage",
     "help_title": "Sintaksa pretrage",
@@ -887,6 +896,7 @@
     "group_none": "Bez",
     "col_key": "Ključ",
     "col_title": "Naslov",
-    "comment_hint": "Enter šalje, Shift+Enter dodaje red"
+    "comment_hint": "Enter za novi red · Ctrl+Enter ili Cmd+Enter za slanje",
+    "comment_hint_enter": "Enter šalje, Shift+Enter dodaje red"
   }
 }

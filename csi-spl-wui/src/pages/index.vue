@@ -40,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+import { useSubmitKey } from '~/composables/useSubmitKey'
 import { namedLine } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useChannelStore } from '~/stores/channel'
@@ -70,6 +71,8 @@ const session = useSessionStore()
 const api = useSpoolApi()
 /* `tr`, not `t`: the topic rows below are iterated as `t` */
 const { t: tr, locale } = useI18n({ useScope: 'global' })
+/* SPL-976: the placeholder names the keys of the person's Behaviour setting */
+const { hintFor: sk } = useSubmitKey()
 function topicRowTitle(subject: string) {
   const text = topicOpening(subject)
   return text ? tr('topic.list_title', { text }) : ''
@@ -153,7 +156,7 @@ useOmniboxTarget({
     namedTopicId: '',
     paneVisible: paneOpen(),
     lastPane: paneFocus.last,
-  }) ? tr('topic.reply_placeholder') : tr('search.placeholder_target', { target: tr('nav.topics') })),
+  }) ? tr(sk('topic.reply_placeholder')) : tr(sk('search.placeholder_target'), { target: tr('nav.topics') })),
   send: onSend,
 })
 

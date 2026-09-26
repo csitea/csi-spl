@@ -32,6 +32,7 @@
 </template>
 
 <script setup lang="ts">
+import { useSubmitKey } from '~/composables/useSubmitKey'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
@@ -63,6 +64,8 @@ const api = useSpoolApi()
 const session = useSessionStore()
 const notes = useNotificationStore()
 const { t, te } = useI18n({ useScope: 'global' })
+/* SPL-976: the placeholder names the keys of the person's Behaviour setting */
+const { hintFor: sk } = useSubmitKey()
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
 const lobbyId = computed(() => live.lobbyTaskId.value)
@@ -124,7 +127,7 @@ function lobbyReplyId() {
 }
 
 useOmniboxTarget({
-  placeholder: () => (lobbyReplyId() ? t('topic.reply_placeholder') : t('search.placeholder_target', { target: '#lobby' })),
+  placeholder: () => (lobbyReplyId() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: '#lobby' })),
   send: (text: string, files: File[], topicId?: string, channelId?: string) => onSend(text, files, topicId, channelId),
   busy: () => store.sending,
 })

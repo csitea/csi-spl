@@ -76,6 +76,7 @@
     "picture_hint": "Jūsu attēls ir tas, ko kopīgo jūsu pieteikšanās pakalpojums; ja tāda nav, spool uzzīmē jūsu identikonu.",
     "language_title": "Valoda",
     "appearance": "Izskats",
+    "behaviour": "Uzvedība",
     "theme": "Motīvs",
     "font_size": {
       "label": "Fonta lielums",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Atkļūdošanas panelis",
       "hint": "Rādīt diagnostikas paneli lietotnes apakšā ar šajā pārlūkā reģistrētajām kļūdām. To redzat tikai jūs."
+    },
+    "submit_key": {
+      "label": "Teksta lauki",
+      "enter": "Enter nosūta, Shift+Enter pievieno rindu",
+      "ctrl_enter": "Enter jaunai rindai, Ctrl+Enter vai Cmd+Enter, lai sūtītu",
+      "hint": "Ziņām, atbildēm, problēmu komentāriem un aprakstiem. Tiek glabāts jūsu kontā, tāpēc darbojas visās ierīcēs."
     },
     "signin_security": "Pieteikšanās un drošība",
     "signed_in_with": "Pieteicies ar",
@@ -506,6 +513,7 @@
     "open": "Atvērt",
     "empty": "Tukša tēma.",
     "reply_placeholder": "Atbilde — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter, lai sūtītu · /search filtrēšanai",
+    "reply_placeholder_enter": "Atbilde — Enter nosūta · Shift+Enter pievieno rindu · /search filtrēšanai",
     "replies_label": "Atbildes, jaunākās vispirms",
     "load_failed": "tēmas ielāde neizdevās",
     "no_replies": "Atbilžu vēl nav — uzrakstiet pirmo.",
@@ -622,6 +630,7 @@
       "issues": "Problēmas"
     },
     "placeholder_target": "Ziņa: {target} — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter nosūta · /search meklē visur",
+    "placeholder_target_enter": "Ziņa: {target} — Enter nosūta · Shift+Enter pievieno rindu · /search meklē visur",
     "unreachable": "Meklēšanas pakalpojums nav sasniedzams. Drīz mēģiniet vēlreiz.",
     "help_button": "Meklēšanas sintakse",
     "help_title": "Meklēšanas sintakse",
@@ -887,6 +896,7 @@
     "group_none": "Nav",
     "col_key": "Atslēga",
     "col_title": "Nosaukums",
-    "comment_hint": "Enter nosūta, Shift+Enter pievieno rindu"
+    "comment_hint": "Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter, lai sūtītu",
+    "comment_hint_enter": "Enter nosūta, Shift+Enter pievieno rindu"
   }
 }

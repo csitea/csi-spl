@@ -267,6 +267,7 @@
             data-testid="create-channel-description"
             :placeholder="t('sidebar.create_channel_description_placeholder')"
             :disabled="creating"
+            @keydown="onSubmitKey($event, () => ($event.target as HTMLTextAreaElement).form?.requestSubmit())"
           />
           <small class="muted">{{ t('sidebar.create_channel_description_hint') }}</small>
         </label>
@@ -538,6 +539,7 @@
 </template>
 
 <script setup lang="ts">
+import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
@@ -635,6 +637,8 @@ const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
 const notes = useNotificationStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
+/* SPL-976: the description's submit key creates the channel, as the button does */
+const { onKeydown: onSubmitKey } = useSubmitKey()
 const tenantBox = computed(() => tenantSwitchOptions(session.claims, api.tenant))
 const tenantHintText = computed(() => tenantHint(tenantBox.value, t))
 const tenantSelectEl = ref<HTMLSelectElement | null>(null)

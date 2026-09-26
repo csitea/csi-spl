@@ -21,6 +21,7 @@
       :aria-invalid="error ? 'true' : undefined"
       :placeholder="t('issues.description_empty')"
       @input="emit('draft', draft)"
+      @keydown="onSubmitKey($event, submit)"
       @blur="commit"
     />
     <div
@@ -42,14 +43,17 @@
 </template>
 
 <script setup lang="ts">
+import { useSubmitKey } from '~/composables/useSubmitKey'
 const props = defineProps<{
   text: string
   /* resolves true when the text is stored; false keeps the editor open */
   save: (value: string) => Promise<boolean>
   keepOpen?: boolean
 }>()
-const emit = defineEmits<{ draft: [value: string] }>()
+const emit = defineEmits<{ draft: [value: string], submit: [] }>()
 const { t } = useI18n({ useScope: 'global' })
+/* SPL-976: the "Text fields" submit key saves (and, on a new issue, creates) */
+const { onKeydown: onSubmitKey } = useSubmitKey()
 
 const labelId = useId()
 const editing = ref(props.keepOpen === true)
@@ -113,6 +117,11 @@ async function commit() {
   }
   error.value = !ok
   if (ok) close()
+}
+
+async function submit() {
+  await commit()
+  if (!error.value) emit('submit')
 }
 
 /* another issue in the pane: drop an unsaved edit of the one before */

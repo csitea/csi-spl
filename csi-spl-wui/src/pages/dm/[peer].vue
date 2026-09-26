@@ -11,6 +11,7 @@
 </template>
 
 <script setup lang="ts">
+import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
@@ -37,6 +38,8 @@ const events = useSpoolEvents()
 const api = useSpoolApi()
 const session = useSessionStore()
 const { t } = useI18n({ useScope: 'global' })
+/* SPL-976: the placeholder names the keys of the person's Behaviour setting */
+const { hintFor: sk } = useSubmitKey()
 const peer = computed(() => decodeURIComponent(String(route.params.peer || '')))
 /* The person's chosen display name in the header; the URL keeps id@box. */
 const people = useHumanNames()
@@ -121,7 +124,7 @@ function replyTarget() {
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
-  placeholder: () => (replyTarget() ? t('topic.reply_placeholder') : t('search.placeholder_target', { target: peer.value })),
+  placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: peer.value })),
   send: onSend,
 })
 </script>

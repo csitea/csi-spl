@@ -76,6 +76,7 @@
     "picture_hint": "Jūsų nuotrauka yra ta, kurią pateikia prisijungimo paslaugos teikėjas; jei jos nėra, spool nupiešia jūsų identicon.",
     "language_title": "Kalba",
     "appearance": "Išvaizda",
+    "behaviour": "Elgsena",
     "theme": "Tema",
     "font_size": {
       "label": "Šrifto dydis",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Derinimo skydelis",
       "hint": "Rodyti diagnostikos skydelį programos apačioje su šioje naršyklėje užfiksuotomis klaidomis. Jį matote tik jūs."
+    },
+    "submit_key": {
+      "label": "Teksto laukai",
+      "enter": "Enter siunčia, Shift+Enter prideda eilutę",
+      "ctrl_enter": "Enter naujai eilutei, Ctrl+Enter arba Cmd+Enter išsiųsti",
+      "hint": "Žinutėms, atsakymams, užduočių komentarams ir aprašymams. Saugoma jūsų paskyroje, todėl galioja visuose įrenginiuose."
     },
     "signin_security": "Prisijungimas ir sauga",
     "signed_in_with": "Prisijungta per",
@@ -506,6 +513,7 @@
     "open": "Atidaryti",
     "empty": "Tuščia tema.",
     "reply_placeholder": "Atsakymas — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti · /search filtruoti",
+    "reply_placeholder_enter": "Atsakymas — Enter siunčia · Shift+Enter prideda eilutę · /search filtruoti",
     "replies_label": "Atsakymai, naujausi viršuje",
     "load_failed": "temos įkelti nepavyko",
     "no_replies": "Atsakymų kol kas nėra — parašykite pirmąjį.",
@@ -622,6 +630,7 @@
       "issues": "Problemos"
     },
     "placeholder_target": "Žinutė: {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
+    "placeholder_target_enter": "Žinutė: {target} — Enter siunčia · Shift+Enter prideda eilutę · /search ieško visur",
     "unreachable": "Paieškos paslauga nepasiekiama. Netrukus bandykite dar kartą.",
     "help_button": "Paieškos sintaksė",
     "help_title": "Paieškos sintaksė",
@@ -887,6 +896,7 @@
     "group_none": "Nėra",
     "col_key": "Raktas",
     "col_title": "Pavadinimas",
-    "comment_hint": "Enter siunčia, Shift+Enter prideda eilutę"
+    "comment_hint": "Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti",
+    "comment_hint_enter": "Enter siunčia, Shift+Enter prideda eilutę"
   }
 }

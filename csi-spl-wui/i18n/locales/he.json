@@ -76,6 +76,7 @@
     "picture_hint": "התמונה שלכם היא זו שספק ההתחברות משתף; אם אין כזו, Spool מצייר עבורכם identicon.",
     "language_title": "שפה",
     "appearance": "מראה",
+    "behaviour": "התנהגות",
     "theme": "ערכת נושא",
     "font_size": {
       "label": "גודל גופן",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "חלונית ניפוי באגים",
       "hint": "הצגת חלונית אבחון בתחתית האפליקציה עם השגיאות שנרשמו בדפדפן הזה. רק אתם רואים אותה."
+    },
+    "submit_key": {
+      "label": "שדות טקסט",
+      "enter": "Enter שולח, Shift+Enter מוסיף שורה",
+      "ctrl_enter": "Enter לשורה חדשה, Ctrl+Enter או Cmd+Enter לשליחה",
+      "hint": "להודעות, תגובות, הערות ותיאורים של משימות. נשמר בחשבון שלך, כך שכל מכשיר פועל לפיו."
     },
     "signin_security": "התחברות ואבטחה",
     "signed_in_with": "מחוברים באמצעות",
@@ -506,6 +513,7 @@
     "open": "פתיחה",
     "empty": "נושא ריק.",
     "reply_placeholder": "תגובה — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · /search לסינון",
+    "reply_placeholder_enter": "תגובה — Enter שולח · Shift+Enter מוסיף שורה · /search לסינון",
     "replies_label": "תגובות, החדשות ראשונות",
     "load_failed": "טעינת הנושא נכשלה",
     "no_replies": "אין עדיין תגובות — כתבו את הראשונה.",
@@ -622,6 +630,7 @@
       "issues": "סוגיות"
     },
     "placeholder_target": "הודעה אל {target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",
+    "placeholder_target_enter": "הודעה אל {target} — Enter שולח · Shift+Enter מוסיף שורה · ‎/search לחיפוש בכל מקום",
     "unreachable": "לא ניתן להגיע לשירות החיפוש. נסו שוב בעוד רגע.",
     "help_button": "תחביר חיפוש",
     "help_title": "תחביר חיפוש",
@@ -887,6 +896,7 @@
     "group_none": "ללא",
     "col_key": "מפתח",
     "col_title": "כותרת",
-    "comment_hint": "Enter שולח, Shift+Enter מוסיף שורה"
+    "comment_hint": "Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה",
+    "comment_hint_enter": "Enter שולח, Shift+Enter מוסיף שורה"
   }
 }

@@ -76,6 +76,7 @@
     "picture_hint": "Din bild är den som din inloggningsleverantör delar; utan en sådan ritar Spool en identicon åt dig.",
     "language_title": "Språk",
     "appearance": "Utseende",
+    "behaviour": "Beteende",
     "theme": "Tema",
     "font_size": {
       "label": "Teckenstorlek",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Felsökningspanel",
       "hint": "Visa en diagnostikpanel längst ned i appen med de fel som registrerats i den här webbläsaren. Bara du ser den."
+    },
+    "submit_key": {
+      "label": "Textfält",
+      "enter": "Enter skickar, Shift+Enter lägger till en rad",
+      "ctrl_enter": "Enter för en ny rad, Ctrl+Enter eller Cmd+Enter för att skicka",
+      "hint": "För meddelanden, svar, kommentarer och beskrivningar av ärenden. Sparas på ditt konto, så alla enheter följer det."
     },
     "signin_security": "Inloggning och säkerhet",
     "signed_in_with": "Inloggad med",
@@ -506,6 +513,7 @@
     "open": "Öppna",
     "empty": "Tomt ämne.",
     "reply_placeholder": "Svara — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka · /search för att filtrera",
+    "reply_placeholder_enter": "Svara — Enter skickar · Shift+Enter lägger till en rad · /search för att filtrera",
     "replies_label": "Svar, nyaste först",
     "load_failed": "kunde inte läsa in ämnet",
     "no_replies": "Inga svar än — skriv det första.",
@@ -622,6 +630,7 @@
       "issues": "Ärenden"
     },
     "placeholder_target": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",
+    "placeholder_target_enter": "Meddelande till {target} — Enter skickar · Shift+Enter lägger till en rad · /search söker överallt",
     "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund.",
     "help_button": "Söksyntax",
     "help_title": "Söksyntax",
@@ -887,6 +896,7 @@
     "group_none": "Ingen",
     "col_key": "Nyckel",
     "col_title": "Titel",
-    "comment_hint": "Enter skickar, Shift+Enter lägger till en rad"
+    "comment_hint": "Enter för en ny rad · Ctrl+Enter eller Cmd+Enter för att skicka",
+    "comment_hint_enter": "Enter skickar, Shift+Enter lägger till en rad"
   }
 }

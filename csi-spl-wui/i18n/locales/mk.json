@@ -76,6 +76,7 @@
     "picture_hint": "Вашата слика е онаа што ја споделува вашиот провајдер за најава; без неа, spool ви црта identicon.",
     "language_title": "Јазик",
     "appearance": "Изглед",
+    "behaviour": "Однесување",
     "theme": "Тема",
     "font_size": {
       "label": "Големина на фонтот",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Панел за дебагирање",
       "hint": "Прикажи дијагностички панел на дното на апликацијата со грешките забележани во овој прелистувач. Го гледате само вие."
+    },
+    "submit_key": {
+      "label": "Текстуални полиња",
+      "enter": "Enter испраќа, Shift+Enter додава ред",
+      "ctrl_enter": "Enter за нов ред, Ctrl+Enter или Cmd+Enter за испраќање",
+      "hint": "За пораки, одговори, коментари и описи на задачи. Се чува во вашата сметка, па важи на секој уред."
     },
     "signin_security": "Најава и безбедност",
     "signed_in_with": "Најавени со",
@@ -506,6 +513,7 @@
     "open": "Отвори",
     "empty": "Празна тема.",
     "reply_placeholder": "Одговор — Enter за нов ред · Ctrl+Enter или Cmd+Enter за испраќање · /search за филтрирање",
+    "reply_placeholder_enter": "Одговор — Enter испраќа · Shift+Enter додава ред · /search за филтрирање",
     "replies_label": "Одговори, најновите први",
     "load_failed": "вчитувањето на темата не успеа",
     "no_replies": "Сè уште нема одговори — напишете го првиот.",
@@ -622,6 +630,7 @@
       "issues": "Проблеми"
     },
     "placeholder_target": "Порака до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за праќање · /search за пребарување насекаде",
+    "placeholder_target_enter": "Порака до {target} — Enter испраќа · Shift+Enter додава ред · /search за пребарување насекаде",
     "unreachable": "Услугата за пребарување не е достапна. Обидете се повторно наскоро.",
     "help_button": "Синтакса на пребарување",
     "help_title": "Синтакса на пребарување",
@@ -887,6 +896,7 @@
     "group_none": "Без",
     "col_key": "Клуч",
     "col_title": "Наслов",
-    "comment_hint": "Enter испраќа, Shift+Enter додава ред"
+    "comment_hint": "Enter за нов ред · Ctrl+Enter или Cmd+Enter за испраќање",
+    "comment_hint_enter": "Enter испраќа, Shift+Enter додава ред"
   }
 }

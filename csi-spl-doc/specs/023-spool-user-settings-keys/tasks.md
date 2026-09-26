@@ -34,4 +34,10 @@
 - [x] T042 (FR-011) Live proof `tests/e2e/font-size-live.proof.mjs` on dev and prd (2026-09-25 ~12:25Z, WUI build `9b66287` ⊇ `7f08678`, n=1 per env; dev t1 member, prd tenant `e2e`): 22/22 PASS each — fresh browser opens at level 3 (body 18px, was 16px), radios 1..5 give body 14/16/18/20/22 px, − and + move one level and are disabled at 1 and 5, level 2 survives a reload and holds on /lobby.
 - [ ] T043 (FR-011) Convert the px font sizes left in other lanes' files (`MessageBody.vue` 1, `ChannelSidebar.vue` 7, `ChannelPropertiesDialog.vue` 2) once those lanes land; drop them from the allow-list in `font-size.test.mjs`.
 
-<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:33:59Z -->
+## Phase 6 — Behaviour → Text fields (SPL-976, 3.7)
+
+- [x] T044 (FR-012, FR-014) Hub: rdb 0062 `humans.submit_key`, `PUT preferences submit_key`, session + login answer, `do_spl_human_behaviour`; hub 0.9.3 `af883284`; 0062 applied on dev and prd with `do_spl_db_bootstrap`.
+- [x] T045 (FR-012, FR-013) WUI: `utils/submit-key.mjs`, `composables/useSubmitKey.ts`, `/settings/behaviour` + `SubmitKeySetting.vue`, fields wired, placeholders per mode, 19 locales.
+- [ ] T050 (FR-012, FR-013) Live proof `tests/e2e/submit-key-live.proof.mjs` on dev (t1 test member) and prd (tenant `e2e`): both modes, each with its control key.
+
+<!-- version: 1.2.0 · updated: 2026-09-26 · last-edit: 2026-09-26T19:30:00Z -->

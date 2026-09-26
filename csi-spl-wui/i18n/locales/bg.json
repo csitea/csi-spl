@@ -76,6 +76,7 @@
     "picture_hint": "Снимката ви е тази, която споделя доставчикът ви за вход; ако няма такава, Spool рисува ваш идентикон.",
     "language_title": "Език",
     "appearance": "Външен вид",
+    "behaviour": "Поведение",
     "theme": "Тема",
     "font_size": {
       "label": "Размер на шрифта",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Панел за отстраняване на грешки",
       "hint": "Показва диагностичен панел в долната част на приложението с грешките, записани в този браузър. Вижда го само вие."
+    },
+    "submit_key": {
+      "label": "Текстови полета",
+      "enter": "Enter изпраща, Shift+Enter добавя ред",
+      "ctrl_enter": "Enter за нов ред, Ctrl+Enter или Cmd+Enter за изпращане",
+      "hint": "За съобщения, отговори, коментари и описания на задачи. Пази се в профила ви, така че важи на всяко устройство."
     },
     "signin_security": "Вход и сигурност",
     "signed_in_with": "Вход чрез",
@@ -506,6 +513,7 @@
     "open": "Отвори",
     "empty": "Празна тема.",
     "reply_placeholder": "Отговор — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за филтриране",
+    "reply_placeholder_enter": "Отговор — Enter изпраща · Shift+Enter добавя ред · /search за филтриране",
     "replies_label": "Отговори, най-новите първи",
     "load_failed": "зареждането на темата не успя",
     "no_replies": "Още няма отговори — напишете първия.",
@@ -622,6 +630,7 @@
       "issues": "Проблеми"
     },
     "placeholder_target": "Съобщение до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",
+    "placeholder_target_enter": "Съобщение до {target} — Enter изпраща · Shift+Enter добавя ред · /search за търсене навсякъде",
     "unreachable": "Услугата за търсене не е достъпна. Опитайте отново след малко.",
     "help_button": "Синтаксис на търсене",
     "help_title": "Синтаксис на търсене",
@@ -887,6 +896,7 @@
     "group_none": "Без",
     "col_key": "Ключ",
     "col_title": "Заглавие",
-    "comment_hint": "Enter изпраща, Shift+Enter добавя ред"
+    "comment_hint": "Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане",
+    "comment_hint_enter": "Enter изпраща, Shift+Enter добавя ред"
   }
 }

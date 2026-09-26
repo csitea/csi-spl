@@ -76,6 +76,7 @@
     "picture_hint": "Tu imagen es la que comparte tu proveedor de inicio de sesión; si no hay ninguna, spool dibuja tu identicon.",
     "language_title": "Idioma",
     "appearance": "Apariencia",
+    "behaviour": "Comportamiento",
     "theme": "Tema",
     "font_size": {
       "label": "Tamaño de letra",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Panel de depuración",
       "hint": "Muestra un panel de diagnóstico en la parte inferior de la aplicación con los errores registrados en este navegador. Solo tú lo ves."
+    },
+    "submit_key": {
+      "label": "Campos de texto",
+      "enter": "Enter envía, Shift+Enter añade una línea",
+      "ctrl_enter": "Enter para una línea nueva, Ctrl+Enter o Cmd+Enter para enviar",
+      "hint": "Para mensajes, respuestas, comentarios y descripciones de incidencias. Se guarda en tu cuenta, así que lo siguen todos tus dispositivos."
     },
     "signin_security": "Inicio de sesión y seguridad",
     "signed_in_with": "Sesión iniciada con",
@@ -506,6 +513,7 @@
     "open": "Abrir",
     "empty": "Tema vacío.",
     "reply_placeholder": "Responder — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para filtrar",
+    "reply_placeholder_enter": "Responder — Enter envía · Shift+Enter añade una línea · /search para filtrar",
     "replies_label": "Respuestas, las más recientes primero",
     "load_failed": "error al cargar el tema",
     "no_replies": "Aún no hay respuestas: escribe la primera.",
@@ -622,6 +630,7 @@
       "issues": "Incidencias"
     },
     "placeholder_target": "Mensaje a {target} — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para buscar en todo",
+    "placeholder_target_enter": "Mensaje a {target} — Enter envía · Shift+Enter añade una línea · /search para buscar en todo",
     "unreachable": "No se pudo contactar con el servicio de búsqueda. Inténtalo de nuevo en breve.",
     "help_button": "Sintaxis de búsqueda",
     "help_title": "Sintaxis de búsqueda",
@@ -887,6 +896,7 @@
     "group_none": "Ninguno",
     "col_key": "Clave",
     "col_title": "Título",
-    "comment_hint": "Enter envía, Shift+Enter añade una línea"
+    "comment_hint": "Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar",
+    "comment_hint_enter": "Enter envía, Shift+Enter añade una línea"
   }
 }

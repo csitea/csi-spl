@@ -195,6 +195,49 @@ renders once, in the parent, for every section.
   CLE-3427); they are pinned at today's value so they cannot worsen, and are
   left for the owner to rule on.
 
+### 3.7 Behaviour → Text fields (SPL-976, owner 2026-09-26) — Implemented
+
+> "add a new setting in the personal settings, new section 'behaviour', which
+> defines how a text field should behave. The options: Enter sends,
+> Shift+Enter adds a line; or Enter adds a line, Control+Enter saves"
+
+- **Section.** `/settings/behaviour`, after Appearance in the nav
+  (`utils/settings-nav.mjs`). One radiogroup, "Text fields"
+  (`components/SubmitKeySetting.vue`), strings in all 19 locales.
+- **Two modes**, `submit_key`:
+
+  | id | Enter | Shift/Alt+Enter | Ctrl/Cmd+Enter |
+  |---|---|---|---|
+  | `enter` | sends / saves | new line | sends / saves |
+  | `ctrl-enter` | new line | new line | sends / saves |
+
+  In both modes a bare Enter inside an open ``` block adds a line, and an
+  IME composition never sends.
+- **Default (never picked) = `ctrl-enter`** (`DEFAULT_SUBMIT_KEY` in
+  `utils/submit-key.mjs`, one line). That is how the composer has worked since
+  the owner's order of 2026-09-23 (`b184c152`), so nobody's composer changes
+  when this ships. The issue comment box answered Enter until now (SPL-973);
+  it follows the setting like every other field. Asked the owner in topic
+  a4bc52dc whether *Enter sends* should be the default instead.
+- **Kept on the account**, like the theme (3.6): `humans.submit_key` (rdb
+  0062), `PUT /api/v1/auth/preferences` `submit_key` (auth-v1), answered by
+  `GET /session` and the native `POST /login`; hub 0.9.3 (`af883284`). An
+  operator sets it with
+  `ENV=<env> HUMAN_ID=HUM-<n> SUBMIT_KEY=<enter|ctrl-enter> ./run -a do_spl_human_behaviour`.
+  The radio is optimistic (claim first, reverted with a status line when the
+  hub refuses), so every open field follows at once.
+- **One helper.** `composables/useSubmitKey.ts` over the pure
+  `utils/submit-key.mjs` (`submitKeyAction`). Fields: the message composer
+  (every page's composer and thread replies — it is the one omnibox), the
+  issue comment box, the issue description (saves; on a new issue it also
+  creates the issue), the new-channel description (submits the form).
+  Placeholders that name the keys follow the mode (`hintFor`: `<key>` is the
+  Ctrl+Enter wording, `<key>_enter` the Enter one).
+- **Not driven by it:** single-line inputs (the subtask dialog title, the
+  issue title, the deadline) submit on Enter natively; the message-edit box
+  keeps its own rule (`msg-edit.mjs`, 2026-09-22 order, CLE-35013/35014's
+  lane); the Keys paste box has no submit key (Upload is a button).
+
 ## 4. Requirements
 
 - **FR-001** `/settings` is the two-column layout of 3.4; the user menu's
@@ -229,6 +272,15 @@ renders once, in the parent, for every section.
   per step, stopping at 1 and 5; the body font-size grows strictly level to
   level; the default is one level above the old 16px root; the choice
   survives a reload. Strings in all 19 locales.
+- **FR-012** Settings → Behaviour → Text fields (3.7) offers `enter` and
+  `ctrl-enter`; the choice is stored per human on the hub, returned by the
+  session and the native login, and applies at once to every open field.
+- **FR-013** Every multi-line field with a submit reads Enter through
+  `useSubmitKey` (the composer and thread replies, issue comments, issue
+  descriptions, the new-issue form, the new-channel description); none keeps
+  its own Enter handling. Gate: `tests/unit/submit-key.test.mjs`.
+- **FR-014** An operator sets a human's mode with `do_spl_human_behaviour`
+  (DRY_RUN default, one row or rollback); its list is rdb 0062's CHECK.
 
 ### 4.1 Status (trunk `28442ef6`, n=1)
 
@@ -240,6 +292,7 @@ renders once, in the parent, for every section.
 | FR-009 | Implemented | T022, T032 |
 | FR-010 | Implemented | T031 |
 | FR-011 | Partial | T040-T042; missing: px font sizes left in `MessageBody.vue` (1), `ChannelSidebar.vue` (7), `ChannelPropertiesDialog.vue` (2), still on the `font-size.test.mjs` allow-list -> T043 |
+| FR-012..FR-014 | Implemented | SPL-976: hub `af883284` (0.9.3, rdb 0062 dev+prd); `node --test tests/unit/submit-key.test.mjs`; `bash csi-spl-orc/src/bash/tests/human-behaviour.tst.sh` 16 PASS; live proof `tests/e2e/submit-key-live.proof.mjs` (T050) |
 
 ## 5. Open questions (owner)
 
@@ -254,4 +307,4 @@ renders once, in the parent, for every section.
   HUM-* signing CLI messages, or pinning a personal box from the WUI. Pick one
   before the key becomes load-bearing.
 
-<!-- version: 1.3.1 · updated: 2026-09-26 · last-edit: 2026-09-26T14:30:00Z -->
+<!-- version: 1.4.0 · updated: 2026-09-26 · last-edit: 2026-09-26T19:30:00Z -->

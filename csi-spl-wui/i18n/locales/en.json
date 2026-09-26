@@ -76,6 +76,7 @@
     "picture_hint": "Your picture is the one your sign-in provider shares; without one the spool draws your identicon.",
     "language_title": "Language",
     "appearance": "Appearance",
+    "behaviour": "Behaviour",
     "theme": "Theme",
     "font_size": {
       "label": "Font size",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Debug pane",
       "hint": "Show a diagnostics panel at the bottom of the app listing the errors recorded in this browser. Only you see it."
+    },
+    "submit_key": {
+      "label": "Text fields",
+      "enter": "Enter sends, Shift+Enter adds a line",
+      "ctrl_enter": "Enter for a new line, Ctrl+Enter or Cmd+Enter to send",
+      "hint": "For messages, replies, issue comments and descriptions. Kept on your account, so every device follows it."
     },
     "signin_security": "Sign-in and security",
     "signed_in_with": "Signed in with",
@@ -506,6 +513,7 @@
     "open": "Open",
     "empty": "Empty topic.",
     "reply_placeholder": "Reply — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to filter",
+    "reply_placeholder_enter": "Reply — Enter sends · Shift+Enter adds a line · /search to filter",
     "replies_label": "Replies, newest first",
     "load_failed": "topic load failed",
     "no_replies": "No replies yet — write the first one.",
@@ -622,6 +630,7 @@
       "issues": "Issues"
     },
     "placeholder_target": "Message {target} — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to search everything",
+    "placeholder_target_enter": "Message {target} — Enter sends · Shift+Enter adds a line · /search to search everything",
     "unreachable": "The search service could not be reached. Try again shortly.",
     "help_button": "Search syntax",
     "help_title": "Search syntax",
@@ -887,6 +896,7 @@
     "group_none": "None",
     "col_key": "Key",
     "col_title": "Title",
-    "comment_hint": "Enter sends, Shift+Enter adds a line"
+    "comment_hint": "Enter for a new line · Ctrl+Enter or Cmd+Enter to send",
+    "comment_hint_enter": "Enter sends, Shift+Enter adds a line"
   }
 }

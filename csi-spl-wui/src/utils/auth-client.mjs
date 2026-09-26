@@ -338,6 +338,14 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       return post('/preferences', { preferred_theme: String(theme || '') }, 'PUT')
     },
     /**
+     * SPL-976: Settings -> Behaviour "Text fields" (humans.submit_key, the
+     * field do_spl_human_behaviour sets). Sends ONLY that key. 200 → ok;
+     * 400 unsupported_submit_key; 401 = no session; 409 = no human.
+     */
+    saveSubmitKey(key) {
+      return post('/preferences', { submit_key: String(key || '') }, 'PUT')
+    },
+    /**
      * specs/026 §6: make `tenant` the session's active tenant (the hub
      * re-issues the cookie). 200 → `data` is the new session; 403
      * not_member; 401 = no session.

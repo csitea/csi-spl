@@ -25,6 +25,8 @@ export interface SessionClaims {
   preferred_locale?: string | null
   /** The human's colour theme. 'light' is the light-blue palette. null = none. */
   preferred_theme?: string | null
+  /** SPL-976 Settings -> Behaviour "Text fields": 'enter' | 'ctrl-enter'; null = never picked. */
+  submit_key?: string | null
 }
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
@@ -101,6 +103,11 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, preferred_theme: theme }
   }
 
+  /** SPL-976: mirror the "Text fields" choice (optimistic; reverted on a failed save). */
+  function setSubmitKey(key: string) {
+    if (claims.value) claims.value = { ...claims.value, submit_key: key }
+  }
+
   async function logout() {
     await auth.logout()
     if (import.meta.client) {
@@ -114,5 +121,5 @@ export const useSessionStore = defineStore('session', () => {
     await navigateTo(useNuxtApp().$localePath('/login'))
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, logout }
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, logout }
 })

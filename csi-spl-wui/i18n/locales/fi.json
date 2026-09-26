@@ -76,6 +76,7 @@
     "picture_hint": "Kuvasi on se, jonka kirjautumispalvelusi jakaa; jos sellaista ei ole, Spool piirtää sinulle identiconin.",
     "language_title": "Kieli",
     "appearance": "Ulkoasu",
+    "behaviour": "Toiminta",
     "theme": "Teema",
     "font_size": {
       "label": "Fonttikoko",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Vianetsintäpaneeli",
       "hint": "Näytä sovelluksen alareunassa diagnostiikkapaneeli, jossa on tässä selaimessa tallennetut virheet. Vain sinä näet sen."
+    },
+    "submit_key": {
+      "label": "Tekstikentät",
+      "enter": "Enter lähettää, Shift+Enter lisää rivin",
+      "ctrl_enter": "Enter lisää rivin, Ctrl+Enter tai Cmd+Enter lähettää",
+      "hint": "Viesteissä, vastauksissa, tikettien kommenteissa ja kuvauksissa. Tallennetaan tilillesi, joten se toimii kaikilla laitteilla."
     },
     "signin_security": "Kirjautuminen ja tietoturva",
     "signed_in_with": "Kirjautumistapa",
@@ -506,6 +513,7 @@
     "open": "Avaa",
     "empty": "Tyhjä aihe.",
     "reply_placeholder": "Vastaa — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search suodattaa",
+    "reply_placeholder_enter": "Vastaa — Enter lähettää · Shift+Enter lisää rivin · /search suodattaa",
     "replies_label": "Vastaukset, uusimmat ensin",
     "load_failed": "aiheen lataus epäonnistui",
     "no_replies": "Ei vielä vastauksia — kirjoita ensimmäinen.",
@@ -622,6 +630,7 @@
       "issues": "Asiat"
     },
     "placeholder_target": "Viesti: {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
+    "placeholder_target_enter": "Viesti: {target} — Enter lähettää · Shift+Enter lisää rivin · /search hakee kaikkialta",
     "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen.",
     "help_button": "Hakusyntaksi",
     "help_title": "Hakusyntaksi",
@@ -887,6 +896,7 @@
     "group_none": "Ei mitään",
     "col_key": "Tunnus",
     "col_title": "Otsikko",
-    "comment_hint": "Enter lähettää, Shift+Enter lisää rivin"
+    "comment_hint": "Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää",
+    "comment_hint_enter": "Enter lähettää, Shift+Enter lisää rivin"
   }
 }

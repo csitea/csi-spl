@@ -519,6 +519,10 @@ export function fenceStateAt(text, caret) {
  *
  * Message edit does not use this. Enter still commits an edit (msg-edit.mjs,
  * the owner's order of 2026-09-22).
+ *
+ * SPL-976: the composer no longer calls this either; every text field reads
+ * Enter through utils/submit-key.mjs (Settings -> Behaviour -> "Text fields"),
+ * whose 'ctrl-enter' mode is exactly this rule.
  */
 export function enterAction({ mod = false } = {}) {
   return mod ? 'send' : 'newline'

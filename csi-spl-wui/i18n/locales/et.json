@@ -76,6 +76,7 @@
     "picture_hint": "Sinu pilt on see, mida jagab sinu sisselogimise teenusepakkuja; kui seda pole, joonistab spool sulle identiconi.",
     "language_title": "Keel",
     "appearance": "Välimus",
+    "behaviour": "Käitumine",
     "theme": "Teema",
     "font_size": {
       "label": "Fondi suurus",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Silumispaan",
       "hint": "Näita rakenduse allosas diagnostikapaani selles brauseris salvestatud vigadega. Seda näete ainult teie."
+    },
+    "submit_key": {
+      "label": "Tekstiväljad",
+      "enter": "Enter saadab, Shift+Enter lisab rea",
+      "ctrl_enter": "Enter lisab rea, Ctrl+Enter või Cmd+Enter saadab",
+      "hint": "Sõnumid, vastused, probleemide kommentaarid ja kirjeldused. Salvestatakse sinu kontole, nii et see kehtib igas seadmes."
     },
     "signin_security": "Sisselogimine ja turvalisus",
     "signed_in_with": "Sisse logitud teenusega",
@@ -506,6 +513,7 @@
     "open": "Ava",
     "empty": "Tühi teema.",
     "reply_placeholder": "Vastus — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search filtreerib",
+    "reply_placeholder_enter": "Vastus — Enter saadab · Shift+Enter lisab rea · /search filtreerib",
     "replies_label": "Vastused, uusimad eespool",
     "load_failed": "teema laadimine ebaõnnestus",
     "no_replies": "Vastuseid veel ei ole — kirjuta esimene.",
@@ -622,6 +630,7 @@
       "issues": "Probleemid"
     },
     "placeholder_target": "Sõnum: {target} — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search otsib kõikjalt",
+    "placeholder_target_enter": "Sõnum: {target} — Enter saadab · Shift+Enter lisab rea · /search otsib kõikjalt",
     "unreachable": "Otsinguteenusega ei saanud ühendust. Proovi varsti uuesti.",
     "help_button": "Otsingu süntaks",
     "help_title": "Otsingu süntaks",
@@ -887,6 +896,7 @@
     "group_none": "Puudub",
     "col_key": "Võti",
     "col_title": "Pealkiri",
-    "comment_hint": "Enter saadab, Shift+Enter lisab rea"
+    "comment_hint": "Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab",
+    "comment_hint_enter": "Enter saadab, Shift+Enter lisab rea"
   }
 }

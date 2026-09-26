@@ -6,6 +6,7 @@
 </template>
 
 <script setup lang="ts">
+import { useSubmitKey } from '~/composables/useSubmitKey'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useSessionStore } from '~/stores/session'
@@ -34,6 +35,8 @@ const api = useSpoolApi()
 const session = useSessionStore()
 const name = computed(() => String(route.params.name || 'lobby'))
 const { t } = useI18n({ useScope: 'global' })
+/* SPL-976: the placeholder names the keys of the person's Behaviour setting */
+const { hintFor: sk } = useSubmitKey()
 const storedDescription = computed(() => String(channel.channels.find((c) => c.channel_id === name.value)?.description || ''))
 const feedbackCopy = computed(() => feedbackChannelCopy(name.value, {
   name: t('channels.feedback.name'),
@@ -115,7 +118,7 @@ function replyTarget() {
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
-  placeholder: () => (replyTarget() ? t('topic.reply_placeholder') : t('search.placeholder_target', { target: '#' + name.value })),
+  placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: '#' + name.value })),
   send: onSend,
 })
 </script>

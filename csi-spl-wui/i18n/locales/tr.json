@@ -76,6 +76,7 @@
     "picture_hint": "Resminiz, giriş sağlayıcınızın paylaştığı resimdir; yoksa spool sizin için bir identicon çizer.",
     "language_title": "Dil",
     "appearance": "Görünüm",
+    "behaviour": "Davranış",
     "theme": "Tema",
     "font_size": {
       "label": "Yazı tipi boyutu",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Hata ayıklama paneli",
       "hint": "Uygulamanın altında, bu tarayıcıda kaydedilen hataları listeleyen bir tanılama paneli gösterir. Yalnızca siz görürsünüz."
+    },
+    "submit_key": {
+      "label": "Metin alanları",
+      "enter": "Enter gönderir, Shift+Enter satır ekler",
+      "ctrl_enter": "yeni satır için Enter, göndermek için Ctrl+Enter veya Cmd+Enter",
+      "hint": "Mesajlar, yanıtlar, iş yorumları ve açıklamalar için. Hesabınızda saklanır, böylece her cihazda geçerlidir."
     },
     "signin_security": "Giriş ve güvenlik",
     "signed_in_with": "Giriş yöntemi",
@@ -506,6 +513,7 @@
     "open": "Aç",
     "empty": "Boş konu.",
     "reply_placeholder": "Yanıt — yeni satır için Enter · göndermek için Ctrl+Enter veya Cmd+Enter · filtrelemek için /search",
+    "reply_placeholder_enter": "Yanıt — Enter gönderir · Shift+Enter satır ekler · filtrelemek için /search",
     "replies_label": "Yanıtlar, en yeniler önce",
     "load_failed": "konu yüklenemedi",
     "no_replies": "Henüz yanıt yok — ilkini siz yazın.",
@@ -622,6 +630,7 @@
       "issues": "Konular"
     },
     "placeholder_target": "{target} için mesaj — Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",
+    "placeholder_target_enter": "{target} için mesaj — Enter gönderir · Shift+Enter satır ekler · /search her yerde arar",
     "unreachable": "Arama hizmetine ulaşılamadı. Birazdan tekrar deneyin.",
     "help_button": "Arama sözdizimi",
     "help_title": "Arama sözdizimi",
@@ -887,6 +896,7 @@
     "group_none": "Yok",
     "col_key": "Anahtar",
     "col_title": "Başlık",
-    "comment_hint": "Enter gönderir, Shift+Enter satır ekler"
+    "comment_hint": "yeni satır için Enter · göndermek için Ctrl+Enter veya Cmd+Enter",
+    "comment_hint_enter": "Enter gönderir, Shift+Enter satır ekler"
   }
 }

@@ -76,6 +76,7 @@
     "picture_hint": "Twoje zdjęcie pochodzi od dostawcy logowania; jeśli go nie udostępnia, spool rysuje Twój identicon.",
     "language_title": "Język",
     "appearance": "Wygląd",
+    "behaviour": "Zachowanie",
     "theme": "Motyw",
     "font_size": {
       "label": "Rozmiar czcionki",
@@ -87,6 +88,12 @@
     "debug_pane": {
       "label": "Panel debugowania",
       "hint": "Pokazuje u dołu aplikacji panel diagnostyczny z błędami zarejestrowanymi w tej przeglądarce. Widzisz go tylko ty."
+    },
+    "submit_key": {
+      "label": "Pola tekstowe",
+      "enter": "Enter wysyła, Shift+Enter dodaje wiersz",
+      "ctrl_enter": "Enter dodaje wiersz, Ctrl+Enter lub Cmd+Enter wysyła",
+      "hint": "Dla wiadomości, odpowiedzi, komentarzy i opisów zgłoszeń. Zapisane na koncie, więc działa na każdym urządzeniu."
     },
     "signin_security": "Logowanie i bezpieczeństwo",
     "signed_in_with": "Zalogowano przez",
@@ -506,6 +513,7 @@
     "open": "Otwórz",
     "empty": "Pusty temat.",
     "reply_placeholder": "Odpowiedz — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search, aby filtrować",
+    "reply_placeholder_enter": "Odpowiedz — Enter wysyła · Shift+Enter dodaje wiersz · /search, aby filtrować",
     "replies_label": "Odpowiedzi, od najnowszych",
     "load_failed": "ładowanie tematu nie powiodło się",
     "no_replies": "Brak odpowiedzi — napisz pierwszą.",
@@ -622,6 +630,7 @@
       "issues": "Zgłoszenia"
     },
     "placeholder_target": "Wiadomość do {target} — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search szuka wszędzie",
+    "placeholder_target_enter": "Wiadomość do {target} — Enter wysyła · Shift+Enter dodaje wiersz · /search szuka wszędzie",
     "unreachable": "Usługa wyszukiwania jest nieosiągalna. Spróbuj ponownie za chwilę.",
     "help_button": "Składnia wyszukiwania",
     "help_title": "Składnia wyszukiwania",
@@ -887,6 +896,7 @@
     "group_none": "Brak",
     "col_key": "Klucz",
     "col_title": "Tytuł",
-    "comment_hint": "Enter wysyła, Shift+Enter dodaje wiersz"
+    "comment_hint": "Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła",
+    "comment_hint_enter": "Enter wysyła, Shift+Enter dodaje wiersz"
   }
 }

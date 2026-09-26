@@ -69,6 +69,7 @@ try {
   await p.click('[data-testid=sidebar-tab-issues]')
   await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: NAV_TIMEOUT })
   ok('2 the tab opens /issues', new URL(p.url()).pathname.endsWith('/issues'), p.url())
+  ok('2a the side panel has no All issues row', !(await p.$('[data-testid=sidebar-issues-open]')), '')
 
   await p.select('[data-test=issues-sort]', 'level')
   const rowLabels = await p.evaluate(() => {

@@ -1,5 +1,5 @@
 <template>
-  <nav class="sidebar">
+  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly }">
     <!-- Tenant drop box, above the direct-messages icon (specs/026 §6). One
          membership: one row, choosing it changes nothing. Several: every
          membership, and choosing one switches the session's tenant.
@@ -447,16 +447,15 @@
       </div>
       <!-- GRK-3519: Issues, third rail tab. The list is the middle pane. -->
       <div
-        v-show="tab === 'issues'"
+        v-show="tab === 'issues' && issueEpics.length"
         id="sidebar-panel-issues"
         class="sidebar-panel"
         role="tabpanel"
         aria-labelledby="sidebar-tab-issues"
         data-testid="sidebar-panel-issues"
       >
-        <h2>{{ t('sidebar.issues') }}</h2>
-        <NuxtLink class="nav-item" :class="{ active: isIssuesPath && !epicQuery }" data-testid="sidebar-issues-open" :to="localePath('/issues')">{{ t('issues.all_issues') }}</NuxtLink>
-        <!-- SPL-18: the level-1 rows, loaded only on this tab -->
+        <h2 v-if="issueEpics.length">{{ t('sidebar.issues') }}</h2>
+        <!-- SPL-18: the level-1 rows, loaded only on this tab. No "All issues" row. -->
         <LazyIssueEpicsPanel v-if="tab === 'issues'" />
       </div>
       <!-- CLE-34990: the personal Event log; the list lives on /events -->
@@ -704,13 +703,10 @@ async function onTenantChange(ev: Event) {
   el.value = box.selected
 }
 const localePath = useLocalePath()
-/* SPL-18: "All issues" is active when no epic is picked (IssueEpicsPanel) */
-const isIssuesPath = computed(() => tabForPath(route.path) === ISSUES_TAB)
-const epicQuery = computed(() => {
-  const q = route.query.epic
-  const raw = Array.isArray(q) ? q[0] : q
-  return typeof raw === 'string' ? raw.trim().toUpperCase() : ''
-})
+/* No "All issues" row. With no epic rows the panel is empty, so the
+   sidebar keeps the icon rail and the issue list takes the width. */
+const issueEpics = useState<Array<{ key: string }>>('issue-epics', () => [])
+const issuesRailOnly = computed(() => tab.value === 'issues' && issueEpics.value.length === 0)
 /* CLE-34969: Users after flow, only when the hub lists members.invite. */
 const usersVisible = computed(() => usersEntryVisible(access.me, { mock: api.mock }))
 const rail = computed(() => (usersVisible.value
@@ -759,7 +755,7 @@ async function selectTab(next: SideTab) {
   if (next === 'flow' && viewer.topics.length === 0) void viewer.loadTopics()
   if (next === USERS_TAB && tabForPath(route.path) !== USERS_TAB) await navigateTo(localePath('/users'))
   if (next === EVENTS_TAB && tabForPath(route.path) !== EVENTS_TAB) await navigateTo(localePath('/events'))
-  if (next === ISSUES_TAB && tabForPath(route.path) !== ISSUES_TAB) await navigateTo(localePath('/issues'))
+  if (next === ISSUES_TAB) await navigateTo(localePath('/issues'))
 }
 const sidePane = useSidePane()
 watch(() => sidePane.requested.value, (req) => {
@@ -1083,6 +1079,11 @@ async function onCreate() {
 </script>
 
 <style scoped>
+.sidebar.sidebar--rail {
+  width: max-content;
+  max-width: var(--sidebar-w);
+}
+.sidebar.sidebar--rail .sidebar-body { display: none; }
 /* The strip owns the width (main.css, at most 5vw). These buttons fill
    that width and must not impose a 32px min that would push past the cap. */
 .sidebar-tab {

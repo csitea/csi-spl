@@ -1,4 +1,4 @@
-<!-- SPL-18: the Issues tab's left-most panel below "All issues" - the
+<!-- SPL-18: the Issues tab's side panel - the
      level-1 rows (epics and features), like Linear's projects: a kind dot,
      done / open count and a progress bar; a click filters the list to one
      (/issues?epic=SPL-17). The Issues page fills the shared state from the

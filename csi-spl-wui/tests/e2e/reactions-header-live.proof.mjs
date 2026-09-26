@@ -60,7 +60,7 @@ async function signIn(browser, email, pw) {
   await p.type('[data-test=native-auth-password]', pw)
   await p.click('[data-test=native-auth-submit]')
   const ok = await p.waitForSelector('[data-test=user-menu-trigger]', { timeout: 30000 }).then(() => true, () => false)
-  if (!ok) throw new Error(`not signed in: ${email}`)
+  if (!ok) { await p.screenshot({ path: `${OUT}/signin-failed.png` }).catch(() => {}); throw new Error(`not signed in: ${email}`) }
   const where = await until(() => p.evaluate(() => {
     const app = document.querySelector('#__nuxt')?.__vue_app__
     const g = app && app.config.globalProperties
@@ -168,6 +168,11 @@ try {
   }
   res.dm = dmHref
   await kind(p, '3 direct message', dmCard, 'k3-dm')
+  /* read now: the handle dies when the page navigates on */
+  const dmMine = dmCard ? await dmCard.evaluate((a) => ({
+    emoji: a.querySelector('[data-testid=msg-reaction][data-mine="true"]')?.dataset.emoji || '',
+    msgId: a.dataset.msgId || '',
+  })) : { emoji: '', msgId: '' }
 
   // 4. an issue comment
   await p.goto(BASE + `/issues?issue=${encodeURIComponent(ISSUE)}`, { waitUntil: 'networkidle2', timeout: 60000 })
@@ -190,8 +195,7 @@ try {
   if (process.env.OTHER_EMAIL) {
     const q = await signIn(browser, process.env.OTHER_EMAIL, readFileSync(need('OTHER_PW_FILE'), 'utf8').trim())
     await q.goto(new URL(dmHref || '/lobby', BASE).href, { waitUntil: 'networkidle2', timeout: 60000 })
-    const emoji = await dmCard.evaluate((a) => a.querySelector('[data-testid=msg-reaction][data-mine="true"]')?.dataset.emoji || '')
-    const msgId = await dmCard.evaluate((a) => a.dataset.msgId || '')
+    const { emoji, msgId } = dmMine
     const other = await until(async () => q.$(`article.msg[data-msg-id="${msgId}"]`), 15000)
     let two = null
     if (other && emoji) {

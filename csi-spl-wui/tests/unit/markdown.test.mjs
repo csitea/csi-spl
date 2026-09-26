@@ -2,8 +2,8 @@
 // fence renders as standard markdown; raw HTML never runs.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { isMarkdownLang, renderMarkdown } from '../../src/utils/markdown.mjs'
-import { parseBody } from '../../src/utils/code-blocks.mjs'
+import { renderMarkdown } from '../../src/utils/markdown.mjs'
+import { isMarkdownLang, parseBody } from '../../src/utils/code-blocks.mjs'
 
 describe('markdown compatibility', () => {
   it('the start/stop tag is a fence labelled md or markdown', () => {
@@ -27,7 +27,7 @@ describe('markdown compatibility', () => {
   })
   it('links are http/https/mailto only and open safely', () => {
     const html = renderMarkdown('[ok](https://example.com) [mail](mailto:a@example.com)')
-    assert.match(html, /<a href="https:\/\/example.com" target="_blank" rel="noopener noreferrer nofollow">ok<\/a>/)
+    assert.match(html, /<a href="https:\/\/example.com\/" title="https:\/\/example.com\/" target="_blank" rel="noopener noreferrer nofollow">ok<\/a>/)
     assert.match(html, /href="mailto:a@example.com"/)
   })
   it('CONTROL: raw HTML and script links never become markup', () => {

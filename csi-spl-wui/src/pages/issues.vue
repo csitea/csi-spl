@@ -134,6 +134,13 @@
           @change="onBody"
         />
       </label>
+      <!-- the description's markdown blocks, rendered (SPL-73); the textarea stays the source -->
+      <MessageBody
+        v-if="hasMarkdownBlock(form.description)"
+        class="issues-detail__rendered"
+        data-test="issues-detail-rendered"
+        :body="form.description"
+      />
       <div class="issues-props">
         <button type="button" class="issues-prop" data-test="issues-status" @click="openMenu('status', detailOrDraft(), $event)">
           <IssueGlyph :name="statusIcon(form.status)" :size="16" />
@@ -174,7 +181,7 @@
         <article v-for="c in comments" :key="c.msg_id" class="issues-comment" data-test="issues-comment">
           <HumanName :id="c.from" :box="c.from_box" />
           <time v-if="c.ts" class="muted" :datetime="c.ts">{{ when(c.ts) }}</time>
-          <p>{{ c.body }}</p>
+          <MessageBody class="issues-comment__body" :body="c.body" />
         </article>
         <label class="issues-field">
           <span class="sr-only">{{ t('issues.comment_placeholder') }}</span>
@@ -205,6 +212,7 @@
 
 <script setup lang="ts">
 import type { Issue, IssueFilter, IssueLabel } from '~/utils/issues.mjs'
+import { hasMarkdownBlock } from '~/utils/code-blocks.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useRosterStore } from '~/stores/roster'
 import { useTopicStore } from '~/stores/topic'
@@ -1009,7 +1017,14 @@ onUnmounted(() => {
 .issues-talk { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .issues-talk h3 { margin: 8px 0 0; font-size: 0.875rem; }
 .issues-comment { min-width: 0; }
-.issues-comment p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.issues-comment__body { margin-top: 2px; min-width: 0; }
+.issues-detail__rendered {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
 .issues-error { color: var(--color-danger); margin: 0; }
 .issues-menu {
   position: fixed;

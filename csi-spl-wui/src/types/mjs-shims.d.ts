@@ -675,6 +675,8 @@ declare module '~/utils/code-blocks.mjs' {
   export function normalizeNewlines(src: string): string
   export function parseBody(src: string): BodyBlock[]
   export function bodyToHtml(src: string): string
+  export function isMarkdownLang(lang: string | null | undefined): boolean
+  export function hasMarkdownBlock(src: string): boolean
   export function linkParts(text: string): BodyPart[]
   export function fenceStateAt(text: string, caret?: number): { inCode: boolean, lang: string }
   export function enterAction(o: { inCode?: boolean, shift?: boolean, alt?: boolean, mod?: boolean }): 'send' | 'newline'
@@ -754,6 +756,17 @@ declare module '~/utils/code-view.mjs' {
 
 declare module '~/utils/code-langs.mjs' {
   export const LANG_LOADERS: Readonly<Record<string, () => Promise<{ default: unknown }>>>
+}
+
+declare module '~/utils/markdown.mjs' {
+  export type MdNode = string | { tag: string, attrs: Record<string, string>, children: MdNode[] }
+  export const TAGS: Set<string>
+  export const ATTRS: Record<string, Set<string>>
+  export function safeHref(raw: string): string
+  export function markdownTree(src: string): MdNode[]
+  export function treeToHtml(nodes: MdNode[]): string
+  export function markdownToHtml(src: string): string
+  export function renderMarkdown(src: string): string
 }
 
 declare module '~/utils/highlighter.mjs' {
@@ -1106,9 +1119,4 @@ declare module '~/utils/issues-view.mjs' {
   export function clampIssuePane(width: unknown, ceiling?: number): number
   export function loadIssuePane(store?: unknown): number
   export function saveIssuePane(width: number, store?: unknown): boolean
-}
-
-declare module '~/utils/markdown.mjs' {
-  export function isMarkdownLang(lang: string | null | undefined): boolean
-  export function renderMarkdown(src: string): string
 }

@@ -441,6 +441,22 @@ export function parseBody(src) {
   return blocks
 }
 
+/**
+ * The start/stop marker for rendered markdown (SPL-73): a fence tagged `md`
+ * or `markdown`, any case. Its text renders as markdown (markdown.mjs,
+ * MarkdownBlock.vue); every other fence stays a code block. Tag the fence
+ * `text` to show markdown source instead.
+ */
+export function isMarkdownLang(lang) {
+  return /^(?:md|markdown)$/i.test(String(lang ?? ''))
+}
+
+/** Does the text hold at least one markdown block or {{wiki}} region? */
+export function hasMarkdownBlock(src) {
+  return wikiRegions(src).some((r) => r.type === 'wiki') ||
+    tokenize(src).some((t) => t.type === 'code' && isMarkdownLang(t.lang))
+}
+
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }

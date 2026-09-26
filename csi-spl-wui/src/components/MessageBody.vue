@@ -19,8 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { parseBody } from '~/utils/code-blocks.mjs'
-import { isMarkdownLang } from '~/utils/markdown.mjs'
+import { isMarkdownLang, parseBody } from '~/utils/code-blocks.mjs'
 import MessageRuns from '~/components/MessageRuns.vue'
 
 /* Slack-style ``` blocks and `inline code`; every string is text-interpolated,
@@ -28,7 +27,10 @@ import MessageRuns from '~/components/MessageRuns.vue'
    open control and the dialog); inline spans stay here, where they belong.
    A link part (CLE-3494) is http, https or mailto only (parseBody's rule);
    its click, double-click and Enter stop here, so the link opens and the row
-   under it does not also open its topic, select, or start an edit. */
+   under it does not also open its topic, select, or start an edit.
+   A fence tagged md / markdown is the markdown start/stop marker (SPL-73):
+   MarkdownBlock renders it, and loads markdown-it itself, lazily, so
+   isMarkdownLang comes from code-blocks.mjs, never from markdown.mjs. */
 const props = defineProps<{ body: string }>()
 const blocks = computed(() => parseBody(props.body))
 </script>
@@ -44,7 +46,12 @@ const blocks = computed(() => parseBody(props.body))
 .code-block + .msg-para,
 .msg-h + .msg-para,
 .msg-list + .msg-para,
-.msg-quote + .msg-para { margin-top: 4px; }
+.msg-quote + .msg-para,
+.md-block + .msg-para,
+.msg-para + .md-block,
+.code-block + .md-block,
+.md-block + .code-block,
+.md-block + .md-block { margin-top: 4px; }
 .msg-h {
   margin: 8px 0 2px;
   font-size: 1rem;

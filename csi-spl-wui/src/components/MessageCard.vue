@@ -163,7 +163,7 @@
         <UiIcon name="alert-triangle" :size="14" />
         <span>{{ t(editError) }}</span>
       </p>
-      <div v-if="chips.length" class="msg-reactions" data-testid="msg-reactions">
+      <div v-if="chips.length && !titleOnly" class="msg-reactions" data-testid="msg-reactions">
         <button
           v-for="chip in chips"
           :key="chip.emoji"
@@ -180,12 +180,12 @@
           <span class="msg-reaction__n">{{ chip.count }}</span>
         </button>
       </div>
-      <p v-if="reactError" class="msg-edit-error" role="alert" data-testid="msg-emoji-error">
+      <p v-if="reactError && !titleOnly" class="msg-edit-error" role="alert" data-testid="msg-emoji-error">
         <UiIcon name="alert-triangle" :size="14" />
         <span>{{ reactError }}</span>
       </p>
       <button
-        v-if="topicLink"
+        v-if="topicLink && !titleOnly"
         class="icon-btn icon-btn--accent"
         type="button"
         data-test="open-topic"

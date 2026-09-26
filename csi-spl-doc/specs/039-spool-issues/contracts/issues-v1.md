@@ -20,8 +20,8 @@ billing refusal every write gets.
 ## 2. The issue object
 
 ```json
-{"key":"SPL-12","number":12,"title":"…","description":"markdown","status":"in_progress",
- "priority":2,"level":3,"assignee":"CLE-07","labels":["bug"],"deadline":"2026-10-01T12:30:00Z",
+{"key":"SPL-12","number":12,"title":"…","description":"markdown","status":"wip",
+ "priority":2,"level":2,"assignee":"CLE-07","labels":["bug"],"deadline":"2026-10-01T12:30:00Z",
  "parent":"SPL-3","task_id":"<uuid>","channel":"issues","created_by":"HUM-10",
  "created_at":"…","updated_by":"CLE-07","updated_at":"…","completed_at":"","canceled_at":""}
 ```
@@ -34,7 +34,10 @@ billing refusal every write gets.
   `canceled_at`
 - `priority` - "prio" in the WUI (rdb 0054 + 0055, owner topic d81cbf47): 1 (highest)
   .. 5 (lowest, the default for a new issue); "no priority" is gone (it became 5)
-- `level`: 0 none, 1 XS, 2 S, 3 M, 4 L, 5 XL
+- `level`: the row's place in the tree (rdb 0056, SPL-949): 1 epic / feature,
+  2 issue, 3 subtask. The hub derives it on every write; an input level is
+  only checked (outside 1..3, or not the derived one: 400 `bad_issue`). A
+  create may send 0 or omit it. `?sort=level` puts level 1 first
 - `kind`: `epic` (carries the reserved label `epic`) or `issue`; `epic`: the
   parent epic's key on an issue, `""` on an epic (`parent` is the same key)
 - unset `deadline`, `parent`, `completed_at`, `canceled_at` read `""`

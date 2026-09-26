@@ -71,8 +71,9 @@ spl_issue_check_fields() {
     { do_log "FATAL ISSUE_STATUS must be eval, todo, wip, diss, qas or done (01-eval .. 09-done), got: '$ISSUE_STATUS'"; return 1; }
   [[ -z "${ISSUE_PRIORITY:-}" || "$ISSUE_PRIORITY" =~ ^[1-5]$ ]] ||
     { do_log "FATAL ISSUE_PRIORITY (prio) must be 1 (highest) .. 5 (lowest), got: '$ISSUE_PRIORITY'"; return 1; }
-  [[ -z "${ISSUE_LEVEL:-}" || "$ISSUE_LEVEL" =~ ^[0-5]$ ]] ||
-    { do_log "FATAL ISSUE_LEVEL must be 0 (none) .. 5 (XL), got: '$ISSUE_LEVEL'"; return 1; }
+  # rdb 0056: level is the tree's (1 epic / feature, 2 issue, 3 subtask); the hub derives it
+  [[ -z "${ISSUE_LEVEL:-}" || "$ISSUE_LEVEL" =~ ^[1-3]$ ]] ||
+    { do_log "FATAL ISSUE_LEVEL must be 1 (epic / feature), 2 (issue) or 3 (subtask), got: '$ISSUE_LEVEL'"; return 1; }
   [[ -z "${ISSUE_KIND:-}" || "$ISSUE_KIND" =~ ^(epic|feature|issue)$ ]] ||
     { do_log "FATAL ISSUE_KIND must be epic, feature or issue, got: '$ISSUE_KIND'"; return 1; }
   [[ -z "${ISSUE_EPIC:-}" || "$ISSUE_EPIC" =~ ^([A-Za-z][A-Za-z0-9]{0,9}-)?[1-9][0-9]*$ ]] ||

@@ -21,7 +21,7 @@ const issueUsage = `usage: spool issue <list|get|create|update|comment|label> --
           [--deadline-before T] [--deadline-after T] [--sort priority|level|deadline|updated|created]
   get     --ref SPL-3
   create  --title T  --epic SPL-1 | --parent SPL-3 (subtask) | --kind epic|feature  [--description D | --description-file F] [--status S]
-          [--priority 1-5] [--level 0-5] [--assignee ID] [--labels a,b] [--deadline 2026-10-01T15:00:00Z]
+          [--priority 1-5] [--level 1-3] [--assignee ID] [--labels a,b] [--deadline 2026-10-01T15:00:00Z]
   update  --ref SPL-3 [any create flag; only the flags given change; "" clears]
   comment --ref SPL-3 --body TEXT | --body-file F
   label   --name N [--color #rrggbb]`
@@ -42,7 +42,7 @@ func cmdIssue(cfg *config.Config, args []string) int {
 	descFile := fs.String("description-file", "", "read the description from this file")
 	status := fs.String("status", "", "eval|todo|wip|diss|qas|done (01-eval .. 09-done; list: comma list)")
 	priority := fs.String("priority", "", "prio 1 (highest) .. 5 (lowest) (list: comma list)")
-	level := fs.String("level", "", "0 none, 1 XS .. 5 XL (list: comma list)")
+	level := fs.String("level", "", "1 epic or feature, 2 issue, 3 subtask: derived from the tree, only checked (list: comma list)")
 	assignee := fs.String("assignee", "", "member HUM-* or agent id; list also takes me and none")
 	labels := fs.String("labels", "", "label ids, comma separated")
 	label := fs.String("label", "", "list: label ids, comma separated")

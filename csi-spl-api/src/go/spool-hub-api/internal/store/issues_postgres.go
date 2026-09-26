@@ -39,8 +39,9 @@ func txPrefix(ctx context.Context, tx pgx.Tx, tenant string) (string, error) {
 	return p, err
 }
 
-// txIssueRefs checks labels and the tree rule inside tx.
-func txIssueRefs(ctx context.Context, tx pgx.Tx, i Issue, rule, wasEpic bool) error {
+// txIssueRefs checks labels and, with rule, the tree rule inside tx, and
+// derives i.Level (want: the caller's level, 0 none).
+func txIssueRefs(ctx context.Context, tx pgx.Tx, i *Issue, rule, wasEpic bool, want int) error {
 	if len(i.Labels) > 0 {
 		var n int
 		if err := tx.QueryRow(ctx, `SELECT count(*) FROM issue_labels WHERE tenant_id = $1 AND label_id = ANY($2)`,
@@ -50,9 +51,6 @@ func txIssueRefs(ctx context.Context, tx pgx.Tx, i Issue, rule, wasEpic bool) er
 		if n != len(i.Labels) {
 			return ErrUnknownLabel
 		}
-	}
-	if !rule {
-		return nil
 	}
 	// The tree rule (SPL-18). The parent row is locked FOR SHARE, so it
 	// cannot change kind (UpdateIssue locks FOR UPDATE) while an issue is
@@ -73,13 +71,19 @@ func txIssueRefs(ctx context.Context, tx pgx.Tx, i Issue, rule, wasEpic bool) er
 			r.parentLevel2 = !r.parent.IsEpic() && (Issue{Kind: grand}).IsEpic()
 		}
 	}
+	if !rule {
+		return setLevel(i, r, want)
+	}
 	if i.Number != 0 {
 		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues WHERE tenant_id = $1 AND parent_number = $2)`,
 			i.TenantID, i.Number).Scan(&r.hasChildren); err != nil {
 			return err
 		}
 	}
-	return treeRule(i, r)
+	if err := treeRule(*i, r); err != nil {
+		return err
+	}
+	return setLevel(i, r, want)
 }
 
 func nullParent(p int) any {
@@ -108,7 +112,7 @@ func (s *Postgres) CreateIssue(ctx context.Context, in Issue, now time.Time) (Is
 		if !ok {
 			return ErrNotFound
 		}
-		if err := txIssueRefs(ctx, tx, in, true, false); err != nil {
+		if err := txIssueRefs(ctx, tx, &in, true, false, in.Level); err != nil {
 			return err
 		}
 		// The counter row is the lock: two creates in one tenant serialize
@@ -134,9 +138,13 @@ func (s *Postgres) CreateIssue(ctx context.Context, in Issue, now time.Time) (Is
 }
 
 func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p IssuePatch, by string, now time.Time) (Issue, error) {
+	want, err := patchLevel(p)
+	if err != nil {
+		return Issue{}, err
+	}
 	now = now.UTC().Truncate(time.Microsecond)
 	var out Issue
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+	err = s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		prefix, err := txPrefix(ctx, tx, tenant)
 		if err != nil {
 			return err
@@ -149,13 +157,19 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 		if err != nil {
 			return err
 		}
-		wasEpic := cur.IsEpic()
+		wasEpic, was := cur.IsEpic(), cur.Level
 		applyPatch(&cur, p, by, now)
 		if err := checkIssue(&cur); err != nil {
 			return err
 		}
-		if err := txIssueRefs(ctx, tx, cur, epicTouched(p), wasEpic); err != nil {
+		if err := txIssueRefs(ctx, tx, &cur, epicTouched(p), wasEpic, want); err != nil {
 			return err
+		}
+		if cur.Level != was { // an issue made an epic: its subtasks are issues now
+			if _, err := tx.Exec(ctx, `UPDATE issues SET level = $3 WHERE tenant_id = $1 AND parent_number = $2`,
+				tenant, number, cur.Level+1); err != nil {
+				return err
+			}
 		}
 		out, err = scanIssue(tx.QueryRow(ctx, `UPDATE issues SET title = $3, description = $4, status = $5,
 				priority = $6, level = $7, assignee = $8, labels = $9, deadline = $10, parent_number = $11,

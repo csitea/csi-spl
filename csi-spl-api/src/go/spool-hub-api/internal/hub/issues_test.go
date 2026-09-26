@@ -73,7 +73,7 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	}
 	readType(t, watcher, "issue")
 	code, out = call(t, e, tid, http.MethodPost, "/v1/issues", dev, map[string]any{
-		"epic": "SPL-1", "title": "Login breaks", "description": "## steps", "priority": 2, "level": 3, "assignee": "CLE-07",
+		"epic": "SPL-1", "title": "Login breaks", "description": "## steps", "priority": 2, "level": 2, "assignee": "CLE-07",
 		"labels": []string{"bug"}, "deadline": "2026-10-01T15:30:00+03:00"})
 	if code != http.StatusCreated {
 		t.Fatalf("create: %d %v", code, out)
@@ -87,12 +87,12 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 		t.Fatalf("create frame %v", f)
 	}
 	code, out = call(t, e, tid, http.MethodPost, "/v1/issues", tester, map[string]any{"title": "Urgent thing", "priority": 1,
-		"level": 1, "assignee": dev, "status": "todo", "parent": "SPL-1"})
+		"assignee": dev, "status": "todo", "parent": "SPL-1"})
 	if code != http.StatusCreated || issueOf(t, out)["parent"] != "SPL-1" || issueOf(t, out)["epic"] != "SPL-1" || issueOf(t, out)["kind"] != "issue" {
 		t.Fatalf("create 2: %d %v", code, out)
 	}
 	readType(t, watcher, "issue")
-	code, out = call(t, e, tid, http.MethodPost, "/v1/issues", tester, map[string]any{"title": "Someday", "level": 5, "epic": "SPL-1"})
+	code, out = call(t, e, tid, http.MethodPost, "/v1/issues", tester, map[string]any{"title": "Someday", "epic": "SPL-1"})
 	if code != http.StatusCreated {
 		t.Fatalf("create 3: %d %v", code, out)
 	}
@@ -107,6 +107,8 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 		{map[string]any{"description": "no title"}, 400, "bad_issue"},
 		{map[string]any{"title": "x", "priority": 9}, 400, "bad_issue"},
 		{map[string]any{"title": "x", "level": -1}, 400, "bad_issue"},
+		{map[string]any{"title": "x", "epic": "SPL-1", "level": 4}, 400, "bad_issue"},
+		{map[string]any{"title": "x", "epic": "SPL-1", "level": 3}, 400, "bad_issue"}, // the tree says 2 (rdb 0056)
 		{map[string]any{"title": "x", "status": "doing"}, 400, "bad_issue"},
 		{map[string]any{"title": "x", "deadline": "tomorrow"}, 400, "bad_issue"},
 		{map[string]any{"title": "x", "labels": []string{"nope"}}, 400, "unknown_label"},
@@ -143,11 +145,12 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 		t.Fatalf("labels %v", ls)
 	}
 	for q, want := range map[string][]string{
-		"?sort=level":                           {"SPL-4", "SPL-2", "SPL-3"},
+		"?sort=level":                           {"SPL-4", "SPL-3", "SPL-2"}, // all level 2: newest first
 		"?sort=deadline":                        {"SPL-2", "SPL-4", "SPL-3"},
 		"?status=todo":                          {"SPL-3"},
 		"?priority=5":                           {"SPL-4"},
-		"?level=1,3&sort=level":                 {"SPL-2", "SPL-3"},
+		"?level=2":                              {"SPL-3", "SPL-2", "SPL-4"},
+		"?level=1,3":                            {},
 		"?assignee=none":                        {"SPL-4"},
 		"?assignee=me":                          {"SPL-3"},
 		"?assignee=CLE-07":                      {"SPL-2"},
@@ -169,7 +172,7 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 		"status": "done", "assignee": "", "deadline": "", "labels": []string{}})
 	up := issueOf(t, out)
 	if code != http.StatusOK || up["status"] != "done" || up["completed_at"] == "" || up["assignee"] != "" || up["deadline"] != "" ||
-		up["updated_by"] != tester || up["title"] != "Login breaks" || up["level"] != float64(3) {
+		up["updated_by"] != tester || up["title"] != "Login breaks" || up["level"] != float64(2) {
 		t.Fatalf("patch: %d %v", code, out)
 	}
 	if f := readType(t, watcher, "issue"); f["op"] != "update" || f["issue"].(map[string]any)["status"] != "done" {
@@ -177,14 +180,14 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	}
 	// SPL-18 (rdb 0053): a leaf issue under another issue is a subtask.
 	code, out = call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-2", dev, map[string]any{"parent": "SPL-3"})
-	if sub := issueOf(t, out); code != 200 || sub["kind"] != "subtask" || sub["epic"] != "SPL-1" || sub["parent"] != "SPL-3" {
+	if sub := issueOf(t, out); code != 200 || sub["kind"] != "subtask" || sub["epic"] != "SPL-1" || sub["parent"] != "SPL-3" || sub["level"] != float64(3) {
 		t.Fatalf("subtask: %d %v", code, out)
 	}
 	readType(t, watcher, "issue")
 	if code, out := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-2", dev, map[string]any{"epic": "SPL-3"}); code != 400 || out["error"] != "bad_epic" {
 		t.Fatalf("epic names a level-2 issue: %d %v", code, out)
 	}
-	if code, out := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-2", dev, map[string]any{"epic": "SPL-1"}); code != 200 || issueOf(t, out)["kind"] != "issue" {
+	if code, out := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-2", dev, map[string]any{"epic": "SPL-1"}); code != 200 || issueOf(t, out)["kind"] != "issue" || issueOf(t, out)["level"] != float64(2) {
 		t.Fatalf("back to level 2: %d %v", code, out)
 	}
 	readType(t, watcher, "issue")

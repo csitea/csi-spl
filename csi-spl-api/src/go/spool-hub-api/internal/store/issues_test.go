@@ -42,7 +42,7 @@ func TestIssues(t *testing.T) {
 			}
 			for _, bad := range []Issue{
 				{Title: " "}, {Title: strings.Repeat("t", 256)}, {Title: "x", Status: "doing"}, {Title: "x", Priority: 6}, {Title: "x", Priority: -1},
-				{Title: "x", Level: 6}, {Title: "x", Assignee: "bob"}, {Title: "x", Labels: []string{"Bad Label"}},
+				{Title: "x", Level: 4}, {Title: "x", Assignee: "bob"}, {Title: "x", Labels: []string{"Bad Label"}},
 				{Title: "x", Description: strings.Repeat("d", IssueDescriptionMax+1)},
 			} {
 				bad.TenantID, bad.TaskID, bad.CreatedBy = a, uuid4(), "HUM-1"
@@ -69,13 +69,13 @@ func TestIssues(t *testing.T) {
 			}
 			dl := now.Add(48 * time.Hour)
 			task := uuid4()
-			one, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "  First  ", Description: "## md", Priority: 1, Level: 3,
+			one, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "  First  ", Description: "## md", Priority: 1, Level: 2,
 				Assignee: "CLE-01", Labels: []string{"bug", "bug"}, Deadline: &dl, TaskID: task, CreatedBy: "HUM-1", Parent: ea}, now)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if one.Number != ea+1 || one.Key() != IssueKey("SPL", ea+1) || one.Title != "First" || one.Status != IssueBacklog || one.Priority != 1 ||
-				one.Level != 3 || one.Assignee != "CLE-01" || len(one.Labels) != 1 || one.Deadline == nil || !one.Deadline.Equal(dl) ||
+				one.Level != 2 || one.Assignee != "CLE-01" || len(one.Labels) != 1 || one.Deadline == nil || !one.Deadline.Equal(dl) ||
 				one.TaskID != task || one.UpdatedBy != "HUM-1" || !one.CreatedAt.Equal(now) || one.CompletedAt != nil || one.Parent != ea || one.IsEpic() {
 				t.Fatalf("created: %+v", one)
 			}
@@ -113,14 +113,23 @@ func TestIssues(t *testing.T) {
 				Labels: &[]string{}, DeadlineSet: true}, "HUM-3", later)
 			if err != nil || up.Status != IssueCanceled || up.CanceledAt == nil || !up.CanceledAt.Equal(later) || up.Priority != IssuePriorityDefault ||
 				up.Assignee != "" || len(up.Labels) != 0 || up.Deadline != nil || up.UpdatedBy != "HUM-3" || !up.UpdatedAt.Equal(later) ||
-				up.Title != "First" || up.Level != 3 || up.Parent != ea {
+				up.Title != "First" || up.Level != 2 || up.Parent != ea {
 				t.Fatalf("update: %+v %v", up, err)
 			}
 			if up, _ = is.UpdateIssue(ctx, a, one.Number, IssuePatch{Status: ptr(IssueTodo)}, "HUM-3", later); up.CanceledAt != nil || up.CompletedAt != nil {
 				t.Fatalf("status back: %+v", up)
 			}
-			if _, err := is.UpdateIssue(ctx, a, one.Number, IssuePatch{Level: ptrInt(9)}, "HUM-3", later); !errors.Is(err, ErrInvalidIssue) {
-				t.Fatalf("bad level: %v", err)
+			// Level is the tree's (rdb 0056): 1..3 only, and only the derived one.
+			for _, lv := range []int{9, 0, 3} {
+				if _, err := is.UpdateIssue(ctx, a, one.Number, IssuePatch{Level: ptrInt(lv)}, "HUM-3", later); !errors.Is(err, ErrInvalidIssue) {
+					t.Fatalf("bad level %d: %v", lv, err)
+				}
+			}
+			if _, err := is.CreateIssue(ctx, Issue{TenantID: a, Title: "x", Level: 1, TaskID: uuid4(), CreatedBy: "HUM-1", Parent: ea}, now); !errors.Is(err, ErrInvalidIssue) {
+				t.Fatalf("create with a level off the tree: %v", err)
+			}
+			if got, err := is.UpdateIssue(ctx, a, one.Number, IssuePatch{Level: ptrInt(2)}, "HUM-3", later); err != nil || got.Level != 2 {
+				t.Fatalf("the derived level: %+v %v", got, err)
 			}
 			if _, err := is.UpdateIssue(ctx, a, 999, IssuePatch{Title: ptr("x")}, "HUM-3", later); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("missing: %v", err)
@@ -154,7 +163,7 @@ func TestIssueEpicRule(t *testing.T) {
 				t.Fatalf("label form: %+v", got)
 			}
 			f1, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "a feature", Kind: IssueKindFeature, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
-			if err != nil || !f1.IsEpic() || f1.Kind != IssueKindFeature {
+			if err != nil || !f1.IsEpic() || f1.Kind != IssueKindFeature || f1.Level != 1 {
 				t.Fatalf("feature: %+v %v", f1, err)
 			}
 			mk := func(parent int, kind string) (Issue, error) {
@@ -170,11 +179,11 @@ func TestIssueEpicRule(t *testing.T) {
 				t.Fatalf("bad kind: %v", err)
 			}
 			l2, err := mk(f1.Number, "") // level 2 under a feature
-			if err != nil {
-				t.Fatal(err)
+			if err != nil || l2.Level != 2 {
+				t.Fatalf("level 2: %+v %v", l2, err)
 			}
 			sub, err := mk(l2.Number, "") // level 3
-			if err != nil || sub.IsEpic() {
+			if err != nil || sub.IsEpic() || sub.Level != 3 {
 				t.Fatalf("subtask: %+v %v", sub, err)
 			}
 			if _, err := mk(sub.Number, ""); !errors.Is(err, ErrBadEpic) {
@@ -189,7 +198,7 @@ func TestIssueEpicRule(t *testing.T) {
 			if _, err := is.UpdateIssue(ctx, tn, l2.Number, IssuePatch{Parent: ptrInt(other.Number)}, "HUM-1", now); !errors.Is(err, ErrBadEpic) {
 				t.Fatalf("level 2 with subtasks under a level-2: %v", err)
 			}
-			if got, err := is.UpdateIssue(ctx, tn, other.Number, IssuePatch{Parent: ptrInt(l2.Number)}, "HUM-1", now); err != nil || got.Parent != l2.Number {
+			if got, err := is.UpdateIssue(ctx, tn, other.Number, IssuePatch{Parent: ptrInt(l2.Number)}, "HUM-1", now); err != nil || got.Parent != l2.Number || got.Level != 3 {
 				t.Fatalf("leaf becomes a subtask: %+v %v", got, err)
 			}
 			if _, err := is.UpdateIssue(ctx, tn, sub.Number, IssuePatch{Parent: ptrInt(0)}, "HUM-1", now); !errors.Is(err, ErrEpicRequired) {
@@ -207,8 +216,15 @@ func TestIssueEpicRule(t *testing.T) {
 			if _, err := is.UpdateIssue(ctx, tn, sub.Number, IssuePatch{Kind: ptr(IssueKindFeature)}, "HUM-1", now); !errors.Is(err, ErrBadEpic) {
 				t.Fatalf("issue -> feature keeping its parent: %v", err)
 			}
-			if got, err := is.UpdateIssue(ctx, tn, sub.Number, IssuePatch{Kind: ptr(IssueKindFeature), Parent: ptrInt(0)}, "HUM-1", now); err != nil || got.Kind != IssueKindFeature {
+			if got, err := is.UpdateIssue(ctx, tn, sub.Number, IssuePatch{Kind: ptr(IssueKindFeature), Parent: ptrInt(0)}, "HUM-1", now); err != nil || got.Kind != IssueKindFeature || got.Level != 1 {
 				t.Fatalf("issue -> feature: %+v %v", got, err)
+			}
+			// An issue with a subtask made level 1: the subtask moves up to 2.
+			if got, err := is.UpdateIssue(ctx, tn, l2.Number, IssuePatch{Kind: ptr(IssueKindEpic), Parent: ptrInt(0)}, "HUM-1", now); err != nil || got.Level != 1 {
+				t.Fatalf("issue with a subtask -> epic: %+v %v", got, err)
+			}
+			if got, _ := is.GetIssue(ctx, tn, other.Number); got.Level != 2 || got.Parent != l2.Number {
+				t.Fatalf("the subtask under the new epic: %+v", got)
 			}
 		})
 	}

@@ -54,7 +54,7 @@ Refined the same morning (binding where it differs from the first request):
 | description | markdown, <= 20000 characters | right pane only |
 | status | 01-eval, 02-todo, 03-wip, 03-diss, 07-qas, 09-done (ids `eval todo wip diss qas done`; a hover gives the long name) | the owner's set, 2026-09-26 (rdb 0055; old names normalize); default eval |
 | prio | the number 1..5 | the owner's scale, 2026-09-26 (rdb 0054 + 0055); default 5, old 0 became 5 |
-| level | none (0), XS (1), S (2), M (3), L (4), XL (5) | the owner's "level" = Linear's t-shirt estimate |
+| level | 1 epic / feature, 2 issue, 3 subtask | the row's place in the tree, derived by the hub (owner 2026-09-26, SPL-949, rdb 0056); was a 0..5 t-shirt estimate |
 | assignee | a member `HUM-*` or a roster agent, or nobody | an id nobody in the tenant can act on is refused |
 | labels | the tenant's label catalogue (name + colour), <= 20 per issue | |
 | deadline | date AND time; stored UTC, shown in local time | a calendar + time control |

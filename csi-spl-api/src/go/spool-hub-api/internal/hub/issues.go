@@ -486,8 +486,8 @@ func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr)
 	if f.priority, ok = intSet(get("priority"), store.IssuePriorityMax); !ok || f.priority[0] {
 		return f, badIssue(fmt.Sprintf("prio must be %d..%d", store.IssuePriorityMin, store.IssuePriorityMax))
 	}
-	if f.level, ok = intSet(get("level"), store.IssueLevelMax); !ok {
-		return f, badIssue("level must be 0..5")
+	if f.level, ok = intSet(get("level"), store.IssueLevelMax); !ok || f.level[0] {
+		return f, badIssue(fmt.Sprintf("level must be %d..%d", store.IssueLevelMin, store.IssueLevelMax))
 	}
 	for k, dst := range map[string]**time.Time{"deadline_before": &f.before, "deadline_after": &f.after} {
 		if s := get(k); s != "" {
@@ -569,7 +569,7 @@ func (f issueFilter) match(i store.Issue, get issueGetter) bool {
 }
 
 // SortIssues orders like Linear: priority urgent first and "no priority"
-// last; level largest first; deadline soonest first and none last;
+// last; level top of the tree first (1 epic / feature, 2 issue, 3 subtask); deadline soonest first and none last;
 // updated / created newest first. Ties: the newest number first.
 func SortIssues(list []store.Issue, by string) {
 	prio := func(p int) int {
@@ -587,7 +587,7 @@ func SortIssues(list []store.Issue, by string) {
 			}
 		case "level":
 			if x.Level != y.Level {
-				return x.Level > y.Level
+				return x.Level < y.Level
 			}
 		case "deadline":
 			switch {

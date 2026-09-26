@@ -56,9 +56,11 @@ const (
 	IssuePriorityMin     = 1
 	IssuePriorityMax     = 5
 	IssuePriorityDefault = 5
-	// IssueLevelMax: the owner's "level", Linear's t-shirt estimate, 0 none,
-	// 1 XS, 2 S, 3 M, 4 L, 5 XL.
-	IssueLevelMax       = 5
+	// Level is the row's place in the tree (rdb 0056, owner 2026-09-26, SPL-949):
+	// 1 epic / feature, 2 an issue, 3 a subtask. The store derives it; an input
+	// level is only checked against the derived one.
+	IssueLevelMin       = 1
+	IssueLevelMax       = 3
 	IssueTitleMax       = 255
 	IssueDescriptionMax = 20000
 	IssueLabelsMax      = 20
@@ -146,6 +148,40 @@ type treeRefs struct {
 	parentLevel2 bool // the parent is an issue whose own parent is level 1
 	hasChildren  bool // some issue names this one as its parent
 	wasEpic      bool // the row was level 1 before this update
+}
+
+// treeLevel is the level the tree gives i (rdb 0056), shared by both drivers.
+// A non-epic row with no parent (only rows older than the tree rule) is 2.
+func treeLevel(i Issue, r treeRefs) int {
+	switch {
+	case i.IsEpic():
+		return 1
+	case !r.parentOK || r.parent.IsEpic():
+		return 2
+	}
+	return 3
+}
+
+// setLevel derives i.Level from the tree. want is the caller's level, 0 when
+// none was given: it must be the derived one.
+func setLevel(i *Issue, r treeRefs, want int) error {
+	i.Level = treeLevel(*i, r)
+	if want != 0 && want != i.Level {
+		return invalidIssue("level follows the tree (1 epic or feature, 2 issue, 3 subtask): this one is level %d", i.Level)
+	}
+	return nil
+}
+
+// patchLevel is the level a PATCH asks for, 0 when it names none. An explicit
+// level outside 1..3 (the old 0 "none" too) is refused.
+func patchLevel(p IssuePatch) (int, error) {
+	if p.Level == nil {
+		return 0, nil
+	}
+	if *p.Level < IssueLevelMin || *p.Level > IssueLevelMax {
+		return 0, invalidIssue("level must be %d..%d", IssueLevelMin, IssueLevelMax)
+	}
+	return *p.Level, nil
 }
 
 // treeRule is the three-level rule (SPL-18), shared by both drivers.
@@ -295,8 +331,8 @@ func checkIssue(i *Issue) error {
 		return invalidIssue("status must be one of %s", strings.Join(IssueStatuses, ", "))
 	case i.Priority < IssuePriorityMin || i.Priority > IssuePriorityMax:
 		return invalidIssue("prio must be %d..%d", IssuePriorityMin, IssuePriorityMax)
-	case i.Level < 0 || i.Level > IssueLevelMax:
-		return invalidIssue("level must be 0..%d", IssueLevelMax)
+	case i.Level != 0 && (i.Level < IssueLevelMin || i.Level > IssueLevelMax):
+		return invalidIssue("level must be %d..%d", IssueLevelMin, IssueLevelMax)
 	case i.Assignee != "" && !issueAssigneeRe.MatchString(i.Assignee):
 		return invalidIssue("assignee must be a member or agent id")
 	case i.Parent < 0 || (i.Parent != 0 && i.Parent == i.Number):
@@ -481,16 +517,14 @@ func copyIssue(i Issue) Issue {
 	return i
 }
 
-// refsOK checks labels and, with rule, the tree rule (SPL-18). wasEpic: the
-// row was level 1 before this update.
-func (m *memIssues) refsOK(i Issue, rule, wasEpic bool) error {
+// refsOK checks labels and, with rule, the tree rule (SPL-18), and derives
+// i.Level (want: the caller's level, 0 none). wasEpic: the row was level 1
+// before this update.
+func (m *memIssues) refsOK(i *Issue, rule, wasEpic bool, want int) error {
 	for _, l := range i.Labels {
 		if _, ok := m.labels[i.TenantID][l]; !ok {
 			return fmt.Errorf("%w: %s", ErrUnknownLabel, l)
 		}
-	}
-	if !rule {
-		return nil
 	}
 	r := treeRefs{wasEpic: wasEpic}
 	r.parent, r.parentOK = m.rows[i.TenantID][i.Parent]
@@ -498,6 +532,9 @@ func (m *memIssues) refsOK(i Issue, rule, wasEpic bool) error {
 	if r.parentOK && !r.parent.IsEpic() {
 		g, ok := m.rows[i.TenantID][r.parent.Parent]
 		r.parentLevel2 = ok && r.parent.Parent != 0 && g.IsEpic()
+	}
+	if !rule {
+		return setLevel(i, r, want)
 	}
 	if i.Number != 0 {
 		for _, c := range m.rows[i.TenantID] {
@@ -507,7 +544,10 @@ func (m *memIssues) refsOK(i Issue, rule, wasEpic bool) error {
 			}
 		}
 	}
-	return treeRule(i, r)
+	if err := treeRule(*i, r); err != nil {
+		return err
+	}
+	return setLevel(i, r, want)
 }
 
 func (s *Memory) CreateIssue(_ context.Context, in Issue, now time.Time) (Issue, error) {
@@ -524,7 +564,7 @@ func (s *Memory) CreateIssue(_ context.Context, in Issue, now time.Time) (Issue,
 		return Issue{}, ErrNotFound
 	}
 	s.iss.init()
-	if err := s.iss.refsOK(in, true, false); err != nil {
+	if err := s.iss.refsOK(&in, true, false, in.Level); err != nil {
 		return Issue{}, err
 	}
 	for _, r := range s.iss.rows[in.TenantID] {
@@ -552,17 +592,29 @@ func (s *Memory) UpdateIssue(_ context.Context, tenant string, number int, p Iss
 	if !ok {
 		return Issue{}, ErrNotFound
 	}
+	want, err := patchLevel(p)
+	if err != nil {
+		return Issue{}, err
+	}
 	row = copyIssue(row)
-	wasEpic := row.IsEpic()
+	wasEpic, was := row.IsEpic(), row.Level
 	applyPatch(&row, p, by, now)
 	if err := checkIssue(&row); err != nil {
 		return Issue{}, err
 	}
-	if err := s.iss.refsOK(row, epicTouched(p), wasEpic); err != nil {
+	if err := s.iss.refsOK(&row, epicTouched(p), wasEpic, want); err != nil {
 		return Issue{}, err
 	}
 	row.Prefix = s.iss.prefixOf(tenant)
 	s.iss.rows[tenant][number] = copyIssue(row)
+	if row.Level != was { // an issue made an epic: its subtasks are issues now
+		for n, c := range s.iss.rows[tenant] {
+			if c.Parent == number {
+				c.Level = row.Level + 1
+				s.iss.rows[tenant][n] = c
+			}
+		}
+	}
 	return row, nil
 }
 

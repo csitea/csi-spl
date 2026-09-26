@@ -15,7 +15,7 @@
 # @param ISSUE_DESCRIPTION (optional) - markdown; or ISSUE_DESCRIPTION_FILE
 # @param ISSUE_STATUS (optional) - eval (default) | todo | wip | diss | qas | done  (01-eval .. 09-done)
 # @param ISSUE_PRIORITY (optional) - prio 1 (highest) .. 5 (lowest, the default)
-# @param ISSUE_LEVEL (optional) - 0 none, 1 XS, 2 S, 3 M, 4 L, 5 XL
+# @param ISSUE_LEVEL (optional) - 1 epic / feature, 2 issue, 3 subtask: the hub derives it from the tree and refuses any other
 # @param ISSUE_ASSIGNEE (optional) - a member HUM-* or an agent id
 # @param ISSUE_LABELS (optional) - label ids, comma separated
 # @param ISSUE_DEADLINE (optional) - RFC 3339 with a zone, e.g. 2026-10-01T15:00:00Z

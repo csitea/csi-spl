@@ -2,7 +2,8 @@
 // rail itself (mouse and touch), the order is kept on the account (a reload
 // and a fresh sign-in draw it), Settings -> Behaviour -> "Left panel order"
 // shows the same order and changes it with up / down, and a plain click on
-// an icon still navigates instead of reordering.
+// an icon still navigates instead of reordering. Since SPL-983 the seventh
+// entry is Archive.
 //
 //   BASE=https://dev.<domain> AUTH_BASE=https://dev.api.<domain> \
 //     EMAIL=<member> PW_FILE=<0600 file> [TENANT=t1] OUT=<dir> \
@@ -35,7 +36,7 @@ const TENANT = process.env.TENANT || 't1'
 const PW = readFileSync(need('PW_FILE'), 'utf8').trim()
 mkdirSync(OUT, { recursive: true })
 
-const DEFAULT = ['dm', 'channels', 'issues', 'topics', 'flow', 'events']
+const DEFAULT = ['dm', 'channels', 'issues', 'topics', 'flow', 'events', 'archive']
 const puppeteer = await loadPuppeteer()
 const res = { base: BASE, at: new Date().toISOString(), steps: [] }
 let failed = 0
@@ -94,6 +95,14 @@ try {
   await sleep(800)
   step('click: Issues navigates to /issues', /\/issues$/.test(new URL(p.url()).pathname), { url: p.url() })
   step('click: the order did not change', same(await railOf(p), DEFAULT) && (await claimOf(p)) === null)
+  /* SPL-983: Archive is the 7th entry and opens its page */
+  await p.click('[data-testid=sidebar-tab-archive]')
+  await p.waitForFunction(() => /\/archive$/.test(location.pathname), { timeout: 15000 }).catch(() => {})
+  await sleep(800)
+  step('click: Archive navigates to /archive', /\/archive$/.test(new URL(p.url()).pathname), { url: p.url() })
+  await p.click('[data-testid=sidebar-tab-issues]')
+  await p.waitForFunction(() => /\/issues$/.test(location.pathname), { timeout: 15000 }).catch(() => {})
+  await sleep(800)
 
   // ── mouse drag: Event log to the top ─────────────────────────────────
   const from = await centre(p, '[data-testid=sidebar-tab-events]')
@@ -105,7 +114,7 @@ try {
   await sleep(150)
   const mid = await railOf(p)
   await p.mouse.up()
-  const wantMouse = ['events', 'dm', 'channels', 'issues', 'topics', 'flow']
+  const wantMouse = ['events', 'dm', 'channels', 'issues', 'topics', 'flow', 'archive']
   await sleep(400)
   step('mouse drag: the icons follow the pointer while dragging', same(mid, wantMouse), { mid })
   step('mouse drag: the rail keeps the new order at once', same(await railOf(p), wantMouse), { rail: await railOf(p) })
@@ -124,11 +133,11 @@ try {
   const listOf = async () => p.$$eval('[data-test=rail-order-list] [data-reorder-id]', (els) => els.map((e) => e.getAttribute('data-reorder-id')))
   step('settings: the list shows the rail order', same(await listOf(), wantMouse), { list: await listOf() })
   step('settings: the first row cannot move up, the last cannot move down',
-    await p.$eval('[data-test=rail-order-up-events]', (b) => b.disabled) && await p.$eval('[data-test=rail-order-down-flow]', (b) => b.disabled))
+    await p.$eval('[data-test=rail-order-up-events]', (b) => b.disabled) && await p.$eval('[data-test=rail-order-down-archive]', (b) => b.disabled))
   await p.focus('[data-test=rail-order-down-events]')
   await p.keyboard.press('Enter')
   await sleep(900)
-  const wantDown = ['dm', 'events', 'channels', 'issues', 'topics', 'flow']
+  const wantDown = ['dm', 'events', 'channels', 'issues', 'topics', 'flow', 'archive']
   step('settings: the keyboard moves Event log down one', same(await listOf(), wantDown), { list: await listOf() })
   step('settings: that is stored', await waitClaim(p, wantDown))
   step('settings: the rail on this page redrew at once', same(await railOf(p), wantDown), { rail: await railOf(p) })
@@ -151,7 +160,7 @@ try {
   await sleep(150)
   await q.touchscreen.touchEnd()
   await sleep(500)
-  const wantTouch = ['topics', 'dm', 'events', 'channels', 'issues', 'flow']
+  const wantTouch = ['topics', 'dm', 'events', 'channels', 'issues', 'flow', 'archive']
   step('touch drag: the rail reorders on a phone', same(await railOf(q), wantTouch), { rail: await railOf(q) })
   step('touch drag: stored on the account', await waitClaim(q, wantTouch))
   await q.screenshot({ path: `${OUT}/03-phone-after-touch-drag.png` })

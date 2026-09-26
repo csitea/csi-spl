@@ -183,7 +183,8 @@ declare module '~/utils/sidebar-tabs.mjs' {
   export const USERS_TAB: 'users'
   export const EVENTS_TAB: 'events'
   export const ISSUES_TAB: 'issues'
-  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | null
+  export const ARCHIVE_TAB: 'archive'
+  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | null
   export function switchPaneOf(text: string): 'dm' | 'channels' | 'topics' | 'flow' | '' | null
   export function flowRows(src?: {
     channels?: unknown[]
@@ -1034,7 +1035,7 @@ declare module '~/utils/submit-key.mjs' {
 }
 
 declare module '~/utils/rail-order.mjs' {
-  export type RailId = 'dm' | 'channels' | 'issues' | 'topics' | 'flow' | 'events'
+  export type RailId = 'dm' | 'channels' | 'issues' | 'topics' | 'flow' | 'events' | 'archive'
   export const RAIL_TABS: readonly { readonly id: RailId, readonly icon: import('~/utils/uiIcons').UiIconName, readonly labelKey: string }[]
   export const RAIL_IDS: readonly RailId[]
   export const DRAG_THRESHOLD_PX: number

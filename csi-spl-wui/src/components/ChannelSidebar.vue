@@ -577,7 +577,7 @@ import { channelActivity, channelSlug, connectionHealth, namedLine, orderPeers, 
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
 import { buildStampText, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
-import { EVENTS_TAB, ISSUES_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { ARCHIVE_TAB, EVENTS_TAB, ISSUES_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { RAIL_TABS, type RailId } from '~/utils/rail-order.mjs'
 import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
@@ -590,7 +590,7 @@ import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { measureControlText, TENANT_ARROW_GAP_PX, TENANT_TEXT_PAD_PX, tenantDrawnLabels, tenantHint, tenantSwitchOptions, widestLabelWidth } from '~/utils/tenant-switcher.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
-type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'issues' | 'events' | 'users'
+type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'issues' | 'events' | 'archive' | 'users'
 /* The six rail tabs (utils/rail-order.mjs RAIL_TABS) in the person's order
    (SPL-979). A matching route follows the page; search and settings keep the
    reader's choice. */
@@ -806,6 +806,7 @@ async function selectTab(next: SideTab) {
   if (next === 'flow' && viewer.topics.length === 0) void viewer.loadTopics()
   if (next === USERS_TAB && tabForPath(route.path) !== USERS_TAB) await navigateTo(localePath('/users'))
   if (next === EVENTS_TAB && tabForPath(route.path) !== EVENTS_TAB) await navigateTo(localePath('/events'))
+  if (next === ARCHIVE_TAB && tabForPath(route.path) !== ARCHIVE_TAB) await navigateTo(localePath('/archive'))
   if (next === ISSUES_TAB) await navigateTo(localePath('/issues'))
 }
 const sidePane = useSidePane()
@@ -823,7 +824,7 @@ watch(() => sidePane.requested.value, (req) => {
 })
 watch(tab, (id) => {
   rowMenu.value = ''
-  if (id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB) sidePane.setCurrent(id)
+  if (id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB) sidePane.setCurrent(id)
   if ((id === 'topics' || id === 'flow') && viewer.topics.length === 0) void viewer.loadTopics()
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */

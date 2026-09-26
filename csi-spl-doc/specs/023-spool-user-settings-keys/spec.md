@@ -247,10 +247,13 @@ renders once, in the parent, for every section.
 > back and forth, and the same order should appear in their user settings,
 > and they should be able to adjust it from there as well"
 
-- **Six tabs**, `utils/rail-order.mjs` `RAIL_TABS` (id, icon, label):
-  `dm`, `channels`, `issues`, `topics`, `flow`, `events`. That is also the
-  **default order** (today's). The admin-only Users tab is not one of them
-  and always stays last.
+- **Seven tabs**, `utils/rail-order.mjs` `RAIL_TABS` (id, icon, label):
+  `dm`, `channels`, `issues`, `topics`, `flow`, `events` and, since SPL-983
+  (owner, topic 8f58f802), `archive` (the Archive page, `/archive`, CLE-35018).
+  That is also the **default order**. The admin-only Users tab is not one of
+  them and always stays last. An order stored before Archive existed (six ids)
+  is drawn with Archive appended (`parseRailOrder`); the hub and rdb 0064
+  admit both the legacy six and all seven (hub 0.9.5, `86cf0ff2`).
 - **Drag in the rail** (primary). `composables/useDragReorder.ts`: pointer
   events, so mouse, pen and touch alike; a press becomes a drag only past
   `DRAG_THRESHOLD_PX` (6 px), so a plain click still navigates, and the click
@@ -350,4 +353,4 @@ renders once, in the parent, for every section.
   HUM-* signing CLI messages, or pinning a personal box from the WUI. Pick one
   before the key becomes load-bearing.
 
-<!-- version: 1.5.0 · updated: 2026-09-26 · last-edit: 2026-09-26T19:45:00Z -->
+<!-- version: 1.5.1 · updated: 2026-09-27 · last-edit: 2026-09-27T01:00:00Z -->

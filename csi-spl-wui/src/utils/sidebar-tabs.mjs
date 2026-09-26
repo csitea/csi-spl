@@ -18,6 +18,10 @@ export const EVENTS_TAB = 'events'
  *  like the event log, so it is not one of the four sidebar lists. */
 export const ISSUES_TAB = 'issues'
 
+/** Archive (SPL-983): archived threads on /archive, the 7th reorderable rail
+ *  tab (last by default, utils/rail-order.mjs). A page, like the event log. */
+export const ARCHIVE_TAB = 'archive'
+
 /** Names accepted after `/switch-pane:`. `messages` is the direct-message pane.
  *  `topic` and `topics` are the same pane. */
 const SWITCH_PANE_NAMES = {
@@ -33,7 +37,7 @@ const SWITCH_PANE_NAMES = {
  * Search and settings return null so the reader's own choice stays.
  * The call site starts on direct messages.
  * @param {string} path vue-router path, no query
- * @returns {'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | null}
+ * @returns {'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | null}
  */
 export function tabForPath(path) {
   const p = productPath(path)
@@ -43,6 +47,7 @@ export function tabForPath(path) {
   if (p === '/issues') return ISSUES_TAB
   if (p === '/users') return USERS_TAB
   if (p === '/events') return EVENTS_TAB
+  if (p === '/archive') return ARCHIVE_TAB
   return null
 }
 

@@ -5,7 +5,9 @@
 // itself, or reorders the list in Settings (drag, or up/down for the
 // keyboard); both write one value on the hub (humans.rail_order, rdb 0063),
 // answered as the `rail_order` session claim, null when never reordered.
-// The admin-only Users tab is not one of the six: it always stays last.
+// The admin-only Users tab is not one of them: it always stays last. Since
+// SPL-983 there are seven (Archive); an order stored before that holds six
+// and is drawn with the missing tab appended (parseRailOrder).
 
 /** The six tabs in the default order, with their icon and catalogue key. */
 export const RAIL_TABS = Object.freeze([
@@ -17,6 +19,8 @@ export const RAIL_TABS = Object.freeze([
   Object.freeze({ id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' }),
   /* CLE-34990: the personal Event log, directly after flow (owner, topic 4335f075). */
   Object.freeze({ id: 'events', icon: 'history', labelKey: 'sidebar.events' }),
+  /* SPL-983: Archive (owner, topic 8f58f802), last by default; the page is CLE-35018's. */
+  Object.freeze({ id: 'archive', icon: 'archive', labelKey: 'sidebar.archive' }),
 ])
 
 export const RAIL_IDS = Object.freeze(RAIL_TABS.map((t) => t.id))
@@ -31,9 +35,19 @@ export function isRailOrder(raw) {
   return seen.size === RAIL_IDS.length && RAIL_IDS.every((id) => seen.has(id))
 }
 
-/** The stored order when it is a valid one, else the default order. */
+/**
+ * The order to draw: the stored one, tolerant of a tab added since it was
+ * stored (SPL-983 Archive: an order saved with six ids keeps them in place
+ * and gets the new tab appended). Unknown and repeated ids are dropped; no
+ * stored order at all is the default order.
+ */
 export function parseRailOrder(raw) {
-  return isRailOrder(raw) ? [...raw] : [...RAIL_IDS]
+  if (!Array.isArray(raw)) return [...RAIL_IDS]
+  const out = []
+  for (const id of raw) if (RAIL_IDS.includes(id) && !out.includes(id)) out.push(id)
+  if (out.length === 0) return [...RAIL_IDS]
+  for (const id of RAIL_IDS) if (!out.includes(id)) out.push(id)
+  return out
 }
 
 export function sameOrder(a, b) {
@@ -84,7 +98,8 @@ export function isDrag(dx, dy, threshold = DRAG_THRESHOLD_PX) {
  *           save: (o: string[] | null) => Promise<{ ok: boolean }> }} io
  */
 export async function applyRailOrder(want, { current, apply, save }) {
-  const prev = isRailOrder(current) ? [...current] : null
+  /* a legacy (shorter) stored order is kept as it was on a revert */
+  const prev = Array.isArray(current) && current.length > 0 ? [...current] : null
   if (want !== null && !isRailOrder(want)) return { ok: false, value: prev }
   if (want === null ? prev === null : (prev !== null && sameOrder(want, prev))) return { ok: true, value: prev }
   const next = want === null ? null : [...want]

@@ -173,7 +173,12 @@ renders once, in the parent, for every section.
   /api/v1/auth/preferences` `preferred_theme` (`saveThemeToAccount` in
   `utils/theme.mjs`), so the operator default and the person's own choice are
   one field and a new device starts from it. A failed save is silent;
-  `localStorage` stays this browser's source.
+  `localStorage` stays this browser's source. Hub 0.8.7 (`977af005`): the native
+  `POST /login` answer carries `preferred_theme` too - before it a password
+  sign-in never applied a stored theme (the WUI adopts that answer with no
+  session probe). Issue SPL-965. Live proof (dev, hub 0.8.7, WUI `bb849ff0`,
+  n=1): a pick in browser A (PUT 200) is the theme a fresh browser B signs in
+  to.
 - **Contrast, computed** (`tests/unit/theme-contrast.test.mjs`, trunk
   `a159f76f`, worst pair per theme; bars text 4.5:1, focus ring 3:1):
 
@@ -249,4 +254,4 @@ renders once, in the parent, for every section.
   HUM-* signing CLI messages, or pinning a personal box from the WUI. Pick one
   before the key becomes load-bearing.
 
-<!-- version: 1.3.0 · updated: 2026-09-26 · last-edit: 2026-09-26T14:00:00Z -->
+<!-- version: 1.3.1 · updated: 2026-09-26 · last-edit: 2026-09-26T14:30:00Z -->

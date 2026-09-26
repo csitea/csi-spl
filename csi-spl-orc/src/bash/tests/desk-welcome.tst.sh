@@ -17,6 +17,7 @@
 #   8. preferred_locale picks the language; an unknown one falls back to cnf
 #   9. the dry run writes no ledger and posts nothing
 #  10. every locale x variant fits 33 words with a three-word name
+#  11. a test/proof account is skipped unless WELCOME_INCLUDE_TEST=1
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -51,8 +52,8 @@ run() {
     }
     do_spl_desk_welcome' >"$T/o" 2>&1
 }
-admit() {  # tenant human at name locale
-  printf '{"tenant":"%s","human":"%s","at":%s,"name":"%s","locale":"%s"}\n' "$@"
+admit() {  # tenant human at name locale [test]
+  printf '{"tenant":"%s","human":"%s","at":%s,"name":"%s","locale":"%s","test":%s}\n' "$1" "$2" "$3" "$4" "$5" "${6:-false}"
 }
 posts_for() { grep -c "$1" "$POSTS" || true; }
 
@@ -132,6 +133,14 @@ run DRY_RUN=0 WELCOME_CAP=1
 grep 'Kristina' "$POSTS" | grep -qE 'Добре|Здравейте|Ура' && pass "8. preferred_locale bg greets in Bulgarian" || fail "8. bg: $(grep Kristina "$POSTS")"
 grep 'Pat' "$POSTS" | grep -qE 'Welcome|Hello|Hooray' && pass "8. an unknown locale falls back to the cnf default (en)" || fail "8. fallback: $(grep Pat "$POSTS")"
 [[ "$(grep -c 'Kristina' "$POSTS")" == 1 ]] && pass "8. WELCOME_CAP=1 posts one greeting" || fail "8. cap 1: $(grep -c Kristina "$POSTS")"
+
+# 11. a test/proof account is skipped unless WELCOME_INCLUDE_TEST=1
+ADMITS="$T/a11"; admit t1 HUM-30 3000 'm3-e2e human' '' true >"$ADMITS"
+run DRY_RUN=0
+[[ "$(grep -c 'm3-e2e human' "$POSTS")" == 0 && ! -e "$ST/welcome/t1/HUM-30/done" ]] && grep -q 'test/proof account' "$T/o" &&
+  pass "11. a test/proof account is not greeted" || fail "11. test skipped: $(cat "$T/o")"
+run DRY_RUN=0 WELCOME_INCLUDE_TEST=1 WELCOME_CAP=1
+[[ "$(grep -c 'm3-e2e human' "$POSTS")" == 1 ]] && pass "11. CONTROL: WELCOME_INCLUDE_TEST=1 greets it (live proofs)" || fail "11. include test: $(cat "$T/o")"
 
 # every post went to t1 only
 [[ "$(cut -f1 "$POSTS" | sort -u)" == t1 ]] && pass "posts stay in the admit's tenant" || fail "tenants: $(cut -f1 "$POSTS" | sort -u)"

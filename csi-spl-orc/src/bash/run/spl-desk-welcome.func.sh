@@ -20,6 +20,9 @@
 # @description tenant writes its baseline, so the members it already has are
 # @description never greeted. Read through the Cloud SQL proxy as the env's
 # @description project service account, in a READ ONLY transaction.
+# @description A test or proof account is never greeted (an @example.com
+# @description address, or e2e / proof in the address or the display name)
+# @description unless WELCOME_INCLUDE_TEST=1, which is for a live proof only.
 # @description Bots rotate round-robin over the tenant's live seats. Run by
 # @description desk-reconcile-cron.sh every tick. Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd
@@ -29,6 +32,7 @@
 # @param WELCOME_CAP (optional) - bots per person, 1..10, default 3
 # @param WELCOME_MAX_AGE_H (optional) - oldest admit greeted, hours, default 24
 # @param WELCOME_TRIES (optional) - refused posts per bot before giving up, default 3
+# @param WELCOME_INCLUDE_TEST (optional) - 1 greets test/proof accounts too (live proofs), default 0
 # @param WELCOME_PROXY_PORT (optional) - local proxy port, default 55487 dev / 55488 prd
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_desk_welcome
@@ -44,6 +48,8 @@ do_spl_desk_welcome() {
   [[ "$cap" =~ ^([1-9]|10)$ ]] || { do_log "FATAL WELCOME_CAP must be 1..10, got: '$cap'"; return 1; }
   [[ "$age" =~ ^[1-9][0-9]{0,3}$ ]] || { do_log "FATAL WELCOME_MAX_AGE_H must be 1..9999 hours, got: '$age'"; return 1; }
   [[ "$tries" =~ ^[1-9]$ ]] || { do_log "FATAL WELCOME_TRIES must be 1..9, got: '$tries'"; return 1; }
+  local withtest="${WELCOME_INCLUDE_TEST:-0}"
+  [[ "$withtest" == 0 || "$withtest" == 1 ]] || { do_log "FATAL WELCOME_INCLUDE_TEST must be 0 or 1, got: '$withtest'"; return 1; }
 
   local -a tenants=()
   local t
@@ -99,7 +105,9 @@ do_spl_desk_welcome() {
   local line tenant human at name locale base D greeted=0 failed=0
   local -a live=() plan=()
   mapfile -t live < <(spl_desk_live_agents)
-  while IFS=$'\t' read -r tenant human at name locale; do
+  # \x1f, not a tab: a tab is IFS whitespace, so an empty locale would
+  # collapse and shift the fields after it.
+  while IFS=$'\x1f' read -r tenant human at name locale istest; do
     [[ -n "$tenant" ]] || continue
     [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$human" =~ ^HUM-[0-9]+$ && "$at" =~ ^[0-9]+$ ]] ||
       { do_log "WARN skipping a malformed admit row: $tenant $human $at"; continue; }
@@ -108,6 +116,10 @@ do_spl_desk_welcome() {
     (( at > base )) || continue
     D="$L/$tenant/$human"
     [[ -e "$D/done" ]] && continue
+    if [[ "$istest" == 1 && "$withtest" != 1 ]]; then
+      do_log "INFO $tenant: $human is a test/proof account; not greeted (WELCOME_INCLUDE_TEST=1 for a live proof)"
+      continue
+    fi
     mkdir -p "$D" || return 1
     if [[ ! -s "$D/plan" ]]; then
       spl_desk_welcome_plan "$L/$tenant" "$SPL_STATE_DIR/desk/$tenant/$box/spool" "$cap" "${live[@]}" >"$D/plan.tmp" &&
@@ -163,7 +175,8 @@ for l in sys.stdin:
         continue
     r = json.loads(l)
     name = " ".join(str(r.get("name") or "").split())
-    print("\t".join([r["tenant"], r["human"], str(r["at"]), name, r.get("locale") or ""]))
+    print("\x1f".join([r["tenant"], r["human"], str(r["at"]), name, r.get("locale") or "",
+                     "1" if r.get("test") else "0"]))
 ')
   do_log "OK welcome run over ${tenants[*]} in $ENV: $greeted greeting(s) posted, $failed refused"
   (( failed == 0 ))
@@ -199,8 +212,10 @@ spl_desk_welcome_post() {
 
 # spl_desk_welcome_admits "<tenant ...>" <hours>: one JSON line per membership
 # of those tenants younger than <hours> whose human is not disabled -
-# {tenant, human, at (epoch s), name, locale}. The name is the display name,
-# else the email's local part; the email itself never leaves this query.
+# {tenant, human, at (epoch s), name, locale, test}. The name is the display
+# name, else the email's local part; the email itself never leaves this query.
+# test: an @example.com address (every harness and proof account uses one), or
+# e2e / proof in the address or the display name (the m3-e2e accounts).
 spl_desk_welcome_admits() {
   SPL_PROXY_PORT="${WELCOME_PROXY_PORT:-$([[ "$ENV" == prd ]] && echo 55488 || echo 55487)}"
   do_gcp_pin_account "$SPL_CNF" || return 1
@@ -220,7 +235,10 @@ SELECT json_build_object(
          'name',   coalesce(nullif(btrim(h.display_name), ''),
                             nullif(split_part(split_part(coalesce(h.email, ''), '@', 1), '+', 1), ''),
                             ''),
-         'locale', coalesce(h.preferred_locale, ''))
+         'locale', coalesce(h.preferred_locale, ''),
+         'test',   (coalesce(h.email, '') LIKE '%@example.com'
+                    OR coalesce(h.email, '') ~* '(e2e|proof)'
+                    OR coalesce(h.display_name, '') ~* '(e2e|proof)'))
   FROM tenant_memberships m
   JOIN humans h USING (human_id)
  WHERE m.tenant_id = ANY (string_to_array(:'tenants', ' '))

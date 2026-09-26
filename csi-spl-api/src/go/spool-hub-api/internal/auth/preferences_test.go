@@ -263,11 +263,23 @@ func TestPreferencesTheme(t *testing.T) {
 			t.Fatalf("session after %s: %s", id, got.raw)
 		}
 	}
+	// the native login answer carries it too: the WUI adopts that answer with
+	// no second probe, so without it the stored theme never applied
+	c2 := browser(t)
+	if got := r.post(t, c2, "login", map[string]string{"email": "person@example.com", "password": pwA, "tenant": "acme"}); got.code != http.StatusOK ||
+		got.body["preferred_theme"] != auth.ThemeIDs[len(auth.ThemeIDs)-1] {
+		t.Fatalf("login answer: %d %s", got.code, got.raw)
+	}
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"preferred_theme":null}`); got.code != http.StatusOK || got.body["preferred_theme"] != nil {
 		t.Fatalf("clear: %d %s", got.code, got.raw)
 	}
 	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["preferred_theme"] != nil {
 		t.Fatalf("session after clear: %s", got.raw)
+	}
+	if got := r.post(t, browser(t), "login", map[string]string{"email": "person@example.com", "password": pwA, "tenant": "acme"}); got.code != http.StatusOK {
+		t.Fatalf("login after clear: %d %s", got.code, got.raw)
+	} else if v, ok := got.body["preferred_theme"]; !ok || v != nil {
+		t.Fatalf("login after clear must answer preferred_theme null: %s", got.raw)
 	}
 	before := map[string]string{}
 	for k, v := range prefs.theme {

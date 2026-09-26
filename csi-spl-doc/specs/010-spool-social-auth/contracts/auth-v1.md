@@ -107,8 +107,9 @@ included, is `400 invalid_display_name` — a name cannot be cleared) and
 `preferred_theme` (CLE-34994: one of the palette ids `dark`, `light` — the
 light-blue one — `light-violet`, `light-green`, `light-yellow`,
 `light-orange`, `light-red`, exactly, or `null` to clear; anything else is
-`400 unsupported_theme`). The session answers `preferred_theme` (`null` when
-unset); the WUI applies it once per sign-in, and its palette picker writes
+`400 unsupported_theme`). The session and the native `POST /login` answer
+carry `preferred_theme` (`null` when unset; hub 0.8.7 - before it the login
+answer lacked it, so a password sign-in never applied a stored theme); the WUI applies it once per sign-in, and its palette picker writes
 the person's own choice back here, so an operator default
 (`do_spl_human_theme`) and the person's pick are one field. The list is
 `auth.ThemeIDs` in the hub and `humans_preferred_theme_check` in the DB.

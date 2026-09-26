@@ -397,6 +397,8 @@ type loginResp struct {
 	// The same operator grant GET /session answers (005 T035), so the WUI can
 	// adopt these claims without a second probe. Computed, never signed in.
 	DiagnosticsEnabled bool `json:"diagnostics_enabled"`
+	// PreferredTheme as GET /session answers it (CLE-34994), null when unset.
+	PreferredTheme *string `json:"preferred_theme"`
 }
 
 func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -486,7 +488,7 @@ func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
 	claims := sess
 	claims.Name = n.h.shownName(ctx, sess)
 	writeJSON(w, http.StatusOK, loginResp{Session: claims, Redirect: safeRedirect(req.Redirect),
-		DiagnosticsEnabled: n.h.diagnosticsGrant(ctx, sess)})
+		DiagnosticsEnabled: n.h.diagnosticsGrant(ctx, sess), PreferredTheme: n.h.preferredTheme(ctx, sess)})
 }
 
 type emailReq struct {

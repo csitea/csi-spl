@@ -368,14 +368,30 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		} else if i18n.IsSupported(loc) {
 			out.PreferredLocale = &loc
 		}
-		if theme, err := h.prefs.PreferredTheme(r.Context(), s.HumanID); err != nil {
-			h.log.Warn().Err(err).Msg("auth.session preferred_theme lookup")
-		} else if theme != "" {
-			out.PreferredTheme = &theme
-		}
+		out.PreferredTheme = h.preferredTheme(r.Context(), s)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
+}
+
+// preferredTheme is the session human's stored colour theme, nil when unset,
+// with no registered human or no store, or when the read fails (the WUI then
+// keeps the browser's own). GET /session and the native POST /login answer
+// both carry it: the WUI adopts the login answer with no second probe, so a
+// theme missing there was never applied after a password sign-in.
+func (h *Handler) preferredTheme(ctx context.Context, s Session) *string {
+	if s.HumanID == "" || h.prefs == nil {
+		return nil
+	}
+	theme, err := h.prefs.PreferredTheme(ctx, s.HumanID)
+	if err != nil {
+		h.log.Warn().Err(err).Msg("auth preferred_theme lookup")
+		return nil
+	}
+	if theme == "" {
+		return nil
+	}
+	return &theme
 }
 
 // diagnosticsGrant answers the WUI's `diagnostics_enabled` claim (005 T035,

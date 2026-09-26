@@ -99,7 +99,7 @@ section on the right. Each section is its own route and deep-linkable:
 | `/settings` | → redirects to `/settings/profile` | |
 | `/settings/profile` | Profile | the old Profile card, plus Display name (`DisplayNameSetting`, `e3cc76b0`) |
 | `/settings/language` | Language | CLE-3403's `<LanguageSetting/>` |
-| `/settings/appearance` | Appearance | theme, font size (3.5), Debug pane (`DebugPaneSetting`, `b8e376ba`, rdb 0038) |
+| `/settings/appearance` | Appearance | theme (3.6), font size (3.5), Debug pane (`DebugPaneSetting`, `b8e376ba`, rdb 0038) |
 | `/settings/security` | Sign-in and security | method, password change, sign out |
 | `/settings/keys` | Keys | 3.1-3.3 |
 
@@ -130,6 +130,48 @@ renders once, in the parent, for every section.
   size, and a hub field would cost a migration, a hub roll and a preferences
   contract change for a purely visual choice. A reader on a phone and on a
   desktop may also want different sizes.
+
+### 3.6 Theme picker and five themes (CLE-34994, owner 2026-09-26) — Partial
+
+> "fix the title of the app in the upper left corner - it is spool-hub and not
+> bare spool and change the theme switching to a painter pallette icon and add
+> several more themes which will be in between , aka the pallete will open a
+> drop box where themes could be chosed , and for now we would like to have
+> dark , light , light violette , and light green , and light violette and
+> light yellow themes"
+
+- **Brand.** The top-left brand, the page `<title>`, the PWA manifest
+  `name`/`short_name`, the iOS home-screen title and the no-env signed-out bar
+  read `spool-hub` (trunk `a159f76f`). The dev/prd signed-out bars already read
+  `spool-dev` / `spool-hub`.
+- **Five themes**, dark to light: `dark`, `light`, `light-violet`,
+  `light-green`, `light-yellow` ("light violette" named twice, read as one).
+  Each is a full `:root[data-theme=…]` palette in `variables.css` with the
+  light theme's token set (gate: `tests/unit/theme-tokens.test.mjs`).
+  Tokens: trunk `a159f76f`.
+- **Picker.** The sun/moon toggle becomes a palette-icon button
+  (`ThemeToggle.vue`, top bar right of the brand and Settings → Appearance)
+  opening a listbox of the five themes, the current one checked, each with a
+  swatch of its own background + accent. Keyboard: Enter/Space/Arrow open on
+  the current theme, arrows wrap, Home/End, Enter/Space choose, Escape and a
+  choice return focus to the button. Persistence unchanged: `localStorage`
+  `spool-theme`, `html[data-theme]`, default dark, no system-follow (it never
+  existed). Pending: lands with the 19-locale names (GRK-3520).
+- **Contrast, computed** (`tests/unit/theme-contrast.test.mjs`, trunk
+  `a159f76f`, worst pair per theme; bars text 4.5:1, focus ring 3:1):
+
+  | theme | text | muted | accent text | button text | error text | focus ring |
+  |---|---|---|---|---|---|---|
+  | dark | 13.5 | 6.2 | 9.7 | 8.3 | 5.0 | 10.2 |
+  | light | 12.1 | 5.4 | **3.0** | **3.2** | 4.8 | **1.75** |
+  | light-violet | 10.6 | 5.7 | 5.6 | 6.1 | 5.6 | 4.0 |
+  | light-green | 11.7 | 5.8 | 5.3 | 5.6 | 5.9 | 3.6 |
+  | light-yellow | 11.8 | 6.7 | 5.9 | 6.3 | 6.0 | 4.0 |
+
+  The three new themes clear every bar. The light theme's three shortfalls
+  predate this change (the ring is the 2026-09-20 "lighter line" order,
+  CLE-3427); they are pinned at today's value so they cannot worsen, and are
+  left for the owner to rule on.
 
 ## 4. Requirements
 
@@ -190,4 +232,4 @@ renders once, in the parent, for every section.
   HUM-* signing CLI messages, or pinning a personal box from the WUI. Pick one
   before the key becomes load-bearing.
 
-<!-- version: 1.1.0 · updated: 2026-09-25 · last-edit: 2026-09-25T18:33:59Z -->
+<!-- version: 1.2.0 · updated: 2026-09-26 · last-edit: 2026-09-26T06:50:00Z -->

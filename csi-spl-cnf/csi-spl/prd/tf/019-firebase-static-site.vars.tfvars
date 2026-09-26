@@ -8,5 +8,5 @@ fqdn        = "spool-hub.ai"
 site_id = "csi-spl-prd-site"
 cert_preference = "GROUPED"
 wait_dns_verification = false
-additional_fqdns = []
+additional_fqdns = ["leiden.spool-hub.ai"]
 bind_custom_domain = true

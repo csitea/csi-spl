@@ -9,8 +9,8 @@ gcp_zone     = "europe-north1-a"
 gcp_sa_email = "csi-spl-dev@csi-spl-dev.iam.gserviceaccount.com"
 # the hub service (030) and the hosts it answers on: the api host
 # env.dns.api_fqdn (derived by do_spl_merged_cnf, the same host the OAuth
-# callbacks use, so the two cannot drift) and one per env.dns.mapped_tenants entry
-# (<tenant>.<fqdn>); names come from cnf, the domain from env.dns only
+# callbacks use, so the two cannot drift). Tenant hosts <tenant>.<fqdn> are
+# the WUI's (019 Firebase custom domains, SPL-959), never a hub mapping.
 cloud_run_service_name       = "csi-spl-hub-dev"
 cloud_run_custom_domain      = "dev.api.spool-hub.ai"
 cloud_run_additional_domains = []

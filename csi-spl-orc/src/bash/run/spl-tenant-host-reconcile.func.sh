@@ -8,11 +8,11 @@
 # @description   pending / failed -> add to env.dns.mapped_tenants
 # @description   removing         -> drop from env.dns.mapped_tenants
 # @description   (a tenant whose billing_status is unpaid is left pending)
-# @description render 032 + 025, optionally commit + push that cnf change
+# @description render 019 + 025, optionally commit + push that cnf change
 # @description (CNF_PUSH=1, BEFORE the apply: a run that dies mid-apply leaves
 # @description trunk declaring the host, and the next run completes it), plan
 # @description with the destroy gate (only the removing tenants' addresses),
-# @description provision, then per added tenant: cert wait + probe -> ready
+# @description provision, then per added tenant: custom domain wait + WUI probe -> ready
 # @description (or failed + detail, retried next run); removed tenants ->
 # @description removed. Nothing open: exits 0 before touching terraform.
 # @description Prints `open=<n>` on stdout (and to GITHUB_OUTPUT when set).
@@ -103,7 +103,7 @@ spl_th_cnf_push() {
   root="$(git -C "$APP_PATH" rev-parse --show-toplevel)" || return 1
   local -a paths=(
     "$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV.env.yaml" "$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV.env.json"
-    "$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf/032-gcp-cloud-run-domain-mapping.vars.tfvars"
+    "$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf/019-firebase-static-site.vars.tfvars"
     "$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf/025-gcp-dns-zone.vars.tfvars"
   )
   local other

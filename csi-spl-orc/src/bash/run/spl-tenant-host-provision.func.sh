@@ -1,17 +1,21 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description Give ONE tenant its public host <tenant>.<fqdn> (specs/024,
-# @description owner 2026-09-19 "automate per tenant"). There is no wildcard:
-# @description the host is one Cloud Run domain mapping (032) + one ghs CNAME
-# @description (025), both rendered from cnf env.dns.mapped_tenants. So:
+# @description Give ONE tenant its public WUI host <tenant>.<fqdn> (SPL-959,
+# @description owner option B 2026-09-26; the apex stays t1's and is never
+# @description mapped). There is no wildcard: the host is one Firebase Hosting
+# @description custom domain of the env's WUI site (019 additional_fqdns) + its
+# @description records A 199.36.158.100 and TXT hosting-site=<site> (025), both
+# @description rendered from cnf env.dns.mapped_tenants. The hub stays on the
+# @description api host (spec-024's 032 hub mappings are gone). So:
 # @description   1. add the tenant to env.dns.mapped_tenants in <env>.env.yaml
 # @description      (the list terraform reads: a re-apply keeps every tenant)
-# @description   2. render 032 + 025 (make do-generate-config-for-step)
+# @description   2. render 019 + 025 (make do-generate-config-for-step)
 # @description   3. make do-tf-plan per step, GATE: stop on an error, a
-# @description      replace, or ANY destroy; then make do-provision
-# @description   4. do_spl_wait_for_mapping_cert, then do_spl_probe_hub_host
-# @description      until it passes (GFE edge propagation lags the cert)
-# @description   5. tenant_hosts.status = ready (failed + detail on error)
+# @description      replace, an in-place update or ANY destroy (the apex,
+# @description      api. and dev. records are never touched); then provision
+# @description   4. do_spl_wait_for_firebase_domain, then do_spl_probe_wui_host
+# @description      until it passes (edge propagation lags the cert)
+# @description   5. tenant_hosts.status = ready + detail (failed + why)
 # @description Idempotent: a mapped tenant re-runs as a no-op plan, a cert
 # @description check and a probe. Terraform only through the make / tf-runner
 # @description path; every gcloud / terraform call runs as the env SA from its
@@ -55,8 +59,9 @@ do_spl_tenant_host_provision() {
   spl_th_finish "$tenant"
 }
 
-# The steps a tenant host lives in, in apply order: the mapping, then its record.
-SPL_TH_STEPS="032-gcp-cloud-run-domain-mapping 025-gcp-dns-zone"
+# The steps a tenant host lives in, in apply order: the Firebase custom domain,
+# then its records (a deprovision removes them in the same order).
+SPL_TH_STEPS="019-firebase-static-site 025-gcp-dns-zone"
 
 # spl_th_valid_slug <tenant>: the hub's tenant alphabet and reserved labels
 # (csi-spl-api internal/msg ValidTenantID; spl-tenant-host.tst.sh keeps the
@@ -117,15 +122,16 @@ spl_th_make() {
 }
 
 # spl_th_render -> renders the tfvars of every SPL_TH_STEPS step (conf-validator
-# + tpl-gen containers) and proves the 032 tfvars now lists exactly the cnf
+# + tpl-gen containers) and proves the 019 tfvars now lists exactly the cnf
 # tenants: a render that silently kept the old list would plan a no-op.
+# (019's additional_fqdns is the list of tenant hosts.)
 spl_th_render() {
   local s out
   for s in $SPL_TH_STEPS; do
     out="$(spl_th_make do-generate-config-for-step STEP="$s")" ||
       { printf '%s\n' "$out" | tail -20 >&2; do_log "FATAL render of $s for $ENV failed"; return 1; }
   done
-  local tfv="$APP_PATH/$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf/032-gcp-cloud-run-domain-mapping.vars.tfvars" t
+  local tfv="$APP_PATH/$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf/019-firebase-static-site.vars.tfvars" t
   for t in $(yq -r '(.env.dns.mapped_tenants // [])[]' "$(spl_th_cnf_file)"); do
     grep -qF "\"$t.$SPL_FQDN\"" "$tfv" || { do_log "FATAL $tfv does not list $t.$SPL_FQDN after the render"; return 1; }
   done
@@ -134,13 +140,17 @@ spl_th_render() {
 
 # spl_th_plan_gate <plan output> <allowed destroy addresses, newline separated>
 # -> 0 apply, 3 no changes, 1 refuse. Refuses: no summary, an Error, a
-# replace, and any destroy of an address not in the allow list.
+# replace, an in-place update (the steps also hold the apex, api. and dev.
+# records and the apex custom domain: a tenant host only ever adds), and any
+# destroy of an address not in the allow list.
 spl_th_plan_gate() {
   local o="$1" allow="$2" sum a
   sum="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy|No changes' <<<"$o" | head -1)"
   [[ -n "$sum" ]] || { do_log "FATAL plan has no summary"; return 1; }
   grep -qE '^(│ )?Error' <<<"$o" && { do_log "FATAL plan has an Error"; return 1; }
   grep -q 'must be replaced' <<<"$o" && { do_log "FATAL plan replaces a resource"; return 1; }
+  grep -qE 'will be updated in-place|Plan: [0-9]+ to add, [1-9][0-9]* to change' <<<"$o" &&
+    { do_log "FATAL plan updates a resource in place"; return 1; }
   while IFS= read -r a; do
     [[ -z "$a" ]] && continue
     grep -qxF -- "$a" <<<"$allow" || { do_log "FATAL plan destroys $a, which is not a deprovisioned tenant's"; return 1; }
@@ -167,23 +177,24 @@ spl_th_apply() {
   done
 }
 
-# spl_th_finish <tenant> -> waits for the mapping cert, probes the host until
-# it passes, and records ready (or failed + why).
+# spl_th_finish <tenant> -> waits for the Firebase custom domain (host,
+# ownership, cert), probes the WUI on the host until it passes, and records
+# ready with its detail (or failed + why).
 spl_th_finish() {
   local t="$1" host="$1.$SPL_FQDN"
-  if ! ( DOMAIN="$host" TIMEOUT_SECONDS="${CERT_TIMEOUT_SECONDS:-3600}" do_spl_wait_for_mapping_cert ); then
-    spl_th_mark_one "$t" failed "cert not provisioned for $host"; return 1
+  if ! ( DOMAIN="$host" TIMEOUT_SECONDS="${CERT_TIMEOUT_SECONDS:-3600}" do_spl_wait_for_firebase_domain ); then
+    spl_th_mark_one "$t" failed "firebase custom domain $host not active (host/ownership/cert)"; return 1
   fi
   local deadline=$(($(date +%s) + ${PROBE_TIMEOUT_SECONDS:-1200}))
-  until ( HOST="$host" do_spl_probe_hub_host ); do
+  until ( HOST="$host" do_spl_probe_wui_host ); do
     if [[ $(date +%s) -ge $deadline ]]; then
       spl_th_mark_one "$t" failed "probe of $host did not pass"; return 1
     fi
     do_log "INFO $host does not answer yet (edge propagation); retrying in ${PROBE_POLL_SECONDS:-30}s"
     sleep "${PROBE_POLL_SECONDS:-30}"
   done
-  spl_th_mark_one "$t" ready ""
-  do_log "OK tenant host $host is served (mapping, record, cert, probe)"
+  spl_th_mark_one "$t" ready "https://$host firebase $SPL_ORG_APP-$ENV-site cert active, WUI probe ok $(date -u +%FT%TZ)"
+  do_log "OK tenant host $host is served (custom domain, records, cert, WUI probe)"
 }
 
 # spl_th_lock -> one tenant-host run per env on this machine (do_tf_init wipes

@@ -6,10 +6,10 @@
 #   2. cnf edit touches ONLY the mapped_tenants line, keeps every other byte,
 #      is idempotent, and add + del round-trip to the original file
 #   3. the plan gate: no-op / add pass; an Error, a replace, no summary and
-#      ANY destroy outside the allow list are refused (CONTROL: the same
+#      an in-place update and ANY destroy outside the allow list are refused (CONTROL: the same
 #      destroy passes once it is on the allow list)
-#   4. provision: render 032 + 025, plan + provision each through make, then
-#      cert -> probe -> ready; a plan that destroys another tenant's mapping
+#   4. provision: render 019 + 025, plan + provision each through make, then
+#      custom domain -> WUI probe -> ready; a plan that destroys another tenant's host
 #      is refused BEFORE any do-provision and marks the tenant failed
 #   5. reconcile: pending/failed -> add, removing -> del, unpaid held; nothing
 #      open -> no make call at all; DRY_RUN touches nothing
@@ -36,13 +36,13 @@ mkdir -p "$FAKE/csi-spl-cnf/csi-spl/dev/tf" "$FAKE/csi-spl-orc"
 # the fixture list is pinned to [t1] whatever the live cnf maps today
 sed -E 's/^    mapped_tenants: \[.*\]$/    mapped_tenants: [t1]/' "$APP_ROOT/csi-spl-cnf/csi-spl/dev.env.yaml" >"$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml"
 grep -qx '    mapped_tenants: \[t1\]' "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml" || { echo "FAIL: cannot pin the fixture's mapped_tenants"; exit 1; }
-cp "$APP_ROOT"/csi-spl-cnf/csi-spl/dev/tf/0{32,25}-*.vars.tfvars "$FAKE/csi-spl-cnf/csi-spl/dev/tf/"
+cp "$APP_ROOT"/csi-spl-cnf/csi-spl/dev/tf/0{19,25}-*.vars.tfvars "$FAKE/csi-spl-cnf/csi-spl/dev/tf/"
 ORIG="$T/dev.env.yaml.orig"; cp "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml" "$ORIG"
 CNF="$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml"
 
 # the stub make: logs "<target> <STEP>", answers do-tf-plan with $STUB_PLAN_<step
 # prefix> (default No changes), do-provision with Apply complete, and the render
-# by writing every cnf tenant into the fake 032 tfvars (what tpl-gen does)
+# by writing every cnf tenant into the fake 019 tfvars (what tpl-gen does)
 mkdir -p "$T/bin"
 cat >"$T/bin/make" <<'S'
 #!/usr/bin/env bash
@@ -51,16 +51,16 @@ for a in "$@"; do case "$a" in do-*) tgt="$a" ;; STEP=*) step="${a#STEP=}" ;; es
 echo "$tgt ${step%%-*}" >>"$STUB_LOG"
 case "$tgt" in
   do-generate-config-for-step)
-    if [[ "$step" == 032-* ]]; then
+    if [[ "$step" == 019-* ]]; then
       hosts=$(yq -r '(.env.dns.mapped_tenants // [])[] | . + ".dev.example.test"' "$STUB_CNF" | jq -R . | jq -cs .)
-      echo "cloud_run_additional_domains = $hosts" >"$STUB_TFV"
+      echo "additional_fqdns = $hosts" >"$STUB_TFV"
     fi ;;
   do-tf-plan) v="STUB_PLAN_${step%%-*}"; printf '%s\n' "${!v:-No changes. Your infrastructure matches the configuration.}" ;;
   do-provision) echo "Apply complete! Resources: 1 added, 0 changed, 0 destroyed." ;;
 esac
 S
 chmod +x "$T/bin/make"
-export STUB_LOG="$T/make.log" STUB_CNF="$CNF" STUB_TFV="$FAKE/csi-spl-cnf/csi-spl/dev/tf/032-gcp-cloud-run-domain-mapping.vars.tfvars"
+export STUB_LOG="$T/make.log" STUB_CNF="$CNF" STUB_TFV="$FAKE/csi-spl-cnf/csi-spl/dev/tf/019-firebase-static-site.vars.tfvars"
 
 # run SNIPPET with every orc function loaded and the cloud / DB edges stubbed
 in_orc() {
@@ -74,8 +74,8 @@ in_orc() {
     do_require_bin() { :; }
     spl_via_proxy() { case "$1" in _spl_th_open_rows) printf "%s" "${STUB_ROWS:-}" ;; _spl_th_tenant_exists) echo "${STUB_EXISTS:-0}" ;; esac; }
     spl_th_mark_one() { echo "MARK $1 $2" >>'"$T"'/mark.log; }
-    do_spl_wait_for_mapping_cert() { echo "CERT $DOMAIN" >>'"$T"'/mark.log; }
-    do_spl_probe_hub_host() { echo "PROBE $HOST" >>'"$T"'/mark.log; }
+    do_spl_wait_for_firebase_domain() { echo "CERT $DOMAIN" >>'"$T"'/mark.log; }
+    do_spl_probe_wui_host() { echo "PROBE $HOST" >>'"$T"'/mark.log; }
     eval "$SNIPPET"'
 }
 reset() { : >"$STUB_LOG"; : >"$T/mark.log"; cp "$ORIG" "$CNF"; }
@@ -106,9 +106,9 @@ SNIPPET='spl_th_cnf_set "$C" add x' in_orc C="$T/block.yaml" >/dev/null 2>&1 && 
 
 # --- 3. plan gate -------------------------------------------------------------
 gate() { SNIPPET='spl_th_plan_gate "$P" "$A"' in_orc P="$1" A="$2" >/dev/null 2>&1; echo $?; }
-P_ADD=$'  # google_cloud_run_domain_mapping.additional["n.dev.example.test"] will be created\nPlan: 1 to add, 0 to change, 0 to destroy.'
-P_DEL=$'  # google_cloud_run_domain_mapping.additional["t1.dev.example.test"] will be destroyed\nPlan: 0 to add, 0 to change, 1 to destroy.'
-ALLOW_T1=$'google_cloud_run_domain_mapping.additional["t1.dev.example.test"]\ngoogle_dns_record_set.cloud_run_mapping["t1/CNAME"]'
+P_ADD=$'  # google_firebase_hosting_custom_domain.additional["n.dev.example.test"] will be created\nPlan: 1 to add, 0 to change, 0 to destroy.'
+P_DEL=$'  # google_firebase_hosting_custom_domain.additional["t1.dev.example.test"] will be destroyed\nPlan: 0 to add, 0 to change, 1 to destroy.'
+ALLOW_T1=$'google_firebase_hosting_custom_domain.additional["t1.dev.example.test"]\ngoogle_dns_record_set.cloud_run_mapping["t1/A"]\ngoogle_dns_record_set.cloud_run_mapping["t1/TXT"]'
 [[ $(gate "No changes. Your infrastructure matches the configuration." "") == 3 ]] && pass "gate: no changes -> 3" || fail "gate: no changes"
 [[ $(gate "$P_ADD" "") == 0 ]] && pass "gate: an add -> apply" || fail "gate: add"
 [[ $(gate "$P_DEL" "") == 1 ]] && pass "gate: a destroy not on the allow list -> refused" || fail "gate: foreign destroy passed"
@@ -116,6 +116,8 @@ ALLOW_T1=$'google_cloud_run_domain_mapping.additional["t1.dev.example.test"]\ngo
 [[ $(gate $'  # x must be replaced\nPlan: 1 to add, 0 to change, 1 to destroy.' "$ALLOW_T1") == 1 ]] && pass "gate: a replace -> refused" || fail "gate: replace passed"
 [[ $(gate $'│ Error: boom\nPlan: 1 to add, 0 to change, 0 to destroy.' "") == 1 ]] && pass "gate: an Error -> refused" || fail "gate: error passed"
 [[ $(gate "Terraform crashed" "") == 1 ]] && pass "gate: no summary -> refused" || fail "gate: no summary passed"
+[[ $(gate $'  # google_firebase_hosting_custom_domain.default[0] will be updated in-place\nPlan: 1 to add, 1 to change, 0 to destroy.' "$ALLOW_T1") == 1 ]] &&
+  pass "gate: an in-place update (e.g. the apex custom domain) -> refused" || fail "gate: in-place update passed"
 
 # --- 4. provision -------------------------------------------------------------
 reset
@@ -123,18 +125,18 @@ out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt 2>&1); rc=$?
 [[ $rc == 0 && ! -s "$STUB_LOG" ]] && cmp -s "$ORIG" "$CNF" && pass "provision DRY_RUN: no make call, cnf untouched" ||
   fail "provision DRY_RUN rc=$rc make=[$(cat "$STUB_LOG")] $out"
 reset
-out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 STUB_PLAN_032="$P_ADD" STUB_PLAN_025="$P_ADD" 2>&1); rc=$?
-want=$'do-generate-config-for-step 032\ndo-generate-config-for-step 025\ndo-tf-plan 032\ndo-provision 032\ndo-tf-plan 025\ndo-provision 025'
-[[ $rc == 0 && "$(cat "$STUB_LOG")" == "$want" ]] && pass "provision: render 032+025, then plan+provision each, in order" ||
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 STUB_PLAN_019="$P_ADD" STUB_PLAN_025="$P_ADD" 2>&1); rc=$?
+want=$'do-generate-config-for-step 019\ndo-generate-config-for-step 025\ndo-tf-plan 019\ndo-provision 019\ndo-tf-plan 025\ndo-provision 025'
+[[ $rc == 0 && "$(cat "$STUB_LOG")" == "$want" ]] && pass "provision: render 019+025, then plan+provision each, in order" ||
   fail "provision rc=$rc make calls: $(cat "$STUB_LOG") :: $out"
 [[ "$(cat "$T/mark.log")" == $'CERT newt.dev.example.test\nPROBE newt.dev.example.test\nMARK newt ready' ]] &&
   pass "provision: cert wait -> probe -> ready" || fail "provision tail: $(cat "$T/mark.log")"
 grep -q '"t1.dev.example.test"' "$STUB_TFV" && grep -q '"newt.dev.example.test"' "$STUB_TFV" &&
-  pass "rendered 032 keeps t1 next to the new tenant" || fail "rendered tfvars: $(cat "$STUB_TFV")"
+  pass "rendered 019 keeps t1 next to the new tenant" || fail "rendered tfvars: $(cat "$STUB_TFV")"
 reset
-out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 STUB_PLAN_032="$P_DEL" 2>&1); rc=$?
+out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 STUB_PLAN_019="$P_DEL" 2>&1); rc=$?
 [[ $rc != 0 ]] && ! grep -q do-provision "$STUB_LOG" && grep -q 'MARK newt failed' "$T/mark.log" &&
-  pass "provision CONTROL: a plan dropping t1's mapping is refused before any apply, tenant marked failed" ||
+  pass "provision CONTROL: a plan dropping t1's custom domain is refused before any apply, tenant marked failed" ||
   fail "provision applied over a foreign destroy rc=$rc: $(cat "$STUB_LOG") $(cat "$T/mark.log")"
 reset
 out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=t1 DRY_RUN=0 2>&1); rc=$?
@@ -154,9 +156,9 @@ out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc STUB_ROWS="$ROWS" 2>&1); rc=
   grep -q 'add \[m2proof1 p1gone\] remove \[t1\]' <<<"$out" && grep -q 'unpaid): broke' <<<"$out" &&
   pass "reconcile DRY_RUN: add pending+failed, remove removing, hold unpaid; nothing touched" || fail "reconcile dry rc=$rc: $out"
 reset
-out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_ROWS="$ROWS" STUB_PLAN_032="$P_DEL" STUB_PLAN_025="$P_ADD" 2>&1); rc=$?
+out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 STUB_ROWS="$ROWS" STUB_PLAN_019="$P_DEL" STUB_PLAN_025="$P_ADD" 2>&1); rc=$?
 lst=$(yq -r '.env.dns.mapped_tenants | join(",")' "$CNF")
-[[ $rc == 0 && "$lst" == "m2proof1,p1gone" ]] && grep -q 'do-provision 032' "$STUB_LOG" &&
+[[ $rc == 0 && "$lst" == "m2proof1,p1gone" ]] && grep -q 'do-provision 019' "$STUB_LOG" &&
   [[ "$(sort "$T/mark.log" | grep MARK)" == $'MARK m2proof1 ready\nMARK p1gone ready\nMARK t1 removed' ]] &&
   pass "reconcile: cnf = [m2proof1,p1gone], t1's destroy admitted (removing), both ready, t1 removed" ||
   fail "reconcile rc=$rc list=$lst marks=$(cat "$T/mark.log") :: $out"
@@ -190,7 +192,7 @@ reset
 out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STUB_EXISTS=1 2>&1); rc=$?
 [[ $rc != 0 && ! -s "$STUB_LOG" ]] && cmp -s "$ORIG" "$CNF" && pass "deprovision refuses while the tenant row exists" || fail "deprovision of a live tenant rc=$rc: $out"
 reset
-out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STUB_EXISTS=0 STUB_PLAN_032="$P_DEL" 2>&1); rc=$?
+out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STUB_EXISTS=0 STUB_PLAN_019="$P_DEL" 2>&1); rc=$?
 [[ $rc == 0 ]] && ! spl_has=$(yq -e '.env.dns.mapped_tenants | any_c(. == "t1")' "$CNF" 2>/dev/null) && grep -q 'MARK t1 removed' "$T/mark.log" &&
   pass "deprovision: t1 out of cnf, only its own destroy admitted, marked removed" || fail "deprovision rc=$rc: $out"
 

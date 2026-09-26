@@ -9,7 +9,9 @@ gcp_region  = "{{ gcp["gcp_region"] }}"
 {%- endfor %}
 {%- set ns = namespace(recs=(steps["025-gcp-dns-zone"].get("cloud_run_mapping_records") or [])) %}
 {%- for t in ((dns.get("mapped_tenants") or []) if steps["025-gcp-dns-zone"].get("mapped_tenant_records") else []) %}
-{%- set ns.recs = ns.recs + [{"name": t, "type": "CNAME", "rrdatas": ["ghs.googlehosted.com."]}] %}
+{#- SPL-959: a tenant host is a Firebase Hosting custom domain of the WUI site
+    (019), as the apex: A 199.36.158.100 + TXT hosting-site=<site> #}
+{%- set ns.recs = ns.recs + [{"name": t, "type": "A", "rrdatas": ["199.36.158.100"]}, {"name": t, "type": "TXT", "rrdatas": ["\"hosting-site=" ~ ORG ~ "-" ~ APP ~ "-" ~ ENV ~ "-site\""]}] %}
 {%- endfor %}
 cloud_run_mapping_records = {{ ns.recs | tojson }}
 fqdn = {{ dns["fqdn"] | tojson }}

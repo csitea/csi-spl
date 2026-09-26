@@ -8,5 +8,5 @@ fqdn        = "dev.spool-hub.ai"
 site_id = "csi-spl-dev-site"
 cert_preference = "GROUPED"
 wait_dns_verification = false
-additional_fqdns = []
+additional_fqdns = ["csitea.dev.spool-hub.ai", "e2e.dev.spool-hub.ai"]
 bind_custom_domain = true

@@ -8,5 +8,11 @@ fqdn        = "{{ dns["fqdn"] }}"
 site_id = "{{ ORG }}-{{ APP }}-{{ ENV }}-site"
 cert_preference = "GROUPED"
 wait_dns_verification = false
-additional_fqdns = []
+{#- SPL-959 (owner option B 2026-09-26): every env.dns.mapped_tenants entry is a
+    custom domain <tenant>.<fqdn> of THIS site (the WUI), next to the cnf extras #}
+{%- set ns = namespace(extra=(steps["019-firebase-static-site"].get("additional_fqdns") or [])) %}
+{%- for t in (dns.get("mapped_tenants") or []) %}
+{%- set ns.extra = ns.extra + [t ~ "." ~ dns["fqdn"]] %}
+{%- endfor %}
+additional_fqdns = {{ ns.extra | tojson }}
 bind_custom_domain = {{ steps["019-firebase-static-site"].get("bind_custom_domain", false) | tojson }}

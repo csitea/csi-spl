@@ -2,10 +2,10 @@
 #------------------------------------------------------------------------------
 # @description Take ONE deleted tenant's host <tenant>.<fqdn> down (specs/024),
 # @description the twin of do_spl_tenant_host_provision: remove the tenant from
-# @description env.dns.mapped_tenants, render 032 + 025, plan with a GATE that
-# @description admits ONLY the destroy of this tenant's mapping
-# @description (032 additional["<host>"]) and CNAME (025
-# @description cloud_run_mapping["<tenant>/CNAME"]), provision, then
+# @description env.dns.mapped_tenants, render 019 + 025, plan with a GATE that
+# @description admits ONLY the destroy of this tenant's Firebase custom domain
+# @description (019 additional["<host>"]) and records (025
+# @description cloud_run_mapping["<tenant>/A"|"<tenant>/TXT"]), provision, then
 # @description tenant_hosts.status = removed. Refuses while the tenant row
 # @description still exists in the hub DB (FORCE=1 overrides, e.g. a host that
 # @description was mapped for a tenant never created). Terraform only through
@@ -50,7 +50,7 @@ do_spl_tenant_host_deprovision() {
   spl_th_render || return 1
   spl_th_apply "$(spl_th_destroy_allow "$tenant")" || { spl_th_mark_one "$tenant" failed "deprovision plan / apply refused or failed"; return 1; }
   spl_th_mark_one "$tenant" removed ""
-  do_log "OK tenant host $tenant.$SPL_FQDN deprovisioned (mapping + record)"
+  do_log "OK tenant host $tenant.$SPL_FQDN deprovisioned (custom domain + records)"
 }
 
 # spl_th_destroy_allow <tenant>... -> the terraform addresses a deprovision of
@@ -58,8 +58,9 @@ do_spl_tenant_host_deprovision() {
 spl_th_destroy_allow() {
   local t
   for t in "$@"; do
-    printf 'google_cloud_run_domain_mapping.additional["%s.%s"]\n' "$t" "$SPL_FQDN"
-    printf 'google_dns_record_set.cloud_run_mapping["%s/CNAME"]\n' "$t"
+    printf 'google_firebase_hosting_custom_domain.additional["%s.%s"]\n' "$t" "$SPL_FQDN"
+    printf 'google_dns_record_set.cloud_run_mapping["%s/A"]\n' "$t"
+    printf 'google_dns_record_set.cloud_run_mapping["%s/TXT"]\n' "$t"
   done
 }
 

@@ -9,15 +9,12 @@ gcp_zone     = "{{ gcp["gcp_region"] }}-a"
 gcp_sa_email = "{{ ORG }}-{{ APP }}-{{ ENV }}@{{ gcp["gcp_project"] }}.iam.gserviceaccount.com"
 # the hub service (030) and the hosts it answers on: the api host
 # env.dns.api_fqdn (derived by do_spl_merged_cnf, the same host the OAuth
-# callbacks use, so the two cannot drift) and one per env.dns.mapped_tenants entry
-# (<tenant>.<fqdn>); names come from cnf, the domain from env.dns only
+# callbacks use, so the two cannot drift). Tenant hosts <tenant>.<fqdn> are
+# the WUI's (019 Firebase custom domains, SPL-959), never a hub mapping.
 {%- set m = steps["032-gcp-cloud-run-domain-mapping"] %}
 {%- set ns = namespace(extra=[]) %}
 {%- for l in (m.get("additional_host_labels") or []) %}
 {%- set ns.extra = ns.extra + [l ~ "." ~ dns["BASE_DOMAIN"]] %}
-{%- endfor %}
-{%- for t in (dns.get("mapped_tenants") or []) %}
-{%- set ns.extra = ns.extra + [t ~ "." ~ dns["fqdn"]] %}
 {%- endfor %}
 cloud_run_service_name       = {{ hub["service_name"] | tojson }}
 cloud_run_custom_domain      = {{ (dns.get("api_fqdn") or "") | tojson }}

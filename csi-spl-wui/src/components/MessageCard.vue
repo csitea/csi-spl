@@ -54,7 +54,9 @@
              this card. The emoji control is not gated on that flag. -->
         <span class="msg-actions">
           <!-- Tab: the card, then this link, then the menu. The emoji stays
-               between them on screen (CSS order) and comes after the menu. -->
+               between them on screen (CSS order) and comes after the menu.
+               The Open button paints immediately left of this link (order -1)
+               and is reached after the emoji, so this link stays the first stop. -->
           <button
             v-if="count > 0 || alwaysTopic"
             class="replies"
@@ -87,6 +89,17 @@
             @click.stop="openPickerFromButton"
           >
             <UiIcon name="smile" :size="16" />
+          </button>
+          <button
+            v-if="topicLink && !titleOnly"
+            class="icon-btn icon-btn--accent"
+            type="button"
+            data-test="open-topic"
+            :aria-label="t('feed.open_topic')"
+            :title="t('feed.open_topic')"
+            @click="$emit('open-topic', msg)"
+          >
+            <UiIcon name="open" :size="16" />
           </button>
         </span>
       </div>
@@ -184,17 +197,6 @@
         <UiIcon name="alert-triangle" :size="14" />
         <span>{{ reactError }}</span>
       </p>
-      <button
-        v-if="topicLink && !titleOnly"
-        class="icon-btn icon-btn--accent"
-        type="button"
-        data-test="open-topic"
-        :aria-label="t('feed.open_topic')"
-        :title="t('feed.open_topic')"
-        @click="$emit('open-topic', msg)"
-      >
-        <UiIcon name="open" :size="16" />
-      </button>
     </div>
     <!-- mounted on open only: the menu is not in the initial JS (specs/027) -->
     <LazyMessageMenu
@@ -866,6 +868,7 @@ async function save() {
   align-self: center;
   gap: 2px;
 }
+.msg-actions [data-test="open-topic"] { order: -1; }
 .msg-actions .replies { order: 0; margin-top: 0; align-self: center; white-space: nowrap; }
 .msg-actions .icon-btn[data-testid="msg-emoji-btn"] { order: 1; }
 .msg-actions .msg-menu-btn { order: 2; }

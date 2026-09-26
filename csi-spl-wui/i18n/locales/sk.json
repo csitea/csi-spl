@@ -95,6 +95,15 @@
       "ctrl_enter": "Enter pridá riadok, Ctrl+Enter alebo Cmd+Enter odošle",
       "hint": "Pre správy, odpovede, komentáre a popisy úloh. Uloží sa do vášho účtu, takže platí na každom zariadení."
     },
+    "rail_order": {
+      "label": "Poradie ľavého panela",
+      "hint": "Presúvajte ikony v ľavom paneli alebo zmeňte poradie tu. Uloží sa do vášho účtu, takže každé zariadenie ukazuje rovnaké poradie.",
+      "drag": "Presuňte myšou na zmenu poradia",
+      "up": "Posunúť {name} nahor",
+      "down": "Posunúť {name} nadol",
+      "reset": "Predvolené poradie",
+      "moved": "{name} je teraz na mieste {n}"
+    },
     "signin_security": "Prihlásenie a zabezpečenie",
     "signed_in_with": "Prihlásený cez",
     "password_managed_by": "Vaše heslo spravuje {method}.",

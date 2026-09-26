@@ -95,6 +95,15 @@
       "ctrl_enter": "Enter for a new line, Ctrl+Enter or Cmd+Enter to send",
       "hint": "For messages, replies, issue comments and descriptions. Kept on your account, so every device follows it."
     },
+    "rail_order": {
+      "label": "Left panel order",
+      "hint": "Drag the icons in the left panel, or reorder them here. Kept on your account, so every device shows the same order.",
+      "drag": "Drag to reorder",
+      "up": "Move {name} up",
+      "down": "Move {name} down",
+      "reset": "Default order",
+      "moved": "{name} is now number {n}"
+    },
     "signin_security": "Sign-in and security",
     "signed_in_with": "Signed in with",
     "password_managed_by": "Your password is managed by {method}.",

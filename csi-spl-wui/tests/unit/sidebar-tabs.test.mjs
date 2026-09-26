@@ -74,20 +74,22 @@ describe('the strip is icons, in that order', () => {
   const css = src('src/assets/css/main.css')
 
   it('the rail lists the four tabs in order, icons only', () => {
+    /* SPL-979: the default order and icons live in utils/rail-order.mjs */
+    const tabs = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/utils/rail-order.mjs'), 'utf8')
     const ids = ["'dm'", "'channels'", "'topics'", "'flow'"]
     let at = 0
     for (const id of ids) {
-      const i = vue.indexOf(`id: ${id}`, at)
+      const i = tabs.indexOf(`id: ${id}`, at)
       assert.ok(i > at, id)
       at = i
     }
-    assert.match(vue, /icon: 'messages'/)
-    assert.match(vue, /icon: 'hash'/)
-    assert.match(vue, /icon: 'list'/)
-    assert.match(vue, /icon: 'waves'/)
+    assert.match(tabs, /icon: 'messages'/)
+    assert.match(tabs, /icon: 'hash'/)
+    assert.match(tabs, /icon: 'list'/)
+    assert.match(tabs, /icon: 'waves'/)
     // CLE-34969: the rendered rail is RAIL plus Users for members.invite.
     assert.match(vue, /v-for="item in rail"/)
-    assert.match(vue, /usersVisible\.value\s*\n?\s*\? \[\.\.\.RAIL, \{ id: USERS_TAB/)
+    assert.match(vue, /usersVisible\.value\s*\n?\s*\? \[\.\.\.RAIL\.value, \{ id: USERS_TAB/)
     assert.match(vue, /icon: 'users'/)
     assert.match(vue, /:aria-label="t\(item\.labelKey\)"/)
     assert.match(vue, /:title="t\(item\.labelKey\)"/)

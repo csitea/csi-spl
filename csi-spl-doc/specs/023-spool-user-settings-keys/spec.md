@@ -238,6 +238,39 @@ renders once, in the parent, for every section.
   keeps its own rule (`msg-edit.mjs`, 2026-09-22 order, CLE-35013/35014's
   lane); the Keys paste box has no submit key (Upload is a button).
 
+### 3.8 Behaviour → Left panel order (SPL-979, owner 2026-09-26) — Implemented
+
+> "one new setting in the user settings, new behaviour section - the order of
+> the entities in the left most panel - direct messages, channels, issues,
+> topics, flow, event log" — and: "the users should be able to set the order
+> by simply dragging the icons of each one of them in the left most panel
+> back and forth, and the same order should appear in their user settings,
+> and they should be able to adjust it from there as well"
+
+- **Six tabs**, `utils/rail-order.mjs` `RAIL_TABS` (id, icon, label):
+  `dm`, `channels`, `issues`, `topics`, `flow`, `events`. That is also the
+  **default order** (today's). The admin-only Users tab is not one of them
+  and always stays last.
+- **Drag in the rail** (primary). `composables/useDragReorder.ts`: pointer
+  events, so mouse, pen and touch alike; a press becomes a drag only past
+  `DRAG_THRESHOLD_PX` (6 px), so a plain click still navigates, and the click
+  that ends a drag is swallowed. The icons follow the pointer while dragging;
+  a drop saves at once. The rail icons carry `touch-action: none` so a touch
+  drag reorders instead of scrolling.
+- **Settings → Behaviour → Left panel order** (`RailOrderSetting.vue`): the
+  same order as a list, each row with a drag grip, an up and a down button
+  (keyboard; the pressed row keeps focus, a polite live region says the new
+  position), and **Default order** (stores `null`). Strings in all 19
+  locales.
+- **One value, kept on the account**: `humans.rail_order` (rdb 0063, NULL or
+  a permutation of the six ids, enforced by a CHECK), `PUT
+  /api/v1/auth/preferences` `rail_order`, answered by `GET /session` and the
+  native `POST /login`; hub 0.9.4 (`590fd54b`). The rail and the Settings list
+  both draw from the `rail_order` claim (`composables/useRailOrder.ts`), and a
+  save mirrors the claim first (reverted on a refusal), so a change in either
+  place shows in the other at once. An operator sets it with
+  `ENV=<env> HUMAN_ID=HUM-<n> RAIL_ORDER=<six ids> ./run -a do_spl_human_behaviour`.
+
 ## 4. Requirements
 
 - **FR-001** `/settings` is the two-column layout of 3.4; the user menu's
@@ -281,6 +314,15 @@ renders once, in the parent, for every section.
   its own Enter handling. Gate: `tests/unit/submit-key.test.mjs`.
 - **FR-014** An operator sets a human's mode with `do_spl_human_behaviour`
   (DRY_RUN default, one row or rollback); its list is rdb 0062's CHECK.
+- **FR-015** Dragging a left-rail icon (mouse or touch) past a 6 px threshold
+  reorders the six tabs and stores the order at once; a plain click still
+  navigates and never reorders.
+- **FR-016** Settings → Behaviour → Left panel order shows the same stored
+  order and changes it by drag, by up / down buttons (keyboard) and back to
+  the default; the rail and the list redraw at once from one value.
+- **FR-017** The order is kept per human on the hub (rdb 0063), answered by
+  the session and the native login, so every device draws it; an operator
+  sets it with `do_spl_human_behaviour RAIL_ORDER=`.
 
 ### 4.1 Status (trunk `28442ef6`, n=1)
 
@@ -293,6 +335,7 @@ renders once, in the parent, for every section.
 | FR-010 | Implemented | T031 |
 | FR-011 | Partial | T040-T042; missing: px font sizes left in `MessageBody.vue` (1), `ChannelSidebar.vue` (7), `ChannelPropertiesDialog.vue` (2), still on the `font-size.test.mjs` allow-list -> T043 |
 | FR-012..FR-014 | Implemented | SPL-976: hub `af883284` (0.9.3, rdb 0062 dev+prd); `node --test tests/unit/submit-key.test.mjs`; `bash csi-spl-orc/src/bash/tests/human-behaviour.tst.sh` 16 PASS; live proof `tests/e2e/submit-key-live.proof.mjs` (T050) |
+| FR-015..FR-017 | Implemented | SPL-979: hub `590fd54b` (0.9.4, rdb 0063 dev+prd); `node --test tests/unit/rail-order.test.mjs`; `bash csi-spl-orc/src/bash/tests/human-behaviour.tst.sh`; live proof `tests/e2e/rail-order-live.proof.mjs` (T052) |
 
 ## 5. Open questions (owner)
 
@@ -307,4 +350,4 @@ renders once, in the parent, for every section.
   HUM-* signing CLI messages, or pinning a personal box from the WUI. Pick one
   before the key becomes load-bearing.
 
-<!-- version: 1.4.0 · updated: 2026-09-26 · last-edit: 2026-09-26T19:30:00Z -->
+<!-- version: 1.5.0 · updated: 2026-09-26 · last-edit: 2026-09-26T19:45:00Z -->

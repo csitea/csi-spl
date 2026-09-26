@@ -19,12 +19,14 @@ describe('Event log rail tab', () => {
   })
 
   it('sits directly after flow in the rail, with its own icon and label', () => {
-    const src = read('src/components/ChannelSidebar.vue')
-    const flow = src.indexOf("{ id: 'flow', icon: 'waves'")
-    const events = src.indexOf("{ id: EVENTS_TAB, icon: 'history', labelKey: 'sidebar.events' }")
+    /* SPL-979: the default order lives in utils/rail-order.mjs RAIL_TABS */
+    const tabs = read('src/utils/rail-order.mjs')
+    const flow = tabs.indexOf("{ id: 'flow', icon: 'waves'")
+    const events = tabs.indexOf("{ id: 'events', icon: 'history', labelKey: 'sidebar.events' }")
     assert.ok(flow > 0 && events > flow, 'events entry follows flow')
-    const between = src.slice(flow, events)
+    const between = tabs.slice(flow, events)
     assert.equal(/\{ id: '/.test(between.slice(1)), false, 'nothing between flow and events')
+    const src = read('src/components/ChannelSidebar.vue')
     assert.match(src, /navigateTo\(localePath\('\/events'\)\)/)
   })
 

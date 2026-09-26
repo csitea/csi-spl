@@ -95,6 +95,15 @@
       "ctrl_enter": "yeni satır için Enter, göndermek için Ctrl+Enter veya Cmd+Enter",
       "hint": "Mesajlar, yanıtlar, iş yorumları ve açıklamalar için. Hesabınızda saklanır, böylece her cihazda geçerlidir."
     },
+    "rail_order": {
+      "label": "Sol panel sırası",
+      "hint": "Sol paneldeki simgeleri sürükleyin veya sırayı burada değiştirin. Hesabınızda saklanır, böylece her cihaz aynı sırayı gösterir.",
+      "drag": "Sırayı değiştirmek için sürükleyin",
+      "up": "{name} yukarı taşı",
+      "down": "{name} aşağı taşı",
+      "reset": "Varsayılan sıra",
+      "moved": "{name} artık {n}. sırada"
+    },
     "signin_security": "Giriş ve güvenlik",
     "signed_in_with": "Giriş yöntemi",
     "password_managed_by": "Parolanız {method} tarafından yönetiliyor.",

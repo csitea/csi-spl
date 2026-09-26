@@ -45,13 +45,17 @@
     </div>
     <p v-if="switchFailed" class="tenant-switcher__error" role="alert" data-testid="tenant-switch-error">{{ t('sidebar.tenant_switch_failed') }}</p>
     <div class="sidebar-main">
-    <!-- Top to bottom: direct messages, channels, topics, flow.
-         Icons only; each name lives on aria-label and title. -->
+    <!-- The person's order (SPL-979, Settings → Behaviour → Left panel
+         order; default: direct messages, channels, issues, topics, flow,
+         event log), then Users for admins. Icons only; each name lives on
+         aria-label and title. Dragging an icon reorders; a click navigates. -->
     <div
+      ref="railEl"
       class="sidebar-rail"
       role="tablist"
       aria-orientation="vertical"
       :aria-label="railLabel"
+      data-testid="sidebar-rail"
     >
       <button
         v-for="item in rail"
@@ -59,13 +63,16 @@
         :key="item.id"
         type="button"
         class="sidebar-tab"
+        :class="{ 'sidebar-tab--dragging': railDrag.draggingId.value === item.id, 'sidebar-tab--movable': item.id !== USERS_TAB }"
         role="tab"
         :data-testid="'sidebar-tab-' + item.id"
+        :data-reorder-id="item.id !== USERS_TAB ? item.id : undefined"
         :aria-selected="tab === item.id ? 'true' : 'false'"
         :aria-controls="'sidebar-panel-' + item.id"
         :tabindex="tab === item.id ? 0 : -1"
         :aria-label="t(item.labelKey)"
         :title="t(item.labelKey)"
+        @pointerdown="item.id !== USERS_TAB && railDrag.down($event, item.id as RailId)"
         @click="selectTab(item.id)"
         @keydown="onTabKey"
       >
@@ -561,6 +568,9 @@ import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
 import { buildStampText, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { EVENTS_TAB, ISSUES_TAB, flowRows, USERS_TAB, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { RAIL_TABS, type RailId } from '~/utils/rail-order.mjs'
+import { useRailOrder } from '~/composables/useRailOrder'
+import { useDragReorder } from '~/composables/useDragReorder'
 import { usersEntryVisible } from '~/utils/tenant-users.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
@@ -571,18 +581,21 @@ import { measureControlText, TENANT_ARROW_GAP_PX, TENANT_TEXT_PAD_PX, tenantDraw
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'issues' | 'events' | 'users'
-/* Direct messages, channels, topics, flow — top to bottom. A matching
-   route follows the page; search and settings keep the reader's choice. */
-const RAIL: { id: SideTab, icon: UiIconName, labelKey: string }[] = [
-  { id: 'dm', icon: 'messages', labelKey: 'sidebar.direct_messages' },
-  { id: 'channels', icon: 'hash', labelKey: 'sidebar.channels' },
-  /* Owner 2026-09-26: Issues is the third tab, directly after Channels. */
-  { id: ISSUES_TAB, icon: 'issues', labelKey: 'sidebar.issues' },
-  { id: 'topics', icon: 'list', labelKey: 'nav.topics' },
-  { id: 'flow', icon: 'waves', labelKey: 'sidebar.flow' },
-  /* CLE-34990: the personal Event log, directly after flow (owner, topic 4335f075). */
-  { id: EVENTS_TAB, icon: 'history', labelKey: 'sidebar.events' },
-]
+/* The six rail tabs (utils/rail-order.mjs RAIL_TABS) in the person's order
+   (SPL-979). A matching route follows the page; search and settings keep the
+   reader's choice. */
+const railOrder = useRailOrder()
+const railEl = ref<HTMLElement | null>(null)
+const railDrag = useDragReorder<RailId>({
+  order: () => railOrder.order.value,
+  items: () => [...(railEl.value?.querySelectorAll<HTMLElement>('[data-reorder-id]') || [])],
+  onDrop: (next) => { void railOrder.save(next) },
+})
+const RAIL_BY_ID = new Map(RAIL_TABS.map((item) => [item.id, item]))
+const RAIL = computed(() => (railDrag.preview.value || railOrder.order.value)
+  .map((id) => RAIL_BY_ID.get(id))
+  .filter((item): item is (typeof RAIL_TABS)[number] => Boolean(item))
+  .map((item) => ({ id: item.id as SideTab, icon: item.icon as UiIconName, labelKey: item.labelKey })))
 const tab = ref<SideTab>('dm')
 /* The topics list names each row from the opening of its first message. */
 function topicRowTitle(subject: string, fallback: string) {
@@ -738,8 +751,8 @@ const issuesRailOnly = computed(() => tab.value === 'issues' && issueEpics.value
 /* CLE-34969: Users after flow, only when the hub lists members.invite. */
 const usersVisible = computed(() => usersEntryVisible(access.me, { mock: api.mock }))
 const rail = computed(() => (usersVisible.value
-  ? [...RAIL, { id: USERS_TAB as SideTab, icon: 'users' as UiIconName, labelKey: 'sidebar.users' }]
-  : RAIL))
+  ? [...RAIL.value, { id: USERS_TAB as SideTab, icon: 'users' as UiIconName, labelKey: 'sidebar.users' }]
+  : RAIL.value))
 const railLabel = computed(() => rail.value.map((item) => t(item.labelKey)).join(', '))
 function sectionUnread(prefix: string) {
   return Object.entries(notes.unread).some(([k, n]) => k.startsWith(prefix) && Number(n) > 0)
@@ -1150,6 +1163,9 @@ async function onCreate() {
 }
 .sidebar-tab:hover { background: var(--color-surface-hover); color: var(--color-fg); }
 .sidebar-tab[aria-selected="true"] { color: var(--color-fg); }
+/* SPL-979: a touch drag on an icon reorders instead of scrolling the page */
+.sidebar-tab--movable { touch-action: none; }
+.sidebar-tab--dragging { background: var(--color-surface-hover); color: var(--color-fg); cursor: grabbing; }
 .sidebar-tab :deep(svg) {
   width: min(22px, 70cqi);
   height: min(22px, 70cqi);

@@ -95,6 +95,15 @@
       "ctrl_enter": "Enter för en ny rad, Ctrl+Enter eller Cmd+Enter för att skicka",
       "hint": "För meddelanden, svar, kommentarer och beskrivningar av ärenden. Sparas på ditt konto, så alla enheter följer det."
     },
+    "rail_order": {
+      "label": "Ordning i vänsterpanelen",
+      "hint": "Dra ikonerna i vänsterpanelen eller ändra ordningen här. Sparas på ditt konto, så alla enheter visar samma ordning.",
+      "drag": "Dra för att ändra ordning",
+      "up": "Flytta upp {name}",
+      "down": "Flytta ned {name}",
+      "reset": "Standardordning",
+      "moved": "{name} är nu nummer {n}"
+    },
     "signin_security": "Inloggning och säkerhet",
     "signed_in_with": "Inloggad med",
     "password_managed_by": "Ditt lösenord hanteras av {method}.",

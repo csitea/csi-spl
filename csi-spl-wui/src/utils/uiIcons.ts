@@ -268,6 +268,10 @@ export const UI_ICON_PATHS = {
   go: [{ d: "M7 4.6v14.8a1 1 0 0 0 1.5.86l12-7.4a1 1 0 0 0 0-1.72l-12-7.4A1 1 0 0 0 7 4.6z", fill: true }],
   // Add a subtask (SPL-974): a tree (trunk + two children) with a plus.
   "subtask-add": ["M5 3v13a2 2 0 0 0 2 2h5", "M5 9h5", "M18 4v8", "M14 8h8", "M15 18h5"],
+  // Left panel order (SPL-979): move one up / down, and the drag grip.
+  "chevron-up": ["m18 15-6-6-6 6"],
+  "chevron-down": ["m6 9 6 6 6-6"],
+  grip: [{ d: "M9 3.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M9 10.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M9 17.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M15 3.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M15 10.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M15 17.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

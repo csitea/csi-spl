@@ -95,6 +95,15 @@
       "ctrl_enter": "Enter dodaje wiersz, Ctrl+Enter lub Cmd+Enter wysyła",
       "hint": "Dla wiadomości, odpowiedzi, komentarzy i opisów zgłoszeń. Zapisane na koncie, więc działa na każdym urządzeniu."
     },
+    "rail_order": {
+      "label": "Kolejność lewego panelu",
+      "hint": "Przeciągnij ikony w lewym panelu lub zmień kolejność tutaj. Zapisane na koncie, więc każde urządzenie pokazuje tę samą kolejność.",
+      "drag": "Przeciągnij, aby zmienić kolejność",
+      "up": "Przesuń {name} w górę",
+      "down": "Przesuń {name} w dół",
+      "reset": "Domyślna kolejność",
+      "moved": "{name} jest teraz na miejscu {n}"
+    },
     "signin_security": "Logowanie i bezpieczeństwo",
     "signed_in_with": "Zalogowano przez",
     "password_managed_by": "Twoim hasłem zarządza {method}.",

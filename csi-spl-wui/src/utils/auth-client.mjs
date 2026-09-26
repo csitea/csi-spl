@@ -346,6 +346,14 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       return post('/preferences', { submit_key: String(key || '') }, 'PUT')
     },
     /**
+     * SPL-979: Settings -> Behaviour "Left panel order" (humans.rail_order).
+     * Sends ONLY that key: the six rail ids in order, or null for the
+     * default. 200 → ok; 400 unsupported_rail_order; 401; 409 = no human.
+     */
+    saveRailOrder(order) {
+      return post('/preferences', { rail_order: Array.isArray(order) ? order.map(String) : null }, 'PUT')
+    },
+    /**
      * specs/026 §6: make `tenant` the session's active tenant (the hub
      * re-issues the cookie). 200 → `data` is the new session; 403
      * not_member; 401 = no session.

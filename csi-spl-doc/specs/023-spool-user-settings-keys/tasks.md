@@ -40,4 +40,10 @@
 - [x] T045 (FR-012, FR-013) WUI: `utils/submit-key.mjs`, `composables/useSubmitKey.ts`, `/settings/behaviour` + `SubmitKeySetting.vue`, fields wired, placeholders per mode, 19 locales.
 - [x] T050 (FR-012, FR-013) Live proof `tests/e2e/submit-key-live.proof.mjs` on dev (t1 test member) and prd (tenant `e2e`), WUI `82ae1017` + hub 0.9.3 `af883284`, n=1 per env, 2026-09-26 ~19:23Z: 11/11 PASS each - both modes stored and survive a reload, placeholders follow the mode, each mode's CONTROL key adds a line and sends nothing, its send key sends; the account restored to never-picked (PUT 200).
 
-<!-- version: 1.2.0 · updated: 2026-09-26 · last-edit: 2026-09-26T19:30:00Z -->
+## Phase 7 — Behaviour → Left panel order (SPL-979, 3.8)
+
+- [x] T046 (FR-017) Hub: rdb 0063 `humans.rail_order`, `PUT preferences rail_order`, session + login answer, `do_spl_human_behaviour RAIL_ORDER=`; hub 0.9.4 `590fd54b`; 0063 applied on dev and prd.
+- [x] T047 (FR-015, FR-016) WUI: `utils/rail-order.mjs`, `composables/useRailOrder.ts` + `useDragReorder.ts`, the rail drags, `RailOrderSetting.vue` on `/settings/behaviour`, 19 locales.
+- [ ] T052 (FR-015..FR-017) Live proof `tests/e2e/rail-order-live.proof.mjs` on dev (t1 test member) and prd (tenant `e2e`).
+
+<!-- version: 1.3.0 · updated: 2026-09-26 · last-edit: 2026-09-26T19:45:00Z -->

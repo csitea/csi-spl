@@ -95,6 +95,15 @@
       "ctrl_enter": "Enter para una línea nueva, Ctrl+Enter o Cmd+Enter para enviar",
       "hint": "Para mensajes, respuestas, comentarios y descripciones de incidencias. Se guarda en tu cuenta, así que lo siguen todos tus dispositivos."
     },
+    "rail_order": {
+      "label": "Orden del panel izquierdo",
+      "hint": "Arrastra los iconos del panel izquierdo o reordénalos aquí. Se guarda en tu cuenta, así que todos tus dispositivos muestran el mismo orden.",
+      "drag": "Arrastra para reordenar",
+      "up": "Subir {name}",
+      "down": "Bajar {name}",
+      "reset": "Orden predeterminado",
+      "moved": "{name} ahora es el número {n}"
+    },
     "signin_security": "Inicio de sesión y seguridad",
     "signed_in_with": "Sesión iniciada con",
     "password_managed_by": "Tu contraseña la gestiona {method}.",

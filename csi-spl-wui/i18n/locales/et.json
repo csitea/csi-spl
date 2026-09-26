@@ -95,6 +95,15 @@
       "ctrl_enter": "Enter lisab rea, Ctrl+Enter või Cmd+Enter saadab",
       "hint": "Sõnumid, vastused, probleemide kommentaarid ja kirjeldused. Salvestatakse sinu kontole, nii et see kehtib igas seadmes."
     },
+    "rail_order": {
+      "label": "Vasaku paneeli järjestus",
+      "hint": "Lohista ikoone vasakul paneelil või muuda järjestust siin. Salvestatakse sinu kontole, nii et igas seadmes on sama järjestus.",
+      "drag": "Lohista järjestuse muutmiseks",
+      "up": "Liiguta {name} üles",
+      "down": "Liiguta {name} alla",
+      "reset": "Vaikimisi järjestus",
+      "moved": "{name} on nüüd number {n}"
+    },
     "signin_security": "Sisselogimine ja turvalisus",
     "signed_in_with": "Sisse logitud teenusega",
     "password_managed_by": "Sinu parooli haldab {method}.",

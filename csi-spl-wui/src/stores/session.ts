@@ -27,6 +27,8 @@ export interface SessionClaims {
   preferred_theme?: string | null
   /** SPL-976 Settings -> Behaviour "Text fields": 'enter' | 'ctrl-enter'; null = never picked. */
   submit_key?: string | null
+  /** SPL-979 "Left panel order": the six rail ids in the person's order; null = default. */
+  rail_order?: string[] | null
 }
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
@@ -108,6 +110,11 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, submit_key: key }
   }
 
+  /** SPL-979: mirror the rail order (optimistic; reverted on a failed save). */
+  function setRailOrder(order: string[] | null) {
+    if (claims.value) claims.value = { ...claims.value, rail_order: order }
+  }
+
   async function logout() {
     await auth.logout()
     if (import.meta.client) {
@@ -121,5 +128,5 @@ export const useSessionStore = defineStore('session', () => {
     await navigateTo(useNuxtApp().$localePath('/login'))
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, logout }
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, logout }
 })

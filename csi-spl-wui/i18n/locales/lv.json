@@ -95,6 +95,15 @@
       "ctrl_enter": "Enter jaunai rindai, Ctrl+Enter vai Cmd+Enter, lai sūtītu",
       "hint": "Ziņām, atbildēm, problēmu komentāriem un aprakstiem. Tiek glabāts jūsu kontā, tāpēc darbojas visās ierīcēs."
     },
+    "rail_order": {
+      "label": "Kreisā paneļa secība",
+      "hint": "Velciet ikonas kreisajā panelī vai mainiet secību šeit. Tiek glabāts jūsu kontā, tāpēc visās ierīcēs ir tā pati secība.",
+      "drag": "Velciet, lai mainītu secību",
+      "up": "Pārvietot {name} uz augšu",
+      "down": "Pārvietot {name} uz leju",
+      "reset": "Noklusējuma secība",
+      "moved": "{name} tagad ir {n}. vietā"
+    },
     "signin_security": "Pieteikšanās un drošība",
     "signed_in_with": "Pieteicies ar",
     "password_managed_by": "Jūsu paroli pārvalda {method}.",

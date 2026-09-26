@@ -95,6 +95,15 @@
       "ctrl_enter": "Enter naujai eilutei, Ctrl+Enter arba Cmd+Enter išsiųsti",
       "hint": "Žinutėms, atsakymams, užduočių komentarams ir aprašymams. Saugoma jūsų paskyroje, todėl galioja visuose įrenginiuose."
     },
+    "rail_order": {
+      "label": "Kairiojo skydelio tvarka",
+      "hint": "Tempkite piktogramas kairiajame skydelyje arba pakeiskite tvarką čia. Saugoma jūsų paskyroje, todėl visuose įrenginiuose tvarka ta pati.",
+      "drag": "Tempkite, kad pakeistumėte tvarką",
+      "up": "Perkelti {name} aukštyn",
+      "down": "Perkelti {name} žemyn",
+      "reset": "Numatytoji tvarka",
+      "moved": "{name} dabar yra {n}-as"
+    },
     "signin_security": "Prisijungimas ir sauga",
     "signed_in_with": "Prisijungta per",
     "password_managed_by": "Jūsų slaptažodį tvarko {method}.",

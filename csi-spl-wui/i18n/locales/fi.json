@@ -95,6 +95,15 @@
       "ctrl_enter": "Enter lisää rivin, Ctrl+Enter tai Cmd+Enter lähettää",
       "hint": "Viesteissä, vastauksissa, tikettien kommenteissa ja kuvauksissa. Tallennetaan tilillesi, joten se toimii kaikilla laitteilla."
     },
+    "rail_order": {
+      "label": "Vasemman paneelin järjestys",
+      "hint": "Vedä vasemman paneelin kuvakkeita tai järjestä ne tässä. Tallennetaan tilillesi, joten kaikilla laitteilla on sama järjestys.",
+      "drag": "Järjestä vetämällä",
+      "up": "Siirrä {name} ylös",
+      "down": "Siirrä {name} alas",
+      "reset": "Oletusjärjestys",
+      "moved": "{name} on nyt numero {n}"
+    },
     "signin_security": "Kirjautuminen ja tietoturva",
     "signed_in_with": "Kirjautumistapa",
     "password_managed_by": "Salasanaasi hallinnoi {method}.",

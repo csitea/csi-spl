@@ -346,6 +346,7 @@ declare module '~/utils/auth-client.mjs' {
     saveDisplayName(name: string): Promise<NativeResult>
     saveTheme(theme: string): Promise<NativeResult>
     saveSubmitKey(key: string): Promise<NativeResult>
+    saveRailOrder(order: string[] | null): Promise<NativeResult>
     switchTenant(tenant: string): Promise<NativeResult>
     providers(): Promise<string[]>
     session(): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
@@ -973,6 +974,24 @@ declare module '~/utils/submit-key.mjs' {
     want: unknown,
     io: { current: unknown, apply: (k: string) => void, save: (k: string) => Promise<{ ok: boolean }> },
   ): Promise<{ ok: boolean, value: SubmitKey, out?: unknown }>
+}
+
+declare module '~/utils/rail-order.mjs' {
+  export type RailId = 'dm' | 'channels' | 'issues' | 'topics' | 'flow' | 'events'
+  export const RAIL_TABS: readonly { readonly id: RailId, readonly icon: import('~/utils/uiIcons').UiIconName, readonly labelKey: string }[]
+  export const RAIL_IDS: readonly RailId[]
+  export const DRAG_THRESHOLD_PX: number
+  export function isRailOrder(raw: unknown): boolean
+  export function parseRailOrder(raw: unknown): RailId[]
+  export function sameOrder(a: unknown, b: unknown): boolean
+  export function moveTo<T extends string>(order: readonly T[], id: T, to: number): T[]
+  export function moveBy<T extends string>(order: readonly T[], id: T, delta: number): T[]
+  export function dropIndex(mids: readonly number[], from: number, pos: number): number
+  export function isDrag(dx: number, dy: number, threshold?: number): boolean
+  export function applyRailOrder(
+    want: string[] | null,
+    io: { current: unknown, apply: (o: string[] | null) => void, save: (o: string[] | null) => Promise<{ ok: boolean }> },
+  ): Promise<{ ok: boolean, value: string[] | null, out?: unknown }>
 }
 
 declare module '~/utils/debug-pane.mjs' {

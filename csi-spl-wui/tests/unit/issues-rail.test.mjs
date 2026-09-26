@@ -20,22 +20,24 @@ describe('Issues rail tab', () => {
   })
 
   it('sits directly after channels in the rail, before topics', () => {
+    /* SPL-979: the default order lives in utils/rail-order.mjs RAIL_TABS */
+    const tabs = read('src/utils/rail-order.mjs')
     const src = read('src/components/ChannelSidebar.vue')
-    const channels = src.indexOf("{ id: 'channels', icon: 'hash'")
-    const issues = src.indexOf("{ id: ISSUES_TAB, icon: 'issues', labelKey: 'sidebar.issues' }")
-    const topics = src.indexOf("{ id: 'topics', icon: 'list'")
+    const channels = tabs.indexOf("{ id: 'channels', icon: 'hash'")
+    const issues = tabs.indexOf("{ id: 'issues', icon: 'issues', labelKey: 'sidebar.issues' }")
+    const topics = tabs.indexOf("{ id: 'topics', icon: 'list'")
     assert.ok(channels > 0 && issues > channels && topics > issues)
-    const between = src.slice(channels, issues)
+    const between = tabs.slice(channels, issues)
     assert.equal(/\{ id:/.test(between.slice(between.indexOf('\n'))), false)
     assert.match(src, /navigateTo\(localePath\('\/issues'\)\)/)
     assert.equal(src.includes('sidebar-issues-open'), false)
     assert.equal(src.includes('issues.all_issues'), false)
     assert.match(src, /LazyIssueEpicsPanel/)
     assert.match(src, /sidebar--rail/)
-    const flow = src.indexOf("{ id: 'flow', icon: 'waves'")
-    const events = src.indexOf("{ id: EVENTS_TAB, icon: 'history', labelKey: 'sidebar.events' }")
+    const flow = tabs.indexOf("{ id: 'flow', icon: 'waves'")
+    const events = tabs.indexOf("{ id: 'events', icon: 'history', labelKey: 'sidebar.events' }")
     assert.ok(events > flow)
-    assert.equal(/\{ id:/.test(src.slice(flow, events).slice(1)), false)
+    assert.equal(/\{ id:/.test(tabs.slice(flow, events).slice(1)), false)
   })
 
   it('the description is only in the right pane, and the list uses the shared helpers', () => {

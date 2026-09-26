@@ -95,6 +95,15 @@
       "ctrl_enter": "Enter pentru un rând nou, Ctrl+Enter sau Cmd+Enter pentru a trimite",
       "hint": "Pentru mesaje, răspunsuri, comentarii și descrieri de tichete. Se păstrează în contul tău, deci se aplică pe orice dispozitiv."
     },
+    "rail_order": {
+      "label": "Ordinea panoului din stânga",
+      "hint": "Trage pictogramele din panoul din stânga sau reordonează-le aici. Se păstrează în contul tău, deci fiecare dispozitiv arată aceeași ordine.",
+      "drag": "Trage pentru a reordona",
+      "up": "Mută {name} în sus",
+      "down": "Mută {name} în jos",
+      "reset": "Ordinea implicită",
+      "moved": "{name} este acum pe locul {n}"
+    },
     "signin_security": "Autentificare și securitate",
     "signed_in_with": "Autentificat cu",
     "password_managed_by": "Parola dvs. este gestionată de {method}.",

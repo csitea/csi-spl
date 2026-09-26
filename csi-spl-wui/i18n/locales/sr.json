@@ -95,6 +95,15 @@
       "ctrl_enter": "Enter za novi red, Ctrl+Enter ili Cmd+Enter za slanje",
       "hint": "За поруке, одговоре, коментаре и описе задатака. Чува се на вашем налогу, па важи на сваком уређају."
     },
+    "rail_order": {
+      "label": "Редослед левог панела",
+      "hint": "Превуците иконе у левом панелу или их поређајте овде. Чува се на вашем налогу, па сваки уређај приказује исти редослед.",
+      "drag": "Превуците да промените редослед",
+      "up": "Помери {name} нагоре",
+      "down": "Помери {name} надоле",
+      "reset": "Подразумевани редослед",
+      "moved": "{name} је сада број {n}"
+    },
     "signin_security": "Prijava i bezbednost",
     "signed_in_with": "Prijavljeni preko",
     "password_managed_by": "Vašom lozinkom upravlja {method}.",

@@ -95,6 +95,15 @@
       "ctrl_enter": "Enter voor een nieuwe regel, Ctrl+Enter of Cmd+Enter om te versturen",
       "hint": "Voor berichten, reacties, opmerkingen en beschrijvingen van issues. Bewaard in je account, dus elk apparaat volgt het."
     },
+    "rail_order": {
+      "label": "Volgorde linkerpaneel",
+      "hint": "Sleep de pictogrammen in het linkerpaneel of wijzig de volgorde hier. Bewaard in je account, dus elk apparaat toont dezelfde volgorde.",
+      "drag": "Sleep om te herschikken",
+      "up": "{name} omhoog",
+      "down": "{name} omlaag",
+      "reset": "Standaardvolgorde",
+      "moved": "{name} staat nu op plaats {n}"
+    },
     "signin_security": "Inloggen en beveiliging",
     "signed_in_with": "Ingelogd met",
     "password_managed_by": "Je wachtwoord wordt beheerd door {method}.",

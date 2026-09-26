@@ -53,7 +53,16 @@ var ErrUnknownLabel = errors.New("unknown issue label")
 // ErrUnknownParent: the parent number is not an issue of the tenant.
 var ErrUnknownParent = errors.New("unknown parent issue")
 
-// IssueEpicLabel is the reserved label that makes an issue an epic (SPL-18,
+// Issue kinds (rdb 0053, SPL-18). Level 1 is an epic or a feature (no
+// parent); every other issue is kind issue: level 2 under a level-1 row,
+// level 3 (a subtask) under a level-2 issue. Three levels at most.
+const (
+	IssueKindEpic    = "epic"
+	IssueKindFeature = "feature"
+	IssueKindIssue   = "issue"
+)
+
+// IssueEpicLabel is the label that made an issue an epic (SPL-18,
 // rdb 0049): an epic has no parent; every other issue has exactly one parent,
 // and it is an epic.
 const IssueEpicLabel = "epic"
@@ -61,8 +70,9 @@ const IssueEpicLabel = "epic"
 // ErrEpicRequired: a non-epic issue without a parent epic.
 var ErrEpicRequired = errors.New("issue needs a parent epic")
 
-// ErrBadEpic: the parent is not an epic, or an epic was given a parent.
-var ErrBadEpic = errors.New("parent must be an epic; an epic has no parent")
+// ErrBadEpic: the parent is neither a level-1 row nor a level-2 issue (or
+// the move would make a fourth level), or a level-1 row was given a parent.
+var ErrBadEpic = errors.New("parent must be an epic / feature or a level-2 issue; an epic has no parent")
 
 // ErrEpicHasIssues: the epic label was dropped from an epic that still has issues.
 var ErrEpicHasIssues = errors.New("epic still has issues")
@@ -78,6 +88,7 @@ var (
 // Issue is one row of issues. Parent 0 = none. Deadline, CompletedAt and
 // CanceledAt nil = unset.
 type Issue struct {
+	Kind        string // epic | feature | issue; "" on a create = epic when labelled epic, else issue
 	TenantID    string
 	Number      int
 	Prefix      string // the tenant's key prefix at read time
@@ -102,37 +113,40 @@ type Issue struct {
 // Key is <prefix>-<number>, e.g. SPL-12.
 func (i Issue) Key() string { return IssueKey(i.Prefix, i.Number) }
 
-// IsEpic reports the reserved epic label.
-func (i Issue) IsEpic() bool {
-	for _, l := range i.Labels {
-		if l == IssueEpicLabel {
-			return true
-		}
-	}
-	return false
+// IsEpic reports a level-1 row: kind epic or feature (rdb 0053).
+func (i Issue) IsEpic() bool { return i.Kind == IssueKindEpic || i.Kind == IssueKindFeature }
+
+// treeRefs is what the tree rule needs to know about an issue's neighbours.
+type treeRefs struct {
+	parent       Issue
+	parentOK     bool // the parent row exists
+	parentLevel2 bool // the parent is an issue whose own parent is level 1
+	hasChildren  bool // some issue names this one as its parent
+	wasEpic      bool // the row was level 1 before this update
 }
 
-// epicRule is the parent rule on i given its parent row (ok = it exists)
-// and whether i itself has child issues. Shared by both drivers.
-func epicRule(i Issue, parent Issue, parentOK, hasChildren bool) error {
+// treeRule is the three-level rule (SPL-18), shared by both drivers.
+func treeRule(i Issue, r treeRefs) error {
 	if i.IsEpic() {
 		if i.Parent != 0 {
 			return ErrBadEpic
 		}
 		return nil
 	}
-	if hasChildren {
+	if r.wasEpic && r.hasChildren {
 		return ErrEpicHasIssues
 	}
 	switch {
 	case i.Parent == 0:
 		return ErrEpicRequired
-	case !parentOK:
+	case !r.parentOK:
 		return ErrUnknownParent
-	case !parent.IsEpic():
-		return ErrBadEpic
+	case r.parent.IsEpic():
+		return nil // level 2
+	case r.parentLevel2 && !r.hasChildren:
+		return nil // level 3: a subtask has no children
 	}
-	return nil
+	return ErrBadEpic
 }
 
 // IssueKey formats a key.
@@ -163,6 +177,7 @@ func ParseIssueRef(ref string) (int, bool) {
 // IssuePatch is a partial update: nil leaves a field as it is. DeadlineSet
 // with a nil Deadline clears it; Parent 0 clears the parent.
 type IssuePatch struct {
+	Kind        *string
 	Title       *string
 	Description *string
 	Status      *string
@@ -178,7 +193,7 @@ type IssuePatch struct {
 // Empty reports a patch that changes nothing.
 func (p IssuePatch) Empty() bool {
 	return p.Title == nil && p.Description == nil && p.Status == nil && p.Priority == nil && p.Level == nil &&
-		p.Assignee == nil && p.Labels == nil && !p.DeadlineSet && p.Parent == nil
+		p.Assignee == nil && p.Labels == nil && !p.DeadlineSet && p.Parent == nil && p.Kind == nil
 }
 
 // IssueLabel is one row of issue_labels.
@@ -269,6 +284,17 @@ func checkIssue(i *Issue) error {
 		return err
 	}
 	i.Labels = labels
+	if i.Kind == "" {
+		i.Kind = IssueKindIssue
+		for _, l := range labels {
+			if l == IssueEpicLabel { // the label form of rdb 0049 still makes an epic
+				i.Kind = IssueKindEpic
+			}
+		}
+	}
+	if i.Kind != IssueKindEpic && i.Kind != IssueKindFeature && i.Kind != IssueKindIssue {
+		return invalidIssue("kind must be epic, feature or issue")
+	}
 	if i.Deadline != nil {
 		d := i.Deadline.UTC().Truncate(time.Microsecond)
 		i.Deadline = &d
@@ -299,6 +325,9 @@ func normLabels(in []string) ([]string, error) {
 // ApplyIssuePatch writes p's fields onto i and nothing else (no clocks, no
 // actor): the hub builds a create from the same request shape as a PATCH.
 func ApplyIssuePatch(i *Issue, p IssuePatch) {
+	if p.Kind != nil {
+		i.Kind = *p.Kind
+	}
 	if p.Title != nil {
 		i.Title = *p.Title
 	}
@@ -342,7 +371,7 @@ func applyPatch(i *Issue, p IssuePatch, by string, now time.Time) {
 // or the labels, so a row written before the rule (an issue created by an
 // older hub between rdb 0049 and the roll) stays editable until someone
 // gives it an epic.
-func epicTouched(p IssuePatch) bool { return p.Parent != nil || p.Labels != nil }
+func epicTouched(p IssuePatch) bool { return p.Parent != nil || p.Labels != nil || p.Kind != nil }
 
 // stampStatus sets completed_at / canceled_at for the status i now has.
 func stampStatus(i *Issue, now time.Time) {
@@ -421,9 +450,9 @@ func copyIssue(i Issue) Issue {
 	return i
 }
 
-// refsOK checks labels and parent against the tenant's rows.
-// refsOK checks labels and, with rule, the epic rule (SPL-18).
-func (m *memIssues) refsOK(i Issue, rule bool) error {
+// refsOK checks labels and, with rule, the tree rule (SPL-18). wasEpic: the
+// row was level 1 before this update.
+func (m *memIssues) refsOK(i Issue, rule, wasEpic bool) error {
 	for _, l := range i.Labels {
 		if _, ok := m.labels[i.TenantID][l]; !ok {
 			return fmt.Errorf("%w: %s", ErrUnknownLabel, l)
@@ -432,17 +461,22 @@ func (m *memIssues) refsOK(i Issue, rule bool) error {
 	if !rule {
 		return nil
 	}
-	parent, ok := m.rows[i.TenantID][i.Parent]
-	children := false
+	r := treeRefs{wasEpic: wasEpic}
+	r.parent, r.parentOK = m.rows[i.TenantID][i.Parent]
+	r.parentOK = r.parentOK && i.Parent != 0
+	if r.parentOK && !r.parent.IsEpic() {
+		g, ok := m.rows[i.TenantID][r.parent.Parent]
+		r.parentLevel2 = ok && r.parent.Parent != 0 && g.IsEpic()
+	}
 	if i.Number != 0 {
-		for _, r := range m.rows[i.TenantID] {
-			if r.Parent == i.Number {
-				children = true
+		for _, c := range m.rows[i.TenantID] {
+			if c.Parent == i.Number {
+				r.hasChildren = true
 				break
 			}
 		}
 	}
-	return epicRule(i, parent, ok && i.Parent != 0, children)
+	return treeRule(i, r)
 }
 
 func (s *Memory) CreateIssue(_ context.Context, in Issue, now time.Time) (Issue, error) {
@@ -459,7 +493,7 @@ func (s *Memory) CreateIssue(_ context.Context, in Issue, now time.Time) (Issue,
 		return Issue{}, ErrNotFound
 	}
 	s.iss.init()
-	if err := s.iss.refsOK(in, true); err != nil {
+	if err := s.iss.refsOK(in, true, false); err != nil {
 		return Issue{}, err
 	}
 	for _, r := range s.iss.rows[in.TenantID] {
@@ -488,11 +522,12 @@ func (s *Memory) UpdateIssue(_ context.Context, tenant string, number int, p Iss
 		return Issue{}, ErrNotFound
 	}
 	row = copyIssue(row)
+	wasEpic := row.IsEpic()
 	applyPatch(&row, p, by, now)
 	if err := checkIssue(&row); err != nil {
 		return Issue{}, err
 	}
-	if err := s.iss.refsOK(row, epicTouched(p)); err != nil {
+	if err := s.iss.refsOK(row, epicTouched(p), wasEpic); err != nil {
 		return Issue{}, err
 	}
 	row.Prefix = s.iss.prefixOf(tenant)

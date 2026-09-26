@@ -139,7 +139,7 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	if c := out["counts"].(map[string]any); c["backlog"] != float64(2) || c["todo"] != float64(1) || c["done"] != float64(0) {
 		t.Fatalf("counts %v", c)
 	}
-	if ls := out["labels"].([]any); len(ls) != 2 { // bug + the reserved epic
+	if ls := out["labels"].([]any); len(ls) != 1 { // bug; kind is a column (rdb 0053), not a label
 		t.Fatalf("labels %v", ls)
 	}
 	for q, want := range map[string][]string{
@@ -175,9 +175,19 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	if f := readType(t, watcher, "issue"); f["op"] != "update" || f["issue"].(map[string]any)["status"] != "done" {
 		t.Fatalf("update frame %v", f)
 	}
-	if code, out := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-2", dev, map[string]any{"parent": "SPL-3"}); code != 400 || out["error"] != "bad_epic" {
-		t.Fatalf("parent not an epic: %d %v", code, out)
+	// SPL-18 (rdb 0053): a leaf issue under another issue is a subtask.
+	code, out = call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-2", dev, map[string]any{"parent": "SPL-3"})
+	if sub := issueOf(t, out); code != 200 || sub["kind"] != "subtask" || sub["epic"] != "SPL-1" || sub["parent"] != "SPL-3" {
+		t.Fatalf("subtask: %d %v", code, out)
 	}
+	readType(t, watcher, "issue")
+	if code, out := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-2", dev, map[string]any{"epic": "SPL-3"}); code != 400 || out["error"] != "bad_epic" {
+		t.Fatalf("epic names a level-2 issue: %d %v", code, out)
+	}
+	if code, out := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-2", dev, map[string]any{"epic": "SPL-1"}); code != 200 || issueOf(t, out)["kind"] != "issue" {
+		t.Fatalf("back to level 2: %d %v", code, out)
+	}
+	readType(t, watcher, "issue")
 	if code, _ := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-2", dev, map[string]any{}); code != 400 {
 		t.Fatalf("empty patch %d", code)
 	}

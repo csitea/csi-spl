@@ -67,7 +67,14 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       tests/e2e/issues.test.mjs 9/9 on the mock, typecheck, unit 105/105.
       Sends `parent` / the `epic` label, so it works on hub 0.7.x before the
       roll (an older hub refuses unknown body fields)
-- [ ] T010b owner 09:08 (topic 070843ba): level 1 epics AND features, level 2
-      issues, level 3 subtasks; the done git-specs imported into that tree
+- [x] T010b owner 09:08 (topic 070843ba) - hub: rdb 0053 `kind` (epic |
+      feature | issue), the three-level rule on both drivers, `kind` subtask +
+      `epic` = level-1 ancestor in the JSON, `kind` / `epic` / `parent`
+      filters, features in the summary, `spool issue --kind feature --parent`,
+      ISSUE_KIND feature. The commit adding this line; store TestIssueEpicRule
+      (three levels, memory + pg), hub TestIssueThreeLevels
+- [ ] T010c WUI: features in the left-most panel, subtasks in the right pane
+- [ ] T010d the done git-specs imported into the tree: SPL-76, GRK-3523 (not
+      this lane)
 - [ ] T011 SPL-18 rdb 0049 on dev + prd, hub roll, live proof
 <!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

@@ -106,21 +106,36 @@ leaves out the topic of every issue (`TopicQuery.NoIssues`): the talk about an
 issue lives in its right pane. `GET /v1/view/topics/{task_id}` still reads it.
 
 
-## 8. Epics (SPL-18, rdb 0049)
+## 8. Epics, features, issues, subtasks (SPL-18, rdb 0049 + 0053)
 
 Owner, 2026-09-26: "the issues should have in the left most panel features /
-epics", "each issue should have 1 parent epic".
+epics", "each issue should have 1 parent epic", and 09:08 (topic 070843ba):
+"epic and features are the first level / left most panel, issues (could be
+bugs, tasks, etc.) and those could have subtasks in the third level".
 
-- An epic is an issue carrying the reserved label `epic` (`kind: "epic"`).
-  An epic has no parent. Every other issue has exactly one parent, and it is
-  an epic. An epic with issues cannot drop the label (`epic_has_issues`).
-- `kind: "epic"` on a create or patch adds the label (the hub puts `epic` into
-  the catalogue the first time) and drops the parent; `kind: "issue"` removes
-  the label and needs an `epic`.
+- `kind` is a column (rdb 0053), not a label: `epic` or `feature` = level 1
+  (no parent, the rows of the Issues tab's left-most panel); `issue` = level 2
+  under a level-1 row, or level 3 - a **subtask** - under a level-2 issue.
+  Three levels at most; a subtask has no children. The `feature` LABEL stays a
+  free type label (bug, feature, ...).
+- Issue JSON: `kind` is `epic | feature | issue | subtask`, `epic` the key of
+  the level-1 row above it (`""` on a level-1 row), `parent` its direct parent.
+- Create / patch: `kind: "epic" | "feature"` makes a level-1 row and drops the
+  parent; `epic: <key>` must name a level-1 row; `parent: <key>` takes a
+  level-1 row or a level-2 issue (making a subtask). The `epic` label on a
+  create still makes an epic (the form rdb 0049 used).
+- Refusals: `epic_required` (no parent), `bad_epic` (a level-1 row with a
+  parent, a fourth level, a level-2 issue with subtasks moved under an issue,
+  `epic` naming a non-level-1 row), `epic_has_issues` (a level-1 row with
+  issues made kind issue).
 - rdb 0049 moved every existing issue without an epic parent under the
-  tenant's epic titled "random" (created where missing).
-- List summary `epics[]`: `{key, number, title, status, total, done,
-  canceled, counts{<status>: n}}`, open epics first then by number; progress
-  is Linear's `done / (total - canceled)`.
+  tenant's epic titled "random" (created where missing); rdb 0053 made the
+  labelled epics kind epic.
+- Filters: `kind` (comma list of epic, feature, issue, subtask), `epic`
+  (rows under these level-1 rows, subtasks included), `parent` (direct
+  children: an issue's subtasks).
+- List summary `epics[]` (every level-1 row, open ones first):
+  `{key, kind, number, title, status, total, done, canceled, counts}` over
+  its level-2 issues; progress is Linear's `done / (total - canceled)`.
 
 <!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

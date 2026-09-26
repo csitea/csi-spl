@@ -70,6 +70,14 @@ func TestMigration0049EpicBackfill(t *testing.T) {
 		if err := pg.asOperator(ctx, func(tx pgx.Tx) error { _, err := tx.Exec(ctx, string(raw)); return err }); err != nil {
 			t.Fatalf("0049: %v", err)
 		}
+		// rdb 0053 ran after 0049 on every database: its data step makes the
+		// labelled epics kind epic.
+		if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, `UPDATE issues SET kind = 'epic' WHERE 'epic' = ANY (labels)`)
+			return err
+		}); err != nil {
+			t.Fatalf("0053 data step: %v", err)
+		}
 	}
 	run()
 	run() // CONTROL: a second pass changes nothing

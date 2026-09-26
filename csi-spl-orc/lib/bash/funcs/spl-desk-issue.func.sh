@@ -63,8 +63,8 @@ spl_issue_check_fields() {
     { do_log "FATAL ISSUE_PRIORITY must be 0 (none), 1 urgent, 2 high, 3 medium or 4 low, got: '$ISSUE_PRIORITY'"; return 1; }
   [[ -z "${ISSUE_LEVEL:-}" || "$ISSUE_LEVEL" =~ ^[0-5]$ ]] ||
     { do_log "FATAL ISSUE_LEVEL must be 0 (none) .. 5 (XL), got: '$ISSUE_LEVEL'"; return 1; }
-  [[ -z "${ISSUE_KIND:-}" || "$ISSUE_KIND" =~ ^(epic|issue)$ ]] ||
-    { do_log "FATAL ISSUE_KIND must be epic or issue, got: '$ISSUE_KIND'"; return 1; }
+  [[ -z "${ISSUE_KIND:-}" || "$ISSUE_KIND" =~ ^(epic|feature|issue)$ ]] ||
+    { do_log "FATAL ISSUE_KIND must be epic, feature or issue, got: '$ISSUE_KIND'"; return 1; }
   [[ -z "${ISSUE_EPIC:-}" || "$ISSUE_EPIC" =~ ^([A-Za-z][A-Za-z0-9]{0,9}-)?[1-9][0-9]*$ ]] ||
     { do_log "FATAL ISSUE_EPIC must be an epic's key like SPL-17, got: '$ISSUE_EPIC'"; return 1; }
   [[ -z "${ISSUE_DESCRIPTION_FILE:-}" || -r "$ISSUE_DESCRIPTION_FILE" ]] ||

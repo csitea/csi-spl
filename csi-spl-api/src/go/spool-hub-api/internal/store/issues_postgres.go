@@ -13,12 +13,12 @@ import (
 // Postgres side of rdb 0047. Every statement runs in the tenant scope.
 
 const issueCols = `number, title, description, status, priority, level, assignee, labels, deadline,
-	COALESCE(parent_number, 0), task_id::text, created_by, created_at, updated_by, updated_at, completed_at, canceled_at`
+	COALESCE(parent_number, 0), task_id::text, created_by, created_at, updated_by, updated_at, completed_at, canceled_at, kind`
 
 func scanIssue(row pgx.Row, tenant, prefix string) (Issue, error) {
 	i := Issue{TenantID: tenant, Prefix: prefix}
 	err := row.Scan(&i.Number, &i.Title, &i.Description, &i.Status, &i.Priority, &i.Level, &i.Assignee, &i.Labels,
-		&i.Deadline, &i.Parent, &i.TaskID, &i.CreatedBy, &i.CreatedAt, &i.UpdatedBy, &i.UpdatedAt, &i.CompletedAt, &i.CanceledAt)
+		&i.Deadline, &i.Parent, &i.TaskID, &i.CreatedBy, &i.CreatedAt, &i.UpdatedBy, &i.UpdatedAt, &i.CompletedAt, &i.CanceledAt, &i.Kind)
 	if i.Labels == nil {
 		i.Labels = []string{}
 	}
@@ -35,8 +35,8 @@ func txPrefix(ctx context.Context, tx pgx.Tx, tenant string) (string, error) {
 	return p, err
 }
 
-// txIssueRefs checks labels and the epic rule inside tx.
-func txIssueRefs(ctx context.Context, tx pgx.Tx, i Issue, rule bool) error {
+// txIssueRefs checks labels and the tree rule inside tx.
+func txIssueRefs(ctx context.Context, tx pgx.Tx, i Issue, rule, wasEpic bool) error {
 	if len(i.Labels) > 0 {
 		var n int
 		if err := tx.QueryRow(ctx, `SELECT count(*) FROM issue_labels WHERE tenant_id = $1 AND label_id = ANY($2)`,
@@ -50,31 +50,32 @@ func txIssueRefs(ctx context.Context, tx pgx.Tx, i Issue, rule bool) error {
 	if !rule {
 		return nil
 	}
-	// The epic rule (SPL-18). The parent row is locked FOR SHARE, so an epic
-	// cannot lose its label (UpdateIssue locks FOR UPDATE) while an issue is
+	// The tree rule (SPL-18). The parent row is locked FOR SHARE, so it
+	// cannot change kind (UpdateIssue locks FOR UPDATE) while an issue is
 	// being put under it.
-	var parent Issue
-	parentOK := false
+	r := treeRefs{wasEpic: wasEpic}
 	if i.Parent != 0 {
-		var labels []string
-		err := tx.QueryRow(ctx, `SELECT labels FROM issues WHERE tenant_id = $1 AND number = $2 FOR SHARE`,
-			i.TenantID, i.Parent).Scan(&labels)
+		var grand string
+		err := tx.QueryRow(ctx, `SELECT p.kind, COALESCE(p.parent_number, 0), COALESCE(g.kind, '')
+			FROM issues p LEFT JOIN issues g ON g.tenant_id = p.tenant_id AND g.number = p.parent_number
+			WHERE p.tenant_id = $1 AND p.number = $2 FOR SHARE OF p`,
+			i.TenantID, i.Parent).Scan(&r.parent.Kind, &r.parent.Parent, &grand)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 		case err != nil:
 			return err
 		default:
-			parent, parentOK = Issue{Labels: labels}, true
+			r.parentOK = true
+			r.parentLevel2 = !r.parent.IsEpic() && (Issue{Kind: grand}).IsEpic()
 		}
 	}
-	children := false
 	if i.Number != 0 {
 		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues WHERE tenant_id = $1 AND parent_number = $2)`,
-			i.TenantID, i.Number).Scan(&children); err != nil {
+			i.TenantID, i.Number).Scan(&r.hasChildren); err != nil {
 			return err
 		}
 	}
-	return epicRule(i, parent, parentOK, children)
+	return treeRule(i, r)
 }
 
 func nullParent(p int) any {
@@ -103,7 +104,7 @@ func (s *Postgres) CreateIssue(ctx context.Context, in Issue, now time.Time) (Is
 		if !ok {
 			return ErrNotFound
 		}
-		if err := txIssueRefs(ctx, tx, in, true); err != nil {
+		if err := txIssueRefs(ctx, tx, in, true, false); err != nil {
 			return err
 		}
 		// The counter row is the lock: two creates in one tenant serialize
@@ -116,11 +117,11 @@ func (s *Postgres) CreateIssue(ctx context.Context, in Issue, now time.Time) (Is
 		}
 		row := tx.QueryRow(ctx, `INSERT INTO issues (tenant_id, number, title, description, status, priority, level,
 				assignee, labels, deadline, parent_number, task_id, created_by, created_at, updated_by, updated_at,
-				completed_at, canceled_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $13, $14, $15, $16)
+				completed_at, canceled_at, kind)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $13, $14, $15, $16, $17)
 			RETURNING `+issueCols,
 			in.TenantID, in.Number, in.Title, in.Description, in.Status, in.Priority, in.Level, in.Assignee, in.Labels,
-			in.Deadline, nullParent(in.Parent), in.TaskID, in.CreatedBy, now, in.CompletedAt, in.CanceledAt)
+			in.Deadline, nullParent(in.Parent), in.TaskID, in.CreatedBy, now, in.CompletedAt, in.CanceledAt, in.Kind)
 		var err error
 		out, err = scanIssue(row, in.TenantID, prefix)
 		return err
@@ -144,20 +145,21 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 		if err != nil {
 			return err
 		}
+		wasEpic := cur.IsEpic()
 		applyPatch(&cur, p, by, now)
 		if err := checkIssue(&cur); err != nil {
 			return err
 		}
-		if err := txIssueRefs(ctx, tx, cur, epicTouched(p)); err != nil {
+		if err := txIssueRefs(ctx, tx, cur, epicTouched(p), wasEpic); err != nil {
 			return err
 		}
 		out, err = scanIssue(tx.QueryRow(ctx, `UPDATE issues SET title = $3, description = $4, status = $5,
 				priority = $6, level = $7, assignee = $8, labels = $9, deadline = $10, parent_number = $11,
-				updated_by = $12, updated_at = $13, completed_at = $14, canceled_at = $15
+				updated_by = $12, updated_at = $13, completed_at = $14, canceled_at = $15, kind = $16
 			WHERE tenant_id = $1 AND number = $2
 			RETURNING `+issueCols,
 			tenant, number, cur.Title, cur.Description, cur.Status, cur.Priority, cur.Level, cur.Assignee, cur.Labels,
-			cur.Deadline, nullParent(cur.Parent), cur.UpdatedBy, cur.UpdatedAt, cur.CompletedAt, cur.CanceledAt), tenant, prefix)
+			cur.Deadline, nullParent(cur.Parent), cur.UpdatedBy, cur.UpdatedAt, cur.CompletedAt, cur.CanceledAt, cur.Kind), tenant, prefix)
 		return err
 	})
 	return out, pgIssueErr(err)

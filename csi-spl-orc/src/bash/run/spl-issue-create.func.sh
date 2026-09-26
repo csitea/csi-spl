@@ -9,8 +9,9 @@
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent filing it (the pane's id)
 # @param ISSUE_TITLE - required: the title
-# @param ISSUE_EPIC - required unless ISSUE_KIND=epic: the parent epic's key (SPL-18: every issue has exactly one), e.g. SPL-17
-# @param ISSUE_KIND (optional) - issue (default) | epic
+# @param ISSUE_EPIC - required unless ISSUE_KIND is epic / feature or ISSUE_PARENT is set: the level-1 row (epic or feature) above it, e.g. SPL-17
+# @param ISSUE_PARENT (optional) - a level-2 issue's key: the new issue is its subtask (level 3)
+# @param ISSUE_KIND (optional) - issue (default) | epic | feature (epics and features are level 1)
 # @param ISSUE_DESCRIPTION (optional) - markdown; or ISSUE_DESCRIPTION_FILE
 # @param ISSUE_STATUS (optional) - backlog (default) | todo | in_progress | in_review | done | canceled
 # @param ISSUE_PRIORITY (optional) - 0 none, 1 urgent, 2 high, 3 medium, 4 low
@@ -24,8 +25,8 @@
 #------------------------------------------------------------------------------
 do_spl_issue_create() {
   [[ -n "${ISSUE_TITLE:-}" ]] || { do_log "FATAL ISSUE_TITLE must carry the issue title"; return 1; }
-  [[ -n "${ISSUE_EPIC:-}${ISSUE_PARENT:-}" || "${ISSUE_KIND:-}" == epic ]] ||
-    { do_log "FATAL ISSUE_EPIC must name the parent epic (every issue has exactly one), or ISSUE_KIND=epic"; return 1; }
+  [[ -n "${ISSUE_EPIC:-}${ISSUE_PARENT:-}" || "${ISSUE_KIND:-}" =~ ^(epic|feature)$ ]] ||
+    { do_log "FATAL ISSUE_EPIC must name the epic / feature above it (or ISSUE_PARENT a level-2 issue), or ISSUE_KIND=epic|feature"; return 1; }
   spl_issue_check_fields || return 1
   local args=()
   mapfile -t args < <(spl_issue_field_args)

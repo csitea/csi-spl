@@ -68,7 +68,7 @@ func (s *Server) onIssue(ctx context.Context, x *session, f wire.Frame) {
 		if q, ie = decodeIssueFrame(f.Issue); ie == nil {
 			var i store.Issue
 			if i, ie = s.createIssue(ctx, x.tenant, f.As, q); ie == nil {
-				out = map[string]any{"issue": toIssueJSON(i)}
+				out = map[string]any{"issue": toIssueJSON(i, s.storeGetter(ctx, x.tenant))}
 			}
 		}
 	case "update":
@@ -81,7 +81,7 @@ func (s *Server) onIssue(ctx context.Context, x *session, f wire.Frame) {
 		if q, ie = decodeIssueFrame(f.Issue); ie == nil {
 			var i store.Issue
 			if i, ie = s.updateIssue(ctx, x.tenant, f.As, n, q); ie == nil {
-				out = map[string]any{"issue": toIssueJSON(i)}
+				out = map[string]any{"issue": toIssueJSON(i, s.storeGetter(ctx, x.tenant))}
 			}
 		}
 	case "label":
@@ -142,7 +142,7 @@ func (s *Server) agentGetIssue(ctx context.Context, tenant, ref string) (any, *i
 	if ie := storeIssueErr(err); ie != nil {
 		return nil, ie
 	}
-	return map[string]any{"issue": toIssueJSON(i)}, nil
+	return map[string]any{"issue": toIssueJSON(i, s.storeGetter(ctx, tenant))}, nil
 }
 
 // agentComment posts the agent's progress line into the issue's discussion

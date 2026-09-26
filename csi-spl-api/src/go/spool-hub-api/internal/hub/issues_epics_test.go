@@ -90,3 +90,53 @@ func TestIssueEpics(t *testing.T) {
 		}
 	}
 }
+
+// SPL-18 (rdb 0053, owner 09:08): level 1 = epics and features (the panel's
+// rows, with their kind), level 2 = issues, level 3 = subtasks listed with
+// parent=, and `epic` names only a level-1 row.
+func TestIssueThreeLevels(t *testing.T) {
+	e := rbacEnv(t)
+	tid, _ := e.tenant()
+	dev := seat(t, e, tid, rbac.Developer)
+	post := func(body map[string]any) (int, map[string]any) {
+		return call(t, e, tid, http.MethodPost, "/v1/issues", dev, body)
+	}
+	for _, b := range []map[string]any{
+		{"title": "Platform", "kind": "epic"},                    // SPL-1
+		{"title": "Search", "kind": "feature"},                   // SPL-2
+		{"title": "index", "epic": "SPL-2"},                      // SPL-3 level 2
+		{"title": "tokenizer", "parent": "SPL-3"},                // SPL-4 subtask
+		{"title": "ranker", "parent": "SPL-3", "status": "done"}, // SPL-5 subtask
+	} {
+		if code, out := post(b); code != http.StatusCreated {
+			t.Fatalf("%v: %d %v", b, code, out)
+		}
+	}
+	code, out := call(t, e, tid, http.MethodGet, "/v1/view/issues/SPL-4", dev, nil)
+	if sub := issueOf(t, out); code != 200 || sub["kind"] != "subtask" || sub["epic"] != "SPL-2" || sub["parent"] != "SPL-3" {
+		t.Fatalf("subtask JSON: %d %v", code, out)
+	}
+	if code, out := post(map[string]any{"title": "x", "parent": "SPL-4"}); code != 400 || out["error"] != "bad_epic" {
+		t.Fatalf("fourth level: %d %v", code, out)
+	}
+	if code, out := post(map[string]any{"title": "x", "epic": "SPL-3"}); code != 400 || out["error"] != "bad_epic" {
+		t.Fatalf("epic names a level-2 issue: %d %v", code, out)
+	}
+	for q, want := range map[string][]string{
+		"?kind=issue":               {"SPL-3"},
+		"?kind=subtask&sort=number": {"SPL-5", "SPL-4"},
+		"?parent=SPL-3&sort=number": {"SPL-5", "SPL-4"},
+		"?epic=SPL-2&sort=number":   {"SPL-5", "SPL-4", "SPL-3"},
+		"?kind=epic,feature":        {"SPL-2", "SPL-1"},
+	} {
+		code, out := call(t, e, tid, http.MethodGet, "/v1/view/issues"+q, dev, nil)
+		if code != http.StatusOK || !sameKeys(issueKeys(out), want...) {
+			t.Fatalf("%s: %d %v want %v", q, code, issueKeys(out), want)
+		}
+	}
+	code, out = call(t, e, tid, http.MethodGet, "/v1/view/issues", dev, nil)
+	eps, _ := out["epics"].([]any)
+	if len(eps) != 2 || eps[1].(map[string]any)["kind"] != "feature" || eps[1].(map[string]any)["total"] != float64(1) {
+		t.Fatalf("summary: %d %v", code, eps)
+	}
+}

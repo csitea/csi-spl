@@ -136,8 +136,9 @@ func TestIssues(t *testing.T) {
 	}
 }
 
-// SPL-18: an epic has no parent; every other issue has exactly one parent,
-// and it is an epic; an epic with issues keeps its label.
+// SPL-18 (rdb 0053): three levels. Level 1 is kind epic or feature and has
+// no parent; level 2 hangs under level 1; level 3 (a subtask) hangs under a
+// level-2 issue and has no children. A level-1 row with issues stays level 1.
 func TestIssueEpicRule(t *testing.T) {
 	for name, s := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
@@ -148,48 +149,66 @@ func TestIssueEpicRule(t *testing.T) {
 			if err := s.CreateTenant(ctx, Tenant{ID: tn, RootPubKey: pubkey()}); err != nil {
 				t.Fatal(err)
 			}
-			e1 := testEpic(t, is, tn, now)
-			e2 := testEpic(t, is, tn, now)
-			mk := func(parent int, labels ...string) (Issue, error) {
-				return is.CreateIssue(ctx, Issue{TenantID: tn, Title: "i", Parent: parent, Labels: labels, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+			e1 := testEpic(t, is, tn, now) // the epic label still makes an epic
+			if got, _ := is.GetIssue(ctx, tn, e1); got.Kind != IssueKindEpic {
+				t.Fatalf("label form: %+v", got)
 			}
-			if _, err := mk(0); !errors.Is(err, ErrEpicRequired) {
-				t.Fatalf("no epic: %v", err)
+			f1, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "a feature", Kind: IssueKindFeature, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+			if err != nil || !f1.IsEpic() || f1.Kind != IssueKindFeature {
+				t.Fatalf("feature: %+v %v", f1, err)
 			}
-			if _, err := mk(e1, IssueEpicLabel); !errors.Is(err, ErrBadEpic) {
-				t.Fatalf("epic with a parent: %v", err)
+			mk := func(parent int, kind string) (Issue, error) {
+				return is.CreateIssue(ctx, Issue{TenantID: tn, Title: "i", Parent: parent, Kind: kind, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
 			}
-			child, err := mk(e1)
+			if _, err := mk(0, ""); !errors.Is(err, ErrEpicRequired) {
+				t.Fatalf("no parent: %v", err)
+			}
+			if _, err := mk(e1, IssueKindFeature); !errors.Is(err, ErrBadEpic) {
+				t.Fatalf("feature with a parent: %v", err)
+			}
+			if _, err := mk(0, "story"); !errors.Is(err, ErrInvalidIssue) {
+				t.Fatalf("bad kind: %v", err)
+			}
+			l2, err := mk(f1.Number, "") // level 2 under a feature
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := mk(child.Number); !errors.Is(err, ErrBadEpic) {
-				t.Fatalf("parent is not an epic: %v", err)
+			sub, err := mk(l2.Number, "") // level 3
+			if err != nil || sub.IsEpic() {
+				t.Fatalf("subtask: %+v %v", sub, err)
 			}
-			// Move to the other epic: fine. Clear the epic: refused.
-			if got, err := is.UpdateIssue(ctx, tn, child.Number, IssuePatch{Parent: ptrInt(e2)}, "HUM-1", now); err != nil || got.Parent != e2 {
+			if _, err := mk(sub.Number, ""); !errors.Is(err, ErrBadEpic) {
+				t.Fatalf("a fourth level: %v", err)
+			}
+			// Moves: a level-2 issue changes level-1 parent; with subtasks it
+			// cannot become a subtask itself; a leaf level-2 can.
+			if got, err := is.UpdateIssue(ctx, tn, l2.Number, IssuePatch{Parent: ptrInt(e1)}, "HUM-1", now); err != nil || got.Parent != e1 {
 				t.Fatalf("move: %+v %v", got, err)
 			}
-			if _, err := is.UpdateIssue(ctx, tn, child.Number, IssuePatch{Parent: ptrInt(0)}, "HUM-1", now); !errors.Is(err, ErrEpicRequired) {
-				t.Fatalf("clear epic: %v", err)
+			other, _ := mk(e1, "")
+			if _, err := is.UpdateIssue(ctx, tn, l2.Number, IssuePatch{Parent: ptrInt(other.Number)}, "HUM-1", now); !errors.Is(err, ErrBadEpic) {
+				t.Fatalf("level 2 with subtasks under a level-2: %v", err)
 			}
-			// An epic with issues keeps its label; an empty one may drop it
-			// only by getting an epic itself.
-			if _, err := is.UpdateIssue(ctx, tn, e2, IssuePatch{Labels: &[]string{}, Parent: ptrInt(e1)}, "HUM-1", now); !errors.Is(err, ErrEpicHasIssues) {
-				t.Fatalf("epic with issues lost its label: %v", err)
+			if got, err := is.UpdateIssue(ctx, tn, other.Number, IssuePatch{Parent: ptrInt(l2.Number)}, "HUM-1", now); err != nil || got.Parent != l2.Number {
+				t.Fatalf("leaf becomes a subtask: %+v %v", got, err)
 			}
-			if _, err := is.UpdateIssue(ctx, tn, e1, IssuePatch{Labels: &[]string{}}, "HUM-1", now); !errors.Is(err, ErrEpicRequired) {
-				t.Fatalf("epic -> issue without an epic: %v", err)
+			if _, err := is.UpdateIssue(ctx, tn, sub.Number, IssuePatch{Parent: ptrInt(0)}, "HUM-1", now); !errors.Is(err, ErrEpicRequired) {
+				t.Fatalf("clear the parent: %v", err)
 			}
-			if got, err := is.UpdateIssue(ctx, tn, e1, IssuePatch{Labels: &[]string{}, Parent: ptrInt(e2)}, "HUM-1", now); err != nil || got.IsEpic() || got.Parent != e2 {
-				t.Fatalf("empty epic -> issue: %+v %v", got, err)
+			// Kind changes: a level-1 row with issues keeps its level; an
+			// empty one may become an issue under a level-1 row; an issue with
+			// no children may become level 1 by dropping its parent.
+			if _, err := is.UpdateIssue(ctx, tn, e1, IssuePatch{Kind: ptr(IssueKindIssue), Parent: ptrInt(f1.Number)}, "HUM-1", now); !errors.Is(err, ErrEpicHasIssues) {
+				t.Fatalf("epic with issues -> issue: %v", err)
 			}
-			// CONTROL: an issue becomes an epic only without a parent.
-			if _, err := is.UpdateIssue(ctx, tn, child.Number, IssuePatch{Labels: &[]string{IssueEpicLabel}}, "HUM-1", now); !errors.Is(err, ErrBadEpic) {
-				t.Fatalf("issue -> epic keeping its parent: %v", err)
+			if got, err := is.UpdateIssue(ctx, tn, f1.Number, IssuePatch{Kind: ptr(IssueKindEpic)}, "HUM-1", now); err != nil || got.Kind != IssueKindEpic {
+				t.Fatalf("feature -> epic: %+v %v", got, err)
 			}
-			if got, err := is.UpdateIssue(ctx, tn, child.Number, IssuePatch{Labels: &[]string{IssueEpicLabel}, Parent: ptrInt(0)}, "HUM-1", now); err != nil || !got.IsEpic() {
-				t.Fatalf("issue -> epic: %+v %v", got, err)
+			if _, err := is.UpdateIssue(ctx, tn, sub.Number, IssuePatch{Kind: ptr(IssueKindFeature)}, "HUM-1", now); !errors.Is(err, ErrBadEpic) {
+				t.Fatalf("issue -> feature keeping its parent: %v", err)
+			}
+			if got, err := is.UpdateIssue(ctx, tn, sub.Number, IssuePatch{Kind: ptr(IssueKindFeature), Parent: ptrInt(0)}, "HUM-1", now); err != nil || got.Kind != IssueKindFeature {
+				t.Fatalf("issue -> feature: %+v %v", got, err)
 			}
 		})
 	}

@@ -49,8 +49,8 @@ type issueJSON struct {
 	Labels      []string `json:"labels"`
 	Deadline    string   `json:"deadline"`
 	Parent      string   `json:"parent"`
-	Kind        string   `json:"kind"` // epic | issue (SPL-18)
-	Epic        string   `json:"epic"` // the parent epic's key; "" on an epic
+	Kind        string   `json:"kind"` // epic | feature | issue | subtask (SPL-18, rdb 0053)
+	Epic        string   `json:"epic"` // the level-1 row above it; "" on an epic / feature
 	TaskID      string   `json:"task_id"`
 	Channel     string   `json:"channel"`
 	CreatedBy   string   `json:"created_by"`
@@ -76,16 +76,53 @@ func optRFC(t *time.Time) string {
 	return rfc(*t)
 }
 
-func toIssueJSON(i store.Issue) issueJSON {
-	parent, kind, epic := "", "issue", ""
+// issueGetter finds an issue of the tenant by number (the JSON needs the
+// parent, and for a subtask the grandparent, to name its level and its epic).
+type issueGetter func(n int) (store.Issue, bool)
+
+// getterOf is an issueGetter over a listed tenant.
+func getterOf(all []store.Issue) issueGetter {
+	by := make(map[int]store.Issue, len(all))
+	for _, i := range all {
+		by[i.Number] = i
+	}
+	return func(n int) (store.Issue, bool) { i, ok := by[n]; return i, ok }
+}
+
+// storeGetter reads one issue at a time (a single-issue answer).
+func (s *Server) storeGetter(ctx context.Context, tenant string) issueGetter {
+	is, _ := s.o.Store.(store.Issues)
+	return func(n int) (store.Issue, bool) {
+		if is == nil || n == 0 {
+			return store.Issue{}, false
+		}
+		i, err := is.GetIssue(ctx, tenant, n)
+		return i, err == nil
+	}
+}
+
+// treeKind is the JSON kind (epic | feature | issue | subtask) and the key of
+// the level-1 row above i ("" on a level-1 row).
+func treeKind(i store.Issue, get issueGetter) (string, string) {
+	if i.IsEpic() {
+		return i.Kind, ""
+	}
+	p, ok := get(i.Parent)
+	switch {
+	case !ok:
+		return store.IssueKindIssue, ""
+	case p.IsEpic():
+		return store.IssueKindIssue, store.IssueKey(i.Prefix, p.Number)
+	}
+	return "subtask", store.IssueKey(i.Prefix, p.Parent)
+}
+
+func toIssueJSON(i store.Issue, get issueGetter) issueJSON {
+	parent := ""
 	if i.Parent != 0 {
 		parent = store.IssueKey(i.Prefix, i.Parent)
 	}
-	if i.IsEpic() {
-		kind = "epic"
-	} else {
-		epic = parent
-	}
+	kind, epic := treeKind(i, get)
 	labels := i.Labels
 	if labels == nil {
 		labels = []string{}
@@ -156,8 +193,16 @@ func (q issueRequest) patch() (store.IssuePatch, *issueErr) {
 		}
 		q.Parent = q.Epic
 	}
-	if q.Kind != nil && *q.Kind != "epic" && *q.Kind != "issue" {
-		return p, badIssue("kind must be epic or issue")
+	if q.Kind != nil {
+		switch *q.Kind {
+		case store.IssueKindEpic, store.IssueKindFeature:
+			zero := 0 // level 1 has no parent
+			p.Parent = &zero
+		case store.IssueKindIssue:
+		default:
+			return p, badIssue("kind must be epic, feature or issue")
+		}
+		p.Kind = q.Kind
 	}
 	if q.Parent != nil {
 		n := 0
@@ -266,13 +311,10 @@ func (s *Server) createIssue(ctx context.Context, tenant, actor string, q issueR
 	}
 	p.Status = nil // the create sets it, with its clock, in the store
 	store.ApplyIssuePatch(&in, p)
-	if q.Kind != nil {
-		in.Labels = withKind(in.Labels, *q.Kind)
-		if *q.Kind == "epic" {
-			in.Parent = 0
-		}
-	}
 	if ie := s.checkAssignee(ctx, tenant, in.Assignee); ie != nil {
+		return store.Issue{}, ie
+	}
+	if ie := s.checkEpicField(ctx, tenant, q); ie != nil {
 		return store.Issue{}, ie
 	}
 	if ie := s.ensureEpicLabel(ctx, tenant, actor, in.Labels); ie != nil {
@@ -285,7 +327,7 @@ func (s *Server) createIssue(ctx context.Context, tenant, actor string, q issueR
 		}
 		return store.Issue{}, ie
 	}
-	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "create", "issue": toIssueJSON(out)})
+	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "create", "issue": toIssueJSON(out, s.storeGetter(ctx, tenant))})
 	return out, nil
 }
 
@@ -299,26 +341,11 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 	if ie != nil {
 		return store.Issue{}, ie
 	}
-	if q.Kind != nil {
-		base := []string{}
-		if p.Labels != nil {
-			base = *p.Labels
-		} else {
-			cur, err := is.GetIssue(ctx, tenant, number)
-			if ie := storeIssueErr(err); ie != nil {
-				return store.Issue{}, ie
-			}
-			base = cur.Labels
-		}
-		labels := withKind(base, *q.Kind)
-		p.Labels = &labels
-		if *q.Kind == "epic" {
-			zero := 0
-			p.Parent = &zero
-		}
-	}
 	if p.Empty() {
 		return store.Issue{}, badIssue("nothing to change")
+	}
+	if ie := s.checkEpicField(ctx, tenant, q); ie != nil {
+		return store.Issue{}, ie
 	}
 	if p.Assignee != nil {
 		if ie := s.checkAssignee(ctx, tenant, *p.Assignee); ie != nil {
@@ -337,23 +364,24 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 		}
 		return store.Issue{}, ie
 	}
-	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "update", "issue": toIssueJSON(out)})
+	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "update", "issue": toIssueJSON(out, s.storeGetter(ctx, tenant))})
 	return out, nil
 }
 
-// withKind is labels with the reserved epic label added (kind epic) or
-// removed (kind issue).
-func withKind(labels []string, kind string) []string {
-	out := make([]string, 0, len(labels)+1)
-	for _, l := range labels {
-		if l != store.IssueEpicLabel {
-			out = append(out, l)
-		}
+// checkEpicField: the `epic` field names a level-1 row (an epic or a feature);
+// `parent` is the general form, which also takes a level-2 issue (a subtask).
+func (s *Server) checkEpicField(ctx context.Context, tenant string, q issueRequest) *issueErr {
+	if q.Epic == nil || strings.TrimSpace(*q.Epic) == "" {
+		return nil
 	}
-	if kind == "epic" {
-		out = append(out, store.IssueEpicLabel)
+	n, ok := store.ParseIssueRef(*q.Epic)
+	if !ok {
+		return badIssue("epic must be an issue key like SPL-17")
 	}
-	return out
+	if e, ok := s.storeGetter(ctx, tenant)(n); ok && !e.IsEpic() {
+		return &issueErr{http.StatusBadRequest, "bad_epic", "epic must name an epic or a feature; a subtask's issue goes in parent"}
+	}
+	return nil
 }
 
 // ensureEpicLabel puts the reserved epic label into the tenant's catalogue
@@ -394,8 +422,9 @@ type issueFilter struct {
 	priority, level         map[int]bool
 	before, after           *time.Time
 	sort                    string
-	epic                    map[int]bool // SPL-18: children of these epics
-	kind                    string       // "" | epic | issue
+	epic                    map[int]bool    // SPL-18: rows under these level-1 rows
+	parent                  map[int]bool    // rows whose direct parent is one of these
+	kind                    map[string]bool // epic | feature | issue | subtask
 }
 
 func csvSet(v string) map[string]bool {
@@ -462,18 +491,23 @@ func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr)
 			*dst = &t
 		}
 	}
-	f.epic = map[int]bool{}
-	for e := range csvSet(get("epic")) {
-		n, ok := store.ParseIssueRef(e)
-		if !ok {
-			return f, badIssue("epic must be issue keys like SPL-17")
+	for name, dst := range map[string]*map[int]bool{"epic": &f.epic, "parent": &f.parent} {
+		*dst = map[int]bool{}
+		for e := range csvSet(get(name)) {
+			n, ok := store.ParseIssueRef(e)
+			if !ok {
+				return f, badIssue(name + " must be issue keys like SPL-17")
+			}
+			(*dst)[n] = true
 		}
-		f.epic[n] = true
 	}
-	switch f.kind = get("kind"); f.kind {
-	case "", "epic", "issue":
-	default:
-		return f, badIssue("kind must be epic or issue")
+	f.kind = csvSet(get("kind"))
+	for k := range f.kind {
+		switch k {
+		case store.IssueKindEpic, store.IssueKindFeature, store.IssueKindIssue, "subtask":
+		default:
+			return f, badIssue("kind must be epic, feature, issue or subtask")
+		}
 	}
 	switch f.sort = get("sort"); f.sort {
 	case "", "priority", "level", "deadline", "updated", "created", "number":
@@ -483,11 +517,18 @@ func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr)
 	return f, nil
 }
 
-func (f issueFilter) match(i store.Issue) bool {
-	if (f.kind == "epic" && !i.IsEpic()) || (f.kind == "issue" && i.IsEpic()) {
+func (f issueFilter) match(i store.Issue, get issueGetter) bool {
+	kind, epic := treeKind(i, get)
+	if len(f.kind) > 0 && !f.kind[kind] {
 		return false
 	}
-	if len(f.epic) > 0 && (i.IsEpic() || !f.epic[i.Parent]) {
+	if len(f.epic) > 0 {
+		n, ok := store.ParseIssueRef(epic)
+		if !ok || !f.epic[n] {
+			return false
+		}
+	}
+	if len(f.parent) > 0 && !f.parent[i.Parent] {
 		return false
 	}
 	if len(f.status) > 0 && !f.status[i.Status] {
@@ -588,8 +629,9 @@ func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (
 	for _, st := range store.IssueStatuses {
 		counts[st] = 0
 	}
+	get := getterOf(all)
 	for _, i := range all {
-		if f.match(i) {
+		if f.match(i, get) {
 			kept = append(kept, i)
 			counts[i.Status]++
 		}
@@ -597,7 +639,7 @@ func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (
 	SortIssues(kept, f.sort)
 	out := make([]issueJSON, len(kept))
 	for k, i := range kept {
-		out[k] = toIssueJSON(i)
+		out[k] = toIssueJSON(i, get)
 	}
 	lj := make([]issueLabelJSON, len(labels))
 	for k, l := range labels {
@@ -616,6 +658,7 @@ func writeIssueErr(w http.ResponseWriter, ie *issueErr) {
 // every issue of the tenant, never the filtered list.
 type epicSummary struct {
 	Key      string         `json:"key"`
+	Kind     string         `json:"kind"` // epic | feature
 	Number   int            `json:"number"`
 	Title    string         `json:"title"`
 	Status   string         `json:"status"`
@@ -634,7 +677,7 @@ func epicSummaries(all []store.Issue) []epicSummary {
 		if !i.IsEpic() {
 			continue
 		}
-		e := &epicSummary{Key: i.Key(), Number: i.Number, Title: i.Title, Status: i.Status, Counts: map[string]int{}}
+		e := &epicSummary{Key: i.Key(), Kind: i.Kind, Number: i.Number, Title: i.Title, Status: i.Status, Counts: map[string]int{}}
 		for _, st := range store.IssueStatuses {
 			e.Counts[st] = 0
 		}
@@ -713,7 +756,7 @@ func (s *Server) handleViewIssue(w http.ResponseWriter, r *http.Request, t store
 		writeIssueErr(w, ie)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"issue": toIssueJSON(i)})
+	writeJSON(w, http.StatusOK, map[string]any{"issue": toIssueJSON(i, s.storeGetter(r.Context(), t.ID))})
 }
 
 // issueWriter resolves a browser write: tenant, actor, notes.send, billing.
@@ -751,7 +794,7 @@ func (s *Server) handleCreateIssue(w http.ResponseWriter, r *http.Request) {
 		writeIssueErr(w, ie)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"issue": toIssueJSON(i)})
+	writeJSON(w, http.StatusCreated, map[string]any{"issue": toIssueJSON(i, s.storeGetter(r.Context(), t.ID))})
 }
 
 func (s *Server) handlePatchIssue(w http.ResponseWriter, r *http.Request) {
@@ -773,7 +816,7 @@ func (s *Server) handlePatchIssue(w http.ResponseWriter, r *http.Request) {
 		writeIssueErr(w, ie)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"issue": toIssueJSON(i)})
+	writeJSON(w, http.StatusOK, map[string]any{"issue": toIssueJSON(i, s.storeGetter(r.Context(), t.ID))})
 }
 
 // createIssueLabel is the one label path (browser and agent).

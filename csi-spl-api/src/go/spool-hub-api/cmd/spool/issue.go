@@ -20,7 +20,7 @@ const issueUsage = `usage: spool issue <list|get|create|update|comment|label> --
   list    [--epic SPL-1,..] [--kind epic|issue] [--status s,..] [--priority n,..] [--level n,..] [--assignee id|me|none,..] [--label l,..]
           [--deadline-before T] [--deadline-after T] [--sort priority|level|deadline|updated|created]
   get     --ref SPL-3
-  create  --title T --epic SPL-1 | --kind epic  [--description D | --description-file F] [--status S]
+  create  --title T  --epic SPL-1 | --parent SPL-3 (subtask) | --kind epic|feature  [--description D | --description-file F] [--status S]
           [--priority 0-4] [--level 0-5] [--assignee ID] [--labels a,b] [--deadline 2026-10-01T15:00:00Z]
   update  --ref SPL-3 [any create flag; only the flags given change; "" clears]
   comment --ref SPL-3 --body TEXT | --body-file F
@@ -47,9 +47,9 @@ func cmdIssue(cfg *config.Config, args []string) int {
 	labels := fs.String("labels", "", "label ids, comma separated")
 	label := fs.String("label", "", "list: label ids, comma separated")
 	deadline := fs.String("deadline", "", "RFC 3339 with a zone; empty clears on update")
-	parent := fs.String("parent", "", "the parent epic's key (same as --epic)")
+	parent := fs.String("parent", "", "the parent: an epic / feature, or a level-2 issue (the new one is its subtask); list: comma list")
 	epic := fs.String("epic", "", "the parent epic's key (SPL-18: every issue has one); list: comma list")
-	kind := fs.String("kind", "", "epic | issue (create / update); list: epic | issue")
+	kind := fs.String("kind", "", "epic | feature | issue (create / update); list: epic,feature,issue,subtask")
 	before := fs.String("deadline-before", "", "list: RFC 3339")
 	after := fs.String("deadline-after", "", "list: RFC 3339")
 	sortBy := fs.String("sort", "", "list: priority|level|deadline|updated|created")
@@ -67,7 +67,7 @@ func cmdIssue(cfg *config.Config, args []string) int {
 	case "list":
 		q := url.Values{}
 		for k, v := range map[string]string{"status": *status, "priority": *priority, "level": *level, "assignee": *assignee,
-			"label": *label, "deadline_before": *before, "deadline_after": *after, "sort": *sortBy, "epic": *epic, "kind": *kind} {
+			"label": *label, "deadline_before": *before, "deadline_after": *after, "sort": *sortBy, "epic": *epic, "kind": *kind, "parent": *parent} {
 			if v != "" {
 				q.Set(k, v)
 			}

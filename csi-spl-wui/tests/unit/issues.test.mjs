@@ -299,11 +299,19 @@ describe('filter row labels', () => {
     assert.equal(controlLabel('Sort', 'prio'), 'Sort: prio')
   })
 
-  it('the page prefixes the sort, the status and the level value', () => {
+  it('owner, topic e00da93b: a sheet - a names row, then value-only filters under the columns', () => {
     const src = readFileSync(new URL('../../src/pages/issues.vue', import.meta.url), 'utf8')
-    assert.match(src, /controlLabel\(t\('issues\.sort'\), t\('issues\.sort_level'\)\)/)
-    assert.match(src, /controlLabel\(t\('issues\.filter_status'\)/)
-    assert.match(src, /controlLabel\(t\('issues\.filter_level'\), String\(n\)\)/)
+    const head = src.slice(src.indexOf('data-test="issues-filters"'), src.indexOf('</thead>'))
+    const names = head.slice(0, head.indexOf('issues-frow'))
+    for (const k of ['issues_view.col_key', 'issues_view.col_title', 'issues.filter_status', 'issues.filter_priority', 'issues.filter_level', 'issues.filter_assignee', 'issues.filter_label', 'issues.field_deadline', 'issues.sort_updated']) {
+      assert.ok(names.includes(`{{ t('${k}') }}</th>`), k)
+    }
+    const filters = head.slice(head.indexOf('issues-frow'))
+    for (const d of ['issues-filter-status-btn', 'issues-filter-priority', 'issues-filter-level', 'issues-filter-assignee', 'issues-filter-label', 'issues-filter-deadline-date']) {
+      assert.ok(filters.includes(d), d)
+    }
+    assert.equal(head.includes('controlLabel('), false, 'no Name: prefix inside a control')
+    assert.equal(/\}\}: \{\{/.test(head), false, 'no Name: prefix inside a control')
     assert.match(src, /data-test="issues-filter-deadline"/)
     assert.equal(src.includes('issues-filter-from'), false)
     assert.equal(src.includes('issues-filter-until'), false)
@@ -334,5 +342,17 @@ describe('SPL-966: 05-blocked and 06-onhold', async () => {
     const l = m.list('status=onhold')
     assert.deepEqual(l.issues.map((x) => x.key), [i.key])
     assert.equal(l.counts.onhold, 1)
+  })
+})
+
+describe('owner, topic e65c0f60: the default view is one flat list', () => {
+  it('by none: one group with no status, every kept issue, in the sort order', () => {
+    const g = groupIssues(list, { sort: 'updated', by: 'none' })
+    assert.equal(g.length, 1)
+    assert.equal(g[0].status, '')
+    assert.deepEqual(g[0].issues.map((i) => i.key), sortIssues(list, 'updated').map((i) => i.key))
+  })
+  it('by status (the old view) still groups (CONTROL)', () => {
+    assert.ok(groupIssues(list, { sort: 'updated' }).length > 1)
   })
 })

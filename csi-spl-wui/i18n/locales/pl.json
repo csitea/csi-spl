@@ -877,5 +877,11 @@
     "done": "Gotowe",
     "invalid": "Użyj YYYY-MM-DD HH:MM",
     "weekdays": "Pn Wt Śr Cz Pt So Nd"
+  },
+  "issues_view": {
+    "group": "Grupuj według",
+    "group_none": "Brak",
+    "col_key": "Klucz",
+    "col_title": "Tytuł"
   }
 }

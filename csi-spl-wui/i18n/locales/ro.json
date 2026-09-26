@@ -877,5 +877,11 @@
     "done": "Gata",
     "invalid": "Folosiți YYYY-MM-DD HH:MM",
     "weekdays": "Lu Ma Mi Jo Vi Sâ Du"
+  },
+  "issues_view": {
+    "group": "Grupare după",
+    "group_none": "Niciuna",
+    "col_key": "Cheie",
+    "col_title": "Titlu"
   }
 }

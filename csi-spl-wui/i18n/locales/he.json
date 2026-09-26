@@ -877,5 +877,11 @@
     "done": "סיום",
     "invalid": "יש להשתמש ב־YYYY-MM-DD HH:MM",
     "weekdays": "ב׳ ג׳ ד׳ ה׳ ו׳ ש׳ א׳"
+  },
+  "issues_view": {
+    "group": "קיבוץ לפי",
+    "group_none": "ללא",
+    "col_key": "מפתח",
+    "col_title": "כותרת"
   }
 }

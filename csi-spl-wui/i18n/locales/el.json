@@ -877,5 +877,11 @@
     "done": "Τέλος",
     "invalid": "Χρησιμοποιήστε YYYY-MM-DD HH:MM",
     "weekdays": "Δε Τρ Τε Πε Πα Σα Κυ"
+  },
+  "issues_view": {
+    "group": "Ομαδοποίηση",
+    "group_none": "Καμία",
+    "col_key": "Κλειδί",
+    "col_title": "Τίτλος"
   }
 }

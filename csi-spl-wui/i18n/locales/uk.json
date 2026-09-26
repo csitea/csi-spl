@@ -877,5 +877,11 @@
     "done": "Готово",
     "invalid": "Використовуйте YYYY-MM-DD HH:MM",
     "weekdays": "Пн Вт Ср Чт Пт Сб Нд"
+  },
+  "issues_view": {
+    "group": "Групування",
+    "group_none": "Немає",
+    "col_key": "Ключ",
+    "col_title": "Назва"
   }
 }

@@ -877,5 +877,11 @@
     "done": "Valmis",
     "invalid": "Kasutage YYYY-MM-DD HH:MM",
     "weekdays": "E T K N R L P"
+  },
+  "issues_view": {
+    "group": "Rühmita",
+    "group_none": "Puudub",
+    "col_key": "Võti",
+    "col_title": "Pealkiri"
   }
 }

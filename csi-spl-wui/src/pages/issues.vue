@@ -10,128 +10,195 @@
         <button type="button" class="btn" data-test="issues-new" @click="startCreate">{{ t('issues.new') }}</button>
       </header>
       <p class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues.shortcuts') }}</p>
-      <div class="issues-filters" data-test="issues-filters">
-        <select v-model="sortF" class="issues-sort" data-test="issues-sort" :aria-label="t('issues.sort')">
-          <option value="priority">{{ controlLabel(t('issues.sort'), t('issues.sort_priority')) }}</option>
-          <option value="level">{{ controlLabel(t('issues.sort'), t('issues.sort_level')) }}</option>
-          <option value="deadline">{{ controlLabel(t('issues.sort'), t('issues.sort_deadline')) }}</option>
-          <option value="updated">{{ controlLabel(t('issues.sort'), t('issues.sort_updated')) }}</option>
-          <option value="created">{{ controlLabel(t('issues.sort'), t('issues.sort_created')) }}</option>
-        </select>
-        <div class="issues-status-dd" data-test="issues-filter-status">
-          <button
-            type="button"
-            class="issues-status-dd__btn"
-            data-test="issues-filter-status-btn"
-            :aria-label="t('issues.filter_status')"
-            :aria-expanded="statusOpen ? 'true' : 'false'"
-            :title="statusF ? t(statusHintKey(statusF)) : undefined"
-            @click="statusOpen = !statusOpen"
-          >{{ controlLabel(t('issues.filter_status'), statusF ? statusLabel(statusF) : t('issues.filter_all')) }}</button>
-          <div v-show="statusOpen" class="issues-status-dd__list" role="listbox">
-            <button type="button" class="issues-status-dd__opt" data-test="issues-filter-status-all" @click="pickStatus('')">
-              {{ t('issues.filter_status') }}: {{ t('issues.filter_all') }}
-            </button>
-            <button
-              v-for="s in ISSUE_STATUSES"
-              :key="s"
-              type="button"
-              class="issues-status-dd__opt"
-              data-test="issues-filter-status-opt"
-              :data-value="s"
-              :aria-selected="statusF === s ? 'true' : 'false'"
-              :title="t(statusHintKey(s))"
-              @click="pickStatus(s)"
-            >
-              <span class="issues-status-code">{{ statusLabel(s) }}</span>
-              <span class="issues-status-tip" role="tooltip">{{ t(statusHintKey(s)) }}</span>
-            </button>
-          </div>
-        </div>
-        <select v-model="priorityF" data-test="issues-filter-priority" :aria-label="t('issues.filter_priority')">
-          <option value="">{{ t('issues.filter_priority') }}: {{ t('issues.filter_all') }}</option>
-          <option v-for="n in ISSUE_PRIORITIES" :key="n" :value="String(n)">{{ controlLabel(t('issues.filter_priority'), String(n)) }}</option>
-        </select>
-        <select v-model="levelF" data-test="issues-filter-level" :aria-label="t('issues.filter_level')">
-          <option value="">{{ t('issues.filter_level') }}: {{ t('issues.filter_all') }}</option>
-          <option v-for="n in ISSUE_LEVELS" :key="'lv' + n" :value="String(n)" :title="t(levelKey(n))">{{ controlLabel(t('issues.filter_level'), String(n)) }}</option>
-        </select>
-        <!-- owner, topic e00da93b: "the assignee: string is obsolete" - the
-             value alone behind a person icon; "Assignee" stays the name and hover -->
-        <span class="issues-filter-who">
-          <UiIcon name="user" :size="14" class="issues-filter-who__icon" />
-          <select v-model="assigneeF" class="issues-filter-assignee" data-test="issues-filter-assignee" :aria-label="t('issues.filter_assignee')" :title="assigneeTitle">
-            <option value="">{{ t('issues.filter_all') }}</option>
-            <option value="me">{{ t('issues.filter_me') }}</option>
-            <option value="none">{{ t('issues.filter_unassigned') }}</option>
-            <option v-for="p in assigneeOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
+      <!-- owner, topic e00da93b: "it should look like a gsheet with columns and a
+           table". The list is a table: row 1 the column names, row 2 each
+           column's filter (sticky, like a sheet's filter row), then one issue
+           per row in the same columns. Sort and grouping have no column and sit
+           above it. On a phone the table scrolls sideways inside its pane. -->
+      <div class="issues-tools" data-test="issues-tools">
+        <div class="issues-fcell">
+          <span class="issues-fcell__name">{{ t('issues.sort') }}</span>
+          <select v-model="sortF" class="issues-sort" data-test="issues-sort" :aria-label="t('issues.sort')">
+            <option value="updated">{{ t('issues.sort_updated') }}</option>
+            <option value="created">{{ t('issues.sort_created') }}</option>
+            <option value="priority">{{ t('issues.sort_priority') }}</option>
+            <option value="level">{{ t('issues.sort_level') }}</option>
+            <option value="deadline">{{ t('issues.sort_deadline') }}</option>
           </select>
-        </span>
-        <select v-model="labelF" data-test="issues-filter-label" :aria-label="t('issues.filter_label')">
-          <option value="">{{ t('issues.filter_label') }}: {{ t('issues.filter_all') }}</option>
-          <option v-for="l in labels" :key="l.id" :value="l.id">{{ controlLabel(t('issues.filter_label'), l.name) }}</option>
-        </select>
-        <!-- owner, topic 778ad161: the calendar control, YYYY-MM-DD HH:MM; due on or before that minute -->
-        <div class="issues-filter-when" role="group" :aria-label="t('issues.field_deadline')" data-test="issues-filter-deadline">
-          <span>{{ t('issues.field_deadline') }}:</span>
-          <DeadlinePicker v-model="dueF" :label="t('issues.field_deadline')" test-id="issues-filter-deadline-date" time-test-id="issues-filter-deadline-time" default-time="23:59" />
+        </div>
+        <!-- owner, topic e65c0f60: the default view is one flat list; by status is a choice -->
+        <div class="issues-fcell">
+          <span class="issues-fcell__name">{{ t('issues_view.group') }}</span>
+          <select v-model="groupF" data-test="issues-group-by" :aria-label="t('issues_view.group')">
+            <option value="none">{{ t('issues_view.group_none') }}</option>
+            <option value="status">{{ t('issues.filter_status') }}</option>
+          </select>
         </div>
         <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
       </div>
       <div ref="scrollerEl" class="issues-scroll">
-        <p v-if="loading && !issues.length" class="muted" data-test="issues-loading">{{ t('issues.loading') }}</p>
-        <p v-else-if="loadError" class="issues-error" role="alert" data-test="issues-error">{{ t(loadError) }}</p>
-        <p v-else-if="!groups.length" class="muted" data-test="issues-empty">{{ t('issues.empty') }}</p>
-        <section v-for="g in groups" :key="g.status" class="issues-group" :data-status="g.status">
-          <button
-            type="button"
-            class="issues-group__h"
-            :aria-expanded="isCollapsed(g.status) ? 'false' : 'true'"
-            @click="toggleGroup(g.status)"
-          >
-            <IssueGlyph :name="statusIcon(g.status)" :size="16" :class="'issues-st issues-st--' + g.status" />
-            <span class="issues-status-host" :title="t(statusHintKey(g.status))">
-              <span class="issues-status-code">{{ statusLabel(g.status) }}</span>
-              <span class="issues-status-tip" role="tooltip">{{ t(statusHintKey(g.status)) }}</span>
-            </span>
-            <span class="issues-count" data-test="issues-group-count">{{ g.count }}</span>
-          </button>
-          <div v-show="!isCollapsed(g.status)">
-            <div
-              v-for="issue in g.issues"
-              :key="issue.key"
-              class="issues-row"
-              role="button"
-              tabindex="0"
-              data-test="issues-row"
-              :data-key="issue.key"
-              :data-priority="issue.priority"
-              :data-level="issue.level"
-              :data-selected="cursorKey === issue.key ? 'true' : 'false'"
-              @click="choose(issue)"
-              @keydown.enter.prevent="choose(issue)"
-            >
-              <button type="button" class="issues-iconbtn" data-test="issues-row-priority" :aria-label="t('issues.field_priority')" @click.stop="openMenu('priority', issue, $event)">
-                <span class="issues-prio" data-test="issues-row-prio" :class="'issues-prio--' + issue.priority">{{ issue.priority }}</span>
-              </button>
-              <span class="issues-key">{{ issue.key }}</span>
-              <span class="issues-title">{{ issue.title }}</span>
-              <button v-if="!epicF && issue.epic" type="button" class="issues-pill issues-epic-tag" data-test="issues-row-epic" @click.stop="openMenu('epic', issue, $event)">{{ epicTitleOf(issue.epic) }}</button>
-              <span v-if="levelShort(issue.level)" class="issues-level" data-test="issues-row-level" :title="t(levelKey(issue.level))">{{ levelShort(issue.level) }}</span>
-              <span v-if="issue.labels.length" class="issues-pills">
-                <button v-for="id in issue.labels" :key="id" type="button" class="issues-pill" data-test="issues-row-label" @click.stop="openMenu('label', issue, $event)">
-                  <i class="issues-dot" :style="dotStyle(id)" />{{ labelText(id) }}
+        <table class="issues-table" data-test="issues-table">
+          <thead ref="theadEl" class="issues-filters" data-test="issues-filters">
+            <tr class="issues-names">
+              <th scope="col" class="issues-c-key">{{ t('issues_view.col_key') }}</th>
+              <th scope="col" class="issues-c-title">{{ t('issues_view.col_title') }}</th>
+              <th scope="col">{{ t('issues.filter_status') }}</th>
+              <th scope="col">{{ t('issues.filter_priority') }}</th>
+              <th scope="col">{{ t('issues.filter_level') }}</th>
+              <th scope="col">{{ t('issues.filter_assignee') }}</th>
+              <th scope="col">{{ t('issues.filter_label') }}</th>
+              <th scope="col">{{ t('issues.field_deadline') }}</th>
+              <th scope="col">{{ t('issues.sort_updated') }}</th>
+            </tr>
+            <tr class="issues-frow">
+              <th />
+              <th />
+              <th>
+                <div class="issues-status-dd" data-test="issues-filter-status">
+                  <button
+                    type="button"
+                    class="issues-status-dd__btn"
+                    data-test="issues-filter-status-btn"
+                    :aria-label="t('issues.filter_status')"
+                    :aria-expanded="statusOpen ? 'true' : 'false'"
+                    :title="statusF ? t(statusHintKey(statusF)) : undefined"
+                    @click="statusOpen = !statusOpen"
+                  >{{ statusF ? statusLabel(statusF) : t('issues.filter_all') }}</button>
+                  <div v-show="statusOpen" class="issues-status-dd__list" role="listbox">
+                    <button type="button" class="issues-status-dd__opt" data-test="issues-filter-status-all" @click="pickStatus('')">
+                      {{ t('issues.filter_all') }}
+                    </button>
+                    <button
+                      v-for="s in ISSUE_STATUSES"
+                      :key="s"
+                      type="button"
+                      class="issues-status-dd__opt"
+                      data-test="issues-filter-status-opt"
+                      :data-value="s"
+                      :aria-selected="statusF === s ? 'true' : 'false'"
+                      :title="t(statusHintKey(s))"
+                      @click="pickStatus(s)"
+                    >
+                      <span class="issues-status-code">{{ statusLabel(s) }}</span>
+                      <span class="issues-status-tip" role="tooltip">{{ t(statusHintKey(s)) }}</span>
+                    </button>
+                  </div>
+                </div>
+              </th>
+              <th>
+                <select v-model="priorityF" data-test="issues-filter-priority" :aria-label="t('issues.filter_priority')">
+                  <option value="">{{ t('issues.filter_all') }}</option>
+                  <option v-for="n in ISSUE_PRIORITIES" :key="n" :value="String(n)">{{ n }}</option>
+                </select>
+              </th>
+              <th>
+                <select v-model="levelF" data-test="issues-filter-level" :aria-label="t('issues.filter_level')">
+                  <option value="">{{ t('issues.filter_all') }}</option>
+                  <option v-for="n in ISSUE_LEVELS" :key="'lv' + n" :value="String(n)" :title="t(levelKey(n))">{{ n }}</option>
+                </select>
+              </th>
+              <th>
+                <select v-model="assigneeF" class="issues-filter-assignee" data-test="issues-filter-assignee" :aria-label="t('issues.filter_assignee')" :title="assigneeTitle">
+                  <option value="">{{ t('issues.filter_all') }}</option>
+                  <option value="me">{{ t('issues.filter_me') }}</option>
+                  <option value="none">{{ t('issues.filter_unassigned') }}</option>
+                  <option v-for="p in assigneeOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
+                </select>
+              </th>
+              <th>
+                <select v-model="labelF" data-test="issues-filter-label" :aria-label="t('issues.filter_label')">
+                  <option value="">{{ t('issues.filter_all') }}</option>
+                  <option v-for="l in labels" :key="l.id" :value="l.id">{{ l.name }}</option>
+                </select>
+              </th>
+              <!-- owner, topic 778ad161: the calendar control, YYYY-MM-DD HH:MM; due on or before that minute -->
+              <th role="group" :aria-label="t('issues.field_deadline')" data-test="issues-filter-deadline">
+                <DeadlinePicker v-model="dueF" :label="t('issues.field_deadline')" test-id="issues-filter-deadline-date" time-test-id="issues-filter-deadline-time" default-time="23:59" />
+              </th>
+              <th />
+            </tr>
+          </thead>
+          <tbody v-if="(loading && !issues.length) || loadError || !rowCount">
+            <tr>
+              <td colspan="9" class="issues-note">
+                <p v-if="loading && !issues.length" class="muted" data-test="issues-loading">{{ t('issues.loading') }}</p>
+                <p v-else-if="loadError" class="issues-error" role="alert" data-test="issues-error">{{ t(loadError) }}</p>
+                <p v-else class="muted" data-test="issues-empty">{{ t('issues.empty') }}</p>
+              </td>
+            </tr>
+          </tbody>
+          <tbody v-for="g in shownGroups" :key="g.status || 'all'" class="issues-group" :data-status="g.status">
+            <tr v-if="g.status">
+              <td colspan="9" class="issues-group__cell">
+                <button
+                  type="button"
+                  class="issues-group__h"
+                  :aria-expanded="isCollapsed(g.status) ? 'false' : 'true'"
+                  @click="toggleGroup(g.status)"
+                >
+                  <IssueGlyph :name="statusIcon(g.status)" :size="16" :class="'issues-st issues-st--' + g.status" />
+                  <span class="issues-status-host" :title="t(statusHintKey(g.status))">
+                    <span class="issues-status-code">{{ statusLabel(g.status) }}</span>
+                    <span class="issues-status-tip" role="tooltip">{{ t(statusHintKey(g.status)) }}</span>
+                  </span>
+                  <span class="issues-count" data-test="issues-group-count">{{ g.count }}</span>
                 </button>
-              </span>
-              <time v-if="issue.deadline" class="issues-when" :datetime="issue.deadline">{{ when(issue.deadline) }}</time>
-              <button type="button" class="issues-person" data-test="issues-row-assignee" :data-assignee="issue.assignee" :aria-label="t('issues.field_assignee')" @click.stop="openMenu('assign', issue, $event)">
-                <SpoolAvatar v-if="issue.assignee" :id="issue.assignee" :box="boxOf(issue.assignee)" :size="20" />
-                <HumanName v-if="issue.assignee" :id="issue.assignee" :box="boxOf(issue.assignee)" />
-                <span v-else class="muted">{{ t('issues.no_assignee') }}</span>
-              </button>
-            </div>
-          </div>
-        </section>
+              </td>
+            </tr>
+            <template v-if="!g.status || !isCollapsed(g.status)">
+              <tr
+                v-for="issue in g.issues"
+                :key="issue.key"
+                class="issues-row"
+                role="button"
+                tabindex="0"
+                data-test="issues-row"
+                :data-key="issue.key"
+                :data-priority="issue.priority"
+                :data-level="issue.level"
+                :data-selected="cursorKey === issue.key ? 'true' : 'false'"
+                @click="choose(issue)"
+                @keydown.enter.prevent="choose(issue)"
+              >
+                <td class="issues-c-key"><span class="issues-key">{{ issue.key }}</span></td>
+                <td class="issues-c-title">
+                  <span class="issues-title-cell">
+                    <span class="issues-title" :title="issue.title">{{ issue.title }}</span>
+                    <button v-if="!epicF && issue.epic" type="button" class="issues-pill issues-epic-tag" data-test="issues-row-epic" :title="epicTitleOf(issue.epic)" @click.stop="openMenu('epic', issue, $event)">{{ epicTitleOf(issue.epic) }}</button>
+                  </span>
+                </td>
+                <td>
+                  <button type="button" class="issues-iconbtn issues-row-status" data-test="issues-row-status" :data-status="issue.status" :aria-label="t('issues.filter_status')" :title="t(statusHintKey(issue.status))" @click.stop="openMenu('status', issue, $event)">
+                    <IssueGlyph :name="statusIcon(issue.status)" :size="14" :class="'issues-st issues-st--' + issue.status" />
+                    <span class="issues-status-code">{{ statusLabel(issue.status) }}</span>
+                  </button>
+                </td>
+                <td>
+                  <button type="button" class="issues-iconbtn" data-test="issues-row-priority" :aria-label="t('issues.field_priority')" @click.stop="openMenu('priority', issue, $event)">
+                    <span class="issues-prio" data-test="issues-row-prio" :class="'issues-prio--' + issue.priority">{{ issue.priority }}</span>
+                  </button>
+                </td>
+                <td><span class="issues-level" data-test="issues-row-level" :title="t(levelKey(issue.level))">{{ levelShort(issue.level) || issue.level }}</span></td>
+                <td>
+                  <button type="button" class="issues-person" data-test="issues-row-assignee" :data-assignee="issue.assignee" :aria-label="t('issues.field_assignee')" @click.stop="openMenu('assign', issue, $event)">
+                    <SpoolAvatar v-if="issue.assignee" :id="issue.assignee" :box="boxOf(issue.assignee)" :size="20" />
+                    <HumanName v-if="issue.assignee" :id="issue.assignee" :box="boxOf(issue.assignee)" />
+                    <span v-else class="muted">{{ t('issues.no_assignee') }}</span>
+                  </button>
+                </td>
+                <td>
+                  <span class="issues-pills">
+                    <button v-for="id in issue.labels" :key="id" type="button" class="issues-pill" data-test="issues-row-label" @click.stop="openMenu('label', issue, $event)">
+                      <i class="issues-dot" :style="dotStyle(id)" />{{ labelText(id) }}
+                    </button>
+                  </span>
+                </td>
+                <td><time v-if="issue.deadline" class="issues-when" :datetime="issue.deadline">{{ when(issue.deadline) }}</time></td>
+                <td><time v-if="issue.updated_at" class="issues-when issues-updated" :datetime="issue.updated_at">{{ when(issue.updated_at) }}</time></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
       </div>
     </div>
     <PaneDivider
@@ -367,7 +434,9 @@ const loading = ref(false)
 const busy = ref(false)
 const loadError = ref('')
 const saveError = ref('')
-const sortF = ref('priority')
+const sortF = ref('updated')
+/* owner, topic e65c0f60: one flat list by default; 'status' groups as before */
+const groupF = ref<'none' | 'status'>('none')
 const statusF = ref('')
 const statusOpen = ref(false)
 const priorityF = ref('')
@@ -388,6 +457,7 @@ const menuPos = ref({ top: 80, left: 80 })
 const labelName = ref('')
 const titleEl = ref<HTMLInputElement | null>(null)
 const scrollerEl = ref<HTMLElement | null>(null)
+const theadEl = ref<HTMLElement | null>(null)
 const pageEl = ref<HTMLElement | null>(null)
 const detailW = ref(ISSUE_PANE_DEFAULT)
 const detailRoom = ref(720)
@@ -525,7 +595,10 @@ const assigneeOptions = computed(() => {
   }
   return out
 })
-const groups = computed(() => groupIssues(issues.value, { sort: sortF.value, filter: serverFilter(), me: meId(), hideEmpty: false }))
+const groups = computed(() => groupIssues(issues.value, { sort: sortF.value, filter: serverFilter(), me: meId(), hideEmpty: false, by: groupF.value }))
+const rowCount = computed(() => groups.value.reduce((n, g) => n + g.count, 0))
+/* the table keeps its header and filter row when nothing matches; the note says so */
+const shownGroups = computed(() => (rowCount.value ? groups.value : []))
 const flat = computed(() => visibleOrder(groups.value, Object.fromEntries(
   ISSUE_STATUSES.map((s) => [s, isCollapsed(s)]),
 )))
@@ -590,7 +663,8 @@ function pickStatus(s: string) {
   statusOpen.value = false
 }
 function clearFilters() {
-  sortF.value = 'priority'
+  sortF.value = 'updated'
+  groupF.value = 'none'
   statusF.value = ''
   statusOpen.value = false
   priorityF.value = ''
@@ -697,7 +771,10 @@ function scrollSelected() {
   const key = cursorKey.value
   if (!scroller || !key) return
   const row = scroller.querySelector(`[data-test=issues-row][data-key="${CSS.escape(key)}"]`)
-  if (row) scrollRowToTop(scroller, row)
+  if (!row) return
+  scrollRowToTop(scroller, row)
+  /* the sticky names + filter rows cover the top of the scroller */
+  scroller.scrollTop -= theadEl.value?.getBoundingClientRect().height || 0
 }
 function move(delta: number) {
   const next = stepKey(flat.value, cursorKey.value, delta)
@@ -1046,26 +1123,17 @@ onUnmounted(() => {
   font-size: 0.75rem;
   min-width: 0;
 }
-.issues-filters {
+.issues-tools {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  align-items: flex-end;
+  gap: 6px 10px;
   padding: 0 12px 8px;
   min-width: 0;
 }
-.issues-sort { margin-inline-end: 10px; }
-.issues-filter-when {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  max-width: 100%;
-  font-size: 0.8125rem;
-  color: var(--color-muted);
-}
-.issues-filter-when input { max-width: 11rem; }
 .issues-filters select,
 .issues-filters input,
+.issues-tools select,
 .issues-status-dd__btn {
   max-width: 100%;
   min-width: 0;
@@ -1080,16 +1148,16 @@ onUnmounted(() => {
    like prio / level, never wider than 13em; a long name ends in an ellipsis
    and reads in full on hover. The open list keeps its own width. Firefox has
    no field-sizing yet and just gets the cap. */
-.issues-filter-who { position: relative; display: inline-flex; align-items: center; min-width: 0; }
-.issues-filter-who__icon { position: absolute; inset-inline-start: 8px; pointer-events: none; color: var(--color-muted); }
+.issues-fcell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.issues-fcell__name { font-size: 0.75rem; color: var(--color-muted); white-space: nowrap; }
+.issues-filters select, .issues-tools select { field-sizing: content; }
 .issues-filters .issues-filter-assignee {
-  padding-inline-start: 26px;
-  field-sizing: content;
   max-width: 13em;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.issues-row-status { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; white-space: nowrap; }
 .issues-status-dd { position: relative; }
 .issues-status-dd__btn { cursor: pointer; text-align: start; }
 .issues-status-dd__list {
@@ -1169,19 +1237,35 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .issues-count { margin-inline-start: auto; }
-.issues-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  max-width: 100%;
-  padding: 6px 12px;
-  cursor: pointer;
+/* owner, topic e00da93b: a sheet - gridlines, a sticky names + filter row */
+.issues-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 100%;
+  font-size: 0.875rem;
 }
-.issues-row[data-selected="true"] {
-  background: var(--color-selected);
-  border-inline-start: var(--select-bar-w) solid var(--focus-ring);
+.issues-table th,
+.issues-table td {
+  border-inline-end: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  padding: 4px 8px;
+  text-align: start;
+  vertical-align: middle;
+  white-space: nowrap;
 }
+.issues-table thead th { position: sticky; z-index: 2; background: var(--color-bg); }
+.issues-names th { top: 0; height: 1.75rem; font-size: 0.75rem; font-weight: 600; color: var(--color-muted); }
+.issues-frow th { top: 1.75rem; font-weight: normal; }
+.issues-c-key { width: 1%; }
+.issues-c-title { min-width: 14rem; max-width: 28rem; }
+.issues-title-cell { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 28rem; }
+.issues-note { white-space: normal; }
+.issues-note p { margin: 4px 0; }
+.issues-group__cell { padding: 0; background: var(--color-bg); }
+.issues-row { cursor: pointer; }
+.issues-row:hover td { background: var(--color-surface-hover); }
+.issues-row[data-selected="true"] td { background: var(--color-selected); }
+.issues-row[data-selected="true"] td:first-child { box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring); }
 .issues-key { flex: 0 0 auto; color: var(--color-muted); font-variant-numeric: tabular-nums; }
 .issues-title {
   flex: 1 1 auto;
@@ -1202,7 +1286,7 @@ onUnmounted(() => {
   cursor: pointer;
   padding: 2px;
 }
-.issues-person { flex: 0 1 9rem; overflow: hidden; }
+.issues-person { max-width: 12rem; overflow: hidden; }
 .issues-person :deep(.human-name__text) {
   overflow: hidden;
   text-overflow: ellipsis;

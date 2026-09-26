@@ -877,5 +877,11 @@
     "done": "Tamam",
     "invalid": "YYYY-MM-DD HH:MM kullanın",
     "weekdays": "Pt Sa Ça Pe Cu Ct Pz"
+  },
+  "issues_view": {
+    "group": "Gruplama",
+    "group_none": "Yok",
+    "col_key": "Anahtar",
+    "col_title": "Başlık"
   }
 }

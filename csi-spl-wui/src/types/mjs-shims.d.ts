@@ -1190,7 +1190,7 @@ declare module '~/utils/issues-view.mjs' {
   export function statusKey(s: string): string
   export function priorityKey(p: number): string
   export function levelKey(l: number): string
-  export function groupIssues(list: import('~/utils/issues.mjs').Issue[], opts?: { sort?: string, filter?: import('~/utils/issues.mjs').IssueFilter, me?: string, hideEmpty?: boolean }): import('~/utils/issues.mjs').IssueGroup[]
+  export function groupIssues(list: import('~/utils/issues.mjs').Issue[], opts?: { sort?: string, filter?: import('~/utils/issues.mjs').IssueFilter, me?: string, hideEmpty?: boolean, by?: 'status' | 'none' }): import('~/utils/issues.mjs').IssueGroup[]
   export function visibleOrder(groups: import('~/utils/issues.mjs').IssueGroup[], collapsed?: Record<string, boolean>): import('~/utils/issues.mjs').Issue[]
   export function stepKey(order: import('~/utils/issues.mjs').Issue[], current: string, delta: number): string
   export function applyIssueFrame(list: import('~/utils/issues.mjs').Issue[], frame: unknown): import('~/utils/issues.mjs').Issue[]

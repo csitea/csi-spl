@@ -42,8 +42,10 @@ export const levelKey = (l) => `issues.level.${[1, 2, 3].includes(Number(l)) ? N
  * sorted issues and count. Empty groups are kept (Linear shows the header
  * with 0) unless `hideEmpty`.
  */
-export function groupIssues(list, { sort = 'priority', filter = {}, me = '', hideEmpty = false } = {}) {
+export function groupIssues(list, { sort = 'priority', filter = {}, me = '', hideEmpty = false, by = 'status' } = {}) {
   const kept = (list || []).filter((i) => matchIssue(i, filter, me))
+  /* owner, topic e65c0f60: "just a simple list" - ONE group, status '' (no header) */
+  if (by === 'none') return [{ status: '', count: kept.length, issues: sortIssues(kept, sort) }]
   const groups = ISSUE_STATUSES.map((status) => {
     const issues = sortIssues(kept.filter((i) => i.status === status), sort)
     return { status, count: issues.length, issues }

@@ -74,32 +74,37 @@ try {
   const panelHeads = await p.$$eval('#sidebar-panel-issues h2', (els) => els.map((e) => e.getAttribute('data-testid') || e.textContent.trim()))
   ok('2b the side panel has one section, Epics and features, first (no ISSUES heading)', panelHeads.length === 1 && panelHeads[0] === 'sidebar-epics-h', panelHeads)
 
+  /* owner, topic e65c0f60: the default is ONE flat list, newest update first */
+  const view = await p.evaluate(() => ({
+    group: document.querySelector('[data-test=issues-group-by]').value,
+    sort: document.querySelector('[data-test=issues-sort]').value,
+    headers: document.querySelectorAll('.issues-group__h').length,
+    rowStatus: document.querySelectorAll('[data-test=issues-row-status]').length,
+    rows: document.querySelectorAll('[data-test=issues-row]').length,
+  }))
+  ok('2f the default view is one flat list sorted by updated, each row with its status',
+    view.group === 'none' && view.sort === 'updated' && view.headers === 0 && view.rowStatus === view.rows, view)
+
+  /* owner, topic e00da93b: a sheet - names row, a filter row under each column, one issue per row */
   await p.select('[data-test=issues-sort]', 'level')
-  const rowLabels = await p.evaluate(() => {
-    const root = document.querySelector('[data-test=issues-filters]')
-    const textOf = (sel) => {
-      const el = root.querySelector(sel)
-      if (!el) return ''
-      if (el.tagName === 'SELECT') return el.options[el.selectedIndex].text.trim()
-      return (el.textContent || '').trim()
-    }
-    const span = (sel) => {
-      const el = root.querySelector(sel)
-      const label = el && el.closest('label, [role=group]')
-      const s = label && label.querySelector('span')
-      return s ? s.textContent.trim() : ''
-    }
-    return [
-      textOf('[data-test=issues-sort]'),
-      textOf('[data-test=issues-filter-status-btn]'),
-      textOf('[data-test=issues-filter-priority]'),
-      textOf('[data-test=issues-filter-level]'),
-      textOf('[data-test=issues-filter-assignee]'),
-      textOf('[data-test=issues-filter-label]'),
-      span('[data-test=issues-filter-deadline-date]'),
-    ]
+  const sheet = await p.evaluate(() => {
+    const table = document.querySelector('[data-test=issues-table]')
+    const [names, filters] = table.tHead.rows
+    const nameTexts = [...names.cells].map((c) => c.textContent.trim())
+    const cols = [...names.cells].map((c) => { const r = c.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)] })
+    const underName = [...filters.cells].every((c, i) => { const r = c.getBoundingClientRect(); return Math.abs(r.left - cols[i][0]) <= 1 && Math.abs(r.right - cols[i][1]) <= 1 })
+    const ctrlValues = [...filters.querySelectorAll('select, .issues-status-dd__btn')].map((el) => el.tagName === 'SELECT' ? el.options[el.selectedIndex].text.trim() : el.textContent.trim())
+    const row = table.querySelector('[data-test=issues-row]')
+    const rowCells = row ? row.cells.length : 0
+    const rowUnder = row ? [...row.cells].every((c, i) => Math.abs(Math.round(c.getBoundingClientRect().left) - cols[i][0]) <= 1) : false
+    const sticky = getComputedStyle(names.cells[0]).position
+    const grid = getComputedStyle(names.cells[0]).borderBottomStyle
+    return { nameTexts, underName, ctrlValues, rowCells, rowUnder, sticky, grid, deadline: !!filters.querySelector('[data-test=issues-filter-deadline-date]') }
   })
-  ok('2c filter controls do not share a label', new Set(rowLabels).size === rowLabels.length && rowLabels[0] === 'Sort: Level' && rowLabels[3] === 'Level: All' && rowLabels[6] === 'Deadline:' && !rowLabels.includes('Deadline from') && !rowLabels.includes('Deadline until'), rowLabels)
+  ok('2c the list is a sheet: names row, each filter under its column, rows in the same columns, sticky, gridlines',
+    JSON.stringify(sheet.nameTexts) === JSON.stringify(['Key', 'Title', 'Status', 'prio', 'Level', 'Assignee', 'Label', 'Deadline', 'Updated']) &&
+      sheet.underName && sheet.sticky === 'sticky' && sheet.grid === 'solid' && sheet.deadline &&
+      !sheet.ctrlValues.some((v) => v.includes(':')), sheet)
   /* owner, topic e00da93b: the closed Assignee control is sized to its value like the others, capped at 13em */
   const widths = await p.evaluate(() => {
     const w = (sel) => Math.round(document.querySelector(sel).getBoundingClientRect().width)
@@ -115,10 +120,9 @@ try {
   })
   const who = await p.evaluate(() => {
     const a = document.querySelector('[data-test=issues-filter-assignee]')
-    return { text: a.options[a.selectedIndex].text.trim(), aria: a.getAttribute('aria-label'), icon: !!a.parentElement.querySelector('[data-icon=user]') }
+    return { text: a.options[a.selectedIndex].text.trim(), aria: a.getAttribute('aria-label') }
   })
-  ok('2e the Assignee control shows the value alone behind a person icon; Assignee is its name (topic e00da93b)',
-    who.text === 'All' && who.aria === 'Assignee' && who.icon, who)
+  ok('2e the Assignee control shows the value alone; Assignee is its name (topic e00da93b)', who.text === 'All' && who.aria === 'Assignee', who)
   ok('2d the closed Assignee control is no wider than 13em, near prio / level, the full text on hover',
     widths.assignee <= widths.capPx + 1 && widths.assignee < widths.controlOldWay && widths.assignee <= Math.max(widths.prio, widths.level) * 1.5 && widths.title === 'Assignee: All', widths)
   await p.select('[data-test=issues-sort]', 'priority')
@@ -139,6 +143,15 @@ try {
   await create(p, 'The first read drops', 'Only in the detail')
   await create(p, 'Show the display name', '')
   const listText = await p.$eval('[data-test=issues-list]', (el) => el.innerText)
+  const rowCols = await p.evaluate(() => {
+    const table = document.querySelector('[data-test=issues-table]')
+    const cols = [...table.tHead.rows[0].cells].map((c) => Math.round(c.getBoundingClientRect().left))
+    const row = table.querySelector('[data-test=issues-row]')
+    const title = row.querySelector('.issues-title')
+    return { cells: row.cells.length, under: [...row.cells].every((c, i) => Math.abs(Math.round(c.getBoundingClientRect().left) - cols[i]) <= 1), titleHover: title.getAttribute('title') === title.textContent.trim(), ellipsis: getComputedStyle(title).textOverflow }
+  })
+  ok('3a each issue is one row in the same 9 columns; the title ellipsizes with the full text on hover',
+    rowCols.cells === 9 && rowCols.under && rowCols.titleHover && rowCols.ellipsis === 'ellipsis', rowCols)
   ok('3 the list shows the key and not the description', listText.includes('SPL-2') && listText.includes('The first read drops') && !listText.includes('Only in the detail'), listText.slice(0, 280))
 
   await p.click('[data-test=issues-row][data-key="SPL-2"]')
@@ -203,11 +216,16 @@ try {
   })
   ok('5b hovering 03-diss pops up discard', menuTip.code === '03-diss' && menuTip.text === 'discard' && menuTip.display === 'block' && menuTip.w > 8 && menuTip.h > 4, menuTip)
   await p.click('[data-test=issues-menu-option][data-value="wip"]')
+  await p.select('[data-test=issues-group-by]', 'status')
   await p.waitForFunction(() => {
-    const group = document.querySelector('[data-status="wip"]')
+    const group = document.querySelector('tbody[data-status="wip"]')
     return Boolean(group && group.querySelector('[data-key="SPL-2"]'))
   }, { timeout: 5000 }).catch(() => null)
-  ok('5 changing status moves the row into that group', Boolean(await p.$('[data-status="wip"] [data-key="SPL-2"]')))
+  ok('5 changing status moves the row into that group', Boolean(await p.$('tbody[data-status="wip"] [data-key="SPL-2"]')))
+  await p.select('[data-test=issues-group-by]', 'none')
+  await p.waitForSelector('[data-test=issues-row][data-key="SPL-2"] [data-test=issues-row-status]', { timeout: 5000 }).catch(() => {})
+  const flatStatus = await p.$eval('[data-test=issues-row][data-key="SPL-2"] [data-test=issues-row-status]', (el) => ({ status: el.getAttribute('data-status'), text: el.textContent.trim() })).catch(() => null)
+  ok('5c back in the flat list the row shows its new status', flatStatus && flatStatus.status === 'wip' && flatStatus.text === '03-wip', flatStatus)
 
   await p.click('[data-test=issues-row][data-key="SPL-3"]')
   await p.waitForFunction(() => {

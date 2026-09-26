@@ -877,5 +877,11 @@
     "done": "Klaar",
     "invalid": "Gebruik YYYY-MM-DD HH:MM",
     "weekdays": "Ma Di Wo Do Vr Za Zo"
+  },
+  "issues_view": {
+    "group": "Groeperen op",
+    "group_none": "Geen",
+    "col_key": "Sleutel",
+    "col_title": "Titel"
   }
 }

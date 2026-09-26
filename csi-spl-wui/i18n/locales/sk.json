@@ -877,5 +877,11 @@
     "done": "Hotovo",
     "invalid": "Použite YYYY-MM-DD HH:MM",
     "weekdays": "Po Ut St Št Pi So Ne"
+  },
+  "issues_view": {
+    "group": "Zoskupiť podľa",
+    "group_none": "Žiadne",
+    "col_key": "Kľúč",
+    "col_title": "Názov"
   }
 }

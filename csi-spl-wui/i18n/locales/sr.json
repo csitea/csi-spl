@@ -877,5 +877,11 @@
     "done": "Gotovo",
     "invalid": "Koristite YYYY-MM-DD HH:MM",
     "weekdays": "Po Ut Sr Če Pe Su Ne"
+  },
+  "issues_view": {
+    "group": "Grupiši po",
+    "group_none": "Bez",
+    "col_key": "Ključ",
+    "col_title": "Naslov"
   }
 }

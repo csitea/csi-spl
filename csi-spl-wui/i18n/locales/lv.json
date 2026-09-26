@@ -877,5 +877,11 @@
     "done": "Gatavs",
     "invalid": "Izmantojiet YYYY-MM-DD HH:MM",
     "weekdays": "P O T C Pk S Sv"
+  },
+  "issues_view": {
+    "group": "Grupēt pēc",
+    "group_none": "Nav",
+    "col_key": "Atslēga",
+    "col_title": "Nosaukums"
   }
 }

@@ -877,5 +877,11 @@
     "done": "Listo",
     "invalid": "Use YYYY-MM-DD HH:MM",
     "weekdays": "Lu Ma Mi Ju Vi Sá Do"
+  },
+  "issues_view": {
+    "group": "Agrupar por",
+    "group_none": "Ninguno",
+    "col_key": "Clave",
+    "col_title": "Título"
   }
 }

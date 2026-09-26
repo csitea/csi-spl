@@ -877,5 +877,11 @@
     "done": "Atlikta",
     "invalid": "Naudokite YYYY-MM-DD HH:MM",
     "weekdays": "Pr An Tr Ke Pn Še Se"
+  },
+  "issues_view": {
+    "group": "Grupuoti pagal",
+    "group_none": "Nėra",
+    "col_key": "Raktas",
+    "col_title": "Pavadinimas"
   }
 }

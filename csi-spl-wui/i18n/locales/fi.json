@@ -877,5 +877,11 @@
     "done": "Valmis",
     "invalid": "Käytä muotoa YYYY-MM-DD HH:MM",
     "weekdays": "Ma Ti Ke To Pe La Su"
+  },
+  "issues_view": {
+    "group": "Ryhmittely",
+    "group_none": "Ei mitään",
+    "col_key": "Tunnus",
+    "col_title": "Otsikko"
   }
 }

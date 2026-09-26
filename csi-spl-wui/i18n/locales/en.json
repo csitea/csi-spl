@@ -877,5 +877,11 @@
     "done": "Done",
     "invalid": "Use YYYY-MM-DD HH:MM",
     "weekdays": "Mo Tu We Th Fr Sa Su"
+  },
+  "issues_view": {
+    "group": "Group by",
+    "group_none": "None",
+    "col_key": "Key",
+    "col_title": "Title"
   }
 }

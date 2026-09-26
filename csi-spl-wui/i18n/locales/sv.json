@@ -877,5 +877,11 @@
     "done": "Klar",
     "invalid": "Använd YYYY-MM-DD HH:MM",
     "weekdays": "Må Ti On To Fr Lö Sö"
+  },
+  "issues_view": {
+    "group": "Gruppera efter",
+    "group_none": "Ingen",
+    "col_key": "Nyckel",
+    "col_title": "Titel"
   }
 }

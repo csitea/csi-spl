@@ -600,7 +600,7 @@
     "unreachable": "Meklēšanas pakalpojums nav sasniedzams. Drīz mēģiniet vēlreiz.",
     "help_button": "Meklēšanas sintakse",
     "help_title": "Meklēšanas sintakse",
-    "help_content": "Vārdi atbilst tekstam. type:tenant un type:event meklē jūsu darbvietas un jūsu žurnālu. name: atbilst nosaukumam.",
+    "help_content": "Vārdi atbilst tekstam. type:tenant un type:event meklē jūsu darbvietas un jūsu žurnālu. name: atbilst nosaukumam. Zvaigznīte vārda beigās, kā deploy*, atbilst šī vārda sākumam.",
     "help_operators": "Operatori",
     "current_tenant": "Pašreizējais",
     "op": {

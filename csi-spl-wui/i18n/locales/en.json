@@ -600,7 +600,7 @@
     "unreachable": "The search service could not be reached. Try again shortly.",
     "help_button": "Search syntax",
     "help_title": "Search syntax",
-    "help_content": "Words match the text. type:tenant and type:event search your workspaces and your own event log. name: matches a name.",
+    "help_content": "Words match the text. type:tenant and type:event search your workspaces and your own event log. name: matches a name. A star at the end of a word, as in deploy*, matches the start of that word.",
     "help_operators": "Operators",
     "current_tenant": "Current",
     "op": {

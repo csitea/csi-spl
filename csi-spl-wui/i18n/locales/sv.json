@@ -600,7 +600,7 @@
     "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund.",
     "help_button": "Söksyntax",
     "help_title": "Söksyntax",
-    "help_content": "Ord matchar texten. type:tenant och type:event söker dina arbetsytor och din egen logg. name: matchar ett namn.",
+    "help_content": "Ord matchar texten. type:tenant och type:event söker dina arbetsytor och din egen logg. name: matchar ett namn. En stjärna i slutet av ett ord, som deploy*, matchar början av det ordet.",
     "help_operators": "Operatorer",
     "current_tenant": "Nuvarande",
     "op": {

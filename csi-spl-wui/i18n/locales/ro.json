@@ -600,7 +600,7 @@
     "unreachable": "Serviciul de căutare nu poate fi contactat. Încercați din nou în curând.",
     "help_button": "Sintaxa căutării",
     "help_title": "Sintaxa căutării",
-    "help_content": "Cuvintele se potrivesc cu textul. type:tenant și type:event caută spațiile tale și jurnalul tău. name: se potrivește cu un nume.",
+    "help_content": "Cuvintele se potrivesc cu textul. type:tenant și type:event caută spațiile tale și jurnalul tău. name: se potrivește cu un nume. O steluță la sfârșitul unui cuvânt, ca deploy*, se potrivește cu începutul acelui cuvânt.",
     "help_operators": "Operatori",
     "current_tenant": "Curent",
     "op": {

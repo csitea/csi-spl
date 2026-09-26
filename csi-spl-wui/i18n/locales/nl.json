@@ -599,7 +599,7 @@
     "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw.",
     "help_button": "Zoeksyntaxis",
     "help_title": "Zoeksyntaxis",
-    "help_content": "Woorden komen overeen met de tekst. type:tenant en type:event zoeken je werkruimten en je eigen log. name: komt overeen met een naam.",
+    "help_content": "Woorden komen overeen met de tekst. type:tenant en type:event zoeken je werkruimten en je eigen log. name: komt overeen met een naam. Een ster aan het eind van een woord, zoals deploy*, komt overeen met het begin van dat woord.",
     "help_operators": "Operatoren",
     "current_tenant": "Huidige",
     "op": {

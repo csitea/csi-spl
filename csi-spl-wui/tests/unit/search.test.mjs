@@ -191,6 +191,8 @@ describe('operator autocomplete', () => {
     assert.ok(shown.includes('type:tenant '))
     assert.ok(shown.includes('type:event '))
     assert.equal(operatorHelpRows().some((r) => r.op === 'name:' && r.hintKey === 'search.op.name'), true)
+    const en = JSON.parse(read('i18n/locales/en.json'))
+    assert.match(en.search.help_content, /deploy\*/)
   })
   it('applying a completion replaces the token and puts the caret after it', () => {
     const tok = operatorTokenAt('/search a fr b', 12)

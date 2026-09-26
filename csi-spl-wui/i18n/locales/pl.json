@@ -599,7 +599,7 @@
     "unreachable": "Usługa wyszukiwania jest nieosiągalna. Spróbuj ponownie za chwilę.",
     "help_button": "Składnia wyszukiwania",
     "help_title": "Składnia wyszukiwania",
-    "help_content": "Słowa pasują do tekstu. type:tenant i type:event szukają twoich obszarów i twojego dziennika. name: pasuje do nazwy.",
+    "help_content": "Słowa pasują do tekstu. type:tenant i type:event szukają twoich obszarów i twojego dziennika. name: pasuje do nazwy. Gwiazdka na końcu słowa, jak deploy*, pasuje do początku tego słowa.",
     "help_operators": "Operatory",
     "current_tenant": "Bieżący",
     "op": {

@@ -600,7 +600,7 @@
     "unreachable": "Otsinguteenusega ei saanud ühendust. Proovi varsti uuesti.",
     "help_button": "Otsingu süntaks",
     "help_title": "Otsingu süntaks",
-    "help_content": "Sõnad vastavad tekstile. type:tenant ja type:event otsivad sinu tööruume ja sinu enda logi. name: vastab nimele.",
+    "help_content": "Sõnad vastavad tekstile. type:tenant ja type:event otsivad sinu tööruume ja sinu enda logi. name: vastab nimele. Tärn sõna lõpus, nagu deploy*, vastab selle sõna algusele.",
     "help_operators": "Operaatorid",
     "current_tenant": "Praegune",
     "op": {

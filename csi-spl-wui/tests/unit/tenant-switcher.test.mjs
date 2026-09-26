@@ -109,6 +109,22 @@ describe('tenantSwitchOptions (specs/026 §6)', () => {
     })
   })
 
+  it('SPL-71: rows keep the hub order (tenants.sort_order), never re-sorted by id or name', () => {
+    // the owner's order, 2026-09-26: csitea, relishbg, pawspoon, orange, luka
+    const hub = [
+      { tenant_id: 't1', display_name: 'csitea' },
+      { tenant_id: 'csi-rel', display_name: 'relishbg' },
+      { tenant_id: 'pas-psf', display_name: 'pawspoon' },
+      { tenant_id: 'ora-cam', display_name: 'orange' },
+      { tenant_id: 'luka', display_name: 'luka' },
+    ]
+    const box = tenantSwitchOptions({ active_tenant: 'ora-cam', tenants: hub })
+    assert.deepEqual(box.options.map((o) => o.label), ['csitea', 'relishbg', 'pawspoon', 'orange', 'luka'])
+    assert.equal(box.selected, 'ora-cam')
+    const none = tenantSwitchOptions({ tenants: hub })
+    assert.deepEqual(none.options.map((o) => o.id), ['', 't1', 'csi-rel', 'pas-psf', 'ora-cam', 'luka'])
+  })
+
   it('several memberships and none active (or a stale one): a blank first row, nothing chosen for the human', () => {
     const many = { t: 'gone', tenants: [{ tenant_id: 'aa' }, { tenant_id: 'bb' }] }
     const box = tenantSwitchOptions(many, 'configured')
@@ -184,7 +200,27 @@ describe('the drop box sits above the direct-messages icon', () => {
     assert.match(rule, /align-items:\s*center/)
     assert.doesNotMatch(rule, /flex-direction:\s*column|border:/)
     const sel = style.slice(style.indexOf('.tenant-switcher__select {'), style.indexOf('}', style.indexOf('.tenant-switcher__select {')))
-    assert.match(sel, /height:\s*24px/)
+    assert.match(sel, /(^|[^-])height:\s*22px/)
+  })
+
+  it('SPL-71: a drop box - name and arrow in one bordered box; a press anywhere in it opens the list', () => {
+    const box = vue.slice(vue.indexOf('data-testid="tenant-switcher"'), vue.indexOf('class="sidebar-rail"'))
+    const field = box.slice(box.indexOf('class="tenant-switcher__field"'))
+    assert.match(field, /data-testid="tenant-switcher-box"/)
+    assert.match(field, /@mousedown="onTenantBoxPress"/)
+    assert.ok(field.indexOf('<select') > 0 && field.indexOf('tenant-switcher-arrow') > field.indexOf('</select>'), 'select then arrow inside the box')
+    const style = vue.slice(vue.indexOf('<style'))
+    const rule = style.slice(style.indexOf('.tenant-switcher__field {'), style.indexOf('}', style.indexOf('.tenant-switcher__field {')))
+    assert.match(rule, /border:\s*1px solid var\(--color-border-strong\)/)
+    assert.match(rule, /background:\s*var\(--color-bg\)/)
+    assert.match(rule, /(^|[^-])height:\s*24px/)
+    assert.match(rule, /box-sizing:\s*border-box/)
+    const fn = vue.slice(vue.indexOf('function onTenantBoxPress'))
+    const body = fn.slice(0, fn.indexOf('\n}'))
+    assert.match(body, /ev\.target === sel/)
+    assert.match(body, /sel\.focus\(\)/)
+    assert.match(body, /showPicker/)
+    assert.doesNotMatch(body, /switchTenant|fetch\(/)
     assert.match(src('src/utils/uiIcons.ts'), /building:\s*\[/)
   })
 

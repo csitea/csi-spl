@@ -6,10 +6,18 @@
          CLE-34991: one slim row, a glyph instead of a visible caption; the
          caption is the select's name and hovering explains what a tenant is.
          The closed select is as wide as the widest option, then 3px, then
-         the arrow, measured in the select's own font. -->
+         the arrow, measured in the select's own font.
+         SPL-71: a drop box, not a dropdown menu - the name and the arrow sit
+         in one bordered box, and pressing anywhere in it opens the list.
+         Rows come in the hub's order (tenants.sort_order, rdb 0051). -->
     <div ref="tenantSwitcherEl" class="tenant-switcher" data-testid="tenant-switcher" :title="tenantHintText">
       <span class="tenant-switcher__icon"><UiIcon name="building" :size="14" /></span>
-      <span class="tenant-switcher__field" :style="{ gap: TENANT_ARROW_GAP_PX + 'px' }">
+      <span
+        class="tenant-switcher__field"
+        data-testid="tenant-switcher-box"
+        :style="{ gap: TENANT_ARROW_GAP_PX + 'px' }"
+        @mousedown="onTenantBoxPress"
+      >
       <select
         ref="tenantSelectEl"
         class="tenant-switcher__select"
@@ -632,6 +640,17 @@ onBeforeUnmount(() => {
   tenantFontObs?.disconnect()
   tenantWidthMq?.removeEventListener('change', onTenantWidthViewport)
 })
+/* SPL-71: the arrow and the box's padding are part of the drop box, so a
+   press there opens the list as a press on the name does. */
+function onTenantBoxPress(ev: MouseEvent) {
+  const sel = tenantSelectEl.value
+  if (!sel || ev.button !== 0 || ev.target === sel || sel.contains(ev.target as Node)) return
+  ev.preventDefault()
+  sel.focus()
+  try {
+    (sel as HTMLSelectElement & { showPicker?: () => void }).showPicker?.()
+  } catch { /* no picker without a user gesture: focus is enough */ }
+}
 const authClient = useAuthClient()
 const switching = ref(false)
 const switchFailed = ref(false)
@@ -1164,10 +1183,11 @@ async function onCreate() {
 @media (max-width: 800px) {
   .nav-row > .nav-item { padding-inline-end: 28px; }
 }
-/* Compact drop box (CLE-34991): one slim row, a glyph and a borderless
-   select, no caption. The select's width is the widest option in its own
-   font, plus 3px, plus the arrow (set from script, not a fixed px width).
-   max-width keeps the row inside the sidebar. */
+/* Compact drop box (CLE-34991): one slim row, a glyph and the box, no
+   caption. The select's width is the widest option in its own font, plus
+   3px, plus the arrow (set from script, not a fixed px width). max-width
+   keeps the row inside the sidebar. SPL-71: the name and the arrow sit in
+   one bordered box (__field), a drop box rather than a dropdown menu. */
 .tenant-switcher {
   position: relative;
   display: flex;
@@ -1192,7 +1212,13 @@ async function onCreate() {
   align-items: center;
   flex: 0 0 auto;
   min-width: 0;
+  box-sizing: border-box;
   height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  cursor: pointer;
 }
 .tenant-switcher__error {
   margin: 0.125rem 0.5rem 0;
@@ -1202,8 +1228,9 @@ async function onCreate() {
 .tenant-switcher__select {
   flex: 0 0 auto;
   box-sizing: border-box;
-  min-height: 24px;
-  height: 24px;
+  min-height: 22px;
+  height: 22px;
+  cursor: pointer;
   padding: 0;
   background: transparent;
   color: var(--color-fg);

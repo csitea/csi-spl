@@ -5,6 +5,8 @@
 // 1280x800 and at phone width (390x844), where the sidebar is the 72px rail.
 // CLE-34991: one slim row with no visible caption; hovering it shows the
 // explanation (the wrapper's title), which names the tenant.
+// SPL-71: a drop box - the name and the arrow sit inside one bordered box,
+// and a press on the arrow focuses the select as a press on the name does.
 //
 // Run:
 //   pnpm run test:e2e:tenant-switcher
@@ -78,6 +80,11 @@ async function readBox(p) {
     probe.remove()
     const widest = widths.length ? Math.max(...widths) : 0
     const ar = arrow instanceof Element ? arrow.getBoundingClientRect() : null
+    const field = document.querySelector('[data-testid=tenant-switcher-box]')
+    const fr = field instanceof HTMLElement ? field.getBoundingClientRect() : null
+    const fcs = field instanceof HTMLElement ? getComputedStyle(field) : null
+    const edges = fcs ? ['Top', 'Right', 'Bottom', 'Left'].map((e) => parseFloat(fcs['border' + e + 'Width']) || 0) : []
+    const inside = (r) => !!(fr && r && r.left >= fr.left - 0.5 && r.right <= fr.right + 0.5 && r.top >= fr.top - 0.5 && r.bottom <= fr.bottom + 0.5)
     sel.focus()
     return {
       missing: false,
@@ -109,6 +116,11 @@ async function readBox(p) {
       arrowRight: ar ? ar.right : NaN,
       direction: cs.direction,
       styledWidth: sel.style.width,
+      boxBorders: edges,
+      boxBorderStyle: fcs ? fcs.borderTopStyle : '',
+      boxBorderColor: fcs ? fcs.borderTopColor : '',
+      nameAndArrowInBox: inside(er) && inside(ar),
+      arrowCenter: ar ? { x: ar.left + ar.width / 2, y: ar.top + ar.height / 2 } : null,
     }
   })
 }
@@ -146,6 +158,19 @@ try {
       arrowLeft: box.arrowLeft, arrowRight: box.arrowRight, direction: box.direction,
     })
     ok(tag + ' the arrow sits 3px after the widest name', Number.isFinite(nameGap) && Math.abs(nameGap - 3) <= 0.5, { gap: nameGap, widest: box.widest, styledWidth: box.styledWidth })
+    ok(tag + ' SPL-71 a drop box: a bordered box holds the name and the arrow',
+      box.boxBorders?.length === 4 && box.boxBorders.every((w) => w >= 1) && box.boxBorderStyle === 'solid'
+        && !/rgba\(\d+, \d+, \d+, 0\)|transparent/.test(box.boxBorderColor) && box.nameAndArrowInBox === true,
+      { borders: box.boxBorders, style: box.boxBorderStyle, color: box.boxBorderColor, inBox: box.nameAndArrowInBox })
+    if (box.arrowCenter) {
+      await p.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur() })
+      await p.mouse.click(box.arrowCenter.x, box.arrowCenter.y)
+      const focusedByArrow = await p.evaluate(() => document.activeElement?.getAttribute('data-testid') || '')
+      await p.keyboard.press('Escape')
+      ok(tag + ' SPL-71 a press on the arrow opens the drop box (focuses the select)', focusedByArrow === 'tenant-switcher-select', { focusedByArrow })
+    } else {
+      ok(tag + ' SPL-71 a press on the arrow opens the drop box (focuses the select)', false, { arrow: 'missing' })
+    }
     const want = process.env.ASSERT_TENANT_LABEL || ''
     if (want) ok(tag + ' option text is ' + want, box.options[0].text === want, box.options)
     const url = p.url()

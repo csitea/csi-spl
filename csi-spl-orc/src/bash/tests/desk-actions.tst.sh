@@ -94,7 +94,8 @@ done
 [[ -s "$T/calls.log" ]] && pass "CONTROL the stub log records a real call" || fail "CONTROL the stub log stayed empty"
 
 # --- 3. the reply leg's own arguments ----------------------------------------------
-for bad in "DESK_KIND=shout" "DESK_TO=CLE-00" "DESK_TO=HUM-1'--" "DESK_TASK=not-a-uuid" "DESK_BODY="; do
+for bad in "DESK_KIND=shout" "DESK_TO=CLE-00" "DESK_TO=HUM-1'--" "DESK_TASK=not-a-uuid" "DESK_BODY=" \
+           "DESK_FILES=$T/no-such-file"; do
   if SNIPPET=do_spl_desk_reply in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='hi' DRY_RUN=0 "$bad" \
        >"$T/o" 2>&1; then
     fail "do_spl_desk_reply refuses $bad: $(cat "$T/o")"
@@ -360,6 +361,31 @@ out=$(SNIPPET="$POST" in_orc FAKE="$T/fakespool" FAKE_LOG="$T/fake.log" FAKE_REF
   DESK_CHANNEL=ops DESK_BODY='let me in' DRY_RUN=0 2>&1); rc=$?
 [[ $rc -ne 0 && "$out" == *"not a member of #ops"* ]] && pass "a non-member refusal is named as one" ||
   fail "non-member refusal (rc=$rc): $out"
+
+# SPL-956: a reply carries attachments too (a proof screenshot in the owner's
+# topic). The fake spool's recv hands back ONE waiting human conversation.
+cat >"$T/fakereply" <<'FAKE'
+#!/bin/sh
+echo "$*" >>"$FAKE_LOG"
+case "$1" in
+  recv) echo '[{"msg_id":"m1","task_id":"0f8fad5b-d9cb-469f-a165-70867728950e","ts":"2026-09-26T10:00:00Z","from":"HUM-9","body":"proof?"}]' ;;
+  put-file) echo '{"bytes":1,"file_id":"beef","kind":"file","name":"a","sha256":"beef"}' ;;
+  send) echo '{"delivery":"sent","msg_id":"m2","task_id":"t1","ts":"2026-09-26T10:01:00Z"}' ;;
+esac
+FAKE
+chmod +x "$T/fakereply"; : >"$T/fake.log"
+REPLY='spl_host_spool() { SPL_SPOOL="$FAKE"; }; do_spl_desk_reply'
+out=$(SNIPPET="$REPLY" in_orc FAKE="$T/fakereply" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  DESK_BODY='here' DESK_FILES="$T/att.txt $T/att.txt" DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -qx -- "send --from CLE-00 --to HUM-9 --task 0f8fad5b-d9cb-469f-a165-70867728950e --to-box box-wui --kind note --body here --file-id beef --file-id beef" "$T/fake.log" &&
+  pass "do_spl_desk_reply DESK_FILES: each file is put, its id rides on the answer" ||
+  fail "reply with files (rc=$rc): $out / $(cat "$T/fake.log")"
+# CONTROL: no DESK_FILES, no put-file and no --file-id.
+: >"$T/fake.log"; rm -f "$T/state/dev/desk/t1/box-desk/answered"
+SNIPPET="$REPLY" in_orc FAKE="$T/fakereply" FAKE_LOG="$T/fake.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
+  DESK_BODY='here' DRY_RUN=0 >/dev/null 2>&1
+grep -q -- '^send ' "$T/fake.log" && ! grep -qE -- 'put-file|--file-id' "$T/fake.log" &&
+  pass "CONTROL a reply without DESK_FILES attaches nothing" || fail "CONTROL plain reply: $(cat "$T/fake.log")"
 
 # --- 9. the issue leg (specs/039 FR-008) -------------------------------------------
 cat >"$T/fakeissue" <<'FAKE'

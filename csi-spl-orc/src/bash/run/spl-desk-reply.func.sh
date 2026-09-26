@@ -37,6 +37,8 @@
 # @param   (blocker = the agent cannot proceed without the human's input; SPL-952)
 # @param DESK_TO (optional) - answer THIS human id instead of the newest sender
 # @param DESK_TASK (optional) - answer in THIS topic instead of the newest one
+# @param DESK_FILES (optional) - space-separated paths to attach to the answer
+# @param   (each put as a blob first, exactly as do_spl_desk_post does)
 # @param DESK_ACK (optional) - 1 = archive the answered message, default 0
 # @param DESK_ANY (optional) - 1 = answer the newest human message even when
 # @param   several conversations are waiting (the pre-2026-09-21 behaviour)
@@ -55,13 +57,18 @@ do_spl_desk_reply() {
   [[ "$kind" =~ ^(note|result|reject|blocker|msg)$ ]] || { do_log "FATAL DESK_KIND must be note, result, reject, blocker or msg, got: '$kind'"; return 1; }
   [[ -z "$to" || "$to" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { do_log "FATAL DESK_TO must be a human id (HUM-...), got: '$to'"; return 1; }
   [[ -z "$task" || "$task" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { do_log "FATAL DESK_TASK must be a lowercase task UUID, got: '$task'"; return 1; }
+  local f files=()
+  read -r -a files <<<"${DESK_FILES:-}"
+  for f in "${files[@]}"; do
+    [[ -f "$f" && -r "$f" ]] || { do_log "FATAL DESK_FILES entry is not a readable file: '$f'"; return 1; }
+  done
 
   local hub d
   hub="https://$(yq -r '.env.dns.api_fqdn // ""' "$SPL_CNF")"
   [[ "$hub" != https:// ]] || { do_log "FATAL env.dns.api_fqdn is not set in $SPL_CNF"; return 1; }
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   if (( dry )); then
-    do_log "INFO DRY_RUN would: read $agent's inbox on $box and answer the newest human${to:+ $to}${task:+ in task $task} with a $kind"
+    do_log "INFO DRY_RUN would: read $agent's inbox on $box and answer the newest human${to:+ $to}${task:+ in task $task} with a $kind${files[*]:+ and ${#files[@]} file(s)}"
     [[ -d "$d/spool/$agent" ]] || do_log "INFO DRY_RUN there is no desk for $agent on $box in $tenant yet ($d): do_spl_desk_up seats one"
     do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0 to answer."
     return 0
@@ -86,9 +93,18 @@ do_spl_desk_reply() {
   IFS=$'\t' read -r ans_to ans_task ans_msg ans_head <<<"$pick"
   [[ -n "$ans_to" && -n "$ans_task" ]] || { do_log "FATAL cannot read a human and a topic out of $agent's inbox"; return 1; }
 
+  local ids=() put id
+  for f in "${files[@]}"; do
+    put="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- put-file "$f" 2>&1)" ||
+      { do_log "FATAL put-file $f: $put"; return 1; }
+    id="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["file_id"])' "$put" 2>/dev/null)" ||
+      { do_log "FATAL put-file $f returned no file_id: $put"; return 1; }
+    ids+=(--file-id "$id")
+  done
+
   local sent rc=0
   sent="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$agent" --to "$ans_to" \
-    --task "$ans_task" --to-box box-wui --kind "$kind" --body "$body")" || rc=$?
+    --task "$ans_task" --to-box box-wui --kind "$kind" --body "$body" "${ids[@]}")" || rc=$?
   (( rc == 0 )) || { do_log "FATAL send $agent -> $ans_to in task $ans_task: $sent"; return 1; }
   python3 - "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$ans_task" "$ans_msg" "$ans_head" "$sent" <<'EOF_PY'
 import json, sys

@@ -420,6 +420,20 @@ func (s *Memory) HasMessage(_ context.Context, tenant, msgID string) (bool, erro
 	return ok, nil
 }
 
+func (s *Memory) HasTopicOrMessage(_ context.Context, tenant, id string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.messages[[2]string{tenant, id}]; ok {
+		return true, nil
+	}
+	for k, m := range s.messages {
+		if k[0] == tenant && m.TaskID == id {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (s *Memory) MessageTimes(_ context.Context, tenant, msgID string) (time.Time, time.Time, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

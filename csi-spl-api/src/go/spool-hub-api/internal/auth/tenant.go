@@ -149,6 +149,24 @@ func (h *Handler) fallbackTenant(ctx context.Context, humanID, hostTenant string
 	return "", ErrTenantRequired
 }
 
+// MemberTenants lists the signed-in human of r and every tenant they belong
+// to (SPL-959 locate), or ErrNoSession / ErrNoHuman / ErrNoMembership.
+func (h *Handler) MemberTenants(r *http.Request) (Session, []TenantRole, error) {
+	s, ok := h.SessionFromRequest(r)
+	if !ok {
+		return Session{}, nil, ErrNoSession
+	}
+	if s.HumanID == "" {
+		return Session{}, nil, ErrNoHuman
+	}
+	tl, _ := h.members.(TenantLister)
+	if tl == nil {
+		return Session{}, nil, ErrNoMembership
+	}
+	ts, err := tl.Tenants(r.Context(), s.HumanID)
+	return s, ts, err
+}
+
 // lastActive is the membership with the newest LastActiveAt, "" when none
 // was ever switched into. Ties keep the first (the lister sorts by id).
 func lastActive(ts []TenantRole) string {

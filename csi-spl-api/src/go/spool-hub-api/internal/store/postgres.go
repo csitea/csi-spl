@@ -516,6 +516,15 @@ func (s *Postgres) HasMessage(ctx context.Context, tenant, msgID string) (bool, 
 	return ok, err
 }
 
+// HasTopicOrMessage: see Store. Two EXISTS, each on its own index
+// (messages_task_received, the msg_id key), never one OR scan.
+func (s *Postgres) HasTopicOrMessage(ctx context.Context, tenant, id string) (bool, error) {
+	var ok bool
+	err := s.queryRowTenant(ctx, tenant, `SELECT EXISTS(SELECT 1 FROM messages WHERE tenant_id = $1 AND task_id = $2)
+		OR EXISTS(SELECT 1 FROM messages WHERE tenant_id = $1 AND msg_id = $2)`, []any{tenant, id}, &ok)
+	return ok, err
+}
+
 func (s *Postgres) MessageTimes(ctx context.Context, tenant, msgID string) (ts, receivedAt time.Time, err error) {
 	err = s.queryRowTenant(ctx, tenant, `SELECT ts, received_at FROM messages WHERE tenant_id = $1 AND msg_id = $2`,
 		[]any{tenant, msgID}, &ts, &receivedAt)

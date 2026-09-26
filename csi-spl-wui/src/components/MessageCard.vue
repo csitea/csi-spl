@@ -888,6 +888,10 @@ async function save() {
 .msg-actions { display: contents; }
 .msg-actions > * { align-self: center; }
 .msg-actions .icon-btn[data-testid="msg-emoji-btn"] { order: 1; margin-inline-start: -11px; margin-inline-end: auto; }
+/* an edited card: "(edited)" comes after the emoji, so the emoji stays 5px
+   after the time, and the marker takes the push to the right */
+.msg-meta > .msg-edited { order: 2; margin-inline-end: auto; }
+.msg-edited ~ .msg-actions .icon-btn[data-testid="msg-emoji-btn"] { margin-inline-end: 0; }
 .msg-actions [data-test="open-topic"] { order: 2; }
 .msg-actions .replies { order: 3; margin-top: 0; align-self: center; white-space: nowrap; }
 .msg-actions .msg-menu-btn { order: 4; }

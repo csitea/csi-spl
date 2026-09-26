@@ -27,3 +27,11 @@ describe('SPL-982 the replies link reads "n >>"', () => {
     assert.match(btn, /@click\.stop="openReplies"/)
   })
 })
+
+describe('SPL-982 the emoji stays 5px after the time on an edited card', () => {
+  it('the (edited) marker paints after the emoji and takes the push to the right', () => {
+    assert.match(vue, /\.msg-meta > \.msg-edited \{ order: 2; margin-inline-end: auto; \}/)
+    assert.match(vue, /\.msg-edited ~ \.msg-actions \.icon-btn\[data-testid="msg-emoji-btn"\] \{ margin-inline-end: 0; \}/)
+    // order 2: after the emoji (1); before Open topic (also 2) because the marker is earlier in the DOM
+  })
+})

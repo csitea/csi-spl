@@ -58,14 +58,18 @@
                between them on screen (CSS order) and comes after the menu.
                The Open button paints immediately left of this link (order -1)
                and is reached after the emoji, so this link stays the first stop. -->
+          <!-- SPL-982 (owner, topic 8296eeec): exactly "3 >>", no word; the
+               name ("3 replies - Open topic") stays on aria-label and title -->
           <button
             v-if="count > 0 || alwaysTopic"
             class="replies"
             type="button"
             data-test="topic-replies"
+            :aria-label="repliesName"
+            :title="repliesName"
             @click.stop="openReplies"
           >
-            {{ t('feed.replies', { n: count }, count) }}
+            {{ count }} &gt;&gt;
           </button>
           <button
             type="button"
@@ -298,6 +302,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
+const repliesName = computed(() => `${t('feed.replies', { n: props.count ?? 0 }, props.count ?? 0)} - ${t('feed.open_topic')}`)
 /** The replies link opens this topic on the right. The left tab stays as it was. */
 function openReplies() {
   emit('open-topic', props.msg)
@@ -870,17 +875,22 @@ async function save() {
   font-size: 0.75rem;
   line-height: 1;
 }
-.msg-actions {
-  margin-inline-start: auto;
-  display: inline-flex;
-  align-items: center;
-  align-self: center;
-  gap: 2px;
-}
-.msg-actions [data-test="open-topic"] { order: -1; }
-.msg-actions .replies { order: 0; margin-top: 0; align-self: center; white-space: nowrap; }
-.msg-actions .icon-btn[data-testid="msg-emoji-btn"] { order: 1; }
-.msg-actions .msg-menu-btn { order: 2; }
+/* SPL-982 (owner, topic 8296eeec): the emoji sits about 5px after the time;
+   Open topic, the replies link and the menu stay on the right. The actions
+   are `display: contents`, so their buttons are .msg-meta items and `order`
+   paints them; the DOM (and so Tab: replies, menu, emoji, open) is unchanged.
+   The emoji's glyph is 16px in a 32px icon-btn (8px padding) after the row's
+   8px gap: -11px puts the glyph 5px after the time. */
+/* the row's text and its 32px buttons share one centre line in a card, so
+   the emoji beside the time sits level with it (the shared .msg-meta rule in
+   main.css stays baseline for every other row) */
+.msg-meta { align-items: center; }
+.msg-actions { display: contents; }
+.msg-actions > * { align-self: center; }
+.msg-actions .icon-btn[data-testid="msg-emoji-btn"] { order: 1; margin-inline-start: -11px; margin-inline-end: auto; }
+.msg-actions [data-test="open-topic"] { order: 2; }
+.msg-actions .replies { order: 3; margin-top: 0; align-self: center; white-space: nowrap; }
+.msg-actions .msg-menu-btn { order: 4; }
 .msg-menu-btn { align-self: center; }
 .msg-reactions {
   display: flex;

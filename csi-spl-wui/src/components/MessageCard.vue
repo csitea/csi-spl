@@ -24,7 +24,8 @@
         CLE-3446 — the owner's settled row format, 2026-09-22: per message,
         sender -> recipient, and the arrow flips per row because BOTH ends are
         read from THIS message. A broadcast (ALL-0) has no recipient and shows
-        the sender alone.
+        the sender alone. SPL-981 (owner, 2026-09-26): so does a direct
+        message (no channel): only the sender's avatar and name.
       -->
       <div class="msg-meta">
         <AgentBadge :id="author.id" :box="author.box || undefined" />
@@ -236,7 +237,7 @@
 </template>
 
 <script setup lang="ts">
-import { dmPeerOf, formatIsoTs, formatMsgListTs, formatTopicTs, recipientOf, shownPerson } from '~/utils/channel-feed.mjs'
+import { dmPeerOf, formatIsoTs, formatMsgListTs, formatTopicTs, headerRecipientOf, shownPerson } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { activityOf } from '~/utils/feed.mjs'
@@ -324,7 +325,8 @@ const time = computed(() => (
     ? formatTopicTs(at.value, props.sinceMs)
     : formatMsgListTs(at.value)
 ))
-const recipient = computed(() => recipientOf(props.msg))
+/* SPL-981: a direct message shows only its sender; channel rows keep sender -> recipient */
+const recipient = computed(() => headerRecipientOf(props.msg))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])
 const count = computed(() => props.count || 0)
 

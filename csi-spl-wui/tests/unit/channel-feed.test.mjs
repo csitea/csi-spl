@@ -30,6 +30,7 @@ import {
   formatIsoTs,
   formatMsgListTs,
   recipientOf,
+  headerRecipientOf,
 } from '../../src/utils/channel-feed.mjs'
 import { applyVerbosity } from '../../src/utils/verbosity.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
@@ -305,7 +306,8 @@ describe('pane 2 row is the starter and carries the starter sender', () => {
     assert.match(vue, /v-if="recipient"/, 'no recipient half in the row')
     assert.match(vue, /class="avatar--to" :id="recipient\.id" :box="recipient\.box"/, 'the right-hand avatar is not the recipient')
     assert.doesNotMatch(vue, /class="avatar avatar--to"/, 'CONTROL: the inline mark must not take the 36px row-gutter rule')
-    assert.match(vue, /recipientOf\(props\.msg\)/, 'the recipient is not read from THIS message')
+    // SPL-981: headerRecipientOf (no recipient for a direct message) still reads THIS message
+    assert.match(vue, /(?:recipientOf|headerRecipientOf)\(props\.msg\)/, 'the recipient is not read from THIS message')
   })
 
   it('stamps REAL ISO 8601 — with the T and the Z, and without bending formatAbsTs', () => {
@@ -453,5 +455,23 @@ describe('display names for humans', () => {
     })
     assert.deepEqual(namedLine('ship the relay', names), { text: 'ship the relay', title: 'ship the relay' })
     assert.deepEqual(namedLine('', names), { text: '', title: '' })
+  })
+})
+
+describe('SPL-981 a direct message header shows only the sender', () => {
+  it('no recipient (no arrow, no receiver avatar or name) when the message has no channel', () => {
+    assert.equal(headerRecipientOf({ from: 'HUM-10', to: 'CLE-07', to_box: 'box-a' }), null)
+    assert.equal(headerRecipientOf({ from: 'CLE-07', to: 'HUM-10', to_box: 'box-wui', channel: '' }), null)
+    assert.equal(headerRecipientOf({ from: 'CLE-07', to: 'HUM-10', channel: '  ' }), null)
+  })
+  it('a channel or topic message addressed to someone keeps sender -> recipient', () => {
+    assert.deepEqual(headerRecipientOf({ from: 'HUM-10', to: 'CLE-07', to_box: 'box-a', channel: 'lobby' }), { id: 'CLE-07', box: 'box-a' })
+    assert.deepEqual(headerRecipientOf({ to: 'CLE-07', to_box: 'box-a', channel: '#issues' }), { id: 'CLE-07', box: 'box-a' })
+    assert.equal(headerRecipientOf({ to: 'ALL-0', channel: 'lobby' }), null)
+  })
+  it('MessageCard reads the header recipient from headerRecipientOf', () => {
+    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+    assert.match(vue, /const recipient = computed\(\(\) => headerRecipientOf\(props\.msg\)\)/)
+    assert.match(vue, /<template v-if="recipient">\s*<span class="msg-to-arrow"/)
   })
 })

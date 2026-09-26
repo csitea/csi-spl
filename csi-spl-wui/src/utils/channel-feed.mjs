@@ -617,6 +617,18 @@ export function recipientOf(msg) {
   return { id, box: String(m.to_box || '') }
 }
 
+/**
+ * SPL-981 (owner, prd t1 topic 5cf46197): "in the direct messages only the
+ * avatar of the sender should be visible ... remove the receiver of the msg
+ * and the -> char". The card header's recipient: none for a direct message
+ * (no channel), the recipientOf for a channel or topic message.
+ */
+export function headerRecipientOf(msg) {
+  const m = msg || {}
+  if (!String(m.channel || '').trim().replace(/^#/, '')) return null
+  return recipientOf(m)
+}
+
 export function orderChannels(rows, liveAt = {}) {
   return (rows || []).slice().sort((a, b) => {
     const c = channelActivity(b, liveAt).localeCompare(channelActivity(a, liveAt))

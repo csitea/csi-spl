@@ -175,6 +175,23 @@ in_orc 'do_spl_tenant_display_name' TENANT_ID=t1 DISPLAY_NAME=csitea DRY_RUN=0; 
   && pass "2b. display-name DRY_RUN=0: value is a psql variable, tenant RLS, as $DEV_SA" \
   || fail "2b. real: rc=$rc $(cat "$T/out") $(cat "$T/stdin")"
 
+# --- 2c. tenant sort order (rdb 0051, SPL-71) --------------------------------
+in_orc 'do_spl_tenant_sort_order' TENANT_ID=t1 SORT_ORDER=1; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would set the sort order of t1 to 1' "$T/out" \
+  && pass "2c. sort-order DRY_RUN: no cloud call" || fail "2c. dry: rc=$rc $(cat "$T/out")"
+for bad in 0 -1 x 100001 '1;drop' ''; do
+  in_orc 'do_spl_tenant_sort_order' TENANT_ID=t1 SORT_ORDER="$bad" DRY_RUN=0; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2c. SORT_ORDER='$bad' is refused before any call" || fail "2c. bad order '$bad': rc=$rc"
+done
+in_orc 'do_spl_tenant_sort_order' TENANT_ID=T_1 SORT_ORDER=1 DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2c. a bad tenant slug is refused before any call" || fail "2c. bad slug: rc=$rc"
+in_orc 'do_spl_tenant_sort_order' TENANT_ID=t1 SORT_ORDER=5 DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q "sort_order = NULLIF(:'ord', '')::integer" "$T/stdin" && ! grep -qw '5' "$T/stdin" \
+  && grep -qx "SET LOCAL app.tenant_id = :'tenant';" "$T/stdin" \
+  && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
+  && pass "2c. sort-order DRY_RUN=0: value is a psql variable, tenant RLS, as $DEV_SA" \
+  || fail "2c. real: rc=$rc $(cat "$T/out") $(cat "$T/stdin")"
+
 # --- 3. read-only query ----------------------------------------------------------------
 for q in "select 1; delete from tenants" "\\! id" ""; do
   in_orc 'do_spl_db_query' SQL="$q"; rc=$?

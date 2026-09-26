@@ -60,6 +60,9 @@ type Tenant struct {
 	SeatsBots  int
 	// Shown in the WUI tenant drop box. Empty means the tenant id.
 	DisplayName string
+	// Place in the tenant drop box (rdb 0049): 1 first. 0 = unset, drawn
+	// after every set one.
+	SortOrder int
 }
 
 func normalizeTenant(t *Tenant) error {

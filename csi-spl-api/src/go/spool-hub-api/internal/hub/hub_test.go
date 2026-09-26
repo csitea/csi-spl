@@ -689,8 +689,21 @@ func TestPinRESTRootSigned(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("root-signed pin: %d %s", code, raw)
 	}
-	if strings.Contains(strings.ToLower(string(raw)), "priv") {
-		t.Fatalf("pin response leaked a private-key field: %s", raw)
+	// Check field NAMES and the key bytes, not a substring of the body: a
+	// random base64 pubkey can itself contain "priv" (run 36243397751).
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		t.Fatalf("pin response is not a JSON object: %v %s", err, raw)
+	}
+	for k := range fields {
+		if k != "box_id" && k != "pubkey" {
+			t.Fatalf("pin response has an unexpected field %q: %s", k, raw)
+		}
+	}
+	if aPriv, err := sign.LoadPrivate(a.cfg.KeysDir, "box-a"); err != nil {
+		t.Fatal(err)
+	} else if strings.Contains(string(raw), base64.StdEncoding.EncodeToString(aPriv)) {
+		t.Fatalf("pin response leaked the box private key: %s", raw)
 	}
 	code, _ = post(wire.PinRequest{BoxID: "box-a", PubKey: a.pub, TS: ts, Sig: sign.Sign(root, p)})
 	if code != 200 {

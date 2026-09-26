@@ -16,6 +16,7 @@
 //   5. a second tab sees a later change live, without a reload
 //   6. a comment lands in the issue's discussion
 //   7. reload -> grouping, priority, level and deadline are still there
+//   8. /issues?issue=<key> opens that issue (the search lane's link)
 //
 //   BASE=https://dev.<domain> API=https://dev.api.<domain> EMAIL=<member>
 //     PW_FILE=<0600 file> OUT=<dir> [TENANT=t1] [CHROME_PATH=...]
@@ -219,6 +220,9 @@ try {
   await p2.setViewport({ width: 1440, height: 900 })
   await nav(p2, BASE + '/issues')
   await until(() => p2.evaluate(ROW, key), 30000)
+  /* the row comes from the REST read; frames need the tab's socket open */
+  const sockOpen = await until(() => p2.evaluate(() => !!document.querySelector('[data-testid=connection-health] .health-dot.ok')), 30000)
+  res.second_tab_socket_open = !!sockOpen
   /* a background tab gets no animation frames, and a click waits for one */
   await p.bringToFront()
   await pick(p, 'issues-status', 'in_review')
@@ -228,7 +232,7 @@ try {
     const g = el && el.closest('.issues-group')
     return g && g.getAttribute('data-status') === 'in_review'
   }, key), 15000)
-  step('5 a second tab moves the row to In Review without a reload', !!live, {})
+  step('5 a second tab moves the row to In Review without a reload', !!live, { socket_open: !!sockOpen })
   await shot(p2, '03-second-tab-live')
   await p2.close()
   await p.bringToFront()
@@ -257,6 +261,14 @@ try {
   step('7 the deadline control shows the same local date and time', dlAfter === local, { got: dlAfter, want: local })
   await sleep(1500)
   await shot(p, '04-after-reload')
+
+  // 8. a link to the issue opens it (search rows and shared links use it)
+  await nav(p, BASE + '/issues?issue=' + encodeURIComponent(key))
+  const opened = await until(() => p.evaluate(() => {
+    const k = document.querySelector('[data-test=issues-detail-key]')
+    return k ? k.textContent.trim() : ''
+  }), 30000)
+  step('8 /issues?issue=<key> opens that issue in the right pane', opened === key, { got: opened })
   res.key = key
 } catch (e) {
   step('run', false, { error: String(e).slice(0, 300) })

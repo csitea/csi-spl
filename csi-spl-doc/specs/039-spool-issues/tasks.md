@@ -16,8 +16,11 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       deadline bridge), shims. `10387c41`; `tests/unit/issues.test.mjs`.
       No pinia store: agreed with GRK-3519, the page owns its state and the
       frame handlers in live-ws.mjs / useLive.ts
-- [ ] T005 WUI (GRK-3519): rail tab third after Channels, middle list, right
-      detail with the deadline calendar + time, shortcuts, 19 locales
+- [x] T005 WUI (GRK-3519): rail tab third after Channels, middle list,
+      right detail with the calendar + time deadline, shortcuts, 19 locales.
+      `33891193`; comment send over the tab socket + `?issue=<key>` deep
+      link `a3d71ab7` / `618d437d` (reviewed by CLE-34993; the comment
+      defect was found by the T008b proof)
 - [x] T006a agents (FR-008): box socket issue frames (issues-v1 §6),
       `hubclient.Issue`, `action.Issue`, `spool issue`; issue topics left out
       of every topic list (§7). The commit adding this line;
@@ -39,5 +42,13 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       deadline 18:00Z), `do_spl_issue_comment` -> msg 6ef5db9d, list -> counts
       in_progress 1; DB: issues row + comment is_parent 0, channel tasks,
       from CLE-34993
-- [ ] T008b live proof in the WUI, dev + prd: create, edit status / priority / level /
-      assignee / deadline, grouping, reload keeps it; screenshots in the topic
+- [x] T008b live proof in the WUI, signed in, `tests/e2e/issues-live.proof.mjs`,
+      WUI `618d437d` + hub 0.7.0 `a90f16b8`, n=1 per env, 2026-09-26 ~08:00Z:
+      dev tenant t1 12/12 PASS; prd test tenant e2e 12/12 PASS (steps 1-8:
+      third tab, create, list without description, status / priority /
+      level / assignee / calendar+time deadline, second tab live, comment,
+      reload, `?issue=` link). The first prd run failed step 5 once, before the
+      proof waited for the second tab's socket (not measured whether it was
+      open then). Screenshots (8) posted in topic 9c19bfe9, msg 35b89cc3
+
+<!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

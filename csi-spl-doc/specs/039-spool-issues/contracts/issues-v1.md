@@ -96,3 +96,5 @@ mints):
 `GET /v1/view/topics` (every list: a channel's cards, the Topics tab, DMs)
 leaves out the topic of every issue (`TopicQuery.NoIssues`): the talk about an
 issue lives in its right pane. `GET /v1/view/topics/{task_id}` still reads it.
+
+<!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

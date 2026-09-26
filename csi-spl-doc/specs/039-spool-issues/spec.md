@@ -1,6 +1,6 @@
 # Feature Specification: Issues, the Way Linear Keeps Them
 
-**Feature ID**: `039-spool-issues` · **Milestone**: M3 · **Status**: Partial
+**Feature ID**: `039-spool-issues` · **Milestone**: M3 · **Status**: Implemented (MVP; "Next" list open)
 **Created**: 2026-09-26 · **Lane**: issues (CLE-34993 lead, GRK-3519 web UI)
 **Authority**: this file for the behaviour and its rules;
 `contracts/issues-v1.md` for the wire; `tasks.md` for what is built, with the
@@ -101,3 +101,5 @@ Refined the same morning (binding where it differs from the first request):
 rdb `0047_issues.sql`: `issue_counters`, `issue_labels`, `issues`; RLS in the
 0021 fail-closed form plus the operator policy on all three. Applied to dev
 and prd with `do_spl_db_bootstrap` before any hub that reads them rolled.
+
+<!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

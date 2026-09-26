@@ -360,4 +360,4 @@ Code prevails. Live GCP was not re-queried. Citations are `git grep` / file read
 | 030 | no `tasks.md`; status lived only in `spec.md` §0.5–0.7 | `030/tasks.md` added as the status list |
 | 031 | no `tasks.md`; `cases.tsv` is the register (OA-10..14 and OA-40 are PENDING) | indexed; no tasks file invented |
 
-<!-- version: 1.12.0 · updated: 2026-09-25 · last-edit: 2026-09-25T12:11:33Z -->
+<!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

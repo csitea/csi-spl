@@ -40,4 +40,4 @@ lists six, and a seventh would break it.
 | 78 on the CLI and as a tool error | `TestSC004MCPEqualsCLI` (corrupted blob) |
 | partial recv output + error | `TestRecvMalformedIsToolError` |
 
-<!-- version: 1.0.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->
+<!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

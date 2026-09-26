@@ -83,8 +83,9 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
     assert.match(src('src/components/MessageCard.vue'), /data-test="topic-replies"/)
     const card = src('src/components/MessageCard.vue')
     const repliesAt = card.indexOf('data-test="topic-replies"')
+    const menuAt = card.indexOf('data-testid="msg-menu-btn"')
     const emojiAt = card.indexOf('data-testid="msg-emoji-btn"')
-    assert.ok(repliesAt > 0 && repliesAt < emojiAt)
+    assert.ok(repliesAt > 0 && repliesAt < menuAt && menuAt < emojiAt)
   })
 
   it('is_parent is 0 whenever the right pane is open, whichever left tab is selected', () => {

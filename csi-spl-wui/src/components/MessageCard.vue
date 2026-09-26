@@ -53,8 +53,8 @@
         <!-- Opening messages (is_parent 1) and replies (is_parent 0) are both
              this card. The emoji control is not gated on that flag. -->
         <span class="msg-actions">
-          <!-- First focusable control in the card, and on the meta row so a
-               titles card stays one line of text under that row. -->
+          <!-- Tab: the card, then this link, then the menu. The emoji stays
+               between them on screen (CSS order) and comes after the menu. -->
           <button
             v-if="count > 0 || alwaysTopic"
             class="replies"
@@ -63,18 +63,6 @@
             @click.stop="openReplies"
           >
             {{ t('feed.replies', { n: count }, count) }}
-          </button>
-          <button
-            type="button"
-            class="icon-btn"
-            data-testid="msg-emoji-btn"
-            :aria-label="t('feed.emoji.add')"
-            :title="t('feed.emoji.add')"
-            :aria-expanded="pickerOpen ? 'true' : 'false'"
-            :disabled="!msg.msg_id || !!msg.pending"
-            @click.stop="openPickerFromButton"
-          >
-            <UiIcon name="smile" :size="16" />
           </button>
           <button
             type="button"
@@ -87,6 +75,18 @@
             @contextmenu.stop.prevent="openMenuFromButton"
           >
             <UiIcon name="menu" :size="16" />
+          </button>
+          <button
+            type="button"
+            class="icon-btn"
+            data-testid="msg-emoji-btn"
+            :aria-label="t('feed.emoji.add')"
+            :title="t('feed.emoji.add')"
+            :aria-expanded="pickerOpen ? 'true' : 'false'"
+            :disabled="!msg.msg_id || !!msg.pending"
+            @click.stop="openPickerFromButton"
+          >
+            <UiIcon name="smile" :size="16" />
           </button>
         </span>
       </div>
@@ -866,11 +866,9 @@ async function save() {
   align-self: center;
   gap: 2px;
 }
-.msg-actions .replies {
-  margin-top: 0;
-  align-self: center;
-  white-space: nowrap;
-}
+.msg-actions .replies { order: 0; margin-top: 0; align-self: center; white-space: nowrap; }
+.msg-actions .icon-btn[data-testid="msg-emoji-btn"] { order: 1; }
+.msg-actions .msg-menu-btn { order: 2; }
 .msg-menu-btn { align-self: center; }
 .msg-reactions {
   display: flex;

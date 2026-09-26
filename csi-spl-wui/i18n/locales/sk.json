@@ -847,6 +847,8 @@
     "subtasks": "Podúlohy",
     "add_subtask": "Pridať podúlohu",
     "subtask_placeholder": "Názov novej podúlohy",
+    "subtask_dialog_title": "Pridať podúlohu k {key}",
+    "subtask_title": "Názov podúlohy",
     "parent_issue": "Rodič",
     "status_hint": {
       "eval": "hodnotenie",

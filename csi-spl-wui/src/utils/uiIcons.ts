@@ -264,6 +264,8 @@ export const UI_ICON_PATHS = {
   "clip-titles": ["M4 12h16"],
   "clip-rows": ["M4 5h16", "M4 9.5h16", "M4 14h16", "M4 18.5h10"],
   "clip-full": ["M12 3v18", "m8 7 4-4 4 4", "m8 17 4 4 4-4"],
+  // Add a subtask (SPL-974): a tree (trunk + two children) with a plus.
+  "subtask-add": ["M5 3v13a2 2 0 0 0 2 2h5", "M5 9h5", "M18 4v8", "M14 8h8", "M15 18h5"],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

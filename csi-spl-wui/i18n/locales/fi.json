@@ -847,6 +847,8 @@
     "subtasks": "Alitehtävät",
     "add_subtask": "Lisää alitehtävä",
     "subtask_placeholder": "Uuden alitehtävän otsikko",
+    "subtask_dialog_title": "Lisää alitehtävä: {key}",
+    "subtask_title": "Alitehtävän otsikko",
     "parent_issue": "Ylätaso",
     "status_hint": {
       "eval": "arviointi",

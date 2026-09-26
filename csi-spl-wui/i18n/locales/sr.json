@@ -847,6 +847,8 @@
     "subtasks": "Подзадаци",
     "add_subtask": "Додај подзадатак",
     "subtask_placeholder": "Наслов новог подзадатка",
+    "subtask_dialog_title": "Додај подзадатак у {key}",
+    "subtask_title": "Наслов подзадатка",
     "parent_issue": "Родитељ",
     "status_hint": {
       "eval": "процена",

@@ -267,7 +267,21 @@
       <button v-if="creating" type="button" class="btn" data-test="issues-create" :disabled="busy || !draft.title.trim() || (!isTopKind(draft.kind) && !draft.epic)" @click="createIssue">{{ busy ? t('issues.creating') : t('issues.create') }}</button>
       <!-- SPL-18 level 3: a level-2 issue's subtasks, in the right pane -->
       <section v-if="!creating && form.kind === 'issue'" class="issues-subs" data-test="issues-subtasks">
-        <h3>{{ t('issues.subtasks') }}</h3>
+        <!-- SPL-974: one plus+hierarchy icon; the subtask UI is a modal -->
+        <div class="issues-subs__h">
+          <h3>{{ t('issues.subtasks') }}</h3>
+          <button
+            type="button"
+            class="issues-sub-add"
+            data-test="issues-subtask-open"
+            :title="t('issues.add_subtask')"
+            :aria-label="t('issues.add_subtask')"
+            aria-haspopup="dialog"
+            @click="subtaskOpen = true"
+          >
+            <UiIcon name="subtask-add" :size="18" />
+          </button>
+        </div>
         <button
           v-for="sub in subtasks"
           :key="sub.key"
@@ -282,10 +296,7 @@
           <span class="issues-key">{{ sub.key }}</span>
           <span class="issues-title">{{ sub.title }}</span>
         </button>
-        <form class="issues-sub-add" @submit.prevent="addSubtask">
-          <input v-model="subtaskTitle" data-test="issues-subtask-input" :placeholder="t('issues.subtask_placeholder')" :aria-label="t('issues.add_subtask')">
-          <button type="submit" class="btn ghost" data-test="issues-subtask-add" :disabled="busy || !subtaskTitle.trim()">{{ t('issues.add_subtask') }}</button>
-        </form>
+        <LazyIssueSubtaskDialog v-model:open="subtaskOpen" :parent-key="form.key" :assignees="assigneeOptions" @created="onSubtaskCreated" />
       </section>
       <section v-if="!creating && form.task_id" class="issues-talk" data-test="issues-talk">
         <!-- SPL-963: the discussion sits in the right pane and takes its titles / 5 rows / full -->
@@ -439,7 +450,7 @@ const draft = reactive({
   epic: '', kind: 'issue' as 'issue' | 'epic' | 'feature',
 })
 const subtasks = ref<Issue[]>([])
-const subtaskTitle = ref('')
+const subtaskOpen = ref(false)
 /* SPL-18: the epics of the tenant (the hub's summary), shared with the
    Issues tab's left-most panel (ChannelSidebar reads the same state). */
 const epics = useState<EpicSummary[]>('issue-epics', () => [])
@@ -470,21 +481,12 @@ async function loadSubtasks(issue: Issue | null) {
     subtasks.value = []
   }
 }
-async function addSubtask() {
+/* SPL-974: the dialog created it; show it now, then re-read the list */
+function onSubtaskCreated(sub: Issue) {
   const parent = detail.value
-  const title = subtaskTitle.value.trim()
-  if (!parent || !title) return
-  busy.value = true
-  saveError.value = ''
-  try {
-    await withSessionRetry(api, () => api.createIssue({ title, parent: parent.key }))
-    subtaskTitle.value = ''
-    await loadSubtasks(parent)
-  } catch (e) {
-    saveError.value = errorKey(e as { status?: number, token?: string }, 'one')
-  } finally {
-    busy.value = false
-  }
+  if (!parent || sub.parent !== parent.key) return
+  if (!subtasks.value.some((s) => s.key === sub.key)) subtasks.value = [...subtasks.value, sub]
+  void loadSubtasks(parent)
 }
 async function openParent() {
   const key = detail.value?.parent || ''
@@ -1402,8 +1404,9 @@ onUnmounted(() => {
 .issues-sub { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 6px; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; text-align: start; cursor: pointer; }
 .issues-sub:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
 .issues-sub .issues-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.issues-sub-add { display: flex; gap: 6px; }
-.issues-sub-add input { flex: 1; min-width: 0; }
+.issues-subs__h { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.issues-sub-add { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; margin-top: 8px; padding: 0; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--color-muted); cursor: pointer; }
+.issues-sub-add:hover, .issues-sub-add:focus-visible { color: var(--color-fg); border-color: var(--color-border); }
 .issues-talk h3 { margin: 8px 0 0; font-size: 0.875rem; }
 .issues-talk__h { display: flex; align-items: center; gap: 8px; min-width: 0; }
 /* SPL-963: titles = one line, 5 rows = at most 5 lines, full = all of it */

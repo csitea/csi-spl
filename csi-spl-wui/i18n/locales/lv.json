@@ -847,6 +847,8 @@
     "subtasks": "Apakšuzdevumi",
     "add_subtask": "Pievienot apakšuzdevumu",
     "subtask_placeholder": "Jaunā apakšuzdevuma nosaukums",
+    "subtask_dialog_title": "Pievienot apakšuzdevumu {key}",
+    "subtask_title": "Apakšuzdevuma nosaukums",
     "parent_issue": "Vecāks",
     "status_hint": {
       "eval": "izvērtēšana",

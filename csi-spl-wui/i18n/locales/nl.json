@@ -847,6 +847,8 @@
     "subtasks": "Subtaken",
     "add_subtask": "Subtaak toevoegen",
     "subtask_placeholder": "Titel van de nieuwe subtaak",
+    "subtask_dialog_title": "Subtaak toevoegen aan {key}",
+    "subtask_title": "Titel van de subtaak",
     "parent_issue": "Ouder",
     "status_hint": {
       "eval": "evaluatie",

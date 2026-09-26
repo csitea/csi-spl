@@ -847,6 +847,8 @@
     "subtasks": "Podzadania",
     "add_subtask": "Dodaj podzadanie",
     "subtask_placeholder": "Tytuł nowego podzadania",
+    "subtask_dialog_title": "Dodaj podzadanie do {key}",
+    "subtask_title": "Tytuł podzadania",
     "parent_issue": "Rodzic",
     "status_hint": {
       "eval": "ocena",

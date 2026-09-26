@@ -847,6 +847,8 @@
     "subtasks": "Subtareas",
     "add_subtask": "Añadir subtarea",
     "subtask_placeholder": "Título de la nueva subtarea",
+    "subtask_dialog_title": "Añadir una subtarea a {key}",
+    "subtask_title": "Título de la subtarea",
     "parent_issue": "Padre",
     "status_hint": {
       "eval": "evaluación",

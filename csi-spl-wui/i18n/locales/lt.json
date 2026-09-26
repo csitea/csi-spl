@@ -847,6 +847,8 @@
     "subtasks": "Použduotys",
     "add_subtask": "Pridėti použduotį",
     "subtask_placeholder": "Naujos použduoties pavadinimas",
+    "subtask_dialog_title": "Pridėti antrinę užduotį prie {key}",
+    "subtask_title": "Antrinės užduoties pavadinimas",
     "parent_issue": "Tėvas",
     "status_hint": {
       "eval": "vertinimas",

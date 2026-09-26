@@ -847,6 +847,8 @@
     "subtasks": "Subtasks",
     "add_subtask": "Add subtask",
     "subtask_placeholder": "New subtask title",
+    "subtask_dialog_title": "Add a subtask to {key}",
+    "subtask_title": "Subtask title",
     "parent_issue": "Parent",
     "status_hint": {
       "eval": "evaluation",

@@ -847,6 +847,8 @@
     "subtasks": "תת־משימות",
     "add_subtask": "הוספת תת־משימה",
     "subtask_placeholder": "כותרת תת־המשימה החדשה",
+    "subtask_dialog_title": "הוספת תת-משימה ל-{key}",
+    "subtask_title": "כותרת תת-המשימה",
     "parent_issue": "הורה",
     "status_hint": {
       "eval": "הערכה",

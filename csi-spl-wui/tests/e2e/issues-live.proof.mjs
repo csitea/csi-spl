@@ -388,9 +388,12 @@ try {
   }, ititle), 30000)
   const ihub = ikey ? await hubIssue(p, ikey) : {}
   step('11 an issue filed with the feature selected lands under it (level 2)', ihub.kind === 'issue' && ihub.epic === fkey && ihub.level === 2, { key: ikey, kind: ihub.kind, epic: ihub.epic, level: ihub.level })
+  // SPL-974: the plus+hierarchy icon opens the subtask dialog; Enter creates
+  await p.waitForSelector('[data-test=issues-subtask-open]', { visible: true, timeout: 10000 })
+  await p.click('[data-test=issues-subtask-open]')
   await p.waitForSelector('[data-test=issues-subtask-input]', { visible: true, timeout: 10000 })
   await p.type('[data-test=issues-subtask-input]', `Proof subtask ${run}`)
-  await p.click('[data-test=issues-subtask-add]')
+  await p.keyboard.press('Enter')
   const skey = await until(() => p.evaluate(() => {
     const el = document.querySelector('[data-test=issues-subtask]')
     return el ? el.getAttribute('data-key') : ''

@@ -847,6 +847,8 @@
     "subtasks": "Alt işler",
     "add_subtask": "Alt iş ekle",
     "subtask_placeholder": "Yeni alt işin başlığı",
+    "subtask_dialog_title": "{key} için alt görev ekle",
+    "subtask_title": "Alt görev başlığı",
     "parent_issue": "Üst öge",
     "status_hint": {
       "eval": "değerlendirme",

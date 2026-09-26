@@ -847,6 +847,8 @@
     "subtasks": "Subsarcini",
     "add_subtask": "Adaugă subsarcină",
     "subtask_placeholder": "Titlul noii subsarcini",
+    "subtask_dialog_title": "Adaugă o subsarcină la {key}",
+    "subtask_title": "Titlul subsarcinii",
     "parent_issue": "Părinte",
     "status_hint": {
       "eval": "evaluare",

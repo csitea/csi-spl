@@ -847,6 +847,8 @@
     "subtasks": "Alamülesanded",
     "add_subtask": "Lisa alamülesanne",
     "subtask_placeholder": "Uue alamülesande pealkiri",
+    "subtask_dialog_title": "Lisa alamülesanne: {key}",
+    "subtask_title": "Alamülesande pealkiri",
     "parent_issue": "Vanem",
     "status_hint": {
       "eval": "hindamine",

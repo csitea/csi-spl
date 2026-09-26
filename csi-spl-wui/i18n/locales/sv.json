@@ -847,6 +847,8 @@
     "subtasks": "Delaktiviteter",
     "add_subtask": "Lägg till delaktivitet",
     "subtask_placeholder": "Titel på den nya delaktiviteten",
+    "subtask_dialog_title": "Lägg till en deluppgift i {key}",
+    "subtask_title": "Deluppgiftens titel",
     "parent_issue": "Förälder",
     "status_hint": {
       "eval": "utvärdering",

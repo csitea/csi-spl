@@ -847,6 +847,8 @@
     "subtasks": "Υποεργασίες",
     "add_subtask": "Προσθήκη υποεργασίας",
     "subtask_placeholder": "Τίτλος νέας υποεργασίας",
+    "subtask_dialog_title": "Προσθήκη υποεργασίας στο {key}",
+    "subtask_title": "Τίτλος υποεργασίας",
     "parent_issue": "Γονικό",
     "status_hint": {
       "eval": "αξιολόγηση",

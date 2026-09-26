@@ -847,6 +847,8 @@
     "subtasks": "Підзавдання",
     "add_subtask": "Додати підзавдання",
     "subtask_placeholder": "Назва нового підзавдання",
+    "subtask_dialog_title": "Додати підзадачу до {key}",
+    "subtask_title": "Назва підзадачі",
     "parent_issue": "Батьківське",
     "status_hint": {
       "eval": "оцінка",

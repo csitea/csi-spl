@@ -222,6 +222,49 @@ try {
   const opts = await p.$$eval('[data-test=issues-filter-level] option', (els) => els.map((e) => e.value).filter(Boolean))
   ok('4b level is read-only, 2 for an issue; the filter offers 1, 2, 3', lvl.tag !== 'BUTTON' && lvl.level === '2' && opts.join() === '1,2,3', { lvl, opts })
 
+  /* SPL-974: one plus+hierarchy icon (no inline title box, no Add subtask
+     button) opens a modal with the subtask UI: Enter creates, Esc and the
+     backdrop close, focus is trapped and handed back */
+  const subUi = await p.evaluate(() => {
+    const b = document.querySelector('[data-test=issues-subtask-open]')
+    return { inline: document.querySelectorAll('[data-test=issues-subtasks] input, [data-test=issues-subtasks] form').length,
+      label: b && b.getAttribute('aria-label'), title: b && b.getAttribute('title'), icon: Boolean(b && b.querySelector('svg[data-icon=subtask-add]')), text: b ? b.textContent.trim() : null }
+  })
+  ok('4e the subtask section has one icon button labelled Add subtask and no inline form',
+    subUi.inline === 0 && subUi.label === 'Add subtask' && subUi.title === 'Add subtask' && subUi.icon && subUi.text === '', subUi)
+  const openSub = async () => {
+    await p.click('[data-test=issues-subtask-open]')
+    await p.waitForFunction(() => document.activeElement && document.activeElement.getAttribute('data-test') === 'issues-subtask-input', { timeout: 5000 })
+  }
+  const dialogGone = () => p.waitForFunction(() => !document.querySelector('[data-testid=ui-dialog]'), { timeout: 5000 }).then(() => true, () => false)
+  const focusOnOpener = () => p.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-test') === 'issues-subtask-open')
+  await openSub()
+  const modal = await p.$eval('[data-testid=ui-dialog]', (el) => ({ modal: el.getAttribute('aria-modal'), role: el.getAttribute('role') }))
+  const trapped = []
+  for (let n = 0; n < 9; n++) {
+    await p.keyboard.press('Tab')
+    trapped.push(await p.evaluate(() => Boolean(document.querySelector('[data-testid=ui-dialog]').contains(document.activeElement))))
+  }
+  await p.keyboard.press('Escape')
+  const escClosed = await dialogGone()
+  const escBack = await focusOnOpener()
+  const stillOpen = await p.$('[data-test=issues-detail]')
+  ok('4f the dialog is modal, Tab stays inside it, Esc closes it and focus returns to the icon (the issue stays open)',
+    modal.modal === 'true' && modal.role === 'dialog' && trapped.every(Boolean) && escClosed && escBack && Boolean(stillOpen), { modal, trapped, escClosed, escBack })
+  await openSub()
+  await p.mouse.click(4, 4)
+  const backdropClosed = await dialogGone()
+  ok('4g a click on the backdrop closes the dialog', backdropClosed, { backdropClosed })
+  await openSub()
+  await p.type('[data-test=issues-subtask-input]', 'Mock subtask')
+  await p.keyboard.press('Enter')
+  const enterClosed = await dialogGone()
+  const subRow = await p.waitForFunction(() => {
+    const el = [...document.querySelectorAll('[data-test=issues-subtask]')].find((x) => x.textContent.includes('Mock subtask'))
+    return el ? el.getAttribute('data-key') : false
+  }, { timeout: 5000 }).then((h) => h.jsonValue(), () => '')
+  ok('4h Enter in the dialog creates the subtask and it shows in the pane right away', enterClosed && Boolean(subRow), { enterClosed, subRow })
+
   await p.click('[data-test=issues-status]')
   await p.waitForSelector('[data-test=issues-menu-option][data-value="wip"]', { visible: true, timeout: 5000 })
   await p.hover('[data-test=issues-menu-option][data-value="diss"]')

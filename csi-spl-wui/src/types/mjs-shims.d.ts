@@ -105,6 +105,7 @@ declare module '~/utils/spool-client.mjs' {
     /** Add (`op` add) or remove the viewer's emoji. Same call for is_parent 0 and 1. */
     setReaction(msgId: string, emoji: string, op: 'add' | 'remove', current?: { emoji: string, actors: string[] }[]): Promise<import('./spool').ReactionUpdate>
     fileUrl(fileId: string): string
+    bindIssuesMock(factory: (me: string) => unknown): void
     listIssues(opts?: { filter?: import('~/utils/issues.mjs').IssueFilter, sort?: string }): Promise<import('~/utils/issues.mjs').IssueList>
     getIssue(ref: string): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
     createIssue(body: import('~/utils/issues.mjs').IssueBody): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
@@ -1066,4 +1067,23 @@ declare module '~/utils/issues.mjs' {
   export function isOverdue(issue: Issue, now?: number): boolean
   export function issueQuery(filter?: IssueFilter, sort?: string): string
   export function createMockIssues(opts?: { me?: string, now?: () => string }): unknown
+}
+
+declare module '~/utils/issues-view.mjs' {
+  export const ISSUE_PRIORITIES: number[]
+  export const ISSUE_LEVELS: number[]
+  export const LEVEL_SHORT: string[]
+  export const ISSUE_SORTS: string[]
+  export function statusKey(s: string): string
+  export function priorityKey(p: number): string
+  export function levelKey(l: number): string
+  export function groupIssues(list: import('~/utils/issues.mjs').Issue[], opts?: { sort?: string, filter?: import('~/utils/issues.mjs').IssueFilter, me?: string, hideEmpty?: boolean }): import('~/utils/issues.mjs').IssueGroup[]
+  export function visibleOrder(groups: import('~/utils/issues.mjs').IssueGroup[], collapsed?: Record<string, boolean>): import('~/utils/issues.mjs').Issue[]
+  export function stepKey(order: import('~/utils/issues.mjs').Issue[], current: string, delta: number): string
+  export function applyIssueFrame(list: import('~/utils/issues.mjs').Issue[], frame: unknown): import('~/utils/issues.mjs').Issue[]
+  export function applyLabelFrame(labels: import('~/utils/issues.mjs').IssueLabel[], frame: unknown): import('~/utils/issues.mjs').IssueLabel[]
+  export function patchIssue(issue: import('~/utils/issues.mjs').Issue, patch: Partial<import('~/utils/issues.mjs').Issue>): import('~/utils/issues.mjs').Issue
+  export function deadlineToLocalInput(iso: string, offsetMin?: number): string
+  export function localInputToDeadline(value: string, offsetMin?: number): string | null
+  export function isOverdue(issue: import('~/utils/issues.mjs').Issue, now?: number): boolean
 }

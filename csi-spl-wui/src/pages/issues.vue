@@ -56,7 +56,7 @@
             :aria-expanded="isCollapsed(g.status) ? 'false' : 'true'"
             @click="toggleGroup(g.status)"
           >
-            <UiIcon :name="asIcon(statusIcon(g.status))" :size="16" :class="'issues-st issues-st--' + g.status" />
+            <IssueGlyph :name="statusIcon(g.status)" :size="16" :class="'issues-st issues-st--' + g.status" />
             <span>{{ t(statusKey(g.status)) }}</span>
             <span class="issues-count" data-test="issues-group-count">{{ g.count }}</span>
           </button>
@@ -76,7 +76,7 @@
               @keydown.enter.prevent="choose(issue)"
             >
               <button type="button" class="issues-iconbtn" data-test="issues-row-priority" :aria-label="t('issues.field_priority')" @click.stop="openMenu('priority', issue, $event)">
-                <UiIcon :name="asIcon(priorityIcon(issue.priority))" :size="16" :class="'issues-pri issues-pri--' + issue.priority" />
+                <IssueGlyph :name="priorityIcon(issue.priority)" :size="16" :class="'issues-pri issues-pri--' + issue.priority" />
               </button>
               <span class="issues-key">{{ issue.key }}</span>
               <span class="issues-title">{{ issue.title }}</span>
@@ -127,11 +127,11 @@
       </label>
       <div class="issues-props">
         <button type="button" class="issues-prop" data-test="issues-status" @click="openMenu('status', detailOrDraft(), $event)">
-          <UiIcon :name="asIcon(statusIcon(form.status))" :size="16" />
+          <IssueGlyph :name="statusIcon(form.status)" :size="16" />
           <span>{{ t(statusKey(form.status)) }}</span>
         </button>
         <button type="button" class="issues-prop" data-test="issues-priority" @click="openMenu('priority', detailOrDraft(), $event)">
-          <UiIcon :name="asIcon(priorityIcon(form.priority))" :size="16" />
+          <IssueGlyph :name="priorityIcon(form.priority)" :size="16" />
           <span>{{ t(priorityKey(form.priority)) }}</span>
         </button>
         <button type="button" class="issues-prop" data-test="issues-level" @click="openMenu('level', detailOrDraft(), $event)">
@@ -195,7 +195,6 @@
 </template>
 
 <script setup lang="ts">
-import type { UiIconName } from '~/utils/uiIcons'
 import type { Issue, IssueFilter, IssueLabel } from '~/utils/issues.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useRosterStore } from '~/stores/roster'
@@ -208,10 +207,10 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
+import { ISSUE_STATUSES, createMockIssues, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import {
   ISSUE_LEVELS,
   ISSUE_PRIORITIES,
-  ISSUE_STATUSES,
   LEVEL_SHORT,
   applyIssueFrame,
   applyLabelFrame,
@@ -219,17 +218,15 @@ import {
   groupIssues,
   levelKey,
   localInputToDeadline,
-  normalizeIssue,
-  normalizeLabel,
   priorityKey,
   statusKey,
   stepKey,
   visibleOrder,
-} from '~/utils/issues.mjs'
+} from '~/utils/issues-view.mjs'
 
 type Note = { msg_id: string, from: string, from_box: string, body: string, ts: string }
 
-const STATUS_ICON: Record<string, UiIconName> = {
+const STATUS_ICON: Record<string, string> = {
   backlog: 'status-backlog',
   todo: 'status-todo',
   in_progress: 'status-progress',
@@ -237,7 +234,7 @@ const STATUS_ICON: Record<string, UiIconName> = {
   done: 'status-done',
   canceled: 'status-canceled',
 }
-const PRIORITY_ICON: Record<number, UiIconName> = {
+const PRIORITY_ICON: Record<number, string> = {
   0: 'priority-none',
   1: 'priority-urgent',
   2: 'priority-high',
@@ -245,14 +242,11 @@ const PRIORITY_ICON: Record<number, UiIconName> = {
   4: 'priority-low',
 }
 
-function statusIcon(status: string): UiIconName {
+function statusIcon(status: string): string {
   return STATUS_ICON[status] || 'status-backlog'
 }
-function priorityIcon(priority: number): UiIconName {
+function priorityIcon(priority: number): string {
   return PRIORITY_ICON[priority] || 'priority-none'
-}
-function asIcon(name: UiIconName): UiIconName {
-  return name
 }
 
 const { t, locale } = useI18n({ useScope: 'global' })
@@ -261,6 +255,7 @@ const session = useSessionStore()
 const roster = useRosterStore()
 const people = useHumanNames()
 const api = useSpoolApi()
+if (api.mock) api.bindIssuesMock((me: string) => createMockIssues({ me }))
 const live = useLive()
 
 const issues = ref<Issue[]>([])
@@ -668,7 +663,12 @@ async function sendComment() {
   busy.value = true
   saveError.value = ''
   try {
-    await api.sendMessage({ text, task_id: issue.task_id, channel: issue.channel || 'tasks', is_parent: 0 })
+    const sock = live.ensure()
+    if (sock) {
+      await sock.send({ task_id: issue.task_id, kind: 'note', body: text, files: [], channel: issue.channel || 'tasks', is_parent: 0 })
+    } else {
+      await api.sendMessage({ text, task_id: issue.task_id, channel: issue.channel || 'tasks', is_parent: 0 })
+    }
     commentText.value = ''
     await loadComments(issue)
   } catch {

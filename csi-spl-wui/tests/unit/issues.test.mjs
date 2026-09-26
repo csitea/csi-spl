@@ -4,10 +4,11 @@
 // Run: node tests/unit/issues.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { ISSUE_STATUSES, issueQuery, matchIssue, normalizeIssue, sortIssues } from '../../src/utils/issues.mjs'
 import {
-  ISSUE_STATUSES, applyIssueFrame, applyLabelFrame, deadlineToLocalInput, groupIssues, isOverdue, issueQuery,
-  localInputToDeadline, matchIssue, normalizeIssue, sortIssues, stepKey, visibleOrder,
-} from '../../src/utils/issues.mjs'
+  applyIssueFrame, applyLabelFrame, deadlineToLocalInput, groupIssues, isOverdue,
+  localInputToDeadline, stepKey, visibleOrder,
+} from '../../src/utils/issues-view.mjs'
 
 const mk = (n, extra = {}) => normalizeIssue({ key: `SPL-${n}`, number: n, title: `t${n}`, ...extra })
 

@@ -13,7 +13,17 @@ import {
   topicsFromMessages,
 } from './view-api.mjs'
 import { SEARCH_OPERATORS, mockSearch, normalizeOperators, normalizeSearchResponse, searchApiQuery } from './search.mjs'
-import { createMockIssues, issueQuery } from './issues.mjs'
+function issueQuery(filter = {}, sort = '') {
+  const q = new URLSearchParams()
+  for (const k of ['status', 'priority', 'level', 'assignee', 'label']) {
+    const v = filter[k]
+    if (Array.isArray(v) && v.length) q.set(k, v.join(','))
+  }
+  if (filter.deadlineBefore) q.set('deadline_before', filter.deadlineBefore)
+  if (filter.deadlineAfter) q.set('deadline_after', filter.deadlineAfter)
+  if (sort && sort !== 'priority') q.set('sort', sort)
+  return q.toString()
+}
 
 function uuid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -311,7 +321,14 @@ export function createSpoolClient({
   }
   const mockBlobs = new Map()
   let mockIssues = null
-  const issuesMock = () => (mockIssues ||= createMockIssues({ me: (state && state.me && state.me.id) || 'HUM-1' }))
+  let mockFactory = null
+  const issuesMock = () => {
+    if (!mockIssues) {
+      if (typeof mockFactory !== 'function') throw Object.assign(new Error('issues mock is not bound'), { status: 500, token: 'no_mock' })
+      mockIssues = mockFactory((state && state.me && state.me.id) || 'HUM-1')
+    }
+    return mockIssues
+  }
   let mockDir = null
   const dir = () => (mockDir ||= createMockDirectory())
   const root = String(base || '').replace(/\/+$/, '')
@@ -1169,6 +1186,7 @@ export function createSpoolClient({
      * specs/039 issues-v1 §1: the tenant's issues with the filters and sort
      * of §4 applied by the hub. `{ prefix, statuses, counts, issues, labels, channel }`.
      */
+    bindIssuesMock(factory) { mockFactory = factory },
     async listIssues({ filter = {}, sort = '' } = {}) {
       const q = issueQuery(filter, sort)
       if (mock) return issuesMock().list(q)

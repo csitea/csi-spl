@@ -55,6 +55,8 @@ const alertsLabel = computed(() => (alertsWanted.value ? t('notify.alerts_on') :
   opacity: 0.6;
 }
 .notify-alerts.on, .notify-chime.on { opacity: 1; color: var(--color-accent); }
+/* off is a struck note at full strength, so the slash reads as a strike */
+.notify-chime:not(.on) { opacity: 1; color: var(--color-muted); }
 .notify-glyph { display: block; }
 
 /* CLE-3433 - the collapsed rail (<= 800px). The controls were text buttons

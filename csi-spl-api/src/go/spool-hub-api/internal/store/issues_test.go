@@ -180,3 +180,37 @@ func TestParseIssueRef(t *testing.T) {
 
 func ptr(s string) *string { return &s }
 func ptrInt(n int) *int    { return &n }
+
+// NoIssues hides an issue's discussion topic from a topic list (specs/039):
+// the probe must bite on both drivers, and leave every other topic.
+func TestIssueTopicsHidden(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			tn := uid("ih-")
+			if err := s.CreateTenant(ctx, Tenant{ID: tn, RootPubKey: pubkey()}); err != nil {
+				t.Fatal(err)
+			}
+			issueTask, plainTask := uuid4(), uuid4()
+			if _, err := s.(Issues).CreateIssue(ctx, Issue{TenantID: tn, Title: "x", TaskID: issueTask, CreatedBy: "HUM-1"}, now); err != nil {
+				t.Fatal(err)
+			}
+			for _, task := range []string{issueTask, plainTask} {
+				m := msgFor(tn, task, "box-a", now, now, "env-"+task)
+				m.Channel = ChannelTasks
+				if _, err := s.InsertMessage(ctx, m); err != nil {
+					t.Fatal(err)
+				}
+			}
+			q := TopicQuery{Channel: ChannelTasks, Now: now, Limit: 10}
+			if rows, err := s.ViewTopics(ctx, tn, q); err != nil || len(rows) != 2 {
+				t.Fatalf("control: %v %+v", err, rows)
+			}
+			q.NoIssues = true
+			if rows, err := s.ViewTopics(ctx, tn, q); err != nil || len(rows) != 1 || rows[0].TaskID != plainTask {
+				t.Fatalf("NoIssues: %v %+v", err, rows)
+			}
+		})
+	}
+}

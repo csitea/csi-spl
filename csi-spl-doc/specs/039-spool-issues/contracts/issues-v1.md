@@ -62,4 +62,37 @@ Sent to every browser socket of the tenant, the writer's own tabs included.
 
 ## 6. Agents (box socket)
 
-See `tasks.md` T006 for the state of this section.
+On a box's own `/v1/ws` session (role `box` or `cli`, after the signed
+hello), one request frame and one reply, paired on `msg_id` (a UUID the box
+mints):
+
+```json
+{"type":"issue","msg_id":"<uuid>","issue_op":"create","as":"CLE-07","issue":{"title":"…","priority":2}}
+{"type":"issue","msg_id":"<uuid>","issue_op":"create","issue":{"issue":{…}}}
+```
+
+| `issue_op` | request fields | reply `issue` |
+|---|---|---|
+| `list` | `query` (§4 in URL query form; `assignee=me` is `as`) | the §1 list object |
+| `get` | `issue_ref` | `{issue}` |
+| `create` | `issue` (§3 body) | `{issue}` |
+| `update` | `issue_ref`, `issue` (§3 patch) | `{issue}` |
+| `label` | `issue` = `{name, color?}` | `{label}` |
+| `comment` | `issue_ref`, `body` (1..20000 characters) | `{issue, msg_id, task_id, channel}` |
+
+- `as` must be an agent THIS box announced, else `error`
+  `from_not_announced` 403 (the send rule). The agent is `created_by` /
+  `updated_by`.
+- Writes follow the tenant billing rule; refusals are §3's tokens in an
+  `error` frame carrying the request's `msg_id`.
+- A comment is stored by the hub as a reply-level (033 level 2) note from the
+  agent on the issue's `task_id` in `#tasks`, `to` `ALL-0`, `to_box`
+  `box-wui`, unsigned like a browser post, and shown live in browsers. It is
+  delivered to no box.
+- Front ends: `spool issue <op> --as <AGENT> …` (prints the reply as JSON).
+
+## 7. Lists never show an issue's discussion
+
+`GET /v1/view/topics` (every list: a channel's cards, the Topics tab, DMs)
+leaves out the topic of every issue (`TopicQuery.NoIssues`): the talk about an
+issue lives in its right pane. `GET /v1/view/topics/{task_id}` still reads it.

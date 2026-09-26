@@ -377,7 +377,7 @@ const perTopicMax = 50
 func (s *Server) handleViewTopics(w http.ResponseWriter, r *http.Request, t store.Tenant) {
 	q := r.URL.Query()
 	sq := store.TopicQuery{Channel: store.NormalizeChannel(q.Get("channel")), Agent: q.Get("agent"),
-		Roots: true, Limit: viewLimit(r) + 1, Now: s.o.Now()}
+		Roots: true, NoIssues: true, Limit: viewLimit(r) + 1, Now: s.o.Now()} // specs/039: issue talk stays in its issue
 	for name, dst := range map[string]*bool{"roots": &sq.Roots, "dm": &sq.DM} {
 		switch q.Get(name) {
 		case "":

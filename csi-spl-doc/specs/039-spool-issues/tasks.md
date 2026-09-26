@@ -15,8 +15,14 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       calls, the `issue` / `issue_label` frames
 - [ ] T005 WUI (GRK-3519): rail tab third after Channels, middle list, right
       detail with the deadline calendar + time, shortcuts, 19 locales
-- [ ] T006 agents (FR-008): box socket issue frames, `spool issue`, MCP tool,
-      `do_spl_issue_create` / `do_spl_issue_update` / `do_spl_issue_comment`
+- [x] T006a agents (FR-008): box socket issue frames (issues-v1 §6),
+      `hubclient.Issue`, `action.Issue`, `spool issue`; issue topics left out
+      of every topic list (§7). The commit adding this line;
+      `internal/hub/issues_agent_test.go` (TestAgentIssues, with the CONTROL
+      that the store still holds the topic), store TestIssueTopicsHidden on
+      both drivers; TestRoundTripsPerRequest unchanged on Postgres
+- [ ] T006b MCP tool `spool_issue`, desk actions `do_spl_issue_create` /
+      `do_spl_issue_update` / `do_spl_issue_comment`
 - [ ] T007 version bump + deploy dev and prd (`/version` + `build.json`)
 - [ ] T008 live proof dev + prd: create, edit status / priority / level /
       assignee / deadline, grouping, reload keeps it; screenshots in the topic

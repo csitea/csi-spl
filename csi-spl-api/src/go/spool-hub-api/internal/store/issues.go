@@ -355,6 +355,16 @@ func (m *memIssues) prefixOf(tenant string) string {
 	return IssuePrefixDefault
 }
 
+// isTask reports an issue's discussion task_id. Caller holds Memory.mu.
+func (m *memIssues) isTask(tenant, taskID string) bool {
+	for _, r := range m.rows[tenant] {
+		if r.TaskID == taskID {
+			return true
+		}
+	}
+	return false
+}
+
 func copyIssue(i Issue) Issue {
 	i.Labels = append([]string{}, i.Labels...)
 	return i

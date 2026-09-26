@@ -138,6 +138,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			s.onAnnounce(ctx, x, f.Agents, f.Channels)
 		case wire.TTail:
 			s.onTail(ctx, x, f)
+		case wire.TIssue: // specs/039 §6
+			s.onIssue(ctx, x, f)
 		case wire.TToken:
 			tok, exp := s.slotToken(&x.upload, x.tenant, x.box)
 			x.write(ctx, wire.Frame{Type: wire.TToken, UploadToken: tok, UploadTokenExpiresAt: exp.UTC().Format(time.RFC3339)}) //nolint:errcheck

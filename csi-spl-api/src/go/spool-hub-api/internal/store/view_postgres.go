@@ -187,6 +187,9 @@ func viewTopicsSQL(tenant string, q TopicQuery) (string, []any) {
 	if q.Roots {
 		walk += first("IS NULL")
 	}
+	if q.NoIssues { // rdb 0047: a probe on the (tenant_id, task_id) unique index
+		walk += " AND (SELECT true FROM issues i WHERE i.tenant_id = " + tn + " AND i.task_id = l.task_id LIMIT 1) IS NULL"
+	}
 	if q.Parent != "" {
 		p := c.arg(q.Parent)
 		walk += " AND l.task_id IN (SELECT p.task_id FROM messages p WHERE p.tenant_id = " + tn +

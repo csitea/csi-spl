@@ -135,6 +135,8 @@ func run(args []string) int {
 		return cmdHubTail(cfg, rest)
 	case "hub-get-file":
 		return cmdHubGetFile(cfg, rest)
+	case "issue": // specs/039 FR-008
+		return cmdIssue(cfg, rest)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1

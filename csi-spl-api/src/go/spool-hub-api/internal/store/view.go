@@ -31,6 +31,9 @@ type TopicQuery struct {
 	Roots    bool   // only topics whose first message has no parent_task_id
 	Parent   string // "" = any; else only topics whose parent_task_id is this
 	Viewer   string // "" = any; else only topics with a message from or to this id
+	// NoIssues drops the discussion topic of every issue (rdb 0047, specs/039):
+	// an issue's comments live in its right pane, never as a topic of a list.
+	NoIssues bool
 	// Reader is the member the list is FOR (rdb 0028, the read door): it
 	// keeps only topics in a channel that member may read, plus DMs it is
 	// an end of. "" = no door (the door-off rig). Unlike Viewer, which is
@@ -187,6 +190,9 @@ func (s *Memory) ViewTopics(_ context.Context, tenant string, q TopicQuery) ([]T
 			continue
 		}
 		if (q.Roots && r.Parent != "") || (q.Parent != "" && r.Parent != q.Parent) {
+			continue
+		}
+		if q.NoIssues && s.iss.isTask(tenant, id) {
 			continue
 		}
 		if !q.BeforeAt.IsZero() && !newer(q.BeforeAt, q.BeforeTask, r.LastAt, r.TaskID) {

@@ -173,7 +173,7 @@ describe('the components', () => {
     assert.match(desc, /data-test="issues-detail-rendered"/)
     assert.match(desc, /@click="onViewClick"/)
     assert.match(desc, /@keydown\.enter\.self\.prevent="edit"/)
-    assert.match(desc, /@blur="commit"/)
+    assert.match(desc, /@blur="mp\.close\(\); commit\(\)"/)
     assert.match(desc, /role="alert" data-test="issues-description-error"/)
     assert.match(desc, /if \(ok\) close\(\)/)
     // the view returns after the pointer is up, so the click that blurred the editor lands

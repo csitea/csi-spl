@@ -267,15 +267,24 @@
         </label>
         <label class="create-channel-form__field">
           <span>{{ t('sidebar.create_channel_description_label') }}</span>
-          <textarea
-            v-model="newDescription"
-            rows="3"
-            maxlength="500"
-            data-testid="create-channel-description"
-            :placeholder="t('sidebar.create_channel_description_placeholder')"
-            :disabled="creating"
-            @keydown="onSubmitKey($event, () => ($event.target as HTMLTextAreaElement).form?.requestSubmit())"
-          />
+          <!-- SPL-985: @ opens the shared picker; Enter / Tab pick while it is open -->
+          <span class="mention-anchor">
+            <textarea
+              ref="newDescriptionEl"
+              v-model="newDescription"
+              rows="3"
+              maxlength="500"
+              data-testid="create-channel-description"
+              :placeholder="t('sidebar.create_channel_description_placeholder')"
+              :disabled="creating"
+              @input="descMp.sync"
+              @click="descMp.sync"
+              @keyup="descMp.sync"
+              @blur="descMp.close"
+              @keydown="descMp.onKeydown($event) || onSubmitKey($event, () => ($event.target as HTMLTextAreaElement).form?.requestSubmit())"
+            />
+            <MentionList :picker="descMp" />
+          </span>
           <small class="muted">{{ t('sidebar.create_channel_description_hint') }}</small>
         </label>
         <p v-if="createError" class="create-error" role="alert" data-testid="create-channel-error">{{ createError }}</p>
@@ -547,6 +556,7 @@
 
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
+import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
@@ -1022,6 +1032,8 @@ onMounted(() => {
 watch(() => session.state, (st) => { if (st === 'in') access.load() }, { immediate: true })
 const newChannel = ref('')
 const newDescription = ref('')
+const newDescriptionEl = ref<HTMLTextAreaElement | null>(null)
+const descMp = useMentionPicker({ text: newDescription, el: newDescriptionEl })
 const createOpen = ref(false)
 const creating = ref(false)
 const createError = ref('')
@@ -1232,6 +1244,7 @@ async function onCreate() {
   font: inherit;
 }
 .create-channel-form__field textarea { resize: vertical; }
+.mention-anchor { position: relative; display: flex; flex-direction: column; min-width: 0; }
 .create-channel-form__field small { font-size: 11px; overflow-wrap: anywhere; }
 .create-channel-form__actions {
   display: flex;

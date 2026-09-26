@@ -26,29 +26,8 @@
           </button>
         </li>
       </ul>
-      <ul
-        v-if="pickerOpen"
-        ref="mentionListEl"
-        class="mention-list"
-        role="listbox"
-        :aria-label="t('composer.mention_suggestions')"
-      >
-        <li v-for="(p, i) in candidates" :key="p.label">
-          <button
-            type="button"
-            role="option"
-            class="mention-item"
-            :class="{ active: i === activeIdx }"
-            :aria-selected="i === activeIdx"
-            @mousedown.prevent="pick(p)"
-          >
-            <SpoolAvatar :id="p.id" :box="p.box" :size="20" />
-            <span class="dot" :class="{ on: p.online }" />
-            <HumanName class="mention-label" :id="p.id" :box="p.box" />
-            <span v-if="p.owner" class="muted" data-testid="mention-owner">{{ t('composer.biz_owner') }}</span>
-          </button>
-        </li>
-      </ul>
+      <!-- SPL-985: the one @ picker (useMentionPicker), shared with every text field -->
+      <MentionList :picker="mp" placement="inline" />
       <ul
         v-if="inPickerOpen"
         ref="inListEl"
@@ -239,18 +218,10 @@ import { sendLimitError } from '~/utils/code-view.mjs'
 import { fileKind, isPreviewableImage, readDataUrl } from '~/utils/file-preview.mjs'
 import { carriesFiles, filesOf, pasteAttaches } from '~/utils/transfer-files.mjs'
 import { useSidePane } from '~/composables/useSidePane'
-import { useHumanNames } from '~/composables/useHumanNames'
-import HumanName from '~/components/HumanName.vue'
-import { feedbackChannelFromPath, isFeedbackChannel } from '~/utils/feedback-channel.mjs'
+import { useMentionPicker } from '~/composables/useMentionPicker'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
 import { applyCompletion, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
-import {
-  activeMentionQuery,
-  filterRosterMentions,
-  insertMention,
-  ownerMentions,
-} from '~/utils/mention-autocomplete.mjs'
 import {
   activeInQuery,
   filterTopicTitles,
@@ -411,9 +382,6 @@ const fileEl = ref<HTMLInputElement | null>(null)
 /* Empty, busy, or with nowhere to send: the button stays in the tab order
    (aria-disabled, not disabled) and onSend refuses the click. */
 const cannotSend = computed(() => Boolean(props.busy) || Boolean(props.sendBlocked) || (!text.value.trim() && !picked.value.length))
-const mentionQuery = ref<string | null>(null)
-const activeIdx = ref(0)
-const mentionListEl = ref<HTMLUListElement | null>(null)
 const inQuery = ref<string | null>(null)
 const inIdx = ref(0)
 const inListEl = ref<HTMLUListElement | null>(null)
@@ -558,22 +526,15 @@ function syncMention(ev?: Event) {
   if (searchMode.value) {
     // a search line is a query: no code block, no @-picker, no topic picker
     inCode.value = false
-    mentionQuery.value = null
+    mp.close()
     inQuery.value = null
     return
   }
   inCode.value = fenceStateAt(text.value, caret()).inCode
-  // no @-autocomplete inside a code block: the text there is literal
-  const q = inCode.value ? null : activeMentionQuery(text.value, caret())
-  if (q !== mentionQuery.value) {
-    activeIdx.value = 0
-    nextTick(() => {
-      if (mentionListEl.value) mentionListEl.value.scrollTop = 0
-    })
-  }
-  mentionQuery.value = q
+  // no @-autocomplete inside a code block: the text there is literal (mp's `blocked`)
+  mp.sync()
   /* `in:` is the topic-title picker. An @ token at the caret wins, same as a code fence. */
-  const nextIn = (inCode.value || q !== null) ? null : activeInQuery(text.value, caret())
+  const nextIn = (inCode.value || mp.query !== null) ? null : activeInQuery(text.value, caret())
   if (nextIn !== inQuery.value) {
     inIdx.value = 0
     nextTick(() => {
@@ -583,20 +544,10 @@ function syncMention(ev?: Event) {
   inQuery.value = nextIn
 }
 
-/* @ finds a person by id or by the display name they chose; the tag inserted is still the id. */
-const people = useHumanNames()
-/** #feedback (owner, 2026-09-25): the business owner(s) come first in @, online or not. */
-const route = useRoute()
-const inFeedback = computed(() => isFeedbackChannel(feedbackChannelFromPath(route.path)))
-const candidates = computed(() => {
-  if (mentionQuery.value === null) return []
-  const agents = filterRosterMentions(roster.peers, mentionQuery.value, people.names.value)
-  if (!inFeedback.value) return agents
-  const selfId = roster.self ? roster.self.id : ''
-  return [...ownerMentions(roster.owners, mentionQuery.value, people.names.value, selfId, (id: string) => roster.isOnline(id, 'box-wui')), ...agents]
-})
-
-const pickerOpen = computed(() => mentionQuery.value !== null && candidates.value.length > 0)
+/* SPL-985: @ finds a person or agent by id or by the display name they chose; the tag
+   inserted is still the id. The same picker serves every text field. */
+const mp = useMentionPicker({ text, el: inputEl, blocked: () => searchMode.value || inCode.value })
+const pickerOpen = computed(() => mp.open)
 
 const topicCatalogue = computed(() => topicChoices({
   topics: viewer.topics,
@@ -612,33 +563,6 @@ watch(inQuery, (q) => {
   topicsAsked.value = true
   void viewer.loadTopics()
 })
-
-/** Arrow keys move the highlight. Scroll only this list: scrollIntoView also moves the page under the bar. */
-function scrollActiveMention() {
-  nextTick(() => {
-    const list = mentionListEl.value
-    if (!list) return
-    const row = list.querySelectorAll<HTMLElement>('.mention-item')[activeIdx.value]
-    if (!row) return
-    const listRect = list.getBoundingClientRect()
-    const rowRect = row.getBoundingClientRect()
-    if (rowRect.top < listRect.top) list.scrollTop += rowRect.top - listRect.top
-    else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom
-  })
-}
-
-function pick(peer: { id: string, label?: string }) {
-  const token = peer.label || peer.id
-  const next = insertMention(text.value, caret(), token)
-  text.value = next.text
-  mentionQuery.value = null
-  nextTick(() => {
-    const el = inputEl.value
-    if (!el) return
-    el.focus()
-    el.setSelectionRange(next.cursor, next.cursor)
-  })
-}
 
 function scrollActiveIn() {
   nextTick(() => {
@@ -715,32 +639,7 @@ function onKeydown(ev: KeyboardEvent) {
     emit('search', '')
     return
   }
-  if (pickerOpen.value) {
-    const n = candidates.value.length
-    if (ev.key === 'ArrowDown') {
-      ev.preventDefault()
-      activeIdx.value = (activeIdx.value + 1) % n
-      scrollActiveMention()
-      return
-    }
-    if (ev.key === 'ArrowUp') {
-      ev.preventDefault()
-      activeIdx.value = (activeIdx.value - 1 + n) % n
-      scrollActiveMention()
-      return
-    }
-    if (ev.key === 'Tab' || (ev.key === 'Enter' && !ev.shiftKey)) {
-      ev.preventDefault()
-      const row = candidates.value[activeIdx.value]
-      if (row) pick(row)
-      return
-    }
-    if (ev.key === 'Escape') {
-      ev.preventDefault()
-      mentionQuery.value = null
-      return
-    }
-  }
+  if (mp.onKeydown(ev)) return
   if (inPickerOpen.value) {
     const n = inCandidates.value.length
     if (ev.key === 'ArrowDown') {
@@ -818,7 +717,7 @@ function onSend() {
         useSidePane().request(pane)
         text.value = ''
         picked.value = []
-        mentionQuery.value = null
+        mp.close()
         inQuery.value = null
       }
       return
@@ -870,7 +769,7 @@ function onSend() {
   emit('send', body, topicId, picked.value.slice(), channelId)
   text.value = ''
   picked.value = []
-  mentionQuery.value = null
+  mp.close()
   inQuery.value = null
   pickedIn.value = null
   inCode.value = false

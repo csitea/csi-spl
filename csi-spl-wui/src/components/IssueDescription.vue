@@ -11,19 +11,24 @@
 <template>
   <div class="issue-desc" data-test="issues-description" :data-state="editing ? 'edit' : 'view'">
     <span :id="labelId" class="issue-desc__label">{{ t('issues.field_description') }}</span>
-    <textarea
-      v-if="editing"
-      ref="area"
-      v-model="draft"
-      data-test="issues-detail-body"
-      rows="8"
-      :aria-labelledby="labelId"
-      :aria-invalid="error ? 'true' : undefined"
-      :placeholder="t('issues.description_empty')"
-      @input="emit('draft', draft)"
-      @keydown="onSubmitKey($event, submit)"
-      @blur="commit"
-    />
+    <!-- SPL-985: @ opens the shared picker; Enter / Tab pick while it is open -->
+    <div v-if="editing" class="mention-anchor">
+      <textarea
+        ref="area"
+        v-model="draft"
+        data-test="issues-detail-body"
+        rows="8"
+        :aria-labelledby="labelId"
+        :aria-invalid="error ? 'true' : undefined"
+        :placeholder="t('issues.description_empty')"
+        @input="emit('draft', draft); mp.sync()"
+        @click="mp.sync"
+        @keyup="mp.sync"
+        @keydown="mp.onKeydown($event) || onSubmitKey($event, submit)"
+        @blur="mp.close(); commit()"
+      />
+      <MentionList :picker="mp" />
+    </div>
     <div
       v-else
       class="issue-desc__view"
@@ -44,6 +49,7 @@
 
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
+import { useMentionPicker } from '~/composables/useMentionPicker'
 const props = defineProps<{
   text: string
   /* resolves true when the text is stored; false keeps the editor open */
@@ -60,6 +66,7 @@ const editing = ref(props.keepOpen === true)
 const draft = ref('')
 const error = ref(false)
 const area = ref<HTMLTextAreaElement | null>(null)
+const mp = useMentionPicker({ text: draft, el: area, onPick: (v) => emit('draft', v) })
 let saving = false
 let pressed = false
 
@@ -133,6 +140,7 @@ defineExpose({ edit, commit, editing })
 </script>
 
 <style scoped>
+.mention-anchor { position: relative; display: flex; flex-direction: column; min-width: 0; }
 .issue-desc {
   display: flex;
   flex-direction: column;

@@ -349,14 +349,23 @@
           <span class="sr-only">{{ t('issues.comment_placeholder') }}</span>
           <!-- owner, topic 593a804a (SPL-973): no Comment button. Which key
                sends is Settings -> Behaviour -> "Text fields" (SPL-976) -->
-          <textarea
-            v-model="commentText"
-            data-test="issues-comment-input"
-            rows="2"
-            :placeholder="t(sk('issues_view.comment_hint'))"
-            :disabled="busy"
-            @keydown="onSubmitKey($event, sendComment)"
-          />
+          <!-- SPL-985: @ opens the shared picker; Enter / Tab pick while it is open -->
+          <span class="mention-anchor">
+            <textarea
+              ref="commentEl"
+              v-model="commentText"
+              data-test="issues-comment-input"
+              rows="2"
+              :placeholder="t(sk('issues_view.comment_hint'))"
+              :disabled="busy"
+              @input="commentMp.sync"
+              @click="commentMp.sync"
+              @keyup="commentMp.sync"
+              @blur="commentMp.close"
+              @keydown="commentMp.onKeydown($event) || onSubmitKey($event, sendComment)"
+            />
+            <MentionList :picker="commentMp" placement="above" />
+          </span>
         </label>
       </section>
     </aside>
@@ -386,6 +395,7 @@
 
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
+import { useMentionPicker } from '~/composables/useMentionPicker'
 import type { EpicSummary, Issue, IssueFilter, IssueLabel } from '~/utils/issues.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useRosterStore } from '~/stores/roster'
@@ -483,6 +493,8 @@ const creating = ref(false)
 const detail = ref<Issue | null>(null)
 const comments = ref<Note[]>([])
 const commentText = ref('')
+const commentEl = ref<HTMLTextAreaElement | null>(null)
+const commentMp = useMentionPicker({ text: commentText, el: commentEl })
 const menu = ref<{ kind: string, key: string } | null>(null)
 const menuIndex = ref(0)
 const menuPos = ref({ top: 80, left: 80 })
@@ -1590,6 +1602,7 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-talk__h { display: flex; align-items: center; gap: 8px; min-width: 0; }
 /* SPL-963: titles = one line, 5 rows = at most 5 lines, full = all of it */
 .issues-comment { min-width: 0; }
+.mention-anchor { position: relative; display: flex; flex-direction: column; min-width: 0; }
 .issues-error { color: var(--color-danger); margin: 0; }
 .issues-menu {
   position: fixed;

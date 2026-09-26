@@ -88,3 +88,29 @@ export function insertMention(text, cursor, id) {
   const inserted = `@${id} `
   return { text: s.slice(0, start) + inserted + after, cursor: start + inserted.length }
 }
+
+/**
+ * SPL-985 (spec 042 P1): the one list every text field shows on `@` - the
+ * tenant's agents and people. `peers` is the roster (agents, and the people
+ * online on box-wui); `names` adds every member who chose a display name, and
+ * `owners` every business owner, so a person who is offline is still found.
+ * The reader is never offered. In #feedback (`ownersFirst`) the owners lead.
+ *
+ * @param {{ peers?: unknown[], names?: Record<string, string> | null, owners?: string[],
+ *   selfId?: string, query: string, ownersFirst?: boolean, isOnline?: ((id: string) => boolean) | null }} a
+ */
+export function mentionCandidates({ peers = [], names = null, owners = [], selfId = '', query, ownersFirst = false, isOnline = null }) {
+  const agents = filterRosterMentions(peers, query, names).filter((p) => p.id !== selfId)
+  const ownerRows = ownerMentions(owners, query, names, selfId, isOnline)
+  const listed = new Set([...agents, ...ownerRows].map((p) => p.id))
+  const q = String(query || '').replace(/^@+/, '').trim().toLocaleLowerCase()
+  const people = []
+  for (const [id, name] of Object.entries(names && typeof names === 'object' ? names : {})) {
+    if (!/^HUM-\d+$/.test(id) || id === selfId || listed.has(id)) continue
+    if (q && !id.toLocaleLowerCase().includes(q) && !String(name || '').toLocaleLowerCase().includes(q)) continue
+    listed.add(id)
+    people.push({ id, box: 'box-wui', label: id, online: typeof isOnline === 'function' ? Boolean(isOnline(id)) : false })
+  }
+  people.sort((a, b) => String(names[a.id] || a.id).localeCompare(String(names[b.id] || b.id)))
+  return ownersFirst ? [...ownerRows, ...agents, ...people] : [...agents, ...people, ...ownerRows]
+}

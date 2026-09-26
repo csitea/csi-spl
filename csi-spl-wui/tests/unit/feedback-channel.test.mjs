@@ -42,13 +42,15 @@ describe('#feedback locale name and description', () => {
   it('the sidebar, the channel header and the @ picker use the helpers', () => {
     const sidebar = src('src/components/ChannelSidebar.vue')
     const page = src('src/pages/channel/[name].vue')
-    const composer = src('src/components/MessageComposer.vue')
+    /* SPL-985: the @ picker moved out of MessageComposer into the shared pair */
+    const composer = src('src/composables/useMentionPicker.ts') + src('src/components/MentionList.vue')
     assert.match(sidebar, /feedbackChannelCopy/)
     assert.match(sidebar, /shownChannels/)
     assert.match(page, /feedbackChannelCopy/)
     assert.match(page, /titleName/)
     assert.match(composer, /isFeedbackChannel/)
-    assert.match(composer, /ownerMentions/)
+    assert.match(composer, /owners: roster\.owners/)
+    assert.match(composer, /ownersFirst: inFeedback\.value/)
     assert.match(composer, /feedbackChannelFromPath/)
     assert.match(composer, /composer\.biz_owner/)
   })

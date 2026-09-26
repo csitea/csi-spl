@@ -8,13 +8,23 @@
     <form class="subtask-dlg" data-test="issues-subtask-form" @submit.prevent="submit">
       <label class="subtask-dlg__field subtask-dlg__field--wide">
         <span>{{ t('issues.subtask_title') }}</span>
-        <input
-          v-model="title"
-          data-autofocus
-          data-test="issues-subtask-input"
-          :placeholder="t('issues.subtask_placeholder')"
-          :disabled="busy"
-        >
+        <!-- SPL-985: @ opens the shared picker; Enter / Tab pick while it is open -->
+        <span class="mention-anchor">
+          <input
+            ref="titleEl"
+            v-model="title"
+            data-autofocus
+            data-test="issues-subtask-input"
+            :placeholder="t('issues.subtask_placeholder')"
+            :disabled="busy"
+            @input="mp.sync"
+            @click="mp.sync"
+            @keyup="mp.sync"
+            @blur="mp.close"
+            @keydown="mp.onKeydown($event)"
+          >
+          <MentionList :picker="mp" />
+        </span>
       </label>
       <label class="subtask-dlg__field">
         <span>{{ t('issues.field_status') }}</span>
@@ -55,6 +65,7 @@ import { ISSUE_STATUSES, PRIO_DEFAULT, normalizeIssue } from '~/utils/issues.mjs
 import { ISSUE_PRIORITIES, statusHintKey, statusLabel } from '~/utils/issues-view.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { useMentionPicker } from '~/composables/useMentionPicker'
 
 const props = defineProps<{
   open: boolean
@@ -66,6 +77,8 @@ const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
 
 const title = ref('')
+const titleEl = ref<HTMLInputElement | null>(null)
+const mp = useMentionPicker({ text: title, el: titleEl })
 const status = ref('todo')
 const priority = ref<number>(PRIO_DEFAULT)
 const assignee = ref('')
@@ -111,6 +124,7 @@ async function submit() {
 </script>
 
 <style scoped>
+.mention-anchor { position: relative; display: flex; flex-direction: column; min-width: 0; }
 .subtask-dlg {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

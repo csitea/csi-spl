@@ -169,21 +169,27 @@
         data-testid="card-body"
       >
         <div ref="clipInner" class="card-body__inner">
-          <textarea
-            v-if="editing"
-            ref="editEl"
-            class="msg-edit-box"
-            data-test="msg-edit-box"
-            :value="draft"
-            :rows="2"
-            :disabled="saving"
-            :aria-label="t('feed.edit.label')"
-            :aria-describedby="editHintId"
-            autocomplete="off"
-            spellcheck="true"
-            @input="draft = ($event.target as HTMLTextAreaElement).value"
-            @keydown="onEditKey"
-          />
+          <!-- SPL-985: @ opens the shared picker in the edit box too -->
+          <div v-if="editing" class="mention-anchor">
+            <textarea
+              ref="editEl"
+              class="msg-edit-box"
+              data-test="msg-edit-box"
+              :value="draft"
+              :rows="2"
+              :disabled="saving"
+              :aria-label="t('feed.edit.label')"
+              :aria-describedby="editHintId"
+              autocomplete="off"
+              spellcheck="true"
+              @input="draft = ($event.target as HTMLTextAreaElement).value; editMp.sync()"
+              @click="editMp.sync"
+              @keyup="editMp.sync"
+              @blur="editMp.close"
+              @keydown="onEditKey"
+            />
+            <MentionList :picker="editMp" />
+          </div>
           <MessageBody v-else :body="String(msg.body || '')" />
           <FileAttachment
             v-for="(f, i) in files"
@@ -263,6 +269,7 @@ import {
   withDraft,
 } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
+import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
@@ -542,8 +549,8 @@ function onKey(ev: KeyboardEvent) {
  * The state machine is utils/msg-edit.mjs and is unit-tested without a
  * browser; everything below is the textarea, the focus and the one await.
  * MessageComposer.vue is the reference for the key handling, NOT a thing to
- * reuse into a row: a row has no attach control, no mention picker, no
- * `/search` mode and no send button.
+ * reuse into a row: a row has no attach control, no `/search` mode and no
+ * send button. It does share the one @ picker (SPL-985, useMentionPicker).
  *
  * The rule this is shaped by (CLE-3433, and now message-edit-v1 §5): nothing
  * on screen is replaced before the hub confirms. So the rendered body stays
@@ -735,6 +742,11 @@ const draft = computed({
   get: () => edit.value?.draft ?? '',
   set: (v: string) => { edit.value = withDraft(edit.value, v) },
 })
+const editMp = useMentionPicker({
+  text: draft,
+  el: editEl,
+  blocked: () => fenceStateAt(draft.value, editEl.value?.selectionStart ?? draft.value.length).inCode,
+})
 
 /*
  * CLE-3446 — the row under this card can CHANGE, and the edit state must not
@@ -819,6 +831,8 @@ function onEditKey(ev: KeyboardEvent) {
     if (ev.key === 'Enter' && !ev.shiftKey) ev.preventDefault()
     return
   }
+  /* SPL-985: an open @ list owns Enter / Tab / Esc / the arrows */
+  if (editMp.onKeydown(ev)) return
   const inCode = fenceStateAt(draft.value, editEl.value?.selectionStart ?? draft.value.length).inCode
   const act = editKeyAction(ev, { inCode })
   if (act === 'cancel') {
@@ -865,6 +879,7 @@ async function save() {
 </script>
 
 <style scoped>
+.mention-anchor { position: relative; min-width: 0; }
 /*
  * CLE-3446 — the recipient half of the owner's row format.
  *

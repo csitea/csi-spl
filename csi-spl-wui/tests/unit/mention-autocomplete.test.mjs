@@ -75,8 +75,8 @@ describe('mention autocomplete', () => {
     assert.equal(activeMentionQuery('@Вели', 5), 'Вели')
     assert.equal(insertMention('hi @yor', 7, 'HUM-9@box-wui').text, 'hi @HUM-9@box-wui ')
     assert.equal(insertMention('@Вели', 5, 'HUM-11@box-wui').text, '@HUM-11@box-wui ')
-    const c = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageComposer.vue'), 'utf8')
-    assert.match(c, /filterRosterMentions\(roster\.peers, mentionQuery\.value, people\.names\.value\)/)
+    const c = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/composables/useMentionPicker.ts'), 'utf8')
+    assert.match(c, /peers: roster\.peers,\s+names: people\.names\.value,/)
   })
 
   it('activeMentionQuery reads the @token at the caret', () => {
@@ -89,16 +89,33 @@ describe('mention autocomplete', () => {
   })
 
 
-  it('MessageComposer reads the roster store and mention helpers', () => {
+  it('the shared picker reads the roster store and mention helpers (SPL-985)', () => {
     const wui = join(dirname(fileURLToPath(import.meta.url)), '../..')
-    const src = readFileSync(join(wui, 'src/components/MessageComposer.vue'), 'utf8')
+    const src = readFileSync(join(wui, 'src/composables/useMentionPicker.ts'), 'utf8')
     assert.equal(src.includes('useRosterStore'), true)
-    assert.equal(src.includes('filterRosterMentions'), true)
+    assert.equal(src.includes('mentionCandidates'), true)
     assert.equal(src.includes('activeMentionQuery'), true)
     assert.equal(src.includes('insertMention'), true)
     assert.equal(src.includes('list.scrollTop'), true)
-    assert.equal(src.includes('peer.label || peer.id'), true)
+    assert.equal(src.includes('row.label || row.id'), true)
     assert.equal(src.includes('parseMention'), false)
+  })
+
+  it('one picker: every text field uses useMentionPicker + MentionList, none has its own (SPL-985)', () => {
+    const wui = join(dirname(fileURLToPath(import.meta.url)), '../..')
+    for (const f of [
+      'src/components/MessageComposer.vue',
+      'src/components/MessageCard.vue',
+      'src/components/IssueDescription.vue',
+      'src/components/IssueSubtaskDialog.vue',
+      'src/components/ChannelSidebar.vue',
+      'src/pages/issues.vue',
+    ]) {
+      const s = readFileSync(join(wui, f), 'utf8')
+      assert.match(s, /useMentionPicker\(/, f)
+      assert.match(s, /<MentionList :picker=/, f)
+      assert.doesNotMatch(s, /activeMentionQuery|filterRosterMentions/, f)
+    }
   })
 
   it('insertMention keeps parseMention task routing', () => {
@@ -152,5 +169,28 @@ describe('ownerMentions', () => {
   it('CONTROL: ignores anything that is not a HUM-n id', () => {
     assert.deepEqual(ownerMentions(['CLE-7', '', null, 'HUM-x'], ''), [])
     assert.deepEqual(ownerMentions(undefined, ''), [])
+  })
+})
+
+// SPL-985 (spec 042 P1): one candidate list for every text field.
+import { mentionCandidates } from '../../src/utils/mention-autocomplete.mjs'
+
+describe('mentionCandidates (SPL-985)', () => {
+  const peers = [
+    { id: 'CLE-7', box: 'box-desk', label: 'CLE-7@box-desk', online: true },
+    { id: 'HUM-1', box: 'box-wui', label: 'HUM-1@box-wui', online: true },
+  ]
+  const names = { 'HUM-1': 'Reader Self', 'HUM-2': 'Offline Person', 'HUM-9': 'Business Owner' }
+  it('agents and people, offline people included, never the reader', () => {
+    const ids = mentionCandidates({ peers, names, owners: ['HUM-9'], selfId: 'HUM-1', query: '' }).map((p) => p.id)
+    assert.deepEqual(ids, ['CLE-7', 'HUM-2', 'HUM-9'])
+  })
+  it('filters people by chosen name', () => {
+    const ids = mentionCandidates({ peers, names, owners: [], selfId: 'HUM-1', query: 'offline' }).map((p) => p.id)
+    assert.deepEqual(ids, ['HUM-2'])
+  })
+  it('#feedback puts the owners first, each id once', () => {
+    const ids = mentionCandidates({ peers, names, owners: ['HUM-9'], selfId: 'HUM-1', query: '', ownersFirst: true }).map((p) => p.id)
+    assert.deepEqual(ids, ['HUM-9', 'CLE-7', 'HUM-2'])
   })
 })

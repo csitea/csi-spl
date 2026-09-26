@@ -277,6 +277,32 @@ declare module '~/utils/mention-autocomplete.mjs' {
     selfId?: string,
     isOnline?: ((id: string) => boolean) | null,
   ): { id: string, box: string, label: string, owner: true, online: boolean }[]
+  export function mentionCandidates(a: {
+    peers?: { id: string, box?: string, label?: string, online?: boolean }[]
+    names?: Record<string, string> | null
+    owners?: string[]
+    selfId?: string
+    query: string
+    ownersFirst?: boolean
+    isOnline?: ((id: string) => boolean) | null
+  }): { id: string, box?: string, label?: string, online?: boolean, owner?: boolean }[]
+}
+
+declare module '~/utils/mention-poke.mjs' {
+  export const EXCERPT_MAX: number
+  export type MentionAccess =
+    | { kind: 'open' }
+    | { kind: 'dm', ends: string[] }
+    | { kind: 'channel', humans: string[], agents: string[] }
+    | null
+  export function pokeTargets(a: { text: string, before?: string, selfId?: string, addressee?: string }): string[]
+  export function pokeExcerpt(text: string): string
+  export function pokeBody(a: { author: string, link: string, text: string }): string
+  export function cardLink(origin: string, taskId: string): string
+  export function issueLink(origin: string, key: string): string
+  export function splitByAccess(ids: string[], access: MentionAccess): { ok: string[], refused: string[] }
+  export function channelAccess(list: { default?: boolean, members?: string[], agents?: ({ id: string } | string)[] } | null): MentionAccess
+  export function topicWhere(rows: unknown[], taskId: string): { channel: string } | { ends: string[] } | null
 }
 
 

@@ -237,6 +237,33 @@ html.pane-dragging * {
 /* CLE-34989: a middle-pane header carries the card height control; on a
    narrow pane it drops to its own line instead of widening the document. */
 .feed-header:has(.card-clip-ctl) { flex-wrap: wrap; row-gap: 6px; }
+/* A channel header is two lines at every width: the name and the clip
+   control on the first, the description and the retention note on the second.
+   A wrapping row was turning Titles / 5 rows / Full into their own lines. */
+.feed-header--stack {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 2px;
+  padding: 8px 16px;
+}
+.feed-header__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+.feed-header__row h2 { flex: 0 0 auto; }
+.feed-header__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feed-header--stack .feed-header__about { flex: none; width: 100%; }
+.feed-header--stack .card-clip-ctl { margin-inline-start: 0; }
 .feed-header h2 {
   margin: 0;
   font-size: 1rem;

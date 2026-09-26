@@ -1,13 +1,16 @@
 <template>
   <div class="feed-col" data-pane="msgs">
-    <header class="feed-header">
-      <h2>{{ t('pane.msgs') }}</h2>
-      <span class="muted">#{{ titleName }}</span>
-      <!-- what its creator said it is for (channels-v1 §5.1), else the generic
-           line; the retention note is never dropped, it just moves along -->
-      <span v-if="description" class="muted feed-header__about" :title="description" data-test="channel-description">{{ description }}</span>
-      <span class="muted">{{ retention ? t('pages.channel.subtitle_retention', { retention }) : t('pages.channel.subtitle') }}</span>
-      <CardClipControl />
+    <header class="feed-header feed-header--stack">
+      <div class="feed-header__row">
+        <h2>{{ t('pane.msgs') }}</h2>
+        <span class="muted feed-header__name">#{{ titleName }}</span>
+        <CardClipControl />
+      </div>
+      <!-- The description (channels-v1 §5.1) and the retention note share one
+           ellipsized line. The note is never dropped; the hover has both. -->
+      <p class="muted feed-header__about" :title="headerAbout" data-test="channel-description">
+        <template v-if="description">{{ description }} · </template>{{ headerSub }}
+      </p>
     </header>
     <MessageFeed :label="t('pages.feed_label', { target: '#' + name })" />
   </div>
@@ -54,6 +57,10 @@ const retention = computed(() => {
   const n = retentionDays(channel.channels.find((c) => c.channel_id === name.value) || { channel_id: name.value })
   return n ? t('sidebar.retention_days', { n }) : ''
 })
+const headerSub = computed(() => retention.value
+  ? t('pages.channel.subtitle_retention', { retention: retention.value })
+  : t('pages.channel.subtitle'))
+const headerAbout = computed(() => description.value ? `${description.value} · ${headerSub.value}` : headerSub.value)
 
 /* a live row carries the hub cursor, so the next read= counts from here */
 function markRead(n: string) {

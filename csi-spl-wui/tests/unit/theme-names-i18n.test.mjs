@@ -1,6 +1,7 @@
 // Theme names for the palette picker, all 19 locales.
 // EN is the lead's exact string. Every other locale differs.
-// theme.to_light / theme.to_dark stay until the picker commit removes them.
+// The old toggle's switch-to strings may leave with the picker commit.
+// This suite does not lock them.
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,7 +9,7 @@ import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '../../i18n/locales')
 const KEYS = ['theme.picker', 'theme.light_violet', 'theme.light_green', 'theme.light_yellow']
-const KEPT = ['theme.to_light', 'theme.to_dark', 'theme.light', 'theme.dark']
+const KEPT = ['theme.light', 'theme.dark']
 const EN = {
   'theme.picker': 'Choose a theme',
   'theme.light_violet': 'Light violet',

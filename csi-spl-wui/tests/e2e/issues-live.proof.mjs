@@ -17,6 +17,8 @@
 //   6. a comment lands in the issue's discussion
 //   7. reload -> grouping, priority, level and deadline are still there
 //   8. /issues?issue=<key> opens that issue (the search lane's link)
+//   9-12. SPL-18: the level-1 panel, a feature made in the UI, an issue under
+//      it, a subtask in the right pane, the panel's count
 //
 //   BASE=https://dev.<domain> API=https://dev.api.<domain> EMAIL=<member>
 //     PW_FILE=<0600 file> OUT=<dir> [TENANT=t1] [CHROME_PATH=...]
@@ -207,8 +209,14 @@ try {
     return r && r.status === 'in_progress' && r.priority === '1' && r.level === '4' ? r : null
   }, key))
   step('4 the row moved to In Progress with priority Urgent and level L', !!row1, { row: row1 })
-  const hub = await hubIssue(p, key)
   const wantUTC = await p.evaluate((v) => new Date(v).toISOString().replace(/\.\d{3}Z$/, 'Z'), local)
+  /* the deadline PATCH goes out on change and takes 1-3 s from this box:
+     poll the hub for it rather than read once after a fixed wait */
+  let hub = {}
+  await until(async () => {
+    hub = await hubIssue(p, key)
+    return hub.deadline === wantUTC && hub.assignee === who
+  }, 15000)
   step('4 the hub holds the same values; the deadline is the calendar+time value in UTC',
     hub.status === 'in_progress' && hub.priority === 1 && hub.level === 4 && hub.assignee === who && hub.deadline === wantUTC &&
     hub.description === descr && dlType === 'datetime-local',
@@ -270,6 +278,67 @@ try {
   }), 30000)
   step('8 /issues?issue=<key> opens that issue in the right pane', opened === key, { got: opened })
   res.key = key
+
+  // 9-12 SPL-18: epics and features in the left-most panel, issues under
+  // them, subtasks in the right pane (owner 2026-09-26 09:08)
+  await nav(p, BASE + '/issues')
+  await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: 30000 })
+  /* an empty list is truthy: wait for rows, not for an answer */
+  const panel0 = await until(() => p.evaluate(() => {
+    const keys = [...document.querySelectorAll('[data-testid=sidebar-epic]')].map((e) => e.getAttribute('data-key'))
+    return keys.length ? keys : null
+  }), 20000)
+  step('9 the left-most panel lists the level-1 rows (epics and features)', Array.isArray(panel0) && panel0.length > 0, { n: panel0 && panel0.length })
+  const ftitle = `Proof feature ${run}`
+  await p.click('[data-test=issues-new]')
+  await p.waitForSelector('[data-test=issues-detail-title]', { visible: true, timeout: 5000 })
+  await p.type('[data-test=issues-detail-title]', ftitle)
+  for (let i = 0; i < 3; i++) {
+    if (await p.$eval('[data-test=issues-kind]', (el) => el.getAttribute('data-kind')) === 'feature') break
+    await p.click('[data-test=issues-kind]')
+  }
+  await p.click('[data-test=issues-create]')
+  const fkey = await until(() => p.evaluate((want) => {
+    const t = document.querySelector('[data-test=issues-detail-title]')
+    const k = document.querySelector('[data-test=issues-detail-key]')
+    return !document.querySelector('[data-test=issues-create]') && t && t.value === want && k ? k.textContent.trim() : ''
+  }, ftitle), 30000)
+  const frow = await until(() => p.evaluate((k) => {
+    const el = document.querySelector(`[data-testid=sidebar-epic][data-key="${k}"]`)
+    return el ? el.querySelector('.epic-row__kind').getAttribute('data-kind') : ''
+  }, fkey), 20000)
+  step('10 a feature made in the UI is a level-1 row of the panel', !!fkey && frow === 'feature', { key: fkey, kind: frow })
+  await p.click(`[data-testid=sidebar-epic][data-key="${fkey}"]`)
+  await until(() => p.evaluate(() => new URL(location.href).searchParams.get('epic')), 15000)
+  await sleep(1200)
+  const ititle = `Proof issue ${run}`
+  await p.click('[data-test=issues-new]')
+  await p.waitForSelector('[data-test=issues-detail-title]', { visible: true, timeout: 5000 })
+  await p.type('[data-test=issues-detail-title]', ititle)
+  await p.click('[data-test=issues-create]')
+  const ikey = await until(() => p.evaluate((want) => {
+    const t = document.querySelector('[data-test=issues-detail-title]')
+    const k = document.querySelector('[data-test=issues-detail-key]')
+    return !document.querySelector('[data-test=issues-create]') && t && t.value === want && k ? k.textContent.trim() : ''
+  }, ititle), 30000)
+  const ihub = ikey ? await hubIssue(p, ikey) : {}
+  step('11 an issue filed with the feature selected lands under it (level 2)', ihub.kind === 'issue' && ihub.epic === fkey, { key: ikey, kind: ihub.kind, epic: ihub.epic })
+  await p.waitForSelector('[data-test=issues-subtask-input]', { visible: true, timeout: 10000 })
+  await p.type('[data-test=issues-subtask-input]', `Proof subtask ${run}`)
+  await p.click('[data-test=issues-subtask-add]')
+  const skey = await until(() => p.evaluate(() => {
+    const el = document.querySelector('[data-test=issues-subtask]')
+    return el ? el.getAttribute('data-key') : ''
+  }), 20000)
+  const shub = skey ? await hubIssue(p, skey) : {}
+  const count = await until(() => p.evaluate((k) => {
+    const el = document.querySelector(`[data-testid=sidebar-epic][data-key="${k}"] [data-testid=sidebar-epic-count]`)
+    return el && el.textContent.trim() === '0/1' ? el.textContent.trim() : ''
+  }, fkey), 15000)
+  step('12 a subtask added in the right pane is level 3 under the issue; the panel counts the issue',
+    shub.kind === 'subtask' && shub.parent === ikey && shub.epic === fkey && count === '0/1', { key: skey, kind: shub.kind, parent: shub.parent, epic: shub.epic, count })
+  await sleep(800)
+  await shot(p, '05-epics-features-subtasks')
 } catch (e) {
   step('run', false, { error: String(e).slice(0, 300) })
 } finally {

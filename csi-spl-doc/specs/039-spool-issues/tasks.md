@@ -82,5 +82,15 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       issues.mjs. The commit adding this line; unit 107/107, e2e 13/13 (mock)
 - [ ] T010d the done git-specs imported into the tree: SPL-76, GRK-3523 (not
       this lane)
-- [ ] T011 SPL-18 rdb 0049 on dev + prd, hub roll, live proof
+- [x] T011 SPL-18 live: rdb 0049 + 0053 on dev and prd (do_spl_db_bootstrap,
+      applied before each roll); hub 0.7.3 `bfe7a790` then 0.7.4 `3fc78449`
+      served on dev.api and api (/version); WUI `5166575f` on dev and apex
+      (build.json); after the roll 0 epic-labelled rows left kind issue and
+      0 issues without a valid parent on dev t1, prd t1, prd e2e. Signed-in
+      proof `tests/e2e/issues-live.proof.mjs`, n=1 per env: dev t1 16/16,
+      prd test tenant e2e 16/16 (steps 9-12: the level-1 panel, a feature made
+      in the UI, an issue under it, a subtask in the right pane, the panel's
+      count). Earlier prd runs failed step 9 (the check took an empty list as
+      an answer) and step 4 once (the check read the hub before the deadline
+      PATCH landed; step 7 saw it stored) - both proof-side, both fixed
 <!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

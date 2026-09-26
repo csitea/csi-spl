@@ -7,7 +7,7 @@ gcp_region  = "europe-north1"
 
 health_path = "/healthz"
 allow_unauthenticated = true
-image                        = "europe-north1-docker.pkg.dev/csi-spl-prd/csi-spl-prd-hub/spool-hub:0.7.3"
+image                        = "europe-north1-docker.pkg.dev/csi-spl-prd/csi-spl-prd-hub/spool-hub:0.7.4"
 service_name                 = "csi-spl-hub-prd"
 runtime_sa_account_id        = "csi-spl-hub-prd"
 container_port               = 8080

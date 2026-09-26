@@ -19,7 +19,18 @@
     @contextmenu="onContextMenu"
   >
     <SpoolAvatar class="avatar" :id="author.id" :box="author.box" />
-    <div>
+    <div class="msg-col">
+      <!-- Tab order: the replies link is the first stop inside the card.
+           flex `order` keeps it painted under the body. -->
+      <button
+        v-if="count > 0 || alwaysTopic"
+        class="replies"
+        type="button"
+        data-test="topic-replies"
+        @click="openReplies"
+      >
+        {{ t('feed.replies', { n: count }, count) }}
+      </button>
       <!--
         CLE-3446 — the owner's settled row format, 2026-09-22: per message,
         sender -> recipient, and the arrow flips per row because BOTH ends are
@@ -183,15 +194,6 @@
         @click="$emit('open-topic', msg)"
       >
         <UiIcon name="open" :size="16" />
-      </button>
-      <button
-        v-if="count > 0 || alwaysTopic"
-        class="replies"
-        type="button"
-        data-test="topic-replies"
-        @click="openReplies"
-      >
-        {{ t('feed.replies', { n: count }, count) }}
       </button>
     </div>
     <!-- mounted on open only: the menu is not in the initial JS (specs/027) -->
@@ -863,6 +865,12 @@ async function save() {
   font-size: 0.75rem;
   line-height: 1;
 }
+.msg-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.msg-col > .replies { order: 1; }
 .msg-actions {
   margin-inline-start: auto;
   display: inline-flex;

@@ -16,7 +16,7 @@ describe('Issues rail tab', () => {
     assert.equal(tabForPath('/issues'), 'issues')
     assert.equal(tabForPath('/fi/issues'), 'issues')
     assert.equal(tabForPath('/events'), 'events')
-    assert.equal(tabForPath('/channel/tasks'), 'channels')
+    assert.equal(tabForPath('/channel/lobby'), 'channels')
   })
 
   it('sits directly after channels in the rail, before topics', () => {

@@ -6,6 +6,8 @@
  * refetch), frame application and the deadline <-> datetime-local bridge.
  */
 
+import { ISSUE_CHANNEL } from './parent-section.mjs'
+
 /** Linear's workflow, in list order (issues-v1 §2). */
 export const ISSUE_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'canceled']
 
@@ -30,7 +32,7 @@ export function normalizeIssue(raw) {
     deadline: String(r.deadline || ''),
     parent: String(r.parent || ''),
     task_id: String(r.task_id || ''),
-    channel: String(r.channel || 'tasks'),
+    channel: String(r.channel || ISSUE_CHANNEL),
     created_by: String(r.created_by || ''),
     created_at: String(r.created_at || ''),
     updated_by: String(r.updated_by || ''),
@@ -193,7 +195,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
         assignee: csv('assignee'), label: csv('label'), deadlineBefore: q.get('deadline_before') || '', deadlineAfter: q.get('deadline_after') || '' }
       const kept = sortIssues(issues.filter((i) => matchIssue(i, f, me)), q.get('sort') || 'priority')
       const counts = Object.fromEntries(ISSUE_STATUSES.map((s) => [s, kept.filter((i) => i.status === s).length]))
-      return { prefix: 'SPL', statuses: ISSUE_STATUSES.slice(), counts, issues: kept, labels: labels.slice(), channel: 'tasks', epics: summaries() }
+      return { prefix: 'SPL', statuses: ISSUE_STATUSES.slice(), counts, issues: kept, labels: labels.slice(), channel: ISSUE_CHANNEL, epics: summaries() }
     },
     get(ref) {
       const i = find(ref)
@@ -205,7 +207,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       const kind = body.kind === 'epic' ? 'epic' : 'issue'
       const lbl = (Array.isArray(body.labels) ? body.labels : []).filter((l) => l !== 'epic').concat(kind === 'epic' ? ['epic'] : [])
       const i = normalizeIssue({ status: 'backlog', ...body, kind, labels: lbl, epic: kind === 'epic' ? '' : (body.epic || body.parent || ''), key: `SPL-${last + 1}`, number: last + 1,
-        task_id: `00000000-0000-4000-8000-${String(last + 1).padStart(12, '0')}`, channel: 'tasks',
+        task_id: `00000000-0000-4000-8000-${String(last + 1).padStart(12, '0')}`, channel: ISSUE_CHANNEL,
         created_by: me, created_at: at, updated_by: me, updated_at: at })
       check(i)
       last++

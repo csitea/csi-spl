@@ -411,6 +411,26 @@ async function measurePuppeteer(browser, vp, route, url) {
   }
 }
 
+// A page that never rendered within NAV_TIMEOUT on a loaded runner failed a
+// different route each run (item 18, 2026-09-26: /search, then /tr/lobby; all
+// green locally n=6). One retry, printed as RETRY so a repeat stays visible; a
+// second miss still fails with both messages. Only a timeout is retried.
+const isWaitTimeout = (e) => /Waiting for selector|timeout/i.test(String(e && e.message || e))
+async function measureRetry(label, measure) {
+  try {
+    return await measure()
+  } catch (e) {
+    if (isViewportHarnessError(e) || !isWaitTimeout(e)) throw e
+    console.log(`  RETRY ${label}: ${e.message}`)
+    try {
+      return await measure()
+    } catch (e2) {
+      if (isViewportHarnessError(e2)) throw e2
+      throw new Error(`${e2.message} (after a retry; first: ${e.message})`)
+    }
+  }
+}
+
 function assertNoX(name, dims) {
   if (dims.scrollWidth <= dims.innerWidth) {
     ok(`${name} no document x-scroll (scrollWidth=${dims.scrollWidth} innerWidth=${dims.innerWidth})`)
@@ -444,9 +464,9 @@ function assertNoX(name, dims) {
         const label = `${vp.name} ${route.path}`
         const url = `${server.base}${route.path}`
         try {
-          const dims = puppeteer
-            ? await measurePuppeteer(browser, vp, route, url)
-            : await measureCdp(chrome, vp, route, url)
+          const dims = await measureRetry(label, () => puppeteer
+            ? measurePuppeteer(browser, vp, route, url)
+            : measureCdp(chrome, vp, route, url))
           assertNoX(label, dims)
         } catch (e) {
           if (isViewportHarnessError(e)) throw e
@@ -460,9 +480,9 @@ function assertNoX(name, dims) {
         const route = { ...r, path: `/${code}${r.path}` }
         const label = `${narrow.name} ${route.path}`
         try {
-          const dims = puppeteer
-            ? await measurePuppeteer(browser, narrow, route, `${server.base}${route.path}`)
-            : await measureCdp(chrome, narrow, route, `${server.base}${route.path}`)
+          const dims = await measureRetry(label, () => puppeteer
+            ? measurePuppeteer(browser, narrow, route, `${server.base}${route.path}`)
+            : measureCdp(chrome, narrow, route, `${server.base}${route.path}`))
           assertNoX(label, dims)
         } catch (e) {
           if (isViewportHarnessError(e)) throw e

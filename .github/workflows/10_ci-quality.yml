@@ -213,18 +213,11 @@ jobs:
           "$chrome" --version
 
       - name: nuxt generate (mock tenant)
+        id: generate
         env:
           NUXT_PUBLIC_USE_MOCK: "1"
           NUXT_PUBLIC_DEFAULT_LOCALE: "en"
         run: pnpm run generate
-
-      - name: Initial JS gzip stays within the performance budget
-        run: |
-          set -euo pipefail
-          command -v python3 >/dev/null
-          python3 ../csi-spl-orc/src/bash/scripts/perf-budget.py bundle \
-            --pub .output/public \
-            --budgets ../csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json
 
       - name: Browser e2e (no-x-scroll, console-errors, topic-pane, msg-edit, dm-remove, display-name, typed-by)
         env:
@@ -295,6 +288,17 @@ jobs:
           pnpm run test:e2e:dm-remove
           pnpm run test:e2e:display-name
           pnpm run test:e2e:typed-by
+      # After the e2e, not before: a budget miss used to stop the job before a
+      # single browser test ran, so e2e regressions hid behind it (CLE-35000,
+      # 2026-09-26). It still fails the job; it just no longer blinds it.
+      - name: Initial JS gzip stays within the performance budget
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          command -v python3 >/dev/null
+          python3 ../csi-spl-orc/src/bash/scripts/perf-budget.py bundle \
+            --pub .output/public \
+            --budgets ../csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json
 
   # ===========================================================================
   # The IAC suite (016 T003): csi-spl-iac/src/bash/tests/run-all-tests.sh --

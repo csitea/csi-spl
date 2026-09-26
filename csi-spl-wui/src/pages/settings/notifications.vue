@@ -12,8 +12,7 @@
         class="btn"
         data-test="settings-notify-alerts"
         :aria-pressed="alertsOn"
-        :disabled="alertsOn"
-        @click="notes.requestPush()"
+        @click="notes.toggleAlerts()"
       >
         <UiIcon :name="alertsOn ? 'bell' : 'bell-off'" :size="18" />
         {{ alertsOn ? t('notify.alerts_on') : t('notify.enable_alerts') }}
@@ -32,7 +31,7 @@ import { useNotificationStore } from '~/stores/notification'
 
 const { t } = useI18n({ useScope: 'global' })
 const notes = useNotificationStore()
-const alertsOn = computed(() => notes.permission === 'granted')
+const alertsOn = computed(() => notes.alertsOn)
 </script>
 
 <style scoped>

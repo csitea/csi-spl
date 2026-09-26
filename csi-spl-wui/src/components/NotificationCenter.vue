@@ -9,7 +9,7 @@
       :class="{ on: alertsOn }"
       :aria-label="alertsLabel"
       :title="alertsLabel"
-      @click="notes.requestPush()"
+      @click="notes.toggleAlerts()"
     >
       <UiIcon class="notify-glyph" :name="alertsOn ? 'bell' : 'bell-off'" :size="18" />
     </button>
@@ -33,7 +33,7 @@ import { useNotificationStore } from '~/stores/notification'
 
 const notes = useNotificationStore()
 const { t } = useI18n({ useScope: 'global' })
-const alertsOn = computed(() => notes.permission === 'granted')
+const alertsOn = computed(() => notes.alertsOn)
 const alertsLabel = computed(() => (alertsOn.value ? t('notify.alerts_on') : t('notify.enable_alerts')))
 </script>
 

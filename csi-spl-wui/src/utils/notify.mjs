@@ -131,6 +131,24 @@ export function saveChime(on, store) {
   return storageSet(CHIME_KEY, on ? '1' : '0', store)
 }
 
+/* owner, 2026-09-26: the bell is an ON/OFF switch, not just the browser's
+   permission. ALERTS_KEY holds the reader's choice; default ON, so a browser
+   that had already granted permission keeps alerting as before. */
+export const ALERTS_KEY = 'spool.alerts'
+
+export function loadAlerts(store) {
+  return storageGet(ALERTS_KEY, '1', store) !== '0'
+}
+
+export function saveAlerts(on, store) {
+  return storageSet(ALERTS_KEY, on ? '1' : '0', store)
+}
+
+/** Browser alerts actually fire: the browser granted them AND the reader wants them. */
+export function alertsActive(permission, enabled) {
+  return permission === 'granted' && Boolean(enabled)
+}
+
 export function previewUnread(n) {
   const v = Number(n) || 0
   if (v <= 0) return ''

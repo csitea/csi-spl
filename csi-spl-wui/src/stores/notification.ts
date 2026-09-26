@@ -5,6 +5,9 @@ import {
   notifyCopyKey,
   loadChime,
   saveChime,
+  loadAlerts,
+  saveAlerts,
+  alertsActive,
   previewUnread,
   shouldPing,
   loadMutedChannels,
@@ -43,6 +46,9 @@ type Msg = {
 export const useNotificationStore = defineStore('notification', () => {
   const permission = ref('unsupported')
   const chime = ref(false)
+  /** the reader's on/off choice for browser alerts (the bell) */
+  const alertsEnabled = ref(true)
+  const alertsOn = computed(() => alertsActive(permission.value, alertsEnabled.value))
   const unread = ref<Record<string, number>>({})
   /** Unread HUM-* mentions per key (spec 005 FR-012 "high-priority mention indicators"). */
   const mentions = ref<Record<string, number>>({})
@@ -61,17 +67,32 @@ export const useNotificationStore = defineStore('notification', () => {
   if (import.meta.client) {
     permission.value = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
     chime.value = loadChime()
+    alertsEnabled.value = loadAlerts()
   }
 
   function hydrate() {
     if (!import.meta.client) return
     permission.value = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
     chime.value = loadChime()
+    alertsEnabled.value = loadAlerts()
   }
 
   watch(chime, (v) => {
     if (import.meta.client) saveChime(Boolean(v))
   })
+  watch(alertsEnabled, (v) => {
+    if (import.meta.client) saveAlerts(Boolean(v))
+  })
+
+  /** The bell: ask the browser the first time; after that switch alerts on/off. */
+  async function toggleAlerts() {
+    if (permission.value !== 'granted') {
+      await requestPush()
+      if (permission.value === 'granted') alertsEnabled.value = true
+      return
+    }
+    alertsEnabled.value = !alertsEnabled.value
+  }
 
   async function requestPush() {
     if (typeof Notification === 'undefined') return
@@ -94,7 +115,7 @@ export const useNotificationStore = defineStore('notification', () => {
         /* autoplay policies */
       }
     }
-    if (permission.value === 'granted' && typeof Notification !== 'undefined') {
+    if (alertsOn.value && typeof Notification !== 'undefined') {
       try {
         new Notification(title, { body })
       } catch {
@@ -170,6 +191,9 @@ export const useNotificationStore = defineStore('notification', () => {
   return {
     permission,
     chime,
+    alertsEnabled,
+    alertsOn,
+    toggleAlerts,
     unread,
     mentions,
     requestPush,

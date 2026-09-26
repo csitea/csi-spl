@@ -118,7 +118,7 @@ describe('notify escalation', () => {
     assert.equal(store.includes('mock-data'), false)
     assert.equal(center.includes('useNotificationStore'), true)
     assert.equal(center.includes('chime'), true)
-    assert.equal(center.includes('requestPush'), true)
+    assert.equal(center.includes('toggleAlerts'), true) // the bell asks the browser once, then toggles
   })
 })
 
@@ -202,3 +202,31 @@ describe('muted channels do not ping', () => {
   })
 })
 
+
+// owner, 2026-09-26: "the bell does not change to striken and not striken" -
+// the bell is the reader's on/off choice, not only the browser permission.
+describe('alerts on/off (the bell)', () => {
+  it('fires only when the browser granted it AND the reader wants it', async () => {
+    const { alertsActive, loadAlerts, saveAlerts } = await import('../../src/utils/notify.mjs')
+    assert.equal(alertsActive('granted', true), true)
+    assert.equal(alertsActive('granted', false), false)
+    assert.equal(alertsActive('default', true), false)
+    assert.equal(alertsActive('denied', true), false)
+    const mem = new Map()
+    const store = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)) }
+    assert.equal(loadAlerts(store), true) // default ON: a granted browser keeps alerting
+    saveAlerts(false, store)
+    assert.equal(loadAlerts(store), false)
+    saveAlerts(true, store)
+    assert.equal(loadAlerts(store), true)
+  })
+  it('the bell and the settings button TOGGLE (not only request permission)', () => {
+    const center = readFileSync(join(WUI, 'src/components/NotificationCenter.vue'), 'utf8')
+    assert.match(center, /notes\.toggleAlerts\(\)/)
+    assert.match(center, /notes\.alertsOn/)
+    const store = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
+    assert.match(store, /if \(alertsOn\.value && typeof Notification/)
+    // CONTROL: the old permission-only check is gone from the pop-up path
+    assert.doesNotMatch(store, /if \(permission\.value === 'granted' && typeof Notification/)
+  })
+})

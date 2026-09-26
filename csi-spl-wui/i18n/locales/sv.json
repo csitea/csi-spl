@@ -509,7 +509,11 @@
     "to_light": "Byt till ljust tema",
     "to_dark": "Byt till mörkt tema",
     "light": "Ljust",
-    "dark": "Mörkt"
+    "dark": "Mörkt",
+    "picker": "Välj ett tema",
+    "light_violet": "Ljusviolett",
+    "light_green": "Ljusgrönt",
+    "light_yellow": "Ljusgult"
   },
   "view_token": {
     "need_member": "Den här tenantens ämnen kräver inloggning som medlem.",

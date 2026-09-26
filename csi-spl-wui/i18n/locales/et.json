@@ -509,7 +509,11 @@
     "to_light": "Lülitu heledale teemale",
     "to_dark": "Lülitu tumedale teemale",
     "light": "Hele",
-    "dark": "Tume"
+    "dark": "Tume",
+    "picker": "Vali teema",
+    "light_violet": "Hele violett",
+    "light_green": "Hele roheline",
+    "light_yellow": "Hele kollane"
   },
   "view_token": {
     "need_member": "Selle rentniku teemade nägemiseks on vaja liikmena sisse logida.",

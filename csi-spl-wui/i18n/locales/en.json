@@ -509,7 +509,11 @@
     "to_light": "Switch to light theme",
     "to_dark": "Switch to dark theme",
     "light": "Light",
-    "dark": "Dark"
+    "dark": "Dark",
+    "picker": "Choose a theme",
+    "light_violet": "Light violet",
+    "light_green": "Light green",
+    "light_yellow": "Light yellow"
   },
   "view_token": {
     "need_member": "This tenant's topics need a member sign-in.",

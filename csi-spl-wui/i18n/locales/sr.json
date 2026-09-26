@@ -509,7 +509,11 @@
     "to_light": "Pređi na svetlu temu",
     "to_dark": "Pređi na tamnu temu",
     "light": "Svetla",
-    "dark": "Tamna"
+    "dark": "Tamna",
+    "picker": "Izaberite temu",
+    "light_violet": "Svetloljubičasta",
+    "light_green": "Svetlozelena",
+    "light_yellow": "Svetložuta"
   },
   "view_token": {
     "need_member": "Za teme ovog zakupca potrebna je prijava člana.",

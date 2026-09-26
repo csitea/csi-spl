@@ -509,7 +509,11 @@
     "to_light": "Comută la tema deschisă",
     "to_dark": "Comută la tema întunecată",
     "light": "Deschisă",
-    "dark": "Întunecată"
+    "dark": "Întunecată",
+    "picker": "Alegeți o temă",
+    "light_violet": "Violet deschis",
+    "light_green": "Verde deschis",
+    "light_yellow": "Galben deschis"
   },
   "view_token": {
     "need_member": "Temele acestui chiriaș necesită autentificarea unui membru.",

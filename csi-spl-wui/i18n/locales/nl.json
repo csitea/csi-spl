@@ -509,7 +509,11 @@
     "to_light": "Overschakelen naar licht thema",
     "to_dark": "Overschakelen naar donker thema",
     "light": "Licht",
-    "dark": "Donker"
+    "dark": "Donker",
+    "picker": "Kies een thema",
+    "light_violet": "Lichtviolet",
+    "light_green": "Lichtgroen",
+    "light_yellow": "Lichtgeel"
   },
   "view_token": {
     "need_member": "Voor de onderwerpen van deze tenant moet een lid inloggen.",

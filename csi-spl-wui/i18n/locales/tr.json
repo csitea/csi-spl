@@ -509,7 +509,11 @@
     "to_light": "Açık temaya geç",
     "to_dark": "Koyu temaya geç",
     "light": "Açık",
-    "dark": "Koyu"
+    "dark": "Koyu",
+    "picker": "Bir tema seçin",
+    "light_violet": "Açık mor",
+    "light_green": "Açık yeşil",
+    "light_yellow": "Açık sarı"
   },
   "view_token": {
     "need_member": "Bu kiracının konuları için üye girişi gerekir.",

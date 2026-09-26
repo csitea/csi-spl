@@ -345,7 +345,20 @@ declare module '~/utils/tenant-switcher.mjs' {
   export function fixedTenantOption(claims: unknown, configured?: unknown): { id: string, label: string }
   export function tenantSwitchOptions(claims: unknown, configured?: unknown): { selected: string, canSwitch: boolean, options: { id: string, label: string }[] }
   export function tenantHint(box: { selected: string, canSwitch: boolean, options: { id: string, label: string }[] }, t: (key: string, params?: Record<string, string>) => string): string
-  export function tenantSelectWidthPx(textWidthPx: number): number
+  export const TENANT_ARROW_GAP_PX: 3
+  export function tenantDrawnLabels(options: unknown, fallback: unknown): string[]
+  export function widestLabelWidth(labels: unknown, measure: (label: string) => number): number
+  export function tenantClosedWidthPx(widestTextPx: unknown, arrowPx: unknown, gapPx?: unknown): number
+  export function tenantNameArrowGapPx(box: {
+    selLeft: number
+    selRight: number
+    padStartPx?: number
+    widestPx: number
+    arrowLeft: number
+    arrowRight: number
+    direction?: string
+  }): number
+  export function measureControlText(source: object | null | undefined, text: unknown): number
 }
 
 declare module '~/utils/view-api.mjs' {

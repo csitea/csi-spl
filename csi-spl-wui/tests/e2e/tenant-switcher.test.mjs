@@ -13,6 +13,7 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { applyViewport, setPageViewport, isViewportHarnessError, CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
+import { tenantNameArrowGapPx } from '../../src/utils/tenant-switcher.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const VIEWPORTS = [
@@ -60,6 +61,23 @@ async function readBox(p) {
     const wrap = document.querySelector('[data-testid=tenant-switcher]')
     const wr = wrap instanceof HTMLElement ? wrap.getBoundingClientRect() : null
     const label = sel.options[sel.selectedIndex] ? (sel.options[sel.selectedIndex].textContent || '').trim() : ''
+    const arrow = document.querySelector('[data-testid=tenant-switcher-arrow]')
+    const cs = getComputedStyle(sel)
+    const probe = document.createElement('span')
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;padding:0;margin:0;border:0;'
+    probe.style.font = cs.font
+    probe.style.letterSpacing = cs.letterSpacing
+    probe.style.wordSpacing = cs.wordSpacing
+    probe.style.textTransform = cs.textTransform
+    probe.style.fontKerning = cs.fontKerning
+    probe.style.fontFeatureSettings = cs.fontFeatureSettings
+    probe.style.fontVariant = cs.fontVariant
+    document.body.appendChild(probe)
+    const drawn = [...sel.options].map((o) => o.textContent || '')
+    const widths = drawn.map((text) => { probe.textContent = text; return probe.getBoundingClientRect().width })
+    probe.remove()
+    const widest = widths.length ? Math.max(...widths) : 0
+    const ar = arrow instanceof Element ? arrow.getBoundingClientRect() : null
     sel.focus()
     return {
       missing: false,
@@ -79,6 +97,14 @@ async function readBox(p) {
       sidebarWidth: sw,
       docOverflow: (document.scrollingElement ? document.scrollingElement.scrollWidth : 0) - window.innerWidth,
       innerWidth: window.innerWidth,
+      widest,
+      padStart: parseFloat(cs.paddingInlineStart) || 0,
+      selLeft: er.left,
+      selRight: er.right,
+      arrowLeft: ar ? ar.left : NaN,
+      arrowRight: ar ? ar.right : NaN,
+      direction: cs.direction,
+      styledWidth: sel.style.width,
     }
   })
 }
@@ -95,6 +121,10 @@ try {
       await applyViewport(p, vp)
       await p.waitForSelector('[data-testid=tenant-switcher-select]', { timeout: NAV_TIMEOUT })
       await p.waitForSelector('[data-testid=sidebar-tab-dm]', { timeout: NAV_TIMEOUT })
+      await p.waitForFunction(() => {
+        const sel = document.querySelector('[data-testid=tenant-switcher-select]')
+        return sel instanceof HTMLSelectElement && sel.style.width.length > 0
+      }, { timeout: NAV_TIMEOUT })
     } catch (e) {
       ok(tag + ' page ready', false, { error: String(e && e.message || e), harness: isViewportHarnessError(e) })
       continue
@@ -107,6 +137,11 @@ try {
     ok(tag + ' the drop box is compact', box.selectHeight >= 18 && box.selectHeight <= 36 && box.selectWidth <= 160, box)
     ok(tag + ' no visible caption, one slim row', box.captionText === '' && box.wrapHeight > 0 && box.wrapHeight <= 28 && box.ariaLabel.length > 0, box)
     ok(tag + ' hovering explains the tenant, naming it', box.hint.length > 40 && !box.hint.includes('sidebar.') && (!box.label || box.hint.includes(box.label)), box)
+    const nameGap = tenantNameArrowGapPx({
+      selLeft: box.selLeft, selRight: box.selRight, padStartPx: box.padStart, widestPx: box.widest,
+      arrowLeft: box.arrowLeft, arrowRight: box.arrowRight, direction: box.direction,
+    })
+    ok(tag + ' the arrow sits 3px after the widest name', Number.isFinite(nameGap) && Math.abs(nameGap - 3) <= 0.5, { gap: nameGap, widest: box.widest, styledWidth: box.styledWidth })
     const want = process.env.ASSERT_TENANT_LABEL || ''
     if (want) ok(tag + ' option text is ' + want, box.options[0].text === want, box.options)
     const url = p.url()

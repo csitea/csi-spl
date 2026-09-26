@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fixedTenantOption, tenantHint, tenantSelectWidthPx, tenantSwitchOptions } from '../../src/utils/tenant-switcher.mjs'
+import { fixedTenantOption, measureControlText, TENANT_ARROW_GAP_PX, tenantClosedWidthPx, tenantDrawnLabels, tenantHint, tenantNameArrowGapPx, tenantSwitchOptions, widestLabelWidth } from '../../src/utils/tenant-switcher.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -241,11 +241,74 @@ describe('switchTenant (auth-client, specs/026 §6)', () => {
   })
 })
 
-describe('tenantSelectWidthPx', () => {
-  it('puts the arrow 3px after the widest name', () => {
-    assert.equal(tenantSelectWidthPx(40), 59)
-    assert.equal(tenantSelectWidthPx(40.2), 60)
-    assert.equal(tenantSelectWidthPx(0), 19)
-    assert.equal(tenantSelectWidthPx(Number.NaN), 19)
+
+describe('the closed drop box is the widest name, then 3px, then the arrow', () => {
+  it('the gap constant is 3px and a blank option draws the caption', () => {
+    assert.equal(TENANT_ARROW_GAP_PX, 3)
+    assert.deepEqual(
+      tenantDrawnLabels([{ label: 'Aa' }, { label: '' }, { id: 'x' }, { label: '  ' }], 'Tenant'),
+      ['Aa', 'Tenant', 'Tenant', '  '],
+    )
+    assert.deepEqual(tenantDrawnLabels(null, 'Tenant'), [])
+  })
+
+  it('uses the widest label, not the first, and a larger font measure widens the control', () => {
+    const labels = ['short', 'much-longer']
+    assert.equal(widestLabelWidth(labels, (s) => s.length), 'much-longer'.length)
+    assert.equal(widestLabelWidth(['a', 'bb'], (s) => (s === 'a' ? NaN : 4)), 4)
+    assert.equal(widestLabelWidth([], () => 10), 0)
+    const small = widestLabelWidth(labels, (s) => s.length * 8)
+    const big = widestLabelWidth(labels, (s) => s.length * 11)
+    assert.ok(tenantClosedWidthPx(big, 10) > tenantClosedWidthPx(small, 10))
+  })
+
+  it('closed width is widest + 3 + the arrow, and the gap helper reads 3', () => {
+    const widest = 72.5
+    const arrow = 7.796875
+    const width = tenantClosedWidthPx(widest, arrow)
+    assert.equal(width, widest + TENANT_ARROW_GAP_PX + arrow)
+    const selLeft = 52
+    assert.equal(tenantNameArrowGapPx({
+      selLeft,
+      selRight: selLeft + width,
+      padStartPx: 0,
+      widestPx: widest,
+      arrowLeft: selLeft + widest + TENANT_ARROW_GAP_PX,
+      arrowRight: selLeft + width,
+      direction: 'ltr',
+    }), 3)
+    // RTL: arrow on the inline-end (left), text ending 3px to its right.
+    assert.equal(tenantClosedWidthPx(50, 17), 70)
+    assert.equal(tenantNameArrowGapPx({
+      selLeft: 10,
+      selRight: 80,
+      padStartPx: 0,
+      widestPx: 50,
+      arrowLeft: 10,
+      arrowRight: 27,
+      direction: 'rtl',
+    }), 3)
+    assert.equal(Number.isNaN(tenantClosedWidthPx(-1, 4)), true)
+    assert.equal(Number.isNaN(tenantClosedWidthPx(4, -1)), true)
+    assert.equal(Number.isNaN(tenantNameArrowGapPx({ widestPx: NaN })), true)
+    assert.equal(Number.isNaN(measureControlText(null, 'Aa')), true)
+    assert.equal(Number.isNaN(measureControlText({}, 'Aa')), true)
+  })
+
+  it('the sidebar measures every option in the select font and recomputes on the font setting', () => {
+    const vue = src('src/components/ChannelSidebar.vue')
+    const style = vue.slice(vue.indexOf('<style'))
+    assert.match(vue, /tenantDrawnLabels\(tenantBox\.value\.options, t\('sidebar\.tenant'\)\)/)
+    assert.match(vue, /widestLabelWidth\(labels, \(label\) => measureControlText\(sel, label\)\)/)
+    assert.match(vue, /tenantClosedWidthPx\(text, arrowPx, TENANT_ARROW_GAP_PX\)/)
+    assert.match(vue, /attributeFilter: \['data-font-size'\]/)
+    assert.match(vue, /matchMedia\('\(max-width: 800px\)'\)/)
+    assert.match(vue, /data-testid="tenant-switcher-arrow"/)
+    assert.match(vue, /:style="tenantSelectStyle"/)
+    assert.doesNotMatch(style, /width:\s*min\(9rem/)
+    const sel = style.slice(style.indexOf('.tenant-switcher__select {'), style.indexOf('}', style.indexOf('.tenant-switcher__select {')))
+    assert.match(sel, /appearance:\s*none/)
+    assert.match(sel, /flex:\s*0\s*0\s*auto/)
+    assert.doesNotMatch(sel, /width:\s*0/)
   })
 })

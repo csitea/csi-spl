@@ -4,8 +4,10 @@
          membership: one row, choosing it changes nothing. Several: every
          membership, and choosing one switches the session's tenant.
          CLE-34991: one slim row, a glyph instead of a visible caption; the
-         caption is the select's name and hovering explains what a tenant is. -->
-    <div class="tenant-switcher" data-testid="tenant-switcher" :title="tenantHintText" :style="tenantSelectStyle">
+         caption is the select's name and hovering explains what a tenant is.
+         The closed select is as wide as the widest option, then 3px, then
+         the arrow, measured in the select's own font. -->
+    <div ref="tenantSwitcherEl" class="tenant-switcher" data-testid="tenant-switcher" :title="tenantHintText">
       <UiIcon name="building" :size="14" class="tenant-switcher__icon" />
       <select
         ref="tenantSelectEl"
@@ -15,10 +17,22 @@
         :aria-label="t('sidebar.tenant')"
         aria-describedby="tenant-switcher-hint"
         :aria-busy="switching ? 'true' : undefined"
+        :style="tenantSelectStyle"
         @change="onTenantChange"
       >
         <option v-for="o in tenantBox.options" :key="o.id" :value="o.id">{{ o.label || t('sidebar.tenant') }}</option>
       </select>
+      <svg
+        ref="tenantArrowEl"
+        class="tenant-switcher__arrow"
+        data-testid="tenant-switcher-arrow"
+        viewBox="0 0 8 6"
+        aria-hidden="true"
+        focusable="false"
+        :style="tenantArrowStyle"
+      >
+        <path d="M0 0 H8 L4 6 Z" />
+      </svg>
       <span id="tenant-switcher-hint" class="sr-only" data-testid="tenant-switcher-hint">{{ tenantHintText }}</span>
     </div>
     <p v-if="switchFailed" class="tenant-switcher__error" role="alert" data-testid="tenant-switch-error">{{ t('sidebar.tenant_switch_failed') }}</p>
@@ -488,7 +502,7 @@ import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
-import { tenantHint, tenantSelectWidthPx, tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
+import { measureControlText, TENANT_ARROW_GAP_PX, tenantClosedWidthPx, tenantDrawnLabels, tenantHint, tenantSwitchOptions, widestLabelWidth } from '~/utils/tenant-switcher.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'events' | 'users'
@@ -558,23 +572,78 @@ const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
 const tenantBox = computed(() => tenantSwitchOptions(session.claims, api.tenant))
 const tenantHintText = computed(() => tenantHint(tenantBox.value, t))
-/* The arrow sits 3px after the widest option. Capped by the sidebar in CSS. */
 const tenantSelectEl = ref<HTMLSelectElement | null>(null)
-const tenantSelectWidth = ref('')
-const tenantSelectStyle = computed(() => tenantSelectWidth.value ? { '--tenant-select-w': tenantSelectWidth.value } : {})
-function fitTenantSelect() {
+const tenantArrowEl = ref<SVGSVGElement | null>(null)
+const tenantSwitcherEl = ref<HTMLElement | null>(null)
+const tenantSelectBox = ref<{ width: number, padEnd: number } | null>(null)
+const tenantArrowInsetEnd = ref('')
+const tenantSelectStyle = computed(() => {
+  const box = tenantSelectBox.value
+  if (!box) return undefined
+  return {
+    width: box.width + 'px',
+    paddingInlineEnd: box.padEnd + 'px',
+    paddingInlineStart: '0px',
+  }
+})
+const tenantArrowStyle = computed(() => (
+  tenantArrowInsetEnd.value ? { insetInlineEnd: tenantArrowInsetEnd.value } : undefined
+))
+/* Widest option in the select's computed font, then 3px, then the arrow.
+   Re-measured when the membership list changes, when the font-size setting
+   changes (html data-font-size, spec 023), and when the rail's font kicks in. */
+function applyTenantSelectWidth(retry = true) {
   const sel = tenantSelectEl.value
-  if (!sel) return
-  const labels = tenantBox.value.options.map((o) => o.label || o.id || t('sidebar.tenant'))
-  const ctx = document.createElement('canvas').getContext('2d')
-  if (!ctx) return
-  ctx.font = getComputedStyle(sel).font
-  let text = 0
-  for (const label of labels) text = Math.max(text, ctx.measureText(label).width)
-  tenantSelectWidth.value = tenantSelectWidthPx(text) + 'px'
+  const arrow = tenantArrowEl.value
+  const wrap = tenantSwitcherEl.value
+  const view = wrap?.ownerDocument?.defaultView
+  if (!sel || !arrow || !wrap || !view) return
+  const labels = tenantDrawnLabels(tenantBox.value.options, t('sidebar.tenant'))
+  const text = widestLabelWidth(labels, (label) => measureControlText(sel, label))
+  if (labels.some((label) => label.length > 0) && !(text > 0)) return
+  const arrowPx = arrow.getBoundingClientRect().width
+  if (!(arrowPx > 0)) {
+    if (retry) view.requestAnimationFrame(() => applyTenantSelectWidth(false))
+    return
+  }
+  const wrapCs = view.getComputedStyle(wrap)
+  const pad = parseFloat(wrapCs.paddingInlineEnd || wrapCs.paddingRight) || 0
+  const width = tenantClosedWidthPx(text, arrowPx, TENANT_ARROW_GAP_PX)
+  if (!Number.isFinite(width)) return
+  const padEnd = TENANT_ARROW_GAP_PX + arrowPx
+  const prev = tenantSelectBox.value
+  if (!prev || Math.abs(prev.width - width) > 0.01 || Math.abs(prev.padEnd - padEnd) > 0.01) {
+    tenantSelectBox.value = { width, padEnd }
+  }
+  const inset = pad + 'px'
+  if (tenantArrowInsetEnd.value !== inset) tenantArrowInsetEnd.value = inset
 }
-onMounted(() => { fitTenantSelect() })
-watch(tenantBox, () => { nextTick(() => fitTenantSelect()) })
+watch(
+  () => tenantDrawnLabels(tenantBox.value.options, t('sidebar.tenant')).join('\n'),
+  async () => {
+    await nextTick()
+    applyTenantSelectWidth()
+  },
+)
+let tenantWidthMq: MediaQueryList | null = null
+let tenantFontObs: MutationObserver | null = null
+function onTenantWidthViewport() { applyTenantSelectWidth() }
+onMounted(() => {
+  applyTenantSelectWidth()
+  const doc = tenantSwitcherEl.value?.ownerDocument
+  const view = doc?.defaultView
+  if (doc?.documentElement && typeof MutationObserver === 'function') {
+    tenantFontObs = new MutationObserver(() => applyTenantSelectWidth())
+    tenantFontObs.observe(doc.documentElement, { attributes: true, attributeFilter: ['data-font-size'] })
+  }
+  if (!view) return
+  tenantWidthMq = view.matchMedia('(max-width: 800px)')
+  tenantWidthMq.addEventListener('change', onTenantWidthViewport)
+})
+onBeforeUnmount(() => {
+  tenantFontObs?.disconnect()
+  tenantWidthMq?.removeEventListener('change', onTenantWidthViewport)
+})
 const authClient = useAuthClient()
 const switching = ref(false)
 const switchFailed = ref(false)
@@ -1106,10 +1175,12 @@ async function onCreate() {
 @media (max-width: 800px) {
   .nav-row > .nav-item { padding-inline-end: 28px; }
 }
-/* Compact drop box above the icon strip (CLE-34991): one slim row, a glyph
-   and a borderless select, no caption and no card. On the 72px rail it
-   shrinks to the rail instead of pushing the page sideways. */
+/* Compact drop box (CLE-34991): one slim row, a glyph and a borderless
+   select, no caption. The select's width is the widest option in its own
+   font, plus 3px, plus the arrow (set from script, not a fixed px width).
+   max-width keeps the row inside the sidebar. */
 .tenant-switcher {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1123,6 +1194,7 @@ async function onCreate() {
   padding: 0 4px;
   border-radius: var(--radius-sm);
   color: var(--color-muted);
+  font-size: 0.75rem;
 }
 .tenant-switcher:hover { background: var(--color-surface); color: var(--color-fg); }
 .tenant-switcher__icon { flex: 0 0 auto; }
@@ -1133,29 +1205,39 @@ async function onCreate() {
 }
 .tenant-switcher__select {
   flex: 0 0 auto;
-  width: var(--tenant-select-w, max-content);
-  max-width: 100%;
   box-sizing: border-box;
   min-height: 24px;
   height: 24px;
-  /* 16px is the dropdown arrow. The width adds 3px of text before it. */
-  padding: 0 16px 0 2px;
+  padding: 0;
   background: transparent;
   color: var(--color-fg);
   border: 0;
   border-radius: var(--radius-sm);
   font: inherit;
-  font-size: 0.75rem;
   line-height: 1.2;
+  text-align: start;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.tenant-switcher__arrow {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: 4px;
+  width: 0.65em;
+  height: 0.5em;
+  transform: translateY(-50%);
+  pointer-events: none;
+  fill: currentColor;
+  color: var(--color-fg);
 }
 @media (max-width: 800px) {
   .tenant-switcher {
-    width: max-content;
     max-width: calc(100% - 8px);
     margin: 4px 4px 0;
     padding: 0 2px;
+    font-size: 0.6875rem;
   }
-  .tenant-switcher__select { font-size: 0.6875rem; }
+  .tenant-switcher__arrow { inset-inline-end: 2px; }
   .tenant-switcher__icon { display: none; }
 }
 </style>

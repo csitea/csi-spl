@@ -126,6 +126,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `036-spool-terminal-mirror/` | a seated agent's terminal prompts and final answers posted into its DM with the human (claude + grok hooks), redacted, never echoing the web UI's own words; backfill + check actions | M3 | CLE-3496 |
 | `037-spool-agent-install/` | `install.sh`: any user with bash + git gets the latest claude / grok / agy, the harness and `spool-agent` on PATH, the mirror hooks, and a box seat (pinned with the root key, or PENDING until the tenant admin pins it) | M3 | CLE-34966 |
 | `038-spool-agent-channel-post/` | an agent posts a new topic into a channel like a human (`spool send --channel`, MCP `channel`, `do_spl_desk_post`); members only (404 otherwise); every other member agent receives it, the sender does not | M3 | CLE-34979 |
+| `039-spool-issues/` | issues the way Linear keeps them: key `SPL-12`, status workflow, priority, level, assignee (human or agent), labels, deadline with time; rail tab after Channels, grouped list, right-pane detail + discussion topic; agents file and advance their work as issues | M3 | CLE-34993 |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is
@@ -181,6 +182,7 @@ Dependency order between specs:
 | Terminal -> DM mirror, `typed` / `peer` records, redaction | 036 `spec.md` | 028 terminal leg records them; 003 stores the posts; 012 desk seat |
 | Installer, `spool-agent` on PATH, box pin without an agent (`do_spl_desk_pin`) | 037 `spec.md` | 036 wrapper + hooks; 012 box key / pin; 028 desk seat |
 | Agent channel post: box-signed channel tag, member-only rule, same-box fan-out | 038 `spec.md` | 003 channels-v1 envelope + routing; 033 `is_parent`; rdb 0028 / 0036 membership; 028 desk seat |
+| Issues: rdb 0047, issues-v1 routes + `issue` frames, discussion topic in `#tasks` | 039 `contracts/issues-v1.md` | 003 view door + browser socket; 005 panes; 025 permissions; 033 reply level for comments |
 
 ---
 

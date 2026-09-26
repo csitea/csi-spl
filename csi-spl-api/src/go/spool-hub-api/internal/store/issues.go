@@ -251,17 +251,17 @@ func normLabels(in []string) ([]string, error) {
 	return out, nil
 }
 
-// applyPatch writes p onto i and restamps the status clocks.
-func applyPatch(i *Issue, p IssuePatch, by string, now time.Time) {
+// ApplyIssuePatch writes p's fields onto i and nothing else (no clocks, no
+// actor): the hub builds a create from the same request shape as a PATCH.
+func ApplyIssuePatch(i *Issue, p IssuePatch) {
 	if p.Title != nil {
 		i.Title = *p.Title
 	}
 	if p.Description != nil {
 		i.Description = *p.Description
 	}
-	if p.Status != nil && *p.Status != i.Status {
+	if p.Status != nil {
 		i.Status = *p.Status
-		stampStatus(i, now)
 	}
 	if p.Priority != nil {
 		i.Priority = *p.Priority
@@ -280,6 +280,15 @@ func applyPatch(i *Issue, p IssuePatch, by string, now time.Time) {
 	}
 	if p.Parent != nil {
 		i.Parent = *p.Parent
+	}
+}
+
+// applyPatch writes p onto i and restamps the status clocks.
+func applyPatch(i *Issue, p IssuePatch, by string, now time.Time) {
+	changed := p.Status != nil && *p.Status != i.Status
+	ApplyIssuePatch(i, p)
+	if changed {
+		stampStatus(i, now)
 	}
 	i.UpdatedBy, i.UpdatedAt = by, now
 }

@@ -229,7 +229,7 @@ import HumanName from '~/components/HumanName.vue'
 import { feedbackChannelFromPath, isFeedbackChannel } from '~/utils/feedback-channel.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
-import { applyCompletion, completeOperators, omniboxMode, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
+import { applyCompletion, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
 import {
   activeMentionQuery,
   filterRosterMentions,
@@ -507,7 +507,12 @@ function restore(body: string, files?: File[]) {
   if (files && files.length) picked.value = [...files]
   focusInput()
 }
-defineExpose({ setText, focus: focusInput, restore })
+/* SPL-13: the top bar calls this when the route leaves /search */
+function leaveSearch() {
+  const next = omniboxTextLeavingSearch(text.value)
+  if (next !== text.value) text.value = next
+}
+defineExpose({ setText, focus: focusInput, restore, leaveSearch })
 
 const { t, te } = useI18n({ useScope: 'global' })
 const syntaxOpen = ref(false)

@@ -788,6 +788,7 @@ declare module '~/utils/search.mjs' {
   export function shouldLoadOperators(o?: { mock?: boolean, sessionState?: string }): boolean
   export function rowAt(row: unknown): string
   export function omniboxMode(text: string): 'search' | 'send'
+  export function omniboxTextLeavingSearch(text: string): string
   export function searchQueryOf(text: string): string
   export function searchPath(q: string): string
   export function searchApiQuery(o: { q?: string, cursor?: string, limit?: number, sort?: string }): string

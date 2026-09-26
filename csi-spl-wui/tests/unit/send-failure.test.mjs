@@ -101,7 +101,7 @@ describe('the send path cannot lose text silently any more (CLE-3433)', () => {
   it('the composer can be handed its text back', () => {
     const s = src('src/components/MessageComposer.vue')
     assert.match(s, /function restore\(body: string, files\?: File\[\]\)/)
-    assert.match(s, /defineExpose\(\{ setText, focus: focusInput, restore \}\)/)
+    assert.match(s, /defineExpose\(\{ setText, focus: focusInput, restore[,} ]/)
   })
 
   it('sendLive retries once on a dropped socket, keeping the optimistic row', () => {

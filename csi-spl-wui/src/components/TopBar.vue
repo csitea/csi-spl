@@ -179,6 +179,10 @@ function showQuery() {
   if (onSearchPage.value && typeof q === 'string' && q) composer.value?.setText(`/search ${q}`)
 }
 watch(() => [onSearchPage.value, route.query.q], showQuery, { flush: 'post' })
+/* SPL-13: leaving /search takes its query out of the Omnibox. Left there, the
+   `/search …` line kept search mode on every page, and search mode has no
+   Attach and no Send - the owner read that as "the attach button is gone". */
+watch(onSearchPage, (now, was) => { if (was && !now) composer.value?.leaveSearch() }, { flush: 'post' })
 
 /* 022 catalogue: mock hydrates immediately; live waits for a member session
    so signed-out /channel/lobby does not GET /v1/view/search/operators (401).

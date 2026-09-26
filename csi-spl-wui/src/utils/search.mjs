@@ -183,6 +183,15 @@ export function omniboxMode(text) {
   return SEARCH_CMD_RE.test(String(text || '')) ? 'search' : 'send'
 }
 
+/**
+ * The omnibox line once the reader leaves /search (SPL-13). A search line
+ * left behind keeps the omnibox in search mode on every page, and search
+ * mode has no Attach and no Send, so it is cleared. A send draft is kept.
+ */
+export function omniboxTextLeavingSearch(text) {
+  return omniboxMode(text) === 'search' ? '' : String(text ?? '')
+}
+
 /** The raw query after `/search` — verbatim apart from the outer whitespace. */
 export function searchQueryOf(text) {
   const s = String(text || '')

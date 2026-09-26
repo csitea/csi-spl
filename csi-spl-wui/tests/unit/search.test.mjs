@@ -15,6 +15,7 @@ import {
   normalizeOperators,
   normalizeSearchResponse,
   omniboxMode,
+  omniboxTextLeavingSearch,
   operatorTokenAt,
   searchApiQuery,
   searchPath,
@@ -51,6 +52,21 @@ describe('omnibox mode switch', () => {
     assert.equal(searchQueryOf('/search:from:EZB-1 is:task'), 'from:EZB-1 is:task')
     assert.equal(searchQueryOf('/search:'), '')
     assert.equal(searchQueryOf('hello'), '')
+  })
+})
+
+// SPL-13: a search line left in the Omnibox kept search mode on every page,
+// and search mode renders no Attach and no Send.
+describe('leaving /search', () => {
+  it('a search line is cleared', () => {
+    for (const s of ['/search hello', '/s foo', '/search:x', '/search']) assert.equal(omniboxTextLeavingSearch(s), '', s)
+  })
+  it('CONTROL: a send draft is kept verbatim', () => {
+    for (const s of ['', 'hello', '@CLE-07 /search x', '```\n/search\n```']) assert.equal(omniboxTextLeavingSearch(s), s, s)
+  })
+  it('the top bar calls it when the route leaves /search', () => {
+    assert.match(read('src/components/TopBar.vue'), /watch\(onSearchPage, \(now, was\) => \{ if \(was && !now\) composer\.value\?\.leaveSearch\(\) \}/)
+    assert.match(read('src/components/MessageComposer.vue'), /defineExpose\(\{[^}]*leaveSearch/)
   })
 })
 

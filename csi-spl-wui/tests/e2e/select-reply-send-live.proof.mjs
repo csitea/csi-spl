@@ -315,18 +315,25 @@ async function surfaceRun(p, surface) {
     s = await waitFor(p, (x) => has(shown(x), text), 10000)
     await sleep(1500)
     s = await snap(p)
-    const left = await p.evaluate(() => (document.querySelector('form.composer textarea') || {}).value || '')
-    const shownError = await p.evaluate(() => !!document.querySelector('[data-test=omnibox-send-error], [data-test=live-pane-error]'))
     step(tag(`${n} selected: the new line shows in the topic`), has(shown(s), text), { shown: shown(s).length })
     if (!onT) step(tag(`${n} selected: the new line is not a middle card`), !has(s.middle, text), {})
     const state = await p.evaluate(PANE_STATE)
     ev[`state ${n}`] = state
     /* the topic the pane shows: the task, or (a message-rooted topic) the L1 msg id */
     const topicTask = onT ? task : ((state.target && state.target.taskId) || state.paneTask || task)
-    const hub = res.apiRoot ? await hubRows(p, res.apiRoot, topicTask) : { status: 0 }
-    const h = (hub.rows || []).find((x) => x.body.includes(text))
+    /* poll: after a dropped socket the resend waits for the reconnect, so the
+       row can reach the hub a few seconds after the optimistic card shows */
+    let hub = { status: 0 }
+    let h
+    for (let i = 0; i < 15 && !h; i++) {
+      if (i) await sleep(1000)
+      hub = res.apiRoot ? await hubRows(p, res.apiRoot, topicTask) : { status: 0 }
+      h = (hub.rows || []).find((x) => x.body.includes(text))
+    }
     step(tag(`${n} selected: hub stores it on the SAME task with is_parent 0`), !!h && h.is_parent === 0,
       { status: hub.status, is_parent: h && h.is_parent, rows: (hub.rows || []).length })
+    const left = await p.evaluate(() => (document.querySelector('form.composer textarea') || {}).value || '')
+    const shownError = await p.evaluate(() => !!document.querySelector('[data-test=omnibox-send-error], [data-test=live-pane-error]'))
     /* a stored send empties the box; a failed one keeps the text AND shows an error */
     step(tag(`${n} selected: never silent`), h ? left === '' : (left.includes(text) && shownError), { left: left.slice(0, 80), shownError })
     await p.screenshot({ path: `${OUT}/${surface}-${n.replace(/ /g, '-')}.png` })

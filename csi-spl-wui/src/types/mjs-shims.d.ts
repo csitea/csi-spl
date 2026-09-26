@@ -418,6 +418,11 @@ declare module '~/utils/parent-section.mjs' {
   export function issueKeyForTask(list: unknown, taskId: string): string
 }
 
+declare module '~/utils/parent-section-open.mjs' {
+  export const REVEAL_PAGES: number
+  export function openParentSection(msg: unknown, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string }): Promise<boolean>
+}
+
 declare module '~/utils/msg-edit.mjs' {
   import type { SpoolMessage } from './spool'
   /** what the editor holds while it is open: the draft, and what Escape restores */

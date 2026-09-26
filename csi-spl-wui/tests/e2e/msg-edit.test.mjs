@@ -371,8 +371,9 @@ try {
   if (threadRow) await threadRow.click({ button: 'right' })
   await sleep(300)
   const menuIds = await page.$$eval('[data-testid=msg-menu] [role=menuitem]', (els) => els.map((el) => el.getAttribute('data-testid')))
-  ok('right-click opens a menu with open, copy link, edit, and delete',
-    menuIds.join(',') === 'msg-menu-open,msg-menu-copy,msg-menu-edit,msg-menu-delete',
+  /* a thread line also goes back to its parent section (CLE-34996) */
+  ok('right-click opens a menu with open, open parent section, copy link, edit, and delete',
+    menuIds.join(',') === 'msg-menu-open,msg-menu-parent,msg-menu-copy,msg-menu-edit,msg-menu-delete',
     { menuIds })
   await page.click('[data-testid=msg-menu-edit]')
   await sleep(400)

@@ -194,7 +194,9 @@
         {{ t('feed.replies', { n: count }, count) }}
       </button>
     </div>
-    <MessageMenu
+    <!-- mounted on open only: the menu is not in the initial JS (specs/027) -->
+    <LazyMessageMenu
+      v-if="menuOpen"
       :open="menuOpen"
       :x="menuPoint.x"
       :y="menuPoint.y"
@@ -223,7 +225,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatIsoTs, formatTopicTs, recipientOf, shownPerson } from '~/utils/channel-feed.mjs'
+import { dmPeerOf, formatIsoTs, formatTopicTs, recipientOf, shownPerson } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { activityOf } from '~/utils/feed.mjs'
@@ -240,7 +242,7 @@ import {
 } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMessageMenu } from '~/composables/useMessageMenu'
-import { useParentSection } from '~/composables/useParentSection'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
 import { joinBodies, threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
 import { reactionChips } from '~/utils/emoji.mjs'
@@ -430,12 +432,16 @@ function onMenuOpen() {
 
 /* CLE-34996: a thread line (not a middle card) can go back to where its
    thread lives: the channel or DM with the parent card selected, or the
-   issue whose discussion it is. */
-const parentNav = useParentSection()
-const showParent = computed(() => !props.clickable && parentNav.hasParent(props.msg))
-function onMenuParent() {
+   issue whose discussion it is. Shown by the same rule as utils/parent-section.mjs parentSection: a channel, or a
+   DM end that is not the viewer. What the item does is loaded when it is
+   chosen, so it is not in the initial JS (specs/027, 210 KB gzip). */
+const showParent = computed(() => !props.clickable
+  && Boolean(String(props.msg.channel || '').trim().replace(/^#/, '') || dmPeerOf(props.msg, viewerId.value)))
+const parentDeps = { api: useSpoolApi(), router: useRouter() }
+async function onMenuParent() {
   closeMenu()
-  void parentNav.openParent(props.msg)
+  const m = await import('~/utils/parent-section-open.mjs')
+  await m.openParentSection(props.msg, { ...parentDeps, localePath, self: viewerId.value })
 }
 
 /* A topic card in the middle links to this page with its topic open on the

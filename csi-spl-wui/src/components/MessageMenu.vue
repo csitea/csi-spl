@@ -99,17 +99,25 @@ function onDocPointer(e: PointerEvent) {
   emit('close')
 }
 
+function onOpen() {
+  left.value = props.x
+  top.value = props.y
+  document.addEventListener('pointerdown', onDocPointer, true)
+  void focusItem(0)
+  void place()
+}
+
 watch(() => props.open, (v) => {
   if (v) {
-    left.value = props.x
-    top.value = props.y
-    document.addEventListener('pointerdown', onDocPointer, true)
-    void focusItem(0)
-    void place()
+    onOpen()
   } else {
     document.removeEventListener('pointerdown', onDocPointer, true)
     focused.value = -1
   }
+})
+/* MessageCard mounts this lazily, already open: the items exist only now */
+onMounted(() => {
+  if (props.open) onOpen()
 })
 onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointer, true))
 

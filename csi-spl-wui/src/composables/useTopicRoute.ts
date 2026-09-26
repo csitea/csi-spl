@@ -77,8 +77,6 @@ export function useTopicFeedClose(opts: {
 
   function releaseStaleTopic() {
     if (releasing || !opts.ready()) return
-    /* CLE-34996: Open parent section is still looking back for this card */
-    if (topic.reveal && topic.reveal === openTopicId()) return
     const plan = topicFeedRelease(openTopicId(), opts.messages(), route.query)
     if (!plan.close) return
     releasing = true

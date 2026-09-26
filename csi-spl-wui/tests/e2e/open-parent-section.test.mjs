@@ -59,8 +59,7 @@ try {
   ok('1 a thread hit opens its thread on the right', true)
 
   /* the pointer path shows the item, right after Open */
-  const box = await (await p.$(line)).boundingBox()
-  await p.mouse.click(box.x + 40, box.y + 12, { button: 'right' })
+  await (await p.$(`${line} .msg-body`)).click({ button: 'right' })
   await p.waitForSelector('[data-testid=msg-menu]', { visible: true, timeout: 5000 })
   const ids = await p.$$eval('[data-testid=msg-menu] [role=menuitem]', (els) => els.map((e) => e.getAttribute('data-testid')))
   const label = await p.$eval('[data-testid=msg-menu-parent]', (el) => el.textContent.trim()).catch(() => '')

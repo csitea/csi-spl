@@ -103,7 +103,7 @@ const props = defineProps<{
       mode (titles / 5 rows / full). A thread pane never passes it. */
   clip?: boolean
 }>()
-const emit = defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
+defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const topic = useTopicStore()
@@ -149,38 +149,6 @@ watch(() => [route.hash, props.rows.length] as const, async ([hash]) => {
   const scroller = el?.closest<HTMLElement>('.feed-body')
   if (el && scroller) scrollRowToTop(scroller, el)
   el?.focus({ preventScroll: true })
-}, { immediate: true })
-
-/* CLE-34996 — Open parent section: the middle list brings the open topic's
-   card into view once, reading older pages for it when the first one does
-   not hold it (at most REVEAL_PAGES). Only the list of cards does this; a
-   thread pane has its own #<msg_id> rule above. */
-const REVEAL_PAGES = 10
-let revealPages = 0
-watch(() => [topic.reveal, props.rows.length, props.loading, props.loadingOlder] as const, async ([want]) => {
-  if (!props.clickable || !want) {
-    revealPages = 0
-    return
-  }
-  if (props.loading || props.loadingOlder) return
-  const row = props.rows.find((m) => isSelected(m))
-  if (row) {
-    topic.revealDone()
-    revealPages = 0
-    await nextTick()
-    const el = root.value?.querySelector<HTMLElement>(`[data-msg-id="${CSS.escape(String(row.msg_id))}"]`)
-    const scroller = el?.closest<HTMLElement>('.feed-body')
-    if (el && scroller) scrollRowToTop(scroller, el)
-    return
-  }
-  if (!props.rows.length && !props.hasOlder) return
-  if (props.hasOlder && revealPages < REVEAL_PAGES) {
-    revealPages += 1
-    emit('older')
-    return
-  }
-  topic.revealDone()
-  revealPages = 0
 }, { immediate: true })
 
 function openable(m: SpoolMessage) {

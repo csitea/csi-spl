@@ -15,6 +15,7 @@ import {
   parentTopicOf,
 } from '../../src/utils/parent-section.mjs'
 import { msgMenuItems } from '../../src/utils/msg-menu.mjs'
+import { dmPeerOf as dmPeerOfShim } from '../../src/utils/channel-feed.mjs'
 import { tabForPath } from '../../src/utils/sidebar-tabs.mjs'
 import { isSelectedRow, targetFromQuery } from '../../src/utils/topic-open.mjs'
 
@@ -154,22 +155,41 @@ describe('the menu item', () => {
 })
 
 describe('wiring', () => {
-  it('a thread line (not a middle card) offers it and hands it to useParentSection', () => {
+  it('a thread line (not a middle card) offers it and loads what it does on choice', () => {
     const card = src('src/components/MessageCard.vue')
     assert.match(card, /:parent="showParent"/)
     assert.match(card, /@parent="onMenuParent"/)
-    assert.match(card, /showParent = computed\(\(\) => !props\.clickable && parentNav\.hasParent\(props\.msg\)\)/)
+    assert.match(card, /showParent = computed\(\(\) => !props\.clickable/)
+    assert.match(card, /import\('~\/utils\/parent-section-open\.mjs'\)/)
     const menu = src('src/components/MessageMenu.vue')
     assert.match(menu, /else if \(id === 'parent'\) emit\('parent'\)/)
   })
 
-  it('the page does not close the topic while the list looks back for its card', () => {
-    assert.match(src('src/composables/useTopicRoute.ts'), /topic\.reveal && topic\.reveal === openTopicId\(\)/)
-    const feed = src('src/components/LiveFeed.vue')
-    assert.match(feed, /topic\.reveal/)
-    assert.match(feed, /REVEAL_PAGES/)
-    const nav = src('src/composables/useParentSection.ts')
-    assert.match(nav, /topic\.revealParent\(/)
-    assert.match(nav, /topic\.openTarget\(/)
+  it('none of it is in the initial chunk: no static import of either module anywhere', () => {
+    const files = ['src/components/MessageCard.vue', 'src/components/MessageMenu.vue', 'src/components/LiveFeed.vue']
+    for (const rel of files) assert.doesNotMatch(src(rel), /from '~\/utils\/parent-section(-open)?\.mjs'/, rel)
+    assert.doesNotMatch(src('src/components/LiveFeed.vue'), /reveal/)
+  })
+
+  it('pages back for the parent card and re-opens the thread the page released', () => {
+    const nav = src('src/utils/parent-section-open.mjs')
+    assert.match(nav, /REVEAL_PAGES/)
+    assert.match(nav, /data-testid="load-more"/)
+    assert.match(nav, /topic\.openTarget\(target, topic\.rootMsg\)/)
+  })
+
+  it('the card test agrees with parentSection on who has a parent', () => {
+    const cases = [
+      { channel: 'dev', task_id: TOPIC },
+      { channel: '#dev', task_id: TOPIC },
+      { from: 'HUM-4', to: 'CLE-07', to_box: 'box-a', task_id: TOPIC },
+      { from: 'HUM-4', to: 'ALL-0', task_id: TOPIC },
+      {},
+    ]
+    assert.match(src('src/components/MessageCard.vue'), /String\(props\.msg\.channel \|\| ''\)\.trim\(\)\.replace\(\/\^#\/, ''\) \|\| dmPeerOf\(props\.msg, viewerId\.value\)/)
+    for (const m of cases) {
+      const card = Boolean(String(m.channel || '').trim().replace(/^#/, '') || dmPeerOfShim(m, 'HUM-4'))
+      assert.equal(card, Boolean(parentSection(m, { self: 'HUM-4' })), JSON.stringify(m))
+    }
   })
 })

@@ -73,6 +73,9 @@ type Edit struct {
 	Env      []byte // the re-marshalled canonical envelope
 	EditedBy string // the v:1 agent id making the edit
 	EditedAt time.Time
+	// EnvSig is the new envelope's sig when the edit re-signed it (a box
+	// edit, or a box-wui re-sign); "" keeps the stored env_sig.
+	EnvSig string
 }
 
 // MessageEdits is the edit half of the store contract (specs/032).
@@ -146,6 +149,9 @@ func (s *Memory) ApplyEdit(_ context.Context, tenant, msgID string, e Edit) (int
 	revs = append(revs, MessageRevision{Revision: rev, Body: e.Body, EditedBy: e.EditedBy, EditedAt: e.EditedAt})
 	s.revisions[k] = revs
 	m.Body, m.Msg, m.Env = e.Body, e.Msg, e.Env
+	if e.EnvSig != "" {
+		m.EnvSig = e.EnvSig
+	}
 	m.EditedAt, m.EditedBy = e.EditedAt, e.EditedBy
 	return rev, nil
 }

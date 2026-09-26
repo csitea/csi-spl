@@ -104,9 +104,12 @@ func (s *Postgres) ApplyEdit(ctx context.Context, tenant, msgID string, e Edit) 
 		// period counters trigger on UPDATE OF tenant_id, received_at only
 		// (rdb 0023), neither of which an edit touches, so an edit does not
 		// spend quota — it is not a new message.
-		_, err = tx.Exec(ctx, `UPDATE messages SET body = $3, msg = $4, env = $5, edited_at = $6, edited_by = $7
+		// env_sig follows a re-signed envelope, so the column never names a
+		// sig the stored env no longer carries; "" leaves it as it was.
+		_, err = tx.Exec(ctx, `UPDATE messages SET body = $3, msg = $4, env = $5, edited_at = $6, edited_by = $7,
+			env_sig = COALESCE(NULLIF($8, ''), env_sig)
 			WHERE tenant_id = $1 AND msg_id = $2`,
-			tenant, msgID, e.Body, string(e.Msg), e.Env, e.EditedAt, e.EditedBy)
+			tenant, msgID, e.Body, string(e.Msg), e.Env, e.EditedAt, e.EditedBy, e.EnvSig)
 		return err
 	})
 	if err != nil {

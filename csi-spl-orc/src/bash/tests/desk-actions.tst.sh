@@ -10,6 +10,9 @@
 #   3. do_spl_desk_reply refuses a bad kind, a non-HUM DESK_TO and a non-uuid
 #      DESK_TASK before it reads anything
 #   8. do_spl_desk_post (specs/038) refuses a bad channel / kind / body / file
+#  10. do_spl_desk_edit (specs/032 §10) refuses a bad MSG_ID / empty body /
+#      both body sources, then runs `spool edit --msg-id --as` and names a
+#      not_author refusal as another box's message
 #   9. do_spl_issue_* (specs/039) refuse bad fields, send only the set ones
 #      before it reads anything, sends `spool send --channel` with the
 #      normalized channel and the put files' ids, and names a non-member
@@ -444,6 +447,46 @@ out=$(SNIPPET="${ISS}do_spl_issue_list" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/
 out=$(SNIPPET="${ISS}do_spl_issue_comment" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" FAKE_REFUSE=1 TENANT_ID=t1 DESK_AGENT=CLE-00 \
   ISSUE_REF=SPL-7 ISSUE_BODY=x DRY_RUN=0 2>&1); rc=$?
 [[ $rc -ne 0 && "$out" == *FATAL*from_not_announced* ]] && pass "a hub refusal is a FATAL with the hub's token" || fail "refusal (rc=$rc): $out"
+
+# --- 10. the edit leg (specs/032 §10) -----------------------------------------------
+EDIT_ID=0f8fad5b-d9cb-469f-a165-70867728950e
+echo '| a | b |' >"$T/new.md"; : >"$T/empty.md"
+cat >"$T/fakeedit" <<'FAKE'
+#!/bin/sh
+printf '%s|' "$@" >>"$FAKE_LOG"; echo >>"$FAKE_LOG"
+[ -n "${FAKE_REFUSE:-}" ] && { echo 'spool: hub refused: not_author (only the box that sent a message may edit it)' >&2; exit 78; }
+echo '{"msg_id":"0f8fad5b-d9cb-469f-a165-70867728950e","task_id":"t1","from":"CLE-00","revision":2}'
+FAKE
+chmod +x "$T/fakeedit"; : >"$T/edit.log"
+EDIT='spl_host_spool() { SPL_SPOOL="$FAKE"; }; do_spl_desk_edit'
+SNIPPET=do_spl_desk_edit in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 MSG_ID=$EDIT_ID DESK_BODY=x >"$T/o" 2>&1
+grep -q 'DRY_RUN' "$T/o" && pass "do_spl_desk_edit: the dry run says what it would do" || fail "edit dry run: $(cat "$T/o")"
+for bad in "MSG_ID=" "MSG_ID=NOT-A-UUID" "MSG_ID=0F8FAD5B-D9CB-469F-A165-70867728950E" "DESK_BODY=" "DESK_BODY=  " \
+           "DESK_BODY_FILE=$T/new.md" "DESK_BODY_FILE=$T/no-such.md" "DESK_AGENT=box-desk"; do
+  if SNIPPET="$EDIT" in_orc FAKE="$T/fakeedit" FAKE_LOG="$T/edit.log" TENANT_ID=t1 DESK_AGENT=CLE-00 MSG_ID=$EDIT_ID \
+       DESK_BODY=x DRY_RUN=0 "$bad" >"$T/o" 2>&1; then
+    fail "do_spl_desk_edit refuses $bad: $(cat "$T/o")"
+  else
+    grep -q FATAL "$T/o" && pass "do_spl_desk_edit refuses $bad" || fail "do_spl_desk_edit refuses $bad without saying why: $(cat "$T/o")"
+  fi
+done
+if SNIPPET="$EDIT" in_orc FAKE="$T/fakeedit" FAKE_LOG="$T/edit.log" TENANT_ID=t1 DESK_AGENT=CLE-00 MSG_ID=$EDIT_ID \
+     DESK_BODY_FILE="$T/empty.md" DRY_RUN=0 >"$T/o" 2>&1; then fail "do_spl_desk_edit refuses an empty DESK_BODY_FILE"
+else pass "do_spl_desk_edit refuses an empty DESK_BODY_FILE"; fi
+[[ ! -s "$T/edit.log" ]] && pass "CONTROL no refused edit reached spool" || fail "a refused edit ran spool: $(cat "$T/edit.log")"
+out=$(SNIPPET="$EDIT" in_orc FAKE="$T/fakeedit" FAKE_LOG="$T/edit.log" TENANT_ID=t1 DESK_AGENT=CLE-00 MSG_ID=$EDIT_ID \
+  DESK_BODY_FILE="$T/new.md" DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *'"revision": 2'* ]] && tail -1 "$T/edit.log" | grep -qx "edit|--msg-id|$EDIT_ID|--as|CLE-00|--body-file|$T/new.md|" &&
+  pass "do_spl_desk_edit runs spool edit --msg-id --as --body-file and prints the revision" ||
+  fail "edit (rc=$rc): $out / $(tail -1 "$T/edit.log")"
+out=$(SNIPPET="$EDIT" in_orc FAKE="$T/fakeedit" FAKE_LOG="$T/edit.log" TENANT_ID=t1 DESK_AGENT=CLE-00 MSG_ID=$EDIT_ID \
+  DESK_BODY='new text' DRY_RUN=0 2>&1); rc=$?
+[[ $rc -eq 0 ]] && tail -1 "$T/edit.log" | grep -qx "edit|--msg-id|$EDIT_ID|--as|CLE-00|--body|new text|" &&
+  pass "do_spl_desk_edit DESK_BODY rides as --body" || fail "edit --body (rc=$rc): $out / $(tail -1 "$T/edit.log")"
+out=$(SNIPPET="$EDIT" in_orc FAKE="$T/fakeedit" FAKE_LOG="$T/edit.log" FAKE_REFUSE=1 TENANT_ID=t1 DESK_AGENT=CLE-00 MSG_ID=$EDIT_ID \
+  DESK_BODY=x DRY_RUN=0 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *"only the box that sent a message can edit it"* ]] && pass "a not_author refusal is named as another box's message" ||
+  fail "not_author refusal (rc=$rc): $out"
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-actions.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

@@ -36,6 +36,12 @@ const (
 	// TIssue is an agent's issue request and the hub's answer (specs/039
 	// contracts/issues-v1.md §6); request and reply pair on MsgID.
 	TIssue = "issue"
+	// TEdit is a box editing a message it sent, and the hub's answer
+	// (specs/032 contracts/message-edit-v1.md §10). Without env it fetches the
+	// stored envelope to re-sign; with env it applies the edit. TDelete
+	// removes one. Request and reply pair on MsgID, the edited message's id.
+	TEdit   = "edit"
+	TDelete = "delete"
 )
 
 // Hello roles (http-v1.md §2.2).
@@ -122,6 +128,9 @@ type Frame struct {
 	Issue    json.RawMessage `json:"issue,omitempty"`
 	Query    string          `json:"query,omitempty"`
 	Body     string          `json:"body,omitempty"`
+
+	// edit reply (specs/032 §10): the register revision the edit wrote.
+	Revision int `json:"revision,omitempty"`
 
 	// error
 	Error  string `json:"error,omitempty"`

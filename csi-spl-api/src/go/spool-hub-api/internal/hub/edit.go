@@ -163,7 +163,7 @@ func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	now := s.o.Now().UTC().Truncate(time.Second)
 	rev, err := s.o.Store.ApplyEdit(r.Context(), t.ID, id, store.Edit{
-		Body: body.Body, Msg: inner, Env: canon, EditedBy: from, EditedAt: now})
+		Body: body.Body, Msg: inner, Env: canon, EditedBy: from, EditedAt: now, EnvSig: env.Sig})
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not_found", "no such message")

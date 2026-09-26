@@ -16,6 +16,9 @@
 //	put-file <path>            put-dir <path>
 //	get-file <file_id> <dest>  get-dir <file_id> <dest>
 //	tail    [--task <uuid>] [--json]
+//	edit    --msg-id <uuid> (--body <text> | --body-file <path>) [--as <id>]   hub mode: re-sign
+//	          a message this box sent with a new body (specs/032 §10)
+//	delete  --msg-id <uuid> [--as <id>]   hub mode: remove a message this box sent
 //	mcp [--as <id>]            stdio MCP server exposing the verbs as tools; --as
 //	                           (or $SPOOL_MCP_AS) seats it: it acts for that agent only
 //
@@ -137,6 +140,10 @@ func run(args []string) int {
 		return cmdHubGetFile(cfg, rest)
 	case "issue": // specs/039 FR-008
 		return cmdIssue(cfg, rest)
+	case "edit": // specs/032 §10
+		return cmdEdit(cfg, rest)
+	case "delete":
+		return cmdDelete(cfg, rest)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1

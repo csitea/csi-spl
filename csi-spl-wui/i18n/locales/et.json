@@ -360,7 +360,18 @@
       "unpin": "Eemalda kinnitus",
       "hide": "Eemalda loendist",
       "remove": "Eemalda",
-      "properties": "Properties"
+      "properties": "Properties",
+      "delete_channel": "Kustuta kanal"
+    },
+    "delete_channel": {
+      "title": "Kas kustutada #{name}?",
+      "body": "#{name} kaob kõigi liikmete jaoks koos oma sõnumite, liikmete ja agentidega. Operaator saab selle taastada.",
+      "confirm": "Kustuta kanal",
+      "busy": "Kustutamine…",
+      "error_forbidden": "Ainult selle kanali loonud liige saab selle kustutada.",
+      "error_default": "Vaikekanalit ei saa kustutada.",
+      "error_gone": "Seda kanalit enam ei ole.",
+      "error_fallback": "Kanalit ei kustutatud. Proovi uuesti."
     },
     "users": "Kasutajad",
     "events": "Sündmuste logi",

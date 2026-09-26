@@ -360,7 +360,18 @@
       "unpin": "Откачи",
       "hide": "Ukloni sa liste",
       "remove": "Ukloni",
-      "properties": "Properties"
+      "properties": "Properties",
+      "delete_channel": "Обриши канал"
+    },
+    "delete_channel": {
+      "title": "Обрисати #{name}?",
+      "body": "#{name} нестаје за све чланове, заједно са порукама, члановима и агентима. Оператор може да га врати.",
+      "confirm": "Обриши канал",
+      "busy": "Брисање…",
+      "error_forbidden": "Само члан који је направио овај канал може да га обрише.",
+      "error_default": "Подразумевани канал не може да се обрише.",
+      "error_gone": "Овај канал више не постоји.",
+      "error_fallback": "Канал није обрисан. Покушајте поново."
     },
     "users": "Корисници",
     "events": "Дневник догађаја",

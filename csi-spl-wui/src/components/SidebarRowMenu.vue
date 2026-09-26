@@ -68,6 +68,7 @@ const props = defineProps<{
   pinned?: boolean
   channel?: boolean
   properties?: boolean
+  deletable?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -81,6 +82,7 @@ const emit = defineEmits<{
   hide: []
   pin: []
   properties: []
+  delete: []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -98,6 +100,7 @@ const items = computed(() => rowMenuItems(!!props.unread, {
   pinned: props.pinned,
   channel: props.channel,
   properties: props.properties,
+  deletable: props.deletable,
 }))
 
 function itemEls(): HTMLElement[] {
@@ -207,6 +210,8 @@ function choose(id: string) {
     emit('pin')
   } else if (id === 'properties') {
     emit('properties')
+  } else if (id === 'delete') {
+    emit('delete')
   } else {
     emit('open')
   }

@@ -242,6 +242,17 @@ export function canEditOpenInvite({ selfId, createdBy } = {}) {
   return HUMAN_ID_RE.test(self) && self === String(createdBy || '')
 }
 
+/**
+ * SPL-72: Delete is offered on a created channel to the member who created
+ * it, and to nobody else - no role widens it (channels-v1 §5.4). A default
+ * channel never. The hub refuses anyone else anyway; this only hides it.
+ */
+export function canDeleteChannel({ selfId, row } = {}) {
+  const r = row || {}
+  if (r.default === true || isPublicChannel(normalizeChannelId(String(r.channel_id || '')))) return false
+  return canEditOpenInvite({ selfId, createdBy: r.created_by })
+}
+
 /** Agents that receive the channel. People and the browser box are not agents. */
 export function channelAgentRows(agents) {
   const rows = []
@@ -551,6 +562,20 @@ export function createSpoolClient({
     }
     const list = state.agentMembers[id] || []
     state.agentMembers[id] = list.filter((a) => !(a.id === agent && a.box === boxId))
+    return null
+  }
+
+  function mockDeleteChannel(channel) {
+    const id = normalizeChannelId(channel)
+    const row = state.channels.find((c) => c.channel_id === id)
+    if (!row) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    const members = state.memberships[id] || []
+    if (!isPublicChannel(id) && !members.includes(state.me.id)) {
+      throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+    }
+    if (isPublicChannel(id)) throw memberError(409, 'channel_public', `#${id} is a default channel: it cannot be deleted`)
+    if (row.created_by !== state.me.id) throw memberError(403, 'forbidden', 'forbidden')
+    state.channels = state.channels.filter((c) => c.channel_id !== id)
     return null
   }
 
@@ -1142,6 +1167,15 @@ export function createSpoolClient({
         channel: String((data && (data.channel || data.channel_id)) || channel || ''),
         members_open_invite: returned,
       }
+    },
+    /**
+     * SPL-72, channels-v1 §5.4: the creator soft-deletes a channel. 204.
+     * 404 unknown_channel (not a member), 409 channel_public, 403 forbidden.
+     */
+    async deleteChannel(channel) {
+      if (mock) return mockDeleteChannel(channel)
+      await live(`/v1/channels/${encodeURIComponent(String(channel || ''))}`, { method: 'DELETE' })
+      return null
     },
     /**
      * Upload one browser File / Blob (003 http-v1 §3: raw bytes, Bearer upload

@@ -360,7 +360,18 @@
       "unpin": "Losmaken",
       "hide": "Verwijderen uit lijst",
       "remove": "Verwijderen",
-      "properties": "Properties"
+      "properties": "Properties",
+      "delete_channel": "Kanaal verwijderen"
+    },
+    "delete_channel": {
+      "title": "#{name} verwijderen?",
+      "body": "#{name} verdwijnt voor elk lid, met de berichten, leden en agents. Een operator kan het herstellen.",
+      "confirm": "Kanaal verwijderen",
+      "busy": "Verwijderen…",
+      "error_forbidden": "Alleen het lid dat dit kanaal heeft gemaakt, kan het verwijderen.",
+      "error_default": "Een standaardkanaal kan niet worden verwijderd.",
+      "error_gone": "Dit kanaal bestaat niet meer.",
+      "error_fallback": "Het kanaal is niet verwijderd. Probeer het opnieuw."
     },
     "users": "Gebruikers",
     "events": "Gebeurtenissenlogboek",

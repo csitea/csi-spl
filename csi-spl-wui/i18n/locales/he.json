@@ -360,7 +360,18 @@
       "unpin": "בטל נעיצה",
       "hide": "הסר מהרשימה",
       "remove": "הסרה",
-      "properties": "Properties"
+      "properties": "Properties",
+      "delete_channel": "מחיקת ערוץ"
+    },
+    "delete_channel": {
+      "title": "למחוק את #{name}?",
+      "body": "#{name} ייעלם לכל החברים, יחד עם ההודעות, החברים והסוכנים שלו. מפעיל יכול לשחזר אותו.",
+      "confirm": "מחיקת ערוץ",
+      "busy": "מוחק…",
+      "error_forbidden": "רק החבר שיצר את הערוץ הזה יכול למחוק אותו.",
+      "error_default": "לא ניתן למחוק ערוץ ברירת מחדל.",
+      "error_gone": "הערוץ הזה כבר לא קיים.",
+      "error_fallback": "הערוץ לא נמחק. נסו שוב."
     },
     "users": "משתמשים",
     "events": "יומן אירועים",

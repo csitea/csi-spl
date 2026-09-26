@@ -26,6 +26,8 @@ export const FRAMES = {
   presence: 'presence',
   /* CLE-3425: a channel created anywhere in the tenant (wui-live-ws v0.6) */
   channel: 'channel',
+  /* SPL-72: a channel its creator deleted; sent to its members only */
+  channelDeleted: 'channel_deleted',
   /*
    * CLE-3445 / message-edit-v1 §3: a message whose body was edited.
    *
@@ -235,6 +237,7 @@ export function createLiveClient({
         onPresence(f)
         return
       case FRAMES.channel:
+      case FRAMES.channelDeleted:
         onChannel(f)
         return
       case FRAMES.token:

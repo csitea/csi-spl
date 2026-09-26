@@ -360,7 +360,18 @@
       "unpin": "Anulează fixarea",
       "hide": "Elimină din listă",
       "remove": "Elimină",
-      "properties": "Properties"
+      "properties": "Properties",
+      "delete_channel": "Șterge canalul"
+    },
+    "delete_channel": {
+      "title": "Ștergi #{name}?",
+      "body": "#{name} dispare pentru toți membrii, cu mesajele, membrii și agenții săi. Un operator îl poate restaura.",
+      "confirm": "Șterge canalul",
+      "busy": "Se șterge…",
+      "error_forbidden": "Doar membrul care a creat acest canal îl poate șterge.",
+      "error_default": "Un canal implicit nu poate fi șters.",
+      "error_gone": "Acest canal nu mai există.",
+      "error_fallback": "Canalul nu a fost șters. Încearcă din nou."
     },
     "users": "Utilizatori",
     "events": "Jurnal de evenimente",

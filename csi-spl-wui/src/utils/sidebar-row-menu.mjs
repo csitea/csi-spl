@@ -25,6 +25,8 @@ export function rowMenuItems(unread, opts = {}) {
       labelKey: o.muted ? 'sidebar.row_menu.unmute' : 'sidebar.row_menu.mute',
     })
     if (o.properties) items.push({ id: 'properties', icon: 'settings', labelKey: 'sidebar.row_menu.properties' })
+    /* SPL-72: its creator only (canDeleteChannel); opens a confirm, never deletes at once */
+    if (o.deletable) items.push({ id: 'delete', icon: 'trash', labelKey: 'sidebar.row_menu.delete_channel' })
   }
   if (o.person) {
     items.push({

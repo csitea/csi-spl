@@ -360,7 +360,18 @@
       "unpin": "Unpin",
       "hide": "Remove from list",
       "remove": "Remove",
-      "properties": "Properties"
+      "properties": "Properties",
+      "delete_channel": "Delete channel"
+    },
+    "delete_channel": {
+      "title": "Delete #{name}?",
+      "body": "#{name} disappears for every member, with its messages, members and agents. An operator can restore it.",
+      "confirm": "Delete channel",
+      "busy": "Deleting…",
+      "error_forbidden": "Only the member who created this channel can delete it.",
+      "error_default": "A default channel cannot be deleted.",
+      "error_gone": "This channel no longer exists.",
+      "error_fallback": "The channel was not deleted. Try again."
     },
     "users": "Users",
     "events": "Event log",

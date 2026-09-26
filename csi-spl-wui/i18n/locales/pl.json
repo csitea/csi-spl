@@ -360,7 +360,18 @@
       "unpin": "Odepnij",
       "hide": "Usuń z listy",
       "remove": "Usuń",
-      "properties": "Properties"
+      "properties": "Properties",
+      "delete_channel": "Usuń kanał"
+    },
+    "delete_channel": {
+      "title": "Usunąć #{name}?",
+      "body": "#{name} znika dla wszystkich członków wraz z wiadomościami, członkami i agentami. Operator może go przywrócić.",
+      "confirm": "Usuń kanał",
+      "busy": "Usuwanie…",
+      "error_forbidden": "Tylko członek, który utworzył ten kanał, może go usunąć.",
+      "error_default": "Kanału domyślnego nie można usunąć.",
+      "error_gone": "Ten kanał już nie istnieje.",
+      "error_fallback": "Kanał nie został usunięty. Spróbuj ponownie."
     },
     "users": "Użytkownicy",
     "events": "Dziennik zdarzeń",

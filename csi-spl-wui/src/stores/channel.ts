@@ -3,7 +3,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { emptySendError, isEmptySend, shouldAutoResend } from '~/utils/send-failure.mjs'
 import {
-  addChannelRow,
+  applyChannelFrame,
   belongsTo,
   channelFollow,
   channelView,
@@ -122,8 +122,15 @@ export const useChannelStore = defineStore('channel', () => {
   }
 
   /** CLE-3425 — a channel created anywhere in the tenant (hub `channel` frame). */
+  /** A live `channel` or `channel_deleted` frame (applyChannelFrame). */
   function addChannel(frame: Record<string, unknown>) {
-    channels.value = addChannelRow(channels.value, frame) as ChannelInfo[]
+    channels.value = applyChannelFrame(channels.value, frame) as ChannelInfo[]
+  }
+
+  /** SPL-72: DELETE /v1/channels/{channel}, then drop the row here at once. */
+  async function deleteChannel(id: string) {
+    await withSessionRetry(api, () => api.deleteChannel(id))
+    addChannel({ type: 'channel_deleted', channel: id })
   }
 
   /**
@@ -418,6 +425,7 @@ export const useChannelStore = defineStore('channel', () => {
     dmAt,
     noteLive,
     addChannel,
+    deleteChannel,
     loadDmActivity,
     active,
     peer,

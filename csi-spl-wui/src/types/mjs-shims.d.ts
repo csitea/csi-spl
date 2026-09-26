@@ -12,6 +12,7 @@ declare module '~/utils/spool-client.mjs' {
   export function viewerHumanId(me: { humanId?: string | null } | null | undefined, socketId?: string, opts?: { mock?: boolean, rosterMe?: string }): string
   export function canAddChannelMember(opts: { selfId?: string, createdBy?: string, membersOpenInvite?: boolean }): boolean
   export function canEditOpenInvite(opts: { selfId?: string, createdBy?: string }): boolean
+  export function canDeleteChannel(opts: { selfId?: string, row?: { channel_id?: string, default?: boolean, created_by?: string } }): boolean
   export function channelAgentRows(agents: readonly { id?: string, box?: string }[] | null | undefined): { id: string, box: string }[]
   export function channelAgentCandidates(roster: Record<string, readonly string[]> | null | undefined, current: readonly { id?: string, box?: string }[] | null | undefined): { id: string, box: string }[]
   export function defaultChannelRows(roster: Record<string, readonly string[]> | null | undefined, subscribed: readonly { id?: string, box?: string }[] | null | undefined): { people: string[], agents: { id: string, box: string }[] }
@@ -99,6 +100,8 @@ declare module '~/utils/spool-client.mjs' {
     removeChannelMember(channel: string, humanId: string): Promise<null>
     removeChannelAgent(channel: string, agentId: string, box: string): Promise<null>
     setMembersOpenInvite(channel: string, open: boolean): Promise<{ channel: string, members_open_invite: boolean }>
+    /** SPL-72: the creator deletes a channel (soft, channels-v1 §5.4). */
+    deleteChannel(channel: string): Promise<null>
     /** message-edit-v1 §1: PATCH /v1/messages/{msg_id} with { body }. */
     editMessage(msgId: string, body: string): Promise<import('./spool').SpoolMessage>
     deleteMessage(msgId: string): Promise<null>
@@ -241,6 +244,7 @@ declare module '~/utils/channel-feed.mjs' {
     self?: string,
   ): { channels: Record<string, string>, peers: Record<string, string> }
   export function addChannelRow<T>(rows: T[], frame: unknown): T[]
+  export function applyChannelFrame<T>(rows: T[], frame: unknown): T[]
 }
 
 declare module '~/utils/mock-data.mjs' {

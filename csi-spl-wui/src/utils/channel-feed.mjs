@@ -715,6 +715,19 @@ export function addChannelRow(rows, frame) {
 }
 
 /**
+ * One sidebar frame applied to the channel rows (wui-live-ws v0.6):
+ * `channel` adds a row, `channel_deleted` (SPL-72, channels-v1 §5.4) drops it.
+ */
+export function applyChannelFrame(rows, frame) {
+  const f = frame || {}
+  if (f.type !== 'channel_deleted') return addChannelRow(rows, f)
+  const id = String(f.channel || '')
+  const list = rows || []
+  if (!id || !list.some((c) => String(c.channel_id || '') === id)) return list
+  return list.filter((c) => String(c.channel_id || '') !== id)
+}
+
+/**
  * The DM-level WS subscription for the open view (wui-live-ws v0.5 `peer`):
  * the open DM peer, none for a channel. Same shape as channelFollow.
  */

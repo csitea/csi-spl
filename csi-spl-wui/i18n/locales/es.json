@@ -360,7 +360,18 @@
       "unpin": "Quitar fijación",
       "hide": "Quitar de la lista",
       "remove": "Quitar",
-      "properties": "Properties"
+      "properties": "Properties",
+      "delete_channel": "Eliminar canal"
+    },
+    "delete_channel": {
+      "title": "¿Eliminar #{name}?",
+      "body": "#{name} desaparece para todos los miembros, con sus mensajes, miembros y agentes. Un operador puede restaurarlo.",
+      "confirm": "Eliminar canal",
+      "busy": "Eliminando…",
+      "error_forbidden": "Solo el miembro que creó este canal puede eliminarlo.",
+      "error_default": "Un canal predeterminado no se puede eliminar.",
+      "error_gone": "Este canal ya no existe.",
+      "error_fallback": "El canal no se eliminó. Inténtalo de nuevo."
     },
     "users": "Usuarios",
     "events": "Registro de eventos",

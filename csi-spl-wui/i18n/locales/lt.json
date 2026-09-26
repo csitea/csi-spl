@@ -360,7 +360,18 @@
       "unpin": "Atsegti",
       "hide": "Pašalinti iš sąrašo",
       "remove": "Pašalinti",
-      "properties": "Properties"
+      "properties": "Properties",
+      "delete_channel": "Ištrinti kanalą"
+    },
+    "delete_channel": {
+      "title": "Ištrinti #{name}?",
+      "body": "#{name} dings visiems nariams kartu su žinutėmis, nariais ir agentais. Operatorius gali jį atkurti.",
+      "confirm": "Ištrinti kanalą",
+      "busy": "Trinama…",
+      "error_forbidden": "Ištrinti šį kanalą gali tik jį sukūręs narys.",
+      "error_default": "Numatytojo kanalo ištrinti negalima.",
+      "error_gone": "Šio kanalo nebėra.",
+      "error_fallback": "Kanalas neištrintas. Bandykite dar kartą."
     },
     "users": "Naudotojai",
     "events": "Įvykių žurnalas",

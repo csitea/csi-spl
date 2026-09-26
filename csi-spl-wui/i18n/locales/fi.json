@@ -360,7 +360,18 @@
       "unpin": "Irrota",
       "hide": "Poista listalta",
       "remove": "Poista",
-      "properties": "Properties"
+      "properties": "Properties",
+      "delete_channel": "Poista kanava"
+    },
+    "delete_channel": {
+      "title": "Poistetaanko #{name}?",
+      "body": "#{name} katoaa kaikilta jäseniltä viesteineen, jäsenineen ja agentteineen. Operaattori voi palauttaa sen.",
+      "confirm": "Poista kanava",
+      "busy": "Poistetaan…",
+      "error_forbidden": "Vain kanavan luonut jäsen voi poistaa sen.",
+      "error_default": "Oletuskanavaa ei voi poistaa.",
+      "error_gone": "Tätä kanavaa ei ole enää.",
+      "error_fallback": "Kanavaa ei poistettu. Yritä uudelleen."
     },
     "users": "Käyttäjät",
     "events": "Tapahtumaloki",

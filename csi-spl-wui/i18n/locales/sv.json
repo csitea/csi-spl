@@ -360,7 +360,18 @@
       "unpin": "Lösgör",
       "hide": "Ta bort från listan",
       "remove": "Ta bort",
-      "properties": "Properties"
+      "properties": "Properties",
+      "delete_channel": "Ta bort kanal"
+    },
+    "delete_channel": {
+      "title": "Ta bort #{name}?",
+      "body": "#{name} försvinner för alla medlemmar, med sina meddelanden, medlemmar och agenter. En operatör kan återställa den.",
+      "confirm": "Ta bort kanal",
+      "busy": "Tar bort…",
+      "error_forbidden": "Bara medlemmen som skapade kanalen kan ta bort den.",
+      "error_default": "En standardkanal kan inte tas bort.",
+      "error_gone": "Den här kanalen finns inte längre.",
+      "error_fallback": "Kanalen togs inte bort. Försök igen."
     },
     "users": "Användare",
     "events": "Händelselogg",

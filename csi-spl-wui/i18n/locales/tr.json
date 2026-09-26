@@ -360,7 +360,18 @@
       "unpin": "Sabitlemeyi kaldır",
       "hide": "Listeden kaldır",
       "remove": "Kaldır",
-      "properties": "Properties"
+      "properties": "Properties",
+      "delete_channel": "Kanalı sil"
+    },
+    "delete_channel": {
+      "title": "#{name} silinsin mi?",
+      "body": "#{name}, mesajları, üyeleri ve ajanlarıyla birlikte tüm üyeler için kaybolur. Bir operatör onu geri yükleyebilir.",
+      "confirm": "Kanalı sil",
+      "busy": "Siliniyor…",
+      "error_forbidden": "Bu kanalı yalnızca onu oluşturan üye silebilir.",
+      "error_default": "Varsayılan bir kanal silinemez.",
+      "error_gone": "Bu kanal artık yok.",
+      "error_fallback": "Kanal silinmedi. Yeniden deneyin."
     },
     "users": "Kullanıcılar",
     "events": "Olay günlüğü",

@@ -12,13 +12,17 @@ import { topicQuery } from './topic-open.mjs'
  * That place is the channel (/channel/<id>) or the DM (/dm/<peer>) the
  * message belongs to, with the open topic kept in ?topic= / ?in= (so the
  * parent card is the selected one) and the message itself as the hash (so
- * the thread pane scrolls to it). An issue's discussion is a topic in
- * #tasks that the channel list never shows (spec 039, NoIssues); its parent
+ * the thread pane scrolls to it). An issue's discussion is a topic in the
+ * reserved `issues` id that the channel list never shows (spec 039 §3.4,
+ * SPL-68 - it was #tasks until that channel was removed); its parent
  * section is the Issues tab with that issue selected.
  */
 
-/** The channel an issue's discussion lives in (hub store.ChannelTasks). */
-export const ISSUE_CHANNEL = 'tasks'
+/** The channel id an issue's discussion lives in (hub store.ChannelIssues). */
+export const ISSUE_CHANNEL = 'issues'
+
+/** Where issue discussions lived before rdb 0050 moved them (hub store.ChannelTasks). */
+const RETIRED_ISSUE_CHANNEL = 'tasks'
 
 /** A message's channel id, without a leading '#'. '' for a DM. */
 export function parentChannelOf(msg) {
@@ -33,11 +37,13 @@ export function parentTopicOf(msg) {
 }
 
 /**
- * Could this message be an issue's discussion? Only #tasks carries them;
+ * Could this message be an issue's discussion? Only the issue channel
+ * carries them (and the retired #tasks, until rdb 0050 has moved its rows);
  * the caller asks the hub which issue, if any, owns the topic.
  */
 export function mayBeIssueTopic(msg) {
-  return parentChannelOf(msg).toLowerCase() === ISSUE_CHANNEL
+  const ch = parentChannelOf(msg).toLowerCase()
+  return ch === ISSUE_CHANNEL || ch === RETIRED_ISSUE_CHANNEL
 }
 
 /** Is `target` the open topic this message is shown in? */
@@ -67,6 +73,8 @@ export function parentSection(msg, opts = {}) {
   if (key) return { path: '/issues', query: { issue: key }, hash: '', kind: 'issue' }
 
   const ch = parentChannelOf(m)
+  /* the issue channel is not a place of its own: the Issues tab is */
+  if (ch.toLowerCase() === ISSUE_CHANNEL) return { path: '/issues', query: {}, hash: '', kind: 'issue' }
   let path = ''
   let kind = /** @type {'channel' | 'dm'} */ ('channel')
   if (ch) {

@@ -13,7 +13,7 @@
 //   and first, a file dialog closed with nothing shows the no-file notice
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
-//     [TENANT=t1] [CHANNEL=tasks] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home] \
+//     [TENANT=t1] [CHANNEL=lobby] [PEER=<agent>@<box>] [SURFACES=channel,dm,lobby,home] \
 //     [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/attach-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -39,7 +39,7 @@ const OUT = need('OUT')
 const email = need('EMAIL')
 const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 't1'
-const CHANNEL = process.env.CHANNEL || 'tasks'
+const CHANNEL = process.env.CHANNEL || 'lobby'
 const PEER = process.env.PEER || ''
 const SURFACES = (process.env.SURFACES || 'channel,dm,lobby,home').split(',').map((s) => s.trim()).filter(Boolean)
 mkdirSync(OUT, { recursive: true })

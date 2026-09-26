@@ -132,9 +132,10 @@ describe('mock membership', () => {
 
   it('a default channel has no invite list and refuses the write', async () => {
     const c = createSpoolClient({ mock: true })
-    for (const name of ['lobby', 'tasks', 'alerts', 'feedback', 'general']) {
+    for (const name of ['lobby', 'alerts', 'feedback', 'general', 'issues']) {
       assert.equal(isPublicChannel(name), true)
     }
+    assert.equal(isPublicChannel('tasks'), false, '#tasks is gone (SPL-68)')
     const lobby = await c.listChannelMembers('lobby')
     assert.equal(lobby.default, true)
     assert.deepEqual(lobby.members, [])
@@ -145,14 +146,14 @@ describe('mock membership', () => {
 
   it('a default channel starts with no agents; a member adds and removes one (2026-09-25)', async () => {
     const c = createSpoolClient({ mock: true })
-    for (const name of ['lobby', 'tasks', 'alerts', 'feedback']) {
+    for (const name of ['lobby', 'alerts', 'feedback']) {
       const row = await c.listChannelMembers(name)
       assert.equal(row.default, true)
       assert.deepEqual(row.agents, [], `#${name} has no agent until someone adds one`)
     }
     await c.addChannelAgent('lobby', 'GRK-03', 'box-a')
     assert.deepEqual((await c.listChannelMembers('lobby')).agents, [{ id: 'GRK-03', box: 'box-a' }])
-    assert.deepEqual((await c.listChannelMembers('tasks')).agents, [], 'a lobby pick does not leak into #tasks')
+    assert.deepEqual((await c.listChannelMembers('alerts')).agents, [], 'a lobby pick does not leak into #alerts')
     await c.removeChannelAgent('lobby', 'GRK-03', 'box-a')
     assert.deepEqual((await c.listChannelMembers('lobby')).agents, [])
     await assert.rejects(c.addChannelAgent('lobby', 'CLE-99', 'box-a'), (e) => e.token === 'not_a_member')

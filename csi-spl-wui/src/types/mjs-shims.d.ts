@@ -404,7 +404,7 @@ declare module '~/utils/msg-menu.mjs' {
 }
 
 declare module '~/utils/parent-section.mjs' {
-  export const ISSUE_CHANNEL: 'tasks'
+  export const ISSUE_CHANNEL: 'issues'
   export interface ParentSection { path: string, query: Record<string, string>, hash: string, kind: 'channel' | 'dm' | 'issue' }
   export function parentChannelOf(msg: unknown): string
   export function parentTopicOf(msg: unknown): string

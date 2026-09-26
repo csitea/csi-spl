@@ -15,7 +15,7 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const SHOTS = process.env.PARENT_SHOTS || mkdtempSync(join(tmpdir(), 'spool-parent-'))
-/* the mock tenant (utils/mock-data.mjs): a #tasks topic and one of its replies */
+/* the mock tenant (utils/mock-data.mjs): a #lobby topic and one of its replies */
 const ROOT_MSG = '22222222-2222-4222-8222-222222222222'
 const TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const REPLY = '33333333-3333-4333-8333-333333333333'
@@ -77,10 +77,10 @@ try {
   ok('3 the item is reachable from the keyboard', focused === 'msg-menu-parent', { focused })
   await p.keyboard.press('Enter')
 
-  await p.waitForFunction(() => location.pathname.endsWith('/channel/tasks'), { timeout: 10000 }).catch(() => null)
+  await p.waitForFunction(() => location.pathname.endsWith('/channel/lobby'), { timeout: 10000 }).catch(() => null)
   const url = new URL(p.url())
   ok('4 the address is the channel with the topic open and the message as the hash',
-    url.pathname.endsWith('/channel/tasks') && url.searchParams.get('topic') === TOPIC && url.hash === '#' + REPLY, p.url())
+    url.pathname.endsWith('/channel/lobby') && url.searchParams.get('topic') === TOPIC && url.hash === '#' + REPLY, p.url())
 
   const tab = await p.waitForSelector('[data-testid=sidebar-tab-channels][aria-selected="true"]', { timeout: 5000 }).then(() => true).catch(() => false)
   ok('5 the Channels rail tab is selected', tab)

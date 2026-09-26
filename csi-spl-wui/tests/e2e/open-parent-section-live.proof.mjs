@@ -17,7 +17,7 @@
 //      detail on the right. The probe issue is then set to canceled.
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
-//     [TENANT=t1] [CHANNEL=tasks] [ISSUE=1] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
+//     [TENANT=t1] [CHANNEL=lobby] [ISSUE=1] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/open-parent-section-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -43,7 +43,7 @@ const OUT = need('OUT')
 const email = need('EMAIL')
 const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 't1'
-const CHANNEL = process.env.CHANNEL || 'tasks'
+const CHANNEL = process.env.CHANNEL || 'lobby'
 const ISSUE = process.env.ISSUE !== '0'
 mkdirSync(OUT, { recursive: true })
 

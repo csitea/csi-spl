@@ -19,7 +19,7 @@
 //      and is taller than 5 rows
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
-//     [TENANT=t1] [CHANNEL=tasks] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
+//     [TENANT=t1] [CHANNEL=lobby] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/card-clip-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -46,7 +46,7 @@ const OUT = need('OUT')
 const email = need('EMAIL')
 const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 't1'
-const CHANNEL = process.env.CHANNEL || 'tasks'
+const CHANNEL = process.env.CHANNEL || 'lobby'
 mkdirSync(OUT, { recursive: true })
 
 const res = { base: BASE, at: new Date().toISOString(), tenant: TENANT, steps: [], console: [] }

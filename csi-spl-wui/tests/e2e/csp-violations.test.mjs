@@ -40,7 +40,7 @@ const PATHS = split(process.env.PATHS, [
   '/',
   '/lobby',
   '/channel/general',
-  '/channel/tasks',
+  '/channel/alerts',
   '/t/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   '/settings/keys',
   '/search?q=deploy',

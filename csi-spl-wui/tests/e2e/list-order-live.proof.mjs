@@ -261,7 +261,7 @@ try {
 
   // 2.2 a message in ANOTHER channel bumps that channel to the top of B's sidebar
   await open(b, '/')
-  const target = sideCh.map((c) => c.key).find((c) => c && c !== CHANNEL) || 'tasks'
+  const target = sideCh.map((c) => c.key).find((c) => c && c !== CHANNEL) || 'alerts'
   await open(a, '/channel/' + target)
   const sideSeen = until(b, (want) => {
     const first = document.querySelector('nav.sidebar a.nav-item[href*="/channel/"]')

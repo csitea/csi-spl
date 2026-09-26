@@ -83,8 +83,12 @@ const CHANNEL_ERRORS = {
   bad_channel: (slug) => `"${slug}" is not a valid channel name (a-z, 0-9, "-", max 64)`,
 }
 
-/** store.ChannelPublic: the default channels. `general` is the lobby alias. */
-const PUBLIC_CHANNELS = new Set(['lobby', 'tasks', 'alerts', 'feedback'])
+/**
+ * store.ChannelPublic: the default channels, and `issues` - the reserved id
+ * every issue's discussion is stored under (spec 039 §3.4), which no channel
+ * list shows. `general` is the lobby alias. #tasks is gone (SPL-68).
+ */
+const PUBLIC_CHANNELS = new Set(['lobby', 'alerts', 'feedback', 'issues'])
 const HUMAN_ID_RE = /^HUM-[0-9]+$/
 
 export function normalizeChannelId(channel) {
@@ -256,7 +260,7 @@ export function channelAgentRows(agents) {
 }
 
 /**
- * Who a default channel (lobby, tasks, alerts) lists: every person of the
+ * Who a default channel (lobby, alerts, feedback) lists: every person of the
  * tenant, read-only, and only the agents someone added (owner decision
  * 2026-09-25). An announced agent is NOT in it until a member picks it.
  */

@@ -310,7 +310,7 @@ describe('the lde mock edits for real, including the refusals', () => {
 
   it("refuses somebody else's message with the hub's own token", async () => {
     const c = createSpoolClient({ mock: true })
-    const theirs = (await c.listMessages({ channel: 'tasks' })).messages.find((m) => m.from !== 'HUM-1')
+    const theirs = (await c.listMessages({ channel: 'lobby' })).messages.find((m) => m.from !== 'HUM-1')
     await assert.rejects(() => c.editMessage(theirs.msg_id, 'x'), (e) => e.status === 403 && e.token === 'not_author')
   })
 

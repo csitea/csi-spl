@@ -214,6 +214,7 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { useLive } from '~/composables/useLive'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import { tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
 import { ISSUE_STATUSES, createMockIssues, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
@@ -719,9 +720,9 @@ async function sendComment() {
   try {
     const sock = live.ensure()
     if (sock) {
-      await sock.send({ task_id: issue.task_id, kind: 'note', body: text, files: [], channel: issue.channel || 'tasks', is_parent: 0 })
+      await sock.send({ task_id: issue.task_id, kind: 'note', body: text, files: [], channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
     } else {
-      await api.sendMessage({ text, task_id: issue.task_id, channel: issue.channel || 'tasks', is_parent: 0 })
+      await api.sendMessage({ text, task_id: issue.task_id, channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
     }
     commentText.value = ''
     await loadComments(issue)

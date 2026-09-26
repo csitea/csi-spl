@@ -9,7 +9,6 @@ export const MOCK_ME = { id: 'HUM-1', box: 'box-wui', display: 'HUM-1@box-wui' }
 
 export const MOCK_CHANNELS = [
   { channel_id: 'lobby', name: 'lobby', created_by: 'HUM-1' },
-  { channel_id: 'tasks', name: 'tasks', created_by: 'HUM-1' },
   { channel_id: 'alerts', name: 'alerts', created_by: 'HUM-1' },
   { channel_id: 'feedback', name: 'feedback', created_by: 'hub' },
 ]
@@ -56,7 +55,7 @@ export const MOCK_MESSAGES = [
     to: 'CLE-07',
     kind: 'task',
     body: 'Review the spool WUI scaffold and keep tests green.',
-    channel: 'tasks',
+    channel: 'lobby',
   }),
   msg({
     msg_id: '33333333-3333-4333-8333-333333333333',
@@ -66,7 +65,7 @@ export const MOCK_MESSAGES = [
     to: 'HUM-1',
     kind: 'note',
     body: 'Applying patch',
-    channel: 'tasks',
+    channel: 'lobby',
     parent_task_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   }),
   msg({
@@ -77,7 +76,7 @@ export const MOCK_MESSAGES = [
     to: 'HUM-1',
     kind: 'note',
     body: '[verbose] ran `pnpm test:unit` — 2 files',
-    channel: 'tasks',
+    channel: 'lobby',
     parent_task_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   }),
   msg({
@@ -88,7 +87,7 @@ export const MOCK_MESSAGES = [
     to: 'HUM-1',
     kind: 'result',
     body: 'Scaffold is up. Tests green.',
-    channel: 'tasks',
+    channel: 'lobby',
     parent_task_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     files: [
       {

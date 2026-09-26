@@ -12,7 +12,7 @@ import type { SpoolMessage } from '~/types/spool'
  *
  * The address is utils/parent-section.mjs. What this adds is the part that
  * needs the app: who the viewer is (the DM end that is not the peer), the
- * hub's answer to "is this #tasks topic an issue", and the hand-over of the
+ * hub's answer to "is this issue-channel topic an issue", and the hand-over of the
  * open thread. A thread opened from /search sits in the live pane; the
  * channel and DM pages show theirs in the channel topic pane, and a target
  * that did not change opens nothing (useTopicRoute), so once the page is
@@ -44,7 +44,7 @@ export function useParentSection() {
       const list = await withSessionRetry(api, () => api.listIssues())
       return issueKeyForTask(list, task)
     } catch {
-      /* no answer: #tasks is still the place the message was posted in */
+      /* no answer: the Issues tab (or the retired #tasks) is still the place */
       return ''
     }
   }

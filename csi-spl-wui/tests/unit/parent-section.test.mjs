@@ -81,17 +81,25 @@ describe('parentSection: a DM thread message', () => {
 
 describe('parentSection: an issue discussion', () => {
   it('goes to the Issues tab with that issue selected', () => {
-    const s = parentSection({ msg_id: MSG, task_id: TOPIC, channel: 'tasks' }, { issueKey: 'SPL-15' })
+    const s = parentSection({ msg_id: MSG, task_id: TOPIC, channel: 'issues' }, { issueKey: 'SPL-15' })
     assert.deepEqual(s, { path: '/issues', query: { issue: 'SPL-15' }, hash: '', kind: 'issue' })
     assert.equal(tabForPath(s.path), 'issues')
   })
 
-  it('only #tasks may be an issue topic', () => {
-    assert.equal(ISSUE_CHANNEL, 'tasks')
+  it('only the issue channel (or the retired #tasks) may be an issue topic', () => {
+    assert.equal(ISSUE_CHANNEL, 'issues')
+    assert.equal(mayBeIssueTopic({ channel: 'issues' }), true)
+    assert.equal(mayBeIssueTopic({ channel: '#Issues' }), true)
     assert.equal(mayBeIssueTopic({ channel: 'tasks' }), true)
-    assert.equal(mayBeIssueTopic({ channel: '#Tasks' }), true)
     assert.equal(mayBeIssueTopic({ channel: 'dev' }), false)
     assert.equal(mayBeIssueTopic({}), false)
+  })
+
+  it('never sends anyone to /channel/issues (SPL-68: it is not a channel)', () => {
+    const s = parentSection({ msg_id: MSG, task_id: TOPIC, channel: 'issues' })
+    assert.deepEqual(s, { path: '/issues', query: {}, hash: '', kind: 'issue' })
+    /* CONTROL: a real channel still goes to its channel page */
+    assert.equal(parentSection({ msg_id: MSG, task_id: TOPIC, channel: 'dev' }).path, '/channel/dev')
   })
 
   it('finds the issue by its discussion task', () => {

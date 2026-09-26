@@ -117,6 +117,9 @@ func (p *parser) operator(t *token, name, val string, phrase, neg bool) (*Node, 
 		}
 		term.Value = e
 	case OpStatus:
+		if IssueStatusNormalize != nil {
+			lv = IssueStatusNormalize(lv)
+		}
 		ok := false
 		for _, s := range IssueStatuses {
 			ok = ok || s == lv

@@ -21,6 +21,8 @@ import (
 // priority:) from here, the one place they are defined (issues.go).
 func init() {
 	search.IssueStatuses = IssueStatuses
+	search.IssueStatusNormalize = NormalizeIssueStatus
+	search.IssuePriorityMin = IssuePriorityMin
 	search.IssuePriorityMax = IssuePriorityMax
 }
 

@@ -121,6 +121,10 @@ var (
 	IssueStatuses    []string
 	IssuePriorityMin = 0
 	IssuePriorityMax = -1
+	// IssueStatusNormalize maps an older status name to its successor
+	// (store.NormalizeIssueStatus: in_progress -> wip ...), so a query typed
+	// with the old names keeps working. nil = as typed.
+	IssueStatusNormalize func(string) string
 )
 
 // Operator is one row of the operator table (search-v1 §3.2, §6).
@@ -165,7 +169,7 @@ var Operators = []Operator{
 	{Name: OpExt, Values: "ext", Applies: []Type{TypeFile}, Example: "ext:pdf", Doc: "attachment extension"},
 	{Name: OpLarger, Values: "size", Applies: []Type{TypeFile}, Example: "larger:1M", Doc: "attachment larger than (bytes, K, M, G)"},
 	{Name: OpSmaller, Values: "size", Applies: []Type{TypeFile}, Example: "smaller:10K", Doc: "attachment smaller than (bytes, K, M, G)"},
-	{Name: OpStatus, Values: "status", Applies: []Type{TypeIssue}, Example: "status:in_progress", Doc: "issue status: backlog, todo, in_progress, in_review, done, canceled"},
+	{Name: OpStatus, Values: "status", Applies: []Type{TypeIssue}, Example: "status:wip", Doc: "issue status: eval, todo, wip, diss, qas, done (older names such as in_progress still work)"},
 	{Name: OpPriority, Aliases: []string{"prio"}, Values: "priority", Applies: []Type{TypeIssue}, Example: "prio:1", Doc: "issue priority, a number (prio=1 works too)"},
 	{Name: OpAssignee, Values: "id", Applies: []Type{TypeIssue}, Example: "assignee:me", Doc: "issue assignee: a member or agent id, me, or none"},
 	{Name: OpLabel, Values: "text", Applies: []Type{TypeIssue}, Example: "label:bug", Doc: "issue label"},

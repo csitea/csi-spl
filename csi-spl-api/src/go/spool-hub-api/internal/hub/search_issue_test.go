@@ -85,8 +85,9 @@ func TestSearchIssues(t *testing.T) {
 	want("type:issue scans", "HUM-3", slow.Key())                        // the description is content
 	want("type:issue cafe", "HUM-3", cafe.Key())                         // folded
 	want("type:issue name:"+slow.Key(), "HUM-3", slow.Key())
-	want("status:wip", "HUM-3", slow.Key()) // implies type:issue
-	want("priority:5", "HUM-3", cafe.Key()) // prio 1..5 (rdb 0054): an unset priority is 5
+	want("status:wip", "HUM-3", slow.Key())         // implies type:issue
+	want("status:in_progress", "HUM-3", slow.Key()) // an older name still finds it (store.NormalizeIssueStatus)
+	want("priority:5", "HUM-3", cafe.Key())         // prio 1..5 (rdb 0054): an unset priority is 5
 	want("assignee:me", "HUM-3", slow.Key())
 	want("assignee:me", "HUM-4")
 	want("assignee:none", "HUM-3", cafe.Key())

@@ -11,15 +11,24 @@ import (
 func issueFixture(t *testing.T) {
 	s, m := IssueStatuses, IssuePriorityMax
 	t.Cleanup(func() { IssueStatuses, IssuePriorityMax = s, m })
-	IssueStatuses = []string{"backlog", "todo", "in_progress", "in_review", "done", "canceled"}
-	IssuePriorityMax = 4
+	s0, n0, m0 := IssueStatuses, IssueStatusNormalize, IssuePriorityMin
+	t.Cleanup(func() { IssueStatuses, IssueStatusNormalize, IssuePriorityMin = s0, n0, m0 })
+	// the owner's set (rdb 0055) and prio 1..5 (rdb 0054), as store hands them over
+	IssueStatuses = []string{"eval", "todo", "wip", "diss", "qas", "done"}
+	IssueStatusNormalize = func(s string) string {
+		if n, ok := map[string]string{"backlog": "eval", "in_progress": "wip", "in_review": "qas", "canceled": "diss"}[s]; ok {
+			return n
+		}
+		return s
+	}
+	IssuePriorityMin, IssuePriorityMax = 1, 5
 }
 
 func TestIssueGrammar(t *testing.T) {
 	issueFixture(t)
 	iss := Entity{Type: TypeIssue, Name: "SPL-12 Search is slow", Text: []string{"SPL-12", "Search is slow", "the topic section scans"},
-		Status: "in_progress", Priority: 1, Assignee: "HUM-3", Labels: []string{"perf", "Search"}, Me: "HUM-3"}
-	other := Entity{Type: TypeIssue, Name: "SPL-13 Café menu", Text: []string{"SPL-13", "Café menu"}, Status: "todo", Priority: 0}
+		Status: "wip", Priority: 1, Assignee: "HUM-3", Labels: []string{"perf", "Search"}, Me: "HUM-3"}
+	other := Entity{Type: TypeIssue, Name: "SPL-13 Café menu", Text: []string{"SPL-13", "Café menu"}, Status: "todo", Priority: 5}
 	cases := []struct {
 		q     string
 		types []Type
@@ -31,11 +40,13 @@ func TestIssueGrammar(t *testing.T) {
 		{"type:issue name:scans", []Type{TypeIssue}, false, false},
 		{"type:issue name:spl-12", []Type{TypeIssue}, true, false},
 		{"type:issue cafe", []Type{TypeIssue}, false, true},
-		{"status:in_progress", []Type{TypeIssue}, true, false}, // implies type:issue
+		{"status:wip", []Type{TypeIssue}, true, false},         // implies type:issue
+		{"status:in_progress", []Type{TypeIssue}, true, false}, // an older name, normalised to wip
+		{"status:WIP", []Type{TypeIssue}, true, false},
 		{"status:todo OR status:done", []Type{TypeIssue}, false, true},
 		{"-status:todo", []Type{TypeIssue}, true, false},
 		{"priority:1", []Type{TypeIssue}, true, false},
-		{"priority:0", []Type{TypeIssue}, false, true},
+		{"priority:5", []Type{TypeIssue}, false, true},
 		{"assignee:me", []Type{TypeIssue}, true, false},
 		{"assignee:none", []Type{TypeIssue}, false, true},
 		{"assignee:hum-3", []Type{TypeIssue}, true, false},
@@ -56,7 +67,7 @@ func TestIssueGrammar(t *testing.T) {
 		}
 	}
 	// CONTROLS: closed sets, applicability
-	for _, bad := range []string{"status:open", "priority:5", "priority:x", `assignee:"a b"`, "type:message status:done", "status:done from:CLE-07"} {
+	for _, bad := range []string{"status:open", "status:backlogs", "priority:0", "priority:6", "priority:x", `assignee:"a b"`, "type:message status:done", "status:done from:CLE-07"} {
 		if _, err := Parse(bad, now); err == nil {
 			t.Errorf("%q must be a bad query", bad)
 		}

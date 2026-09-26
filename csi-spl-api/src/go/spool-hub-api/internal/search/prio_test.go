@@ -46,7 +46,7 @@ func TestPrioAndEquals(t *testing.T) {
 		}
 	}
 	// CONTROLS: the range comes from the store's sets
-	for _, bad := range []string{"prio=5", "prio=-1", "prio=x", "prio="} {
+	for _, bad := range []string{"prio=6", "prio=0", "prio=-1", "prio=x", "prio="} {
 		if _, err := Parse(bad, now); err == nil {
 			t.Errorf("%q must be a bad query", bad)
 		}

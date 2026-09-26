@@ -489,14 +489,19 @@
       <!-- owner, 2026-09-26: the connection dot, the alerts bell and the chime
            note on ONE row, icons only; the words are the hover text. -->
       <div class="foot-row">
-        <!-- CLE-3433: the semver plus the deployed commit, so "did my fix
-             ship?" is answerable from the page instead of from build.json.
-             Owner, 2026-09-26: on the same row, right of the dot, bell and
-             note; one line, the hash ellipsized first, the full text on hover. -->
-        <!-- owner, 2026-09-26: only the version shows; hovering or focusing it
-             opens a card with the commit that STAYS open while the pointer is
-             on it (0.6 s grace to cross over), so the sha can be selected and
-             copied. No native title: it vanishes before anyone can copy it. -->
+        <div
+          class="health"
+          data-testid="connection-health"
+          role="status"
+          :title="t('sidebar.health_title', { state: stateLabel(live.state.value) })"
+          :aria-label="t('sidebar.health.' + health)"
+        >
+          <span class="health-dot" :class="health" />
+        </div>
+        <NotificationCenter />
+        <!-- The version sits on this row, just right of the note. Only the
+             version is painted. Hover or click opens the commit, and it stays
+             while the pointer is on it so the hash can be copied. -->
         <span
           class="vs-wrap"
           :class="{ 'is-open': vsOpen }"
@@ -516,16 +521,6 @@
             <span v-if="buildMeta" class="vs-pop__meta">{{ buildMeta }}</span>
           </span>
         </span>
-        <div
-          class="health"
-          data-testid="connection-health"
-          role="status"
-          :title="t('sidebar.health_title', { state: stateLabel(live.state.value) })"
-          :aria-label="t('sidebar.health.' + health)"
-        >
-          <span class="health-dot" :class="health" />
-        </div>
-        <NotificationCenter />
       </div>
       <!-- identity, Sign in / Sign out: the top-right UserMenu (CLE-3402) -->
     </div>
@@ -1375,7 +1370,7 @@ async function onCreate() {
 }
 .foot-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; }
 .foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }
-.foot-row .vs-wrap { position: relative; flex: 0 1 auto; min-width: 0; display: flex; outline-offset: 2px; }
+.foot-row .vs-wrap { position: relative; flex: 1 1 auto; min-width: 0; display: flex; outline-offset: 2px; }
 .foot-row .version-stamp {
   flex: 1 1 auto;
   min-width: 0;
@@ -1392,7 +1387,8 @@ async function onCreate() {
 .foot-row .vs-pop {
   position: absolute;
   bottom: 100%;
-  inset-inline-start: 0;
+  inset-inline-start: auto;
+  inset-inline-end: 0;
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -1432,5 +1428,6 @@ async function onCreate() {
 
 @media (max-width: 800px) {
   .foot-row { flex-direction: column; padding: 6px 4px; }
+  .foot-row .vs-wrap { display: none; }
 }
 </style>

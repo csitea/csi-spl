@@ -51,11 +51,10 @@ describe('build stamp (CLE-3433)', () => {
     assert.match(s, /from '~\/utils\/build-stamp\.mjs'/)
     assert.match(s, /onMounted\(async \(\) => \{ build\.value = await readBuildStamp\(\) \}\)/)
     assert.match(s, /data-test="app-version"/)
-    // owner 2026-09-26: the stamp sits IN the icon row, right of the note, one line
-    // owner 2026-09-26: the version is FIRST in the row, then the dot, bell and note
-    const row = s.slice(s.indexOf('<div class="foot-row">'), s.indexOf('<NotificationCenter />') + 30)
+    // owner 2026-09-26: dot, bell and note, then the version just to their right
+    const row = s.slice(s.indexOf('<div class="foot-row">'), s.indexOf('data-test="app-version-copy"'))
     const iv = row.indexOf('data-test="app-version"'), ih = row.indexOf('data-testid="connection-health"'), inc = row.indexOf('<NotificationCenter />')
-    assert.ok(iv > 0 && iv < ih && ih < inc, 'order must be version, dot, bell/note')
+    assert.ok(ih > 0 && ih < inc && inc < iv, 'order must be dot, bell/note, version')
     assert.match(s, /\.foot-row \{ display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; \}/)
     assert.match(s, /\.foot-row \.version-stamp \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/)
     // owner 2026-09-26: only the version shows; the commit is in a card that

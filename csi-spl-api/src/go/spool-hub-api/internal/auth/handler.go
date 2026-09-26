@@ -84,6 +84,9 @@ type Preferences interface {
 	// PreferredTheme is the human's colour theme, "" when never picked.
 	// 'light' is the light-blue palette. An unknown human is ErrNoHuman.
 	PreferredTheme(ctx context.Context, humanID string) (string, error)
+	// SetPreferredTheme stores theme ("" clears it), already admitted by
+	// IsTheme. Unknown human = ErrNoHuman.
+	SetPreferredTheme(ctx context.Context, humanID, theme string) error
 	// IdentityLocale is the picked locale of the human a (provider, subject)
 	// sign-in belongs to; "" when there is no such human or nothing is picked.
 	IdentityLocale(ctx context.Context, provider, subject string) (string, error)
@@ -525,13 +528,30 @@ func (h *Handler) avatar(w http.ResponseWriter, r *http.Request) {
 	w.Write(pic) //nolint:errcheck
 }
 
+// ThemeIDs are the WUI palette themes in picker order (csi-spl-wui
+// src/utils/theme.mjs THEMES); 'light' is the light-blue one. The DB check
+// humans_preferred_theme_check (rdb 0057, 0059) admits the same list.
+var ThemeIDs = []string{"dark", "light", "light-violet", "light-green", "light-yellow", "light-orange", "light-red"}
+
+// IsTheme reports whether theme is one of ThemeIDs, exactly.
+func IsTheme(theme string) bool {
+	for _, id := range ThemeIDs {
+		if theme == id {
+			return true
+		}
+	}
+	return false
+}
+
 // preferencesReq is PUT preferences' body. Each key is optional, but at
 // least one must be present: preferred_locale is one of the 19
 // i18n.Supported codes exactly, or null to clear it; diagnostics_enabled
 // (CLE-34963) is a JSON boolean, nothing else; display_name (CLE-34968) is a
-// JSON string ValidDisplayName admits, and cannot be cleared (null is refused).
+// JSON string ValidDisplayName admits, and cannot be cleared (null is refused);
+// preferred_theme (CLE-34994) is one of ThemeIDs exactly, or null to clear it.
 type preferencesReq struct {
 	PreferredLocale    json.RawMessage `json:"preferred_locale"`
+	PreferredTheme     json.RawMessage `json:"preferred_theme"`
 	DiagnosticsEnabled json.RawMessage `json:"diagnostics_enabled"`
 	DisplayName        json.RawMessage `json:"display_name"`
 }
@@ -555,9 +575,10 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 	rawLoc := strings.TrimSpace(string(req.PreferredLocale))
 	rawDiag := strings.TrimSpace(string(req.DiagnosticsEnabled))
 	rawName := strings.TrimSpace(string(req.DisplayName))
-	if rawLoc == "" && rawDiag == "" && rawName == "" {
+	rawTheme := strings.TrimSpace(string(req.PreferredTheme))
+	if rawLoc == "" && rawDiag == "" && rawName == "" && rawTheme == "" {
 		writeErr(w, http.StatusBadRequest, "bad_request",
-			"preferred_locale (a locale code or null), diagnostics_enabled (true or false) or display_name is required")
+			"preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name or preferred_theme (a theme id or null) is required")
 		return
 	}
 	loc := ""
@@ -587,6 +608,14 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			writeErr(w, http.StatusBadRequest, ErrCodeInvalidDisplayName,
 				"display_name must be 1 to 200 characters on one line, without control characters")
+			return
+		}
+	}
+	theme := ""
+	if rawTheme != "" && rawTheme != "null" {
+		if json.Unmarshal(req.PreferredTheme, &theme) != nil || !IsTheme(theme) {
+			writeErr(w, http.StatusBadRequest, "unsupported_theme",
+				"preferred_theme must be one of "+strings.Join(ThemeIDs, ","))
 			return
 		}
 	}
@@ -623,6 +652,16 @@ func (h *Handler) putPreferences(w http.ResponseWriter, r *http.Request) {
 		h.log.Info().Str("human_id", s.HumanID).Int("display_name_len", utf8.RuneCountInString(name)).
 			Msg("auth.preferences_set")
 		out["display_name"] = name
+	}
+	if rawTheme != "" {
+		if !h.storePref(w, h.prefs.SetPreferredTheme(r.Context(), s.HumanID, theme)) {
+			return
+		}
+		h.log.Info().Str("human_id", s.HumanID).Str("preferred_theme", theme).Msg("auth.preferences_set")
+		out["preferred_theme"] = nil
+		if theme != "" {
+			out["preferred_theme"] = theme
+		}
 	}
 	writeJSON(w, http.StatusOK, out)
 }

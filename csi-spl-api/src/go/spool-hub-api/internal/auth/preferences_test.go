@@ -69,6 +69,19 @@ func (p *fakePrefs) PreferredTheme(_ context.Context, hum string) (string, error
 	return p.theme[hum], nil
 }
 
+func (p *fakePrefs) SetPreferredTheme(_ context.Context, hum, theme string) error {
+	if !p.known(hum) {
+		return auth.ErrNoHuman
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.theme == nil {
+		p.theme = map[string]string{}
+	}
+	p.theme[hum] = theme
+	return nil
+}
+
 func (p *fakePrefs) DiagnosticsEnabled(_ context.Context, hum string) (bool, error) {
 	if !p.known(hum) {
 		return false, auth.ErrNoHuman
@@ -228,6 +241,55 @@ func TestPreferencesSetReflectsInSession(t *testing.T) {
 	}
 	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["preferred_locale"] != nil {
 		t.Fatalf("session after clear: %s", got.raw)
+	}
+}
+
+// CLE-34994: the palette picker keeps the choice on the account, so an
+// operator default (do_spl_human_theme) and the person's own pick share one
+// field, and the session answers it back.
+func TestPreferencesTheme(t *testing.T) {
+	r, prefs := newPRig(t, "", true)
+	c := browser(t)
+	r.signedIn(t, c, "person@example.com")
+	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["preferred_theme"] != nil {
+		t.Fatalf("session before: %s", got.raw)
+	}
+	for _, id := range auth.ThemeIDs {
+		got := r.call(t, c, http.MethodPut, "preferences", jsonBody(map[string]string{"preferred_theme": id}))
+		if got.code != http.StatusOK || got.body["preferred_theme"] != id || len(got.body) != 1 {
+			t.Fatalf("put %s: %d %s", id, got.code, got.raw)
+		}
+		if got = r.call(t, c, http.MethodGet, "session", ""); got.body["preferred_theme"] != id {
+			t.Fatalf("session after %s: %s", id, got.raw)
+		}
+	}
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"preferred_theme":null}`); got.code != http.StatusOK || got.body["preferred_theme"] != nil {
+		t.Fatalf("clear: %d %s", got.code, got.raw)
+	}
+	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["preferred_theme"] != nil {
+		t.Fatalf("session after clear: %s", got.raw)
+	}
+	before := map[string]string{}
+	for k, v := range prefs.theme {
+		before[k] = v
+	}
+	for _, body := range []string{`{"preferred_theme":"navy"}`, `{"preferred_theme":"Light"}`, `{"preferred_theme":""}`,
+		`{"preferred_theme":7}`, `{"preferred_theme":"light","preferred_locale":"de"}`} {
+		if got := r.call(t, c, http.MethodPut, "preferences", body); got.code != http.StatusBadRequest {
+			t.Errorf("%s: %d %s", body, got.code, got.raw)
+		}
+	}
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"preferred_theme":"navy"}`); got.body["error"] != "unsupported_theme" {
+		t.Errorf("error token: %s", got.raw)
+	}
+	for k, v := range prefs.theme {
+		if before[k] != v {
+			t.Fatalf("a refused PUT stored a theme: %v", prefs.theme)
+		}
+	}
+	// no session, no write
+	if got := r.call(t, nil, http.MethodPut, "preferences", `{"preferred_theme":"light"}`); got.code != http.StatusUnauthorized {
+		t.Fatalf("no session: %d %s", got.code, got.raw)
 	}
 }
 

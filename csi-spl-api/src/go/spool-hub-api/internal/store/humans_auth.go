@@ -216,6 +216,15 @@ func (a AuthHooks) PreferredTheme(ctx context.Context, humanID string) (string, 
 	return theme, err
 }
 
+// SetPreferredTheme stores it ("" clears); an unknown human is auth.ErrNoHuman.
+func (a AuthHooks) SetPreferredTheme(ctx context.Context, humanID, theme string) error {
+	err := a.H.SetPreferredTheme(ctx, humanID, theme)
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrNoHuman
+	}
+	return err
+}
+
 // DiagnosticsEnabled is the human's "Debug pane" setting (CLE-34963); an
 // unknown human is auth.ErrNoHuman.
 func (a AuthHooks) DiagnosticsEnabled(ctx context.Context, humanID string) (bool, error) {

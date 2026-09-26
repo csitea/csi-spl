@@ -103,7 +103,15 @@ supported code, or `null` to clear), `diagnostics_enabled` (the JSON
 literal `true` or `false` — `"true"`, `1` and `null` are `400 bad_request`)
 and `display_name` (CLE-34968: a JSON string, trimmed, 1..200 characters, no
 control character and no line/paragraph separator; anything else, `null`
-included, is `400 invalid_display_name` — a name cannot be cleared).
+included, is `400 invalid_display_name` — a name cannot be cleared) and
+`preferred_theme` (CLE-34994: one of the palette ids `dark`, `light` — the
+light-blue one — `light-violet`, `light-green`, `light-yellow`,
+`light-orange`, `light-red`, exactly, or `null` to clear; anything else is
+`400 unsupported_theme`). The session answers `preferred_theme` (`null` when
+unset); the WUI applies it once per sign-in, and its palette picker writes
+the person's own choice back here, so an operator default
+(`do_spl_human_theme`) and the person's pick are one field. The list is
+`auth.ThemeIDs` in the hub and `humans_preferred_theme_check` in the DB.
 The whole body is validated before anything is stored, and the `200` answer
 echoes exactly the keys that were stored. `401` without a session, `409
 no_human` for a session with no registered human, `503` when the store is not
@@ -157,4 +165,4 @@ another tenant → `403 tenant_mismatch`; several tenants and none selected →
 with `permission`. `SessionForTenant(r, tenant)` (seam `5e8ecb1`) is the
 legacy helper.
 
-<!-- version: 0.5.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:45:00Z -->
+<!-- version: 0.5.2 · updated: 2026-09-26 · last-edit: 2026-09-26T14:00:00Z -->

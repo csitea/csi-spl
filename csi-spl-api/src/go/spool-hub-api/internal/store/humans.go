@@ -185,17 +185,11 @@ func checkLocale(loc string) error {
 	return nil
 }
 
-// palette themes, in picker order. 'light' is the light-blue one.
-var themeIDs = []string{"dark", "light", "light-violet", "light-green", "light-yellow", "light-orange", "light-red"}
-
+// checkTheme admits "" (never picked) or one of auth.ThemeIDs, the one list
+// the hub, PUT preferences and humans_preferred_theme_check agree on.
 func checkTheme(theme string) error {
-	if theme == "" {
+	if theme == "" || auth.IsTheme(theme) {
 		return nil
-	}
-	for _, id := range themeIDs {
-		if theme == id {
-			return nil
-		}
 	}
 	return errors.New("theme must be one of the palette themes")
 }

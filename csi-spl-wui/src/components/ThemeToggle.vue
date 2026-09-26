@@ -56,7 +56,9 @@
 
 <script setup lang="ts">
 import { useTheme } from '~/composables/useTheme'
-import { THEMES, themeIndex, type SpoolTheme } from '~/utils/theme.mjs'
+import { THEMES, saveThemeToAccount, themeIndex, type SpoolTheme } from '~/utils/theme.mjs'
+import { useSessionStore } from '~/stores/session'
+import { useAuthClient } from '~/composables/useAuthClient'
 import { nextMenuIndex } from '~/utils/user-menu.mjs'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
 
@@ -65,6 +67,8 @@ import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-po
 const props = withDefaults(defineProps<{ align?: 'start' | 'end' }>(), { align: 'start' })
 const { align } = toRefs(props)
 const { theme, setTheme } = useTheme()
+const session = useSessionStore()
+const auth = useAuthClient()
 const { t } = useI18n({ useScope: 'global' })
 const label = computed(() => t('theme.picker'))
 // Two pickers can be on one page (top bar + Settings → Appearance).
@@ -117,6 +121,12 @@ function toggleOpen() {
 function choose(id: SpoolTheme) {
   setTheme(id)
   close(true)
+  // CLE-34994: the account keeps it too (signed in only; failure is silent)
+  void saveThemeToAccount(id, {
+    claims: session.claims,
+    save: (t) => auth.saveTheme(t),
+    apply: (t) => session.setPreferredTheme(t),
+  })
 }
 
 function onTriggerKey(e: KeyboardEvent) {

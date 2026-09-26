@@ -96,6 +96,11 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, name }
   }
 
+  /** CLE-34994: mirror a palette pick saved on the account. */
+  function setPreferredTheme(theme: string) {
+    if (claims.value) claims.value = { ...claims.value, preferred_theme: theme }
+  }
+
   async function logout() {
     await auth.logout()
     if (import.meta.client) {
@@ -109,5 +114,5 @@ export const useSessionStore = defineStore('session', () => {
     await navigateTo(useNuxtApp().$localePath('/login'))
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, logout }
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, logout }
 })

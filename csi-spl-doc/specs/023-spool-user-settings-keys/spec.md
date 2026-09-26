@@ -163,6 +163,17 @@ renders once, in the parent, for every section.
   Chrome, n=1): each theme picked by mouse sets `data-theme`, storage and the
   body background, focus returns to the button; keyboard open / End / wrap /
   Enter / Escape; reload keeps the choice; 390px list on screen, no x-scroll.
+- **On the account too** (owner follow-up 2026-09-26, topic 689495d0: "set
+  her ... color theme to light blue"). `humans.preferred_theme` (rdb 0057,
+  0059) is returned by the session and applied once per sign-in
+  (`plugins/preferred-theme.client.ts`, `37fec7e6`); an operator sets it with
+  `ENV=<env> HUMAN_ID=HUM-<n> THEME=<id> ./run -a do_spl_human_theme`
+  (`light` is the light-blue palette). From hub 0.8.6 (`0a4839a1`) the
+  picker writes a signed-in member's pick back through `PUT
+  /api/v1/auth/preferences` `preferred_theme` (`saveThemeToAccount` in
+  `utils/theme.mjs`), so the operator default and the person's own choice are
+  one field and a new device starts from it. A failed save is silent;
+  `localStorage` stays this browser's source.
 - **Contrast, computed** (`tests/unit/theme-contrast.test.mjs`, trunk
   `a159f76f`, worst pair per theme; bars text 4.5:1, focus ring 3:1):
 
@@ -238,4 +249,4 @@ renders once, in the parent, for every section.
   HUM-* signing CLI messages, or pinning a personal box from the WUI. Pick one
   before the key becomes load-bearing.
 
-<!-- version: 1.2.0 · updated: 2026-09-26 · last-edit: 2026-09-26T06:50:00Z -->
+<!-- version: 1.3.0 · updated: 2026-09-26 · last-edit: 2026-09-26T14:00:00Z -->

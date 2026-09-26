@@ -16,6 +16,7 @@ import {
   readStoredTheme,
   writeStoredTheme,
   applyThemeAttr,
+  saveThemeToAccount,
 } from '../../src/utils/theme.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 
@@ -154,5 +155,55 @@ describe('theme picker wiring', () => {
       const leaf = t.labelKey.split('.').reduce((o, k) => (o ? o[k] : undefined), en)
       assert.equal(typeof leaf, 'string', t.labelKey)
     }
+  })
+})
+
+// CLE-34994 follow-up: the pick is kept on the account (PUT preferences
+// preferred_theme), the same field an operator sets with do_spl_human_theme.
+describe('theme pick saved on the account', () => {
+  const rig = (claims, result = { ok: true }) => {
+    const calls = { save: [], apply: [] }
+    const io = {
+      claims,
+      save: async (t) => { calls.save.push(t); if (result instanceof Error) throw result; return result },
+      apply: (t) => calls.apply.push(t),
+    }
+    return { io, calls }
+  }
+
+  it('a signed-in member saves the pick and mirrors it in the claims', async () => {
+    const { io, calls } = rig({ hum: 'HUM-27', preferred_theme: 'light' })
+    assert.equal(await saveThemeToAccount('light-green', io), true)
+    assert.deepEqual(calls, { save: ['light-green'], apply: ['light-green'] })
+  })
+
+  it('no call when signed out, with no member id, or already stored', async () => {
+    for (const claims of [null, undefined, {}, { hum: '' }, { hum: 'HUM-27', preferred_theme: 'dark' }]) {
+      const { io, calls } = rig(claims)
+      assert.equal(await saveThemeToAccount('dark', io), false, JSON.stringify(claims))
+      assert.deepEqual(calls.save, [], JSON.stringify(claims))
+    }
+  })
+
+  it('never sends a value the hub would refuse', async () => {
+    const { io, calls } = rig({ hum: 'HUM-27' })
+    assert.equal(await saveThemeToAccount('navy', io), false)
+    assert.deepEqual(calls.save, [])
+  })
+
+  it('a refused or failed save is silent and changes no claim', async () => {
+    for (const result of [{ ok: false, status: 409 }, null, new Error('offline')]) {
+      const { io, calls } = rig({ hum: 'HUM-27' }, result)
+      assert.equal(await saveThemeToAccount('light', io), false)
+      assert.deepEqual(calls.apply, [])
+    }
+  })
+
+  it('the picker calls it on choose, through the auth client', () => {
+    const src = read('src/components/ThemeToggle.vue')
+    assert.match(src, /function choose[\s\S]*?saveThemeToAccount\(id,/)
+    assert.match(src, /save: \(t\) => auth\.saveTheme\(t\)/)
+    const client = read('src/utils/auth-client.mjs')
+    assert.match(client, /saveTheme\(theme\) \{\s*return post\('\/preferences', \{ preferred_theme: /)
   })
 })

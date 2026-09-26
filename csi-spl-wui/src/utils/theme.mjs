@@ -53,3 +53,26 @@ export function applyThemeAttr(theme, el) {
   if (el && typeof el.setAttribute === 'function') el.setAttribute('data-theme', t)
   return t
 }
+
+/**
+ * CLE-34994: keep a palette pick on the account too (PUT preferences
+ * preferred_theme), so the operator default and the person's own choice are
+ * one field and a new device starts from it. Only for a signed-in member
+ * (claims.hum), and not when the account already says so. A failed save is
+ * silent: this browser keeps the pick in localStorage either way.
+ * io: { claims, save(theme) -> Promise<{ ok }>, apply(theme) }.
+ * Resolves true when the account was written.
+ */
+export async function saveThemeToAccount(theme, io) {
+  const id = parseTheme(theme, '')
+  const c = io && io.claims
+  if (!id || !c || typeof c.hum !== 'string' || !c.hum || c.preferred_theme === id) return false
+  try {
+    const res = await io.save(id)
+    if (!res || !res.ok) return false
+    io.apply(id)
+    return true
+  } catch {
+    return false
+  }
+}

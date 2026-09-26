@@ -330,6 +330,14 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       return post('/preferences', { display_name: String(name ?? '') }, 'PUT')
     },
     /**
+     * CLE-34994: keep the palette pick on the account (humans.preferred_theme,
+     * the field an operator sets with do_spl_human_theme). Sends ONLY that
+     * key. 200 → ok; 400 unsupported_theme; 401 = no session; 409 = no human.
+     */
+    saveTheme(theme) {
+      return post('/preferences', { preferred_theme: String(theme || '') }, 'PUT')
+    },
+    /**
      * specs/026 §6: make `tenant` the session's active tenant (the hub
      * re-issues the cookie). 200 → `data` is the new session; 403
      * not_member; 401 = no session.

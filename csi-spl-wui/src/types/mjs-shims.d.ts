@@ -343,6 +343,7 @@ declare module '~/utils/auth-client.mjs' {
     savePreferences(b: { preferred_locale: string }): Promise<NativeResult>
     saveDiagnostics(on: boolean): Promise<NativeResult>
     saveDisplayName(name: string): Promise<NativeResult>
+    saveTheme(theme: string): Promise<NativeResult>
     switchTenant(tenant: string): Promise<NativeResult>
     providers(): Promise<string[]>
     session(): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
@@ -932,6 +933,10 @@ declare module '~/utils/theme.mjs' {
   export function parseTheme(raw: unknown, fallback?: SpoolTheme): SpoolTheme
   export function labelKeyForTheme(theme: unknown): string
   export function themeIndex(theme: unknown): number
+  export function saveThemeToAccount(
+    theme: unknown,
+    io: { claims: { hum?: unknown, preferred_theme?: unknown } | null | undefined, save: (theme: SpoolTheme) => Promise<{ ok: boolean }>, apply: (theme: SpoolTheme) => void },
+  ): Promise<boolean>
   export function readStoredTheme(store?: unknown, fallback?: SpoolTheme): SpoolTheme
   export function writeStoredTheme(theme: unknown, store?: unknown): boolean
   export function applyThemeAttr(theme: unknown, el?: { setAttribute?(k: string, v: string): void } | null): SpoolTheme

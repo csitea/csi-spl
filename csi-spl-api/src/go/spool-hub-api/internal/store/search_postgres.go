@@ -53,6 +53,16 @@ func (c *sqlc) cond(n *search.Node, leaf func(*search.Term) string) string {
 }
 
 // tsq is the tsquery of a text / title: term.
+// searchConfig is the text search configuration of the message index and of
+// every query against it: rdb 0048's spool_search, the 'simple' parser behind
+// unaccent (lower-cased, accents removed, never stemmed; one config for all
+// 19 WUI locales).
+const searchConfig = "'spool_search'"
+
+// folded is the accent- and case-folded form of a name for substring
+// matching: search.Fold's Postgres side (unaccent, rdb 0048).
+func folded(expr string) string { return "lower(unaccent(" + expr + "))" }
+
 func (c *sqlc) tsq(t *search.Term) string {
 	fn := "plainto_tsquery"
 	if t.Phrase {
@@ -63,10 +73,10 @@ func (c *sqlc) tsq(t *search.Term) string {
 		// of plainto_tsquery; ':*' is appended to ITS output (quoted, escaped
 		// lexemes), so the last lexeme matches as a prefix. An empty tsquery
 		// stays empty (numnode 0) instead of casting ':*'.
-		p := "plainto_tsquery('simple', " + c.arg(t.Value) + "::text)"
+		p := "plainto_tsquery(" + searchConfig + ", " + c.arg(t.Value) + "::text)"
 		return "(CASE WHEN numnode(" + p + ") = 0 THEN " + p + " ELSE (" + p + "::text || ':*')::tsquery END)"
 	}
-	return fn + "('simple', " + c.arg(t.Value) + "::text)"
+	return fn + "(" + searchConfig + ", " + c.arg(t.Value) + "::text)"
 }
 
 func (c *sqlc) party(idCol, boxCol string, t *search.Term) string {
@@ -133,11 +143,11 @@ func (c *sqlc) fileLeaf(t *search.Term) string {
 	if s, ok := c.msgLeaf(t); ok {
 		return s
 	}
-	const name = "lower(f.a->>'name')"
+	name := folded("f.a->>'name'")
 	const sized = "f.a->>'kind' = 'file' AND jsonb_typeof(f.a->'bytes') = 'number' AND (f.a->>'bytes')::bigint "
 	switch t.Op {
 	case search.OpText, search.OpName, search.OpFilename:
-		return "strpos(" + name + ", lower(" + c.arg(t.Value) + "::text)) > 0"
+		return "strpos(" + name + ", " + folded(c.arg(t.Value)+"::text") + ") > 0"
 	case search.OpExt:
 		a := c.arg("." + t.Value)
 		return "right(" + name + ", length(" + a + "::text)) = " + a + "::text"
@@ -156,7 +166,9 @@ func (c *sqlc) topicLeaf(t *search.Term) string {
 	}
 	switch t.Op {
 	case search.OpText, search.OpTitle:
-		return "to_tsvector('simple', t.title) @@ " + c.tsq(t)
+		return "to_tsvector(" + searchConfig + ", t.title) @@ " + c.tsq(t)
+	case search.OpName:
+		return "strpos(" + folded("t.title") + ", " + folded(c.arg(t.Value)+"::text") + ") > 0"
 	case search.OpFrom:
 		return exists(c.party("x.from_id", "x.from_box", t))
 	case search.OpTo:
@@ -333,6 +345,7 @@ func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuer
 		door = " AND ((channel IS NULL AND (from_id = " + v + " OR to_id = " + v + "))" +
 			" OR channel = ANY(" + pub + "::text[]) OR channel = ANY(" + mine + "::text[]))"
 	}
+	door += c.topicCandidates(q.Q.Root, t, now)
 	where := c.cond(q.Q.Root, c.topicLeaf)
 	page := ""
 	if !q.AfterAt.IsZero() {
@@ -369,6 +382,42 @@ func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuer
 		return nil
 	})
 	return out, err
+}
+
+// topicCandidates narrows the topic aggregate to the tasks the message index
+// can name (CLE-34992; specs/022 §9 measures it). A topic's title and channel
+// are its FIRST message's, so a topic matching a top-level positive text /
+// title: / in: term has one message matching all of them: only those tasks
+// are aggregated, not every live message of the tenant. The final WHERE still
+// decides on the aggregate, so this only drops rows it would have dropped
+// (bar a word cut at the 140-character title edge). "" when the query has no
+// such term (an OR, a negation, from: only): the full aggregate, as before.
+func (c *sqlc) topicCandidates(root *search.Node, tenant, now string) string {
+	kids := []*search.Node{root}
+	if root != nil && root.Kind == search.And {
+		kids = root.Kids
+	}
+	var preds []string
+	for _, k := range kids {
+		if k == nil || k.Kind != search.Leaf {
+			continue
+		}
+		switch t := k.Term; t.Op {
+		case search.OpText, search.OpTitle:
+			preds = append(preds, "k.search_tsv @@ "+c.tsq(t))
+		case search.OpIn:
+			if t.DM {
+				preds = append(preds, "k.channel IS NULL")
+			} else {
+				preds = append(preds, "k.channel = "+c.arg(t.Channel))
+			}
+		}
+	}
+	if len(preds) == 0 {
+		return ""
+	}
+	return " AND task_id IN (SELECT k.task_id FROM messages k WHERE k.tenant_id = " + tenant +
+		" AND k.expires_at > " + now + " AND " + strings.Join(preds, " AND ") + ")"
 }
 
 func (s *Postgres) TenantHumans(ctx context.Context, tenant string) ([]HumanEntry, error) {

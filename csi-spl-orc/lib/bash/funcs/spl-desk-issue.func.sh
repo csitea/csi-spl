@@ -31,15 +31,24 @@ spl_desk_issue() {
     do_log "FATAL spool issue $op as $agent: $out"
     return 1
   fi
-  python3 - "$ENV" "$tenant" "$box" "$agent" "$op" "$out" <<'EOF_PY'
+  # The list of every issue is one JSON document. Passing it as an argv
+  # blows past the kernel's argument limit once a tenant holds the git-spec
+  # (measured: python3 "Argument list too long" on the prd t1 list).
+  local raw prc=0
+  raw="$(mktemp)"
+  printf '%s' "$out" >"$raw"
+  python3 - "$ENV" "$tenant" "$box" "$agent" "$op" "$raw" <<'EOF_PY' || prc=$?
 import json, sys
-env, tenant, box, agent, op, out = sys.argv[1:]
+env, tenant, box, agent, op, path = sys.argv[1:]
+out = open(path, encoding="utf-8").read()
 try:
     out = json.loads(out)
 except ValueError:
     pass
 print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent, "op": op, "result": out}, sort_keys=True))
 EOF_PY
+  rm -f "$raw"
+  return $prc
 }
 
 # spl_issue_field_args: the create / update flags for every ISSUE_* variable

@@ -590,7 +590,9 @@
       "boxes": "Кутии",
       "topics": "Теми",
       "files": "Датотеки",
-      "messages": "Пораки"
+      "messages": "Пораки",
+      "tenants": "Закупци",
+      "events": "Дневник на настани"
     },
     "placeholder_target": "Порака до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за праќање · /search за пребарување насекаде",
     "unreachable": "Услугата за пребарување не е достапна. Обидете се повторно наскоро.",

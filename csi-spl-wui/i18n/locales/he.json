@@ -590,7 +590,9 @@
       "boxes": "תיבות",
       "topics": "נושאים",
       "files": "קבצים",
-      "messages": "הודעות"
+      "messages": "הודעות",
+      "tenants": "טננטים",
+      "events": "יומן אירועים"
     },
     "placeholder_target": "הודעה אל {target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",
     "unreachable": "לא ניתן להגיע לשירות החיפוש. נסו שוב בעוד רגע.",

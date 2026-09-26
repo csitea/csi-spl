@@ -16,8 +16,9 @@ const FROM_ROSTER_CAP = 8
 /** `/search` or `/s`, then a colon, whitespace, or end of line (case-insensitive). */
 const SEARCH_CMD_RE = /^\/(?:search|s)(?::|\s|$)/i
 
-/** Result sections in render order (spec 022 FR-021; group keys of search-v1 §4). */
-export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'topics', 'files', 'messages']
+/** Result sections in render order (spec 022 FR-021; group keys of search-v1 §4).
+ *  tenants and events are opt-in: the hub returns them for type:tenant and type:event. */
+export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'tenants', 'topics', 'files', 'messages', 'events']
 
 /**
  * Built-in operator catalogue — the offline fallback of search-v1 §6
@@ -30,7 +31,7 @@ export const SEARCH_OPERATORS = [
   { op: 'in:', example: 'in:#lobby', values: ['dm'] },
   { op: 'is:', values: ['task', 'note', 'result', 'reject', 'root', 'online', 'offline', 'revoked'] },
   { op: 'has:', values: ['file', 'attachment', 'code'] },
-  { op: 'type:', values: ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box'] },
+  { op: 'type:', values: ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box', 'tenant', 'event'] },
   { op: 'before:', example: 'before:2026-09-01' },
   { op: 'after:', example: 'after:7d' },
   { op: 'on:', example: 'on:2026-09-19' },
@@ -256,7 +257,7 @@ function displayOf(r) {
 }
 
 function keyOf(type, r, i) {
-  const id = r.msg_id || r.file_id || r.task_id || r.box_id || r.channel || r.id || i
+  const id = r.msg_id || r.file_id || r.task_id || r.box_id || r.channel || r.tenant_id || r.event_id || r.id || i
   const extra = type === 'files' ? `/${r.msg_id || ''}/${displayOf(r).text}` : ''
   return `${type}:${id}${r.box ? '@' + r.box : ''}${extra}`
 }
@@ -359,6 +360,12 @@ export function searchTarget(row) {
       const id = String(r.channel || r.channel_id || '').replace(/^#/, '')
       return id ? { path: `/channel/${encodeURIComponent(id)}` } : null
     }
+    case 'tenants': {
+      const id = String(r.tenant_id || '')
+      return id ? { tenant: id } : null
+    }
+    case 'events':
+      return { path: '/events' }
     default:
       return null
   }

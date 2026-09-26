@@ -590,7 +590,9 @@
       "boxes": "Boxen",
       "topics": "Onderwerpen",
       "files": "Bestanden",
-      "messages": "Berichten"
+      "messages": "Berichten",
+      "tenants": "Huurders",
+      "events": "Gebeurtenissenlogboek"
     },
     "placeholder_target": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",
     "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw.",

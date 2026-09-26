@@ -590,7 +590,9 @@
       "boxes": "Laatikot",
       "topics": "Aiheet",
       "files": "Tiedostot",
-      "messages": "Viestit"
+      "messages": "Viestit",
+      "tenants": "Vuokralaiset",
+      "events": "Tapahtumaloki"
     },
     "placeholder_target": "Viesti: {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
     "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen.",

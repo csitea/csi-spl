@@ -729,7 +729,7 @@ declare module '~/utils/highlighter.mjs' {
 }
 
 declare module '~/utils/search.mjs' {
-  export type SearchGroupType = 'robots' | 'users' | 'channels' | 'boxes' | 'topics' | 'files' | 'messages'
+  export type SearchGroupType = 'robots' | 'users' | 'channels' | 'boxes' | 'tenants' | 'topics' | 'files' | 'messages' | 'events'
   export interface SearchOperator { op: string, example?: string, values?: string[] }
   export interface SearchRow {
     type: SearchGroupType
@@ -760,7 +760,7 @@ declare module '~/utils/search.mjs' {
   export function mergeSearchPage(cur: SearchResult, page: SearchResult): SearchResult
   export function flattenGroups(groups: SearchGroup[]): SearchRow[]
   export function moveIndex(i: number, n: number, key: string): number
-  export function searchTarget(row: unknown): { topic: string, focus: string } | { path: string } | { search: string } | null
+  export function searchTarget(row: unknown): { topic: string, focus: string } | { path: string } | { search: string } | { tenant: string } | null
   export function mockSearch(messages: unknown[], q: string): unknown
 }
 

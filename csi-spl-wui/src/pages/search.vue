@@ -1,6 +1,6 @@
 <!-- 022 FR-020..025: global search results, deep-linkable as /search?q=….
-     Grouped sections (robots, users, channels, boxes, topics, files,
-     messages; search-v1 §4), highlights from offsets rendered as text nodes,
+     Grouped sections (robots, users, channels, boxes, tenants, topics, files,
+     messages, events; search-v1 §4), highlights from offsets rendered as text nodes,
      one listbox across all sections (ArrowUp/Down wrap, Home/End, Enter
      opens), per-section "Load more" on that section's cursor. -->
 <template>
@@ -124,6 +124,8 @@ const localePath = useLocalePath()
 const route = useRoute()
 const router = useRouter()
 const search = useSearchStore()
+const api = useSpoolApi()
+const authClient = useAuthClient()
 const omnibox = useOmniboxStore()
 const pane = useLiveFeed('pane')
 const topic = useTopicStore()
@@ -151,6 +153,8 @@ const examples = [
   'title:migration',
   'type:file ext:pdf larger:1M',
   'has:code in:#lobby',
+  'type:tenant csitea',
+  'type:event fetch',
 ]
 
 const query = computed(() => (typeof route.query.q === 'string' ? route.query.q : ''))
@@ -173,6 +177,8 @@ function meta(row: SearchRow): string {
     case 'users': return r.display_name && r.id ? String(r.id) : ''
     case 'channels': return r.count != null ? t('search.count_messages', { n: Number(r.count) || 0 }, Number(r.count) || 0) : ''
     case 'boxes': return Array.isArray(r.agents) ? r.agents.join(', ') : ''
+    case 'tenants': return [r.tenant_id ? String(r.tenant_id) : '', r.role ? String(r.role) : ''].filter(Boolean).join(' · ')
+    case 'events': return [r.code ? r.message : (r.path || r.error_id), when(r.received_at)].filter(Boolean).join(' · ')
     default: return ''
   }
 }
@@ -239,6 +245,15 @@ async function open(row: SearchRow) {
   active.value = indexOf(row)
   const to = searchTarget(row)
   if (!to) return
+  if ('tenant' in to) {
+    if (api.mock) return
+    if (row.current) return void router.push(localePath('/'))
+    if (to.tenant) {
+      const out = await authClient.switchTenant(to.tenant)
+      if (out.ok) window.location.assign(localePath('/'))
+    }
+    return
+  }
   if ('path' in to) return void router.push(localePath(to.path))
   if ('search' in to) return void router.push(localePath(searchPath(to.search)))
   topic.setTarget({ taskId: to.topic, mode: 'task', rootMsgId: '', parentTaskId: '' }, null)

@@ -590,7 +590,9 @@
       "boxes": "Boxy",
       "topics": "Témy",
       "files": "Súbory",
-      "messages": "Správy"
+      "messages": "Správy",
+      "tenants": "Nájomníci",
+      "events": "Denník udalostí"
     },
     "placeholder_target": "Správa pre {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",
     "unreachable": "Služba vyhľadávania nie je dostupná. Skúste to o chvíľu znova.",

@@ -590,7 +590,9 @@
       "boxes": "Boxar",
       "topics": "Ämnen",
       "files": "Filer",
-      "messages": "Meddelanden"
+      "messages": "Meddelanden",
+      "tenants": "Hyresgäster",
+      "events": "Händelselogg"
     },
     "placeholder_target": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",
     "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund.",

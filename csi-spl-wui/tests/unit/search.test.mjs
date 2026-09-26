@@ -21,7 +21,7 @@ import {
   searchTarget,
   shouldLoadOperators,
 } from '../../src/utils/search.mjs'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -174,6 +174,8 @@ describe('operator autocomplete', () => {
     for (const op of ['from:', 'to:', 'in:', 'is:', 'has:', 'before:', 'after:', 'on:', 'type:', 'title:', 'subject:', 'name:', 'filename:', 'ext:', 'larger:', 'smaller:', 'box:', 'topic:']) {
       assert.ok(ops.includes(op), op)
     }
+    const types = SEARCH_OPERATORS.find((o) => o.op === 'type:').values
+    assert.ok(types.includes('tenant') && types.includes('event'))
   })
   it('applying a completion replaces the token and puts the caret after it', () => {
     const tok = operatorTokenAt('/search a fr b', 12)
@@ -222,11 +224,13 @@ describe('response normalisation (search-v1 §4)', () => {
       users: { results: [], next: null },
       channels: { results: [{ channel: 'tasks', name: { text: 'tasks', highlights: [] } }], next: null },
       boxes: { results: [{ box_id: 'box-a', name: { text: 'box-a', highlights: [] } }], next: null },
+      tenants: { results: [{ tenant_id: 't1', name: { text: 'csitea (t1)', highlights: [] } }], next: null },
+      events: { results: [{ event_id: 4, code: 'network', message: 'Failed to fetch', name: { text: 'network', highlights: [] } }], next: null },
     },
   }
   it('groups in render order, per-group next, empty groups dropped', () => {
     const r = normalizeSearchResponse(answer)
-    assert.deepEqual(r.groups.map((g) => g.type), ['robots', 'channels', 'boxes', 'topics', 'files', 'messages'])
+    assert.deepEqual(r.groups.map((g) => g.type), ['robots', 'channels', 'boxes', 'tenants', 'topics', 'files', 'messages', 'events'])
     assert.equal(r.groups.find((g) => g.type === 'messages').next, 'cm')
     assert.equal(r.groups.find((g) => g.type === 'topics').next, null)
     assert.deepEqual(r.warnings, [{ token: 'foo:bar', pos: 7, detail: 'unknown operator foo: searched as text' }])
@@ -316,9 +320,11 @@ describe('click targets', () => {
     assert.deepEqual(searchTarget({ type: 'users', id: 'HUM-1' }), { path: '/dm/HUM-1' })
     assert.deepEqual(searchTarget({ type: 'channels', channel: 'lobby' }), { path: '/channel/lobby' })
     assert.deepEqual(searchTarget({ type: 'boxes', box_id: 'box-a' }), { search: 'box:box-a' })
+    assert.deepEqual(searchTarget({ type: 'tenants', tenant_id: 't1' }), { tenant: 't1' })
+    assert.deepEqual(searchTarget({ type: 'events', id: 4 }), { path: '/events' })
   })
   it('CONTROL: a row without an id goes nowhere', () => {
-    for (const r of [null, {}, { type: 'messages' }, { type: 'robots' }, { type: 'channels' }, { type: 'boxes' }, { type: 'nope', id: 'x' }]) {
+    for (const r of [null, {}, { type: 'messages' }, { type: 'robots' }, { type: 'channels' }, { type: 'boxes' }, { type: 'tenants' }, { type: 'nope', id: 'x' }]) {
       assert.equal(searchTarget(r), null)
     }
   })

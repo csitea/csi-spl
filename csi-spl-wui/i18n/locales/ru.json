@@ -590,7 +590,9 @@
       "boxes": "Боксы",
       "topics": "Темы",
       "files": "Файлы",
-      "messages": "Сообщения"
+      "messages": "Сообщения",
+      "tenants": "Тенанты",
+      "events": "Журнал событий"
     },
     "placeholder_target": "Сообщение для {target} — Enter для новой строки · Ctrl+Enter или Cmd+Enter отправляет · /search ищет везде",
     "unreachable": "Сервис поиска недоступен. Попробуйте чуть позже.",

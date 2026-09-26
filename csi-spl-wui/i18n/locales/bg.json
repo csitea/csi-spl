@@ -590,7 +590,9 @@
       "boxes": "Кутии",
       "topics": "Теми",
       "files": "Файлове",
-      "messages": "Съобщения"
+      "messages": "Съобщения",
+      "tenants": "Тенанти",
+      "events": "Дневник на събитията"
     },
     "placeholder_target": "Съобщение до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",
     "unreachable": "Услугата за търсене не е достъпна. Опитайте отново след малко.",

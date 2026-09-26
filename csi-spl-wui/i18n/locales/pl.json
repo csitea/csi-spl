@@ -590,7 +590,9 @@
       "boxes": "Skrzynki",
       "topics": "Tematy",
       "files": "Pliki",
-      "messages": "Wiadomości"
+      "messages": "Wiadomości",
+      "tenants": "Dzierżawy",
+      "events": "Dziennik zdarzeń"
     },
     "placeholder_target": "Wiadomość do {target} — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search szuka wszędzie",
     "unreachable": "Usługa wyszukiwania jest nieosiągalna. Spróbuj ponownie za chwilę.",

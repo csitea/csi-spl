@@ -590,7 +590,9 @@
       "boxes": "Кутије",
       "topics": "Теме",
       "files": "Датотеке",
-      "messages": "Поруке"
+      "messages": "Поруке",
+      "tenants": "Zakupci",
+      "events": "Дневник догађаја"
     },
     "placeholder_target": "Порука за {target} — Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
     "unreachable": "Услуга претраге није доступна. Покушајте ускоро поново.",

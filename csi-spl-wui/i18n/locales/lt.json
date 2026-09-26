@@ -590,7 +590,9 @@
       "boxes": "Dėžės",
       "topics": "Temos",
       "files": "Failai",
-      "messages": "Žinutės"
+      "messages": "Žinutės",
+      "tenants": "Nuomininkai",
+      "events": "Įvykių žurnalas"
     },
     "placeholder_target": "Žinutė: {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
     "unreachable": "Paieškos paslauga nepasiekiama. Netrukus bandykite dar kartą.",

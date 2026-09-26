@@ -590,7 +590,9 @@
       "boxes": "Бокси",
       "topics": "Теми",
       "files": "Файли",
-      "messages": "Повідомлення"
+      "messages": "Повідомлення",
+      "tenants": "Орендарі",
+      "events": "Журнал подій"
     },
     "placeholder_target": "Повідомлення для {target} — Enter для нового рядка · Ctrl+Enter або Cmd+Enter надсилає · /search шукає всюди",
     "unreachable": "Сервіс пошуку недоступний. Спробуйте трохи пізніше.",

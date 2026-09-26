@@ -590,7 +590,9 @@
       "boxes": "Kutular",
       "topics": "Konular",
       "files": "Dosyalar",
-      "messages": "Mesajlar"
+      "messages": "Mesajlar",
+      "tenants": "Kiracılar",
+      "events": "Olay günlüğü"
     },
     "placeholder_target": "{target} için mesaj — Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",
     "unreachable": "Arama hizmetine ulaşılamadı. Birazdan tekrar deneyin.",

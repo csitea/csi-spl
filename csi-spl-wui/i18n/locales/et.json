@@ -134,7 +134,8 @@
         "network": "Keskus ei vastanud — proovi uuesti.",
         "generic": "Midagi läks valesti — proovi uuesti."
       }
-    }
+    },
+    "notifications": "Teavitused"
   },
   "auth": {
     "error": {

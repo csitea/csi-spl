@@ -160,10 +160,13 @@ describe('live #alerts / DM escalation wiring (gap A2)', () => {
     const vue = src('src/components/NotificationCenter.vue')
     assert.match(vue, /@media \(max-width: 800px\)/)
     assert.match(vue, /:aria-label="alertsLabel"/)
-    assert.match(vue, /name="bell"/)
+    assert.match(vue, /'bell' : 'bell-off'/)
+    assert.match(vue, /name="music"/)
+    assert.match(vue, /:aria-pressed="notes\.chime"/)
     const rail = vue.slice(vue.indexOf('@media (max-width: 800px)'))
-    assert.match(rail, /\.notify-text \{ display: none; \}/)
-    assert.match(rail, /\.notify-glyph \{ display: block; \}/)
+    /* owner 2026-09-26: icons at every width, so there is no text to hide */
+    assert.doesNotMatch(vue, /class="notify-text"/)
+    assert.match(vue, /\.notify-glyph \{ display: block; \}/)
     /* the control itself is never removed */
     assert.doesNotMatch(rail, /\.notify-box \{[^}]*display:\s*none/)
     assert.doesNotMatch(rail, /\.notify-alerts \{[^}]*display:\s*none/)

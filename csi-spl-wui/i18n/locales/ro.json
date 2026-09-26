@@ -134,7 +134,8 @@
         "network": "Hubul nu a răspuns — încercați din nou.",
         "generic": "Ceva nu a mers bine — încercați din nou."
       }
-    }
+    },
+    "notifications": "Notificări"
   },
   "auth": {
     "error": {

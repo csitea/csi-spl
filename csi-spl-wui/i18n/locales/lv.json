@@ -134,7 +134,8 @@
         "network": "Centrs neatbildēja — mēģiniet vēlreiz.",
         "generic": "Kaut kas nogāja greizi — mēģiniet vēlreiz."
       }
-    }
+    },
+    "notifications": "Paziņojumi"
   },
   "auth": {
     "error": {

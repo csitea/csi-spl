@@ -134,7 +134,8 @@
         "network": "ה-hub לא הגיב — נסו שוב.",
         "generic": "משהו השתבש — נסו שוב."
       }
-    }
+    },
+    "notifications": "התראות"
   },
   "auth": {
     "error": {

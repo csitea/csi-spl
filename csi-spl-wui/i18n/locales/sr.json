@@ -134,7 +134,8 @@
         "network": "Hab nije odgovorio — pokušajte ponovo.",
         "generic": "Nešto nije u redu — pokušajte ponovo."
       }
-    }
+    },
+    "notifications": "Обавештења"
   },
   "auth": {
     "error": {

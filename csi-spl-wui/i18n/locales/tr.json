@@ -134,7 +134,8 @@
         "network": "Hub yanıt vermedi — tekrar deneyin.",
         "generic": "Bir şeyler ters gitti — tekrar deneyin."
       }
-    }
+    },
+    "notifications": "Bildirimler"
   },
   "auth": {
     "error": {

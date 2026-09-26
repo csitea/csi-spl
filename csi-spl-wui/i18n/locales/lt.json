@@ -134,7 +134,8 @@
         "network": "Centras neatsakė — bandykite dar kartą.",
         "generic": "Kažkas nepavyko — bandykite dar kartą."
       }
-    }
+    },
+    "notifications": "Pranešimai"
   },
   "auth": {
     "error": {

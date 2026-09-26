@@ -94,6 +94,12 @@ export const UI_ICON_PATHS = {
   ],
   // CLE-3433: the notification control in the collapsed 72px sidebar rail,
   // where its label does not fit and must not be shown as wrapped text.
+  // chime on/off (owner, 2026-09-26): lucide "music" - two notes on a beam
+  music: [
+    "M9 18V5l12-2v13",
+    "M6 15a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
+    "M18 13a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
+  ],
   bell: [
     "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9",
     "M13.73 21a2 2 0 0 1-3.46 0",

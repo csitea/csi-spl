@@ -134,7 +134,8 @@
         "network": "Hub neodpovedal — skúste to znova.",
         "generic": "Niečo sa pokazilo — skúste to znova."
       }
-    }
+    },
+    "notifications": "Upozornenia"
   },
   "auth": {
     "error": {

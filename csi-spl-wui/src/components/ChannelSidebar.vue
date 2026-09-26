@@ -487,11 +487,20 @@
         <NuxtLink class="nav-row" data-testid="sidebar-users-open" :to="localePath('/users')">{{ t('users.title') }}</NuxtLink>
       </div>
     <div class="sidebar-foot">
-      <div class="nav-item health" data-testid="connection-health" :title="t('sidebar.health_title', { state: stateLabel(live.state.value) })">
-        <span class="health-dot" :class="health" />
-        <span class="label muted">{{ t('sidebar.health.' + health) }}</span>
+      <!-- owner, 2026-09-26: the connection dot, the alerts bell and the chime
+           note on ONE row, icons only; the words are the hover text. -->
+      <div class="foot-row">
+        <div
+          class="health"
+          data-testid="connection-health"
+          role="status"
+          :title="t('sidebar.health_title', { state: stateLabel(live.state.value) })"
+          :aria-label="t('sidebar.health.' + health)"
+        >
+          <span class="health-dot" :class="health" />
+        </div>
+        <NotificationCenter />
       </div>
-      <NotificationCenter />
       <!-- identity, Sign in / Sign out: the top-right UserMenu (CLE-3402) -->
       <!-- CLE-3433: the semver plus the deployed commit, so "did my fix
            ship?" is answerable from the page instead of from build.json -->
@@ -1315,5 +1324,10 @@ async function onCreate() {
     font-size: 0.6875rem;
   }
   .tenant-switcher__icon { display: none; }
+}
+.foot-row { display: flex; align-items: center; gap: 8px; padding: 6px 16px; }
+.foot-row .health { display: inline-flex; align-items: center; padding: 0 4px; }
+@media (max-width: 800px) {
+  .foot-row { flex-direction: column; padding: 6px 4px; }
 }
 </style>

@@ -134,7 +134,8 @@
         "network": "Hub nie odpowiedział — spróbuj ponownie.",
         "generic": "Coś poszło nie tak — spróbuj ponownie."
       }
-    }
+    },
+    "notifications": "Powiadomienia"
   },
   "auth": {
     "error": {

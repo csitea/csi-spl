@@ -6,6 +6,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'profile', label: 'settings.profile' },
   { id: 'language', label: 'settings.language_title' },
   { id: 'appearance', label: 'settings.appearance' },
+  { id: 'notifications', label: 'settings.notifications' },
   { id: 'security', label: 'settings.signin_security' },
   { id: 'keys', label: 'settings.keys_title' },
 ]

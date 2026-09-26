@@ -134,7 +134,8 @@
         "network": "De hub reageerde niet — probeer het opnieuw.",
         "generic": "Er is iets misgegaan — probeer het opnieuw."
       }
-    }
+    },
+    "notifications": "Meldingen"
   },
   "auth": {
     "error": {

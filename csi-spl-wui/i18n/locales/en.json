@@ -134,7 +134,8 @@
         "network": "The hub did not answer — try again.",
         "generic": "Something went wrong — try again."
       }
-    }
+    },
+    "notifications": "Notifications"
   },
   "auth": {
     "error": {

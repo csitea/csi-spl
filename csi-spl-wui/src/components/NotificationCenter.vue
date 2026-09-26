@@ -1,20 +1,30 @@
 <template>
+  <!-- owner, 2026-09-26: icons only, one row; the words are the hover text
+       (title) and the screen-reader name (aria-label). -->
   <div class="notify-box">
     <button
-      class="btn ghost notify-alerts"
+      class="icon-btn notify-alerts"
       type="button"
       data-testid="notify-alerts"
+      :class="{ on: alertsOn }"
       :aria-label="alertsLabel"
       :title="alertsLabel"
       @click="notes.requestPush()"
     >
-      <UiIcon class="notify-glyph" name="bell" :size="18" />
-      <span class="notify-text">{{ alertsLabel }}</span>
+      <UiIcon class="notify-glyph" :name="alertsOn ? 'bell' : 'bell-off'" :size="18" />
     </button>
-    <label class="muted notify-chime" :title="t('notify.chime')">
-      <input v-model="notes.chime" type="checkbox" :aria-label="t('notify.chime')">
-      <span class="notify-text">{{ t('notify.chime') }}</span>
-    </label>
+    <button
+      class="icon-btn notify-chime"
+      type="button"
+      data-testid="notify-chime"
+      :class="{ on: notes.chime }"
+      :aria-pressed="notes.chime"
+      :aria-label="t('notify.chime')"
+      :title="t('notify.chime')"
+      @click="notes.chime = !notes.chime"
+    >
+      <UiIcon class="notify-glyph" name="music" :size="18" />
+    </button>
   </div>
 </template>
 
@@ -23,54 +33,34 @@ import { useNotificationStore } from '~/stores/notification'
 
 const notes = useNotificationStore()
 const { t } = useI18n({ useScope: 'global' })
-const alertsLabel = computed(() => (notes.permission === 'granted' ? t('notify.alerts_on') : t('notify.enable_alerts')))
+const alertsOn = computed(() => notes.permission === 'granted')
+const alertsLabel = computed(() => (alertsOn.value ? t('notify.alerts_on') : t('notify.enable_alerts')))
 </script>
 
 <style scoped>
 .notify-box {
-  padding: 8px 16px;
-  display: grid;
-  gap: 6px;
-  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
-  overflow-wrap: anywhere;
 }
-.notify-alerts {
-  display: flex;
+.notify-alerts, .notify-chime {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  min-width: var(--tap, 32px);
+  min-height: var(--tap, 32px);
+  padding: 6px;
+  opacity: 0.6;
 }
-/* The glyph is the narrow-rail form only; with the label present it would be
-   a second, redundant signal. */
-.notify-glyph { display: none; }
-.notify-chime {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
+.notify-alerts.on, .notify-chime.on { opacity: 1; color: var(--color-accent); }
+.notify-glyph { display: block; }
 
-/* CLE-3433 — the collapsed rail (main.css hides `.sidebar h2`, the nav
-   labels, `.create-row` and the version stamp at the same breakpoint).
-   This box was never given that treatment, so at 800px and below the words
-   "enable alerts" were laid out inside a 40px-wide button with
-   `overflow-wrap: anywhere` and came out as a COLUMN OF SINGLE LETTERS —
-   measured on the deployed dev build 28ec27b: the button rendered 40px wide
-   by 234px tall at every viewport from 390px to 768px. That column, next to
-   an unlabelled channel rail, is what "completely broken" looks like on a
-   phone. In the rail the control becomes a bell icon that keeps its
-   accessible name through aria-label/title, and the chime keeps its
-   checkbox; neither is removed, because a phone is where push matters most. */
+/* CLE-3433 - the collapsed rail (<= 800px). The controls were text buttons
+   that wrapped into a column of single letters at 40px wide; they are icons
+   now at every width, so the rail only stacks them. Neither is removed: a
+   phone is where push matters most, and both keep their accessible name. */
 @media (max-width: 800px) {
-  .notify-box { padding: 8px 4px; justify-items: center; }
-  .notify-text { display: none; }
-  .notify-glyph { display: block; }
-  .notify-alerts {
-    min-width: var(--tap);
-    min-height: var(--tap);
-    padding: 6px;
-  }
-  .notify-chime { justify-content: center; gap: 0; }
+  .notify-box { flex-direction: column; }
 }
 </style>

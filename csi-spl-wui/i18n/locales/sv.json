@@ -134,7 +134,8 @@
         "network": "Hubben svarade inte — försök igen.",
         "generic": "Något gick fel — försök igen."
       }
-    }
+    },
+    "notifications": "Aviseringar"
   },
   "auth": {
     "error": {

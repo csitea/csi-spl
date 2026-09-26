@@ -134,7 +134,8 @@
         "network": "Hub ei vastannut — yritä uudelleen.",
         "generic": "Jokin meni pieleen — yritä uudelleen."
       }
-    }
+    },
+    "notifications": "Ilmoitukset"
   },
   "auth": {
     "error": {

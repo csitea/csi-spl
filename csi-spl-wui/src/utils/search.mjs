@@ -51,7 +51,7 @@ export const SEARCH_OPERATORS = [
   { op: 'to:', example: 'to:HUM-1' },
   { op: 'in:', example: 'in:#lobby', values: ['dm'] },
   { op: 'channel:', example: 'channel:#lobby', values: ['dm'] },
-  { op: 'is:', values: ['task', 'note', 'result', 'reject', 'root', 'online', 'offline', 'revoked'] },
+  { op: 'is:', values: ['task', 'note', 'result', 'reject', 'blocker', 'msg', 'root', 'online', 'offline', 'revoked'] },
   { op: 'has:', values: ['file', 'attachment', 'code'] },
   { op: 'type:', values: TYPE_VALUES },
   { op: 'kind:', example: 'kind:message', values: TYPE_VALUES },

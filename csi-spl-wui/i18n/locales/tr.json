@@ -397,7 +397,9 @@
     "send_failed_closed": "Gönderilmedi — bağlantı koptu. Metniniz hâlâ burada.",
     "send_failed_timeout": "Gönderilmedi — hub zamanında yanıt vermedi. Metniniz hâlâ burada.",
     "send_retry": "Tekrar dene",
-    "send_failed_empty": "Gönderilecek bir şey yok — tek başına bir bahsetme mesaj değildir. Metin ekleyin veya dosya iliştirin."
+    "send_failed_empty": "Gönderilecek bir şey yok — tek başına bir bahsetme mesaj değildir. Metin ekleyin veya dosya iliştirin.",
+    "kind_label": "Mesaj türü",
+    "kind_auto": "otomatik"
   },
   "feed": {
     "unknown_author": "bilinmiyor",
@@ -427,7 +429,9 @@
       "task": "görev",
       "result": "sonuç",
       "note": "not",
-      "reject": "ret"
+      "reject": "ret",
+      "blocker": "engel",
+      "msg": "mesaj"
     },
     "live_state": {
       "idle": "boşta",

@@ -219,6 +219,30 @@ export const UI_ICON_PATHS = {
     "M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18z",
     { d: "M12 9.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 1 1 0-5.6z", fill: true },
   ],
+  // SPL-952: the message kind badges (KindBadge.vue, utils/msg-kind.mjs).
+  // note: a sticky note (lucide sticky-note).
+  "kind-note": [
+    "M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8z",
+    "M15 3v4a2 2 0 0 0 2 2h4",
+  ],
+  // task: a hammer and a screwdriver, crossed.
+  "kind-task": [
+    "M13.3 5.1 18.9 10.7 16.7 12.9 11.1 7.3z",
+    "M4 20l9.9-9.9",
+    "M15.8 13.2 20.8 18.2 18.2 20.8 13.2 15.8z",
+    "M14.5 14.5 4 4",
+  ],
+  // blocker: a stop sign struck through (lucide octagon + a slash).
+  "kind-blocker": [
+    "M2.586 16.726A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2h6.624a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586z",
+    "M5 19 19 5",
+  ],
+  // msg: a plain speech bubble (lucide message-square).
+  "kind-msg": ["M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"],
+  // result: a check in a circle (lucide circle-check).
+  "kind-result": ["M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z", "m8.5 12 2.5 2.5 4.5-4.5"],
+  // reject: an x in a circle (lucide circle-x).
+  "kind-reject": ["M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z", "m15 9-6 6", "m9 9 6 6"],
   // Card height modes (CardClipControl, SPL-941): one line / a clipped
   // paragraph / the whole card.
   "clip-titles": ["M4 12h16"],

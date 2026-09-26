@@ -397,7 +397,9 @@
     "send_failed_closed": "Saatmata — ühendus katkes. Sinu tekst on alles.",
     "send_failed_timeout": "Saatmata — hub ei vastanud õigeks ajaks. Sinu tekst on alles.",
     "send_retry": "Proovi uuesti",
-    "send_failed_empty": "Pole midagi saata — pelgalt mainimine ei ole sõnum. Lisa teksti või manusta fail."
+    "send_failed_empty": "Pole midagi saata — pelgalt mainimine ei ole sõnum. Lisa teksti või manusta fail.",
+    "kind_label": "Sõnumi tüüp",
+    "kind_auto": "automaatne"
   },
   "feed": {
     "unknown_author": "tundmatu",
@@ -427,7 +429,9 @@
       "task": "ülesanne",
       "result": "tulemus",
       "note": "märkus",
-      "reject": "tagasilükkamine"
+      "reject": "tagasilükkamine",
+      "blocker": "takistus",
+      "msg": "sõnum"
     },
     "live_state": {
       "idle": "ootel",

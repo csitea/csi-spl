@@ -1,4 +1,4 @@
-export type MsgKind = 'task' | 'result' | 'note' | 'reject'
+export type MsgKind = 'task' | 'result' | 'note' | 'reject' | 'blocker' | 'msg'
 
 /** v:1 files[] entry (002 message-schema; internal/msg/msg.go Attachment). */
 export interface FileRef {

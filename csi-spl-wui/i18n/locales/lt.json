@@ -397,7 +397,9 @@
     "send_failed_closed": "Neišsiųsta — ryšys nutrūko. Jūsų tekstas išsaugotas.",
     "send_failed_timeout": "Neišsiųsta — hub neatsakė laiku. Jūsų tekstas išsaugotas.",
     "send_retry": "Bandyti dar kartą",
-    "send_failed_empty": "Nėra ko siųsti — vien paminėjimas nėra žinutė. Pridėkite teksto arba prisekite failą."
+    "send_failed_empty": "Nėra ko siųsti — vien paminėjimas nėra žinutė. Pridėkite teksto arba prisekite failą.",
+    "kind_label": "Žinutės tipas",
+    "kind_auto": "automatiškai"
   },
   "feed": {
     "unknown_author": "nežinomas",
@@ -427,7 +429,9 @@
       "task": "užduotis",
       "result": "rezultatas",
       "note": "pastaba",
-      "reject": "atmesta"
+      "reject": "atmesta",
+      "blocker": "kliūtis",
+      "msg": "žinutė"
     },
     "live_state": {
       "idle": "neaktyvu",

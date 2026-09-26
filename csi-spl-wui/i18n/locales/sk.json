@@ -397,7 +397,9 @@
     "send_failed_closed": "Neodoslané — spojenie sa prerušilo. Váš text tu zostal.",
     "send_failed_timeout": "Neodoslané — hub neodpovedal včas. Váš text tu zostal.",
     "send_retry": "Skúsiť znova",
-    "send_failed_empty": "Nie je čo odoslať — samotná zmienka nie je správa. Pridajte text alebo priložte súbor."
+    "send_failed_empty": "Nie je čo odoslať — samotná zmienka nie je správa. Pridajte text alebo priložte súbor.",
+    "kind_label": "Typ správy",
+    "kind_auto": "automaticky"
   },
   "feed": {
     "unknown_author": "neznámy",
@@ -427,7 +429,9 @@
       "task": "úloha",
       "result": "výsledok",
       "note": "poznámka",
-      "reject": "odmietnutie"
+      "reject": "odmietnutie",
+      "blocker": "prekážka",
+      "msg": "správa"
     },
     "live_state": {
       "idle": "nečinné",

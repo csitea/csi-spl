@@ -28,7 +28,7 @@ function v1KindsFromMsgGo() {
 describe('verbosity from kind', () => {
   it('covers every v:1 kind from msg.go validKinds (inner of wire.Envelope.Msg)', () => {
     const fromGo = v1KindsFromMsgGo()
-    assert.deepEqual(fromGo, ['note', 'reject', 'result', 'task'])
+    assert.deepEqual(fromGo, ['blocker', 'msg', 'note', 'reject', 'result', 'task'])
     assert.deepEqual([...V1_KINDS].sort(), fromGo)
     for (const kind of fromGo) {
       assert.equal(['minimal', 'normal', 'verbose'].includes(verbosityOf(kind)), true, kind)

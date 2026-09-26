@@ -10,13 +10,16 @@ export const DEFAULT_LEVEL = 'normal'
 export const STORAGE_KEY = 'spool.verbosity'
 
 /** Frozen inner kinds (`internal/msg/msg.go` validKinds; inner of wire.Envelope.Msg). */
-export const V1_KINDS = ['task', 'result', 'note', 'reject']
+export const V1_KINDS = ['task', 'result', 'note', 'reject', 'blocker', 'msg']
 
 const KIND_LEVEL = {
   task: 'minimal',
   result: 'minimal',
   reject: 'minimal',
+  // SPL-952: a blocker waits on a reader, so even minimal shows it
+  blocker: 'minimal',
   note: 'normal',
+  msg: 'normal',
 }
 
 const RANK = { minimal: 0, normal: 1, verbose: 2 }

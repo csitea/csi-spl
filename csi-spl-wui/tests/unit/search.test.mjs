@@ -116,7 +116,7 @@ describe('operator autocomplete', () => {
     assert.ok(completeOperators('Is').some((c) => c.insert === 'is:'))
   })
   it('closed values after the colon', () => {
-    assert.deepEqual(completeOperators('is:r').map((c) => c.insert), ['is:result ', 'is:reject ', 'is:root ', 'is:revoked '])
+    assert.deepEqual(completeOperators('is:r').map((c) => c.insert), ['is:result ', 'is:reject ', 'is:blocker ', 'is:root ', 'is:revoked '])
     assert.deepEqual(completeOperators('type:r').map((c) => c.insert), ['type:robot ', 'type:user ', 'type:thread ', 'type:person ', 'type:workspace '])
     assert.deepEqual(completeOperators('type:ten').map((c) => c.insert), ['type:tenant '])
     assert.deepEqual(completeOperators('type:ev').map((c) => c.insert), ['type:event '])
@@ -164,7 +164,7 @@ describe('operator autocomplete', () => {
     assert.deepEqual(completeOperators('to:hum', SEARCH_OPERATORS, roster), [])
     assert.deepEqual(
       completeOperators('is:r', SEARCH_OPERATORS, roster).map((c) => c.insert),
-      ['is:result ', 'is:reject ', 'is:root ', 'is:revoked '],
+      ['is:result ', 'is:reject ', 'is:blocker ', 'is:root ', 'is:revoked '],
     )
     assert.deepEqual(
       completeOperators('f', SEARCH_OPERATORS, roster).map((c) => c.insert),

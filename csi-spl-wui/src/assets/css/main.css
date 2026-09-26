@@ -372,9 +372,20 @@ html.pane-dragging * {
   border: 1px solid var(--color-border);
   color: var(--color-muted);
 }
+/* SPL-952: an icon badge (KindBadge.vue); the colour repeats what the glyph says */
+.kind--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  line-height: 0;
+  vertical-align: middle;
+}
 .kind-task { color: var(--color-accent); border-color: var(--color-accent); }
 .kind-result { color: var(--color-ok); border-color: var(--color-ok); }
 .kind-reject { color: var(--color-danger); border-color: var(--color-danger); }
+.kind-note { color: var(--color-warn); border-color: var(--color-warn); }
+.kind-blocker { color: var(--color-danger-fg); border-color: var(--color-danger); background: var(--color-danger); }
 .replies {
   margin-top: 6px;
   font-size: 0.75rem;

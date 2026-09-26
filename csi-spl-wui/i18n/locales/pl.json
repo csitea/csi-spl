@@ -397,7 +397,9 @@
     "send_failed_closed": "Nie wysłano — połączenie zostało przerwane. Twój tekst jest nadal tutaj.",
     "send_failed_timeout": "Nie wysłano — hub nie odpowiedział na czas. Twój tekst jest nadal tutaj.",
     "send_retry": "Spróbuj ponownie",
-    "send_failed_empty": "Nie ma czego wysłać — samo wspomnienie to nie wiadomość. Dodaj tekst lub załącz plik."
+    "send_failed_empty": "Nie ma czego wysłać — samo wspomnienie to nie wiadomość. Dodaj tekst lub załącz plik.",
+    "kind_label": "Typ wiadomości",
+    "kind_auto": "automatycznie"
   },
   "feed": {
     "unknown_author": "nieznany",
@@ -427,7 +429,9 @@
       "task": "zadanie",
       "result": "wynik",
       "note": "notatka",
-      "reject": "odrzucenie"
+      "reject": "odrzucenie",
+      "blocker": "bloker",
+      "msg": "wiadomość"
     },
     "live_state": {
       "idle": "bezczynny",

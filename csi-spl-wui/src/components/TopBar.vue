@@ -143,6 +143,8 @@ async function onSend(text: string, parent?: string, files?: File[], channelId?:
   sendError.value = null
   try {
     await target.send(text, sent, parent, channelId)
+    /* SPL-952: a picked kind is for one send, so a blocker is not sent twice */
+    omnibox.kind = ''
   } catch (err) {
     sendError.value = { key: sendFailureKey(err), err, text, files: sent, topicId: parent, channelId }
     composer.value?.restore(text, sent)

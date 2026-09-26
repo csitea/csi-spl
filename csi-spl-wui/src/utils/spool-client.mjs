@@ -13,6 +13,7 @@ import {
   topicsFromMessages,
 } from './view-api.mjs'
 import { SEARCH_OPERATORS, searchApiQuery } from './search.mjs'
+import { sendKind } from './msg-kind.mjs'
 /* issues-v1 §4 query - the same as issues.mjs issueQuery (kept here so the
    Issues code stays off the initial script; tests/unit/issues.test.mjs
    checks the two agree). */
@@ -896,11 +897,11 @@ export function createSpoolClient({
      * wui-live-ws §4 `send` frame via the injected sender; resolves with the
      * flat message plus the ack's cursor / received_at.
      */
-    async sendMessage({ channel, peer, text, task_id, parent_task_id, is_parent, files, from, msg_id } = {}) {
+    async sendMessage({ channel, peer, text, task_id, parent_task_id, is_parent, files, from, msg_id, kind: picked } = {}) {
       const parsed = parseMention(text)
       const peerId = peer ? String(peer).split('@')[0] : ''
       const to = peer ? peerId : parsed.to
-      const kind = peer ? 'note' : parsed.kind
+      const kind = sendKind(peer ? 'note' : parsed.kind, picked)
       const body = peer ? String(text || '') : parsed.body
       if (mock) {
         const row = {

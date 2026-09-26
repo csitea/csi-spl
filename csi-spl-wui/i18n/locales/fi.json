@@ -397,7 +397,9 @@
     "send_failed_closed": "Ei lähetetty — yhteys katkesi. Tekstisi on yhä tallessa.",
     "send_failed_timeout": "Ei lähetetty — hub ei vastannut ajoissa. Tekstisi on yhä tallessa.",
     "send_retry": "Yritä uudelleen",
-    "send_failed_empty": "Ei mitään lähetettävää — pelkkä maininta ei ole viesti. Lisää tekstiä tai liitä tiedosto."
+    "send_failed_empty": "Ei mitään lähetettävää — pelkkä maininta ei ole viesti. Lisää tekstiä tai liitä tiedosto.",
+    "kind_label": "Viestin tyyppi",
+    "kind_auto": "automaattinen"
   },
   "feed": {
     "unknown_author": "tuntematon",
@@ -427,7 +429,9 @@
       "task": "tehtävä",
       "result": "tulos",
       "note": "huomautus",
-      "reject": "hylkäys"
+      "reject": "hylkäys",
+      "blocker": "este",
+      "msg": "viesti"
     },
     "live_state": {
       "idle": "odottaa",

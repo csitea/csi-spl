@@ -397,7 +397,9 @@
     "send_failed_closed": "Niet verzonden — de verbinding viel weg. Je tekst staat er nog.",
     "send_failed_timeout": "Niet verzonden — de hub antwoordde niet op tijd. Je tekst staat er nog.",
     "send_retry": "Opnieuw proberen",
-    "send_failed_empty": "Niets te versturen — een vermelding alleen is geen bericht. Voeg tekst toe of voeg een bestand bij."
+    "send_failed_empty": "Niets te versturen — een vermelding alleen is geen bericht. Voeg tekst toe of voeg een bestand bij.",
+    "kind_label": "Berichttype",
+    "kind_auto": "automatisch"
   },
   "feed": {
     "unknown_author": "onbekend",
@@ -427,7 +429,9 @@
       "task": "taak",
       "result": "resultaat",
       "note": "notitie",
-      "reject": "afwijzing"
+      "reject": "afwijzing",
+      "blocker": "blokkade",
+      "msg": "bericht"
     },
     "live_state": {
       "idle": "inactief",

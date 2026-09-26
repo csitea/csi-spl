@@ -397,7 +397,9 @@
     "send_failed_closed": "Inte skickat — anslutningen bröts. Din text finns kvar.",
     "send_failed_timeout": "Inte skickat — hubben svarade inte i tid. Din text finns kvar.",
     "send_retry": "Försök igen",
-    "send_failed_empty": "Inget att skicka — enbart en omnämning är inget meddelande. Lägg till text eller bifoga en fil."
+    "send_failed_empty": "Inget att skicka — enbart en omnämning är inget meddelande. Lägg till text eller bifoga en fil.",
+    "kind_label": "Meddelandetyp",
+    "kind_auto": "automatiskt"
   },
   "feed": {
     "unknown_author": "okänd",
@@ -427,7 +429,9 @@
       "task": "uppgift",
       "result": "resultat",
       "note": "anteckning",
-      "reject": "avvisning"
+      "reject": "avvisning",
+      "blocker": "blockerare",
+      "msg": "meddelande"
     },
     "live_state": {
       "idle": "vilande",

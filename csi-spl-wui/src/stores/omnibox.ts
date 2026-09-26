@@ -17,6 +17,8 @@ export const useOmniboxStore = defineStore('omnibox', () => {
   const target = shallowRef<OmniboxTarget | null>(null)
   /** bumped to ask the search results list to take the focus (ArrowDown in the Omnibox) */
   const focusResults = ref(0)
+  /** SPL-952: the composer's kind pick for the next send ('' = automatic) */
+  const kind = ref('')
 
   function register(t: OmniboxTarget) {
     target.value = t
@@ -24,7 +26,7 @@ export const useOmniboxStore = defineStore('omnibox', () => {
   function unregister(owner: symbol) {
     if (target.value && target.value.owner === owner) target.value = null
   }
-  return { target, focusResults, register, unregister }
+  return { target, focusResults, kind, register, unregister }
 })
 
 /** Page helper: register a send target for this page's lifetime. */

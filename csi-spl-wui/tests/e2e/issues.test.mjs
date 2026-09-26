@@ -92,11 +92,10 @@ try {
       textOf('[data-test=issues-filter-level]'),
       textOf('[data-test=issues-filter-assignee]'),
       textOf('[data-test=issues-filter-label]'),
-      span('[data-test=issues-filter-from]'),
-      span('[data-test=issues-filter-until]'),
+      span('[data-test=issues-filter-deadline-date]'),
     ]
   })
-  ok('2c filter controls do not share a label', new Set(rowLabels).size === rowLabels.length && rowLabels[0] === 'Sort: Level' && rowLabels[3] === 'Level: All' && rowLabels[6] === 'Deadline from' && rowLabels[7] === 'Deadline until', rowLabels)
+  ok('2c filter controls do not share a label', new Set(rowLabels).size === rowLabels.length && rowLabels[0] === 'Sort: Level' && rowLabels[3] === 'Level: All' && rowLabels[6] === 'Deadline:' && !rowLabels.includes('Deadline from') && !rowLabels.includes('Deadline until'), rowLabels)
   await p.select('[data-test=issues-sort]', 'priority')
 
   await p.click('[data-test=issues-filter-status-btn]')

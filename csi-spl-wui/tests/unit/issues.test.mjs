@@ -290,8 +290,7 @@ describe('filter row labels', () => {
       controlLabel('Level', 'All'),
       controlLabel('Assignee', 'All'),
       controlLabel('Label', 'All'),
-      'Deadline from',
-      'Deadline until',
+      'Deadline:',
     ]
     assert.equal(new Set(row).size, row.length)
     assert.notEqual(controlLabel('Sort', 'Level'), controlLabel('Level', 'All'))
@@ -305,6 +304,9 @@ describe('filter row labels', () => {
     assert.match(src, /controlLabel\(t\('issues\.sort'\), t\('issues\.sort_level'\)\)/)
     assert.match(src, /controlLabel\(t\('issues\.filter_status'\)/)
     assert.match(src, /controlLabel\(t\('issues\.filter_level'\), String\(n\)\)/)
-    assert.match(src, /class="issues-filter-when"/)
+    assert.match(src, /data-test="issues-filter-deadline"/)
+    assert.equal(src.includes('issues-filter-from'), false)
+    assert.equal(src.includes('issues-filter-until'), false)
+    assert.equal(src.includes('deadlineAfter'), false)
   })
 })

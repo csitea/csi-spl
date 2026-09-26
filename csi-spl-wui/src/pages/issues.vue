@@ -66,13 +66,9 @@
           <option value="">{{ t('issues.filter_label') }}: {{ t('issues.filter_all') }}</option>
           <option v-for="l in labels" :key="l.id" :value="l.id">{{ controlLabel(t('issues.filter_label'), l.name) }}</option>
         </select>
-        <label class="issues-filter-when">
-          <span>{{ t('issues.filter_from') }}</span>
-          <input v-model="fromF" type="date" data-test="issues-filter-from" :aria-label="t('issues.filter_from')">
-        </label>
-        <label class="issues-filter-when">
-          <span>{{ t('issues.filter_until') }}</span>
-          <input v-model="untilF" type="date" data-test="issues-filter-until" :aria-label="t('issues.filter_until')">
+        <label class="issues-filter-when" data-test="issues-filter-deadline">
+          <span>{{ t('issues.field_deadline') }}:</span>
+          <input v-model="dueF" type="date" data-test="issues-filter-deadline-date" :aria-label="t('issues.field_deadline')">
         </label>
         <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
       </div>
@@ -374,8 +370,7 @@ const priorityF = ref('')
 const levelF = ref('')
 const assigneeF = ref('')
 const labelF = ref('')
-const fromF = ref('')
-const untilF = ref('')
+const dueF = ref('')
 const collapsed = ref<Record<string, boolean>>({ done: true, diss: true })
 const cursorKey = ref('')
 const openKey = ref('')
@@ -501,10 +496,8 @@ function serverFilter(): IssueFilter {
   if (levelF.value !== '') f.level = [Number(levelF.value)]
   if (assigneeF.value) f.assignee = [assigneeF.value]
   if (labelF.value) f.label = [labelF.value]
-  /* the filters are days: from its first minute, until its last */
-  const after = fromF.value ? localInputToDeadline(`${fromF.value}T00:00`) : ''
-  const before = untilF.value ? localInputToDeadline(`${untilF.value}T23:59:59`) : ''
-  if (after) f.deadlineAfter = after
+  /* one day: issues due on or before its last minute */
+  const before = dueF.value ? localInputToDeadline(`${dueF.value}T23:59:59`) : ''
   if (before) f.deadlineBefore = before
   return f
 }
@@ -603,8 +596,7 @@ function clearFilters() {
   levelF.value = ''
   assigneeF.value = ''
   labelF.value = ''
-  fromF.value = ''
-  untilF.value = ''
+  dueF.value = ''
 }
 function toggleGroup(status: string) {
   collapsed.value = { ...collapsed.value, [status]: !collapsed.value[status] }
@@ -942,7 +934,7 @@ function onDocKey(ev: KeyboardEvent) {
   if (kind && issue) { openMenu(kind, issue); ev.preventDefault() }
 }
 
-watch([statusF, priorityF, levelF, assigneeF, labelF, fromF, untilF, sortF, epicF], () => { void load() })
+watch([statusF, priorityF, levelF, assigneeF, labelF, dueF, sortF, epicF], () => { void load() })
 watch(() => session.state, () => { void load() }, { immediate: true })
 async function openLinkedIssue() {
   const key = issueLinkKey()

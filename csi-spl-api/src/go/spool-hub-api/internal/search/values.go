@@ -47,7 +47,7 @@ func (p *parser) operator(t *token, name, val string, phrase, neg bool) (*Node, 
 		for _, part := range strings.Split(lv, ",") {
 			ty, ok := typeAliases[strings.TrimSpace(part)]
 			if !ok {
-				return bad("type: must be message, topic, file, robot, user, channel, box, tenant or event")
+				return bad("type: must be message, topic, file, robot, user, channel, box, tenant, event or issue")
 			}
 			if !seen[ty] {
 				seen[ty] = true
@@ -116,6 +116,32 @@ func (p *parser) operator(t *token, name, val string, phrase, neg bool) (*Node, 
 			return bad("ext: must be 1-16 letters or digits")
 		}
 		term.Value = e
+	case OpStatus:
+		ok := false
+		for _, s := range IssueStatuses {
+			ok = ok || s == lv
+		}
+		if !ok {
+			return bad("status: must be one of " + strings.Join(IssueStatuses, ", "))
+		}
+		term.Enum = lv
+	case OpPriority:
+		n, err := strconv.Atoi(lv)
+		if err != nil || n < 0 || n > IssuePriorityMax {
+			return bad("priority: must be 0.." + strconv.Itoa(IssuePriorityMax))
+		}
+		term.Size = int64(n)
+	case OpAssignee:
+		switch {
+		case lv == "me" || lv == "none":
+			term.Enum = lv
+		case idValRe.MatchString(v):
+			term.ID = v
+		default:
+			return bad("assignee: must be a member or agent id, me or none")
+		}
+	case OpLabel:
+		term.Value = lv
 	case OpLarger, OpSmaller:
 		m := sizeRe.FindStringSubmatch(lv)
 		if m == nil {

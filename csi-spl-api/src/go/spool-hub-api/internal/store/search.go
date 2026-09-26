@@ -17,6 +17,13 @@ import (
 // robots, users, channels and boxes are small and the hub filters the rows
 // ViewBoxes / Humans / ViewChannelStats already return.
 
+// The issue workflow's closed sets reach the search grammar (1.2: status:,
+// priority:) from here, the one place they are defined (issues.go).
+func init() {
+	search.IssueStatuses = IssueStatuses
+	search.IssuePriorityMax = IssuePriorityMax
+}
+
 // ErrSearchBudget is a search statement that ran past its time budget
 // (search-v1 §5.1: 503 search_budget).
 var ErrSearchBudget = errors.New("search: time budget exceeded")

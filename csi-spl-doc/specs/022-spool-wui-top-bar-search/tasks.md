@@ -42,6 +42,6 @@
 - [x] T045 (FR-048) WUI help popover, tenant / event rows, 19 locales (9123919f, abbe819b; reviewed by CLE-34992: no blocking finding).
 - [x] T046 (FR-047) measured at 400k messages / 10k topics / 950 channels on dev, n=3 (§9); seed deleted 07:44Z. Finding: under FORCE RLS the GIN index is never used (`ts_match_vq` is not LEAKPROOF).
 - [ ] T047 (FR-047) the search ceiling: owner decision D-S1..D-S4 (§9). Open.
-- [ ] T048 (FR-040) `type:issue` (issues, spec 039): `status:` / `priority:` / `assignee:` / `label:`, opt-in; agreed with CLE-34993 07:10Z.
+- [x] T048 (FR-040) `type:issue` (aliases issues, ticket(s); grammar 1.2, hub 0.7.1): `status:` / `priority:` / `assignee:` (me, none) / `label:`, the store's closed sets (no copy), an issue-only operator implies `type:issue`; opt-in otherwise. Check: `search/issue_test.go`, `store/search_issue_test.go`, `hub/search_issue_test.go` (incl. CONTROLS: other tenant, plain query, `assignee:me` as another reader).
 
 <!-- version: 1.2.0 · updated: 2026-09-26 · last-edit: 2026-09-26T07:44:43Z -->

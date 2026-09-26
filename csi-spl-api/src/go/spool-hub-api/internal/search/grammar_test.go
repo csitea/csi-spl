@@ -261,6 +261,7 @@ func TestHighlights(t *testing.T) {
 
 // TestOperatorTable: every operator is documented and reachable by name.
 func TestOperatorTable(t *testing.T) {
+	issueFixture(t)
 	for _, o := range Operators {
 		if o.Doc == "" || o.Example == "" || len(o.Applies) == 0 {
 			t.Errorf("%s: incomplete row", o.Name)

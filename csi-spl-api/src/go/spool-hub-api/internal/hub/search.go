@@ -411,7 +411,29 @@ func (s *Server) searchEntities(ctx context.Context, tenant string, q *search.Qu
 					"status": ev.Status, "method": ev.Method, "path": ev.Path, "source": ev.Source, "received_at": rfc(ev.ReceivedAt)})
 		}
 	}
-	if ty == search.TypeEvent { // newest first, as the log reads (HumanEventsPage order)
+	if ty == search.TypeIssue {
+		// 1.2 (CLE-34992, spec 039): the tenant's issues, readable by every
+		// member (topics.read, the view door above). ListIssues is one read,
+		// newest number first; an issue's name is its key and title.
+		is, ok := s.o.Store.(store.Issues)
+		if !ok {
+			return []any{}, nil
+		}
+		list, err := is.ListIssues(ctx, tenant)
+		if err != nil {
+			return nil, err
+		}
+		for _, it := range list {
+			key := it.Key()
+			labels := append([]string{}, it.Labels...)
+			add(search.Entity{Name: key + " " + it.Title, Text: []string{key, it.Title, it.Description},
+				Status: it.Status, Priority: it.Priority, Assignee: it.Assignee, Labels: labels, Me: sq.Viewer},
+				map[string]any{"key": key, "number": it.Number, "title": hl{it.Title, q.HighlightSubstrings(it.Title)},
+					"status": it.Status, "priority": it.Priority, "assignee": strPtr(it.Assignee), "labels": labels,
+					"task_id": strPtr(it.TaskID), "updated_at": rfc(it.UpdatedAt)})
+		}
+	}
+	if ty == search.TypeEvent || ty == search.TypeIssue { // newest first (HumanEventsPage / ListIssues order)
 		out := make([]any, len(rows))
 		for i, r := range rows {
 			out[i] = r.v

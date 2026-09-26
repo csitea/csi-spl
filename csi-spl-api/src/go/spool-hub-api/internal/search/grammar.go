@@ -15,7 +15,7 @@ import (
 )
 
 // Version is the grammar version published by the operators endpoint.
-const Version = "1.1"
+const Version = "1.2"
 
 // Limits (search-v1 §1, §2.1).
 const (
@@ -39,10 +39,13 @@ const (
 	// every object of the UI). TypeEvent: the reader's own event log (events-v1).
 	TypeTenant Type = "tenant"
 	TypeEvent  Type = "event"
+	// TypeIssue (1.2, CLE-34992 for spec 039): the tenant's issues, readable
+	// by every member (topics.read). Opt-in like tenant and event.
+	TypeIssue Type = "issue"
 )
 
 // Types is every type in response order (search-v1 §4).
-var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent}
+var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue}
 
 // DefaultTypes are searched when no type: is given: content search (owner,
 // 2026-09-26: "the normal search should be by content, but there should be a
@@ -69,6 +72,7 @@ var typeAliases = map[string]Type{
 	"box": TypeBox, "boxes": TypeBox,
 	"tenant": TypeTenant, "tenants": TypeTenant, "workspace": TypeTenant, "workspaces": TypeTenant,
 	"event": TypeEvent, "events": TypeEvent, "log": TypeEvent, "error": TypeEvent, "errors": TypeEvent,
+	"issue": TypeIssue, "issues": TypeIssue, "ticket": TypeIssue, "tickets": TypeIssue,
 }
 
 // Aliases are the type: spellings of t other than its own name, sorted.
@@ -102,6 +106,20 @@ const (
 	OpExt      = "ext"
 	OpLarger   = "larger"
 	OpSmaller  = "smaller"
+	// 1.2: issue fields (spec 039), the semantics of GET /v1/issues' filter.
+	OpStatus   = "status"
+	OpPriority = "priority"
+	OpAssignee = "assignee"
+	OpLabel    = "label"
+)
+
+// IssueStatuses and IssuePriorityMax are the issue workflow's closed sets.
+// store fills them from store.IssueStatuses / store.IssuePriorityMax in its
+// init (store imports search, so search cannot import store): one source,
+// no copy. Unset, status: and priority: refuse every value.
+var (
+	IssueStatuses    []string
+	IssuePriorityMax = -1
 )
 
 // Operator is one row of the operator table (search-v1 §3.2, §6).
@@ -124,7 +142,7 @@ var (
 // Operators is the table; the parser, the applicability check and the
 // operators endpoint all read it.
 var Operators = []Operator{
-	{Name: OpType, Aliases: []string{"kind"}, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event (comma list)"},
+	{Name: OpType, Aliases: []string{"kind"}, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event, issue (comma list)"},
 	{Name: OpFrom, Values: "id", Applies: msgTopicFile, Example: "from:CLE-07", Doc: "sender: agent, agent@box, HUM-n or box"},
 	{Name: OpTo, Values: "id", Applies: msgTopicFile, Example: "to:HUM-3", Doc: "recipient: agent, agent@box, HUM-n or box"},
 	{Name: OpBox, Values: "box", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeBox}, Example: "box:box-a", Doc: "sent from or to this box; a robot on it; the box itself"},
@@ -141,11 +159,15 @@ var Operators = []Operator{
 	{Name: OpAfter, Values: "date", Applies: dated, Example: "after:7d", Doc: "received on or after a UTC day, or within an age"},
 	{Name: OpOn, Values: "date", Applies: dated, Example: "on:2026-09-19", Doc: "received on a UTC day"},
 	{Name: OpTitle, Aliases: []string{"subject"}, Values: "text", Applies: []Type{TypeTopic}, Example: "title:migration", Doc: "topic title words"},
-	{Name: OpName, Values: "text", Applies: []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent}, Example: "name:ops", Doc: "the object's NAME contains this (a topic's title, an event's code), never its content"},
+	{Name: OpName, Values: "text", Applies: []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue}, Example: "name:ops", Doc: "the object's NAME contains this (a topic's title, an event's code, an issue's key and title), never its content"},
 	{Name: OpFilename, Values: "text", Applies: []Type{TypeFile}, Example: `filename:"q3 report"`, Doc: "attachment name contains this"},
 	{Name: OpExt, Values: "ext", Applies: []Type{TypeFile}, Example: "ext:pdf", Doc: "attachment extension"},
 	{Name: OpLarger, Values: "size", Applies: []Type{TypeFile}, Example: "larger:1M", Doc: "attachment larger than (bytes, K, M, G)"},
 	{Name: OpSmaller, Values: "size", Applies: []Type{TypeFile}, Example: "smaller:10K", Doc: "attachment smaller than (bytes, K, M, G)"},
+	{Name: OpStatus, Values: "status", Applies: []Type{TypeIssue}, Example: "status:in_progress", Doc: "issue status: backlog, todo, in_progress, in_review, done, canceled"},
+	{Name: OpPriority, Values: "priority", Applies: []Type{TypeIssue}, Example: "priority:1", Doc: "issue priority: 0 none, 1 urgent, 2 high, 3 medium, 4 low"},
+	{Name: OpAssignee, Values: "id", Applies: []Type{TypeIssue}, Example: "assignee:me", Doc: "issue assignee: a member or agent id, me, or none"},
+	{Name: OpLabel, Values: "text", Applies: []Type{TypeIssue}, Example: "label:bug", Doc: "issue label"},
 }
 
 var opByName = func() map[string]*Operator {
@@ -178,7 +200,7 @@ type Term struct {
 	DM      bool      // in:dm
 	From    time.Time // before / after / on lower bound (zero = none)
 	Until   time.Time // exclusive upper bound (zero = none)
-	Size    int64     // larger / smaller
+	Size    int64     // larger / smaller; priority: the priority
 	Types   []Type    // type:
 	Lexemes []string  // text / title: lowercase words (Words of Value)
 }
@@ -573,6 +595,30 @@ func (q *Query) finish(root *Node) error {
 	} else {
 		for _, t := range DefaultTypes {
 			cand[t] = true
+		}
+		// 1.2: an operator that applies only to opt-in types (status: and the
+		// other issue fields) names its type, so "status:done" searches issues
+		// without a type:issue.
+		implied := map[Type]bool{}
+		walk(q.Root, func(n *Node) {
+			if n.Kind != Leaf {
+				return
+			}
+			ap := applies(n.Term)
+			if ap == nil {
+				return
+			}
+			for _, t := range ap {
+				if cand[t] {
+					return
+				}
+			}
+			for _, t := range ap {
+				implied[t] = true
+			}
+		})
+		if len(implied) > 0 {
+			cand = implied
 		}
 	}
 	var fail *Term

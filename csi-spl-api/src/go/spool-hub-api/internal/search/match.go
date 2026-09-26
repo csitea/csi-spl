@@ -48,6 +48,13 @@ type Entity struct {
 	Online  bool
 	Revoked bool
 	At      time.Time // event: when the hub stored it (before / after / on)
+
+	// issue (1.2): its workflow fields, and Me = the reader (assignee:me)
+	Status   string
+	Priority int
+	Assignee string
+	Labels   []string
+	Me       string
 }
 
 // Eval evaluates n with leaf deciding each term; a nil n matches.
@@ -181,6 +188,25 @@ func MatchEntity(n *Node, e Entity) bool {
 			return e.Box == t.Box
 		case OpBefore, OpAfter, OpOn:
 			return !e.At.IsZero() && inRange(e.At, t)
+		case OpStatus:
+			return e.Status == t.Enum
+		case OpPriority:
+			return int64(e.Priority) == t.Size
+		case OpAssignee:
+			switch t.Enum {
+			case "me":
+				return e.Me != "" && e.Assignee == e.Me
+			case "none":
+				return e.Assignee == ""
+			}
+			return strings.EqualFold(e.Assignee, t.ID)
+		case OpLabel:
+			for _, l := range e.Labels {
+				if strings.EqualFold(l, t.Value) {
+					return true
+				}
+			}
+			return false
 		case OpIs:
 			switch t.Enum {
 			case "online":

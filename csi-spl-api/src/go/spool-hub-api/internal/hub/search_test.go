@@ -202,7 +202,7 @@ func TestSearchAPI(t *testing.T) {
 			Applies []string `json:"applies_to"`
 		} `json:"operators"`
 	}
-	if json.Unmarshal(b, &ops) != nil || code != http.StatusOK || ops.Version != "1.0" || len(ops.Types) != 9 || len(ops.Operators) < 17 || ops.Types[6].Group != "boxes" || ops.Types[8].Group != "events" {
+	if json.Unmarshal(b, &ops) != nil || code != http.StatusOK || ops.Version != "1.1" || len(ops.Types) != 9 || len(ops.Operators) < 17 || ops.Types[6].Group != "boxes" || ops.Types[8].Group != "events" {
 		t.Fatalf("operators: %d %s", code, b)
 	}
 }

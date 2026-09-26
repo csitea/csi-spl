@@ -99,8 +99,8 @@ func TestOperators(t *testing.T) {
 		{"title:migrate", []Type{TypeTopic}, want{thr: true}},
 		{`subject:"disk full"`, []Type{TypeTopic}, want{thrCh: true}},
 		// name: / filename: / ext: / larger: / smaller:
-		{"name:box", []Type{TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}, want{robot: true, boxE: true}},
-		{"name:hum-3", []Type{TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}, want{user: true}},
+		{"name:box", []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}, want{robot: true, boxE: true}},
+		{"name:hum-3", []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox}, want{user: true}},
 		{`filename:"q3 report"`, []Type{TypeFile}, want{pdf: true}},
 		{"ext:PDF", []Type{TypeFile}, want{pdf: true}},
 		{"ext:.pdf", []Type{TypeFile}, want{pdf: true}},
@@ -288,12 +288,17 @@ func TestParsePrefix(t *testing.T) {
 	if tm := leafOf("title:mig*"); !tm.Prefix || tm.Lexemes[0] != "mig" {
 		t.Fatalf("title:mig*: %+v", tm)
 	}
-	// CONTROL: a quoted phrase and a plain word are never a prefix
+	// as you type (1.1, CLE-34992): the query's last bare word is a prefix
+	if tm := leafOf("deplo"); !tm.Prefix {
+		t.Fatalf("last bare word: %+v", tm)
+	}
+	// CONTROL: a quoted phrase, and a word with a space typed after it, are
+	// never a prefix
 	if tm := leafOf(`"deplo*"`); tm.Prefix {
 		t.Fatalf("phrase must not be a prefix: %+v", tm)
 	}
-	if tm := leafOf("deploy"); tm.Prefix {
-		t.Fatalf("plain word: %+v", tm)
+	if tm := leafOf("deploy "); tm.Prefix {
+		t.Fatalf("finished word: %+v", tm)
 	}
 	// FTS (memory store) agrees with Postgres: the last lexeme only
 	if !FTS("the hub is green", &Term{Lexemes: []string{"hub", "gre"}, Prefix: true}) {

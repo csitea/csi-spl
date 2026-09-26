@@ -47,7 +47,7 @@ func (p *parser) operator(t *token, name, val string, phrase, neg bool) (*Node, 
 		for _, part := range strings.Split(lv, ",") {
 			ty, ok := typeAliases[strings.TrimSpace(part)]
 			if !ok {
-				return bad("type: must be message, topic, file, robot, user, channel or box")
+				return bad("type: must be message, topic, file, robot, user, channel, box, tenant or event")
 			}
 			if !seen[ty] {
 				seen[ty] = true

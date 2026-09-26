@@ -15,7 +15,7 @@ import (
 )
 
 // Version is the grammar version published by the operators endpoint.
-const Version = "1.0"
+const Version = "1.1"
 
 // Limits (search-v1 §1, §2.1).
 const (
@@ -64,7 +64,7 @@ var typeAliases = map[string]Type{
 	"topic": TypeTopic, "topics": TypeTopic, "thread": TypeTopic, "threads": TypeTopic, // thread = the pre-rename name
 	"file": TypeFile, "files": TypeFile, "attachment": TypeFile,
 	"robot": TypeRobot, "robots": TypeRobot, "agent": TypeRobot, "bot": TypeRobot,
-	"user": TypeUser, "users": TypeUser, "human": TypeUser,
+	"user": TypeUser, "users": TypeUser, "human": TypeUser, "person": TypeUser, "people": TypeUser,
 	"channel": TypeChannel, "channels": TypeChannel,
 	"box": TypeBox, "boxes": TypeBox,
 	"tenant": TypeTenant, "tenants": TypeTenant, "workspace": TypeTenant, "workspaces": TypeTenant,
@@ -118,16 +118,17 @@ type Operator struct {
 var (
 	msgTopicFile = []Type{TypeMessage, TypeTopic, TypeFile}
 	presence     = []Type{TypeRobot, TypeUser, TypeBox}
+	dated        = []Type{TypeMessage, TypeTopic, TypeFile, TypeEvent}
 )
 
 // Operators is the table; the parser, the applicability check and the
 // operators endpoint all read it.
 var Operators = []Operator{
-	{Name: OpType, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event (comma list)"},
+	{Name: OpType, Aliases: []string{"kind"}, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event (comma list)"},
 	{Name: OpFrom, Values: "id", Applies: msgTopicFile, Example: "from:CLE-07", Doc: "sender: agent, agent@box, HUM-n or box"},
 	{Name: OpTo, Values: "id", Applies: msgTopicFile, Example: "to:HUM-3", Doc: "recipient: agent, agent@box, HUM-n or box"},
 	{Name: OpBox, Values: "box", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeBox}, Example: "box:box-a", Doc: "sent from or to this box; a robot on it; the box itself"},
-	{Name: OpIn, Values: "channel", Applies: msgTopicFile, Example: "in:#tasks", Doc: "a channel (#name or name), or dm for direct messages"},
+	{Name: OpIn, Aliases: []string{"channel"}, Values: "channel", Applies: msgTopicFile, Example: "in:#tasks", Doc: "a channel (#name or name), or dm for direct messages"},
 	{Name: OpIs, Values: "enum", Enum: map[string][]Type{
 		"task": {TypeMessage}, "note": {TypeMessage}, "result": {TypeMessage}, "reject": {TypeMessage},
 		"root": {TypeTopic}, "online": presence, "offline": presence, "revoked": {TypeRobot, TypeBox},
@@ -136,11 +137,11 @@ var Operators = []Operator{
 		"file": {TypeMessage}, "attachment": {TypeMessage}, "code": {TypeMessage},
 	}, Applies: []Type{TypeMessage}, Example: "has:file", Doc: "messages with attachments or a fenced code block"},
 	{Name: OpTopic, Values: "uuid", Applies: msgTopicFile, Example: "topic:<task_id>", Doc: "one topic (task id)"},
-	{Name: OpBefore, Values: "date", Applies: msgTopicFile, Example: "before:2026-09-01", Doc: "received before a UTC day, or before an age (24h, 7d, 2w)"},
-	{Name: OpAfter, Values: "date", Applies: msgTopicFile, Example: "after:7d", Doc: "received on or after a UTC day, or within an age"},
-	{Name: OpOn, Values: "date", Applies: msgTopicFile, Example: "on:2026-09-19", Doc: "received on a UTC day"},
+	{Name: OpBefore, Values: "date", Applies: dated, Example: "before:2026-09-01", Doc: "received before a UTC day, or before an age (24h, 7d, 2w)"},
+	{Name: OpAfter, Values: "date", Applies: dated, Example: "after:7d", Doc: "received on or after a UTC day, or within an age"},
+	{Name: OpOn, Values: "date", Applies: dated, Example: "on:2026-09-19", Doc: "received on a UTC day"},
 	{Name: OpTitle, Aliases: []string{"subject"}, Values: "text", Applies: []Type{TypeTopic}, Example: "title:migration", Doc: "topic title words"},
-	{Name: OpName, Values: "text", Applies: []Type{TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent}, Example: "name:ops", Doc: "the entity's name contains this"},
+	{Name: OpName, Values: "text", Applies: []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent}, Example: "name:ops", Doc: "the object's NAME contains this (a topic's title, an event's code), never its content"},
 	{Name: OpFilename, Values: "text", Applies: []Type{TypeFile}, Example: `filename:"q3 report"`, Doc: "attachment name contains this"},
 	{Name: OpExt, Values: "ext", Applies: []Type{TypeFile}, Example: "ext:pdf", Doc: "attachment extension"},
 	{Name: OpLarger, Values: "size", Applies: []Type{TypeFile}, Example: "larger:1M", Doc: "attachment larger than (bytes, K, M, G)"},
@@ -371,6 +372,7 @@ func Parse(q string, now time.Time) (*Query, error) {
 	if err := p.q.finish(root); err != nil {
 		return nil, err
 	}
+	p.q.asYouType(p.end)
 	return p.q, nil
 }
 
@@ -610,6 +612,21 @@ func (q *Query) finish(root *Node) error {
 	return nil
 }
 
+// asYouType makes the query's last bare word a prefix when nothing follows it
+// (1.1, CLE-34992): "deplo" finds deploy while it is being typed; "deplo "
+// (a space typed after it) does not, and neither does a negated word.
+func (q *Query) asYouType(end int) {
+	var last *Term
+	for _, t := range q.Positive {
+		if last == nil || t.Pos > last.Pos {
+			last = t
+		}
+	}
+	if last != nil && last.Op == OpText && !last.Phrase && last.Pos+Units(last.Raw) == end {
+		last.Prefix = true
+	}
+}
+
 // applies is the set of types a term applies to; nil = every type (text).
 func applies(t *Term) []Type {
 	if t.Op == OpText {
@@ -656,8 +673,6 @@ func positives(n *Node, neg bool, out []*Term) []*Term {
 	return out
 }
 
-// Words splits s the way the Postgres 'simple' configuration roughly does:
-// runs of letters and digits, lower-cased.
 // prefixWord strips ONE trailing '*' from an unquoted word that has a letter
 // or digit before it: "deplo*" -> ("deplo", true). A bare "*" stays text.
 func prefixWord(w string) (string, bool) {
@@ -667,10 +682,13 @@ func prefixWord(w string) (string, bool) {
 	return w, false
 }
 
+// Words splits s the way the Postgres spool_search configuration (the
+// 'simple' parser behind unaccent) roughly does: runs of letters and digits,
+// folded (Fold: lower case, no accents).
 func Words(s string) []string {
 	var out []string
 	for _, sp := range wordSpans(s) {
-		out = append(out, strings.ToLower(s[sp[0]:sp[1]]))
+		out = append(out, Fold(s[sp[0]:sp[1]]))
 	}
 	return out
 }
@@ -680,7 +698,7 @@ func wordSpans(s string) [][2]int {
 	var out [][2]int
 	start := -1
 	for i, r := range s {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.Is(unicode.Mn, r) {
 			if start < 0 {
 				start = i
 			}

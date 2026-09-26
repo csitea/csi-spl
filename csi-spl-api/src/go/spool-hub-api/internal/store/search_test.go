@@ -119,9 +119,13 @@ func TestSearch(t *testing.T) {
 			if rs, err := se.SearchMessages(ctx, ta, sq(t, "hub gre*", now)); err != nil || fmt.Sprint(msgIDs(rs)) != fmt.Sprint([]string{m2.MsgID}) {
 				t.Fatalf("hub gre*: %v %v", err, msgIDs(rs))
 			}
-			// CONTROL: without '*' a fragment is not a word
-			if rs, _ := se.SearchMessages(ctx, ta, sq(t, "deplo", now)); len(rs) != 0 {
-				t.Fatalf("deplo (no *) must match nothing: %v", msgIDs(rs))
+			// as you type (1.1, CLE-34992): the last bare word is a prefix
+			if rs, err := se.SearchMessages(ctx, ta, sq(t, "deplo", now)); err != nil || len(rs) != 4 {
+				t.Fatalf("deplo (being typed): %v %v", err, msgIDs(rs))
+			}
+			// CONTROL: a fragment with a space typed after it is not a word
+			if rs, _ := se.SearchMessages(ctx, ta, sq(t, "deplo ", now)); len(rs) != 0 {
+				t.Fatalf("'deplo ' must match nothing: %v", msgIDs(rs))
 			}
 			// CONTROL: the ':*' path stays injection-proof
 			for _, bad := range []string{`o'rei*`, `a:*|b*`, `'; DROP TABLE messages; --*`, `!!!*`, `&*`} {

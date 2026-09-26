@@ -406,7 +406,7 @@ func (s *Server) searchEntities(ctx context.Context, tenant string, q *search.Qu
 			if name == "" {
 				name = ev.ErrorID
 			}
-			add(search.Entity{Name: name, Text: []string{ev.ErrorID, ev.Code, ev.Message, ev.Path, ev.Source, ev.Route}},
+			add(search.Entity{Name: name, Text: []string{ev.ErrorID, ev.Code, ev.Message, ev.Path, ev.Source, ev.Route}, At: ev.ReceivedAt},
 				map[string]any{"event_id": ev.ID, "error_id": ev.ErrorID, "code": ev.Code, "message": ev.Message,
 					"status": ev.Status, "method": ev.Method, "path": ev.Path, "source": ev.Source, "received_at": rfc(ev.ReceivedAt)})
 		}

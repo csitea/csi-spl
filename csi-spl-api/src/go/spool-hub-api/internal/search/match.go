@@ -39,7 +39,7 @@ type Topic struct {
 	Msgs                           []Msg
 }
 
-// Entity is a robot, user, channel or box.
+// Entity is a robot, user, channel, box, tenant or event.
 type Entity struct {
 	Type    Type
 	Name    string   // what name: matches, and the label shown
@@ -47,6 +47,7 @@ type Entity struct {
 	Box     string   // robot: its box; box: its id
 	Online  bool
 	Revoked bool
+	At      time.Time // event: when the hub stored it (before / after / on)
 }
 
 // Eval evaluates n with leaf deciding each term; a nil n matches.
@@ -140,6 +141,8 @@ func MatchTopic(n *Node, th Topic) bool {
 		switch t.Op {
 		case OpText, OpTitle:
 			return FTS(th.Title, t)
+		case OpName:
+			return contains(th.Title, t.Value)
 		case OpFrom, OpTo, OpBox:
 			for _, m := range th.Msgs {
 				if (t.Op == OpFrom && party(m.FromID, m.FromBox, t)) || (t.Op == OpTo && party(m.ToID, m.ToBox, t)) ||
@@ -176,6 +179,8 @@ func MatchEntity(n *Node, e Entity) bool {
 			return contains(e.Name, t.Value)
 		case OpBox:
 			return e.Box == t.Box
+		case OpBefore, OpAfter, OpOn:
+			return !e.At.IsZero() && inRange(e.At, t)
 		case OpIs:
 			switch t.Enum {
 			case "online":
@@ -245,14 +250,7 @@ func FTS(text string, t *Term) bool {
 	for i, l := range lex {
 		if t.Prefix && i == len(lex)-1 {
 			// Postgres: plainto_tsquery(...)::text || ':*' - the LAST lexeme only
-			found := false
-			for _, w := range words {
-				if strings.HasPrefix(w, l) {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if !anyPrefix(l, words) {
 				return false
 			}
 			continue
@@ -300,8 +298,30 @@ func (q *Query) substrs() []string {
 	return out
 }
 
+// contains is the substring match of names (1.1: accent- and case-folded).
 func contains(s, sub string) bool {
-	return strings.Contains(strings.ToLower(s), strings.ToLower(sub))
+	return strings.Contains(Fold(s), Fold(sub))
+}
+
+// anyPrefix: one of words starts with p.
+func anyPrefix(p string, words []string) bool {
+	for _, w := range words {
+		if strings.HasPrefix(w, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// prefixes are the prefix lexemes of the positive FTS terms (highlights).
+func (q *Query) prefixes() []string {
+	var out []string
+	for _, t := range q.Positive {
+		if t.Prefix && (t.Op == OpText || t.Op == OpTitle) && len(t.Lexemes) > 0 {
+			out = append(out, t.Lexemes[len(t.Lexemes)-1])
+		}
+	}
+	return out
 }
 
 // ---- highlights -------------------------------------------------------------
@@ -316,9 +336,11 @@ func (q *Query) HighlightWords(text string) []Span {
 	for _, l := range q.lexemes() {
 		set[l] = true
 	}
+	pre := q.prefixes()
 	var out []Span
 	for _, sp := range wordSpans(text) {
-		if set[strings.ToLower(text[sp[0]:sp[1]])] {
+		w := Fold(text[sp[0]:sp[1]])
+		if set[w] || startsWithAny(w, pre) {
 			out = append(out, Span{u16len(text[:sp[0]]), u16len(text[:sp[1]])})
 		}
 	}
@@ -335,14 +357,24 @@ func (q *Query) HighlightSubstrings(text string) []Span {
 		if len(sr) == 0 {
 			continue
 		}
+		fs := Fold(sub)
 		for i := 0; i+len(sr) <= len(rs); i++ {
-			if strings.EqualFold(string(rs[i:i+len(sr)]), sub) {
+			if Fold(string(rs[i:i+len(sr)])) == fs {
 				a := u16len(string(rs[:i]))
 				out = append(out, Span{a, a + u16len(string(rs[i:i+len(sr)]))})
 			}
 		}
 	}
 	return merge(out)
+}
+
+func startsWithAny(w string, pre []string) bool {
+	for _, p := range pre {
+		if strings.HasPrefix(w, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func merge(in []Span) []Span {

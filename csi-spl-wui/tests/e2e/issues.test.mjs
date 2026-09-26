@@ -100,6 +100,27 @@ try {
     ]
   })
   ok('2c filter controls do not share a label', new Set(rowLabels).size === rowLabels.length && rowLabels[0] === 'Sort: Level' && rowLabels[3] === 'Level: All' && rowLabels[6] === 'Deadline:' && !rowLabels.includes('Deadline from') && !rowLabels.includes('Deadline until'), rowLabels)
+  /* owner, topic e00da93b: the closed Assignee control is sized to its value like the others, capped at 13em */
+  const widths = await p.evaluate(() => {
+    const w = (sel) => Math.round(document.querySelector(sel).getBoundingClientRect().width)
+    const a = document.querySelector('[data-test=issues-filter-assignee]')
+    const em = parseFloat(getComputedStyle(a).fontSize)
+    const opts = [...a.options].map((o) => o.text.length)
+    const out = { assignee: w('[data-test=issues-filter-assignee]'), prio: w('[data-test=issues-filter-priority]'), level: w('[data-test=issues-filter-level]'), capPx: Math.round(13 * em), title: a.title, longestOption: Math.max(...opts) }
+    /* CONTROL: the same select sized the old way (to its widest option) */
+    a.style.fieldSizing = 'fixed'; a.style.maxWidth = 'none'
+    out.controlOldWay = w('[data-test=issues-filter-assignee]')
+    a.style.fieldSizing = ''; a.style.maxWidth = ''
+    return out
+  })
+  const who = await p.evaluate(() => {
+    const a = document.querySelector('[data-test=issues-filter-assignee]')
+    return { text: a.options[a.selectedIndex].text.trim(), aria: a.getAttribute('aria-label'), icon: !!a.parentElement.querySelector('[data-icon=user]') }
+  })
+  ok('2e the Assignee control shows the value alone behind a person icon; Assignee is its name (topic e00da93b)',
+    who.text === 'All' && who.aria === 'Assignee' && who.icon, who)
+  ok('2d the closed Assignee control is no wider than 13em, near prio / level, the full text on hover',
+    widths.assignee <= widths.capPx + 1 && widths.assignee < widths.controlOldWay && widths.assignee <= Math.max(widths.prio, widths.level) * 1.5 && widths.title === 'Assignee: All', widths)
   await p.select('[data-test=issues-sort]', 'priority')
 
   await p.click('[data-test=issues-filter-status-btn]')

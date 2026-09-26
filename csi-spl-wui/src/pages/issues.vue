@@ -56,12 +56,17 @@
           <option value="">{{ t('issues.filter_level') }}: {{ t('issues.filter_all') }}</option>
           <option v-for="n in ISSUE_LEVELS" :key="'lv' + n" :value="String(n)" :title="t(levelKey(n))">{{ controlLabel(t('issues.filter_level'), String(n)) }}</option>
         </select>
-        <select v-model="assigneeF" data-test="issues-filter-assignee" :aria-label="t('issues.filter_assignee')">
-          <option value="">{{ t('issues.filter_assignee') }}: {{ t('issues.filter_all') }}</option>
-          <option value="me">{{ controlLabel(t('issues.filter_assignee'), t('issues.filter_me')) }}</option>
-          <option value="none">{{ controlLabel(t('issues.filter_assignee'), t('issues.filter_unassigned')) }}</option>
-          <option v-for="p in assigneeOptions" :key="p.id" :value="p.id">{{ controlLabel(t('issues.filter_assignee'), p.label) }}</option>
-        </select>
+        <!-- owner, topic e00da93b: "the assignee: string is obsolete" - the
+             value alone behind a person icon; "Assignee" stays the name and hover -->
+        <span class="issues-filter-who">
+          <UiIcon name="user" :size="14" class="issues-filter-who__icon" />
+          <select v-model="assigneeF" class="issues-filter-assignee" data-test="issues-filter-assignee" :aria-label="t('issues.filter_assignee')" :title="assigneeTitle">
+            <option value="">{{ t('issues.filter_all') }}</option>
+            <option value="me">{{ t('issues.filter_me') }}</option>
+            <option value="none">{{ t('issues.filter_unassigned') }}</option>
+            <option v-for="p in assigneeOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
+          </select>
+        </span>
         <select v-model="labelF" data-test="issues-filter-label" :aria-label="t('issues.filter_label')">
           <option value="">{{ t('issues.filter_label') }}: {{ t('issues.filter_all') }}</option>
           <option v-for="l in labels" :key="l.id" :value="l.id">{{ controlLabel(t('issues.filter_label'), l.name) }}</option>
@@ -502,6 +507,12 @@ function errorKey(err: { status?: number, token?: string }, which: 'list' | 'one
   return which === 'list' ? 'issues.load_failed' : 'issues.save_failed'
 }
 
+/* the whole closed-control text, for the hover when it is ellipsized */
+const assigneeTitle = computed(() => {
+  const v = assigneeF.value
+  const who = !v ? t('issues.filter_all') : v === 'me' ? t('issues.filter_me') : v === 'none' ? t('issues.filter_unassigned') : (assigneeOptions.value.find((p) => p.id === v)?.label || v)
+  return controlLabel(t('issues.filter_assignee'), who)
+})
 const assigneeOptions = computed(() => {
   const seen = new Set<string>()
   const out: { id: string, label: string }[] = []
@@ -1062,6 +1073,20 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   padding: 4px 8px;
   font: inherit;
+}
+/* owner, topic e00da93b: the closed Assignee control is as wide as its value,
+   like prio / level, never wider than 13em; a long name ends in an ellipsis
+   and reads in full on hover. The open list keeps its own width. Firefox has
+   no field-sizing yet and just gets the cap. */
+.issues-filter-who { position: relative; display: inline-flex; align-items: center; min-width: 0; }
+.issues-filter-who__icon { position: absolute; inset-inline-start: 8px; pointer-events: none; color: var(--color-muted); }
+.issues-filters .issues-filter-assignee {
+  padding-inline-start: 26px;
+  field-sizing: content;
+  max-width: 13em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .issues-status-dd { position: relative; }
 .issues-status-dd__btn { cursor: pointer; text-align: start; }

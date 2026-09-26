@@ -31,6 +31,13 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       mcp TestToolNamesAreCanonical (six names) + TestSeatedIssueTool,
       spool-smoke, `csi-spl-orc/src/bash/tests/desk-actions.tst.sh` section 9;
       012 cli-mcp-map amended (five + spool_issue)
-- [ ] T007 version bump + deploy dev and prd (`/version` + `build.json`)
-- [ ] T008 live proof dev + prd: create, edit status / priority / level /
+- [x] T007 hub bump 0.6.9 -> 0.7.0 `a90f16b8`; run 36225417807 deployed dev
+      and prd, smoke green; `/version` on dev.api and api both read commit
+      `a90f16b8` / 0.7.0 (2026-09-26 07:06Z). WUI build.json: with T005
+- [x] T008a live proof, agent path, prd t1, n=1, hub 0.7.0: CLE-34993
+      `do_spl_issue_create` -> SPL-1 (in_progress, priority 2, level 4,
+      deadline 18:00Z), `do_spl_issue_comment` -> msg 6ef5db9d, list -> counts
+      in_progress 1; DB: issues row + comment is_parent 0, channel tasks,
+      from CLE-34993
+- [ ] T008b live proof in the WUI, dev + prd: create, edit status / priority / level /
       assignee / deadline, grouping, reload keeps it; screenshots in the topic

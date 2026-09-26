@@ -158,9 +158,10 @@ try {
      filter (topic d81cbf47) */
   const statusOpts = await p.$$eval('[data-test=issues-filter-status-opt] .issues-status-code', (els) => els.map((e) => e.textContent.trim()))
   const statusTips = await p.$$eval('[data-test=issues-filter-status-opt] .issues-status-tip', (els) => els.map((e) => e.textContent.trim()))
-  step('1b the status filter offers the owner\'s six statuses; no title filter', JSON.stringify(statusOpts) ===
-    JSON.stringify(['01-eval', '02-todo', '03-wip', '03-diss', '07-qas', '09-done']) && JSON.stringify(statusTips) ===
-    JSON.stringify(['evaluation', 'to do', 'work in progress', 'discard', 'quality assurance', 'done']) && !(await p.$('[data-test=issues-search]')), { statusOpts, statusTips })
+  step('1b the status filter offers the owner\'s eight statuses (05-blocked, 06-onhold: SPL-966); no title filter', JSON.stringify(statusOpts) ===
+    JSON.stringify(['01-eval', '02-todo', '03-wip', '03-diss', '05-blocked', '06-onhold', '07-qas', '09-done']) && JSON.stringify(statusTips) ===
+    JSON.stringify(['evaluation', 'to do', 'work in progress', 'discard', 'blocked - waiting on something or someone; say what in a comment',
+      'on hold - paused on purpose', 'quality assurance', 'done']) && !(await p.$('[data-test=issues-search]')), { statusOpts, statusTips })
   step('1 the tab opens /issues', page && new URL(p.url()).pathname.endsWith('/issues'), { url: p.url() })
   await sleep(1500)
   await shot(p, '01-issues-tab')
@@ -295,6 +296,19 @@ try {
     return k ? k.textContent.trim() : ''
   }), 30000)
   step('8 /issues?issue=<key> opens that issue in the right pane', opened === key, { got: opened })
+
+  // 8b SPL-966: the issue set to 05-blocked, then 06-onhold, lists under that group
+  for (const st of ['blocked', 'onhold']) {
+    await pick(p, 'issues-status', st)
+    const inGroup = await until(() => p.evaluate((k, want) => {
+      const el = document.querySelector(`[data-test=issues-row][data-key="${k}"]`)
+      const g = el && el.closest('.issues-group')
+      return g && g.getAttribute('data-status') === want ? (g.innerText || '').split('\n')[0].trim() || want : ''
+    }, key, st), 15000)
+    let hubSt = ''
+    await until(async () => { hubSt = (await hubIssue(p, key)).status; return hubSt === st }, 15000)
+    step(`8b the issue set to ${st} lists under its group and the hub holds it`, !!inGroup && hubSt === st, { group: inGroup, hub: hubSt })
+  }
   res.key = key
 
   // 9-12 SPL-18: epics and features in the left-most panel, issues under

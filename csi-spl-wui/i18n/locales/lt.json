@@ -853,6 +853,8 @@
       "todo": "atlikti",
       "wip": "vykdoma",
       "diss": "atmesta",
+      "blocked": "užblokuota - laukia kažko ar kažkieno; komentare parašykite ko",
+      "onhold": "sustabdyta - pristabdyta tyčia",
       "qas": "kokybės užtikrinimas",
       "done": "atlikta"
     }

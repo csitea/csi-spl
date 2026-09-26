@@ -853,6 +853,8 @@
       "todo": "do zrobienia",
       "wip": "w toku",
       "diss": "odrzucone",
+      "blocked": "zablokowane - czeka na coś lub kogoś; napisz na co w komentarzu",
+      "onhold": "wstrzymane - celowo zatrzymane",
       "qas": "kontrola jakości",
       "done": "zrobione"
     }

@@ -11,9 +11,10 @@ import { ISSUE_CHANNEL } from './parent-section.mjs'
 export const ISSUE_KINDS = ['epic', 'feature', 'issue', 'subtask']
 export const isTopKind = (k) => k === 'epic' || k === 'feature'
 
-/** The owner's statuses in list order (rdb 0054, topic f2c32da2): shown as
- *  01-eval, 02-todo, 03-wip, 03-diss, 07-qas, 09-done (issues-v1 §2). */
-export const ISSUE_STATUSES = ['eval', 'todo', 'wip', 'diss', 'qas', 'done']
+/** The owner's statuses in list order (rdb 0054, topic f2c32da2; rdb 0061,
+ *  SPL-966): shown as 01-eval, 02-todo, 03-wip, 03-diss, 05-blocked,
+ *  06-onhold, 07-qas, 09-done (issues-v1 §2). */
+export const ISSUE_STATUSES = ['eval', 'todo', 'wip', 'diss', 'blocked', 'onhold', 'qas', 'done']
 /** a first-set status (before rdb 0054) -> its successor */
 const LEGACY_STATUS = { backlog: 'eval', in_progress: 'wip', in_review: 'qas', canceled: 'diss' }
 export const normalizeStatus = (s) => LEGACY_STATUS[s] || s

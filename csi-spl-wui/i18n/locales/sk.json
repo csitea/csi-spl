@@ -853,6 +853,8 @@
       "todo": "na spracovanie",
       "wip": "rozpracované",
       "diss": "zahodené",
+      "blocked": "zablokované - čaká na niečo alebo niekoho; napíš na čo v komentári",
+      "onhold": "pozastavené - zámerne",
       "qas": "kontrola kvality",
       "done": "hotovo"
     }

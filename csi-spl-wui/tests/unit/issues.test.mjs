@@ -4,7 +4,7 @@
 // Run: node tests/unit/issues.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { ISSUE_STATUSES, issueQuery, matchIssue, normalizeIssue, sortIssues } from '../../src/utils/issues.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 import {
@@ -65,7 +65,7 @@ describe('groupIssues: one group per status, workflow order, counts', () => {
   it('keeps empty groups by default, in Linear order', () => {
     const g = groupIssues(list)
     assert.deepEqual(g.map((x) => x.status), ISSUE_STATUSES)
-    assert.deepEqual(g.map((x) => x.count), [2, 1, 0, 0, 0, 1]) // eval, todo, wip, diss, qas, done
+    assert.deepEqual(g.map((x) => x.count), [2, 1, 0, 0, 0, 0, 0, 1]) // eval, todo, wip, diss, blocked, onhold, qas, done
     assert.deepEqual(g[0].issues.map((i) => i.key), ['SPL-1', 'SPL-3'])
   })
   it('hideEmpty + filter + sort', () => {
@@ -255,9 +255,9 @@ describe('deadline picker: 24-hour, 07:00-22:00 (owner, topic 32a56460)', async 
 describe('the owner statuses and prio 1..5 (rdb 0054, topics f2c32da2 + d81cbf47)', async () => {
   const { ISSUE_STATUSES: S, normalizeStatus, normalizeIssue: n5, createMockIssues, PRIO_DEFAULT } = await import('../../src/utils/issues.mjs')
   const { statusLabel, statusHintKey, ISSUE_PRIORITIES } = await import('../../src/utils/issues-view.mjs')
-  it('the six statuses in the owner order, shown with their numbers', () => {
-    assert.deepEqual(S, ['eval', 'todo', 'wip', 'diss', 'qas', 'done'])
-    assert.deepEqual(S.map(statusLabel), ['01-eval', '02-todo', '03-wip', '03-diss', '07-qas', '09-done'])
+  it('the eight statuses in the owner order, shown with their numbers (rdb 0061: 05-blocked, 06-onhold)', () => {
+    assert.deepEqual(S, ['eval', 'todo', 'wip', 'diss', 'blocked', 'onhold', 'qas', 'done'])
+    assert.deepEqual(S.map(statusLabel), ['01-eval', '02-todo', '03-wip', '03-diss', '05-blocked', '06-onhold', '07-qas', '09-done'])
     assert.equal(statusHintKey('wip'), 'issues.status_hint.wip')
     const page = readFileSync(new URL('../../src/pages/issues.vue', import.meta.url), 'utf8')
     assert.match(page, /data-test="issues-filter-status-opt"/)
@@ -308,5 +308,31 @@ describe('filter row labels', () => {
     assert.equal(src.includes('issues-filter-from'), false)
     assert.equal(src.includes('issues-filter-until'), false)
     assert.equal(src.includes('deadlineAfter'), false)
+  })
+})
+
+describe('SPL-966: 05-blocked and 06-onhold', async () => {
+  const { createMockIssues } = await import('../../src/utils/issues.mjs')
+  it('every locale names both on hover, and each has its own glyph and colour', () => {
+    for (const f of readdirSync(new URL('../../i18n/locales/', import.meta.url)).filter((x) => x.endsWith('.json'))) {
+      const h = JSON.parse(readFileSync(new URL(`../../i18n/locales/${f}`, import.meta.url), 'utf8')).issues.status_hint
+      assert.ok(h.blocked && h.onhold, f)
+    }
+    const page = readFileSync(new URL('../../src/pages/issues.vue', import.meta.url), 'utf8')
+    const glyph = readFileSync(new URL('../../src/components/IssueGlyph.vue', import.meta.url), 'utf8')
+    assert.match(page, /blocked: 'status-blocked'/)
+    assert.match(page, /onhold: 'status-onhold'/)
+    assert.match(page, /\.issues-st--blocked \{ color: var\(--color-danger\)/)
+    assert.match(glyph, /"status-blocked"/)
+    assert.match(glyph, /"status-onhold"/)
+  })
+  it('the mock lists an issue under 05-blocked and counts it', () => {
+    const m = createMockIssues({ me: 'HUM-1' })
+    const i = m.create({ title: 'waits', epic: 'SPL-1', status: 'blocked' }).issue
+    assert.equal(i.status, 'blocked')
+    assert.equal(m.update(i.key, { status: 'onhold' }).issue.status, 'onhold')
+    const l = m.list('status=onhold')
+    assert.deepEqual(l.issues.map((x) => x.key), [i.key])
+    assert.equal(l.counts.onhold, 1)
   })
 })

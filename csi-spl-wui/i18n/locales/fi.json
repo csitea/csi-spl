@@ -853,6 +853,8 @@
       "todo": "tehtävä",
       "wip": "työn alla",
       "diss": "hylätty",
+      "blocked": "estetty - odottaa jotain tai jotakuta; kerro kommentissa mitä",
+      "onhold": "pidossa - tauolla tarkoituksella",
       "qas": "laadunvarmistus",
       "done": "valmis"
     }

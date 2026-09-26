@@ -853,6 +853,8 @@
       "todo": "jāizdara",
       "wip": "procesā",
       "diss": "atmests",
+      "blocked": "bloķēts - gaida kaut ko vai kādu; komentārā uzraksti ko",
+      "onhold": "aizturēts - apturēts apzināti",
       "qas": "kvalitātes nodrošināšana",
       "done": "pabeigts"
     }

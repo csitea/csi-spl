@@ -853,6 +853,8 @@
       "todo": "te doen",
       "wip": "in uitvoering",
       "diss": "afgewezen",
+      "blocked": "geblokkeerd - wacht op iets of iemand; zeg waarop in een opmerking",
+      "onhold": "gepauzeerd - bewust stilgezet",
       "qas": "kwaliteitscontrole",
       "done": "klaar"
     }

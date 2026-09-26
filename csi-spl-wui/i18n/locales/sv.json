@@ -853,6 +853,8 @@
       "todo": "att göra",
       "wip": "pågår",
       "diss": "förkastad",
+      "blocked": "blockerad - väntar på något eller någon; skriv vad i en kommentar",
+      "onhold": "vilande - pausad med avsikt",
       "qas": "kvalitetssäkring",
       "done": "klar"
     }

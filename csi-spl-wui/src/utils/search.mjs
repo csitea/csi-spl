@@ -39,7 +39,7 @@ function issueOperators() {
   return [
     /* rdb 0054: the owner's statuses and prio 1..5 (the live catalogue from
        /v1/view/search/operators follows the store) */
-    { op: 'status:', example: 'status:wip', values: ['eval', 'todo', 'wip', 'diss', 'qas', 'done'] },
+    { op: 'status:', example: 'status:wip', values: ['eval', 'todo', 'wip', 'diss', 'blocked', 'onhold', 'qas', 'done'] },
     { op: 'prio:', example: 'prio:1', values: ['1', '2', '3', '4', '5'] },
     { op: 'assignee:', example: 'assignee:me', values: ['me', 'none'] },
     { op: 'label:', example: 'label:bug' },

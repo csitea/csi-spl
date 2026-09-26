@@ -342,6 +342,8 @@ const STATUS_ICON: Record<string, string> = {
   todo: 'status-todo',
   wip: 'status-progress',
   diss: 'status-canceled',
+  blocked: 'status-blocked',
+  onhold: 'status-onhold',
   qas: 'status-review',
   done: 'status-done',
 }
@@ -1247,6 +1249,8 @@ onUnmounted(() => {
 .issues-st--qas { color: var(--color-accent-2); }
 .issues-st--done, .issues-st--eval { color: var(--color-ok); }
 .issues-st--diss, .issues-st--todo { color: var(--color-muted); }
+.issues-st--blocked { color: var(--color-danger); } /* the SPL-952 blocker red */
+.issues-st--onhold { color: var(--color-muted); }
 .issues-detail {
   flex: 0 0 var(--issues-detail-w, 380px);
   width: var(--issues-detail-w, 380px);

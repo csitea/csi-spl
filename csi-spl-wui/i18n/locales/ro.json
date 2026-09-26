@@ -853,6 +853,8 @@
       "todo": "de făcut",
       "wip": "în lucru",
       "diss": "abandonat",
+      "blocked": "blocată - așteaptă ceva sau pe cineva; spune ce într-un comentariu",
+      "onhold": "în așteptare - oprită intenționat",
       "qas": "asigurarea calității",
       "done": "gata"
     }

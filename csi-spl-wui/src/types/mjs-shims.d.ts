@@ -1082,7 +1082,7 @@ declare module '~/utils/event-log.mjs' {
 }
 
 declare module '~/utils/issues.mjs' {
-  export type IssueStatus = 'eval' | 'todo' | 'wip' | 'diss' | 'qas' | 'done'
+  export type IssueStatus = 'eval' | 'todo' | 'wip' | 'diss' | 'blocked' | 'onhold' | 'qas' | 'done'
   export interface Issue {
     kind: 'epic' | 'feature' | 'issue' | 'subtask'
     epic: string

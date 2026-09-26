@@ -853,6 +853,8 @@
       "todo": "to do",
       "wip": "work in progress",
       "diss": "discard",
+      "blocked": "blocked - waiting on something or someone; say what in a comment",
+      "onhold": "on hold - paused on purpose",
       "qas": "quality assurance",
       "done": "done"
     }

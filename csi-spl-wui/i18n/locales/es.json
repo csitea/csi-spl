@@ -853,6 +853,8 @@
       "todo": "por hacer",
       "wip": "en curso",
       "diss": "descartado",
+      "blocked": "bloqueada - espera algo o a alguien; di qué en un comentario",
+      "onhold": "en pausa - detenida a propósito",
       "qas": "control de calidad",
       "done": "hecho"
     }

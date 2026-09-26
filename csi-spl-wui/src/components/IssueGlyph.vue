@@ -54,6 +54,15 @@ const PATHS: Record<string, Path[]> = {
     "M9 9 15 15",
     "M15 9 9 15",
   ],
+  "status-blocked": [
+    "M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18z",
+    "M7.5 12h9",
+  ],
+  "status-onhold": [
+    "M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18z",
+    "M10 9v6",
+    "M14 9v6",
+  ],
   "priority-none": ["M5 18h3", "M11 18h3", "M17 18h3"],
   "priority-low": ["M6 14v6"],
   "priority-medium": ["M6 14v6", "M12 10v10"],

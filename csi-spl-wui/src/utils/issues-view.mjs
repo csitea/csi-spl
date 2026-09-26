@@ -11,7 +11,7 @@ import { PANE_WIDTHS_KEY } from './pane-widths.mjs'
 export const ISSUE_PRIORITIES = [1, 2, 3, 4, 5]
 /** The owner's numbered status labels (not translated: they are the owner's
  *  codes); the hover text is issues.status_hint.<id>. */
-export const STATUS_LABEL = { eval: '01-eval', todo: '02-todo', wip: '03-wip', diss: '03-diss', qas: '07-qas', done: '09-done' }
+export const STATUS_LABEL = { eval: '01-eval', todo: '02-todo', wip: '03-wip', diss: '03-diss', blocked: '05-blocked', onhold: '06-onhold', qas: '07-qas', done: '09-done' }
 export const statusLabel = (s) => STATUS_LABEL[s] || String(s || '')
 
 /** Closed control text is always "Name: value", so two controls cannot read the same. */

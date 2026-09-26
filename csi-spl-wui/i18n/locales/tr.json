@@ -853,6 +853,8 @@
       "todo": "yapılacak",
       "wip": "sürüyor",
       "diss": "vazgeçildi",
+      "blocked": "engelli - bir şeyi ya da birini bekliyor; neyi bir yorumda yazın",
+      "onhold": "beklemede - bilerek duraklatıldı",
       "qas": "kalite güvencesi",
       "done": "bitti"
     }

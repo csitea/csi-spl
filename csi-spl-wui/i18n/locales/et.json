@@ -853,6 +853,8 @@
       "todo": "teha",
       "wip": "töös",
       "diss": "loobutud",
+      "blocked": "blokeeritud - ootab midagi või kedagi; kirjuta kommentaaris, mida",
+      "onhold": "ootel - teadlikult peatatud",
       "qas": "kvaliteedikontroll",
       "done": "tehtud"
     }

@@ -40,7 +40,7 @@ func cmdIssue(cfg *config.Config, args []string) int {
 	title := fs.String("title", "", "title")
 	desc := fs.String("description", "", "description (markdown)")
 	descFile := fs.String("description-file", "", "read the description from this file")
-	status := fs.String("status", "", "eval|todo|wip|diss|qas|done (01-eval .. 09-done; list: comma list)")
+	status := fs.String("status", "", "eval|todo|wip|diss|blocked|onhold|qas|done (01-eval .. 09-done; list: comma list)")
 	priority := fs.String("priority", "", "prio 1 (highest) .. 5 (lowest) (list: comma list)")
 	level := fs.String("level", "", "1 epic or feature, 2 issue, 3 subtask: derived from the tree, only checked (list: comma list)")
 	assignee := fs.String("assignee", "", "member HUM-* or agent id; list also takes me and none")

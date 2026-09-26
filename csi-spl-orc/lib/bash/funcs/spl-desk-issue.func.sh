@@ -67,8 +67,8 @@ spl_issue_field_args() {
 # typo fails here with the variable's name.
 spl_issue_check_fields() {
   # rdb 0055: the owner's statuses; the first set's names still map (backlog -> eval, ...)
-  [[ -z "${ISSUE_STATUS:-}" || "$ISSUE_STATUS" =~ ^(eval|todo|wip|diss|qas|done|backlog|in_progress|in_review|canceled)$ ]] ||
-    { do_log "FATAL ISSUE_STATUS must be eval, todo, wip, diss, qas or done (01-eval .. 09-done), got: '$ISSUE_STATUS'"; return 1; }
+  [[ -z "${ISSUE_STATUS:-}" || "$ISSUE_STATUS" =~ ^(eval|todo|wip|diss|blocked|onhold|qas|done|backlog|in_progress|in_review|canceled)$ ]] ||
+    { do_log "FATAL ISSUE_STATUS must be eval, todo, wip, diss, blocked, onhold, qas or done (01-eval .. 09-done), got: '$ISSUE_STATUS'"; return 1; }
   [[ -z "${ISSUE_PRIORITY:-}" || "$ISSUE_PRIORITY" =~ ^[1-5]$ ]] ||
     { do_log "FATAL ISSUE_PRIORITY (prio) must be 1 (highest) .. 5 (lowest), got: '$ISSUE_PRIORITY'"; return 1; }
   # rdb 0056: level is the tree's (1 epic / feature, 2 issue, 3 subtask); the hub derives it

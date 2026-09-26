@@ -25,8 +25,12 @@ const (
 	IssueTodo = "todo" // 02-todo
 	IssueWIP  = "wip"  // 03-wip: work in progress
 	IssueDiss = "diss" // 03-diss: discard (stamps canceled_at)
-	IssueQAS  = "qas"  // 07-qas: quality assurance
-	IssueDone = "done" // 09-done (stamps completed_at)
+	// rdb 0061 (SPL-966, owner 2026-09-26): 05-blocked waits on something or
+	// someone; 06-onhold is paused on purpose.
+	IssueBlocked = "blocked" // 05-blocked
+	IssueOnHold  = "onhold"  // 06-onhold
+	IssueQAS     = "qas"     // 07-qas: quality assurance
+	IssueDone    = "done"    // 09-done (stamps completed_at)
 
 	IssueBacklog    = IssueEval
 	IssueInProgress = IssueWIP
@@ -35,7 +39,7 @@ const (
 )
 
 // IssueStatuses is the workflow, in order.
-var IssueStatuses = []string{IssueEval, IssueTodo, IssueWIP, IssueDiss, IssueQAS, IssueDone}
+var IssueStatuses = []string{IssueEval, IssueTodo, IssueWIP, IssueDiss, IssueBlocked, IssueOnHold, IssueQAS, IssueDone}
 
 // legacyStatus maps a status of the first set (rdb 0047) to its successor:
 // an agent or an older hub may still send one; rdb 0055 moved the rows.

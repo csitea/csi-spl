@@ -321,3 +321,35 @@ func TestIssueTopicsHidden(t *testing.T) {
 		})
 	}
 }
+
+// rdb 0061 (SPL-966): 05-blocked and 06-onhold, between 03-diss and 07-qas;
+// neither stamps a clock.
+func TestIssueBlockedOnHold(t *testing.T) {
+	want := []string{IssueEval, IssueTodo, IssueWIP, IssueDiss, IssueBlocked, IssueOnHold, IssueQAS, IssueDone}
+	if strings.Join(IssueStatuses, ",") != strings.Join(want, ",") {
+		t.Fatalf("order: %v", IssueStatuses)
+	}
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			is := s.(Issues)
+			tn := uid("ib-")
+			if err := s.CreateTenant(ctx, Tenant{ID: tn, RootPubKey: pubkey()}); err != nil {
+				t.Fatal(err)
+			}
+			ep := testEpic(t, is, tn, now)
+			i, err := is.CreateIssue(ctx, Issue{TenantID: tn, Title: "waits", Status: IssueBlocked, Parent: ep, TaskID: uuid4(), CreatedBy: "HUM-1"}, now)
+			if err != nil || i.Status != IssueBlocked || i.CompletedAt != nil || i.CanceledAt != nil {
+				t.Fatalf("blocked: %+v %v", i, err)
+			}
+			up, err := is.UpdateIssue(ctx, tn, i.Number, IssuePatch{Status: ptr(IssueOnHold)}, "HUM-1", now)
+			if err != nil || up.Status != IssueOnHold || up.CompletedAt != nil || up.CanceledAt != nil {
+				t.Fatalf("onhold: %+v %v", up, err)
+			}
+			if got, _ := is.GetIssue(ctx, tn, i.Number); got.Status != IssueOnHold {
+				t.Fatalf("read back: %+v", got)
+			}
+		})
+	}
+}

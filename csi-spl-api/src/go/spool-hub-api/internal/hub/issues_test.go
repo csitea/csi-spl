@@ -2,6 +2,7 @@ package hub_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -141,6 +142,13 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	if c := out["counts"].(map[string]any); c["eval"] != float64(2) || c["todo"] != float64(1) || c["done"] != float64(0) {
 		t.Fatalf("counts %v", c)
 	}
+	// rdb 0061 (SPL-966): 05-blocked and 06-onhold sit between 03-diss and 07-qas.
+	if st := fmt.Sprint(out["statuses"]); st != "[eval todo wip diss blocked onhold qas done]" {
+		t.Fatalf("statuses %s", st)
+	}
+	if c := out["counts"].(map[string]any); c["blocked"] != float64(0) || c["onhold"] != float64(0) {
+		t.Fatalf("counts carry the new statuses %v", c)
+	}
 	if ls := out["labels"].([]any); len(ls) != 1 { // bug; kind is a column (rdb 0053), not a label
 		t.Fatalf("labels %v", ls)
 	}
@@ -166,6 +174,22 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	if code, _ := call(t, e, tid, http.MethodGet, "/v1/view/issues?sort=chaos", dev, nil); code != http.StatusBadRequest {
 		t.Fatalf("bad sort %d", code)
 	}
+
+	for _, st := range []string{"blocked", "onhold"} {
+		code, out := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-4", tester, map[string]any{"status": st})
+		if code != http.StatusOK || issueOf(t, out)["status"] != st || issueOf(t, out)["completed_at"] != "" {
+			t.Fatalf("status %s: %d %v", st, code, out)
+		}
+		readType(t, watcher, "issue")
+		code, out = call(t, e, tid, http.MethodGet, "/v1/view/issues?kind=issue&status="+st, dev, nil)
+		if code != http.StatusOK || !sameKeys(issueKeys(out), "SPL-4") {
+			t.Fatalf("?status=%s: %d %v", st, code, issueKeys(out))
+		}
+	}
+	if code, _ := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-4", tester, map[string]any{"status": "eval"}); code != http.StatusOK {
+		t.Fatalf("back to eval %d", code)
+	}
+	readType(t, watcher, "issue")
 
 	// Patch: status into done stamps completed_at; clears; the frame follows.
 	code, out = call(t, e, tid, http.MethodPatch, "/v1/issues/spl-2", tester, map[string]any{

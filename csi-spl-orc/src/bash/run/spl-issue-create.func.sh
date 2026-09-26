@@ -13,7 +13,7 @@
 # @param ISSUE_PARENT (optional) - a level-2 issue's key: the new issue is its subtask (level 3)
 # @param ISSUE_KIND (optional) - issue (default) | epic | feature (epics and features are level 1)
 # @param ISSUE_DESCRIPTION (optional) - markdown; or ISSUE_DESCRIPTION_FILE
-# @param ISSUE_STATUS (optional) - eval (default) | todo | wip | diss | qas | done  (01-eval .. 09-done)
+# @param ISSUE_STATUS (optional) - eval (default) | todo | wip | diss | blocked | onhold | qas | done  (01-eval, 02-todo, 03-wip, 03-diss, 05-blocked, 06-onhold, 07-qas, 09-done)
 # @param ISSUE_PRIORITY (optional) - prio 1 (highest) .. 5 (lowest, the default)
 # @param ISSUE_LEVEL (optional) - 1 epic / feature, 2 issue, 3 subtask: the hub derives it from the tree and refuses any other
 # @param ISSUE_ASSIGNEE (optional) - a member HUM-* or an agent id

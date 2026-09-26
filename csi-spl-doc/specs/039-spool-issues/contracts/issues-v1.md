@@ -26,9 +26,12 @@ billing refusal every write gets.
  "created_at":"…","updated_by":"CLE-07","updated_at":"…","completed_at":"","canceled_at":""}
 ```
 
-- `status` (rdb 0055, owner topic f2c32da2): `eval | todo | wip | diss | qas | done`,
-  shown as `01-eval, 02-todo, 03-wip, 03-diss, 07-qas, 09-done` (evaluation,
-  to do, work in progress, discard, quality assurance, done). A write may
+- `status` (rdb 0055, owner topic f2c32da2; rdb 0061, SPL-966):
+  `eval | todo | wip | diss | blocked | onhold | qas | done`, shown as
+  `01-eval, 02-todo, 03-wip, 03-diss, 05-blocked, 06-onhold, 07-qas, 09-done`
+  (evaluation, to do, work in progress, discard, blocked - waiting on
+  something or someone, on hold - paused on purpose, quality assurance,
+  done). Every tenant has the same set. A write may
   still send a first-set name; it maps backlog -> eval, in_progress -> wip,
   in_review -> qas, canceled -> diss. `done` stamps `completed_at`, `diss`
   `canceled_at`

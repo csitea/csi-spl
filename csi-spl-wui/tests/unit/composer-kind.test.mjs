@@ -24,10 +24,11 @@ describe('the next message kind is an icon, not a menu', () => {
     assert.match(vue, /tabindex="-1"/)
     assert.doesNotMatch(vue, /<select/)
   })
-  it('the note glyph is a bare page', () => {
+  it('the note glyph is writing lines and no frame', () => {
     const start = icons.indexOf('"kind-note"')
-    const slice = icons.slice(start, start + 220)
-    assert.match(slice, /M5 3h14/)
+    const slice = icons.slice(start, start + 120)
+    assert.match(slice, /M6 7h12/)
+    assert.equal(slice.includes('M5 3h14'), false)
     assert.equal(slice.includes('M15 3v4'), false)
   })
 })

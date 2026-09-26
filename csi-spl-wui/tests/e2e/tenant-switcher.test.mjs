@@ -82,7 +82,11 @@ async function readBox(p) {
     return {
       missing: false,
       wrapHeight: wr ? wr.height : 0,
-      captionText: wrap instanceof HTMLElement ? [...wrap.childNodes].filter((n) => n !== sel && !(n instanceof Element && n.classList.contains('sr-only'))).map((n) => (n.textContent || '').trim()).join('') : '?',
+      captionText: wrap instanceof HTMLElement ? [...wrap.childNodes].filter((n) => {
+        if (n instanceof Element && (n.classList.contains('sr-only') || n === sel || n.contains(sel))) return false
+        if (n instanceof Element && n.getAttribute('data-testid') === 'tenant-switcher-arrow') return false
+        return true
+      }).map((n) => (n.textContent || '').trim()).join('') : '?',
       hint: wrap instanceof HTMLElement ? wrap.title : '',
       label,
       ariaLabel: sel.getAttribute('aria-label') || '',

@@ -8,7 +8,8 @@
          The closed select is as wide as the widest option, then 3px, then
          the arrow, measured in the select's own font. -->
     <div ref="tenantSwitcherEl" class="tenant-switcher" data-testid="tenant-switcher" :title="tenantHintText">
-      <UiIcon name="building" :size="14" class="tenant-switcher__icon" />
+      <span class="tenant-switcher__icon"><UiIcon name="building" :size="14" /></span>
+      <span class="tenant-switcher__field" :style="{ gap: TENANT_ARROW_GAP_PX + 'px' }">
       <select
         ref="tenantSelectEl"
         class="tenant-switcher__select"
@@ -23,16 +24,15 @@
         <option v-for="o in tenantBox.options" :key="o.id" :value="o.id">{{ o.label || t('sidebar.tenant') }}</option>
       </select>
       <svg
-        ref="tenantArrowEl"
         class="tenant-switcher__arrow"
         data-testid="tenant-switcher-arrow"
         viewBox="0 0 8 6"
         aria-hidden="true"
         focusable="false"
-        :style="tenantArrowStyle"
       >
         <path d="M0 0 H8 L4 6 Z" />
       </svg>
+      </span>
       <span id="tenant-switcher-hint" class="sr-only" data-testid="tenant-switcher-hint">{{ tenantHintText }}</span>
     </div>
     <p v-if="switchFailed" class="tenant-switcher__error" role="alert" data-testid="tenant-switch-error">{{ t('sidebar.tenant_switch_failed') }}</p>
@@ -502,7 +502,7 @@ import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
-import { measureControlText, TENANT_ARROW_GAP_PX, tenantClosedWidthPx, tenantDrawnLabels, tenantHint, tenantSwitchOptions, widestLabelWidth } from '~/utils/tenant-switcher.mjs'
+import { measureControlText, TENANT_ARROW_GAP_PX, tenantDrawnLabels, tenantHint, tenantSwitchOptions, widestLabelWidth } from '~/utils/tenant-switcher.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'events' | 'users'
@@ -573,50 +573,24 @@ const { t, te } = useI18n({ useScope: 'global' })
 const tenantBox = computed(() => tenantSwitchOptions(session.claims, api.tenant))
 const tenantHintText = computed(() => tenantHint(tenantBox.value, t))
 const tenantSelectEl = ref<HTMLSelectElement | null>(null)
-const tenantArrowEl = ref<SVGSVGElement | null>(null)
 const tenantSwitcherEl = ref<HTMLElement | null>(null)
-const tenantSelectBox = ref<{ width: number, padEnd: number } | null>(null)
-const tenantArrowInsetEnd = ref('')
+const tenantTextPx = ref(0)
 const tenantSelectStyle = computed(() => {
-  const box = tenantSelectBox.value
-  if (!box) return undefined
-  return {
-    width: box.width + 'px',
-    paddingInlineEnd: box.padEnd + 'px',
-    paddingInlineStart: '0px',
-  }
+  const text = tenantTextPx.value
+  if (!(text > 0)) return undefined
+  return { width: text + 'px' }
 })
-const tenantArrowStyle = computed(() => (
-  tenantArrowInsetEnd.value ? { insetInlineEnd: tenantArrowInsetEnd.value } : undefined
-))
-/* Widest option in the select's computed font, then 3px, then the arrow.
-   Re-measured when the membership list changes, when the font-size setting
-   changes (html data-font-size, spec 023), and when the rail's font kicks in. */
-function applyTenantSelectWidth(retry = true) {
+/* The select is only as wide as the widest option in its own font. The arrow
+   is the next flex item, TENANT_ARROW_GAP_PX after that edge, so a clamped
+   rail cannot slide the arrow back over the name. Re-measured when the list,
+   the font-size setting (html data-font-size), or the rail font changes. */
+function applyTenantSelectWidth() {
   const sel = tenantSelectEl.value
-  const arrow = tenantArrowEl.value
-  const wrap = tenantSwitcherEl.value
-  const view = wrap?.ownerDocument?.defaultView
-  if (!sel || !arrow || !wrap || !view) return
+  if (!sel) return
   const labels = tenantDrawnLabels(tenantBox.value.options, t('sidebar.tenant'))
   const text = widestLabelWidth(labels, (label) => measureControlText(sel, label))
   if (labels.some((label) => label.length > 0) && !(text > 0)) return
-  const arrowPx = arrow.getBoundingClientRect().width
-  if (!(arrowPx > 0)) {
-    if (retry) view.requestAnimationFrame(() => applyTenantSelectWidth(false))
-    return
-  }
-  const wrapCs = view.getComputedStyle(wrap)
-  const pad = parseFloat(wrapCs.paddingInlineEnd || wrapCs.paddingRight) || 0
-  const width = tenantClosedWidthPx(text, arrowPx, TENANT_ARROW_GAP_PX)
-  if (!Number.isFinite(width)) return
-  const padEnd = TENANT_ARROW_GAP_PX + arrowPx
-  const prev = tenantSelectBox.value
-  if (!prev || Math.abs(prev.width - width) > 0.01 || Math.abs(prev.padEnd - padEnd) > 0.01) {
-    tenantSelectBox.value = { width, padEnd }
-  }
-  const inset = pad + 'px'
-  if (tenantArrowInsetEnd.value !== inset) tenantArrowInsetEnd.value = inset
+  if (Math.abs(tenantTextPx.value - text) > 0.01) tenantTextPx.value = text
 }
 watch(
   () => tenantDrawnLabels(tenantBox.value.options, t('sidebar.tenant')).join('\n'),
@@ -1197,7 +1171,14 @@ async function onCreate() {
   font-size: 0.75rem;
 }
 .tenant-switcher:hover { background: var(--color-surface); color: var(--color-fg); }
-.tenant-switcher__icon { flex: 0 0 auto; }
+.tenant-switcher__icon { flex: 0 0 auto; display: inline-flex; }
+.tenant-switcher__field {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 24px;
+}
 .tenant-switcher__error {
   margin: 0.125rem 0.5rem 0;
   font-size: 0.6875rem;
@@ -1220,12 +1201,10 @@ async function onCreate() {
   -webkit-appearance: none;
 }
 .tenant-switcher__arrow {
-  position: absolute;
-  top: 50%;
-  inset-inline-end: 4px;
+  flex: 0 0 auto;
   width: 0.65em;
   height: 0.5em;
-  transform: translateY(-50%);
+  display: block;
   pointer-events: none;
   fill: currentColor;
   color: var(--color-fg);
@@ -1237,7 +1216,6 @@ async function onCreate() {
     padding: 0 2px;
     font-size: 0.6875rem;
   }
-  .tenant-switcher__arrow { inset-inline-end: 2px; }
   .tenant-switcher__icon { display: none; }
 }
 </style>

@@ -42,8 +42,11 @@ describe('SPL-953 attach is the paperclip icon only', () => {
     const send = src.slice(src.lastIndexOf('<button', sendAt), src.indexOf('>', sendAt) + 1)
     assert.equal(/tabindex\s*=/.test(send), false, send)
     assert.equal(/\sdisabled\b|:disabled\b/.test(send), false, send)
-    // SPL-952: the composer kind picker is gone (owner, topic d88a3fbb)
-    assert.equal(src.includes('composer-kind'), false, 'no kind picker between the field and Send')
+    // The kind menu is gone. The type is icon buttons before the paperclip,
+    // and those buttons are not a tab stop.
+    assert.equal(src.includes('<select'), false, 'no kind dropdown')
+    const kindAt = src.indexOf('data-testid="composer-kinds"')
+    assert.ok(kindAt > 0 && kindAt < at, 'kind icons sit before the paperclip')
   })
 
   it('uiIcons has the lucide paperclip stroke', () => {

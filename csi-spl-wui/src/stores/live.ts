@@ -5,6 +5,7 @@ import { usePaneFocus } from '~/stores/pane-focus'
 import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, windowed, withoutMsg } from '~/utils/feed.mjs'
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { channelView, parseMention } from '~/utils/channel-feed.mjs'
+import { composerKind } from '~/utils/composer-kind.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
@@ -230,8 +231,8 @@ function setup(key: 'main' | 'pane') {
         refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: f.name })
       }
       const parsed = parseMention(body)
-      const kind = parsed.kind === 'task' ? 'task' : 'note'
-      const to = kind === 'task' ? parsed.to : undefined
+      const kind = composerKind()
+      const to = parsed.to === '@channel' ? undefined : parsed.to
       const text = parsed.body
       const client = live.ensure()
       /* 013 US7 FR-013: shown at once under the msg_id we send; the pushed echo replaces it */

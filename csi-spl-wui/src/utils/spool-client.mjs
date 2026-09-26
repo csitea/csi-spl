@@ -3,6 +3,7 @@ import { isAbortError } from '../composables/apiHealth.mjs'
 import { cloneMock } from './mock-data.mjs'
 import { createMockDirectory } from './tenant-users.mjs'
 import { channelSlug, parseMention } from './channel-feed.mjs'
+import { composerKind } from './composer-kind.mjs'
 import {
   channelReadQuery,
   channelsFromView,
@@ -900,7 +901,7 @@ export function createSpoolClient({
       const parsed = parseMention(text)
       const peerId = peer ? String(peer).split('@')[0] : ''
       const to = peer ? peerId : parsed.to
-      const kind = peer ? 'note' : parsed.kind
+      const kind = composerKind()
       const body = peer ? String(text || '') : parsed.body
       if (mock) {
         const row = {

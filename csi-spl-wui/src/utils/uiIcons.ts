@@ -231,10 +231,11 @@ export const UI_ICON_PATHS = {
     { d: "M12 9.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 1 1 0-5.6z", fill: true },
   ],
   // SPL-952: the message kind badges (KindBadge.vue, utils/msg-kind.mjs).
-  // note: a sticky note (lucide sticky-note).
+  // note: a bare page, no folded corner.
   "kind-note": [
-    "M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8z",
-    "M15 3v4a2 2 0 0 0 2 2h4",
+    "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
+    "M8 9h8",
+    "M8 13h6",
   ],
   // task: a hammer and a screwdriver, crossed.
   "kind-task": [

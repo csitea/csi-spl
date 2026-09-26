@@ -23,6 +23,7 @@ import {
   topLevel,
 } from '~/utils/channel-feed.mjs'
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
+import { composerKind } from '~/utils/composer-kind.mjs'
 import { pendingRow, withoutMsg } from '~/utils/feed.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
@@ -346,7 +347,7 @@ export const useChannelStore = defineStore('channel', () => {
     const parentBit: 0 | 1 = isParent === 0 ? 0 : 1
     const frame: SendFrame = {
       task_id: parentTaskId || newId(),
-      kind: asDm ? 'note' : parsed.kind,
+      kind: composerKind(),
       body: asDm ? text : parsed.body,
       files: await toFileRefs(files),
       to: asDm ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),

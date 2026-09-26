@@ -6,6 +6,7 @@ import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, wind
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { channelView, parseMention } from '~/utils/channel-feed.mjs'
 import { composerKind } from '~/utils/composer-kind.mjs'
+import { emptySendError, isEmptySend, sendWithResend } from '~/utils/send-failure.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
@@ -218,9 +219,15 @@ function setup(key: 'main' | 'pane') {
    * a UUID other than task_id) and which channel it belongs to, and the topic
    * is then reachable from the channel it was started in. Both are omitted for
    * an ordinary reply, which changes nothing about the frame.
+   *
+   * SPL-964: a send that does not land REJECTS. The caller is the Omnibox
+   * (TopBar.onSend), which puts the text back and names the failure; this
+   * store used to catch everything, so a reply pending when the socket
+   * dropped was lost on the Topics page with the box already empty. A
+   * closed socket is resent once with the same frame, as channel.sendLive does.
    */
   async function send(body: string, files: File[] = [], opts: { parentTaskId?: string, channel?: string | null, isParent?: number } = {}) {
-    if (!taskId.value) return
+    if (!taskId.value) throw new Error(i18n.t('feed.error.send_failed'))
     let msgId = ''
     sending.value = true
     error.value = null
@@ -234,6 +241,7 @@ function setup(key: 'main' | 'pane') {
       const kind = composerKind()
       const to = parsed.to === '@channel' ? undefined : parsed.to
       const text = parsed.body
+      if (isEmptySend(text, refs)) throw emptySendError()
       const client = live.ensure()
       /* 013 US7 FR-013: shown at once under the msg_id we send; the pushed echo replaces it */
       msgId = crypto.randomUUID()
@@ -243,7 +251,8 @@ function setup(key: 'main' | 'pane') {
       const parentBit: 0 | 1 = opts.isParent === 0 ? 0 : 1
       merge([pendingRow({ msg_id: msgId, task_id: task, from: live.identity.value, to, kind, body: text, files: refs, channel: channel || null, parent_task_id: parent || null, is_parent: parentBit }) as SpoolMessage])
       if (client) {
-        const ack = await client.send({ task_id: task, kind, body: text, files: refs, to, msg_id: msgId, parent_task_id: parent, channel, is_parent: parentBit }) as { cursor?: string, received_at?: string }
+        const frame = { task_id: task, kind, body: text, files: refs, to, msg_id: msgId, parent_task_id: parent, channel, is_parent: parentBit }
+        const ack = await sendWithResend(() => client.send(frame)) as { cursor?: string, received_at?: string }
         const own = messages.value.find((m) => m.msg_id === msgId)
         if (own && own.pending && taskId.value === task) {
           merge([{ ...own, pending: false, cursor: ack.cursor, received_at: ack.received_at || own.received_at }])
@@ -253,8 +262,9 @@ function setup(key: 'main' | 'pane') {
         if (own) merge([{ ...own, pending: false }])
       }
     } catch (e) {
+      /* the row goes; the text goes back into the Omnibox with the reason */
       if (msgId) messages.value = withoutMsg(messages.value, msgId) as SpoolMessage[]
-      error.value = e instanceof Error ? e.message : i18n.t('feed.error.send_failed')
+      throw e
     } finally {
       sending.value = false
     }

@@ -81,7 +81,7 @@ describe('an empty send never reaches the hub (CLE-3433)', () => {
     assert.ok(guard > 0, 'no empty-send guard in sendLive')
     /* before the optimistic row and before the send, or it is not a guard */
     assert.ok(guard < live.indexOf('pendingRow('), 'guard runs after the optimistic row')
-    assert.ok(guard < live.indexOf('await client.send(frame)'), 'guard runs after the send')
+    assert.ok(guard < live.indexOf('client.send(frame)'), 'guard runs after the send')
     assert.match(live.slice(guard - 80, guard + 80), /throw emptySendError\(\)/)
   })
 })
@@ -106,12 +106,14 @@ describe('the send path cannot lose text silently any more (CLE-3433)', () => {
 
   it('sendLive retries once on a dropped socket, keeping the optimistic row', () => {
     const s = src('src/stores/channel.ts')
-    assert.match(s, /import \{[^}]*shouldAutoResend[^}]*\} from '~\/utils\/send-failure\.mjs'/)
-    assert.match(s, /if \(!shouldAutoResend\(first\)\) \{/)
+    /* SPL-964: the one-resend rule lives in send-failure.mjs sendWithResend,
+       shared with stores/live.ts; its behaviour is pinned in pane-send-lost.test.mjs */
+    assert.match(s, /import \{[^}]*sendWithResend[^}]*\} from '~\/utils\/send-failure\.mjs'/)
     /* the retry reuses the SAME frame, so the hub de-dupes on our msg_id */
-    const body = s.slice(s.indexOf('catch (first)'), s.indexOf('const row = rowFromAck'))
-    assert.match(body, /ack = await client\.send\(frame\)/)
-    assert.doesNotMatch(body, /newId\(/)
+    const body = s.slice(s.indexOf('async function sendLive'), s.indexOf('const row = rowFromAck'))
+    assert.match(body, /ack = await sendWithResend\(\(\) => client\.send\(frame\)\)/)
+    const tail = body.slice(body.indexOf('sendWithResend('))
+    assert.doesNotMatch(tail, /newId\(/)
   })
 
   it('all 19 locales carry the three failure lines and the retry label', () => {

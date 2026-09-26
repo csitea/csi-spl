@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { emptySendError, isEmptySend, shouldAutoResend } from '~/utils/send-failure.mjs'
+import { emptySendError, isEmptySend, sendWithResend } from '~/utils/send-failure.mjs'
 import {
   applyChannelFrame,
   belongsTo,
@@ -383,18 +383,10 @@ export const useChannelStore = defineStore('channel', () => {
        the caller is showing the text again with a Retry. */
     let ack
     try {
-      ack = await client.send(frame)
-    } catch (first) {
-      if (!shouldAutoResend(first)) {
-        if (frame.msg_id && showHere) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
-        throw first
-      }
-      try {
-        ack = await client.send(frame)
-      } catch (second) {
-        if (frame.msg_id && showHere) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
-        throw second
-      }
+      ack = await sendWithResend(() => client.send(frame))
+    } catch (e) {
+      if (frame.msg_id && showHere) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
+      throw e
     }
     const row = rowFromAck(ack, frame, { from: live.identity.value, channel: channelNow })
     if (!row.msg_id) row.msg_id = String(frame.msg_id || '')

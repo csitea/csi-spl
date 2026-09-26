@@ -47,6 +47,25 @@ export function shouldAutoResend(err) {
   return failureToken(err) === 'closed'
 }
 
+/**
+ * SPL-964: the one resend, shared by every store that sends a frame. The
+ * frame is the caller's, built once, so the retry carries the same msg_id.
+ * channel.sendLive had this since CLE-3433; stores/live.ts (the Topics page,
+ * /t/<id> and #lobby) did not, and a reply pending when the socket dropped
+ * was lost there.
+ * @template T
+ * @param {() => Promise<T>} send
+ * @returns {Promise<T>}
+ */
+export async function sendWithResend(send) {
+  try {
+    return await send()
+  } catch (first) {
+    if (!shouldAutoResend(first)) throw first
+    return send()
+  }
+}
+
 /** i18n key for what the reader is told. Unknown shapes get the generic line. */
 export function sendFailureKey(err) {
   switch (failureToken(err)) {

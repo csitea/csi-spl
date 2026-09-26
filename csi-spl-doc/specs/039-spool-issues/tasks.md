@@ -93,4 +93,11 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       count). Earlier prd runs failed step 9 (the check took an empty list as
       an answer) and step 4 once (the check read the hub before the deadline
       PATCH landed; step 7 saw it stored) - both proof-side, both fixed
+- [x] T012 owner topics 32a56460, d81cbf47, f2c32da2 (2026-09-26): deadline
+      a date + 24-hour time 07:00-22:00 (`53c42204`); prio 1..5 and the six
+      statuses 01-eval..09-done with hover names: rdb 0054 + 0055 on dev and
+      prd, backend `48096860`, hub 0.7.8 served on dev.api and api; WUI
+      `4e389e3c` on dev and apex (build.json); the title filter is gone
+      (`f901ebd5`). Proof n=1 per env: dev t1 18/18, prd e2e 18/18. Unmeasured:
+      whether Chrome paints the native option title
 <!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

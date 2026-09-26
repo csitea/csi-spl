@@ -52,15 +52,15 @@ Refined the same morning (binding where it differs from the first request):
 | key | `<prefix>-<number>`, e.g. `SPL-12` | one team per tenant for now, prefix `SPL`; numbers from a per-tenant counter, never reused |
 | title | 1..255 characters | required |
 | description | markdown, <= 20000 characters | right pane only |
-| status | Backlog, Todo, In Progress, In Review, Done, Canceled | Linear's workflow; default Backlog |
-| priority | No priority (0), Urgent (1), High (2), Medium (3), Low (4) | Linear's scale |
+| status | 01-eval, 02-todo, 03-wip, 03-diss, 07-qas, 09-done (ids `eval todo wip diss qas done`; a hover gives the long name) | the owner's set, 2026-09-26 (rdb 0055; old names normalize); default eval |
+| prio | the number 1..5 | the owner's scale, 2026-09-26 (rdb 0054 + 0055); default 5, old 0 became 5 |
 | level | none (0), XS (1), S (2), M (3), L (4), XL (5) | the owner's "level" = Linear's t-shirt estimate |
 | assignee | a member `HUM-*` or a roster agent, or nobody | an id nobody in the tenant can act on is refused |
 | labels | the tenant's label catalogue (name + colour), <= 20 per issue | |
 | deadline | date AND time; stored UTC, shown in local time | a calendar + time control |
 | parent | another issue of the tenant | sub-issues; no cycles. UI next |
 | created by / at, updated by / at | | stamped by the hub |
-| completed at / canceled at | | set when the status enters Done / Canceled, cleared when it leaves |
+| completed at / canceled at | | set when the status enters done / diss, cleared when it leaves |
 | discussion | an ordinary spool topic on the issue's `task_id` under the reserved channel id `issues` (§Discussion space) | comments are reply-level messages (033 level 2), so edit, emoji, files and agents work unchanged, and they never become cards in any feed |
 
 ## Behaviour

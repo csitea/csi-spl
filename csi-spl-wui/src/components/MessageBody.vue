@@ -6,7 +6,7 @@
         <template v-for="(p, j) in b.parts" :key="j">
           <code v-if="p.type === 'inline'" class="code-inline">{{ p.text }}</code>
           <strong v-else-if="p.type === 'strong'">{{ p.text }}</strong>
-          <span v-else-if="p.type === 'mention'" class="mention">{{ p.text }}</span>
+          <span v-else-if="p.type === 'mention'" class="mention" :title="mentionDisplay(p.text, people.names.value).title || undefined">{{ mentionDisplay(p.text, people.names.value).text }}</span>
           <a
             v-else-if="p.type === 'link'"
             class="msg-link"
@@ -26,6 +26,8 @@
 
 <script setup lang="ts">
 import { parseBody } from '~/utils/code-blocks.mjs'
+import { mentionDisplay } from '~/utils/channel-feed.mjs'
+import { useHumanNames } from '~/composables/useHumanNames'
 
 /* Slack-style ``` blocks and `inline code`; every string is text-interpolated,
    never markup. A fenced block is CodeBlock.vue (preview, highlighting, the
@@ -35,6 +37,8 @@ import { parseBody } from '~/utils/code-blocks.mjs'
    under it does not also open its topic, select, or start an edit. */
 const props = defineProps<{ body: string }>()
 const blocks = computed(() => parseBody(props.body))
+/* owner, 2026-09-26: an @human reads as their chosen name; the tag stays in the hover */
+const people = useHumanNames()
 </script>
 
 <style scoped>

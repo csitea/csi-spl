@@ -118,13 +118,15 @@ export function channelInviteCandidates(rosterIds, memberIds) {
  * every id. Any other text matches when the id contains it, ignoring case,
  * so "17" finds HUM-17.
  */
-export function filterPeopleContains(ids, query) {
+export function filterPeopleContains(ids, query, names = null) {
   const q = String(query || '').trim().toLowerCase()
+  const nameOf = (id) => (names && typeof names === 'object' && Object.prototype.hasOwnProperty.call(names, id) ? String(names[id] || '') : '')
   const out = []
   for (const raw of ids || []) {
     const id = String(raw || '')
     if (!id) continue
-    if (!q || id.toLowerCase().includes(q)) out.push(id)
+    // the member id, or the display name they chose (owner, 2026-09-26)
+    if (!q || id.toLowerCase().includes(q) || nameOf(id).toLowerCase().includes(q)) out.push(id)
   }
   return out
 }

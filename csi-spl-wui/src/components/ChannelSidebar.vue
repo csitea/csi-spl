@@ -291,11 +291,11 @@
           :href="localePath('/t/' + row.task_id)"
           @click.exact.prevent="pane.open(row.task_id)"
         >
-          <span class="label">{{ topicRowTitle(row.subject, row.participants.join(', ') || row.task_id) }}</span>
+          <span class="label">{{ topicRowTitle(row.subject, peopleLabels(row.participants, people.names.value) || row.task_id) }}</span>
         </a>
         <SidebarRowMenu
           :menu-id="'th:' + row.task_id"
-          :name="topicRowTitle(row.subject, row.participants.join(', ') || row.task_id)"
+          :name="topicRowTitle(row.subject, peopleLabels(row.participants, people.names.value) || row.task_id)"
           :href="localePath('/t/' + row.task_id)"
           :unread="false"
           :open="rowMenu === 'th:' + row.task_id"
@@ -477,7 +477,7 @@ const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
-import { channelActivity, channelSlug, connectionHealth, orderPeers, retentionDays } from '~/utils/channel-feed.mjs'
+import { channelActivity, channelSlug, connectionHealth, orderPeers, peopleLabels, retentionDays } from '~/utils/channel-feed.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'

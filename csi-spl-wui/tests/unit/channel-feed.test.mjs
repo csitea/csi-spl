@@ -32,6 +32,7 @@ import {
 } from '../../src/utils/channel-feed.mjs'
 import { applyVerbosity } from '../../src/utils/verbosity.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
+import { mentionDisplay, peopleLabels } from '../../src/utils/channel-feed.mjs'
 
 describe('channel-feed', () => {
   it('splits top-level from topic replies', () => {
@@ -394,5 +395,24 @@ describe('pane 2 lists only the topic starter (owner 2026-09-23)', () => {
     assert.match(vue, /:rows="store\.lobbyRows"/)
     assert.match(vue, /store\.loadOlder\('lobby'\)/)
     assert.doesNotMatch(vue, /:rows="store\.newestFirst"/)
+  })
+})
+
+// owner, 2026-09-26: humans by their display name everywhere, the id on hover.
+describe('display names for humans', () => {
+  const names = { 'HUM-10': 'Pat Owner' }
+  it('mentionDisplay: a named human reads as @name, the tag kept as the title', () => {
+    assert.deepEqual(mentionDisplay('@HUM-10', names), { text: '@Pat Owner', title: '@HUM-10' })
+    assert.deepEqual(mentionDisplay('@HUM-10@box-wui', names), { text: '@Pat Owner', title: '@HUM-10@box-wui' })
+  })
+  it('CONTROL: agents and nameless humans keep the tag as typed', () => {
+    assert.deepEqual(mentionDisplay('@CLE-7', names), { text: '@CLE-7', title: '' })
+    assert.deepEqual(mentionDisplay('@HUM-3', names), { text: '@HUM-3', title: '' })
+    assert.deepEqual(mentionDisplay('@HUM-10', null), { text: '@HUM-10', title: '' })
+  })
+  it('peopleLabels: humans by name, agents unchanged', () => {
+    assert.equal(peopleLabels(['HUM-10', 'CLE-7@box-a', 'HUM-3'], names), 'Pat Owner, CLE-7@box-a, HUM-3')
+    assert.equal(peopleLabels([], names), '')
+    assert.equal(peopleLabels(undefined, names), '')
   })
 })

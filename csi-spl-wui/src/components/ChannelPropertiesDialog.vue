@@ -54,7 +54,7 @@
             <ul class="member-rows" data-testid="channel-default-people">
               <li v-for="id in localMembers" :key="id" :data-testid="'channel-default-person-' + id">
                 <SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" />
-                <span class="member-rows__name">{{ id }}</span>
+                <span class="member-rows__name" :title="personTitle(id)">{{ people.label(id, HUMAN_BOX) }}</span>
               </li>
             </ul>
           </template>
@@ -104,7 +104,7 @@
                         class="invite-add__option"
                         :class="{ 'is-active': active, 'is-selected': selected }"
                         :data-testid="'channel-invite-pick-' + id"
-                      ><SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" /> <span class="member-rows__name">{{ id }}</span></li>
+                      ><SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" /> <span class="member-rows__name" :title="personTitle(id)">{{ people.label(id, HUMAN_BOX) }}</span></li>
                     </ComboboxOption>
                   </ComboboxOptions>
                 </Combobox>
@@ -120,7 +120,7 @@
             <ul class="member-rows" data-testid="channel-invite-members">
               <li v-for="id in localMembers" :key="id">
                 <SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" />
-                <span class="member-rows__name">{{ id }}</span>
+                <span class="member-rows__name" :title="personTitle(id)">{{ people.label(id, HUMAN_BOX) }}</span>
                 <button
                   type="button"
                   class="icon-btn"
@@ -283,6 +283,7 @@ import { useLive } from '~/composables/useLive'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
+import { useHumanNames } from '~/composables/useHumanNames'
 
 const props = defineProps<{
   open: boolean
@@ -307,6 +308,7 @@ const api = useSpoolApi()
 const live = useLive()
 const access = useAccessStore()
 const roster = useRosterStore()
+const people = useHumanNames()
 const { t } = useI18n({ useScope: 'global' })
 const tab = ref<(typeof tabs)[number]['id']>('people')
 const busy = ref(false)
@@ -363,7 +365,7 @@ const canAdd = computed(() => canAddChannelMember({
   membersOpenInvite: openInvite.value,
 }))
 const candidates = computed(() => channelInviteCandidates(rosterIds.value, localMembers.value))
-const peopleChoices = computed(() => filterPeopleContains(candidates.value, personQuery.value))
+const peopleChoices = computed(() => filterPeopleContains(candidates.value, personQuery.value, people.names.value))
 const agentRows = computed(() => channelAgentRows(agents.value))
 const agentCandidates = computed(() => channelAgentCandidates(rosterBag.value, agentRows.value))
 const agentChoices = computed(() => filterAgentsContains(agentCandidates.value, agentQuery.value).map((row) => ({
@@ -427,8 +429,15 @@ watch(() => props.open, async (isOpen) => {
   }
 })
 
+/** The chosen display name (Settings > Profile), else the member id. */
 function personLabel(id: unknown) {
-  return typeof id === 'string' ? id : ''
+  return typeof id === 'string' && id ? people.label(id, HUMAN_BOX) : ''
+}
+
+/** Hover text: the full name for a row too narrow to show it, plus the id. */
+function personTitle(id: string) {
+  const name = people.label(id, HUMAN_BOX)
+  return name && name !== id ? `${name} · ${id}` : id
 }
 
 function onPersonQuery(ev: Event) {

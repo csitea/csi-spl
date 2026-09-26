@@ -50,6 +50,42 @@ export function personLabel(id, box, names) {
   return displayName(id, box)
 }
 
+/**
+ * An @mention as shown in a message (owner, 2026-09-26: humans by their
+ * display name everywhere). `@HUM-10` / `@HUM-10@box-wui` of a member who
+ * chose a name reads `@<name>`, the tag itself kept for the hover; an agent
+ * or a nameless member keeps the tag as typed.
+ *
+ * @param {string} text the mention as parsed, with its leading '@'
+ * @param {Record<string, string> | null | undefined} names
+ * @returns {{ text: string, title: string }}
+ */
+export function mentionDisplay(text, names) {
+  const raw = String(text || '')
+  const tag = raw.replace(/^@/, '')
+  const at = tag.indexOf('@')
+  const id = at >= 0 ? tag.slice(0, at) : tag
+  const box = at >= 0 ? tag.slice(at + 1) : undefined
+  const label = personLabel(id, box, names)
+  if (!/^HUM-/.test(id) || label === displayName(id, box)) return { text: raw, title: '' }
+  return { text: '@' + label, title: raw }
+}
+
+/**
+ * A list of peers ("HUM-10", "CLE-7@box-a") as people read it: each human by
+ * their chosen name, everyone else unchanged, joined with ', '.
+ *
+ * @param {readonly string[] | null | undefined} peers
+ * @param {Record<string, string> | null | undefined} names
+ */
+export function peopleLabels(peers, names) {
+  return (Array.isArray(peers) ? peers : []).map((p) => {
+    const s = String(p || '')
+    const at = s.indexOf('@')
+    return at > 0 ? personLabel(s.slice(0, at), s.slice(at + 1), names) : personLabel(s, undefined, names)
+  }).join(', ')
+}
+
 export function initials(id) {
   const s = String(id || '?')
   const m = s.match(/^([A-Z]{2,4})-(\d+)$/)

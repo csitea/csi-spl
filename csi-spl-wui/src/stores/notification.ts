@@ -17,6 +17,8 @@ import {
   saveCursors,
   unreadFromChannels,
 } from '~/utils/read-cursor.mjs'
+import { peopleLabels } from '~/utils/channel-feed.mjs'
+import { useHumanNames } from '~/composables/useHumanNames'
 
 type Ctx = {
   selfId?: string
@@ -47,10 +49,12 @@ export const useNotificationStore = defineStore('notification', () => {
   const seen = new Set<string>()
   /* the global i18n instance, captured while the Nuxt app is in context (stores have no component) */
   const i18n = useNuxtApp().$i18n
+  const humanNames = useHumanNames()
 
   /** Browser-notification title + body for one escalated message, in the active UI locale. */
   function copyFor(m: Msg, reason: string) {
-    const c = notifyCopyKey(m, reason)
+    // a human sender by their chosen name (owner, 2026-09-26)
+    const c = notifyCopyKey({ ...m, from: m.from ? peopleLabels([String(m.from)], humanNames.names.value) : m.from }, reason)
     return { title: i18n.t(c.titleKey, c.params), body: c.body }
   }
 

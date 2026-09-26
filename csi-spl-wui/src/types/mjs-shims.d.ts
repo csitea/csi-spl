@@ -5,7 +5,7 @@ declare module '~/utils/spool-client.mjs' {
   export function isPublicChannel(channel: string): boolean
   export function rosterHumanIds(roster: Record<string, readonly string[]> | null | undefined): string[]
   export function channelInviteCandidates(rosterIds: readonly string[], memberIds: readonly string[]): string[]
-  export function filterPeopleContains(ids: readonly string[] | null | undefined, query?: string): string[]
+  export function filterPeopleContains(ids: readonly string[] | null | undefined, query?: string, names?: Record<string, string> | null): string[]
   export function filterAgentsContains(rows: readonly { id?: string, box?: string }[] | null | undefined, query?: string): { id: string, box: string }[]
   export function inviteErrorToken(err: unknown): string
   export function signedInHuman(me: { humanId?: string | null } | null | undefined, opts?: { mock?: boolean, rosterMe?: string }): string
@@ -189,6 +189,8 @@ declare module '~/utils/channel-feed.mjs' {
   export function parseMention(text: string): { to: string, kind: string, body: string }
   export function displayName(id: string, box?: string): string
   export function personLabel(id: string, box: string | undefined, names: Record<string, string> | null | undefined): string
+  export function mentionDisplay(text: string, names: Record<string, string> | null | undefined): { text: string, title: string }
+  export function peopleLabels(peers: readonly string[] | null | undefined, names: Record<string, string> | null | undefined): string
   export function initials(id: string): string
   export function hueFor(id: string): number
   export function formatBytes(n: number | undefined, locale?: string): string

@@ -63,6 +63,12 @@ describe('People offers humans, Agents offers boxes', () => {
     assert.deepEqual(filterPeopleContains(ids, '  '), ids)
     assert.deepEqual(filterPeopleContains(ids, '17'), ['HUM-17'])
     assert.deepEqual(filterPeopleContains(ids, 'hum-1'), ['HUM-17', 'HUM-11'])
+    // owner, 2026-09-26: a person is found by the display name they chose too
+    const names = { 'HUM-17': 'Pat Owner', 'HUM-11': 'Sam Dev' }
+    assert.deepEqual(filterPeopleContains(ids, 'pat', names), ['HUM-17'])
+    assert.deepEqual(filterPeopleContains(ids, 'SAM', names), ['HUM-11'])
+    // CONTROL: without names a name query matches nothing
+    assert.deepEqual(filterPeopleContains(ids, 'pat'), [])
     assert.deepEqual(filterPeopleContains(ids, 'nope'), [])
     assert.deepEqual(filterPeopleContains(undefined, '1'), [])
   })
@@ -188,7 +194,7 @@ describe('the Properties dialog', () => {
     const addAt = peoplePanel.indexOf('data-testid="channel-people-add"')
     const membersAt = peoplePanel.indexOf('data-testid="channel-invite-members"')
     assert.ok(searchAt > 0 && searchAt < addAt && addAt < membersAt)
-    assert.match(dialog, /filterPeopleContains\(candidates\.value, personQuery\.value\)/)
+    assert.match(dialog, /filterPeopleContains\(candidates\.value, personQuery\.value, people\.names\.value\)/)
     assert.match(dialog, /filterAgentsContains\(agentCandidates\.value, agentQuery\.value\)/)
     assert.match(dialog, /function addChosen/)
     assert.match(dialog, /function addChosenAgent/)

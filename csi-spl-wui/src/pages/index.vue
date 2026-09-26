@@ -27,7 +27,7 @@
         @click.exact.prevent="pane.open(t.task_id)"
       >
         <div class="msg-meta">
-          <span class="msg-author">{{ t.participants.join(', ') || t.task_id }}</span>
+          <span class="msg-author" :title="t.participants.join(', ') || undefined">{{ peopleLabels(t.participants, people.names.value) || t.task_id }}</span>
           <KindBadge v-for="k in Object.keys(t.kinds)" :key="k" :kind="k" />
           <span class="msg-time">{{ formatTs(t.last_ts, locale) }}</span>
         </div>
@@ -40,6 +40,8 @@
 </template>
 
 <script setup lang="ts">
+import { peopleLabels } from '~/utils/channel-feed.mjs'
+import { useHumanNames } from '~/composables/useHumanNames'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useTopicStore } from '~/stores/topic'
@@ -163,4 +165,6 @@ watch(() => api.mock || String(session.state) === 'in', (ready) => {
   })
 }, { immediate: true })
 onUnmounted(() => viewer.unfollow())
+/* owner, 2026-09-26: participants by their chosen names; ids in the hover */
+const people = useHumanNames()
 </script>

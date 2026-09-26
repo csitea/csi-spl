@@ -1,8 +1,8 @@
 <!-- Per-object menu on a left-pane row (not the icon tab rail).
      Three horizontal lines, which become an X while the menu is open.
      Click or Enter on the focused button toggles it. A click outside,
-     Escape, or the X closes it. The panel is portalled to the body and
-     kept inside the viewport, so it cannot scroll the page. -->
+     Escape, or the X closes it. The panel is position:fixed and kept inside the viewport,
+     so it cannot scroll the page. -->
 <template>
   <div
     ref="root"
@@ -26,7 +26,6 @@
     >
       <UiIcon :name="open ? 'x' : 'menu'" :size="16" />
     </button>
-    <Teleport to="body">
       <div
         v-show="open"
         :id="panelId"
@@ -51,7 +50,6 @@
           </li>
         </ul>
       </div>
-    </Teleport>
   </div>
 </template>
 
@@ -236,8 +234,10 @@ function choose(id: string) {
 .sidebar-row-menu {
   position: absolute;
   inset-inline-end: 6px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
   z-index: 1;
 }
 .sidebar-row-menu--open { z-index: 5; }

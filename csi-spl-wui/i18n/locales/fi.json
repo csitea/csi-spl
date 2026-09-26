@@ -600,7 +600,7 @@
     "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen.",
     "help_button": "Hakusyntaksi",
     "help_title": "Hakusyntaksi",
-    "help_content": "Sanat täsmäävät tekstiin. type:tenant ja type:event hakevat työtilasi ja oman tapahtumalokisi. name: täsmää nimeen. Tähti sanan lopussa, kuten deploy*, täsmää sanan alkuun.",
+    "help_content": "Sanat täsmäävät tekstiin, eikä aksenteilla tai kirjainkoolla ole väliä. Sana, jota kirjoitat, täsmää pidempien sanojen alkuun. Toisen sanan loppuun tulee * (deploy*), jotta se tekee saman. type:tenant ja type:event hakevat työtilasi ja oman tapahtumalokisi. name: täsmää nimeen.",
     "help_operators": "Operaattorit",
     "current_tenant": "Nykyinen",
     "op": {

@@ -600,7 +600,7 @@
     "unreachable": "Arama hizmetine ulaşılamadı. Birazdan tekrar deneyin.",
     "help_button": "Arama sözdizimi",
     "help_title": "Arama sözdizimi",
-    "help_content": "Sözcükler metinle eşleşir. type:tenant ve type:event çalışma alanlarını ve kendi günlüğünü arar. name: bir adla eşleşir. Bir sözcüğün sonundaki yıldız, deploy* gibi, o sözcüğün başıyla eşleşir.",
+    "help_content": "Sözcükler metinle eşleşir; aksan ve büyük harf fark etmez. Yazdığınız sözcük daha uzun sözcüklerin başıyla eşleşir. Ortadaki bir sözcüğün sonuna * koyun (deploy*). type:tenant ve type:event çalışma alanlarını ve kendi günlüğünü arar. name: bir adla eşleşir.",
     "help_operators": "İşleçler",
     "current_tenant": "Geçerli",
     "op": {

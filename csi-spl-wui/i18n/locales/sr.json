@@ -599,7 +599,7 @@
     "unreachable": "Услуга претраге није доступна. Покушајте ускоро поново.",
     "help_button": "Sintaksa pretrage",
     "help_title": "Sintaksa pretrage",
-    "help_content": "Reči se poklapaju sa tekstom. type:tenant i type:event traže vaše prostore i vaš dnevnik. name: se poklapa sa imenom. Zvezdica na kraju reči, kao deploy*, poklapa se sa početkom te reči.",
+    "help_content": "Reči se poklapaju sa tekstom; akcenti i velika slova nisu bitni. Reč koju kucate poklapa se sa početkom dužih reči. Reči u sredini stavite * na kraj (deploy*). type:tenant i type:event traže vaše prostore i vaš dnevnik. name: se poklapa sa imenom.",
     "help_operators": "Operatori",
     "current_tenant": "Tekući",
     "op": {

@@ -600,7 +600,7 @@
     "unreachable": "Paieškos paslauga nepasiekiama. Netrukus bandykite dar kartą.",
     "help_button": "Paieškos sintaksė",
     "help_title": "Paieškos sintaksė",
-    "help_content": "Žodžiai atitinka tekstą. type:tenant ir type:event ieško jūsų darbo sričių ir jūsų žurnalo. name: atitinka vardą. Žvaigždutė žodžio gale, kaip deploy*, atitinka to žodžio pradžią.",
+    "help_content": "Žodžiai atitinka tekstą; kirčiai ir didžiosios raidės nesvarbu. Žodis, kurį rašote, atitinka ilgesnių žodžių pradžią. Žodžiui viduryje gale dėkite * (deploy*). type:tenant ir type:event ieško jūsų darbo sričių ir jūsų žurnalo. name: atitinka vardą.",
     "help_operators": "Operatoriai",
     "current_tenant": "Dabartinis",
     "op": {

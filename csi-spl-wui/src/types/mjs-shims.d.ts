@@ -686,7 +686,7 @@ declare module '~/utils/code-blocks.mjs' {
     | { type: 'list', ordered: boolean, items: { parts: BodyPart[] }[] }
   export function normalizeNewlines(src: string): string
   export function parseBody(src: string): BodyBlock[]
-  export function bodyToHtml(src: string): string
+  export function bodyToHtml(src: string, origin?: string): string
   export function isMarkdownLang(lang: string | null | undefined): boolean
   export function hasMarkdownBlock(src: string): boolean
   export function linkParts(text: string): BodyPart[]
@@ -770,15 +770,28 @@ declare module '~/utils/code-langs.mjs' {
   export const LANG_LOADERS: Readonly<Record<string, () => Promise<{ default: unknown }>>>
 }
 
+declare module '~/utils/link-target.mjs' {
+  export const NEW_TAB_REL: string
+  export function classifyHref(raw: string, pageOrigin?: string): { href: string, internal: boolean } | null
+  export function linkOpen(href: string, pageOrigin?: string): { href: string, internal: boolean, target?: string, rel?: string } | null
+  export function sameTabPath(href: string, pageHref: string): string | null
+  export function followSameTabLink(
+    event: { button?: number, metaKey?: boolean, ctrlKey?: boolean, shiftKey?: boolean, altKey?: boolean, defaultPrevented?: boolean, preventDefault?: () => void },
+    href: string,
+    pageHref: string,
+    navigate: (path: string) => unknown,
+  ): boolean
+}
+
 declare module '~/utils/markdown.mjs' {
   export type MdNode = string | { tag: string, attrs: Record<string, string>, children: MdNode[] }
   export const TAGS: Set<string>
   export const ATTRS: Record<string, Set<string>>
   export function safeHref(raw: string): string
   export function markdownTree(src: string): MdNode[]
-  export function treeToHtml(nodes: MdNode[]): string
-  export function markdownToHtml(src: string): string
-  export function renderMarkdown(src: string): string
+  export function treeToHtml(nodes: MdNode[], origin?: string): string
+  export function markdownToHtml(src: string, origin?: string): string
+  export function renderMarkdown(src: string, origin?: string): string
 }
 
 declare module '~/utils/highlighter.mjs' {

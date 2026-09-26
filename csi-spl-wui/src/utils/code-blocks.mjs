@@ -26,6 +26,7 @@
  *
  * Pure: node tests import this file directly.
  */
+import { classifyHref, linkOpen } from './link-target.mjs'
 
 const LANG_RE = /^([A-Za-z0-9_+#.-]{1,24})\n/
 
@@ -269,13 +270,9 @@ function mdLink(label, href) {
     if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(addr)) return null
     return { type: 'link', text, href: 'mailto:' + addr }
   }
-  try {
-    const u = new URL(raw)
-    if ((u.protocol !== 'http:' && u.protocol !== 'https:') || !u.hostname) return null
-    return { type: 'link', text, href: u.href }
-  } catch {
-    return null
-  }
+  const c = classifyHref(raw)
+  if (!c || c.href.startsWith('mailto:')) return null
+  return { type: 'link', text, href: c.href }
 }
 
 /** Emphasis and markdown links, only inside a wiki region. */
@@ -457,20 +454,21 @@ export function hasMarkdownBlock(src) {
     tokenize(src).some((t) => t.type === 'code' && isMarkdownLang(t.lang))
 }
 
-import { linkAttrHtml } from './link-target.mjs'
-
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-function partsHtml(parts) {
+function partsHtml(parts, origin) {
   return (parts || []).map((p) => {
     if (p.type === 'inline') return `<code>${esc(p.text)}</code>`
     if (p.type === 'strong') return `<strong>${esc(p.text)}</strong>`
     if (p.type === 'em') return `<em>${esc(p.text)}</em>`
     if (p.type === 'mention') return `<span class="mention">${esc(p.text)}</span>`
     if (p.type === 'link') {
-      return `<a class="msg-link" href="${esc(p.href)}" ${linkAttrHtml(p.href)}>${esc(p.text)}</a>`
+      const open = linkOpen(p.href, origin)
+      if (!open) return esc(p.text)
+      const extra = open.internal ? '' : ` target="_blank" rel="${open.rel}"`
+      return `<a class="msg-link" href="${esc(p.href)}"${extra}>${esc(p.text)}</a>`
     }
     return esc(p.text).replace(/\n/g, '<br>')
   }).join('')
@@ -480,19 +478,19 @@ function partsHtml(parts) {
  * Escaped HTML of a body, for callers that need a string (tests, previews).
  * The WUI itself renders parseBody through MessageBody.vue, not this.
  */
-export function bodyToHtml(src) {
+export function bodyToHtml(src, origin) {
   return parseBody(src).map((b) => {
     if (b.type === 'code') {
       const label = b.lang ? ` data-lang="${esc(b.lang)}"` : ''
       return `<pre${label}><code>${esc(b.text)}</code></pre>`
     }
-    if (b.type === 'heading') return `<h${b.level + 1}>${partsHtml(b.parts)}</h${b.level + 1}>`
+    if (b.type === 'heading') return `<h${b.level + 1}>${partsHtml(b.parts, origin)}</h${b.level + 1}>`
     if (b.type === 'list') {
       const tag = b.ordered ? 'ol' : 'ul'
-      return `<${tag}>${b.items.map((item) => `<li>${partsHtml(item.parts)}</li>`).join('')}</${tag}>`
+      return `<${tag}>${b.items.map((item) => `<li>${partsHtml(item.parts, origin)}</li>`).join('')}</${tag}>`
     }
-    if (b.type === 'quote') return `<blockquote>${partsHtml(b.parts)}</blockquote>`
-    return partsHtml(b.parts)
+    if (b.type === 'quote') return `<blockquote>${partsHtml(b.parts, origin)}</blockquote>`
+    return partsHtml(b.parts, origin)
   }).join('')
 }
 

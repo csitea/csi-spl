@@ -1,39 +1,146 @@
 /**
- * Where a link in a message or a description opens.
+ * Where a link in a message or a description opens (SPL-951).
  *
- * Same tab: a relative URL, or an absolute URL on this site
- * (spool-hub.ai, www.spool-hub.ai).
- * Another tab: everything else. The dev environment (dev.spool-hub.ai)
- * is external even though it shares the site name.
+ * Internal: a relative URL, or an absolute http(s) URL whose origin is the
+ * page origin exactly. Same tab, no target. followSameTabLink cancels the
+ * browser navigation and hands the path to the router, so the SPA does not
+ * reload. A query-only href ("?topic=") resolves against the current page.
+ * External: every other http(s) URL, and mailto. A new tab, with
+ * rel="noopener noreferrer nofollow". Another host of the same product is
+ * external: the dev origin viewed from production differs, and the reverse.
+ *
+ * Not a link: javascript:, data:, vbscript:, file:, any other scheme,
+ * protocol-relative (//host), a backslash (the parser can turn "/\\evil"
+ * into another host), a control character, or a relative URL that resolves
+ * off the base origin.
+ *
+ * Pure. pageOrigin is window.location.origin at render time. Omit it and
+ * every absolute URL is external: a renderer that does not know the page
+ * must not call a foreign host internal. A relative URL stays internal.
  */
-const INTERNAL_HOSTS = new Set(['spool-hub.ai', 'www.spool-hub.ai'])
 
-export function opensNewTab(href) {
-  const raw = String(href || '').trim()
-  if (!raw) return true
-  if (raw.startsWith('#') || raw.startsWith('?') || (raw.startsWith('/') && !raw.startsWith('//'))) return false
-  let url
-  try {
-    url = new URL(raw)
-  } catch {
-    return true
+export const NEW_TAB_REL = 'noopener noreferrer nofollow'
+
+/* A base with a path, so "?topic=" and "#id" stay relative and a backslash
+   that escapes the host fails the origin check. Not a real site. */
+const DUMMY_PAGE = 'https://link-target.invalid/page'
+const SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/
+
+/* A relative href is a path, a query or a hash — not a scheme hiding behind
+   percent-encoding ("%6Aavascript:" decodes to "javascript:"). A colon in the
+   first path segment is a scheme. Decoding is repeated so "%256A" is caught. */
+function safeRelative(s) {
+  if (!/^(?:\/(?!\/)|\?|#|\.\/|\.\.\/|[A-Za-z0-9._~-])/.test(s)) return false
+  const head = s.split(/[/?#]/, 1)[0]
+  if (head.includes(':')) return false
+  let cur = s
+  for (let i = 0; i < 3; i++) {
+    let next
+    try { next = decodeURIComponent(cur) } catch { return false }
+    if (/[\u0000-\u001F\u007F]/.test(next)) return false
+    const t = next.trim()
+    if (SCHEME_RE.test(t) && !/^https?:\/\//i.test(t)) return false
+    if (next === cur) return true
+    cur = next
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return true
-  if (url.hostname === 'dev.spool-hub.ai') return true
-  return !INTERNAL_HOSTS.has(url.hostname)
+  return true
 }
 
-/** Attributes for a rendered anchor. External links name a new tab. */
-export function linkAttrs(href) {
-  if (opensNewTab(href)) return { target: '_blank', rel: 'noopener noreferrer nofollow' }
-  return { rel: 'nofollow' }
+function originOf(pageOrigin) {
+  const s = String(pageOrigin ?? '').trim()
+  if (!s) return ''
+  try {
+    return new URL(s).origin
+  } catch {
+    return ''
+  }
 }
 
-/** The same attributes as a string, for the HTML the tests render. */
-export function linkAttrHtml(href) {
-  const a = linkAttrs(href)
-  const parts = []
-  if (a.target) parts.push(`target="${a.target}"`)
-  if (a.rel) parts.push(`rel="${a.rel}"`)
-  return parts.join(' ')
+/**
+ * null when href must not be an anchor. Otherwise the canonical href
+ * (absolute http(s)/mailto as URL.href, relative as the author wrote it)
+ * and whether a plain click stays on this page.
+ */
+export function classifyHref(raw, pageOrigin) {
+  const s = String(raw ?? '').trim()
+  if (!s) return null
+  if (/[\u0000-\u001F\u007F]/.test(s) || s.includes('\\') || s.startsWith('//')) return null
+
+  const scheme = SCHEME_RE.exec(s)
+  if (scheme) {
+    const proto = scheme[0].toLowerCase()
+    if (proto !== 'http:' && proto !== 'https:' && proto !== 'mailto:') return null
+    /* "https:example.com" is not an absolute URL; the parser would treat it
+       as a path. Only http:// and https:// are absolute. */
+    if (proto !== 'mailto:' && !/^https?:\/\//i.test(s)) return null
+    let u
+    try {
+      u = new URL(s)
+    } catch {
+      return null
+    }
+    if (u.protocol === 'mailto:') return { href: u.href, internal: false }
+    if ((u.protocol !== 'http:' && u.protocol !== 'https:') || !u.hostname) return null
+    const origin = originOf(pageOrigin)
+    return { href: u.href, internal: origin !== '' && u.origin === origin }
+  }
+
+  if (!safeRelative(s)) return null
+  let u
+  try {
+    u = new URL(s, DUMMY_PAGE)
+  } catch {
+    return null
+  }
+  if (u.origin !== new URL(DUMMY_PAGE).origin || u.protocol !== 'https:') return null
+  return { href: s, internal: true }
+}
+
+/** Target and rel for an anchor, or null when the href is not a link. */
+export function linkOpen(href, pageOrigin) {
+  const c = classifyHref(href, pageOrigin)
+  if (!c) return null
+  if (c.internal) return { href: c.href, internal: true }
+  return { href: c.href, internal: false, target: '_blank', rel: NEW_TAB_REL }
+}
+
+/**
+ * Router path for an internal link, resolved against the current page URL
+ * so "?topic=" stays on this path. Null for an external link, a rejected
+ * href, or a resolution that leaves the page origin.
+ */
+export function sameTabPath(href, pageHref) {
+  let page
+  try {
+    page = new URL(pageHref)
+  } catch {
+    return null
+  }
+  const c = classifyHref(href, page.origin)
+  if (!c || !c.internal) return null
+  let u
+  try {
+    u = new URL(c.href, pageHref)
+  } catch {
+    return null
+  }
+  if (u.origin !== page.origin || (u.protocol !== 'http:' && u.protocol !== 'https:')) return null
+  return u.pathname + u.search + u.hash
+}
+
+/**
+ * Plain left click on an internal link: cancel the browser navigation and
+ * call navigate(path). A modified click (ctrl, cmd, shift, alt, or a
+ * non-primary button) stays with the browser, which opens another tab.
+ * Returns whether this call navigated.
+ */
+export function followSameTabLink(event, href, pageHref, navigate) {
+  if (!event || event.defaultPrevented) return false
+  if (event.button != null && event.button !== 0) return false
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false
+  const path = sameTabPath(href, pageHref)
+  if (path == null) return false
+  if (typeof event.preventDefault === 'function') event.preventDefault()
+  navigate(path)
+  return true
 }

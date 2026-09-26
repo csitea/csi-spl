@@ -25,9 +25,11 @@ import MessageRuns from '~/components/MessageRuns.vue'
 /* Slack-style ``` blocks and `inline code`; every string is text-interpolated,
    never markup. A fenced block is CodeBlock.vue (preview, highlighting, the
    open control and the dialog); inline spans stay here, where they belong.
-   A link part (CLE-3494) is http, https or mailto only (parseBody's rule);
-   its click, double-click and Enter stop here, so the link opens and the row
-   under it does not also open its topic, select, or start an edit.
+   A plain link (CLE-3494) is http, https or mailto; a wiki markdown link
+   may also be relative. Same-origin and relative links stay in this tab
+   (link-target.mjs). A click, double-click or Enter on the link stops here,
+   so the link opens and the row does not also open its topic, select, or
+   start an edit.
    A fence tagged md / markdown is the markdown start/stop marker (SPL-73):
    MarkdownBlock renders it, and loads markdown-it itself, lazily, so
    isMarkdownLang comes from code-blocks.mjs, never from markdown.mjs. */

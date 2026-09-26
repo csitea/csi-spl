@@ -18,9 +18,11 @@
  *     keeps its children and loses itself, and no token attribute is copied
  *     through; the only attributes are the ones this file writes
  *     (href, title, start, data-align, data-lang)
- *   - a link's href must parse as an absolute http, https or mailto URL, the
- *     same three schemes as the plain-text linkify; anything else (javascript:,
- *     data:, vbscript:, file:, relative paths) renders as its text alone
+ *   - a link is an absolute http, https or mailto URL, or a relative URL
+ *     that stays on the base origin (link-target.mjs). javascript:, data:,
+ *     vbscript:, file:, protocol-relative and a backslash that escapes the
+ *     host render as text. Same-origin and relative links have no target;
+ *     every other link opens in a new tab (rel=noopener noreferrer nofollow)
  *   - images are never fetched (no network from a message, and the deployed
  *     CSP img-src is self + data: anyway): ![alt](https://x/y.png) becomes a
  *     link to the picture, labelled with its alt text
@@ -31,7 +33,7 @@
  * directly; the WUI imports it lazily, only when a page has such a block.
  */
 import MarkdownIt from 'markdown-it'
-import { linkAttrHtml } from './link-target.mjs'
+import { classifyHref, linkOpen, NEW_TAB_REL } from './link-target.mjs'
 
 /** Every element the tree may hold. */
 export const TAGS = new Set([
@@ -107,7 +109,7 @@ function inline(tokens) {
     if (tok.nesting === 1) {
       let node
       if (tok.type === 'link_open') {
-        const href = safeHref(tok.attrGet('href'))
+        const href = classifyHref(tok.attrGet('href'))?.href || ''
         node = href ? el('a', { href, title: href }) : el(null)
       } else {
         node = el(TAGS.has(tok.tag) ? tok.tag : null)
@@ -217,27 +219,33 @@ const VOID = new Set(['br', 'hr'])
 
 /**
  * Escaped HTML of a tree, for tests and string callers. The WUI renders the
- * tree through MarkdownBlock.vue, not this; links carry the component's
- * target and rel.
+ * tree through MarkdownBlock.vue, not this. `origin` is the page origin:
+ * a same-origin or relative link has no target; everything else is a new
+ * tab. Omit origin and every absolute URL is external.
  */
-export function treeToHtml(nodes) {
+export function treeToHtml(nodes, origin) {
   return (nodes || []).map((n) => {
     if (typeof n === 'string') return esc(n)
-    if (!TAGS.has(n.tag)) return treeToHtml(n.children)
+    if (!TAGS.has(n.tag)) return treeToHtml(n.children, origin)
+    let open = null
+    if (n.tag === 'a') {
+      open = linkOpen(n.attrs && n.attrs.href, origin)
+      if (!open) return treeToHtml(n.children, origin)
+    }
     const allowed = ATTRS[n.tag] || new Set()
     let attrs = Object.entries(n.attrs || {})
       .filter(([k]) => allowed.has(k))
       .map(([k, v]) => ` ${k}="${esc(v)}"`)
       .join('')
-    if (n.tag === 'a') attrs += ' ' + linkAttrHtml(n.attrs && n.attrs.href)
+    if (open && !open.internal) attrs += ` target="_blank" rel="${NEW_TAB_REL}"`
     if (VOID.has(n.tag)) return `<${n.tag}${attrs}>`
-    return `<${n.tag}${attrs}>${treeToHtml(n.children)}</${n.tag}>`
+    return `<${n.tag}${attrs}>${treeToHtml(n.children, origin)}</${n.tag}>`
   }).join('')
 }
 
 /** Markdown source -> escaped, allow-listed HTML. */
-export function markdownToHtml(src) {
-  return treeToHtml(markdownTree(src))
+export function markdownToHtml(src, origin) {
+  return treeToHtml(markdownTree(src), origin)
 }
 
 /** spec 040's first name for markdownToHtml (1c099b52). */

@@ -23,11 +23,12 @@
 
 <script setup lang="ts">
 import { h, type FunctionalComponent, type VNodeChild } from 'vue'
-import { linkAttrs } from '~/utils/link-target.mjs'
 import type { MdNode } from '~/utils/markdown.mjs'
+import { followSameTabLink, linkOpen } from '~/utils/link-target.mjs'
 
 const props = defineProps<{ text: string }>()
 const { t } = useI18n({ useScope: 'global' })
+const router = useRouter()
 const showSource = ref(false)
 
 const tree = shallowRef<MdNode[] | null>(null)
@@ -55,8 +56,15 @@ watch(
 
 
 /* a link opens and the row under it does not also open its topic, select,
-   or start an edit (the same rule as MessageBody's links) */
+   or start an edit (the same rule as MessageBody's links). Internal links
+   stay in this tab via the router; every other link is a new tab. */
 const stop = (e: Event) => e.stopPropagation()
+
+function onLink(e: MouseEvent, href: string) {
+  stop(e)
+  if (!import.meta.client) return
+  followSameTabLink(e, href, window.location.href, (path) => { void router.push(path) })
+}
 
 function node(n: MdNode): VNodeChild {
   if (typeof n === 'string') return n
@@ -64,15 +72,22 @@ function node(n: MdNode): VNodeChild {
   // the tree is allow-listed already; the check here keeps it that way
   if (!tags.has(n.tag)) return kids
   if (n.tag === 'a') {
-    return h('a', {
+    const origin = import.meta.client ? window.location.origin : ''
+    const open = linkOpen(n.attrs.href, origin)
+    if (!open) return kids
+    const anchor: Record<string, unknown> = {
       class: 'msg-link',
       href: n.attrs.href,
       title: n.attrs.title,
-      ...linkAttrs(n.attrs.href),
-      onClick: stop,
+      onClick: (e: MouseEvent) => onLink(e, n.attrs.href),
       onDblclick: stop,
       onKeydown: (e: KeyboardEvent) => { if (e.key === 'Enter') e.stopPropagation() },
-    }, kids)
+    }
+    if (!open.internal) {
+      anchor.target = open.target
+      anchor.rel = open.rel
+    }
+    return h('a', anchor, kids)
   }
   if (n.tag === 'table') return h('div', { class: 'md-table' }, [h('table', null, kids)])
   const attrs: Record<string, string> = {}

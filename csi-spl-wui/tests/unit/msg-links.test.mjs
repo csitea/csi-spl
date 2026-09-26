@@ -136,12 +136,15 @@ describe('MessageBody.vue renders a link part', () => {
   const src = readFileSync(join(WUI, 'src/components/MessageRuns.vue'), 'utf8')
   const body = readFileSync(join(WUI, 'src/components/MessageBody.vue'), 'utf8')
 
-  it('an anchor binds the part href and lets linkAttrs choose the tab', () => {
+  it('an anchor uses the shared target: external gets a new tab and no opener', () => {
     assert.match(src, /<a\s[^>]*v-else-if="p\.type === 'link'"/)
     assert.match(src, /:href="p\.href"/)
-    assert.match(src, /v-bind="linkAttrs\(p\.href\)"/)
-    assert.doesNotMatch(src, /target="_blank"/)
+    assert.match(src, /link-target\.mjs/)
+    assert.match(src, /followSameTabLink/)
     assert.match(src, /class="msg-link"/)
+    assert.doesNotMatch(src, /target="_blank"/)
+    const helper = readFileSync(join(WUI, 'src/utils/link-target.mjs'), 'utf8')
+    assert.match(helper, /noopener noreferrer nofollow/)
   })
 
   it('a click, a double-click or a key on the link never reaches the row', () => {

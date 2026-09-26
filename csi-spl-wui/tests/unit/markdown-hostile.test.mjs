@@ -1,7 +1,8 @@
 // Hostile markdown (SPL-73, spec 040): whatever sits between the ```md
 // start and stop marker, the render tree holds only allow-listed tags and
-// attributes, every href is an absolute http / https / mailto URL, nothing
-// is fetched, and the component never binds HTML.
+// attributes, every href is an absolute http / https / mailto URL or a
+// safe relative path (SPL-951), nothing is fetched, and the component
+// never binds HTML.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -9,6 +10,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { ATTRS, TAGS, markdownToHtml, markdownTree, safeHref, treeToHtml } from '../../src/utils/markdown.mjs'
+import { classifyHref } from '../../src/utils/link-target.mjs'
 import { hasMarkdownBlock, isMarkdownLang, parseBody } from '../../src/utils/code-blocks.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -33,8 +35,12 @@ function assertClean(src) {
       assert.ok(allowed.has(k), `attribute ${k} on <${n.tag}> from ${JSON.stringify(src)}`)
     }
     if (n.tag === 'a') {
-      const u = new URL(n.attrs.href)
-      assert.ok(['http:', 'https:', 'mailto:'].includes(u.protocol), `href ${n.attrs.href}`)
+      const c = classifyHref(n.attrs.href, 'https://app.example')
+      assert.ok(c, `href ${n.attrs.href} from ${JSON.stringify(src)}`)
+      if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(n.attrs.href)) {
+        const u = new URL(n.attrs.href)
+        assert.ok(['http:', 'https:', 'mailto:'].includes(u.protocol), `href ${n.attrs.href}`)
+      }
     }
   }
   // the string form too: text is escaped, so every "<" left is a real tag
@@ -45,7 +51,10 @@ function assertClean(src) {
       assert.ok(['href', 'title', 'start', 'data-align', 'data-lang', 'target', 'rel'].includes(k), `${k} in ${html}`)
     }
   }
-  assert.doesNotMatch(html, /href="(?!https?:|mailto:)/i, html)
+  for (const m of html.matchAll(/href="([^"]*)"/g)) {
+    const href = m[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    assert.ok(classifyHref(href, 'https://app.example'), `html href ${href}`)
+  }
   return { tree, html }
 }
 
@@ -172,9 +181,11 @@ describe('the component', () => {
     assert.doesNotMatch(body, /utils\/markdown\.mjs/)
   })
 
-  it('links use linkAttrs, so an internal href stays in this tab', () => {
-    assert.match(block, /\.\.\.linkAttrs\(n\.attrs\.href\)/)
-    assert.doesNotMatch(block, /target: '_blank'/)
+  it('links open through the shared target rule', () => {
+    assert.match(block, /link-target\.mjs/)
+    assert.match(block, /followSameTabLink/)
+    assert.match(block, /linkOpen/)
+    assert.doesNotMatch(block, /target:\s*'_blank'/)
   })
 
   it('tables scroll inside the block, never widen the page; no px font sizes', () => {

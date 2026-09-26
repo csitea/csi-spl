@@ -376,7 +376,7 @@
     "users": "Användare",
     "events": "Händelselogg",
     "issues": "Ärenden",
-    "epics": "Epics"
+    "epics": "Epics och funktioner"
   },
   "composer": {
     "biz_owner": "företagsägare",
@@ -837,7 +837,12 @@
     "no_epic": "Ingen epic",
     "err_epic_required": "Varje ärende behöver en epic.",
     "err_bad_epic": "Föräldern måste vara en epic, och en epic har ingen förälder.",
-    "err_epic_has_issues": "Flytta först den här epicens ärenden till en annan epic."
+    "err_epic_has_issues": "Flytta först den här epicens ärenden till en annan epic.",
+    "kind_feature": "Funktion",
+    "subtasks": "Delaktiviteter",
+    "add_subtask": "Lägg till delaktivitet",
+    "subtask_placeholder": "Titel på den nya delaktiviteten",
+    "parent_issue": "Förälder"
   },
   "markdown": {
     "show_source": "Visa källa",

@@ -184,3 +184,45 @@ describe('SPL-18 epics', async () => {
     assert.deepEqual(list.epics.map((x) => [x.key, x.total, x.done]), [['SPL-1', 0, 0], [e.key, 1, 1]])
   })
 })
+
+describe('SPL-18 three levels (owner 09:08)', async () => {
+  const { createMockIssues, normalizeIssue: n3, isTopKind } = await import('../../src/utils/issues.mjs')
+  it('epic and feature are level 1; a subtask names its level-1 epic', () => {
+    assert.equal(isTopKind('feature'), true)
+    assert.equal(isTopKind('subtask'), false)
+    const s = n3({ key: 'SPL-4', kind: 'subtask', parent: 'SPL-3', epic: 'SPL-2' })
+    assert.equal(s.kind, 'subtask')
+    assert.equal(s.epic, 'SPL-2')
+    assert.equal(n3({ key: 'SPL-2', kind: 'feature', parent: 'SPL-9' }).epic, '')
+  })
+  it('the mock hub builds and guards the tree', () => {
+    const hub = createMockIssues({ me: 'HUM-1', now: () => '2026-09-26T09:00:00Z' })
+    const f = hub.create({ title: 'F', kind: 'feature' }).issue
+    const a = hub.create({ title: 'a', epic: f.key }).issue
+    const s = hub.create({ title: 's', parent: a.key }).issue
+    assert.deepEqual([f.kind, a.kind, s.kind, s.epic], ['feature', 'issue', 'subtask', f.key])
+    assert.throws(() => hub.create({ title: 'x', parent: s.key }), (e) => e.token === 'bad_epic')
+    assert.throws(() => hub.create({ title: 'x', epic: a.key }), (e) => e.token === 'bad_epic')
+    assert.deepEqual(hub.list(`parent=${a.key}`).issues.map((i) => i.key), [s.key])
+    assert.deepEqual(hub.list('kind=issue').issues.map((i) => i.key), [a.key])
+    assert.deepEqual(hub.list('').epics.map((e) => [e.key, e.kind, e.total]), [['SPL-1', 'epic', 0], [f.key, 'feature', 1]])
+  })
+})
+
+describe('the spool-client query copy agrees with issues.mjs (issues-v1 §4)', async () => {
+  const { createSpoolClient } = await import('../../src/utils/spool-client.mjs')
+  const { issueQuery: q4 } = await import('../../src/utils/issues.mjs')
+  it('every filter the Issues page sends reaches the hub', async () => {
+    const urls = []
+    const fetchFn = async (url) => {
+      urls.push(String(url))
+      return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ issues: [] }), text: async () => '{}' }
+    }
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn, token: 'tok' })
+    const filter = { kind: 'issue', epic: ['SPL-1'], parent: ['SPL-3'], status: ['todo'], priority: [1], level: [2], assignee: ['me'], label: ['bug'],
+      deadlineBefore: '2026-10-01T00:00:00Z', deadlineAfter: '2026-09-01T00:00:00Z' }
+    await c.listIssues({ filter, sort: 'level' })
+    assert.equal(urls.length, 1)
+    assert.equal(new URL(urls[0]).search.slice(1), q4(filter, 'level'))
+  })
+})

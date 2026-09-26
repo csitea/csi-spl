@@ -376,7 +376,7 @@
     "users": "Users",
     "events": "Event log",
     "issues": "Issues",
-    "epics": "Epics"
+    "epics": "Epics and features"
   },
   "composer": {
     "biz_owner": "business owner",
@@ -837,7 +837,12 @@
     "no_epic": "No epic",
     "err_epic_required": "Every issue needs an epic.",
     "err_bad_epic": "The parent must be an epic, and an epic has no parent.",
-    "err_epic_has_issues": "Move this epic's issues to another epic first."
+    "err_epic_has_issues": "Move this epic's issues to another epic first.",
+    "kind_feature": "Feature",
+    "subtasks": "Subtasks",
+    "add_subtask": "Add subtask",
+    "subtask_placeholder": "New subtask title",
+    "parent_issue": "Parent"
   },
   "markdown": {
     "show_source": "Show source",

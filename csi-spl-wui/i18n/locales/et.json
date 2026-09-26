@@ -376,7 +376,7 @@
     "users": "Kasutajad",
     "events": "Sündmuste logi",
     "issues": "Probleemid",
-    "epics": "Eepikud"
+    "epics": "Eepikud ja funktsioonid"
   },
   "composer": {
     "biz_owner": "ettevõtte omanik",
@@ -837,7 +837,12 @@
     "no_epic": "Eepikuta",
     "err_epic_required": "Igal ülesandel peab olema eepik.",
     "err_bad_epic": "Vanem peab olema eepik ja eepikul pole vanemat.",
-    "err_epic_has_issues": "Vii selle eepiku ülesanded esmalt teise eepikusse."
+    "err_epic_has_issues": "Vii selle eepiku ülesanded esmalt teise eepikusse.",
+    "kind_feature": "Funktsioon",
+    "subtasks": "Alamülesanded",
+    "add_subtask": "Lisa alamülesanne",
+    "subtask_placeholder": "Uue alamülesande pealkiri",
+    "parent_issue": "Vanem"
   },
   "markdown": {
     "show_source": "Näita lähteteksti",

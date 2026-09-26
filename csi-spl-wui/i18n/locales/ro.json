@@ -376,7 +376,7 @@
     "users": "Utilizatori",
     "events": "Jurnal de evenimente",
     "issues": "Probleme",
-    "epics": "Epice"
+    "epics": "Epice și funcționalități"
   },
   "composer": {
     "biz_owner": "proprietarul afacerii",
@@ -837,7 +837,12 @@
     "no_epic": "Fără epic",
     "err_epic_required": "Fiecare problemă are nevoie de un epic.",
     "err_bad_epic": "Părintele trebuie să fie un epic, iar un epic nu are părinte.",
-    "err_epic_has_issues": "Mută mai întâi problemele acestui epic în alt epic."
+    "err_epic_has_issues": "Mută mai întâi problemele acestui epic în alt epic.",
+    "kind_feature": "Funcționalitate",
+    "subtasks": "Subsarcini",
+    "add_subtask": "Adaugă subsarcină",
+    "subtask_placeholder": "Titlul noii subsarcini",
+    "parent_issue": "Părinte"
   },
   "markdown": {
     "show_source": "Arată sursa",

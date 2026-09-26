@@ -376,7 +376,7 @@
     "users": "Käyttäjät",
     "events": "Tapahtumaloki",
     "issues": "Asiat",
-    "epics": "Eepikset"
+    "epics": "Eepokset ja ominaisuudet"
   },
   "composer": {
     "biz_owner": "yrityksen omistaja",
@@ -837,7 +837,12 @@
     "no_epic": "Ei eeposta",
     "err_epic_required": "Jokaisella tiketillä on oltava eepos.",
     "err_bad_epic": "Ylätason on oltava eepos, eikä eepoksella ole ylätasoa.",
-    "err_epic_has_issues": "Siirrä tämän eepoksen tiketit ensin toiseen eepokseen."
+    "err_epic_has_issues": "Siirrä tämän eepoksen tiketit ensin toiseen eepokseen.",
+    "kind_feature": "Ominaisuus",
+    "subtasks": "Alitehtävät",
+    "add_subtask": "Lisää alitehtävä",
+    "subtask_placeholder": "Uuden alitehtävän otsikko",
+    "parent_issue": "Ylätaso"
   },
   "markdown": {
     "show_source": "Näytä lähdeteksti",

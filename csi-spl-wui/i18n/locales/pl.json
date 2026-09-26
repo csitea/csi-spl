@@ -376,7 +376,7 @@
     "users": "Użytkownicy",
     "events": "Dziennik zdarzeń",
     "issues": "Zgłoszenia",
-    "epics": "Epiki"
+    "epics": "Epiki i funkcje"
   },
   "composer": {
     "biz_owner": "właściciel firmy",
@@ -837,7 +837,12 @@
     "no_epic": "Bez epiku",
     "err_epic_required": "Każde zadanie wymaga epiku.",
     "err_bad_epic": "Rodzic musi być epikiem, a epik nie ma rodzica.",
-    "err_epic_has_issues": "Najpierw przenieś zadania tego epiku do innego epiku."
+    "err_epic_has_issues": "Najpierw przenieś zadania tego epiku do innego epiku.",
+    "kind_feature": "Funkcja",
+    "subtasks": "Podzadania",
+    "add_subtask": "Dodaj podzadanie",
+    "subtask_placeholder": "Tytuł nowego podzadania",
+    "parent_issue": "Rodzic"
   },
   "markdown": {
     "show_source": "Pokaż źródło",

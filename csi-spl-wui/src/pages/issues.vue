@@ -143,11 +143,14 @@
         :body="form.description"
       />
       <div class="issues-props">
-        <button v-if="creating" type="button" class="issues-prop" data-test="issues-kind" :aria-pressed="draft.kind === 'epic' ? 'true' : 'false'" @click="toggleKind">
-          <span>{{ draft.kind === 'epic' ? t('issues.kind_epic') : t('issues.kind_issue') }}</span>
+        <button v-if="creating" type="button" class="issues-prop" data-test="issues-kind" :data-kind="draft.kind" @click="toggleKind">
+          <span>{{ t('issues.kind_' + draft.kind) }}</span>
         </button>
-        <button v-if="form.kind !== 'epic'" type="button" class="issues-prop" data-test="issues-epic" @click="openMenu('epic', detailOrDraft(), $event)">
+        <button v-if="!isTopKind(form.kind) && form.kind !== 'subtask'" type="button" class="issues-prop" data-test="issues-epic" @click="openMenu('epic', detailOrDraft(), $event)">
           <span>{{ form.epic ? epicLabel(form.epic) : t('issues.no_epic') }}</span>
+        </button>
+        <button v-if="form.kind === 'subtask' && detail" type="button" class="issues-prop" data-test="issues-parent" @click="openParent">
+          <span>{{ t('issues.parent_issue') }}: {{ detail.parent }}</span>
         </button>
         <button type="button" class="issues-prop" data-test="issues-status" @click="openMenu('status', detailOrDraft(), $event)">
           <IssueGlyph :name="statusIcon(form.status)" :size="16" />
@@ -181,7 +184,29 @@
       <p v-if="!creating && form.created_by" class="muted issues-meta">{{ t('issues.created_by', { name: person(form.created_by) }) }}</p>
       <p v-if="!creating && form.updated_by" class="muted issues-meta">{{ t('issues.updated_by', { name: person(form.updated_by) }) }}</p>
       <p v-if="saveError" class="issues-error" role="alert" data-test="issues-save-error">{{ t(saveError) }}</p>
-      <button v-if="creating" type="button" class="btn" data-test="issues-create" :disabled="busy || !draft.title.trim() || (draft.kind !== 'epic' && !draft.epic)" @click="createIssue">{{ busy ? t('issues.creating') : t('issues.create') }}</button>
+      <button v-if="creating" type="button" class="btn" data-test="issues-create" :disabled="busy || !draft.title.trim() || (!isTopKind(draft.kind) && !draft.epic)" @click="createIssue">{{ busy ? t('issues.creating') : t('issues.create') }}</button>
+      <!-- SPL-18 level 3: a level-2 issue's subtasks, in the right pane -->
+      <section v-if="!creating && form.kind === 'issue'" class="issues-subs" data-test="issues-subtasks">
+        <h3>{{ t('issues.subtasks') }}</h3>
+        <button
+          v-for="sub in subtasks"
+          :key="sub.key"
+          type="button"
+          class="issues-sub"
+          data-test="issues-subtask"
+          :data-key="sub.key"
+          :data-status="sub.status"
+          @click="choose(sub)"
+        >
+          <IssueGlyph :name="statusIcon(sub.status)" :size="14" />
+          <span class="issues-key">{{ sub.key }}</span>
+          <span class="issues-title">{{ sub.title }}</span>
+        </button>
+        <form class="issues-sub-add" @submit.prevent="addSubtask">
+          <input v-model="subtaskTitle" data-test="issues-subtask-input" :placeholder="t('issues.subtask_placeholder')" :aria-label="t('issues.add_subtask')">
+          <button type="submit" class="btn ghost" data-test="issues-subtask-add" :disabled="busy || !subtaskTitle.trim()">{{ t('issues.add_subtask') }}</button>
+        </form>
+      </section>
       <section v-if="!creating && form.task_id" class="issues-talk" data-test="issues-talk">
         <h3>{{ t('issues.discussion') }}</h3>
         <p v-if="!comments.length" class="muted" data-test="issues-comment-empty">{{ t('issues.comment_empty') }}</p>
@@ -232,7 +257,7 @@ import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import { tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
-import { ISSUE_STATUSES, createMockIssues, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
+import { ISSUE_STATUSES, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import {
   ISSUE_LEVELS,
   ISSUE_PANE_DEFAULT,
@@ -322,8 +347,10 @@ const detailRoom = ref(720)
 const draft = reactive({
   title: '', description: '', status: 'todo', priority: 0, level: 0,
   assignee: '', labels: [] as string[], deadlineLocal: '',
-  epic: '', kind: 'issue' as 'issue' | 'epic',
+  epic: '', kind: 'issue' as 'issue' | 'epic' | 'feature',
 })
+const subtasks = ref<Issue[]>([])
+const subtaskTitle = ref('')
 /* SPL-18: the epics of the tenant (the hub's summary), shared with the
    Issues tab's left-most panel (ChannelSidebar reads the same state). */
 const epics = useState<EpicSummary[]>('issue-epics', () => [])
@@ -341,7 +368,46 @@ function epicTitleOf(key: string) {
   return epics.value.find((x) => x.key === key)?.title || key
 }
 function toggleKind() {
-  draft.kind = draft.kind === 'epic' ? 'issue' : 'epic'
+  draft.kind = draft.kind === 'issue' ? 'epic' : draft.kind === 'epic' ? 'feature' : 'issue'
+}
+/* SPL-18 level 3: the open issue's subtasks (parent=), re-read after a
+   frame that names it and after a subtask is added */
+async function loadSubtasks(issue: Issue | null) {
+  if (!issue || issue.kind !== 'issue') { subtasks.value = []; return }
+  try {
+    const data = await withSessionRetry(api, () => api.listIssues({ filter: { parent: [issue.key] }, sort: 'created' }))
+    if (detail.value?.key === issue.key) subtasks.value = (data.issues || []).map((row) => normalizeIssue(row))
+  } catch {
+    subtasks.value = []
+  }
+}
+async function addSubtask() {
+  const parent = detail.value
+  const title = subtaskTitle.value.trim()
+  if (!parent || !title) return
+  busy.value = true
+  saveError.value = ''
+  try {
+    await withSessionRetry(api, () => api.createIssue({ title, parent: parent.key }))
+    subtaskTitle.value = ''
+    await loadSubtasks(parent)
+  } catch (e) {
+    saveError.value = errorKey(e as { status?: number, token?: string }, 'one')
+  } finally {
+    busy.value = false
+  }
+}
+async function openParent() {
+  const key = detail.value?.parent || ''
+  if (!key) return
+  const held = issues.value.find((i) => i.key === key)
+  if (held) { choose(held); return }
+  try {
+    const data = await withSessionRetry(api, () => api.getIssue(key))
+    choose(normalizeIssue(data.issue))
+  } catch (e) {
+    saveError.value = errorKey(e as { status?: number, token?: string }, 'one')
+  }
 }
 
 function boxOf(id: string) {
@@ -447,7 +513,7 @@ const form = computed(() => {
     return {
       key: '', title: draft.title, description: draft.description, status: draft.status,
       priority: draft.priority, level: draft.level, deadline: draft.deadlineLocal,
-      created_by: '', updated_by: '', task_id: '', epic: draft.kind === 'epic' ? '' : draft.epic, kind: draft.kind,
+      created_by: '', updated_by: '', task_id: '', epic: isTopKind(draft.kind) ? '' : draft.epic, kind: draft.kind as string,
     }
   }
   const d = detail.value
@@ -455,7 +521,7 @@ const form = computed(() => {
   return {
     key: d.key, title: d.title, description: d.description, status: d.status,
     priority: d.priority, level: d.level, deadline: deadlineToLocalInput(d.deadline),
-    created_by: d.created_by, updated_by: d.updated_by, task_id: d.task_id, epic: d.epic, kind: d.kind,
+    created_by: d.created_by, updated_by: d.updated_by, task_id: d.task_id, epic: d.epic, kind: d.kind as string,
   }
 })
 
@@ -709,7 +775,7 @@ async function createIssue() {
   if (draft.labels.length) body.labels = draft.labels.slice()
   /* The label and parent forms work on every hub since 0.7.0 (issues-v1 §8:
      the epic label makes an epic, parent is the epic). */
-  if (draft.kind === 'epic') body.labels = [...draft.labels.filter((l) => l !== 'epic'), 'epic']
+  if (isTopKind(draft.kind)) body.kind = draft.kind
   else body.parent = draft.epic
   const deadline = localInputToDeadline(draft.deadlineLocal)
   if (deadline) body.deadline = deadline
@@ -843,7 +909,11 @@ async function openLinkedIssue() {
   }
   choose(issue)
 }
-watch(detail, (issue) => { if (!creating.value) void loadComments(issue) })
+watch(detail, (issue) => {
+  if (creating.value) return
+  void loadComments(issue)
+  void loadSubtasks(issue)
+})
 watch(() => {
   const q = route.query.issue
   const raw = Array.isArray(q) ? q[0] : q
@@ -882,6 +952,8 @@ onMounted(() => {
   offIssue = live.onIssue((f) => {
     issues.value = applyIssueFrame(issues.value, f)
     refreshEpics()
+    const fi = (f as { issue?: { parent?: string } }).issue
+    if (detail.value && fi && fi.parent === detail.value.key) void loadSubtasks(detail.value)
   })
   offLabel = live.onIssueLabel((f) => { labels.value = applyLabelFrame(labels.value, f) })
   offMsg = live.onMessage((m) => {
@@ -1075,6 +1147,13 @@ onUnmounted(() => {
 .issues-prop { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 4px 8px; }
 .issues-meta { margin: 0; font-size: 0.75rem; }
 .issues-talk { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.issues-subs { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.issues-subs h3 { margin: 8px 0 0; font-size: 0.875rem; }
+.issues-sub { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 6px; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; text-align: start; cursor: pointer; }
+.issues-sub:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
+.issues-sub .issues-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.issues-sub-add { display: flex; gap: 6px; }
+.issues-sub-add input { flex: 1; min-width: 0; }
 .issues-talk h3 { margin: 8px 0 0; font-size: 0.875rem; }
 .issues-comment { min-width: 0; }
 .issues-comment__body { margin-top: 2px; min-width: 0; }

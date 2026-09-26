@@ -376,7 +376,7 @@
     "users": "Kullanıcılar",
     "events": "Olay günlüğü",
     "issues": "Konular",
-    "epics": "Epikler"
+    "epics": "Epikler ve özellikler"
   },
   "composer": {
     "biz_owner": "işletme sahibi",
@@ -837,7 +837,12 @@
     "no_epic": "Epik yok",
     "err_epic_required": "Her işin bir epiği olmalı.",
     "err_bad_epic": "Üst öge bir epik olmalı ve epiğin üst ögesi olmaz.",
-    "err_epic_has_issues": "Önce bu epiğin işlerini başka bir epiğe taşıyın."
+    "err_epic_has_issues": "Önce bu epiğin işlerini başka bir epiğe taşıyın.",
+    "kind_feature": "Özellik",
+    "subtasks": "Alt işler",
+    "add_subtask": "Alt iş ekle",
+    "subtask_placeholder": "Yeni alt işin başlığı",
+    "parent_issue": "Üst öge"
   },
   "markdown": {
     "show_source": "Kaynağı göster",

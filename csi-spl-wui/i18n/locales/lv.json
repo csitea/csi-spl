@@ -376,7 +376,7 @@
     "users": "Lietotāji",
     "events": "Notikumu žurnāls",
     "issues": "Problēmas",
-    "epics": "Episki"
+    "epics": "Episki un funkcijas"
   },
   "composer": {
     "biz_owner": "uzņēmuma īpašnieks",
@@ -837,7 +837,12 @@
     "no_epic": "Bez episka",
     "err_epic_required": "Katram uzdevumam vajag episku.",
     "err_bad_epic": "Vecākam jābūt episkam, un episkam nav vecāka.",
-    "err_epic_has_issues": "Vispirms pārvietojiet šī episka uzdevumus uz citu episku."
+    "err_epic_has_issues": "Vispirms pārvietojiet šī episka uzdevumus uz citu episku.",
+    "kind_feature": "Funkcija",
+    "subtasks": "Apakšuzdevumi",
+    "add_subtask": "Pievienot apakšuzdevumu",
+    "subtask_placeholder": "Jaunā apakšuzdevuma nosaukums",
+    "parent_issue": "Vecāks"
   },
   "markdown": {
     "show_source": "Rādīt avotu",

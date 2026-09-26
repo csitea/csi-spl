@@ -1030,7 +1030,7 @@ declare module '~/utils/event-log.mjs' {
 declare module '~/utils/issues.mjs' {
   export type IssueStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'canceled'
   export interface Issue {
-    kind: 'epic' | 'issue'
+    kind: 'epic' | 'feature' | 'issue' | 'subtask'
     epic: string
     key: string
     number: number
@@ -1056,6 +1056,7 @@ declare module '~/utils/issues.mjs' {
   export interface IssueFilter {
     kind?: string
     epic?: string[]
+    parent?: string[]
     status?: string[]
     priority?: number[]
     level?: number[]
@@ -1075,7 +1076,7 @@ declare module '~/utils/issues.mjs' {
     deadline?: string
     parent?: string
     epic?: string
-    kind?: 'epic' | 'issue'
+    kind?: 'epic' | 'feature' | 'issue'
   }
   export interface IssueList {
     prefix: string
@@ -1088,6 +1089,7 @@ declare module '~/utils/issues.mjs' {
   }
   export interface EpicSummary {
     key: string
+    kind?: 'epic' | 'feature'
     number: number
     title: string
     status: string
@@ -1098,6 +1100,8 @@ declare module '~/utils/issues.mjs' {
   }
   export interface IssueGroup { status: IssueStatus, count: number, issues: Issue[] }
   export const ISSUE_STATUSES: IssueStatus[]
+  export const ISSUE_KINDS: string[]
+  export function isTopKind(kind: string): boolean
   export const ISSUE_PRIORITIES: number[]
   export const ISSUE_LEVELS: number[]
   export const LEVEL_SHORT: string[]

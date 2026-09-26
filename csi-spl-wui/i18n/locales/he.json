@@ -376,7 +376,7 @@
     "users": "משתמשים",
     "events": "יומן אירועים",
     "issues": "סוגיות",
-    "epics": "אפיקים"
+    "epics": "אפיקים ויכולות"
   },
   "composer": {
     "biz_owner": "בעל העסק",
@@ -837,7 +837,12 @@
     "no_epic": "ללא אפיק",
     "err_epic_required": "לכל משימה נדרש אפיק.",
     "err_bad_epic": "ההורה חייב להיות אפיק, ולאפיק אין הורה.",
-    "err_epic_has_issues": "העבירו קודם את המשימות של האפיק הזה לאפיק אחר."
+    "err_epic_has_issues": "העבירו קודם את המשימות של האפיק הזה לאפיק אחר.",
+    "kind_feature": "יכולת",
+    "subtasks": "תת־משימות",
+    "add_subtask": "הוספת תת־משימה",
+    "subtask_placeholder": "כותרת תת־המשימה החדשה",
+    "parent_issue": "הורה"
   },
   "markdown": {
     "show_source": "הצג מקור",

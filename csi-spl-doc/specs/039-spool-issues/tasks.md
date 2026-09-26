@@ -73,7 +73,13 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       filters, features in the summary, `spool issue --kind feature --parent`,
       ISSUE_KIND feature. The commit adding this line; store TestIssueEpicRule
       (three levels, memory + pg), hub TestIssueThreeLevels
-- [ ] T010c WUI: features in the left-most panel, subtasks in the right pane
+- [x] T010c WUI: features next to epics in the left-most panel ("Epics and
+      features", a kind dot), the create form cycles issue / epic / feature,
+      a level-2 issue lists its subtasks in the right pane and adds one, a
+      subtask links to its parent. Fixed on the way: spool-client's private
+      issueQuery copy never sent kind / epic / parent (the list only looked
+      right because the page re-filters) - a unit test now pins the copy to
+      issues.mjs. The commit adding this line; unit 107/107, e2e 13/13 (mock)
 - [ ] T010d the done git-specs imported into the tree: SPL-76, GRK-3523 (not
       this lane)
 - [ ] T011 SPL-18 rdb 0049 on dev + prd, hub roll, live proof

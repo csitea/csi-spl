@@ -13,9 +13,13 @@ import {
   topicsFromMessages,
 } from './view-api.mjs'
 import { SEARCH_OPERATORS, mockSearch, normalizeOperators, normalizeSearchResponse, searchApiQuery } from './search.mjs'
+/* issues-v1 §4 query - the same as issues.mjs issueQuery (kept here so the
+   Issues code stays off the initial script; tests/unit/issues.test.mjs
+   checks the two agree). */
 function issueQuery(filter = {}, sort = '') {
   const q = new URLSearchParams()
-  for (const k of ['status', 'priority', 'level', 'assignee', 'label']) {
+  if (filter.kind) q.set('kind', filter.kind)
+  for (const k of ['epic', 'parent', 'status', 'priority', 'level', 'assignee', 'label']) {
     const v = filter[k]
     if (Array.isArray(v) && v.length) q.set(k, v.join(','))
   }

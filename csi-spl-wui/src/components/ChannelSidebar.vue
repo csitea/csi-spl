@@ -478,7 +478,7 @@
           :title="`${e.key} ${e.title}`"
           :to="localePath({ path: '/issues', query: { epic: e.key } })"
         >
-          <span class="epic-row__title">{{ e.title }}</span>
+          <span class="epic-row__title"><i class="epic-row__kind" :data-kind="e.kind || 'epic'" :title="t('issues.kind_' + (e.kind || 'epic'))" />{{ e.title }}</span>
           <span class="epic-row__count" data-testid="sidebar-epic-count">{{ e.done }}/{{ e.total - e.canceled }}</span>
           <span class="epic-row__bar" aria-hidden="true"><span :style="{ width: epicPct(e) + '%' }" /></span>
         </NuxtLink>
@@ -718,7 +718,7 @@ async function onTenantChange(ev: Event) {
 }
 const localePath = useLocalePath()
 /* SPL-18: the Issues tab's epics (issues.vue fills it from the hub summary) */
-type EpicRow = { key: string, title: string, status: string, total: number, done: number, canceled: number }
+type EpicRow = { key: string, kind?: string, title: string, status: string, total: number, done: number, canceled: number }
 const issueEpics = useState<EpicRow[]>('issue-epics', () => [])
 const isIssuesPath = computed(() => tabForPath(route.path) === ISSUES_TAB)
 const epicQuery = computed(() => {
@@ -1249,6 +1249,8 @@ async function onCreate() {
 .epic-row__bar { grid-column: 1 / -1; height: 3px; border-radius: var(--radius-pill); background: color-mix(in srgb, currentColor 18%, transparent); overflow: hidden; }
 .epic-row__bar > span { display: block; height: 100%; background: var(--color-accent); }
 .epic-row--closed { opacity: 0.6; }
+.epic-row__kind { display: inline-block; width: 0.5rem; height: 0.5rem; margin-inline-end: 6px; border-radius: var(--radius-pill); background: #8b5cf6; vertical-align: middle; }
+.epic-row__kind[data-kind="feature"] { background: #14b8a6; }
 .nav-row {
   position: relative;
   min-width: 0;

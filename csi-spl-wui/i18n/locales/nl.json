@@ -376,7 +376,7 @@
     "users": "Gebruikers",
     "events": "Gebeurtenissenlogboek",
     "issues": "Kwesties",
-    "epics": "Epics"
+    "epics": "Epics en features"
   },
   "composer": {
     "biz_owner": "bedrijfseigenaar",
@@ -837,7 +837,12 @@
     "no_epic": "Geen epic",
     "err_epic_required": "Elk issue heeft een epic nodig.",
     "err_bad_epic": "De ouder moet een epic zijn, en een epic heeft geen ouder.",
-    "err_epic_has_issues": "Verplaats eerst de issues van deze epic naar een andere epic."
+    "err_epic_has_issues": "Verplaats eerst de issues van deze epic naar een andere epic.",
+    "kind_feature": "Feature",
+    "subtasks": "Subtaken",
+    "add_subtask": "Subtaak toevoegen",
+    "subtask_placeholder": "Titel van de nieuwe subtaak",
+    "parent_issue": "Ouder"
   },
   "markdown": {
     "show_source": "Bron tonen",

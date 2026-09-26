@@ -7,6 +7,9 @@
  */
 
 import { ISSUE_CHANNEL } from './parent-section.mjs'
+/** issues-v1 §8: the tree's kinds. Level 1 = epic | feature. */
+export const ISSUE_KINDS = ['epic', 'feature', 'issue', 'subtask']
+export const isTopKind = (k) => k === 'epic' || k === 'feature'
 
 /** Linear's workflow, in list order (issues-v1 §2). */
 export const ISSUE_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'canceled']
@@ -15,11 +18,13 @@ export const ISSUE_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'd
 export function normalizeIssue(raw) {
   const r = raw || {}
   const labels = Array.isArray(r.labels) ? r.labels.map(String) : []
-  /* SPL-18: an epic is an issue with the reserved label `epic` */
-  const kind = r.kind === 'epic' || (!r.kind && labels.includes('epic')) ? 'epic' : 'issue'
+  /* SPL-18 (rdb 0053): epic | feature (level 1), issue (level 2), subtask
+     (level 3); an older hub marked an epic with the `epic` label only */
+  const kind = ISSUE_KINDS.includes(r.kind) ? r.kind : labels.includes('epic') ? 'epic' : 'issue'
+  const top = kind === 'epic' || kind === 'feature'
   return {
     kind,
-    epic: kind === 'epic' ? '' : String(r.epic || r.parent || ''),
+    epic: top ? '' : String(r.epic || (kind === 'issue' ? r.parent : '') || ''),
     key: String(r.key || ''),
     number: Number(r.number) || 0,
     title: String(r.title || ''),
@@ -101,7 +106,8 @@ export function sortIssues(list, by = 'priority') {
  */
 export function matchIssue(issue, f = {}, me = '') {
   const has = (a) => Array.isArray(a) && a.length > 0
-  if (f.kind && issue.kind !== f.kind) return false
+  if (f.kind && !String(f.kind).split(',').includes(issue.kind)) return false
+  if (has(f.parent) && !f.parent.map((e) => String(e).toUpperCase()).includes(issue.parent.toUpperCase())) return false
   if (has(f.epic) && (issue.kind === 'epic' || !f.epic.map((e) => String(e).toUpperCase()).includes(issue.epic.toUpperCase()))) return false
   if (has(f.status) && !f.status.includes(issue.status)) return false
   if (has(f.priority) && !f.priority.map(Number).includes(Number(issue.priority))) return false
@@ -121,7 +127,7 @@ export function matchIssue(issue, f = {}, me = '') {
 export function issueQuery(filter = {}, sort = '') {
   const q = new URLSearchParams()
   if (filter.kind) q.set('kind', filter.kind)
-  for (const k of ['epic', 'status', 'priority', 'level', 'assignee', 'label']) {
+  for (const k of ['epic', 'parent', 'status', 'priority', 'level', 'assignee', 'label']) {
     const v = filter[k]
     if (Array.isArray(v) && v.length) q.set(k, v.join(','))
   }
@@ -155,11 +161,10 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
     for (const k of ['title', 'description', 'status', 'priority', 'level', 'assignee', 'labels', 'deadline']) {
       if (b[k] !== undefined && b[k] !== null) out[k] = k === 'labels' ? b[k].slice() : b[k]
     }
-    if (b.epic !== undefined || b.parent !== undefined) out.epic = String(b.epic ?? b.parent ?? '')
-    if (b.kind === 'epic' || b.kind === 'issue') {
+    if (b.epic !== undefined || b.parent !== undefined) out.parent = String(b.epic ?? b.parent ?? '')
+    if (b.kind === 'epic' || b.kind === 'feature' || b.kind === 'issue') {
       out.kind = b.kind
-      out.labels = out.labels.filter((l) => l !== 'epic').concat(b.kind === 'epic' ? ['epic'] : [])
-      if (b.kind === 'epic') out.epic = ''
+      if (isTopKind(b.kind)) out.parent = ''
     }
     if (out.status !== i.status) {
       out.completed_at = out.status === 'done' ? now() : ''
@@ -173,54 +178,74 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
     if (!String(i.title || '').trim()) throw mockErr(400, 'bad_issue')
     if (!ISSUE_STATUSES.includes(i.status)) throw mockErr(400, 'bad_issue')
     if (i.labels.some((l) => !labels.some((x) => x.id === l))) throw mockErr(400, 'unknown_label')
-    if (i.kind === 'epic') {
-      if (i.epic) throw mockErr(400, 'bad_epic')
+    const kids = issues.some((x) => x.parent && x.parent === i.key)
+    if (isTopKind(i.kind)) {
+      if (i.parent) throw mockErr(400, 'bad_epic')
       return
     }
-    if (issues.some((x) => x.epic && x.epic === i.key)) throw mockErr(409, 'epic_has_issues')
-    if (!i.epic) throw mockErr(400, 'epic_required')
-    const parent = find(i.epic)
-    if (!parent || parent.kind !== 'epic') throw mockErr(400, 'bad_epic')
+    const was = find(i.key)
+    if (was && isTopKind(was.kind) && kids) throw mockErr(409, 'epic_has_issues')
+    if (!i.parent) throw mockErr(400, 'epic_required')
+    const parent = find(i.parent)
+    if (!parent) throw mockErr(400, 'unknown_parent')
+    if (isTopKind(parent.kind)) return
+    const grand = find(parent.parent)
+    if (!grand || !isTopKind(grand.kind) || kids) throw mockErr(400, 'bad_epic')
   }
-  const summaries = () => issues.filter((e) => e.kind === 'epic').map((e) => {
-    const mine = issues.filter((i) => i.kind !== 'epic' && i.epic === e.key)
+  /* hub checkEpicField: `epic` names a level-1 row; `parent` also takes a level-2 issue */
+  const epicField = (b) => {
+    if (!b || !b.epic) return
+    const e = find(b.epic)
+    if (e && !isTopKind(e.kind)) throw mockErr(400, 'bad_epic')
+  }
+  /* the stored row -> what the hub answers: kind subtask and the level-1 key */
+  const view = (i) => {
+    if (isTopKind(i.kind)) return { ...i, epic: '' }
+    const p = find(i.parent)
+    if (p && !isTopKind(p.kind)) return { ...i, kind: 'subtask', epic: p.parent }
+    return { ...i, kind: 'issue', epic: i.parent }
+  }
+  const summaries = () => issues.filter((e) => isTopKind(e.kind)).map((e) => {
+    const mine = issues.filter((i) => !isTopKind(i.kind) && i.parent === e.key)
     const counts = Object.fromEntries(ISSUE_STATUSES.map((st) => [st, mine.filter((i) => i.status === st).length]))
-    return { key: e.key, number: e.number, title: e.title, status: e.status, total: mine.length, done: counts.done, canceled: counts.canceled, counts }
+    return { key: e.key, kind: e.kind, number: e.number, title: e.title, status: e.status, total: mine.length, done: counts.done, canceled: counts.canceled, counts }
   })
   return {
     list(query = '') {
       const q = new URLSearchParams(query)
       const csv = (k) => (q.get(k) ? q.get(k).split(',') : [])
-      const f = { kind: q.get('kind') || '', epic: csv('epic'), status: csv('status'), priority: csv('priority').map(Number), level: csv('level').map(Number),
+      const f = { kind: q.get('kind') || '', epic: csv('epic'), parent: csv('parent'), status: csv('status'), priority: csv('priority').map(Number), level: csv('level').map(Number),
         assignee: csv('assignee'), label: csv('label'), deadlineBefore: q.get('deadline_before') || '', deadlineAfter: q.get('deadline_after') || '' }
-      const kept = sortIssues(issues.filter((i) => matchIssue(i, f, me)), q.get('sort') || 'priority')
+      const kept = sortIssues(issues.map(view).filter((i) => matchIssue(i, f, me)), q.get('sort') || 'priority')
       const counts = Object.fromEntries(ISSUE_STATUSES.map((s) => [s, kept.filter((i) => i.status === s).length]))
       return { prefix: 'SPL', statuses: ISSUE_STATUSES.slice(), counts, issues: kept, labels: labels.slice(), channel: ISSUE_CHANNEL, epics: summaries() }
     },
     get(ref) {
       const i = find(ref)
       if (!i) throw mockErr(404, 'not_found')
-      return { issue: { ...i } }
+      return { issue: view(i) }
     },
     create(body = {}) {
+      epicField(body)
       const at = now()
-      const kind = body.kind === 'epic' ? 'epic' : 'issue'
-      const lbl = (Array.isArray(body.labels) ? body.labels : []).filter((l) => l !== 'epic').concat(kind === 'epic' ? ['epic'] : [])
-      const i = normalizeIssue({ status: 'backlog', ...body, kind, labels: lbl, epic: kind === 'epic' ? '' : (body.epic || body.parent || ''), key: `SPL-${last + 1}`, number: last + 1,
+      const lbl = Array.isArray(body.labels) ? body.labels : []
+      const kind = isTopKind(body.kind) ? body.kind : lbl.includes('epic') ? 'epic' : 'issue'
+      const i = normalizeIssue({ status: 'backlog', ...body, kind, labels: lbl, parent: isTopKind(kind) ? '' : (body.epic || body.parent || ''), key: `SPL-${last + 1}`, number: last + 1,
         task_id: `00000000-0000-4000-8000-${String(last + 1).padStart(12, '0')}`, channel: ISSUE_CHANNEL,
         created_by: me, created_at: at, updated_by: me, updated_at: at })
       check(i)
       last++
       issues = [...issues, i]
-      return { issue: { ...i } }
+      return { issue: view(i) }
     },
     update(ref, patch = {}) {
+      epicField(patch)
       const i = find(ref)
       if (!i) throw mockErr(404, 'not_found')
       const next = normalizeIssue(apply(i, patch, me))
       check(next)
       issues = issues.map((x) => (x.key === i.key ? next : x))
-      return { issue: { ...next } }
+      return { issue: view(next) }
     },
     label({ name = '', color = '' } = {}) {
       const id = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)

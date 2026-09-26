@@ -376,7 +376,7 @@
     "users": "Používatelia",
     "events": "Denník udalostí",
     "issues": "Úlohy",
-    "epics": "Epiky"
+    "epics": "Epiky a funkcie"
   },
   "composer": {
     "biz_owner": "majiteľ firmy",
@@ -837,7 +837,12 @@
     "no_epic": "Bez epiku",
     "err_epic_required": "Každá úloha potrebuje epik.",
     "err_bad_epic": "Rodič musí byť epik a epik nemá rodiča.",
-    "err_epic_has_issues": "Najprv presuňte úlohy tohto epiku do iného epiku."
+    "err_epic_has_issues": "Najprv presuňte úlohy tohto epiku do iného epiku.",
+    "kind_feature": "Funkcia",
+    "subtasks": "Podúlohy",
+    "add_subtask": "Pridať podúlohu",
+    "subtask_placeholder": "Názov novej podúlohy",
+    "parent_issue": "Rodič"
   },
   "markdown": {
     "show_source": "Zobraziť zdroj",

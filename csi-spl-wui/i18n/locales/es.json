@@ -376,7 +376,7 @@
     "users": "Usuarios",
     "events": "Registro de eventos",
     "issues": "Incidencias",
-    "epics": "Épicas"
+    "epics": "Épicas y funcionalidades"
   },
   "composer": {
     "biz_owner": "propietario del negocio",
@@ -837,7 +837,12 @@
     "no_epic": "Sin épica",
     "err_epic_required": "Cada incidencia necesita una épica.",
     "err_bad_epic": "El padre debe ser una épica, y una épica no tiene padre.",
-    "err_epic_has_issues": "Mueve antes las incidencias de esta épica a otra épica."
+    "err_epic_has_issues": "Mueve antes las incidencias de esta épica a otra épica.",
+    "kind_feature": "Funcionalidad",
+    "subtasks": "Subtareas",
+    "add_subtask": "Añadir subtarea",
+    "subtask_placeholder": "Título de la nueva subtarea",
+    "parent_issue": "Padre"
   },
   "markdown": {
     "show_source": "Ver fuente",

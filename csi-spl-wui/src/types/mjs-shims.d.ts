@@ -1159,3 +1159,9 @@ declare module '~/utils/issues-view.mjs' {
   export function splitLocal(local: string): { date: string, time: string }
   export function joinLocal(date: string, time?: string): string
 }
+
+declare module '~/utils/chunk-reload.mjs' {
+  export const RELOAD_GUARD_MS: number
+  export function isChunkLoadError(err: unknown): boolean
+  export function shouldReload(last: number, now?: number): boolean
+}

@@ -1161,6 +1161,7 @@ declare module '~/utils/issues-view.mjs' {
   export function epicProgress(e: { total?: number, done?: number, canceled?: number }): number
   export const STATUS_LABEL: Record<string, string>
   export function statusLabel(s: string): string
+  export function controlLabel(name: string, value: string): string
   export function statusHintKey(s: string): string
   export const DEADLINE_FIRST_HOUR: number
   export const DEADLINE_LAST_HOUR: number

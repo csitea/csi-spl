@@ -9,7 +9,7 @@ import { ISSUE_STATUSES, issueQuery, matchIssue, normalizeIssue, sortIssues } fr
 import { memoryStore } from '../../src/utils/prefs.mjs'
 import {
   applyIssueFrame, applyLabelFrame, clampIssuePane, deadlineToLocalInput, groupIssues, isOverdue,
-  loadIssuePane, localInputToDeadline, saveIssuePane, stepKey, visibleOrder,
+  controlLabel, loadIssuePane, localInputToDeadline, saveIssuePane, stepKey, visibleOrder,
 } from '../../src/utils/issues-view.mjs'
 
 const mk = (n, extra = {}) => normalizeIssue({ key: `SPL-${n}`, number: n, title: `t${n}`, ...extra })
@@ -278,5 +278,33 @@ describe('the owner statuses and prio 1..5 (rdb 0054, topics f2c32da2 + d81cbf47
     assert.throws(() => hub.update(i.key, { priority: 6 }), (e) => e.token === 'bad_issue')
     assert.equal(hub.update(i.key, { priority: 0 }).issue.priority, 5) // 0 = unset, like the hub
     assert.equal(hub.update(i.key, { status: 'canceled' }).issue.status, 'diss')
+  })
+})
+
+describe('filter row labels', () => {
+  it('names every closed control so no two read the same', () => {
+    const row = [
+      controlLabel('Sort', 'Level'),
+      controlLabel('Status', '02-todo'),
+      controlLabel('prio', 'All'),
+      controlLabel('Level', 'All'),
+      controlLabel('Assignee', 'All'),
+      controlLabel('Label', 'All'),
+      'Deadline from',
+      'Deadline until',
+    ]
+    assert.equal(new Set(row).size, row.length)
+    assert.notEqual(controlLabel('Sort', 'Level'), controlLabel('Level', 'All'))
+    assert.notEqual(controlLabel('prio', '1'), controlLabel('Level', '1'))
+    assert.equal(controlLabel('Status', '02-todo'), 'Status: 02-todo')
+    assert.equal(controlLabel('Sort', 'prio'), 'Sort: prio')
+  })
+
+  it('the page prefixes the sort, the status and the level value', () => {
+    const src = readFileSync(new URL('../../src/pages/issues.vue', import.meta.url), 'utf8')
+    assert.match(src, /controlLabel\(t\('issues\.sort'\), t\('issues\.sort_level'\)\)/)
+    assert.match(src, /controlLabel\(t\('issues\.filter_status'\)/)
+    assert.match(src, /controlLabel\(t\('issues\.filter_level'\), String\(n\)\)/)
+    assert.match(src, /class="issues-filter-when"/)
   })
 })

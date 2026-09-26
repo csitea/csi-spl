@@ -11,12 +11,12 @@
       </header>
       <p class="issues-shortcuts muted" data-test="issues-shortcuts">{{ t('issues.shortcuts') }}</p>
       <div class="issues-filters" data-test="issues-filters">
-        <select v-model="sortF" data-test="issues-sort" :aria-label="t('issues.sort')">
-          <option value="priority">{{ t('issues.sort_priority') }}</option>
-          <option value="level">{{ t('issues.sort_level') }}</option>
-          <option value="deadline">{{ t('issues.sort_deadline') }}</option>
-          <option value="updated">{{ t('issues.sort_updated') }}</option>
-          <option value="created">{{ t('issues.sort_created') }}</option>
+        <select v-model="sortF" class="issues-sort" data-test="issues-sort" :aria-label="t('issues.sort')">
+          <option value="priority">{{ controlLabel(t('issues.sort'), t('issues.sort_priority')) }}</option>
+          <option value="level">{{ controlLabel(t('issues.sort'), t('issues.sort_level')) }}</option>
+          <option value="deadline">{{ controlLabel(t('issues.sort'), t('issues.sort_deadline')) }}</option>
+          <option value="updated">{{ controlLabel(t('issues.sort'), t('issues.sort_updated')) }}</option>
+          <option value="created">{{ controlLabel(t('issues.sort'), t('issues.sort_created')) }}</option>
         </select>
         <div class="issues-status-dd" data-test="issues-filter-status">
           <button
@@ -27,7 +27,7 @@
             :aria-expanded="statusOpen ? 'true' : 'false'"
             :title="statusF ? t(statusHintKey(statusF)) : undefined"
             @click="statusOpen = !statusOpen"
-          >{{ statusF ? statusLabel(statusF) : t('issues.filter_status') + ': ' + t('issues.filter_all') }}</button>
+          >{{ controlLabel(t('issues.filter_status'), statusF ? statusLabel(statusF) : t('issues.filter_all')) }}</button>
           <div v-show="statusOpen" class="issues-status-dd__list" role="listbox">
             <button type="button" class="issues-status-dd__opt" data-test="issues-filter-status-all" @click="pickStatus('')">
               {{ t('issues.filter_status') }}: {{ t('issues.filter_all') }}
@@ -50,24 +50,30 @@
         </div>
         <select v-model="priorityF" data-test="issues-filter-priority" :aria-label="t('issues.filter_priority')">
           <option value="">{{ t('issues.filter_priority') }}: {{ t('issues.filter_all') }}</option>
-          <option v-for="n in ISSUE_PRIORITIES" :key="n" :value="String(n)">{{ n }}</option>
+          <option v-for="n in ISSUE_PRIORITIES" :key="n" :value="String(n)">{{ controlLabel(t('issues.filter_priority'), String(n)) }}</option>
         </select>
         <select v-model="levelF" data-test="issues-filter-level" :aria-label="t('issues.filter_level')">
           <option value="">{{ t('issues.filter_level') }}: {{ t('issues.filter_all') }}</option>
-          <option v-for="n in ISSUE_LEVELS" :key="'lv' + n" :value="String(n)" :title="t(levelKey(n))">{{ n }}</option>
+          <option v-for="n in ISSUE_LEVELS" :key="'lv' + n" :value="String(n)" :title="t(levelKey(n))">{{ controlLabel(t('issues.filter_level'), String(n)) }}</option>
         </select>
         <select v-model="assigneeF" data-test="issues-filter-assignee" :aria-label="t('issues.filter_assignee')">
           <option value="">{{ t('issues.filter_assignee') }}: {{ t('issues.filter_all') }}</option>
-          <option value="me">{{ t('issues.filter_me') }}</option>
-          <option value="none">{{ t('issues.filter_unassigned') }}</option>
-          <option v-for="p in assigneeOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
+          <option value="me">{{ controlLabel(t('issues.filter_assignee'), t('issues.filter_me')) }}</option>
+          <option value="none">{{ controlLabel(t('issues.filter_assignee'), t('issues.filter_unassigned')) }}</option>
+          <option v-for="p in assigneeOptions" :key="p.id" :value="p.id">{{ controlLabel(t('issues.filter_assignee'), p.label) }}</option>
         </select>
         <select v-model="labelF" data-test="issues-filter-label" :aria-label="t('issues.filter_label')">
           <option value="">{{ t('issues.filter_label') }}: {{ t('issues.filter_all') }}</option>
-          <option v-for="l in labels" :key="l.id" :value="l.id">{{ l.name }}</option>
+          <option v-for="l in labels" :key="l.id" :value="l.id">{{ controlLabel(t('issues.filter_label'), l.name) }}</option>
         </select>
-        <input v-model="fromF" type="date" data-test="issues-filter-from" :aria-label="t('issues.filter_from')">
-        <input v-model="untilF" type="date" data-test="issues-filter-until" :aria-label="t('issues.filter_until')">
+        <label class="issues-filter-when">
+          <span>{{ t('issues.filter_from') }}</span>
+          <input v-model="fromF" type="date" data-test="issues-filter-from" :aria-label="t('issues.filter_from')">
+        </label>
+        <label class="issues-filter-when">
+          <span>{{ t('issues.filter_until') }}</span>
+          <input v-model="untilF" type="date" data-test="issues-filter-until" :aria-label="t('issues.filter_until')">
+        </label>
         <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
       </div>
       <div ref="scrollerEl" class="issues-scroll">
@@ -325,6 +331,7 @@ import {
   loadIssuePane,
   localInputToDeadline,
   saveIssuePane,
+  controlLabel,
   statusHintKey,
   statusLabel,
   stepKey,
@@ -1061,6 +1068,17 @@ onUnmounted(() => {
   padding: 0 12px 8px;
   min-width: 0;
 }
+.issues-sort { margin-inline-end: 10px; }
+.issues-filter-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+.issues-filter-when input { max-width: 11rem; }
 .issues-filters select,
 .issues-filters input,
 .issues-status-dd__btn {

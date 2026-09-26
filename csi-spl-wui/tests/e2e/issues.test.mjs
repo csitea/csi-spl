@@ -70,6 +70,35 @@ try {
   await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: NAV_TIMEOUT })
   ok('2 the tab opens /issues', new URL(p.url()).pathname.endsWith('/issues'), p.url())
 
+  await p.select('[data-test=issues-sort]', 'level')
+  const rowLabels = await p.evaluate(() => {
+    const root = document.querySelector('[data-test=issues-filters]')
+    const textOf = (sel) => {
+      const el = root.querySelector(sel)
+      if (!el) return ''
+      if (el.tagName === 'SELECT') return el.options[el.selectedIndex].text.trim()
+      return (el.textContent || '').trim()
+    }
+    const span = (sel) => {
+      const el = root.querySelector(sel)
+      const label = el && el.closest('label')
+      const s = label && label.querySelector('span')
+      return s ? s.textContent.trim() : ''
+    }
+    return [
+      textOf('[data-test=issues-sort]'),
+      textOf('[data-test=issues-filter-status-btn]'),
+      textOf('[data-test=issues-filter-priority]'),
+      textOf('[data-test=issues-filter-level]'),
+      textOf('[data-test=issues-filter-assignee]'),
+      textOf('[data-test=issues-filter-label]'),
+      span('[data-test=issues-filter-from]'),
+      span('[data-test=issues-filter-until]'),
+    ]
+  })
+  ok('2c filter controls do not share a label', new Set(rowLabels).size === rowLabels.length && rowLabels[0] === 'Sort: Level' && rowLabels[3] === 'Level: All' && rowLabels[6] === 'Deadline from' && rowLabels[7] === 'Deadline until', rowLabels)
+  await p.select('[data-test=issues-sort]', 'priority')
+
   await p.click('[data-test=issues-filter-status-btn]')
   await p.waitForSelector('[data-test=issues-filter-status-opt][data-value="wip"]', { visible: true, timeout: 5000 })
   const codes = await p.$$eval('[data-test=issues-filter-status-opt] .issues-status-code', (els) => els.map((e) => e.textContent.trim()))

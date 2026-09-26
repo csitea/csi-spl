@@ -13,6 +13,15 @@ export const ISSUE_PRIORITIES = [1, 2, 3, 4, 5]
  *  codes); the hover text is issues.status_hint.<id>. */
 export const STATUS_LABEL = { eval: '01-eval', todo: '02-todo', wip: '03-wip', diss: '03-diss', qas: '07-qas', done: '09-done' }
 export const statusLabel = (s) => STATUS_LABEL[s] || String(s || '')
+
+/** Closed control text is always "Name: value", so two controls cannot read the same. */
+export function controlLabel(name, value) {
+  const n = String(name ?? '').trim()
+  const v = String(value ?? '').trim()
+  if (!n) return v
+  if (!v) return n
+  return n + ': ' + v
+}
 export const statusHintKey = (s) => `issues.status_hint.${s}`
 
 /** Level is the row's place in the tree (rdb 0056, owner 2026-09-26, SPL-949):

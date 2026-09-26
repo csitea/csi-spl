@@ -177,17 +177,20 @@
         />
       </div>
       <div class="composer-row">
-        <!-- Both controls are real buttons so Tab lands on each of them.
-             A hidden file input is not a tab stop, and a disabled Send
-             button is taken out of the tab order — that is the skip. -->
+        <!-- Send stays in the tab order. Attach is a pointer target only
+             (tabindex=-1), the same as the resize grip. The file input is
+             not a tab stop, and a disabled Send would leave the tab order. -->
         <button
           v-if="!searchMode"
           type="button"
+          tabindex="-1"
           class="attach"
           data-testid="attach"
           @mousedown.prevent
           @click="openFiles"
-        >📎 {{ t('composer.attach') }}</button>
+          :aria-label="t('composer.attach')"
+          :title="t('composer.attach')"
+        ><UiIcon name="paperclip" :size="18" /></button>
         <input
           v-if="!searchMode"
           ref="fileEl"
@@ -1044,6 +1047,9 @@ textarea.in-code {
   border: 0;
   font-weight: 400;
   box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .composer-send[aria-disabled='true'] { opacity: 0.45; }
 .composer-kind {

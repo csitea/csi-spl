@@ -2,7 +2,7 @@
 //
 // Signed in, from the start of the page, Tab walks through the top bar.
 // document.activeElement must never be [data-test=omnibox-resize]. The same
-// walk must land on Attach and on Send (those stay in the cycle).
+// walk must land on Send. Attach is pointer-only (SPL-953, tabindex=-1).
 //
 //   BASE=https://<wui-host> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir>
 //     [TENANT=t1] [CHROME_PATH=...] [PUPPETEER_CORE=<path>]
@@ -127,7 +127,7 @@ try {
   const sawSend = seen.some((s) => s.testid === 'send')
   const trail = seen.map((s) => s.testid || s.test || s.tag).join(' > ')
   step('Tab never lands on the grip', entered && gripHits.length === 0, { n: seen.length, gripHits: gripHits.length, trail })
-  step('the same walk lands on Attach and Send', sawAttach && sawSend, { sawAttach, sawSend, trail })
+  step('the same walk lands on Send and skips Attach', !sawAttach && sawSend, { sawAttach, sawSend, trail })
   await p.screenshot({ path: `${OUT}/after-tab.png` }).catch(() => {})
   res.trail = trail
 } catch (e) {

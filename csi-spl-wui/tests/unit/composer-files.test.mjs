@@ -83,12 +83,15 @@ describe('the composer offers attach on exactly the routes that can honour it', 
     assert.match(src('src/components/MessageComposer.vue'), /data-testid="attach"/)
   })
 
-  it('Tab reaches attach and Send: both are buttons, and Send is not disabled', () => {
-    /* A hidden file input is not a tab stop, and a disabled submit button
-       is removed from the tab order. The owner hit that skip on a DM page:
-       Tab has to land on attach, then on Send, even when the box is empty. */
+  it('Tab from the field reaches Send; attach is a button but not a tab stop', () => {
+    /* SPL-953: attach is pointer-only (tabindex=-1), like the resize grip.
+       A hidden file input is not a tab stop, and a disabled Send would
+       leave the tab order. The owner hit that skip on a DM page. */
     const s = src('src/components/MessageComposer.vue')
     assert.match(s, /type="button"[\s\S]{0,120}data-testid="attach"/)
+    const attachAt = s.indexOf('data-testid="attach"')
+    const attach = s.slice(s.lastIndexOf('<button', attachAt), s.indexOf('>', attachAt) + 1)
+    assert.match(attach, /tabindex="-1"/)
     assert.match(s, /tabindex="-1"[\s\S]{0,80}data-testid="attach-input"/)
     const at = s.indexOf('data-testid="send"')
     assert.ok(at > 0, 'send control missing')

@@ -6,7 +6,7 @@
      become markup. The engine is a lazy chunk: the first render (and the
      server's) is the source as plain text, which is also what stays when the
      chunk fails to load. Tables scroll inside the block, never the page.
-     Show source flips to the text as written (spec 039 FR-MD-004). -->
+     Show source flips to the text as written (spec 040 FR-MD-004). -->
 <template>
   <div class="md-block" data-testid="md-block" :data-rendered="tree ? 'true' : 'false'">
     <button

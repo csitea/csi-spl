@@ -1,4 +1,4 @@
-// Hostile markdown (SPL-73, spec 039): whatever sits between the ```md
+// Hostile markdown (SPL-73, spec 040): whatever sits between the ```md
 // start and stop marker, the render tree holds only allow-listed tags and
 // attributes, every href is an absolute http / https / mailto URL, nothing
 // is fetched, and the component never binds HTML.

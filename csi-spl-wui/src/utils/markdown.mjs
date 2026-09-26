@@ -1,5 +1,5 @@
 /**
- * Markdown between a start and a stop marker (spec 039 markdown
+ * Markdown between a start and a stop marker (spec 040 markdown
  * compatibility; SPL-73, epic SPL-74).
  *
  * The marker is a fence tagged `md` or `markdown` (isMarkdownLang in
@@ -239,5 +239,5 @@ export function markdownToHtml(src) {
   return treeToHtml(markdownTree(src))
 }
 
-/** spec 039's first name for markdownToHtml. */
+/** spec 040's first name for markdownToHtml (1c099b52). */
 export const renderMarkdown = markdownToHtml

@@ -1,4 +1,4 @@
-// spec 039 markdown compatibility (owner, 2026-09-26): a ```md / ```markdown
+// spec 040 markdown compatibility (owner, 2026-09-26): a ```md / ```markdown
 // fence renders as standard markdown; raw HTML never runs.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'

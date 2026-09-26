@@ -11,7 +11,7 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 describe('chunk reload', () => {
   it('recognises a missing build chunk in the browsers wording', () => {
-    assert.equal(isChunkLoadError(new TypeError('Failed to fetch dynamically imported module: https://spool-hub.ai/_nuxt/-gF1wazt.js')), true)
+    assert.equal(isChunkLoadError(new TypeError('Failed to fetch dynamically imported module: https://example.com/_nuxt/-gF1wazt.js')), true)
     assert.equal(isChunkLoadError(new TypeError('Importing a module script failed.')), true)
     assert.equal(isChunkLoadError({ message: 'error loading dynamically imported module' }), true)
   })

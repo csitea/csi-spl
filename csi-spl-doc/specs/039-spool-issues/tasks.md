@@ -100,4 +100,14 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       `4e389e3c` on dev and apex (build.json); the title filter is gone
       (`f901ebd5`). Proof n=1 per env: dev t1 18/18, prd e2e 18/18. Unmeasured:
       whether Chrome paints the native option title
+- [x] T013 SPL-949 (owner topic e5759793): level is the tree's, 1 epic /
+      feature, 2 issue, 3 subtask. rdb 0056 backfill + CHECK (level IN
+      (1,2,3)) applied on dev and prd after hub 0.7.9 (`a9b45ebc`) was served;
+      the store derives level on every write; WUI `b8f37e5c` shows it
+      read-only. Group-by tenant/kind/level with an off-tree count, n=1 per
+      env, after the migration: dev t1 epic 1 x1, feature 1 x3, issue 2 x17,
+      issue 3 x3; prd csi-rel 1 x1 / 2 x2, e2e 1 x5 / 2 x14 / 3 x4, t1 1 x42 /
+      2 x907; off_tree 0 on every row (before: levels 0..4, 965 of 975 prd rows
+      off the tree). Signed-in proof issues-live.proof.mjs, n=1 per env: dev
+      t1 19/19, prd e2e 19/19 (level read-only 2, feature 1, subtask 3)
 <!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

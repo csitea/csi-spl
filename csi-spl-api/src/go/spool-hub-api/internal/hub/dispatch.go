@@ -129,6 +129,26 @@ func (s *Server) wuiPin(ctx context.Context, tenant string) ed25519.PublicKey {
 	return pin
 }
 
+// warnUnpinnedAgents names the one case where the browser-only fallback of a
+// channel post drops something someone asked for: the channel HAS agent
+// members, but the tenant never pinned box-wui, so the post is stored
+// unsigned and routeChannel builds no box delivery (SPL-950, prd csi-rel
+// 2026-09-26: 9 human posts, box-wui row only, no log line anywhere). A
+// channel without agents stays silent - it never asked for a box to read it.
+func (s *Server) warnUnpinnedAgents(ctx context.Context, tenant, channel, msgID string) {
+	members, err := s.o.Store.ChannelMembers(ctx, tenant, channel)
+	if err != nil {
+		return
+	}
+	for box, agents := range members {
+		if box != WUIBox && len(agents) > 0 {
+			s.o.Log.Warn().Str("tenant", tenant).Str("channel", channel).Str("msg_id", msgID).
+				Msg("wui_unpinned: channel has agents but the tenant has no box-wui pin; post stays browser-only (do_spl_cloud_pin_box_wui)")
+			return
+		}
+	}
+}
+
 // dispatchEnvelope signs m for box (with the send's channel / parent tags,
 // "" = none) and verifies the result against the tenant's box-wui pin with
 // the exact check a receiving box runs.

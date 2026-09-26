@@ -610,6 +610,8 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 			} else {
 				env = signed
 			}
+		} else {
+			s.warnUnpinnedAgents(ctx, c.tenant, channel, id)
 		}
 	}
 	if env == nil {

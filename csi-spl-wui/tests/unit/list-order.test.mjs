@@ -314,7 +314,7 @@ describe('DOM contract: every list row carries the clock it is ordered by', () =
     /* CLE-3446: the FORMATTER changed on the owner's word (real ISO 8601, with
        the T and the Z); the contract this case exists for did not — the printed
        time is still read from `at`, the clock the list is ordered by. */
-    assert.match(s, /formatIsoTs\(at\.value/)
+    assert.match(s, /formatMsgListTs\(at\.value/)
   })
 
   it('the topic list row carries last_ts', () => {

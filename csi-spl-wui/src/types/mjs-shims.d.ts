@@ -212,6 +212,7 @@ declare module '~/utils/channel-feed.mjs' {
   export function formatTs(ts: string, locale?: string): string
   export function formatAbsTs(ts: string): string
   export function formatIsoTs(ts: string): string
+  export function formatMsgListTs(ts: string): string
   export function recipientOf(msg: unknown): { id: string, box: string } | null
   export function formatElapsed(sec: number): string
   export function formatTopicTs(ts: string, originMs?: number): string

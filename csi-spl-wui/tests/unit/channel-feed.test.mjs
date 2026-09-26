@@ -28,6 +28,7 @@ import {
   channelFollow,
   channelView,
   formatIsoTs,
+  formatMsgListTs,
   recipientOf,
 } from '../../src/utils/channel-feed.mjs'
 import { applyVerbosity } from '../../src/utils/verbosity.mjs'
@@ -309,6 +310,8 @@ describe('pane 2 row is the starter and carries the starter sender', () => {
 
   it('stamps REAL ISO 8601 — with the T and the Z, and without bending formatAbsTs', () => {
     assert.equal(formatIsoTs('2026-09-22T11:58:03Z'), '2026-09-22T11:58:03Z')
+    assert.equal(formatMsgListTs('2026-09-22T11:58:35Z'), '2026-09-22 11:58')
+    assert.equal(formatMsgListTs('2026-09-22T09:07:33.67515Z'), '2026-09-22 09:07')
     /* the hub sends fractional seconds on some rows; the owner's format has none */
     assert.equal(formatIsoTs('2026-09-22T09:07:33.67515Z'), '2026-09-22T09:07:33Z')
     assert.equal(formatIsoTs('not a date'), 'not a date')

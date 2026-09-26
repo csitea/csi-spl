@@ -19,18 +19,7 @@
     @contextmenu="onContextMenu"
   >
     <SpoolAvatar class="avatar" :id="author.id" :box="author.box" />
-    <div class="msg-col">
-      <!-- Tab order: the replies link is the first stop inside the card.
-           flex `order` keeps it painted under the body. -->
-      <button
-        v-if="count > 0 || alwaysTopic"
-        class="replies"
-        type="button"
-        data-test="topic-replies"
-        @click="openReplies"
-      >
-        {{ t('feed.replies', { n: count }, count) }}
-      </button>
+    <div>
       <!--
         CLE-3446 — the owner's settled row format, 2026-09-22: per message,
         sender -> recipient, and the arrow flips per row because BOTH ends are
@@ -64,6 +53,17 @@
         <!-- Opening messages (is_parent 1) and replies (is_parent 0) are both
              this card. The emoji control is not gated on that flag. -->
         <span class="msg-actions">
+          <!-- First focusable control in the card, and on the meta row so a
+               titles card stays one line of text under that row. -->
+          <button
+            v-if="count > 0 || alwaysTopic"
+            class="replies"
+            type="button"
+            data-test="topic-replies"
+            @click.stop="openReplies"
+          >
+            {{ t('feed.replies', { n: count }, count) }}
+          </button>
           <button
             type="button"
             class="icon-btn"
@@ -227,7 +227,7 @@
 </template>
 
 <script setup lang="ts">
-import { dmPeerOf, formatIsoTs, formatTopicTs, recipientOf, shownPerson } from '~/utils/channel-feed.mjs'
+import { dmPeerOf, formatMsgListTs, formatTopicTs, recipientOf, shownPerson } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { activityOf } from '~/utils/feed.mjs'
@@ -307,19 +307,13 @@ const kindLabel = (k: string) => (te('feed.kind.' + k) ? t('feed.kind.' + k) : k
    moment — a card that sits above another must not print an older time. */
 const at = computed(() => activityOf(props.msg))
 /*
- * CLE-3446 — a feed row stamps REAL ISO 8601, with the T and the Z, which is
- * what the owner settled on. formatIsoTs is a NEW formatter: formatAbsTs
- * returns `yyyy-mm-dd HH:MM:SS` and other surfaces read it, so it was not bent
- * into this shape.
- *
- * The 3rd panel's own clock (`sinceMs`, CLE-3425's `… sent <age>`) is left
- * exactly as it was — the owner's format was given for the message list, and
- * silently re-stamping another lane's ticking clock is not in this fix.
+ * The message list prints `yyyy-mm-dd HH:MM`: no T, no seconds, no Z.
+ * The thread pane keeps its own clock (`sinceMs`).
  */
 const time = computed(() => (
   props.sinceMs != null
     ? formatTopicTs(at.value, props.sinceMs)
-    : formatIsoTs(at.value)
+    : formatMsgListTs(at.value)
 ))
 const recipient = computed(() => recipientOf(props.msg))
 const files = computed(() => (Array.isArray(props.msg.files) ? props.msg.files : []) as FileRef[])
@@ -865,18 +859,17 @@ async function save() {
   font-size: 0.75rem;
   line-height: 1;
 }
-.msg-col {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.msg-col > .replies { order: 1; }
 .msg-actions {
   margin-inline-start: auto;
   display: inline-flex;
   align-items: center;
   align-self: center;
   gap: 2px;
+}
+.msg-actions .replies {
+  margin-top: 0;
+  align-self: center;
+  white-space: nowrap;
 }
 .msg-menu-btn { align-self: center; }
 .msg-reactions {

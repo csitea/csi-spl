@@ -251,6 +251,7 @@ function priorityIcon(priority: number): string {
 
 const { t, locale } = useI18n({ useScope: 'global' })
 const route = useRoute()
+const router = useRouter()
 const session = useSessionStore()
 const roster = useRosterStore()
 const people = useHumanNames()
@@ -423,23 +424,42 @@ function clearFilters() {
 function toggleGroup(status: string) {
   collapsed.value = { ...collapsed.value, [status]: !collapsed.value[status] }
 }
+function issueLinkKey(): string {
+  const q = route.query.issue
+  const raw = Array.isArray(q) ? q[0] : q
+  return typeof raw === 'string' ? raw.trim() : ''
+}
+function writeIssueQuery(key: string) {
+  if (issueLinkKey() === key) return
+  const query: Record<string, string | string[]> = {}
+  for (const [k, v] of Object.entries(route.query)) {
+    if (v == null || k === 'issue') continue
+    query[k] = v as string | string[]
+  }
+  if (key) query.issue = key
+  void router.replace({ query })
+}
 function choose(issue: Issue) {
   cursorKey.value = issue.key
   creating.value = false
   openKey.value = issue.key
   detail.value = issue
   menu.value = null
+  if (collapsed.value[issue.status]) collapsed.value = { ...collapsed.value, [issue.status]: false }
+  writeIssueQuery(issue.key)
 }
 function closeDetail() {
   creating.value = false
   openKey.value = ''
   detail.value = null
   menu.value = null
+  writeIssueQuery('')
 }
 function startCreate() {
   creating.value = true
   openKey.value = ''
   detail.value = null
+  writeIssueQuery('')
   draft.title = ''
   draft.description = ''
   draft.status = 'todo'
@@ -615,6 +635,7 @@ async function createIssue() {
     openKey.value = created.key
     detail.value = created
     cursorKey.value = created.key
+    writeIssueQuery(created.key)
   } catch (e) {
     saveError.value = errorKey(e as { status?: number, token?: string }, 'one')
   } finally {
@@ -720,7 +741,24 @@ function onDocKey(ev: KeyboardEvent) {
 
 watch([statusF, priorityF, levelF, assigneeF, labelF, fromF, untilF, sortF], () => { void load() })
 watch(() => session.state, () => { void load() }, { immediate: true })
+async function openLinkedIssue() {
+  const key = issueLinkKey()
+  if (!key) return
+  if (detail.value && detail.value.key.toLowerCase() === key.toLowerCase()) return
+  let issue = issues.value.find((i) => i.key.toLowerCase() === key.toLowerCase())
+  if (!issue) {
+    try {
+      const data = await withSessionRetry(api, () => api.getIssue(key))
+      issue = normalizeIssue(data.issue)
+      hold(issue)
+    } catch {
+      return
+    }
+  }
+  choose(issue)
+}
 watch(detail, (issue) => { if (!creating.value) void loadComments(issue) })
+watch([() => issueLinkKey(), issues], () => { void openLinkedIssue() })
 watch(creating, (on) => { if (on) comments.value = [] })
 
 let offIssue = () => {}

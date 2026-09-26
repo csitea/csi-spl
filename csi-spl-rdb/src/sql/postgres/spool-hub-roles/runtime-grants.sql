@@ -26,3 +26,13 @@ REVOKE INSERT, UPDATE, DELETE ON spool_schema_migrations FROM :"runtime_role";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"runtime_role";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO :"runtime_role";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO :"runtime_role";
+
+-- SPL-984 (spec 029 D3): ceilings for the runtime login, so one stuck
+-- statement or an abandoned transaction cannot hold a connection, a lock or
+-- the vacuum horizon forever (both were 0 = unlimited). Measured 2026-09-26
+-- (Query Insights, 7 d, prd): the hub's longest statement took 2.6 s. A
+-- session that needs longer sets its own (the search seed and purge already
+-- SET statement_timeout = 0). Applies to NEW sessions: the hub pool picks it
+-- up as connections recycle. Undo: ALTER ROLE ... RESET <setting>.
+ALTER ROLE :"runtime_role" SET statement_timeout = '30s';
+ALTER ROLE :"runtime_role" SET idle_in_transaction_session_timeout = '60s';

@@ -113,6 +113,12 @@ own_sql() { # <db> <file> [psql -v args]: run a roles file AS THE OWNER (SET ROL
 own_sql spool_hub_app "$ROLES_SQL/runtime-role.sql" -v runtime_role="$RT_ROLE" -v runtime_verifier="$RT_ROLE" >/dev/null
 own_sql spool_hub_app "$ROLES_SQL/runtime-role.sql" -v runtime_role="$RT_ROLE" -v runtime_verifier="$RT_ROLE" >/dev/null # idempotent
 own_sql spool_hub_app "$ROLES_SQL/runtime-grants.sql" -v runtime_role="$RT_ROLE" >/dev/null
+# SPL-984 (029 D3): the runtime login carries its own timeouts, set by the
+# owner (CREATEROLE, like the cloud) - not by a superuser.
+cfg="$(su_sql "SELECT ',' || array_to_string(rolconfig, ',') FROM pg_roles WHERE rolname = '$RT_ROLE'")"
+{ echo "$cfg" | grep -q '[^_]statement_timeout=30s' && echo "$cfg" | grep -q 'idle_in_transaction_session_timeout=60s'; } ||
+  { echo "FAIL - runtime role timeouts: '$cfg'"; exit 1; }
+echo "ok   - 029 D3: $RT_ROLE has statement_timeout=30s, idle_in_transaction_session_timeout=60s"
 rt_dsn() { # <db>
   if [ -n "$PG_CTR" ]; then echo "postgres://$RT_ROLE:$RT_ROLE@127.0.0.1:$PGPORT/$1?sslmode=disable"
   else echo "postgres://$RT_ROLE@/$1?host=$WORK&port=$PGPORT&sslmode=disable"; fi

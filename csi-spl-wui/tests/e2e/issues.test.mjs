@@ -5,12 +5,16 @@
 //   BASE_URL=<generated bundle> pnpm run test:e2e:issues
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
-const SHOTS = process.env.ISSUES_SHOTS || '/tmp/grk-3519-issues'
+// A fresh dir per run: a fixed /tmp path is owned by whoever ran first, and
+// the CI runner user then gets EACCES (gate runs 36227035545 ff.).
+const SHOTS = process.env.ISSUES_SHOTS || mkdtempSync(join(tmpdir(), 'spool-issues-'))
 
 const results = []
 const ok = (name, pass, ev) => {

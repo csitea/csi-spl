@@ -123,8 +123,11 @@ describe('the description round-trips (channels-v1 §5.1 / §5.2, rdb 0027)', ()
     assert.equal(addChannelRow([], { channel: 'quiet' })[0].description, '')
   })
 
-  it('the channel page shows it, clamped so a 500-char description cannot widen the page', () => {
-    assert.match(src('src/pages/channel/[name].vue'), /data-test="channel-description"/)
+  it('the channel page does not show it; the header line only keeps the retention note', () => {
+    const page = src('src/pages/channel/[name].vue')
+    assert.doesNotMatch(page, /channel-description/)
+    assert.doesNotMatch(page, /\{\{ description \}\}/)
+    assert.match(page, /headerSub/)
     assert.match(src('src/assets/css/main.css'), /\.feed-header__about \{[\s\S]*?text-overflow: ellipsis;/)
   })
 })

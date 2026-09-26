@@ -179,12 +179,12 @@ try {
     await a.click('[data-testid=create-channel-submit]')
     const made = await a.waitForFunction((c) => location.pathname.endsWith('/channel/' + c), { timeout: 15000 }, channel).then(() => true, () => false)
     step(`channel #${channel} created by the test member (sidebar + dialog)`, made, { url: a.url() })
-    /* the description the dialog collected is what the channel header says */
+    /* the dialog still collects a description; the msgs header does not show it */
     const about = await a.evaluate(() => {
       const el = document.querySelector('[data-test="channel-description"]')
       return el ? el.textContent.trim() : null
     })
-    step('the channel header shows the description the dialog collected', about === 'live proof run ' + run, { about })
+    step('the channel header does not show the description', about === null, { about })
   }
   await leg(`channel-${channel}`, a, b, `/channel/${encodeURIComponent(channel)}`)
 

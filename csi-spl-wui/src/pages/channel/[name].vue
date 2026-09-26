@@ -6,11 +6,9 @@
         <span class="muted feed-header__name">#{{ titleName }}</span>
         <CardClipControl />
       </div>
-      <!-- The description (channels-v1 §5.1) and the retention note share one
-           ellipsized line. The note is never dropped; the hover has both. -->
-      <p class="muted feed-header__about" :title="headerAbout" data-test="channel-description">
-        <template v-if="description">{{ description }} · </template>{{ headerSub }}
-      </p>
+      <!-- The channel description is stored, not shown here. The retention
+           note stays, one ellipsized line under the name. -->
+      <p class="muted feed-header__about">{{ headerSub }}</p>
     </header>
     <MessageFeed :label="t('pages.feed_label', { target: '#' + name })" />
   </div>
@@ -52,7 +50,6 @@ const feedbackCopy = computed(() => feedbackChannelCopy(name.value, {
   description: t('channels.feedback.description'),
 }, storedDescription.value))
 const titleName = computed(() => feedbackCopy.value ? feedbackCopy.value.name : name.value)
-const description = computed(() => feedbackCopy.value ? feedbackCopy.value.description : storedDescription.value)
 const retention = computed(() => {
   const n = retentionDays(channel.channels.find((c) => c.channel_id === name.value) || { channel_id: name.value })
   return n ? t('sidebar.retention_days', { n }) : ''
@@ -60,7 +57,6 @@ const retention = computed(() => {
 const headerSub = computed(() => retention.value
   ? t('pages.channel.subtitle_retention', { retention: retention.value })
   : t('pages.channel.subtitle'))
-const headerAbout = computed(() => description.value ? `${description.value} · ${headerSub.value}` : headerSub.value)
 
 /* a live row carries the hub cursor, so the next read= counts from here */
 function markRead(n: string) {

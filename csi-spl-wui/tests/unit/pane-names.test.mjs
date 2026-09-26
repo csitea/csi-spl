@@ -18,12 +18,13 @@ describe('pane names', () => {
     })
   }
 
-  it('the channel header is two lines: name and clip on the first, description on the second', () => {
+  it('the channel header is two lines: name and clip on the first, the retention note on the second', () => {
     const src = read('src/pages/channel/[name].vue')
     assert.match(src, /feed-header--stack/)
     assert.match(src, /feed-header__row[\s\S]*<h2>\{\{ t\('pane\.msgs'\) \}\}<\/h2>[\s\S]*CardClipControl/)
-    assert.match(src, /feed-header__about/)
     assert.match(src, /headerSub/)
+    assert.doesNotMatch(src, /channel-description/)
+    assert.doesNotMatch(src, /\{\{ description \}\}/)
   })
 
   for (const rel of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue']) {

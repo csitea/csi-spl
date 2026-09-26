@@ -18,10 +18,36 @@
           <option value="updated">{{ t('issues.sort_updated') }}</option>
           <option value="created">{{ t('issues.sort_created') }}</option>
         </select>
-        <select v-model="statusF" data-test="issues-filter-status" :aria-label="t('issues.filter_status')" :title="statusF ? t(statusHintKey(statusF)) : undefined">
-          <option value="">{{ t('issues.filter_status') }}: {{ t('issues.filter_all') }}</option>
-          <option v-for="s in ISSUE_STATUSES" :key="s" :value="s" :title="t(statusHintKey(s))">{{ statusLabel(s) }}</option>
-        </select>
+        <div class="issues-status-dd" data-test="issues-filter-status">
+          <button
+            type="button"
+            class="issues-status-dd__btn"
+            data-test="issues-filter-status-btn"
+            :aria-label="t('issues.filter_status')"
+            :aria-expanded="statusOpen ? 'true' : 'false'"
+            :title="statusF ? t(statusHintKey(statusF)) : undefined"
+            @click="statusOpen = !statusOpen"
+          >{{ statusF ? statusLabel(statusF) : t('issues.filter_status') + ': ' + t('issues.filter_all') }}</button>
+          <div v-show="statusOpen" class="issues-status-dd__list" role="listbox">
+            <button type="button" class="issues-status-dd__opt" data-test="issues-filter-status-all" @click="pickStatus('')">
+              {{ t('issues.filter_status') }}: {{ t('issues.filter_all') }}
+            </button>
+            <button
+              v-for="s in ISSUE_STATUSES"
+              :key="s"
+              type="button"
+              class="issues-status-dd__opt"
+              data-test="issues-filter-status-opt"
+              :data-value="s"
+              :aria-selected="statusF === s ? 'true' : 'false'"
+              :title="t(statusHintKey(s))"
+              @click="pickStatus(s)"
+            >
+              <span class="issues-status-code">{{ statusLabel(s) }}</span>
+              <span class="issues-status-tip" role="tooltip">{{ t(statusHintKey(s)) }}</span>
+            </button>
+          </div>
+        </div>
         <select v-model="priorityF" data-test="issues-filter-priority" :aria-label="t('issues.filter_priority')">
           <option value="">{{ t('issues.filter_priority') }}: {{ t('issues.filter_all') }}</option>
           <option v-for="n in ISSUE_PRIORITIES" :key="n" :value="String(n)">{{ n }}</option>
@@ -56,7 +82,10 @@
             @click="toggleGroup(g.status)"
           >
             <IssueGlyph :name="statusIcon(g.status)" :size="16" :class="'issues-st issues-st--' + g.status" />
-            <span :title="t(statusHintKey(g.status))">{{ statusLabel(g.status) }}</span>
+            <span class="issues-status-host" :title="t(statusHintKey(g.status))">
+              <span class="issues-status-code">{{ statusLabel(g.status) }}</span>
+              <span class="issues-status-tip" role="tooltip">{{ t(statusHintKey(g.status)) }}</span>
+            </span>
             <span class="issues-count" data-test="issues-group-count">{{ g.count }}</span>
           </button>
           <div v-show="!isCollapsed(g.status)">
@@ -153,7 +182,10 @@
         </button>
         <button type="button" class="issues-prop" data-test="issues-status" @click="openMenu('status', detailOrDraft(), $event)">
           <IssueGlyph :name="statusIcon(form.status)" :size="16" />
-          <span :title="t(statusHintKey(form.status))">{{ statusLabel(form.status) }}</span>
+          <span class="issues-status-host" :title="t(statusHintKey(form.status))">
+            <span class="issues-status-code">{{ statusLabel(form.status) }}</span>
+            <span class="issues-status-tip" role="tooltip">{{ t(statusHintKey(form.status)) }}</span>
+          </span>
         </button>
         <button type="button" class="issues-prop" data-test="issues-priority" @click="openMenu('priority', detailOrDraft(), $event)">
           <span>{{ t('issues.field_priority') }} {{ form.priority }}</span>
@@ -233,7 +265,7 @@
         <button type="button" class="btn" data-test="issues-comment-send" :disabled="busy || !commentText.trim()" @click="sendComment">{{ t('issues.comment_send') }}</button>
       </section>
     </aside>
-    <div v-if="menu" class="issues-menu" role="listbox" data-test="issues-menu" :style="menuStyle" @click.stop>
+    <div v-if="menu" class="issues-menu" :class="{ 'issues-menu--status': menu.kind === 'status' }" role="listbox" data-test="issues-menu" :style="menuStyle" @click.stop>
       <button
         v-for="(opt, i) in menuOptions"
         :key="opt.value"
@@ -243,8 +275,12 @@
         data-test="issues-menu-option"
         :data-value="opt.value"
         :aria-selected="i === menuIndex ? 'true' : 'false'"
+        :title="opt.hint || undefined"
         @click="applyMenu(opt.value)"
-      >{{ opt.label }}</button>
+      >
+        <span class="issues-status-code">{{ opt.label }}</span>
+        <span v-if="opt.hint" class="issues-status-tip" role="tooltip">{{ opt.hint }}</span>
+      </button>
       <form v-if="menu.kind === 'label'" class="issues-menu__add" @submit.prevent="addLabel">
         <input v-model="labelName" data-test="issues-label-name" :placeholder="t('issues.label_name')" :aria-label="t('issues.label_name')">
         <button type="submit" class="btn" data-test="issues-label-add">{{ t('issues.add_label') }}</button>
@@ -325,6 +361,7 @@ const loadError = ref('')
 const saveError = ref('')
 const sortF = ref('priority')
 const statusF = ref('')
+const statusOpen = ref(false)
 const priorityF = ref('')
 const levelF = ref('')
 const assigneeF = ref('')
@@ -546,9 +583,14 @@ async function load() {
   }
 }
 
+function pickStatus(s: string) {
+  statusF.value = s
+  statusOpen.value = false
+}
 function clearFilters() {
   sortF.value = 'priority'
   statusF.value = ''
+  statusOpen.value = false
   priorityF.value = ''
   levelF.value = ''
   assigneeF.value = ''
@@ -628,12 +670,13 @@ function detailOrDraft(): Issue {
 
 const menuOptions = computed(() => {
   const kind = menu.value?.kind || ''
-  if (kind === 'status') return ISSUE_STATUSES.map((s) => ({ value: s, label: `${statusLabel(s)} · ${t(statusHintKey(s))}` }))
-  if (kind === 'priority') return ISSUE_PRIORITIES.map((n) => ({ value: String(n), label: String(n) }))
-  if (kind === 'level') return ISSUE_LEVELS.map((n) => ({ value: String(n), label: LEVEL_SHORT[n] || t(levelKey(n)) }))
-  if (kind === 'assign') return [{ value: '', label: t('issues.no_assignee') }, ...assigneeOptions.value.map((p) => ({ value: p.id, label: p.label }))]
-  if (kind === 'label') return labels.value.filter((l) => l.id !== 'epic').map((l) => ({ value: l.id, label: l.name }))
-  if (kind === 'epic') return epics.value.map((e) => ({ value: e.key, label: `${e.key} ${e.title}` }))
+  const hint = ''
+  if (kind === 'status') return ISSUE_STATUSES.map((s) => ({ value: s, label: statusLabel(s), hint: t(statusHintKey(s)) }))
+  if (kind === 'priority') return ISSUE_PRIORITIES.map((n) => ({ value: String(n), label: String(n), hint }))
+  if (kind === 'level') return ISSUE_LEVELS.map((n) => ({ value: String(n), label: LEVEL_SHORT[n] || t(levelKey(n)), hint }))
+  if (kind === 'assign') return [{ value: '', label: t('issues.no_assignee'), hint }, ...assigneeOptions.value.map((p) => ({ value: p.id, label: p.label, hint }))]
+  if (kind === 'label') return labels.value.filter((l) => l.id !== 'epic').map((l) => ({ value: l.id, label: l.name, hint }))
+  if (kind === 'epic') return epics.value.map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))
   return []
 })
 const menuStyle = computed(() => ({ top: `${menuPos.value.top}px`, left: `${menuPos.value.left}px` }))
@@ -870,6 +913,7 @@ function onDocKey(ev: KeyboardEvent) {
   if (key === 'Escape' && typing) { (ev.target as HTMLElement).blur(); ev.preventDefault(); return }
   if (key === 'Escape') {
     ev.preventDefault()
+    if (statusOpen.value) { statusOpen.value = false; return }
     if (menuOpen) menu.value = null
     else closeDetail()
     return
@@ -943,12 +987,20 @@ let offLabel = () => {}
 let offMsg = () => {}
 let offBack = () => {}
 let detailObserver: ResizeObserver | null = null
+function onDocPointer(ev: Event) {
+  if (!statusOpen.value) return
+  const root = pageEl.value?.querySelector('[data-test=issues-filter-status]')
+  const t = ev.target
+  if (root && t instanceof Node && root.contains(t)) return
+  statusOpen.value = false
+}
 onMounted(() => {
   useTopicStore().close()
   useLiveFeed('pane').close()
   detailW.value = loadIssuePane()
   measureDetailRoom()
   document.addEventListener('keydown', onDocKey)
+  document.addEventListener('pointerdown', onDocPointer)
   if (typeof ResizeObserver !== 'undefined' && pageEl.value) {
     detailObserver = new ResizeObserver(() => measureDetailRoom())
     detailObserver.observe(pageEl.value)
@@ -970,6 +1022,7 @@ onMounted(() => {
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', onDocKey)
+  document.removeEventListener('pointerdown', onDocPointer)
   detailObserver?.disconnect()
   offIssue()
   offLabel()
@@ -1013,7 +1066,8 @@ onUnmounted(() => {
   min-width: 0;
 }
 .issues-filters select,
-.issues-filters input {
+.issues-filters input,
+.issues-status-dd__btn {
   max-width: 100%;
   min-width: 0;
   background: var(--color-bg-2);
@@ -1023,6 +1077,62 @@ onUnmounted(() => {
   padding: 4px 8px;
   font: inherit;
 }
+.issues-status-dd { position: relative; }
+.issues-status-dd__btn { cursor: pointer; text-align: start; }
+.issues-status-dd__list {
+  position: absolute;
+  z-index: 25;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 8rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  box-shadow: var(--focus-3d);
+}
+.issues-status-dd__opt,
+.issues-menu__opt,
+.issues-status-host { position: relative; }
+.issues-status-dd__opt {
+  display: block;
+  width: 100%;
+  text-align: start;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.issues-status-dd__opt[aria-selected="true"] { background: var(--color-selected); }
+.issues-status-tip {
+  display: none;
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;
+  white-space: nowrap;
+  pointer-events: none;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: var(--color-fg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-3d);
+}
+.issues-status-dd__opt:hover > .issues-status-tip,
+.issues-status-dd__opt:focus-visible > .issues-status-tip,
+.issues-menu__opt:hover > .issues-status-tip,
+.issues-menu__opt:focus-visible > .issues-status-tip,
+.issues-status-host:hover > .issues-status-tip,
+.issues-status-host:focus-visible > .issues-status-tip { display: block; }
+.issues-menu--status { overflow: visible; }
+.issues-menu--status .issues-status-tip { left: auto; right: calc(100% + 6px); }
+.issues-prop .issues-status-tip { left: auto; right: 0; top: calc(100% + 4px); transform: none; }
 .issues-scroll {
   flex: 1 1 auto;
   min-height: 0;

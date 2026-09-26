@@ -156,9 +156,11 @@ try {
   const page = await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: 30000 }).then(() => true, () => false)
   /* owner 2026-09-26: statuses 01-eval .. 09-done (topic f2c32da2), no title
      filter (topic d81cbf47) */
-  const statusOpts = await p.$$eval('[data-test=issues-filter-status] option', (els) => els.slice(1).map((e) => e.textContent.trim()))
+  const statusOpts = await p.$$eval('[data-test=issues-filter-status-opt] .issues-status-code', (els) => els.map((e) => e.textContent.trim()))
+  const statusTips = await p.$$eval('[data-test=issues-filter-status-opt] .issues-status-tip', (els) => els.map((e) => e.textContent.trim()))
   step('1b the status filter offers the owner\'s six statuses; no title filter', JSON.stringify(statusOpts) ===
-    JSON.stringify(['01-eval', '02-todo', '03-wip', '03-diss', '07-qas', '09-done']) && !(await p.$('[data-test=issues-search]')), { statusOpts })
+    JSON.stringify(['01-eval', '02-todo', '03-wip', '03-diss', '07-qas', '09-done']) && JSON.stringify(statusTips) ===
+    JSON.stringify(['evaluation', 'to do', 'work in progress', 'discard', 'quality assurance', 'done']) && !(await p.$('[data-test=issues-search]')), { statusOpts, statusTips })
   step('1 the tab opens /issues', page && new URL(p.url()).pathname.endsWith('/issues'), { url: p.url() })
   await sleep(1500)
   await shot(p, '01-issues-tab')

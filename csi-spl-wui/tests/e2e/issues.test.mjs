@@ -70,6 +70,19 @@ try {
   await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: NAV_TIMEOUT })
   ok('2 the tab opens /issues', new URL(p.url()).pathname.endsWith('/issues'), p.url())
 
+  await p.click('[data-test=issues-filter-status-btn]')
+  await p.waitForSelector('[data-test=issues-filter-status-opt][data-value="wip"]', { visible: true, timeout: 5000 })
+  const codes = await p.$$eval('[data-test=issues-filter-status-opt] .issues-status-code', (els) => els.map((e) => e.textContent.trim()))
+  await p.hover('[data-test=issues-filter-status-opt][data-value="wip"]')
+  const tip = await p.$eval('[data-test=issues-filter-status-opt][data-value="wip"] .issues-status-tip', (el) => {
+    const st = getComputedStyle(el)
+    const box = el.getBoundingClientRect()
+    return { text: el.textContent.trim(), display: st.display, w: box.width, h: box.height }
+  })
+  await p.mouse.move(0, 0)
+  await p.click('[data-test=issues-filter-status-all]')
+  ok('2b hovering 03-wip pops up work in progress', JSON.stringify(codes) === JSON.stringify(['01-eval', '02-todo', '03-wip', '03-diss', '07-qas', '09-done']) && tip.text === 'work in progress' && tip.display === 'block' && tip.w > 8 && tip.h > 4, { codes, tip })
+
   await create(p, 'The first read drops', 'Only in the detail')
   await create(p, 'Show the display name', '')
   const listText = await p.$eval('[data-test=issues-list]', (el) => el.innerText)
@@ -92,6 +105,14 @@ try {
 
   await p.click('[data-test=issues-status]')
   await p.waitForSelector('[data-test=issues-menu-option][data-value="wip"]', { visible: true, timeout: 5000 })
+  await p.hover('[data-test=issues-menu-option][data-value="diss"]')
+  const menuTip = await p.$eval('[data-test=issues-menu-option][data-value="diss"] .issues-status-tip', (el) => {
+    const st = getComputedStyle(el)
+    const box = el.getBoundingClientRect()
+    const code = el.parentElement.querySelector('.issues-status-code').textContent.trim()
+    return { code, text: el.textContent.trim(), display: st.display, w: box.width, h: box.height }
+  })
+  ok('5b hovering 03-diss pops up discard', menuTip.code === '03-diss' && menuTip.text === 'discard' && menuTip.display === 'block' && menuTip.w > 8 && menuTip.h > 4, menuTip)
   await p.click('[data-test=issues-menu-option][data-value="wip"]')
   await p.waitForFunction(() => {
     const group = document.querySelector('[data-status="wip"]')

@@ -4,6 +4,7 @@
 // Run: node tests/unit/issues.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { ISSUE_STATUSES, issueQuery, matchIssue, normalizeIssue, sortIssues } from '../../src/utils/issues.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 import {
@@ -258,6 +259,10 @@ describe('the owner statuses and prio 1..5 (rdb 0054, topics f2c32da2 + d81cbf47
     assert.deepEqual(S, ['eval', 'todo', 'wip', 'diss', 'qas', 'done'])
     assert.deepEqual(S.map(statusLabel), ['01-eval', '02-todo', '03-wip', '03-diss', '07-qas', '09-done'])
     assert.equal(statusHintKey('wip'), 'issues.status_hint.wip')
+    const page = readFileSync(new URL('../../src/pages/issues.vue', import.meta.url), 'utf8')
+    assert.match(page, /data-test="issues-filter-status-opt"/)
+    assert.match(page, /class="issues-status-tip"/)
+    assert.equal(page.includes('<option v-for="s in ISSUE_STATUSES"'), false)
   })
   it('a first-set status still reads as its successor', () => {
     assert.deepEqual(['backlog', 'in_progress', 'in_review', 'canceled', 'todo'].map(normalizeStatus), ['eval', 'wip', 'qas', 'diss', 'todo'])

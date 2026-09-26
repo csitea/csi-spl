@@ -202,6 +202,15 @@
           @change="onFiles"
           @cancel="onPickCancel"
         >
+        <button v-if="searchMode" type="submit" data-test="omnibox-search" :disabled="!searchQueryOf(text)">{{ t('search.submit') }}</button>
+        <button
+          v-else
+          type="submit"
+          class="composer-send"
+          data-testid="send"
+          @mousedown.prevent
+          :aria-disabled="cannotSend ? 'true' : 'false'"
+        >{{ busy ? t('composer.sending') : t('composer.send') }}</button>
         <!-- SPL-952: the kind of the next send; automatic = @mention is a task, else a note -->
         <label v-if="!searchMode && global" class="composer-kind">
           <KindBadge v-if="omniboxKind.kind" :kind="omniboxKind.kind" />
@@ -215,15 +224,6 @@
             <option v-for="k in PICK_KINDS" :key="k" :value="k">{{ k ? t('feed.kind.' + k) : t('composer.kind_auto') }}</option>
           </select>
         </label>
-        <button v-if="searchMode" type="submit" data-test="omnibox-search" :disabled="!searchQueryOf(text)">{{ t('search.submit') }}</button>
-        <button
-          v-else
-          type="submit"
-          class="composer-send"
-          data-testid="send"
-          @mousedown.prevent
-          :aria-disabled="cannotSend ? 'true' : 'false'"
-        >{{ busy ? t('composer.sending') : t('composer.send') }}</button>
       </div>
     </div>
   </form>
@@ -1058,7 +1058,11 @@ textarea.in-code {
   align-self: flex-start;
   gap: 4px;
   height: var(--omnibox-rest);
+  /* Painted between the paperclip and Send. DOM order is Send, then this
+     select, so Tab from the field lands on Send (SPL-953). */
+  order: 1;
 }
+.composer-send { order: 2; }
 .composer-kind select {
   font-size: 0.75rem;
   color: var(--color-muted);

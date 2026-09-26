@@ -42,6 +42,8 @@ describe('SPL-953 attach is the paperclip icon only', () => {
     const send = src.slice(src.lastIndexOf('<button', sendAt), src.indexOf('>', sendAt) + 1)
     assert.equal(/tabindex\s*=/.test(send), false, send)
     assert.equal(/\sdisabled\b|:disabled\b/.test(send), false, send)
+    const kind = src.indexOf('data-test="composer-kind"')
+    assert.ok(kind > sendAt, 'the kind picker is after Send, so Tab reaches Send first')
   })
 
   it('uiIcons has the lucide paperclip stroke', () => {

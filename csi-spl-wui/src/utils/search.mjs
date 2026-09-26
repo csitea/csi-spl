@@ -25,13 +25,24 @@ export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'tenants',
  * (`GET /v1/view/search/operators`, which the WUI prefers: normalizeOperators).
  * `values` are closed value sets offered after the colon.
  */
+/** Canonical kinds first, then the aliases a person actually types. */
+const TYPE_VALUES = ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box', 'tenant', 'event', 'thread', 'person', 'workspace', 'log']
+
+/** Rows the omnibox list shows. The nine kinds fit; a longer prefix narrows the rest. */
+export const OP_PICKER_CAP = 12
+
+/** Values the omnibox still offers when an older operators document omits them. */
+const REQUIRED_TYPE_VALUES = ['tenant', 'event', 'thread', 'person', 'workspace', 'log']
+
 export const SEARCH_OPERATORS = [
   { op: 'from:', example: 'from:CLE-07' },
   { op: 'to:', example: 'to:HUM-1' },
   { op: 'in:', example: 'in:#lobby', values: ['dm'] },
+  { op: 'channel:', example: 'channel:#lobby', values: ['dm'] },
   { op: 'is:', values: ['task', 'note', 'result', 'reject', 'root', 'online', 'offline', 'revoked'] },
   { op: 'has:', values: ['file', 'attachment', 'code'] },
-  { op: 'type:', values: ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box', 'tenant', 'event'] },
+  { op: 'type:', values: TYPE_VALUES },
+  { op: 'kind:', example: 'kind:message', values: TYPE_VALUES },
   { op: 'before:', example: 'before:2026-09-01' },
   { op: 'after:', example: 'after:7d' },
   { op: 'on:', example: 'on:2026-09-19' },
@@ -47,14 +58,85 @@ export const SEARCH_OPERATORS = [
 ]
 
 /**
+ * Canonical type names, then each type's aliases. `type:` completions lead
+ * with tenant and event; aliases such as thread and person narrow by typing.
+ */
+function typeNamesOf(data) {
+  const types = Array.isArray(data && data.types) ? data.types : []
+  const canonical = []
+  const aliases = []
+  const seen = new Set()
+  const add = (bucket, raw) => {
+    const s = String(raw || '').toLowerCase()
+    if (!/^[a-z][a-z0-9]*$/.test(s) || seen.has(s)) return
+    seen.add(s)
+    bucket.push(s)
+  }
+  for (const t of types) {
+    add(canonical, t && t.type)
+    for (const a of (Array.isArray(t && t.aliases) ? t.aliases : [])) add(aliases, a)
+  }
+  return canonical.concat(aliases)
+}
+
+/**
+ * Hub catalogue plus the 1.1 operators a document from before this grammar
+ * does not list yet: tenant/event (and thread, person, workspace, log) on
+ * type: and kind:, plus kind: and channel: when the document has type: / in:.
+ * A catalogue that already has them is returned unchanged.
+ */
+export function ensureSearchOperators(catalogue = SEARCH_OPERATORS) {
+  const src = Array.isArray(catalogue) && catalogue.length ? catalogue : SEARCH_OPERATORS
+  let changed = false
+  const out = src.map((o) => {
+    if (!o || (o.op !== 'type:' && o.op !== 'kind:') || !Array.isArray(o.values)) return o
+    const values = o.values.map(String)
+    let add = false
+    for (const v of REQUIRED_TYPE_VALUES) {
+      if (!values.includes(v)) { values.push(v); add = true }
+    }
+    if (!add) return o
+    changed = true
+    return { ...o, values }
+  })
+  const has = (op) => out.some((o) => o && o.op === op)
+  if (!has('kind:') && has('type:')) {
+    const type = out.find((o) => o.op === 'type:')
+    const values = Array.isArray(type.values) ? type.values.slice() : REQUIRED_TYPE_VALUES.slice()
+    out.push({ op: 'kind:', example: 'kind:message', values })
+    changed = true
+  }
+  if (!has('channel:') && has('in:')) {
+    const inn = out.find((o) => o.op === 'in:')
+    out.push({ op: 'channel:', example: 'channel:#lobby', values: Array.isArray(inn.values) ? inn.values.slice() : ['dm'] })
+    changed = true
+  }
+  return changed ? out : src
+}
+
+/** One help row per operator: the token, an example, closed values, an i18n key. */
+export function operatorHelpRows(catalogue = SEARCH_OPERATORS) {
+  const list = Array.isArray(catalogue) && catalogue.length ? catalogue : SEARCH_OPERATORS
+  const rows = []
+  for (const o of list) {
+    const op = String((o && o.op) || '')
+    if (!/^[a-z]+:$/.test(op)) continue
+    const values = Array.isArray(o.values) ? o.values.map(String) : []
+    const example = o.example ? String(o.example) : (values.length ? op + values[0] : op)
+    rows.push({ op, example, values, hintKey: 'search.op.' + op.slice(0, -1) })
+  }
+  return rows
+}
+
+/**
  * search-v1 §6 operators document → the catalogue shape above. Aliases become
- * their own entries; `type:` values come from `types[]`; an enum's keys are
- * its values. Junk → the built-in catalogue.
+ * their own entries; `type:` values come from `types[]` (canonical, then
+ * aliases); an enum's keys are its values. Junk → the built-in catalogue.
  */
 export function normalizeOperators(data) {
   const d = data && typeof data === 'object' ? data : {}
   if (!Array.isArray(d.operators) || !d.operators.length) return SEARCH_OPERATORS
-  const typeNames = (Array.isArray(d.types) ? d.types : []).map((t) => String(t && t.type || '')).filter(Boolean)
+  const typeNames = typeNamesOf(d)
   const out = []
   for (const o of d.operators) {
     const name = String((o && o.name) || '').toLowerCase()
@@ -245,19 +327,23 @@ export function highlightSegments(text, highlights) {
 }
 
 function textOf(v) {
-  if (v && typeof v === 'object' && !Array.isArray(v)) return { text: String(v.text ?? ''), highlights: Array.isArray(v.highlights) ? v.highlights : [] }
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    const highlights = Array.isArray(v.highlights) ? v.highlights : (Array.isArray(v.hl) ? v.hl : [])
+    return { text: String(v.text ?? ''), highlights }
+  }
   if (typeof v === 'string') return { text: v, highlights: [] }
   return null
 }
 
 /** The highlighted text of a row: message `snippet`, topic `title`, else `name` (search-v1 §4). */
 function displayOf(r) {
-  return textOf(r.snippet) || textOf(r.title) || textOf(r.name)
-    || { text: String(r.body || r.id || r.box_id || r.channel || r.task_id || ''), highlights: [] }
+  return textOf(r.snippet) || textOf(r.title) || textOf(r.name) || textOf(r.display_name)
+    || (typeof r.message === 'string' && r.message ? { text: r.message, highlights: [] } : null)
+    || { text: String(r.body || r.id || r.box_id || r.channel || r.task_id || r.error_id || r.tenant_id || ''), highlights: [] }
 }
 
 function keyOf(type, r, i) {
-  const id = r.msg_id || r.file_id || r.task_id || r.box_id || r.channel || r.tenant_id || r.event_id || r.id || i
+  const id = r.msg_id || r.file_id || r.task_id || r.box_id || r.channel || r.tenant_id || r.event_id || r.error_id || r.id || i
   const extra = type === 'files' ? `/${r.msg_id || ''}/${displayOf(r).text}` : ''
   return `${type}:${id}${r.box ? '@' + r.box : ''}${extra}`
 }
@@ -297,7 +383,7 @@ export function normalizeSearchResponse(data) {
  */
 export function rowAt(row) {
   const r = row || {}
-  return String(r.received_at || r.last_at || r.last_ts || r.last_hello_at || r.created_at || '')
+  return String(r.received_at || r.last_at || r.last_ts || r.last_hello_at || r.created_at || r.at || '')
 }
 
 /** A cursor answer (one section) folded into the current result. */
@@ -361,11 +447,14 @@ export function searchTarget(row) {
       return id ? { path: `/channel/${encodeURIComponent(id)}` } : null
     }
     case 'tenants': {
-      const id = String(r.tenant_id || '')
-      return id ? { tenant: id } : null
+      const id = String(r.tenant_id || '').trim()
+      return id && !/[\s/#?]/.test(id) ? { tenant: id } : null
     }
-    case 'events':
-      return { path: '/events' }
+    case 'events': {
+      const n = Number(r.event_id != null ? r.event_id : r.id)
+      if (!Number.isInteger(n) || n <= 0) return { path: '/events' }
+      return { path: `/events#${n}` }
+    }
     default:
       return null
   }

@@ -74,7 +74,40 @@
       <span v-if="searchMode" class="omnibox-mode" data-test="omnibox-mode">
         <UiIcon name="search" :size="14" />{{ t('search.mode_chip') }}
       </span>
-      <div class="omnibox-field">
+      <div class="omnibox-field" ref="fieldEl">
+        <button
+          v-if="global"
+          type="button"
+          class="search-syntax-btn"
+          data-test="search-syntax-help"
+          :aria-expanded="syntaxOpen ? 'true' : 'false'"
+          :aria-controls="syntaxId"
+          :aria-label="t('search.help_button')"
+          :title="t('search.help_button')"
+          @mousedown.prevent
+          @click="syntaxOpen = !syntaxOpen"
+        >?</button>
+        <div
+          v-if="global && syntaxOpen"
+          :id="syntaxId"
+          class="search-syntax"
+          data-test="search-syntax-panel"
+          role="dialog"
+          :aria-label="t('search.help_title')"
+          @mousedown.prevent
+        >
+          <p class="muted">{{ t('search.help_content') }}</p>
+          <p class="search-syntax__label">{{ t('search.help_operators') }}</p>
+          <ul>
+            <li v-for="row in syntaxRows" :key="row.op">
+              <button type="button" class="search-syntax__op" @click="insertOperator(row.op)">
+                <code dir="ltr">{{ row.op }}</code>
+                <span v-if="te(row.hintKey)">{{ t(row.hintKey) }}</span>
+                <span class="muted" dir="ltr">{{ row.example }}</span>
+              </button>
+            </li>
+          </ul>
+        </div>
         <textarea
           ref="inputEl"
           :aria-label="global ? t('search.omnibox_label') : omnibox ? t('composer.omnibox_label') : t('composer.message_label')"
@@ -195,7 +228,7 @@ import HumanName from '~/components/HumanName.vue'
 import { feedbackChannelFromPath, isFeedbackChannel } from '~/utils/feedback-channel.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
-import { applyCompletion, completeOperators, omniboxMode, operatorTokenAt, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
+import { applyCompletion, completeOperators, omniboxMode, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
 import {
   activeMentionQuery,
   filterRosterMentions,
@@ -390,7 +423,7 @@ const caretAt = ref(0)
 const opClosed = ref(false)
 const searchMode = computed(() => Boolean(props.omnibox || props.global) && omniboxMode(text.value) === 'search')
 const opTok = computed(() => (searchMode.value ? operatorTokenAt(text.value, caretAt.value) : null))
-const opCandidates = computed(() => (opTok.value ? completeOperators(opTok.value.token, props.operators, roster.peers).slice(0, 8) : []))
+const opCandidates = computed(() => (opTok.value ? completeOperators(opTok.value.token, props.operators, roster.peers).slice(0, OP_PICKER_CAP) : []))
 const opPickerOpen = computed(() => !opClosed.value && opCandidates.value.length > 0)
 
 /** Same scroll as the mention list: arrows move this dropdown, not the page. */
@@ -475,7 +508,11 @@ function restore(body: string, files?: File[]) {
 }
 defineExpose({ setText, focus: focusInput, restore })
 
-const { t } = useI18n({ useScope: 'global' })
+const { t, te } = useI18n({ useScope: 'global' })
+const syntaxOpen = ref(false)
+const syntaxId = useId()
+const fieldEl = ref<HTMLElement | null>(null)
+const syntaxRows = computed(() => operatorHelpRows(props.operators && props.operators.length ? props.operators : undefined))
 const placeholder = computed(() => props.placeholder || t('composer.placeholder_default', { mention: '@CLE-07' }))
 
 function caret(): number {
@@ -483,7 +520,7 @@ function caret(): number {
 }
 
 /* a refusal is about the text that was there; editing it clears it */
-watch(text, () => { sizeError.value = null })
+watch(text, () => { sizeError.value = null; syntaxOpen.value = false })
 
 function syncMention(ev?: Event) {
   const prevTok = opTok.value && opTok.value.token
@@ -606,8 +643,40 @@ function pickIn(row: { taskId: string, title: string, channel: string }) {
   })
 }
 
+function insertOperator(op: string) {
+  syntaxOpen.value = false
+  const cur = text.value
+  const next = omniboxMode(cur) !== 'search'
+    ? `/search ${op}`
+    : (() => {
+        const at = inputEl.value?.selectionStart ?? cur.length
+        const gap = at > 0 && !/\s/.test(cur[at - 1] || '') ? ' ' : ''
+        return cur.slice(0, at) + gap + op + cur.slice(at)
+      })()
+  text.value = next
+  nextTick(() => {
+    const el = inputEl.value
+    if (!el) return
+    caretAt.value = next.length
+    el.focus()
+    el.setSelectionRange(next.length, next.length)
+  })
+}
+
+function onSyntaxPointerDown(ev: PointerEvent) {
+  if (!syntaxOpen.value) return
+  const root = fieldEl.value
+  if (root && ev.target instanceof Node && root.contains(ev.target)) return
+  syntaxOpen.value = false
+}
+
 function onKeydown(ev: KeyboardEvent) {
   if (ev.isComposing) return
+  if (syntaxOpen.value && ev.key === 'Escape') {
+    ev.preventDefault()
+    syntaxOpen.value = false
+    return
+  }
   if (onOperatorKey(ev)) return
   if (props.global && onGlobalKey(ev)) return
   if (inCode.value && ev.key === 'Escape' && !pickerOpen.value && !inPickerOpen.value) {
@@ -871,10 +940,12 @@ onMounted(() => {
   if (!props.global) return
   window.addEventListener('dragover', onWindowDragOver)
   window.addEventListener('drop', onWindowDrop)
+  window.addEventListener('pointerdown', onSyntaxPointerDown)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('dragover', onWindowDragOver)
   window.removeEventListener('drop', onWindowDrop)
+  window.removeEventListener('pointerdown', onSyntaxPointerDown)
 })
 </script>
 
@@ -1033,4 +1104,57 @@ textarea.in-code {
   z-index: 60;
   box-shadow: 0 8px 24px rgb(0 0 0 / .25);
 }
+.search-syntax-btn {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  inset-inline-end: 4px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.search-syntax {
+  position: absolute;
+  z-index: 70;
+  top: calc(100% + 4px);
+  inset-inline: 0;
+  max-height: min(50vh, 320px);
+  overflow: auto;
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .25);
+}
+.search-syntax p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.search-syntax__label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.search-syntax ul { list-style: none; margin: 0; padding: 0; }
+.search-syntax__op {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.search-syntax__op code { font-family: var(--font-mono); }
+.search-syntax__op span { min-width: 0; overflow-wrap: anywhere; }
 </style>

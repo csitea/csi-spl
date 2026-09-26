@@ -18,6 +18,9 @@ import {
   searchApiQuery,
   searchPath,
   searchQueryOf,
+  ensureSearchOperators,
+  OP_PICKER_CAP,
+  operatorHelpRows,
   searchTarget,
   shouldLoadOperators,
 } from '../../src/utils/search.mjs'
@@ -89,13 +92,17 @@ describe('operator autocomplete', () => {
     assert.equal(operatorTokenAt('/search "a fr', 13), null)
   })
   it('any part of an operator, example, or value matches', () => {
-    assert.deepEqual(completeOperators('f').map((c) => c.insert), ['from:', 'is:offline ', 'has:file ', 'type:file ', 'before:', 'after:', 'filename:', 'ext:'])
+    assert.deepEqual(completeOperators('f').map((c) => c.insert), ['from:', 'is:offline ', 'has:file ', 'type:file ', 'kind:file ', 'before:', 'after:', 'filename:', 'ext:'])
     assert.deepEqual(completeOperators('task').map((c) => c.insert), ['is:task ', 'topic:'])
     assert.ok(completeOperators('Is').some((c) => c.insert === 'is:'))
   })
   it('closed values after the colon', () => {
     assert.deepEqual(completeOperators('is:r').map((c) => c.insert), ['is:result ', 'is:reject ', 'is:root ', 'is:revoked '])
-    assert.deepEqual(completeOperators('type:r').map((c) => c.insert), ['type:robot ', 'type:user '])
+    assert.deepEqual(completeOperators('type:r').map((c) => c.insert), ['type:robot ', 'type:user ', 'type:thread ', 'type:person ', 'type:workspace '])
+    assert.deepEqual(completeOperators('type:ten').map((c) => c.insert), ['type:tenant '])
+    assert.deepEqual(completeOperators('type:ev').map((c) => c.insert), ['type:event '])
+    assert.deepEqual(completeOperators('kind:ten').map((c) => c.insert), ['kind:tenant '])
+    assert.deepEqual(completeOperators('channel:').map((c) => c.insert), ['channel:dm '])
     assert.deepEqual(completeOperators('type:top').map((c) => c.insert), ['type:topic '])
     assert.deepEqual(completeOperators('has:c').map((c) => c.insert), ['has:attachment ', 'has:code '])
   })
@@ -142,7 +149,7 @@ describe('operator autocomplete', () => {
     )
     assert.deepEqual(
       completeOperators('f', SEARCH_OPERATORS, roster).map((c) => c.insert),
-      ['from:', 'is:offline ', 'has:file ', 'type:file ', 'before:', 'after:', 'filename:', 'ext:'],
+      ['from:', 'is:offline ', 'has:file ', 'type:file ', 'kind:file ', 'before:', 'after:', 'filename:', 'ext:'],
     )
     const many = Array.from({ length: 9 }, (_, n) => ({ id: `CLE-${n + 1}` }))
     const capped = completeOperators('from:', SEARCH_OPERATORS, many)
@@ -168,14 +175,22 @@ describe('operator autocomplete', () => {
   it('the composer passes the roster into from: completions', () => {
     const src = read('src/components/MessageComposer.vue')
     assert.match(src, /completeOperators\(opTok\.value\.token, props\.operators, roster\.peers\)/)
+    assert.match(src, /data-test="search-syntax-help"/)
+    assert.match(src, /OP_PICKER_CAP/)
+    assert.match(read('src/pages/search.vue'), /data-test="search-operator-help"/)
+    assert.match(read('src/pages/events.vue'), /scrollRowToTop/)
   })
   it('the catalogue carries every operator the brief names', () => {
     const ops = SEARCH_OPERATORS.map((o) => o.op)
-    for (const op of ['from:', 'to:', 'in:', 'is:', 'has:', 'before:', 'after:', 'on:', 'type:', 'title:', 'subject:', 'name:', 'filename:', 'ext:', 'larger:', 'smaller:', 'box:', 'topic:']) {
+    for (const op of ['from:', 'to:', 'in:', 'channel:', 'is:', 'has:', 'before:', 'after:', 'on:', 'type:', 'kind:', 'title:', 'subject:', 'name:', 'filename:', 'ext:', 'larger:', 'smaller:', 'box:', 'topic:']) {
       assert.ok(ops.includes(op), op)
     }
     const types = SEARCH_OPERATORS.find((o) => o.op === 'type:').values
     assert.ok(types.includes('tenant') && types.includes('event'))
+    const shown = completeOperators('type:').map((c) => c.insert).slice(0, OP_PICKER_CAP)
+    assert.ok(shown.includes('type:tenant '))
+    assert.ok(shown.includes('type:event '))
+    assert.equal(operatorHelpRows().some((r) => r.op === 'name:' && r.hintKey === 'search.op.name'), true)
   })
   it('applying a completion replaces the token and puts the caret after it', () => {
     const tok = operatorTokenAt('/search a fr b', 12)
@@ -293,6 +308,44 @@ describe('operators document (search-v1 §6)', () => {
   })
 })
 
+describe('1.1 operators on an older catalogue', () => {
+  it('adds tenant, event, kind: and channel: without duplicating them', () => {
+    const older = [
+      { op: 'type:', values: ['message', 'topic'] },
+      { op: 'in:', example: 'in:#lobby', values: ['dm'] },
+    ]
+    const once = ensureSearchOperators(older)
+    assert.deepEqual(once.find((o) => o.op === 'type:').values.slice(0, 2), ['message', 'topic'])
+    for (const v of ['tenant', 'event', 'thread', 'person', 'workspace', 'log']) {
+      assert.ok(once.find((o) => o.op === 'type:').values.includes(v), v)
+    }
+    assert.equal(once.find((o) => o.op === 'kind:').example, 'kind:message')
+    assert.equal(once.find((o) => o.op === 'channel:').example, 'channel:#lobby')
+    assert.equal(ensureSearchOperators(once), once)
+    assert.equal(ensureSearchOperators(SEARCH_OPERATORS), SEARCH_OPERATORS)
+  })
+  it('folds type aliases after the canonical names, and accepts hl', () => {
+    const ops = normalizeOperators({
+      types: [
+        { type: 'message', aliases: ['msg'] },
+        { type: 'topic', aliases: ['thread'] },
+        { type: 'tenant', aliases: ['workspace'] },
+        { type: 'event', aliases: ['log'] },
+      ],
+      operators: [{ name: 'type', aliases: ['kind'], values: 'type' }],
+    })
+    const values = ops.find((o) => o.op === 'type:').values
+    assert.deepEqual(values.slice(0, 4), ['message', 'topic', 'tenant', 'event'])
+    assert.ok(values.indexOf('thread') > values.indexOf('event'))
+    assert.ok(completeOperators('type:per', ensureSearchOperators(ops)).some((c) => c.insert === 'type:person '))
+    const row = normalizeSearchResponse({
+      groups: { tenants: { results: [{ tenant_id: 't1', name: { text: 'acme', hl: [[0, 2]] } }] } },
+    }).groups[0].items[0]
+    assert.deepEqual(row.display, { text: 'acme', highlights: [[0, 2]] })
+    assert.equal(row.key, 'tenants:t1')
+  })
+})
+
 describe('keyboard', () => {
   it('ArrowDown/Up wrap; Home/End jump; others keep', () => {
     assert.equal(moveIndex(-1, 3, 'ArrowDown'), 0)
@@ -321,7 +374,9 @@ describe('click targets', () => {
     assert.deepEqual(searchTarget({ type: 'channels', channel: 'lobby' }), { path: '/channel/lobby' })
     assert.deepEqual(searchTarget({ type: 'boxes', box_id: 'box-a' }), { search: 'box:box-a' })
     assert.deepEqual(searchTarget({ type: 'tenants', tenant_id: 't1' }), { tenant: 't1' })
-    assert.deepEqual(searchTarget({ type: 'events', id: 4 }), { path: '/events' })
+    assert.deepEqual(searchTarget({ type: 'events', event_id: 4 }), { path: '/events#4' })
+    assert.deepEqual(searchTarget({ type: 'events', id: 9 }), { path: '/events#9' })
+    assert.deepEqual(searchTarget({ type: 'events' }), { path: '/events' })
   })
   it('CONTROL: a row without an id goes nowhere', () => {
     for (const r of [null, {}, { type: 'messages' }, { type: 'robots' }, { type: 'channels' }, { type: 'boxes' }, { type: 'tenants' }, { type: 'nope', id: 'x' }]) {

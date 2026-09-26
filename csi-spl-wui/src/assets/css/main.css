@@ -745,6 +745,7 @@ html.pane-dragging * {
   max-height: calc(100vh - var(--top-bar-h) - 8px);
   field-sizing: content;
   padding: 6px 0;
+  padding-inline-end: 28px;
   overflow-y: auto;
   resize: none;
 }

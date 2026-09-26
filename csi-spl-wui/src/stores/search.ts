@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { SEARCH_OPERATORS, mergeSearchPage, type SearchOperator, type SearchResult } from '~/utils/search.mjs'
+import { SEARCH_OPERATORS, ensureSearchOperators, mergeSearchPage, type SearchOperator, type SearchResult } from '~/utils/search.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 
 type SearchError = { status: number, token: string, detail: string, pos: number, badToken: string, retryAfter: number, raw: unknown }
@@ -86,7 +86,7 @@ export const useSearchStore = defineStore('search', () => {
     opsLoaded = true
     try {
       const api = useSpoolApi()
-      operators.value = await withSessionRetry(api, () => api.searchOperators())
+      operators.value = ensureSearchOperators(await withSessionRetry(api, () => api.searchOperators()))
     } catch {
       /* route not deployed yet / door closed: keep the built-in catalogue */
     }

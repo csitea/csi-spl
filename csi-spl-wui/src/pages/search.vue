@@ -23,6 +23,13 @@
             <NuxtLink :to="localePath(searchPath(ex))"><code dir="ltr">/search {{ ex }}</code></NuxtLink>
           </li>
         </ul>
+        <p class="muted">{{ t('search.help_operators') }}</p>
+        <ul data-test="search-operator-help">
+          <li v-for="row in helpRows" :key="row.op">
+            <code dir="ltr">{{ row.example }}</code>
+            <span v-if="te(row.hintKey)" class="muted"> · {{ t(row.hintKey) }}</span>
+          </li>
+        </ul>
       </section>
 
       <p v-else-if="search.loading" class="muted" data-test="search-loading" aria-live="polite">{{ t('search.loading') }}</p>
@@ -95,6 +102,7 @@
             <p v-if="row.type === 'messages'" class="search-row__snippet">
               <template v-for="(s, i) in segs(row)" :key="i"><mark v-if="s.mark">{{ s.text }}</mark><template v-else>{{ s.text }}</template></template>
             </p>
+            <p v-else-if="eventDetail(row)" class="search-row__snippet">{{ eventDetail(row) }}</p>
           </div>
           <button
             v-if="g.next"
@@ -119,13 +127,13 @@ import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
 import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'
-import { flattenGroups, highlightSegments, moveIndex, searchPath, searchTarget, type SearchRow, rowAt } from '~/utils/search.mjs'
+import { flattenGroups, highlightSegments, moveIndex, operatorHelpRows, searchPath, searchTarget, type SearchRow, rowAt } from '~/utils/search.mjs'
 import { openThreadRow, scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import HumanName from '~/components/HumanName.vue'
 
-const { t } = useI18n({ useScope: 'global' })
+const { t, te } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 const route = useRoute()
 const router = useRouter()
@@ -160,9 +168,12 @@ const examples = [
   'title:migration',
   'type:file ext:pdf larger:1M',
   'has:code in:#lobby',
+  'type:channel name:dev',
+  'type:tenant name:ops',
   'type:tenant csitea',
   'type:event fetch',
 ]
+const helpRows = computed(() => operatorHelpRows(search.operators))
 
 const query = computed(() => (typeof route.query.q === 'string' ? route.query.q : ''))
 const result = computed(() => search.result)
@@ -194,8 +205,12 @@ function meta(row: SearchRow): string {
     case 'users': return ''
     case 'channels': return r.count != null ? t('search.count_messages', { n: Number(r.count) || 0 }, Number(r.count) || 0) : ''
     case 'boxes': return Array.isArray(r.agents) ? r.agents.join(', ') : ''
-    case 'tenants': return [r.tenant_id ? String(r.tenant_id) : '', r.role ? String(r.role) : ''].filter(Boolean).join(' · ')
-    case 'events': return [r.code ? r.message : (r.path || r.error_id), when(r.received_at)].filter(Boolean).join(' · ')
+    case 'tenants': {
+      const role = String(r.role || '')
+      const roleLabel = role && te('role.' + role) ? t('role.' + role) : ''
+      return [String(r.tenant_id || ''), roleLabel, r.current ? t('search.current_tenant') : ''].filter(Boolean).join(' · ')
+    }
+    case 'events': return [r.code || r.path || r.error_id, when(r.received_at)].filter(Boolean).join(' · ')
     default: return ''
   }
 }
@@ -203,6 +218,12 @@ function meta(row: SearchRow): string {
 function when(ts: unknown): string {
   const d = new Date(String(ts || ''))
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString()
+}
+
+function eventDetail(row: SearchRow): string {
+  if (row.type !== 'events') return ''
+  const msg = String((row as Record<string, unknown>).message || '')
+  return msg && msg !== row.display.text ? msg : ''
 }
 
 const errorLine = computed(() => {
@@ -301,7 +322,8 @@ useHead(() => ({ title: query.value ? `${t('search.title')}: ${query.value}` : t
   overflow-wrap: anywhere;
 }
 .search-warnings, .search-help ul { list-style: none; padding: 0; margin: 0 0 12px; }
-.search-help li { margin: 4px 0; }
+.search-help li { margin: 4px 0; overflow-wrap: anywhere; }
+.search-help code { overflow-wrap: anywhere; }
 .search-results { outline: none; min-width: 0; max-width: 100%; }
 .search-results:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: var(--radius); }
 .search-group { margin: 0 0 16px; min-width: 0; }

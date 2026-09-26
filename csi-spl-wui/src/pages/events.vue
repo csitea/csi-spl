@@ -36,7 +36,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in rows" :key="r.id" data-test="events-row">
+            <tr v-for="r in rows" :id="r.id > 0 ? String(r.id) : undefined" :key="r.id" data-test="events-row" :class="{ 'events-row--focus': route.hash === '#' + r.id }">
               <td dir="ltr">{{ whenOf(r) }}</td>
               <td><code dir="ltr">{{ r.error_id }}</code></td>
               <td dir="ltr">{{ r.source }}</td>
@@ -62,6 +62,7 @@
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
 import { createEventsClient, eventsErrorKey } from '~/utils/event-log.mjs'
+import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 
 type EventRow = {
   id: number
@@ -75,6 +76,7 @@ type EventRow = {
 }
 
 const { t } = useI18n({ useScope: 'global' })
+const route = useRoute()
 const session = useSessionStore()
 const client = createEventsClient({ base: useAuthBase() })
 const signedIn = computed(() => session.state === 'in')
@@ -162,6 +164,18 @@ watch(() => session.state, (st) => {
     loadError.value = ''
   }
 }, { immediate: true })
+
+function revealEvent() {
+  const hash = decodeURIComponent(String(route.hash || '').replace(/^#/, ''))
+  if (!/^[1-9][0-9]*$/.test(hash)) return
+  nextTick(() => {
+    const el = document.getElementById(hash)
+    const scroller = el?.closest<HTMLElement>('.feed-body')
+    if (el && scroller) scrollRowToTop(scroller, el)
+  })
+}
+watch(rows, () => revealEvent())
+watch(() => route.hash, () => revealEvent())
 </script>
 
 <style scoped>
@@ -181,6 +195,7 @@ watch(() => session.state, (st) => {
   border-collapse: collapse;
   font-size: 0.875rem;
 }
+.events-row--focus { background: var(--color-selected); }
 .events-table th,
 .events-table td {
   text-align: start;

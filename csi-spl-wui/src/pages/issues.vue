@@ -51,7 +51,7 @@
               <th scope="col">{{ t('issues.sort_updated') }}</th>
             </tr>
             <tr class="issues-frow">
-              <th />
+              <th class="issues-c-key" />
               <th />
               <th>
                 <div class="issues-status-dd" data-test="issues-filter-status">
@@ -1257,6 +1257,9 @@ onUnmounted(() => {
 .issues-names th { top: 0; height: 1.75rem; font-size: 0.75rem; font-weight: 600; color: var(--color-muted); }
 .issues-frow th { top: 1.75rem; font-weight: normal; }
 .issues-c-key { width: 1%; }
+/* a sheet's frozen first column: the key stays in view when the table scrolls sideways */
+.issues-table .issues-c-key { position: sticky; inset-inline-start: 0; z-index: 1; background: var(--color-bg); }
+.issues-table thead .issues-c-key { z-index: 3; }
 .issues-c-title { min-width: 14rem; max-width: 28rem; }
 .issues-title-cell { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 28rem; }
 .issues-note { white-space: normal; }
@@ -1364,7 +1367,9 @@ onUnmounted(() => {
 }
 .issues-detail__title { font-size: 1.125rem; font-weight: 600; }
 .issues-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 0.8125rem; color: var(--color-muted); }
-.issues-props { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.issues-props { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; min-width: 0; }
+/* the deadline takes a row of its own: a chip beside it would stretch to its height */
+.issues-props > .issues-field { flex-basis: 100%; }
 .issues-prop { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 4px 8px; }
 .issues-prop--fixed { cursor: default; display: inline-flex; align-items: center; gap: 4px; }
 .issues-meta { margin: 0; font-size: 0.75rem; }

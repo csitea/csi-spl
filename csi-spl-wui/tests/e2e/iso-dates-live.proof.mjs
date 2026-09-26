@@ -81,6 +81,7 @@ async function nav(p, url) {
  * a month name in en or bg. A version (0.8.6) is not a date.
  */
 const SCAN = () => {
+  const MONTHS = 'January|February|March|April|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec'
   const text = document.body.innerText
   const iso = text.match(/\b\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?\b/g) || []
   const bad = []
@@ -88,8 +89,9 @@ const SCAN = () => {
     /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g,
     /\b\d{1,2}\.\d{1,2}\.\d{4}\b/g,
     /\b\d{1,2}-\d{1,2}-\d{4}\b/g,
-    /\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?(?:\s+\d{4})?\b/g,
-    /\b(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:,?\s+\d{4})?\b/g,
+    /* a month NAME on the same line as its day; "6\nMarkdown" (a count, then a title) is not a date */
+    new RegExp(`\\b\\d{1,2} (?:${MONTHS})\\.?(?: \\d{4})?\\b`, 'g'),
+    new RegExp(`\\b(?:${MONTHS})\\.? \\d{1,2}(?:,? \\d{4})?\\b`, 'g'),
     /\d{1,2}\s+(?:яну|фев|мар|апр|май|юни|юли|авг|сеп|окт|ное|дек)[а-я]*\.?(?:\s+\d{4}\s*г\.?)?/gi,
     /\d{4}\s*г\./g,
   ]

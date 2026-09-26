@@ -41,12 +41,15 @@ const props = defineProps<{
   editable?: boolean
   mergePrev?: boolean
   mergeNext?: boolean
+  /** a thread line: offer Open parent section (CLE-34996) */
+  parent?: boolean
 }>()
 
 const emit = defineEmits<{
   close: []
   escape: []
   open: []
+  parent: []
   edit: []
   copy: []
   'merge-prev': []
@@ -63,6 +66,7 @@ const items = computed(() => msgMenuItems({
   editable: props.editable,
   mergePrev: props.mergePrev,
   mergeNext: props.mergeNext,
+  parent: props.parent,
 }))
 
 function itemEls(): HTMLElement[] {
@@ -126,6 +130,7 @@ function onMenuKey(e: KeyboardEvent) {
 
 function choose(id: string) {
   if (id === 'open') emit('open')
+  else if (id === 'parent') emit('parent')
   else if (id === 'edit') emit('edit')
   else if (id === 'copy') emit('copy')
   else if (id === 'merge-prev') emit('merge-prev')

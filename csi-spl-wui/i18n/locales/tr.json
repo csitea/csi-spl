@@ -449,6 +449,7 @@
     "msg_menu": {
       "label": "Mesaj menüsü",
       "open": "Aç",
+      "open_parent": "Üst bölümü aç",
       "edit": "Düzenle",
       "copy_link": "Bağlantıyı kopyala",
       "delete": "Sil",

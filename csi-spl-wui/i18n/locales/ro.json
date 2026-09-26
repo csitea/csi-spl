@@ -449,6 +449,7 @@
     "msg_menu": {
       "label": "Meniu mesaj",
       "open": "Deschide",
+      "open_parent": "Deschide secțiunea părinte",
       "edit": "Editează",
       "copy_link": "Copiază linkul",
       "delete": "Șterge",

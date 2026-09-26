@@ -449,6 +449,7 @@
     "msg_menu": {
       "label": "Ziņas izvēlne",
       "open": "Atvērt",
+      "open_parent": "Atvērt vecāksadaļu",
       "edit": "Rediģēt",
       "copy_link": "Kopēt saiti",
       "delete": "Dzēst",

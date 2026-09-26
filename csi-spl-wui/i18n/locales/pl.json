@@ -449,6 +449,7 @@
     "msg_menu": {
       "label": "Menu wiadomości",
       "open": "Otwórz",
+      "open_parent": "Otwórz sekcję nadrzędną",
       "edit": "Edytuj",
       "copy_link": "Kopiuj link",
       "delete": "Usuń",

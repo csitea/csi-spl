@@ -201,9 +201,11 @@
       :editable="!!editable && !editing"
       :merge-prev="!!mergePrev"
       :merge-next="!!mergeNext"
+      :parent="showParent"
       @close="closeMenu()"
       @escape="rowEl?.focus({ preventScroll: true })"
       @open="onMenuOpen"
+      @parent="onMenuParent"
       @edit="onMenuEdit"
       @copy="copyMessageLink"
       @merge-prev="onMerge('previous')"
@@ -238,6 +240,7 @@ import {
 } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMessageMenu } from '~/composables/useMessageMenu'
+import { useParentSection } from '~/composables/useParentSection'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
 import { joinBodies, threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
 import { reactionChips } from '~/utils/emoji.mjs'
@@ -423,6 +426,16 @@ function onMenuOpen() {
     return
   }
   if (rowEl.value) openThreadRow(rowEl.value)
+}
+
+/* CLE-34996: a thread line (not a middle card) can go back to where its
+   thread lives: the channel or DM with the parent card selected, or the
+   issue whose discussion it is. */
+const parentNav = useParentSection()
+const showParent = computed(() => !props.clickable && parentNav.hasParent(props.msg))
+function onMenuParent() {
+  closeMenu()
+  void parentNav.openParent(props.msg)
 }
 
 /* A topic card in the middle links to this page with its topic open on the

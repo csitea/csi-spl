@@ -119,6 +119,12 @@ export const UI_ICON_PATHS = {
     "M12 17v5",
     "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z",
   ],
+  // Message menu, Open parent section (lucide corner-up-left): back up to
+  // the channel or DM the thread lives in. CLE-34996.
+  parent: [
+    "m9 14-5-5 5-5",
+    "M20 20v-7a4 4 0 0 0-4-4H4",
+  ],
   // Message menu: two messages become one (a Y joining downward).
   merge: [
     "M8 4v6",

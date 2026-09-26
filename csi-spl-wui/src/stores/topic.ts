@@ -38,6 +38,19 @@ export const useTopicStore = defineStore('topic', () => {
    * the topic was opened from is not highlighted.
    */
   const paneSelected = ref(false)
+  /**
+   * CLE-34996: the topic whose parent card the middle list should bring into
+   * view once (Open parent section). While it is set, the page does not
+   * close that topic for being absent from the first page of the list; the
+   * list reads further back for it instead (LiveFeed).
+   */
+  const reveal = ref('')
+  function revealParent(taskId: string) {
+    reveal.value = String(taskId || '')
+  }
+  function revealDone() {
+    reveal.value = ''
+  }
   /** New Omnibox topics shown at the top of the right pane, newest first. */
   const born = ref<SpoolMessage[]>([])
 
@@ -95,6 +108,7 @@ export const useTopicStore = defineStore('topic', () => {
     rootMsg.value = null
     born.value = []
     paneSelected.value = false
+    reveal.value = ''
   }
 
   /**
@@ -129,5 +143,5 @@ export const useTopicStore = defineStore('topic', () => {
     dismissBorn(id)
   }
 
-  return { open, parentTaskId, messages, target, rootMsg, born, paneSelected, noteBorn, dismissBorn, clearBorn, openTopic, openTarget, setTarget, selectPane, applyEditedRoot, applyReactionsUpdate, dropRoot, close }
+  return { open, parentTaskId, messages, target, rootMsg, born, paneSelected, reveal, revealParent, revealDone, noteBorn, dismissBorn, clearBorn, openTopic, openTarget, setTarget, selectPane, applyEditedRoot, applyReactionsUpdate, dropRoot, close }
 })

@@ -10,15 +10,21 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * its topic on the right, as the replies button does; a thread line is
  * selected and scrolled into view. The order is Open, Copy link, Edit.
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean }} [opts]
- * @returns {{ id: 'open' | 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete', icon: 'open' | 'pencil' | 'copy' | 'merge' | 'trash', labelKey: string }[]}
+ * A thread line (`parent`, CLE-34996) also has Open parent section, right
+ * after Open: the channel or DM the thread lives in, the parent card
+ * selected there and the thread kept open (utils/parent-section.mjs).
+ *
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean }} [opts]
+ * @returns {{ id: 'open' | 'parent' | 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete', icon: 'open' | 'parent' | 'pencil' | 'copy' | 'merge' | 'trash', labelKey: string }[]}
  */
 export function msgMenuItems(opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
   const editable = Boolean(o.editable)
   const copy = { id: 'copy', icon: 'copy', labelKey: 'feed.msg_menu.copy_link' }
   const edit = { id: 'edit', icon: 'pencil', labelKey: 'feed.msg_menu.edit' }
-  const items = [{ id: 'open', icon: 'open', labelKey: 'feed.msg_menu.open' }, copy]
+  const items = [{ id: 'open', icon: 'open', labelKey: 'feed.msg_menu.open' }]
+  if (o.parent) items.push({ id: 'parent', icon: 'parent', labelKey: 'feed.msg_menu.open_parent' })
+  items.push(copy)
   if (editable) items.push(edit)
   if (editable && o.mergePrev) items.push({ id: 'merge-prev', icon: 'merge', labelKey: 'feed.msg_menu.merge_prev' })
   if (editable && o.mergeNext) items.push({ id: 'merge-next', icon: 'merge', labelKey: 'feed.msg_menu.merge_next' })

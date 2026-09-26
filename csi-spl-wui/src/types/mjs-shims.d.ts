@@ -395,12 +395,23 @@ declare module '~/utils/typed-by.mjs' {
 }
 
 declare module '~/utils/msg-menu.mjs' {
-  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean }): { id: 'open' | 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete', icon: 'open' | 'pencil' | 'copy' | 'merge' | 'trash', labelKey: string }[]
+  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean }): { id: 'open' | 'parent' | 'edit' | 'copy' | 'merge-prev' | 'merge-next' | 'delete', icon: 'open' | 'parent' | 'pencil' | 'copy' | 'merge' | 'trash', labelKey: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string
   export function topicPaneLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, currentTaskId?: string }): string
   export function threadLineLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, pathFor?: (path: string) => string }): string
   export function threadNeighbor(rows: unknown[], msg: unknown, which: 'previous' | 'next'): Record<string, unknown> | null
   export function joinBodies(older: unknown, newer: unknown): string
+}
+
+declare module '~/utils/parent-section.mjs' {
+  export const ISSUE_CHANNEL: 'tasks'
+  export interface ParentSection { path: string, query: Record<string, string>, hash: string, kind: 'channel' | 'dm' | 'issue' }
+  export function parentChannelOf(msg: unknown): string
+  export function parentTopicOf(msg: unknown): string
+  export function mayBeIssueTopic(msg: unknown): boolean
+  export function parentSection(msg: unknown, opts?: { self?: string, target?: { taskId?: string, mode?: string, parentTaskId?: string } | null, issueKey?: string }): ParentSection | null
+  export function parentSectionHref(section: { path: string, query?: Record<string, string>, hash?: string } | null, pathFor?: (path: string) => string): string
+  export function issueKeyForTask(list: unknown, taskId: string): string
 }
 
 declare module '~/utils/msg-edit.mjs' {

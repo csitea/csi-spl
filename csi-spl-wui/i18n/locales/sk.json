@@ -449,6 +449,7 @@
     "msg_menu": {
       "label": "Ponuka správy",
       "open": "Otvoriť",
+      "open_parent": "Otvoriť nadradenú sekciu",
       "edit": "Upraviť",
       "copy_link": "Kopírovať odkaz",
       "delete": "Odstrániť",

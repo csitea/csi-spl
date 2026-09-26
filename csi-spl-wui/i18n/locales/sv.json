@@ -449,6 +449,7 @@
     "msg_menu": {
       "label": "Meddelandemeny",
       "open": "Öppna",
+      "open_parent": "Öppna överordnad sektion",
       "edit": "Redigera",
       "copy_link": "Kopiera länk",
       "delete": "Ta bort",

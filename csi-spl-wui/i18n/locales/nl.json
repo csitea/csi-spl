@@ -449,6 +449,7 @@
     "msg_menu": {
       "label": "Berichtmenu",
       "open": "Openen",
+      "open_parent": "Bovenliggende sectie openen",
       "edit": "Bewerken",
       "copy_link": "Link kopiëren",
       "delete": "Verwijderen",

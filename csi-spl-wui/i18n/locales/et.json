@@ -449,6 +449,7 @@
     "msg_menu": {
       "label": "Sõnumi menüü",
       "open": "Ava",
+      "open_parent": "Ava ülemjaotis",
       "edit": "Muuda",
       "copy_link": "Kopeeri link",
       "delete": "Kustuta",

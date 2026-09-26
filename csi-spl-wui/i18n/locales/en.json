@@ -449,6 +449,7 @@
     "msg_menu": {
       "label": "Message menu",
       "open": "Open",
+      "open_parent": "Open parent section",
       "edit": "Edit",
       "copy_link": "Copy link",
       "delete": "Delete",

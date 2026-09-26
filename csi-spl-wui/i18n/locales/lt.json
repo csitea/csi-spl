@@ -449,6 +449,7 @@
     "msg_menu": {
       "label": "Žinutės meniu",
       "open": "Atidaryti",
+      "open_parent": "Atidaryti pirminę skiltį",
       "edit": "Redaguoti",
       "copy_link": "Kopijuoti nuorodą",
       "delete": "Ištrinti",

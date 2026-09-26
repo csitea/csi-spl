@@ -14,7 +14,7 @@
 # is the second leg, and every failure mode below leaves the message delivered.
 #
 # Usage:
-#   spool-notify.sh --to <ID> [--from <ID>] [--kind task|result|note|reject]
+#   spool-notify.sh --to <ID> [--from <ID>] [--kind task|result|note|reject|blocker|msg]
 #                   [--task <uuid>] [--msg-id <uuid>]
 #                   (--body <text> | --body-file <path> | --body-stdin)
 #

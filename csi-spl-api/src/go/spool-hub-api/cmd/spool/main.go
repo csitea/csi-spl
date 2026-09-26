@@ -193,7 +193,7 @@ func cmdSend(cfg *config.Config, args []string) int {
 	from := fs.String("from", "", "sender agent id")
 	to := fs.String("to", "", "recipient agent id")
 	task := fs.String("task", "", "task id (uuid); minted if empty")
-	kind := fs.String("kind", "", "task|result|note|reject")
+	kind := fs.String("kind", "", msg.KindList)
 	body := fs.String("body", "", "message body")
 	var fileIDs, fileRefs, dirBlobs, dirRefs stringList
 	fs.Var(&fileIDs, "file-id", "attach an existing blob by file_id (repeatable)")

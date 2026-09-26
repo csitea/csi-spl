@@ -22,7 +22,7 @@
 # @param   upper case are accepted and normalized)
 # @param DESK_BODY - required: the post text
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
-# @param DESK_KIND (optional) - note (default) | task | result
+# @param DESK_KIND (optional) - note (default) | task | result | blocker | msg
 # @param DESK_FILES (optional) - space-separated paths to attach (each put as a blob)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_CHANNEL=spool-hub-devel DESK_BODY='0.5.6 is out' DRY_RUN=0 ./run -a do_spl_desk_post
@@ -38,7 +38,7 @@ do_spl_desk_post() {
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   [[ "$channel" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL DESK_CHANNEL must be a channel id (e.g. spool-hub-devel), got: '${DESK_CHANNEL:-}'"; return 1; }
   [[ -n "$body" ]] || { do_log "FATAL DESK_BODY must carry the post text"; return 1; }
-  [[ "$kind" =~ ^(note|task|result)$ ]] || { do_log "FATAL DESK_KIND must be note, task or result, got: '$kind'"; return 1; }
+  [[ "$kind" =~ ^(note|task|result|blocker|msg)$ ]] || { do_log "FATAL DESK_KIND must be note, task, result, blocker or msg, got: '$kind'"; return 1; }
   local f files=()
   read -r -a files <<<"${DESK_FILES:-}"
   for f in "${files[@]}"; do

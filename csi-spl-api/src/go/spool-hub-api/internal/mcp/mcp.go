@@ -37,7 +37,7 @@ type SendIn struct {
 	From    string   `json:"from,omitempty" jsonschema:"sender agent id, e.g. GRK-03; a seated server defaults it to its seat and refuses any other"`
 	To      string   `json:"to,omitempty" jsonschema:"recipient agent id, e.g. CLE-07; empty for a channel post"`
 	TaskID  string   `json:"task_id,omitempty" jsonschema:"topic uuid; a new one is minted when empty"`
-	Kind    string   `json:"kind" jsonschema:"one of task, result, note, reject"`
+	Kind    string   `json:"kind" jsonschema:"one of task, result, note, reject, blocker (cannot proceed without input), msg (a plain message)"`
 	Body    string   `json:"body" jsonschema:"message text"`
 	FileIDs []string `json:"file_ids,omitempty" jsonschema:"file_ids from spool_put_file to attach"`
 	ToBox   string   `json:"to_box,omitempty" jsonschema:"hub mode only: the recipient's box id when the agent id exists on several boxes (a seated server sends HUM-* to box-wui by default)"`

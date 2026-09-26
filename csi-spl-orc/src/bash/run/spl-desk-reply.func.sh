@@ -33,7 +33,8 @@
 # @param DESK_AGENT - required: the answering agent id (the pane's id)
 # @param DESK_BODY - required: the answer text
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
-# @param DESK_KIND (optional) - note (default) | result | reject
+# @param DESK_KIND (optional) - note (default) | result | reject | blocker | msg
+# @param   (blocker = the agent cannot proceed without the human's input; SPL-952)
 # @param DESK_TO (optional) - answer THIS human id instead of the newest sender
 # @param DESK_TASK (optional) - answer in THIS topic instead of the newest one
 # @param DESK_ACK (optional) - 1 = archive the answered message, default 0
@@ -51,7 +52,7 @@ do_spl_desk_reply() {
   local body="${DESK_BODY:-}" kind="${DESK_KIND:-note}" to="${DESK_TO:-}" task="${DESK_TASK:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   [[ -n "$body" ]] || { do_log "FATAL DESK_BODY must carry the answer text"; return 1; }
-  [[ "$kind" =~ ^(note|result|reject)$ ]] || { do_log "FATAL DESK_KIND must be note, result or reject, got: '$kind'"; return 1; }
+  [[ "$kind" =~ ^(note|result|reject|blocker|msg)$ ]] || { do_log "FATAL DESK_KIND must be note, result, reject, blocker or msg, got: '$kind'"; return 1; }
   [[ -z "$to" || "$to" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { do_log "FATAL DESK_TO must be a human id (HUM-...), got: '$to'"; return 1; }
   [[ -z "$task" || "$task" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { do_log "FATAL DESK_TASK must be a lowercase task UUID, got: '$task'"; return 1; }
 

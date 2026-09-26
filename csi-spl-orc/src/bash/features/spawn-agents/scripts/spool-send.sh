@@ -23,7 +23,7 @@
 # unsigned: the written object carries no `sig`.
 #
 # Usage:
-#   spool-send.sh --from <ID> --to <ID> --kind task|result|note|reject
+#   spool-send.sh --from <ID> --to <ID> --kind task|result|note|reject|blocker|msg
 #                 [--task <uuid>] (--body <text> | --body-file <path>)
 #                 [--file-ref <path>]... [--file-id <id>]... [--no-poke]
 #   spool-send.sh --poke-only --to <ID> [--from <ID>]   # ring, send nothing
@@ -81,7 +81,7 @@ spool_valid_id "$TO" || exit 2
 
 if [ "$POKE_ONLY" -eq 0 ]; then
   [ -n "$FROM" ] || { echo "ERROR: --from is required" >&2; usage; }
-  case "$KIND" in task|result|note|reject) ;; *) echo "ERROR: --kind must be task|result|note|reject, got: '${KIND}'" >&2; exit 2 ;; esac
+  case "$KIND" in task|result|note|reject|blocker|msg) ;; *) echo "ERROR: --kind must be task|result|note|reject|blocker|msg, got: '${KIND}'" >&2; exit 2 ;; esac
   [ "$BODY_SET" -eq 1 ] || { echo "ERROR: --body or --body-file is required" >&2; exit 2; }
 
   args=(send --from "$FROM" --to "$TO" --kind "$KIND" --body "$BODY")

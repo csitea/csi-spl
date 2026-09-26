@@ -104,6 +104,16 @@ for bad in "DESK_KIND=shout" "DESK_TO=CLE-00" "DESK_TO=HUM-1'--" "DESK_TASK=not-
   fi
 done
 
+# SPL-952: blocker and msg pass the kind check (the dry run then stops later).
+for good in blocker msg; do
+  SNIPPET=do_spl_desk_reply in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='hi' DESK_KIND=$good >"$T/o" 2>&1 || true
+  grep -q 'DESK_KIND must' "$T/o" && fail "do_spl_desk_reply refuses DESK_KIND=$good: $(cat "$T/o")" ||
+    pass "do_spl_desk_reply accepts DESK_KIND=$good"
+  SNIPPET=do_spl_desk_post in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='hi' DESK_CHANNEL=ops DESK_KIND=$good >"$T/o" 2>&1 || true
+  grep -q 'DESK_KIND must' "$T/o" && fail "do_spl_desk_post refuses DESK_KIND=$good: $(cat "$T/o")" ||
+    pass "do_spl_desk_post accepts DESK_KIND=$good"
+done
+
 # --- 4. which message gets answered ------------------------------------------------
 U1=0f8fad5b-d9cb-469f-a165-70867728950e
 U2=1a2b3c4d-5e6f-4a8b-9c0d-1e2f3a4b5c6d

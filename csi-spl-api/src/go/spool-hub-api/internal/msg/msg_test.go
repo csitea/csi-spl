@@ -57,6 +57,14 @@ func TestValidate(t *testing.T) {
 	if err := bad.Validate(); err == nil {
 		t.Fatal("bad kind accepted")
 	}
+	// SPL-952: the old four and the two new kinds all validate.
+	for _, k := range []string{"task", "result", "note", "reject", "blocker", "msg"} {
+		ok := sample()
+		ok.Kind = k
+		if err := ok.Validate(); err != nil {
+			t.Fatalf("kind %q rejected: %v", k, err)
+		}
+	}
 	bad = sample()
 	bad.From = "lowercase-1"
 	if err := bad.Validate(); err == nil {

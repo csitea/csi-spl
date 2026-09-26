@@ -154,6 +154,7 @@ var Operators = []Operator{
 	{Name: OpIn, Aliases: []string{"channel"}, Values: "channel", Applies: msgTopicFile, Example: "in:#lobby", Doc: "a channel (#name or name), or dm for direct messages"},
 	{Name: OpIs, Values: "enum", Enum: map[string][]Type{
 		"task": {TypeMessage}, "note": {TypeMessage}, "result": {TypeMessage}, "reject": {TypeMessage},
+		"blocker": {TypeMessage}, "msg": {TypeMessage},
 		"root": {TypeTopic}, "online": presence, "offline": presence, "revoked": {TypeRobot, TypeBox},
 	}, Applies: []Type{TypeMessage, TypeTopic, TypeRobot, TypeUser, TypeBox}, Example: "is:task", Doc: "message kind, root topic, presence or revoked pin"},
 	{Name: OpHas, Values: "enum", Enum: map[string][]Type{

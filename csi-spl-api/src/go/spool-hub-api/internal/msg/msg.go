@@ -42,8 +42,16 @@ const (
 	MaxFileBytes = 32 * 1024 * 1024 // 32 MiB per file
 )
 
-// Kind enumerates the allowed message kinds.
-var validKinds = map[string]bool{"task": true, "result": true, "note": true, "reject": true}
+// Kind enumerates the allowed message kinds. blocker and msg arrived with
+// SPL-952: a blocker is a sender that cannot proceed without input, msg a
+// plain message. A reader that predates them still validates the old four.
+var validKinds = map[string]bool{
+	"task": true, "result": true, "note": true, "reject": true,
+	"blocker": true, "msg": true,
+}
+
+// KindList is validKinds for help text and error messages.
+const KindList = "task|result|note|reject|blocker|msg"
 
 // idRe matches an agent id: a 2-4 letter kind prefix and a number, e.g. CLE-07.
 var idRe = regexp.MustCompile(`^[A-Z]{2,4}-\d+$`)
@@ -166,7 +174,7 @@ func (m *Message) Validate() error {
 		return fmt.Errorf("to %q is not a valid agent id", m.To)
 	}
 	if !validKinds[m.Kind] {
-		return fmt.Errorf("kind %q is not one of task|result|note|reject", m.Kind)
+		return fmt.Errorf("kind %q is not one of "+KindList, m.Kind)
 	}
 	if len(m.Body) > MaxBodyBytes {
 		return fmt.Errorf("body %d bytes exceeds limit %d", len(m.Body), MaxBodyBytes)

@@ -6,7 +6,7 @@
 #
 # Usage:
 #   spl-desk-reply.sh [--env dev|prd] [--tenant <id>] [--agent <id>]
-#                     [--to <HUM-id>] [--task <uuid>] [--kind note|result|reject]
+#                     [--to <HUM-id>] [--task <uuid>] [--kind note|result|reject|blocker|msg]
 #                     --body "<text>" [--dry-run] [--ack]
 #
 # Environment variables:
@@ -16,7 +16,7 @@
 #   DESK_AGENT  agent id (e.g. AGY-3493; defaults to tmux window name)
 #   DESK_TO     human id (optional; auto-picked from newest if omitted)
 #   DESK_TASK   task uuid (optional; auto-picked from newest if omitted)
-#   DESK_KIND   note | result | reject (default: note)
+#   DESK_KIND   note | result | reject | blocker | msg (default: note)
 #   DESK_BODY   reply text (required)
 #   DESK_ACK    1 to ack/archive answered message (default: 0)
 #   DRY_RUN     1 for dry run, 0 to send (default: 0)

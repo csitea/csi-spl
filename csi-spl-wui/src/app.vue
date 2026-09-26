@@ -6,6 +6,10 @@
 </template>
 
 <script setup lang="ts">
+import { useSessionStore } from '~/stores/session'
+import { hostTenant } from '~/composables/useSpoolApi'
+import { tabTitle, tenantTabName } from '~/utils/tab-title.mjs'
+
 // Site-wide head, shaped like the donor WUI's app.vue: the version stamp is a
 // <meta name="version"> so a deployed page says which build it is without a
 // fetch, and the document lang/dir + hreflang alternates come from
@@ -32,7 +36,14 @@ function docDir(): 'ltr' | 'rtl' {
   return rtlLocales[locale.value] ? 'rtl' : 'ltr'
 }
 
+/* Owner (topic d1f76e76): the tab reads "<tenant display name>.spool-hub";
+   the apex tenant is plain "spool-hub". A page's own title stays in front. */
+const session = useSessionStore()
+const apexTenant = String(useRuntimeConfig().public.tenant || '')
+const tabName = computed(() => tenantTabName(session.claims, (import.meta.client && hostTenant()) || apexTenant, apexTenant))
+
 useHead(() => ({
+  titleTemplate: (page) => tabTitle(page, tabName.value),
   htmlAttrs: {
     lang: i18nHead.value.htmlAttrs?.lang || locale.value,
     dir: docDir(),

@@ -1261,3 +1261,9 @@ declare module '~/utils/date-iso.mjs' {
   export function isoDateTime(value: unknown): string
   export function parseIsoDate(value: unknown): string
 }
+
+declare module '~/utils/tab-title.mjs' {
+  export const PRODUCT: string
+  export function tenantTabName(claims: unknown, pageTenant: string, apexTenant: string): string
+  export function tabTitle(pageTitle: string | undefined | null, tabName: string): string
+}

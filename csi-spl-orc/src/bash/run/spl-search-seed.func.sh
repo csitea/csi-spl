@@ -88,7 +88,7 @@ FROM (SELECT i, now() - (i::float8 / $SEED_MSGS) * interval '7 days' AS at,
         ARRAY['deploy','hub','build','test','release','merge','review','ticket','error','fix',
               'plan','report','search','index','query','agent','channel','topic','tenant','event'] AS w,
         ARRAY['café','résumé','Straße','naïve','São','Zürich','Ångström','crème','façade','piñata'] AS a
-      FROM generate_series($lo, $hi) i) s
+      FROM generate_series($lo::bigint, $hi::bigint) i) s
 ON CONFLICT (tenant_id, msg_id) DO NOTHING;
 SQL
   done

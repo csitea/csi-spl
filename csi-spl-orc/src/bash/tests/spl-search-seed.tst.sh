@@ -61,8 +61,11 @@ grep -q "rc=0" <<<"$out" && grep -q "nothing written" <<<"$out" && pass "dry run
 # --- 2. the seed SQL ------------------------------------------------------------------
 sql=$(SNIPPET='spl_search_seed_args && spl_search_seed_sql' in_orc ENV=dev SEED_MSGS=250000 SEED_BATCH=100000 2>&1)
 [[ $(grep -c "^INSERT INTO messages" <<<"$sql") == 3 ]] && pass "250000 rows / 100000 = 3 INSERTs" || fail "batches: $(grep -c '^INSERT INTO messages' <<<"$sql")"
+# the row number is bigint: i * 7919 overflows int4 past i = 271k (measured on
+# dev: "integer out of range" in the 4th batch of the first 1M run)
+grep -q "generate_series(0::bigint, 99999::bigint)" <<<"$sql" && pass "row numbers are bigint" || fail "row numbers are int4"
 [[ $(grep -c "ON CONFLICT (tenant_id, msg_id) DO NOTHING" <<<"$sql") == 3 ]] && pass "every batch is resumable" || fail "ON CONFLICT missing"
-grep -q "generate_series(200000, 249999)" <<<"$sql" && pass "the last batch stops at SEED_MSGS-1" || fail "last batch bounds"
+grep -q "generate_series(200000::bigint, 249999::bigint)" <<<"$sql" && pass "the last batch stops at SEED_MSGS-1" || fail "last batch bounds"
 ten=$(grep -oE "(VALUES \(|SELECT |tenant_id = )'[a-z0-9-]+'" <<<"$sql" | sed -E "s/.*'([a-z0-9-]+)'/\1/" | sort -u)
 [[ "$ten" == "seed-search" ]] && pass "every tenant position in the seed SQL is seed-search" || fail "tenant literals: $ten"
 

@@ -8,8 +8,7 @@
       v-else-if="p.type === 'link'"
       class="msg-link"
       :href="p.href"
-      target="_blank"
-      rel="noopener noreferrer nofollow"
+      v-bind="linkAttrs(p.href)"
       @click.stop
       @dblclick.stop
       @keydown.enter.stop
@@ -21,6 +20,7 @@
 <script setup lang="ts">
 import { mentionDisplay } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
+import { linkAttrs } from '~/utils/link-target.mjs'
 
 /* One run of a message body. Text interpolation only: a wiki region never
    becomes HTML, same rule as the rest of the body. */

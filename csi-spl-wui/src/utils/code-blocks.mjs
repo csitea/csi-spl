@@ -457,6 +457,8 @@ export function hasMarkdownBlock(src) {
     tokenize(src).some((t) => t.type === 'code' && isMarkdownLang(t.lang))
 }
 
+import { linkAttrHtml } from './link-target.mjs'
+
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
@@ -468,7 +470,7 @@ function partsHtml(parts) {
     if (p.type === 'em') return `<em>${esc(p.text)}</em>`
     if (p.type === 'mention') return `<span class="mention">${esc(p.text)}</span>`
     if (p.type === 'link') {
-      return `<a class="msg-link" href="${esc(p.href)}" target="_blank" rel="noopener noreferrer nofollow">${esc(p.text)}</a>`
+      return `<a class="msg-link" href="${esc(p.href)}" ${linkAttrHtml(p.href)}>${esc(p.text)}</a>`
     }
     return esc(p.text).replace(/\n/g, '<br>')
   }).join('')

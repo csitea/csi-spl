@@ -172,9 +172,9 @@ describe('the component', () => {
     assert.doesNotMatch(body, /utils\/markdown\.mjs/)
   })
 
-  it('links carry the same target and rel as every message link', () => {
-    assert.match(block, /target: '_blank'/)
-    assert.match(block, /rel: 'noopener noreferrer nofollow'/)
+  it('links use linkAttrs, so an internal href stays in this tab', () => {
+    assert.match(block, /\.\.\.linkAttrs\(n\.attrs\.href\)/)
+    assert.doesNotMatch(block, /target: '_blank'/)
   })
 
   it('tables scroll inside the block, never widen the page; no px font sizes', () => {

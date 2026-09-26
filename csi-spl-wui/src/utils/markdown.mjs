@@ -31,6 +31,7 @@
  * directly; the WUI imports it lazily, only when a page has such a block.
  */
 import MarkdownIt from 'markdown-it'
+import { linkAttrHtml } from './link-target.mjs'
 
 /** Every element the tree may hold. */
 export const TAGS = new Set([
@@ -228,7 +229,7 @@ export function treeToHtml(nodes) {
       .filter(([k]) => allowed.has(k))
       .map(([k, v]) => ` ${k}="${esc(v)}"`)
       .join('')
-    if (n.tag === 'a') attrs += ' target="_blank" rel="noopener noreferrer nofollow"'
+    if (n.tag === 'a') attrs += ' ' + linkAttrHtml(n.attrs && n.attrs.href)
     if (VOID.has(n.tag)) return `<${n.tag}${attrs}>`
     return `<${n.tag}${attrs}>${treeToHtml(n.children)}</${n.tag}>`
   }).join('')

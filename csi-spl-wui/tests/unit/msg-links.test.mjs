@@ -136,11 +136,11 @@ describe('MessageBody.vue renders a link part', () => {
   const src = readFileSync(join(WUI, 'src/components/MessageRuns.vue'), 'utf8')
   const body = readFileSync(join(WUI, 'src/components/MessageBody.vue'), 'utf8')
 
-  it('an anchor with the part href, a new tab, and no opener', () => {
+  it('an anchor binds the part href and lets linkAttrs choose the tab', () => {
     assert.match(src, /<a\s[^>]*v-else-if="p\.type === 'link'"/)
     assert.match(src, /:href="p\.href"/)
-    assert.match(src, /target="_blank"/)
-    assert.match(src, /rel="noopener noreferrer nofollow"/)
+    assert.match(src, /v-bind="linkAttrs\(p\.href\)"/)
+    assert.doesNotMatch(src, /target="_blank"/)
     assert.match(src, /class="msg-link"/)
   })
 

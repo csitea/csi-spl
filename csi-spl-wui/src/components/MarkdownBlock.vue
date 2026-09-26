@@ -23,6 +23,7 @@
 
 <script setup lang="ts">
 import { h, type FunctionalComponent, type VNodeChild } from 'vue'
+import { linkAttrs } from '~/utils/link-target.mjs'
 import type { MdNode } from '~/utils/markdown.mjs'
 
 const props = defineProps<{ text: string }>()
@@ -67,8 +68,7 @@ function node(n: MdNode): VNodeChild {
       class: 'msg-link',
       href: n.attrs.href,
       title: n.attrs.title,
-      target: '_blank',
-      rel: 'noopener noreferrer nofollow',
+      ...linkAttrs(n.attrs.href),
       onClick: stop,
       onDblclick: stop,
       onKeydown: (e: KeyboardEvent) => { if (e.key === 'Enter') e.stopPropagation() },

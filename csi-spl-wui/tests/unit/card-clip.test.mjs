@@ -22,6 +22,12 @@ import {
   parseCardClipMode,
   readCardClipMode,
   writeCardClipMode,
+  readCardClipDefault,
+  writeCardClipDefault,
+  readEffectiveCardClip,
+  writeCardClipSession,
+  clearCardClipSession,
+  CARD_CLIP_DEFAULT_KEY,
 } from '../../src/utils/card-clip.mjs'
 import { PREVIEW_MAX_BYTES } from '../../src/utils/file-preview.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
@@ -147,6 +153,39 @@ describe('read and write the mode', () => {
     assert.equal(store.getItem('spool-card-clip'), 'rows')
     store.setItem('spool-card-clip', '  full  ')
     assert.equal(readCardClipMode(store), 'full')
+  })
+})
+
+describe('appearance default and a per-view session override', () => {
+  it('a fresh sign-in follows the appearance default, and a view can override it', () => {
+    const durable = memoryStore()
+    const session = memoryStore()
+    assert.equal(CARD_CLIP_DEFAULT_KEY, 'spool-card-clip-default')
+    assert.equal(readCardClipDefault(durable), 'rows')
+    assert.equal(readEffectiveCardClip('msgs', durable, session), 'rows')
+    writeCardClipDefault('titles', durable)
+    assert.equal(readEffectiveCardClip('msgs', durable, session), 'titles')
+    assert.equal(readEffectiveCardClip('thread', durable, session), 'titles')
+    writeCardClipSession('full', 'thread', session)
+    assert.equal(readEffectiveCardClip('thread', durable, session), 'full')
+    assert.equal(readEffectiveCardClip('msgs', durable, session), 'titles')
+    clearCardClipSession(session)
+    assert.equal(readEffectiveCardClip('thread', durable, session), 'titles')
+  })
+
+  it('the appearance page offers the three list modes', () => {
+    const src = read('src/pages/settings/appearance.vue')
+    assert.match(src, /data-test="list-clip-default"/)
+    assert.match(src, /data-test="`list-clip-\$\{m\}`"/)
+    assert.match(src, /setClipDefault/)
+  })
+
+  it('the header control writes the session, and sign-out clears it', () => {
+    const clip = read('src/composables/useCardClip.ts')
+    assert.match(clip, /writeCardClipSession/)
+    assert.match(clip, /readEffectiveCardClip/)
+    const session = read('src/stores/session.ts')
+    assert.match(session, /clearCardClipSession\(\)/)
   })
 })
 

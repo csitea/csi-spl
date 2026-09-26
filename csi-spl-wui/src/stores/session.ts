@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { CARD_CLIP_KEY, CARD_CLIP_THREAD_KEY, clearCardClipSession, readCardClipDefault } from '~/utils/card-clip.mjs'
 
 export type SessionState = 'in' | 'out' | 'unknown' | 'loading'
 
@@ -97,6 +98,12 @@ export const useSessionStore = defineStore('session', () => {
 
   async function logout() {
     await auth.logout()
+    if (import.meta.client) {
+      clearCardClipSession()
+      const d = readCardClipDefault() as 'titles' | 'rows' | 'full'
+      useState(CARD_CLIP_KEY, () => d).value = d
+      useState(CARD_CLIP_THREAD_KEY, () => d).value = d
+    }
     state.value = 'out'
     claims.value = null
     await navigateTo(useNuxtApp().$localePath('/login'))

@@ -52,6 +52,70 @@ export function writeCardClipMode(mode, store, pane = 'msgs') {
   return storageSet(cardClipKey(pane), parseCardClipMode(mode), store)
 }
 
+/** The appearance-page default. It outlives a sign-in. Unset means rows. */
+export const CARD_CLIP_DEFAULT_KEY = 'spool-card-clip-default'
+
+export function readCardClipDefault(store) {
+  const raw = storageGet(CARD_CLIP_DEFAULT_KEY, null, store)
+  if (raw == null || String(raw).trim() === '') return CARD_CLIP_DEFAULT
+  return parseCardClipMode(raw)
+}
+
+export function writeCardClipDefault(mode, store) {
+  return storageSet(CARD_CLIP_DEFAULT_KEY, parseCardClipMode(mode), store)
+}
+
+/** A pane's override for this sign-in only (sessionStorage). */
+export function cardClipSessionKey(pane) {
+  return 'spool-card-clip-session-' + (pane === 'thread' ? 'thread' : 'msgs')
+}
+
+function sessionBag(bag) {
+  if (bag && typeof bag.getItem === 'function') return bag
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis.sessionStorage) return globalThis.sessionStorage
+  } catch { /* denied */ }
+  return null
+}
+
+export function readCardClipSession(pane = 'msgs', bag) {
+  const s = sessionBag(bag)
+  if (!s) return ''
+  try {
+    const raw = s.getItem(cardClipSessionKey(pane))
+    return raw && CARD_CLIP_MODES.includes(String(raw).trim()) ? String(raw).trim() : ''
+  } catch {
+    return ''
+  }
+}
+
+export function writeCardClipSession(mode, pane = 'msgs', bag) {
+  const s = sessionBag(bag)
+  if (!s) return false
+  try {
+    s.setItem(cardClipSessionKey(pane), parseCardClipMode(mode))
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function clearCardClipSession(bag) {
+  const s = sessionBag(bag)
+  if (!s) return
+  try {
+    s.removeItem(cardClipSessionKey('msgs'))
+    s.removeItem(cardClipSessionKey('thread'))
+  } catch { /* private mode */ }
+}
+
+/** Session override, else the appearance default, else rows. */
+export function readEffectiveCardClip(pane = 'msgs', store, bag) {
+  const over = readCardClipSession(pane, bag)
+  if (over) return over
+  return readCardClipDefault(store)
+}
+
 /** SPL-945: in the thread pane only a reply takes the mode; the root card
  *  (is_parent 1) is never clipped. A row without the flag is a reply. */
 export function clipsInThread(row) {

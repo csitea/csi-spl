@@ -100,7 +100,7 @@ const READ = (pane) => {
     mode: ctl ? ctl.getAttribute('data-mode') : null,
     aria: ctl ? ctl.getAttribute('aria-label') : null,
     labels: ctl ? [...ctl.querySelectorAll('span')].map((s) => s.textContent) : [],
-    stored: (() => { try { return localStorage.getItem('spool-card-clip') } catch { return 'ERR' } })(),
+    stored: (() => { try { return sessionStorage.getItem('spool-card-clip-session-msgs') } catch { return 'ERR' } })(),
     n: rows.length,
     rows,
     topicOpen: !!document.querySelector('aside[data-pane=topic]'),

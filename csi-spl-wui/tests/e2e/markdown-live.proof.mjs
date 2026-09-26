@@ -81,7 +81,10 @@ try {
   await p.evaluateOnNewDocument(() => {
     window.__csp = []
     // the full card, so the screenshots show the whole block (card clip, CLE-34989)
-    try { localStorage.setItem('spool-card-clip', 'full') } catch { /* private mode */ }
+    try {
+      localStorage.setItem('spool-card-clip-default', 'full')
+      sessionStorage.setItem('spool-card-clip-session-msgs', 'full')
+    } catch { /* private mode */ }
     document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(`${e.violatedDirective} ${e.blockedURI}`))
   })
   await p.setViewport({ width: 1280, height: 800 })

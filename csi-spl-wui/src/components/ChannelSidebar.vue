@@ -454,8 +454,9 @@
         aria-labelledby="sidebar-tab-issues"
         data-testid="sidebar-panel-issues"
       >
-        <h2 v-if="issueEpics.length">{{ t('sidebar.issues') }}</h2>
-        <!-- SPL-18: the level-1 rows, loaded only on this tab. No "All issues" row. -->
+        <!-- SPL-18: the level-1 rows, loaded only on this tab. No "All issues" row,
+             so no ISSUES heading either (owner, topic 41e1ccfa): "Epics and
+             features" is the panel's only section, at the top. -->
         <LazyIssueEpicsPanel v-if="tab === 'issues'" />
       </div>
       <!-- CLE-34990: the personal Event log; the list lives on /events -->

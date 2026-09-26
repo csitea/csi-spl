@@ -70,6 +70,9 @@ try {
   await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: NAV_TIMEOUT })
   ok('2 the tab opens /issues', new URL(p.url()).pathname.endsWith('/issues'), p.url())
   ok('2a the side panel has no All issues row', !(await p.$('[data-testid=sidebar-issues-open]')), '')
+  await p.waitForSelector('[data-testid=sidebar-epics-h]', { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
+  const panelHeads = await p.$$eval('#sidebar-panel-issues h2', (els) => els.map((e) => e.getAttribute('data-testid') || e.textContent.trim()))
+  ok('2b the side panel has one section, Epics and features, first (no ISSUES heading)', panelHeads.length === 1 && panelHeads[0] === 'sidebar-epics-h', panelHeads)
 
   await p.select('[data-test=issues-sort]', 'level')
   const rowLabels = await p.evaluate(() => {

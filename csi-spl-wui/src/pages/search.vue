@@ -303,6 +303,8 @@ async function open(row: SearchRow) {
     if (api.mock) return
     if (row.current) return void router.push(localePath('/'))
     if (to.tenant) {
+      const hostUrl = await tenantHostUrl(to.tenant, localePath('/')) // SPL-959
+      if (hostUrl) return void window.location.assign(hostUrl)
       const out = await authClient.switchTenant(to.tenant)
       if (out.ok) window.location.assign(localePath('/'))
     }

@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Прикажи извор",
     "show_rendered": "Прикажи форматирано"
+  },
+  "tenant_host": {
+    "not_member": "Не сте член на закупецот {tenant}.",
+    "open_mine": "Отвори го мојот закупец"
   }
 }

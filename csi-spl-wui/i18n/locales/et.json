@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Näita lähteteksti",
     "show_rendered": "Näita vormindatult"
+  },
+  "tenant_host": {
+    "not_member": "Te ei ole rentniku {tenant} liige.",
+    "open_mine": "Ava minu rentnik"
   }
 }

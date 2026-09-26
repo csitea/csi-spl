@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "הצג מקור",
     "show_rendered": "הצג מעוצב"
+  },
+  "tenant_host": {
+    "not_member": "אינך חבר בטננט {tenant}.",
+    "open_mine": "פתח את הטננט שלי"
   }
 }

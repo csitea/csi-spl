@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Rodyti šaltinį",
     "show_rendered": "Rodyti suformatuotą"
+  },
+  "tenant_host": {
+    "not_member": "Jūs nesate nuomininko {tenant} narys.",
+    "open_mine": "Atidaryti mano nuomininką"
   }
 }

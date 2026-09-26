@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Rādīt avotu",
     "show_rendered": "Rādīt formatētu"
+  },
+  "tenant_host": {
+    "not_member": "Jūs neesat nomnieka {tenant} dalībnieks.",
+    "open_mine": "Atvērt manu nomnieku"
   }
 }

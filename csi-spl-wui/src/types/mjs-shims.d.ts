@@ -772,8 +772,9 @@ declare module '~/utils/code-langs.mjs' {
 
 declare module '~/utils/link-target.mjs' {
   export const NEW_TAB_REL: string
-  export function classifyHref(raw: string, pageOrigin?: string): { href: string, internal: boolean } | null
-  export function linkOpen(href: string, pageOrigin?: string): { href: string, internal: boolean, target?: string, rel?: string } | null
+  export function setLinkSite(siteUrl: string): void
+  export function classifyHref(raw: string, pageOrigin?: string, site?: string): { href: string, internal: boolean } | null
+  export function linkOpen(href: string, pageOrigin?: string, site?: string): { href: string, internal: boolean, target?: string, rel?: string } | null
   export function sameTabPath(href: string, pageHref: string): string | null
   export function followSameTabLink(
     event: { button?: number, metaKey?: boolean, ctrlKey?: boolean, shiftKey?: boolean, altKey?: boolean, defaultPrevented?: boolean, preventDefault?: () => void },
@@ -1189,4 +1190,30 @@ declare module '~/utils/chunk-reload.mjs' {
   export const RELOAD_GUARD_MS: number
   export function isChunkLoadError(err: unknown): boolean
   export function shouldReload(last: number, now?: number): boolean
+}
+
+declare module '~/utils/tenant-host.mjs' {
+  export function siteHostOf(siteUrl: string): string
+  export function pageTenant(hostname: string, siteUrl: string, apexTenant: string): string
+  export function tenantOrigin(tenant: string, siteUrl: string, apexTenant: string): string
+  export function tenantUrl(tenant: string, siteUrl: string, apexTenant: string, path?: string): string
+  export function isTenantHostOf(url: string, siteUrl: string): boolean
+  export function tenantParamHop(href: string, siteUrl: string, apexTenant: string): string
+  export function oldLinkId(href: string): string
+  export function homeTenant(claims: unknown, page: string): string
+}
+
+declare module '~/utils/tenant-host-core.mjs' {
+  export function siteHostOf(siteUrl: string): string
+  export function pageTenant(hostname: string, siteUrl: string, apexTenant: string): string
+  export function isTenantHostOf(url: string, siteUrl: string): boolean
+}
+
+declare module '~/utils/tenant-host-boot.mjs' {
+  export function bootTenantHost(opts: {
+    pub: Record<string, unknown>
+    page: string
+    session: { state: string, claims: unknown }
+    notMember: { value: { tenant: string, home: string } }
+  }): void
 }

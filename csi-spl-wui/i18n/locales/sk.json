@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Zobraziť zdroj",
     "show_rendered": "Zobraziť formátované"
+  },
+  "tenant_host": {
+    "not_member": "Nie ste členom nájomníka {tenant}.",
+    "open_mine": "Otvoriť môjho nájomníka"
   }
 }

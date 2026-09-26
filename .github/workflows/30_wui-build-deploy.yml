@@ -190,6 +190,8 @@ jobs:
           print("lb_route=" + ("true" if s31.get("wui_origin_host") else "false"))
           # spec 021: the unprefixed WUI locale (cnf env.i18n.default_locale)
           print("default_locale=" + e.get("i18n", {}).get("default_locale", "en"))
+          # SPL-959: tenant hosts <tenant>.<fqdn> (the apex is wui_default_tenant)
+          print("tenant_hosts=" + ("1" if s19.get("wui_tenant_hosts") else "0"))
           PY
           cat "$GITHUB_OUTPUT"
 
@@ -218,6 +220,7 @@ jobs:
         env:
           NUXT_PUBLIC_API_BASE: https://${{ steps.cfg.outputs.api_fqdn }}
           NUXT_PUBLIC_TENANT: ${{ steps.cfg.outputs.tenant }}
+          NUXT_PUBLIC_TENANT_HOSTS: ${{ steps.cfg.outputs.tenant_hosts }}
           NUXT_PUBLIC_USE_MOCK: "0"
           NUXT_PUBLIC_AUTH_BASE: ${{ steps.cfg.outputs.auth_base }}
           NUXT_PUBLIC_DEFAULT_LOCALE: ${{ steps.cfg.outputs.default_locale }}

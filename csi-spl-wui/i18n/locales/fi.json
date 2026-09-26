@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Näytä lähdeteksti",
     "show_rendered": "Näytä muotoiltuna"
+  },
+  "tenant_host": {
+    "not_member": "Et ole vuokralaisen {tenant} jäsen.",
+    "open_mine": "Avaa oma vuokralainen"
   }
 }

@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Εμφάνιση πηγής",
     "show_rendered": "Εμφάνιση μορφοποίησης"
+  },
+  "tenant_host": {
+    "not_member": "Δεν είστε μέλος του μισθωτή {tenant}.",
+    "open_mine": "Άνοιγμα του μισθωτή μου"
   }
 }

@@ -145,7 +145,7 @@ describe('login landing', () => {
     assert.doesNotMatch(login, /data-test="login-landing"/)
     assert.match(login, /<h1>\{\{ t\('auth\.login\.where_humans_meet'\) \}\}<\/h1>/)
     assert.match(login, /\.login-landing-card\s*\{[^}]*text-align:\s*center/)
-    assert.match(login, /<SocialAuthButtons class="idp" :redirect="redirect" :tenant="tenant" \/>/)
+    assert.match(login, /<SocialAuthButtons class="idp" :redirect="socialRedirect" :tenant="tenant" \/>/)
     assert.match(login, /<NativeAuthForm v-if="session\.state !== 'in'"/)
     assert.match(login, /data-test="password-changed"/)
     assert.match(login, /class="login-error"/)

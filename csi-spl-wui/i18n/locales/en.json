@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Show source",
     "show_rendered": "Show formatted"
+  },
+  "tenant_host": {
+    "not_member": "You are not a member of the tenant {tenant}.",
+    "open_mine": "Open my tenant"
   }
 }

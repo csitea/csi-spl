@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Bron tonen",
     "show_rendered": "Opgemaakt tonen"
+  },
+  "tenant_host": {
+    "not_member": "U bent geen lid van de huurder {tenant}.",
+    "open_mine": "Mijn huurder openen"
   }
 }

@@ -5,9 +5,13 @@
  * page origin exactly. Same tab, no target. followSameTabLink cancels the
  * browser navigation and hands the path to the router, so the SPA does not
  * reload. A query-only href ("?topic=") resolves against the current page.
+ * Also internal (SPL-959): a tenant host of THIS env, https://<tenant>.<fqdn>
+ * or the apex https://<fqdn> (setLinkSite, tenant-host-core.mjs isTenantHostOf).
+ * Same tab; another host is a full page load, the browser's own navigation.
  * External: every other http(s) URL, and mailto. A new tab, with
- * rel="noopener noreferrer nofollow". Another host of the same product is
- * external: the dev origin viewed from production differs, and the reverse.
+ * rel="noopener noreferrer nofollow". The other env is external: the dev
+ * origin viewed from production differs, and the reverse, and "dev" is no
+ * tenant label.
  *
  * Not a link: javascript:, data:, vbscript:, file:, any other scheme,
  * protocol-relative (//host), a backslash (the parser can turn "/\\evil"
@@ -19,7 +23,16 @@
  * must not call a foreign host internal. A relative URL stays internal.
  */
 
+import { isTenantHostOf } from './tenant-host-core.mjs'
+
 export const NEW_TAB_REL = 'noopener noreferrer nofollow'
+
+/* SPL-959: the env's apex (NUXT_PUBLIC_SITE_URL) once tenant hosts are on;
+   set once at start by plugins/tenant-host.client.ts. '' = off. */
+let linkSite = ''
+export function setLinkSite(siteUrl) {
+  linkSite = String(siteUrl || '')
+}
 
 /* A base with a path, so "?topic=" and "#id" stay relative and a backslash
    that escapes the host fails the origin check. Not a real site. */
@@ -61,7 +74,7 @@ function originOf(pageOrigin) {
  * (absolute http(s)/mailto as URL.href, relative as the author wrote it)
  * and whether a plain click stays on this page.
  */
-export function classifyHref(raw, pageOrigin) {
+export function classifyHref(raw, pageOrigin, site = linkSite) {
   const s = String(raw ?? '').trim()
   if (!s) return null
   if (/[\u0000-\u001F\u007F]/.test(s) || s.includes('\\') || s.startsWith('//')) return null
@@ -82,7 +95,8 @@ export function classifyHref(raw, pageOrigin) {
     if (u.protocol === 'mailto:') return { href: u.href, internal: false }
     if ((u.protocol !== 'http:' && u.protocol !== 'https:') || !u.hostname) return null
     const origin = originOf(pageOrigin)
-    return { href: u.href, internal: origin !== '' && u.origin === origin }
+    const same = origin !== '' && u.origin === origin
+    return { href: u.href, internal: same || (origin !== '' && isTenantHostOf(u.href, site) && isTenantHostOf(origin, site)) }
   }
 
   if (!safeRelative(s)) return null
@@ -97,8 +111,8 @@ export function classifyHref(raw, pageOrigin) {
 }
 
 /** Target and rel for an anchor, or null when the href is not a link. */
-export function linkOpen(href, pageOrigin) {
-  const c = classifyHref(href, pageOrigin)
+export function linkOpen(href, pageOrigin, site = linkSite) {
+  const c = classifyHref(href, pageOrigin, site)
   if (!c) return null
   if (c.internal) return { href: c.href, internal: true }
   return { href: c.href, internal: false, target: '_blank', rel: NEW_TAB_REL }

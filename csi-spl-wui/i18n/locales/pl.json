@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Pokaż źródło",
     "show_rendered": "Pokaż sformatowane"
+  },
+  "tenant_host": {
+    "not_member": "Nie jesteś członkiem dzierżawy {tenant}.",
+    "open_mine": "Otwórz moją dzierżawę"
   }
 }

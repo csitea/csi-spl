@@ -312,7 +312,8 @@ describe('SocialAuthButtons (auth-v1 §4, donor component)', () => {
 
   it('/login renders it, with the settled redirect and tenant', () => {
     const login = readFileSync(join(WUI, 'src/pages/login.vue'), 'utf8')
-    assert.ok(login.includes('<SocialAuthButtons class="idp" :redirect="redirect" :tenant="tenant" />'))
+    // SPL-959: the social return carries ?tenant=<t> from a tenant host (socialRedirect)
+    assert.ok(login.includes('<SocialAuthButtons class="idp" :redirect="socialRedirect" :tenant="tenant" />'))
   })
   it('renders Microsoft and LinkedIn marks only when those providers are advertised', () => {
     // Buttons exist only for registry entries (v-for="p in providers").

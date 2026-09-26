@@ -2,6 +2,7 @@
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>
+  <LazyTenantNotMember v-if="tenantNotMember.tenant" />
 </template>
 
 <script setup lang="ts">
@@ -11,6 +12,8 @@
 // useLocaleHead exactly as the donor does (spec 021). The rest of the SEO
 // shell is left out on purpose — the WUI is noindex.
 const appVersion = String(useRuntimeConfig().public.appVersion || '')
+/* SPL-959: set by plugins/tenant-host.client.ts on a tenant host the viewer is not a member of */
+const tenantNotMember = useState<{ tenant: string, home: string }>('tenant-host-not-member', () => ({ tenant: '', home: '' }))
 
 const { locale } = useI18n({ useScope: 'global' })
 

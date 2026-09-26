@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Показати джерело",
     "show_rendered": "Показати форматованим"
+  },
+  "tenant_host": {
+    "not_member": "Ви не учасник орендаря {tenant}.",
+    "open_mine": "Відкрити мого орендаря"
   }
 }

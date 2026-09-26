@@ -2,7 +2,7 @@
   <div class="login-card login-landing-card">
     <h1>{{ t('auth.login.where_humans_meet') }}</h1>
     <p v-if="error" class="login-error" role="alert">{{ error }}</p>
-    <SocialAuthButtons class="idp" :redirect="redirect" :tenant="tenant" />
+    <SocialAuthButtons class="idp" :redirect="socialRedirect" :tenant="tenant" />
     <NativeAuthForm v-if="session.state !== 'in'" :redirect="redirect" :tenant="tenant" />
     <p v-if="changed" class="muted" role="status" data-test="password-changed">{{ t('auth.login.password_changed') }}</p>
     <p v-if="session.state === 'unknown'" class="muted">{{ t('auth.login.session_unavailable') }}</p>
@@ -22,7 +22,7 @@ import SocialAuthButtons from '~/components/SocialAuthButtons.vue'
 import NativeAuthForm from '~/components/NativeAuthForm.vue'
 import ChangePasswordForm from '~/components/ChangePasswordForm.vue'
 import { useSessionStore } from '~/stores/session'
-import { useSpoolApi } from '~/composables/useSpoolApi'
+import { hostTenant, useSpoolApi } from '~/composables/useSpoolApi'
 import { useSettledQuery } from '~/composables/useSettledQuery'
 import { useAuthCopy } from '~/composables/useAuthCopy'
 
@@ -48,6 +48,16 @@ const authError = useSettledQuery('auth_error')
 const redirect = computed(() => safeRedirect(redirectQ.value.value || '/'))
 /* auth-v1 §1: tenant is optional on start; send the one the viewer reads from */
 const tenant = computed(() => tenantQ.value.value || useSpoolApi().tenant || '')
+/* SPL-959: the OAuth callback lands on the apex (its registered host). From a
+   tenant host, the return path carries ?tenant=<t> so the apex hops back
+   there (plugins/tenant-host.client.ts). Native sign-in stays on this host. */
+const socialRedirect = computed(() => {
+  const host = hostTenant()
+  const apex = String(useRuntimeConfig().public.tenant || '')
+  if (!host || host === apex) return redirect.value
+  const [path, hash = ''] = redirect.value.split('#', 2)
+  return path + (path.includes('?') ? '&' : '?') + 'tenant=' + host + (hash ? '#' + hash : '')
+})
 
 watch(authError.value, (code) => {
   if (!code) return

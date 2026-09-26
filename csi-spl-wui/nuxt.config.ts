@@ -221,6 +221,11 @@ export default defineNuxtConfig({
       apiBase,
       authBase,
       tenant: process.env.NUXT_PUBLIC_TENANT || (isDev ? "t1" : ""),
+      // SPL-959 tenant hosts: the apex (https://<fqdn>) is `tenant` above and
+      // every other tenant is https://<tenant>.<fqdn> (src/utils/tenant-host.mjs).
+      // "1" = on; off (lde, and until cnf turns it on) keeps specs/026 as is.
+      siteUrl: process.env.NUXT_PUBLIC_SITE_URL || "",
+      tenantHosts: process.env.NUXT_PUBLIC_TENANT_HOSTS || "0",
       // #lobby is a well-known task_id (003 wui-live-ws.md / cnf LOBBY_TASK_ID);
       // the hub welcome frame overrides this when it names one.
       lobbyTaskId: process.env.NUXT_PUBLIC_LOBBY_TASK_ID || "",

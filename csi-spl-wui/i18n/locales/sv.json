@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Visa källa",
     "show_rendered": "Visa formaterat"
+  },
+  "tenant_host": {
+    "not_member": "Du är inte medlem i hyresgästen {tenant}.",
+    "open_mine": "Öppna min hyresgäst"
   }
 }

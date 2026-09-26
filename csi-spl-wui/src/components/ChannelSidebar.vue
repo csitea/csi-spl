@@ -693,6 +693,12 @@ async function onTenantChange(ev: Event) {
   }
   switching.value = true
   switchFailed.value = false
+  /* SPL-959: with tenant hosts on, a tenant IS its host: go there, same path. */
+  const hostUrl = await tenantHostUrl(want, window.location.pathname)
+  if (hostUrl) {
+    window.location.assign(hostUrl)
+    return
+  }
   const out = await authClient.switchTenant(want)
   if (out.ok) {
     window.location.assign(localePath('/'))

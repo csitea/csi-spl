@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Kaynağı göster",
     "show_rendered": "Biçimlendirilmiş göster"
+  },
+  "tenant_host": {
+    "not_member": "{tenant} kiracısının üyesi değilsiniz.",
+    "open_mine": "Kiracımı aç"
   }
 }

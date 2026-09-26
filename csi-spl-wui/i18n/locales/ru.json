@@ -860,5 +860,9 @@
   "markdown": {
     "show_source": "Показать исходник",
     "show_rendered": "Показать форматированным"
+  },
+  "tenant_host": {
+    "not_member": "Вы не участник тенанта {tenant}.",
+    "open_mine": "Открыть мой тенант"
   }
 }

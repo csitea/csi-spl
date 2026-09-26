@@ -105,6 +105,11 @@ declare module '~/utils/spool-client.mjs' {
     /** Add (`op` add) or remove the viewer's emoji. Same call for is_parent 0 and 1. */
     setReaction(msgId: string, emoji: string, op: 'add' | 'remove', current?: { emoji: string, actors: string[] }[]): Promise<import('./spool').ReactionUpdate>
     fileUrl(fileId: string): string
+    listIssues(opts?: { filter?: import('~/utils/issues.mjs').IssueFilter, sort?: string }): Promise<import('~/utils/issues.mjs').IssueList>
+    getIssue(ref: string): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
+    createIssue(body: import('~/utils/issues.mjs').IssueBody): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
+    updateIssue(ref: string, patch: import('~/utils/issues.mjs').IssueBody): Promise<{ issue: import('~/utils/issues.mjs').Issue }>
+    createIssueLabel(opts: { name: string, color?: string }): Promise<{ label: import('~/utils/issues.mjs').IssueLabel }>
   }
 }
 
@@ -977,4 +982,82 @@ declare module '~/utils/event-log.mjs' {
     journal: { getErrors: () => unknown[], subscribeErrors: (fn: (r: unknown[]) => void) => () => void },
   ): () => void
   export function eventsErrorKey(error: string): string
+}
+
+declare module '~/utils/issues.mjs' {
+  export type IssueStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'canceled'
+  export interface Issue {
+    key: string
+    number: number
+    title: string
+    description: string
+    status: IssueStatus
+    priority: number
+    level: number
+    assignee: string
+    labels: string[]
+    deadline: string
+    parent: string
+    task_id: string
+    channel: string
+    created_by: string
+    created_at: string
+    updated_by: string
+    updated_at: string
+    completed_at: string
+    canceled_at: string
+  }
+  export interface IssueLabel { id: string, name: string, color: string }
+  export interface IssueFilter {
+    status?: string[]
+    priority?: number[]
+    level?: number[]
+    assignee?: string[]
+    label?: string[]
+    deadlineBefore?: string
+    deadlineAfter?: string
+  }
+  export interface IssueBody {
+    title?: string
+    description?: string
+    status?: string
+    priority?: number
+    level?: number
+    assignee?: string
+    labels?: string[]
+    deadline?: string
+    parent?: string
+  }
+  export interface IssueList {
+    prefix: string
+    statuses: IssueStatus[]
+    counts: Record<string, number>
+    issues: Issue[]
+    labels: IssueLabel[]
+    channel: string
+  }
+  export interface IssueGroup { status: IssueStatus, count: number, issues: Issue[] }
+  export const ISSUE_STATUSES: IssueStatus[]
+  export const ISSUE_PRIORITIES: number[]
+  export const ISSUE_LEVELS: number[]
+  export const LEVEL_SHORT: string[]
+  export const ISSUE_SORTS: string[]
+  export function statusKey(s: string): string
+  export function priorityKey(p: number): string
+  export function levelKey(l: number): string
+  export function normalizeIssue(raw: unknown): Issue
+  export function normalizeLabel(raw: unknown): IssueLabel
+  export function sortIssues(list: Issue[], by?: string): Issue[]
+  export function matchIssue(issue: Issue, f?: IssueFilter, me?: string): boolean
+  export function groupIssues(list: Issue[], opts?: { sort?: string, filter?: IssueFilter, me?: string, hideEmpty?: boolean }): IssueGroup[]
+  export function visibleOrder(groups: IssueGroup[], collapsed?: Record<string, boolean>): Issue[]
+  export function stepKey(order: Issue[], current: string, delta: number): string
+  export function applyIssueFrame(list: Issue[], frame: unknown): Issue[]
+  export function applyLabelFrame(labels: IssueLabel[], frame: unknown): IssueLabel[]
+  export function patchIssue(issue: Issue, patch: Partial<Issue>): Issue
+  export function deadlineToLocalInput(iso: string, offsetMin?: number): string
+  export function localInputToDeadline(value: string, offsetMin?: number): string | null
+  export function isOverdue(issue: Issue, now?: number): boolean
+  export function issueQuery(filter?: IssueFilter, sort?: string): string
+  export function createMockIssues(opts?: { me?: string, now?: () => string }): unknown
 }

@@ -13,6 +13,7 @@ import {
   topicsFromMessages,
 } from './view-api.mjs'
 import { SEARCH_OPERATORS, mockSearch, normalizeOperators, normalizeSearchResponse, searchApiQuery } from './search.mjs'
+import { createMockIssues, issueQuery } from './issues.mjs'
 
 function uuid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -309,6 +310,8 @@ export function createSpoolClient({
     state.agentMembers = Object.create(null)
   }
   const mockBlobs = new Map()
+  let mockIssues = null
+  const issuesMock = () => (mockIssues ||= createMockIssues({ me: (state && state.me && state.me.id) || 'HUM-1' }))
   let mockDir = null
   const dir = () => (mockDir ||= createMockDirectory())
   const root = String(base || '').replace(/\/+$/, '')
@@ -1161,6 +1164,47 @@ export function createSpoolClient({
     },
     fileUrl(fileId) {
       return `${root}/v1/files/${encodeURIComponent(String(fileId || ''))}`
+    },
+    /**
+     * specs/039 issues-v1 §1: the tenant's issues with the filters and sort
+     * of §4 applied by the hub. `{ prefix, statuses, counts, issues, labels, channel }`.
+     */
+    async listIssues({ filter = {}, sort = '' } = {}) {
+      const q = issueQuery(filter, sort)
+      if (mock) return issuesMock().list(q)
+      return live(`/v1/view/issues${q ? `?${q}` : ''}`)
+    },
+    /** issues-v1 §1: one issue by key (SPL-12) → `{ issue }`; 404 not_found. */
+    async getIssue(ref) {
+      if (mock) return issuesMock().get(ref)
+      return live(`/v1/view/issues/${encodeURIComponent(String(ref || ''))}`)
+    },
+    /** issues-v1 §3: create → `{ issue }`. Refusals keep their token (bad_issue, unknown_label, bad_assignee, unknown_parent). */
+    async createIssue(body = {}) {
+      if (mock) return issuesMock().create(body)
+      return live('/v1/issues', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    },
+    /** issues-v1 §3: a partial update; only the fields given change, '' clears → `{ issue }`. */
+    async updateIssue(ref, patch = {}) {
+      if (mock) return issuesMock().update(ref, patch)
+      return live(`/v1/issues/${encodeURIComponent(String(ref || ''))}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+    },
+    /** issues-v1 §1: a new label in the tenant's catalogue → `{ label }`; 409 label_exists. */
+    async createIssueLabel({ name = '', color = '' } = {}) {
+      if (mock) return issuesMock().label({ name, color })
+      return live('/v1/issue-labels', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(color ? { name, color } : { name }),
+      })
     },
   }
   return api

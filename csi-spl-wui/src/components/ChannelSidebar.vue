@@ -286,22 +286,13 @@
       </template>
     </UiDialog>
     <!-- SPL-72: Delete channel, its creator only, always behind this confirm -->
-    <UiDialog v-model:open="deleteOpen" :title="t('sidebar.delete_channel.title', { name: deleteTarget.name })" size="md">
-      <p class="delete-channel__body" data-testid="delete-channel-body">{{ t('sidebar.delete_channel.body', { name: deleteTarget.name }) }}</p>
-      <p v-if="deleteError" class="create-error" role="alert" data-testid="delete-channel-error">{{ deleteError }}</p>
-      <template #footer>
-        <div class="create-channel-form__actions">
-          <button type="button" class="btn ghost" data-autofocus :disabled="deleting" data-testid="delete-channel-cancel" @click="deleteOpen = false">{{ t('common.cancel') }}</button>
-          <button
-            type="button"
-            class="btn ghost delete-channel__confirm"
-            data-testid="delete-channel-confirm"
-            :disabled="deleting"
-            @click="onDeleteChannel"
-          >{{ deleting ? t('sidebar.delete_channel.busy') : t('sidebar.delete_channel.confirm') }}</button>
-        </div>
-      </template>
-    </UiDialog>
+    <LazyChannelDeleteDialog
+      v-if="deleteTarget.channel_id"
+      v-model:open="deleteOpen"
+      :channel-id="deleteTarget.channel_id"
+      :name="deleteTarget.name"
+      @deleted="onChannelDeleted"
+    />
       </div>
       <div
         v-show="tab === 'topics'"
@@ -1040,46 +1031,25 @@ const versionTitle = computed(() => buildStampTitle(build.value))
    hub refuses anyone else (403, or 404 to a non-member) whatever this shows. */
 const selfId = computed(() => viewerHumanId(access.me, live.identity.value, { mock: api.mock, rosterMe: roster.me?.id || '' }))
 const deleteOpen = ref(false)
-const deleting = ref(false)
-const deleteError = ref('')
 const deleteTarget = ref({ channel_id: '', name: '' })
 function deletableChannel(id: string) {
   const row = shownChannels.value.find((c) => c.channel_id === id)
   return !!row && canDeleteChannel({ selfId: selfId.value, row })
 }
+/* the confirm is LazyChannelDeleteDialog: off the initial script (027 §6) */
 function askDeleteChannel(id: string) {
   const row = shownChannels.value.find((c) => c.channel_id === id)
   deleteTarget.value = { channel_id: id, name: String(row?.name || id) }
-  deleteError.value = ''
   deleteOpen.value = true
-}
-function deleteCopy(e: unknown) {
-  const tok = (e && typeof e === 'object' && 'token' in e) ? String((e as { token?: unknown }).token || '') : ''
-  if (tok === 'forbidden') return t('sidebar.delete_channel.error_forbidden')
-  if (tok === 'channel_public') return t('sidebar.delete_channel.error_default')
-  if (tok === 'unknown_channel') return t('sidebar.delete_channel.error_gone')
-  return t('sidebar.delete_channel.error_fallback')
 }
 /* the open channel is gone: leave it for #lobby rather than show a 404 page */
 function leaveDeleted(id: string) {
   if (channel.active === id) void navigateTo(localePath('/channel/lobby'))
 }
-async function onDeleteChannel() {
-  const id = deleteTarget.value.channel_id
-  if (!id || deleting.value) return
-  deleting.value = true
-  deleteError.value = ''
-  try {
-    await channel.deleteChannel(id)
-    channelOrder.value = channelOrder.value.filter((k) => k !== id)
-    flowOrder.value = flowOrder.value.filter((k) => k !== 'ch:' + id)
-    deleteOpen.value = false
-    leaveDeleted(id)
-  } catch (e) {
-    deleteError.value = deleteCopy(e)
-  } finally {
-    deleting.value = false
-  }
+function onChannelDeleted(id: string) {
+  channelOrder.value = channelOrder.value.filter((k) => k !== id)
+  flowOrder.value = flowOrder.value.filter((k) => k !== 'ch:' + id)
+  leaveDeleted(id)
 }
 /* another member deleted it: every open sidebar drops the row (store), and a
    member reading it right now is taken to #lobby */
@@ -1120,11 +1090,6 @@ async function onCreate() {
 </script>
 
 <style scoped>
-.delete-channel__body { margin: 0; overflow-wrap: anywhere; }
-.delete-channel__confirm {
-  color: var(--color-danger);
-  border-color: var(--color-danger);
-}
 /* The strip owns the width (main.css, at most 5vw). These buttons fill
    that width and must not impose a 32px min that would push past the cap. */
 .sidebar-tab {

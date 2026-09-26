@@ -100,8 +100,15 @@ describe('ChannelSidebar wiring', () => {
     assert.equal((vue.match(/@delete="askDeleteChannel\(/g) || []).length, 2)
   })
   it('Delete opens a confirm; nothing is deleted from the menu itself', () => {
-    assert.match(vue, /<UiDialog v-model:open="deleteOpen"/)
-    assert.match(vue, /data-testid="delete-channel-confirm"[\s\S]*?@click="onDeleteChannel"/)
+    assert.match(vue, /<LazyChannelDeleteDialog[\s\S]*?v-model:open="deleteOpen"/)
     assert.doesNotMatch(vue, /@delete="[^"]*channel\.deleteChannel/)
+    assert.doesNotMatch(vue, /channel\.deleteChannel\(/)
+    const dlg = src('src/components/ChannelDeleteDialog.vue')
+    assert.match(dlg, /data-testid="delete-channel-confirm"[\s\S]*?@click="confirm"/)
+    assert.match(dlg, /await channel\.deleteChannel\(id\)/)
+  })
+  it('the confirm stays off the initial script: only the Lazy form is used', () => {
+    assert.doesNotMatch(vue, /<ChannelDeleteDialog\b/)
+    assert.doesNotMatch(vue, /import ChannelDeleteDialog/)
   })
 })

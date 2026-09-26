@@ -266,8 +266,25 @@ release.**
 
 ## T013 — a box edits and deletes its own message (FR-ED-012..016, contract §10)
 
-**Status**: Partial — code, tests and front ends in `d010b5f4` (CLE-35013); the
-roll and the live e2e proof are recorded below as they land.
+**Status**: Implemented — code, tests and front ends `d010b5f4`, contract
+`85937d18`, rolled as hub 0.9.2 in `800edf7e` (quality gate run 36258120424,
+hub deploy 36258120632, both green). `/version` on dev.api.spool-hub.ai and
+api.spool-hub.ai: `commit 800edf7e…`, `version 0.9.2`.
+
+**Live proof, prd tenant `e2e`, n=1 edit + 1 refusal, hub 800edf7e** (2026-09-26):
+
+- seed: `do_spl_desk_post` CLE-35013 into e2e #lobby -> msg
+  `22a39597-a131-43d2-a3bc-2e4e54c28024`, from_box `box-desk`, ts 17:13:03Z,
+  0 register rows.
+- `ENV=prd TENANT_ID=e2e DESK_AGENT=CLE-35013 MSG_ID=22a39597-… DESK_BODY_FILE=<md table> DRY_RUN=0 ./run -a do_spl_desk_edit`
+  -> `{"from":"CLE-35013","revision":2,…}`.
+- `do_spl_db_query` read-back: body is the markdown table, ts `17:13:03+00` and
+  received_at `17:13:03.921496+00` unchanged, edited_at 17:19:49, edited_by
+  CLE-35013, `env_sig` equals the stored envelope's sig; `message_revisions`
+  rows 1 (the seed body) and 2 (the table).
+- control: `spool edit` from `box-e2e-a` (another pinned box of e2e) ->
+  `hub refused: not_author (only the box that sent a message may edit it)`,
+  rc 1; afterwards still 2 register rows and no trace of its body.
 
 - hub `internal/hub/box_edit.go` (`edit` / `delete` frames), store `Edit.EnvSig`,
   client `internal/hubclient/edit.go`, `spool edit` / `spool delete`,

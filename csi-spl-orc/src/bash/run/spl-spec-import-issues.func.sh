@@ -120,19 +120,19 @@ with open(sys.argv[2], "w", encoding="utf-8") as fh:
         cols = [op["action"], op["item"], op.get("ref") or "", op.get("parent_key") or "",
                 op.get("parent_item") or "", op["status"], ",".join(op["labels"]),
                 op["description_path"], title]
-        fh.write("\t".join(cols) + "\n")
+        fh.write("\x1f".join(cols) + "\n")
 with open(sys.argv[3], "w", encoding="utf-8") as fh:
     for item, key in doc["known_keys"].items():
         fh.write(f"{item}\t{key}\n")
 PY
 
   local line n=0 fails=0 action item ref pkey pitem status labels desc title_b64 title key out try
-  while IFS=$'\t' read -r action item ref pkey pitem status labels desc title_b64; do
+  while IFS=$'\x1f' read -r action item ref pkey pitem status labels desc title_b64; do
     if (( limit > 0 && n >= limit )); then
       do_log "INFO SPEC_IMPORT_LIMIT=$limit reached; the rest waits for the next run"
       break
     fi
-    title="$(printf '%s' "$title_b64" | base64 -d)"
+    title="$(printf '%s\n' "$title_b64" | base64 -d)"
     if [[ -z "$pkey" && -n "$pitem" ]]; then
       pkey="$(awk -F '\t' -v k="$pitem" '$1==k {print $2; exit}' "$work/keys.tsv")"
     fi

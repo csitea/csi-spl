@@ -174,5 +174,16 @@ source "$PROJ_ROOT/src/bash/run/spl-spec-import-issues.func.sh"
 off=$(SPEC_IMPORT_OFFLINE=1 SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" do_spl_spec_import_issues 2>&1) || true
 [[ "$off" == *"| 001 |"* && "$off" == *"| 026 |"* && "$off" == *"Sample titles:"* ]] && pass "offline action prints the table" || { fail "offline action"; printf '%s\n' "$off" | head -n 20; }
 
+# An empty ref must not shift the columns. Tab would collapse it; the
+# action separates fields with a unit separator for that reason.
+line=$(python3 -c 'import base64; t=base64.b64encode(b"Hello [001]").decode(); print("\x1f".join(["create","001/T001","","SPL-1","","done","task","/tmp/d.md",t]))')
+IFS=$'\x1f' read -r action item ref pkey pitem status labels desc title_b64 <<<"$line"
+title=$(printf '%s\n' "$title_b64" | base64 -d)
+if [[ "$action" == create && -z "$ref" && "$pkey" == SPL-1 && -z "$pitem" && "$status" == done && "$title" == "Hello [001]" ]]; then
+  pass "empty fields survive the row read"
+else
+  fail "row read shifted: action=$action ref=$ref pkey=$pkey pitem=$pitem status=$status title=$title"
+fi
+
 echo "=== $([[ $fails -eq 0 ]] && echo 'spec-import-issues: ALL PASS' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

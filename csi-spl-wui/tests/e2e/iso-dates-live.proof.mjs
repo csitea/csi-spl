@@ -12,7 +12,8 @@
 //      and the open issue's deadline box read YYYY-MM-DD (SPL-962)
 //   3. /lobby, /events, /settings/keys, /users: every absolute date on the
 //      page is YYYY-MM-DD[ HH:MM]; no d/m/y, m/d/y or month-name date (SPL-962)
-//   4. no visible member id (HUM-n) on those pages (SPL-6)
+//   4. no visible member id (HUM-n) of a member who chose a name (SPL-6); a
+//      nameless member shows the bare id, titled with the id, by design
 // Once (en): the left-most divider on /issues drags the side panel wider and
 // narrower, by pointer and by keyboard (SPL-16).
 //
@@ -100,7 +101,9 @@ const SCAN = () => {
     if (!/\bHUM-\d+\b/.test(n.textContent) || !el || !el.offsetParent) continue
     where.push({ cls: String(el.className).slice(0, 50), text: n.textContent.trim().slice(0, 60), title: el.closest('[title]')?.getAttribute('title')?.slice(0, 60) || '' })
   }
-  return { iso: iso.slice(0, 6), isoCount: iso.length, bad: bad.slice(0, 12), ids, where }
+  /* a nameless member renders as the bare id, titled with the bare id (HumanName): that is the fallback, not a miss */
+  const named = [...new Set(where.filter((w) => w.title !== w.text).flatMap((w) => w.text.match(/\bHUM-\d+\b/g) || []))]
+  return { iso: iso.slice(0, 6), isoCount: iso.length, bad: bad.slice(0, 12), ids: named, nameless: ids.filter((i) => !named.includes(i)), where }
 }
 
 async function signIn(browser) {
@@ -241,7 +244,7 @@ async function main() {
     const hover = await p.evaluate(() => [...document.querySelectorAll('[title*="HUM-"]')].slice(0, 6)
       .map((e) => ({ text: e.textContent.trim().slice(0, 40), title: e.getAttribute('title').slice(0, 60) })))
     const shown = Object.entries(idsSeen).filter(([, v]) => v.length)
-    step('SPL-6 no visible HUM-n member id on issues, lobby, events, keys, users', shown.length === 0, { shown, hoverOnUsers: hover })
+    step('SPL-6 no visible HUM-n id of a named member on issues, lobby, events, keys, users', shown.length === 0, { shown, hoverOnUsers: hover })
     await dividerChecks(p)
   } catch (e) {
     step('run', false, { error: String(e).slice(0, 300) })

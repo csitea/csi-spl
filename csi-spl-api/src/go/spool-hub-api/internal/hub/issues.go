@@ -48,6 +48,8 @@ type issueJSON struct {
 	Labels      []string `json:"labels"`
 	Deadline    string   `json:"deadline"`
 	Parent      string   `json:"parent"`
+	Kind        string   `json:"kind"` // epic | issue (SPL-18)
+	Epic        string   `json:"epic"` // the parent epic's key; "" on an epic
 	TaskID      string   `json:"task_id"`
 	Channel     string   `json:"channel"`
 	CreatedBy   string   `json:"created_by"`
@@ -74,9 +76,14 @@ func optRFC(t *time.Time) string {
 }
 
 func toIssueJSON(i store.Issue) issueJSON {
-	parent := ""
+	parent, kind, epic := "", "issue", ""
 	if i.Parent != 0 {
 		parent = store.IssueKey(i.Prefix, i.Parent)
+	}
+	if i.IsEpic() {
+		kind = "epic"
+	} else {
+		epic = parent
 	}
 	labels := i.Labels
 	if labels == nil {
@@ -84,7 +91,7 @@ func toIssueJSON(i store.Issue) issueJSON {
 	}
 	return issueJSON{Key: i.Key(), Number: i.Number, Title: i.Title, Description: i.Description, Status: i.Status,
 		Priority: i.Priority, Level: i.Level, Assignee: i.Assignee, Labels: labels, Deadline: optRFC(i.Deadline),
-		Parent: parent, TaskID: i.TaskID, Channel: IssueChannel, CreatedBy: i.CreatedBy, CreatedAt: rfc(i.CreatedAt),
+		Parent: parent, Kind: kind, Epic: epic, TaskID: i.TaskID, Channel: IssueChannel, CreatedBy: i.CreatedBy, CreatedAt: rfc(i.CreatedAt),
 		UpdatedBy: i.UpdatedBy, UpdatedAt: rfc(i.UpdatedAt), CompletedAt: optRFC(i.CompletedAt), CanceledAt: optRFC(i.CanceledAt)}
 }
 
@@ -104,6 +111,10 @@ type issueRequest struct {
 	Labels      *[]string `json:"labels"`
 	Deadline    *string   `json:"deadline"`
 	Parent      *string   `json:"parent"`
+	// SPL-18: epic is the parent epic (same field as parent); kind epic adds
+	// the reserved label and drops the parent, kind issue removes the label.
+	Epic *string `json:"epic"`
+	Kind *string `json:"kind"`
 }
 
 // issueErr is a refusal: HTTP status, error token, detail.
@@ -137,6 +148,15 @@ func (q issueRequest) patch() (store.IssuePatch, *issueErr) {
 			t = t.UTC()
 			p.Deadline = &t
 		}
+	}
+	if q.Epic != nil {
+		if q.Parent != nil && strings.TrimSpace(*q.Parent) != strings.TrimSpace(*q.Epic) {
+			return p, badIssue("epic and parent name two different issues")
+		}
+		q.Parent = q.Epic
+	}
+	if q.Kind != nil && *q.Kind != "epic" && *q.Kind != "issue" {
+		return p, badIssue("kind must be epic or issue")
 	}
 	if q.Parent != nil {
 		n := 0
@@ -172,7 +192,13 @@ func storeIssueErr(err error) *issueErr {
 	case errors.Is(err, store.ErrUnknownLabel):
 		return &issueErr{http.StatusBadRequest, "unknown_label", "every label must be one of the tenant's labels"}
 	case errors.Is(err, store.ErrUnknownParent):
-		return &issueErr{http.StatusBadRequest, "unknown_parent", "the parent is not an issue here, or would make a cycle"}
+		return &issueErr{http.StatusBadRequest, "unknown_parent", "the parent is not an issue here"}
+	case errors.Is(err, store.ErrEpicRequired):
+		return &issueErr{http.StatusBadRequest, "epic_required", "every issue needs a parent epic (epic: SPL-n)"}
+	case errors.Is(err, store.ErrBadEpic):
+		return &issueErr{http.StatusBadRequest, "bad_epic", "the parent must be an epic, and an epic has no parent"}
+	case errors.Is(err, store.ErrEpicHasIssues):
+		return &issueErr{http.StatusConflict, "epic_has_issues", "move this epic's issues to another epic first"}
 	case errors.Is(err, store.ErrNotFound):
 		return &issueErr{http.StatusNotFound, "not_found", "no such issue"}
 	case errors.Is(err, store.ErrConflict):
@@ -239,7 +265,16 @@ func (s *Server) createIssue(ctx context.Context, tenant, actor string, q issueR
 	}
 	p.Status = nil // the create sets it, with its clock, in the store
 	store.ApplyIssuePatch(&in, p)
+	if q.Kind != nil {
+		in.Labels = withKind(in.Labels, *q.Kind)
+		if *q.Kind == "epic" {
+			in.Parent = 0
+		}
+	}
 	if ie := s.checkAssignee(ctx, tenant, in.Assignee); ie != nil {
+		return store.Issue{}, ie
+	}
+	if ie := s.ensureEpicLabel(ctx, tenant, actor, in.Labels); ie != nil {
 		return store.Issue{}, ie
 	}
 	out, err := is.CreateIssue(ctx, in, s.o.Now())
@@ -263,11 +298,34 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 	if ie != nil {
 		return store.Issue{}, ie
 	}
+	if q.Kind != nil {
+		base := []string{}
+		if p.Labels != nil {
+			base = *p.Labels
+		} else {
+			cur, err := is.GetIssue(ctx, tenant, number)
+			if ie := storeIssueErr(err); ie != nil {
+				return store.Issue{}, ie
+			}
+			base = cur.Labels
+		}
+		labels := withKind(base, *q.Kind)
+		p.Labels = &labels
+		if *q.Kind == "epic" {
+			zero := 0
+			p.Parent = &zero
+		}
+	}
 	if p.Empty() {
 		return store.Issue{}, badIssue("nothing to change")
 	}
 	if p.Assignee != nil {
 		if ie := s.checkAssignee(ctx, tenant, *p.Assignee); ie != nil {
+			return store.Issue{}, ie
+		}
+	}
+	if p.Labels != nil {
+		if ie := s.ensureEpicLabel(ctx, tenant, actor, *p.Labels); ie != nil {
 			return store.Issue{}, ie
 		}
 	}
@@ -280,6 +338,35 @@ func (s *Server) updateIssue(ctx context.Context, tenant, actor string, number i
 	}
 	s.fanoutIssue(ctx, tenant, map[string]any{"type": issueFrame, "op": "update", "issue": toIssueJSON(out)})
 	return out, nil
+}
+
+// withKind is labels with the reserved epic label added (kind epic) or
+// removed (kind issue).
+func withKind(labels []string, kind string) []string {
+	out := make([]string, 0, len(labels)+1)
+	for _, l := range labels {
+		if l != store.IssueEpicLabel {
+			out = append(out, l)
+		}
+	}
+	if kind == "epic" {
+		out = append(out, store.IssueEpicLabel)
+	}
+	return out
+}
+
+// ensureEpicLabel puts the reserved epic label into the tenant's catalogue
+// the first time an issue carries it (rdb 0049 seeded every tenant that had
+// issues; a new tenant gets it here).
+func (s *Server) ensureEpicLabel(ctx context.Context, tenant, actor string, labels []string) *issueErr {
+	if !contains(labels, store.IssueEpicLabel) {
+		return nil
+	}
+	// createIssueLabel fans the new label out, so open tabs learn it too.
+	if _, ie := s.createIssueLabel(ctx, tenant, actor, store.IssueEpicLabel, "#8b5cf6"); ie != nil && ie.token != "label_exists" {
+		return ie
+	}
+	return nil
 }
 
 // fanoutIssue sends a frame to every browser socket of the tenant: an issue
@@ -306,6 +393,8 @@ type issueFilter struct {
 	priority, level         map[int]bool
 	before, after           *time.Time
 	sort                    string
+	epic                    map[int]bool // SPL-18: children of these epics
+	kind                    string       // "" | epic | issue
 }
 
 func csvSet(v string) map[string]bool {
@@ -372,6 +461,19 @@ func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr)
 			*dst = &t
 		}
 	}
+	f.epic = map[int]bool{}
+	for e := range csvSet(get("epic")) {
+		n, ok := store.ParseIssueRef(e)
+		if !ok {
+			return f, badIssue("epic must be issue keys like SPL-17")
+		}
+		f.epic[n] = true
+	}
+	switch f.kind = get("kind"); f.kind {
+	case "", "epic", "issue":
+	default:
+		return f, badIssue("kind must be epic or issue")
+	}
 	switch f.sort = get("sort"); f.sort {
 	case "", "priority", "level", "deadline", "updated", "created", "number":
 	default:
@@ -381,6 +483,12 @@ func parseIssueFilter(v map[string][]string, me string) (issueFilter, *issueErr)
 }
 
 func (f issueFilter) match(i store.Issue) bool {
+	if (f.kind == "epic" && !i.IsEpic()) || (f.kind == "issue" && i.IsEpic()) {
+		return false
+	}
+	if len(f.epic) > 0 && (i.IsEpic() || !f.epic[i.Parent]) {
+		return false
+	}
 	if len(f.status) > 0 && !f.status[i.Status] {
 		return false
 	}
@@ -494,12 +602,70 @@ func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (
 	for k, l := range labels {
 		lj[k] = toLabelJSON(l)
 	}
-	return map[string]any{"prefix": prefix, "statuses": store.IssueStatuses, "counts": counts,
+	return map[string]any{"prefix": prefix, "statuses": store.IssueStatuses, "counts": counts, "epics": epicSummaries(all),
 		"issues": out, "labels": lj, "channel": IssueChannel}, nil
 }
 
 func writeIssueErr(w http.ResponseWriter, ie *issueErr) {
 	writeErr(w, ie.status, ie.token, ie.detail)
+}
+
+// epicSummary is one row of the Issues tab's left-most panel (SPL-18): an
+// epic and its issues, the way Linear shows a project's progress. It is over
+// every issue of the tenant, never the filtered list.
+type epicSummary struct {
+	Key      string         `json:"key"`
+	Number   int            `json:"number"`
+	Title    string         `json:"title"`
+	Status   string         `json:"status"`
+	Total    int            `json:"total"`
+	Done     int            `json:"done"`
+	Canceled int            `json:"canceled"`
+	Counts   map[string]int `json:"counts"`
+}
+
+// epicSummaries lists the epics, open ones first then by number, with the
+// count of their issues per status.
+func epicSummaries(all []store.Issue) []epicSummary {
+	by := map[int]*epicSummary{}
+	out := []*epicSummary{}
+	for _, i := range all {
+		if !i.IsEpic() {
+			continue
+		}
+		e := &epicSummary{Key: i.Key(), Number: i.Number, Title: i.Title, Status: i.Status, Counts: map[string]int{}}
+		for _, st := range store.IssueStatuses {
+			e.Counts[st] = 0
+		}
+		by[i.Number] = e
+		out = append(out, e)
+	}
+	for _, i := range all {
+		e := by[i.Parent]
+		if i.IsEpic() || e == nil {
+			continue
+		}
+		e.Total++
+		e.Counts[i.Status]++
+		switch i.Status {
+		case store.IssueDone:
+			e.Done++
+		case store.IssueCanceled:
+			e.Canceled++
+		}
+	}
+	closed := func(st string) bool { return st == store.IssueDone || st == store.IssueCanceled }
+	sort.SliceStable(out, func(a, b int) bool {
+		if ca, cb := closed(out[a].Status), closed(out[b].Status); ca != cb {
+			return !ca
+		}
+		return out[a].Number < out[b].Number
+	})
+	res := make([]epicSummary, len(out))
+	for k, e := range out {
+		res[k] = *e
+	}
+	return res
 }
 
 // ---- browser routes --------------------------------------------------------------

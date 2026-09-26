@@ -119,7 +119,7 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		t.Fatal(err)
 	}
 	if _, err := pg.CreateIssue(ctx, Issue{TenantID: s.tenant, Title: "issue " + s.tenant, Labels: []string{"bug"},
-		TaskID: uuid4(), CreatedBy: hum}, now); err != nil {
+		TaskID: uuid4(), CreatedBy: hum, Parent: testEpic(t, pg, s.tenant, now)}, now); err != nil {
 		t.Fatal(err)
 	}
 	return s

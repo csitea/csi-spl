@@ -47,7 +47,7 @@ EOF_PY
 spl_issue_field_args() {
   local v flag
   for v in TITLE:title DESCRIPTION:description STATUS:status PRIORITY:priority LEVEL:level \
-           ASSIGNEE:assignee LABELS:labels DEADLINE:deadline PARENT:parent DESCRIPTION_FILE:description-file; do
+           ASSIGNEE:assignee LABELS:labels DEADLINE:deadline PARENT:parent EPIC:epic KIND:kind DESCRIPTION_FILE:description-file; do
     flag="${v#*:}"; v="ISSUE_${v%%:*}"
     [[ -n "${!v+x}" ]] && printf -- '--%s\n%s\n' "$flag" "${!v}"
   done
@@ -63,6 +63,10 @@ spl_issue_check_fields() {
     { do_log "FATAL ISSUE_PRIORITY must be 0 (none), 1 urgent, 2 high, 3 medium or 4 low, got: '$ISSUE_PRIORITY'"; return 1; }
   [[ -z "${ISSUE_LEVEL:-}" || "$ISSUE_LEVEL" =~ ^[0-5]$ ]] ||
     { do_log "FATAL ISSUE_LEVEL must be 0 (none) .. 5 (XL), got: '$ISSUE_LEVEL'"; return 1; }
+  [[ -z "${ISSUE_KIND:-}" || "$ISSUE_KIND" =~ ^(epic|issue)$ ]] ||
+    { do_log "FATAL ISSUE_KIND must be epic or issue, got: '$ISSUE_KIND'"; return 1; }
+  [[ -z "${ISSUE_EPIC:-}" || "$ISSUE_EPIC" =~ ^([A-Za-z][A-Za-z0-9]{0,9}-)?[1-9][0-9]*$ ]] ||
+    { do_log "FATAL ISSUE_EPIC must be an epic's key like SPL-17, got: '$ISSUE_EPIC'"; return 1; }
   [[ -z "${ISSUE_DESCRIPTION_FILE:-}" || -r "$ISSUE_DESCRIPTION_FILE" ]] ||
     { do_log "FATAL ISSUE_DESCRIPTION_FILE is not a readable file: '$ISSUE_DESCRIPTION_FILE'"; return 1; }
   return 0

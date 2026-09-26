@@ -35,8 +35,8 @@ func txPrefix(ctx context.Context, tx pgx.Tx, tenant string) (string, error) {
 	return p, err
 }
 
-// txIssueRefs checks labels and the parent chain inside tx.
-func txIssueRefs(ctx context.Context, tx pgx.Tx, i Issue) error {
+// txIssueRefs checks labels and the epic rule inside tx.
+func txIssueRefs(ctx context.Context, tx pgx.Tx, i Issue, rule bool) error {
 	if len(i.Labels) > 0 {
 		var n int
 		if err := tx.QueryRow(ctx, `SELECT count(*) FROM issue_labels WHERE tenant_id = $1 AND label_id = ANY($2)`,
@@ -47,20 +47,34 @@ func txIssueRefs(ctx context.Context, tx pgx.Tx, i Issue) error {
 			return ErrUnknownLabel
 		}
 	}
-	for p, depth := i.Parent, 0; p != 0; depth++ {
-		if p == i.Number || depth > issueParentDepthMax {
-			return ErrUnknownParent
+	if !rule {
+		return nil
+	}
+	// The epic rule (SPL-18). The parent row is locked FOR SHARE, so an epic
+	// cannot lose its label (UpdateIssue locks FOR UPDATE) while an issue is
+	// being put under it.
+	var parent Issue
+	parentOK := false
+	if i.Parent != 0 {
+		var labels []string
+		err := tx.QueryRow(ctx, `SELECT labels FROM issues WHERE tenant_id = $1 AND number = $2 FOR SHARE`,
+			i.TenantID, i.Parent).Scan(&labels)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+		case err != nil:
+			return err
+		default:
+			parent, parentOK = Issue{Labels: labels}, true
 		}
-		err := tx.QueryRow(ctx, `SELECT COALESCE(parent_number, 0) FROM issues WHERE tenant_id = $1 AND number = $2`,
-			i.TenantID, p).Scan(&p)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrUnknownParent
-		}
-		if err != nil {
+	}
+	children := false
+	if i.Number != 0 {
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM issues WHERE tenant_id = $1 AND parent_number = $2)`,
+			i.TenantID, i.Number).Scan(&children); err != nil {
 			return err
 		}
 	}
-	return nil
+	return epicRule(i, parent, parentOK, children)
 }
 
 func nullParent(p int) any {
@@ -89,7 +103,7 @@ func (s *Postgres) CreateIssue(ctx context.Context, in Issue, now time.Time) (Is
 		if !ok {
 			return ErrNotFound
 		}
-		if err := txIssueRefs(ctx, tx, in); err != nil {
+		if err := txIssueRefs(ctx, tx, in, true); err != nil {
 			return err
 		}
 		// The counter row is the lock: two creates in one tenant serialize
@@ -134,7 +148,7 @@ func (s *Postgres) UpdateIssue(ctx context.Context, tenant string, number int, p
 		if err := checkIssue(&cur); err != nil {
 			return err
 		}
-		if err := txIssueRefs(ctx, tx, cur); err != nil {
+		if err := txIssueRefs(ctx, tx, cur, epicTouched(p)); err != nil {
 			return err
 		}
 		out, err = scanIssue(tx.QueryRow(ctx, `UPDATE issues SET title = $3, description = $4, status = $5,

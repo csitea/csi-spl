@@ -9,6 +9,8 @@
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent filing it (the pane's id)
 # @param ISSUE_TITLE - required: the title
+# @param ISSUE_EPIC - required unless ISSUE_KIND=epic: the parent epic's key (SPL-18: every issue has exactly one), e.g. SPL-17
+# @param ISSUE_KIND (optional) - issue (default) | epic
 # @param ISSUE_DESCRIPTION (optional) - markdown; or ISSUE_DESCRIPTION_FILE
 # @param ISSUE_STATUS (optional) - backlog (default) | todo | in_progress | in_review | done | canceled
 # @param ISSUE_PRIORITY (optional) - 0 none, 1 urgent, 2 high, 3 medium, 4 low
@@ -16,13 +18,14 @@
 # @param ISSUE_ASSIGNEE (optional) - a member HUM-* or an agent id
 # @param ISSUE_LABELS (optional) - label ids, comma separated
 # @param ISSUE_DEADLINE (optional) - RFC 3339 with a zone, e.g. 2026-10-01T15:00:00Z
-# @param ISSUE_PARENT (optional) - parent issue key
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE='Rotate the relay key' ISSUE_PRIORITY=2 ISSUE_ASSIGNEE=CLE-00 DRY_RUN=0 ./run -a do_spl_issue_create
+# @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE='Rotate the relay key' ISSUE_EPIC=SPL-17 ISSUE_PRIORITY=2 ISSUE_ASSIGNEE=CLE-00 DRY_RUN=0 ./run -a do_spl_issue_create
 #------------------------------------------------------------------------------
 do_spl_issue_create() {
   [[ -n "${ISSUE_TITLE:-}" ]] || { do_log "FATAL ISSUE_TITLE must carry the issue title"; return 1; }
+  [[ -n "${ISSUE_EPIC:-}${ISSUE_PARENT:-}" || "${ISSUE_KIND:-}" == epic ]] ||
+    { do_log "FATAL ISSUE_EPIC must name the parent epic (every issue has exactly one), or ISSUE_KIND=epic"; return 1; }
   spl_issue_check_fields || return 1
   local args=()
   mapfile -t args < <(spl_issue_field_args)

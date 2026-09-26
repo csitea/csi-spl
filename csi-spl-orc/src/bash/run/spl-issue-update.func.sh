@@ -10,7 +10,7 @@
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent (the pane's id)
 # @param ISSUE_REF - required: the issue key, e.g. SPL-12
-# @param ISSUE_TITLE ISSUE_DESCRIPTION ISSUE_DESCRIPTION_FILE ISSUE_STATUS ISSUE_PRIORITY ISSUE_LEVEL ISSUE_ASSIGNEE ISSUE_LABELS ISSUE_DEADLINE ISSUE_PARENT (optional) - as for do_spl_issue_create
+# @param ISSUE_TITLE ISSUE_DESCRIPTION ISSUE_DESCRIPTION_FILE ISSUE_STATUS ISSUE_PRIORITY ISSUE_LEVEL ISSUE_ASSIGNEE ISSUE_LABELS ISSUE_DEADLINE ISSUE_EPIC ISSUE_KIND (optional) - as for do_spl_issue_create (ISSUE_EPIC moves it to another epic)
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_REF=SPL-12 ISSUE_STATUS=in_progress DRY_RUN=0 ./run -a do_spl_issue_update

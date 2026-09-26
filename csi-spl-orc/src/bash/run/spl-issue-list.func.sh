@@ -10,7 +10,8 @@
 # @param DESK_AGENT - required: the agent (the pane's id)
 # @param ISSUE_ASSIGNEE (optional) - default me; any id, none, or '' for everyone
 # @param ISSUE_STATUS (optional) - comma list; default backlog,todo,in_progress,in_review
-# @param ISSUE_PRIORITY ISSUE_LEVEL ISSUE_LABEL (optional) - comma lists
+# @param ISSUE_PRIORITY ISSUE_LEVEL ISSUE_LABEL ISSUE_EPIC (optional) - comma lists
+# @param ISSUE_KIND (optional) - epic | issue
 # @param ISSUE_SORT (optional) - priority (default) | level | deadline | updated | created
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -21,7 +22,7 @@ do_spl_issue_list() {
   local assignee="${ISSUE_ASSIGNEE-me}" status="${ISSUE_STATUS-backlog,todo,in_progress,in_review}"
   [[ -z "$assignee" ]] || args+=(--assignee "$assignee")
   [[ -z "$status" ]] || args+=(--status "$status")
-  for v in PRIORITY:priority LEVEL:level LABEL:label SORT:sort; do
+  for v in PRIORITY:priority LEVEL:level LABEL:label SORT:sort EPIC:epic KIND:kind; do
     local n="ISSUE_${v%%:*}"
     [[ -n "${!n:-}" ]] && args+=("--${v#*:}" "${!n}")
   done

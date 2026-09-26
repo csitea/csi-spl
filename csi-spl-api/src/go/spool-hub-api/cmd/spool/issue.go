@@ -17,11 +17,11 @@ import (
 )
 
 const issueUsage = `usage: spool issue <list|get|create|update|comment|label> --as <AGENT> [flags]
-  list    [--status s,..] [--priority n,..] [--level n,..] [--assignee id|me|none,..] [--label l,..]
+  list    [--epic SPL-1,..] [--kind epic|issue] [--status s,..] [--priority n,..] [--level n,..] [--assignee id|me|none,..] [--label l,..]
           [--deadline-before T] [--deadline-after T] [--sort priority|level|deadline|updated|created]
   get     --ref SPL-3
-  create  --title T [--description D | --description-file F] [--status S] [--priority 0-4] [--level 0-5]
-          [--assignee ID] [--labels a,b] [--deadline 2026-10-01T15:00:00Z] [--parent SPL-1]
+  create  --title T --epic SPL-1 | --kind epic  [--description D | --description-file F] [--status S]
+          [--priority 0-4] [--level 0-5] [--assignee ID] [--labels a,b] [--deadline 2026-10-01T15:00:00Z]
   update  --ref SPL-3 [any create flag; only the flags given change; "" clears]
   comment --ref SPL-3 --body TEXT | --body-file F
   label   --name N [--color #rrggbb]`
@@ -47,7 +47,9 @@ func cmdIssue(cfg *config.Config, args []string) int {
 	labels := fs.String("labels", "", "label ids, comma separated")
 	label := fs.String("label", "", "list: label ids, comma separated")
 	deadline := fs.String("deadline", "", "RFC 3339 with a zone; empty clears on update")
-	parent := fs.String("parent", "", "parent issue key; empty clears on update")
+	parent := fs.String("parent", "", "the parent epic's key (same as --epic)")
+	epic := fs.String("epic", "", "the parent epic's key (SPL-18: every issue has one); list: comma list")
+	kind := fs.String("kind", "", "epic | issue (create / update); list: epic | issue")
 	before := fs.String("deadline-before", "", "list: RFC 3339")
 	after := fs.String("deadline-after", "", "list: RFC 3339")
 	sortBy := fs.String("sort", "", "list: priority|level|deadline|updated|created")
@@ -65,7 +67,7 @@ func cmdIssue(cfg *config.Config, args []string) int {
 	case "list":
 		q := url.Values{}
 		for k, v := range map[string]string{"status": *status, "priority": *priority, "level": *level, "assignee": *assignee,
-			"label": *label, "deadline_before": *before, "deadline_after": *after, "sort": *sortBy} {
+			"label": *label, "deadline_before": *before, "deadline_after": *after, "sort": *sortBy, "epic": *epic, "kind": *kind} {
 			if v != "" {
 				q.Set(k, v)
 			}
@@ -81,10 +83,10 @@ func cmdIssue(cfg *config.Config, args []string) int {
 			*desc, set["description"] = string(b), true
 		}
 		for flagName, key := range map[string]string{"title": "title", "description": "description", "status": "status",
-			"assignee": "assignee", "deadline": "deadline", "parent": "parent"} {
+			"assignee": "assignee", "deadline": "deadline", "parent": "parent", "epic": "epic", "kind": "kind"} {
 			if set[flagName] {
 				obj[key] = map[string]string{"title": *title, "description": *desc, "status": *status,
-					"assignee": *assignee, "deadline": *deadline, "parent": *parent}[flagName]
+					"assignee": *assignee, "deadline": *deadline, "parent": *parent, "epic": *epic, "kind": *kind}[flagName]
 			}
 		}
 		for flagName, v := range map[string]string{"priority": *priority, "level": *level} {

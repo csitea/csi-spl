@@ -67,8 +67,8 @@ type IssueIn struct {
 	Op    string         `json:"op" jsonschema:"one of list, get, create, update, comment, label"`
 	As    string         `json:"as,omitempty" jsonschema:"the acting agent id; a seated server defaults it to its seat and refuses any other"`
 	Ref   string         `json:"ref,omitempty" jsonschema:"issue key, e.g. SPL-12 (get, update, comment)"`
-	Issue map[string]any `json:"issue,omitempty" jsonschema:"create/update fields: title, description (markdown), status (backlog|todo|in_progress|in_review|done|canceled), priority (0 none,1 urgent,2 high,3 medium,4 low), level (0 none,1 XS..5 XL), assignee, labels, deadline (RFC 3339), parent; for label: name, color"`
-	Query string         `json:"query,omitempty" jsonschema:"list filters in URL query form, e.g. status=todo,in_progress&assignee=me&sort=priority"`
+	Issue map[string]any `json:"issue,omitempty" jsonschema:"create/update fields: title, description (markdown), status (backlog|todo|in_progress|in_review|done|canceled), priority (0 none,1 urgent,2 high,3 medium,4 low), level (0 none,1 XS..5 XL), assignee, labels, deadline (RFC 3339), epic (the parent epic key - every issue needs one), kind (epic|issue); for label: name, color"`
+	Query string         `json:"query,omitempty" jsonschema:"list filters in URL query form, e.g. status=todo,in_progress&assignee=me&epic=SPL-17&kind=issue&sort=priority"`
 	Body  string         `json:"body,omitempty" jsonschema:"comment text: your progress on the issue"`
 }
 

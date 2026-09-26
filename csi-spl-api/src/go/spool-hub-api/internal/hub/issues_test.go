@@ -65,27 +65,33 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 		t.Fatalf("dup label: %d %v", code, out)
 	}
 
+	// SPL-18: every issue has one parent epic; the epic comes first.
+	code, out = call(t, e, tid, http.MethodPost, "/v1/issues", dev, map[string]any{"title": "Auth", "kind": "epic"})
+	if ep := issueOf(t, out); code != http.StatusCreated || ep["key"] != "SPL-1" || ep["kind"] != "epic" || ep["epic"] != "" {
+		t.Fatalf("epic: %d %v", code, out)
+	}
+	readType(t, watcher, "issue")
 	code, out = call(t, e, tid, http.MethodPost, "/v1/issues", dev, map[string]any{
-		"title": "Login breaks", "description": "## steps", "priority": 2, "level": 3, "assignee": "CLE-07",
+		"epic": "SPL-1", "title": "Login breaks", "description": "## steps", "priority": 2, "level": 3, "assignee": "CLE-07",
 		"labels": []string{"bug"}, "deadline": "2026-10-01T15:30:00+03:00"})
 	if code != http.StatusCreated {
 		t.Fatalf("create: %d %v", code, out)
 	}
 	one := issueOf(t, out)
-	if one["key"] != "SPL-1" || one["status"] != "backlog" || one["deadline"] != "2026-10-01T12:30:00Z" || one["created_by"] != dev ||
+	if one["key"] != "SPL-2" || one["status"] != "backlog" || one["deadline"] != "2026-10-01T12:30:00Z" || one["created_by"] != dev ||
 		one["channel"] != "tasks" || one["task_id"] == "" || one["assignee"] != "CLE-07" {
 		t.Fatalf("created %v", one)
 	}
-	if f := readType(t, watcher, "issue"); f["op"] != "create" || f["issue"].(map[string]any)["key"] != "SPL-1" {
+	if f := readType(t, watcher, "issue"); f["op"] != "create" || f["issue"].(map[string]any)["key"] != "SPL-2" {
 		t.Fatalf("create frame %v", f)
 	}
 	code, out = call(t, e, tid, http.MethodPost, "/v1/issues", tester, map[string]any{"title": "Urgent thing", "priority": 1,
 		"level": 1, "assignee": dev, "status": "todo", "parent": "SPL-1"})
-	if code != http.StatusCreated || issueOf(t, out)["parent"] != "SPL-1" {
+	if code != http.StatusCreated || issueOf(t, out)["parent"] != "SPL-1" || issueOf(t, out)["epic"] != "SPL-1" || issueOf(t, out)["kind"] != "issue" {
 		t.Fatalf("create 2: %d %v", code, out)
 	}
 	readType(t, watcher, "issue")
-	code, out = call(t, e, tid, http.MethodPost, "/v1/issues", tester, map[string]any{"title": "Someday", "level": 5})
+	code, out = call(t, e, tid, http.MethodPost, "/v1/issues", tester, map[string]any{"title": "Someday", "level": 5, "epic": "SPL-1"})
 	if code != http.StatusCreated {
 		t.Fatalf("create 3: %d %v", code, out)
 	}
@@ -106,6 +112,10 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 		{map[string]any{"title": "x", "assignee": "HUM-999999"}, 400, "bad_assignee"},
 		{map[string]any{"title": "x", "assignee": "GRK-404"}, 400, "bad_assignee"},
 		{map[string]any{"title": "x", "parent": "SPL-99"}, 400, "unknown_parent"},
+		{map[string]any{"title": "x"}, 400, "epic_required"},
+		{map[string]any{"title": "x", "epic": "SPL-2"}, 400, "bad_epic"},
+		{map[string]any{"title": "x", "epic": "SPL-1", "parent": "SPL-2"}, 400, "bad_issue"},
+		{map[string]any{"title": "x", "epic": "SPL-1", "kind": "story"}, 400, "bad_issue"},
 		{map[string]any{"title": "x", "sneaky": 1}, 400, "bad_json"},
 	} {
 		if code, out := call(t, e, tid, http.MethodPost, "/v1/issues", dev, bad.body); code != bad.code || out["error"] != bad.tok {
@@ -121,30 +131,30 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	}
 
 	// Default sort is Linear's priority: urgent, high, then no priority.
-	code, out = call(t, e, tid, http.MethodGet, "/v1/view/issues", dev, nil)
-	if code != http.StatusOK || !sameKeys(issueKeys(out), "SPL-2", "SPL-1", "SPL-3") || out["prefix"] != "SPL" {
+	code, out = call(t, e, tid, http.MethodGet, "/v1/view/issues?kind=issue", dev, nil)
+	if code != http.StatusOK || !sameKeys(issueKeys(out), "SPL-3", "SPL-2", "SPL-4") || out["prefix"] != "SPL" {
 		t.Fatalf("list: %d %v", code, issueKeys(out))
 	}
 	if c := out["counts"].(map[string]any); c["backlog"] != float64(2) || c["todo"] != float64(1) || c["done"] != float64(0) {
 		t.Fatalf("counts %v", c)
 	}
-	if ls := out["labels"].([]any); len(ls) != 1 {
+	if ls := out["labels"].([]any); len(ls) != 2 { // bug + the reserved epic
 		t.Fatalf("labels %v", ls)
 	}
 	for q, want := range map[string][]string{
-		"?sort=level":                           {"SPL-3", "SPL-1", "SPL-2"},
-		"?sort=deadline":                        {"SPL-1", "SPL-3", "SPL-2"},
-		"?status=todo":                          {"SPL-2"},
-		"?priority=0":                           {"SPL-3"},
-		"?level=1,3&sort=level":                 {"SPL-1", "SPL-2"},
-		"?assignee=none":                        {"SPL-3"},
-		"?assignee=me":                          {"SPL-2"},
-		"?assignee=CLE-07":                      {"SPL-1"},
-		"?label=bug":                            {"SPL-1"},
-		"?deadline_before=2026-10-02T00:00:00Z": {"SPL-1"},
+		"?sort=level":                           {"SPL-4", "SPL-2", "SPL-3"},
+		"?sort=deadline":                        {"SPL-2", "SPL-4", "SPL-3"},
+		"?status=todo":                          {"SPL-3"},
+		"?priority=0":                           {"SPL-4"},
+		"?level=1,3&sort=level":                 {"SPL-2", "SPL-3"},
+		"?assignee=none":                        {"SPL-4"},
+		"?assignee=me":                          {"SPL-3"},
+		"?assignee=CLE-07":                      {"SPL-2"},
+		"?label=bug":                            {"SPL-2"},
+		"?deadline_before=2026-10-02T00:00:00Z": {"SPL-2"},
 		"?deadline_after=2026-10-02T00:00:00Z":  {},
 	} {
-		code, out := call(t, e, tid, http.MethodGet, "/v1/view/issues"+q, dev, nil)
+		code, out := call(t, e, tid, http.MethodGet, "/v1/view/issues?kind=issue&"+q[1:], dev, nil)
 		if code != http.StatusOK || !sameKeys(issueKeys(out), want...) {
 			t.Fatalf("%s: %d %v want %v", q, code, issueKeys(out), want)
 		}
@@ -154,7 +164,7 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	}
 
 	// Patch: status into done stamps completed_at; clears; the frame follows.
-	code, out = call(t, e, tid, http.MethodPatch, "/v1/issues/spl-1", tester, map[string]any{
+	code, out = call(t, e, tid, http.MethodPatch, "/v1/issues/spl-2", tester, map[string]any{
 		"status": "done", "assignee": "", "deadline": "", "labels": []string{}})
 	up := issueOf(t, out)
 	if code != http.StatusOK || up["status"] != "done" || up["completed_at"] == "" || up["assignee"] != "" || up["deadline"] != "" ||
@@ -164,10 +174,10 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	if f := readType(t, watcher, "issue"); f["op"] != "update" || f["issue"].(map[string]any)["status"] != "done" {
 		t.Fatalf("update frame %v", f)
 	}
-	if code, out := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-1", dev, map[string]any{"parent": "SPL-2"}); code != 400 || out["error"] != "unknown_parent" {
-		t.Fatalf("cycle: %d %v", code, out)
+	if code, out := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-2", dev, map[string]any{"parent": "SPL-3"}); code != 400 || out["error"] != "bad_epic" {
+		t.Fatalf("parent not an epic: %d %v", code, out)
 	}
-	if code, _ := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-1", dev, map[string]any{}); code != 400 {
+	if code, _ := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-2", dev, map[string]any{}); code != 400 {
 		t.Fatalf("empty patch %d", code)
 	}
 	if code, _ := call(t, e, tid, http.MethodPatch, "/v1/issues/SPL-77", dev, map[string]any{"title": "x"}); code != 404 {
@@ -175,7 +185,7 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	}
 
 	// Read one; a reload (a fresh GET) keeps every change.
-	code, out = call(t, e, tid, http.MethodGet, "/v1/view/issues/SPL-1", dev, nil)
+	code, out = call(t, e, tid, http.MethodGet, "/v1/view/issues/SPL-2", dev, nil)
 	if code != http.StatusOK || issueOf(t, out)["status"] != "done" || issueOf(t, out)["description"] != "## steps" {
 		t.Fatalf("get: %d %v", code, out)
 	}
@@ -190,11 +200,14 @@ func TestIssuesCreateReadPatchLive(t *testing.T) {
 	if code != http.StatusOK || len(issueKeys(out)) != 0 {
 		t.Fatalf("t2 list: %d %v", code, out)
 	}
-	if code, _ := call(t, e, t2, http.MethodGet, "/v1/view/issues/SPL-1", dev2, nil); code != 404 {
+	if code, _ := call(t, e, t2, http.MethodGet, "/v1/view/issues/SPL-2", dev2, nil); code != 404 {
 		t.Fatalf("t2 reads t1's issue: %d", code)
 	}
-	code, out = call(t, e, t2, http.MethodPost, "/v1/issues", dev2, map[string]any{"title": "t2's"})
-	if code != http.StatusCreated || issueOf(t, out)["key"] != "SPL-1" {
+	if code, _ := call(t, e, t2, http.MethodPost, "/v1/issues", dev2, map[string]any{"title": "t2 epic", "kind": "epic"}); code != http.StatusCreated {
+		t.Fatalf("t2 epic %d", code)
+	}
+	code, out = call(t, e, t2, http.MethodPost, "/v1/issues", dev2, map[string]any{"title": "t2's", "epic": "SPL-1"})
+	if code != http.StatusCreated || issueOf(t, out)["key"] != "SPL-2" {
 		t.Fatalf("t2 create: %d %v", code, out)
 	}
 	quiet(t, watcher, "t2's issue reached t1's socket")

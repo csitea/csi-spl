@@ -30,10 +30,24 @@ func TestSearchIssues(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// SPL-18: every issue has a parent epic. One per tenant, priority 2 and
+	// assigned to HUM-9 so the priority:0 / assignee:none rows stay the issues'.
+	epics := map[string]store.Issue{}
+	for _, tn := range []string{ta, tb} {
+		if _, err := is.CreateIssueLabel(ctx, store.IssueLabel{TenantID: tn, LabelID: store.IssueEpicLabel, Name: store.IssueEpicLabel, CreatedBy: "HUM-1"}, now); err != nil {
+			t.Fatal(err)
+		}
+		ep, err := is.CreateIssue(ctx, store.Issue{TenantID: tn, Title: "Epic", Priority: 2, Assignee: "HUM-9",
+			Labels: []string{store.IssueEpicLabel}, TaskID: uuidV4(), CreatedBy: "HUM-1"}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		epics[tn] = ep
+	}
 	mk := func(tn, title, desc, status, assignee string, prio int, labels ...string) store.Issue {
 		t.Helper()
 		it, err := is.CreateIssue(ctx, store.Issue{TenantID: tn, Title: title, Description: desc, Status: status, Priority: prio,
-			Assignee: assignee, Labels: labels, TaskID: uuidV4(), CreatedBy: "HUM-1"}, now)
+			Assignee: assignee, Labels: labels, TaskID: uuidV4(), CreatedBy: "HUM-1", Parent: epics[tn].Number}, now)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,9 +81,9 @@ func TestSearchIssues(t *testing.T) {
 			}
 		}
 	}
-	want("type:issue", "HUM-3", cafe.Key(), slow.Key()) // newest number first, tenant A only
-	want("type:issue scans", "HUM-3", slow.Key())       // the description is content
-	want("type:issue cafe", "HUM-3", cafe.Key())        // folded
+	want("type:issue", "HUM-3", cafe.Key(), slow.Key(), epics[ta].Key()) // newest number first, tenant A only
+	want("type:issue scans", "HUM-3", slow.Key())                        // the description is content
+	want("type:issue cafe", "HUM-3", cafe.Key())                         // folded
 	want("type:issue name:"+slow.Key(), "HUM-3", slow.Key())
 	want("status:in_progress", "HUM-3", slow.Key()) // implies type:issue
 	want("priority:0", "HUM-3", cafe.Key())

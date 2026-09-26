@@ -327,15 +327,17 @@ FAKE
 chmod +x "$T/fakeissue"; : >"$T/issue.log"
 ISS='spl_host_spool() { SPL_SPOOL="$FAKE"; }; '
 for a in do_spl_issue_create do_spl_issue_update do_spl_issue_comment do_spl_issue_list; do
-  SNIPPET="$a" in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE=t ISSUE_REF=SPL-7 ISSUE_BODY=b ISSUE_STATUS=todo >"$T/o" 2>&1
+  SNIPPET="$a" in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE=t ISSUE_EPIC=SPL-1 ISSUE_REF=SPL-7 ISSUE_BODY=b ISSUE_STATUS=todo >"$T/o" 2>&1
   grep -q 'DRY_RUN' "$T/o" && pass "$a: the dry run says what it would do" || fail "$a: no DRY_RUN line: $(cat "$T/o")"
 done
 for bad in "do_spl_issue_create ISSUE_TITLE=" "do_spl_issue_create ISSUE_PRIORITY=9" "do_spl_issue_create ISSUE_LEVEL=6" \
            "do_spl_issue_create ISSUE_STATUS=doing" "do_spl_issue_update ISSUE_REF=nope" "do_spl_issue_update ISSUE_REF=SPL-7" \
-           "do_spl_issue_comment ISSUE_BODY=" "do_spl_issue_comment ISSUE_REF=SPL-0"; do
+           "do_spl_issue_comment ISSUE_BODY=" "do_spl_issue_comment ISSUE_REF=SPL-0" \
+           "do_spl_issue_create ISSUE_EPIC=" "do_spl_issue_create ISSUE_KIND=story" "do_spl_issue_create ISSUE_EPIC=epic-one"; do
   read -r a kv <<<"$bad"
-  title=ISSUE_NONE=1; [[ $a == do_spl_issue_create ]] && title=ISSUE_TITLE=t # an update with no field set is a refusal too
-  if SNIPPET="$ISS$a" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 "$title" \
+  title=ISSUE_NONE=1; epic=ISSUE_NONE2=1 # an update with no field set is a refusal too
+  [[ $a == do_spl_issue_create ]] && title=ISSUE_TITLE=t && epic=ISSUE_EPIC=SPL-1
+  if SNIPPET="$ISS$a" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 "$title" "$epic" \
        ISSUE_REF=SPL-7 ISSUE_BODY=b DRY_RUN=0 "$kv" >"$T/o" 2>&1; then
     fail "$a refuses $kv: $(cat "$T/o")"
   else
@@ -345,12 +347,13 @@ done
 [[ ! -s "$T/issue.log" ]] && pass "CONTROL no refused call reached spool" || fail "a refused call ran spool: $(cat "$T/issue.log")"
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
 out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
-  ISSUE_TITLE='Rotate the key' ISSUE_PRIORITY=2 ISSUE_LEVEL=3 ISSUE_DEADLINE=2026-10-01T15:00:00Z DRY_RUN=0 2>&1); rc=$?
+  ISSUE_TITLE='Rotate the key' ISSUE_EPIC=SPL-17 ISSUE_PRIORITY=2 ISSUE_LEVEL=3 ISSUE_DEADLINE=2026-10-01T15:00:00Z DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 && "$out" == *'"key": "SPL-7"'* && "$out" == *'"op": "create"'* ]] && pass "do_spl_issue_create files through the desk's spool" ||
   fail "do_spl_issue_create (rc=$rc): $out"
 tail -1 "$T/issue.log" | grep -q '^issue|create|--as|CLE-00|' && tail -1 "$T/issue.log" | grep -q '|--title|Rotate the key|' &&
   tail -1 "$T/issue.log" | grep -q '|--priority|2|' && tail -1 "$T/issue.log" | grep -q '|--level|3|' &&
-  tail -1 "$T/issue.log" | grep -q '|--deadline|2026-10-01T15:00:00Z|' && pass "…as spool issue create --as with each set field" ||
+  tail -1 "$T/issue.log" | grep -q '|--deadline|2026-10-01T15:00:00Z|' && tail -1 "$T/issue.log" | grep -q '|--epic|SPL-17|' &&
+  pass "…as spool issue create --as with each set field, the epic included" ||
   fail "create args: $(tail -1 "$T/issue.log")"
 out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
   ISSUE_REF=SPL-7 ISSUE_STATUS=in_progress ISSUE_ASSIGNEE= DRY_RUN=0 2>&1); rc=$?

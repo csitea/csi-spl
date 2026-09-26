@@ -51,4 +51,15 @@ Status per item: `[x]` built, with the sha and the check; `[ ]` open.
       proof waited for the second tab's socket (not measured whether it was
       open then). Screenshots (8) posted in topic 9c19bfe9, msg 35b89cc3
 
+- [x] T009 SPL-18 epics: rdb 0049 (orphans -> "random" epic), the epic rule
+      in store (both drivers; an update meets it only when it changes the
+      parent or labels), `kind` / `epic` in issues-v1 + `epic=` / `kind=`
+      filters + the `epics` summary (§8), `spool issue --epic/--kind`,
+      ISSUE_EPIC / ISSUE_KIND, MCP fields. The commit adding this line;
+      store TestIssueEpicRule (memory + pg), TestMigration0049EpicBackfill
+      (pg, incl. a second pass), hub TestIssueEpics, desk-actions.tst.sh §9;
+      api run-all-tests ALL PASSED
+- [ ] T010 SPL-18 WUI: left-most panel lists the epics (count + progress, All),
+      a click filters the list, the create form requires an epic
+- [ ] T011 SPL-18 rdb 0049 on dev + prd, hub roll, live proof
 <!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

@@ -58,13 +58,22 @@ func TestAgentIssues(t *testing.T) {
 		t.Fatal(err)
 	}
 	readType(t, watcher, "issue_label")
+	// SPL-18: the agent files its epic first, then the issue under it.
+	if out, err := do(action.IssueArgs{Op: "create", As: "CLE-07", Issue: json.RawMessage(`{"title":"Relay","kind":"epic"}`)}); err != nil ||
+		out["issue"].(map[string]any)["kind"] != "epic" {
+		t.Fatalf("agent epic: %v %v", err, out)
+	}
+	readType(t, watcher, "issue")
+	if _, err := do(action.IssueArgs{Op: "create", As: "CLE-07", Issue: json.RawMessage(`{"title":"no epic"}`)}); hubErr(err) != "epic_required" {
+		t.Fatalf("agent issue without an epic: %v", err)
+	}
 	out, err := do(action.IssueArgs{Op: "create", As: "CLE-07", Issue: json.RawMessage(
-		`{"title":"Rotate the relay key","description":"spec: ...","priority":2,"level":2,"assignee":"CLE-07","labels":["infra"],"deadline":"2026-10-02T09:00:00Z"}`)})
+		`{"epic":"SPL-1","title":"Rotate the relay key","description":"spec: ...","priority":2,"level":2,"assignee":"CLE-07","labels":["infra"],"deadline":"2026-10-02T09:00:00Z"}`)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	iss := out["issue"].(map[string]any)
-	if iss["key"] != "SPL-1" || iss["created_by"] != "CLE-07" || iss["assignee"] != "CLE-07" {
+	if iss["key"] != "SPL-2" || iss["epic"] != "SPL-1" || iss["created_by"] != "CLE-07" || iss["assignee"] != "CLE-07" {
 		t.Fatalf("agent create %v", iss)
 	}
 	if f := readType(t, watcher, "issue"); f["op"] != "create" {
@@ -73,13 +82,13 @@ func TestAgentIssues(t *testing.T) {
 	if _, err := do(action.IssueArgs{Op: "create", As: "CLE-07", Issue: json.RawMessage(`{"title":"x","bogus":1}`)}); hubErr(err) != "bad_json" {
 		t.Fatalf("unknown field: %v", err)
 	}
-	if _, err := do(action.IssueArgs{Op: "update", As: "CLE-07", Ref: "SPL-1", Issue: json.RawMessage(`{"status":"in_progress"}`)}); err != nil {
+	if _, err := do(action.IssueArgs{Op: "update", As: "CLE-07", Ref: "SPL-2", Issue: json.RawMessage(`{"status":"in_progress"}`)}); err != nil {
 		t.Fatal(err)
 	}
 	if f := readType(t, watcher, "issue"); f["op"] != "update" || f["issue"].(map[string]any)["updated_by"] != "CLE-07" {
 		t.Fatalf("update frame %v", f)
 	}
-	out, err = do(action.IssueArgs{Op: "list", As: "CLE-07", Query: "assignee=me&status=in_progress"})
+	out, err = do(action.IssueArgs{Op: "list", As: "CLE-07", Query: "assignee=me&status=in_progress&kind=issue"})
 	if err != nil || len(out["issues"].([]any)) != 1 {
 		t.Fatalf("list mine: %v %v", err, out)
 	}
@@ -88,8 +97,8 @@ func TestAgentIssues(t *testing.T) {
 	}
 
 	// Progress goes onto the issue, at reply level, in #tasks.
-	out, err = do(action.IssueArgs{Op: "comment", As: "CLE-07", Ref: "SPL-1", Body: "key rotated on dev, prd next"})
-	if err != nil || out["issue"] != "SPL-1" || out["task_id"] != iss["task_id"] {
+	out, err = do(action.IssueArgs{Op: "comment", As: "CLE-07", Ref: "SPL-2", Body: "key rotated on dev, prd next"})
+	if err != nil || out["issue"] != "SPL-2" || out["task_id"] != iss["task_id"] {
 		t.Fatalf("comment: %v %v", err, out)
 	}
 	msgs, _ := e.st.ViewTopic(ctx, tid, store.TopicMsgQuery{TaskID: iss["task_id"].(string), Now: time.Now()})
@@ -120,7 +129,7 @@ func TestAgentIssues(t *testing.T) {
 	if code, out := call(t, e, tid, "GET", "/v1/view/topics/"+iss["task_id"].(string), "HUM-1", nil); code != 200 || len(out["messages"].([]any)) != 1 {
 		t.Fatalf("issue topic read: %d %v", code, out)
 	}
-	if _, err := do(action.IssueArgs{Op: "comment", As: "CLE-07", Ref: "SPL-1", Body: "  "}); hubErr(err) != "bad_issue" {
+	if _, err := do(action.IssueArgs{Op: "comment", As: "CLE-07", Ref: "SPL-2", Body: "  "}); hubErr(err) != "bad_issue" {
 		t.Fatalf("empty comment: %v", err)
 	}
 	if _, err := do(action.IssueArgs{Op: "drop", As: "CLE-07"}); err == nil {

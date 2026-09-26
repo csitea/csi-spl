@@ -29,6 +29,8 @@ billing refusal every write gets.
 - `status`: `backlog | todo | in_progress | in_review | done | canceled`
 - `priority`: 0 none, 1 urgent, 2 high, 3 medium, 4 low
 - `level`: 0 none, 1 XS, 2 S, 3 M, 4 L, 5 XL
+- `kind`: `epic` (carries the reserved label `epic`) or `issue`; `epic`: the
+  parent epic's key on an issue, `""` on an epic (`parent` is the same key)
 - unset `deadline`, `parent`, `completed_at`, `canceled_at` read `""`
 - `task_id` + `channel`: the discussion topic. Post a comment as an ordinary
   browser `send` with this `task_id`, `channel` `tasks`, `is_parent` 0.
@@ -38,12 +40,13 @@ A label: `{"id":"bug","name":"Bug","color":"#ff0000","created_by":"…","created
 ## 3. Create and patch body
 
 Any subset of `title, description, status, priority, level, assignee, labels,
-deadline, parent`; unknown fields are refused (`bad_json`). Create needs
-`title`. In a PATCH an absent (or null) field is left alone; `deadline ""`,
+deadline, parent, epic, kind`; unknown fields are refused (`bad_json`). Create
+needs `title`, and `epic` (or `parent`) unless `kind` is `epic`. In a PATCH an absent (or null) field is left alone; `deadline ""`,
 `parent ""`, `assignee ""`, `labels []` clear. `deadline` is RFC 3339 with a
 zone and is stored UTC. Refusals: `bad_issue` (shape / range, the detail names
 the field), `unknown_label`, `unknown_parent` (absent or a cycle),
-`bad_assignee` (not a member, not a roster agent).
+`bad_assignee` (not a member, not a roster agent), and the epic rule (§8):
+`epic_required` 400, `bad_epic` 400, `epic_has_issues` 409.
 
 ## 4. List filters
 
@@ -51,7 +54,9 @@ the field), `unknown_label`, `unknown_parent` (absent or a cycle),
 `assignee` also takes `me` and `none`. `deadline_before` / `deadline_after`
 (RFC 3339; an issue without a deadline never matches). `sort`: `priority`
 (default), `level`, `deadline`, `updated`, `created`, `number` (spec FR-003).
+`epic` takes epic keys (any-of: their issues), `kind` is `epic` or `issue`.
 `counts` is per status over the filtered set, with every status present.
+`epics` is the §8 summary over EVERY issue of the tenant.
 
 ## 5. Live frames on `/v1/wui/ws`
 
@@ -96,5 +101,23 @@ mints):
 `GET /v1/view/topics` (every list: a channel's cards, the Topics tab, DMs)
 leaves out the topic of every issue (`TopicQuery.NoIssues`): the talk about an
 issue lives in its right pane. `GET /v1/view/topics/{task_id}` still reads it.
+
+
+## 8. Epics (SPL-18, rdb 0049)
+
+Owner, 2026-09-26: "the issues should have in the left most panel features /
+epics", "each issue should have 1 parent epic".
+
+- An epic is an issue carrying the reserved label `epic` (`kind: "epic"`).
+  An epic has no parent. Every other issue has exactly one parent, and it is
+  an epic. An epic with issues cannot drop the label (`epic_has_issues`).
+- `kind: "epic"` on a create or patch adds the label (the hub puts `epic` into
+  the catalogue the first time) and drops the parent; `kind: "issue"` removes
+  the label and needs an `epic`.
+- rdb 0049 moved every existing issue without an epic parent under the
+  tenant's epic titled "random" (created where missing).
+- List summary `epics[]`: `{key, number, title, status, total, done,
+  canceled, counts{<status>: n}}`, open epics first then by number; progress
+  is Linear's `done / (total - canceled)`.
 
 <!-- version: 0.7.0 · updated: 2026-09-26 · last-edit: 2026-09-26T08:03:23Z -->

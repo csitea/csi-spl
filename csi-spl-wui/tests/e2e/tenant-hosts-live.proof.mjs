@@ -43,12 +43,22 @@ const res = { site: SITE, api: API, at: new Date().toISOString(), steps: [] }
 const step = (name, ok, ev = {}) => { res.steps.push({ name, ok, ...ev }); console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev)) }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 /** GET <API><path> from the page, with the cookie: the hub sees the page's Origin. */
-const hubGet = (p, path) => p.evaluate(async (url) => {
-  const r = await fetch(url, { credentials: 'include', cache: 'no-store' })
-  let body = null
-  try { body = await r.json() } catch { /* not json */ }
-  return { status: r.status, body }
-}, API + path)
+async function hubGet(p, path) {
+  for (let i = 0; ; i++) {
+    try {
+      return await p.evaluate(async (url) => {
+        const r = await fetch(url, { credentials: 'include', cache: 'no-store' })
+        let body = null
+        try { body = await r.json() } catch { /* not json */ }
+        return { status: r.status, body }
+      }, API + path)
+    } catch (e) {
+      /* the WUI may still be moving (a signed-out page goes to /login, a host hop) */
+      if (i >= 4 || !/context was destroyed|detached/i.test(String(e))) throw e
+      await sleep(1500)
+    }
+  }
+}
 const who = (b) => (b && Array.isArray(b.boxes) ? b.boxes.length : null)
 const browser = await puppeteer.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] })
 try {

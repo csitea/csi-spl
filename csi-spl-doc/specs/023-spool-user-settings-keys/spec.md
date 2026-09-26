@@ -131,7 +131,7 @@ renders once, in the parent, for every section.
   contract change for a purely visual choice. A reader on a phone and on a
   desktop may also want different sizes.
 
-### 3.6 Theme picker and five themes (CLE-34994, owner 2026-09-26) — Partial
+### 3.6 Theme picker and five themes (CLE-34994, owner 2026-09-26) — Implemented
 
 > "fix the title of the app in the upper left corner - it is spool-hub and not
 > bare spool and change the theme switching to a painter pallette icon and add
@@ -156,7 +156,13 @@ renders once, in the parent, for every section.
   the current theme, arrows wrap, Home/End, Enter/Space choose, Escape and a
   choice return focus to the button. Persistence unchanged: `localStorage`
   `spool-theme`, `html[data-theme]`, default dark, no system-follow (it never
-  existed). Pending: lands with the 19-locale names (GRK-3520).
+  existed). Trunk `a95ee9dc`; names in 19 locales `c2070757` (GRK-3520).
+  Settings → Appearance opens the list end-aligned (`align="end"`) so it
+  stays on a phone screen. Gates: `tests/unit/theme-toggle.test.mjs`,
+  `theme-names-i18n.test.mjs`. Local proof (generated bundle, headless
+  Chrome, n=1): each theme picked by mouse sets `data-theme`, storage and the
+  body background, focus returns to the button; keyboard open / End / wrap /
+  Enter / Escape; reload keeps the choice; 390px list on screen, no x-scroll.
 - **Contrast, computed** (`tests/unit/theme-contrast.test.mjs`, trunk
   `a159f76f`, worst pair per theme; bars text 4.5:1, focus ring 3:1):
 

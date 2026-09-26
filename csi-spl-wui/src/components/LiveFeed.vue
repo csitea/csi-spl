@@ -111,6 +111,7 @@ defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], 
 
 const { t } = useI18n({ useScope: 'global' })
 const topic = useTopicStore()
+const people = useHumanNames()
 const { mode: clipMode } = useCardClip(props.clipPane)
 function clipModeFor(m: SpoolMessage) {
   if (!props.clip) return undefined
@@ -127,7 +128,8 @@ const { pill, jump } = useScrollAnchor(
 
 const announce = computed(() => {
   const m = props.lastLive
-  return m ? t('feed.announce_new', { who: `${m.from}${m.from_box ? '@' + m.from_box : ''}` }) : ''
+  /* SPL-6: a named human is announced by the display name; anyone else as id@box */
+  return m ? t('feed.announce_new', { who: people.label(String(m.from || ''), m.from_box) }) : ''
 })
 
 /* CLE-3445: `e` is offered only on the viewer's OWN browser-authored rows —

@@ -3,7 +3,7 @@
     <FeedHeader
       title="#lobby"
       :status="live.state.value === 'open' ? 'on' : 'off'"
-      :status-text="t('pages.lobby.status', { state: stateLabel(live.state.value), who: live.identity.value || '…' })"
+      :status-text="t('pages.lobby.status', { state: stateLabel(live.state.value), who: live.identity.value ? people.label(live.identity.value) : '…' })"
     />
     <div class="feed-body">
       <p v-if="!lobbyId" class="muted">{{ t('pages.lobby.no_lobby', { env: 'NUXT_PUBLIC_LOBBY_TASK_ID' }) }}</p>
@@ -57,6 +57,8 @@ const pane = useLiveFeed('pane')
 const topic = useTopicStore()
 const sidePane = useSidePane()
 const live = useLive()
+/* SPL-6: the status line names the viewer by display name, not the member id */
+const people = useHumanNames()
 const api = useSpoolApi()
 const session = useSessionStore()
 const notes = useNotificationStore()

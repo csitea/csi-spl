@@ -61,16 +61,25 @@ try {
     const r = await fetch(base + '/api/v1/auth/session', { credentials: 'include', cache: 'no-store' })
     return r.status === 200 ? (await r.json()).submit_key : `status ${r.status}`
   }, AUTH_BASE)
+  const checkedMode = async () => p.evaluate(() => document.querySelector('[data-test=submit-key-setting] input:checked')?.value || '')
   const pick = async (mode) => {
     await p.goto(`${BASE}/settings/behaviour`, { waitUntil: 'networkidle2' })
     const sel = `[data-test=submit-key-${mode}]`
     await p.waitForSelector(sel, { timeout: 15000 })
     await sleep(600)
+    /* a radio that is already checked fires no change: a never-picked account
+       shows the default checked, so step through the other mode first and
+       every "stored" check below is a real write */
+    if (await checkedMode() === mode) {
+      const other = `[data-test=submit-key-${mode === 'enter' ? 'ctrl-enter' : 'enter'}]`
+      await p.click(other)
+      await p.waitForFunction((s) => !document.querySelector(s)?.disabled, { timeout: 10000 }, other)
+      await sleep(600)
+    }
     await p.click(sel)
     await p.waitForFunction((s) => !document.querySelector(s)?.disabled, { timeout: 10000 }, sel)
     await sleep(600)
   }
-  const checkedMode = async () => p.evaluate(() => document.querySelector('[data-test=submit-key-setting] input:checked')?.value || '')
   const boxValue = async () => p.$eval(BOX, (el) => el.value)
   const lobby = async () => {
     await p.goto(`${BASE}/lobby`, { waitUntil: 'networkidle2' })

@@ -38,6 +38,6 @@
 
 - [x] T044 (FR-012, FR-014) Hub: rdb 0062 `humans.submit_key`, `PUT preferences submit_key`, session + login answer, `do_spl_human_behaviour`; hub 0.9.3 `af883284`; 0062 applied on dev and prd with `do_spl_db_bootstrap`.
 - [x] T045 (FR-012, FR-013) WUI: `utils/submit-key.mjs`, `composables/useSubmitKey.ts`, `/settings/behaviour` + `SubmitKeySetting.vue`, fields wired, placeholders per mode, 19 locales.
-- [ ] T050 (FR-012, FR-013) Live proof `tests/e2e/submit-key-live.proof.mjs` on dev (t1 test member) and prd (tenant `e2e`): both modes, each with its control key.
+- [x] T050 (FR-012, FR-013) Live proof `tests/e2e/submit-key-live.proof.mjs` on dev (t1 test member) and prd (tenant `e2e`), WUI `82ae1017` + hub 0.9.3 `af883284`, n=1 per env, 2026-09-26 ~19:23Z: 11/11 PASS each - both modes stored and survive a reload, placeholders follow the mode, each mode's CONTROL key adds a line and sends nothing, its send key sends; the account restored to never-picked (PUT 200).
 
 <!-- version: 1.2.0 · updated: 2026-09-26 · last-edit: 2026-09-26T19:30:00Z -->

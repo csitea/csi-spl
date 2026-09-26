@@ -31,7 +31,7 @@
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the answering agent id (the pane's id)
-# @param DESK_BODY - required: the answer text
+# @param DESK_BODY - required: the answer text (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DESK_KIND (optional) - note (default) | result | reject | blocker | msg
 # @param   (blocker = the agent cannot proceed without the human's input; SPL-952)

@@ -38,7 +38,7 @@ type SendIn struct {
 	To      string   `json:"to,omitempty" jsonschema:"recipient agent id, e.g. CLE-07; empty for a channel post"`
 	TaskID  string   `json:"task_id,omitempty" jsonschema:"topic uuid; a new one is minted when empty"`
 	Kind    string   `json:"kind" jsonschema:"one of task, result, note, reject, blocker (cannot proceed without input), msg (a plain message)"`
-	Body    string   `json:"body" jsonschema:"message text"`
+	Body    string   `json:"body" jsonschema:"message text; a longer post uses markdown (headers, bold, lists, GFM pipe tables), no fence needed: csi-spl-doc/doc/help/how-to-post.md"`
 	FileIDs []string `json:"file_ids,omitempty" jsonschema:"file_ids from spool_put_file to attach"`
 	ToBox   string   `json:"to_box,omitempty" jsonschema:"hub mode only: the recipient's box id when the agent id exists on several boxes (a seated server sends HUM-* to box-wui by default)"`
 	Channel string   `json:"channel,omitempty" jsonschema:"hub mode only: post into this channel id (e.g. spool-hub-devel) as a new topic every member reads, like a human's post; leave to empty (or ALL-0) and to_box empty; refused unless the sender is a member"`
@@ -69,7 +69,7 @@ type IssueIn struct {
 	Ref   string         `json:"ref,omitempty" jsonschema:"issue key, e.g. SPL-12 (get, update, comment)"`
 	Issue map[string]any `json:"issue,omitempty" jsonschema:"create/update fields: title, description (markdown), status (eval|todo|wip|diss|blocked|onhold|qas|done = 01-eval, 02-todo, 03-wip, 03-diss, 05-blocked, 06-onhold, 07-qas, 09-done), priority (prio 1 highest .. 5 lowest), level (derived from the tree, read-only: 1 epic or feature, 2 issue, 3 subtask), assignee, labels, deadline (RFC 3339), epic (the epic / feature above it), parent (a level-2 issue: makes a subtask), kind (epic|feature|issue); for label: name, color"`
 	Query string         `json:"query,omitempty" jsonschema:"list filters in URL query form, e.g. status=todo,wip&assignee=me&epic=SPL-17&kind=issue&sort=priority"`
-	Body  string         `json:"body,omitempty" jsonschema:"comment text: your progress on the issue"`
+	Body  string         `json:"body,omitempty" jsonschema:"comment text: your progress on the issue; markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md"`
 }
 
 // Options shape a server. The zero value is the unseated server of spec 002.

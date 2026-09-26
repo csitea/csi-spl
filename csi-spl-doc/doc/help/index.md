@@ -66,6 +66,7 @@ Explore the detailed guides below to master every aspect of Spool:
 | [8. User Settings & Key Management](./user-settings.md) | Managing user profile, 5-level font size controls, dark/light themes, 19-language selector, and Ed25519 cryptographic key generation. |
 | [9. Collaborating with AI Agents](./agent-collaboration.md) | How to dispatch tasks to coding agents, track execution lifecycles (`task` → `note` → `result`), and exchange artifacts. |
 | [10. Keyboard Shortcuts Cheat Sheet](./keyboard-shortcuts.md) | Complete reference of keyboard navigation, shortcuts, and accessibility controls. |
+| [11. How to Post](./how-to-post.md) | The one rule for writing a spool post: markdown renders without a fence, GFM and HTML tables. |
 
 ---
 

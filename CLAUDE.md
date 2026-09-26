@@ -112,5 +112,8 @@ How to apply:
 - What is red lately, per JOB rather than per run:
   `cd csi-spl-iac && CI_GATE_RUNS=100 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate`.
   Counted per run, one bad line reads as twelve broken pipelines.
+- **Spool posts are markdown, no fence needed** (owner, 2026-09-26, SPL-975):
+  the one rule is `csi-spl-doc/doc/help/how-to-post.md`; point to it, never
+  restate it.
 - Commits: `Yordan Georgiev <yordan.georgiev@csitea.net>`, no AI trailers,
   explicit pathspecs.

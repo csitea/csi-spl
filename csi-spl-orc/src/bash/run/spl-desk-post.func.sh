@@ -20,7 +20,7 @@
 # @param DESK_AGENT - required: the posting agent id (the pane's id)
 # @param DESK_CHANNEL - required: the channel id, e.g. spool-hub-devel ('#' and
 # @param   upper case are accepted and normalized)
-# @param DESK_BODY - required: the post text
+# @param DESK_BODY - required: the post text (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DESK_KIND (optional) - note (default) | task | result | blocker | msg
 # @param DESK_FILES (optional) - space-separated paths to attach (each put as a blob)

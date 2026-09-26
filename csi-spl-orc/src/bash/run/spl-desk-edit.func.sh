@@ -25,7 +25,7 @@
 # @param DESK_AGENT - required: the agent that wrote the message (the edit is
 # @param   refused locally when the stored author is someone else)
 # @param MSG_ID - required: the message's lowercase UUID
-# @param DESK_BODY - the new text (or DESK_BODY_FILE)
+# @param DESK_BODY - the new text (or DESK_BODY_FILE) (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
 # @param DESK_BODY_FILE - read the new text from this file (exclusive with DESK_BODY)
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DRY_RUN (optional) - 1 (default) or 0

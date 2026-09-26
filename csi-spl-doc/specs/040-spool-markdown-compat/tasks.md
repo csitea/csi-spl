@@ -9,4 +9,7 @@
 | T005 | Issues right pane: comments through `MessageBody`; a rendered view of the description (`hasMarkdownBlock`) under its textarea | FR-MD-005 | Implemented (5ea0874f) |
 | T006 | Lazy engine chunk, images never fetched, `tests/unit/markdown-hostile.test.mjs` with two controls | FR-MD-003, FR-MD-006, FR-MD-007 | Implemented (5ea0874f) |
 | T007 | `tests/e2e/markdown-live.proof.mjs`: 19/19 on dev and prd | FR-MD-001..008 | Implemented (6756c28f) |
-| T008 | One marker: the owner picks the `md` fence or `{{wiki}}`; remove the other, or route `{{wiki}}` through `markdownTree` | — | Open (owner) |
+| T008 | One marker: the owner picks the `md` fence or `{{wiki}}`; remove the other, or route `{{wiki}}` through `markdownTree` | — | Superseded (SPL-975: no marker needed; a ```md fence and {{wiki}} both still render) |
+| T009 | `looksLikeMarkdown` / `markdownSource` (code-blocks.mjs), `markdownTree(src, { breaks, html })` + `htmlTableNodes` (markdown.mjs), MarkdownBlock bare mode, MessageBody routing; `tests/unit/markdown-unfenced.test.mjs` | FR-MD-010..012 | Implemented (19813340) |
+| T010 | `IssueDescription.vue`: rendered view, click / Enter / `e` edits, save on blur, visible error | FR-MD-013 | Implemented (19813340) |
+| T011 | `doc/help/how-to-post.md` and the pointers to it (MCP schema, spawn seed, desk / issue action help, help docs, CLAUDE.md) | FR-MD-014 | Implemented |

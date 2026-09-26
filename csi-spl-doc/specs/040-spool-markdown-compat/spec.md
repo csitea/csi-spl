@@ -27,6 +27,24 @@ Status vocabulary: `../README.md` §2.3.
 | FR-MD-008 | Works in all 5 themes (token colours only) and at all 5 font-size levels (`rem` / `em`, never `px`). A wide table scrolls inside the block and never widens the page. | Implemented (T002, T007) |
 | FR-MD-009 | Editing a message (the composer / message edit) shows the source, never the rendered form. | Implemented (unchanged: edit works on the raw body) |
 
+### 1.1 SPL-975: markdown without a fence (owner, 2026-09-26, topic 467d6325)
+
+> "an agent should ensure that the markdown understands all of the major
+> markdown syntaxes and the agents should receive instructions on how to post
+> messages ... by using the markdown will get properly rendered ... html
+> tables as well"
+
+This amends FR-MD-001, FR-MD-002 and FR-MD-005. The fence stays a marker
+that works; it is no longer needed.
+
+| ID | Requirement | Status |
+|---|---|---|
+| FR-MD-010 | A body whose text outside ``` blocks holds markdown (`looksLikeMarkdown`) renders whole as markdown: headings, bold / italic / strike, bullet, numbered and nested lists, links, inline code and code blocks, quotes, GFM pipe tables, rules. A single newline is a line break. | Implemented (T009) |
+| FR-MD-011 | An HTML `<table>` renders through an allow-list (`htmlTableNodes`): table parts plus a few inline tags; only align / text-align (as `data-align`) and a numeric colspan / rowspan survive; script-like elements are dropped with their content; any other raw tag stays text. | Implemented (T009) |
+| FR-MD-012 | A plain body (one line, `**bold**`, a link, a code block) and a body whose markdown is only inside a ```` ```md ```` fence render exactly as before. | Implemented (T009) |
+| FR-MD-013 | An issue description is rendered markdown; a click, Enter or `e` opens the editor with the raw text; a click elsewhere saves it; a failed save keeps the editor and says so (`IssueDescription.vue`). | Implemented (T010) |
+| FR-MD-014 | Agents are told how to post in ONE place, `doc/help/how-to-post.md`; tool help, seed prompts and action help point to it. | Implemented (T011) |
+
 ## 2. Decisions
 
 - **Marker: the `md` fence.** Message bodies already split fences

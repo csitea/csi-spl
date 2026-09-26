@@ -9,7 +9,7 @@
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent (the pane's id)
 # @param ISSUE_REF - required: the issue key, e.g. SPL-12
-# @param ISSUE_BODY - required unless ISSUE_BODY_FILE: the progress text
+# @param ISSUE_BODY - required unless ISSUE_BODY_FILE: the progress text (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
 # @param ISSUE_BODY_FILE (optional) - read the text from this file
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0

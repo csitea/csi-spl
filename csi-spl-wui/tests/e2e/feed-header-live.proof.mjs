@@ -14,6 +14,9 @@
 //     - the card height control is icons with a tooltip per mode, at the
 //       header's right edge, on the SAME row as the title
 //     - the document never scrolls sideways
+//   EXPECT=new also walks the channel header through the 5 themes x 5 font
+//   sizes at 390 and 1440 px: the control stays on the title row at the right
+//   edge, the icons render, nothing scrolls sideways (one screenshot per cell).
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
 //     [TENANT=t1] [CHANNEL=<id>] [DM_PEER=<id@box>] [EXPECT=new] \
@@ -180,6 +183,37 @@ try {
       step(`${s.name}@${w}: card height control = 3 icons with tooltips`, !!c && c.opts.length === 3 && c.opts.every((o) => o.icon && o.title && !o.text), { opts: c && c.opts })
       step(`${s.name}@${w}: control at the right edge, on the title row`, !!c && Math.abs(c.rightGap) <= 2 && c.sameRow, { rightGap: c && c.rightGap, sameRow: c && c.sameRow })
     }
+  }
+
+  if (EXPECT === 'new') {
+    const THEMES = ['dark', 'light', 'light-violet', 'light-green', 'light-yellow']
+    for (const theme of THEMES) {
+      for (const size of [1, 2, 3, 4, 5]) {
+        for (const w of [390, 1440]) {
+          await p.setViewport({ width: w, height: 900 })
+          await p.evaluate((th, fs) => {
+            localStorage.setItem('spool-theme', th)
+            localStorage.setItem('spool-font-size', String(fs))
+          }, theme, size)
+          await nav(p, BASE + surfaces[0].path)
+          await p.waitForSelector('[data-pane=msgs] [data-test=feed-header]', { timeout: 30000 }).catch(() => {})
+          await sleep(900)
+          const m = await p.evaluate(MEASURE)
+          const applied = await p.evaluate(() => [document.documentElement.getAttribute('data-theme'), document.documentElement.getAttribute('data-font-size')])
+          const iconW = await p.evaluate(() => {
+            const i = document.querySelector('[data-pane=msgs] [data-testid=card-clip-control] svg')
+            return i ? Math.round(i.getBoundingClientRect().width) : 0
+          })
+          const head = await p.$('[data-pane=msgs] [data-test=feed-header]')
+          if (head) await head.screenshot({ path: `${OUT}/matrix-${theme}-f${size}-${w}.png` }).catch(() => {})
+          const c = m.ctl
+          step(`matrix ${theme} f${size} @${w}: one row, control at the right edge, icons drawn, no x-scroll`,
+            !m.missing && applied[0] === theme && applied[1] === String(size) && !!c && c.sameRow && Math.abs(c.rightGap) <= 2 && iconW >= 10 && m.xScroll <= 0,
+            { applied, height: m.height, rightGap: c && c.rightGap, sameRow: c && c.sameRow, iconW, xScroll: m.xScroll })
+        }
+      }
+    }
+    await p.evaluate(() => { localStorage.removeItem('spool-theme'); localStorage.removeItem('spool-font-size') })
   }
 } catch (e) {
   step('run', false, { error: String(e).slice(0, 300) })

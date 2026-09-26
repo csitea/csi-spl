@@ -99,6 +99,11 @@ type ViewMsg struct {
 	IsParent int
 	// TypedBy is messages.typed_by (rdb 0040); "" = the agent wrote it.
 	TypedBy string
+	// SPL-952 (rdb 0060): the kind as set after sending. All three are zero
+	// while nobody changed it, and the view then emits no override at all.
+	Kind      string
+	KindSetAt time.Time
+	KindSetBy string
 }
 
 // ViewDelivery is a deliveries row as the viewer sees it (never changed).
@@ -232,6 +237,9 @@ func (s *Memory) ViewTopic(_ context.Context, tenant string, q TopicMsgQuery) ([
 		}
 		v := ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{},
 			EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy}
+		if !m.KindSetAt.IsZero() {
+			v.Kind, v.KindSetAt, v.KindSetBy = m.Kind, m.KindSetAt, m.KindSetBy
+		}
 		if revs := s.revisions[[2]string{tenant, m.MsgID}]; len(revs) > 0 {
 			v.Revision = revs[len(revs)-1].Revision
 		}

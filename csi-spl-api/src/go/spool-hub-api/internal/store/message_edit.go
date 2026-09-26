@@ -56,6 +56,10 @@ type EditableMessage struct {
 	// Revision is the highest revision in the register; 0 = never edited.
 	Revision   int
 	Deliveries []ViewDelivery
+	// KindSetAt / KindSetBy describe the LATEST kind change (SPL-952); zero
+	// / "" = the kind is the one the message was sent with.
+	KindSetAt time.Time
+	KindSetBy string
 }
 
 // Edited reports whether the message carries an edit marker.
@@ -109,6 +113,7 @@ func (s *Memory) GetEditable(_ context.Context, tenant, msgID string, now time.T
 		FromBox: m.FromBox, FromID: m.FromID, ToBox: m.ToBox, ToID: m.ToID, Kind: m.Kind,
 		Body: m.Body, Msg: m.Msg, Env: m.Env, EnvSig: m.EnvSig, TS: m.TS, ReceivedAt: m.ReceivedAt,
 		EditedAt: m.EditedAt, EditedBy: m.EditedBy, Deliveries: []ViewDelivery{},
+		KindSetAt: m.KindSetAt, KindSetBy: m.KindSetBy,
 	}
 	if revs := s.revisions[[2]string{tenant, msgID}]; len(revs) > 0 {
 		out.Revision = revs[len(revs)-1].Revision
@@ -160,6 +165,7 @@ func (s *Memory) DeleteMessage(_ context.Context, tenant, msgID string) error {
 	}
 	delete(s.messages, k)
 	delete(s.revisions, k)
+	delete(s.kindChanges, k)
 	delete(s.reactions, k)
 	for dk := range s.deliveries {
 		if dk[0] == tenant && dk[1] == msgID {

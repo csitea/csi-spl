@@ -126,6 +126,11 @@ type Message struct {
 	// terminal (rdb 0040, specs/036 FR-010); "" = NULL = the agent wrote it.
 	// Hub metadata: never in the signed envelope, never in a frame to a box.
 	TypedBy string
+	// The latest kind change (SPL-952, rdb 0060); zero / "" = never changed.
+	// Kind above is then the CURRENT kind, and the envelope keeps the kind it
+	// was sent with.
+	KindSetAt time.Time
+	KindSetBy string
 }
 
 // parentBit keeps is_parent inside the column check (0 or 1).
@@ -222,6 +227,7 @@ type Store interface {
 
 	// Editing a sent message and its append-only revision register (specs/032).
 	MessageEdits
+	MessageKinds
 
 	// Emoji reactions on a stored message (rdb 0037). The message may be
 	// is_parent 0 or 1; the reaction does not care which.

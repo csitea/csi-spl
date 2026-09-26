@@ -236,6 +236,7 @@ func editedPayload(m store.EditableMessage, canon []byte, at time.Time, by strin
 		"deliveries":  ds,
 	}
 	editedFields(out, at, by, rev)
+	kindFields(out, m.Kind, m.KindSetAt, m.KindSetBy)
 	return out
 }
 
@@ -271,6 +272,7 @@ func (s *Server) fanoutEdited(ctx context.Context, tenant string, m store.Editab
 		frame["parent_task_id"] = e.ParentTaskID
 	}
 	editedFields(frame, at, by, rev)
+	kindFields(frame, m.Kind, m.KindSetAt, m.KindSetBy)
 	for _, c := range targets {
 		c.write(ctx, frame) //nolint:errcheck
 	}

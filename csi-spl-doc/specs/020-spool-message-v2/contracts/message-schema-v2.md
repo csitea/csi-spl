@@ -18,7 +18,7 @@ Owner decision 2026-09-19 (SC-006 in 002, options A / B / C): **B, bump to
 | `ts` | string | RFC3339, UTC, `Z`, second precision. Readers do not parse it (§5) |
 | `from` | string | agent id `^[A-Z]{2,4}-\d+$`, prefix `BOX-` forbidden |
 | `to` | string | agent id, same rule. `ALL-0` = a channel / broadcast post (003 `channels-v1.md`) |
-| `kind` | string | `task` \| `result` \| `note` \| `reject` \| `blocker` \| `msg` (the last two since SPL-952: `blocker` = the sender cannot proceed without input, `msg` = a plain message; rdb 0058 widens the `messages.kind` CHECK) |
+| `kind` | string | `task` \| `result` \| `note` \| `reject` \| `blocker` \| `msg` (the last two since SPL-952: `blocker` = the sender cannot proceed without input, `msg` = a plain message; rdb 0058 widens the `messages.kind` CHECK. A kind can be SET after sending by the author, a biz_owner or an admin: `PATCH /v1/messages/{msg_id}/kind {kind}`; it is hub metadata (`kind`, `kind_set_by`, `kind_set_at` beside the envelope, rdb 0060 register), the signed object keeps the kind it was sent with) |
 | `body` | string | UTF-8, may be empty, ≤ 64 KiB (bytes) |
 | `files` | array | 0..16 file refs (§2). Writers always emit an array (`[]` when empty) |
 | `sig` | string | never written. A `sig` found on a local file is tolerated, not checked; the hub envelope carries the signature (`trust-modes.md` §5) |

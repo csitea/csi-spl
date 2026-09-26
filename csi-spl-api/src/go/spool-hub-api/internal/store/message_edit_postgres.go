@@ -20,18 +20,18 @@ func (s *Postgres) GetEditable(ctx context.Context, tenant, msgID string, now ti
 		return m, ErrNotFound
 	}
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		var channel, parent, editedBy *string
-		var editedAt *time.Time
+		var channel, parent, editedBy, kindSetBy *string
+		var editedAt, kindSetAt *time.Time
 		err := tx.QueryRow(ctx, `SELECT msg_id::text, task_id::text, channel, parent_task_id::text,
 				from_box, from_id, to_box, to_id, kind, body, msg, env_sig, env, ts, received_at,
-				edited_at, edited_by,
+				edited_at, edited_by, kind_set_at, kind_set_by,
 				COALESCE((SELECT MAX(revision) FROM message_revisions r
 					WHERE r.tenant_id = m.tenant_id AND r.msg_id = m.msg_id), 0)
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.msg_id = $2 AND m.expires_at > $3`,
 			tenant, msgID, now).Scan(&m.MsgID, &m.TaskID, &channel, &parent,
 			&m.FromBox, &m.FromID, &m.ToBox, &m.ToID, &m.Kind, &m.Body, &m.Msg, &m.EnvSig, &m.Env,
-			&m.TS, &m.ReceivedAt, &editedAt, &editedBy, &m.Revision)
+			&m.TS, &m.ReceivedAt, &editedAt, &editedBy, &kindSetAt, &kindSetBy, &m.Revision)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -39,7 +39,10 @@ func (s *Postgres) GetEditable(ctx context.Context, tenant, msgID string, now ti
 			return err
 		}
 		m.Channel, m.ParentTaskID = deref(channel), deref(parent)
-		m.EditedBy = deref(editedBy)
+		m.EditedBy, m.KindSetBy = deref(editedBy), deref(kindSetBy)
+		if kindSetAt != nil {
+			m.KindSetAt = *kindSetAt
+		}
 		if editedAt != nil {
 			m.EditedAt = *editedAt
 		}

@@ -53,6 +53,9 @@ var validKinds = map[string]bool{
 // KindList is validKinds for help text and error messages.
 const KindList = "task|result|note|reject|blocker|msg"
 
+// ValidKind reports whether k is a kind the hub accepts.
+func ValidKind(k string) bool { return validKinds[k] }
+
 // idRe matches an agent id: a 2-4 letter kind prefix and a number, e.g. CLE-07.
 var idRe = regexp.MustCompile(`^[A-Z]{2,4}-\d+$`)
 

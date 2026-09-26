@@ -73,6 +73,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		Msg: m.Msg, Env: m.Env, EditedBy: "CLE-01", EditedAt: now.Add(time.Second)}); err != nil {
 		t.Fatal(err)
 	}
+	// message_kind_changes (rdb 0060): one kind change, so the register holds
+	// rows for both tenants.
+	if _, err := pg.SetKind(ctx, s.tenant, m.MsgID, "blocker", "CLE-01", now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
 	// message_reactions (rdb 0037): one emoji on the message, so the table
 	// holds a row for both tenants. The glyph is not the search marker.
 	if err := pg.AddReaction(ctx, s.tenant, m.MsgID, "HUM-1", "👍", now.Add(2*time.Second)); err != nil {

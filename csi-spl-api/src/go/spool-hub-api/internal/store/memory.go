@@ -24,6 +24,8 @@ type Memory struct {
 	messages map[[2]string]*Message
 	// specs/032: every body a message has had, oldest first, per (tenant, msg).
 	revisions map[[2]string][]MessageRevision
+	// SPL-952: every kind change of a message, oldest first, per (tenant, msg).
+	kindChanges map[[2]string][]KindChange
 	// rdb 0037: emoji rows per (tenant, msg), in the order they were added.
 	reactions  map[[2]string][]memReaction
 	deliveries map[[3]string]*memDelivery

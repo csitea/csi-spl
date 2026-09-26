@@ -618,6 +618,11 @@ type viewMsg struct {
 	// rdb 0040 / specs/036 FR-011: the HUM-* the hub verified typed this
 	// line at the agent's terminal. Omitted when the agent wrote it.
 	TypedBy string `json:"typed_by,omitempty"`
+	// SPL-952 (rdb 0060): the kind as set after sending. Omitted while it was
+	// never changed; the envelope then carries the truth.
+	Kind      string `json:"kind,omitempty"`
+	KindSetAt string `json:"kind_set_at,omitempty"`
+	KindSetBy string `json:"kind_set_by,omitempty"`
 }
 
 func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store.Tenant) {
@@ -731,6 +736,9 @@ func viewMsgs(rows []store.ViewMsg, react map[string][]store.StoredReaction) []v
 			Reactions: groupReactions(react[m.MsgID]), TypedBy: m.TypedBy}
 		if !m.EditedAt.IsZero() {
 			v.EditedAt, v.EditedBy, v.Revision = rfc(m.EditedAt), m.EditedBy, m.Revision
+		}
+		if !m.KindSetAt.IsZero() {
+			v.Kind, v.KindSetAt, v.KindSetBy = m.Kind, rfc(m.KindSetAt), m.KindSetBy
 		}
 		for _, d := range m.Deliveries {
 			v.Deliveries = append(v.Deliveries, viewDelivery{ToBox: d.ToBox, State: d.State})

@@ -8,6 +8,8 @@
     <header class="feed-header">
       <h2>{{ t('search.title') }}</h2>
       <code v-if="query" class="search-query" dir="ltr">{{ query }}</code>
+      <!-- SPL-963: a message hit takes the middle pane's titles / 5 rows / full -->
+      <LazyCardClipControl />
     </header>
     <div class="feed-body">
       <ul v-if="result && result.warnings.length" class="search-warnings" data-test="search-warnings">
@@ -99,7 +101,7 @@
               </span>
               <span class="search-row__meta muted">{{ meta(row) }}</span>
             </div>
-            <p v-if="row.type === 'messages'" class="search-row__snippet">
+            <p v-if="row.type === 'messages'" class="search-row__snippet" :class="listClipClass(clipMode)" data-test="search-msg-snippet" :data-clip-mode="clipMode">
               <template v-for="(s, i) in segs(row)" :key="i"><mark v-if="s.mark">{{ s.text }}</mark><template v-else>{{ s.text }}</template></template>
             </p>
             <p v-else-if="eventDetail(row)" class="search-row__snippet">{{ eventDetail(row) }}</p>
@@ -135,9 +137,12 @@ import { isoDateTime } from '~/utils/date-iso.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import HumanName from '~/components/HumanName.vue'
+import { useCardClip } from '~/composables/useCardClip'
+import { listClipClass } from '~/utils/card-clip.mjs'
 
 const { t, te } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
+const { mode: clipMode } = useCardClip()
 const route = useRoute()
 const router = useRouter()
 const search = useSearchStore()
@@ -368,6 +373,15 @@ useHead(() => ({ title: query.value ? `${t('search.title')}: ${query.value}` : t
 .search-row__text { min-width: 0; overflow-wrap: anywhere; }
 .search-row__meta { font-size: 0.75rem; min-width: 0; overflow-wrap: anywhere; }
 .search-row__snippet { margin: 4px 0 0; font-size: 0.875rem; line-height: 1.45; overflow-wrap: anywhere; min-width: 0; }
+/* SPL-963: titles = one line, 5 rows = at most 5 lines, full = all of it */
+.search-row__snippet.list-clip--titles { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+.search-row__snippet.list-clip--rows {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+  overflow: hidden;
+}
 .search-results mark, .search-bad mark {
   background: var(--color-glow);
   color: inherit;

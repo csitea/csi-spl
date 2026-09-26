@@ -3,6 +3,8 @@
     <header class="feed-header">
       <h2><NuxtLink :to="localePath('/')">{{ t('nav.topics') }}</NuxtLink> / <code>{{ shortId }}</code></h2>
       <span class="muted">{{ t('pages.task.status', { n: store.messages.length, state: stateLabel(live.state.value) }) }}</span>
+      <!-- SPL-963: the thread's control, as in the right pane -->
+      <LazyCardClipControl pane="thread" />
     </header>
     <div class="pinned-root feed-body" data-test="topic-root">
       <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="reopen" />

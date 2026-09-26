@@ -14,7 +14,6 @@ import {
   CARD_CLIP_THREAD_KEY,
   cardClipKey,
   cardClipPx,
-  clipsInThread,
   cardDragPx,
   cardHasPicture,
   cardIsClipped,
@@ -238,7 +237,7 @@ describe('appearance default and a per-view session override', () => {
   })
 })
 
-describe('SPL-945: the thread pane has its own control and mode, for the replies', () => {
+describe('SPL-945: the thread pane has its own control and mode', () => {
   it('stores the thread mode under its own key, apart from the middle pane', () => {
     const store = memoryStore()
     assert.equal(CARD_CLIP_THREAD_KEY, 'spool-card-clip-thread')
@@ -253,13 +252,6 @@ describe('SPL-945: the thread pane has its own control and mode, for the replies
     assert.equal(store.getItem('spool-card-clip-thread'), 'full')
   })
 
-  it('clips a reply (is_parent 0, or no flag) and never the root (is_parent 1)', () => {
-    assert.equal(clipsInThread({ is_parent: 0 }), true)
-    assert.equal(clipsInThread({}), true)
-    assert.equal(clipsInThread({ is_parent: 1 }), false)
-    assert.equal(clipsInThread({ is_parent: '1' }), false)
-  })
-
   for (const p of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue']) {
     it(`${p}: the control in the header, the feed clips with the thread mode`, () => {
       const src = read(p)
@@ -268,15 +260,16 @@ describe('SPL-945: the thread pane has its own control and mode, for the replies
     })
   }
 
-  it('the /t topic page reads the thread mode too, so its root stays whole', () => {
+  it('the /t topic page reads the thread mode too', () => {
     assert.match(read('src/pages/t/[task_id].vue'), /<LiveFeed\s+clip\s+clip-pane="thread"\s+hold-scroll/)
   })
 
-  it('LiveFeed reads the pane\'s mode and skips the thread root', () => {
+  it('LiveFeed reads the pane\'s mode for every card, the thread root too (SPL-963)', () => {
     const src = read('src/components/LiveFeed.vue')
     assert.match(src, /useCardClip\(props\.clipPane\)/)
-    assert.match(src, /props\.clipPane === 'thread' && !clipsInThread\(m\)\) return undefined/)
-    assert.match(src, /:clip-mode="clipModeFor\(m\)"/)
+    assert.match(src, /return props\.clip \? clipMode\.value : undefined/)
+    assert.match(src, /:clip-mode="clipModeFor\(\)"/)
+    assert.doesNotMatch(src, /clipsInThread/)
   })
 
   it('the middle pane stays on the default pane', () => {

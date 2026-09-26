@@ -259,12 +259,17 @@
         </form>
       </section>
       <section v-if="!creating && form.task_id" class="issues-talk" data-test="issues-talk">
-        <h3>{{ t('issues.discussion') }}</h3>
+        <!-- SPL-963: the discussion sits in the right pane and takes its titles / 5 rows / full -->
+        <div class="issues-talk__h">
+          <h3>{{ t('issues.discussion') }}</h3>
+          <LazyCardClipControl pane="thread" />
+        </div>
         <p v-if="!comments.length" class="muted" data-test="issues-comment-empty">{{ t('issues.comment_empty') }}</p>
-        <article v-for="c in comments" :key="c.msg_id" class="issues-comment" data-test="issues-comment">
+        <article v-for="c in comments" :key="c.msg_id" class="issues-comment" :class="listClipClass(clipMode)" data-test="issues-comment" :data-clip-mode="clipMode">
           <HumanName :id="c.from" :box="c.from_box" />
           <time v-if="c.ts" class="muted" :datetime="c.ts">{{ when(c.ts) }}</time>
-          <MessageBody class="issues-comment__body" :body="c.body" />
+          <p v-if="clipMode === 'titles'" class="issues-comment__body issues-comment__title" data-test="issues-comment-title" :title="cardTitle(c.body)">{{ cardTitle(c.body) }}</p>
+          <MessageBody v-else class="issues-comment__body" :body="c.body" />
         </article>
         <label class="issues-field">
           <span class="sr-only">{{ t('issues.comment_placeholder') }}</span>
@@ -313,6 +318,8 @@ import { isoDateTime, parseIsoDate } from '~/utils/date-iso.mjs'
 import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import { tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
+import { useCardClip } from '~/composables/useCardClip'
+import { cardTitle, listClipClass } from '~/utils/card-clip.mjs'
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import {
   ISSUE_LEVELS,
@@ -355,6 +362,7 @@ function statusIcon(status: string): string {
 }
 
 const { t } = useI18n({ useScope: 'global' })
+const { mode: clipMode } = useCardClip('thread')
 const route = useRoute()
 const session = useSessionStore()
 const roster = useRosterStore()
@@ -1289,6 +1297,10 @@ onUnmounted(() => {
 .issues-sub-add { display: flex; gap: 6px; }
 .issues-sub-add input { flex: 1; min-width: 0; }
 .issues-talk h3 { margin: 8px 0 0; font-size: 0.875rem; }
+.issues-talk__h { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* SPL-963: titles = one line, 5 rows = at most 5 lines, full = all of it */
+.issues-comment__title { margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-clip--rows .issues-comment__body { max-height: calc(5 * 1.45em); overflow: hidden; }
 .issues-comment { min-width: 0; }
 .issues-comment__body { margin-top: 2px; min-width: 0; }
 .issues-detail__rendered {

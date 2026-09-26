@@ -5,6 +5,7 @@
       :key="String(m.msg_id || '')"
       :msg="m"
       clickable
+      :clip-mode="clipMode"
       @open-topic="open"
     />
   </div>
@@ -14,9 +15,12 @@
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
 import type { SpoolMessage } from '~/types/spool'
+import { useCardClip } from '~/composables/useCardClip'
 
-/* New Omnibox topics, newest at the top of the right pane. */
+/* New Omnibox topics, newest at the top of the right pane. SPL-963: they
+   sit in that pane, so they take its titles / 5 rows / full mode. */
 const topic = useTopicStore()
+const { mode: clipMode } = useCardClip('thread')
 const pane = useLiveFeed('pane')
 
 function open(msg: SpoolMessage) {

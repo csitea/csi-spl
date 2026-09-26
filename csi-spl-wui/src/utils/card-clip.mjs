@@ -14,8 +14,12 @@
  *    full   — nothing clipped (the card as it was before this change).
  *  SPL-945 (owner 2026-09-26, "the same way of changing the view should be
  *  applied to the threads msgs as well, aka the is_parent=0 msgs"): the right
- *  (thread) pane has the same control and its own stored mode; it clips the
- *  replies only, so the thread's root card is always whole.
+ *  (thread) pane has the same control and its own stored mode.
+ *  SPL-963 (owner 2026-09-26, "clicking on the titles, 5 rows and full does
+ *  not work for all of the listings"): every list that shows messages takes
+ *  a pane's mode. The middle pane (msgs): lobby, channel, DM, search
+ *  results. The right pane (thread): the thread with its root card, the /t
+ *  page, the new-topic cards (BornTopics), and the issue discussion.
  */
 import { storageGet, storageSet } from './prefs.mjs'
 import { isPreviewableImage } from './file-preview.mjs'
@@ -166,10 +170,13 @@ export function migrateCardClip(store, bag) {
   return { migrated }
 }
 
-/** SPL-945: in the thread pane only a reply takes the mode; the root card
- *  (is_parent 1) is never clipped. A row without the flag is a reply. */
-export function clipsInThread(row) {
-  return Number(row?.is_parent) !== 1
+/**
+ * SPL-963: the class of a list line that is not a MessageCard (a search hit,
+ * an issue comment). `titles` is one line, `rows` at most 5 lines, `full`
+ * all of it. The page's CSS draws each class.
+ */
+export function listClipClass(mode) {
+  return 'list-clip--' + parseCardClipMode(mode)
 }
 
 /**

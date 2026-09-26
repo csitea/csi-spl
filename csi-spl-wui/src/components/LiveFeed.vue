@@ -33,7 +33,7 @@
         :merge-prev="mergeTarget(m, 'previous')"
         :merge-next="mergeTarget(m, 'next')"
         :current-task-id="currentTaskId"
-        :clip-mode="clipModeFor(m)"
+        :clip-mode="clipModeFor()"
         :class="{ pending: m.pending }"
         :data-key="m.msg_id"
         :data-pending="m.pending ? 'true' : undefined"
@@ -69,7 +69,6 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { threadNeighbor } from '~/utils/msg-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
-import { clipsInThread } from '~/utils/card-clip.mjs'
 
 /* 013: newest first under the Omnibox; entering rows animate. The first page is 30 rows; a Load more
    button under the last row asks for the next 30 (held rows first, then the hub, before=<cursor>).
@@ -102,8 +101,9 @@ const props = defineProps<{
   openButton?: boolean
   /** CLE-34989: a middle-pane feed of level-1 cards takes the pane's height
       mode (titles / 5 rows / full). SPL-945: a thread (the right pane, the
-      /t page) passes it too, with clipPane="thread" - its own mode, and the
-      root card stays whole. */
+      /t page) passes it too, with clipPane="thread" - its own mode. SPL-963:
+      the thread's root card takes that mode as well, so the buttons change
+      a thread that has no replies yet. */
   clip?: boolean
   clipPane?: CardClipPane
 }>()
@@ -113,10 +113,8 @@ const { t } = useI18n({ useScope: 'global' })
 const topic = useTopicStore()
 const people = useHumanNames()
 const { mode: clipMode } = useCardClip(props.clipPane)
-function clipModeFor(m: SpoolMessage) {
-  if (!props.clip) return undefined
-  if (props.clipPane === 'thread' && !clipsInThread(m)) return undefined
-  return clipMode.value
+function clipModeFor() {
+  return props.clip ? clipMode.value : undefined
 }
 const root = ref<HTMLElement | null>(null)
 const { pill, jump } = useScrollAnchor(

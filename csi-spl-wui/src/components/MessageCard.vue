@@ -118,12 +118,19 @@
         drags it taller (the omnibox's grip, re-drawn here, not shared); `full`
         and a host that passes no mode shows all of it.
       -->
-      <p
+      <div
         v-if="titleOnly"
         class="msg-title"
         data-testid="card-title"
-        :title="title"
-      >{{ title }}</p>
+      >
+        <span class="msg-title__text" :title="title">{{ title }}</span>
+        <FileAttachment
+          v-for="(f, i) in files"
+          :key="'title-' + String(f.file_id || f.path || i)"
+          icon-only
+          :file="f"
+        />
+      </div>
       <div
         v-else
         ref="clipEl"
@@ -952,9 +959,18 @@ async function save() {
 }
 .card-grip:hover { color: var(--color-fg); }
 .msg-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin: 2px 0 0;
   font-size: 0.875rem;
   line-height: 1.45;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.msg-title__text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

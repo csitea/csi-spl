@@ -1,5 +1,16 @@
 <template>
-  <div class="file-card">
+  <button
+    v-if="iconOnly"
+    type="button"
+    class="file-icon"
+    data-testid="card-title-file"
+    :title="file.name"
+    :aria-label="file.name"
+    @click.stop="onIcon"
+  >
+    <UiIcon :name="kind.icon" size="1em" />
+  </button>
+  <div v-else class="file-card">
     <button
       v-if="previewUrl"
       type="button"
@@ -18,12 +29,12 @@
     </div>
     <a v-if="linkable" class="btn ghost" :href="href" :download="file.name" @click.prevent="onDownload">{{ label }}</a>
     <small v-else :title="file.path">{{ t('feed.on_box_path', { path: file.path }) }}</small>
-    <UiDialog v-if="previewUrl" v-model:open="viewerOpen" :title="file.name" size="xl">
-      <div class="file-viewer" data-test="file-viewer">
-        <img :src="previewUrl" :alt="file.name">
-      </div>
-    </UiDialog>
   </div>
+  <UiDialog v-if="previewUrl" v-model:open="viewerOpen" :title="file.name" size="xl">
+    <div class="file-viewer" data-test="file-viewer">
+      <img :src="previewUrl" :alt="file.name">
+    </div>
+  </UiDialog>
 </template>
 
 <script setup lang="ts">
@@ -35,7 +46,7 @@ import { fileKind, isPreviewableImage, previewImageMime, sharedPreview } from '~
 import { bytesToDataUri } from '~/utils/avatar.mjs'
 import type { FileRef } from '~/types/spool'
 
-const props = defineProps<{ file: FileRef }>()
+const props = withDefaults(defineProps<{ file: FileRef, iconOnly?: boolean }>(), { iconOnly: false })
 
 const api = useSpoolApi()
 const { t, locale } = useI18n({ useScope: 'global' })
@@ -96,6 +107,17 @@ onMounted(() => {
  * Cross-origin <a download> is ignored by browsers, so fetch the bytes, check
  * sha256 against the message (the box CLI refuses a mismatch too), then save.
  */
+async function onIcon() {
+  if (isPreviewableImage(props.file.name, props.file.bytes)) {
+    if (!previewUrl.value) await loadPreview()
+    if (previewUrl.value) {
+      viewerOpen.value = true
+      return
+    }
+  }
+  if (linkable.value) await onDownload()
+}
+
 async function onDownload() {
   status.value = 'busy'
   try {
@@ -122,6 +144,21 @@ async function onDownload() {
 </script>
 
 <style scoped>
+.file-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+.file-icon:focus-visible {
+  outline: var(--focus-ring-w) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
 .file-kind {
   display: inline-flex;
   flex-direction: column;

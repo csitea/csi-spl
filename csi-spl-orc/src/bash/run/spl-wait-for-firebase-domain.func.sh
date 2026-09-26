@@ -15,6 +15,11 @@
 # @param TIMEOUT_SECONDS (optional) - max wait (default 3600)
 # @param POLL_SECONDS (optional) - poll interval (default 30)
 # @param SPL_SA_KEY (optional) - the env SA key file
+# @param ACCEPT_PROPAGATING (optional) - 1: CERT_PROPAGATING also passes (the
+# @param   cert is issued and rolling out to the edges; measured 2026-09-26,
+# @param   n=3: 60+ min in that state while every edge already served the
+# @param   verified cert). The caller must then prove TLS itself
+# @param   (do_spl_probe_wui_host does). Default 0: CERT_ACTIVE only.
 # @example ENV=dev DOMAIN=acme.dev.example.test ./run -a do_spl_wait_for_firebase_domain
 #------------------------------------------------------------------------------
 do_spl_wait_for_firebase_domain() {
@@ -66,7 +71,8 @@ spl_firebase_domain_poll() {
       asks="$(jq -r '.requiredDnsUpdates.desired[]?.records[]? | "\(.domainName) \(.type) \(.rdata)"' 2>/dev/null <<<"$js")"
       [[ -n "$asks" ]] && do_log "INFO $domain: Firebase wants DNS: $(tr '\n' ';' <<<"$asks")"
     fi
-    if [[ "$state" == "HOST_ACTIVE OWNERSHIP_ACTIVE CERT_ACTIVE" ]]; then
+    if [[ "$state" == "HOST_ACTIVE OWNERSHIP_ACTIVE CERT_ACTIVE" ]] ||
+      [[ "${ACCEPT_PROPAGATING:-0}" == 1 && "$state" == "HOST_ACTIVE OWNERSHIP_ACTIVE CERT_PROPAGATING" ]]; then
       do_log "OK $domain is served by $site: $state (attempt $attempt)"
       return 0
     fi

@@ -17,10 +17,16 @@
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account). dev/prd with DRY_RUN=0 and no SPOOL_HUB_DB_DSN: the
 # @param   operator (secretmanager.secretAccessor + cloudsql.client)
 # @param SPOOL_BIN (optional) - spool CLI; otherwise built from csi-spl-api
-# @description dev/prd (specs/026): a tenant needs NO host, mapping or DNS.
-# @description Members sign in at the WUI with ?tenant=<id>; boxes use the API
-# @description host with SPOOL_TENANT=<id>. "url" is the legacy tenant-host
-# @description form, kept for old clients while such hosts still exist.
+# @description dev/prd: boxes use the API host with SPOOL_TENANT=<id> (specs/026).
+# @description SPL-959: where cnf steps.019 wui_tenant_hosts is on, "url" is the
+# @description tenant's WUI host https://<id>.<fqdn>, and a DRY_RUN=0 create
+# @description CHAINS it: env.dns.mapped_tenants += id, then (CNF_PUSH=1) that
+# @description cnf lands on trunk, then do_spl_tenant_host_provision (019 + 025,
+# @description cert, WUI probe, tenant_hosts ready). Its log goes to stderr, so
+# @description stdout stays the one JSON line. Exit 3 = created, host not ready.
+# @param TENANT_HOST (optional) - 1 (default): chain the host; 0: skip it
+# @param CNF_PUSH (optional) - 1: push the cnf change before the apply (run from
+# @param   the main checkout, the tree the tf-runner mounts)
 # @example TENANT_ID=acme ./run -a do_spl_tenant_create --json
 # @example ENV=lde DRY_RUN=0 TENANT_ID=acme ./run -a do_spl_tenant_create --json
 # @example ENV=dev DRY_RUN=0 TENANT_ID=t1 ./run -a do_spl_tenant_create
@@ -140,4 +146,25 @@ do_spl_tenant_create() {
   printf '{"tenant":"%s","url":"%s","root_pubkey":"%s","root_private_key":"%s","billing_status":"manual"}\n' \
     "$tenant" "$url" "$pub" "$priv"
   do_log "OK created tenant $tenant url=$url (root private key printed once on stdout, not stored)"
+  [[ "$env" == lde ]] && return 0
+  ENV="$env" spl_tenant_create_host "$tenant" >&2 || {
+    do_log "WARN tenant $tenant exists, but its host $url is not ready: re-run ENV=$env TENANT_ID=$tenant DRY_RUN=0 ./run -a do_spl_tenant_host_provision" >&2
+    return 3
+  }
+}
+
+# spl_tenant_create_host <tenant> (SPL-959): the new tenant's WUI host, when
+# this env's cnf serves tenant hosts; a no-op otherwise, or with TENANT_HOST=0.
+spl_tenant_create_host() {
+  local t="$1" cnf on
+  [[ "${TENANT_HOST:-1}" == 1 ]] || { do_log "INFO TENANT_HOST=0: no tenant host for $t"; return 0; }
+  cnf="$(spl_th_cnf_file)" || return 1
+  on="$(yq -r '.env.steps."019-firebase-static-site".wui_tenant_hosts // false' "$cnf")"
+  [[ "$on" == true ]] || { do_log "INFO wui_tenant_hosts is off in $ENV: $t gets no host (the apex serves it)"; return 0; }
+  spl_th_cnf_set "$cnf" add "$t" || return 1
+  if [[ "${CNF_PUSH:-0}" == 1 ]]; then
+    spl_th_render || return 1
+    spl_th_cnf_push "cnf(orc, SPL-959): $ENV tenant host +$t" || return 1
+  fi
+  TENANT_ID="$t" DRY_RUN=0 do_spl_tenant_host_provision
 }

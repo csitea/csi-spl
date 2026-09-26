@@ -16,6 +16,7 @@
 #   6. cnf push lands on a (local, bare) trunk with the history's cnf author,
 #      no AI trailer, only the env's cnf paths
 #   7. deprovision refuses while the tenant row exists
+#   8. do_spl_tenant_create chains the host only when cnf wui_tenant_hosts is on
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -195,6 +196,18 @@ reset
 out=$(SNIPPET='do_spl_tenant_host_deprovision' in_orc TENANT_ID=t1 DRY_RUN=0 STUB_EXISTS=0 STUB_PLAN_019="$P_DEL" 2>&1); rc=$?
 [[ $rc == 0 ]] && ! spl_has=$(yq -e '.env.dns.mapped_tenants | any_c(. == "t1")' "$CNF" 2>/dev/null) && grep -q 'MARK t1 removed' "$T/mark.log" &&
   pass "deprovision: t1 out of cnf, only its own destroy admitted, marked removed" || fail "deprovision rc=$rc: $out"
+
+# --- 8. do_spl_tenant_create chains the host (SPL-959) -------------------------
+chain() { SNIPPET='do_spl_tenant_host_provision() { echo "PROVISION $TENANT_ID DRY_RUN=$DRY_RUN" >>'"$T"'/mark.log; }; do_spl_cloud_cnf; spl_tenant_create_host newt' in_orc "$@" >/dev/null 2>&1; echo $?; }
+reset; sed -i 's/^      wui_tenant_hosts: .*/      wui_tenant_hosts: true/' "$CNF"
+[[ $(chain) == 0 ]] && grep -qx 'PROVISION newt DRY_RUN=0' "$T/mark.log" && [[ $(yq -r '.env.dns.mapped_tenants | join(",")' "$CNF") == *newt ]] &&
+  pass "tenant create chains: newt joins mapped_tenants, then the provision runs (DRY_RUN=0)" || fail "chain on: $(cat "$T/mark.log")"
+reset; sed -i 's/^      wui_tenant_hosts: .*/      wui_tenant_hosts: false/' "$CNF"; cp "$CNF" "$T/off.yaml"
+[[ $(chain) == 0 ]] && ! grep -q PROVISION "$T/mark.log" && cmp -s "$T/off.yaml" "$CNF" &&
+  pass "CONTROL: wui_tenant_hosts off -> no host, cnf untouched" || fail "chain off: $(cat "$T/mark.log")"
+reset; sed -i 's/^      wui_tenant_hosts: .*/      wui_tenant_hosts: true/' "$CNF"; cp "$CNF" "$T/on.yaml"
+[[ $(chain TENANT_HOST=0) == 0 ]] && ! grep -q PROVISION "$T/mark.log" && cmp -s "$T/on.yaml" "$CNF" &&
+  pass "CONTROL: TENANT_HOST=0 -> no host, cnf untouched" || fail "chain TENANT_HOST=0: $(cat "$T/mark.log")"
 
 [[ $fails == 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

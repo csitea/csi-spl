@@ -182,7 +182,8 @@ spl_th_apply() {
 # ready with its detail (or failed + why).
 spl_th_finish() {
   local t="$1" host="$1.$SPL_FQDN"
-  if ! ( DOMAIN="$host" TIMEOUT_SECONDS="${CERT_TIMEOUT_SECONDS:-3600}" do_spl_wait_for_firebase_domain ); then
+  # CERT_PROPAGATING passes here: the WUI probe below verifies the served cert
+  if ! ( DOMAIN="$host" TIMEOUT_SECONDS="${CERT_TIMEOUT_SECONDS:-3600}" ACCEPT_PROPAGATING=1 do_spl_wait_for_firebase_domain ); then
     spl_th_mark_one "$t" failed "firebase custom domain $host not active (host/ownership/cert)"; return 1
   fi
   local deadline=$(($(date +%s) + ${PROBE_TIMEOUT_SECONDS:-1200}))

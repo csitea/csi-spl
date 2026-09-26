@@ -193,12 +193,14 @@ export function formatIsoTs(ts) {
   return d.toISOString().replace(/\.\d+Z$/, 'Z')
 }
 
-/** Message-list clock: `yyyy-mm-dd HH:MM`. No `T`, no seconds, no `Z`. */
+/** Message-list clock: local `yyyy-mm-dd HH:MM`. No `T`, no seconds, no `Z`.
+ *  Dropping the zone makes a UTC clock read as the wrong hour, so this is
+ *  the reader's wall time. The full ISO UTC value stays on the hover. */
 export function formatMsgListTs(ts) {
   const d = new Date(ts)
   if (Number.isNaN(d.getTime())) return String(ts || '')
-  const iso = d.toISOString()
-  return iso.slice(0, 10) + ' ' + iso.slice(11, 16)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 /** UTC wall clock `yyyy-mm-dd HH:MM:SS` of a v:1 `ts` (RFC3339 Z). */

@@ -43,7 +43,7 @@
           <AgentBadge :id="recipient.id" :box="recipient.box || undefined" />
         </template>
         <KindBadge :kind="String(msg.kind)" />
-        <span class="msg-time" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined">{{ time }}</span>
+        <span class="msg-time" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined" :title="sinceMs == null ? formatIsoTs(at) : undefined">{{ time }}</span>
         <span
           v-if="edited"
           class="msg-edited"
@@ -227,7 +227,7 @@
 </template>
 
 <script setup lang="ts">
-import { dmPeerOf, formatMsgListTs, formatTopicTs, recipientOf, shownPerson } from '~/utils/channel-feed.mjs'
+import { dmPeerOf, formatIsoTs, formatMsgListTs, formatTopicTs, recipientOf, shownPerson } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { activityOf } from '~/utils/feed.mjs'

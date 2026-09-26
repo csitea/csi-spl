@@ -310,14 +310,31 @@ describe('pane 2 row is the starter and carries the starter sender', () => {
 
   it('stamps REAL ISO 8601 — with the T and the Z, and without bending formatAbsTs', () => {
     assert.equal(formatIsoTs('2026-09-22T11:58:03Z'), '2026-09-22T11:58:03Z')
-    assert.equal(formatMsgListTs('2026-09-22T11:58:35Z'), '2026-09-22 11:58')
-    assert.equal(formatMsgListTs('2026-09-22T09:07:33.67515Z'), '2026-09-22 09:07')
     /* the hub sends fractional seconds on some rows; the owner's format has none */
     assert.equal(formatIsoTs('2026-09-22T09:07:33.67515Z'), '2026-09-22T09:07:33Z')
     assert.equal(formatIsoTs('not a date'), 'not a date')
+    assert.equal(formatMsgListTs('not a date'), 'not a date')
     /* CONTROL: the old formatter is still the old formatter, untouched */
     assert.equal(formatAbsTs('2026-09-22T11:58:03Z'), '2026-09-22 11:58:03')
     assert.notEqual(formatIsoTs('2026-09-22T11:58:03Z'), formatAbsTs('2026-09-22T11:58:03Z'))
+  })
+
+  it('the list clock is local yyyy-mm-dd HH:MM and the card hover keeps full ISO UTC', () => {
+    const local = (raw) => {
+      const d = new Date(raw)
+      const p = (n) => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+    }
+    for (const raw of ['2026-09-22T11:58:35Z', '2026-09-22T09:07:33.67515Z']) {
+      const got = formatMsgListTs(raw)
+      assert.equal(got, local(raw))
+      assert.match(got, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/)
+      assert.equal(got.includes('T') || got.includes('Z'), false)
+    }
+    const vue = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/components/MessageCard.vue'), 'utf8')
+    assert.match(vue, /:title="sinceMs == null \? formatIsoTs\(at\) : undefined"/)
+    assert.match(vue, /:data-ts="at \|\| undefined"/)
+    assert.match(vue, /formatMsgListTs\(at\.value/)
   })
 })
 

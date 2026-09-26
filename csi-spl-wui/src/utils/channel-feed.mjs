@@ -86,6 +86,43 @@ export function peopleLabels(peers, names) {
   }).join(', ')
 }
 
+/**
+ * Visible label. A human is the name they chose, or the bare HUM id when
+ * they have not chosen one. An agent stays id@box.
+ */
+export function shownPerson(id, box, names) {
+  const who = String(id || '')
+  if (/^HUM-/.test(who)) return personLabel(who, undefined, names)
+  return personLabel(who, box, names)
+}
+
+/**
+ * Hover and tap text. A named human is "Name · HUM-n": the whole name when
+ * the row is too narrow, and the id so two people who chose the same name
+ * stay distinguishable. A nameless human is the bare id. An agent is id@box.
+ */
+export function personTitle(id, box, names) {
+  const who = String(id || '')
+  const name = shownPerson(id, box, names)
+  if (!/^HUM-/.test(who)) return name
+  if (!name || name === who) return who
+  return `${name} · ${who}`
+}
+
+/**
+ * A comma-separated peer line (a topic with no subject). Humans become their
+ * names; the title keeps those names and the ids. Anything that is not a
+ * peer list is returned unchanged.
+ */
+export function namedLine(line, names) {
+  const raw = String(line || '')
+  const parts = raw.split(',').map((s) => s.trim()).filter(Boolean)
+  if (!parts.length) return { text: raw, title: raw }
+  const text = peopleLabels(parts, names)
+  if (!text || text === parts.join(', ')) return { text: raw, title: raw }
+  return { text, title: `${text} · ${raw}` }
+}
+
 export function initials(id) {
   const s = String(id || '?')
   const m = s.match(/^([A-Z]{2,4})-(\d+)$/)

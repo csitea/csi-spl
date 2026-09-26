@@ -81,10 +81,13 @@
               <span v-else-if="row.type === 'boxes'" class="dot" :class="{ on: row.online }" />
               <span v-else-if="row.type === 'files'" aria-hidden="true">📎</span>
               <span v-if="row.type === 'messages'" class="search-row__who">
-                {{ label(row.from, row.from_box) }} → {{ label(row.to, row.to_box) }}
+                <HumanName :id="String(row.from || '')" :box="row.from_box ? String(row.from_box) : ''" />
+                <span aria-hidden="true"> → </span>
+                <HumanName :id="String(row.to || '')" :box="row.to_box ? String(row.to_box) : ''" />
               </span>
               <span v-if="row.type === 'messages'" class="kind" :class="'kind-' + row.kind">{{ row.kind }}</span>
-              <span v-if="row.type !== 'messages'" class="search-row__text">
+              <span v-if="row.type === 'users'" class="search-row__text" :title="String(row.id || '')">{{ userShown(row) }}</span>
+              <span v-else-if="row.type !== 'messages'" class="search-row__text">
                 <template v-for="(s, i) in segs(row)" :key="i"><mark v-if="s.mark">{{ s.text }}</mark><template v-else>{{ s.text }}</template></template>
               </span>
               <span class="search-row__meta muted">{{ meta(row) }}</span>
@@ -118,6 +121,9 @@ import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'
 import { flattenGroups, highlightSegments, moveIndex, searchPath, searchTarget, type SearchRow, rowAt } from '~/utils/search.mjs'
 import { openThreadRow, scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { shownPerson } from '~/utils/channel-feed.mjs'
+import { useHumanNames } from '~/composables/useHumanNames'
+import HumanName from '~/components/HumanName.vue'
 
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
@@ -129,6 +135,7 @@ const authClient = useAuthClient()
 const omnibox = useOmniboxStore()
 const pane = useLiveFeed('pane')
 const topic = useTopicStore()
+const people = useHumanNames()
 const listEl = ref<HTMLElement | null>(null)
 
 /* CLE-3427: the topic a hit opens is in the URL too, so a search result the
@@ -165,7 +172,17 @@ const indexByKey = computed(() => new Map(rows.value.map((r, i) => [r.key, i])))
 function indexOf(row: SearchRow) { return indexByKey.value.get(row.key) ?? -1 }
 function rowId(i: number) { return 'sr-' + i }
 function segs(row: SearchRow) { return highlightSegments(row.display.text, row.display.highlights) }
-function label(id: unknown, box: unknown) { return id ? String(id) + (box ? '@' + String(box) : '') : '—' }
+function label(id: unknown, box: unknown) {
+  const s = id ? String(id) : ''
+  if (!s) return '—'
+  return shownPerson(s, box ? String(box) : undefined, people.names.value)
+}
+function userShown(row: SearchRow) {
+  const r = row as Record<string, unknown>
+  const n = typeof r.display_name === 'string' ? r.display_name.trim() : ''
+  if (n) return n
+  return label(r.id, r.box)
+}
 
 function meta(row: SearchRow): string {
   const r = row as Record<string, any>
@@ -174,7 +191,7 @@ function meta(row: SearchRow): string {
     case 'topics': return [r.channel ? '#' + r.channel : t('search.in_dm'), t('search.count_messages', { n: Number(r.count) || 0 }, Number(r.count) || 0), when(r.last_ts)].filter(Boolean).join(' · ')
     case 'files': return [label(r.from, r.from_box), r.bytes != null ? t('composer.file_bytes', { n: r.bytes }) : '', when(r.received_at)].filter(Boolean).join(' · ')
     case 'robots': return r.revoked ? t('search.revoked') : ''
-    case 'users': return r.display_name && r.id ? String(r.id) : ''
+    case 'users': return ''
     case 'channels': return r.count != null ? t('search.count_messages', { n: Number(r.count) || 0 }, Number(r.count) || 0) : ''
     case 'boxes': return Array.isArray(r.agents) ? r.agents.join(', ') : ''
     case 'tenants': return [r.tenant_id ? String(r.tenant_id) : '', r.role ? String(r.role) : ''].filter(Boolean).join(' · ')

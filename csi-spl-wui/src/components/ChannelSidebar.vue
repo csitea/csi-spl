@@ -75,11 +75,11 @@
       data-testid="people-self"
       :data-key="roster.self.label"
       aria-current="true"
-      :title="t('auth.login.signed_in_as', { who: roster.self.label })"
+      :title="t('auth.login.signed_in_as', { who: peerName(roster.self.id, roster.self.box) })"
     >
       <SpoolAvatar :id="roster.self.id" :box="roster.self.box" :size="22" />
       <span class="dot" :class="{ on: roster.self.online }" />
-      <span class="label" :title="roster.self.label">{{ people.label(roster.self.id, roster.self.box) }}</span>
+      <HumanName class="label" :id="roster.self.id" :box="roster.self.box" />
       <!-- `sidebar.you` carries its own brackets: a bracket hard-coded here
            lands on the wrong side of an RTL label (he), because the bidi
            algorithm resolves neutral punctuation from its surroundings. -->
@@ -105,12 +105,12 @@
     >
       <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
       <span class="dot" :class="{ on: p.online }" />
-      <span class="label" :title="p.label">{{ people.label(p.id, p.box) }}</span>
+      <HumanName class="label" :id="p.id" :box="p.box" />
       <span v-if="notes.unread['dm:' + p.label]" class="badge-unread">{{ notes.previewUnread(notes.unread['dm:' + p.label]) }}</span>
     </NuxtLink>
     <SidebarRowMenu
       :menu-id="'dm:' + p.label"
-      :name="p.label"
+      :name="peerName(p.id, p.box)"
       :href="localePath('/dm/' + encodeURIComponent(p.label))"
       :unread="!!notes.unread['dm:' + p.label]"
 
@@ -291,7 +291,7 @@
           :href="localePath('/t/' + row.task_id)"
           @click.exact.prevent="pane.open(row.task_id)"
         >
-          <span class="label">{{ topicRowTitle(row.subject, peopleLabels(row.participants, people.names.value) || row.task_id) }}</span>
+          <span class="label" :title="namedLine(row.participants.join(', '), people.names.value).title">{{ topicRowTitle(row.subject, peopleLabels(row.participants, people.names.value) || row.task_id) }}</span>
         </a>
         <SidebarRowMenu
           :menu-id="'th:' + row.task_id"
@@ -359,12 +359,12 @@
           >
             <SpoolAvatar :id="row.id" :box="row.box" :size="22" />
             <span class="dot" :class="{ on: row.online }" />
-            <span class="label">{{ row.label }}</span>
+            <HumanName class="label" :id="row.id" :box="row.box" />
             <span v-if="notes.unread['dm:' + row.label]" class="badge-unread">{{ notes.previewUnread(notes.unread['dm:' + row.label]) }}</span>
           </NuxtLink>
           <SidebarRowMenu
             :menu-id="'flow:dm:' + row.label"
-            :name="row.label"
+            :name="peerName(row.id, row.box)"
             :href="localePath('/dm/' + encodeURIComponent(row.label))"
             :unread="!!notes.unread['dm:' + row.label]"
 
@@ -395,11 +395,11 @@
             :href="localePath('/t/' + row.id)"
             @click.exact.prevent="pane.open(row.id)"
           >
-            <span class="label">{{ row.label }}</span>
+            <span class="label" :title="flowTopic(row).title">{{ flowTopic(row).text }}</span>
           </a>
           <SidebarRowMenu
             :menu-id="'flow:th:' + row.id"
-            :name="row.label"
+            :name="flowTopic(row).text"
             :href="localePath('/t/' + row.id)"
             :unread="false"
             :open="rowMenu === 'flow:th:' + row.id"
@@ -477,7 +477,8 @@ const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
-import { channelActivity, channelSlug, connectionHealth, orderPeers, peopleLabels, retentionDays } from '~/utils/channel-feed.mjs'
+import HumanName from '~/components/HumanName.vue'
+import { channelActivity, channelSlug, connectionHealth, namedLine, orderPeers, peopleLabels, retentionDays, shownPerson } from '~/utils/channel-feed.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
 import { buildStampText, buildStampTitle, readBuildStamp } from '~/utils/build-stamp.mjs'
 import { useSidePane } from '~/composables/useSidePane'
@@ -506,6 +507,12 @@ const tab = ref<SideTab>('dm')
 function topicRowTitle(subject: string, fallback: string) {
   const text = topicOpening(subject)
   return text ? t('topic.list_title', { text }) : fallback
+}
+function peerName(id: string, box?: string) {
+  return shownPerson(id, box, people.names.value)
+}
+function flowTopic(row: { label?: string }) {
+  return namedLine(String(row.label || ''), people.names.value)
 }
 const rowMenu = ref('')
 function toggleRowMenu(id: string) {

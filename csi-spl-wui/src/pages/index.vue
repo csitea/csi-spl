@@ -27,7 +27,7 @@
         @click.exact.prevent="pane.open(t.task_id)"
       >
         <div class="msg-meta">
-          <span class="msg-author" :title="t.participants.join(', ') || undefined">{{ peopleLabels(t.participants, people.names.value) || t.task_id }}</span>
+          <span class="msg-author" :title="topicPeople(t.participants).title || undefined">{{ topicPeople(t.participants).text || t.task_id }}</span>
           <KindBadge v-for="k in Object.keys(t.kinds)" :key="k" :kind="k" />
           <span class="msg-time">{{ formatTs(t.last_ts, locale) }}</span>
         </div>
@@ -40,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import { peopleLabels } from '~/utils/channel-feed.mjs'
+import { namedLine } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
@@ -73,6 +73,9 @@ const { t: tr, locale } = useI18n({ useScope: 'global' })
 function topicRowTitle(subject: string) {
   const text = topicOpening(subject)
   return text ? tr('topic.list_title', { text }) : ''
+}
+function topicPeople(list: readonly string[] | undefined) {
+  return namedLine((list || []).join(', '), people.names.value)
 }
 const localePath = useLocalePath()
 /* 013 US3: a click opens the topic in the right pane; the link still works for new tabs */

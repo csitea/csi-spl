@@ -191,6 +191,9 @@ declare module '~/utils/channel-feed.mjs' {
   export function personLabel(id: string, box: string | undefined, names: Record<string, string> | null | undefined): string
   export function mentionDisplay(text: string, names: Record<string, string> | null | undefined): { text: string, title: string }
   export function peopleLabels(peers: readonly string[] | null | undefined, names: Record<string, string> | null | undefined): string
+  export function shownPerson(id: string, box: string | undefined, names: Record<string, string> | null | undefined): string
+  export function personTitle(id: string, box: string | undefined, names: Record<string, string> | null | undefined): string
+  export function namedLine(line: string, names: Record<string, string> | null | undefined): { text: string, title: string }
   export function initials(id: string): string
   export function hueFor(id: string): number
   export function formatBytes(n: number | undefined, locale?: string): string

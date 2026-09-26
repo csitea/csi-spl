@@ -32,7 +32,7 @@ import {
 } from '../../src/utils/channel-feed.mjs'
 import { applyVerbosity } from '../../src/utils/verbosity.mjs'
 import { MOCK_MESSAGES } from '../../src/utils/mock-data.mjs'
-import { mentionDisplay, peopleLabels } from '../../src/utils/channel-feed.mjs'
+import { mentionDisplay, namedLine, peopleLabels, personTitle, shownPerson } from '../../src/utils/channel-feed.mjs'
 
 describe('channel-feed', () => {
   it('splits top-level from topic replies', () => {
@@ -414,5 +414,24 @@ describe('display names for humans', () => {
     assert.equal(peopleLabels(['HUM-10', 'CLE-7@box-a', 'HUM-3'], names), 'Pat Owner, CLE-7@box-a, HUM-3')
     assert.equal(peopleLabels([], names), '')
     assert.equal(peopleLabels(undefined, names), '')
+  })
+  it('shownPerson is the name, else the bare HUM id; an agent stays id@box', () => {
+    assert.equal(shownPerson('HUM-10', 'box-wui', names), 'Pat Owner')
+    assert.equal(shownPerson('HUM-3', 'box-wui', names), 'HUM-3')
+    assert.equal(shownPerson('HUM-3', undefined, names), 'HUM-3')
+    assert.equal(shownPerson('CLE-7', 'box-a', names), 'CLE-7@box-a')
+  })
+  it('personTitle is the full name and the id; a nameless human is the bare id', () => {
+    assert.equal(personTitle('HUM-10', 'box-wui', names), 'Pat Owner · HUM-10')
+    assert.equal(personTitle('HUM-3', 'box-wui', names), 'HUM-3')
+    assert.equal(personTitle('CLE-7', 'box-a', names), 'CLE-7@box-a')
+  })
+  it('namedLine renames a peer list and leaves a subject alone', () => {
+    assert.deepEqual(namedLine('HUM-10@box-wui, CLE-7@box-a', names), {
+      text: 'Pat Owner, CLE-7@box-a',
+      title: 'Pat Owner, CLE-7@box-a · HUM-10@box-wui, CLE-7@box-a',
+    })
+    assert.deepEqual(namedLine('ship the relay', names), { text: 'ship the relay', title: 'ship the relay' })
+    assert.deepEqual(namedLine('', names), { text: '', title: '' })
   })
 })

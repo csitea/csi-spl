@@ -15,6 +15,7 @@
 import { avatarAltKey, avatarDataUri, avatarImageUrl, isHuman, loadAvatarImageUrl, loadAvatarFiles } from '~/utils/avatar.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
+import { useHumanNames } from '~/composables/useHumanNames'
 
 /*
  * SPEC-spool-avatars §2: robot for agents, identicon for HUM-*; deterministic,
@@ -35,8 +36,13 @@ const fallback = computed(() => avatarDataUri(props.id, props.box))
 const picture = computed(() => (api.mock ? '' : avatarImageUrl(api.base, props.id, props.box, files.value)))
 const src = computed(() => shown.value || fallback.value)
 const { t } = useI18n({ useScope: 'global' })
+const people = useHumanNames()
 const alt = computed(() => {
   const a = avatarAltKey(props.id, props.box)
+  if (isHuman(props.id)) {
+    const name = people.label(props.id)
+    if (name && name !== props.id) return t(a.key, { ...a.params, who: name })
+  }
   return t(a.key, a.params)
 })
 

@@ -92,13 +92,21 @@ describe('a failed roster read is not cached', () => {
 })
 
 describe('the name is shown where the id was', () => {
-  it('message cards, the DM list, the self row, and the DM header use it; the id stays the tooltip', () => {
+  it('message cards, the DM list, the self row, flow DMs and the DM header use the name; the id stays in the popup', () => {
     const badge = read('src/components/AgentBadge.vue')
     assert.match(badge, /people\.label\(props\.id, props\.box\)/)
     const side = read('src/components/ChannelSidebar.vue')
-    assert.match(side, /<span class="label" :title="p\.label">\{\{ people\.label\(p\.id, p\.box\) \}\}<\/span>/)
-    assert.match(side, /people\.label\(roster\.self\.id, roster\.self\.box\)/)
+    assert.match(side, /<HumanName class="label" :id="p\.id" :box="p\.box" \/>/)
+    assert.match(side, /<HumanName class="label" :id="roster\.self\.id" :box="roster\.self\.box" \/>/)
+    assert.match(side, /<HumanName class="label" :id="row\.id" :box="row\.box" \/>/)
+    const name = read('src/components/HumanName.vue')
+    assert.match(name, /personTitle/)
+    assert.match(name, /shownPerson/)
+    assert.match(name, /scrollWidth > node\.clientWidth/)
     assert.match(read('src/pages/dm/[peer].vue'), /\{\{ peerName \}\}/)
+    assert.match(read('src/components/ChannelPropertiesDialog.vue'), /remove_member', \{ id: personLabel\(id\) \}/)
+    assert.match(read('src/components/MessageComposer.vue'), /<HumanName class="mention-label"/)
+    assert.doesNotMatch(read('src/components/MessageComposer.vue'), /people\.label\(p\.id, p\.box\) !== p\.label/)
   })
 
   it('each member changes their own name in Settings > Profile, and it shows at once', () => {

@@ -54,7 +54,7 @@
             <ul class="member-rows" data-testid="channel-default-people">
               <li v-for="id in localMembers" :key="id" :data-testid="'channel-default-person-' + id">
                 <SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" />
-                <span class="member-rows__name" :title="personTitle(id)">{{ people.label(id, HUMAN_BOX) }}</span>
+                <HumanName class="member-rows__name" :id="id" />
               </li>
             </ul>
           </template>
@@ -104,7 +104,7 @@
                         class="invite-add__option"
                         :class="{ 'is-active': active, 'is-selected': selected }"
                         :data-testid="'channel-invite-pick-' + id"
-                      ><SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" /> <span class="member-rows__name" :title="personTitle(id)">{{ people.label(id, HUMAN_BOX) }}</span></li>
+                      ><SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" /> <HumanName class="member-rows__name" :id="id" /></li>
                     </ComboboxOption>
                   </ComboboxOptions>
                 </Combobox>
@@ -120,12 +120,13 @@
             <ul class="member-rows" data-testid="channel-invite-members">
               <li v-for="id in localMembers" :key="id">
                 <SpoolAvatar :id="id" :box="HUMAN_BOX" :size="22" />
-                <span class="member-rows__name" :title="personTitle(id)">{{ people.label(id, HUMAN_BOX) }}</span>
+                <HumanName class="member-rows__name" :id="id" />
                 <button
                   type="button"
                   class="icon-btn"
                   :data-testid="'channel-member-remove-' + id"
-                  :aria-label="t('channels.properties.remove_member', { id })"
+                  :aria-label="t('channels.properties.remove_member', { id: personLabel(id) })"
+                  :title="id"
                   :disabled="busy || (!canAdd && id !== selfId)"
                   @click="removePerson(id)"
                 >
@@ -284,6 +285,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { useHumanNames } from '~/composables/useHumanNames'
+import HumanName from '~/components/HumanName.vue'
 
 const props = defineProps<{
   open: boolean
@@ -429,15 +431,9 @@ watch(() => props.open, async (isOpen) => {
   }
 })
 
-/** The chosen display name (Settings > Profile), else the member id. */
+/** The chosen display name, else the bare HUM id (no box). */
 function personLabel(id: unknown) {
-  return typeof id === 'string' && id ? people.label(id, HUMAN_BOX) : ''
-}
-
-/** Hover text: the full name for a row too narrow to show it, plus the id. */
-function personTitle(id: string) {
-  const name = people.label(id, HUMAN_BOX)
-  return name && name !== id ? `${name} · ${id}` : id
+  return typeof id === 'string' && id ? people.label(id) : ''
 }
 
 function onPersonQuery(ev: Event) {

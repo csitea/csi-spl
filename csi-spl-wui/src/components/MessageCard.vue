@@ -11,7 +11,7 @@
     :aria-current="selected ? 'true' : undefined"
     :aria-posinset="posinset || undefined"
     :aria-setsize="setsize || undefined"
-    :aria-label="t('feed.card_aria', { who: (author.id || t('feed.unknown_author')) + (author.box ? '@' + author.box : ''), kind: kindLabel(String(msg.kind || 'note')) })"
+    :aria-label="t('feed.card_aria', { who: whoOf(author), kind: kindLabel(String(msg.kind || 'note')) })"
     :aria-describedby="clickable ? 'feed-open-hint' : undefined"
     @click="onClick"
     @dblclick="onDblClick"
@@ -35,7 +35,7 @@
           data-testid="msg-typed-by"
           :data-typed-by="author.id"
           :data-via="author.via"
-          :title="t('feed.typed_by.title', { who: author.id, agent: author.via })"
+          :title="t('feed.typed_by.title', { who: whoOf(author), agent: author.via })"
         >{{ t('feed.typed_by.badge', { agent: author.via }) }}</span>
         <template v-if="recipient">
           <span class="msg-to-arrow" aria-hidden="true">→</span>
@@ -221,7 +221,8 @@
 </template>
 
 <script setup lang="ts">
-import { formatIsoTs, formatTopicTs, recipientOf } from '~/utils/channel-feed.mjs'
+import { formatIsoTs, formatTopicTs, recipientOf, shownPerson } from '~/utils/channel-feed.mjs'
+import { useHumanNames } from '~/composables/useHumanNames'
 import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { activityOf } from '~/utils/feed.mjs'
 import {
@@ -286,6 +287,11 @@ function openReplies() {
 }
 
 const { t, te } = useI18n({ useScope: 'global' })
+const people = useHumanNames()
+function whoOf(p: { id?: string, box?: string } | null | undefined) {
+  if (!p?.id) return t('feed.unknown_author')
+  return shownPerson(p.id, p.box, people.names.value)
+}
 /** specs/036 FR-011: who the row is shown as (the typist, for a terminal line). */
 const author = computed(() => typedByAuthor(props.msg))
 /** v:1 kind in words (feed.kind.*); an unknown kind shows as sent. */

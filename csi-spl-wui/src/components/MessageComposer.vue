@@ -44,9 +44,8 @@
           >
             <SpoolAvatar :id="p.id" :box="p.box" :size="20" />
             <span class="dot" :class="{ on: p.online }" />
-            <span class="mention-label">{{ people.label(p.id, p.box) }}</span>
+            <HumanName class="mention-label" :id="p.id" :box="p.box" />
             <span v-if="p.owner" class="muted" data-testid="mention-owner">{{ t('composer.biz_owner') }}</span>
-            <span v-else-if="people.label(p.id, p.box) !== p.label" class="muted">{{ p.label }}</span>
           </button>
         </li>
       </ul>
@@ -192,6 +191,7 @@ import { fileKind, isPreviewableImage, readDataUrl } from '~/utils/file-preview.
 import { carriesFiles, filesOf, pasteAttaches } from '~/utils/transfer-files.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { useHumanNames } from '~/composables/useHumanNames'
+import HumanName from '~/components/HumanName.vue'
 import { feedbackChannelFromPath, isFeedbackChannel } from '~/utils/feedback-channel.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'

@@ -41,7 +41,15 @@ import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-INITIAL_RE = re.compile(r'(?:src|href)="/_nuxt/([A-Za-z0-9._-]+\.js)"')
+# The initial set is what the doc above says and nothing more: <script src=>
+# and <link rel="modulepreload" href=>. A <link rel="prefetch"> is a lazy
+# chunk fetched at idle, not first paint; counting it (the old (?:src|href)
+# regex, 24 prefetch links on 200.html) made the "initial" gzip 214.1 KB for
+# a real 149.7 KB, and made moving code to a lazy chunk read as worse.
+SCRIPT_SRC_RE = re.compile(r'<script\b[^>]*\bsrc="/_nuxt/([A-Za-z0-9._-]+\.js)"')
+LINK_RE = re.compile(r'<link\b[^>]*>')
+LINK_HREF_RE = re.compile(r'\bhref="/_nuxt/([A-Za-z0-9._-]+\.js)"')
+LINK_MODULEPRELOAD_RE = re.compile(r'\brel="modulepreload"')
 # access.ts load() -> /v1/view/me; shell-bootstrap.mjs start() -> channels, roster.
 ENDPOINTS = (
     ("view_me", "/v1/view/me"),
@@ -94,8 +102,13 @@ def kb_of(n):
 
 
 def initial_names(html):
+    found = SCRIPT_SRC_RE.findall(html)
+    for tag in LINK_RE.findall(html):
+        href = LINK_HREF_RE.search(tag)
+        if href and LINK_MODULEPRELOAD_RE.search(tag):
+            found.append(href.group(1))
     seen = []
-    for name in INITIAL_RE.findall(html):
+    for name in found:
         if name not in seen:
             seen.append(name)
     return seen

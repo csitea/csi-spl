@@ -55,12 +55,13 @@ esac
 mkdir -p "$T/pub/_nuxt"
 # Incompressible bodies, so dropping the unnamed chunk changes the 0.1 KB figure.
 python3 -c 'import os; p=os.sys.argv[1];
-[open(p+"/_nuxt/"+n,"wb").write(os.urandom(8000)) for n in ("app.js","lazy.js","orphan.js")]' "$T/pub"
+[open(p+"/_nuxt/"+n,"wb").write(os.urandom(8000)) for n in ("app.js","lazy.js","orphan.js","later.js")]' "$T/pub"
 cat >"$T/pub/200.html" <<'HTML'
 <!doctype html>
 <script type="module" src="/_nuxt/app.js"></script>
 <link rel="modulepreload" href="/_nuxt/app.js">
 <script type="module" src="/_nuxt/lazy.js"></script>
+<link rel="prefetch" as="script" crossorigin href="/_nuxt/later.js">
 HTML
 setline="$(python3 - "$PY" "$T/pub" <<'PY'
 import importlib.util, sys
@@ -73,10 +74,11 @@ app = open(pub + "/_nuxt/app.js", "rb").read()
 lazy = open(pub + "/_nuxt/lazy.js", "rb").read()
 want = m.kb_of(m.gzip_len(app) + m.gzip_len(lazy))
 orphan = m.kb_of(m.gzip_len(app) + m.gzip_len(lazy) + m.gzip_len(open(pub + "/_nuxt/orphan.js", "rb").read()))
-print("set" if n == 2 and kb == want and kb != orphan else "bad %s %s %s %s" % (n, kb, want, orphan))
+later = m.kb_of(m.gzip_len(app) + m.gzip_len(lazy) + m.gzip_len(open(pub + "/_nuxt/later.js", "rb").read()))
+print("set" if n == 2 and kb == want and kb != orphan and kb != later else "bad %s %s %s %s %s" % (n, kb, want, orphan, later))
 PY
 )"
-[[ "$setline" == set ]] && pass "initial gzip is the named chunks once, not every file on disk" || fail "bundle set: $setline"
+[[ "$setline" == set ]] && pass "initial gzip is the first-paint chunks once, not every file on disk nor a prefetch" || fail "bundle set: $setline"
 
 printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":0}}' >"$T/over.json"
 printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":99999}}' >"$T/under.json"

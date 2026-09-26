@@ -35,9 +35,16 @@ const sum = (list, f) => list.reduce((a, x) => a + f(join(NUXT, x)), 0)
 const kb = (n) => Number((n / 1024).toFixed(1))
 
 const html = readFileSync(join(PUB, '200.html'), 'utf8')
-const initial = [...new Set(
-  [...html.matchAll(/(?:src|href)="\/_nuxt\/([A-Za-z0-9._-]+\.js)"/g)].map((m) => m[1]),
-)].filter((f) => files.includes(f))
+// <script src=> and <link rel="modulepreload" href=> only - never a
+// <link rel="prefetch"> (a lazy chunk fetched at idle). Same set as
+// csi-spl-orc/src/bash/scripts/perf-budget.py.
+const scriptSrc = [...html.matchAll(/<script\b[^>]*\bsrc="\/_nuxt\/([A-Za-z0-9._-]+\.js)"/g)].map((m) => m[1])
+const modulepreload = [...html.matchAll(/<link\b[^>]*>/g)]
+  .map((m) => m[0])
+  .filter((tag) => /\brel="modulepreload"/.test(tag))
+  .map((tag) => (tag.match(/\bhref="\/_nuxt\/([A-Za-z0-9._-]+\.js)"/) || [])[1])
+  .filter(Boolean)
+const initial = [...new Set([...scriptSrc, ...modulepreload])].filter((f) => files.includes(f))
 
 /** chunks holding the highlight.js runtime itself (not just its class names) */
 const engine = files.filter((f) => {

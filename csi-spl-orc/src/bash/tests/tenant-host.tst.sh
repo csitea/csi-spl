@@ -117,6 +117,8 @@ ALLOW_T1=$'google_firebase_hosting_custom_domain.additional["t1.dev.example.test
 [[ $(gate $'  # x must be replaced\nPlan: 1 to add, 0 to change, 1 to destroy.' "$ALLOW_T1") == 1 ]] && pass "gate: a replace -> refused" || fail "gate: replace passed"
 [[ $(gate $'│ Error: boom\nPlan: 1 to add, 0 to change, 0 to destroy.' "") == 1 ]] && pass "gate: an Error -> refused" || fail "gate: error passed"
 [[ $(gate "Terraform crashed" "") == 1 ]] && pass "gate: no summary -> refused" || fail "gate: no summary passed"
+[[ $(gate $'Changes to Outputs:\n  ~ custom_domains = [...]\nYou can apply this plan to save these new output values to the Terraform\nstate, without changing any real infrastructure.' "") == 3 ]] &&
+  pass "gate: an outputs-only plan -> no changes (nothing applied)" || fail "gate: outputs-only plan"
 [[ $(gate $'  # google_firebase_hosting_custom_domain.default[0] will be updated in-place\nPlan: 1 to add, 1 to change, 0 to destroy.' "$ALLOW_T1") == 1 ]] &&
   pass "gate: an in-place update (e.g. the apex custom domain) -> refused" || fail "gate: in-place update passed"
 

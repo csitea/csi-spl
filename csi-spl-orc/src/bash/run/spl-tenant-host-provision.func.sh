@@ -146,6 +146,9 @@ spl_th_render() {
 spl_th_plan_gate() {
   local o="$1" allow="$2" sum a
   sum="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy|No changes' <<<"$o" | head -1)"
+  # outputs-only: terraform prints neither summary, and touches no resource
+  # (measured 2026-09-26: 019 after new custom domains changed its outputs)
+  [[ -z "$sum" ]] && grep -q 'without changing any real infrastructure' <<<"$o" && sum="No changes"
   [[ -n "$sum" ]] || { do_log "FATAL plan has no summary"; return 1; }
   grep -qE '^(│ )?Error' <<<"$o" && { do_log "FATAL plan has an Error"; return 1; }
   grep -q 'must be replaced' <<<"$o" && { do_log "FATAL plan replaces a resource"; return 1; }

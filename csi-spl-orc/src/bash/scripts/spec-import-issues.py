@@ -340,6 +340,17 @@ def _words(text: str) -> set:
     return {w.lower() for w in re.findall(r"[A-Za-z]{4,}", text)}
 
 
+
+def _pinned_epic(directory: Path) -> str:
+    """A spec that names its epic in the first lines, e.g. 'Epic SPL-74'."""
+    spec = directory / "spec.md"
+    if not spec.is_file():
+        return ""
+    head = "\n".join(spec.read_text(encoding="utf-8").splitlines()[:40])
+    m = re.search(r"\bEpic\s+(SPL-\d+)\b", head)
+    return m.group(1) if m else ""
+
+
 def parse_tree(specs: Path) -> dict:
     out_specs = []
     items = []
@@ -369,6 +380,7 @@ def parse_tree(specs: Path) -> dict:
                 "spec": spec,
                 "dir": d.name,
                 "heading": _heading_of(d),
+                "pinned": _pinned_epic(d),
                 "parsed": len(found),
                 "t_parsed": sum(1 for it in found if it.tid.startswith("T") and it.kind == "task"),
                 "subtasks": sum(1 for it in found if it.kind == "subtask"),
@@ -438,6 +450,16 @@ def _assign_epics(plan: dict, issues: list) -> dict:
                 continue
             assigned[name] = key
             used.add(key)
+    by_key = {i.get("key"): i for i in issues}
+    for row in plan["specs"]:
+        if row["dir"] in assigned or not row.get("pinned"):
+            continue
+        issue = by_key.get(row["pinned"])
+        if not issue:
+            continue
+        labels = issue.get("labels") or []
+        if "epic" in labels or issue.get("kind") == "epic":
+            assigned[row["dir"]] = row["pinned"]
     return assigned
 
 

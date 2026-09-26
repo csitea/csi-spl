@@ -33,7 +33,9 @@ const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
 const email = process.env.EMAIL || readFileSync(need('EMAIL_FILE'), 'utf8').trim()
 const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
-const TENANT = process.env.TENANT || 't1'
+/* TENANT= (empty) signs in with no ?tenant=, for a tenant with no host of its own */
+const TENANT = process.env.TENANT ?? 't1'
+const TQ = TENANT ? 'tenant=' + encodeURIComponent(TENANT) : ''
 const SEARCH = process.env.SEARCH || 'the'
 mkdirSync(OUT, { recursive: true })
 
@@ -130,10 +132,10 @@ try {
   await p.setViewport({ width: 1440, height: 900 })
   p.on('pageerror', (e) => res.console.push('pageerror: ' + String(e).slice(0, 300)))
 
-  await goto(p, BASE + '/lobby?tenant=' + encodeURIComponent(TENANT))
+  await goto(p, BASE + '/lobby' + (TQ ? '?' + TQ : ''))
   let signedIn = await p.waitForSelector('[data-test=user-menu-trigger]', { timeout: 12000 }).then(() => true, () => false)
   if (!signedIn) {
-    await goto(p, BASE + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=%2Flobby')
+    await goto(p, BASE + '/login?' + (TQ ? TQ + '&' : '') + 'redirect=%2Flobby')
     await p.waitForSelector('[data-test=native-auth-email]')
     await p.type('[data-test=native-auth-email]', email)
     await p.type('[data-test=native-auth-password]', pw)

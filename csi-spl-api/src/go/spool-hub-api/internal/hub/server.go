@@ -239,6 +239,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /v1/messages/{msg_id}/kind", s.handleSetMessageKind) // SPL-952
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/kind", s.kindPreflight)
 	mux.HandleFunc("PUT /v1/messages/{msg_id}/reactions", s.handlePutReaction)
+	mux.HandleFunc("PUT /v1/messages/{msg_id}/archive", s.handleArchiveTopic) // specs/041
+	mux.HandleFunc("DELETE /v1/messages/{msg_id}/archive", s.handleArchiveTopic)
+	mux.HandleFunc("DELETE /v1/messages/{msg_id}/topic", s.handleDeleteTopic)
+	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/archive", s.topicPreflight)
+	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/topic", s.topicPreflight)
 	mux.HandleFunc("DELETE /v1/messages/{msg_id}/reactions", s.handleDeleteReaction)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/reactions", s.reactionPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels", s.channelsPreflight)

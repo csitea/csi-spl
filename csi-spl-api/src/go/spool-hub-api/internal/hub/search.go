@@ -164,7 +164,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 		writeErr(w, http.StatusInternalServerError, "internal", "search unavailable")
 		return
 	}
-	base := store.SearchQuery{Q: q, Now: now, Viewer: reader, ViewerChannels: mine,
+	base := store.SearchQuery{Q: q, Now: now, Viewer: reader, ViewerChannels: mine, Lobby: s.o.LobbyTaskID, // specs/041
 		Limit: limit + 1, Budget: s.o.SearchBudget, Relevance: sortBy == "relevance"}
 	groups := map[string]section{}
 	names := []string{}

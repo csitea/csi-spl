@@ -43,8 +43,10 @@ func (s *Server) routeView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/topics", s.viewHandler(s.handleViewTopics))
 	mux.HandleFunc("GET /v1/view/topics/{task_id}", s.viewHandler(s.handleViewTopic))
 	mux.HandleFunc("GET /v1/view/topics/{task_id}/children", s.viewHandler(s.handleViewChildren))
-	mux.HandleFunc("GET /v1/view/locate/{id}", s.handleViewLocate) // SPL-959 old links
-	s.routeSearch(mux)                                             // search-v1.md
+	mux.HandleFunc("GET /v1/view/locate/{id}", s.handleViewLocate)               // SPL-959 old links
+	mux.HandleFunc("GET /v1/view/archived", s.viewHandler(s.handleViewArchived)) // specs/041
+	mux.HandleFunc("GET /v1/view/messages/{msg_id}/topic", s.handleViewTopicSize)
+	s.routeSearch(mux) // search-v1.md
 	mux.HandleFunc("/v1/view/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			s.preflight(w, r)
@@ -474,6 +476,7 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 		}
 		sq.BeforeAt, sq.BeforeTask = at, id
 	}
+	sq.Lobby = s.o.LobbyTaskID // specs/041: archived topics leave every list
 	rows, err := s.o.Store.ViewTopics(r.Context(), t.ID, sq)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
@@ -509,13 +512,13 @@ func (s *Server) inlineMessages(w http.ResponseWriter, r *http.Request, t store.
 	var err error
 	if b, ok := s.o.Store.(store.TopicsMessager); ok {
 		msgs, react, err = b.ViewTopicsMessages(r.Context(), t.ID, store.TopicsMsgQuery{TaskIDs: ids, PerTopic: per + 1,
-			Reader: sq.Reader, ReaderChannels: sq.ReaderChannels, Now: sq.Now})
+			Reader: sq.Reader, ReaderChannels: sq.ReaderChannels, HideArchivedIn: s.o.LobbyTaskID, Now: sq.Now})
 	} else {
 		msgs, react = map[string][]store.ViewMsg{}, map[string][]store.StoredReaction{}
 		for _, id := range ids {
 			var rows []store.ViewMsg
 			if rows, err = s.o.Store.ViewTopic(r.Context(), t.ID, store.TopicMsgQuery{TaskID: id, Desc: true, Limit: per + 1,
-				Reader: sq.Reader, ReaderChannels: sq.ReaderChannels, Now: sq.Now}); err != nil {
+				Reader: sq.Reader, ReaderChannels: sq.ReaderChannels, HideArchived: id == s.o.LobbyTaskID && id != "", Now: sq.Now}); err != nil {
 				break
 			}
 			msgs[id] = rows
@@ -647,7 +650,10 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		return
 	}
 	q := r.URL.Query()
-	sq := store.TopicMsgQuery{TaskID: task, Limit: viewLimit(r) + 1, Now: s.o.Now()}
+	// specs/041: the lobby feed leaves its archived cards out; any other
+	// topic read by its id answers even while archived (the Archive view).
+	sq := store.TopicMsgQuery{TaskID: task, Limit: viewLimit(r) + 1, Now: s.o.Now(),
+		HideArchived: s.o.LobbyTaskID != "" && task == s.o.LobbyTaskID}
 	if hum != "" {
 		mine, err := s.readerChannels(r.Context(), t.ID, hum)
 		if err != nil {

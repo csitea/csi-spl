@@ -141,6 +141,112 @@
   --color-btn-select-fg: #f4f8ff;
 }
 
+/* CLE-34994 — three tinted light themes between light and dark (owner,
+   2026-09-26: "light violette, and light green, and light yellow"). Each is a
+   FULL palette set, same token list as light, so nothing falls back to the
+   dark :root values. Unlike light, each focus ring clears the WCAG 1.4.11
+   3:1 bar on every surface it sits on (the lowest, on --color-surface-hover,
+   is 3.6:1) while staying one colour, <= 3px. Measured in
+   tests/unit/theme-contrast.test.mjs. */
+:root[data-theme="light-violet"] {
+  color-scheme: light;
+  --color-bg: #f1ecfb;
+  --color-bg-2: #e6ddf7;
+  --color-bg-3: #d9cdf2;
+  --color-sidebar: #e6ddf7;
+  --color-surface: #faf7ff;
+  --color-surface-hover: #ddd0f4;
+  --color-fg: #1b1030;
+  --color-heading: #1b1030;
+  --color-muted: #54467a;
+  --color-border: rgba(70, 30, 140, 0.16);
+  --color-border-strong: rgba(70, 30, 140, 0.32);
+  --color-accent: #6a3fd0;
+  --color-accent-2: #0a7ea3;
+  --color-ok: #1a7a4f;
+  --color-danger: #b3261e;
+  --color-warn: #8a5a00;
+  --color-on-accent: #faf7ff;
+  --color-composer: #faf7ff;
+  --color-glow: rgba(106, 63, 208, 0.28);
+  --focus-ring: #7446d8;
+  --focus-3d: 0 4px 10px rgba(70, 30, 140, 0.28);
+  --color-selected: #cfbfee;
+  --color-accent-pressed: #5429b8;
+  --color-btn-grey-top: #f7f5fa;
+  --color-btn-grey-bottom: #bdb4cc;
+  --color-btn-grey-shine: #ffffff;
+  --color-btn-grey-edge: #857c96;
+  --color-btn-select: #3b1a7a;
+  --color-btn-select-fg: #faf7ff;
+}
+
+:root[data-theme="light-green"] {
+  color-scheme: light;
+  --color-bg: #eaf5ee;
+  --color-bg-2: #dbeee2;
+  --color-bg-3: #cbe5d4;
+  --color-sidebar: #dbeee2;
+  --color-surface: #f6fbf7;
+  --color-surface-hover: #cfe6d8;
+  --color-fg: #0d1f14;
+  --color-heading: #0d1f14;
+  --color-muted: #3d5a47;
+  --color-border: rgba(20, 90, 50, 0.16);
+  --color-border-strong: rgba(20, 90, 50, 0.32);
+  --color-accent: #16733f;
+  --color-accent-2: #0a7ea3;
+  --color-ok: #16733f;
+  --color-danger: #b3261e;
+  --color-warn: #8a5a00;
+  --color-on-accent: #f6fbf7;
+  --color-composer: #f6fbf7;
+  --color-glow: rgba(22, 115, 63, 0.28);
+  --focus-ring: #1f844a;
+  --focus-3d: 0 4px 10px rgba(20, 90, 50, 0.28);
+  --color-selected: #c0dccb;
+  --color-accent-pressed: #0f5c31;
+  --color-btn-grey-top: #f5f9f6;
+  --color-btn-grey-bottom: #b3c4b9;
+  --color-btn-grey-shine: #ffffff;
+  --color-btn-grey-edge: #7a8f81;
+  --color-btn-select: #0d4a2a;
+  --color-btn-select-fg: #f6fbf7;
+}
+
+:root[data-theme="light-yellow"] {
+  color-scheme: light;
+  --color-bg: #fbf6e3;
+  --color-bg-2: #f4ecce;
+  --color-bg-3: #ece0b6;
+  --color-sidebar: #f4ecce;
+  --color-surface: #fffcf0;
+  --color-surface-hover: #efe3bd;
+  --color-fg: #231b05;
+  --color-heading: #231b05;
+  --color-muted: #5a4b1c;
+  --color-border: rgba(110, 80, 0, 0.18);
+  --color-border-strong: rgba(110, 80, 0, 0.34);
+  --color-accent: #855400;
+  --color-accent-2: #6a3fd0;
+  --color-ok: #1a7a4f;
+  --color-danger: #b3261e;
+  --color-warn: #8a5a00;
+  --color-on-accent: #fffcf0;
+  --color-composer: #fffcf0;
+  --color-glow: rgba(133, 84, 0, 0.28);
+  --focus-ring: #8f6600;
+  --focus-3d: 0 4px 10px rgba(110, 80, 0, 0.28);
+  --color-selected: #e5d6a3;
+  --color-accent-pressed: #6b4300;
+  --color-btn-grey-top: #faf8f0;
+  --color-btn-grey-bottom: #c7bfa6;
+  --color-btn-grey-shine: #ffffff;
+  --color-btn-grey-edge: #8f876c;
+  --color-btn-select: #5a3d00;
+  --color-btn-select-fg: #fffcf0;
+}
+
 :root[data-theme="dark"] {
   color-scheme: dark;
   --color-bg: #060912;

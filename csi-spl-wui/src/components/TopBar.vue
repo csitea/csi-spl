@@ -6,7 +6,7 @@
 <template>
   <header class="top-bar" data-test="top-bar" :class="{ 'top-bar--open': expanded }">
     <div class="top-bar__start" data-test="top-bar-start">
-      <NuxtLink class="top-bar__brand" :to="localePath('/')" :aria-label="t('search.home')">spool</NuxtLink>
+      <NuxtLink class="top-bar__brand" :to="localePath('/')" :aria-label="t('search.home')">spool-hub</NuxtLink>
       <ThemeToggle />
     </div>
     <div class="top-bar__omnibox" data-test="top-bar-omnibox">

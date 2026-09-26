@@ -14,7 +14,8 @@ describe('pwa', () => {
   const manifest = JSON.parse(src('src/public/manifest.webmanifest'))
 
   it('the manifest is installable: name, start_url, standalone, 192 + 512 icons', () => {
-    assert.equal(manifest.name, 'Spool')
+    assert.equal(manifest.name, 'spool-hub')
+    assert.equal(manifest.short_name, 'spool-hub')
     assert.equal(manifest.start_url, '/')
     assert.equal(manifest.display, 'standalone')
     const sizes = manifest.icons.map((i) => i.sizes)

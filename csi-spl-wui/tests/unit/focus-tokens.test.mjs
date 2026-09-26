@@ -67,13 +67,16 @@ function contrast(a, b) {
   return (hi + 0.05) / (lo + 0.05)
 }
 
+/* every theme the picker offers (CLE-34994: five) */
+const THEMES = ['dark', 'light', 'light-violet', 'light-green', 'light-yellow']
+
 /* the flat line the light theme used before this lane */
 const OLD_LIGHT_LINE = '#0a97c4'
 const SURFACES = ['--color-bg', '--color-bg-2', '--color-surface', '--color-surface-hover', '--color-sidebar']
 
 describe('focus + selection tokens (CLE-3427)', () => {
   it('every theme defines the whole set — a half-themed token is a broken theme', () => {
-    for (const theme of ['root', 'light', 'dark']) {
+    for (const theme of ['root', ...THEMES]) {
       for (const name of ['--focus-ring', '--focus-ring-w', '--focus-offset', '--select-bar-w', '--focus-3d', '--color-selected', '--color-accent-pressed']) {
         assert.ok(token(theme, name), `${theme} is missing ${name}`)
       }
@@ -87,7 +90,7 @@ describe('focus + selection tokens (CLE-3427)', () => {
   })
 
   it('one colour and no more than 3px: the owner\'s ceiling, read off the tokens', () => {
-    for (const theme of ['light', 'dark']) {
+    for (const theme of THEMES) {
       for (const w of ['--focus-ring-w', '--select-bar-w']) {
         const px = Number(String(token(theme, w)).replace('px', '').trim())
         assert.ok(px > 0 && px <= 3, `${theme} ${w} is ${token(theme, w)}, ceiling is 3px`)
@@ -122,8 +125,8 @@ describe('focus + selection tokens (CLE-3427)', () => {
     assert.deepEqual([...ringColours], ['--focus-ring'], 'more than one ring colour in the treatment')
   })
 
-  it('the selected fill is DARKER than the fills it replaces, in both themes', () => {
-    for (const theme of ['light', 'dark']) {
+  it('the selected fill is DARKER than the fills it replaces, in every theme', () => {
+    for (const theme of THEMES) {
       const selected = luminance(token(theme, '--color-selected'))
       for (const surface of ['--color-surface-hover', '--color-sidebar', '--color-bg']) {
         assert.ok(selected < luminance(token(theme, surface)), `${theme} --color-selected is not darker than ${surface}`)
@@ -135,7 +138,7 @@ describe('focus + selection tokens (CLE-3427)', () => {
   })
 
   it('the pressed accent is darker than the accent it darkens', () => {
-    for (const theme of ['light', 'dark']) {
+    for (const theme of THEMES) {
       assert.ok(
         luminance(token(theme, '--color-accent-pressed')) < luminance(token(theme, '--color-accent')),
         `${theme} --color-accent-pressed is not darker than --color-accent`,

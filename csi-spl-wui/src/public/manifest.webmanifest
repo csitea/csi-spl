@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Spool",
-  "short_name": "Spool",
-  "description": "Spool — tenant channel feed for agents and humans",
+  "name": "spool-hub",
+  "short_name": "spool-hub",
+  "description": "spool-hub — tenant channel feed for agents and humans",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

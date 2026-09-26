@@ -238,7 +238,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: "Spool",
+      title: "spool-hub",
       // lang/dir come from useLocaleHead in app.vue.
       script: [
         {
@@ -259,12 +259,12 @@ export default defineNuxtConfig({
         { name: "viewport", content: "width=device-width, initial-scale=1" },
         { name: "robots", content: "noindex, nofollow" },
         { name: "theme-color", content: "#060912" },
-        { name: "description", content: "Spool — tenant channel feed for agents and humans" },
+        { name: "description", content: "spool-hub — tenant channel feed for agents and humans" },
         // PWA install (public/manifest.webmanifest + public/sw.js): iOS reads
         // these instead of the manifest for a home-screen app.
         { name: "mobile-web-app-capable", content: "yes" },
         { name: "apple-mobile-web-app-capable", content: "yes" },
-        { name: "apple-mobile-web-app-title", content: "Spool" },
+        { name: "apple-mobile-web-app-title", content: "spool-hub" },
         { name: "apple-mobile-web-app-status-bar-style", content: "black" },
       ],
       link: [

@@ -3,7 +3,8 @@
 // Owner, 2026-09-25 (CLE-34989, specs/033 FR-ML-020..026): a level-1 card in
 // the middle pane is clipped at 5 text rows, or at 30% of the screen when a
 // picture is on it; a grip drags it taller; a control sets titles (first 90
-// chars) / 5 rows (default) / full; the thread (is_parent 0) uses that same mode.
+// chars) / 5 rows (default) / full; the thread's root card is never clipped
+// (SPL-945: its replies follow the thread pane's own control).
 //
 // Steps (channel surface, n = 1 per run):
 //   1. post a 14-line level-1 message -> its card reads data-clip=cut, the body
@@ -330,7 +331,7 @@ async function proof(p) {
   c = await waitCard(p, LONG, (x) => !x.missing && x.mode === 'rows' && x.clip === 'cut')
   step('6 reload keeps rows', c.mode === 'rows' && c.clip === 'cut', { mode: c.mode, clip: c.clip })
 
-  /* 7. the thread pane clips the long root the same way */
+  /* 7. the thread's root card is never clipped (SPL-945) */
   const task = c.task
   const el = await p.$(`.feed-col article.msg[data-task-id="${task}"]`)
   if (el) await el.click()
@@ -341,7 +342,7 @@ async function proof(p) {
     if (r.open && !r.missing) break
     await sleep(300)
   }
-  step('7 the thread pane clips the long root', r.open && !r.missing && r.clipBox,
+  step('7 the thread pane shows the root unclipped', r.open && !r.missing && !r.clipBox && !r.title && r.bodyH > r.lh * 5 + 20,
     { ...r, rows5: Math.round((r.lh || 0) * 5) })
   const mid = await p.evaluate(CARD, LONG)
   step('7 the middle copy stays clipped', mid.clip === 'cut', { clip: mid.clip, boxH: mid.boxH })

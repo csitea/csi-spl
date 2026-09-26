@@ -12,12 +12,21 @@
  *    rows   — (default) the body clipped at 5 text rows, or at 30% of the
  *             window when the card carries a picture; a grip drags it taller;
  *    full   — nothing clipped (the card as it was before this change).
- *  The right (thread) pane is never clipped: the host simply does not ask.
+ *  SPL-945 (owner 2026-09-26, "the same way of changing the view should be
+ *  applied to the threads msgs as well, aka the is_parent=0 msgs"): the right
+ *  (thread) pane has the same control and its own stored mode; it clips the
+ *  replies only, so the thread's root card is always whole.
  */
 import { storageGet, storageSet } from './prefs.mjs'
 import { isPreviewableImage } from './file-preview.mjs'
 
 export const CARD_CLIP_KEY = 'spool-card-clip'
+/** SPL-945: the thread pane's mode, kept apart from the middle pane's. */
+export const CARD_CLIP_THREAD_KEY = 'spool-card-clip-thread'
+/** The storage key of a pane's mode: `msgs` (middle) or `thread` (right). */
+export function cardClipKey(pane) {
+  return pane === 'thread' ? CARD_CLIP_THREAD_KEY : CARD_CLIP_KEY
+}
 export const CARD_CLIP_MODES = Object.freeze(['titles', 'rows', 'full'])
 export const CARD_CLIP_DEFAULT = 'rows'
 /** Text rows a level-1 card shows in the default mode. */
@@ -35,12 +44,18 @@ export function parseCardClipMode(raw, fallback = CARD_CLIP_DEFAULT) {
   return CARD_CLIP_MODES.includes(s) ? s : fallback
 }
 
-export function readCardClipMode(store) {
-  return parseCardClipMode(storageGet(CARD_CLIP_KEY, null, store))
+export function readCardClipMode(store, pane = 'msgs') {
+  return parseCardClipMode(storageGet(cardClipKey(pane), null, store))
 }
 
-export function writeCardClipMode(mode, store) {
-  return storageSet(CARD_CLIP_KEY, parseCardClipMode(mode), store)
+export function writeCardClipMode(mode, store, pane = 'msgs') {
+  return storageSet(cardClipKey(pane), parseCardClipMode(mode), store)
+}
+
+/** SPL-945: in the thread pane only a reply takes the mode; the root card
+ *  (is_parent 1) is never clipped. A row without the flag is a reply. */
+export function clipsInThread(row) {
+  return Number(row?.is_parent) !== 1
 }
 
 /**

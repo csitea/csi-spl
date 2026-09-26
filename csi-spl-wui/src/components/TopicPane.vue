@@ -13,6 +13,9 @@
     <header>
       <strong class="topic-heading__title" data-test="topic-heading" data-selected="true" aria-current="true">{{ heading }}</strong>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0">
+        <!-- SPL-945: the replies' height, the same three modes as the middle
+             pane; lazy, so the shell's initial chunk does not grow -->
+        <LazyCardClipControl pane="thread" />
         <button
           class="icon-btn"
           type="button"
@@ -30,6 +33,7 @@
       <ErrorNotice v-if="loadError" :message="loadError" source="topic" test-id="topic-error" />
       <LiveFeed
         clip
+        clip-pane="thread"
         hold-scroll
         :label="t('topic.replies_label')"
         :rows="messages"

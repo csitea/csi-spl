@@ -33,7 +33,7 @@
         :merge-prev="mergeTarget(m, 'previous')"
         :merge-next="mergeTarget(m, 'next')"
         :current-task-id="currentTaskId"
-        :clip-mode="clip ? clipMode : undefined"
+        :clip-mode="clipModeFor(m)"
         :class="{ pending: m.pending }"
         :data-key="m.msg_id"
         :data-pending="m.pending ? 'true' : undefined"
@@ -68,7 +68,8 @@ import { isSelectedRow } from '~/utils/topic-open.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { threadNeighbor } from '~/utils/msg-menu.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
-import { useCardClip } from '~/composables/useCardClip'
+import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
+import { clipsInThread } from '~/utils/card-clip.mjs'
 
 /* 013: newest first under the Omnibox; entering rows animate. The first page is 30 rows; a Load more
    button under the last row asks for the next 30 (held rows first, then the hub, before=<cursor>).
@@ -99,15 +100,23 @@ const props = defineProps<{
       be displayed only on the middle pane and it should work so that it will
       open the topic". A thread pane never passes it. */
   openButton?: boolean
-  /** CLE-34989: titles / 5 rows / full. The middle pane and the thread
-      (is_parent 0) both pass it and read the same stored mode. */
+  /** CLE-34989: a middle-pane feed of level-1 cards takes the pane's height
+      mode (titles / 5 rows / full). SPL-945: a thread (the right pane, the
+      /t page) passes it too, with clipPane="thread" - its own mode, and the
+      root card stays whole. */
   clip?: boolean
+  clipPane?: CardClipPane
 }>()
 defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const topic = useTopicStore()
-const { mode: clipMode } = useCardClip()
+const { mode: clipMode } = useCardClip(props.clipPane)
+function clipModeFor(m: SpoolMessage) {
+  if (!props.clip) return undefined
+  if (props.clipPane === 'thread' && !clipsInThread(m)) return undefined
+  return clipMode.value
+}
 const root = ref<HTMLElement | null>(null)
 const { pill, jump } = useScrollAnchor(
   root,

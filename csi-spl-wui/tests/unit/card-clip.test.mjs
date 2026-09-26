@@ -11,7 +11,10 @@ import {
   CARD_CLIP_KEY,
   CARD_CLIP_MODES,
   CARD_CLIP_ROWS,
+  CARD_CLIP_THREAD_KEY,
+  cardClipKey,
   cardClipPx,
+  clipsInThread,
   cardDragPx,
   cardHasPicture,
   cardIsClipped,
@@ -22,6 +25,9 @@ import {
 } from '../../src/utils/card-clip.mjs'
 import { PREVIEW_MAX_BYTES } from '../../src/utils/file-preview.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
+
+const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+const read = (p) => readFileSync(join(WUI, p), 'utf8')
 
 describe('parseCardClipMode', () => {
   it('keeps a known mode and trims it', () => {
@@ -144,11 +150,51 @@ describe('read and write the mode', () => {
   })
 })
 
-describe('the thread uses the same card height mode', () => {
-  const read = (rel) => readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../..', rel), 'utf8')
-  for (const rel of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue', 'src/pages/t/[task_id].vue']) {
-    it(`${rel} passes clip to the thread feed`, () => {
-      assert.match(read(rel), /<LiveFeed\s+clip\b/)
+describe('SPL-945: the thread pane has its own control and mode, for the replies', () => {
+  it('stores the thread mode under its own key, apart from the middle pane', () => {
+    const store = memoryStore()
+    assert.equal(CARD_CLIP_THREAD_KEY, 'spool-card-clip-thread')
+    assert.equal(cardClipKey('thread'), 'spool-card-clip-thread')
+    assert.equal(cardClipKey('msgs'), 'spool-card-clip')
+    assert.equal(cardClipKey(), 'spool-card-clip')
+    assert.equal(readCardClipMode(store, 'thread'), 'rows')
+    writeCardClipMode('full', store, 'thread')
+    writeCardClipMode('titles', store)
+    assert.equal(readCardClipMode(store, 'thread'), 'full')
+    assert.equal(readCardClipMode(store), 'titles')
+    assert.equal(store.getItem('spool-card-clip-thread'), 'full')
+  })
+
+  it('clips a reply (is_parent 0, or no flag) and never the root (is_parent 1)', () => {
+    assert.equal(clipsInThread({ is_parent: 0 }), true)
+    assert.equal(clipsInThread({}), true)
+    assert.equal(clipsInThread({ is_parent: 1 }), false)
+    assert.equal(clipsInThread({ is_parent: '1' }), false)
+  })
+
+  for (const p of ['src/components/TopicPane.vue', 'src/components/LiveTopicPane.vue']) {
+    it(`${p}: the control in the header, the feed clips with the thread mode`, () => {
+      const src = read(p)
+      assert.match(src, /<header>[\s\S]*?<LazyCardClipControl pane="thread" \/>[\s\S]*?<\/header>/, 'lazy: the shell\'s initial chunk is at its ceiling')
+      assert.match(src, /<LiveFeed\s+clip\s+clip-pane="thread"\s+hold-scroll/)
     })
   }
+
+  it('the /t topic page reads the thread mode too, so its root stays whole', () => {
+    assert.match(read('src/pages/t/[task_id].vue'), /<LiveFeed\s+clip\s+clip-pane="thread"\s+hold-scroll/)
+  })
+
+  it('LiveFeed reads the pane\'s mode and skips the thread root', () => {
+    const src = read('src/components/LiveFeed.vue')
+    assert.match(src, /useCardClip\(props\.clipPane\)/)
+    assert.match(src, /props\.clipPane === 'thread' && !clipsInThread\(m\)\) return undefined/)
+    assert.match(src, /:clip-mode="clipModeFor\(m\)"/)
+  })
+
+  it('the middle pane stays on the default pane', () => {
+    assert.match(read('src/components/MessageFeed.vue'), /\bclip\b/)
+    assert.doesNotMatch(read('src/components/MessageFeed.vue'), /clip-pane/)
+    assert.match(read('src/components/CardClipControl.vue'), /useCardClip\(props\.pane\)/)
+    assert.match(read('src/composables/useCardClip.ts'), /const key = cardClipKey\(pane\)/)
+  })
 })

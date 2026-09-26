@@ -241,11 +241,21 @@ try {
   await sleep(400)
   const topic = await read(p, 'topic')
   const topicText = await p.evaluate(() => (document.querySelector('aside[data-pane=topic]')?.innerText || '').slice(0, 240))
-  const clipped = topic.rows.filter((r) => r.clip || r.grip).length
-  step('6 the right thread pane is open under the same height mode', opened && paneShown && topic.n > 0, {
-    opened, paneShown, n: topic.n, clipped, topicText,
+  /* SPL-945: the thread pane has its own control and stored mode; in full
+     nothing in it is clipped, whatever the middle pane's mode is */
+  const threadCtl = await p.$('aside[data-pane=topic] [data-testid=card-clip-control][data-clip-pane=thread]')
+  if (threadCtl) {
+    await p.click('aside[data-pane=topic] [data-testid=card-clip-full]')
+    await sleep(500)
+  }
+  const topicFull = await read(p, 'topic')
+  const clipped = topicFull.rows.filter((r) => r.clip || r.grip).length
+  const midMode = await p.evaluate(() => document.querySelector('[data-pane=msgs] [data-testid=card-clip-control]')?.getAttribute('data-mode'))
+  step('6 the thread pane has its own control; in full it clips nothing, the middle pane keeps rows', opened && paneShown && !!threadCtl && topic.n > 0 && clipped === 0 && midMode === 'rows', {
+    opened, paneShown, threadCtl: !!threadCtl, n: topic.n, clipped, midMode, topicText,
   })
   await p.screenshot({ path: `${OUT}/6-topic.png` })
+  await p.click('aside[data-pane=topic] [data-testid=card-clip-rows]').catch(() => {})
 
   await p.click('[data-testid=card-clip-rows]').catch(() => {})
   writeFileSync(`${OUT}/result.json`, JSON.stringify(res, null, 2))

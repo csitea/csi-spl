@@ -4,7 +4,8 @@
      between the three; the label around each radio is the visible segment.
      One mode per browser for every middle-pane surface (useCardClip).
      SPL-941: each segment is an icon; its words are the tooltip and the
-     radio's accessible name. -->
+     radio's accessible name. SPL-945: `pane="thread"` is the right pane's
+     own control (its own stored mode, applied to the replies). -->
 <template>
   <div
     class="card-clip-ctl"
@@ -13,6 +14,7 @@
     :title="t('feed.clip.label')"
     data-testid="card-clip-control"
     :data-mode="mode"
+    :data-clip-pane="pane"
   >
     <label
       v-for="m in CARD_CLIP_MODES"
@@ -36,14 +38,15 @@
 </template>
 
 <script setup lang="ts">
-import { useCardClip } from '~/composables/useCardClip'
+import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { CARD_CLIP_MODES } from '~/utils/card-clip.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 
 const ICON: Record<string, UiIconName> = { titles: 'clip-titles', rows: 'clip-rows', full: 'clip-full' }
 
+const props = withDefaults(defineProps<{ pane?: CardClipPane }>(), { pane: 'msgs' })
 const { t } = useI18n({ useScope: 'global' })
-const { mode, setMode } = useCardClip()
+const { mode, setMode } = useCardClip(props.pane)
 /* one radio group per control on the page */
 const name = `card-clip-${useId()}`
 </script>

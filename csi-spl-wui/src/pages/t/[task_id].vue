@@ -9,6 +9,7 @@
       <ErrorNotice v-if="store.error" :message="store.error" source="topic" test-id="topic-error" />
       <LiveFeed
         clip
+        clip-pane="thread"
         hold-scroll
         :label="t('topic.replies_label')"
         :rows="messages"

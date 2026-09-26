@@ -157,20 +157,13 @@ export function formatBytes(n, locale) {
 }
 
 /**
- * HH:MM (UTC) of a message timestamp. `locale` (optional, the active UI
- * locale) formats it the way that locale writes a time of day; without it the
- * output is unchanged (ISO "14:05"). Channel / list cards keep this form.
+ * HH:MM (UTC) of a message timestamp. The same 24-hour digits in every UI
+ * locale. Channel / list cards keep this form.
  */
-export function formatTs(ts, locale) {
+export function formatTs(ts, _locale) {
   const d = new Date(ts)
   if (Number.isNaN(d.getTime())) return String(ts || '')
-  if (locale) {
-    try {
-      return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(d)
-    } catch {
-      /* unknown locale tag: fall through to the ISO form */
-    }
-  }
+  /* 24-hour UTC HH:MM in every UI locale. A locale used to rewrite 14:05 as 14.05. */
   return d.toISOString().slice(11, 16)
 }
 

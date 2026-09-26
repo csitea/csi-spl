@@ -62,6 +62,7 @@
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
 import { createEventsClient, eventsErrorKey } from '~/utils/event-log.mjs'
+import { isoDateTime } from '~/utils/date-iso.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 
 type EventRow = {
@@ -88,7 +89,8 @@ const busy = ref(false)
 const loadError = ref('')
 
 function whenOf(r: EventRow) {
-  return r.at || r.received_at || ''
+  const raw = r.at || r.received_at || ''
+  return isoDateTime(raw) || raw
 }
 
 function asRows(data: unknown): EventRow[] {

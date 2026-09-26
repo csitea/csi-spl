@@ -120,7 +120,8 @@ try {
   await p.click('[data-test=issues-row][data-key="SPL-2"]')
   await p.waitForSelector('[data-test=issues-detail]', { visible: true, timeout: 5000 })
   const body = await p.$eval('[data-test=issues-detail-body]', (el) => el.value)
-  const deadlineType = await p.$eval('[data-test=issues-deadline]', (el) => el.type)
+  const deadlineType = await p.$eval('[data-test=issues-deadline]', (el) => el.getAttribute('type'))
+  const deadlineHint = await p.$eval('[data-test=issues-deadline]', (el) => el.getAttribute('placeholder'))
   /* owner 2026-09-26: a 24-hour time, 07:00-22:00, no AM/PM */
   const times = await p.$$eval('[data-test=issues-deadline-time] option', (els) => els.map((e) => e.textContent.trim()))
   const side = await p.evaluate(() => {
@@ -128,9 +129,9 @@ try {
     const pane = document.querySelector('[data-test=issues-detail]').getBoundingClientRect()
     return { paneRight: pane.left >= list.right - 2 }
   })
-  ok('4 the right pane shows the description and a calendar with a 24-hour time (07:00-22:00)', body === 'Only in the detail' && deadlineType === 'date' &&
+  ok('4 the right pane shows the description and a calendar with a 24-hour time (07:00-22:00)', body === 'Only in the detail' && deadlineType === 'text' && deadlineHint === 'YYYY-MM-DD' &&
     times[0] === '07:00' && times[times.length - 1] === '22:00' && !times.some((x) => /am|pm/i.test(x)) && side.paneRight,
-    { body, deadlineType, first: times[0], last: times[times.length - 1], n: times.length, side })
+    { body, deadlineType, deadlineHint, first: times[0], last: times[times.length - 1], n: times.length, side })
 
   /* SPL-949: level is the tree's (1 epic / feature, 2 issue, 3 subtask), shown and never picked */
   const lvl = await p.$eval('[data-test=issues-level]', (el) => ({ tag: el.tagName, level: el.getAttribute('data-level') }))

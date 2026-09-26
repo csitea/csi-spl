@@ -47,7 +47,7 @@ describe('Issues rail tab', () => {
     assert.equal(list.includes('description'), false)
     assert.match(src.slice(detailAt), /data-test="issues-detail-body"/)
     // owner 2026-09-26 (topic 32a56460): a date plus a 24-hour time select, no datetime-local (AM/PM)
-    assert.match(src, /type="date"[\s\S]*data-test="issues-deadline"/)
+    assert.match(src, /type="text"[\s\S]*placeholder="YYYY-MM-DD"[\s\S]*data-test="issues-deadline"/)
     assert.match(src, /data-test="issues-deadline-time"/)
     assert.equal(/type="datetime-local"/.test(src), false)
     assert.equal(src.includes('issues-search'), false)

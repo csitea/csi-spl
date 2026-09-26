@@ -131,6 +131,7 @@ import { useTopicRoute } from '~/composables/useTopicRoute'
 import { operatorHelpRows, searchPath, type SearchRow } from '~/utils/search.mjs'
 import { flattenGroups, highlightSegments, moveIndex, rowAt, searchTarget } from '~/utils/search-results.mjs'
 import { openThreadRow, scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { isoDateTime } from '~/utils/date-iso.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import HumanName from '~/components/HumanName.vue'
@@ -233,7 +234,7 @@ function meta(row: SearchRow): string {
 
 function when(ts: unknown): string {
   const d = new Date(String(ts || ''))
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString()
+  return isoDateTime(d)
 }
 
 function eventDetail(row: SearchRow): string {

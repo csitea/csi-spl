@@ -68,7 +68,7 @@
         </select>
         <label class="issues-filter-when" data-test="issues-filter-deadline">
           <span>{{ t('issues.field_deadline') }}:</span>
-          <input v-model="dueF" type="date" data-test="issues-filter-deadline-date" :aria-label="t('issues.field_deadline')">
+          <input v-model="dueF" type="text" inputmode="numeric" maxlength="10" spellcheck="false" placeholder="YYYY-MM-DD" autocomplete="off" data-test="issues-filter-deadline-date" :aria-label="t('issues.field_deadline')" @change="onDue">
         </label>
         <button type="button" class="btn ghost" data-test="issues-filter-clear" @click="clearFilters">{{ t('issues.filter_clear') }}</button>
       </div>
@@ -209,7 +209,12 @@
           <span>{{ t('issues.field_deadline') }}</span>
           <div class="issues-deadline">
             <input
-              type="date"
+              type="text"
+              inputmode="numeric"
+              maxlength="10"
+              spellcheck="false"
+              placeholder="YYYY-MM-DD"
+              autocomplete="off"
               data-test="issues-deadline"
               :aria-label="t('issues.field_deadline')"
               :value="splitLocal(form.deadline).date"
@@ -304,6 +309,7 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { useLive } from '~/composables/useLive'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { isoDateTime, parseIsoDate } from '~/utils/date-iso.mjs'
 import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import { tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
@@ -348,7 +354,7 @@ function statusIcon(status: string): string {
   return STATUS_ICON[status] || 'status-backlog'
 }
 
-const { t, locale } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const session = useSessionStore()
 const roster = useRosterStore()
@@ -467,16 +473,7 @@ function dotStyle(id: string) {
   return /^#[0-9a-f]{6}$/i.test(color) ? { background: color } : {}
 }
 function when(rfc: string) {
-  if (!rfc) return ''
-  const d = new Date(rfc)
-  if (Number.isNaN(d.getTime())) return ''
-  try {
-    return new Intl.DateTimeFormat(String(locale.value || ''), {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', /* owner: no AM/PM */
-    }).format(d)
-  } catch {
-    return deadlineToLocalInput(rfc).replace('T', ' ')
-  }
+  return isoDateTime(rfc)
 }
 function levelShort(n: number) {
   return LEVEL_SHORT[n] || ''
@@ -751,8 +748,14 @@ function applyDeadline(local: string) {
   if (deadline === null) return
   void save(detail.value.key, { deadline })
 }
+function onDue(ev: Event) {
+  const raw = (ev.target as HTMLInputElement).value.trim()
+  dueF.value = raw ? parseIsoDate(raw) : ''
+}
 function onDeadlineDate(ev: Event) {
-  const date = (ev.target as HTMLInputElement).value
+  const raw = (ev.target as HTMLInputElement).value.trim()
+  const date = raw ? parseIsoDate(raw) : ''
+  if (raw && !date) return
   applyDeadline(joinLocal(date, splitLocal(form.value?.deadline || '').time))
 }
 function onDeadlineTime(ev: Event) {

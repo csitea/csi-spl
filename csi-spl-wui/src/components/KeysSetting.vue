@@ -78,6 +78,7 @@
 </template>
 
 <script setup lang="ts">
+import { isoDateTime } from '~/utils/date-iso.mjs'
 import { useSessionStore } from '~/stores/session'
 import { userIdentity } from '~/utils/user-menu.mjs'
 import {
@@ -103,7 +104,7 @@ type Key = {
   active: boolean
 }
 
-const { t, locale } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
 const hum = computed(() => userIdentity(session.claims).hum)
 const client = createKeysClient({ base: useAuthBase() })
@@ -123,10 +124,8 @@ const copied = ref(false)
 let autoTried = false
 
 const state = (k: Key) => (k.revoked_at ? (k.revoked_reason === 'replaced' ? 'replaced' : 'revoked') : 'active')
-const when = (iso: string) => {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(String(locale.value || 'en'))
-}
+const when = (iso: string) => isoDateTime(iso)
+
 const fail = (out: { error: string }) => { error.value = t(keysErrorKey(out.error)) }
 
 async function load() {

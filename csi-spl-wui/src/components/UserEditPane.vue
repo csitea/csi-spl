@@ -144,6 +144,7 @@
 import UiDialog from '~/components/UiDialog.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { roleLabelKey } from '~/utils/access.mjs'
+import { isoDateTime } from '~/utils/date-iso.mjs'
 import { memberLabel, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
 import type { UserInvite, UserMember, UserRow } from '~/utils/tenant-users.mjs'
 
@@ -205,13 +206,7 @@ function roleKnown(id: string) {
   return props.roles.some((r) => r.id === id)
 }
 function when(iso: string) {
-  const d = new Date(iso)
-  if (!iso || Number.isNaN(d.getTime())) return '—'
-  try {
-    return d.toLocaleString(String(locale.value), { dateStyle: 'medium', timeStyle: 'short' })
-  } catch {
-    return d.toISOString()
-  }
+  return isoDateTime(iso) || '—'
 }
 /** One place for every failure: the hub's token in words; a stale row reloads. */
 function fail(e: unknown) {

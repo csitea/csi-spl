@@ -75,8 +75,8 @@ describe('channel-feed', () => {
   it('formats times and sizes in the active UI locale when given one (spec 021)', () => {
     const ts = '2026-09-19T14:05:00Z'
     assert.equal(formatTs(ts), '14:05')
-    assert.equal(formatTs(ts, 'fi'), '14.05')
-    assert.equal(formatTs(ts, 'en'), new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(ts)))
+    assert.equal(formatTs(ts, 'fi'), '14:05')
+    assert.equal(formatTs(ts, 'en'), '14:05')
     assert.equal(formatTs('not a date', 'fi'), 'not a date')
     assert.equal(formatAbsTs(ts), '2026-09-19 14:05:00')
     assert.equal(formatElapsed(0), '0s')

@@ -1217,3 +1217,9 @@ declare module '~/utils/tenant-host-boot.mjs' {
     notMember: { value: { tenant: string, home: string } }
   }): void
 }
+
+declare module '~/utils/date-iso.mjs' {
+  export function isoDate(value: unknown): string
+  export function isoDateTime(value: unknown): string
+  export function parseIsoDate(value: unknown): string
+}

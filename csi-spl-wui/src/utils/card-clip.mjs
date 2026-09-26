@@ -116,6 +116,56 @@ export function readEffectiveCardClip(pane = 'msgs', store, bag) {
   return readCardClipDefault(store)
 }
 
+function modeOrNull(raw) {
+  if (raw == null) return null
+  const s = String(raw).trim()
+  return CARD_CLIP_MODES.includes(s) ? s : null
+}
+
+function localBag(store) {
+  if (store && typeof store.getItem === 'function') return store
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis.localStorage) return globalThis.localStorage
+  } catch { /* denied */ }
+  return null
+}
+
+/**
+ * SPL-954: an old lasting per-pane value becomes the appearance default.
+ * The middle pane wins when both panes stored one. A pane whose old value
+ * differs, and a pane that was never stored when that default is not rows,
+ * is pinned for this sign-in so the screen does not jump. The old keys are
+ * then removed. A browser that already has a default is left alone, apart
+ * from dropping leftover old keys.
+ */
+export function migrateCardClip(store, bag) {
+  const loc = localBag(store)
+  if (!loc) return { migrated: false }
+  const had = storageGet(CARD_CLIP_DEFAULT_KEY, null, loc)
+  const hadDefault = had != null && String(had).trim() !== ''
+  const msgsRaw = storageGet(CARD_CLIP_KEY, null, loc)
+  const threadRaw = storageGet(CARD_CLIP_THREAD_KEY, null, loc)
+  const msgs = modeOrNull(msgsRaw)
+  const thread = modeOrNull(threadRaw)
+  let migrated = false
+  if (!hadDefault && (msgs || thread)) {
+    const chosen = msgs || thread
+    writeCardClipDefault(chosen, loc)
+    if (msgs && msgs !== chosen) writeCardClipSession(msgs, 'msgs', bag)
+    if (thread && thread !== chosen) writeCardClipSession(thread, 'thread', bag)
+    if (!msgs && chosen !== CARD_CLIP_DEFAULT) writeCardClipSession(CARD_CLIP_DEFAULT, 'msgs', bag)
+    if (!thread && chosen !== CARD_CLIP_DEFAULT) writeCardClipSession(CARD_CLIP_DEFAULT, 'thread', bag)
+    migrated = true
+  }
+  if (msgsRaw != null) {
+    try { loc.removeItem(CARD_CLIP_KEY) } catch { /* private mode */ }
+  }
+  if (threadRaw != null) {
+    try { loc.removeItem(CARD_CLIP_THREAD_KEY) } catch { /* private mode */ }
+  }
+  return { migrated }
+}
+
 /** SPL-945: in the thread pane only a reply takes the mode; the root card
  *  (is_parent 1) is never clipped. A row without the flag is a reply. */
 export function clipsInThread(row) {

@@ -2,6 +2,7 @@ import {
   CARD_CLIP_DEFAULT,
   CARD_CLIP_DEFAULT_KEY,
   cardClipKey,
+  migrateCardClip,
   parseCardClipMode,
   readCardClipDefault,
   readCardClipSession,
@@ -29,9 +30,9 @@ export function useCardClipDefault() {
   }
 
   onMounted(() => {
-    if (hydrated.value) return
-    hydrated.value = true
+    if (import.meta.client) migrateCardClip()
     mode.value = readCardClipDefault() as CardClipMode
+    hydrated.value = true
   })
 
   return { mode, setDefault }
@@ -56,10 +57,10 @@ export function useCardClip(pane: CardClipPane = 'msgs') {
   }
 
   onMounted(() => {
-    if (hydrated.value) return
-    hydrated.value = true
+    if (import.meta.client) migrateCardClip()
     fallback.value = readCardClipDefault() as CardClipMode
     mode.value = readEffectiveCardClip(pane) as CardClipMode
+    hydrated.value = true
   })
 
   watch(fallback, (d) => {

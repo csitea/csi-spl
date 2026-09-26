@@ -31,6 +31,7 @@
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { topicErrorKey } from '~/utils/topic-archive.mjs'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 
 const props = defineProps<{ open: boolean, msgId: string }>()
 const emit = defineEmits<{ 'update:open': [boolean], deleted: [{ msg_ids: string[], task_ids: string[] }] }>()
@@ -44,7 +45,7 @@ async function load() {
   error.value = ''
   replies.value = null
   try {
-    const size = await api.topicSize(props.msgId)
+    const size = await withSessionRetry(api, () => api.topicSize(props.msgId))
     replies.value = Math.max(0, Number(size?.replies) || 0)
   } catch (e) {
     error.value = t(topicErrorKey(e))

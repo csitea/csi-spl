@@ -115,7 +115,7 @@ describe('wiring', () => {
   })
   it('the dialog names the reply count from the hub before it deletes', () => {
     const d = src('src/components/TopicDeleteDialog.vue')
-    assert.match(d, /api\.topicSize\(props\.msgId\)/)
+    assert.match(d, /withSessionRetry\(api, \(\) => api\.topicSize\(props\.msgId\)\)/)
     assert.match(d, /:disabled="busy \|\| replies === null"/)
     assert.match(d, /api\.deleteTopic\(props\.msgId\)/)
   })
@@ -127,7 +127,8 @@ describe('wiring', () => {
   })
   it('the Archive page lists, unarchives and deletes', () => {
     const p = src('src/pages/archive.vue')
-    assert.match(p, /api\.listArchived\(/)
+    /* a fresh page's first read can beat the session door (a 401): measured live on dev, 2026-09-26 */
+    assert.match(p, /withSessionRetry\(api, \(\) => api\.listArchived\(/)
     assert.match(p, /api\.archiveTopic\(id, false\)/)
     assert.match(p, /LazyTopicDeleteDialog/)
   })

@@ -72,6 +72,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { archivedRow, topicErrorKey, topicFrameDrops, withoutCards } from '~/utils/topic-archive.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 
 type Row = ReturnType<typeof archivedRow>
 
@@ -93,7 +94,9 @@ async function load(more = false) {
   loading.value = true
   loadError.value = ''
   try {
-    const page = await api.listArchived({ before: more ? next.value || undefined : undefined })
+    /* The first read of a fresh page can go out before the session door is
+       armed (a 401): withSessionRetry arms it and reads again, as every view does. */
+    const page = await withSessionRetry(api, () => api.listArchived({ before: more ? next.value || undefined : undefined }))
     const got = page.cards.map(archivedRow)
     rows.value = more ? [...rows.value, ...got.filter((r) => !rows.value.some((o) => o.msg_id === r.msg_id))] : got
     next.value = page.next

@@ -40,7 +40,8 @@
 #                          [--check-tools]
 #
 # Exit: 0 reconciled (or another tick held the lock), 1 something was not
-# seated, 2 usage or a refusal, 3 a tool this needs is not on the PATH.
+# seated or a welcome post failed, 2 usage or a refusal, 3 a tool this needs
+# is not on the PATH.
 set -uo pipefail
 
 # CRON'''S PATH IS NOT YOUR PATH, and this is not a hypothetical. The very first
@@ -162,4 +163,16 @@ say "INFO reconciling desks: env=$ENV_NAME tenant=$TENANT orc=$ORC"
     ./run -a do_spl_desk_up_all )
 rc=$?
 say "INFO do_spl_desk_up_all exit $rc"
+
+# SPL-961: the seated bots welcome a person admitted since the last tick, in
+# #lobby of EVERY tenant with a desk on this box (not only $TENANT: the other
+# tenants' desks have no tick of their own). Its ledger makes a repeated tick a
+# no-op, so riding the reconcile's schedule costs one read-only DB query.
+# DESK_WELCOME=0 turns it off without touching the reconcile.
+if [ "${DESK_WELCOME:-1}" != 0 ]; then
+  ( cd "$ORC" && env -u TENANT_ID ENV="$ENV_NAME" DRY_RUN=0 ./run -a do_spl_desk_welcome )
+  wrc=$?
+  say "INFO do_spl_desk_welcome exit $wrc"
+  [ "$rc" = 0 ] && [ "$wrc" != 0 ] && rc=1
+fi
 exit "$rc"

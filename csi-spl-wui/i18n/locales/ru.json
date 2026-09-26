@@ -839,7 +839,15 @@
     "subtasks": "Подзадачи",
     "add_subtask": "Добавить подзадачу",
     "subtask_placeholder": "Название новой подзадачи",
-    "parent_issue": "Родитель"
+    "parent_issue": "Родитель",
+    "status_hint": {
+      "eval": "оценка",
+      "todo": "к выполнению",
+      "wip": "в работе",
+      "diss": "отклонено",
+      "qas": "контроль качества",
+      "done": "готово"
+    }
   },
   "markdown": {
     "show_source": "Показать исходник",

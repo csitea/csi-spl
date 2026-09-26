@@ -45,7 +45,7 @@ describe('matchIssue filters on every attribute', () => {
   const pick = (f, me) => list.filter((i) => matchIssue(i, f, me)).map((i) => i.key)
   it('status / priority / level / label', () => {
     assert.deepEqual(pick({ status: ['todo'] }), ['SPL-2'])
-    assert.deepEqual(pick({ priority: [0] }), ['SPL-3'])
+    assert.deepEqual(pick({ priority: [5] }), ['SPL-3']) // no priority reads as prio 5 (rdb 0054)
     assert.deepEqual(pick({ level: [1, 3] }), ['SPL-1', 'SPL-2'])
     assert.deepEqual(pick({ label: ['bug'] }), ['SPL-1'])
   })
@@ -64,12 +64,12 @@ describe('groupIssues: one group per status, workflow order, counts', () => {
   it('keeps empty groups by default, in Linear order', () => {
     const g = groupIssues(list)
     assert.deepEqual(g.map((x) => x.status), ISSUE_STATUSES)
-    assert.deepEqual(g.map((x) => x.count), [2, 1, 0, 0, 1, 0])
+    assert.deepEqual(g.map((x) => x.count), [2, 1, 0, 0, 0, 1]) // eval, todo, wip, diss, qas, done
     assert.deepEqual(g[0].issues.map((i) => i.key), ['SPL-1', 'SPL-3'])
   })
   it('hideEmpty + filter + sort', () => {
-    const g = groupIssues(list, { hideEmpty: true, sort: 'level', filter: { priority: [0, 2] } })
-    assert.deepEqual(g.map((x) => [x.status, x.issues.map((i) => i.key)]), [['backlog', ['SPL-3', 'SPL-1']]])
+    const g = groupIssues(list, { hideEmpty: true, sort: 'level', filter: { priority: [5, 2] } })
+    assert.deepEqual(g.map((x) => [x.status, x.issues.map((i) => i.key)]), [['eval', ['SPL-3', 'SPL-1']]])
   })
   it('J / K walk the visible rows, collapsed groups skipped', () => {
     const order = visibleOrder(groupIssues(list), { todo: true })
@@ -248,5 +248,30 @@ describe('deadline picker: 24-hour, 07:00-22:00 (owner, topic 32a56460)', async 
     assert.equal(joinLocal('2026-10-01', '21:45'), '2026-10-01T21:45')
     assert.equal(joinLocal('2026-10-01', ''), `2026-10-01T${DEADLINE_DEFAULT_TIME}`)
     assert.equal(joinLocal('', '10:00'), '')
+  })
+})
+
+describe('the owner statuses and prio 1..5 (rdb 0054, topics f2c32da2 + d81cbf47)', async () => {
+  const { ISSUE_STATUSES: S, normalizeStatus, normalizeIssue: n5, createMockIssues, PRIO_DEFAULT } = await import('../../src/utils/issues.mjs')
+  const { statusLabel, statusHintKey, ISSUE_PRIORITIES } = await import('../../src/utils/issues-view.mjs')
+  it('the six statuses in the owner order, shown with their numbers', () => {
+    assert.deepEqual(S, ['eval', 'todo', 'wip', 'diss', 'qas', 'done'])
+    assert.deepEqual(S.map(statusLabel), ['01-eval', '02-todo', '03-wip', '03-diss', '07-qas', '09-done'])
+    assert.equal(statusHintKey('wip'), 'issues.status_hint.wip')
+  })
+  it('a first-set status still reads as its successor', () => {
+    assert.deepEqual(['backlog', 'in_progress', 'in_review', 'canceled', 'todo'].map(normalizeStatus), ['eval', 'wip', 'qas', 'diss', 'todo'])
+    assert.equal(n5({ key: 'SPL-1', status: 'in_progress' }).status, 'wip')
+  })
+  it('prio is a number 1..5, 5 when unset', () => {
+    assert.deepEqual(ISSUE_PRIORITIES, [1, 2, 3, 4, 5])
+    assert.equal(PRIO_DEFAULT, 5)
+    assert.equal(n5({ key: 'SPL-1' }).priority, 5)
+    const hub = createMockIssues({ me: 'HUM-1', now: () => '2026-09-26T10:00:00Z' })
+    const i = hub.create({ title: 'x', epic: 'SPL-1' }).issue
+    assert.deepEqual([i.status, i.priority], ['eval', 5])
+    assert.throws(() => hub.update(i.key, { priority: 6 }), (e) => e.token === 'bad_issue')
+    assert.equal(hub.update(i.key, { priority: 0 }).issue.priority, 5) // 0 = unset, like the hub
+    assert.equal(hub.update(i.key, { status: 'canceled' }).issue.status, 'diss')
   })
 })

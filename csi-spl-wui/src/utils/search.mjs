@@ -37,8 +37,10 @@ const REQUIRED_TYPE_VALUES = ['tenant', 'event', 'issue', 'thread', 'person', 'w
 /** Issue operators (grammar 1.2). Status and priority are closed; assignee offers me and none; label: is free text. */
 function issueOperators() {
   return [
-    { op: 'status:', example: 'status:in_progress', values: ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'canceled'] },
-    { op: 'priority:', example: 'priority:1', values: ['0', '1', '2', '3', '4'] },
+    /* rdb 0054: the owner's statuses and prio 1..5 (the live catalogue from
+       /v1/view/search/operators follows the store) */
+    { op: 'status:', example: 'status:wip', values: ['eval', 'todo', 'wip', 'diss', 'qas', 'done'] },
+    { op: 'prio:', example: 'prio:1', values: ['1', '2', '3', '4', '5'] },
     { op: 'assignee:', example: 'assignee:me', values: ['me', 'none'] },
     { op: 'label:', example: 'label:bug' },
   ]

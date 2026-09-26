@@ -9,9 +9,9 @@
 //   1. Issues is the third rail tab (after Channels) and opens /issues
 //   2. create an issue in the UI (title + description) -> it gets a key
 //   3. the middle list shows key + title, never the description
-//   4. status In Progress, priority Urgent, level L, assignee, deadline with
+//   4. status 03-wip, prio 1, level L, assignee, deadline with
 //      time through the right-pane controls -> the row moves to the
-//      In Progress group, carries priority 1 / level 4; the hub answers the
+//      03-wip group, carries prio 1 / level 4; the hub answers the
 //      same values (GET /v1/view/issues/{key}), deadline stored UTC
 //   5. a second tab sees a later change live, without a reload
 //   6. a comment lands in the issue's discussion
@@ -154,6 +154,11 @@ try {
   step('1 Issues is the third rail tab, after Channels', rail[1] === 'sidebar-tab-channels' && rail[2] === 'sidebar-tab-issues', { rail })
   await p.click('[data-testid=sidebar-tab-issues]')
   const page = await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: 30000 }).then(() => true, () => false)
+  /* owner 2026-09-26: statuses 01-eval .. 09-done (topic f2c32da2), no title
+     filter (topic d81cbf47) */
+  const statusOpts = await p.$$eval('[data-test=issues-filter-status] option', (els) => els.slice(1).map((e) => e.textContent.trim()))
+  step('1b the status filter offers the owner\'s six statuses; no title filter', JSON.stringify(statusOpts) ===
+    JSON.stringify(['01-eval', '02-todo', '03-wip', '03-diss', '07-qas', '09-done']) && !(await p.$('[data-test=issues-search]')), { statusOpts })
   step('1 the tab opens /issues', page && new URL(p.url()).pathname.endsWith('/issues'), { url: p.url() })
   await sleep(1500)
   await shot(p, '01-issues-tab')
@@ -183,7 +188,7 @@ try {
     !!row0 && row0.text.includes(key) && row0.text.includes(title) && !row0.text.includes(descr), { row: row0 && row0.text.slice(0, 160) })
 
   // 4. attributes from the right pane
-  await pick(p, 'issues-status', 'in_progress')
+  await pick(p, 'issues-status', 'wip')
   await pick(p, 'issues-priority', '1')
   await pick(p, 'issues-level', '4')
   const who = await pick(p, 'issues-assignee', null)
@@ -213,9 +218,9 @@ try {
       const g = el.closest('.issues-group')
       return { status: g && g.getAttribute('data-status'), priority: el.getAttribute('data-priority'), level: el.getAttribute('data-level') }
     })(k)
-    return r && r.status === 'in_progress' && r.priority === '1' && r.level === '4' ? r : null
+    return r && r.status === 'wip' && r.priority === '1' && r.level === '4' ? r : null
   }, key))
-  step('4 the row moved to In Progress with priority Urgent and level L', !!row1, { row: row1 })
+  step('4 the row moved to 03-wip with prio 1 and level L', !!row1, { row: row1 })
   const wantUTC = await p.evaluate((v) => new Date(v).toISOString().replace(/\.\d{3}Z$/, 'Z'), local)
   /* the deadline PATCH goes out on change and takes 1-3 s from this box:
      poll the hub for it rather than read once after a fixed wait */
@@ -225,7 +230,7 @@ try {
     return hub.deadline === wantUTC && hub.assignee === who
   }, 15000)
   step('4 the hub holds the same values; the deadline is the calendar+time value in UTC',
-    hub.status === 'in_progress' && hub.priority === 1 && hub.level === 4 && hub.assignee === who && hub.deadline === wantUTC &&
+    hub.status === 'wip' && hub.priority === 1 && hub.level === 4 && hub.assignee === who && hub.deadline === wantUTC &&
     hub.description === descr && dlType === 'date',
     { status: hub.status, priority: hub.priority, level: hub.level, assignee: hub.assignee, deadline: hub.deadline, want: wantUTC, control: dlType })
   await shot(p, '02-edited-detail')
@@ -240,14 +245,14 @@ try {
   res.second_tab_socket_open = !!sockOpen
   /* a background tab gets no animation frames, and a click waits for one */
   await p.bringToFront()
-  await pick(p, 'issues-status', 'in_review')
+  await pick(p, 'issues-status', 'qas')
   await p2.bringToFront()
   const live = await until(() => p2.evaluate((k) => {
     const el = document.querySelector(`[data-test=issues-row][data-key="${k}"]`)
     const g = el && el.closest('.issues-group')
-    return g && g.getAttribute('data-status') === 'in_review'
+    return g && g.getAttribute('data-status') === 'qas'
   }, key), 15000)
-  step('5 a second tab moves the row to In Review without a reload', !!live, { socket_open: !!sockOpen })
+  step('5 a second tab moves the row to 07-qas without a reload', !!live, { socket_open: !!sockOpen })
   await shot(p2, '03-second-tab-live')
   await p2.close()
   await p.bringToFront()
@@ -268,8 +273,8 @@ try {
     const g = el && el.closest('.issues-group')
     return el ? { status: g && g.getAttribute('data-status'), priority: el.getAttribute('data-priority'), level: el.getAttribute('data-level') } : null
   }, key), 30000)
-  step('7 after a reload the row is still In Review, Urgent, level L',
-    !!row2 && row2.status === 'in_review' && row2.priority === '1' && row2.level === '4', { row: row2 })
+  step('7 after a reload the row is still 07-qas, prio 1, level L',
+    !!row2 && row2.status === 'qas' && row2.priority === '1' && row2.level === '4', { row: row2 })
   await p.click(`[data-test=issues-row][data-key="${key}"]`)
   await p.waitForSelector('[data-test=issues-deadline]', { visible: true, timeout: 10000 })
   const dlAfter = await p.evaluate(() => document.querySelector('[data-test=issues-deadline]').value + 'T' + document.querySelector('[data-test=issues-deadline-time]').value)

@@ -839,7 +839,15 @@
     "subtasks": "Použduotys",
     "add_subtask": "Pridėti použduotį",
     "subtask_placeholder": "Naujos použduoties pavadinimas",
-    "parent_issue": "Tėvas"
+    "parent_issue": "Tėvas",
+    "status_hint": {
+      "eval": "vertinimas",
+      "todo": "atlikti",
+      "wip": "vykdoma",
+      "diss": "atmesta",
+      "qas": "kokybės užtikrinimas",
+      "done": "atlikta"
+    }
   },
   "markdown": {
     "show_source": "Rodyti šaltinį",

@@ -11,8 +11,14 @@ import { ISSUE_CHANNEL } from './parent-section.mjs'
 export const ISSUE_KINDS = ['epic', 'feature', 'issue', 'subtask']
 export const isTopKind = (k) => k === 'epic' || k === 'feature'
 
-/** Linear's workflow, in list order (issues-v1 §2). */
-export const ISSUE_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'canceled']
+/** The owner's statuses in list order (rdb 0054, topic f2c32da2): shown as
+ *  01-eval, 02-todo, 03-wip, 03-diss, 07-qas, 09-done (issues-v1 §2). */
+export const ISSUE_STATUSES = ['eval', 'todo', 'wip', 'diss', 'qas', 'done']
+/** a first-set status (before rdb 0054) -> its successor */
+const LEGACY_STATUS = { backlog: 'eval', in_progress: 'wip', in_review: 'qas', canceled: 'diss' }
+export const normalizeStatus = (s) => LEGACY_STATUS[s] || s
+/** prio (rdb 0054, topic d81cbf47): 1 highest .. 5 lowest, 5 for a new issue */
+export const PRIO_DEFAULT = 5
 
 /** One issue as the hub sent it, with every field present and typed. */
 export function normalizeIssue(raw) {
@@ -29,8 +35,8 @@ export function normalizeIssue(raw) {
     number: Number(r.number) || 0,
     title: String(r.title || ''),
     description: String(r.description || ''),
-    status: ISSUE_STATUSES.includes(r.status) ? r.status : 'backlog',
-    priority: Number(r.priority) || 0,
+    status: ISSUE_STATUSES.includes(normalizeStatus(r.status)) ? normalizeStatus(r.status) : 'eval',
+    priority: Number(r.priority) || PRIO_DEFAULT,
     level: Number(r.level) || 0,
     assignee: String(r.assignee || ''),
     labels,
@@ -52,7 +58,7 @@ export function normalizeLabel(raw) {
   return { id: String(r.id || ''), name: String(r.name || r.id || ''), color: String(r.color || '#6b7280') }
 }
 
-const prioRank = (p) => (Number(p) === 0 ? 6 : Number(p))
+const prioRank = (p) => Number(p) || PRIO_DEFAULT
 const ms = (s) => {
   const t = Date.parse(String(s || ''))
   return Number.isFinite(t) ? t : NaN
@@ -166,9 +172,10 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       out.kind = b.kind
       if (isTopKind(b.kind)) out.parent = ''
     }
+    out.status = normalizeStatus(out.status)
     if (out.status !== i.status) {
       out.completed_at = out.status === 'done' ? now() : ''
-      out.canceled_at = out.status === 'canceled' ? now() : ''
+      out.canceled_at = out.status === 'diss' ? now() : ''
     }
     out.updated_by = by
     out.updated_at = now()
@@ -177,6 +184,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
   const check = (i) => {
     if (!String(i.title || '').trim()) throw mockErr(400, 'bad_issue')
     if (!ISSUE_STATUSES.includes(i.status)) throw mockErr(400, 'bad_issue')
+    if (!(i.priority >= 1 && i.priority <= 5)) throw mockErr(400, 'bad_issue')
     if (i.labels.some((l) => !labels.some((x) => x.id === l))) throw mockErr(400, 'unknown_label')
     const kids = issues.some((x) => x.parent && x.parent === i.key)
     if (isTopKind(i.kind)) {
@@ -208,7 +216,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
   const summaries = () => issues.filter((e) => isTopKind(e.kind)).map((e) => {
     const mine = issues.filter((i) => !isTopKind(i.kind) && i.parent === e.key)
     const counts = Object.fromEntries(ISSUE_STATUSES.map((st) => [st, mine.filter((i) => i.status === st).length]))
-    return { key: e.key, kind: e.kind, number: e.number, title: e.title, status: e.status, total: mine.length, done: counts.done, canceled: counts.canceled, counts }
+    return { key: e.key, kind: e.kind, number: e.number, title: e.title, status: e.status, total: mine.length, done: counts.done, canceled: counts.diss, counts }
   })
   return {
     list(query = '') {
@@ -230,7 +238,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       const at = now()
       const lbl = Array.isArray(body.labels) ? body.labels : []
       const kind = isTopKind(body.kind) ? body.kind : lbl.includes('epic') ? 'epic' : 'issue'
-      const i = normalizeIssue({ status: 'backlog', ...body, kind, labels: lbl, parent: isTopKind(kind) ? '' : (body.epic || body.parent || ''), key: `SPL-${last + 1}`, number: last + 1,
+      const i = normalizeIssue({ status: 'eval', ...body, kind, labels: lbl, parent: isTopKind(kind) ? '' : (body.epic || body.parent || ''), key: `SPL-${last + 1}`, number: last + 1,
         task_id: `00000000-0000-4000-8000-${String(last + 1).padStart(12, '0')}`, channel: ISSUE_CHANNEL,
         created_by: me, created_at: at, updated_by: me, updated_at: at })
       check(i)

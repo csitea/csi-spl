@@ -839,7 +839,15 @@
     "subtasks": "Alitehtävät",
     "add_subtask": "Lisää alitehtävä",
     "subtask_placeholder": "Uuden alitehtävän otsikko",
-    "parent_issue": "Ylätaso"
+    "parent_issue": "Ylätaso",
+    "status_hint": {
+      "eval": "arviointi",
+      "todo": "tehtävä",
+      "wip": "työn alla",
+      "diss": "hylätty",
+      "qas": "laadunvarmistus",
+      "done": "valmis"
+    }
   },
   "markdown": {
     "show_source": "Näytä lähdeteksti",

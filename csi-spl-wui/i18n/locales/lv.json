@@ -839,7 +839,15 @@
     "subtasks": "Apakšuzdevumi",
     "add_subtask": "Pievienot apakšuzdevumu",
     "subtask_placeholder": "Jaunā apakšuzdevuma nosaukums",
-    "parent_issue": "Vecāks"
+    "parent_issue": "Vecāks",
+    "status_hint": {
+      "eval": "izvērtēšana",
+      "todo": "jāizdara",
+      "wip": "procesā",
+      "diss": "atmests",
+      "qas": "kvalitātes nodrošināšana",
+      "done": "pabeigts"
+    }
   },
   "markdown": {
     "show_source": "Rādīt avotu",

@@ -839,7 +839,15 @@
     "subtasks": "Subtasks",
     "add_subtask": "Add subtask",
     "subtask_placeholder": "New subtask title",
-    "parent_issue": "Parent"
+    "parent_issue": "Parent",
+    "status_hint": {
+      "eval": "evaluation",
+      "todo": "to do",
+      "wip": "work in progress",
+      "diss": "discard",
+      "qas": "quality assurance",
+      "done": "done"
+    }
   },
   "markdown": {
     "show_source": "Show source",

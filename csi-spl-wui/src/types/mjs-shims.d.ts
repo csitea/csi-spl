@@ -1033,7 +1033,7 @@ declare module '~/utils/event-log.mjs' {
 }
 
 declare module '~/utils/issues.mjs' {
-  export type IssueStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'canceled'
+  export type IssueStatus = 'eval' | 'todo' | 'wip' | 'diss' | 'qas' | 'done'
   export interface Issue {
     kind: 'epic' | 'feature' | 'issue' | 'subtask'
     epic: string
@@ -1106,6 +1106,8 @@ declare module '~/utils/issues.mjs' {
   export interface IssueGroup { status: IssueStatus, count: number, issues: Issue[] }
   export const ISSUE_STATUSES: IssueStatus[]
   export const ISSUE_KINDS: string[]
+  export const PRIO_DEFAULT: number
+  export function normalizeStatus(s: string): string
   export function isTopKind(kind: string): boolean
   export const ISSUE_PRIORITIES: number[]
   export const ISSUE_LEVELS: number[]
@@ -1155,6 +1157,9 @@ declare module '~/utils/issues-view.mjs' {
   export function loadIssuePane(store?: unknown): number
   export function saveIssuePane(width: number, store?: unknown): boolean
   export function epicProgress(e: { total?: number, done?: number, canceled?: number }): number
+  export const STATUS_LABEL: Record<string, string>
+  export function statusLabel(s: string): string
+  export function statusHintKey(s: string): string
   export const DEADLINE_FIRST_HOUR: number
   export const DEADLINE_LAST_HOUR: number
   export const DEADLINE_STEP_MIN: number

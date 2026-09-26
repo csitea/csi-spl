@@ -839,7 +839,15 @@
     "subtasks": "Podúlohy",
     "add_subtask": "Pridať podúlohu",
     "subtask_placeholder": "Názov novej podúlohy",
-    "parent_issue": "Rodič"
+    "parent_issue": "Rodič",
+    "status_hint": {
+      "eval": "hodnotenie",
+      "todo": "na spracovanie",
+      "wip": "rozpracované",
+      "diss": "zahodené",
+      "qas": "kontrola kvality",
+      "done": "hotovo"
+    }
   },
   "markdown": {
     "show_source": "Zobraziť zdroj",

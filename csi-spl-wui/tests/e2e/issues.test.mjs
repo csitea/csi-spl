@@ -91,13 +91,13 @@ try {
     { body, deadlineType, first: times[0], last: times[times.length - 1], n: times.length, side })
 
   await p.click('[data-test=issues-status]')
-  await p.waitForSelector('[data-test=issues-menu-option][data-value="in_progress"]', { visible: true, timeout: 5000 })
-  await p.click('[data-test=issues-menu-option][data-value="in_progress"]')
+  await p.waitForSelector('[data-test=issues-menu-option][data-value="wip"]', { visible: true, timeout: 5000 })
+  await p.click('[data-test=issues-menu-option][data-value="wip"]')
   await p.waitForFunction(() => {
-    const group = document.querySelector('[data-status="in_progress"]')
+    const group = document.querySelector('[data-status="wip"]')
     return Boolean(group && group.querySelector('[data-key="SPL-2"]'))
   }, { timeout: 5000 }).catch(() => null)
-  ok('5 changing status moves the row into that group', Boolean(await p.$('[data-status="in_progress"] [data-key="SPL-2"]')))
+  ok('5 changing status moves the row into that group', Boolean(await p.$('[data-status="wip"] [data-key="SPL-2"]')))
 
   await p.click('[data-test=issues-row][data-key="SPL-3"]')
   await p.waitForFunction(() => {

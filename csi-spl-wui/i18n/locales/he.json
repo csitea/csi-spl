@@ -839,7 +839,15 @@
     "subtasks": "תת־משימות",
     "add_subtask": "הוספת תת־משימה",
     "subtask_placeholder": "כותרת תת־המשימה החדשה",
-    "parent_issue": "הורה"
+    "parent_issue": "הורה",
+    "status_hint": {
+      "eval": "הערכה",
+      "todo": "לביצוע",
+      "wip": "בעבודה",
+      "diss": "נזנח",
+      "qas": "בקרת איכות",
+      "done": "בוצע"
+    }
   },
   "markdown": {
     "show_source": "הצג מקור",

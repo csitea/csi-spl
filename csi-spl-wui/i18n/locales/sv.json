@@ -839,7 +839,15 @@
     "subtasks": "Delaktiviteter",
     "add_subtask": "Lägg till delaktivitet",
     "subtask_placeholder": "Titel på den nya delaktiviteten",
-    "parent_issue": "Förälder"
+    "parent_issue": "Förälder",
+    "status_hint": {
+      "eval": "utvärdering",
+      "todo": "att göra",
+      "wip": "pågår",
+      "diss": "förkastad",
+      "qas": "kvalitetssäkring",
+      "done": "klar"
+    }
   },
   "markdown": {
     "show_source": "Visa källa",

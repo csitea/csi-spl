@@ -7,8 +7,13 @@ import { ISSUE_STATUSES, matchIssue, normalizeIssue, normalizeLabel, sortIssues 
 import { storageGetJson, storageSetJson } from './prefs.mjs'
 import { PANE_WIDTHS_KEY } from './pane-widths.mjs'
 
-/** Prio is the number 1..5. 0 is a row that never picked one. */
+/** Prio is the number 1..5 (rdb 0055 moved the old 0 "none" to 5). */
 export const ISSUE_PRIORITIES = [1, 2, 3, 4, 5]
+/** The owner's numbered status labels (not translated: they are the owner's
+ *  codes); the hover text is issues.status_hint.<id>. */
+export const STATUS_LABEL = { eval: '01-eval', todo: '02-todo', wip: '03-wip', diss: '03-diss', qas: '07-qas', done: '09-done' }
+export const statusLabel = (s) => STATUS_LABEL[s] || String(s || '')
+export const statusHintKey = (s) => `issues.status_hint.${s}`
 
 /** The owner's "level": Linear's t-shirt estimate. 0 none, 1 XS .. 5 XL. */
 export const ISSUE_LEVELS = [0, 1, 2, 3, 4, 5]

@@ -839,7 +839,15 @@
     "subtasks": "Alt işler",
     "add_subtask": "Alt iş ekle",
     "subtask_placeholder": "Yeni alt işin başlığı",
-    "parent_issue": "Üst öge"
+    "parent_issue": "Üst öge",
+    "status_hint": {
+      "eval": "değerlendirme",
+      "todo": "yapılacak",
+      "wip": "sürüyor",
+      "diss": "vazgeçildi",
+      "qas": "kalite güvencesi",
+      "done": "bitti"
+    }
   },
   "markdown": {
     "show_source": "Kaynağı göster",

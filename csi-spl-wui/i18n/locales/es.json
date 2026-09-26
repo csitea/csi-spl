@@ -839,7 +839,15 @@
     "subtasks": "Subtareas",
     "add_subtask": "Añadir subtarea",
     "subtask_placeholder": "Título de la nueva subtarea",
-    "parent_issue": "Padre"
+    "parent_issue": "Padre",
+    "status_hint": {
+      "eval": "evaluación",
+      "todo": "por hacer",
+      "wip": "en curso",
+      "diss": "descartado",
+      "qas": "control de calidad",
+      "done": "hecho"
+    }
   },
   "markdown": {
     "show_source": "Ver fuente",

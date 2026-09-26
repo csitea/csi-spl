@@ -839,7 +839,15 @@
     "subtasks": "Subtaken",
     "add_subtask": "Subtaak toevoegen",
     "subtask_placeholder": "Titel van de nieuwe subtaak",
-    "parent_issue": "Ouder"
+    "parent_issue": "Ouder",
+    "status_hint": {
+      "eval": "evaluatie",
+      "todo": "te doen",
+      "wip": "in uitvoering",
+      "diss": "afgewezen",
+      "qas": "kwaliteitscontrole",
+      "done": "klaar"
+    }
   },
   "markdown": {
     "show_source": "Bron tonen",

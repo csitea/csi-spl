@@ -839,7 +839,15 @@
     "subtasks": "Alamülesanded",
     "add_subtask": "Lisa alamülesanne",
     "subtask_placeholder": "Uue alamülesande pealkiri",
-    "parent_issue": "Vanem"
+    "parent_issue": "Vanem",
+    "status_hint": {
+      "eval": "hindamine",
+      "todo": "teha",
+      "wip": "töös",
+      "diss": "loobutud",
+      "qas": "kvaliteedikontroll",
+      "done": "tehtud"
+    }
   },
   "markdown": {
     "show_source": "Näita lähteteksti",

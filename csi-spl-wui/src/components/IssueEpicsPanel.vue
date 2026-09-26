@@ -11,7 +11,7 @@
       v-for="e in issueEpics"
       :key="e.key"
       class="nav-item epic-row"
-      :class="{ active: epicQuery === e.key, 'epic-row--closed': e.status === 'done' || e.status === 'canceled' }"
+      :class="{ active: epicQuery === e.key, 'epic-row--closed': e.status === 'done' || e.status === 'diss' }"
       data-testid="sidebar-epic"
       :data-key="e.key"
       :title="`${e.key} ${e.title}`"

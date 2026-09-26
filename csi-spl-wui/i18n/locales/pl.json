@@ -839,7 +839,15 @@
     "subtasks": "Podzadania",
     "add_subtask": "Dodaj podzadanie",
     "subtask_placeholder": "Tytuł nowego podzadania",
-    "parent_issue": "Rodzic"
+    "parent_issue": "Rodzic",
+    "status_hint": {
+      "eval": "ocena",
+      "todo": "do zrobienia",
+      "wip": "w toku",
+      "diss": "odrzucone",
+      "qas": "kontrola jakości",
+      "done": "zrobione"
+    }
   },
   "markdown": {
     "show_source": "Pokaż źródło",

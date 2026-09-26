@@ -839,7 +839,15 @@
     "subtasks": "Subsarcini",
     "add_subtask": "Adaugă subsarcină",
     "subtask_placeholder": "Titlul noii subsarcini",
-    "parent_issue": "Părinte"
+    "parent_issue": "Părinte",
+    "status_hint": {
+      "eval": "evaluare",
+      "todo": "de făcut",
+      "wip": "în lucru",
+      "diss": "abandonat",
+      "qas": "asigurarea calității",
+      "done": "gata"
+    }
   },
   "markdown": {
     "show_source": "Arată sursa",

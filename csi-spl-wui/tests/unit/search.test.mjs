@@ -343,8 +343,8 @@ describe('1.1 operators on an older catalogue', () => {
     }
     assert.equal(once.find((o) => o.op === 'kind:').example, 'kind:message')
     assert.equal(once.find((o) => o.op === 'channel:').example, 'channel:#lobby')
-    assert.equal(once.find((o) => o.op === 'status:').example, 'status:in_progress')
-    assert.deepEqual(once.find((o) => o.op === 'priority:').values, ['0', '1', '2', '3', '4'])
+    assert.equal(once.find((o) => o.op === 'status:').example, 'status:wip')
+    assert.deepEqual(once.find((o) => o.op === 'prio:').values, ['1', '2', '3', '4', '5']) // rdb 0054
     assert.deepEqual(once.find((o) => o.op === 'assignee:').values, ['me', 'none'])
     assert.equal(once.find((o) => o.op === 'label:').example, 'label:bug')
     assert.equal(ensureSearchOperators(once), once)
@@ -461,10 +461,10 @@ describe('issue hits (grammar 1.2)', () => {
   })
   it('the fallback catalogue offers issue operators', () => {
     const ops = SEARCH_OPERATORS.map((o) => o.op)
-    for (const op of ['status:', 'priority:', 'assignee:', 'label:']) assert.ok(ops.includes(op), op)
+    for (const op of ['status:', 'prio:', 'assignee:', 'label:']) assert.ok(ops.includes(op), op)
     assert.ok(SEARCH_OPERATORS.find((o) => o.op === 'type:').values.includes('issue'))
-    assert.deepEqual(completeOperators('status:in').map((c) => c.insert), ['status:in_progress ', 'status:in_review '])
-    assert.deepEqual(completeOperators('priority:').map((c) => c.insert), ['priority:0 ', 'priority:1 ', 'priority:2 ', 'priority:3 ', 'priority:4 '])
+    assert.deepEqual(completeOperators('status:w').map((c) => c.insert), ['status:wip '])
+    assert.deepEqual(completeOperators('prio:').map((c) => c.insert), ['prio:1 ', 'prio:2 ', 'prio:3 ', 'prio:4 ', 'prio:5 '])
     assert.deepEqual(completeOperators('assignee:').map((c) => c.insert), ['assignee:me ', 'assignee:none '])
     assert.deepEqual(completeOperators('label:'), [])
     const page = read('src/pages/search.vue')

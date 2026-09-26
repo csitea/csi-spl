@@ -18,9 +18,9 @@
           <option value="updated">{{ t('issues.sort_updated') }}</option>
           <option value="created">{{ t('issues.sort_created') }}</option>
         </select>
-        <select v-model="statusF" data-test="issues-filter-status" :aria-label="t('issues.filter_status')">
+        <select v-model="statusF" data-test="issues-filter-status" :aria-label="t('issues.filter_status')" :title="statusF ? t(statusHintKey(statusF)) : undefined">
           <option value="">{{ t('issues.filter_status') }}: {{ t('issues.filter_all') }}</option>
-          <option v-for="s in ISSUE_STATUSES" :key="s" :value="s">{{ t(statusKey(s)) }}</option>
+          <option v-for="s in ISSUE_STATUSES" :key="s" :value="s" :title="t(statusHintKey(s))">{{ statusLabel(s) }}</option>
         </select>
         <select v-model="priorityF" data-test="issues-filter-priority" :aria-label="t('issues.filter_priority')">
           <option value="">{{ t('issues.filter_priority') }}: {{ t('issues.filter_all') }}</option>
@@ -56,7 +56,7 @@
             @click="toggleGroup(g.status)"
           >
             <IssueGlyph :name="statusIcon(g.status)" :size="16" :class="'issues-st issues-st--' + g.status" />
-            <span>{{ t(statusKey(g.status)) }}</span>
+            <span :title="t(statusHintKey(g.status))">{{ statusLabel(g.status) }}</span>
             <span class="issues-count" data-test="issues-group-count">{{ g.count }}</span>
           </button>
           <div v-show="!isCollapsed(g.status)">
@@ -75,7 +75,7 @@
               @keydown.enter.prevent="choose(issue)"
             >
               <button type="button" class="issues-iconbtn" data-test="issues-row-priority" :aria-label="t('issues.field_priority')" @click.stop="openMenu('priority', issue, $event)">
-                <span class="issues-pri-num">{{ issue.priority >= 1 && issue.priority <= 5 ? issue.priority : '–' }}</span>
+                <span class="issues-prio" data-test="issues-row-prio" :class="'issues-prio--' + issue.priority">{{ issue.priority }}</span>
               </button>
               <span class="issues-key">{{ issue.key }}</span>
               <span class="issues-title">{{ issue.title }}</span>
@@ -153,10 +153,10 @@
         </button>
         <button type="button" class="issues-prop" data-test="issues-status" @click="openMenu('status', detailOrDraft(), $event)">
           <IssueGlyph :name="statusIcon(form.status)" :size="16" />
-          <span>{{ t(statusKey(form.status)) }}</span>
+          <span :title="t(statusHintKey(form.status))">{{ statusLabel(form.status) }}</span>
         </button>
         <button type="button" class="issues-prop" data-test="issues-priority" @click="openMenu('priority', detailOrDraft(), $event)">
-          <span>{{ t('issues.field_priority') }} {{ form.priority >= 1 && form.priority <= 5 ? form.priority : '–' }}</span>
+          <span>{{ t('issues.field_priority') }} {{ form.priority }}</span>
         </button>
         <button type="button" class="issues-prop" data-test="issues-level" @click="openMenu('level', detailOrDraft(), $event)">
           <span class="issues-level">{{ levelShort(form.level) || t('issues.level_none') }}</span>
@@ -268,7 +268,7 @@ import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import { tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { shownPerson } from '~/utils/channel-feed.mjs'
-import { ISSUE_STATUSES, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
+import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import {
   ISSUE_LEVELS,
   ISSUE_PANE_DEFAULT,
@@ -288,7 +288,8 @@ import {
   loadIssuePane,
   localInputToDeadline,
   saveIssuePane,
-  statusKey,
+  statusHintKey,
+  statusLabel,
   stepKey,
   visibleOrder,
 } from '~/utils/issues-view.mjs'
@@ -296,12 +297,12 @@ import {
 type Note = { msg_id: string, from: string, from_box: string, body: string, ts: string }
 
 const STATUS_ICON: Record<string, string> = {
-  backlog: 'status-backlog',
+  eval: 'status-backlog',
   todo: 'status-todo',
-  in_progress: 'status-progress',
-  in_review: 'status-review',
+  wip: 'status-progress',
+  diss: 'status-canceled',
+  qas: 'status-review',
   done: 'status-done',
-  canceled: 'status-canceled',
 }
 function statusIcon(status: string): string {
   return STATUS_ICON[status] || 'status-backlog'
@@ -330,7 +331,7 @@ const assigneeF = ref('')
 const labelF = ref('')
 const fromF = ref('')
 const untilF = ref('')
-const collapsed = ref<Record<string, boolean>>({ done: true, canceled: true })
+const collapsed = ref<Record<string, boolean>>({ done: true, diss: true })
 const cursorKey = ref('')
 const openKey = ref('')
 const creating = ref(false)
@@ -347,7 +348,7 @@ const pageEl = ref<HTMLElement | null>(null)
 const detailW = ref(ISSUE_PANE_DEFAULT)
 const detailRoom = ref(720)
 const draft = reactive({
-  title: '', description: '', status: 'todo', priority: 1, level: 0,
+  title: '', description: '', status: 'todo', priority: PRIO_DEFAULT, level: 0,
   assignee: '', labels: [] as string[], deadlineLocal: '',
   epic: '', kind: 'issue' as 'issue' | 'epic' | 'feature',
 })
@@ -598,13 +599,13 @@ function startCreate() {
   draft.title = ''
   draft.description = ''
   draft.status = 'todo'
-  draft.priority = 1
+  draft.priority = PRIO_DEFAULT
   draft.level = 0
   draft.assignee = ''
   draft.labels = []
   draft.deadlineLocal = ''
   draft.kind = 'issue'
-  draft.epic = epicF.value || epics.value.find((e) => e.status !== 'done' && e.status !== 'canceled')?.key || epics.value[0]?.key || ''
+  draft.epic = epicF.value || epics.value.find((e) => e.status !== 'done' && e.status !== 'diss')?.key || epics.value[0]?.key || ''
   menu.value = null
   saveError.value = ''
   void nextTick(() => titleEl.value?.focus())
@@ -627,7 +628,7 @@ function detailOrDraft(): Issue {
 
 const menuOptions = computed(() => {
   const kind = menu.value?.kind || ''
-  if (kind === 'status') return ISSUE_STATUSES.map((s) => ({ value: s, label: t(statusKey(s)) }))
+  if (kind === 'status') return ISSUE_STATUSES.map((s) => ({ value: s, label: `${statusLabel(s)} · ${t(statusHintKey(s))}` }))
   if (kind === 'priority') return ISSUE_PRIORITIES.map((n) => ({ value: String(n), label: String(n) }))
   if (kind === 'level') return ISSUE_LEVELS.map((n) => ({ value: String(n), label: LEVEL_SHORT[n] || t(levelKey(n)) }))
   if (kind === 'assign') return [{ value: '', label: t('issues.no_assignee') }, ...assigneeOptions.value.map((p) => ({ value: p.id, label: p.label }))]
@@ -1108,14 +1109,23 @@ onUnmounted(() => {
   padding: 0 4px;
   font-size: 0.75rem;
 }
-.issues-pri--1 { color: var(--color-danger); }
-.issues-pri--2 { color: var(--color-warn); }
-.issues-pri--3 { color: var(--color-accent); }
-.issues-pri--4, .issues-pri--0 { color: var(--color-muted); }
-.issues-st--in_progress { color: var(--color-warn); }
-.issues-st--in_review { color: var(--color-accent-2); }
-.issues-st--done { color: var(--color-ok); }
-.issues-st--canceled, .issues-st--backlog { color: var(--color-muted); }
+.issues-prio {
+  display: inline-block;
+  min-width: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.issues-prio--1 { color: var(--color-danger); }
+.issues-prio--2 { color: var(--color-warn); }
+.issues-prio--3 { color: var(--color-accent); }
+.issues-prio--4, .issues-prio--5 { color: var(--color-muted); }
+.issues-st--wip { color: var(--color-warn); }
+.issues-st--qas { color: var(--color-accent-2); }
+.issues-st--done, .issues-st--eval { color: var(--color-ok); }
+.issues-st--diss, .issues-st--todo { color: var(--color-muted); }
 .issues-detail {
   flex: 0 0 var(--issues-detail-w, 380px);
   width: var(--issues-detail-w, 380px);

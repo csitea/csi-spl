@@ -839,7 +839,15 @@
     "subtasks": "Подзадаци",
     "add_subtask": "Додај подзадатак",
     "subtask_placeholder": "Наслов новог подзадатка",
-    "parent_issue": "Родитељ"
+    "parent_issue": "Родитељ",
+    "status_hint": {
+      "eval": "процена",
+      "todo": "за рад",
+      "wip": "у току",
+      "diss": "одбачено",
+      "qas": "контрола квалитета",
+      "done": "готово"
+    }
   },
   "markdown": {
     "show_source": "Прикажи извор",

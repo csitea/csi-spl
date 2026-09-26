@@ -386,6 +386,9 @@ html.pane-dragging * {
 .kind-reject { color: var(--color-danger); border-color: var(--color-danger); }
 .kind-note { color: var(--color-warn); border-color: var(--color-warn); }
 .kind-blocker { color: var(--color-danger-fg); border-color: var(--color-danger); background: var(--color-danger); }
+/* owner 2026-09-26: the bare glyph is the icon, no frame around it; only the
+   blocker keeps its red fill so it stands out */
+.kind--icon:not(.kind-blocker) { border-color: transparent; }
 .replies {
   margin-top: 6px;
   font-size: 0.75rem;

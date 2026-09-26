@@ -1,8 +1,6 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { useOmniboxStore } from '~/stores/omnibox'
-import { sendKind } from '~/utils/msg-kind.mjs'
 import { emptySendError, isEmptySend, shouldAutoResend } from '~/utils/send-failure.mjs'
 import {
   applyChannelFrame,
@@ -295,7 +293,6 @@ export const useChannelStore = defineStore('channel', () => {
       text,
       parent_task_id: parentTaskId,
       is_parent: isParent === 0 ? 0 : 1,
-      kind: useOmniboxStore().kind,
       /* refs, as on the live path: a raw File on the row renders a card with no
          file_id, so the mock could show neither Download nor a preview */
       files: await toFileRefs(files),
@@ -349,7 +346,7 @@ export const useChannelStore = defineStore('channel', () => {
     const parentBit: 0 | 1 = isParent === 0 ? 0 : 1
     const frame: SendFrame = {
       task_id: parentTaskId || newId(),
-      kind: sendKind(asDm ? 'note' : parsed.kind, useOmniboxStore().kind),
+      kind: asDm ? 'note' : parsed.kind,
       body: asDm ? text : parsed.body,
       files: await toFileRefs(files),
       to: asDm ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),

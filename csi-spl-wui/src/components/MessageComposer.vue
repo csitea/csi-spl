@@ -211,19 +211,6 @@
           @mousedown.prevent
           :aria-disabled="cannotSend ? 'true' : 'false'"
         >{{ busy ? t('composer.sending') : t('composer.send') }}</button>
-        <!-- SPL-952: the kind of the next send; automatic = @mention is a task, else a note -->
-        <label v-if="!searchMode && global" class="composer-kind">
-          <KindBadge v-if="omniboxKind.kind" :kind="omniboxKind.kind" />
-          <select
-            v-model="omniboxKind.kind"
-            data-test="composer-kind"
-            :aria-label="t('composer.kind_label')"
-            :title="t('composer.kind_label')"
-            @mousedown.stop
-          >
-            <option v-for="k in PICK_KINDS" :key="k" :value="k">{{ k ? t('feed.kind.' + k) : t('composer.kind_auto') }}</option>
-          </select>
-        </label>
       </div>
     </div>
   </form>
@@ -234,8 +221,6 @@ import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
 import { useViewerStore } from '~/stores/viewer'
-import { useOmniboxStore } from '~/stores/omnibox'
-import { PICK_KINDS } from '~/utils/msg-kind.mjs'
 import { closeOpenFence, enterAction, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
 import { omniboxFocusHeight, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
 import { sendLimitError } from '~/utils/code-view.mjs'
@@ -533,7 +518,6 @@ function leaveSearch() {
 defineExpose({ setText, focus: focusInput, restore, leaveSearch })
 
 const { t, te } = useI18n({ useScope: 'global' })
-const omniboxKind = useOmniboxStore()
 const syntaxOpen = ref(false)
 const syntaxId = useId()
 const fieldEl = ref<HTMLElement | null>(null)
@@ -1052,25 +1036,6 @@ textarea.in-code {
   justify-content: center;
 }
 .composer-send[aria-disabled='true'] { opacity: 0.45; }
-.composer-kind {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  gap: 4px;
-  height: var(--omnibox-rest);
-  /* Painted between the paperclip and Send. DOM order is Send, then this
-     select, so Tab from the field lands on Send (SPL-953). */
-  order: 1;
-}
-.composer-send { order: 2; }
-.composer-kind select {
-  font-size: 0.75rem;
-  color: var(--color-muted);
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 1px 4px;
-}
 .mention-list {
   list-style: none;
   margin: 0 0 8px;

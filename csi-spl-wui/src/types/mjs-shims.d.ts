@@ -92,8 +92,6 @@ declare module '~/utils/spool-client.mjs' {
       files?: unknown[]
       from?: string
       msg_id?: string
-      /** SPL-952: the composer's pick; empty = automatic */
-      kind?: string
     }): Promise<import('./spool').SpoolMessage>
     createChannel(opts: { channel_id?: string, name?: string, description?: string }): Promise<import('./spool').ChannelRow>
     listChannelMembers(channel: string): Promise<{ channel: string, default: boolean, members: string[], members_open_invite: boolean, created_by: string, agents: { id: string, box: string }[] }>

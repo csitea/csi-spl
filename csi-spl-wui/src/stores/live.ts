@@ -2,8 +2,6 @@ import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { usePaneFocus } from '~/stores/pane-focus'
-import { useOmniboxStore } from '~/stores/omnibox'
-import { sendKind } from '~/utils/msg-kind.mjs'
 import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, windowed, withoutMsg } from '~/utils/feed.mjs'
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { channelView, parseMention } from '~/utils/channel-feed.mjs'
@@ -232,8 +230,8 @@ function setup(key: 'main' | 'pane') {
         refs.push({ mode: 'blob', kind: 'file', file_id: up.file_id, sha256: up.sha256, bytes: up.bytes, name: f.name })
       }
       const parsed = parseMention(body)
-      const kind = sendKind(parsed.kind === 'task' ? 'task' : 'note', useOmniboxStore().kind)
-      const to = parsed.kind === 'task' ? parsed.to : undefined
+      const kind = parsed.kind === 'task' ? 'task' : 'note'
+      const to = kind === 'task' ? parsed.to : undefined
       const text = parsed.body
       const client = live.ensure()
       /* 013 US7 FR-013: shown at once under the msg_id we send; the pushed echo replaces it */

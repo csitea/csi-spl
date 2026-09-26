@@ -1,11 +1,11 @@
 // SPL-952: message kind badges. Every kind the hub accepts has a glyph, a
-// word in all 19 locales, and the composer's pick wins over the automatic kind.
+// word in all 19 locales.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { MSG_KINDS, PICK_KINDS, kindIcon, sendKind } from '../../src/utils/msg-kind.mjs'
+import { MSG_KINDS, kindIcon } from '../../src/utils/msg-kind.mjs'
 import { V1_KINDS, verbosityOf } from '../../src/utils/verbosity.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -33,25 +33,14 @@ describe('msg kinds (SPL-952)', () => {
     assert.equal(kindIcon(undefined), '')
   })
 
-  it('every locale names every kind and the picker', () => {
+  it('every locale names every kind', () => {
     const files = readdirSync(LOCALES).filter((f) => f.endsWith('.json'))
     assert.equal(files.length, 19)
     for (const f of files) {
       const d = JSON.parse(readFileSync(join(LOCALES, f), 'utf8'))
       for (const k of MSG_KINDS) assert.ok(d.feed.kind[k], `${f} feed.kind.${k}`)
-      assert.ok(d.composer.kind_label, `${f} composer.kind_label`)
-      assert.ok(d.composer.kind_auto, `${f} composer.kind_auto`)
+      assert.equal(d.composer.kind_auto, undefined, `${f} the composer picker is gone`)
     }
-  })
-
-  it('the pick wins; empty or unknown falls back to automatic', () => {
-    assert.equal(sendKind('note', ''), 'note')
-    assert.equal(sendKind('task', undefined), 'task')
-    assert.equal(sendKind('note', 'blocker'), 'blocker')
-    assert.equal(sendKind('task', 'msg'), 'msg')
-    assert.equal(sendKind('note', 'result'), 'note', 'result is not a person\'s pick')
-    assert.equal(sendKind('note', 'bogus'), 'note')
-    assert.ok(PICK_KINDS.includes(''))
   })
 
   it('a blocker shows even at minimal verbosity; msg is normal', () => {

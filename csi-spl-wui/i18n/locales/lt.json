@@ -397,9 +397,7 @@
     "send_failed_closed": "Neišsiųsta — ryšys nutrūko. Jūsų tekstas išsaugotas.",
     "send_failed_timeout": "Neišsiųsta — hub neatsakė laiku. Jūsų tekstas išsaugotas.",
     "send_retry": "Bandyti dar kartą",
-    "send_failed_empty": "Nėra ko siųsti — vien paminėjimas nėra žinutė. Pridėkite teksto arba prisekite failą.",
-    "kind_label": "Žinutės tipas",
-    "kind_auto": "automatiškai"
+    "send_failed_empty": "Nėra ko siųsti — vien paminėjimas nėra žinutė. Pridėkite teksto arba prisekite failą."
   },
   "feed": {
     "unknown_author": "nežinomas",

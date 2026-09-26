@@ -397,9 +397,7 @@
     "send_failed_closed": "No enviado: se cortó la conexión. Tu texto sigue aquí.",
     "send_failed_timeout": "No enviado: el hub no respondió a tiempo. Tu texto sigue aquí.",
     "send_retry": "Reintentar",
-    "send_failed_empty": "No hay nada que enviar: una mención por sí sola no es un mensaje. Añade texto o adjunta un archivo.",
-    "kind_label": "Tipo de mensaje",
-    "kind_auto": "automático"
+    "send_failed_empty": "No hay nada que enviar: una mención por sí sola no es un mensaje. Añade texto o adjunta un archivo."
   },
   "feed": {
     "unknown_author": "desconocido",
